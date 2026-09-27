@@ -8,6 +8,9 @@ static SDL_Renderer* ren;
 static int W = 320, H = 240;
 static bool gfx_on;
 static bool quit;
+// Test hooks: ZINC_FRAMES=n quits after n frames; ZINC_SHOT=file.bmp saves the last frame.
+static long frames_left = -1;
+static const char* shot_path;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
@@ -19,6 +22,8 @@ void hal_init(const HalConfig* cfg) {
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   SDL_SetRenderLogicalPresentation(ren, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   SDL_SetRenderVSync(ren, 1);
+  if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
+  shot_path = getenv("ZINC_SHOT");
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;
@@ -54,6 +59,7 @@ void hal_poll_input(HalInput* in) {
   SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
   if (ren) SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my);
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
+  if (frames_left >= 0 && frames_left-- == 0) quit = true;
   in->quit = quit;
 }
 
@@ -79,6 +85,9 @@ void hal_present(const HalDrawList* dl) {
         break;
       }
     }
+  }
+  if (shot_path && frames_left == 0) {
+    if (SDL_Surface* sfc = SDL_RenderReadPixels(ren, nullptr)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
   }
   SDL_RenderPresent(ren);
 }
