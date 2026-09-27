@@ -133,3 +133,5 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
   ui.insert(root, app(), -1);
   ui.mount(root, background, onTick);
 }
+/** Markers for `import { Show, For } from 'zinc:ui/solid'`: the JSX lowering compiles these tags itself. */
+export const Show: i32 = 0, For: i32 = 1;

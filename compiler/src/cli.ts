@@ -44,10 +44,10 @@ function parseArgs(argv: string[]): Opts {
     else die(`unknown option ${a}`);
   }
   if (!o.entry && fs.existsSync('zinc.json')) o.entry = JSON.parse(fs.readFileSync('zinc.json', 'utf8')).entry ?? 'src/main.ts';
-  if (!o.entry) o.entry = fs.existsSync('src/main.ts') ? 'src/main.ts' : 'main.ts';
+  if (!o.entry) o.entry = ['src/main.ts', 'src/main.tsx', 'main.ts', 'main.tsx'].find(f => fs.existsSync(f)) ?? 'main.ts';
   if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory() && fs.existsSync(path.join(o.entry, 'zinc.json')))
     o.entry = path.join(o.entry, JSON.parse(fs.readFileSync(path.join(o.entry, 'zinc.json'), 'utf8')).entry ?? 'src/main.ts');
-  if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory()) o.entry = path.join(o.entry, fs.existsSync(path.join(o.entry, 'main.ts')) ? 'main.ts' : 'src/main.ts');
+  if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory()) { const d = o.entry; o.entry = path.join(d, ['main.ts', 'main.tsx', 'src/main.ts', 'src/main.tsx'].find(f => fs.existsSync(path.join(d, f))) ?? 'main.ts'); }
   if (!o.profile) o.profile = o.target;
   o.project = loadProject(o.entry);
   const over = o.project.targets[o.profile];
