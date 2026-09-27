@@ -1,86 +1,83 @@
 # Zinc (prototype)
 
-Zinc compiles a strict subset of TypeScript to native C++17, with no JavaScript engine on the device.
-Memory is reference counted (no tracing GC), and `sim` (plain Node.js) is the reference oracle:
-a program must print exactly the same bytes on `sim` and on every native target.
+Zinc compiles a strict subset of TypeScript to native C++17 — no JavaScript engine on the device — and links it
+with a small runtime (`zrt`, no STL/exceptions/RTTI) and one hardware layer per target. Memory is reference counted
+(plus arenas, pools, weak refs, TLSF heap). The `sim` target runs the same program on Node.js and is the oracle:
+every target must print exactly the same bytes (`zinc test` checks it).
 
-This repository is the first increment of the prototype described in the specification
-(*Zinc — Cahier des charges du prototype v1.0*). What works today, what does not, and why:
-**[docs/reports/STATUS.md](docs/reports/STATUS.md)**.
+**TS → C++ → native binary.** Node.js only runs the compiler (written in TypeScript) and the sim oracle;
+the executables Zinc produces do not need Node.
+
+Status, measurements and what is missing: **[docs/reports/STATUS.md](docs/reports/STATUS.md)**.
 
 ## Requirements
 
-- Node.js ≥ 23.6 (the compiler runs its TypeScript sources directly) and pnpm
+- Node.js ≥ 23.6 and pnpm (`pnpm install`)
 - CMake ≥ 3.20 and a C++17 compiler (Apple Clang or GCC)
-- SDL3 for graphical programs on macOS: `brew install sdl3`
-- Docker (optional) for the `linux` target when building from macOS
+- SDL3 for windowed programs on macOS (`brew install sdl3`)
+- Docker for cross targets (`linux`, `rpi1`, `ps1`, `ps2`, `esp32`); emscripten for `wasm` (`brew install emscripten`)
 
 ```sh
 pnpm install
-node compiler/bin/zinc.mjs doctor
+alias zinc="node $PWD/compiler/bin/zinc.mjs"
+zinc doctor
 ```
-
 
 ## Try it
 
 ```sh
-# console programs: same output on the Node oracle and natively
-node compiler/bin/zinc.mjs run examples/hello --target sim
-node compiler/bin/zinc.mjs run examples/hello                  # macos (native, SDL3 not needed)
-node compiler/bin/zinc.mjs run examples/lang --debug           # ASan + UBSan + leak report
-node compiler/bin/zinc.mjs run examples/lang --target linux    # GCC inside Docker (zinc/sdk-linux)
+zinc run examples/breakout                 # game (arrows/A-D/mouse, Space), SDL3 window
+zinc run examples/hero                     # animated Solid UI over a canvas
+zinc run examples/text/main-react.tsx      # same screen as main-solid.tsx, React model
+zinc run examples/iot-panel                # GPIO simulator, live chart, telemetry, OSC (X = button)
+zinc run examples/lang --target sim        # language tour on Node (the oracle)
+zinc run examples/breakout --target wasm   # browser: http://localhost:8080
+zinc run examples/breakout --profile ps1   # macOS window emulating the PS1 profile (Q20.12 fixed point, 320x240, 256 KiB heap)
+zinc run examples/lang --target rpi1       # ARMv6 hard-float binary under QEMU (arm1176)
+zinc run examples/hello --target esp32     # ESP-IDF firmware in Espressif's QEMU
+zinc build examples/hello --target ps2     # PS2 EE ELF (ps2dev)
+zinc test [--target rpi1|linux|ps1|esp32] [--profile ps1]   # conformance: sim oracle vs target, byte for byte
 
-# games (SDL3 window, 320x240 logical, scaled)
-node compiler/bin/zinc.mjs run examples/breakout               # arrows/A-D/mouse, Space to serve, Esc quits
-node compiler/bin/zinc.mjs run examples/bouncing-ball          # Up/Space: +100 balls, Down: reset, click: +1
-
-# small-target profile emulated on the Mac (numbers in f32, target resolution)
-node compiler/bin/zinc.mjs run examples/breakout --profile ps1
-
-# look at the generated C++ / JS
-node compiler/bin/zinc.mjs build examples/hello --emit=cpp
-node compiler/bin/zinc.mjs build examples/hello --target sim   # writes examples/hello/build/sim/*.js
-
-# parity check across sim / macos / linux
-scripts/parity.sh
+zinc init mygame --template game|cli|server|iot
+zinc dev                                   # rebuild + restart on save
+zinc export --target macos|linux|rpi1      # dist/<name>-<target>: single executable (assets embedded), scripts, systemd unit
+ZINC_TELEMETRY=udp://127.0.0.1:9999 zinc run examples/iot-panel & zinc monitor
 ```
 
-Headless hooks: `ZINC_FRAMES=n` stops a frame loop after `n` frames (sim, null HAL and SDL HAL),
-`ZINC_SHOT=out.bmp` saves the last frame of the SDL window.
+Debug builds (`--debug`) use ASan + UBSan and print a leak report. `ZINC_FRAMES=n` stops a frame loop after n frames,
+`ZINC_SHOT=out.bmp` saves the last frame, `ZINC_LOG_FORMAT=json` switches console output to JSON lines.
 
-## Commands
+## What the language covers
 
-| Command | What it does |
+Classes (inheritance, abstract, statics, accessors, `#private`), interfaces, generics (C++ templates), closures,
+enums, discriminated unions, tuples, destructuring, spread, `?.`/`??`/`??=`, `try/catch/finally` (status returns, no C++
+exceptions), `using`, `async/await` and generators (stackless frames), machine types (`i32`, `u8`, `f32`, `fx12`…),
+strings (UTF-8 storage, UTF-16 indices), arrays, `Map`/`Set`, JSON output, `console.*` with levels. Forbidden constructs
+(`eval`, `var`, `any` in strict profile, regex, prototype mutation…) are `Z1xxx` diagnostics.
+
+## Modules
+
+| Import | What |
 | --- | --- |
-| `zinc check [entry] [--json]` | TypeScript typecheck (`strict`, `noLib` + `lib/zinc.d.ts`) and Zinc checks; `--json` prints LSP-style diagnostics |
-| `zinc build [entry] --target macos\|linux\|sim [--profile <id>] [--debug] [--emit=cpp\|js]` | compiles to `<entry dir>/build/<target>/`, writes `report.json` |
-| `zinc run [entry] [same options] [-- args]` | builds then runs |
-| `zinc doctor` | checks Node, CMake, compiler, SDL3, Docker |
+| `zinc:gfx` | immediate 2D: rect, line, text, input, frame loop |
+| `zinc:ui`, `zinc:ui/solid`, `zinc:ui/react` | declarative UI with JSX (`.tsx`): flexbox, Tailwind-like classes, Solid signals or React hooks |
+| `zinc:sys`, `zinc:fs`, `zinc:storage`, `zinc:assets` | process, files, key/value store, assets embedded in the executable |
+| `zinc:net` | `fetch` (libcurl) and a small HTTP server (server mode) |
+| `zinc:osc`, `zinc:mqtt` | OSC over UDP, MQTT 3.1.1 client |
+| `zinc:telemetry` | JSON-lines telemetry (perf, logs, metrics, exposed state) to UDP/stdout/file |
+| `zinc:gpio`, `zinc:events` | pins with a simulator on hosts, typed event channels |
+| `native/<name>.spec.ts` | your own native module: typed spec → generated C++ interface, one implementation per target |
 
-`entry` defaults to `src/main.ts` or `main.ts`; a directory means `<dir>/main.ts`.
-
-## How it works
-
-```
-.ts ──► TypeScript 6 API (frontend.ts) ──► Sema (sema.ts: machine types, captures, i32 loop counters)
-                                             ├─► emit-cpp.ts ─► zinc_main.cpp + CMakeLists.txt ─► runtime/zrt + targets/<hal>
-                                             └─► emit-js.ts  ─► ES modules + sim/zinc.mjs shim (the oracle)
-```
-
-- `lib/zinc.d.ts` replaces the standard lib: only what the runtime implements is visible in the IDE.
-- Machine types (`i32`, `u8`, `f32`…) are read from annotations; `i32` wraps like `x | 0`, integer division by zero panics.
-- `runtime/` is C++17 without STL, exceptions or RTTI; generated code only talks to `hal.h`.
-- `targets/` holds the HALs: SDL3 (macOS/Linux windows), null (headless, virtual clock), POSIX common bits.
-
-## Repository layout
+## Layout
 
 ```
-compiler/   CLI and compiler (TypeScript, run directly by Node)
-lib/        zinc.d.ts and zinc:gfx declarations
-runtime/    zrt runtime (C++17 freestanding subset) and hal.h
-targets/    HAL implementations
-sim/        Node shim for the sim target
-examples/   hello, lang (language tour), bouncing-ball, breakout
-docker/     SDK images (linux for now)
-docs/       decisions, reports, licenses
+compiler/src   frontend (TS 6 API) · sema · jsx lowering · emit-cpp · emit-js · native modules · cli · tools
+lib/           zinc.d.ts, gfx.d.ts, modules.d.ts, std/ (ui, solid, react — written in Zinc)
+runtime/       zrt.h/.cpp (+ zrt_ext.h), host.cpp, mod/ (native modules), hal.h
+targets/       HALs: macos (SDL3), null, common POSIX, wasm, ps2, esp32
+sim/           Node shim + sim implementations of the modules
+docker/        SDK images: linux, rpi1, mips (ps1 ISA), ps2
+tests/         conformance programs and expected outputs (.out per number representation)
+examples/      hello, lang, bouncing-ball, breakout, text, hero, iot-panel, native-module
+docs/          status report, decisions, licenses
 ```

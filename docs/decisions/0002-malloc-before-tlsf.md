@@ -1,10 +1,6 @@
-# 0002 — `hal_alloc` (malloc) before TLSF
+# 0002 — TLSF heap over hal_heap_region
 
-**Context.** MEM-10 requires a TLSF heap over the region given by `hal_heap_region`. On macOS and Linux the system allocator is
-available and the first increment targets only those.
-
-**Choice.** `hal.h` exposes `hal_alloc`/`hal_free`, implemented with `malloc`/`free` in `targets/common/hal_posix.cpp`.
-`hal_heap_region` is not declared yet. The runtime counts allocations and live objects, which is enough for the leak report.
-
-**Consequences.** No heap cap for `--profile` emulation yet (TGT-MAC-03 is partial). TLSF lands with the first constrained target;
-only `zrt::alloc`/`zrt::mfree` change.
+**Choice.** `zrt::alloc` uses a two-level segregated-fit allocator (O(1)) over the region returned by
+`hal_heap_region`; its size comes from the profile (`ZRT_HEAP_BYTES`: 512 MiB hosts, 64 MiB rpi1, 16 MiB ps2,
+256 KiB ps1, 160 KiB esp32), so `--profile ps1` on a Mac runs out of memory where a PS1 would.
+Debug builds use the system allocator so that ASan sees every block.
