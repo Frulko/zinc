@@ -229,7 +229,7 @@ function build(o: Opts): Built {
 }
 
 // DEV-01: each cross target builds inside its pinned SDK image; the project and zinc are mounted at the same paths.
-interface DockerTarget { image: string; dockerfile: string; platform?: string; cmake: string[]; run: string[]; env?: string[] }
+interface DockerTarget { image: string; dockerfile: string; platform?: string; cmake: string[]; run: string[]; env?: string[]; entrypoint?: string }
 const DOCKER: Record<string, DockerTarget> = {
   linux: { image: 'zinc/sdk-linux', dockerfile: 'docker/sdk-linux', cmake: ['-G', 'Ninja'], run: ['./cmake/app'] },
   // TGT-RPI-01/04: ARMv6 hard-float, executed under QEMU with the arm1176 CPU
@@ -241,7 +241,7 @@ const DOCKER: Record<string, DockerTarget> = {
 };
 function dockerArgs(dir: string, t: DockerTarget): string[] {
   const mounts = [ZINC_ROOT, path.dirname(dir)].filter((m, i, a) => !a.some((x, j) => j !== i && (m + '/').startsWith(x + '/')));
-  return ['run', '--rm', '-e', 'ZINC_FRAMES', ...(t.env ?? []).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, t.image];
+  return ['run', '--rm', '-e', 'ZINC_FRAMES', ...(t.env ?? []).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, ...(t.entrypoint ? ['--entrypoint', t.entrypoint] : []), t.image];
 }
 function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean): Built {
   const t = DOCKER[o.target];
@@ -288,8 +288,8 @@ set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMP
   log(o, `built esp32 (ESP-IDF v6.0): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, firmware ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), bin)}`);
   writeReport(dir, o, sema, size, res.usesGfx);
   // UART output between the HAL markers; awk exits at the end marker, which stops QEMU
-  const script = `idf.py -C '${idf}' -B '${path.join(idf, 'build')}' qemu 2>&1 | awk '/zinc:exit/{exit} f{print} /zinc:start/{f=1}'`;
-  return { exe: ['docker', ...dockerArgs(dir, t), 'bash', '-c', script], dir };
+  const script = `timeout ${process.env.ZINC_QEMU_TIMEOUT ?? 120} idf.py -C '${idf}' -B '${path.join(idf, 'build')}' qemu 2>&1 | awk '/zinc:exit/{exit} f{print; fflush()} /zinc:start/{f=1}'`;
+  return { exe: ['docker', ...dockerArgs(dir, { ...t, entrypoint: 'bash' }), '-c', `source /opt/esp/idf/export.sh >/dev/null 2>&1; ${script}`], dir };
 }
 
 /** Environment for emscripten: a Python >= 3.10 and the LLVM shipped with the emscripten formula, if present. */
@@ -337,7 +337,7 @@ function test(o: Opts, update: boolean) {
     const entry = path.join(dir, f);
     const runOne = (target: string): string => {
       const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
-      return (r.stdout ?? '') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
+      return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const expectFile = entry.replace(/\.tsx?$/, PROFILES[o.profile].number === 'f64' ? '.out' : `.${PROFILES[o.profile].number}.out`);
     const sim = runOne('sim');

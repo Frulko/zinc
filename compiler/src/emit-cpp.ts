@@ -377,7 +377,9 @@ class CppEmitter {
     return this.withCtx({ ret: this.s.retOf(f), inCtor: false, catches: [], breaks: [], self: 'this' }, () => this.fnBlock(f.parameters, f.body!, 0));
   }
   fnBlock(ps: readonly ts.ParameterDeclaration[], b: ts.Block, d: number): string {
-    return `{\n${this.prologue(ps, d + 1)}${b.statements.map(s => this.stmt(s, d + 1)).join('')}${this.ind(d)}}`;
+    // TS proves exhaustive returns (e.g. a switch over a union); C++ still wants a final return
+    const tail = this.ctx.ret.k !== 'void' && !this.ctx.inCtor ? `${this.ind(d + 1)}return {};\n` : '';
+    return `{\n${this.prologue(ps, d + 1)}${b.statements.map(s => this.stmt(s, d + 1)).join('')}${tail}${this.ind(d)}}`;
   }
 
   // ---------- async functions and generators: stackless frames ----------
