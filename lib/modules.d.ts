@@ -104,3 +104,19 @@ declare module 'zinc:events' {
     emit(v: T): void;
   }
 }
+
+declare module 'zinc:native' {
+  /** Base of every native module spec (NAT-01). */
+  export interface NativeModule {}
+  /** `export default requireNative<Spec>('Name')` in native/<name>.spec.ts */
+  export function requireNative<T extends NativeModule>(name: string): T;
+}
+
+declare module 'zinc:assets' {
+  /** Assets are embedded in the executable at build time (single-file distribution).
+   *  In development, ZINC_ASSETS=<dir> reads them from disk first (hot reload). */
+  export function readText(name: string): string;
+  export function readBytes(name: string): u8[];
+  export function exists(name: string): boolean;
+  export function list(): string[];
+}
