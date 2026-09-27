@@ -171,8 +171,10 @@ template<int F> Fx<F> cos(Fx<F> a, Fx<F>) { return cos(a); }
 }
 
 // ---------- event loop hooks for native modules (NAT-06): polled between frames ----------
-struct Poller { Poller* next = nullptr; virtual bool poll() = 0; virtual ~Poller() {} };
+struct Poller { Poller* next = nullptr; virtual bool poll() = 0; virtual void shutdown() {} virtual ~Poller() {} };
 void add_poller(Poller* p);
+/** Called by finish() before the leak report (TST-09): modules drop the callbacks they hold. */
+void at_finish(void (*f)());
 
 // ---------- promises and microtasks (LNG-16, RT-10) ----------
 void microtask(Fn<void()> f);

@@ -32,6 +32,7 @@ static int32_t str_at(const uint8_t* p, int32_t n, int32_t off, String* out) {
 }
 struct Listener : Poller {
   int fd; Fn<void(Ref<OscMessage>)> cb;
+  void shutdown() override { cb = nullptr; }
   bool poll() override {
     uint8_t buf[2048];
     for (;;) {

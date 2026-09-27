@@ -12,6 +12,7 @@ struct Conn : Poller {
   Ref<PromiseObj<Unit>> on_connack;
   double last_ping = 0;
   uint16_t next_id = 1;
+  void shutdown() override { on_connack = nullptr; for (int32_t i = 0; i < subs.length(); i++) subs.get(i)->cb = nullptr; subs = Array<Sub*>(); }
   static void varlen(StrBuilder& b, uint32_t n) { do { uint8_t d = n % 128; n /= 128; if (n) d |= 128; b.ch((char)d); } while (n); }
   static void str16(StrBuilder& b, const String& s) { b.ch((char)(s.bytes() >> 8)); b.ch((char)(s.bytes() & 255)); b.raw(s.ptr(), s.bytes()); }
   void packet(uint8_t type, StrBuilder& body) { out.ch((char)type); varlen(out, body.len); out.raw(body.buf, body.len); }

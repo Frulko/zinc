@@ -480,6 +480,8 @@ void seed(uint32_t s) { rng = s ? s : 0x2545F491u; }
 }
 
 // ---------- event loop (RT-10) ----------
+struct Label { String name; double t; int32_t n; };
+static Label labels[32];
 struct Timer { Fn<void()> f; double at, every; int32_t id; };
 static const int MAX_TIMERS = ZRT_TIMERS;
 static Timer timers[MAX_TIMERS];
@@ -540,6 +542,9 @@ void uncaught(const Ref<Error>& e) {
 }
 static uint32_t pollers_added = 0;
 void add_poller(Poller* p) { p->next = pollers; pollers = p; pollers_added++; }
+static void (*finishers[16])();
+static int nfinishers = 0;
+void at_finish(void (*f)()) { if (nfinishers < 16) finishers[nfinishers++] = f; }
 static bool poll_all() {
   bool active = false;
   for (Poller* p = pollers; p; p = p->next) { if (p->poll()) active = true; drain_microtasks(); }
@@ -612,6 +617,14 @@ void run_loop() { hal_run(loop_step); }
 
 void finish() {
   frame_cb = nullptr;
+  for (Poller* p = pollers; p; p = p->next) p->shutdown();
+  for (int i = 0; i < nfinishers; i++) finishers[i]();
+  for (int i = 0; i < mq_len; i++) mq[(mq_head + i) % MQ] = nullptr;
+  mq_len = 0;
+  for (int i = 0; i < unhandled_n; i++) release(unhandled[i]);
+  unhandled_n = 0;
+  g_err = nullptr;
+  for (auto& l : labels) l.name = String();
   for (int i = 0; i < MAX_TIMERS; i++) { timers[i].id = 0; timers[i].f = nullptr; }
   drain_deferred();
 #ifdef ZRT_DEBUG
@@ -649,8 +662,6 @@ void log_emit(int level, StrBuilder& sb) {
   sb.ch('\n');
   if (err) hal_log_err(sb.buf, sb.len); else hal_log(sb.buf, sb.len);
 }
-struct Label { String name; double t; int32_t n; };
-static Label labels[32];
 static Label* label(const String& s, bool create) {
   for (auto& l : labels) if (l.name.s && l.name == s) return &l;
   if (!create) return nullptr;

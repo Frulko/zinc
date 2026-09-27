@@ -15,7 +15,11 @@ class Instance {
   render: () => i32;
   scheduled: boolean = false;
   effects: (() => void)[] = [];
-  constructor(host: i32, render: () => i32) { this.host = host; this.render = render; }
+  constructor(host: i32, render: () => i32) { this.host = host; this.render = render; instances.push(this); }
+}
+const instances: Instance[] = [];
+export function __dispose(): void {
+  for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; }
 }
 let cur: Instance | null = null;
 

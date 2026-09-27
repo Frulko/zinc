@@ -522,6 +522,8 @@ class CppEmitter {
   }
   moduleDeinit(sf: ts.SourceFile): string {
     let out = '';
+    // library modules may break their own reference cycles before the leak report (TST-09)
+    if (sf.statements.some(s => ts.isFunctionDeclaration(s) && s.name?.text === '__dispose')) out += `  ${this.ns(sf)}::__dispose();\n`;
     for (const st of sf.statements) {
       if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) for (const n of this.boundNames(d.name)) out += `  ${this.ns(sf)}::${this.id(n.name)} = ${this.cpp(this.s.declType(n.decl))}{};\n`;
       if (ts.isClassDeclaration(st)) for (const m of st.members) if (ts.isPropertyDeclaration(m) && this.isStatic(m)) out += `  ${this.qual(st)}::${this.id(m.name.getText())} = ${this.cpp(this.s.declType(m))}{};\n`;

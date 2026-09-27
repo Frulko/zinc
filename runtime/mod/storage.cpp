@@ -14,9 +14,11 @@ static void unescape(StrBuilder& out, const char* s, size_t n) {
     else out.ch(s[i]);
   }
 }
+static void drop() { db = Map<String, String>(); }
 static void load() {
   if (db.m) return;
   db = Map<String, String>::make();
+  at_finish(drop);
   FILE* f = fopen(file(), "rb");
   if (!f) return;
   char line[8192];

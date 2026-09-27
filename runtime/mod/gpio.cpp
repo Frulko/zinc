@@ -34,8 +34,10 @@ struct Driver : Poller {
     return iscript < nscript;
   }
 };
+static void drop() { for (auto& p : pins) p.cb = nullptr; }
 static void init() {
   if (nscript >= 0) return;
+  at_finish(drop);
   nscript = 0; t0 = now_ms();
   const char* s = getenv("ZINC_GPIO_SCRIPT");
   while (s && *s && nscript < 64) {

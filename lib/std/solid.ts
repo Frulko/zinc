@@ -11,7 +11,12 @@ class Computation {
   sources: Source[] = [];
   cleanups: (() => void)[] = [];
   queued: boolean = false;
-  constructor(fn: () => void) { this.fn = fn; }
+  constructor(fn: () => void) { this.fn = fn; all.push(this); }
+}
+const all: Computation[] = [];
+/** Breaks the signal <-> computation cycles at exit (called by the runtime before the leak report). */
+export function __dispose(): void {
+  for (const c of all) { c.fn = () => {}; c.sources = []; c.cleanups = []; }
 }
 let current: Computation | null = null;
 let batchDepth: i32 = 0;

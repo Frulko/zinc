@@ -49,8 +49,10 @@ static void on_log(int level, const char* s, uint32_t n) {
   json_str(b, String::from(s, n)); b.cstr("}}"); line(b);
 }
 struct Sampler : Poller { bool poll() override { double t = now_ms(); if (t - last_snap >= 100) { last_snap = t; snapshot(); } return false; } };
+static void drop() { for (int i = 0; i < nexposed; i++) { exposed[i].get = nullptr; exposed[i].name = String(); } nexposed = 0; }
 static void open(const char* target) {
   mode = 0;
+  at_finish(drop);
   if (!target || !*target) return;
   if (!strncmp(target, "udp://", 6)) {
     char host[256]; strncpy(host, target + 6, sizeof host - 1); host[sizeof host - 1] = 0;

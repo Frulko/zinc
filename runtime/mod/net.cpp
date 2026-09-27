@@ -11,6 +11,7 @@ struct Pending { CURL* h; StrBuilder* body; curl_slist* headers; Ref<PromiseObj<
 struct Fetcher : Poller {
   CURLM* multi = nullptr;
   Pending* list = nullptr;
+  void shutdown() override { for (Pending* d = list; d; d = d->next) d->p = nullptr; }
   bool poll() override {
     if (!list) return false;
     int running = 0;
@@ -73,6 +74,7 @@ struct Server : Poller {
   int fd = -1;
   Fn<Ref<Reply>(Ref<Request>)> handler;
   Conn* conns = nullptr;
+  void shutdown() override { handler = nullptr; }
   bool poll() override {
     if (fd < 0) return false;
     for (;;) {
