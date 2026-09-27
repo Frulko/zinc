@@ -1,0 +1,10 @@
+{
+  "name": "zinc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "zinc": "compiler/bin/zinc.mjs" },
+  "scripts": { "typecheck": "tsc -p compiler --noEmit" },
+  "dependencies": { "@typescript/typescript6": "6.0.2" },
+  "devDependencies": { "typescript": "7.0.2", "@types/node": "^24.0.0" }
+}
