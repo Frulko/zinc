@@ -2,8 +2,8 @@
 import { $z } from './zinc.mjs';
 
 export const onFrame = cb => { $z.state.frameCb = cb; };
-export const width = () => 320;
-export const height = () => 240;
+export const width = () => globalThis.$zScreen?.[0] ?? 320;
+export const height = () => globalThis.$zScreen?.[1] ?? 240;
 export const clear = () => {};
 export const rect = () => {};
 export const line = () => {};

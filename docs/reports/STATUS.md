@@ -10,13 +10,13 @@ weak refs, pools, arenas), built-in modules, Solid UI, `text` screen in Solid an
 
 | Target | How it runs | Result |
 | --- | --- | --- |
-| `macos` (f64) | native, release (TLSF) and `--debug` (ASan + UBSan, 0 leaks) | 9/9 |
-| `macos --profile ps1` (Q20.12 fixed point) | native | 9/9 |
-| `linux` | GCC in `zinc/sdk-linux` (Docker) | 9/9 at last run |
-| `rpi1` | ARMv6 hard-float (`armv6kz+fp`, VFPv2) in `zinc/sdk-rpi1`, QEMU `arm1176` | 6/6 of the pre-UI suite |
-| `ps1` profile | MIPS I (R3000 ISA, `-march=mips1`) under `qemu-mipsel`, fixed point | 6/6 of the pre-UI suite (modules test skipped: not available on ps1) |
+| `macos` (f64) | native, release (TLSF) and `--debug` (ASan + UBSan, 0 live objects at exit) | 9/9 |
+| `macos --profile ps1` / `--profile esp32` | native, emulating fixed point Q20.12 / f32 | 9/9 each |
+| `linux` | GCC in `zinc/sdk-linux` (Docker) | 9/9 |
+| `rpi1` | ARMv6 hard-float (`armv6kz+fp`, VFPv2) in `zinc/sdk-rpi1`, QEMU `arm1176`, 1280x720 profile | 9/9 |
+| `ps1` profile | MIPS I (R3000 ISA, `-march=mips1`) under `qemu-mipsel`, fixed point | 8/8 (modules test skipped: not available on ps1) |
+| `esp32` | ESP-IDF v6.0 firmware in Espressif QEMU (Xtensa), UART output | 8/8 (modules test skipped) |
 | `ps2` | EE ELF (`mips64r5900el-ps2-elf`, ps2sdk) — build only, running needs PCSX2 + BIOS | all programs build |
-| `esp32` | ESP-IDF v6.0 firmware, Espressif QEMU, UART output | `hello` verified; suite: see `esp32-test` run |
 | `wasm` | emscripten, canvas HAL, verified in Chrome (breakout) | manual |
 
 ## Measured sizes

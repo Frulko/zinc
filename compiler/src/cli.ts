@@ -200,7 +200,7 @@ function build(o: Opts): Built {
   const title = o.project.name;
   const prof = PROFILES[o.profile];
   if (o.target === 'sim' || o.emit === 'js') {
-    const runner = guard(o, () => emitJs(sema, dir, o.project.assets));
+    const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height]));
     if (o.emit === 'js') { console.log(runner.files.map(f => f.path).join('\n')); process.exit(0); }
     log(o, `built sim in ${Date.now() - t0} ms -> ${path.relative(process.cwd(), dir)}`);
     return { exe: ['node', path.join(dir, 'run.mjs')], dir };
@@ -339,7 +339,9 @@ function test(o: Opts, update: boolean) {
       const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
-    const expectFile = entry.replace(/\.tsx?$/, PROFILES[o.profile].number === 'f64' ? '.out' : `.${PROFILES[o.profile].number}.out`);
+    const pr = PROFILES[o.profile];
+    const key = [pr.number === 'f64' ? '' : pr.number, pr.width === 320 && pr.height === 240 ? '' : `${pr.width}x${pr.height}`].filter(Boolean).join('.');
+    const expectFile = entry.replace(/\.tsx?$/, key ? `.${key}.out` : '.out');
     const sim = runOne('sim');
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
     const expected = fs.readFileSync(expectFile, 'utf8');
