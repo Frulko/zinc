@@ -313,5 +313,8 @@ template<class T> void console_table(const Array<T>& rows) {
 // runtime metrics exposed to zinc:telemetry
 struct Stats { uint64_t frame_us; uint32_t frames; uint32_t draw_cmds; };
 extern Stats stats;
+// hooks installed by zinc:telemetry (null when the module is not linked)
+extern void (*telemetry_frame)();
+extern void (*telemetry_log)(int level, const char* s, uint32_t n);
 
 }  // namespace zrt

@@ -90,7 +90,7 @@ function writeIfChanged(file: string, content: string) {
 }
 
 const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl' };
-function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number): string {
+function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string): string {
   const usesGfx = res.usesGfx;
   const mods = [...res.modules].filter(m => fs.existsSync(path.join(ZINC_ROOT, 'runtime/mod', m + '.cpp')));
   const rel = (f: string) => '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, f);
@@ -108,6 +108,7 @@ add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp${mods.map(m =>
 target_include_directories(zrt PUBLIC ${z}/runtime ${z}/runtime/include)
 target_compile_options(zrt PUBLIC \${ZFLAGS})
 target_compile_options(zrt PRIVATE -Wall -Wextra -Werror)
+target_compile_definitions(zrt PUBLIC ZRT_PLATFORM="${target}")
 option(ZINC_HEADLESS "use the null HAL even for zinc:gfx programs" OFF)
 if(${usesGfx ? 'NOT ZINC_HEADLESS' : 'FALSE'})
   set(ZINC_HAL ${z}/targets/macos/hal_sdl.cpp)
@@ -153,7 +154,7 @@ function build(o: Opts): Built {
   const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir, target: o.target }));
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap));
+  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (o.target === 'linux' && process.platform !== 'linux') return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);

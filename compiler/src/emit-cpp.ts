@@ -1116,7 +1116,7 @@ class CppEmitter {
       if (name === 'Map' || name === 'Set') return `${this.cpp(own())}::make()`;
       if (d && ts.isClassDeclaration(d) && this.s.libModule(d)) {
         const ctor = d.members.find(ts.isConstructorDeclaration);
-        return `zrt::make<${this.qual(d)}>(${this.args(e.arguments ?? [], ctor ? ctor.parameters.map(p => this.s.paramType(p)) : [])})`;
+        return `zrt::make<${this.cls(this.s.ztypeOf(e) as Extract<ZT, { k: 'obj' }>)}>(${this.args(e.arguments ?? [], ctor ? ctor.parameters.map(p => this.s.paramType(p)) : [])})`;
       }
       if (ERROR_CLASSES.has(name)) return `zrt::make<zrt::${name}>(${e.arguments?.[0] ? this.conv(e.arguments[0], STR) : ''})`;
       if (name === 'Promise') {

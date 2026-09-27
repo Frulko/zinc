@@ -137,6 +137,7 @@ export class Sema {
     };
     for (const sf of this.fe.sources) visit(sf);
     for (const s of captured) if (written.has(s)) this.boxed.add(s);
+    for (const c of calls) this.callTargets(c);  // registers library functions tagged @throws
     // throw propagation over the call graph (fixpoint)
     if (this.hasThrow) {
       let changed = true;
@@ -241,7 +242,10 @@ export class Sema {
     } else {
       const e = c.expression;
       const d = ts.isPropertyAccessExpression(e) ? this.declOf(e.name) : e.kind === ts.SyntaxKind.SuperKeyword ? undefined : this.declOf(e);
-      if (d && this.isLib(d)) r.fns.push(...fnArgs);
+      if (d && this.isLib(d)) {
+        r.fns.push(...fnArgs);
+        if (ts.getJSDocTags(d).some(t => t.tagName.text === 'throws')) { r.fns.push(d); this.throwing.add(d); this.hasThrow = true; }
+      }
       else if (d && ts.isFunctionDeclaration(d)) r.fns.push(d);
       else if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) r.fns.push(...(this.methodsByName.get(d.name.getText()) ?? []));
       else r.dynamic = true;
@@ -474,6 +478,7 @@ export class Sema {
     if (f & ts.TypeFlags.BooleanLike) return BOOL;
     if (f & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return VOID;
     if (f & ts.TypeFlags.Null) return { k: 'null' };
+    if (f & ts.TypeFlags.Never) return VOID;
     if (f & ts.TypeFlags.TypeParameter) return { k: 'tp', name: type.symbol?.name ?? 'T' };
     if (type.aliasSymbol) {
       const ad = type.aliasSymbol.declarations?.[0];
@@ -744,6 +749,7 @@ export class Sema {
         const lib = this.libMemberType(recv, c.name.text, e);
         if (lib) return lib;
         const d = this.declOf(c.name);
+        if (d && ts.isFunctionDeclaration(d) && this.libModule(d)) return this.retOf(d);
         if (d && (!this.isLib(d) || this.libModule(d)) && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters)
           return this.retOf(d, this.substFor(recv, d));
         if (d && !this.isLib(d) && (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d))) {

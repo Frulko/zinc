@@ -79,7 +79,7 @@ export class NativeModules {
       }
     }
     // built-in module function: import { readText } from 'zinc:fs'
-    const d = ts.isPropertyAccessExpression(c) ? undefined : this.s.declOf(c);
+    const d = this.s.declOf(ts.isPropertyAccessExpression(c) ? c.name : c);
     if (d && ts.isFunctionDeclaration(d)) {
       const mod = this.s.libModule(d);
       if (mod && mod !== 'gfx') {

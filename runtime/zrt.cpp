@@ -130,6 +130,8 @@ void panic_at(const char* msg, const char* file, int line) { hal_panic(msg, file
 
 Ref<Error> g_err;
 Stats stats;
+void (*telemetry_frame)() = nullptr;
+void (*telemetry_log)(int, const char*, uint32_t) = nullptr;
 void Object::zrt_json(StrBuilder& sb) const { sb.cstr("{}"); }
 void Object::zrt_str(StrBuilder& sb) const { sb.cstr("[object Object]"); }
 void Object::zrt_delete() { this->~Object(); mfree(this); }
@@ -518,7 +520,8 @@ void uncaught(const Ref<Error>& e) {
   sb.ch('\0');
   hal_panic(sb.buf, "", 0);
 }
-void add_poller(Poller* p) { p->next = pollers; pollers = p; }
+static uint32_t pollers_added = 0;
+void add_poller(Poller* p) { p->next = pollers; pollers = p; pollers_added++; }
 static bool poll_all() {
   bool active = false;
   for (Poller* p = pollers; p; p = p->next) { if (p->poll()) active = true; drain_microtasks(); }
@@ -574,11 +577,13 @@ bool loop_once() {
     frame_no++;
     stats.frames++;
     stats.frame_us = hal_time_us() - t;
+    if (telemetry_frame) telemetry_frame();
     hal_frame_end();
     return true;
   }
+  uint32_t added = pollers_added;
   double next = run_timers();
-  bool active = poll_all();
+  bool active = poll_all() || added != pollers_added;
   if (quit_requested || (next < 0 && !active && !mq_len)) return false;
   if (active) hal_sleep_us(1000);
   else if (next > 0) hal_sleep_us((uint64_t)(next * 1000));
@@ -610,6 +615,7 @@ static void log_init() {
 }
 void log_emit(int level, StrBuilder& sb) {
   log_init();
+  if (telemetry_log) telemetry_log(level, sb.buf, sb.len);
   bool err = level == LOG_WARN || level == LOG_ERROR || level == LOG_TRACE;
   static const char* names[] = {"LOG", "INFO", "DEBUG", "WARN", "ERROR", "TRACE"};
   if (log_mode == 2) {

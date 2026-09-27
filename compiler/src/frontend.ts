@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 export { ts };
 
 export const ZINC_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const LIB_FILES = [path.join(ZINC_ROOT, 'lib/zinc.d.ts'), path.join(ZINC_ROOT, 'lib/gfx.d.ts')];
+export const LIB_FILES = ['zinc.d.ts', 'gfx.d.ts', 'modules.d.ts', 'ui.d.ts'].map(f => path.join(ZINC_ROOT, 'lib', f));
 
 export interface Diag { file: string; line: number; col: number; code: string; severity: 'error' | 'warning'; message: string }
 
