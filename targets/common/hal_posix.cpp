@@ -6,6 +6,9 @@
 #include <unistd.h>
 
 extern "C" {
+#ifndef ZRT_HAL_OWNS_RUN
+void hal_run(int (*step)(void)) { while (step()) {} }
+#endif
 void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
 uint64_t hal_time_us(void) {

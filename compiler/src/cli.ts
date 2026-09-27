@@ -20,7 +20,7 @@ const PROFILES: Record<string, Profile> = {
   ps2: { number: 'f32', width: 640, height: 448, typing: 'gradual', heap: 16 << 20 },
   ps1: { number: 'fx12', width: 320, height: 240, typing: 'strict', heap: 256 << 10, noFpu: true },
 };
-const NATIVE = new Set(['macos', 'linux']);
+
 
 interface Project { name: string; dir: string; assets?: string; targets: Record<string, Partial<Profile>> }
 interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[] }
@@ -133,22 +133,34 @@ target_compile_options(zrt PUBLIC \${ZFLAGS})
 target_compile_options(zrt PRIVATE -Wall -Wextra -Werror)
 target_compile_definitions(zrt PUBLIC ZRT_PLATFORM="${target}")
 option(ZINC_HEADLESS "use the null HAL even for zinc:gfx programs" OFF)
-if(${usesGfx ? 'NOT ZINC_HEADLESS' : 'FALSE'})
+if(EMSCRIPTEN)
+  set(ZINC_HAL ${z}/targets/wasm/hal_web.cpp)
+elseif(${usesGfx ? 'NOT ZINC_HEADLESS' : 'FALSE'})
   set(ZINC_HAL ${z}/targets/macos/hal_sdl.cpp)
 else()
   set(ZINC_HAL ${z}/targets/null/hal_null.cpp)
 endif()
-add_executable(app zinc_main.cpp \${ZINC_HAL} ${z}/targets/common/hal_posix.cpp${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+if(EMSCRIPTEN)
+  set(ZINC_POSIX "")
+else()
+  set(ZINC_POSIX ${z}/targets/common/hal_posix.cpp)
+endif()
+add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override)
 target_link_libraries(app PRIVATE zrt)
-${debug ? `target_link_options(app PRIVATE ${san})` : `if(APPLE)
+if(EMSCRIPTEN)
+  set(CMAKE_EXECUTABLE_SUFFIX ".html")
+  target_link_options(app PRIVATE -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 --shell-file ${z}/targets/wasm/shell.html)
+endif()
+${debug && target !== 'wasm' ? `target_link_options(app PRIVATE ${san})` : `if(EMSCRIPTEN)
+elseif(APPLE)
   target_link_options(app PRIVATE -Wl,-dead_strip)
 else()
   target_link_options(app PRIVATE -Wl,--gc-sections)
 endif()`}
 ${mods.filter(m => MOD_LIBS[m]).map(m => m === 'net' ? 'find_package(CURL REQUIRED)\ntarget_link_libraries(zrt PUBLIC CURL::libcurl)' : '').join('\n')}
-${usesGfx ? 'if(NOT ZINC_HEADLESS)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
+${usesGfx ? 'if(NOT ZINC_HEADLESS AND NOT EMSCRIPTEN)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
 `;
 }
 
@@ -199,6 +211,7 @@ function build(o: Opts): Built {
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (o.target === 'linux' && process.platform !== 'linux') return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
+  if (o.target === 'wasm') return wasmBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
   if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
     const genArgs = ['-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`];
     if (spawnSync('ninja', ['--version']).status === 0) genArgs.push('-G', 'Ninja');
@@ -228,6 +241,31 @@ function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number,
   log(o, `built linux (docker, headless): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), path.join(bdir, 'app'))}`);
   writeReport(dir, o, sema, size, gfx);
   return { exe: ['docker', ...dockerArgs(dir), './cmake/app'], dir };
+}
+
+// Browser target: emscripten (local emcc, or the emscripten/emsdk image), output app.html + app.js + app.wasm.
+/** Environment for emscripten: a Python >= 3.10 and the LLVM shipped with the emscripten formula, if present. */
+function emEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const py of ['/opt/homebrew/bin/python3', '/usr/local/bin/python3']) if (!env.EMSDK_PYTHON && fs.existsSync(py)) env.EMSDK_PYTHON = py;
+  const emcc = spawnSync('sh', ['-c', 'command -v emcc'], { encoding: 'utf8' }).stdout.trim();
+  if (emcc) {
+    const base = path.dirname(fs.realpathSync(emcc));
+    const llvm = [path.join(base, 'llvm/bin'), path.join(base, '../libexec/llvm/bin')].find(d => fs.existsSync(path.join(d, 'wasm-ld')));
+    if (!env.EM_LLVM_ROOT && llvm) { env.EM_LLVM_ROOT = path.resolve(llvm); env.PATH = `${env.EM_LLVM_ROOT}:${env.PATH}`; }
+  }
+  return env;
+}
+function wasmBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean): Built {
+  Object.assign(process.env, emEnv());
+  if (spawnSync('emcc', ['--version']).status !== 0) die('wasm target needs emscripten (brew install emscripten)');
+  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt')) && run('emcmake', ['cmake', '-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`], undefined, true) !== 0) die('emcmake configure failed');
+  if (run('cmake', ['--build', bdir, '-j'], undefined, true) !== 0) die('C++ build failed (wasm)');
+  const wasm = path.join(bdir, 'app.wasm');
+  const size = fs.statSync(wasm).size;
+  log(o, `built wasm: zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB wasm -> ${path.relative(process.cwd(), path.join(bdir, 'app.html'))}`);
+  writeReport(dir, o, sema, size, gfx);
+  return { exe: [process.execPath, path.join(ZINC_ROOT, 'compiler/bin/serve.mjs'), bdir], dir };
 }
 
 function log(o: Opts, msg: string) { if (!o.json) console.error(`zinc: ${msg}`); }

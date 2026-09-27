@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zinc</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #0b0e1a; color: #c8d0e0; font: 13px ui-monospace, Menlo, monospace; }
+  canvas { max-width: calc(100vw - 32px); height: auto; background: #000; border-radius: 6px; box-shadow: 0 8px 32px #0008; outline: none; }
+  pre { width: min(960px, calc(100vw - 32px)); max-height: 30vh; overflow: auto; margin: 0; padding: 8px 12px; background: #11162a; border-radius: 6px; white-space: pre-wrap; }
+  .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<canvas id="zinc-canvas" tabindex="0"></canvas>
+<pre id="zinc-console"></pre>
+<script>
+  (() => {
+    const box = document.getElementById('zinc-console');
+    const line = (t, cls) => { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = t + '\n'; box.appendChild(s); box.scrollTop = box.scrollHeight; };
+    window.Module = { print: t => line(t), printErr: t => line(t, 'err'), canvas: document.getElementById('zinc-canvas') };
+  })();
+  document.getElementById('zinc-canvas').focus();
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

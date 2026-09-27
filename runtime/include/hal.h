@@ -62,4 +62,6 @@ void hal_present(const HalDrawList* dl);
 void hal_surface_size(int* w, int* h);
 // Fixed timestep used by headless HALs (virtual clock, TST-10). 0 = real time.
 double hal_fixed_dt(void);
+// Drives the main loop: native HALs loop until step() returns 0; the web HAL hands it to requestAnimationFrame.
+void hal_run(int (*step)(void));
 }

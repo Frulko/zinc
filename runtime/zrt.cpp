@@ -589,9 +589,8 @@ bool loop_once() {
   else if (next > 0) hal_sleep_us((uint64_t)(next * 1000));
   return true;
 }
-void run_loop() {
-  while (loop_once()) {}
-}
+static int loop_step() { return loop_once() ? 1 : 0; }
+void run_loop() { hal_run(loop_step); }
 
 void finish() {
   frame_cb = nullptr;
