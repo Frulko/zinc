@@ -1,6 +1,23 @@
 // zrt — non-template parts of the runtime.
 #include "zrt.h"
 
+// Static budgets (NFR-05): small targets define smaller values (esp32/ps1 profiles).
+#ifndef ZRT_MAX_DRAW_CMDS
+#define ZRT_MAX_DRAW_CMDS 8192
+#endif
+#ifndef ZRT_TEXT_POOL
+#define ZRT_TEXT_POOL 32768
+#endif
+#ifndef ZRT_MICROTASKS
+#define ZRT_MICROTASKS 4096
+#endif
+#ifndef ZRT_DEFERRED
+#define ZRT_DEFERRED 4096
+#endif
+#ifndef ZRT_TIMERS
+#define ZRT_TIMERS 64
+#endif
+
 // Provided by runtime/host.cpp (libc-backed number formatting). ponytail: replace with Ryu for freestanding targets.
 extern "C" int zrt_host_shortest(double v, char* digits, int* exp10);
 extern "C" double zrt_host_strtod(const char* s, int* consumed);
@@ -61,6 +78,7 @@ static Block* find(size_t n) {
 static void init() {
   void* base; size_t size;
   hal_heap_region(&base, &size);
+  if (!base || size < 4096) hal_panic("no heap region (hal_heap_region)", "", 0);
   uintptr_t a = ((uintptr_t)base + ALIGN - 1) & ~(uintptr_t)(ALIGN - 1);
   size -= a - (uintptr_t)base;
   size &= ~(ALIGN - 1);
@@ -137,7 +155,7 @@ void Object::zrt_str(StrBuilder& sb) const { sb.cstr("[object Object]"); }
 void Object::zrt_delete() { this->~Object(); mfree(this); }
 
 // MEM-12: a release cascade deeper than 256 objects is finished in slices (next allocation or frame end).
-static const int MAX_CASCADE = 256, DEFER_CAP = 4096;
+static const int MAX_CASCADE = 256, DEFER_CAP = ZRT_DEFERRED;
 static int cascade_depth = 0;
 static Object* deferred[DEFER_CAP];
 static int deferred_n = 0;
@@ -463,7 +481,7 @@ void seed(uint32_t s) { rng = s ? s : 0x2545F491u; }
 
 // ---------- event loop (RT-10) ----------
 struct Timer { Fn<void()> f; double at, every; int32_t id; };
-static const int MAX_TIMERS = 64;
+static const int MAX_TIMERS = ZRT_TIMERS;
 static Timer timers[MAX_TIMERS];
 static int32_t next_timer_id = 1;
 static Fn<void(double)> frame_cb;
@@ -488,7 +506,7 @@ void clear_timer(int32_t id) {
 }
 
 // microtask queue: bounded ring (RT-10)
-static const int MQ = 4096;
+static const int MQ = ZRT_MICROTASKS;
 static Fn<void()> mq[MQ];
 static int mq_head = 0, mq_len = 0;
 void microtask(Fn<void()> f) {
@@ -693,7 +711,7 @@ Arena::~Arena() { zrt_dispose(); }
 }
 // ---------- zinc:gfx: fills a draw list executed by hal_present (UI-12) ----------
 namespace gfx {
-static const uint32_t MAX_CMDS = 8192, MAX_TEXT = 32768;
+static const uint32_t MAX_CMDS = ZRT_MAX_DRAW_CMDS, MAX_TEXT = ZRT_TEXT_POOL;
 static HalDrawCmd cmds[MAX_CMDS];
 static char text_pool[MAX_TEXT];
 static uint32_t ncmd = 0, ntext = 0;
@@ -701,7 +719,7 @@ static uint32_t ncmd = 0, ntext = 0;
 void begin_frame() { ncmd = 0; ntext = 0; }
 void end_frame() { HalDrawList dl = {cmds, ncmd, text_pool}; stats.draw_cmds = ncmd; hal_present(&dl); }
 static HalDrawCmd* push(uint8_t kind) {
-  if (ncmd == MAX_CMDS) return nullptr;  // ponytail: silently drops past 8192 commands per frame
+  if (ncmd == MAX_CMDS) return nullptr;  // ponytail: silently drops past MAX_CMDS commands per frame
   HalDrawCmd* c = &cmds[ncmd++];
   c->kind = kind; c->scale = 1; c->text_len = 0; c->text_off = 0;
   return c;

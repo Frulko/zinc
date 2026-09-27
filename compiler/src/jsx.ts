@@ -172,7 +172,7 @@ export function lowerJsx(text: string, fileName: string): string {
     const check = (n: ts.Node, cond: boolean) => {
       if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && /^use[A-Z]/.test(n.expression.text) && cond)
         throw new JsxError(`hook '${n.expression.text}' is called conditionally or in a loop (rules of hooks)`, n.getStart(sf));
-      if (ts.isFunctionLike(n) && n !== sf) { ts.forEachChild(n, c => check(c, false)); return; }
+      if (ts.isFunctionLike(n)) { ts.forEachChild(n, c => check(c, false)); return; }
       const inCond = cond || ts.isIfStatement(n) || ts.isConditionalExpression(n) || ts.isForStatement(n) || ts.isForOfStatement(n) || ts.isWhileStatement(n) ||
         (ts.isBinaryExpression(n) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(n.operatorToken.kind));
       ts.forEachChild(n, c => check(c, inCond));
