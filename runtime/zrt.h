@@ -194,7 +194,9 @@ inline void json(StrBuilder& sb, const String& v) { json_str(sb, v); }
 template<class T> void json(StrBuilder& sb, const Ref<T>& v) { if (v.p) v.p->zrt_json(sb); else sb.cstr("null"); }
 template<class T> void json(StrBuilder& sb, const Array<T>& v);
 template<class T> void json_field(StrBuilder& sb, bool& first, const char* name, const T& v) {
-  if (!first) sb.ch(','); first = false; sb.ch('"'); sb.cstr(name); sb.cstr("\":"); json(sb, v);
+  if (!first) sb.ch(',');
+  first = false;
+  sb.ch('"'); sb.cstr(name); sb.cstr("\":"); json(sb, v);
 }
 
 // console.log formatter: primitives as String(x), arrays and objects as JSON
