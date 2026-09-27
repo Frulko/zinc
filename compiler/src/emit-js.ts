@@ -91,6 +91,10 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
           if (lib && g === 'console' && m === 'log') return callZ('log', [...v.arguments]);
           if (lib && g === 'Math' && (m === 'random' || m === 'seed')) return callZ(m, [...v.arguments]);
         }
+        if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
+          const rt = safeType(c.expression);
+          if (rt?.k === 'map' || rt?.k === 'set') return f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier('Array'), 'from'), undefined, [v]);
+        }
         const ps = paramTypes(n);
         if (ps.length) return f.updateCallExpression(v, v.expression, v.typeArguments, v.arguments.map((a, i) => conv(a, n.arguments[i], ps[i])));
         return v;

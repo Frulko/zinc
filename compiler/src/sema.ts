@@ -402,7 +402,7 @@ export class Sema {
       }
     }
     if (ts.isPropertyAccessExpression(e)) {
-      const recv = this.ztypeOf(e.expression);
+      const recv = this.tryZ(e.expression);
       const name = e.name.text;
       if ((recv.k === 'arr' || recv.k === 'str') && name === 'length') return I32;
       if ((recv.k === 'map' || recv.k === 'set') && name === 'size') return I32;
@@ -422,7 +422,7 @@ export class Sema {
     if (ts.isCallExpression(e)) {
       const c = e.expression;
       if (ts.isPropertyAccessExpression(c)) {
-        const recv = this.ztypeOf(c.expression);
+        const recv = this.tryZ(c.expression);
         const lib = this.libMemberType(recv, c.name.text, e);
         if (lib) return lib;
         const d = this.declOf(c.name);
@@ -458,11 +458,20 @@ export class Sema {
       if (isNum(a) && isNum(b)) return a.m === b.m ? a : { k: 'num', m: this.numberKind };
       return a.k === 'null' ? b : a;
     }
+    if (ts.isObjectLiteralExpression(e)) {
+      const ctx = this.contextual(e) ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
+      if (ctx?.k === 'obj') return ctx;
+    }
     if (ts.isArrayLiteralExpression(e)) {
       const ctx = this.contextual(e);
       if (ctx?.k === 'arr') return ctx;
     }
     return this.fromType(this.checker.getTypeAtLocation(e), e);
+  }
+
+  /** Receiver type, or `void` for library globals such as Math and console. */
+  tryZ(e: ts.Expression): ZT {
+    try { return this.ztypeOf(e); } catch (err) { if (err instanceof ZincError) return VOID; throw err; }
   }
 
   private fromTypeSafe(t: ts.Type, at: ts.Node): ZT | undefined {

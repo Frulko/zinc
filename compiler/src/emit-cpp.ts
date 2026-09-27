@@ -19,6 +19,8 @@ const GFX_MODULE = 'zinc:gfx';
 export interface CppOptions { debug: boolean; title: string; width: number; height: number; outDir: string }
 export interface CppResult { code: string; usesGfx: boolean }
 
+const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'arr' || t.k === 'set' ? hasTp(t.el) : t.k === 'map' ? hasTp(t.key) || hasTp(t.val) : t.k === 'fn' ? t.params.some(hasTp) || hasTp(t.ret) : t.k === 'obj' ? t.args.some(hasTp) : false);
+
 type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration;
 
 export function emitCpp(sema: Sema, opts: CppOptions): CppResult {
@@ -614,8 +616,12 @@ class CppEmitter {
   }
 
   prop(e: ts.PropertyAccessExpression): string {
-    const cv = this.s.checker.getConstantValue(e as ts.PropertyAccessExpression);
-    if (typeof cv === 'number') return String(cv);
+    const ed = this.s.declOf(e.name);
+    if (ed && ts.isEnumMember(ed)) {
+      const cv = this.s.checker.getConstantValue(ed);
+      if (typeof cv !== 'number') this.s.fail(e, 'Z9028', 'only numeric enums are supported');
+      return String(cv);
+    }
     const obj = e.expression, name = e.name.text;
     if (ts.isIdentifier(obj)) {
       if (obj.text === 'Math' && (name === 'PI' || name === 'E')) return `zrt::${name}`;
@@ -635,7 +641,8 @@ class CppEmitter {
   }
 
   args(as: readonly ts.Expression[], ps: ZT[]): string {
-    return as.map((a, i) => this.conv(a, ps[i])).join(', ');
+    // generic parameters: let C++ deduce from the argument's own type
+    return as.map((a, i) => this.conv(a, ps[i] && hasTp(ps[i]) ? undefined : ps[i])).join(', ');
   }
 
   call(e: ts.CallExpression): string {
@@ -688,7 +695,7 @@ class CppEmitter {
     if (d && this.s.isLib(d)) {
       const n = (c as ts.Identifier).text;
       const sf = d.getSourceFile();
-      if (ts.isModuleDeclaration(d.parent?.parent) && (d.parent.parent as ts.ModuleDeclaration).name.getText().includes(GFX_MODULE) || sf.fileName.endsWith('gfx.d.ts')) {
+      if (sf.fileName.endsWith('/lib/gfx.d.ts')) {
         this.usesGfx = true;
         const fd = d as ts.FunctionDeclaration;
         return `zrt::gfx::${n}(${this.args(e.arguments, fd.parameters.map(p => this.s.paramType(p)))})`;
