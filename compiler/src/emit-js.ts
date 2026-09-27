@@ -80,7 +80,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string): JsResult
       let e: ts.Node = lit;
       while (ts.isParenthesizedExpression(e.parent) || (ts.isPrefixUnaryExpression(e.parent) && e.parent.operator === K.MinusToken)) e = e.parent;
       const p = e.parent;
-      const isFxT = (t: ZT | undefined) => !t || (isNum(t) ? t.m === 'fx12' || t.m === 'fx16' : true);
+      const isFxT = (t: ZT | undefined) => !t || (isNum(t) ? t.m === 'fx12' || t.m === 'fx16' || t.m === 'f32' : true);
       try {
         if (ts.isVariableDeclaration(p) && p.initializer === e) return isFxT(sema.declType(p));
         if (ts.isBinaryExpression(p)) {
@@ -107,6 +107,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string): JsResult
     };
     const visit = (n: ts.Node): ts.Node => {
       if (FX && ts.isNumericLiteral(n) && literalIsFx(n)) { const q = (Math.floor(Number(n.text) * (1 << FXB) + 0.5) | 0) / (1 << FXB); return q < 0 ? f.createPrefixUnaryExpression(K.MinusToken, num(-q)) : num(q); }
+      // f32 profile: a literal typed `number` is a float, like the C++ `1.5f`
+      if (sema.numberKind === 'f32' && ts.isNumericLiteral(n) && literalIsFx(n)) { const q = Math.fround(Number(n.text)); if (q !== Number(n.text)) return num(q); }
       if (FX && ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'Math' && (n.name.text === 'PI' || n.name.text === 'E')) return fxq(n);
       // module specifiers: zinc:gfx -> sim shim, relative -> .js
       if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
