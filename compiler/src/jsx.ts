@@ -1,0 +1,181 @@
+// JSX lowering (UI-03/04, D-07/D-11/D-12): .tsx sources are rewritten to plain TypeScript calls on the
+// zinc:ui/solid (or zinc:ui/react) helpers *before* type checking, so both emitters see ordinary typed code.
+// Solid mode: dynamic expressions become fine-grained effects. React mode: a component re-renders as a whole.
+// Line breaks are preserved so diagnostics keep their line numbers.
+import { ts } from './frontend.ts';
+
+const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5 };
+const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden']);
+const COLORS = new Set(['white', 'black', 'slate-900', 'slate-800', 'slate-700', 'slate-600', 'slate-400', 'slate-200', 'gray-900', 'gray-700', 'gray-500', 'gray-300',
+  'red-500', 'orange-400', 'amber-400', 'yellow-400', 'green-500', 'emerald-400', 'cyan-400', 'blue-500', 'indigo-500', 'purple-500', 'pink-500', 'transparent']);
+const FIXED = new Set(['flex-row', 'flex-col', 'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between',
+  'grow', 'hidden', 'w-full', 'h-full', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'rounded', 'rounded-lg', 'font-bold']);
+
+/** UI-07: same grammar as applyClass in lib/std/ui.ts; unknown classes are build errors. */
+export function validClass(c: string): boolean {
+  if (FIXED.has(c)) return true;
+  if (/^(p|px|py|gap|w|h)-\d+$/.test(c)) return true;
+  if (c.startsWith('bg-')) return COLORS.has(c.slice(3));
+  if (c.startsWith('text-')) return COLORS.has(c.slice(5));
+  return false;
+}
+
+export class JsxError extends Error {
+  pos: number;
+  constructor(msg: string, pos: number) { super(msg); this.pos = pos; }
+}
+
+export function lowerJsx(text: string, fileName: string): string {
+  if (!/<[A-Za-z>]/.test(text)) return text;
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const react = sf.statements.some(s => ts.isImportDeclaration(s) && (s.moduleSpecifier as ts.StringLiteral).text === 'zinc:ui/react');
+  const lib = react ? 'zinc:ui/react' : 'zinc:ui/solid';
+  let counter = 0;
+  const isJsx = (n: ts.Node) => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n);
+
+  /** Source text of `n` with every JSX sub-expression lowered. */
+  const rewrite = (n: ts.Node): string => {
+    if (isJsx(n)) return lower(n as ts.JsxElement);
+    const start = n.getStart(sf), end = n.getEnd();
+    let out = '', pos = start;
+    const visit = (c: ts.Node) => {
+      if (isJsx(c)) { out += text.slice(pos, c.getStart(sf)) + lower(c as ts.JsxElement); pos = c.getEnd(); return; }
+      ts.forEachChild(c, visit);
+    };
+    ts.forEachChild(n, visit);
+    return out + text.slice(pos, end);
+  };
+  const keepLines = (orig: ts.Node, code: string) => code + '\n'.repeat(Math.max(0, text.slice(orig.getStart(sf), orig.getEnd()).split('\n').length - code.split('\n').length));
+
+  /** A JSX expression becomes an IIFE returning the node handle. */
+  const lower = (n: ts.JsxElement | ts.JsxSelfClosingElement | ts.JsxFragment): string => {
+    const lines: string[] = [];
+    const v = element(n, lines);
+    return keepLines(n, `((): i32 => { ${lines.join(' ')} return ${v}; })()`);
+  };
+
+  const attrsOf = (n: ts.JsxElement | ts.JsxSelfClosingElement) => (ts.isJsxElement(n) ? n.openingElement.attributes : n.attributes).properties;
+  const tagOf = (n: ts.JsxElement | ts.JsxSelfClosingElement) => (ts.isJsxElement(n) ? n.openingElement.tagName : n.tagName).getText(sf);
+  const childrenOf = (n: ts.JsxElement | ts.JsxSelfClosingElement | ts.JsxFragment) => ts.isJsxSelfClosingElement(n) ? [] : [...n.children];
+  const attrValue = (a: ts.JsxAttribute): { lit?: string; expr?: string } => {
+    const init = a.initializer;
+    if (!init) return { expr: 'true' };
+    if (ts.isStringLiteral(init)) return { lit: init.text };
+    if (ts.isJsxExpression(init) && init.expression) return { expr: rewrite(init.expression) };
+    return { expr: rewrite(init) };
+  };
+
+  /** Emits statements building `n`; returns the variable holding its handle. */
+  const element = (n: ts.JsxElement | ts.JsxSelfClosingElement | ts.JsxFragment, out: string[]): string => {
+    const v = `__n${counter++}`;
+    if (ts.isJsxFragment(n)) {
+      out.push(`const ${v}: i32 = _el(6);`);
+      children(v, childrenOf(n), out);
+      return v;
+    }
+    const tag = tagOf(n);
+    if (/^[A-Z]/.test(tag)) return component(n, tag, out);
+    if (!(tag in TAGS)) throw new JsxError(`unknown host component <${tag}> (view, text, button, image, scroll, canvas)`, n.getStart(sf));
+    out.push(`const ${v}: i32 = _el(${TAGS[tag]});`);
+    for (const a of attrsOf(n)) {
+      if (!ts.isJsxAttribute(a)) throw new JsxError('spread attributes are not supported', a.getStart(sf));
+      const name = a.name.getText(sf);
+      const val = attrValue(a);
+      if (name === 'class') {
+        if (val.lit !== undefined) {
+          for (const c of val.lit.split(/\s+/).filter(Boolean)) if (!validClass(c)) throw new JsxError(`unknown class '${c}' (UI-07)`, a.getStart(sf));
+          out.push(`_class(${v}, ${JSON.stringify(val.lit)});`);
+        } else out.push(react ? `_class(${v}, ${val.expr});` : `_dynClass(${v}, () => (${val.expr}));`);
+      } else if (name === 'onClick') out.push(`_on(${v}, ${val.expr});`);
+      else if (name === 'onDraw') out.push(`_draw(${v}, ${val.expr});`);
+      else if (NUM_ATTRS.has(name)) {
+        if (val.lit !== undefined) out.push(`_num(${v}, '${name}', ${Number(val.lit)});`);
+        else if (react || /^[-\d.]+$/.test(val.expr!)) out.push(`_num(${v}, '${name}', ${val.expr});`);
+        else out.push(`_dynNum(${v}, '${name}', () => (${val.expr}));`);
+      } else if (name === 'key') { /* keys: accepted, lists re-render unkeyed */ }
+      else throw new JsxError(`unknown attribute '${name}' on <${tag}>`, a.getStart(sf));
+    }
+    if (tag === 'text') textContent(v, childrenOf(n), out);
+    else children(v, childrenOf(n), out);
+    return v;
+  };
+
+  /** JSX whitespace: text spanning lines is trimmed per line; inline text keeps its spaces. */
+  const jsxText = (t: string) => t.includes('\n') ? t.split('\n').map(l => l.trim()).filter(Boolean).join(' ') : t.replace(/\s+/g, ' ');
+  /** <text> children become the node's own string: one template literal, reactive when it has expressions. */
+  const textContent = (v: string, kids: ts.JsxChild[], out: string[]) => {
+    let tpl = '', dynamic = false;
+    for (const c of kids) {
+      if (ts.isJsxText(c)) tpl += jsxText(c.text).replace(/[`\\$]/g, m => '\\' + m);
+      else if (ts.isJsxExpression(c) && c.expression) { tpl += '${' + rewrite(c.expression) + '}'; dynamic = true; }
+      else throw new JsxError('<text> can only contain text and {expressions}', c.getStart(sf));
+    }
+    if (!tpl) return;
+    out.push(dynamic && !react ? `_dynTextOf(${v}, () => \`${tpl}\`);` : `_textOf(${v}, \`${tpl}\`);`);
+  };
+
+  const children = (parent: string, kids: ts.JsxChild[], out: string[]) => {
+    for (const c of kids) {
+      if (ts.isJsxText(c)) {
+        const t = jsxText(c.text).trim();
+        if (t) out.push(`_text(${parent}, ${JSON.stringify(t)});`);
+      } else if (ts.isJsxExpression(c)) {
+        if (!c.expression) continue;
+        const e = c.expression;
+        if (isJsx(e)) { const cv = element(e as ts.JsxElement, out); out.push(`_append(${parent}, ${cv});`); }
+        // node-valued children: {props.children()}, {children()}, {renderX(...)}
+        else if (ts.isCallExpression(e) && /(^|\.)(children|render[A-Z]\w*)$/.test(e.expression.getText(sf))) out.push(`_append(${parent}, ${rewrite(e)});`);
+        else out.push(react ? `_text(${parent}, \`\${${rewrite(e)}}\`);` : `_dynText(${parent}, () => \`\${${rewrite(e)}}\`);`);
+      } else {
+        const cv = element(c, out);
+        out.push(`_append(${parent}, ${cv});`);
+      }
+    }
+  };
+
+  const onlyChild = (n: ts.JsxElement | ts.JsxSelfClosingElement): ts.JsxChild | undefined =>
+    childrenOf(n).filter(c => !(ts.isJsxText(c) && !c.text.trim()))[0];
+
+  const component = (n: ts.JsxElement | ts.JsxSelfClosingElement, tag: string, out: string[]): string => {
+    const v = `__n${counter++}`;
+    const attrs = new Map<string, { lit?: string; expr?: string }>();
+    for (const a of attrsOf(n)) {
+      if (!ts.isJsxAttribute(a)) throw new JsxError('spread attributes are not supported', a.getStart(sf));
+      attrs.set(a.name.getText(sf), attrValue(a));
+    }
+    const valueOf = (x: { lit?: string; expr?: string }) => x.lit !== undefined ? JSON.stringify(x.lit) : x.expr!;
+    const childNode = (c: ts.JsxChild | undefined): string => {
+      if (!c) return '_el(6)';
+      if (ts.isJsxExpression(c) && c.expression) return isJsx(c.expression) ? lower(c.expression as ts.JsxElement) : rewrite(c.expression);
+      return lower(c as ts.JsxElement);
+    };
+    out.push(`const ${v}: i32 = _el(6);`);
+    if (tag === 'Show' && !react) {
+      const fb = attrs.get('fallback');
+      out.push(`_show(${v}, () => (${valueOf(attrs.get('when')!)}), () => ${childNode(onlyChild(n))}, ${fb ? `() => ${valueOf(fb)}` : 'null'});`);
+    } else if (tag === 'For' && !react) {
+      const c = onlyChild(n);
+      if (!c || !ts.isJsxExpression(c) || !c.expression) throw new JsxError('<For> expects a function child: {(item, i) => <...>}', n.getStart(sf));
+      out.push(`_for(${v}, () => (${valueOf(attrs.get('each')!)}), ${rewrite(c.expression)});`);
+    } else {
+      const props = [...attrs].map(([k, x]) => `${k}: ${valueOf(x)}`);
+      const c = onlyChild(n);
+      if (c) props.push(`children: () => ${childNode(c)}`);
+      const call = `${tag}(${props.length ? `{ ${props.join(', ')} }` : ''})`;
+      out.push(react ? `_rc(${v}, () => ${call});` : `_append(${v}, ${call});`);
+    }
+    return v;
+  };
+
+  // replace top-level JSX spans, last first
+  const spans: { start: number; end: number; code: string }[] = [];
+  const visit = (n: ts.Node) => {
+    if (isJsx(n)) { spans.push({ start: n.getStart(sf), end: n.getEnd(), code: lower(n as ts.JsxElement) }); return; }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  let out = text;
+  for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
+  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _rc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for';
+  return `import { ${helpers} } from '${lib}'; ` + out;
+}

@@ -328,6 +328,8 @@ template<class R, class... A> struct Fn<R(A...)> {
 template<class R, class... A> bool operator==(const Fn<R(A...)>& f, decltype(nullptr)) { return !f.o; }
 template<class R, class... A> bool operator!=(const Fn<R(A...)>& f, decltype(nullptr)) { return (bool)f.o; }
 template<class R, class... A> inline bool truthy(const Fn<R(A...)>& f) { return (bool)f.o; }
+template<class R, class... A> void json(StrBuilder& sb, const Fn<R(A...)>&) { sb.cstr("null"); }
+template<class R, class... A> void to_s(StrBuilder& sb, const Fn<R(A...)>&) { sb.cstr("function"); }
 
 // Callbacks may declare fewer parameters than JS passes (v, i).
 template<class F, class A, class B> auto cb2(F& f, const A& a, const B& b, int) -> decltype(f(a, b)) { return f(a, b); }

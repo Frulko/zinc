@@ -302,7 +302,7 @@ function writeReport(dir: string, o: Opts, sema: Sema, size: number, gfx: boolea
 /** TST-01/02: conformance programs, sim output is the oracle (.out), native output must match byte for byte. */
 function test(o: Opts, update: boolean) {
   const dir = path.join(ZINC_ROOT, 'tests/conformance');
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.ts')).sort();
+  const files = fs.readdirSync(dir).filter(f => /\.tsx?$/.test(f)).sort();
   let failed = 0;
   for (const f of files) {
     const entry = path.join(dir, f);
@@ -310,7 +310,7 @@ function test(o: Opts, update: boolean) {
       const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
       return (r.stdout ?? '') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
-    const expectFile = entry.replace(/\.ts$/, PROFILES[o.profile].number === 'f64' ? '.out' : `.${PROFILES[o.profile].number}.out`);
+    const expectFile = entry.replace(/\.tsx?$/, PROFILES[o.profile].number === 'f64' ? '.out' : `.${PROFILES[o.profile].number}.out`);
     const sim = runOne('sim');
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
     const expected = fs.readFileSync(expectFile, 'utf8');

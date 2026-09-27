@@ -2,7 +2,7 @@
 // Zinc numeric semantics (|0 for i32, Math.fround for f32, integer division checks) and runtime checks.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { ts, ZINC_ROOT } from './frontend.ts';
+import { ts, ZINC_ROOT, STD_MODULES } from './frontend.ts';
 import { Sema, type ZT, type NumKind, isNum, isInt } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
@@ -112,7 +112,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string): JsResult
       if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
         const spec = n.moduleSpecifier.text;
         let ns = spec;
-        if (spec.startsWith('zinc:')) ns = rel(outFile, path.join(ZINC_ROOT, `sim/${spec.slice(5)}.mjs`));
+        if (STD_MODULES[spec]) ns = rel(outFile, outOf(STD_MODULES[spec]));
+        else if (spec.startsWith('zinc:')) ns = rel(outFile, path.join(ZINC_ROOT, `sim/${spec.slice(5)}.mjs`));
         else if (spec.startsWith('.') && /\.spec(\.ts)?$/.test(spec)) {
           const src = path.resolve(path.dirname(sf.fileName), spec.replace(/\.ts$/, '')).replace(/\.spec$/, '.sim.ts');
           simImpls.add(src);

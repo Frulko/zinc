@@ -14,6 +14,7 @@ export type ZT =
   | { k: 'fn'; params: ZT[]; ret: ZT }
   | { k: 'promise'; el: ZT }
   | { k: 'gen'; el: ZT }
+  | { k: 'tup'; els: ZT[] }
   | { k: 'tp'; name: string };
 
 export const MACHINE: ReadonlySet<string> = new Set(['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'fx12', 'fx16', 'isize', 'usize']);
@@ -35,9 +36,11 @@ export function zeq(a: ZT, b: ZT): boolean {
     case 'obj': return a.decl === (b as typeof a).decl && a.args.length === (b as typeof a).args.length && a.args.every((x, i) => zeq(x, (b as typeof a).args[i]));
     case 'fn': return a.params.length === (b as typeof a).params.length && a.params.every((x, i) => zeq(x, (b as typeof a).params[i])) && zeq(a.ret, (b as typeof a).ret);
     case 'tp': return a.name === (b as typeof a).name;
+    case 'tup': return a.els.length === (b as typeof a).els.length && a.els.every((x, i) => zeq(x, (b as typeof a).els[i]));
     default: return true;
   }
 }
+export const hasTypeParam = (t: ZT): boolean => t.k === 'tp' || (t.k === 'arr' || t.k === 'set' || t.k === 'promise' || t.k === 'gen' ? hasTypeParam(t.el) : t.k === 'map' ? hasTypeParam(t.key) || hasTypeParam(t.val) : t.k === 'fn' ? t.params.some(hasTypeParam) || hasTypeParam(t.ret) : t.k === 'obj' ? t.args.some(hasTypeParam) : t.k === 'tup' ? t.els.some(hasTypeParam) : false);
 export const ERROR_CLASSES = new Set(['Error', 'TypeError', 'RangeError']);
 
 export class ZincError extends Error {
@@ -432,6 +435,7 @@ export class Sema {
       return BOOL;
     }
     if (ts.isArrayTypeNode(t)) return { k: 'arr', el: this.fromTypeNode(t.elementType, subst) };
+    if (ts.isTupleTypeNode(t)) return { k: 'tup', els: t.elements.map(x => this.fromTypeNode(ts.isNamedTupleMember(x) ? x.type : x, subst)) };
     if (ts.isTypeLiteralNode(t) && this.unionOf.has(t)) return { k: 'obj', decl: t, args: [] };
     if (ts.isUnionTypeNode(t)) {
       if (ts.isTypeAliasDeclaration(t.parent) && this.unionMembers.has(t.parent)) return { k: 'obj', decl: t.parent, args: [] };
@@ -498,6 +502,7 @@ export class Sema {
       this.fail(at, 'Z9001', `union type '${this.checker.typeToString(type)}' is not supported (use T | null or a discriminated union type alias)`);
     }
     if (f & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) this.fail(at, 'Z1006', "'any'/'unknown' need the Dyn type, which this build does not implement (DYN-02)");
+    if (this.checker.isTupleType(type)) return { k: 'tup', els: this.checker.getTypeArguments(type as ts.TypeReference).map(a => this.fromType(a, at)) };
     const sym = type.getSymbol() ?? type.aliasSymbol;
     const args = (this.checker.getTypeArguments?.(type as ts.TypeReference) ?? []).map(a => this.fromType(a, at));
     if (sym) {
@@ -630,6 +635,7 @@ export class Sema {
       return this.declType(m, this.substFor(src, m));
     }
     if (src.k === 'arr') return src.el;
+    if (src.k === 'tup') return src.els[pat.elements.indexOf(be)];
     if (src.k === 'map') return pat.elements.indexOf(be) === 0 ? src.key : src.val;  // for (const [k, v] of map)
     return this.fail(be, 'Z9007', 'array destructuring needs an array');
   }
@@ -671,6 +677,23 @@ export class Sema {
     return sig ? this.fromType(sig.getReturnType(), d) : VOID;
   }
 
+  /** Type arguments of a generic call: explicit, or unified from the argument types (C++ cannot deduce through lambdas). */
+  inferTypeArgs(d: ts.FunctionDeclaration, e: ts.CallExpression): Map<string, ZT> | undefined {
+    const tps = d.typeParameters ?? [];
+    const bind = new Map<string, ZT>();
+    if (e.typeArguments?.length) { tps.forEach((tp, i) => bind.set(tp.name.text, this.fromTypeNode(e.typeArguments![i]))); return bind; }
+    const unify = (p: ZT, a: ZT) => {
+      if (p.k === 'tp') { if (!bind.has(p.name) && a.k !== 'null' && a.k !== 'tp') bind.set(p.name, a); return; }
+      if ((p.k === 'arr' || p.k === 'set' || p.k === 'promise' || p.k === 'gen') && a.k === p.k) unify(p.el, (a as typeof p).el);
+      else if (p.k === 'map' && a.k === 'map') { unify(p.key, a.key); unify(p.val, a.val); }
+      else if (p.k === 'fn' && a.k === 'fn') { p.params.forEach((x, i) => a.params[i] && unify(x, a.params[i])); unify(p.ret, a.ret); }
+      else if (p.k === 'tup' && a.k === 'tup') p.els.forEach((x, i) => a.els[i] && unify(x, a.els[i]));
+      else if (p.k === 'obj' && a.k === 'obj') p.args.forEach((x, i) => a.args[i] && unify(x, a.args[i]));
+    };
+    d.parameters.forEach((p, i) => { if (e.arguments[i] && p.type) unify(this.fromTypeNode(p.type), this.tryZ(e.arguments[i])); });
+    return tps.every(tp => bind.has(tp.name.text)) ? bind : undefined;
+  }
+
   forOfElem(f: ts.ForOfStatement): ZT {
     const t = this.ztypeOf(f.expression);
     if (t.k === 'arr' || t.k === 'set' || t.k === 'gen') return t.el;
@@ -708,6 +731,7 @@ export class Sema {
     }
     if (ts.isIdentifier(e)) {
       const d = this.declOf(e);
+      if (d && ts.isSourceFile(d)) return VOID;  // `import * as m` namespace
       if (d && !this.isLib(d)) {
         if (ts.isFunctionDeclaration(d)) return this.fnType(d);
         const declared = this.declType(d);
@@ -736,6 +760,7 @@ export class Sema {
       const recv = this.ztypeOf(e.expression);
       if (recv.k === 'arr') return recv.el;
       if (recv.k === 'str') return STR;
+      if (recv.k === 'tup' && ts.isNumericLiteral(e.argumentExpression)) return recv.els[Number(e.argumentExpression.text)];
     }
     if (ts.isCallExpression(e)) {
       const c = e.expression;
@@ -749,7 +774,7 @@ export class Sema {
         const lib = this.libMemberType(recv, c.name.text, e);
         if (lib) return lib;
         const d = this.declOf(c.name);
-        if (d && ts.isFunctionDeclaration(d) && this.libModule(d)) return this.retOf(d);
+        if (d && ts.isFunctionDeclaration(d) && (this.libModule(d) || (!this.isLib(d) && !d.typeParameters))) return this.retOf(d);
         if (d && (!this.isLib(d) || this.libModule(d)) && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters)
           return this.retOf(d, this.substFor(recv, d));
         if (d && !this.isLib(d) && (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d))) {
@@ -760,6 +785,10 @@ export class Sema {
           return this.fromTypeNode(d.type);
       } else {
         const d = this.declOf(c);
+        if (d && ts.isFunctionDeclaration(d) && d.typeParameters && !this.isLib(d)) {
+          const bind = this.inferTypeArgs(d, e);
+          if (bind) return this.retOf(d, bind);
+        }
         if (d && ts.isFunctionDeclaration(d) && !d.typeParameters && (!this.isLib(d) || this.libModule(d) || (d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))))
           return this.retOf(d);
         const ft = d && !this.isLib(d) ? this.tryZ(c) : VOID;
@@ -794,7 +823,9 @@ export class Sema {
     }
     if (ts.isArrayLiteralExpression(e)) {
       const ctx = this.contextual(e);
-      if (ctx?.k === 'arr') return ctx;
+      if (ctx?.k === 'arr' || ctx?.k === 'tup') return ctx;
+      const cct = this.checker.getContextualType(e);
+      if (cct && this.checker.isTupleType(cct)) { const z = this.fromTypeSafe(cct, e); if (z?.k === 'tup') return z; }
       // no annotation: all elements share one Zinc type (keeps i32/Promise<i32> precision, avoids tuples)
       const els = e.elements.map(x => ts.isSpreadElement(x) ? this.ztypeOf(x.expression) : this.ztypeOf(x)).map((t, i) => ts.isSpreadElement(e.elements[i]) && t.k === 'arr' ? t.el : t);
       if (els.length && els.every(t => zeq(t, els[0])) && els[0].k !== 'null') return { k: 'arr', el: isNum(els[0]) && !e.elements.every(x => !ts.isSpreadElement(x) && this.isIntLiteral(x)) ? els[0] : els[0] };
@@ -821,11 +852,21 @@ export class Sema {
     }
     if (ts.isBinaryExpression(p) && p.right === e && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return this.ztypeOf(p.left);
     if (ts.isParenthesizedExpression(p)) return this.contextual(p);
+    if (ts.isPropertyAssignment(p) && p.initializer === e && ts.isObjectLiteralExpression(p.parent)) {
+      const ot = this.tryZ(p.parent);
+      const m = ot.k === 'obj' ? this.memberDecl(ot.decl, p.name.getText()) : undefined;
+      if (m) return this.declType(m);
+    }
     if (ts.isCallExpression(p) && p.arguments.includes(e)) {
       const d = ts.isPropertyAccessExpression(p.expression) ? this.declOf(p.expression.name) : this.declOf(p.expression);
-      if (d && !this.isLib(d) && (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters?.length && !(d.parent as ts.ClassDeclaration).typeParameters?.length) {
+      if (d && !this.isLib(d) && (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) {
         const prm = d.parameters[p.arguments.indexOf(e)];
-        if (prm?.type) return this.fromTypeNode(prm.type);
+        if (prm?.type) {
+          const t = this.fromTypeNode(prm.type);
+          const generic = !!d.typeParameters?.length || !!(d.parent as ts.ClassDeclaration).typeParameters?.length;
+          if (!generic || !hasTypeParam(t)) return t;
+          if (t.k === 'fn' && !hasTypeParam(t.ret)) return { k: 'fn', params: [], ret: t.ret };  // only the result type is known
+        }
       }
     }
     return undefined;

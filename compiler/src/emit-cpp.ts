@@ -23,7 +23,7 @@ export interface CppOptions { debug: boolean; title: string; width: number; heig
 export interface CppResult { code: string; usesGfx: boolean; modules: Set<string>; nativeSources: string[] }
 
 const refLike = (t: ZT) => ['obj', 'fn', 'arr', 'map', 'set', 'promise', 'gen'].includes(t.k);
-const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'arr' || t.k === 'set' || t.k === 'promise' || t.k === 'gen' ? hasTp(t.el) : t.k === 'map' ? hasTp(t.key) || hasTp(t.val) : t.k === 'fn' ? t.params.some(hasTp) || hasTp(t.ret) : t.k === 'obj' ? t.args.some(hasTp) : false);
+const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'tup' ? t.els.some(hasTp) : false) || (t.k === 'arr' || t.k === 'set' || t.k === 'promise' || t.k === 'gen' ? hasTp(t.el) : t.k === 'map' ? hasTp(t.key) || hasTp(t.val) : t.k === 'fn' ? t.params.some(hasTp) || hasTp(t.ret) : t.k === 'obj' ? t.args.some(hasTp) : false);
 
 type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.TypeLiteralNode;
 type FnLike = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;
@@ -91,6 +91,7 @@ class CppEmitter {
       case 'fn': return `zrt::Fn<${this.cpp(t.ret)}(${t.params.map(p => this.cpp(p)).join(', ')})>`;
       case 'promise': return `zrt::Promise<${this.val(t.el)}>`;
       case 'gen': return `zrt::Gen<${this.cpp(t.el)}>`;
+      case 'tup': return `zrt::Tup${t.els.length}<${t.els.map(x => this.cpp(x)).join(', ')}>`;
       case 'tp': return t.name;
     }
   }
@@ -510,7 +511,7 @@ class CppEmitter {
             if (this.native.isRequire(d.initializer)) continue;
             if (this.hasAwait(d.initializer)) this.s.fail(d, 'Z9018', 'top-level await is not supported; use an async main function');
             if (ts.isIdentifier(d.name)) out += this.line(d) + `  ${this.qual(d)} = ${this.check(this.conv(d.initializer, this.s.declType(d)), d.initializer)};\n`;
-            else out += this.destructure(d.name, this.expr(d.initializer), this.s.ztypeOf(d.initializer), 1, true);
+            else { const tmp = this.newTmp('d'); out += `  auto ${tmp} = ${this.check(this.expr(d.initializer), d.initializer)};\n` + this.destructure(d.name, tmp, this.s.ztypeOf(d.initializer), 1, true); }
           }
           continue;
         }
@@ -711,7 +712,7 @@ class CppEmitter {
       if (ts.isObjectBindingPattern(pat)) {
         if (srcT.k !== 'obj') this.s.fail(e, 'Z9007', 'object destructuring needs an object');
         access = `${src}->${this.id((e.propertyName ?? e.name).getText())}`;
-      } else access = srcT.k === 'arr' ? `${src}.get(${idx})` : this.s.fail(e, 'Z9007', 'array destructuring needs an array');
+      } else access = srcT.k === 'arr' ? `${src}.get(${idx})` : srcT.k === 'tup' ? `${src}.v${idx}` : this.s.fail(e, 'Z9007', 'array destructuring needs an array');
       if (ts.isIdentifier(e.name)) {
         const n = this.id(e.name.text);
         if (global) out += `${this.ind(d)}${this.ns(e.getSourceFile())}::${n} = ${access};\n`;
@@ -863,8 +864,9 @@ class CppEmitter {
     if (ts.isPropertyAccessExpression(e)) return e.questionDotToken ? this.optional(e) : this.prop(e);
     if (ts.isElementAccessExpression(e)) {
       const t = this.s.ztypeOf(e.expression);
-      if (t.k === 'arr') return `${this.expr(e.expression)}.get(${this.expr(e.argumentExpression, I32)})`;
+      if (t.k === 'arr') return `${this.expr(e.expression)}.get(${this.index(e.argumentExpression)})`;
       if (t.k === 'str') return `${this.expr(e.expression)}.at(${this.conv(e.argumentExpression, I32)})`;
+      if (t.k === 'tup' && ts.isNumericLiteral(e.argumentExpression)) return `${this.expr(e.expression)}.v${e.argumentExpression.text}`;
       return this.s.fail(e, 'Z9015', 'computed property access is only supported on arrays and strings (use Map)');
     }
     if (ts.isCallExpression(e)) return e.questionDotToken ? this.s.fail(e, 'Z9035', "'?.()' is not supported yet") : this.check(this.call(e), e);
@@ -928,8 +930,13 @@ class CppEmitter {
     return this.s.isModuleLevel(n);
   }
 
+  /** Array index: machine integers pass through; fixed-point indices are converted like JS would. */
+  index(e: ts.Expression): string {
+    const t = this.s.tryZ(e);
+    return t.k === 'num' && isFx(t.m) ? this.conv(e, I32) : this.expr(e, I32);
+  }
   lval(e: ts.Expression): string {
-    if (ts.isElementAccessExpression(e) && this.s.ztypeOf(e.expression).k === 'arr') return `${this.expr(e.expression)}.ref(${this.expr(e.argumentExpression, I32)})`;
+    if (ts.isElementAccessExpression(e) && this.s.ztypeOf(e.expression).k === 'arr') return `${this.expr(e.expression)}.ref(${this.index(e.argumentExpression)})`;
     if (ts.isParenthesizedExpression(e)) return this.lval(e.expression);
     return this.expr(e);
   }
@@ -960,6 +967,7 @@ class CppEmitter {
     }
     const od = ts.isIdentifier(obj) ? this.s.declOf(obj) : undefined;
     if (od && ts.isClassDeclaration(od)) return `${this.qual(od)}::${this.id(name)}`;
+    if (od && ts.isSourceFile(od)) { const md = this.s.declOf(e.name)!; return `${this.ns(od)}::${this.id(name)}${this.s.boxed.has(this.s.symbolOf(e.name)!) ? '->v' : ''}`; void md; }
     const t = this.s.ztypeOf(obj);
     const recv = recvOverride ?? this.expr(obj);
     if ((t.k === 'arr' || t.k === 'str') && name === 'length') return `${recv}.length()`;
@@ -1030,6 +1038,7 @@ class CppEmitter {
       if (t.k === 'arr' || t.k === 'str' || t.k === 'map' || t.k === 'set') return this.builtinCall(e, c, t);
       const od = ts.isIdentifier(obj) ? this.s.declOf(obj) : undefined;
       const md = this.s.declOf(c.name);
+      if (od && ts.isSourceFile(od) && md && ts.isFunctionDeclaration(md)) return this.genericCall(this.qual(md), md, e);
       const ps = md && (ts.isMethodDeclaration(md) || ts.isMethodSignature(md)) ? md.parameters.map(p => this.s.paramType(p, this.s.substFor(t, md))) : [];
       const targs = e.typeArguments?.length ? `<${e.typeArguments.map(a => this.cpp(this.s.fromTypeNode(a))).join(', ')}>` : '';
       if (od && ts.isClassDeclaration(od)) return `${this.qual(od)}::${this.id(name)}${targs}(${this.args(e.arguments, ps)})`;
@@ -1049,7 +1058,7 @@ class CppEmitter {
       if (sf.fileName.endsWith('/lib/gfx.d.ts')) {
         this.usesGfx = true;
         const fd = d as ts.FunctionDeclaration;
-        return `zrt::gfx::${n}(${this.args(e.arguments, fd.parameters.map(p => this.s.paramType(p)))})`;
+        return this.hostCall(`zrt::gfx::${fd.name!.text}`, fd, e);
       }
       switch (n) {
         case 'parseInt': return this.numRet(`zrt::parse_int(${this.conv(e.arguments[0], STR)}${e.arguments[1] ? ', ' + this.conv(e.arguments[1], I32) : ''})`);
@@ -1063,11 +1072,28 @@ class CppEmitter {
       }
       return this.s.fail(e, 'Z9019', `'${n}' is not implemented by the runtime`);
     }
-    const targs = e.typeArguments?.length ? `<${e.typeArguments.map(a => this.cpp(this.s.fromTypeNode(a))).join(', ')}>` : '';
-    if (d && ts.isFunctionDeclaration(d)) return `${this.expr(c)}${targs}(${this.args(e.arguments, d.parameters.map(p => this.s.paramType(p)))})`;
+    if (d && ts.isFunctionDeclaration(d)) return this.genericCall(this.expr(c), d, e);
     const ft = this.s.ztypeOf(c);
     if (ft.k === 'fn') return `${this.expr(c)}(${this.args(e.arguments, ft.params)})`;
     return this.s.fail(e, 'Z9000', 'unsupported call');
+  }
+
+  /** Calls a runtime-implemented function: `number` crosses the boundary as f64 whatever the profile. */
+  hostCall(name: string, d: ts.SignatureDeclaration, e: ts.CallExpression): string {
+    const toHost = (t: ZT): ZT => t.k === 'num' && t.m === this.s.numberKind ? F64 : t;
+    const call = `${name}(${this.args(e.arguments, d.parameters.map(p => toHost(this.s.paramType(p))))})`;
+    const r = this.s.retOf(d);
+    return r.k === 'num' && r.m === this.s.numberKind && r.m !== 'f64' ? this.numRet(call) : call;
+  }
+
+  /** Calls a (possibly generic) function; type arguments are made explicit because C++ cannot deduce them from lambdas. */
+  genericCall(callee: string, d: ts.FunctionDeclaration, e: ts.CallExpression): string {
+    const tps = d.typeParameters ?? [];
+    if (!tps.length) return `${callee}(${this.args(e.arguments, d.parameters.map(p => this.s.paramType(p)))})`;
+    const bind = this.s.inferTypeArgs(d, e);
+    if (!bind) return `${callee}(${this.args(e.arguments, d.parameters.map(p => this.s.paramType(p)))})`;
+    const ps = d.parameters.map(p => this.s.paramType(p, bind));
+    return `${callee}<${tps.map(tp => this.cpp(bind.get(tp.name.text)!)).join(', ')}>(${e.arguments.map((a, i) => this.conv(a, ps[i])).join(', ')})`;
   }
 
   /** console.* (RT-07): one formatter shared with sim; levels, timers, assert. */
@@ -1140,6 +1166,8 @@ class CppEmitter {
   }
 
   arrLit(e: ts.ArrayLiteralExpression, want?: ZT): string {
+    const tt = want?.k === 'tup' ? want : this.s.ztypeOf(e);
+    if (tt.k === 'tup') return `${this.cpp(tt)}{${e.elements.map((x, i) => this.conv(x, tt.els[i])).join(', ')}}`;
     const ctx = this.s.contextual(e);
     const t = (want?.k === 'arr' ? want : ctx?.k === 'arr' ? ctx : this.s.ztypeOf(e)) as Extract<ZT, { k: 'arr' }>;
     if (t.k !== 'arr') this.s.fail(e, 'Z9001', 'cannot type this array literal');
@@ -1357,7 +1385,7 @@ class CppEmitter {
     }
     if (ts.isElementAccessExpression(L)) {
       const at = this.s.ztypeOf(L.expression);
-      if (at.k === 'arr') return `${this.expr(L.expression)}.set(${this.expr(L.argumentExpression, I32)}, ${this.conv(R, at.el)})`;
+      if (at.k === 'arr') return `${this.expr(L.expression)}.set(${this.index(L.argumentExpression)}, ${this.conv(R, at.el)})`;
     }
     if (ts.isArrayLiteralExpression(L) || ts.isObjectLiteralExpression(L)) this.s.fail(L, 'Z9007', 'destructuring assignment is not supported yet; use a declaration');
     return `${this.expr(L)} = ${this.conv(R, lt)}`;

@@ -3,6 +3,7 @@
 import ts from '@typescript/typescript6';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lowerJsx, JsxError } from './jsx.ts';
 
 export { ts };
 
@@ -20,7 +21,16 @@ export interface Frontend {
   tsDiagnostics: Diag[];
 }
 
+/** Standard modules written in Zinc (RT-09), resolved like packages. */
+export const STD_MODULES: Record<string, string> = {
+  'zinc:ui': path.join(ZINC_ROOT, 'lib/std/ui.ts'),
+  'zinc:ui/solid': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
+  'zinc:ui/react': path.join(ZINC_ROOT, 'lib/std/react.ts'),
+};
+
 export const compilerOptions: ts.CompilerOptions = {
+  paths: Object.fromEntries(Object.entries(STD_MODULES).map(([k, v]) => [k, [v]])),
+  jsx: ts.JsxEmit.React,
   strict: true,
   // LNG-15: only Error instances are throwable, so a caught value is an Error
   useUnknownInCatchVariables: false,
@@ -37,12 +47,28 @@ export const compilerOptions: ts.CompilerOptions = {
 
 export function loadProgram(entryPath: string): Frontend {
   const entryAbs = path.resolve(entryPath);
-  const program = ts.createProgram([entryAbs, ...LIB_FILES], compilerOptions);
+  const host = ts.createCompilerHost(compilerOptions);
+  const getSourceFile = host.getSourceFile;
+  const jsxErrors: Diag[] = [];
+  // UI: .tsx files are lowered to plain calls before type checking (compiler/src/jsx.ts)
+  host.getSourceFile = (f, lang, onError, create) => {
+    if (!f.endsWith('.tsx')) return getSourceFile.call(host, f, lang, onError, create);
+    const text = ts.sys.readFile(f) ?? '';
+    try {
+      return ts.createSourceFile(f, lowerJsx(text, f), lang, true, ts.ScriptKind.TSX);
+    } catch (e) {
+      if (!(e instanceof JsxError)) throw e;
+      const lc = ts.createSourceFile(f, text, lang, true).getLineAndCharacterOfPosition(e.pos);
+      jsxErrors.push({ file: path.relative(process.cwd(), f), line: lc.line + 1, col: lc.character + 1, code: 'Z6001', severity: 'error', message: e.message });
+      return ts.createSourceFile(f, '', lang, true);
+    }
+  };
+  const program = ts.createProgram([entryAbs, ...LIB_FILES], compilerOptions, host);
   const checker = program.getTypeChecker();
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);
   if (!entry) throw new Error(`entry not found: ${entryPath}`);
-  const tsDiagnostics = ts.getPreEmitDiagnostics(program).map(d => toDiag(d));
+  const tsDiagnostics = jsxErrors.length ? jsxErrors : ts.getPreEmitDiagnostics(program).map(d => toDiag(d));
   return { program, checker, sources, entry, tsDiagnostics };
 }
 

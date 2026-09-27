@@ -40,6 +40,15 @@ template<class F> Defer<F> defer(F f) { return Defer<F>(f); }
 
 template<class T> String json_stringify(const T& v) { StrBuilder sb; json(sb, v); return sb.build(); }
 
+// ---------- tuples ----------
+template<class A, class B> struct Tup2 { A v0; B v1; };
+template<class A, class B, class C> struct Tup3 { A v0; B v1; C v2; };
+template<class A, class B, class C, class D> struct Tup4 { A v0; B v1; C v2; D v3; };
+template<class A, class B> void json(StrBuilder& sb, const Tup2<A, B>& t) { sb.ch('['); json(sb, t.v0); sb.ch(','); json(sb, t.v1); sb.ch(']'); }
+template<class A, class B> void log_one(StrBuilder& sb, const Tup2<A, B>& t) { json(sb, t); }
+template<class A, class B, class C> void json(StrBuilder& sb, const Tup3<A, B, C>& t) { sb.ch('['); json(sb, t.v0); sb.ch(','); json(sb, t.v1); sb.ch(','); json(sb, t.v2); sb.ch(']'); }
+template<class A, class B, class C> void log_one(StrBuilder& sb, const Tup3<A, B, C>& t) { json(sb, t); }
+
 // ---------- weak references (MEM-13) ----------
 template<class T> struct Weak {
   T* p = nullptr;
@@ -79,7 +88,7 @@ template<int F> struct Fx {
   constexpr Fx() {}
   static constexpr Fx raw(int32_t r) { Fx x; x.v = r; return x; }
   static int32_t from_d(double d) { return cvt<int32_t>(__builtin_floor(d * (double)ONE + 0.5)); }
-  explicit Fx(double d) : v(from_d(d)) {}
+  Fx(double d) : v(from_d(d)) {}  // implicit: host APIs pass f64 across the boundary
   explicit Fx(float d) : v(from_d(d)) {}
   explicit Fx(int32_t i) : v((int32_t)((uint32_t)i << F)) {}
   explicit Fx(uint32_t i) : v((int32_t)(i << F)) {}

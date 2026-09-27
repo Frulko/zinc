@@ -10,6 +10,7 @@ import type { Sema, ZT } from './sema.ts';
 
 export interface Emitter {
   args(as: readonly ts.Expression[], ps: ZT[]): string;
+  hostCall(name: string, d: ts.SignatureDeclaration, e: ts.CallExpression): string;
   cpp(t: ZT): string;
 }
 
@@ -92,7 +93,7 @@ export class NativeModules {
       const mod = this.s.libModule(d);
       if (mod && mod !== 'gfx') {
         this.used.add(mod);
-        return `zrt::${mod}::${d.name!.text}(${em.args(e.arguments, d.parameters.map(p => this.s.paramType(p)))})`;
+        return em.hostCall(`zrt::${mod}::${d.name!.text}`, d, e);
       }
     }
     return undefined;
