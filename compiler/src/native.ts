@@ -13,6 +13,14 @@ export interface Emitter {
   cpp(t: ZT): string;
 }
 
+/** NAT-13 availability table: using a module elsewhere is a compile error (NAT-09). */
+const HOSTS = ['macos', 'linux', 'rpi1', 'sim'];
+export const MODULE_TARGETS: Record<string, string[]> = {
+  sys: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], events: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], assets: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'],
+  storage: [...HOSTS, 'esp32', 'ps2', 'ps1'], fs: [...HOSTS, 'esp32'], telemetry: [...HOSTS, 'esp32'],
+  net: [...HOSTS, 'esp32'], osc: [...HOSTS, 'esp32'], mqtt: [...HOSTS, 'esp32'], gpio: [...HOSTS, 'esp32'], native: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], mem: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'],
+};
+
 export interface UserModule { name: string; spec: ts.SourceFile; iface: ts.InterfaceDeclaration; dir: string }
 
 export class NativeModules {

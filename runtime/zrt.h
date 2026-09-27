@@ -28,6 +28,12 @@ template<class T> using decay_t = typename rm_cv<typename rm_ref<T>::type>::type
 template<bool B, class T = void> struct enable_if {};
 template<class T> struct enable_if<true, T> { typedef T type; };
 template<class T> T&& declval();
+// integer types not covered by the fixed-width overloads (e.g. `int` where int32_t is `long` on the PS2 EE)
+template<class T> struct is_intlike { static constexpr bool value = false; };
+#define ZRT_INTLIKE(T) template<> struct is_intlike<T> { static constexpr bool value = true; };
+ZRT_INTLIKE(signed char) ZRT_INTLIKE(unsigned char) ZRT_INTLIKE(short) ZRT_INTLIKE(unsigned short) ZRT_INTLIKE(int) ZRT_INTLIKE(unsigned)
+ZRT_INTLIKE(long) ZRT_INTLIKE(unsigned long) ZRT_INTLIKE(long long) ZRT_INTLIKE(unsigned long long)
+#undef ZRT_INTLIKE
 
 // ---------- memory ----------
 extern uint32_t live_objects;
@@ -193,6 +199,7 @@ inline void to_s(StrBuilder& sb, uint64_t v) { to_s(sb, (int64_t)v); }
 inline void to_s(StrBuilder& sb, bool v) { sb.cstr(v ? "true" : "false"); }
 inline void to_s(StrBuilder& sb, const String& v) { sb.raw(v.ptr(), v.bytes()); }
 inline void to_s(StrBuilder& sb, const char* v) { sb.cstr(v); }
+template<class T, class = typename enable_if<is_intlike<T>::value>::type> void to_s(StrBuilder& sb, T v) { to_s(sb, (int64_t)v); }
 template<class T> void to_s(StrBuilder& sb, const Ref<T>& v) { if (v.p) v.p->zrt_str(sb); else sb.cstr("null"); }
 template<class T> void to_s(StrBuilder& sb, const Array<T>& v);
 
@@ -206,6 +213,7 @@ inline void json(StrBuilder& sb, int64_t v) { to_s(sb, v); }
 inline void json(StrBuilder& sb, uint64_t v) { to_s(sb, v); }
 inline void json(StrBuilder& sb, bool v) { to_s(sb, v); }
 inline void json(StrBuilder& sb, const String& v) { json_str(sb, v); }
+template<class T, class = typename enable_if<is_intlike<T>::value>::type> void json(StrBuilder& sb, T v) { to_s(sb, (int64_t)v); }
 template<class T> void json(StrBuilder& sb, const Ref<T>& v) { if (v.p) v.p->zrt_json(sb); else sb.cstr("null"); }
 template<class T> void json(StrBuilder& sb, const Array<T>& v);
 template<class T> void json_field(StrBuilder& sb, bool& first, const char* name, const T& v) {
@@ -285,6 +293,7 @@ inline bool truthy(uint32_t v) { return v != 0; }
 inline bool truthy(int64_t v) { return v != 0; }
 inline bool truthy(uint64_t v) { return v != 0; }
 inline bool truthy(const String& v) { return v.bytes() != 0; }
+template<class T, class = typename enable_if<is_intlike<T>::value>::type> inline bool truthy(T v) { return v != 0; }
 template<class T> inline bool truthy(const Ref<T>& v) { return v.p != nullptr; }
 
 inline bool is_nan(double v) { return v != v; }
@@ -482,6 +491,7 @@ inline uint32_t hash(int32_t v) { return hash((double)v); }
 inline uint32_t hash(uint32_t v) { return hash((double)v); }
 inline uint32_t hash(int64_t v) { return hash_u64((uint64_t)v); }
 inline uint32_t hash(bool v) { return v; }
+template<class T, class = typename enable_if<is_intlike<T>::value>::type> inline uint32_t hash(T v) { return hash_u64((uint64_t)(int64_t)v); }
 uint32_t hash(const String& s);
 template<class T> uint32_t hash(const Ref<T>& r) { return hash_u64((uint64_t)(uintptr_t)r.p); }
 template<class T> inline bool same(const T& a, const T& b) { return a == b; }

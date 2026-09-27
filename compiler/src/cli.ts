@@ -52,7 +52,7 @@ function parseArgs(argv: string[]): Opts {
   o.project = loadProject(o.entry);
   const over = o.project.targets[o.profile];
   if (over && PROFILES[o.profile]) PROFILES[o.profile] = { ...PROFILES[o.profile], ...over };
-  if (!PROFILES[o.target]) die(`unknown target '${o.target}' (available: macos, linux, sim; others need their SDK image, see docs/reports/STATUS.md)`);
+  if (!PROFILES[o.target]) die(`unknown target '${o.target}' (available: ${Object.keys(PROFILES).join(', ')})`);
   if (!PROFILES[o.profile]) die(`unknown profile '${o.profile}'`);
   return o;
 }
@@ -133,14 +133,16 @@ target_compile_options(zrt PUBLIC \${ZFLAGS})
 target_compile_options(zrt PRIVATE -Wall -Wextra -Werror)
 target_compile_definitions(zrt PUBLIC ZRT_PLATFORM="${target}")
 option(ZINC_HEADLESS "use the null HAL even for zinc:gfx programs" OFF)
-if(EMSCRIPTEN)
+if(DEFINED ZINC_HAL_FILE)
+  set(ZINC_HAL \${ZINC_HAL_FILE})
+elseif(EMSCRIPTEN)
   set(ZINC_HAL ${z}/targets/wasm/hal_web.cpp)
 elseif(${usesGfx ? 'NOT ZINC_HEADLESS' : 'FALSE'})
   set(ZINC_HAL ${z}/targets/macos/hal_sdl.cpp)
 else()
   set(ZINC_HAL ${z}/targets/null/hal_null.cpp)
 endif()
-if(EMSCRIPTEN)
+if(EMSCRIPTEN OR DEFINED ZINC_HAL_FILE)
   set(ZINC_POSIX "")
 else()
   set(ZINC_POSIX ${z}/targets/common/hal_posix.cpp)
@@ -210,7 +212,7 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
-  if (o.target === 'linux' && process.platform !== 'linux') return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
+  if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
   if (o.target === 'wasm') return wasmBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
   if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
     const genArgs = ['-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`];
@@ -225,25 +227,42 @@ function build(o: Opts): Built {
   return { exe: [exe], dir };
 }
 
-// DEV-01: build inside the pinned SDK image; the project and zinc are mounted at the same paths.
-function dockerArgs(dir: string): string[] {
+// DEV-01: each cross target builds inside its pinned SDK image; the project and zinc are mounted at the same paths.
+interface DockerTarget { image: string; dockerfile: string; platform?: string; cmake: string[]; run: string[]; env?: string[] }
+const DOCKER: Record<string, DockerTarget> = {
+  linux: { image: 'zinc/sdk-linux', dockerfile: 'docker/sdk-linux', cmake: ['-G', 'Ninja'], run: ['./cmake/app'] },
+  // TGT-RPI-01/04: ARMv6 hard-float, executed under QEMU with the arm1176 CPU
+  rpi1: { image: 'zinc/sdk-rpi1', dockerfile: 'docker/sdk-rpi1', platform: 'linux/arm/v6', cmake: ['-DCMAKE_CXX_FLAGS=-march=armv6kz+fp -mfpu=vfp -mfloat-abi=hard'], run: ['./cmake/app'], env: ['QEMU_CPU=arm1176'] },
+  // R3000 (MIPS I) and R5900 ISAs under qemu-user; static binaries
+  ps1: { image: 'zinc/sdk-mips', dockerfile: 'docker/sdk-mips', cmake: ['-DCMAKE_CXX_COMPILER=mipsel-linux-gnu-g++', '-DCMAKE_CXX_FLAGS=-march=mips1 -mfp32 -mno-check-zero-division', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['qemu-mipsel', '-cpu', '24Kf', './cmake/app'] },
+  // TGT-PS2-01: EE ELF with ps2sdk; running needs PCSX2 + the user's BIOS (TGT-PS2-04), so `run` only builds
+  ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
+};
+function dockerArgs(dir: string, t: DockerTarget): string[] {
   const mounts = [ZINC_ROOT, path.dirname(dir)].filter((m, i, a) => !a.some((x, j) => j !== i && (m + '/').startsWith(x + '/')));
-  return ['run', '--rm', '-e', 'ZINC_FRAMES', ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, 'zinc/sdk-linux'];
+  return ['run', '--rm', '-e', 'ZINC_FRAMES', ...(t.env ?? []).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, t.image];
 }
 function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean): Built {
-  if (spawnSync('docker', ['image', 'inspect', 'zinc/sdk-linux'], { stdio: 'ignore' }).status !== 0) {
-    log(o, 'building docker image zinc/sdk-linux (first time only)...');
-    if (run('docker', ['build', '-t', 'zinc/sdk-linux', path.join(ZINC_ROOT, 'docker/sdk-linux')], undefined, true) !== 0) die('docker build failed');
+  const t = DOCKER[o.target];
+  if (spawnSync('docker', ['image', 'inspect', t.image], { stdio: 'ignore' }).status !== 0) {
+    log(o, `building docker image ${t.image} (first time only)...`);
+    if (run('docker', ['build', '-t', t.image, path.join(ZINC_ROOT, t.dockerfile)], undefined, true) !== 0) die('docker build failed');
   }
-  const script = `cmake -S . -B cmake -G Ninja -DZINC_HEADLESS=ON -DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'} >/dev/null && cmake --build cmake`;
-  if (run('docker', [...dockerArgs(dir), 'sh', '-c', script], undefined, true) !== 0) die('C++ build failed (linux)');
+  // a cache configured by another toolchain cannot be reused
+  const stamp = path.join(bdir, '.zinc-image');
+  const want = t.image + ' ' + t.cmake.join(' ');
+  if (fs.existsSync(bdir) && (!fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8') !== want)) fs.rmSync(bdir, { recursive: true, force: true });
+  fs.mkdirSync(bdir, { recursive: true });
+  fs.writeFileSync(stamp, want);
+  const cm = ['cmake', '-S', '.', '-B', 'cmake', '-DZINC_HEADLESS=ON', `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`, ...t.cmake].map(a => `'${a}'`).join(' ');
+  const script = `${cm} >/dev/null && cmake --build cmake -j4`;
+  if (run('docker', [...dockerArgs(dir, t), 'sh', '-c', script], undefined, true) !== 0) die(`C++ build failed (${o.target})`);
   const size = fs.statSync(path.join(bdir, 'app')).size;
-  log(o, `built linux (docker, headless): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), path.join(bdir, 'app'))}`);
+  log(o, `built ${o.target} (docker ${t.image}${t.platform ? ', ' + t.platform : ''}): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), path.join(bdir, 'app'))}`);
   writeReport(dir, o, sema, size, gfx);
-  return { exe: ['docker', ...dockerArgs(dir), './cmake/app'], dir };
+  return { exe: ['docker', ...dockerArgs(dir, t), ...t.run], dir };
 }
 
-// Browser target: emscripten (local emcc, or the emscripten/emsdk image), output app.html + app.js + app.wasm.
 /** Environment for emscripten: a Python >= 3.10 and the LLVM shipped with the emscripten formula, if present. */
 function emEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
@@ -288,16 +307,17 @@ function test(o: Opts, update: boolean) {
   for (const f of files) {
     const entry = path.join(dir, f);
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, ...(o.profile !== o.target ? ['--profile', o.profile] : []), ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
       return (r.stdout ?? '') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
-    const expectFile = entry.replace(/\.ts$/, o.profile !== 'macos' && o.profile !== 'linux' && o.profile !== o.target ? `.${o.profile}.out` : '.out');
+    const expectFile = entry.replace(/\.ts$/, PROFILES[o.profile].number === 'f64' ? '.out' : `.${PROFILES[o.profile].number}.out`);
     const sim = runOne('sim');
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
     const expected = fs.readFileSync(expectFile, 'utf8');
     const results: [string, string][] = [['sim', sim]];
     if (o.target !== 'sim') results.push([o.target, runOne(o.target)]);
     for (const [t, out] of results) {
+      if (out.includes('Z5003')) { console.log(`skip ${f} [${t}] (module not available on this target)`); continue; }
       const ok = out === expected;
       if (!ok) failed++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${f} [${t}${o.profile !== o.target ? '/' + o.profile : ''}]`);
