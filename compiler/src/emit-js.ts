@@ -5,6 +5,8 @@ import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
 import { Sema, type ZT, type NumKind, isNum, isInt } from './sema.ts';
 
+const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
+
 export interface JsResult { files: { path: string }[] }
 
 export function emitJs(sema: Sema, outDir: string): JsResult {
@@ -73,8 +75,38 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
     const FXB = sema.numberKind === 'fx16' ? 16 : 12;
     /** quantize a runtime double into the fixed-point `number` of the profile */
     const fxq = (e: ts.Expression) => FX ? callZ('fx', [e, num(FXB)]) : e;
+    /** Same decision as the C++ emitter's `want`: is this literal a fixed-point number here? */
+    const literalIsFx = (lit: ts.Expression): boolean => {
+      let e: ts.Node = lit;
+      while (ts.isParenthesizedExpression(e.parent) || (ts.isPrefixUnaryExpression(e.parent) && e.parent.operator === K.MinusToken)) e = e.parent;
+      const p = e.parent;
+      const isFxT = (t: ZT | undefined) => !t || (isNum(t) ? t.m === 'fx12' || t.m === 'fx16' : true);
+      try {
+        if (ts.isVariableDeclaration(p) && p.initializer === e) return isFxT(sema.declType(p));
+        if (ts.isBinaryExpression(p)) {
+          if (p.operatorToken.kind === K.EqualsToken) return isFxT(sema.ztypeOf(p.left));
+          const other = p.left === e ? p.right : p.left;
+          const ot = sema.ztypeOf(other);
+          if (isNum(ot) && isInt(ot.m) && [K.PlusToken, K.MinusToken, K.AsteriskToken, K.PercentToken, K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.AmpersandToken, K.BarToken, K.CaretToken, K.LessThanLessThanToken, K.GreaterThanGreaterThanToken, K.GreaterThanGreaterThanGreaterThanToken].includes(p.operatorToken.kind)) return false;
+        }
+        if ((ts.isCallExpression(p) || ts.isNewExpression(p)) && p.arguments?.includes(e as ts.Expression)) {
+          const i = p.arguments.indexOf(e as ts.Expression);
+          const ps = paramTypes(p);
+          if (ps[i]) return isFxT(ps[i]);
+          const d = ts.isPropertyAccessExpression(p.expression) ? sema.declOf(p.expression.name) : sema.declOf(p.expression);
+          const prm = d && (ts.isFunctionDeclaration(d) || ts.isMethodSignature(d) || ts.isMethodDeclaration(d)) ? d.parameters[i] : undefined;
+          if (prm?.type) return isFxT(sema.fromTypeNode(prm.type));
+          return true;
+        }
+        if (ts.isElementAccessExpression(p) && p.argumentExpression === e) return false;
+        if (ts.isReturnStatement(p)) { const fn = sema.fnOf(p) as ts.SignatureDeclaration | undefined; return !fn || isFxT(safeRet(fn)); }
+        if (ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p)) { const t = safeType(ts.isPropertyAssignment(p) ? p.initializer : p.initializer!); void t; }
+        if (ts.isArrayLiteralExpression(p)) { const t = sema.contextual(p) ?? safeType(p); return !t || t.k !== 'arr' || isFxT(t.el); }
+      } catch { /* fall back to the profile number */ }
+      return true;
+    };
     const visit = (n: ts.Node): ts.Node => {
-      if (FX && ts.isNumericLiteral(n)) { const q = Math.floor(Number(n.text) * (1 << FXB) + 0.5) / (1 << FXB); return q < 0 ? f.createPrefixUnaryExpression(K.MinusToken, num(-q)) : num(q); }
+      if (FX && ts.isNumericLiteral(n) && literalIsFx(n)) { const q = (Math.floor(Number(n.text) * (1 << FXB) + 0.5) | 0) / (1 << FXB); return q < 0 ? f.createPrefixUnaryExpression(K.MinusToken, num(-q)) : num(q); }
       if (FX && ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'Math' && (n.name.text === 'PI' || n.name.text === 'E')) return fxq(n);
       // module specifiers: zinc:gfx -> sim shim, relative -> .js
       if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
@@ -97,14 +129,16 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
           const g = c.expression.text, m = c.name.text;
           const lib = !sema.declOf(c.expression) || sema.isLib(sema.declOf(c.expression)!);
           if (lib && g === 'console') return callZ('c_' + m, [...v.arguments]);
+          if (lib && FX && ((g === 'Date' || g === 'performance') && m === 'now')) return fxq(v);
           if (lib && g === 'Math' && m === 'random') return fxq(callZ('random', []));
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
-          if (lib && g === 'Math' && FX) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
+          if (lib && g === 'Math' && FX && MATH_FNS.has(m)) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
         }
         if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
           const rt = safeType(c.expression);
           if (rt?.k === 'map' || rt?.k === 'set') return f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier('Array'), 'from'), undefined, [v]);
         }
+        if (FX && ts.isIdentifier(c) && (c.text === 'parseInt' || c.text === 'parseFloat')) return fxq(v);
         const ps = paramTypes(n);
         if (ps.length) return f.updateCallExpression(v, v.expression, v.typeArguments, v.arguments.map((a, i) => conv(a, n.arguments[i], ps[i])));
         return v;

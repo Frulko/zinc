@@ -652,6 +652,10 @@ export class Sema {
       const sig = this.checker.getSignatureFromDeclaration(d);
       return sig ? this.fromType(sig.getReturnType(), d) : { k: 'promise', el: VOID };
     }
+    if ((ts.isArrowFunction(d) || ts.isFunctionExpression(d)) && !this.isAsyncFn(d)) {
+      const ctx = this.contextual(d);
+      if (ctx?.k === 'fn') return ctx.ret;
+    }
     if (ts.isArrowFunction(d) && !ts.isBlock(d.body)) {
       const t = this.ztypeOf(d.body);
       const sig = this.checker.getSignatureFromDeclaration(d);
@@ -811,6 +815,13 @@ export class Sema {
     }
     if (ts.isBinaryExpression(p) && p.right === e && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return this.ztypeOf(p.left);
     if (ts.isParenthesizedExpression(p)) return this.contextual(p);
+    if (ts.isCallExpression(p) && p.arguments.includes(e)) {
+      const d = ts.isPropertyAccessExpression(p.expression) ? this.declOf(p.expression.name) : this.declOf(p.expression);
+      if (d && !this.isLib(d) && (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters?.length && !(d.parent as ts.ClassDeclaration).typeParameters?.length) {
+        const prm = d.parameters[p.arguments.indexOf(e)];
+        if (prm?.type) return this.fromTypeNode(prm.type);
+      }
+    }
     return undefined;
   }
 

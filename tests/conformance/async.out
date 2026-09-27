@@ -1,0 +1,11 @@
+sync 1
+main start
+sync 2
+squares [0,1,4,9,16]
+microtask 7
+queued
+a 42
+total 6
+caught boom
+all [2,4,6]
+main done

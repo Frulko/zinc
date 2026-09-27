@@ -37,6 +37,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
     else if (a === '--json') o.json = true;
     else if (a === '--no-float') o.noFloat = true;
+    else if (a === '--update') { /* zinc test */ }
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -78,7 +79,8 @@ function guard<T>(o: Opts, f: () => T): T {
 }
 
 function outDir(o: Opts): string {
-  const name = o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.debug ? '-debug' : '');
+  const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
+  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.debug ? '-debug' : '');
   return path.join(path.dirname(path.resolve(o.entry)), 'build', name);
 }
 
@@ -198,6 +200,39 @@ function writeReport(dir: string, o: Opts, sema: Sema, size: number, gfx: boolea
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
 }
 
+/** TST-01/02: conformance programs, sim output is the oracle (.out), native output must match byte for byte. */
+function test(o: Opts, update: boolean) {
+  const dir = path.join(ZINC_ROOT, 'tests/conformance');
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.ts')).sort();
+  let failed = 0;
+  for (const f of files) {
+    const entry = path.join(dir, f);
+    const runOne = (target: string): string => {
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, ...(o.profile !== o.target ? ['--profile', o.profile] : []), ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
+      return (r.stdout ?? '') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
+    };
+    const expectFile = entry.replace(/\.ts$/, o.profile !== 'macos' && o.profile !== 'linux' && o.profile !== o.target ? `.${o.profile}.out` : '.out');
+    const sim = runOne('sim');
+    if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
+    const expected = fs.readFileSync(expectFile, 'utf8');
+    const results: [string, string][] = [['sim', sim]];
+    if (o.target !== 'sim') results.push([o.target, runOne(o.target)]);
+    for (const [t, out] of results) {
+      const ok = out === expected;
+      if (!ok) failed++;
+      console.log(`${ok ? 'ok  ' : 'FAIL'} ${f} [${t}${o.profile !== o.target ? '/' + o.profile : ''}]`);
+      if (!ok) console.log(diffText(expected, out));
+    }
+  }
+  console.log(`${files.length} programs, ${failed} failure(s)`);
+  process.exit(failed ? 1 : 0);
+}
+function diffText(a: string, b: string): string {
+  const x = a.split('\n'), y = b.split('\n');
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `  line ${i + 1}:\n  - ${x[i] ?? ''}\n  + ${y[i] ?? ''}`;
+  return '';
+}
+
 function doctor() {
   const check = (name: string, cmd: string, args: string[]) => {
     const r = spawnSync(cmd, args, { encoding: 'utf8' });
@@ -222,6 +257,7 @@ function main() {
   zinc check [entry] [--json]                       typecheck + Zinc sema, LSP-style diagnostics with --json
   zinc build [entry] [--target macos|linux|sim] [--profile <target>] [--debug] [--emit=cpp|js]
   zinc run   [entry] [same options] [-- program args]
+  zinc test  [--target <id>] [--profile <id>] [--debug] [--update]   conformance: sim oracle vs native
   zinc doctor
 
 entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
@@ -237,6 +273,7 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
     return;
   }
   if (cmd === 'build') { build(o); return; }
+  if (cmd === 'test') return test(o, argv.includes('--update'));
   if (cmd === 'run') {
     const b = build(o);
     const r = spawnSync(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit' });

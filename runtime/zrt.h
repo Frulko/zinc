@@ -327,6 +327,9 @@ template<class F, class A, class B, class C> auto cb3(F& f, const A& a, const B&
 template<class F, class A, class B, class C> auto cb3(F& f, const A& a, const B& b, const C&, long) -> decltype(f(a, b)) { return f(a, b); }
 
 // ---------- arrays (LNG-07) ----------
+template<class X> inline bool is_neg(const X& x) { return x < 0; }
+template<int F> struct Fx;
+template<int F> inline bool is_neg(const Fx<F>& x) { return x.v < 0; }
 template<class T> struct ArrObj { uint32_t rc; int32_t len, cap; T* data; };
 
 template<class T> struct Array {
@@ -436,7 +439,7 @@ template<class T> struct Array {
     for (int32_t w = 1; w < n; w *= 2) {
       for (int32_t lo = 0; lo < n; lo += 2 * w) {
         int32_t mid = lo + w < n ? lo + w : n, hi = lo + 2 * w < n ? lo + 2 * w : n, i = lo, j = mid, k = lo;
-        while (i < mid && j < hi) tmp[k++] = (f(a->data[j], a->data[i]) < 0) ? a->data[j++] : a->data[i++];
+        while (i < mid && j < hi) tmp[k++] = is_neg(f(a->data[j], a->data[i])) ? a->data[j++] : a->data[i++];
         while (i < mid) tmp[k++] = a->data[i++];
         while (j < hi) tmp[k++] = a->data[j++];
       }
