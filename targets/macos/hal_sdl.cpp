@@ -1,0 +1,90 @@
+// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
+#include "hal.h"
+#include <SDL3/SDL.h>
+#include <stdlib.h>
+
+static SDL_Window* win;
+static SDL_Renderer* ren;
+static int W = 320, H = 240;
+static bool gfx_on;
+static bool quit;
+
+extern "C" {
+void hal_init(const HalConfig* cfg) {
+  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0;
+  if (!gfx_on) return;
+  if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  int scale = W <= 400 ? 3 : W <= 700 ? 2 : 1;
+  if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE, &win, &ren))
+    hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  SDL_SetRenderLogicalPresentation(ren, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  SDL_SetRenderVSync(ren, 1);
+}
+void hal_shutdown(void) {
+  if (!gfx_on) return;
+  SDL_DestroyRenderer(ren);
+  SDL_DestroyWindow(win);
+  SDL_Quit();
+}
+void hal_frame_begin(void) {}
+void hal_frame_end(void) {}
+
+void hal_poll_input(HalInput* in) {
+  SDL_Event e;
+  while (SDL_PollEvent(&e)) {
+    if (e.type == SDL_EVENT_QUIT) quit = true;
+    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE) quit = true;
+  }
+  const bool* k = SDL_GetKeyboardState(nullptr);
+  uint32_t b = 0;
+  if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) b |= HAL_UP;
+  if (k[SDL_SCANCODE_DOWN] || k[SDL_SCANCODE_S]) b |= HAL_DOWN;
+  if (k[SDL_SCANCODE_LEFT] || k[SDL_SCANCODE_A]) b |= HAL_LEFT;
+  if (k[SDL_SCANCODE_RIGHT] || k[SDL_SCANCODE_D]) b |= HAL_RIGHT;
+  if (k[SDL_SCANCODE_SPACE] || k[SDL_SCANCODE_Z]) b |= HAL_A;
+  if (k[SDL_SCANCODE_X]) b |= HAL_B;
+  if (k[SDL_SCANCODE_C]) b |= HAL_X;
+  if (k[SDL_SCANCODE_V]) b |= HAL_Y;
+  if (k[SDL_SCANCODE_Q]) b |= HAL_L;
+  if (k[SDL_SCANCODE_E]) b |= HAL_R;
+  if (k[SDL_SCANCODE_RETURN]) b |= HAL_START;
+  if (k[SDL_SCANCODE_TAB]) b |= HAL_SELECT;
+  in->buttons = b;
+  float mx, my;
+  SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
+  if (ren) SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my);
+  in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
+  in->quit = quit;
+}
+
+static void color(uint32_t c) { SDL_SetRenderDrawColor(ren, (c >> 16) & 255, (c >> 8) & 255, c & 255, 255); }
+
+void hal_present(const HalDrawList* dl) {
+  if (!gfx_on) return;
+  char buf[1024];
+  for (uint32_t i = 0; i < dl->count; i++) {
+    const HalDrawCmd& c = dl->cmds[i];
+    color(c.color);
+    switch (c.kind) {
+      case HAL_DRAW_CLEAR: SDL_RenderClear(ren); break;
+      case HAL_DRAW_RECT: { SDL_FRect r = {c.x, c.y, c.w, c.h}; SDL_RenderFillRect(ren, &r); break; }
+      case HAL_DRAW_LINE: SDL_RenderLine(ren, c.x, c.y, c.w, c.h); break;
+      case HAL_DRAW_TEXT: {
+        size_t n = c.text_len < sizeof buf - 1 ? c.text_len : sizeof buf - 1;
+        SDL_memcpy(buf, dl->text + c.text_off, n); buf[n] = 0;
+        float s = (float)c.scale;
+        SDL_SetRenderScale(ren, s, s);
+        SDL_RenderDebugText(ren, c.x / s, c.y / s, buf);
+        SDL_SetRenderScale(ren, 1, 1);
+        break;
+      }
+    }
+  }
+  SDL_RenderPresent(ren);
+}
+void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
+double hal_fixed_dt(void) {
+  static double v = getenv("ZINC_FIXED_DT") ? atof(getenv("ZINC_FIXED_DT")) : 0;
+  return v;
+}
+}
