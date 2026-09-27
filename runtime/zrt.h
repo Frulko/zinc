@@ -43,12 +43,18 @@ struct StrBuilder;
 
 // Base of every class instance (MEM-02). rc starts at 1 during construction and is adopted by make().
 struct Object {
-  uint32_t rc = 1;
+  uint32_t rc = 1;   // strong count; 0 after destruction (weak targets stay allocated)
+  uint32_t wc = 0;   // weak references (MEM-13)
   Object() {}
-  Object(const Object&) = delete;
+  Object(const Object&) : rc(1), wc(0) {}  // copies (arena.promote) start fresh
+  Object& operator=(const Object&) { return *this; }
   virtual ~Object() {}
   virtual bool zrt_isa(uint32_t) const { return false; }
   virtual void zrt_json(StrBuilder& sb) const;
+  virtual void zrt_str(StrBuilder& sb) const;
+  virtual void zrt_fields(StrBuilder&, bool&) const {}
+  /** Destroys and frees; pooled classes override to return the slot (MEM-09). */
+  virtual void zrt_delete();
 };
 
 inline void retain(Object* o) { if (o && o->rc < IMMORTAL) o->rc++; }
@@ -78,11 +84,17 @@ template<class A, class B> bool operator!=(const Ref<A>& a, const Ref<B>& b) { r
 template<class A> bool operator==(const Ref<A>& a, decltype(nullptr)) { return a.p == nullptr; }
 template<class A> bool operator!=(const Ref<A>& a, decltype(nullptr)) { return a.p != nullptr; }
 
+// Allocation cascade (MEM-01): arena if one is active, then class pool, then the heap.
+void* arena_take(size_t n);
+template<class T> auto obj_take(int) -> decltype(T::zrt_take()) { return T::zrt_take(); }
+template<class T> void* obj_take(long) { return alloc(sizeof(T)); }
 template<class T, class... A> Ref<T> make(A&&... a) {
-  void* m = alloc(sizeof(T));
+  void* m = arena_take(sizeof(T));
+  if (!m) m = obj_take<T>(0);
   live_objects++;
   return Ref<T>::adopt(new (m) T(static_cast<A&&>(a)...));
 }
+template<class T> T* heap_clone(const T& src) { void* m = alloc(sizeof(T)); live_objects++; return new (m) T(src); }
 // DYN-07: checked downcast
 template<class T, class U> Ref<T> cast(const Ref<U>& u) {
   if (u.p && !u.p->zrt_isa(T::ZRT_CID)) panic("TypeError: invalid downcast");
@@ -91,6 +103,9 @@ template<class T, class U> Ref<T> cast(const Ref<U>& u) {
 template<class T, class U> bool isa(const Ref<U>& u) { return u.p && u.p->zrt_isa(T::ZRT_CID); }
 
 // Mutable variable captured by a closure (LNG-13: capture by cell when reassigned).
+struct Error;
+extern Ref<Error> g_err;  // pending error (RT-05), checked after calls that may throw
+
 template<class T> struct Cell : Object { T v; Cell(T x) : v(x) {} };
 template<class T> Ref<Cell<T>> cell(T x) { return make<Cell<T>>(x); }
 
@@ -178,7 +193,7 @@ inline void to_s(StrBuilder& sb, uint64_t v) { to_s(sb, (int64_t)v); }
 inline void to_s(StrBuilder& sb, bool v) { sb.cstr(v ? "true" : "false"); }
 inline void to_s(StrBuilder& sb, const String& v) { sb.raw(v.ptr(), v.bytes()); }
 inline void to_s(StrBuilder& sb, const char* v) { sb.cstr(v); }
-template<class T> void to_s(StrBuilder& sb, const Ref<T>& v) { sb.cstr(v.p ? "[object Object]" : "null"); }
+template<class T> void to_s(StrBuilder& sb, const Ref<T>& v) { if (v.p) v.p->zrt_str(sb); else sb.cstr("null"); }
 template<class T> void to_s(StrBuilder& sb, const Array<T>& v);
 
 // JSON compact (RT-07)
@@ -204,7 +219,7 @@ template<class T> void log_one(StrBuilder& sb, const T& v) { to_s(sb, v); }
 template<class T> void log_one(StrBuilder& sb, const Ref<T>& v) { json(sb, v); }
 template<class T> void log_one(StrBuilder& sb, const Array<T>& v) { json(sb, v); }
 void log_flush(StrBuilder& sb);
-template<class... A> void log(const A&... a) {
+template<class... A> void log_plain(const A&... a) {
   StrBuilder sb; bool first = true;
   ((first ? (void)0 : sb.ch(' '), first = false, log_one(sb, a)), ...);
   log_flush(sb);
@@ -366,6 +381,7 @@ template<class T> struct Array {
   template<class I> void set(I i, const T& v) const { set((int32_t)i, v); }
 
   int32_t push(const T& v) const { push_raw(v); return a->len; }
+  int32_t push_all(const Array& o) const { int32_t n = o.length(); for (int32_t i = 0; i < n; i++) push_raw(o.a->data[i]); return a->len; }
   T pop() const { ArrObj<T>* o = obj(); if (!o->len) return T(); T v = static_cast<T&&>(o->data[o->len - 1]); o->data[--o->len].~T(); return v; }
   T shift() const {
     ArrObj<T>* o = obj(); if (!o->len) return T();
@@ -399,19 +415,19 @@ template<class T> struct Array {
   int32_t indexOf(const T& v) const { ArrObj<T>* o = obj(); for (int32_t i = 0; i < o->len; i++) if (o->data[i] == v) return i; return -1; }
   bool includes(const T& v) const { return indexOf(v) >= 0; }
   T at(int32_t i) const { int32_t n = length(); if (i < 0) i += n; if (i < 0 || i >= n) return T(); return a->data[i]; }
-  template<class F> T find(F f) const { for (int32_t i = 0; i < length(); i++) if (cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
-  template<class F> int32_t findIndex(F f) const { for (int32_t i = 0; i < length(); i++) if (cb2(f, a->data[i], i, 0)) return i; return -1; }
-  template<class F> bool some(F f) const { for (int32_t i = 0; i < length(); i++) if (cb2(f, a->data[i], i, 0)) return true; return false; }
-  template<class F> bool every(F f) const { for (int32_t i = 0; i < length(); i++) if (!cb2(f, a->data[i], i, 0)) return false; return true; }
-  template<class F> void forEach(F f) const { for (int32_t i = 0; i < length(); i++) cb2(f, T(a->data[i]), i, 0); }
+  template<class F> T find(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
+  template<class F> int32_t findIndex(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return i; return -1; }
+  template<class F> bool some(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return true; return false; }
+  template<class F> bool every(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (!cb2(f, a->data[i], i, 0)) return false; return true; }
+  template<class F> void forEach(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) cb2(f, T(a->data[i]), i, 0); }
   template<class F> auto map(F f) const -> Array<decay_t<decltype(cb2(f, declval<const T&>(), int32_t(0), 0))>> {
     Array<decay_t<decltype(cb2(f, declval<const T&>(), int32_t(0), 0))>> r;
     r = decltype(r)::with_cap(length());
-    for (int32_t i = 0; i < length(); i++) r.push_raw(cb2(f, a->data[i], i, 0));
+    for (int32_t i = 0; i < length() && !g_err.p; i++) r.push_raw(cb2(f, a->data[i], i, 0));
     return r;
   }
-  template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0; i < length(); i++) if (cb2(f, a->data[i], i, 0)) r.push_raw(a->data[i]); return r; }
-  template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0; i < length(); i++) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
+  template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) r.push_raw(a->data[i]); return r; }
+  template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0; i < length() && !g_err.p; i++) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
   // RT-11: stable merge sort
   template<class F> Array sort(F f) const {
     int32_t n = length(); if (n < 2) return *this;
@@ -445,6 +461,8 @@ template<class T> String Array<T>::join() const { return join(String(&lit_comma)
 template<class T> bool operator==(const Array<T>& x, const Array<T>& y) { return x.a == y.a; }
 template<class T> bool operator!=(const Array<T>& x, const Array<T>& y) { return x.a != y.a; }
 template<class T> inline bool truthy(const Array<T>& v) { return v.a != nullptr; }
+template<class T> bool operator==(const Array<T>& v, decltype(nullptr)) { return !v.a; }
+template<class T> bool operator!=(const Array<T>& v, decltype(nullptr)) { return v.a; }
 template<class T> void to_s(StrBuilder& sb, const Array<T>& v) { to_s(sb, v.join()); }
 template<class T> void json(StrBuilder& sb, const Array<T>& v) {
   if (!v.a) { sb.cstr("null"); return; }
@@ -559,11 +577,14 @@ template<class K, class V> struct Map {
   bool live_at(int32_t i) const { return !m->dead[i]; }
   K key_at(int32_t i) const { return m->keys[i]; }
   V val_at(int32_t i) const { return m->vals[i]; }
-  template<class F> void forEach(F f) const { for (int32_t i = 0; i < slots(); i++) if (live_at(i)) cb2(f, val_at(i), key_at(i), 0); }
+  template<class F> void forEach(F f) const { for (int32_t i = 0; i < slots() && !g_err.p; i++) if (live_at(i)) cb2(f, val_at(i), key_at(i), 0); }
   Array<K> keys() const { Array<K> r = Array<K>::with_cap(size()); for (int32_t i = 0; i < slots(); i++) if (live_at(i)) r.push_raw(m->keys[i]); return r; }
   Array<V> values() const { Array<V> r = Array<V>::with_cap(size()); for (int32_t i = 0; i < slots(); i++) if (live_at(i)) r.push_raw(m->vals[i]); return r; }
 };
 template<class K, class V> void json(StrBuilder& sb, const Map<K, V>&) { sb.cstr("{}"); }
+template<class K, class V> bool operator==(const Map<K, V>& v, decltype(nullptr)) { return !v.m; }
+template<class K, class V> bool operator!=(const Map<K, V>& v, decltype(nullptr)) { return v.m; }
+template<class K, class V> inline bool truthy(const Map<K, V>& v) { return v.m; }
 template<class K, class V> void to_s(StrBuilder& sb, const Map<K, V>&) { sb.cstr("[object Map]"); }
 template<class K, class V> void log_one(StrBuilder& sb, const Map<K, V>& v) { json(sb, v); }
 
@@ -582,14 +603,18 @@ template<class T> struct Set {
   Array<T> values() const { return m.keys(); }
 };
 template<class T> void json(StrBuilder& sb, const Set<T>&) { sb.cstr("{}"); }
+template<class T> bool operator==(const Set<T>& v, decltype(nullptr)) { return !v.m.m; }
+template<class T> bool operator!=(const Set<T>& v, decltype(nullptr)) { return v.m.m; }
+template<class T> inline bool truthy(const Set<T>& v) { return v.m.m; }
 template<class T> void to_s(StrBuilder& sb, const Set<T>&) { sb.cstr("[object Set]"); }
 template<class T> void log_one(StrBuilder& sb, const Set<T>& v) { json(sb, v); }
 
 // ---------- event loop (RT-10) ----------
 int32_t set_timer(Fn<void()> f, double ms, bool repeat);
 void clear_timer(int32_t id);
-void start(const HalConfig& cfg);
+void start(const HalConfig& cfg, int argc = 0, char** argv = nullptr);
 void run_loop();
+bool loop_once();
 void finish();
 
 // ---------- zinc:gfx (UI-12) ----------
@@ -611,3 +636,5 @@ void quit();
 }
 
 }  // namespace zrt
+
+#include "zrt_ext.h"

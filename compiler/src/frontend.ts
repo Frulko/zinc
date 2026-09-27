@@ -22,6 +22,8 @@ export interface Frontend {
 
 export const compilerOptions: ts.CompilerOptions = {
   strict: true,
+  // LNG-15: only Error instances are throwable, so a caught value is an Error
+  useUnknownInCatchVariables: false,
   noLib: true,
   target: ts.ScriptTarget.ES2022,
   module: ts.ModuleKind.ESNext,

@@ -11,19 +11,149 @@ namespace zrt {
 uint32_t live_objects = 0;
 uint32_t alloc_count = 0;
 
+// ---------- heap (MEM-10): TLSF over hal_heap_region, O(1) malloc/free ----------
+// ponytail: debug builds use the system allocator so ASan/UBSan see every block.
+namespace tlsf {
+static const size_t ALIGN = 2 * sizeof(void*), HDR = 2 * sizeof(size_t);
+static const int SL_LOG = 4, SL_N = 1 << SL_LOG, FL_SHIFT = SL_LOG + (sizeof(void*) == 8 ? 4 : 3), FL_N = 26;
+static const size_t SMALL = (size_t)1 << FL_SHIFT;
+struct Block { Block* prev_phys; size_t size; Block* next_free; Block* prev_free; };  // size: payload bytes | 1 free | 2 prev free
+static uint32_t fl_map;
+static uint32_t sl_map[FL_N];
+static Block* heads[FL_N][SL_N];
+static char *lo, *hi;
+static size_t budget;
+static inline size_t bsize(Block* b) { return b->size & ~(size_t)3; }
+static inline void* payload(Block* b) { return (char*)b + HDR; }
+static inline Block* of(void* p) { return (Block*)((char*)p - HDR); }
+static inline Block* next(Block* b) { return (Block*)((char*)payload(b) + bsize(b)); }
+static inline int msb(size_t v) { return (int)(sizeof(size_t) * 8 - 1) - (sizeof(size_t) == 8 ? __builtin_clzll((unsigned long long)v) : __builtin_clz((unsigned)v)); }
+static void mapping(size_t n, int* fl, int* sl) {
+  if (n < SMALL) { *fl = 0; *sl = (int)(n / (SMALL / SL_N)); return; }
+  int m = msb(n);
+  *sl = (int)(n >> (m - SL_LOG)) ^ SL_N;
+  *fl = m - (FL_SHIFT - 1);
+}
+static void insert(Block* b) {
+  int fl, sl; mapping(bsize(b), &fl, &sl);
+  b->prev_free = nullptr; b->next_free = heads[fl][sl];
+  if (b->next_free) b->next_free->prev_free = b;
+  heads[fl][sl] = b; fl_map |= 1u << fl; sl_map[fl] |= 1u << sl;
+}
+static void remove(Block* b) {
+  int fl, sl; mapping(bsize(b), &fl, &sl);
+  if (b->prev_free) b->prev_free->next_free = b->next_free; else heads[fl][sl] = b->next_free;
+  if (b->next_free) b->next_free->prev_free = b->prev_free;
+  if (!heads[fl][sl]) { sl_map[fl] &= ~(1u << sl); if (!sl_map[fl]) fl_map &= ~(1u << fl); }
+}
+static Block* find(size_t n) {
+  if (n >= SMALL) n += ((size_t)1 << (msb(n) - SL_LOG)) - 1;
+  int fl, sl; mapping(n, &fl, &sl);
+  if (fl >= FL_N) return nullptr;
+  uint32_t m = sl_map[fl] & (~0u << sl);
+  if (!m) {
+    uint32_t f = fl + 1 < 32 ? fl_map & (~0u << (fl + 1)) : 0;
+    if (!f) return nullptr;
+    fl = __builtin_ctz(f); m = sl_map[fl];
+  }
+  return heads[fl][__builtin_ctz(m)];
+}
+static void init() {
+  void* base; size_t size;
+  hal_heap_region(&base, &size);
+  uintptr_t a = ((uintptr_t)base + ALIGN - 1) & ~(uintptr_t)(ALIGN - 1);
+  size -= a - (uintptr_t)base;
+  size &= ~(ALIGN - 1);
+  lo = (char*)a; hi = lo + size; budget = size;
+  Block* b = (Block*)lo;
+  b->prev_phys = nullptr; b->size = (size - 2 * HDR) | 1;
+  Block* sentinel = next(b);
+  sentinel->prev_phys = b; sentinel->size = 0 | 2;  // used, prev free
+  insert(b);
+}
+[[maybe_unused]] static void* malloc(size_t n) {
+  if (!lo) init();
+  n = (n + ALIGN - 1) & ~(ALIGN - 1);
+  if (n < 2 * sizeof(void*)) n = 2 * sizeof(void*);
+  Block* b = find(n);
+  if (!b) return nullptr;
+  remove(b);
+  size_t total = bsize(b);
+  if (total >= n + HDR + ALIGN) {
+    Block* r = (Block*)((char*)payload(b) + n);
+    r->prev_phys = b; r->size = (total - n - HDR) | 1;
+    next(r)->prev_phys = r; next(r)->size |= 2;
+    b->size = n | (b->size & 2);
+    insert(r);
+  } else {
+    b->size &= ~(size_t)1;
+    next(b)->size &= ~(size_t)2;
+  }
+  return payload(b);
+}
+[[maybe_unused]] static void free(void* p) {
+  Block* b = of(p);
+  b->size |= 1;
+  Block* nx = next(b);
+  if (nx->size & 1) { remove(nx); b->size = (bsize(b) + HDR + bsize(nx)) | 1 | (b->size & 2); nx = next(b); nx->prev_phys = b; }
+  if (b->size & 2) { Block* pv = b->prev_phys; remove(pv); pv->size = (bsize(pv) + HDR + bsize(b)) | 1 | (pv->size & 2); b = pv; nx = next(b); nx->prev_phys = b; }
+  nx->size |= 2;
+  insert(b);
+}
+[[maybe_unused]] static bool owns(const void* p) { return (const char*)p >= lo && (const char*)p < hi; }
+}
+
 void* alloc(size_t n) {
+#ifdef ZRT_DEBUG
   void* p = hal_alloc(n ? n : 1);
-  if (!p) panic("out of memory");
+#else
+  void* p = tlsf::malloc(n ? n : 1);
+#endif
+  if (!p) {
+    StrBuilder sb; sb.cstr("out of memory (heap budget "); to_s(sb, (int64_t)tlsf::budget); sb.cstr(" bytes)");
+    panic(sb.build().ptr());
+  }
   alloc_count++;
   return p;
 }
-void mfree(void* p) { hal_free(p); }
+void mfree(void* p) {
+  if (!p || arena_owns(p)) return;
+#ifdef ZRT_DEBUG
+  hal_free(p);
+#else
+  if (tlsf::owns(p)) tlsf::free(p); else hal_free(p);
+#endif
+}
 
 void panic(const char* msg) { hal_panic(msg, "", 0); }
 void panic_at(const char* msg, const char* file, int line) { hal_panic(msg, file, line); }
 
+Ref<Error> g_err;
+Stats stats;
 void Object::zrt_json(StrBuilder& sb) const { sb.cstr("{}"); }
-void destroy(Object* o) { o->~Object(); mfree(o); live_objects--; }
+void Object::zrt_str(StrBuilder& sb) const { sb.cstr("[object Object]"); }
+void Object::zrt_delete() { this->~Object(); mfree(this); }
+
+// MEM-12: a release cascade deeper than 256 objects is finished in slices (next allocation or frame end).
+static const int MAX_CASCADE = 256, DEFER_CAP = 4096;
+static int cascade_depth = 0;
+static Object* deferred[DEFER_CAP];
+static int deferred_n = 0;
+static void destroy_now(Object* o) {
+  o->rc = 0;
+  live_objects--;
+  if (arena_owns(o)) { arena_forget(o); o->~Object(); return; }
+  if (o->wc) o->~Object(); else o->zrt_delete();
+}
+void destroy(Object* o) {
+  if (cascade_depth >= MAX_CASCADE && deferred_n < DEFER_CAP) { deferred[deferred_n++] = o; return; }
+  cascade_depth++;
+  destroy_now(o);
+  cascade_depth--;
+}
+static void drain_deferred() {
+  while (deferred_n && cascade_depth == 0) { Object* o = deferred[--deferred_n]; cascade_depth++; destroy_now(o); cascade_depth--; }
+}
 
 // ---------- strings ----------
 
@@ -329,7 +459,7 @@ double random() {  // xorshift32, identical in sim/zinc.mjs
 void seed(uint32_t s) { rng = s ? s : 0x2545F491u; }
 }
 
-// ---------- event loop ----------
+// ---------- event loop (RT-10) ----------
 struct Timer { Fn<void()> f; double at, every; int32_t id; };
 static const int MAX_TIMERS = 64;
 static Timer timers[MAX_TIMERS];
@@ -339,6 +469,9 @@ static HalInput input, prev_input;
 static int32_t frame_no = 0;
 static bool quit_requested = false;
 static int32_t surf_w = 320, surf_h = 240;
+static Poller* pollers = nullptr;
+int zrt_argc = 0;
+char** zrt_argv = nullptr;
 
 int32_t set_timer(Fn<void()> f, double ms, bool repeat) {
   for (int i = 0; i < MAX_TIMERS; i++) {
@@ -351,6 +484,47 @@ int32_t set_timer(Fn<void()> f, double ms, bool repeat) {
 void clear_timer(int32_t id) {
   for (int i = 0; i < MAX_TIMERS; i++) if (timers[i].id == id && id) { timers[i].id = 0; timers[i].f = nullptr; }
 }
+
+// microtask queue: bounded ring (RT-10)
+static const int MQ = 4096;
+static Fn<void()> mq[MQ];
+static int mq_head = 0, mq_len = 0;
+void microtask(Fn<void()> f) {
+  if (mq_len == MQ) panic("microtask queue overflow");
+  mq[(mq_head + mq_len++) % MQ] = f;
+}
+static PromiseBase* unhandled[64];
+static int unhandled_n = 0;
+void track_rejection(PromiseBase* p) { if (unhandled_n < 64) { retain(p); unhandled[unhandled_n++] = p; } }
+void drain_microtasks() {
+  while (mq_len) {
+    Fn<void()> f = mq[mq_head];
+    mq[mq_head] = nullptr;
+    mq_head = (mq_head + 1) % MQ; mq_len--;
+    f();
+    check_uncaught();
+  }
+  for (int i = 0; i < unhandled_n; i++) {
+    PromiseBase* p = unhandled[i];
+    if (!p->handled) uncaught(p->err);
+    release(p);
+  }
+  unhandled_n = 0;
+  drain_deferred();
+}
+void uncaught(const Ref<Error>& e) {
+  StrBuilder sb; sb.cstr("Uncaught ");
+  if (e.p) e.p->zrt_str(sb); else sb.cstr("Error");
+  sb.ch('\0');
+  hal_panic(sb.buf, "", 0);
+}
+void add_poller(Poller* p) { p->next = pollers; pollers = p; }
+static bool poll_all() {
+  bool active = false;
+  for (Poller* p = pollers; p; p = p->next) { if (p->poll()) active = true; drain_microtasks(); }
+  return active;
+}
+
 // Runs due timers; returns ms until the next one, or -1 when none are pending.
 static double run_timers() {
   double t = now_ms(), next = -1;
@@ -360,48 +534,64 @@ static double run_timers() {
       Fn<void()> f = timers[i].f;
       if (timers[i].every >= 0) timers[i].at += timers[i].every; else { timers[i].id = 0; timers[i].f = nullptr; }
       f();
+      check_uncaught();
+      drain_microtasks();
     }
     if (timers[i].id && (next < 0 || timers[i].at - t < next)) next = timers[i].at - t;
   }
   return next;
 }
 
-void start(const HalConfig& cfg) { hal_init(&cfg); surf_w = cfg.width; surf_h = cfg.height; }
+void start(const HalConfig& cfg, int argc, char** argv) {
+  zrt_argc = argc; zrt_argv = argv;
+  hal_init(&cfg); surf_w = cfg.width; surf_h = cfg.height;
+}
 
 namespace gfx { void begin_frame(); void end_frame(); }
 
+// One iteration of the main loop; false when the program is finished (used by the wasm HAL too).
+static uint64_t last_frame_us = 0;
+bool loop_once() {
+  drain_microtasks();
+  if (frame_cb && !quit_requested) {
+    hal_frame_begin();
+    prev_input = input;
+    hal_poll_input(&input);
+    if (input.quit) return false;
+    uint64_t t = hal_time_us();
+    double dt = hal_fixed_dt();
+    if (!last_frame_us) last_frame_us = t;
+    if (dt <= 0) { dt = (double)(t - last_frame_us) / 1e6; if (dt > 0.1) dt = 0.1; }
+    last_frame_us = t;
+    run_timers();
+    poll_all();
+    gfx::begin_frame();
+    Fn<void(double)> cb = frame_cb;
+    cb(dt);
+    check_uncaught();
+    drain_microtasks();
+    gfx::end_frame();
+    frame_no++;
+    stats.frames++;
+    stats.frame_us = hal_time_us() - t;
+    hal_frame_end();
+    return true;
+  }
+  double next = run_timers();
+  bool active = poll_all();
+  if (quit_requested || (next < 0 && !active && !mq_len)) return false;
+  if (active) hal_sleep_us(1000);
+  else if (next > 0) hal_sleep_us((uint64_t)(next * 1000));
+  return true;
+}
 void run_loop() {
-  if (frame_cb) {
-    uint64_t last = hal_time_us();
-    while (!quit_requested) {
-      hal_frame_begin();
-      prev_input = input;
-      hal_poll_input(&input);
-      if (input.quit) break;
-      uint64_t t = hal_time_us();
-      double dt = hal_fixed_dt();
-      if (dt <= 0) { dt = (double)(t - last) / 1e6; if (dt > 0.1) dt = 0.1; }
-      last = t;
-      run_timers();
-      gfx::begin_frame();
-      Fn<void(double)> cb = frame_cb;
-      cb(dt);
-      gfx::end_frame();
-      frame_no++;
-      hal_frame_end();
-    }
-    return;
-  }
-  for (;;) {
-    double next = run_timers();
-    if (next < 0 || quit_requested) return;
-    if (next > 0) hal_sleep_us((uint64_t)(next * 1000));
-  }
+  while (loop_once()) {}
 }
 
 void finish() {
   frame_cb = nullptr;
   for (int i = 0; i < MAX_TIMERS; i++) { timers[i].id = 0; timers[i].f = nullptr; }
+  drain_deferred();
 #ifdef ZRT_DEBUG
   if (live_objects) {  // MEM-18: leak report
     StrBuilder sb; sb.cstr("zinc: "); to_s(sb, (int64_t)live_objects); sb.cstr(" object(s) still alive at exit");
@@ -411,6 +601,91 @@ void finish() {
   hal_shutdown();
 }
 
+// ---------- console (RT-07, LLRT-style levels, optional JSON lines) ----------
+static int log_mode = -1;  // 0 plain, 1 color (tty), 2 json
+static void log_init() {
+  if (log_mode >= 0) return;
+  const char* f = hal_env("ZINC_LOG_FORMAT");
+  log_mode = (f && f[0] == 'j') ? 2 : hal_isatty(1) ? 1 : 0;
+}
+void log_emit(int level, StrBuilder& sb) {
+  log_init();
+  bool err = level == LOG_WARN || level == LOG_ERROR || level == LOG_TRACE;
+  static const char* names[] = {"LOG", "INFO", "DEBUG", "WARN", "ERROR", "TRACE"};
+  if (log_mode == 2) {
+    StrBuilder j; j.cstr("{\"time\":"); str_num(j, now_ms()); j.cstr(",\"level\":\""); j.cstr(names[level]); j.cstr("\",\"message\":");
+    json_str(j, sb.build()); j.cstr("}\n");
+    hal_log(j.buf, j.len);
+    return;
+  }
+  if (log_mode == 1 && err) {
+    StrBuilder c; c.cstr(level == LOG_WARN ? "\033[33m" : "\033[31m"); c.raw(sb.buf, sb.len); c.cstr("\033[0m\n");
+    hal_log_err(c.buf, c.len);
+    return;
+  }
+  sb.ch('\n');
+  if (err) hal_log_err(sb.buf, sb.len); else hal_log(sb.buf, sb.len);
+}
+struct Label { String name; double t; int32_t n; };
+static Label labels[32];
+static Label* label(const String& s, bool create) {
+  for (auto& l : labels) if (l.name.s && l.name == s) return &l;
+  if (!create) return nullptr;
+  for (auto& l : labels) if (!l.name.s) { l.name = s; l.t = 0; l.n = 0; return &l; }
+  return &labels[31];
+}
+void console_time(const String& s) { label(s, true)->t = now_ms(); }
+static void time_report(const String& s, bool end) {
+  Label* l = label(s, false);
+  StrBuilder sb; to_s(sb, s); sb.cstr(": ");
+  if (!l) { sb.cstr("no such label"); log_emit(LOG_WARN, sb); return; }
+  str_num(sb, (double)(int64_t)((now_ms() - l->t) * 1000) / 1000.0); sb.cstr("ms");
+  if (end) l->name = String();
+  log_emit(LOG_LOG, sb);
+}
+void console_timeEnd(const String& s) { time_report(s, true); }
+void console_timeLog(const String& s) { time_report(s, false); }
+void console_count(const String& s) {
+  Label* l = label(s, true);
+  StrBuilder sb; to_s(sb, s); sb.cstr(": "); to_s(sb, ++l->n);
+  log_emit(LOG_LOG, sb);
+}
+
+// ---------- arenas (MEM-07) ----------
+static mem::Arena* arena_top = nullptr;
+void* arena_take(size_t n) {
+  mem::Arena* a = arena_top;
+  if (!a) return nullptr;
+  n = (n + 15) & ~(size_t)15;
+  if (a->used + n > a->size) panic("arena full (Arena.frame(bytes) sets its size)");
+  void* p = a->base + a->used; a->used += n; a->live++;
+  return p;
+}
+bool arena_owns(const void* p) {
+  for (mem::Arena* a = arena_top; a; a = a->prev) if ((const char*)p >= a->base && (const char*)p < a->base + a->size) return true;
+  return false;
+}
+void arena_forget(Object* o) {
+  for (mem::Arena* a = arena_top; a; a = a->prev) if ((char*)o >= a->base && (char*)o < a->base + a->size) { a->live--; return; }
+}
+namespace mem {
+Ref<Arena> Arena::frame(double bytes) {
+  // the arena object itself lives on the heap, its block is taken from the heap once
+  Arena* a = new (alloc(sizeof(Arena))) Arena();
+  live_objects++;
+  a->size = bytes < 256 ? 256 : (size_t)bytes;
+  a->base = (char*)alloc(a->size);
+  a->prev = arena_top; arena_top = a;
+  return Ref<Arena>::adopt(a);
+}
+void Arena::zrt_dispose() {
+  if (!base) return;
+  if (live) panic("an object allocated in an arena outlives it (MEM-07); copy it out with arena.promote(x)");
+  if (arena_top == this) arena_top = prev;
+  mfree(base); base = nullptr;  // O(1): nothing inside is freed individually
+}
+Arena::~Arena() { zrt_dispose(); }
+}
 // ---------- zinc:gfx: fills a draw list executed by hal_present (UI-12) ----------
 namespace gfx {
 static const uint32_t MAX_CMDS = 8192, MAX_TEXT = 32768;
@@ -419,7 +694,7 @@ static char text_pool[MAX_TEXT];
 static uint32_t ncmd = 0, ntext = 0;
 
 void begin_frame() { ncmd = 0; ntext = 0; }
-void end_frame() { HalDrawList dl = {cmds, ncmd, text_pool}; hal_present(&dl); }
+void end_frame() { HalDrawList dl = {cmds, ncmd, text_pool}; stats.draw_cmds = ncmd; hal_present(&dl); }
 static HalDrawCmd* push(uint8_t kind) {
   if (ncmd == MAX_CMDS) return nullptr;  // ponytail: silently drops past 8192 commands per frame
   HalDrawCmd* c = &cmds[ncmd++];

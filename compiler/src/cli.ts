@@ -4,26 +4,27 @@ import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadProgram, ZINC_ROOT, type Diag } from './frontend.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
-import { emitCpp } from './emit-cpp.ts';
+import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
 
-interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual' }
-// Section 12 defaults. ponytail: `fixed` (Q20.12) maps to f32 until the fixed-point runtime lands (docs/decisions/0005).
+interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean }
+// Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
-  macos: { number: 'f64', width: 320, height: 240, typing: 'gradual' },
-  linux: { number: 'f64', width: 320, height: 240, typing: 'gradual' },
-  sim: { number: 'f64', width: 320, height: 240, typing: 'gradual' },
-  rpi1: { number: 'f64', width: 1280, height: 720, typing: 'gradual' },
-  esp32: { number: 'f32', width: 320, height: 240, typing: 'strict' },
-  ps2: { number: 'f32', width: 640, height: 448, typing: 'gradual' },
-  ps1: { number: 'f32', width: 320, height: 240, typing: 'strict' },
+  macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
+  linux: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
+  sim: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
+  wasm: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 64 << 20 },
+  rpi1: { number: 'f64', width: 1280, height: 720, typing: 'gradual', heap: 64 << 20 },
+  esp32: { number: 'f32', width: 320, height: 240, typing: 'strict', heap: 160 << 10 },
+  ps2: { number: 'f32', width: 640, height: 448, typing: 'gradual', heap: 16 << 20 },
+  ps1: { number: 'fx12', width: 320, height: 240, typing: 'strict', heap: 256 << 10, noFpu: true },
 };
 const NATIVE = new Set(['macos', 'linux']);
 
-interface Opts { cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; rest: string[] }
+interface Opts { cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[] }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, rest: [] };
+  const o: Opts = { cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [] };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
@@ -35,6 +36,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--release') o.debug = false;
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
     else if (a === '--json') o.json = true;
+    else if (a === '--no-float') o.noFloat = true;
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -59,8 +61,8 @@ function analyze(o: Opts): Sema {
   if (fe.tsDiagnostics.length) { printDiags(fe.tsDiagnostics, o.json); process.exit(1); }
   const prof = PROFILES[o.profile];
   try {
-    const sema = new Sema(fe, path.dirname(path.resolve(o.entry)));
-    sema.numberKind = prof.number;
+    const sema = new Sema(fe, path.dirname(path.resolve(o.entry)), { numberKind: prof.number, typing: prof.typing, warnFloat: !!prof.noFpu, noFloat: o.noFloat, heap0: false });
+    if (!o.json) printDiags(sema.warnings, false);
     return sema;
   } catch (e) {
     if (e instanceof ZincError) { printDiags([e.diag], o.json); process.exit(1); }
@@ -85,7 +87,11 @@ function writeIfChanged(file: string, content: string) {
   fs.writeFileSync(file, content);
 }
 
-function cmakeLists(dir: string, usesGfx: boolean, debug: boolean): string {
+const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl' };
+function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number): string {
+  const usesGfx = res.usesGfx;
+  const mods = [...res.modules].filter(m => fs.existsSync(path.join(ZINC_ROOT, 'runtime/mod', m + '.cpp')));
+  const rel = (f: string) => '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, f);
   const z = '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, ZINC_ROOT);
 
   const san = debug ? '-fsanitize=address,undefined -fno-omit-frame-pointer' : '';
@@ -95,8 +101,8 @@ project(zinc_app CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -fno-threadsafe-statics ${debug ? `-g -O0 -DZRT_DEBUG ${san}` : '-O2 -ffunction-sections -fdata-sections'})
-add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp)
+set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -fno-threadsafe-statics -DZRT_HEAP_BYTES=${heap}u ${debug ? `-g -O0 -DZRT_DEBUG ${san}` : '-O2 -ffunction-sections -fdata-sections'})
+add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp${mods.map(m => ` ${z}/runtime/mod/${m}.cpp`).join('')})
 target_include_directories(zrt PUBLIC ${z}/runtime ${z}/runtime/include)
 target_compile_options(zrt PUBLIC \${ZFLAGS})
 target_compile_options(zrt PRIVATE -Wall -Wextra -Werror)
@@ -106,7 +112,8 @@ if(${usesGfx ? 'NOT ZINC_HEADLESS' : 'FALSE'})
 else()
   set(ZINC_HAL ${z}/targets/null/hal_null.cpp)
 endif()
-add_executable(app zinc_main.cpp \${ZINC_HAL} ${z}/targets/common/hal_posix.cpp)
+add_executable(app zinc_main.cpp \${ZINC_HAL} ${z}/targets/common/hal_posix.cpp${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override)
 target_link_libraries(app PRIVATE zrt)
 ${debug ? `target_link_options(app PRIVATE ${san})` : `if(APPLE)
@@ -114,6 +121,7 @@ ${debug ? `target_link_options(app PRIVATE ${san})` : `if(APPLE)
 else()
   target_link_options(app PRIVATE -Wl,--gc-sections)
 endif()`}
+${mods.filter(m => MOD_LIBS[m]).map(m => m === 'net' ? 'find_package(CURL REQUIRED)\ntarget_link_libraries(zrt PUBLIC CURL::libcurl)' : '').join('\n')}
 ${usesGfx ? 'if(NOT ZINC_HEADLESS)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
 `;
 }
@@ -140,10 +148,10 @@ function build(o: Opts): Built {
     log(o, `built sim in ${Date.now() - t0} ms -> ${path.relative(process.cwd(), dir)}`);
     return { exe: ['node', path.join(dir, 'run.mjs')], dir };
   }
-  const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir }));
+  const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir, target: o.target }));
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res.usesGfx, o.debug));
+  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (o.target === 'linux' && process.platform !== 'linux') return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
@@ -224,7 +232,7 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
   if (cmd === 'check') {
     const sema = analyze(o);
     // run both emitters in memory to surface every Z diagnostic
-    guard(o, () => emitCpp(sema, { debug: false, title: '', width: 0, height: 0, outDir: outDir(o) }));
+    guard(o, () => emitCpp(sema, { debug: false, title: '', width: 0, height: 0, outDir: outDir(o), target: o.target }));
     if (o.json) console.log('[]'); else console.error(`zinc: ${o.entry}: no errors`);
     return;
   }

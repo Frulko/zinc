@@ -15,6 +15,18 @@ uint64_t hal_time_us(void) {
 }
 void hal_sleep_us(uint64_t us) { usleep((useconds_t)(us > 1000000 ? 1000000 : us)); }
 void hal_log(const char* s, size_t n) { fwrite(s, 1, n, stdout); fflush(stdout); }
+void hal_log_err(const char* s, size_t n) { fflush(stdout); fwrite(s, 1, n, stderr); fflush(stderr); }
+int hal_isatty(int fd) { return isatty(fd); }
+const char* hal_env(const char* name) { return getenv(name); }
+#ifndef ZRT_HEAP_BYTES
+#define ZRT_HEAP_BYTES (512u << 20)
+#endif
+void hal_heap_region(void** base, size_t* size) {
+  size_t n = ZRT_HEAP_BYTES;
+  if (const char* e = getenv("ZINC_HEAP")) n = (size_t)atoll(e);
+  *base = malloc(n);
+  *size = *base ? n : 0;
+}
 void hal_panic(const char* msg, const char* file, int line) {
   fflush(stdout);
   if (file && *file) fprintf(stderr, "panic: %s (%s:%d)\n", msg, file, line);

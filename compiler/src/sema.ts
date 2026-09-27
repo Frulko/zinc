@@ -3,51 +3,88 @@
 import * as path from 'node:path';
 import { ts, type Diag, type Frontend } from './frontend.ts';
 
-export type NumKind = 'f64' | 'f32' | 'i8' | 'i16' | 'i32' | 'i64' | 'u8' | 'u16' | 'u32' | 'u64' | 'isize' | 'usize';
+export type NumKind = 'f64' | 'f32' | 'fx12' | 'fx16' | 'i8' | 'i16' | 'i32' | 'i64' | 'u8' | 'u16' | 'u32' | 'u64' | 'isize' | 'usize';
 export type ZT =
   | { k: 'num'; m: NumKind }
   | { k: 'bool' } | { k: 'str' } | { k: 'void' } | { k: 'null' }
   | { k: 'arr'; el: ZT }
   | { k: 'map'; key: ZT; val: ZT }
   | { k: 'set'; el: ZT }
-  | { k: 'obj'; decl: ts.Declaration; args: ZT[] }
+  | { k: 'obj'; decl: ts.Node; args: ZT[] }
   | { k: 'fn'; params: ZT[]; ret: ZT }
+  | { k: 'promise'; el: ZT }
+  | { k: 'gen'; el: ZT }
   | { k: 'tp'; name: string };
 
-export const MACHINE: ReadonlySet<string> = new Set(['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'isize', 'usize']);
+export const MACHINE: ReadonlySet<string> = new Set(['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'fx12', 'fx16', 'isize', 'usize']);
 export const F64: ZT = { k: 'num', m: 'f64' };
 export const I32: ZT = { k: 'num', m: 'i32' };
 export const BOOL: ZT = { k: 'bool' };
 export const STR: ZT = { k: 'str' };
 export const VOID: ZT = { k: 'void' };
 
-export const isInt = (m: NumKind) => m !== 'f64' && m !== 'f32';
+export const isFx = (m: NumKind) => m === 'fx12' || m === 'fx16';
+export const isInt = (m: NumKind) => m !== 'f64' && m !== 'f32' && !isFx(m);
 export const isNum = (t: ZT): t is { k: 'num'; m: NumKind } => t.k === 'num';
+export function zeq(a: ZT, b: ZT): boolean {
+  if (a.k !== b.k) return false;
+  switch (a.k) {
+    case 'num': return a.m === (b as typeof a).m;
+    case 'arr': case 'set': case 'promise': case 'gen': return zeq(a.el, (b as typeof a).el);
+    case 'map': return zeq(a.key, (b as typeof a).key) && zeq(a.val, (b as typeof a).val);
+    case 'obj': return a.decl === (b as typeof a).decl && a.args.length === (b as typeof a).args.length && a.args.every((x, i) => zeq(x, (b as typeof a).args[i]));
+    case 'fn': return a.params.length === (b as typeof a).params.length && a.params.every((x, i) => zeq(x, (b as typeof a).params[i])) && zeq(a.ret, (b as typeof a).ret);
+    case 'tp': return a.name === (b as typeof a).name;
+    default: return true;
+  }
+}
+export const ERROR_CLASSES = new Set(['Error', 'TypeError', 'RangeError']);
 
 export class ZincError extends Error {
   diag: Diag;
   constructor(diag: Diag) { super(diag.message); this.diag = diag; }
 }
 
+export interface SemaOptions { numberKind: NumKind; typing: 'strict' | 'gradual'; warnFloat: boolean; noFloat: boolean; heap0: boolean }
+
+type CallTargets = { fns: ts.Node[]; dynamic: boolean };
+
 export class Sema {
   checker: ts.TypeChecker;
   /** `number` representation for the active profile (LNG-03). */
-  numberKind: NumKind = 'f64';
-  typing: 'strict' | 'gradual' = 'gradual';
+  numberKind: NumKind;
+  typing: 'strict' | 'gradual';
+  opts: SemaOptions;
   boxed = new Set<ts.Symbol>();
   loopI32 = new Set<ts.Symbol>();
-  classIds = new Map<ts.Declaration, number>();
-  /** Declarations whose methods are overridden somewhere (need virtual dispatch, LNG-08). */
-  hierarchy = new Set<ts.Declaration>();
-  diags: Diag[] = [];
+  classIds = new Map<ts.Node, number>();
+  /** Classes in an inheritance relation (need virtual dispatch, LNG-08). */
+  hierarchy = new Set<ts.Node>();
+  warnings: Diag[] = [];
+  /** lib `interface Error`: the static type of every thrown value (LNG-15). */
+  errorDecl: ts.InterfaceDeclaration;
+  /** Discriminated unions: alias -> members, member -> alias (LNG-11). */
+  unionMembers = new Map<ts.TypeAliasDeclaration, ts.Node[]>();
+  unionOf = new Map<ts.Node, ts.TypeAliasDeclaration>();
+  /** Function-likes that may complete by throwing (RT-05 error returns are only emitted where needed). */
+  throwing = new Set<ts.Node>();
+  anyLambdaThrows = false;
+  hasThrow = false;
+  private methodsByName = new Map<string, ts.Node[]>();
+  private targetCache = new Map<ts.Node, CallTargets>();
 
   fe: Frontend;
   root: string;
 
-  constructor(fe: Frontend, root: string) {
+  constructor(fe: Frontend, root: string, opts: SemaOptions) {
     this.fe = fe;
     this.root = root;
+    this.opts = opts;
+    this.numberKind = opts.numberKind;
+    this.typing = opts.typing;
     this.checker = fe.checker;
+    const lib = fe.program.getSourceFiles().find(f => f.fileName.endsWith('lib/zinc.d.ts'))!;
+    this.errorDecl = lib.statements.find((s): s is ts.InterfaceDeclaration => ts.isInterfaceDeclaration(s) && s.name.text === 'Error')!;
     this.analyze();
   }
 
@@ -58,11 +95,13 @@ export class Sema {
     return { file: path.relative(process.cwd(), sf.fileName), line: lc.line + 1, col: lc.character + 1, code, severity, message };
   }
   fail(node: ts.Node, code: string, message: string): never { throw new ZincError(this.diag(node, code, message)); }
+  warn(node: ts.Node, code: string, message: string) { this.warnings.push(this.diag(node, code, message, 'warning')); }
 
   // ---------- whole-program pre-pass ----------
   private analyze() {
     const captured = new Set<ts.Symbol>();
     const written = new Set<ts.Symbol>();
+    const calls: (ts.CallExpression | ts.NewExpression)[] = [];
     let cid = 1;
     const visit = (n: ts.Node) => {
       this.forbid(n);
@@ -70,23 +109,73 @@ export class Sema {
         this.classIds.set(n, cid++);
         if (ts.isClassDeclaration(n)) {
           const base = this.baseClass(n);
-          if (base) { this.hierarchy.add(n); this.hierarchy.add(base); for (let b = this.baseClass(base); b; b = this.baseClass(b)) this.hierarchy.add(b); }
+          if (base || this.errorBase(n)) { this.hierarchy.add(n); if (base) this.hierarchy.add(base); for (let b = base && this.baseClass(base); b; b = this.baseClass(b)) this.hierarchy.add(b); }
+        }
+        for (const m of n.members) if ((ts.isMethodDeclaration(m) || ts.isMethodSignature(m)) && m.name) {
+          const l = this.methodsByName.get(m.name.getText()) ?? [];
+          l.push(m);
+          this.methodsByName.set(m.name.getText(), l);
         }
       }
-      if (ts.isTypeAliasDeclaration(n) && ts.isTypeLiteralNode(n.type)) this.classIds.set(n, cid++);
+      if (ts.isTypeAliasDeclaration(n)) this.registerAlias(n, () => cid++);
       if (ts.isIdentifier(n)) {
         const sym = this.symbolOf(n);
         const decl = sym?.valueDeclaration;
-        if (sym && decl && (ts.isVariableDeclaration(decl) || ts.isParameter(decl)) && !this.isModuleLevel(decl)) {
+        if (sym && decl && (ts.isVariableDeclaration(decl) || ts.isParameter(decl) || ts.isBindingElement(decl)) && !this.isModuleLevel(decl)) {
           if (this.fnOf(n) !== this.fnOf(decl)) captured.add(sym);
           if (this.isWrite(n)) written.add(sym);
         }
       }
       if (ts.isForStatement(n)) this.loopCounter(n);
+      if (ts.isThrowStatement(n)) { this.hasThrow = true; const f = this.fnOf(n); if (f) this.throwing.add(f); }
+      if (ts.isCallExpression(n) || ts.isNewExpression(n)) calls.push(n);
+      if (this.opts.warnFloat && ts.isTypeReferenceNode(n) && (n.typeName.getText() === 'f32' || n.typeName.getText() === 'f64')) {
+        if (this.opts.noFloat) this.fail(n, 'Z4001', `'${n.typeName.getText()}' needs software floating point on this target (--no-float)`);
+        this.warn(n, 'Z4001', `'${n.typeName.getText()}' is emulated in software on this target (no FPU)`);
+      }
       ts.forEachChild(n, visit);
     };
     for (const sf of this.fe.sources) visit(sf);
     for (const s of captured) if (written.has(s)) this.boxed.add(s);
+    // throw propagation over the call graph (fixpoint)
+    if (this.hasThrow) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        this.anyLambdaThrows = [...this.throwing].some(f => ts.isArrowFunction(f) || ts.isFunctionExpression(f));
+        for (const c of calls) {
+          const caller = this.fnOf(c);
+          if (!caller || this.throwing.has(caller) || this.isAsyncFn(caller)) continue;
+          if (this.mayThrow(c)) { this.throwing.add(caller); changed = true; }
+        }
+      }
+    }
+  }
+
+  private registerAlias(n: ts.TypeAliasDeclaration, nextId: () => number) {
+    if (ts.isTypeLiteralNode(n.type)) { this.classIds.set(n, nextId()); return; }
+    if (!ts.isUnionTypeNode(n.type)) return;
+    const parts = n.type.types.filter(t => !this.isNullish(t));
+    const members: ts.Node[] = [];
+    for (const p of parts) {
+      if (ts.isTypeLiteralNode(p)) members.push(p);
+      else if (ts.isTypeReferenceNode(p)) {
+        const d = this.declOf(p.typeName);
+        if (d && (ts.isInterfaceDeclaration(d) || (ts.isTypeAliasDeclaration(d) && ts.isTypeLiteralNode(d.type))) && !this.isLib(d)) members.push(d);
+        else return;
+      } else return;
+    }
+    if (members.length < 2) return;
+    this.classIds.set(n, nextId());
+    this.unionMembers.set(n, members);
+    for (const m of members) {
+      if (this.unionOf.has(m)) this.fail(m, 'Z9029', 'a type can belong to one discriminated union in the prototype');
+      this.unionOf.set(m, n);
+      if (ts.isTypeLiteralNode(m)) this.classIds.set(m, nextId());
+    }
+  }
+  private isNullish(t: ts.TypeNode) {
+    return t.kind === ts.SyntaxKind.UndefinedKeyword || (ts.isLiteralTypeNode(t) && t.literal.kind === ts.SyntaxKind.NullKeyword);
   }
 
   /** Forbidden constructs (CMP-05, section 7). */
@@ -94,7 +183,7 @@ export class Sema {
     const Z = (code: string, msg: string): never => this.fail(n, code, msg);
     if (ts.isVariableDeclarationList(n) && !(n.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const | ts.NodeFlags.Using)))
       Z('Z1001', "'var' is not supported; use 'let' or 'const'");
-    if (ts.isIdentifier(n) && n.text === 'arguments' && !ts.isPropertyAccessExpression(n.parent)) Z('Z1002', "'arguments' is not supported; use rest-free explicit parameters");
+    if (ts.isIdentifier(n) && n.text === 'arguments' && !ts.isPropertyAccessExpression(n.parent)) Z('Z1002', "'arguments' is not supported; use explicit parameters");
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'eval') Z('Z1003', "'eval' is not supported");
     if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && (n.expression.text === 'Function' || n.expression.text === 'Proxy' || n.expression.text === 'RegExp'))
       Z('Z1004', `'new ${n.expression.text}' is not supported`);
@@ -108,9 +197,10 @@ export class Sema {
     if (ts.isArrayLiteralExpression(n) && n.elements.some(e => e.kind === ts.SyntaxKind.OmittedExpression)) Z('Z1011', 'arrays with holes are not supported');
     if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'Object' && (n.name.text === 'defineProperty' || n.name.text === 'setPrototypeOf'))
       Z('Z1012', `'Object.${n.name.text}' is not supported`);
+    if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'globalThis') Z('Z1015', "'globalThis' is not supported");
   }
 
-  /** LNG-04 (cheap form): `for (let i = <int>; i <op> <int expr>; i++|i--|i+=<int>)` with no other writes → i32. */
+  /** LNG-04 (cheap form): `for (let i = <int>; i <op> <int expr>; i++|i--|i+=<int>)` with no other writes -> i32. */
   private loopCounter(f: ts.ForStatement) {
     const init = f.initializer;
     if (!init || !ts.isVariableDeclarationList(init) || init.declarations.length !== 1) return;
@@ -122,8 +212,8 @@ export class Sema {
     if (!c || !ts.isBinaryExpression(c) || !ts.isIdentifier(c.left) || this.symbolOf(c.left) !== sym) return;
     const op = c.operatorToken.kind;
     if (![ts.SyntaxKind.LessThanToken, ts.SyntaxKind.LessThanEqualsToken, ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.GreaterThanEqualsToken].includes(op)) return;
-    const bound = this.ztypeOf(c.right);
-    if (!(this.isIntLiteral(c.right) || (isNum(bound) && (bound.m === 'i32' || bound.m === 'i16' || bound.m === 'i8' || bound.m === 'u8' || bound.m === 'u16')))) return;
+    const bound = this.tryZ(c.right);
+    if (!(this.isIntLiteral(c.right) || (isNum(bound) && ['i32', 'i16', 'i8', 'u8', 'u16'].includes(bound.m)))) return;
     const inc = f.incrementor;
     const okInc = inc && (
       ((ts.isPostfixUnaryExpression(inc) || ts.isPrefixUnaryExpression(inc)) && ts.isIdentifier(inc.operand) && this.symbolOf(inc.operand) === sym) ||
@@ -134,6 +224,43 @@ export class Sema {
     const scan = (n: ts.Node) => { if (ts.isIdentifier(n) && this.symbolOf(n) === sym && this.isWrite(n)) otherWrite = true; ts.forEachChild(n, scan); };
     scan(f.statement);
     if (!otherWrite) this.loopI32.add(sym);
+  }
+
+  // ---------- throw analysis ----------
+  callTargets(c: ts.CallExpression | ts.NewExpression): CallTargets {
+    let r = this.targetCache.get(c);
+    if (r) return r;
+    r = { fns: [], dynamic: false };
+    const fnArgs = (c.arguments ?? []).filter(a => ts.isArrowFunction(a) || ts.isFunctionExpression(a));
+    if (ts.isNewExpression(c)) {
+      for (let d = this.declOf(c.expression); d && ts.isClassDeclaration(d); d = this.baseClass(d)) {
+        const ctor = d.members.find(ts.isConstructorDeclaration);
+        if (ctor) r.fns.push(ctor);
+      }
+      r.fns.push(...fnArgs);
+    } else {
+      const e = c.expression;
+      const d = ts.isPropertyAccessExpression(e) ? this.declOf(e.name) : e.kind === ts.SyntaxKind.SuperKeyword ? undefined : this.declOf(e);
+      if (d && this.isLib(d)) r.fns.push(...fnArgs);
+      else if (d && ts.isFunctionDeclaration(d)) r.fns.push(d);
+      else if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) r.fns.push(...(this.methodsByName.get(d.name.getText()) ?? []));
+      else r.dynamic = true;
+    }
+    this.targetCache.set(c, r);
+    return r;
+  }
+  /** Whether a call may complete with a pending error (needs a check after it). */
+  mayThrow(c: ts.CallExpression | ts.NewExpression): boolean {
+    if (!this.hasThrow) return false;
+    const t = this.callTargets(c);
+    if (t.fns.some(f => this.throwing.has(f) && !this.isAsyncFn(f))) return true;
+    return t.dynamic && this.anyLambdaThrows;
+  }
+  isAsyncFn(f: ts.Node): boolean {
+    return ts.isFunctionLike(f) && !!(ts.getCombinedModifierFlags(f as ts.Declaration) & ts.ModifierFlags.Async);
+  }
+  isGeneratorFn(f: ts.Node): boolean {
+    return (ts.isFunctionDeclaration(f) || ts.isMethodDeclaration(f) || ts.isFunctionExpression(f)) && !!f.asteriskToken;
   }
 
   // ---------- helpers ----------
@@ -147,6 +274,13 @@ export class Sema {
     return s?.valueDeclaration ?? s?.declarations?.[0];
   }
   isLib(n: ts.Node) { return n.getSourceFile().isDeclarationFile; }
+  /** 'fs' for declarations inside `declare module 'zinc:fs'`. */
+  libModule(n: ts.Node): string | undefined {
+    if (ts.isClassDeclaration(n) && n.name?.text === 'Arena' && n.getSourceFile().fileName.endsWith('lib/zinc.d.ts')) return 'mem';
+    for (let p: ts.Node | undefined = n; p; p = p.parent)
+      if (ts.isModuleDeclaration(p) && ts.isStringLiteral(p.name) && p.name.text.startsWith('zinc:')) return p.name.text.slice(5);
+    return undefined;
+  }
   isModuleLevel(d: ts.Node): boolean {
     let p = d.parent;
     while (p && (ts.isVariableDeclarationList(p) || ts.isVariableStatement(p))) p = p.parent;
@@ -177,16 +311,104 @@ export class Sema {
     const d = this.declOf(h.types[0].expression);
     return d && ts.isClassDeclaration(d) ? d : undefined;
   }
+  /** 'Error' | 'TypeError' | 'RangeError' when the class directly extends a builtin error. */
+  errorBase(c: ts.ClassLikeDeclaration): string | undefined {
+    const h = c.heritageClauses?.find(h => h.token === ts.SyntaxKind.ExtendsKeyword);
+    const e = h?.types[0].expression;
+    if (!e || !ts.isIdentifier(e) || !ERROR_CLASSES.has(e.text)) return undefined;
+    const d = this.declOf(e);
+    return d && this.isLib(d) ? e.text : undefined;
+  }
   implemented(c: ts.ClassLikeDeclaration): ts.Declaration[] {
     const h = c.heritageClauses?.find(h => h.token === ts.SyntaxKind.ImplementsKeyword);
     return (h?.types ?? []).map(t => this.declOf(t.expression)).filter((d): d is ts.Declaration => !!d);
   }
-  inherits(c: ts.Declaration, target: ts.Declaration): boolean {
+  inherits(c: ts.Node, target: ts.Node): boolean {
     if (c === target) return true;
+    if (this.unionOf.get(c) === target) return true;
+    if (ts.isInterfaceDeclaration(c)) return (c.heritageClauses ?? []).some(h => h.types.some(t => { const d = this.declOf(t.expression); return !!d && this.inherits(d, target); }));
     if (!ts.isClassDeclaration(c)) return false;
+    if (target === this.errorDecl && this.errorBase(c)) return true;
     const b = this.baseClass(c);
     if (b && this.inherits(b, target)) return true;
     return this.implemented(c).some(i => this.inherits(i, target));
+  }
+
+  /** Property signatures/declarations of an object-like declaration, bases first. */
+  members(d: ts.Node): ts.Node[] {
+    if (ts.isTypeLiteralNode(d)) return [...d.members];
+    if (ts.isTypeAliasDeclaration(d)) {
+      if (ts.isTypeLiteralNode(d.type)) return [...d.type.members];
+      const ms = this.unionMembers.get(d);
+      if (ms) return this.commonFields(d);
+      return [];
+    }
+    if (ts.isInterfaceDeclaration(d) || ts.isClassDeclaration(d)) return [...d.members];
+    return [];
+  }
+  /** Fields shared by every member of a discriminated union (stored in the union's base struct). */
+  commonFields(alias: ts.TypeAliasDeclaration): ts.Node[] {
+    const ms = this.unionMembers.get(alias)!;
+    const first = this.ownMembers(ms[0]).filter(m => ts.isPropertySignature(m));
+    return first.filter(f => ms.every(m => this.ownMembers(m).some(x => ts.isPropertySignature(x) && x.name.getText() === (f as ts.PropertySignature).name.getText())));
+  }
+  ownMembers(d: ts.Node): ts.Node[] {
+    if (ts.isTypeLiteralNode(d)) return [...d.members];
+    if (ts.isTypeAliasDeclaration(d) && ts.isTypeLiteralNode(d.type)) return [...d.type.members];
+    if (ts.isInterfaceDeclaration(d) || ts.isClassDeclaration(d)) return [...d.members];
+    return [];
+  }
+  /** Find a member by name through bases, interfaces and unions. */
+  memberDecl(d: ts.Node, name: string): ts.Declaration | undefined {
+    const m = this.ownMembers(d).find(m => (m as ts.NamedDeclaration).name?.getText() === name) as ts.Declaration | undefined;
+    if (m) return m;
+    const u = this.unionOf.get(d);
+    if (u) { const r = this.commonFields(u).find(f => (f as ts.PropertySignature).name.getText() === name); if (r) return r as ts.Declaration; }
+    if (ts.isTypeAliasDeclaration(d) && this.unionMembers.has(d)) return this.memberDecl(this.unionMembers.get(d)![0], name);
+    if (ts.isClassDeclaration(d)) {
+      const b = this.baseClass(d);
+      if (b) return this.memberDecl(b, name);
+      if (this.errorBase(d)) return this.memberDecl(this.errorDecl, name);
+    }
+    if (ts.isInterfaceDeclaration(d)) for (const h of d.heritageClauses ?? []) for (const t of h.types) {
+      const b = this.declOf(t.expression);
+      const r = b && this.memberDecl(b, name);
+      if (r) return r;
+    }
+    return undefined;
+  }
+  /** JSON field order: bases first, then declaration order (shared by the C++ and JS emitters). */
+  fieldNames(d: ts.Node): string[] {
+    const out: string[] = [];
+    const u = this.unionOf.get(d);
+    if (u) out.push(...this.commonFields(u).map(f => (f as ts.PropertySignature).name.getText()));
+    if (ts.isClassDeclaration(d)) { const b = this.baseClass(d); if (b) out.push(...this.fieldNames(b)); }
+    if (ts.isInterfaceDeclaration(d)) for (const h of d.heritageClauses ?? []) for (const t of h.types) { const b = this.declOf(t.expression); if (b) out.push(...this.fieldNames(b)); }
+    for (const m of this.members(d)) {
+      if ((ts.isPropertyDeclaration(m) || ts.isPropertySignature(m)) && !(ts.getCombinedModifierFlags(m as ts.Declaration) & ts.ModifierFlags.Static)) {
+        const n = m.name.getText();
+        if (!n.startsWith('#') && !out.includes(n)) out.push(n);
+      }
+      if (ts.isConstructorDeclaration(m)) for (const p of m.parameters) if (ts.getCombinedModifierFlags(p) & (ts.ModifierFlags.Public | ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Readonly)) out.push(p.name.getText());
+    }
+    return out;
+  }
+  /** Pick the union member an object literal builds (by discriminant literal values). */
+  unionMemberFor(alias: ts.TypeAliasDeclaration, lit: ts.ObjectLiteralExpression): ts.Node {
+    const names = lit.properties.map(p => p.name?.getText());
+    for (const m of this.unionMembers.get(alias)!) {
+      const props = this.ownMembers(m).filter(ts.isPropertySignature);
+      if (!names.every(n => props.some(p => p.name.getText() === n))) continue;
+      const ok = props.every(p => {
+        if (!p.type || !ts.isLiteralTypeNode(p.type)) return true;
+        const v = lit.properties.find(x => x.name?.getText() === p.name.getText());
+        if (!v || !ts.isPropertyAssignment(v)) return !!p.questionToken;
+        const init = v.initializer;
+        return (ts.isStringLiteral(init) || ts.isNumericLiteral(init)) && ts.isLiteralTypeNode(p.type) && (p.type.literal as ts.LiteralExpression).text === init.text;
+      });
+      if (ok) return m;
+    }
+    return this.fail(lit, 'Z9030', 'cannot tell which union member this object literal builds; add the discriminant');
   }
 
   // ---------- ZT from syntax ----------
@@ -206,8 +428,10 @@ export class Sema {
       return BOOL;
     }
     if (ts.isArrayTypeNode(t)) return { k: 'arr', el: this.fromTypeNode(t.elementType, subst) };
+    if (ts.isTypeLiteralNode(t) && this.unionOf.has(t)) return { k: 'obj', decl: t, args: [] };
     if (ts.isUnionTypeNode(t)) {
-      const rest = t.types.filter(x => !(x.kind === ts.SyntaxKind.UndefinedKeyword || (ts.isLiteralTypeNode(x) && x.literal.kind === ts.SyntaxKind.NullKeyword)));
+      if (ts.isTypeAliasDeclaration(t.parent) && this.unionMembers.has(t.parent)) return { k: 'obj', decl: t.parent, args: [] };
+      const rest = t.types.filter(x => !this.isNullish(x));
       if (rest.length === 1) return this.fromTypeNode(rest[0], subst);
       return this.fromType(this.checker.getTypeFromTypeNode(t), t);
     }
@@ -221,15 +445,19 @@ export class Sema {
       if (name === 'Array' || name === 'ReadonlyArray') return { k: 'arr', el: args[0] };
       if (name === 'Map') return { k: 'map', key: args[0], val: args[1] };
       if (name === 'Set') return { k: 'set', el: args[0] };
+      if (name === 'Promise') return { k: 'promise', el: args[0] ?? VOID };
+      if (name === 'Generator' || name === 'IterableIterator' || name === 'Iterable') return { k: 'gen', el: args[0] };
       const d = this.declOf(t.typeName);
       if (d) {
+        if (d === this.errorDecl) return { k: 'obj', decl: d, args: [] };
         if (ts.isTypeParameterDeclaration(d)) return { k: 'tp', name };
         if (ts.isEnumDeclaration(d)) return I32;
         if (ts.isTypeAliasDeclaration(d)) {
-          if (ts.isTypeLiteralNode(d.type)) return { k: 'obj', decl: d, args };
+          if (ts.isTypeLiteralNode(d.type) || this.unionMembers.has(d)) return { k: 'obj', decl: d, args };
           if (!this.isLib(d)) return this.fromTypeNode(d.type, subst);
         }
         if (ts.isClassDeclaration(d) || ts.isInterfaceDeclaration(d)) {
+          if (this.isLib(d) && this.libModule(d)) return { k: 'obj', decl: d, args };
           if (this.isLib(d)) return this.fromType(this.checker.getTypeFromTypeNode(t), t);
           return { k: 'obj', decl: d, args };
         }
@@ -247,6 +475,10 @@ export class Sema {
     if (f & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return VOID;
     if (f & ts.TypeFlags.Null) return { k: 'null' };
     if (f & ts.TypeFlags.TypeParameter) return { k: 'tp', name: type.symbol?.name ?? 'T' };
+    if (type.aliasSymbol) {
+      const ad = type.aliasSymbol.declarations?.[0];
+      if (ad && ts.isTypeAliasDeclaration(ad) && this.unionMembers.has(ad)) return { k: 'obj', decl: ad, args: [] };
+    }
     if (type.isUnion()) {
       const rest = type.types.filter(t => !(t.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
       if (rest.length && rest.every(t => t.flags & ts.TypeFlags.BooleanLike)) return BOOL;
@@ -254,18 +486,28 @@ export class Sema {
       if (rest.length && rest.every(t => t.flags & ts.TypeFlags.NumberLike)) return { k: 'num', m: this.numberKind };
       if (rest.length && rest.every(t => t.flags & ts.TypeFlags.StringLike)) return STR;
       if (rest.length === 1) return this.fromType(rest[0], at);
-      this.fail(at, 'Z9001', `union type '${this.checker.typeToString(type)}' is not supported yet (only T | null)`);
+      // a narrowed subset of one discriminated union
+      const zs = rest.map(r => this.fromTypeSafe(r, at));
+      const alias = zs[0]?.k === 'obj' ? this.unionOf.get(zs[0].decl) : undefined;
+      if (alias && zs.every(z => z?.k === 'obj' && this.unionOf.get(z.decl) === alias)) return { k: 'obj', decl: alias, args: [] };
+      this.fail(at, 'Z9001', `union type '${this.checker.typeToString(type)}' is not supported (use T | null or a discriminated union type alias)`);
     }
-    if (f & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) this.fail(at, 'Z1006', "'any'/'unknown' need the Dyn type, not implemented in the prototype (DYN-02)");
+    if (f & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) this.fail(at, 'Z1006', "'any'/'unknown' need the Dyn type, which this build does not implement (DYN-02)");
     const sym = type.getSymbol() ?? type.aliasSymbol;
     const args = (this.checker.getTypeArguments?.(type as ts.TypeReference) ?? []).map(a => this.fromType(a, at));
     if (sym) {
       if (sym.name === 'Array' || sym.name === 'ReadonlyArray') return { k: 'arr', el: args[0] ?? F64 };
       if (sym.name === 'Map') return { k: 'map', key: args[0], val: args[1] };
       if (sym.name === 'Set') return { k: 'set', el: args[0] };
+      if (sym.name === 'Promise') return { k: 'promise', el: args[0] ?? VOID };
+      if (sym.name === 'Generator' || sym.name === 'IterableIterator' || sym.name === 'Iterable') return { k: 'gen', el: args[0] };
       const d = sym.declarations?.[0];
-      if (d && !this.isLib(d) && (ts.isClassDeclaration(d) || ts.isInterfaceDeclaration(d))) return { k: 'obj', decl: d, args };
-      if (d && ts.isTypeLiteralNode(d) && ts.isTypeAliasDeclaration(d.parent)) return { k: 'obj', decl: d.parent, args: [] };
+      if (d === this.errorDecl) return { k: 'obj', decl: d, args: [] };
+      if (d && (!this.isLib(d) || this.libModule(d)) && (ts.isClassDeclaration(d) || ts.isInterfaceDeclaration(d))) return { k: 'obj', decl: d, args };
+      if (d && ts.isTypeLiteralNode(d)) {
+        if (this.unionOf.has(d)) return { k: 'obj', decl: d, args: [] };
+        if (ts.isTypeAliasDeclaration(d.parent)) return { k: 'obj', decl: d.parent, args: [] };
+      }
       if (type.aliasSymbol) {
         const ad = type.aliasSymbol.declarations?.[0];
         if (ad && ts.isTypeAliasDeclaration(ad) && ts.isTypeLiteralNode(ad.type)) return { k: 'obj', decl: ad, args: [] };
@@ -280,12 +522,37 @@ export class Sema {
       this.fail(at, 'Z9004', `anonymous object type '${this.checker.typeToString(type)}' is not supported; declare a named interface or type`);
     return this.fail(at, 'Z9001', `type '${this.checker.typeToString(type)}' is not supported yet`);
   }
+  fromTypeSafe(t: ts.Type, at: ts.Node): ZT | undefined {
+    try { return this.fromType(t, at); } catch { return undefined; }
+  }
 
   paramType(p: ts.ParameterDeclaration, subst?: Map<string, ZT>): ZT {
     if (p.type) return this.fromTypeNode(p.type, subst);
+    const ex = this.executorParam(p);
+    if (ex) return ex;
     const ctx = this.callbackParam(p);
     if (ctx) return ctx;
+    if (!ts.isIdentifier(p.name)) return this.fromType(this.checker.getTypeAtLocation(p), p);
     return this.fromType(this.checker.getTypeAtLocation(p), p);
+  }
+
+  /** `new Promise<T>((resolve, reject) => ...)` parameters. */
+  executorParam(p: ts.ParameterDeclaration): ZT | undefined {
+    const fn = p.parent;
+    if (!(ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) || !ts.isNewExpression(fn.parent)) return undefined;
+    const ne = fn.parent;
+    if (!ts.isIdentifier(ne.expression) || ne.expression.text !== 'Promise') return undefined;
+    const pt = this.promiseOfNew(ne);
+    const idx = fn.parameters.indexOf(p);
+    if (idx === 0) return { k: 'fn', params: pt.el.k === 'void' ? [] : [pt.el], ret: VOID };
+    return { k: 'fn', params: [{ k: 'obj', decl: this.errorDecl, args: [] }], ret: VOID };
+  }
+  promiseOfNew(ne: ts.NewExpression): Extract<ZT, { k: 'promise' }> {
+    if (ne.typeArguments?.length) return { k: 'promise', el: this.fromTypeNode(ne.typeArguments[0]) };
+    const ctx = this.contextual(ne);
+    if (ctx?.k === 'promise') return ctx;
+    const t = this.fromType(this.checker.getTypeAtLocation(ne), ne);
+    return t.k === 'promise' ? t : { k: 'promise', el: VOID };
   }
 
   /** Callback parameter types for builtin methods keep machine element types (a.map(x => ...) on i32[]). */
@@ -295,7 +562,7 @@ export class Sema {
     const call = fn.parent;
     if (!ts.isPropertyAccessExpression(call.expression)) return undefined;
     const argIdx = call.arguments.indexOf(fn);
-    const recv = this.ztypeOf(call.expression.expression);
+    const recv = this.tryZ(call.expression.expression);
     const idx = fn.parameters.indexOf(p);
     const m = call.expression.name.text;
     if (recv.k === 'arr') {
@@ -305,26 +572,29 @@ export class Sema {
     }
     if (recv.k === 'map' && m === 'forEach') return idx === 0 ? recv.val : recv.key;
     if (recv.k === 'set' && m === 'forEach') return recv.el;
+    if (recv.k === 'promise' && m === 'then') return recv.el;
     return undefined;
   }
 
   // ---------- declared types ----------
-  declType(d: ts.Declaration, subst?: Map<string, ZT>): ZT {
+  declType(d: ts.Node, subst?: Map<string, ZT>): ZT {
     if (ts.isVariableDeclaration(d)) {
+      if (ts.isCatchClause(d.parent)) return { k: 'obj', decl: this.errorDecl, args: [] };
       if (d.type) return this.fromTypeNode(d.type, subst);
       const sym = ts.isIdentifier(d.name) ? this.symbolOf(d.name) : undefined;
       if (sym && this.loopI32.has(sym)) return I32;
       if (ts.isVariableDeclarationList(d.parent) && ts.isForOfStatement(d.parent.parent)) return this.forOfElem(d.parent.parent);
-      const isConst = ts.isVariableDeclarationList(d.parent) && !!(d.parent.flags & ts.NodeFlags.Const);
+      const isConst = ts.isVariableDeclarationList(d.parent) && !!(d.parent.flags & (ts.NodeFlags.Const | ts.NodeFlags.Using));
       if (d.initializer) {
         const t = this.ztypeOf(d.initializer);
         if (t.k === 'null') return this.fromType(this.checker.getTypeAtLocation(d), d);
         // mutable locals widen to `number` unless proven integral (LNG-04)
-        if (!isConst && isNum(t)) return { k: 'num', m: this.numberKind };
+        if (!isConst && isNum(t) && t.m !== this.numberKind && !(ts.isIdentifier(d.name) && this.hasIntAnnotationSource(d.initializer))) return { k: 'num', m: this.numberKind };
         return t;
       }
       return this.fromType(this.checker.getTypeAtLocation(d), d);
     }
+    if (ts.isBindingElement(d)) return this.bindingType(d);
     if (ts.isParameter(d)) return this.paramType(d, subst);
     if (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d)) {
       if (d.type) return this.fromTypeNode(d.type, subst);
@@ -340,13 +610,49 @@ export class Sema {
     if (ts.isClassDeclaration(d) || ts.isInterfaceDeclaration(d)) return { k: 'obj', decl: d, args: [] };
     return this.fromType(this.checker.getTypeAtLocation(d), d);
   }
+  /** `let x = someI32` keeps i32 only when the value comes from an explicit machine-typed source. */
+  private hasIntAnnotationSource(_e: ts.Expression): boolean { return false; }
+
+  /** Type of a destructured name. */
+  bindingType(be: ts.BindingElement): ZT {
+    const pat = be.parent;
+    const src = this.patternSource(pat);
+    if (ts.isObjectBindingPattern(pat)) {
+      if (src.k !== 'obj') return this.fail(be, 'Z9007', 'object destructuring needs an object type');
+      const name = (be.propertyName ?? be.name).getText();
+      const m = this.memberDecl(src.decl, name);
+      if (!m) return this.fail(be, 'Z9007', `unknown property '${name}'`);
+      return this.declType(m, this.substFor(src, m));
+    }
+    if (src.k === 'arr') return src.el;
+    if (src.k === 'map') return pat.elements.indexOf(be) === 0 ? src.key : src.val;  // for (const [k, v] of map)
+    return this.fail(be, 'Z9007', 'array destructuring needs an array');
+  }
+  patternSource(pat: ts.BindingPattern): ZT {
+    const p = pat.parent;
+    if (ts.isBindingElement(p)) return this.bindingType(p);
+    if (ts.isParameter(p)) return this.paramType(p);
+    if (ts.isVariableDeclaration(p)) {
+      if (p.type) return this.fromTypeNode(p.type);
+      if (ts.isVariableDeclarationList(p.parent) && ts.isForOfStatement(p.parent.parent)) {
+        const t = this.ztypeOf(p.parent.parent.expression);
+        return t.k === 'map' ? t : this.forOfElem(p.parent.parent);
+      }
+      if (p.initializer) return this.ztypeOf(p.initializer);
+    }
+    return this.fromType(this.checker.getTypeAtLocation(pat), pat);
+  }
 
   fnType(d: ts.SignatureDeclaration, subst?: Map<string, ZT>): ZT {
     return { k: 'fn', params: d.parameters.map(p => this.paramType(p, subst)), ret: this.retOf(d, subst) };
   }
   retOf(d: ts.SignatureDeclaration, subst?: Map<string, ZT>): ZT {
     if (d.type) return this.fromTypeNode(d.type, subst);
-    if ((ts.isArrowFunction(d)) && !ts.isBlock(d.body)) {
+    if (this.isAsyncFn(d)) {
+      const sig = this.checker.getSignatureFromDeclaration(d);
+      return sig ? this.fromType(sig.getReturnType(), d) : { k: 'promise', el: VOID };
+    }
+    if (ts.isArrowFunction(d) && !ts.isBlock(d.body)) {
       const t = this.ztypeOf(d.body);
       const sig = this.checker.getSignatureFromDeclaration(d);
       if (sig && sig.getReturnType().flags & ts.TypeFlags.Void) return VOID;
@@ -358,13 +664,13 @@ export class Sema {
 
   forOfElem(f: ts.ForOfStatement): ZT {
     const t = this.ztypeOf(f.expression);
-    if (t.k === 'arr' || t.k === 'set') return t.el;
+    if (t.k === 'arr' || t.k === 'set' || t.k === 'gen') return t.el;
     if (t.k === 'str') return STR;
-    return this.fail(f.expression, 'Z9005', 'for-of is supported on arrays, strings, Map and Set');
+    return this.fail(f.expression, 'Z9005', 'for-of is supported on arrays, strings, Map, Set and generators');
   }
 
   /** Type-parameter substitution for a member accessed through `recv`. */
-  substFor(recv: ZT, member: ts.Declaration): Map<string, ZT> | undefined {
+  substFor(recv: ZT, member: ts.Node): Map<string, ZT> | undefined {
     if (recv.k !== 'obj' || !recv.args.length) return undefined;
     const owner = member.parent as ts.ClassLikeDeclaration | ts.InterfaceDeclaration;
     const tps = owner?.typeParameters;
@@ -376,8 +682,11 @@ export class Sema {
   ztypeOf(e: ts.Expression): ZT {
     if (ts.isParenthesizedExpression(e) || ts.isNonNullExpression(e)) return this.ztypeOf(e.expression);
     if (ts.isAsExpression(e) || ts.isTypeAssertionExpression(e) || ts.isSatisfiesExpression(e)) {
-      return ts.isSatisfiesExpression(e) || e.type.kind === ts.SyntaxKind.TypeReference && (e.type as ts.TypeReferenceNode).typeName.getText() === 'const'
-        ? this.ztypeOf(e.expression) : this.fromTypeNode(e.type);
+      return ts.isSatisfiesExpression(e) || e.type.getText() === 'const' ? this.ztypeOf(e.expression) : this.fromTypeNode(e.type);
+    }
+    if (ts.isAwaitExpression(e)) {
+      const t = this.ztypeOf(e.expression);
+      return t.k === 'promise' ? t.el : t;
     }
     if (ts.isNumericLiteral(e)) return { k: 'num', m: this.numberKind };
     if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isTemplateExpression(e)) return STR;
@@ -396,7 +705,7 @@ export class Sema {
         // narrowing by instanceof/discriminant: use the checker's narrowed class if it differs
         if (declared.k === 'obj') {
           const narrowed = this.fromTypeSafe(this.checker.getTypeAtLocation(e), e);
-          if (narrowed?.k === 'obj' && narrowed.decl !== declared.decl) return narrowed;
+          if (narrowed?.k === 'obj' && narrowed.decl !== declared.decl && this.inherits(narrowed.decl, declared.decl)) return narrowed;
         }
         return declared;
       }
@@ -406,8 +715,8 @@ export class Sema {
       const name = e.name.text;
       if ((recv.k === 'arr' || recv.k === 'str') && name === 'length') return I32;
       if ((recv.k === 'map' || recv.k === 'set') && name === 'size') return I32;
-      const d = this.declOf(e.name);
-      if (d && !this.isLib(d)) {
+      const d = this.declOf(e.name) ?? (recv.k === 'obj' ? this.memberDecl(recv.decl, name) : undefined);
+      if (d && (!this.isLib(d) || this.libModule(d))) {
         if (ts.isEnumMember(d)) return I32;
         return this.declType(d, this.substFor(recv, d));
       }
@@ -421,29 +730,37 @@ export class Sema {
     }
     if (ts.isCallExpression(e)) {
       const c = e.expression;
+      if (ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'Promise' && e.arguments.length) {
+        const a = this.ztypeOf(e.arguments[0]);
+        if (c.name.text === 'resolve') return { k: 'promise', el: a };
+        if (c.name.text === 'all' && a.k === 'arr' && a.el.k === 'promise') return { k: 'promise', el: { k: 'arr', el: a.el.el } };
+      }
       if (ts.isPropertyAccessExpression(c)) {
         const recv = this.tryZ(c.expression);
         const lib = this.libMemberType(recv, c.name.text, e);
         if (lib) return lib;
         const d = this.declOf(c.name);
-        if (d && !this.isLib(d) && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters)
+        if (d && (!this.isLib(d) || this.libModule(d)) && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !d.typeParameters)
           return this.retOf(d, this.substFor(recv, d));
+        if (d && !this.isLib(d) && (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d))) {
+          const ft = this.declType(d, this.substFor(recv, d));
+          if (ft.k === 'fn') return ft.ret;
+        }
         if (d && this.isLib(d) && (ts.isMethodSignature(d) || ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d)) && d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))
           return this.fromTypeNode(d.type);
       } else {
         const d = this.declOf(c);
-        if (d && ts.isFunctionDeclaration(d) && !d.typeParameters && (!this.isLib(d) || (d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))))
+        if (d && ts.isFunctionDeclaration(d) && !d.typeParameters && (!this.isLib(d) || this.libModule(d) || (d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))))
           return this.retOf(d);
-        const ft = this.ztypeOf(c);
+        const ft = d && !this.isLib(d) ? this.tryZ(c) : VOID;
         if (ft.k === 'fn' && !(d && ts.isFunctionDeclaration(d))) return ft.ret;
       }
     }
     if (ts.isNewExpression(e)) {
       const d = this.declOf(e.expression);
-      if (d && ts.isClassDeclaration(d) && !this.isLib(d)) {
-        const t = this.fromType(this.checker.getTypeAtLocation(e), e);
-        return t;
-      }
+      if (d && ts.isClassDeclaration(d) && (!this.isLib(d) || this.libModule(d))) return this.fromType(this.checker.getTypeAtLocation(e), e);
+      if (ts.isIdentifier(e.expression) && ERROR_CLASSES.has(e.expression.text)) return { k: 'obj', decl: this.errorDecl, args: [] };
+      if (ts.isIdentifier(e.expression) && e.expression.text === 'Promise') return this.promiseOfNew(e);
     }
     if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return this.fnType(e);
     if (ts.isPrefixUnaryExpression(e)) {
@@ -460,11 +777,17 @@ export class Sema {
     }
     if (ts.isObjectLiteralExpression(e)) {
       const ctx = this.contextual(e) ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
-      if (ctx?.k === 'obj') return ctx;
+      if (ctx?.k === 'obj') {
+        if (ts.isTypeAliasDeclaration(ctx.decl) && this.unionMembers.has(ctx.decl)) return { k: 'obj', decl: this.unionMemberFor(ctx.decl, e), args: [] };
+        return ctx;
+      }
     }
     if (ts.isArrayLiteralExpression(e)) {
       const ctx = this.contextual(e);
       if (ctx?.k === 'arr') return ctx;
+      // no annotation: all elements share one Zinc type (keeps i32/Promise<i32> precision, avoids tuples)
+      const els = e.elements.map(x => ts.isSpreadElement(x) ? this.ztypeOf(x.expression) : this.ztypeOf(x)).map((t, i) => ts.isSpreadElement(e.elements[i]) && t.k === 'arr' ? t.el : t);
+      if (els.length && els.every(t => zeq(t, els[0])) && els[0].k !== 'null') return { k: 'arr', el: isNum(els[0]) && !e.elements.every(x => !ts.isSpreadElement(x) && this.isIntLiteral(x)) ? els[0] : els[0] };
     }
     return this.fromType(this.checker.getTypeAtLocation(e), e);
   }
@@ -474,10 +797,6 @@ export class Sema {
     try { return this.ztypeOf(e); } catch (err) { if (err instanceof ZincError) return VOID; throw err; }
   }
 
-  private fromTypeSafe(t: ts.Type, at: ts.Node): ZT | undefined {
-    try { return this.fromType(t, at); } catch { return undefined; }
-  }
-
   /** Expected type from the syntactic context (declaration annotation, return type, parameter). */
   contextual(e: ts.Expression): ZT | undefined {
     const p = e.parent;
@@ -485,7 +804,10 @@ export class Sema {
     if (ts.isPropertyDeclaration(p) && p.type) return this.fromTypeNode(p.type);
     if (ts.isReturnStatement(p)) {
       const fn = this.fnOf(p) as ts.SignatureDeclaration | undefined;
-      if (fn?.type) return this.fromTypeNode(fn.type);
+      if (fn?.type) {
+        const r = this.fromTypeNode(fn.type);
+        return r.k === 'promise' && this.isAsyncFn(fn) ? r.el : r;
+      }
     }
     if (ts.isBinaryExpression(p) && p.right === e && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return this.ztypeOf(p.left);
     if (ts.isParenthesizedExpression(p)) return this.contextual(p);
@@ -515,17 +837,25 @@ export class Sema {
     const K = ts.SyntaxKind;
     if ([K.AmpersandToken, K.BarToken, K.CaretToken, K.LessThanLessThanToken, K.GreaterThanGreaterThanToken].includes(op)) return 'i32';
     if (op === K.GreaterThanGreaterThanGreaterThanToken) return 'u32';
-    if (op === K.SlashToken || op === K.AsteriskAsteriskToken) return this.numberKind === 'f32' ? 'f32' : 'f64';
     const lm = isNum(l) ? l.m : this.numberKind, rm = isNum(r) ? r.m : this.numberKind;
     const llit = this.isIntLiteral(le), rlit = this.isIntLiteral(re);
-    const a = llit && isInt(rm) ? rm : lm, b = rlit && isInt(lm) ? lm : rm;
+    const a = llit && isInt(rm) ? rm : llit && isFx(rm) ? rm : lm, b = rlit && isInt(lm) ? lm : rlit && isFx(lm) ? lm : rm;
+    const floaty = (x: NumKind): NumKind | undefined => (x === 'f64' || x === 'f32' || isFx(x)) ? x : undefined;
+    if (op === K.SlashToken || op === K.AsteriskAsteriskToken) {
+      if (a === 'f64' || b === 'f64') return 'f64';
+      if (a === 'f32' || b === 'f32') return 'f32';
+      if (isFx(a)) return a;
+      if (isFx(b)) return b;
+      return floaty(this.numberKind) ?? 'f64';
+    }
     if (a === 'f64' || b === 'f64') return 'f64';
     if (a === 'f32' || b === 'f32') return 'f32';
+    if (isFx(a) || isFx(b)) return isFx(a) ? a : b;
     const wide = (m: NumKind): NumKind => (m === 'i8' || m === 'i16' || m === 'u8' || m === 'u16') ? 'i32' : m === 'isize' ? 'i64' : m === 'usize' ? 'u64' : m;
     const x = wide(a), y = wide(b);
     if (x === y) return x;
     if (x === 'i64' || y === 'i64') return 'i64';
-    return 'f64';  // mixed signedness: exact in f64, like JS
+    return floaty(this.numberKind) ?? 'f64';  // mixed signedness: exact in the number type, like JS
   }
 
   /** Result types of builtin members that carry element/machine types. */
@@ -552,6 +882,7 @@ export class Sema {
       if (name === 'add') return recv;
       if (name === 'values') return { k: 'arr', el: recv.el };
     }
+    if (recv.k === 'promise' && name === 'then') return { k: 'promise', el: VOID };
     return undefined;
   }
 }

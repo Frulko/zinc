@@ -43,12 +43,17 @@ struct HalDrawList {
 
 void hal_init(const HalConfig* cfg);
 void hal_shutdown(void);
-// ponytail: plain malloc/free until TLSF over hal_heap_region lands (docs/decisions/0002).
+// System allocator: HAL-internal use, debug builds (ASan) and oversized fallbacks.
 void* hal_alloc(size_t n);
 void hal_free(void* p);
 uint64_t hal_time_us(void);
 void hal_sleep_us(uint64_t us);
 void hal_log(const char* s, size_t n);
+void hal_log_err(const char* s, size_t n);
+int hal_isatty(int fd);
+const char* hal_env(const char* name);  // null when unset or unsupported
+// MEM-10: the region managed by the TLSF heap (size comes from the profile, ZRT_HEAP_BYTES).
+void hal_heap_region(void** base, size_t* size);
 [[noreturn]] void hal_panic(const char* msg, const char* file, int line);
 void hal_frame_begin(void);
 void hal_frame_end(void);

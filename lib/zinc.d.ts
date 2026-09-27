@@ -4,6 +4,8 @@
 type i8 = number; type i16 = number; type i32 = number; type i64 = number;
 type u8 = number; type u16 = number; type u32 = number; type u64 = number;
 type f32 = number; type f64 = number; type isize = number; type usize = number;
+/** Fixed point Q20.12 (PS1 GTE format) and Q16.16; bit-identical on every target (RT-04). */
+type fx12 = number; type fx16 = number;
 
 // ---- global types required by the TypeScript checker ----
 interface Object {}
@@ -33,8 +35,8 @@ interface Disposable { [Symbol.dispose](): void; }
 type Partial<T> = { [P in keyof T]?: T[P] };
 type Readonly<T> = { readonly [P in keyof T]: T[P] };
 type Record<K extends keyof any, T> = { [P in K]: T };
-type ClassDecoratorContext = { kind: "class" };
-type ClassFieldDecoratorContext = { kind: "field" };
+interface ClassDecoratorContext<Class = unknown> { readonly kind: 'class'; readonly name: string | undefined; }
+interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly kind: 'field'; readonly name: string | symbol; readonly static: boolean; readonly private: boolean; }
 
 // ---- Number ----
 interface Number { toFixed(digits?: i32): string; toString(): string; }
@@ -151,7 +153,42 @@ interface Math {
 declare var Math: Math;
 
 // ---- misc ----
-interface Console { log(...args: unknown[]): void; }
+interface Console {
+  log(...args: unknown[]): void; info(...args: unknown[]): void; debug(...args: unknown[]): void;
+  warn(...args: unknown[]): void; error(...args: unknown[]): void; trace(...args: unknown[]): void;
+  time(label?: string): void; timeEnd(label?: string): void; timeLog(label?: string): void; count(label?: string): void;
+  assert(cond: boolean, ...args: unknown[]): void; table<T>(rows: T[]): void;
+}
+interface JSON { stringify<T>(v: T): string; }
+declare var JSON: JSON;
+declare function queueMicrotask(f: () => void): void;
+
+// ---- Promise (LNG-16): futures resolved by the event loop ----
+interface PromiseLike<T> { then(f: (v: T) => void): PromiseLike<void>; }
+interface Promise<T> { then(f: (v: T) => void): Promise<void>; }
+interface PromiseConstructor {
+  new <T>(executor: (resolve: (value: T) => void, reject: (reason: Error) => void) => void): Promise<T>;
+  resolve<T>(v: T): Promise<T>;
+  resolve(): Promise<void>;
+  reject<T = never>(e: Error): Promise<T>;
+  all<T>(ps: Promise<T>[]): Promise<T[]>;
+}
+declare var Promise: PromiseConstructor;
+interface Generator<T = unknown, R = any, N = any> extends IteratorObject<T, R, N> { [Symbol.iterator](): Generator<T, R, N>; }
+
+// ---- memory (section 8) ----
+/** MEM-07: `using a = Arena.frame()`; everything allocated until the end of the block is freed in O(1). */
+declare class Arena {
+  static frame(bytes?: i32): Arena;
+  promote<T>(x: T): T;
+  [Symbol.dispose](): void;
+}
+/** MEM-13: weak back-reference, does not keep the target alive. */
+declare function weak(target: undefined, ctx: ClassFieldDecoratorContext): void;
+/** MEM-09: N preallocated slots for this class. */
+declare function pooled(n: i32): (target: Function, ctx: ClassDecoratorContext) => void;
+/** LNG-10: value class (copied, no header). */
+declare function value(target: Function, ctx: ClassDecoratorContext): void;
 declare var console: Console;
 interface DateConstructor { now(): number; }
 declare var Date: DateConstructor;

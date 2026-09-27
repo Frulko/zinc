@@ -13,6 +13,7 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
   const root = roots.reduce((a, b) => { while (!(b + '/').startsWith(a + '/')) a = path.dirname(a); return a; });
   const outOf = (src: string) => path.join(outDir, path.relative(root, src).replace(/\.[cm]?tsx?$/, '.js'));
   const files: { path: string }[] = [];
+  const simImpls = new Set<string>();
 
   const tf: ts.TransformerFactory<ts.SourceFile> = ctx => sf => {
     const f = ctx.factory;
@@ -33,6 +34,8 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
         case 'i8': return bin(bin(e, K.LessThanLessThanToken, num(24)), K.GreaterThanGreaterThanToken, num(24));
         case 'i16': return bin(bin(e, K.LessThanLessThanToken, num(16)), K.GreaterThanGreaterThanToken, num(16));
         case 'f32': return callMath('fround', [e]);
+        case 'fx12': return callZ('fx', [e, num(12)]);
+        case 'fx16': return callZ('fx', [e, num(16)]);
         default: return e;  // f64; ponytail: i64/u64/isize/usize are plain doubles in sim
       }
     };
@@ -42,6 +45,7 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
       if (!from || !isNum(from) || from.m === to.m) return e;
       if (isInt(to.m) && sema.isIntLiteral(orig)) return e;
       if (to.m === 'f64' || (isInt(from.m) && to.m === 'f32')) return e;
+      if (isInt(to.m) && (from.m === 'fx12' || from.m === 'fx16')) return narrow(e, to.m);
       if (isInt(from.m) && isInt(to.m) && to.m === 'i32' && (from.m === 'i8' || from.m === 'i16' || from.m === 'u8' || from.m === 'u16')) return e;
       return narrow(e, to.m);
     };
@@ -65,22 +69,26 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
     };
     const posOf = (n: ts.Node) => [f.createStringLiteral(path.relative(process.cwd(), sf.fileName)), num(sf.getLineAndCharacterOfPosition(n.getStart()).line + 1)];
 
+    const FX = sema.numberKind === 'fx12' || sema.numberKind === 'fx16';
+    const FXB = sema.numberKind === 'fx16' ? 16 : 12;
+    /** quantize a runtime double into the fixed-point `number` of the profile */
+    const fxq = (e: ts.Expression) => FX ? callZ('fx', [e, num(FXB)]) : e;
     const visit = (n: ts.Node): ts.Node => {
+      if (FX && ts.isNumericLiteral(n)) { const q = Math.floor(Number(n.text) * (1 << FXB) + 0.5) / (1 << FXB); return q < 0 ? f.createPrefixUnaryExpression(K.MinusToken, num(-q)) : num(q); }
+      if (FX && ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'Math' && (n.name.text === 'PI' || n.name.text === 'E')) return fxq(n);
       // module specifiers: zinc:gfx -> sim shim, relative -> .js
       if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
         const spec = n.moduleSpecifier.text;
         let ns = spec;
-        if (spec === 'zinc:gfx') ns = rel(outFile, path.join(ZINC_ROOT, 'sim/gfx.mjs'));
+        if (spec.startsWith('zinc:')) ns = rel(outFile, path.join(ZINC_ROOT, `sim/${spec.slice(5)}.mjs`));
+        else if (spec.startsWith('.') && /\.spec(\.ts)?$/.test(spec)) {
+          const src = path.resolve(path.dirname(sf.fileName), spec.replace(/\.ts$/, '')).replace(/\.spec$/, '.sim.ts');
+          simImpls.add(src);
+          ns = spec.replace(/\.spec(\.ts)?$/, '.sim.js');
+        }
         else if (spec.startsWith('.')) ns = spec.replace(/\.[cm]?tsx?$/, '') + '.js';
         if (ts.isImportDeclaration(n)) return f.updateImportDeclaration(n, n.modifiers, n.importClause, f.createStringLiteral(ns), n.attributes);
         return f.updateExportDeclaration(n, n.modifiers, n.isTypeOnly, n.exportClause, f.createStringLiteral(ns), n.attributes);
-      }
-      if (ts.isThrowStatement(n)) {
-        const e = n.expression;
-        let msg: ts.Expression = f.createStringLiteral('Error');
-        if (ts.isNewExpression(e) && e.arguments?.length) msg = f.createBinaryExpression(f.createStringLiteral(e.expression.getText() + ': '), K.PlusToken, visit(e.arguments[0]) as ts.Expression);
-        else if (safeType(e)?.k === 'str') msg = visit(e) as ts.Expression;
-        return f.createExpressionStatement(callZ('panic', [msg, ...posOf(n)]));
       }
       const v = ts.visitEachChild(n, visit, ctx);
       if (ts.isCallExpression(n) && ts.isCallExpression(v)) {
@@ -88,8 +96,10 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
         if (ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression)) {
           const g = c.expression.text, m = c.name.text;
           const lib = !sema.declOf(c.expression) || sema.isLib(sema.declOf(c.expression)!);
-          if (lib && g === 'console' && m === 'log') return callZ('log', [...v.arguments]);
-          if (lib && g === 'Math' && (m === 'random' || m === 'seed')) return callZ(m, [...v.arguments]);
+          if (lib && g === 'console') return callZ('c_' + m, [...v.arguments]);
+          if (lib && g === 'Math' && m === 'random') return fxq(callZ('random', []));
+          if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
+          if (lib && g === 'Math' && FX) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
         }
         if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
           const rt = safeType(c.expression);
@@ -157,6 +167,15 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
     const arith = (op: ts.SyntaxKind, lo: ts.Expression, ro: ts.Expression, l: ts.Expression, r: ts.Expression, m: NumKind): ts.Expression => {
       const lt = safeType(lo), rt = safeType(ro);
       const bothInt = !!lt && !!rt && isNum(lt) && isNum(rt) && isInt(lt.m) && isInt(rt.m);
+      if (m === 'fx12' || m === 'fx16') {
+        const b = num(m === 'fx16' ? 16 : 12);
+        switch (op) {
+          case K.SlashToken: return callZ('fxdiv', [l, r, b]);
+          case K.AsteriskToken: return callZ('fxmul', [l, r, b]);
+          case K.PercentToken: return callZ('fxmod', [l, r, b]);
+          case K.PlusToken: case K.MinusToken: return callZ('fx', [f.createBinaryExpression(l, op, r), b]);
+        }
+      }
       switch (op) {
         case K.SlashToken: return bothInt ? callZ('idiv', [l, r]) : m === 'f32' ? callMath('fround', [f.createBinaryExpression(l, K.SlashToken, r)]) : f.createBinaryExpression(l, K.SlashToken, r);
         case K.PercentToken: return isInt(m) ? callZ('imod', [l, r]) : narrow(f.createBinaryExpression(l, K.PercentToken, r), m);
@@ -183,6 +202,15 @@ export function emitJs(sema: Sema, outDir: string): JsResult {
     files.push({ path: out });
   }, undefined, false, { before: [tf] });
   if (r.emitSkipped) throw new Error('sim emit failed');
+  // NAT-09: sim implementations of native modules (native/<name>.sim.ts), transpiled on their own
+  for (const src of simImpls) {
+    if (!fs.existsSync(src)) throw new Error(`missing sim implementation ${path.relative(process.cwd(), src)}`);
+    const out = ts.transpileModule(fs.readFileSync(src, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+      .replace(/from '(\.[^']+?)(\.ts)?'/g, (_m, p) => `from '${p}.js'`)
+      .replace(/from 'zinc:([a-z]+)'/g, (_m, mod) => `from '${rel(outOf(src), path.join(ZINC_ROOT, `sim/${mod}.mjs`))}'`);
+    fs.mkdirSync(path.dirname(outOf(src)), { recursive: true });
+    fs.writeFileSync(outOf(src), out);
+  }
   fs.writeFileSync(path.join(outDir, 'package.json'), '{ "type": "module" }\n');
   const entryJs = './' + path.relative(outDir, outOf(sema.fe.entry.fileName));
   fs.writeFileSync(path.join(outDir, 'run.mjs'),
