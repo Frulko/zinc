@@ -22,6 +22,9 @@ class UiNode {
   bg: i32 = -1;
   fg: i32 = 0xffffff;
   scale: i32 = 1;
+  talign: i32 = 0;   // 0 left, 1 center, 2 right
+  lines: string[] = [];
+  tx: i32 = 0; ty: i32 = 0;
   hidden: boolean = false;
   x: i32 = 0; y: i32 = 0; lw: i32 = 0; lh: i32 = 0;
   onClick: (() => void) | null = null;
@@ -99,6 +102,7 @@ export function setNumber(h: i32, key: string, v: number): void {
   else if (key === 'grow') n.grow = iv; else if (key === 'gap') n.gap = iv;
   else if (key === 'bg') n.bg = iv; else if (key === 'color') n.fg = iv; else if (key === 'scale') n.scale = iv;
   else if (key === 'hidden') n.hidden = iv !== 0;
+  else if (key === 'x') n.tx = iv; else if (key === 'y') n.ty = iv;
   dirty = true;
 }
 
@@ -125,6 +129,7 @@ export function applyClass(n: UiNode, c: string): boolean {
   else if (c === 'grow') n.grow = 1;
   else if (c === 'hidden') n.hidden = true;
   else if (c === 'w-full') n.fullW = true; else if (c === 'h-full') n.fullH = true;
+  else if (c === 'text-left') n.talign = 0; else if (c === 'text-center') n.talign = 1; else if (c === 'text-right') n.talign = 2;
   else if (c === 'text-sm') n.scale = 1; else if (c === 'text-base') n.scale = 1;
   else if (c === 'text-lg') n.scale = 2; else if (c === 'text-xl') n.scale = 3; else if (c === 'text-2xl') n.scale = 4;
   else if (c.startsWith('p-')) { const v = unit(c.slice(2)); n.pt = v; n.pb = v; n.pl = v; n.pr = v; }
@@ -153,21 +158,40 @@ function flat(n: UiNode, out: UiNode[]): void {
     if (c.tag === FRAGMENT) flat(c, out); else out.push(c);
   }
 }
-function measure(n: UiNode): void {
+/** UI-10: greedy word wrap on the 8x8 glyph grid. */
+function wrap(n: UiNode, maxW: i32): void {
+  const cw: i32 = 8 * n.scale;
+  const avail: i32 = maxW - n.pl - n.pr;
+  n.lines = [];
+  if (n.text.length * cw <= avail || avail <= cw) { n.lines.push(n.text); return; }
+  let line = '';
+  for (const word of n.text.split(' ')) {
+    const cand = line.length === 0 ? word : line + ' ' + word;
+    if (cand.length * cw > avail && line.length > 0) { n.lines.push(line); line = word; }
+    else line = cand;
+  }
+  if (line.length > 0) n.lines.push(line);
+}
+function measure(n: UiNode, maxW: i32): void {
   if (n.tag === TEXT) {
-    n.lw = n.text.length * 8 * n.scale + n.pl + n.pr;
-    n.lh = 8 * n.scale + n.pt + n.pb;
+    wrap(n, n.w >= 0 ? n.w : maxW);
+    let widest: i32 = 0;
+    for (const l of n.lines) if (l.length > widest) widest = l.length;
+    n.lw = widest * 8 * n.scale + n.pl + n.pr;
+    n.lh = n.lines.length * 8 * n.scale + n.pt + n.pb;
   } else {
     const kids: UiNode[] = [];
     flat(n, kids);
     let main: i32 = 0, cross: i32 = 0;
+    const inner: i32 = (n.w >= 0 ? n.w : maxW) - n.pl - n.pr;
     for (const c of kids) {
-      measure(c);
+      measure(c, n.row ? inner - main : inner);
       const cm = n.row ? c.lw : c.lh, cc = n.row ? c.lh : c.lw;
-      main += cm;
+      main += cm + (n.row ? n.gap : 0);
       if (cc > cross) cross = cc;
     }
-    if (kids.length > 1) main += n.gap * (kids.length - 1);
+    if (n.row && kids.length > 0) main -= n.gap;
+    if (!n.row && kids.length > 1) main += n.gap * (kids.length - 1);
     n.lw = (n.row ? main : cross) + n.pl + n.pr;
     n.lh = (n.row ? cross : main) + n.pt + n.pb;
   }
@@ -182,7 +206,8 @@ function place(n: UiNode, x: i32, y: i32, w: i32, h: i32): void {
   const iw = w - n.pl - n.pr, ih = h - n.pt - n.pb;
   const innerMain = n.row ? iw : ih, innerCross = n.row ? ih : iw;
   let used: i32 = 0, grows: i32 = 0;
-  for (const c of kids) { used += n.row ? c.lw : c.lh; grows += c.grow; }
+  const growOf = (c: UiNode): i32 => c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
+  for (const c of kids) { used += n.row ? c.lw : c.lh; grows += growOf(c); }
   if (kids.length > 1) used += n.gap * (kids.length - 1);
   let free: i32 = innerMain - used;
   let pos: i32 = 0, between: i32 = n.gap;
@@ -193,7 +218,7 @@ function place(n: UiNode, x: i32, y: i32, w: i32, h: i32): void {
   }
   for (const c of kids) {
     let cm: i32 = n.row ? c.lw : c.lh;
-    if (grows > 0 && free > 0 && c.grow > 0) cm += Math.floor(free * c.grow / grows);
+    if (grows > 0 && free > 0 && growOf(c) > 0) cm += Math.floor(free * growOf(c) / grows);
     let cc: i32 = n.row ? c.lh : c.lw;
     let off: i32 = 0;
     const stretch = n.align === 3 || (n.row ? c.fullH : c.fullW);
@@ -208,7 +233,7 @@ function place(n: UiNode, x: i32, y: i32, w: i32, h: i32): void {
 export function layout(): void {
   if (root < 0) return;
   const r = node(root);
-  measure(r);
+  measure(r, width());
   place(r, 0, 0, width(), height());
   dirty = false;
 }
@@ -217,12 +242,20 @@ export function layout(): void {
 function paint(h: i32): void {
   const n = node(h);
   if (n.hidden) return;
-  if (n.bg >= 0) rect(n.x, n.y, n.lw, n.lh, n.bg);
+  if (n.bg >= 0) rect(n.x + n.tx, n.y + n.ty, n.lw, n.lh, n.bg);
   if (h === focus) {
     rect(n.x, n.y, n.lw, 1, 0xfacc15); rect(n.x, n.y + n.lh - 1, n.lw, 1, 0xfacc15);
     rect(n.x, n.y, 1, n.lh, 0xfacc15); rect(n.x + n.lw - 1, n.y, 1, n.lh, 0xfacc15);
   }
-  if (n.tag === TEXT) drawText(n.x + n.pl, n.y + n.pt, n.text, n.fg, n.scale);
+  if (n.tag === TEXT) {
+    const lh: i32 = 8 * n.scale;
+    for (let i = 0; i < n.lines.length; i++) {
+      const lw: i32 = n.lines[i].length * lh;
+      const free: i32 = n.lw - n.pl - n.pr - lw;
+      const off: i32 = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
+      drawText(n.x + n.pl + off + n.tx, n.y + n.pt + i * lh + n.ty, n.lines[i], n.fg, n.scale);
+    }
+  }
   const d = n.onDraw;
   if (d !== null) d(n.x, n.y, n.lw, n.lh);
   for (const c of n.children) paint(c);
@@ -292,7 +325,7 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
   if (h < 0) return;
   const n = node(h);
   if (n.hidden) return;
-  out.push(`${'  '.repeat(depth)}${TAG_NAMES[n.tag]} ${n.x},${n.y} ${n.lw}x${n.lh}${n.tag === TEXT ? ' "' + n.text + '"' : ''}`);
+  out.push(`${'  '.repeat(depth)}${TAG_NAMES[n.tag]} ${n.x},${n.y} ${n.lw}x${n.lh}${n.tag === TEXT ? ' "' + n.lines.join('|') + '"' : ''}`);
   for (const c of n.children) dumpNode(c, depth + 1, out);
 }
 export function setRoot(h: i32): void { root = h; node(h).fullW = true; node(h).fullH = true; dirty = true; }

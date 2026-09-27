@@ -5,11 +5,11 @@
 import { ts } from './frontend.ts';
 
 const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5 };
-const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden']);
+const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y']);
 const COLORS = new Set(['white', 'black', 'slate-900', 'slate-800', 'slate-700', 'slate-600', 'slate-400', 'slate-200', 'gray-900', 'gray-700', 'gray-500', 'gray-300',
   'red-500', 'orange-400', 'amber-400', 'yellow-400', 'green-500', 'emerald-400', 'cyan-400', 'blue-500', 'indigo-500', 'purple-500', 'pink-500', 'transparent']);
 const FIXED = new Set(['flex-row', 'flex-col', 'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between',
-  'grow', 'hidden', 'w-full', 'h-full', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'rounded', 'rounded-lg', 'font-bold']);
+  'grow', 'hidden', 'w-full', 'h-full', 'text-left', 'text-center', 'text-right', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'rounded', 'rounded-lg', 'font-bold']);
 
 /** UI-07: same grammar as applyClass in lib/std/ui.ts; unknown classes are build errors. */
 export function validClass(c: string): boolean {
@@ -166,6 +166,19 @@ export function lowerJsx(text: string, fileName: string): string {
     }
     return v;
   };
+
+  // UI-04: rules of hooks, checked at build time (no hooks under conditions or loops)
+  if (react) {
+    const check = (n: ts.Node, cond: boolean) => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && /^use[A-Z]/.test(n.expression.text) && cond)
+        throw new JsxError(`hook '${n.expression.text}' is called conditionally or in a loop (rules of hooks)`, n.getStart(sf));
+      if (ts.isFunctionLike(n) && n !== sf) { ts.forEachChild(n, c => check(c, false)); return; }
+      const inCond = cond || ts.isIfStatement(n) || ts.isConditionalExpression(n) || ts.isForStatement(n) || ts.isForOfStatement(n) || ts.isWhileStatement(n) ||
+        (ts.isBinaryExpression(n) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(n.operatorToken.kind));
+      ts.forEachChild(n, c => check(c, inCond));
+    };
+    check(sf, false);
+  }
 
   // replace top-level JSX spans, last first
   const spans: { start: number; end: number; code: string }[] = [];
