@@ -30,7 +30,8 @@ namespace gfx {
 static int32_t pxk = 0, pw = 0, ph = 0;
 static void init_scale() {
   if (pxk) return;
-  pxk = display_driver ? 1 : hal_pixel_scale();
+  // panels get logical pixels; a driver drawing through the host window (host_window) gets its pixel scale (Retina)
+  pxk = display_driver && !hal_display->host_window ? 1 : hal_pixel_scale();
   if (pxk < 1) pxk = 1;
   pw = surf_w * pxk; ph = surf_h * pxk;
 }

@@ -88,6 +88,7 @@ void hal_init(const HalConfig* cfg) {
 #endif
   if (const char* r = getenv("ZINC_RESIZE")) fill = r[0] == 'f';
   if (det) fill = false;  // the layout must not follow the window
+  if (hal_display) fill = false;   // an emulated device (host_window driver) has a fixed panel: letterbox it
   bool full = false;
 #ifdef ZINC_FULLSCREEN
   full = true;
@@ -369,7 +370,16 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
-  if (!gfx_on || f->w != PW || f->h != PH) return;  // a frame rendered for the previous size
+  if (!gfx_on) return;
+  if (f->w != PW || f->h != PH) {   // a frame rendered for the previous size (live resize): expected once in a while
+    static int dropped = 0;
+    if (++dropped == 30) {   // many in a row means a size mismatch, not a resize: say so instead of a black window
+      char b[160];
+      snprintf(b, sizeof b, "zinc: frames of %dx%d do not fit the %dx%d window surface; nothing is shown\n", f->w, f->h, PW, PH);
+      hal_log_err(b, strlen(b));
+    }
+    return;
+  }
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};

@@ -33,6 +33,12 @@ static int emu_init(const HalConfig* cfg) {
 }
 static void emu_present(const HalFrame* f) {
   if (!look) { hal_present(f); return; }
+  // frames come at the window's pixel scale (Retina): size the emulated panel after them
+  if (f->w != panel.w || f->h != panel.h) {
+    free(panel.cur); free(panel.scratch); free(panel.out); free(view);
+    view = (uint32_t*)calloc((size_t)f->w * f->h, 4);
+    if (!view || !eink::init(panel, f->w, f->h)) return;
+  }
   eink::Update u = eink::present(panel, f, hal_time_us(), true);
   if (u.mode == eink::FULL) {  // flashing refresh: the panel goes black before settling
     for (size_t i = 0, n = (size_t)panel.w * panel.h; i < n; i++) view[i] = 0x26262A;
