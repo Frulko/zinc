@@ -542,6 +542,7 @@ void layer_json(Out& o, const Layer& l) {
 // Minimal reader for this shape: {"layers":[{"key":[number|string|bool, ...], ...}, ...], other keys skipped}.
 struct J {
   const char* s; const char* e;
+  int depth = 0;  // skip() recurses per nesting level: files and OSC payloads are untrusted
   void sp() { while (s < e && (*s == ' ' || *s == '\n' || *s == '\r' || *s == '\t')) s++; }
   bool eat(char c) { sp(); if (s < e && *s == c) { s++; return true; } return false; }
   bool str(char* out, int cap) {
@@ -560,6 +561,8 @@ struct J {
     if (s >= e) return false;
     if (*s == '"') { char t[2]; return str(t, 2); }
     if (*s == '[' || *s == '{') {
+      if (depth >= 64) return false;
+      struct Level { int& d; Level(int& x) : d(x) { d++; } ~Level() { d--; } } level(depth);
       const bool obj = *s == '{';
       const char close = obj ? '}' : ']';
       s++;

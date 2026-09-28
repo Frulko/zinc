@@ -76,6 +76,9 @@ declare module 'zinc:gfx' {
   export function pointerDown(): boolean;
   /** Frame counter since start. */
   export function frame(): i32;
+  /** Physical pixels per logical pixel of the frame (2 on Retina): size render-to-image layers with it to keep them
+   *  sharp (an image drawn at its own physical size is a row copy). */
+  export function pixelScale(): i32;
   export function quit(): void;
   /** Saves the frame on screen (the last one presented, at physical size) as PNG, or BMP when the path ends in .bmp.
    *  False when it cannot be written (no file system, sim target). See ZINC_SHOT for captures without code. */
@@ -120,4 +123,8 @@ declare module 'zinc:gfx' {
   export function escapeByApp(on: boolean): void;
   /** The HAL's own Escape action: leave fullscreen, else quit (nothing in kiosk mode). */
   export function escapeDefault(): void;
+  /** Profiler on (ZINC_PROFILE=1, ZINC_TRACE=file.json, DevTools Tracing): zinc:ui marks its frame phases then. */
+  export function profiling(): boolean;
+  /** Attributes the time since the previous mark to a phase: 0 app, 1 input, 2 anim, 3 layout, 4 paint. */
+  export function profMark(phase: i32): void;
 }

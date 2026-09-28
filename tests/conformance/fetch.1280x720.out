@@ -10,6 +10,6 @@ false
 404 false Not Found nothing here
 big 200000
 fetch failed: response too large
-json error Error
+json error SyntaxError
 fetch failed: timeout
 fetch failed: ECONNREFUSED

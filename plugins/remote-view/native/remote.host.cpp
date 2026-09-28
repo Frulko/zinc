@@ -24,6 +24,7 @@ struct Session {
   uint8_t* in = nullptr; size_t len = 0, cap = 0;
   int32_t w = 0, h = 0, img = -1;
   char name[64] = "";
+  char token[MAX_TOKEN + 1] = "";  // sent as AUTH once connected
   zrt::Ref<zrt::PromiseObj<zrt::String>> pend;
   // stats
   int32_t frames = 0; int fcount = 0; size_t bytes = 0; double stat_t0 = 0, fps = 0, kbps = 0, rtt = 0;
@@ -82,7 +83,7 @@ struct HostRemote : NativeRemote, zrt::Poller {
     s = Session();
   }
 
-  zrt::Promise<zrt::String> connect(zrt::String host, int32_t port) override {
+  zrt::Promise<zrt::String> connect(zrt::String host, int32_t port, zrt::String token) override {
     auto pr = zrt::Promise<zrt::String>::make_pending();
     int i = 0;
     while (i < MAXS && ss[i].st != FREE) i++;
@@ -91,6 +92,9 @@ struct HostRemote : NativeRemote, zrt::Poller {
     zrt::sock::CStr h(host);
     snprintf(s.host, sizeof s.host, "%s", h.c());
     s.port = port;
+    zrt::sock::CStr t(token);
+    const char* env = getenv("ZINC_REMOTE_TOKEN");
+    snprintf(s.token, sizeof s.token, "%s", token.bytes() ? t.c() : env ? env : "");
     s.pend = pr.p;
     start(s);
     if (s.st == WAITING) drop(i, "remote: cannot resolve host");
@@ -143,6 +147,8 @@ struct HostRemote : NativeRemote, zrt::Poller {
     size_t off = 0;
     while (s.len - off >= 5) {
       uint32_t n = get32(s.in + off + 1);
+      // no message is longer than a whole-screen RECT: a larger length is a bad server, not a reason to buffer
+      if (n > 4096 + (s.w > 0 ? 8 + rle_bound((uint32_t)s.w * (uint32_t)s.h) : 0)) return false;
       if (s.len - off < 5 + (size_t)n) break;
       const uint8_t* p = s.in + off + 5;
       uint8_t t = s.in[off];
@@ -153,6 +159,9 @@ struct HostRemote : NativeRemote, zrt::Poller {
         memcpy(s.name, p + 4, k); s.name[k] = 0;
         if (s.img < 0) s.img = zrt::raster::dyn_create(w, h);
         else if (w != s.w || h != s.h) zrt::raster::dyn_resize(s.img, w, h);
+        // the image may refuse the size (0, too large, out of memory): RECTs are checked against what it really has
+        int32_t iw = 0, ih = 0;
+        if (s.img < 0 || !zrt::raster::image_size(s.img, &iw, &ih) || iw != w || ih != h) return false;
         s.w = w; s.h = h;
         s.ever_open = true;
         if (s.pend.p) {
@@ -196,9 +205,19 @@ struct HostRemote : NativeRemote, zrt::Poller {
         getsockopt(s.fd, SOL_SOCKET, SO_ERROR, &err, &el);
         if (err) { drop(i, "remote: connection refused"); continue; }
         s.st = OPEN; s.stat_t0 = now; s.ping_at = 0;
+        if (s.token[0]) {  // AUTH first: the server sends nothing (HELLO) before it
+          uint8_t b[5 + MAX_TOKEN]; uint32_t tl = (uint32_t)strlen(s.token);
+          b[0] = AUTH; put32(b + 1, tl); memcpy(b + 5, s.token, tl);
+          (void)::send(s.fd, b, 5 + tl, MSG_NOSIGNAL);
+        }
       }
       for (;;) {
-        if (s.cap - s.len < 65536) { s.cap = s.cap * 2 + 65536; s.in = (uint8_t*)realloc(s.in, s.cap); }
+        if (s.len >= (64u << 20) + (size_t)s.w * s.h * 4) break;  // parse what is there first (no message is larger)
+        if (s.cap - s.len < 65536) {
+          uint8_t* b = (uint8_t*)realloc(s.in, s.cap * 2 + 65536);
+          if (!b) { drop(i, "remote: out of memory"); break; }
+          s.in = b; s.cap = s.cap * 2 + 65536;
+        }
         ssize_t n = recv(s.fd, s.in + s.len, s.cap - s.len, 0);
         if (n > 0) { s.len += (size_t)n; s.bytes += (size_t)n; continue; }
         if (n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) { drop(i, "remote: connection closed"); break; }

@@ -167,6 +167,7 @@ struct String {
 
   int32_t length() const { return s ? s->u16len : 0; }
   int32_t charCodeAt(int32_t i) const;
+  String charAt(int32_t i) const { return i < 0 || i >= length() ? String() : at(i); }
   String at(int32_t i) const;
   String slice(int32_t a) const { return slice(a, length()); }
   String slice(int32_t a, int32_t b) const;
@@ -175,10 +176,16 @@ struct String {
   int32_t indexOf(const String& n, int32_t from = 0) const;
   int32_t lastIndexOf(const String& n, int32_t from = 0x7fffffff) const;
   bool includes(const String& n) const { return indexOf(n) >= 0; }
+  bool includes(const String& n, int32_t from) const { return indexOf(n, from) >= 0; }
   bool startsWith(const String& n) const;
+  bool startsWith(const String& n, int32_t pos) const;
   bool endsWith(const String& n) const;
+  bool endsWith(const String& n, int32_t end) const;
+  String concat(const String& o) const;
   Array<String> split(const String& sep) const;
   String trim() const;
+  String trimStart() const;
+  String trimEnd() const;
   String padStart(int32_t n) const;
   String padStart(int32_t n, const String& f) const;
   String padEnd(int32_t n) const;
@@ -296,6 +303,7 @@ inline int32_t sar(int32_t a, int32_t b) { return a >> (b & 31); }
 inline uint32_t shr(int32_t a, int32_t b) { return (uint32_t)a >> (b & 31); }
 
 // truthiness
+inline bool is_safe_integer(double v) { return v - v == 0 && __builtin_trunc(v) == v && __builtin_fabs(v) <= 9007199254740991.0; }
 inline bool truthy(bool v) { return v; }
 inline bool truthy(double v) { return v == v && v != 0; }
 inline bool truthy(float v) { return v == v && v != 0; }
@@ -311,7 +319,7 @@ inline bool is_nan(double v) { return v != v; }
 inline bool is_finite(double v) { return v - v == 0; }
 inline bool is_integer(double v) { return is_finite(v) && __builtin_trunc(v) == v; }
 double parse_float(const String& s);
-double parse_int(const String& s, int32_t radix = 10);
+double parse_int(const String& s, int32_t radix = 0);
 String to_fixed(double v, int32_t digits);
 double now_ms();
 
@@ -356,6 +364,9 @@ template<int F> struct Fx;
 template<int F> inline bool is_neg(const Fx<F>& x) { return x.v < 0; }
 template<class T> struct ArrObj { uint32_t rc; int32_t len, cap; T* data; };
 
+template<class T> inline bool same_value_zero(const T& x, const T& y) { return x == y; }
+inline bool same_value_zero(const double& x, const double& y) { return x == y || (x != x && y != y); }
+inline bool same_value_zero(const float& x, const float& y) { return x == y || (x != x && y != y); }
 template<class T> struct Array {
   ArrObj<T>* a = nullptr;
   constexpr Array() {}
@@ -372,24 +383,33 @@ template<class T> struct Array {
     mfree(x);
     live_objects--;
   }
+  // element bytes must fit size_t on 32-bit targets (a wrapped size would be a heap overflow)
+  static size_t bytes_of(int32_t n) { if (n < 0 || (size_t)n > (size_t)-1 / sizeof(T)) panic("RangeError: Invalid array length"); return sizeof(T) * (size_t)n; }
   static Array with_cap(int32_t cap) {
     Array r; r.a = (ArrObj<T>*)alloc(sizeof(ArrObj<T>)); live_objects++;
-    r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(sizeof(T) * (size_t)cap) : nullptr;
+    r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(bytes_of(cap)) : nullptr;
     return r;
   }
-  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); (r.push_raw(T(xs)), ...); return r; }
+  // a braced list, not a fold expression: clang limits folds to 256 operands (array literals can be longer)
+  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); int in_order[] = {0, (r.push_raw(T(xs)), 0)...}; (void)in_order; return r; }
 
   ArrObj<T>* obj() const { if (!a) panic("null array"); return a; }
   void grow(int32_t need) const {
     ArrObj<T>* o = obj();
     if (need <= o->cap) return;
-    int32_t nc = o->cap < 4 ? 4 : o->cap * 2; if (nc < need) nc = need;
-    T* nd = (T*)alloc(sizeof(T) * (size_t)nc);
+    int32_t nc = o->cap < 4 ? 4 : o->cap < 0x40000000 ? o->cap * 2 : 0x7fffffff; if (nc < need) nc = need;
+    T* nd = (T*)alloc(bytes_of(nc));
     for (int32_t i = 0; i < o->len; i++) { new (&nd[i]) T(static_cast<T&&>(o->data[i])); o->data[i].~T(); }
     if (o->data) mfree(o->data);
     o->data = nd; o->cap = nc;
   }
-  void push_raw(const T& v) const { grow(obj()->len + 1); new (&a->data[a->len]) T(v); a->len++; }
+  // v may live in this array (`a.push(...a)`): growing frees the old storage, so copy it first on that path
+  void push_raw(const T& v) const {
+    ArrObj<T>* o = obj();
+    if (o->len < o->cap) { new (&o->data[o->len]) T(v); o->len++; return; }
+    if (o->len == 0x7fffffff) panic("RangeError: Invalid array length");
+    T t(v); grow(o->len + 1); new (&o->data[o->len]) T(static_cast<T&&>(t)); o->len++;
+  }
 
   int32_t length() const { return obj()->len; }
   void set_length(int32_t n) const {
@@ -399,7 +419,10 @@ template<class T> struct Array {
   }
   T& ref(int32_t i) const { ArrObj<T>* o = obj(); if ((uint32_t)i >= (uint32_t)o->len) panic("array index out of bounds"); return o->data[i]; }
   T& ref(double i) const { return ref(idx(i)); }
-  static int32_t idx(double i) { int32_t k = (int32_t)i; if ((double)k != i) panic("non-integer array index"); return k; }
+  static int32_t idx(double i) {
+    if (!(__builtin_fabs(i) < 2147483648.0)) panic(i == i && __builtin_trunc(i) == i ? "array index out of bounds" : "non-integer array index");  // before the cast (UB out of range); NaN fails too
+    int32_t k = (int32_t)i; if ((double)k != i) panic("non-integer array index"); return k;
+  }
   T get(int32_t i) const { return ref(i); }
   T get(double i) const { return ref(idx(i)); }
   template<class I> T get(I i) const { return ref((int32_t)i); }
@@ -439,11 +462,21 @@ template<class T> struct Array {
     set_length(n - cnt);
     return r;
   }
-  int32_t indexOf(const T& v) const { ArrObj<T>* o = obj(); for (int32_t i = 0; i < o->len; i++) if (o->data[i] == v) return i; return -1; }
-  bool includes(const T& v) const { return indexOf(v) >= 0; }
+  static int32_t from_index(int32_t i, int32_t n) { if (i < 0) { i += n; if (i < 0) i = 0; } return i; }
+  int32_t indexOf(const T& v, int32_t from = 0) const { ArrObj<T>* o = obj(); for (int32_t i = from_index(from, o->len); i < o->len; i++) if (o->data[i] == v) return i; return -1; }
+  int32_t lastIndexOf(const T& v) const { return lastIndexOf(v, length() - 1); }
+  int32_t lastIndexOf(const T& v, int32_t from) const {
+    ArrObj<T>* o = obj(); if (from < 0) from += o->len; else if (from >= o->len) from = o->len - 1;
+    for (int32_t i = from; i >= 0; i--) if (o->data[i] == v) return i;
+    return -1;
+  }
+  // SameValueZero: [NaN].includes(NaN) is true, [NaN].indexOf(NaN) is -1
+  bool includes(const T& v, int32_t from = 0) const { ArrObj<T>* o = obj(); for (int32_t i = from_index(from, o->len); i < o->len; i++) if (same_value_zero(o->data[i], v)) return true; return false; }
   T at(int32_t i) const { int32_t n = length(); if (i < 0) i += n; if (i < 0 || i >= n) return T(); return a->data[i]; }
   template<class F> T find(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
   template<class F> int32_t findIndex(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return i; return -1; }
+  template<class F> T findLast(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length() && cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
+  template<class F> int32_t findLastIndex(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length() && cb2(f, a->data[i], i, 0)) return i; return -1; }
   template<class F> bool some(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return true; return false; }
   template<class F> bool every(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (!cb2(f, a->data[i], i, 0)) return false; return true; }
   template<class F> void forEach(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) cb2(f, T(a->data[i]), i, 0); }
@@ -455,10 +488,11 @@ template<class T> struct Array {
   }
   template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) r.push_raw(a->data[i]); return r; }
   template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0; i < length() && !g_err.p; i++) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
+  template<class F, class U> U reduceRight(F f, U acc) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length()) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
   // RT-11: stable merge sort
   template<class F> Array sort(F f) const {
     int32_t n = length(); if (n < 2) return *this;
-    T* tmp = (T*)alloc(sizeof(T) * (size_t)n);
+    T* tmp = (T*)alloc(bytes_of(n));
     for (int32_t i = 0; i < n; i++) new (&tmp[i]) T();
     for (int32_t w = 1; w < n; w *= 2) {
       for (int32_t lo = 0; lo < n; lo += 2 * w) {
@@ -476,6 +510,8 @@ template<class T> struct Array {
   Array reverse() const { int32_t n = length(); for (int32_t i = 0; i < n / 2; i++) { T t = a->data[i]; a->data[i] = a->data[n - 1 - i]; a->data[n - 1 - i] = t; } return *this; }
   Array concat(const Array& o) const { Array r = slice(); for (int32_t i = 0; i < o.length(); i++) r.push_raw(o.a->data[i]); return r; }
   Array fill(const T& v) const { for (int32_t i = 0; i < length(); i++) a->data[i] = v; return *this; }
+  Array fill(const T& v, int32_t s) const { return fill(v, s, length()); }
+  Array fill(const T& v, int32_t s, int32_t e) const { int32_t n = length(); for (int32_t i = clampi(s, n); i < clampi(e, n); i++) a->data[i] = v; return *this; }
   String join() const;
   String join(const String& sep) const {
     StrBuilder sb;
@@ -721,9 +757,13 @@ double pointerX();
 double pointerY();
 bool pointerDown();
 int32_t frame();
+int32_t pixelScale();
 void quit();
 bool capture(const String& path);
 uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots
+bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
+void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
+String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
 double wheelX();
 int32_t pointerButtons();
 int32_t modifiers();

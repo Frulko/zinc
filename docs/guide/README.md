@@ -24,7 +24,7 @@ zinc doctor        # checks cmake, a C++17 compiler, SDL3, docker, emscripten
 5. [Plugins](05-plugins.md) — pure-Zinc module plugins, native plugins (spec + C++ per target + sim), UI component plugins, display driver plugins, `plugin.json` reference, options, packages/IDF components, testing and sharing.
 6. [Testing](06-testing.md) — the sim oracle, `zinc test`, conformance-style tests for your own app, golden outputs, `--debug` ASan/leaks, determinism (virtual clock, record/replay), captures (`ZINC_SHOT`, `zinc capture`), visual regression (`zinc test --pixels`), dev-mode red box/inspector, benchmarks.
 7. [Distribution](07-distribution.md) — `zinc export` per target, single executable with embedded assets, `zinc deploy`, Docker images, ESP32 flashing, PS1 CD image, rmpp AppLoad, wasm hosting, app icons, versioning, macOS signing/notarization.
-8. [Security](08-security.md) — threat model, memory-safety properties and limits, network exposure defaults, secrets, supply chain, and obfuscation (`--obfuscate`): what a native binary hides, what it doesn't, and being honest about it.
+8. [Security](08-security.md) — threat model per deployment, memory-safety guarantees and limits, network exposure defaults, the hardened systemd unit, build hardening, secrets, supply chain, fuzzing, and obfuscation (`--obfuscate`): what a native binary hides, what it doesn't, and being honest about it.
 9. [Web platform APIs](09-web-apis.md) — the WinterTC minimum common Web API as globals: `fetch` / `Request` / `Response` / `Headers`, `URL`, `TextEncoder` / `TextDecoder`, events, `AbortController`, `Blob` / `FormData`, `crypto`, `WebAssembly`; deviations and WPT results.
 
 ## The one-minute tour

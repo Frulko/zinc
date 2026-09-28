@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -32,11 +33,18 @@ inline bool resolve(const char* host, int port, sockaddr_in* out) {
   freeaddrinfo(res);
   return true;
 }
+// Listeners (net.serve, osc.listen) bind every interface: they are the program's own service. ZINC_BIND=127.0.0.1
+// (or any local IPv4 address) restricts them without a rebuild, e.g. behind a reverse proxy.
+inline uint32_t bind_addr() {
+  const char* h = hal_env("ZINC_BIND");
+  in_addr a;
+  return h && *h && inet_pton(AF_INET, h, &a) == 1 ? a.s_addr : htonl(INADDR_ANY);
+}
 inline int udp_bind(int port) {
   int fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (fd < 0) return -1;
   int one = 1; setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-  sockaddr_in a{}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = htonl(INADDR_ANY);
+  sockaddr_in a{}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = bind_addr();
   if (port && bind(fd, (sockaddr*)&a, sizeof a) < 0) { close(fd); return -1; }
   nonblock(fd);
   return fd;
@@ -45,7 +53,7 @@ inline int tcp_listen(int port) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0) return -1;
   int one = 1; setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-  sockaddr_in a{}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = htonl(INADDR_ANY);
+  sockaddr_in a{}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = bind_addr();
   if (bind(fd, (sockaddr*)&a, sizeof a) < 0 || listen(fd, 16) < 0) { close(fd); return -1; }
   nonblock(fd);
   return fd;

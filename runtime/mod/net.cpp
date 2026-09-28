@@ -6,6 +6,8 @@
 #include <strings.h>
 
 namespace zrt { namespace net {
+/** CR, LF or NUL: not allowed in an HTTP header line. */
+static bool has_crlf(const String& v) { return __builtin_memchr(v.ptr(), '\r', v.bytes()) || __builtin_memchr(v.ptr(), '\n', v.bytes()) || __builtin_memchr(v.ptr(), 0, v.bytes()); }
 const char* reason(int32_t s) {
   switch (s) {
     case 100: return "Continue"; case 101: return "Switching Protocols"; case 200: return "OK"; case 201: return "Created";
@@ -121,8 +123,10 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
     if (init->method.bytes()) { sock::CStr m(init->method); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, ""); curl_easy_setopt(d->h, CURLOPT_CUSTOMREQUEST, m.c()); }
     if (init->bodyBytes.a) { int32_t n = init->bodyBytes.length(); curl_easy_setopt(d->h, CURLOPT_POSTFIELDSIZE, (long)n); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, n ? (const char*)init->bodyBytes.a->data : ""); }
     else if (init->body.bytes()) { curl_easy_setopt(d->h, CURLOPT_POSTFIELDSIZE, (long)init->body.bytes()); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, init->body.ptr()); }
-    if (init->contentType.bytes()) { sock::CStr ct(cat(String::from("Content-Type: ", 14), init->contentType)); d->headers = curl_slist_append(d->headers, ct.c()); }
+    // request headers with CR / LF / NUL would let a caller inject headers or a second request: dropped
+    if (init->contentType.bytes() && !has_crlf(init->contentType)) { sock::CStr ct(cat(String::from("Content-Type: ", 14), init->contentType)); d->headers = curl_slist_append(d->headers, ct.c()); }
     if (init->headers.p) for (int32_t i = 0; i < init->headers->names.length(); i++) {
+      if (has_crlf(init->headers->names.get(i)) || has_crlf(init->headers->vals.get(i))) continue;
       sock::CStr h(cat(init->headers->names.get(i), String::from(": ", 2), init->headers->vals.get(i)));
       d->headers = curl_slist_append(d->headers, h.c());
     }
@@ -134,25 +138,37 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
 }
 
 // ---------- server ----------
-struct Conn { int fd; StrBuilder* in; Conn* next; };
+// Limits (docs/guide/08-security.md): request head + body size, open connections, time to send a whole request.
+#ifndef ZRT_HTTP_MAX_BODY
+#define ZRT_HTTP_MAX_BODY (1u << 20)
+#endif
+static const uint32_t MAX_HEAD = 16384, MAX_CONNS = 32;
+static const double IDLE_MS = 10000;
+struct Conn { int fd; StrBuilder* in; Conn* next; double t0; };
 struct Server : Poller {
   int fd = -1;
   Fn<Ref<Reply>(Ref<Request>)> handler;
   Conn* conns = nullptr;
+  uint32_t nconns = 0;
   void shutdown() override { handler = nullptr; }
   bool poll() override {
     if (fd < 0) return false;
     for (;;) {
       int c = accept(fd, nullptr, nullptr);
       if (c < 0) break;
+      if (nconns >= MAX_CONNS) { ::close(c); continue; }
       sock::nonblock(c);
       sock::nosigpipe(c);
-      Conn* k = new (alloc(sizeof(Conn))) Conn(); k->fd = c; k->in = new (alloc(sizeof(StrBuilder))) StrBuilder(); k->next = conns; conns = k;
+      Conn* k = new (alloc(sizeof(Conn))) Conn(); k->fd = c; k->in = new (alloc(sizeof(StrBuilder))) StrBuilder(); k->next = conns; k->t0 = now_ms(); conns = k; nconns++;
     }
     for (Conn** pp = &conns; *pp;) {
       Conn* k = *pp; char buf[4096]; bool closed = false;
-      for (;;) { ssize_t n = recv(k->fd, buf, sizeof buf, 0); if (n > 0) k->in->raw(buf, (uint32_t)n); else { if (n == 0) closed = true; break; } }
-      if (handle(k) || closed) { ::close(k->fd); *pp = k->next; k->in->~StrBuilder(); mfree(k->in); mfree(k); }
+      for (;;) {
+        ssize_t n = recv(k->fd, buf, sizeof buf, 0);
+        if (n > 0 && k->in->len + (uint32_t)n <= MAX_HEAD + ZRT_HTTP_MAX_BODY) k->in->raw(buf, (uint32_t)n);
+        else { if (n >= 0) closed = true; break; }  // peer closed, or the request is over the limit
+      }
+      if (handle(k) || closed || now_ms() - k->t0 > IDLE_MS) { ::close(k->fd); *pp = k->next; k->in->~StrBuilder(); mfree(k->in); mfree(k); nconns--; }
       else pp = &k->next;
     }
     return true;
@@ -162,33 +178,58 @@ struct Server : Poller {
     const char* b = k->in->buf; uint32_t n = k->in->len;
     int32_t hdr_end = -1;
     for (uint32_t i = 0; i + 3 < n; i++) if (b[i] == '\r' && b[i + 1] == '\n' && b[i + 2] == '\r' && b[i + 3] == '\n') { hdr_end = (int32_t)i; break; }
-    if (hdr_end < 0) return false;
-    long clen = 0;
-    for (int32_t i = 0; i < hdr_end; i++) if ((b[i] == 'C' || b[i] == 'c') && !strncasecmp(b + i, "content-length:", 15)) clen = atol(b + i + 15);
-    if ((long)n < hdr_end + 4 + clen) return false;
+    if (hdr_end < 0) { if (n > MAX_HEAD) reply(k, 431, nullptr); return n > MAX_HEAD; }
+    // Content-Length: digits only, within the header block, at most ZRT_HTTP_MAX_BODY (was atol: negative lengths
+    // and reads past the buffer)
+    uint32_t clen = 0;
+    for (int32_t i = 0; i + 15 <= hdr_end; i++) if ((b[i] == 'C' || b[i] == 'c') && !strncasecmp(b + i, "content-length:", 15)) {
+      int32_t j = i + 15; while (j < hdr_end && b[j] == ' ') j++;
+      uint64_t v = 0; bool any = false;
+      while (j < hdr_end && b[j] >= '0' && b[j] <= '9' && v <= ZRT_HTTP_MAX_BODY) { v = v * 10 + (uint32_t)(b[j++] - '0'); any = true; }
+      if (!any || (j < hdr_end && b[j] != '\r' && b[j] != ' ')) { reply(k, 400, nullptr); return true; }
+      if (v > ZRT_HTTP_MAX_BODY) { reply(k, 413, nullptr); return true; }
+      clen = (uint32_t)v;
+    }
+    if (n - (uint32_t)hdr_end - 4 < clen) return false;
     auto req = make<Request>();
-    uint32_t sp1 = 0; while (sp1 < n && b[sp1] != ' ') sp1++;
-    uint32_t sp2 = sp1 + 1; while (sp2 < n && b[sp2] != ' ') sp2++;
+    uint32_t he = (uint32_t)hdr_end;
+    uint32_t sp1 = 0; while (sp1 < he && b[sp1] != ' ') sp1++;
+    uint32_t sp2 = sp1 < he ? sp1 + 1 : he; while (sp2 < he && b[sp2] != ' ') sp2++;
     req->method = String::from(b, sp1);
-    req->path = String::from(b + sp1 + 1, sp2 - sp1 - 1);
-    req->body = String::from(b + hdr_end + 4, (uint32_t)clen);
-    for (int32_t i = 0; i < hdr_end;) {  // header lines after the request line
+    req->path = sp2 > sp1 ? String::from(b + sp1 + 1, sp2 - sp1 - 1) : String();
+    req->body = String::from(b + hdr_end + 4, clen);
+    for (int32_t i = 0; i < hdr_end;) {  // header lines after the request line (within the header block)
       int32_t e = i; while (e < hdr_end && b[e] != '\r') e++;
       if (i > 0) { int32_t c = i; while (c < e && b[c] != ':') c++; if (c < e) req->headers->append(String::from(b + i, (uint32_t)(c - i)), String::from(b + c + 1, (uint32_t)(e - c - 1))); }
       i = e + 2;
     }
-    Ref<Reply> r = handler(req);
+    Ref<Reply> r = handler ? handler(req) : Ref<Reply>();
     if (g_err.p) { Ref<Error> e = take_error(); r = make<Reply>(); r->status = 500; r->body = String::from("internal error", 14); (void)e; }
-    StrBuilder out;
-    out.cstr("HTTP/1.1 "); to_s(out, r->status); out.ch(' '); out.cstr(reason(r->status)); out.cstr("\r\n");
-    if (r->headers.p) for (int32_t i = 0; i < r->headers->names.length(); i++) { to_s(out, r->headers->names.get(i)); out.cstr(": "); to_s(out, r->headers->vals.get(i)); out.cstr("\r\n"); }
-    out.cstr("Content-Type: "); if (r->contentType.bytes()) to_s(out, r->contentType); else out.cstr("text/plain; charset=utf-8");
-    out.cstr("\r\nContent-Length: "); to_s(out, (int64_t)r->body.bytes()); out.cstr("\r\nConnection: close\r\n\r\n");
-    to_s(out, r->body);
-    uint32_t off = 0;
-    while (off < out.len) { ssize_t w = ::send(k->fd, out.buf + off, out.len - off, MSG_NOSIGNAL); if (w <= 0) { if (errno == EAGAIN) continue; break; } off += (uint32_t)w; }
+    reply(k, r.p ? r->status : 500, r.p);
     drain_microtasks();
     return true;
+  }
+  void reply(Conn* k, int32_t status, Reply* r) {
+    StrBuilder out;
+    if (!r) { out.cstr("HTTP/1.1 "); to_s(out, status); out.ch(' '); out.cstr(reason(status)); out.cstr("\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"); send_all(k->fd, out); return; }
+    out.cstr("HTTP/1.1 "); to_s(out, r->status); out.ch(' '); out.cstr(reason(r->status)); out.cstr("\r\n");
+    // reply headers from the program: a name or value with CR / LF (header injection, response splitting) is dropped
+    if (r->headers.p) for (int32_t i = 0; i < r->headers->names.length(); i++) {
+      String hn = r->headers->names.get(i), hv = r->headers->vals.get(i);
+      if (!hn.bytes() || has_crlf(hn) || __builtin_memchr(hn.ptr(), ':', hn.bytes()) || has_crlf(hv)) continue;
+      to_s(out, hn); out.cstr(": "); to_s(out, hv); out.cstr("\r\n");
+    }
+    out.cstr("Content-Type: "); if (r->contentType.bytes() && !has_crlf(r->contentType)) to_s(out, r->contentType); else out.cstr("text/plain; charset=utf-8");
+    out.cstr("\r\nContent-Length: "); to_s(out, (int64_t)r->body.bytes()); out.cstr("\r\nConnection: close\r\n\r\n");
+    to_s(out, r->body);
+    send_all(k->fd, out);
+  }
+  // a client that does not read must not hold the event loop: blocking send with a timeout (was a busy loop on EAGAIN)
+  static void send_all(int fd, const StrBuilder& out) {
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
+    timeval tv{2, 0}; setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+    uint32_t off = 0;
+    while (off < out.len) { ssize_t w = ::send(fd, out.buf + off, out.len - off, MSG_NOSIGNAL); if (w <= 0) { if (w < 0 && errno == EINTR) continue; break; } off += (uint32_t)w; }
   }
 };
 static Server* server = nullptr;

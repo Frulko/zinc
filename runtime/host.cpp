@@ -25,9 +25,42 @@ extern "C" double zrt_host_strtod(const char* s, int* consumed) {
   return v;
 }
 
+// Number.prototype.toFixed for finite |v| < 1e21 (zrt::to_fixed handles the rest). printf rounds an exact tie to even;
+// JS takes the larger magnitude: (2.5).toFixed(0) is "3", (0.125).toFixed(2) "0.13". Ties are found on the exact
+// decimal expansion (a double has at most 1074 fractional digits), so inexact values such as 1.005 keep printf's result.
 extern "C" int zrt_host_fixed(double v, int digits, char* out, int cap) {
-  int n = snprintf(out, (size_t)cap, "%.*f", digits < 0 ? 0 : digits > 100 ? 100 : digits, v);
-  return n < cap ? n : cap - 1;
+  if (digits < 0) digits = 0;
+  if (digits > 100) digits = 100;
+  int n = snprintf(out, (size_t)cap, "%.*f", digits, v);
+  if (n >= cap) return cap - 1;
+  double m = v < 0 ? -v : v, p = 1;
+  for (int i = 0; i < digits && i < 22; i++) p *= 10;
+  double y = m * p;  // an exact tie gives exactly k + 0.5 here (a false positive only costs the exact check below)
+  if (digits <= 22 && y < 4503599627370496.0 && y - (double)(long long)y != 0.5) return n;
+  static char ex[1100];
+  int en = snprintf(ex, sizeof ex, "%.1074f", m);
+  if (en <= 0 || en >= (int)sizeof ex) return n;
+  const char* dot = strchr(ex, '.');
+  const char* d = dot + 1 + digits;
+  if (*d != '5') return n;
+  for (const char* q = d + 1; *q; q++) if (*q != '0') return n;
+  // exact tie: the truncated magnitude plus one unit in the last place
+  int keep = (int)(digits ? d - ex : dot - ex), len = 0;
+  if (keep + 3 > cap) return n;
+  if (v < 0) out[len++] = '-';
+  out[len] = '0';  // room for a carry out of the first digit
+  __builtin_memcpy(out + len + 1, ex, (size_t)keep);
+  int i = len + keep;
+  for (; i > len; i--) {
+    if (out[i] == '.') continue;
+    if (out[i] != '9') { out[i]++; break; }
+    out[i] = '0';
+  }
+  if (i > len) __builtin_memmove(out + len, out + len + 1, (size_t)keep);
+  else { out[len] = '1'; keep++; }  // 9.5 -> 10
+  len += keep;
+  out[len] = 0;
+  return len;
 }
 
 // Files for frame captures and input tapes (ZINC_SHOT, ZINC_RECORD / ZINC_REPLAY): stdio where the target has it.

@@ -41,6 +41,11 @@ async function main(): Promise<void> {
   try { proc.spawn('no-such-program-zinc', [], {}); } catch (err) { threw = true; }
   check('missing program throws', threw, 'no throw');
 
+  // arguments are passed joined by U+001F: one containing it (or NUL) is refused, never split into two arguments
+  let refused = false;
+  try { proc.spawn('echo', ['a\u001fb'], {}); } catch (err) { refused = true; }
+  check('separator in an argument throws', refused, 'no throw');
+
   console.log(failed === 0 ? 'process: all checks passed' : `process: ${failed} check(s) failed`);
   sys.exit(failed === 0 ? 0 : 1);
 }

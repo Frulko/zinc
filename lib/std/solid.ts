@@ -1,5 +1,6 @@
 // zinc:ui/solid — Solid's reactive API reimplemented in Zinc strict (D-11, UI-03), plus the helpers the JSX
 // lowering calls (_el, _text, _dynText, _show, _for...). Rendering goes through the zinc:ui host ABI.
+import { Signal } from 'zinc:signals';
 import * as ui from 'zinc:ui';
 
 interface Source {
@@ -173,6 +174,7 @@ export function _dynNum(n: i32, key: string, get: () => number): void { createEf
 // text fields and pointer / key events
 export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
 export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
 export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
@@ -251,3 +253,11 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
 export const Show: i32 = 0, For: i32 = 1;
 /** Marker for `<VirtualList count itemHeight>{(i) => ...}</VirtualList>` (lowered by the JSX compiler). */
 export const VirtualList: i32 = 2;
+
+/** The latest value of a zinc:signals Signal as a reactive accessor (disconnected when the owner is disposed). */
+export function fromSignal<T>(s: Signal<T>, init: T): () => T {
+  const [get, set] = createSignal<T>(init);
+  const c = s.connect((v: T) => set(v));
+  onCleanup(() => c.disconnect());
+  return get;
+}

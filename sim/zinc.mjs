@@ -134,8 +134,8 @@ const fxm = {
   round: (F, a) => fxm.floor(F, fxw(raw(a, F) + 2 ** (F - 1), F)),
   trunc: (F, a) => a >= 0 ? fxm.floor(F, a) : fxm.ceil(F, a),
   sign: (F, a) => Math.sign(a),
-  min: (F, a, b) => a < b ? a : b,
-  max: (F, a, b) => a > b ? a : b,
+  min: (F, ...xs) => xs.reduce((a, b) => a < b ? a : b),  // Math.min(a, b, c...): a left fold, like native
+  max: (F, ...xs) => xs.reduce((a, b) => a > b ? a : b),
   sqrt: (F, a) => { const r = raw(a, F); if (r <= 0) return 0; let n = BigInt(r) << BigInt(F), x = 0n, bit = 1n << 62n; while (bit > n) bit >>= 2n; while (bit) { if (n >= x + bit) { n -= x + bit; x = (x >> 1n) + bit; } else x >>= 1n; bit >>= 2n; } return fxw(Number(x), F); },
   sin: (F, a) => { const i = Number((BigInt(raw(a, F)) * IDX_K) >> BigInt(F + 16)) & 4095; const s = SIN[i]; return fxw(F >= 16 ? s << (F - 16) : s >> (16 - F), F); },
   cos: (F, a) => { const i = (Number((BigInt(raw(a, F)) * IDX_K) >> BigInt(F + 16)) + 1024) & 4095; const s = SIN[i]; return fxw(F >= 16 ? s << (F - 16) : s >> (16 - F), F); },
@@ -217,7 +217,28 @@ export const $z = globalThis.$z = {
       }
     }
   },
-  jsonParse(s) { try { return JSON.parse(s); } catch { throw new Error('JSON.parse: invalid JSON'); } },
+  // DynFunction adapter (compiler/src/emit-cpp.ts dynFnAdapter): Dyn arguments converted JS-style, never a panic
+  dynfn(f, kinds) {
+    const cv = (v, k) => {
+      switch (k) {
+        case 'dyn': return v;
+        case 'str': return String(v);
+        case 'bool': return !!v;
+        case 'i32': return Number(v) | 0;
+        case 'u32': return Number(v) >>> 0;
+        case 'u8': return Number(v) & 255;
+        case 'u16': return Number(v) & 65535;
+        case 'i8': return Number(v) << 24 >> 24;
+        case 'i16': return Number(v) << 16 >> 16;
+        case 'f32': return Math.fround(Number(v));
+        case 'fx12': return $z.fx(Number(v), 12);
+        case 'fx16': return $z.fx(Number(v), 16);
+        default: return Number(v);
+      }
+    };
+    return args => f(...kinds.map((k, i) => cv(args[i], k)));
+  },
+  jsonParse(s) { try { return JSON.parse(s); } catch { throw new SyntaxError('JSON.parse: invalid JSON'); } },
   diter(v) { return Array.isArray(v) ? v : $z.panic(`Uncaught TypeError: cannot convert Dyn (${v === null ? 'null' : typeof v}) to array`); },
   dseti(o, k, v) {
     if (Array.isArray(o) && typeof k === 'number' && (!Number.isInteger(k) || k < 0 || k > o.length)) $z.panic('Uncaught RangeError: arrays with holes are not supported');

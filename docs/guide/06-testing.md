@@ -64,6 +64,23 @@ zinc test tests --target rpi1      # ARMv6 under QEMU
 `rejects(asyncFn, substring?)` and `fail`. A worked example is in
 [`examples/testing/tests`](../../examples/testing/tests).
 
+## `zinc compat`: standards conformance
+
+`zinc compat` measures how much of the standards Zinc covers, against reference engines. It runs pinned external suites
+through Zinc (sim and native, gradual and strict profiles) and through Node, Deno, Bun and QuickJS: the WPT files of
+the [WinterTC Minimum Common Web API](https://min-common-api.proposal.wintertc.org/), a test262 sample, curated Node
+API tests and quickjs-ng's own tests. The suites are fetched at the commits pinned in `tests/compat/manifest.json` into
+the git-ignored `tests/compat/cache/` (offline afterwards); results go to `tests/compat/results/<date>.json` and the
+table [reports/compat.md](../reports/compat.md).
+
+```sh
+zinc compat                                # everything, 4 jobs (~20 min)
+zinc compat --suite test262 --filter String/prototype/at   # a slice, not recorded
+zinc compat --engines zinc-sim,node        # fewer engines
+zinc compat --check                        # exit 1 when a Zinc pass of tests/compat/baseline.json regressed
+zinc compat --update-baseline              # record this run's Zinc passes as the baseline
+```
+
 ## Conformance-style tests for your own app
 
 To compare targets rather than check values, reuse the oracle. Split the core of your app into functions that print, run
@@ -204,9 +221,22 @@ client that exercises the inspector. **F12** in the program window saves the fra
 ## Benchmarks
 
 Performance numbers vs QuickJS and Node are in [reports/PERF.md](../reports/PERF.md) (~27× QuickJS, ~70 KiB binaries,
-~2 ms startup), with the benchmark programs in `tests/`. There is no `zinc bench` subcommand yet (see
-[reports/STATUS.md](../reports/STATUS.md)); run a benchmark program directly and time it, or use `console.time` /
-`performance.now()` inside the program:
+~2 ms startup), with the benchmark programs in `tests/`.
+
+**Frame budgets.** `zinc bench [example dirs] [--target macos]` (alias `zinc test --bench`; default: hero,
+zed-editor, maps/navigation) builds each example whose `zinc.json` has a `bench` entry, runs its scripted scene
+headless in deterministic mode with the profiler ([dev mode, profiling](../dev-mode.md#profiling)), prints p50 / p99
+per phase, and fails when the p99 of the frame work exceeds the budget:
+
+```json
+"bench": { "demo": "bench", "frames": 600, "p99Ms": 25 }
+```
+
+`demo` is the `ZINC_DEMO` value that scripts the scene (it quits by itself or after `frames`). Timings are wall
+clock: budgets keep headroom for a loaded machine.
+
+For code, run a benchmark program directly and time it, or use `console.time` / `performance.now()` inside the
+program:
 
 ```ts
 console.time('parse'); doWork(); console.timeEnd('parse');   // "parse: 3.2ms"

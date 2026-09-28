@@ -111,8 +111,15 @@ message: send `/mesh cols rows` then `/point` per point (the companion does).
 `examples/video/mapper/companion/`: `node server.mjs --app <pi-ip>:9000` serves the editor on
 `http://<this machine>:8080` and relays it to the app as OSC; no npm dependencies. Layer list, drag corner pins or mesh
 points over the output preview, masks/crop/edge blend on the surface view, colour and transform sliders, save/load.
-`node demo.mjs` drives a running app through the same HTTP API and checks the state it reports back. The server
-listens on all interfaces and has no authentication: use it on a trusted network.
+`node demo.mjs <url>` drives a running app through the same HTTP API and checks the state it reports back. The server
+listens on `127.0.0.1` (`--host 0.0.0.0` for a tablet on the LAN) and its API needs the token it prints in the editor
+URL (`http://host:8080/?token=...`, header `x-zinc-token`; `--token` or `ZINC_COMPANION_TOKEN` to fix one), which also
+keeps other web pages open in the same browser from driving the app.
+
+The app's OSC port has no authentication (UDP senders can be spoofed): `listen(port)` binds every interface unless
+`ZINC_BIND=127.0.0.1` restricts it (the companion then runs on the same machine). Over OSC, `/save` and `/load` take a
+plain file name in the working directory (`show.json`, no directories), and `/sync` answers at most 10 times per second.
+`save(path)` / `load(path)` from the program itself accept any path.
 
 ## Not done
 

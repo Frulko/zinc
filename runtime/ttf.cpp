@@ -6,44 +6,53 @@
 
 namespace zrt { namespace raster {
 
-static uint16_t u16(const uint8_t* p) { return (uint16_t)(p[0] << 8 | p[1]); }
-static int16_t s16(const uint8_t* p) { return (int16_t)u16(p); }
-static uint32_t u32(const uint8_t* p) { return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3]; }
+// Every read is bounds-checked against the file: a truncated or hostile font reads zeros, never past its end
+// (offsets are uint32 arithmetic; a wrapped offset is simply out of range).
+struct Rd {
+  const uint8_t* d; uint32_t len;
+  uint32_t u8(uint32_t o) const { return o < len ? d[o] : 0; }
+  uint16_t u16(uint32_t o) const { return o < len && len - o >= 2 ? (uint16_t)(d[o] << 8 | d[o + 1]) : 0; }
+  int16_t s16(uint32_t o) const { return (int16_t)u16(o); }
+  uint32_t u32(uint32_t o) const { return o < len && len - o >= 4 ? (uint32_t)d[o] << 24 | (uint32_t)d[o + 1] << 16 | (uint32_t)d[o + 2] << 8 | d[o + 3] : 0; }
+};
 
 struct Ttf {
   const uint8_t* d; uint32_t len;
   uint32_t head, hhea, hmtx, loca, glyf, cmap;
   int32_t upem, ascent, descent, lineGap, numGlyphs, numH, cmapFmt;
   bool longLoca, ok;
+  Rd rd() const { return Rd{d, len}; }
 };
 static Ttf parse(const uint8_t* d, uint32_t len) {
   Ttf t{};
   t.d = d; t.len = len;
-  uint16_t n = u16(d + 4);
+  Rd r = t.rd();
+  uint16_t n = r.u16(4);
   uint32_t maxp = 0;
-  for (uint16_t i = 0; i < n; i++) {
-    const uint8_t* r = d + 12 + i * 16;
-    uint32_t off = u32(r + 8);
-    if (!__builtin_memcmp(r, "head", 4)) t.head = off;
-    else if (!__builtin_memcmp(r, "hhea", 4)) t.hhea = off;
-    else if (!__builtin_memcmp(r, "hmtx", 4)) t.hmtx = off;
-    else if (!__builtin_memcmp(r, "loca", 4)) t.loca = off;
-    else if (!__builtin_memcmp(r, "glyf", 4)) t.glyf = off;
-    else if (!__builtin_memcmp(r, "cmap", 4)) t.cmap = off;
-    else if (!__builtin_memcmp(r, "maxp", 4)) maxp = off;
+  for (uint32_t i = 0; i < n && 12 + i * 16 + 16 <= len; i++) {
+    const uint8_t* rec = d + 12 + i * 16;
+    uint32_t off = r.u32(12 + i * 16 + 8);
+    if (!__builtin_memcmp(rec, "head", 4)) t.head = off;
+    else if (!__builtin_memcmp(rec, "hhea", 4)) t.hhea = off;
+    else if (!__builtin_memcmp(rec, "hmtx", 4)) t.hmtx = off;
+    else if (!__builtin_memcmp(rec, "loca", 4)) t.loca = off;
+    else if (!__builtin_memcmp(rec, "glyf", 4)) t.glyf = off;
+    else if (!__builtin_memcmp(rec, "cmap", 4)) t.cmap = off;
+    else if (!__builtin_memcmp(rec, "maxp", 4)) maxp = off;
   }
   if (!t.head || !t.hhea || !t.hmtx || !t.loca || !t.glyf || !t.cmap || !maxp) return t;
-  t.upem = u16(d + t.head + 18); t.longLoca = s16(d + t.head + 50) == 1;
-  t.numGlyphs = u16(d + maxp + 4); t.numH = u16(d + t.hhea + 34);
-  t.ascent = s16(d + t.hhea + 4); t.descent = s16(d + t.hhea + 6); t.lineGap = s16(d + t.hhea + 8);
+  t.upem = r.u16(t.head + 18); t.longLoca = r.s16(t.head + 50) == 1;
+  t.numGlyphs = r.u16(maxp + 4); t.numH = r.u16(t.hhea + 34);
+  t.ascent = r.s16(t.hhea + 4); t.descent = r.s16(t.hhea + 6); t.lineGap = r.s16(t.hhea + 8);
+  if (!t.upem || !t.numH) return t;  // divides by upem; advances index numH - 1
   // best cmap subtable: format 12, else format 4 (Unicode platforms)
-  uint16_t nsub = u16(d + t.cmap + 2);
+  uint16_t nsub = r.u16(t.cmap + 2);
   uint32_t best = 0;
   for (uint16_t i = 0; i < nsub; i++) {
-    const uint8_t* r = d + t.cmap + 4 + i * 8;
-    uint16_t pid = u16(r), eid = u16(r + 2);
-    uint32_t off = t.cmap + u32(r + 4);
-    uint16_t fmt = u16(d + off);
+    uint32_t rec = t.cmap + 4 + i * 8;
+    uint16_t pid = r.u16(rec), eid = r.u16(rec + 2);
+    uint32_t off = t.cmap + r.u32(rec + 4);
+    uint16_t fmt = r.u16(off);
     if (((pid == 3 && (eid == 10 || eid == 1)) || pid == 0) && (fmt == 12 || (fmt == 4 && t.cmapFmt != 12))) { t.cmapFmt = fmt; best = off; }
   }
   t.cmap = best;
@@ -51,29 +60,35 @@ static Ttf parse(const uint8_t* d, uint32_t len) {
   return t;
 }
 static uint32_t glyph_index(const Ttf& t, uint32_t cp) {
-  const uint8_t* s = t.d + t.cmap;
+  Rd r = t.rd();
+  const uint32_t s = t.cmap;
   if (t.cmapFmt == 12) {
-    uint32_t ng = u32(s + 12);
-    for (uint32_t i = 0; i < ng; i++) { const uint8_t* g = s + 16 + i * 12; uint32_t a = u32(g), b = u32(g + 4); if (cp >= a && cp <= b) return u32(g + 8) + cp - a; }
+    uint32_t ng = r.u32(s + 12);
+    for (uint32_t i = 0; i < ng; i++) {
+      uint32_t g = s + 16 + i * 12;
+      if (g < s || g > t.len || t.len - g < 12) break;  // groups past the end of the file
+      uint32_t a = r.u32(g), b = r.u32(g + 4);
+      if (cp >= a && cp <= b) return r.u32(g + 8) + cp - a;
+    }
     return 0;
   }
   if (t.cmapFmt != 4 || cp > 0xFFFF) return 0;
-  uint16_t segs = u16(s + 6) / 2;
-  const uint8_t *ends = s + 14, *starts = ends + segs * 2 + 2, *deltas = starts + segs * 2, *ranges = deltas + segs * 2;
-  for (uint16_t i = 0; i < segs; i++) {
-    uint16_t end = u16(ends + i * 2);
+  uint32_t segs = r.u16(s + 6) / 2u;
+  const uint32_t ends = s + 14, starts = ends + segs * 2 + 2, deltas = starts + segs * 2, ranges = deltas + segs * 2;
+  for (uint32_t i = 0; i < segs; i++) {
+    uint16_t end = r.u16(ends + i * 2);
     if (cp > end) continue;
-    uint16_t start = u16(starts + i * 2);
+    uint16_t start = r.u16(starts + i * 2);
     if (cp < start) return 0;
-    int16_t delta = s16(deltas + i * 2);
-    uint16_t ro = u16(ranges + i * 2);
+    int16_t delta = r.s16(deltas + i * 2);
+    uint16_t ro = r.u16(ranges + i * 2);
     if (!ro) return (cp + delta) & 0xFFFF;
-    uint16_t g = u16(ranges + i * 2 + ro + (cp - start) * 2);
+    uint16_t g = r.u16(ranges + i * 2 + ro + (cp - start) * 2);
     return g ? (g + delta) & 0xFFFF : 0;
   }
   return 0;
 }
-static uint32_t loc(const Ttf& t, uint32_t g) { return t.longLoca ? u32(t.d + t.loca + g * 4) : u16(t.d + t.loca + g * 2) * 2u; }
+static uint32_t loc(const Ttf& t, uint32_t g) { Rd r = t.rd(); return t.longLoca ? r.u32(t.loca + g * 4) : r.u16(t.loca + g * 2) * 2u; }
 
 // ---- outline -> coverage (signed-area accumulation, as in font-rs)
 struct Raster { float* a; int32_t w, h; };
@@ -127,60 +142,65 @@ static void quad(Raster& r, float x0, float y0, float cx, float cy, float x1, fl
 }
 // transform applied to glyph points: x * sx + dx, y * sy + dy (composites nest affine offsets/scales)
 struct Xf { float a, b, c, d, e, f; };  // x' = a x + c y + e ; y' = b x + d y + f
+// composites nest at most 4 deep and expand at most this many components per glyph (a font could fan out 64K^4)
+static int32_t outline_budget = 0;
 static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth, bool bounds_only, float* bb) {
-  if ((int32_t)g >= t.numGlyphs || depth > 4) return;
+  if (depth == 0) outline_budget = 4096;
+  if (g >= (uint32_t)t.numGlyphs || depth > 4 || --outline_budget < 0) return;
   uint32_t o = loc(t, g), o2 = loc(t, g + 1);
-  if (o == o2) return;
-  const uint8_t* p = t.d + t.glyf + o;
-  int16_t nc = s16(p);
+  // the glyph's bytes [glyf + o, glyf + o2) must lie in the file; every read below is relative to them
+  if (o >= o2 || t.glyf + o < t.glyf || t.glyf + o2 < t.glyf + o || t.glyf + o2 > t.len) return;
+  Rd p{t.d + t.glyf + o, o2 - o};
+  int16_t nc = p.s16(0);
   if (nc < 0) {
-    const uint8_t* q = p + 10;
+    uint32_t q = 10;
     uint16_t flags;
     do {
-      flags = u16(q); uint16_t gi = u16(q + 2); q += 4;
+      if (q + 4 > p.len) return;
+      flags = p.u16(q); uint16_t gi = p.u16(q + 2); q += 4;
       float dx, dy;
-      if (flags & 1) { dx = s16(q); dy = s16(q + 2); q += 4; } else { dx = (int8_t)q[0]; dy = (int8_t)q[1]; q += 2; }
+      if (flags & 1) { dx = p.s16(q); dy = p.s16(q + 2); q += 4; } else { dx = (int8_t)p.u8(q); dy = (int8_t)p.u8(q + 1); q += 2; }
       float a = 1, b = 0, c = 0, d = 1;
-      if (flags & 8) { a = d = s16(q) / 16384.0f; q += 2; }
-      else if (flags & 0x40) { a = s16(q) / 16384.0f; d = s16(q + 2) / 16384.0f; q += 4; }
-      else if (flags & 0x80) { a = s16(q) / 16384.0f; b = s16(q + 2) / 16384.0f; c = s16(q + 4) / 16384.0f; d = s16(q + 6) / 16384.0f; q += 8; }
+      if (flags & 8) { a = d = p.s16(q) / 16384.0f; q += 2; }
+      else if (flags & 0x40) { a = p.s16(q) / 16384.0f; d = p.s16(q + 2) / 16384.0f; q += 4; }
+      else if (flags & 0x80) { a = p.s16(q) / 16384.0f; b = p.s16(q + 2) / 16384.0f; c = p.s16(q + 4) / 16384.0f; d = p.s16(q + 6) / 16384.0f; q += 8; }
       Xf k{m.a * a + m.c * b, m.b * a + m.d * b, m.a * c + m.c * d, m.b * c + m.d * d, m.a * dx + m.c * dy + m.e, m.b * dx + m.d * dy + m.f};
       outline(t, gi, k, r, depth + 1, bounds_only, bb);
     } while (flags & 0x20);
     return;
   }
-  const uint8_t* ep = p + 10;
-  uint16_t npts = nc ? u16(ep + (nc - 1) * 2) + 1 : 0;
-  const uint8_t* q = ep + nc * 2;
-  q += 2 + u16(q);
+  const uint32_t ep = 10;
+  uint32_t npts = nc ? p.u16(ep + (uint32_t)(nc - 1) * 2) + 1u : 0;
+  uint32_t q = ep + (uint32_t)nc * 2;
+  q += 2 + p.u16(q);
   // scratch allocated on first use: targets that never rasterize a TTF (esp32, ps1/ps2) keep these 36 KiB of RAM
   static uint8_t* fl = nullptr; static float *xs = nullptr, *ys = nullptr;
   if (!fl) { fl = (uint8_t*)hal_alloc(4096); xs = (float*)hal_alloc(4096 * sizeof(float)); ys = (float*)hal_alloc(4096 * sizeof(float)); }
   if (npts > 4096 || !fl || !xs || !ys) return;
-  for (uint16_t i = 0; i < npts;) { uint8_t f = *q++; fl[i++] = f; if (f & 8) { uint8_t rep = *q++; while (rep-- && i < npts) fl[i++] = f; } }
+  for (uint32_t i = 0; i < npts;) { uint8_t f = (uint8_t)p.u8(q++); fl[i++] = f; if (f & 8) { uint8_t rep = (uint8_t)p.u8(q++); while (rep-- && i < npts) fl[i++] = f; } }
   int32_t v = 0;
-  for (uint16_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 2) { uint8_t dd = *q++; v += f & 16 ? dd : -dd; } else if (!(f & 16)) { v += s16(q); q += 2; } xs[i] = (float)v; }
+  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 2) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 16 ? dd : -dd; } else if (!(f & 16)) { v += p.s16(q); q += 2; } xs[i] = (float)v; }
   v = 0;
-  for (uint16_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 4) { uint8_t dd = *q++; v += f & 32 ? dd : -dd; } else if (!(f & 32)) { v += s16(q); q += 2; } ys[i] = (float)v; }
-  for (uint16_t i = 0; i < npts; i++) { float x = xs[i], y = ys[i]; xs[i] = m.a * x + m.c * y + m.e; ys[i] = m.b * x + m.d * y + m.f; }
+  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 4) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 32 ? dd : -dd; } else if (!(f & 32)) { v += p.s16(q); q += 2; } ys[i] = (float)v; }
+  for (uint32_t i = 0; i < npts; i++) { float x = xs[i], y = ys[i]; xs[i] = m.a * x + m.c * y + m.e; ys[i] = m.b * x + m.d * y + m.f; }
   if (bounds_only) {
-    for (uint16_t i = 0; i < npts; i++) { bb[0] = xs[i] < bb[0] ? xs[i] : bb[0]; bb[1] = ys[i] < bb[1] ? ys[i] : bb[1]; bb[2] = xs[i] > bb[2] ? xs[i] : bb[2]; bb[3] = ys[i] > bb[3] ? ys[i] : bb[3]; }
+    for (uint32_t i = 0; i < npts; i++) { bb[0] = xs[i] < bb[0] ? xs[i] : bb[0]; bb[1] = ys[i] < bb[1] ? ys[i] : bb[1]; bb[2] = xs[i] > bb[2] ? xs[i] : bb[2]; bb[3] = ys[i] > bb[3] ? ys[i] : bb[3]; }
     return;
   }
-  uint16_t s = 0;
+  uint32_t s = 0;
   for (int16_t c = 0; c < nc; c++) {
-    uint16_t e = u16(ep + c * 2), cnt = (uint16_t)(e - s + 1);
+    uint32_t e = p.u16(ep + (uint32_t)c * 2), cnt = e - s + 1;
     if (e < s || e >= npts) break;
     // start on an on-curve point, or the midpoint of the first two off-curve points
     int32_t k = -1;
-    for (uint16_t i = 0; i < cnt; i++) if (fl[s + i] & 1) { k = i; break; }
+    for (uint32_t i = 0; i < cnt; i++) if (fl[s + i] & 1) { k = (int32_t)i; break; }
     float sx, sy;
     if (k < 0) { sx = (xs[s] + xs[s + (1 % cnt)]) / 2; sy = (ys[s] + ys[s + (1 % cnt)]) / 2; k = 0; }
     else { sx = xs[s + k]; sy = ys[s + k]; k++; }
     float px = sx, py = sy, cx = 0, cy = 0;
     bool ctrl = false;
-    for (uint16_t i = 0; i < cnt; i++) {
-      uint16_t j = s + (uint16_t)((k + i) % cnt);
+    for (uint32_t i = 0; i < cnt; i++) {
+      uint32_t j = s + ((uint32_t)k + i) % cnt;
       float x = xs[j], y = ys[j];
       if (fl[j] & 1) { if (ctrl) quad(r, px, py, cx, cy, x, y); else line(r, px, py, x, y); px = x; py = y; ctrl = false; }
       else {
@@ -205,7 +225,8 @@ struct RFont {
 };
 static RFont rfonts[ZRT_RUNTIME_FONTS];
 static int32_t nrfonts = 0;
-static Ttf ttfs[8];
+static const int32_t MAX_TTF = 32;  // ponytail: fixed table, fonts past it render with the baked sizes only
+static Ttf ttfs[MAX_TTF];
 
 static void* grow(void* old, uint32_t old_bytes, uint32_t new_bytes) {
   void* p = hal_alloc(new_bytes);
@@ -234,13 +255,14 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
   float bb[4] = {1e9f, 1e9f, -1e9f, -1e9f};
   Raster none{nullptr, 0, 0};
   outline(t, gi, m, none, 0, true, bb);
-  Glyph g{cp, 0, 0, 0, 0, (int32_t)__builtin_roundf(u16(t.d + t.hmtx + 4 * (gi < (uint32_t)t.numH ? gi : (uint32_t)t.numH - 1)) * scale * 64), r.nbits};
+  Glyph g{cp, 0, 0, 0, 0, (int32_t)__builtin_roundf(t.rd().u16(t.hmtx + 4 * (gi < (uint32_t)t.numH ? gi : (uint32_t)t.numH - 1)) * scale * 64), r.nbits};
   if (bb[0] <= bb[2]) {
     int32_t x0 = (int32_t)__builtin_floorf(bb[0]), y0 = (int32_t)__builtin_floorf(bb[1]);
     int32_t w = (int32_t)__builtin_ceilf(bb[2]) - x0 + 1, h = (int32_t)__builtin_ceilf(bb[3]) - y0 + 1;
     if (w > 0 && h > 0 && w < 1024 && h < 1024) {
       int32_t aw = w + 3;
       float* acc = (float*)hal_alloc(sizeof(float) * (size_t)aw * h + 16);
+      if (!acc) return nullptr;
       __builtin_memset(acc, 0, sizeof(float) * (size_t)aw * h + 16);
       Raster ras{acc, aw, h};
       Xf mm{scale, 0, 0, -scale, (float)-x0 + 1, (float)-y0};
@@ -290,7 +312,7 @@ int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
     uint32_t k = 0; while (f.name[k]) k++;
     if (f.px == px && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
   }
-  for (int32_t i = 0; i < ttf_count && nrfonts < ZRT_RUNTIME_FONTS; i++) {
+  for (int32_t i = 0; i < ttf_count && i < MAX_TTF && nrfonts < ZRT_RUNTIME_FONTS; i++) {
     const char* n = ttf_files[i].name;
     uint32_t k = 0; while (n[k]) k++;
     if (k != name_len || __builtin_memcmp(n, name, k)) continue;

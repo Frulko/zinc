@@ -63,22 +63,24 @@ static NSString* const BRIDGE = @"(() => {"
   " __dispatch(d) { const v = parse(d); if (window.zinc.onmessage) window.zinc.onmessage(v); window.dispatchEvent(new MessageEvent('zinc', { data: v })); },"
   "};})();";
 
-/** IPC is accepted from the app's own pages (zinc://, inline HTML) and local dev servers only. */
-static bool trusted(WKFrameInfo* f) {
+/** IPC is accepted from the app's own pages (zinc://, inline HTML) and the local dev server the app itself opened:
+ *  same port only (`port`), so a link to another local server does not get the bridge. */
+static bool trusted(WKFrameInfo* f, NSInteger port) {
   if (!f.isMainFrame) return false;
   NSString* p = f.securityOrigin.protocol, *h = f.securityOrigin.host;
   if ([p isEqual:@"zinc"] || [p isEqual:@"file"]) return true;
-  return ([p isEqual:@"http"] || [p isEqual:@"https"]) && ([h isEqual:@"localhost"] || [h isEqual:@"127.0.0.1"]);
+  return ([p isEqual:@"http"] || [p isEqual:@"https"]) && ([h isEqual:@"localhost"] || [h isEqual:@"127.0.0.1"]) && f.securityOrigin.port == port;
 }
 
 @interface ZincBridge : NSObject <WKScriptMessageHandler, WKURLSchemeHandler, WKNavigationDelegate>
 @property int vid;
+@property NSInteger port;  // port of the local http(s) page the app navigated to (-1: none)
 @end
 @implementation ZincBridge
 - (void)userContentController:(WKUserContentController*)u didReceiveScriptMessage:(WKScriptMessage*)m {
   NSDictionary* b = m.body;
   if (![b isKindOfClass:[NSDictionary class]]) return;
-  if (!trusted(m.frameInfo)) { NSLog(@"zinc:webview: IPC from %@ ignored (untrusted origin)", m.frameInfo.securityOrigin.host); return; }
+  if (!trusted(m.frameInfo, self.port)) { NSLog(@"zinc:webview: IPC from %@ ignored (untrusted origin)", m.frameInfo.securityOrigin.host); return; }
   NSString* d = [b[@"d"] isKindOfClass:[NSString class]] ? b[@"d"] : @"";
   if ([b[@"t"] isEqual:@"i"]) push(self.vid, 1, [b[@"id"] intValue], [b[@"cmd"] description], d);
   else push(self.vid, 0, 0, d, nil);
@@ -131,6 +133,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
       if (!win || slot == MAXV) return -1;
       ZincBridge* br = [[ZincBridge alloc] init];
       br.vid = slot;
+      br.port = -1;
       WKWebViewConfiguration* cfg = [[[WKWebViewConfiguration alloc] init] autorelease];
       [cfg setURLSchemeHandler:br forURLScheme:@"zinc"];
       [cfg.userContentController addScriptMessageHandler:br name:@"zinc"];
@@ -153,12 +156,19 @@ struct MacWebview : NativeWebview, zrt::Poller {
       View* p = at(v);
       NSURL* u = p ? [NSURL URLWithString:ns(url)] : nil;
       if (!u) return;
+      if ([u.scheme isEqual:@"http"] || [u.scheme isEqual:@"https"]) p->br.port = u.port ? u.port.integerValue : 0;
       if (u.isFileURL) [p->wv loadFileURL:u allowingReadAccessToURL:[u URLByDeletingLastPathComponent]];
       else [p->wv loadRequest:[NSURLRequest requestWithURL:u]];
     }
   }
   void loadHtml(int32_t v, zrt::String html, zrt::String base) override {
-    @autoreleasepool { if (View* p = at(v)) [p->wv loadHTMLString:ns(html) baseURL:[NSURL URLWithString:ns(base)]]; }
+    @autoreleasepool {
+      View* p = at(v);
+      if (!p) return;
+      NSURL* b = [NSURL URLWithString:ns(base)];
+      if ([b.scheme isEqual:@"http"] || [b.scheme isEqual:@"https"]) p->br.port = b.port ? b.port.integerValue : 0;
+      [p->wv loadHTMLString:ns(html) baseURL:b];
+    }
   }
   void eval(int32_t v, zrt::String js) override {
     @autoreleasepool { if (View* p = at(v)) [p->wv evaluateJavaScript:ns(js) completionHandler:nil]; }

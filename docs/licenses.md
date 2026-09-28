@@ -14,6 +14,23 @@
 | glTF sample models from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets): Cesium Milk Truck, Box Textured, © Cesium | `examples/three/gltf-viewer/assets` (and Box Textured .glb as base64 in `tests/conformance/three.ts`) | CC-BY-4.0; the Cesium logo in their textures is a trademark (LicenseRef-LegalMark-Cesium) |
 | [SQLite](https://sqlite.org) 3.53.4 amalgamation (`sqlite-amalgamation-3530400.zip`, sha256 `1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d`) | `plugins/sqlite/vendor/sqlite3.{c,h}`, linked into programs that import `zinc:sqlite` | public domain ([sqlite.org/copyright](https://sqlite.org/copyright.html)) |
 | [wasm3](https://github.com/wasm3/wasm3) 0.5.0 (`v0.5.0.tar.gz`, sha256 `b778dd72ee2251f4fe9e2666ee3fe1c26f06f517c3ffce572416db067546536c`), core interpreter only (no WASI / libc / tracer APIs), © Steven Massey, Volodymyr Shymanskyy | `plugins/wasm/vendor/wasm3/` (license text in `LICENSE` there), linked into programs that use `WebAssembly` / `zinc:wasm` | MIT |
-| WPT data used to check `zinc:web` (`url/resources/urltestdata.json`, `setters_tests.json`), © web-platform-tests contributors | not vendored: fetched when checking (docs/guide/09-web-apis.md) | BSD-3-Clause |
+| [QuickJS-ng](https://github.com/quickjs-ng/quickjs) v0.17.0 amalgamation (`quickjs-amalgam.c`, `quickjs.h`), © Fabrice Bellard, Charlie Gordon, Ben Noordhuis, Saúl Ibarra Corretgé and contributors | `plugins/script/vendor/quickjs` (license text in `LICENSE` there), linked into programs that import `zinc:script` | MIT |
+| OpenStreetMap data, © OpenStreetMap contributors (streets via the Overpass API; water, parks and buildings via OpenMapTiles / OpenFreeMap tiles) | `examples/maps/navigation/assets/city.bin`, `examples/maps/navigation/src/route-data.ts` (derived by `tools/build-data.mjs`) | ODbL-1.0 (attribution in the example README) |
+| [test262](https://github.com/tc39/test262) (ECMAScript conformance suite), © Ecma International and contributors | fetched by `zinc compat` at the commit pinned in `tests/compat/manifest.json` into the git-ignored `tests/compat/cache/`; nothing vendored. `tests/compat/shims/t262.ts` re-implements the harness API | BSD-3-Clause (test262 LICENSE) |
+| [web-platform-tests](https://github.com/web-platform-tests/wpt), © web-platform-tests contributors | fetched (sparse) by `zinc compat` into `tests/compat/cache/`; `testharness.js` runs unmodified on the reference engines; `tests/compat/shims/testharness.ts` re-implements part of its API for Zinc | BSD-3-Clause (wpt LICENSE.md) |
+| [quickjs-ng](https://github.com/quickjs-ng/quickjs) `tests/`, © Fabrice Bellard, Charlie Gordon and quickjs-ng contributors | fetched (sparse) by `zinc compat` into `tests/compat/cache/` | MIT |
+| Node.js `test/parallel` (shape of `tests/compat/node/*.js` and the trimmed `common` helper), © Node.js contributors | `tests/compat/node/`: tests written for Zinc after Node's, no file copied verbatim | MIT (Node.js LICENSE) |
+| Ecma TC55 Minimum Common Web API (the API list in `tests/compat/manifest.json`), © Ecma International | API names and spec references only | Ecma alternative copyright notice (spec text) |
+
+| Inter (Regular, Bold), © The Inter Project Authors | `lib/fonts`, embedded in UI programs | SIL OFL-1.1 (`lib/fonts/LICENSE-Inter.txt`) |
+| JetBrains Mono, © The JetBrains Mono Project Authors | `lib/fonts`, embedded in UI programs (`mono`) | SIL OFL-1.1 (`lib/fonts/LICENSE-JetBrainsMono.txt`) |
+| libcurl | linked by programs using `zinc:net` (fetch) | curl (MIT-style) |
+| libgpiod | linked with `ZRT_GPIOD=1` on linux/rpi1 | LGPL-2.1-or-later |
+| FFmpeg (libavformat, libavcodec, libavutil, libswscale) | linked by `zinc:video` | LGPL-2.1-or-later (GPL if built with GPL parts) |
+| libgphoto2, libjpeg-turbo | linked by `zinc:gphoto2` | LGPL-2.1-or-later; IJG / BSD-3-Clause / zlib |
+| musl libc | statically linked into rpi1 exports | MIT |
+
+LGPL libraries linked statically (rpi1 / rmpp exports) oblige you to let users relink: ship the object files or link
+them dynamically. Versions and security notes of all of the above: [security/third-party.md](security/third-party.md).
 
 The license of Zinc itself (MIT or Apache-2.0) is an open question for the project owner (spec §17).

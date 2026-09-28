@@ -9,6 +9,8 @@
 // client -> server
 //   ACK seq u32 | POINTER x f32, y f32, down u8, button u8 | WHEEL dy f32 | BUTTONS mask u32 (HalButton bits)
 //   PING t f64
+//   AUTH token bytes (<= 64)                     first message when the server has a token (ZINC_REMOTE_TOKEN or the
+//                                                `token` option); the server sends HELLO only after it matches
 // rle: PackBits over 24-bit pixels. Control byte c < 128: c+1 literal pixels follow (3 bytes each, B G R);
 // c >= 128: one pixel follows, repeated c-126 times (2..129).
 // Discovery: UDP multicast 239.255.90.1:7701, one datagram per second, "ZINC1\tname\ttarget\tport\tpid\tw\th".
@@ -17,7 +19,8 @@
 #include <string.h>
 
 namespace zremote {
-enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 17, WHEEL = 18, BUTTONS = 19, PING = 20 };
+enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 17, WHEEL = 18, BUTTONS = 19, PING = 20, AUTH = 21 };
+static const uint32_t MAX_TOKEN = 64;
 static const char* const GROUP = "239.255.90.1";
 static const int BEACON_PORT = 7701;
 
@@ -43,6 +46,7 @@ inline uint32_t rle_encode(const uint32_t* p, uint32_t n, uint8_t* out) {
 
 /** Decodes into a w x h rectangle at dst (row stride in pixels); false on malformed input. */
 inline bool rle_decode(const uint8_t* s, uint32_t len, uint32_t* dst, int32_t stride, int32_t w, int32_t h) {
+  if (w <= 0 || h <= 0) return len == 0;  // w == 0 would never wrap to the next row: writes past the rectangle
   const uint8_t* end = s + len;
   int32_t x = 0, y = 0;
   auto get = [&]() { uint32_t c = s[0] | s[1] << 8 | (uint32_t)s[2] << 16; s += 3; return c; };

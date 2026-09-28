@@ -37,17 +37,25 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 |---|---|
 | `modules` | extra import specifiers mapped to files of the plugin (`"three/addons/controls/OrbitControls.js": "addons/OrbitControls.ts"`) |
 | `targets` | availability: using the plugin on an unlisted target is error Z5003 (sim is always allowed for modules) |
-| `sources` | extra C++ files compiled into the program |
+| `sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries) go into a separate static library built with C flags, warnings off |
 | `pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libraries, raw link flags |
 | `defines` / `flags` | compile definitions and flags for the program sources |
 | `packages` | system packages added to the target's SDK image (apk for rpi1, apt for linux); a derived image is built once per package set |
 | `idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry dependencies |
+| `nodeFlags` | under `targets.sim`: flags for the node process that runs the sim program (`zinc:script` asks for `--experimental-vm-modules`) |
+| `requires` | top level: capabilities the target must offer (`["heap>=4M"]`, [capabilities](targets/capabilities.md)); an incompatible target is error Z5005 |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options); C++ sees them as `ZP_<PLUGIN>_<KEY>` defines, plus `ZP_<PLUGIN>=1` |
 
 ## Search path
 
 `<zinc>/plugins/*`, then `<project>/plugins/*`, then `zinc.json` `"pluginDirs"`. A project plugin shadows a bundled one
 with the same name.
+
+## Scripting
+
+`zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a
+`ScriptEngine` interface: sandboxed contexts, typed host functions, limits, ES modules, promises. It is how an app
+takes user scripts or mods.
 
 ## Core services for plugins
 

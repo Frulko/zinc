@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Drives a running mapper through the companion's HTTP API (what the web UI does): reads the state, then warps,
 // masks and recolours layers. Fails loudly when the app does not answer or ignores the changes.
-//   node demo.mjs [http://localhost:8080]
+//   node demo.mjs [http://localhost:8080/?token=...]   (the URL server.mjs prints)
 import assert from 'node:assert/strict';
 
-const base = process.argv[2] ?? 'http://localhost:8080';
-const osc = msgs => fetch(`${base}/osc`, { method: 'POST', body: JSON.stringify(msgs) }).then(r => assert.equal(r.status, 204));
-const state = async () => { const r = await fetch(`${base}/state`); assert.equal(r.status, 200, 'app did not answer /sync'); return r.json(); };
+const url = new URL(process.argv[2] ?? 'http://localhost:8080');
+const base = url.origin, headers = { 'x-zinc-token': url.searchParams.get('token') ?? process.env.ZINC_COMPANION_TOKEN ?? '' };
+const osc = msgs => fetch(`${base}/osc`, { method: 'POST', body: JSON.stringify(msgs), headers }).then(r => assert.equal(r.status, 204));
+const state = async () => { const r = await fetch(`${base}/state`, { headers }); assert.equal(r.status, 200, 'app did not answer /sync'); return r.json(); };
 
 const before = await state();
 assert.ok(before.layers.length >= 2, 'expected the demo layers');

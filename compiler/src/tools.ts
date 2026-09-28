@@ -110,7 +110,10 @@ export function tsconfigFor(dir: string): string {
 export function linkEditorPlugin(dir: string): void {
   const nm = path.join(dir, 'node_modules'), link = path.join(nm, 'zinc-ts-plugin');
   fs.mkdirSync(nm, { recursive: true });
-  fs.rmSync(link, { recursive: true, force: true });
+  // replace our own link only: a real directory of that name is someone's package, never deleted
+  const st = fs.lstatSync(link, { throwIfNoEntry: false });
+  if (st && !st.isSymbolicLink()) { console.error(`zinc: ${link} exists and is not a link; left as is`); return; }
+  if (st) fs.unlinkSync(link);
   fs.symlinkSync(path.join(ZINC_ROOT, 'lib/editor/zinc-ts-plugin'), link, 'dir');
 }
 
@@ -140,6 +143,13 @@ export function initProject(dir: string, template: string) {
  *  version / id / icon come from zinc.json. docs/guide/07-distribution.md */
 export function exportApp(p: Project, target: string, exe: string, buildDir: string): string {
   const name = p.name, version = p.version ?? '0.1.0', id = p.id ?? `dev.zinc.${name.replace(/[^A-Za-z0-9.-]/g, '-')}`;
+  // the name becomes a directory under dist/ (removed first), file names, and on linux / rpi1 / rmpp words of shell
+  // commands run with sudo on the device and systemd unit lines: no separators, no control characters, and a plain
+  // [A-Za-z0-9._-] word where it reaches a shell
+  const shellTarget = target === 'linux' || target === 'rpi1' || target === 'rmpp';
+  if (/[\/\\\x00-\x1f\x7f]/.test(name) || name.startsWith('.') || (shellTarget && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)))
+    throw new Error(`zinc.json name "${name}" is not usable for ${target} (letters, digits, '.', '_', '-'; set "name" in zinc.json)`);
+  if (/[\x00-\x1f\x7f]/.test(version)) throw new Error('zinc.json version contains control characters');
   const out = path.join(p.dir, 'dist', `${name}-${target}`);
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
@@ -194,12 +204,12 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
     if (f === 'app.cue' && fs.existsSync(path.join(out, `${name}.cue`))) fs.writeFileSync(path.join(out, `${name}.cue`), fs.readFileSync(path.join(out, `${name}.cue`), 'utf8').replace(/"app\.bin"/, `"${name}.bin"`));
   }
   if (target === 'linux' || target === 'rpi1') {
-    files[`${name}.service`] = `[Unit]\nDescription=${name} (Zinc)\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nExecStart=/opt/${name}/${name}\nWorkingDirectory=/opt/${name}\nRestart=on-failure\nRestartSec=2\n\n[Install]\nWantedBy=multi-user.target\n`;
+    files[`${name}.service`] = serviceUnit(name);
     if (gui || p.icon) {
       files[`${name}.desktop`] = `[Desktop Entry]\nType=Application\nName=${name}\nExec=/opt/${name}/${name}\nIcon=/opt/${name}/icon.png\nTerminal=false\nCategories=Utility;\nX-Zinc-Version=${version}\n`;
       fs.copyFileSync(iconFile, path.join(out, 'icon.png'));
     }
-    files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh pi@raspberrypi.local\nset -e\nHOST="\${1:?usage: deploy.sh user@host}"\nrsync -az --delete "$(dirname "$0")/" "$HOST:/tmp/${name}/"\nssh "$HOST" "sudo mkdir -p /opt/${name} && sudo rsync -a /tmp/${name}/ /opt/${name}/ && sudo cp /opt/${name}/${name}.service /etc/systemd/system/ && { [ ! -f /opt/${name}/${name}.desktop ] || sudo cp /opt/${name}/${name}.desktop /usr/share/applications/; } && sudo systemctl daemon-reload && sudo systemctl enable --now ${name} && sudo systemctl restart ${name}"\n`;
+    files['deploy.sh'] = deployScript(name);
   }
   if (target === 'rmpp') {  // an AppLoad app directory (docs/targets/remarkable-paper-pro.md)
     const dir = `/home/root/xovi/exthome/appload/${name}`;
@@ -211,6 +221,76 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
   const size = fs.statSync(bin).size;
   console.log(`exported ${path.relative(process.cwd(), out)} (${(size / 1024).toFixed(1)} KiB ${target === 'esp32' ? 'firmware' : target === 'wasm' ? 'wasm' : 'executable'})`);
   return out;
+}
+
+/** Groups a service may need for devices (framebuffer / DRM, input, GPIO, SPI, I2C, sound, USB cameras); deploy.sh
+ *  keeps the ones the device has (systemd refuses to start a unit that names a missing group). */
+const DEVICE_GROUPS = 'video render input tty gpio spi i2c audio plugdev';
+
+/** systemd unit for linux / rpi1 (docs/guide/08-security.md): the program runs as a transient unprivileged user
+ *  (DynamicUser) with no capabilities, a read-only system, its own writable state directory (/var/lib/<name>, also the
+ *  working directory and the zinc:storage file) and device access through groups only. A service that must bind a
+ *  port below 1024 adds AmbientCapabilities=CAP_NET_BIND_SERVICE (and the same in CapabilityBoundingSet). */
+export function serviceUnit(name: string): string {
+  return `[Unit]
+Description=${name} (Zinc)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/${name}/${name}
+DynamicUser=yes
+SupplementaryGroups=${DEVICE_GROUPS}
+StateDirectory=${name}
+WorkingDirectory=/var/lib/${name}
+Environment=ZINC_STORAGE=/var/lib/${name}/zinc.storage
+# secrets: EnvironmentFile=/etc/${name}.env (root-owned, mode 600), never this file
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+`;
+}
+
+/** deploy.sh for linux / rpi1: stages in a fresh private directory on the device (mktemp: no predictable /tmp path
+ *  another user could plant first), installs root-owned under /opt/<name> (the unprivileged service cannot rewrite
+ *  its own binary), keeps the device groups that exist there, enables the unit. `name` is a checked plain word. */
+export function deployScript(name: string): string {
+  return String.raw`#!/bin/sh
+# usage: ./deploy.sh pi@raspberrypi.local
+set -e
+HOST="${'$'}{1:?usage: deploy.sh user@host}"
+TMP=$(ssh "$HOST" mktemp -d)
+rsync -az --delete "$(dirname "$0")/" "$HOST:$TMP/"
+ssh "$HOST" "set -e
+G=; for g in ${DEVICE_GROUPS}; do getent group \$g >/dev/null && G=\"\$G \$g\" || true; done
+sudo mkdir -p /opt/${name}
+sudo rsync -a --delete --chown=root:root --chmod=Du=rwx,Dgo=rx,Fu=rwX,Fgo=rX $TMP/ /opt/${name}/
+rm -rf $TMP
+sed \"s/^SupplementaryGroups=.*/SupplementaryGroups=\$G/\" /opt/${name}/${name}.service | sudo tee /etc/systemd/system/${name}.service >/dev/null
+if [ -f /opt/${name}/${name}.desktop ]; then sudo cp /opt/${name}/${name}.desktop /usr/share/applications/; fi
+sudo systemctl daemon-reload
+sudo systemctl enable --now ${name}
+sudo systemctl restart ${name}"
+`;
 }
 
 /** Writes (or refreshes) `dir/Name.app` around `exe`: Info.plist, the icon as .icns, the executable. Returns the
@@ -308,11 +388,12 @@ export function dev(o: Opts, build: () => Built | null) {
   };
   const device = (b: Built) => {
     // ponytail: restart, not hot reload, on devices; the binary is small and scp is fast on a LAN
-    const exe = path.join(b.dir, 'cmake/app'), dest = `zinc-dev/${name}`;
+    const q = (x: string) => `'${x.replace(/'/g, `'\\''`)}'`;  // one shell word on the device
+    const exe = path.join(b.dir, 'cmake/app'), dest = `zinc-dev/${name.replace(/[^A-Za-z0-9._-]/g, '_')}`;
     const sh = (cmd: string, args: string[]) => spawnSync(cmd, args, { stdio: 'inherit' }).status === 0;
     stop();
-    if (!sh('ssh', [o.device!, `mkdir -p ${dest}`]) || !sh('rsync', ['-az', exe, ...(assets ? [assets] : []), `${o.device}:${dest}/`])) { console.error('zinc dev: copy to device failed'); return; }
-    const c = spawn('ssh', ['-tt', '-L', '9229:127.0.0.1:9229', o.device!, `cd ${dest} && ${assets ? `ZINC_ASSETS=${path.basename(assets)} ` : ''}exec ./app`], { stdio: 'inherit' });
+    if (!sh('ssh', [o.device!, `mkdir -p ${q(dest)}`]) || !sh('rsync', ['-az', exe, ...(assets ? [assets] : []), `${o.device}:${dest}/`])) { console.error('zinc dev: copy to device failed'); return; }
+    const c = spawn('ssh', ['-tt', '-L', '9229:127.0.0.1:9229', o.device!, `cd ${q(dest)} && ${assets ? `ZINC_ASSETS=${q(path.basename(assets))} ` : ''}exec ./app`], { stdio: 'inherit' });
     onExit(c);
     child = c;
     console.error(`zinc dev: running on ${o.device} (${Date.now() - savedAt} ms after save)`);
@@ -348,21 +429,26 @@ export function monitor(port: number) {
   const state = new Map<string, unknown>();
   let perf: { fps?: number; frame_ms?: number; live_objects?: number; draw_cmds?: number } = {};
   let last = 0;
-  sock.on('message', buf => {
+  // datagrams are untrusted text for a terminal: control characters (escape sequences) are shown as \uXXXX
+  const clean = (v: unknown) => String(v).replace(/[\x00-\x1f\x7f-\x9f]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  sock.on('message', buf => { try { show(buf); } catch { /* malformed: ignored */ } });
+  const show = (buf: Buffer) => {
     let m: { type: string; payload: Record<string, unknown> };
     try { m = JSON.parse(buf.toString()); } catch { return; }
-    const p = m.payload;
-    if (m.type === 'hello') console.log(`\x1b[36m● connected\x1b[0m platform=${p.platform} version=${p.version}`);
-    else if (m.type === 'log') console.log(`\x1b[2m[${p.level}]\x1b[0m ${p.message}`);
-    else if (m.type === 'metric' || m.type === 'event') console.log(`\x1b[35m${m.type}\x1b[0m ${p.name} = ${JSON.stringify(p.value ?? p.data)}`);
+    const p = Object(m?.payload) as Record<string, unknown>;
+    if (m.type === 'hello') console.log(`\x1b[36m● connected\x1b[0m platform=${clean(p.platform)} version=${clean(p.version)}`);
+    else if (m.type === 'log') console.log(`\x1b[2m[${clean(p.level)}]\x1b[0m ${clean(p.message)}`);
+    else if (m.type === 'metric' || m.type === 'event') console.log(`\x1b[35m${m.type}\x1b[0m ${clean(p.name)} = ${clean(JSON.stringify(p.value ?? p.data))}`);
     else if (m.type === 'perf_frame') perf = p;
-    else if (m.type === 'state_snapshot') for (const [k, v] of Object.entries(p.vars as object)) state.set(k, v);
+    else if (m.type === 'state_snapshot') for (const [k, v] of Object.entries(Object(p.vars))) state.set(clean(k), v);
     const now = Date.now();
     if (now - last > 1000 && (perf.fps !== undefined || state.size)) {
       last = now;
-      const vars = [...state].map(([k, v]) => `${k}=${JSON.stringify(v)}`).join('  ');
-      console.log(`\x1b[33m▮\x1b[0m fps ${perf.fps ?? '-'}  frame ${perf.frame_ms ?? '-'} ms  objects ${perf.live_objects ?? '-'}  draws ${perf.draw_cmds ?? '-'}  ${vars}`);
+      const vars = [...state].map(([k, v]) => `${k}=${clean(JSON.stringify(v))}`).join('  ');
+      console.log(`\x1b[33m▮\x1b[0m fps ${clean(perf.fps ?? '-')}  frame ${clean(perf.frame_ms ?? '-')} ms  objects ${clean(perf.live_objects ?? '-')}  draws ${clean(perf.draw_cmds ?? '-')}  ${vars}`);
     }
-  });
-  sock.bind(port, () => console.log(`zinc monitor: listening on udp://0.0.0.0:${port} (run your app with ZINC_TELEMETRY=udp://127.0.0.1:${port})`));
+  };
+  // this machine by default; ZINC_MONITOR_HOST=0.0.0.0 to receive from devices on the LAN
+  const host = process.env.ZINC_MONITOR_HOST ?? '127.0.0.1';
+  sock.bind(port, host, () => console.log(`zinc monitor: listening on udp://${host}:${port} (run your app with ZINC_TELEMETRY=udp://${host === '0.0.0.0' ? '<this machine>' : host}:${port})`));
 }

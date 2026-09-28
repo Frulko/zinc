@@ -6,3 +6,4 @@ root none
 bullets 6
 arena sum 90
 1
+per-iteration 4,0,12

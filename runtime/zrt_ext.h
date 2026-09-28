@@ -65,12 +65,18 @@ template<class T> struct Weak {
 template<class T> void json(StrBuilder& sb, const Weak<T>& w) { json(sb, w.get()); }
 
 // ---------- pools (MEM-09): N preallocated slots, O(1), heap fallback when exhausted ----------
+// Every pool registers its slab so mfree can hand a slot back (a weakly referenced pooled object is freed by its last
+// Weak, which does not know the pool).
+struct PoolSlab { unsigned char* lo; unsigned char* hi; void** head; PoolSlab* next; };
+extern PoolSlab* pool_slabs;
+bool pool_give(void* p);
 template<class T, int N> struct Pool {
   alignas(16) static inline unsigned char mem[(size_t)N * sizeof(T)];
   static inline void* free_list = nullptr;
   static inline bool ready = false;
+  static inline PoolSlab slab = {mem, mem + sizeof(mem), &free_list, nullptr};
   static void* take() {
-    if (!ready) { ready = true; for (int i = N - 1; i >= 0; i--) { void* s = mem + (size_t)i * sizeof(T); *(void**)s = free_list; free_list = s; } }
+    if (!ready) { ready = true; slab.next = pool_slabs; pool_slabs = &slab; for (int i = N - 1; i >= 0; i--) { void* s = mem + (size_t)i * sizeof(T); *(void**)s = free_list; free_list = s; } }
     if (!free_list) return alloc(sizeof(T));
     void* s = free_list; free_list = *(void**)s; return s;
   }

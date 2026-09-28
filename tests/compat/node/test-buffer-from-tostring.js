@@ -1,0 +1,20 @@
+// After node/test/parallel/test-buffer-alloc.js / test-buffer-tostring.js (encodings).
+const assert = require('assert');
+const { Buffer } = require('buffer');
+const b = Buffer.from('héllo €', 'utf8');
+assert.strictEqual(b.length, 10);
+assert.strictEqual(b.toString('utf8'), 'héllo €');
+assert.strictEqual(b.toString('hex'), '68c3a96c6c6f20e282ac');
+assert.strictEqual(b.toString('base64'), 'aMOpbGxvIOKCrA==');
+assert.strictEqual(Buffer.from('aMOpbGxvIOKCrA==', 'base64').toString(), 'héllo €');
+assert.strictEqual(Buffer.from('68c3a9', 'hex').toString(), 'hé');
+assert.strictEqual(Buffer.from('aGk', 'base64url').toString(), 'hi');
+assert.strictEqual(Buffer.from([0x41, 0x42, 0x43]).toString('latin1'), 'ABC');
+assert.strictEqual(Buffer.alloc(3, 'a').toString(), 'aaa');
+assert.strictEqual(Buffer.byteLength('€'), 3);
+const z = Buffer.alloc(4);
+z.writeUInt32BE(0xdeadbeef, 0);
+assert.strictEqual(z.readUInt32LE(0), 0xefbeadde);
+assert.strictEqual(z.readUInt16BE(1), 0xadbe);
+assert.ok(b instanceof Uint8Array);
+console.log('ZC:PASS');

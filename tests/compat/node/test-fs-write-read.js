@@ -1,0 +1,22 @@
+// After node/test/parallel/test-fs-write-file-sync.js, test-fs-append-file-sync.js and test-fs-exists.js.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-compat-'));
+const f = path.join(dir, 'a.txt');
+fs.writeFileSync(f, 'héllo\n');
+assert.strictEqual(fs.readFileSync(f, 'utf8'), 'héllo\n');
+fs.appendFileSync(f, 'world');
+assert.strictEqual(fs.readFileSync(f).toString(), 'héllo\nworld');
+assert.strictEqual(fs.readFileSync(f).length, 12);
+assert.strictEqual(fs.existsSync(f), true);
+assert.strictEqual(fs.existsSync(path.join(dir, 'nope')), false);
+assert.throws(() => fs.readFileSync(path.join(dir, 'nope')), { code: 'ENOENT' });
+fs.renameSync(f, path.join(dir, 'b.txt'));
+fs.copyFileSync(path.join(dir, 'b.txt'), path.join(dir, 'c.txt'));
+fs.unlinkSync(path.join(dir, 'b.txt'));
+assert.deepStrictEqual(fs.readdirSync(dir), ['c.txt']);
+fs.rmSync(dir, { recursive: true });
+assert.strictEqual(fs.existsSync(dir), false);
+console.log('ZC:PASS');

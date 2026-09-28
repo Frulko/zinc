@@ -379,8 +379,10 @@ inline Dyn dyn_set(const Dyn& o, const String& k, const Dyn& v) {
 /** Integer index of a number key, or -1. */
 inline int32_t dyn_idx(const Dyn& k) {
   if (!k.is_num()) return -1;
-  double d = k.num(); int32_t i = (int32_t)d;
-  return d >= 0 && d < 2147483647.0 && (double)i == d ? i : -1;
+  double d = k.num();
+  if (!(d >= 0 && d < 2147483647.0)) return -1;  // range first: an out-of-range cast is UB
+  int32_t i = (int32_t)d;
+  return (double)i == d ? i : -1;
 }
 inline Dyn dyn_index(const Dyn& o, const Dyn& k) {
   int32_t i = dyn_idx(k);
@@ -418,6 +420,10 @@ inline Dyn dyn_post(Dyn& x, double delta) { double o = dyn_tonum(x); x = Dyn(o +
 inline Dyn dyn_pre(Dyn& x, double delta) { x = Dyn(dyn_tonum(x) + delta); return x; }
 
 // ---------- DYN-09: JSON.parse without a type ----------
+// Nesting limit: the parser (and freeing the result) recurses once per level; small stacks (esp32, ps1) set less.
+#ifndef ZRT_JSON_DEPTH
+#define ZRT_JSON_DEPTH 512
+#endif
 struct JsonParser {
   const char* p; const char* e; bool ok = true;
   void ws() { while (p < e && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++; }
@@ -490,7 +496,7 @@ struct JsonParser {
   }
   Dyn value(int depth) {
     ws();
-    if (p >= e || depth > 512) { ok = false; return Dyn(); }
+    if (p >= e || depth > ZRT_JSON_DEPTH) { ok = false; return Dyn(); }
     switch (*p) {
       case '{': {
         p++;
@@ -541,7 +547,12 @@ inline Dyn json_parse(const String& s) {
   JsonParser j{s.ptr(), s.ptr() + s.bytes()};
   Dyn r = j.value(0);
   j.ws();
-  if (!j.ok || j.p != j.e) { g_err = make<Error>(String::from("JSON.parse: invalid JSON", 24)); return Dyn(); }
+  if (!j.ok || j.p != j.e) {  // a SyntaxError, like JS
+    Ref<Error> err = make<Error>(String::from("JSON.parse: invalid JSON", 24));
+    err->name = String::from("SyntaxError", 11);
+    g_err = err;
+    return Dyn();
+  }
   return r;
 }
 

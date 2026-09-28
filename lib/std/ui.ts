@@ -8,8 +8,9 @@ import {
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
   escapeByApp, escapeDefault, stroke,
-  scrollDX, scrollDY, scrollPhase,
+  scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
+import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { PALETTE, SHADES } from './palette';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
@@ -27,6 +28,9 @@ export class PointerEvent {
   mods: i32 = 0;
   clicks: i32 = 1;                  // 2 on a double click
   wheel: number = 0; wheelX: number = 0; pinch: number = 1;  // onWheel: steps (+ up / right), trackpad pinch factor
+  // gestures (onDrag, onPinch): phase 0 start, 1 move, 2 end, 3 cancelled; dx / dy: translation since the press
+  // (surface px); scale / rotation (radians) since the pinch started, x / y at the centroid
+  phase: i32 = 0; dx: number = 0; dy: number = 0; scale: number = 1; rotation: number = 0;
   get shift(): boolean { return (this.mods & SHIFT) !== 0; }
   get ctrl(): boolean { return (this.mods & CTRL) !== 0; }
   get alt(): boolean { return (this.mods & ALT) !== 0; }
@@ -57,6 +61,20 @@ export class Handlers {
   enter: ((e: PointerEvent) => void) | null = null;
   leave: ((e: PointerEvent) => void) | null = null;
   key: ((e: KeyEvent) => void) | null = null;
+  // gesture handlers and their arbitration (see "interaction" below)
+  tap: ((e: PointerEvent) => void) | null = null;
+  long: ((e: PointerEvent) => void) | null = null;
+  drag: ((e: PointerEvent) => void) | null = null;
+  pinch: ((e: PointerEvent) => void) | null = null;
+  cancel: ((e: PointerEvent) => void) | null = null;
+  dragAxis: i32 = 3;            // 1 x, 2 y, 3 both
+  dragThreshold: number = 8;    // px before a drag takes the pointer (the scroll slop is 8 px too)
+  keep: boolean = false;        // grab="keep": an ancestor's drag or scroll never steals the pointer
+  tabIndex: i32 = 0;            // > 0 first in the Tab order, < 0 out of it (still focusable by click)
+  disabled: boolean = false;    // no events, no focus, for the node and its subtree
+  keyCtx: string = '';          // keyContext
+  acts: string[] = [];          // onAction(h, action, f)
+  actFns: (() => void)[] = [];
 }
 /** Text field state (<input>, <textarea>); offsets are UTF-16 indices into `value`. */
 export class Edit {
@@ -147,6 +165,8 @@ export class UiNode {
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
   hs: Handlers | null = null;
   ed: Edit | null = null;
+  layer: boolean = false;              // ui.openLayer: laid out, painted and hit-tested apart from its parent
+  withinBg: i32 = -1; withinFg: i32 = -1; withinBorder: i32 = -1;   // focus-within: colors
   constructor(tag: i32) { this.tag = tag; }
 }
 
@@ -249,6 +269,7 @@ function release(h: i32): void {
   if (!n.alive) return;
   for (const c of n.children) release(c);
   if (n.tag === CANVAS && !n.lazy) canvases--;
+  if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
   n.alive = false;
   n.onClick = null;
   n.onDraw = null;
@@ -325,12 +346,15 @@ function handlers(h: i32): Handlers {
   return s as Handlers;
 }
 export const PDOWN: i32 = 0, PMOVE: i32 = 1, PUP: i32 = 2, PDBL: i32 = 3, PCONTEXT: i32 = 4, PWHEEL: i32 = 5, PENTER: i32 = 6, PLEAVE: i32 = 7;
+export const PTAP: i32 = 8, PLONG: i32 = 9, PDRAG: i32 = 10, PPINCH: i32 = 11, PCANCEL: i32 = 12;
 /** Pointer handler of a node: kind PDOWN, PMOVE, PUP, PDBL (double click), PCONTEXT (right click), PWHEEL, PENTER, PLEAVE. */
 export function onPointer(h: i32, kind: i32, f: (e: PointerEvent) => void): void {
   const s = handlers(h);
   if (kind === PDOWN) s.down = f; else if (kind === PMOVE) s.move = f; else if (kind === PUP) s.up = f;
   else if (kind === PDBL) s.dbl = f; else if (kind === PCONTEXT) s.ctx = f; else if (kind === PWHEEL) s.wheel = f;
-  else if (kind === PENTER) s.enter = f; else s.leave = f;
+  else if (kind === PENTER) s.enter = f; else if (kind === PLEAVE) s.leave = f;
+  else if (kind === PTAP) s.tap = f; else if (kind === PLONG) s.long = f; else if (kind === PDRAG) s.drag = f;
+  else if (kind === PPINCH) s.pinch = f; else s.cancel = f;
 }
 /** Key handler of a node, called while it (or a descendant) has the focus. */
 export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void { handlers(h).key = f; }
@@ -375,6 +399,7 @@ export function setNumber(h: i32, key: string, v: number): void {
 }
 function applyNumber(n: UiNode, key: string, v: number): void {
   const iv: i32 = Math.round(v);
+  if (applyInteraction(n, key, iv, v)) return;
   if (key === 'opacity') { n.opacity = v; paintDirty = true; return; }
   if (key === 'translateX' || key === 'x') { n.tx = v; paintDirty = true; return; }
   if (key === 'translateY' || key === 'y') { n.ty = v; paintDirty = true; return; }
@@ -485,6 +510,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const rest = tok.slice(BREAKPOINTS[i].length);
     return width() >= BREAKPOINT_PX[i] ? applyToken(n, rest, variant) : applyToken(new UiNode(n.tag), rest, variant);
   }
+  if (tok.startsWith('focus-within:')) return applyToken(n, tok.slice(13), 'within');
   if (tok.startsWith('focus:')) return applyToken(n, tok.slice(6), 'focus');
   if (tok.startsWith('active:')) return applyToken(n, tok.slice(7), 'active');
   // hover: colors under the mouse (desktop); other hover: tokens are accepted and ignored
@@ -495,6 +521,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (c === -2) return false;
     if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
     else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
+    else if (variant === 'within') { if (isBg) n.withinBg = c; else if (isBorder) n.withinBorder = c; else n.withinFg = c; }
     else { if (isBg) n.activeBg = c; else if (isBorder) return false; else n.activeFg = c; }
     return true;
   }
@@ -613,6 +640,7 @@ function resetStyle(n: UiNode): void {
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
+  n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
@@ -632,7 +660,7 @@ export function isKnownClass(tok: string): boolean { return applyToken(new UiNod
 function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
   for (const h of n.children) {
     const c = node(h);
-    if (c.hidden) continue;
+    if (c.hidden || c.layer) continue;
     if (c.tag === FRAGMENT) flat(c, out, wantAbs);
     else if (c.abs === wantAbs) out.push(c);
   }
@@ -817,6 +845,8 @@ export function layout(): void {
   r.w = width(); r.h = height();
   measure(r, width(), height());
   place(r, 0, 0, width(), height());
+  if (layers.length > 0) layoutLayers();
+  if (anchors.length > 0) applyAnchors();
   layoutDirty = false;
   paintDirty = true;
   hoverDirty = true;
@@ -890,6 +920,7 @@ let animating = false;
 function targetBg(h: i32, n: UiNode): i32 {
   if (pressed === h && n.activeBg >= 0) return n.activeBg;
   if (focus === h && n.focusBg >= 0) return n.focusBg;
+  if (n.withinBg >= 0 && focus >= 0 && isAncestor(h, focus)) return n.withinBg;
   if (n.hovered && n.hoverBg >= 0) return n.hoverBg;
   return n.bg;
 }
@@ -917,7 +948,7 @@ function fontAtScale(n: UiNode, k: number): i32 {
 // sized n.lw * k * n.k (style scale zooms the node and its subtree around its top-left corner).
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
-  if (n.hidden) return;
+  if (n.hidden || (n.layer && h !== layerPass)) return;
   const a = alpha * n.opacity;
   if (a <= 0.004) return;
   const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
@@ -934,7 +965,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       if (bg >= 0) rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a));
     }
     const focused = h === focus;
-    const bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
+    const bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.withinBorder : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
     if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
       // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
@@ -950,9 +981,10 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       const lh = lineHeightOf(n);
       let fg = textFg(h);
       let p = n.parent;
-      while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].hoverFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
+      while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].hoverFg < 0 && nodes[p].withinFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
       if (p >= 0 && pressed === p && nodes[p].activeFg >= 0) fg = nodes[p].activeFg;
       else if (p >= 0 && focus === p && nodes[p].focusFg >= 0) fg = nodes[p].focusFg;
+      else if (p >= 0 && nodes[p].withinFg >= 0 && focus >= 0 && isAncestor(p, focus)) fg = nodes[p].withinFg;
       else if (p >= 0 && nodes[p].hovered && nodes[p].hoverFg >= 0) fg = nodes[p].hoverFg;
       const top = Math.round((lh - n.size * 1.21) / 2);
       const f = fontAtScale(n, kk);
@@ -1481,7 +1513,7 @@ const scrollers: i32[] = [];   // containers whose offset is animating (wheel ea
 /** Innermost scroll container under (px, py) that scrolls along `axes` (1 vertical, 2 horizontal). */
 function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: number, axes: i32): i32 {
   const n = node(h);
-  if (n.hidden) return -1;
+  if (n.hidden || (n.layer && h !== layerPass)) return -1;
   const x0 = (n.x + n.tx) * k + ox, y0 = (n.y + n.ty) * k + oy, kk = k * n.k;
   const inside = px >= x0 && py >= y0 && px < x0 + n.lw * kk && py < y0 + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
@@ -1656,7 +1688,7 @@ function editScrolls(n: UiNode, e: Edit): boolean {
 /** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
 function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number, mode: i32): i32 {
   const n = node(h);
-  if (n.hidden) return -1;
+  if (n.hidden || (n.layer && h !== layerPass)) return -1;
   const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
@@ -1668,12 +1700,15 @@ function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number
   if (n.tag !== FRAGMENT && inside && wants(n, mode)) return h;
   return -1;
 }
-function hit(px: number, py: number, mode: i32): i32 { return root < 0 ? -1 : hitIn(root, px, py, 0, 0, 1, mode); }
+function hit(px: number, py: number, mode: i32): i32 {
+  if (layers.length > 0) { const l = layerHit(px, py, mode, 0); if (l !== -2) return l; }
+  return root < 0 ? -1 : hitIn(root, px, py, 0, 0, 1, mode);
+}
 let boxX: number = 0, boxY: number = 0, boxK: number = 1;
 /** Surface position (boxX, boxY) and scale (boxK) of a node's box. */
 function boxOf(h: i32): void {
   const chain: i32[] = [];
-  for (let p = h; p >= 0; p = nodes[p].parent) chain.push(p);
+  for (let p = h; p >= 0; p = nodes[p].parent) { chain.push(p); if (nodes[p].layer) break; }  // a layer is placed on the surface
   let ox: number = 0, oy: number = 0, k: number = 1;
   for (let i = chain.length - 1; i >= 1; i--) {
     const a = nodes[chain[i]];
@@ -1705,13 +1740,14 @@ function handlerOf(n: UiNode, kind: i32): ((e: PointerEvent) => void) | null {
   const s = n.hs;
   if (s === null) return null;
   const t = s as Handlers;
+  if (kind >= PTAP) return kind === PTAP ? t.tap : kind === PLONG ? t.long : kind === PDRAG ? t.drag : kind === PPINCH ? t.pinch : t.cancel;
   return kind === PDOWN ? t.down : kind === PMOVE ? t.move : kind === PUP ? t.up : kind === PDBL ? t.dbl : kind === PCONTEXT ? t.ctx : kind === PWHEEL ? t.wheel : kind === PENTER ? t.enter : t.leave;
 }
 /** Nearest node from h up with a handler of `kind` (stopping at a button or text field when `stop`). */
 function bubble(h: i32, kind: i32, stop: boolean): i32 {
   for (let p = h; p >= 0; p = nodes[p].parent) {
     const n = nodes[p];
-    if (handlerOf(n, kind) !== null) return p;
+    if (handlerOf(n, kind) !== null) return isDisabled(p) ? -1 : p;
     if (stop && (n.onClick !== null || n.ed !== null)) return -1;
   }
   return -1;
@@ -1738,10 +1774,11 @@ const focusHandlers: ((h: i32) => void)[] = [];
 export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
 /** Gives the keyboard focus to a node (-1: none). A text field starts the text input. */
 export function focusNode(h: i32): void { setFocusTo(h); }
-export function focused(): i32 { return focus; }
+export function focused(): i32 { if (overlays.length > 0 || restoreTo >= 0) flushOverlays(); return focus; }
 function focusStep(back: boolean): void {
   const list: i32[] = [];
-  focusables(root, list);
+  focusables(focusRoot(), list);
+  if (list.length > 1) tabOrder(list);
   if (list.length === 0) return;
   const i = list.indexOf(focus);
   setFocusTo(i < 0 ? list[0] : list[(i + (back ? list.length - 1 : 1)) % list.length]);
@@ -1750,8 +1787,9 @@ function focusStep(back: boolean): void {
 }
 function pointerMove(px: number, py: number): void {
   // drag to scroll: past a few pixels the press becomes a scroll gesture
+  if ((held & 1) !== 0 && grabber === -1 && (dragScroller >= 0 || dragCands.length > 0)) arbitrate(px, py);
+  else if ((held & 1) !== 0 && grabber >= 0 && grabber !== dragScroller && (px !== ptrX || py !== ptrY)) gestureMove(px, py);
   if ((held & 1) !== 0 && dragScroller >= 0) {
-    if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
     if (dragging) {
       directScroll(dragScroller, -(px - lastX), -(py - lastY));
     }
@@ -1767,6 +1805,7 @@ function pointerMove(px: number, py: number): void {
     moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
   }
   if (capture >= 0) { fire(capture, PMOVE, px, py, -1); return; }
+  if (grabKind !== 0) return;   // a gesture took this press: raw handlers got onPointerCancel
   const t = bubble(hit(px, py, HIT_ANY), PMOVE, false);
   if (t >= 0) fire(t, PMOVE, px, py, -1);
 }
@@ -1775,7 +1814,9 @@ function pressAt(px: number, py: number, button: i32): void {
   held = held | bitOf(button);
   if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
   lastBtn = button; lastDownAt = clock; lastDownX = px; lastDownY = py;
+  if (overlays.length > 0) outsidePress(px, py, button);
   const t = hit(px, py, HIT_ANY);
+  if (t >= 0 && isDisabled(t)) { hoverDirty = true; return; }   // a disabled subtree swallows the press
   const d = bubble(t, PDOWN, true);
   if (d >= 0 && capture < 0) { capture = d; captureBtn = button; }
   if (d >= 0) fire(d, PDOWN, px, py, button);
@@ -1794,8 +1835,8 @@ function pressAt(px: number, py: number, button: i32): void {
     selecting = t;
   } else {
     const h = hit(px, py, HIT_CLICK);
-    if (h >= 0) { setFocusTo(h); pressed = h; paintDirty = true; }
-    else {
+    if (h >= 0 && !isDisabled(h)) { setFocusTo(h); pressed = h; paintDirty = true; }
+    else if (h < 0) {
       // the nearest focusable node takes the focus; a click elsewhere blurs a text field
       let fz = t;
       while (fz >= 0 && !nodes[fz].focusable) fz = nodes[fz].parent;
@@ -1803,17 +1844,19 @@ function pressAt(px: number, py: number, button: i32): void {
       else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);
     }
   }
-  dragScroller = selecting >= 0 || capture >= 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3);
+  dragScroller = selecting >= 0 || keepsGrab(capture) ? -1 : scrollerTop(px, py, 3);
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
   if (dragScroller >= 0) { catchScroll(dragScroller); wakeScroll(dragScroller); }   // a press stops the inertia
+  if (button === 0) gestureBegin(t, px, py);
   hoverDirty = true;
 }
 function releaseAt(px: number, py: number, button: i32): void {
   held = held & ~bitOf(button);
   if (capture >= 0 && button === captureBtn) { const c = capture; capture = -1; fire(c, PUP, px, py, button); }
-  else if (capture < 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
+  else if (capture < 0 && grabKind === 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
   hoverDirty = true;
   if (button !== 0) return;
+  gestureEnd(px, py);
   selecting = -1;
   if (pressed >= 0) {
     const h = pressed;
@@ -1836,7 +1879,7 @@ function isAncestor(a: i32, b: i32): boolean { for (let p = b; p >= 0; p = nodes
 function wheelInput(px: number, py: number, wy: number, wx: number, pz: number): void {
   // the innermost of: a node with onWheel, a scrollable text field, a scroll container
   const w = hit(px, py, HIT_WHEEL);
-  const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (wy !== 0 ? 1 : 0) | (wx !== 0 ? 2 : 0));
+  const sc = scrollerTop(px, py, (wy !== 0 ? 1 : 0) | (wx !== 0 ? 2 : 0));
   if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
     if (handlerOf(nodes[w], PWHEEL) === null) { if (editWheel(w, nodes[w], nodes[w].ed as Edit, wy, wx, sc >= 0)) return; }
     else {
@@ -1868,12 +1911,12 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
 // with its own wheel handler gets the deltas as wheel steps instead.
 let padScroller: i32 = -1, padEdit: i32 = -1;
 function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
-  if (phase === 3) { const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3); if (sc >= 0) catchScroll(sc); return; }
+  if (phase === 3) { const sc = scrollerTop(px, py, 3); if (sc >= 0) catchScroll(sc); return; }
   if (phase === 0) return;
   if (padEdit < 0 && (padScroller < 0 || !nodes[padScroller].alive)) {
     if (dx === 0 && dy === 0 && phase !== 2) return;
     const w = hit(px, py, HIT_WHEEL);
-    const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
+    const sc = scrollerTop(px, py, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
     if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
       const ed = nodes[w].ed;
       if (ed !== null && (ed as Edit).multi && handlerOf(nodes[w], PWHEEL) === null) padEdit = w;   // a text area follows the fingers
@@ -1935,8 +1978,11 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
     const s = nodes[p].hs;
     if (s !== null && (s as Handlers).key !== null) { const f = (s as Handlers).key; if (f !== null) f(ev); break; }
   }
+  if (!ev.handled && key === 'Escape' && overlays.length > 0 && dismissTop()) ev.handled = true;
+  if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) !== 0) ev.handled = runKeymap(key, mods);
   let byApp = ev.handled;
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
+  if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) === 0 && runKeymap(key, mods)) { ev.handled = true; byApp = true; }
   const before = ev.handled;
   for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
   if (!before && ev.handled) byApp = true;
@@ -1968,6 +2014,7 @@ function inputFrame(): void {
   const nb = buttonEventCount();
   for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
   pointerSample(px, py, 0, nb > 0 ? (held & 1) !== 0 : pointerDown());
+  if (touchCount() > 1 || halFingers.length > 0) halTouches();
   const nk = keyCount();
   dropText = false;
   for (let i = 0; i < nk; i++) {
@@ -1980,11 +2027,12 @@ function inputFrame(): void {
 // ---------------------------------------------------------------- frame loop
 function focusables(h: i32, out: i32[]): void {
   const n = node(h);
-  if (n.hidden) return;
-  if (n.focusable && n.tag !== FRAGMENT) out.push(h);
+  if (n.hidden || (n.hs !== null && (n.hs as Handlers).disabled)) return;
+  if (n.focusable && n.tag !== FRAGMENT && (n.hs === null || (n.hs as Handlers).tabIndex >= 0)) out.push(h);
   for (const c of n.children) focusables(c, out);
 }
 function activate(h: i32): void {
+  if (isDisabled(h)) return;
   const f = node(h).onClick;
   if (f !== null) f();
   paintDirty = true;
@@ -1992,15 +2040,19 @@ function activate(h: i32): void {
 /** One UI frame: engine clock, animations, input, layout when needed, paint (or keep the previous frame). */
 export function frame(dt: number, background: i32): void {
   if (root < 0) return;
+  const prof = profiling();
+  if (prof) profMark(PROF_APP);
   clock += dt * 1000;
   frameDt = dt;
   stepAnims();
+  if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
     surfW = width(); surfH = height(); layoutDirty = true; paintDirty = true;
     if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
   }
   if (layoutDirty) layout();
+  if (prof) profMark(PROF_LAYOUT);
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   stepScroll(dt);
@@ -2010,6 +2062,8 @@ export function frame(dt: number, background: i32): void {
   if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
   else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
   navKeys = 0; navBack = false;
+  if (grabber === -1 && longNode >= 0) stepGestures();
+  if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
   const ed = focus >= 0 ? nodes[focus].ed : null;
   const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;
@@ -2018,20 +2072,27 @@ export function frame(dt: number, background: i32): void {
     textOn = want;
   }
   if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
+  if (prof) profMark(PROF_INPUT);
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
+  if (anchors.length > 0) applyAnchors();
+  if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty) updateHover();
+  if (prof) profMark(PROF_INPUT);
   if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
   paint(root, 0, 0, 1, 1);
+  if (layers.length > 0) paintLayers();
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
     rrect(n.x, n.y, n.lw, n.lh, 0, 0x3b82f6, 90);
     border(n.x, n.y, n.lw, n.lh, 0, 1, 0x60a5fa, 255);
   }
+  if (prof) profMark(PROF_PAINT);
 }
+const PROF_APP: i32 = 0, PROF_INPUT: i32 = 1, PROF_ANIM: i32 = 2, PROF_LAYOUT: i32 = 3, PROF_PAINT: i32 = 4;  // gfx.cpp prof phases
 // ---------------------------------------------------------------- inspector hooks (plugins/devtools)
 let highlight: i32 = -1;
 /** Root handle, or -1. */
@@ -2081,7 +2142,7 @@ export function find(text: string): i32 {
   return -1;
 }
 /** Advances the engine clock without the frame loop (tests). */
-export function tick(ms: number): void { clock += ms; stepAnims(); }
+export function tick(ms: number): void { clock += ms; stepAnims(); if (grabber === -1 && longNode >= 0) stepGestures(); }
 
 // ---------------------------------------------------------------- input test hooks: from the first call on, the
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.
@@ -2090,6 +2151,7 @@ export function pointerAt(x: number, y: number, down: boolean, button: i32 = 0, 
   synthetic = true;
   curMods = mods;
   if (layoutDirty) layout();
+  if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   pointerSample(x, y, button, down);
   updateHover();
 }
@@ -2111,6 +2173,7 @@ export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
   synthetic = true;
   if (h >= 0) setFocusTo(h);
   if (layoutDirty) layout();
+  if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   return dispatchKey(key, mods, false).handled;
 }
 // ---- virtual keyboards (lib/std/kit/keyboard.tsx): the same path as the physical keyboard, not the test hooks
@@ -2128,4 +2191,506 @@ export function typeText(h: i32, s: string): void {
   if (h >= 0) setFocusTo(h);
   if (layoutDirty) layout();
   typeInto(focus, s);
+}
+
+// ================================================================ interaction (docs/ui.md "Gestures", "Focus scopes and
+// keymaps", "Layers"; docs/reports/qt-comparison.md §8–9, kit-v2 engine items 1–4): gesture arbitration, multitouch,
+// focus scopes, keymaps, layers, anchored positioning and dismissal. Nothing here costs anything until a program uses it.
+
+function hsOf(n: UiNode): Handlers { let s = n.hs; if (s === null) { s = new Handlers(); n.hs = s; } return s as Handlers; }
+/** setNumber keys of this section: grab (1: keep), dragAxis (1 x, 2 y, 3 both), dragThreshold, tabIndex, disabled. */
+function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
+  if (key === 'grab') { hsOf(n).keep = iv !== 0; return true; }
+  if (key === 'dragAxis') { hsOf(n).dragAxis = iv; return true; }
+  if (key === 'dragThreshold') { hsOf(n).dragThreshold = v; return true; }
+  if (key === 'tabIndex') { hsOf(n).tabIndex = iv; n.focusable = true; return true; }
+  if (key === 'disabled') { hsOf(n).disabled = iv !== 0; paintDirty = true; return true; }
+  return false;
+}
+/** The node or an ancestor has `disabled`: no pointer events, no activation, no focus. */
+export function isDisabled(h: i32): boolean {
+  for (let p = h; p >= 0; p = nodes[p].parent) { const s = nodes[p].hs; if (s !== null && (s as Handlers).disabled) return true; }
+  return false;
+}
+function keepsGrab(h: i32): boolean { if (h < 0) return false; const s = nodes[h].hs; return s !== null && (s as Handlers).keep; }
+
+// ---- gesture arbitration (Qt pointer handlers): the press goes to the raw onPointerDown node (capture) and, passively,
+// to every onDrag ancestor and to the scroll container under it. The first of them, innermost first, whose threshold
+// the pointer crosses (along its axis; 8 px for scrolling) takes the exclusive grab: the capture node gets
+// onPointerCancel and no click / tap follows. grab="keep" on the capture node stops the stealing.
+const SLOP: number = 8, LONG_MS: number = 500;
+let grabber: i32 = -1, grabKind: i32 = 0;      // exclusive grab of the current press: 1 scroll, 2 drag, 3 pinch
+let dragCands: i32[] = [];
+let pressX: number = 0, pressY: number = 0, pressMs: number = 0, gHit: i32 = -1;
+let tapNode: i32 = -1, longNode: i32 = -1, longFired = false;
+function gestureBegin(t: i32, px: number, py: number): void {
+  grabber = -1; grabKind = 0; longFired = false; pressX = px; pressY = py; pressMs = clock; gHit = t;
+  tapNode = -1; longNode = -1; dragCands = [];
+  if (selecting >= 0) return;   // a text selection keeps the pointer
+  tapNode = bubble(t, PTAP, false); longNode = bubble(t, PLONG, false);
+  const keep = keepsGrab(capture);
+  let scroller = false;
+  for (let p = t; p >= 0; p = nodes[p].parent) {
+    if (p === dragScroller) { dragCands.push(p); scroller = true; }
+    else if (!keep && handlerOf(nodes[p], PDRAG) !== null && !isDisabled(p)) dragCands.push(p);
+  }
+  if (!scroller && dragScroller >= 0) dragCands.push(dragScroller);
+}
+function arbitrate(px: number, py: number): void {
+  const dx = px - pressX, dy = py - pressY;
+  for (const c of dragCands) {
+    const n = nodes[c];
+    if (!n.alive) continue;
+    let crossed = false;
+    if (c === dragScroller) crossed = ((n.scroll & 1) !== 0 && n.contentH > n.lh && Math.abs(dy) > SLOP) || ((n.scroll & 2) !== 0 && n.contentW > n.lw && Math.abs(dx) > SLOP);
+    else {
+      const s = n.hs as Handlers, th = s.dragThreshold;
+      crossed = s.dragAxis === 1 ? Math.abs(dx) > th : s.dragAxis === 2 ? Math.abs(dy) > th : dx * dx + dy * dy > th * th;
+    }
+    if (crossed) { takeGrab(c, c === dragScroller ? 1 : 2, px, py); return; }
+  }
+}
+function takeGrab(c: i32, kind: i32, px: number, py: number): void {
+  grabber = c; grabKind = kind;
+  if (capture >= 0 && capture !== c) {
+    const cap = capture;
+    capture = -1;
+    if (handlerOf(nodes[cap], PCANCEL) !== null) fire(cap, PCANCEL, px, py, 0);
+  }
+  if (pressed >= 0) { pressed = -1; paintDirty = true; }
+  selecting = -1;
+  if (kind === 1) { dragging = true; return; }
+  if (dragScroller >= 0 && dragging) releaseScroll(dragScroller);
+  dragScroller = -1; dragging = false;
+  if (kind === 2) fireGesture(c, PDRAG, px, py, 0);
+}
+function gestureMove(px: number, py: number): void {
+  if (grabKind === 3) { if (pinching) pinchUpdate(px, py); return; }
+  if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, px, py, 1);
+}
+function gestureEnd(px: number, py: number): void {
+  if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, px, py, 2);
+  else if (grabKind === 3 && pinching) pinchEnd(px, py);
+  else if (grabber === -1 && !longFired && tapNode >= 0 && nodes[tapNode].alive && isAncestor(tapNode, hit(px, py, HIT_NODE))) fireGesture(tapNode, PTAP, px, py, 0);
+  grabber = -1; grabKind = 0; tapNode = -1; longNode = -1; dragCands = []; pinching = false;
+}
+/** Long press: held LONG_MS without a grab taken; the click and the tap are dropped. */
+function stepGestures(): void {
+  if ((held & 1) === 0 || longFired || longNode < 0 || !nodes[longNode].alive || clock - pressMs < LONG_MS) return;
+  longFired = true;
+  if (pressed >= 0) { pressed = -1; paintDirty = true; }
+  fireGesture(longNode, PLONG, ptrX, ptrY, 0);
+}
+function fireGesture(h: i32, kind: i32, gx: number, gy: number, phase: i32): void {
+  boxOf(h);
+  const e = new PointerEvent();
+  e.gx = gx; e.gy = gy; e.x = (gx - boxX) / boxK; e.y = (gy - boxY) / boxK; e.mods = curMods; e.clicks = clicks;
+  e.phase = phase; e.dx = gx - pressX; e.dy = gy - pressY; e.scale = pinchScale; e.rotation = pinchRot;
+  const f = handlerOf(nodes[h], kind);
+  if (f !== null) f(e);
+}
+
+// ---- multitouch: the first finger is the pointer (everything above); a second finger over an onPinch node (from the
+// press up) takes the grab from anything else and pinches: scale and rotation since it landed, at the centroid.
+let primaryId: i32 = -1;                                        // touchAt: the finger driving the pointer
+let fIds: i32[] = [], fXs: number[] = [], fYs: number[] = [];   // the other fingers
+let pinching = false, pinchD0: number = 1, pinchA0: number = 0, pinchScale: number = 1, pinchRot: number = 0;
+let halPrimary: i32 = -1, halFingers: i32[] = [];
+function secondFinger(): void {
+  if ((held & 1) === 0 || pinching) return;
+  let pn = bubble(gHit, PPINCH, false);
+  if (pn < 0) pn = bubble(hit(fXs[0], fYs[0], HIT_ANY), PPINCH, false);
+  if (pn < 0) return;
+  if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, ptrX, ptrY, 3);
+  takeGrab(pn, 3, ptrX, ptrY);
+  pinching = true; pinchScale = 1; pinchRot = 0;
+  const dx = fXs[0] - ptrX, dy = fYs[0] - ptrY;
+  pinchD0 = Math.max(1, Math.sqrt(dx * dx + dy * dy)); pinchA0 = Math.atan2(dy, dx);
+  fireGesture(pn, PPINCH, (ptrX + fXs[0]) / 2, (ptrY + fYs[0]) / 2, 0);
+}
+function pinchUpdate(ax: number, ay: number): void {
+  const dx = fXs[0] - ax, dy = fYs[0] - ay;
+  pinchScale = Math.sqrt(dx * dx + dy * dy) / pinchD0;
+  let r = Math.atan2(dy, dx) - pinchA0;
+  while (r > Math.PI) r -= 2 * Math.PI;
+  while (r < -Math.PI) r += 2 * Math.PI;
+  pinchRot = r;
+  if (nodes[grabber].alive) fireGesture(grabber, PPINCH, (ax + fXs[0]) / 2, (ay + fYs[0]) / 2, 1);
+}
+function pinchEnd(ax: number, ay: number): void {
+  pinching = false;
+  const bx = fXs.length > 0 ? fXs[0] : ax, by = fYs.length > 0 ? fYs[0] : ay;
+  if (nodes[grabber].alive) fireGesture(grabber, PPINCH, (ax + bx) / 2, (ay + by) / 2, 2);
+}
+/** A finger other than the pointer one: phase 0 down, 1 move, 2 up. */
+function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
+  const i = fIds.indexOf(id);
+  if (phase === 0) { if (i < 0) { fIds.push(id); fXs.push(x); fYs.push(y); if (fIds.length === 1) secondFinger(); } return; }
+  if (i < 0) return;
+  fXs[i] = x; fYs[i] = y;
+  if (phase === 2) {
+    if (i === 0 && pinching) pinchEnd(ptrX, ptrY);
+    fIds.splice(i, 1); fXs.splice(i, 1); fYs.splice(i, 1);
+  } else if (i === 0 && pinching) pinchUpdate(ptrX, ptrY);
+}
+/** HAL touch screens: the pointer already follows the first finger (mouse emulation); the others come from here. */
+function halTouches(): void {
+  const n = touchCount();
+  const ids: i32[] = [];
+  for (let i = 0; i < n; i++) ids.push(touchId(i));
+  if (halPrimary >= 0 && ids.indexOf(halPrimary) < 0) halPrimary = -1;
+  if (halPrimary < 0 && halFingers.length === 0 && n > 0) halPrimary = ids[0];
+  for (const id of halFingers.slice()) if (ids.indexOf(id) < 0) {
+    const k = fIds.indexOf(id);
+    touchSecondary(id, k >= 0 ? fXs[k] : 0, k >= 0 ? fYs[k] : 0, 2);
+    halFingers.splice(halFingers.indexOf(id), 1);
+  }
+  for (let i = 0; i < n; i++) {
+    const id = ids[i];
+    if (id === halPrimary) continue;
+    const known = halFingers.indexOf(id) >= 0;
+    if (!known) halFingers.push(id);
+    touchSecondary(id, touchX(i), touchY(i), known ? 1 : 0);
+  }
+}
+/** Test hook: finger `id` at (x, y), phase 0 down, 1 move, 2 up. The first finger down drives the pointer (taps,
+ *  scrolling, drags); the next ones pinch. Deterministic multi-finger tests, like pointerAt. */
+export function touchAt(id: i32, x: number, y: number, phase: i32): void {
+  synthetic = true;
+  if (layoutDirty) layout();
+  if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
+  if (id === primaryId || (primaryId < 0 && phase === 0 && fIds.indexOf(id) < 0)) {
+    primaryId = phase === 2 ? -1 : id;
+    pointerSample(x, y, 0, phase !== 2);
+  } else touchSecondary(id, x, y, phase);
+  updateHover();
+}
+
+// ---- focus scopes, dismissal, outside presses: one record per node, following whether the node is on screen
+// (mounted and not hidden), so kit overlays that stay mounted and toggle `hidden` behave like mounted / unmounted ones.
+class Overlay {
+  node: i32;
+  scope = false; trap = false; restore = false; auto = false;
+  prev: i32 = -1;                                     // the focus when the scope showed
+  dismiss: (() => void) | null = null;
+  outside: ((e: PointerEvent) => void) | null = null;
+  except: i32 = -1;
+  shown = false; seq: i32 = 0;
+  constructor(node: i32) { this.node = node; }
+}
+const overlays: Overlay[] = [];
+let overlaySeq: i32 = 0, restoreTo: i32 = -1;
+function overlayOf(h: i32): Overlay {
+  for (const o of overlays) if (o.node === h) return o;
+  const o = new Overlay(h);
+  overlays.push(o);
+  return o;
+}
+export interface FocusScopeOptions { trap?: boolean; restore?: boolean; autoFocus?: boolean }
+/**
+ * Makes h a focus scope. trap: Tab / Shift+Tab and the arrow navigation cycle inside it while it is on screen (the
+ * latest shown trap wins). restore: when it leaves the screen, the focus goes back to where it was when it showed.
+ * autoFocus: when it shows, its first focusable node takes the focus.
+ */
+export function focusScope(h: i32, o: FocusScopeOptions): void {
+  const r = overlayOf(h);
+  r.scope = true; r.trap = o.trap ?? false; r.restore = o.restore ?? false; r.auto = o.autoFocus ?? false;
+}
+/** Escape closes the most recently shown node with a dismiss handler (a stack of overlays). */
+export function onDismiss(h: i32, f: () => void): void { overlayOf(h).dismiss = f; }
+/** f runs when a press lands outside h (and outside `except`, the button that toggles it) while h is on screen. */
+export function onOutsidePointer(h: i32, f: (e: PointerEvent) => void, except: i32 = -1): void { const r = overlayOf(h); r.outside = f; r.except = except; }
+/** The focused node is h or inside it (what focus-within: styles follow). */
+export function hasFocusWithin(h: i32): boolean { if (overlays.length > 0 || restoreTo >= 0) flushOverlays(); return focus >= 0 && isAncestor(h, focus); }
+/** Mounted, not hidden, and on screen (reaches the root, or is a free layer). */
+function shownNow(h: i32): boolean {
+  if (h < 0 || h >= nodes.length) return false;
+  for (let p = h; p >= 0; p = nodes[p].parent) {
+    const n = nodes[p];
+    if (!n.alive || n.hidden) return false;
+    if (p === root) return true;
+    if (n.parent < 0) return n.layer;
+  }
+  return false;
+}
+function flushOverlays(): void {
+  if (restoreTo >= 0) { const r = restoreTo; restoreTo = -1; if (focus < 0 && shownNow(r)) setFocusTo(r); }
+  for (let i = 0; i < overlays.length; i++) {
+    const o = overlays[i];
+    const vis = shownNow(o.node);
+    if (vis === o.shown) continue;
+    o.shown = vis;
+    if (vis) {
+      o.seq = ++overlaySeq;
+      if (!o.scope) continue;
+      o.prev = focus;
+      if (o.auto && (focus < 0 || !isAncestor(o.node, focus))) {
+        const l: i32[] = [];
+        focusables(o.node, l);
+        if (l.length > 1) tabOrder(l);
+        if (l.length > 0) setFocusTo(l[0]);
+      }
+    } else if (o.scope && o.restore && (focus < 0 || isAncestor(o.node, focus))) setFocusTo(o.prev >= 0 && shownNow(o.prev) ? o.prev : -1);
+  }
+}
+/** Where Tab and the arrows look for focusable nodes: the latest trap on screen, else the whole tree. */
+function focusRoot(): i32 {
+  let best: Overlay | null = null;
+  for (const o of overlays) if (o.trap && o.shown && (best === null || o.seq > (best as Overlay).seq)) best = o;
+  return best !== null ? (best as Overlay).node : root;
+}
+function tabIndexOf(h: i32): i32 { const s = nodes[h].hs; return s !== null ? (s as Handlers).tabIndex : 0; }
+/** Positive tabIndex first (ascending, stable), then the rest in tree order. */
+function tabOrder(list: i32[]): void {
+  const pos: i32[] = [], rest: i32[] = [];
+  for (const h of list) { if (tabIndexOf(h) > 0) pos.push(h); else rest.push(h); }
+  if (pos.length === 0) return;
+  for (let i = 1; i < pos.length; i++) {
+    const v = pos[i];
+    let j = i - 1;
+    while (j >= 0 && tabIndexOf(pos[j]) > tabIndexOf(v)) { pos[j + 1] = pos[j]; j--; }
+    pos[j + 1] = v;
+  }
+  let k: i32 = 0;
+  for (const h of pos) { list[k] = h; k++; }
+  for (const h of rest) { list[k] = h; k++; }
+}
+function dismissTop(): boolean {
+  let best: Overlay | null = null;
+  for (const o of overlays) if (o.dismiss !== null && o.shown && (best === null || o.seq > (best as Overlay).seq)) best = o;
+  if (best === null) return false;
+  const f = (best as Overlay).dismiss;
+  if (f !== null) f();
+  paintDirty = true;
+  return true;
+}
+function outsidePress(px: number, py: number, button: i32): void {
+  const t = hit(px, py, HIT_NODE);
+  for (const o of overlays.slice()) {
+    const f = o.outside;
+    if (f === null || !o.shown || (t >= 0 && isAncestor(o.node, t)) || (o.except >= 0 && t >= 0 && isAncestor(o.except, t))) continue;
+    const e = new PointerEvent();
+    e.gx = px; e.gy = py; e.x = px; e.y = py; e.button = button; e.mods = curMods;
+    f(e);
+    paintDirty = true;
+  }
+}
+/** A released node leaves every registry (handles are reused). */
+function forget(h: i32): void {
+  for (let i = overlays.length - 1; i >= 0; i--) if (overlays[i].node === h) {
+    const o = overlays[i];
+    if (o.shown && o.scope && o.restore && o.prev >= 0 && o.prev !== h) restoreTo = o.prev;
+    overlays.splice(i, 1);
+  }
+  for (let i = layers.length - 1; i >= 0; i--) if (layers[i].node === h) { layers.splice(i, 1); layoutDirty = true; }
+  for (let i = anchors.length - 1; i >= 0; i--) if (anchors[i].float === h || anchors[i].target === h) anchors.splice(i, 1);
+}
+
+// ---- keymaps (GPUI): bindKeys('cmd-s', 'save', 'Editor'); the deepest keyContext on the focus path that binds the
+// keystroke wins, global bindings ('' context) last; the action goes to the nearest onAction handler from the focus up,
+// then to the global ones (onAction(-1, ...)). Keys with Cmd / Ctrl are matched before a focused text field edits;
+// the others only when the field did not use them (typing never triggers a single-letter binding).
+class Binding {
+  stroke: string; key: string; mods: i32; action: string; ctx: string;
+  constructor(stroke: string, key: string, mods: i32, action: string, ctx: string) { this.stroke = stroke; this.key = key; this.mods = mods; this.action = action; this.ctx = ctx; }
+}
+const keymap: Binding[] = [];
+const globalActs: string[] = [], globalActFns: (() => void)[] = [];
+const PRIMARY_MOD: i32 = 16;   // 'mod-': Cmd or Ctrl
+// ponytail: one string instead of two arrays (smaller code on MCUs)
+const KEY_ALIASES = '|enter=Enter|return=Enter|escape=Escape|esc=Escape|tab=Tab|space= |backspace=Backspace|delete=Delete|up=ArrowUp|down=ArrowDown|left=ArrowLeft|right=ArrowRight|home=Home|end=End|pageup=PageUp|pagedown=PageDown|';
+/**
+ * Binds a keystroke to an action in a key context ('': everywhere). A keystroke is modifiers and a key joined by
+ * '-': 'cmd-s', 'ctrl-shift-p', 'mod-k' (Cmd or Ctrl), 'alt-up', 'escape', 'f5', 'j'. Later bindings win.
+ */
+export function bindKeys(keys: string, action: string, context: string = ''): void {
+  const parts = keys.split('-');
+  let key = parts[parts.length - 1];
+  let last: i32 = parts.length - 1;
+  if (key.length === 0 && parts.length >= 2) { key = '-'; last = parts.length - 2; }   // 'cmd--'
+  let mods: i32 = 0;
+  for (let i = 0; i < last; i++) {
+    const m = parts[i].toLowerCase();
+    mods = mods | (m === 'cmd' || m === 'meta' || m === 'super' ? META : m === 'ctrl' ? CTRL : m === 'alt' || m === 'option' ? ALT : m === 'shift' ? SHIFT : m === 'mod' ? PRIMARY_MOD : 0);
+  }
+  const l = key.toLowerCase(), a = KEY_ALIASES.indexOf(`|${l}=`);
+  const canon = a >= 0 ? KEY_ALIASES.slice(a + l.length + 2, KEY_ALIASES.indexOf('|', a + 1)) : l.length === 1 ? l : l.length >= 2 && l.charCodeAt(0) === 102 && l.charCodeAt(1) >= 48 && l.charCodeAt(1) <= 57 ? 'F' + l.slice(1) : key;
+  keymap.push(new Binding(keys, canon, mods, action, context));
+}
+/** A node's key context (keyContext="Editor"). */
+export function keyContext(h: i32, ctx: string): void { handlers(h).keyCtx = ctx; }
+/** Action handler of a node (runs while it or a descendant has the focus), or a global one with h = -1. */
+export function onAction(h: i32, action: string, f: () => void): void {
+  if (h < 0) {
+    const i = globalActs.indexOf(action);
+    if (i >= 0) globalActFns[i] = f; else { globalActs.push(action); globalActFns.push(f); }
+    return;
+  }
+  const s = handlers(h), i = s.acts.indexOf(action);
+  if (i >= 0) s.actFns[i] = f; else { s.acts.push(action); s.actFns.push(f); }
+}
+/** Keystrokes bound to an action, as written in bindKeys (menu and tooltip hints). */
+export function keysFor(action: string): string[] { const out: string[] = []; for (const b of keymap) if (b.action === action) out.push(b.stroke); return out; }
+/** Runs an action as its keystroke would (menus, command palettes); false when nothing handles it. */
+export function dispatchAction(action: string): boolean {
+  for (let p = focus; p >= 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s === null) continue;
+    const i = (s as Handlers).acts.indexOf(action);
+    if (i >= 0 && !isDisabled(p)) { const f = (s as Handlers).actFns[i]; f(); paintDirty = true; return true; }
+  }
+  const i = globalActs.indexOf(action);
+  if (i < 0) return false;
+  const f = globalActFns[i];
+  f();
+  paintDirty = true;
+  return true;
+}
+function bindingIn(ctx: string, key: string, mods: i32): string {
+  for (let i = keymap.length - 1; i >= 0; i--) {
+    const b = keymap[i];
+    if (b.ctx !== ctx || b.key !== key) continue;
+    const ok = (b.mods & PRIMARY_MOD) !== 0 ? (mods & (CTRL | META)) !== 0 && (mods & (SHIFT | ALT)) === (b.mods & (SHIFT | ALT)) : (mods & 15) === b.mods;
+    if (ok) return b.action;
+  }
+  return '';
+}
+function runKeymap(key: string, mods: i32): boolean {
+  let action = '';
+  for (let p = focus; p >= 0 && action.length === 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s !== null && (s as Handlers).keyCtx.length > 0) action = bindingIn((s as Handlers).keyCtx, key, mods);
+  }
+  if (action.length === 0) action = bindingIn('', key, mods);
+  return action.length > 0 && dispatchAction(action);
+}
+
+// ---- layers (GPUI deferred): a layer node stays where it is in the tree (its component owns it), but is laid out on
+// the whole surface (absolute: its classes place it, or ui.anchor), painted after the root in priority order and
+// hit-tested first; the overflow clipping of its ancestors does not apply. A modal layer blocks everything below it.
+export interface LayerOptions { priority?: i32; modal?: boolean; backdrop?: i32; backdropAlpha?: i32 }
+class Layer {
+  node: i32; priority: i32 = 0; modal = false; backdrop: i32 = -1; alpha: i32 = 110; seq: i32 = 0;
+  constructor(node: i32) { this.node = node; }
+}
+const layers: Layer[] = [];   // bottom first: priority, then opening order
+let layerSeq: i32 = 0, layerPass: i32 = -1;
+/** Opens (or updates) a layer; backdrop: a colour drawn over the whole surface below it (backdropAlpha, default 110). */
+export function openLayer(h: i32, o: LayerOptions): void {
+  let l: Layer | null = null;
+  for (let i = 0; i < layers.length; i++) if (layers[i].node === h) { l = layers[i]; layers.splice(i, 1); break; }
+  if (l === null) { l = new Layer(h); l.seq = ++layerSeq; layoutDirty = true; }
+  const ll = l as Layer;
+  ll.priority = o.priority ?? 0; ll.modal = o.modal ?? false; ll.backdrop = o.backdrop ?? -1; ll.alpha = o.backdropAlpha ?? 110;
+  layers.push(ll);
+  let at: i32 = layers.length - 1;
+  while (at > 0 && (layers[at - 1].priority > ll.priority || (layers[at - 1].priority === ll.priority && layers[at - 1].seq > ll.seq))) { layers[at] = layers[at - 1]; at--; }
+  layers[at] = ll;
+  node(h).layer = true;
+  paintDirty = true;
+}
+/** Back into its parent's flow. */
+export function closeLayer(h: i32): void {
+  for (let i = layers.length - 1; i >= 0; i--) if (layers[i].node === h) layers.splice(i, 1);
+  node(h).layer = false;
+  layoutDirty = true;
+}
+function layoutLayers(): void {
+  const W: number = width(), H: number = height();
+  for (const l of layers) {
+    if (!shownNow(l.node)) continue;
+    const n = nodes[l.node];
+    measure(n, W, H);
+    let cw: number = n.fullW ? W : n.lw, ch: number = n.fullH ? H : n.lh;
+    if (n.left !== UNSET && n.right !== UNSET) cw = W - n.left - n.right;
+    if (n.top !== UNSET && n.bottom !== UNSET) ch = H - n.top - n.bottom;
+    place(n, n.left !== UNSET ? n.left : n.right !== UNSET ? W - n.right - cw : 0, n.top !== UNSET ? n.top : n.bottom !== UNSET ? H - n.bottom - ch : 0, cw, ch);
+  }
+}
+function paintLayers(): void {
+  for (const l of layers) {
+    if (!shownNow(l.node)) continue;
+    if (l.backdrop >= 0) rrect(0, 0, width(), height(), 0, l.backdrop, l.alpha);
+    layerPass = l.node;
+    paint(l.node, 0, 0, 1, 1);
+    layerPass = -1;
+  }
+}
+/** Topmost layer's answer at (px, py): a node, -1 when a modal layer blocks what is below, -2: go on to the tree.
+ *  axes > 0: the scroll container (scrollerAt) instead of a hit. */
+function layerHit(px: number, py: number, mode: i32, axes: i32): i32 {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const l = layers[i];
+    if (!shownNow(l.node)) continue;
+    layerPass = l.node;
+    const r = axes > 0 ? scrollerAt(l.node, px, py, 0, 0, 1, axes) : hitIn(l.node, px, py, 0, 0, 1, mode);
+    layerPass = -1;
+    if (r >= 0) return r;
+    if (l.modal) return -1;
+  }
+  return -2;
+}
+function scrollerTop(px: number, py: number, axes: i32): i32 {
+  if (axes === 0) return -1;
+  if (layers.length > 0) { const l = layerHit(px, py, HIT_ANY, axes); if (l !== -2) return l; }
+  return root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, axes);
+}
+
+// ---- anchored positioning (GPUI anchored): a float placed next to a target node or point on every frame, flipped to
+// the other side when it does not fit, and kept `margin` px inside the surface.
+class Anchor {
+  float: i32; target: i32; px: number = 0; py: number = 0;
+  side: i32 = 0; align: i32 = 0; offset: number = 4; flip = true; margin: number = 8;
+  constructor(float: i32, target: i32) { this.float = float; this.target = target; }
+}
+const anchors: Anchor[] = [];
+const SIDES: string[] = ['bottom', 'top', 'right', 'left'];
+function setAnchor(float: i32, target: i32, x: number, y: number, placement: string, offset: number, flip: boolean, margin: number): void {
+  let a: Anchor | null = null;
+  for (const b of anchors) if (b.float === float) a = b;
+  if (a === null) { a = new Anchor(float, target); anchors.push(a); }
+  const aa = a as Anchor;
+  const dash = placement.indexOf('-');
+  const side = SIDES.indexOf(dash < 0 ? placement : placement.slice(0, dash)), al = dash < 0 ? '' : placement.slice(dash + 1);
+  aa.target = target; aa.px = x; aa.py = y; aa.side = side < 0 ? 0 : side; aa.align = al === 'start' ? 0 : al === 'end' ? 2 : 1;
+  aa.offset = offset; aa.flip = flip; aa.margin = margin;
+  paintDirty = true;
+}
+/** Places `float` next to `target`: placement 'bottom' | 'top' | 'left' | 'right', optionally '-start' / '-end'. */
+export function anchor(float: i32, target: i32, placement: string = 'bottom-start', offset: number = 4, flip: boolean = true, margin: number = 8): void {
+  setAnchor(float, target, 0, 0, placement, offset, flip, margin);
+}
+/** Same, next to a surface point (context menus). */
+export function anchorPoint(float: i32, x: number, y: number, placement: string = 'bottom-start', offset: number = 0, flip: boolean = true, margin: number = 8): void {
+  setAnchor(float, -1, x, y, placement, offset, flip, margin);
+}
+export function unanchor(float: i32): void { for (let i = anchors.length - 1; i >= 0; i--) if (anchors[i].float === float) anchors.splice(i, 1); }
+/** Room on side s (0 bottom, 1 top, 2 right, 3 left) of the box (x, y, w, h). */
+function roomOn(s: i32, x: number, y: number, w: number, h: number, off: number, m: number): number {
+  return s === 0 ? height() - m - (y + h + off) : s === 1 ? y - off - m : s === 2 ? width() - m - (x + w + off) : x - off - m;
+}
+function applyAnchors(): void {
+  const W: number = width(), H: number = height();
+  for (const a of anchors) {
+    if (!shownNow(a.float) || (a.target >= 0 && !shownNow(a.target))) continue;
+    let tx: number = a.px, ty: number = a.py, tw: number = 0, th: number = 0;
+    if (a.target >= 0) { boxOf(a.target); tx = boxX; ty = boxY; tw = nodes[a.target].lw * boxK; th = nodes[a.target].lh * boxK; }
+    const n = nodes[a.float], fw = n.lw, fh = n.lh, m = a.margin;
+    let side = a.side;
+    const here = roomOn(side, tx, ty, tw, th, a.offset, m);
+    if (a.flip && here < (side <= 1 ? fh : fw) && roomOn(side ^ 1, tx, ty, tw, th, a.offset, m) > here) side = side ^ 1;
+    let x: number = 0, y: number = 0;
+    if (side <= 1) {
+      y = side === 0 ? ty + th + a.offset : ty - a.offset - fh;
+      x = a.align === 0 ? tx : a.align === 2 ? tx + tw - fw : tx + (tw - fw) / 2;
+    } else {
+      x = side === 2 ? tx + tw + a.offset : tx - a.offset - fw;
+      y = a.align === 0 ? ty : a.align === 2 ? ty + th - fh : ty + (th - fh) / 2;
+    }
+    x = Math.round(Math.max(m, Math.min(x, W - m - fw)));
+    y = Math.round(Math.max(m, Math.min(y, H - m - fh)));
+    boxOf(a.float);
+    const dx = x - (boxX - n.tx * boxK), dy = y - (boxY - n.ty * boxK);
+    if (dx !== 0 || dy !== 0) { place(n, n.x + dx / boxK, n.y + dy / boxK, n.lw, n.lh); paintDirty = true; hoverDirty = true; }
+  }
 }

@@ -1,0 +1,34 @@
+t=0.00 score=0 hits=0 flip=0.50,2.64 plunger=0.00 | b0 19.73,39.60 z=0.00 v=0.00,0.06 L0 | b1 8.20,33.50 z=0.00 v=0.00,0.06 L0
+t=0.47 score=1 hits=2 flip=-0.45,2.64 plunger=0.31 | b0 19.73,40.13 z=0.00 v=0.00,1.85 L0 | b1 6.80,35.32 z=0.00 v=-5.92,7.85 L0
+t=0.94 score=3 hits=16 flip=-0.45,2.64 plunger=0.00 | b0 19.73,32.70 z=0.00 v=0.00,-138.58 L0 | b1 6.31,35.72 z=0.00 v=0.44,-2.40 L0
+t=1.41 score=55 hits=39 flip=-0.45,2.64 plunger=0.00 | b0 1.16,10.61 z=0.00 v=-1.80,82.49 L0 | b1 6.30,35.82 z=0.00 v=0.13,0.52 L0
+t=1.88 score=555 hits=42 flip=-0.45,2.64 plunger=0.00 | b0 7.54,19.41 z=0.00 v=15.81,20.85 L0 | b1 6.31,35.82 z=0.00 v=0.14,0.57 L0
+t=2.34 score=565 hits=43 flip=0.50,2.64 plunger=0.00 | b0 8.79,32.41 z=0.00 v=-64.19,7.73 L0 | b1 6.45,35.96 z=0.00 v=2.31,3.40 L0
+t=2.81 score=577 hits=49 flip=0.50,2.64 plunger=0.00 | b0 15.52,20.94 z=0.00 v=-10.30,35.19 L0 | b1 9.31,37.89 z=0.00 v=9.78,6.81 L0
+step 3153: ball 1 drained
+t=3.28 score=587 hits=54 flip=0.50,2.64 plunger=0.00 | b0 16.73,21.37 z=0.00 v=-14.58,2.07 L0
+t=3.75 score=587 hits=55 flip=0.50,2.64 plunger=0.00 | b0 17.04,27.23 z=0.00 v=5.11,25.33 L0
+t=4.22 score=597 hits=60 flip=0.50,2.64 plunger=0.00 | b0 16.00,25.74 z=0.00 v=-8.01,6.26 L0
+t=4.69 score=597 hits=60 flip=0.50,3.59 plunger=0.00 | b0 12.14,35.00 z=0.00 v=-8.01,33.44 L0
+t=5.16 score=599 hits=62 flip=-0.45,2.64 plunger=0.00 | b0 5.98,34.30 z=0.00 v=-8.26,-2.39 L0
+t=5.63 score=599 hits=65 flip=0.50,2.64 plunger=0.00 | b0 5.42,34.97 z=0.00 v=5.82,6.03 L0
+t=5.98 score=851 hits=68 flip=0.50,3.19 plunger=0.00 | b0 8.57,37.33 z=0.00 v=11.51,7.02 L0 | b2 13.70,13.59 z=0.00 v=0.00,-79.92 L1
+t=6.09 score=852 hits=74 flip=0.50,2.64 plunger=0.00 | b0 9.92,38.38 z=0.00 v=11.74,10.95 L0 | b2 15.34,6.77 z=0.00 v=43.35,-2.22 L1
+t=6.21 score=1103 hits=82 flip=0.50,2.64 plunger=0.00 | b0 10.30,40.05 z=0.00 v=4.33,17.61 L0 | b2 18.00,10.04 z=2.80 v=2.70,46.54 L2
+step 6441: ball 0 drained
+t=6.33 score=1103 hits=84 flip=0.50,2.64 plunger=0.00 | b2 18.01,16.05 z=2.80 v=0.00,56.64 L2
+t=6.45 score=1103 hits=84 flip=0.50,2.64 plunger=0.00 | b2 18.01,23.28 z=2.80 v=0.00,66.95 L2
+t=6.56 score=1403 hits=88 flip=0.50,2.64 plunger=0.00 | b2 16.64,30.89 z=0.00 v=1.29,68.95 L0
+t=6.68 score=1403 hits=91 flip=0.50,2.64 plunger=0.00 | b2 14.46,34.38 z=0.00 v=-23.91,15.74 L0
+t=6.80 score=1403 hits=91 flip=0.50,2.64 plunger=0.00 | b2 11.64,36.61 z=0.00 v=-23.91,22.54 L0
+t=6.91 score=1404 hits=92 flip=-0.45,2.64 plunger=0.00 | b2 8.75,38.66 z=0.00 v=-25.10,15.13 L0
+t=7.03 score=1404 hits=92 flip=-0.45,2.64 plunger=0.00 | b2 5.79,40.82 z=0.00 v=-25.10,21.93 L0
+step 7236: ball 2 drained
+t=7.15 score=1404 hits=93 flip=-0.17,2.64 plunger=0.00
+t=7.27 score=1404 hits=93 flip=0.50,2.64 plunger=0.00
+t=7.50 score=1404 hits=93 flip=0.50,3.59 plunger=0.00
+t=7.97 score=1404 hits=93 flip=0.50,2.64 plunger=0.00
+t=8.44 score=1404 hits=93 flip=0.50,2.64 plunger=0.00
+t=8.91 score=1404 hits=93 flip=0.50,2.64 plunger=0.00
+t=9.38 score=1404 hits=93 flip=0.50,2.64 plunger=0.00
+final score 1404, 0 ball(s) left

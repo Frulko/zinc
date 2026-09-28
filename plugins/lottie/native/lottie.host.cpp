@@ -44,6 +44,8 @@ struct JV {
   const char* s; uint32_t sl;     // string (raw, escapes kept)
   double num;
 };
+// JSON numbers are untrusted doubles: out-of-range double -> int conversions are UB, this one saturates (NaN: 0)
+static inline int32_t i32(double v) { return v >= -2147483648.0 && v < 2147483648.0 ? (int32_t)v : v > 0 ? 2147483647 : v < 0 ? -2147483647 - 1 : 0; }
 struct Json {
   Vec<JV> v;
   const char *p, *end;
@@ -252,7 +254,7 @@ struct Builder {
       Item it; memset(&it, 0, sizeof it);
       it.kids = it.tr = -1;
       it.hidden = J.num(c, "hd", 0) != 0;
-      it.dir = (uint8_t)J.num(c, "d", 1);
+      it.dir = (uint8_t)i32(J.num(c, "d", 1));
       if (J.streq(ty, "gr")) {
         it.ty = GROUP;
         int32_t n = 0, t = -1;
@@ -262,25 +264,25 @@ struct Builder {
       else if (J.streq(ty, "rc")) { it.ty = RECT; it.p[0] = prop(J.get(c, "p")); it.p[1] = prop(J.get(c, "s")); it.p[2] = prop(J.get(c, "r")); }
       else if (J.streq(ty, "el")) { it.ty = ELLIPSE; it.p[0] = prop(J.get(c, "p")); it.p[1] = prop(J.get(c, "s")); }
       else if (J.streq(ty, "sr")) {
-        it.ty = STAR; it.a = (uint8_t)J.num(c, "sy", 1);
+        it.ty = STAR; it.a = (uint8_t)i32(J.num(c, "sy", 1));
         it.p[0] = prop(J.get(c, "p")); it.p[1] = prop(J.get(c, "or")); it.p[2] = prop(J.get(c, "ir")); it.p[3] = prop(J.get(c, "pt")); it.p[4] = prop(J.get(c, "r"));
       } else if (J.streq(ty, "fl") || J.streq(ty, "st")) {
         it.ty = J.streq(ty, "fl") ? FILL : STROKE;
         it.p[0] = prop(J.get(c, "c")); it.p[1] = prop(J.get(c, "o")); it.p[2] = prop(J.get(c, "w"));
-        it.a = (uint8_t)J.num(c, it.ty == FILL ? "r" : "lc", it.ty == FILL ? 1 : 2); it.b = (uint8_t)J.num(c, "lj", 2); it.ml = (float)J.num(c, "ml", 4);
+        it.a = (uint8_t)i32(J.num(c, it.ty == FILL ? "r" : "lc", it.ty == FILL ? 1 : 2)); it.b = (uint8_t)i32(J.num(c, "lj", 2)); it.ml = (float)J.num(c, "ml", 4);
       } else if (J.streq(ty, "gf") || J.streq(ty, "gs")) {
         it.ty = J.streq(ty, "gf") ? GFILL : GSTROKE;
         int32_t g = J.get(c, "g");
-        it.a = (uint8_t)J.num(g, "p", 2); it.b = (uint8_t)J.num(c, "t", 1);
+        it.a = (uint8_t)i32(J.num(g, "p", 2)); it.b = (uint8_t)i32(J.num(c, "t", 1));
         it.p[0] = prop(J.get(g, "k")); it.p[1] = prop(J.get(c, "o")); it.p[2] = prop(J.get(c, "s")); it.p[3] = prop(J.get(c, "e")); it.p[4] = prop(J.get(c, "w"));
         it.ml = (float)J.num(c, "ml", 4);
-        uint8_t lc = (uint8_t)J.num(c, "lc", 2), lj = (uint8_t)J.num(c, "lj", 2);
+        uint8_t lc = (uint8_t)i32(J.num(c, "lc", 2)), lj = (uint8_t)i32(J.num(c, "lj", 2));
         it.dir = (uint8_t)(lc | (lj << 4));  // gradient strokes keep cap/join here (a, b hold the gradient)
       } else if (J.streq(ty, "tm")) {
-        it.ty = TRIM; it.a = (uint8_t)J.num(c, "m", 1);
+        it.ty = TRIM; it.a = (uint8_t)i32(J.num(c, "m", 1));
         it.p[0] = prop(J.get(c, "s")); it.p[1] = prop(J.get(c, "e")); it.p[2] = prop(J.get(c, "o"));
       } else if (J.streq(ty, "rp")) {
-        it.ty = REPEATER; it.b = (uint8_t)J.num(c, "m", 1);
+        it.ty = REPEATER; it.b = (uint8_t)i32(J.num(c, "m", 1));
         it.p[0] = prop(J.get(c, "c")); it.p[1] = prop(J.get(c, "o"));
         it.tr = transform(J.get(c, "tr"));
       } else continue;  // unsupported: merge paths, round corners, offset, pucker, twist, zig-zag
@@ -308,11 +310,11 @@ struct Builder {
     for (int32_t c = arr >= 0 ? J.v[arr].first : -1; c >= 0; c = J.v[c].next) {
       Layer L; memset(&L, 0, sizeof L);
       animated = false;
-      L.ty = (uint8_t)J.num(c, "ty", -1);
+      L.ty = (uint8_t)i32(J.num(c, "ty", -1));
       L.hidden = J.num(c, "hd", 0) != 0;
       L.matte = J.num(c, "td", 0) != 0;
-      L.ind = (int32_t)J.num(c, "ind", -1);
-      L.parent = (int32_t)J.num(c, "parent", -1);
+      L.ind = (int32_t)i32(J.num(c, "ind", -1));
+      L.parent = (int32_t)i32(J.num(c, "parent", -1));
       L.ip = (float)J.num(c, "ip", 0); L.op = (float)J.num(c, "op", 1e9);
       L.st = (float)J.num(c, "st", 0); L.sr = (float)J.num(c, "sr", 1);
       if (L.sr == 0) L.sr = 1;
@@ -489,7 +491,7 @@ static void flatten(const float* v, uint32_t n, bool closed, const Mat& m) {
     if (a[4] == 0 && a[5] == 0 && b[2] == 0 && b[3] == 0) { piece_point(G, head, P1[0], P1[1]); continue; }
     float ddx = fabsf(P0[0] - 2 * C1[0] + C2[0]) > fabsf(C1[0] - 2 * C2[0] + P1[0]) ? P0[0] - 2 * C1[0] + C2[0] : C1[0] - 2 * C2[0] + P1[0];
     float ddy = fabsf(P0[1] - 2 * C1[1] + C2[1]) > fabsf(C1[1] - 2 * C2[1] + P1[1]) ? P0[1] - 2 * C1[1] + C2[1] : C1[1] - 2 * C2[1] + P1[1];
-    int k = (int)ceilf(sqrtf(sqrtf(ddx * ddx + ddy * ddy) * 0.75f / TOL));
+    int k = i32(ceilf(sqrtf(sqrtf(ddx * ddx + ddy * ddy) * 0.75f / TOL)));
     if (k < 1) k = 1; if (k > 64) k = 64;
     for (int q = 1; q <= k; q++) {
       float s = (float)q / k, m1 = 1 - s, w0 = m1 * m1 * m1, w1 = 3 * m1 * m1 * s, w2 = 3 * m1 * s * s, w3 = s * s * s;
@@ -546,7 +548,7 @@ static void gen_shape(const Anim& A, const Item& it, float t, const Mat& m) {
     bez_vertex(x, y + h, kx, 0, -kx, 0); bez_vertex(x - w, y, 0, ky, 0, -ky);
   } else if (it.ty == STAR) {  // ponytail: roundness (os/is) ignored
     float orad = eval1(A, it.p[1], t, 0), irad = eval1(A, it.p[2], t, 0), pts = eval1(A, it.p[3], t, 5), rot = eval1(A, it.p[4], t, 0);
-    int n = (int)pts; if (n < 2) n = 2; if (n > 200) n = 200;
+    int n = i32(pts); if (n < 2) n = 2; if (n > 200) n = 200;
     bool star = it.a != 2;
     int verts = star ? n * 2 : n;
     float step = 6.2831853f / verts, a0 = (rot - 90) * 0.017453292f;
@@ -646,7 +648,7 @@ static void trim(const Anim& A, const Item& it, float t, uint32_t i0, uint32_t i
 static Vec<float> SD, FB;
 static void arc(Vec<float>& out, uint32_t head, float cx, float cy, float r, float a0, float da) {
   float step = r > TOL ? 2 * acosf(1 - TOL / r) : 1.0f;
-  int k = (int)ceilf(fabsf(da) / (step > 0.05f ? step : 0.05f));
+  int k = i32(ceilf(fabsf(da) / (step > 0.05f ? step : 0.05f)));
   if (k < 1) k = 1; if (k > 32) k = 32;
   for (int i = 0; i <= k; i++) { float a = a0 + da * i / k; piece_point(out, head, cx + cosf(a) * r, cy + sinf(a) * r); }
 }
@@ -826,7 +828,7 @@ static void paint(const Anim& A, const Op& op, float t, Vec<float>& out) {
       float dx = E[0] - S[0], dy = E[1] - S[1], L2 = dx * dx + dy * dy;
       const float* b = I[op.i0].box;
       bool vert = fabsf(dx) < 0.05f * fabsf(dy), horiz = fabsf(dy) < 0.05f * fabsf(dx);
-      int a8 = (int)(alpha * 255 + 0.5f);
+      int a8 = i32(alpha * 255 + 0.5f);
       if (L2 > 0 && (vert || horiz) && a8 > 0) {
         float p0x = vert ? S[0] : b[0], p0y = vert ? b[1] : S[1], p1x = vert ? S[0] : b[0] + b[2], p1y = vert ? b[1] + b[3] : S[1];
         float u0 = ((p0x - S[0]) * dx + (p0y - S[1]) * dy) / L2, u1 = ((p1x - S[0]) * dx + (p1y - S[1]) * dy) / L2;
@@ -835,7 +837,7 @@ static void paint(const Anim& A, const Op& op, float t, Vec<float>& out) {
       }
     }
   }
-  int a8 = (int)(alpha * 255 + 0.5f);
+  int a8 = i32(alpha * 255 + 0.5f);
   if (a8 <= 0) return;
   uint32_t head = out.n;
   float* h = out.add(4); h[0] = OP_PATH; h[1] = (float)color; h[2] = (float)(a8 > 255 ? 255 : a8);
@@ -890,6 +892,10 @@ static void walk_range(const Anim& A, int32_t list, int32_t from, int32_t to, co
     }
   }
 }
+// Work per drawn frame: repeaters (256 copies) nest and precomps may reference themselves (16 levels), so a small
+// file could expand to 256^k or N^16 draws; past this many layers and copies the rest of the frame is dropped.
+static uint32_t work = 0;
+static const uint32_t MAX_WORK = 100000;
 static void walk(const Anim& A, int32_t list, int32_t n, const Mat& m, float alpha, float t) {
   uint32_t start = I.n;
   int32_t rep = n;
@@ -898,14 +904,14 @@ static void walk(const Anim& A, int32_t list, int32_t n, const Mat& m, float alp
   // repeater: the items above it are drawn `copies` times, each copy one more step of its transform
   const Item& r = A.items[(uint32_t)A.lists[(uint32_t)(list + rep)]];
   const Tr& tr = A.trs[(uint32_t)r.tr];
-  int copies = (int)ceilf(eval1(A, r.p[0], t, 1)); if (copies > 256) copies = 256;
+  int copies = i32(ceilf(eval1(A, r.p[0], t, 1))); if (copies > 256) copies = 256;
   float offset = eval1(A, r.p[1], t, 0), so = eval1(A, tr.so, t, 100) / 100, eo = eval1(A, tr.eo, t, 100) / 100;
   Mat step = tr_mat(A, tr, t, nullptr);
-  for (int q = 0; q < copies; q++) {
+  for (int q = 0; q < copies && work; q++, work--) {
     int i = r.b == 2 ? q : copies - 1 - q;  // recorded ops paint in reverse: "above" puts later copies on top
     Mat mi = IDENT;
     float k = i + offset;
-    for (int s = 0; s < (int)fabsf(k) && s < 256; s++) mi = mul(mi, step);  // ponytail: integer steps (fractional offsets round down)
+    for (int s = 0; s < i32(fabsf(k)) && s < 256; s++) mi = mul(mi, step);  // ponytail: integer steps (fractional offsets round down)
     float op = copies > 1 ? so + (eo - so) * i / (copies - 1) : so;
     walk_range(A, list, 0, rep, mul(m, mi), alpha * op, t, start);
   }
@@ -950,7 +956,7 @@ static void render_layer(const Anim& A, const Layer& L, float t, const Mat& view
     float ti = L.has_tm ? eval1(A, L.tm, tl, 0) * (float)A.fr : (t - L.st) / L.sr;
     render_comp(A, L.comp, ti, m, a, out);
   } else if (L.ty == L_SOLID) {
-    int a8 = (int)(a * 255 + 0.5f);
+    int a8 = i32(a * 255 + 0.5f);
     if (m.b == 0 && m.c == 0) {
       float p0[2], p1[2]; apply(m, 0, 0, p0); apply(m, L.w, L.h, p1);
       emit_rect(out, L.color, (float)a8, p0[0] < p1[0] ? p0[0] : p1[0], p0[1] < p1[1] ? p0[1] : p1[1], fabsf(p1[0] - p0[0]), fabsf(p1[1] - p0[1]), 0);
@@ -972,7 +978,7 @@ static void render_comp(const Anim& A, int32_t comp, float t, const Mat& view, f
   if (comp < 0 || depth > 16) return;
   depth++;
   const Comp& c = A.comps[(uint32_t)comp];
-  for (int32_t i = c.n - 1; i >= 0; i--) {
+  for (int32_t i = c.n - 1; i >= 0 && work; i--, work--) {
     const Layer& L = A.layers[(uint32_t)(c.layers + i)];
     if (L.hidden || L.matte || L.ty == L_NULL || t < L.ip || t >= L.op) continue;
     render_layer(A, L, t, view, alpha, out);
@@ -1070,6 +1076,7 @@ struct LottieImpl : NativeLottie {
   void draw(int32_t a, double frame, double x, double y, double w, double h, int32_t alpha) override {
     Anim* A = at(a);
     if (!A || A->w <= 0 || A->h <= 0 || w <= 0 || h <= 0 || alpha <= 0) return;
+    work = MAX_WORK;
     float t = (float)(A->ip + frame), ip = (float)A->ip, op = (float)A->op;
     if (t > op - 0.001f) t = op - 0.001f;
     if (t < ip) t = ip;

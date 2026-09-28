@@ -9,6 +9,7 @@ export const [notifications, setNotifications] = createSignal<boolean>(true);
 export const [autoUpdate, setAutoUpdate] = createSignal<boolean>(false);
 export const [clicks, setClicks] = createSignal<i32>(0);
 export const [upload, setUpload] = createSignal<number>(0);
+export const [confirming, setConfirming] = createSignal<boolean>(false);
 
 /** Switches the whole kit between the light and the dark theme. */
 export function setDarkMode(on: boolean): void {

@@ -166,6 +166,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
     return s;
   }
 
+  zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
+
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }
 
   void http(Client& c) {
@@ -174,6 +176,19 @@ struct HostCdp : NativeCdp, zrt::Poller {
     *end = 0;
     char host[128] = "127.0.0.1:9229";
     if (const char* h = strcasestr(c.in, "\r\nHost:")) { h += 7; while (*h == ' ') h++; int i = 0; while (h[i] && h[i] != '\r' && i < 127) { host[i] = h[i]; i++; } host[i] = 0; }
+    // loopback only, and only for DevTools itself: a Host that is not local is DNS rebinding, an Origin other than the
+    // DevTools frontend is a web page in the developer's browser (it could screenshot the app and edit it)
+    const char* local[] = {"127.0.0.1", "localhost", "[::1]"};
+    bool host_ok = false;
+    for (const char* l : local) { size_t n = strlen(l); if (!strncmp(host, l, n) && (host[n] == 0 || host[n] == ':')) host_ok = true; }
+    const char* org = strcasestr(c.in, "\r\nOrigin:");
+    if (org) { org += 9; while (*org == ' ') org++; }
+    if (!host_ok || (org && strncmp(org, "devtools://", 11) && strncmp(org, "chrome-devtools://", 18))) {
+      static const char no[] = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+      write_all(c.fd, no, sizeof no - 1);
+      drop(c);
+      return;
+    }
     char out[1024];
     if (const char* k = strcasestr(c.in, "\r\nSec-WebSocket-Key:")) {
       k += 20; while (*k == ' ') k++;

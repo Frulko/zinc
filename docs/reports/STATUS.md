@@ -35,7 +35,7 @@ below were last run at increment 2 with 9 programs.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| CLI: check, build, run, test, export, init, dev, monitor, doctor, infer | ✅ | `bench`, `pack` missing |
+| CLI: check, build, run, test, bench, export, init, dev, monitor, doctor, infer | ✅ | `pack` missing |
 | Frontend TS 6 isolated, strict, `noLib` + zinc.d.ts, JSX lowering | ✅ | |
 | Diagnostics Z1xxx (forbidden), Z2/Z4 (memory/float), Z5 (modules), Z6 (UI), Z9 (unsupported), LSP JSON | 🟡 | no per-code fixture suite (TST-04) |
 | HIR / MIR / SSA passes (CMP-06/08) | 🟡 | `--emit=hir` (typed, desugared) and `--emit=mir` (SSA + CFG; folding, branch pruning, block merge, DCE), golden tests in `tests/golden`; inspection stages, the emitters still walk the AST (decision 0013); MIR skips try/async/generators; no inlining, devirtualisation, ranges, bounds, escape or RC passes |

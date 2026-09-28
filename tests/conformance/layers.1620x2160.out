@@ -1,0 +1,40 @@
+-- closed menu: nothing there
+hit under the menu none
+-- open: anchored under its button, outside the 80x30 clip, hit first
+menu 12,36,100,52 trigger 12,12,60,20
+Two 16,64,92,20 hit Two
+two
+open after Two false
+-- outside presses close it, the toggle button does not count as outside
+outside the menu at 300,200
+open false
+open true
+open false
+-- flip and clamp
+low 8,2132,60,20 tip (flipped above) 8,2086,120,40
+point float (kept 8 px inside) 315,10,90,30
+view 0,0 1620x2160
+  view 0,0 1620x2160
+    view 8,8 1604x30
+      view 8,8 80x30
+        button 12,12 60x20
+          text 20,16 43x22 "Menu"
+      button 96,8 60x20
+        text 107,12 37x22 "Plain"
+    view 8,46 1604x2078
+    button 8,2132 60x20
+      text 22,2136 32x22 "Low"
+    view 8,2086 120x40
+    view 315,10 90x30
+-- modal layer over the open menu, above it whatever the order
+modal 8,2052,160,80 menu open true modal open true
+hit on Two under the modal backdrop none on Plain none
+hit on Close Close
+-- Escape closes the latest overlay first
+dismiss modal
+menu open true modal open false
+dismiss menu
+menu open false modal open false
+-- a press on the backdrop reaches the modal outside handler only
+backdrop press
+modal open false

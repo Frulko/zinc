@@ -64,3 +64,9 @@ dev` reload), running children are killed with SIGKILL.
 untrusted input (network messages, a remote viewer, a web page in `zinc:webview`): pass untrusted values as separate
 `args` of a fixed program rather than through `sh -c`, and validate them against an allowlist of commands the app
 actually needs.
+
+The arguments reach the child as separate `argv` entries (`posix_spawnp`, no shell). They travel joined by U+001F, so
+`spawn` throws for an argument (or `cmd`, `cwd`, an `env` entry) containing U+001F or NUL rather than splitting it, and
+a single empty argument (`['']`) is dropped. Children inherit only stdin, stdout and stderr, never the program's
+sockets or files. The environment is the program's own plus `env`: pass secrets to a child explicitly, and remember
+every child sees what the program's environment holds.

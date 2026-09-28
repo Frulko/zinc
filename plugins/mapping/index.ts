@@ -6,14 +6,32 @@ import { readText, writeText } from 'zinc:fs';
 /** Applies one command of the address space: /layer/<n>/<key> args, /add, /remove, /clear, /move, /select,
  *  /save [path], /load [path], /sync host port. False when unknown or malformed. */
 export function command(address: string, numbers: number[], strings: string[]): boolean {
-  if (address === '/save') return save(strings.length > 0 ? strings[0] : 'mapping.json');
-  if (address === '/load') return load(strings.length > 0 ? strings[0] : 'mapping.json');
+  // commands arrive over the network (listen): /save and /load take a file name in the working directory, not a path
+  if (address === '/save' || address === '/load') {
+    const file = strings.length > 0 ? strings[0] : 'mapping.json';
+    if (!plainName(file)) return false;
+    return address === '/save' ? save(file) : load(file);
+  }
   if (address === '/sync') {
-    if (strings.length < 1 || numbers.length < 1) return false;
+    // each /sync answers with one datagram per layer to any host: at most 10 per second (no reflection flood)
+    if (strings.length < 1 || numbers.length < 1 || Date.now() - lastSync < 100) return false;
+    lastSync = Date.now();
     sync(strings[0], numbers[0]);
     return true;
   }
   return Native.command(address, numbers, strings);
+}
+
+let lastSync = -1e9;
+/** A file name without directories ("show.json"): no separator, no "..", not hidden. */
+function plainName(f: string): boolean {
+  if (f.length === 0 || f.length > 64 || f.startsWith('.')) return false;
+  for (let i = 0; i < f.length; i++) {
+    const c = f.charCodeAt(i);
+    const ok = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 45 || c === 46 || c === 95;
+    if (!ok) return false;
+  }
+  return true;
 }
 
 /** Appends a layer: source "pattern" | "solid" | "gradient" | "image". Returns its index, -1 when full. */

@@ -1,0 +1,21 @@
+// After node/test/parallel/test-fs-mkdir.js, test-fs-stat.js and test-fs-readdir-types.js.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-compat-'));
+fs.mkdirSync(path.join(dir, 'a/b/c'), { recursive: true });
+fs.writeFileSync(path.join(dir, 'a/f.txt'), 'xyz');
+const st = fs.statSync(path.join(dir, 'a/f.txt'));
+assert.ok(st.isFile() && !st.isDirectory());
+assert.strictEqual(st.size, 3);
+assert.ok(st.mtimeMs > 0);
+assert.ok(fs.statSync(path.join(dir, 'a/b')).isDirectory());
+const ents = fs.readdirSync(path.join(dir, 'a'), { withFileTypes: true }).map(d => `${d.name}:${d.isDirectory() ? 'd' : 'f'}`).sort();
+assert.deepStrictEqual(ents, ['b:d', 'f.txt:f']);
+assert.throws(() => fs.mkdirSync(path.join(dir, 'a')), { code: 'EEXIST' });
+fs.symlinkSync(path.join(dir, 'a/f.txt'), path.join(dir, 'link'));
+assert.ok(fs.lstatSync(path.join(dir, 'link')).isSymbolicLink());
+assert.strictEqual(fs.realpathSync(path.join(dir, 'link')), fs.realpathSync(path.join(dir, 'a/f.txt')));
+fs.rmSync(dir, { recursive: true, force: true });
+console.log('ZC:PASS');

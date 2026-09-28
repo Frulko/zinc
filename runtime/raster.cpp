@@ -12,8 +12,13 @@ static inline float clampf(float v, float a, float b) { return v < a ? a : v > b
 #else
 #define ZRT_TLS
 #endif
-static inline int32_t ifloor(float v) { int32_t i = (int32_t)v; return (float)i > v ? i - 1 : i; }
-static inline int32_t iceil(float v) { int32_t i = (int32_t)v; return (float)i < v ? i + 1 : i; }
+// float -> int saturates at +-2^27 (NaN goes low): out-of-range casts are UB, and coordinates come from programs
+static inline int32_t f2i(float v) { return (int32_t)__builtin_fminf(__builtin_fmaxf(v, -134217728.0f), 134217728.0f); }  // fmax: NaN -> low
+static inline int32_t ifloor(float v) { int32_t i = f2i(v); return (float)i > v ? i - 1 : i; }
+static inline int32_t iceil(float v) { int32_t i = f2i(v); return (float)i < v ? i + 1 : i; }
+// per-pixel / per-sample paths: the caller keeps v in int range (clamped, or bounded by a checked scale)
+static inline int32_t ifloor_fast(float v) { int32_t i = (int32_t)v; return (float)i > v ? i - 1 : i; }
+static inline int32_t iceil_fast(float v) { int32_t i = (int32_t)v; return (float)i < v ? i + 1 : i; }
 
 static inline void blend(uint32_t& d, uint32_t c, uint32_t a) {
   if (a >= 255) { d = c; return; }
@@ -201,7 +206,7 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
     for (int32_t i = 0; i < cnt; i++) {
       int32_t j = i + 1 == cnt ? 0 : i + 1;
       float ax = v[i * 2], ay = v[i * 2 + 1], bx = v[j * 2], by = v[j * 2 + 1];
-      if (ay == by) continue;
+      if (!(ay < by || ay > by)) continue;  // horizontal, or NaN: no edge (a NaN row would index heads[] out of range)
       int32_t d = 1;
       if (ay > by) { float tx = ax, ty = ay; ax = bx; ay = by; bx = tx; by = ty; d = -1; }
       if (by <= b.y0 || ay >= b.y1) continue;
@@ -230,9 +235,8 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
       for (uint32_t a = 0; a < na; a++) {
         const Edge& e = edges[active[a]];
         if (sy < e.y0 || sy >= e.y1) continue;
-        int32_t q = iceil((e.x0 + (sy - e.y0) * e.dxdy - b.x0) * 4 - 0.5f);
-        if (q < 0) q = 0;
-        if (q > bw * 4) q = bw * 4;
+        float fq = (e.x0 + (sy - e.y0) * e.dxdy - b.x0) * 4 - 0.5f, lim = (float)(bw * 4);
+        int32_t q = fq > 0 ? (fq < lim ? iceil_fast(fq) : bw * 4) : 0;  // clamped as a float first (NaN: 0)
         wd[q] = (int16_t)(wd[q] + e.d);
         if (q < qlo) qlo = q;
         if (q > qhi) qhi = q;
@@ -285,7 +289,7 @@ int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   for (uint32_t i = 0; i < n;) {
     const Glyph* g = glyph_of(font, f, next_cp(s, n, i));
     if (!g) g = glyph_of(font, f, '?');
-    if (g) pen += g->adv + (int32_t)(tracking * 64);
+    if (g) pen += g->adv + f2i(tracking * 64);
   }
   return pen;
 }
@@ -293,7 +297,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   const Font* fp = font_at(c.res);
   if (!fp) return;
   const Font& f = *fp;
-  int32_t pen = (int32_t)(c.x * 64), base = (int32_t)(c.y + 0.5f) + f.ascent;
+  int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
   for (uint32_t i = 0; i < c.n;) {
     const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
     if (!g) g = glyph_of(c.res, f, '?');
@@ -309,7 +313,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
         blend(at(t, x, y), c.c1, (uint32_t)row[xx] * c.alpha / 255);
       }
     }
-    pen += g->adv + (int32_t)(c.s * 64);
+    pen += g->adv + f2i(c.s * 64);
   }
 }
 // ---------------------------------------------------------------- runtime images
@@ -323,7 +327,10 @@ int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
   for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) if (!dyn[i].used) { dyn[i] = Dyn{px, nullptr, w, h, stride ? stride : w, 1, true}; return DYN_BASE + i; }
   return -1;
 }
+// w x h x 4 must not overflow size_t on 32-bit targets (a wrapped size is a heap overflow): 16384 per side at most
+static bool dyn_size_ok(int32_t w, int32_t h) { return w > 0 && h > 0 && w <= 16384 && h <= 16384; }
 int32_t dyn_create(int32_t w, int32_t h) {
+  if (!dyn_size_ok(w, h)) return -1;
   uint32_t* px = (uint32_t*)hal_alloc((size_t)w * h * 4);
   if (!px) return -1;
   __builtin_memset(px, 0, (size_t)w * h * 4);
@@ -337,9 +344,11 @@ void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
 uint32_t* dyn_pixels(int32_t id) { Dyn* d = dyn_at(id); return d ? d->owned : nullptr; }
 void dyn_resize(int32_t id, int32_t w, int32_t h) {
   Dyn* d = dyn_at(id);
-  if (!d || !d->owned || (d->w == w && d->h == h)) return;
+  if (!d || !d->owned || (d->w == w && d->h == h) || !dyn_size_ok(w, h)) return;
+  uint32_t* px = (uint32_t*)hal_alloc((size_t)w * h * 4);
+  if (!px) return;
   hal_free(d->owned);
-  d->owned = (uint32_t*)hal_alloc((size_t)w * h * 4);
+  d->owned = px;
   __builtin_memset(d->owned, 0, (size_t)w * h * 4);
   d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version++;
 }
@@ -361,14 +370,14 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   bool plain = c.alpha == 255 && c.r <= 0;
   // 16.16 stepping, nearest sample: the fast path for video and camera frames (1:1 is a row copy)
-  int32_t sx = (int32_t)((float)im.w / c.w * 65536), sy = (int32_t)((float)im.h / c.h * 65536);
+  int32_t sx = f2i((float)im.w / c.w * 65536), sy = f2i((float)im.h / c.h * 65536);
   bool nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
   for (int32_t y = b.y0; y < b.y1; y++) {
     if (nearest) {
       int32_t iy = (int32_t)(((int64_t)((y - c.y) * 65536)) * sy >> 32); if (iy < 0) iy = 0; if (iy >= im.h) iy = im.h - 1;
       const uint32_t* src = im.px + (size_t)iy * im.stride;
-      int32_t fx0 = (int32_t)((b.x0 + 0.5f - c.x) * sx);
+      int32_t fx0 = f2i((b.x0 + 0.5f - c.x) * sx); if (fx0 < 0) fx0 = 0;
       if (plain && sx == 65536) { int32_t ix = fx0 >> 16; if (ix < 0) ix = 0; int32_t n = b.x1 - b.x0; if (ix + n > im.w) n = im.w - ix; if (n > 0) __builtin_memcpy(&at(t, b.x0, y), src + ix, (size_t)n * 4); continue; }
       for (int32_t x = b.x0, fx = fx0; x < b.x1; x++, fx += sx) {
         int32_t ix = fx >> 16; if (ix >= im.w) ix = im.w - 1;
@@ -379,11 +388,11 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
       continue;
     }
     float fy = (y + 0.5f - c.y) * im.h / c.h - 0.5f;
-    int32_t y0i = ifloor(fy); float ty = fy - y0i;
+    int32_t y0i = ifloor_fast(fy); float ty = fy - y0i;
     int32_t ya = y0i < 0 ? 0 : y0i >= im.h ? im.h - 1 : y0i, yb = y0i + 1 >= im.h ? im.h - 1 : y0i + 1 < 0 ? 0 : y0i + 1;
     for (int32_t x = b.x0; x < b.x1; x++) {
       float fx = (x + 0.5f - c.x) * im.w / c.w - 0.5f;
-      int32_t x0i = ifloor(fx); float tx = fx - x0i;
+      int32_t x0i = ifloor_fast(fx); float tx = fx - x0i;
       int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
       uint32_t p00 = im.px[ya * im.stride + xa], p01 = im.px[ya * im.stride + xb], p10 = im.px[yb * im.stride + xa], p11 = im.px[yb * im.stride + xb];
       uint32_t out = 0;
@@ -399,20 +408,22 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
 }
 
 static void draw_image(const Target& t, const Cmd& c) {
-  if (c.w <= 0 || c.h <= 0) return;
-  if (const Dyn* d = dyn_at(c.res)) { if (d->px) draw_dyn(t, c, *d); return; }
+  // sample positions (x - c.x) * scale stay in int range: finite origin and size, at most 1e6 texels per pixel
+  if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
+  if (const Dyn* d = dyn_at(c.res)) { if (d->px && (float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d); return; }
   if (c.res < 0 || c.res >= image_count) return;
   const Image& im = images[c.res];
+  if (!((float)im.w / c.w < 1e6f && (float)im.h / c.h < 1e6f)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
   float sx = im.w / c.w, sy = im.h / c.h;
   for (int32_t y = b.y0; y < b.y1; y++) {
     float fy = (y + 0.5f - c.y) * sy - 0.5f;
-    int32_t y0i = ifloor(fy); float ty = fy - y0i;
+    int32_t y0i = ifloor_fast(fy); float ty = fy - y0i;
     int32_t ya = y0i < 0 ? 0 : y0i >= im.h ? im.h - 1 : y0i, yb = y0i + 1 >= im.h ? im.h - 1 : y0i + 1 < 0 ? 0 : y0i + 1;
     for (int32_t x = b.x0; x < b.x1; x++) {
       float fx = (x + 0.5f - c.x) * sx - 0.5f;
-      int32_t x0i = ifloor(fx); float tx = fx - x0i;
+      int32_t x0i = ifloor_fast(fx); float tx = fx - x0i;
       int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
       const uint8_t *p00 = im.rgba + (ya * im.w + xa) * 4, *p01 = im.rgba + (ya * im.w + xb) * 4, *p10 = im.rgba + (yb * im.w + xa) * 4, *p11 = im.rgba + (yb * im.w + xb) * 4;
       float ch[4];

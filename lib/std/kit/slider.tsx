@@ -1,6 +1,7 @@
 /** @jsxHelpers ./host */
 // zinc:ui/kit — Slider: a rail, a filled range and a round thumb. Press anywhere on the rail and drag to set the
 // value (snapped to `step`); when focused, the arrow keys move it by one step. `value` is an accessor, like Progress.
+// It keeps the pointer (grab="keep"): an enclosing scroll view never steals a drag from it.
 //
 //   <Slider value={volume} onChange={setVolume} min={0} max={100} step={5} />
 import { NodeRef, createNodeRef } from 'zinc:ui/solid';
@@ -39,7 +40,7 @@ export function Slider(props: SliderProps): i32 {
   let dragging = false;   // the rail captures the pointer from the press to the release
   const setAt = (x: number): void => props.onChange(valueAt(rail, x, min, max, step));
   return <View ref={rail} class={`flex-row items-center h-5 pr-4 rounded-full cursor-pointer focus:bg-${theme().card} ${props.class ?? ''}`}
-    focusable onKeyDown={(e: ui.KeyEvent) => {
+    focusable grab="keep" onKeyDown={(e: ui.KeyEvent) => {
       // arrows nudge the focused slider by one step (1 % of the range without a step)
       const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
       if (d === 0) return;

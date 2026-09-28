@@ -18,6 +18,9 @@
 #endif
 
 namespace zrt { namespace fs {
+// A path with a NUL byte becomes "" (every call then fails): libc would silently use the part before the NUL, so
+// "secret\0.txt" would pass an endsWith('.txt') check and open "secret".
+static bool has_nul(const String& s) { return __builtin_memchr(s.ptr(), 0, s.bytes()) != nullptr; }
 #ifdef ESP_PLATFORM
 static void ensure_mounted() {
   static bool mounted = false;
@@ -30,9 +33,9 @@ static void ensure_mounted() {
   conf.format_if_mount_failed = true;
   esp_vfs_spiffs_register(&conf);  // best effort: calls below fail cleanly (ENOENT/EACCES) if this didn't mount
 }
-struct CPath { StrBuilder sb; CPath(const String& s) { ensure_mounted(); sb.cstr("/zinc/"); to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
+struct CPath { StrBuilder sb; CPath(const String& s) { ensure_mounted(); if (!has_nul(s)) { sb.cstr("/zinc/"); to_s(sb, s); } sb.ch('\0'); } const char* c() const { return sb.buf; } };
 #else
-struct CPath { StrBuilder sb; CPath(const String& s) { to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
+struct CPath { StrBuilder sb; CPath(const String& s) { if (!has_nul(s)) to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
 #endif
 static String str(const char* s) { return String::from(s, (uint32_t)strlen(s)); }
 static void fail(const char* what, const String& path) {

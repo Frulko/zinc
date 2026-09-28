@@ -17,8 +17,9 @@ curl localhost:3000/readings                         # {"seq":…,"tempC":…,"h
 ## HTTP server
 
 `zinc:net` gives you `serve(port, handler)` — a minimal HTTP/1.1 server whose handler runs on the event loop (no
-threads, one connection at a time drained by the poller). Bind is `0.0.0.0`; see [security](08-security.md) about
-exposure.
+threads, one connection at a time drained by the poller). Bind is `0.0.0.0` (`ZINC_BIND=127.0.0.1` restricts it, e.g.
+behind a reverse proxy). Requests are limited: 16 KiB of headers, a 1 MiB body (`ZRT_HTTP_MAX_BODY`), 32 open
+connections, 10 s to send a request, 2 s for a client to take a reply; see [security](08-security.md) about exposure.
 
 ```ts
 import { serve, Request, Reply } from 'zinc:net';
@@ -119,8 +120,12 @@ at once.
 ## Running as a systemd service
 
 `zinc export --target linux` (or `rpi1`) produces `dist/<name>-<target>/` with the executable, a `run.sh`, a
-`<name>.service` unit (`Restart=on-failure`, `RestartSec=2`) and a `deploy.sh` that rsyncs to `/opt/<name>`, installs
-the unit and starts it:
+`<name>.service` unit (`Restart=on-failure`, `RestartSec=2`) and a `deploy.sh` that installs it root-owned in
+`/opt/<name>`, installs the unit and starts it. The unit runs the program unprivileged (`DynamicUser=yes`, no
+capabilities, read-only system, private /tmp): its working directory and `zinc:storage` file are in
+`/var/lib/<name>` (`StateDirectory`), and devices (framebuffer, input, GPIO, SPI, I2C) are reached through the groups
+the device has (`SupplementaryGroups`, filtered by `deploy.sh`). Details and how to relax it:
+[chapter 8](08-security.md#deploying-on-linux-and-raspberry-pi).
 
 ```sh
 zinc export --target linux examples/service/sensor-hub
@@ -159,5 +164,30 @@ is not implemented yet and there is no HTTP *server* on ESP32 (fetch/MQTT/OSC cl
 zinc build examples/service/sensor-hub --target esp32     # ESP-IDF firmware (built in docker)
 zinc export --target esp32 examples/service/sensor-hub    # + flash.sh (esptool)
 ```
+
+## Signals between objects (zinc:signals)
+
+Qt's signals and slots, typed and without a meta-object system: an object exposes `Signal<T>` fields, anyone
+connects a function, `emit` calls the slots in connection order.
+
+```ts
+import { Signal, Trigger } from 'zinc:signals';
+
+class Thermometer {
+  readonly reading = new Signal<number>();   // a signal with a value
+  readonly failed = new Trigger();           // a signal without one
+}
+const t = new Thermometer();
+const c = t.reading.connect((celsius: number) => console.log(`${celsius} °C`));
+t.reading.emit(21.5);          // direct: the slots run now (Qt::DirectConnection)
+t.reading.emitQueued(22);      // queued: on the next microtask (Qt::QueuedConnection)
+const next = await t.reading.next();   // a promise of the next value
+c.disconnect();                // or `using c = t.reading.connect(...)` to disconnect at the end of the scope
+```
+
+A slot disconnected during an emit is not called afterwards; one connected during an emit waits for the next one;
+`once()` connects for a single emit. In a UI, `fromSignal(signal, initial)` from `zinc:ui/solid` turns it into a
+reactive accessor (disconnected with its owner). `zinc:events`' `Emitter` remains the tool for values coming from
+native threads (listeners run as microtasks).
 
 Next: [plugins](05-plugins.md). Web platform APIs: [chapter 9](09-web-apis.md).

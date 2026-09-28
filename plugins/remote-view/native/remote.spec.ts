@@ -4,7 +4,7 @@ import { NativeModule, requireNative } from 'zinc:native';
 
 export interface Spec extends NativeModule {
   /** Opens a session; resolves with its handle (decimal string) on the server's HELLO, rejects when the first attempt fails. */
-  connect(host: string, port: i32): Promise<string>;
+  connect(host: string, port: i32, token: string): Promise<string>;
   /** Reconnect every second after the connection drops (default on). */
   setReconnect(s: i32, on: boolean): void;
   close(s: i32): void;

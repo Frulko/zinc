@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT, STD_MODULES, resolveModule } from './frontend.ts';
-import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt } from './sema.ts';
+import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isDynFn } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
 
@@ -61,6 +61,11 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       if (ts.isConditionalExpression(orig) && ts.isConditionalExpression(e))
         return f.updateConditionalExpression(e, e.condition, e.questionToken, conv(e.whenTrue, orig.whenTrue, to), e.colonToken, conv(e.whenFalse, orig.whenFalse, to));
       if (to && to.k !== 'dyn' && safeType(orig)?.k === 'dyn') return fromDyn(e, orig, to);
+      // a typed function passed as DynFunction: $z.dynfn converts the Dyn arguments like the C++ adapter
+      if (to && isDynFn(to)) {
+        const from = safeType(orig);
+        if (from?.k === 'fn' && !isDynFn(from)) return callZ('dynfn', [e, f.createArrayLiteralExpression(from.params.map(p => f.createStringLiteral(p.k === 'num' ? p.m : p.k)))]);
+      }
       if (!to || !isNum(to)) return e;
       const from = safeType(orig);
       if (!from || !isNum(from) || from.m === to.m) return e;
@@ -82,7 +87,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       if ((ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !sema.isLib(d)) return d.parameters.map(p => sema.paramType(p));
       if (ts.isPropertyAccessExpression(call.expression)) {
         const rt = safeType(call.expression.expression), m = call.expression.name.text;
-        if (rt?.k === 'arr' && ['push', 'unshift', 'indexOf', 'includes', 'fill'].includes(m)) return [rt.el];
+        if (rt?.k === 'arr' && ['push', 'unshift', 'indexOf', 'lastIndexOf', 'includes', 'fill'].includes(m)) return [rt.el];
         if (rt?.k === 'map' && m === 'set') return [rt.key, rt.val];
         if (rt?.k === 'set' && m === 'add') return [rt.el];
       }
@@ -166,6 +171,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
           if (lib && g === 'JSON' && m === 'parse') return callZ('jsonParse', [...v.arguments]);
           if (lib && g === 'Math' && FX && MATH_FNS.has(m)) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
+          // f32 profile: the result is rounded to f32, like the C++ side (zrt::math in double, then the profile's number)
+          if (lib && g === 'Math' && sema.numberKind === 'f32' && MATH_FNS.has(m) && m !== 'fround') return callMath('fround', [v]);
         }
         if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
           const rt = safeType(c.expression);

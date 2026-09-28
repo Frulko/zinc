@@ -30,6 +30,26 @@ static int32_t str_at(const uint8_t* p, int32_t n, int32_t off, String* out) {
   *out = String::from((const char*)p + off, (uint32_t)(e - off));
   return (e + 4) & ~3;
 }
+/** One datagram (untrusted: tests/fuzz/osc.cpp); null when it has no address or type tags. */
+static Ref<OscMessage> decode(const uint8_t* buf, int32_t n) {
+  auto m = make<OscMessage>();
+  String tags;
+  int32_t off = str_at(buf, n, 0, &m->address);
+  if (off < 0) return Ref<OscMessage>();
+  off = str_at(buf, n, off, &tags);
+  if (off < 0) return Ref<OscMessage>();
+  for (uint32_t t = 1; t < tags.bytes() && off <= n; t++) {
+    char c = tags.ptr()[t];
+    if (c == 'i' && off + 4 <= n) { m->numbers.push((double)(int32_t)rd32(buf + off)); off += 4; }
+    else if (c == 'f' && off + 4 <= n) { uint32_t u = rd32(buf + off); float f; __builtin_memcpy(&f, &u, 4); m->numbers.push((double)f); off += 4; }
+    else if (c == 'd' && off + 8 <= n) { uint64_t u = (uint64_t)rd32(buf + off) << 32 | rd32(buf + off + 4); double d; __builtin_memcpy(&d, &u, 8); m->numbers.push(d); off += 8; }
+    else if (c == 'T' || c == 'F') m->numbers.push(c == 'T' ? 1 : 0);
+    else if (c == 'r' && off + 4 <= n) { for (int32_t k = 0; k < 4; k++) m->numbers.push((double)buf[off + k]); off += 4; }   // RGBA colour: 4 numbers 0..255
+    else if (c == 's') { String s; off = str_at(buf, n, off, &s); if (off < 0) break; m->strings.push(s); }
+    else break;
+  }
+  return m;
+}
 struct Listener : Poller {
   int fd; Fn<void(Ref<OscMessage>)> cb;
   void shutdown() override { cb = nullptr; }
@@ -38,22 +58,8 @@ struct Listener : Poller {
     for (;;) {
       ssize_t n = recv(fd, buf, sizeof buf, 0);
       if (n <= 0) return fd >= 0;
-      auto m = make<OscMessage>();
-      String tags;
-      int32_t off = str_at(buf, (int32_t)n, 0, &m->address);
-      if (off < 0) continue;
-      off = str_at(buf, (int32_t)n, off, &tags);
-      if (off < 0) continue;
-      for (uint32_t t = 1; t < tags.bytes() && off <= n; t++) {
-        char c = tags.ptr()[t];
-        if (c == 'i' && off + 4 <= n) { m->numbers.push((double)(int32_t)rd32(buf + off)); off += 4; }
-        else if (c == 'f' && off + 4 <= n) { uint32_t u = rd32(buf + off); float f; __builtin_memcpy(&f, &u, 4); m->numbers.push((double)f); off += 4; }
-        else if (c == 'd' && off + 8 <= n) { uint64_t u = (uint64_t)rd32(buf + off) << 32 | rd32(buf + off + 4); double d; __builtin_memcpy(&d, &u, 8); m->numbers.push(d); off += 8; }
-        else if (c == 'T' || c == 'F') m->numbers.push(c == 'T' ? 1 : 0);
-        else if (c == 'r' && off + 4 <= n) { for (int32_t k = 0; k < 4; k++) m->numbers.push((double)buf[off + k]); off += 4; }   // RGBA colour: 4 numbers 0..255
-        else if (c == 's') { String s; off = str_at(buf, (int32_t)n, off, &s); if (off < 0) break; m->strings.push(s); }
-        else break;
-      }
+      Ref<OscMessage> m = decode(buf, (int32_t)n);
+      if (!m.p || !cb) continue;
       cb(m);
       check_uncaught();
     }

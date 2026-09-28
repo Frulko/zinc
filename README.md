@@ -27,6 +27,7 @@ zinc doctor
 
 ```sh
 zinc run examples/breakout                 # game (arrows/A-D/mouse, Space), SDL3 window
+zinc run examples/pinball                  # space pinball: pseudo-3D table, 960 Hz swept physics, missions, multiball (Z / Space)
 zinc run examples/hero                     # full app: intro, 5 screens, transitions, gallery → detail, physics, ⌘K palette
 zinc run examples/zed-editor               # Zed-style code editor: project tree, tabs, highlighting, minimap, ⌘P / ⌘⇧P, find
 zinc run examples/text/src/main-react.tsx      # same screen as main-solid.tsx, React model
@@ -44,6 +45,7 @@ zinc run examples/pocket-hero              # the PocketJS Hero demo (Hero.tsx un
 zinc run examples/video/looper -- --path examples/video/looper/media   # gapless video looper (videolooper.de style)
 zinc run examples/video/mapper             # GPU video mapping driven by OSC + web companion
 zinc run examples/maps/explorer            # offline vector map of Paris (pan, zoom, pinch)
+zinc run examples/maps/navigation          # Waze-style turn-by-turn drive through Paris (heading-up camera, offline)
 ZINC_FAKE_CAMERA=1 zinc run examples/camera/remote   # gphoto2 remote with live view
 zinc run examples/led/scroll-text          # WS2812 LED matrix emulator; --target esp32 for the real one
 zinc run examples/remarkable/notes         # reMarkable Paper Pro notebook in the e-ink emulator
@@ -133,6 +135,7 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 | `zinc:devtools` | UI inspector over the Chrome DevTools protocol | [dev mode](docs/dev-mode.md) |
 | `zinc:canvas`, `three` | HTML Canvas 2D-style API; three.js-style scenes, GLTFLoader, OrbitControls | [canvas2d](docs/plugins/canvas2d.md), [three](docs/plugins/three.md) |
 | `zinc:process`, `zinc:remote` + display `remote`, `zinc:webview` | child processes; live remote screens with input; native webview (Tauri-like) | [process](docs/plugins/process.md), [remote](docs/plugins/remote.md), [webview](docs/plugins/webview.md) |
+| `zinc:script` | sandboxed JavaScript (QuickJS-ng): typed host functions, time / memory limits, ES modules, promises; playground and game mods | [script](docs/plugins/script.md) |
 | `zinc:imu`, `zinc:device`, display `scrollphat` | QMI8658 motion sensor; backlight and device figures; Pimoroni Scroll pHAT | [boards](docs/boards.md) |
 
 ## Layout

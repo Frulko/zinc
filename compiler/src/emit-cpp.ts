@@ -5,7 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
-import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isFx, I32, F64, STR, VOID, DYN, ERROR_CLASSES } from './sema.ts';
+import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isFx, I32, F64, STR, VOID, DYN, ERROR_CLASSES, isDynFn } from './sema.ts';
 import { NativeModules, MODULE_TARGETS } from './native.ts';
 
 const NUMC: Record<NumKind, string> = {
@@ -18,6 +18,10 @@ const CPP_KEYWORDS = new Set(('alignas alignof and and_eq asm auto bitand bitor 
   'short signed sizeof static static_assert static_cast struct switch template this thread_local throw true try typedef typeid typename union ' +
   'unsigned using virtual void volatile wchar_t while xor xor_eq main zrt std NULL errno assert self state step cur').split(' '));
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
+const NUMBER_CONSTS: Record<string, string> = {
+  MAX_SAFE_INTEGER: '9007199254740991.0', MIN_SAFE_INTEGER: '(-9007199254740991.0)', EPSILON: '2.220446049250313e-16',
+  MAX_VALUE: '1.7976931348623157e308', MIN_VALUE: '5e-324', NaN: 'zrt::NaN', POSITIVE_INFINITY: 'zrt::Inf', NEGATIVE_INFINITY: '(-zrt::Inf)',
+};
 const CONSOLE = new Set(['log', 'info', 'warn', 'error', 'debug', 'trace']);
 
 /** dev: source-location table + LocFrames for the red box (docs/dev-mode.md). */
@@ -633,7 +637,7 @@ class CppEmitter {
     if (!this.o.debug || this.ctx.frame) return '';
     const sf = n.getSourceFile();
     const l = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
-    return `#line ${l} "${path.relative(this.o.outDir, sf.fileName)}"\n`;
+    return `#line ${l} ${JSON.stringify(path.relative(this.o.outDir, sf.fileName))}\n`;  // escaped: a file name must not end the directive
   }
   ind(d: number) { return '  '.repeat(d); }
   block(b: ts.Block, d: number): string {
@@ -705,7 +709,15 @@ class CppEmitter {
       let init = '';
       if (s.initializer) init = ts.isVariableDeclarationList(s.initializer) ? this.varList(s.initializer, d + 1) : `${this.ind(d + 1)}${this.expr(s.initializer)};\n`;
       const c = s.condition ? this.cond(s.condition) : '';
-      const inc = s.incrementor ? this.expr(s.incrementor) : '';
+      let inc = s.incrementor ? this.expr(s.incrementor) : '';
+      // `for (let ...)`: each iteration has its own binding. A counter captured by a closure lives in a cell, so a
+      // fresh cell (with the current value) replaces it before the incrementor; closures keep the previous one.
+      const init0 = s.initializer;
+      if (init0 && ts.isVariableDeclarationList(init0) && init0.flags & ts.NodeFlags.BlockScoped) {
+        const copies = init0.declarations.filter(v => ts.isIdentifier(v.name) && this.s.boxed.has(this.s.symbolOf(v.name)!))
+          .map(v => { const n = this.id((v.name as ts.Identifier).text); return `${n} = zrt::cell<${this.cpp(this.s.declType(v))}>(${n}->v)`; });
+        if (copies.length) inc = [...copies, inc].filter(Boolean).join(', ');
+      }
       return `${L}${I}{\n${init}${this.ind(d + 1)}for (; ${c}; ${inc}) ${this.loopBody(s.statement, d + 1)}\n${I}}\n`;
     }
     if (ts.isForOfStatement(s)) return L + this.forOf(s, d);
@@ -907,6 +919,7 @@ class CppEmitter {
     return this.coerce(code, this.s.ztypeOf(e), to, e);
   }
   coerce(code: string, from: ZT, to: ZT, at: ts.Node): string {
+    if (isDynFn(to) && from.k === 'fn' && !isDynFn(from)) return this.dynFnAdapter(code, from, at);
     if (from.k === 'dyn' && to.k !== 'dyn') return this.dynConv(code, to, at);
     if (to.k === 'dyn' && from.k !== 'dyn') return this.toDyn(code, from, at);
     if (from.k === 'num' && to.k === 'num') {
@@ -938,8 +951,9 @@ class CppEmitter {
       if (m === 'u32' || m === 'u64' || v > 0x7fffffff) return `${v}${m === 'i64' || m === 'u64' ? 'll' : 'u'}`;
       return String(v);
     }
-    let s = String(v);
+    let s = Object.is(v, -0) ? '-0' : String(v);  // `-0` keeps its sign (1 / -0 is -Infinity)
     if (s === 'Infinity') return 'zrt::Inf';
+    if (s === '-Infinity') return '(-zrt::Inf)';
     if (!/[.eE]/.test(s)) s += '.0';
     return m === 'f32' ? s + 'f' : s;
   }
@@ -1000,8 +1014,14 @@ class CppEmitter {
       const o = e.operand;
       switch (e.operator) {
         case K.ExclamationToken: { const c = this.cond(o); return c.startsWith('zrt::') ? `!${c}` : `!(${c})`; }
-        case K.MinusToken: return ts.isNumericLiteral(o) ? this.numLit('-' + o.text, want ?? this.s.ztypeOf(o)) : `-(${this.expr(o, want)})`;
-        case K.PlusToken: return this.expr(o, want);
+        case K.MinusToken: case K.PlusToken: {
+          const ot = this.s.ztypeOf(o);
+          const neg = e.operator === K.MinusToken ? '-' : '';
+          if (ot.k === 'str') return this.numRet(`(${neg}zrt::str_tonum(${this.expr(o)}))`);  // ToNumber
+          if (ot.k === 'bool') return this.numRet(`(${neg}(${this.expr(o)} ? 1.0 : 0.0))`);
+          if (!neg) return this.expr(o, want);
+          return ts.isNumericLiteral(o) ? this.numLit('-' + o.text, want ?? ot) : `-(${this.expr(o, want)})`;
+        }
         case K.TildeToken: return `~(${this.toI32(o)})`;
         case K.PlusPlusToken: return `++${this.lval(o)}`;
         case K.MinusMinusToken: return `--${this.lval(o)}`;
@@ -1146,8 +1166,7 @@ class CppEmitter {
     const obj = e.expression, name = e.name.text;
     if (ts.isIdentifier(obj)) {
       if (obj.text === 'Math' && (name === 'PI' || name === 'E')) return this.numRet(`zrt::${name}`);
-      if (obj.text === 'Number' && name === 'MAX_SAFE_INTEGER') return this.numRet('9007199254740991.0');
-      if (obj.text === 'Number' && name === 'EPSILON') return this.numRet('2.220446049250313e-16');
+      if (obj.text === 'Number' && name in NUMBER_CONSTS) return this.numRet(NUMBER_CONSTS[name]);
       const nat = this.native.member(e);
       if (nat) return nat;
     }
@@ -1206,12 +1225,23 @@ class CppEmitter {
           if (name === 'random') return this.numRet('zrt::math::random()');
           if (name === 'seed') return `zrt::math::seed(${this.conv(e.arguments[0], { k: 'num', m: 'u32' })})`;
           if (name === 'imul' || name === 'clz32') return `zrt::math::${name}(${this.args(e.arguments, [I32, I32])})`;
+          if ((name === 'min' || name === 'max') && e.arguments.length !== 2) {  // variadic: a left fold, like JS
+            if (e.arguments.some(ts.isSpreadElement)) this.s.fail(e, 'Z9022', `Math.${name}(...values) is not supported`);
+            const nk: ZT = this.fx ? { k: 'num', m: this.s.numberKind } : F64;
+            if (!e.arguments.length) return this.fx ? this.s.fail(e, 'Z4001', `Math.${name}() is ${name === 'max' ? '-' : ''}Infinity, which fixed point cannot represent`) : this.numRet(name === 'max' ? '(-zrt::Inf)' : 'zrt::Inf');
+            const xs = e.arguments.map(x => this.conv(x, nk));
+            const folded = xs.reduce((acc, x) => `zrt::${this.fx ? 'fxm' : 'math'}::${name}(${acc}, ${x})`);
+            return this.fx ? folded : this.numRet(folded);
+          }
           if (MATH_FNS.has(name)) {
             if (this.fx) { const nk: ZT = { k: 'num', m: this.s.numberKind }; return `zrt::fxm::${name}(${this.args(e.arguments, [nk, nk])})`; }
             return this.numRet(`zrt::math::${name}(${this.args(e.arguments, [F64, F64])})`);
           }
         }
         if (isLibGlobal && g === 'Number' && ['isNaN', 'isFinite', 'isInteger'].includes(name)) return `zrt::is_${name.slice(2).toLowerCase()}(${this.conv(e.arguments[0], F64)})`;
+        if (isLibGlobal && g === 'Number' && name === 'isSafeInteger') return `zrt::is_safe_integer(${this.conv(e.arguments[0], F64)})`;
+        if (isLibGlobal && g === 'Number' && name === 'parseFloat') return this.numRet(`zrt::parse_float(${this.conv(e.arguments[0], STR)})`);
+        if (isLibGlobal && g === 'Number' && name === 'parseInt') return this.numRet(`zrt::parse_int(${this.conv(e.arguments[0], STR)}${e.arguments[1] ? ', ' + this.conv(e.arguments[1], I32) : ''})`);
         if (isLibGlobal && g === 'String' && name === 'fromCharCode') return `zrt::from_char_code(${this.conv(e.arguments[0], I32)})`;
         if (isLibGlobal && (g === 'Date' || g === 'performance') && name === 'now') return this.numRet('zrt::now_ms()');
         if (isLibGlobal && g === 'JSON' && name === 'stringify') return this.s.ztypeOf(e.arguments[0]).k === 'dyn' ? `zrt::dyn_stringify(${this.expr(e.arguments[0])})` : `zrt::json_stringify(${this.expr(e.arguments[0])})`;
@@ -1247,6 +1277,7 @@ class CppEmitter {
       if (od && ts.isSourceFile(od) && md && ts.isFunctionDeclaration(md)) return this.genericCall(this.qual(md), md, e);
       const ps = md && (ts.isMethodDeclaration(md) || ts.isMethodSignature(md)) ? md.parameters.map(p => this.s.paramType(p, this.s.substFor(t, md))) : [];
       const targs = e.typeArguments?.length ? `<${e.typeArguments.map(a => this.cpp(this.s.fromTypeNode(a))).join(', ')}>` : '';
+      if (od && ts.isClassDeclaration(od) && md && ts.isMethodDeclaration(md) && md.typeParameters && !targs) return this.genericCall(`${this.qual(od)}::${this.id(name)}`, md, e);
       if (od && ts.isClassDeclaration(od)) return `${this.qual(od)}::${this.id(name)}${targs}(${this.args(e.arguments, ps)})`;
       if (t.k === 'obj') {
         if (md && (ts.isPropertyDeclaration(md) || ts.isPropertySignature(md))) {
@@ -1275,6 +1306,25 @@ class CppEmitter {
         case 'clearTimeout': case 'clearInterval': return `zrt::clear_timer(${this.conv(e.arguments[0], I32)})`;
         case 'unchecked': return this.expr(e.arguments[0]);
         case 'queueMicrotask': return `zrt::microtask(${this.expr(e.arguments[0])})`;
+        case 'Boolean':  // Boolean(x): truthiness
+          if (!e.arguments.length) return 'false';
+          this.strictDyn(e.arguments[0]);
+          return `zrt::truthy(${this.expr(e.arguments[0])})`;
+        case 'Number': {  // Number(x): ToNumber
+          if (this.s.numberKind !== 'f64') return this.s.fail(e, 'Z9019', `Number(x) is implemented for the f64 number profiles only (this one is ${this.s.numberKind})`);
+          if (!e.arguments.length) return '0.0';
+          const x = e.arguments[0], xt = this.s.ztypeOf(x);
+          this.strictDyn(x);
+          if (isNum(xt)) return this.conv(x, F64);
+          if (xt.k === 'bool') return `(${this.expr(x)} ? 1.0 : 0.0)`;
+          if (xt.k === 'str') return `zrt::str_tonum(${this.expr(x)})`;
+          if (xt.k === 'dyn') return `zrt::dyn_tonum(${this.expr(x)})`;
+          return this.s.fail(e, 'Z9019', `Number(x) of a '${xt.k}' value is not supported`);
+        }
+        case 'String':  // String(x): ToString, like a template literal
+          if (!e.arguments.length) return this.lit('');
+          this.strictDyn(e.arguments[0]);
+          return `zrt::cat(${this.expr(e.arguments[0])})`;
       }
       return this.s.fail(e, 'Z9019', `'${n}' is not implemented by the runtime`);
     }
@@ -1299,7 +1349,7 @@ class CppEmitter {
   }
 
   /** Calls a (possibly generic) function; type arguments are made explicit because C++ cannot deduce them from lambdas. */
-  genericCall(callee: string, d: ts.FunctionDeclaration, e: ts.CallExpression): string {
+  genericCall(callee: string, d: ts.FunctionDeclaration | ts.MethodDeclaration, e: ts.CallExpression): string {
     const tps = d.typeParameters ?? [];
     if (!tps.length) return `${callee}(${this.args(e.arguments, d.parameters.map(p => this.s.paramType(p)))})`;
     const bind = this.s.inferTypeArgs(d, e);
@@ -1322,25 +1372,35 @@ class CppEmitter {
   builtinCall(e: ts.CallExpression, c: ts.PropertyAccessExpression, t: ZT): string {
     const recv = this.expr(c.expression);
     let name = c.name.text;
-    const a = e.arguments;
+    // `undefined` for an optional parameter means "absent" ('abc'.padEnd(5, undefined), s.slice(1, undefined))
+    const params = this.s.checker.getResolvedSignature(e)?.getDeclaration()?.parameters ?? [];
+    let a: readonly ts.Expression[] = e.arguments;
+    while (a.length && ts.isIdentifier(a[a.length - 1]) && (a[a.length - 1] as ts.Identifier).text === 'undefined' && (params[a.length - 1]?.questionToken || params[a.length - 1]?.initializer)) a = a.slice(0, -1);
     const cb = (x: ts.Expression) => this.expr(x);
     let args: string[];
     if (t.k === 'arr') {
       switch (name) {
-        case 'push': case 'unshift': case 'indexOf': case 'includes': case 'fill':
+        case 'push': case 'unshift':
           if (a.length !== 1) this.s.fail(e, 'Z9022', `${name} takes exactly one argument in the prototype`);
-          if (ts.isSpreadElement(a[0])) return `${recv}.push_all(${this.expr(a[0].expression)})`;
+          if (ts.isSpreadElement(a[0])) {
+            if (name === 'unshift') this.s.fail(e, 'Z9022', 'unshift(...items) is not supported');
+            return `${recv}.push_all(${this.expr(a[0].expression)})`;
+          }
           args = [this.conv(a[0], t.el)]; break;
-        case 'reduce': args = [cb(a[0]), this.conv(a[1], this.s.ztypeOf(e))]; break;
-        case 'map': case 'filter': case 'forEach': case 'find': case 'findIndex': case 'some': case 'every': case 'sort': args = [cb(a[0])]; break;
+        case 'indexOf': case 'lastIndexOf': case 'includes': case 'fill':  // (value, index...)
+          if (!a.length || a.some(x => ts.isSpreadElement(x))) this.s.fail(e, 'Z9022', `${name} needs a value argument (no spread)`);
+          args = [this.conv(a[0], t.el), ...a.slice(1).map(x => this.conv(x, I32))]; break;
+        case 'reduce': case 'reduceRight': args = [cb(a[0]), this.conv(a[1], this.s.ztypeOf(e))]; break;
+        case 'map': case 'filter': case 'forEach': case 'find': case 'findIndex': case 'findLast': case 'findLastIndex': case 'some': case 'every': case 'sort': args = [cb(a[0])]; break;
         case 'concat': args = [this.conv(a[0], t)]; break;
         case 'join': args = a.length ? [this.conv(a[0], STR)] : []; break;
         default: args = a.map(x => this.conv(x, I32));
       }
       if (name === 'sort' && !a.length) this.s.fail(e, 'Z9022', 'sort() needs a comparator in Zinc');
     } else if (t.k === 'str') {
-      const numeric = new Set(['charCodeAt', 'at', 'slice', 'substring', 'repeat']);
-      args = a.map((x, i) => (numeric.has(name) || ((name === 'padStart' || name === 'padEnd' || name === 'indexOf' || name === 'lastIndexOf') && i === (name === 'indexOf' || name === 'lastIndexOf' ? 1 : 0))) ? this.conv(x, I32) : this.conv(x, STR));
+      const numeric = new Set(['charCodeAt', 'charAt', 'at', 'slice', 'substring', 'repeat']);
+      const position = new Set(['indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith']);  // (search, position)
+      args = a.map((x, i) => (numeric.has(name) || ((name === 'padStart' || name === 'padEnd') && i === 0) || (position.has(name) && i === 1)) ? this.conv(x, I32) : this.conv(x, STR));
     } else if (t.k === 'map') {
       if (name === 'delete') name = 'del';
       args = name === 'set' ? [this.conv(a[0], t.key), this.conv(a[1], t.val)] : name === 'forEach' ? [cb(a[0])] : a.map(x => this.conv(x, t.key));
@@ -1431,7 +1491,8 @@ class CppEmitter {
     });
     // `onFrame(() => ...)`: a callback may ignore trailing parameters of the expected function type
     const ctx = ts.isFunctionDeclaration(f) ? undefined : this.s.checker.getContextualType(f)?.getCallSignatures()[0];
-    if (ctx) ctx.getParameters().slice(f.parameters.length).forEach((p, i) => ps.push(`${this.cpp(this.s.fromType(this.s.checker.getTypeOfSymbolAtLocation(p, f), f))} /*unused*/`));
+    if (ctx && !ctx.getParameters().some(p => p.valueDeclaration && ts.isParameter(p.valueDeclaration) && p.valueDeclaration.dotDotDotToken))
+      ctx.getParameters().slice(f.parameters.length).forEach((p, i) => ps.push(`${this.cpp(this.s.fromType(this.s.checker.getTypeOfSymbolAtLocation(p, f), f))} /*unused*/`));
     const fb = f.body!;
     const body = this.withCtx({ ret: ft.ret, inCtor: false, catches: [], breaks: [], self: this.ctx.self }, () => {
       if (ts.isBlock(fb)) return this.fnBlock(f.parameters, fb, 1);
@@ -1746,6 +1807,20 @@ class CppEmitter {
         return this.s.fail(at, 'Z9040', `a typed array (${this.cpp(from)}) cannot become Dyn without a copy that would break aliasing; declare it any[]`);
     }
     return this.s.fail(at, 'Z9041', `a value of type '${from.k}' cannot become Dyn (only primitives, objects and any[])`);
+  }
+  /** A typed function passed as a `DynFunction`: an adapter that takes the Dyn arguments, converts them JS-style
+   *  (ToNumber, String(x), truthiness; never a panic: the caller may be a script) and boxes the result. */
+  dynFnAdapter(code: string, from: Extract<ZT, { k: 'fn' }>, at: ts.Node): string {
+    const args = from.params.map((p, i) => {
+      const x = `__a.at(${i})`;
+      if (p.k === 'dyn') return x;
+      if (p.k === 'str') return `zrt::dyn_str_of(${x})`;
+      if (p.k === 'bool') return `zrt::truthy(${x})`;
+      if (p.k === 'num') return this.coerce(`zrt::dyn_tonum(${x})`, F64, p, at);
+      return this.s.fail(at, 'Z9043', `a function passed as DynFunction takes number, string, boolean or unknown parameters (parameter ${i + 1} is ${p.k === 'void' ? 'not annotated' : this.cpp(p)})`);
+    });
+    const call = `__f(${args.join(', ')})`;
+    return `zrt::Fn<zrt::Dyn(zrt::Array<zrt::Dyn>)>([__f = ${code}](zrt::Array<zrt::Dyn> __a) -> zrt::Dyn { return ${from.ret.k === 'dyn' ? call : this.toDyn(call, from.ret, at)}; })`;
   }
   /** DYN-07: checked Dyn -> static conversion; failure is an uncaught TypeError. */
   dynConv(code: string, to: ZT, at: ts.Node): string {

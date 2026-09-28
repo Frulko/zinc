@@ -113,6 +113,7 @@ static void init() {
 }
 [[maybe_unused]] static void* malloc(size_t n) {
   if (!nreg) init();
+  if (n > budget) return nullptr;  // also keeps the rounding below from wrapping a huge request to a tiny block
   n = (n + ALIGN - 1) & ~(ALIGN - 1);
   if (n < 2 * sizeof(void*)) n = 2 * sizeof(void*);
   Block* b = find(n);
@@ -177,10 +178,18 @@ size_t heap_budget() { return tlsf::budget; }
 void mfree(void* p) {
   if (!p || arena_owns(p)) return;
 #ifdef ZRT_DEBUG
-  hal_free(p);
+  if (!pool_give(p)) hal_free(p);
 #else
-  if (tlsf::owns(p)) tlsf::free(p); else hal_free(p);
+  if (tlsf::owns(p)) tlsf::free(p); else if (!pool_give(p)) hal_free(p);
 #endif
+}
+// A pooled object that was weakly referenced is freed by mfree when its last Weak goes: back to its pool, never to
+// the system allocator (its slot is static storage).
+PoolSlab* pool_slabs = nullptr;
+bool pool_give(void* p) {
+  for (PoolSlab* s = pool_slabs; s; s = s->next)
+    if ((unsigned char*)p >= s->lo && (unsigned char*)p < s->hi) { *(void**)p = *s->head; *s->head = p; return true; }
+  return false;
 }
 
 [[noreturn]] static void crash(const char* msg, const char* file, int line);
@@ -222,7 +231,10 @@ static void drain_deferred() {
 
 // ---------- strings ----------
 
+// JS caps strings too (V8: ~2^29 units); here it keeps byte counts, UTF-16 lengths and size math from wrapping
+static const uint32_t MAX_STR = 1u << 30;
 static StrObj* str_alloc(uint32_t n) {
+  if (n > MAX_STR) panic("RangeError: Invalid string length");
   StrObj* s = (StrObj*)alloc(sizeof(StrObj) + n + 1);
   live_objects++;
   char* d = (char*)(s + 1);
@@ -337,13 +349,27 @@ int32_t String::indexOf(const String& n, int32_t from) const {
   return b < 0 ? -1 : byte_to_u16(*this, (uint32_t)b);
 }
 int32_t String::lastIndexOf(const String& n, int32_t from) const {
-  // last match starting at or before `from` (UTF-16 index), like JS
-  int32_t best = -1;
-  for (int32_t i = indexOf(n, 0); i >= 0 && i <= from; i = indexOf(n, i + 1)) best = i;
-  return best;
+  // last match starting at or before `from` (UTF-16 index), like JS: one backward scan (a forward rescan from each
+  // match never ended for an empty needle and was quadratic)
+  uint32_t hn = bytes(), nn = n.bytes();
+  if (nn > hn) return -1;
+  if (from < 0) from = 0;
+  uint32_t b = u16_to_byte(*this, from > length() ? length() : from);
+  if (b > hn - nn) b = hn - nn;
+  for (uint32_t i = b + 1; i-- > 0;) if (__builtin_memcmp(ptr() + i, n.ptr(), nn) == 0) return byte_to_u16(*this, i);
+  return -1;
 }
 bool String::startsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr(), n.ptr(), n.bytes()) == 0; }
 bool String::endsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr() + bytes() - n.bytes(), n.ptr(), n.bytes()) == 0; }
+bool String::startsWith(const String& n, int32_t pos) const {
+  uint32_t b = u16_to_byte(*this, pos < 0 ? 0 : pos > length() ? length() : pos);
+  return n.bytes() <= bytes() - b && __builtin_memcmp(ptr() + b, n.ptr(), n.bytes()) == 0;
+}
+bool String::endsWith(const String& n, int32_t end) const {
+  uint32_t b = u16_to_byte(*this, end < 0 ? 0 : end > length() ? length() : end);
+  return n.bytes() <= b && __builtin_memcmp(ptr() + b - n.bytes(), n.ptr(), n.bytes()) == 0;
+}
+String String::concat(const String& o) const { return cat(*this, o); }
 Array<String> String::split(const String& sep) const {
   Array<String> r = Array<String>::with_cap(0);
   if (sep.bytes() == 0) { for (int32_t i = 0; i < length(); i++) r.push_raw(at(i)); return r; }
@@ -356,12 +382,28 @@ Array<String> String::split(const String& sep) const {
   }
 }
 static bool is_ws(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'; }
-String String::trim() const {
-  uint32_t a = 0, b = bytes(); const char* p = ptr();
-  while (a < b && is_ws(p[a])) a++;
-  while (b > a && is_ws(p[b - 1])) b--;
-  return sub_bytes(*this, a, b);
+// Bytes of the JS WhiteSpace / LineTerminator code point that starts p (0 if none): ASCII, U+00A0, U+1680,
+// U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF, like String.prototype.trim.
+static uint32_t ws_at(const uint8_t* p, uint32_t n) {
+  if (!n) return 0;
+  if (p[0] < 0x80) return is_ws((char)p[0]) ? 1 : 0;
+  if (n >= 2 && p[0] == 0xC2 && p[1] == 0xA0) return 2;
+  if (n < 3 || (p[0] & 0xF0) != 0xE0 || (p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80) return 0;
+  uint32_t c = (p[0] & 0x0Fu) << 12 | (p[1] & 0x3Fu) << 6 | (p[2] & 0x3Fu);
+  return c == 0x1680 || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF ? 3 : 0;
 }
+static String trim_ws(const String& s, bool start, bool end) {
+  const uint8_t* p = (const uint8_t*)s.ptr(); uint32_t a = 0, b = s.bytes(), w;
+  while (start && a < b && (w = ws_at(p + a, b - a))) a += w;
+  for (bool more = end; more && b > a;) {
+    more = false;
+    for (uint32_t k = 1; k <= 3 && k <= b - a; k++) if (ws_at(p + b - k, k) == k) { b -= k; more = true; break; }
+  }
+  return sub_bytes(s, a, b);
+}
+String String::trim() const { return trim_ws(*this, true, true); }
+String String::trimStart() const { return trim_ws(*this, true, false); }
+String String::trimEnd() const { return trim_ws(*this, false, true); }
 static StrObj lit_space = {IMMORTAL, 1, 1, 1, " ", nullptr};
 StrObj lit_comma = {IMMORTAL, 1, 1, 1, ",", nullptr};
 static String pad(const String& s, int32_t n, const String& f, bool start) {
@@ -457,20 +499,42 @@ static String map_case(const String& s, bool up) {
 }
 String String::toUpperCase() const { return map_case(*this, true); }
 String String::toLowerCase() const { return map_case(*this, false); }
+// GetSubstitution for a string pattern: $$, $& (the match), $` (before it), $' (after it); anything else is literal
+static void substitute(StrBuilder& sb, const String& s, uint32_t k, uint32_t len, const String& rep) {
+  const char* r = rep.ptr(); uint32_t n = rep.bytes();
+  for (uint32_t i = 0; i < n; i++) {
+    char c = i + 1 < n && r[i] == '$' ? r[i + 1] : 0;
+    if (c == '$') sb.ch('$');
+    else if (c == '&') sb.raw(s.ptr() + k, len);
+    else if (c == '`') sb.raw(s.ptr(), k);
+    else if (c == '\'') sb.raw(s.ptr() + k + len, s.bytes() - k - len);
+    else { sb.ch(r[i]); continue; }
+    i++;
+  }
+}
 String String::replace(const String& a, const String& b) const {
   int32_t k = find_bytes(*this, a, 0);
   if (k < 0) return *this;
   StrBuilder sb;
-  sb.raw(ptr(), (uint32_t)k); to_s(sb, b); sb.raw(ptr() + k + a.bytes(), bytes() - (uint32_t)k - a.bytes());
+  sb.raw(ptr(), (uint32_t)k); substitute(sb, *this, (uint32_t)k, a.bytes(), b); sb.raw(ptr() + k + a.bytes(), bytes() - (uint32_t)k - a.bytes());
   return sb.build();
 }
 String String::replaceAll(const String& a, const String& b) const {
-  if (!a.bytes()) return *this;
   StrBuilder sb; uint32_t p = 0;
+  if (!a.bytes()) {  // an empty pattern matches before every character and at the end
+    // ponytail: at code point boundaries; JS also matches between the two UTF-16 halves of an astral character
+    const uint8_t* d = (const uint8_t*)ptr();
+    while (p < bytes()) {
+      uint32_t w = d[p] < 0x80 ? 1 : d[p] < 0xE0 ? 2 : d[p] < 0xF0 ? 3 : 4;
+      substitute(sb, *this, p, 0, b); sb.raw(ptr() + p, w); p += w;
+    }
+    substitute(sb, *this, p, 0, b);
+    return sb.build();
+  }
   for (;;) {
     int32_t k = find_bytes(*this, a, p);
     if (k < 0) break;
-    sb.raw(ptr() + p, (uint32_t)k - p); to_s(sb, b); p = (uint32_t)k + a.bytes();
+    sb.raw(ptr() + p, (uint32_t)k - p); substitute(sb, *this, (uint32_t)k, a.bytes(), b); p = (uint32_t)k + a.bytes();
   }
   sb.raw(ptr() + p, bytes() - p);
   return sb.build();
@@ -499,7 +563,8 @@ uint32_t hash(const String& s) {
 }
 
 void StrBuilder::raw(const char* p, uint32_t n) {
-  if (len + n > cap) {
+  if (n > cap - len) {  // cap >= len: no wrap-around
+    if (n > MAX_STR || len + n > MAX_STR) panic("RangeError: Invalid string length");
     uint32_t nc = cap < 32 ? 32 : cap * 2; while (nc < len + n) nc *= 2;
     char* nb = (char*)alloc(nc);
     if (buf) { __builtin_memcpy(nb, buf, len); mfree(buf); }
@@ -555,15 +620,17 @@ void json_str(StrBuilder& sb, const String& v) {
 void log_flush(StrBuilder& sb) { sb.ch('\n'); hal_log(sb.buf, sb.len); }
 
 double parse_float(const String& s) {
-  String t = s.trim();
-  if (!t.bytes()) return NaN;
-  int used = 0;
-  double v = zrt_host_strtod(t.ptr(), &used);
-  return used ? v : NaN;
+  String t = s.trim(); const char* p = t.ptr(); uint32_t n = t.bytes();
+  uint32_t sign = n && (p[0] == '+' || p[0] == '-') ? 1 : 0;
+  if (n - sign >= 8 && __builtin_memcmp(p + sign, "Infinity", 8) == 0) return p[0] == '-' ? -Inf : Inf;
+  // the longest StrDecimalLiteral prefix: strtod alone also reads hex ("0x10" is 0 in JS), "inf" and "nan"
+  uint32_t len = dyn_dec_len(p, n);
+  return len ? dyn_strtod(p, len) : NaN;
 }
 double parse_int(const String& s, int32_t radix) {
   String t = s.trim(); const char* p = t.ptr(); uint32_t n = t.bytes(), i = 0;
   bool neg = false;
+  if (radix != 0 && (radix < 2 || radix > 36)) return NaN;
   if (i < n && (p[i] == '-' || p[i] == '+')) neg = p[i++] == '-';
   if ((radix == 0 || radix == 16) && i + 1 < n && p[i] == '0' && (p[i + 1] == 'x' || p[i + 1] == 'X')) { i += 2; radix = 16; }
   if (radix == 0) radix = 10;
@@ -576,6 +643,9 @@ double parse_int(const String& s, int32_t radix) {
   return any ? (neg ? -v : v) : NaN;
 }
 String to_fixed(double v, int32_t digits) {
+  if (digits < 0 || digits > 100) panic("RangeError: toFixed() digits argument must be between 0 and 100");
+  if (!(v > -1e21 && v < 1e21)) return cat(v);  // NaN, infinities and |v| >= 1e21 print like ToString (JS)
+  if (v == 0) v = 0;  // (-0).toFixed(1) is "0.0" (but (-1e-7).toFixed(1) is "-0.0")
   char b[400];
   int n = zrt_host_fixed(v, digits, b, (int)sizeof b);
   return String::from(b, (uint32_t)n);
@@ -708,6 +778,11 @@ static int32_t tape_at = -1;         // frame of tape_next (-1: tape ended)
 static void tape_read() {
   int32_t f;
   tape_at = tape && zrt_host_io(tape, &f, 4, 0) == 4 && zrt_host_io(tape, &tape_next, sizeof tape_next, 0) == sizeof tape_next ? f : -1;
+  // a tape is a file: its counts index fixed arrays (touches, keys, text), so they are clamped like a HAL's would be
+  HalInput& in = tape_next;
+  auto clamp = [](int32_t& n, int32_t max) { n = n < 0 ? 0 : n > max ? max : n; };
+  clamp(in.ntouch, HAL_MAX_TOUCH); clamp(in.nkeys, HAL_MAX_KEYS); clamp(in.nbtn, HAL_MAX_BUTTON_EVENTS); clamp(in.ntext, HAL_TEXT_BYTES);
+  for (int32_t i = 0; i < in.nkeys; i++) if ((uint32_t)in.keys[i].off + in.keys[i].len > HAL_TEXT_BYTES) in.keys[i].off = in.keys[i].len = 0;
 }
 static void det_init() {
   const char* rec = hal_env("ZINC_RECORD");
@@ -813,7 +888,7 @@ bool loop_once() {
     return true;
   }
   if (active) hal_sleep_us(1000);
-  else if (next >= 0) { double wait = next - now_ms(); if (wait > 0) hal_sleep_us((uint64_t)(wait * 1000)); }
+  else if (next >= 0) { double wait = next - now_ms(); if (wait > 0) hal_sleep_us(wait < 1000 ? (uint64_t)(wait * 1000) : 1000000); }  // huge delays: wake up every second
   return true;
 }
 static int loop_step() { return loop_once() ? 1 : 0; }
@@ -1067,7 +1142,8 @@ Ref<Arena> Arena::frame(double bytes) {
   // the arena object itself lives on the heap, its block is taken from the heap once
   Arena* a = new (alloc(sizeof(Arena))) Arena();
   live_objects++;
-  a->size = bytes < 256 ? 256 : (size_t)bytes;
+  if (bytes > 1073741824.0) panic("RangeError: arena too large");
+  a->size = bytes >= 256 ? (size_t)bytes : 256;  // NaN too
   a->base = (char*)alloc(a->size);
   a->prev = arena_top; arena_top = a;
   return Ref<Arena>::adopt(a);
@@ -1075,7 +1151,8 @@ Ref<Arena> Arena::frame(double bytes) {
 void Arena::zrt_dispose() {
   if (!base) return;
   if (live) panic("an object allocated in an arena outlives it (MEM-07); copy it out with arena.promote(x)");
-  if (arena_top == this) arena_top = prev;
+  // unlink wherever it is: an arena disposed out of order must not stay in the chain after it is freed
+  for (Arena** pp = &arena_top; *pp; pp = &(*pp)->prev) if (*pp == this) { *pp = prev; break; }
   mfree(base); base = nullptr;  // O(1): nothing inside is freed individually
 }
 Arena::~Arena() { zrt_dispose(); }

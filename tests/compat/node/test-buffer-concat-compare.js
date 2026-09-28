@@ -1,0 +1,21 @@
+// After node/test/parallel/test-buffer-concat.js, test-buffer-compare.js and test-buffer-slice.js.
+const assert = require('assert');
+const { Buffer } = require('buffer');
+const a = Buffer.from('abc'), b = Buffer.from('def');
+const c = Buffer.concat([a, b]);
+assert.strictEqual(c.toString(), 'abcdef');
+assert.strictEqual(Buffer.concat([a, b], 4).toString(), 'abcd');
+assert.strictEqual(Buffer.concat([]).length, 0);
+assert.strictEqual(Buffer.compare(a, b), -1);
+assert.strictEqual(a.compare(a), 0);
+assert.ok(a.equals(Buffer.from('abc')));
+assert.strictEqual(c.subarray(1, 3).toString(), 'bc');
+assert.strictEqual(c.slice(-2).toString(), 'ef');
+assert.strictEqual(c.indexOf('cd'), 2);
+assert.strictEqual(c.includes('fe'), false);
+const d = Buffer.alloc(6);
+c.copy(d, 0, 3);
+assert.strictEqual(d.toString('utf8', 0, 3), 'def');
+assert.deepStrictEqual(c.toJSON(), { type: 'Buffer', data: [97, 98, 99, 100, 101, 102] });
+assert.ok(Buffer.isBuffer(c) && !Buffer.isBuffer('abc'));
+console.log('ZC:PASS');
