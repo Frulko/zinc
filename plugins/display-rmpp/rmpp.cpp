@@ -118,6 +118,6 @@ void rm_shutdown() {
   wake_lock(false);
 }
 
-HalDisplay rmpp = {rm_init, rm_present, rin::poll_input, rm_shutdown};
+HalDisplay rmpp = {rm_init, rm_present, rin::poll_input, rm_shutdown, 0, 0};
 int reg = (hal_display = &rmpp, 0);
 }  // namespace

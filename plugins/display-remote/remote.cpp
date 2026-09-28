@@ -283,5 +283,5 @@ static void r_shutdown() {
   lfd = bfd = -1;
 }
 
-static HalDisplay remote_display = {r_init, r_present, r_poll, r_shutdown};
+static HalDisplay remote_display = {r_init, r_present, r_poll, r_shutdown, 0, 0};
 static int registered = (hal_display = &remote_display, 0);

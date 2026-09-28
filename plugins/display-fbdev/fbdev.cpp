@@ -225,5 +225,5 @@ static void fb_shutdown() {
   fd = -1;
 }
 
-static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown};
+static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0};
 static int registered = (hal_display = &fbdev, 0);

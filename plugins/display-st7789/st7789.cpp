@@ -244,5 +244,5 @@ static void poll(HalInput* in) {
   if (down) in->touch[0] = HalTouch{0, tx, ty};
 }
 
-static HalDisplay drv = {init, present, poll, nullptr, 0};
+static HalDisplay drv = {init, present, poll, nullptr, 0, 0};
 static int reg = (hal_display = &drv, 0);

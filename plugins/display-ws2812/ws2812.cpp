@@ -143,5 +143,5 @@ static void poll(HalInput* in) {
 
 static void shutdown() { dev_close(); }
 
-static HalDisplay drv = {init, present, poll, shutdown, 0};
+static HalDisplay drv = {init, present, poll, shutdown, 0, 0};
 static int reg = (hal_display = &drv, 0);
