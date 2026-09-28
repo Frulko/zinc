@@ -1,0 +1,8 @@
+{
+  "name": "gestures",
+  "kind": "module",
+  "module": "zinc:gestures",
+  "entry": "index.ts",
+  "description": "Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
+}

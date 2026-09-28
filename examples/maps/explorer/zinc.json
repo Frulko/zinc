@@ -1,0 +1,5 @@
+{
+  "name": "map-explorer",
+  "entry": "main.ts",
+  "targets": { "macos": { "width": 960, "height": 600 }, "linux": { "width": 960, "height": 600 }, "rpi1": { "width": 800, "height": 480 } }
+}

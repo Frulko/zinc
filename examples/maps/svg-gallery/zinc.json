@@ -1,0 +1,5 @@
+{
+  "name": "svg-gallery",
+  "entry": "main.ts",
+  "targets": { "macos": { "width": 960, "height": 640 }, "linux": { "width": 960, "height": 640 }, "rpi1": { "width": 800, "height": 480 } }
+}

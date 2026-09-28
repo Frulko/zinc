@@ -1,0 +1,13 @@
+{
+  "name": "svg",
+  "kind": "module",
+  "module": "zinc:svg",
+  "entry": "index.ts",
+  "description": "Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer",
+  "targets": {
+    "macos": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "linux": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "rpi1": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "wasm": { "defines": ["ZRT_POINT_POOL=262144"] }
+  }
+}
