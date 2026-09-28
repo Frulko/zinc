@@ -1,0 +1,31 @@
+{
+  "name": "zed-editor",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": {
+      "width": 1280,
+      "height": 800,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 1280,
+      "height": 800,
+      "resize": "fill"
+    },
+    "sim": {
+      "width": 1280,
+      "height": 800
+    }
+  },
+  "requires": [
+    "heap>=32M",
+    "keyboard",
+    "pointer",
+    "fs"
+  ],
+  "bench": {
+    "demo": "scroll",
+    "frames": 1400,
+    "p99Ms": 40
+  }
+}

@@ -40,6 +40,9 @@ extern uint32_t live_objects;
 extern uint32_t alloc_count;
 void* alloc(size_t n);
 void mfree(void* p);
+// TLSF heap bytes in use (payloads) and its size; 0 in debug builds (system allocator)
+size_t heap_used();
+size_t heap_budget();
 [[noreturn]] void panic(const char* msg);
 [[noreturn]] void panic_at(const char* msg, const char* file, int line);
 
@@ -376,7 +379,8 @@ template<class T> struct Array {
     r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(bytes_of(cap)) : nullptr;
     return r;
   }
-  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); (r.push_raw(T(xs)), ...); return r; }
+  // a braced list, not a fold expression: clang limits folds to 256 operands (array literals can be longer)
+  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); int in_order[] = {0, (r.push_raw(T(xs)), 0)...}; (void)in_order; return r; }
 
   ArrObj<T>* obj() const { if (!a) panic("null array"); return a; }
   void grow(int32_t need) const {
@@ -729,9 +733,13 @@ double pointerX();
 double pointerY();
 bool pointerDown();
 int32_t frame();
+int32_t pixelScale();
 void quit();
 bool capture(const String& path);
 uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots
+bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
+void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
+String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
 double wheelX();
 int32_t pointerButtons();
 int32_t modifiers();

@@ -103,6 +103,9 @@ int hal_isatty(int fd);
 const char* hal_env(const char* name);  // null when unset or unsupported
 // MEM-10: the region managed by the TLSF heap (size comes from the profile, ZRT_HEAP_BYTES).
 void hal_heap_region(void** base, size_t* size);
+// Optional (the runtime's weak default returns 0): further regions for the same heap, asked for with i = 0, 1...
+// until it returns 0 (ESP32: internal RAM is split in several blocks, the largest one alone is ~110 KiB).
+int hal_heap_region_more(int i, void** base, size_t* size);
 [[noreturn]] void hal_panic(const char* msg, const char* file, int line);
 void hal_frame_begin(void);
 void hal_frame_end(void);
@@ -131,6 +134,8 @@ struct HalDisplay {
   void (*poll)(HalInput* in);   // may be null (no input device)
   void (*shutdown)(void);       // may be null
   int owns_input;               // 1: the driver reads the OS events itself (display-gl); else the target HAL does
+  int host_window;              // 1: the driver shows its frames through the target HAL's window (hal_present), e.g.
+                                //    the reMarkable emulator; 0: it has its own output (a panel, an emulator window)
 };
 extern HalDisplay* hal_display;
 }

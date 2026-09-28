@@ -18,6 +18,7 @@ export interface PluginTarget {
   packages?: string[];       // system packages installed into the target's SDK image (apk on rpi1, apt on linux)
   idf?: string[];            // ESP-IDF REQUIRES
   idfComponents?: Record<string, string>;  // ESP Component Registry dependencies (name -> version)
+  nodeFlags?: string[];      // sim: flags for the node process running the program (e.g. --experimental-vm-modules)
 }
 export interface Plugin {
   name: string;
@@ -29,6 +30,7 @@ export interface Plugin {
   modules?: Record<string, string>;  // extra import specifiers -> absolute paths (e.g. three/addons/...)
   targets: Record<string, PluginTarget>;
   options: Record<string, string | number | boolean>;
+  requires: string[];        // capabilities the target must offer (docs/targets/capabilities.md)
 }
 
 const ZINC_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
@@ -81,7 +83,7 @@ export function discover(projDir: string): Plugin[] {
       byName.set(p.name ?? d, {
         name: p.name ?? d, dir, description: p.description ?? '', kind: p.kind ?? 'module', module: p.module,
         entry: p.module ? path.join(dir, p.entry ?? 'index.ts') : undefined,
-        modules: Object.fromEntries(Object.entries((p.modules ?? {}) as Record<string, string>).map(([k, v]) => [k, path.join(dir, v)])), targets: p.targets ?? {}, options: p.options ?? {},
+        modules: Object.fromEntries(Object.entries((p.modules ?? {}) as Record<string, string>).map(([k, v]) => [k, path.join(dir, v)])), targets: p.targets ?? {}, options: p.options ?? {}, requires: p.requires ?? [],
       });
     }
   }
@@ -142,7 +144,7 @@ export function optionDefines(p: Plugin, projDir: string, target: string): strin
 
 /** Merged native build settings of the active plugins for one target. */
 export function buildSettings(active: Plugin[], projDir: string, target: string) {
-  const out = { sources: [] as string[], includes: [] as string[], pkg: [] as string[], frameworks: [] as string[], libs: [] as string[], defines: [] as string[], flags: [] as string[], linkFlags: [] as string[], packages: [] as string[], idf: [] as string[], idfComponents: {} as Record<string, string> };
+  const out = { sources: [] as string[], includes: [] as string[], pkg: [] as string[], frameworks: [] as string[], libs: [] as string[], defines: [] as string[], flags: [] as string[], linkFlags: [] as string[], packages: [] as string[], idf: [] as string[], idfComponents: {} as Record<string, string>, nodeFlags: [] as string[] };
   for (const p of active) {
     const t = p.targets[target] ?? {};
     out.sources.push(...(t.sources ?? []).map(s => path.join(p.dir, s)));
@@ -150,10 +152,10 @@ export function buildSettings(active: Plugin[], projDir: string, target: string)
     out.pkg.push(...t.pkg ?? []); out.frameworks.push(...t.frameworks ?? []); out.libs.push(...t.libs ?? []);
     out.defines.push(...t.defines ?? [], ...optionDefines(p, projDir, target), `ZP_${p.name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}=1`);
     out.flags.push(...t.flags ?? []); out.linkFlags.push(...t.linkFlags ?? []);
-    out.packages.push(...t.packages ?? []); out.idf.push(...t.idf ?? []);
+    out.packages.push(...t.packages ?? []); out.idf.push(...t.idf ?? []); out.nodeFlags.push(...t.nodeFlags ?? []);
     Object.assign(out.idfComponents, t.idfComponents ?? {});
   }
-  for (const k of ['includes', 'pkg', 'frameworks', 'libs', 'packages', 'idf'] as const) out[k] = [...new Set(out[k])];
+  for (const k of ['includes', 'pkg', 'frameworks', 'libs', 'packages', 'idf', 'nodeFlags'] as const) out[k] = [...new Set(out[k])];
   return out;
 }
 export type BuildSettings = ReturnType<typeof buildSettings>;

@@ -34,11 +34,11 @@ export function decode(png: Buffer): Image {
   return { w, h, rgb };
 }
 
-export function encode(img: Image): Buffer {
-  const row = img.w * 3, raw = Buffer.alloc((row + 1) * img.h);
+export function encode(img: Image, alpha = false): Buffer {
+  const bpp = alpha ? 4 : 3, row = img.w * bpp, raw = Buffer.alloc((row + 1) * img.h);
   for (let y = 0; y < img.h; y++) img.rgb.copy(raw, y * (row + 1) + 1, y * row, (y + 1) * row);
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(img.w, 0); ihdr.writeUInt32BE(img.h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  ihdr.writeUInt32BE(img.w, 0); ihdr.writeUInt32BE(img.h, 4); ihdr[8] = 8; ihdr[9] = alpha ? 6 : 2;   // 6: RGBA
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 

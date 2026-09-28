@@ -215,3 +215,11 @@ declare var RangeError: ErrorConstructor;
 
 // ---- Zinc intrinsics ----
 declare function unchecked<T>(v: T): T;
+/**
+ * Any function, called with an array of dynamic arguments and returning a dynamic value: `(args: unknown[]) =>
+ * unknown` at run time. A typed function passed where a DynFunction is expected, e.g. `(r: i32, name: string) =>
+ * void`, gets an adapter that converts each argument JavaScript-style (ToNumber then the machine type, String(x),
+ * truthiness; `unknown` as is; missing arguments are undefined) and boxes the result. Parameters must be annotated
+ * number / machine numbers, string, boolean or unknown. Used by zinc:script host functions.
+ */
+type DynFunction = (...args: never[]) => unknown;

@@ -26,7 +26,7 @@ const [name, setName] = createSignal('');
 | `rows` | textarea height in lines when no height class is set (default 4) |
 | `wrap={false}` | textarea: no line wrapping, horizontal scroll |
 | `lineNumbers` | textarea: line number gutter; with `lineNumbers` or `font-mono` the textarea is a code editor: Tab inserts 2 spaces, Enter keeps the indentation |
-| `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers and `//` comments |
+| `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers, `//` comments and `/* */` comments within a line |
 
 Default size: 200 px wide (stretch, `grow`, `w-*` size it), one line (or `rows` lines) high; styled by classes like any
 node (`bg-*`, `text-*`, `border-*`, `rounded-*`, `p-*`, `font-mono`, `text-sm`...). The focused field gets a blue
@@ -38,11 +38,35 @@ Cmd+Up/Down or Ctrl+Home/End to the start / end, PageUp/PageDown, Shift extends;
 Alt/Ctrl, to the line start with Cmd); Cmd/Ctrl+A, C, X, V, Z, Shift+Z / Y; Tab / Shift+Tab move the focus (Tab into
 a single-line field selects it); Escape blurs. Undo coalesces consecutive typing into one step (100 steps).
 The caret blinks without repainting in between; horizontal scroll follows the caret in inputs, vertical scroll and
-the wheel in textareas.
+the wheel in textareas. The wheel scrolls textareas like scroll containers: trackpads 1:1 with a rubber band past the
+edges (the OS supplies the momentum), mouse notches ease 60 px each; at an edge the wheel goes on to an enclosing
+scroll container.
 
 Host ABI: `ui.createNode(ui.INPUT | ui.TEXTAREA)`, `setValue`, `getValue`, `setPlaceholder`, `onText(h, change, f)`,
 `setHighlight`, `select(h, a, b)`, `caretOf`, `selectedText`, `focusNode(h)`, `focused()`; flags through
 `setNumber(h, 'password' | 'readOnly' | 'lineNumbers' | 'wrap' | 'rows', v)`.
+
+### Code editor extensions
+
+For editors built on a textarea (`examples/zed-editor`), on the node handle (`ref`):
+
+| function | |
+| --- | --- |
+| `setMarks(h, marks)` | decorations, flat `[start, end, color, kind]` per mark (UTF-16 offsets): `MARK_LINE` the background of every row of a line (and a brighter line number), `MARK_FILL` / `MARK_STRONG` a translucent / stronger range fill, `MARK_BOX` a 1 px box (matching brackets), `MARK_SQUIGGLE` a wavy underline (diagnostics), `MARK_GUTTER` a dot in the line number gutter. Drawn under the text; each call replaces the marks |
+| `setEditColors(h, colors)` | `[lineNumber, activeLineNumber, gutterLine, selection, caret, indentGuide]`; `-1` keeps the default, `-2` draws none. Indent guides (every 2 columns of leading spaces, blank lines take the smaller indentation around them) are drawn when `indentGuide` is a colour |
+| `setHighlightAt(h, f)` | like `highlight`, with the offset of the row in the value: `f(line, start)`. Highlighters that keep a state per line (block comments, template strings) look it up; takes precedence over `highlight` |
+| `editView(h)` | `[scrollX, scrollY, contentHeight, viewportHeight, lineHeight, rows, gutter, contentWidth]` |
+| `scrollEditTo(h, x, y)` | scrolls (clamped), stopping any wheel easing |
+| `editRowOf(h, offset)` | visual row of an offset (the line when wrapping is off) |
+| `repaint()` | repaint at the next frame |
+
+A canvas with `style={{ lazy: 1 }}` does not force a repaint on every frame: it is drawn when anything else changed
+(or after `ui.repaint()`). Icons and minimaps that only change with the UI stay free when the window is idle; a plain
+canvas keeps the whole window repainting every frame.
+
+Long texts: Zinc strings are UTF-8, so indexing a non-ASCII string (`charCodeAt`, `slice`) costs O(offset). Text fields
+work line by line and slice the visible rows once per frame, so scrolling a 5000-line file stays at the display rate;
+code that walks the value of a large field should do the same (`value.split('\n')`).
 
 ## Pointer events
 
@@ -60,15 +84,95 @@ On any node: `onPointerDown`, `onPointerMove`, `onPointerUp`, `onDoubleClick`, `
 
 - Dispatch: the topmost interactive node under the pointer (nodes with handlers, `onClick`, text fields; plain nodes
   are transparent), then up through its ancestors to the nearest one with a handler for that event.
-  `onPointerDown` stops at a button or a text field on the way up, so pressing a button inside a draggable card does
-  not drag it.
+  A raw `onPointerDown` stops at a button or a text field on the way up, so pressing a button inside a card with
+  raw handlers does not drag it; with `onDrag` on the card instead, the button clicks on a tap and the card drags past
+  the threshold (Gestures, below). Nodes under a `disabled` one get no events.
 - Capture: the node whose `onPointerDown` ran gets every `onPointerMove` and the `onPointerUp` until the button is
-  released, even outside its box (drags). Without capture, moves go to the node under the pointer.
+  released, even outside its box (drags), unless a gesture takes the press (next section): it then gets
+  `onPointerCancel` and nothing more for that press. Without capture, moves go to the node under the pointer.
 - `onClick` / `onPress` keep their meaning: activated on release over the same node, not after a drag-scroll, and
-  from the keyboard / gamepad (focus + A / Start / Enter / Space). A node with `onPointerDown` does not start
-  drag-to-scroll in its scroll container.
+  from the keyboard / gamepad (focus + A / Start / Enter / Space).
 - Enter / leave follow the hover path (the node under the pointer and its ancestors), like DOM `pointerenter`.
 - Mouse button events come in order from the HAL, so a quick trackpad tap is not lost between frames.
+
+## Gestures
+
+`onTap`, `onLongPress`, `onDrag` and `onPinch` take a `PointerEvent` too, with `phase` (0 start, 1 move, 2 end,
+3 cancelled), `dx` / `dy` (the translation since the press, surface px), `scale` and `rotation` (radians, since the
+pinch started) and `x` / `y` (local: the pointer, or the centroid of a pinch).
+
+```tsx
+<view class="h-12" dragAxis="x" onDrag={(e: ui.PointerEvent) => swipe(e.phase, e.dx)} />   {/* in a vertical list */}
+<view class="grow" onPinch={(e: ui.PointerEvent) => zoomTo(start * e.scale, e.x, e.y)} onTap={select} />
+<view grab="keep" onPointerDown={...} onPointerMove={...} />                                {/* never stolen */}
+```
+
+Arbitration, after Qt's pointer handlers: a press goes to the raw `onPointerDown` node (it captures the pointer) and,
+passively, to every `onDrag` node from the pressed node up and to the scroll container under it. The first of them,
+innermost first, whose threshold the pointer crosses takes the exclusive grab: `dragThreshold` px (default 8) along
+`dragAxis` (`x`, `y`, `both`) for a drag, 8 px along a scrollable axis for a scroll container. The capture node then
+gets `onPointerCancel`, and no click or tap follows. So a horizontal swipe row in a vertical list keeps horizontal
+moves and gives vertical ones to the list, and a button inside a draggable card clicks unless the card is dragged.
+`grab="keep"` on the capture node stops the stealing (sliders, drawing surfaces).
+
+| handler | fires |
+| --- | --- |
+| `onTap` | on release, when no gesture took the press, no long press fired and the pointer is still over the node |
+| `onLongPress` | after 500 ms held without a gesture; the click and the tap are dropped |
+| `onDrag` | phase 0 when it takes the grab, 1 on each move, 2 on release, 3 when a pinch takes over |
+| `onPinch` | when a second finger lands on it (or on the node under the first finger's press): the pinch takes the grab from anything else; 0 / 1 / 2 as the fingers land, move and lift |
+
+Multitouch: the first finger is the pointer (taps, scrolling, drags); the SDL HAL reports the other fingers of touch
+screens (`zinc:gfx` touches), and `ui.touchAt(id, x, y, phase)` (0 down, 1 move, 2 up) scripts fingers in tests.
+`zinc:gestures` stays the tool for canvases and games that read the raw input themselves.
+
+## Focus scopes and keymaps
+
+```tsx
+<view keyContext="Editor">...</view>
+ui.bindKeys('mod-s', 'save');                  // everywhere; mod = Cmd or Ctrl
+ui.bindKeys('mod-k', 'palette', 'Editor');     // only with the focus inside keyContext="Editor"
+ui.onAction(-1, 'save', save);                 // global handler; ui.onAction(h, ...) for a node and its subtree
+ui.keysFor('save')                             // ['mod-s']: hints in menus and tooltips (kit keyLabel: '⌘S')
+ui.focusScope(dialog, { trap: true, restore: true, autoFocus: true });
+```
+
+- **Keymaps** (GPUI): a keystroke is modifiers and a key joined by `-` (`cmd-s`, `ctrl-shift-p`, `mod-k`, `alt-up`,
+  `escape`, `f5`, `j`). The deepest `keyContext` on the focus path that binds the keystroke wins, then global
+  bindings; later bindings win over earlier ones. The action goes to the nearest `onAction` handler from the focused
+  node up, then to the global ones. Keystrokes with Cmd / Ctrl are matched before a focused text field edits; the
+  others only when it did not use them, so typing never triggers `j`. `ui.dispatchAction(action)` runs an action from
+  code (menus, palettes).
+- **Tab order**: `tabIndex={n}` with n > 0 comes first (ascending), then the tree order; `tabIndex={-1}` is focusable
+  by click or code but not by Tab. `disabled` (a flag, dynamic under Solid) removes a node and its subtree from
+  pointer events, clicks and the focus.
+- **Focus scopes**, on a node that is shown and hidden (mounted, or `hidden` toggled): `trap` keeps Tab, Shift+Tab and
+  the arrow navigation inside it while it is on screen (the latest trap wins); `restore` gives the focus back, when it
+  leaves the screen, to the node that had it when it showed; `autoFocus` focuses its first control when it shows.
+- `focus-within:bg-*` / `text-*` / `border-*` apply while the focus is in the node's subtree
+  (`ui.hasFocusWithin(h)`); `ui.onFocusChange(f)` reports every focus move (`-1`: none).
+- **Dismissal**: `ui.onDismiss(h, f)`: Escape runs the handler of the most recently shown node that has one (after the
+  focused node's `onKeyDown`, before a text field's own Escape). `ui.onOutsidePointer(h, f, except)`: a press outside
+  h (and outside `except`, the button that toggles it) while h is on screen.
+
+## Layers and anchored positioning
+
+```tsx
+ui.openLayer(menu, { priority: 100 });                              // modal, backdrop (a colour), backdropAlpha
+ui.anchor(menu, button, 'bottom-start', 4);                         // offset 4 px, flip, 8 px margin
+ui.anchorPoint(contextMenu, e.gx, e.gy);                            // at a point
+ui.openLayer(dialog, { priority: 200, modal: true, backdrop: 0x000000 });
+```
+
+A layer node stays where it is declared (its component owns it; Solid and React mount and unmount it as usual), but
+it is laid out on the whole surface (its `left` / `top` / `right` / `bottom` / `inset-0` classes place it, else
+`ui.anchor`), painted after the root in priority order (then opening order) and hit-tested first; the overflow
+clipping and the scroll offsets of its ancestors do not apply. A modal layer blocks the hits below it, and its
+backdrop dims them. `ui.anchor` places the float next to a node or a point at the end of each layout and each frame
+(so it follows a scrolling target), flips it to the other side when it does not fit and there is more room there, and
+keeps it `margin` px inside the surface. `closeLayer` / `unanchor` undo them; a destroyed node leaves every registry.
+
+The kit builds its overlays on these (docs/ui-kit.md): Tooltip, Popover, DropdownMenu, Dialog, toast.
 
 ## Hover and cursors
 
@@ -95,7 +199,8 @@ Order for each key down: the focused node's `onKeyDown` (or its nearest ancestor
 keys, then the global `ui.onKey` handlers, each only if nothing before called `preventDefault()` / handled it.
 Printable keys are handled by a focused text field (typing never triggers single-letter shortcuts). Unhandled
 arrows, Tab / Shift+Tab, Enter and Space drive the existing focus navigation (also from a quick tap); while a text
-field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. Escape is an ordinary key for
+field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. A printable key that a handler
+consumed (`preventDefault()`, e.g. ⌥Z as a shortcut) does not also type its character, as in the DOM. Escape is an ordinary key for
 `zinc:ui` programs (close a dialog, go back: `preventDefault()` in a handler); unhandled, it blurs the focused node, and
 with nothing focused it does the platform default (`gfx.escapeDefault()`: leave fullscreen, else quit; nothing in
 kiosk mode). Plain `zinc:gfx` programs keep the HAL behaviour unless they call `gfx.escapeByApp(true)`.
@@ -143,7 +248,7 @@ catches a running inertia.
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a
 program prints the same on the sim and on native targets (`tests/conformance/input.tsx`, `input_react.tsx`):
-`ui.pointerAt(x, y, down, button = 0, mods = 0)`, `ui.wheelAt(x, y, dy, dx = 0, pinch = 1)`,
+`ui.pointerAt(x, y, down, button = 0, mods = 0)`, `ui.touchAt(id, x, y, phase)`, `ui.wheelAt(x, y, dy, dx = 0, pinch = 1)`,
 `ui.keyDown(h, key, mods = 0)` (returns whether it was handled), `ui.typeText(h, s)` (`h = -1` keeps the focus).
 `zinc test` gives native runs a private clipboard (`ZINC_CLIPBOARD=local`) and runs both sides in deterministic mode
 (virtual clock, fixed `dt`, no live input; [guide](guide/06-testing.md#determinism)). A real session can be recorded
@@ -161,5 +266,6 @@ Optional HAL hooks with weak defaults in the runtime: `hal_text_input` (SDL_Star
 `modifiers`, `pointerButtons`, `buttonEventCount/X/Y/Button/Down`, `wheelX`, `startTextInput`, `stopTextInput`,
 `clipboardText`, `setClipboardText`, `setCursor` (no-ops / empty on the sim).
 
-Not done yet: IME composition preview (committed text works), block comments in `tsHighlight`, word-wise drag
+Not done yet: IME composition preview (committed text works), comments spanning lines in `tsHighlight` (use
+`setHighlightAt` with a per-line state, as `examples/zed-editor` does), multiple carets, word-wise drag
 selection after a double click, exact-size fonts for continuous zoom.

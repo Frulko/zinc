@@ -217,6 +217,27 @@ export const $z = globalThis.$z = {
       }
     }
   },
+  // DynFunction adapter (compiler/src/emit-cpp.ts dynFnAdapter): Dyn arguments converted JS-style, never a panic
+  dynfn(f, kinds) {
+    const cv = (v, k) => {
+      switch (k) {
+        case 'dyn': return v;
+        case 'str': return String(v);
+        case 'bool': return !!v;
+        case 'i32': return Number(v) | 0;
+        case 'u32': return Number(v) >>> 0;
+        case 'u8': return Number(v) & 255;
+        case 'u16': return Number(v) & 65535;
+        case 'i8': return Number(v) << 24 >> 24;
+        case 'i16': return Number(v) << 16 >> 16;
+        case 'f32': return Math.fround(Number(v));
+        case 'fx12': return $z.fx(Number(v), 12);
+        case 'fx16': return $z.fx(Number(v), 16);
+        default: return Number(v);
+      }
+    };
+    return args => f(...kinds.map((k, i) => cv(args[i], k)));
+  },
   jsonParse(s) { try { return JSON.parse(s); } catch { throw new Error('JSON.parse: invalid JSON'); } },
   diter(v) { return Array.isArray(v) ? v : $z.panic(`Uncaught TypeError: cannot convert Dyn (${v === null ? 'null' : typeof v}) to array`); },
   dseti(o, k, v) {

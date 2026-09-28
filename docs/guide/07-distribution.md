@@ -28,8 +28,17 @@ Add to `zinc.json`:
 { "name": "myapp", "version": "1.2.3", "id": "com.example.myapp", "icon": "assets/icon.png" }
 ```
 
-`version` and `id` flow into each platform's metadata; `icon` (a PNG) is converted per target. What each export does
-with the icon:
+`version` and `id` flow into each platform's metadata; `icon` (a PNG) is converted per target. Without `icon`, Zinc
+generates one: the first letter of the name on a colour picked from the name (a macOS-style rounded square with a
+gradient, 1024 px, `compiler/src/icon.ts`). Customize it without drawing anything:
+
+```json
+{ "icon": { "letter": "Z", "background": "#4f46e5", "background2": "#7c3aed", "color": "#ffffff" } }
+```
+
+On macOS, `zinc build` / `zinc run` of a windowed program also produce `build/macos/Name.app` and start the bundled
+executable, so the Dock and the menu bar show the app's name and icon during development (not in deterministic
+test runs). What each export does with the icon:
 
 | target | icon becomes | metadata |
 | --- | --- | --- |

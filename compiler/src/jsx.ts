@@ -5,12 +5,15 @@
 import { ts } from './frontend.ts';
 
 const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, input: 7, textarea: 8, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5, Input: 7, TextArea: 8 };
-const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows']);
+const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows', 'tabIndex', 'dragThreshold']);
 // text fields and pointer / key events (zinc:ui host ABI: onPointer kinds, edit flags)
-const POINTER_ATTRS: Record<string, number> = { onPointerDown: 0, onPointerMove: 1, onPointerUp: 2, onDoubleClick: 3, onContextMenu: 4, onWheel: 5, onPointerEnter: 6, onPointerLeave: 7 };
-const FLAG_ATTRS = new Set(['password', 'readOnly', 'lineNumbers', 'wrap', 'keepFocus']);
+const POINTER_ATTRS: Record<string, number> = { onPointerDown: 0, onPointerMove: 1, onPointerUp: 2, onDoubleClick: 3, onContextMenu: 4, onWheel: 5, onPointerEnter: 6, onPointerLeave: 7,
+  onTap: 8, onLongPress: 9, onDrag: 10, onPinch: 11, onPointerCancel: 12 };
+const FLAG_ATTRS = new Set(['password', 'readOnly', 'lineNumbers', 'wrap', 'keepFocus', 'disabled']);
 /** inputMode="..." on text fields: which virtual keyboard layout fits (lib/std/kit/keyboard.tsx). */
 const INPUT_MODES: Record<string, number> = { text: 0, numeric: 1, decimal: 2, tel: 3, email: 4, url: 5, search: 6 };
+/** dragAxis="x" | "y" | "both" (onDrag, docs/ui.md Gestures). */
+const DRAG_AXES: Record<string, number> = { x: 1, y: 2, both: 3 };
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -22,7 +25,8 @@ function colors(): Set<string> {
   for (const m of src.matchAll(/'([a-z]+):/g)) for (const sh of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]) COLORS.add(`${m[1]}-${sh}`);
   return COLORS;
 }
-const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'inset-0',
+const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'overflow-auto', 'overflow-scroll', 'overflow-x-auto', 'overflow-x-scroll',
+  'overflow-y-auto', 'overflow-y-scroll', 'inset-0',
   'w-full', 'h-full', 'font-bold', 'font-semibold', 'font-medium', 'font-normal', 'font-mono', 'font-sans', 'text-left', 'text-center', 'text-right', 'rounded', 'border',
   'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-none', 'transition', 'transition-colors', 'transition-all', 'ease-in', 'ease-out', 'ease-in-out',
   'tracking-tight', 'tracking-wide', 'tracking-wider', 'tracking-widest']);
@@ -40,7 +44,7 @@ const RULES = [
 /** UI-07: same grammar as applyToken in lib/std/ui.ts; unknown classes are build errors (custom .css classes are declared). */
 export function validClass(c: string, custom?: Set<string>): boolean {
   if (custom?.has(c)) return true;
-  const v = /^(focus|active|hover|sm|md|lg|xl|2xl):(.*)$/.exec(c);
+  const v = /^(focus|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$/.exec(c);
   if (v) return validClass(v[2], custom);
   if (FIXED.has(c) || RULES.some(r => r.test(c))) return true;
   const m = new RegExp(`^(bg|text|border|from|via|to)-${COLOR}$`).exec(c);
@@ -154,6 +158,9 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       else if (name === 'onDraw') out.push(`_draw(${v}, ${val.expr});`);
       else if (name in POINTER_ATTRS) out.push(`_ptr(${v}, ${POINTER_ATTRS[name]}, ${val.expr});`);
       else if (name === 'onKeyDown') out.push(`_key(${v}, ${val.expr});`);
+      else if (name === 'dragAxis' && val.lit !== undefined && val.lit in DRAG_AXES) out.push(`_num(${v}, 'dragAxis', ${DRAG_AXES[val.lit]});`);
+      else if (name === 'grab' && (val.lit === 'keep' || val.lit === 'auto')) out.push(`_num(${v}, 'grab', ${val.lit === 'keep' ? 1 : 0});`);
+      else if (name === 'keyContext') out.push(`_ctx(${v}, ${val.lit !== undefined ? JSON.stringify(val.lit) : val.expr});`);
       else if (name === 'onInput' || name === 'onChange') out.push(`_onText(${v}, ${name === 'onChange' && !react}, ${val.expr});`);  // React: onChange fires on every edit
       else if (name === 'value' || name === 'placeholder') {
         if (val.lit !== undefined) out.push(`_str(${v}, '${name}', ${JSON.stringify(val.lit)});`);
@@ -326,7 +333,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const input = '_ptr, _key, _onText, _str, _hl';
+  const input = '_ptr, _key, _onText, _str, _hl, _ctx';
   const helpers = react ? `_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ${input}` : `_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ${input}`;
   return `import { ${helpers} } from '${lib}'; ` + out;
 }

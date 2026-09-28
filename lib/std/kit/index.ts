@@ -20,3 +20,4 @@ export { Switch } from './switch';
 export { Tabs } from './tabs';
 export { Stat } from './stat';
 export { List, ListItem } from './list';
+export { Tooltip, TooltipProps, Popover, PopoverProps, DropdownMenu, DropdownMenuProps, MenuItem, Dialog, DialogProps, toast, keyLabel } from './overlays';

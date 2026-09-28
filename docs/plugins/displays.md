@@ -24,7 +24,7 @@ demos: [docs/boards.md](../boards.md). Text for LED matrices: `zinc:pixelfont` (
 |---|---|---|---|---|
 | `ws2812` | RMT (any GPIO) | SPI MOSI via `/dev/spidev0.0` | emulator window (LED dots) | no |
 | `ssd1306` | I2C master | `/dev/i2c-1` | emulator window (1-bit pixels) | no |
-| `st7789` (+ ILI9341) | SPI + DMA, band rendering | no | normal window (no emulation needed) | no |
+| `st7789` (+ ILI9341) | SPI or 8-bit i80 + DMA, damage-only band rendering, PWM backlight, CST820 touch | no | normal window (no emulation needed) | no |
 | `scrollphat` (Pimoroni Scroll pHAT, IS31FL3730) | no | `/dev/i2c-1` | emulator window (white LED dots) | no |
 
 `ZINC_FRAMES=n` and `ZINC_SHOT=file.bmp` work with the emulators (the picture saved is the emulated device).
@@ -81,21 +81,34 @@ are different hardware and would be separate drivers.
 Each 8-row page is rendered, converted and compared with what the panel holds; only the changed column span of a
 changed page is sent. SH1106 (1.3" boards, 132 columns, page addressing only) is not supported yet.
 
-## st7789 (SPI LCD, ILI9341 with `"controller": "ili9341"`) — ESP32
+## st7789 (SPI or i80 LCD, ILI9341 with `"controller": "ili9341"`) — ESP32
 
 | signal | option | default GPIO |
 |---|---|---|
-| SDA/MOSI | `mosi` | 23 |
-| SCL/SCK | `sclk` | 18 |
+| SDA/MOSI (SPI) | `mosi` | 23 |
+| SCL/SCK (SPI) | `sclk` | 18 |
+| D0..D7 (i80) | `data` | `[15, 13, 12, 14, 27, 25, 33, 32]` on the ESP32-2432S022 |
+| WR / RD (i80) | `wr` / `rd` | -1 (RD is driven high when set) |
 | CS | `cs` | 5 |
 | DC | `dc` | 16 |
 | RES | `rst` | 17 (-1: none) |
-| BLK/LED | `bl` | 4 (-1: always on) |
+| BLK/LED | `bl` | 4 (-1: always on), LEDC PWM at `brightness` (0..255) |
 
-Other options: `hz` (40 MHz), `lines` (band height, default 16: 2 DMA buffers of `width*lines*2` bytes plus one
-`width*lines*4` render band, no framebuffer), `xoff`/`yoff` (panel RAM offset, e.g. `yoff: 80` for 240x240 ST7789,
-52/40 for 135x240), `madctl` (-1: 0x00 for ST7789, 0x48 for ILI9341), `invert` (-1: on for ST7789, off for ILI9341),
-`debug` (1: CRC log per frame; 2: CRC only, no SPI I/O — Espressif QEMU never completes SPI DMA). Only the damaged rectangle is sent, band by band, rendering the next band while DMA sends the previous one.
+Other options: `bus` (`spi` or `i80`: esp_lcd's Intel 8080 bus, the I2S peripheral in LCD mode on the ESP32, LCD_CAM
+on the S3), `hz` (SPI clock or i80 WR clock, 40 MHz default), `lines` (band height, default 16: one `width*lines*4`
+render band, plus two `width*lines*2` DMA buffers except on the ESP32's i80 bus, whose driver copies the band itself),
+`xoff`/`yoff` (panel RAM offset, e.g. `yoff: 80` for 240x240 ST7789, 52/40 for 135x240), `madctl` (-1: 0x00 for
+ST7789, 0x48 for ILI9341; 8 = BGR), `invert` (-1: on for ST7789, off for ILI9341), `touch` (`cst820`: a CST820/CST816
+on I2C `tsda`/`tscl` at `taddress`, 21/22/0x15 by default, read as the pointer in `poll`; `tswap`, `tflipx`, `tflipy`
+map it to the screen), `debug` (1: CRC log per frame; 2: CRC only, no bus I/O, 60-frame QEMU budget — Espressif QEMU
+never completes SPI DMA and has no I2S LCD mode; 3: no bus I/O and no budget, a damage summary every 100 frames).
+
+Only the damage is sent: each band renders the damaged rectangles over a sentinel colour first
+(`HalFrame.render_damage`), bands without damage are skipped, and a band sends the bounding box of its changed pixels
+(it renders whole rows only when two rectangles sit side by side). The next band renders while DMA sends the previous
+one. `zinc_display_backlight(level)` sets the PWM from native code (`zinc:device` uses it). On i80 panels the ST7789
+gets the LovyanGFX panel tuning (porch, VCOM, power, gamma); SPI panels keep the controller defaults. Board preset and
+pin sources: [ESP32-2432S022](../boards.md#esp32-2432s022-jczn-22).
 
 ## Verified / not verified
 

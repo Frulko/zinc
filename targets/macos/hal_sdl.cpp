@@ -58,7 +58,8 @@ static bool det = false;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
-  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin brings its own window
+  // a display plugin brings its own output, unless it draws through this window (host_window: the e-ink emulator)
+  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && (!hal_display || hal_display->host_window);
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   const char* d = getenv("ZINC_DETERMINISTIC");
   det = (d && *d && *d != '0') || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
@@ -87,6 +88,7 @@ void hal_init(const HalConfig* cfg) {
 #endif
   if (const char* r = getenv("ZINC_RESIZE")) fill = r[0] == 'f';
   if (det) fill = false;  // the layout must not follow the window
+  if (hal_display) fill = false;   // an emulated device (host_window driver) has a fixed panel: letterbox it
   bool full = false;
 #ifdef ZINC_FULLSCREEN
   full = true;
@@ -97,8 +99,18 @@ void hal_init(const HalConfig* cfg) {
   if (const char* v = getenv("ZINC_FULLSCREEN")) full = v[0] == '1';
   if (const char* v = getenv("ZINC_KIOSK")) kiosk = v[0] == '1';
   if (kiosk) full = true;
-  if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
+  // a surface taller or wider than the screen (a 1620x2160 tablet) opens scaled down to fit, keeping its proportions
+  // (the OS would only clamp one side)
+  int ww = W * scale, wh = H * scale;
+  SDL_Rect usable;
+  if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
+    const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
+    if (fit < 1) { ww = (int)(ww * fit); wh = (int)(wh * fit); }
+  }
+  if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
+  if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   SDL_SetRenderVSync(ren, 1);
   start_workers();
   if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
@@ -328,9 +340,15 @@ static int32_t band_y0, band_y1, band_count, workers, pending;
 static unsigned band_gen;
 static std::mutex band_mu;
 static std::condition_variable band_go, band_done;
+// profiler hooks (runtime/gfx.cpp): band spans for the raster phase and the trace; no-ops without zinc:gfx
+extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
+extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
+static bool band_prof;
 static void run_band(int i) {
   int32_t rows = band_y1 - band_y0, a = band_y0 + rows * i / band_count, b = band_y0 + rows * (i + 1) / band_count;
+  uint64_t t0 = band_prof ? hal_time_us() : 0;
   if (b > a) band_fn(fb + (size_t)a * PW, a, b);
+  if (band_prof) zrt_prof_band(i, t0, hal_time_us());
 }
 static void band_worker(int id) {
   unsigned seen = 0;
@@ -355,7 +373,13 @@ static void start_workers() {
   workers = n > 1 ? n - 1 : 0;
 }
 static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
-  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) { fn(fb + (size_t)y0 * PW, y0, y1); return; }
+  band_prof = zrt_profiling() != 0;
+  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) {
+    uint64_t t0 = band_prof ? hal_time_us() : 0;
+    fn(fb + (size_t)y0 * PW, y0, y1);
+    if (band_prof) zrt_prof_band(0, t0, hal_time_us());
+    return;
+  }
   {
     std::lock_guard<std::mutex> l(band_mu);
     band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; pending = workers; band_gen++;
@@ -368,7 +392,16 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
-  if (!gfx_on || f->w != PW || f->h != PH) return;  // a frame rendered for the previous size
+  if (!gfx_on) return;
+  if (f->w != PW || f->h != PH) {   // a frame rendered for the previous size (live resize): expected once in a while
+    static int dropped = 0;
+    if (++dropped == 30) {   // many in a row means a size mismatch, not a resize: say so instead of a black window
+      char b[160];
+      snprintf(b, sizeof b, "zinc: frames of %dx%d do not fit the %dx%d window surface; nothing is shown\n", f->w, f->h, PW, PH);
+      hal_log_err(b, strlen(b));
+    }
+    return;
+  }
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};

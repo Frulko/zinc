@@ -3,11 +3,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { loadProgram, ZINC_ROOT, type Diag } from './frontend.ts';
+import { loadProgram, setPlatform, ZINC_ROOT, type Diag } from './frontend.ts';
+import { capsFor, unmet, explain, moduleRequires, platformModule } from './capabilities.ts';
+import { iconPng, type IconSpec } from './icon.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
 import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
-import { initProject, tsconfigFor, linkEditorPlugin, exportApp, dev, monitor } from './tools.ts';
+import { initProject, tsconfigFor, linkEditorPlugin, exportApp, macBundle, dev, monitor } from './tools.ts';
 import { infer, tsPathOf } from './infer.ts';
 import { buildHir, printHir } from './hir.ts';
 import { lowerMir, printMir } from './mir.ts';
@@ -18,7 +20,9 @@ import * as png from './png.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean;
   /** esp32 only (docs/boards.md): ESP-IDF chip (esp32, esp32s3), PSRAM for the Zinc heap, flash size ("4MB"). */
-  chip?: string; psram?: boolean; flashSize?: string }
+  chip?: string; psram?: boolean; flashSize?: string;
+  /** esp32 only: extra sdkconfig.defaults lines, e.g. { "CONFIG_FREERTOS_HZ": 1000, "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true }. */
+  sdkconfig?: Record<string, string | number | boolean> }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
   macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
@@ -35,13 +39,13 @@ const PROFILES: Record<string, Profile> = {
 
 
 /** version / id / icon: packaging metadata for zinc export (docs/guide/07-distribution.md). */
-export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string; targets: Record<string, Partial<Profile>> }
+export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string | IconSpec; requires: string[]; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
 /** vals: valued options of zinc capture (--frames, --every, --out, --replay). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; port?: string; vals: Record<string, string> }
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
+  const o: Opts = { project: { name: '', dir: '', requires: [], targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
@@ -56,6 +60,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--no-float') o.noFloat = true;
     else if (a === '--no-dyn') o.noDyn = true;
     else if (a === '--obfuscate') o.obfuscate = true;
+    else if (a === '--force') o.force = true;   // build even when the target lacks a capability the app requires
     else if (a === '--dev') o.dev = true;
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
@@ -63,7 +68,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--port') o.port = argv[++i];  // zinc flash (compiler/src/flash.ts)
     else if (a.startsWith('--port=')) o.port = a.slice(7);
     else if (a === '--display' || a.startsWith('--display=')) process.env.ZINC_DISPLAY = a.includes('=') ? a.slice(10) : argv[++i];  // plugins.ts displayOf
-    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write' || a === '--pixels' || a === '--fuzz' || a.startsWith('--fuzz=')) { /* handled by the command */ }
+    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write' || a === '--pixels' || a === '--bench' || a === '--fuzz' || a.startsWith('--fuzz=')) { /* handled by the command */ }
     else if (['--frames', '--every', '--out', '--replay'].includes(a)) o.vals[a.slice(2)] = argv[++i] ?? die(`${a} needs a value`);
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
@@ -81,6 +86,14 @@ function parseArgs(argv: string[]): Opts {
   if (over && PROFILES[o.profile]) PROFILES[o.profile] = { ...PROFILES[o.profile], ...over };
   if (!PROFILES[o.target]) die(`unknown target '${o.target}' (available: ${Object.keys(PROFILES).join(', ')})`);
   if (!PROFILES[o.profile]) die(`unknown profile '${o.profile}'`);
+  // capabilities of the target profile (docs/targets/capabilities.md): zinc:platform, and the app's requirements
+  const caps = capsFor(o.profile, PROFILES[o.profile]);
+  setPlatform(o.target, o.profile, platformModule(o.target, o.profile, caps));
+  const missing = explain(o.project.requires, caps, o.profile);
+  if (missing && ['build', 'run', 'export', 'deploy', 'flash', 'dev'].includes(argv[0] ?? '')) {
+    if (o.force) console.error(`zinc: warning: ${o.project.name} requires ${missing}; building anyway (--force)`);
+    else die(`${o.project.name} cannot run on ${o.profile}: it requires ${missing} (zinc.json "requires"; --force builds anyway)`);
+  }
   return o;
 }
 
@@ -92,12 +105,12 @@ function loadProject(entry: string): Project {
     if (fs.existsSync(f)) {
       let j: Record<string, any>;
       try { j = withBoard(JSON.parse(fs.readFileSync(f, 'utf8'))); } catch (e) { die((e as Error).message); }
-      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, version: j.version, id: j.id, icon: j.icon && path.join(dir, j.icon), targets: j.targets ?? {} };
+      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, version: j.version, id: j.id, icon: typeof j.icon === 'string' ? path.join(dir, j.icon) : j.icon, requires: j.requires ?? [], targets: j.targets ?? {} };
     }
     dir = path.dirname(dir);
   }
   const d = path.dirname(path.resolve(entry));
-  return { name: path.basename(d), dir: d, assets: fs.existsSync(path.join(d, 'assets')) ? path.join(d, 'assets') : undefined, targets: {} };
+  return { name: path.basename(d), dir: d, assets: fs.existsSync(path.join(d, 'assets')) ? path.join(d, 'assets') : undefined, requires: [], targets: {} };
 }
 
 /** Build errors end the command; `zinc dev` builds in process and catches them (tools.ts). */
@@ -124,6 +137,13 @@ function analyze(o: Opts): Sema {
   try {
     const sema = new Sema(fe, path.dirname(path.resolve(o.entry)), { numberKind: prof.number, typing: prof.typing, warnFloat: !!prof.noFpu, noFloat: o.noFloat, heap0: false });
     if (!o.json) printDiags(sema.warnings, false);
+    // modules that declare `@requires` the target does not meet (e.g. the kit Keyboard on a 160 KiB ESP32)
+    const caps = capsFor(o.profile, prof);
+    for (const f of fe.sources) {
+      const req = moduleRequires(f.text);
+      const why = req.length ? explain(req, caps, o.profile) : '';
+      if (why && !o.json) console.error(`${path.relative(process.cwd(), f.fileName)}:1:1 - warning Z5004: this module requires ${why}`);
+    }
     // DYN-10: --no-dyn turns every remaining Dyn site into an error
     const dyn = o.noDyn ? sema.dynSites() : [];
     if (dyn.length) { printDiags(dyn.map(d => ({ file: d.file, line: d.line, col: d.col, code: 'Z1017', severity: 'error' as const, message: `Dyn site (${d.kind}) '${d.text}' is not allowed with --no-dyn` })), o.json); exit(1); }
@@ -204,9 +224,13 @@ function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, t
   const opt = mode.dev ? '-g -O0 -DZRT_DEV' : debug ? `-g -O0 -DZRT_DEBUG ${san}` : '-O2 -ffunction-sections -fdata-sections' + (mode.dist ? ' -fvisibility=hidden -fvisibility-inlines-hidden' : '') + (harden ? ' -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -Wno-unused-result' : '');
   const hot = mode.hot;
   const q = (x: string) => `"${x.replace(/"/g, '\\"')}"`;
+  // plugin C sources (vendored libraries such as QuickJS): their own static library, C flags only, no warnings
+  const cSrc = res.nativeSources.filter(f => f.endsWith('.c'));
+  const cxxSrc = res.nativeSources.filter(f => !f.endsWith('.c'));
+  const cOpt = mode.dev ? '-g -O0' : debug ? `-g -O0 ${san}` : '-O2 -ffunction-sections -fdata-sections';
   return `# Generated by zinc. Do not edit.
 cmake_minimum_required(VERSION 3.20)
-project(zinc_app CXX)
+project(zinc_app ${cSrc.length ? 'C CXX' : 'CXX'})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -238,10 +262,10 @@ target_compile_definitions(zinc_host PRIVATE ZINC_HAL_SRC="\${ZINC_HAL}")
 set_target_properties(zinc_host PROPERTIES ENABLE_EXPORTS ON)
 target_link_libraries(zinc_host PRIVATE \${CMAKE_DL_LIBS})
 ${usesGfx ? 'find_package(SDL3 REQUIRED CONFIG)\ntarget_link_libraries(zinc_host PRIVATE SDL3::SDL3)' : ''}
-add_library(app MODULE zinc_main.cpp${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+add_library(app MODULE zinc_main.cpp${cxxSrc.map(f => ' ' + rel(f)).join('')})
 set_target_properties(app PROPERTIES PREFIX "" SUFFIX ".so")
 target_compile_definitions(app PRIVATE ZRT_DYLIB)
-target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
+target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${cxxSrc.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 ${win.length ? `target_compile_definitions(app PRIVATE ${win.join(' ')})` : ''}
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality -Wno-unused-value)
@@ -257,6 +281,10 @@ else()
   target_link_options(app PRIVATE -Wl,--gc-sections${mode.dist ? ' -s' : ''}${harden ? ' -Wl,-z,relro,-z,now' : ''})
 endif()`}
 ${mods.filter(m => MOD_LIBS[m]).map(m => m === 'net' ? 'find_package(CURL REQUIRED)\ntarget_link_libraries(zrt PUBLIC CURL::libcurl)' : m === 'gpio_linux' ? 'find_package(PkgConfig REQUIRED)\npkg_check_modules(GPIOD REQUIRED IMPORTED_TARGET libgpiod)\ntarget_link_libraries(zrt PUBLIC PkgConfig::GPIOD)' : '').join('\n')}
+${cSrc.length ? `add_library(zinc_c STATIC${cSrc.map(f => ' ' + rel(f)).join('')})
+target_compile_options(zinc_c PRIVATE ${cOpt} -w)
+${ps.defines.length ? `target_compile_definitions(zinc_c PRIVATE ${ps.defines.map(q).join(' ')})` : ''}
+target_link_libraries(app PRIVATE zinc_c)` : ''}
 ${ps.includes.length ? `target_include_directories(app PRIVATE ${ps.includes.map(q).join(' ')})` : ''}
 ${ps.defines.length ? `target_compile_definitions(app PRIVATE ${ps.defines.map(q).join(' ')})` : ''}
 ${ps.flags.length ? `target_compile_options(app PRIVATE ${ps.flags.map(q).join(' ')})` : ''}
@@ -356,6 +384,13 @@ function pluginSettings(o: Opts, sema: Sema): BuildSettings {
   const act = activePlugins(pd, sema.fe.sources.map(f => f.fileName), o.target);
   if (act.errors.length) { console.error(act.errors.map(e => `${o.entry}:1:1 - error Z5003: ${e}`).join('\n')); exit(1); }
   if (act.plugins.length) log(o, `plugins: ${act.plugins.map(p => p.name).join(', ')}`);
+  const caps = capsFor(o.profile, PROFILES[o.profile]);
+  for (const p of act.plugins) {
+    const why = explain(p.requires, caps, o.profile);
+    if (!why) continue;
+    if (o.force) console.error(`zinc: warning: plugin ${p.name} requires ${why}; building anyway (--force)`);
+    else { console.error(`${o.entry}:1:1 - error Z5005: plugin ${p.name} requires ${why} (plugin.json "requires"; --force builds anyway)`); exit(1); }
+  }
   extraMounts = act.plugins.map(p => p.dir);
   return buildSettings(act.plugins, pd, o.target);
 }
@@ -373,12 +408,12 @@ function build(o: Opts): Built {
   const title = o.project.name;
   const prof = PROFILES[o.profile];
   if (o.target === 'sim' || o.emit === 'js') {
-    pluginSettings(o, sema);
+    const simFlags = pluginSettings(o, sema).nodeFlags;
     const baked = usesGfx(sema) ? bakeResources(o, sema, dir) : undefined;
     const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height], baked?.json));
     if (o.emit === 'js') { console.log(runner.files.map(f => f.path).join('\n')); process.exit(0); }
     log(o, `built sim in ${Date.now() - t0} ms -> ${path.relative(process.cwd(), dir)}`);
-    return { exe: ['node', path.join(dir, 'run.mjs')], dir };
+    return { exe: ['node', ...simFlags, path.join(dir, 'run.mjs')], dir };
   }
   const ps = pluginSettings(o, sema);
   const crash = o.dev ? 1 : CRASH[o.project.crash ?? 'exit'];
@@ -414,6 +449,12 @@ function build(o: Opts): Built {
   const size = fs.statSync(exe).size;
   log(o, `built ${o.target}${o.profile !== o.target ? ` (profile ${o.profile})` : ''}: zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), exe)}`);
   writeReport(dir, o, sema, size, res.usesGfx);
+  // macOS windowed apps also get Name.app (icon, name in the Dock and menu bar); zinc run starts the bundled copy.
+  // ponytail: skipped in deterministic runs (tests, captures), where nothing is shown in the Dock
+  if (o.target === 'macos' && process.platform === 'darwin' && res.usesGfx && !process.env.ZINC_DETERMINISTIC) {
+    const app = macBundle(o.project, exe, dir, iconPng(o.project.name, o.project.icon, o.project.dir, dir));
+    if (app) { log(o, `bundled -> ${path.relative(process.cwd(), path.dirname(path.dirname(path.dirname(app))))}`); return { exe: [app], dir }; }
+  }
   return { exe: [exe], dir };
 }
 
@@ -424,7 +465,7 @@ interface DockerTarget { image: string; dockerfile: string; platform?: string; c
 const DOCKER: Record<string, DockerTarget> = {
   linux: { image: 'zinc/sdk-linux', dockerfile: 'docker/sdk-linux', cmake: ['-G', 'Ninja'], run: ['./cmake/app'] },
   // TGT-RPI-01/04: ARMv6 hard-float, executed under QEMU with the arm1176 CPU
-  rpi1: { image: 'zinc/sdk-rpi1', dockerfile: 'docker/sdk-rpi1', platform: 'linux/arm/v6', cmake: ['-DCMAKE_CXX_FLAGS=-march=armv6kz+fp -mfpu=vfp -mfloat-abi=hard'], run: ['./cmake/app'], env: ['QEMU_CPU=arm1176'] },
+  rpi1: { image: 'zinc/sdk-rpi1', dockerfile: 'docker/sdk-rpi1', platform: 'linux/arm/v6', cmake: ['-DCMAKE_CXX_FLAGS=-march=armv6kz+fp -mfpu=vfp -mfloat-abi=hard', '-DCMAKE_C_FLAGS=-march=armv6kz+fp -mfpu=vfp -mfloat-abi=hard'], run: ['./cmake/app'], env: ['QEMU_CPU=arm1176'] },
   // TGT-PS1: PS-EXE with PSn00bSDK, run headless in PCSX-Redux (OpenBIOS, no Sony BIOS); the TTY between the HAL
   // markers is the program's output, the exit code comes from the emulator (-testmode). -interpreter: its x86-64
   // dynarec ran some executables into garbage under Docker's x86 emulation. docs/targets/playstation.md
@@ -433,7 +474,7 @@ const DOCKER: Record<string, DockerTarget> = {
     run: ['bash', '-c', `set -o pipefail; timeout ${process.env.ZINC_EMU_TIMEOUT ?? 300} /opt/redux/usr/bin/pcsx-redux -cli -testmode -stdout -interpreter -dofile ${ZINC_ROOT}/targets/ps1/shot.lua -run -loadexe cmake/app.exe 2>&1 | awk '/^zinc:exit$/{f=0} f{print; fflush()} /^zinc:start$/{f=1}'`] },
   // TGT-PS2-01: EE ELF with ps2sdk; running needs PCSX2 + the user's BIOS (TGT-PS2-04), so `run` only builds
   // reMarkable Paper Pro: static aarch64 binary (independent of the device's glibc), Cortex-A53 tuning
-  rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
+  rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_C_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
   ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', frames: true, cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`, `-DZINC_TARGET_CMAKE=${ZINC_ROOT}/targets/ps2/ps2.cmake`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
 };
 /** Run-time settings passed into docker runs (frame budget, determinism, captures; see `zinc help env`). */
@@ -493,14 +534,14 @@ const ESP_MOD_REQUIRES: Record<string, string[]> = {
 };
 /** esp32 chip / PSRAM / flash settings (zinc.json targets.esp32 chip, psram, flashSize, or a board preset; env
  *  ZINC_ESP_CHIP overrides the chip, e.g. to run the conformance tests on esp32s3 in QEMU). docs/boards.md */
-export function espChip(o: Opts): { chip: string; psram: boolean; flashSize?: string } {
+export function espChip(o: Opts): { chip: string; psram: boolean; flashSize?: string; sdkconfig: Record<string, string | number | boolean> } {
   const prof = PROFILES[o.profile];
-  return { chip: process.env.ZINC_ESP_CHIP || prof.chip || 'esp32', psram: !!prof.psram, flashSize: prof.flashSize };
+  return { chip: process.env.ZINC_ESP_CHIP || prof.chip || 'esp32', psram: !!prof.psram, flashSize: prof.flashSize, sdkconfig: prof.sdkconfig ?? {} };
 }
 function espBuild(o: Opts, dir: string, res: CppResult, sema: Sema, tc: number, t0: number, heap: number, ps: BuildSettings): Built {
   const idf = path.join(dir, 'idf');
   fs.mkdirSync(path.join(idf, 'main'), { recursive: true });
-  const { chip, psram, flashSize } = espChip(o);
+  const { chip, psram, flashSize, sdkconfig } = espChip(o);
   // PSRAM: the TLSF heap lives in external RAM (targets/esp32/hal_esp32.cpp); 1 MiB unless zinc.json sets `heap`
   if (psram && o.project.targets[o.profile]?.heap === undefined) heap = 1 << 20;
   // TGT-ESP variants: prefer runtime/mod/<name>_esp32.cpp over the host/sim runtime/mod/<name>.cpp.
@@ -525,7 +566,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_JSON_DEPTH=32 -DZRT_CLIP_CORNER_PX=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_JSON_DEPTH=32 -DZRT_CLIP_CORNER_PX=1024 -DZRT_STROKE_POINTS=512 -DZRT_OVERLAY_TEXT=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -545,7 +586,7 @@ storage,  data, spiffs,  ,        512K,
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 CONFIG_ESP_TASK_WDT_EN=n
 CONFIG_LOG_DEFAULT_LEVEL_ERROR=y
-${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}${flashSize ? `CONFIG_ESPTOOLPY_FLASHSIZE_${flashSize.toUpperCase()}=y\n` : ''}${chip === 'esp32s3' ? 'CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y\n' : ''}${psram ? `CONFIG_SPIRAM=y\n${chip === 'esp32s3' ? 'CONFIG_SPIRAM_MODE_QUAD=y\n' : ''}CONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_IGNORE_NOTFOUND=y\nCONFIG_SPIRAM_USE_CAPS_ALLOC=y\n` : ''}`;
+${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}${flashSize ? `CONFIG_ESPTOOLPY_FLASHSIZE_${flashSize.toUpperCase()}=y\n` : ''}${chip === 'esp32s3' ? 'CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y\n' : ''}${psram ? `CONFIG_SPIRAM=y\n${chip === 'esp32s3' ? 'CONFIG_SPIRAM_MODE_QUAD=y\n' : ''}CONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_IGNORE_NOTFOUND=y\nCONFIG_SPIRAM_USE_CAPS_ALLOC=y\n` : ''}${Object.entries(sdkconfig).map(([k, v]) => `${k}=${v === true ? 'y' : v === false ? 'n' : typeof v === 'string' ? JSON.stringify(v) : v}\n`).join('')}`;
   writeIfChanged(path.join(idf, 'sdkconfig.defaults'), defaults);
   // `idf.py set-target` when the chip or the defaults changed: sdkconfig is generated from the defaults only once
   const stamp = path.join(idf, '.zinc-target'), want = `${chip} ${fnv(defaults)}`;
@@ -616,6 +657,10 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     // `// zinc-test: skip ps1 esp32`: programs that do not fit a profile (heap, screen) on purpose
     const skips = /^\/\/ zinc-test: skip ([\w ]+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1].split(' ') ?? [];
     if (skips.includes(o.profile)) { console.log(`skip ${f} (not for the ${o.profile} profile)`); continue; }
+    // `// zinc-test: requires heap>=512K touch|pointer` (docs/targets/capabilities.md)
+    const needs = /^\/\/ zinc-test: requires (.+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1].trim().split(/\s+/) ?? [];
+    const why = explain(needs, capsFor(o.profile, PROFILES[o.profile]), o.profile);
+    if (why) { console.log(`skip ${f} (requires ${why})`); continue; }
     // `// zinc-test: max-frames 300`: the frame budget of both sides (the sim stops a screen program at 60 by default)
     const maxFrames = /^\/\/ zinc-test: max-frames (\d+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1];
     const runOne = (target: string): string => {
@@ -731,6 +776,38 @@ function pixelTest(o: Opts, update: boolean) {
   process.exit(failed ? 1 : 0);
 }
 
+/** zinc bench (zinc test --bench): the ZINC_DEMO bench scenes of examples, headless and deterministic, with the
+ *  profiler (ZINC_PROFILE=1). zinc.json `"bench": { "demo": "bench", "frames": 600, "p99Ms": 12 }`; fails when the
+ *  p99 of the frame work (every phase but present) exceeds p99Ms. */
+const BENCH_EXAMPLES = ['examples/hero', 'examples/zed-editor', 'examples/maps/navigation'];
+function benchCmd(o: Opts, argv: string[]) {
+  const dirs = argv.slice(1).filter(a => !a.startsWith('-') && fs.existsSync(path.join(a, 'zinc.json')));
+  let failed = 0;
+  for (const d of dirs.length ? dirs.map(x => path.resolve(x)) : BENCH_EXAMPLES.map(x => path.join(ZINC_ROOT, x))) {
+    const j = JSON.parse(fs.readFileSync(path.join(d, 'zinc.json'), 'utf8'));
+    const b = j.bench as { demo?: string; frames?: number; p99Ms?: number } | undefined;
+    const name = path.relative(ZINC_ROOT, d) || d;
+    if (!b) { console.log(`skip ${name} (no "bench" in zinc.json)`); continue; }
+    const entry = path.join(d, j.entry ?? 'src/main.ts');
+    const sub: Opts = { ...o, entry, project: loadProject(entry), cmd: 'run' };
+    const saved = PROFILES[o.profile];
+    PROFILES[o.profile] = { ...saved, ...(sub.project.targets[o.profile] ?? {}) };
+    let built: Built;
+    try { built = build(sub); } catch (e) { if (!(e instanceof Exit)) throw e; failed++; console.log(`FAIL ${name} (build)`); continue; } finally { PROFILES[o.profile] = saved; }
+    const r = spawnSync(built.exe[0], built.exe.slice(1), { cwd: d, encoding: 'utf8', env: {
+      ...DETERMINISTIC, SDL_VIDEO_DRIVER: 'dummy', ...process.env, ZINC_LOG_FORMAT: '',
+      ZINC_DEMO: b.demo ?? 'bench', ZINC_PROFILE: '1', ZINC_FRAMES: String(b.frames ?? 600) } });
+    const rows = [...(r.stderr ?? '').matchAll(/^zinc profile: (?:frames=(\d+) )?(\w+) p50=([\d.]+) p99=([\d.]+) max=([\d.]+) ms$/gm)];
+    const work = rows.find(m => m[2] === 'work');
+    if (!work) { failed++; console.log(`FAIL ${name}: no profile (exit ${r.status})\n${(r.stderr ?? '').slice(-500)}`); continue; }
+    const p99 = Number(work[4]), budget = b.p99Ms ?? Infinity, ok = p99 <= budget;
+    if (!ok) failed++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} [${b.demo ?? 'bench'}, ${work[1]} frames]: work p50 ${work[3]} ms, p99 ${work[4]} ms (budget ${budget} ms), max ${work[5]} ms`);
+    for (const m of rows) if (m !== work && Number(m[4]) >= 0.01) console.log(`       ${m[2].padEnd(8)} p50 ${m[3].padStart(6)}  p99 ${m[4].padStart(6)}  max ${m[5].padStart(6)} ms`);
+  }
+  process.exit(failed ? 1 : 0);
+}
+
 function diffText(a: string, b: string): string {
   const x = a.split('\n'), y = b.split('\n');
   for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `  line ${i + 1}:\n  - ${x[i] ?? ''}\n  + ${y[i] ?? ''}`;
@@ -768,6 +845,8 @@ function help(topic?: string) {
                                         (deterministic mode: virtual clock, fixed dt, no live input)
   zinc test --pixels [--update]         visual regression: tests/visual frames vs golden PNGs, pixel for pixel
   zinc test --fuzz[=<seconds>]          parsers of untrusted input: replay tests/fuzz corpora, or fuzz each N s
+  zinc bench  [example dirs] [--target <id>]   (also zinc test --bench) frame budgets: the examples' ZINC_DEMO bench
+                                        scenes with ZINC_PROFILE=1; fails when work p99 > zinc.json "bench".p99Ms
   zinc capture [entry] [--frames 1,60] [--every n] [--out dir] [--replay tape]
                                         render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
@@ -779,6 +858,9 @@ function help(topic?: string) {
   zinc doctor                           check the toolchain (cmake, compiler, SDL3, docker, emscripten)
   zinc help [commands|targets|options|env|testing|plugins|ui|docs]`,
     targets: `Targets (--target) and profiles (--profile: numbers, resolution, heap of another target on this one)
+  capabilities per profile: targets/capabilities.json (docs/targets/capabilities.md); zinc.json "requires":
+  ["heap>=4M", "touch|pointer", "net"] refuses incompatible targets (--force builds anyway); import
+  { TOUCH, HEAP_BYTES } from 'zinc:platform'; file.<profile>.ts / file.<target>.ts replace file.ts there
   macos   native, SDL3 window                  linux   docker zinc/sdk-linux, fbdev/GL display plugins
   rpi1    ARMv6 hard-float, docker + QEMU      rmpp    reMarkable Paper Pro, static aarch64, e-ink
   esp32   ESP-IDF firmware, Espressif QEMU (targets.esp32.chip: esp32 | esp32s3, psram, flashSize; "board": docs/boards.md)
@@ -810,6 +892,9 @@ function help(topic?: string) {
   ZINC_KIOSK=1           fullscreen, no cursor, always on top, Esc / Cmd+Q ignored (zinc.json targets.<id>.kiosk)
   ZINC_SCALE=n           physical pixels per logical pixel (default: Retina density x zoom)
   ZINC_LOG_FORMAT=json   console output as JSON lines
+  ZINC_PROFILE=1         per-phase frame timings (input, anim, layout, paint, effects, diff, raster, present): p50 / p99
+                         / max on stderr at exit;  ZINC_TRACE=t.json   the frames as Chrome trace events (Performance panel)
+  ZINC_VISUALIZE=damage|cmds   flash the damaged rectangles / heat map of the draw commands' boxes
   ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
@@ -916,6 +1001,7 @@ function main() {
   }
   const fuzz = argv.find(a => a === '--fuzz' || a.startsWith('--fuzz='));
   if (cmd === 'test' && fuzz) process.exit(run('bash', [path.join(ZINC_ROOT, 'scripts/fuzz.sh'), fuzz.includes('=') ? fuzz.slice(7) : '--replay']));
+  if (cmd === 'bench' || (cmd === 'test' && argv.includes('--bench'))) return benchCmd(o, argv);
   if (cmd === 'test') return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
   if (cmd === 'capture') return capture(o);
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));

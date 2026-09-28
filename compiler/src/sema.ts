@@ -11,7 +11,8 @@ export type ZT =
   | { k: 'map'; key: ZT; val: ZT }
   | { k: 'set'; el: ZT }
   | { k: 'obj'; decl: ts.Node; args: ZT[] }
-  | { k: 'fn'; params: ZT[]; ret: ZT }
+  /** dyn: the `DynFunction` intrinsic, (args: Dyn[]) => Dyn; a typed function passed there gets an adapter */
+  | { k: 'fn'; params: ZT[]; ret: ZT; dyn?: true }
   | { k: 'promise'; el: ZT }
   | { k: 'gen'; el: ZT }
   | { k: 'tup'; els: ZT[] }
@@ -26,6 +27,9 @@ export const BOOL: ZT = { k: 'bool' };
 export const STR: ZT = { k: 'str' };
 export const VOID: ZT = { k: 'void' };
 export const DYN: ZT = { k: 'dyn' };
+/** `DynFunction` (lib/zinc.d.ts): any function, called with an array of Dyn arguments (zinc:script host functions). */
+export const DYNFN: ZT = { k: 'fn', params: [{ k: 'arr', el: DYN }], ret: DYN, dyn: true };
+export const isDynFn = (t: ZT): boolean => t.k === 'fn' && !!t.dyn;
 
 export const isFx = (m: NumKind) => m === 'fx12' || m === 'fx16';
 export const isInt = (m: NumKind) => m !== 'f64' && m !== 'f32' && !isFx(m);
@@ -507,6 +511,7 @@ export class Sema {
         if (d === this.errorDecl) return { k: 'obj', decl: d, args: [] };
         if (ts.isTypeParameterDeclaration(d)) return { k: 'tp', name };
         if (ts.isEnumDeclaration(d)) return I32;
+        if (ts.isTypeAliasDeclaration(d) && name === 'DynFunction' && this.isLib(d)) return DYNFN;
         if (ts.isTypeAliasDeclaration(d)) {
           if (ts.isTypeLiteralNode(d.type) || this.unionMembers.has(d)) return { k: 'obj', decl: d, args };
           if (!this.isLib(d)) return this.fromTypeNode(d.type, subst);
@@ -534,6 +539,7 @@ export class Sema {
     if (type.aliasSymbol) {
       const ad = type.aliasSymbol.declarations?.[0];
       if (ad && ts.isTypeAliasDeclaration(ad) && this.unionMembers.has(ad)) return { k: 'obj', decl: ad, args: [] };
+      if (ad && ts.isTypeAliasDeclaration(ad) && type.aliasSymbol.name === 'DynFunction' && this.isLib(ad)) return DYNFN;
     }
     if (type.isUnion()) {
       const rest = type.types.filter(t => !(t.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
@@ -721,7 +727,7 @@ export class Sema {
       return sig ? this.fromType(sig.getReturnType(), d) : { k: 'promise', el: VOID };
     }
     if ((ts.isArrowFunction(d) || ts.isFunctionExpression(d)) && !this.isAsyncFn(d)) {
-      const ctx = this.contextual(d);
+      const ctx = this.contextual(d) ?? this.elementContext(d);
       if (ctx?.k === 'fn') return ctx.ret;
     }
     if (ts.isArrowFunction(d) && !ts.isBlock(d.body)) {
@@ -927,6 +933,15 @@ export class Sema {
   }
 
   /** Expected type from the syntactic context (declaration annotation, return type, parameter). */
+  /** A closure stored in a typed array (`[() => ...]`, `fns.push(() => ...)`) takes the element type. */
+  elementContext(e: ts.Expression): ZT | undefined {
+    const p = e.parent;
+    let at: ZT | undefined;
+    if (ts.isArrayLiteralExpression(p)) at = this.contextual(p);
+    else if (ts.isCallExpression(p) && p.arguments.includes(e) && ts.isPropertyAccessExpression(p.expression) && ['push', 'unshift'].includes(p.expression.name.text))
+      at = this.tryZ(p.expression.expression);
+    return at?.k === 'arr' ? at.el : undefined;
+  }
   contextual(e: ts.Expression): ZT | undefined {
     const p = e.parent;
     if (ts.isVariableDeclaration(p) && p.type) return this.fromTypeNode(p.type);
@@ -948,7 +963,7 @@ export class Sema {
       const ot = this.tryZ(p.parent);
       if (ot.k === 'dyn') return DYN;
       const m = ot.k === 'obj' ? this.memberDecl(ot.decl, p.name.getText()) : undefined;
-      if (m) return this.declType(m);
+      if (m && m !== p) return this.declType(m);  // an untyped literal's own member: its type comes from e itself
     }
     if (ts.isCallExpression(p) && p.arguments.includes(e)) {
       const d = ts.isPropertyAccessExpression(p.expression) ? this.declOf(p.expression.name) : this.declOf(p.expression);

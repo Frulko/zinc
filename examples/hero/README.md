@@ -14,6 +14,7 @@ zinc run examples/hero                  # macOS window (1100x700, Retina)
 zinc run examples/hero --target wasm    # browser
 zinc build examples/hero --target rpi1  # Raspberry Pi (fbdev)
 ZINC_DEMO=gallery zinc run examples/hero   # scripted start: home gallery detail playground tasks settings palette dialog dark
+zinc bench examples/hero                  # ZINC_DEMO=bench: a scripted tour with the profiler, budget in zinc.json
 ```
 
 ## Try

@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as dgram from 'node:dgram';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { ZINC_ROOT, STD_MODULES, LIB_FILES } from './frontend.ts';
+import { iconPng } from './icon.ts';
 import { modulePaths } from './plugins.ts';
 import type { Built, Opts, Project } from './cli.ts';
 
@@ -154,7 +155,9 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
   fs.mkdirSync(out, { recursive: true });
   const report = path.join(buildDir, 'report.json');
   const gui = fs.existsSync(report) && JSON.parse(fs.readFileSync(report, 'utf8')).usesGfx === true;
-  if (p.icon && !fs.existsSync(p.icon)) throw new Error(`zinc.json icon not found: ${p.icon}`);
+  if (typeof p.icon === 'string' && !fs.existsSync(p.icon)) throw new Error(`zinc.json icon not found: ${p.icon}`);
+  // the project's picture, or a generated one (a letter on a colour: compiler/src/icon.ts), for every packaging
+  const iconFile = iconPng(name, p.icon, p.dir, buildDir);
   const files: Record<string, string> = {
     'README.txt': `${name} ${version} (${target}) — built with Zinc.\nRun: ./run.sh\nThe executable is self-contained: assets are embedded.\n`,
   };
@@ -164,10 +167,10 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
   if (target === 'wasm') {  // a static site: index.html + app.js + app.wasm (+ favicon)
     const cm = path.join(buildDir, 'cmake');
     const html = fs.readFileSync(path.join(cm, 'app.html'), 'utf8').replace('<title>Zinc</title>',
-      `<title>${name.replace(/[<&]/g, '')}</title>${p.icon ? '\n<link rel="icon" href="favicon.png">' : ''}`);
+      `<title>${name.replace(/[<&]/g, '')}</title>\n<link rel="icon" href="favicon.png">`);
     fs.writeFileSync(path.join(out, 'index.html'), html);
     for (const f of ['app.js', 'app.wasm']) fs.copyFileSync(path.join(cm, f), path.join(out, f));
-    if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'favicon.png'));
+    fs.copyFileSync(iconFile, path.join(out, 'favicon.png'));
     bin = path.join(out, 'app.wasm');
     files['README.txt'] = `${name} ${version} (wasm) — built with Zinc.\nServe this directory over HTTP (file:// cannot load .wasm), e.g.\n  python3 -m http.server -d . 8080\nthen open http://localhost:8080/\n`;
   } else if (target === 'esp32') {  // firmware images + esptool flash script (offsets from ESP-IDF's flasher_args.json)
@@ -178,26 +181,9 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
     bin = path.join(out, path.basename(fa.flash_files['0x10000'] ?? Object.values(fa.flash_files).pop()!));
     files['flash.sh'] = `#!/bin/sh\n# usage: ./flash.sh /dev/ttyUSB0   (pip install esptool)\nset -e\nPORT="\${1:?usage: flash.sh <serial port>}"\nESPTOOL=$(command -v esptool || command -v esptool.py)\ncd "$(dirname "$0")"\n"$ESPTOOL" --chip ${fa.extra_esptool_args?.chip ?? 'esp32'} -p "$PORT" -b 460800 --before default_reset --after hard_reset write_flash ${fa.write_flash_args.join(' ')} ${parts.join(' ')}\n`;
     files['README.txt'] = `${name} ${version} (esp32 firmware) — built with Zinc (ESP-IDF).\nFlash: ./flash.sh <serial port>   (needs esptool: pip install esptool)\nSerial console: 115200 baud, e.g. python3 -m serial.tools.miniterm <port> 115200\n`;
-  } else if (target === 'macos' && (gui || p.icon)) {  // Name.app bundle
-    const app = path.join(out, `${name}.app`, 'Contents');
-    bin = path.join(app, 'MacOS', name);
-    copyExe(bin);
-    fs.mkdirSync(path.join(app, 'Resources'), { recursive: true });
-    const icns = p.icon ? macIcns(p.icon, path.join(app, 'Resources', 'icon.icns')) : false;
-    const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    const kv: [string, string][] = [['CFBundleName', name], ['CFBundleDisplayName', name], ['CFBundleIdentifier', id], ['CFBundleExecutable', name],
-      ['CFBundleVersion', version], ['CFBundleShortVersionString', version], ['CFBundlePackageType', 'APPL'], ['CFBundleInfoDictionaryVersion', '6.0'],
-      ['LSMinimumSystemVersion', '11.0'], ...(icns ? [['CFBundleIconFile', 'icon']] as [string, string][] : [])];
-    fs.writeFileSync(path.join(app, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-${kv.map(([k, v]) => `  <key>${k}</key><string>${esc(v)}</string>`).join('\n')}
-  <key>NSHighResolutionCapable</key><true/>
-</dict>
-</plist>
-`);
-    fs.writeFileSync(path.join(app, 'PkgInfo'), 'APPL????');
+  } else if (target === 'macos' && (gui || p.icon)) {  // Name.app bundle (generated icon unless zinc.json has one)
+    const exeIn = macBundle(p, exe, out, iconFile);
+    if (exeIn) bin = exeIn; else copyExe(bin);
     files['run.sh'] = `#!/bin/sh\nexec "$(dirname "$0")/${name}.app/Contents/MacOS/${name}" "$@"\n`;
   } else {
     copyExe(bin);
@@ -220,8 +206,8 @@ ${kv.map(([k, v]) => `  <key>${k}</key><string>${esc(v)}</string>`).join('\n')}
   if (target === 'linux' || target === 'rpi1') {
     files[`${name}.service`] = serviceUnit(name);
     if (gui || p.icon) {
-      files[`${name}.desktop`] = `[Desktop Entry]\nType=Application\nName=${name}\nExec=/opt/${name}/${name}\n${p.icon ? `Icon=/opt/${name}/icon.png\n` : ''}Terminal=false\nCategories=Utility;\nX-Zinc-Version=${version}\n`;
-      if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'icon.png'));
+      files[`${name}.desktop`] = `[Desktop Entry]\nType=Application\nName=${name}\nExec=/opt/${name}/${name}\nIcon=/opt/${name}/icon.png\nTerminal=false\nCategories=Utility;\nX-Zinc-Version=${version}\n`;
+      fs.copyFileSync(iconFile, path.join(out, 'icon.png'));
     }
     files['deploy.sh'] = deployScript(name);
   }
@@ -229,8 +215,7 @@ ${kv.map(([k, v]) => `  <key>${k}</key><string>${esc(v)}</string>`).join('\n')}
     const dir = `/home/root/xovi/exthome/appload/${name}`;
     files['external.manifest.json'] = JSON.stringify({ name, application: name, workingDirectory: dir, qtfb: true, disablesWindowedMode: true }, null, 2) + '\n';
     files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh [root@10.11.99.1]  (developer mode + xovi/AppLoad installed on the tablet)\nset -e\nHOST="\${1:-root@10.11.99.1}"\nssh "$HOST" "mkdir -p ${dir}"\nscp -q "$(dirname "$0")/${name}" "$(dirname "$0")/external.manifest.json" "$(dirname "$0")/icon.png" "$HOST:${dir}/"\necho "installed in ${dir}: open AppLoad on the tablet, tap reload, then launch '${name}'"\n`;
-    if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'icon.png'));
-    else fs.writeFileSync(path.join(out, 'icon.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+    fs.copyFileSync(iconFile, path.join(out, 'icon.png'));
   }
   for (const [f, c] of Object.entries(files)) { fs.writeFileSync(path.join(out, f), c); if (f.endsWith('.sh')) fs.chmodSync(path.join(out, f), 0o755); }
   const size = fs.statSync(bin).size;
@@ -306,6 +291,37 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ${name}
 sudo systemctl restart ${name}"
 `;
+}
+
+/** Writes (or refreshes) `dir/Name.app` around `exe`: Info.plist, the icon as .icns, the executable. Returns the
+ *  executable inside the bundle (zinc run starts it, so the Dock shows the app's name and icon), or null. */
+export function macBundle(p: Project, exe: string, dir: string, icon: string): string | null {
+  const name = p.name, version = p.version ?? '0.1.0', id = p.id ?? `dev.zinc.${name.replace(/[^A-Za-z0-9.-]/g, '-')}`;
+  const app = path.join(dir, `${name}.app`, 'Contents');
+  const bin = path.join(app, 'MacOS', name);
+  fs.mkdirSync(path.dirname(bin), { recursive: true });
+  fs.mkdirSync(path.join(app, 'Resources'), { recursive: true });
+  fs.rmSync(bin, { force: true });
+  fs.copyFileSync(exe, bin, fs.constants.COPYFILE_FICLONE);   // APFS clone: no extra disk, keeps the signature
+  fs.chmodSync(bin, 0o755);
+  // the icon is converted again only when its picture changed
+  const icns = path.join(app, 'Resources', 'icon.icns');
+  const hasIcon = fs.existsSync(icon) && ((fs.existsSync(icns) && fs.statSync(icns).mtimeMs >= fs.statSync(icon).mtimeMs) || macIcns(icon, icns));
+  const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const kv: [string, string][] = [['CFBundleName', name], ['CFBundleDisplayName', name], ['CFBundleIdentifier', id], ['CFBundleExecutable', name],
+    ['CFBundleVersion', version], ['CFBundleShortVersionString', version], ['CFBundlePackageType', 'APPL'], ['CFBundleInfoDictionaryVersion', '6.0'],
+    ['LSMinimumSystemVersion', '11.0'], ...(hasIcon ? [['CFBundleIconFile', 'icon']] as [string, string][] : [])];
+  fs.writeFileSync(path.join(app, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${kv.map(([k, v]) => `  <key>${k}</key><string>${esc(v)}</string>`).join('\n')}
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+`);
+  fs.writeFileSync(path.join(app, 'PkgInfo'), 'APPL????');
+  return bin;
 }
 
 /** icon.png -> .icns with sips + iconutil (macOS only); false when the tools are missing or fail. */

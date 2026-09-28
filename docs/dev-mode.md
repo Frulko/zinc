@@ -100,6 +100,8 @@ message, hidden after 8 s), like React Native's LogBox.
 - **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects);
   `Runtime.evaluate` answers that there is no JavaScript engine;
 - tree changes: `DOM.documentUpdated` for structure/class changes, `DOM.characterDataModified` for text;
+- **Performance** (`Tracing.start` / `Tracing.end` → `Tracing.dataCollected`, `tracingComplete`): the frames recorded
+  in between, as Chrome trace events (see [Profiling](#profiling));
 - every other method gets an empty result so the frontend never waits.
 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
@@ -108,6 +110,33 @@ Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FD
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.
+
+## Profiling
+
+Every frame is split into phases, timed on the logic thread (`runtime/gfx.cpp`, marks in `lib/std/ui.ts` `frame()`):
+
+| phase | |
+| --- | --- |
+| `app` | the program's frame callback before the UI frame (`render(App, bg, tick)`: `tick`), timers |
+| `input`, `anim`, `layout`, `paint` | zinc:ui: input and scrolling, `animate()`, layout, emitting the draw commands |
+| `effects` | microtasks drained after the frame callback |
+| `diff` | logical → physical pixels, the frame diff into damage rectangles |
+| `raster` | rasterizing the damaged rows: the span of the bands (SDL HAL; other HALs count it in `present`) |
+| `present` | the rest of the HAL present (texture upload, vsync) |
+
+- `ZINC_PROFILE=1`: at exit, p50 / p99 / max per phase on stderr, plus `work` (every phase but `present`):
+  `zinc profile: frames=600 work p50=1.44 p99=7.92 max=10.80 ms`, then one line per phase (the last 4096 frames).
+- `ZINC_TRACE=t.json`: the frames as Chrome trace events (logic thread, one track per raster band); load the file
+  in Chrome's Performance panel or `chrome://tracing`. The inspector's `Tracing` domain gives the same events live.
+- `zinc bench` (or `zinc test --bench`): see [testing](guide/06-testing.md#benchmarks).
+- Off (the default), a mark costs one test; buffers (~700 KiB) are allocated only when profiling.
+
+`ZINC_VISUALIZE=damage` flashes the damaged rectangles of each frame (magenta, fading over 30 frames);
+`ZINC_VISUALIZE=cmds` draws a translucent red box per draw command, so areas drawn by many commands glow. Both are
+an overlay of the runtime: without the variable, frames and goldens are unchanged.
+
+When a frame emits more than `ZRT_MAX_DRAW_CMDS` commands (8192), `ZRT_TEXT_POOL` text bytes or `ZRT_POINT_POOL`
+floats, the extra is dropped and the runtime warns once per pool on stderr.
 
 ## Remote devices (`--device user@host`)
 

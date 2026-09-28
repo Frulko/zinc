@@ -1,25 +1,37 @@
 {
   "name": "display-st7789",
   "kind": "display",
-  "description": "ST7789/ILI9341 SPI LCD with band rendering (ESP32; macOS uses the normal window)",
+  "description": "ST7789/ILI9341 LCD over SPI or 8-bit i80 with damage-only band rendering, PWM backlight, CST820 touch (ESP32; macOS uses the normal window)",
   "options": {
     "controller": "st7789",
+    "bus": "spi",
     "mosi": 23,
     "sclk": 18,
+    "data": [-1],
+    "wr": -1,
+    "rd": -1,
     "cs": 5,
     "dc": 16,
     "rst": 17,
     "bl": 4,
+    "brightness": 255,
     "hz": 40000000,
     "lines": 16,
     "xoff": 0,
     "yoff": 0,
     "madctl": -1,
     "invert": -1,
+    "touch": "none",
+    "tsda": 21,
+    "tscl": 22,
+    "taddress": 21,
+    "tswap": false,
+    "tflipx": false,
+    "tflipy": false,
     "debug": false
   },
   "targets": {
-    "esp32": { "sources": ["st7789.cpp"], "idf": ["esp_lcd", "esp_driver_spi", "esp_driver_gpio"] },
+    "esp32": { "sources": ["st7789.cpp"], "idf": ["esp_lcd", "esp_driver_spi", "esp_driver_gpio", "esp_driver_ledc", "esp_driver_i2c"] },
     "macos": {}
   }
 }

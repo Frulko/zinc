@@ -17,7 +17,9 @@ onFrame((dt: number) => {
 });
 ```
 
-Example app: `examples/maps/explorer` (place list, zoom buttons, scale bar, attribution).
+Example app: `examples/maps/explorer` (place list, zoom buttons, scale bar, attribution). For a rotating, heading-up
+navigation view see `examples/maps/navigation`: cached tiles cannot turn cheaply (see Gestures below), so it draws a
+vector city with its own project plugin (`zinc:citymap`) instead.
 
 ## How it works (and why it is fast enough for a Pi 1)
 

@@ -1,0 +1,4 @@
+{
+  "name": "script-bench",
+  "entry": "src/main.ts"
+}

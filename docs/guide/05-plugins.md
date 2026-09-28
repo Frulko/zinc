@@ -141,11 +141,13 @@ worked drivers; the surface size is the display size, set per target. See [docs/
 | `module` | import specifier for a module plugin (e.g. `zinc:greet`) |
 | `entry` | Zinc entry, default `index.ts` |
 | `targets` | availability + per-target native build settings; an unlisted target is `Z5003` (sim always allowed for modules) |
-| `targets.<id>.sources` | extra C++ files compiled into the program |
+| `targets.<id>.sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries such as `plugins/script`'s QuickJS) build as their own static library with C flags |
 | `targets.<id>.pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libs, raw link flags |
 | `targets.<id>.defines` / `flags` | compile definitions and flags |
 | `targets.<id>.packages` | system packages added to the SDK image (apk on rpi1, apt on linux); a derived image is built once per set |
 | `targets.<id>.idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry deps |
+| `targets.sim.nodeFlags` | flags for the node process running the sim program |
+| `requires` | capabilities the target must offer, e.g. `["heap>=4M"]` ([capabilities](../targets/capabilities.md)) |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options) |
 
 ## Options

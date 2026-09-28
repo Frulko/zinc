@@ -1,0 +1,8 @@
+{
+  "name": "weather-station",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": { "width": 800, "height": 480 },
+    "sim": { "width": 800, "height": 480 }
+  }
+}

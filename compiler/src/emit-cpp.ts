@@ -5,7 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
-import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isFx, I32, F64, STR, VOID, DYN, ERROR_CLASSES } from './sema.ts';
+import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isFx, I32, F64, STR, VOID, DYN, ERROR_CLASSES, isDynFn } from './sema.ts';
 import { NativeModules, MODULE_TARGETS } from './native.ts';
 
 const NUMC: Record<NumKind, string> = {
@@ -702,7 +702,15 @@ class CppEmitter {
       let init = '';
       if (s.initializer) init = ts.isVariableDeclarationList(s.initializer) ? this.varList(s.initializer, d + 1) : `${this.ind(d + 1)}${this.expr(s.initializer)};\n`;
       const c = s.condition ? this.cond(s.condition) : '';
-      const inc = s.incrementor ? this.expr(s.incrementor) : '';
+      let inc = s.incrementor ? this.expr(s.incrementor) : '';
+      // `for (let ...)`: each iteration has its own binding. A counter captured by a closure lives in a cell, so a
+      // fresh cell (with the current value) replaces it before the incrementor; closures keep the previous one.
+      const init0 = s.initializer;
+      if (init0 && ts.isVariableDeclarationList(init0) && init0.flags & ts.NodeFlags.BlockScoped) {
+        const copies = init0.declarations.filter(v => ts.isIdentifier(v.name) && this.s.boxed.has(this.s.symbolOf(v.name)!))
+          .map(v => { const n = this.id((v.name as ts.Identifier).text); return `${n} = zrt::cell<${this.cpp(this.s.declType(v))}>(${n}->v)`; });
+        if (copies.length) inc = [...copies, inc].filter(Boolean).join(', ');
+      }
       return `${L}${I}{\n${init}${this.ind(d + 1)}for (; ${c}; ${inc}) ${this.loopBody(s.statement, d + 1)}\n${I}}\n`;
     }
     if (ts.isForOfStatement(s)) return L + this.forOf(s, d);
@@ -904,6 +912,7 @@ class CppEmitter {
     return this.coerce(code, this.s.ztypeOf(e), to, e);
   }
   coerce(code: string, from: ZT, to: ZT, at: ts.Node): string {
+    if (isDynFn(to) && from.k === 'fn' && !isDynFn(from)) return this.dynFnAdapter(code, from, at);
     if (from.k === 'dyn' && to.k !== 'dyn') return this.dynConv(code, to, at);
     if (to.k === 'dyn' && from.k !== 'dyn') return this.toDyn(code, from, at);
     if (from.k === 'num' && to.k === 'num') {
@@ -1428,7 +1437,8 @@ class CppEmitter {
     });
     // `onFrame(() => ...)`: a callback may ignore trailing parameters of the expected function type
     const ctx = ts.isFunctionDeclaration(f) ? undefined : this.s.checker.getContextualType(f)?.getCallSignatures()[0];
-    if (ctx) ctx.getParameters().slice(f.parameters.length).forEach((p, i) => ps.push(`${this.cpp(this.s.fromType(this.s.checker.getTypeOfSymbolAtLocation(p, f), f))} /*unused*/`));
+    if (ctx && !ctx.getParameters().some(p => p.valueDeclaration && ts.isParameter(p.valueDeclaration) && p.valueDeclaration.dotDotDotToken))
+      ctx.getParameters().slice(f.parameters.length).forEach((p, i) => ps.push(`${this.cpp(this.s.fromType(this.s.checker.getTypeOfSymbolAtLocation(p, f), f))} /*unused*/`));
     const fb = f.body!;
     const body = this.withCtx({ ret: ft.ret, inCtor: false, catches: [], breaks: [], self: this.ctx.self }, () => {
       if (ts.isBlock(fb)) return this.fnBlock(f.parameters, fb, 1);
@@ -1735,6 +1745,20 @@ class CppEmitter {
         return this.s.fail(at, 'Z9040', `a typed array (${this.cpp(from)}) cannot become Dyn without a copy that would break aliasing; declare it any[]`);
     }
     return this.s.fail(at, 'Z9041', `a value of type '${from.k}' cannot become Dyn (only primitives, objects and any[])`);
+  }
+  /** A typed function passed as a `DynFunction`: an adapter that takes the Dyn arguments, converts them JS-style
+   *  (ToNumber, String(x), truthiness; never a panic: the caller may be a script) and boxes the result. */
+  dynFnAdapter(code: string, from: Extract<ZT, { k: 'fn' }>, at: ts.Node): string {
+    const args = from.params.map((p, i) => {
+      const x = `__a.at(${i})`;
+      if (p.k === 'dyn') return x;
+      if (p.k === 'str') return `zrt::dyn_str_of(${x})`;
+      if (p.k === 'bool') return `zrt::truthy(${x})`;
+      if (p.k === 'num') return this.coerce(`zrt::dyn_tonum(${x})`, F64, p, at);
+      return this.s.fail(at, 'Z9043', `a function passed as DynFunction takes number, string, boolean or unknown parameters (parameter ${i + 1} is ${p.k === 'void' ? 'not annotated' : this.cpp(p)})`);
+    });
+    const call = `__f(${args.join(', ')})`;
+    return `zrt::Fn<zrt::Dyn(zrt::Array<zrt::Dyn>)>([__f = ${code}](zrt::Array<zrt::Dyn> __a) -> zrt::Dyn { return ${from.ret.k === 'dyn' ? call : this.toDyn(call, from.ret, at)}; })`;
   }
   /** DYN-07: checked Dyn -> static conversion; failure is an uncaught TypeError. */
   dynConv(code: string, to: ZT, at: ts.Node): string {

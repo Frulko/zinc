@@ -1,0 +1,11 @@
+/* Dashboard styles: compiled to zinc:ui class tokens at build time. */
+.card {
+  padding: 16px;
+  background: #1e293b;
+  border-radius: 12px;
+  border: 1px solid #334155;
+}
+
+.accent {
+  color: #38bdf8;
+}

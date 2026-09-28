@@ -1,0 +1,16 @@
+{
+  "station": "north-wall",
+  "unit": "celsius",
+  "interval": 3600,
+  "calibrated": true,
+  "offset": -0.2,
+  "readings": [
+    { "hour": 0, "temp": 11.2, "humidity": 70.1 },
+    { "hour": 1, "temp": 10.8, "humidity": 70.7 },
+    { "hour": 2, "temp": 10.1, "humidity": 71.8 },
+    { "hour": 3, "temp": 9.7, "humidity": 72.5 },
+    { "hour": 12, "temp": 22.9, "humidity": 51.4 },
+    { "hour": 13, "temp": 23.4, "humidity": 50.6 }
+  ],
+  "notes": null
+}
