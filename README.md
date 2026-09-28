@@ -43,6 +43,7 @@ zinc run examples/pocket-hero              # the PocketJS Hero demo (Hero.tsx un
 zinc run examples/video/looper -- --path examples/video/looper/media   # gapless video looper (videolooper.de style)
 zinc run examples/video/mapper             # GPU video mapping driven by OSC + web companion
 zinc run examples/maps/explorer            # offline vector map of Paris (pan, zoom, pinch)
+zinc run examples/maps/navigation          # Waze-style turn-by-turn drive through Paris (heading-up camera, offline)
 ZINC_FAKE_CAMERA=1 zinc run examples/camera/remote   # gphoto2 remote with live view
 zinc run examples/led/scroll-text          # WS2812 LED matrix emulator; --target esp32 for the real one
 zinc run examples/remarkable/notes         # reMarkable Paper Pro notebook in the e-ink emulator

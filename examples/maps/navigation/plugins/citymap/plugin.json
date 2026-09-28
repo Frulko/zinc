@@ -1,0 +1,13 @@
+{
+  "name": "citymap",
+  "kind": "module",
+  "module": "zinc:citymap",
+  "entry": "index.ts",
+  "description": "Rotatable vector city map (roads, water, parks, buildings) drawn with zinc:gfx under a heading-up camera",
+  "targets": {
+    "macos": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "linux": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "rpi1": { "defines": ["ZRT_POINT_POOL=131072"] },
+    "wasm": { "defines": ["ZRT_POINT_POOL=262144"] }
+  }
+}

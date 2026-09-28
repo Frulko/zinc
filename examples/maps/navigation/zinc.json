@@ -1,0 +1,9 @@
+{
+  "name": "navigation",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 1024, "height": 640 },
+    "linux": { "width": 1024, "height": 640 },
+    "rpi1": { "width": 800, "height": 480 }
+  }
+}
