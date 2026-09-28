@@ -1,0 +1,14 @@
+{
+  "name": "three",
+  "kind": "module",
+  "module": "three",
+  "entry": "index.ts",
+  "modules": {
+    "three/addons/loaders/GLTFLoader.js": "addons/GLTFLoader.ts",
+    "three/examples/jsm/loaders/GLTFLoader.js": "addons/GLTFLoader.ts",
+    "three/addons/controls/OrbitControls.js": "addons/OrbitControls.ts",
+    "three/examples/jsm/controls/OrbitControls.js": "addons/OrbitControls.ts"
+  },
+  "description": "three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {} }
+}

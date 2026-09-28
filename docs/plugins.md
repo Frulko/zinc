@@ -35,6 +35,7 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 
 | field | meaning |
 |---|---|
+| `modules` | extra import specifiers mapped to files of the plugin (`"three/addons/controls/OrbitControls.js": "addons/OrbitControls.ts"`) |
 | `targets` | availability: using the plugin on an unlisted target is error Z5003 (sim is always allowed for modules) |
 | `sources` | extra C++ files compiled into the program |
 | `pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libraries, raw link flags |

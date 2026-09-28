@@ -108,6 +108,34 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   }
 }
 
+// Canvas-style gradient paint of a POLY (grad 4), stored after its contours:
+// [kind (1 linear, 2 radial), x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha 0..255) * n]. Scales `a` by the stop alpha.
+static uint32_t paint_at(const float* g, float px, float py, uint32_t& a) {
+  float dx = g[4] - g[1], dy = g[5] - g[2], qx = px - g[1], qy = py - g[2], t;
+  if (g[0] == 1) { float l = dx * dx + dy * dy; t = l > 0 ? (qx * dx + qy * dy) / l : 0; }
+  else {  // two circles: the largest t with |p - c(t)| = r(t) >= 0 (HTML canvas)
+    float dr = g[6] - g[3], A = dx * dx + dy * dy - dr * dr, B = qx * dx + qy * dy + g[3] * dr, C = qx * qx + qy * qy - g[3] * g[3];
+    if (fabsf_(A) < 1e-4f) t = B != 0 ? C / (2 * B) : 0;
+    else {
+      float D = B * B - A * C;
+      if (D < 0) { a = 0; return 0; }
+      float s = __builtin_sqrtf(D), t1 = (B + s) / A, t2 = (B - s) / A;
+      t = t1 > t2 ? t1 : t2;
+      if (g[3] + t * dr < 0) t = t1 > t2 ? t2 : t1;
+      if (g[3] + t * dr < 0) { a = 0; return 0; }
+    }
+  }
+  int32_t n = (int32_t)g[7];
+  const float* s = g + 8;
+  int32_t i = 0;
+  while (i < n && t > s[i * 3]) i++;
+  if (i == 0 || i == n) { const float* e = s + (i ? n - 1 : 0) * 3; a = a * (uint32_t)e[2] / 255; return (uint32_t)e[1]; }
+  const float *l = s + (i - 1) * 3, *r = s + i * 3;
+  float u = r[0] > l[0] ? (t - l[0]) / (r[0] - l[0]) : 1;
+  a = a * (uint32_t)(l[2] + (r[2] - l[2]) * u) / 255;
+  return lerp_color((uint32_t)l[1], (uint32_t)r[1], u);
+}
+
 // ---------------------------------------------------------------- polygons (nonzero or even-odd, 4x4 supersampling)
 // Edges are bucketed by their first row once per call and walked with an active list, so the cost follows the rows
 // each edge spans, not rows x edges (map tiles and SVG art have thousands of edges).
@@ -155,6 +183,7 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   }
   if (!ne || !scratch(actives, active_cap, ne) || !scratch(wds, wd_cap, (uint32_t)bw * 4 + 4)) return;
   bool evenodd = c.pad & 1;
+  const float* paint = c.grad == 4 ? p : nullptr;  // gradient paint record after the contours
   int32_t* active = actives; int16_t* wd = wds;
   uint32_t na = 0;
   uint16_t* acc = accs;
@@ -192,9 +221,10 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
       uint32_t k = acc[i];
       if (!k) continue;
       acc[i] = 0;
-      uint32_t col = c.grad ? color_at(c, b.x0 + i + 0.5f, y + 0.5f) : c.c1;
-      if (k >= 16 && c.alpha == 255) at(t, b.x0 + i, y) = col;
-      else blend(at(t, b.x0 + i, y), col, k * c.alpha / 16);
+      uint32_t a = c.alpha;
+      uint32_t col = paint ? paint_at(paint, b.x0 + i + 0.5f, y + 0.5f, a) : c.grad ? color_at(c, b.x0 + i + 0.5f, y + 0.5f) : c.c1;
+      if (k >= 16 && a == 255) at(t, b.x0 + i, y) = col;
+      else blend(at(t, b.x0 + i, y), col, k * a / 16);
     }
     uint32_t keep = 0;  // drop edges that end in this row
     for (uint32_t a = 0; a < na; a++) if (edges[active[a]].y1 > y + 1) active[keep++] = active[a];
@@ -413,6 +443,7 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     const float *p = a.pts + x.off, *q = b.pts + y.off;
     uint32_t len = 0;
     for (uint32_t k = 0; k < x.n; k++) { uint32_t cnt = (uint32_t)p[len]; if ((uint32_t)q[len] != cnt) return false; len += 1 + cnt * 2; }
+    if (x.grad == 4) len += 8 + 3 * (uint32_t)p[len + 7];  // gradient paint
     return !__builtin_memcmp(p, q, len * sizeof(float));
   }
   return true;

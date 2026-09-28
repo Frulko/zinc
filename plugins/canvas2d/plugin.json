@@ -1,0 +1,15 @@
+{
+  "name": "canvas2d",
+  "kind": "module",
+  "module": "zinc:canvas",
+  "entry": "index.ts",
+  "description": "HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer",
+  "targets": {
+    "macos": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "linux": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "rpi1": { "defines": ["ZRT_POINT_POOL=131072"] },
+    "rmpp": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "wasm": { "defines": ["ZRT_POINT_POOL=131072"] },
+    "esp32": {}
+  }
+}

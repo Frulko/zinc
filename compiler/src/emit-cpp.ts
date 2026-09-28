@@ -1081,7 +1081,7 @@ class CppEmitter {
       const nat = this.native.member(e);
       if (nat) return nat;
     }
-    const od = ts.isIdentifier(obj) ? this.s.declOf(obj) : undefined;
+    const od = this.staticOwner(obj);
     if (od && ts.isClassDeclaration(od)) return `${this.qual(od)}::${this.id(name)}`;
     if (od && ts.isSourceFile(od)) { const md = this.s.declOf(e.name)!; return `${this.ns(od)}::${this.id(name)}${this.s.boxed.has(this.s.symbolOf(e.name)!) ? '->v' : ''}`; void md; }
     const t = this.s.ztypeOf(obj);
@@ -1105,6 +1105,13 @@ class CppEmitter {
       if (ts.isSpreadElement(a)) this.s.fail(a, 'Z9016', 'spread arguments are not supported yet');
       return this.conv(a, ps[i] && hasTp(ps[i]) ? undefined : ps[i]);
     }).join(', ');
+  }
+
+  /** Declaration named by `X` or `ns.X` (`import * as ns`), for static members: X.f(), ns.X.f(). */
+  staticOwner(obj: ts.Expression): ts.Node | undefined {
+    if (ts.isIdentifier(obj)) return this.s.declOf(obj);
+    if (ts.isPropertyAccessExpression(obj) && ts.isIdentifier(obj.expression) && this.s.checker.getSymbolAtLocation(obj.expression)?.declarations?.some(ts.isNamespaceImport)) return this.s.declOf(obj.name);
+    return undefined;
   }
 
   call(e: ts.CallExpression): string {
@@ -1165,7 +1172,7 @@ class CppEmitter {
       if (t.k === 'promise' && name === 'then') return `${this.expr(obj)}.then(${this.expr(e.arguments[0])})`;
       if (t.k === 'gen' && name === 'next') this.s.fail(e, 'Z9032', 'iterate generators with for-of');
       if (t.k === 'arr' || t.k === 'str' || t.k === 'map' || t.k === 'set') return this.builtinCall(e, c, t);
-      const od = ts.isIdentifier(obj) ? this.s.declOf(obj) : undefined;
+      const od = this.staticOwner(obj);
       const md = this.s.declOf(c.name);
       if (od && ts.isSourceFile(od) && md && ts.isFunctionDeclaration(md)) return this.genericCall(this.qual(md), md, e);
       const ps = md && (ts.isMethodDeclaration(md) || ts.isMethodSignature(md)) ? md.parameters.map(p => this.s.paramType(p, this.s.substFor(t, md))) : [];
