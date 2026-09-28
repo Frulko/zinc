@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT, STD_MODULES } from './frontend.ts';
-import { Sema, type ZT, type NumKind, isNum, isInt } from './sema.ts';
+import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
 
@@ -42,7 +42,22 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         default: return e;  // f64; ponytail: i64/u64/isize/usize are plain doubles in sim
       }
     };
+    /** DYN-07: the same checked conversion as the C++ emitter (sema.dynShape), done by $z.dto. */
+    const shapeExpr = (sh: DynShape): ts.Expression => {
+      switch (sh.k) {
+        case 'a': return f.createArrayLiteralExpression([f.createStringLiteral('a'), shapeExpr(sh.el)]);
+        case 'c': return f.createArrayLiteralExpression([f.createStringLiteral('c'), f.createStringLiteral(sh.name)]);
+        case 'o': return f.createArrayLiteralExpression([f.createStringLiteral('o'), f.createStringLiteral(sh.name), f.createArrayLiteralExpression(sh.fields.map(x =>
+          f.createArrayLiteralExpression([f.createStringLiteral(x.name), shapeExpr(x.shape), x.opt ? f.createTrue() : f.createFalse()])))]);
+        default: return f.createStringLiteral(sh.k);
+      }
+    };
+    const fromDyn = (e: ts.Expression, at: ts.Node, to: ZT): ts.Expression => {
+      const r = callZ('dto', [e, shapeExpr(sema.dynShape(to, at))]);
+      return isNum(to) && to.m !== 'f64' ? narrow(r, to.m) : r;
+    };
     const conv = (e: ts.Expression, orig: ts.Expression, to: ZT | undefined): ts.Expression => {
+      if (to && to.k !== 'dyn' && safeType(orig)?.k === 'dyn') return fromDyn(e, orig, to);
       if (!to || !isNum(to)) return e;
       const from = safeType(orig);
       if (!from || !isNum(from) || from.m === to.m) return e;
@@ -140,6 +155,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           if (lib && FX && ((g === 'Date' || g === 'performance') && m === 'now')) return fxq(v);
           if (lib && g === 'Math' && m === 'random') return fxq(callZ('random', []));
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
+          if (lib && g === 'JSON' && m === 'parse') return callZ('jsonParse', [...v.arguments]);
           if (lib && g === 'Math' && FX && MATH_FNS.has(m)) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
         }
         if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
@@ -172,6 +188,17 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         if (ctxT?.k === 'arr') return f.updateArrayLiteralExpression(v, v.elements.map((x, i) => conv(x, n.elements[i], ctxT.el)));
         return v;
       }
+      // Dyn: checked conversions where the C++ emitter converts too
+      if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText() !== 'const' && safeType(n.expression)?.k === 'dyn') {
+        const to = sema.fromTypeNode(n.type);
+        if (to.k !== 'dyn') return fromDyn((v as ts.AsExpression).expression, n, to);
+      }
+      if (ts.isPropertyAssignment(n) && ts.isPropertyAssignment(v) && safeType(n.initializer)?.k === 'dyn') {
+        const to = sema.contextual(n.initializer);
+        if (to && to.k !== 'dyn') return f.updatePropertyAssignment(v, v.name, fromDyn(v.initializer, n.initializer, to));
+      }
+      if (ts.isForOfStatement(n) && ts.isForOfStatement(v) && safeType(n.expression)?.k === 'dyn')
+        return f.updateForOfStatement(v, v.awaitModifier, v.initializer, callZ('diter', [v.expression]), v.statement);
       if (ts.isElementAccessExpression(n) && ts.isElementAccessExpression(v) && safeType(n.expression)?.k === 'arr' && !sema.isWrite(n) && !isAssignTarget(n))
         return callZ('get', [v.expression, v.argumentExpression]);
       if (ts.isBinaryExpression(n) && ts.isBinaryExpression(v)) return binary(n, v);
@@ -182,6 +209,14 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
 
     const binary = (n: ts.BinaryExpression, v: ts.BinaryExpression): ts.Expression => {
       const op = n.operatorToken.kind;
+      if (op === K.EqualsToken && ts.isElementAccessExpression(n.left) && safeType(n.left.expression)?.k === 'dyn') {
+        const l = v.left as ts.ElementAccessExpression;
+        return callZ('dseti', [l.expression, l.argumentExpression, v.right]);  // same hole rule as the runtime
+      }
+      if (op > K.FirstAssignment && op <= K.LastAssignment && safeType(n.right)?.k === 'dyn') {
+        const lt = safeType(n.left);
+        if (lt && isNum(lt)) v = f.updateBinaryExpression(v, v.left, v.operatorToken, fromDyn(v.right, n.right, lt));
+      }
       if (op === K.EqualsToken) {
         if (ts.isElementAccessExpression(n.left) && safeType(n.left.expression)?.k === 'arr') {
           const l = v.left as ts.ElementAccessExpression;

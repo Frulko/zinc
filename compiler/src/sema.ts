@@ -1,7 +1,7 @@
 // Sema: Zinc types (ZT) on top of the TypeScript checker.
 // Machine types are read syntactically from annotations: the checker erases `type i32 = number` (spec §7 pitfall).
 import * as path from 'node:path';
-import { ts, type Diag, type Frontend } from './frontend.ts';
+import { ts, ZINC_ROOT, type Diag, type Frontend } from './frontend.ts';
 
 export type NumKind = 'f64' | 'f32' | 'fx12' | 'fx16' | 'i8' | 'i16' | 'i32' | 'i64' | 'u8' | 'u16' | 'u32' | 'u64' | 'isize' | 'usize';
 export type ZT =
@@ -15,7 +15,9 @@ export type ZT =
   | { k: 'promise'; el: ZT }
   | { k: 'gen'; el: ZT }
   | { k: 'tup'; els: ZT[] }
-  | { k: 'tp'; name: string };
+  | { k: 'tp'; name: string }
+  /** the dynamic value of the gradual profile (section 9): `any`, `unknown`, untyped JSON */
+  | { k: 'dyn' };
 
 export const MACHINE: ReadonlySet<string> = new Set(['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'fx12', 'fx16', 'isize', 'usize']);
 export const F64: ZT = { k: 'num', m: 'f64' };
@@ -23,6 +25,7 @@ export const I32: ZT = { k: 'num', m: 'i32' };
 export const BOOL: ZT = { k: 'bool' };
 export const STR: ZT = { k: 'str' };
 export const VOID: ZT = { k: 'void' };
+export const DYN: ZT = { k: 'dyn' };
 
 export const isFx = (m: NumKind) => m === 'fx12' || m === 'fx16';
 export const isInt = (m: NumKind) => m !== 'f64' && m !== 'f32' && !isFx(m);
@@ -75,6 +78,8 @@ export class Sema {
   throwing = new Set<ts.Node>();
   anyLambdaThrows = false;
   hasThrow = false;
+  /** The program mentions any/unknown, JSON.parse or is JavaScript: classes get Dyn property tables. */
+  usesDyn = false;
   private methodsByName = new Map<string, ts.Node[]>();
   private targetCache = new Map<ts.Node, CallTargets>();
 
@@ -110,6 +115,7 @@ export class Sema {
     let cid = 1;
     const visit = (n: ts.Node) => {
       this.forbid(n);
+      if (n.kind === ts.SyntaxKind.AnyKeyword || n.kind === ts.SyntaxKind.UnknownKeyword || (ts.isPropertyAccessExpression(n) && n.getText() === 'JSON.parse')) this.usesDyn = true;
       if (ts.isClassDeclaration(n) || ts.isInterfaceDeclaration(n)) {
         this.classIds.set(n, cid++);
         if (ts.isClassDeclaration(n)) {
@@ -125,7 +131,7 @@ export class Sema {
       if (ts.isTypeAliasDeclaration(n)) this.registerAlias(n, () => cid++);
       if (ts.isObjectLiteralExpression(n) && !this.isLib(n) && n.properties.every(p => ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && n.properties.length > 0) {
         const ct = this.checker.getContextualType(n);
-        const named = ct && (ct.aliasSymbol || (ct.getSymbol()?.declarations ?? []).some(d => ts.isInterfaceDeclaration(d) || ts.isTypeLiteralNode(d) || ts.isClassDeclaration(d)) || ct.isUnion() || this.checker.isTupleType(ct));
+        const named = ct && (this.dynContext(n, ct) || ct.aliasSymbol || (ct.getSymbol()?.declarations ?? []).some(d => ts.isInterfaceDeclaration(d) || ts.isTypeLiteralNode(d) || ts.isClassDeclaration(d)) || ct.isUnion() || this.checker.isTupleType(ct));
         if (!named) { this.anon.push(n); this.classIds.set(n, cid++); }
       }
       if (ts.isTypeLiteralNode(n) && !ts.isTypeAliasDeclaration(n.parent) && !ts.isUnionTypeNode(n.parent) && !this.isLib(n) && n.members.every(m => ts.isPropertySignature(m))) { this.anon.push(n); this.classIds.set(n, cid++); }
@@ -146,7 +152,7 @@ export class Sema {
       }
       ts.forEachChild(n, visit);
     };
-    for (const sf of this.fe.sources) visit(sf);
+    for (const sf of this.fe.sources) { if (/\.[cm]?js$/.test(sf.fileName)) this.usesDyn = true; visit(sf); }
     for (const s of captured) if (written.has(s)) this.boxed.add(s);
     for (const c of calls) this.callTargets(c);  // registers library functions tagged @throws
     // throw propagation over the call graph (fixpoint)
@@ -162,6 +168,15 @@ export class Sema {
         }
       }
     }
+  }
+
+  /** An object literal whose contextual type is any/unknown is built as a Dyn object, not a struct. */
+  private dynContext(n: ts.Node, ct: ts.Type): boolean {
+    if (ct.flags & ts.TypeFlags.Any) return true;
+    if (!(ct.flags & ts.TypeFlags.Unknown)) return false;
+    const call = n.parent;  // console.log({...}) keeps its anonymous struct
+    const d = ts.isCallExpression(call) ? (ts.isPropertyAccessExpression(call.expression) ? this.declOf(call.expression.name) : this.declOf(call.expression)) : undefined;
+    return !(d && this.isLib(d));
   }
 
   private registerAlias(n: ts.TypeAliasDeclaration, nextId: () => number) {
@@ -511,7 +526,11 @@ export class Sema {
       if (alias && zs.every(z => z?.k === 'obj' && this.unionOf.get(z.decl) === alias)) return { k: 'obj', decl: alias, args: [] };
       this.fail(at, 'Z9001', `union type '${this.checker.typeToString(type)}' is not supported (use T | null or a discriminated union type alias)`);
     }
-    if (f & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) this.fail(at, 'Z1006', "'any'/'unknown' need the Dyn type, which this build does not implement (DYN-02)");
+    if (f & ts.TypeFlags.Any) {
+      if (this.typing === 'strict') this.fail(at, 'Z1006', "'any' is not allowed in the strict typing profile (DYN-01); annotate the value or narrow an 'unknown'");
+      return DYN;
+    }
+    if (f & ts.TypeFlags.Unknown) return DYN;
     if (this.checker.isTupleType(type)) return { k: 'tup', els: this.checker.getTypeArguments(type as ts.TypeReference).map(a => this.fromType(a, at)) };
     const sym = type.getSymbol() ?? type.aliasSymbol;
     const args = (this.checker.getTypeArguments?.(type as ts.TypeReference) ?? []).map(a => this.fromType(a, at));
@@ -714,6 +733,7 @@ export class Sema {
     const t = this.ztypeOf(f.expression);
     if (t.k === 'arr' || t.k === 'set' || t.k === 'gen') return t.el;
     if (t.k === 'str') return STR;
+    if (t.k === 'dyn') return DYN;
     return this.fail(f.expression, 'Z9005', 'for-of is supported on arrays, strings, Map, Set and generators');
   }
 
@@ -751,6 +771,11 @@ export class Sema {
       if (d && !this.isLib(d)) {
         if (ts.isFunctionDeclaration(d)) return this.fnType(d);
         const declared = this.declType(d);
+        // DYN-08: after typeof/instanceof the checker's narrowed type is static; the read is a checked conversion
+        if (declared.k === 'dyn' && !this.isWrite(e)) {
+          const n = this.fromTypeSafe(this.checker.getTypeAtLocation(e), e);
+          if (n && n.k !== 'dyn' && n.k !== 'null' && n.k !== 'void') return n;
+        }
         // narrowing by instanceof/discriminant: use the checker's narrowed class if it differs
         if (declared.k === 'obj') {
           const narrowed = this.fromTypeSafe(this.checker.getTypeAtLocation(e), e);
@@ -762,6 +787,7 @@ export class Sema {
     if (ts.isPropertyAccessExpression(e)) {
       const recv = this.tryZ(e.expression);
       const name = e.name.text;
+      if (recv.k === 'dyn') return DYN;
       if ((recv.k === 'arr' || recv.k === 'str') && name === 'length') return I32;
       if ((recv.k === 'map' || recv.k === 'set') && name === 'size') return I32;
       const d = this.declOf(e.name) ?? (recv.k === 'obj' ? this.memberDecl(recv.decl, name) : undefined);
@@ -777,6 +803,7 @@ export class Sema {
     }
     if (ts.isElementAccessExpression(e)) {
       const recv = this.ztypeOf(e.expression);
+      if (recv.k === 'dyn') return DYN;
       if (recv.k === 'arr') return recv.el;
       if (recv.k === 'str') return STR;
       if (recv.k === 'tup' && ts.isNumericLiteral(e.argumentExpression)) return recv.els[Number(e.argumentExpression.text)];
@@ -824,17 +851,22 @@ export class Sema {
     if (ts.isPrefixUnaryExpression(e)) {
       if (e.operator === ts.SyntaxKind.ExclamationToken) return BOOL;
       if (e.operator === ts.SyntaxKind.TildeToken) return I32;
-      return this.ztypeOf(e.operand);
+      const t = this.ztypeOf(e.operand);
+      return t.k === 'dyn' && (e.operator === ts.SyntaxKind.MinusToken || e.operator === ts.SyntaxKind.PlusToken) ? { k: 'num', m: this.numberKind } : t;
     }
     if (ts.isPostfixUnaryExpression(e)) return this.ztypeOf(e.operand);
     if (ts.isBinaryExpression(e)) return this.binaryType(e);
     if (ts.isConditionalExpression(e)) {
       const a = this.ztypeOf(e.whenTrue), b = this.ztypeOf(e.whenFalse);
+      if (a.k === 'dyn' || b.k === 'dyn') return DYN;
       if (isNum(a) && isNum(b)) return a.m === b.m ? a : { k: 'num', m: this.numberKind };
       return a.k === 'null' ? b : a;
     }
     if (ts.isObjectLiteralExpression(e)) {
-      const ctx = this.contextual(e) ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
+      // Dyn only from a declared context (`x: any`), not from the checker (console.log's `unknown` parameter)
+      const own = this.contextual(e);
+      if (own?.k === 'dyn') return DYN;
+      const ctx = own ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
       if (ctx?.k === 'obj') {
         if (ts.isTypeAliasDeclaration(ctx.decl) && this.unionMembers.has(ctx.decl)) return { k: 'obj', decl: this.unionMemberFor(ctx.decl, e), args: [] };
         return ctx;
@@ -842,9 +874,9 @@ export class Sema {
     }
     if (ts.isArrayLiteralExpression(e)) {
       const ctx = this.contextual(e);
-      if (ctx?.k === 'arr' || ctx?.k === 'tup') return ctx;
+      if (ctx?.k === 'arr' || ctx?.k === 'tup' || ctx?.k === 'dyn') return ctx;
       const cct = this.checker.getContextualType(e);
-      if (cct && this.checker.isTupleType(cct)) { const z = this.fromTypeSafe(cct, e); if (z?.k === 'tup') return z; }
+      if (cct && this.checker.isTupleType(cct)) { const z = this.fromTypeSafe(cct, e); if (z?.k === 'tup' && !z.els.some(x => x.k === 'dyn')) return z; }
       // no annotation: all elements share one Zinc type (keeps i32/Promise<i32> precision, avoids tuples)
       const els = e.elements.map(x => ts.isSpreadElement(x) ? this.ztypeOf(x.expression) : this.ztypeOf(x)).map((t, i) => ts.isSpreadElement(e.elements[i]) && t.k === 'arr' ? t.el : t);
       if (els.length && els.every(t => zeq(t, els[0])) && els[0].k !== 'null') return { k: 'arr', el: isNum(els[0]) && !e.elements.every(x => !ts.isSpreadElement(x) && this.isIntLiteral(x)) ? els[0] : els[0] };
@@ -871,8 +903,13 @@ export class Sema {
     }
     if (ts.isBinaryExpression(p) && p.right === e && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return this.ztypeOf(p.left);
     if (ts.isParenthesizedExpression(p)) return this.contextual(p);
+    if (ts.isArrayLiteralExpression(p)) {
+      const at = this.contextual(p);  // not ztypeOf(p): that one types the elements
+      if (at && (at.k === 'dyn' || (at.k === 'arr' && at.el.k === 'dyn'))) return DYN;
+    }
     if (ts.isPropertyAssignment(p) && p.initializer === e && ts.isObjectLiteralExpression(p.parent)) {
       const ot = this.tryZ(p.parent);
+      if (ot.k === 'dyn') return DYN;
       const m = ot.k === 'obj' ? this.memberDecl(ot.decl, p.name.getText()) : undefined;
       if (m) return this.declType(m);
     }
@@ -899,12 +936,14 @@ export class Sema {
     if (op === K.CommaToken) return this.ztypeOf(e.right);
     if (op === K.AmpersandAmpersandToken || op === K.BarBarToken || op === K.QuestionQuestionToken) {
       const l = this.ztypeOf(e.left), r = this.ztypeOf(e.right);
+      if (l.k === 'dyn' || r.k === 'dyn') return DYN;
       if (l.k === 'null') return r;
       if (isNum(l) && isNum(r) && l.m !== r.m) return { k: 'num', m: this.numberKind };
       return l;
     }
     const l = this.ztypeOf(e.left), r = this.ztypeOf(e.right);
     if (op === K.PlusToken && (l.k === 'str' || r.k === 'str')) return STR;
+    if (op === K.PlusToken && (l.k === 'dyn' || r.k === 'dyn')) return DYN;
     const m = this.arith(op, e.left, l, e.right, r);
     return { k: 'num', m };
   }
@@ -962,4 +1001,77 @@ export class Sema {
     if (recv.k === 'promise' && name === 'then') return { k: 'promise', el: VOID };
     return undefined;
   }
+
+  // ---------- DYN-07: how a Dyn value is checked into a static type (shared by both emitters) ----------
+  dynShape(t: ZT, at: ts.Node): DynShape {
+    switch (t.k) {
+      case 'dyn': return { k: 'd' };
+      case 'num': return { k: 'n' };
+      case 'str': return { k: 's' };
+      case 'bool': return { k: 'b' };
+      case 'arr': return { k: 'a', el: this.dynShape(t.el, at) };
+      case 'obj': {
+        const d = t.decl, name = (d as ts.NamedDeclaration).name?.getText() ?? 'object';
+        if (ts.isClassDeclaration(d) && !this.isLib(d)) return { k: 'c', name, decl: d };
+        if (d === this.errorDecl) return { k: 'c', name: 'Error', decl: d };
+        if (t.args.length || this.isLib(d) || this.unionMembers.has(d as ts.TypeAliasDeclaration) || this.unionOf.has(d) || ts.isObjectLiteralExpression(d))
+          return this.fail(at, 'Z9041', `a Dyn value cannot be converted to '${name}'; convert it field by field`);
+        if (this.members(d).some(m => ts.isMethodSignature(m)) || (ts.isInterfaceDeclaration(d) && d.heritageClauses?.length))
+          return this.fail(at, 'Z9041', `a Dyn value cannot be converted to interface '${name}' (it has methods or bases)`);
+        const fields = this.fieldNames(d).map(f => {
+          const m = this.memberDecl(d, f)!;
+          return { name: f, shape: this.dynShape(this.declType(m), at), opt: !!(m as ts.PropertySignature).questionToken };
+        });
+        return { k: 'o', name, decl: d, fields };
+      }
+    }
+    return this.fail(at, 'Z9041', `a Dyn value cannot be converted to this type (${t.k}); only primitives, arrays, classes and plain interfaces`);
+  }
+
+  // ---------- DYN-10: every place where a Dyn value is declared or operated on ----------
+  private sites?: DynSite[];
+  dynSites(): DynSite[] {
+    if (this.sites) return this.sites;
+    const out: DynSite[] = [];
+    if (!this.usesDyn) return this.sites = out;
+    const isDyn = (e: ts.Node | undefined) => !!e && this.tryZ(e as ts.Expression).k === 'dyn';
+    const add = (n: ts.Node, kind: DynSite['kind']) => {
+      const d = this.diag(n, '', '');
+      out.push({ file: d.file, line: d.line, col: d.col, kind, text: n.getText().replace(/\s+/g, ' ').slice(0, 60) });
+    };
+    const K = ts.SyntaxKind;
+    const visit = (n: ts.Node) => {
+      try {
+        if ((ts.isVariableDeclaration(n) || ts.isParameter(n) || ts.isPropertyDeclaration(n) || ts.isPropertySignature(n)) && !ts.isCatchClause(n.parent) && ts.isIdentifier(n.name)) {
+          if (this.declType(n).k === 'dyn') add(n.name, 'decl');
+          else if (ts.isVariableDeclaration(n) && n.initializer && isDyn(n.initializer)) add(n.initializer, 'conv');
+        } else if (ts.isPropertyAccessExpression(n) && isDyn(n.expression)) add(n, this.isWrite(n) || (ts.isBinaryExpression(n.parent) && n.parent.left === n && n.parent.operatorToken.kind === K.EqualsToken) ? 'set' : 'get');
+        else if (ts.isElementAccessExpression(n) && isDyn(n.expression)) add(n, 'index');
+        else if (ts.isCallExpression(n) && n.expression.getText() === 'JSON.parse') add(n, 'json');
+        else if (ts.isTypeOfExpression(n) && isDyn(n.expression)) add(n, 'typeof');
+        else if (ts.isForOfStatement(n) && isDyn(n.expression)) add(n.expression, 'iter');
+        else if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText() !== 'const' && isDyn(n.expression) && this.fromTypeNode(n.type).k !== 'dyn') add(n, 'cast');
+        else if (ts.isBinaryExpression(n) && n.operatorToken.kind !== K.CommaToken && !(n.operatorToken.kind >= K.FirstAssignment && n.operatorToken.kind <= K.LastAssignment) && (isDyn(n.left) || isDyn(n.right))) add(n, 'op');
+        else if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && isDyn(n.operand) && n.operator !== K.ExclamationToken) add(n, 'op');
+        else if (ts.isIdentifier(n) && (n.parent as ts.NamedDeclaration).name !== n && !this.isWrite(n)) {
+          const d = this.declOf(n);
+          if (d && !this.isLib(d) && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && this.declType(d).k === 'dyn' && this.ztypeOf(n).k !== 'dyn') add(n, 'narrow');
+        } else if (ts.isExpression(n) && !ts.isIdentifier(n) && isDyn(n)) {
+          const want = this.contextual(n);
+          if (want && want.k !== 'dyn') add(n, 'conv');
+        }
+        if (ts.isIdentifier(n) && (n.parent as ts.NamedDeclaration).name !== n && isDyn(n)) { const want = this.contextual(n); if (want && want.k !== 'dyn') add(n, 'conv'); }
+      } catch (e) { if (!(e instanceof ZincError)) throw e; }
+      ts.forEachChild(n, visit);
+    };
+    for (const sf of this.fe.sources) if (!sf.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep)) visit(sf);
+    return this.sites = out;
+  }
 }
+
+export type DynShape =
+  | { k: 'd' | 'n' | 's' | 'b' }
+  | { k: 'a'; el: DynShape }
+  | { k: 'c'; name: string; decl: ts.Node }
+  | { k: 'o'; name: string; decl: ts.Node; fields: { name: string; shape: DynShape; opt: boolean }[] };
+export interface DynSite { file: string; line: number; col: number; kind: 'decl' | 'get' | 'set' | 'index' | 'json' | 'typeof' | 'iter' | 'cast' | 'op' | 'narrow' | 'conv'; text: string }

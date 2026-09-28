@@ -33,10 +33,10 @@ weak refs, pools, arenas), built-in modules, Solid UI, `text` screen in Solid an
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| CLI: check, build, run, test, export, init, dev, monitor, doctor | ✅ | `infer`, `bench`, `pack` missing |
+| CLI: check, build, run, test, export, init, dev, monitor, doctor, infer | ✅ | `bench`, `pack` missing |
 | Frontend TS 6 isolated, strict, `noLib` + zinc.d.ts, JSX lowering | ✅ | |
 | Diagnostics Z1xxx (forbidden), Z2/Z4 (memory/float), Z5 (modules), Z6 (UI), Z9 (unsupported), LSP JSON | 🟡 | no per-code fixture suite (TST-04) |
-| HIR / MIR / SSA passes (CMP-06/08) | ❌ | direct AST → C++ (decision 0004); C++ compiler optimises |
+| HIR / MIR / SSA passes (CMP-06/08) | 🟡 | `--emit=hir` (typed, desugared) and `--emit=mir` (SSA + CFG; folding, branch pruning, block merge, DCE), golden tests in `tests/golden`; inspection stages, the emitters still walk the AST (decision 0013); MIR skips try/async/generators; no inlining, devirtualisation, ranges, bounds, escape or RC passes |
 | Generics (templates + explicit inference), tuples, unions, destructuring, spread, `?.` | ✅ | chained `?.`, call spread, labeled statements missing |
 | Errors (RT-05): throw/try/catch/finally via status returns, Error subclasses | ✅ | `finally` inside async functions not supported |
 | async/await, Promise, microtasks, generators (protothread frames) | ✅ | await inside loop conditions / catch blocks rejected with a diagnostic |
@@ -48,7 +48,7 @@ weak refs, pools, arenas), built-in modules, Solid UI, `text` screen in Solid an
 | 2D backends: SDL3 (macos/linux), canvas (wasm) | 🟡 | ps1 GPU, ps2 gsKit, esp32 SPI LCD, rpi1 KMSDRM not written; those HALs are text-only |
 | Modules: sys, fs, storage, assets, net (fetch+server), osc, mqtt, telemetry, gpio (simulator), events, user native specs | 🟡 | esp32 variants of fs/storage/net/gpio and libgpiod on rpi1 not written |
 | Targets: macos, linux, sim, wasm, rpi1, esp32, ps2 (build), ps1 (ISA validation) | 🟡 | PS-EXE packaging (PSn00bSDK), PCSX2/PCSX-Redux runs, real hardware not done |
-| Dyn / `zinc infer` (section 9) | ❌ | `any`/`unknown` are rejected |
+| Dyn / `zinc infer` (section 9) | 🟡 | gradual: `any`/`unknown` are a NaN-boxed `Dyn` (JSON.parse, property get/set, index, `in`, `typeof`, ECMAScript operators, checked conversions, narrowing); strict: Z1006/Z1016; `dynSites` in report.json, `--no-dyn`; `zinc infer` (call sites, fields read, allocation sites) and `zinc build app.js` (decision 0014). No `word` representation, per-site caches or function specialisation (DYN-03/04/12) |
 | 3D (three.js scene graph) | ❌ | |
 
 ## Known debt

@@ -46,6 +46,8 @@ void mfree(void* p);
 constexpr uint32_t IMMORTAL = 0xFFFFFFu;  // MEM-02: saturated count = immortal
 
 struct StrBuilder;
+struct String;
+struct Dyn;
 
 // Base of every class instance (MEM-02). rc starts at 1 during construction and is adopted by make().
 struct Object {
@@ -59,6 +61,9 @@ struct Object {
   virtual void zrt_json(StrBuilder& sb) const;
   virtual void zrt_str(StrBuilder& sb) const;
   virtual void zrt_fields(StrBuilder&, bool&) const {}
+  // property access through Dyn (zrt_dyn.h): generated per class only when the program uses Dyn
+  virtual bool zrt_get(const String&, Dyn&) const { return false; }
+  virtual bool zrt_set(const String&, const Dyn&) { return false; }
   /** Destroys and frees; pooled classes override to return the slot (MEM-09). */
   virtual void zrt_delete();
 };
@@ -710,3 +715,4 @@ void quit();
 }  // namespace zrt
 
 #include "zrt_ext.h"
+#include "zrt_dyn.h"

@@ -1,0 +1,16 @@
+{"items":[{"name":"apple","qty":3},{"name":"pear","qty":2,"tags":["green"]}],"ok":true,"n":null,"pi":3.25,"s":"aé\n","big":1e+21}
+object object boolean object number string undefined
+2 pear undefined 6.5 1e+21
+total 5
+number 3.25 4.25
+["green"] APPLE 2 6
+{"name":"apple","qty":13} 1 [1,"two",{"three":3}] ["first"]
+6 51 0 true false true false true true true 5 def
+25 2.5 -5 10 1,25 null|undefined
+3 4 undefined true 5
+{"x":6,"y":4} {"x":6,"y":4}
+{"a":1,"k2":[true,null],"nested":{"deep":"yes"}} true false yes 1-true,
+number string null array(2) object undefined boolean object
+[1,"x",null,1] 1 1/x//1
+caught JSON.parse: invalid JSON
+[exit 101] panic: Uncaught TypeError: cannot convert Dyn (string) to number

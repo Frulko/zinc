@@ -1,0 +1,119 @@
+module ir.ts
+  fn sum(xs: i32[]): i32  ; 4 blocks; fold 0, branches pruned 0, blocks merged 1, dce 0
+  bb0:
+    %0 = param xs : i32[]
+    %1 = const 0 : i32
+    %2 = const 0 : i32
+    br bb1
+  bb1:  ; preds bb0, bb2
+    %3 = phi [bb0 %2] [bb2 %11] : i32  ; %i1
+    %8 = phi [bb0 %1] [bb2 %9] : i32  ; s
+    %5 = call.builtin length %0 : i32
+    %6 = bin < %3, %5 : bool
+    br %6 ? bb2 : bb4
+  bb2:  ; preds bb1
+    %7 = index.get %0, %3 : i32
+    %9 = bin + %8, %7 : i32
+    %10 = const 1 : i32
+    %11 = bin + %3, %10 : i32
+    br bb1
+  bb4:  ; preds bb1
+    ret %8
+  fn pick(n: f64): string  ; 4 blocks; fold 3, branches pruned 1, blocks merged 1, dce 7
+  bb0:
+    %0 = param n : f64
+    %8 = const 0 : f64
+    %9 = bin > %0, %8 : bool
+    br %9 ? bb4 : bb5
+  bb4:  ; preds bb0
+    %10 = const "pos" : string
+    br bb6
+  bb5:  ; preds bb0
+    %11 = const "neg" : string
+    br bb6
+  bb6:  ; preds bb4, bb5
+    %12 = phi [bb4 %10] [bb5 %11] : string  ; %cond0
+    ret %12
+  fn grade(score: i32): string  ; 5 blocks; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param score : i32
+    %1 = const 1 : i32
+    %2 = bin == %0, %1 : bool
+    br %2 ? bb1 : bb2
+  bb1:  ; preds bb0
+    %3 = const "low" : string
+    ret %3
+  bb2:  ; preds bb0
+    %4 = const 2 : i32
+    %5 = bin == %0, %4 : bool
+    br %5 ? bb5 : bb6
+  bb5:  ; preds bb2
+    %6 = const "mid" : string
+    ret %6
+  bb6:  ; preds bb2
+    %7 = const "high" : string
+    ret %7
+  fn safeDiv(a: i32, b: i32): i32  ; 3 blocks; fold 0, branches pruned 0, blocks merged 1, dce 0
+  bb0:
+    %0 = param a : i32
+    %1 = param b : i32
+    %2 = const 0 : i32
+    %3 = bin == %1, %2 : bool
+    br %3 ? bb1 : bb2
+  bb1:  ; preds bb0
+    %4 = const "div by zero" : string
+    %5 = new RangeError %4 : Error
+    throw %5
+  bb2:  ; preds bb0
+    %8 = conv.num i32->f64 %0 : f64
+    %11 = conv.num i32->f64 %1 : f64
+    %12 = bin / %8, %11 : f64
+    %13 = conv.num f64->i32 %12 : i32
+    ret %13
+  fn later(v: f64): Promise<f64>  ; async function: a state machine emitted directly (not lowered)
+  fn Vec.constructor(x: f64, y: f64): void  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param x : f64
+    %1 = param y : f64
+    %2 = param this : void
+    %3 = field.set x %2, %0 : f64
+    %4 = field.set y %2, %1 : f64
+    ret
+  fn Vec.len(): f64  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param this : void
+    %1 = field.get x %0 : f64
+    %2 = field.get x %0 : f64
+    %3 = bin * %1, %2 : f64
+    %4 = field.get y %0 : f64
+    %5 = field.get y %0 : f64
+    %6 = bin * %4, %5 : f64
+    %7 = bin + %3, %6 : f64
+    %8 = call.builtin Math.sqrt %7 : f64
+    ret %8
+  fn Vec3.constructor(x: f64, y: f64, z: f64): void  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param x : f64
+    %1 = param y : f64
+    %2 = param z : f64
+    %3 = param this : void
+    %4 = call.static super %0, %1 : void
+    %5 = field.set z %3, %2 : f64
+    ret
+  fn Vec3.len(): f64  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param this : void
+    %1 = field.get x %0 : f64
+    %2 = field.get x %0 : f64
+    %3 = bin * %1, %2 : f64
+    %4 = field.get y %0 : f64
+    %5 = field.get y %0 : f64
+    %6 = bin * %4, %5 : f64
+    %7 = bin + %3, %6 : f64
+    %8 = field.get z %0 : f64
+    %9 = field.get z %0 : f64
+    %10 = bin * %8, %9 : f64
+    %11 = bin + %7, %10 : f64
+    %12 = call.builtin Math.sqrt %11 : f64
+    ret %12
+  fn <init>(): void  ; try/catch: not lowered
