@@ -22,7 +22,8 @@ function colors(): Set<string> {
   for (const m of src.matchAll(/'([a-z]+):/g)) for (const sh of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]) COLORS.add(`${m[1]}-${sh}`);
   return COLORS;
 }
-const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'inset-0',
+const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'overflow-auto', 'overflow-scroll', 'overflow-x-auto', 'overflow-x-scroll',
+  'overflow-y-auto', 'overflow-y-scroll', 'inset-0',
   'w-full', 'h-full', 'font-bold', 'font-semibold', 'font-medium', 'font-normal', 'font-mono', 'font-sans', 'text-left', 'text-center', 'text-right', 'rounded', 'border',
   'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-none', 'transition', 'transition-colors', 'transition-all', 'ease-in', 'ease-out', 'ease-in-out',
   'tracking-tight', 'tracking-wide', 'tracking-wider', 'tracking-widest']);

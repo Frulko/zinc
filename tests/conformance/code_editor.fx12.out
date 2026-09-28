@@ -1,0 +1,13 @@
+view 0,0,1200,188,20,60,33,249
+row of 100 10 row of end 59
+clamped 0,1012,1200,188,20,60,33,249
+wrap view 0,0,180,68,20,9,0,142 row of "über" 8
+block comments 2,-1,7,6583435,2,-1 | 2,-1,7,6583435
+highlightAt row starts 0,9,20,34,45
+idle: lazy canvas draws 0
+repaint draws the lazy canvas 1
+trackpad 25
+overscrolled -18
+sprung back -1
+eased: not there at once true
+eased to about 96 false

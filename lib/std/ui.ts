@@ -7,7 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault,
+  escapeByApp, escapeDefault, stroke,
   scrollDX, scrollDY, scrollPhase,
 } from 'zinc:gfx';
 import { PALETTE, SHADES } from './palette';
@@ -79,6 +79,13 @@ export class Edit {
   // visual rows [rs, re) of the (wrapped) text, laid out for rowsW pixels
   rs: i32[] = []; re: i32[] = []; rowsW: number = -1; rowsFor: string = '\u0000';
   gutter: number = 0;                   // line number column width
+  widest: number = -1;                  // widest row in pixels (horizontal scroll limit), -1 until measured
+  // code editor extensions (setMarks, setEditColors, setHighlightAt): decorations drawn by paintEdit
+  marks: i32[] = [];                    // [start, end, color, kind] per mark
+  colors: i32[] = [];                   // [lineNumber, activeLineNumber, gutterLine, selection, caret, indentGuide]
+  highlightAt: ((line: string, start: i32) => i32[]) | null = null;
+  // vertical scroll physics (same as scroll containers: ScrollAxis), created on the first wheel / trackpad scroll
+  ay: ScrollAxis | null = null;
   constructor(multi: boolean) { this.multi = multi; }
 }
 
@@ -137,6 +144,7 @@ export class UiNode {
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
   hoverBg: i32 = -1; hoverFg: i32 = -1; hoverBorder: i32 = -1; focusBorder: i32 = -1;
   hovered: boolean = false;
+  lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
   hs: Handlers | null = null;
   ed: Edit | null = null;
   constructor(tag: i32) { this.tag = tag; }
@@ -240,7 +248,7 @@ function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
   for (const c of n.children) release(c);
-  if (n.tag === CANVAS) canvases--;
+  if (n.tag === CANVAS && !n.lazy) canvases--;
   n.alive = false;
   n.onClick = null;
   n.onDraw = null;
@@ -374,6 +382,11 @@ function applyNumber(n: UiNode, key: string, v: number): void {
   if (key === 'color') { n.fg = iv; paintDirty = true; return; }
   if (key === 'radius' || key === 'borderRadius') { n.radius = v; paintDirty = true; return; }
   if (key === 'scale' && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
+  if (key === 'lazy' && n.tag === CANVAS) {
+    // a lazy canvas does not force a repaint every frame: it is drawn when something else changed (or ui.repaint())
+    if (n.lazy !== (iv !== 0)) { n.lazy = iv !== 0; canvases += n.lazy ? -1 : 1; paintDirty = true; }
+    return;
+  }
   const e = n.ed;
   if (e !== null) {
     if (key === 'password') { e.password = iv !== 0; e.rowsFor = '\u0000'; paintDirty = true; return; }
@@ -993,43 +1006,44 @@ function clampScroll(n: UiNode): void {
 // ---------------------------------------------------------------- text fields (<input>, <textarea>)
 // colors as i32 constants: a ternary of two literals is a `number`, which overflows in fixed-point profiles
 const SEL_FOCUSED: i32 = 0x3b82f6, SEL_BLURRED: i32 = 0x64748b, HL_KEYWORD: i32 = 0xc084fc, HL_TYPE: i32 = 0x67e8f9;
+const GUTTER_NUM: i32 = 0x64748b, GUTTER_LINE: i32 = 0x334155, HL_COMMENT: i32 = 0x64748b;
 function shown(e: Edit): string { return e.password ? '•'.repeat(e.value.length) : e.value; }
 function isWordChar(c: i32): boolean { return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128; }
 function codeMode(n: UiNode, e: Edit): boolean { return e.multi && (e.lineNumbers || n.family === 'mono'); }
 /** Visual rows of the field for its current width: logical lines, word-wrapped unless `wrap` is off. */
 function ensureRows(n: UiNode, e: Edit): void {
   if (e.rowsFor === e.value && e.rowsW === n.lw) return;
-  e.rowsFor = e.value; e.rowsW = n.lw;
+  e.rowsFor = e.value; e.rowsW = n.lw; e.widest = -1;
   const s = shown(e), f = n.fontId;
-  let lines: i32 = 1;
-  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 10) lines++;
-  e.gutter = e.lineNumbers ? textWidth(f, '0'.repeat(imax(2, `${lines}`.length)), 0) + 16 : 0;
+  // one pass over the lines: indexing a non-ASCII string (UTF-8 storage) costs O(offset), so the work below only
+  // indexes each line's own string
+  const parts: string[] = e.multi ? s.split('\n') : [s];
+  e.gutter = e.lineNumbers ? textWidth(f, '0'.repeat(imax(2, `${parts.length}`.length)), 0) + 16 : 0;
   const w = n.lw - n.pl - n.pr - e.gutter;
   e.rs = []; e.re = [];
   let start: i32 = 0;
-  while (true) {
-    const nl = e.multi ? s.indexOf('\n', start) : -1;
-    const end: i32 = nl < 0 ? s.length : nl;
-    if (!e.multi || !e.wrap || w <= n.size || start === end) { e.rs.push(start); e.re.push(end); }
+  for (const part of parts) {
+    const len: i32 = part.length;
+    // lines that fit are one row (measured once, not per character: long files re-wrap quickly)
+    if (!e.multi || !e.wrap || w <= n.size || len === 0 || textWidth(f, part, 0) <= w) { e.rs.push(start); e.re.push(start + len); }
     else {
       // greedy wrap, breaking after the last space that fits (or anywhere in a long word)
-      let a: i32 = start;
-      while (a < end) {
+      let a: i32 = 0;
+      while (a < len) {
         let x: number = 0, i: i32 = a, space: i32 = -1;
-        while (i < end) {
-          const cw = textWidth(f, s.slice(i, i + 1), 0);
+        while (i < len) {
+          const cw = textWidth(f, part.slice(i, i + 1), 0);
           if (x + cw > w && i > a) break;
           x += cw;
-          if (s.charCodeAt(i) === 32) space = i;
+          if (part.charCodeAt(i) === 32) space = i;
           i++;
         }
-        if (i < end && space >= a) i = space + 1;
-        e.rs.push(a); e.re.push(i);
+        if (i < len && space >= a) i = space + 1;
+        e.rs.push(start + a); e.re.push(start + i);
         a = i;
       }
     }
-    if (nl < 0) break;
-    start = nl + 1;
+    start += len + 1;
   }
 }
 /** Row of an offset; the end of a wrapped row belongs to the next row. */
@@ -1040,11 +1054,11 @@ function rowOf(e: Edit, off: i32): i32 {
 function xIn(n: UiNode, e: Edit, row: i32, off: i32): number { return textWidth(n.fontId, shown(e).slice(e.rs[row], off), 0); }
 function rowEnd(e: Edit, r: i32): i32 { return r + 1 < e.rs.length && e.rs[r + 1] === e.re[r] && e.re[r] > e.rs[r] ? e.re[r] - 1 : e.re[r]; }
 function offAtX(n: UiNode, e: Edit, r: i32, x: number): i32 {
-  const s = shown(e);
+  const row = shown(e).slice(e.rs[r], e.re[r]);
   let w: number = 0;
-  for (let i = e.rs[r]; i < e.re[r]; i++) {
-    const cw = textWidth(n.fontId, s.slice(i, i + 1), 0);
-    if (x < w + cw / 2) return i;
+  for (let i = 0; i < row.length; i++) {
+    const cw = textWidth(n.fontId, row.slice(i, i + 1), 0);
+    if (x < w + cw / 2) return e.rs[r] + i;
     w += cw;
   }
   return rowEnd(e, r);
@@ -1071,43 +1085,81 @@ function revealCaret(n: UiNode, e: Edit): void {
 }
 function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, ai: i32): void {
   ensureRows(n, e);
-  if (e.reveal) { revealCaret(n, e); e.reveal = false; }
+  if (e.reveal) { revealCaret(n, e); e.reveal = false; e.ay = null; }
   const lh = lineHeightOf(n), f = fontAtScale(n, k), g = e.gutter, s = shown(e);
   const cl = n.pl + g, cw = n.lw - n.pl - n.pr - g, ch = n.lh - n.pt - n.pb, top = editTop(n, e);
   const base = Math.round((lh - n.size * 1.21) / 2);
   const focused = focus === h;
   const first: i32 = e.multi ? imax(0, Math.floor(e.sy / lh)) : 0;
   const last: i32 = e.multi ? imin(e.rs.length - 1, Math.floor((e.sy + ch) / lh)) : 0;
+  const mk = e.marks;
+  // the visible rows (and a margin) as one string: rows are sliced from it, since indexing the whole value of a
+  // non-ASCII text costs O(offset) per call (UTF-8 storage)
+  const c0: i32 = e.rs[imax(0, first - 20)], c1: i32 = e.re[imin(e.rs.length - 1, last + 20)];
+  const chunk = s.slice(c0, c1);
+  const xr = (r: i32, off: i32): number => textWidth(n.fontId, chunk.slice(e.rs[r] - c0, off - c0), 0);
   if (g > 0) {
-    // line numbers: the first row of each logical line
-    clip(x + n.pl * k, y + n.pt * k, g * k, ch * k);
+    // line numbers: the first row of each logical line (brighter on a line with a MARK_LINE, a dot for MARK_GUTTER)
+    clip(x, y + n.pt * k, cl * k, ch * k);
     let line: i32 = 1;
     for (let r = 1; r <= first; r++) if (e.rs[r] !== e.re[r - 1]) line++;
     for (let r = first; r <= last; r++) {
       if (r > first && e.rs[r] !== e.re[r - 1]) line++;
       if (r > 0 && e.rs[r] === e.re[r - 1]) continue;
-      const num = `${line}`;
-      drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, y + (top + r * lh - e.sy + base) * k, num, 0x64748b, ai, 0);
+      const num = `${line}`, ry = y + (top + r * lh - e.sy) * k;
+      let active = false;
+      for (let i = 0; i + 3 < mk.length; i += 4) {
+        if (mk[i + 3] === MARK_LINE && mk[i] <= e.re[r] && mk[i + 1] >= e.rs[r]) active = true;
+        if (mk[i + 3] === MARK_GUTTER && mk[i] >= e.rs[r] && mk[i] <= e.re[r]) rrect(x + (n.pl / 2 - 3) * k, ry + (lh / 2 - 3) * k, 6 * k, 6 * k, 3 * k, mk[i + 2], ai);
+      }
+      drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, ry + base * k, num, active ? editColor(e, 1, n.fg) : editColor(e, 0, GUTTER_NUM), ai, 0);
     }
     unclip();
-    rrect(x + (cl - 5) * k, y + n.pt * k, k, ch * k, 0, 0x334155, ai);
+    const gl = editColor(e, 2, GUTTER_LINE);
+    if (gl >= 0) rrect(x + (cl - 5) * k, y + n.pt * k, k, ch * k, 0, gl, ai);
   }
   clip(x + cl * k, y + n.pt * k, cw * k, ch * k);
   const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
+  const selColor = editColor(e, 3, focused ? SEL_FOCUSED : SEL_BLURRED), selAlpha: i32 = focused ? 110 : 70;
+  const guide = editColor(e, 5, -1), indentW = guide >= 0 ? textWidth(n.fontId, '  ', 0) : 0;
   for (let r = first; r <= last; r++) {
     const a = e.rs[r], b = e.re[r];
     const rx = x + (cl - e.sx) * k, ry = y + (top + r * lh - e.sy) * k;
-    if (s1 > s0 && s0 <= b && s1 >= a) {
-      const x0 = xIn(n, e, r, imax(s0, a));
-      let x1 = xIn(n, e, r, imin(s1, b));
-      if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
-      if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, focused ? SEL_FOCUSED : SEL_BLURRED, focused ? 110 : 70);
+    const line = chunk.slice(a - c0, b - c0);
+    // decorations under the text: line backgrounds, indent guides, range fills and boxes
+    for (let i = 0; i + 3 < mk.length; i += 4) {
+      const ma = mk[i], mb = mk[i + 1], kind = mk[i + 3];
+      if (ma > b || mb < a || kind === MARK_SQUIGGLE || kind === MARK_GUTTER) continue;
+      if (kind === MARK_LINE) { rrect(x + cl * k, ry, cw * k, lh * k, 0, mk[i + 2], ai); continue; }
+      const x0 = xr(r, imax(ma, a)), x1 = xr(r, imin(mb, b));
+      if (x1 <= x0) continue;
+      if (kind === MARK_BOX) border(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 2 * k, k, mk[i + 2], ai);
+      else rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 2 * k, mk[i + 2], kind === MARK_STRONG ? 150 : 70);
     }
-    const line = s.slice(a, b);
+    if (guide >= 0 && (r === 0 || e.rs[r] !== e.re[r - 1])) {
+      let ind = spacesAt(line, 0);
+      if (ind < 0) ind = indentAt(chunk, a - c0);
+      for (let c: i32 = 0; c < ind; c += 2) rrect(rx + c / 2 * indentW * k, ry, k, lh * k, 0, guide, ai);
+    }
+    if (s1 > s0 && s0 <= b && s1 >= a) {
+      const x0 = xr(r, imax(s0, a));
+      let x1 = xr(r, imin(s1, b));
+      if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
+      if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, selColor, selAlpha);
+    }
     if (line.length === 0) continue;
-    const hl = e.highlight;
-    if (hl === null || e.password) { drawText(f, rx, ry + base * k, line, n.fg, ai, 0); continue; }
-    const runs = hl(line);
+    // squiggles (diagnostics) under the glyphs' baseline
+    for (let i = 0; i + 3 < mk.length; i += 4) {
+      if (mk[i + 3] !== MARK_SQUIGGLE || mk[i] > b || mk[i + 1] < a) continue;
+      const x0 = xr(r, imax(mk[i], a)), x1 = Math.max(xr(r, imin(mk[i + 1], b)), x0 + 6);
+      const pts: number[] = [];
+      for (let px = x0; px <= x1 + 0.01; px += 2) { pts.push(rx + px * k); pts.push(ry + (lh - 2.5 + (Math.round(px / 2) % 2 === 0 ? -1 : 1)) * k); }
+      if (pts.length >= 4) stroke(pts, k, mk[i + 2], ai, false);
+    }
+    const hl = e.highlight, hla = e.highlightAt;
+    if ((hl === null && hla === null) || e.password) { drawText(f, rx, ry + base * k, line, n.fg, ai, 0); continue; }
+    let runs: i32[] = [];
+    if (hla !== null) runs = hla(line, a); else if (hl !== null) runs = hl(line);
     let pos: i32 = 0, px: number = 0;
     for (let i = 0; i + 1 < runs.length && pos < line.length; i += 2) {
       const seg = line.slice(pos, pos + runs[i]);
@@ -1120,7 +1172,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   if (e.value.length === 0 && e.placeholder.length > 0) drawText(f, x + cl * k, y + (top + base) * k, e.placeholder, 0x64748b, ai, 0);
   if (focused && !e.readOnly && (Math.floor((clock - e.blinkAt) / 530) % 2) === 0) {
     const r = rowOf(e, e.caret);
-    rrect(x + (cl + xIn(n, e, r, e.caret) - e.sx) * k - 0.5, y + (top + r * lh - e.sy) * k, 1.5, lh * k, 0, n.fg, ai);
+    rrect(x + (cl + xIn(n, e, r, e.caret) - e.sx) * k - 0.5, y + (top + r * lh - e.sy) * k, 1.5, lh * k, 0, editColor(e, 4, n.fg), ai);
   }
   unclip();
 }
@@ -1262,17 +1314,72 @@ function editPress(h: i32, n: UiNode, e: Edit, lx: number, ly: number, clicks: i
   } else moveTo(e, off, extend);
   e.goalX = -1;
 }
-/** Wheel over a scrollable field; false when it cannot scroll (the wheel goes to the enclosing scroller). */
-function editWheel(n: UiNode, e: Edit, wy: number, wx: number): boolean {
+/** Horizontal scroll limit of a field: its widest row (measured once per text and width) minus the text box. */
+function editMaxX(n: UiNode, e: Edit): number {
+  if (e.widest < 0) {
+    // wrapped rows fit the box; otherwise the widest line (measured on the line strings, see ensureRows)
+    let w: number = 0;
+    if (e.multi && e.wrap) w = n.lw - n.pl - n.pr - e.gutter - 2;
+    else for (const part of (e.multi ? shown(e).split('\n') : [shown(e)])) w = Math.max(w, textWidth(n.fontId, part, 0));
+    e.widest = w;
+  }
+  return Math.max(0, e.widest - (n.lw - n.pl - n.pr - e.gutter) + 2);
+}
+function editMaxY(n: UiNode, e: Edit): number { return Math.max(0, e.rs.length * lineHeightOf(n) - (n.lh - n.pt - n.pb)); }
+const editScrollers: i32[] = [];   // text fields whose scroll is animating (wheel easing, rubber band)
+/**
+ * Wheel over a scrollable field, like scroll containers: trackpads scroll 1:1 (the OS supplies the momentum) and
+ * stretch past the edges, mouse notches ease 60 px each. False when it cannot scroll that way and an enclosing
+ * scroller (`outer`) can take the wheel.
+ */
+function editAxis(e: Edit): ScrollAxis { let a = e.ay; if (a === null) { a = new ScrollAxis(); a.pos = e.sy; e.ay = a; } return a as ScrollAxis; }
+function wakeEdit(h: i32): void { if (editScrollers.indexOf(h) < 0) editScrollers.push(h); paintDirty = true; }
+/** Mouse-wheel notches over a field: single-line fields scroll sideways, text areas ease like scroll containers.
+ *  False when the field cannot move that way (an enclosing scroll container gets the wheel instead). */
+function editWheel(h: i32, n: UiNode, e: Edit, wy: number, wx: number, outer: boolean): boolean {
   ensureRows(n, e);
-  const lh = lineHeightOf(n), maxY = Math.max(0, e.rs.length * lh - (n.lh - n.pt - n.pb));
-  let maxX: number = 0;
-  if (wx !== 0 || !e.multi) for (let r = 0; r < e.rs.length; r++) maxX = Math.max(maxX, xIn(n, e, r, e.re[r]) - (n.lw - n.pl - n.pr - e.gutter) + 2);
-  const oy = e.sy, ox = e.sx;
-  if (e.multi) e.sy = Math.max(0, Math.min(maxY, e.sy - wy * 40));
-  e.sx = Math.max(0, Math.min(maxX, e.sx + (e.multi ? wx : wx - wy) * 40));
-  if (e.sy !== oy || e.sx !== ox) { paintDirty = true; return true; }
-  return false;
+  if (!e.multi) {
+    const ox = e.sx;
+    e.sx = Math.max(0, Math.min(editMaxX(n, e), e.sx + (wx - wy) * 40));
+    if (e.sx !== ox) { paintDirty = true; return true; }
+    return false;
+  }
+  const maxY = editMaxY(n, e), maxX = wx !== 0 ? editMaxX(n, e) : 0;
+  const a = editAxis(e), base = a.mode === WHEEL ? a.target : a.pos;
+  const dy = -wy * NOTCH_PX, dx = wx * NOTCH_PX;
+  const stuckY = dy === 0 || (dy < 0 && base <= 0) || (dy > 0 && base >= maxY);
+  const stuckX = dx === 0 || (dx < 0 && e.sx <= 0) || (dx > 0 && e.sx >= maxX);
+  if (stuckY && stuckX && outer) return false;
+  if (!stuckY) { a.target = Math.max(0, Math.min(maxY, base + dy)); a.mode = WHEEL; }
+  e.sx = Math.max(0, Math.min(maxX, e.sx + dx));
+  wakeEdit(h);
+  return true;
+}
+/** Trackpad fingers over a text area: 1:1 with the rubber band, then inertia / bounce on release. */
+function editDirect(h: i32, n: UiNode, e: Edit, dx: number, dy: number): void {
+  ensureRows(n, e);
+  const a = editAxis(e), maxY = editMaxY(n, e);
+  beginDirect(a, maxY, n.lh);
+  if (dy !== 0) directBy(a, dy, maxY, n.lh);
+  e.sy = a.pos;
+  e.sx = Math.max(0, Math.min(editMaxX(n, e), e.sx + dx));
+  wakeEdit(h);
+}
+function editRelease(h: i32): void { const e = nodes[h].ed; if (e !== null && e.ay !== null) releaseAxis(e.ay as ScrollAxis, editMaxY(nodes[h], e as Edit)); wakeEdit(h); }
+/** Advances the text areas whose scroll is animating (wheel easing, inertia, bounce). */
+function stepEdits(dt: number): void {
+  for (let i = editScrollers.length - 1; i >= 0; i--) {
+    const n = nodes[editScrollers[i]];
+    if (!n.alive || n.ed === null) { editScrollers.splice(i, 1); continue; }
+    const e = n.ed as Edit, a = e.ay;
+    if (a === null) { editScrollers.splice(i, 1); continue; }
+    const maxY = editMaxY(n, e);
+    if (a.mode === IDLE && (a.pos < 0 || a.pos > maxY)) a.mode = BOUNCE;
+    const moving = stepAxis(a, maxY, dt);
+    e.sy = a.pos;
+    paintDirty = true;
+    if (!moving) editScrollers.splice(i, 1);
+  }
 }
 
 const TS_KEYWORDS: string[] = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'of', 'in', 'new', 'class',
@@ -1280,7 +1387,9 @@ const TS_KEYWORDS: string[] = ['const', 'let', 'var', 'function', 'return', 'if'
   'async', 'await', 'yield', 'break', 'continue', 'switch', 'case', 'default', 'throw', 'try', 'catch', 'finally', 'as', 'void',
   'static', 'readonly', 'private', 'public', 'protected', 'abstract', 'get', 'set', 'typeof', 'instanceof', 'using'];
 /** Small TypeScript / Zinc highlighter for code editors (highlight={ui.tsHighlight}): keywords, types, strings,
- *  numbers, line comments. ponytail: per line, so block comments and multi-line strings are not tracked. */
+ *  numbers, line comments and block comments within a line (an unclosed one runs to the end of the line).
+ *  ponytail: per line, so comments and strings spanning lines are not tracked (setHighlightAt gives the offset of
+ *  the line, for highlighters that keep a state per line). */
 export function tsHighlight(line: string): i32[] {
   const out: i32[] = [];
   const n = line.length;
@@ -1288,7 +1397,8 @@ export function tsHighlight(line: string): i32[] {
   while (i < n) {
     const c = line.charCodeAt(i);
     let j: i32 = i + 1, color: i32 = -1;
-    if (c === 47 && j < n && line.charCodeAt(j) === 47) { j = n; color = 0x64748b; }
+    if (c === 47 && j < n && line.charCodeAt(j) === 47) { j = n; color = HL_COMMENT; }
+    else if (c === 47 && j < n && line.charCodeAt(j) === 42) { const close = line.indexOf('*/', i + 2); j = close < 0 ? n : close + 2; color = HL_COMMENT; }
     else if (c === 34 || c === 39 || c === 96) {
       while (j < n && line.charCodeAt(j) !== c) j += line.charCodeAt(j) === 92 ? 2 : 1;
       j = imin(j + 1, n); color = 0x86efac;
@@ -1303,6 +1413,66 @@ export function tsHighlight(line: string): i32[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- code editor extensions (examples/zed-editor)
+/** Mark kinds of setMarks: a translucent range fill, the background of every row of a line (also brightens its line
+ *  number), a 1px box, a wavy underline, a stronger fill, a dot in the line number gutter. */
+export const MARK_FILL: i32 = 0, MARK_LINE: i32 = 1, MARK_BOX: i32 = 2, MARK_SQUIGGLE: i32 = 3, MARK_STRONG: i32 = 4, MARK_GUTTER: i32 = 5;
+/** Decorations of a textarea, flat [start, end, color, kind] per mark (UTF-16 offsets): current line, search
+ *  matches, matching brackets, diagnostics. Drawn under the text (squiggles over it); replaces the previous marks. */
+export function setMarks(h: i32, marks: i32[]): void { editOf(h).marks = marks; paintDirty = true; }
+/** Colours of a code editor: [lineNumber, activeLineNumber, gutterLine, selection, caret, indentGuide]; -1 keeps
+ *  the default, -2 draws none (gutterLine). Indent guides (every 2 columns of leading spaces) are off by default. */
+export function setEditColors(h: i32, colors: i32[]): void { editOf(h).colors = colors; paintDirty = true; }
+function editColor(e: Edit, i: i32, def: i32): i32 { return i < e.colors.length && e.colors[i] !== -1 ? e.colors[i] : def; }
+/** Like setHighlight, with the offset of the row in the value: highlighters that track comments or strings across
+ *  lines look the state of that line up. Takes precedence over setHighlight. */
+export function setHighlightAt(h: i32, f: (line: string, start: i32) => i32[]): void { editOf(h).highlightAt = f; paintDirty = true; }
+/** Scroll and geometry of a text field: [scrollX, scrollY, contentHeight, viewportHeight, lineHeight, rows, gutter,
+ *  contentWidth]. contentWidth is measured on demand (the widest row). */
+export function editView(h: i32): number[] {
+  if (layoutDirty) layout();
+  const n = node(h), e = editOf(h);
+  ensureRows(n, e);
+  const lh = lineHeightOf(n);
+  return [e.sx, e.sy, e.rs.length * lh, n.lh - n.pt - n.pb, lh, e.rs.length, e.gutter, editMaxX(n, e) + n.lw - n.pl - n.pr - e.gutter - 2];
+}
+/** Scrolls a text field to (x, y) pixels (clamped), stopping any wheel easing. */
+export function scrollEditTo(h: i32, x: number, y: number): void {
+  if (layoutDirty) layout();
+  const n = node(h), e = editOf(h);
+  ensureRows(n, e);
+  e.sy = e.multi ? Math.max(0, Math.min(editMaxY(n, e), y)) : 0;
+  e.sx = Math.max(0, Math.min(editMaxX(n, e), x));
+  e.ay = null; e.reveal = false;
+  paintDirty = true;
+}
+/** Visual row of an offset (the logical line when wrapping is off). */
+export function editRowOf(h: i32, off: i32): i32 {
+  if (layoutDirty) layout();
+  const n = node(h), e = editOf(h);
+  ensureRows(n, e);
+  return rowOf(e, clampI(off, 0, e.value.length));
+}
+/** Leading spaces of the line starting at `a`; a blank line takes the smaller indentation of its neighbours. */
+function indentAt(s: string, a: i32): i32 {
+  const own = spacesAt(s, a);
+  if (own >= 0) return own;
+  let up: i32 = 0, down: i32 = 0;
+  let p: i32 = a;
+  for (let i = 0; i < 100 && p > 0; i++) { p = lineStart(s, p - 1); const v = spacesAt(s, p); if (v >= 0) { up = v; break; } }
+  p = s.indexOf('\n', a);
+  for (let i = 0; i < 100 && p >= 0; i++) { const v = spacesAt(s, p + 1); if (v >= 0) { down = v; break; } p = s.indexOf('\n', p + 1); }
+  return imin(up, down);
+}
+/** Leading spaces of the line starting at `a`, -1 when it is blank. */
+function spacesAt(s: string, a: i32): i32 {
+  let i: i32 = a;
+  while (i < s.length && s.charCodeAt(i) === 32) i++;
+  return i >= s.length || s.charCodeAt(i) === 10 ? -1 : i - a;
+}
+/** Asks for a repaint at the next frame (lazy canvases whose drawing depends on the program's own state). */
+export function repaint(): void { paintDirty = true; }
 
 // ---------------------------------------------------------------- scrolling input
 let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
@@ -1668,7 +1838,7 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
   const w = hit(px, py, HIT_WHEEL);
   const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (wy !== 0 ? 1 : 0) | (wx !== 0 ? 2 : 0));
   if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
-    if (handlerOf(nodes[w], PWHEEL) === null) { if (editWheel(nodes[w], nodes[w].ed as Edit, wy, wx)) return; }
+    if (handlerOf(nodes[w], PWHEEL) === null) { if (editWheel(w, nodes[w], nodes[w].ed as Edit, wy, wx, sc >= 0)) return; }
     else {
       boxOf(w);
       const e = new PointerEvent();
@@ -1694,19 +1864,30 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
   wakeScroll(sc);
 }
 // Trackpad gestures (HAL: pixels resampled at frame time + the finger phase): the scroller under the pointer when
-// the gesture starts follows the fingers until they lift, then its inertia takes over. A wheel handler or a
-// scrollable text field under the pointer gets the deltas as wheel steps instead.
-let padScroller: i32 = -1;
+// the gesture starts (or the text area) follows the fingers until they lift, then its inertia takes over. A node
+// with its own wheel handler gets the deltas as wheel steps instead.
+let padScroller: i32 = -1, padEdit: i32 = -1;
 function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
   if (phase === 3) { const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3); if (sc >= 0) catchScroll(sc); return; }
   if (phase === 0) return;
-  if (padScroller < 0 || !nodes[padScroller].alive) {
+  if (padEdit < 0 && (padScroller < 0 || !nodes[padScroller].alive)) {
     if (dx === 0 && dy === 0 && phase !== 2) return;
     const w = hit(px, py, HIT_WHEEL);
     const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
-    if (w >= 0 && (sc < 0 || isAncestor(sc, w))) { wheelInput(px, py, dy / 40, -dx / 40, 1); return; }
-    padScroller = sc;
-    if (sc < 0) return;
+    if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
+      const ed = nodes[w].ed;
+      if (ed !== null && (ed as Edit).multi && handlerOf(nodes[w], PWHEEL) === null) padEdit = w;   // a text area follows the fingers
+      else { wheelInput(px, py, dy / 40, -dx / 40, 1); return; }
+    } else padScroller = sc;
+    if (padEdit < 0 && sc < 0) return;
+  }
+  if (padEdit >= 0) {
+    if (nodes[padEdit].alive && nodes[padEdit].ed !== null) {
+      editDirect(padEdit, nodes[padEdit], nodes[padEdit].ed as Edit, -dx, -dy);
+      if (phase === 2) editRelease(padEdit);
+    }
+    if (phase === 2) padEdit = -1;
+    return;
   }
   directScroll(padScroller, -dx, -dy);
   if (phase === 2) { releaseScroll(padScroller); padScroller = -1; }
@@ -1754,8 +1935,13 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
     const s = nodes[p].hs;
     if (s !== null && (s as Handlers).key !== null) { const f = (s as Handlers).key; if (f !== null) f(ev); break; }
   }
+  let byApp = ev.handled;
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
+  const before = ev.handled;
   for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
+  if (!before && ev.handled) byApp = true;
+  // a printable key the program used (⌥Z as a shortcut) does not also type its character, like DOM preventDefault
+  if (byApp && key.length === 1 && (mods & (CTRL | META)) === 0) dropText = true;
   // Escape nobody used: drop the focus, else the platform's default (leave fullscreen / quit)
   if (!ev.handled && key === 'Escape') { if (focus >= 0) setFocusTo(-1); else escapeDefault(); ev.handled = true; }
   if (!ev.handled) {
@@ -1770,6 +1956,7 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
 const NAV_KEYS: string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'Enter'];
 const NAV_BTN: i32[] = [Btn.Up, Btn.Down, Btn.Left, Btn.Right, Btn.A, Btn.Select, Btn.Start];
 let navKeys: i32 = 0, navBack = false;
+let dropText = false;   // the text event of a key down that a handler consumed is skipped
 function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
 function inputFrame(): void {
   curMods = modifiers();
@@ -1782,9 +1969,10 @@ function inputFrame(): void {
   for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
   pointerSample(px, py, 0, nb > 0 ? (held & 1) !== 0 : pointerDown());
   const nk = keyCount();
+  dropText = false;
   for (let i = 0; i < nk; i++) {
     const kind = keyKind(i);
-    if (kind === KeyKind.Text) typeInto(focus, keyName(i));
+    if (kind === KeyKind.Text) { if (dropText) dropText = false; else typeInto(focus, keyName(i)); }
     else if (kind === KeyKind.Down || kind === KeyKind.Repeat) dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
   }
 }
@@ -1816,6 +2004,7 @@ export function frame(dt: number, background: i32): void {
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   stepScroll(dt);
+  stepEdits(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
   if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
@@ -1832,7 +2021,7 @@ export function frame(dt: number, background: i32): void {
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
   if (hoverDirty || paintDirty) updateHover();
-  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0) { keep(); return; }
+  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
@@ -1909,6 +2098,12 @@ export function wheelAt(x: number, y: number, dy: number, dx: number = 0, pinchB
   synthetic = true;
   if (layoutDirty) layout();
   wheelInput(x, y, dy, dx, pinchBy);
+}
+/** A trackpad sample, as the HAL reports it: dx / dy pixels (+ = up / left), phase 1 fingers down, 2 lifted, 3 landed. */
+export function trackpadAt(x: number, y: number, dx: number, dy: number, phase: i32): void {
+  synthetic = true;
+  if (layoutDirty) layout();
+  trackpadInput(x, y, dx, dy, phase);
 }
 /** Key down (key names like gfx keyName: 'a', 'Enter', 'ArrowLeft'...) with the focus on h (-1: keep the focus).
  *  Returns whether something handled it. */
