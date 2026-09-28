@@ -247,6 +247,7 @@ bool write_file(const char* path, const void* p, size_t n) {
 }
 /** Local file for camera path folder/name under dir. */
 void local_path(const char* dir, const char* cam_path, Buf& out) {
+  if (!dir[0]) dir = ".";
   mkdir(dir, 0755);
   const char* s = strrchr(cam_path, '/');
   out.add(dir); out.ch('/'); out.add(s ? s + 1 : cam_path);
