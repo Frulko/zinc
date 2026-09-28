@@ -1,0 +1,12 @@
+{
+  "name": "remote-view",
+  "kind": "module",
+  "module": "zinc:remote",
+  "entry": "index.ts",
+  "description": "Viewer for display-remote apps: live screen as a runtime image, input forwarding, LAN discovery",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "rpi1": {}
+  }
+}

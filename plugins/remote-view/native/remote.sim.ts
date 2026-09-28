@@ -1,0 +1,20 @@
+// zinc:remote on the sim target: no sockets. connect() rejects, discovery finds nothing.
+export default {
+  connect(_host: string, _port: number): Promise<string> { return Promise.reject(new Error('remote: not available on sim')); },
+  setReconnect(_s: number, _on: boolean): void {},
+  close(_s: number): void {},
+  connected(_s: number): boolean { return false; },
+  image(_s: number): number { return -1; },
+  width(_s: number): number { return 0; },
+  height(_s: number): number { return 0; },
+  name(_s: number): string { return ''; },
+  fps(_s: number): number { return 0; },
+  rtt(_s: number): number { return 0; },
+  kbps(_s: number): number { return 0; },
+  frames(_s: number): number { return 0; },
+  pointer(_s: number, _x: number, _y: number, _down: boolean, _button: number): void {},
+  wheel(_s: number, _dy: number): void {},
+  buttons(_s: number, _mask: number): void {},
+  onEvent(_cb: (s: number, kind: string) => void): void {},
+  discover(_on: boolean, _cb: (beacon: string, host: string) => void): void {},
+};

@@ -56,7 +56,7 @@ static char title[64];
 static uint64_t last_present, last_beacon;
 // stats (ZINC_REMOTE_LOG=1: one line per second)
 static bool logit;
-static uint64_t st_t0, st_bytes, st_raw, st_frames;
+static uint64_t st_t0, st_bytes, st_raw, st_frames, st_loops;
 // input received
 static float rx, ry, rwheel; static int rdown; static uint32_t rbuttons;
 static long frames_left = -1;           // ZINC_FRAMES=n: quit after n frames (scripted runs)
@@ -210,16 +210,18 @@ static void r_present(const HalFrame* f) {
     }
   }
   pump();
+  st_loops++;
   uint64_t t = now_us();
   if (logit && t - st_t0 >= 1000000) {
-    if (st_t0 && cfd >= 0) fprintf(stderr, "remote: %llu fps sent, %.1f KiB/s (raw %.1f KiB/s, x%.1f) seq %u acked %u out %zu dmg %d\n", (unsigned long long)st_frames,
-      st_bytes / 1024.0, st_raw / 1024.0, st_bytes ? (double)st_raw / st_bytes : 0.0, seq, acked, out_len, dx1 - dx0);
-    st_t0 = t; st_bytes = st_raw = st_frames = 0;
+    if (st_t0 && cfd >= 0) fprintf(stderr, "remote: %llu frames sent / %llu, %.1f KiB/s (raw %.1f KiB/s, x%.1f)\n", (unsigned long long)st_frames, (unsigned long long)st_loops,
+      st_bytes / 1024.0, st_raw / 1024.0, st_bytes ? (double)st_raw / st_bytes : 0.0);
+    st_t0 = t; st_bytes = st_raw = st_frames = st_loops = 0;
   }
-  // pacing: no vsync here, hold the loop to the configured rate
+  // pacing: no vsync here, hold the loop to the configured rate. Deadlines, not fixed sleeps: macOS stretches the
+  // sleeps of a windowless process (timer coalescing), the next frame makes up for it.
   const uint64_t period = 1000000 / (ZP_DISPLAY_REMOTE_FPS > 0 ? ZP_DISPLAY_REMOTE_FPS : 60);
-  if (last_present && t - last_present < period) hal_sleep_us(period - (t - last_present));
-  last_present = now_us();
+  last_present = last_present && t < last_present + 2 * period ? last_present + period : t;
+  if (last_present > t) hal_sleep_us(last_present - t);
 }
 
 static void r_poll(HalInput* inp) {

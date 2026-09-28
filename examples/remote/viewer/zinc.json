@@ -1,0 +1,10 @@
+{
+  "name": "remote-viewer",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 900, "height": 560 },
+    "linux": { "width": 900, "height": 560 },
+    "rpi1": { "width": 900, "height": 560 },
+    "sim": { "width": 900, "height": 560 }
+  }
+}
