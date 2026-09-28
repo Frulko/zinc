@@ -19,6 +19,8 @@ extern HalInput input, prev_input;
 extern int32_t frame_no;
 extern bool quit_requested;
 extern int32_t surf_w, surf_h;
+extern bool display_driver;
+static void present(const HalFrame* f) { if (display_driver) hal_display->present(f); else hal_present(f); }
 
 namespace gfx {
 using raster::Cmd;
@@ -45,7 +47,7 @@ void keep() { kept = true; }
 void end_frame() {
   if (kept && !first) {  // retained frame: no rasterization, no swap
     HalFrame f = {surf_w, surf_h, 0, 0, 0, 0, render_rows};
-    hal_present(&f);
+    present(&f);
     return;
   }
   const Buf& now = bufs[cur];
@@ -55,7 +57,7 @@ void end_frame() {
   shown = &now;
   stats.draw_cmds = now.ncmd;
   HalFrame f = {surf_w, surf_h, d.x0, d.y0, d.x1, d.y1, render_rows};
-  hal_present(&f);
+  present(&f);
   cur ^= 1;
 }
 static Cmd* push(uint8_t kind, uint32_t color, int32_t alpha) {
@@ -147,10 +149,46 @@ void text(double x, double y, const String& s, uint32_t color, int32_t scale) {
   drawText(raster::find_font(grid, 4, 8 * (scale < 1 ? 1 : scale)), x, y, s, color, 255, 0);
 }
 int32_t image(const String& name) { return raster::find_image(name.ptr(), name.bytes()); }
-int32_t imageWidth(int32_t i) { return i >= 0 && i < raster::image_count ? raster::images[i].w : 0; }
-int32_t imageHeight(int32_t i) { return i >= 0 && i < raster::image_count ? raster::images[i].h : 0; }
+int32_t imageWidth(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return w; }
+int32_t imageHeight(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return h; }
 void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha, double radius) {
-  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius; }
+  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius; c->c2 = raster::image_version(i); }
+}
+/** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
+void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed) {
+  Buf& b = bufs[cur];
+  uint32_t n = (uint32_t)pts.length() / 2;
+  if (n < 2) return;
+  static float tmp[4096];
+  if (n > 2048) n = 2048;  // ponytail: long lines are split by the caller (map tiles already are)
+  for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts.get((int32_t)i * 2) + tx); tmp[i * 2 + 1] = (float)(pts.get((int32_t)i * 2 + 1) + ty); }
+  Cmd* c = push(raster::POLY, color, alpha);
+  if (!c) return;
+  uint32_t r = raster::stroke_contours(tmp, n, (float)width, closed, b.pts + b.npts, ZRT_POINT_POOL - b.npts);
+  float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f, hw = (float)width * 0.5f + 1;
+  for (uint32_t i = 0; i < n; i++) { float x = tmp[i * 2], y = tmp[i * 2 + 1]; if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; }
+  c->off = b.npts; c->n = r & 0xFFFF; b.npts += r >> 16;
+  if (!c->n) { b.ncmd--; return; }
+  c->x = minx - hw; c->y = miny - hw; c->w = maxx - minx + 2 * hw; c->h = maxy - miny + 2 * hw;
+}
+/** Runtime image (black), drawable with drawImage and a render target for beginImage. */
+int32_t createImage(int32_t w, int32_t h) { return raster::dyn_create(w, h); }
+void destroyImage(int32_t i) { raster::dyn_destroy(i); }
+// Render-to-image: commands between beginImage and endImage are rasterized into the image instead of the screen
+// (cached map tiles, static layers). They never reach the frame diff.
+static int32_t target_img = -1;
+static uint32_t mark_cmd, mark_text, mark_pts;
+void beginImage(int32_t i) { Buf& b = bufs[cur]; target_img = i; mark_cmd = b.ncmd; mark_text = b.ntext; mark_pts = b.npts; }
+void endImage() {
+  Buf& b = bufs[cur];
+  uint32_t* px = raster::dyn_pixels(target_img);
+  int32_t w, h;
+  if (px && raster::image_size(target_img, &w, &h)) {
+    raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
+    raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
+    raster::dyn_update(target_img, nullptr, 0);
+  }
+  b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
 }
 void clip(double x, double y, double w, double h) { if (Cmd* c = push(raster::CLIP, 0, 255)) box(c, x, y, w, h); }
 void unclip() { push(raster::UNCLIP, 0, 255); }
@@ -161,6 +199,12 @@ bool wasPressed(int32_t b) { return ((input.buttons >> b) & 1u) && !((prev_input
 double pointerX() { return input.px; }
 double pointerY() { return input.py; }
 bool pointerDown() { return input.pdown != 0; }
+double wheel() { return input.wheel; }
+double pinch() { return input.pinch == 0 ? 1 : input.pinch; }
+int32_t touchCount() { return input.ntouch; }
+double touchX(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].x : 0; }
+double touchY(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].y : 0; }
+int32_t touchId(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].id : -1; }
 int32_t frame() { return frame_no; }
 void quit() { quit_requested = true; }
 }

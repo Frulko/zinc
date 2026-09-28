@@ -36,6 +36,23 @@ declare module 'zinc:gfx' {
   export function unclip(): void;
   /** Offset added to the coordinates of the following commands (reset every frame). */
   export function translate(x: number, y: number): void;
+  /** Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps. */
+  export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void;
+  /** Runtime image (black) usable with drawImage, and as a render target. Video/camera plugins create their own. */
+  export function createImage(w: i32, h: i32): i32;
+  export function destroyImage(image: i32): void;
+  /** Draw commands until endImage() are rasterized into `image` instead of the screen (tile caches, static layers). */
+  export function beginImage(image: i32): void;
+  export function endImage(): void;
+  /** Mouse wheel / scroll steps this frame (+ = up). */
+  export function wheel(): number;
+  /** Trackpad pinch scale this frame (1 = none). */
+  export function pinch(): number;
+  /** Multitouch: active touch points this frame. */
+  export function touchCount(): i32;
+  export function touchX(i: i32): number;
+  export function touchY(i: i32): number;
+  export function touchId(i: i32): i32;
   /** Nothing changed this frame: present the previous one again (retained UIs call this when idle). */
   export function keep(): void;
   export function isDown(b: Btn): boolean;

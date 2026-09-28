@@ -27,8 +27,13 @@ export function textWidth(f, s, tracking) {
   return pen / 64;
 }
 export const image = name => R().images.findIndex(i => i.name === name);
-export const imageWidth = i => R().images[i]?.w ?? 0;
-export const imageHeight = i => R().images[i]?.h ?? 0;
+export const imageWidth = i => dynSize.get(i)?.[0] ?? R().images[i]?.w ?? 0;
+export const imageHeight = i => dynSize.get(i)?.[1] ?? R().images[i]?.h ?? 0;
+let dynImg = 1 << 20;
+const dynSize = new Map();
+export const stroke = () => {}, beginImage = () => {}, endImage = () => {}, destroyImage = i => { dynSize.delete(i); };
+export const createImage = (w, h) => { const i = dynImg++; dynSize.set(i, [w, h]); return i; };
+export const wheel = () => 0, pinch = () => 1, touchCount = () => 0, touchX = () => 0, touchY = () => 0, touchId = () => -1;
 export const isDown = () => false;
 export const wasPressed = () => false;
 export const pointerX = () => 0;

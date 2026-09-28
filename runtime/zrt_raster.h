@@ -15,15 +15,28 @@ extern const int font_count;
 extern const Image images[];
 extern const int image_count;
 
+// Runtime images (video frames, camera preview, cached map tiles, render-to-image): opaque 0x00RRGGBB pixels.
+// Ids start at DYN_BASE so they never collide with baked images. Buffers are read on the main thread during
+// hal_present: a producer thread must hand over a finished buffer with dyn_update, never write the shown one.
+static const int32_t DYN_BASE = 1 << 20;
+int32_t dyn_create(int32_t w, int32_t h);                                      // runtime-owned buffer
+int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride);    // caller-owned buffer
+void dyn_update(int32_t id, const uint32_t* px, int32_t stride);                // new pixels (null: same buffer), marks damage
+uint32_t* dyn_pixels(int32_t id);
+void dyn_resize(int32_t id, int32_t w, int32_t h);                             // runtime-owned buffers only
+void dyn_destroy(int32_t id);
+bool image_size(int32_t id, int32_t* w, int32_t* h);
+uint32_t image_version(int32_t id);
+
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP };
 
 struct Cmd {
-  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal
+  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal; IMAGE: 1 = nearest filter
   uint8_t pad;
   int32_t res;                 // font or image index
   float x, y, w, h;            // LINE: x,y -> w,h ; POLY: bbox
   float r, s;                  // radius; border width / shadow blur / line width / tracking
-  uint32_t c1, c2;             // 0xRRGGBB
+  uint32_t c1, c2;             // 0xRRGGBB; IMAGE: c2 = image version (frame diff sees new video frames)
   uint32_t off, n;             // payload (text bytes or points) in the frame pools
 };
 
@@ -34,6 +47,9 @@ int32_t find_font(const char* name, uint32_t name_len, int32_t px);
 int32_t find_image(const char* name, uint32_t name_len);
 /** Advance of UTF-8 text in 26.6 fixed point, tracking in px added between glyphs. */
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking);
+
+/** Stroke outline as nonzero contours into `out` ([count, x, y, ...]*). Returns contours | (floats used << 16). */
+uint32_t stroke_contours(const float* pts, uint32_t n, float width, bool closed, float* out, uint32_t cap);
 
 struct Frame {
   const Cmd* cmds; uint32_t count;

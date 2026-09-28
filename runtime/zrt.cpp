@@ -1,6 +1,8 @@
 // zrt — non-template parts of the runtime.
 #include "zrt.h"
 
+extern "C" { HalDisplay* hal_display = nullptr; }
+
 // Static budgets (NFR-05): small targets define smaller values (esp32/ps1 profiles).
 #ifndef ZRT_MAX_DRAW_CMDS
 #define ZRT_MAX_DRAW_CMDS 8192
@@ -568,9 +570,11 @@ static double run_timers() {
   return next;
 }
 
+bool display_driver = false;  // a plugins/display-* driver took over the screen and input
 void start(const HalConfig& cfg, int argc, char** argv) {
   zrt_argc = argc; zrt_argv = argv;
   hal_init(&cfg); surf_w = cfg.width; surf_h = cfg.height;
+  display_driver = hal_display && hal_display->init(&cfg);
 }
 
 namespace gfx { void begin_frame(); void end_frame(); }
@@ -582,10 +586,12 @@ bool loop_once() {
   if (frame_cb && !quit_requested) {
     hal_frame_begin();
     prev_input = input;
+    input.wheel = 0; input.pinch = 1;
     hal_poll_input(&input);
+    if (display_driver && hal_display->poll) hal_display->poll(&input);
     if (input.quit) return false;
     uint64_t t = hal_time_us();
-    double dt = hal_fixed_dt();
+    double dt = display_driver ? 0 : hal_fixed_dt();
     if (!last_frame_us) last_frame_us = t;
     if (dt <= 0) { dt = (double)(t - last_frame_us) / 1e6; if (dt > 0.1) dt = 0.1; }
     last_frame_us = t;
@@ -633,6 +639,7 @@ void finish() {
     log_flush(sb);
   }
 #endif
+  if (display_driver && hal_display->shutdown) hal_display->shutdown();
   hal_shutdown();
 }
 

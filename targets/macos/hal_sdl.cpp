@@ -44,6 +44,17 @@ void hal_poll_input(HalInput* in) {
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_EVENT_QUIT) quit = true;
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE) quit = true;
+    if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel += e.wheel.y;
+    if (e.type == SDL_EVENT_PINCH_UPDATE) in->pinch *= e.pinch.scale;
+    if (e.type == SDL_EVENT_FINGER_DOWN || e.type == SDL_EVENT_FINGER_MOTION) {
+      int32_t id = (int32_t)e.tfinger.fingerID, k = 0;
+      while (k < in->ntouch && in->touch[k].id != id) k++;
+      if (k == in->ntouch && k < HAL_MAX_TOUCH) in->ntouch++;
+      if (k < HAL_MAX_TOUCH) in->touch[k] = HalTouch{id, e.tfinger.x * W, e.tfinger.y * H};
+    }
+    if (e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) {
+      for (int32_t k = 0; k < in->ntouch; k++) if (in->touch[k].id == (int32_t)e.tfinger.fingerID) { in->touch[k] = in->touch[--in->ntouch]; break; }
+    }
   }
   const bool* k = SDL_GetKeyboardState(nullptr);
   uint32_t b = 0;

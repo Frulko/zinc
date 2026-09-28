@@ -18,11 +18,17 @@ enum HalButton : uint32_t {
   HAL_L = 1u << 8, HAL_R = 1u << 9, HAL_START = 1u << 10, HAL_SELECT = 1u << 11,
 };
 
+#define HAL_MAX_TOUCH 10
+struct HalTouch { int32_t id; float x, y; };
 struct HalInput {
   uint32_t buttons;      // HalButton bits
   float px, py;          // pointer, logical coordinates
   int32_t pdown;
   int32_t quit;          // window closed / frame budget exhausted
+  float wheel;           // scroll / zoom steps since the last poll (+ = up / zoom in)
+  float pinch;           // trackpad pinch scale factor since the last poll (1 = none)
+  int32_t ntouch;        // active touch points (multitouch screens)
+  HalTouch touch[HAL_MAX_TOUCH];
 };
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
@@ -56,4 +62,15 @@ void hal_surface_size(int* w, int* h);
 double hal_fixed_dt(void);
 // Drives the main loop: native HALs loop until step() returns 0; the web HAL hands it to requestAnimationFrame.
 void hal_run(int (*step)(void));
+
+// Display drivers (plugins/display-*): a linked driver registers itself from a static constructor
+// (`static HalDisplay d = {...}; static int r = (hal_display = &d, 0);`). The runtime then hands it the frames and
+// asks it for input; init returns 0 to decline (no device), and the target HAL keeps the screen.
+struct HalDisplay {
+  int (*init)(const HalConfig* cfg);
+  void (*present)(const HalFrame* f);
+  void (*poll)(HalInput* in);   // may be null (no input device)
+  void (*shutdown)(void);       // may be null
+};
+extern HalDisplay* hal_display;
 }
