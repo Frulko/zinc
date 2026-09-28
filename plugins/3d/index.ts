@@ -176,8 +176,9 @@ export function parseObj(text: string): Mesh {
     else if (k === 'f') {
       const face: i32[] = [];
       for (let i = 1; i < w.length; i++) {
-        let id = seen.get(w[i]);
-        if (id === undefined) {
+        // ponytail: has() + get(), `get() === undefined` is not supported for number values
+        let id: i32 = seen.has(w[i]) ? seen.get(w[i]) ?? 0 : -1;
+        if (id < 0) {
           const p = w[i].split('/');
           const vi = objIndex(p[0], vp.length / 3), ti = p.length > 1 ? objIndex(p[1], vt.length / 2) : -1, ni = p.length > 2 ? objIndex(p[2], vn.length / 3) : -1;
           id = pos.length / 3;
