@@ -859,7 +859,13 @@ export class Sema {
     if (ts.isConditionalExpression(e)) {
       const a = this.ztypeOf(e.whenTrue), b = this.ztypeOf(e.whenFalse);
       if (a.k === 'dyn' || b.k === 'dyn') return DYN;
-      if (isNum(a) && isNum(b)) return a.m === b.m ? a : { k: 'num', m: this.numberKind };
+      if (isNum(a) && isNum(b)) {
+        if (a.m === b.m) return a;
+        // an integer literal branch takes the other branch's integer type (`c ? RED : -1` stays i32)
+        if (isInt(a.m) && this.isIntLiteral(e.whenFalse)) return a;
+        if (isInt(b.m) && this.isIntLiteral(e.whenTrue)) return b;
+        return { k: 'num', m: this.numberKind };
+      }
       return a.k === 'null' ? b : a;
     }
     if (ts.isObjectLiteralExpression(e)) {
