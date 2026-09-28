@@ -73,6 +73,7 @@ struct DynObj : Object {
   bool zrt_get(const String& k, Dyn& out) const override { int32_t e = m.find(k); if (e < 0) return false; out = m.m->vals[e]; return true; }
   bool zrt_set(const String& k, const Dyn& v) override { m.set(k, v); return true; }
   void zrt_json(StrBuilder& sb) const override;
+  void zrt_ifields(InspParts& p, Insp& in) const override;
 };
 
 namespace dynlit {
@@ -179,8 +180,34 @@ inline void dyn_json(StrBuilder& sb, const Dyn& d, bool stringify) {
 inline void DynObj::zrt_json(StrBuilder& sb) const { dyn_obj_json(sb, this, false); }
 inline void json(StrBuilder& sb, const Dyn& d) { dyn_json(sb, d, false); }
 inline String dyn_stringify(const Dyn& d) { StrBuilder sb; if (d.v == Dyn::UNDEF) sb.cstr("undefined"); else dyn_json(sb, d, true); return sb.build(); }
-inline void log_one(StrBuilder& sb, const Dyn& d) {
-  if (d.tag() == Dyn::ARR || d.tag() == Dyn::OBJ) dyn_json(sb, d, false); else to_s(sb, d);
+/** Keys print bare when they are identifiers, quoted otherwise (like Node). */
+inline void insp_key(StrBuilder& e, const String& k) {
+  bool ident = k.bytes() > 0;
+  for (uint32_t i = 0; i < k.bytes() && ident; i++) {
+    char c = k.ptr()[i];
+    ident = c == '_' || c == '$' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (i > 0 && c >= '0' && c <= '9');
+  }
+  if (ident) to_s(e, k); else { e.ch('\''); to_s(e, k); e.ch('\''); }
+}
+inline bool insp_num(const Dyn& d) { return d.is_num(); }
+inline void insp(StrBuilder& sb, Insp& in, const Dyn& d) {
+  switch (d.tag()) {
+    case 0: insp(sb, in, d.num()); return;
+    case Dyn::UNDEF: if (in.color) sb.cstr("\033[90m"); sb.cstr("undefined"); if (in.color) sb.cstr("\033[39m"); return;
+    case Dyn::NUL: insp_null(sb, in); return;
+    case Dyn::BOOL: insp(sb, in, (bool)(d.v & 1)); return;
+    case Dyn::STR: insp(sb, in, d.str()); return;
+    case Dyn::ARR: insp(sb, in, d.arr()); return;
+    default: d.obj()->zrt_inspect(sb, in);
+  }
+}
+inline void DynObj::zrt_ifields(InspParts& p, Insp& in) const {
+  for (int32_t i = 0; i < m.slots() && p.n < 100; i++) if (m.live_at(i)) {
+    StrBuilder e; insp_key(e, m.m->keys[i]); e.cstr(": "); insp(e, in, m.m->vals[i]); p.add(e);
+  }
+}
+inline void log_arg(StrBuilder& sb, bool color, const Dyn& d) {
+  if (d.tag() == Dyn::STR) to_s(sb, d); else { Insp in; in.color = color; insp(sb, in, d); }
 }
 
 // ---------- errors ----------

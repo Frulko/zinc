@@ -14,6 +14,7 @@ struct Error : Object {
   void zrt_str(StrBuilder& sb) const override { to_s(sb, name); if (message.bytes()) { sb.cstr(": "); to_s(sb, message); } }
   void zrt_fields(StrBuilder&, bool&) const override {}
   void zrt_json(StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }
+  void zrt_inspect(StrBuilder& sb, Insp&) const override { zrt_str(sb); }  // `Name: message` (no stack)
 };
 struct TypeError : Error {
   static constexpr uint32_t ZRT_CID = 0xFFFF01;
@@ -45,9 +46,7 @@ template<class A, class B> struct Tup2 { A v0; B v1; };
 template<class A, class B, class C> struct Tup3 { A v0; B v1; C v2; };
 template<class A, class B, class C, class D> struct Tup4 { A v0; B v1; C v2; D v3; };
 template<class A, class B> void json(StrBuilder& sb, const Tup2<A, B>& t) { sb.ch('['); json(sb, t.v0); sb.ch(','); json(sb, t.v1); sb.ch(']'); }
-template<class A, class B> void log_one(StrBuilder& sb, const Tup2<A, B>& t) { json(sb, t); }
 template<class A, class B, class C> void json(StrBuilder& sb, const Tup3<A, B, C>& t) { sb.ch('['); json(sb, t.v0); sb.ch(','); json(sb, t.v1); sb.ch(','); json(sb, t.v2); sb.ch(']'); }
-template<class A, class B, class C> void log_one(StrBuilder& sb, const Tup3<A, B, C>& t) { json(sb, t); }
 
 // ---------- weak references (MEM-13) ----------
 template<class T> struct Weak {
@@ -251,7 +250,7 @@ template<class T> struct Promise {
 template<class T> inline bool truthy(const Promise<T>& v) { return (bool)v.p; }
 template<class T> void to_s(StrBuilder& sb, const Promise<T>&) { sb.cstr("[object Promise]"); }
 template<class T> void json(StrBuilder& sb, const Promise<T>&) { sb.cstr("{}"); }
-template<class T> void log_one(StrBuilder& sb, const Promise<T>&) { sb.cstr("Promise {}"); }
+template<class T> void insp(StrBuilder& sb, Insp&, const Promise<T>&) { sb.cstr("Promise {}"); }
 
 template<class T> Promise<Array<T>> promise_all(const Array<Promise<T>>& ps) {
   Promise<Array<T>> r = Promise<Array<T>>::make_pending();
@@ -310,7 +309,8 @@ enum LogLevel { LOG_LOG, LOG_INFO, LOG_DEBUG, LOG_WARN, LOG_ERROR, LOG_TRACE };
 void log_emit(int level, StrBuilder& sb);
 template<class... A> void console(int level, const A&... a) {
   StrBuilder sb; bool first = true;
-  ((first ? (void)0 : sb.ch(' '), first = false, log_one(sb, a)), ...);
+  const bool color = log_color();
+  ((first ? (void)0 : sb.ch(' '), first = false, log_arg(sb, color, a)), ...);
   log_emit(level, sb);
 }
 template<class... A> void log(const A&... a) { console(LOG_LOG, a...); }
@@ -322,12 +322,12 @@ template<class... A> void console_assert(bool ok, const A&... a) {
   if (ok) return;
   StrBuilder sb; sb.cstr("Assertion failed");
   if (sizeof...(a)) sb.cstr(":");
-  ((sb.ch(' '), log_one(sb, a)), ...);
+  ((sb.ch(' '), log_arg(sb, log_color(), a)), ...);
   log_emit(LOG_ERROR, sb);
 }
 template<class T> void console_table(const Array<T>& rows) {
   StrBuilder sb; sb.cstr("(index)\tvalues\n");
-  for (int32_t i = 0; i < rows.length(); i++) { to_s(sb, i); sb.ch('\t'); log_one(sb, rows.get(i)); if (i + 1 < rows.length()) sb.ch('\n'); }
+  for (int32_t i = 0; i < rows.length(); i++) { to_s(sb, i); sb.ch('\t'); log_arg(sb, log_color(), rows.get(i)); if (i + 1 < rows.length()) sb.ch('\n'); }
   log_emit(LOG_LOG, sb);
 }
 // runtime metrics exposed to zinc:telemetry
@@ -339,4 +339,27 @@ extern void (*telemetry_log)(int level, const char* s, uint32_t n);
 // hook installed by plugins/devtools (console mirroring to Chrome DevTools)
 extern void (*inspector_log)(int level, const char* s, uint32_t n);
 
+}  // namespace zrt
+
+namespace zrt {
+// ---------- console.log for the extended types (zrt_inspect.h) ----------
+template<class A, class B> void insp(StrBuilder& sb, Insp& in, const Tup2<A, B>& t) {
+  InspParts p; in.depth++;
+  { StrBuilder e; insp(e, in, t.v0); p.add(e); } { StrBuilder e; insp(e, in, t.v1); p.add(e); }
+  in.depth--; insp_join(sb, "", "[", "]", p, in.depth * 2);
+}
+template<class A, class B, class C> void insp(StrBuilder& sb, Insp& in, const Tup3<A, B, C>& t) {
+  InspParts p; in.depth++;
+  { StrBuilder e; insp(e, in, t.v0); p.add(e); } { StrBuilder e; insp(e, in, t.v1); p.add(e); } { StrBuilder e; insp(e, in, t.v2); p.add(e); }
+  in.depth--; insp_join(sb, "", "[", "]", p, in.depth * 2);
+}
+template<class A, class B, class C, class D> void insp(StrBuilder& sb, Insp& in, const Tup4<A, B, C, D>& t) {
+  InspParts p; in.depth++;
+  { StrBuilder e; insp(e, in, t.v0); p.add(e); } { StrBuilder e; insp(e, in, t.v1); p.add(e); } { StrBuilder e; insp(e, in, t.v2); p.add(e); } { StrBuilder e; insp(e, in, t.v3); p.add(e); }
+  in.depth--; insp_join(sb, "", "[", "]", p, in.depth * 2);
+}
+template<int F> inline void insp(StrBuilder& sb, Insp& in, Fx<F> x) { insp(sb, in, (double)x); }
+template<class T> void insp(StrBuilder& sb, Insp& in, const Weak<T>& w) { insp(sb, in, w.get()); }
+inline void insp(StrBuilder& sb, Insp& in, const Unit&) { if (in.color) sb.cstr("\033[90m"); sb.cstr("undefined"); if (in.color) sb.cstr("\033[39m"); }
+template<class T> void insp(StrBuilder& sb, Insp& in, const Gen<T>&) { insp_paint(sb, in, ZRT_CYAN, "Object [Generator] {}", 21); }
 }  // namespace zrt

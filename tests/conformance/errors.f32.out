@@ -11,4 +11,4 @@ open b
 using a b
 close b
 close a
-[2,4,6] Error: plain
+[ 2, 4, 6 ] Error: plain

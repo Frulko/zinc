@@ -50,6 +50,8 @@ struct String;
 struct Dyn;
 
 // Base of every class instance (MEM-02). rc starts at 1 during construction and is adopted by make().
+struct Insp;
+struct InspParts;
 struct Object {
   uint32_t rc = 1;   // strong count; 0 after destruction (weak targets stay allocated)
   uint32_t wc = 0;   // weak references (MEM-13)
@@ -61,6 +63,9 @@ struct Object {
   virtual void zrt_json(StrBuilder& sb) const;
   virtual void zrt_str(StrBuilder& sb) const;
   virtual void zrt_fields(StrBuilder&, bool&) const {}
+  // console.log (zrt_inspect.h): Node-style `Name { field: value }`; generated per class
+  virtual void zrt_inspect(StrBuilder& sb, Insp& in) const;
+  virtual void zrt_ifields(InspParts&, Insp&) const {}
   // property access through Dyn (zrt_dyn.h): generated per class only when the program uses Dyn
   virtual bool zrt_get(const String&, Dyn&) const { return false; }
   virtual bool zrt_set(const String&, const Dyn&) { return false; }
@@ -227,16 +232,8 @@ template<class T> void json_field(StrBuilder& sb, bool& first, const char* name,
   sb.ch('"'); sb.cstr(name); sb.cstr("\":"); json(sb, v);
 }
 
-// console.log formatter: primitives as String(x), arrays and objects as JSON
-template<class T> void log_one(StrBuilder& sb, const T& v) { to_s(sb, v); }
-template<class T> void log_one(StrBuilder& sb, const Ref<T>& v) { json(sb, v); }
-template<class T> void log_one(StrBuilder& sb, const Array<T>& v) { json(sb, v); }
 void log_flush(StrBuilder& sb);
-template<class... A> void log_plain(const A&... a) {
-  StrBuilder sb; bool first = true;
-  ((first ? (void)0 : sb.ch(' '), first = false, log_one(sb, a)), ...);
-  log_flush(sb);
-}
+template<class... A> void log_plain(const A&... a);  // defined in zrt_inspect.h
 
 template<class... A> String cat(const A&... a) { StrBuilder sb; (to_s(sb, a), ...); return sb.build(); }
 
@@ -608,7 +605,6 @@ template<class K, class V> bool operator==(const Map<K, V>& v, decltype(nullptr)
 template<class K, class V> bool operator!=(const Map<K, V>& v, decltype(nullptr)) { return v.m; }
 template<class K, class V> inline bool truthy(const Map<K, V>& v) { return v.m; }
 template<class K, class V> void to_s(StrBuilder& sb, const Map<K, V>&) { sb.cstr("[object Map]"); }
-template<class K, class V> void log_one(StrBuilder& sb, const Map<K, V>& v) { json(sb, v); }
 
 template<class T> struct Set {
   Map<T, uint8_t> m;
@@ -629,7 +625,6 @@ template<class T> bool operator==(const Set<T>& v, decltype(nullptr)) { return !
 template<class T> bool operator!=(const Set<T>& v, decltype(nullptr)) { return v.m.m; }
 template<class T> inline bool truthy(const Set<T>& v) { return v.m.m; }
 template<class T> void to_s(StrBuilder& sb, const Set<T>&) { sb.cstr("[object Set]"); }
-template<class T> void log_one(StrBuilder& sb, const Set<T>& v) { json(sb, v); }
 
 // ---------- event loop (RT-10) ----------
 int32_t set_timer(Fn<void()> f, double ms, bool repeat);
@@ -716,5 +711,6 @@ void quit();
 
 }  // namespace zrt
 
+#include "zrt_inspect.h"
 #include "zrt_ext.h"
 #include "zrt_dyn.h"

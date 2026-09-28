@@ -1,10 +1,100 @@
 // Zinc sim shim: runtime helpers shared by generated sim code. Output must match the native runtime byte for byte.
 
+// console.log formatting, Node util.inspect style: must match runtime/zrt_inspect.h byte for byte.
+const isTTYOut = !!process.stdout.isTTY && !(process.env.ZINC_LOG_FORMAT ?? '').startsWith('j');
+const ESC = { yellow: '\x1b[33m', green: '\x1b[32m', grey: '\x1b[90m', cyan: '\x1b[36m', end: '\x1b[39m' };
+function paint(ctx, code, text) { return ctx.color ? code + text + ESC.end : text; }
+function visibleWidth(s) { return [...s.replace(/\x1b\[[0-9;]*m/g, '')].length; }
+// Node's layout (groupArrayElements + reduceToSingleString, compact 3, breakLength 80): same code as zrt_inspect.h
+function joinParts(prefix, open, close, parts, indent, numeric = false, grouping = false) {
+  if (!parts.length) return prefix + open + close;
+  const entries = parts.length;
+  let rows = parts, grouped = false;
+  const extra = grouping && parts[parts.length - 1].startsWith('... ');
+  const outLen = extra ? parts.length - 1 : parts.length;
+  if (grouping && parts.length > 6) {
+    const len = parts.slice(0, outLen).map(visibleWidth);
+    const total = len.reduce((t, l) => t + l + 2, 0), maxLen = Math.max(...len);
+    const actualMax = maxLen + 2;
+    if (actualMax * 3 + indent < 80 && (total / actualMax > 5 || maxLen <= 6)) {
+      const averageBias = Math.sqrt(actualMax - total / parts.length);
+      const biasedMax = Math.max(actualMax - 3 - averageBias, 1);
+      const columns = Math.min(Math.round(Math.sqrt(2.5 * biasedMax * outLen) / biasedMax), Math.floor((80 - indent) / actualMax), 12, 15);
+      if (columns > 1) {
+        const colMax = [];
+        for (let c = 0; c < columns; c++) { let w = 0; for (let j = c; j < parts.length; j += columns) if (j < outLen && len[j] > w) w = len[j]; colMax.push(w + 2); }
+        rows = [];
+        for (let i = 0; i < outLen; i += columns) {
+          const max = Math.min(i + columns, outLen);
+          let row = '';
+          for (let j = i; j < max; j++) {
+            const last = j === max - 1;
+            if (last && !numeric) { row += parts[j]; break; }
+            const target = colMax[j - i] - (last && numeric ? 2 : 0), w = len[j] + (last ? 0 : 2);
+            const pad = ' '.repeat(Math.max(0, target - w));
+            row += numeric ? pad + parts[j] + (last ? '' : ', ') : parts[j] + ', ' + pad;
+          }
+          rows.push(row);
+        }
+        if (extra) rows.push(parts[parts.length - 1]);
+        grouped = true;
+      }
+    }
+  }
+  if (!grouped || entries === rows.length) {
+    const total = rows.reduce((t, r) => t + visibleWidth(r), rows.length);
+    if (!grouped && !rows.some(r => r.includes('\n')) && total + rows.length + indent + open.length + Math.max(0, prefix.length - 1) + 10 <= 80)
+      return `${prefix}${open} ${rows.join(', ')} ${close}`;
+  }
+  return `${prefix}${open}\n${rows.map(r => '  ' + r.replace(/\n/g, '\n  ')).join(',\n')}\n${close}`;
+}
+function quoteString(v) {
+  return "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\t/g, '\\t').replace(/\r/g, '\\r') + "'";
+}
+function inspectKey(k) { return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : `'${k}'`; }
+function inspect(v, ctx) {
+  if (typeof v === 'number') return paint(ctx, ESC.yellow, String(v));
+  if (typeof v === 'boolean') return paint(ctx, ESC.yellow, String(v));
+  if (typeof v === 'string') return paint(ctx, ESC.green, quoteString(v));
+  if (v === null) return ctx.color ? '\x1b[1mnull\x1b[22m' : 'null';
+  if (v === undefined) return paint(ctx, ESC.grey, 'undefined');
+  if (typeof v === 'function') return paint(ctx, ESC.cyan, '[Function (anonymous)]');
+  if (v instanceof Promise) return 'Promise {}';
+  if (v instanceof Error) return v.name + (v.message ? ': ' + v.message : '');
+  if (Array.isArray(v)) {
+    if (ctx.depth > 2) return paint(ctx, ESC.cyan, '[Array]');
+    ctx.depth++;
+    const parts = v.slice(0, 100).map(x => inspect(x, ctx));
+    ctx.depth--;
+    if (v.length > 100) parts.push(`... ${v.length - 100} more item${v.length - 100 === 1 ? '' : 's'}`);
+    return joinParts('', '[', ']', parts, ctx.depth * 2, v.slice(0, 100).every(x => typeof x === 'number'), true);
+  }
+  if (v instanceof Map || v instanceof Set) {
+    const kind = v instanceof Map ? 'Map' : 'Set';
+    if (ctx.depth > 2) return paint(ctx, ESC.cyan, `[${kind}]`);
+    ctx.depth++;
+    const parts = [];
+    for (const e of v) { if (parts.length >= 100) break; parts.push(kind === 'Map' ? `${inspect(e[0], ctx)} => ${inspect(e[1], ctx)}` : inspect(e, ctx)); }
+    ctx.depth--;
+    return joinParts(`${kind}(${v.size}) `, '{', '}', parts, ctx.depth * 2);
+  }
+  if (typeof v.next === 'function' && typeof v[Symbol.iterator] === 'function') return paint(ctx, ESC.cyan, 'Object [Generator] {}');
+  if (ctx.stack.includes(v)) return paint(ctx, ESC.cyan, '[Circular]');
+  const name = v.constructor && v.constructor !== Object ? v.constructor.name : null;
+  if (ctx.depth > 2) return paint(ctx, ESC.cyan, `[${name ?? 'Object'}]`);
+  ctx.stack.push(v); ctx.depth++;
+  const parts = [];
+  for (const k of Object.keys(v)) {
+    if (typeof v[k] === 'function' || parts.length >= 100) continue;
+    parts.push(`${inspectKey(k)}: ${inspect(v[k], ctx)}`);
+  }
+  ctx.depth--; ctx.stack.pop();
+  return joinParts(name ? name + ' ' : '', '{', '}', parts, ctx.depth * 2);
+}
+/** Top-level console arguments: strings as they are, everything else inspected. */
 function fmtTop(v) {
   if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  if (v === null || v === undefined) return String(v);
-  return json(v);
+  return inspect(v, { color: isTTYOut, depth: 0, stack: [] });
 }
 function json(v) {
   if (typeof v === 'string') return JSON.stringify(v);
@@ -30,7 +120,7 @@ const LEVELS = { log: 'LOG', info: 'INFO', debug: 'DEBUG', warn: 'WARN', error: 
 function emit(level, text) {
   const err = level === 'warn' || level === 'error' || level === 'trace';
   if (jsonLog) { process.stdout.write(JSON.stringify({ time: performance.now(), level: LEVELS[level], message: text }) + '\n'); return; }
-  if (isTTY && err) { process.stderr.write((level === 'warn' ? '\x1b[33m' : '\x1b[31m') + text + '\x1b[0m\n'); return; }
+  if (isTTY && err && !text.includes('\x1b')) { process.stderr.write((level === 'warn' ? '\x1b[33m' : '\x1b[31m') + text + '\x1b[0m\n'); return; }
   (err ? process.stderr : process.stdout).write(text + '\n');
 }
 const labels = new Map(), counts = new Map();

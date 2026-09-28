@@ -53,7 +53,13 @@ static void read_commands(int wait_ms) {
   }
 }
 
+static void* current = nullptr;  // the loaded program version
 extern "C" {
+// Symbols the HAL (linked into this host) takes from the runtime, which lives in the reloadable module: forward them.
+// ponytail: display plugins (hal_display) are not used under zinc dev — the host HAL keeps its own window.
+HalDisplay* hal_display = nullptr;
+void zrt_redraw(void) { if (current) if (auto f = (void (*)(void))dlsym(current, "zrt_redraw")) f(); }
+void hal_pen_push(const HalPen* p) { if (current) if (auto f = (void (*)(const HalPen*))dlsym(current, "hal_pen_push")) f(p); }
 void hal_init(const HalConfig* c) {
   if (inited) return;  // the window outlives program versions
   inited = true;
@@ -94,8 +100,10 @@ int main(int argc, char** argv) {
     t_load = hal_time_us();
     announced = false;
     if (void* h = dlopen(path, RTLD_NOW | RTLD_LOCAL)) {
+      current = h;
       if (auto entry = (int (*)(int, char**))dlsym(h, "zinc_app_main")) rc = entry(argc - 1, argv + 1);
       else fprintf(stderr, "zinc dev: %s has no zinc_app_main\n", path);
+      current = nullptr;
       dlclose(h);
     } else {
       fprintf(stderr, "zinc dev: %s\n", dlerror());

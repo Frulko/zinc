@@ -163,6 +163,7 @@ void (*telemetry_frame)() = nullptr;
 void (*telemetry_log)(int, const char*, uint32_t) = nullptr;
 void Object::zrt_json(StrBuilder& sb) const { sb.cstr("{}"); }
 void Object::zrt_str(StrBuilder& sb) const { sb.cstr("[object Object]"); }
+void Object::zrt_inspect(StrBuilder& sb, Insp& in) const { insp_object(sb, in, this, nullptr); }
 void Object::zrt_delete() { this->~Object(); mfree(this); }
 
 // MEM-12: a release cascade deeper than 256 objects is finished in slices (next allocation or frame end).
@@ -812,6 +813,7 @@ static void log_init() {
   log_mode = (f && f[0] == 'j') ? 2 : hal_isatty(1) ? 1 : 0;
 }
 void (*inspector_log)(int level, const char* s, uint32_t n) = nullptr;
+bool log_color() { log_init(); return log_mode == 1; }
 void log_emit(int level, StrBuilder& sb) {
   log_init();
   if (telemetry_log) telemetry_log(level, sb.buf, sb.len);
@@ -827,7 +829,7 @@ void log_emit(int level, StrBuilder& sb) {
     hal_log(j.buf, j.len);
     return;
   }
-  if (log_mode == 1 && err) {
+  if (log_mode == 1 && err && !__builtin_memchr(sb.buf, 0x1b, sb.len)) {  // plain text lines: whole line in colour
     StrBuilder c; c.cstr(level == LOG_WARN ? "\033[33m" : "\033[31m"); c.raw(sb.buf, sb.len); c.cstr("\033[0m\n");
     hal_log_err(c.buf, c.len);
     return;

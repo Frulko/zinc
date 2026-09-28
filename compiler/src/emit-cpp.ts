@@ -386,8 +386,13 @@ class CppEmitter {
     L.push(`  bool zrt_isa(uint32_t id) const override { return id == ZRT_CID || ${base.code}::zrt_isa(id); }`);
     L.push(`  void zrt_fields(zrt::StrBuilder& sb, bool& first) const;`);
     L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }`);
+    // console.log: `Name { field: value }` for classes, `{ field: value }` for interfaces and object types
+    L.push(`  void zrt_ifields(zrt::InspParts& p, zrt::Insp& in) const override;`);
+    if (!errBase) L.push(`  void zrt_inspect(zrt::StrBuilder& sb, zrt::Insp& in) const override { zrt::insp_object(sb, in, this, ${ts.isClassDeclaration(c) && c.name ? JSON.stringify(c.name.text) : 'nullptr'}); }`);
     if (this.s.usesDyn) { const [dl, db] = this.dynAccessors(c, self, tp, base.code, dynFields); L.push(...dl); B.push(...db); }
     B.push(`${tp}void ${self}::zrt_fields(zrt::StrBuilder& sb, bool& first) const {\n${baseIsUser || errBase ? `  ${base.code}::zrt_fields(sb, first);\n` : '  (void)sb; (void)first;\n'}${jsonFields.join('\n')}\n}`);
+    const inspFields = jsonFields.map(f => f.replace('zrt::json_field(sb, first,', 'zrt::insp_field(p, in,'));
+    B.push(`${tp}void ${self}::zrt_ifields(zrt::InspParts& p, zrt::Insp& in) const {\n${baseIsUser ? `  ${base.code}::zrt_ifields(p, in);\n` : '  (void)p; (void)in;\n'}${inspFields.join('\n')}\n}`);
     L.push('};', '}');
     return [L.join('\n'), `namespace ${ns} {\n${B.join('\n')}\n}`];
   }
