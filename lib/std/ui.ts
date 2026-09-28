@@ -5,12 +5,80 @@
 import {
   onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, textWidth, image, imageWidth, imageHeight,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
+  wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
+  buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
 } from 'zinc:gfx';
 import { PALETTE, SHADES } from './palette';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
-export const TAG_NAMES: string[] = ['view', 'text', 'button', 'image', 'scroll', 'canvas', 'fragment'];
+export const INPUT: i32 = 7, TEXTAREA: i32 = 8;
+export const TAG_NAMES: string[] = ['view', 'text', 'button', 'image', 'scroll', 'canvas', 'fragment', 'input', 'textarea'];
 const UNSET: i32 = -100000;
+/** Modifier bits of pointer and key events (same as zinc:gfx Mod). */
+export const SHIFT: i32 = 1, CTRL: i32 = 2, ALT: i32 = 4, META: i32 = 8;
+
+/** Pointer event: coordinates local to the node that handles it (in its own units: inside a scaled view, world units). */
+export class PointerEvent {
+  x: number = 0; y: number = 0;     // local to the handling node
+  gx: number = 0; gy: number = 0;   // surface coordinates
+  button: i32 = 0;                  // 0 left, 1 middle, 2 right
+  mods: i32 = 0;
+  clicks: i32 = 1;                  // 2 on a double click
+  wheel: number = 0; wheelX: number = 0; pinch: number = 1;  // onWheel: steps (+ up / right), trackpad pinch factor
+  get shift(): boolean { return (this.mods & SHIFT) !== 0; }
+  get ctrl(): boolean { return (this.mods & CTRL) !== 0; }
+  get alt(): boolean { return (this.mods & ALT) !== 0; }
+  get meta(): boolean { return (this.mods & META) !== 0; }
+}
+/** Key event: `key` like DOM KeyboardEvent.key, unshifted ('a', 'Enter', 'ArrowLeft', 'F5'). */
+export class KeyEvent {
+  key: string; mods: i32; repeat: boolean;
+  handled: boolean = false;
+  constructor(key: string, mods: i32, repeat: boolean) { this.key = key; this.mods = mods; this.repeat = repeat; }
+  get shift(): boolean { return (this.mods & SHIFT) !== 0; }
+  get ctrl(): boolean { return (this.mods & CTRL) !== 0; }
+  get alt(): boolean { return (this.mods & ALT) !== 0; }
+  get meta(): boolean { return (this.mods & META) !== 0; }
+  /** Cmd on macOS or Ctrl elsewhere: either one is accepted for shortcuts. */
+  get primary(): boolean { return (this.mods & (CTRL | META)) !== 0; }
+  /** Stops the default handling (text field editing, global handlers). */
+  preventDefault(): void { this.handled = true; }
+}
+/** Event handlers of a node, allocated only for nodes that have some. */
+export class Handlers {
+  down: ((e: PointerEvent) => void) | null = null;
+  move: ((e: PointerEvent) => void) | null = null;
+  up: ((e: PointerEvent) => void) | null = null;
+  dbl: ((e: PointerEvent) => void) | null = null;
+  ctx: ((e: PointerEvent) => void) | null = null;
+  wheel: ((e: PointerEvent) => void) | null = null;
+  enter: ((e: PointerEvent) => void) | null = null;
+  leave: ((e: PointerEvent) => void) | null = null;
+  key: ((e: KeyEvent) => void) | null = null;
+}
+/** Text field state (<input>, <textarea>); offsets are UTF-16 indices into `value`. */
+export class Edit {
+  value: string = '';
+  multi: boolean;
+  caret: i32 = 0; anchor: i32 = 0;
+  placeholder: string = '';
+  password: boolean = false; readOnly: boolean = false; lineNumbers: boolean = false; wrap: boolean = true;
+  rows: i32 = 4;                        // visible lines of a textarea without a height
+  sx: number = 0; sy: number = 0;       // scroll of the text inside the field
+  goalX: number = -1;                   // x kept by up/down moves
+  blinkAt: number = 0;
+  reveal: boolean = true;               // scroll the caret into view at the next paint
+  onInput: ((v: string) => void) | null = null;
+  onChange: ((v: string) => void) | null = null;
+  highlight: ((line: string) => i32[]) | null = null;
+  undo: string[] = []; undoAt: i32[] = []; redo: string[] = []; redoAt: i32[] = [];
+  typing: boolean = false;              // consecutive typing is one undo step
+  dirty: boolean = false;               // edited by the user since the last change event
+  // visual rows [rs, re) of the (wrapped) text, laid out for rowsW pixels
+  rs: i32[] = []; re: i32[] = []; rowsW: number = -1; rowsFor: string = '\u0000';
+  gutter: number = 0;                   // line number column width
+  constructor(multi: boolean) { this.multi = multi; }
+}
 
 export class UiNode {
   tag: i32;
@@ -57,6 +125,12 @@ export class UiNode {
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
   onDraw: ((x: i32, y: i32, w: i32, h: i32) => void) | null = null;
+  k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
+  cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
+  hoverBg: i32 = -1; hoverFg: i32 = -1; hoverBorder: i32 = -1; focusBorder: i32 = -1;
+  hovered: boolean = false;
+  hs: Handlers | null = null;
+  ed: Edit | null = null;
   constructor(tag: i32) { this.tag = tag; }
 }
 
@@ -78,7 +152,6 @@ let canvases: i32 = 0;
 let root: i32 = -1;
 let focus: i32 = -1;
 let pressed: i32 = -1;
-let wasDown = false;
 let clock: number = 0;   // engine time in ms
 let surfW: i32 = -1, surfH: i32 = -1;
 
@@ -87,12 +160,17 @@ function defaults(n: UiNode): void {
   if (n.tag === BUTTON) { n.bg = 0x334155; n.pt = 4; n.pb = 4; n.pl = 8; n.pr = 8; n.align = 1; n.justify = 1; n.focusable = true; }
   if (n.tag === TEXT) n.fg = -1;
   if (n.tag === SCROLL) { n.scroll = 1; n.overflow = true; }
+  if (n.tag === INPUT || n.tag === TEXTAREA) {
+    n.bg = 0x1e293b; n.fg = 0xf1f5f9; n.borderW = 1; n.borderColor = 0x475569; n.radius = 6; n.size = 14;
+    n.pt = 6; n.pb = 6; n.pl = 8; n.pr = 8; n.focusable = true; n.overflow = true;
+  }
 }
 
 export function createNode(tag: i32): i32 {
   layoutDirty = true;
   const n = new UiNode(tag);
   defaults(n);
+  if (tag === INPUT || tag === TEXTAREA) n.ed = new Edit(tag === TEXTAREA);
   if (tag === CANVAS) canvases++;
   if (free.length > 0) { const h = free.pop(); nodes[h] = n; return h; }
   nodes.push(n);
@@ -159,8 +237,12 @@ function release(h: i32): void {
   n.alive = false;
   n.onClick = null;
   n.onDraw = null;
+  n.hs = null;
+  n.ed = null;
   if (focus === h) focus = -1;
   if (pressed === h) pressed = -1;
+  if (capture === h) capture = -1;
+  if (selecting === h) selecting = -1;
   for (const a of anims) if (a.node === h) a.node = -1;
   free.push(h);
 }
@@ -220,6 +302,55 @@ function syncVirtual(h: i32, n: UiNode): void {
 export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on; }
 export function setImage(h: i32, name: string): void { node(h).img = image(name); layoutDirty = true; }
 
+// ---------------------------------------------------------------- event handlers and text fields (host ABI)
+function handlers(h: i32): Handlers {
+  const n = node(h);
+  let s = n.hs;
+  if (s === null) { s = new Handlers(); n.hs = s; }
+  return s as Handlers;
+}
+export const PDOWN: i32 = 0, PMOVE: i32 = 1, PUP: i32 = 2, PDBL: i32 = 3, PCONTEXT: i32 = 4, PWHEEL: i32 = 5, PENTER: i32 = 6, PLEAVE: i32 = 7;
+/** Pointer handler of a node: kind PDOWN, PMOVE, PUP, PDBL (double click), PCONTEXT (right click), PWHEEL, PENTER, PLEAVE. */
+export function onPointer(h: i32, kind: i32, f: (e: PointerEvent) => void): void {
+  const s = handlers(h);
+  if (kind === PDOWN) s.down = f; else if (kind === PMOVE) s.move = f; else if (kind === PUP) s.up = f;
+  else if (kind === PDBL) s.dbl = f; else if (kind === PCONTEXT) s.ctx = f; else if (kind === PWHEEL) s.wheel = f;
+  else if (kind === PENTER) s.enter = f; else s.leave = f;
+}
+/** Key handler of a node, called while it (or a descendant) has the focus. */
+export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void { handlers(h).key = f; }
+const keyHandlers: ((e: KeyEvent) => void)[] = [];
+/** Global key handler (shortcuts): gets the keys that the focused node and text fields did not handle. */
+export function onKey(f: (e: KeyEvent) => void): void { keyHandlers.push(f); }
+function editOf(h: i32): Edit {
+  const e = node(h).ed;
+  if (e === null) throw new Error('not a text field (<input> or <textarea>)');
+  return e as Edit;
+}
+/** Text field value (controlled: setting the current value is a no-op, the caret is kept when possible). */
+export function setValue(h: i32, v: string): void {
+  const e = editOf(h);
+  if (e.value === v) return;
+  e.value = v;
+  if (e.caret > v.length) e.caret = v.length;
+  if (e.anchor > v.length) e.anchor = v.length;
+  paintDirty = true;
+}
+export function getValue(h: i32): string { return editOf(h).value; }
+export function setPlaceholder(h: i32, s: string): void { editOf(h).placeholder = s; paintDirty = true; }
+/** onInput: every edit; onChange: when the field loses the focus or Enter is pressed (single line) after a change. */
+export function onText(h: i32, change: boolean, f: (v: string) => void): void { const e = editOf(h); if (change) e.onChange = f; else e.onInput = f; }
+/** Syntax colouring hook: returns [length, color, length, color...] runs for one visual line (color -1: text color). */
+export function setHighlight(h: i32, f: (line: string) => i32[]): void { editOf(h).highlight = f; paintDirty = true; }
+/** Caret position and selected text of a field (tests, tools). */
+export function caretOf(h: i32): i32 { return editOf(h).caret; }
+export function selectedText(h: i32): string { const e = editOf(h); return e.value.slice(imin(e.caret, e.anchor), imax(e.caret, e.anchor)); }
+/** Selects [a, b) of a field (caret at b). */
+export function select(h: i32, a: i32, b: i32): void { const e = editOf(h); e.anchor = clampI(a, 0, e.value.length); e.caret = clampI(b, 0, e.value.length); e.reveal = true; paintDirty = true; }
+function imin(a: i32, b: i32): i32 { return a < b ? a : b; }
+function imax(a: i32, b: i32): i32 { return a > b ? a : b; }
+function clampI(v: i32, a: i32, b: i32): i32 { return v < a ? a : v > b ? b : v; }
+
 /** Numeric style properties (style={{ ... }}, animate, dynamic attributes). */
 export function setNumber(h: i32, key: string, v: number): void {
   const n = node(h);
@@ -235,6 +366,15 @@ function applyNumber(n: UiNode, key: string, v: number): void {
   if (key === 'bg' || key === 'backgroundColor') { n.bg = iv; paintDirty = true; return; }
   if (key === 'color') { n.fg = iv; paintDirty = true; return; }
   if (key === 'radius' || key === 'borderRadius') { n.radius = v; paintDirty = true; return; }
+  if (key === 'scale' && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
+  const e = n.ed;
+  if (e !== null) {
+    if (key === 'password') { e.password = iv !== 0; e.rowsFor = '\u0000'; paintDirty = true; return; }
+    if (key === 'readOnly') { e.readOnly = iv !== 0; paintDirty = true; return; }
+    if (key === 'lineNumbers') { e.lineNumbers = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
+    if (key === 'wrap') { e.wrap = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
+    if (key === 'rows') { e.rows = iv; layoutDirty = true; return; }
+  }
   if (key === 'width') n.w = iv; else if (key === 'height') n.h = iv;
   else if (key === 'grow') n.grow = iv; else if (key === 'gap') n.gap = iv;
   else if (key === 'padding') { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
@@ -297,6 +437,8 @@ function side(n: UiNode, which: string, v: i32, margin: boolean): void {
   }
 }
 /** Applies one token; returns false when unknown. `variant` is '' | 'focus' | 'active'. */
+const CURSORS: string[] = ['default', 'auto', 'text', 'pointer', 'move', 'ew-resize', 'col-resize', 'ns-resize', 'row-resize', 'crosshair', 'grab', 'grabbing', 'not-allowed'];
+const CURSOR_OF: i32[] = [0, 0, 1, 2, 3, 4, 4, 5, 5, 6, 7, 8, 9];
 const BREAKPOINTS: string[] = ['sm:', 'md:', 'lg:', 'xl:', '2xl:'];
 const BREAKPOINT_PX: i32[] = [640, 768, 1024, 1280, 1536];
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
@@ -308,13 +450,21 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   if (tok.startsWith('focus:')) return applyToken(n, tok.slice(6), 'focus');
   if (tok.startsWith('active:')) return applyToken(n, tok.slice(7), 'active');
-  if (tok.startsWith('hover:')) return true;  // no hover on consoles and panels
+  // hover: colors under the mouse (desktop); other hover: tokens are accepted and ignored
+  if (tok.startsWith('hover:')) { applyToken(n, tok.slice(6), 'hover'); return true; }
   if (variant !== '') {
-    const isBg = tok.startsWith('bg-');
-    const c = isBg ? colorOf(tok.slice(3)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
+    const isBg = tok.startsWith('bg-'), isBorder = tok.startsWith('border-');
+    const c = isBg ? colorOf(tok.slice(3)) : isBorder ? colorOf(tok.slice(7)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
     if (c === -2) return false;
-    if (variant === 'focus') { if (isBg) n.focusBg = c; else n.focusFg = c; }
-    else { if (isBg) n.activeBg = c; else n.activeFg = c; }
+    if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
+    else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
+    else { if (isBg) n.activeBg = c; else if (isBorder) return false; else n.activeFg = c; }
+    return true;
+  }
+  if (tok.startsWith('cursor-')) {
+    const i = CURSORS.indexOf(tok.slice(7));
+    if (i < 0) return false;
+    n.cursor = CURSOR_OF[i];
     return true;
   }
   const css = CSS.get(tok);
@@ -416,6 +566,8 @@ function resetStyle(n: UiNode): void {
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
+  n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
+  if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
   const n = node(h);
@@ -424,6 +576,7 @@ export function setClass(h: i32, cls: string): void {
   resetStyle(n);
   for (const c of cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
   for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
+  if (n.ed !== null) (n.ed as Edit).rowsW = -1;  // the font may have changed
   layoutDirty = true;
 }
 /** Class validation used by debug builds and tools. */
@@ -489,6 +642,12 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     n.lw = Math.ceil(widest) + n.pl + n.pr;
     n.lh = n.lines.length * lineHeightOf(n) + n.pt + n.pb;
     for (const c of n.children) { const t = node(c); if (t.tag === TEXT) measure(t, maxW, maxH); }
+  } else if (n.ed !== null) {
+    // text fields: 200 px wide by default (stretch / grow / w-* size them), one line or `rows` lines high
+    const e = n.ed as Edit;
+    fontOf(n);
+    n.lw = (n.fullW ? 0 : 200) + n.pl + n.pr;
+    n.lh = (e.multi ? e.rows : 1) * lineHeightOf(n) + n.pt + n.pb;
   } else if (n.tag === IMAGE && n.img >= 0) {
     // intrinsic size, aspect ratio kept when one side is set; w-full / h-full fill (0 basis, then grow/stretch)
     const iw = imageWidth(n.img), ih = imageHeight(n.img);
@@ -613,6 +772,7 @@ export function layout(): void {
   place(r, 0, 0, width(), height());
   layoutDirty = false;
   paintDirty = true;
+  hoverDirty = true;
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
@@ -640,6 +800,7 @@ function currentValue(n: UiNode, key: string): number {
   if (key === 'opacity') return n.opacity;
   if (key === 'translateX' || key === 'x') return n.tx;
   if (key === 'translateY' || key === 'y') return n.ty;
+  if (key === 'scale') return n.k;
   return 0;
 }
 /** Tweens a numeric property of node `h` (width, height, opacity, translateX, translateY...). */
@@ -682,6 +843,7 @@ let animating = false;
 function targetBg(h: i32, n: UiNode): i32 {
   if (pressed === h && n.activeBg >= 0) return n.activeBg;
   if (focus === h && n.focusBg >= 0) return n.focusBg;
+  if (n.hovered && n.hoverBg >= 0) return n.hoverBg;
   return n.bg;
 }
 /** transition-colors: the background eases toward its state color. */
@@ -696,63 +858,80 @@ function effectiveBg(h: i32, n: UiNode): i32 {
 }
 const SHADOW_Y: number[] = [0, 1, 1, 4, 10, 20], SHADOW_BLUR: number[] = [0, 2, 3, 6, 15, 25];
 const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
-function paint(h: i32, ox: number, oy: number, alpha: number): void {
+/** Font of a text node drawn at scale k (zoomed views): the nearest baked size. */
+function fontAtScale(n: UiNode, k: number): i32 {
+  if (k === 1) return n.fontId;
+  const px: i32 = Math.max(1, Math.round(n.size * k));
+  let f = n.bold ? font(n.family === 'sans' ? 'sans-bold' : n.family + '-Bold', px) : -1;
+  if (f < 0) f = font(n.family, px);
+  return f < 0 ? n.fontId : f;
+}
+// Coordinates: a layout point p of a node's children is drawn at p * k + o; a node's own box at (n.x + n.tx) * k + o,
+// sized n.lw * k * n.k (style scale zooms the node and its subtree around its top-left corner).
+function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden) return;
   const a = alpha * n.opacity;
   if (a <= 0.004) return;
-  const x = n.x + ox + n.tx, y = n.y + oy + n.ty;
+  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
+  const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
   if (n.tag !== FRAGMENT) {
-    const r = Math.min(n.radius, Math.min(n.lw, n.lh) / 2);
-    if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel], n.lw, n.lh, r, SHADOW_BLUR[n.shadowLevel], 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
+    const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
+    if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
     if (n.grad > 0 && n.gradFrom >= 0 && n.gradTo >= 0) {
       const flip = n.grad === 3 || n.grad === 4;
-      gradient(x, y, n.lw, n.lh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
+      gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else {
       const bg = effectiveBg(h, n);
-      if (bg >= 0) rrect(x, y, n.lw, n.lh, r, bg, Math.round(n.bgAlpha * a));
+      if (bg >= 0) rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a));
     }
-    if (n.borderW > 0) border(x, y, n.lw, n.lh, r, n.borderW, n.borderColor, ai);
-    if (h === focus && n.focusBg < 0 && n.focusable) border(x - 2, y - 2, n.lw + 4, n.lh + 4, r + 2, 2, 0xfacc15, ai);
-    if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, n.lw, n.lh, ai, r);
+    const focused = h === focus;
+    const bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
+    if (n.borderW > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(n.borderW, focused && n.ed !== null ? 2 : 0) * kk, bc, ai);
+    if (focused && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
+    if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
       let fg = n.fg;
       let p = n.parent;
-      while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
+      while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].hoverFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
       if (p >= 0 && pressed === p && nodes[p].activeFg >= 0) fg = nodes[p].activeFg;
       else if (p >= 0 && focus === p && nodes[p].focusFg >= 0) fg = nodes[p].focusFg;
+      else if (p >= 0 && nodes[p].hovered && nodes[p].hoverFg >= 0) fg = nodes[p].hoverFg;
       const top = Math.round((lh - n.size * 1.21) / 2);
+      const f = fontAtScale(n, kk);
       for (let i = 0; i < n.lines.length; i++) {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
-        drawText(n.fontId, x + n.pl + off, y + n.pt + i * lh + top, n.lines[i], fg, ai, trackPx(n));
+        drawText(f, x + (n.pl + off) * kk, y + (n.pt + i * lh + top) * kk, n.lines[i], fg, ai, trackPx(n));
       }
     }
+    if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);
     const d = n.onDraw;
-    if (d !== null) d(Math.round(x), Math.round(y), Math.round(n.lw), Math.round(n.lh));
-    if (n.overflow) clip(x, y, n.lw, n.lh);
+    if (d !== null) d(Math.round(x), Math.round(y), Math.round(w), Math.round(hh));
+    if (n.overflow) clip(x, y, w, hh);
   }
-  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
-  for (const c of n.children) paint(c, dx, dy, a);
-  if (n.scroll !== 0) paintScrollbars(n, x, y, a);
+  const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
+  for (const c of n.children) paint(c, cx, cy, kk, a);
+  if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
 }
-function paintScrollbars(n: UiNode, x: number, y: number, a: number): void {
+function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number): void {
   // thin overlay bars, shown while scrolling and fading out after ~1 s
   const age = clock - n.scrolledAt;
   if (age > 1200) return;
   const fade = age < 800 ? 1 : 1 - (age - 800) / 400;
   animating = true;
   const al: i32 = Math.round(110 * fade * a);
+  const w = n.lw * k, h = n.lh * k;
   if ((n.scroll & 1) !== 0 && n.contentH > n.lh) {
-    const len = Math.max(24, n.lh * n.lh / n.contentH), pos = (n.lh - len) * n.sy / (n.contentH - n.lh);
-    rrect(x + n.lw - 5, y + pos + 2, 3, len - 4, 1.5, 0x64748b, al);
+    const len = Math.max(24, h * n.lh / n.contentH), pos = (h - len) * n.sy / (n.contentH - n.lh);
+    rrect(x + w - 5, y + pos + 2, 3, len - 4, 1.5, 0x64748b, al);
   }
   if ((n.scroll & 2) !== 0 && n.contentW > n.lw) {
-    const len = Math.max(24, n.lw * n.lw / n.contentW), pos = (n.lw - len) * n.sx / (n.contentW - n.lw);
-    rrect(x + pos + 2, y + n.lh - 5, len - 4, 3, 1.5, 0x64748b, al);
+    const len = Math.max(24, w * n.lw / n.contentW), pos = (w - len) * n.sx / (n.contentW - n.lw);
+    rrect(x + pos + 2, y + h - 5, len - 4, 3, 1.5, 0x64748b, al);
   }
 }
 function clampScroll(n: UiNode): void {
@@ -763,19 +942,331 @@ function clampScroll(n: UiNode): void {
   if (n.sx < 0) { n.sx = 0; n.vx = 0; }
 }
 
+// ---------------------------------------------------------------- text fields (<input>, <textarea>)
+function shown(e: Edit): string { return e.password ? '•'.repeat(e.value.length) : e.value; }
+function isWordChar(c: i32): boolean { return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128; }
+function codeMode(n: UiNode, e: Edit): boolean { return e.multi && (e.lineNumbers || n.family === 'mono'); }
+/** Visual rows of the field for its current width: logical lines, word-wrapped unless `wrap` is off. */
+function ensureRows(n: UiNode, e: Edit): void {
+  if (e.rowsFor === e.value && e.rowsW === n.lw) return;
+  e.rowsFor = e.value; e.rowsW = n.lw;
+  const s = shown(e), f = n.fontId;
+  let lines: i32 = 1;
+  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 10) lines++;
+  e.gutter = e.lineNumbers ? textWidth(f, '0'.repeat(imax(2, `${lines}`.length)), 0) + 16 : 0;
+  const w = n.lw - n.pl - n.pr - e.gutter;
+  e.rs = []; e.re = [];
+  let start: i32 = 0;
+  while (true) {
+    const nl = e.multi ? s.indexOf('\n', start) : -1;
+    const end: i32 = nl < 0 ? s.length : nl;
+    if (!e.multi || !e.wrap || w <= n.size || start === end) { e.rs.push(start); e.re.push(end); }
+    else {
+      // greedy wrap, breaking after the last space that fits (or anywhere in a long word)
+      let a: i32 = start;
+      while (a < end) {
+        let x: number = 0, i: i32 = a, space: i32 = -1;
+        while (i < end) {
+          const cw = textWidth(f, s.slice(i, i + 1), 0);
+          if (x + cw > w && i > a) break;
+          x += cw;
+          if (s.charCodeAt(i) === 32) space = i;
+          i++;
+        }
+        if (i < end && space >= a) i = space + 1;
+        e.rs.push(a); e.re.push(i);
+        a = i;
+      }
+    }
+    if (nl < 0) break;
+    start = nl + 1;
+  }
+}
+/** Row of an offset; the end of a wrapped row belongs to the next row. */
+function rowOf(e: Edit, off: i32): i32 {
+  for (let r = 0; r < e.rs.length; r++) if (off < e.re[r] || (off === e.re[r] && (r + 1 >= e.rs.length || e.rs[r + 1] !== off))) return r;
+  return e.rs.length - 1;
+}
+function xIn(n: UiNode, e: Edit, row: i32, off: i32): number { return textWidth(n.fontId, shown(e).slice(e.rs[row], off), 0); }
+function rowEnd(e: Edit, r: i32): i32 { return r + 1 < e.rs.length && e.rs[r + 1] === e.re[r] && e.re[r] > e.rs[r] ? e.re[r] - 1 : e.re[r]; }
+function offAtX(n: UiNode, e: Edit, r: i32, x: number): i32 {
+  const s = shown(e);
+  let w: number = 0;
+  for (let i = e.rs[r]; i < e.re[r]; i++) {
+    const cw = textWidth(n.fontId, s.slice(i, i + 1), 0);
+    if (x < w + cw / 2) return i;
+    w += cw;
+  }
+  return rowEnd(e, r);
+}
+function editTop(n: UiNode, e: Edit): number { return e.multi ? n.pt : n.pt + Math.floor((n.lh - n.pt - n.pb - lineHeightOf(n)) / 2); }
+/** Offset under a node-local point. */
+function offAt(n: UiNode, e: Edit, lx: number, ly: number): i32 {
+  ensureRows(n, e);
+  const lh = lineHeightOf(n);
+  const r: i32 = e.multi ? clampI(Math.floor((ly - editTop(n, e) + e.sy) / lh), 0, e.rs.length - 1) : 0;
+  return offAtX(n, e, r, lx - n.pl - e.gutter + e.sx);
+}
+/** Scrolls the text so the caret is visible. */
+function revealCaret(n: UiNode, e: Edit): void {
+  const lh = lineHeightOf(n), cw = n.lw - n.pl - n.pr - e.gutter, ch = n.lh - n.pt - n.pb;
+  const r = rowOf(e, e.caret), cx = xIn(n, e, r, e.caret);
+  if (cx - e.sx > cw - 2) e.sx = cx - cw + 2;
+  if (cx < e.sx) e.sx = Math.max(0, cx - cw / 3);
+  if (e.multi) {
+    if (r * lh < e.sy) e.sy = r * lh;
+    if ((r + 1) * lh > e.sy + ch) e.sy = (r + 1) * lh - ch;
+    e.sy = Math.max(0, Math.min(e.sy, e.rs.length * lh - ch));
+  }
+}
+function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, ai: i32): void {
+  ensureRows(n, e);
+  if (e.reveal) { revealCaret(n, e); e.reveal = false; }
+  const lh = lineHeightOf(n), f = fontAtScale(n, k), g = e.gutter, s = shown(e);
+  const cl = n.pl + g, cw = n.lw - n.pl - n.pr - g, ch = n.lh - n.pt - n.pb, top = editTop(n, e);
+  const base = Math.round((lh - n.size * 1.21) / 2);
+  const focused = focus === h;
+  const first: i32 = e.multi ? imax(0, Math.floor(e.sy / lh)) : 0;
+  const last: i32 = e.multi ? imin(e.rs.length - 1, Math.floor((e.sy + ch) / lh)) : 0;
+  if (g > 0) {
+    // line numbers: the first row of each logical line
+    clip(x + n.pl * k, y + n.pt * k, g * k, ch * k);
+    let line: i32 = 1;
+    for (let r = 1; r <= first; r++) if (e.rs[r] !== e.re[r - 1]) line++;
+    for (let r = first; r <= last; r++) {
+      if (r > first && e.rs[r] !== e.re[r - 1]) line++;
+      if (r > 0 && e.rs[r] === e.re[r - 1]) continue;
+      const num = `${line}`;
+      drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, y + (top + r * lh - e.sy + base) * k, num, 0x64748b, ai, 0);
+    }
+    unclip();
+    rrect(x + (cl - 5) * k, y + n.pt * k, k, ch * k, 0, 0x334155, ai);
+  }
+  clip(x + cl * k, y + n.pt * k, cw * k, ch * k);
+  const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
+  for (let r = first; r <= last; r++) {
+    const a = e.rs[r], b = e.re[r];
+    const rx = x + (cl - e.sx) * k, ry = y + (top + r * lh - e.sy) * k;
+    if (s1 > s0 && s0 <= b && s1 >= a) {
+      const x0 = xIn(n, e, r, imax(s0, a));
+      let x1 = xIn(n, e, r, imin(s1, b));
+      if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
+      if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, focused ? 0x3b82f6 : 0x64748b, focused ? 110 : 70);
+    }
+    const line = s.slice(a, b);
+    if (line.length === 0) continue;
+    const hl = e.highlight;
+    if (hl === null || e.password) { drawText(f, rx, ry + base * k, line, n.fg, ai, 0); continue; }
+    const runs = hl(line);
+    let pos: i32 = 0, px: number = 0;
+    for (let i = 0; i + 1 < runs.length && pos < line.length; i += 2) {
+      const seg = line.slice(pos, pos + runs[i]);
+      if (seg.length > 0) drawText(f, rx + px * k, ry + base * k, seg, runs[i + 1] < 0 ? n.fg : runs[i + 1], ai, 0);
+      px += textWidth(n.fontId, seg, 0);
+      pos += runs[i];
+    }
+    if (pos < line.length) drawText(f, rx + px * k, ry + base * k, line.slice(pos), n.fg, ai, 0);
+  }
+  if (e.value.length === 0 && e.placeholder.length > 0) drawText(f, x + cl * k, y + (top + base) * k, e.placeholder, 0x64748b, ai, 0);
+  if (focused && !e.readOnly && (Math.floor((clock - e.blinkAt) / 530) % 2) === 0) {
+    const r = rowOf(e, e.caret);
+    rrect(x + (cl + xIn(n, e, r, e.caret) - e.sx) * k - 0.5, y + (top + r * lh - e.sy) * k, 1.5, lh * k, 0, n.fg, ai);
+  }
+  unclip();
+}
+function snapshot(e: Edit, typing: boolean): void {
+  if (typing && e.typing) return;
+  e.undo.push(e.value); e.undoAt.push(e.caret);
+  if (e.undo.length > 100) { e.undo.shift(); e.undoAt.shift(); }
+  e.redo = []; e.redoAt = [];
+  e.typing = typing;
+}
+function edited(e: Edit): void {
+  e.reveal = true; e.blinkAt = clock; e.goalX = -1; e.dirty = true; paintDirty = true;
+  const f = e.onInput;
+  if (f !== null) f(e.value);
+}
+/** Replaces [a, b) with s (one undo step, or part of the current typing step). */
+function replaceRange(e: Edit, a: i32, b: i32, s: string, typing: boolean): void {
+  if (e.readOnly || (a === b && s.length === 0)) return;
+  snapshot(e, typing);
+  e.value = e.value.slice(0, a) + s + e.value.slice(b);
+  e.caret = a + s.length; e.anchor = e.caret;
+  edited(e);
+}
+function replaceSel(e: Edit, s: string, typing: boolean): void {
+  if (!e.multi) s = s.replaceAll('\r', '').replaceAll('\n', ' ');
+  replaceRange(e, imin(e.caret, e.anchor), imax(e.caret, e.anchor), s, typing);
+}
+function undoEdit(e: Edit, redo: boolean): void {
+  const from = redo ? e.redo : e.undo, fromAt = redo ? e.redoAt : e.undoAt;
+  if (from.length === 0 || e.readOnly) return;
+  const to = redo ? e.undo : e.redo, toAt = redo ? e.undoAt : e.redoAt;
+  to.push(e.value); toAt.push(e.caret);
+  e.value = from.pop(); e.caret = fromAt.pop(); e.anchor = e.caret; e.typing = false;
+  edited(e);
+}
+function commit(e: Edit): void {
+  if (!e.dirty) return;
+  e.dirty = false;
+  const f = e.onChange;
+  if (f !== null) f(e.value);
+}
+function moveTo(e: Edit, off: i32, extend: boolean): void {
+  e.caret = clampI(off, 0, e.value.length);
+  if (!extend) e.anchor = e.caret;
+  e.reveal = true; e.blinkAt = clock; e.typing = false; paintDirty = true;
+}
+function wordLeft(v: string, i: i32): i32 {
+  while (i > 0 && !isWordChar(v.charCodeAt(i - 1))) i--;
+  while (i > 0 && isWordChar(v.charCodeAt(i - 1))) i--;
+  return i;
+}
+function wordRight(v: string, i: i32): i32 {
+  while (i < v.length && !isWordChar(v.charCodeAt(i))) i++;
+  while (i < v.length && isWordChar(v.charCodeAt(i))) i++;
+  return i;
+}
+function charLeft(v: string, i: i32): i32 { const c = v.charCodeAt(i - 1); return i >= 2 && c >= 0xdc00 && c < 0xe000 ? i - 2 : imax(0, i - 1); }
+function charRight(v: string, i: i32): i32 { const c = v.charCodeAt(i); return i + 1 < v.length && c >= 0xd800 && c < 0xdc00 ? i + 2 : imin(v.length, i + 1); }
+function lineStart(v: string, i: i32): i32 { while (i > 0 && v.charCodeAt(i - 1) !== 10) i--; return i; }
+/** Default editing keys of a focused field; false: not an editing key (goes on to the global handlers). */
+function editKey(h: i32, n: UiNode, e: Edit, ev: KeyEvent): boolean {
+  ensureRows(n, e);
+  const key = ev.key, sh = ev.shift, v = e.value;
+  const byWord = ev.alt || (ev.ctrl && !ev.meta), byLine = ev.meta;
+  const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
+  if (ev.primary && !ev.alt && key.length === 1) {
+    if (key === 'a') { e.anchor = 0; moveTo(e, v.length, true); return true; }
+    if (key === 'c' || key === 'x') {
+      if (s1 > s0 && !e.password) { setClipboardText(v.slice(s0, s1)); if (key === 'x') replaceSel(e, '', false); }
+      return true;
+    }
+    if (key === 'v') { const t = clipboardText(); if (t.length > 0) replaceSel(e, t, false); return true; }
+    if (key === 'z') { undoEdit(e, sh); return true; }
+    if (key === 'y') { undoEdit(e, true); return true; }
+    return false;
+  }
+  const lh = lineHeightOf(n);
+  const page: i32 = imax(1, Math.floor((n.lh - n.pt - n.pb) / lh) - 1);
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const left = key === 'ArrowLeft';
+    if (s1 > s0 && !sh && !byWord && !byLine) { moveTo(e, left ? s0 : s1, false); return true; }
+    const r = rowOf(e, e.caret);
+    const to = byLine ? (left ? e.rs[r] : rowEnd(e, r)) : byWord ? (left ? wordLeft(v, e.caret) : wordRight(v, e.caret)) : left ? charLeft(v, e.caret) : charRight(v, e.caret);
+    moveTo(e, to, sh);
+    return true;
+  }
+  if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'PageUp' || key === 'PageDown') {
+    const up = key === 'ArrowUp' || key === 'PageUp';
+    const r = rowOf(e, e.caret);
+    const step: i32 = key === 'PageUp' || key === 'PageDown' ? page : 1;
+    const gx = e.goalX >= 0 ? e.goalX : xIn(n, e, r, e.caret);
+    if (byLine || !e.multi) { moveTo(e, up ? 0 : v.length, sh); return true; }
+    const t: i32 = up ? r - step : r + step;
+    moveTo(e, t < 0 ? 0 : t >= e.rs.length ? v.length : offAtX(n, e, t, gx), sh);
+    e.goalX = gx;
+    return true;
+  }
+  if (key === 'Home' || key === 'End') {
+    const r = rowOf(e, e.caret);
+    moveTo(e, ev.primary ? (key === 'Home' ? 0 : v.length) : key === 'Home' ? e.rs[r] : rowEnd(e, r), sh);
+    return true;
+  }
+  if (key === 'Backspace' || key === 'Delete') {
+    if (s1 > s0) { replaceSel(e, '', false); return true; }
+    const back = key === 'Backspace';
+    const to = byLine ? (back ? lineStart(v, e.caret) : e.caret) : byWord ? (back ? wordLeft(v, e.caret) : wordRight(v, e.caret)) : back ? charLeft(v, e.caret) : charRight(v, e.caret);
+    replaceRange(e, imin(to, e.caret), imax(to, e.caret), '', false);
+    return true;
+  }
+  if (key === 'Enter') {
+    if (!e.multi) { commit(e); return true; }
+    // code editors keep the indentation of the current line
+    let ind: i32 = 0;
+    if (codeMode(n, e)) { const ls = lineStart(v, s0); while (ls + ind < s0 && v.charCodeAt(ls + ind) === 32) ind++; }
+    replaceSel(e, '\n' + ' '.repeat(ind), false);
+    return true;
+  }
+  if (key === 'Tab') {
+    if (codeMode(n, e) && !sh) { replaceSel(e, '  ', false); return true; }
+    focusStep(sh);
+    return true;
+  }
+  if (key === 'Escape') { setFocusTo(-1); return true; }
+  // printable keys arrive as text input: not shortcuts while typing
+  return key.length === 1 && !ev.primary;
+}
+function editPress(h: i32, n: UiNode, e: Edit, lx: number, ly: number, clicks: i32, extend: boolean): void {
+  const off = offAt(n, e, lx, ly), v = e.value;
+  if (clicks === 2) {
+    // double click: the word (or the character) under the pointer
+    let a: i32 = off, b: i32 = off;
+    if (a < v.length && isWordChar(v.charCodeAt(a))) { while (a > 0 && isWordChar(v.charCodeAt(a - 1))) a--; while (b < v.length && isWordChar(v.charCodeAt(b))) b++; }
+    else b = charRight(v, a);
+    e.anchor = a; moveTo(e, b, true);
+  } else if (clicks >= 3) {
+    let b: i32 = off;
+    while (b < v.length && v.charCodeAt(b) !== 10) b++;
+    e.anchor = e.multi ? lineStart(v, off) : 0; moveTo(e, e.multi ? b : v.length, true);
+  } else moveTo(e, off, extend);
+  e.goalX = -1;
+}
+/** Wheel over a scrollable field; false when it cannot scroll (the wheel goes to the enclosing scroller). */
+function editWheel(n: UiNode, e: Edit, wy: number, wx: number): boolean {
+  ensureRows(n, e);
+  const lh = lineHeightOf(n), maxY = Math.max(0, e.rs.length * lh - (n.lh - n.pt - n.pb));
+  let maxX: number = 0;
+  if (wx !== 0 || !e.multi) for (let r = 0; r < e.rs.length; r++) maxX = Math.max(maxX, xIn(n, e, r, e.re[r]) - (n.lw - n.pl - n.pr - e.gutter) + 2);
+  const oy = e.sy, ox = e.sx;
+  if (e.multi) e.sy = Math.max(0, Math.min(maxY, e.sy - wy * 40));
+  e.sx = Math.max(0, Math.min(maxX, e.sx + (e.multi ? wx : wx - wy) * 40));
+  if (e.sy !== oy || e.sx !== ox) { paintDirty = true; return true; }
+  return false;
+}
+
+const TS_KEYWORDS: string[] = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'of', 'in', 'new', 'class',
+  'extends', 'implements', 'import', 'export', 'from', 'type', 'interface', 'enum', 'true', 'false', 'null', 'undefined', 'this', 'super',
+  'async', 'await', 'yield', 'break', 'continue', 'switch', 'case', 'default', 'throw', 'try', 'catch', 'finally', 'as', 'void',
+  'static', 'readonly', 'private', 'public', 'protected', 'abstract', 'get', 'set', 'typeof', 'instanceof', 'using'];
+/** Small TypeScript / Zinc highlighter for code editors (highlight={ui.tsHighlight}): keywords, types, strings,
+ *  numbers, line comments. ponytail: per line, so block comments and multi-line strings are not tracked. */
+export function tsHighlight(line: string): i32[] {
+  const out: i32[] = [];
+  const n = line.length;
+  let i: i32 = 0;
+  while (i < n) {
+    const c = line.charCodeAt(i);
+    let j: i32 = i + 1, color: i32 = -1;
+    if (c === 47 && j < n && line.charCodeAt(j) === 47) { j = n; color = 0x64748b; }
+    else if (c === 34 || c === 39 || c === 96) {
+      while (j < n && line.charCodeAt(j) !== c) j += line.charCodeAt(j) === 92 ? 2 : 1;
+      j = imin(j + 1, n); color = 0x86efac;
+    } else if (c >= 48 && c <= 57) { while (j < n && (isWordChar(line.charCodeAt(j)) || line.charCodeAt(j) === 46)) j++; color = 0xfdba74; }
+    else if (isWordChar(c)) {
+      while (j < n && isWordChar(line.charCodeAt(j))) j++;
+      color = TS_KEYWORDS.indexOf(line.slice(i, j)) >= 0 ? 0xc084fc : c >= 65 && c <= 90 ? 0x67e8f9 : -1;
+    }
+    if (out.length >= 2 && out[out.length - 1] === color) out[out.length - 2] += j - i;
+    else { out.push(j - i); out.push(color); }
+    i = j;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- scrolling input
 let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
 let focusShown: i32 = -1;
 const flinging: i32[] = [];
 /** Innermost scroll container under (px, py) that scrolls along `axes` (1 vertical, 2 horizontal). */
-function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, axes: i32): i32 {
+function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: number, axes: i32): i32 {
   const n = node(h);
   if (n.hidden) return -1;
-  const x0 = n.x + ox + n.tx, y0 = n.y + oy + n.ty;
-  const inside = px >= x0 && py >= y0 && px < x0 + n.lw && py < y0 + n.lh;
+  const x0 = (n.x + n.tx) * k + ox, y0 = (n.y + n.ty) * k + oy, kk = k * n.k;
+  const inside = px >= x0 && py >= y0 && px < x0 + n.lw * kk && py < y0 + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
-  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
-  for (let i = n.children.length - 1; i >= 0; i--) { const r = scrollerAt(n.children[i], px, py, dx, dy, axes); if (r >= 0) return r; }
+  const cx = x0 - (n.x + n.sx) * kk, cy = y0 - (n.y + n.sy) * kk;
+  for (let i = n.children.length - 1; i >= 0; i--) { const r = scrollerAt(n.children[i], px, py, cx, cy, kk, axes); if (r >= 0) return r; }
   const canY = (n.scroll & 1) !== 0 && n.contentH > n.lh, canX = (n.scroll & 2) !== 0 && n.contentW > n.lw;
   if (inside && (((axes & 1) !== 0 && canY) || ((axes & 2) !== 0 && canX))) return h;
   return -1;
@@ -813,20 +1304,274 @@ function virtuals(): i32[] {
   return virtList;
 }
 
-// ---------------------------------------------------------------- input and frame loop
-function hit(h: i32, px: number, py: number, ox: number, oy: number): i32 {
+// ---------------------------------------------------------------- hit testing, pointer, hover, keyboard
+const HIT_CLICK: i32 = 0, HIT_ANY: i32 = 1, HIT_NODE: i32 = 2, HIT_WHEEL: i32 = 3;
+function wants(n: UiNode, mode: i32): boolean {
+  if (mode === HIT_CLICK) return n.onClick !== null;
+  if (mode === HIT_NODE) return true;
+  const s = n.hs;
+  if (mode === HIT_WHEEL) return (s !== null && (s as Handlers).wheel !== null) || (n.ed !== null && editScrolls(n, n.ed as Edit));
+  return n.onClick !== null || n.ed !== null || s !== null;
+}
+function editScrolls(n: UiNode, e: Edit): boolean {
+  ensureRows(n, e);
+  return e.multi && e.rs.length * lineHeightOf(n) > n.lh - n.pt - n.pb;
+}
+/** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
+function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number, mode: i32): i32 {
   const n = node(h);
   if (n.hidden) return -1;
-  if (n.overflow && n.tag !== FRAGMENT) { const x0 = n.x + ox + n.tx, y0 = n.y + oy + n.ty; if (px < x0 || py < y0 || px >= x0 + n.lw || py >= y0 + n.lh) return -1; }
-  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
+  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
+  const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
+  if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
+  const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
   for (let i = n.children.length - 1; i >= 0; i--) {
-    const r = hit(n.children[i], px, py, dx, dy);
+    const r = hitIn(n.children[i], px, py, cx, cy, kk, mode);
     if (r >= 0) return r;
   }
-  const x = n.x + dx, y = n.y + dy;
-  if (n.onClick !== null && n.tag !== FRAGMENT && px >= x && py >= y && px < x + n.lw && py < y + n.lh) return h;
+  if (n.tag !== FRAGMENT && inside && wants(n, mode)) return h;
   return -1;
 }
+function hit(px: number, py: number, mode: i32): i32 { return root < 0 ? -1 : hitIn(root, px, py, 0, 0, 1, mode); }
+let boxX: number = 0, boxY: number = 0, boxK: number = 1;
+/** Surface position (boxX, boxY) and scale (boxK) of a node's box. */
+function boxOf(h: i32): void {
+  const chain: i32[] = [];
+  for (let p = h; p >= 0; p = nodes[p].parent) chain.push(p);
+  let ox: number = 0, oy: number = 0, k: number = 1;
+  for (let i = chain.length - 1; i >= 1; i--) {
+    const a = nodes[chain[i]];
+    const x = (a.x + a.tx) * k + ox, y = (a.y + a.ty) * k + oy, kk = k * a.k;
+    ox = x - (a.x + a.sx) * kk; oy = y - (a.y + a.sy) * kk; k = kk;
+  }
+  const n = nodes[h];
+  boxX = (n.x + n.tx) * k + ox; boxY = (n.y + n.ty) * k + oy; boxK = k * n.k;
+}
+/** Converts a surface point to node-local coordinates (its own units). */
+export function toLocal(h: i32, gx: number, gy: number): number[] { boxOf(h); return [(gx - boxX) / boxK, (gy - boxY) / boxK]; }
+/** Node box on the surface [x, y, w, h], through scroll offsets and style transforms (popups, tests). */
+export function screenBox(h: i32): number[] { if (layoutDirty) layout(); boxOf(h); const n = nodes[h]; return [boxX, boxY, n.lw * boxK, n.lh * boxK]; }
+let capture: i32 = -1, captureBtn: i32 = 0;  // node getting moves and the release after its onPointerDown
+let selecting: i32 = -1;                      // text field being drag-selected
+let ptrX: number = -1, ptrY: number = -1;
+let held: i32 = 0;                            // buttons held, DOM `buttons` bits: 1 left, 2 right, 4 middle
+let curMods: i32 = 0;
+let clicks: i32 = 0, lastBtn: i32 = -1, lastDownAt: number = -100000, lastDownX: number = 0, lastDownY: number = 0;
+let hoverPath: i32[] = [];
+let hoverDirty = true;
+let cursorShown: i32 = -1;
+let textOn: i32 = -1;       // field that has the text input (IME) on
+let blinkShown: number = -1;
+let synthetic = false;      // test hooks drive the input: the HAL's pointer and keys are ignored
+let frameDt: number = 0;
+function bitOf(button: i32): i32 { return button === 0 ? 1 : button === 2 ? 2 : 4; }
+function handlerOf(n: UiNode, kind: i32): ((e: PointerEvent) => void) | null {
+  const s = n.hs;
+  if (s === null) return null;
+  const t = s as Handlers;
+  return kind === PDOWN ? t.down : kind === PMOVE ? t.move : kind === PUP ? t.up : kind === PDBL ? t.dbl : kind === PCONTEXT ? t.ctx : kind === PWHEEL ? t.wheel : kind === PENTER ? t.enter : t.leave;
+}
+/** Nearest node from h up with a handler of `kind` (stopping at a button or text field when `stop`). */
+function bubble(h: i32, kind: i32, stop: boolean): i32 {
+  for (let p = h; p >= 0; p = nodes[p].parent) {
+    const n = nodes[p];
+    if (handlerOf(n, kind) !== null) return p;
+    if (stop && (n.onClick !== null || n.ed !== null)) return -1;
+  }
+  return -1;
+}
+function fire(h: i32, kind: i32, gx: number, gy: number, button: i32): PointerEvent {
+  boxOf(h);
+  const e = new PointerEvent();
+  e.gx = gx; e.gy = gy; e.x = (gx - boxX) / boxK; e.y = (gy - boxY) / boxK;
+  e.button = button; e.mods = curMods; e.clicks = clicks;
+  const f = handlerOf(nodes[h], kind);
+  if (f !== null) f(e);
+  return e;
+}
+function setFocusTo(h: i32): void {
+  if (focus === h) return;
+  if (focus >= 0 && nodes[focus].alive) { const e = nodes[focus].ed; if (e !== null) commit(e as Edit); }
+  focus = h;
+  if (h >= 0) { const e = nodes[h].ed; if (e !== null) { e.blinkAt = clock; e.reveal = true; } }
+  paintDirty = true;
+}
+/** Gives the keyboard focus to a node (-1: none). A text field starts the text input. */
+export function focusNode(h: i32): void { setFocusTo(h); }
+export function focused(): i32 { return focus; }
+function focusStep(back: boolean): void {
+  const list: i32[] = [];
+  focusables(root, list);
+  if (list.length === 0) return;
+  const i = list.indexOf(focus);
+  setFocusTo(i < 0 ? list[0] : list[(i + (back ? list.length - 1 : 1)) % list.length]);
+}
+function pointerMove(px: number, py: number): void {
+  // drag to scroll: past a few pixels the press becomes a scroll gesture
+  if ((held & 1) !== 0 && dragScroller >= 0) {
+    if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
+    if (dragging) {
+      const n = node(dragScroller);
+      if ((n.scroll & 1) !== 0) { n.sy -= py - lastY; n.vy = frameDt > 0 ? -(py - lastY) / frameDt : 0; }
+      if ((n.scroll & 2) !== 0) { n.sx -= px - lastX; n.vx = frameDt > 0 ? -(px - lastX) / frameDt : 0; }
+      clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+    }
+  }
+  if (px === ptrX && py === ptrY) return;
+  ptrX = px; ptrY = py;
+  hoverDirty = true;
+  if (selecting >= 0) {
+    const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
+    boxOf(selecting);
+    // past the edges the text scrolls one line per move
+    const ly = Math.max(n.pt - lh / 2, Math.min(n.lh - n.pb + lh / 2, (py - boxY) / boxK));
+    moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
+  }
+  if (capture >= 0) { fire(capture, PMOVE, px, py, -1); return; }
+  const t = bubble(hit(px, py, HIT_ANY), PMOVE, false);
+  if (t >= 0) fire(t, PMOVE, px, py, -1);
+}
+function pressAt(px: number, py: number, button: i32): void {
+  held = held | bitOf(button);
+  if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
+  lastBtn = button; lastDownAt = clock; lastDownX = px; lastDownY = py;
+  const t = hit(px, py, HIT_ANY);
+  const d = bubble(t, PDOWN, true);
+  if (d >= 0 && capture < 0) { capture = d; captureBtn = button; }
+  if (d >= 0) fire(d, PDOWN, px, py, button);
+  if (button === 2) { const c = bubble(t, PCONTEXT, false); if (c >= 0) fire(c, PCONTEXT, px, py, button); }
+  if (clicks === 2 && button === 0) { const c = bubble(t, PDBL, true); if (c >= 0) fire(c, PDBL, px, py, button); }
+  if (button !== 0) return;
+  if (t >= 0 && nodes[t].ed !== null) {
+    // text field: caret, word / line selection, drag to select
+    setFocusTo(t);
+    boxOf(t);
+    editPress(t, nodes[t], nodes[t].ed as Edit, (px - boxX) / boxK, (py - boxY) / boxK, clicks, (curMods & SHIFT) !== 0);
+    selecting = t;
+  } else {
+    const h = hit(px, py, HIT_CLICK);
+    if (h >= 0) { setFocusTo(h); pressed = h; paintDirty = true; }
+    else if (d >= 0) setFocusTo(nodes[d].focusable ? d : -1);
+    else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);  // a click elsewhere blurs a text field
+  }
+  dragScroller = selecting >= 0 || capture >= 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3);
+  dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
+  if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; }
+  hoverDirty = true;
+}
+function releaseAt(px: number, py: number, button: i32): void {
+  held = held & ~bitOf(button);
+  if (capture >= 0 && button === captureBtn) { const c = capture; capture = -1; fire(c, PUP, px, py, button); }
+  else if (capture < 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
+  hoverDirty = true;
+  if (button !== 0) return;
+  selecting = -1;
+  if (pressed >= 0) {
+    const h = pressed;
+    pressed = -1;
+    if (!dragging && hit(px, py, HIT_CLICK) === h) activate(h);
+    paintDirty = true;
+  }
+  if (dragging && dragScroller >= 0) flinging.push(dragScroller);
+  dragScroller = -1; dragging = false;
+}
+/** One pointer sample: position, and whether `button` is held (HAL button events, the held state, or test hooks). */
+function pointerSample(px: number, py: number, button: i32, down: boolean): void {
+  const was = (held & bitOf(button)) !== 0;
+  pointerMove(px, py);
+  if (down && !was) pressAt(px, py, button);
+  else if (!down && was) releaseAt(px, py, button);
+  lastX = px; lastY = py;
+}
+function isAncestor(a: i32, b: i32): boolean { for (let p = b; p >= 0; p = nodes[p].parent) if (p === a) return true; return false; }
+function wheelInput(px: number, py: number, wy: number, wx: number, pz: number): void {
+  // the innermost of: a node with onWheel, a scrollable text field, a scroll container
+  const w = hit(px, py, HIT_WHEEL);
+  const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (wy !== 0 ? 1 : 0) | (wx !== 0 ? 2 : 0));
+  if (w >= 0 && (sc < 0 || isAncestor(sc, w))) {
+    if (handlerOf(nodes[w], PWHEEL) === null) { if (editWheel(nodes[w], nodes[w].ed as Edit, wy, wx)) return; }
+    else {
+      boxOf(w);
+      const e = new PointerEvent();
+      e.gx = px; e.gy = py; e.x = (px - boxX) / boxK; e.y = (py - boxY) / boxK; e.button = -1; e.mods = curMods;
+      e.wheel = wy; e.wheelX = wx; e.pinch = pz;
+      const f = handlerOf(nodes[w], PWHEEL);
+      if (f !== null) f(e);
+      return;
+    }
+  }
+  if (sc < 0) return;
+  const n = node(sc);
+  if (wy !== 0 && (n.scroll & 1) !== 0) { n.sy -= wy * 40; n.vy = 0; }
+  if (wx !== 0 && (n.scroll & 2) !== 0) { n.sx += wx * 40; n.vx = 0; }
+  clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+}
+function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0; }
+/** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
+function updateHover(): void {
+  hoverDirty = false;
+  const t = ptrX >= 0 ? hit(ptrX, ptrY, HIT_NODE) : -1;
+  const path: i32[] = [];
+  for (let p = t; p >= 0; p = nodes[p].parent) path.push(p);
+  const old = hoverPath;
+  hoverPath = path;
+  for (const h of old) if (path.indexOf(h) < 0 && nodes[h].alive) {
+    const n = nodes[h];
+    n.hovered = false;
+    if (hasHoverStyle(n)) paintDirty = true;
+    if (handlerOf(n, PLEAVE) !== null) fire(h, PLEAVE, ptrX, ptrY, -1);
+  }
+  for (let i = path.length - 1; i >= 0; i--) if (old.indexOf(path[i]) < 0) {
+    const n = nodes[path[i]];
+    n.hovered = true;
+    if (hasHoverStyle(n)) paintDirty = true;
+    if (handlerOf(n, PENTER) !== null) fire(path[i], PENTER, ptrX, ptrY, -1);
+  }
+  let c: i32 = Cursor.Default;
+  const src = capture >= 0 ? capture : selecting >= 0 ? selecting : t;
+  for (let p = src; p >= 0; p = nodes[p].parent) {
+    const n = nodes[p];
+    if (n.cursor >= 0) { c = n.cursor; break; }
+    if (n.ed !== null) { c = Cursor.Text; break; }
+  }
+  if (c === Cursor.Grab && (held & 1) !== 0 && capture >= 0) c = Cursor.Grabbing;
+  if (c !== cursorShown) { cursorShown = c; setCursor(c); }
+}
+function typeInto(h: i32, s: string): void {
+  if (h < 0) return;
+  const e = nodes[h].ed;
+  if (e !== null && !e.readOnly) replaceSel(e as Edit, s, true);
+}
+/** Key down: the focused node's (or nearest ancestor's) onKeyDown, text field editing, then the global handlers. */
+function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
+  const ev = new KeyEvent(key, mods, repeat);
+  for (let p = focus; p >= 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s !== null && (s as Handlers).key !== null) { const f = (s as Handlers).key; if (f !== null) f(ev); break; }
+  }
+  if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
+  for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
+  paintDirty = true;
+  return ev;
+}
+function inputFrame(): void {
+  curMods = modifiers();
+  const px = pointerX(), py = pointerY();
+  const wy = wheel(), wx = wheelX(), pz = pinch();
+  if (wy !== 0 || wx !== 0 || pz !== 1) wheelInput(px, py, wy, wx, pz);
+  // button events in order (fast clicks are not lost), else the held state (HALs without button events)
+  const nb = buttonEventCount();
+  for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
+  pointerSample(px, py, 0, nb > 0 ? (held & 1) !== 0 : pointerDown());
+  const nk = keyCount();
+  for (let i = 0; i < nk; i++) {
+    const kind = keyKind(i);
+    if (kind === KeyKind.Text) typeInto(focus, keyName(i));
+    else if (kind === KeyKind.Down || kind === KeyKind.Repeat) dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+  }
+}
+
+// ---------------------------------------------------------------- frame loop
 function focusables(h: i32, out: i32[]): void {
   const n = node(h);
   if (n.hidden) return;
@@ -842,6 +1587,7 @@ function activate(h: i32): void {
 export function frame(dt: number, background: i32): void {
   if (root < 0) return;
   clock += dt * 1000;
+  frameDt = dt;
   stepAnims();
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
@@ -849,61 +1595,29 @@ export function frame(dt: number, background: i32): void {
     if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
   }
   if (layoutDirty) layout();
-  const down = pointerDown(), px = pointerX(), py = pointerY();
-  // wheel / trackpad: the innermost scroller under the pointer
-  const wy = wheel();
-  if (wy !== 0) {
-    const sc = scrollerAt(root, px, py, 0, 0, 1);
-    if (sc >= 0) { const n = node(sc); n.sy -= wy * 40; n.vy = 0; clampScroll(n); n.scrolledAt = clock; paintDirty = true; }
-  }
-  if (down && !wasDown) {
-    const h = hit(root, px, py, 0, 0);
-    if (h >= 0) { focus = h; pressed = h; paintDirty = true; }
-    dragScroller = scrollerAt(root, px, py, 0, 0, 3);
-    dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
-    if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; }
-  } else if (down && dragScroller >= 0) {
-    // drag to scroll: past a few pixels the press becomes a scroll gesture
-    if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
-    if (dragging) {
-      const n = node(dragScroller);
-      if ((n.scroll & 1) !== 0) { n.sy -= py - lastY; n.vy = dt > 0 ? -(py - lastY) / dt : 0; }
-      if ((n.scroll & 2) !== 0) { n.sx -= px - lastX; n.vx = dt > 0 ? -(px - lastX) / dt : 0; }
-      clampScroll(n); n.scrolledAt = clock; paintDirty = true;
-    }
-  } else if (!down && wasDown) {
-    if (pressed >= 0) {
-      const h = pressed;
-      pressed = -1;
-      if (!dragging && hit(root, px, py, 0, 0) === h) activate(h);
-      paintDirty = true;
-    }
-    if (dragging && dragScroller >= 0) flinging.push(dragScroller);
-    dragScroller = -1; dragging = false;
-  }
-  lastX = px; lastY = py;
-  wasDown = down;
+  const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
+  if (!synthetic) inputFrame();
   stepFling(dt);
-  if (wasPressed(Btn.Down) || wasPressed(Btn.Right) || wasPressed(Btn.Up) || wasPressed(Btn.Left) || wasPressed(Btn.Select)) {
-    const list: i32[] = [];
-    focusables(root, list);
-    if (list.length > 0) {
-      const back = wasPressed(Btn.Up) || wasPressed(Btn.Left);
-      const i = list.indexOf(focus);
-      focus = i < 0 ? list[0] : list[(i + (back ? list.length - 1 : 1)) % list.length];
-      paintDirty = true;
-    }
-  }
+  if (!typing && (wasPressed(Btn.Down) || wasPressed(Btn.Right) || wasPressed(Btn.Up) || wasPressed(Btn.Left) || wasPressed(Btn.Select))) focusStep(wasPressed(Btn.Up) || wasPressed(Btn.Left));
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
-  if ((wasPressed(Btn.A) || wasPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
-  else if (pressed >= 0 && !down) { pressed = -1; paintDirty = true; }
+  if (!typing && (wasPressed(Btn.A) || wasPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
+  else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
+  // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
+  const ed = focus >= 0 ? nodes[focus].ed : null;
+  const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;
+  if (want !== textOn) {
+    if (want >= 0) { boxOf(want); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else stopTextInput();
+    textOn = want;
+  }
+  if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
+  if (hoverDirty || paintDirty) updateHover();
   if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && flinging.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
-  paint(root, 0, 0, 1);
+  paint(root, 0, 0, 1, 1);
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
     rrect(n.x, n.y, n.lw, n.lh, 0, 0x3b82f6, 90);
@@ -937,7 +1651,7 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
   if (h < 0) return;
   const n = node(h);
   if (n.hidden) return;
-  out.push(`${'  '.repeat(depth)}${TAG_NAMES[n.tag]} ${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}${n.tag === TEXT ? ' "' + n.lines.join('|') + '"' : ''}`);
+  out.push(`${'  '.repeat(depth)}${TAG_NAMES[n.tag]} ${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}${n.tag === TEXT ? ' "' + n.lines.join('|') + '"' : ''}${n.ed !== null ? ' "' + (n.ed as Edit).value.replaceAll('\n', '\\n') + '"' : ''}`);
   for (const c of n.children) dumpNode(c, depth + 1, out);
 }
 export function setRoot(h: i32): void {
@@ -948,7 +1662,7 @@ export function click(h: i32): void { activate(h); }
 /** Parent handle (-1 for the root / detached nodes). */
 export function parentOf(h: i32): i32 { return node(h).parent; }
 /** Node that a pointer press at (x, y) would hit, through scroll offsets and clips (-1: none). */
-export function hitAt(x: number, y: number): i32 { if (layoutDirty) layout(); return root < 0 ? -1 : hit(root, x, y, 0, 0); }
+export function hitAt(x: number, y: number): i32 { if (layoutDirty) layout(); return hit(x, y, HIT_CLICK); }
 export function find(text: string): i32 {
   for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].text === text) {
     let p = nodes[i].parent;
@@ -959,3 +1673,35 @@ export function find(text: string): i32 {
 }
 /** Advances the engine clock without the frame loop (tests). */
 export function tick(ms: number): void { clock += ms; stepAnims(); }
+
+// ---------------------------------------------------------------- input test hooks: from the first call on, the
+// HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.
+/** Pointer at (x, y) with `button` (0 left, 1 middle, 2 right) held or not: moves, presses, releases, drags. */
+export function pointerAt(x: number, y: number, down: boolean, button: i32 = 0, mods: i32 = 0): void {
+  synthetic = true;
+  curMods = mods;
+  if (layoutDirty) layout();
+  pointerSample(x, y, button, down);
+  updateHover();
+}
+/** Mouse wheel / trackpad at (x, y): dy steps (+ up), dx steps (+ right), pinch factor. */
+export function wheelAt(x: number, y: number, dy: number, dx: number = 0, pinchBy: number = 1): void {
+  synthetic = true;
+  if (layoutDirty) layout();
+  wheelInput(x, y, dy, dx, pinchBy);
+}
+/** Key down (key names like gfx keyName: 'a', 'Enter', 'ArrowLeft'...) with the focus on h (-1: keep the focus).
+ *  Returns whether something handled it. */
+export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
+  synthetic = true;
+  if (h >= 0) setFocusTo(h);
+  if (layoutDirty) layout();
+  return dispatchKey(key, mods, false).handled;
+}
+/** Text typed into the focused field (focus moves to h first when h >= 0). */
+export function typeText(h: i32, s: string): void {
+  synthetic = true;
+  if (h >= 0) setFocusTo(h);
+  if (layoutDirty) layout();
+  typeInto(focus, s);
+}

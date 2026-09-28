@@ -2,6 +2,7 @@
 #include "hal.h"
 #include <SDL3/SDL.h>
 #include <stdlib.h>
+#include <string.h>
 
 static SDL_Window* win;
 static SDL_Renderer* ren;
@@ -108,10 +109,62 @@ static uint32_t pen_flags(SDL_PenInputFlags s) {
   return ((s & SDL_PEN_INPUT_DOWN) ? HAL_PEN_DOWN : HAL_PEN_HOVER) | ((s & SDL_PEN_INPUT_ERASER_TIP) ? HAL_PEN_ERASER : 0);
 }
 
+// Keyboard: SDL keycodes are layout-aware; printable keys are their (lowercase) ASCII code.
+static int32_t key_code(SDL_Keycode k) {
+  if (k >= 32 && k < 127) return (int32_t)k;
+  switch (k) {
+    case SDLK_BACKSPACE: return HAL_KEY_BACKSPACE;
+    case SDLK_DELETE: return HAL_KEY_DELETE;
+    case SDLK_RETURN: case SDLK_KP_ENTER: return HAL_KEY_ENTER;
+    case SDLK_TAB: return HAL_KEY_TAB;
+    case SDLK_ESCAPE: return HAL_KEY_ESCAPE;
+    case SDLK_LEFT: return HAL_KEY_ARROW_LEFT;
+    case SDLK_RIGHT: return HAL_KEY_ARROW_RIGHT;
+    case SDLK_UP: return HAL_KEY_ARROW_UP;
+    case SDLK_DOWN: return HAL_KEY_ARROW_DOWN;
+    case SDLK_HOME: return HAL_KEY_HOME;
+    case SDLK_END: return HAL_KEY_END;
+    case SDLK_PAGEUP: return HAL_KEY_PAGEUP;
+    case SDLK_PAGEDOWN: return HAL_KEY_PAGEDOWN;
+    default: break;
+  }
+  if (k >= SDLK_F1 && k <= SDLK_F12) return HAL_KEY_F1 + (int32_t)(k - SDLK_F1);
+  return 0;
+}
+static uint32_t mods_of(SDL_Keymod m) {
+  return ((m & SDL_KMOD_SHIFT) ? HAL_MOD_SHIFT : 0) | ((m & SDL_KMOD_CTRL) ? HAL_MOD_CTRL : 0) | ((m & SDL_KMOD_ALT) ? HAL_MOD_ALT : 0) | ((m & SDL_KMOD_GUI) ? HAL_MOD_META : 0);
+}
+static void key_push(HalInput* in, int32_t key, int32_t kind, SDL_Keymod mod, const char* text) {
+  if (in->nkeys == HAL_MAX_KEYS) return;
+  HalKey& k = in->keys[in->nkeys];
+  k = HalKey{key, mods_of(mod), kind, 0, 0};
+  if (text) {
+    size_t n = strlen(text);
+    if (in->ntext + n > HAL_TEXT_BYTES) return;
+    memcpy(in->text + in->ntext, text, n);
+    k.off = (uint16_t)in->ntext; k.len = (uint16_t)n; in->ntext += (int32_t)n;
+  }
+  in->nkeys++;
+}
+
 void hal_poll_input(HalInput* in) {
+  in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   if (!gfx_on) return;
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
+    if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP) {
+      if (int32_t k = key_code(e.key.key)) key_push(in, k, e.type == SDL_EVENT_KEY_UP ? HAL_KEY_UP : e.key.repeat ? HAL_KEY_REPEAT : HAL_KEY_DOWN, e.key.mod, nullptr);
+    }
+    if (e.type == SDL_EVENT_TEXT_INPUT) key_push(in, 0, HAL_KEY_TEXT, SDL_GetModState(), e.text.text);
+    if ((e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_UP) && in->nbtn < HAL_MAX_BUTTON_EVENTS) {
+      HalButtonEvent& b = in->btn[in->nbtn++];
+      float bx = e.button.x, by = e.button.y;
+      if (ren) SDL_RenderCoordinatesFromWindow(ren, bx, by, &bx, &by);
+      b.x = bx / K; b.y = by / K;
+      b.button = e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0;
+      b.down = e.button.down;
+    }
+    if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel_x += e.wheel.x;
     if (e.type == SDL_EVENT_PEN_AXIS) {
       if (e.paxis.axis == SDL_PEN_AXIS_PRESSURE) pen.pressure = e.paxis.value;
       if (e.paxis.axis == SDL_PEN_AXIS_XTILT) pen.tilt_x = e.paxis.value;
@@ -133,7 +186,8 @@ void hal_poll_input(HalInput* in) {
     }
     // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
     if (e.type == SDL_EVENT_QUIT && !kiosk) quit = true;
-    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !kiosk) {
+    // not while a text field has the keyboard: Escape blurs the field first
+    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !kiosk && !SDL_TextInputActive(win)) {
       if (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN) set_fullscreen(false); else quit = true;
     }
     if (e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
@@ -174,6 +228,8 @@ void hal_poll_input(HalInput* in) {
   SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
   if (ren) { SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my); mx /= K; my /= K; }
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
+  in->pbuttons = ((mb & SDL_BUTTON_LMASK) ? 1u : 0u) | ((mb & SDL_BUTTON_RMASK) ? 2u : 0u) | ((mb & SDL_BUTTON_MMASK) ? 4u : 0u);
+  in->mods = mods_of(SDL_GetModState());
   if (frames_left >= 0 && frames_left-- == 0) quit = true;
   in->quit = quit;
 }
@@ -194,6 +250,45 @@ void hal_present(const HalFrame* f) {
   SDL_RenderPresent(ren);
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
+// Text input (IME candidate window next to the field), clipboard, cursor shapes.
+void hal_text_input(int32_t on, float x, float y, float w, float h) {
+  if (!gfx_on) return;
+  if (!on) { SDL_StopTextInput(win); return; }
+  float x0 = x * K, y0 = y * K, x1 = (x + w) * K, y1 = (y + h) * K;
+  SDL_RenderCoordinatesToWindow(ren, x0, y0, &x0, &y0);
+  SDL_RenderCoordinatesToWindow(ren, x1, y1, &x1, &y1);
+  SDL_Rect r = {(int)x0, (int)y0, (int)(x1 - x0), (int)(y1 - y0)};
+  SDL_SetTextInputArea(win, &r, 0);
+  SDL_StartTextInput(win);
+}
+// ZINC_CLIPBOARD=local (set by `zinc test`): a process-local clipboard, so test runs never touch the user's one
+static char* clip_local;
+static bool clip_is_local() { const char* c = getenv("ZINC_CLIPBOARD"); return !gfx_on || (c && !strcmp(c, "local")); }
+const char* hal_clipboard_get(void) {
+  static char* last;
+  if (clip_is_local()) return clip_local ? clip_local : "";
+  SDL_free(last);
+  last = SDL_GetClipboardText();
+  return last ? last : "";
+}
+void hal_clipboard_set(const char* s, size_t n) {
+  char* t = (char*)malloc(n + 1);
+  if (!t) return;
+  memcpy(t, s, n); t[n] = 0;
+  if (clip_is_local()) { free(clip_local); clip_local = t; return; }
+  SDL_SetClipboardText(t);
+  free(t);
+}
+void hal_set_cursor(int32_t shape) {
+  static SDL_Cursor* cache[10];
+  static const SDL_SystemCursor sys[10] = {SDL_SYSTEM_CURSOR_DEFAULT, SDL_SYSTEM_CURSOR_TEXT, SDL_SYSTEM_CURSOR_POINTER, SDL_SYSTEM_CURSOR_MOVE,
+    SDL_SYSTEM_CURSOR_EW_RESIZE, SDL_SYSTEM_CURSOR_NS_RESIZE, SDL_SYSTEM_CURSOR_CROSSHAIR,
+    SDL_SYSTEM_CURSOR_MOVE, SDL_SYSTEM_CURSOR_MOVE,  // grab / grabbing: SDL has no hand-grab cursor
+    SDL_SYSTEM_CURSOR_NOT_ALLOWED};
+  if (!gfx_on || shape < 0 || shape >= 10) return;
+  if (!cache[shape]) cache[shape] = SDL_CreateSystemCursor(sys[shape]);
+  if (cache[shape]) SDL_SetCursor(cache[shape]);
+}
 int32_t hal_pixel_scale(void) { return gfx_on ? K : 1; }
 double hal_fixed_dt(void) {
   static double v = getenv("ZINC_FIXED_DT") ? atof(getenv("ZINC_FIXED_DT")) : 0;

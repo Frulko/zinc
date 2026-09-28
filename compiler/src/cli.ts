@@ -559,7 +559,7 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     const entry = path.join(dir, f);
     if (PROFILES[o.profile].typing === 'strict' && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ZINC_RESIZE: 'letterbox', ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock and surface
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ZINC_RESIZE: 'letterbox', ZINC_CLIPBOARD: 'local', ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock and surface, private clipboard
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const pr = PROFILES[o.profile];

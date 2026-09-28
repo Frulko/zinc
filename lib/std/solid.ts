@@ -142,6 +142,13 @@ export function _dynText(parent: i32, get: () => string): void {
 }
 export function _dynClass(n: i32, get: () => string): void { createEffect(() => { ui.setClass(n, get()); }); }
 export function _dynNum(n: i32, key: string, get: () => number): void { createEffect(() => { ui.setNumber(n, key, get()); }); }
+// text fields and pointer / key events
+export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
+export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
+export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
+export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
+export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
 /** <Show when={...} fallback={...}>children</Show> */
 export function _show(parent: i32, when: () => boolean, render: () => i32, fallback: (() => i32) | null): void {
   const frag = ui.createNode(ui.FRAGMENT);

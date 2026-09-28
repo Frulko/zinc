@@ -41,4 +41,11 @@ export const pointerX = () => 0;
 export const pointerY = () => 0;
 export const pointerDown = () => false;
 export const frame = () => $z.state.frame;
+// desktop input: headless, nothing typed or clicked; the clipboard is process-local (like native test runs)
+let clipboard = '';
+export const wheelX = () => 0, pointerButtons = () => 0, modifiers = () => 0;
+export const keyCount = () => 0, keyKind = () => -1, keyMods = () => 0, keyName = () => '';
+export const buttonEventCount = () => 0, buttonEventX = () => 0, buttonEventY = () => 0, buttonEventButton = () => 0, buttonEventDown = () => false;
+export const startTextInput = () => {}, stopTextInput = () => {}, setCursor = () => {};
+export const clipboardText = () => clipboard, setClipboardText = s => { clipboard = s; };
 export const quit = () => { $z.state.quit = true; };
