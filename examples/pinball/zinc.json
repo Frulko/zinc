@@ -1,0 +1,9 @@
+{
+  "name": "pinball",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": { "width": 960, "height": 600, "resize": "letterbox" },
+    "linux": { "width": 960, "height": 600, "resize": "letterbox" },
+    "rpi1": { "width": 800, "height": 480 }
+  }
+}
