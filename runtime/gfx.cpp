@@ -36,6 +36,11 @@ static bool first = true;
 static const Buf* shown = nullptr;
 static float tx = 0, ty = 0;  // translation applied to every command (UI transforms)
 static bool kept = false;     // keep(): nothing changed, show the previous frame again
+#ifndef ZRT_PEN_SAMPLES
+#define ZRT_PEN_SAMPLES 256
+#endif
+static HalPen pen_q[ZRT_PEN_SAMPLES];  // samples pushed since the last frame
+static int32_t pen_n = 0;
 
 static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncmd, b.text, b.pts}; }
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
@@ -45,6 +50,7 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
 void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; }
 void keep() { kept = true; }
 void end_frame() {
+  pen_n = 0;
   if (kept && !first) {  // retained frame: no rasterization, no swap
     HalFrame f = {surf_w, surf_h, 0, 0, 0, 0, render_rows};
     present(&f);
@@ -205,7 +211,17 @@ int32_t touchCount() { return input.ntouch; }
 double touchX(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].x : 0; }
 double touchY(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].y : 0; }
 int32_t touchId(int32_t i) { return i >= 0 && i < input.ntouch ? input.touch[i].id : -1; }
+static const HalPen* pen_at(int32_t i) { static const HalPen none = {}; return i >= 0 && i < pen_n ? &pen_q[i] : &none; }
+int32_t penCount() { return pen_n; }
+double penX(int32_t i) { return pen_at(i)->x; }
+double penY(int32_t i) { return pen_at(i)->y; }
+double penPressure(int32_t i) { return pen_at(i)->pressure; }
+double penTiltX(int32_t i) { return pen_at(i)->tilt_x; }
+double penTiltY(int32_t i) { return pen_at(i)->tilt_y; }
+int32_t penFlags(int32_t i) { return (int32_t)pen_at(i)->flags; }
 int32_t frame() { return frame_no; }
 void quit() { quit_requested = true; }
 }
 }  // namespace zrt
+// ponytail: a full queue overwrites its last slot, so stroke ends (pen up) survive a slow frame; middles thin out.
+extern "C" void hal_pen_push(const HalPen* s) { zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s; }

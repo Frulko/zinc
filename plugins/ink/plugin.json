@@ -1,0 +1,8 @@
+{
+  "name": "ink",
+  "kind": "module",
+  "module": "zinc:ink",
+  "entry": "index.ts",
+  "description": "Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {}, "rmpp": {} }
+}
