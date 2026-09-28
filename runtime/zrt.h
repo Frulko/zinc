@@ -98,6 +98,11 @@ template<class T> struct Ref {
 template<class A, class B> bool operator==(const Ref<A>& a, const Ref<B>& b) { return (const void*)a.p == (const void*)b.p; }
 template<class A, class B> bool operator!=(const Ref<A>& a, const Ref<B>& b) { return !(a == b); }
 template<class A> bool operator==(const Ref<A>& a, decltype(nullptr)) { return a.p == nullptr; }
+// `o === this` inside methods: `this` is a raw pointer
+template<class A, class B> bool operator==(const Ref<A>& a, const B* b) { return (const void*)a.p == (const void*)b; }
+template<class A, class B> bool operator!=(const Ref<A>& a, const B* b) { return (const void*)a.p != (const void*)b; }
+template<class A, class B> bool operator==(const B* b, const Ref<A>& a) { return (const void*)a.p == (const void*)b; }
+template<class A, class B> bool operator!=(const B* b, const Ref<A>& a) { return (const void*)a.p != (const void*)b; }
 template<class A> bool operator!=(const Ref<A>& a, decltype(nullptr)) { return a.p != nullptr; }
 
 // Allocation cascade (MEM-01): arena if one is active, then class pool, then the heap.

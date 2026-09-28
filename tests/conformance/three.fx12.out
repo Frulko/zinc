@@ -1,0 +1,10 @@
+inverse error < 1e-9: false determinant 1.498
+decompose 1.000 2.000 3.000 1.998 0.499 1.500
+euler round trip XYZ 0.296 -0.704 1.096
+euler round trip YXZ 0.297 -0.703 1.098
+euler round trip ZXY 0.297 -0.703 1.097
+euler round trip ZYX 0.296 -0.703 1.097
+euler round trip YZX 0.296 -0.702 1.097
+euler round trip XZY 0.295 -0.701 1.095
+rotate x by 90 deg around y: 0.000 0.000 -1.000 slerp half angle 0.790
+[exit 101] panic: fixed-point division by zero

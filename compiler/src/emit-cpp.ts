@@ -276,7 +276,7 @@ class CppEmitter {
       if (p.dotDotDotToken) this.s.fail(p, 'Z9009', 'rest parameters are not supported yet');
       const t = this.s.paramType(p, subst);
       let s = `${this.cpp(t)} ${this.paramName(p, i)}`;
-      if (withDefaults && p.initializer) s += ` = ${this.conv(p.initializer, t)}`;
+      if (withDefaults && p.initializer) s += this.literalDefault(p) ? ` = ${this.cpp(t)}()` : ` = ${this.conv(p.initializer, t)}`;
       else if (withDefaults && p.questionToken) s += ` = ${this.cpp(t)}()`;
       return s;
     }).join(', ');
@@ -286,9 +286,15 @@ class CppEmitter {
     const sym = this.s.symbolOf(p.name);
     return sym && this.s.boxed.has(sym) ? `__pv_${p.name.text}` : this.id(p.name.text);
   }
+  /** `o: Opts = {}`: object/array literals cannot be C++ default arguments (lambdas); the prologue builds them. */
+  literalDefault(p: ts.ParameterDeclaration): boolean {
+    const e = p.initializer;
+    return !!e && (ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e));
+  }
   prologue(ps: readonly ts.ParameterDeclaration[], d: number): string {
     let out = '';
     ps.forEach((p, i) => {
+      if (this.literalDefault(p) && ts.isIdentifier(p.name)) out += `${this.ind(d)}if (${this.paramName(p, i)} == nullptr) ${this.paramName(p, i)} = ${this.conv(p.initializer!, this.s.paramType(p))};\n`;
       if (!ts.isIdentifier(p.name)) out += this.destructure(p.name, `__p${i}`, this.s.paramType(p), d);
       else {
         const sym = this.s.symbolOf(p.name);
@@ -977,7 +983,8 @@ class CppEmitter {
     }
     if (ts.isConditionalExpression(e)) {
       const t = this.s.ztypeOf(e);
-      return `(${this.cond(e.condition)} ? ${this.conv(e.whenTrue, t)} : ${this.conv(e.whenFalse, t)})`;
+      const up = (x: ts.Expression) => { const c = this.conv(x, t), xt = this.s.ztypeOf(x); return t.k === 'obj' && xt.k === 'obj' && xt.decl !== t.decl ? `${this.cpp(t)}(${c})` : c; };
+      return `(${this.cond(e.condition)} ? ${up(e.whenTrue)} : ${up(e.whenFalse)})`;
     }
     if ((ts.isPrefixUnaryExpression(e) || ts.isPostfixUnaryExpression(e)) && this.s.ztypeOf(e.operand).k === 'dyn') return this.dynUnary(e);
     if (ts.isPrefixUnaryExpression(e)) {
@@ -1455,7 +1462,7 @@ class CppEmitter {
       }
       if (refLike(lt)) {
         const t = this.s.ztypeOf(e), v = this.newTmp('t');
-        return `([&]() -> ${this.cpp(t)} { ${this.cpp(t)} ${v} = ${this.expr(L)}; return ${v} == nullptr ? ${this.conv(R, t)} : ${v}; }())`;
+        return `([&]() -> ${this.cpp(t)} { ${this.cpp(t)} ${v} = ${this.expr(L)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${v}; }())`;
       }
       return this.expr(L);
     }

@@ -1,0 +1,10 @@
+selected 1234 clipboard after copy from a password field ""
+view 0,0 1280x720
+  fragment 0,0 0x0
+    fragment 0,0 0x0
+      view 0,0 1280x158
+        input 8,8 1264x32 "ZINC"
+        input 8,48 1264x32 "1234"
+        input 8,88 1264x32 "read only"
+        text 8,128 1264x22 "ZINC / 4"
+value ZINC hovered 1

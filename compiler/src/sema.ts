@@ -353,6 +353,15 @@ export class Sema {
     const h = c.heritageClauses?.find(h => h.token === ts.SyntaxKind.ImplementsKeyword);
     return (h?.types ?? []).map(t => this.declOf(t.expression)).filter((d): d is ts.Declaration => !!d);
   }
+  /** Type of `a ?? b` / `c ? a : b` when both are objects: the same class, else the nearest common base class. */
+  commonObj(a: ZT, b: ZT): ZT {
+    if (a.k !== 'obj' || b.k !== 'obj' || a.decl === b.decl) return a;
+    if (this.inherits(b.decl, a.decl)) return a;
+    if (this.inherits(a.decl, b.decl)) return b;
+    for (let c: ts.Node | undefined = a.decl; c && ts.isClassDeclaration(c); c = this.baseClass(c as ts.ClassDeclaration))
+      if (this.inherits(b.decl, c)) return { k: 'obj', decl: c, args: [] };
+    return a;
+  }
   inherits(c: ts.Node, target: ts.Node): boolean {
     if (c === target) return true;
     if (this.unionOf.get(c) === target) return true;
@@ -798,6 +807,8 @@ export class Sema {
         if (t.k === 'tp' && !ts.findAncestor(e, n => (ts.isClassDeclaration(n) || ts.isFunctionDeclaration(n)) && !!n.typeParameters?.some(tp => tp.name.text === t.name))) return this.fromType(this.checker.getTypeAtLocation(e), e);
         return t;
       }
+      // caught errors: e.message / e.name are strings even where `unknown` would be Dyn (gradual profile)
+      if (recv.k === 'obj' && recv.decl === this.errorDecl && (name === 'message' || name === 'name' || name === 'stack')) return STR;
       if (d && this.isLib(d) && (ts.isPropertySignature(d) || ts.isPropertyDeclaration(d)) && d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))
         return this.fromTypeNode(d.type);
     }
@@ -866,7 +877,7 @@ export class Sema {
         if (isInt(b.m) && this.isIntLiteral(e.whenTrue)) return b;
         return { k: 'num', m: this.numberKind };
       }
-      return a.k === 'null' ? b : a;
+      return a.k === 'null' ? b : this.commonObj(a, b);
     }
     if (ts.isObjectLiteralExpression(e)) {
       // Dyn only from a declared context (`x: any`), not from the checker (console.log's `unknown` parameter)
@@ -945,7 +956,7 @@ export class Sema {
       if (l.k === 'dyn' || r.k === 'dyn') return DYN;
       if (l.k === 'null') return r;
       if (isNum(l) && isNum(r) && l.m !== r.m) return { k: 'num', m: this.numberKind };
-      return l;
+      return this.commonObj(l, r);
     }
     const l = this.ztypeOf(e.left), r = this.ztypeOf(e.right);
     if (op === K.PlusToken && (l.k === 'str' || r.k === 'str')) return STR;

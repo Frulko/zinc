@@ -230,7 +230,7 @@ target_compile_definitions(app PRIVATE ZRT_DYLIB)
 target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 ${win.length ? `target_compile_definitions(app PRIVATE ${win.join(' ')})` : ''}
-target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality)
+target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality -Wno-unused-value)
 target_link_libraries(app PRIVATE zrt)
 if(EMSCRIPTEN)
   set(CMAKE_EXECUTABLE_SUFFIX ".html")
