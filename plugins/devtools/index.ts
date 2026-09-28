@@ -43,7 +43,7 @@ function element(h: i32): string {
   const tag = comp.length > 0 ? comp : TAG_NAMES[n.tag];
   const layout = `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`;
   return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(comp.length > 0 ? tag : tag.toUpperCase())},"localName":${q(tag)},"nodeValue":"",` +
-    `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":["class",${q(cls(n))},"layout",${q(layout)}]}`;
+    `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":["class",${q(cls(n))},"layout",${q(layout)}${n.hidden ? ',"hidden",""' : ''}]}`;
 }
 function documentNode(): string {
   const root = element(inspectRoot());
