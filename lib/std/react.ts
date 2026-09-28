@@ -36,6 +36,8 @@ export function __dispose(): void {
   for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; i.kids = []; i.nextKids = []; i.comp = null; }
 }
 let cur: Instance | null = null;
+/** True once the React engine rendered a component: model-neutral libraries (zinc:ui/kit) then build plain nodes. */
+export function _active(): boolean { return instances.length > 0; }
 
 function rerender(inst: Instance): void {
   inst.index = 0;

@@ -280,7 +280,9 @@ function usesGfx(sema: Sema): boolean { return sema.fe.sources.some(f => /from [
 const HIDPI_TARGETS = new Set(['macos', 'linux', 'rpi1', 'rmpp', 'wasm']);
 /** Fonts and images baked for this program (cached by content key in the build directory). */
 function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: string } {
-  const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep)).map(f => ({ fileName: f.fileName, text: f.text }));
+  // the kit's own class names and glyphs count as program text (text sizes and characters to bake)
+  const kit = path.join(ZINC_ROOT, 'lib/std/kit') + path.sep;
+  const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep) || f.fileName.startsWith(kit)).map(f => ({ fileName: f.fileName, text: f.text }));
   const assetStamp: string[] = [];
   const walk = (d?: string) => { if (!d || !fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else assetStamp.push(p + ':' + st.mtimeMs); } };
   walk(o.project.assets);
