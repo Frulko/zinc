@@ -1,6 +1,6 @@
 {
   "name": "camera-remote",
-  "entry": "main.tsx",
+  "entry": "src/main.tsx",
   "targets": {
     "macos": { "width": 1024, "height": 600 },
     "linux": { "width": 1024, "height": 600 },
