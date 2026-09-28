@@ -1492,6 +1492,8 @@ class CppEmitter {
 
   toI32(e: ts.Expression): string {
     const t = this.s.ztypeOf(e);
+    // `n & 0x1FFFFFFF`: an integer literal is an int, not the profile's f32 / fx12 (which would round or overflow it)
+    if (this.s.isIntLiteral(e)) { const v = Number(e.getText().replace(/[()\s]/g, '')); if (Number.isInteger(v)) return `static_cast<int32_t>(${v > 0x7fffffff ? `${v}u` : v})`; }
     if (t.k === 'num' && t.m === 'i32') return this.expr(e, I32);
     if (t.k === 'num' && isInt(t.m)) return `static_cast<int32_t>(${this.expr(e, I32)})`;
     if (t.k === 'num' && isFx(t.m)) return `zrt::cvt<int32_t>(static_cast<double>(${this.expr(e)}))`;
@@ -1545,6 +1547,10 @@ class CppEmitter {
       if (refLike(lt)) {
         const t = this.s.ztypeOf(e), v = this.newTmp('t');
         return `([&]() -> ${this.cpp(t)} { ${this.cpp(t)} ${v} = ${this.expr(L)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${v}; }())`;
+      }
+      if (lt.k === 'str') {  // `string | null | undefined`: absent is a null String (s == nullptr), '' is present
+        const v = this.newTmp('t');
+        return `([&]() -> zrt::String { zrt::String ${v} = ${this.expr(L)}; if (${v}.s == nullptr) return ${this.conv(R, STR)}; return ${v}; }())`;
       }
       return this.expr(L);
     }
