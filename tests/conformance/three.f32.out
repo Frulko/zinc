@@ -1,0 +1,38 @@
+inverse error < 1e-9: false determinant 1.500
+decompose 1.000 2.000 3.000 2.000 0.500 1.500
+euler round trip XYZ 0.300 -0.700 1.100
+euler round trip YXZ 0.300 -0.700 1.100
+euler round trip ZXY 0.300 -0.700 1.100
+euler round trip ZYX 0.300 -0.700 1.100
+euler round trip YZX 0.300 -0.700 1.100
+euler round trip XZY 0.300 -0.700 1.100
+rotate x by 90 deg around y: 0.000 0.000 -1.000 slerp half angle 0.785
+colors ff8000 0080ff 00ffff 16744448
+BoxGeometry 32 vertices 20 triangles [-0.500 -1.000 -1.500] [0.500 1.000 1.500]
+SphereGeometry 63 vertices 80 triangles [-1.000 -1.000 -1.000] [1.000 1.000 1.000]
+PlaneGeometry 9 vertices 8 triangles [-1.000 -0.500 0.000] [1.000 0.500 0.000]
+TorusGeometry 91 vertices 144 triangles [-1.250 -1.250 -0.217] [1.250 1.250 0.217]
+CylinderGeometry 52 vertices 32 triangles [-1.000 -1.000 -1.000] [1.000 1.000 1.000]
+ConeGeometry 27 vertices 18 triangles [-0.866 -1.000 -1.000] [0.866 1.000 1.000]
+cube world position 3.000 0.000 0.000 box [2.500 -0.500 -0.500] [3.500 0.500 0.500] found true
+cube looks along 0.000 0.000 1.000 rotation.y -1.570
+children after remove 0 true
+pick -2.000 0.000 0.000 -> left at 9.688
+pick 2.000 0.300 0.000 -> right at 9.692
+pick 0.100 0.050 -3.000 -> back at 11.524
+pick 0.000 3.000 0.000 -> nothing
+orbit left 90 deg: camera at -10.000 0.000 0.000 distance 10.000
+dolly in: distance 5.000
+gltf generator zinc conformance scenes 1 meshes 3 triangles 6
+Group 'main' at 0.000 0.000 0.000
+  Group 'Root' at 1.000 0.000 0.000
+    Mesh 'Quad' at 0.000 0.000 0.000 4 vertices 2 triangles, MeshStandardMaterial 'red' #ff0000 double sided
+    Group 'Parts' at 0.000 2.000 0.000
+      Mesh 'parts_0' at 0.000 0.000 0.000 4 vertices 2 triangles, MeshBasicMaterial 'photo' #ffffff map 12x8
+      Mesh 'parts_1' at 0.000 0.000 0.000 4 vertices 2 triangles, MeshStandardMaterial '' #ffffff
+gltf box [1.000 -2.000 -2.000] [1.000 6.000 2.000]
+error: GLTFLoader: invalid glTF JSON
+error: GLTFLoader: not a glTF 2.0 document
+error: GLTFLoader: invalid glTF JSON
+loadAsync rejected: GLTFLoader: cannot read missing.glb
+rendered 3 frames, 3 draw calls

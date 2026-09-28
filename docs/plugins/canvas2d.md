@@ -115,10 +115,12 @@ canvases cost nothing: unchanged commands produce no damage.
 
 | target | status |
 | --- | --- |
-| macos | yes (screenshots checked) |
-| sim | yes: the geometry runs, fills are no-ops (`tests/conformance/canvas2d.ts` prints the same bytes as macOS) |
-| linux, rpi1, rmpp, wasm, esp32 | the plugin is portable C++ (`canvas2d.<target>.cpp` includes the host file); see the verification section for what was built |
-| ps1, ps2 | not listed |
+| macos | yes (screenshots of `examples/canvas/sketch` checked, HiDPI) |
+| sim | yes: the geometry runs, fills are no-ops; `tests/conformance/canvas2d.ts` prints the same bytes on sim, macOS, macOS with the f32 profile (ESP32 numbers) and rpi1 under QEMU |
+| wasm | `examples/canvas/sketch` builds and renders in headless Chrome (screenshot checked) |
+| rpi1 | builds and runs the conformance program under QEMU; not run on a Pi |
+| linux, rmpp, esp32 | listed (portable C++, `canvas2d.<target>.cpp` includes the host file), not built here |
+| ps1, ps2 | not listed; the fx12 number profile is not supported (colour and geometry values overflow Q20.12) |
 
 Memory: paths live in Zinc arrays while built; a fill copies its contours into the frame's point pool (floats), which
 the plugin raises to 256 K floats on hosts (`ZRT_POINT_POOL`) like `zinc:lottie`. A stroke costs about one quad per

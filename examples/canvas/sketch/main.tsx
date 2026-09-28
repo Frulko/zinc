@@ -62,6 +62,7 @@ function drawNumbers(ctx: CanvasRenderingContext2D, radius: number): void {
   }
 }
 function drawTime(ctx: CanvasRenderingContext2D, radius: number): void {
+  // zinc: Date.now() is the runtime's monotonic millisecond clock, not wall time (no time zones either)
   const s = Math.floor(Date.now() / 1000) % 86400;
   const hour = Math.floor(s / 3600) % 12, minute = Math.floor(s / 60) % 60, second = s % 60;
   const h = hour * Math.PI / 6 + minute * Math.PI / (6 * 60) + second * Math.PI / (360 * 60);

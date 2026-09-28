@@ -132,8 +132,10 @@ the 2D compositing of the frame (scaling the 3D image, UI, text) is measured sep
 | --- | --- |
 | macos | yes: screenshots checked (HiDPI), timings above |
 | sim | yes: glTF parsing (JavaScript twin of the native reader), scene graph, picking and controls run; images are not decoded (their size is read from the headers) and nothing is drawn. `tests/conformance/three.ts` prints the same bytes on sim and macOS |
-| linux, rpi1, wasm | listed (portable C++; `three.<target>.cpp` includes the host file); see the verification notes below |
-| esp32, ps1, ps2, rmpp | not listed (`zinc:3d` memory budget on ESP32, no FPU on PS1, `zinc:3d` not available on rmpp) |
+| rpi1 | builds (docker, ~5 min of C++ for the viewer); `tests/conformance/three.ts` runs under QEMU (ARMv6) and prints the same bytes as the sim (glTF parsing, stb_image PNG/JPEG decoding, picking). Not run on a real Pi: use `"3d": { "scale": 2 }` (as in the examples' `zinc.json`), see the zinc:3d estimates |
+| wasm | builds (emscripten); `gltf-viewer` renders the truck in headless Chrome (screenshot checked) |
+| linux | listed (same portable C++), not built here |
+| esp32, ps1, ps2, rmpp | not listed (`zinc:3d` memory budget on ESP32, no FPU on PS1, `zinc:3d` not available on rmpp). Number profiles: f64 and f32 (`--profile esp32` on macOS matches the sim); fx12 (`--profile ps1`) is not supported: Q20.12 overflows in matrix inverses and fails with a fixed-point division by zero |
 
 Memory: a mesh keeps its attributes in Zinc arrays (for picking and `computeBoundingBox`) and a copy in `zinc:3d`
 (24 B/vertex + 8 uv + 4 colour + 2 B/index), textures decoded at run time are runtime images (4 B/pixel, 64 runtime
@@ -148,7 +150,9 @@ images at most), the render target is `4 + 4 bytes × w × h × pixelRatio²` (c
 - `tests/conformance/three.ts`: matrix inverse/decompose, Euler round trips in the six orders, geometries (vertex and
   triangle counts, bounding boxes), world transforms and `lookAt`, raycasts through projected points, orbit and dolly,
   an inline `.gltf` (data: URIs, TRS and matrix nodes, a triangle strip, a JPEG texture, `KHR_materials_unlit`, a
-  default material), the Box Textured `.glb` (embedded PNG), error paths, three rendered frames.
+  default material), the Box Textured `.glb` (embedded PNG), error paths, three rendered frames. Same output on sim,
+  macOS, macOS with the f32 profile and rpi1 under QEMU.
+- wasm: `gltf-viewer` screenshot in headless Chrome (the page served locally, `--virtual-time-budget`).
 
 ## Follow-ups
 
