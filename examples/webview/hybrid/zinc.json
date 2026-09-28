@@ -1,0 +1,8 @@
+{
+  "name": "webview-hybrid",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 1024, "height": 640 },
+    "sim": { "width": 1024, "height": 640 }
+  }
+}

@@ -69,6 +69,9 @@ void hal_present(const HalFrame* f);
 void hal_surface_size(int* w, int* h);
 // Physical pixels per logical pixel for zinc:gfx frames (HiDPI). Optional: 1 when a HAL does not define it.
 int32_t hal_pixel_scale(void);
+// The window the program draws into, for plugins that attach native views (plugins/webview): the SDL_Window* on
+// macOS/Linux, null when there is none (headless, display plugins) or on HALs without windows (not defined there).
+void* hal_window_handle(void);
 // Implemented by the runtime: draws one frame now with the current surface size (HALs call it while the OS blocks
 // the event loop, e.g. during a live window resize on macOS). Ignored when called re-entrantly.
 void zrt_redraw(void);

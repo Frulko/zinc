@@ -73,10 +73,11 @@ export function modulePaths(projDir: string): Record<string, string[]> {
   return Object.fromEntries(discover(projDir).filter(p => p.module && p.entry).map(p => [p.module!, [p.entry!]]));
 }
 
-/** Display plugin chosen for a target: zinc.json `display` (string or { driver, ...options }), per-target override. */
+/** Display plugin chosen for a target: zinc.json `display` (string or { driver, ...options }), per-target override;
+ *  ZINC_DISPLAY (`zinc run --display remote`) overrides both for one build. */
 function displayOf(projDir: string, target: string): { driver: string; opts: Record<string, unknown> } | undefined {
   const j = projectJson(projDir);
-  const d = j.targets?.[target]?.display ?? j.display;
+  const d = process.env.ZINC_DISPLAY || (j.targets?.[target]?.display ?? j.display);
   if (!d) return undefined;
   if (typeof d === 'string') return { driver: d, opts: {} };
   const { driver, ...opts } = d;

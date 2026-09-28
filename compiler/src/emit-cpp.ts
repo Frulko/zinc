@@ -619,8 +619,8 @@ class CppEmitter {
   check(code: string, e: ts.Node): string {
     if (!(ts.isCallExpression(e) || ts.isNewExpression(e)) || !this.s.mayThrow(e)) return code;
     const t = this.s.tryZ(e as ts.Expression);
-    if (t.k === 'void') return `({ ${code}; if (zrt::g_err.p) ${this.propagate()}; })`;
-    return `({ auto __r = ${code}; if (zrt::g_err.p) ${this.propagate()}; __r; })`;
+    if (t.k === 'void') return `({ ${code}; if (zrt::g_err.p) { ${this.propagate()}; } })`;
+    return `({ auto __r = ${code}; if (zrt::g_err.p) { ${this.propagate()}; } __r; })`;
   }
 
   stmt(s: ts.Statement, d: number): string {

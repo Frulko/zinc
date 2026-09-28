@@ -53,6 +53,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
     else if (a.startsWith('--device=')) o.device = a.slice(9);
+    else if (a === '--display' || a.startsWith('--display=')) process.env.ZINC_DISPLAY = a.includes('=') ? a.slice(10) : argv[++i];  // plugins.ts displayOf
     else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
@@ -154,7 +155,7 @@ function guard<T>(o: Opts, f: () => T): T {
 
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
-  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '');
+  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '');
   return path.join(path.dirname(path.resolve(o.entry)), 'build', name);
 }
 
@@ -648,7 +649,8 @@ function help(topic?: string) {
   --no-dyn           every Dyn (any/unknown) site is an error
   --no-float         reject floating point (fixed-point targets)
   --dev / --devtools / --no-devtools   dev build, UI inspector on/off
-  --device user@host remote device for dev/deploy            -- <args>   program arguments`,
+  --device user@host remote device for dev/deploy            -- <args>   program arguments
+  --display <driver> display plugin for this build, e.g. remote (overrides zinc.json display; env ZINC_DISPLAY)`,
     env: `Environment
   ZINC_FRAMES=n          stop the frame loop after n frames (tests, screenshots)
   ZINC_SHOT=out.bmp      save the last frame (with ZINC_FRAMES)

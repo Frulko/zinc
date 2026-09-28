@@ -201,6 +201,7 @@ void hal_present(const HalFrame* f) {
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
 int32_t hal_pixel_scale(void) { return gfx_on ? K : 1; }
+void* hal_window_handle(void) { return win; }
 double hal_fixed_dt(void) {
   static double v = getenv("ZINC_FIXED_DT") ? atof(getenv("ZINC_FIXED_DT")) : 0;
   return v;

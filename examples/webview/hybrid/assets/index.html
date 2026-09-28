@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Web panel</h1>
+    <span id="stats">waiting for Zinc...</span>
+  </header>
+  <nav>
+    <button id="list">invoke('listFiles')</button>
+    <button id="bad">invoke('rm -rf')</button>
+    <span id="ping"></span>
+  </nav>
+  <main>
+    <ul id="files"></ul>
+    <section>
+      <h2 id="name">Pick a file (here or in the native sidebar)</h2>
+      <pre id="content"></pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
