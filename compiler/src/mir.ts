@@ -1,7 +1,7 @@
 // MIR (CMP-08): HIR functions lowered to SSA over a control-flow graph (Braun et al., "Simple and Efficient
 // Construction of SSA Form"), then two passes: constant folding (with branch pruning) and dead code elimination.
 // ponytail: an inspection stage (--emit=mir), not the input of the C++ emitter; the C++ compiler still does the
-// optimisation work (docs/decisions/0012). Functions with try/catch, async or generators are listed, not lowered.
+// optimisation work (docs/decisions/0013). Functions with try/catch, async or generators are listed, not lowered.
 // Missing passes of CMP-08: inlining, devirtualisation, ranges (number -> i32), bounds, escape, RC optimisation.
 import { type ZT, BOOL, VOID, isNum, isInt } from './sema.ts';
 import { type HModule, type HFunc, type HStmt, type HExpr, typeName, printExpr } from './hir.ts';

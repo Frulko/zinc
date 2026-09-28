@@ -320,7 +320,7 @@ function pluginSettings(o: Opts, sema: Sema): BuildSettings {
 function build(o: Opts): Built {
   const t0 = Date.now();
   const sema = analyze(o);
-  if (o.emit === 'hir' || o.emit === 'mir') {  // CMP-16 (docs/decisions/0012)
+  if (o.emit === 'hir' || o.emit === 'mir') {  // CMP-16 (docs/decisions/0013)
     const hir = guard(o, () => buildHir(sema));
     process.stdout.write(o.emit === 'hir' ? printHir(hir) : printMir(lowerMir(hir)));
     process.exit(0);

@@ -2,7 +2,7 @@
 // decisions the C++ emitter takes implicitly are explicit here: numeric/Dyn conversions at coercion points,
 // boxed captures (cells), calls that may throw (status check after the call, RT-05), virtual dispatch,
 // for-of/destructuring/`?.`/`??`/templates desugared, async and generator bodies as numbered suspend points.
-// It is built from the same Sema queries as emit-cpp.ts; the emitters do not consume it yet (docs/decisions/0012).
+// It is built from the same Sema queries as emit-cpp.ts; the emitters do not consume it yet (docs/decisions/0013).
 import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
 import { Sema, ZincError, type ZT, zeq, isNum, I32, BOOL, STR, VOID, DYN, F64 } from './sema.ts';
