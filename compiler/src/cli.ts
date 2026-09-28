@@ -485,6 +485,8 @@ function doctor() {
 }
 
 function main() {
+  // symlinked working dirs (/tmp -> /private/tmp on macOS) would give two spellings of every path
+  process.chdir(fs.realpathSync(process.cwd()));
   const argv = process.argv.slice(2);
   const cmd = argv[0];
   if (!cmd || cmd === 'help' || cmd === '--help') {

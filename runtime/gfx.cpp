@@ -109,7 +109,7 @@ static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
     for (uint32_t k = 0; k < cnt && start + k * 2 + 1 < n; k++) {
       float x = (float)(pts.get((int32_t)(start + k * 2)) + tx), y = (float)(pts.get((int32_t)(start + k * 2 + 1)) + ty);
       b.pts[b.npts++] = x; b.pts[b.npts++] = y;
-      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+      minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
     }
     contours++;
     if (!closed_list) break;
@@ -183,7 +183,7 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
   if (!c) return;
   uint32_t r = raster::stroke_contours(tmp, n, (float)width, closed, b.pts + b.npts, ZRT_POINT_POOL - b.npts);
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f, hw = (float)width * 0.5f + 1;
-  for (uint32_t i = 0; i < n; i++) { float x = tmp[i * 2], y = tmp[i * 2 + 1]; if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; }
+  for (uint32_t i = 0; i < n; i++) { float x = tmp[i * 2], y = tmp[i * 2 + 1]; minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy; }
   c->off = b.npts; c->n = r & 0xFFFF; b.npts += r >> 16;
   if (!c->n) { b.ncmd--; return; }
   c->x = minx - hw; c->y = miny - hw; c->w = maxx - minx + 2 * hw; c->h = maxy - miny + 2 * hw;

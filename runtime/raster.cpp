@@ -398,8 +398,8 @@ static Rect cmd_bounds(const Cmd& c, int32_t w, int32_t h) {
   return Rect{ifloor(c.x - e), ifloor(c.y - e), iceil(c.x + c.w + e), iceil(c.y + c.h + e)};
 }
 static void grow(Rect& r, Rect b) {
-  if (b.x0 < r.x0) r.x0 = b.x0; if (b.y0 < r.y0) r.y0 = b.y0;
-  if (b.x1 > r.x1) r.x1 = b.x1; if (b.y1 > r.y1) r.y1 = b.y1;
+  r.x0 = b.x0 < r.x0 ? b.x0 : r.x0; r.y0 = b.y0 < r.y0 ? b.y0 : r.y0;
+  r.x1 = b.x1 > r.x1 ? b.x1 : r.x1; r.y1 = b.y1 > r.y1 ? b.y1 : r.y1;
 }
 static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
   if (__builtin_memcmp(&x, &y, sizeof(Cmd) - 2 * sizeof(uint32_t)) || x.n != y.n) return false;

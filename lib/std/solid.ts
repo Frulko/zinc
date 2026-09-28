@@ -11,7 +11,28 @@ class Computation {
   sources: Source[] = [];
   cleanups: (() => void)[] = [];
   queued: boolean = false;
-  constructor(fn: () => void) { this.fn = fn; all.push(this); }
+  /** Computations created while this one ran: disposed when it re-runs or is disposed (Solid ownership). */
+  owned: Computation[] = [];
+  constructor(fn: () => void) { this.fn = fn; all.push(this); const o = owner; if (o !== null) o.owned.push(this); }
+}
+let owner: Computation | null = null;
+/** An owner for a subtree that outlives the effect creating it (Show branches, For items). */
+function newRoot(): Computation { const po = owner; owner = null; const r = new Computation(() => {}); owner = po; return r; }
+function rendered(root: Computation, fn: () => i32): i32 {
+  const po = owner, pc = current;
+  owner = root; current = null;
+  const n = fn();
+  owner = po; current = pc;
+  return n;
+}
+function dispose(c: Computation): void {
+  for (const k of c.owned) dispose(k);
+  c.owned = [];
+  for (const s of c.sources) s.unsubscribe(c);
+  c.sources = [];
+  for (const f of c.cleanups) f();
+  c.cleanups = [];
+  c.fn = () => {};
 }
 const all: Computation[] = [];
 /** Breaks the signal <-> computation cycles at exit (called by the runtime before the leak report). */
@@ -37,14 +58,16 @@ function track(s: Source): void {
   c.sources.push(s);
 }
 function run(c: Computation): void {
+  for (const k of c.owned) dispose(k);
+  c.owned = [];
   for (const s of c.sources) s.unsubscribe(c);
   c.sources = [];
   for (const f of c.cleanups) f();
   c.cleanups = [];
-  const prev = current;
-  current = c;
+  const prev = current, prevOwner = owner;
+  current = c; owner = c;
   c.fn();
-  current = prev;
+  current = prev; owner = prevOwner;
 }
 function notify(subs: Computation[]): void {
   const list = subs.slice();
@@ -124,27 +147,47 @@ export function _show(parent: i32, when: () => boolean, render: () => i32, fallb
   const frag = ui.createNode(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
   let shown: i32 = -1;
+  let root: Computation | null = null;
   createEffect(() => {
     const w = when();
     const next: i32 = w ? 1 : 0;
     if (next === shown) return;
     shown = next;
+    if (root !== null) dispose(root);
     ui.clearChildren(frag);
-    untrack(() => {
-      if (w) ui.insert(frag, render(), -1);
-      else if (fallback !== null) ui.insert(frag, fallback(), -1);
-      return 0;
-    });
+    const r = newRoot();
+    root = r;
+    if (w) ui.insert(frag, rendered(r, render), -1);
+    else if (fallback !== null) ui.insert(frag, rendered(r, fallback), -1);
   });
 }
 /** <For each={...}>{(item, i) => ...}</For> — ponytail: re-renders the list on change (unkeyed). */
+/** <For each={...}>: keyed by item identity like Solid's mapArray — kept items keep their nodes and effects, new
+ *  items render once, removed items are disposed, moves reorder nodes. ponytail: O(n·m) matching, fine for UI lists. */
 export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) => i32): void {
   const frag = ui.createNode(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
+  let keys: T[] = [];
+  let nodes: i32[] = [];
+  let roots: Computation[] = [];
   createEffect(() => {
     const items = each();
-    ui.clearChildren(frag);
-    untrack(() => { for (let i = 0; i < items.length; i++) ui.insert(frag, render(items[i], i), -1); return 0; });
+    const used: boolean[] = [];
+    for (let k = 0; k < keys.length; k++) used.push(false);
+    const nk: T[] = [], nn: i32[] = [], nr: Computation[] = [];
+    for (let i = 0; i < items.length; i++) {
+      let j = -1;
+      for (let k = 0; k < keys.length; k++) if (!used[k] && keys[k] === items[i]) { j = k; break; }
+      if (j >= 0) { used[j] = true; nk.push(keys[j]); nn.push(nodes[j]); nr.push(roots[j]); continue; }
+      // a new item renders under its own root, not owned by this effect (which re-runs on every change)
+      const root = newRoot();
+      const item = items[i];
+      nk.push(item); nn.push(rendered(root, () => render(item, i))); nr.push(root);
+    }
+    for (let k = 0; k < keys.length; k++) if (!used[k]) { dispose(roots[k]); ui.remove(frag, nodes[k]); }
+    ui.detachChildren(frag);
+    for (const n of nn) ui.insert(frag, n, -1);
+    keys = nk; nodes = nn; roots = nr;
   });
 }
 /** Mounts the app on the screen; `onTick` runs every frame (games put their update there). */

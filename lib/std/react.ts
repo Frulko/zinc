@@ -1,5 +1,7 @@
 // zinc:ui/react — React model (D-12, UI-04): function components and hooks. A component re-renders as a whole
-// when its state changes and replaces its host subtree (ponytail: no keyed diff yet). Hook order is checked at build.
+// when its state changes, and the result is reconciled with the previous render like React does: host nodes are
+// reused when the same tag comes at the same position (focus, animations and images survive), child components are
+// matched by name and `key` (their state survives). Hook order is checked at build.
 import * as ui from 'zinc:ui';
 
 class Hook { }
@@ -15,24 +17,64 @@ class Instance {
   render: () => i32;
   scheduled: boolean = false;
   effects: (() => void)[] = [];
-  constructor(host: i32, render: () => i32) { this.host = host; this.render = render; instances.push(this); }
+  name: string;
+  key: string;
+  // reconciliation state: host nodes and child instances of the last render, in creation order
+  nodes: i32[] = [];
+  tags: i32[] = [];
+  kids: Instance[] = [];
+  nextNodes: i32[] = [];
+  nextTags: i32[] = [];
+  nextKids: Instance[] = [];
+  cursor: i32 = 0;
+  kidCursor: i32 = 0;
+  constructor(host: i32, render: () => i32, name: string, key: string) { this.host = host; this.render = render; this.name = name; this.key = key; instances.push(this); }
 }
 const instances: Instance[] = [];
 export function __dispose(): void {
-  for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; }
+  for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; i.kids = []; i.nextKids = []; }
 }
 let cur: Instance | null = null;
 
 function rerender(inst: Instance): void {
   inst.index = 0;
   inst.effects = [];
+  inst.cursor = 0; inst.kidCursor = 0;
+  inst.nextNodes = []; inst.nextTags = []; inst.nextKids = [];
+  // children are rebuilt by this render; nodes that are not reused are destroyed below
+  for (const n of inst.nodes) ui.detachChildren(n);
   const prev = cur;
   cur = inst;
   const node = inst.render();
   cur = prev;
-  ui.clearChildren(inst.host);
+  for (let k = inst.cursor; k < inst.nodes.length; k++) ui.destroy(inst.nodes[k]);
+  for (const kid of inst.kids) if (inst.nextKids.indexOf(kid) < 0) unmount(kid);
+  inst.nodes = inst.nextNodes; inst.tags = inst.nextTags; inst.kids = inst.nextKids;
+  ui.detachChildren(inst.host);
   ui.insert(inst.host, node, -1);
   for (const e of inst.effects) e();  // useLayoutEffect/useEffect: after the tree is committed
+}
+function unmount(inst: Instance): void {
+  for (const h of inst.hooks) if (h instanceof EffectHook) { const c = h.cleanup; if (c !== null) c(); }
+  for (const kid of inst.kids) unmount(kid);
+  inst.hooks = []; inst.kids = []; inst.render = () => -1;
+}
+/** Next host node of the component being rendered: reused when the previous render had the same tag there. */
+function hostNode(tag: i32): i32 {
+  const inst = cur;
+  if (inst === null) return ui.createNode(tag);
+  const k = inst.cursor;
+  let n: i32 = -1;
+  if (k < inst.nodes.length && inst.tags[k] === tag) { n = inst.nodes[k]; inst.cursor = k + 1; }
+  else {
+    // mismatch: the rest of the previous render cannot be matched by position
+    for (let j = k; j < inst.nodes.length; j++) ui.destroy(inst.nodes[j]);
+    inst.nodes = inst.nodes.slice(0, k); inst.tags = inst.tags.slice(0, k);
+    inst.cursor = k;
+    n = ui.createNode(tag);
+  }
+  inst.nextNodes.push(n); inst.nextTags.push(tag);
+  return n;
 }
 function schedule(inst: Instance): void {
   if (inst.scheduled) return;
@@ -89,8 +131,8 @@ export function useRef<T>(v: T): MutableRef<T> {
 }
 
 // ---- JSX lowering helpers ----
-export function _el(tag: i32): i32 { return ui.createNode(tag); }
-export function _text(parent: i32, s: string): void { ui.insert(parent, ui.createText(s), -1); }
+export function _el(tag: i32): i32 { return hostNode(tag); }
+export function _text(parent: i32, s: string): void { const t = hostNode(ui.TEXT); ui.setText(t, s); ui.insert(parent, t, -1); }
 export function _textOf(n: i32, s: string): void { ui.setText(n, s); }
 export function _append(parent: i32, child: i32): void { ui.insert(parent, child, -1); }
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
@@ -100,12 +142,24 @@ export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
-/** A component instance: renders into `host` (a fragment) and re-renders on state changes. */
-export function _rc(host: i32, render: () => i32): void { rerender(new Instance(host, render)); }
+/** A component instance: renders into `host` (a fragment) and re-renders on state changes. Inside a parent render,
+ *  the previous instance with the same component name and key keeps its state. */
+export function _rc(host: i32, render: () => i32, name: string, key: string): void {
+  const parent = cur;
+  let inst: Instance | null = null;
+  if (parent !== null) {
+    for (const k of parent.kids) if (k.name === name && k.key === key && parent.nextKids.indexOf(k) < 0 && (key !== '' || parent.kids.indexOf(k) >= parent.kidCursor)) { inst = k; break; }
+    parent.kidCursor++;
+  }
+  if (inst === null) inst = new Instance(host, render, name, key);
+  else { inst.host = host; inst.render = render; }
+  if (parent !== null) parent.nextKids.push(inst);
+  rerender(inst);
+}
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {
   const root = ui.createNode(ui.VIEW);
   const host = ui.createNode(ui.FRAGMENT);
   ui.insert(root, host, -1);
-  _rc(host, app);
+  _rc(host, app, 'App', '');
   ui.mount(root, background, onTick);
 }

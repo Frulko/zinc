@@ -198,11 +198,13 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       if (!c || !ts.isJsxExpression(c) || !c.expression) throw new JsxError('<For> expects a function child: {(item, i) => <...>}', n.getStart(sf));
       out.push(`_for(${v}, () => (${valueOf(attrs.get('each')!)}), ${rewrite(c.expression)});`);
     } else {
+      const key = attrs.get('key');
+      attrs.delete('key');
       const props = [...attrs].map(([k, x]) => `${k}: ${valueOf(x)}`);
       const c = onlyChild(n);
       if (c) props.push(`children: () => ${childNode(c)}`);
       const call = `${tag}(${props.length ? `{ ${props.join(', ')} }` : ''})`;
-      out.push(react ? `_rc(${v}, () => ${call});` : `_append(${v}, ${call});`);
+      out.push(react ? `_rc(${v}, () => ${call}, ${JSON.stringify(tag)}, ${key ? `'' + (${valueOf(key)})` : "''"});` : `_append(${v}, ${call});`);
     }
     return v;
   };

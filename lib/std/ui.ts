@@ -129,6 +129,8 @@ export function detach(parent: i32, child: i32): void {
   const i = p.children.indexOf(child);
   if (i >= 0) { p.children.splice(i, 1); layoutDirty = true; }
 }
+/** Empties a node's child list without destroying the children (the React reconciler re-appends them). */
+export function detachChildren(h: i32): void { const n = node(h); if (n.children.length > 0) { n.children = []; layoutDirty = true; } }
 export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);

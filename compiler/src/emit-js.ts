@@ -12,7 +12,7 @@ export interface JsResult { files: { path: string }[] }
 export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [number, number] = [320, 240], resources?: string): JsResult {
   const K = ts.SyntaxKind;
   const roots = sema.fe.sources.map(s => path.dirname(s.fileName));
-  const root = roots.reduce((a, b) => { while (!(b + '/').startsWith(a + '/')) a = path.dirname(a); return a; });
+  const root = roots.reduce((a, b) => { while (a !== path.dirname(a) && !(b + '/').startsWith(a + '/')) a = path.dirname(a); return a; });  // stops at '/'
   // x.tsx next to x.ts (PocketJS Hero.tsx + Hero.ts) -> x.tsx.js, so both outputs coexist
   const outOf = (src: string) => path.join(outDir, path.relative(root, src).replace(/\.[cm]?tsx?$/, m => m === '.tsx' && fs.existsSync(src.slice(0, -4) + '.ts') ? '.tsx.js' : '.js'));
   const files: { path: string }[] = [];
