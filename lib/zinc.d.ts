@@ -41,9 +41,19 @@ interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly
 // ---- Number ----
 interface Number { toFixed(digits?: i32): string; toString(): string; }
 interface NumberConstructor {
-  isNaN(n: number): boolean; isFinite(n: number): boolean; isInteger(n: number): boolean;
-  readonly MAX_SAFE_INTEGER: number; readonly EPSILON: number;
+  /** ToNumber of a number, boolean, string or Dyn (f64 profiles). */
+  (value?: unknown): number;
+  isNaN(n: number): boolean; isFinite(n: number): boolean; isInteger(n: number): boolean; isSafeInteger(n: number): boolean;
+  parseFloat(s: string): number; parseInt(s: string, radix?: i32): number;
+  readonly MAX_SAFE_INTEGER: number; readonly MIN_SAFE_INTEGER: number; readonly EPSILON: number;
+  readonly MAX_VALUE: number; readonly MIN_VALUE: number; readonly NaN: number;
+  readonly POSITIVE_INFINITY: number; readonly NEGATIVE_INFINITY: number;
 }
+interface BooleanConstructor {
+  /** ToBoolean (truthiness). */
+  (value?: unknown): boolean;
+}
+declare var Boolean: BooleanConstructor;
 declare var Number: NumberConstructor;
 declare function parseInt(s: string, radix?: i32): number;
 declare function parseFloat(s: string): number;
@@ -55,16 +65,21 @@ declare const Infinity: number;
 interface String {
   readonly length: i32;
   charCodeAt(i: i32): i32;
+  charAt(i: i32): string;
   at(i: i32): string;
   slice(start: i32, end?: i32): string;
   substring(start: i32, end?: i32): string;
   indexOf(s: string, from?: i32): i32;
   lastIndexOf(s: string, from?: i32): i32;
-  includes(s: string): boolean;
-  startsWith(s: string): boolean;
-  endsWith(s: string): boolean;
+  includes(s: string, position?: i32): boolean;
+  startsWith(s: string, position?: i32): boolean;
+  endsWith(s: string, endPosition?: i32): boolean;
+  concat(s: string): string;
   split(sep: string): string[];
+  /** Removes JS white space and line terminators (ASCII, U+00A0, U+FEFF, the Unicode Zs spaces, U+2028 / U+2029). */
   trim(): string;
+  trimStart(): string;
+  trimEnd(): string;
   padStart(n: i32, fill?: string): string;
   padEnd(n: i32, fill?: string): string;
   repeat(n: i32): string;
@@ -74,7 +89,11 @@ interface String {
   replaceAll(a: string, b: string): string;
   [Symbol.iterator](): StringIterator<string>;
 }
-interface StringConstructor { fromCharCode(c: i32): string; }
+interface StringConstructor {
+  /** ToString, like a template literal. */
+  (value?: unknown): string;
+  fromCharCode(c: i32): string;
+}
 declare var String: StringConstructor;
 
 // ---- Array (contiguous, no holes) ----
@@ -87,21 +106,26 @@ interface Array<T> {
   unshift(v: T): i32;
   slice(start?: i32, end?: i32): T[];
   splice(start: i32, count: i32): T[];
-  indexOf(v: T): i32;
-  includes(v: T): boolean;
+  indexOf(v: T, fromIndex?: i32): i32;
+  lastIndexOf(v: T, fromIndex?: i32): i32;
+  /** SameValueZero: NaN is found. */
+  includes(v: T, fromIndex?: i32): boolean;
   find(f: (v: T, i: i32) => boolean): T | undefined;
   findIndex(f: (v: T, i: i32) => boolean): i32;
+  findLast(f: (v: T, i: i32) => boolean): T | undefined;
+  findLastIndex(f: (v: T, i: i32) => boolean): i32;
   some(f: (v: T, i: i32) => boolean): boolean;
   every(f: (v: T, i: i32) => boolean): boolean;
   map<U>(f: (v: T, i: i32) => U): U[];
   filter(f: (v: T, i: i32) => boolean): T[];
   reduce<U>(f: (acc: U, v: T, i: i32) => U, init: U): U;
+  reduceRight<U>(f: (acc: U, v: T, i: i32) => U, init: U): U;
   forEach(f: (v: T, i: i32) => void): void;
   sort(cmp: (a: T, b: T) => number): T[];
   reverse(): T[];
   join(sep?: string): string;
   concat(other: T[]): T[];
-  fill(v: T): T[];
+  fill(v: T, start?: i32, end?: i32): T[];
   at(i: i32): T;
   [Symbol.iterator](): ArrayIterator<T>;
 }
@@ -140,7 +164,7 @@ declare var Set: SetConstructor;
 // ---- Math ----
 interface Math {
   readonly PI: number; readonly E: number;
-  abs(x: number): number; min(a: number, b: number): number; max(a: number, b: number): number;
+  abs(x: number): number; min(...values: number[]): number; max(...values: number[]): number;
   floor(x: number): number; ceil(x: number): number; round(x: number): number; trunc(x: number): number;
   sign(x: number): number; sqrt(x: number): number; pow(x: number, y: number): number;
   sin(x: number): number; cos(x: number): number; tan(x: number): number; atan2(y: number, x: number): number;

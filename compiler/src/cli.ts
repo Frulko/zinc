@@ -406,6 +406,9 @@ function build(o: Opts): Built {
   const prof = PROFILES[o.profile];
   if (o.target === 'sim' || o.emit === 'js') {
     const simFlags = pluginSettings(o, sema).nodeFlags;
+    // the sim is the oracle, so it refuses what the native backend refuses (Z9042, Z1013... are found while emitting
+    // C++); checked as the host target, since native modules have JavaScript implementations on the sim
+    guard(o, () => emitCpp(sema, { debug: false, title: '', width: prof.width, height: prof.height, outDir: dir, target: process.platform === 'linux' ? 'linux' : 'macos' }));
     const baked = usesGfx(sema) ? bakeResources(o, sema, dir) : undefined;
     const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height], baked?.json));
     if (o.emit === 'js') { console.log(runner.files.map(f => f.path).join('\n')); process.exit(0); }

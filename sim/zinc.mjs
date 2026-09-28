@@ -134,8 +134,8 @@ const fxm = {
   round: (F, a) => fxm.floor(F, fxw(raw(a, F) + 2 ** (F - 1), F)),
   trunc: (F, a) => a >= 0 ? fxm.floor(F, a) : fxm.ceil(F, a),
   sign: (F, a) => Math.sign(a),
-  min: (F, a, b) => a < b ? a : b,
-  max: (F, a, b) => a > b ? a : b,
+  min: (F, ...xs) => xs.reduce((a, b) => a < b ? a : b),  // Math.min(a, b, c...): a left fold, like native
+  max: (F, ...xs) => xs.reduce((a, b) => a > b ? a : b),
   sqrt: (F, a) => { const r = raw(a, F); if (r <= 0) return 0; let n = BigInt(r) << BigInt(F), x = 0n, bit = 1n << 62n; while (bit > n) bit >>= 2n; while (bit) { if (n >= x + bit) { n -= x + bit; x = (x >> 1n) + bit; } else x >>= 1n; bit >>= 2n; } return fxw(Number(x), F); },
   sin: (F, a) => { const i = Number((BigInt(raw(a, F)) * IDX_K) >> BigInt(F + 16)) & 4095; const s = SIN[i]; return fxw(F >= 16 ? s << (F - 16) : s >> (16 - F), F); },
   cos: (F, a) => { const i = (Number((BigInt(raw(a, F)) * IDX_K) >> BigInt(F + 16)) + 1024) & 4095; const s = SIN[i]; return fxw(F >= 16 ? s << (F - 16) : s >> (16 - F), F); },
@@ -238,7 +238,7 @@ export const $z = globalThis.$z = {
     };
     return args => f(...kinds.map((k, i) => cv(args[i], k)));
   },
-  jsonParse(s) { try { return JSON.parse(s); } catch { throw new Error('JSON.parse: invalid JSON'); } },
+  jsonParse(s) { try { return JSON.parse(s); } catch { throw new SyntaxError('JSON.parse: invalid JSON'); } },
   diter(v) { return Array.isArray(v) ? v : $z.panic(`Uncaught TypeError: cannot convert Dyn (${v === null ? 'null' : typeof v}) to array`); },
   dseti(o, k, v) {
     if (Array.isArray(o) && typeof k === 'number' && (!Number.isInteger(k) || k < 0 || k > o.length)) $z.panic('Uncaught RangeError: arrays with holes are not supported');

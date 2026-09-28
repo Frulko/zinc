@@ -541,7 +541,12 @@ inline Dyn json_parse(const String& s) {
   JsonParser j{s.ptr(), s.ptr() + s.bytes()};
   Dyn r = j.value(0);
   j.ws();
-  if (!j.ok || j.p != j.e) { g_err = make<Error>(String::from("JSON.parse: invalid JSON", 24)); return Dyn(); }
+  if (!j.ok || j.p != j.e) {  // a SyntaxError, like JS
+    Ref<Error> err = make<Error>(String::from("JSON.parse: invalid JSON", 24));
+    err->name = String::from("SyntaxError", 11);
+    g_err = err;
+    return Dyn();
+  }
   return r;
 }
 

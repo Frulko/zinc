@@ -341,6 +341,15 @@ int32_t String::lastIndexOf(const String& n, int32_t from) const {
 }
 bool String::startsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr(), n.ptr(), n.bytes()) == 0; }
 bool String::endsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr() + bytes() - n.bytes(), n.ptr(), n.bytes()) == 0; }
+bool String::startsWith(const String& n, int32_t pos) const {
+  uint32_t b = u16_to_byte(*this, pos < 0 ? 0 : pos > length() ? length() : pos);
+  return n.bytes() <= bytes() - b && __builtin_memcmp(ptr() + b, n.ptr(), n.bytes()) == 0;
+}
+bool String::endsWith(const String& n, int32_t end) const {
+  uint32_t b = u16_to_byte(*this, end < 0 ? 0 : end > length() ? length() : end);
+  return n.bytes() <= b && __builtin_memcmp(ptr() + b - n.bytes(), n.ptr(), n.bytes()) == 0;
+}
+String String::concat(const String& o) const { return cat(*this, o); }
 Array<String> String::split(const String& sep) const {
   Array<String> r = Array<String>::with_cap(0);
   if (sep.bytes() == 0) { for (int32_t i = 0; i < length(); i++) r.push_raw(at(i)); return r; }
@@ -353,12 +362,28 @@ Array<String> String::split(const String& sep) const {
   }
 }
 static bool is_ws(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'; }
-String String::trim() const {
-  uint32_t a = 0, b = bytes(); const char* p = ptr();
-  while (a < b && is_ws(p[a])) a++;
-  while (b > a && is_ws(p[b - 1])) b--;
-  return sub_bytes(*this, a, b);
+// Bytes of the JS WhiteSpace / LineTerminator code point that starts p (0 if none): ASCII, U+00A0, U+1680,
+// U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF, like String.prototype.trim.
+static uint32_t ws_at(const uint8_t* p, uint32_t n) {
+  if (!n) return 0;
+  if (p[0] < 0x80) return is_ws((char)p[0]) ? 1 : 0;
+  if (n >= 2 && p[0] == 0xC2 && p[1] == 0xA0) return 2;
+  if (n < 3 || (p[0] & 0xF0) != 0xE0 || (p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80) return 0;
+  uint32_t c = (p[0] & 0x0Fu) << 12 | (p[1] & 0x3Fu) << 6 | (p[2] & 0x3Fu);
+  return c == 0x1680 || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF ? 3 : 0;
 }
+static String trim_ws(const String& s, bool start, bool end) {
+  const uint8_t* p = (const uint8_t*)s.ptr(); uint32_t a = 0, b = s.bytes(), w;
+  while (start && a < b && (w = ws_at(p + a, b - a))) a += w;
+  for (bool more = end; more && b > a;) {
+    more = false;
+    for (uint32_t k = 1; k <= 3 && k <= b - a; k++) if (ws_at(p + b - k, k) == k) { b -= k; more = true; break; }
+  }
+  return sub_bytes(s, a, b);
+}
+String String::trim() const { return trim_ws(*this, true, true); }
+String String::trimStart() const { return trim_ws(*this, true, false); }
+String String::trimEnd() const { return trim_ws(*this, false, true); }
 static StrObj lit_space = {IMMORTAL, 1, 1, 1, " ", nullptr};
 StrObj lit_comma = {IMMORTAL, 1, 1, 1, ",", nullptr};
 static String pad(const String& s, int32_t n, const String& f, bool start) {
@@ -454,20 +479,42 @@ static String map_case(const String& s, bool up) {
 }
 String String::toUpperCase() const { return map_case(*this, true); }
 String String::toLowerCase() const { return map_case(*this, false); }
+// GetSubstitution for a string pattern: $$, $& (the match), $` (before it), $' (after it); anything else is literal
+static void substitute(StrBuilder& sb, const String& s, uint32_t k, uint32_t len, const String& rep) {
+  const char* r = rep.ptr(); uint32_t n = rep.bytes();
+  for (uint32_t i = 0; i < n; i++) {
+    char c = i + 1 < n && r[i] == '$' ? r[i + 1] : 0;
+    if (c == '$') sb.ch('$');
+    else if (c == '&') sb.raw(s.ptr() + k, len);
+    else if (c == '`') sb.raw(s.ptr(), k);
+    else if (c == '\'') sb.raw(s.ptr() + k + len, s.bytes() - k - len);
+    else { sb.ch(r[i]); continue; }
+    i++;
+  }
+}
 String String::replace(const String& a, const String& b) const {
   int32_t k = find_bytes(*this, a, 0);
   if (k < 0) return *this;
   StrBuilder sb;
-  sb.raw(ptr(), (uint32_t)k); to_s(sb, b); sb.raw(ptr() + k + a.bytes(), bytes() - (uint32_t)k - a.bytes());
+  sb.raw(ptr(), (uint32_t)k); substitute(sb, *this, (uint32_t)k, a.bytes(), b); sb.raw(ptr() + k + a.bytes(), bytes() - (uint32_t)k - a.bytes());
   return sb.build();
 }
 String String::replaceAll(const String& a, const String& b) const {
-  if (!a.bytes()) return *this;
   StrBuilder sb; uint32_t p = 0;
+  if (!a.bytes()) {  // an empty pattern matches before every character and at the end
+    // ponytail: at code point boundaries; JS also matches between the two UTF-16 halves of an astral character
+    const uint8_t* d = (const uint8_t*)ptr();
+    while (p < bytes()) {
+      uint32_t w = d[p] < 0x80 ? 1 : d[p] < 0xE0 ? 2 : d[p] < 0xF0 ? 3 : 4;
+      substitute(sb, *this, p, 0, b); sb.raw(ptr() + p, w); p += w;
+    }
+    substitute(sb, *this, p, 0, b);
+    return sb.build();
+  }
   for (;;) {
     int32_t k = find_bytes(*this, a, p);
     if (k < 0) break;
-    sb.raw(ptr() + p, (uint32_t)k - p); to_s(sb, b); p = (uint32_t)k + a.bytes();
+    sb.raw(ptr() + p, (uint32_t)k - p); substitute(sb, *this, (uint32_t)k, a.bytes(), b); p = (uint32_t)k + a.bytes();
   }
   sb.raw(ptr() + p, bytes() - p);
   return sb.build();
@@ -552,15 +599,17 @@ void json_str(StrBuilder& sb, const String& v) {
 void log_flush(StrBuilder& sb) { sb.ch('\n'); hal_log(sb.buf, sb.len); }
 
 double parse_float(const String& s) {
-  String t = s.trim();
-  if (!t.bytes()) return NaN;
-  int used = 0;
-  double v = zrt_host_strtod(t.ptr(), &used);
-  return used ? v : NaN;
+  String t = s.trim(); const char* p = t.ptr(); uint32_t n = t.bytes();
+  uint32_t sign = n && (p[0] == '+' || p[0] == '-') ? 1 : 0;
+  if (n - sign >= 8 && __builtin_memcmp(p + sign, "Infinity", 8) == 0) return p[0] == '-' ? -Inf : Inf;
+  // the longest StrDecimalLiteral prefix: strtod alone also reads hex ("0x10" is 0 in JS), "inf" and "nan"
+  uint32_t len = dyn_dec_len(p, n);
+  return len ? dyn_strtod(p, len) : NaN;
 }
 double parse_int(const String& s, int32_t radix) {
   String t = s.trim(); const char* p = t.ptr(); uint32_t n = t.bytes(), i = 0;
   bool neg = false;
+  if (radix != 0 && (radix < 2 || radix > 36)) return NaN;
   if (i < n && (p[i] == '-' || p[i] == '+')) neg = p[i++] == '-';
   if ((radix == 0 || radix == 16) && i + 1 < n && p[i] == '0' && (p[i + 1] == 'x' || p[i + 1] == 'X')) { i += 2; radix = 16; }
   if (radix == 0) radix = 10;
@@ -573,6 +622,9 @@ double parse_int(const String& s, int32_t radix) {
   return any ? (neg ? -v : v) : NaN;
 }
 String to_fixed(double v, int32_t digits) {
+  if (digits < 0 || digits > 100) panic("RangeError: toFixed() digits argument must be between 0 and 100");
+  if (!(v > -1e21 && v < 1e21)) return cat(v);  // NaN, infinities and |v| >= 1e21 print like ToString (JS)
+  if (v == 0) v = 0;  // (-0).toFixed(1) is "0.0" (but (-1e-7).toFixed(1) is "-0.0")
   char b[400];
   int n = zrt_host_fixed(v, digits, b, (int)sizeof b);
   return String::from(b, (uint32_t)n);
