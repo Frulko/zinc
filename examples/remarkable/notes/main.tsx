@@ -63,7 +63,7 @@ function App(): i32 {
       <Tool label="Pen" on={() => tool() === 'pen'} press={() => pickTool('pen')} />
       <Tool label="Eraser" on={() => tool() === 'eraser'} press={() => pickTool('eraser')} />
       <For each={COLORS}>{(c: i32, i: i32) =>
-        <button class={color() === c ? 'w-[72px] h-[72px] rounded-full border-[6px] border-black' : 'w-[72px] h-[72px] rounded-full border-2 border-gray-300'}
+        <button class={color() === c ? 'w-[72px] h-[72px] rounded-full border-8 border-black' : 'w-[72px] h-[72px] rounded-full border-2 border-gray-300'}
           bg={c} onClick={() => { setColor(c); ink.color = c; pickTool('pen'); }}></button>}
       </For>
       <For each={WIDTHS}>{(w: number, i: i32) =>

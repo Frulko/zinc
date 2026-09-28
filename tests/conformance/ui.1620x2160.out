@@ -1,0 +1,41 @@
+view 0,0 1620x2160
+  view 0,0 1620x222
+    text 16,16 1588x28 "Counter"
+    view 16,52 1588x30
+      button 16,52 24x30
+        text 24,56 8x22 "-"
+      text 48,56 139x22 "count 0 doubled 0"
+      button 195,52 27x30
+        text 203,56 11x22 "+"
+    fragment 0,0 0x0
+      fragment 0,0 0x0
+        text 16,90 1588x22 "small"
+    fragment 0,0 0x0
+      view 16,120 1588x86
+        text 24,128 1572x22 "list"
+        view 24,154 1572x44
+          fragment 0,0 0x0
+            fragment 0,0 0x0
+              text 24,154 1572x22 "0: a"
+              text 24,176 1572x22 "1: b"
+view 0,0 1620x2160
+  view 0,0 1620x244
+    text 16,16 1588x28 "Counter"
+    view 16,52 1588x30
+      button 16,52 24x30
+        text 24,56 8x22 "-"
+      text 48,56 138x22 "count 3 doubled 6"
+      button 194,52 27x30
+        text 202,56 11x22 "+"
+    fragment 0,0 0x0
+      fragment 0,0 0x0
+        text 16,90 1588x22 "big!"
+    fragment 0,0 0x0
+      view 16,120 1588x108
+        text 24,128 1572x22 "list"
+        view 24,154 1572x66
+          fragment 0,0 0x0
+            fragment 0,0 0x0
+              text 24,154 1572x22 "0: x"
+              text 24,176 1572x22 "1: y"
+              text 24,198 1572x22 "2: z"

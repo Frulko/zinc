@@ -55,6 +55,32 @@ gpio.watch(27, 'falling', 20, (e: gpio.PinEdge) => {
 console.log('waiting for the button on pin 27 (ZINC_GPIO_SCRIPT="27:0@500" simulates a press)');
 `,
   },
+  // reMarkable Paper Pro: JSX + handwriting; `zinc run` shows it in the e-ink emulator, `zinc deploy --target rmpp`
+  remarkable: {
+    'src/main.tsx': `import { createSignal, render } from 'zinc:ui/solid';
+import { Ink, InkCanvas } from 'zinc:ink';
+
+const ink = new Ink();
+const [strokes, setStrokes] = createSignal<i32>(0);
+
+function App(): i32 {
+  return <view class="flex-col h-full bg-white">
+    <view class="flex-row items-center gap-6 p-6">
+      <text class="text-[48px] font-bold text-black">My app</text>
+      <button class="px-6 py-4 rounded-lg border-2 border-black bg-white focus:bg-white" onClick={() => { ink.undo(); setStrokes(ink.strokes.length); }}>
+        <text class="text-[34px] text-black">Undo</text>
+      </button>
+      <text class="text-[34px] text-gray-600">{strokes()} stroke(s)</text>
+    </view>
+    <view class="h-[3px] bg-black"></view>
+    <InkCanvas ink={ink} class="grow" />
+  </view>;
+}
+
+render(App, 0xffffff, (dt: number) => { if (ink.strokes.length !== strokes()) setStrokes(ink.strokes.length); });
+`,
+    'zinc.json': JSON.stringify({ entry: 'src/main.tsx', assets: 'assets', display: 'rmpp', targets: { macos: { width: 1620, height: 2160 }, linux: { width: 1620, height: 2160 } } }, null, 2) + '\n',
+  },
 };
 
 export function initProject(dir: string, template: string) {
@@ -63,8 +89,8 @@ export function initProject(dir: string, template: string) {
   if (fs.existsSync(dir) && fs.readdirSync(dir).length) throw new Error(`${dir} is not empty`);
   const name = path.basename(path.resolve(dir));
   const all: Record<string, string> = {
-    ...files,
     'zinc.json': JSON.stringify({ name, entry: 'src/main.ts', assets: 'assets', targets: {} }, null, 2) + '\n',
+    ...files,
     'assets/.gitkeep': '',
     '.gitignore': 'build/\ndist/\n',
     'README.md': `# ${name}\n\nA Zinc app (${template} template).\n\n\`\`\`sh\nzinc run            # native build + run\nzinc run --target sim\nzinc dev            # rebuild and restart on save\nzinc export --target macos\n\`\`\`\n`,
@@ -77,7 +103,7 @@ export function initProject(dir: string, template: string) {
 }
 
 /** DEV-11: dist/<name>-<target>/ with the executable (assets embedded), scripts and a service unit. */
-export function exportApp(name: string, target: string, exe: string, projectDir: string) {
+export function exportApp(name: string, target: string, exe: string, projectDir: string): string {
   const out = path.join(projectDir, 'dist', `${name}-${target}`);
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
@@ -96,6 +122,7 @@ export function exportApp(name: string, target: string, exe: string, projectDir:
   for (const [f, c] of Object.entries(files)) { fs.writeFileSync(path.join(out, f), c); if (f.endsWith('.sh')) fs.chmodSync(path.join(out, f), 0o755); }
   const size = fs.statSync(bin).size;
   console.log(`exported ${path.relative(process.cwd(), out)} (${(size / 1024).toFixed(1)} KiB executable)`);
+  return out;
 }
 
 /** UI-20: rebuild and restart on every save. */
