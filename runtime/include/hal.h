@@ -134,6 +134,8 @@ struct HalDisplay {
   void (*poll)(HalInput* in);   // may be null (no input device)
   void (*shutdown)(void);       // may be null
   int owns_input;               // 1: the driver reads the OS events itself (display-gl); else the target HAL does
+  int host_window;              // 1: the driver shows its frames through the target HAL's window (hal_present), e.g.
+                                //    the reMarkable emulator; 0: it has its own output (a panel, an emulator window)
 };
 extern HalDisplay* hal_display;
 }

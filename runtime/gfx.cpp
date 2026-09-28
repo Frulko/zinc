@@ -326,7 +326,7 @@ static void after_present() {
     const char* p = hal_env("ZINC_SHOT");
     list = hal_env("ZINC_SHOT_FRAMES");
     for (const char* e = hal_env("ZINC_SHOT_EVERY"); e && *e >= '0' && *e <= '9'; e++) every = every * 10 + (*e - '0');
-    state = p && *p && !display_driver ? 2 : 1;
+    state = p && *p && (!display_driver || hal_display->host_window) ? 2 : 1;   // a host-window driver shows our frames
     if (state == 2) { shot_path = p; if (!list && !every) at_finish(save_last); }
   }
   const int32_t n = frame_no + 1;  // frames are numbered from 1, like ZINC_FRAMES counts them

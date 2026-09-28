@@ -45,5 +45,5 @@ static void emu_present(const HalFrame* f) {
   show(u.mode == eink::NONE ? eink::Rect{0, 0, 0, 0} : u.r);
 }
 
-static HalDisplay emu = {emu_init, emu_present, nullptr, nullptr};
+static HalDisplay emu = {emu_init, emu_present, nullptr, nullptr, 0, 1};   // shown through the SDL HAL's window
 static int reg = (hal_display = &emu, 0);

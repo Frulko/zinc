@@ -58,7 +58,8 @@ static bool det = false;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
-  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin brings its own window
+  // a display plugin brings its own output, unless it draws through this window (host_window: the e-ink emulator)
+  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && (!hal_display || hal_display->host_window);
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   const char* d = getenv("ZINC_DETERMINISTIC");
   det = (d && *d && *d != '0') || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
