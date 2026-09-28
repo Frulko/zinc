@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapper companion</title>
+<style>
+  :root { --bg: #111418; --panel: #1a1f26; --line: #2a313b; --text: #d8dee6; --dim: #8a94a2; --accent: #ffb020; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 14px; margin: 0 12px 0 0; }
+  main { display: grid; grid-template-columns: 200px 1fr 280px; gap: 12px; padding: 12px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 10px 0 6px; }
+  h2:first-child { margin-top: 0; }
+  button, select, input { background: #242b35; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  button:hover { border-color: var(--dim); }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  #layers div { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  #layers div.sel { background: #2b3440; outline: 1px solid var(--accent); }
+  #layers span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  canvas { display: block; width: 100%; background: #000; border-radius: 4px; touch-action: none; }
+  #surface { max-width: 420px; aspect-ratio: 1; margin-top: 10px; background: #0b0d10; }
+  .row { display: grid; grid-template-columns: 78px 1fr 44px; gap: 6px; align-items: center; margin: 3px 0; }
+  .row input[type=range] { width: 100%; }
+  .row output { color: var(--dim); font-variant-numeric: tabular-nums; text-align: right; }
+  .tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  #status { color: var(--dim); margin-left: auto; }
+  .hint { color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mapper</h1>
+  <button id="sync">Sync</button>
+  <input id="file" value="mapping.json" size="16" aria-label="setup file on the app">
+  <button id="save">Save</button><button id="load">Load</button>
+  <span id="status">not connected</span>
+</header>
+<main>
+  <section>
+    <h2>Layers</h2>
+    <div id="layers"></div>
+    <div class="tools">
+      <select id="newsrc" aria-label="source of the new layer"><option>pattern</option><option>solid</option><option>gradient</option><option>image</option></select>
+      <button id="add">Add</button>
+    </div>
+    <div class="tools"><button id="up">Up</button><button id="down">Down</button><button id="rename">Rename</button><button id="del">Delete</button></div>
+    <p class="hint">Later layers draw on top. The selected layer shows its calibration grid on the output.</p>
+  </section>
+  <section>
+    <div class="tools"><button id="m-corners" class="on">Corner pin</button><button id="m-mesh">Mesh warp</button>
+      <label>mesh <input id="cols" type="number" min="2" max="16" value="2" style="width:48px"> x <input id="rows" type="number" min="2" max="16" value="2" style="width:48px"></label>
+      <button id="mesh-apply">Resize</button><button id="mesh-reset">Reset mesh</button><button id="corners-reset">Reset corners</button></div>
+    <canvas id="out"></canvas>
+    <h2>Surface: masks, crop, edge blend</h2>
+    <div class="tools"><button id="mask-add">Add mask</button><span id="masks"></span></div>
+    <p class="hint">Drag mask points; click empty space to add a point to the selected mask; shift-click a point to remove it. Drag the crop corners (dashed).</p>
+    <canvas id="surface"></canvas>
+  </section>
+  <section id="props"></section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let S = { aspect: 16 / 9, layers: [] }, sel = -1, mode = 'corners', maskSel = 0;
+
+// ---- transport: coalesced OSC messages, flushed once per animation frame ----
+const queue = new Map();
+function osc(address, ...args) {
+  const k = /\/(corner|point)$/.test(address) ? address + args.slice(0, 2).join(',') : address;
+  queue.delete(k); queue.set(k, [address, ...args]);
+}
+setInterval(() => {
+  if (!queue.size) return;
+  const body = JSON.stringify([...queue.values()]);
+  queue.clear();
+  fetch('/osc', { method: 'POST', body }).catch(() => status('relay unreachable'));
+}, 33);
+const status = s => $('status').textContent = s;
+async function sync() {
+  await new Promise(r => setTimeout(r, 80));  // let queued commands land first
+  const r = await fetch('/state').catch(() => null);
+  if (!r || !r.ok) return status('app not answering (is it running? OSC port?)');
+  S = await r.json();
+  if (sel >= S.layers.length) sel = S.layers.length - 1;
+  if (sel < 0 && S.layers.length) sel = 0;
+  status(`connected: ${S.layers.length} layer(s)`);
+  render();
+}
+const L = () => S.layers[sel];
+const set = (key, ...args) => { L()[key] = args; osc(`/layer/${sel}/${key}`, ...args); draw(); };
+
+// ---- geometry: same maths as the app (mapping.host.cpp) ----
+function mul(a, b) { const r = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]; return r; }
+function inv(m) {
+  const [a, b, c, d, e, f, g, h, i] = m, A = e * i - f * h, B = f * g - d * i, C = d * h - e * g, det = a * A + b * B + c * C;
+  return [A, c * h - b * i, b * f - c * e, B, a * i - c * g, c * d - a * f, C, b * g - a * h, a * e - b * d].map(v => v / det);
+}
+const ap = (m, x, y) => { const w = m[6] * x + m[7] * y + m[8]; return [(m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w]; };
+function homography(c) {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = c, dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+  const det = dx1 * dy2 - dx2 * dy1, g = Math.abs(det) > 1e-9 ? (dx3 * dy2 - dx2 * dy3) / det : 0, k = Math.abs(det) > 1e-9 ? (dx1 * dy3 - dx3 * dy1) / det : 0;
+  return [x1 - x0 + g * x1, x3 - x0 + k * x3, x0, y1 - y0 + g * y1, y3 - y0 + k * y3, y0, g, k, 1];
+}
+function transform(l) {
+  const c = l.corners, cx = (c[0] + c[2] + c[4] + c[6]) / 4, cy = (c[1] + c[3] + c[5] + c[7]) / 4, a = l.rotation[0] * Math.PI / 180;
+  const cs = Math.cos(a) * l.scale[0], sn = Math.sin(a) * l.scale[0];
+  return mul([1, 0, cx + l.position[0], 0, 1, cy + l.position[1], 0, 0, 1], mul([cs, -sn / S.aspect, 0, sn * S.aspect, cs, 0, 0, 0, 1], [1, 0, -cx, 0, 1, -cy, 0, 0, 1]));
+}
+function cp(l, i, j) {
+  const [cols, rows] = l.mesh;
+  if (i < 0 || i >= cols) { const a = cp(l, i < 0 ? 0 : cols - 1, j), b = cp(l, i < 0 ? 1 : cols - 2, j); return [2 * a[0] - b[0], 2 * a[1] - b[1]]; }
+  if (j < 0 || j >= rows) { const a = cp(l, i, j < 0 ? 0 : rows - 1), b = cp(l, i, j < 0 ? 1 : rows - 2); return [2 * a[0] - b[0], 2 * a[1] - b[1]]; }
+  const k = 2 + (j * cols + i) * 2; return [l.mesh[k], l.mesh[k + 1]];
+}
+const cr = (p0, p1, p2, p3, t) => 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+function warp(l, s, t) {
+  const [cols, rows] = l.mesh, fx = s * (cols - 1), fy = t * (rows - 1), i = Math.min(Math.floor(fx), cols - 2), j = Math.min(Math.floor(fy), rows - 2);
+  const u = fx - i, v = fy - j, row = [];
+  for (let b = 0; b < 4; b++) { const p = [0, 1, 2, 3].map(a => cp(l, i - 1 + a, j - 1 + b)); row.push([0, 1].map(k => cr(p[0][k], p[1][k], p[2][k], p[3][k], u))); }
+  return [0, 1].map(k => cr(row[0][k], row[1][k], row[2][k], row[3][k], v));
+}
+
+// ---- output canvas: warped surfaces, corner pins, mesh points ----
+const out = $('out'), surf = $('surface');
+function fit(c, aspect) { const w = c.clientWidth * devicePixelRatio; c.width = w; c.height = Math.round(w / aspect); c.style.height = (c.clientWidth / aspect) + 'px'; }
+const rgb = c => `rgb(${c.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255)).join(',')})`;
+function handles() {  // [{x, y (canvas px), drag(nx, ny)}] for the selected layer
+  const l = L(); if (!l) return [];
+  const T = transform(l), H = homography(l.corners), M = mul(T, H), Ti = inv(T), Mi = inv(M), w = out.width, h = out.height;
+  if (mode === 'corners') return [0, 1, 2, 3].map(i => { const [x, y] = ap(T, l.corners[i * 2], l.corners[i * 2 + 1]);
+    return { x: x * w, y: y * h, drag(nx, ny) { const [u, v] = ap(Ti, nx, ny); l.corners[i * 2] = u; l.corners[i * 2 + 1] = v; osc(`/layer/${sel}/corner`, i, u, v); } }; });
+  const [cols, rows] = l.mesh, hs = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const k = 2 + (j * cols + i) * 2, [x, y] = ap(M, l.mesh[k], l.mesh[k + 1]);
+    hs.push({ x: x * w, y: y * h, drag(nx, ny) { const [u, v] = ap(Mi, nx, ny); l.mesh[k] = u; l.mesh[k + 1] = v; osc(`/layer/${sel}/point`, i, j, u, v); } });
+  }
+  return hs;
+}
+function drawOut() {
+  const g = out.getContext('2d'), w = out.width, h = out.height;
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+  S.layers.forEach((l, n) => {
+    if (!l.visible[0]) return;
+    const M = mul(transform(l), homography(l.corners)), P = (s, t) => { const [x, y] = ap(M, ...warp(l, s, t)); return [x * w, y * h]; };
+    const line = pts => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); };
+    const N = 24, border = [];
+    for (let i = 0; i <= N; i++) border.push(P(i / N, 0)); for (let i = 0; i <= N; i++) border.push(P(1, i / N));
+    for (let i = N; i >= 0; i--) border.push(P(i / N, 1)); for (let i = N; i >= 0; i--) border.push(P(0, i / N));
+    line(border); g.globalAlpha = 0.35 * l.opacity[0]; g.fillStyle = rgb(l.color); g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = n === sel ? '#ffb020' : rgb(l.color); g.lineWidth = n === sel ? 2 : 1;
+    const [cols, rows] = l.mesh;
+    for (let i = 0; i < cols; i++) { const p = []; for (let k = 0; k <= N; k++) p.push(P(i / (cols - 1), k / N)); line(p); g.stroke(); }
+    for (let j = 0; j < rows; j++) { const p = []; for (let k = 0; k <= N; k++) p.push(P(k / N, j / (rows - 1))); line(p); g.stroke(); }
+  });
+  g.fillStyle = '#ffb020';
+  for (const p of handles()) { g.beginPath(); g.arc(p.x, p.y, mode === 'corners' ? 8 * devicePixelRatio : 5 * devicePixelRatio, 0, 7); g.fill(); }
+}
+
+// ---- surface canvas: crop, edge blend, polygon masks (layer's own unit square) ----
+function drawSurf() {
+  const g = surf.getContext('2d'), w = surf.width, h = surf.height, l = L();
+  g.fillStyle = '#0b0d10'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#222a33'; for (let i = 1; i < 8; i++) { g.beginPath(); g.moveTo(i * w / 8, 0); g.lineTo(i * w / 8, h); g.moveTo(0, i * h / 8); g.lineTo(w, i * h / 8); g.stroke(); }
+  if (!l) return;
+  const e = l.edge; g.fillStyle = 'rgba(80,140,255,.25)';
+  g.fillRect(0, 0, e[0] * w, h); g.fillRect(w - e[1] * w, 0, e[1] * w, h); g.fillRect(0, 0, w, e[2] * h); g.fillRect(0, h - e[3] * h, w, e[3] * h);
+  const c = l.crop; g.setLineDash([6, 4]); g.strokeStyle = '#8a94a2'; g.strokeRect(c[0] * w, c[1] * h, (c[2] - c[0]) * w, (c[3] - c[1]) * h); g.setLineDash([]);
+  for (const [k, m] of masks(l)) {
+    const p = m.slice(2); g.beginPath(); for (let i = 0; i < p.length; i += 2) i ? g.lineTo(p[i] * w, p[i + 1] * h) : g.moveTo(p[i] * w, p[i + 1] * h); g.closePath();
+    g.fillStyle = m[1] ? 'rgba(255,60,60,.25)' : 'rgba(60,255,120,.2)'; g.fill();
+    g.strokeStyle = k === maskSel ? '#ffb020' : '#8a94a2'; g.lineWidth = m[0] * w * 0.5 + 1; g.globalAlpha = .5; g.stroke(); g.globalAlpha = 1; g.lineWidth = 1; g.stroke();
+  }
+  g.fillStyle = '#ffb020'; for (const p of surfHandles()) { g.beginPath(); g.arc(p.x, p.y, 5 * devicePixelRatio, 0, 7); g.fill(); }
+}
+const masks = l => Object.keys(l).filter(k => k.startsWith('mask/')).map(k => [Number(k.slice(5)), l[k]]).filter(([, m]) => m.length >= 8);
+function surfHandles() {
+  const l = L(); if (!l) return [];
+  const w = surf.width, h = surf.height, hs = [0, 1].map(k => ({ x: l.crop[k * 2] * w, y: l.crop[k * 2 + 1] * h, drag(x, y) { l.crop[k * 2] = x; l.crop[k * 2 + 1] = y; set('crop', ...l.crop); } }));
+  const m = l[`mask/${maskSel}`];
+  if (m && m.length >= 8) for (let i = 2; i < m.length; i += 2)
+    hs.push({ x: m[i] * w, y: m[i + 1] * h, mask: i, drag(x, y) { m[i] = x; m[i + 1] = y; set(`mask/${maskSel}`, ...m); } });
+  return hs;
+}
+
+// ---- pointer handling shared by both canvases ----
+function pointer(c, getHandles, onEmpty) {
+  let drag = null;
+  c.addEventListener('pointerdown', ev => {
+    const r = c.getBoundingClientRect(), x = (ev.clientX - r.left) * devicePixelRatio, y = (ev.clientY - r.top) * devicePixelRatio;
+    const hit = getHandles().find(p => Math.hypot(p.x - x, p.y - y) < 12 * devicePixelRatio);
+    if (hit && ev.shiftKey && hit.mask) { const m = L()[`mask/${maskSel}`]; if (m.length > 8) { m.splice(hit.mask, 2); set(`mask/${maskSel}`, ...m); } return; }
+    if (hit) { drag = hit; c.setPointerCapture(ev.pointerId); } else if (onEmpty) onEmpty(x / c.width, y / c.height);
+  });
+  c.addEventListener('pointermove', ev => {
+    if (!drag) return;
+    const r = c.getBoundingClientRect(); drag.drag((ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height); draw();
+  });
+  c.addEventListener('pointerup', () => drag = null);
+}
+pointer(out, handles);
+pointer(surf, surfHandles, (x, y) => { const m = L() && L()[`mask/${maskSel}`]; if (m && m.length >= 8 && m.length < 66) { m.push(x, y); set(`mask/${maskSel}`, ...m); } });
+
+// ---- panels ----
+const hex = c => '#' + c.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('');
+const unhex = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16) / 255);
+const SLIDERS = [
+  ['Colour'], ['brightness', 0, -1, 1], ['contrast', 0, 0, 3], ['saturation', 0, 0, 3], ['hue', 0, -180, 180], ['gamma', 0, 0.2, 3],
+  ['gain', 0, 0, 2, 'gain R'], ['gain', 1, 0, 2, 'gain G'], ['gain', 2, 0, 2, 'gain B'], ['opacity', 0, 0, 1],
+  ['Transform'], ['position', 0, -1, 1, 'x'], ['position', 1, -1, 1, 'y'], ['scale', 0, 0.1, 3], ['rotation', 0, -180, 180],
+  ['Crop and edge blend'], ['crop', 0, 0, 1, 'crop x0'], ['crop', 1, 0, 1, 'crop y0'], ['crop', 2, 0, 1, 'crop x1'], ['crop', 3, 0, 1, 'crop y1'], ['crop', 4, 0, 0.3, 'feather'],
+  ['edge', 0, 0, 0.5, 'left'], ['edge', 1, 0, 0.5, 'right'], ['edge', 2, 0, 0.5, 'top'], ['edge', 3, 0, 0.5, 'bottom'], ['edge', 4, 1, 3, 'gamma'],
+];
+function props() {
+  const p = $('props'), l = L();
+  if (!l) { p.innerHTML = '<p class="hint">No layer. Start the app, then Sync.</p>'; return; }
+  p.innerHTML = `<h2>Source</h2>
+    <div class="row"><label>source</label><select id="p-src">${['pattern', 'solid', 'gradient', 'image'].map(s => `<option ${s === l.source[0] ? 'selected' : ''}>${s}</option>`).join('')}</select><span></span></div>
+    <div class="row"><label>image id</label><input id="p-img" type="number" value="${l.image[0]}"><span></span></div>
+    <div class="row"><label>colours</label><span><input id="p-c1" type="color" value="${hex(l.color)}"> <input id="p-c2" type="color" value="${hex(l.color2)}"></span><span></span></div>
+    <div class="row"><label>angle</label><input id="p-angle" type="range" min="-180" max="180" step="1" value="${l.angle[0]}"><output>${l.angle[0]}</output></div>
+    <div class="row"><label>blend</label><select id="p-blend">${['normal', 'add', 'multiply', 'screen'].map(s => `<option ${s === l.blend[0] ? 'selected' : ''}>${s}</option>`).join('')}</select><span></span></div>
+    <div class="row"><label>mask image</label><input id="p-mimg" type="number" value="${l.maskimage[0]}"><span></span></div>
+    <div class="row"><label>grid</label><input id="p-grid" type="checkbox" ${l.grid[0] ? 'checked' : ''}><span></span></div>` +
+    SLIDERS.map(([k, i, lo, hi, label], n) => i === undefined ? `<h2>${k}</h2>` :
+      `<div class="row"><label>${label ?? k}</label><input data-n="${n}" type="range" min="${lo}" max="${hi}" step="${(hi - lo) / 200}" value="${l[k][i]}"><output>${(+l[k][i]).toFixed(2)}</output></div>`).join('') +
+    `<div class="tools"><button id="p-reset">Reset layer</button></div>`;
+  p.querySelectorAll('input[data-n]').forEach(el => el.oninput = () => {
+    const [k, i] = SLIDERS[el.dataset.n], v = +el.value; L()[k][i] = v; el.nextElementSibling.textContent = v.toFixed(2); set(k, ...L()[k]);
+  });
+  $('p-src').onchange = e => { set('source', e.target.value); };
+  $('p-img').onchange = e => set('image', +e.target.value);
+  $('p-mimg').onchange = e => set('maskimage', +e.target.value);
+  $('p-c1').oninput = e => set('color', ...unhex(e.target.value));
+  $('p-c2').oninput = e => set('color2', ...unhex(e.target.value));
+  $('p-angle').oninput = e => { e.target.nextElementSibling.textContent = e.target.value; set('angle', +e.target.value); };
+  $('p-blend').onchange = e => set('blend', e.target.value);
+  $('p-grid').onchange = e => set('grid', e.target.checked ? 1 : 0);
+  $('p-reset').onclick = () => { osc(`/layer/${sel}/reset`); sync(); };
+}
+function layerList() {
+  $('layers').innerHTML = S.layers.map((l, i) => `<div data-i="${i}" class="${i === sel ? 'sel' : ''}"><input type="checkbox" ${l.visible[0] ? 'checked' : ''} aria-label="visible"><span>${i}. ${l.name[0].replace(/</g, '&lt;')}</span></div>`).join('');
+  $('layers').querySelectorAll('div').forEach(d => {
+    const i = +d.dataset.i;
+    d.onclick = e => { if (e.target.type === 'checkbox') return; sel = i; maskSel = 0; osc('/select', sel); render(); };
+    d.querySelector('input').onchange = e => { S.layers[i].visible = [e.target.checked ? 1 : 0]; osc(`/layer/${i}/visible`, e.target.checked ? 1 : 0); draw(); };
+  });
+  const l = L();
+  $('masks').innerHTML = l ? [0, 1, 2, 3].filter(k => (l[`mask/${k}`] ?? []).length >= 8).map(k => {
+    const m = l[`mask/${k}`];
+    return `<button data-k="${k}" class="${k === maskSel ? 'on' : ''}">mask ${k}</button>` + (k === maskSel ? ` <label><input id="m-inv" type="checkbox" ${m[1] ? 'checked' : ''}> hide inside</label>
+      <label>feather <input id="m-f" type="range" min="0" max="0.3" step="0.005" value="${m[0]}"></label> <button id="m-del">Delete</button>` : '');
+  }).join(' ') : '';
+  $('masks').querySelectorAll('button[data-k]').forEach(b => b.onclick = () => { maskSel = +b.dataset.k; render(); });
+  const m = l && l[`mask/${maskSel}`];
+  if (m && $('m-inv')) {
+    $('m-inv').onchange = e => { m[1] = e.target.checked ? 1 : 0; set(`mask/${maskSel}`, ...m); };
+    $('m-f').oninput = e => { m[0] = +e.target.value; set(`mask/${maskSel}`, ...m); };
+    $('m-del').onclick = () => { delete l[`mask/${maskSel}`]; osc(`/layer/${sel}/mask/${maskSel}`); render(); };
+  }
+  if (l) { $('cols').value = l.mesh[0]; $('rows').value = l.mesh[1]; }
+}
+function draw() { fit(out, S.aspect); fit(surf, 1); drawOut(); drawSurf(); }
+function render() { layerList(); props(); draw(); }
+
+$('sync').onclick = sync;
+$('save').onclick = () => osc('/save', $('file').value);
+$('load').onclick = () => { osc('/load', $('file').value); sync(); };
+$('add').onclick = () => { osc('/add', $('newsrc').value, `${$('newsrc').value} ${S.layers.length}`); sel = S.layers.length; sync(); };
+$('del').onclick = () => { if (sel >= 0) { osc('/remove', sel); sel--; sync(); } };
+$('up').onclick = () => { if (sel < S.layers.length - 1) { osc('/move', sel, sel + 1); sel++; sync(); } };
+$('down').onclick = () => { if (sel > 0) { osc('/move', sel, sel - 1); sel--; sync(); } };
+$('rename').onclick = () => { const n = L() && prompt('Layer name', L().name[0]); if (n) { set('name', n); layerList(); } };
+$('m-corners').onclick = () => { mode = 'corners'; $('m-corners').className = 'on'; $('m-mesh').className = ''; draw(); };
+$('m-mesh').onclick = () => { mode = 'mesh'; $('m-mesh').className = 'on'; $('m-corners').className = ''; draw(); };
+$('mesh-apply').onclick = () => { if (L()) { osc(`/layer/${sel}/mesh`, +$('cols').value, +$('rows').value); sync(); } };
+$('mesh-reset').onclick = () => { if (L()) { osc(`/layer/${sel}/meshreset`); sync(); } };
+$('corners-reset').onclick = () => { if (L()) set('corners', 0, 0, 1, 0, 1, 1, 0, 1); };
+$('mask-add').onclick = () => {
+  const l = L(); if (!l) return;
+  const k = [0, 1, 2, 3].find(k => (l[`mask/${k}`] ?? []).length < 8); if (k === undefined) return;
+  maskSel = k; set(`mask/${k}`, 0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7); render();
+};
+addEventListener('resize', draw);
+sync();
+</script>
+</body>
+</html>
