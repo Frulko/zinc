@@ -91,6 +91,9 @@ hello-flow.zproj/
   build/src/main.ts   generated: one section per box, comments naming the boxes
 ```
 
+A project is code: box scripts and parameters become the generated program, which runs on your machine or device
+when you press Run. Open projects you trust, as you would a repository.
+
 `project.json` keeps one box and one link per line. Links name the diagram bars `@start` (output `onStart`) and
 `@end` (input `onStopped`). The generated program is event-driven and readable: `b3_in_onStart()` runs box b3 for
 its `onStart` input, `b3_out_onDone()` calls every input linked to its `onDone` output.

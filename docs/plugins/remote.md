@@ -29,6 +29,7 @@ zinc run examples/remote/viewer                      # another terminal: lists t
 | `fps` | 60 | frame rate of the app's loop (there is no vsync without a screen) |
 | `inflight` | 2 | frames sent without an acknowledgement before the server waits (pacing) |
 | `beacon` | true | announce the app on UDP multicast every second |
+| `token` | `""` | shared secret a viewer must send before anything else (env `ZINC_REMOTE_TOKEN`, preferred: not in the binary) |
 
 `ZINC_REMOTE_LOG=1` prints one line per second: frames sent, loop rate, bytes per second, raw size and compression
 ratio. `ZINC_FRAMES=n` stops the app after n frames, as with the SDL HAL.
@@ -42,6 +43,7 @@ linked). A `mirror` mode that also keeps the SDL window is not implemented.
 import * as remote from 'zinc:remote';
 
 const s = await remote.connect('192.168.1.20', 7700);   // resolves on the app's first message, rejects if unreachable
+// remote.connect(host, port, token): the app's token (default: the ZINC_REMOTE_TOKEN environment variable)
 s.image        // runtime image id: gfx.drawImage(s.image, ...), updated as frames arrive
 s.width; s.height; s.name; s.connected
 s.fps; s.latency; s.kbps; s.frames                       // frames/s received, ping round trip (ms), KiB/s received
@@ -99,11 +101,18 @@ docker only).
 
 ## Security
 
-There is no authentication and no encryption: whoever can reach the port sees the screen and controls the app.
-The default `bind` is `127.0.0.1` for that reason: only programs on the same machine can connect, and the beacon
-stays on the machine. Binding to `0.0.0.0` (or a LAN address) exposes the app to the whole network segment; do it
-only on a trusted network, or tunnel the port over ssh (`ssh -L 7700:127.0.0.1:7700 pi@device`) and keep the
-loopback bind. The beacon reveals the app title, target, port and pid to the LAN when not bound to loopback.
+There is no encryption. The default `bind` is `127.0.0.1`: only programs on the same machine can connect, and the
+beacon stays on the machine. Binding to `0.0.0.0` (or a LAN address) exposes the app to the network segment; then set a
+token (`ZINC_REMOTE_TOKEN=...` in the service environment, or the `token` option): a viewer must send it in an `AUTH`
+message first (`remote.connect(host, port, token)`), before it gets the screen or its input is read, and a connection
+that has not authenticated within 3 s is closed without disturbing the current viewer. Without a token on a non-loopback
+bind the app prints a warning at start. The token crosses the network in clear: on an untrusted network tunnel the port
+over ssh (`ssh -L 7700:127.0.0.1:7700 pi@device`) and keep the loopback bind. The beacon reveals the app title, target,
+port and pid to the LAN when not bound to loopback, and anyone can send beacons: a listed app is not an authenticated one.
+
+Both ends bound what they accept (docs/reports/security-audit.md): viewer messages are at most 64 bytes, PONG replies
+stop when the viewer does not read, and the viewer refuses a message longer than a whole-screen RECT and an image size
+the runtime refuses (0 or more than 16384 per side). `tests/fuzz/remote.cpp` fuzzes the viewer's decoder.
 
 ## Follow-ups
 

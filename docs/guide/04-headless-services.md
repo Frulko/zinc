@@ -17,8 +17,9 @@ curl localhost:3000/readings                         # {"seq":…,"tempC":…,"h
 ## HTTP server
 
 `zinc:net` gives you `serve(port, handler)` — a minimal HTTP/1.1 server whose handler runs on the event loop (no
-threads, one connection at a time drained by the poller). Bind is `0.0.0.0`; see [security](08-security.md) about
-exposure.
+threads, one connection at a time drained by the poller). Bind is `0.0.0.0` (`ZINC_BIND=127.0.0.1` restricts it, e.g.
+behind a reverse proxy). Requests are limited: 16 KiB of headers, a 1 MiB body (`ZRT_HTTP_MAX_BODY`), 32 open
+connections, 10 s to send a request, 2 s for a client to take a reply; see [security](08-security.md) about exposure.
 
 ```ts
 import { serve, Request, Reply } from 'zinc:net';
@@ -90,8 +91,12 @@ calls `sys.exit(0)`), rather than relying on a signal.
 ## Running as a systemd service
 
 `zinc export --target linux` (or `rpi1`) produces `dist/<name>-<target>/` with the executable, a `run.sh`, a
-`<name>.service` unit (`Restart=on-failure`, `RestartSec=2`) and a `deploy.sh` that rsyncs to `/opt/<name>`, installs
-the unit and starts it:
+`<name>.service` unit (`Restart=on-failure`, `RestartSec=2`) and a `deploy.sh` that installs it root-owned in
+`/opt/<name>`, installs the unit and starts it. The unit runs the program unprivileged (`DynamicUser=yes`, no
+capabilities, read-only system, private /tmp): its working directory and `zinc:storage` file are in
+`/var/lib/<name>` (`StateDirectory`), and devices (framebuffer, input, GPIO, SPI, I2C) are reached through the groups
+the device has (`SupplementaryGroups`, filtered by `deploy.sh`). Details and how to relax it:
+[chapter 8](08-security.md#deploying-on-linux-and-raspberry-pi).
 
 ```sh
 zinc export --target linux examples/service/sensor-hub

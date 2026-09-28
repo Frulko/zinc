@@ -12,4 +12,15 @@
 | [stb_image](https://github.com/nothings/stb) v2.30 (PNG and JPEG decoders only), © Sean Barrett | `plugins/three/native/stb_image.h`, linked into programs that import `three` | public domain or MIT (dual) |
 | glTF sample models from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets): Cesium Milk Truck, Box Textured, © Cesium | `examples/three/gltf-viewer/assets` (and Box Textured .glb as base64 in `tests/conformance/three.ts`) | CC-BY-4.0; the Cesium logo in their textures is a trademark (LicenseRef-LegalMark-Cesium) |
 
+| Inter (Regular, Bold), © The Inter Project Authors | `lib/fonts`, embedded in UI programs | SIL OFL-1.1 (`lib/fonts/LICENSE-Inter.txt`) |
+| JetBrains Mono, © The JetBrains Mono Project Authors | `lib/fonts`, embedded in UI programs (`mono`) | SIL OFL-1.1 (`lib/fonts/LICENSE-JetBrainsMono.txt`) |
+| libcurl | linked by programs using `zinc:net` (fetch) | curl (MIT-style) |
+| libgpiod | linked with `ZRT_GPIOD=1` on linux/rpi1 | LGPL-2.1-or-later |
+| FFmpeg (libavformat, libavcodec, libavutil, libswscale) | linked by `zinc:video` | LGPL-2.1-or-later (GPL if built with GPL parts) |
+| libgphoto2, libjpeg-turbo | linked by `zinc:gphoto2` | LGPL-2.1-or-later; IJG / BSD-3-Clause / zlib |
+| musl libc | statically linked into rpi1 exports | MIT |
+
+LGPL libraries linked statically (rpi1 / rmpp exports) oblige you to let users relink: ship the object files or link
+them dynamically. Versions and security notes of all of the above: [security/third-party.md](security/third-party.md).
+
 The license of Zinc itself (MIT or Apache-2.0) is an open question for the project owner (spec §17).
