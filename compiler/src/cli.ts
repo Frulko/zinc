@@ -12,9 +12,12 @@ import { infer, tsPathOf } from './infer.ts';
 import { buildHir, printHir } from './hir.ts';
 import { lowerMir, printMir } from './mir.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
-import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
+import { activePlugins, buildSettings, discover, listPlugins, projectDir, withBoard, type BuildSettings } from './plugins.ts';
+import { flash, serialMonitor } from './flash.ts';
 
-interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean }
+interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean;
+  /** esp32 only (docs/boards.md): ESP-IDF chip (esp32, esp32s3), PSRAM for the Zinc heap, flash size ("4MB"). */
+  chip?: string; psram?: boolean; flashSize?: string }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
   macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
@@ -32,7 +35,7 @@ const PROFILES: Record<string, Profile> = {
 
 interface Project { name: string; dir: string; assets?: string; crash?: string; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean }
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; port?: string }
 
 function parseArgs(argv: string[]): Opts {
   const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false };
@@ -53,6 +56,8 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
     else if (a.startsWith('--device=')) o.device = a.slice(9);
+    else if (a === '--port') o.port = argv[++i];  // zinc flash (compiler/src/flash.ts)
+    else if (a.startsWith('--port=')) o.port = a.slice(7);
     else if (a === '--display' || a.startsWith('--display=')) process.env.ZINC_DISPLAY = a.includes('=') ? a.slice(10) : argv[++i];  // plugins.ts displayOf
     else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
     else if (!a.startsWith('-')) o.entry = a;
@@ -78,7 +83,8 @@ function loadProject(entry: string): Project {
   for (let i = 0; i < 3; i++) {
     const f = path.join(dir, 'zinc.json');
     if (fs.existsSync(f)) {
-      const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+      let j: Record<string, any>;
+      try { j = withBoard(JSON.parse(fs.readFileSync(f, 'utf8'))); } catch (e) { die((e as Error).message); }
       return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, targets: j.targets ?? {} };
     }
     dir = path.dirname(dir);
@@ -375,7 +381,7 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, windowDefines(prof, sema)));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
-  if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps);
+  if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps, res.modules);
   if (o.target === 'wasm') return wasmBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
   if (o.target === 'esp32') return espBuild(o, dir, res, sema, tc, t0, prof.heap, ps);
   if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
@@ -419,8 +425,14 @@ function dockerArgs(dir: string, t: DockerTarget): string[] {
   const mounts = [ZINC_ROOT, path.dirname(path.dirname(dir)), ...extraMounts].filter((m, i, a) => !a.some((x, j) => j !== i && (m + '/').startsWith(x + '/')));
   return ['run', '--rm', '-e', 'ZINC_FRAMES', ...(t.env ?? []).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, ...(t.entrypoint ? ['--entrypoint', t.entrypoint] : []), t.image];
 }
-function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean, ps: BuildSettings): Built {
+function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean, ps: BuildSettings, mods: Set<string>): Built {
   let t = DOCKER[o.target];
+  // rpi1 export/deploy: the SDK image is Alpine (musl), Raspberry Pi OS is glibc: link statically so the binary runs
+  // there (docs/boards.md). Not possible when a plugin or module needs shared libraries (pkg-config, libcurl).
+  if (o.target === 'rpi1' && (o.cmd === 'export' || o.cmd === 'deploy')) {
+    if (!ps.pkg.length && !ps.libs.length && !mods.has('net') && !process.env.ZRT_GPIOD) t = { ...t, cmake: [...t.cmake, '-DCMAKE_EXE_LINKER_FLAGS=-static'] };
+    else log(o, 'warning: this program links shared libraries from the Alpine SDK image (musl): it runs on Alpine / postmarketOS, not on Raspberry Pi OS as is');
+  }
   if (spawnSync('docker', ['image', 'inspect', t.image], { stdio: 'ignore' }).status !== 0) {
     log(o, `building docker image ${t.image} (first time only)...`);
     if (run('docker', ['build', '-t', t.image, path.join(ZINC_ROOT, t.dockerfile)], undefined, true) !== 0) die('docker build failed');
@@ -462,9 +474,18 @@ const ESP_MOD_REQUIRES: Record<string, string[]> = {
   storage: ['nvs_flash'], fs: ['spiffs'], gpio: ['esp_driver_gpio'],
   net: ['esp_http_client', 'nvs_flash'], osc: ['lwip'], mqtt: ['lwip'], telemetry: ['lwip'],
 };
+/** esp32 chip / PSRAM / flash settings (zinc.json targets.esp32 chip, psram, flashSize, or a board preset; env
+ *  ZINC_ESP_CHIP overrides the chip, e.g. to run the conformance tests on esp32s3 in QEMU). docs/boards.md */
+export function espChip(o: Opts): { chip: string; psram: boolean; flashSize?: string } {
+  const prof = PROFILES[o.profile];
+  return { chip: process.env.ZINC_ESP_CHIP || prof.chip || 'esp32', psram: !!prof.psram, flashSize: prof.flashSize };
+}
 function espBuild(o: Opts, dir: string, res: CppResult, sema: Sema, tc: number, t0: number, heap: number, ps: BuildSettings): Built {
   const idf = path.join(dir, 'idf');
   fs.mkdirSync(path.join(idf, 'main'), { recursive: true });
+  const { chip, psram, flashSize } = espChip(o);
+  // PSRAM: the TLSF heap lives in external RAM (targets/esp32/hal_esp32.cpp); 1 MiB unless zinc.json sets `heap`
+  if (psram && o.project.targets[o.profile]?.heap === undefined) heap = 1 << 20;
   // TGT-ESP variants: prefer runtime/mod/<name>_esp32.cpp over the host/sim runtime/mod/<name>.cpp.
   const modFile = (m: string) => fs.existsSync(path.join(ZINC_ROOT, 'runtime/mod', `${m}_esp32.cpp`)) ? `${m}_esp32` : m;
   const mods = [...res.modules].filter(m => fs.existsSync(path.join(ZINC_ROOT, 'runtime/mod', modFile(m) + '.cpp')));
@@ -484,7 +505,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -497,19 +518,30 @@ phy_init, data, phy,     0xf000,  0x1000,
 factory,  app,  factory, 0x10000, 1M,
 storage,  data, spiffs,  ,        512K,
 `);
-  writeIfChanged(path.join(idf, 'sdkconfig.defaults'), `CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+  // esp32s3 (docs/boards.md): printf goes to UART0 (QEMU, external USB-UART) and, as secondary console, to the chip's
+  // USB-Serial/JTAG port (native USB-C boards). PSRAM: quad on esp32s3 (the ESP32-S3FH4R2 has 2 MiB in package); the
+  // firmware still boots without it; malloc stays internal, only the Zinc heap asks for SPIRAM (hal_heap_region).
+  const defaults = `CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 CONFIG_ESP_TASK_WDT_EN=n
 CONFIG_LOG_DEFAULT_LEVEL_ERROR=y
-${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}`);
+${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}${flashSize ? `CONFIG_ESPTOOLPY_FLASHSIZE_${flashSize.toUpperCase()}=y\n` : ''}${chip === 'esp32s3' ? 'CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y\n' : ''}${psram ? `CONFIG_SPIRAM=y\n${chip === 'esp32s3' ? 'CONFIG_SPIRAM_MODE_QUAD=y\n' : ''}CONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_IGNORE_NOTFOUND=y\nCONFIG_SPIRAM_USE_CAPS_ALLOC=y\n` : ''}`;
+  writeIfChanged(path.join(idf, 'sdkconfig.defaults'), defaults);
+  // `idf.py set-target` when the chip or the defaults changed: sdkconfig is generated from the defaults only once
+  const stamp = path.join(idf, '.zinc-target'), want = `${chip} ${fnv(defaults)}`;
+  const setTarget = !fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8') !== want || !fs.existsSync(path.join(idf, 'sdkconfig'));
+  if (setTarget) { fs.rmSync(path.join(idf, 'build'), { recursive: true, force: true }); fs.rmSync(path.join(idf, 'sdkconfig'), { force: true }); }
   const t: DockerTarget = { image: IDF_IMAGE, dockerfile: '', cmake: [], run: [] };
-  if (run('docker', [...dockerArgs(dir, t), 'idf.py', '-C', idf, '-B', path.join(idf, 'build'), 'build'], undefined, true) !== 0) die('ESP-IDF build failed');
+  const idfpy = `idf.py -C '${idf}' -B '${path.join(idf, 'build')}'`;
+  const steps = [...(setTarget ? [`${idfpy} set-target ${chip}`] : []), `${idfpy} build`, ...(o.cmd === 'flash' ? [`${idfpy} merge-bin`] : [])];
+  if (run('docker', [...dockerArgs(dir, { ...t, entrypoint: 'bash' }), '-c', `source /opt/esp/idf/export.sh >/dev/null 2>&1; ${steps.join(' && ')}`], undefined, true) !== 0) die('ESP-IDF build failed');
+  fs.writeFileSync(stamp, want);
   const bin = path.join(idf, 'build', `${o.project.name.replace(/[^A-Za-z0-9_]/g, '_')}.bin`);
   const size = fs.existsSync(bin) ? fs.statSync(bin).size : 0;
-  log(o, `built esp32 (ESP-IDF v6.0): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, firmware ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), bin)}`);
+  log(o, `built esp32 (${chip}${psram ? ', heap in PSRAM' : ''}, ESP-IDF v6.0): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, firmware ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), bin)}`);
   writeReport(dir, o, sema, size, res.usesGfx);
   // UART output between the HAL markers; awk exits at the end marker, which stops QEMU
-  const script = `timeout ${process.env.ZINC_QEMU_TIMEOUT ?? 120} idf.py -C '${idf}' -B '${path.join(idf, 'build')}' qemu 2>&1 | awk '/zinc:exit/{exit} f{print; fflush()} /zinc:start/{f=1}'`;
+  const script = `timeout ${process.env.ZINC_QEMU_TIMEOUT ?? 120} ${idfpy} qemu 2>&1 | awk '/zinc:exit/{exit} f{print; fflush()} /zinc:start/{f=1}'`;
   return { exe: ['docker', ...dockerArgs(dir, { ...t, entrypoint: 'bash' }), '-c', `source /opt/esp/idf/export.sh >/dev/null 2>&1; ${script}`], dir };
 }
 
@@ -630,13 +662,15 @@ function help(topic?: string) {
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start
   zinc init   <dir> [--template game|cli|server|iot|remarkable]
   zinc plugins [project]                the plugin toolbox: modules, display drivers, where they run
-  zinc monitor [--port 9999]            live view of zinc:telemetry
+  zinc flash  [entry] --target esp32 [--port /dev/cu.usbmodem*]   build, then flash with the host esptool (docs/boards.md)
+  zinc monitor [--port 9999]            live view of zinc:telemetry; --port /dev/cu.usbmodem* [--baud n]: serial console
   zinc doctor                           check the toolchain (cmake, compiler, SDL3, docker, emscripten)
   zinc help [commands|targets|options|env|plugins|ui|docs]`,
     targets: `Targets (--target) and profiles (--profile: numbers, resolution, heap of another target on this one)
   macos   native, SDL3 window                  linux   docker zinc/sdk-linux, fbdev/GL display plugins
   rpi1    ARMv6 hard-float, docker + QEMU      rmpp    reMarkable Paper Pro, static aarch64, e-ink
-  esp32   ESP-IDF firmware, Espressif QEMU     wasm    emscripten page (zinc run serves it)
+  esp32   ESP-IDF firmware, Espressif QEMU (targets.esp32.chip: esp32 | esp32s3, psram, flashSize; "board": docs/boards.md)
+  wasm    emscripten page (zinc run serves it)
   ps2     EE ELF (ps2dev), build only          ps1     MIPS I profile, Q20.12 fixed point
   sim     Node.js: the oracle every target is compared with
   zinc.json "targets": { "<id>": { "width", "height", "zoom", "resize", "fullscreen", "kiosk", "heap", "display", "plugins": {...} } }
@@ -663,7 +697,8 @@ function help(topic?: string) {
   ZINC_LOG_FORMAT=json   console output as JSON lines
   ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
-  ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
+  ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
+  ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
   JSX host tags view/text/button/image/scroll/canvas (and View/Text/Image for PocketJS), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
@@ -700,7 +735,11 @@ function main() {
     try { initProject(argv[1] && !argv[1].startsWith('-') ? argv[1] : '.', t > 0 ? argv[t + 1] : 'game'); } catch (e) { die((e as Error).message); }
     return;
   }
-  if (cmd === 'monitor') { const p = argv.indexOf('--port'); return monitor(p > 0 ? Number(argv[p + 1]) : 9999); }
+  if (cmd === 'monitor') {
+    const p = argv.indexOf('--port'), v = p > 0 ? argv[p + 1] : '';
+    if (v && !/^\d+$/.test(v)) return serialMonitor(v, Number(argv[argv.indexOf('--baud') + 1]) || 115200);  // a device: serial console
+    return monitor(v ? Number(v) : 9999);
+  }
   if (cmd === 'dev') {
     const o = parseArgs(argv);
     o.dev = true;
@@ -727,6 +766,11 @@ function main() {
       process.exit(run('sh', [script, o.device ?? (o.target === 'rmpp' ? 'root@10.11.99.1' : die('deploy needs --device user@host'))]));
     }
     return;
+  }
+  if (cmd === 'flash') {  // docs/boards.md: build, then write the firmware with a host esptool
+    if (o.target !== 'esp32') die(`zinc flash supports --target esp32 (use zinc deploy for rpi1/linux/rmpp)`);
+    const b = build(o);
+    process.exit(flash(b.dir, espChip(o).chip, o.port));
   }
   if (cmd === 'test') return test(o, argv.includes('--update'), argv.includes('--update-golden'));
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));

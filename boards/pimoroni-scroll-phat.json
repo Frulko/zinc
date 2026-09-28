@@ -1,0 +1,9 @@
+{
+  "description": "Raspberry Pi + Pimoroni Scroll pHAT (original): 11x5 white LEDs driven by an IS31FL3730 at 0x60 on /dev/i2c-1. docs/boards.md",
+  "all": {
+    "width": 11,
+    "height": 5,
+    "display": { "driver": "scrollphat" }
+  },
+  "targets": { "rpi1": {}, "linux": {} }
+}

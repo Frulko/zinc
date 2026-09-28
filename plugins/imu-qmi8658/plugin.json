@@ -1,0 +1,21 @@
+{
+  "name": "imu-qmi8658",
+  "kind": "module",
+  "module": "zinc:imu",
+  "entry": "index.ts",
+  "description": "QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)",
+  "options": {
+    "sda": 11,
+    "scl": 12,
+    "address": 107,
+    "freq": 400000,
+    "x": "+x",
+    "y": "+y",
+    "z": "+z"
+  },
+  "targets": {
+    "esp32": { "idf": ["esp_driver_i2c"] },
+    "macos": {},
+    "linux": {}
+  }
+}

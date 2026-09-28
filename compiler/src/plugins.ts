@@ -40,7 +40,27 @@ export function projectDir(entry: string): string {
 }
 function projectJson(dir: string): Record<string, any> {
   const f = path.join(dir, 'zinc.json');
-  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {};
+  return fs.existsSync(f) ? withBoard(JSON.parse(fs.readFileSync(f, 'utf8'))) : {};
+}
+
+/** zinc.json `"board": "<id>"` (docs/boards.md): boards/<id>.json supplies defaults the project overrides. `all` applies
+ *  to every target (and sim), `targets.<id>` to one target, `plugins` to plugin options; display objects merge key by key. */
+export function withBoard(j: Record<string, any>): Record<string, any> {
+  if (!j.board) return j;
+  const f = path.join(ZINC_ROOT, 'boards', `${j.board}.json`);
+  if (!fs.existsSync(f)) throw new Error(`zinc.json: unknown board '${j.board}' (see ${path.join(ZINC_ROOT, 'boards')})`);
+  const b = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const merge = (...xs: Record<string, any>[]) => {
+    const o: Record<string, any> = {};
+    for (const x of xs) for (const [k, v] of Object.entries(x ?? {}))
+      o[k] = k === 'display' && typeof v === 'object' && typeof o[k] === 'object' ? { ...o[k], ...v } : k === 'plugins' ? mergePlugins(o[k], v as Record<string, any>) : v;
+    return o;
+  };
+  const mergePlugins = (a: Record<string, any> = {}, c: Record<string, any> = {}) =>
+    Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(c)])].map(k => [k, { ...a[k], ...c[k] }]));
+  const ids = new Set(['sim', 'macos', ...Object.keys(b.targets ?? {}), ...Object.keys(j.targets ?? {})]);
+  const targets = Object.fromEntries([...ids].map(t => [t, merge(b.all, b.targets?.[t], j.targets?.[t])]));
+  return { ...j, targets, plugins: mergePlugins(b.plugins, j.plugins) };
 }
 
 const cache = new Map<string, Plugin[]>();
