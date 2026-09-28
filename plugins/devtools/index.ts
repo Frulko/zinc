@@ -4,10 +4,10 @@
 // screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel). Unknown
 // methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
 
-const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000;
+const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000, FRAGMENT: i32 = 6;
 
 function q(s: string): string { return JSON.stringify(s); }
 function cls(n: UiNode): string { return n.cls === '\u0000' ? '' : n.cls; }
@@ -21,20 +21,28 @@ function hex(c: i32): string {
 /** Handle of a DevTools node id (element ids are handle + 1), -1 for the document or unknown ids. */
 function handleOf(id: i32): i32 { return id >= TEXT_BASE ? (id >= DOC ? -1 : id - TEXT_BASE) : id - 1; }
 
+/** A fragment that is not a component's wrapper (grouped children, dynamic slots): not shown, its children are. */
+function plain(h: i32, n: UiNode): boolean { return n.tag === FRAGMENT && componentName(h).length === 0; }
 function children(h: i32, n: UiNode): string[] {
   const kids: string[] = [];
   if (n.tag === TEXT && n.text.length > 0)
     kids.push(`{"nodeId":${TEXT_BASE + h},"backendNodeId":${TEXT_BASE + h},"nodeType":3,"nodeName":"#text","localName":"","nodeValue":${q(n.text)}}`);
-  for (const c of n.children) { const e = element(c); if (e.length > 0) kids.push(e); }
+  for (const c of n.children) {
+    const cn = inspectNode(c);
+    if (cn !== null && plain(c, cn)) { for (const k of children(c, cn)) kids.push(k); continue; }
+    const e = element(c);
+    if (e.length > 0) kids.push(e);
+  }
   return kids;
 }
 function element(h: i32): string {
   const n = inspectNode(h);
   if (n === null) return '';
   const kids = children(h, n);
-  const tag = TAG_NAMES[n.tag];
+  const comp = componentName(h);  // a component's wrapper shows as <Card>, its host nodes as <view>, <text>...
+  const tag = comp.length > 0 ? comp : TAG_NAMES[n.tag];
   const layout = `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`;
-  return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(tag.toUpperCase())},"localName":${q(tag)},"nodeValue":"",` +
+  return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(comp.length > 0 ? tag : tag.toUpperCase())},"localName":${q(tag)},"nodeValue":"",` +
     `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":["class",${q(cls(n))},"layout",${q(layout)}]}`;
 }
 function documentNode(): string {
@@ -70,7 +78,9 @@ function classFromText(text: string): string {
 
 // Inspect mode: hovering the app highlights the node in Elements, a click selects it there (and ends the mode).
 let picked: i32 = -1;
-function onPick(h: i32, pressed: boolean): void {
+function onPick(hit: i32, pressed: boolean): void {
+  let h = hit;
+  for (let n = inspectNode(h); n !== null && plain(h, n); n = inspectNode(h)) h = parentOf(h);  // the node Elements shows
   if (h < 0) return;
   if (pressed) {
     inspectPick(null);

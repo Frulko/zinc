@@ -270,6 +270,7 @@ function release(h: i32): void {
   for (const c of n.children) release(c);
   if (n.tag === CANVAS && !n.lazy) canvases--;
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
+  if (componentNames.size > 0) componentNames.delete(h);
   n.alive = false;
   n.onClick = null;
   n.onDraw = null;
@@ -2103,6 +2104,11 @@ export function inspectRoot(): i32 { return root; }
 export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
+const componentNames = new Map<i32, string>();
+/** Name of the component a wrapper node stands for (dev builds: recorded by the JSX compiler for the inspector). */
+export function setComponentName(h: i32, name: string): void { componentNames.set(h, name); }
+/** '' when the node is not a component's wrapper. */
+export function componentName(h: i32): string { return componentNames.get(h) ?? ''; }
 let pick: ((h: i32, pressed: boolean) => void) | null = null, pickDown = false;
 /** Pick mode (the DevTools inspect arrow): the pointer highlights the node under it and f gets it, pressed on a
  *  click; the app gets no pointer or key input meanwhile. null ends it. */

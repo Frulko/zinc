@@ -57,6 +57,10 @@ export class JsxError extends Error {
   constructor(msg: string, pos: number) { super(msg); this.pos = pos; }
 }
 
+/** Dev builds (the inspector): every component's wrapper node records the component's name (plugins/devtools). */
+let componentNames = false;
+export function setComponentNames(on: boolean): void { componentNames = on; }
+
 export function lowerJsx(text: string, fileName: string, customClasses?: Set<string>): string {
   if (!/<[A-Za-z>]/.test(text)) return text;
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -77,7 +81,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   // helpers (lib/std/kit/host.ts) build fine-grained nodes under Solid and plain reconciled nodes under React
   const pragma = /@jsxHelpers\s+(\S+)/.exec(text)?.[1];
   const lib = pragma ?? (react ? 'zinc:ui/react' : 'zinc:ui/solid');
-  let counter = 0;
+  let counter = 0, named = false;
   // PocketJS-style host components (View, Text, Image...) when imported from a components module (or not imported at all)
   const imported = new Map<string, string>();
   for (const st of sf.statements) if (ts.isImportDeclaration(st) && st.importClause?.namedBindings && ts.isNamedImports(st.importClause.namedBindings))
@@ -281,6 +285,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       return v;
     }
     out.push(`const ${v}: i32 = _el(6);`);
+    if (componentNames) { out.push(`__zcomp(${v}, ${JSON.stringify(tag)});`); named = true; }
     if (tag === 'Show' && !react) {
       const fb = attrs.get('fallback');
       out.push(`_show(${v}, () => (${valueOf(attrs.get('when')!)}), () => ${childNode(onlyChild(n))}, ${fb ? `() => ${valueOf(fb)}` : 'null'});`);
@@ -335,5 +340,5 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
   const input = '_ptr, _key, _onText, _str, _hl, _ctx';
   const helpers = react ? `_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ${input}` : `_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ${input}`;
-  return `import { ${helpers} } from '${lib}'; ` + out;
+  return `import { ${helpers} } from '${lib}'; ` + (named ? "import { setComponentName as __zcomp } from 'zinc:ui'; " : '') + out;
 }

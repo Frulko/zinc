@@ -4,7 +4,8 @@ import ts from '@typescript/typescript6';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lowerJsx, JsxError } from './jsx.ts';
+import { lowerJsx, JsxError, setComponentNames } from './jsx.ts';
+export { setComponentNames };
 import { compileCss, CssError } from './css.ts';
 import { modulePaths, projectDir } from './plugins.ts';
 

@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { loadProgram, setPlatform, ZINC_ROOT, type Diag } from './frontend.ts';
+import { loadProgram, setPlatform, setComponentNames, ZINC_ROOT, type Diag } from './frontend.ts';
 import { capsFor, unmet, explain, moduleRequires, platformModule } from './capabilities.ts';
 import { iconPng, type IconSpec } from './icon.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
@@ -160,6 +160,7 @@ function analyze(o: Opts): Sema {
 /** DYN-14: a JavaScript entry is typed by `zinc infer` in memory, then compiled like TypeScript. */
 function loadEntry(o: Opts) {
   const extra = o.devtools ? devtoolsEntry(o) : [];
+  setComponentNames(extra.length > 0);  // component names in the inspector's Elements tree
   if (!/\.[cm]?jsx?$/.test(o.entry)) return loadProgram(o.entry, extra);
   const r = infer(o.entry);
   const virtual = new Map([...r.files].filter(([f]) => /\.[cm]?jsx?$/.test(f)).map(([f, t]) => [tsPathOf(f), t] as [string, string]));

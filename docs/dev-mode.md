@@ -89,8 +89,9 @@ message, hidden after 8 s), like React Native's LogBox.
 - discovery: `/json/list`, `/json/version`; in Chrome open `chrome://inspect`, *Configure…* → `localhost:9229`,
   (localhost:9229 is in the default list) then *inspect* under Remote Target (or open
   `devtools://devtools/bundled/inspector.html?ws=127.0.0.1:9229/zinc`);
-- **Elements**: `DOM.getDocument`, `requestChildNodes` — one element per zinc:ui node (`view`, `text`, `button`…),
-  text as text nodes, attributes `class` and `layout` (`x,y wxh`); editing `class` (`DOM.setAttributeValue`,
+- **Elements**: `DOM.getDocument`, `requestChildNodes` — the component tree: each component shows as its own element
+  (`<Shell>`, `<Card>`, `<Button>`; dev builds record the names), host nodes as `view`, `text`, `button`…; plain
+  fragments (grouped children, dynamic slots) are not shown, their children are. Text as text nodes, attributes `class` and `layout` (`x,y wxh`); editing `class` (`DOM.setAttributeValue`,
   `setAttributesAsText`) restyles the node live; `DOM.getBoxModel`;
 - **Computed styles**: `CSS.getComputedStyleForNode` with the layout values (position, size, padding, margin, gap,
   flex, colors, font size, radius, opacity);
