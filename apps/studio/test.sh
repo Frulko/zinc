@@ -11,7 +11,7 @@ for p in apps/studio/samples/*.zproj; do
   zinc check "$p/build/src/main.ts"
 done
 out=$(zinc run apps/studio/samples/headless.zproj/build --target sim 2>/dev/null | grep -v '^zinc:')
-expected=$(printf '1\n2\n3\n4\n5\ncounted to five, stopping\n[flow] behavior stopped')
+expected=$(printf '1\n2\n3\n4\n5\ncounted to five on sim, stopping\n[flow] behavior stopped')
 [ "$out" = "$expected" ] || { echo "headless sample: unexpected output:"; echo "$out"; exit 1; }
 echo "ok   headless sample on sim"
 # the real path: zinc builds break under a symlinked directory such as macOS /var -> /private/var

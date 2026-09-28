@@ -239,6 +239,16 @@ b.modules = ['zinc:gpio'];
 b.start = 'gpio.setup({p:pin}, \'out\', \'none\');';
 b.handlers = [new Handler('onHigh', 'gpio.write({p:pin}, 1);'), new Handler('onLow', 'gpio.write({p:pin}, 0);')];
 
+b = box('blink', 'Blink', 'IO', 'Toggles an output pin every `period` seconds while running.', 'onStart onStop', 'onTick');
+b.params = [num('pin', '17', 'GPIO pin (BCM)', 0, 63), num('period', '0.5', 'Seconds between toggles', 0.01, 60)];
+b.modules = ['zinc:gpio'];
+b.setup = 'let {id}_timer = -1;\nlet {id}_on = false;';
+b.start = "gpio.setup({p:pin}, 'out', 'none');";
+b.handlers = [
+  new Handler('onStart', 'if ({id}_timer >= 0) return;\n{id}_timer = setInterval(() => {\n  {id}_on = !{id}_on;\n  gpio.write({p:pin}, {id}_on ? 1 : 0);\n  {emit:onTick}();\n}, {p:period} * 1000);'),
+  new Handler('onStop', 'if ({id}_timer >= 0) clearInterval({id}_timer);\n{id}_timer = -1;'),
+];
+
 b = box('gpio_read', 'GPIO Read', 'IO', 'Watches an input pin; emits its value on every edge.', '', 'onRising onFalling value:n');
 b.params = [num('pin', '27', 'GPIO pin (BCM)', 0, 63), choice('pull', 'up', 'Pull resistor', ['up', 'down', 'none'])];
 b.modules = ['zinc:gpio'];
@@ -260,6 +270,7 @@ b.params = [str('message', 'Hello from ZincStudio', 'Text written'), choice('lev
 b.handlers = [new Handler('onStart', 'console.{raw:level}({p:message});\n{emit:onDone}();'), new Handler('message', 'console.{raw:level}(v);')];
 
 b = box('script', 'Script', 'Debug', 'Your own Zinc code (edit it in the Script tab). Call onDone() to continue the flow.', 'onStart', 'onDone');
+b.params = [str('modules', '', 'Modules the script imports, e.g. zinc:net zinc:gpio (as net, gpio)')];
 // the script body is stored on the box instance; codegen.ts wraps it in the onStart handler
 
 /** Default code of a new Script box. */

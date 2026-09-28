@@ -7,7 +7,7 @@
     {"id":"b2","type":"counter","title":"Count","x":280,"y":60,"params":[],"script":""},
     {"id":"b3","type":"if","title":"Five?","x":520,"y":60,"params":[{"name":"op","value":">="},{"name":"threshold","value":"5"}],"script":""},
     {"id":"b4","type":"log","title":"Log count","x":520,"y":200,"params":[{"name":"message","value":""},{"name":"level","value":"log"}],"script":""},
-    {"id":"b5","type":"script","title":"Report","x":760,"y":60,"params":[],"script":"// runs once the counter reaches 5\nconsole.info('counted to five, stopping');\nonDone();\n"}
+    {"id":"b5","type":"script","title":"Report","x":760,"y":60,"params":[{"name":"modules","value":"zinc:sys"}],"script":"// runs once the counter reaches 5\nconsole.info(`counted to five on ${sys.platform()}, stopping`);\nonDone();\n"}
   ],
   "links": [
     {"from":"@start","out":"onStart","to":"b1","inp":"onStart"},

@@ -203,7 +203,7 @@ async function openDemoCopy(src: string): Promise<void> {
   await proc.run('cp', ['-R', src, dst], {});
   openProjectDir(dst);
 }
-/** STUDIO_SHOW=code | script | docs | docs-bridge | devices | open | new | asset:<name> | box:<id> | run:<target>:
+/** STUDIO_SHOW=code | script | docs | docs-bridge | devices | open | new | asset:<name> | box:<id> | invalid | run:<target>:
  *  a state for screenshots and scripted checks (run:* works on a copy of the project, like STUDIO_DEMO). */
 function showState(s: string): void {
   if (s === 'code') setCenterTab('Generated code');
@@ -212,6 +212,7 @@ function showState(s: string): void {
   else if (s === 'devices' || s === 'open' || s === 'new') openDialog(s);
   else if (s.startsWith('asset:')) model.selectAsset(s.slice(6));
   else if (s.startsWith('box:')) model.select([s.slice(4)]);
+  else if (s === 'invalid') { const b = model.findBox('b2'); if (b !== null) { model.select([b.id]); model.setParam(b, 'seconds', '-3'); } }
   else if (s.startsWith('run:')) { model.setTarget(s.slice(4)); run(); }
 }
 function center(h: i32): number[] { const b = ui.screenBox(h); return [b[0] + b[2] / 2, b[1] + b[3] / 2]; }
@@ -237,6 +238,18 @@ function demoStep(frame: i32): void {
     const undone = model.links().length;
     model.redo();
     runner.log('studio', `demo: linked, ${n} links (undo: ${undone}, redo: ${model.links().length})`);
+  } else if (frame === 35) {
+    // shift+drag on the background: rectangle selection around the first two boxes, duplicate, undo
+    const a = graph.portScreen('b1', 'onStart', false), c = graph.portScreen('b2', 'onDone', true);
+    ui.pointerAt(a[0] - 30, a[1] - 60, true, 0, ui.SHIFT);
+    ui.pointerAt(c[0] + 20, c[1] + 60, true, 0, ui.SHIFT);
+    ui.pointerAt(c[0] + 20, c[1] + 60, false, 0, ui.SHIFT);
+    const sel = model.selection().join(',');
+    model.duplicateSelected();
+    const dup = model.boxes().length;
+    model.undo();
+    runner.log('studio', `demo: rectangle selected ${sel}; duplicate -> ${dup} boxes, undo -> ${model.boxes().length}`);
+    model.select([model.boxes()[model.boxes().length - 1].id]);
   } else if (frame === 40) {
     model.setTarget('preview');
     run();

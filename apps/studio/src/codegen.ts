@@ -54,7 +54,8 @@ export function expand(tpl: string, b: BoxFile, def: BoxDef): string {
   for (const o of def.outputs) s = s.replaceAll(`{emit:${o.name}}`, `${id}_out_${o.name}`);
   return s;
 }
-function alias(mod: string): string { return mod.slice(mod.indexOf(':') + 1); }
+/** zinc:net -> net, zinc:ui/solid -> solid. */
+function alias(mod: string): string { const parts = mod.slice(mod.indexOf(':') + 1).split('/'); return parts[parts.length - 1].replaceAll('-', '_'); }
 function valueType(p: PortDef): string { return p.type === 'number' ? 'number' : 'string'; }
 function label(b: BoxFile, def: BoxDef): string { return b.title !== '' && b.title !== def.title ? `${def.title} "${b.title}"` : def.title; }
 
@@ -72,6 +73,7 @@ export function generate(p: ProjectFile, source: string): GenResult {
     byId.set(b.id, b);
     if (d.screen) screen = true;
     for (const m of d.modules) if (r.modules.indexOf(m) < 0) r.modules.push(m);
+    if (d.type === 'script') for (const m of scriptModules(paramValue(b, d, 'modules'))) if (r.modules.indexOf(m) < 0) r.modules.push(m);
   }
   // valid links only: both ends exist, ports exist, kinds compatible
   const links: LinkFile[] = [];
@@ -144,6 +146,20 @@ export function generate(p: ProjectFile, source: string): GenResult {
   return r;
 }
 
+/** A Script box's `modules` parameter: 'zinc:net, zinc:gpio' -> valid module names only (letters, digits, - and /). */
+function scriptModules(spec: string): string[] {
+  const out: string[] = [];
+  for (const w of spec.replaceAll(',', ' ').split(' ')) {
+    if (!w.startsWith('zinc:') || w.length < 6) continue;
+    let ok = true;
+    for (let i = 5; i < w.length; i++) {
+      const c = w.charCodeAt(i);
+      if (!((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 47)) ok = false;
+    }
+    if (ok) out.push(w);
+  }
+  return out;
+}
 function section(out: string[], title: string): void {
   out.push(`// ${'-'.repeat(Math.max(4, 72 - title.length))} ${title}`);
 }
