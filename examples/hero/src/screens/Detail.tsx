@@ -63,7 +63,7 @@ export function Detail(): i32 {
         onPointerLeave={(e: ui.PointerEvent) => { px = -1; py = -1; }} />
     </View>
     <View class="absolute flex-col gap-5"
-      style={{ left: target()[2] + PAD * 2, top: PAD, width: Math.max(200, target()[4] - target()[2] - PAD * 3), opacity: info(), translateX: Math.round((1 - info()) * 40) }}>
+      style={{ left: target()[2] + PAD * 2, top: PAD, width: Math.max(200, target()[4] - target()[2] - PAD * 3), opacity: info(), translateX: (1 - info()) * 40 }}>
       <View class={`flex-row items-center gap-2 h-9 px-2 rounded-lg cursor-pointer hover:bg-${theme().muted}`} onClick={() => closeDetail()}>
         <Icon kind={BACK_ICON} size={16} color={() => rgb(theme().mutedForeground)} />
         <Text class={`text-sm font-semibold text-${theme().mutedForeground}`}>Back to gallery</Text>

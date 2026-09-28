@@ -5,7 +5,6 @@ import { createSignal } from 'zinc:ui/solid';
 
 export class Ball {
   x: number; y: number; vx: number = 0; vy: number = 0; r: number; color: u32;
-  squash: number = 0;   // visual squash after an impact, decays to 0
   constructor(x: number, y: number, r: number, color: u32) { this.x = x; this.y = y; this.r = r; this.color = color; }
 }
 export class Spark {
@@ -68,19 +67,40 @@ export function drag(x: number, y: number): void { pointerX = x; pointerY = y; }
 export function release(): void { grabbed = null; }
 export function holding(): boolean { return grabbed !== null; }
 
+const RESTITUTION: number = 0.8;     // bounciness of wall and ball impacts
+const REST_SPEED: number = 60;       // px/s: slower impacts do not bounce (resting contact, no jitter)
+const MAX_SPEED: number = 3200;      // px/s: a throw is capped so nothing tunnels through a wall
+
+/** Separates two overlapping balls and exchanges momentum along the contact normal (mass ~ area). */
 function collide(a: Ball, b: Ball): void {
   const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy, min = a.r + b.r;
-  if (d2 >= min * min || d2 < 0.0001) return;
-  const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, overlap = min - d;
-  // push apart in proportion to size (area as mass), then exchange momentum along the normal
-  const ma = a.r * a.r, mb = b.r * b.r, total = ma + mb;
-  a.x -= nx * overlap * mb / total; a.y -= ny * overlap * mb / total;
-  b.x += nx * overlap * ma / total; b.y += ny * overlap * ma / total;
+  if (d2 >= min * min) return;
+  const d = Math.sqrt(Math.max(d2, 0.0001)), nx = d2 > 0.0001 ? dx / d : 1, ny = d2 > 0.0001 ? dy / d : 0;
+  // a grabbed ball is immovable (infinite mass): it pushes the others
+  const ia = a === grabbed ? 0 : 1 / (a.r * a.r), ib = b === grabbed ? 0 : 1 / (b.r * b.r), sum = ia + ib;
+  if (sum <= 0) return;
+  const overlap = min - d;
+  a.x -= nx * overlap * ia / sum; a.y -= ny * overlap * ia / sum;
+  b.x += nx * overlap * ib / sum; b.y += ny * overlap * ib / sum;
   const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-  if (rel > 0) return;
-  const j = -1.85 * rel / (1 / ma + 1 / mb);
-  a.vx -= j * nx / ma; a.vy -= j * ny / ma;
-  b.vx += j * nx / mb; b.vy += j * ny / mb;
+  if (rel >= 0) return;   // already separating
+  const e = -rel < REST_SPEED ? 0 : RESTITUTION;
+  const j = -(1 + e) * rel / sum;
+  a.vx -= j * nx * ia; a.vy -= j * ny * ia;
+  b.vx += j * nx * ib; b.vy += j * ny * ib;
+}
+
+/** Keeps a ball inside the box; impacts faster than REST_SPEED bounce, slower ones just stop. */
+function walls(b: Ball): void {
+  const bounce = (v: number): number => Math.abs(v) < REST_SPEED ? 0 : -v * RESTITUTION;
+  if (b.x < b.r) { b.x = b.r; if (b.vx < 0) b.vx = bounce(b.vx); }
+  if (b.x > boxW - b.r) { b.x = boxW - b.r; if (b.vx > 0) b.vx = bounce(b.vx); }
+  if (b.y < b.r) { b.y = b.r; if (b.vy < 0) b.vy = bounce(b.vy); }
+  if (b.y > boxH - b.r) {
+    b.y = boxH - b.r;
+    if (b.vy > 0) b.vy = bounce(b.vy);
+    b.vx *= 0.996;   // rolling friction on the floor
+  }
 }
 
 function stepOnce(): void {
@@ -89,31 +109,27 @@ function stepOnce(): void {
     if (b === grabbed) {
       // the grabbed ball follows the pointer; its velocity is the pointer's, so letting go throws it
       const tx = pointerX - grabDX, ty = pointerY - grabDY;
-      b.vx = (tx - b.x) / STEP * 0.25; b.vy = (ty - b.y) / STEP * 0.25;
-      b.x += (tx - b.x) * 0.25; b.y += (ty - b.y) * 0.25;
+      b.vx = (tx - b.x) * 0.3 / STEP; b.vy = (ty - b.y) * 0.3 / STEP;
+      const s = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      if (s > MAX_SPEED) { b.vx *= MAX_SPEED / s; b.vy *= MAX_SPEED / s; }
+      b.x += (tx - b.x) * 0.3; b.y += (ty - b.y) * 0.3;
     } else {
       b.vy += g * STEP;
-      b.vx *= 0.9995; b.vy *= 0.9995;
+      b.vx *= 0.9997; b.vy *= 0.9997;   // air drag
       b.x += b.vx * STEP; b.y += b.vy * STEP;
     }
-    const bounce = 0.78;
-    if (b.x < b.r) { b.x = b.r; if (b.vx < 0) { b.squash = Math.min(1, -b.vx / 900); b.vx = -b.vx * bounce; } }
-    if (b.x > boxW - b.r) { b.x = boxW - b.r; if (b.vx > 0) { b.squash = Math.min(1, b.vx / 900); b.vx = -b.vx * bounce; } }
-    if (b.y < b.r) { b.y = b.r; if (b.vy < 0) { b.squash = Math.min(1, -b.vy / 900); b.vy = -b.vy * bounce; } }
-    if (b.y > boxH - b.r) {
-      b.y = boxH - b.r;
-      if (b.vy > 0) { b.squash = Math.min(1, b.vy / 900); b.vy = -b.vy * bounce; if (Math.abs(b.vy) < 30) b.vy = 0; }
-      b.vx *= 0.995;   // rolling friction
-    }
   }
-  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) collide(balls[i], balls[j]);
+  // a few relaxation passes: stacks settle without sinking into each other
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) collide(balls[i], balls[j]);
+    for (const b of balls) walls(b);
+  }
 }
 
 /** Advances the simulation by dt seconds (fixed substeps) and ages the sparks. */
 export function stepPhysics(dt: number): void {
   accumulator = Math.min(accumulator + dt, 0.1);
   while (accumulator >= STEP) { stepOnce(); accumulator -= STEP; }
-  for (const b of balls) b.squash *= Math.pow(0.02, dt);
   let i: i32 = 0;
   while (i < sparks.length) {
     const s = sparks[i];

@@ -24,9 +24,9 @@ function ArtCard(props: { art: Artwork }): i32 {
     const b = ui.screenBox(canvas.node), s = ui.screenBox(stageRef.node);
     openDetail(i, b[0] - s[0], b[1] - s[1], b[2], b[3]);
   };
-  const d = 0.05 + i * 0.05;
+  const d = 0.03 + i * 0.03;
   return <View class={`flex-col rounded-xl border overflow-hidden cursor-pointer bg-${theme().card} border-${theme().border} hover:border-${theme().mutedForeground}`}
-    style={{ width: CARD_W, translateY: Math.round(lift.get() + (1 - enter.at(d)) * 20), opacity: enter.at(d) }}
+    style={{ width: CARD_W, translateY: lift.get() + (1 - enter.at(d)) * 20, opacity: enter.at(d) }}
     onPointerEnter={(e: ui.PointerEvent) => lift.to(-8)}
     onPointerLeave={(e: ui.PointerEvent) => { lift.to(0); px = -1; py = -1; }}
     onClick={open}>

@@ -31,16 +31,16 @@ function drawBackdrop(x: i32, y: i32, w: i32, h: i32): void {
 
 /** One title letter: rises with an overshoot, staggered. */
 function Letter(props: { ch: string; index: i32 }): i32 {
-  const delay = 0.15 + props.index * 0.07;
-  const p = (): number => easeOutBack(introEntrance.raw(delay, 0.6));
+  const delay = 0.08 + props.index * 0.045;
+  const p = (): number => easeOutBack(introEntrance.raw(delay, 0.45));
   return <Text class={`text-6xl font-bold text-${theme().foreground}`}
-    style={{ opacity: introEntrance.at(delay, 0.3), translateY: Math.round((1 - p()) * 40) }}>{props.ch}</Text>;
+    style={{ opacity: introEntrance.at(delay, 0.2), translateY: (1 - p()) * 40 }}>{props.ch}</Text>;
 }
 
 function Pill(props: { label: string; index: i32 }): i32 {
-  const d = 0.7 + props.index * 0.06;
+  const d = 0.4 + props.index * 0.035;
   return <View class={`px-3 h-8 rounded-full items-center justify-center border bg-${theme().card} border-${theme().border}`}
-    style={{ opacity: introEntrance.at(d), translateY: Math.round((1 - introEntrance.at(d)) * 12) }}>
+    style={{ opacity: introEntrance.at(d), translateY: (1 - introEntrance.at(d)) * 12 }}>
     <Text class={`text-sm text-${theme().mutedForeground}`}>{props.label}</Text>
   </View>;
 }
@@ -52,25 +52,25 @@ export function Intro(): i32 {
     <Canvas class="absolute inset-0" onDraw={drawBackdrop}
       onPointerMove={(e: ui.PointerEvent) => { glowX.to(e.x); glowY.to(e.y); }} />
     <View class="absolute inset-0 flex-col items-center justify-center gap-6 p-8"
-      style={{ translateY: Math.round(-out() * 60) }}>
-      <View style={{ opacity: introEntrance.at(0), translateY: Math.round((1 - introEntrance.at(0)) * 16) }}>
+      style={{ translateY: -out() * 60 }}>
+      <View style={{ opacity: introEntrance.at(0), translateY: (1 - introEntrance.at(0)) * 16 }}>
         <Badge label="Zinc 0.1 · compiled, not interpreted" variant="accent" />
       </View>
       <View class="flex-row">
         {TITLE.map((ch: string, i: i32) => <Letter ch={ch} index={i} />)}
       </View>
       <Text class={`text-xl text-center text-${theme().mutedForeground}`}
-        style={{ opacity: introEntrance.at(0.45), translateY: Math.round((1 - introEntrance.at(0.45)) * 16) }}>
+        style={{ opacity: introEntrance.at(0.28), translateY: (1 - introEntrance.at(0.28)) * 16 }}>
         Native apps from TypeScript. Screens, transitions, physics and charts, all in this demo.
       </Text>
       <View class="flex-row flex-wrap justify-center gap-2 w-[640]">
         {FEATURES.map((f: string, i: i32) => <Pill label={f} index={i} />)}
       </View>
-      <View class="flex-row gap-3 pt-4" style={{ opacity: introEntrance.at(1.05), translateY: Math.round((1 - introEntrance.at(1.05)) * 16) }}>
+      <View class="flex-row gap-3 pt-4" style={{ opacity: introEntrance.at(0.55), translateY: (1 - introEntrance.at(0.55)) * 16 }}>
         <Button label="Get started  →" size="lg" onClick={() => leaveIntro()} />
         <Button label="Keyboard shortcuts" size="lg" variant="outline" onClick={() => showShortcuts()} />
       </View>
-      <Text class={`text-xs text-${theme().mutedForeground}`} style={{ opacity: introEntrance.at(1.5) * 0.7 }}>
+      <Text class={`text-xs text-${theme().mutedForeground}`} style={{ opacity: introEntrance.at(0.8) * 0.7 }}>
         Press Enter to continue
       </Text>
     </View>

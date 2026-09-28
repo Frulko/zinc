@@ -40,7 +40,7 @@ function TaskRow(props: { task: Task }): i32 {
   const t = props.task;
   return <View class="flex-col overflow-hidden" style={{ height: Math.round(ROW_H * t.life.get()), opacity: t.life.get() }}>
     <View class={`flex-row items-center gap-3 h-[52] px-4 rounded-xl border bg-${theme().card} border-${theme().border}`}
-      style={{ translateX: Math.round((1 - t.life.get()) * -30) }}>
+      style={{ translateX: (1 - t.life.get()) * -30 }}>
       <Checkbox task={t} />
       <Text class={`text-sm grow ${t.done() ? `text-${theme().mutedForeground}` : `text-${theme().foreground}`}`}>{t.title}</Text>
       <Badge label={t.tag} variant={t.done() ? 'outline' : 'secondary'} />
@@ -63,7 +63,7 @@ export function Tasks(): i32 {
       <Tabs items={['All', 'Active', 'Done']} selected={filter} onSelect={(i: i32) => setFilter(i)} />
     </View>
     <Progress value={() => progress.get()} />
-    <View class="flex-row gap-2" style={{ opacity: enter.at(0.08), translateY: Math.round((1 - enter.at(0.08)) * 12) }}>
+    <View class="flex-row gap-2" style={{ opacity: enter.at(0.08), translateY: (1 - enter.at(0.08)) * 12 }}>
       <Input ref={taskInput} class={`grow h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
         placeholder="What needs doing? (Enter to add)" value={draft()} onInput={(v: string) => setDraft(v)}
         onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { submit(); syncProgress(); e.preventDefault(); } }} />

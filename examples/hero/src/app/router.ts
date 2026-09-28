@@ -33,7 +33,7 @@ export function go(i: i32): void {
   setPrevTab(tab());
   setTabSignal(i);
   slide.snap(0);
-  slide.to(1, 0.42, easeInOut);
+  slide.to(1, 0.3, easeOut);
   entrances[i].restart();
 }
 export function next(dir: i32): void { go((tab() + dir + TABS.length) % TABS.length); }
@@ -64,7 +64,7 @@ export const introEntrance = new Entrance();
 
 export function leaveIntro(): void {
   if (introOut.moving() || !introShown()) return;
-  introOut.to(1, 0.7, easeInOut, () => setIntroShown(false));
+  introOut.to(1, 0.45, easeInOut, () => setIntroShown(false));
   entrances[tab()].restart();
 }
 export function replayIntro(): void {
@@ -83,11 +83,11 @@ export let fromX: number = 0, fromY: number = 0, fromW: number = 0, fromH: numbe
 export function openDetail(i: i32, x: number, y: number, w: number, h: number): void {
   fromX = x; fromY = y; fromW = w; fromH = h;
   setDetail(i);
-  detailT.to(1, 0.55, easeOut);
+  detailT.to(1, 0.42, easeOut);
 }
 export function closeDetail(): void {
   if (detail() < 0) return;
-  detailT.to(0, 0.4, easeInOut, () => setDetail(-1));
+  detailT.to(0, 0.32, easeInOut, () => setDetail(-1));
 }
 /** Opens artwork `i` without a card to grow from (palette, shortcuts): it grows from the middle of the stage. */
 export function openDetailByIndex(i: i32): void {

@@ -21,7 +21,7 @@ function countUp(v: i32, delay: number): string { return `${Math.round(v * enter
 
 /** Wraps a block so it fades and rises in at `delay` after the screen appears. */
 function Rise(props: { delay: number; class?: string; children: () => i32 }): i32 {
-  return <View class={props.class ?? 'flex-col'} style={{ opacity: enter.at(props.delay), translateY: Math.round((1 - enter.at(props.delay)) * 14) }}>
+  return <View class={props.class ?? 'flex-col'} style={{ opacity: enter.at(props.delay), translateY: (1 - enter.at(props.delay)) * 14 }}>
     {props.children()}
   </View>;
 }
@@ -45,26 +45,26 @@ export function Home(): i32 {
         </View>
       </Rise>
       <View class="flex-row gap-4">
-        <Rise delay={0.08} class="flex-col grow"><Stat label="Frames drawn" value={() => countUp(frameCount(), 0.08)} hint="since launch" /></Rise>
-        <Rise delay={0.14} class="flex-col grow"><Stat label="Tasks done" value={() => `${countUp(doneCount(), 0.14)} / ${totalCount()}`} hint="Tasks screen" /></Rise>
-        <Rise delay={0.2} class="flex-col grow"><Stat label="Liked artworks" value={() => countUp(likes(), 0.2)} hint={`of ${ARTWORKS.length}`} /></Rise>
-        <Rise delay={0.26} class="flex-col grow"><Stat label="Uptime" value={() => clock(uptime())} hint="minutes:seconds" /></Rise>
+        <Rise delay={0.04} class="flex-col grow"><Stat label="Frames drawn" value={() => countUp(frameCount(), 0.04)} hint="since launch" /></Rise>
+        <Rise delay={0.07} class="flex-col grow"><Stat label="Tasks done" value={() => `${countUp(doneCount(), 0.07)} / ${totalCount()}`} hint="Tasks screen" /></Rise>
+        <Rise delay={0.1} class="flex-col grow"><Stat label="Liked artworks" value={() => countUp(likes(), 0.1)} hint={`of ${ARTWORKS.length}`} /></Rise>
+        <Rise delay={0.13} class="flex-col grow"><Stat label="Uptime" value={() => clock(uptime())} hint="minutes:seconds" /></Rise>
       </View>
       <View class="flex-row gap-4">
-        <Rise delay={0.32} class="flex-col grow">
+        <Rise delay={0.16} class="flex-col grow">
           <Card>
             <CardHeader title="Requests" description="Streaming, 8 samples a second. Hover the chart.">
               <View class="flex-row"><Badge label="Live" variant="success" /></View>
             </CardHeader>
             <CardContent>
               <Canvas class="h-[200]"
-                onDraw={(x: i32, y: i32, w: i32, h: i32) => drawArea(series, x, y, w, h, enter.at(0.35, 0.9), accentRgb(), rgb(theme().border), rgb(theme().foreground))}
+                onDraw={(x: i32, y: i32, w: i32, h: i32) => drawArea(series, x, y, w, h, enter.at(0.18, 0.7), accentRgb(), rgb(theme().border), rgb(theme().foreground))}
                 onPointerMove={(e: ui.PointerEvent) => { series.hoverX = e.x; }}
                 onPointerLeave={(e: ui.PointerEvent) => { series.hoverX = -1; }} />
             </CardContent>
           </Card>
         </Rise>
-        <Rise delay={0.38} class="flex-col w-[300]">
+        <Rise delay={0.2} class="flex-col w-[300]">
           <Card>
             <CardHeader title="Goals" description="Tasks, likes, uptime" />
             <CardContent>
@@ -75,10 +75,10 @@ export function Home(): i32 {
           </Card>
         </Rise>
       </View>
-      <Rise delay={0.44}>
+      <Rise delay={0.24}>
         <Text class={`text-sm font-semibold pb-2 text-${theme().foreground}`}>Recent activity</Text>
         <List>
-          {[0, 1, 2, 3, 4].map((i: i32) => <View style={{ opacity: enter.at(0.5 + i * 0.06), translateX: Math.round((1 - enter.at(0.5 + i * 0.06)) * 24) }}>
+          {[0, 1, 2, 3, 4].map((i: i32) => <View style={{ opacity: enter.at(0.3 + i * 0.035), translateX: (1 - enter.at(0.3 + i * 0.035)) * 24 }}>
             <ListItem title={ACTIVITY[i * 2]} trailing={ACTIVITY[i * 2 + 1]} onClick={() => toast(ACTIVITY[i * 2], 'An entry of the activity feed.')} />
           </View>)}
         </List>

@@ -114,9 +114,9 @@ export class Entrance {
   private clock: Tween = new Tween(10);
   restart(): void { this.clock.snap(0); this.clock.to(3, 3, linear); }
   /** Progress of an element that starts `delay` seconds after the screen and takes `seconds`. */
-  at(delay: number, seconds: number = 0.5): number { return easeOut(this.raw(delay, seconds)); }
+  at(delay: number, seconds: number = 0.38): number { return easeOut(this.raw(delay, seconds)); }
   /** Linear progress, for a custom easing. */
-  raw(delay: number, seconds: number = 0.5): number { return clamp01((this.clock.get() - delay) / seconds); }
+  raw(delay: number, seconds: number = 0.38): number { return clamp01((this.clock.get() - delay) / seconds); }
 }
 
 /** Advances every moving tween and spring. Called once per frame from main.tsx. */

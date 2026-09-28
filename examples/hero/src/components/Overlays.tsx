@@ -13,7 +13,7 @@ function toneDot(tone: string): string { return tone === 'success' ? 'bg-emerald
 function ToastCard(props: { t: Toast }): i32 {
   const t = props.t;
   return <View class={`flex-row gap-3 p-4 rounded-xl border shadow-lg cursor-pointer bg-${theme().card} border-${theme().border}`}
-    style={{ translateX: Math.round(t.enter.get() * 380), opacity: t.fade.get() }}
+    style={{ translateX: t.enter.get() * 380, opacity: t.fade.get() }}
     onClick={() => dismiss(t)}>
     <View class={`w-2 h-2 mt-1.5 rounded-full ${toneDot(t.tone)}`} />
     <View class="flex-col gap-0.5 grow">
@@ -33,7 +33,7 @@ function Toasts(): i32 {
 function DialogPanel(props: { d: Dialog }): i32 {
   const d = props.d;
   return <View class={`flex-col gap-4 w-[440] p-6 rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
-    style={{ opacity: dialogT.get(), translateY: Math.round((1 - dialogT.get()) * 18) }}
+    style={{ opacity: dialogT.get(), translateY: (1 - dialogT.get()) * 18 }}
     onClick={() => {}}>
     <Text class={`text-lg font-bold text-${theme().foreground}`}>{d.title}</Text>
     <Text class={`text-sm text-${theme().mutedForeground}`}>{d.body}</Text>
@@ -93,7 +93,7 @@ function Palette(): i32 {
   return <View class="absolute inset-0 items-center pt-24" style={{ hidden: paletteOpen() ? 0 : 1 }}>
     <View class="absolute inset-0 bg-black" style={{ opacity: paletteT.get() * 0.35 }} onClick={() => closePalette()} />
     <View class={`flex-col w-[560] rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
-      style={{ opacity: paletteT.get(), translateY: Math.round((1 - paletteT.get()) * -12) }} onClick={() => {}}>
+      style={{ opacity: paletteT.get(), translateY: (1 - paletteT.get()) * -12 }} onClick={() => {}}>
       <View class={`flex-row items-center px-4 h-14 border-b border-${theme().border}`}>
         <Input ref={paletteInput} class={`grow text-base bg-transparent border-0 text-${theme().foreground}`} placeholder="Type a command or search…"
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); }} onKeyDown={paletteKey} />

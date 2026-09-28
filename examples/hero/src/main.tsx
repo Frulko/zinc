@@ -26,7 +26,7 @@ import { Intro } from './screens/Intro';
 
 function App(): i32 {
   return <View class="h-full">
-    <View class="absolute inset-0" style={{ translateY: Math.round((1 - introOut.get()) * 24) }}>
+    <View class="absolute inset-0" style={{ translateY: (1 - introOut.get()) * 24 }}>
       <Shell>
         <Screen index={0}><Home /></Screen>
         <Screen index={1}><Gallery /></Screen>

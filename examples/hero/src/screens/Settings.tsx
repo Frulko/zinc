@@ -12,7 +12,7 @@ import { toast, openDialog, Dialog } from '../app/overlays';
 const enter = entrances[SETTINGS];
 
 function Section(props: { delay: number; children: () => i32 }): i32 {
-  return <View class="flex-col" style={{ opacity: enter.at(props.delay), translateY: Math.round((1 - enter.at(props.delay)) * 16) }}>
+  return <View class="flex-col" style={{ opacity: enter.at(props.delay), translateY: (1 - enter.at(props.delay)) * 16 }}>
     {props.children()}
   </View>;
 }
@@ -53,7 +53,7 @@ export function Settings(): i32 {
         <Text class={heading(2)}>Settings</Text>
         <Text class={mutedText()}>Every change applies at once, across the whole app.</Text>
       </Section>
-      <Section delay={0.08}>
+      <Section delay={0.04}>
         <Card>
           <CardHeader title="Appearance" description="Theme and brand colour" />
           <CardContent>
@@ -66,7 +66,7 @@ export function Settings(): i32 {
           </CardContent>
         </Card>
       </Section>
-      <Section delay={0.16}>
+      <Section delay={0.08}>
         <Card>
           <CardHeader title="Motion" description="Every animation runs on one clock" />
           <CardContent>
@@ -85,7 +85,7 @@ export function Settings(): i32 {
           </CardContent>
         </Card>
       </Section>
-      <Section delay={0.24}>
+      <Section delay={0.12}>
         <Card>
           <CardHeader title="Profile" description="Shown in the sidebar and on Home" />
           <CardContent>
@@ -96,7 +96,7 @@ export function Settings(): i32 {
           </CardContent>
         </Card>
       </Section>
-      <Section delay={0.32}>
+      <Section delay={0.16}>
         <Card>
           <CardHeader title="Danger zone" description="Start the demo over" />
           <CardContent>
