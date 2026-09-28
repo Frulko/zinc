@@ -73,6 +73,7 @@ for (const n of ['URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'atob',
   'DOMException', 'crypto', 'Crypto', 'SubtleCrypto', 'CryptoKey', 'Blob', 'File', 'FormData', 'reportError', 'navigator', 'structuredClone',
   'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI']) WEB_GLOBALS[n] = 'zinc:web';
 for (const n of ['fetch', 'Request', 'Response', 'Headers']) WEB_GLOBALS[n] = 'zinc:web/fetch';
+WEB_GLOBALS.WebAssembly = 'zinc:wasm';  // plugins/wasm (wasm3); hosts only
 const WEB_FILES = new Set(['lib/std/web.ts', 'lib/std/fetch.ts'].map(f => path.join(ZINC_ROOT, f)));
 /** A source that uses a Web global without importing or declaring it gets the import appended (imports are hoisted,
  *  so the positions of every diagnostic stay the same): `new URL(s)` works like on the Web, and a program that never

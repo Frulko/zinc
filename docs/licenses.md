@@ -13,6 +13,7 @@
 | [stb_image](https://github.com/nothings/stb) v2.30 (PNG and JPEG decoders only), © Sean Barrett | `plugins/three/native/stb_image.h`, linked into programs that import `three` | public domain or MIT (dual) |
 | glTF sample models from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets): Cesium Milk Truck, Box Textured, © Cesium | `examples/three/gltf-viewer/assets` (and Box Textured .glb as base64 in `tests/conformance/three.ts`) | CC-BY-4.0; the Cesium logo in their textures is a trademark (LicenseRef-LegalMark-Cesium) |
 | [SQLite](https://sqlite.org) 3.53.4 amalgamation (`sqlite-amalgamation-3530400.zip`, sha256 `1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d`) | `plugins/sqlite/vendor/sqlite3.{c,h}`, linked into programs that import `zinc:sqlite` | public domain ([sqlite.org/copyright](https://sqlite.org/copyright.html)) |
+| [wasm3](https://github.com/wasm3/wasm3) 0.5.0 (`v0.5.0.tar.gz`, sha256 `b778dd72ee2251f4fe9e2666ee3fe1c26f06f517c3ffce572416db067546536c`), core interpreter only (no WASI / libc / tracer APIs), © Steven Massey, Volodymyr Shymanskyy | `plugins/wasm/vendor/wasm3/` (license text in `LICENSE` there), linked into programs that use `WebAssembly` / `zinc:wasm` | MIT |
 | WPT data used to check `zinc:web` (`url/resources/urltestdata.json`, `setters_tests.json`), © web-platform-tests contributors | not vendored: fetched when checking (docs/guide/09-web-apis.md) | BSD-3-Clause |
 
 The license of Zinc itself (MIT or Apache-2.0) is an open question for the project owner (spec §17).

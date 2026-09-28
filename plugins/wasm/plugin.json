@@ -1,0 +1,14 @@
+{
+  "name": "wasm",
+  "kind": "module",
+  "module": "zinc:wasm",
+  "entry": "index.ts",
+  "description": "WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals",
+  "requires": ["heap>=1M"],
+  "targets": {
+    "macos": { "sources": ["vendor/wasm3/m3_bind.c", "vendor/wasm3/m3_code.c", "vendor/wasm3/m3_compile.c", "vendor/wasm3/m3_core.c", "vendor/wasm3/m3_emit.c", "vendor/wasm3/m3_env.c", "vendor/wasm3/m3_exec.c", "vendor/wasm3/m3_function.c", "vendor/wasm3/m3_info.c", "vendor/wasm3/m3_module.c", "vendor/wasm3/m3_optimize.c", "vendor/wasm3/m3_parse.c"] },
+    "linux": { "sources": ["vendor/wasm3/m3_bind.c", "vendor/wasm3/m3_code.c", "vendor/wasm3/m3_compile.c", "vendor/wasm3/m3_core.c", "vendor/wasm3/m3_emit.c", "vendor/wasm3/m3_env.c", "vendor/wasm3/m3_exec.c", "vendor/wasm3/m3_function.c", "vendor/wasm3/m3_info.c", "vendor/wasm3/m3_module.c", "vendor/wasm3/m3_optimize.c", "vendor/wasm3/m3_parse.c"], "libs": ["m"] },
+    "rpi1": { "sources": ["vendor/wasm3/m3_bind.c", "vendor/wasm3/m3_code.c", "vendor/wasm3/m3_compile.c", "vendor/wasm3/m3_core.c", "vendor/wasm3/m3_emit.c", "vendor/wasm3/m3_env.c", "vendor/wasm3/m3_exec.c", "vendor/wasm3/m3_function.c", "vendor/wasm3/m3_info.c", "vendor/wasm3/m3_module.c", "vendor/wasm3/m3_optimize.c", "vendor/wasm3/m3_parse.c"], "libs": ["m"] },
+    "rmpp": { "sources": ["vendor/wasm3/m3_bind.c", "vendor/wasm3/m3_code.c", "vendor/wasm3/m3_compile.c", "vendor/wasm3/m3_core.c", "vendor/wasm3/m3_emit.c", "vendor/wasm3/m3_env.c", "vendor/wasm3/m3_exec.c", "vendor/wasm3/m3_function.c", "vendor/wasm3/m3_info.c", "vendor/wasm3/m3_module.c", "vendor/wasm3/m3_optimize.c", "vendor/wasm3/m3_parse.c"], "libs": ["m"] }
+  }
+}
