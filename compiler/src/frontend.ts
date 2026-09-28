@@ -30,6 +30,10 @@ export const STD_MODULES: Record<string, string> = {
   'zinc:ui/solid': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
   'zinc:ui/react': path.join(ZINC_ROOT, 'lib/std/react.ts'),
   'zinc:ui/kit': path.join(ZINC_ROOT, 'lib/std/kit/index.ts'),
+  'zinc:web': path.join(ZINC_ROOT, 'lib/std/web.ts'),
+  'zinc:web/fetch': path.join(ZINC_ROOT, 'lib/std/fetch.ts'),
+  'zinc:path': path.join(ZINC_ROOT, 'lib/std/path.ts'),
+  'zinc:assert': path.join(ZINC_ROOT, 'lib/std/assert.ts'),
   'zinc:signals': path.join(ZINC_ROOT, 'lib/std/signals.ts'),
   // PocketJS apps compile unchanged against these (lib/compat/pocketjs)
   'solid-js': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
@@ -62,6 +66,53 @@ export const compilerOptions: ts.CompilerOptions = {
   noEmitOnError: false,
   types: [],
 };
+
+/** Web platform globals (docs/guide/09-web-apis.md) and the Zinc module that implements each. */
+export const WEB_GLOBALS: Record<string, string> = Object.create(null) as Record<string, string>;
+for (const n of ['URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'atob', 'btoa', 'Event', 'EventTarget', 'CustomEvent',
+  'ErrorEvent', 'MessageEvent', 'PromiseRejectionEvent', 'MessageChannel', 'MessagePort', 'AbortController', 'AbortSignal',
+  'DOMException', 'crypto', 'Crypto', 'SubtleCrypto', 'CryptoKey', 'Blob', 'File', 'FormData', 'reportError', 'navigator', 'structuredClone',
+  'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI']) WEB_GLOBALS[n] = 'zinc:web';
+for (const n of ['fetch', 'Request', 'Response', 'Headers']) WEB_GLOBALS[n] = 'zinc:web/fetch';
+WEB_GLOBALS.WebAssembly = 'zinc:wasm';  // plugins/wasm (wasm3); hosts only
+const WEB_FILES = new Set(['lib/std/web.ts', 'lib/std/fetch.ts'].map(f => path.join(ZINC_ROOT, f)));
+/** A source that uses a Web global without importing or declaring it gets the import appended (imports are hoisted,
+ *  so the positions of every diagnostic stay the same): `new URL(s)` works like on the Web, and a program that never
+ *  names one does not link the module. */
+function webGlobals(file: string, text: string, kind: ts.ScriptKind): string {
+  if (WEB_FILES.has(file) || !Object.keys(WEB_GLOBALS).some(n => text.includes(n))) return text;
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, kind);
+  const declared = new Set<string>();
+  const addName = (n: ts.Node | undefined) => { if (n && ts.isIdentifier(n)) declared.add(n.text); };
+  for (const st of sf.statements) {
+    if (ts.isImportDeclaration(st) && st.importClause) {
+      addName(st.importClause.name);
+      const nb = st.importClause.namedBindings;
+      if (nb && ts.isNamespaceImport(nb)) addName(nb.name);
+      if (nb && ts.isNamedImports(nb)) for (const e of nb.elements) addName(e.name);
+    } else if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) declared.add(d.name.text);
+    } else if ((ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) || ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) {
+      declared.add(st.name.text);
+    }
+  }
+  const used = new Map<string, Set<string>>();
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && WEB_GLOBALS[n.text] && !declared.has(n.text)) {
+      const p = n.parent as ts.Node & { name?: ts.Node };
+      const isName = p && p.name === n && !ts.isShorthandPropertyAssignment(p);
+      if (!isName && !(ts.isQualifiedName(p) && p.right === n)) {
+        const m = WEB_GLOBALS[n.text];
+        if (!used.has(m)) used.set(m, new Set());
+        used.get(m)!.add(n.text);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  if (!used.size) return text;
+  return text + [...used].map(([m, names]) => `\nimport { ${[...names].sort().join(', ')} } from '${m}';`).join('') + '\n';
+}
 
 /** `extra`: additional root modules compiled into the program (zinc dev adds plugins/devtools).
  *  `virtual`: in-memory sources by absolute path (zinc build app.js: the .ts written by `zinc infer`, DYN-14). */
@@ -98,8 +149,9 @@ export function loadProgram(entryPath: string, extra: string[] = [], virtual?: M
         const calls = [...rules].map(([k, v]) => { custom.add(k); return `__zcss(${JSON.stringify(k)}, ${JSON.stringify(v.join(' '))});`; }).join(' ');
         return `import { defineClass as __zcss } from 'zinc:ui'; ${calls}`;
       });
-      if (!f.endsWith('.tsx')) return ts.createSourceFile(f, text, lang, true, ts.ScriptKind.TS);
-      return ts.createSourceFile(f, lowerJsx(text, f, custom), lang, true, ts.ScriptKind.TSX);
+      const kind = f.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+      if (kind === ts.ScriptKind.TSX) text = lowerJsx(text, f, custom);
+      return ts.createSourceFile(f, webGlobals(f, text, kind), lang, true, kind);
     } catch (e) {
       if (!(e instanceof JsxError) && !(e instanceof CssError)) throw e;
       const pos = e instanceof JsxError ? e.pos : 0;

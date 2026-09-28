@@ -1,0 +1,14 @@
+{
+  "name": "socket",
+  "kind": "module",
+  "module": "zinc:socket",
+  "entry": "index.ts",
+  "description": "TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)",
+  "requires": ["net", "process"],
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "rpi1": {},
+    "rmpp": {}
+  }
+}

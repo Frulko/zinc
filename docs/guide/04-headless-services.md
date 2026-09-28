@@ -29,7 +29,10 @@ serve(3000, (req: Request): Reply => {
 });
 ```
 
-`fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). The handler receives
+`fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). Only `http:` and `https:` URLs
+are fetched, following at most 20 redirects. A request times out after `timeoutMs` (default 120000; connecting takes
+at most 30 s). A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB) is refused with
+`fetch failed: response too large`. The handler receives
 `method`, `path`, `body`; there is no routing framework — branch on `req.path` yourself.
 
 ## MQTT, OSC, telemetry
@@ -75,18 +78,44 @@ ZINC_LOG_FORMAT=json ./sensor-hub
 # {"time":361126276.226,"level":"INFO","message":"sensor-hub listening on http://0.0.0.0:3000 (mqtt off)"}
 ```
 
-## Signals and shutdown — the honest version
+## Signals and shutdown
 
-There is **no user-facing signal handler API**. On POSIX hosts the runtime traps fatal *faults* (SIGSEGV/BUS/FPE/…)
-for the crash policy, but SIGINT/SIGTERM use their default disposition: the process terminates. That means:
+On POSIX hosts (macos, linux, rpi1, rmpp), `sys.onSignal` runs a handler on the event loop when a signal arrives. The
+handler replaces the default action, which would terminate the program:
 
-- Ctrl-C and `systemctl stop` end the process immediately; do any durable work incrementally (write to `zinc:storage`
-  or a file as you go), not in a shutdown hook that will not run.
-- The program exits cleanly on its own only when the loop runs out of work; a server never does, by design.
-- `sys.exit(code)` ends the process now.
+```ts
+import * as sys from 'zinc:sys';
+import { stop } from 'zinc:net';
+sys.onSignal('SIGTERM', () => {       // systemctl stop, docker stop
+  console.log('draining…');
+  stop();                             // no new connections; the loop ends when the last work is done
+});
+sys.onSignal('SIGINT', () => { sys.exit(130); });   // Ctrl-C
+```
 
-If you need graceful drain-then-exit, model it in-band (e.g. a `/shutdown` endpoint that stops accepting work and then
-calls `sys.exit(0)`), rather than relying on a signal.
+- **Delivery.** The OS handler only sets a flag; a poller calls your callbacks between tasks. This means a handler can
+  do anything a timer callback can.
+- **Liveness.** Handlers do not keep the program alive, the same as `process.on('SIGINT')` in Node.
+- **Names.** `SIGINT`, `SIGTERM`, `SIGHUP`, `SIGUSR1`, `SIGUSR2`, `SIGQUIT`, `SIGWINCH`, `SIGALRM`, `SIGCHLD`,
+  `SIGPIPE`, `SIGCONT` and `SIGTSTP`. `SIGKILL` cannot be caught.
+- **Sending.** `sys.kill(pid, 'SIGTERM')` sends a signal, and `sys.pid()` is this process.
+- **Other targets.** ESP32, PS1, PS2 and wasm have no signals: there `onSignal` does nothing.
+
+Fatal faults (SIGSEGV, SIGBUS, SIGFPE…) keep going to the crash policy below. `sys.exit(code)` still ends the process
+at once.
+
+## Process, files, sockets
+
+| Need | Module |
+|---|---|
+| Arguments, environment, working directory, pid, stdout without a newline, stdin | `zinc:sys`: `args`, `env` / `setEnv` / `unsetEnv` / `envKeys`, `cwd` / `chdir`, `pid`, `write` / `writeErr`, `isatty`, `onStdin(cb)` (chunks, `''` at EOF) |
+| Files and directories | `zinc:fs`: text and bytes, `stat` / `lstat`, `readDir` (with types), `mkdir(p, true)` (mkdir -p), `remove(p, true)` (rm -rf), `rename`, `copyFile`, `realpath`, `mkdtemp` / `tmpdir`, `symlink` / `readlink`, `chmod`, `watch` (polling, 100 ms) |
+| Machine information | `zinc:os`: `hostname`, `homedir`, `tmpdir`, `arch`, `type`, `release`, `uptime`, `loadavg`, `totalmem` / `freemem`, `cpus`, `networkInterfaces`, `userInfo` |
+| Child processes | `zinc:process` ([docs](../plugins/process.md)): spawn with stdin / stdout / stderr pipes, kill, exit code |
+| TCP / UDP / Unix sockets, DNS, WebSocket | `zinc:socket` ([docs](../plugins/socket.md)) |
+| Paths | `zinc:path`: POSIX `join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `parse`, `format` (Node's results) |
+| SQL database | `zinc:sqlite` ([docs](../plugins/sqlite.md)) |
+| Web APIs (fetch, URL, crypto, events…) | globals ([chapter 9](09-web-apis.md)) |
 
 ## Running as a systemd service
 
@@ -136,8 +165,6 @@ zinc build examples/service/sensor-hub --target esp32     # ESP-IDF firmware (bu
 zinc export --target esp32 examples/service/sensor-hub    # + flash.sh (esptool)
 ```
 
-Next: [plugins](05-plugins.md).
-
 ## Signals between objects (zinc:signals)
 
 Qt's signals and slots, typed and without a meta-object system: an object exposes `Signal<T>` fields, anyone
@@ -162,3 +189,5 @@ A slot disconnected during an emit is not called afterwards; one connected durin
 `once()` connects for a single emit. In a UI, `fromSignal(signal, initial)` from `zinc:ui/solid` turns it into a
 reactive accessor (disconnected with its owner). `zinc:events`' `Emitter` remains the tool for values coming from
 native threads (listeners run as microtasks).
+
+Next: [plugins](05-plugins.md). Web platform APIs: [chapter 9](09-web-apis.md).

@@ -1,0 +1,13 @@
+value true
+true false
+true true false
+true / false
+partial line
+ok € [ 195, 169 ] 4
+sys.onSignal: unknown or uncatchable signal SIGNOPE
+sys.kill: unknown signal SIGNOPE
+stdin eof 0
+SIGUSR1
+SIGTERM 1 (handled: the program drains and exits by itself)
+SIGTERM 2 (handled: the program drains and exits by itself)
+done

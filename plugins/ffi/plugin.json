@@ -1,0 +1,12 @@
+{
+  "name": "ffi",
+  "kind": "module",
+  "module": "zinc:ffi",
+  "entry": "index.ts",
+  "description": "Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures, C memory helpers (no libffi)",
+  "requires": ["dynlib", "process"],
+  "targets": {
+    "macos": {},
+    "linux": { "libs": ["dl"] }
+  }
+}

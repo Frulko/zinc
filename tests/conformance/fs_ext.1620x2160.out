@@ -1,0 +1,21 @@
+true true true
+false true true true
+[ 0, 1, 2, 250, 255 ] 5 true
+text true true false true
+  b false true false
+  bin.dat true false false
+  link false false true
+  moved.txt true false false
+  t.txt true false false
+ENOENT: stat <tmp>/nope
+ENOENT: rename <tmp>/nope
+ENOTDIR: scandir <tmp>/a/t.txt
+ENOENT: copyfile <tmp>/nope
+ENOENT: cannot open <tmp>/nope
+false true false false
+watch rename w.txt
+watch change w.txt
+watch rename v.txt
+watch rename w.txt
+watch rename v.txt
+unwatched true false

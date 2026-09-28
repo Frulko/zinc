@@ -425,7 +425,10 @@ class CppEmitter {
     const errBase = ts.isClassDeclaration(c) && this.s.errorBase(c);
     L.push(`  bool zrt_isa(uint32_t id) const override { return id == ZRT_CID || ${base.code}::zrt_isa(id); }`);
     L.push(`  void zrt_fields(zrt::StrBuilder& sb, bool& first) const;`);
-    L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }`);
+    // JSON.stringify calls toJSON() when the class has one (ECMAScript SerializeJSONProperty)
+    const toJSON = !ts.isClassDeclaration(c) ? undefined : c.members.find(m => ts.isMethodDeclaration(m) && m.name.getText() === 'toJSON' && m.parameters.length === 0 && !this.isStatic(m));
+    if (toJSON) L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { zrt::json(sb, const_cast<${self}*>(this)->toJSON()); }`);
+    else L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }`);
     // console.log: `Name { field: value }` for classes, `{ field: value }` for interfaces and object types
     L.push(`  void zrt_ifields(zrt::InspParts& p, zrt::Insp& in) const override;`);
     if (!errBase) L.push(`  void zrt_inspect(zrt::StrBuilder& sb, zrt::Insp& in) const override { zrt::insp_object(sb, in, this, ${ts.isClassDeclaration(c) && c.name ? JSON.stringify(c.name.text) : 'nullptr'}); }`);
@@ -1553,6 +1556,8 @@ class CppEmitter {
 
   toI32(e: ts.Expression): string {
     const t = this.s.ztypeOf(e);
+    // `n & 0x1FFFFFFF`: an integer literal is an int, not the profile's f32 / fx12 (which would round or overflow it)
+    if (this.s.isIntLiteral(e)) { const v = Number(e.getText().replace(/[()\s]/g, '')); if (Number.isInteger(v)) return `static_cast<int32_t>(${v > 0x7fffffff ? `${v}u` : v})`; }
     if (t.k === 'num' && t.m === 'i32') return this.expr(e, I32);
     if (t.k === 'num' && isInt(t.m)) return `static_cast<int32_t>(${this.expr(e, I32)})`;
     if (t.k === 'num' && isFx(t.m)) return `zrt::cvt<int32_t>(static_cast<double>(${this.expr(e)}))`;
@@ -1606,6 +1611,12 @@ class CppEmitter {
       if (refLike(lt)) {
         const t = this.s.ztypeOf(e), v = this.newTmp('t');
         return `([&]() -> ${this.cpp(t)} { ${this.cpp(t)} ${v} = ${this.expr(L)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${v}; }())`;
+      }
+      if (lt.k === 'str') {  // `string | null | undefined`: absent is a null String (s == nullptr), '' is present
+        const v = this.newTmp('t');
+        // the left side is evaluated as the lambda's argument: a call that throws there propagates from the enclosing
+        // function (its error check `return`s), not from the lambda
+        return `([&](zrt::String ${v}) -> zrt::String { if (${v}.s == nullptr) return ${this.conv(R, STR)}; return ${v}; }(${this.expr(L)}))`;
       }
       return this.expr(L);
     }

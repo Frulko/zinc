@@ -21,6 +21,7 @@
 #include "zrt.h"
 #include "mod/net.h"
 #include "esp_http_client.h"
+#include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -35,17 +36,21 @@ static Pending* pending_list = nullptr;
 static uint32_t next_id = 1;
 static QueueHandle_t done_q = nullptr;
 
-struct TaskArgs { uint32_t id; char* url; char* method; char* body; size_t body_len; char* content_type; };
+struct Done;
+struct TaskArgs { uint32_t id; char* url; char* method; char* body; size_t body_len; char* content_type; char* headers; int timeout_ms; size_t max; Done* done; };  // headers: "name\nvalue\n" pairs
 struct Done { uint32_t id; bool ok_transport; int status; char* body; size_t body_len; char* err; };
-struct RecvBuf { char* p; size_t n; };
+struct RecvBuf { char* p; size_t n; size_t max; bool failed, tooBig; };
 
-static char* dupstr(const char* p, uint32_t n) { char* r = (char*)malloc((size_t)n + 1); memcpy(r, p, n); r[n] = 0; return r; }
+/** nullptr when out of memory (the caller checks). */
+static char* dupstr(const char* p, uint32_t n) { char* r = (char*)malloc((size_t)n + 1); if (!r) return nullptr; memcpy(r, p, n); r[n] = 0; return r; }
+static void free_args(TaskArgs* a) { free(a->url); free(a->method); free(a->body); free(a->content_type); free(a->headers); free(a); }
 
 static esp_err_t http_event(esp_http_client_event_t* evt) {
   if (evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0) {
     RecvBuf* b = (RecvBuf*)evt->user_data;
+    if (b->n + (size_t)evt->data_len > b->max) { b->failed = b->tooBig = true; return ESP_FAIL; }
     char* np = (char*)realloc(b->p, b->n + (size_t)evt->data_len);
-    if (!np) return ESP_FAIL;
+    if (!np) { b->failed = true; return ESP_FAIL; }
     memcpy(np + b->n, evt->data, (size_t)evt->data_len);
     b->p = np; b->n += (size_t)evt->data_len;
   }
@@ -55,12 +60,12 @@ static esp_err_t http_event(esp_http_client_event_t* evt) {
 // raise it if a board build hits a stack-overflow reset with a large response or deep TLS chain.
 static void fetch_task(void* arg) {
   TaskArgs* a = (TaskArgs*)arg;
-  RecvBuf buf{nullptr, 0};
+  RecvBuf buf{nullptr, 0, a->max, false, false};
   esp_http_client_config_t cfg{};
   cfg.url = a->url;
   cfg.event_handler = http_event;
   cfg.user_data = &buf;
-  cfg.timeout_ms = 15000;
+  cfg.timeout_ms = a->timeout_ms > 0 ? a->timeout_ms : 15000;
   esp_http_client_handle_t h = esp_http_client_init(&cfg);
   if (a->method) {
     esp_http_client_method_t m = !strcmp(a->method, "POST") ? HTTP_METHOD_POST : !strcmp(a->method, "PUT") ? HTTP_METHOD_PUT
@@ -68,23 +73,29 @@ static void fetch_task(void* arg) {
     esp_http_client_set_method(h, m);
   }
   if (a->content_type) esp_http_client_set_header(h, "Content-Type", a->content_type);
+  for (char* p = a->headers; p && *p;) {
+    char* nl = strchr(p, '\n'); if (!nl) break; *nl = 0;
+    char* v = nl + 1; char* vl = strchr(v, '\n'); if (!vl) break; *vl = 0;
+    esp_http_client_set_header(h, p, v);
+    p = vl + 1;
+  }
   if (a->body) esp_http_client_set_post_field(h, a->body, (int)a->body_len);
 
-  Done* d = (Done*)malloc(sizeof(Done));
+  Done* d = a->done;  // allocated by fetch() on the main task: the worker never has to report an allocation failure
   d->id = a->id; d->body = nullptr; d->body_len = 0; d->err = nullptr;
   esp_err_t err = esp_http_client_perform(h);
-  if (err == ESP_OK) {
+  if (err == ESP_OK && !buf.failed) {
     d->ok_transport = true;
     d->status = esp_http_client_get_status_code(h);
     d->body = buf.p; d->body_len = buf.n;
   } else {
     d->ok_transport = false; d->status = 0;
     if (buf.p) free(buf.p);
-    const char* e = esp_err_to_name(err);
-    d->err = dupstr(e, (uint32_t)strlen(e));
+    const char* e = buf.tooBig ? "response too large" : buf.failed ? "out of memory" : esp_err_to_name(err);
+    d->err = dupstr(e, (uint32_t)strlen(e));  // nullptr when out of memory: reported as a transport error
   }
   esp_http_client_cleanup(h);
-  free(a->url); free(a->method); free(a->body); free(a->content_type); free(a);
+  free_args(a);
   xQueueSend(done_q, &d, portMAX_DELAY);
   vTaskDelete(nullptr);
 }
@@ -101,6 +112,7 @@ struct Fetcher : Poller {
         if (d->ok_transport) {
           auto r = make<Response>();
           r->status = d->status; r->ok = d->status >= 200 && d->status < 300;
+          r->statusText = String::from(reason(d->status), (uint32_t)strlen(reason(d->status)));  // esp_http_client keeps no reason phrase
           r->body = d->body ? String::from(d->body, (uint32_t)d->body_len) : String();
           node->p->resolve(r);
         } else {
@@ -121,26 +133,46 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   if (!fetcher) {
     fetcher = new (alloc(sizeof(Fetcher))) Fetcher();
     done_q = xQueueCreate(8, sizeof(Done*));
+    // the TCP/IP stack must run before any socket call (lwIP asserts "Invalid mbox" otherwise); without a station
+    // connected (no WiFi bring-up yet, or QEMU) requests then fail cleanly and fetch() rejects
+    esp_netif_init();
     add_poller(fetcher);
   }
   auto pr = Promise<Ref<Response>>::make_pending();
   Pending* node = new (alloc(sizeof(Pending))) Pending();
   node->id = next_id++; node->p = pr.p; node->next = pending_list; pending_list = node;
 
-  TaskArgs* a = (TaskArgs*)malloc(sizeof(TaskArgs));
-  a->id = node->id;
-  a->url = dupstr(url.ptr(), url.bytes());
-  a->method = (init.p && init->method.bytes()) ? dupstr(init->method.ptr(), init->method.bytes()) : nullptr;
-  bool has_body = init.p && init->body.bytes();
-  a->body = has_body ? dupstr(init->body.ptr(), init->body.bytes()) : nullptr;
-  a->body_len = has_body ? init->body.bytes() : 0;
-  a->content_type = (init.p && init->contentType.bytes()) ? dupstr(init->contentType.ptr(), init->contentType.bytes()) : nullptr;
-
-  if (xTaskCreate(fetch_task, "zinc_fetch", 8192, a, tskIDLE_PRIORITY + 3, nullptr) != pdPASS) {
+  auto fail = [&](const char* why) {
     Pending** pp = &pending_list; while (*pp && *pp != node) pp = &(*pp)->next; if (*pp) *pp = node->next;
-    pr.p->reject(make<TypeError>(String::from("fetch failed: cannot start task", 32)));
+    pr.p->reject(make<TypeError>(cat(String::from("fetch failed: ", 14), String::from(why, (uint32_t)strlen(why)))));
     mfree(node);
-    free(a->url); free(a->method); free(a->body); free(a->content_type); free(a);
+  };
+  TaskArgs* a = (TaskArgs*)calloc(1, sizeof(TaskArgs));
+  if (!a) { fail("out of memory"); return pr; }
+  a->id = node->id;
+  a->timeout_ms = init.p && init->timeoutMs > 0 ? init->timeoutMs : kDefaultTimeoutMs;
+  a->max = (size_t)(init.p && init->maxBytes > 0 ? init->maxBytes : default_max_bytes());
+  a->done = (Done*)calloc(1, sizeof(Done));
+  a->url = dupstr(url.ptr(), url.bytes());
+  bool oom = !a->done || !a->url;
+  if (init.p && init->method.bytes()) { a->method = dupstr(init->method.ptr(), init->method.bytes()); oom = oom || !a->method; }
+  bool has_bytes = init.p && init->bodyBytes.a;
+  bool has_body = has_bytes || (init.p && init->body.bytes());
+  if (has_body) {
+    const char* bp = has_bytes ? (init->bodyBytes.length() ? (const char*)init->bodyBytes.a->data : "") : init->body.ptr();
+    uint32_t bn = has_bytes ? (uint32_t)init->bodyBytes.length() : init->body.bytes();
+    a->body = dupstr(bp, bn); a->body_len = bn; oom = oom || !a->body;
+  }
+  if (init.p && init->contentType.bytes()) { a->content_type = dupstr(init->contentType.ptr(), init->contentType.bytes()); oom = oom || !a->content_type; }
+  if (init.p && init->headers.p) {
+    StrBuilder hb;
+    for (int32_t i = 0; i < init->headers->names.length(); i++) { to_s(hb, init->headers->names.get(i)); hb.ch('\n'); to_s(hb, init->headers->vals.get(i)); hb.ch('\n'); }
+    a->headers = dupstr(hb.buf ? hb.buf : "", hb.len); oom = oom || !a->headers;
+  }
+  if (oom) { free(a->done); free_args(a); fail("out of memory"); return pr; }
+  if (xTaskCreate(fetch_task, "zinc_fetch", 8192, a, tskIDLE_PRIORITY + 3, nullptr) != pdPASS) {
+    free(a->done); free_args(a);
+    fail("cannot start task");
   }
   return pr;
 }
@@ -149,6 +181,14 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
 // ponytail: no listen-socket server on esp32 yet (no conformance program needs it there and
 // QEMU has no network to test it against); build on esp_http_server when a real use case shows
 // up instead of shipping an untested implementation.
+const char* reason(int32_t s) {
+  switch (s) {
+    case 200: return "OK"; case 201: return "Created"; case 204: return "No Content"; case 301: return "Moved Permanently"; case 302: return "Found";
+    case 304: return "Not Modified"; case 400: return "Bad Request"; case 401: return "Unauthorized"; case 403: return "Forbidden";
+    case 404: return "Not Found"; case 500: return "Internal Server Error"; case 503: return "Service Unavailable";
+    default: return s < 400 ? "OK" : "Error";
+  }
+}
 void serve(int32_t, Fn<Ref<Reply>(Ref<Request>)>) { g_err = make<Error>(String::from("net.serve: not supported on esp32 yet", 38)); }
 void stop() {}
 }}

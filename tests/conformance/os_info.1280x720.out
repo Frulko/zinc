@@ -1,0 +1,9 @@
+hostname true
+type true release true
+arch true
+homedir true tmpdir true
+user true true true true
+cpus true true true
+load 3 true uptime true
+mem true true
+loopback true true

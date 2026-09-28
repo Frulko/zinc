@@ -69,7 +69,9 @@ function fetchSources() {
       console.error(`compat: fetching ${s.repo} (sparse)`);
       git(null, 'clone', '-q', '--filter=blob:none', '--no-checkout', s.repo, dir);
     }
-    if (git(dir, 'sparse-checkout', 'list').split('\n').sort().join('\n') !== [...s.sparse].sort().join('\n')) git(dir, 'sparse-checkout', 'set', '--cone', ...s.sparse);
+    let sparse = '';
+    try { sparse = git(dir, 'sparse-checkout', 'list'); } catch { /* a fresh clone is not sparse yet (git 2.4x: "this worktree is not sparse") */ }
+    if (sparse.split('\n').sort().join('\n') !== [...s.sparse].sort().join('\n')) git(dir, 'sparse-checkout', 'set', '--cone', ...s.sparse);
     let head = '';
     try { head = git(dir, 'rev-parse', 'HEAD'); } catch { /* fresh clone */ }
     if (head !== s.commit || !s.sparse.every(p => fs.existsSync(path.join(dir, p)))) {
@@ -225,6 +227,11 @@ const TH_EXPORTS = [...read(path.join(HERE, 'shims/testharness.ts')).matchAll(/^
 /** Names the Zinc checkout exports from its Web / net modules, for WPT programs and the WinterTC table. */
 function zincApiIndex() {
   const idx = {};
+  // Web globals: the compiler adds their import itself (compiler/src/frontend.ts WEB_GLOBALS)
+  const fe = read(path.join(ZINC_ROOT, 'compiler/src/frontend.ts'));
+  for (const list of fe.matchAll(/for \(const n of \[([^\]]*)\]\) WEB_GLOBALS\[n\]/g))
+    for (const m of list[1].matchAll(/'(\w+)'/g)) idx[m[1]] = 'global';
+  for (const m of fe.matchAll(/^WEB_GLOBALS\.(\w+) =/gm)) idx[m[1]] = 'global';
   const lib = path.join(ZINC_ROOT, 'lib');
   for (const f of ['zinc.d.ts', 'gfx.d.ts', 'modules.d.ts', 'ui.d.ts']) {
     const p = path.join(lib, f);

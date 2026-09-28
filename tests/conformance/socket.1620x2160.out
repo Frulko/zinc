@@ -1,0 +1,20 @@
+listening true
+client: connected 127.0.0.1 true true
+client: got [ 'HELLO', 'WÖRLD €', 'BYE' ]
+server: accepted from 127.0.0.1
+client: peer closed true
+refused: connect ECONNREFUSED 127.0.0.1:9
+unix: [ 2, 3, 0 ]
+udp: ping from 127.0.0.1:9731 9731 9732
+udp: reply [ 7, 8, 9 ]
+lookup localhost: true
+lookup literal: [ '127.0.0.1' ]
+ws server: connection /chat?room=1 13
+ws client: open true 1
+ws client: echo 5 héllo
+ws client: bytes 3,2,1
+ws client: echo 70000 xxxxxxxxxxxx
+ws client: closed 4000 as asked true 3
+ws server: closed 4000 true
+ws client: refused, close code 1006
+done

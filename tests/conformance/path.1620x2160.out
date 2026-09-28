@@ -1,0 +1,19 @@
+"" . . "" "" false ["","","","",""] ""
+"." . . "." "" false ["","",".","","."] "."
+"/" / / "" "" true ["/","/","","",""] "/"
+"//" / / "" "" true ["/","/","","",""] "/"
+"a" a . "a" "" false ["","","a","","a"] "a"
+"/a/b/" /a/b/ /a "b" "" true ["/","/a","b","","b"] "/a/b"
+"a/b/c.txt" a/b/c.txt a/b "c.txt" ".txt" false ["","a/b","c.txt",".txt","c"] "a/b/c.txt"
+"/a/b/c.tar.gz" /a/b/c.tar.gz /a/b "c.tar.gz" ".gz" true ["/","/a/b","c.tar.gz",".gz","c.tar"] "/a/b/c.tar.gz"
+".bashrc" .bashrc . ".bashrc" "" false ["","",".bashrc","",".bashrc"] ".bashrc"
+"a/.b" a/.b a ".b" "" false ["","a",".b","",".b"] "a/.b"
+"a/b." a/b. a "b." "." false ["","a","b.",".","b"] "a/b."
+"../x/./y//z/.." ../x/y ../x/./y//z ".." "" false ["","../x/./y//z","..","",".."] "../x/./y//z/.."
+"/../a" /a /.. "a" "" true ["/","/..","a","","a"] "/../a"
+"a/../.." .. a/.. ".." "" false ["","a/..","..","",".."] "a/../.."
+"./a/" a/ . "a" "" false ["",".","a","","a"] "./a"
+a/c/d/ /a/b . a/b b 
+/a/c /b/c / true
+../../d  "c/d" x
+/ :

@@ -107,10 +107,14 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       const isFxT = (t: ZT | undefined) => !t || (isNum(t) ? t.m === 'fx12' || t.m === 'fx16' || t.m === 'f32' : true);
       try {
         if (ts.isVariableDeclaration(p) && p.initializer === e) return isFxT(sema.declType(p));
+        // a parameter default takes the parameter's type, like the C++ default argument
+        if (ts.isParameter(p) && p.initializer === e && p.type) return isFxT(sema.fromTypeNode(p.type));
         if (ts.isBinaryExpression(p)) {
           if (p.operatorToken.kind === K.EqualsToken) return isFxT(sema.ztypeOf(p.left));
           const other = p.left === e ? p.right : p.left;
           const ot = sema.ztypeOf(other);
+          // `x / 4294967296` with x: f64 is computed in f64 (the C++ side keeps the literal a double)
+          if (isNum(ot) && ot.m === 'f64' && p.operatorToken.kind !== K.QuestionQuestionToken) return false;
           if (isNum(ot) && isInt(ot.m) && [K.PlusToken, K.MinusToken, K.AsteriskToken, K.PercentToken, K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.AmpersandToken, K.BarToken, K.CaretToken, K.LessThanLessThanToken, K.GreaterThanGreaterThanToken, K.GreaterThanGreaterThanGreaterThanToken, K.QuestionQuestionToken].includes(p.operatorToken.kind)) return false;
         }
         if ((ts.isCallExpression(p) || ts.isNewExpression(p)) && p.arguments?.includes(e as ts.Expression)) {

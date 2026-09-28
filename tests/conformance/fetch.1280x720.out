@@ -1,0 +1,15 @@
+200 true OK true application/json yes a=1, b=2
+true true
+zinc 2 true
+replaced [ 'accept', 'x-token' ]
+  header accept text/plain
+  header x-token replaced
+false
+201 Created PUT replaced true payload
+[ 65, 66, 226, 130, 172 ]
+404 false Not Found nothing here
+big 200000
+fetch failed: response too large
+json error SyntaxError
+fetch failed: timeout
+fetch failed: ECONNREFUSED

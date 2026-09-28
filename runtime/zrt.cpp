@@ -253,8 +253,11 @@ static void str_measure(StrObj* s) {
 }
 void str_destroy(StrObj* s) { srelease(s->owner); mfree(s); live_objects--; }
 
+// A computed '' is a real (immortal, shared) empty string: only an absent value is a null String, so
+// `s.slice(3) === undefined` is false and `x ?? 'd'` keeps a computed ''.
+static StrObj empty_str = {IMMORTAL, 0, 0, 1, "", nullptr};
 String String::from(const char* p, uint32_t n) {
-  if (!n) return String();
+  if (!n) return String(&empty_str);
   StrObj* s = str_alloc(n);
   __builtin_memcpy((char*)s->data, p, n);
   str_measure(s);
@@ -274,7 +277,7 @@ static uint32_t u16_to_byte(const String& s, int32_t idx) {
   return b > n ? n : b;
 }
 static String sub_bytes(const String& s, uint32_t b0, uint32_t b1) {
-  if (b1 <= b0) return String();
+  if (b1 <= b0) return String(&empty_str);
   if (b0 == 0 && b1 == s.bytes()) return s;
   // MEM-20: the slice shares the parent buffer; the root owner stays counted.
   StrObj* root = s.s->owner ? s.s->owner : s.s;
@@ -317,7 +320,7 @@ String String::at(int32_t i) const {
 static int32_t clampi(int32_t i, int32_t n) { if (i < 0) { i += n; if (i < 0) i = 0; } return i > n ? n : i; }
 String String::slice(int32_t a, int32_t b) const {
   int32_t n = length(); a = clampi(a, n); b = clampi(b, n);
-  if (b <= a) return String();
+  if (b <= a) return String(&empty_str);
   return sub_bytes(*this, u16_to_byte(*this, a), u16_to_byte(*this, b));
 }
 String String::substring(int32_t a, int32_t b) const {
@@ -868,6 +871,12 @@ bool loop_once() {
   uint32_t added = pollers_added;
   double next = run_timers();
   bool active = poll_all() || added != pollers_added;
+  if (!quit_requested && next < 0 && !active && !mq_len) {
+    // a callback run by a later poller may have started work on an earlier one that already reported idle (a fetch
+    // issued after the fetcher's poll) or armed a timer: look once more before ending the program
+    next = run_timers();
+    active = poll_all() || added != pollers_added;
+  }
   if (quit_requested || (next < 0 && !active && !mq_len)) return false;
   if (det_mode) {
     // no waiting for timers: the clock jumps to the next one; while pollers have work (sockets), 1 virtual ms per

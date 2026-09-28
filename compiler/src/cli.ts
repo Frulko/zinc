@@ -542,7 +542,7 @@ const IDF_IMAGE = 'espressif/idf:v6.0@sha256:59df146f64aa0b13886a13a74682ad15748
 // telemetry talk raw POSIX sockets directly so they need lwip's socket headers on their own).
 const ESP_MOD_REQUIRES: Record<string, string[]> = {
   storage: ['nvs_flash'], fs: ['spiffs'], gpio: ['esp_driver_gpio'],
-  net: ['esp_http_client', 'nvs_flash'], osc: ['lwip'], mqtt: ['lwip'], telemetry: ['lwip'],
+  net: ['esp_http_client', 'esp_netif', 'nvs_flash'], osc: ['lwip'], mqtt: ['lwip'], telemetry: ['lwip'],
 };
 /** esp32 chip / PSRAM / flash settings (zinc.json targets.esp32 chip, psram, flashSize, or a board preset; env
  *  ZINC_ESP_CHIP overrides the chip, e.g. to run the conformance tests on esp32s3 in QEMU). docs/boards.md */
@@ -581,7 +581,7 @@ ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LI
 target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_JSON_DEPTH=32 -DZRT_CLIP_CORNER_PX=1024 -DZRT_STROKE_POINTS=512 -DZRT_OVERLAY_TEXT=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
-  // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
+  // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs.cpp, ESP_PLATFORM) needs a
   // custom partition table; storage (NVS) alone fits inside IDF's default table.
   const usesFs = mods.includes('fs_esp32') || mods.includes('fs');
   const customTable = usesFs || !!appSize;
@@ -705,6 +705,35 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${g} [--emit=${e}]`);
   }
   console.log(`${files.length} programs, ${failed} failure(s)`);
+  process.exit(failed ? 1 : 0);
+}
+/** zinc test <dir|file> (like `tjs test` / `elsa test`): every `test-*.ts(x)` / `*.test.ts(x)` under the directory
+ *  is built and run on the target (deterministic mode) and passes when it exits with 0; zinc:assert throws (uncaught:
+ *  exit 1) on a failed check. ZINC_TEST_TIMEOUT (ms, default 60000) bounds each program. */
+function userTests(o: Opts, where: string) {
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const f of fs.readdirSync(d).sort()) {
+      const p = path.join(d, f);
+      if (f === 'build' || f === 'node_modules' || f.startsWith('.')) continue;
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (/^test[-_].*\.tsx?$|\.test\.tsx?$/.test(f)) files.push(p);
+    }
+  };
+  if (fs.statSync(where).isDirectory()) walk(where); else files.push(where);
+  if (!files.length) die(`no test-*.ts or *.test.ts under ${where}`);
+  const timeout = Number(process.env.ZINC_TEST_TIMEOUT ?? 60000);
+  let failed = 0;
+  for (const f of files) {
+    const t0 = Date.now();
+    const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', f, '--target', o.target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])],
+      { encoding: 'utf8', timeout, env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '' } });
+    const ok = r.status === 0;
+    if (!ok) failed++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${path.relative(process.cwd(), f)} (${Date.now() - t0} ms)${r.error ? ' timed out' : ''}`);
+    if (!ok) console.log(((r.stdout ?? '') + (r.stderr ?? '')).split('\n').filter(l => !l.startsWith('zinc:') && !/^\[\s*\d+%\]/.test(l)).slice(-15).map(l => '    ' + l).join('\n'));
+  }
+  console.log(`${files.length} test file(s), ${failed} failure(s)`);
   process.exit(failed ? 1 : 0);
 }
 /** Expected-output suffix of a profile: number representation and resolution when they differ from macos. */
@@ -1019,7 +1048,12 @@ function main() {
   const fuzz = argv.find(a => a === '--fuzz' || a.startsWith('--fuzz='));
   if (cmd === 'test' && fuzz) process.exit(run('bash', [path.join(ZINC_ROOT, 'scripts/fuzz.sh'), fuzz.includes('=') ? fuzz.slice(7) : '--replay']));
   if (cmd === 'bench' || (cmd === 'test' && argv.includes('--bench'))) return benchCmd(o, argv);
-  if (cmd === 'test') return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
+  if (cmd === 'test') {
+    // `zinc test <dir|file>`: the project's own tests; without a path, the conformance suite of this repository
+    const own = argv.slice(1).find((a, i, all) => !a.startsWith('-') && !['--target', '--profile', '--device', '--port', '--frames', '--every', '--out', '--replay'].includes(all[i - 1] ?? '') && fs.existsSync(a));
+    if (own) return userTests(o, own);
+    return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
+  }
   if (cmd === 'capture') return capture(o);
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));
   if (cmd === 'run') {

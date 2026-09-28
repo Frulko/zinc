@@ -1,0 +1,27 @@
+true false false
+[ 'env.log:function', 'env.hostAdd:function' ] [
+  'add:function',
+  'callHost:function',
+  'div:function',
+  'half:function',
+  'mul64:function',
+  'trap:function',
+  'memory:memory',
+  'answer:global'
+]
+LinkError true import env.log is not provided
+CompileError true
+5 -2147483648 42 [ 42 ] 1.5 42 -3
+1234 true 8
+65536 [
+  104, 105,  32,
+  122, 105, 110,
+   99
+] h
+[ 1, 2, 3, 0 ]
+RuntimeError true integer divide by zero
+RuntimeError true unreachable
+TypeError false no exported function nope
+TypeError false add takes 2 arguments, got 1
+RangeError out of bounds memory access
+instances are separate: h H

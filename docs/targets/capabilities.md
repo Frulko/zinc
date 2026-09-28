@@ -9,17 +9,22 @@ modules and tests declare what they need.
 `targets/capabilities.json` lists the hardware flags of each profile. The compiler adds `heap`, `numbers`, `fpu`,
 `width` and `height` from its profile table (and from `zinc.json` `targets.<id>` overrides).
 
-| profile | heap | numbers | touch | pointer | keyboard | pen | gamepad | eink | net | fs | threads |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| macos / linux | 512M | f64 | – / optional | yes | yes | optional | optional | – | yes | yes | yes |
-| rpi1 | 64M | f64 | optional | optional | optional | – | optional | – | yes | yes | yes |
-| rmpp | 256M | f64 | yes | – | optional | yes | – | yes | yes | yes | yes |
-| esp32 | 160K | f32 | plugin | – | – | – | – | plugin | yes | yes | – |
-| ps1 | 256K | fx12, no FPU | – | – | – | – | yes | – | – | – | – |
-| ps2 | 16M | f32 | – | – | – | – | yes | – | – | – | – |
-| wasm | 64M | f64 | optional | yes | yes | optional | optional | – | – | – | – |
+| profile | heap | numbers | touch | pointer | keyboard | pen | gamepad | eink | net | fs | threads | process | dynlib |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| macos / linux | 512M | f64 | – / optional | yes | yes | optional | optional | – | yes | yes | yes | yes | yes |
+| rpi1 | 64M | f64 | optional | optional | optional | – | optional | – | yes | yes | yes | yes | – |
+| rmpp | 256M | f64 | yes | – | optional | yes | – | yes | yes | yes | yes | yes | – |
+| esp32 | 160K | f32 | plugin | – | – | – | – | plugin | yes | yes | – | – | – |
+| ps1 | 256K | fx12, no FPU | – | – | – | – | yes | – | – | – | – | – | – |
+| ps2 | 16M | f32 | – | – | – | – | yes | – | – | – | – | – | – |
+| wasm | 64M | f64 | optional | yes | yes | optional | optional | – | – | – | – | – | – |
 
 `plugin` and `optional` count as available: a display or input plugin (or the board) provides it.
+
+- **`process`**: an OS with processes, signals, environment and a terminal. It covers `zinc:process`, `zinc:os`,
+  `zinc:socket` and `sys.onSignal`.
+- **`dynlib`**: loading shared libraries at run time with `dlopen`. It is used by `zinc:ffi`, and it is off for static
+  binaries (rmpp) and for 32-bit ARM (rpi1). The sim emulates a few libc functions for it.
 
 ## Requirements
 
@@ -60,4 +65,4 @@ const rows = HEAP_BYTES < 512 * 1024 ? 50 : 5000;
 
 `zinc:platform` is generated for each build. It exports `TARGET`, `PROFILE`, `HEAP_BYTES`, `NUMBERS`, `SCREEN_W`,
 `SCREEN_H`, and one boolean per capability (`TOUCH`, `POINTER`, `KEYBOARD`, `PEN`, `GAMEPAD`, `EINK`, `NET`, `FS`,
-`THREADS`, `FPU`, `AUDIO`, `GPU`, `GPIO`, `DISPLAY`).
+`THREADS`, `FPU`, `AUDIO`, `GPU`, `GPIO`, `DISPLAY`, `PROCESS`, `DYNLIB`).
