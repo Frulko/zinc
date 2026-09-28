@@ -6,6 +6,7 @@ export interface Spec extends NativeModule {
   temperature(): f64;
   /** Hardware identifier. */
   serial(): string;
+  /** Switches the status LED. */
   setLed(on: boolean): void;
 }
 export default requireNative<Spec>('Sensor');
