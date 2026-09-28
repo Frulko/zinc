@@ -184,3 +184,34 @@ declare module 'zinc:assets' {
   export function exists(name: string): boolean;
   export function list(): string[];
 }
+
+declare module 'zinc:os' {
+  /** Machine information on POSIX hosts (macos, linux, rpi1, rmpp), like Node's os module. */
+  export function hostname(): string;
+  /** $HOME, else the password database. */
+  export function homedir(): string;
+  /** $TMPDIR (or /tmp) without a trailing slash. */
+  export function tmpdir(): string;
+  /** 'arm64' | 'x64' | 'arm' | 'ia32' | 'riscv64' */
+  export function arch(): string;
+  /** uname: 'Darwin' | 'Linux' */
+  export function type(): string;
+  export function release(): string;
+  /** Seconds since boot. */
+  export function uptime(): f64;
+  /** 1, 5 and 15 minute load averages. */
+  export function loadavg(): f64[];
+  /** Bytes. */
+  export function totalmem(): f64;
+  export function freemem(): f64;
+  export interface CpuInfo { model: string; speed: f64 }
+  /** One entry per online CPU (speed in MHz, 0 when unknown). */
+  export function cpus(): CpuInfo[];
+  export function availableParallelism(): i32;
+  /** family: 'IPv4' | 'IPv6'; mac '00:00:00:00:00:00' when none. */
+  export interface NetworkInterface { name: string; address: string; netmask: string; family: string; mac: string; internal: boolean }
+  /** Addresses of the interfaces that are up, flattened (Node groups them by name). */
+  export function networkInterfaces(): NetworkInterface[];
+  export interface UserInfo { username: string; uid: i32; gid: i32; shell: string; homedir: string }
+  export function userInfo(): UserInfo;
+}

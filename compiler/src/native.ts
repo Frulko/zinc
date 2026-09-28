@@ -20,6 +20,7 @@ export const MODULE_TARGETS: Record<string, string[]> = {
   sys: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], events: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], assets: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'],
   // esp32 variants: storage -> NVS, fs -> SPIFFS at /zinc, net -> esp_http_client (fetch only), gpio -> driver/gpio
   storage: [...HOSTS, 'esp32'], fs: [...HOSTS, 'esp32'], telemetry: [...HOSTS, 'esp32'],
+  os: HOSTS,
   // rmpp: static binaries, no libcurl in the SDK image
   net: [...HOSTS.filter(t => t !== 'rmpp'), 'esp32'], osc: [...HOSTS, 'esp32'], mqtt: [...HOSTS, 'esp32'], gpio: [...HOSTS, 'esp32'], native: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'], mem: [...HOSTS, 'esp32', 'ps2', 'ps1', 'wasm'],
 };
