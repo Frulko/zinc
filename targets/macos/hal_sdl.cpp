@@ -9,6 +9,40 @@ static SDL_Texture* tex;
 static uint32_t* fb;
 static int W = 320, H = 240;
 static int K = 1, PW = 320, PH = 240;  // physical pixels per logical pixel (Retina x window magnification)
+static int zoom = 1;
+// Window behaviour (zinc.json targets.<id>: resize "fill" | "letterbox", fullscreen, kiosk; ZINC_RESIZE / ZINC_FULLSCREEN /
+// ZINC_KIOSK override). fill: the logical surface follows the window (responsive layouts); letterbox: fixed surface, scaled.
+static bool fill = false, kiosk = false;
+
+static void alloc_surface() {
+  if (tex) SDL_DestroyTexture(tex);
+  free(fb);
+  SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
+  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+  fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+}
+/** Recomputes the surface from the window: fill mode follows the window size; both follow the screen density. */
+static void apply_size() {
+  int ww = W * zoom, wh = H * zoom;
+  SDL_GetWindowSize(win, &ww, &wh);
+  int nw = W, nh = H;
+  if (fill) { nw = ww / zoom > 0 ? ww / zoom : 1; nh = wh / zoom > 0 ? wh / zoom : 1; }
+  float density = SDL_GetWindowPixelDensity(win);
+  int k = (int)(zoom * (density > 0 ? density : 1) + 0.5f);
+  if (const char* ks = getenv("ZINC_SCALE")) k = atoi(ks);
+  if (k < 1) k = 1;
+  while (k > 1 && (long)nw * k * nh * k > 3840L * 2400L) k--;
+  if (nw == W && nh == H && k == K && tex) return;
+  W = nw; H = nh; K = k; PW = W * K; PH = H * K;
+  alloc_surface();
+}
+// macOS blocks the event loop during a live resize: redraw from the event watcher so the layout follows the mouse
+static bool SDLCALL watch(void*, SDL_Event* e) {
+  if (e->type == SDL_EVENT_WINDOW_EXPOSED || e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) { apply_size(); zrt_redraw(); }
+  return true;
+}
+static void set_fullscreen(bool on) { SDL_SetWindowFullscreen(win, on); }
 static bool gfx_on;
 static bool quit;
 // Test hooks: ZINC_FRAMES=n quits after n frames; ZINC_SHOT=file.bmp saves the last frame.
@@ -29,20 +63,29 @@ void hal_init(const HalConfig* cfg) {
 #endif
   if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z);
   if (scale < 1) scale = 1;
+  zoom = scale;
+#ifdef ZINC_RESIZE_FILL
+  fill = true;
+#endif
+  if (const char* r = getenv("ZINC_RESIZE")) fill = r[0] == 'f';
+  bool full = false;
+#ifdef ZINC_FULLSCREEN
+  full = true;
+#endif
+#ifdef ZINC_KIOSK
+  kiosk = true;
+#endif
+  if (const char* v = getenv("ZINC_FULLSCREEN")) full = v[0] == '1';
+  if (const char* v = getenv("ZINC_KIOSK")) kiosk = v[0] == '1';
+  if (kiosk) full = true;
   if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
-  // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
-  float density = SDL_GetWindowPixelDensity(win);
-  K = (int)(scale * (density > 0 ? density : 1) + 0.5f);
-  if (const char* ks = getenv("ZINC_SCALE")) K = atoi(ks);
-  if (K < 1) K = 1;
-  while (K > 1 && (long)W * K * H * K > 3840L * 2400L) K--;
-  PW = W * K; PH = H * K;
-  SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   SDL_SetRenderVSync(ren, 1);
-  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
-  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
-  fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+  if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
+  if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
+  // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
+  apply_size();
+  SDL_AddEventWatch(watch, nullptr);
   shot_path = getenv("ZINC_SHOT");
 }
 void hal_shutdown(void) {
@@ -88,8 +131,14 @@ void hal_poll_input(HalInput* in) {
         pen_push(motion ? e.motion.x : e.button.x, motion ? e.motion.y : e.button.y, f);
       }
     }
-    if (e.type == SDL_EVENT_QUIT) quit = true;
-    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE) quit = true;
+    // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
+    if (e.type == SDL_EVENT_QUIT && !kiosk) quit = true;
+    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !kiosk) {
+      if (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN) set_fullscreen(false); else quit = true;
+    }
+    if (e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
+      set_fullscreen(!(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
+    if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED) apply_size();
     if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel += e.wheel.y;
     if (e.type == SDL_EVENT_PINCH_UPDATE) in->pinch *= e.pinch.scale;
     // touch screens only: trackpad fingers (indirect devices) are the pointer, not screen touches
@@ -131,7 +180,7 @@ void hal_poll_input(HalInput* in) {
 
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
-  if (!gfx_on) return;
+  if (!gfx_on || f->w != PW || f->h != PH) return;  // a frame rendered for the previous size
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * PW, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};

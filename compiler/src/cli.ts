@@ -14,7 +14,7 @@ import { lowerMir, printMir } from './mir.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
 
-interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number }
+interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
   macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
@@ -166,7 +166,7 @@ function writeIfChanged(file: string, content: string) {
 const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl', gpio_linux: 'libgpiod' };
 /** crash: ZRT_CRASH policy; hot: the program is a shared library run by runtime/dev_host.cpp (zinc dev). */
 interface BuildMode { dev: boolean; hot: boolean; crash: number }
-function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings, mode: BuildMode, zoom?: number): string {
+function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings, mode: BuildMode, win: string[] = []): string {
   const usesGfx = res.usesGfx;
   // linux/rpi1: libgpiod (env ZRT_GPIOD, matching -DZRT_GPIOD passed to the compile below) picks
   // runtime/mod/gpio_linux.cpp over the simulator in gpio.cpp; gpio_linux.cpp itself falls back
@@ -223,7 +223,7 @@ set_target_properties(app PROPERTIES PREFIX "" SUFFIX ".so")
 target_compile_definitions(app PRIVATE ZRT_DYLIB)
 target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
-${zoom ? `target_compile_definitions(app PRIVATE ZINC_ZOOM=${zoom})` : ''}
+${win.length ? `target_compile_definitions(app PRIVATE ${win.join(' ')})` : ''}
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality)
 target_link_libraries(app PRIVATE zrt)
 if(EMSCRIPTEN)
@@ -315,6 +315,18 @@ const CRASH: Record<string, number> = { exit: 0, redbox: 1, restart: 2 };
 /** zinc dev reloads in place when the target runs on this machine (macos on macOS, linux on Linux). */
 function hotTarget(o: Opts): boolean { return o.dev && !o.device && ((o.target === 'macos' && process.platform === 'darwin') || (o.target === 'linux' && process.platform === 'linux')); }
 
+/** Desktop window options (zinc.json targets.<id>): zoom, resize (default: fill for zinc:ui apps, letterbox otherwise),
+ *  fullscreen, kiosk. */
+function windowDefines(prof: Profile, sema: Sema): string[] {
+  const ui = sema.fe.sources.some(f => f.fileName.endsWith(path.join('lib', 'std', 'ui.ts')));
+  const out: string[] = [];
+  if (prof.zoom) out.push(`ZINC_ZOOM=${prof.zoom}`);
+  if ((prof.resize ?? (ui ? 'fill' : 'letterbox')) === 'fill') out.push('ZINC_RESIZE_FILL');
+  if (prof.fullscreen) out.push('ZINC_FULLSCREEN');
+  if (prof.kiosk) out.push('ZINC_KIOSK');
+  return out;
+}
+
 /** Active plugins for this build (PLG); unavailable ones are Z5003 like built-in modules. */
 let extraMounts: string[] = [];  // plugin directories outside the project, visible to docker builds
 function pluginSettings(o: Opts, sema: Sema): BuildSettings {
@@ -359,7 +371,7 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
   if (res.modules.has('assets')) { writeIfChanged(path.join(dir, 'zinc_assets.cpp'), assetsSource(o)); res.nativeSources.push(path.join(dir, 'zinc_assets.cpp')); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, prof.zoom));
+  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, windowDefines(prof, sema)));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps);
@@ -547,7 +559,7 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     const entry = path.join(dir, f);
     if (PROFILES[o.profile].typing === 'strict' && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ZINC_RESIZE: 'letterbox', ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock and surface
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const pr = PROFILES[o.profile];
@@ -626,7 +638,8 @@ function help(topic?: string) {
   esp32   ESP-IDF firmware, Espressif QEMU     wasm    emscripten page (zinc run serves it)
   ps2     EE ELF (ps2dev), build only          ps1     MIPS I profile, Q20.12 fixed point
   sim     Node.js: the oracle every target is compared with
-  zinc.json "targets": { "<id>": { "width", "height", "zoom", "heap", "display", "plugins": {...} } } overrides a profile.`,
+  zinc.json "targets": { "<id>": { "width", "height", "zoom", "resize", "fullscreen", "kiosk", "heap", "display", "plugins": {...} } }
+  overrides a profile.`,
     options: `Build options
   --target <id>      platform to build for (default: the host)
   --profile <id>     number representation / resolution / heap of another target (e.g. --profile ps1 on macOS)
@@ -641,6 +654,9 @@ function help(topic?: string) {
   ZINC_SHOT=out.bmp      save the last frame (with ZINC_FRAMES)
   ZINC_FIXED_DT=s        fixed frame time (deterministic runs; zinc test uses 1/60)
   ZINC_ZOOM=n            macOS window size in points = logical size x n (zinc.json targets.macos.zoom; auto: 2 below 400 px)
+  ZINC_RESIZE=fill|letterbox   window resize: surface follows the window (default for UI apps) or stays fixed and scales
+  ZINC_FULLSCREEN=1      start fullscreen (F11 / Ctrl+Cmd+F toggles, Esc leaves)
+  ZINC_KIOSK=1           fullscreen, no cursor, always on top, Esc / Cmd+Q ignored (zinc.json targets.<id>.kiosk)
   ZINC_SCALE=n           physical pixels per logical pixel (default: Retina density x zoom)
   ZINC_LOG_FORMAT=json   console output as JSON lines
   ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
@@ -651,6 +667,7 @@ function help(topic?: string) {
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
   Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
+  Responsive: sm: md: lg: xl: 2xl: prefixes (640/768/1024/1280/1536 px), re-evaluated when the window is resized.
   Scrolling: <scroll>/<ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
   <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.
   Compatible imports: solid-js, react, inferno, @pocketjs/framework/* (PocketJS apps compile unchanged).`,

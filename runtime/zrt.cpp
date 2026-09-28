@@ -591,10 +591,11 @@ void start(const HalConfig& cfg, int argc, char** argv) {
   display_driver = hal_display && hal_display->init(&cfg);
 }
 
-namespace gfx { void begin_frame(); void end_frame(); }
+namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); }
 
 // One iteration of the main loop; false when the program is finished (used by the wasm HAL too).
 static uint64_t last_frame_us = 0;
+static bool in_frame = false;
 bool loop_once() {
   drain_microtasks();
   if (frame_cb && !quit_requested) {
@@ -611,12 +612,15 @@ bool loop_once() {
     last_frame_us = t;
     run_timers();
     poll_all();
+    gfx::sync_surface();
+    in_frame = true;
     gfx::begin_frame();
     Fn<void(double)> cb = frame_cb;
     cb(dt);
     check_uncaught();
     drain_microtasks();
     gfx::end_frame();
+    in_frame = false;
     frame_no++;
     stats.frames++;
     stats.frame_us = hal_time_us() - t;
@@ -637,6 +641,21 @@ bool loop_once() {
   return true;
 }
 static int loop_step() { return loop_once() ? 1 : 0; }
+}  // namespace zrt
+extern "C" void zrt_redraw(void) {
+  using namespace zrt;
+  if (in_frame || !frame_cb || quit_requested) return;
+  in_frame = true;
+  gfx::sync_surface();
+  gfx::begin_frame();
+  Fn<void(double)> cb = frame_cb;
+  cb(0);
+  check_uncaught();
+  drain_microtasks();
+  gfx::end_frame();
+  in_frame = false;
+}
+namespace zrt {
 void run_loop() { hal_run(loop_step); }
 
 // Releases what the program holds in the runtime (callbacks, timers, queues); the HAL stays up.
@@ -877,6 +896,7 @@ Arena::~Arena() { zrt_dispose(); }
 // zinc:gfx lives in runtime/gfx.cpp (linked only by programs that draw); these defaults keep other programs small.
 namespace gfx {
 __attribute__((weak)) void begin_frame() {}
+__attribute__((weak)) void sync_surface() {}
 __attribute__((weak)) void end_frame() {}
 }
 

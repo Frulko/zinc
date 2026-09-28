@@ -55,6 +55,10 @@ zinc deploy --target rpi1|rmpp --device user@host   # export, copy over ssh, sta
 ZINC_TELEMETRY=udp://127.0.0.1:9999 zinc run examples/iot-panel & zinc monitor
 ```
 
+Windows: UI apps follow the window size (responsive layouts, `sm:`/`md:`/`lg:`/`xl:` classes, live resize), games keep
+a fixed surface and scale it; `zinc.json` `targets.macos` takes `zoom`, `resize` (`fill`/`letterbox`), `fullscreen` and
+`kiosk` (fullscreen, no cursor, always on top, no quit shortcuts), also as `ZINC_*` variables; F11 toggles fullscreen.
+
 Debug builds (`--debug`) use ASan + UBSan and print a leak report. `ZINC_FRAMES=n` stops a frame loop after n frames,
 `ZINC_SHOT=out.bmp` saves the last frame, `ZINC_LOG_FORMAT=json` switches console output to JSON lines.
 

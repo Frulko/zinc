@@ -32,10 +32,10 @@ export class App extends Component<AppProps, AppState> {
   }
   render(): i32 {
     const left = this.state.todos.filter((t: Todo) => !t.done).length;
-    return <view className="flex-col gap-2 p-4 h-full bg-slate-100">
-      <text className="text-2xl font-bold text-slate-900">{this.props.title ?? "Inferno on Zinc"}</text>
+    return <view className="flex-col gap-2 p-4 md:p-10 md:gap-4 h-full bg-slate-100">
+      <text className="text-2xl md:text-4xl font-bold text-slate-900">{this.props.title ?? "Inferno on Zinc"}</text>
       <text className="text-sm text-slate-500">{left} left of {this.state.todos.length} · click to toggle, scroll or drag the list</text>
-      <VirtualList count={this.state.todos.length} itemHeight={46} className="grow rounded-lg">
+      <VirtualList count={this.state.todos.length} itemHeight={46} className="grow rounded-lg lg:mx-24">
         {(i: i32) => <view className="pb-2"><Item todo={this.state.todos[i]} onToggle={(id: i32) => this.toggle(id)} /></view>}
       </VirtualList>
       <view className="flex-row gap-2">

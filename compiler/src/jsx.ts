@@ -34,7 +34,7 @@ const RULES = [
 /** UI-07: same grammar as applyToken in lib/std/ui.ts; unknown classes are build errors (custom .css classes are declared). */
 export function validClass(c: string, custom?: Set<string>): boolean {
   if (custom?.has(c)) return true;
-  const v = /^(focus|active|hover):(.*)$/.exec(c);
+  const v = /^(focus|active|hover|sm|md|lg|xl|2xl):(.*)$/.exec(c);
   if (v) return validClass(v[2], custom);
   if (FIXED.has(c) || RULES.some(r => r.test(c))) return true;
   const m = new RegExp(`^(bg|text|border|from|via|to)-${COLOR}$`).exec(c);

@@ -35,6 +35,7 @@ export class UiNode {
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
   virt: Virtual | null = null;
+  responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
@@ -79,6 +80,7 @@ let focus: i32 = -1;
 let pressed: i32 = -1;
 let wasDown = false;
 let clock: number = 0;   // engine time in ms
+let surfW: i32 = -1, surfH: i32 = -1;
 
 function node(h: i32): UiNode { return nodes[h]; }
 function defaults(n: UiNode): void {
@@ -295,7 +297,15 @@ function side(n: UiNode, which: string, v: i32, margin: boolean): void {
   }
 }
 /** Applies one token; returns false when unknown. `variant` is '' | 'focus' | 'active'. */
+const BREAKPOINTS: string[] = ['sm:', 'md:', 'lg:', 'xl:', '2xl:'];
+const BREAKPOINT_PX: i32[] = [640, 768, 1024, 1280, 1536];
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
+  // responsive (mobile first): md:flex-row applies from 768 px wide; re-evaluated when the window is resized
+  for (let i = 0; i < BREAKPOINTS.length; i++) if (tok.startsWith(BREAKPOINTS[i])) {
+    n.responsive = true;
+    const rest = tok.slice(BREAKPOINTS[i].length);
+    return width() >= BREAKPOINT_PX[i] ? applyToken(n, rest, variant) : applyToken(new UiNode(n.tag), rest, variant);
+  }
   if (tok.startsWith('focus:')) return applyToken(n, tok.slice(6), 'focus');
   if (tok.startsWith('active:')) return applyToken(n, tok.slice(7), 'active');
   if (tok.startsWith('hover:')) return true;  // no hover on consoles and panels
@@ -596,7 +606,9 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
 }
 export function layout(): void {
   if (root < 0) return;
+  // the root always fills the surface (which follows the window in fill mode)
   const r = node(root);
+  r.w = width(); r.h = height();
   measure(r, width(), height());
   place(r, 0, 0, width(), height());
   layoutDirty = false;
@@ -831,6 +843,11 @@ export function frame(dt: number, background: i32): void {
   if (root < 0) return;
   clock += dt * 1000;
   stepAnims();
+  if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
+    const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
+    surfW = width(); surfH = height(); layoutDirty = true; paintDirty = true;
+    if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+  }
   if (layoutDirty) layout();
   const down = pointerDown(), px = pointerX(), py = pointerY();
   // wheel / trackpad: the innermost scroller under the pointer
@@ -925,9 +942,6 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
 }
 export function setRoot(h: i32): void {
   root = h;
-  const r = node(h);
-  r.w = width();
-  r.h = height();
   layoutDirty = true;
 }
 export function click(h: i32): void { activate(h); }
