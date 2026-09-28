@@ -1,0 +1,76 @@
+{
+  "name": "Zinc",
+  "type": "OSC",
+  "path": "Software",
+  "version": "1.0.0",
+  "description": "Typed OSC pairing with the Zinc chataigne example (a show-control companion app): faders, cues, toggles, XY pad, colour and chat in, meters, cue name, feedback and chat out.",
+  "url": "https://github.com/Frulko/zinc/tree/main/examples/chataigne",
+  "hasInput": true,
+  "hasOutput": true,
+  "hideDefaultCommands": false,
+  "defaults": {
+    "autoAdd": false,
+    "OSC Input": { "localPort": 12000 },
+    "OSC Outputs": { "OSC Output": { "local": true, "remotePort": 9000 } }
+  },
+  "hideDefaultParameters": ["autoAdd", "splitArguments", "useHierarchy", "autoFeedback"],
+  "scripts": ["zinc.js"],
+  "values": {
+    "Fader 1": { "type": "Float", "min": 0, "max": 1, "readOnly": true, "description": "/zinc/fader/1 from the app" },
+    "Fader 2": { "type": "Float", "min": 0, "max": 1, "readOnly": true, "description": "/zinc/fader/2 from the app" },
+    "Fader 3": { "type": "Float", "min": 0, "max": 1, "readOnly": true, "description": "/zinc/fader/3 from the app" },
+    "Fader 4": { "type": "Float", "min": 0, "max": 1, "readOnly": true, "description": "/zinc/fader/4 from the app" },
+    "Toggle 1": { "type": "Boolean", "readOnly": true, "description": "/zinc/toggle/1 (House lights in the app)" },
+    "Toggle 2": { "type": "Boolean", "readOnly": true, "description": "/zinc/toggle/2 (Haze)" },
+    "Toggle 3": { "type": "Boolean", "readOnly": true, "description": "/zinc/toggle/3 (Strobe)" },
+    "XY": { "type": "Point2D", "min": [0, 0], "max": [1, 1], "readOnly": true, "description": "/zinc/xy x y, 0..1, y up" },
+    "Color": { "type": "Color", "default": [0.39, 0.4, 0.95, 1], "readOnly": true, "description": "/zinc/color r g b, 0..1" },
+    "Cue Go": { "type": "Trigger", "description": "/zinc/cue/go (the GO button, or \"go\" in the chat)" },
+    "Cue Stop": { "type": "Trigger", "description": "/zinc/cue/stop" },
+    "Chat": { "type": "String", "readOnly": true, "description": "Last /zinc/chat message from the app" },
+    "Chat Received": { "type": "Trigger", "description": "Fires on every /zinc/chat message, even a repeated one" }
+  },
+  "commands": {
+    "Set Fader": {
+      "menu": "Controls", "callback": "setFader",
+      "parameters": {
+        "Fader": { "type": "Integer", "min": 1, "max": 4, "default": 1 },
+        "Value": { "type": "Float", "min": 0, "max": 1, "default": 0, "mappingIndex": 0 }
+      }
+    },
+    "Set Meter": {
+      "menu": "Controls", "callback": "setMeter",
+      "parameters": {
+        "Meter": { "type": "Integer", "min": 1, "max": 4, "default": 1 },
+        "Level": { "type": "Float", "min": 0, "max": 1, "default": 0, "mappingIndex": 0 }
+      }
+    },
+    "Set Toggle": {
+      "menu": "Controls", "callback": "setToggle",
+      "parameters": {
+        "Toggle": { "type": "Integer", "min": 1, "max": 3, "default": 1 },
+        "State": { "type": "Boolean", "default": false, "mappingIndex": 0 }
+      }
+    },
+    "Set XY": {
+      "menu": "Controls", "callback": "setXY",
+      "parameters": { "Position": { "type": "Point2D", "min": [0, 0], "max": [1, 1], "default": [0.5, 0.5], "mappingIndex": 0 } }
+    },
+    "Set Color": {
+      "menu": "Controls", "callback": "setColor",
+      "parameters": { "Color": { "type": "Color", "default": [1, 0.5, 0, 1], "mappingIndex": 0 } }
+    },
+    "Set Cue Name": {
+      "menu": "Cue", "callback": "setCueName",
+      "parameters": { "Name": { "type": "String", "default": "Cue 1" } }
+    },
+    "Set Cue Running": {
+      "menu": "Cue", "callback": "setCueRunning",
+      "parameters": { "Running": { "type": "Boolean", "default": true, "mappingIndex": 0 } }
+    },
+    "Say": {
+      "menu": "Chat", "callback": "say",
+      "parameters": { "Message": { "type": "String", "default": "Hello from Chataigne" } }
+    }
+  }
+}
