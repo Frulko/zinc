@@ -1432,8 +1432,15 @@ class CppEmitter {
       if (lt.k === 'null' || rt.k === 'null') {
         const other = lt.k === 'null' ? R : L;
         const ot = this.s.ztypeOf(other);
+        // `m.get(k) === undefined` on a Map of values: absence is `!m.has(k)` (values have no null state)
+        let g: ts.Expression = other;
+        while (ts.isParenthesizedExpression(g)) g = g.expression;
+        if (ts.isCallExpression(g) && ts.isPropertyAccessExpression(g.expression) && g.expression.name.text === 'get' && this.s.ztypeOf(g.expression.expression).k === 'map' && !refLike(ot))
+          return `(${opText === '==' ? '!' : ''}${this.expr(g.expression.expression)}.has(${this.args(g.arguments, [(this.s.ztypeOf(g.expression.expression) as Extract<ZT, { k: 'map' }>).key])}))`;
         if (ot.k === 'str') return `(${this.expr(other)}.s ${opText} nullptr)`;
-        if (ot.k === 'num' || ot.k === 'bool') return opText === '==' ? 'false' : 'true';
+        const od = ts.isPropertyAccessExpression(g) ? this.s.declOf(g.name) : undefined;
+        if (od && this.optVal(od) && ts.isPropertyAccessExpression(g)) return `(${opText === '==' ? '!' : ''}${this.expr(g.expression)}->__has_${this.id(g.name.text)})`;
+        if (ot.k === 'num' || ot.k === 'bool') this.s.fail(e, 'Z1013', `a '${ot.k}' is never null or undefined here; use Map.has / an optional field / a sentinel`);
         return `(${this.expr(other)} ${opText} nullptr)`;
       }
       if (eq && lt.k !== rt.k) this.s.fail(e, 'Z1013', `comparison between '${lt.k}' and '${rt.k}' is always false; Zinc refuses mixed-type equality (LNG-21)`);
