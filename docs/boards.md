@@ -192,6 +192,8 @@ No board was available. Verified:
   4 MB flash, secondary USB-Serial/JTAG console in the generated `sdkconfig`) and boot in Espressif QEMU's esp32s3
   machine (`-m 32M` PSRAM: the heap is allocated there), where the IMU probe fails as expected and the emulation takes
   over;
+- `tests/conformance/features.ts` prints the same bytes as the sim oracle on `esp32` and on `esp32s3`
+  (`ZINC_ESP_CHIP=esp32s3`) in QEMU;
 - the three Scroll pHAT demos export as static ARMv6 binaries (`file`: statically linked; `ldd`: not a dynamic
   executable) and run in a Debian bookworm armhf container (glibc, no musl), including `zinc:process` (`hostname -I`);
 - `test_frame.cpp` (Scroll pHAT bit order), `zinc flash` without esptool (message) and with it installed in a venv.
