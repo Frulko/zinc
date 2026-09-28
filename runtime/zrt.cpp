@@ -793,6 +793,12 @@ bool loop_once() {
   uint32_t added = pollers_added;
   double next = run_timers();
   bool active = poll_all() || added != pollers_added;
+  if (!quit_requested && next < 0 && !active && !mq_len) {
+    // a callback run by a later poller may have started work on an earlier one that already reported idle (a fetch
+    // issued after the fetcher's poll) or armed a timer: look once more before ending the program
+    next = run_timers();
+    active = poll_all() || added != pollers_added;
+  }
   if (quit_requested || (next < 0 && !active && !mq_len)) return false;
   if (det_mode) {
     // no waiting for timers: the clock jumps to the next one; while pollers have work (sockets), 1 virtual ms per
