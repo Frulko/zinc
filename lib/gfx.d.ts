@@ -76,6 +76,9 @@ declare module 'zinc:gfx' {
   /** Frame counter since start. */
   export function frame(): i32;
   export function quit(): void;
+  /** Saves the frame on screen (the last one presented, at physical size) as PNG, or BMP when the path ends in .bmp.
+   *  False when it cannot be written (no file system, sim target). See ZINC_SHOT for captures without code. */
+  export function capture(path: string): boolean;
 
   // ---- desktop input (keyboard, text, mouse buttons, clipboard, cursor). Empty/no-op where the HAL has none.
   export const enum Mod { Shift = 1, Ctrl = 2, Alt = 4, Meta = 8 }

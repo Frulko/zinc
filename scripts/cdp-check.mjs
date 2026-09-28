@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Scripted DevTools client for plugins/devtools (docs/dev-mode.md): discovery, DOM tree, computed style, class edit,
-// highlight, console mirroring. Run it against a program started by `zinc dev` (or built with --devtools).
+// highlight, console mirroring, screenshot. Run it against a program started by `zinc dev` (or built with --devtools).
 // usage: node scripts/cdp-check.mjs [port]   (Node's built-in WebSocket, no dependencies)
 const port = Number(process.argv[2] ?? 9229);
 const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
@@ -41,6 +41,8 @@ check(after.includes('bg-rose-600'), 'DOM.setAttributeValue class -> tree shows 
 const bg = (await call('CSS.getComputedStyleForNode', { nodeId: target.nodeId })).computedStyle.find(p => p.name === 'background-color');
 check(bg?.value === '#e11d48', `restyled background-color ${bg?.value}`);
 check(Object.keys(await call('Some.unknownMethod')).length === 0, 'unknown method -> empty result');
+const png = Buffer.from((await call('Page.captureScreenshot', { format: 'png' })).data ?? '', 'base64');
+check(png.subarray(1, 4).toString() === 'PNG', `Page.captureScreenshot: ${png.length} bytes${png.length > 24 ? ` (${png.readUInt32BE(16)}x${png.readUInt32BE(20)})` : ""}`);
 if (process.env.SHOT_WAIT) await new Promise(r => setTimeout(r, Number(process.env.SHOT_WAIT)));
 await call('Overlay.hideHighlight');
 const logs = events.filter(e => e.method === 'Runtime.consoleAPICalled');

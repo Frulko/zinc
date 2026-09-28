@@ -49,3 +49,5 @@ export const buttonEventCount = () => 0, buttonEventX = () => 0, buttonEventY = 
 export const startTextInput = () => {}, stopTextInput = () => {}, setCursor = () => {};
 export const clipboardText = () => clipboard, setClipboardText = s => { clipboard = s; };
 export const quit = () => { $z.state.quit = true; };
+// headless sim: nothing is rasterized, so there is no frame to save
+export const capture = () => false;

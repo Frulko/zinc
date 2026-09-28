@@ -1,6 +1,7 @@
 // zinc:devtools — the zinc:ui tree in Chrome DevTools (docs/dev-mode.md). `zinc dev` adds this module to UI
 // programs; elsewhere `import 'zinc:devtools'` opts in. A subset of the DevTools protocol: DOM (tree, attributes,
-// class edits), CSS computed style (layout values), Overlay highlight, Runtime console, Page frame tree. Unknown
+// class edits), CSS computed style (layout values), Overlay highlight, Runtime console, Page frame tree and
+// screenshots (the native frame, captured by the runtime). Unknown
 // methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
@@ -94,6 +95,7 @@ function handle(client: i32, msg: string): void {
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
   else if (method === 'Runtime.enable')
     Cdp.send(client, '{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"zinc://app","name":"zinc","uniqueId":"zinc-1","auxData":{"isDefault":true,"type":"default","frameId":"main"}}}}');
+  else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot()}"}`;  // PNG of the frame on screen
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }

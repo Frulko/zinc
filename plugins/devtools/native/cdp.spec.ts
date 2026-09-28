@@ -13,5 +13,7 @@ export interface Spec extends NativeModule {
   str(msg: string, key: string): string;
   /** Connected WebSocket clients. */
   clients(): i32;
+  /** The frame on screen as a base64 PNG (Page.captureScreenshot); '' when there is none. */
+  screenshot(): string;
 }
 export default requireNative<Spec>('Cdp');

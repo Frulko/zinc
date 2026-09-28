@@ -598,7 +598,7 @@ struct Engine : NativeMapEngine {
   struct Placed { float x0, y0, x1, y1; };
   int32_t draw(double mx, double my, double zoom, double vx, double vy, double vw, double vh, bool fast) override {
     clock++;
-    uint64_t t0 = hal_time_us();
+    double t0 = now_ms();  // virtual in deterministic runs: every visible tile is rendered in the first frame
     int32_t z = (int32_t)floor(zoom + 0.5);
     if (z < 0) z = 0; if (z > 24) z = 24;
     double scale = pow(2.0, zoom - z), n = (double)(1 << z);
@@ -626,7 +626,7 @@ struct Engine : NativeMapEngine {
       if (!im) {
         bool none;
         const Data* d = data_for(z, v.wx, v.ty, none);
-        bool budget = !rendered || hal_time_us() - t0 < (uint64_t)ZP_MAP_BUDGETMS * 1000;
+        bool budget = !rendered || now_ms() - t0 < ZP_MAP_BUDGETMS;
         if ((d || none) && budget && (im = new_img())) {
           im->z = z; im->x = v.wx; im->y = v.ty; im->live = true; im->used = clock;
           uint64_t r0 = hal_time_us();

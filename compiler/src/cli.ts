@@ -14,6 +14,7 @@ import { lowerMir, printMir } from './mir.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, withBoard, type BuildSettings } from './plugins.ts';
 import { flash, serialMonitor } from './flash.ts';
+import * as png from './png.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean;
   /** esp32 only (docs/boards.md): ESP-IDF chip (esp32, esp32s3), PSRAM for the Zinc heap, flash size ("4MB"). */
@@ -36,10 +37,11 @@ const PROFILES: Record<string, Profile> = {
 /** version / id / icon: packaging metadata for zinc export (docs/guide/07-distribution.md). */
 export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; port?: string }
+/** vals: valued options of zinc capture (--frames, --every, --out, --replay). */
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false };
+  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
@@ -61,7 +63,8 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--port') o.port = argv[++i];  // zinc flash (compiler/src/flash.ts)
     else if (a.startsWith('--port=')) o.port = a.slice(7);
     else if (a === '--display' || a.startsWith('--display=')) process.env.ZINC_DISPLAY = a.includes('=') ? a.slice(10) : argv[++i];  // plugins.ts displayOf
-    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
+    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write' || a === '--pixels') { /* handled by the command */ }
+    else if (['--frames', '--every', '--out', '--replay'].includes(a)) o.vals[a.slice(2)] = argv[++i] ?? die(`${a} needs a value`);
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -204,7 +207,7 @@ project(zinc_app CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -fno-threadsafe-statics -DZRT_HEAP_BYTES=${heap}u${gpiod ? ' -DZRT_GPIOD' : ''}${mode.crash ? ` -DZRT_CRASH=${mode.crash}` : ''} ${opt})
+set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -DZRT_HEAP_BYTES=${heap}u${gpiod ? ' -DZRT_GPIOD' : ''}${mode.crash ? ` -DZRT_CRASH=${mode.crash}` : ''} ${opt})
 ${hot ? 'set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n' : ''}add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp${mods.map(m => ` ${z}/runtime/mod/${m}.cpp`).join('')})
 target_include_directories(zrt PUBLIC ${z}/runtime ${z}/runtime/include)
 target_compile_options(zrt PUBLIC \${ZFLAGS})
@@ -430,9 +433,11 @@ const DOCKER: Record<string, DockerTarget> = {
   rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
   ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', frames: true, cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`, `-DZINC_TARGET_CMAKE=${ZINC_ROOT}/targets/ps2/ps2.cmake`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
 };
+/** Run-time settings passed into docker runs (frame budget, determinism, captures; see `zinc help env`). */
+const RUN_ENV = ['ZINC_FRAMES', 'ZINC_FIXED_DT', 'ZINC_DETERMINISTIC', 'ZINC_RECORD', 'ZINC_REPLAY', 'ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_SHOT_EVERY', 'ZINC_SCALE'];
 function dockerArgs(dir: string, t: DockerTarget): string[] {
   const mounts = [ZINC_ROOT, path.dirname(path.dirname(dir)), ...extraMounts].filter((m, i, a) => !a.some((x, j) => j !== i && (m + '/').startsWith(x + '/')));
-  return ['run', '--rm', '-e', 'ZINC_FRAMES', ...(t.env ?? []).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, ...(t.entrypoint ? ['--entrypoint', t.entrypoint] : []), t.image];
+  return ['run', '--rm', ...[...RUN_ENV, ...(t.env ?? [])].filter((e, i, a) => a.indexOf(e) === i).flatMap(e => ['-e', e]), ...(t.platform ? ['--platform', t.platform] : []), ...mounts.flatMap(m => ['-v', `${m}:${m}`]), '-w', dir, ...(t.entrypoint ? ['--entrypoint', t.entrypoint] : []), t.image];
 }
 function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean, ps: BuildSettings, mods: Set<string>): Built {
   let t = DOCKER[o.target];
@@ -514,7 +519,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -600,12 +605,13 @@ function test(o: Opts, update: boolean, updateGolden = false) {
   for (const f of files) {
     const entry = path.join(dir, f);
     if (PROFILES[o.profile].typing === 'strict' && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
+    // console targets have no environment: no deterministic mode (their own frame clock is fixed, timers are not)
+    if (['esp32', 'ps1', 'ps2', 'wasm'].includes(o.target) && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: deterministic')) { console.log(`skip ${f} (needs deterministic mode)`); continue; }
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ZINC_RESIZE: 'letterbox', ZINC_CLIPBOARD: 'local', ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock and surface, private clipboard
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '' } });
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
-    const pr = PROFILES[o.profile];
-    const key = [pr.number === 'f64' ? '' : pr.number, pr.width === 320 && pr.height === 240 ? '' : `${pr.width}x${pr.height}`].filter(Boolean).join('.');
+    const key = profileKey(o);
     const expectFile = entry.replace(/\.(tsx?|js)$/, key ? `.${key}.out` : '.out');
     const sim = runOne('sim');
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
@@ -633,6 +639,87 @@ function test(o: Opts, update: boolean, updateGolden = false) {
   console.log(`${files.length} programs, ${failed} failure(s)`);
   process.exit(failed ? 1 : 0);
 }
+/** Expected-output suffix of a profile: number representation and resolution when they differ from macos. */
+function profileKey(o: Opts): string {
+  const pr = PROFILES[o.profile];
+  return [pr.number === 'f64' ? '' : pr.number, pr.width === 320 && pr.height === 240 ? '' : `${pr.width}x${pr.height}`].filter(Boolean).join('.');
+}
+/** Deterministic run (docs/guide/06-testing.md, Determinism): virtual clock, fixed dt, no live input, fixed surface,
+ *  private clipboard. zinc test and zinc capture run programs with it. */
+const DETERMINISTIC = { ZINC_DETERMINISTIC: '1', ZINC_FIXED_DT: String(1 / 60), ZINC_RESIZE: 'letterbox', ZINC_CLIPBOARD: 'local' };
+/** Targets whose programs read the environment and can write files: the ones zinc capture / --pixels support. */
+const CAPTURE_TARGETS = ['macos', 'linux', 'rpi1', 'rmpp'];
+
+/** Runs a built program headless with the deterministic clock and saves frames (1-based numbers) as compressed PNGs
+ *  `<base>-<n>.png`, or `<base>.png` for the last frame. Returns the files written. */
+function captureRun(o: Opts, exe: string[], base: string, frames: number[], every = 0, replay?: string): string[] {
+  const budget = Number(process.env.ZINC_FRAMES ?? (frames.length ? Math.max(...frames) : 60));
+  const env: NodeJS.ProcessEnv = {
+    ...DETERMINISTIC, ZINC_SCALE: '1', SDL_VIDEO_DRIVER: 'dummy', ...process.env, ZINC_LOG_FORMAT: '',
+    ZINC_FRAMES: String(budget), ZINC_SHOT: base + '.png', ZINC_SHOT_FRAMES: frames.join(','), ZINC_SHOT_EVERY: every ? String(every) : '',
+    ...(replay ? { ZINC_REPLAY: path.resolve(replay) } : {}),
+  };
+  for (const k of ['ZINC_SHOT_FRAMES', 'ZINC_SHOT_EVERY']) if (!env[k]) delete env[k];
+  fs.mkdirSync(path.dirname(base), { recursive: true });
+  const nums = [...new Set([...frames, ...Array.from({ length: every ? Math.floor(budget / every) : 0 }, (_, i) => (i + 1) * every)])].sort((a, b) => a - b);
+  const files = nums.length ? nums.filter(n => n <= budget).map(n => `${base}-${n}.png`) : [base + '.png'];
+  for (const f of files) fs.rmSync(f, { force: true });
+  const r = spawnSync(exe[0], [...exe.slice(1), ...o.rest], { stdio: ['ignore', 'ignore', 'inherit'], env });
+  if (r.status) console.error(`zinc: the program exited with ${r.status}`);
+  return files.filter(f => fs.existsSync(f)).map(f => { fs.writeFileSync(f, png.encode(png.decode(fs.readFileSync(f)))); return f; });
+}
+function frameList(s: string | undefined): number[] {
+  return (s ?? '').split(',').filter(Boolean).map(x => { const n = Number(x); if (!Number.isInteger(n) || n < 1) die(`bad frame number '${x}' (frames count from 1)`); return n; });
+}
+
+/** zinc capture: frames of any program as PNG files (docs/guide/06-testing.md). */
+function capture(o: Opts) {
+  if (!CAPTURE_TARGETS.includes(o.target)) die(`zinc capture supports --target ${CAPTURE_TARGETS.join(', ')} (the sim draws nothing; ps1: ZINC_SHOT through the emulator)`);
+  const frames = frameList(o.vals.frames), every = Number(o.vals.every ?? 0);
+  const b = build(o);
+  const out = path.resolve(o.vals.out ?? path.join(o.project.dir, 'build', 'shots'));
+  if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux') && !out.startsWith(o.project.dir + path.sep) && !out.startsWith(ZINC_ROOT + path.sep))
+    die(`--out must be inside the project for docker targets (${o.project.dir})`);
+  const files = captureRun(o, b.exe, path.join(out, o.project.name), frames, every, o.vals.replay);
+  for (const f of files) { const r = path.relative(process.cwd(), f); console.log(r.startsWith('..') ? f : r); }
+  if (!files.length) die('no frame was captured (does the program use zinc:gfx and run that many frames?)');
+}
+
+/** zinc test --pixels: programs in tests/visual render frames headless and deterministically; each frame must equal its
+ *  golden PNG `<name>-<n>[.<profile key>].png` pixel for pixel. Failures leave the frame and a diff under build/visual. */
+function pixelTest(o: Opts, update: boolean) {
+  if (!CAPTURE_TARGETS.includes(o.target)) die(`zinc test --pixels supports --target ${CAPTURE_TARGETS.join(', ')}`);
+  const dir = path.join(ZINC_ROOT, 'tests/visual'), work = path.join(ZINC_ROOT, 'build/visual', o.target + '-' + o.profile);
+  const key = profileKey(o);
+  let failed = 0, frames = 0;
+  for (const f of fs.readdirSync(dir).filter(x => /\.tsx?$/.test(x)).sort()) {
+    const entry = path.join(dir, f), name = f.replace(/\.tsx?$/, '');
+    const src = fs.readFileSync(entry, 'utf8');
+    if (PROFILES[o.profile].typing === 'strict' && src.startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
+    const want = frameList(/^\/\/ zinc-test: frames ([\d,]+)/m.exec(src)?.[1] ?? '60');
+    const sub: Opts = { ...o, entry, project: loadProject(entry), cmd: 'run' };
+    let b: Built;
+    try { b = build(sub); } catch (e) { if (!(e instanceof Exit)) throw e; failed++; console.log(`FAIL ${f} (build)`); continue; }
+    const got = captureRun(sub, b.exe, path.join(work, name), want);
+    for (const n of want) {
+      frames++;
+      const actual = path.join(work, `${name}-${n}.png`), golden = path.join(dir, `${name}-${n}${key ? '.' + key : ''}.png`);
+      const label = `${f} frame ${n} [${o.target}${o.profile !== o.target ? '/' + o.profile : ''}]`;
+      if (!got.includes(actual)) { failed++; console.log(`FAIL ${label}: not captured`); continue; }
+      if (update || !fs.existsSync(golden)) { fs.copyFileSync(actual, golden); console.log(`new  ${label} -> ${path.relative(ZINC_ROOT, golden)}`); continue; }
+      const a = png.decode(fs.readFileSync(golden)), g = png.decode(fs.readFileSync(actual));
+      const d = png.diff(a, g);
+      if (!d.count && a.w === g.w && a.h === g.h) { console.log(`ok   ${label}`); continue; }
+      failed++;
+      const dp = actual.replace(/\.png$/, '.diff.png');
+      fs.writeFileSync(dp, png.encode(d.img));
+      console.log(`FAIL ${label}: ${a.w}x${a.h} expected, ${g.w}x${g.h} got, ${d.count} pixel(s) differ in [${d.box.join(',')}]\n  got  ${path.relative(process.cwd(), actual)}\n  diff ${path.relative(process.cwd(), dp)}`);
+    }
+  }
+  console.log(`${frames} frame(s), ${failed} failure(s)${update ? ' (goldens updated)' : ''}`);
+  process.exit(failed ? 1 : 0);
+}
+
 function diffText(a: string, b: string): string {
   const x = a.split('\n'), y = b.split('\n');
   for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `  line ${i + 1}:\n  - ${x[i] ?? ''}\n  + ${y[i] ?? ''}`;
@@ -667,6 +754,10 @@ function help(topic?: string) {
                                         hot reload on save, red box on crash, UI inspector on :9229 (docs/dev-mode.md)
   zinc test   [--target <id>] [--profile <id>] [--debug] [--update] [--update-golden]
                                         conformance: every program must print the same bytes as the sim oracle
+                                        (deterministic mode: virtual clock, fixed dt, no live input)
+  zinc test --pixels [--update]         visual regression: tests/visual frames vs golden PNGs, pixel for pixel
+  zinc capture [entry] [--frames 1,60] [--every n] [--out dir] [--replay tape]
+                                        render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start
   zinc init   <dir> [--template game|cli|server|iot|remarkable]
@@ -674,7 +765,7 @@ function help(topic?: string) {
   zinc flash  [entry] --target esp32 [--port /dev/cu.usbmodem*]   build, then flash with the host esptool (docs/boards.md)
   zinc monitor [--port 9999]            live view of zinc:telemetry; --port /dev/cu.usbmodem* [--baud n]: serial console
   zinc doctor                           check the toolchain (cmake, compiler, SDL3, docker, emscripten)
-  zinc help [commands|targets|options|env|plugins|ui|docs]`,
+  zinc help [commands|targets|options|env|testing|plugins|ui|docs]`,
     targets: `Targets (--target) and profiles (--profile: numbers, resolution, heap of another target on this one)
   macos   native, SDL3 window                  linux   docker zinc/sdk-linux, fbdev/GL display plugins
   rpi1    ARMv6 hard-float, docker + QEMU      rmpp    reMarkable Paper Pro, static aarch64, e-ink
@@ -696,8 +787,11 @@ function help(topic?: string) {
   --display <driver> display plugin for this build, e.g. remote (overrides zinc.json display; env ZINC_DISPLAY)`,
     env: `Environment
   ZINC_FRAMES=n          stop the frame loop after n frames (tests, screenshots)
-  ZINC_SHOT=out.bmp      save the last frame (with ZINC_FRAMES)
-  ZINC_FIXED_DT=s        fixed frame time (deterministic runs; zinc test uses 1/60)
+  ZINC_SHOT=out.png      save the last frame (PNG; .bmp: BMP); with ZINC_SHOT_FRAMES=1,30,60 or ZINC_SHOT_EVERY=n,
+                         save those frames as out-<n>.png instead
+  ZINC_FIXED_DT=s        fixed frame time (zinc test uses 1/60)
+  ZINC_DETERMINISTIC=1   virtual clock (Date.now, timers) advanced by frames, fixed dt, no live input (zinc help testing)
+  ZINC_RECORD=tape       deterministic run that records the live input;  ZINC_REPLAY=tape   plays it back
   ZINC_ZOOM=n            macOS window size in points = logical size x n (zinc.json targets.macos.zoom; auto: 2 below 400 px)
   ZINC_RESIZE=fill|letterbox   window resize: surface follows the window (default for UI apps) or stays fixed and scales
   ZINC_FULLSCREEN=1      start fullscreen (F11 / Ctrl+Cmd+F toggles, Esc leaves)
@@ -708,6 +802,18 @@ function help(topic?: string) {
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
   ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
+    testing: `Testing and determinism (docs/guide/06-testing.md)
+  zinc test                  conformance: sim (the oracle) and native print the same bytes; runs are deterministic
+  zinc test --pixels         tests/visual/*.tsx render headless; frames must equal tests/visual/<name>-<n>.png
+                             (--update re-records; failures write the frame and a red diff under build/visual)
+  zinc capture app --frames 1,60 --out shots/     any program's frames as PNG, same deterministic clock
+  ZINC_RECORD=s.tape zinc run app    play, input is recorded;  zinc capture app --replay s.tape --frames 300
+  Deterministic mode (ZINC_DETERMINISTIC=1, implied by the above): Date.now/performance.now/timers on a virtual
+  clock advanced by dt per frame; fixed dt (ZINC_FIXED_DT, else 1/60); timers in (due time, creation) order; seeded
+  Math.random (Math.seed); no mouse/keyboard/pen except a replayed tape or ui test hooks; fixed surface size.
+  Not covered: network/file I/O timing, threads (video decode), plugins that read the OS clock themselves.
+  gfx.capture(path) saves the frame on screen from code; F12 in zinc dev saves it to build/shots;
+  Chrome DevTools can take a screenshot (Page.captureScreenshot).`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
   JSX host tags View/Text/Button/Image/ScrollView/Canvas (or view/text/button/image/scroll/canvas), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
@@ -732,7 +838,7 @@ function help(topic?: string) {
   };
   if (topic === 'plugins') { console.log(listPlugins(projectDir('x'))); return; }
   if (topic && T[topic]) { console.log(T[topic]); return; }
-  console.log(`zinc — strict TypeScript compiled to native C++ (no JavaScript engine on the device)\n\n${T.commands}\n\n${T.targets}\n\n${T.options}\n\n${T.env}\n\n${T.ui}\n\nPlugins (compiled in only when imported, or chosen as display in zinc.json)\n${listPlugins(projectDir('x'))}\n\n${T.docs}\n\nentry defaults to zinc.json "entry", src/main.ts or main.ts; a directory means its zinc.json / main.ts.`);
+  console.log(`zinc — strict TypeScript compiled to native C++ (no JavaScript engine on the device)\n\n${T.commands}\n\n${T.targets}\n\n${T.options}\n\n${T.env}\n\n${T.testing}\n\n${T.ui}\n\nPlugins (compiled in only when imported, or chosen as display in zinc.json)\n${listPlugins(projectDir('x'))}\n\n${T.docs}\n\nentry defaults to zinc.json "entry", src/main.ts or main.ts; a directory means its zinc.json / main.ts.`);
 }
 
 function main() {
@@ -785,7 +891,8 @@ function main() {
     const b = build(o);
     process.exit(flash(b.dir, espChip(o).chip, o.port));
   }
-  if (cmd === 'test') return test(o, argv.includes('--update'), argv.includes('--update-golden'));
+  if (cmd === 'test') return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
+  if (cmd === 'capture') return capture(o);
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));
   if (cmd === 'run') {
     const b = build(o);

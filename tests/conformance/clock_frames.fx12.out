@@ -1,0 +1,8 @@
+frame 0 t=16.667 rnd=879
+frame 1 t=33.333 rnd=545
+interval 40 in frame 2
+timeout 50 in frame 2, t=50.000
+frame 2 t=50.000 rnd=394
+interval 40 in frame 4
+frame 6 t=116.667 rnd=0
+interval 40 in frame 7

@@ -156,7 +156,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           const g = c.expression.text, m = c.name.text;
           const lib = !sema.declOf(c.expression) || sema.isLib(sema.declOf(c.expression)!);
           if (lib && g === 'console') return callZ('c_' + m, [...v.arguments]);
-          if (lib && FX && ((g === 'Date' || g === 'performance') && m === 'now')) return fxq(v);
+          // clocks and timers go through the shim: deterministic runs put them on the virtual clock (sim/zinc.mjs)
+          if (lib && (g === 'Date' || g === 'performance') && m === 'now') return fxq(callZ(g === 'Date' ? 'dateNow' : 'perfNow', []));
           if (lib && g === 'Math' && m === 'random') return fxq(callZ('random', []));
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
           if (lib && g === 'JSON' && m === 'parse') return callZ('jsonParse', [...v.arguments]);
@@ -166,6 +167,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           const rt = safeType(c.expression);
           if (rt?.k === 'map' || rt?.k === 'set') return f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier('Array'), 'from'), undefined, [v]);
         }
+        if (ts.isIdentifier(c) && /^(setTimeout|setInterval|clearTimeout|clearInterval)$/.test(c.text) && (!sema.declOf(c) || sema.isLib(sema.declOf(c)!))) return callZ(c.text, [...v.arguments]);
         if (FX && ts.isIdentifier(c) && (c.text === 'parseInt' || c.text === 'parseFloat')) return fxq(v);
         // numbers coming back from native code (spec methods, zinc:* modules) cross as f64 and are converted to the
         // profile's number at the boundary, like the C++ side does
