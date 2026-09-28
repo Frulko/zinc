@@ -66,3 +66,13 @@ export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i3
 
 /** Renders an optional node-valued prop (`children`, `leading`...): an empty fragment when it is absent. */
 export function renderSlot(slot: (() => i32) | undefined): i32 { return slot !== undefined ? slot() : _el(ui.FRAGMENT); }
+
+// Text fields and pointer/keyboard events (same behaviour in both models).
+export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
+export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
+export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
+export function _dynStr(n: i32, key: string, get: () => string): void {
+  if (fineGrained()) solid._dynStr(n, key, get); else _str(n, key, get());
+}
+export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }

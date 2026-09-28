@@ -1,0 +1,78 @@
+[exit 1] lib/std/kit/alert.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/alert.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/alert.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/alert.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/alert.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/alert.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/avatar.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/avatar.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/avatar.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/avatar.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/avatar.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/avatar.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/badge.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/badge.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/badge.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/badge.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/badge.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/badge.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/button.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/button.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/button.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/button.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/button.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/button.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/card.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/card.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/card.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/card.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/card.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/card.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/kbd.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/kbd.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/kbd.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/kbd.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/kbd.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/kbd.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/list.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/list.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/list.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/list.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/list.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/list.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/progress.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/progress.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/progress.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/progress.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/progress.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/progress.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/separator.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/separator.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/separator.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/separator.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/separator.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/separator.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/slider.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/slider.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/slider.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/slider.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/slider.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/slider.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/stat.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/stat.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/stat.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/stat.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/stat.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/stat.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/switch.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/switch.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/switch.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/switch.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/switch.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/switch.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.
+lib/std/kit/tabs.tsx:1:164 - error TS2305: Module '"./host"' has no exported member '_dynStr'.
+lib/std/kit/tabs.tsx:1:173 - error TS2305: Module '"./host"' has no exported member '_ptr'.
+lib/std/kit/tabs.tsx:1:179 - error TS2305: Module '"./host"' has no exported member '_key'.
+lib/std/kit/tabs.tsx:1:185 - error TS2724: '"./host"' has no exported member named '_onText'. Did you mean '_text'?
+lib/std/kit/tabs.tsx:1:194 - error TS2305: Module '"./host"' has no exported member '_str'.
+lib/std/kit/tabs.tsx:1:200 - error TS2305: Module '"./host"' has no exported member '_hl'.

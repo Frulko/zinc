@@ -28,7 +28,7 @@ zinc doctor
 ```sh
 zinc run examples/breakout                 # game (arrows/A-D/mouse, Space), SDL3 window
 zinc run examples/hero                     # animated Solid UI over a canvas
-zinc run examples/text/main-react.tsx      # same screen as main-solid.tsx, React model
+zinc run examples/text/src/main-react.tsx      # same screen as main-solid.tsx, React model
 zinc run examples/iot-panel                # GPIO simulator, live chart, telemetry, OSC (X = button)
 zinc run examples/lang --target sim        # language tour on Node (the oracle)
 zinc run examples/breakout --target wasm   # browser: http://localhost:8080
