@@ -355,7 +355,7 @@ const DOCKER: Record<string, DockerTarget> = {
   // TGT-PS2-01: EE ELF with ps2sdk; running needs PCSX2 + the user's BIOS (TGT-PS2-04), so `run` only builds
   // reMarkable Paper Pro: static aarch64 binary (independent of the device's glibc), Cortex-A53 tuning
   rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
-  ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
+  ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', frames: true, cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`, `-DZINC_TARGET_CMAKE=${ZINC_ROOT}/targets/ps2/ps2.cmake`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
 };
 function dockerArgs(dir: string, t: DockerTarget): string[] {
   const mounts = [ZINC_ROOT, path.dirname(path.dirname(dir)), ...extraMounts].filter((m, i, a) => !a.some((x, j) => j !== i && (m + '/').startsWith(x + '/')));
