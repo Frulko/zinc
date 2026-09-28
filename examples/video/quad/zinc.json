@@ -1,0 +1,9 @@
+{
+  "name": "quad",
+  "entry": "main.ts",
+  "targets": {
+    "macos": { "width": 640, "height": 360 },
+    "linux": { "width": 1280, "height": 720, "display": "fbdev" },
+    "rpi1": { "width": 1280, "height": 720, "display": "fbdev" }
+  }
+}
