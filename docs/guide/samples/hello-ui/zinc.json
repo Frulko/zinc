@@ -1,0 +1,1 @@
+{ "name": "hello-ui", "entry": "src/main.tsx", "version": "0.1.0", "targets": { "macos": { "width": 320, "height": 200 } } }

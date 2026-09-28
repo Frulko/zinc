@@ -1,0 +1,9 @@
+{
+  "name": "greet",
+  "kind": "module",
+  "module": "zinc:greet",
+  "entry": "index.ts",
+  "description": "Tiny pure-Zinc greeting plugin (no native code)",
+  "options": { "excited": false },
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "esp32": {}, "wasm": {}, "ps1": {}, "ps2": {}, "rmpp": {} }
+}
