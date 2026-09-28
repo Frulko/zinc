@@ -300,6 +300,12 @@ int32_t String::indexOf(const String& n, int32_t from) const {
   int32_t b = find_bytes(*this, n, u16_to_byte(*this, from));
   return b < 0 ? -1 : byte_to_u16(*this, (uint32_t)b);
 }
+int32_t String::lastIndexOf(const String& n, int32_t from) const {
+  // last match starting at or before `from` (UTF-16 index), like JS
+  int32_t best = -1;
+  for (int32_t i = indexOf(n, 0); i >= 0 && i <= from; i = indexOf(n, i + 1)) best = i;
+  return best;
+}
 bool String::startsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr(), n.ptr(), n.bytes()) == 0; }
 bool String::endsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr() + bytes() - n.bytes(), n.ptr(), n.bytes()) == 0; }
 Array<String> String::split(const String& sep) const {

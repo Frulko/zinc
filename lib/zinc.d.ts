@@ -59,6 +59,7 @@ interface String {
   slice(start: i32, end?: i32): string;
   substring(start: i32, end?: i32): string;
   indexOf(s: string, from?: i32): i32;
+  lastIndexOf(s: string, from?: i32): i32;
   includes(s: string): boolean;
   startsWith(s: string): boolean;
   endsWith(s: string): boolean;

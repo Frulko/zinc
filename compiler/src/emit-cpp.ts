@@ -964,6 +964,7 @@ class CppEmitter {
     if (e.kind === K.NullKeyword || (ts.isIdentifier(e) && e.text === 'undefined')) return want && want.k !== 'null' && want.k !== 'num' && want.k !== 'bool' ? `${this.cpp(want)}()` : 'nullptr';
     if (e.kind === K.ThisKeyword) return this.ctx.self;
     if (ts.isIdentifier(e)) return this.ident(e);
+    if (this.isChainTop(e)) return this.chain(e);
     if (ts.isPropertyAccessExpression(e)) return e.questionDotToken ? this.optional(e) : this.prop(e);
     if (ts.isElementAccessExpression(e)) {
       const t = this.s.ztypeOf(e.expression);
@@ -1064,9 +1065,62 @@ class CppEmitter {
     return `([&]() -> ${this.cpp(ft.ret)} { auto ${f} = ${this.expr(e.expression)}; if (${f} == nullptr) return {}; return ${call}; }())`;
   }
 
+  /** Outermost node of an optional chain with more than one link (`a?.b?.c`, `a?.b.c()`, `a?.b()`). */
+  isChainTop(e: ts.Expression): boolean {
+    if (!(ts.isPropertyAccessExpression(e) || ts.isCallExpression(e) || ts.isElementAccessExpression(e)) || !(e.flags & ts.NodeFlags.OptionalChain)) return false;
+    const p = e.parent;
+    if ((ts.isPropertyAccessExpression(p) || ts.isCallExpression(p) || ts.isElementAccessExpression(p)) && p.expression === e && (p.flags & ts.NodeFlags.OptionalChain)) return false;
+    // single-link forms keep their dedicated emitters
+    const inner = e.expression;
+    const innerChain = (ts.isPropertyAccessExpression(inner) || ts.isCallExpression(inner) || ts.isElementAccessExpression(inner)) && !!(inner.flags & ts.NodeFlags.OptionalChain);
+    return innerChain || (ts.isCallExpression(e) && ts.isPropertyAccessExpression(inner) && !!inner.questionDotToken);
+  }
+  /**
+   * Optional chain (JS semantics): links are evaluated in order into temporaries; a `?.` on a null link returns
+   * `fallback` (the `??` right side) or the result type's default. Supports property reads and method calls on objects.
+   */
+  chain(top: ts.Expression, fallback?: string, resultType?: ZT): string {
+    const links: ts.Expression[] = [];
+    let n: ts.Expression = top;
+    while ((ts.isPropertyAccessExpression(n) || ts.isCallExpression(n) || ts.isElementAccessExpression(n)) && (n.flags & ts.NodeFlags.OptionalChain)) { links.unshift(n); n = n.expression; }
+    const t = resultType ?? this.s.ztypeOf(top);
+    const isVoid = t.k === 'void';
+    const miss = isVoid ? 'return;' : `return ${fallback ?? `${this.cpp(t)}{}`};`;
+    const body: string[] = [];
+    let cur = this.newTmp('c');
+    body.push(`auto ${cur} = ${this.expr(n)};`);
+    for (let i = 0; i < links.length; i++) {
+      const l = links[i];
+      const q = (l as ts.PropertyAccessExpression | ts.CallExpression | ts.ElementAccessExpression).questionDotToken;
+      if (q) body.push(`if (${cur} == nullptr) ${miss}`);
+      let code: string;
+      if (ts.isPropertyAccessExpression(l)) {
+        const next = links[i + 1];
+        if (next && ts.isCallExpression(next) && next.expression === l) {
+          // method call on the current object
+          const md = this.s.declOf(l.name);
+          if (!md || !(ts.isMethodDeclaration(md) || ts.isMethodSignature(md))) return this.s.fail(l, 'Z9035', "this '?.' chain is not supported; split it");
+          code = `${cur}->${this.id(l.name.text)}(${this.args(next.arguments, md.parameters.map(p => this.s.paramType(p)))})`;
+          i++;
+        } else code = this.prop(l, cur);
+      } else if (ts.isCallExpression(l)) {
+        const ft = this.s.ztypeOf(l.expression);
+        if (ft.k !== 'fn') return this.s.fail(l, 'Z9035', "this '?.' chain is not supported; split it");
+        code = `${cur}(${this.args(l.arguments, ft.params)})`;
+      } else return this.s.fail(l, 'Z9035', "element access in a '?.' chain is not supported yet; split it");
+      const last = i === links.length - 1;
+      if (last) {
+        if (isVoid) { body.push(`${code};`); break; }
+        const r = this.newTmp('c');
+        body.push(`auto ${r} = ${code};`);
+        body.push(fallback !== undefined && refLike(t) ? `return ${r} == nullptr ? ${this.cpp(t)}(${fallback}) : ${this.cpp(t)}(${r});` : `return ${r};`);
+      } else { const nx = this.newTmp('c'); body.push(`auto ${nx} = ${code};`); cur = nx; }
+    }
+    return `([&]() -> ${this.cpp(t)} { ${body.join(' ')} }())`;
+  }
+
   /** `a?.b` (single level): null short-circuits to the default value of the result type. */
   optional(e: ts.PropertyAccessExpression): string {
-    if (ts.isPropertyAccessExpression(e.parent) || ts.isCallExpression(e.parent) && e.parent.expression === e) this.s.fail(e, 'Z9035', "chained '?.' is not supported yet; split it");
     const t = this.s.ztypeOf(e);
     const v = this.newTmp('o');
     const inner = this.prop(e, v);
@@ -1277,7 +1331,7 @@ class CppEmitter {
       if (name === 'sort' && !a.length) this.s.fail(e, 'Z9022', 'sort() needs a comparator in Zinc');
     } else if (t.k === 'str') {
       const numeric = new Set(['charCodeAt', 'at', 'slice', 'substring', 'repeat']);
-      args = a.map((x, i) => (numeric.has(name) || ((name === 'padStart' || name === 'padEnd' || name === 'indexOf') && i === (name === 'indexOf' ? 1 : 0))) ? this.conv(x, I32) : this.conv(x, STR));
+      args = a.map((x, i) => (numeric.has(name) || ((name === 'padStart' || name === 'padEnd' || name === 'indexOf' || name === 'lastIndexOf') && i === (name === 'indexOf' || name === 'lastIndexOf' ? 1 : 0))) ? this.conv(x, I32) : this.conv(x, STR));
     } else if (t.k === 'map') {
       if (name === 'delete') name = 'del';
       args = name === 'set' ? [this.conv(a[0], t.key), this.conv(a[1], t.val)] : name === 'forEach' ? [cb(a[0])] : a.map(x => this.conv(x, t.key));
@@ -1451,6 +1505,7 @@ class CppEmitter {
         const mt = this.s.ztypeOf(inner.expression.expression);
         if (mt.k === 'map') return `${this.expr(inner.expression.expression)}.get_or(${this.conv(inner.arguments[0], mt.key)}, ${this.conv(R, mt.val)})`;
       }
+      if (this.isChainTop(inner)) return this.chain(inner, this.conv(R, this.s.ztypeOf(e)), this.s.ztypeOf(e));
       if (ts.isPropertyAccessExpression(inner) && inner.questionDotToken) {
         const t = this.s.ztypeOf(e), v = this.newTmp('o');
         return `([&]() -> ${this.cpp(t)} { auto ${v} = ${this.expr(inner.expression)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${this.prop(inner, v)}; }())`;

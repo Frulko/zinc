@@ -161,6 +161,10 @@ double trunc(double x) {
 }
 double floor(double x) { double t = trunc(x); return t > x ? t - 1 : t; }
 double ceil(double x) { double t = trunc(x); return t < x ? t + 1 : t; }
+double round(double x) { return x < 0 ? -floor(-x + 0.5) : floor(x + 0.5); }  // halfway away from zero, like C
+float roundf(float x) { return (float)round((double)x); }
+float floorf(float x) { return (float)floor((double)x); }
+float ceilf(float x) { return (float)ceil((double)x); }
 double fabs(double x) { return from(bits(x) & ~(1ull << 63)); }
 double fmod(double x, double y) {  // exact (shift-subtract on the mantissas), sign of x
   uint64_t ux = bits(x), uy = bits(y), sx = ux & 1ull << 63;

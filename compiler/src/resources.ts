@@ -336,6 +336,7 @@ export function collectResources(sources: { fileName: string; text: string }[], 
   for (const m of all.matchAll(/text-(xs|sm|base|lg|xl|[2-6]xl)\b/g)) sizes.add(TEXT_SIZES[m[1]]);
   for (const m of all.matchAll(/text-\[(\d+)(?:px)?\]/g)) sizes.add(Number(m[1]));
   for (const m of all.matchAll(/font-size\s*:\s*(\d+)px/g)) sizes.add(Number(m[1]));
+  for (const m of all.matchAll(/\bfont\(\s*['"][\w-]+['"]\s*,\s*(\d+)\s*\)/g)) sizes.add(Number(m[1]));  // gfx.font('sans', 14)
   // canvas font strings ('bold 24px sans-serif', zinc:canvas)
   for (const m of all.matchAll(/['"`](?:(?:bold|normal|italic|[1-9]00)\s+)*(\d+)px\s+[\w\s,"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)/g)) sizes.add(Number(m[1]));
   const chars = new Set<number>();

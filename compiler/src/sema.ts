@@ -353,6 +353,12 @@ export class Sema {
     const h = c.heritageClauses?.find(h => h.token === ts.SyntaxKind.ImplementsKeyword);
     return (h?.types ?? []).map(t => this.declOf(t.expression)).filter((d): d is ts.Declaration => !!d);
   }
+  /** reduce accumulator: the callback's annotated first parameter wins over the initial value's type (`acc: i32` + `0`). */
+  reduceAcc(call: ts.CallExpression): ZT | undefined {
+    const cb = call.arguments[0];
+    if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) && cb.parameters[0]?.type) return this.fromTypeNode(cb.parameters[0].type);
+    return call.arguments[1] ? this.ztypeOf(call.arguments[1]) : undefined;
+  }
   /** Type of `a ?? b` / `c ? a : b` when both are objects: the same class, else the nearest common base class. */
   commonObj(a: ZT, b: ZT): ZT {
     if (a.k !== 'obj' || b.k !== 'obj' || a.decl === b.decl) return a;
@@ -474,7 +480,14 @@ export class Sema {
     if (ts.isUnionTypeNode(t)) {
       if (ts.isTypeAliasDeclaration(t.parent) && this.unionMembers.has(t.parent)) return { k: 'obj', decl: t.parent, args: [] };
       const rest = t.types.filter(x => !this.isNullish(x));
-      if (rest.length === 1) return this.fromTypeNode(rest[0], subst);
+      if (rest.length === 1) {
+        const inner = this.fromTypeNode(rest[0], subst);
+        // numbers and booleans have no null state in the generated code (strings and objects do)
+        const optionalField = (ts.isPropertySignature(t.parent) || ts.isPropertyDeclaration(t.parent) || ts.isParameter(t.parent)) && !!(t.parent as ts.PropertySignature).questionToken;
+        if (rest.length < t.types.length && (inner.k === 'num' || inner.k === 'bool') && !optionalField && !ts.isParameter(t.parent) && !ts.isPropertySignature(t.parent) && !ts.isPropertyDeclaration(t.parent))
+          this.fail(t, 'Z9036', `'${t.getText()}': a nullable ${inner.k === 'num' ? 'number' : 'boolean'} needs a sentinel value (e.g. -1), an optional field (x?: ${rest[0].getText()}), or an object`);
+        return inner;
+      }
       return this.fromType(this.checker.getTypeFromTypeNode(t), t);
     }
     if (ts.isFunctionTypeNode(t))
@@ -615,7 +628,7 @@ export class Sema {
     const idx = fn.parameters.indexOf(p);
     const m = call.expression.name.text;
     if (recv.k === 'arr') {
-      if (m === 'reduce') return idx === 0 ? (call.arguments[1] ? this.ztypeOf(call.arguments[1]) : undefined) : idx === 1 ? recv.el : I32;
+      if (m === 'reduce') return idx === 0 ? this.reduceAcc(call) : idx === 1 ? recv.el : I32;
       if (m === 'sort') return recv.el;
       if (argIdx === 0) return idx === 0 ? recv.el : I32;
     }
@@ -853,6 +866,13 @@ export class Sema {
       }
     }
     if (ts.isNewExpression(e)) {
+      // new Map<string, i32>() keeps its machine types (the checker only sees number)
+      if (ts.isIdentifier(e.expression) && e.typeArguments?.length && this.isLib(this.declOf(e.expression) ?? e)) {
+        const a = e.typeArguments.map(x => this.fromTypeNode(x));
+        if (e.expression.text === 'Map' && a.length === 2) return { k: 'map', key: a[0], val: a[1] };
+        if (e.expression.text === 'Set' && a.length === 1) return { k: 'set', el: a[0] };
+        if (e.expression.text === 'Array' && a.length === 1) return { k: 'arr', el: a[0] };
+      }
       const d = this.declOf(e.expression);
       if (d && ts.isClassDeclaration(d) && (!this.isLib(d) || this.libModule(d))) return this.fromType(this.checker.getTypeAtLocation(e), e);
       if (ts.isIdentifier(e.expression) && ERROR_CLASSES.has(e.expression.text)) return { k: 'obj', decl: this.errorDecl, args: [] };
@@ -955,7 +975,11 @@ export class Sema {
       const l = this.ztypeOf(e.left), r = this.ztypeOf(e.right);
       if (l.k === 'dyn' || r.k === 'dyn') return DYN;
       if (l.k === 'null') return r;
-      if (isNum(l) && isNum(r) && l.m !== r.m) return { k: 'num', m: this.numberKind };
+      if (isNum(l) && isNum(r) && l.m !== r.m) {
+        if (isInt(l.m) && this.isIntLiteral(e.right)) return l;  // `count ?? 0` stays i32
+        if (isInt(r.m) && this.isIntLiteral(e.left)) return r;
+        return { k: 'num', m: this.numberKind };
+      }
       return this.commonObj(l, r);
     }
     const l = this.ztypeOf(e.left), r = this.ztypeOf(e.right);
@@ -1001,7 +1025,7 @@ export class Sema {
           const cb = this.ztypeOf(call.arguments[0]);
           return { k: 'arr', el: cb.k === 'fn' ? cb.ret : F64 };
         }
-        case 'reduce': return this.ztypeOf(call.arguments[1]);
+        case 'reduce': return this.reduceAcc(call) ?? this.ztypeOf(call.arguments[1]);
         case 'push': case 'unshift': case 'indexOf': case 'findIndex': return I32;
       }
     }

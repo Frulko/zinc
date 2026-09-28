@@ -170,6 +170,7 @@ struct String {
   String substring(int32_t a) const { return substring(a, length()); }
   String substring(int32_t a, int32_t b) const;
   int32_t indexOf(const String& n, int32_t from = 0) const;
+  int32_t lastIndexOf(const String& n, int32_t from = 0x7fffffff) const;
   bool includes(const String& n) const { return indexOf(n) >= 0; }
   bool startsWith(const String& n) const;
   bool endsWith(const String& n) const;
