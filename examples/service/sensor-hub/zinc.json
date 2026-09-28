@@ -1,0 +1,10 @@
+{
+  "name": "sensor-hub",
+  "entry": "src/main.ts",
+  "version": "0.1.0",
+  "id": "dev.zinc.sensor-hub",
+  "crash": "restart",
+  "targets": {
+    "esp32": { "heap": 163840 }
+  }
+}
