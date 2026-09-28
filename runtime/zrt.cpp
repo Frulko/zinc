@@ -141,8 +141,19 @@ void* alloc(size_t n) {
   void* p = tlsf::malloc(n ? n : 1);
 #endif
   if (!p) {
-    StrBuilder sb; sb.cstr("out of memory (heap budget "); to_s(sb, (int64_t)tlsf::budget); sb.cstr(" bytes)");
-    panic(sb.build().ptr());
+    // no allocation from here on (a StrBuilder would recurse into alloc): format into a static buffer
+    static char msg[96];
+    const char* head = "out of memory (heap budget ";
+    uint32_t k = 0;
+    while (*head) msg[k++] = *head++;
+    char digits[24]; int nd = 0;
+    uint64_t v = (uint64_t)tlsf::budget;
+    do { digits[nd++] = (char)('0' + v % 10); v /= 10; } while (v && nd < 24);
+    while (nd) msg[k++] = digits[--nd];
+    const char* tail = " bytes)";
+    while (*tail) msg[k++] = *tail++;
+    msg[k] = 0;
+    panic(msg);
   }
   alloc_count++;
   return p;
@@ -367,8 +378,66 @@ static String map_ascii(const String& s, bool up) {
   str_measure(r);
   return String::adopt(r);
 }
-String String::toUpperCase() const { return map_ascii(*this, true); }
-String String::toLowerCase() const { return map_ascii(*this, false); }
+// Case mapping beyond ASCII (like JS for these ranges): Latin-1, Latin Extended-A, Greek and Cyrillic, so
+// on-screen keyboards and i18n text upper-case the same on every target as on the sim. ß upper-cases to "SS".
+// ponytail: other scripts (Armenian, Georgian, Latin Extended-B, Turkish dotted i...) keep their case.
+static uint32_t case_map(uint32_t c, bool up) {
+  if (c < 0x80) return up ? (c >= 'a' && c <= 'z' ? c - 32 : c) : (c >= 'A' && c <= 'Z' ? c + 32 : c);
+  if (up) {
+    if ((c >= 0xE0 && c <= 0xFE && c != 0xF7)) return c - 0x20;
+    if (c == 0xFF) return 0x178;
+    if ((c >= 0x100 && c <= 0x137) || (c >= 0x14A && c <= 0x177)) return c & ~1u;
+    if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E)) return (c & 1) ? c : c - 1;
+    if (c >= 0x3B1 && c <= 0x3CB && c != 0x3C2) return c - 0x20;
+    if (c == 0x3C2) return 0x3A3;
+    if (c == 0x3AC) return 0x386;
+    if (c >= 0x3AD && c <= 0x3AF) return c - 0x25;
+    if (c == 0x3CC) return 0x38C;
+    if (c == 0x3CD || c == 0x3CE) return c - 0x3F;
+    if (c >= 0x430 && c <= 0x44F) return c - 0x20;
+    if (c >= 0x450 && c <= 0x45F) return c - 0x50;
+    if ((c >= 0x460 && c <= 0x481) || (c >= 0x48A && c <= 0x4BF) || (c >= 0x4D0 && c <= 0x52F)) return c & ~1u;
+  } else {
+    if ((c >= 0xC0 && c <= 0xDE && c != 0xD7)) return c + 0x20;
+    if (c == 0x178) return 0xFF;
+    if ((c >= 0x100 && c <= 0x137) || (c >= 0x14A && c <= 0x177)) return c | 1u;
+    if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E)) return (c & 1) ? c + 1 : c;
+    if (c >= 0x391 && c <= 0x3AB && c != 0x3A2) return c + 0x20;
+    if (c == 0x386) return 0x3AC;
+    if (c >= 0x388 && c <= 0x38A) return c + 0x25;
+    if (c == 0x38C) return 0x3CC;
+    if (c == 0x38E || c == 0x38F) return c + 0x3F;
+    if (c >= 0x410 && c <= 0x42F) return c + 0x20;
+    if (c >= 0x400 && c <= 0x40F) return c + 0x50;
+    if ((c >= 0x460 && c <= 0x481) || (c >= 0x48A && c <= 0x4BF) || (c >= 0x4D0 && c <= 0x52F)) return c | 1u;
+  }
+  return c;
+}
+static String map_case(const String& s, bool up) {
+  const uint8_t* p = (const uint8_t*)s.ptr();
+  uint32_t n = s.bytes(), i = 0;
+  while (i < n && p[i] < 0x80) i++;
+  if (i == n) return map_ascii(s, up);   // fast path
+  StrBuilder sb;
+  i = 0;
+  while (i < n) {
+    uint8_t b = p[i];
+    uint32_t len = b < 0x80 ? 1 : b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4, c = b < 0x80 ? b : b < 0xE0 ? b & 0x1F : b < 0xF0 ? b & 0x0F : b & 0x07;
+    for (uint32_t k = 1; k < len && i + k < n; k++) c = (c << 6) | (p[i + k] & 0x3F);
+    i += len;
+    if (up && c == 0xDF) { sb.raw("SS", 2); continue; }
+    uint32_t m = case_map(c, up);
+    char buf[4]; uint32_t w;
+    if (m < 0x80) { buf[0] = (char)m; w = 1; }
+    else if (m < 0x800) { buf[0] = (char)(0xC0 | (m >> 6)); buf[1] = (char)(0x80 | (m & 0x3F)); w = 2; }
+    else if (m < 0x10000) { buf[0] = (char)(0xE0 | (m >> 12)); buf[1] = (char)(0x80 | ((m >> 6) & 0x3F)); buf[2] = (char)(0x80 | (m & 0x3F)); w = 3; }
+    else { buf[0] = (char)(0xF0 | (m >> 18)); buf[1] = (char)(0x80 | ((m >> 12) & 0x3F)); buf[2] = (char)(0x80 | ((m >> 6) & 0x3F)); buf[3] = (char)(0x80 | (m & 0x3F)); w = 4; }
+    sb.raw(buf, w);
+  }
+  return sb.build();
+}
+String String::toUpperCase() const { return map_case(*this, true); }
+String String::toLowerCase() const { return map_case(*this, false); }
 String String::replace(const String& a, const String& b) const {
   int32_t k = find_bytes(*this, a, 0);
   if (k < 0) return *this;
