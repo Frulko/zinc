@@ -287,9 +287,14 @@ class CppEmitter {
     return sym && this.s.boxed.has(sym) ? `__pv_${p.name.text}` : this.id(p.name.text);
   }
   /** `o: Opts = {}`: object/array literals cannot be C++ default arguments (lambdas); the prologue builds them. */
+  /** Defaults computed in the body (null sentinel): literals building objects, and references to functions or objects
+   *  (a C++ default argument is looked up where the prototype is, before the module's globals are declared). */
   literalDefault(p: ts.ParameterDeclaration): boolean {
     const e = p.initializer;
-    return !!e && (ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e));
+    if (!e) return false;
+    if (ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e)) return true;
+    const k = this.s.paramType(p).k;
+    return (ts.isIdentifier(e) || ts.isPropertyAccessExpression(e)) && (k === 'fn' || k === 'obj' || k === 'arr');
   }
   prologue(ps: readonly ts.ParameterDeclaration[], d: number): string {
     let out = '';
