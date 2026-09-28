@@ -9,6 +9,8 @@ import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
 import { initProject, exportApp, dev, monitor } from './tools.ts';
 import { infer, tsPathOf } from './infer.ts';
+import { buildHir, printHir } from './hir.ts';
+import { lowerMir, printMir } from './mir.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
 
@@ -51,7 +53,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
     else if (a.startsWith('--device=')) o.device = a.slice(9);
-    else if (a === '--update' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
+    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -318,6 +320,11 @@ function pluginSettings(o: Opts, sema: Sema): BuildSettings {
 function build(o: Opts): Built {
   const t0 = Date.now();
   const sema = analyze(o);
+  if (o.emit === 'hir' || o.emit === 'mir') {  // CMP-16 (docs/decisions/0012)
+    const hir = guard(o, () => buildHir(sema));
+    process.stdout.write(o.emit === 'hir' ? printHir(hir) : printMir(lowerMir(hir)));
+    process.exit(0);
+  }
   const dir = outDir(o);
   fs.mkdirSync(dir, { recursive: true });
   const title = o.project.name;
@@ -515,7 +522,7 @@ function writeReport(dir: string, o: Opts, sema: Sema, size: number, gfx: boolea
 }
 
 /** TST-01/02: conformance programs, sim output is the oracle (.out), native output must match byte for byte. */
-function test(o: Opts, update: boolean) {
+function test(o: Opts, update: boolean, updateGolden = false) {
   const dir = path.join(ZINC_ROOT, 'tests/conformance');
   const files = fs.readdirSync(dir).filter(f => /\.(tsx?|js)$/.test(f)).sort();
   let failed = 0;
@@ -541,6 +548,16 @@ function test(o: Opts, update: boolean) {
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${f} [${t}${o.profile !== o.target ? '/' + o.profile : ''}]`);
       if (!ok) console.log(diffText(expected, out));
     }
+  }
+  // TST-03: golden --emit=hir|mir dumps (f64 profiles only: the dumps show number kinds)
+  const gdir = path.join(ZINC_ROOT, 'tests/golden');
+  if (PROFILES[o.profile].number === 'f64' && fs.existsSync(gdir)) for (const g of fs.readdirSync(gdir).filter(x => x.endsWith('.ts')).sort()) for (const e of ['hir', 'mir']) {
+    const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'build', path.join(gdir, g), `--emit=${e}`], { encoding: 'utf8' });
+    const golden = path.join(gdir, g.replace(/\.ts$/, `.${e}`));
+    if (updateGolden || !fs.existsSync(golden)) fs.writeFileSync(golden, r.stdout);
+    const ok = r.status === 0 && r.stdout === fs.readFileSync(golden, 'utf8');
+    if (!ok) { failed++; console.log(diffText(fs.readFileSync(golden, 'utf8'), r.stdout + (r.stderr ?? ''))); }
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${g} [--emit=${e}]`);
   }
   console.log(`${files.length} programs, ${failed} failure(s)`);
   process.exit(failed ? 1 : 0);
@@ -578,7 +595,8 @@ function main() {
   zinc build [entry] [--target macos|linux|sim] [--profile <target>] [--debug] [--emit=hir|mir|cpp|js] [--no-dyn]
                                                     a .js entry is typed by zinc infer in memory (DYN-14)
   zinc run   [entry] [same options] [-- program args]
-  zinc test  [--target <id>] [--profile <id>] [--debug] [--update]   conformance: sim oracle vs native
+  zinc test  [--target <id>] [--profile <id>] [--debug] [--update] [--update-golden]
+                                                    conformance: sim oracle vs native; golden --emit=hir|mir dumps
   zinc infer <entry> [--write]                      static types for Dyn sites: app.js -> app.ts + report; .ts: diff
   zinc export [entry] --target <id>                  dist/<name>-<target>: self-contained executable, scripts, service unit
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start (rmpp: root@10.11.99.1)
@@ -627,7 +645,7 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
     }
     return;
   }
-  if (cmd === 'test') return test(o, argv.includes('--update'));
+  if (cmd === 'test') return test(o, argv.includes('--update'), argv.includes('--update-golden'));
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));
   if (cmd === 'run') {
     const b = build(o);

@@ -1,0 +1,83 @@
+module ir.ts
+  let count: f64 = 0
+  let bump: (f64) => void = lambda(by: f64): void {
+    @count = (@count +:f64 by)
+  }
+  let shapes: Vec[] = alloc array Vec[] {new Vec(3, 4), new Vec3(1, 2, 2)}
+  let %d3: Pt = alloc object Pt {x: 1, y: 2}
+  let x: f64 = %d3.x
+  let y: f64 = %d3.y
+  let d: Dyn = check builtin JSON.parse("{\"a\":1}"): Dyn
+  let u: Dyn = dyn.get(@d, "a")
+  class Vec (virtual) { x: f64; y: f64; }
+    method constructor(x: f64, y: f64): void {
+      this.x = x
+      this.y = y
+    }
+    method len(): f64 {
+      return builtin Math.sqrt(((this.x *:f64 this.x) +:f64 (this.y *:f64 this.y))): f64
+    }
+  class Vec3 extends Vec (virtual) { x: f64; y: f64; z: f64; }
+    method constructor(x: f64, y: f64, z: f64): void {
+      static super(x, y): void
+      this.z = z
+    }
+    method len(): f64 {
+      return builtin Math.sqrt((((this.x *:f64 this.x) +:f64 (this.y *:f64 this.y)) +:f64 (this.z *:f64 this.z))): f64
+    }
+  fn sum(xs: i32[]): i32 {
+    let s: i32 = 0
+    let %c0: i32[] = xs
+    let %i1: i32 = 0
+    loop while (%i1 <:bool builtin %c0.length(): i32) {
+      let x: i32 = %c0[%i1]
+      s = (s +:i32 x)
+    } step {
+      %i1 = (%i1 +:i32 1)
+    }
+    return s
+  }
+  fn pick(n: f64): string {
+    let k: f64 = ((2 *:f64 3) +:f64 1)
+    if (k >:bool 5) {
+      return ((n >:bool 0) ? "pos" : "neg")
+    }
+    return "never"
+  }
+  fn grade(score: i32): string {
+    let %sw2: i32 = score
+    if (%sw2 ==:bool 1) {
+      return "low"
+    } else {
+      if (%sw2 ==:bool 2) {
+        return "mid"
+      } else {
+        return "high"
+      }
+    }
+  }
+  fn safeDiv(a: i32, b: i32): i32 throws {
+    if (b ==:bool 0) {
+      throw new RangeError("div by zero")
+    }
+    return num<f64->i32>((num<i32->f64>(a) /:f64 num<i32->f64>(b)))
+  }
+  fn later(v: f64): Promise<f64> async state machine {
+    let w: f64 = await#1(builtin Promise.resolve(v): Promise<f64>)
+    return (w *:f64 2)
+  }
+  init {
+    if (dyn.typeof(@u) ==:bool "number") {
+      builtin console.log((dyn.check<Dyn->f64>(@u) +:f64 1)): void
+    }
+    try {
+      builtin console.log(check static safeDiv(7, 2): i32, check static safeDiv(1, 0): i32): void
+    } catch (e) {
+      builtin console.log(e.message): void
+    }
+    builtin console.log(static sum(alloc array i32[] {1, 2, 3}): i32, static pick(-(1)): string, static grade(2): string, virtual @shapes[1].len(): f64, dyn.+(dyn.get(@d, "a"), dyn.box<f64->Dyn>(1)), (((%t4 = (((%o5 = @shapes[0]) ==:bool null) ? default : %o5.x)) ==:bool null) ? 0 : %t4), concat(x, ",", y)): void
+    closure @bump(2): void
+    builtin static later(4): Promise<f64>.then(lambda(v: f64): void {
+    return builtin console.log(v, @count): void
+  }): Promise<void>
+  }
