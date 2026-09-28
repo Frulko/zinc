@@ -533,30 +533,73 @@ function doctor() {
   check('docker (cross targets)', 'docker', ['--version']);
 }
 
+/** `zinc help [topic]`: every feature of the tool, grouped; topics print the details. */
+function help(topic?: string) {
+  const T: Record<string, string> = {
+    commands: `Commands
+  zinc check  [entry] [--json]          typecheck + Zinc rules; --json prints LSP-style diagnostics
+  zinc build  [entry] [options]         compile to C++ and build for a target (--emit=cpp|js prints the generated code)
+  zinc run    [entry] [options] [-- args]   build and run (sim: Node; cross targets: docker/QEMU)
+  zinc dev    [entry] [--target macos|linux|sim|wasm|rpi1] [--device user@host] [--no-devtools]
+                                        hot reload on save, red box on crash, UI inspector on :9229 (docs/dev-mode.md)
+  zinc test   [--target <id>] [--profile <id>] [--debug] [--update]
+                                        conformance: every program must print the same bytes as the sim oracle
+  zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
+  zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start
+  zinc init   <dir> [--template game|cli|server|iot|remarkable]
+  zinc plugins [project]                the plugin toolbox: modules, display drivers, where they run
+  zinc monitor [--port 9999]            live view of zinc:telemetry
+  zinc doctor                           check the toolchain (cmake, compiler, SDL3, docker, emscripten)
+  zinc help [commands|targets|options|env|plugins|ui|docs]`,
+    targets: `Targets (--target) and profiles (--profile: numbers, resolution, heap of another target on this one)
+  macos   native, SDL3 window                  linux   docker zinc/sdk-linux, fbdev/GL display plugins
+  rpi1    ARMv6 hard-float, docker + QEMU      rmpp    reMarkable Paper Pro, static aarch64, e-ink
+  esp32   ESP-IDF firmware, Espressif QEMU     wasm    emscripten page (zinc run serves it)
+  ps2     EE ELF (ps2dev), build only          ps1     MIPS I profile, Q20.12 fixed point
+  sim     Node.js: the oracle every target is compared with
+  zinc.json "targets": { "<id>": { "width", "height", "heap", "display", "plugins": {...} } } overrides a profile.`,
+    options: `Build options
+  --target <id>      platform to build for (default: the host)
+  --profile <id>     number representation / resolution / heap of another target (e.g. --profile ps1 on macOS)
+  --debug            ASan + UBSan, leak report at exit        --release (default)
+  --emit=cpp|js      print the generated C++ or JavaScript
+  --no-float         reject floating point (fixed-point targets)
+  --dev / --devtools / --no-devtools   dev build, UI inspector on/off
+  --device user@host remote device for dev/deploy            -- <args>   program arguments`,
+    env: `Environment
+  ZINC_FRAMES=n          stop the frame loop after n frames (tests, screenshots)
+  ZINC_SHOT=out.bmp      save the last frame (with ZINC_FRAMES)
+  ZINC_FIXED_DT=s        fixed frame time (deterministic runs; zinc test uses 1/60)
+  ZINC_LOG_FORMAT=json   console output as JSON lines
+  ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
+  ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
+  ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
+    ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
+  JSX host tags view/text/button/image/scroll/canvas (and View/Text/Image for PocketJS), Tailwind-like classes
+  (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
+  import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
+  Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
+  Compatible imports: solid-js, react, inferno, @pocketjs/framework/* (PocketJS apps compile unchanged).`,
+    docs: `Docs
+  README.md                     overview, targets, modules, plugins
+  docs/plugins.md               writing plugins (plugin.json, display drivers, options)
+  docs/plugins/*.md             video, mapping, display-gl, map, svg, gphoto2, displays, lottie, 3d...
+  docs/targets/*.md             reMarkable Paper Pro, PlayStation
+  docs/dev-mode.md              hot reload, red box, inspector (availability per target)
+  docs/reports/STATUS.md        what works where; docs/reports/PERF.md: performance vs QuickJS / Node
+  docs/decisions/               design decisions (ADRs)`,
+  };
+  if (topic === 'plugins') { console.log(listPlugins(projectDir('x'))); return; }
+  if (topic && T[topic]) { console.log(T[topic]); return; }
+  console.log(`zinc — strict TypeScript compiled to native C++ (no JavaScript engine on the device)\n\n${T.commands}\n\n${T.targets}\n\n${T.options}\n\n${T.env}\n\n${T.ui}\n\nPlugins (compiled in only when imported, or chosen as display in zinc.json)\n${listPlugins(projectDir('x'))}\n\n${T.docs}\n\nentry defaults to zinc.json "entry", src/main.ts or main.ts; a directory means its zinc.json / main.ts.`);
+}
+
 function main() {
   // symlinked working dirs (/tmp -> /private/tmp on macOS) would give two spellings of every path
   process.chdir(fs.realpathSync(process.cwd()));
   const argv = process.argv.slice(2);
   const cmd = argv[0];
-  if (!cmd || cmd === 'help' || cmd === '--help') {
-    console.log(`zinc — TypeScript to native C++ (prototype)
-
-  zinc check [entry] [--json]                       typecheck + Zinc sema, LSP-style diagnostics with --json
-  zinc build [entry] [--target macos|linux|sim] [--profile <target>] [--debug] [--emit=cpp|js]
-  zinc run   [entry] [same options] [-- program args]
-  zinc test  [--target <id>] [--profile <id>] [--debug] [--update]   conformance: sim oracle vs native
-  zinc export [entry] --target <id>                  dist/<name>-<target>: self-contained executable, scripts, service unit
-  zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start (rmpp: root@10.11.99.1)
-  zinc init <dir> [--template game|cli|server|iot]
-  zinc dev [entry] [--target macos|linux|sim|wasm|rpi1] [--device user@host] [--no-devtools]
-                                                    hot reload on save, red box, UI inspector (docs/dev-mode.md)
-  zinc monitor [--port 9999]                        live view of zinc:telemetry
-  zinc plugins [project]                            the plugin toolbox: modules, display drivers, targets
-  zinc doctor
-
-entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
-    return;
-  }
+  if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help(argv[1]);
   if (cmd === 'doctor') return doctor();
   if (cmd === 'plugins') { console.log(listPlugins(projectDir(argv[1] && !argv[1].startsWith('-') ? path.join(argv[1], 'x') : 'x'))); return; }
   if (cmd === 'init') {
