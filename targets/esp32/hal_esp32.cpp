@@ -26,21 +26,46 @@ const char* hal_env(const char*) { return nullptr; }
 #define ZRT_HEAP_BYTES (160u << 10)
 #endif
 // TGT-ESP-02: the TLSF region is reserved once, in internal DRAM
+static size_t heap_got = 0;   // bytes handed to the Zinc heap so far (internal RAM)
+static const uint32_t INTERNAL = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
 void hal_heap_region(void** base, size_t* size) {
 #ifdef ZRT_HEAP_PSRAM
   // zinc.json psram (docs/boards.md): the heap goes to external PSRAM when the chip found it at boot
   if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= ZRT_HEAP_BYTES && (*base = heap_caps_malloc(ZRT_HEAP_BYTES, MALLOC_CAP_SPIRAM))) {
     *size = ZRT_HEAP_BYTES;
+    heap_got = ZRT_HEAP_BYTES;
     return;
   }
   printf("zinc: no PSRAM, heap in internal RAM\n");
 #endif
-  size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  size_t largest = heap_caps_get_largest_free_block(INTERNAL);
   size_t want = ZRT_HEAP_BYTES;
   if (largest < want + 8192) want = largest > 16384 ? largest - 8192 : 0;  // leave room for FreeRTOS/IDF
   *size = want;
-  *base = want ? heap_caps_malloc(want, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) : nullptr;
+  *base = want ? heap_caps_malloc(want, INTERNAL) : nullptr;
   if (!*base) *size = 0;
+  heap_got = *size;
+}
+// The classic ESP32's internal RAM is several blocks (the largest ~110 KiB): the rest of ZRT_HEAP_BYTES comes from
+// the next largest ones, keeping HEAP_RESERVE free for ESP-IDF (drivers, FreeRTOS objects, esp_timer, I2C...).
+static const size_t HEAP_RESERVE = 32 << 10;
+int hal_heap_region_more(int i, void** base, size_t* size) {
+  if (heap_got >= ZRT_HEAP_BYTES) {
+    if (i > 0) printf("zinc: heap %u KiB in %d blocks, %u KiB internal RAM left\n", (unsigned)(heap_got >> 10), i + 1, (unsigned)(heap_caps_get_free_size(INTERNAL) >> 10));
+    return 0;
+  }
+  size_t left = heap_caps_get_free_size(INTERNAL), largest = heap_caps_get_largest_free_block(INTERNAL);
+  size_t want = ZRT_HEAP_BYTES - heap_got;
+  if (left < HEAP_RESERVE + 8192) want = 0;
+  else if (want > left - HEAP_RESERVE) want = left - HEAP_RESERVE;
+  if (want > largest - 64) want = largest > 64 ? largest - 64 : 0;  // allocator header
+  if (want < 8192 || !(*base = heap_caps_malloc(want, INTERNAL))) {
+    printf("zinc: heap %u KiB in %d block(s), %u KiB internal RAM left\n", (unsigned)(heap_got >> 10), i + 1, (unsigned)(left >> 10));
+    return 0;
+  }
+  *size = want;
+  heap_got += want;
+  return 1;
 }
 void hal_panic(const char* msg, const char* file, int line) {
   if (file && *file) printf("panic: %s (%s:%d)\n", msg, file, line); else printf("panic: %s\n", msg);

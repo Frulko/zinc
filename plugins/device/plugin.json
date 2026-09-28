@@ -1,0 +1,13 @@
+{
+  "name": "device",
+  "kind": "module",
+  "module": "zinc:device",
+  "entry": "index.ts",
+  "description": "Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics",
+  "options": {},
+  "targets": {
+    "esp32": { "idf": ["esp_hw_support"] },
+    "macos": {},
+    "linux": {}
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "description": "ESP32-2432S022C (JCZN 2.2\"): ESP32-WROOM-32 (no PSRAM, 4 MB flash), 240x320 ST7789 on an 8-bit i80 bus, PWM backlight on GPIO0, CST820 capacitive touch on I2C GPIO21/22 at 0x15. Portrait, USB-C at the bottom. docs/boards.md",
+  "all": {
+    "width": 240,
+    "height": 320,
+    "resize": "letterbox",
+    "display": {
+      "driver": "st7789",
+      "bus": "i80",
+      "data": [
+        15,
+        13,
+        12,
+        14,
+        27,
+        25,
+        33,
+        32
+      ],
+      "wr": 4,
+      "rd": 2,
+      "cs": 17,
+      "dc": 16,
+      "rst": -1,
+      "bl": 0,
+      "brightness": 255,
+      "hz": 20000000,
+      "lines": 12,
+      "madctl": 8,
+      "invert": 0,
+      "touch": "cst820",
+      "tsda": 21,
+      "tscl": 22,
+      "taddress": 21
+    }
+  },
+  "targets": {
+    "esp32": {
+      "chip": "esp32",
+      "flashSize": "4MB",
+      "heap": 196608,
+      "sdkconfig": {
+        "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true,
+        "CONFIG_FREERTOS_HZ": 1000,
+        "CONFIG_COMPILER_OPTIMIZATION_PERF": true,
+        "CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE": true
+      }
+    }
+  }
+}

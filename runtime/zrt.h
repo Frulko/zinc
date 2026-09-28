@@ -40,6 +40,9 @@ extern uint32_t live_objects;
 extern uint32_t alloc_count;
 void* alloc(size_t n);
 void mfree(void* p);
+// TLSF heap bytes in use (payloads) and its size; 0 in debug builds (system allocator)
+size_t heap_used();
+size_t heap_budget();
 [[noreturn]] void panic(const char* msg);
 [[noreturn]] void panic_at(const char* msg, const char* file, int line);
 

@@ -153,8 +153,10 @@ static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth,
   uint16_t npts = nc ? u16(ep + (nc - 1) * 2) + 1 : 0;
   const uint8_t* q = ep + nc * 2;
   q += 2 + u16(q);
-  static uint8_t fl[4096]; static float xs[4096], ys[4096];
-  if (npts > 4096) return;
+  // scratch allocated on first use: targets that never rasterize a TTF (esp32, ps1/ps2) keep these 36 KiB of RAM
+  static uint8_t* fl = nullptr; static float *xs = nullptr, *ys = nullptr;
+  if (!fl) { fl = (uint8_t*)hal_alloc(4096); xs = (float*)hal_alloc(4096 * sizeof(float)); ys = (float*)hal_alloc(4096 * sizeof(float)); }
+  if (npts > 4096 || !fl || !xs || !ys) return;
   for (uint16_t i = 0; i < npts;) { uint8_t f = *q++; fl[i++] = f; if (f & 8) { uint8_t rep = *q++; while (rep-- && i < npts) fl[i++] = f; } }
   int32_t v = 0;
   for (uint16_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 2) { uint8_t dd = *q++; v += f & 16 ? dd : -dd; } else if (!(f & 16)) { v += s16(q); q += 2; } xs[i] = (float)v; }

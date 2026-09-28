@@ -5,6 +5,7 @@
 extern "C" { HalDisplay* hal_display = nullptr; }
 // Optional HAL hook (targets/common/hal_posix.cpp): routes fatal signals of the main thread to `on_fault`.
 extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const char* what));
+extern "C" __attribute__((weak)) int hal_heap_region_more(int, void**, size_t*) { return 0; }
 
 // Crash policy (docs/dev-mode.md): 0 exit (default), 1 red box, 2 restart. ZRT_DEV: dev build (hot reload host).
 #ifndef ZRT_CRASH
@@ -51,8 +52,11 @@ struct Block { Block* prev_phys; size_t size; Block* next_free; Block* prev_free
 static uint32_t fl_map;
 static uint32_t sl_map[FL_N];
 static Block* heads[FL_N][SL_N];
-static char *lo, *hi;
-static size_t budget;
+// ESP32 internal RAM comes in several blocks: the heap may span up to 4 regions (hal_heap_region_more)
+static const int MAX_REGIONS = 4;
+static char *lo[MAX_REGIONS], *hi[MAX_REGIONS];
+static int nreg;
+static size_t budget, used;
 static inline size_t bsize(Block* b) { return b->size & ~(size_t)3; }
 static inline void* payload(Block* b) { return (char*)b + HDR; }
 static inline Block* of(void* p) { return (Block*)((char*)p - HDR); }
@@ -88,22 +92,27 @@ static Block* find(size_t n) {
   }
   return heads[fl][__builtin_ctz(m)];
 }
-static void init() {
-  void* base; size_t size;
-  hal_heap_region(&base, &size);
-  if (!base || size < 4096) hal_panic("no heap region (hal_heap_region)", "", 0);
+static void add_region(void* base, size_t size) {
   uintptr_t a = ((uintptr_t)base + ALIGN - 1) & ~(uintptr_t)(ALIGN - 1);
   size -= a - (uintptr_t)base;
   size &= ~(ALIGN - 1);
-  lo = (char*)a; hi = lo + size; budget = size;
-  Block* b = (Block*)lo;
+  lo[nreg] = (char*)a; hi[nreg] = lo[nreg] + size; budget += size;
+  Block* b = (Block*)lo[nreg++];
   b->prev_phys = nullptr; b->size = (size - 2 * HDR) | 1;
   Block* sentinel = next(b);
   sentinel->prev_phys = b; sentinel->size = 0 | 2;  // used, prev free
   insert(b);
 }
+static void init() {
+  void* base; size_t size;
+  hal_heap_region(&base, &size);
+  if (!base || size < 4096) hal_panic("no heap region (hal_heap_region)", "", 0);
+  add_region(base, size);
+  for (int i = 0; nreg < MAX_REGIONS && hal_heap_region_more(i, &base, &size); i++)
+    if (base && size >= 4096) add_region(base, size);
+}
 [[maybe_unused]] static void* malloc(size_t n) {
-  if (!lo) init();
+  if (!nreg) init();
   n = (n + ALIGN - 1) & ~(ALIGN - 1);
   if (n < 2 * sizeof(void*)) n = 2 * sizeof(void*);
   Block* b = find(n);
@@ -120,10 +129,12 @@ static void init() {
     b->size &= ~(size_t)1;
     next(b)->size &= ~(size_t)2;
   }
+  used += bsize(b);
   return payload(b);
 }
 [[maybe_unused]] static void free(void* p) {
   Block* b = of(p);
+  used -= bsize(b);
   b->size |= 1;
   Block* nx = next(b);
   if (nx->size & 1) { remove(nx); b->size = (bsize(b) + HDR + bsize(nx)) | 1 | (b->size & 2); nx = next(b); nx->prev_phys = b; }
@@ -131,7 +142,10 @@ static void init() {
   nx->size |= 2;
   insert(b);
 }
-[[maybe_unused]] static bool owns(const void* p) { return (const char*)p >= lo && (const char*)p < hi; }
+[[maybe_unused]] static bool owns(const void* p) {
+  for (int i = 0; i < nreg; i++) if ((const char*)p >= lo[i] && (const char*)p < hi[i]) return true;
+  return false;
+}
 }
 
 void* alloc(size_t n) {
@@ -158,6 +172,8 @@ void* alloc(size_t n) {
   alloc_count++;
   return p;
 }
+size_t heap_used() { return tlsf::used; }
+size_t heap_budget() { return tlsf::budget; }
 void mfree(void* p) {
   if (!p || arena_owns(p)) return;
 #ifdef ZRT_DEBUG
