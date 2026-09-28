@@ -104,7 +104,6 @@ inline const char* dyn_kind(const Dyn& d) {
 }
 
 inline Dyn dyn_obj() { return Dyn(make<DynObj>()); }
-inline Dyn dyn_null() { return Dyn(nullptr); }
 inline bool dyn_nullish(const Dyn& d) { return d.nullish(); }
 inline bool dyn_is_null(const Dyn& d) { return d.v == Dyn::NUL; }
 inline bool dyn_is_undef(const Dyn& d) { return d.v == Dyn::UNDEF; }
@@ -317,6 +316,9 @@ inline bool dyn_seq(const Dyn& a, const Dyn& b) {
 }
 inline bool operator==(const Dyn& a, const Dyn& b) { return dyn_seq(a, b); }
 inline bool operator!=(const Dyn& a, const Dyn& b) { return !dyn_seq(a, b); }
+// Map<any, V> / Set<any> keys: SameValueZero
+inline bool same(const Dyn& a, const Dyn& b) { return dyn_seq(a, b) || (a.is_num() && b.is_num() && a.num() != a.num() && b.num() != b.num()); }
+inline uint32_t hash(const Dyn& d) { return d.is_num() ? hash(d.num()) : d.tag() == Dyn::STR ? hash(d.str()) : hash_u64(d.v); }
 /** == */
 inline bool dyn_leq(const Dyn& a, const Dyn& b) {
   if (a.nullish() || b.nullish()) return a.nullish() && b.nullish();
@@ -387,8 +389,6 @@ template<class F> Dyn dyn_update(const Dyn& o, const Dyn& k, F f, bool post) {
 }
 inline Dyn dyn_post(Dyn& x, double delta) { double o = dyn_tonum(x); x = Dyn(o + delta); return Dyn(o); }
 inline Dyn dyn_pre(Dyn& x, double delta) { x = Dyn(dyn_tonum(x) + delta); return x; }
-/** Chained building of object literals typed `any`. */
-inline Dyn dyn_put(Dyn o, const String& k, const Dyn& v) { o.obj()->zrt_set(k, v); return o; }
 
 // ---------- DYN-09: JSON.parse without a type ----------
 struct JsonParser {

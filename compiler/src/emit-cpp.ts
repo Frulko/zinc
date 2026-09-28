@@ -1658,7 +1658,7 @@ class CppEmitter {
     const K = this.K, o = e.operand;
     if (e.operator === K.MinusToken) return this.numRet(`(-zrt::dyn_tonum(${this.expr(o)}))`);
     if (e.operator === K.PlusToken) return this.numRet(`zrt::dyn_tonum(${this.expr(o)})`);
-    if (e.operator === K.ExclamationToken) return `!zrt::truthy(${this.expr(o)})`;
+    if (e.operator === K.ExclamationToken) { this.strictDyn(o); return `!zrt::truthy(${this.expr(o)})`; }
     if (e.operator === K.TildeToken) return `~(${this.toI32(o)})`;
     const delta = e.operator === K.PlusPlusToken ? 1 : -1, post = ts.isPostfixUnaryExpression(e);
     const target = this.dynTarget(o);
