@@ -1,0 +1,8 @@
+mesh 24 12
+mesh 63 96
+mesh 12 12
+mesh 63 96
+plain obj 4 2
+v/t/n obj 4 2
+rotate y 90: x -> true true translation 1 2 3
+rendered 3 frames

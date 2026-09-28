@@ -21,7 +21,14 @@ void hal_init(const HalConfig* cfg) {
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   if (!gfx_on) return;
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
-  int scale = W <= 400 ? 3 : W <= 700 ? 2 : 1;
+  // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
+#ifdef ZINC_ZOOM
+  int scale = ZINC_ZOOM;
+#else
+  int scale = W <= 400 ? 2 : 1;
+#endif
+  if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z);
+  if (scale < 1) scale = 1;
   if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)

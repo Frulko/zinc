@@ -284,7 +284,7 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
 }
 void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); *d = Dyn{}; } }
 bool image_size(int32_t id, int32_t* w, int32_t* h) {
-  if (id >= 0 && id < image_count) { *w = images[id].w; *h = images[id].h; return true; }
+  if (id >= 0 && id < image_count) { int32_t k = images[id].scale > 1 ? images[id].scale : 1; *w = (images[id].w + k / 2) / k; *h = (images[id].h + k / 2) / k; return true; }
   if (Dyn* d = dyn_at(id)) { *w = d->w; *h = d->h; return true; }
   *w = *h = 0; return false;
 }

@@ -180,7 +180,8 @@ export function bakeFont(file: string, name: string, px: number, chars: number[]
 }
 
 // ---------------------------------------------------------------- images
-export interface BakedImage { name: string; w: number; h: number; rgba: Uint8Array }
+/** `scale`: pixels per logical pixel (HiDPI bakes); layout uses w/scale x h/scale. */
+export interface BakedImage { name: string; w: number; h: number; rgba: Uint8Array; scale: number }
 
 export function decodePNG(buf: Buffer): { w: number; h: number; rgba: Uint8Array } {
   let p = 8, w = 0, h = 0, depth = 8, ctype = 6, pal: Buffer | null = null, trns: Buffer | null = null;
@@ -327,7 +328,9 @@ export interface ResourceSet { fonts: BakedFont[]; images: BakedImage[]; ttf: { 
  * Decides what to bake from the program text: every Tailwind text size mentioned (plus 16px), regular and bold,
  * the characters of all string/JSX literals plus printable ASCII, and every image file in the assets directory.
  */
-export function collectResources(sources: { fileName: string; text: string }[], assetsDir: string | undefined, extraSizes: number[] = [], embedTtf = false): ResourceSet {
+/** `hiScale`: pixels per logical pixel the target may display (0: small target, no TTF embedding, 1x images). */
+export function collectResources(sources: { fileName: string; text: string }[], assetsDir: string | undefined, extraSizes: number[] = [], hiScale = 0): ResourceSet {
+  const embedTtf = hiScale > 0;
   const all = sources.map(s => s.text).join('\n');
   const sizes = new Set<number>([16, ...extraSizes]);
   for (const m of all.matchAll(/text-(xs|sm|base|lg|xl|[2-6]xl)\b/g)) sizes.add(TEXT_SIZES[m[1]]);
@@ -355,8 +358,15 @@ export function collectResources(sources: { fileName: string; text: string }[], 
     for (const f of fs.readdirSync(d).sort()) {
       const p = path.join(d, f);
       if (fs.statSync(p).isDirectory()) { walk(p, pre + f + '/'); continue; }
-      if (f.endsWith('.png')) images.push({ name: pre + f, ...decodePNG(fs.readFileSync(p)) });
-      else if (f.endsWith('.svg')) images.push({ name: pre + f, ...rasterizeSVG(fs.readFileSync(p, 'utf8')) });
+      const hi = /@([234])x\.png$/.exec(f);
+      if (hi) { if (embedTtf) images.push({ name: pre + f.replace(/@[234]x\.png$/, '.png'), ...decodePNG(fs.readFileSync(p)), scale: Number(hi[1]) }); }
+      else if (f.endsWith('.png')) { if (!(embedTtf && [2, 3, 4].some(k => fs.existsSync(p.replace(/\.png$/, `@${k}x.png`))))) images.push({ name: pre + f, ...decodePNG(fs.readFileSync(p)), scale: 1 }); }
+      else if (f.endsWith('.svg')) {
+        // vector art: baked at the target's display scale (capped at 1024 px wide), so it stays sharp
+        const text = fs.readFileSync(p, 'utf8'), base = rasterizeSVG(text);
+        const k = embedTtf ? Math.max(1, Math.min(hiScale, Math.floor(1024 / Math.max(1, base.w)))) : 1;
+        images.push(k > 1 ? { name: pre + f, ...rasterizeSVG(text, base.w * k), scale: k } : { name: pre + f, ...base, scale: 1 });
+      }
     }
   };
   if (assetsDir) walk(assetsDir, '');
@@ -372,7 +382,7 @@ export function resourcesCpp(r: ResourceSet): string {
   out.push(`const Font fonts[] = {${r.fonts.map((f, i) => `{"${f.name}", ${f.px}, ${f.ascent}, ${f.descent}, ${f.lineGap}, ${f.glyphs.length}, fg${i}, fb${i}}`).join(', ') || '{"", 0, 0, 0, 0, 0, nullptr, nullptr}'}};`);
   out.push(`const int font_count = ${r.fonts.length};`);
   r.images.forEach((im, i) => out.push(`static const uint8_t ib${i}[] = {${Array.from(im.rgba).join(',')}};`));
-  out.push(`const Image images[] = {${r.images.map((im, i) => `{"${im.name}", ${im.w}, ${im.h}, ib${i}}`).join(', ') || '{"", 0, 0, nullptr}'}};`);
+  out.push(`const Image images[] = {${r.images.map((im, i) => `{"${im.name}", ${im.w}, ${im.h}, ib${i}, ${im.scale}}`).join(', ') || '{"", 0, 0, nullptr, 1}'}};`);
   out.push(`const int image_count = ${r.images.length};`);
   // TTF sources for runtime rasterization (HiDPI, unbaked sizes): string literals compile much faster than arrays
   r.ttf.forEach((t, i) => {
@@ -391,6 +401,6 @@ export function resourcesCpp(r: ResourceSet): string {
 export function resourcesJson(r: ResourceSet): string {
   return JSON.stringify({
     fonts: r.fonts.map(f => ({ name: f.name, px: f.px, ascent: f.ascent, descent: f.descent, lineGap: f.lineGap, adv: Object.fromEntries(f.glyphs.map(g => [g.cp, g.adv])) })),
-    images: r.images.map(im => ({ name: im.name, w: im.w, h: im.h })),
+    images: r.images.map(im => ({ name: im.name, w: Math.round(im.w / im.scale), h: Math.round(im.h / im.scale) })),
   });
 }

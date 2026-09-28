@@ -409,9 +409,11 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     n.lw = Math.ceil(widest) + n.pl + n.pr;
     n.lh = n.lines.length * lineHeightOf(n) + n.pt + n.pb;
     for (const c of n.children) { const t = node(c); if (t.tag === TEXT) measure(t, maxW, maxH); }
-  } else if (n.tag === IMAGE && n.img >= 0 && ownW < 0 && ownH < 0) {
-    n.lw = imageWidth(n.img);
-    n.lh = imageHeight(n.img);
+  } else if (n.tag === IMAGE && n.img >= 0) {
+    // intrinsic size, aspect ratio kept when one side is set; w-full / h-full fill (0 basis, then grow/stretch)
+    const iw = imageWidth(n.img), ih = imageHeight(n.img);
+    n.lw = ownW >= 0 ? ownW : ownH >= 0 && ih > 0 ? Math.round(ownH * iw / ih) : n.fullW ? 0 : iw;
+    n.lh = ownH >= 0 ? ownH : ownW >= 0 && iw > 0 ? Math.round(ownW * ih / iw) : n.fullH ? 0 : ih;
   } else {
     const kids: UiNode[] = [];
     flat(n, kids, false);

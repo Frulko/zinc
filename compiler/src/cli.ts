@@ -14,7 +14,7 @@ import { lowerMir, printMir } from './mir.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
 
-interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean }
+interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
   macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
@@ -166,7 +166,7 @@ function writeIfChanged(file: string, content: string) {
 const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl', gpio_linux: 'libgpiod' };
 /** crash: ZRT_CRASH policy; hot: the program is a shared library run by runtime/dev_host.cpp (zinc dev). */
 interface BuildMode { dev: boolean; hot: boolean; crash: number }
-function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings, mode: BuildMode): string {
+function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings, mode: BuildMode, zoom?: number): string {
   const usesGfx = res.usesGfx;
   // linux/rpi1: libgpiod (env ZRT_GPIOD, matching -DZRT_GPIOD passed to the compile below) picks
   // runtime/mod/gpio_linux.cpp over the simulator in gpio.cpp; gpio_linux.cpp itself falls back
@@ -223,6 +223,7 @@ set_target_properties(app PROPERTIES PREFIX "" SUFFIX ".so")
 target_compile_definitions(app PRIVATE ZRT_DYLIB)
 target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
+${zoom ? `target_compile_definitions(app PRIVATE ZINC_ZOOM=${zoom})` : ''}
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality)
 target_link_libraries(app PRIVATE zrt)
 if(EMSCRIPTEN)
@@ -280,13 +281,16 @@ function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: s
   const assetStamp: string[] = [];
   const walk = (d?: string) => { if (!d || !fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else assetStamp.push(p + ':' + st.mtimeMs); } };
   walk(o.project.assets);
-  const key = JSON.stringify([user.map(u => u.text), assetStamp, fs.statSync(path.join(ZINC_ROOT, 'compiler/src/resources.ts')).mtimeMs]);
+  const key = JSON.stringify([o.target, PROFILES[o.profile].zoom ?? 0, user.map(u => u.text), assetStamp, fs.statSync(path.join(ZINC_ROOT, 'compiler/src/resources.ts')).mtimeMs]);
   const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
   const cpp = path.join(dir, 'zinc_resources.cpp'), json = path.join(dir, 'resources.json'), stamp = path.join(dir, 'resources.key');
   fs.mkdirSync(dir, { recursive: true });
   if (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === hash(key) && fs.existsSync(cpp) && fs.existsSync(json)) return { cpp, json: fs.readFileSync(json, 'utf8') };
   const t = Date.now();
-  const rs = collectResources(user, o.project.assets, [], HIDPI_TARGETS.has(o.target));
+  // display scale: Retina density (2) x window zoom on macOS (zinc.json zoom, auto 2 below 400 px), 2 elsewhere
+  const prof = PROFILES[o.profile];
+  const hiScale = !HIDPI_TARGETS.has(o.target) ? 0 : o.target === 'macos' ? 2 * (prof.zoom ?? (prof.width <= 400 ? 2 : 1)) : 2;
+  const rs = collectResources(user, o.project.assets, [], hiScale);
   writeIfChanged(cpp, resourcesCpp(rs));
   const j = resourcesJson(rs);
   fs.writeFileSync(json, j);
@@ -352,7 +356,7 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
   if (res.modules.has('assets')) { writeIfChanged(path.join(dir, 'zinc_assets.cpp'), assetsSource(o)); res.nativeSources.push(path.join(dir, 'zinc_assets.cpp')); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode));
+  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, prof.zoom));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps);
@@ -611,7 +615,7 @@ function help(topic?: string) {
   esp32   ESP-IDF firmware, Espressif QEMU     wasm    emscripten page (zinc run serves it)
   ps2     EE ELF (ps2dev), build only          ps1     MIPS I profile, Q20.12 fixed point
   sim     Node.js: the oracle every target is compared with
-  zinc.json "targets": { "<id>": { "width", "height", "heap", "display", "plugins": {...} } } overrides a profile.`,
+  zinc.json "targets": { "<id>": { "width", "height", "zoom", "heap", "display", "plugins": {...} } } overrides a profile.`,
     options: `Build options
   --target <id>      platform to build for (default: the host)
   --profile <id>     number representation / resolution / heap of another target (e.g. --profile ps1 on macOS)
@@ -625,6 +629,8 @@ function help(topic?: string) {
   ZINC_FRAMES=n          stop the frame loop after n frames (tests, screenshots)
   ZINC_SHOT=out.bmp      save the last frame (with ZINC_FRAMES)
   ZINC_FIXED_DT=s        fixed frame time (deterministic runs; zinc test uses 1/60)
+  ZINC_ZOOM=n            macOS window size in points = logical size x n (zinc.json targets.macos.zoom; auto: 2 below 400 px)
+  ZINC_SCALE=n           physical pixels per logical pixel (default: Retina density x zoom)
   ZINC_LOG_FORMAT=json   console output as JSON lines
   ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator

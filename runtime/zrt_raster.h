@@ -9,7 +9,7 @@ namespace zrt { namespace raster {
 
 struct Glyph { uint32_t cp; int16_t x0, y0; uint16_t w, h; int32_t adv; uint32_t off; };
 struct Font { const char* name; int32_t px, ascent, descent, lineGap, count; const Glyph* glyphs; const uint8_t* bitmap; };
-struct Image { const char* name; int32_t w, h; const uint8_t* rgba; };
+struct Image { const char* name; int32_t w, h; const uint8_t* rgba; int32_t scale; };  // scale: pixels per logical pixel
 extern const Font fonts[];
 extern const int font_count;
 extern const Image images[];
