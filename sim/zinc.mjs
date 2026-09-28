@@ -97,6 +97,43 @@ export const $z = globalThis.$z = {
     a[i] = v;
     return v;
   },
+  // Dyn (runtime/zrt_dyn.h): values are plain JS values; conversions are checked with the same messages
+  dto(v, d) {
+    const kind = v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v;
+    const bad = to => $z.panic(`Uncaught TypeError: cannot convert Dyn (${kind}) to ${to}`);
+    switch (d === 'd' || d === 'n' || d === 's' || d === 'b' ? d : d[0]) {
+      case 'd': return v;
+      case 'n': return typeof v === 'number' ? v : bad('number');
+      case 's': return typeof v === 'string' ? v : bad('string');
+      case 'b': return typeof v === 'boolean' ? v : bad('boolean');
+      case 'a':  // a checked copy, like the native typed array
+        if (v == null) return null;
+        if (!Array.isArray(v)) bad('array');
+        return d[1] === 'd' ? v : v.map(x => $z.dto(x, d[1]));
+      case 'c':
+        if (v == null) return null;
+        if (typeof v === 'object') for (let p = Object.getPrototypeOf(v); p; p = Object.getPrototypeOf(p)) if (p.constructor?.name === d[1]) return v;
+        return bad(d[1]);
+      case 'o': {
+        if (v == null) return null;
+        if (typeof v !== 'object' || Array.isArray(v)) bad(d[1]);
+        const r = {};
+        for (const [k, fd, opt] of d[2]) {
+          const x = Object.hasOwn(v, k) ? v[k] : undefined;
+          if (opt && x === undefined) continue;
+          r[k] = $z.dto(x, fd);
+        }
+        return r;
+      }
+    }
+  },
+  jsonParse(s) { try { return JSON.parse(s); } catch { throw new Error('JSON.parse: invalid JSON'); } },
+  diter(v) { return Array.isArray(v) ? v : $z.panic(`Uncaught TypeError: cannot convert Dyn (${v === null ? 'null' : typeof v}) to array`); },
+  dseti(o, k, v) {
+    if (Array.isArray(o) && typeof k === 'number' && (!Number.isInteger(k) || k < 0 || k > o.length)) $z.panic('Uncaught RangeError: arrays with holes are not supported');
+    o[k] = v;
+    return v;
+  },
   // xorshift32, identical to runtime/zrt.cpp
   random() {
     rng ^= rng << 13; rng >>>= 0;

@@ -1,0 +1,10 @@
+number 3
+string 5
+yes
+box 3
+null
+undefined
+6 1 true true false
+NOW A STRING
+5 number string object function
+[exit 101] panic: Uncaught TypeError: cannot convert Dyn (string) to number

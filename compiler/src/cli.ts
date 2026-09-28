@@ -28,7 +28,7 @@ const PROFILES: Record<string, Profile> = {
 
 interface Project { name: string; dir: string; assets?: string; crash?: string; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string }
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean }
 
 function parseArgs(argv: string[]): Opts {
   const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false };
@@ -44,6 +44,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
     else if (a === '--json') o.json = true;
     else if (a === '--no-float') o.noFloat = true;
+    else if (a === '--no-dyn') o.noDyn = true;
     else if (a === '--dev') o.dev = true;
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
@@ -105,6 +106,9 @@ function analyze(o: Opts): Sema {
   try {
     const sema = new Sema(fe, path.dirname(path.resolve(o.entry)), { numberKind: prof.number, typing: prof.typing, warnFloat: !!prof.noFpu, noFloat: o.noFloat, heap0: false });
     if (!o.json) printDiags(sema.warnings, false);
+    // DYN-10: --no-dyn turns every remaining Dyn site into an error
+    const dyn = o.noDyn ? sema.dynSites() : [];
+    if (dyn.length) { printDiags(dyn.map(d => ({ file: d.file, line: d.line, col: d.col, code: 'Z1017', severity: 'error' as const, message: `Dyn site (${d.kind}) '${d.text}' is not allowed with --no-dyn` })), o.json); exit(1); }
     return sema;
   } catch (e) {
     if (e instanceof ZincError) { printDiags([e.diag], o.json); exit(1); }
@@ -477,7 +481,8 @@ function writeReport(dir: string, o: Opts, sema: Sema, size: number, gfx: boolea
   const report = {
     target: o.target, profile: o.profile, debug: o.debug, number: sema.numberKind,
     modules: sema.fe.sources.map(s => path.relative(dir, s.fileName)),
-    executableBytes: size, usesGfx: gfx, boxedCaptures: sema.boxed.size, i32LoopCounters: sema.loopI32.size, dynSites: 0,
+    executableBytes: size, usesGfx: gfx, boxedCaptures: sema.boxed.size, i32LoopCounters: sema.loopI32.size,
+    dynSites: sema.dynSites().length, dyn: sema.dynSites().map(d => `${d.file}:${d.line}:${d.col} ${d.kind} ${d.text}`),
   };
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
 }
@@ -489,6 +494,7 @@ function test(o: Opts, update: boolean) {
   let failed = 0;
   for (const f of files) {
     const entry = path.join(dir, f);
+    if (PROFILES[o.profile].typing === 'strict' && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
     const runOne = (target: string): string => {
       const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');

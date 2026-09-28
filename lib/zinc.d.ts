@@ -105,7 +105,7 @@ interface Array<T> {
   [Symbol.iterator](): ArrayIterator<T>;
 }
 interface ReadonlyArray<T> { readonly length: i32; readonly [n: number]: T; }
-interface ArrayConstructor { isArray(v: unknown): boolean; }
+interface ArrayConstructor { isArray(v: unknown): v is any[]; }
 declare var Array: ArrayConstructor;
 
 // ---- Map / Set (insertion ordered, LNG-19) ----
@@ -159,7 +159,14 @@ interface Console {
   time(label?: string): void; timeEnd(label?: string): void; timeLog(label?: string): void; count(label?: string): void;
   assert(cond: boolean, ...args: unknown[]): void; table<T>(rows: T[]): void;
 }
-interface JSON { stringify<T>(v: T): string; }
+interface JSON {
+  stringify<T>(v: T): string;
+  /**
+   * Untyped JSON becomes a Dyn tree (DYN-09): gradual profile only.
+   * @throws on invalid input
+   */
+  parse(text: string): any;
+}
 declare var JSON: JSON;
 declare function queueMicrotask(f: () => void): void;
 
