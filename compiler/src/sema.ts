@@ -727,7 +727,7 @@ export class Sema {
       return sig ? this.fromType(sig.getReturnType(), d) : { k: 'promise', el: VOID };
     }
     if ((ts.isArrowFunction(d) || ts.isFunctionExpression(d)) && !this.isAsyncFn(d)) {
-      const ctx = this.contextual(d);
+      const ctx = this.contextual(d) ?? this.elementContext(d);
       if (ctx?.k === 'fn') return ctx.ret;
     }
     if (ts.isArrowFunction(d) && !ts.isBlock(d.body)) {
@@ -933,6 +933,15 @@ export class Sema {
   }
 
   /** Expected type from the syntactic context (declaration annotation, return type, parameter). */
+  /** A closure stored in a typed array (`[() => ...]`, `fns.push(() => ...)`) takes the element type. */
+  elementContext(e: ts.Expression): ZT | undefined {
+    const p = e.parent;
+    let at: ZT | undefined;
+    if (ts.isArrayLiteralExpression(p)) at = this.contextual(p);
+    else if (ts.isCallExpression(p) && p.arguments.includes(e) && ts.isPropertyAccessExpression(p.expression) && ['push', 'unshift'].includes(p.expression.name.text))
+      at = this.tryZ(p.expression.expression);
+    return at?.k === 'arr' ? at.el : undefined;
+  }
   contextual(e: ts.Expression): ZT | undefined {
     const p = e.parent;
     if (ts.isVariableDeclaration(p) && p.type) return this.fromTypeNode(p.type);

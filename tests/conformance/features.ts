@@ -50,6 +50,6 @@ counter.set('k', 1);
 console.log(counter.size);
 
 // for (let ...): each iteration has its own binding, also when closures capture the counter.
-const perIter: (() => number)[] = [];
+const perIter: (() => i32)[] = [() => 1.5 * 3];
 for (let i = 0; i < 3; i++) { const k = i * 10; perIter.push(() => i + k); if (i === 1) i++; }
-console.log('per-iteration', perIter.map((f: () => number) => f()).join(','));
+console.log('per-iteration', perIter.map((f: () => i32) => f()).join(','));
