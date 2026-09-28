@@ -64,10 +64,18 @@ export const compilerOptions: ts.CompilerOptions = {
 
 /** `extra`: additional root modules compiled into the program (zinc dev adds plugins/devtools).
  *  `virtual`: in-memory sources by absolute path (zinc build app.js: the .ts written by `zinc infer`, DYN-14). */
+// ---- the platform being built for (compiler/src/capabilities.ts): zinc:platform constants and per-platform files
+/** Where the generated zinc:platform module lives (in memory only). */
+export const PLATFORM_FILE = path.join(ZINC_ROOT, 'lib', 'zinc-platform.gen.ts');
+let platform = { target: '', profile: '', source: '' };
+/** Set by the CLI before loading the program: the target / profile, and the zinc:platform source. */
+export function setPlatform(target: string, profile: string, source: string): void { platform = { target, profile, source }; }
+
 export function loadProgram(entryPath: string, extra: string[] = [], virtual?: Map<string, string>): Frontend {
   const entryAbs = path.resolve(entryPath);
+  if (platform.source !== '') { virtual = new Map(virtual ?? []); virtual.set(PLATFORM_FILE, platform.source); }
   // plugins (compiler/src/plugins.ts) resolve like the standard modules
-  const options = { ...compilerOptions, paths: { ...compilerOptions.paths, ...modulePaths(projectDir(entryAbs)) } };
+  const options = { ...compilerOptions, paths: { ...compilerOptions.paths, ...modulePaths(projectDir(entryAbs)), ...(platform.source !== '' ? { 'zinc:platform': [PLATFORM_FILE] } : {}) } };
   const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile;
   if (virtual) {
@@ -123,6 +131,22 @@ function toDiag(d: ts.Diagnostic): Diag {
 // like Node, a module reached through a symlink is the file it points to (one module, one set of globals)
 export function resolveModule(spec: string, containing: string, opts: ts.CompilerOptions, host: ts.ModuleResolutionHost, redirect?: ts.ResolvedProjectReference) {
   const r = ts.resolveModuleName(spec, containing, opts, host, undefined, redirect).resolvedModule;
-  if (r && !r.isExternalLibraryImport) try { r.resolvedFileName = fs.realpathSync(r.resolvedFileName); } catch { /* virtual file */ }
+  if (r && !r.isExternalLibraryImport) {
+    try { r.resolvedFileName = fs.realpathSync(r.resolvedFileName); } catch { /* virtual file */ }
+    r.resolvedFileName = platformVariant(r.resolvedFileName);
+  }
   return r;
+}
+
+/** keyboard.tsx -> keyboard.esp32.tsx (profile) or keyboard.<target>.tsx when such a file exists next to it
+ *  (docs/targets/capabilities.md, platform-specific files). */
+export function platformVariant(file: string): string {
+  const m = /^(.*)(\.d\.ts|\.tsx?|\.m?js)$/.exec(file);
+  if (!m || m[2] === '.d.ts' || platform.profile === '') return file;
+  for (const tag of [platform.profile, platform.target]) {
+    if (!tag) continue;
+    const v = `${m[1]}.${tag}${m[2]}`;
+    if (v !== file && fs.existsSync(v)) return v;
+  }
+  return file;
 }

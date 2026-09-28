@@ -3,11 +3,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { loadProgram, ZINC_ROOT, type Diag } from './frontend.ts';
+import { loadProgram, setPlatform, ZINC_ROOT, type Diag } from './frontend.ts';
+import { capsFor, unmet, explain, moduleRequires, platformModule } from './capabilities.ts';
+import { iconPng, type IconSpec } from './icon.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
 import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
-import { initProject, tsconfigFor, linkEditorPlugin, exportApp, dev, monitor } from './tools.ts';
+import { initProject, tsconfigFor, linkEditorPlugin, exportApp, macBundle, dev, monitor } from './tools.ts';
 import { infer, tsPathOf } from './infer.ts';
 import { buildHir, printHir } from './hir.ts';
 import { lowerMir, printMir } from './mir.ts';
@@ -37,13 +39,13 @@ const PROFILES: Record<string, Profile> = {
 
 
 /** version / id / icon: packaging metadata for zinc export (docs/guide/07-distribution.md). */
-export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string; targets: Record<string, Partial<Profile>> }
+export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string | IconSpec; requires: string[]; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
 /** vals: valued options of zinc capture (--frames, --every, --out, --replay). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; port?: string; vals: Record<string, string> }
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
+  const o: Opts = { project: { name: '', dir: '', requires: [], targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
@@ -58,6 +60,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--no-float') o.noFloat = true;
     else if (a === '--no-dyn') o.noDyn = true;
     else if (a === '--obfuscate') o.obfuscate = true;
+    else if (a === '--force') o.force = true;   // build even when the target lacks a capability the app requires
     else if (a === '--dev') o.dev = true;
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
@@ -83,6 +86,14 @@ function parseArgs(argv: string[]): Opts {
   if (over && PROFILES[o.profile]) PROFILES[o.profile] = { ...PROFILES[o.profile], ...over };
   if (!PROFILES[o.target]) die(`unknown target '${o.target}' (available: ${Object.keys(PROFILES).join(', ')})`);
   if (!PROFILES[o.profile]) die(`unknown profile '${o.profile}'`);
+  // capabilities of the target profile (docs/targets/capabilities.md): zinc:platform, and the app's requirements
+  const caps = capsFor(o.profile, PROFILES[o.profile]);
+  setPlatform(o.target, o.profile, platformModule(o.target, o.profile, caps));
+  const missing = explain(o.project.requires, caps, o.profile);
+  if (missing && ['build', 'run', 'export', 'deploy', 'flash', 'dev'].includes(argv[0] ?? '')) {
+    if (o.force) console.error(`zinc: warning: ${o.project.name} requires ${missing}; building anyway (--force)`);
+    else die(`${o.project.name} cannot run on ${o.profile}: it requires ${missing} (zinc.json "requires"; --force builds anyway)`);
+  }
   return o;
 }
 
@@ -94,12 +105,12 @@ function loadProject(entry: string): Project {
     if (fs.existsSync(f)) {
       let j: Record<string, any>;
       try { j = withBoard(JSON.parse(fs.readFileSync(f, 'utf8'))); } catch (e) { die((e as Error).message); }
-      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, version: j.version, id: j.id, icon: j.icon && path.join(dir, j.icon), targets: j.targets ?? {} };
+      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, version: j.version, id: j.id, icon: typeof j.icon === 'string' ? path.join(dir, j.icon) : j.icon, requires: j.requires ?? [], targets: j.targets ?? {} };
     }
     dir = path.dirname(dir);
   }
   const d = path.dirname(path.resolve(entry));
-  return { name: path.basename(d), dir: d, assets: fs.existsSync(path.join(d, 'assets')) ? path.join(d, 'assets') : undefined, targets: {} };
+  return { name: path.basename(d), dir: d, assets: fs.existsSync(path.join(d, 'assets')) ? path.join(d, 'assets') : undefined, requires: [], targets: {} };
 }
 
 /** Build errors end the command; `zinc dev` builds in process and catches them (tools.ts). */
@@ -126,6 +137,13 @@ function analyze(o: Opts): Sema {
   try {
     const sema = new Sema(fe, path.dirname(path.resolve(o.entry)), { numberKind: prof.number, typing: prof.typing, warnFloat: !!prof.noFpu, noFloat: o.noFloat, heap0: false });
     if (!o.json) printDiags(sema.warnings, false);
+    // modules that declare `@requires` the target does not meet (e.g. the kit Keyboard on a 160 KiB ESP32)
+    const caps = capsFor(o.profile, prof);
+    for (const f of fe.sources) {
+      const req = moduleRequires(f.text);
+      const why = req.length ? explain(req, caps, o.profile) : '';
+      if (why && !o.json) console.error(`${path.relative(process.cwd(), f.fileName)}:1:1 - warning Z5004: this module requires ${why}`);
+    }
     // DYN-10: --no-dyn turns every remaining Dyn site into an error
     const dyn = o.noDyn ? sema.dynSites() : [];
     if (dyn.length) { printDiags(dyn.map(d => ({ file: d.file, line: d.line, col: d.col, code: 'Z1017', severity: 'error' as const, message: `Dyn site (${d.kind}) '${d.text}' is not allowed with --no-dyn` })), o.json); exit(1); }
@@ -355,6 +373,13 @@ function pluginSettings(o: Opts, sema: Sema): BuildSettings {
   const act = activePlugins(pd, sema.fe.sources.map(f => f.fileName), o.target);
   if (act.errors.length) { console.error(act.errors.map(e => `${o.entry}:1:1 - error Z5003: ${e}`).join('\n')); exit(1); }
   if (act.plugins.length) log(o, `plugins: ${act.plugins.map(p => p.name).join(', ')}`);
+  const caps = capsFor(o.profile, PROFILES[o.profile]);
+  for (const p of act.plugins) {
+    const why = explain(p.requires, caps, o.profile);
+    if (!why) continue;
+    if (o.force) console.error(`zinc: warning: plugin ${p.name} requires ${why}; building anyway (--force)`);
+    else { console.error(`${o.entry}:1:1 - error Z5005: plugin ${p.name} requires ${why} (plugin.json "requires"; --force builds anyway)`); exit(1); }
+  }
   extraMounts = act.plugins.map(p => p.dir);
   return buildSettings(act.plugins, pd, o.target);
 }
@@ -413,6 +438,12 @@ function build(o: Opts): Built {
   const size = fs.statSync(exe).size;
   log(o, `built ${o.target}${o.profile !== o.target ? ` (profile ${o.profile})` : ''}: zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), exe)}`);
   writeReport(dir, o, sema, size, res.usesGfx);
+  // macOS windowed apps also get Name.app (icon, name in the Dock and menu bar); zinc run starts the bundled copy.
+  // ponytail: skipped in deterministic runs (tests, captures), where nothing is shown in the Dock
+  if (o.target === 'macos' && process.platform === 'darwin' && res.usesGfx && !process.env.ZINC_DETERMINISTIC) {
+    const app = macBundle(o.project, exe, dir, iconPng(o.project.name, o.project.icon, o.project.dir, dir));
+    if (app) { log(o, `bundled -> ${path.relative(process.cwd(), path.dirname(path.dirname(path.dirname(app))))}`); return { exe: [app], dir }; }
+  }
   return { exe: [exe], dir };
 }
 
@@ -612,6 +643,10 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     // `// zinc-test: skip ps1 esp32`: programs that do not fit a profile (heap, screen) on purpose
     const skips = /^\/\/ zinc-test: skip ([\w ]+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1].split(' ') ?? [];
     if (skips.includes(o.profile)) { console.log(`skip ${f} (not for the ${o.profile} profile)`); continue; }
+    // `// zinc-test: requires heap>=512K touch|pointer` (docs/targets/capabilities.md)
+    const needs = /^\/\/ zinc-test: requires (.+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1].trim().split(/\s+/) ?? [];
+    const why = explain(needs, capsFor(o.profile, PROFILES[o.profile]), o.profile);
+    if (why) { console.log(`skip ${f} (requires ${why})`); continue; }
     // `// zinc-test: max-frames 300`: the frame budget of both sides (the sim stops a screen program at 60 by default)
     const maxFrames = /^\/\/ zinc-test: max-frames (\d+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1];
     const runOne = (target: string): string => {
@@ -774,6 +809,9 @@ function help(topic?: string) {
   zinc doctor                           check the toolchain (cmake, compiler, SDL3, docker, emscripten)
   zinc help [commands|targets|options|env|testing|plugins|ui|docs]`,
     targets: `Targets (--target) and profiles (--profile: numbers, resolution, heap of another target on this one)
+  capabilities per profile: targets/capabilities.json (docs/targets/capabilities.md); zinc.json "requires":
+  ["heap>=4M", "touch|pointer", "net"] refuses incompatible targets (--force builds anyway); import
+  { TOUCH, HEAP_BYTES } from 'zinc:platform'; file.<profile>.ts / file.<target>.ts replace file.ts there
   macos   native, SDL3 window                  linux   docker zinc/sdk-linux, fbdev/GL display plugins
   rpi1    ARMv6 hard-float, docker + QEMU      rmpp    reMarkable Paper Pro, static aarch64, e-ink
   esp32   ESP-IDF firmware, Espressif QEMU (targets.esp32.chip: esp32 | esp32s3, psram, flashSize; "board": docs/boards.md)

@@ -2,7 +2,21 @@
   "name": "zinc-studio",
   "entry": "src/main.tsx",
   "targets": {
-    "macos": { "width": 1440, "height": 900, "resize": "fill" },
-    "sim": { "width": 1440, "height": 900 }
-  }
+    "macos": {
+      "width": 1440,
+      "height": 900,
+      "resize": "fill"
+    },
+    "sim": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "requires": [
+    "heap>=32M",
+    "keyboard",
+    "pointer",
+    "fs",
+    "net"
+  ]
 }
