@@ -1,0 +1,8 @@
+map true false true set true
+fn true 42 symlinked module true
+view 0,0 1620x2160
+  view 0,0 1620x44
+    text 0,0 1620x22 "inherits red"
+    text 0,22 1620x22 "own blue"
+fg 15680580 3900150
+fg after class change 366185

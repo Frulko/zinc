@@ -47,7 +47,7 @@ function style(n: UiNode): string {
     ['left', px(n.x)], ['top', px(n.y)], ['width', px(n.lw)], ['height', px(n.lh)],
     ['padding', `${n.pt}px ${n.pr}px ${n.pb}px ${n.pl}px`], ['margin', `${n.mt}px ${n.mr}px ${n.mb}px ${n.ml}px`], ['gap', px(n.gap)],
     ['flex-grow', `${n.grow}`], ['background-color', hex(n.bg)], ['color', hex(n.fg)], ['font-size', px(n.size)],
-    ['font-weight', n.bold ? 'bold' : 'normal'], ['border-radius', px(n.radius)], ['border-width', px(n.borderW)], ['opacity', `${n.opacity}`],
+    ['font-weight', n.bold ? 'bold' : 'normal'], ['border-radius', px(n.radius)], ['border-width', px(n.borderW < 0 ? 1 : n.borderW)], ['opacity', `${n.opacity}`],
   ];
   return props.map((p: string[]) => `{"name":${q(p[0])},"value":${q(p[1])}}`).join(',');
 }

@@ -40,8 +40,7 @@ Conventions, identical in both UI models:
 
 - **Components are functions returning nodes.** Solid calls them once; React / Inferno re-run them on each render and
   reconcile their nodes like any other component.
-- **Text comes from props**: `label`, `title`, `description`, `hint`, `trailing`. (In `zinc:ui` a `<Text>` does not
-  inherit its colour from a `View`, so the kit places and colours the text itself.)
+- **Text comes from props**: `label`, `title`, `description`, `hint`, `trailing`; the kit places and colours it.
 - **Values that change are accessors**: `value={() => temp()}`, `checked={wifi}`, `selected={tab}`. Under Solid the
   component subscribes to them (only the affected node updates); under React write `value={() => temp}`, the
   accessor is read on every render.

@@ -71,6 +71,11 @@ function declToTokens(prop: string, value: string): string[] {
       for (const p of parts) { if (/^[\d.]+(px)?$/.test(p)) out.push(`border-[${Math.round(px(p))}]`); else if (p !== 'solid') out.push(`border-${color(p)}`); }
       return out;
     }
+    case 'border-top': case 'border-right': case 'border-bottom': case 'border-left': {
+      const sd = prop.charAt(7), out: string[] = [];
+      for (const p of v.split(/\s+/)) { if (/^[\d.]+(px)?$/.test(p)) out.push(`border-${sd}-[${Math.round(px(p))}]`); else if (p !== 'solid') out.push(`border-${color(p)}`); }
+      return out;
+    }
     case 'border-color': return [`border-${color(v)}`];
     case 'border-width': return [`border-[${Math.round(px(v))}]`];
     case 'box-shadow': return [v === 'none' ? 'shadow-none' : 'shadow-md'];

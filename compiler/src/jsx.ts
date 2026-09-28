@@ -33,7 +33,7 @@ const RULES = [
   /^(items|justify)-(start|center|end|stretch|between|around|evenly)$/,
   /^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$/,
   /^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$/,
-  /^bg-gradient-to-(t|b|l|r)$/, /^border-(\d+|\[\d+(px)?\])$/, /^opacity-\d+$/, /^duration-\d+$/,
+  /^bg-gradient-to-(t|b|l|r)$/, /^border-(\d+|\[\d+(px)?\])$/, /^border-[trblxy](-(\d+|\[\d+(px)?\]))?$/, /^opacity-\d+$/, /^duration-\d+$/,
 ];
 /** UI-07: same grammar as applyToken in lib/std/ui.ts; unknown classes are build errors (custom .css classes are declared). */
 export function validClass(c: string, custom?: Set<string>): boolean {

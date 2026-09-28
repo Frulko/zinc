@@ -18,4 +18,4 @@ after erase 1 true undo? true
 after undo 2
 after clear 0
 after undo 2
-round trip false 2 8 false
+round trip true 2 8 true

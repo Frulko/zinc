@@ -198,7 +198,7 @@ export function parseStrokes(json: string): Stroke[] {
   const parts = json.split('{"color":"#');
   for (let i = 1; i < parts.length; i++) {
     const t = parts[i];
-    const s = new Stroke(parseInt(t.slice(0, 6), 16), parseFloat(t.slice(t.indexOf('"width":') + 8, t.indexOf(',"points"'))));
+    const s = new Stroke(ui.parseHex(t.slice(0, 6)), parseFloat(t.slice(t.indexOf('"width":') + 8, t.indexOf(',"points"'))));
     const v = t.slice(t.indexOf('[') + 1, t.indexOf(']')).split(',');
     for (let k = 0; k + 2 < v.length; k += 3) s.add(parseFloat(v[k]), parseFloat(v[k + 1]), parseFloat(v[k + 2]));
     out.push(s);

@@ -108,10 +108,11 @@ export class UiNode {
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
   borderW: number = 0; borderColor: i32 = 0xe5e7eb;
+  bT: number = -1; bR: number = -1; bB: number = -1; bL: number = -1;  // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
-  fg: i32 = 0xffffff;
+  fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -158,7 +159,6 @@ let surfW: i32 = -1, surfH: i32 = -1;
 function node(h: i32): UiNode { return nodes[h]; }
 function defaults(n: UiNode): void {
   if (n.tag === BUTTON) { n.bg = 0x334155; n.pt = 4; n.pb = 4; n.pl = 8; n.pr = 8; n.align = 1; n.justify = 1; n.focusable = true; }
-  if (n.tag === TEXT) n.fg = -1;
   if (n.tag === SCROLL) { n.scroll = 1; n.overflow = true; }
   if (n.tag === INPUT || n.tag === TEXTAREA) {
     n.bg = 0x1e293b; n.fg = 0xf1f5f9; n.borderW = 1; n.borderColor = 0x475569; n.radius = 6; n.size = 14;
@@ -388,13 +388,24 @@ function applyNumber(n: UiNode, key: string, v: number): void {
 // ---------------------------------------------------------------- classes (Tailwind subset + CSS rules)
 const COLORS = new Map<string, i32>();
 const CSS = new Map<string, string>();
+/** Hex digits to an i32 (-1 if invalid). Not parseInt: 24-bit colors overflow the fixed-point `number` of fx12 profiles. */
+export function parseHex(s: string): i32 {
+  let v: i32 = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i) | 32;
+    const d: i32 = c >= 48 && c <= 57 ? c - 48 : c >= 97 && c <= 102 ? c - 87 : -1;
+    if (d < 0 || s.length > 8) return -1;
+    v = v * 16 + d;
+  }
+  return s.length > 0 ? v : -1;
+}
 function initColors(): void {
   if (COLORS.size > 0) return;
   COLORS.set('white', 0xffffff); COLORS.set('black', 0x000000);
   for (const fam of PALETTE.split(';')) {
     const parts = fam.split(':');
     const hexes = parts[1].split(',');
-    for (let i = 0; i < hexes.length; i++) COLORS.set(`${parts[0]}-${SHADES[i]}`, parseInt(hexes[i], 16));
+    for (let i = 0; i < hexes.length; i++) COLORS.set(`${parts[0]}-${SHADES[i]}`, parseHex(hexes[i]));
   }
 }
 /** Registers a CSS class (compiled from a .css file) as a list of Tailwind-like tokens. */
@@ -405,11 +416,13 @@ function num(s: string): number {
   if (s === 'px') return 1;
   return parseFloat(s) * 4;
 }
+/** Border widths are pixels: border-2 = 2px, border-[3px] = 3px. */
+function borderPx(s: string): number { return s.startsWith('[') ? num(s) : num(s) / 4; }
 function colorOf(s: string): i32 {
   initColors();
   const slash = s.indexOf('/');
   const base = slash > 0 ? s.slice(0, slash) : s;
-  if (base.startsWith('[#')) return parseInt(base.slice(2, base.length - 1), 16);
+  if (base.startsWith('[#')) { const v = parseHex(base.slice(2, base.length - 1)); return v < 0 ? -2 : v; }
   if (base === 'transparent') return -1;
   return COLORS.get(base) ?? -2;
 }
@@ -521,11 +534,20 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('via-')) return true;
   if (tok.startsWith('to-')) { n.gradTo = colorOf(tok.slice(3)); return n.gradTo !== -2; }
   if (tok.startsWith('bg-')) { const c = colorOf(tok.slice(3)); if (c === -2) return false; n.bg = c; n.bgAlpha = alphaOf(tok.slice(3)); return true; }
+  if (tok.startsWith('border-') && (tok.length === 8 || tok.slice(8, 9) === '-') && 'trblxy'.indexOf(tok.slice(7, 8)) >= 0) {
+    const sd = tok.slice(7, 8), bw = tok.length === 8 ? 1 : borderPx(tok.slice(9));
+    if (n.borderW < 0) n.borderW = 0;  // a color token alone no longer implies all four sides
+    if (sd === 't' || sd === 'y') n.bT = bw;
+    if (sd === 'b' || sd === 'y') n.bB = bw;
+    if (sd === 'l' || sd === 'x') n.bL = bw;
+    if (sd === 'r' || sd === 'x') n.bR = bw;
+    return true;
+  }
   if (tok.startsWith('border-')) {
     const k = tok.slice(7);
     const c = colorOf(k);
-    if (c !== -2) { n.borderColor = c; if (n.borderW === 0) n.borderW = 1; return true; }
-    n.borderW = num(k) / 4;
+    if (c !== -2) { n.borderColor = c; if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1; return true; }  // -1: 1px unless a side is set
+    n.borderW = borderPx(k);
     return true;
   }
   if (tok.startsWith('opacity-')) { n.opacity = parseFloat(tok.slice(8)) / 100; return true; }
@@ -563,7 +585,7 @@ function resetStyle(n: UiNode): void {
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
-  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
+  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
@@ -591,16 +613,17 @@ function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
     else if (c.abs === wantAbs) out.push(c);
   }
 }
-/** Text inherits color, size and weight from its parent view, like CSS. */
+/** Text color: the node's own, else the nearest ancestor's (any element), like CSS `color`. */
+export function textFg(h: i32): i32 {
+  let q = h;
+  while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
+  return q >= 0 ? nodes[q].fg : 0xffffff;
+}
+/** Text inherits size and weight from its parent text node. */
 function inheritText(n: UiNode): void {
-  if (n.parent < 0) { if (n.fg < 0) n.fg = 0xffffff; return; }
+  if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (n.fg < 0) {
-    let q = p;
-    while (q >= 0 && (nodes[q].tag !== TEXT || nodes[q].fg < 0)) q = nodes[q].parent;
-    n.fg = q >= 0 ? nodes[q].fg : 0xffffff;
-  }
   if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 function fontOf(n: UiNode): i32 {
@@ -888,12 +911,20 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     }
     const focused = h === focus;
     const bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
-    if (n.borderW > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(n.borderW, focused && n.ed !== null ? 2 : 0) * kk, bc, ai);
+    const bw = n.borderW < 0 ? 1 : n.borderW;
+    if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
+      // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
+      const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+      if (t > 0) rrect(x, y, w, t, 0, bc, ai);
+      if (b > 0) rrect(x, y + hh - b, w, b, 0, bc, ai);
+      if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, ai);
+      if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, ai);
+    } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, ai);
     if (focused && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
     if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
-      let fg = n.fg;
+      let fg = textFg(h);
       let p = n.parent;
       while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].hoverFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
       if (p >= 0 && pressed === p && nodes[p].activeFg >= 0) fg = nodes[p].activeFg;

@@ -65,8 +65,9 @@ PocketJS apps compile as-is (`examples/pocket-hero`).
 
 Tailwind-like utility tokens are compiled at build time: flexbox (`flex-row`/`flex-col`, `items-*`, `justify-*`,
 `gap-*`, `grow`, `wrap`), spacing (`p-*`, `px-*`, `m-*`), sizing (`w-*`, `h-*`, `w-full`, `h-full`, `w-[120px]`),
-colors (`bg-slate-900`, `text-amber-400`, gradients), `rounded*`, shadows, borders, typography (`text-2xl`,
-`font-bold`, `text-center`), and `focus:` / `active:` variants. Import a CSS file to define named classes compiled to
+colors (`bg-slate-900`, `text-amber-400`, gradients), `rounded*`, shadows, borders (all sides, or `border-t` / `border-x-2` / `border-b-[3px]` per side), typography
+(`text-2xl`, `font-bold`, `text-center`), and `focus:` / `active:` variants. A text color set on any element
+(`<View class="text-zinc-500">`) is inherited by the text inside it, like CSS `color`. Import a CSS file to define named classes compiled to
 the same tokens:
 
 ```tsx

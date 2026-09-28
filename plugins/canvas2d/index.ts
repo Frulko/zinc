@@ -46,8 +46,19 @@ function hue(h: number, m1: number, m2: number): number {
 }
 /** A parsed CSS colour: 0xRRGGBB and alpha 0..255 (kept apart: exact in the f32 number profile). */
 export class CssColor {
-  rgb: number; alpha: number;
-  constructor(rgb: number, alpha: number) { this.rgb = rgb; this.alpha = alpha; }
+  rgb: u32; alpha: i32;
+  constructor(rgb: u32, alpha: i32) { this.rgb = rgb; this.alpha = alpha; }
+}
+/** Hex digits to an i32 (-1 if invalid); parseInt would overflow the fixed-point `number` of fx12 profiles. */
+function parseHex(s: string): i32 {
+  let v: i32 = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i) | 32;
+    const d: i32 = c >= 48 && c <= 57 ? c - 48 : c >= 97 && c <= 102 ? c - 87 : -1;
+    if (d < 0 || s.length > 8) return -1;
+    v = v * 16 + d;
+  }
+  return s.length > 0 ? v : -1;
 }
 const BLACK = new CssColor(0, 255);
 /** CSS colour (#rgb, #rgba, #rrggbb, #rrggbbaa, rgb[a](), hsl[a](), names, 'transparent'); null when not a colour. */
@@ -61,8 +72,8 @@ export function parseColor(css: string): CssColor | null {
       return parseColor('#' + out);
     }
     if (h.length !== 6 && h.length !== 8) return null;
-    const v = parseInt(h.slice(0, 6), 16), a = h.length === 8 ? parseInt(h.slice(6, 8), 16) : 255;
-    return isNaN(v) || isNaN(a) ? null : new CssColor(v, a);
+    const v = parseHex(h.slice(0, 6)), a = h.length === 8 ? parseHex(h.slice(6, 8)) : 255;
+    return v < 0 || a < 0 ? null : new CssColor(v, a);
   }
   const open = s.indexOf('(');
   if (open > 0 && s.endsWith(')')) {
@@ -82,7 +93,7 @@ export function parseColor(css: string): CssColor | null {
   if (s === 'transparent') return new CssColor(0, 0);
   if (named.size === 0) {
     const w = NAMES.split(' ');
-    for (let i = 0; i + 1 < w.length; i += 2) named.set(w[i], parseInt(w[i + 1], 16));
+    for (let i = 0; i + 1 < w.length; i += 2) named.set(w[i], parseHex(w[i + 1]));
   }
   if (!named.has(s)) return null;
   return new CssColor(named.get(s) ?? 0, 255);
