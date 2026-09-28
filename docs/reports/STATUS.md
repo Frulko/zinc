@@ -1,12 +1,14 @@
-# Prototype status — increment 2 (2026-09-28)
+# Prototype status — increment 3 (2026-09-28)
 
 All numbers below come from commands in this repository on an Apple Silicon Mac (Apple Clang 21, Node 24.14,
 Docker Desktop with QEMU emulation). `zinc test` reruns the conformance suite.
 
 ## Conformance (TST-01/02: sim oracle vs target, byte for byte)
 
-9 programs in `tests/conformance/`: language tour, errors, async/generators, features (unions, destructuring,
-weak refs, pools, arenas), built-in modules, Solid UI, `text` screen in Solid and in React (identical layouts).
+18 programs in `tests/conformance/` (language tour, errors, async/generators, features, modules, Dyn, UI in Solid /
+React / Inferno, PocketJS Hero, ink, Lottie, 3D…) plus golden HIR/MIR dumps. Latest runs: macOS 18/18, `--profile ps1`
+18/18, `--profile esp32` 18/18 (gradual-only Dyn programs are skipped in strict profiles). The cross-target rows
+below were last run at increment 2 with 9 programs.
 
 | Target | How it runs | Result |
 | --- | --- | --- |
@@ -44,14 +46,28 @@ weak refs, pools, arenas), built-in modules, Solid UI, `text` screen in Solid an
 | Numbers: f64, f32, fixed Q20.12/Q16.16 bit-identical with sim, i32 wrap, loop-counter inference | ✅ | |
 | Memory: RC (RAII), TLSF on hal_heap_region, pools, arenas (runtime escape check), weak refs, incremental freeing, leak report | 🟡 | RC is RAII not compiler-inserted (0001); arena escape checked at runtime, not compile time; `heap: 0` mode and cycle warnings missing |
 | Runtime: strings UTF-8/UTF-16, arrays, Map/Set, JSON, console levels/time/count/assert/table, JSON log mode | ✅ | number → string uses libc (0003) |
-| UI: host ABI + flexbox + classes + wrap/align (in Zinc), Solid model, React model, canvas, focus navigation | 🟡 | no Inferno, no images, unkeyed lists, React re-renders whole components (no diff) |
-| 2D backends: SDL3 (macos/linux), canvas (wasm) | 🟡 | ps1 GPU, ps2 gsKit, esp32 SPI LCD, rpi1 KMSDRM not written; those HALs are text-only |
-| Modules: sys, fs, storage, assets, net (fetch+server), osc, mqtt, telemetry, gpio (simulator), events, user native specs | 🟡 | esp32 variants of fs/storage/net/gpio and libgpiod on rpi1 not written |
-| Targets: macos, linux, sim, wasm, rpi1, esp32, ps2 (build), ps1 (ISA validation) | 🟡 | PS-EXE packaging (PSn00bSDK), PCSX2/PCSX-Redux runs, real hardware not done |
+| UI: flexbox (wrap, margins, absolute), Tailwind-like classes + CSS imports, images, engine animations, Solid (keyed `<For>`, ownership), React (reconciled, keys, class components), Inferno and PocketJS compatibility | ✅ | PocketJS Hero compiles unchanged; no text selection/editing widgets |
+| 2D: shared software rasterizer (AA shapes, gradients, shadows, strokes, paths, runtime TTF glyphs, images, runtime images, render-to-image), multi-rect damage, HiDPI | ✅ | SDL3 (Retina), canvas (wasm, 1x), display plugins: fbdev, KMS/GL, SSD1306, ST7789, WS2812, reMarkable e-ink; PS1/PS2 display in progress |
+| Modules: sys, fs, storage, assets, net (fetch+server), osc, mqtt, telemetry, gpio, events, user native specs | ✅ | esp32: NVS, SPIFFS, esp_http_client, driver/gpio (no WiFi station bring-up yet); rpi1: libgpiod |
+| Targets: macos, linux, sim, wasm, rpi1, rmpp (reMarkable Paper Pro), esp32, ps2 (build), ps1 (ISA validation) | 🟡 | PS-EXE packaging and console displays in progress; nothing validated on real hardware yet |
 | Dyn / `zinc infer` (section 9) | 🟡 | gradual: `any`/`unknown` are a NaN-boxed `Dyn` (JSON.parse, property get/set, index, `in`, `typeof`, ECMAScript operators, checked conversions, narrowing); strict: Z1006/Z1016; `dynSites` in report.json, `--no-dyn`; `zinc infer` (call sites, fields read, allocation sites) and `zinc build app.js` (decision 0014). No `word` representation, per-site caches or function specialisation (DYN-03/04/12) |
-| 3D (three.js scene graph) | ❌ | |
+| 3D | 🟡 | `zinc:3d`: scene graph, primitives, OBJ, Gouraud/flat, perspective-correct textures, z-buffer, near clipping (software, all targets incl. fx12); no three.js API compatibility, no transparency/fog |
+
+## Plugins (optional, `zinc plugins`)
+
+| Plugin | Verified on | Not verified |
+| --- | --- | --- |
+| `zinc:video` (FFmpeg, VideoToolbox / V4L2 M2M) + display `fbdev` | macOS (gapless loop measured), rpi1 in QEMU (software decode) | real Pi decode/output |
+| `zinc:mapping` + display `gl` (+ web companion) | macOS (OSC + companion driven, screenshots) | Pi 3B+/4 KMS/EGL |
+| `zinc:map`, `zinc:svg`, `zinc:gestures` | macOS, rpi1 in QEMU | Pi 1 frame times |
+| `zinc:gphoto2` | macOS with the fake camera, rpi1/linux builds | a physical camera |
+| displays `ws2812`, `ssd1306`, `st7789`, `zinc:pixelfont` | macOS emulators, esp32 firmware in QEMU (frame checksums) | real panels / LEDs |
+| `zinc:ink` + display `rmpp` | macOS e-ink emulator, aarch64 static build | the tablet |
+| `zinc:lottie` | macOS vs lottie-web (12 files), esp32/rpi1 QEMU | — |
+| `zinc:3d` | macOS (f64 and fx12), rpi1/esp32 QEMU | real hardware timings |
+| `zinc:devtools` + `zinc dev` | macOS (hot reload ~0.5–1.2 s, red box, scripted CDP client), linux docker | Chrome DevTools frontend |
 
 ## Known debt
 
 `grep -rn "ponytail:" compiler runtime targets lib sim` lists every deliberate shortcut with its ceiling.
-Decisions: `docs/decisions/0001`–`0010`.
+Decisions: `docs/decisions/`.
