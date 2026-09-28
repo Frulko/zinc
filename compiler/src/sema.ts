@@ -304,6 +304,15 @@ export class Sema {
     return s?.valueDeclaration ?? s?.declarations?.[0];
   }
   isLib(n: ts.Node) { return n.getSourceFile().isDeclarationFile; }
+  /** `JSON.parse(s)`, `await res.json()`: a standard-library call typed `any` is an `unknown` in the strict profile
+   *  (the value must be narrowed or stored as `unknown`, DYN-01). */
+  libAnyCall(at: ts.Node | undefined): boolean {
+    let e = at;
+    while (e && (ts.isAwaitExpression(e) || ts.isParenthesizedExpression(e))) e = e.expression;
+    if (!e || !ts.isCallExpression(e)) return false;
+    const d = this.declOf(ts.isPropertyAccessExpression(e.expression) ? e.expression.name : e.expression);
+    return !!d && this.isLib(d);
+  }
   /** 'fs' for declarations inside `declare module 'zinc:fs'`. */
   libModule(n: ts.Node): string | undefined {
     if (ts.isClassDeclaration(n) && n.name?.text === 'Arena' && n.getSourceFile().fileName.endsWith('lib/zinc.d.ts')) return 'mem';
@@ -549,7 +558,7 @@ export class Sema {
       this.fail(at, 'Z9001', `union type '${this.checker.typeToString(type)}' is not supported (use T | null or a discriminated union type alias)`);
     }
     if (f & ts.TypeFlags.Any) {
-      if (this.typing === 'strict') this.fail(at, 'Z1006', "'any' is not allowed in the strict typing profile (DYN-01); annotate the value or narrow an 'unknown'");
+      if (this.typing === 'strict' && !this.libAnyCall(at)) this.fail(at, 'Z1006', "'any' is not allowed in the strict typing profile (DYN-01); annotate the value or narrow an 'unknown'");
       return DYN;
     }
     if (f & ts.TypeFlags.Unknown) return DYN;
@@ -960,6 +969,17 @@ export class Sema {
           if (!generic || !hasTypeParam(t)) return t;
           if (t.k === 'fn' && !hasTypeParam(t.ret)) return { k: 'fn', params: [], ret: t.ret };  // only the result type is known
         }
+      }
+    }
+    // `new Blob(['a', blob])`: a constructor parameter typed `unknown[]` makes the literal a Dyn array
+    if (ts.isNewExpression(p) && p.arguments?.includes(e)) {
+      let c = this.declOf(p.expression) as ts.ClassDeclaration | undefined;
+      let ctor: ts.ConstructorDeclaration | undefined;
+      while (c && ts.isClassDeclaration(c) && !this.isLib(c) && !(ctor = c.members.find(ts.isConstructorDeclaration))) c = this.baseClass(c);
+      const prm = ctor?.parameters[p.arguments.indexOf(e)];
+      if (prm?.type && !(c as ts.ClassDeclaration).typeParameters?.length) {
+        const t = this.fromTypeNode(prm.type);
+        if (t.k === 'dyn' || (t.k === 'arr' && t.el.k === 'dyn')) return t;
       }
     }
     return undefined;

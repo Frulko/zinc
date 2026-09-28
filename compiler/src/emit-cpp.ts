@@ -421,7 +421,10 @@ class CppEmitter {
     const errBase = ts.isClassDeclaration(c) && this.s.errorBase(c);
     L.push(`  bool zrt_isa(uint32_t id) const override { return id == ZRT_CID || ${base.code}::zrt_isa(id); }`);
     L.push(`  void zrt_fields(zrt::StrBuilder& sb, bool& first) const;`);
-    L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }`);
+    // JSON.stringify calls toJSON() when the class has one (ECMAScript SerializeJSONProperty)
+    const toJSON = !ts.isClassDeclaration(c) ? undefined : c.members.find(m => ts.isMethodDeclaration(m) && m.name.getText() === 'toJSON' && m.parameters.length === 0 && !this.isStatic(m));
+    if (toJSON) L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { zrt::json(sb, const_cast<${self}*>(this)->toJSON()); }`);
+    else L.push(`  void zrt_json(zrt::StrBuilder& sb) const override { sb.ch('{'); bool first = true; zrt_fields(sb, first); sb.ch('}'); }`);
     // console.log: `Name { field: value }` for classes, `{ field: value }` for interfaces and object types
     L.push(`  void zrt_ifields(zrt::InspParts& p, zrt::Insp& in) const override;`);
     if (!errBase) L.push(`  void zrt_inspect(zrt::StrBuilder& sb, zrt::Insp& in) const override { zrt::insp_object(sb, in, this, ${ts.isClassDeclaration(c) && c.name ? JSON.stringify(c.name.text) : 'nullptr'}); }`);
@@ -1550,7 +1553,9 @@ class CppEmitter {
       }
       if (lt.k === 'str') {  // `string | null | undefined`: absent is a null String (s == nullptr), '' is present
         const v = this.newTmp('t');
-        return `([&]() -> zrt::String { zrt::String ${v} = ${this.expr(L)}; if (${v}.s == nullptr) return ${this.conv(R, STR)}; return ${v}; }())`;
+        // the left side is evaluated as the lambda's argument: a call that throws there propagates from the enclosing
+        // function (its error check `return`s), not from the lambda
+        return `([&](zrt::String ${v}) -> zrt::String { if (${v}.s == nullptr) return ${this.conv(R, STR)}; return ${v}; }(${this.expr(L)}))`;
       }
       return this.expr(L);
     }
