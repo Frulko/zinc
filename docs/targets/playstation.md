@@ -3,7 +3,7 @@
 ```sh
 zinc build examples/breakout --target ps1   # PS-EXE + CD image (docker zinc/sdk-psx: PSn00bSDK)
 zinc run   examples/breakout --target ps1   # runs it headless in PCSX-Redux, TTY -> stdout
-ZINC_FRAMES=400 ZINC_SHOT=$PWD/examples/breakout/build/shot.bmp zinc run examples/breakout --target ps1
+ZINC_FRAMES=400 ZINC_SHOT=$PWD/examples/breakout/src/build/shot.bmp zinc run examples/breakout --target ps1
 zinc test  --target ps1                     # conformance: PS-EXE output vs the fx12 sim oracle
 zinc build examples/breakout --target ps2   # EE ELF with gsKit + libpad (docker zinc/sdk-ps2: ps2dev)
 zinc run   examples/breakout --profile ps1  # host window with the ps1 profile (fx12, 320x240, 256 KiB heap)
