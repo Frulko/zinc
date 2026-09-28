@@ -127,3 +127,16 @@ Useful environment variables (full list: `zinc help env`): `ZINC_FRAMES=n` stops
 `ZINC_TELEMETRY=udp://host:port` enables telemetry (`zinc monitor` views it).
 
 Next: [the language](02-language.md).
+
+## Editor setup
+
+`zinc init` writes a `tsconfig.json` for VS Code (or any tsserver-based editor): Zinc's own library instead of the
+DOM / ES lib (so `document` or a regex is flagged as the compiler would), `zinc:*` modules and plugins resolved,
+typed JSX host tags (`View`, `Text`...), and a small tsserver plugin (`node_modules/zinc-ts-plugin`, linked to
+`lib/editor/zinc-ts-plugin`) that drops only the diagnostics about Zinc's thunk children. For an existing project:
+
+```sh
+zinc tsconfig            # or: zinc tsconfig path/to/project
+```
+
+Then use the workspace's TypeScript as usual; `zinc check` remains the reference (Z codes, targets).

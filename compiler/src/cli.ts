@@ -7,7 +7,7 @@ import { loadProgram, ZINC_ROOT, type Diag } from './frontend.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
 import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
-import { initProject, exportApp, dev, monitor } from './tools.ts';
+import { initProject, tsconfigFor, linkEditorPlugin, exportApp, dev, monitor } from './tools.ts';
 import { infer, tsPathOf } from './infer.ts';
 import { buildHir, printHir } from './hir.ts';
 import { lowerMir, printMir } from './mir.ts';
@@ -746,6 +746,13 @@ function main() {
   if (cmd === 'init') {
     const t = argv.indexOf('--template');
     try { initProject(argv[1] && !argv[1].startsWith('-') ? argv[1] : '.', t > 0 ? argv[t + 1] : 'game'); } catch (e) { die((e as Error).message); }
+    return;
+  }
+  if (cmd === 'tsconfig') {   // editor setup for an existing project (zinc init writes it for new ones)
+    const d = argv[1] && !argv[1].startsWith('-') ? argv[1] : '.';
+    fs.writeFileSync(path.join(d, 'tsconfig.json'), tsconfigFor(d));
+    linkEditorPlugin(d);
+    console.error(`zinc: wrote ${path.join(d, 'tsconfig.json')} (open the folder in VS Code: Zinc types, zinc:* modules, JSX)`);
     return;
   }
   if (cmd === 'monitor') {

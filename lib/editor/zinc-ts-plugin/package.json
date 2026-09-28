@@ -1,0 +1,1 @@
+{ "name": "zinc-ts-plugin", "version": "0.1.0", "main": "index.js", "description": "Editor support for Zinc projects (installed by `zinc tsconfig`)" }

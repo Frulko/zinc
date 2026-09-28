@@ -4,7 +4,8 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as dgram from 'node:dgram';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { ZINC_ROOT } from './frontend.ts';
+import { ZINC_ROOT, STD_MODULES, LIB_FILES } from './frontend.ts';
+import { modulePaths } from './plugins.ts';
 import type { Built, Opts, Project } from './cli.ts';
 
 const TEMPLATES: Record<string, Record<string, string>> = {
@@ -85,6 +86,33 @@ render(App, 0xffffff, (dt: number) => { if (ink.strokes.length !== strokes()) se
   },
 };
 
+/** tsconfig.json for editors (VS Code...): Zinc's own lib instead of the DOM / ES lib, `zinc:*` modules resolved to
+ *  the standard modules and plugins of this checkout, JSX typed by lib/editor/jsx.d.ts. The compiler ignores it. */
+export function tsconfigFor(dir: string): string {
+  const abs = path.resolve(dir);
+  const rel = (p: string) => { const r = path.relative(abs, p); return r.startsWith('.') ? r : './' + r; };
+  const paths: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(STD_MODULES)) paths[k] = [rel(v)];
+  try { for (const [k, v] of Object.entries(modulePaths(abs))) paths[k] = v.map(rel); } catch { /* no project yet */ }
+  return JSON.stringify({
+    compilerOptions: {
+      target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', strict: true, noLib: true, types: [],
+      useUnknownInCatchVariables: false, allowImportingTsExtensions: true, noEmit: true, jsx: 'preserve', paths,
+      plugins: [{ name: 'zinc-ts-plugin' }],
+    },
+    files: [...LIB_FILES, path.join(ZINC_ROOT, 'lib/editor/jsx.d.ts')].map(rel),
+    include: ['src/**/*', '*.ts', '*.tsx'],
+  }, null, 2) + '\n';
+}
+
+/** tsserver loads plugins by package name only: link node_modules/zinc-ts-plugin to lib/editor/zinc-ts-plugin. */
+export function linkEditorPlugin(dir: string): void {
+  const nm = path.join(dir, 'node_modules'), link = path.join(nm, 'zinc-ts-plugin');
+  fs.mkdirSync(nm, { recursive: true });
+  fs.rmSync(link, { recursive: true, force: true });
+  fs.symlinkSync(path.join(ZINC_ROOT, 'lib/editor/zinc-ts-plugin'), link, 'dir');
+}
+
 export function initProject(dir: string, template: string) {
   const files = TEMPLATES[template];
   if (!files) throw new Error(`unknown template '${template}' (${Object.keys(TEMPLATES).join(', ')})`);
@@ -94,13 +122,15 @@ export function initProject(dir: string, template: string) {
     'zinc.json': JSON.stringify({ name, entry: 'src/main.ts', assets: 'assets', targets: {} }, null, 2) + '\n',
     ...files,
     'assets/.gitkeep': '',
-    '.gitignore': 'build/\ndist/\n',
+    '.gitignore': 'build/\ndist/\nnode_modules/\n',
+    'tsconfig.json': tsconfigFor(dir),
     'README.md': `# ${name}\n\nA Zinc app (${template} template).\n\n\`\`\`sh\nzinc run            # native build + run\nzinc run --target sim\nzinc dev            # rebuild and restart on save\nzinc export --target macos\n\`\`\`\n`,
   };
   for (const [f, c] of Object.entries(all)) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
     fs.writeFileSync(path.join(dir, f), c);
   }
+  linkEditorPlugin(dir);
   console.log(`created ${dir} (${template}); next: cd ${dir} && zinc run`);
 }
 
