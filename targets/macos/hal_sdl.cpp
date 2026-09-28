@@ -99,8 +99,18 @@ void hal_init(const HalConfig* cfg) {
   if (const char* v = getenv("ZINC_FULLSCREEN")) full = v[0] == '1';
   if (const char* v = getenv("ZINC_KIOSK")) kiosk = v[0] == '1';
   if (kiosk) full = true;
-  if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
+  // a surface taller or wider than the screen (a 1620x2160 tablet) opens scaled down to fit, keeping its proportions
+  // (the OS would only clamp one side)
+  int ww = W * scale, wh = H * scale;
+  SDL_Rect usable;
+  if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
+    const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
+    if (fit < 1) { ww = (int)(ww * fit); wh = (int)(wh * fit); }
+  }
+  if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
+  if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   SDL_SetRenderVSync(ren, 1);
   start_workers();
   if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
