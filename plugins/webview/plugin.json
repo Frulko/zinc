@@ -1,0 +1,11 @@
+{
+  "name": "webview",
+  "kind": "module",
+  "module": "zinc:webview",
+  "entry": "index.ts",
+  "description": "Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)",
+  "options": { "inspectable": false },
+  "targets": {
+    "macos": { "sources": ["src/webview.mm"], "pkg": ["sdl3"], "frameworks": ["WebKit", "Cocoa"] }
+  }
+}
