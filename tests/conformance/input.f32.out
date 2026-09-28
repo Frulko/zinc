@@ -1,0 +1,38 @@
+view 0,0 320x240
+  view 0,0 320x240
+    input 8,8 304x32 ""
+    textarea 8,48 304x72 "let a = 1;"
+    view 8,128 304x104
+      view 8,128 400x400
+        view 18,138 40x20
+typed Hello wor 9
+selected Hello
+cut/paste  big worHello
+undo  big wor
+redo  big worHello
+change Zinc
+value Zinc changes 1
+letter handled by the field true save true 1
+tab to textarea true
+code let a = 1;|if (a) {|  a++;|  }
+caret after up 23
+word delete let a = 1;|if (a) {|  ++;|  }
+highlight 5,12616956,5,-1,4,8843180,2,-1,7,6583435
+clicked caret 3 focus back true
+double click two
+drag select one two
+card 18,138,40,20
+down 5 5 0
+up 5 5
+dragged x 40 enters 1
+card 48,138,40,20
+zoom 2 card 88,148,80,40
+down 10 5 2
+menu at 10 5
+up 10 5
+down 10 5 0
+up 10 5
+down 10 5 0
+up 10 5
+menus 1 double clicks 1
+enters 2 leaves 2 hit through scale true

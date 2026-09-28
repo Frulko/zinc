@@ -1405,6 +1405,8 @@ function focusStep(back: boolean): void {
   if (list.length === 0) return;
   const i = list.indexOf(focus);
   setFocusTo(i < 0 ? list[0] : list[(i + (back ? list.length - 1 : 1)) % list.length]);
+  const e = nodes[focus].ed;
+  if (e !== null && !e.multi) { e.anchor = 0; moveTo(e as Edit, e.value.length, true); }  // like browsers: Tab into a field selects it
 }
 function pointerMove(px: number, py: number): void {
   // drag to scroll: past a few pixels the press becomes a scroll gesture
@@ -1451,8 +1453,13 @@ function pressAt(px: number, py: number, button: i32): void {
   } else {
     const h = hit(px, py, HIT_CLICK);
     if (h >= 0) { setFocusTo(h); pressed = h; paintDirty = true; }
-    else if (d >= 0) setFocusTo(nodes[d].focusable ? d : -1);
-    else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);  // a click elsewhere blurs a text field
+    else {
+      // the nearest focusable node takes the focus; a click elsewhere blurs a text field
+      let fz = t;
+      while (fz >= 0 && !nodes[fz].focusable) fz = nodes[fz].parent;
+      if (fz >= 0) setFocusTo(fz);
+      else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);
+    }
   }
   dragScroller = selecting >= 0 || capture >= 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3);
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
@@ -1551,9 +1558,19 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   }
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
   for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
+  if (!ev.handled) {
+    const i = NAV_KEYS.indexOf(key);
+    if (i >= 0) { navKeys = navKeys | (1 << NAV_BTN[i]); if (ev.shift) navBack = true; }
+  }
   paintDirty = true;
   return ev;
 }
+// Unhandled navigation keys also drive the gamepad-style focus navigation: a quick tap can come and go between two
+// polls of the held state, the key event is not lost.
+const NAV_KEYS: string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'Enter'];
+const NAV_BTN: i32[] = [Btn.Up, Btn.Down, Btn.Left, Btn.Right, Btn.A, Btn.Select, Btn.Start];
+let navKeys: i32 = 0, navBack = false;
+function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
 function inputFrame(): void {
   curMods = modifiers();
   const px = pointerX(), py = pointerY();
@@ -1598,10 +1615,11 @@ export function frame(dt: number, background: i32): void {
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   stepFling(dt);
-  if (!typing && (wasPressed(Btn.Down) || wasPressed(Btn.Right) || wasPressed(Btn.Up) || wasPressed(Btn.Left) || wasPressed(Btn.Select))) focusStep(wasPressed(Btn.Up) || wasPressed(Btn.Left));
+  if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
-  if (!typing && (wasPressed(Btn.A) || wasPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
+  if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
   else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
+  navKeys = 0; navBack = false;
   // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
   const ed = focus >= 0 ? nodes[focus].ed : null;
   const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;

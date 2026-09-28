@@ -1,0 +1,1 @@
+{ "name": "forms", "entry": "main.tsx", "targets": { "macos": { "width": 960, "height": 600, "resize": "fill" }, "sim": { "width": 960, "height": 600 }, "wasm": { "width": 960, "height": 600 }, "linux": { "width": 960, "height": 600 } } }
