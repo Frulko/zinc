@@ -18,7 +18,7 @@ export const OSM_STYLE = `{
     { "id": "water", "type": "fill", "source-layer": "water", "filter": ["==", "$type", "Polygon"], "paint": { "fill-color": "#aad3df" } },
     { "id": "waterway", "type": "line", "source-layer": "waterway", "paint": { "line-color": "#aad3df", "line-width": { "base": 1.3, "stops": [[10, 1], [14, 3], [18, 12]] } } },
     { "id": "aeroway", "type": "line", "source-layer": "aeroway", "minzoom": 11, "filter": ["==", "$type", "LineString"], "paint": { "line-color": "#bbbbcc", "line-width": { "base": 1.4, "stops": [[11, 1], [14, 8], [18, 40]] } } },
-    { "id": "building", "type": "fill", "source-layer": "building", "minzoom": 13, "paint": { "fill-color": "#d9d0c9", "fill-outline-color": { "stops": [[13, "rgba(196,182,171,0)"], [15, "#c4b6ab"]] } } },
+    { "id": "building", "type": "fill", "source-layer": "building", "minzoom": 13, "paint": { "fill-color": "#d9d0c9", "fill-outline-color": { "stops": [[14, "rgba(196,182,171,0)"], [15.5, "#c4b6ab"]] } } },
 
     { "id": "path", "type": "line", "source-layer": "transportation", "minzoom": 15, "filter": ["==", "class", "path"], "paint": { "line-color": "#f29c8f", "line-opacity": 0.7, "line-width": { "stops": [[15, 0.7], [18, 2]] } } },
     { "id": "service-casing", "type": "line", "source-layer": "transportation", "minzoom": 14, "filter": ["in", "class", "service", "track"], "paint": { "line-color": "#c4bcb3", "line-width": { "base": 1.2, "stops": [[14, 2], [18, 12]] } } },

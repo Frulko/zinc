@@ -2,7 +2,7 @@
 // drag / wheel / pinch / double-click to navigate, a place list, zoom buttons and a scale bar.
 //   zinc run examples/maps/explorer                     offline sample
 //   ZINC_MAP_ONLINE=1 zinc run examples/maps/explorer   + OpenFreeMap tiles for the rest of the world (cached in tile-cache/)
-//   ZINC_MAP_DEMO=1: scripted pan/zoom that logs frame times (benchmark)
+//   ZINC_MAP_DEMO=1: scripted pan/zoom that logs frame times (benchmark); ZINC_MAP_VIEW=lat,lon,zoom: start view
 import { onFrame, clear, rrect, drawText, font, textWidth, rect, width, height, pointerX, pointerY, pointerDown, quit } from 'zinc:gfx';
 import { exists } from 'zinc:fs';
 import { env, clock } from 'zinc:sys';
@@ -28,6 +28,8 @@ const map = new MapView({ tiles: tiles, url: online ? 'https://tiles.openfreemap
 map.minZoom = online ? 1 : 10;
 map.maxZoom = 19;
 map.setView(48.8566, 2.3522, 14);
+const view = env('ZINC_MAP_VIEW').split(',');  // "lat,lon,zoom" start view (screenshots)
+if (view.length === 3) map.setView(parseFloat(view[0]), parseFloat(view[1]), parseFloat(view[2]));
 if (tiles === '' && !online) console.error('explorer: no tiles/ directory found (set ZINC_MAP_TILES, or ZINC_MAP_ONLINE=1)');
 
 const W = width(), H = height();

@@ -118,6 +118,7 @@ template<class T> static T* scratch(T*& buf, uint32_t& cap, uint32_t need) {
   while (n < need) n *= 2;
   T* nb = (T*)hal_alloc((size_t)n * sizeof(T));
   if (!nb) return nullptr;
+  __builtin_memset(nb, 0, (size_t)n * sizeof(T));
   if (buf) { __builtin_memcpy(nb, buf, (size_t)cap * sizeof(T)); hal_free(buf); }
   buf = nb; cap = n;
   return buf;
@@ -125,9 +126,8 @@ template<class T> static T* scratch(T*& buf, uint32_t& cap, uint32_t need) {
 static Edge* edges; static uint32_t edge_cap;
 static int32_t* heads; static uint32_t head_cap;
 static uint16_t* accs; static uint32_t acc_cap;
-struct Cross { float x; int32_t d; };
 static int32_t* actives; static uint32_t active_cap;
-static Cross* crosses; static uint32_t cross_cap;
+static int16_t* wds; static uint32_t wd_cap;  // all zero between uses
 static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
@@ -153,9 +153,9 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
     }
     p += 1 + cnt * 2;
   }
-  if (!ne || !scratch(actives, active_cap, ne) || !scratch(crosses, cross_cap, ne)) return;
+  if (!ne || !scratch(actives, active_cap, ne) || !scratch(wds, wd_cap, (uint32_t)bw * 4 + 4)) return;
   bool evenodd = c.pad & 1;
-  int32_t* active = actives; Cross* xs = crosses;
+  int32_t* active = actives; int16_t* wd = wds;
   uint32_t na = 0;
   uint16_t* acc = accs;
   for (int32_t i = 0; i < bw; i++) acc[i] = 0;
@@ -165,28 +165,27 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
     int32_t lo = bw, hi = -1;
     for (int s = 0; s < 4; s++) {
       float sy = y + (s + 0.5f) / 4;
-      int32_t n = 0;
+      // winding deltas per subsample column, then one sweep: no sorting of crossings
+      int32_t qlo = bw * 4, qhi = -1;
       for (uint32_t a = 0; a < na; a++) {
         const Edge& e = edges[active[a]];
         if (sy < e.y0 || sy >= e.y1) continue;
-        xs[n++] = Cross{e.x0 + (sy - e.y0) * e.dxdy, e.d};
+        int32_t q = iceil((e.x0 + (sy - e.y0) * e.dxdy - b.x0) * 4 - 0.5f);
+        if (q < 0) q = 0;
+        if (q > bw * 4) q = bw * 4;
+        wd[q] = (int16_t)(wd[q] + e.d);
+        if (q < qlo) qlo = q;
+        if (q > qhi) qhi = q;
       }
-      for (int32_t i = 1; i < n; i++) { Cross v = xs[i]; int32_t j = i - 1; while (j >= 0 && xs[j].x > v.x) { xs[j + 1] = xs[j]; j--; } xs[j + 1] = v; }
-      int32_t wind = 0;
-      for (int32_t i = 0; i + 1 < n; i++) {
-        wind += xs[i].d;
-        if (evenodd ? !(wind & 1) : !wind) continue;
-        int32_t s0 = iceil((xs[i].x - b.x0) * 4 - 0.5f), s1 = ifloor((xs[i + 1].x - b.x0) * 4 - 0.5f);
-        if (s0 < 0) s0 = 0;
-        if (s1 > bw * 4 - 1) s1 = bw * 4 - 1;
-        if (s0 > s1) continue;
-        int32_t p0 = s0 >> 2, p1 = s1 >> 2;
-        if (p0 < lo) lo = p0;
-        if (p1 > hi) hi = p1;
-        if (p0 == p1) { acc[p0] += (uint16_t)(s1 - s0 + 1); continue; }
-        acc[p0] += (uint16_t)(4 - (s0 & 3));
-        for (int32_t q = p0 + 1; q < p1; q++) acc[q] += 4;
-        acc[p1] += (uint16_t)((s1 & 3) + 1);
+      if (qhi < 0) continue;
+      int32_t wind = 0, p1 = qhi >> 2;
+      if ((qlo >> 2) < lo) lo = qlo >> 2;
+      if (p1 > hi) hi = p1 < bw ? p1 : bw - 1;
+      for (int32_t px = qlo >> 2; px <= p1; px++) {  // 4 subsamples per pixel; runs without crossings in one step
+        int16_t* w4 = wd + px * 4;
+        uint64_t any; __builtin_memcpy(&any, w4, 8);
+        if (!any) { if ((evenodd ? (wind & 1) : wind) && px < bw) acc[px] += 4; continue; }
+        for (int k = 0; k < 4; k++) { wind += w4[k]; w4[k] = 0; if ((evenodd ? (wind & 1) : wind) && px < bw) acc[px]++; }
       }
     }
     for (int32_t i = lo; i <= hi; i++) {
