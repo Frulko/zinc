@@ -11,7 +11,8 @@
   instead of building GCC. The QEMU ISA check is not kept as a second target: the emulator below runs the same
   conformance programs on an R3000 model with the real SDK, which covers what it checked (`docker/sdk-mips` is now
   unused). `--profile ps1` on the host is unchanged.
-- **Runner: [PCSX-Redux](https://github.com/grumpycoders/pcsx-redux) headless** (`-cli -testmode -stdout`). It
+- **Runner: [PCSX-Redux](https://github.com/grumpycoders/pcsx-redux) headless** (`-cli -testmode -stdout`, interpreter:
+  its dynarec misran one executable under Docker's x86 emulation). It
   boots its own **OpenBIOS**, so no Sony BIOS is needed anywhere; BIOS TTY output goes to stdout; a 16-bit write to
   `0x1f802082` ends the emulator with an exit code; an 8-bit write to `0x1f802081` runs a Lua slot (used for
   screenshots). The HAL checks the `"PCSX"` id at `0x1f802080` before touching these, so the same executable runs on

@@ -50,7 +50,9 @@ void* hal_alloc(size_t n) { return malloc(n); }
 void hal_free(void* p) { free(p); }
 uint64_t hal_time_us(void) {
   // vblank count + hblanks since it (~64 us); VSync(-1)/VSync(1) are PSn00bSDK's counters
-  return (uint64_t)VSync(-1) * vbl_us + (uint64_t)VSync(1) * 64u;
+  int v = VSync(-1), h = VSync(1);
+  if (VSync(-1) != v) { v++; h = 0; }  // a vblank came in between
+  return (uint64_t)v * vbl_us + (uint64_t)h * 64u;
 }
 void hal_sleep_us(uint64_t us) {
   uint64_t end = hal_time_us() + us;

@@ -24,7 +24,7 @@ images (the SDKs only ship x86_64 Linux binaries), emulated on Apple Silicon.
 | input | pad 1 through the BIOS pad driver (`InitPAD`) | pad 1 through libpad (`rom0:SIO2MAN`, `rom0:PADMAN`) |
 | clock | VSync counter + hblank counter (~64 µs) | `clock()` |
 | frame step | virtual 1/60 s per frame (deterministic, like the sim) | same |
-| `zinc run` | PCSX-Redux `-cli -testmode` with OpenBIOS (no Sony BIOS), stdout = TTY between the HAL markers, exit code from the emulator | builds only (see below) |
+| `zinc run` | PCSX-Redux `-cli -testmode -interpreter` with OpenBIOS (no Sony BIOS), stdout = TTY between the HAL markers, exit code from the emulator | builds only (see below) |
 
 Buttons: Cross = A, Circle = B, Square = X, Triangle = Y, L1/R1 = L/R, Start, Select, d-pad (`Btn.*` in `zinc:gfx`).
 
@@ -43,6 +43,10 @@ cannot read the host environment); `zinc build` / `zinc export` builds run until
 | CD image | built by mkpsxiso; not booted | — |
 
 ![breakout title on PS1 (PCSX-Redux)](img/ps1-breakout-title.png) ![breakout attract mode on PS1 (PCSX-Redux)](img/ps1-breakout-demo.png)
+
+`zinc run` uses PCSX-Redux's interpreter: its x86-64 dynarec, itself running under Docker's x86-64 emulation on
+Apple Silicon, sent one conformance executable (`text_react`) into garbage code depending on code layout, while the
+interpreter ran the same file correctly. Not investigated further (it may not happen on an x86-64 host).
 
 Speed: breakout runs 400 frames in 1168 vblanks in PCSX-Redux (about 20 fps; its cycle timing is approximate). The
 rasterizer is float code on a soft-float CPU and redraws the bounding box of everything that changed, which here
@@ -76,9 +80,11 @@ modchip or a swap-based boot. The TTY is visible in the emulators' console windo
 **ps2.** PCSX2 needs a BIOS dumped from your own console (Sony's BIOS is not redistributable, so it cannot be put in
 the image): Settings > BIOS, then System > Boot ELF > `app`. On hardware: copy `app` to a USB stick and start it
 from uLaunchELF / wLaunchELF, or push it over the network with ps2link + `ps2client execee host:app` (the TTY then
-shows up in `ps2client`). There is no BIOS-free runner in `zinc run`: PCSX2 has no HLE BIOS; the Play! emulator
-boots ELFs without a BIOS (HLE) and has a headless test runner (`tools/AutoTest`), which is the candidate to wire
-into `zinc run --target ps2`.
+shows up in `ps2client`). There is no BIOS-free runner in `zinc run`: PCSX2 has no HLE BIOS. The Play! emulator
+boots ELFs without a BIOS (HLE) and has a headless runner that captures the EE's stdout (`tools/AutoTest`), so it is
+the candidate for `zinc run --target ps2`. Tried on 2026-09-28: AutoTest builds in the ps2dev image (x86_64) but
+segfaults at start under Docker's x86_64 emulation on Apple Silicon; a native arm64 build stops on x86-only `-msse`
+flags in its CMake setup. Not wired; worth retrying on an x86_64 Linux host.
 
 ## Implementation map
 

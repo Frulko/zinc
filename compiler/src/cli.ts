@@ -348,10 +348,11 @@ const DOCKER: Record<string, DockerTarget> = {
   // TGT-RPI-01/04: ARMv6 hard-float, executed under QEMU with the arm1176 CPU
   rpi1: { image: 'zinc/sdk-rpi1', dockerfile: 'docker/sdk-rpi1', platform: 'linux/arm/v6', cmake: ['-DCMAKE_CXX_FLAGS=-march=armv6kz+fp -mfpu=vfp -mfloat-abi=hard'], run: ['./cmake/app'], env: ['QEMU_CPU=arm1176'] },
   // TGT-PS1: PS-EXE with PSn00bSDK, run headless in PCSX-Redux (OpenBIOS, no Sony BIOS); the TTY between the HAL
-  // markers is the program's output, the exit code comes from the emulator (-testmode). docs/targets/playstation.md
+  // markers is the program's output, the exit code comes from the emulator (-testmode). -interpreter: its x86-64
+  // dynarec ran some executables into garbage under Docker's x86 emulation. docs/targets/playstation.md
   ps1: { image: 'zinc/sdk-psx', dockerfile: 'docker/sdk-psx', platform: 'linux/amd64', out: 'app.exe', frames: true, env: ['ZINC_SHOT'],
     cmake: ['-DCMAKE_TOOLCHAIN_FILE=/opt/psn00bsdk/lib/libpsn00b/cmake/sdk.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps1/hal_ps1.cpp`, `-DZINC_TARGET_CMAKE=${ZINC_ROOT}/targets/ps1/ps1.cmake`],
-    run: ['bash', '-c', `set -o pipefail; timeout ${process.env.ZINC_EMU_TIMEOUT ?? 300} /opt/redux/usr/bin/pcsx-redux -cli -testmode -stdout -dofile ${ZINC_ROOT}/targets/ps1/shot.lua -run -loadexe cmake/app.exe 2>&1 | awk '/^zinc:exit$/{f=0} f{print; fflush()} /^zinc:start$/{f=1}'`] },
+    run: ['bash', '-c', `set -o pipefail; timeout ${process.env.ZINC_EMU_TIMEOUT ?? 300} /opt/redux/usr/bin/pcsx-redux -cli -testmode -stdout -interpreter -dofile ${ZINC_ROOT}/targets/ps1/shot.lua -run -loadexe cmake/app.exe 2>&1 | awk '/^zinc:exit$/{f=0} f{print; fflush()} /^zinc:start$/{f=1}'`] },
   // TGT-PS2-01: EE ELF with ps2sdk; running needs PCSX2 + the user's BIOS (TGT-PS2-04), so `run` only builds
   // reMarkable Paper Pro: static aarch64 binary (independent of the device's glibc), Cortex-A53 tuning
   rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
@@ -594,7 +595,7 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
   if (cmd === 'export' || cmd === 'deploy') {
     if (o.target === 'sim') die('export needs a native target');
     const b = build(o);
-    const out = exportApp(o.project.name, o.target, b.exe[b.exe.length - 1].startsWith('./') ? path.join(b.dir, b.exe[b.exe.length - 1]) : b.exe[0], o.project.dir);
+    const out = exportApp(o.project.name, o.target, DOCKER[o.target] ? path.join(b.dir, 'cmake', DOCKER[o.target].out ?? 'app') : b.exe[0], o.project.dir);
     if (cmd === 'deploy') {
       const script = path.join(out, 'deploy.sh');
       if (!fs.existsSync(script)) die(`no deploy script for target '${o.target}'`);
