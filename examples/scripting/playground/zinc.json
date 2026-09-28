@@ -1,0 +1,10 @@
+{
+  "name": "script-playground",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 1200, "height": 760 },
+    "linux": { "width": 1200, "height": 760 },
+    "rpi1": { "width": 1200, "height": 760 },
+    "sim": { "width": 1200, "height": 760 }
+  }
+}

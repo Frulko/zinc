@@ -134,6 +134,7 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 | `zinc:devtools` | UI inspector over the Chrome DevTools protocol | [dev mode](docs/dev-mode.md) |
 | `zinc:canvas`, `three` | HTML Canvas 2D-style API; three.js-style scenes, GLTFLoader, OrbitControls | [canvas2d](docs/plugins/canvas2d.md), [three](docs/plugins/three.md) |
 | `zinc:process`, `zinc:remote` + display `remote`, `zinc:webview` | child processes; live remote screens with input; native webview (Tauri-like) | [process](docs/plugins/process.md), [remote](docs/plugins/remote.md), [webview](docs/plugins/webview.md) |
+| `zinc:script` | sandboxed JavaScript (QuickJS-ng): typed host functions, time / memory limits, ES modules, promises; playground and game mods | [script](docs/plugins/script.md) |
 | `zinc:imu`, `zinc:device`, display `scrollphat` | QMI8658 motion sensor; backlight and device figures; Pimoroni Scroll pHAT | [boards](docs/boards.md) |
 
 ## Layout
