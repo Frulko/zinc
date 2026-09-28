@@ -1096,6 +1096,9 @@ class Listener {
 }
 export class EventTarget {
   private ls = new Map<string, Listener[]>();
+  /** Zinc extension: drops every listener, for a target that will fire no more events (listeners that capture the
+   *  target would otherwise keep it alive: reference counting does not collect cycles). */
+  clearListeners(): void { this.ls = new Map<string, Listener[]>(); }
   /** The options object form (a boolean `useCapture` is `{ capture: true }`). */
   addEventListener(type: string, callback: EventListener | null, options: AddEventListenerOptions = {}): void {
     if (callback === null) return;

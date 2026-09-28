@@ -49,7 +49,9 @@ export class Socket {
   writeBytes(b: u8[]): boolean { return !this.closed && S.write(this.handle, b); }
   /** Sends FIN once the queued data is out; the peer's close then arrives through onClose. */
   end(): void { if (!this.closed) S.end(this.handle); }
-  close(): void { if (this.closed) return; this.closed = true; sockets.delete(this.handle); S.close(this.handle); }
+  close(): void { if (this.closed) return; this.closed = true; sockets.delete(this.handle); S.close(this.handle); this.drop(); }
+  /** A closed socket has no more events: its callbacks go, so a callback that captures the socket is no cycle. */
+  drop(): void { this.dataCbs = []; this.bytesCbs = []; this.closeCbs = []; this.errorCbs = []; this.ready = null; this.failed = null; }
 
   data(b: u8[]): void {
     for (const cb of this.bytesCbs) cb(b);
@@ -65,6 +67,7 @@ export class Socket {
     this.closed = true;
     if (this.tail.length > 0) { const s = utf8Decode(this.tail); this.tail = []; for (const cb of this.dataCbs) cb(s); }
     for (const cb of this.closeCbs) cb();
+    this.drop();
   }
 }
 
@@ -79,7 +82,7 @@ export class Server {
   /** The bound port (useful after listen(0)). */
   get port(): i32 { return this.closed ? 0 : S.localPort(this.handle); }
   /** Stops accepting; open connections stay open. */
-  close(): void { if (this.closed) return; this.closed = true; servers.delete(this.handle); S.close(this.handle); }
+  close(): void { if (this.closed) return; this.closed = true; servers.delete(this.handle); S.close(this.handle); this.onConnection = (s: Socket) => {}; }
 }
 
 export class Datagram {
@@ -100,7 +103,7 @@ export class UdpSocket {
   onMessage(cb: (m: Datagram) => void): UdpSocket { this.msgCbs.push(cb); return this; }
   send(host: string, port: i32, text: string): boolean { return !this.closed && S.sendTo(this.handle, host, port, utf8Encode(text)); }
   sendBytes(host: string, port: i32, b: u8[]): boolean { return !this.closed && S.sendTo(this.handle, host, port, b); }
-  close(): void { if (this.closed) return; this.closed = true; udps.delete(this.handle); S.close(this.handle); }
+  close(): void { if (this.closed) return; this.closed = true; udps.delete(this.handle); S.close(this.handle); this.msgCbs = []; }
 }
 
 const sockets = new Map<i32, Socket>();
@@ -328,6 +331,9 @@ export class WebSocket extends EventTarget {
     const f = this.onclose;
     if (f !== null) f(e);
     this.dispatchEvent(e);
+    // no event after close: handlers that capture this socket must not keep it alive
+    this.onopen = null; this.onmessage = null; this.onclose = null; this.onerror = null;
+    this.clearListeners();
   }
   /** Sends a text message; false unless open. */
   send(text: string): boolean { return this.frame(1, utf8Encode(text)); }
