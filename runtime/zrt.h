@@ -374,7 +374,8 @@ template<class T> struct Array {
     r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(sizeof(T) * (size_t)cap) : nullptr;
     return r;
   }
-  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); (r.push_raw(T(xs)), ...); return r; }
+  // a braced list, not a fold expression: clang limits folds to 256 operands (array literals can be longer)
+  template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); int in_order[] = {0, (r.push_raw(T(xs)), 0)...}; (void)in_order; return r; }
 
   ArrObj<T>* obj() const { if (!a) panic("null array"); return a; }
   void grow(int32_t need) const {
