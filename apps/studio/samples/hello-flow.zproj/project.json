@@ -1,0 +1,18 @@
+{
+  "format": "zincstudio/1",
+  "name": "Hello flow",
+  "target": "preview", "width": 480, "height": 320, "device": "",
+  "boxes": [
+    {"id":"b1","type":"show_text","title":"Greeting","x":40,"y":60,"params":[{"name":"text","value":"Hello, Zinc!"},{"name":"size","value":"4xl"},{"name":"color","value":"zinc-900"}],"script":""},
+    {"id":"b2","type":"delay","title":"Wait 1 s","x":280,"y":60,"params":[{"name":"seconds","value":"1"}],"script":""},
+    {"id":"b3","type":"log","title":"Log","x":520,"y":60,"params":[{"name":"message","value":"hello-flow: greeting shown"},{"name":"level","value":"info"}],"script":""},
+    {"id":"b4","type":"play_lottie","title":"Orbit","x":760,"y":60,"params":[{"name":"file","value":"orbit.json"},{"name":"loop","value":"true"},{"name":"size","value":"140"}],"script":""}
+  ],
+  "links": [
+    {"from":"@start","out":"onStart","to":"b1","inp":"onStart"},
+    {"from":"b1","out":"onDone","to":"b2","inp":"onStart"},
+    {"from":"b2","out":"onDone","to":"b3","inp":"onStart"},
+    {"from":"b3","out":"onDone","to":"b4","inp":"onStart"},
+    {"from":"b4","out":"onDone","to":"@end","inp":"onStopped"}
+  ]
+}
