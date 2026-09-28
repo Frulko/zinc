@@ -1,0 +1,16 @@
+view 0,0 1280x720
+  fragment 0,0 0x0
+    view 0,0 1280x720
+      text 16,16 1248x32 "Todos"
+      text 16,56 1248x20 "1 left · click a task to toggle"
+      fragment 0,0 0x0
+        view 16,84 1248x38
+          text 24,92 197x22 "✓ Compile Inferno to C++"
+      fragment 0,0 0x0
+        view 16,130 1248x38
+          text 24,138 202x22 "✓ Run without a JS engine"
+      fragment 0,0 0x0
+        view 16,176 1248x38
+          text 24,184 71x22 "○ Task 3"
+      view 16,222 1248x38
+        text 28,230 1224x22 "Add task"
