@@ -110,9 +110,10 @@ export class Session {
   }
 }
 
-/** Connects to an app (host, port of its display-remote); resolves on its first message. Rejects when unreachable. */
-export async function connect(host: string, port: i32): Promise<Session> {
-  const id = await R.connect(host, port);
+/** Connects to an app (host, port of its display-remote); resolves on its first message. Rejects when unreachable.
+ *  token: the app's display-remote token, if it has one (default: the ZINC_REMOTE_TOKEN environment variable). */
+export async function connect(host: string, port: i32, token: string = ''): Promise<Session> {
+  const id = await R.connect(host, port, token);
   return new Session(parseInt(id));
 }
 

@@ -86,11 +86,19 @@ struct HostProcess : NativeProcess, zrt::Poller {
       posix_spawn_file_actions_adddup2(&fa, pout[1], 1);
       posix_spawn_file_actions_adddup2(&fa, perr[1], 2);
       if (*d) posix_spawn_file_actions_addchdir_np(&fa, d);
+      // the child gets stdin/stdout/stderr only: the program's sockets and files must not leak into it
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || __GLIBC_MINOR__ >= 34)
+      posix_spawn_file_actions_addclosefrom_np(&fa, 3);
+#endif
       posix_spawnattr_t at;
       posix_spawnattr_init(&at);
       sigset_t def; sigemptyset(&def); sigaddset(&def, SIGPIPE);  // the parent ignores SIGPIPE, the child must not
       posix_spawnattr_setsigdefault(&at, &def);
+#ifdef POSIX_SPAWN_CLOEXEC_DEFAULT
+      posix_spawnattr_setflags(&at, POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_CLOEXEC_DEFAULT);  // macOS: close the rest
+#else
       posix_spawnattr_setflags(&at, POSIX_SPAWN_SETSIGDEF);
+#endif
       rc = posix_spawnp(&pid, c, &fa, &at, argv, envp);
       posix_spawn_file_actions_destroy(&fa);
       posix_spawnattr_destroy(&at);

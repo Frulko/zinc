@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 // Mapper web companion: serves the editor (index.html) and relays it to the app as OSC over UDP. No dependencies.
-//   node server.mjs [--app 127.0.0.1:9000] [--http 8080] [--reply 9001] [--reply-host <this machine's LAN IP>]
+//   node server.mjs [--app 127.0.0.1:9000] [--http 8080] [--host 127.0.0.1] [--reply 9001] [--reply-host <LAN IP>]
+//                   [--token <secret>]
 // HTTP API: POST /osc  [[address, ...args], ...]  -> one OSC message each (numbers as float32, strings as s)
 //           GET /state -> sends /sync <reply-host> <reply> and answers with {layers, selected, aspect, layers: [...]}
+// Security: the editor is served on 127.0.0.1 unless --host says otherwise (0.0.0.0: the LAN). The API needs the
+// token printed at start (header x-zinc-token; the editor gets it from its URL), which also stops other web pages
+// open in the same browser from driving the app (a cross-site request cannot set that header).
 import http from 'node:http';
 import dgram from 'node:dgram';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d; };
 const [appHost, appPort] = arg('app', '127.0.0.1:9000').split(':');
-const HTTP = Number(arg('http', 8080)), REPLY = Number(arg('reply', 9001));
+const HTTP = Number(arg('http', 8080)), REPLY = Number(arg('reply', 9001)), HOST = arg('host', '127.0.0.1');
+const TOKEN = arg('token', process.env.ZINC_COMPANION_TOKEN ?? crypto.randomBytes(16).toString('hex'));
 const lan = Object.values(os.networkInterfaces()).flat().find(a => a.family === 'IPv4' && !a.internal)?.address;
 const replyHost = arg('reply-host', /^(127\.|localhost$)/.test(appHost) ? '127.0.0.1' : lan ?? '127.0.0.1');
 const DIR = path.dirname(new URL(import.meta.url).pathname);
@@ -72,7 +78,9 @@ const valid = m => Array.isArray(m) && typeof m[0] === 'string' && m[0].startsWi
 
 const server = http.createServer(async (req, res) => {
   const reply = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type }); res.end(body); };
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) return reply(200, fs.readFileSync(path.join(DIR, 'index.html')), 'text/html; charset=utf-8');
+  if (req.method === 'GET' && /^\/(index\.html)?(\?.*)?$/.test(req.url)) return reply(200, fs.readFileSync(path.join(DIR, 'index.html')), 'text/html; charset=utf-8');
+  const authed = req.headers['x-zinc-token'] === TOKEN;
+  if ((req.url === '/state' || req.url === '/osc') && !authed) return reply(401, JSON.stringify({ error: 'missing or wrong x-zinc-token' }));
   if (req.method === 'GET' && req.url === '/state') {
     const s = await state();
     return s ? reply(200, JSON.stringify(s)) : reply(504, JSON.stringify({ error: `no answer from ${appHost}:${appPort}` }));
@@ -89,5 +97,5 @@ const server = http.createServer(async (req, res) => {
   reply(404, '{}');
 });
 
-udp.bind(REPLY, () => server.listen(HTTP, () =>
-  console.log(`companion: http://localhost:${HTTP}  ->  osc ${appHost}:${appPort}  (state replies to ${replyHost}:${REPLY})`)));
+udp.bind(REPLY, () => server.listen(HTTP, HOST, () =>
+  console.log(`companion: http://${HOST === '0.0.0.0' ? lan ?? 'localhost' : HOST}:${HTTP}/?token=${TOKEN}  ->  osc ${appHost}:${appPort}  (state replies to ${replyHost}:${REPLY})`)));

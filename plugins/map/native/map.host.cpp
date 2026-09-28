@@ -36,7 +36,7 @@ template<class T> struct Vec {  // POD only
 // ---------------------------------------------------------------- JSON (styles)
 enum { JNULL, JBOOL, JNUM, JSTR, JARR, JOBJ };
 struct J { uint8_t t; uint32_t n; double num; const char* s; J* kids; const char** keys; };
-struct JP { const char* p; char* out; };
+struct JP { const char* p; char* out; int depth = 0; };
 static void ws(JP& P) { while (*P.p == ' ' || *P.p == '\n' || *P.p == '\r' || *P.p == '\t') P.p++; }
 static const char* jstring(JP& P) {
   P.p++;
@@ -61,7 +61,16 @@ static const char* jstring(JP& P) {
   *P.out++ = 0;
   return start;
 }
+static bool jparse_value(JP& P, J& v);
+// Styles come from the program or the network: nesting is bounded (parse, free and filter evaluation recurse per level)
 static bool jparse(JP& P, J& v) {
+  if (P.depth >= 64) { memset(&v, 0, sizeof v); return false; }
+  P.depth++;
+  bool ok = jparse_value(P, v);
+  P.depth--;
+  return ok;
+}
+static bool jparse_value(JP& P, J& v) {
   ws(P);
   memset(&v, 0, sizeof v);
   char c = *P.p;
@@ -208,12 +217,13 @@ struct Layer { Str name; uint32_t extent; Vec<Str> keys; Vec<Val> vals; Vec<Feat
 struct Pb { const uint8_t *p, *end; };
 static uint64_t varint(Pb& b) {
   uint64_t r = 0; int s = 0;
-  while (b.p < b.end) { uint8_t c = *b.p++; r |= (uint64_t)(c & 127) << s; if (!(c & 128)) break; s += 7; }
+  while (b.p < b.end) { uint8_t c = *b.p++; if (s < 64) r |= (uint64_t)(c & 127) << s; if (!(c & 128)) break; s += 7; }  // a shift of 64+ is UB
   return r;
 }
 /** Next field: number, wire type; length-delimited payload in `sub`, scalar in `v`. False at the end or on garbage. */
 static bool field(Pb& b, uint32_t& f, Pb& sub, uint64_t& v) {
   if (b.p >= b.end) return false;
+  sub = Pb{b.end, b.end}; v = 0;  // callers read both by field number, whatever the wire type was
   uint64_t key = varint(b);
   f = (uint32_t)(key >> 3);
   switch (key & 7) {
@@ -343,13 +353,15 @@ static void decode(const Feature& f, float s, float ox, float oy, Vec<float>& ou
   Pb b{f.geom, f.geom + f.ngeom};
   int32_t x = 0, y = 0;
   uint32_t head = 0;
+  bool open = false;  // a LineTo before any MoveTo has no contour to count into (it bumped a coordinate)
   bb[0] = bb[1] = 1e30f; bb[2] = bb[3] = -1e30f;
   while (b.p < b.end) {
     uint32_t cmd = (uint32_t)varint(b), id = cmd & 7, count = cmd >> 3;
     if (id == 7) continue;  // ClosePath: fills close implicitly, strokes of polygons use `closed`
     for (uint32_t i = 0; i < count && b.p < b.end; i++) {
       x += (int32_t)zigzag(varint(b)); y += (int32_t)zigzag(varint(b));
-      if (id == 1 || f.type == 1) { head = out.n; out.push(0); }
+      if (id == 1 || f.type == 1) { head = out.n; out.push(0); open = true; }
+      else if (!open) continue;
       float px = x * s + ox, py = y * s + oy;
       out.push(px); out.push(py); out[head] += 1;
       if (px < bb[0]) bb[0] = px; if (py < bb[1]) bb[1] = py; if (px > bb[2]) bb[2] = px; if (py > bb[3]) bb[3] = py;
@@ -515,7 +527,7 @@ struct Engine : NativeMapEngine {
       if (jis(*type, "background")) continue;  // drawn by the tile clear
       const J* sl = jkey(L, "source-layer");
       const Layer* ml = nullptr;
-      for (uint32_t k = 0; sl && k < d->layers.n; k++) if (strlen(sl->s) == d->layers[k].name.n && !memcmp(d->layers[k].name.s, sl->s, d->layers[k].name.n)) ml = &d->layers[k];
+      for (uint32_t k = 0; sl && sl->t == JSTR && k < d->layers.n; k++) if (strlen(sl->s) == d->layers[k].name.n && !memcmp(d->layers[k].name.s, sl->s, d->layers[k].name.n)) ml = &d->layers[k];
       if (!ml) continue;
       const J* filter = jkey(L, "filter");
       int32_t k = t.z - d->z;
@@ -566,7 +578,7 @@ struct Engine : NativeMapEngine {
     if (!tf) return;
     char buf[256]; uint32_t n = 0;
     Val v;
-    if (tf->t == JARR && tf->n == 2 && jis(tf->kids[0], "get")) { if (get(ft, tf->kids[1].s, v) && v.t == 1) { n = v.n < 255 ? v.n : 255; memcpy(buf, v.s, n); } }
+    if (tf->t == JARR && tf->n == 2 && jis(tf->kids[0], "get") && tf->kids[1].t == JSTR) { if (get(ft, tf->kids[1].s, v) && v.t == 1) { n = v.n < 255 ? v.n : 255; memcpy(buf, v.s, n); } }
     else if (tf->t == JSTR) {
       for (const char* p = tf->s; *p && n < 255;) {
         if (*p != '{') { buf[n++] = *p++; continue; }

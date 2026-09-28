@@ -15,7 +15,10 @@
 #define STBI_NO_STDIO
 #define STBI_NO_LINEAR
 #define STBI_NO_HDR
-#define STBI_ASSERT(x) ((void)0)
+// hostile images (glTF from anywhere): stb's invariant checks stay on (a failed one stops the program instead of
+// corrupting memory), and no image is larger than a runtime image may be (raster.cpp: 16384 per side)
+#define STBI_ASSERT(x) ((x) ? (void)0 : abort())
+#define STBI_MAX_DIMENSIONS 16384
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #include "stb_image.h"
@@ -56,6 +59,8 @@ struct JV {
   const char* s; uint32_t sl;
   double num;
 };
+// JSON numbers are untrusted doubles: out-of-range double -> int conversions are UB, this one saturates (NaN: 0)
+static inline int32_t i32(double v) { return v >= -2147483648.0 && v < 2147483648.0 ? (int32_t)v : v > 0 ? 2147483647 : v < 0 ? -2147483647 - 1 : 0; }
 struct Json {
   Vec<JV> v;
   const char *p, *end;
@@ -220,7 +225,7 @@ static int32_t parse_doc(uint8_t* data, uint32_t len) {
     text = nullptr;
     while (off + 8 <= total) {
       uint32_t clen = u32le(data + off), type = u32le(data + off + 4);
-      if (off + 8 + clen > total) break;
+      if (clen > total - off - 8) break;  // off + 8 + clen wrapped around in 32 bits
       if (type == 0x4E4F534A && !text) { text = (const char*)data + off + 8; tlen = clen; }
       else if (type == 0x004E4942 && !bin.p) { bin.p = data + off + 8; bin.n = clen; }
       off += 8 + ((clen + 3) & ~3u);
@@ -263,18 +268,18 @@ static bool accessor(const Doc& d, int32_t a, Acc* out) {
   const Json& J = d.J;
   int32_t o = item(d, "accessors", a);
   if (o < 0) return false;
-  out->count = (int32_t)J.num(o, "count", 0);
-  out->ctype = (int32_t)J.num(o, "componentType", 5126);
+  out->count = (int32_t)i32(J.num(o, "count", 0));
+  out->ctype = (int32_t)i32(J.num(o, "componentType", 5126));
   out->comps = comps_of(J, J.get(o, "type"));
   out->norm = J.num(o, "normalized", 0) != 0;
-  int32_t bv = (int32_t)J.num(o, "bufferView", -1), v = item(d, "bufferViews", bv);
+  int32_t bv = (int32_t)i32(J.num(o, "bufferView", -1)), v = item(d, "bufferViews", bv);
   if (v < 0 || !out->comps) return false;  // ponytail: sparse accessors without a buffer view are not supported
-  int32_t b = (int32_t)J.num(v, "buffer", -1);
+  int32_t b = (int32_t)i32(J.num(v, "buffer", -1));
   if (b < 0 || b >= (int32_t)d.bufs.n || !d.bufs[(uint32_t)b].p) return false;
   const Buf& buf = d.bufs[(uint32_t)b];
-  uint32_t off = (uint32_t)J.num(v, "byteOffset", 0) + (uint32_t)J.num(o, "byteOffset", 0);
+  uint32_t off = (uint32_t)i32(J.num(v, "byteOffset", 0)) + (uint32_t)i32(J.num(o, "byteOffset", 0));
   int32_t elem = csize(out->ctype) * out->comps;
-  out->stride = (int32_t)J.num(v, "byteStride", 0);
+  out->stride = (int32_t)i32(J.num(v, "byteStride", 0));
   if (out->stride <= 0) out->stride = elem;
   if (out->count > 0 && (uint64_t)off + (uint64_t)(out->count - 1) * (uint32_t)out->stride + (uint32_t)elem > buf.n) return false;
   out->p = buf.p + off;
@@ -302,6 +307,9 @@ static bool push_attr(const Doc& d, int32_t a, int32_t want, int32_t count, Nums
 
 static int32_t decode_bytes(const uint8_t* p, uint32_t n) {
   int w, h, comp;
+  // a few hundred bytes can declare a 16384 x 16384 image: at most 2^24 pixels (a 4096 x 4096 texture) are decoded
+  if (!stbi_info_from_memory(p, (int)n, &w, &h, &comp)) { snprintf(err, sizeof err, "image: %s", stbi_failure_reason()); return -1; }
+  if ((uint64_t)w * (uint64_t)h > (1u << 24)) { snprintf(err, sizeof err, "image: %dx%d is too large", w, h); return -1; }
   uint8_t* rgba = stbi_load_from_memory(p, (int)n, &w, &h, &comp, 4);
   if (!rgba) { snprintf(err, sizeof err, "image: %s", stbi_failure_reason()); return -1; }
   int32_t id = raster::dyn_create(w, h);
@@ -360,24 +368,24 @@ struct Impl : NativeThree {
       ::free(p);
       return id;
     }
-    int32_t v = item(*d, "bufferViews", (int32_t)d->J.num(im, "bufferView", -1));
-    int32_t b = (int32_t)d->J.num(v, "buffer", -1);
+    int32_t v = item(*d, "bufferViews", (int32_t)i32(d->J.num(im, "bufferView", -1)));
+    int32_t b = (int32_t)i32(d->J.num(v, "buffer", -1));
     if (v < 0 || b < 0 || b >= (int32_t)d->bufs.n || !d->bufs[(uint32_t)b].p) { snprintf(err, sizeof err, "image %d has no data", i); return -1; }
-    uint32_t off = (uint32_t)d->J.num(v, "byteOffset", 0), n = (uint32_t)d->J.num(v, "byteLength", 0);
+    uint32_t off = (uint32_t)i32(d->J.num(v, "byteOffset", 0)), n = (uint32_t)i32(d->J.num(v, "byteLength", 0));
     if ((uint64_t)off + n > d->bufs[(uint32_t)b].n) return -1;
     return decode_bytes(d->bufs[(uint32_t)b].p + off, n);
   }
   int32_t textureSource(int32_t h, int32_t t) override {
     Doc* d = doc(h);
-    return d ? (int32_t)d->J.num(item(*d, "textures", t), "source", -1) : -1;
+    return d ? i32(d->J.num(item(*d, "textures", t), "source", -1)) : -1;
   }
   int32_t sceneCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "scenes")) : 0; }
-  int32_t defaultScene(int32_t h) override { Doc* d = doc(h); return d ? (int32_t)d->J.num(d->root, "scene", 0) : -1; }
+  int32_t defaultScene(int32_t h) override { Doc* d = doc(h); return d ? (int32_t)i32(d->J.num(d->root, "scene", 0)) : -1; }
   zrt::String sceneName(int32_t h, int32_t s) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "scenes", s), "name")) : zrt::String::from("", 0); }
   void sceneNodes(int32_t h, int32_t s, Ints out) override { if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "scenes", s), "nodes"), out); }
   int32_t nodeCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "nodes")) : 0; }
   zrt::String nodeName(int32_t h, int32_t n) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "nodes", n), "name")) : zrt::String::from("", 0); }
-  int32_t nodeMesh(int32_t h, int32_t n) override { Doc* d = doc(h); return d ? (int32_t)d->J.num(item(*d, "nodes", n), "mesh", -1) : -1; }
+  int32_t nodeMesh(int32_t h, int32_t n) override { Doc* d = doc(h); return d ? i32(d->J.num(item(*d, "nodes", n), "mesh", -1)) : -1; }
   void nodeChildren(int32_t h, int32_t n, Ints out) override { if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "nodes", n), "children"), out); }
   void nodeTransform(int32_t h, int32_t n, Nums out) override {
     Doc* d = doc(h);
@@ -401,19 +409,19 @@ struct Impl : NativeThree {
     if (!d) return -2;
     const Json& J = d->J;
     int32_t pr = J.at(J.get(item(*d, "meshes", m), "primitives"), p), at = J.get(pr, "attributes");
-    int32_t mode = (int32_t)J.num(pr, "mode", 4);
+    int32_t mode = (int32_t)i32(J.num(pr, "mode", 4));
     if (mode < 4 || mode > 6) { snprintf(err, sizeof err, "mesh %d primitive %d: mode %d (points or lines) is not supported", m, p, mode); return -2; }
     if (J.get(J.get(pr, "extensions"), "KHR_draco_mesh_compression") >= 0) { snprintf(err, sizeof err, "Draco compressed meshes are not supported"); return -2; }
     Acc pa;
-    if (!accessor(*d, (int32_t)J.num(at, "POSITION", -1), &pa)) { snprintf(err, sizeof err, "mesh %d primitive %d: no readable POSITION", m, p); return -2; }
+    if (!accessor(*d, (int32_t)i32(J.num(at, "POSITION", -1)), &pa)) { snprintf(err, sizeof err, "mesh %d primitive %d: no readable POSITION", m, p); return -2; }
     const int32_t n = pa.count;
-    push_attr(*d, (int32_t)J.num(at, "POSITION", -1), 3, n, pos);
-    push_attr(*d, (int32_t)J.num(at, "NORMAL", -1), 3, n, nrm);
-    push_attr(*d, (int32_t)J.num(at, "TEXCOORD_0", -1), 2, n, uv);
-    push_attr(*d, (int32_t)J.num(at, "COLOR_0", -1), 3, n, col);
+    push_attr(*d, (int32_t)i32(J.num(at, "POSITION", -1)), 3, n, pos);
+    push_attr(*d, (int32_t)i32(J.num(at, "NORMAL", -1)), 3, n, nrm);
+    push_attr(*d, (int32_t)i32(J.num(at, "TEXCOORD_0", -1)), 2, n, uv);
+    push_attr(*d, (int32_t)i32(J.num(at, "COLOR_0", -1)), 3, n, col);
     Vec<int32_t> ix;
     Acc ia;
-    if (accessor(*d, (int32_t)J.num(pr, "indices", -1), &ia)) for (int32_t i = 0; i < ia.count; i++) ix.push((int32_t)read(ia, i, 0));
+    if (accessor(*d, (int32_t)i32(J.num(pr, "indices", -1)), &ia)) for (int32_t i = 0; i < ia.count; i++) ix.push(i32(read(ia, i, 0)));
     else for (int32_t i = 0; i < n; i++) ix.push(i);
     int32_t tris = 0;
     for (uint32_t i = 0; i + 2 < ix.n; i += mode == 4 ? 3 : 1) {
@@ -424,7 +432,7 @@ struct Impl : NativeThree {
       idx.push(a); idx.push(b); idx.push(c); tris++;
     }
     ix.release();
-    return tris ? (int32_t)J.num(pr, "material", -1) : -2;
+    return tris ? (int32_t)i32(J.num(pr, "material", -1)) : -2;
   }
   int32_t materialCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "materials")) : 0; }
   zrt::String materialName(int32_t h, int32_t m) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "materials", m), "name")) : zrt::String::from("", 0); }
@@ -436,7 +444,7 @@ struct Impl : NativeThree {
   int32_t materialTexture(int32_t h, int32_t m) override {
     Doc* d = doc(h);
     if (!d) return -1;
-    return (int32_t)d->J.num(d->J.get(d->J.get(item(*d, "materials", m), "pbrMetallicRoughness"), "baseColorTexture"), "index", -1);
+    return i32(d->J.num(d->J.get(d->J.get(item(*d, "materials", m), "pbrMetallicRoughness"), "baseColorTexture"), "index", -1));
   }
   int32_t materialFlags(int32_t h, int32_t m) override {
     Doc* d = doc(h);
@@ -469,7 +477,7 @@ struct Impl : NativeThree {
   int32_t pixelRatio() override { return hal_pixel_scale ? hal_pixel_scale() : 1; }
 
   static void ints(const Doc& d, int32_t a, Ints out) {
-    for (int32_t c = a >= 0 && d.J.v[a].t == JARR ? d.J.v[a].first : -1; c >= 0; c = d.J.v[c].next) out.push((int32_t)d.J.v[c].num);
+    for (int32_t c = a >= 0 && d.J.v[a].t == JARR ? d.J.v[a].first : -1; c >= 0; c = d.J.v[c].next) out.push(i32(d.J.v[c].num));
   }
 };
 }  // namespace

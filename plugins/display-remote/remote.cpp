@@ -4,8 +4,9 @@
 // remote_proto.h). Pacing: at most ZP_DISPLAY_REMOTE_INFLIGHT frames without an ACK; damage accumulates meanwhile,
 // so a slow link gets fewer, larger updates instead of a growing queue. Input messages land in HalInput.
 // Beacon: one UDP multicast datagram per second so viewers can list the running apps (zinc:remote discover).
-// Security: no authentication, no encryption. Default bind is 127.0.0.1 (this machine only); set `bind` to
-// "0.0.0.0" to expose the app on the network.
+// Security: no encryption. Default bind is 127.0.0.1 (this machine only); set `bind` to "0.0.0.0" to expose the app on
+// the network, and then a `token` (or ZINC_REMOTE_TOKEN): a viewer must send it (AUTH) before it gets the screen or
+// its input is read, and a connection that has not authenticated never replaces the current viewer.
 #include "hal.h"
 #include "remote_proto.h"
 #include <sys/socket.h>
@@ -30,6 +31,9 @@
 #endif
 #ifndef ZP_DISPLAY_REMOTE_INFLIGHT
 #define ZP_DISPLAY_REMOTE_INFLIGHT 2
+#endif
+#ifndef ZP_DISPLAY_REMOTE_TOKEN
+#define ZP_DISPLAY_REMOTE_TOKEN ""
 #endif
 #ifndef ZP_DISPLAY_REMOTE_BEACON
 #define ZP_DISPLAY_REMOTE_BEACON 1
@@ -61,15 +65,23 @@ static uint64_t st_t0, st_bytes, st_raw, st_frames, st_loops;
 static float rx, ry, rwheel; static int rdown; static uint32_t rbuttons;
 static long frames_left = -1;           // ZINC_FRAMES=n: quit after n frames (scripted runs)
 
+static char token[MAX_TOKEN + 1];      // empty: no authentication
+static int pfd = -1;                     // connection waiting for its AUTH message
+static uint8_t pin[5 + MAX_TOKEN]; static size_t pin_len; static uint64_t p_t0;
 static void nonblock(int fd) { fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK); }
 static void drop_client() { if (cfd >= 0) close(cfd); cfd = -1; out_len = out_off = 0; in_len = 0; rdown = 0; rbuttons = 0; }
 
 static uint8_t* reserve(size_t n) {
-  if (out_len + n > out_cap) { out_cap = (out_len + n) * 2; out = (uint8_t*)realloc(out, out_cap); }
+  if (out_len + n > out_cap) {
+    uint8_t* b = (uint8_t*)realloc(out, (out_len + n) * 2);
+    if (!b) return nullptr;
+    out = b; out_cap = (out_len + n) * 2;
+  }
   return out + out_len;
 }
 static void msg(uint8_t type, const void* p, uint32_t n) {
   uint8_t* o = reserve(5 + n);
+  if (!o) { drop_client(); return; }
   o[0] = type; put32(o + 1, n); if (n) memcpy(o + 5, p, n);
   out_len += 5 + n;
 }
@@ -96,6 +108,7 @@ static void pump() {
   for (int y = 0; y < h; y++) memcpy(tmp + (size_t)y * w, fb + (size_t)(dy0 + y) * W + dx0, (size_t)w * 4);
   uint32_t n = (uint32_t)w * h;
   uint8_t* o = reserve(5 + 8 + rle_bound(n));
+  if (!o) { drop_client(); return; }
   put16(o + 5, (uint16_t)dx0); put16(o + 7, (uint16_t)dy0); put16(o + 9, (uint16_t)w); put16(o + 11, (uint16_t)h);
   uint32_t len = 8 + rle_encode(tmp, n, o + 13);
   o[0] = RECT; put32(o + 1, len);
@@ -107,9 +120,33 @@ static void pump() {
   flush();
 }
 
+static void adopt_client(int c);
 static void accept_client() {
   int c = accept(lfd, nullptr, nullptr);
   if (c < 0) return;
+  if (!token[0]) { adopt_client(c); return; }
+  if (pfd >= 0) close(pfd);  // one connection authenticating at a time
+  pfd = c; nonblock(pfd); pin_len = 0; p_t0 = hal_time_us();
+}
+/** The pending connection: its first message must be AUTH with the token, within 3 s. */
+static void read_pending() {
+  if (pfd < 0) return;
+  ssize_t n = recv(pfd, pin + pin_len, sizeof pin - pin_len, 0);
+  if (n > 0) pin_len += (size_t)n;
+  bool bad = n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) || hal_time_us() - p_t0 > 3000000;
+  if (!bad && pin_len >= 5) {
+    uint32_t len = get32(pin + 1), tl = (uint32_t)strlen(token);
+    if (pin[0] != AUTH || len > MAX_TOKEN) bad = true;
+    else if (pin_len >= 5 + len) {
+      uint8_t d = len != tl;
+      for (uint32_t i = 0; i < len; i++) d |= (uint8_t)(pin[5 + i] ^ (uint8_t)token[i % tl]);  // no early exit
+      if (!d) { int c = pfd; pfd = -1; adopt_client(c); return; }
+      bad = true;
+    }
+  }
+  if (bad) { if (logit) fprintf(stderr, "remote: connection refused (token)\n"); close(pfd); pfd = -1; }
+}
+static void adopt_client(int c) {
   drop_client();  // ponytail: one viewer at a time; a newer connection wins
   cfd = c;
   nonblock(cfd);
@@ -144,7 +181,7 @@ static void read_client() {
         case POINTER: if (len >= 10) { memcpy(&rx, p, 4); memcpy(&ry, p + 4, 4); rdown = p[8] != 0; } break;
         case WHEEL: if (len >= 4) { float d; memcpy(&d, p, 4); rwheel += d; } break;
         case BUTTONS: if (len >= 4) rbuttons = get32(p); break;
-        case PING: msg(PONG, p, len); break;
+        case PING: if (out_len < 65536) msg(PONG, p, len); break;  // a client that never reads must not grow `out`
       }
       off += 5 + len;
     }
@@ -172,6 +209,7 @@ static int r_init(const HalConfig* cfg) {
   const char* e = getenv("ZINC_REMOTE_PORT");
   port = e ? atoi(e) : ZP_DISPLAY_REMOTE_PORT;
   const char* bind_addr = getenv("ZINC_REMOTE_BIND") ? getenv("ZINC_REMOTE_BIND") : ZP_DISPLAY_REMOTE_BIND;
+  snprintf(token, sizeof token, "%s", getenv("ZINC_REMOTE_TOKEN") ? getenv("ZINC_REMOTE_TOKEN") : ZP_DISPLAY_REMOTE_TOKEN);
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   logit = getenv("ZINC_REMOTE_LOG") && getenv("ZINC_REMOTE_LOG")[0] == '1';
   lfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -186,7 +224,9 @@ static int r_init(const HalConfig* cfg) {
   nonblock(lfd);
   fb = (uint32_t*)calloc((size_t)W * H, 4);
   tmp = (uint32_t*)malloc((size_t)W * H * 4);
-  fprintf(stderr, "display-remote: %dx%d on %s:%d\n", W, H, bind_addr, port);
+  fprintf(stderr, "display-remote: %dx%d on %s:%d%s\n", W, H, bind_addr, port, token[0] ? " (token)" : "");
+  if (strncmp(bind_addr, "127.", 4) && !token[0])
+    fprintf(stderr, "display-remote: warning: no token, anyone who can reach %s:%d sees and drives this app (set ZINC_REMOTE_TOKEN)\n", bind_addr, port);
   if (ZP_DISPLAY_REMOTE_BEACON) {
     // loopback-only apps announce on lo0 with TTL 0 (never leaves the machine); others on the LAN (TTL 1)
     bfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -227,6 +267,7 @@ static void r_present(const HalFrame* f) {
 static void r_poll(HalInput* inp) {
   beacon();
   if (lfd >= 0) accept_client();
+  read_pending();
   read_client();
   pump();
   inp->px = rx; inp->py = ry; inp->pdown = rdown;
@@ -236,6 +277,7 @@ static void r_poll(HalInput* inp) {
 }
 static void r_shutdown() {
   drop_client();
+  if (pfd >= 0) close(pfd);
   if (lfd >= 0) close(lfd);
   if (bfd >= 0) close(bfd);
   lfd = bfd = -1;

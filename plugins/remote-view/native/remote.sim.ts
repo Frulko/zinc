@@ -1,6 +1,6 @@
 // zinc:remote on the sim target: no sockets. connect() rejects, discovery finds nothing.
 export default {
-  connect(_host: string, _port: number): Promise<string> { return Promise.reject(new Error('remote: not available on sim')); },
+  connect(_host: string, _port: number, _token: string): Promise<string> { return Promise.reject(new Error('remote: not available on sim')); },
   setReconnect(_s: number, _on: boolean): void {},
   close(_s: number): void {},
   connected(_s: number): boolean { return false; },

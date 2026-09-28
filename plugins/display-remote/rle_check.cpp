@@ -15,5 +15,10 @@ int main() {
     for (int i = 0; i < w * h; i++) assert(a[i] == b[i]);
     assert(!zremote::rle_decode(enc, n - 1, b, w, w, h));
   }
+  // empty rectangles take no data (a zero width used to write past the rectangle)
+  static const uint8_t run[] = {200, 1, 2, 3};
+  assert(!zremote::rle_decode(run, sizeof run, b, 8, 0, 1));
+  assert(!zremote::rle_decode(run, sizeof run, b, 8, 4, 0));
+  assert(zremote::rle_decode(run, 0, b, 8, 0, 1));
   puts("rle ok");
 }

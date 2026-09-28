@@ -63,6 +63,7 @@
   <section id="props"></section>
 </main>
 <script>
+const AUTH = { 'x-zinc-token': new URLSearchParams(location.search).get('token') ?? '' };  // server.mjs prints the URL
 const $ = id => document.getElementById(id);
 let S = { aspect: 16 / 9, layers: [] }, sel = -1, mode = 'corners', maskSel = 0;
 
@@ -76,12 +77,12 @@ setInterval(() => {
   if (!queue.size) return;
   const body = JSON.stringify([...queue.values()]);
   queue.clear();
-  fetch('/osc', { method: 'POST', body }).catch(() => status('relay unreachable'));
+  fetch('/osc', { method: 'POST', body, headers: AUTH }).catch(() => status('relay unreachable'));
 }, 33);
 const status = s => $('status').textContent = s;
 async function sync() {
   await new Promise(r => setTimeout(r, 80));  // let queued commands land first
-  const r = await fetch('/state').catch(() => null);
+  const r = await fetch('/state', { headers: AUTH }).catch(() => null);
   if (!r || !r.ok) return status('app not answering (is it running? OSC port?)');
   S = await r.json();
   if (sel >= S.layers.length) sel = S.layers.length - 1;

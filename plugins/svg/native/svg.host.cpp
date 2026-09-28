@@ -111,6 +111,7 @@ static bool num(const char*& s, float& v) {
   if (!dig) { s = b; return false; }
   if ((*s == 'e' || *s == 'E') && (s[1] == '-' || s[1] == '+' || (s[1] >= '0' && s[1] <= '9'))) { s += 2; while (*s >= '0' && *s <= '9') s++; }
   v = strtof(b, nullptr);
+  if (!(v > -1e30f && v < 1e30f)) v = v > 0 ? 1e30f : -1e30f;  // "1e39" is inf: lengths and dashes stay finite
   return true;
 }
 static float fnum(const char* s, float def) { float v; return s && num(s, v) ? v : def; }
@@ -294,15 +295,23 @@ struct Builder {
   uint32_t head = 0;
   bool sub = false;  // a subpath is open
   float cx = 0, cy = 0, bx0, by0, bx1, by1;
+  // Hostile documents: nesting depth, expanded elements (<use> fans out) and points (float contour counts are exact
+  // below 2^24; dashing and curves multiply points) are bounded; past a limit the rest of the document is dropped.
+  static const uint32_t MAX_PTS = 1u << 22, MAX_NODES = 200000;
+  static const int MAX_NEST = 256;
+  int nest = 0;
+  uint32_t budget = MAX_NODES;
+  bool full() const { return d.pts.n + 3 > MAX_PTS; }
   explicit Builder(Doc& doc) : d(doc) {}
   void pt(float x, float y) {
+    if (d.pts.n + 2 > MAX_PTS) return;
     const M& m = s.m;
     float X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f;
     d.pts.push(X); d.pts.push(Y);
     d.pts[head] += d.pts[head] < 0 ? -1 : 1;
     if (X < bx0) bx0 = X; if (Y < by0) by0 = Y; if (X > bx1) bx1 = X; if (Y > by1) by1 = Y;
   }
-  void move(float x, float y) { head = d.pts.n; d.pts.push(0); pt(x, y); cx = x; cy = y; sub = true; }
+  void move(float x, float y) { if (full()) return; head = d.pts.n; d.pts.push(0); pt(x, y); cx = x; cy = y; sub = true; }
   void line(float x, float y) { pt(x, y); cx = x; cy = y; }
   void close() { if (sub && d.pts[head] > 0) d.pts[head] = -d.pts[head]; sub = false; }
   float scale() const { return sqrtf(fabsf(s.m.a * s.m.d - s.m.b * s.m.c)) * d.ref; }  // document px per user unit
@@ -451,21 +460,30 @@ struct Builder {
     float so = s.stroke_op;
     if (s.width > 0 && resolve(s.stroke, k, so)) {
       k.alpha = (uint8_t)(fminf(1, a * so) * 255 + 0.5f);
-      if (s.ndash) { k.off = d.pts.n; dashes(start, k.off, sqrtf(fabsf(s.m.a * s.m.d - s.m.b * s.m.c))); k.len = d.pts.n - k.off; }
+      if (s.ndash) { uint32_t o = d.pts.n; if (dashes(start, o, sqrtf(fabsf(s.m.a * s.m.d - s.m.b * s.m.c)))) { k.off = o; k.len = d.pts.n - o; } }
       if (k.alpha && k.len) d.items.push(k);
     }
   }
-  /** Splits the contours in [a, b) into dash segments (appended as open contours). */
-  void dashes(uint32_t a, uint32_t b, float k) {
+  /** Splits the contours in [a, b) into dash segments (appended as open contours); false: draw it solid (an invalid
+   *  dash array, or one that would cut the path into more than 100000 dashes). */
+  bool dashes(uint32_t a, uint32_t b, float k) {
     float total = 0;
-    for (int i = 0; i < s.ndash; i++) total += s.dash[i] * k;
-    if (total <= 0) return;
+    for (int i = 0; i < s.ndash; i++) { if (!(s.dash[i] >= 0)) return false; total += s.dash[i] * k; }  // negative: invalid
+    if (!(total > 0 && total < 1e30f)) return false;
+    double path_len = 0;
+    for (uint32_t i = a; i < b;) {
+      int32_t cnt = (int32_t)d.pts[i]; uint32_t n = (uint32_t)(cnt < 0 ? -cnt : cnt);
+      for (uint32_t j = 1; j < n; j++) path_len += hypotf(d.pts[i + 1 + j * 2] - d.pts[i - 1 + j * 2], d.pts[i + 2 + j * 2] - d.pts[i + j * 2]);
+      i += 1 + n * 2;
+    }
+    if (!(path_len / total <= 100000)) return false;
     for (uint32_t i = a; i < b;) {
       int32_t cnt = (int32_t)d.pts[i]; bool closed = cnt < 0; uint32_t n = (uint32_t)(closed ? -cnt : cnt);
       uint32_t base = i + 1;
+      if (n == 0) { i = base; continue; }  // a contour cut short by the point limit
       int di = 0; float left = s.dash[0] * k; bool on = true; uint32_t head2 = 0; bool open = false;
-      auto start = [&](float x, float y) { head2 = d.pts.n; d.pts.push(1); d.pts.push(x); d.pts.push(y); open = true; };
-      auto add = [&](float x, float y) { d.pts.push(x); d.pts.push(y); d.pts[head2] += 1; };
+      auto start = [&](float x, float y) { if (full()) return; head2 = d.pts.n; d.pts.push(1); d.pts.push(x); d.pts.push(y); open = true; };
+      auto add = [&](float x, float y) { if (full()) return; d.pts.push(x); d.pts.push(y); d.pts[head2] += 1; };
       if (on) start(d.pts[base], d.pts[base + 1]);
       uint32_t segs_ = closed ? n : n - 1;
       for (uint32_t j = 0; j < segs_; j++) {
@@ -473,7 +491,7 @@ struct Builder {
         uint32_t jn = (j + 1) % n;
         float x1 = d.pts[base + jn * 2], y1 = d.pts[base + jn * 2 + 1];
         float len = hypotf(x1 - x0, y1 - y0), pos = 0;
-        while (len - pos > left) {
+        while (len - pos > left && !full()) {  // tiny dashes on long segments stop at the point limit
           pos += left;
           float t = pos / len, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
           if (on) { add(x, y); open = false; } else start(x, y);
@@ -484,9 +502,12 @@ struct Builder {
       }
       i = base + n * 2;
     }
+    return true;
   }
 
   void node(uint32_t ni, int depth) {
+    if (!budget || full()) return;
+    budget--;
     const Node& n = d.x.nodes[ni];
     const char* tag = local(n.tag);
     if (!strcmp(tag, "defs") || !strcmp(tag, "clipPath") || !strcmp(tag, "mask") || !strcmp(tag, "pattern") || !strcmp(tag, "symbol") ||
@@ -537,11 +558,14 @@ struct Builder {
     s = saved;
   }
   void children(uint32_t ni, int depth) {
-    for (uint32_t i = ni + 1; i < d.x.nodes.n; i++) {
+    if (nest >= MAX_NEST) return;  // recursion per nesting level: deep <g> chains overflowed the stack
+    nest++;
+    for (uint32_t i = ni + 1; i < d.x.nodes.n && budget; i++) {
       uint32_t p = d.x.nodes[i].parent;
       if (p == ni) node(i, depth);
       else if (p < ni) break;  // left the subtree (nodes are in document order)
     }
+    nest--;
   }
 };
 

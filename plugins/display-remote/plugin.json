@@ -2,7 +2,7 @@
   "name": "display-remote",
   "kind": "display",
   "description": "Headless: streams frames over TCP (damage + RLE) to zinc:remote viewers, takes their input, LAN beacon",
-  "options": { "port": 7700, "bind": "127.0.0.1", "fps": 60, "inflight": 2, "beacon": true },
+  "options": { "port": 7700, "bind": "127.0.0.1", "fps": 60, "inflight": 2, "beacon": true, "token": "" },
   "targets": {
     "macos": { "sources": ["remote.cpp"] },
     "linux": { "sources": ["remote.cpp"] },

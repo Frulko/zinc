@@ -407,12 +407,19 @@ struct VideoPoller : Poller {
 };
 static VideoPoller poller;
 
+// The size comes from the program or from the file (its sample aspect ratio): at most 8192 per side, and the player
+// keeps no image (draws nothing) when memory runs out.
 static void alloc(Player* p, int32_t w, int32_t h) {
-  p->w = w; p->h = h;
+  if (w < 1 || h < 1 || w > 8192 || h > 8192) return;
   size_t n = (size_t)w * h;
-  p->blank = (uint32_t*)malloc(n * 4);
+  uint32_t* blank = (uint32_t*)malloc(n * 4);
+  uint32_t* px[NBUF] = {};
+  bool ok = blank != nullptr;
+  for (int k = 0; k < NBUF; k++) if (!(px[k] = (uint32_t*)malloc(n * 4))) ok = false;
+  if (!ok) { free(blank); for (uint32_t* b : px) free(b); return; }
+  p->w = w; p->h = h; p->blank = blank;
   for (size_t i = 0; i < n; i++) p->blank[i] = p->bg;
-  for (int k = 0; k < NBUF; k++) p->slot[k].px = (uint32_t*)malloc(n * 4);
+  for (int k = 0; k < NBUF; k++) p->slot[k].px = px[k];
   p->img = raster::dyn_wrap(w, h, p->blank, w);
 }
 
@@ -442,8 +449,9 @@ struct VideoImpl : NativeVideo {
     if (p->img < 0) {
       AVCodecParameters* par = fmt->streams[st]->codecpar;
       AVRational sar = par->sample_aspect_ratio;
-      int32_t w = sar.num > 0 && sar.den > 0 ? (int32_t)(par->width * av_q2d(sar) + 0.5) : par->width;
-      alloc(p, w > 0 ? w : 320, par->height > 0 ? par->height : 240);
+      double dw = sar.num > 0 && sar.den > 0 ? par->width * av_q2d(sar) + 0.5 : par->width;
+      int32_t w = dw >= 1 && dw <= 8192 ? (int32_t)dw : 320;  // file data: no out-of-range conversion
+      alloc(p, w, par->height > 0 && par->height <= 8192 ? par->height : 240);
     }
     avformat_close_input(&fmt);
     pthread_mutex_lock(&p->mu);

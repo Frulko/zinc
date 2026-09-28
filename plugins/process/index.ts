@@ -83,6 +83,11 @@ function listen(): void {
 
 /** Starts `cmd` (looked up in PATH) with `args`. Throws when it cannot be started (not found, not executable). */
 export function spawn(cmd: string, args: string[], opts: SpawnOptions): Process {
+  // arguments travel joined by SEP: one containing it would become several argv entries (argument injection), and a
+  // NUL would cut it short
+  for (const a of [cmd, opts.cwd ?? '', ...args, ...(opts.env ?? [])]) {
+    if (a.indexOf(SEP) >= 0 || a.indexOf('\u0000') >= 0) throw new Error('spawn: an argument contains U+001F or NUL');
+  }
   listen();
   const h = P.spawn(cmd, args.join(SEP), opts.cwd ?? '', (opts.env ?? []).join(SEP));
   if (h < 0) throw new Error('spawn ' + P.error());
