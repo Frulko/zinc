@@ -32,6 +32,8 @@ export const STD_MODULES: Record<string, string> = {
   'zinc:ui/kit': path.join(ZINC_ROOT, 'lib/std/kit/index.ts'),
   'zinc:web': path.join(ZINC_ROOT, 'lib/std/web.ts'),
   'zinc:web/fetch': path.join(ZINC_ROOT, 'lib/std/fetch.ts'),
+  'zinc:path': path.join(ZINC_ROOT, 'lib/std/path.ts'),
+  'zinc:assert': path.join(ZINC_ROOT, 'lib/std/assert.ts'),
   // PocketJS apps compile unchanged against these (lib/compat/pocketjs)
   'solid-js': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
   '@pocketjs/framework/solid/components': path.join(ZINC_ROOT, 'lib/compat/pocketjs/components.ts'),
