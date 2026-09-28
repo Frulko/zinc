@@ -1,0 +1,20 @@
+{
+  "name": "display-scrollphat",
+  "kind": "display",
+  "description": "Pimoroni Scroll pHAT 11x5 white LEDs, IS31FL3730 over I2C (Raspberry Pi, macOS emulator)",
+  "options": {
+    "address": 96,
+    "i2c": "/dev/i2c-1",
+    "brightness": 64,
+    "threshold": 96,
+    "invert": false,
+    "rotate": 0,
+    "scale": 40,
+    "debug": false
+  },
+  "targets": {
+    "rpi1": { "sources": ["scrollphat.cpp"], "packages": ["linux-headers"] },
+    "linux": { "sources": ["scrollphat.cpp"] },
+    "macos": { "sources": ["scrollphat.cpp"] }
+  }
+}

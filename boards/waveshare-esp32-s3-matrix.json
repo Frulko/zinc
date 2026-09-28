@@ -1,0 +1,14 @@
+{
+  "description": "Waveshare ESP32-S3-Matrix: ESP32-S3FH4R2 (4 MB flash, 2 MB quad PSRAM), 8x8 WS2812 on GPIO14 (row-major, progressive), QMI8658 IMU on I2C GPIO11/12 at 0x6B. Upright with the USB-C port at the bottom. docs/boards.md",
+  "all": {
+    "width": 8,
+    "height": 8,
+    "display": { "driver": "ws2812", "pin": 14, "serpentine": false, "vertical": false, "origin": "top-left", "rotate": 180, "order": "RGB", "brightness": 32, "scale": 32 }
+  },
+  "targets": {
+    "esp32": { "chip": "esp32s3", "psram": true, "flashSize": "4MB" }
+  },
+  "plugins": {
+    "imu-qmi8658": { "sda": 11, "scl": 12, "address": 107, "x": "-y", "y": "+x", "z": "+z" }
+  }
+}

@@ -15,7 +15,8 @@ The surface size is the display size, set per target in `zinc.json` (`targets.<i
 ```
 
 Examples: `examples/led/scroll-text` (32x8), `examples/led/falling-cubes` (16x16), `examples/led/oled-clock`
-(SSD1306, JSX). Text for LED matrices: `zinc:pixelfont` (5x7 and 3x5 bitmap fonts, one `rect` per lit run).
+(SSD1306, JSX). Ready-made boards (Waveshare ESP32-S3-Matrix with its IMU, Raspberry Pi + Scroll pHAT), their presets and
+demos: [docs/boards.md](../boards.md). Text for LED matrices: `zinc:pixelfont` (5x7 and 3x5 bitmap fonts, one `rect` per lit run).
 
 ## Support matrix
 
@@ -24,6 +25,7 @@ Examples: `examples/led/scroll-text` (32x8), `examples/led/falling-cubes` (16x16
 | `ws2812` | RMT (any GPIO) | SPI MOSI via `/dev/spidev0.0` | emulator window (LED dots) | no |
 | `ssd1306` | I2C master | `/dev/i2c-1` | emulator window (1-bit pixels) | no |
 | `st7789` (+ ILI9341) | SPI + DMA, band rendering | no | normal window (no emulation needed) | no |
+| `scrollphat` (Pimoroni Scroll pHAT, IS31FL3730) | no | `/dev/i2c-1` | emulator window (white LED dots) | no |
 
 `ZINC_FRAMES=n` and `ZINC_SHOT=file.bmp` work with the emulators (the picture saved is the emulated device).
 

@@ -92,5 +92,5 @@ static void present(const HalFrame* f) {
 
 static void poll(HalInput* in) { if (!OPT(DEBUG)) in->quit = 0; }  // the ESP32 HAL's QEMU frame budget
 
-static HalDisplay drv = {init, present, poll, nullptr};
+static HalDisplay drv = {init, present, poll, nullptr, 0};
 static int reg = (hal_display = &drv, 0);

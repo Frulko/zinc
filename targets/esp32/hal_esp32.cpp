@@ -27,6 +27,14 @@ const char* hal_env(const char*) { return nullptr; }
 #endif
 // TGT-ESP-02: the TLSF region is reserved once, in internal DRAM
 void hal_heap_region(void** base, size_t* size) {
+#ifdef ZRT_HEAP_PSRAM
+  // zinc.json psram (docs/boards.md): the heap goes to external PSRAM when the chip found it at boot
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= ZRT_HEAP_BYTES && (*base = heap_caps_malloc(ZRT_HEAP_BYTES, MALLOC_CAP_SPIRAM))) {
+    *size = ZRT_HEAP_BYTES;
+    return;
+  }
+  printf("zinc: no PSRAM, heap in internal RAM\n");
+#endif
   size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   size_t want = ZRT_HEAP_BYTES;
   if (largest < want + 8192) want = largest > 16384 ? largest - 8192 : 0;  // leave room for FreeRTOS/IDF

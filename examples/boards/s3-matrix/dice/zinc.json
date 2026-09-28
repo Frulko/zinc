@@ -1,0 +1,10 @@
+{
+  "name": "dice",
+  "entry": "src/main.ts",
+  "board": "waveshare-esp32-s3-matrix",
+  "targets": {
+    "macos": {},
+    "sim": {},
+    "esp32": {}
+  }
+}
