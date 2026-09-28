@@ -85,7 +85,7 @@ strings (UTF-8 storage, UTF-16 indices), arrays, `Map`/`Set`, JSON output, `cons
 | Import | What |
 | --- | --- |
 | `zinc:gfx` | immediate 2D on a shared software rasterizer: AA shapes, gradients, shadows, strokes, paths, baked TTF text, images, runtime images, render-to-image, damage-rect frame diff, multitouch/pen input |
-| `zinc:ui`, `zinc:ui/solid`, `zinc:ui/react` | declarative UI with JSX (`.tsx`): flexbox, Tailwind-like classes, CSS imports, engine animations, Solid signals (keyed `<For>`) or React hooks (reconciled) |
+| `zinc:ui`, `zinc:ui/solid`, `zinc:ui/react` | declarative UI with JSX (`.tsx`): flexbox, Tailwind-like classes, CSS imports, engine animations, scroll views and virtual lists, Solid signals (keyed `<For>`) or React hooks (reconciled) |
 | `@pocketjs/framework/*`, `solid-js` | PocketJS compatibility: PocketJS apps compile unchanged |
 | `zinc:sys`, `zinc:fs`, `zinc:storage`, `zinc:assets` | process, files, key/value store, assets embedded in the executable |
 | `zinc:net` | `fetch` (libcurl) and a small HTTP server (server mode) |

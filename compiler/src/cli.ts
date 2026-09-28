@@ -651,6 +651,8 @@ function help(topic?: string) {
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
   Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
+  Scrolling: <scroll>/<ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
+  <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.
   Compatible imports: solid-js, react, inferno, @pocketjs/framework/* (PocketJS apps compile unchanged).`,
     docs: `Docs
   README.md                     overview, targets, modules, plugins
