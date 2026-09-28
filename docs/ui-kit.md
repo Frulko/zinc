@@ -64,12 +64,38 @@ Conventions, identical in both UI models:
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `class?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
 | `Progress` | `value: () => number` (0–100), `accent?`, `class?` | |
-| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `class?` | press and drag on the rail to set the value |
+| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `class?` | press and drag on the rail to set the value; keeps the pointer inside scroll views (`grab="keep"`) |
 | `Avatar` | `name`, `size?` (`sm` `default` `lg`) | initials of the first two words |
 | `Alert` | `title`, `description?`, `variant?` (`default` `destructive` `success`), `icon?`, `class?` | |
 | `List` | `class?`, children | bordered panel of rows |
 | `ListItem` | `title`, `description?`, `trailing?`, `selected?: () => boolean`, `onClick?`, `leading?: () => node`, children | rows with `onClick` are focusable and highlight when pressed |
 | `Kbd` | `label` | key or shortcut hint |
+
+## Overlays
+
+Built on the engine's layers, anchoring, focus scopes and dismiss stack ([ui.md](ui.md#layers-and-anchored-positioning)):
+they paint above the page and outside any clipping, follow their button and flip when there is no room, and Escape or a
+press outside closes the latest one.
+
+```tsx
+ui.bindKeys('mod-s', 'save'); ui.onAction(-1, 'save', save);
+<Tooltip label="Save" action="save"><Button label="Save" onClick={save} /></Tooltip>          // hint: Save ⌘S
+<DropdownMenu label="Edit" items={[{ label: 'Save', action: 'save' }, { label: 'Delete', onSelect: remove }]} />
+<Popover label="Filters"><Switch checked={f} onChange={setF} label="Only mine" /></Popover>
+<Dialog open={asking} onOpenChange={setAsking} title="Delete?" footer={() => <Button label="Delete" onClick={del} />} />
+toast('Saved', 'All changes are on disk.');
+```
+
+| Component | Props | Notes |
+| --- | --- | --- |
+| `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `class?`, children | shows while the pointer rests on the children |
+| `Popover` | `label` (the trigger button), `variant?`, `placement?` (`bottom-start`), `class?` (the panel), children | focus moves into the panel and comes back when it closes |
+| `DropdownMenu` | `label`, `items: MenuItem[]` (`label`, `action?`, `onSelect?`, `disabled?`), `variant?`, `placement?`, `class?` | opens focused on its first item; arrows move (trapped), Enter picks; actions show their shortcut (`keyLabel`) |
+| `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `class?`, children, `footer?` | modal, dims the page, traps the focus, focuses its first control, gives the focus back |
+| `toast(title, description?, ms?)` | | a stack in the bottom-right corner, 4 s by default; no component to mount |
+
+Tooltip, Popover and DropdownMenu keep their open state in the engine (the panel's `hidden`), so they work the same in
+both models; under React a re-render of their parent closes them. Dialog is controlled, like `Switch`.
 
 ## Keyboard (on-screen, touch devices)
 

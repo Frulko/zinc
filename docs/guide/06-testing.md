@@ -174,9 +174,22 @@ client that exercises the inspector. **F12** in the program window saves the fra
 ## Benchmarks
 
 Performance numbers vs QuickJS and Node are in [reports/PERF.md](../reports/PERF.md) (~27× QuickJS, ~70 KiB binaries,
-~2 ms startup), with the benchmark programs in `tests/`. There is no `zinc bench` subcommand yet (see
-[reports/STATUS.md](../reports/STATUS.md)); run a benchmark program directly and time it, or use `console.time` /
-`performance.now()` inside the program:
+~2 ms startup), with the benchmark programs in `tests/`.
+
+**Frame budgets.** `zinc bench [example dirs] [--target macos]` (alias `zinc test --bench`; default: hero,
+zed-editor, maps/navigation) builds each example whose `zinc.json` has a `bench` entry, runs its scripted scene
+headless in deterministic mode with the profiler ([dev mode, profiling](../dev-mode.md#profiling)), prints p50 / p99
+per phase, and fails when the p99 of the frame work exceeds the budget:
+
+```json
+"bench": { "demo": "bench", "frames": 600, "p99Ms": 25 }
+```
+
+`demo` is the `ZINC_DEMO` value that scripts the scene (it quits by itself or after `frames`). Timings are wall
+clock: budgets keep headroom for a loaded machine.
+
+For code, run a benchmark program directly and time it, or use `console.time` / `performance.now()` inside the
+program:
 
 ```ts
 console.time('parse'); doWork(); console.timeEnd('parse');   // "parse: 3.2ms"

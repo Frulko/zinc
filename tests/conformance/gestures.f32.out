@@ -1,0 +1,40 @@
+-- horizontal swipe on a dragAxis="x" row: the row drags, the list stays
+swipe drag phase=0 dx=10 dy=1 x=166
+swipe drag phase=1 dx=20 dy=2 x=176
+swipe drag phase=1 dx=30 dy=2 x=186
+swipe drag phase=1 dx=40 dy=3 x=196
+swipe drag phase=2 dx=40 dy=3 x=196
+scrollTop 0
+-- vertical move on the same row: the scroll takes it
+scrollTop 60
+-- raw onPointerDown row: cancelled when the scroll takes over
+raw move 156,10
+raw down 156,10
+raw cancel 156,0
+scrollTop 40
+-- grab="keep": the row keeps the pointer, the list stays
+keep move 10
+keep down
+keep move -10
+keep move -30
+keep up
+scrollTop 0
+-- tap, then a long press (no tap after it)
+tap 159,12
+after 300 ms
+long press 156,10
+-- button: a small move still clicks, a scroll does not
+click
+scrollTop 50
+-- pinch: two fingers spread and turn
+pinch phase=0 scale=1 rot=0 at 160,50
+pinch phase=1 scale=2 rot=0 at 210,50
+pinch phase=1 scale=2.240000009536743 rot=0.46000000834465027 at 210,0
+pinch phase=2 scale=2.240000009536743 rot=0.46000000834465027 at 210,0
+-- one finger taps the pinch area
+pinch area tap
+-- a second finger does not pinch where nothing has onPinch
+raw move 156,10
+raw down 156,10
+raw cancel 156,-20
+scrollTop 30

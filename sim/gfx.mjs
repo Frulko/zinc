@@ -52,5 +52,6 @@ export const clipboardText = () => clipboard, setClipboardText = s => { clipboar
 export const quit = () => { $z.state.quit = true; };
 export const escapeByApp = () => {}, escapeDefault = () => {};
 export const scrollDX = () => 0, scrollDY = () => 0, scrollPhase = () => 0;
+export const profiling = () => false, profMark = () => {};
 // headless sim: nothing is rasterized, so there is no frame to save
 export const capture = () => false;

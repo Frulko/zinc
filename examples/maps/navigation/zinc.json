@@ -5,5 +5,6 @@
     "macos": { "width": 1024, "height": 640 },
     "linux": { "width": 1024, "height": 640 },
     "rpi1": { "width": 800, "height": 480 }
-  }
+  },
+  "bench": { "demo": "bench", "frames": 1700, "p99Ms": 75 }
 }

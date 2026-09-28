@@ -1,0 +1,29 @@
+-- Tab order: tabIndex 1 first, then the tree; the disabled button is skipped
+C A Open field E P C A
+within toolbar true focused A
+within toolbar true
+-- disabled: a press does nothing; enabled again, it clicks
+focused A disabled true
+disabled clicked
+focused Off
+-- keymap: the deepest context wins
+action pane.k (pane handler)
+action editor.k (global handler)
+action global.k (global handler)
+action pane.j
+plain j outside the pane handled: false
+action save (global handler)
+action save.all (global handler)
+action save (global handler)
+typing j in a field: true cmd-s in a field: true
+keysFor save: ctrl-s | mod-s keysFor nothing: 0
+dispatchAction pane.j from A: false
+-- dialog: autoFocus, trap, Escape, restore
+open true focused note
+Tab in the dialog: OK Cancel note OK note
+dismiss dialog
+open false focused Open
+reopened true focused note
+ok
+open false focused Open
+focused none focus changes 27

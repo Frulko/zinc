@@ -6,6 +6,7 @@ import { darkMode, setDarkMode, advanceUpload } from './state';
 import { ButtonsCard } from './sections/buttons';
 import { SettingsCard } from './sections/settings';
 import { StatsRow, BadgesCard, AlertsColumn, TeamList } from './sections/display';
+import { OverlaysCard } from './sections/overlays';
 
 function Header(): i32 {
   return <View class="flex-row items-start justify-between gap-4">
@@ -36,6 +37,7 @@ function App(): i32 {
           <SettingsCard />
         </View>
       </Section>
+      <Section title="OVERLAYS"><OverlaysCard /></Section>
       <Section title="FEEDBACK AND DATA">
         <View class="flex-row flex-wrap gap-6 items-start">
           <AlertsColumn />

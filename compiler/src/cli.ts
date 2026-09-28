@@ -68,7 +68,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--port') o.port = argv[++i];  // zinc flash (compiler/src/flash.ts)
     else if (a.startsWith('--port=')) o.port = a.slice(7);
     else if (a === '--display' || a.startsWith('--display=')) process.env.ZINC_DISPLAY = a.includes('=') ? a.slice(10) : argv[++i];  // plugins.ts displayOf
-    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write' || a === '--pixels') { /* handled by the command */ }
+    else if (a === '--update' || a === '--update-golden' || a === '--print-exe' || a === '--no-devtools' || a === '--write' || a === '--pixels' || a === '--bench') { /* handled by the command */ }
     else if (['--frames', '--every', '--out', '--replay'].includes(a)) o.vals[a.slice(2)] = argv[++i] ?? die(`${a} needs a value`);
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
@@ -770,6 +770,38 @@ function pixelTest(o: Opts, update: boolean) {
   process.exit(failed ? 1 : 0);
 }
 
+/** zinc bench (zinc test --bench): the ZINC_DEMO bench scenes of examples, headless and deterministic, with the
+ *  profiler (ZINC_PROFILE=1). zinc.json `"bench": { "demo": "bench", "frames": 600, "p99Ms": 12 }`; fails when the
+ *  p99 of the frame work (every phase but present) exceeds p99Ms. */
+const BENCH_EXAMPLES = ['examples/hero', 'examples/zed-editor', 'examples/maps/navigation'];
+function benchCmd(o: Opts, argv: string[]) {
+  const dirs = argv.slice(1).filter(a => !a.startsWith('-') && fs.existsSync(path.join(a, 'zinc.json')));
+  let failed = 0;
+  for (const d of dirs.length ? dirs.map(x => path.resolve(x)) : BENCH_EXAMPLES.map(x => path.join(ZINC_ROOT, x))) {
+    const j = JSON.parse(fs.readFileSync(path.join(d, 'zinc.json'), 'utf8'));
+    const b = j.bench as { demo?: string; frames?: number; p99Ms?: number } | undefined;
+    const name = path.relative(ZINC_ROOT, d) || d;
+    if (!b) { console.log(`skip ${name} (no "bench" in zinc.json)`); continue; }
+    const entry = path.join(d, j.entry ?? 'src/main.ts');
+    const sub: Opts = { ...o, entry, project: loadProject(entry), cmd: 'run' };
+    const saved = PROFILES[o.profile];
+    PROFILES[o.profile] = { ...saved, ...(sub.project.targets[o.profile] ?? {}) };
+    let built: Built;
+    try { built = build(sub); } catch (e) { if (!(e instanceof Exit)) throw e; failed++; console.log(`FAIL ${name} (build)`); continue; } finally { PROFILES[o.profile] = saved; }
+    const r = spawnSync(built.exe[0], built.exe.slice(1), { cwd: d, encoding: 'utf8', env: {
+      ...DETERMINISTIC, SDL_VIDEO_DRIVER: 'dummy', ...process.env, ZINC_LOG_FORMAT: '',
+      ZINC_DEMO: b.demo ?? 'bench', ZINC_PROFILE: '1', ZINC_FRAMES: String(b.frames ?? 600) } });
+    const rows = [...(r.stderr ?? '').matchAll(/^zinc profile: (?:frames=(\d+) )?(\w+) p50=([\d.]+) p99=([\d.]+) max=([\d.]+) ms$/gm)];
+    const work = rows.find(m => m[2] === 'work');
+    if (!work) { failed++; console.log(`FAIL ${name}: no profile (exit ${r.status})\n${(r.stderr ?? '').slice(-500)}`); continue; }
+    const p99 = Number(work[4]), budget = b.p99Ms ?? Infinity, ok = p99 <= budget;
+    if (!ok) failed++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} [${b.demo ?? 'bench'}, ${work[1]} frames]: work p50 ${work[3]} ms, p99 ${work[4]} ms (budget ${budget} ms), max ${work[5]} ms`);
+    for (const m of rows) if (m !== work && Number(m[4]) >= 0.01) console.log(`       ${m[2].padEnd(8)} p50 ${m[3].padStart(6)}  p99 ${m[4].padStart(6)}  max ${m[5].padStart(6)} ms`);
+  }
+  process.exit(failed ? 1 : 0);
+}
+
 function diffText(a: string, b: string): string {
   const x = a.split('\n'), y = b.split('\n');
   for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `  line ${i + 1}:\n  - ${x[i] ?? ''}\n  + ${y[i] ?? ''}`;
@@ -806,6 +838,8 @@ function help(topic?: string) {
                                         conformance: every program must print the same bytes as the sim oracle
                                         (deterministic mode: virtual clock, fixed dt, no live input)
   zinc test --pixels [--update]         visual regression: tests/visual frames vs golden PNGs, pixel for pixel
+  zinc bench  [example dirs] [--target <id>]   (also zinc test --bench) frame budgets: the examples' ZINC_DEMO bench
+                                        scenes with ZINC_PROFILE=1; fails when work p99 > zinc.json "bench".p99Ms
   zinc capture [entry] [--frames 1,60] [--every n] [--out dir] [--replay tape]
                                         render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
@@ -851,6 +885,9 @@ function help(topic?: string) {
   ZINC_KIOSK=1           fullscreen, no cursor, always on top, Esc / Cmd+Q ignored (zinc.json targets.<id>.kiosk)
   ZINC_SCALE=n           physical pixels per logical pixel (default: Retina density x zoom)
   ZINC_LOG_FORMAT=json   console output as JSON lines
+  ZINC_PROFILE=1         per-phase frame timings (input, anim, layout, paint, effects, diff, raster, present): p50 / p99
+                         / max on stderr at exit;  ZINC_TRACE=t.json   the frames as Chrome trace events (Performance panel)
+  ZINC_VISUALIZE=damage|cmds   flash the damaged rectangles / heat map of the draw commands' boxes
   ZINC_TELEMETRY=udp://host:port | stdout | file:path   enable zinc:telemetry (see zinc monitor)
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
@@ -953,6 +990,7 @@ function main() {
     const b = build(o);
     process.exit(flash(b.dir, espChip(o).chip, o.port));
   }
+  if (cmd === 'bench' || (cmd === 'test' && argv.includes('--bench'))) return benchCmd(o, argv);
   if (cmd === 'test') return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
   if (cmd === 'capture') return capture(o);
   if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));

@@ -27,5 +27,10 @@
     "heap>=8M",
     "pointer|touch",
     "display"
-  ]
+  ],
+  "bench": {
+    "demo": "bench",
+    "frames": 600,
+    "p99Ms": 30
+  }
 }

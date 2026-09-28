@@ -101,7 +101,7 @@ function itemUp(e: ui.PointerEvent): void {
 }
 
 function LibraryItem(d: BoxDef): i32 {
-  return <view class="flex-row items-center gap-2 h-[28] pl-6 pr-2 rounded-md hover:bg-zinc-100 cursor-grab"
+  return <view class="flex-row items-center gap-2 h-[28] pl-6 pr-2 rounded-md hover:bg-zinc-100 cursor-grab" grab="keep"
     onPointerDown={(e: ui.PointerEvent) => itemDown(d, e)} onPointerMove={(e: ui.PointerEvent) => itemMove(d, e)}
     onPointerUp={(e: ui.PointerEvent) => itemUp(e)} onDoubleClick={(e: ui.PointerEvent) => { graph.addAtCenter(d.type); setCenterTab('Flow'); }}>
     <view class="w-[8] h-[8] rounded-sm" style={{ bg: categoryColor(d.category) }} />
