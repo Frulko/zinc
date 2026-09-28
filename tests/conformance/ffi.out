@@ -1,0 +1,1 @@
+tests/conformance/ffi.ts:1:1 - error Z5005: plugin ffi requires dynlib (sim has dynlib false) (plugin.json "requires"; --force builds anyway)
