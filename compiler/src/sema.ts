@@ -563,7 +563,14 @@ export class Sema {
     const sym = type.getSymbol() ?? type.aliasSymbol;
     const args = (this.checker.getTypeArguments?.(type as ts.TypeReference) ?? []).map(a => this.fromType(a, at));
     if (sym) {
-      if (sym.name === 'Array' || sym.name === 'ReadonlyArray') return { k: 'arr', el: args[0] ?? F64 };
+      if (sym.name === 'Array' || sym.name === 'ReadonlyArray') {
+        // `const a = []` with nothing to type its elements: never[] would become Array<void> in C++
+        const el = this.checker.getTypeArguments?.(type as ts.TypeReference)?.[0];
+        const decl = at && ts.isArrayLiteralExpression(at) ? at.parent : at;
+        if (el && el.flags & ts.TypeFlags.Never && decl && (ts.isVariableDeclaration(decl) || ts.isPropertyDeclaration(decl)) && !decl.type)
+          this.fail(at!, 'Z9001', 'cannot type the elements of this empty array; annotate it (const a: number[] = [])');
+        return { k: 'arr', el: args[0] ?? F64 };
+      }
       if (sym.name === 'Map') return { k: 'map', key: args[0], val: args[1] };
       if (sym.name === 'Set') return { k: 'set', el: args[0] };
       if (sym.name === 'Promise') return { k: 'promise', el: args[0] ?? VOID };
@@ -634,7 +641,7 @@ export class Sema {
     const idx = fn.parameters.indexOf(p);
     const m = call.expression.name.text;
     if (recv.k === 'arr') {
-      if (m === 'reduce') return idx === 0 ? this.reduceAcc(call) : idx === 1 ? recv.el : I32;
+      if (m === 'reduce' || m === 'reduceRight') return idx === 0 ? this.reduceAcc(call) : idx === 1 ? recv.el : I32;
       if (m === 'sort') return recv.el;
       if (argIdx === 0) return idx === 0 ? recv.el : I32;
     }
@@ -741,12 +748,17 @@ export class Sema {
   }
 
   /** Type arguments of a generic call: explicit, or unified from the argument types (C++ cannot deduce through lambdas). */
-  inferTypeArgs(d: ts.FunctionDeclaration, e: ts.CallExpression): Map<string, ZT> | undefined {
+  inferTypeArgs(d: ts.FunctionDeclaration | ts.MethodDeclaration, e: ts.CallExpression): Map<string, ZT> | undefined {
     const tps = d.typeParameters ?? [];
     const bind = new Map<string, ZT>();
     if (e.typeArguments?.length) { tps.forEach((tp, i) => bind.set(tp.name.text, this.fromTypeNode(e.typeArguments![i]))); return bind; }
     const unify = (p: ZT, a: ZT) => {
-      if (p.k === 'tp') { if (!bind.has(p.name) && a.k !== 'null' && a.k !== 'tp') bind.set(p.name, a); return; }
+      if (p.k === 'tp') {
+        const b = bind.get(p.name);
+        if (!b && a.k !== 'null' && a.k !== 'tp') bind.set(p.name, a);
+        else if (b && isNum(b) && isNum(a) && b.m !== a.m) bind.set(p.name, { k: 'num', m: this.numberKind });  // f(len, 2.5): T is number, as tsc infers
+        return;
+      }
       if ((p.k === 'arr' || p.k === 'set' || p.k === 'promise' || p.k === 'gen') && a.k === p.k) unify(p.el, (a as typeof p).el);
       else if (p.k === 'map' && a.k === 'map') { unify(p.key, a.key); unify(p.val, a.val); }
       else if (p.k === 'fn' && a.k === 'fn') { p.params.forEach((x, i) => a.params[i] && unify(x, a.params[i])); unify(p.ret, a.ret); }
@@ -889,7 +901,8 @@ export class Sema {
       if (e.operator === ts.SyntaxKind.ExclamationToken) return BOOL;
       if (e.operator === ts.SyntaxKind.TildeToken) return I32;
       const t = this.ztypeOf(e.operand);
-      return t.k === 'dyn' && (e.operator === ts.SyntaxKind.MinusToken || e.operator === ts.SyntaxKind.PlusToken) ? { k: 'num', m: this.numberKind } : t;
+      // unary + / - is ToNumber: on a Dyn, a string or a boolean it gives a number
+      return (t.k === 'dyn' || t.k === 'str' || t.k === 'bool') && (e.operator === ts.SyntaxKind.MinusToken || e.operator === ts.SyntaxKind.PlusToken) ? { k: 'num', m: this.numberKind } : t;
     }
     if (ts.isPostfixUnaryExpression(e)) return this.ztypeOf(e.operand);
     if (ts.isBinaryExpression(e)) return this.binaryType(e);
@@ -1034,14 +1047,14 @@ export class Sema {
   libMemberType(recv: ZT, name: string, call: ts.CallExpression): ZT | undefined {
     if (recv.k === 'arr') {
       switch (name) {
-        case 'pop': case 'shift': case 'at': case 'find': return recv.el;
+        case 'pop': case 'shift': case 'at': case 'find': case 'findLast': return recv.el;
         case 'slice': case 'splice': case 'filter': case 'sort': case 'reverse': case 'concat': case 'fill': return recv;
         case 'map': {
           const cb = this.ztypeOf(call.arguments[0]);
           return { k: 'arr', el: cb.k === 'fn' ? cb.ret : F64 };
         }
-        case 'reduce': return this.reduceAcc(call) ?? this.ztypeOf(call.arguments[1]);
-        case 'push': case 'unshift': case 'indexOf': case 'findIndex': return I32;
+        case 'reduce': case 'reduceRight': return this.reduceAcc(call) ?? this.ztypeOf(call.arguments[1]);
+        case 'push': case 'unshift': case 'indexOf': case 'lastIndexOf': case 'findIndex': case 'findLastIndex': return I32;
       }
     }
     if (recv.k === 'map') {

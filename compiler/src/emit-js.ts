@@ -87,7 +87,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       if ((ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !sema.isLib(d)) return d.parameters.map(p => sema.paramType(p));
       if (ts.isPropertyAccessExpression(call.expression)) {
         const rt = safeType(call.expression.expression), m = call.expression.name.text;
-        if (rt?.k === 'arr' && ['push', 'unshift', 'indexOf', 'includes', 'fill'].includes(m)) return [rt.el];
+        if (rt?.k === 'arr' && ['push', 'unshift', 'indexOf', 'lastIndexOf', 'includes', 'fill'].includes(m)) return [rt.el];
         if (rt?.k === 'map' && m === 'set') return [rt.key, rt.val];
         if (rt?.k === 'set' && m === 'add') return [rt.el];
       }

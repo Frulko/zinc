@@ -409,6 +409,9 @@ function build(o: Opts): Built {
   const prof = PROFILES[o.profile];
   if (o.target === 'sim' || o.emit === 'js') {
     const simFlags = pluginSettings(o, sema).nodeFlags;
+    // the sim is the oracle, so it refuses what the native backend refuses (Z9042, Z1013... are found while emitting
+    // C++); checked as the host target, since native modules have JavaScript implementations on the sim
+    guard(o, () => emitCpp(sema, { debug: false, title: '', width: prof.width, height: prof.height, outDir: dir, target: process.platform === 'linux' ? 'linux' : 'macos' }));
     const baked = usesGfx(sema) ? bakeResources(o, sema, dir) : undefined;
     const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height], baked?.json));
     if (o.emit === 'js') { console.log(runner.files.map(f => f.path).join('\n')); process.exit(0); }
@@ -847,6 +850,8 @@ function help(topic?: string) {
   zinc test --fuzz[=<seconds>]          parsers of untrusted input: replay tests/fuzz corpora, or fuzz each N s
   zinc bench  [example dirs] [--target <id>]   (also zinc test --bench) frame budgets: the examples' ZINC_DEMO bench
                                         scenes with ZINC_PROFILE=1; fails when work p99 > zinc.json "bench".p99Ms
+  zinc compat [--suite ..] [--check]    standards conformance: WinterTC Web APIs (WPT), test262, Node API and QuickJS
+                                        tests vs Node / Deno / Bun / QuickJS (docs/reports/compat.md; --help for options)
   zinc capture [entry] [--frames 1,60] [--every n] [--out dir] [--replay tape]
                                         render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
@@ -949,6 +954,8 @@ function main() {
   const cmd = argv[0];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help(argv[1]);
   if (cmd === 'doctor') return doctor();
+  // standards conformance: WinterTC / WPT, test262, Node API, QuickJS tests vs reference engines (docs/reports/compat.md)
+  if (cmd === 'compat') process.exit(spawnSync(process.execPath, [path.join(ZINC_ROOT, 'tests/compat/run.mjs'), ...argv.slice(1)], { stdio: 'inherit' }).status ?? 1);
   if (cmd === 'plugins') { console.log(listPlugins(projectDir(argv[1] && !argv[1].startsWith('-') ? path.join(argv[1], 'x') : 'x'))); return; }
   if (cmd === 'init') {
     const t = argv.indexOf('--template');

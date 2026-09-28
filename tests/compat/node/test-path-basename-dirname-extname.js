@@ -1,0 +1,22 @@
+// After node/test/parallel/test-path-basename.js, test-path-dirname.js and test-path-extname.js (posix cases).
+const assert = require('assert');
+const path = require('path');
+assert.strictEqual(path.basename('/dir/basename.ext'), 'basename.ext');
+assert.strictEqual(path.basename('/basename.ext'), 'basename.ext');
+assert.strictEqual(path.basename('basename.ext/'), 'basename.ext');
+assert.strictEqual(path.basename('basename.ext//'), 'basename.ext');
+assert.strictEqual(path.basename('aaa/bbb', 'bbb'), 'bbb');
+assert.strictEqual(path.basename('aaa/bbb', 'a/bbb'), 'bbb');
+assert.strictEqual(path.basename('/aaa/bbb', '.js'), 'bbb');
+assert.strictEqual(path.basename('file.js', '.js'), 'file');
+assert.strictEqual(path.basename(''), '');
+assert.strictEqual(path.dirname('/a/b/'), '/a');
+assert.strictEqual(path.dirname('/a/b'), '/a');
+assert.strictEqual(path.dirname('/a'), '/');
+assert.strictEqual(path.dirname(''), '.');
+assert.strictEqual(path.dirname('/'), '/');
+assert.strictEqual(path.dirname('////'), '/');
+assert.strictEqual(path.dirname('foo'), '.');
+const exts = [['file.ext', '.ext'], ['file', ''], ['.file', ''], ['.file.ext', '.ext'], ['file.', '.'], ['/path.to/file', ''], ['file.ext.ext', '.ext'], ['..', ''], ['file.ext/', '.ext']];
+for (const [p, ext] of exts) assert.strictEqual(path.extname(p), ext, p);
+console.log('ZC:PASS');
