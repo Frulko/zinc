@@ -1,1 +1,10 @@
-{ "name": "modules-showcase", "entry": "main.tsx", "targets": { "macos": { "width": 800, "height": 600 }, "linux": { "width": 800, "height": 600 }, "rpi1": { "width": 800, "height": 600 }, "sim": { "width": 800, "height": 600 } } }
+{
+  "name": "modules-showcase",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 800, "height": 600 },
+    "linux": { "width": 800, "height": 600 },
+    "rpi1": { "width": 800, "height": 600 },
+    "sim": { "width": 800, "height": 600 }
+  }
+}
