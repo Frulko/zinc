@@ -77,14 +77,16 @@ void push_event(const char* kind, const char* text) {
 // ---------------------------------------------------------------- JPEG -> fitted pixels (worker)
 tjhandle tjd, tjc;
 
-inline uint32_t lerp(uint32_t a, uint32_t b, uint32_t w) {  // w: 0..255
-  uint32_t rb = (((a & 0xFF00FF) * (256 - w) + (b & 0xFF00FF) * w) >> 8) & 0xFF00FF;
-  uint32_t g = (((a & 0x00FF00) * (256 - w) + (b & 0x00FF00) * w) >> 8) & 0x00FF00;
+inline uint32_t lerp(uint32_t a, uint32_t b, uint32_t w) {  // w: 0..255; channels 8 bits apart, modular arithmetic
+  uint32_t rb = ((((b & 0xFF00FF) - (a & 0xFF00FF)) * w >> 8) + (a & 0xFF00FF)) & 0xFF00FF;
+  uint32_t g = ((((b & 0x00FF00) - (a & 0x00FF00)) * w >> 8) + (a & 0x00FF00)) & 0x00FF00;
   return rb | g;
 }
-/** Bilinear resample, pixel centers aligned (8-bit weights). */
+/** Bilinear resample, pixel centers aligned (8-bit weights), separable: one vertical blend per source pixel of the
+ *  two rows needed, then one horizontal blend per output pixel. */
 void resample(const Img& s, Img& d) {
   int* xo = (int*)malloc(sizeof(int) * d.w * 2);
+  uint32_t* tmp = (uint32_t*)malloc(sizeof(uint32_t) * s.w);
   for (int x = 0; x < d.w; x++) {
     int f = (int)(((int64_t)(2 * x + 1) * s.w * 256) / (2 * d.w)) - 128;
     if (f < 0) f = 0;
@@ -97,15 +99,12 @@ void resample(const Img& s, Img& d) {
     if (f < 0) f = 0;
     int y0 = f >> 8, wy = f & 255;
     if (y0 >= s.h - 1) { y0 = s.h - 1; wy = 0; }
-    const uint32_t* r0 = s.px + (size_t)y0 * s.w;
-    const uint32_t* r1 = s.px + (size_t)(y0 + (wy ? 1 : 0)) * s.w;
+    const uint32_t* r = s.px + (size_t)y0 * s.w;
+    if (wy) { const uint32_t* r1 = r + s.w; for (int x = 0; x < s.w; x++) tmp[x] = lerp(r[x], r1[x], wy); r = tmp; }
     uint32_t* o = d.px + (size_t)y * d.w;
-    for (int x = 0; x < d.w; x++) {
-      int x0 = xo[x * 2], wx = xo[x * 2 + 1], x1 = x0 + (wx ? 1 : 0);
-      o[x] = lerp(lerp(r0[x0], r0[x1], wx), lerp(r1[x0], r1[x1], wx), wy);
-    }
+    for (int x = 0; x < d.w; x++) { int x0 = xo[x * 2], wx = xo[x * 2 + 1]; o[x] = wx ? lerp(r[x0], r[x0 + 1], wx) : r[x0] & 0xFFFFFF; }
   }
-  free(xo);
+  free(tmp); free(xo);
 }
 /** Decodes into `dst`, fitted inside vw x vh (aspect kept; 0 = native size). Uses the smallest DCT scale that
  *  still covers the box, so a 24 MP file costs about a 1/8 decode and a live view about 1:1. */
@@ -452,14 +451,19 @@ void poll_events(int ms) {
 
 /** One live view frame: preview JPEG -> fitted pixels in frames[back] -> published. */
 int fails = 0, win_frames = 0;
-double win_t0 = 0, last_frame = 0;
+double win_t0 = 0, last_frame = 0, next_due = 0;
 void live_frame(int vw, int vh) {
   const unsigned char* jpg = nullptr; unsigned long n = 0; unsigned char* own = nullptr;
   Buf err;
   bool ok;
   if (fake) {
-    if (!fake_max) { double wait = last_frame + 1000.0 / 30 - mono_ms(); if (wait > 0) usleep((useconds_t)(wait * 1000)); }
     last_frame = mono_ms();
+    if (!fake_max) {  // 30 fps deadlines, like a camera's live view clock
+      if (next_due < last_frame - 100) next_due = last_frame;
+      if (next_due > last_frame) usleep((useconds_t)((next_due - last_frame) * 1000));
+      next_due += 1000.0 / 30;
+      last_frame = mono_ms();
+    }
     ok = fake_jpeg(1024, 683, 75, last_frame / 1000 - t0, &own, &n, gen);
     jpg = own;
   } else {
