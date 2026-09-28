@@ -34,7 +34,7 @@ static bool dev_open() { return emu::open("scroll phat", COLS, ROWS, OPT(SCALE),
 static bool dev_write(const uint8_t*, int) { return true; }
 static void dev_show() {
   // warm white LEDs; the global brightness dims them (kept visible even at low settings)
-  uint32_t v = 70 + (uint32_t)pwm() * 185 / 128, lit = v << 16 | (v * 245 / 255) << 8 | (v * 225 / 255);
+  uint32_t v = 160 + (uint32_t)pwm() * 95 / 128, lit = v << 16 | (v * 245 / 255) << 8 | (v * 225 / 255);
   for (int y = 0; y < ROWS; y++)
     for (int x = 0; x < COLS; x++) colors[y * COLS + x] = (shown[x] >> y) & 1 ? lit : 0;
   emu::show(colors, 0x1C1C1C);

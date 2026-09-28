@@ -1,0 +1,10 @@
+{
+  "name": "snake",
+  "entry": "src/main.ts",
+  "board": "pimoroni-scroll-phat",
+  "targets": {
+    "macos": {},
+    "sim": {},
+    "rpi1": {}
+  }
+}
