@@ -20,6 +20,21 @@ enum HalButton : uint32_t {
 
 #define HAL_MAX_TOUCH 10
 struct HalTouch { int32_t id; float x, y; };
+// Desktop input (keyboard, text, mouse buttons). HALs that have it reset the queues at the start of hal_poll_input
+// and append in event order; the others leave them empty.
+#define HAL_MAX_KEYS 32
+#define HAL_TEXT_BYTES 256
+#define HAL_MAX_BUTTON_EVENTS 8
+enum HalMod : uint32_t { HAL_MOD_SHIFT = 1u << 0, HAL_MOD_CTRL = 1u << 1, HAL_MOD_ALT = 1u << 2, HAL_MOD_META = 1u << 3 };
+enum HalKeyKind : int32_t { HAL_KEY_DOWN = 0, HAL_KEY_UP = 1, HAL_KEY_REPEAT = 2, HAL_KEY_TEXT = 3 };
+// Key codes: printable keys are their unshifted ASCII code (32..126, letters lowercase); named keys from 256.
+enum HalKeyCode : int32_t {
+  HAL_KEY_BACKSPACE = 256, HAL_KEY_DELETE, HAL_KEY_ENTER, HAL_KEY_TAB, HAL_KEY_ESCAPE, HAL_KEY_ARROW_LEFT, HAL_KEY_ARROW_RIGHT,
+  HAL_KEY_ARROW_UP, HAL_KEY_ARROW_DOWN, HAL_KEY_HOME, HAL_KEY_END, HAL_KEY_PAGEUP, HAL_KEY_PAGEDOWN, HAL_KEY_F1,  // F1..F12 follow
+};
+// kind HAL_KEY_TEXT: typed text (UTF-8), text[off .. off+len) of HalInput.text; key is 0
+struct HalKey { int32_t key; uint32_t mods; int32_t kind; uint16_t off, len; };
+struct HalButtonEvent { float x, y; int32_t button; int32_t down; };  // button: 0 left, 1 middle, 2 right
 struct HalInput {
   uint32_t buttons;      // HalButton bits
   float px, py;          // pointer, logical coordinates
@@ -29,7 +44,25 @@ struct HalInput {
   float pinch;           // trackpad pinch scale factor since the last poll (1 = none)
   int32_t ntouch;        // active touch points (multitouch screens)
   HalTouch touch[HAL_MAX_TOUCH];
+  // --- desktop input (additive; zero on HALs without it)
+  float wheel_x;         // horizontal scroll steps since the last poll (+ = right)
+  uint32_t pbuttons;     // pointer buttons held: 1 left, 2 right, 4 middle
+  uint32_t mods;         // HalMod bits held
+  int32_t nkeys;
+  HalKey keys[HAL_MAX_KEYS];
+  int32_t ntext;
+  char text[HAL_TEXT_BYTES];
+  int32_t nbtn;
+  HalButtonEvent btn[HAL_MAX_BUTTON_EVENTS];
 };
+// Optional (the runtime has weak defaults: no text input, a process-local clipboard, no cursor shapes).
+// Text input (IME, on-screen keyboard) while a text field is focused; the rectangle is the field (logical pixels).
+void hal_text_input(int32_t on, float x, float y, float w, float h);
+const char* hal_clipboard_get(void);  // UTF-8, valid until the next call
+void hal_clipboard_set(const char* s, size_t n);
+enum HalCursor : int32_t { HAL_CURSOR_DEFAULT = 0, HAL_CURSOR_TEXT, HAL_CURSOR_POINTER, HAL_CURSOR_MOVE, HAL_CURSOR_EW_RESIZE,
+  HAL_CURSOR_NS_RESIZE, HAL_CURSOR_CROSSHAIR, HAL_CURSOR_GRAB, HAL_CURSOR_GRABBING, HAL_CURSOR_NOT_ALLOWED };
+void hal_set_cursor(int32_t shape);
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */

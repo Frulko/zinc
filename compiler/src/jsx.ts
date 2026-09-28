@@ -4,8 +4,11 @@
 // Line breaks are preserved so diagnostics keep their line numbers.
 import { ts } from './frontend.ts';
 
-const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5 };
-const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY']);
+const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, input: 7, textarea: 8, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5 };
+const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows']);
+// text fields and pointer / key events (zinc:ui host ABI: onPointer kinds, edit flags)
+const POINTER_ATTRS: Record<string, number> = { onPointerDown: 0, onPointerMove: 1, onPointerUp: 2, onDoubleClick: 3, onContextMenu: 4, onWheel: 5, onPointerEnter: 6, onPointerLeave: 7 };
+const FLAG_ATTRS = new Set(['password', 'readOnly', 'lineNumbers', 'wrap']);
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -25,6 +28,7 @@ const NUM = String.raw`(\d+(\.\d+)?|\[\d+(\.\d+)?(px)?\]|\d+/\d+|px)`;
 const COLOR = String.raw`([a-z]+-\d+|white|black|transparent|\[#[0-9a-fA-F]{3,8}\])(/\d+)?`;
 const RULES = [
   /^font-\[[A-Za-z0-9_.-]+\]$/,  // font family: a TTF in the assets
+  /^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$/,
   new RegExp(`^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading)-${NUM}$`),
   /^(items|justify)-(start|center|end|stretch|between|around|evenly)$/,
   /^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$/,
@@ -114,7 +118,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
     }
     const tag = tagOf(n);
     if (/^[A-Z]/.test(tag) && !(tag in TAGS && hostImport(tag))) return component(n, tag, out);
-    if (!(tag in TAGS)) throw new JsxError(`unknown host component <${tag}> (view, text, button, image, scroll, canvas)`, n.getStart(sf));
+    if (!(tag in TAGS)) throw new JsxError(`unknown host component <${tag}> (view, text, button, image, scroll, canvas, input, textarea)`, n.getStart(sf));
     out.push(`const ${v}: i32 = _el(${TAGS[tag]});`);
     for (const a of attrsOf(n)) {
       if (!ts.isJsxAttribute(a)) throw new JsxError('spread attributes are not supported', a.getStart(sf));
@@ -142,6 +146,20 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       else if (name === 'focusable') out.push(`_focusable(${v});`);
       else if (name === 'debugName') { /* devtools label: not used by the engine */ }
       else if (name === 'onDraw') out.push(`_draw(${v}, ${val.expr});`);
+      else if (name in POINTER_ATTRS) out.push(`_ptr(${v}, ${POINTER_ATTRS[name]}, ${val.expr});`);
+      else if (name === 'onKeyDown') out.push(`_key(${v}, ${val.expr});`);
+      else if (name === 'onInput' || name === 'onChange') out.push(`_onText(${v}, ${name === 'onChange' && !react}, ${val.expr});`);  // React: onChange fires on every edit
+      else if (name === 'value' || name === 'placeholder') {
+        if (val.lit !== undefined) out.push(`_str(${v}, '${name}', ${JSON.stringify(val.lit)});`);
+        else out.push(react ? `_str(${v}, '${name}', ${val.expr});` : `_dynStr(${v}, '${name}', () => (${val.expr}));`);
+      }
+      else if (name === 'highlight') out.push(`_hl(${v}, ${val.expr});`);
+      else if (name === 'type' && val.lit === 'password') out.push(`_num(${v}, 'password', 1);`);
+      else if (name === 'type' && val.lit === 'text') { /* default */ }
+      else if (FLAG_ATTRS.has(name)) {
+        if (val.lit !== undefined || /^(true|false)$/.test(val.expr!)) out.push(`_num(${v}, '${name}', ${val.lit !== undefined || val.expr === 'true' ? 1 : 0});`);
+        else out.push(react ? `_num(${v}, '${name}', (${val.expr}) ? 1 : 0);` : `_dynNum(${v}, '${name}', () => ((${val.expr}) ? 1 : 0));`);
+      }
       else if (NUM_ATTRS.has(name)) {
         if (val.lit !== undefined) out.push(`_num(${v}, '${name}', ${Number(val.lit)});`);
         else if (react || /^[-\d.]+$/.test(val.expr!)) out.push(`_num(${v}, '${name}', ${val.expr});`);
@@ -149,6 +167,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       } else if (name === 'key') { /* keys: accepted, lists re-render unkeyed */ }
       else throw new JsxError(`unknown attribute '${name}' on <${tag}>`, a.getStart(sf));
     }
+    if (TAGS[tag] >= 7 && childrenOf(n).some(c => !(ts.isJsxText(c) && !c.text.trim()))) throw new JsxError(`<${tag}> takes its text from value={...}, not from children`, n.getStart(sf));
     if (TAGS[tag] === 1) textContent(v, childrenOf(n), out);
     else children(v, childrenOf(n), out);
     return v;
@@ -269,6 +288,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual';
+  const input = '_ptr, _key, _onText, _str, _hl';
+  const helpers = react ? `_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ${input}` : `_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ${input}`;
   return `import { ${helpers} } from '${lib}'; ` + out;
 }

@@ -76,4 +76,35 @@ declare module 'zinc:gfx' {
   /** Frame counter since start. */
   export function frame(): i32;
   export function quit(): void;
+
+  // ---- desktop input (keyboard, text, mouse buttons, clipboard, cursor). Empty/no-op where the HAL has none.
+  export const enum Mod { Shift = 1, Ctrl = 2, Alt = 4, Meta = 8 }
+  export const enum KeyKind { Down = 0, Up = 1, Repeat = 2, Text = 3 }
+  export const enum Cursor { Default = 0, Text = 1, Pointer = 2, Move = 3, EwResize = 4, NsResize = 5, Crosshair = 6, Grab = 7, Grabbing = 8, NotAllowed = 9 }
+  /** Horizontal scroll steps this frame (+ = right). */
+  export function wheelX(): number;
+  /** Pointer buttons held: 1 left, 2 right, 4 middle. */
+  export function pointerButtons(): i32;
+  /** Mod bits held now. */
+  export function modifiers(): i32;
+  /** Keyboard events since the previous frame, in order: key downs/ups/repeats and typed text (text input on). */
+  export function keyCount(): i32;
+  export function keyKind(i: i32): KeyKind;
+  /** Mod bits at the time of the event. */
+  export function keyMods(i: i32): i32;
+  /** Key name like DOM KeyboardEvent.key, unshifted: 'a', '1', ' ', 'Enter', 'ArrowLeft', 'F5'...; the UTF-8 text for KeyKind.Text. */
+  export function keyName(i: i32): string;
+  /** Mouse button presses/releases since the previous frame, in order (fast clicks are not lost). */
+  export function buttonEventCount(): i32;
+  export function buttonEventX(i: i32): number;
+  export function buttonEventY(i: i32): number;
+  /** 0 left, 1 middle, 2 right (DOM numbering). */
+  export function buttonEventButton(i: i32): i32;
+  export function buttonEventDown(i: i32): boolean;
+  /** Text input on (IME, on-screen keyboard) for a field at (x, y, w, h); typed text arrives as KeyKind.Text. */
+  export function startTextInput(x: number, y: number, w: number, h: number): void;
+  export function stopTextInput(): void;
+  export function clipboardText(): string;
+  export function setClipboardText(s: string): void;
+  export function setCursor(c: Cursor): void;
 }

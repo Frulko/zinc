@@ -707,6 +707,23 @@ double pointerY();
 bool pointerDown();
 int32_t frame();
 void quit();
+double wheelX();
+int32_t pointerButtons();
+int32_t modifiers();
+int32_t keyCount();
+int32_t keyKind(int32_t i);
+int32_t keyMods(int32_t i);
+String keyName(int32_t i);
+int32_t buttonEventCount();
+double buttonEventX(int32_t i);
+double buttonEventY(int32_t i);
+int32_t buttonEventButton(int32_t i);
+bool buttonEventDown(int32_t i);
+void startTextInput(double x, double y, double w, double h);
+void stopTextInput();
+String clipboardText();
+void setClipboardText(const String& s);
+void setCursor(int32_t c);
 }
 
 }  // namespace zrt

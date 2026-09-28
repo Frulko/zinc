@@ -428,7 +428,49 @@ double penTiltY(int32_t i) { return pen_at(i)->tilt_y; }
 int32_t penFlags(int32_t i) { return (int32_t)pen_at(i)->flags; }
 int32_t frame() { return frame_no; }
 void quit() { quit_requested = true; }
+
+// ---- desktop input: keyboard/text queue, mouse buttons, clipboard, cursor, text input
+double wheelX() { return input.wheel_x; }
+int32_t pointerButtons() { return (int32_t)input.pbuttons; }
+int32_t modifiers() { return (int32_t)input.mods; }
+int32_t keyCount() { return input.nkeys; }
+int32_t keyKind(int32_t i) { return i >= 0 && i < input.nkeys ? input.keys[i].kind : -1; }
+int32_t keyMods(int32_t i) { return i >= 0 && i < input.nkeys ? (int32_t)input.keys[i].mods : 0; }
+static const char* const KEY_NAMES[] = {"Backspace", "Delete", "Enter", "Tab", "Escape", "ArrowLeft", "ArrowRight", "ArrowUp",
+  "ArrowDown", "Home", "End", "PageUp", "PageDown"};
+String keyName(int32_t i) {
+  if (i < 0 || i >= input.nkeys) return String();
+  const HalKey& k = input.keys[i];
+  if (k.kind == HAL_KEY_TEXT) return String::from(input.text + k.off, k.len);
+  if (k.key >= 32 && k.key < 127) { char c = (char)k.key; return String::from(&c, 1); }
+  if (k.key >= HAL_KEY_BACKSPACE && k.key < HAL_KEY_F1) { const char* n = KEY_NAMES[k.key - HAL_KEY_BACKSPACE]; uint32_t l = 0; while (n[l]) l++; return String::from(n, l); }
+  if (k.key >= HAL_KEY_F1 && k.key < HAL_KEY_F1 + 12) { char b[4] = {'F', 0, 0, 0}; int32_t f = k.key - HAL_KEY_F1 + 1; uint32_t l = 1; if (f >= 10) b[l++] = '1'; b[l++] = (char)('0' + f % 10); return String::from(b, l); }
+  return String();
+}
+int32_t buttonEventCount() { return input.nbtn; }
+static const HalButtonEvent* btn_at(int32_t i) { static const HalButtonEvent none = {}; return i >= 0 && i < input.nbtn ? &input.btn[i] : &none; }
+double buttonEventX(int32_t i) { return btn_at(i)->x; }
+double buttonEventY(int32_t i) { return btn_at(i)->y; }
+int32_t buttonEventButton(int32_t i) { return btn_at(i)->button; }
+bool buttonEventDown(int32_t i) { return btn_at(i)->down != 0; }
+void startTextInput(double x, double y, double w, double h) { hal_text_input(1, (float)x, (float)y, (float)w, (float)h); }
+void stopTextInput() { hal_text_input(0, 0, 0, 0, 0); }
+String clipboardText() { const char* s = hal_clipboard_get(); uint32_t n = 0; while (s && s[n]) n++; return String::from(s ? s : "", n); }
+void setClipboardText(const String& s) { hal_clipboard_set(s.ptr(), s.bytes()); }
+void setCursor(int32_t c) { hal_set_cursor(c); }
 }
 }  // namespace zrt
+// Weak defaults for HALs without desktop input: no IME, a process-local clipboard, no cursor shapes.
+extern "C" __attribute__((weak)) void hal_text_input(int32_t, float, float, float, float) {}
+static char* local_clip = nullptr;
+extern "C" __attribute__((weak)) const char* hal_clipboard_get(void) { return local_clip ? local_clip : ""; }
+extern "C" __attribute__((weak)) void hal_clipboard_set(const char* s, size_t n) {
+  if (local_clip) hal_free(local_clip);
+  local_clip = (char*)hal_alloc(n + 1);
+  if (!local_clip) return;
+  __builtin_memcpy(local_clip, s, n);
+  local_clip[n] = 0;
+}
+extern "C" __attribute__((weak)) void hal_set_cursor(int32_t) {}
 // ponytail: a full queue overwrites its last slot, so stroke ends (pen up) survive a slow frame; middles thin out.
 extern "C" void hal_pen_push(const HalPen* s) { zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s; }
