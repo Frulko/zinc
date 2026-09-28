@@ -193,12 +193,20 @@ inline void to_s(StrBuilder& sb, const Unit&) { sb.cstr("undefined"); }
 inline void json(StrBuilder& sb, const Unit&) { sb.cstr("null"); }
 inline bool truthy(const Unit&) { return false; }
 
+struct PromiseBase;
+extern PromiseBase* promises_head;  // every live promise (teardown breaks promise <-> async frame cycles)
 struct PromiseBase : Object {
   uint8_t st = 0;        // 0 pending, 1 fulfilled, 2 rejected
   bool handled = false;
   Ref<Error> err;
   Array<Fn<void()>> conts;
-  PromiseBase() : conts(Array<Fn<void()>>::with_cap(0)) {}
+  PromiseBase* prev_live = nullptr;
+  PromiseBase* next_live = nullptr;
+  PromiseBase() : conts(Array<Fn<void()>>::with_cap(0)) { next_live = promises_head; if (promises_head) promises_head->prev_live = this; promises_head = this; }
+  ~PromiseBase() override {
+    if (prev_live) prev_live->next_live = next_live; else if (promises_head == this) promises_head = next_live;
+    if (next_live) next_live->prev_live = prev_live;
+  }
   void on_settle(Fn<void()> k) { handled = true; if (st) microtask(k); else conts.push(k); }
   void flush() { Array<Fn<void()>> ks = conts; conts = Array<Fn<void()>>::with_cap(0); for (int32_t i = 0; i < ks.length(); i++) microtask(ks.get(i)); }
   void reject(const Ref<Error>& e);

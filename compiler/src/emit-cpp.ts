@@ -1429,7 +1429,27 @@ class CppEmitter {
       const pro = this.prologue(f.parameters, 1);
       return ft.ret.k === 'void' ? `{\n${pro}  ${this.expr(fb)};\n}` : `{\n${pro}  return ${this.conv(fb, ft.ret)};\n}`;
     });
-    return `[=](${ps.join(', ')}) -> ${this.cpp(ft.ret)} ${body}`;
+    return `[=${this.frameCaptures(f)}](${ps.join(', ')}) -> ${this.cpp(ft.ret)} ${body}`;
+  }
+
+  /**
+   * A closure created inside an async function or generator reads that function's locals, which live in the frame
+   * object: a plain `[=]` would capture the frame's `this` and dangle once the frame is freed. Copy each local the
+   * closure uses instead (mutated captures are already shared cells, so copies share them).
+   */
+  frameCaptures(f: ts.Node): string {
+    const host = this.s.fnOf(f);
+    if (!host || !(this.s.isAsyncFn(host) || this.s.isGeneratorFn(host))) return '';
+    const names = new Set<string>();
+    const visit = (n: ts.Node) => {
+      if (ts.isIdentifier(n) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) {
+        const d = this.s.declOf(n);
+        if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d) || ts.isBindingElement(d)) && this.s.fnOf(d) === host && !this.isTop(d)) names.add(this.id(n.text));
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(f);
+    return [...names].map(x => `, ${x} = ${x}`).join('');
   }
 
   /** async arrow/function expression: a frame struct plus an entry lambda that copies the captures. */
@@ -1461,7 +1481,7 @@ class CppEmitter {
     const ft = this.s.fnType(f) as Extract<ZT, { k: 'fn' }>;
     const entry = this.frameEntry(f, 'lambda', selfType, [...captures].map(([name, type]) => ({ name, type })));
     const ps = f.parameters.map((p, i) => `${this.cpp(ft.params[i])} ${this.id(p.name.getText())}`).join(', ');
-    return `[=](${ps}) -> ${this.cpp(ft.ret)} ${entry}`;
+    return `[=${this.frameCaptures(f)}](${ps}) -> ${this.cpp(ft.ret)} ${entry}`;
   }
 
   toI32(e: ts.Expression): string {

@@ -175,7 +175,10 @@ static void destroy_now(Object* o) {
   o->rc = 0;
   live_objects--;
   if (arena_owns(o)) { arena_forget(o); o->~Object(); return; }
-  if (o->wc) o->~Object(); else o->zrt_delete();
+  // weakly referenced: destroy now, free when the last Weak goes. The extra count keeps the memory alive while the
+  // destructor runs (children holding a Weak to their parent drop it from inside this destructor).
+  if (o->wc) { o->wc++; o->~Object(); if (--o->wc == 0) mfree(o); }
+  else o->zrt_delete();
 }
 void destroy(Object* o) {
   if (cascade_depth >= MAX_CASCADE && deferred_n < DEFER_CAP) { deferred[deferred_n++] = o; return; }
@@ -677,8 +680,16 @@ static void teardown() {
   g_err = nullptr;
   for (auto& l : labels) l.name = String();
   for (int i = 0; i < MAX_TIMERS; i++) { timers[i].id = 0; timers[i].f = nullptr; }
+  // pending promises and the async frames awaiting them reference each other: drop the continuations
+  // (the promises are held while their lists are cleared, since clearing can free other promises)
+  {
+    Array<Ref<PromiseBase>> live = Array<Ref<PromiseBase>>::with_cap(0);
+    for (PromiseBase* p = promises_head; p; p = p->next_live) live.push(Ref<PromiseBase>(p));
+    for (int32_t i = 0; i < live.length(); i++) live.get(i)->conts = Array<Fn<void()>>::with_cap(0);
+  }
   drain_deferred();
 }
+PromiseBase* promises_head = nullptr;
 void finish() {
   teardown();
   if (hal_trap_faults) hal_trap_faults(nullptr);

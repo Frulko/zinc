@@ -23,3 +23,19 @@ console.log(pts.length, pts[1].y);
 function none(): U | null { return null; }
 const nobody = none();
 console.log(nobody?.friend?.name ?? 'no name', u.friend?.name, (u.friend?.friend?.name ?? 'end'));
+// closures created inside async functions outlive the async frame (captured locals are copied, cells shared)
+let savedHello: (() => void) | null = null;
+function tick(ms: number): Promise<void> { return new Promise<void>(r => { setTimeout(r, ms); }); }
+async function setupHello(name: string): Promise<void> {
+  const greeting = 'hello ' + name;
+  let calls = 0;
+  savedHello = () => { calls++; console.log(greeting, calls); };
+  await tick(1);
+}
+async function runHello(): Promise<void> {
+  await setupHello('zinc');
+  await tick(2);
+  const f = savedHello;
+  if (f !== null) { f(); f(); }
+}
+runHello();
