@@ -4,7 +4,7 @@
 // screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel). Unknown
 // methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
 
 const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000, FRAGMENT: i32 = 6;
@@ -23,6 +23,37 @@ function handleOf(id: i32): i32 { return id >= TEXT_BASE ? (id >= DOC ? -1 : id 
 
 /** A fragment that is not a component's wrapper (grouped children, dynamic slots): not shown, its children are. */
 function plain(h: i32, n: UiNode): boolean { return n.tag === FRAGMENT && componentName(h).length === 0; }
+/** Events the node listens to, as DOM names ("click pointerdown drag"). */
+function listeners(n: UiNode): string {
+  const s: string[] = [];
+  if (n.onClick !== null) s.push('click');
+  if (n.hs !== null) {
+    const e = n.hs as Handlers;
+    if (e.down !== null) s.push('pointerdown');
+    if (e.move !== null) s.push('pointermove');
+    if (e.up !== null) s.push('pointerup');
+    if (e.dbl !== null) s.push('dblclick');
+    if (e.ctx !== null) s.push('contextmenu');
+    if (e.wheel !== null) s.push('wheel');
+    if (e.enter !== null) s.push('pointerenter');
+    if (e.leave !== null) s.push('pointerleave');
+    if (e.key !== null) s.push('keydown');
+    if (e.tap !== null) s.push('tap');
+    if (e.long !== null) s.push('longpress');
+    if (e.drag !== null) s.push('drag');
+    if (e.pinch !== null) s.push('pinch');
+  }
+  return s.join(' ');
+}
+/** The element's attributes as [name, value] pairs: class, layout, then hidden / state / on when they apply. */
+function attrs(h: i32, n: UiNode): string[] {
+  const a = ['class', cls(n), 'layout', `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`];
+  if (n.hidden) { a.push('hidden'); a.push(''); }
+  const st = inspectState(h), on = listeners(n);
+  if (st.length > 0) { a.push('state'); a.push(st); }
+  if (on.length > 0) { a.push('on'); a.push(on); }
+  return a;
+}
 function children(h: i32, n: UiNode): string[] {
   const kids: string[] = [];
   if (n.tag === TEXT && n.text.length > 0)
@@ -41,9 +72,8 @@ function element(h: i32): string {
   const kids = children(h, n);
   const comp = componentName(h);  // a component's wrapper shows as <Card>, its host nodes as <view>, <text>...
   const tag = comp.length > 0 ? comp : TAG_NAMES[n.tag];
-  const layout = `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`;
   return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(comp.length > 0 ? tag : tag.toUpperCase())},"localName":${q(tag)},"nodeValue":"",` +
-    `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":["class",${q(cls(n))},"layout",${q(layout)}${n.hidden ? ',"hidden",""' : ''}]}`;
+    `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":[${attrs(h, n).map((v: string) => q(v)).join(',')}]}`;
 }
 function documentNode(): string {
   const root = element(inspectRoot());
@@ -96,7 +126,7 @@ function handle(client: i32, msg: string): void {
   const h = handleOf(nodeId);
   const n = inspectNode(h);
   let result = '{}';
-  if (method === 'DOM.getDocument') result = `{"root":${documentNode()}}`;
+  if (method === 'DOM.getDocument') { result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
   else if (method === 'DOM.requestChildNodes' && n !== null) {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
   } else if ((method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText') && n !== null) {
@@ -133,21 +163,84 @@ function handle(client: i32, msg: string): void {
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }
 
-// Twice a second: structure or class changes refresh the Elements panel (DOM.documentUpdated); text changes update
-// the text node in place (DOM.characterDataModified).
-let signature = '';
-const texts = new Map<i32, string>();
-function treeSignature(h: i32, textEvents: string[]): string {
-  const n = inspectNode(h);
-  if (n === null) return '';
-  if (n.tag === TEXT) {
-    const old = texts.get(h);
-    if (old !== undefined && old !== n.text) textEvents.push(`{"method":"DOM.characterDataModified","params":{"nodeId":${TEXT_BASE + h},"characterData":${q(n.text)}}}`);
-    texts.set(h, n.text);
+// Live tree, like a web page's: 10 times a second the shown tree is compared with what the frontend has, and the
+// differences go out as DOM mutations (nodes inserted / removed, attributes modified / removed, text changed), so
+// Elements follows navigation and interaction without collapsing (Chrome flashes the changed attributes).
+class Snap { attrs: string[] = []; kids: i32[] = []; text: string = ''; }
+const snaps = new Map<i32, Snap>();  // by DevTools node id: what the frontend was sent
+/** DevTools ids of the children Elements shows (the text of a text node, then elements; plain fragments flattened). */
+function kidIds(h: i32, n: UiNode, out: i32[]): i32[] {
+  if (n.tag === TEXT && n.text.length > 0) out.push(TEXT_BASE + h);
+  for (const c of n.children) {
+    const cn = inspectNode(c);
+    if (cn === null) continue;
+    if (plain(c, cn)) kidIds(c, cn, out); else out.push(c + 1);
   }
-  let s = `${h}:${n.tag}:${n.cls}:${n.text.length > 0 ? 't' : ''}(`;
-  for (const c of n.children) s += treeSignature(c, textEvents);
-  return s + ')';
+  return out;
+}
+function nodeJson(id: i32): string {
+  if (id < TEXT_BASE) return element(id - 1);
+  const n = inspectNode(id - TEXT_BASE);
+  return `{"nodeId":${id},"backendNodeId":${id},"nodeType":3,"nodeName":"#text","localName":"","nodeValue":${q(n !== null ? n.text : '')}}`;
+}
+/** Records element h and its subtree as sent. */
+function remember(h: i32): void {
+  const n = inspectNode(h);
+  if (n === null) return;
+  const s = new Snap();
+  s.attrs = attrs(h, n); s.kids = kidIds(h, n, []); s.text = n.text;
+  snaps.set(h + 1, s);
+  for (const k of s.kids) if (k < TEXT_BASE) remember(k - 1);
+}
+function forget(id: i32): void {
+  const s = snaps.get(id);
+  if (s === undefined) return;
+  snaps.delete(id);
+  for (const k of s.kids) if (k < TEXT_BASE) forget(k);
+}
+function attrValue(a: string[], name: string): string | null {
+  for (let i = 0; i < a.length; i += 2) if (a[i] === name) return a[i + 1];
+  return null;
+}
+function sync(h: i32, out: string[]): void {
+  const n = inspectNode(h), id = h + 1;
+  const s = snaps.get(id);
+  if (n === null || s === undefined) return;
+  const a = attrs(h, n);
+  for (const name of ['class', 'hidden', 'state', 'on']) {  // layout changes every animated frame: read on selection
+    const was = attrValue(s.attrs, name), now = attrValue(a, name);
+    if (now !== null && now !== was) out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${id},"name":${q(name)},"value":${q(now as string)}}}`);
+    else if (now === null && was !== null) out.push(`{"method":"DOM.attributeRemoved","params":{"nodeId":${id},"name":${q(name)}}}`);
+  }
+  s.attrs = a;
+  if (n.tag === TEXT && n.text !== s.text && n.text.length > 0 && s.text.length > 0)
+    out.push(`{"method":"DOM.characterDataModified","params":{"nodeId":${TEXT_BASE + h},"characterData":${q(n.text)}}}`);
+  s.text = n.text;
+  const now = kidIds(h, n, []);
+  let same = now.length === s.kids.length;
+  for (let i = 0; same && i < now.length; i++) same = now[i] === s.kids[i];
+  if (!same) {
+    // kept children in the same order stay; the others are removed, then the new ones inserted after their neighbour
+    const kept: i32[] = [];
+    for (const k of s.kids) if (now.includes(k)) kept.push(k);
+    let j = 0;
+    const stay: i32[] = [];
+    for (const k of now) if (j < kept.length && kept[j] === k) { stay.push(k); j++; }
+    for (const k of s.kids) if (!stay.includes(k)) {
+      out.push(`{"method":"DOM.childNodeRemoved","params":{"parentNodeId":${id},"nodeId":${k}}}`);
+      forget(k);
+    }
+    let prev: i32 = 0;
+    for (const k of now) {
+      if (!stay.includes(k)) {
+        out.push(`{"method":"DOM.childNodeInserted","params":{"parentNodeId":${id},"previousNodeId":${prev},"node":${nodeJson(k)}}}`);
+        if (k < TEXT_BASE) remember(k - 1);
+      }
+      prev = k;
+    }
+    s.kids = now;
+  }
+  for (const k of s.kids) if (k < TEXT_BASE) sync(k - 1, out);
 }
 // Screencast (the page view next to the panels): the frame on screen, shrunk to the size the frontend asks for, sent
 // when it changed and the previous one was acknowledged.
@@ -163,11 +256,12 @@ setInterval(() => {
 }, 100);
 
 Cdp.listen(9229, handle);
+let shownRoot: i32 = -1;
 setInterval(() => {
-  if (Cdp.clients() === 0) { signature = ''; texts.clear(); return; }
+  if (Cdp.clients() === 0) { snaps.clear(); return; }
+  if (snaps.size === 0) return;  // DOM.getDocument not asked yet
+  if (inspectRoot() !== shownRoot) { shownRoot = inspectRoot(); snaps.clear(); Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}'); return; }
   const events: string[] = [];
-  const s = treeSignature(inspectRoot(), events);
-  if (signature.length > 0 && s !== signature) Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}');
-  else for (const e of events) Cdp.send(-1, e);
-  signature = s;
-}, 500);
+  sync(inspectRoot(), events);
+  for (const e of events) Cdp.send(-1, e);
+}, 100);

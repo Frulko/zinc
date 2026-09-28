@@ -2104,6 +2104,15 @@ export function inspectRoot(): i32 { return root; }
 export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
+/** Interaction state for the inspector: "hover", "focus", "active", "disabled" (space-separated, '' for none). */
+export function inspectState(h: i32): string {
+  const n = nodes[h], s: string[] = [];
+  if (n.hovered) s.push('hover');
+  if (focus === h) s.push('focus');
+  if (pressed === h) s.push('active');
+  if (n.hs !== null && (n.hs as Handlers).disabled) s.push('disabled');
+  return s.join(' ');
+}
 const componentNames = new Map<i32, string>();
 /** Name of the component a wrapper node stands for (dev builds: recorded by the JSX compiler for the inspector). */
 export function setComponentName(h: i32, name: string): void { componentNames.set(h, name); }

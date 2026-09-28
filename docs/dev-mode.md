@@ -106,7 +106,12 @@ message, hidden after 8 s), like React Native's LogBox.
   physical size (`format`, `clip` and `quality` are ignored);
 - **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects);
   `Runtime.evaluate` answers that there is no JavaScript engine;
-- tree changes: `DOM.documentUpdated` for structure/class changes, `DOM.characterDataModified` for text;
+- **live tree**, like a web page's: 10 times a second the shown tree is compared with what DevTools has, and the
+  differences go out as mutations (`DOM.childNodeInserted` / `childNodeRemoved` as screens mount and unmount,
+  `attributeModified` / `attributeRemoved`, `characterDataModified` for text), so Elements follows navigation
+  without collapsing and flashes what changed. Attributes: `class`, `layout` (read when the node is selected),
+  `hidden`, `state` (`hover`, `focus`, `active`, `disabled`, changing as you interact) and `on` (the events the node
+  listens to: `click pointerdown drag`…);
 - **Performance** (`Tracing.start` / `Tracing.end` → `Tracing.dataCollected`, `tracingComplete`): the frames recorded
   in between, as Chrome trace events (see [Profiling](#profiling));
 - every other method gets an empty result so the frontend never waits.
