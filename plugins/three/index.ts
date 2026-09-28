@@ -536,7 +536,7 @@ export class Color {
     return this.setRGB(hue2rgb(q, p, hh + 1 / 3), hue2rgb(q, p, hh), hue2rgb(q, p, hh - 1 / 3));
   }
   /** CSS colour: #hex, rgb(), hsl(), names (alpha ignored). */
-  setStyle(css: string): Color { const c = parseColor(css); if (c >= 0) this.setHex(c % 16777216); return this; }
+  setStyle(css: string): Color { const c = parseColor(css); if (c !== null) this.setHex(c.rgb); return this; }
   copy(c: Color): Color { return this.setRGB(c.r, c.g, c.b); }
   clone(): Color { return new Color(this.r, this.g, this.b); }
   getHex(): number { return Math.round(clamp(this.r, 0, 1) * 255) * 65536 + Math.round(clamp(this.g, 0, 1) * 255) * 256 + Math.round(clamp(this.b, 0, 1) * 255); }

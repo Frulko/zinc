@@ -1,21 +1,20 @@
 // zinc:canvas (plugins/canvas2d): CSS colours, gradients, transforms, path and stroke geometry through the hit tests
 // (fills, caps, joins, miter limit, dashes, arcs, curves), text metrics and a few drawn frames. Pixels are checked by
 // screenshots of examples/canvas/sketch; this prints what the geometry decides.
-import { CanvasRenderingContext2D, Canvas, parseColor } from 'zinc:canvas';
+import { CanvasRenderingContext2D, Canvas, CssColor, parseColor } from 'zinc:canvas';
 import { onFrame, quit } from 'zinc:gfx';
 
 function f(v: number): string { return (Math.abs(v) < 0.0005 ? 0 : v).toFixed(3); }
-function hex(c: number): string {
-  if (c < 0) return 'invalid';
+function hex(rgb: number, alpha: number): string {
   const d = '0123456789abcdef';
   let s = '';
-  const rgb = c % 16777216;
   for (let i = 5; i >= 0; i--) s += d.at(Math.floor(rgb / Math.pow(16, i)) % 16);
-  return `${s}/${Math.floor(c / 16777216)}`;
+  return `${s}/${alpha}`;
 }
-const css: string[] = ['#f80', '#ff8000cc', 'rgb(10, 20, 30)', 'rgba(255,0,0,0.5)', 'rgb(10% 50% 100% / 25%)', 'hsl(120, 100%, 25%)',
+function css(c: CssColor | null): string { return c === null ? 'invalid' : hex(c.rgb, c.alpha); }
+const colors: string[] = ['#f80', '#ff8000cc', 'rgb(10, 20, 30)', 'rgba(255,0,0,0.5)', 'rgb(10% 50% 100% / 25%)', 'hsl(120, 100%, 25%)',
   'hsla(240,100%,50%,0.5)', 'rebeccapurple', 'Transparent', ' White ', 'nope', '#12345'];
-for (const c of css) console.log('color', c, '->', hex(parseColor(c)));
+for (const c of colors) console.log('color', c, '->', css(parseColor(c)));
 
 const ctx = new CanvasRenderingContext2D();
 function hits(label: string, pts: number[], stroke: boolean, rule: string): void {
@@ -91,7 +90,7 @@ function geometry(): void {
   const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 10);
   g.addColorStop(1, 'blue'); g.addColorStop(0, 'white'); g.addColorStop(0.5, 'rgba(255, 0, 0, 0.5)'); g.addColorStop(0.5, 'lime');
   let st = '';
-  for (let i = 0; i < g.stops.length; i += 3) st += ` ${f(g.stops[i])}:${hex(g.stops[i + 2] * 16777216 + g.stops[i + 1])}`;
+  for (let i = 0; i < g.stops.length; i += 3) st += ` ${f(g.stops[i])}:${hex(g.stops[i + 1], g.stops[i + 2])}`;
   console.log('gradient stops', g.kind, st);
   ctx.fillStyle = 'red';
   ctx.fillGradient = g;

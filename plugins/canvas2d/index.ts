@@ -44,9 +44,14 @@ function hue(h: number, m1: number, m2: number): number {
   if (h * 3 < 2) return m1 + (m2 - m1) * (2 / 3 - h) * 6;
   return m1;
 }
-/** CSS colour (#rgb, #rgba, #rrggbb, #rrggbbaa, rgb[a](), hsl[a](), names, 'transparent') as alpha * 2^24 + 0xRRGGBB
- *  with alpha 0..255; -1 when not a colour. */
-export function parseColor(css: string): number {
+/** A parsed CSS colour: 0xRRGGBB and alpha 0..255 (kept apart: exact in the f32 number profile). */
+export class CssColor {
+  rgb: number; alpha: number;
+  constructor(rgb: number, alpha: number) { this.rgb = rgb; this.alpha = alpha; }
+}
+const BLACK = new CssColor(0, 255);
+/** CSS colour (#rgb, #rgba, #rrggbb, #rrggbbaa, rgb[a](), hsl[a](), names, 'transparent'); null when not a colour. */
+export function parseColor(css: string): CssColor | null {
   const s = css.trim().toLowerCase();
   if (s.startsWith('#')) {
     const h = s.slice(1);
@@ -55,15 +60,15 @@ export function parseColor(css: string): number {
       for (const ch of h) out += ch + ch;
       return parseColor('#' + out);
     }
-    if (h.length !== 6 && h.length !== 8) return -1;
+    if (h.length !== 6 && h.length !== 8) return null;
     const v = parseInt(h.slice(0, 6), 16), a = h.length === 8 ? parseInt(h.slice(6, 8), 16) : 255;
-    return isNaN(v) || isNaN(a) ? -1 : a * 16777216 + v;
+    return isNaN(v) || isNaN(a) ? null : new CssColor(v, a);
   }
   const open = s.indexOf('(');
   if (open > 0 && s.endsWith(')')) {
     const fn = s.slice(0, open).trim();
     const p = s.slice(open + 1, s.length - 1).replaceAll(',', ' ').replaceAll('/', ' ').split(' ').filter((x: string) => x.length > 0);
-    if (p.length < 3) return -1;
+    if (p.length < 3) return null;
     const a = p.length > 3 ? channel(p[3], 1) : 1;
     let r = 0, g = 0, b = 0;
     if (fn === 'rgb' || fn === 'rgba') { r = channel(p[0], 255); g = channel(p[1], 255); b = channel(p[2], 255); }
@@ -71,16 +76,16 @@ export function parseColor(css: string): number {
       const hh = ((parseFloat(p[0]) % 360) + 360) % 360 / 360, ss = channel(p[1], 1), ll = channel(p[2], 1);
       const m2 = ll <= 0.5 ? ll * (ss + 1) : ll + ss - ll * ss, m1 = ll * 2 - m2;
       r = hue(hh + 1 / 3, m1, m2) * 255; g = hue(hh, m1, m2) * 255; b = hue(hh - 1 / 3, m1, m2) * 255;
-    } else return -1;
-    return Math.round(a * 255) * 16777216 + Math.round(r) * 65536 + Math.round(g) * 256 + Math.round(b);
+    } else return null;
+    return new CssColor(Math.round(r) * 65536 + Math.round(g) * 256 + Math.round(b), Math.round(a * 255));
   }
-  if (s === 'transparent') return 0;
+  if (s === 'transparent') return new CssColor(0, 0);
   if (named.size === 0) {
     const w = NAMES.split(' ');
     for (let i = 0; i + 1 < w.length; i += 2) named.set(w[i], parseInt(w[i + 1], 16));
   }
-  if (!named.has(s)) return -1;
-  return 255 * 16777216 + (named.get(s) ?? 0);
+  if (!named.has(s)) return null;
+  return new CssColor(named.get(s) ?? 0, 255);
 }
 
 // ---------------------------------------------------------------- gradients, metrics, matrices
@@ -96,13 +101,13 @@ export class CanvasGradient {
   }
   addColorStop(offset: number, color: string): void {
     const c = parseColor(color);
-    if (c < 0) return;
+    if (c === null) return;
     const o = Math.min(1, Math.max(0, offset));
     let at = this.stops.length;
     while (at > 0 && this.stops[at - 3] > o) at -= 3;
     const tail = this.stops.slice(at);
     this.stops.length = at;
-    this.stops.push(o); this.stops.push(c % 16777216); this.stops.push(Math.floor(c / 16777216));
+    this.stops.push(o); this.stops.push(c.rgb); this.stops.push(c.alpha);
     for (const v of tail) this.stops.push(v);
   }
 }
@@ -188,8 +193,8 @@ export class CanvasRenderingContext2D {
   private closed: boolean[] = [];
   private cx = 0; private cy = 0; private sx = 0; private sy = 0; private hasPoint = false;
   // parse caches
-  private fillKey = ''; private fillVal = 0;
-  private strokeKey = ''; private strokeVal = 0;
+  private fillKey = ''; private fillVal = BLACK;
+  private strokeKey = ''; private strokeVal = BLACK;
   private fontKey = ''; private fontId: i32 = -1;
 
   /** image: a runtime image (gfx.createImage) to draw into, -1 for the screen. */
@@ -413,19 +418,18 @@ export class CanvasRenderingContext2D {
     if (this.b === 0 && this.c === 0 && this.fillGradient === null) {  // axis-aligned: one rectangle command
       const c = this.color(true);
       const x0 = this.tx(x, y), y0 = this.ty(x, y), x1 = this.tx(x + w, y + h), y1 = this.ty(x + w, y + h);
-      const al = Math.round(Math.floor(c / 16777216) * this.globalAlpha);
-      if (al > 0) rrect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), 0, c % 16777216, al);
+      const al = Math.round(c.alpha * this.globalAlpha);
+      if (al > 0) rrect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), 0, c.rgb, al);
       return;
     }
     this.withPath(() => { this.rect(x, y, w, h); this.fill(); });
   }
   strokeRect(x: number, y: number, w: number, h: number): void { this.withPath(() => { this.rect(x, y, w, h); this.stroke(); }); }
   clearRect(x: number, y: number, w: number, h: number): void {
-    let c = parseColor(this.clearColor);
-    if (c <= 0 && this.image < 0) return;
-    if (c < 0) c = 255 * 16777216;
+    const c = parseColor(this.clearColor) ?? BLACK;
+    if (c.alpha === 0 && this.image < 0) return;
     const x0 = this.tx(x, y), y0 = this.ty(x, y), x1 = this.tx(x + w, y + h), y1 = this.ty(x + w, y + h);
-    rrect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), 0, c % 16777216, 255);
+    rrect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), 0, c.rgb, 255);
   }
   setLineDash(segments: number[]): void {
     const d: number[] = [];
@@ -486,14 +490,14 @@ export class CanvasRenderingContext2D {
     f();
     this.subs = subs; this.closed = closed; this.cx = cx; this.cy = cy; this.sx = sx; this.sy = sy; this.hasPoint = has;
   }
-  /** alpha * 2^24 + rgb of the fill or stroke colour (parsed once per distinct string). */
-  private color(fill: boolean): number {
+  /** The fill or stroke colour (parsed once per distinct string; invalid strings are black). */
+  private color(fill: boolean): CssColor {
     const s = fill ? this.fillCss : this.strokeCss;
     if (fill) {
-      if (s !== this.fillKey) { this.fillKey = s; const v = parseColor(s); this.fillVal = v < 0 ? 255 * 16777216 : v; }
+      if (s !== this.fillKey) { this.fillKey = s; this.fillVal = parseColor(s) ?? BLACK; }
       return this.fillVal;
     }
-    if (s !== this.strokeKey) { this.strokeKey = s; const v = parseColor(s); this.strokeVal = v < 0 ? 255 * 16777216 : v; }
+    if (s !== this.strokeKey) { this.strokeKey = s; this.strokeVal = parseColor(s) ?? BLACK; }
     return this.strokeVal;
   }
   private paint(contours: number[], fill: boolean, evenodd: boolean): void {
@@ -502,8 +506,8 @@ export class CanvasRenderingContext2D {
     const ga = Math.min(1, Math.max(0, this.globalAlpha));
     if (g === null || g.stops.length === 0) {
       const c = this.color(fill);
-      const al: i32 = Math.round(Math.floor(c / 16777216) * ga);
-      if (al > 0) N.fill(contours, c % 16777216, al, evenodd, []);
+      const al: i32 = Math.round(c.alpha * ga);
+      if (al > 0) N.fill(contours, c.rgb, al, evenodd, []);
       return;
     }
     // gradient geometry in device space (radii scaled by the transform's mean scale)
@@ -540,8 +544,8 @@ export class CanvasRenderingContext2D {
     if (f < 0) return;
     const g = fill ? this.fillGradient : this.strokeGradient;
     let c = this.color(fill);
-    if (g !== null && g.stops.length >= 3) c = g.stops[2] * 16777216 + g.stops[1];  // gradients: the first stop's colour
-    const al: i32 = Math.round(Math.floor(c / 16777216) * Math.min(1, Math.max(0, this.globalAlpha)));
+    if (g !== null && g.stops.length >= 3) c = new CssColor(g.stops[1], g.stops[2]);  // gradients: the first stop's colour
+    const al: i32 = Math.round(c.alpha * Math.min(1, Math.max(0, this.globalAlpha)));
     if (al <= 0) return;
     const w = textWidth(f, s, 0), asc = fontAscent(f), lh = lineHeight(f);
     let px = this.tx(x, y), py = this.ty(x, y);
@@ -552,7 +556,7 @@ export class CanvasRenderingContext2D {
     if (bl === 'alphabetic') py -= asc;
     else if (bl === 'middle') py -= lh / 2;
     else if (bl === 'bottom' || bl === 'ideographic') py -= lh;
-    drawText(f, px, py, s, c % 16777216, al, 0);
+    drawText(f, px, py, s, c.rgb, al, 0);
   }
 }
 

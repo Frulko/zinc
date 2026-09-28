@@ -64,7 +64,7 @@ zinc run examples/canvas/sketch --target sim    # Node (headless: the geometry r
 | images | `drawImage(image, dx, dy)`, `(image, dx, dy, dw, dh)`, `(image, sx, sy, sw, sh, dx, dy, dw, dh)` with a `zinc:gfx` image id (baked asset `gfx.image('x.png')`, runtime image, `canvas.image`) |
 | clipping | `clip()`: intersects with the **bounding box** of the current path (exact for rectangles) |
 | hit testing | `isPointInPath(x, y, rule)`, `isPointInStroke(x, y)` (canvas pixels, like the web); `strokeContours()` returns the stroke outline |
-| helpers | `parseColor(css)` → `alpha × 2^24 + 0xRRGGBB` (−1 when invalid), also used by `three`'s `Color.setStyle` |
+| helpers | `parseColor(css)` → `CssColor` (`rgb` 0xRRGGBB, `alpha` 0..255) or null, also used by `three`'s `Color.setStyle` |
 
 ## Deviations from the web
 
