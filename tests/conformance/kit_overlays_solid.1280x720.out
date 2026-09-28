@@ -1,0 +1,68 @@
+-- tooltip after its delay, with the shortcut
+tooltip 16,62 hint true
+-- dropdown: opens focused on its first item
+focused Undo, menu reachable true
+focused Copy
+focused Delete (Paste is disabled)
+view 0,0 1280x720
+view 0,0 1280x720
+view 16,16 1248x36
+view 16,16 65x36
+button 16,16 65x36
+text 32,24 33x20 "Save"
+view 89,16 57x36
+view 89,16 57x36
+button 89,16 57x36
+text 105,24 25x20 "Edit"
+view 89,56 224x136
+button 93,60 216x32
+text 101,66 36x20 "Undo"
+text 279,68 22x16 "⌘Z"
+button 93,92 216x32
+text 101,98 36x20 "Copy"
+text 277,100 24x16 "⌘C"
+button 93,124 216x32
+text 101,130 37x20 "Paste"
+text 301,132 0x16 ""
+button 93,156 216x32
+text 101,162 43x20 "Delete"
+text 301,164 0x16 ""
+view 154,16 58x36
+view 154,16 58x36
+button 154,16 58x36
+text 170,24 26x20 "Info"
+button 16,64 1248x36
+text 620,72 40x20 "Notify"
+focused Copy
+action copy
+focused Edit after picking
+after Escape: focused Edit, menu reachable false
+-- popover: a press outside closes it
+focused Got it
+focused Info
+-- dialog from the menu: trap, Escape
+dialog focused Cancel
+focused Delete
+focused Cancel
+under the backdrop: -1
+dialog open -> false
+focused Edit
+-- toast
+toast shown true
+view 0,0 1280x720
+view 0,0 1280x720
+view 16,16 1248x36
+view 16,16 65x36
+button 16,16 65x36
+text 32,24 33x20 "Save"
+view 89,16 57x36
+view 89,16 57x36
+button 89,16 57x36
+text 105,24 25x20 "Edit"
+view 154,16 58x36
+view 154,16 58x36
+button 154,16 58x36
+text 170,24 26x20 "Info"
+button 16,64 1248x36
+text 620,72 40x20 "Notify"
+toast gone true
