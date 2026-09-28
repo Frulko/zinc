@@ -16,7 +16,8 @@ export async function fetch(url, init) {
   try {
     const opts = { headers: { 'user-agent': 'zinc/0.1' } };
     if (init?.method) opts.method = init.method;
-    if (init?.body) opts.body = init.body;
+    if (init?.bodyBytes) opts.body = Uint8Array.from(init.bodyBytes);
+    else if (init?.body) opts.body = init.body;
     if (init?.contentType) opts.headers['content-type'] = init.contentType;
     if (init?.headers) init.headers.names.forEach((n, i) => { opts.headers[n] = opts.headers[n] && n !== 'user-agent' ? opts.headers[n] + ', ' + init.headers.vals[i] : init.headers.vals[i]; });
     if (init?.timeoutMs > 0) opts.signal = AbortSignal.timeout(init.timeoutMs);

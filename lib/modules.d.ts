@@ -115,7 +115,8 @@ declare module 'zinc:net' {
     keys(): string[];
     forEach(f: (value: string, name: string) => void): void;
   }
-  export interface RequestInit { method?: string; body?: string; contentType?: string; headers?: Headers; timeoutMs?: i32 }
+  /** bodyBytes: a binary body (wins over body). */
+  export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32 }
   export class Response {
     readonly status: i32;
     readonly ok: boolean;

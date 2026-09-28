@@ -10,7 +10,7 @@ export const liveObjects = () => 0;
 export const allocations = () => 0;
 export const randomBytes = n => Array.from(randomFillSync(new Uint8Array(Math.max(0, n))));
 export const utf8Encode = s => Array.from(Buffer.from(s, 'utf8'));
-export const utf8Decode = b => new TextDecoder().decode(Uint8Array.from(b));
+export const utf8Decode = b => new TextDecoder('utf-8', { ignoreBOM: true }).decode(Uint8Array.from(b));
 const SIGS = ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGUSR1', 'SIGUSR2', 'SIGTERM', 'SIGWINCH', 'SIGCHLD', 'SIGALRM', 'SIGPIPE', 'SIGCONT', 'SIGTSTP'];
 const sig = (name, kill) => { const n = name.startsWith('SIG') ? name : 'SIG' + name; return SIGS.includes(n) || (kill && n === 'SIGKILL') ? n : ''; };
 export const onSignal = (name, cb) => {

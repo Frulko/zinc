@@ -138,9 +138,12 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   a->id = node->id;
   a->url = dupstr(url.ptr(), url.bytes());
   a->method = (init.p && init->method.bytes()) ? dupstr(init->method.ptr(), init->method.bytes()) : nullptr;
-  bool has_body = init.p && init->body.bytes();
-  a->body = has_body ? dupstr(init->body.ptr(), init->body.bytes()) : nullptr;
-  a->body_len = has_body ? init->body.bytes() : 0;
+  bool has_bytes = init.p && init->bodyBytes.a;
+  bool has_body = has_bytes || (init.p && init->body.bytes());
+  const char* bp = has_bytes ? (init->bodyBytes.length() ? (const char*)init->bodyBytes.a->data : "") : has_body ? init->body.ptr() : "";
+  uint32_t bn = has_bytes ? (uint32_t)init->bodyBytes.length() : has_body ? init->body.bytes() : 0;
+  a->body = has_body ? dupstr(bp, bn) : nullptr;
+  a->body_len = bn;
   a->content_type = (init.p && init->contentType.bytes()) ? dupstr(init->contentType.ptr(), init->contentType.bytes()) : nullptr;
   a->timeout_ms = init.p ? init->timeoutMs : 0;
   a->headers = nullptr;

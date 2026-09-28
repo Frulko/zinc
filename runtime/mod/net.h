@@ -36,6 +36,7 @@ struct RequestInit : Object {
   String method, body, contentType;
   Ref<Headers> headers;
   int32_t timeoutMs = 0;
+  Array<uint8_t> bodyBytes;  // binary body (wins over `body`)
   RequestInit() {}
 };
 struct Response : Object {

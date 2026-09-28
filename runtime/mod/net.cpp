@@ -102,7 +102,8 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   curl_easy_setopt(d->h, CURLOPT_ACCEPT_ENCODING, "");  // gzip / deflate / br as libcurl supports, decoded
   if (init.p) {
     if (init->method.bytes()) { sock::CStr m(init->method); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, ""); curl_easy_setopt(d->h, CURLOPT_CUSTOMREQUEST, m.c()); }
-    if (init->body.bytes()) { curl_easy_setopt(d->h, CURLOPT_POSTFIELDSIZE, (long)init->body.bytes()); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, init->body.ptr()); }
+    if (init->bodyBytes.a) { int32_t n = init->bodyBytes.length(); curl_easy_setopt(d->h, CURLOPT_POSTFIELDSIZE, (long)n); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, n ? (const char*)init->bodyBytes.a->data : ""); }
+    else if (init->body.bytes()) { curl_easy_setopt(d->h, CURLOPT_POSTFIELDSIZE, (long)init->body.bytes()); curl_easy_setopt(d->h, CURLOPT_COPYPOSTFIELDS, init->body.ptr()); }
     if (init->contentType.bytes()) { sock::CStr ct(cat(String::from("Content-Type: ", 14), init->contentType)); d->headers = curl_slist_append(d->headers, ct.c()); }
     if (init->headers.p) for (int32_t i = 0; i < init->headers->names.length(); i++) {
       sock::CStr h(cat(init->headers->names.get(i), String::from(": ", 2), init->headers->vals.get(i)));
