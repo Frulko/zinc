@@ -6,7 +6,7 @@ The surface size is the display size, set per target in `zinc.json` (`targets.<i
 
 ```json
 {
-  "entry": "main.ts",
+  "entry": "src/main.ts",
   "targets": {
     "macos": { "width": 32, "height": 8, "display": "ws2812" },
     "esp32": { "width": 32, "height": 8, "display": { "driver": "ws2812", "pin": 13, "vertical": true } }
