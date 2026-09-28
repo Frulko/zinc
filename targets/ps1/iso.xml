@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- mkpsxiso project for targets/ps1/ps1.cmake: app.exe booted through SYSTEM.CNF -->
+<iso_project image_name="app.bin" cue_sheet="app.cue">
+  <track type="data">
+    <identifiers system="PLAYSTATION" application="PLAYSTATION" volume="ZINC" volume_set="ZINC" publisher="ZINC" data_preparer="ZINC"/>
+    <directory_tree>
+      <file name="SYSTEM.CNF" type="data" source="system.cnf"/>
+      <file name="PSX.EXE" type="data" source="app.exe"/>
+      <dummy sectors="1024"/>
+    </directory_tree>
+  </track>
+</iso_project>
