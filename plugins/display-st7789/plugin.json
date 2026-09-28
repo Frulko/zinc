@@ -1,0 +1,25 @@
+{
+  "name": "display-st7789",
+  "kind": "display",
+  "description": "ST7789/ILI9341 SPI LCD with band rendering (ESP32; macOS uses the normal window)",
+  "options": {
+    "controller": "st7789",
+    "mosi": 23,
+    "sclk": 18,
+    "cs": 5,
+    "dc": 16,
+    "rst": 17,
+    "bl": 4,
+    "hz": 40000000,
+    "lines": 16,
+    "xoff": 0,
+    "yoff": 0,
+    "madctl": -1,
+    "invert": -1,
+    "debug": false
+  },
+  "targets": {
+    "esp32": { "sources": ["st7789.cpp"], "idf": ["esp_lcd", "esp_driver_spi", "esp_driver_gpio"] },
+    "macos": {}
+  }
+}
