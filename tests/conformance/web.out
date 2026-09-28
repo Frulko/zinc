@@ -1,0 +1,92 @@
+utf-8 utf-8 false false
+104,195,169,108,108,111,32,226,130,172,240,157,132,158 héllo €𝄞
+a�b�c� 2
+3 utf-8
+fatal TypeError
+RangeError
+|€!|
+3 5 97,226,130,172,98
+SGVsbG8sIFppbmMh Hello, Zinc!  YQ== YWI= a ab
+atob @@@ InvalidCharacterError true 5
+atob a InvalidCharacterError true 5
+atob ab=c InvalidCharacterError true 5
+btoa InvalidCharacterError
+a%20b%26c%3Dd%2F%C3%A9%3F http://x/a%20b?q=%C3%A9#f a b&é %3B 
+URIError
+https://user:pa%20ss@example.com/a/c%20d?x=1&y=%C3%A9#frag%20ment
+https: user pa%20ss example.com example.com  /a/c%20d ?x=1&y=%C3%A9 #frag%20ment https://example.com
+"../up?q" -> http://a.b/up?q
+"/abs" -> http://a.b/abs
+"//other.org/p" -> http://other.org/p
+"?only" -> http://a.b/c/d;p?only
+"#h" -> http://a.b/c/d;p?q#h
+"sib" -> http://a.b/c/sib
+"" -> http://a.b/c/d;p?q
+"g/./h/.." -> http://a.b/c/g/
+"http://x.y:8080" -> http://x.y:8080/
+file:///tmp/a%20b.txt  /tmp/a%20b.txt null
+mailto:someone@example.com  someone@example.com null
+ws://h/ h / ws://h
+http://127.0.0.1/ 127.0.0.1 / http://127.0.0.1
+http://[::ffff:102:304]/ [::ffff:102:304] / http://[::ffff:102:304]
+http://xn--xample-9ua.com/ xn--xample-9ua.com / http://xn--xample-9ua.com
+non-special://h/p?q h /p null
+file:///C:/y  /C:/y null
+blob:https://a.b/x  https://a.b/x https://a.b
+[ '1', '3' ] false true true true
+invalid "" TypeError
+invalid "http://" TypeError
+invalid "http://h:99999/" TypeError
+invalid "http://a b/" TypeError
+invalid "relative" TypeError
+invalid "http://[1::2::3]/" TypeError
+invalid "https://%zz/" TypeError
+http://h.com:8080/x/y?q=a+b&lang=fr#top ?q=a+b&lang=fr
+v http://h.com:8080/x/y?k=v#top "http://h.com:8080/x/y?k=v#top"
+https://me@other.org:81/x/y?k=v#top
+http://reset/ 0
+1 [ '1', '0' ]  x y true false true 6 true
+a=new&c=+x+y&empty=&flag=&%C3%A9=x%26y%3Dz [ 'a', 'c', 'empty', 'flag', 'é' ] [ 'new', ' x y', '', '', 'x&y=z' ]
+  a = new
+  c =  x y
+  empty = 
+  flag = 
+  é = x&y=z
+true x=1%262&y=%3D 5
+TypeError
+listener ping 2 true
+once ping true
+listener ping 2 true
+after remove true 0 true true false false
+detail payload
+cancelled true true false true
+passive prevented? false
+next listener still runs
+re-dispatch InvalidStateError
+error boom 3 true 2
+aborted? false
+onabort abort
+abort event true
+true AbortError 20
+thrown AbortError This operation was aborted
+thrown custom
+any true why
+posted (delivered later)
+12 text/plain héllo world 195,169 world 0
+a.txt 3 text/plain 42 true abc
+v1 2 true a.txt true [ 'k', 'k', 'file', 'one' ]
+[ 'file', 'one' ]
+SHA-1 a9993e364706816aba3e25717850c26c9cd0d89d
+SHA-1 94218caae9904e93a3d7bf578bf4791926fc5e82
+SHA-256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+SHA-256 aa20c23e3201834050679e1d88941b9a6fed0557c9a705cb2c315e2e63fd486d
+SHA-384 cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7
+SHA-384 34c6d696dcbb86ee441ff110160cef6c192104b72fe208884fb0188d0085516f02214a16c913be2ba620fb6e7c9a4a54
+SHA-512 ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f
+SHA-512 ef978e23dc520404ae16fd17bde9ee5945610d671551d6863a5ffbc99433fc726726e51f989b886191be9325b8f8b03b1a63fe3e5eff23d126c2f41f07d2bf87
+NotSupportedError
+8 36 4 true 5 true
+true
+port2 got ping
+port1 got pong
+timeout TimeoutError
