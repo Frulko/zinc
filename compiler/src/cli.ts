@@ -214,6 +214,7 @@ function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, t
   const modFile = (m: string) => (gpiod && m === 'gpio' ? 'gpio_linux' : m);
   const mods = [...res.modules].map(modFile).filter(m => fs.existsSync(path.join(ZINC_ROOT, 'runtime/mod', m + '.cpp')));
   const rel = (f: string) => '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, f);
+  const cSrc = res.nativeSources.filter(f => f.endsWith('.c')), cppSrc = res.nativeSources.filter(f => !f.endsWith('.c'));
   const z = '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, ZINC_ROOT);
 
   if (mode.dev) debug = false;
@@ -255,10 +256,10 @@ target_compile_definitions(zinc_host PRIVATE ZINC_HAL_SRC="\${ZINC_HAL}")
 set_target_properties(zinc_host PROPERTIES ENABLE_EXPORTS ON)
 target_link_libraries(zinc_host PRIVATE \${CMAKE_DL_LIBS})
 ${usesGfx ? 'find_package(SDL3 REQUIRED CONFIG)\ntarget_link_libraries(zinc_host PRIVATE SDL3::SDL3)' : ''}
-add_library(app MODULE zinc_main.cpp${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+add_library(app MODULE zinc_main.cpp${cppSrc.map(f => ' ' + rel(f)).join('')})
 set_target_properties(app PROPERTIES PREFIX "" SUFFIX ".so")
 target_compile_definitions(app PRIVATE ZRT_DYLIB)
-target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
+target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${cppSrc.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 ${win.length ? `target_compile_definitions(app PRIVATE ${win.join(' ')})` : ''}
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality -Wno-unused-value)
@@ -279,6 +280,13 @@ ${ps.defines.length ? `target_compile_definitions(app PRIVATE ${ps.defines.map(q
 ${ps.flags.length ? `target_compile_options(app PRIVATE ${ps.flags.map(q).join(' ')})` : ''}
 ${ps.pkg.length ? `find_package(PkgConfig REQUIRED)\npkg_check_modules(ZPLUGINS REQUIRED IMPORTED_TARGET ${ps.pkg.join(' ')})\ntarget_link_libraries(app PRIVATE PkgConfig::ZPLUGINS)` : ''}
 ${ps.frameworks.length || ps.libs.length || ps.linkFlags.length ? `target_link_libraries(app PRIVATE ${[...ps.frameworks.map(f => `"-framework ${f}"`), ...ps.libs, ...ps.linkFlags.map(q)].join(' ')})` : ''}
+${cSrc.length ? `# C sources of plugins (e.g. the SQLite amalgamation): C flags only, optimized even in debug builds
+enable_language(C)
+add_library(zinc_csrc STATIC ${cSrc.map(rel).join(' ')})
+target_compile_options(zinc_csrc PRIVATE -O2 -w)
+${ps.includes.length ? `target_include_directories(zinc_csrc PRIVATE ${ps.includes.map(q).join(' ')})` : ''}
+${ps.defines.length ? `target_compile_definitions(zinc_csrc PRIVATE ${ps.defines.map(q).join(' ')})` : ''}
+target_link_libraries(app PRIVATE zinc_csrc)` : ''}
 ${usesGfx && !hot ? 'if(NOT ZINC_HEADLESS AND NOT EMSCRIPTEN)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
 if(DEFINED ZINC_TARGET_CMAKE)
   include(\${ZINC_TARGET_CMAKE})
