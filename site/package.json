@@ -1,0 +1,17 @@
+{
+  "name": "zinc-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "mkdir -p public/docs-assets/targets && cp -R ../docs/img public/docs-assets/ && cp -R ../docs/targets/img public/docs-assets/targets/",
+    "predev": "pnpm assets",
+    "prebuild": "pnpm assets",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.1",
+    "astro": "^7.3.5"
+  }
+}

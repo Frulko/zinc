@@ -1,0 +1,34 @@
+---
+import '../styles/global.css';
+const { title, description = 'Zinc compiles a strict subset of TypeScript to native C++17. No JavaScript engine on the device.' } = Astro.props;
+const b = import.meta.env.BASE_URL;
+const path = Astro.url.pathname;
+const links = [['Features', 'features/'], ['Showcase', 'showcase/'], ['Targets', 'targets/'], ['Performance', 'performance/'], ['Limitations', 'limitations/'], ['Docs', 'docs/guide/readme/']];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{title === 'Zinc' ? 'Zinc — TypeScript in, native out' : `${title} · Zinc`}</title>
+  <meta name="description" content={description} />
+  <meta property="og:title" content={title} /><meta property="og:description" content={description} />
+  <meta property="og:image" content={`${Astro.site}${b.slice(1)}docs-assets/img/hero.png`} />
+  <link rel="icon" href={`${b}favicon.svg`} type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <header class="nav"><div class="wrap">
+    <a class="brand" href={b}>zinc<b>.</b></a>
+    <nav>
+      {links.map(([n, h]) => <a href={`${b}${h}`} class={path.startsWith(`${b}${h.split('/')[0]}/`) ? 'on' : ''}>{n}</a>)}
+      <a class="btn primary" href="https://github.com/Frulko/zinc">GitHub ↗</a>
+    </nav>
+  </div></header>
+  <slot />
+  <footer><div class="wrap">
+    <div><b>zinc.</b> TypeScript in, native out. A prototype — see <a href={`${b}limitations/`}>limitations</a>.</div>
+    <div><a href="https://github.com/Frulko/zinc">Source</a><a href={`${b}docs/licenses/`}>Licenses</a><a href={`${b}docs/reports/status/`}>Status</a></div>
+  </div></footer>
+</body>
+</html>

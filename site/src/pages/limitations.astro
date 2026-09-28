@@ -1,0 +1,35 @@
+---
+import Base from '../layouts/Base.astro';
+import { forbidden } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const gaps = [
+  ['Real hardware', 'Nothing is validated on a physical device yet: QEMU, PCSX-Redux and emulators only. PS2 has never been run (needs a BIOS).', 'warn'],
+  ['Memory', 'RC is RAII, not compiler-inserted. Reference cycles leak until broken with `@weak`. Arena escape is checked at runtime, not compile time.', 'warn'],
+  ['Compiler IR', 'HIR / MIR exist for inspection; the emitters still walk the AST. No inlining, devirtualisation, range or escape passes.', 'warn'],
+  ['async', '`await` must be a statement, initializer, assignment or return. `finally` inside async functions is not supported.', 'warn'],
+  ['UI', 'No text selection / editing widgets. Kit: no hover, Slider sets on click, Inter Regular/Bold only.', 'warn'],
+  ['3D', 'Software renderer: no transparency or fog, no full three.js compatibility.', 'warn'],
+  ['Dyn / gradual', 'No `word` representation, per-site caches or function specialisation. Strict profiles reject `any`.', 'warn'],
+  ['ESP32', 'No WiFi station bring-up yet. 160 KiB heap: some kit widgets warn (e.g. Keyboard).', 'warn'],
+  ['CLI', '`bench` and `pack` commands are missing.', 'warn'],
+  ['License', 'MIT or Apache-2.0 is still an open question for the project owner.', 'no'],
+];
+---
+<Base title="Limitations" description="What Zinc rejects, what is not implemented yet, and what has not been validated.">
+  <div class="wrap page-head"><span class="eyebrow">Limitations</span><h1>Honest about <span class="grad">the edges</span>.</h1>
+    <p class="lead">Zinc is a prototype. Forbidden constructs are compile errors with a stable <code>Z</code> code; anything not implemented yet is a <code>Z9xxx</code> diagnostic, never a silent miscompile.</p></div>
+  <div class="wrap">
+    <h2>What the compiler rejects</h2>
+    <div class="table-wrap"><table><thead><tr><th>Construct</th><th>Code</th><th>Why</th></tr></thead><tbody>
+      {forbidden.map(([c, z, w]) => <tr><td>{c}</td><td><code>{z}</code></td><td>{w}</td></tr>)}
+    </tbody></table></div>
+    <p>The rules keep the backend a thin, predictable AST→C++ translation: no <code>eval</code>, no prototype surgery, no reflection, no regex engine. <code>zinc check</code> lists every diagnostic, <code>--json</code> gives LSP output.</p>
+
+    <h2 style="margin-top:56px">Known gaps</h2>
+    <div class="grid" style="margin-top:20px">
+      {gaps.map(([t, d, s]) => <div class="card"><span class={`tag ${s}`}>{t}</span><p style="margin-top:8px">{d}</p></div>)}
+    </div>
+    <p style="margin-top:32px">Every deliberate shortcut is tagged in the source: <code>grep -rn "ponytail:" compiler runtime targets lib sim</code>. Full coverage matrix: <a href={`${b}docs/reports/status/`}>STATUS report</a>. Decisions live in <code>docs/decisions/</code>. Threat model: <a href={`${b}docs/guide/08-security/`}>security guide</a>.</p>
+  </div>
+  <div style="height:80px"></div>
+</Base>

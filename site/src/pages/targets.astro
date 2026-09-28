@@ -1,0 +1,39 @@
+---
+import Base from '../layouts/Base.astro';
+import { targets, caps, img } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const boards = [
+  ['ESP32-S3 Matrix', 'LED matrix emulator, IMU (QMI8658), `tilt-sand` demo. `zinc flash` for the real board.'],
+  ['ESP32-2432S022', '2.2" touch LCD, ST7789, capacitive touch, backlight. Full UI in 160 KiB.'],
+  ['Pimoroni Scroll pHAT', 'Pi Zero LED matrix, `scrollphat` display plugin.'],
+  ['reMarkable Paper Pro', 'E-ink through AppLoad qtfb, pen API, one-command `zinc deploy`.'],
+  ['Raspberry Pi 1–4', 'ARMv6 hard-float build runs on every Pi; fbdev, KMS/GL, SSD1306, WS2812, libgpiod.'],
+  ['PlayStation 1 / 2', 'PSn00bSDK and ps2dev + gsKit. Fixed point Q20.12, GPU VRAM band upload.'],
+];
+---
+<Base title="Targets & hardware" description="Every target Zinc builds for, the capabilities of each profile, and supported boards.">
+  <div class="wrap page-head"><span class="eyebrow">Cross-platform</span><h1>From a <span class="grad">Mac</span> to a <span class="grad">PS1</span>.</h1>
+    <p class="lead">Zinc runs on hosts with gigabytes of RAM, on 160 KiB microcontrollers and on a console without an FPU. Each profile declares what it offers; programs declare what they need.</p></div>
+  <div class="wrap">
+    <div class="table-wrap"><table><thead><tr><th>Target</th><th>Output</th><th>Screen</th><th>Notes</th></tr></thead><tbody>
+      {targets.map((t) => <tr><td><code>{t.id}</code></td><td>{t.out}</td><td>{t.screen}</td><td><span class={`tag ${t.state}`}>{t.state === 'ok' ? 'verified' : 'build only'}</span> {t.note}</td></tr>)}
+    </tbody></table></div>
+
+    <h2 style="margin-top:56px">Capability table</h2>
+    <p class="lead">Declare <code>"requires": ["heap&gt;=4M", "pointer|touch"]</code> in <code>zinc.json</code>; <code>zinc build</code> refuses a target that doesn't fit and says why. Platform files like <code>keyboard.esp32.tsx</code> replace a module for one profile.</p>
+    <div class="table-wrap"><table><thead><tr><th>profile</th>{caps.cols.map((c) => <th>{c}</th>)}</tr></thead><tbody>
+      {caps.rows.map((r) => <tr><td><code>{r[0]}</code></td>{r.slice(1).map((c) => <td>{c}</td>)}</tr>)}
+    </tbody></table></div>
+
+    <h2 style="margin-top:56px">Hardware we've run on</h2>
+    <div class="grid">
+      {boards.map(([n, d]) => <div class="card"><h3>{n}</h3><p>{d}</p></div>)}
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+      {['esp32-2432s022-home.png', 'esp32-2432s022-music.png', 'esp32-2432s022-controls.png', 'remarkable-dashboard.png'].map((f) => <img class="shot" src={img(f)} alt={f} loading="lazy" />)}
+    </div>
+
+    <p class="lead" style="margin-top:40px"><span class="tag warn">honest note</span> Emulators and QEMU verify most targets; nothing has been validated on real hardware yet. See <a href={`${b}limitations/`}>limitations</a>. Guides: <a href={`${b}docs/targets/capabilities/`}>capabilities</a>, <a href={`${b}docs/targets/playstation/`}>PlayStation</a>, <a href={`${b}docs/targets/remarkable-paper-pro/`}>reMarkable</a>, <a href={`${b}docs/boards/`}>boards</a>.</p>
+  </div>
+  <div style="height:80px"></div>
+</Base>

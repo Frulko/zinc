@@ -1,0 +1,110 @@
+---
+import { Code } from 'astro:components';
+import Base from '../layouts/Base.astro';
+import { img, shots, features, bench } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const ui = `import { createSignal, render } from 'zinc:ui/solid';
+
+const [count, setCount] = createSignal<i32>(0);
+
+function App(): i32 {
+  return <view class="flex-col items-center justify-center h-full gap-3 bg-slate-900">
+    <text class="text-2xl text-amber-400">count: {count()}</text>
+    <button class="px-4 py-2 rounded bg-slate-700" onClick={() => setCount(count() + 1)}>
+      <text class="text-slate-100">increment</text>
+    </button>
+  </view>;
+}
+
+render(App, 0x0f172a, null);`;
+const cli = `zinc run app                      # native, SDL3 window
+zinc run app --target sim         # same program on Node: the oracle
+zinc run app --target wasm        # in the browser
+zinc run app --profile ps1        # emulate a PS1: Q20.12, 256 KiB heap
+zinc run app --target esp32       # firmware in Espressif QEMU
+zinc test                         # every target prints the same bytes`;
+const max = Math.max(...bench.map((x) => x[1]));
+---
+<Base title="Zinc">
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">TypeScript → C++17 → native</span>
+    <h1>TypeScript in.<br /><span class="grad">Native out.</span></h1>
+    <p class="lead">Write games, apps and firmware in a strict subset of TypeScript. Zinc compiles it to a 70 KiB native binary that boots in 2 ms — no JavaScript engine on the device. From a Mac to a PS1.</p>
+    <div class="cta">
+      <a class="btn primary" href={`${b}docs/guide/01-getting-started/`}>Get started →</a>
+      <a class="btn" href={`${b}showcase/`}>See it running</a>
+    </div>
+    <div class="install"><i>$</i> pnpm install &amp;&amp; alias zinc="node $PWD/compiler/bin/zinc.mjs" &amp;&amp; zinc run examples/pinball</div>
+    <div class="hero-shots">
+      <img class="shot" src={img('zed-editor.png')} alt="A Zed-style code editor written in Zinc" />
+      <img class="shot" src={img('pinball-playing.png')} alt="Nova Patrol, a pinball game written in Zinc" />
+    </div>
+  </div></section>
+
+  <section class="section"><div class="wrap">
+    <div class="stats">
+      <div class="stat"><b class="grad">13×</b><span>faster than QuickJS (geometric mean of 10 kernels, 2× to 80×)</span></div>
+      <div class="stat"><b>70 KiB</b><span>hello-world executable, 128 KiB as a whole ESP32 image</span></div>
+      <div class="stat"><b>2 ms</b><span>startup, ~1.3 MiB peak RSS on most kernels</span></div>
+      <div class="stat"><b>9</b><span>targets: macOS, Linux, Pi, reMarkable, ESP32, WASM, PS1, PS2, Node</span></div>
+      <div class="stat"><b>18/18</b><span>conformance programs identical on macOS, ps1 and esp32 profiles</span></div>
+    </div>
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap split">
+    <div>
+      <span class="eyebrow">Write once</span>
+      <h2 style="font-size:2.4rem;margin:8px 0 14px">Declarative UI, <span class="grad">no browser</span>.</h2>
+      <p class="lead">JSX over a flexbox engine and a shared software rasterizer. Tailwind-like classes, CSS imports, animations, virtual lists. Pick Solid signals or React hooks — PocketJS apps compile unchanged.</p>
+      <p><a href={`${b}docs/guide/03-ui-apps/`}>UI guide →</a> · <a href={`${b}docs/ui-kit/`}>UI kit →</a></p>
+    </div>
+    <Code code={ui} lang="tsx" theme="github-light" wrap />
+  </div></section>
+
+  <section class="section" style="padding-top:0"><div class="wrap split">
+    <Code code={cli} lang="sh" theme="github-light" wrap />
+    <div>
+      <span class="eyebrow">Run anywhere</span>
+      <h2 style="font-size:2.4rem;margin:8px 0 14px">One program. <span class="grad">Nine targets.</span></h2>
+      <p class="lead">The <code>sim</code> target runs your code on Node and is the oracle: every target must print exactly the same bytes. Fixed point, f32 and f64 agree bit for bit.</p>
+      <p><a href={`${b}targets/`}>Targets &amp; hardware →</a></p>
+    </div>
+  </div></section>
+
+  <section class="section" style="background:var(--surface);border-block:1px solid var(--line)"><div class="wrap">
+    <span class="eyebrow">Features</span>
+    <h2 style="font-size:2.4rem;margin:8px 0">Everything a native app needs, <span class="grad">nothing it doesn't</span>.</h2>
+    <div class="grid">
+      {features.slice(0, 6).map((f) => <div class="card"><span class="ico">{f.i}</span><h3>{f.t}</h3><p>{f.d}</p></div>)}
+    </div>
+    <p style="margin-top:28px"><a href={`${b}features/`}>All features →</a></p>
+  </div></section>
+
+  <section class="section"><div class="wrap">
+    <span class="eyebrow">Speed</span>
+    <h2 style="font-size:2.4rem;margin:8px 0">Speedup over QuickJS, per kernel.</h2>
+    <p class="lead">QuickJS is the engine PocketJS embeds. Zinc also beats Node on 9 of 10 kernels (Node wins fannkuch).</p>
+    <div class="bars">
+      {bench.map(([n, v]) => <div class="bar"><span>{n}</span><div class="t"><i style={`width:${(v / max) * 100}%`}></i></div><em>{v}×</em></div>)}
+    </div>
+    <p style="margin-top:22px"><a href={`${b}performance/`}>Full report →</a></p>
+  </div></section>
+
+  <section class="section" style="background:var(--surface);border-block:1px solid var(--line)"><div class="wrap">
+    <span class="eyebrow">Showcase</span>
+    <h2 style="font-size:2.4rem;margin:8px 0">Real apps. <span class="grad">Real pixels.</span></h2>
+    <div class="gallery">
+      {shots.slice(0, 6).map((s) => <figure><img loading="lazy" src={img(s.f)} alt={s.t} /><figcaption><b>{s.t}</b>{s.d}</figcaption></figure>)}
+    </div>
+    <p><a class="btn" href={`${b}showcase/`}>All {shots.length} demos →</a></p>
+  </div></section>
+
+  <section class="section"><div class="wrap" style="text-align:center">
+    <h2 style="font-size:3rem;margin:0 0 14px">Ship <span class="grad">less</span>. Run <span class="grad">everywhere</span>.</h2>
+    <p class="lead" style="margin-inline:auto">Zinc is a prototype: honest about what's missing, strict about what it promises.</p>
+    <div class="cta" style="justify-content:center">
+      <a class="btn primary" href={`${b}docs/guide/01-getting-started/`}>Read the guide</a>
+      <a class="btn" href={`${b}limitations/`}>Known limitations</a>
+    </div>
+  </div></section>
+</Base>

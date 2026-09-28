@@ -1,0 +1,58 @@
+---
+import Base from '../layouts/Base.astro';
+import { features } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const modules = [
+  ['zinc:gfx', 'Immediate 2D on a shared software rasterizer: AA shapes, gradients, shadows, paths, TTF text, images, render-to-image, damage-rect diff, multitouch and pen.'],
+  ['zinc:ui (+ /solid, /react)', 'Declarative JSX UI: flexbox, Tailwind-like classes, CSS, animations, scroll and virtual lists.'],
+  ['zinc:sys / fs / storage / assets', 'Process, files, key/value store, assets embedded in the executable.'],
+  ['zinc:net', '`fetch` (libcurl) and a small HTTP server.'],
+  ['zinc:osc / mqtt', 'OSC over UDP, MQTT 3.1.1 client.'],
+  ['zinc:telemetry', 'JSON-lines perf, logs, metrics and exposed state to UDP / stdout / file.'],
+  ['zinc:gpio / events', 'Pins (simulator on hosts, libgpiod on Pi, driver/gpio on ESP32) and typed event channels.'],
+  ['native/<name>.spec.ts', 'Your own native module: typed spec → generated C++ interface, one implementation per target.'],
+];
+const plugins = [
+  ['zinc:video', 'FFmpeg playback, hardware decode, gapless playlists', 'video'],
+  ['zinc:mapping', 'GPU video mapping: corner pin, mesh warp, masks, edge blend', 'mapping'],
+  ['zinc:map / svg / gestures', 'Vector-tile maps, runtime SVG, gestures', 'map'],
+  ['zinc:canvas, three', 'HTML Canvas 2D-style API; three.js-style scenes, GLTFLoader, OrbitControls', 'three'],
+  ['zinc:3d', 'Scene graph, OBJ, Gouraud, perspective-correct textures, z-buffer — all targets', '3d'],
+  ['zinc:lottie', 'Lottie playback, checked against lottie-web', 'lottie'],
+  ['zinc:script', 'Sandboxed JavaScript (QuickJS-ng) with typed host functions and limits', 'script'],
+  ['zinc:webview / process / remote', 'Native webview, child processes, live remote screens with input', 'webview'],
+  ['zinc:gphoto2', 'Camera remote control and live view', 'gphoto2'],
+  ['zinc:ink + display rmpp', 'Handwriting and the reMarkable Paper Pro e-ink screen', 'displays'],
+  ['displays fbdev, ws2812, ssd1306, st7789', 'Pi framebuffer, LED matrices, OLED and TFT panels', 'displays'],
+  ['zinc:devtools', 'UI inspector over the Chrome DevTools protocol', '../dev-mode'],
+];
+---
+<Base title="Features" description="What Zinc gives you: language, memory model, UI, modules, plugins, tooling.">
+  <div class="wrap page-head"><span class="eyebrow">Features</span><h1>Small runtime. <span class="grad">Big toolbox.</span></h1>
+    <p class="lead">A compiler you can reason about, a runtime with no STL, exceptions or RTTI, and a plugin system that only links what you import.</p></div>
+  <div class="wrap"><div class="grid" style="margin-top:20px">
+    {features.map((f) => <div class="card"><span class="ico">{f.i}</span><h3>{f.t}</h3><p>{f.d}</p></div>)}
+  </div></div>
+
+  <section class="section"><div class="wrap">
+    <h2 style="font-size:2rem">The language</h2>
+    <p class="lead">Classes (inheritance, abstract, statics, accessors, <code>#private</code>), interfaces, generics (C++ templates), closures, enums, discriminated unions, tuples, destructuring, spread, <code>?.</code>/<code>??</code>, <code>try/catch/finally</code> as status returns, <code>using</code>, <code>async/await</code> and generators as stackless frames, strings (UTF-8 storage, UTF-16 indices), <code>Map</code>/<code>Set</code>, JSON.</p>
+    <p><a href={`${b}docs/guide/02-language/`}>Language guide →</a> · <a href={`${b}limitations/`}>What's rejected →</a></p>
+
+    <h2 style="font-size:2rem;margin-top:56px">Built-in modules</h2>
+    <div class="table-wrap"><table><thead><tr><th>Import</th><th>What</th></tr></thead><tbody>
+      {modules.map(([m, d]) => <tr><td><code>{m}</code></td><td>{d}</td></tr>)}
+    </tbody></table></div>
+
+    <h2 style="font-size:2rem;margin-top:56px">Plugins</h2>
+    <p class="lead">Compiled in only when a program imports them. <code>zinc plugins</code> lists them with their targets.</p>
+    <div class="table-wrap"><table><thead><tr><th>Plugin</th><th>What</th><th>Guide</th></tr></thead><tbody>
+      {plugins.map(([m, d, g]) => <tr><td><code>{m}</code></td><td>{d}</td><td><a href={`${b}docs/plugins/${g}/`.replace('plugins/../', '')}>guide</a></td></tr>)}
+    </tbody></table></div>
+
+    <h2 style="font-size:2rem;margin-top:56px">The CLI</h2>
+    <div class="table-wrap"><table><tbody>
+      {[['zinc init', 'templates: game, cli, server, iot, remarkable'], ['zinc run / build / check', 'native, sim, wasm, cross targets, profiles'], ['zinc dev', 'hot reload, red box, UI inspector on :9229'], ['zinc test', 'conformance vs the sim oracle, --pixels for golden PNGs'], ['zinc capture', 'save frames headlessly'], ['zinc export / deploy', 'single executable, systemd unit, ssh deploy'], ['zinc flash', 'flash ESP32 boards'], ['zinc monitor', 'live telemetry over UDP'], ['zinc infer', 'type a JS file, report Dyn sites'], ['zinc doctor / plugins', 'check toolchains, list plugins']].map(([c, d]) => <tr><td><code>{c}</code></td><td>{d}</td></tr>)}
+    </tbody></table></div>
+  </div></section>
+</Base>

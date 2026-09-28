@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+import { img, shots } from '../data/site';
+const tags = ['game', 'app', 'device', 'video', '3d'];
+const label: Record<string, string> = { game: 'Games', app: 'Apps', device: 'Devices & IoT', video: 'Video', '3d': 'Graphics' };
+---
+<Base title="Showcase" description="Screenshots of Zinc demos: games, apps, devices, video and graphics.">
+  <div class="wrap page-head"><span class="eyebrow">Showcase</span><h1>See it <span class="grad">running</span>.</h1>
+    <p class="lead">Every screenshot is a program from <code>examples/</code>. Run any of them with the command shown.</p></div>
+  <div class="wrap" style="padding-bottom:80px">
+    {tags.map((t) => (
+      <h2 style="margin:56px 0 0;font-size:1.8rem">{label[t]}</h2>
+      <div class="gallery">
+        {shots.filter((s) => s.tag === t).map((s) => <figure><img loading="lazy" src={img(s.f)} alt={s.t} /><figcaption><b>{s.t}</b>{s.d}<br /><code>zinc run {s.cmd}</code></figcaption></figure>)}
+      </div>
+    ))}
+  </div>
+</Base>
