@@ -4,3 +4,6 @@ dist/
 .DS_Store
 .claude/
 zinc.storage
+
+# Chataigne autosaves next to the example project
+examples/chataigne/chataigne-project/*_autosave/

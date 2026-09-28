@@ -10,6 +10,8 @@ export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 export { Badge } from './badge';
 export { Separator } from './separator';
 export { Kbd } from './kbd';
+export { Keyboard, KeyboardProps } from './keyboard';
+export { KeyboardLayout, registerLayout, layoutOf, layoutIds } from './keyboard-layouts';
 export { Avatar, initials } from './avatar';
 export { Alert } from './alert';
 export { Progress } from './progress';

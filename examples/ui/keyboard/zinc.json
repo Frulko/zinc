@@ -1,0 +1,10 @@
+{
+  "name": "keyboard",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 800, "height": 600 },
+    "linux": { "width": 800, "height": 480 },
+    "rpi1": { "width": 800, "height": 480 },
+    "sim": { "width": 800, "height": 600 }
+  }
+}

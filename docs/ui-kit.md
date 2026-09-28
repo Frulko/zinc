@@ -71,6 +71,32 @@ Conventions, identical in both UI models:
 | `ListItem` | `title`, `description?`, `trailing?`, `selected?: () => boolean`, `onClick?`, `leading?: () => node`, children | rows with `onClick` are focusable and highlight when pressed |
 | `Kbd` | `label` | key or shortcut hint |
 
+## Keyboard (on-screen, touch devices)
+
+```tsx
+<Input value={name()} onInput={setName} />
+<Input inputMode="numeric" value={pin()} onInput={setPin} />      {/* digit pad; also decimal, tel, email, url, search */}
+<Keyboard layouts={['fr', 'en', 'de']} />                          {/* at the bottom of the screen's column */}
+```
+
+`Keyboard` slides in while a text field has the focus (`mode="always"` keeps it on screen) and types through the
+real keyboard path (`ui.insertText` / `ui.sendKey`), so `onInput`, undo, selection and Enter behave as with a
+physical keyboard; pressing a key never takes the focus (`keepFocus`). A bubble previews the pressed key, a long
+press offers accents (slide onto one, release), backspace repeats while held, shift is one-shot and a double tap
+locks capitals, the language key cycles `layouts`, ⌄ closes it.
+
+| prop | |
+| --- | --- |
+| `layouts` | layout ids, cycled by the language key: `en fr de es it pt sv ru el` built in; `registerLayout(new KeyboardLayout(...))` adds yours (rows as strings, `{shift:1.5}`-style special keys, accents, localized Enter / search / done captions) |
+| `mode` | `auto` (default) or `always` |
+| `onKey` | every key: a character, `Backspace`, `Enter`, `Shift`, `Layout:<id>`, `Hide` (works without a focused field, e.g. a custom display) |
+| `keyHeight`, `gap` | sizes (default 44 / 6 px) |
+| `class`, `keyClass`, `specialKeyClass`, `accentClass` | restyle the panel, letter keys, special keys and the accent popup |
+| `preview` | key bubble (default true) |
+
+Engine hooks for your own keyboards: `ui.insertText(s)`, `ui.sendKey(key, mods)`, `ui.focusedField()`,
+`ui.fieldMode(h)`, `ui.onFocusChange(f)`, and the `keepFocus` attribute. Example: `zinc run examples/ui/keyboard`.
+
 Typography helpers return class strings for host `<Text>` nodes in the current theme:
 `heading(1..4)`, `leadText()`, `bodyText()`, `smallText()`, `mutedText()`, `captionText()`, `overline()`.
 

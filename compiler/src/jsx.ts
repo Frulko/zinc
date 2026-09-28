@@ -8,7 +8,9 @@ const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, sc
 const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows']);
 // text fields and pointer / key events (zinc:ui host ABI: onPointer kinds, edit flags)
 const POINTER_ATTRS: Record<string, number> = { onPointerDown: 0, onPointerMove: 1, onPointerUp: 2, onDoubleClick: 3, onContextMenu: 4, onWheel: 5, onPointerEnter: 6, onPointerLeave: 7 };
-const FLAG_ATTRS = new Set(['password', 'readOnly', 'lineNumbers', 'wrap']);
+const FLAG_ATTRS = new Set(['password', 'readOnly', 'lineNumbers', 'wrap', 'keepFocus']);
+/** inputMode="..." on text fields: which virtual keyboard layout fits (lib/std/kit/keyboard.tsx). */
+const INPUT_MODES: Record<string, number> = { text: 0, numeric: 1, decimal: 2, tel: 3, email: 4, url: 5, search: 6 };
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -160,6 +162,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       else if (name === 'highlight') out.push(`_hl(${v}, ${val.expr});`);
       else if (name === 'type' && val.lit === 'password') out.push(`_num(${v}, 'password', 1);`);
       else if (name === 'type' && val.lit === 'text') { /* default */ }
+      else if (name === 'inputMode' && val.lit !== undefined && val.lit in INPUT_MODES) out.push(`_num(${v}, 'inputMode', ${INPUT_MODES[val.lit]});`);
       else if (FLAG_ATTRS.has(name)) {
         if (val.lit !== undefined || /^(true|false)$/.test(val.expr!)) out.push(`_num(${v}, '${name}', ${val.lit !== undefined || val.expr === 'true' ? 1 : 0});`);
         else out.push(react ? `_num(${v}, '${name}', (${val.expr}) ? 1 : 0);` : `_dynNum(${v}, '${name}', () => ((${val.expr}) ? 1 : 0));`);
