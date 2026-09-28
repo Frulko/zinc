@@ -78,12 +78,13 @@ zinc run examples/canvas/sketch --target sim    # Node (headless: the geometry r
   (the classic "rotate, translate, rotate back, fillText" idiom used for clock numbers works). `strokeText` fills the
   glyphs with the stroke style. `maxWidth` is ignored. Sizes written literally in a `font` string (`'bold 20px
   sans-serif'`) are baked at build time; computed sizes use the nearest baked size (runtime TrueType on hosts).
-- **Images** are placed and scaled with the transform but not rotated or skewed; sampling is bilinear.
+- **Images** are placed and scaled with the transform but not rotated or skewed; sampling is bilinear
+  (`imageSmoothingEnabled = false`: nearest, for runtime images).
 - `clearRect` paints `ctx.clearColor` (default `'transparent'`): nothing on screen, where each frame starts from the
   UI or the previous layers anyway, black in an offscreen canvas (runtime images have no alpha channel).
 - Not implemented (accepted and ignored where they are properties): shadows (`shadowBlur`, `shadowColor`...),
   `globalCompositeOperation` other than source-over, patterns, `getImageData`/`putImageData`, `Path2D`, per-corner
-  radii in `roundRect`, `imageSmoothingEnabled`.
+  radii in `roundRect`.
 - Curves are flattened for about a quarter pixel of error at the current scale; a very large later `scale()` of an
   already built path shows its segments (paths are transformed when built, like the web, but flattened once).
 
@@ -96,8 +97,19 @@ The even-odd rule was already there (`pad` bit 0) but not exposed by `gfx.path`.
 
 ## Performance
 
-`examples/canvas/sketch` at 720×540 on macOS (Retina, 1440×1080 rasterized), release build, Apple M1 Pro:
-see the table in the verification section below.
+`examples/canvas/sketch` at 720×540 on macOS (Retina: 1440×1080 rasterized), release build, Apple M1 Pro, average of
+300 frames:
+
+| | ms / frame |
+| --- | --- |
+| the three canvas callbacks (clock, fireworks with 30–120 particles, shapes strip): path building, flattening, stroking, command emission | 0.35–0.51 |
+| rasterization of the frame (`runtime/gfx.cpp`, measured around the band renderer) | 12.8–13.2 |
+| … without the fireworks panel / without the shapes strip / without the clock | 2.9 / 6.1 / 9.3 |
+
+The Zinc side is cheap; the cost is the shared rasterizer covering ~1.5 M pixels per frame (the animated canvases'
+damage rectangles merge into the whole screen): 4×4 supersampled polygons, per-pixel gradient paint, bilinear scaling
+of the 320×360 offscreen canvas. `imageSmoothingEnabled = false` switches runtime images to nearest scaling. Static
+canvases cost nothing: unchanged commands produce no damage.
 
 ## Targets
 
