@@ -1,0 +1,13 @@
+{
+  "name": "gphoto2",
+  "kind": "module",
+  "module": "zinc:gphoto2",
+  "entry": "index.ts",
+  "description": "Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view",
+  "options": { "fake": false },
+  "targets": {
+    "macos": { "pkg": ["libgphoto2", "libturbojpeg"] },
+    "linux": { "pkg": ["libgphoto2", "libturbojpeg"], "packages": ["pkgconf", "libgphoto2-dev", "libturbojpeg0-dev"] },
+    "rpi1": { "pkg": ["libgphoto2", "libturbojpeg"], "packages": ["libgphoto2-dev", "libjpeg-turbo-dev"] }
+  }
+}
