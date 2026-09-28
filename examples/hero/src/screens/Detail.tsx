@@ -1,7 +1,7 @@
 // Artwork detail, pushed over the Gallery. Shared-element transition: the artwork box is interpolated from the
 // card it was opened from (router.fromX...) to its place here, while the page fades in behind it and the text
 // slides in from the right. Closing plays it backwards into the card.
-import { createEffect, createMemo, untrack } from 'zinc:ui/solid';
+import { createEffect, createMemo, untrack, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, Button, Badge, heading, mutedText } from 'zinc:ui/kit';
 import { Lottie, Player } from 'zinc:lottie';
@@ -54,6 +54,7 @@ export function Detail(): i32 {
   createEffect(() => { if (detail() >= 0) syncHeart(); });   // the heart shows the state of the artwork on display
   const info = (): number => easeOut(clamp01((detailT.get() - 0.35) / 0.65));
   return <View class="absolute inset-0" style={{ hidden: detail() < 0 ? 1 : 0 }}>
+    <Show when={detail() >= 0}><View class="absolute inset-0">
     <View class={`absolute inset-0 bg-${theme().background}`} style={{ opacity: detailT.get() }} onClick={() => {}} />
     <View class="absolute overflow-hidden rounded-2xl shadow-xl"
       style={{ left: box(0), top: box(1), width: box(2), height: box(3) }}>
@@ -82,7 +83,7 @@ export function Detail(): i32 {
       <View class="flex-row items-center gap-2">
         <View class={`flex-row items-center gap-1 pr-4 h-12 rounded-xl border cursor-pointer border-${theme().border} hover:bg-${theme().muted}`}
           onClick={() => toggleLike()}>
-          <Lottie src="heart.json" class="w-14 h-14" player={(p: Player) => { p.loop = false; heart = p; }} />
+          <Lottie src="heart.json" class="w-14 h-14" player={(p: Player) => { p.loop = false; heart = p; syncHeart(); }} />
           <Text class={`text-sm font-semibold text-${theme().foreground}`}>{art().liked() ? 'Liked' : 'Like'}</Text>
         </View>
         <View class="grow" />
@@ -91,6 +92,7 @@ export function Detail(): i32 {
       </View>
       <Text class={`text-xs text-${theme().mutedForeground}`}>Move the pointer over the artwork to change it. ← → browse, Esc goes back.</Text>
     </View>
+    </View></Show>
   </View>;
 }
 

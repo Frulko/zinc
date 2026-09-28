@@ -1,6 +1,7 @@
 // The title screen shown at launch: a drawn backdrop whose glow follows the pointer, the title arriving letter by
 // letter with a bounce, a tagline, feature pills and two actions. "Get started" (or Enter) zooms it away.
 import * as ui from 'zinc:ui';
+import { Show } from 'zinc:ui/solid';
 import { theme, Button, Badge } from 'zinc:ui/kit';
 import { rect, rrect } from 'zinc:gfx';
 import { introEntrance, introOut, introShown, leaveIntro } from '../app/router';
@@ -49,6 +50,7 @@ export function Intro(): i32 {
   introEntrance.restart();
   const out = (): number => introOut.get();
   return <View class="absolute inset-0" style={{ hidden: introShown() ? 0 : 1, opacity: 1 - out() }}>
+    <Show when={introShown()}><View class="absolute inset-0">
     <Canvas class="absolute inset-0" onDraw={drawBackdrop}
       onPointerMove={(e: ui.PointerEvent) => { glowX.to(e.x); glowY.to(e.y); }} />
     <View class="absolute inset-0 flex-col items-center justify-center gap-6 p-8"
@@ -74,5 +76,6 @@ export function Intro(): i32 {
         Press Enter to continue
       </Text>
     </View>
+    </View></Show>
   </View>;
 }

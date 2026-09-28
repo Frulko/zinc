@@ -1,7 +1,7 @@
 // Layers above the app: toasts (bottom right), the modal dialog and the command palette.
 // A dimmed backdrop closes the dialog / palette on click; the panels have an onClick of their own so that clicks
 // inside them do not fall through to the backdrop (plain views are transparent to the pointer).
-import { createSignal, createMemo, createNodeRef } from 'zinc:ui/solid';
+import { createSignal, createMemo, createNodeRef, onMount, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, Button, Kbd } from 'zinc:ui/kit';
 import { Toast, toasts, dismiss, dialog, dialogT, closeDialog, Dialog, paletteOpen, paletteT, closePalette } from '../app/overlays';
@@ -46,8 +46,10 @@ function DialogPanel(props: { d: Dialog }): i32 {
 
 function Modal(): i32 {
   return <View class="absolute inset-0 items-center justify-center" style={{ hidden: dialog() === null ? 1 : 0 }}>
-    <View class="absolute inset-0 bg-black" style={{ opacity: dialogT.get() * 0.45 }} onClick={() => closeDialog()} />
-    {dialog() !== null ? <DialogPanel d={dialog() as Dialog} /> : <View />}
+    <Show when={dialog() !== null}><View class="absolute inset-0 items-center justify-center">
+      <View class="absolute inset-0 bg-black" style={{ opacity: dialogT.get() * 0.45 }} onClick={() => closeDialog()} />
+      {dialog() !== null ? <DialogPanel d={dialog() as Dialog} /> : <View />}
+    </View></Show>
   </View>;
 }
 
@@ -70,11 +72,10 @@ function paletteKey(e: ui.KeyEvent): void {
   else if (e.key === 'Escape') { closePalette(); e.preventDefault(); }
 }
 
-/** Resets the query and puts the caret in the search field (called when the palette opens). */
+/** Resets the query (called when the palette opens; the field takes the caret when it mounts). */
 export function preparePalette(): void {
   setQuery('');
   setCursor(0);
-  ui.focusNode(paletteInput.node);
 }
 
 function CommandRow(props: { c: Command }): i32 {
@@ -91,6 +92,12 @@ function CommandRow(props: { c: Command }): i32 {
 
 function Palette(): i32 {
   return <View class="absolute inset-0 items-center pt-24" style={{ hidden: paletteOpen() ? 0 : 1 }}>
+    <Show when={paletteOpen()}><PaletteBody /></Show>
+  </View>;
+}
+function PaletteBody(): i32 {
+  onMount(() => ui.focusNode(paletteInput.node));
+  return <View class="absolute inset-0 items-center pt-24">
     <View class="absolute inset-0 bg-black" style={{ opacity: paletteT.get() * 0.35 }} onClick={() => closePalette()} />
     <View class={`flex-col w-[560] rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
       style={{ opacity: paletteT.get(), translateY: (1 - paletteT.get()) * -12 }} onClick={() => {}}>

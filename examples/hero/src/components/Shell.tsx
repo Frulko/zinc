@@ -1,5 +1,5 @@
 // The app frame: sidebar navigation with a sliding highlight, a top bar, and the stage where screens transition.
-import { createEffect, createNodeRef, createSignal } from 'zinc:ui/solid';
+import { createEffect, createNodeRef, createSignal, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, Kbd, Switch } from 'zinc:ui/kit';
 import { tailwindColor } from 'zinc:ui';
@@ -98,11 +98,12 @@ function TopBar(): i32 {
 }
 
 /** One screen on the stage: stacked, and moved / faded by the tab transition. */
+/** A screen's content is mounted only while it is on screen (its components, effects and nodes go away after). */
 export function Screen(props: { index: i32; children: () => i32 }): i32 {
   const i = props.index;
   return <View class="absolute inset-0 flex-col"
     style={{ hidden: screenHidden(i), translateX: screenX(i), opacity: screenOpacity(i) }}>
-    {props.children()}
+    <Show when={screenHidden(i) === 0}>{props.children()}</Show>
   </View>;
 }
 
