@@ -23,7 +23,7 @@ gfx.onFrame(() => p.draw(0, 0, gfx.width(), gfx.height()));
 | target | status | decoder | notes |
 |---|---|---|---|
 | macos | supported, verified | VideoToolbox (hwaccel), software fallback | `brew install ffmpeg` (pkg-config finds it) |
-| rpi1 (Pi 1, Zero, 2, 3, 4 on a 32-bit OS) | builds and links (docker, Alpine 3.20 ffmpeg 6.1); not run on hardware | `<codec>_v4l2m2m` (bcm2835-codec: H.264, also MPEG-2/4 when licensed), software fallback | screen through `display-fbdev`; see performance below |
+| rpi1 (Pi 1, Zero, 2, 3, 4 on a 32-bit OS) | builds (docker, Alpine 3.20 ffmpeg 6.1) and runs under QEMU arm1176: V4L2 absent → software fallback, 3-file playlist looped gaplessly, 0 dropped frames; not run on hardware | `<codec>_v4l2m2m` (bcm2835-codec: H.264, also MPEG-2/4 when licensed), software fallback | screen through `display-fbdev`; see performance below |
 | linux (x86_64/arm64) | builds like rpi1 (Debian ffmpeg); not run here | V4L2 M2M when the kernel has one, else software | VAAPI/NVDEC not wired |
 | sim | deterministic fake | none | every file lasts 5 s, image = requested size (320x180 by default), time follows gfx frames at 60 fps, order always sequential |
 | esp32 | not supported | | 520 KiB SRAM (+ a few MiB PSRAM) and no H.264 decoder or FFmpeg; MJPEG from flash is a different, much smaller plugin |
