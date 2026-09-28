@@ -39,6 +39,12 @@ struct HalFrame {
   void (*render)(uint32_t* rows, int32_t y0, int32_t y1);  // rows points at row y0 of a w-wide buffer
 };
 
+// Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the
+// frame callback sees all samples since the previous frame (zinc:gfx penCount/penX...), so fast strokes are not lost.
+enum HalPenFlag : uint32_t { HAL_PEN_DOWN = 1u << 0, HAL_PEN_ERASER = 1u << 1, HAL_PEN_HOVER = 1u << 2 };
+struct HalPen { float x, y, pressure, tilt_x, tilt_y; uint32_t flags; };  // logical coords, pressure 0..1, tilt degrees
+void hal_pen_push(const HalPen* s);  // implemented by the runtime (gfx.cpp)
+
 void hal_init(const HalConfig* cfg);
 void hal_shutdown(void);
 // System allocator: HAL-internal use, debug builds (ASan) and oversized fallbacks.

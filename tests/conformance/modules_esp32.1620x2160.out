@@ -1,0 +1,8 @@
+platform ok true true
+hello world true ["a.txt","b.txt"]
+caught ENOENT: cannot open build/modtest_esp32/missing.txt
+["a.txt"]
+fr 5 true
+event one
+event two
+edge 27 0 1

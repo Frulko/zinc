@@ -39,9 +39,39 @@ void hal_shutdown(void) {
 void hal_frame_begin(void) {}
 void hal_frame_end(void) {}
 
+// Pen: SDL pen events (Wacom, tablets); the mouse stands in for a pen (left = draw, right = eraser, pressure 0.5).
+static HalPen pen;
+static void pen_push(float wx, float wy, uint32_t flags) {
+  if (ren) SDL_RenderCoordinatesFromWindow(ren, wx, wy, &wx, &wy);
+  pen.x = wx; pen.y = wy; pen.flags = flags;
+  hal_pen_push(&pen);
+}
+static uint32_t pen_flags(SDL_PenInputFlags s) {
+  return ((s & SDL_PEN_INPUT_DOWN) ? HAL_PEN_DOWN : HAL_PEN_HOVER) | ((s & SDL_PEN_INPUT_ERASER_TIP) ? HAL_PEN_ERASER : 0);
+}
+
 void hal_poll_input(HalInput* in) {
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
+    if (e.type == SDL_EVENT_PEN_AXIS) {
+      if (e.paxis.axis == SDL_PEN_AXIS_PRESSURE) pen.pressure = e.paxis.value;
+      if (e.paxis.axis == SDL_PEN_AXIS_XTILT) pen.tilt_x = e.paxis.value;
+      if (e.paxis.axis == SDL_PEN_AXIS_YTILT) pen.tilt_y = e.paxis.value;
+    }
+    if (e.type == SDL_EVENT_PEN_MOTION) pen_push(e.pmotion.x, e.pmotion.y, pen_flags(e.pmotion.pen_state));
+    if (e.type == SDL_EVENT_PEN_DOWN || e.type == SDL_EVENT_PEN_UP)
+      pen_push(e.ptouch.x, e.ptouch.y, (e.ptouch.down ? HAL_PEN_DOWN : HAL_PEN_HOVER) | (e.ptouch.eraser ? HAL_PEN_ERASER : 0));
+    if (e.type == SDL_EVENT_MOUSE_MOTION || e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+      const bool motion = e.type == SDL_EVENT_MOUSE_MOTION;
+      const SDL_MouseID which = motion ? e.motion.which : e.button.which;
+      uint32_t f = motion ? ((e.motion.state & SDL_BUTTON_LMASK) ? HAL_PEN_DOWN : (e.motion.state & SDL_BUTTON_RMASK) ? HAL_PEN_DOWN | HAL_PEN_ERASER : 0)
+                          : (e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+                              ? (e.button.down ? HAL_PEN_DOWN : HAL_PEN_HOVER) | (e.button.button == SDL_BUTTON_RIGHT ? HAL_PEN_ERASER : 0) : 0;
+      if (f && which != SDL_PEN_MOUSEID && which != SDL_TOUCH_MOUSEID) {
+        pen.pressure = 0.5f; pen.tilt_x = pen.tilt_y = 0;
+        pen_push(motion ? e.motion.x : e.button.x, motion ? e.motion.y : e.button.y, f);
+      }
+    }
     if (e.type == SDL_EVENT_QUIT) quit = true;
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE) quit = true;
     if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel += e.wheel.y;

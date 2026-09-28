@@ -53,6 +53,19 @@ declare module 'zinc:gfx' {
   export function touchX(i: i32): number;
   export function touchY(i: i32): number;
   export function touchId(i: i32): i32;
+  export const enum PenFlag { Down = 1, Eraser = 2, Hover = 4 }
+  /** Pen (stylus) samples received since the previous frame, oldest first: fast strokes are not lost between frames.
+   *  The mouse stands in for a pen on desktop (right button = eraser). */
+  export function penCount(): i32;
+  export function penX(i: i32): number;
+  export function penY(i: i32): number;
+  /** 0..1 */
+  export function penPressure(i: i32): number;
+  /** Tilt in degrees (-90..90). */
+  export function penTiltX(i: i32): number;
+  export function penTiltY(i: i32): number;
+  /** PenFlag bits: Down (touching), Eraser (eraser end), Hover (in range, not touching). */
+  export function penFlags(i: i32): i32;
   /** Nothing changed this frame: present the previous one again (retained UIs call this when idle). */
   export function keep(): void;
   export function isDown(b: Btn): boolean;

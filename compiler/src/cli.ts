@@ -21,11 +21,13 @@ const PROFILES: Record<string, Profile> = {
   esp32: { number: 'f32', width: 320, height: 240, typing: 'strict', heap: 160 << 10 },
   ps2: { number: 'f32', width: 640, height: 448, typing: 'gradual', heap: 16 << 20 },
   ps1: { number: 'fx12', width: 320, height: 240, typing: 'strict', heap: 256 << 10, noFpu: true },
+  // reMarkable Paper Pro: 1620x2160 portrait colour e-ink, 2 GiB RAM (docs/targets/remarkable-paper-pro.md)
+  rmpp: { number: 'f64', width: 1620, height: 2160, typing: 'gradual', heap: 256 << 20 },
 };
 
 
 interface Project { name: string; dir: string; assets?: string; targets: Record<string, Partial<Profile>> }
-interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[] }
+interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; device?: string }
 
 function parseArgs(argv: string[]): Opts {
   const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [] };
@@ -42,6 +44,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--json') o.json = true;
     else if (a === '--no-float') o.noFloat = true;
     else if (a === '--update' || a === '--print-exe') { /* handled by the command */ }
+    else if (a === '--device') o.device = argv[++i];
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -293,6 +296,8 @@ const DOCKER: Record<string, DockerTarget> = {
   // R3000 (MIPS I) and R5900 ISAs under qemu-user; static binaries
   ps1: { image: 'zinc/sdk-mips', dockerfile: 'docker/sdk-mips', cmake: ['-DCMAKE_CXX_COMPILER=mipsel-linux-gnu-g++', '-DCMAKE_CXX_FLAGS=-march=mips1 -mfp32 -mno-check-zero-division', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['qemu-mipsel', '-cpu', '24Kf', './cmake/app'] },
   // TGT-PS2-01: EE ELF with ps2sdk; running needs PCSX2 + the user's BIOS (TGT-PS2-04), so `run` only builds
+  // reMarkable Paper Pro: static aarch64 binary (independent of the device's glibc), Cortex-A53 tuning
+  rmpp: { image: 'zinc/sdk-rmpp', dockerfile: 'docker/sdk-rmpp', platform: 'linux/arm64', cmake: ['-G', 'Ninja', '-DCMAKE_CXX_FLAGS=-mcpu=cortex-a53', '-DCMAKE_EXE_LINKER_FLAGS=-static'], run: ['./cmake/app'] },
   ps2: { image: 'zinc/sdk-ps2', dockerfile: 'docker/sdk-ps2', platform: 'linux/amd64', cmake: ['-DCMAKE_TOOLCHAIN_FILE=/usr/local/ps2dev/ps2sdk/ps2dev.cmake', `-DZINC_HAL_FILE=${ZINC_ROOT}/targets/ps2/hal_ps2.cpp`], run: ['echo', 'ps2: ELF built; run it in PCSX2 with your BIOS (zinc export --target ps2)'] },
 };
 function dockerArgs(dir: string, t: DockerTarget): string[] {
@@ -490,6 +495,7 @@ function main() {
   zinc run   [entry] [same options] [-- program args]
   zinc test  [--target <id>] [--profile <id>] [--debug] [--update]   conformance: sim oracle vs native
   zinc export [entry] --target <id>                  dist/<name>-<target>: self-contained executable, scripts, service unit
+  zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start (rmpp: root@10.11.99.1)
   zinc init <dir> [--template game|cli|server|iot]
   zinc dev [entry] [build options]                  rebuild and restart on save (assets read from disk)
   zinc monitor [--port 9999]                        live view of zinc:telemetry
@@ -520,10 +526,15 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
     return;
   }
   if (cmd === 'build') { const b = build(o); if (argv.includes('--print-exe')) console.log(b.exe.join(' ')); return; }
-  if (cmd === 'export') {
+  if (cmd === 'export' || cmd === 'deploy') {
     if (o.target === 'sim') die('export needs a native target');
     const b = build(o);
-    exportApp(o.project.name, o.target, b.exe[b.exe.length - 1].startsWith('./') ? path.join(b.dir, b.exe[b.exe.length - 1]) : b.exe[0], o.project.dir);
+    const out = exportApp(o.project.name, o.target, b.exe[b.exe.length - 1].startsWith('./') ? path.join(b.dir, b.exe[b.exe.length - 1]) : b.exe[0], o.project.dir);
+    if (cmd === 'deploy') {
+      const script = path.join(out, 'deploy.sh');
+      if (!fs.existsSync(script)) die(`no deploy script for target '${o.target}'`);
+      process.exit(run('sh', [script, o.device ?? (o.target === 'rmpp' ? 'root@10.11.99.1' : die('deploy needs --device user@host'))]));
+    }
     return;
   }
   if (cmd === 'test') return test(o, argv.includes('--update'));
