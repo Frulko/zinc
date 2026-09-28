@@ -377,17 +377,27 @@ export class CanvasRenderingContext2D {
     }
     this.paint(out, true, rule === 'evenodd');
   }
-  stroke(): void {
+  stroke(): void { this.paint(this.strokeContours(), false, false); }
+  /** The stroke of the current path as filled contours [count, x, y, ...]* (screen coordinates). */
+  strokeContours(): number[] {
     const hw = this.lineWidth * this.scaleFactor() / 2;
-    if (!(hw > 0)) return;
     const out: number[] = [];
+    if (!(hw > 0)) return out;
     for (let i = 0; i < this.subs.length; i++) {
       const p = this.subs[i];
       if (this.dash.length === 0) { strokePoly(p, this.closed[i], hw, this.lineCap, this.lineJoin, this.miterLimit, out); continue; }
       for (const piece of dashes(p, this.closed[i], this.dash, this.lineDashOffset, this.scaleFactor())) strokePoly(piece, false, hw, this.lineCap, this.lineJoin, this.miterLimit, out);
     }
-    this.paint(out, false, false);
+    return out;
   }
+  /** Hit test of the current path's fill; (x, y) in canvas pixels (not transformed), like the web. */
+  isPointInPath(x: number, y: number, rule: string = 'nonzero'): boolean {
+    const out: number[] = [];
+    for (const p of this.subs) { if (p.length < 6) continue; out.push(p.length / 2); for (const v of p) out.push(v); }
+    return inside(out, x + this.ox, y + this.oy, rule === 'evenodd');
+  }
+  /** Hit test of the current path's stroke outline (lineWidth, caps, joins, dashes). */
+  isPointInStroke(x: number, y: number): boolean { return inside(this.strokeContours(), x + this.ox, y + this.oy, false); }
   /** Clips to the bounding box of the current path (an exact clip for rectangles). */
   clip(): void {
     let x0 = 1e30, y0 = 1e30, x1 = -1e30, y1 = -1e30;
@@ -542,6 +552,24 @@ export class CanvasRenderingContext2D {
     else if (bl === 'bottom' || bl === 'ideographic') py -= lh;
     drawText(f, px, py, s, c % 16777216, al, 0);
   }
+}
+
+/** Winding test of (x, y) against contours [count, x, y, ...]*. */
+function inside(c: number[], x: number, y: number, evenodd: boolean): boolean {
+  let wind = 0;
+  for (let i = 0; i < c.length;) {
+    const n = c[i], p = i + 1;
+    for (let k = 0; k < n; k++) {
+      const j = (k + 1) % n;
+      const ax = c[p + k * 2], ay = c[p + k * 2 + 1], bx = c[p + j * 2], by = c[p + j * 2 + 1];
+      if ((ay <= y) !== (by <= y)) {
+        const cx = ax + (y - ay) * (bx - ax) / (by - ay);
+        if (cx > x) wind += by > ay ? 1 : -1;
+      }
+    }
+    i = p + n * 2;
+  }
+  return evenodd ? wind % 2 !== 0 : wind !== 0;
 }
 
 // ---------------------------------------------------------------- stroking (device space)
