@@ -677,6 +677,7 @@ function help(topic?: string) {
   <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.
   Compatible imports: solid-js, react, inferno, @pocketjs/framework/* (PocketJS apps compile unchanged).`,
     docs: `Docs
+  docs/guide/                   developer guide: getting started, language, UI, services, plugins, testing, distribution, security
   README.md                     overview, targets, modules, plugins
   docs/plugins.md               writing plugins (plugin.json, display drivers, options)
   docs/plugins/*.md             video, mapping, display-gl, map, svg, gphoto2, displays, lottie, 3d...
