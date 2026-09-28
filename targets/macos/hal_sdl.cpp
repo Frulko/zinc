@@ -16,7 +16,7 @@ static const char* shot_path;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
-  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0;
+  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin owns the screen
   if (!gfx_on) return;
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   int scale = W <= 400 ? 3 : W <= 700 ? 2 : 1;
@@ -51,6 +51,7 @@ static uint32_t pen_flags(SDL_PenInputFlags s) {
 }
 
 void hal_poll_input(HalInput* in) {
+  if (!gfx_on) return;
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_EVENT_PEN_AXIS) {

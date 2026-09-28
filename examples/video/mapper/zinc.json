@@ -1,0 +1,9 @@
+{
+  "name": "mapper",
+  "entry": "main.ts",
+  "display": "gl",
+  "targets": {
+    "macos": { "width": 1280, "height": 720 },
+    "rpi1": { "width": 1280, "height": 720 }
+  }
+}

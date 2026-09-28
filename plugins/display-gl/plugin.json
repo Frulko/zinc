@@ -1,0 +1,10 @@
+{
+  "name": "display-gl",
+  "kind": "display",
+  "description": "GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES2 on Raspberry Pi; UI as an overlay",
+  "options": { "key": 0, "fullscreen": false, "mode": "" },
+  "targets": {
+    "macos": { "sources": ["src/display_gl.cpp", "src/sdl.cpp"], "frameworks": ["OpenGL"], "defines": ["GL_SILENCE_DEPRECATION"] },
+    "rpi1": { "sources": ["src/display_gl.cpp", "src/kms.cpp"], "pkg": ["egl", "glesv2", "gbm", "libdrm"], "packages": ["mesa-dev", "libdrm-dev"] }
+  }
+}
