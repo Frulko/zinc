@@ -1,12 +1,14 @@
 // zinc CLI (section 14): check, build, run, doctor.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { loadProgram, ZINC_ROOT, type Diag } from './frontend.ts';
 import { Sema, ZincError, type NumKind } from './sema.ts';
 import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
 import { initProject, exportApp, dev, monitor } from './tools.ts';
+import { infer, tsPathOf } from './infer.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
 
@@ -49,7 +51,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
     else if (a.startsWith('--device=')) o.device = a.slice(9);
-    else if (a === '--update' || a === '--print-exe' || a === '--no-devtools') { /* handled by the command */ }
+    else if (a === '--update' || a === '--print-exe' || a === '--no-devtools' || a === '--write') { /* handled by the command */ }
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -100,7 +102,7 @@ function devtoolsEntry(o: Opts): string[] {
 
 /** Frontend + Sema. Exits on the first error (CMP-03). */
 function analyze(o: Opts): Sema {
-  const fe = loadProgram(o.entry, o.devtools ? devtoolsEntry(o) : []);
+  const fe = loadEntry(o);
   if (fe.tsDiagnostics.length) { printDiags(fe.tsDiagnostics, o.json); exit(1); }
   const prof = PROFILES[o.profile];
   try {
@@ -114,6 +116,31 @@ function analyze(o: Opts): Sema {
     if (e instanceof ZincError) { printDiags([e.diag], o.json); exit(1); }
     throw e;
   }
+}
+
+/** DYN-14: a JavaScript entry is typed by `zinc infer` in memory, then compiled like TypeScript. */
+function loadEntry(o: Opts) {
+  const extra = o.devtools ? devtoolsEntry(o) : [];
+  if (!/\.[cm]?jsx?$/.test(o.entry)) return loadProgram(o.entry, extra);
+  const r = infer(o.entry);
+  const virtual = new Map([...r.files].filter(([f]) => /\.[cm]?jsx?$/.test(f)).map(([f, t]) => [tsPathOf(f), t] as [string, string]));
+  return loadProgram(tsPathOf(o.entry), extra, virtual);
+}
+
+/** zinc infer (DYN-11): report + annotated sources (.js -> .ts next to it; .ts: diff, or rewritten with --write). */
+function inferCmd(o: Opts, write: boolean) {
+  const r = infer(o.entry);
+  for (const s of r.sites) console.log(`${s.file}:${s.line}:${s.col}  ${s.what.padEnd(14)} ${s.type ? '-> ' + s.type : 'stays Dyn'}  (${s.note})`);
+  for (const [f, text] of r.files) {
+    const js = /\.[cm]?jsx?$/.test(f);
+    if (js || write) { const out = js ? tsPathOf(f) : f; fs.writeFileSync(out, text); console.log(`wrote ${path.relative(process.cwd(), out)}`); continue; }
+    const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zinc-infer-')), path.basename(f));
+    fs.writeFileSync(tmp, text);
+    const d = spawnSync('diff', ['-u', '--label', path.relative(process.cwd(), f), '--label', path.relative(process.cwd(), f), f, tmp], { encoding: 'utf8' });
+    process.stdout.write(d.stdout);
+  }
+  const left = r.sites.filter(s => !s.type).length;
+  console.log(`${r.sites.length - left} site(s) typed, ${left} left as Dyn${left ? " (annotated 'any': gradual profile only)" : ''}`);
 }
 
 function guard<T>(o: Opts, f: () => T): T {
@@ -490,7 +517,7 @@ function writeReport(dir: string, o: Opts, sema: Sema, size: number, gfx: boolea
 /** TST-01/02: conformance programs, sim output is the oracle (.out), native output must match byte for byte. */
 function test(o: Opts, update: boolean) {
   const dir = path.join(ZINC_ROOT, 'tests/conformance');
-  const files = fs.readdirSync(dir).filter(f => /\.tsx?$/.test(f)).sort();
+  const files = fs.readdirSync(dir).filter(f => /\.(tsx?|js)$/.test(f)).sort();
   let failed = 0;
   for (const f of files) {
     const entry = path.join(dir, f);
@@ -501,7 +528,7 @@ function test(o: Opts, update: boolean) {
     };
     const pr = PROFILES[o.profile];
     const key = [pr.number === 'f64' ? '' : pr.number, pr.width === 320 && pr.height === 240 ? '' : `${pr.width}x${pr.height}`].filter(Boolean).join('.');
-    const expectFile = entry.replace(/\.tsx?$/, key ? `.${key}.out` : '.out');
+    const expectFile = entry.replace(/\.(tsx?|js)$/, key ? `.${key}.out` : '.out');
     const sim = runOne('sim');
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
     const expected = fs.readFileSync(expectFile, 'utf8');
@@ -548,9 +575,11 @@ function main() {
     console.log(`zinc — TypeScript to native C++ (prototype)
 
   zinc check [entry] [--json]                       typecheck + Zinc sema, LSP-style diagnostics with --json
-  zinc build [entry] [--target macos|linux|sim] [--profile <target>] [--debug] [--emit=cpp|js]
+  zinc build [entry] [--target macos|linux|sim] [--profile <target>] [--debug] [--emit=hir|mir|cpp|js] [--no-dyn]
+                                                    a .js entry is typed by zinc infer in memory (DYN-14)
   zinc run   [entry] [same options] [-- program args]
   zinc test  [--target <id>] [--profile <id>] [--debug] [--update]   conformance: sim oracle vs native
+  zinc infer <entry> [--write]                      static types for Dyn sites: app.js -> app.ts + report; .ts: diff
   zinc export [entry] --target <id>                  dist/<name>-<target>: self-contained executable, scripts, service unit
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start (rmpp: root@10.11.99.1)
   zinc init <dir> [--template game|cli|server|iot]
@@ -599,6 +628,7 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
     return;
   }
   if (cmd === 'test') return test(o, argv.includes('--update'));
+  if (cmd === 'infer') return inferCmd(o, argv.includes('--write'));
   if (cmd === 'run') {
     const b = build(o);
     const r = spawnSync(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit' });

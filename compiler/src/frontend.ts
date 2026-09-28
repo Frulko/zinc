@@ -57,19 +57,25 @@ export const compilerOptions: ts.CompilerOptions = {
   types: [],
 };
 
-/** `extra`: additional root modules compiled into the program (zinc dev adds plugins/devtools). */
-export function loadProgram(entryPath: string, extra: string[] = []): Frontend {
+/** `extra`: additional root modules compiled into the program (zinc dev adds plugins/devtools).
+ *  `virtual`: in-memory sources by absolute path (zinc build app.js: the .ts written by `zinc infer`, DYN-14). */
+export function loadProgram(entryPath: string, extra: string[] = [], virtual?: Map<string, string>): Frontend {
   const entryAbs = path.resolve(entryPath);
   // plugins (compiler/src/plugins.ts) resolve like the standard modules
   const options = { ...compilerOptions, paths: { ...compilerOptions.paths, ...modulePaths(projectDir(entryAbs)) } };
   const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile;
+  if (virtual) {
+    const fileExists = host.fileExists, readFile = host.readFile;
+    host.fileExists = f => virtual.has(f) || fileExists.call(host, f);
+    host.readFile = f => virtual.get(f) ?? readFile.call(host, f);
+  }
   const jsxErrors: Diag[] = [];
   // UI: .tsx files are lowered to plain calls before type checking (compiler/src/jsx.ts)
   host.getSourceFile = (f, lang, onError, create) => {
     const user = (f.endsWith('.ts') || f.endsWith('.tsx')) && !f.endsWith('.d.ts');
     if (!user) return getSourceFile.call(host, f, lang, onError, create);
-    let text = ts.sys.readFile(f) ?? '';
+    let text = virtual?.get(f) ?? ts.sys.readFile(f) ?? '';
     const custom = new Set<string>();
     try {
       // `import './x.css'` -> defineClass calls, on the same line (diagnostics keep their positions)
@@ -93,7 +99,7 @@ export function loadProgram(entryPath: string, extra: string[] = []): Frontend {
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);
   if (!entry) throw new Error(`entry not found: ${entryPath}`);
-  const tsDiagnostics = jsxErrors.length ? jsxErrors : ts.getPreEmitDiagnostics(program).filter(d => d.code !== 5056).map(d => toDiag(d))  // 5056: x.ts + x.tsx outputs, renamed by emit-js;
+  const tsDiagnostics = jsxErrors.length ? jsxErrors : ts.getPreEmitDiagnostics(program).filter(d => d.code !== 5056 && d.code !== 5055).map(d => toDiag(d))  // 5056: x.ts + x.tsx outputs, renamed by emit-js; 5055: .js inputs (never emitted in place);
   return { program, checker, sources, entry, tsDiagnostics };
 }
 
