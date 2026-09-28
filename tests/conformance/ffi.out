@@ -1,1 +1,10 @@
-tests/conformance/ffi.ts:1:1 - error Z5005: plugin ffi requires dynlib (sim has dynlib false) (plugin.json "requires"; --force builds anyway)
+6 -42 7 65
+true 0
+true 1024 1.4142135623730951 12
+from C true
+Hi [ 72, 105, 0 ]
+[ 65, 65, 65, 65, 0, 0 ] AAAA
+symbol not found: no_such_symbol_zinc
+TypeError zinc:ffi: unsupported argument type 'struct' for strlen
+TypeError zinc:ffi: strlen takes 1 arguments, got 0
+dlopen failed true

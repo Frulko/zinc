@@ -8,5 +8,5 @@
   "ps1": {"threads": false, "display": true, "touch": false, "pointer": false, "keyboard": false, "pen": false, "gamepad": true, "eink": false, "net": false, "fs": false, "audio": false, "gpu": false, "process": false, "dynlib": false},
   "ps2": {"threads": false, "display": true, "touch": false, "pointer": false, "keyboard": false, "pen": false, "gamepad": true, "eink": false, "net": false, "fs": false, "audio": false, "gpu": false, "process": false, "dynlib": false},
   "wasm": {"threads": false, "display": true, "touch": "optional", "pointer": true, "keyboard": true, "pen": "optional", "gamepad": "optional", "eink": false, "net": false, "fs": false, "audio": false, "gpu": false, "process": false, "dynlib": false},
-  "sim": {"threads": false, "display": true, "touch": false, "pointer": true, "keyboard": true, "pen": false, "gamepad": false, "eink": false, "net": true, "fs": true, "audio": false, "gpu": false, "process": true, "dynlib": false}
+  "sim": {"threads": false, "display": true, "touch": false, "pointer": true, "keyboard": true, "pen": false, "gamepad": false, "eink": false, "net": true, "fs": true, "audio": false, "gpu": false, "process": true, "dynlib": true}
 }
