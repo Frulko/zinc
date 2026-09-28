@@ -123,7 +123,8 @@ process restart elsewhere — with a red box on crash and a Chrome-DevTools UI i
 [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
 
 Useful environment variables (full list: `zinc help env`): `ZINC_FRAMES=n` stops a frame loop after n frames,
-`ZINC_SHOT=out.bmp` saves the last frame, `ZINC_LOG_FORMAT=json` switches console output to JSON lines,
+`ZINC_SHOT=out.png` saves the last frame (`zinc capture` saves any frames), `ZINC_DETERMINISTIC=1` puts the run on
+a virtual clock, `ZINC_LOG_FORMAT=json` switches console output to JSON lines,
 `ZINC_TELEMETRY=udp://host:port` enables telemetry (`zinc monitor` views it).
 
 Next: [the language](02-language.md).

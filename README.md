@@ -66,7 +66,9 @@ a fixed surface and scale it; `zinc.json` `targets.macos` takes `zoom`, `resize`
 `kiosk` (fullscreen, no cursor, always on top, no quit shortcuts), also as `ZINC_*` variables; F11 toggles fullscreen.
 
 Debug builds (`--debug`) use ASan + UBSan and print a leak report. `ZINC_FRAMES=n` stops a frame loop after n frames,
-`ZINC_SHOT=out.bmp` saves the last frame, `ZINC_LOG_FORMAT=json` switches console output to JSON lines.
+`ZINC_SHOT=out.png` saves the last frame (`zinc capture app --frames 1,60` saves any frames, `zinc test --pixels`
+compares them with golden PNGs), `ZINC_DETERMINISTIC=1` runs on a virtual clock
+([determinism](docs/guide/06-testing.md#determinism)), `ZINC_LOG_FORMAT=json` switches console output to JSON lines.
 
 ## Documentation
 
