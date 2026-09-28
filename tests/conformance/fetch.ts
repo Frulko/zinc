@@ -14,6 +14,7 @@ serve(PORT, (req: Request): Reply => {
   if (req.path === '/json') return { status: 200, contentType: 'application/json', body: '{"name":"zinc","n":[1,2,3],"ok":true}', headers: h };
   if (req.path === '/echo') return { status: 201, contentType: 'text/plain', body: `${req.method} ${req.headers.get('x-token')} ${req.headers.has('X-TOKEN')} ${req.body}` };
   if (req.path === '/bin') return { status: 200, contentType: 'application/octet-stream', body: 'AB€' };
+  if (req.path === '/big') return { status: 200, contentType: 'text/plain', body: 'x'.repeat(200000) };
   return { status: 404, contentType: 'text/plain', body: 'nothing here' };
 });
 
@@ -40,6 +41,10 @@ async function main(): Promise<void> {
   console.log(await b.bytes());
   const nf = await fetch(base + '/missing');
   console.log(nf.status, nf.ok, nf.statusText, await nf.text());
+  // maxBytes: a larger body is refused instead of filling the heap
+  const big = await fetch(base + '/big', { maxBytes: 300000 });
+  console.log('big', (await big.text()).length);
+  try { await fetch(base + '/big', { maxBytes: 100000 }); } catch (err) { console.log(err.message); }
   const bad = await fetch(base + '/bin');
   try { await bad.json(); } catch (err) { console.log('json error', err.name); }
   stop();

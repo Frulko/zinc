@@ -21,7 +21,7 @@ const char* reason(int32_t s) {
   }
 }
 // ---------- fetch ----------
-struct Pending { CURL* h; StrBuilder* body; StrBuilder* head; curl_slist* headers; Ref<PromiseObj<Ref<Response>>> p; Pending* next; };
+struct Pending { CURL* h; StrBuilder* body; StrBuilder* head; curl_slist* headers; Ref<PromiseObj<Ref<Response>>> p; Pending* next; uint32_t max; bool tooBig; };
 /** Response headers of the last response (after redirects): "Name: value" lines, the status line first. */
 static void parse_head(const StrBuilder& hb, const Ref<Response>& r) {
   const char* b = hb.buf; uint32_t n = hb.len, i = 0;
@@ -58,7 +58,7 @@ struct Fetcher : Poller {
       CURLcode rc = m->data.result;
       if (rc != CURLE_OK) {
         // the same words as the sim (Node's error codes)
-        const char* e = rc == CURLE_COULDNT_CONNECT ? "ECONNREFUSED" : rc == CURLE_COULDNT_RESOLVE_HOST ? "ENOTFOUND" : rc == CURLE_OPERATION_TIMEDOUT ? "timeout" : curl_easy_strerror(rc);
+        const char* e = d->tooBig ? "response too large" : rc == CURLE_COULDNT_CONNECT ? "ECONNREFUSED" : rc == CURLE_COULDNT_RESOLVE_HOST ? "ENOTFOUND" : rc == CURLE_OPERATION_TIMEDOUT ? "timeout" : curl_easy_strerror(rc);
         d->p->reject(make<TypeError>(cat(String::from("fetch failed: ", 14), String::from(e, (uint32_t)strlen(e)))));
       } else {
         long code = 0; curl_easy_getinfo(d->h, CURLINFO_RESPONSE_CODE, &code);
@@ -79,7 +79,18 @@ struct Fetcher : Poller {
   }
 };
 static Fetcher* fetcher = nullptr;
-static size_t on_data(char* ptr, size_t size, size_t n, void* ud) { ((StrBuilder*)ud)->raw(ptr, (uint32_t)(size * n)); return size * n; }
+static size_t on_head(char* ptr, size_t size, size_t n, void* ud) {
+  StrBuilder* h = (StrBuilder*)ud;
+  if (h->len + size * n > (1u << 20)) return 0;  // 1 MiB of headers: abort
+  h->raw(ptr, (uint32_t)(size * n));
+  return size * n;
+}
+static size_t on_data(char* ptr, size_t size, size_t n, void* ud) {
+  Pending* d = (Pending*)ud;
+  if ((uint64_t)d->body->len + size * n > d->max) { d->tooBig = true; return 0; }  // 0 aborts the transfer
+  d->body->raw(ptr, (uint32_t)(size * n));
+  return size * n;
+}
 Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   if (!fetcher) {
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -90,13 +101,19 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   auto pr = Promise<Ref<Response>>::make_pending();
   Pending* d = new (alloc(sizeof(Pending))) Pending();
   d->h = curl_easy_init(); d->body = new (alloc(sizeof(StrBuilder))) StrBuilder(); d->head = new (alloc(sizeof(StrBuilder))) StrBuilder();
-  d->p = pr.p; d->headers = nullptr;
+  d->p = pr.p; d->headers = nullptr; d->tooBig = false;
+  d->max = (uint32_t)(init.p && init->maxBytes > 0 ? init->maxBytes : default_max_bytes());
   sock::CStr u(url);
   curl_easy_setopt(d->h, CURLOPT_URL, u.c());
   curl_easy_setopt(d->h, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(d->h, CURLOPT_WRITEFUNCTION, on_data);
-  curl_easy_setopt(d->h, CURLOPT_WRITEDATA, d->body);
-  curl_easy_setopt(d->h, CURLOPT_HEADERFUNCTION, on_data);
+  curl_easy_setopt(d->h, CURLOPT_WRITEDATA, d);
+  curl_easy_setopt(d->h, CURLOPT_HEADERFUNCTION, on_head);
+  curl_easy_setopt(d->h, CURLOPT_CONNECTTIMEOUT_MS, (long)kConnectTimeoutMs);
+  curl_easy_setopt(d->h, CURLOPT_TIMEOUT_MS, (long)(init.p && init->timeoutMs > 0 ? init->timeoutMs : kDefaultTimeoutMs));
+  curl_easy_setopt(d->h, CURLOPT_MAXREDIRS, 20L);
+  curl_easy_setopt(d->h, CURLOPT_PROTOCOLS_STR, "http,https");        // no file:, ftp:, ... through fetch
+  curl_easy_setopt(d->h, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
   curl_easy_setopt(d->h, CURLOPT_HEADERDATA, d->head);
   curl_easy_setopt(d->h, CURLOPT_USERAGENT, "zinc/0.1");
   curl_easy_setopt(d->h, CURLOPT_ACCEPT_ENCODING, "");  // gzip / deflate / br as libcurl supports, decoded
@@ -110,7 +127,6 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
       d->headers = curl_slist_append(d->headers, h.c());
     }
     if (d->headers) curl_easy_setopt(d->h, CURLOPT_HTTPHEADER, d->headers);
-    if (init->timeoutMs > 0) curl_easy_setopt(d->h, CURLOPT_TIMEOUT_MS, (long)init->timeoutMs);
   }
   curl_multi_add_handle(fetcher->multi, d->h);
   d->next = fetcher->list; fetcher->list = d;

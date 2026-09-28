@@ -77,7 +77,10 @@ Checked against the web-platform-tests data (the other WPT runs belong to the co
   `statusText` are validated with the standard errors.
 - **Headers.** Names are validated, values normalized, iteration is sorted and combined, and `getSetCookie()` is
   available.
-- **Zinc extension.** `timeoutMs` in `RequestInit`.
+- **Limits.** Every request has a timeout: 120 s by default, and 30 s at most to connect. Set `timeoutMs` in
+  `RequestInit` to change it. A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB)
+  rejects with `TypeError: fetch failed: response too large` instead of exhausting the heap. Both options are Zinc
+  extensions.
 
 ## How it differs from a browser
 

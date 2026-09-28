@@ -115,8 +115,9 @@ declare module 'zinc:net' {
     keys(): string[];
     forEach(f: (value: string, name: string) => void): void;
   }
-  /** bodyBytes: a binary body (wins over body). */
-  export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32 }
+  /** bodyBytes: a binary body (wins over body). timeoutMs: the whole request (default 120000; connecting: 30 s at
+   *  most). maxBytes: the largest response body accepted (default: a quarter of the heap, at most 64 MiB). */
+  export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32 }
   export class Response {
     readonly status: i32;
     readonly ok: boolean;
@@ -131,7 +132,7 @@ declare module 'zinc:net' {
     json(): Promise<any>;
   }
   /** HTTP(S) request (libcurl on hosts, esp_http_client on esp32): follows redirects, decodes gzip / br.
-   *  Rejects with 'fetch failed: ECONNREFUSED' / 'ENOTFOUND' / 'timeout' / the libcurl message. */
+   *  Rejects with 'fetch failed: ECONNREFUSED' / 'ENOTFOUND' / 'timeout' / 'response too large' / the libcurl message. */
   export function fetch(url: string, init?: RequestInit): Promise<Response>;
   export interface Request { method: string; path: string; body: string; headers: Headers }
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }

@@ -35,7 +35,8 @@ struct RequestInit : Object {
   static constexpr uint32_t ZRT_CID = 0xFFFE20;
   String method, body, contentType;
   Ref<Headers> headers;
-  int32_t timeoutMs = 0;
+  int32_t timeoutMs = 0;    // 0: kDefaultTimeoutMs
+  int32_t maxBytes = 0;     // largest response body accepted; 0: default_max_bytes()
   Array<uint8_t> bodyBytes;  // binary body (wins over `body`)
   RequestInit() {}
 };
@@ -76,6 +77,15 @@ struct Reply : Object {
   Ref<Headers> headers;
   Reply() {}
 };
+/** Limits of fetch when RequestInit leaves them at 0 (docs/guide/04-headless-services.md): a request that takes
+ *  longer than 2 minutes, or does not connect within 30 s, fails with 'timeout'; a response body above a quarter of
+ *  the heap (at most 64 MiB) fails with 'response too large' instead of exhausting the heap. */
+constexpr int32_t kDefaultTimeoutMs = 120000;
+constexpr int32_t kConnectTimeoutMs = 30000;
+inline int32_t default_max_bytes() {
+  uint64_t q = (uint64_t)ZRT_HEAP_BYTES / 4;
+  return q > (64u << 20) ? (int32_t)(64u << 20) : (int32_t)q;
+}
 /** Reason phrase of a status code (the ones Node's http module uses). */
 const char* reason(int32_t status);
 Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init = Ref<RequestInit>());

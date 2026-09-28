@@ -527,7 +527,7 @@ const IDF_IMAGE = 'espressif/idf:v6.0';
 // telemetry talk raw POSIX sockets directly so they need lwip's socket headers on their own).
 const ESP_MOD_REQUIRES: Record<string, string[]> = {
   storage: ['nvs_flash'], fs: ['spiffs'], gpio: ['esp_driver_gpio'],
-  net: ['esp_http_client', 'nvs_flash'], osc: ['lwip'], mqtt: ['lwip'], telemetry: ['lwip'],
+  net: ['esp_http_client', 'esp_netif', 'nvs_flash'], osc: ['lwip'], mqtt: ['lwip'], telemetry: ['lwip'],
 };
 /** esp32 chip / PSRAM / flash settings (zinc.json targets.esp32 chip, psram, flashSize, or a board preset; env
  *  ZINC_ESP_CHIP overrides the chip, e.g. to run the conformance tests on esp32s3 in QEMU). docs/boards.md */

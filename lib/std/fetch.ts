@@ -181,8 +181,11 @@ export interface RequestInit {
   referrerPolicy?: string;
   integrity?: string;
   keepalive?: boolean;
-  /** Zinc extension: give up after this many milliseconds (TypeError 'fetch failed: timeout'). */
+  /** Zinc extension: give up after this many milliseconds (TypeError 'fetch failed: timeout'; default 120000). */
   timeoutMs?: i32;
+  /** Zinc extension: the largest response body accepted (TypeError 'fetch failed: response too large'; default a
+   *  quarter of the heap, at most 64 MiB). */
+  maxBytes?: i32;
 }
 const METHODS = ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT'];
 export class Request extends Body {
@@ -199,6 +202,7 @@ export class Request extends Body {
   readonly keepalive: boolean;
   readonly destination: string = '';
   readonly timeoutMs: i32;
+  readonly maxBytes: i32;
   /** input: a URL string, a URL or a Request. @throws TypeError (bad URL, method, or a body with GET / HEAD) */
   constructor(input: unknown, init: RequestInit = {}) {
     super();
@@ -231,6 +235,7 @@ export class Request extends Body {
     this.integrity = init.integrity ?? '';
     this.keepalive = init.keepalive ?? false;
     this.timeoutMs = init.timeoutMs ?? (base !== null ? base.timeoutMs : 0);
+    this.maxBytes = init.maxBytes ?? (base !== null ? base.maxBytes : 0);
     const hi = init.headers;
     this.headersObj = hi !== undefined ? new Headers(hi) : base !== null ? new Headers(base.headersObj) : new Headers();
     const bi = init.body;
@@ -399,7 +404,7 @@ export function fetch(input: unknown, init: RequestInit = {}): Promise<Response>
     if (u.protocol !== 'http:' && u.protocol !== 'https:') { done = true; reject(new TypeError(`fetch failed: unsupported scheme ${u.protocol}`)); return; }
     const h = req.headers.toNet();
     if (!h.has('accept')) h.set('Accept', '*/*');
-    const ni: net.RequestInit = { method: req.method, headers: h, timeoutMs: req.timeoutMs };
+    const ni: net.RequestInit = { method: req.method, headers: h, timeoutMs: req.timeoutMs, maxBytes: req.maxBytes };
     const b = req.bodyBytes;
     if (b !== null) ni.bodyBytes = b;
     run(req.url, ni, resolve, reject, () => done, () => { done = true; });

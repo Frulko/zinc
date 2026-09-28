@@ -20,10 +20,18 @@ export async function fetch(url, init) {
     else if (init?.body) opts.body = init.body;
     if (init?.contentType) opts.headers['content-type'] = init.contentType;
     if (init?.headers) init.headers.names.forEach((n, i) => { opts.headers[n] = opts.headers[n] && n !== 'user-agent' ? opts.headers[n] + ', ' + init.headers.vals[i] : init.headers.vals[i]; });
-    if (init?.timeoutMs > 0) opts.signal = AbortSignal.timeout(init.timeoutMs);
+    opts.signal = AbortSignal.timeout(init?.timeoutMs > 0 ? init.timeoutMs : 120000);  // runtime/mod/net.h limits
     r = await globalThis.fetch(url, opts);
   } catch (e) { throw new TypeError('fetch failed: ' + (e.name === 'TimeoutError' ? 'timeout' : e.cause?.code ?? e.message)); }
-  const buf = Buffer.from(await r.arrayBuffer());
+  const max = init?.maxBytes > 0 ? init.maxBytes : 64 << 20;
+  const chunks = [];
+  let size = 0;
+  for await (const c of r.body ?? []) {
+    size += c.length;
+    if (size > max) { await r.body.cancel().catch(() => {}); throw new TypeError('fetch failed: response too large'); }
+    chunks.push(c);
+  }
+  const buf = Buffer.concat(chunks);
   const body = buf.toString('utf8');
   const headers = new Headers();
   for (const [k, v] of r.headers) if (k !== 'set-cookie') headers.append(k, v);

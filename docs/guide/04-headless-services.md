@@ -28,7 +28,10 @@ serve(3000, (req: Request): Reply => {
 });
 ```
 
-`fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). The handler receives
+`fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). Only `http:` and `https:` URLs
+are fetched, following at most 20 redirects. A request times out after `timeoutMs` (default 120000; connecting takes
+at most 30 s). A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB) is refused with
+`fetch failed: response too large`. The handler receives
 `method`, `path`, `body`; there is no routing framework — branch on `req.path` yourself.
 
 ## MQTT, OSC, telemetry
