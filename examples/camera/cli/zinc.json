@@ -1,0 +1,4 @@
+{
+  "name": "camera-cli",
+  "entry": "src/main.ts"
+}
