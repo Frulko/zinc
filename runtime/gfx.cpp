@@ -600,6 +600,7 @@ double penTiltX(int32_t i) { return pen_at(i)->tilt_x; }
 double penTiltY(int32_t i) { return pen_at(i)->tilt_y; }
 int32_t penFlags(int32_t i) { return (int32_t)pen_at(i)->flags; }
 int32_t frame() { return frame_no; }
+int32_t pixelScale() { init_scale(); return pxk; }
 void quit() { quit_requested = true; }
 
 // ---- desktop input: keyboard/text queue, mouse buttons, clipboard, cursor, text input

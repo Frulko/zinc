@@ -722,6 +722,7 @@ double pointerX();
 double pointerY();
 bool pointerDown();
 int32_t frame();
+int32_t pixelScale();
 void quit();
 bool capture(const String& path);
 uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots

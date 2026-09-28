@@ -36,6 +36,7 @@ export const createImage = (w, h) => { const i = dynImg++; dynSize.set(i, [w, h]
 export const wheel = () => 0, pinch = () => 1, touchCount = () => 0, touchX = () => 0, touchY = () => 0, touchId = () => -1;
 export const penCount = () => 0, penX = () => 0, penY = () => 0, penPressure = () => 0, penTiltX = () => 0, penTiltY = () => 0, penFlags = () => 0;
 export const isDown = () => false;
+export const pixelScale = () => 1;
 export const wasPressed = () => false;
 export const pointerX = () => 0;
 export const pointerY = () => 0;
