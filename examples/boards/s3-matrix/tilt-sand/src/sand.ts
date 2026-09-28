@@ -27,6 +27,13 @@ export class Sand {
     this.moved[to] = true;
   }
 
+  /** Walking from (x, y) in direction (dx, dy) over free cells, is there one with a free cell below it (gravity)? */
+  private holeAlong(x: i32, y: i32, dx: i32, dy: i32, gx: i32, gy: i32): boolean {
+    for (let k: i32 = 1; this.free(x + dx * k, y + dy * k); k++)
+      if (this.free(x + dx * k + gx, y + dy * k + gy)) return true;
+    return false;
+  }
+
   /** Puts a grain in a random empty cell (false when the box is full). */
   drop(color: u32): boolean {
     for (let tries: i32 = 0; tries < 64; tries++) {
@@ -63,6 +70,13 @@ export class Sand {
         if (flip) { const tx = ax; ax = bx; bx = tx; const ty = ay; ay = by; by = ty; }
         if (this.free(x + ax, y + ay)) { this.move(x, y, x + ax, y + ay); count++; }
         else if (this.free(x + bx, y + by)) { this.move(x, y, x + bx, y + by); count++; }
+        else if (gx === 0 || gy === 0) {
+          // straight gravity: flow along the surface towards a hole further away, so the pile levels out
+          const px: i32 = gy, py: i32 = gx;  // perpendicular to the fall
+          const s: i32 = flip ? 1 : -1;
+          if (this.holeAlong(x, y, s * px, s * py, gx, gy)) { this.move(x, y, x + s * px, y + s * py); count++; }
+          else if (this.holeAlong(x, y, -s * px, -s * py, gx, gy)) { this.move(x, y, x - s * px, y - s * py); count++; }
+        }
       }
     }
     return count;

@@ -10,13 +10,15 @@ const W = width(), H = height();
 const LEVEL_DEG = 2;    // "level" tolerance, degrees
 const RANGE_DEG = 20;   // tilt that pushes the bubble to the edge
 const SMOOTH = 8;       // bubble follows the angle with this rate (1/s): a real bubble lags a little
+// calibration: the angles this board prints while lying on a surface you know is level (see the serial console)
+const OFFSET_X = 0, OFFSET_Y = 0;
 
 let bx = 0, by = 0;     // bubble offset from the centre, pixels
 let hue = 0, report = 0;
 
 onFrame((dt: number) => {
   imu.update(dt);
-  const ax = imu.angleX(), ay = imu.angleY();
+  const ax = imu.angleX() - OFFSET_X, ay = imu.angleY() - OFFSET_Y;
   // the bubble goes up-hill: opposite to where things would roll
   const reach = (W - 2) / 2;
   const tx = -Math.max(-1, Math.min(1, ax / RANGE_DEG)) * reach;

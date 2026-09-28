@@ -713,6 +713,7 @@ function help(topic?: string) {
   docs/plugins.md               writing plugins (plugin.json, display drivers, options)
   docs/plugins/*.md             video, mapping, display-gl, map, svg, gphoto2, displays, lottie, 3d...
   docs/targets/*.md             reMarkable Paper Pro, PlayStation
+  docs/boards.md                board presets: Waveshare ESP32-S3-Matrix (zinc flash), Raspberry Pi + Scroll pHAT
   docs/dev-mode.md              hot reload, red box, inspector (availability per target)
   docs/reports/STATUS.md        what works where; docs/reports/PERF.md: performance vs QuickJS / Node
   docs/decisions/               design decisions (ADRs)`,
