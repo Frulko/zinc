@@ -3,7 +3,7 @@
 // to the rasterizer as anti-aliased polygons with the nonzero or even-odd rule and optional gradient paint
 // (native/canvas2d.host.cpp). Text and images use zinc:gfx. Guide and deviations: docs/plugins/canvas2d.md.
 import {
-  font as gfxFont, fontAscent, lineHeight, textWidth, drawText, drawImage as gfxDrawImage, imageWidth, imageHeight,
+  font as gfxFont, fontAscent, lineHeight, textWidth, drawText, imageWidth, imageHeight,
   clip as gfxClip, unclip, beginImage, endImage, createImage, destroyImage, rrect,
 } from 'zinc:gfx';
 import N from './native/canvas2d.spec';
@@ -161,9 +161,10 @@ export class CanvasRenderingContext2D {
   textAlign = 'start';
   /** 'alphabetic' | 'top' | 'hanging' | 'middle' | 'ideographic' | 'bottom' */
   textBaseline = 'alphabetic';
-  /** Accepted and ignored: only source-over compositing, no shadows, bilinear image sampling. */
+  /** Accepted and ignored: only source-over compositing, no shadows. */
   globalCompositeOperation = 'source-over';
   shadowBlur = 0; shadowColor = 'transparent'; shadowOffsetX = 0; shadowOffsetY = 0;
+  /** false: runtime images (Canvas, video frames...) are scaled nearest-neighbour (cheaper, pixel art). */
   imageSmoothingEnabled = true;
   /** clearRect paints this colour; 'transparent' (default) does nothing on screen, where every frame starts empty,
    *  and paints black in an image (images have no alpha). */
@@ -469,11 +470,12 @@ export class CanvasRenderingContext2D {
     const cxd = this.tx(dx + dw / 2, dy + dh / 2), cyd = this.ty(dx + dw / 2, dy + dh / 2);
     const w = Math.abs(dw) * kx, hh = Math.abs(dh) * ky, x0 = cxd - w / 2, y0 = cyd - hh / 2;
     const al: i32 = Math.round(255 * Math.min(1, Math.max(0, this.globalAlpha)));
-    if (sx === 0 && sy === 0 && sw === iw && sh === ih) { gfxDrawImage(image, x0, y0, w, hh, al, 0); return; }
+    const smooth = this.imageSmoothingEnabled;
+    if (sx === 0 && sy === 0 && sw === iw && sh === ih) { N.image(image, x0, y0, w, hh, al, smooth); return; }
     // source rectangle: clip to the destination, draw the whole image scaled so the source maps onto it
     const fx = w / sw, fy = hh / sh;
     gfxClip(x0, y0, w, hh);
-    gfxDrawImage(image, x0 - sx * fx, y0 - sy * fy, iw * fx, ih * fy, al, 0);
+    N.image(image, x0 - sx * fx, y0 - sy * fy, iw * fx, ih * fy, al, smooth);
     unclip();
   }
 

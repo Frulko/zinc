@@ -124,7 +124,7 @@ function pick(nx: number, ny: number): void {
 
 // ---------------------------------------------------------------- frame
 let downX = 0, downY = 0, wasDown = false;
-let frames: i32 = 0, msSum = 0, fps = 0, acc = 0, fpsFrames: i32 = 0;
+let frames: i32 = 0, msSum = 0, fps = 0, acc = 0, fpsFrames: i32 = 0, span = 0;
 const script = env('THREE_DEMO_SCRIPT').length > 0;
 
 function View(x: i32, y: i32, w: i32, h: i32): void {
@@ -147,7 +147,7 @@ function View(x: i32, y: i32, w: i32, h: i32): void {
   renderer.render(scene, camera);
   msSum += clock() - t0;
   frames++;
-  if (frames % 300 === 0) { console.log(`gltf-viewer ${w}x${h} x${renderer.getPixelRatio()}: ${(msSum / 300).toFixed(2)} ms/render`); msSum = 0; }
+  if (frames % 300 === 0) { console.log(`gltf-viewer ${w}x${h} x${renderer.getPixelRatio()}: ${(msSum / 300).toFixed(2)} ms/render, ${(span * 1000 / 300).toFixed(2)} ms/frame in all`); msSum = 0; span = 0; }
 }
 
 function App(): i32 {
@@ -172,7 +172,7 @@ function App(): i32 {
 
 load(0);
 render(App, 0x1b2230, (dt: number) => {
-  acc += dt; fpsFrames++;
+  acc += dt; fpsFrames++; span += dt;
   if (acc >= 0.5) {
     fps = fpsFrames / acc; acc = 0; fpsFrames = 0;
     setStats(`${Math.round(fps)} fps  ${renderer.info.render.triangles} tris  ${renderer.info.render.calls} draws`);

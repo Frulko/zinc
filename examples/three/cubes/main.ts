@@ -13,11 +13,11 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 // zinc: no document.body.appendChild(renderer.domElement): the renderer draws on the screen
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const sun = new THREE.DirectionalLight(0xffffff, 2.5);
 sun.position.set(3, 5, 4);
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x8899ff, 0x332211, 0.6));
+scene.add(new THREE.HemisphereLight(0x8899ff, 0x332211, 0.5));
 
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 const colors: number[] = [0xe63946, 0xf4a261, 0x2a9d8f, 0x457b9d, 0xe9c46a];
@@ -38,8 +38,7 @@ floor.rotation.x = -Math.PI / 2;
 floor.position.y = -1.2;
 scene.add(floor);
 
-const clock = new THREE.Clock();
-let frames = 0;
+let frames = 0, renderMs = 0;
 function animate(time: number): void {
   const t = time / 1000;
   for (let i = 0; i < cubes.length; i++) {
@@ -48,8 +47,10 @@ function animate(time: number): void {
     cubes[i].position.y = Math.sin(t * 2 + i) * 0.3;
   }
   ring.rotation.z = t * 0.3;
+  const t0 = performance.now();
   renderer.render(scene, camera);
+  renderMs += performance.now() - t0;
   frames++;
-  if (frames % 300 === 0) console.log(`three/cubes: ${(clock.getElapsedTime() * 1000 / frames).toFixed(2)} ms/frame, ${renderer.info.render.triangles} triangles`);
+  if (frames % 300 === 0) { console.log(`three/cubes: ${(renderMs / 300).toFixed(2)} ms/render, ${renderer.info.render.triangles} triangles`); renderMs = 0; }
 }
 renderer.setAnimationLoop(animate);

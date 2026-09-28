@@ -234,11 +234,11 @@ function App(): i32 {
   </view>;
 }
 
-let acc = 0, frames: i32 = 0, total: i32 = 0;
+let acc = 0, frames: i32 = 0, total: i32 = 0, span = 0;
 render(App, 0x0f172a, (dt: number) => {
   time += dt;
   step(dt);
-  acc += dt; frames++; total++;
+  acc += dt; frames++; total++; span += dt;
   if (acc >= 0.5) { setFps(`${Math.round(frames / acc)} fps`); acc = 0; frames = 0; }
-  if (total % 300 === 0) { console.log(`canvas/sketch: ${(drawMs / 300).toFixed(2)} ms/frame in the canvas callbacks, ${particles.length} particles`); drawMs = 0; }
+  if (total % 300 === 0) { console.log(`canvas/sketch: ${(drawMs / 300).toFixed(2)} ms/frame in the canvas callbacks, ${(span * 1000 / 300).toFixed(2)} ms/frame in all, ${particles.length} particles`); drawMs = 0; span = 0; }
 });

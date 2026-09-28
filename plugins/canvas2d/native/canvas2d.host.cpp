@@ -8,6 +8,8 @@ namespace {
 // `number` in the spec is the program's number kind (f64, f32 or fx12)
 template<class C, class A, class B, class D, class E, class F> A arg0(void (C::*)(A, B, D, E, F));
 typedef decltype(arg0(&NativeCanvas2D::fill)) Nums;
+template<class C, class A, class B, class D, class E, class F, class G, class H> B arg1(void (C::*)(A, B, D, E, F, G, H));
+typedef decltype(arg1(&NativeCanvas2D::image)) N;
 
 struct Impl : NativeCanvas2D {
   float* buf = nullptr;
@@ -44,6 +46,14 @@ struct Impl : NativeCanvas2D {
     c->pad = evenodd ? 1 : 0;
     c->grad = m ? 4 : 0;
     c->x = x0; c->y = y0; c->w = x1 - x0; c->h = y1 - y0;
+  }
+  void image(int32_t image, N x, N y, N w, N h, int32_t alpha, bool smooth) override {
+    if (alpha <= 0) return;
+    if (raster::Cmd* c = gfx::emit(raster::IMAGE, nullptr, 0)) {
+      c->x = (float)x; c->y = (float)y; c->w = (float)w; c->h = (float)h;
+      c->res = image; c->alpha = (uint8_t)(alpha > 255 ? 255 : alpha); c->grad = smooth ? 0 : 1;
+      c->c2 = raster::image_version(image);
+    }
   }
 };
 }  // namespace

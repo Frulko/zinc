@@ -6,5 +6,7 @@ export interface Spec extends NativeModule {
   /** Fills contours [count, x0, y0, ...]* (screen coordinates). `paint`: [] = the solid `color`, else a gradient
    *  record [kind (1 linear, 2 radial), x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha 0..255) * n]. */
   fill(contours: number[], color: u32, alpha: i32, evenodd: boolean, paint: number[]): void;
+  /** Draws an image like gfx.drawImage; smooth = false samples runtime images nearest-neighbour. */
+  image(image: i32, x: number, y: number, w: number, h: number, alpha: i32, smooth: boolean): void;
 }
 export default requireNative<Spec>('Canvas2D');
