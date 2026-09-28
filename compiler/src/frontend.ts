@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lowerJsx, JsxError } from './jsx.ts';
 import { compileCss, CssError } from './css.ts';
+import { modulePaths, projectDir } from './plugins.ts';
 
 export { ts };
 
@@ -56,7 +57,9 @@ export const compilerOptions: ts.CompilerOptions = {
 
 export function loadProgram(entryPath: string): Frontend {
   const entryAbs = path.resolve(entryPath);
-  const host = ts.createCompilerHost(compilerOptions);
+  // plugins (compiler/src/plugins.ts) resolve like the standard modules
+  const options = { ...compilerOptions, paths: { ...compilerOptions.paths, ...modulePaths(projectDir(entryAbs)) } };
+  const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile;
   const jsxErrors: Diag[] = [];
   // UI: .tsx files are lowered to plain calls before type checking (compiler/src/jsx.ts)
@@ -82,7 +85,7 @@ export function loadProgram(entryPath: string): Frontend {
       return ts.createSourceFile(f, '', lang, true);
     }
   };
-  const program = ts.createProgram([entryAbs, ...LIB_FILES], compilerOptions, host);
+  const program = ts.createProgram([entryAbs, ...LIB_FILES], options, host);
   const checker = program.getTypeChecker();
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);

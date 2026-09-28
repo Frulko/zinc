@@ -135,7 +135,7 @@ class CppEmitter {
         }
         else if (ts.isFunctionDeclaration(st) && st.body) fns.push(st);
         else if (ts.isVariableStatement(st)) globals.push(...st.declarationList.declarations);
-        else if (ts.isImportDeclaration(st) && (st.moduleSpecifier as ts.StringLiteral).text === 'zinc:gfx') this.usesGfx = true;
+        else if (ts.isImportDeclaration(st) && (st.moduleSpecifier as ts.StringLiteral).text === 'zinc:gfx') this.usesGfx = true;  // named or namespace import
       }
     }
     for (const a of this.s.anon) classes.push(a as Cls);
@@ -1019,6 +1019,12 @@ class CppEmitter {
     if (nat !== undefined) return nat;
     if (ts.isPropertyAccessExpression(c)) {
       const obj = c.expression, name = c.name.text;
+      // `import * as gfx from 'zinc:gfx'`: gfx.rect(...) is the plain function call
+      if (ts.isIdentifier(obj) && this.s.checker.getSymbolAtLocation(obj)?.declarations?.some(ts.isNamespaceImport)) {
+        const fd = this.s.declOf(c.name);
+        if (fd && ts.isFunctionDeclaration(fd) && fd.getSourceFile().fileName.endsWith('/lib/gfx.d.ts')) { this.usesGfx = true; return this.hostCall(`zrt::gfx::${fd.name!.text}`, fd, e); }
+        if (fd && ts.isFunctionDeclaration(fd) && !this.s.isLib(fd)) return this.genericCall(this.qual(fd), fd, e);
+      }
       if (ts.isIdentifier(obj)) {
         const g = obj.text;
         const od = this.s.declOf(obj);
@@ -1234,14 +1240,17 @@ class CppEmitter {
     const ps = f.parameters.map((p, i) => {
       if (p.initializer) this.s.fail(p, 'Z9024', 'default values in closures are not supported yet');
       return `${executor ? 'auto' : this.cpp(ft.params[i])} ${this.paramName(p, i)}`;
-    }).join(', ');
+    });
+    // `onFrame(() => ...)`: a callback may ignore trailing parameters of the expected function type
+    const ctx = ts.isFunctionDeclaration(f) ? undefined : this.s.checker.getContextualType(f)?.getCallSignatures()[0];
+    if (ctx) ctx.getParameters().slice(f.parameters.length).forEach((p, i) => ps.push(`${this.cpp(this.s.fromType(this.s.checker.getTypeOfSymbolAtLocation(p, f), f))} /*unused*/`));
     const fb = f.body!;
     const body = this.withCtx({ ret: ft.ret, inCtor: false, catches: [], breaks: [], self: this.ctx.self }, () => {
       if (ts.isBlock(fb)) return this.fnBlock(f.parameters, fb, 1);
       const pro = this.prologue(f.parameters, 1);
       return ft.ret.k === 'void' ? `{\n${pro}  ${this.expr(fb)};\n}` : `{\n${pro}  return ${this.conv(fb, ft.ret)};\n}`;
     });
-    return `[=](${ps}) -> ${this.cpp(ft.ret)} ${body}`;
+    return `[=](${ps.join(', ')}) -> ${this.cpp(ft.ret)} ${body}`;
   }
 
   /** async arrow/function expression: a frame struct plus an entry lambda that copies the captures. */

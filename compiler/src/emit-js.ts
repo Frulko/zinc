@@ -114,7 +114,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
         const spec = n.moduleSpecifier.text;
         let ns = spec;
-        if (STD_MODULES[spec]) ns = rel(outFile, outOf(STD_MODULES[spec]));
+        const mapped = STD_MODULES[spec] ?? sema.fe.program.getCompilerOptions().paths?.[spec]?.[0];  // std + plugins
+        if (mapped) ns = rel(outFile, outOf(mapped));
         else if (spec.startsWith('zinc:')) ns = rel(outFile, path.join(ZINC_ROOT, `sim/${spec.slice(5)}.mjs`));
         else if (spec.startsWith('.') && /\.spec(\.ts)?$/.test(spec)) {
           const src = path.resolve(path.dirname(sf.fileName), spec.replace(/\.ts$/, '')).replace(/\.spec$/, '.sim.ts');
