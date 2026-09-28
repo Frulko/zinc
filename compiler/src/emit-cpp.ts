@@ -2,6 +2,7 @@
 // Output: one translation unit `zinc_main.cpp` that includes runtime/zrt.h.
 // Errors use status returns (RT-05): a pending error in zrt::g_err is checked after calls that may throw.
 // async functions and generators become stackless frames whose step() resumes through a switch (protothreads).
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts } from './frontend.ts';
 import { Sema, type ZT, type NumKind, isNum, isInt, isFx, I32, F64, STR, VOID, ERROR_CLASSES } from './sema.ts';
@@ -57,7 +58,7 @@ class CppEmitter {
     return CPP_KEYWORDS.has(x) ? x + '_' : x;
   }
   ns(sf: ts.SourceFile): string {
-    const rel = path.relative(this.s.root, sf.fileName).replace(/\.[cm]?[jt]sx?$/, '');
+    const rel = path.relative(this.s.root, sf.fileName).replace(/\.[cm]?[jt]sx?$/, m => m === '.tsx' && fs.existsSync(sf.fileName.slice(0, -4) + '.ts') ? '_tsx' : '');
     return 'm_' + rel.replace(/[^A-Za-z0-9]/g, '_');
   }
   isTop(d: ts.Node): boolean { return ts.isSourceFile(d.parent) || this.s.isModuleLevel(d); }
@@ -206,6 +207,10 @@ class CppEmitter {
     const args = (t.typeArguments ?? []).map(a => this.cpp(this.s.fromTypeNode(a)));
     return { code: this.qual(d) + (args.length ? `<${args.join(', ')}>` : ''), decl: d };
   }
+  /** Optional field of a value type (`label?: string`): absence is tracked by a `__has_` bit. */
+  optVal(d: ts.Node): boolean {
+    return (ts.isPropertySignature(d) || ts.isPropertyDeclaration(d)) && !!d.questionToken && !this.s.isLib(d) && !refLike(this.s.declType(d));  // lib structs live in the C++ runtime
+  }
   isVirtualClass(c: Cls): boolean {
     return ts.isInterfaceDeclaration(c) || this.s.hierarchy.has(c) || (ts.isClassDeclaration(c) && this.s.implemented(c).length > 0);
   }
@@ -284,6 +289,7 @@ class CppEmitter {
         if (this.isStatic(m)) { L.push(`  static inline ${ft} ${fname}{};`); continue; }
         if (skip.has(raw)) { if (ts.isPropertyDeclaration(m) && m.initializer) fieldInits.push(`  this->${fname} = ${this.conv(m.initializer, t)};`); continue; }
         L.push(`  ${ft} ${fname}{};`);
+        if (this.optVal(m)) L.push(`  bool __has_${fname} = false;`);
         if (ts.isPropertyDeclaration(m) && m.initializer) fieldInits.push(`  this->${fname} = ${this.conv(m.initializer, t)};`);
         if (t.k !== 'fn' && !raw.startsWith('#')) jsonFields.push(`  zrt::json_field(sb, first, "${raw}", this->${fname});`);
       } else if (ts.isConstructorDeclaration(m) && m.body && ts.isClassDeclaration(c)) {
@@ -1227,7 +1233,7 @@ class CppEmitter {
         const pd = this.s.memberDecl(ot.decl, pname);
         const pt = pd ? this.s.declType(pd, this.s.substFor(ot, pd)) : undefined;
         const val = ts.isPropertyAssignment(p) ? this.conv(p.initializer, pt) : this.coerce(this.ident(p.name), this.s.ztypeOf(p.name), pt ?? this.s.ztypeOf(p.name), p);
-        return `${o}->${this.id(pname)} = ${val}; `;
+        return `${o}->${this.id(pname)} = ${val}; ${pd && this.optVal(pd) ? `${o}->__has_${this.id(pname)} = true; ` : ''}`;
       }
       if (ts.isMethodDeclaration(p)) return this.s.fail(p, 'Z9016', 'methods in object literals are not supported; use a class');
       return this.s.fail(p, 'Z9016', 'only `key: value` properties are supported in object literals');
@@ -1296,7 +1302,11 @@ class CppEmitter {
   binary(e: ts.BinaryExpression, want?: ZT): string {
     const K = this.K, op = e.operatorToken.kind;
     const L = e.left, R = e.right;
-    if (op === K.EqualsToken) return this.assign(L, R);
+    if (op === K.EqualsToken) {
+      const od = ts.isPropertyAccessExpression(L) && (ts.isIdentifier(L.expression) || L.expression.kind === K.ThisKeyword) ? this.s.declOf(L.name) : undefined;
+      if (od && this.optVal(od)) return `(${this.expr((L as ts.PropertyAccessExpression).expression)}->__has_${this.id((L as ts.PropertyAccessExpression).name.text)} = true, ${this.assign(L, R)})`;
+      return this.assign(L, R);
+    }
     if (op > K.FirstAssignment && op <= K.LastAssignment) return this.compound(e);
     if (op === K.CommaToken) return `(${this.expr(L)}, ${this.expr(R)})`;
     if (op === K.InstanceOfKeyword) {
@@ -1321,6 +1331,11 @@ class CppEmitter {
       if (ts.isPropertyAccessExpression(inner) && inner.questionDotToken) {
         const t = this.s.ztypeOf(e), v = this.newTmp('o');
         return `([&]() -> ${this.cpp(t)} { auto ${v} = ${this.expr(inner.expression)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${this.prop(inner, v)}; }())`;
+      }
+      const od = ts.isPropertyAccessExpression(inner) ? this.s.declOf(inner.name) : undefined;
+      if (od && this.optVal(od)) {  // `p.label ?? 'x'` on an optional value field: presence bit
+        const t = this.s.ztypeOf(e), v = this.newTmp('o'), pa = inner as ts.PropertyAccessExpression;
+        return `([&]() -> ${this.cpp(t)} { auto ${v} = ${this.expr(pa.expression)}; return ${v}->__has_${this.id(pa.name.text)} ? ${this.coerce(`${v}->${this.id(pa.name.text)}`, this.s.ztypeOf(pa), t, pa)} : ${this.conv(R, t)}; }())`;
       }
       if (refLike(lt)) {
         const t = this.s.ztypeOf(e), v = this.newTmp('t');

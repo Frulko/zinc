@@ -13,7 +13,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
   const K = ts.SyntaxKind;
   const roots = sema.fe.sources.map(s => path.dirname(s.fileName));
   const root = roots.reduce((a, b) => { while (!(b + '/').startsWith(a + '/')) a = path.dirname(a); return a; });
-  const outOf = (src: string) => path.join(outDir, path.relative(root, src).replace(/\.[cm]?tsx?$/, '.js'));
+  // x.tsx next to x.ts (PocketJS Hero.tsx + Hero.ts) -> x.tsx.js, so both outputs coexist
+  const outOf = (src: string) => path.join(outDir, path.relative(root, src).replace(/\.[cm]?tsx?$/, m => m === '.tsx' && fs.existsSync(src.slice(0, -4) + '.ts') ? '.tsx.js' : '.js'));
   const files: { path: string }[] = [];
   const simImpls = new Set<string>();
 
@@ -122,7 +123,10 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           simImpls.add(src);
           ns = spec.replace(/\.spec(\.ts)?$/, '.sim.js');
         }
-        else if (spec.startsWith('.')) ns = spec.replace(/\.[cm]?tsx?$/, '') + '.js';
+        else if (spec.startsWith('.')) {
+          const res = ts.resolveModuleName(spec, sf.fileName, sema.fe.program.getCompilerOptions(), ts.sys).resolvedModule?.resolvedFileName;
+          ns = res && !res.endsWith('.d.ts') ? rel(outFile, outOf(res)) : spec.replace(/\.[cm]?tsx?$/, '') + '.js';
+        }
         if (ts.isImportDeclaration(n)) return f.updateImportDeclaration(n, n.modifiers, n.importClause, f.createStringLiteral(ns), n.attributes);
         return f.updateExportDeclaration(n, n.modifiers, n.isTypeOnly, n.exportClause, f.createStringLiteral(ns), n.attributes);
       }
@@ -230,16 +234,24 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
   };
 
   fs.mkdirSync(outDir, { recursive: true });
-  const r = sema.fe.program.emit(undefined, (fileName, text) => {
-    const src = fileName.replace(/\.js$/, '');
-    const s = sema.fe.sources.find(x => x.fileName.replace(/\.[cm]?tsx?$/, '') === src);
-    if (!s) return;
+  for (const s of sema.fe.sources) {
+    const r = sema.fe.program.emit(s, (fileName, text) => {
+      if (!fileName.endsWith('.js')) return;
+      const out = outOf(s.fileName);
+      fs.mkdirSync(path.dirname(out), { recursive: true });
+      fs.writeFileSync(out, text);
+      files.push({ path: out });
+    }, undefined, false, { before: [tf] });
+    if (!r.emitSkipped) continue;
+    // TS blocks emit for x.ts + x.tsx (same output name): transform, print and strip types ourselves
+    const tr = ts.transform(s, [tf], sema.fe.program.getCompilerOptions());
+    const js = ts.transpileModule(ts.createPrinter().printFile(tr.transformed[0] as ts.SourceFile), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: false } }).outputText;
+    tr.dispose();
     const out = outOf(s.fileName);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, text);
+    fs.writeFileSync(out, js);
     files.push({ path: out });
-  }, undefined, false, { before: [tf] });
-  if (r.emitSkipped) throw new Error('sim emit failed');
+  }
   // NAT-09: sim implementations of native modules (native/<name>.sim.ts), transpiled on their own
   for (const src of simImpls) {
     if (!fs.existsSync(src)) throw new Error(`missing sim implementation ${path.relative(process.cwd(), src)}`);

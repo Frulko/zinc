@@ -135,7 +135,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       } else if (name === 'key') { /* keys: accepted, lists re-render unkeyed */ }
       else throw new JsxError(`unknown attribute '${name}' on <${tag}>`, a.getStart(sf));
     }
-    if (tag === 'text') textContent(v, childrenOf(n), out);
+    if (TAGS[tag] === 1) textContent(v, childrenOf(n), out);
     else children(v, childrenOf(n), out);
     return v;
   };
