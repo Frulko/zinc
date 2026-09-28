@@ -630,7 +630,7 @@ class CppEmitter {
     if (!this.o.debug || this.ctx.frame) return '';
     const sf = n.getSourceFile();
     const l = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
-    return `#line ${l} "${path.relative(this.o.outDir, sf.fileName)}"\n`;
+    return `#line ${l} ${JSON.stringify(path.relative(this.o.outDir, sf.fileName))}\n`;  // escaped: a file name must not end the directive
   }
   ind(d: number) { return '  '.repeat(d); }
   block(b: ts.Block, d: number): string {

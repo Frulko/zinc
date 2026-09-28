@@ -1,7 +1,7 @@
 # zinc/sdk-psx: PSn00bSDK v0.24 (prebuilt mipsel-none-elf GCC 12.3 + libpsn00b + mkpsxiso) and PCSX-Redux (headless,
 # OpenBIOS: no Sony BIOS) to run PS-EXEs. Both are official x86_64 builds, pinned by sha256 (docs/decisions/0012).
 # Ubuntu 26.04: the PCSX-Redux Linux build needs glibc 2.43 (its build image is ubuntu:26.04 too)
-FROM --platform=linux/amd64 ubuntu:26.04
+FROM --platform=linux/amd64 ubuntu:26.04@sha256:da6fc2be547864451aa253836dd926da33623312df4a9a243e35dc877c378a78
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl unzip cmake make \
     libgl1 libegl1 libx11-6 libasound2t64 libfribidi0 libharfbuzz0b libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
