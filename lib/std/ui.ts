@@ -40,6 +40,7 @@ export class UiNode {
   fg: i32 = 0xffffff;
   size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
+  family: string = 'sans';
   lines: string[] = []; lineW: number[] = [];
   img: i32 = -1;
   focusBg: i32 = -1; activeBg: i32 = -1; focusFg: i32 = -1; activeFg: i32 = -1;
@@ -254,6 +255,9 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'h-full') { n.fullH = true; return true; }
   if (tok === 'inset-0') { n.abs = true; n.top = 0; n.left = 0; n.right = 0; n.bottom = 0; return true; }
   if (tok === 'font-bold' || tok === 'font-semibold') { n.bold = true; return true; }
+  if (tok === 'font-mono') { n.family = 'mono'; return true; }
+  if (tok === 'font-sans') { n.family = 'sans'; return true; }
+  if (tok.startsWith('font-[') && tok.endsWith(']')) { n.family = tok.slice(6, tok.length - 1); return true; }
   if (tok === 'text-left') { n.talign = 0; return true; }
   if (tok === 'text-center') { n.talign = 1; return true; }
   if (tok === 'text-right') { n.talign = 2; return true; }
@@ -330,7 +334,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = false;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.tracking = 0; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
 }
 export function setClass(h: i32, cls: string): void {
@@ -364,10 +368,14 @@ function inheritText(n: UiNode): void {
     while (q >= 0 && (nodes[q].tag !== TEXT || nodes[q].fg < 0)) q = nodes[q].parent;
     n.fg = q >= 0 ? nodes[q].fg : 0xffffff;
   }
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 function fontOf(n: UiNode): i32 {
-  n.fontId = font(n.bold ? 'sans-bold' : 'sans', n.size);
+  // font-mono / font-[Family] (a TTF in the assets); bold: sans-bold, or Family-Bold when that file exists
+  const bold = n.family === 'sans' ? 'sans-bold' : n.family + '-Bold';
+  n.fontId = n.bold ? font(bold, n.size) : -1;
+  if (n.fontId < 0) n.fontId = font(n.family, n.size);
+  if (n.fontId < 0) n.fontId = font(n.bold ? 'sans-bold' : 'sans', n.size);
   return n.fontId;
 }
 function lineHeightOf(n: UiNode): number { return n.leading > 0 ? n.leading : Math.round(n.size * 1.4); }

@@ -21,6 +21,20 @@ extern bool quit_requested;
 extern int32_t surf_w, surf_h;
 extern bool display_driver;
 static void present(const HalFrame* f) { if (display_driver) hal_display->present(f); else hal_present(f); }
+}  // namespace zrt
+// HiDPI: physical pixels per logical pixel (the SDL HAL reports Retina density x window magnification)
+extern "C" __attribute__((weak)) int32_t hal_pixel_scale(void) { return 1; }
+namespace zrt {
+namespace gfx {
+// The program draws in logical pixels; frames are rasterized at pw x ph physical pixels (pxk per logical pixel).
+static int32_t pxk = 0, pw = 0, ph = 0;
+static void init_scale() {
+  if (pxk) return;
+  pxk = display_driver ? 1 : hal_pixel_scale();
+  if (pxk < 1) pxk = 1;
+  pw = surf_w * pxk; ph = surf_h * pxk;
+}
+}
 
 namespace gfx {
 using raster::Cmd;
@@ -51,7 +65,7 @@ static bool ovl_changed = false;  // next present repaints the whole screen
 static double banner_until = 0;
 static int32_t banner_count = 0;
 static raster::Frame ovl_frame(const Overlay& o) { return raster::Frame{o.cmds, o.ncmd, o.text, nullptr}; }
-static int32_t ovl_k() { return surf_w >= 960 ? 2 : 1; }  // text scale: 8 px cells, 16 px on large screens
+static int32_t ovl_k() { init_scale(); return (surf_w >= 960 ? 2 : 1) * pxk; }  // text scale: 8 px cells, 16 px on large screens
 static Cmd* ovl_push(Overlay& o, uint8_t kind, uint32_t color) {
   if (o.ncmd == sizeof o.cmds / sizeof o.cmds[0]) return nullptr;
   Cmd* c = &o.cmds[o.ncmd++];
@@ -75,7 +89,7 @@ static void ovl_text(Overlay& o, float x, float y, const char* s, uint32_t n, ui
 }
 /** Word-wrapped paragraph; returns the y below it. */
 static float ovl_para(Overlay& o, float x, float y, const char* s, uint32_t n, uint32_t color, int max_lines) {
-  int32_t k = ovl_k(), cols = (surf_w - (int32_t)x - 4 * k) / (8 * k);
+  int32_t k = ovl_k(), cols = (pw - (int32_t)x - 4 * k) / (8 * k);
   if (cols < 8) cols = 8;
   while (n && max_lines-- > 0) {
     uint32_t len = n <= (uint32_t)cols ? n : (uint32_t)cols;
@@ -97,8 +111,8 @@ bool crash_screen(const char* text, uint32_t n) {
   if (!text) return true;
   int32_t k = ovl_k();
   float pad = 6.0f * k, y;
-  ovl_rect(rbox, 0, 0, (float)surf_w, (float)surf_h, 0xb91c1c);
-  ovl_rect(rbox, 0, 0, (float)surf_w, 14.0f * k, 0x7f1d1d);
+  ovl_rect(rbox, 0, 0, (float)pw, (float)ph, 0xb91c1c);
+  ovl_rect(rbox, 0, 0, (float)pw, 14.0f * k, 0x7f1d1d);
   static const char title[] = "Zinc: uncaught error";
   ovl_text(rbox, pad, 3.0f * k, title, sizeof title - 1, 0xfecaca);
   y = 20.0f * k;
@@ -109,25 +123,25 @@ bool crash_screen(const char* text, uint32_t n) {
     uint32_t j = ++i;
     while (i < n && text[i] != '\n') i++;
     while (j < i && text[j] == ' ') j++;
-    if (y + 24.0f * k < surf_h) y = ovl_para(rbox, pad, y, text + j, i - j, 0xfde2e2, 2);
+    if (y + 24.0f * k < ph) y = ovl_para(rbox, pad, y, text + j, i - j, 0xfde2e2, 2);
   }
 #ifdef ZRT_DEV
   static const char hint[] = "Save a file to reload. Enter/Space/click: restart";
 #else
   static const char hint[] = "Enter/Space/click: restart";
 #endif
-  ovl_para(rbox, pad, (float)surf_h - 38.0f * k, hint, sizeof hint - 1, 0xfecaca, 2);
+  ovl_para(rbox, pad, (float)ph - 38.0f * k, hint, sizeof hint - 1, 0xfecaca, 2);
   return true;
 }
 /** console.warn/error in dev builds: a yellow strip at the bottom, hidden after 8 s. */
 void log_banner(int, const char* s, uint32_t n) {
   int32_t k = ovl_k();
-  float h = 14.0f * k, y = (float)surf_h - h;
+  float h = 14.0f * k, y = (float)ph - h;
   uint32_t len = 0;
   while (len < n && s[len] != '\n') len++;
   banner.ncmd = banner.ntext = 0;
   banner_count++;
-  ovl_rect(banner, 0, y, (float)surf_w, h, 0xfacc15);
+  ovl_rect(banner, 0, y, (float)pw, h, 0xfacc15);
   char head[16], dig[12];
   int p = 0, dn = 0;
   int32_t v = banner_count;
@@ -136,18 +150,18 @@ void log_banner(int, const char* s, uint32_t n) {
   while (dn) head[p++] = dig[--dn];
   head[p++] = ' ';
   ovl_text(banner, 4.0f * k, y + 3.0f * k, head, (uint32_t)p, 0x7c2d12);
-  int32_t cols = (surf_w - (p + 1) * 8 * k) / (8 * k);
+  int32_t cols = (pw - (p + 1) * 8 * k) / (8 * k);
   if (cols > 0) ovl_text(banner, 4.0f * k + p * 8.0f * k, y + 3.0f * k, s, len < (uint32_t)cols ? len : (uint32_t)cols, 0x1c1917);
   banner_until = now_ms() + 8000;
   ovl_changed = true;
 }
 
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
-  raster::Rect all{0, y0, surf_w, y1};
-  if (shown) raster::render(frame_of(*shown), rows, surf_w, y0, y1, all);
-  else for (int32_t i = 0; i < (y1 - y0) * surf_w; i++) rows[i] = 0;
-  if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, surf_w, y0, y1, all);
-  if (banner.ncmd) raster::render(ovl_frame(banner), rows, surf_w, y0, y1, all);
+  raster::Rect all{0, y0, pw, y1};
+  if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, all);
+  else for (int32_t i = 0; i < (y1 - y0) * pw; i++) rows[i] = 0;
+  if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, all);
+  if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
 #ifndef ZRT_DAMAGE_RECTS
@@ -159,45 +173,79 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
   for (int32_t i = 0; i < ndmg; i++) {
     raster::Rect r{dmg[i].x0, dmg[i].y0 > y0 ? dmg[i].y0 : y0, dmg[i].x1, dmg[i].y1 < y1 ? dmg[i].y1 : y1};
     if (r.y0 >= r.y1) continue;
-    if (shown) raster::render(frame_of(*shown), rows, surf_w, y0, y1, r);
-    if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, surf_w, y0, y1, r);
-    if (banner.ncmd) raster::render(ovl_frame(banner), rows, surf_w, y0, y1, r);
+    if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, r);
+    if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
+    if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
   }
 }
-static void set_full_damage() { dmg[0] = raster::Rect{0, 0, surf_w, surf_h}; ndmg = 1; }
+static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
 /** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
 void present_overlay() {
+  init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
-  HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows, render_damage};
+  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
   ovl_changed = false;
   present(&f);
+}
+
+// Logical -> physical: one pass over the finished frame, so commands emitted by C++ plugins are converted too.
+static int32_t font_map[2][64];  // logical font id -> physical font id (cache)
+static int32_t phys_font(int32_t f) {
+  if (f >= 0 && f < 64 && font_map[0][f] == pxk + 1) return font_map[1][f];
+  const raster::Font* fo = raster::font_at(f);
+  int32_t r = f;
+  if (fo) { uint32_t n = 0; while (fo->name[n]) n++; r = raster::render_font(fo->name, n, fo->px * pxk); }
+  if (f >= 0 && f < 64) { font_map[0][f] = pxk + 1; font_map[1][f] = r; }
+  return r;
+}
+static void to_physical(Buf& b) {
+  if (pxk == 1) return;
+  const float k = (float)pxk;
+  for (uint32_t i = 0; i < b.ncmd; i++) {
+    Cmd& c = b.cmds[i];
+    if (c.kind == raster::CLEAR || c.kind == raster::UNCLIP) continue;
+    c.x *= k; c.y *= k; c.w *= k; c.h *= k;
+    switch (c.kind) {
+      case raster::RECT: case raster::IMAGE: c.r *= k; break;
+      case raster::BORDER: case raster::SHADOW: c.r *= k; c.s *= k; break;
+      case raster::TEXT: c.s *= k; c.res = phys_font(c.res); break;
+      case raster::POLY: case raster::LINE: {
+        float* p = b.pts + c.off;
+        for (uint32_t n = 0; n < c.n; n++) { uint32_t cnt = (uint32_t)p[0]; for (uint32_t j = 1; j <= cnt * 2; j++) p[j] *= k; p += 1 + cnt * 2; }
+        break;
+      }
+      default: break;
+    }
+  }
 }
 
 void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; }
 void keep() { kept = true; }
 void end_frame() {
+  init_scale();
   pen_n = 0;
   banner_expire();
   if (kept && !first) {  // retained frame: no rasterization, no swap
     if (ovl_changed) set_full_damage(); else ndmg = 0;
-    HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows, render_damage};
+    HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
     ovl_changed = false;
     present(&f);
     return;
   }
+  to_physical(bufs[cur]);
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
   if (first || ovl_changed) set_full_damage();
-  else ndmg = raster::diff_rects(frame_of(before), frame_of(now), surf_w, surf_h, dmg, ZRT_DAMAGE_RECTS);
-  raster::Rect d = {surf_w, surf_h, 0, 0};
+  else ndmg = raster::diff_rects(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS);
+  raster::Rect d = {pw, ph, 0, 0};
   for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
   if (!ndmg) d = raster::Rect{0, 0, 0, 0};
   ovl_changed = false;
   first = false;
   shown = &now;
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {surf_w, surf_h, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
   present(&f);
   cur ^= 1;
 }

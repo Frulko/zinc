@@ -59,6 +59,7 @@ function declToTokens(prop: string, value: string): string[] {
     }
     case 'color': return [`text-${color(v)}`];
     case 'font-size': return [`text-[${Math.round(px(v))}px]`];
+    case 'font-family': { const f = v.split(',')[0].trim().replace(/^["']|["']$/g, ''); return [/mono/i.test(f) ? 'font-mono' : /^(sans-serif|system-ui|inter)$/i.test(f) ? 'font-sans' : `font-[${f}]`]; }
     case 'font-weight': return [v === 'bold' || parseInt(v) >= 600 ? 'font-bold' : 'font-normal'];
     case 'letter-spacing': { const em = v.endsWith('em') ? parseFloat(v) : px(v) / 16; return [em < 0 ? 'tracking-tight' : em >= 0.1 ? 'tracking-widest' : em >= 0.05 ? 'tracking-wider' : em > 0 ? 'tracking-wide' : 'font-normal']; }
     case 'text-align': return [`text-${v === 'center' ? 'center' : v === 'right' || v === 'end' ? 'right' : 'left'}`];

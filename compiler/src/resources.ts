@@ -321,13 +321,13 @@ export const FONT_FILES: Record<string, string> = {
   mono: path.join(ZINC_ROOT, 'lib/fonts/JetBrainsMono-Regular.ttf'),
 };
 
-export interface ResourceSet { fonts: BakedFont[]; images: BakedImage[] }
+export interface ResourceSet { fonts: BakedFont[]; images: BakedImage[]; ttf: { name: string; file: string }[] }
 
 /**
  * Decides what to bake from the program text: every Tailwind text size mentioned (plus 16px), regular and bold,
  * the characters of all string/JSX literals plus printable ASCII, and every image file in the assets directory.
  */
-export function collectResources(sources: { fileName: string; text: string }[], assetsDir: string | undefined, extraSizes: number[] = []): ResourceSet {
+export function collectResources(sources: { fileName: string; text: string }[], assetsDir: string | undefined, extraSizes: number[] = [], embedTtf = false): ResourceSet {
   const all = sources.map(s => s.text).join('\n');
   const sizes = new Set<number>([16, ...extraSizes]);
   for (const m of all.matchAll(/text-(xs|sm|base|lg|xl|[2-6]xl)\b/g)) sizes.add(TEXT_SIZES[m[1]]);
@@ -338,12 +338,17 @@ export function collectResources(sources: { fileName: string; text: string }[], 
   for (const m of all.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1|>([^<>{}]+)</g)) for (const ch of (m[2] ?? m[3] ?? '')) chars.add(ch.codePointAt(0)!);
   const cps = [...chars];
   const fonts: BakedFont[] = [];
-  for (const px of [...sizes].sort((a, b) => a - b)) {
-    fonts.push(bakeFont(FONT_FILES.sans, 'sans', px, cps));
-    fonts.push(bakeFont(FONT_FILES['sans-bold'], 'sans-bold', px, cps));
-  }
-  // legacy gfx.text(x, y, s, color, scale): crisp monospace on an 8px grid, scale 1..4
-  for (const k of [1, 2, 3, 4]) { const g = bakeFont(FONT_FILES.mono, 'grid', Math.round(8 * k * 1.3), [...Array(95)].map((_, i) => i + 32), { cell: 8 * k, threshold: true }); g.px = 8 * k; g.ascent = Math.round(7 * k); g.descent = k; g.lineGap = 0; fonts.push(g); }
+  // families: Inter regular/bold always, JetBrains Mono when `font-mono` is used, and every TTF in the assets
+  // (`font-[FileName]`, the file name without .ttf; FileName-Bold.ttf is its bold)
+  const families: Record<string, string> = { sans: FONT_FILES.sans, 'sans-bold': FONT_FILES['sans-bold'] };
+  if (/\bfont-mono\b/.test(all)) families.mono = FONT_FILES.mono;
+  const custom: string[] = [];
+  const findTtf = (d: string | undefined) => { if (!d || !fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) findTtf(p); else if (/\.[ot]tf$/i.test(f)) { const n = f.replace(/\.[ot]tf$/i, ''); families[n] = p; custom.push(n); } } };
+  findTtf(assetsDir);
+  for (const px of [...sizes].sort((a, b) => a - b))
+    for (const [name, file] of Object.entries(families)) fonts.push(bakeFont(file, name, px, cps));
+  // legacy gfx.text(x, y, s, color, scale): crisp monospace on an 8px grid; the larger cells serve HiDPI screens
+  for (const k of [1, 2, 3, 4, 6, 8]) { const g = bakeFont(FONT_FILES.mono, 'grid', Math.round(8 * k * 1.3), [...Array(95)].map((_, i) => i + 32), { cell: 8 * k, threshold: true }); g.px = 8 * k; g.ascent = Math.round(7 * k); g.descent = k; g.lineGap = 0; fonts.push(g); }
   const images: BakedImage[] = [];
   const walk = (d: string, pre: string) => {
     if (!d || !fs.existsSync(d)) return;
@@ -355,7 +360,7 @@ export function collectResources(sources: { fileName: string; text: string }[], 
     }
   };
   if (assetsDir) walk(assetsDir, '');
-  return { fonts, images };
+  return { fonts, images, ttf: embedTtf ? Object.entries({ ...families, mono: FONT_FILES.mono }).map(([name, file]) => ({ name, file })) : [] };
 }
 
 export function resourcesCpp(r: ResourceSet): string {
@@ -369,6 +374,15 @@ export function resourcesCpp(r: ResourceSet): string {
   r.images.forEach((im, i) => out.push(`static const uint8_t ib${i}[] = {${Array.from(im.rgba).join(',')}};`));
   out.push(`const Image images[] = {${r.images.map((im, i) => `{"${im.name}", ${im.w}, ${im.h}, ib${i}}`).join(', ') || '{"", 0, 0, nullptr}'}};`);
   out.push(`const int image_count = ${r.images.length};`);
+  // TTF sources for runtime rasterization (HiDPI, unbaked sizes): string literals compile much faster than arrays
+  r.ttf.forEach((t, i) => {
+    const b = fs.readFileSync(t.file);
+    let lit = '';
+    for (let k = 0; k < b.length; k++) lit += '\\' + b[k].toString(8).padStart(3, '0');
+    out.push(`static const char tt${i}[] = "${lit}";`);
+  });
+  out.push(`const TtfFile ttf_files[] = {${r.ttf.map((t, i) => `{"${t.name}", (const uint8_t*)tt${i}, ${fs.statSync(t.file).size}u}`).join(', ') || '{"", nullptr, 0}'}};`);
+  out.push(`const int ttf_count = ${r.ttf.length};`);
   out.push('}}', '');
   return out.join('\n');
 }

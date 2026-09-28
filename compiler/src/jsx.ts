@@ -18,12 +18,13 @@ function colors(): Set<string> {
   return COLORS;
 }
 const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'inset-0',
-  'w-full', 'h-full', 'font-bold', 'font-semibold', 'font-medium', 'font-normal', 'text-left', 'text-center', 'text-right', 'rounded', 'border',
+  'w-full', 'h-full', 'font-bold', 'font-semibold', 'font-medium', 'font-normal', 'font-mono', 'font-sans', 'text-left', 'text-center', 'text-right', 'rounded', 'border',
   'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-none', 'transition', 'transition-colors', 'transition-all', 'ease-in', 'ease-out', 'ease-in-out',
   'tracking-tight', 'tracking-wide', 'tracking-wider', 'tracking-widest']);
 const NUM = String.raw`(\d+(\.\d+)?|\[\d+(\.\d+)?(px)?\]|\d+/\d+|px)`;
 const COLOR = String.raw`([a-z]+-\d+|white|black|transparent|\[#[0-9a-fA-F]{3,8}\])(/\d+)?`;
 const RULES = [
+  /^font-\[[A-Za-z0-9_.-]+\]$/,  // font family: a TTF in the assets
   new RegExp(`^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading)-${NUM}$`),
   /^(items|justify)-(start|center|end|stretch|between|around|evenly)$/,
   /^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$/,

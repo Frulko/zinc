@@ -67,6 +67,8 @@ void hal_frame_end(void);
 void hal_poll_input(HalInput* in);
 void hal_present(const HalFrame* f);
 void hal_surface_size(int* w, int* h);
+// Physical pixels per logical pixel for zinc:gfx frames (HiDPI). Optional: 1 when a HAL does not define it.
+int32_t hal_pixel_scale(void);
 // Fixed timestep used by headless HALs (virtual clock, TST-10). 0 = real time.
 double hal_fixed_dt(void);
 // Drives the main loop: native HALs loop until step() returns 0; the web HAL hands it to requestAnimationFrame.

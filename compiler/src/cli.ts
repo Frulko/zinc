@@ -239,6 +239,8 @@ function usesUi(dir: string): boolean {
   return walk(dir);
 }
 function usesGfx(sema: Sema): boolean { return sema.fe.sources.some(f => /from ['"]zinc:gfx['"]/.test(f.text)); }
+/** Targets whose screens can be HiDPI or whose displays need text at sizes that were not baked: embed the TTFs. */
+const HIDPI_TARGETS = new Set(['macos', 'linux', 'rpi1', 'rmpp', 'wasm']);
 /** Fonts and images baked for this program (cached by content key in the build directory). */
 function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: string } {
   const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep)).map(f => ({ fileName: f.fileName, text: f.text }));
@@ -251,7 +253,7 @@ function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: s
   fs.mkdirSync(dir, { recursive: true });
   if (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === hash(key) && fs.existsSync(cpp) && fs.existsSync(json)) return { cpp, json: fs.readFileSync(json, 'utf8') };
   const t = Date.now();
-  const rs = collectResources(user, o.project.assets);
+  const rs = collectResources(user, o.project.assets, [], HIDPI_TARGETS.has(o.target));
   writeIfChanged(cpp, resourcesCpp(rs));
   const j = resourcesJson(rs);
   fs.writeFileSync(json, j);
@@ -307,7 +309,7 @@ function build(o: Opts): Built {
   res.nativeSources.push(...ps.sources);
   if (res.usesGfx) {
     const baked = bakeResources(o, sema, dir);
-    res.nativeSources.push(path.join(ZINC_ROOT, 'runtime/raster.cpp'), path.join(ZINC_ROOT, 'runtime/gfx.cpp'), baked.cpp);
+    res.nativeSources.push(path.join(ZINC_ROOT, 'runtime/raster.cpp'), path.join(ZINC_ROOT, 'runtime/ttf.cpp'), path.join(ZINC_ROOT, 'runtime/gfx.cpp'), baked.cpp);
   }
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }

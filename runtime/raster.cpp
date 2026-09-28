@@ -203,7 +203,8 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
 }
 
 // ---------------------------------------------------------------- text and images
-static const Glyph* glyph_of(const Font& f, uint32_t cp) {
+static const Glyph* glyph_of(int32_t font, const Font& f, uint32_t cp) {
+  if (font >= RUNTIME_FONT_BASE) return runtime_glyph(font, cp);
   int32_t lo = 0, hi = f.count - 1;
   while (lo <= hi) { int32_t m = (lo + hi) >> 1; if (f.glyphs[m].cp == cp) return &f.glyphs[m]; if (f.glyphs[m].cp < cp) lo = m + 1; else hi = m - 1; }
   return nullptr;
@@ -216,23 +217,25 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   return cp;
 }
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
-  if (font < 0 || font >= font_count) return 0;
-  const Font& f = fonts[font];
+  const Font* fp = font_at(font);
+  if (!fp) return 0;
+  const Font& f = *fp;
   int32_t pen = 0;
   for (uint32_t i = 0; i < n;) {
-    const Glyph* g = glyph_of(f, next_cp(s, n, i));
-    if (!g) g = glyph_of(f, '?');
+    const Glyph* g = glyph_of(font, f, next_cp(s, n, i));
+    if (!g) g = glyph_of(font, f, '?');
     if (g) pen += g->adv + (int32_t)(tracking * 64);
   }
   return pen;
 }
 static void draw_text(const Target& t, const Cmd& c, const char* s) {
-  if (c.res < 0 || c.res >= font_count) return;
-  const Font& f = fonts[c.res];
+  const Font* fp = font_at(c.res);
+  if (!fp) return;
+  const Font& f = *fp;
   int32_t pen = (int32_t)(c.x * 64), base = (int32_t)(c.y + 0.5f) + f.ascent;
   for (uint32_t i = 0; i < c.n;) {
-    const Glyph* g = glyph_of(f, next_cp(s, c.n, i));
-    if (!g) g = glyph_of(f, '?');
+    const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
+    if (!g) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     int32_t gx = ((pen + 32) >> 6) + g->x0, gy = base + g->y0;
     for (int32_t yy = 0; yy < g->h; yy++) {
@@ -395,6 +398,8 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
 static Rect cmd_bounds(const Cmd& c, int32_t w, int32_t h) {
   if (c.kind == CLEAR || c.kind == CLIP || c.kind == UNCLIP) return Rect{0, 0, w, h};
   float e = c.kind == SHADOW ? c.s + 1 : 1;
+  // glyphs can overhang their line box (descenders, italic/scaled grid glyphs)
+  if (c.kind == TEXT) { float m = c.h * 0.5f + 1; return Rect{ifloor(c.x - m), ifloor(c.y - m), iceil(c.x + c.w + m), iceil(c.y + c.h + m)}; }
   return Rect{ifloor(c.x - e), ifloor(c.y - e), iceil(c.x + c.w + e), iceil(c.y + c.h + e)};
 }
 static void grow(Rect& r, Rect b) {

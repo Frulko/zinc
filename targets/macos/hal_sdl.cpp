@@ -8,6 +8,7 @@ static SDL_Renderer* ren;
 static SDL_Texture* tex;
 static uint32_t* fb;
 static int W = 320, H = 240;
+static int K = 1, PW = 320, PH = 240;  // physical pixels per logical pixel (Retina x window magnification)
 static bool gfx_on;
 static bool quit;
 // Test hooks: ZINC_FRAMES=n quits after n frames; ZINC_SHOT=file.bmp saves the last frame.
@@ -21,13 +22,20 @@ void hal_init(const HalConfig* cfg) {
   if (!gfx_on) return;
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   int scale = W <= 400 ? 3 : W <= 700 ? 2 : 1;
-  if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE, &win, &ren))
+  if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
-  SDL_SetRenderLogicalPresentation(ren, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
+  float density = SDL_GetWindowPixelDensity(win);
+  K = (int)(scale * (density > 0 ? density : 1) + 0.5f);
+  if (const char* ks = getenv("ZINC_SCALE")) K = atoi(ks);
+  if (K < 1) K = 1;
+  while (K > 1 && (long)W * K * H * K > 3840L * 2400L) K--;
+  PW = W * K; PH = H * K;
+  SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   SDL_SetRenderVSync(ren, 1);
-  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, W, H);
-  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-  fb = (uint32_t*)calloc((size_t)W * H, 4);
+  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
+  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+  fb = (uint32_t*)calloc((size_t)PW * PH, 4);
   shot_path = getenv("ZINC_SHOT");
 }
 void hal_shutdown(void) {
@@ -43,7 +51,7 @@ void hal_frame_end(void) {}
 static HalPen pen;
 static void pen_push(float wx, float wy, uint32_t flags) {
   if (ren) SDL_RenderCoordinatesFromWindow(ren, wx, wy, &wx, &wy);
-  pen.x = wx; pen.y = wy; pen.flags = flags;
+  pen.x = wx / K; pen.y = wy / K; pen.flags = flags;
   hal_pen_push(&pen);
 }
 static uint32_t pen_flags(SDL_PenInputFlags s) {
@@ -84,7 +92,7 @@ void hal_poll_input(HalInput* in) {
       if (k == in->ntouch && k < HAL_MAX_TOUCH) in->ntouch++;
       int ww, wh;
       float tx = e.tfinger.x * W, ty = e.tfinger.y * H;
-      if (SDL_GetWindowSize(win, &ww, &wh)) SDL_RenderCoordinatesFromWindow(ren, e.tfinger.x * ww, e.tfinger.y * wh, &tx, &ty);  // letterbox
+      if (SDL_GetWindowSize(win, &ww, &wh)) { SDL_RenderCoordinatesFromWindow(ren, e.tfinger.x * ww, e.tfinger.y * wh, &tx, &ty); tx /= K; ty /= K; }  // letterbox
       if (k < HAL_MAX_TOUCH) in->touch[k] = HalTouch{id, tx, ty};
     }
     if (e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) {
@@ -108,7 +116,7 @@ void hal_poll_input(HalInput* in) {
   in->buttons = b;
   float mx, my;
   SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
-  if (ren) SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my);
+  if (ren) { SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my); mx /= K; my /= K; }
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
   if (frames_left >= 0 && frames_left-- == 0) quit = true;
   in->quit = quit;
@@ -118,18 +126,19 @@ void hal_poll_input(HalInput* in) {
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
   if (f->y1 > f->y0 && f->x1 > f->x0) {
-    (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * W, f->y0, f->y1);  // fb keeps the previous frame
-    SDL_Rect r = {0, f->y0, W, f->y1 - f->y0};
-    SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * W, W * 4);
+    (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * PW, f->y0, f->y1);  // fb keeps the previous frame
+    SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
+    SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * PW, PW * 4);
   }
   SDL_RenderClear(ren);
   SDL_RenderTexture(ren, tex, nullptr, nullptr);
   if (shot_path && frames_left == 0) {
-    if (SDL_Surface* sfc = SDL_CreateSurfaceFrom(W, H, SDL_PIXELFORMAT_XRGB8888, fb, W * 4)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
+    if (SDL_Surface* sfc = SDL_CreateSurfaceFrom(PW, PH, SDL_PIXELFORMAT_XRGB8888, fb, PW * 4)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
   }
   SDL_RenderPresent(ren);
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
+int32_t hal_pixel_scale(void) { return gfx_on ? K : 1; }
 double hal_fixed_dt(void) {
   static double v = getenv("ZINC_FIXED_DT") ? atof(getenv("ZINC_FIXED_DT")) : 0;
   return v;

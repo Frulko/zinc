@@ -14,6 +14,17 @@ extern const Font fonts[];
 extern const int font_count;
 extern const Image images[];
 extern const int image_count;
+// TTF files embedded on host targets (runtime/ttf.cpp rasterizes them at any size; count 0 elsewhere)
+struct TtfFile { const char* name; const uint8_t* data; uint32_t len; };
+extern const TtfFile ttf_files[];
+extern const int ttf_count;
+static const int32_t RUNTIME_FONT_BASE = 1 << 16;
+/** Baked or runtime font by id (null when unknown). */
+const Font* font_at(int32_t id);
+bool runtime_font(int32_t id);
+const Glyph* runtime_glyph(int32_t id, uint32_t cp);
+/** Font `name` at exactly `px` for drawing (runtime rasterization when not baked). */
+int32_t render_font(const char* name, uint32_t name_len, int32_t px);
 
 // Runtime images (video frames, camera preview, cached map tiles, render-to-image): opaque 0x00RRGGBB pixels.
 // Ids start at DYN_BASE so they never collide with baked images. Buffers are read on the main thread during
