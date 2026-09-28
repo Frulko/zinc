@@ -52,10 +52,45 @@ declare module 'zinc:fs' {
   /** @throws when the file cannot be written */
   export function appendText(path: string, data: string): void;
   export function exists(path: string): boolean;
-  /** @throws when the directory cannot be read */
+  /** Names in a directory, sorted. @throws when the directory cannot be read */
   export function list(dir: string): string[];
-  export function remove(path: string): boolean;
-  export function mkdir(path: string): boolean;
+  /** false when it failed; `recursive`: a directory and everything in it (rm -rf). */
+  export function remove(path: string, recursive?: boolean): boolean;
+  /** false when it failed; `recursive`: with missing parents, and true when it already exists (mkdir -p). */
+  export function mkdir(path: string, recursive?: boolean): boolean;
+  /** @throws when the file cannot be read */
+  export function readBytes(path: string): u8[];
+  /** @throws when the file cannot be written */
+  export function writeBytes(path: string, data: u8[]): void;
+  export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
+  export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
+  /** Errors read `CODE: op path` (ENOENT, EACCES, EEXIST, ENOTDIR, ENOTEMPTY...). @throws */
+  export function stat(path: string): Stat;
+  /** Like stat, without following a symbolic link. @throws */
+  export function lstat(path: string): Stat;
+  /** Entries with their types, sorted by name. @throws */
+  export function readDir(dir: string): DirEntry[];
+  /** @throws */
+  export function rename(from: string, to: string): void;
+  /** @throws */
+  export function copyFile(from: string, to: string): void;
+  /** Absolute path with symbolic links resolved. @throws */
+  export function realpath(path: string): string;
+  /** Creates a unique directory `prefix` + 6 random characters and returns its path. @throws */
+  export function mkdtemp(prefix: string): string;
+  /** $TMPDIR (or /tmp) without a trailing slash. */
+  export function tmpdir(): string;
+  /** @throws (not on esp32) */
+  export function symlink(target: string, path: string): void;
+  /** @throws */
+  export function readlink(path: string): string;
+  /** @throws */
+  export function chmod(path: string, mode: i32): void;
+  /** Watches a file or the entries of a directory (not recursive): cb('rename', name) when an entry appears or
+   *  disappears, cb('change', name) when its size or mtime changes. Polls every 100 ms and keeps the program alive
+   *  until unwatch(). Returns the watch id. @throws when the path does not exist */
+  export function watch(path: string, cb: (event: string, name: string) => void): i32;
+  export function unwatch(id: i32): void;
 }
 
 declare module 'zinc:storage' {

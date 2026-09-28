@@ -9,7 +9,8 @@ a shared file, so hosts and cross targets stay decoupled:
 
 - `runtime/mod/<name>_esp32.cpp` — used by `espBuild` (`compiler/src/cli.ts`) instead of
   `runtime/mod/<name>.cpp` when it exists. Added: `storage_esp32.cpp` (NVS, namespace `"zinc"`),
-  `fs_esp32.cpp` (POSIX calls against a SPIFFS partition mounted at `/zinc`), `net_esp32.cpp`
+  `fs_esp32.cpp` (POSIX calls against a SPIFFS partition mounted at `/zinc`; since merged into `fs.cpp` under
+  `ESP_PLATFORM`, the calls being the same), `net_esp32.cpp`
   (`fetch` via `esp_http_client`; `serve`/`stop` are a stub, see below), `gpio_esp32.cpp`
   (`driver/gpio`, ISR → queue → `Poller`). `MODULE_TARGETS` now lists `esp32` for all four, plus
   the already-working `osc`/`mqtt`/`telemetry` (POSIX sockets over lwIP — no source changes were
