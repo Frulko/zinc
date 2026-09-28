@@ -2,10 +2,10 @@
   "name": "hero",
   "entry": "src/main.tsx",
   "targets": {
-    "macos": { "width": 800, "height": 500 },
-    "linux": { "width": 800, "height": 500 },
-    "rpi1": { "width": 800, "height": 500 },
-    "wasm": { "width": 800, "height": 500 },
-    "sim": { "width": 800, "height": 500 }
+    "macos": { "width": 1100, "height": 700 },
+    "linux": { "width": 1100, "height": 700 },
+    "rpi1": { "width": 1280, "height": 720 },
+    "wasm": { "width": 1100, "height": 700 },
+    "sim": { "width": 1100, "height": 700 }
   }
 }
