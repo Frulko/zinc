@@ -1,0 +1,1 @@
+Embedded in the executable by zinc:assets.

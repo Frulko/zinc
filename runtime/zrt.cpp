@@ -581,6 +581,9 @@ static double run_timers() {
   return next;
 }
 
+#ifndef ZRT_MIN_FRAME_US
+#define ZRT_MIN_FRAME_US 8000  // 125 fps
+#endif
 bool display_driver = false;  // a plugins/display-* driver took over the screen and input
 void start(const HalConfig& cfg, int argc, char** argv) {
   zrt_argc = argc; zrt_argv = argv;
@@ -619,6 +622,10 @@ bool loop_once() {
     stats.frame_us = hal_time_us() - t;
     if (telemetry_frame) telemetry_frame();
     hal_frame_end();
+#ifndef __EMSCRIPTEN__
+    // cap the frame rate when presenting does not block on vsync (hidden window, fbdev): saves CPU, keeps dt sane
+    if (display_driver || hal_fixed_dt() <= 0) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
+#endif
     return true;
   }
   uint32_t added = pollers_added;
