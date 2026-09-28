@@ -1181,7 +1181,12 @@ class CppEmitter {
   /** Calls a runtime-implemented function: `number` crosses the boundary as f64 whatever the profile. */
   hostCall(name: string, d: ts.SignatureDeclaration, e: ts.CallExpression): string {
     const toHost = (t: ZT): ZT => t.k === 'num' && t.m === this.s.numberKind ? F64 : t;
-    const call = `${name}(${this.args(e.arguments, d.parameters.map(p => toHost(this.s.paramType(p))))})`;
+    const ps = d.parameters.map(p => toHost(this.s.paramType(p)));
+    // number[] in a non-f64 profile: the host takes f64 arrays
+    const nkArr = (t: ZT) => t.k === 'arr' && t.el.k === 'num' && t.el.m === this.s.numberKind && t.el.m !== 'f64';
+    const call = ps.some(nkArr)
+      ? `${name}(${e.arguments.map((a, i) => nkArr(ps[i]) ? `zrt::to_f64s(${this.expr(a)})` : this.args([a], [ps[i]])).join(', ')})`
+      : `${name}(${this.args(e.arguments, ps)})`;
     const r = this.s.retOf(d);
     return r.k === 'num' && r.m === this.s.numberKind && r.m !== 'f64' ? this.numRet(call) : call;
   }

@@ -117,6 +117,12 @@ template<int F> struct Fx {
   bool operator<=(Fx o) const { return v <= o.v; }
   bool operator>=(Fx o) const { return v >= o.v; }
 };
+/** number[] of a fixed-point / f32 profile crossing into a host API that takes f64 arrays (gfx.stroke, polygon...). */
+template<typename T> Array<double> to_f64s(const Array<T>& a) {
+  Array<double> r = Array<double>::with_cap(a.length());
+  for (int32_t i = 0; i < a.length(); i++) r.push((double)a.get(i));
+  return r;
+}
 typedef Fx<12> fx12;
 typedef Fx<16> fx16;
 template<int F> inline bool truthy(Fx<F> x) { return x.v != 0; }

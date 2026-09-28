@@ -57,6 +57,9 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       return isNum(to) && to.m !== 'f64' ? narrow(r, to.m) : r;
     };
     const conv = (e: ts.Expression, orig: ts.Expression, to: ZT | undefined): ts.Expression => {
+      // `c ? f64 : 0` converts per branch, like the C++ side
+      if (ts.isConditionalExpression(orig) && ts.isConditionalExpression(e))
+        return f.updateConditionalExpression(e, e.condition, e.questionToken, conv(e.whenTrue, orig.whenTrue, to), e.colonToken, conv(e.whenFalse, orig.whenFalse, to));
       if (to && to.k !== 'dyn' && safeType(orig)?.k === 'dyn') return fromDyn(e, orig, to);
       if (!to || !isNum(to)) return e;
       const from = safeType(orig);
@@ -163,6 +166,18 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           if (rt?.k === 'map' || rt?.k === 'set') return f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier('Array'), 'from'), undefined, [v]);
         }
         if (FX && ts.isIdentifier(c) && (c.text === 'parseInt' || c.text === 'parseFloat')) return fxq(v);
+        // numbers coming back from native code (spec methods, zinc:* modules) cross as f64 and are converted to the
+        // profile's number at the boundary, like the C++ side does
+        if (FX || sema.numberKind === 'f32') {
+          const cd = sema.declOf(ts.isPropertyAccessExpression(c) ? c.name : c);
+          const native = cd && ((ts.isMethodSignature(cd) && cd.getSourceFile().fileName.endsWith('.spec.ts')) || (ts.isFunctionDeclaration(cd) && !!sema.libModule(cd)));
+          const rt = native ? sema.retOf(cd as ts.SignatureDeclaration) : undefined;
+          if (rt && rt.k === 'num' && rt.m === sema.numberKind) {
+            const ps0 = paramTypes(n);
+            const call = ps0.length ? f.updateCallExpression(v, v.expression, v.typeArguments, v.arguments.map((a, i) => conv(a, n.arguments[i], ps0[i]))) : v;
+            return FX ? fxq(call) : callMath('fround', [call]);
+          }
+        }
         const ps = paramTypes(n);
         if (ps.length) return f.updateCallExpression(v, v.expression, v.typeArguments, v.arguments.map((a, i) => conv(a, n.arguments[i], ps[i])));
         return v;
