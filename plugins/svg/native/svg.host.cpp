@@ -348,6 +348,7 @@ struct Builder {
   void path(const char* s) {
     char cmd = 0;
     sub = false;
+    cx = cy = 0;  // a leading relative m is absolute: never offset by the previous shape
     float sx = 0, sy = 0, lcx = 0, lcy = 0; char last = 0;
     for (;;) {
       s = skip(s);
