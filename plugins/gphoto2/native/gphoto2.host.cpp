@@ -57,6 +57,7 @@ bool started = false, quit = false, live = false;
 Job *jobs = nullptr, *jobs_tail = nullptr;
 Done *done = nullptr, *done_tail = nullptr;
 int view_w = 0, view_h = 0;
+int live_w = 0, live_h = 0;  // size of the camera's live view JPEG (the coordinate space of changeafarea)
 Img frames[3];               // triple buffer: worker writes frames[back], main shows frames[front]
 int back = 0, ready = 1, front = 2;
 bool fresh = false;
@@ -108,9 +109,10 @@ void resample(const Img& s, Img& d) {
 }
 /** Decodes into `dst`, fitted inside vw x vh (aspect kept; 0 = native size). Uses the smallest DCT scale that
  *  still covers the box, so a 24 MP file costs about a 1/8 decode and a live view about 1:1. */
-bool decode_fit(const unsigned char* jpg, unsigned long n, int vw, int vh, Img& dst, Img& scratch, Buf& err) {
+bool decode_fit(const unsigned char* jpg, unsigned long n, int vw, int vh, Img& dst, Img& scratch, Buf& err, bool is_live = false) {
   int w, h, ss, cs;
   if (tjDecompressHeader3(tjd, jpg, n, &w, &h, &ss, &cs)) { err.add(tjGetErrorStr2(tjd)); return false; }
+  if (is_live) { live_w = w; live_h = h; }
   int tw = w, th = h;
   if (vw > 0 && vh > 0) {
     if ((int64_t)w * vh > (int64_t)h * vw) { tw = vw; th = (int)((int64_t)h * vw / w); }
@@ -475,7 +477,7 @@ void live_frame(int vw, int vh) {
     if (ok) { gp_file_get_data_and_size(pf, &d, &n); jpg = (const unsigned char*)d; }
   }
   double t = mono_ms();
-  ok = ok && decode_fit(jpg, n, vw, vh, frames[back], scratch, err);
+  ok = ok && decode_fit(jpg, n, vw, vh, frames[back], scratch, err, true);
   double ms = mono_ms() - t;
   if (own) tjFree(own);
   if (!ok) {
@@ -591,6 +593,8 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
   int32_t liveImage() override { return img; }
   double cameraFps() override { pthread_mutex_lock(&mu); double v = cam_fps; pthread_mutex_unlock(&mu); return v; }
   double shownFps() override { return shown_fps; }
+  int32_t liveWidth() override { return live_w; }
+  int32_t liveHeight() override { return live_h; }
   double decodeMs() override { pthread_mutex_lock(&mu); double v = dec_ms; pthread_mutex_unlock(&mu); return v; }
 
   bool poll() override {

@@ -32,6 +32,7 @@ const img = camera.liveImage();                      // runtime image, draw with
 | `thumbnail(path, w, h): Promise<i32>` | decode a local JPEG into a runtime image fitting w x h (DCT scaled: a 24 MP file costs a 1/8 decode) |
 | `onFileAdded(cb)` / `onError(cb)` | files added on the camera (body shutter, trigger); live view stopped after repeated errors |
 | `startLiveView()` / `stopLiveView()` / `setViewSize(w, h)` / `liveImage()` | live view |
+| `focusAt(fx, fy)` | AF point at a live view spot (fractions 0..1) then autofocus: Nikon `changeafarea` + `autofocusdrive`, untested on other brands |
 | `cameraFps()` / `shownFps()` / `decodeMs()` | frames decoded/s, frames handed to the screen/s, mean decode + scale time |
 
 Settings are named by the camera driver: Canon uses `iso`, `aperture`, `shutterspeed`, `whitebalance`, `focusmode`,

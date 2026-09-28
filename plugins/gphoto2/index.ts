@@ -86,3 +86,13 @@ export function liveImage(): i32 { return G.liveImage(); }
 export function cameraFps(): number { return G.cameraFps(); }
 export function shownFps(): number { return G.shownFps(); }
 export function decodeMs(): number { return G.decodeMs(); }
+/**
+ * Moves the camera's AF point to a spot of the live view (fx, fy: 0..1 from the top left of the frame) and
+ * focuses there. Nikon: the `changeafarea` widget, in live view JPEG pixels; live view must be on.
+ */
+export async function focusAt(fx: number, fy: number): Promise<void> {
+  const w = G.liveWidth(), h = G.liveHeight();
+  if (w <= 0 || h <= 0) throw new Error('live view is not running');
+  await G.set('changeafarea', `${Math.round(fx * w)}x${Math.round(fy * h)}`);
+  await G.set('autofocusdrive', '1');
+}

@@ -58,4 +58,6 @@ export default {
   cameraFps: () => live ? 30 : 0,
   shownFps: () => live ? 30 : 0,
   decodeMs: () => 0,
+  liveWidth: () => 1024,
+  liveHeight: () => 683,
 };

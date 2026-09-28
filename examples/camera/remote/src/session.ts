@@ -88,7 +88,14 @@ export function step(s: Setting, direction: i32): void {
   }
 }
 
+/** Name of the last file capture() downloaded: the camera also announces it as "file added", don't fetch it twice. */
+let lastCaptured = '';
+const baseName = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
+
 async function showThumbnail(path: string): Promise<void> {
+  // RAW+JPEG cameras also send the RAW (NEF, CR2...): the thumbnail decoder only reads JPEG.
+  const p = path.toLowerCase();
+  if (!p.endsWith('.jpg') && !p.endsWith('.jpeg')) return;
   const image = await camera.thumbnail(path, 264, 176);
   if (thumbnail >= 0) destroyImage(thumbnail);
   thumbnail = image;
@@ -100,11 +107,40 @@ export async function capture(): Promise<void> {
   if (busy() || model() === '') return;
   setBusy(true);
   try {
-    await showThumbnail(await camera.capture(CAPTURES_DIR));
+    const local = await camera.capture(CAPTURES_DIR);
+    lastCaptured = baseName(local);
+    await showThumbnail(local);
   } catch (e) {
     fail('capture', e);
   }
   setBusy(false);
+}
+
+/** "Out of Focus" is the camera's normal answer when AF finds no lock (low contrast, too close), not a failure. */
+function focusFailed(e: Error): void {
+  if (e.message.indexOf('Out of Focus') >= 0) setStatus('Focus: no lock at that point (low contrast, too dark or too close)');
+  else fail('focus', e);
+}
+
+/** Autofocus drive (the camera's own AF, like half-pressing the shutter); Nikon needs the lens in AF mode. */
+export async function focus(): Promise<void> {
+  if (model() === '') return;
+  try {
+    await camera.set('autofocusdrive', '1');
+    setStatus('Focus done');
+  } catch (e) {
+    focusFailed(e);
+  }
+}
+
+/** Autofocus at a live view spot (fractions 0..1 of the frame); errors go to the status line. */
+export async function focusAt(fx: number, fy: number): Promise<void> {
+  try {
+    await camera.focusAt(fx, fy);
+    setStatus('Focus done');
+  } catch (e) {
+    focusFailed(e);
+  }
 }
 
 export function setLiveView(on: boolean): void {
@@ -113,10 +149,19 @@ export function setLiveView(on: boolean): void {
   setLive(on);
 }
 
+async function downloadAndShow(path: string): Promise<void> {
+  if (busy() || baseName(path) === lastCaptured) return;
+  try {
+    await showThumbnail(await camera.download(path, CAPTURES_DIR));
+  } catch (e) {
+    fail('download', e);
+  }
+}
+
 /** Photos taken with the camera's own shutter are downloaded too; live view errors stop it. */
 export function watchCamera(): void {
   camera.onFileAdded((path: string) => {
-    camera.download(path, CAPTURES_DIR).then((local: string) => { showThumbnail(local); });
+    downloadAndShow(path);
   });
   camera.onError((message: string) => {
     setLive(false);

@@ -30,5 +30,8 @@ export interface Spec extends NativeModule {
   cameraFps(): f64;
   shownFps(): f64;
   decodeMs(): f64;
+  /** Size of the camera's live view JPEG (0 before the first frame): the coordinates focus points use. */
+  liveWidth(): i32;
+  liveHeight(): i32;
 }
 export default requireNative<Spec>('Gphoto2');

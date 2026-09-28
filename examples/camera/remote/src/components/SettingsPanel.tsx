@@ -1,7 +1,7 @@
 // Right sidebar: one stepper row per camera setting, the shutter and the last capture.
 import { Button, Separator, overline, captionText } from 'zinc:ui/kit';
 import { Setting, settings, openMenu, setOpenMenu, busy, lastFile } from '../state';
-import { step, capture, thumbnail } from '../session';
+import { step, capture, focus, thumbnail } from '../session';
 import { drawFitted } from './LiveView';
 import { rrect } from 'zinc:gfx';
 
@@ -31,6 +31,9 @@ export function SettingsPanel(): i32 {
       {settings().map((s: Setting, i: i32) => <SettingRow setting={s} index={i} />)}
     </View>
     <Separator />
+    <Button variant="outline" size="lg" class="w-full" onClick={() => { focus(); }}>
+      <Text class="text-sm font-medium text-zinc-900">Focus</Text>
+    </Button>
     <Button size="lg" class="w-full" onClick={() => { capture(); }}>
       <Text class="text-sm font-medium text-zinc-50">{busy() ? 'Capturing…' : 'Capture'}</Text>
     </Button>
