@@ -159,7 +159,7 @@ else()
 endif()
 add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override)
+target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality)
 target_link_libraries(app PRIVATE zrt)
 if(EMSCRIPTEN)
   set(CMAKE_EXECUTABLE_SUFFIX ".html")
@@ -436,7 +436,7 @@ function test(o: Opts, update: boolean) {
   for (const f of files) {
     const entry = path.join(dir, f);
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...process.env, ZINC_LOG_FORMAT: '' } });
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ZINC_FIXED_DT: String(1 / 60), ...process.env, ZINC_LOG_FORMAT: '' } });  // deterministic frame clock
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const pr = PROFILES[o.profile];

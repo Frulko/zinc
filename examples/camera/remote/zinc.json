@@ -1,0 +1,10 @@
+{
+  "name": "camera-remote",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 1024, "height": 600 },
+    "linux": { "width": 1024, "height": 600 },
+    "rpi1": { "width": 1024, "height": 600 },
+    "sim": { "width": 1024, "height": 600 }
+  }
+}

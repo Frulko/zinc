@@ -1,0 +1,13 @@
+{
+  "name": "video",
+  "kind": "module",
+  "module": "zinc:video",
+  "entry": "index.ts",
+  "description": "Video playback (FFmpeg, VideoToolbox / V4L2 M2M decode), gapless playlists as runtime images",
+  "options": { "buffers": 4, "hwdecode": true },
+  "targets": {
+    "macos": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"] },
+    "linux": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"], "packages": ["pkg-config", "libavformat-dev", "libavcodec-dev", "libavutil-dev", "libswscale-dev"], "linkFlags": ["-pthread"] },
+    "rpi1": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"], "packages": ["ffmpeg-dev"], "linkFlags": ["-pthread"] }
+  }
+}

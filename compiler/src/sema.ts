@@ -617,7 +617,10 @@ export class Sema {
     }
     if (ts.isBindingElement(d)) return this.bindingType(d);
     if (ts.isPropertyAssignment(d)) { const t = this.ztypeOf(d.initializer); return isNum(t) && this.isIntLiteral(d.initializer) ? { k: 'num', m: this.numberKind } : t.k === 'null' ? this.fromType(this.checker.getTypeAtLocation(d), d) : t; }
-    if (ts.isShorthandPropertyAssignment(d)) return this.ztypeOf(d.name);
+    if (ts.isShorthandPropertyAssignment(d)) {  // `{ count }`: the type of the variable it names
+      const v = this.checker.getShorthandAssignmentValueSymbol(d)?.valueDeclaration;
+      return v ? this.declType(v) : this.fromType(this.checker.getTypeAtLocation(d.name), d);
+    }
     if (ts.isParameter(d)) return this.paramType(d, subst);
     if (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d)) {
       if (d.type) return this.fromTypeNode(d.type, subst);

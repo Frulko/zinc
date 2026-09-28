@@ -51,6 +51,8 @@ export const compilerOptions: ts.CompilerOptions = {
   allowJs: true,
   checkJs: true,
   useDefineForClassFields: true,
+  // `import X from './x.tsx'` (PocketJS style); emit-js rewrites specifiers itself
+  rewriteRelativeImportExtensions: true,
   noEmitOnError: false,
   types: [],
 };
@@ -90,7 +92,7 @@ export function loadProgram(entryPath: string): Frontend {
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);
   if (!entry) throw new Error(`entry not found: ${entryPath}`);
-  const tsDiagnostics = jsxErrors.length ? jsxErrors : ts.getPreEmitDiagnostics(program).map(d => toDiag(d));
+  const tsDiagnostics = jsxErrors.length ? jsxErrors : ts.getPreEmitDiagnostics(program).filter(d => d.code !== 5056).map(d => toDiag(d))  // 5056: x.ts + x.tsx outputs, renamed by emit-js;
   return { program, checker, sources, entry, tsDiagnostics };
 }
 

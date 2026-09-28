@@ -1,0 +1,1 @@
+{ "name": "pocket-hero", "entry": "main.tsx", "targets": { "macos": { "width": 480, "height": 272 }, "sim": { "width": 480, "height": 272 }, "wasm": { "width": 480, "height": 272 }, "linux": { "width": 480, "height": 272 }, "rpi1": { "width": 480, "height": 272 } } }
