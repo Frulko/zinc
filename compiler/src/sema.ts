@@ -860,8 +860,10 @@ export class Sema {
       return a.k === 'null' ? b : a;
     }
     if (ts.isObjectLiteralExpression(e)) {
-      const ctx = this.contextual(e) ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
-      if (ctx?.k === 'dyn') return DYN;
+      // Dyn only from a declared context (`x: any`), not from the checker (console.log's `unknown` parameter)
+      const own = this.contextual(e);
+      if (own?.k === 'dyn') return DYN;
+      const ctx = own ?? this.fromTypeSafe(this.checker.getContextualType(e) ?? this.checker.getTypeAtLocation(e), e);
       if (ctx?.k === 'obj') {
         if (ts.isTypeAliasDeclaration(ctx.decl) && this.unionMembers.has(ctx.decl)) return { k: 'obj', decl: this.unionMemberFor(ctx.decl, e), args: [] };
         return ctx;
@@ -871,7 +873,7 @@ export class Sema {
       const ctx = this.contextual(e);
       if (ctx?.k === 'arr' || ctx?.k === 'tup' || ctx?.k === 'dyn') return ctx;
       const cct = this.checker.getContextualType(e);
-      if (cct && this.checker.isTupleType(cct)) { const z = this.fromTypeSafe(cct, e); if (z?.k === 'tup') return z; }
+      if (cct && this.checker.isTupleType(cct)) { const z = this.fromTypeSafe(cct, e); if (z?.k === 'tup' && !z.els.some(x => x.k === 'dyn')) return z; }
       // no annotation: all elements share one Zinc type (keeps i32/Promise<i32> precision, avoids tuples)
       const els = e.elements.map(x => ts.isSpreadElement(x) ? this.ztypeOf(x.expression) : this.ztypeOf(x)).map((t, i) => ts.isSpreadElement(e.elements[i]) && t.k === 'arr' ? t.el : t);
       if (els.length && els.every(t => zeq(t, els[0])) && els[0].k !== 'null') return { k: 'arr', el: isNum(els[0]) && !e.elements.every(x => !ts.isSpreadElement(x) && this.isIntLiteral(x)) ? els[0] : els[0] };
