@@ -980,8 +980,12 @@ static void render_comp(const Anim& A, int32_t comp, float t, const Mat& view, f
   depth--;
 }
 
+// scratch array for gfx::path, reused across frames; released at exit so the debug leak report stays clean
+static zrt::Array<double> replay_arr;
+static void replay_release() { replay_arr = zrt::Array<double>(); }
 static void replay(const Vec<float>& ops, int32_t alpha) {
-  static zrt::Array<double> arr = zrt::Array<double>::with_cap(1024);
+  if (!replay_arr.a) { replay_arr = zrt::Array<double>::with_cap(1024); zrt::at_finish(replay_release); }
+  zrt::Array<double>& arr = replay_arr;
   for (uint32_t i = 0; i < ops.n;) {
     int kind = (int)ops[i];
     if (kind == OP_PATH) {
