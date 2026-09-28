@@ -29,6 +29,7 @@ export interface Plugin {
   modules?: Record<string, string>;  // extra import specifiers -> absolute paths (e.g. three/addons/...)
   targets: Record<string, PluginTarget>;
   options: Record<string, string | number | boolean>;
+  requires: string[];        // capabilities the target must offer (docs/targets/capabilities.md)
 }
 
 const ZINC_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
@@ -81,7 +82,7 @@ export function discover(projDir: string): Plugin[] {
       byName.set(p.name ?? d, {
         name: p.name ?? d, dir, description: p.description ?? '', kind: p.kind ?? 'module', module: p.module,
         entry: p.module ? path.join(dir, p.entry ?? 'index.ts') : undefined,
-        modules: Object.fromEntries(Object.entries((p.modules ?? {}) as Record<string, string>).map(([k, v]) => [k, path.join(dir, v)])), targets: p.targets ?? {}, options: p.options ?? {},
+        modules: Object.fromEntries(Object.entries((p.modules ?? {}) as Record<string, string>).map(([k, v]) => [k, path.join(dir, v)])), targets: p.targets ?? {}, options: p.options ?? {}, requires: p.requires ?? [],
       });
     }
   }

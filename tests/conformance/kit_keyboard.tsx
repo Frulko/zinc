@@ -1,5 +1,5 @@
-// zinc-test: skip ps1 esp32
-// (~80 key nodes do not fit the 256 KiB / 160 KiB heaps of these profiles; ESP32 touch panels use smaller layouts)
+// zinc-test: requires heap>=512K
+// (~80 key nodes: not for the 256 KiB PS1 or 160 KiB ESP32 heaps; ESP32 touch panels use smaller layouts)
 // zinc:ui/kit Keyboard driven by the test hooks: taps type into the focused field through the real key path,
 // shift is one-shot, a long press offers accents (slide, release), backspace deletes, the language key switches
 // layouts, the numeric inputMode gets the digit pad, and pressing keys never takes the focus from the field.

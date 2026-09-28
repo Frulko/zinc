@@ -2,10 +2,30 @@
   "name": "hero",
   "entry": "src/main.tsx",
   "targets": {
-    "macos": { "width": 1100, "height": 700 },
-    "linux": { "width": 1100, "height": 700 },
-    "rpi1": { "width": 1280, "height": 720 },
-    "wasm": { "width": 1100, "height": 700 },
-    "sim": { "width": 1100, "height": 700 }
-  }
+    "macos": {
+      "width": 1100,
+      "height": 700
+    },
+    "linux": {
+      "width": 1100,
+      "height": 700
+    },
+    "rpi1": {
+      "width": 1280,
+      "height": 720
+    },
+    "wasm": {
+      "width": 1100,
+      "height": 700
+    },
+    "sim": {
+      "width": 1100,
+      "height": 700
+    }
+  },
+  "requires": [
+    "heap>=8M",
+    "pointer|touch",
+    "display"
+  ]
 }
