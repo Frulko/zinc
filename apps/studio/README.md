@@ -13,7 +13,7 @@ apps/studio/src/build/macos/cmake/app --generate path/to/app.zproj         # hea
 sh apps/studio/test.sh                                                     # headless checks (see below)
 ```
 
-Run it from the zinc checkout (or set `ZINC_HOME`): the studio drives `compiler/bin/zinc.mjs` and reads the docs
+Start it with `zinc run` / `zinc dev` from any directory (they pass `ZINC_HOME`; set it yourself for an exported app): the studio drives `compiler/bin/zinc.mjs` and reads the docs
 there. Recent projects and ssh devices are kept with `zinc:storage`, in `./zinc.storage` unless `ZINC_STORAGE` points
 elsewhere (`ZINC_STORAGE=~/.zincstudio`). User guide: [docs/studio.md](../../docs/studio.md).
 

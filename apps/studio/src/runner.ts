@@ -106,15 +106,17 @@ let stoppedCb: (() => void) | null = null;
 export function onAppStarted(cb: (target: string) => void): void { startedCb = cb; }
 export function onAppStopped(cb: () => void): void { stoppedCb = cb; }
 
-/** The zinc CLI: $ZINC_HOME/compiler/bin/zinc.mjs, else found from the current directory upwards. */
+/** The zinc CLI: $ZINC_HOME/compiler/bin/zinc.mjs (set by `zinc run` / `zinc dev`), else found from the working
+ *  directory upwards, as an absolute path when the shell tells us where we are. */
 export function zincCli(): string {
   const home = sys.env('ZINC_HOME');
   if (home !== '') return join(home, 'compiler/bin/zinc.mjs');
-  let dir = '.';
-  for (let i = 0; i < 5; i++) {
+  const pwd = sys.env('PWD');
+  let dir = pwd !== '' ? pwd : '.';
+  for (let i = 0; i < 6; i++) {
     const f = join(dir, 'compiler/bin/zinc.mjs');
     if (fs.exists(f)) return f;
-    dir = dir === '.' ? '..' : dir + '/..';
+    dir = dir + '/..';
   }
   return 'compiler/bin/zinc.mjs';
 }

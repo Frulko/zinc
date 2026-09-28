@@ -844,6 +844,8 @@ function help(topic?: string) {
 function main() {
   // symlinked working dirs (/tmp -> /private/tmp on macOS) would give two spellings of every path
   process.chdir(fs.realpathSync(process.cwd()));
+  // programs started by zinc run / dev (ZincStudio...) find this checkout whatever their working directory
+  process.env.ZINC_HOME ??= ZINC_ROOT;
   const argv = process.argv.slice(2);
   const cmd = argv[0];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help(argv[1]);
