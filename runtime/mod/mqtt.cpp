@@ -2,6 +2,9 @@
 #include "mod/mqtt.h"
 #include "mod/sock.h"
 
+#ifndef ZRT_MQTT_MAX_PACKET
+#define ZRT_MQTT_MAX_PACKET (1u << 20)
+#endif
 namespace zrt { namespace mqtt {
 struct Sub { String filter; Fn<void(String, String)> cb; };
 struct Conn : Poller {
@@ -47,17 +50,23 @@ struct Conn : Poller {
     dead = true;
     if (on_connack.p && !on_connack->st) on_connack->reject(make<Error>(String::from(why, (uint32_t)strlen(why))));
   }
+  // packet lengths come from the broker (plaintext TCP): the remaining length is at most 4 bytes, fields are checked
+  // against it, and a packet over ZRT_MQTT_MAX_PACKET ends the connection instead of growing the buffer
   bool parse() {
-    if (in.len < 2) return false;
+    if (dead || in.len < 2) return false;
     uint32_t len = 0, mul = 1, i = 1;
-    for (; i < in.len; i++) { uint8_t d = (uint8_t)in.buf[i]; len += (d & 127) * mul; mul *= 128; if (!(d & 128)) break; }
-    if (i >= in.len || in.len < i + 1 + len) return false;
+    for (; i < in.len && i <= 4; i++) { uint8_t d = (uint8_t)in.buf[i]; len += (d & 127) * mul; mul *= 128; if (!(d & 128)) break; }
+    if (i > 4) { fail("mqtt: bad packet"); return false; }
+    if (i >= in.len) return false;
+    if (len > ZRT_MQTT_MAX_PACKET) { fail("mqtt: packet too large"); return false; }
+    if (in.len - i - 1 < len) return false;
     uint8_t type = (uint8_t)in.buf[0];
     const uint8_t* p = (const uint8_t*)in.buf + i + 1;
-    if ((type & 0xF0) == 0x20) {  // CONNACK
+    if ((type & 0xF0) == 0x20 && len >= 2) {  // CONNACK
       connected = p[1] == 0; last_ping = now_ms();
-      if (connected) on_connack->resolve(Unit{}); else fail("mqtt: connection refused");
-    } else if ((type & 0xF0) == 0x30) {  // PUBLISH
+      if (!connected) fail("mqtt: connection refused");
+      else if (on_connack.p && !on_connack->st) on_connack->resolve(Unit{});
+    } else if ((type & 0xF0) == 0x30 && len >= 2 && 2 + ((uint32_t)p[0] << 8 | p[1]) + (((type >> 1) & 3) ? 2 : 0) <= len) {  // PUBLISH
       uint32_t tl = (uint32_t)p[0] << 8 | p[1];
       String topic = String::from((const char*)p + 2, tl);
       uint32_t off = 2 + tl + (((type >> 1) & 3) ? 2 : 0);

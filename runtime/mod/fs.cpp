@@ -7,7 +7,9 @@
 #include <unistd.h>
 
 namespace zrt { namespace fs {
-struct CPath { StrBuilder sb; CPath(const String& s) { to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
+// A path with a NUL byte becomes "" (every call then fails): libc would silently use the part before the NUL, so
+// "secret\0.txt" would pass an endsWith('.txt') check and open "secret".
+struct CPath { StrBuilder sb; CPath(const String& s) { if (!__builtin_memchr(s.ptr(), 0, s.bytes())) to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
 static void fail(const char* what, const String& path) {
   g_err = make<Error>(cat(String::from(what, (uint32_t)strlen(what)), path));
 }

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace zrt { namespace storage {
 // ponytail: whole-file rewrite on every set; fine for settings-sized data, a log-structured file if it grows.
@@ -21,22 +23,30 @@ static void load() {
   at_finish(drop);
   FILE* f = fopen(file(), "rb");
   if (!f) return;
-  char line[8192];
-  while (fgets(line, sizeof line, f)) {
-    size_t n = strlen(line); if (n && line[n - 1] == '\n') line[--n] = 0;
+  char* line = nullptr; size_t cap = 0; ssize_t got;
+  while ((got = getline(&line, &cap, f)) >= 0) {  // any length (a fixed buffer split long values into bogus entries)
+    size_t n = (size_t)got; if (n && line[n - 1] == '\n') line[--n] = 0;
     char* tab = strchr(line, '\t'); if (!tab) continue;
     StrBuilder k, v; unescape(k, line, (size_t)(tab - line)); unescape(v, tab + 1, n - (size_t)(tab - line) - 1);
     db.set(k.build(), v.build());
   }
+  free(line);
   fclose(f);
 }
 static void escape(FILE* f, const String& s) {
   for (uint32_t i = 0; i < s.bytes(); i++) { char c = s.ptr()[i]; if (c == '\n') fputs("\\n", f); else if (c == '\t') fputs("\\t", f); else if (c == '\\') fputs("\\\\", f); else fputc(c, f); }
 }
+// Written to <file>.tmp (owner-only, 0600: it may hold tokens) then renamed over the file: a crash or a power cut
+// during the write leaves the previous contents, never a truncated store.
 static void save() {
-  FILE* f = fopen(file(), "wb"); if (!f) return;
+  StrBuilder tmp; tmp.cstr(file()); tmp.cstr(".tmp"); tmp.ch('\0');
+  int fd = ::open(tmp.buf, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+  FILE* f = fd >= 0 ? fdopen(fd, "wb") : nullptr;
+  if (!f) { if (fd >= 0) ::close(fd); fprintf(stderr, "zinc: storage: cannot write %s\n", file()); return; }
   for (int32_t i = 0; i < db.slots(); i++) if (db.live_at(i)) { escape(f, db.key_at(i)); fputc('\t', f); escape(f, db.val_at(i)); fputc('\n', f); }
-  fclose(f);
+  bool ok = fflush(f) == 0 && fsync(fileno(f)) == 0;
+  if (fclose(f) != 0) ok = false;
+  if (!ok || rename(tmp.buf, file()) != 0) { ::unlink(tmp.buf); fprintf(stderr, "zinc: storage: cannot write %s\n", file()); }
 }
 String get(const String& key) { load(); return db.get_or(key, String()); }
 void set(const String& key, const String& value) { load(); db.set(key, value); save(); }
