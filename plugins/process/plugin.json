@@ -1,0 +1,12 @@
+{
+  "name": "process",
+  "kind": "module",
+  "module": "zinc:process",
+  "entry": "index.ts",
+  "description": "Child processes: spawn with args/cwd/env, streamed stdout/stderr, stdin, kill, exit code (posix_spawn)",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "rpi1": {}
+  }
+}
