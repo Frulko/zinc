@@ -50,7 +50,7 @@ export function infer(entry: string): InferResult {
     if (!lit.properties.every(p => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && ts.isIdentifier(p.name))) return;
     const fields = new Map<string, string>();
     for (const p of lit.properties) {
-      const t = typeStr(checker.getTypeAtLocation(ts.isPropertyAssignment(p) ? p.initializer : p.name));
+      const t = typeStr(checker.getTypeAtLocation(ts.isPropertyAssignment(p) ? p.initializer : (p as ts.ShorthandPropertyAssignment).name));
       if (!t) return;
       fields.set(p.name!.getText(), t);
     }
@@ -89,7 +89,7 @@ export function infer(entry: string): InferResult {
     const args = calls.filter(c => checker.getResolvedSignature(c)?.declaration === fn).map(c => c.arguments?.[idx]).filter((a): a is ts.Expression => !!a);
     const reads = new Set<string>();
     let numeric = false;
-    walk(fn.body ?? fn, x => {
+    walk((fn as ts.FunctionLikeDeclaration).body ?? fn, x => {
       if (ts.isPropertyAccessExpression(x) && ts.isIdentifier(x.expression) && symOf(x.expression) === sym) reads.add(x.name.text);
       if (ts.isIdentifier(x) && symOf(x) === sym && ts.isBinaryExpression(x.parent) && [ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken].includes(x.parent.operatorToken.kind)) numeric = true;
     });

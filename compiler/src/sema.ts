@@ -1050,14 +1050,14 @@ export class Sema {
         else if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText() !== 'const' && isDyn(n.expression) && this.fromTypeNode(n.type).k !== 'dyn') add(n, 'cast');
         else if (ts.isBinaryExpression(n) && n.operatorToken.kind !== K.CommaToken && !(n.operatorToken.kind >= K.FirstAssignment && n.operatorToken.kind <= K.LastAssignment) && (isDyn(n.left) || isDyn(n.right))) add(n, 'op');
         else if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && isDyn(n.operand) && n.operator !== K.ExclamationToken) add(n, 'op');
-        else if (ts.isIdentifier(n) && !ts.isDeclarationName(n) && !this.isWrite(n)) {
+        else if (ts.isIdentifier(n) && (n.parent as ts.NamedDeclaration).name !== n && !this.isWrite(n)) {
           const d = this.declOf(n);
           if (d && !this.isLib(d) && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && this.declType(d).k === 'dyn' && this.ztypeOf(n).k !== 'dyn') add(n, 'narrow');
         } else if (ts.isExpression(n) && !ts.isIdentifier(n) && isDyn(n)) {
           const want = this.contextual(n);
           if (want && want.k !== 'dyn') add(n, 'conv');
         }
-        if (ts.isIdentifier(n) && !ts.isDeclarationName(n) && isDyn(n)) { const want = this.contextual(n); if (want && want.k !== 'dyn') add(n, 'conv'); }
+        if (ts.isIdentifier(n) && (n.parent as ts.NamedDeclaration).name !== n && isDyn(n)) { const want = this.contextual(n); if (want && want.k !== 'dyn') add(n, 'conv'); }
       } catch (e) { if (!(e instanceof ZincError)) throw e; }
       ts.forEachChild(n, visit);
     };
