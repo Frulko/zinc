@@ -36,6 +36,9 @@ export const STD_MODULES: Record<string, string> = {
   '@pocketjs/framework/solid/std': path.join(ZINC_ROOT, 'lib/compat/pocketjs/std.ts'),
   '@pocketjs/framework/solid': path.join(ZINC_ROOT, 'lib/compat/pocketjs/mount.ts'),
   '@pocketjs/framework/clock': path.join(ZINC_ROOT, 'lib/compat/pocketjs/clock.ts'),
+  // Inferno and React code run on the React engine
+  'inferno': path.join(ZINC_ROOT, 'lib/compat/inferno.ts'),
+  'react': path.join(ZINC_ROOT, 'lib/std/react.ts'),
 };
 
 export const compilerOptions: ts.CompilerOptions = {

@@ -767,7 +767,10 @@ export class Sema {
       const d = this.declOf(e.name) ?? (recv.k === 'obj' ? this.memberDecl(recv.decl, name) : undefined);
       if (d && (!this.isLib(d) || this.libModule(d))) {
         if (ts.isEnumMember(d)) return I32;
-        return this.declType(d, this.substFor(recv, d));
+        const t = this.declType(d, this.substFor(recv, d));
+        // `this.props` in `class Item extends Component<ItemProps, S>`: the checker knows the instantiated type
+        if (t.k === 'tp' && !ts.findAncestor(e, n => (ts.isClassDeclaration(n) || ts.isFunctionDeclaration(n)) && !!n.typeParameters?.some(tp => tp.name.text === t.name))) return this.fromType(this.checker.getTypeAtLocation(e), e);
+        return t;
       }
       if (d && this.isLib(d) && (ts.isPropertySignature(d) || ts.isPropertyDeclaration(d)) && d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))
         return this.fromTypeNode(d.type);

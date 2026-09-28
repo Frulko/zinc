@@ -28,11 +28,12 @@ class Instance {
   nextKids: Instance[] = [];
   cursor: i32 = 0;
   kidCursor: i32 = 0;
+  comp: ComponentBase | null = null;  // class components (Inferno/React classes)
   constructor(host: i32, render: () => i32, name: string, key: string) { this.host = host; this.render = render; this.name = name; this.key = key; instances.push(this); }
 }
 const instances: Instance[] = [];
 export function __dispose(): void {
-  for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; i.kids = []; i.nextKids = []; }
+  for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; i.kids = []; i.nextKids = []; i.comp = null; }
 }
 let cur: Instance | null = null;
 
@@ -55,6 +56,8 @@ function rerender(inst: Instance): void {
   for (const e of inst.effects) e();  // useLayoutEffect/useEffect: after the tree is committed
 }
 function unmount(inst: Instance): void {
+  const c = inst.comp;
+  if (c !== null) { c.componentWillUnmount(); c.inst = null; }
   for (const h of inst.hooks) if (h instanceof EffectHook) { const c = h.cleanup; if (c !== null) c(); }
   for (const kid of inst.kids) unmount(kid);
   inst.hooks = []; inst.kids = []; inst.render = () => -1;
@@ -142,6 +145,52 @@ export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
+/** Class components (Inferno, React classes): state lives on the instance, setState re-renders it. */
+export class ComponentBase {
+  inst: Instance | null = null;
+  render(): i32 { return -1; }
+  componentDidMount(): void {}
+  componentDidUpdate(): void {}
+  componentWillUnmount(): void {}
+  forceUpdate(): void { const i = this.inst; if (i !== null) schedule(i); }
+  /** Takes the props of a freshly built element for the same component (re-render of the parent). */
+  adopt(fresh: ComponentBase): void {}
+}
+export class Component<P, S> extends ComponentBase {
+  props: P;
+  state!: S;
+  constructor(props: P) { super(); this.props = props; }
+  /** Replaces the state (pass the whole state; `{ ...this.state, x }` for partial updates). */
+  setState(s: S): void { this.state = s; this.forceUpdate(); }
+  adopt(fresh: ComponentBase): void { this.props = (fresh as Component<P, S>).props; }
+}
+/** `<Counter ... />` where Counter is a class: the instance is created once and receives fresh props on re-render. */
+export function _cc(host: i32, make: () => ComponentBase, name: string, key: string): void {
+  const parent = cur;
+  let inst: Instance | null = null;
+  if (parent !== null) {
+    for (const k of parent.kids) if (k.name === name && k.key === key && k.comp !== null && parent.nextKids.indexOf(k) < 0 && (key !== '' || parent.kids.indexOf(k) >= parent.kidCursor)) { inst = k; break; }
+    parent.kidCursor++;
+  }
+  const fresh = make();
+  let mounted = true;
+  if (inst === null) {
+    const c = fresh;
+    inst = new Instance(host, () => c.render(), name, key);
+    inst.comp = c; c.inst = inst;
+    mounted = false;
+  } else {
+    inst.host = host;
+    (inst.comp as ComponentBase).adopt(fresh);
+  }
+  if (parent !== null) parent.nextKids.push(inst);
+  rerender(inst);
+  const c = inst.comp as ComponentBase;
+  if (mounted) c.componentDidUpdate(); else queueMicrotask(() => c.componentDidMount());
+}
+/** Inferno's linkEvent: an event handler bound to a value. */
+export function linkEvent<T>(data: T, fn: (data: T) => void): () => void { return () => fn(data); }
+
 /** A component instance: renders into `host` (a fragment) and re-renders on state changes. Inside a parent render,
  *  the previous instance with the same component name and key keeps its state. */
 export function _rc(host: i32, render: () => i32, name: string = '', key: string = ''): void {

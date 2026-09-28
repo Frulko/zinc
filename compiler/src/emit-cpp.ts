@@ -322,7 +322,12 @@ class CppEmitter {
       }
       const ctor = c.members.find(ts.isConstructorDeclaration);
       const ps = this.ctorParams(c);
-      L.push(`  ${name}(${this.params(ps, true)});`);
+      // inherited constructor of a generic base (`class Item extends Component<ItemProps, S>`): substitute its type args
+      let subst: Map<string, ZT> | undefined;
+      const ext = !ctor ? c.heritageClauses?.find(h => h.token === this.K.ExtendsKeyword)?.types[0] : undefined;
+      if (ext?.typeArguments && base.decl && ts.isClassDeclaration(base.decl) && base.decl.typeParameters)
+        subst = new Map(base.decl.typeParameters.map((tp, i) => [tp.name.text, this.s.fromTypeNode(ext.typeArguments![i])] as [string, ZT]));
+      L.push(`  ${name}(${this.params(ps, true, subst)});`);
       let superArgs = '';
       let bodyStmts: readonly ts.Statement[] = [];
       if (ctor?.body) {
@@ -337,7 +342,7 @@ class CppEmitter {
         superArgs = ps.map((p, i) => this.paramName(p, i)).join(', ');
       }
       const body = this.withCtx({ ret: VOID, inCtor: true, catches: [], breaks: [], self: 'this' }, () => (this.o.dev ? '  zrt::LocFrame __lf;\n' : '') + this.prologue(ps, 1) + bodyStmts.map(st => this.stmt(st, 1)).join(''));
-      B.push(`${tp}${self}::${name}(${this.params(ps, false)}) : ${base.code}(${superArgs}) {\n${fieldInits.join('\n')}${fieldInits.length ? '\n' : ''}${body}}`);
+      B.push(`${tp}${self}::${name}(${this.params(ps, false, subst)}) : ${base.code}(${superArgs}) {\n${fieldInits.join('\n')}${fieldInits.length ? '\n' : ''}${body}}`);
     } else {
       L.push(`  ${name}() {}`);
     }
@@ -524,6 +529,8 @@ class CppEmitter {
           ts.isImportDeclaration(st) || ts.isModuleDeclaration(st)) continue;
         if (ts.isExportDeclaration(st) || ts.isExportAssignment(st)) {
           if (ts.isExportAssignment(st) && this.native.isSpecFile(sf)) continue;
+          // `export { X } from './m'`: uses resolve to X's own declaration, nothing to emit
+          if (ts.isExportDeclaration(st) && st.moduleSpecifier && st.exportClause && ts.isNamedExports(st.exportClause)) continue;
           this.s.fail(st, 'Z9010', 'only `export` modifiers on declarations are supported');
         }
         if (ts.isClassDeclaration(st)) {

@@ -49,7 +49,19 @@ export class JsxError extends Error {
 export function lowerJsx(text: string, fileName: string, customClasses?: Set<string>): string {
   if (!/<[A-Za-z>]/.test(text)) return text;
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const react = sf.statements.some(s => ts.isImportDeclaration(s) && (s.moduleSpecifier as ts.StringLiteral).text === 'zinc:ui/react');
+  // React model: zinc:ui/react, or code written for React / Inferno (their imports resolve to Zinc's React engine)
+  const react = sf.statements.some(s => ts.isImportDeclaration(s) && ['zinc:ui/react', 'react', 'inferno'].includes((s.moduleSpecifier as ts.StringLiteral).text));
+  // class components (Inferno, React classes): declared in this file or in a relative import
+  const classTags = new Set<string>();
+  for (const st of sf.statements) {
+    if (ts.isClassDeclaration(st) && st.name) classTags.add(st.name.text);
+    if (ts.isImportDeclaration(st) && st.importClause && (st.moduleSpecifier as ts.StringLiteral).text.startsWith('.')) {
+      const base = path.resolve(path.dirname(fileName), (st.moduleSpecifier as ts.StringLiteral).text.replace(/\.tsx?$/, ''));
+      const text = ['.tsx', '.ts'].map(e => ts.sys.readFile(base + e)).find(t => t !== undefined) ?? '';
+      const names = [st.importClause.name?.text, ...(st.importClause.namedBindings && ts.isNamedImports(st.importClause.namedBindings) ? st.importClause.namedBindings.elements.map(e => e.name.text) : [])];
+      for (const n of names) if (n && (new RegExp(`class\\s+${n}\\b`).test(text) || (n === st.importClause.name?.text && /export\s+default\s+class\b/.test(text)))) classTags.add(n);
+    }
+  }
   const lib = react ? 'zinc:ui/react' : 'zinc:ui/solid';
   let counter = 0;
   // PocketJS-style host components (View, Text, Image...) when imported from a components module (or not imported at all)
@@ -105,7 +117,8 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
     out.push(`const ${v}: i32 = _el(${TAGS[tag]});`);
     for (const a of attrsOf(n)) {
       if (!ts.isJsxAttribute(a)) throw new JsxError('spread attributes are not supported', a.getStart(sf));
-      const name = a.name.getText(sf);
+      const raw = a.name.getText(sf);
+      const name = raw === 'className' ? 'class' : raw === 'onClick' && react ? 'onClick' : raw;  // React/Inferno spelling
       const val = attrValue(a);
       if (name === 'class') {
         if (val.lit !== undefined) {
@@ -165,6 +178,11 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
         if (isJsx(e)) { const cv = element(e as ts.JsxElement, out); out.push(`_append(${parent}, ${cv});`); }
         // node-valued children: {props.children()}, {children()}, {renderX(...)}
         else if (ts.isCallExpression(e) && /(^|\.)(children|render[A-Z]\w*)$/.test(e.expression.getText(sf))) out.push(`_append(${parent}, ${rewrite(e)});`);
+        // {items.map(x => <Row .../>)}: a list of nodes (React: appended in order; Solid: a keyed <For>)
+        else if (ts.isCallExpression(e) && ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'map' && e.arguments.length === 1 && returnsJsx(e.arguments[0])) {
+          if (react) out.push(`for (const __c of ${rewrite(e)}) _append(${parent}, __c);`);
+          else out.push(`_for(${parent}, () => (${rewrite(e.expression.expression)}), ${rewrite(e.arguments[0])});`);
+        }
         else out.push(react ? `_text(${parent}, \`\${${rewrite(e)}}\`);` : `_dynText(${parent}, () => \`\${${rewrite(e)}}\`);`);
       } else {
         const cv = element(c, out);
@@ -173,6 +191,13 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
     }
   };
 
+  const returnsJsx = (f: ts.Expression): boolean => {
+    if (!ts.isArrowFunction(f) && !ts.isFunctionExpression(f)) return false;
+    let b: ts.Node = f.body;
+    while (ts.isParenthesizedExpression(b)) b = b.expression;
+    if (isJsx(b as ts.Expression)) return true;
+    return ts.isBlock(b) && b.statements.some(st => ts.isReturnStatement(st) && !!st.expression && isJsx(ts.isParenthesizedExpression(st.expression) ? st.expression.expression : st.expression));
+  };
   const onlyChild = (n: ts.JsxElement | ts.JsxSelfClosingElement): ts.JsxChild | undefined =>
     childrenOf(n).filter(c => !(ts.isJsxText(c) && !c.text.trim()))[0];
 
@@ -204,7 +229,9 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       const c = onlyChild(n);
       if (c) props.push(`children: () => ${childNode(c)}`);
       const call = `${tag}(${props.length ? `{ ${props.join(', ')} }` : ''})`;
-      out.push(react ? `_rc(${v}, () => ${call}, ${JSON.stringify(tag)}, ${key ? `'' + (${valueOf(key)})` : "''"});` : `_append(${v}, ${call});`);
+      const keyArg = key ? `'' + (${valueOf(key)})` : "''";
+      if (react && classTags.has(tag)) out.push(`_cc(${v}, () => new ${tag}(${props.length ? `{ ${props.join(', ')} }` : '{}'}), ${JSON.stringify(tag)}, ${keyArg});`);
+      else out.push(react ? `_rc(${v}, () => ${call}, ${JSON.stringify(tag)}, ${keyArg});` : `_append(${v}, ${call});`);
     }
     return v;
   };
@@ -231,6 +258,6 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable';
+  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable';
   return `import { ${helpers} } from '${lib}'; ` + out;
 }
