@@ -55,7 +55,8 @@ export const compilerOptions: ts.CompilerOptions = {
   types: [],
 };
 
-export function loadProgram(entryPath: string): Frontend {
+/** `extra`: additional root modules compiled into the program (zinc dev adds plugins/devtools). */
+export function loadProgram(entryPath: string, extra: string[] = []): Frontend {
   const entryAbs = path.resolve(entryPath);
   // plugins (compiler/src/plugins.ts) resolve like the standard modules
   const options = { ...compilerOptions, paths: { ...compilerOptions.paths, ...modulePaths(projectDir(entryAbs)) } };
@@ -85,7 +86,7 @@ export function loadProgram(entryPath: string): Frontend {
       return ts.createSourceFile(f, '', lang, true);
     }
   };
-  const program = ts.createProgram([entryAbs, ...LIB_FILES], options, host);
+  const program = ts.createProgram([entryAbs, ...extra, ...LIB_FILES], options, host);
   const checker = program.getTypeChecker();
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);
