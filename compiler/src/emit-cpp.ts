@@ -702,7 +702,15 @@ class CppEmitter {
       let init = '';
       if (s.initializer) init = ts.isVariableDeclarationList(s.initializer) ? this.varList(s.initializer, d + 1) : `${this.ind(d + 1)}${this.expr(s.initializer)};\n`;
       const c = s.condition ? this.cond(s.condition) : '';
-      const inc = s.incrementor ? this.expr(s.incrementor) : '';
+      let inc = s.incrementor ? this.expr(s.incrementor) : '';
+      // `for (let ...)`: each iteration has its own binding. A counter captured by a closure lives in a cell, so a
+      // fresh cell (with the current value) replaces it before the incrementor; closures keep the previous one.
+      const init0 = s.initializer;
+      if (init0 && ts.isVariableDeclarationList(init0) && init0.flags & ts.NodeFlags.BlockScoped) {
+        const copies = init0.declarations.filter(v => ts.isIdentifier(v.name) && this.s.boxed.has(this.s.symbolOf(v.name)!))
+          .map(v => { const n = this.id((v.name as ts.Identifier).text); return `${n} = zrt::cell<${this.cpp(this.s.declType(v))}>(${n}->v)`; });
+        if (copies.length) inc = [...copies, inc].filter(Boolean).join(', ');
+      }
       return `${L}${I}{\n${init}${this.ind(d + 1)}for (; ${c}; ${inc}) ${this.loopBody(s.statement, d + 1)}\n${I}}\n`;
     }
     if (ts.isForOfStatement(s)) return L + this.forOf(s, d);
