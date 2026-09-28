@@ -2,11 +2,16 @@
 
 Fullscreen video looper modelled on [videolooper.de](https://videolooper.de/) (adafruit `pi_video_looper`): plays
 every video of a folder, or an M3U playlist, in a **seamless** loop (the next file is pre-opened; no black frame
-between files). Uses `zinc:video` and, on a Raspberry Pi, the `fbdev` display driver (no X needed).
+between files). Uses `zinc:video` and, on a Raspberry Pi, the `fbdev` display driver (no X needed). Titles, the
+"Paused" state and the info overlay are light cards drawn over the video.
+
+![looper with the info overlay and a title](../../../docs/img/video-looper.png)
 
 ```sh
 zinc run examples/video/looper -- examples/video/looper/media                  # macOS window
-zinc run examples/video/looper -- examples/video/looper/media --is_random --info
+zinc run examples/video/looper -- examples/video/looper/media --is_random --info --show_titles
+zinc run examples/video/looper --target sim -- examples/video/looper/media        # Node (headless)
+zinc build examples/video/looper --target linux                                 # Linux, fbdev
 zinc build examples/video/looper --target rpi1                                  # ARMv6 binary, fbdev + evdev
 ./looper /mnt/usbdrive0 --config /boot/video_looper.ini                         # on the Pi
 ```
@@ -28,7 +33,7 @@ Settings are the `video_looper.ini` keys. The file is read from `--config FILE`,
 | `wait_time` | 0 | seconds of background between files (0 = seamless) |
 | `play_on_startup` | true | false: wait for Enter |
 | `resume_playlist` | false | restart at the file playing when the looper was stopped (`zinc:storage`) |
-| `bgcolor` / `fgcolor` | `0, 0, 0` / `255, 255, 255` | letterbox and idle colour / text colour |
+| `bgcolor` / `fgcolor` | `0, 0, 0` / `255, 255, 255` | letterbox and idle colour / text colour of the idle and countdown screens |
 | `osd` / `countdown_time` | true / 5 | "Found N movies, starting in 5..." and the "Insert USB drive" screen |
 | `show_titles` / `title_duration` | false / 10 | file name or M3U title at the start of each file (-1 = always) |
 | `keyboard_control` | true | keys below |
@@ -51,6 +56,16 @@ the folder every 2 s, so a USB stick mounted later is picked up.
 | Esc | Esc | quit |
 
 Zinc's input is a gamepad-like set of buttons (same on SDL and fbdev), hence arrows/Enter instead of `k`/`b`/`s`.
+
+## What to look at
+
+| File | Role |
+| --- | --- |
+| `src/main.ts` | playback state (countdown, start / stop, pause, wait_time), keys, GPIO actions, the frame loop |
+| `src/config.ts` | settings: defaults, `video_looper.ini` parsing, CLI flags, `--help` |
+| `src/playlist.ts` | the `Player` and its titles, from the folder or an M3U file (`_repeat_Nx` files) |
+| `src/buttons.ts` | `gpio_pin_map`: BOARD pin numbers to BCM, pin watches |
+| `src/osd.ts` | idle / countdown screens and the light overlays (title card, "Paused" pill, info card) |
 
 ## Differences from videolooper.de
 
