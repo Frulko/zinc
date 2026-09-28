@@ -53,5 +53,8 @@ export function route(address: string, numbers: number[], strings: string[]): vo
   else if (address === '/zinc/color' && numbers.length >= 3) setColor(rgb(numbers));
   else if (address === '/zinc/cue/name' && strings.length > 0) setCueName(strings[0]);
   else if (address === '/zinc/cue/running' && numbers.length > 0) setCueRunning(first !== 0);
-  else if (address === '/zinc/chat') addChat(false, strings.length > 0 ? strings[0] : argsText(numbers, strings));
+  else if (address === '/zinc/chat') {
+    const text = strings.length > 0 ? strings[0] : argsText(numbers, strings);
+    if (text.length > 0) addChat(false, text);   // a mapping can send its empty initial value
+  }
 }
