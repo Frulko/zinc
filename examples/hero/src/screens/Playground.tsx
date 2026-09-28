@@ -42,7 +42,7 @@ export function Playground(): i32 {
     </View>
     <View class={`grow rounded-2xl border overflow-hidden border-${theme().border}`}
       style={{ opacity: enter.at(0.1), translateY: (1 - enter.at(0.1)) * 20 }}>
-      <Canvas class="grow cursor-grab" onDraw={drawScene}
+      <Canvas class="grow cursor-grab" grab="keep" onDraw={drawScene}
         onPointerDown={(e: ui.PointerEvent) => press(e.x, e.y)}
         onPointerMove={(e: ui.PointerEvent) => drag(e.x, e.y)}
         onPointerUp={(e: ui.PointerEvent) => release()} />
