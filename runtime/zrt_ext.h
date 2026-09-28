@@ -93,6 +93,9 @@ template<int F> struct Fx {
   explicit Fx(int32_t i) : v((int32_t)((uint32_t)i << F)) {}
   explicit Fx(uint32_t i) : v((int32_t)(i << F)) {}
   explicit Fx(int64_t i) : v(from_d((double)i)) {}
+  // `int` literals where int32_t is `long` (bare-metal MIPS: PSn00bSDK, ps2dev)
+  template<class I, class = typename enable_if<is_same<I, int>::value && !is_same<int, int32_t>::value>::type>
+  explicit Fx(I i) : v((int32_t)((uint32_t)i << F)) {}
   template<int G> explicit Fx(Fx<G> o) : v(from_d((double)o)) {}
   explicit operator double() const { return (double)v / (double)ONE; }
   explicit operator float() const { return (float)((double)v / (double)ONE); }
