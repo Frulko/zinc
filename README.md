@@ -46,6 +46,12 @@ zinc run examples/maps/explorer            # offline vector map of Paris (pan, z
 ZINC_FAKE_CAMERA=1 zinc run examples/camera/remote   # gphoto2 remote with live view
 zinc run examples/led/scroll-text          # WS2812 LED matrix emulator; --target esp32 for the real one
 zinc run examples/remarkable/notes         # reMarkable Paper Pro notebook in the e-ink emulator
+zinc run apps/studio                       # ZincStudio: node-based editor (Choregraphe-style), build/run/preview/deploy
+zinc run examples/ui/kit-gallery           # shadcn-style component kit (zinc:ui/kit), light and dark
+zinc run examples/three/gltf-viewer        # three.js-style API: glTF model, orbit controls, picking
+zinc run examples/canvas/sketch            # HTML Canvas 2D-style API (clock, fireworks)
+zinc run examples/boards/s3-matrix/tilt-sand   # ESP32-S3 Matrix demo in the LED emulator (IMU with arrow keys)
+zinc flash examples/boards/s3-matrix/tilt-sand --target esp32   # flash the real board (host esptool)
 
 zinc init mygame --template game|cli|server|iot|remarkable
 zinc dev                                   # hot reload on save, red box on crash, UI inspector on :9229
@@ -61,6 +67,14 @@ a fixed surface and scale it; `zinc.json` `targets.macos` takes `zoom`, `resize`
 
 Debug builds (`--debug`) use ASan + UBSan and print a leak report. `ZINC_FRAMES=n` stops a frame loop after n frames,
 `ZINC_SHOT=out.bmp` saves the last frame, `ZINC_LOG_FORMAT=json` switches console output to JSON lines.
+
+## Documentation
+
+- **Developer guide**: [docs/guide/](docs/guide/README.md) — getting started, language, UI apps, headless services,
+  plugins, testing, distribution (app bundles, icons, signing), security and obfuscation.
+- **UI kit**: [docs/ui-kit.md](docs/ui-kit.md); **UI input and events**: [docs/ui.md](docs/ui.md).
+- **ZincStudio**: [docs/studio.md](docs/studio.md); **boards** (ESP32-S3 Matrix, Scroll pHAT): [docs/boards.md](docs/boards.md).
+- **Architecture overview** (French): https://claude.ai/artifact/EJAZtwX2HRPtYYBjfypThU
 
 ## What the language covers
 
@@ -112,6 +126,9 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 | `zinc:ink` + display `rmpp` | handwriting, reMarkable Paper Pro screen | [rmpp](docs/targets/remarkable-paper-pro.md) |
 | displays `fbdev`, `ws2812`, `ssd1306`, `st7789`, `zinc:pixelfont` | screens for Pi and ESP32, LED matrices | [displays](docs/plugins/displays.md), [fbdev](docs/plugins/display-fbdev.md) |
 | `zinc:devtools` | UI inspector over the Chrome DevTools protocol | [dev mode](docs/dev-mode.md) |
+| `zinc:canvas`, `three` | HTML Canvas 2D-style API; three.js-style scenes, GLTFLoader, OrbitControls | [canvas2d](docs/plugins/canvas2d.md), [three](docs/plugins/three.md) |
+| `zinc:process`, `zinc:remote` + display `remote`, `zinc:webview` | child processes; live remote screens with input; native webview (Tauri-like) | [process](docs/plugins/process.md), [remote](docs/plugins/remote.md), [webview](docs/plugins/webview.md) |
+| `zinc:imu`, display `scrollphat` | QMI8658 motion sensor; Pimoroni Scroll pHAT | [boards](docs/boards.md) |
 
 ## Layout
 
