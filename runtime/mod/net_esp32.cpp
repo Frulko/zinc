@@ -35,7 +35,7 @@ static Pending* pending_list = nullptr;
 static uint32_t next_id = 1;
 static QueueHandle_t done_q = nullptr;
 
-struct TaskArgs { uint32_t id; char* url; char* method; char* body; size_t body_len; char* content_type; };
+struct TaskArgs { uint32_t id; char* url; char* method; char* body; size_t body_len; char* content_type; char* headers; int timeout_ms; };  // headers: "name\nvalue\n" pairs
 struct Done { uint32_t id; bool ok_transport; int status; char* body; size_t body_len; char* err; };
 struct RecvBuf { char* p; size_t n; };
 
@@ -60,7 +60,7 @@ static void fetch_task(void* arg) {
   cfg.url = a->url;
   cfg.event_handler = http_event;
   cfg.user_data = &buf;
-  cfg.timeout_ms = 15000;
+  cfg.timeout_ms = a->timeout_ms > 0 ? a->timeout_ms : 15000;
   esp_http_client_handle_t h = esp_http_client_init(&cfg);
   if (a->method) {
     esp_http_client_method_t m = !strcmp(a->method, "POST") ? HTTP_METHOD_POST : !strcmp(a->method, "PUT") ? HTTP_METHOD_PUT
@@ -68,6 +68,12 @@ static void fetch_task(void* arg) {
     esp_http_client_set_method(h, m);
   }
   if (a->content_type) esp_http_client_set_header(h, "Content-Type", a->content_type);
+  for (char* p = a->headers; p && *p;) {
+    char* nl = strchr(p, '\n'); if (!nl) break; *nl = 0;
+    char* v = nl + 1; char* vl = strchr(v, '\n'); if (!vl) break; *vl = 0;
+    esp_http_client_set_header(h, p, v);
+    p = vl + 1;
+  }
   if (a->body) esp_http_client_set_post_field(h, a->body, (int)a->body_len);
 
   Done* d = (Done*)malloc(sizeof(Done));
@@ -84,7 +90,7 @@ static void fetch_task(void* arg) {
     d->err = dupstr(e, (uint32_t)strlen(e));
   }
   esp_http_client_cleanup(h);
-  free(a->url); free(a->method); free(a->body); free(a->content_type); free(a);
+  free(a->url); free(a->method); free(a->body); free(a->content_type); free(a->headers); free(a);
   xQueueSend(done_q, &d, portMAX_DELAY);
   vTaskDelete(nullptr);
 }
@@ -101,6 +107,7 @@ struct Fetcher : Poller {
         if (d->ok_transport) {
           auto r = make<Response>();
           r->status = d->status; r->ok = d->status >= 200 && d->status < 300;
+          r->statusText = String::from(reason(d->status), (uint32_t)strlen(reason(d->status)));  // esp_http_client keeps no reason phrase
           r->body = d->body ? String::from(d->body, (uint32_t)d->body_len) : String();
           node->p->resolve(r);
         } else {
@@ -135,12 +142,19 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
   a->body = has_body ? dupstr(init->body.ptr(), init->body.bytes()) : nullptr;
   a->body_len = has_body ? init->body.bytes() : 0;
   a->content_type = (init.p && init->contentType.bytes()) ? dupstr(init->contentType.ptr(), init->contentType.bytes()) : nullptr;
+  a->timeout_ms = init.p ? init->timeoutMs : 0;
+  a->headers = nullptr;
+  if (init.p && init->headers.p) {
+    StrBuilder hb;
+    for (int32_t i = 0; i < init->headers->names.length(); i++) { to_s(hb, init->headers->names.get(i)); hb.ch('\n'); to_s(hb, init->headers->vals.get(i)); hb.ch('\n'); }
+    a->headers = dupstr(hb.buf ? hb.buf : "", hb.len);
+  }
 
   if (xTaskCreate(fetch_task, "zinc_fetch", 8192, a, tskIDLE_PRIORITY + 3, nullptr) != pdPASS) {
     Pending** pp = &pending_list; while (*pp && *pp != node) pp = &(*pp)->next; if (*pp) *pp = node->next;
     pr.p->reject(make<TypeError>(String::from("fetch failed: cannot start task", 32)));
     mfree(node);
-    free(a->url); free(a->method); free(a->body); free(a->content_type); free(a);
+    free(a->url); free(a->method); free(a->body); free(a->content_type); free(a->headers); free(a);
   }
   return pr;
 }
@@ -149,6 +163,14 @@ Promise<Ref<Response>> fetch(const String& url, const Ref<RequestInit>& init) {
 // ponytail: no listen-socket server on esp32 yet (no conformance program needs it there and
 // QEMU has no network to test it against); build on esp_http_server when a real use case shows
 // up instead of shipping an untested implementation.
+const char* reason(int32_t s) {
+  switch (s) {
+    case 200: return "OK"; case 201: return "Created"; case 204: return "No Content"; case 301: return "Moved Permanently"; case 302: return "Found";
+    case 304: return "Not Modified"; case 400: return "Bad Request"; case 401: return "Unauthorized"; case 403: return "Forbidden";
+    case 404: return "Not Found"; case 500: return "Internal Server Error"; case 503: return "Service Unavailable";
+    default: return s < 400 ? "OK" : "Error";
+  }
+}
 void serve(int32_t, Fn<Ref<Reply>(Ref<Request>)>) { g_err = make<Error>(String::from("net.serve: not supported on esp32 yet", 38)); }
 void stop() {}
 }}

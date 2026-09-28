@@ -102,16 +102,38 @@ declare module 'zinc:storage' {
 }
 
 declare module 'zinc:net' {
-  export interface RequestInit { method?: string; body?: string; contentType?: string }
+  /** Web Headers: case-insensitive names, iteration sorted by name. */
+  export class Headers {
+    constructor();
+    append(name: string, value: string): void;
+    set(name: string, value: string): void;
+    delete(name: string): void;
+    has(name: string): boolean;
+    /** Every value of the name joined with ', '; '' when absent (use has()). */
+    get(name: string): string;
+    /** Distinct lowercase names, sorted. */
+    keys(): string[];
+    forEach(f: (value: string, name: string) => void): void;
+  }
+  export interface RequestInit { method?: string; body?: string; contentType?: string; headers?: Headers; timeoutMs?: i32 }
   export class Response {
     readonly status: i32;
     readonly ok: boolean;
+    /** Reason phrase ('' over HTTP/2). */
+    readonly statusText: string;
+    /** Final URL, after redirects. */
+    readonly url: string;
+    readonly headers: Headers;
     text(): Promise<string>;
+    bytes(): Promise<u8[]>;
+    /** The body parsed as a Dyn tree (gradual profile); rejects on invalid JSON. */
+    json(): Promise<any>;
   }
-  /** HTTP(S) request (libcurl on hosts, esp_http_client on esp32). Rejects on network errors. */
+  /** HTTP(S) request (libcurl on hosts, esp_http_client on esp32): follows redirects, decodes gzip / br.
+   *  Rejects with 'fetch failed: ECONNREFUSED' / 'ENOTFOUND' / 'timeout' / the libcurl message. */
   export function fetch(url: string, init?: RequestInit): Promise<Response>;
-  export interface Request { method: string; path: string; body: string }
-  export interface Reply { status: i32; body: string; contentType: string }
+  export interface Request { method: string; path: string; body: string; headers: Headers }
+  export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
   /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. */
   export function serve(port: i32, handler: (req: Request) => Reply): void;
   export function stop(): void;
