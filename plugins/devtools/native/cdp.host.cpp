@@ -166,6 +166,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
     return s;
   }
 
+  zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
+
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }
 
   void http(Client& c) {

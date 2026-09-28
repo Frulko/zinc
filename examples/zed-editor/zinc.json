@@ -22,5 +22,10 @@
     "keyboard",
     "pointer",
     "fs"
-  ]
+  ],
+  "bench": {
+    "demo": "scroll",
+    "frames": 1400,
+    "p99Ms": 40
+  }
 }

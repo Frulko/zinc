@@ -10,6 +10,7 @@ import {
   escapeByApp, escapeDefault, stroke,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
+import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { PALETTE, SHADES } from './palette';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
@@ -2039,15 +2040,19 @@ function activate(h: i32): void {
 /** One UI frame: engine clock, animations, input, layout when needed, paint (or keep the previous frame). */
 export function frame(dt: number, background: i32): void {
   if (root < 0) return;
+  const prof = profiling();
+  if (prof) profMark(PROF_APP);
   clock += dt * 1000;
   frameDt = dt;
   stepAnims();
+  if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
     surfW = width(); surfH = height(); layoutDirty = true; paintDirty = true;
     if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
   }
   if (layoutDirty) layout();
+  if (prof) profMark(PROF_LAYOUT);
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   stepScroll(dt);
@@ -2067,10 +2072,13 @@ export function frame(dt: number, background: i32): void {
     textOn = want;
   }
   if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
+  if (prof) profMark(PROF_INPUT);
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
   if (anchors.length > 0) applyAnchors();
+  if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty) updateHover();
+  if (prof) profMark(PROF_INPUT);
   if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
@@ -2082,7 +2090,9 @@ export function frame(dt: number, background: i32): void {
     rrect(n.x, n.y, n.lw, n.lh, 0, 0x3b82f6, 90);
     border(n.x, n.y, n.lw, n.lh, 0, 1, 0x60a5fa, 255);
   }
+  if (prof) profMark(PROF_PAINT);
 }
+const PROF_APP: i32 = 0, PROF_INPUT: i32 = 1, PROF_ANIM: i32 = 2, PROF_LAYOUT: i32 = 3, PROF_PAINT: i32 = 4;  // gfx.cpp prof phases
 // ---------------------------------------------------------------- inspector hooks (plugins/devtools)
 let highlight: i32 = -1;
 /** Root handle, or -1. */

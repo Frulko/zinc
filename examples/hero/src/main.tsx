@@ -6,6 +6,7 @@
 import { render, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { env } from 'zinc:sys';
+import { quit } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { stepClock } from './app/clock';
 import { tab, go, next, introShown, introOut, leaveIntro, detail, closeDetail, entrances, GALLERY, TASKS, PLAYGROUND, openDetailByIndex } from './app/router';
@@ -71,11 +72,29 @@ ui.onKey((e: ui.KeyEvent) => {
 // the palette's search field takes the focus when it opens
 createEffect(() => { if (paletteOpen()) preparePalette(); });
 
-// ---- optional scripted tour (ZINC_DEMO=home|gallery|detail|playground|tasks|settings|palette|dialog|dark)
+// ---- optional scripted tour (ZINC_DEMO=home|gallery|detail|playground|tasks|settings|palette|dialog|dark|bench)
 const demo = env('ZINC_DEMO');
 let frame: i32 = 0;
+// ZINC_DEMO=bench: every screen, the detail page, dark mode, the palette and a dialog, 60 frames each, then quits
+// (zinc bench times the frames, budget in zinc.json)
+function bench(): void {
+  if (frame === 2) leaveIntro();
+  if (frame < 30 || (frame - 30) % 60 !== 0) return;
+  const i: i32 = (frame - 30) / 60;
+  if (i === 0) go(GALLERY);
+  else if (i === 1) openDetailByIndex(1);
+  else if (i === 2) { closeDetail(); go(PLAYGROUND); }
+  else if (i === 3) go(TASKS);
+  else if (i === 4) go(4);
+  else if (i === 5) { setDark(true); go(0); }
+  else if (i === 6) openPalette();
+  else if (i === 7) { closePalette(); showShortcuts(); }
+  else if (i === 8) { closeDialog(); setDark(false); }
+  else quit();
+}
 function script(): void {
   frame++;
+  if (demo === 'bench') { bench(); return; }
   if (demo === '' || frame !== 2) return;
   leaveIntro();
   if (demo === 'gallery') go(GALLERY);

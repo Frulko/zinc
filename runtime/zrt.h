@@ -725,6 +725,9 @@ int32_t frame();
 void quit();
 bool capture(const String& path);
 uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots
+bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
+void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
+String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
 double wheelX();
 int32_t pointerButtons();
 int32_t modifiers();
