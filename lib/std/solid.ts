@@ -1,5 +1,6 @@
 // zinc:ui/solid — Solid's reactive API reimplemented in Zinc strict (D-11, UI-03), plus the helpers the JSX
 // lowering calls (_el, _text, _dynText, _show, _for...). Rendering goes through the zinc:ui host ABI.
+import { Signal } from 'zinc:signals';
 import * as ui from 'zinc:ui';
 
 interface Source {
@@ -251,3 +252,11 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
 export const Show: i32 = 0, For: i32 = 1;
 /** Marker for `<VirtualList count itemHeight>{(i) => ...}</VirtualList>` (lowered by the JSX compiler). */
 export const VirtualList: i32 = 2;
+
+/** The latest value of a zinc:signals Signal as a reactive accessor (disconnected when the owner is disposed). */
+export function fromSignal<T>(s: Signal<T>, init: T): () => T {
+  const [get, set] = createSignal<T>(init);
+  const c = s.connect((v: T) => set(v));
+  onCleanup(() => c.disconnect());
+  return get;
+}

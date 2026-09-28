@@ -132,3 +132,28 @@ zinc export --target esp32 examples/service/sensor-hub    # + flash.sh (esptool)
 ```
 
 Next: [plugins](05-plugins.md).
+
+## Signals between objects (zinc:signals)
+
+Qt's signals and slots, typed and without a meta-object system: an object exposes `Signal<T>` fields, anyone
+connects a function, `emit` calls the slots in connection order.
+
+```ts
+import { Signal, Trigger } from 'zinc:signals';
+
+class Thermometer {
+  readonly reading = new Signal<number>();   // a signal with a value
+  readonly failed = new Trigger();           // a signal without one
+}
+const t = new Thermometer();
+const c = t.reading.connect((celsius: number) => console.log(`${celsius} °C`));
+t.reading.emit(21.5);          // direct: the slots run now (Qt::DirectConnection)
+t.reading.emitQueued(22);      // queued: on the next microtask (Qt::QueuedConnection)
+const next = await t.reading.next();   // a promise of the next value
+c.disconnect();                // or `using c = t.reading.connect(...)` to disconnect at the end of the scope
+```
+
+A slot disconnected during an emit is not called afterwards; one connected during an emit waits for the next one;
+`once()` connects for a single emit. In a UI, `fromSignal(signal, initial)` from `zinc:ui/solid` turns it into a
+reactive accessor (disconnected with its owner). `zinc:events`' `Emitter` remains the tool for values coming from
+native threads (listeners run as microtasks).
