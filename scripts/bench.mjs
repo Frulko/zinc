@@ -281,8 +281,10 @@ function analysisSection(results) {
     vsQjs: r.qjs.medianMs / r.zincNative.medianMs,
     vsNode: r.node.medianMs / r.zincNative.medianMs,
   }));
-  const avgVsQjs = withRatios.reduce((a, r) => a + r.vsQjs, 0) / withRatios.length;
-  const avgVsNode = withRatios.reduce((a, r) => a + r.vsNode, 0) / withRatios.length;
+  // speedups are ratios: their geometric mean is the honest average (an arithmetic mean is dominated by the outliers)
+  const geo = (xs) => Math.exp(xs.reduce((a, x) => a + Math.log(x), 0) / xs.length);
+  const avgVsQjs = geo(withRatios.map(r => r.vsQjs));
+  const avgVsNode = geo(withRatios.map(r => r.vsNode));
   const byQjsGap = [...withRatios].sort((a, b) => b.vsQjs - a.vsQjs);
   const biggestQjsGap = byQjsGap[0];
   const smallestQjsGap = byQjsGap[byQjsGap.length - 1];
@@ -290,7 +292,7 @@ function analysisSection(results) {
   const byNodeGap = [...withRatios].sort((a, b) => a.vsNode - b.vsNode);
   const smallestNodeGap = byNodeGap[0];
 
-  lines.push(`- Averaged across the ${results.length} kernels above: Zinc native is ~${avgVsQjs.toFixed(1)}x faster than QuickJS`);
+  lines.push(`- Geometric mean over the ${results.length} kernels above: Zinc native is ~${avgVsQjs.toFixed(1)}x faster than QuickJS`);
   lines.push(`  and ~${avgVsNode.toFixed(1)}x faster than Node.js on median wall time. The spread is wide: the largest`);
   lines.push(`  QuickJS gap is **${biggestQjsGap.name}** at ${biggestQjsGap.vsQjs.toFixed(1)}x (QuickJS's interpreter loop, with no JIT,`);
   lines.push(`  pays full per-operation dispatch cost on every iteration of a tight numeric loop), and the smallest is`);

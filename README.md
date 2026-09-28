@@ -8,7 +8,7 @@ every target must print exactly the same bytes (`zinc test` checks it).
 **TS → C++ → native binary.** Node.js only runs the compiler (written in TypeScript) and the sim oracle;
 the executables Zinc produces do not need Node.
 
-Status and what is missing: **[docs/reports/STATUS.md](docs/reports/STATUS.md)**. Performance vs QuickJS (the engine under PocketJS) and Node: **[docs/reports/PERF.md](docs/reports/PERF.md)** — about 27× faster than QuickJS on average, 70 KiB binaries, 2 ms startup.
+Status and what is missing: **[docs/reports/STATUS.md](docs/reports/STATUS.md)**. Performance vs QuickJS (the engine under PocketJS) and Node: **[docs/reports/PERF.md](docs/reports/PERF.md)** — about 13× faster than QuickJS (geometric mean of 10 kernels, 2× to 80×; Node.js wins fannkuch), 70 KiB binaries, 2 ms startup.
 
 ## Requirements
 

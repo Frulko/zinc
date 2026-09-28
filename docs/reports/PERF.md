@@ -98,8 +98,9 @@ microts — which is the honest proxy the task asked for when the AOT path is no
 
 ## Analysis
 
-- Averaged across the 10 kernels above: Zinc native is ~25.8x faster than QuickJS
-  and ~6.3x faster than Node.js on median wall time. The spread is wide: the largest
+- Geometric mean over the 10 kernels above: Zinc native is ~13.1x faster than QuickJS
+  and ~4.3x faster than Node.js on median wall time (arithmetic means of the ratios, 25.8x and 6.3x, are inflated
+  by nbody and spectralnorm). The spread is wide: the largest
   QuickJS gap is **nbody** at 80.4x (QuickJS's interpreter loop, with no JIT,
   pays full per-operation dispatch cost on every iteration of a tight numeric loop), and the smallest is
   **strings** at 2.1x (this kernel's cost is dominated by something other than raw
