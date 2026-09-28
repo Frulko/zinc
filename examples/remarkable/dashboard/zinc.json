@@ -1,6 +1,6 @@
 {
   "name": "dashboard",
-  "entry": "main.tsx",
+  "entry": "src/main.tsx",
   "display": "rmpp",
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
