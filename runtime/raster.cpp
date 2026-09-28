@@ -233,6 +233,11 @@ bool image_size(int32_t id, int32_t* w, int32_t* h) {
   if (Dyn* d = dyn_at(id)) { *w = d->w; *h = d->h; return true; }
   *w = *h = 0; return false;
 }
+bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride) {
+  Dyn* d = dyn_at(id);
+  if (!d || !d->px) return false;
+  *px = d->px; *w = d->w; *h = d->h; *stride = d->stride; return true;
+}
 uint32_t image_version(int32_t id) { Dyn* d = dyn_at(id); return d ? d->version : 0; }
 
 static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {

@@ -27,6 +27,8 @@ void dyn_resize(int32_t id, int32_t w, int32_t h);                             /
 void dyn_destroy(int32_t id);
 bool image_size(int32_t id, int32_t* w, int32_t* h);
 uint32_t image_version(int32_t id);
+/** Current pixels of a runtime image (GPU compositors upload them when the version changes). */
+bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride);
 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP };
 
