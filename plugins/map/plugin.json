@@ -1,0 +1,9 @@
+{
+  "name": "map",
+  "kind": "module",
+  "module": "zinc:map",
+  "entry": "index.ts",
+  "description": "Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels",
+  "options": { "tiles": 24, "dataMb": 16, "budgetMs": 12 },
+  "targets": { "macos": {}, "linux": {}, "rpi1": {} }
+}
