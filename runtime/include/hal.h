@@ -85,6 +85,7 @@ struct HalDisplay {
   void (*present)(const HalFrame* f);
   void (*poll)(HalInput* in);   // may be null (no input device)
   void (*shutdown)(void);       // may be null
+  int owns_input;               // 1: the driver reads the OS events itself (display-gl); else the target HAL does
 };
 extern HalDisplay* hal_display;
 }

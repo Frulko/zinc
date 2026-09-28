@@ -109,7 +109,13 @@ static uint32_t pen_flags(SDL_PenInputFlags s) {
 }
 
 void hal_poll_input(HalInput* in) {
-  if (!gfx_on) return;
+  // A display plugin with its own window (LED / OLED / e-ink emulators) still needs this HAL to pump the OS events,
+  // unless it reads them itself (display-gl).
+  if (!gfx_on && (!hal_display || hal_display->owns_input || !SDL_WasInit(SDL_INIT_VIDEO))) {
+    if (frames_left >= 0 && frames_left-- == 0) quit = true;
+    in->quit = quit;
+    return;
+  }
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_EVENT_PEN_AXIS) {
@@ -134,11 +140,11 @@ void hal_poll_input(HalInput* in) {
     // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
     if (e.type == SDL_EVENT_QUIT && !kiosk) quit = true;
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !kiosk) {
-      if (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN) set_fullscreen(false); else quit = true;
+      if (win && (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN)) set_fullscreen(false); else quit = true;
     }
-    if (e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
+    if (gfx_on && e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
       set_fullscreen(!(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
-    if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED) apply_size();
+    if (gfx_on && (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED)) apply_size();
     if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel += e.wheel.y;
     if (e.type == SDL_EVENT_PINCH_UPDATE) in->pinch *= e.pinch.scale;
     // touch screens only: trackpad fingers (indirect devices) are the pointer, not screen touches

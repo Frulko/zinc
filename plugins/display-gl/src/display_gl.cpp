@@ -155,5 +155,5 @@ static void poll(HalInput* in) {
 
 static void shutdown() { zgl_backend_shutdown(); }
 
-static HalDisplay display = {init, present, poll, shutdown};
+static HalDisplay display = {init, present, poll, shutdown, 1};  // SDL events are read in src/sdl.cpp
 static int registered = (hal_display = &display, 0);
