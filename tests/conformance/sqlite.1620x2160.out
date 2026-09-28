@@ -1,0 +1,20 @@
+1 1
+[ 'id', 'name', 'age', 'score', 'avatar' ]
+2 Linus 54 false 7 [ 1, 2, 255 ]
+3 Grace 85 true null []
+Ada 72 real true
+true true
+[ [ 'Ada', 36 ], [ 'Linus', 54 ], [ 'Grace', 85 ] ]
+[ [ 'é€', 2.5, 3, null, Blob { data: [Array], type: '' }, 1 ] ]
+SqliteError near "SELEC": syntax error
+SqliteError no such table: nope
+SqliteError UNIQUE constraint failed: people.name
+SqliteError NOT NULL constraint failed: people.name
+inside true 4
+rolled back: abort 4 false
+updated 2
+database is closed
+file 1
+attempt to write a readonly database
+SqliteError unable to open database file
+true true

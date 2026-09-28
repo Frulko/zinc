@@ -1,0 +1,49 @@
+text/plain 1, 2 true true [ 'a=1', 'b=2' ]
+[
+  [ 'content-type', 'text/plain' ],
+  [ 'set-cookie', 'a=1' ],
+  [ 'set-cookie', 'b=2' ],
+  [ 'x-b', '1, 2' ]
+]
+  accept a
+  set-cookie a=1
+  set-cookie b=2
+  x-b 3
+name "bad name" TypeError
+name "é" TypeError
+name "" TypeError
+value TypeError
+[ 'accept', 'set-cookie', 'set-cookie', 'x-b' ]
+POST https://example.com/a?b#c text/plain;charset=UTF-8 1 false follow false
+Patch https://example.com/a?b#c
+Request TypeError
+Request TypeError
+Request TypeError
+Request TypeError
+Request TypeError
+true false
+hi hi true
+twice TypeError
+201 true Made text/plain;charset=UTF-8 default true false
+{"a":[1,2]} {"a":[1,2]}
+application/x-www-form-urlencoded;charset=UTF-8 a=b+c
+3 text/x
+[ 'a', 'b' ]
+application/json {"ok":true}
+0 error false
+301 https://example.com/x
+Response RangeError
+Response TypeError
+Response RangeError
+200 ""
+json SyntaxError
+200 true OK basic true false application/json
+{"method":"POST","ct":"application/x-www-form-urlencoded;charset=UTF-8","token":"t1","body":"q=z"}
+true true
+404 false nope
+200 text/plain;charset=utf-8 héllo world
+text/plain;charset=US-ASCII hi
+aborted AbortError
+scheme TypeError
+url TypeError
+down TypeError fetch failed: ECONNREFUSED

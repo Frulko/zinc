@@ -18,8 +18,9 @@ function lines(s: Socket, n: i32): Promise<string[]> {
 }
 
 async function tcp(): Promise<void> {
+  let acceptedFrom = '';  // printed later: the server's accept and the client's connect race
   const srv = await listen(0, (c: Socket) => {
-    console.log('server: accepted from', c.remoteAddress);
+    acceptedFrom = c.remoteAddress;
     let buf = '';
     c.onData((chunk: string) => {
       buf += chunk;
@@ -41,6 +42,7 @@ async function tcp(): Promise<void> {
   s.write('hello\nwörld €');
   s.write('\nbye\n');
   console.log('client: got', await got);
+  console.log('server: accepted from', acceptedFrom);
   console.log('client: peer closed', await closed);
   srv.close();
   try { await connect('127.0.0.1', 9); } catch (e) { console.log('refused:', e.message); }
