@@ -1,0 +1,9 @@
+{
+  "name": "gltf-viewer",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 960, "height": 600 },
+    "rpi1": { "width": 640, "height": 400, "plugins": { "3d": { "scale": 2 } } },
+    "wasm": { "width": 960, "height": 600 }
+  }
+}
