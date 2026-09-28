@@ -1,0 +1,7 @@
+{
+  "name": "pixelfont",
+  "kind": "module",
+  "module": "zinc:pixelfont",
+  "description": "5x7 and 3x5 bitmap fonts for LED matrices and tiny screens",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "esp32": {}, "wasm": {}, "ps2": {} }
+}

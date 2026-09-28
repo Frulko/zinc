@@ -1,0 +1,25 @@
+{
+  "name": "display-ssd1306",
+  "kind": "display",
+  "description": "SSD1306 I2C OLED 128x64/128x32, 1-bit with dithering (ESP32, Raspberry Pi, macOS emulator)",
+  "options": {
+    "address": 60,
+    "sda": 21,
+    "scl": 22,
+    "freq": 400000,
+    "i2c": "/dev/i2c-1",
+    "dither": "threshold",
+    "threshold": 128,
+    "invert": false,
+    "flip": false,
+    "contrast": 207,
+    "scale": 5,
+    "debug": false
+  },
+  "targets": {
+    "esp32": { "sources": ["ssd1306.cpp"], "idf": ["esp_driver_i2c"] },
+    "rpi1": { "sources": ["ssd1306.cpp"], "packages": ["linux-headers"] },
+    "linux": { "sources": ["ssd1306.cpp"] },
+    "macos": { "sources": ["ssd1306.cpp"] }
+  }
+}

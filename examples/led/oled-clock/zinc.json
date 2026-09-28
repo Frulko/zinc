@@ -1,0 +1,10 @@
+{
+  "name": "oled-clock",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 128, "height": 64, "display": "ssd1306" },
+    "sim": { "width": 128, "height": 64 },
+    "esp32": { "width": 128, "height": 64, "display": { "driver": "ssd1306", "sda": 21, "scl": 22 } },
+    "rpi1": { "width": 128, "height": 64, "display": { "driver": "ssd1306", "i2c": "/dev/i2c-1" } }
+  }
+}
