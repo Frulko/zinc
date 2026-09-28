@@ -948,7 +948,7 @@ export class Sema {
       const ot = this.tryZ(p.parent);
       if (ot.k === 'dyn') return DYN;
       const m = ot.k === 'obj' ? this.memberDecl(ot.decl, p.name.getText()) : undefined;
-      if (m) return this.declType(m);
+      if (m && m !== p) return this.declType(m);  // an untyped literal's own member: its type comes from e itself
     }
     if (ts.isCallExpression(p) && p.arguments.includes(e)) {
       const d = ts.isPropertyAccessExpression(p.expression) ? this.declOf(p.expression.name) : this.declOf(p.expression);
