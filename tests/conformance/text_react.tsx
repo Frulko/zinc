@@ -1,7 +1,7 @@
 // TST-07: the `text` screen laid out by the React model (must equal text_solid.out).
 import * as ui from 'zinc:ui';
 import { _rc } from 'zinc:ui/react';
-import { Screen } from '../../examples/text/react';
+import { Screen } from '../../examples/text/src/react';
 const root = ui.createNode(ui.VIEW);
 const host = ui.createNode(ui.FRAGMENT);
 ui.insert(root, host, -1);
