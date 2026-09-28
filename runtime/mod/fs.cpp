@@ -286,10 +286,10 @@ static void snapshot(const String& path, Array<String>& names, Array<double>& si
   }
 }
 struct Watcher : Poller {
-  Array<Watch*> ws = Array<Watch*>::with_cap(0);
+  Array<Watch*> ws;  // null until the first watch, and again after shutdown (no object left for the leak report)
   uint64_t last = 0;
   bool poll() override {
-    if (!ws.length()) return false;
+    if (!ws.a || !ws.length()) return false;
     uint64_t now = hal_time_us();
     if (now - last < 100000) return true;
     last = now;
@@ -317,9 +317,9 @@ struct Watcher : Poller {
         drain_microtasks();
       }
     }
-    return ws.length() > 0;
+    return ws.a && ws.length() > 0;
   }
-  void shutdown() override { for (int32_t i = 0; i < ws.length(); i++) { Watch* w = ws.get(i); w->~Watch(); mfree(w); } ws = Array<Watch*>::with_cap(0); }
+  void shutdown() override { for (int32_t i = 0; ws.a && i < ws.length(); i++) { Watch* w = ws.get(i); w->~Watch(); mfree(w); } ws = Array<Watch*>(); }
 };
 static Watcher* watcher = nullptr;
 static int32_t next_watch = 1;
@@ -329,11 +329,12 @@ int32_t watch(const String& path, Fn<void(String, String)> cb) {
   Watch* w = new (alloc(sizeof(Watch))) Watch();
   w->id = next_watch++; w->path = path; w->cb = cb;
   snapshot(path, w->names, w->sizes, w->mtimes);
+  if (!watcher->ws.a) watcher->ws = Array<Watch*>::with_cap(1);
   watcher->ws.push(w);
   return w->id;
 }
 void unwatch(int32_t id) {
-  if (!watcher) return;
+  if (!watcher || !watcher->ws.a) return;
   for (int32_t i = 0; i < watcher->ws.length(); i++) {
     Watch* w = watcher->ws.get(i);
     if (w->id != id) continue;

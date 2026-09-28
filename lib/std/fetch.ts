@@ -4,7 +4,7 @@
 // has no origin (no CORS, no Origin header, `mode` / `credentials` are informative), redirects are always followed,
 // aborting settles the promise but lets the transfer finish in the background.
 import * as net from 'zinc:net';
-import { URL, URLSearchParams, AbortSignal, DOMException, Blob, FormData, atob } from 'zinc:web';
+import { URL, URLSearchParams, AbortSignal, DOMException, Blob, FormData, Event, atob } from 'zinc:web';
 import { utf8Encode, utf8Decode, randomBytes } from 'zinc:sys';
 
 // ================================================================ Headers
@@ -386,10 +386,14 @@ export function fetch(input: unknown, init: RequestInit = {}): Promise<Response>
     let req: Request;
     try { req = new Request(input, init); } catch (e) { reject(e); return; }
     const signal = req.signal;
-    const abortError = (): Error => { const r = signal.reason; return r instanceof Error ? r : new DOMException('This operation was aborted', 'AbortError'); };
-    if (signal.aborted) { reject(abortError()); return; }
+    const abortError = (r: unknown): Error => r instanceof Error ? r : new DOMException('This operation was aborted', 'AbortError');
+    if (signal.aborted) { reject(abortError(signal.reason)); return; }
     let done = false;
-    signal.addEventListener('abort', (e) => { if (!done) { done = true; reject(abortError()); } });
+    // the listener reads the signal from the event: capturing `signal` would make signal -> listener -> signal a cycle
+    signal.addEventListener('abort', (e: Event) => {
+      const t = e.target;
+      if (!done && t instanceof AbortSignal) { done = true; reject(abortError(t.reason)); }
+    });
     const u = new URL(req.url);
     if (u.protocol === 'data:') { done = true; try { resolve(dataUrl(req.url)); } catch (e) { reject(e); } return; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') { done = true; reject(new TypeError(`fetch failed: unsupported scheme ${u.protocol}`)); return; }
