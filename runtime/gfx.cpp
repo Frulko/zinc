@@ -71,7 +71,10 @@ static int32_t pen_n = 0;
 static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncmd, b.text, b.pts}; }
 
 // ---------- runtime overlay (docs/dev-mode.md): red box and console banner, drawn over the program's frame ----------
-struct Overlay { Cmd cmds[64]; char text[4096]; uint32_t ncmd, ntext; };
+#ifndef ZRT_OVERLAY_TEXT
+#define ZRT_OVERLAY_TEXT 4096  // esp32: 1024 (static RAM is scarce there)
+#endif
+struct Overlay { Cmd cmds[64]; char text[ZRT_OVERLAY_TEXT]; uint32_t ncmd, ntext; };
 static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-style strip at the bottom
 static bool ovl_changed = false;  // next present repaints the whole screen
 static double banner_until = 0;
@@ -377,8 +380,11 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
   Buf& b = bufs[cur];
   uint32_t n = (uint32_t)pts.length() / 2;
   if (n < 2) return;
-  static float tmp[4096];
-  if (n > 2048) n = 2048;  // ponytail: long lines are split by the caller (map tiles already are)
+#ifndef ZRT_STROKE_POINTS
+#define ZRT_STROKE_POINTS 2048  // esp32: 512 (its point pool holds 1024 floats anyway)
+#endif
+  static float tmp[ZRT_STROKE_POINTS * 2];
+  if (n > ZRT_STROKE_POINTS) n = ZRT_STROKE_POINTS;  // ponytail: long lines are split by the caller (map tiles already are)
   for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts.get((int32_t)i * 2) + tx); tmp[i * 2 + 1] = (float)(pts.get((int32_t)i * 2 + 1) + ty); }
   Cmd* c = push(raster::POLY, color, alpha);
   if (!c) return;

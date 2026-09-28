@@ -17,7 +17,9 @@ import { flash, serialMonitor } from './flash.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean;
   /** esp32 only (docs/boards.md): ESP-IDF chip (esp32, esp32s3), PSRAM for the Zinc heap, flash size ("4MB"). */
-  chip?: string; psram?: boolean; flashSize?: string }
+  chip?: string; psram?: boolean; flashSize?: string;
+  /** esp32 only: extra sdkconfig.defaults lines, e.g. { "CONFIG_FREERTOS_HZ": 1000, "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true }. */
+  sdkconfig?: Record<string, string | number | boolean> }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
 const PROFILES: Record<string, Profile> = {
   macos: { number: 'f64', width: 320, height: 240, typing: 'gradual', heap: 512 << 20 },
@@ -485,14 +487,14 @@ const ESP_MOD_REQUIRES: Record<string, string[]> = {
 };
 /** esp32 chip / PSRAM / flash settings (zinc.json targets.esp32 chip, psram, flashSize, or a board preset; env
  *  ZINC_ESP_CHIP overrides the chip, e.g. to run the conformance tests on esp32s3 in QEMU). docs/boards.md */
-export function espChip(o: Opts): { chip: string; psram: boolean; flashSize?: string } {
+export function espChip(o: Opts): { chip: string; psram: boolean; flashSize?: string; sdkconfig: Record<string, string | number | boolean> } {
   const prof = PROFILES[o.profile];
-  return { chip: process.env.ZINC_ESP_CHIP || prof.chip || 'esp32', psram: !!prof.psram, flashSize: prof.flashSize };
+  return { chip: process.env.ZINC_ESP_CHIP || prof.chip || 'esp32', psram: !!prof.psram, flashSize: prof.flashSize, sdkconfig: prof.sdkconfig ?? {} };
 }
 function espBuild(o: Opts, dir: string, res: CppResult, sema: Sema, tc: number, t0: number, heap: number, ps: BuildSettings): Built {
   const idf = path.join(dir, 'idf');
   fs.mkdirSync(path.join(idf, 'main'), { recursive: true });
-  const { chip, psram, flashSize } = espChip(o);
+  const { chip, psram, flashSize, sdkconfig } = espChip(o);
   // PSRAM: the TLSF heap lives in external RAM (targets/esp32/hal_esp32.cpp); 1 MiB unless zinc.json sets `heap`
   if (psram && o.project.targets[o.profile]?.heap === undefined) heap = 1 << 20;
   // TGT-ESP variants: prefer runtime/mod/<name>_esp32.cpp over the host/sim runtime/mod/<name>.cpp.
@@ -514,7 +516,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_CLIP_CORNER_PX=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_CLIP_CORNER_PX=1024 -DZRT_STROKE_POINTS=512 -DZRT_OVERLAY_TEXT=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -534,7 +536,7 @@ storage,  data, spiffs,  ,        512K,
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 CONFIG_ESP_TASK_WDT_EN=n
 CONFIG_LOG_DEFAULT_LEVEL_ERROR=y
-${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}${flashSize ? `CONFIG_ESPTOOLPY_FLASHSIZE_${flashSize.toUpperCase()}=y\n` : ''}${chip === 'esp32s3' ? 'CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y\n' : ''}${psram ? `CONFIG_SPIRAM=y\n${chip === 'esp32s3' ? 'CONFIG_SPIRAM_MODE_QUAD=y\n' : ''}CONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_IGNORE_NOTFOUND=y\nCONFIG_SPIRAM_USE_CAPS_ALLOC=y\n` : ''}`;
+${usesFs ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n' : ''}${flashSize ? `CONFIG_ESPTOOLPY_FLASHSIZE_${flashSize.toUpperCase()}=y\n` : ''}${chip === 'esp32s3' ? 'CONFIG_ESP_CONSOLE_UART_DEFAULT=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y\n' : ''}${psram ? `CONFIG_SPIRAM=y\n${chip === 'esp32s3' ? 'CONFIG_SPIRAM_MODE_QUAD=y\n' : ''}CONFIG_SPIRAM_SPEED_80M=y\nCONFIG_SPIRAM_IGNORE_NOTFOUND=y\nCONFIG_SPIRAM_USE_CAPS_ALLOC=y\n` : ''}${Object.entries(sdkconfig).map(([k, v]) => `${k}=${v === true ? 'y' : v === false ? 'n' : typeof v === 'string' ? JSON.stringify(v) : v}\n`).join('')}`;
   writeIfChanged(path.join(idf, 'sdkconfig.defaults'), defaults);
   // `idf.py set-target` when the chip or the defaults changed: sdkconfig is generated from the defaults only once
   const stamp = path.join(idf, '.zinc-target'), want = `${chip} ${fnv(defaults)}`;
