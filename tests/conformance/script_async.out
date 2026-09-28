@@ -1,0 +1,12 @@
+main -> 41 start 4 / got 40 from host / RangeError: no way
+eval async -> 40
+plain value -> no promise
+rejected -> error TypeError: rejected
+late -> error TypeError 1
+6 (k=3) mod loaded
+missing -> error ReferenceError ReferenceError: could not load module 'missing.js'
+throws -> error Error: module failed 2
+syntax -> syntax 1
+async loop -> timeout
+still usable -> 2
+disposed -> host Error: zinc:script: the script was disposed

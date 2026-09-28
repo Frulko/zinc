@@ -15,7 +15,24 @@ const PADDLE_DEMO_SPEED = 300;    // px/s in attract mode
 const ATTRACT_DELAY = 2;          // idle seconds on the title screen before the demo starts
 const MAX_BOUNCE_ANGLE = 1.1;     // radians from vertical at the paddle's edges
 
+/** The tunable rules. DefaultRules is the game as shipped; examples/scripting/breakout-mods swaps in a JavaScript
+ *  mod (zinc:script) that implements the same interface. */
+export interface Rules {
+  /** Ball speed (px/s) when a level starts. */
+  serveSpeed(level: i32): number;
+  /** Ball speed after it breaks a brick. */
+  speedUp(speed: number): number;
+  /** Points for a brick worth `base`, `combo` bricks after the last paddle hit. */
+  points(base: i32, level: i32, combo: i32): i32;
+}
+export class DefaultRules implements Rules {
+  serveSpeed(level: i32): number { return 150 + (level - 1) * 25; }
+  speedUp(speed: number): number { return speed + 1.5; }
+  points(base: i32, level: i32, combo: i32): i32 { return base; }
+}
+
 export class Game {
+  rules: Rules = new DefaultRules();
   phase = Phase.Title;
   bricks: Brick[] = [];
   level: i32 = 1;
@@ -31,6 +48,7 @@ export class Game {
   private vy = 0;
   private speed = 150;
   private idle = 0;
+  private combo: i32 = 0;
 
   constructor() {
     this.startLevel(1);
@@ -94,7 +112,7 @@ export class Game {
   private startLevel(level: i32): void {
     this.level = level;
     this.bricks = buildWall(level);
-    this.speed = 150 + (level - 1) * 25;
+    this.speed = this.rules.serveSpeed(level);
     this.paddleWidth = Math.max(28, 52 - (level - 1) * 4);
   }
 
@@ -149,6 +167,7 @@ export class Game {
     const offset = (this.ballX + BALL_SIZE / 2 - (this.paddleX + this.paddleWidth / 2)) / (this.paddleWidth / 2);
     this.launch(-Math.PI / 2 + offset * MAX_BOUNCE_ANGLE);
     this.ballY = PADDLE_Y - BALL_SIZE;
+    this.combo = 0;
   }
 
   /** Breaks the first brick the ball overlaps and reflects the ball on the axis of least overlap. */
@@ -158,8 +177,9 @@ export class Game {
       const touching = x + BALL_SIZE >= brick.x && x <= brick.x + brick.w && y + BALL_SIZE >= brick.y && y <= brick.y + brick.h;
       if (!brick.alive || !touching) continue;
       brick.alive = false;
-      this.score += brick.points;
-      this.speed += 1.5;
+      this.score += this.rules.points(brick.points, this.level, this.combo);
+      this.combo++;
+      this.speed = this.rules.speedUp(this.speed);
       const overlapX = Math.min(x + BALL_SIZE - brick.x, brick.x + brick.w - x);
       const overlapY = Math.min(y + BALL_SIZE - brick.y, brick.y + brick.h - y);
       if (overlapX < overlapY) this.vx = -this.vx;

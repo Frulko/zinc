@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT, STD_MODULES, resolveModule } from './frontend.ts';
-import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt } from './sema.ts';
+import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isDynFn } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
 
@@ -61,6 +61,11 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       if (ts.isConditionalExpression(orig) && ts.isConditionalExpression(e))
         return f.updateConditionalExpression(e, e.condition, e.questionToken, conv(e.whenTrue, orig.whenTrue, to), e.colonToken, conv(e.whenFalse, orig.whenFalse, to));
       if (to && to.k !== 'dyn' && safeType(orig)?.k === 'dyn') return fromDyn(e, orig, to);
+      // a typed function passed as DynFunction: $z.dynfn converts the Dyn arguments like the C++ adapter
+      if (to && isDynFn(to)) {
+        const from = safeType(orig);
+        if (from?.k === 'fn' && !isDynFn(from)) return callZ('dynfn', [e, f.createArrayLiteralExpression(from.params.map(p => f.createStringLiteral(p.k === 'num' ? p.m : p.k)))]);
+      }
       if (!to || !isNum(to)) return e;
       const from = safeType(orig);
       if (!from || !isNum(from) || from.m === to.m) return e;

@@ -1,0 +1,26 @@
+engine quickjs
+3
+{"a":[1,"two",true,null],"b":{"c":2.5}}
+été undefined 1-4-9
+4 5
+{"n":"demo","s":3,"t":2,"sum":6}
+{"name":"demo","speed":1.5,"tags":["a","b"]} undefined
+hello from the script | 42 255,128,3 10 object/false string/true
+caught host says no
+{"t":1.5,"doubled":3}
+{"t":11,"doubled":22}
+true
+called with 7
+true
+throw error Error 2 boom.js
+reference error ReferenceError 3 ref.js
+syntax syntax SyntaxError 2 bad.js
+call error TypeError 0 
+host error Error 2 host.js
+ScriptError: TypeError: typed TypeError: typed
+Uncaught 42
+loop timeout  0 
+2
+memory memory RangeError 0 
+alive
+disposed host Error 0 

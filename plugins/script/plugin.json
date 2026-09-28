@@ -1,0 +1,15 @@
+{
+  "name": "script",
+  "kind": "module",
+  "module": "zinc:script",
+  "entry": "index.ts",
+  "description": "Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises",
+  "requires": ["heap>=4M"],
+  "targets": {
+    "macos": { "sources": ["vendor/quickjs/quickjs-amalgam.c"] },
+    "linux": { "sources": ["vendor/quickjs/quickjs-amalgam.c"] },
+    "rpi1": { "sources": ["vendor/quickjs/quickjs-amalgam.c"] },
+    "rmpp": { "sources": ["vendor/quickjs/quickjs-amalgam.c"] },
+    "sim": { "nodeFlags": ["--experimental-vm-modules", "--no-warnings=ExperimentalWarning"] }
+  }
+}
