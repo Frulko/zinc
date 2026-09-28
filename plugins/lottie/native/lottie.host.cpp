@@ -722,9 +722,9 @@ static void stroke_piece(const float* p, uint32_t n, bool closed, float hw, int 
 
 // ---------------------------------------------------------------- painting into an op buffer
 // Op buffer: [1, color, alpha, nfloats, contours...] path | [2, x, y, w, h] clip | [3] unclip
-enum { OP_PATH = 1, OP_CLIP = 2, OP_UNCLIP = 3, OP_RECT = 4 };  // rect: [4, color, alpha, x, y, w, h, r]
-static void emit_rect(Vec<float>& out, uint32_t color, float alpha, float x, float y, float w, float h, float r) {
-  float* d = out.add(8); d[0] = OP_RECT; d[1] = (float)color; d[2] = alpha; d[3] = x; d[4] = y; d[5] = w; d[6] = h; d[7] = r;
+enum { OP_PATH = 1, OP_CLIP = 2, OP_UNCLIP = 3, OP_RECT = 4 };  // rect: [4, color, alpha, x, y, w, h, r, color2, grad]
+static void emit_rect(Vec<float>& out, uint32_t color, float alpha, float x, float y, float w, float h, float r, uint32_t c2 = 0, int grad = 0) {
+  float* d = out.add(10); d[0] = OP_RECT; d[1] = (float)color; d[2] = alpha; d[3] = x; d[4] = y; d[5] = w; d[6] = h; d[7] = r; d[8] = (float)c2; d[9] = (float)grad;
 }
 // fill_poly walks every edge of a command for every sub-scanline of its box: big paths with many edges (strokes of
 // large circles) are cut into 16-row bands, each its own command with only its own edges. Clipping each contour to a
@@ -782,17 +782,24 @@ static void band_split(Vec<float>& out, uint32_t head) {
 static void emit_clip(Vec<float>& out, const float* bb) { float* d = out.add(5); d[0] = OP_CLIP; d[1] = bb[0]; d[2] = bb[1]; d[3] = bb[2] - bb[0]; d[4] = bb[3] - bb[1]; }
 static void bbox_add(float* bb, float x, float y) { if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (x > bb[2]) bb[2] = x; if (y > bb[3]) bb[3] = y; }
 
-/** Average colour and opacity of a gradient ([pos, r, g, b] * stops, then [pos, a] * m). ponytail: gradients are
- *  painted flat with their average colour; per-pixel gradients on paths would need rasterizer support. */
+/** Gradient colour at u in [0, 1] ([pos, r, g, b] * stops). */
+static uint32_t gradient_at(const float* g, uint32_t stops, float x) {
+  uint32_t i = 0; while (i + 1 < stops && g[(i + 1) * 4] < x) i++;
+  const float *a = g + i * 4, *b = g + (i + 1 < stops ? i + 1 : i) * 4;
+  float u = b[0] > a[0] ? (x - a[0]) / (b[0] - a[0]) : 0; if (u < 0) u = 0; if (u > 1) u = 1;
+  float c[3];
+  for (int k = 0; k < 3; k++) c[k] = a[1 + k] + (b[1 + k] - a[1 + k]) * u;
+  return rgb(c);
+}
+/** Average colour and opacity of a gradient (then [pos, a] * m opacity stops). ponytail: gradients on paths are
+ *  painted flat with their average colour (rects get a real two-colour gradient): per-pixel gradients on paths
+ *  would need rasterizer support. */
 static uint32_t gradient_avg(const float* g, uint32_t dim, uint32_t stops, float* alpha) {
   if (stops < 1 || stops * 4 > dim) { *alpha = 1; return 0; }
   float acc[3] = {0, 0, 0};
   for (int k = 0; k < 16; k++) {
-    float x = (k + 0.5f) / 16;
-    uint32_t i = 0; while (i + 1 < stops && g[(i + 1) * 4] < x) i++;
-    const float *a = g + i * 4, *b = g + (i + 1 < stops ? i + 1 : i) * 4;
-    float u = b[0] > a[0] ? (x - a[0]) / (b[0] - a[0]) : 0; if (u < 0) u = 0; if (u > 1) u = 1;
-    for (int c = 0; c < 3; c++) acc[c] += (a[1 + c] + (b[1 + c] - a[1 + c]) * u) / 16;
+    uint32_t c = gradient_at(g, stops, (k + 0.5f) / 16);
+    for (int q = 0; q < 3; q++) acc[q] += ((c >> (16 - q * 8)) & 255) / 255.0f / 16;
   }
   float al = 1;
   uint32_t m = (dim - stops * 4) / 2;
@@ -811,6 +818,22 @@ static void paint(const Anim& A, const Op& op, float t, Vec<float>& out) {
     if (!g.dim) return;
     BEZ.n = 0; float* v = BEZ.add(g.dim); eval(A, g, t, v);
     float ga; color = gradient_avg(v, g.dim, it.a, &ga); alpha *= ga;
+    // linear gradient along x or y on an axis-aligned rect: the rasterizer's two-colour rect gradient
+    if (it.ty == GFILL && it.b == 1 && op.i1 == op.i0 + 1 && I[op.i0].box[2] >= 0 && it.a * 4 <= g.dim) {
+      float s2[2], e2[2], S[2], E[2];
+      eval2(A, it.p[2], t, s2, 0, 0); eval2(A, it.p[3], t, e2, 0, 0);
+      apply(op.m, s2[0], s2[1], S); apply(op.m, e2[0], e2[1], E);
+      float dx = E[0] - S[0], dy = E[1] - S[1], L2 = dx * dx + dy * dy;
+      const float* b = I[op.i0].box;
+      bool vert = fabsf(dx) < 0.05f * fabsf(dy), horiz = fabsf(dy) < 0.05f * fabsf(dx);
+      int a8 = (int)(alpha * 255 + 0.5f);
+      if (L2 > 0 && (vert || horiz) && a8 > 0) {
+        float p0x = vert ? S[0] : b[0], p0y = vert ? b[1] : S[1], p1x = vert ? S[0] : b[0] + b[2], p1y = vert ? b[1] + b[3] : S[1];
+        float u0 = ((p0x - S[0]) * dx + (p0y - S[1]) * dy) / L2, u1 = ((p1x - S[0]) * dx + (p1y - S[1]) * dy) / L2;
+        emit_rect(out, gradient_at(v, it.a, u0), (float)(a8 > 255 ? 255 : a8), b[0], b[1], b[2], b[3], b[4], gradient_at(v, it.a, u1), vert ? 1 : 2);
+        return;
+      }
+    }
   }
   int a8 = (int)(alpha * 255 + 0.5f);
   if (a8 <= 0) return;
@@ -968,8 +991,10 @@ static void replay(const Vec<float>& ops, int32_t alpha) {
       zrt::gfx::path(arr, (uint32_t)ops[i + 1], (int32_t)ops[i + 2] * alpha / 255);
       i += 4 + nf;
     } else if (kind == OP_RECT) {
-      zrt::gfx::rrect(ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6], ops[i + 7], (uint32_t)ops[i + 1], (int32_t)ops[i + 2] * alpha / 255);
-      i += 8;
+      int32_t a8 = (int32_t)ops[i + 2] * alpha / 255;
+      if (ops[i + 9] != 0) zrt::gfx::gradient(ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6], ops[i + 7], (uint32_t)ops[i + 1], (uint32_t)ops[i + 8], ops[i + 9] == 1, a8);
+      else zrt::gfx::rrect(ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6], ops[i + 7], (uint32_t)ops[i + 1], a8);
+      i += 10;
     } else if (kind == OP_CLIP) { zrt::gfx::clip(ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4]); i += 5; }
     else { zrt::gfx::unclip(); i++; }
   }

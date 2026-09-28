@@ -11,6 +11,6 @@
     "rmpp": { "defines": ["ZRT_POINT_POOL=262144"] },
     "wasm": { "defines": ["ZRT_POINT_POOL=131072"] },
     "ps2": {},
-    "esp32": {}
+    "esp32": { "defines": ["ZRT_POINT_POOL=4096"], "flags": ["-Wno-error=misleading-indentation", "-Wno-missing-field-initializers"] }
   }
 }
