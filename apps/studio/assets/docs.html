@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZincStudio docs</title>
+<style>
+  :root { --fg: #18181b; --muted: #71717a; --border: #e4e4e7; --bg: #ffffff; --soft: #f4f4f5; --accent: #0284c7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.6 -apple-system, "Inter", system-ui, sans-serif; color: var(--fg); background: var(--bg); display: flex; height: 100vh; }
+  nav { width: 220px; flex: none; border-right: 1px solid var(--border); padding: 14px 10px; overflow-y: auto; background: #fafafa; }
+  nav h2 { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 14px 8px 6px; }
+  nav button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 5px 8px; border-radius: 6px; font: inherit; font-size: 13px; color: var(--fg); cursor: pointer; }
+  nav button:hover { background: var(--soft); }
+  nav button.on { background: #e4e4e7; font-weight: 500; }
+  nav .example { color: var(--accent); }
+  main { flex: 1; overflow-y: auto; padding: 28px 40px 60px; }
+  article { max-width: 760px; }
+  h1 { font-size: 26px; letter-spacing: -.02em; margin: 0 0 12px; }
+  h2 { font-size: 19px; margin: 28px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  code { font: 12.5px/1.5 "JetBrains Mono", ui-monospace, Menlo, monospace; background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+  pre { background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  th, td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; vertical-align: top; }
+  th { background: #fafafa; }
+  a { color: var(--accent); }
+  .status { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<nav>
+  <h2>Documentation</h2>
+  <div id="docs"></div>
+  <h2>Examples</h2>
+  <div id="examples"></div>
+</nav>
+<main><div class="status" id="status">Loading...</div><article id="doc"></article></main>
+<script>
+// Docs page of ZincStudio: every call below goes through window.zinc (injected by zinc:webview).
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// A small Markdown renderer: headings, fenced code, tables, lists, paragraphs, inline code, bold, links.
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="#" data-href="$2">$1</a>');
+}
+function markdown(md) {
+  const lines = md.split('\n'), out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith('```')) {
+      const code = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
+      i++;
+      out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>');
+      continue;
+    }
+    const h = /^(#{1,4})\s+(.*)$/.exec(l);
+    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (l.startsWith('|')) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+      const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+      let html = '<table><tr>' + cells(rows[0]).map((c) => `<th>${c}</th>`).join('') + '</tr>';
+      for (const r of rows.slice(2)) html += '<tr>' + cells(r).map((c) => `<td>${c}</td>`).join('') + '</tr>';
+      out.push(html + '</table>');
+      continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const items = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+        let item = lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, '');
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s+/.test(lines[i])) item += ' ' + lines[i++].trim();
+        items.push(`<li>${inline(item)}</li>`);
+      }
+      out.push('<ul>' + items.join('') + '</ul>');
+      continue;
+    }
+    if (l.trim() === '') { i++; continue; }
+    const para = [];
+    while (i < lines.length && lines[i].trim() !== '' && !/^(#|```|\||\s*[-*]\s)/.test(lines[i])) para.push(lines[i++]);
+    out.push('<p>' + inline(para.join(' ')) + '</p>');
+  }
+  return out.join('\n');
+}
+
+let current = '';
+async function openDoc(path) {
+  current = path;
+  for (const b of $('docs').children) b.className = b.dataset.path === path ? 'on' : '';
+  try {
+    const md = await zinc.invoke('readDoc', path);
+    $('doc').innerHTML = markdown(md);
+    $('status').textContent = path;
+    document.querySelector('main').scrollTop = 0;
+  } catch (e) { $('status').textContent = 'error: ' + e.message; }
+}
+
+async function init() {
+  const docs = await zinc.invoke('listDocs');
+  for (const d of docs) {
+    const b = document.createElement('button');
+    b.textContent = d.replace(/^apps\/studio\//, 'studio/');
+    b.dataset.path = d;
+    b.onclick = () => openDoc(d);
+    $('docs').appendChild(b);
+  }
+  for (const name of await zinc.invoke('listExamples')) {
+    const b = document.createElement('button');
+    b.className = 'example';
+    b.textContent = 'Open ' + name;
+    // the Tauri-like bridge: a page button that makes the native app open a project
+    b.onclick = async () => { $('status').textContent = await zinc.invoke('openExample', name); };
+    $('examples').appendChild(b);
+  }
+  if (docs.length > 0) openDoc(docs[0]);
+}
+// links between docs: open them in place when they are in the list
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-href]');
+  if (!a) return;
+  e.preventDefault();
+  const href = a.dataset.href;
+  const base = current.includes('/') ? current.slice(0, current.lastIndexOf('/') + 1) : '';
+  const target = [...$('docs').children].map((b) => b.dataset.path).find((p) => p === href || p === base + href || p.endsWith('/' + href.replace(/^(\.\.\/)+/, '')));
+  if (target) openDoc(target);
+});
+init().catch((e) => { $('status').textContent = 'bridge error: ' + e.message; });
+</script>
+</body>
+</html>

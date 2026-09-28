@@ -1,0 +1,210 @@
+// Code generation: diagram -> a readable, event-driven Zinc program (build/src/main.ts).
+//
+// Every box becomes one section of the program:
+//   <id>_in_<port>(v?)   one function per input: the box's handler for that port (library.ts templates)
+//   <id>_out_<port>(v?)  one function per output: calls every input linked to it (links are plain function calls)
+// Signal ports carry no data; value ports pass a number or a string (converted when the two ends differ).
+// The diagram bars are diagram_onStart() (called at startup) and diagram_onStopped().
+import { BoxDef, boxDef, PortDef, DEFAULT_SCRIPT } from './library';
+import { ProjectFile, BoxFile, LinkFile, join } from './project';
+import * as fs from 'zinc:fs';
+
+export class GenResult {
+  code: string = '';
+  zincJson: string = '';
+  warnings: string[] = [];
+  /** Zinc modules the program imports (zinc:ui, zinc:lottie...), for target checks. */
+  modules: string[] = [];
+}
+
+/** Literal of a parameter value: numbers as is, bools true/false, everything else quoted. */
+export function literal(def: BoxDef, name: string, value: string): string {
+  const p = def.param(name);
+  if (p === null) return JSON.stringify(value);
+  // invalid or out of range (the inspector shows why): the box default
+  if (p.type === 'number') { const n = parseFloat(value); return isNaN(n) || n < p.min || n > p.max ? p.def : `${n}`; }
+  if (p.type === 'bool') return value === 'true' ? 'true' : 'false';
+  return JSON.stringify(value);
+}
+export function paramValue(b: BoxFile, def: BoxDef, name: string): string {
+  for (const p of b.params) if (p.name === name) return p.value;
+  const d = def.param(name);
+  return d !== null ? d.def : '';
+}
+/** Identifier-safe box id (ids are b1, b2... but files may be edited by hand). */
+function ident(id: string): string {
+  let s = '';
+  for (let i = 0; i < id.length; i++) {
+    const c = id.charCodeAt(i);
+    const ok = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+    s += ok ? id.slice(i, i + 1) : '_';
+  }
+  return s;
+}
+function indent(code: string, pad: string): string {
+  return code.split('\n').map((l: string) => l.length > 0 ? pad + l : l).join('\n');
+}
+/** Replaces the template tokens of library.ts for one box. */
+export function expand(tpl: string, b: BoxFile, def: BoxDef): string {
+  const id = ident(b.id);
+  let s = tpl.replaceAll('{id}', id);
+  for (const p of def.params) {
+    const v = paramValue(b, def, p.name);
+    s = s.replaceAll(`{p:${p.name}}`, literal(def, p.name, v)).replaceAll(`{raw:${p.name}}`, v);
+  }
+  for (const o of def.outputs) s = s.replaceAll(`{emit:${o.name}}`, `${id}_out_${o.name}`);
+  return s;
+}
+/** zinc:net -> net, zinc:ui/solid -> solid. */
+function alias(mod: string): string { const parts = mod.slice(mod.indexOf(':') + 1).split('/'); return parts[parts.length - 1].replaceAll('-', '_'); }
+function valueType(p: PortDef): string { return p.type === 'number' ? 'number' : 'string'; }
+function label(b: BoxFile, def: BoxDef): string { return b.title !== '' && b.title !== def.title ? `${def.title} "${b.title}"` : def.title; }
+
+/** Program text for a project. Boxes are emitted in reading order (left to right, then top to bottom). */
+export function generate(p: ProjectFile, source: string): GenResult {
+  const r = new GenResult();
+  const boxes = p.boxes.slice().sort((a: BoxFile, c: BoxFile) => a.x !== c.x ? a.x - c.x : a.y - c.y);
+  const defs = new Map<string, BoxDef>();
+  const byId = new Map<string, BoxFile>();
+  let screen = false;
+  for (const b of boxes) {
+    const d = boxDef(b.type);
+    if (d === null) { r.warnings.push(`box ${b.id}: unknown type "${b.type}" (skipped)`); continue; }
+    defs.set(b.id, d);
+    byId.set(b.id, b);
+    if (d.screen) screen = true;
+    for (const m of d.modules) if (r.modules.indexOf(m) < 0) r.modules.push(m);
+    if (d.type === 'script') for (const m of scriptModules(paramValue(b, d, 'modules'))) if (r.modules.indexOf(m) < 0) r.modules.push(m);
+  }
+  // valid links only: both ends exist, ports exist, kinds compatible
+  const links: LinkFile[] = [];
+  for (const l of p.links) {
+    const src = l.from === '@start' ? (l.out === 'onStart' ? new PortDef('onStart', 'signal', '') : null) : outPort(defs, l.from, l.out);
+    const dst = l.to === '@end' ? (l.inp === 'onStopped' ? new PortDef('onStopped', 'signal', '') : null) : inPort(defs, l.to, l.inp);
+    if (src === null || dst === null) { r.warnings.push(`link ${l.from}.${l.out} -> ${l.to}.${l.inp}: missing box or port (skipped)`); continue; }
+    if (src.isSignal && !dst.isSignal) { r.warnings.push(`link ${l.from}.${l.out} -> ${l.to}.${l.inp}: a signal cannot feed a value input (skipped)`); continue; }
+    links.push(l);
+  }
+  const usesVideo = r.modules.indexOf('zinc:video') >= 0;
+  const mods = r.modules.slice();
+  if ((usesVideo || !screen) && mods.indexOf('zinc:sys') < 0) mods.push('zinc:sys');
+
+  const out: string[] = [];
+  out.push(`// ${p.name} — generated by ZincStudio from ${source}.`);
+  out.push('// Do not edit: the studio rewrites this file on every build. Each section below is one box of the diagram;');
+  out.push('// <box>_in_<port>() runs the box for an input, <box>_out_<port>() calls the inputs linked to an output.');
+  for (const m of mods) out.push(`import * as ${alias(m)} from '${m}';`);
+  out.push('');
+  if (screen) {
+    section(out, 'stage: the screen boxes stack here, centered');
+    out.push('const stage = ui.createNode(ui.VIEW);');
+    out.push("ui.setClass(stage, 'w-full h-full flex-col items-center justify-center gap-4 p-6 bg-white');");
+    out.push('function show(n: i32): void { ui.insert(stage, n, -1); }');
+    out.push('');
+  }
+  if (usesVideo) out.push("/** Video files are read from disk: the project's assets folder (ZINC_ASSETS) or ./assets. */\nconst ASSETS = sys.env('ZINC_ASSETS') !== '' ? sys.env('ZINC_ASSETS') + '/' : 'assets/';\n");
+
+  section(out, 'diagram bars');
+  out.push('/** Start bar: fired once when the program starts. */');
+  out.push(`function diagram_onStart(): void {${calls(links, byId, defs, '@start', 'onStart', null)}}`);
+  out.push('/** End bar (onStopped): the behavior is over. */');
+  out.push('function diagram_onStopped(): void {');
+  out.push("  console.info('[flow] behavior stopped');");
+  if (!screen) out.push('  sys.exit(0);  // no screen: the program ends with the behavior');
+  out.push('}');
+  out.push('');
+
+  for (const b of boxes) {
+    const def = defs.get(b.id);
+    if (def === undefined) continue;
+    const id = ident(b.id);
+    section(out, `${label(b, def)} [${b.id}]`);
+    if (def.setup !== '') out.push(expand(def.setup, b, def));
+    for (const inp of def.inputs) {
+      let body = def.type === 'script' && inp.name === 'onStart'
+        ? `const onDone = (): void => { ${id}_out_onDone(); };\n// ---- script\n${b.script !== '' ? b.script : DEFAULT_SCRIPT}`
+        : expand(def.handler(inp.name), b, def);
+      if (body.trim() === '') body = '// no handler';
+      const sig = inp.isSignal ? '' : `v: ${valueType(inp)}`;
+      out.push(`function ${id}_in_${inp.name}(${sig}): void {\n${indent(body.trim(), '  ')}\n}`);
+    }
+    for (const o of def.outputs) {
+      const sig = o.isSignal ? '' : `v: ${valueType(o)}`;
+      out.push(`function ${id}_out_${o.name}(${sig}): void {${calls(links, byId, defs, b.id, o.name, o)}}`);
+    }
+    out.push('');
+  }
+
+  section(out, 'start');
+  if (screen) out.push(`ui.mount(stage, 0xffffff, null);`);
+  for (const b of boxes) {
+    const def = defs.get(b.id);
+    if (def !== undefined && def.start !== '') { out.push(`// ${label(b, def)} [${b.id}]`); out.push(expand(def.start, b, def)); }
+  }
+  out.push('diagram_onStart();');
+  r.code = out.join('\n') + '\n';
+  r.zincJson = zincJson(p);
+  return r;
+}
+
+/** A Script box's `modules` parameter: 'zinc:net, zinc:gpio' -> valid module names only (letters, digits, - and /). */
+function scriptModules(spec: string): string[] {
+  const out: string[] = [];
+  for (const w of spec.replaceAll(',', ' ').split(' ')) {
+    if (!w.startsWith('zinc:') || w.length < 6) continue;
+    let ok = true;
+    for (let i = 5; i < w.length; i++) {
+      const c = w.charCodeAt(i);
+      if (!((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 47)) ok = false;
+    }
+    if (ok) out.push(w);
+  }
+  return out;
+}
+function section(out: string[], title: string): void {
+  out.push(`// ${'-'.repeat(Math.max(4, 72 - title.length))} ${title}`);
+}
+function outPort(defs: Map<string, BoxDef>, id: string, port: string): PortDef | null {
+  const d = defs.get(id);
+  return d === undefined ? null : d.output(port);
+}
+function inPort(defs: Map<string, BoxDef>, id: string, port: string): PortDef | null {
+  const d = defs.get(id);
+  return d === undefined ? null : d.input(port);
+}
+/** Body of an output function: one call per linked input, with a comment naming the target box. */
+function calls(links: LinkFile[], byId: Map<string, BoxFile>, defs: Map<string, BoxDef>, from: string, port: string, src: PortDef | null): string {
+  const lines: string[] = [];
+  for (const l of links) {
+    if (l.from !== from || l.out !== port) continue;
+    if (l.to === '@end') { lines.push('  diagram_onStopped();  // -> end bar'); continue; }
+    const b = byId.get(l.to), def = defs.get(l.to);
+    if (b === undefined || def === undefined) continue;
+    const dst = def.input(l.inp);
+    if (dst === null) continue;
+    let arg = '';
+    if (!dst.isSignal && src !== null && !src.isSignal) {
+      arg = src.type === dst.type ? 'v' : dst.type === 'number' ? 'parseFloat(v)' : '`${v}`';
+    }
+    lines.push(`  ${ident(l.to)}_in_${l.inp}(${arg});  // -> ${label(b, def)}.${l.inp}`);
+  }
+  return lines.length === 0 ? ' /* not connected */ ' : '\n' + lines.join('\n') + '\n';
+}
+
+/** zinc.json of the generated app: screen size per target, assets shared with the project folder. */
+function zincJson(p: ProjectFile): string {
+  let name = '';
+  for (let i = 0; i < p.name.length; i++) { const c = p.name.slice(i, i + 1); name += c === ' ' ? '-' : c; }
+  const size = `{ "width": ${p.width}, "height": ${p.height} }`;
+  return `{\n  "name": ${JSON.stringify(name.toLowerCase())},\n  "entry": "src/main.ts",\n  "assets": "../assets",\n  "targets": {\n    "macos": ${size},\n    "linux": ${size},\n    "rpi1": ${size},\n    "sim": ${size}\n  }\n}\n`;
+}
+
+/** Writes build/zinc.json and build/src/main.ts into the project folder; returns the generation result. */
+export function writeBuild(dir: string, p: ProjectFile): GenResult {
+  const r = generate(p, 'project.json');
+  fs.mkdir(join(dir, 'build'));
+  fs.mkdir(join(dir, 'build/src'));
+  fs.writeText(join(dir, 'build/zinc.json'), r.zincJson);
+  fs.writeText(join(dir, 'build/src/main.ts'), r.code);
+  return r;
+}
