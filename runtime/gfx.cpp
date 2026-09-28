@@ -43,22 +43,135 @@ static HalPen pen_q[ZRT_PEN_SAMPLES];  // samples pushed since the last frame
 static int32_t pen_n = 0;
 
 static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncmd, b.text, b.pts}; }
+
+// ---------- runtime overlay (docs/dev-mode.md): red box and console banner, drawn over the program's frame ----------
+struct Overlay { Cmd cmds[64]; char text[4096]; uint32_t ncmd, ntext; };
+static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-style strip at the bottom
+static bool ovl_changed = false;  // next present repaints the whole screen
+static double banner_until = 0;
+static int32_t banner_count = 0;
+static raster::Frame ovl_frame(const Overlay& o) { return raster::Frame{o.cmds, o.ncmd, o.text, nullptr}; }
+static int32_t ovl_k() { return surf_w >= 960 ? 2 : 1; }  // text scale: 8 px cells, 16 px on large screens
+static Cmd* ovl_push(Overlay& o, uint8_t kind, uint32_t color) {
+  if (o.ncmd == sizeof o.cmds / sizeof o.cmds[0]) return nullptr;
+  Cmd* c = &o.cmds[o.ncmd++];
+  __builtin_memset(c, 0, sizeof(Cmd));
+  c->kind = kind; c->c1 = color; c->alpha = 255;
+  return c;
+}
+static void ovl_rect(Overlay& o, float x, float y, float w, float h, uint32_t color) {
+  if (Cmd* c = ovl_push(o, raster::RECT, color)) { c->x = x; c->y = y; c->w = w; c->h = h; }
+}
+static void ovl_text(Overlay& o, float x, float y, const char* s, uint32_t n, uint32_t color) {
+  static const char grid[] = "grid";
+  if (o.ntext + n > sizeof o.text) return;
+  Cmd* c = ovl_push(o, raster::TEXT, color);
+  if (!c) return;
+  int32_t f = raster::find_font(grid, 4, 8 * ovl_k());
+  __builtin_memcpy(o.text + o.ntext, s, n);
+  c->res = f; c->off = o.ntext; c->n = n; c->x = x; c->y = y;
+  c->w = (float)(raster::text_advance(f, s, n, 0) / 64.0); c->h = (float)(10 * ovl_k());
+  o.ntext += n;
+}
+/** Word-wrapped paragraph; returns the y below it. */
+static float ovl_para(Overlay& o, float x, float y, const char* s, uint32_t n, uint32_t color, int max_lines) {
+  int32_t k = ovl_k(), cols = (surf_w - (int32_t)x - 4 * k) / (8 * k);
+  if (cols < 8) cols = 8;
+  while (n && max_lines-- > 0) {
+    uint32_t len = n <= (uint32_t)cols ? n : (uint32_t)cols;
+    if (len < n) { uint32_t sp = len; while (sp > 0 && s[sp] != ' ') sp--; if (sp > 0) len = sp; }
+    ovl_text(o, x, y, s, len, color);
+    y += 10 * k;
+    s += len; n -= len;
+    while (n && *s == ' ') { s++; n--; }
+  }
+  return y;
+}
+static void banner_expire() {
+  if (banner.ncmd && now_ms() > banner_until) { banner.ncmd = banner.ntext = 0; banner_count = 0; ovl_changed = true; }
+}
+/** Shows the red box for `text` ("message\n    at f (file:line)..."); null clears it. False: no screen. */
+bool crash_screen(const char* text, uint32_t n) {
+  rbox.ncmd = rbox.ntext = 0;
+  ovl_changed = true;
+  if (!text) return true;
+  int32_t k = ovl_k();
+  float pad = 6.0f * k, y;
+  ovl_rect(rbox, 0, 0, (float)surf_w, (float)surf_h, 0xb91c1c);
+  ovl_rect(rbox, 0, 0, (float)surf_w, 14.0f * k, 0x7f1d1d);
+  static const char title[] = "Zinc: uncaught error";
+  ovl_text(rbox, pad, 3.0f * k, title, sizeof title - 1, 0xfecaca);
+  y = 20.0f * k;
+  uint32_t i = 0;
+  while (i < n && text[i] != '\n') i++;
+  y = ovl_para(rbox, pad, y, text, i, 0xffffff, 6) + 6.0f * k;
+  while (i < n) {  // stack lines
+    uint32_t j = ++i;
+    while (i < n && text[i] != '\n') i++;
+    while (j < i && text[j] == ' ') j++;
+    if (y + 24.0f * k < surf_h) y = ovl_para(rbox, pad, y, text + j, i - j, 0xfde2e2, 2);
+  }
+#ifdef ZRT_DEV
+  static const char hint[] = "Save a file to reload. Enter/Space/click: restart";
+#else
+  static const char hint[] = "Enter/Space/click: restart";
+#endif
+  ovl_para(rbox, pad, (float)surf_h - 38.0f * k, hint, sizeof hint - 1, 0xfecaca, 2);
+  return true;
+}
+/** console.warn/error in dev builds: a yellow strip at the bottom, hidden after 8 s. */
+void log_banner(int, const char* s, uint32_t n) {
+  int32_t k = ovl_k();
+  float h = 14.0f * k, y = (float)surf_h - h;
+  uint32_t len = 0;
+  while (len < n && s[len] != '\n') len++;
+  banner.ncmd = banner.ntext = 0;
+  banner_count++;
+  ovl_rect(banner, 0, y, (float)surf_w, h, 0xfacc15);
+  char head[16], dig[12];
+  int p = 0, dn = 0;
+  int32_t v = banner_count;
+  do { dig[dn++] = (char)('0' + v % 10); v /= 10; } while (v && dn < 10);
+  head[p++] = '!'; head[p++] = ' ';
+  while (dn) head[p++] = dig[--dn];
+  head[p++] = ' ';
+  ovl_text(banner, 4.0f * k, y + 3.0f * k, head, (uint32_t)p, 0x7c2d12);
+  int32_t cols = (surf_w - (p + 1) * 8 * k) / (8 * k);
+  if (cols > 0) ovl_text(banner, 4.0f * k + p * 8.0f * k, y + 3.0f * k, s, len < (uint32_t)cols ? len : (uint32_t)cols, 0x1c1917);
+  banner_until = now_ms() + 8000;
+  ovl_changed = true;
+}
+
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
-  raster::render(frame_of(*shown), rows, surf_w, y0, y1, raster::Rect{0, y0, surf_w, y1});
+  raster::Rect all{0, y0, surf_w, y1};
+  if (shown) raster::render(frame_of(*shown), rows, surf_w, y0, y1, all);
+  else for (int32_t i = 0; i < (y1 - y0) * surf_w; i++) rows[i] = 0;
+  if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, surf_w, y0, y1, all);
+  if (banner.ncmd) raster::render(ovl_frame(banner), rows, surf_w, y0, y1, all);
+}
+/** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
+void present_overlay() {
+  banner_expire();
+  HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows};
+  ovl_changed = false;
+  present(&f);
 }
 
 void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; }
 void keep() { kept = true; }
 void end_frame() {
   pen_n = 0;
+  banner_expire();
   if (kept && !first) {  // retained frame: no rasterization, no swap
-    HalFrame f = {surf_w, surf_h, 0, 0, 0, 0, render_rows};
+    HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows};
+    ovl_changed = false;
     present(&f);
     return;
   }
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
-  raster::Rect d = first ? raster::Rect{0, 0, surf_w, surf_h} : raster::diff(frame_of(before), frame_of(now), surf_w, surf_h);
+  raster::Rect d = first || ovl_changed ? raster::Rect{0, 0, surf_w, surf_h} : raster::diff(frame_of(before), frame_of(now), surf_w, surf_h);
+  ovl_changed = false;
   first = false;
   shown = &now;
   stats.draw_cmds = now.ncmd;

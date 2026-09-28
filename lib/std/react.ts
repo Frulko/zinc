@@ -144,7 +144,7 @@ export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
 /** A component instance: renders into `host` (a fragment) and re-renders on state changes. Inside a parent render,
  *  the previous instance with the same component name and key keeps its state. */
-export function _rc(host: i32, render: () => i32, name: string, key: string): void {
+export function _rc(host: i32, render: () => i32, name: string = '', key: string = ''): void {
   const parent = cur;
   let inst: Instance | null = null;
   if (parent !== null) {

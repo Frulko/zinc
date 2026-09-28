@@ -8,7 +8,7 @@ import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
 import { initProject, exportApp, dev, monitor } from './tools.ts';
 import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
-import { activePlugins, buildSettings, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
+import { activePlugins, buildSettings, discover, listPlugins, projectDir, type BuildSettings } from './plugins.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
@@ -26,11 +26,12 @@ const PROFILES: Record<string, Profile> = {
 };
 
 
-interface Project { name: string; dir: string; assets?: string; targets: Record<string, Partial<Profile>> }
-interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; device?: string }
+interface Project { name: string; dir: string; assets?: string; crash?: string; targets: Record<string, Partial<Profile>> }
+/** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
+export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string }
 
 function parseArgs(argv: string[]): Opts {
-  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [] };
+  const o: Opts = { project: { name: '', dir: '', targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
@@ -43,8 +44,11 @@ function parseArgs(argv: string[]): Opts {
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
     else if (a === '--json') o.json = true;
     else if (a === '--no-float') o.noFloat = true;
-    else if (a === '--update' || a === '--print-exe') { /* handled by the command */ }
+    else if (a === '--dev') o.dev = true;
+    else if (a === '--devtools') o.devtools = true;
     else if (a === '--device') o.device = argv[++i];
+    else if (a.startsWith('--device=')) o.device = a.slice(9);
+    else if (a === '--update' || a === '--print-exe' || a === '--no-devtools') { /* handled by the command */ }
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
@@ -69,7 +73,7 @@ function loadProject(entry: string): Project {
     const f = path.join(dir, 'zinc.json');
     if (fs.existsSync(f)) {
       const j = JSON.parse(fs.readFileSync(f, 'utf8'));
-      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), targets: j.targets ?? {} };
+      return { name: j.name ?? path.basename(dir), dir, assets: path.join(dir, j.assets ?? 'assets'), crash: j.crash, targets: j.targets ?? {} };
     }
     dir = path.dirname(dir);
   }
@@ -77,38 +81,47 @@ function loadProject(entry: string): Project {
   return { name: path.basename(d), dir: d, assets: fs.existsSync(path.join(d, 'assets')) ? path.join(d, 'assets') : undefined, targets: {} };
 }
 
-function die(msg: string): never { console.error(`zinc: ${msg}`); process.exit(2); }
+/** Build errors end the command; `zinc dev` builds in process and catches them (tools.ts). */
+export class Exit extends Error { code: number; constructor(code: number) { super(`exit ${code}`); this.code = code; } }
+function exit(code: number): never { throw new Exit(code); }
+function die(msg: string): never { console.error(`zinc: ${msg}`); exit(2); }
 
 function printDiags(ds: Diag[], json: boolean) {
   if (json) { console.log(JSON.stringify(ds.map(d => ({ uri: d.file, range: { start: { line: d.line - 1, character: d.col - 1 } }, code: d.code, severity: d.severity === 'error' ? 1 : 2, message: d.message })), null, 2)); return; }
   for (const d of ds) console.error(`${d.file}:${d.line}:${d.col} - ${d.severity} ${d.code}: ${d.message}`);
 }
 
+/** plugins/devtools entry (UI inspector, docs/dev-mode.md), when visible from the project. */
+function devtoolsEntry(o: Opts): string[] {
+  const p = discover(projectDir(o.entry)).find(x => x.name === 'devtools');
+  return p?.entry && path.resolve(p.entry) !== path.resolve(o.entry) ? [p.entry] : [];
+}
+
 /** Frontend + Sema. Exits on the first error (CMP-03). */
 function analyze(o: Opts): Sema {
-  const fe = loadProgram(o.entry);
-  if (fe.tsDiagnostics.length) { printDiags(fe.tsDiagnostics, o.json); process.exit(1); }
+  const fe = loadProgram(o.entry, o.devtools ? devtoolsEntry(o) : []);
+  if (fe.tsDiagnostics.length) { printDiags(fe.tsDiagnostics, o.json); exit(1); }
   const prof = PROFILES[o.profile];
   try {
     const sema = new Sema(fe, path.dirname(path.resolve(o.entry)), { numberKind: prof.number, typing: prof.typing, warnFloat: !!prof.noFpu, noFloat: o.noFloat, heap0: false });
     if (!o.json) printDiags(sema.warnings, false);
     return sema;
   } catch (e) {
-    if (e instanceof ZincError) { printDiags([e.diag], o.json); process.exit(1); }
+    if (e instanceof ZincError) { printDiags([e.diag], o.json); exit(1); }
     throw e;
   }
 }
 
 function guard<T>(o: Opts, f: () => T): T {
   try { return f(); } catch (e) {
-    if (e instanceof ZincError) { printDiags([e.diag], o.json); process.exit(1); }
+    if (e instanceof ZincError) { printDiags([e.diag], o.json); exit(1); }
     throw e;
   }
 }
 
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
-  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.debug ? '-debug' : '');
+  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '');
   return path.join(path.dirname(path.resolve(o.entry)), 'build', name);
 }
 
@@ -118,7 +131,9 @@ function writeIfChanged(file: string, content: string) {
 }
 
 const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl', gpio_linux: 'libgpiod' };
-function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings): string {
+/** crash: ZRT_CRASH policy; hot: the program is a shared library run by runtime/dev_host.cpp (zinc dev). */
+interface BuildMode { dev: boolean; hot: boolean; crash: number }
+function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, target: string, ps: BuildSettings, mode: BuildMode): string {
   const usesGfx = res.usesGfx;
   // linux/rpi1: libgpiod (env ZRT_GPIOD, matching -DZRT_GPIOD passed to the compile below) picks
   // runtime/mod/gpio_linux.cpp over the simulator in gpio.cpp; gpio_linux.cpp itself falls back
@@ -131,7 +146,10 @@ function cmakeLists(dir: string, res: CppResult, debug: boolean, heap: number, t
   const rel = (f: string) => '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, f);
   const z = '${CMAKE_CURRENT_SOURCE_DIR}/' + path.relative(dir, ZINC_ROOT);
 
+  if (mode.dev) debug = false;
   const san = debug ? '-fsanitize=address,undefined -fno-omit-frame-pointer' : '';
+  const opt = mode.dev ? '-g -O0 -DZRT_DEV' : debug ? `-g -O0 -DZRT_DEBUG ${san}` : '-O2 -ffunction-sections -fdata-sections';
+  const hot = mode.hot;
   const q = (x: string) => `"${x.replace(/"/g, '\\"')}"`;
   return `# Generated by zinc. Do not edit.
 cmake_minimum_required(VERSION 3.20)
@@ -139,8 +157,8 @@ project(zinc_app CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -fno-threadsafe-statics -DZRT_HEAP_BYTES=${heap}u${gpiod ? ' -DZRT_GPIOD' : ''} ${debug ? `-g -O0 -DZRT_DEBUG ${san}` : '-O2 -ffunction-sections -fdata-sections'})
-add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp${mods.map(m => ` ${z}/runtime/mod/${m}.cpp`).join('')})
+set(ZFLAGS -fno-exceptions -fno-rtti -fwrapv -fno-threadsafe-statics -DZRT_HEAP_BYTES=${heap}u${gpiod ? ' -DZRT_GPIOD' : ''}${mode.crash ? ` -DZRT_CRASH=${mode.crash}` : ''} ${opt})
+${hot ? 'set(CMAKE_POSITION_INDEPENDENT_CODE ON)\n' : ''}add_library(zrt STATIC ${z}/runtime/zrt.cpp ${z}/runtime/host.cpp${mods.map(m => ` ${z}/runtime/mod/${m}.cpp`).join('')})
 target_include_directories(zrt PUBLIC ${z}/runtime ${z}/runtime/include)
 target_compile_options(zrt PUBLIC \${ZFLAGS})
 target_compile_options(zrt PRIVATE -Wall -Wextra -Werror)
@@ -160,7 +178,17 @@ if(EMSCRIPTEN OR DEFINED ZINC_HAL_FILE)
 else()
   set(ZINC_POSIX ${z}/targets/common/hal_posix.cpp)
 endif()
-add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+${hot ? `# zinc dev: the host keeps the HAL and the window; the program is reloaded as a module (runtime/dev_host.cpp)
+add_executable(zinc_host ${z}/runtime/dev_host.cpp)
+target_include_directories(zinc_host PRIVATE ${z}/runtime/include)
+target_compile_definitions(zinc_host PRIVATE ZINC_HAL_SRC="\${ZINC_HAL}")
+set_target_properties(zinc_host PROPERTIES ENABLE_EXPORTS ON)
+target_link_libraries(zinc_host PRIVATE \${CMAKE_DL_LIBS})
+${usesGfx ? 'find_package(SDL3 REQUIRED CONFIG)\ntarget_link_libraries(zinc_host PRIVATE SDL3::SDL3)' : ''}
+add_library(app MODULE zinc_main.cpp${res.nativeSources.map(f => ' ' + rel(f)).join('')})
+set_target_properties(app PROPERTIES PREFIX "" SUFFIX ".so")
+target_compile_definitions(app PRIVATE ZRT_DYLIB)
+target_link_libraries(app PRIVATE zinc_host)` : `add_executable(app zinc_main.cpp \${ZINC_HAL} \${ZINC_POSIX}${res.nativeSources.map(f => ' ' + rel(f)).join('')})`}
 target_include_directories(app PRIVATE \${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(app PRIVATE -Wall -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-lambda-capture -Wno-unused-but-set-variable -Wno-inconsistent-missing-override -Wno-parentheses-equality)
 target_link_libraries(app PRIVATE zrt)
@@ -168,7 +196,7 @@ if(EMSCRIPTEN)
   set(CMAKE_EXECUTABLE_SUFFIX ".html")
   target_link_options(app PRIVATE -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 --shell-file ${z}/targets/wasm/shell.html)
 endif()
-${debug && target !== 'wasm' ? `target_link_options(app PRIVATE ${san})` : `if(EMSCRIPTEN)
+${hot || mode.dev ? '' : debug && target !== 'wasm' ? `target_link_options(app PRIVATE ${san})` : `if(EMSCRIPTEN)
 elseif(APPLE)
   target_link_options(app PRIVATE -Wl,-dead_strip)
 else()
@@ -180,7 +208,7 @@ ${ps.defines.length ? `target_compile_definitions(app PRIVATE ${ps.defines.map(q
 ${ps.flags.length ? `target_compile_options(app PRIVATE ${ps.flags.map(q).join(' ')})` : ''}
 ${ps.pkg.length ? `find_package(PkgConfig REQUIRED)\npkg_check_modules(ZPLUGINS REQUIRED IMPORTED_TARGET ${ps.pkg.join(' ')})\ntarget_link_libraries(app PRIVATE PkgConfig::ZPLUGINS)` : ''}
 ${ps.frameworks.length || ps.libs.length || ps.linkFlags.length ? `target_link_libraries(app PRIVATE ${[...ps.frameworks.map(f => `"-framework ${f}"`), ...ps.libs, ...ps.linkFlags.map(q)].join(' ')})` : ''}
-${usesGfx ? 'if(NOT ZINC_HEADLESS AND NOT EMSCRIPTEN)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
+${usesGfx && !hot ? 'if(NOT ZINC_HEADLESS AND NOT EMSCRIPTEN)\n  find_package(SDL3 REQUIRED CONFIG)\n  target_link_libraries(app PRIVATE SDL3::SDL3)\nendif()' : ''}
 `;
 }
 
@@ -201,6 +229,15 @@ function assetsSource(o: Opts): string {
   return out.join('\n');
 }
 
+/** Does any source of the project import zinc:ui (or a UI compat module)? A textual scan, before compiling. */
+function usesUi(dir: string): boolean {
+  const walk = (d: string): boolean => fs.readdirSync(d, { withFileTypes: true }).some(e => {
+    if (e.name.startsWith('.') || e.name === 'build' || e.name === 'dist' || e.name === 'node_modules') return false;
+    const p = path.join(d, e.name);
+    return e.isDirectory() ? walk(p) : /\.tsx?$/.test(e.name) && /from\s+['"](zinc:ui|solid-js|@pocketjs)/.test(fs.readFileSync(p, 'utf8'));
+  });
+  return walk(dir);
+}
 function usesGfx(sema: Sema): boolean { return sema.fe.sources.some(f => /from ['"]zinc:gfx['"]/.test(f.text)); }
 /** Fonts and images baked for this program (cached by content key in the build directory). */
 function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: string } {
@@ -230,14 +267,18 @@ function run(cmd: string, args: string[], cwd?: string, quiet = false): number {
   return r.status ?? 1;
 }
 
-interface Built { exe: string[]; dir: string }
+/** lib: the program as a module for runtime/dev_host.cpp (hot reload, exe is the host). */
+export interface Built { exe: string[]; dir: string; lib?: string }
+const CRASH: Record<string, number> = { exit: 0, redbox: 1, restart: 2 };
+/** zinc dev reloads in place when the target runs on this machine (macos on macOS, linux on Linux). */
+function hotTarget(o: Opts): boolean { return o.dev && !o.device && ((o.target === 'macos' && process.platform === 'darwin') || (o.target === 'linux' && process.platform === 'linux')); }
 
 /** Active plugins for this build (PLG); unavailable ones are Z5003 like built-in modules. */
 let extraMounts: string[] = [];  // plugin directories outside the project, visible to docker builds
 function pluginSettings(o: Opts, sema: Sema): BuildSettings {
   const pd = projectDir(o.entry);
   const act = activePlugins(pd, sema.fe.sources.map(f => f.fileName), o.target);
-  if (act.errors.length) { console.error(act.errors.map(e => `${o.entry}:1:1 - error Z5003: ${e}`).join('\n')); process.exit(1); }
+  if (act.errors.length) { console.error(act.errors.map(e => `${o.entry}:1:1 - error Z5003: ${e}`).join('\n')); exit(1); }
   if (act.plugins.length) log(o, `plugins: ${act.plugins.map(p => p.name).join(', ')}`);
   extraMounts = act.plugins.map(p => p.dir);
   return buildSettings(act.plugins, pd, o.target);
@@ -259,7 +300,10 @@ function build(o: Opts): Built {
     return { exe: ['node', path.join(dir, 'run.mjs')], dir };
   }
   const ps = pluginSettings(o, sema);
-  const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir, target: o.target }));
+  const crash = o.dev ? 1 : CRASH[o.project.crash ?? 'exit'];
+  if (crash === undefined) die(`zinc.json: crash must be "exit", "redbox" or "restart"`);
+  const mode: BuildMode = { dev: o.dev, hot: hotTarget(o), crash };
+  const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir, target: o.target, dev: o.dev }));
   res.nativeSources.push(...ps.sources);
   if (res.usesGfx) {
     const baked = bakeResources(o, sema, dir);
@@ -268,7 +312,7 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
   if (res.modules.has('assets')) { writeIfChanged(path.join(dir, 'zinc_assets.cpp'), assetsSource(o)); res.nativeSources.push(path.join(dir, 'zinc_assets.cpp')); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps));
+  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps);
@@ -280,6 +324,11 @@ function build(o: Opts): Built {
     if (run('cmake', genArgs, undefined, true) !== 0) die('cmake configure failed');
   }
   if (run('cmake', ['--build', bdir, '-j'], undefined, true) !== 0) die('C++ build failed');
+  if (mode.hot) {
+    const lib = path.join(bdir, 'app.so');
+    log(o, `built ${o.target} (dev): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms -> ${path.relative(process.cwd(), lib)}`);
+    return { exe: [path.join(bdir, 'zinc_host')], dir, lib };
+  }
   const exe = path.join(bdir, 'app');
   const size = fs.statSync(exe).size;
   log(o, `built ${o.target}${o.profile !== o.target ? ` (profile ${o.profile})` : ''}: zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), exe)}`);
@@ -367,7 +416,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -499,7 +548,8 @@ function main() {
   zinc export [entry] --target <id>                  dist/<name>-<target>: self-contained executable, scripts, service unit
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start (rmpp: root@10.11.99.1)
   zinc init <dir> [--template game|cli|server|iot]
-  zinc dev [entry] [build options]                  rebuild and restart on save (assets read from disk)
+  zinc dev [entry] [--target macos|linux|sim|wasm|rpi1] [--device user@host] [--no-devtools]
+                                                    hot reload on save, red box, UI inspector (docs/dev-mode.md)
   zinc monitor [--port 9999]                        live view of zinc:telemetry
   zinc plugins [project]                            the plugin toolbox: modules, display drivers, targets
   zinc doctor
@@ -517,7 +567,10 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
   if (cmd === 'monitor') { const p = argv.indexOf('--port'); return monitor(p > 0 ? Number(argv[p + 1]) : 9999); }
   if (cmd === 'dev') {
     const o = parseArgs(argv);
-    return dev(argv.slice(1), o.project.dir, o.project.assets);
+    o.dev = true;
+    // the UI inspector (plugins/devtools) comes with zinc:ui programs on hosts that can listen on a socket
+    if (!argv.includes('--no-devtools') && ['macos', 'linux', 'rpi1'].includes(o.target) && usesUi(o.project.dir)) o.devtools = true;
+    return dev(o, () => { try { return build(o); } catch (e) { if (e instanceof Exit) return null; throw e; } });
   }
   const o = parseArgs(argv);
   if (cmd === 'check') {
@@ -548,4 +601,4 @@ entry defaults to src/main.ts or main.ts; a directory means <dir>/main.ts.`);
   die(`unknown command '${cmd}'`);
 }
 
-main();
+try { main(); } catch (e) { if (e instanceof Exit) process.exit(e.code); throw e; }

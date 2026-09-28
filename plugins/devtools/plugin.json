@@ -1,0 +1,9 @@
+{
+  "name": "devtools",
+  "kind": "module",
+  "module": "zinc:devtools",
+  "entry": "index.ts",
+  "description": "UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it",
+  "options": { "port": 9229 },
+  "targets": { "macos": {}, "linux": {}, "rpi1": {} }
+}

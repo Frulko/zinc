@@ -631,6 +631,26 @@ void start(const HalConfig& cfg, int argc = 0, char** argv = nullptr);
 void run_loop();
 bool loop_once();
 void finish();
+/** Program entry used by generated code: start, init, event loop, deinit, finish; crash policy (ZRT_CRASH). */
+int app_main(const HalConfig& cfg, int argc, char** argv, void (*init)(), void (*deinit)());
+
+// ---------- source locations (dev builds, docs/dev-mode.md) ----------
+// Each Zinc function keeps a LocFrame whose `loc` is the current statement (index into loc_names); the chain from
+// loc_top down is the Zinc stack shown by the red box. Code outside a function writes to loc_root.
+struct LocFrame {
+  uint32_t loc = 0;
+  LocFrame* up;
+  LocFrame();
+  explicit LocFrame(decltype(nullptr)) : up(nullptr) {}
+  LocFrame(const LocFrame&) = delete;
+  ~LocFrame();
+};
+extern LocFrame loc_root;
+extern LocFrame* loc_top;
+inline LocFrame::LocFrame() : up(loc_top) { loc_top = this; }
+inline LocFrame::~LocFrame() { if (up) loc_top = up; }
+extern const char* const* loc_names;  // "fn (file.ts:12)", set by generated dev builds
+void loc_throw();                     // remembers the stack of a `throw` for the uncaught-error report
 
 // ---------- zinc:gfx (UI-12) ----------
 namespace gfx {

@@ -327,5 +327,7 @@ extern Stats stats;
 // hooks installed by zinc:telemetry (null when the module is not linked)
 extern void (*telemetry_frame)();
 extern void (*telemetry_log)(int level, const char* s, uint32_t n);
+// hook installed by plugins/devtools (console mirroring to Chrome DevTools)
+extern void (*inspector_log)(int level, const char* s, uint32_t n);
 
 }  // namespace zrt

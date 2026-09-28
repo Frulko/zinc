@@ -1,7 +1,15 @@
 // zrt — non-template parts of the runtime.
 #include "zrt.h"
+#include <setjmp.h>
 
 extern "C" { HalDisplay* hal_display = nullptr; }
+// Optional HAL hook (targets/common/hal_posix.cpp): routes fatal signals of the main thread to `on_fault`.
+extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const char* what));
+
+// Crash policy (docs/dev-mode.md): 0 exit (default), 1 red box, 2 restart. ZRT_DEV: dev build (hot reload host).
+#ifndef ZRT_CRASH
+#define ZRT_CRASH 0
+#endif
 
 // Static budgets (NFR-05): small targets define smaller values (esp32/ps1 profiles).
 #ifndef ZRT_MAX_DRAW_CMDS
@@ -145,8 +153,9 @@ void mfree(void* p) {
 #endif
 }
 
-void panic(const char* msg) { hal_panic(msg, "", 0); }
-void panic_at(const char* msg, const char* file, int line) { hal_panic(msg, file, line); }
+[[noreturn]] static void crash(const char* msg, const char* file, int line);
+void panic(const char* msg) { crash(msg, "", 0); }
+void panic_at(const char* msg, const char* file, int line) { crash(msg, file, line); }
 
 Ref<Error> g_err;
 Stats stats;
@@ -536,11 +545,13 @@ void drain_microtasks() {
   unhandled_n = 0;
   drain_deferred();
 }
+static bool thrown = false;
 void uncaught(const Ref<Error>& e) {
   StrBuilder sb; sb.cstr("Uncaught ");
   if (e.p) e.p->zrt_str(sb); else sb.cstr("Error");
   sb.ch('\0');
-  hal_panic(sb.buf, "", 0);
+  thrown = true;  // report the stack of the `throw` (loc_throw), not the current one
+  crash(sb.buf, "", 0);
 }
 static uint32_t pollers_added = 0;
 void add_poller(Poller* p) { p->next = pollers; pollers = p; pollers_added++; }
@@ -621,7 +632,8 @@ bool loop_once() {
 static int loop_step() { return loop_once() ? 1 : 0; }
 void run_loop() { hal_run(loop_step); }
 
-void finish() {
+// Releases what the program holds in the runtime (callbacks, timers, queues); the HAL stays up.
+static void teardown() {
   frame_cb = nullptr;
   for (Poller* p = pollers; p; p = p->next) p->shutdown();
   for (int i = 0; i < nfinishers; i++) finishers[i]();
@@ -633,14 +645,137 @@ void finish() {
   for (auto& l : labels) l.name = String();
   for (int i = 0; i < MAX_TIMERS; i++) { timers[i].id = 0; timers[i].f = nullptr; }
   drain_deferred();
+}
+void finish() {
+  teardown();
+  if (hal_trap_faults) hal_trap_faults(nullptr);
 #ifdef ZRT_DEBUG
   if (live_objects) {  // MEM-18: leak report
     StrBuilder sb; sb.cstr("zinc: "); to_s(sb, (int64_t)live_objects); sb.cstr(" object(s) still alive at exit");
     log_flush(sb);
   }
 #endif
+#ifdef ZRT_DEV
+  if (live_objects) {  // the hot-reload host discards the heap wholesale; this shows what the old version kept
+    StrBuilder sb; sb.cstr("zinc dev: "); to_s(sb, (int64_t)live_objects); sb.cstr(" object(s) alive at teardown (heap discarded)\n");
+    hal_log_err(sb.buf, sb.len);
+  }
+#endif
   if (display_driver && hal_display->shutdown) hal_display->shutdown();
   hal_shutdown();
+}
+
+// ---------- crash handling (docs/dev-mode.md) ----------
+// A panic, an uncaught error or (POSIX) a fatal signal longjmps back to the guarded step. Policy 1 draws the red box
+// (gfx builds) and restarts on A/Start; policy 2 restarts at once. Restart = deinit + teardown + init, in process:
+// objects held by the abandoned stack frames leak (bounded by what the stack held).
+LocFrame loc_root(nullptr);
+LocFrame* loc_top = &loc_root;
+const char* const* loc_names = nullptr;
+static uint32_t throw_locs[8];
+static int throw_n = 0;
+void loc_throw() {
+  throw_n = 0;
+  for (LocFrame* f = loc_top; f && throw_n < 8; f = f->up) if (f->loc) throw_locs[throw_n++] = f->loc;
+}
+namespace gfx {
+__attribute__((weak)) bool crash_screen(const char*, uint32_t) { return false; }  // red box; false without a screen
+__attribute__((weak)) void present_overlay() {}
+__attribute__((weak)) void log_banner(int, const char*, uint32_t) {}
+}
+static jmp_buf crash_env;
+static bool armed = false, crashed = false;
+static char crash_text[2048];
+static uint32_t crash_len = 0;
+static void (*app_init)() = nullptr;
+static void (*app_deinit)() = nullptr;
+static void ct_add(const char* s) { while (*s && crash_len + 1 < sizeof crash_text) crash_text[crash_len++] = *s++; crash_text[crash_len] = 0; }
+
+static void crash(const char* msg, const char* file, int line) {
+  if (ZRT_CRASH == 0 || !armed) hal_panic(msg, file, line);
+  armed = false;  // a fault while handling this one is fatal
+  crash_len = 0;
+  ct_add(msg);
+  if (file && *file) {
+    char n[16]; int k = 15; n[k] = 0; uint32_t v = (uint32_t)line; do { n[--k] = (char)('0' + v % 10); v /= 10; } while (v && k);
+    ct_add(" ("); ct_add(file); ct_add(":"); ct_add(n + k); ct_add(")");
+  }
+  if (loc_names) {
+    uint32_t ids[8]; int n = 0;
+    if (thrown && throw_n) { for (int i = 0; i < throw_n; i++) ids[n++] = throw_locs[i]; }
+    else for (LocFrame* f = loc_top; f && n < 8; f = f->up) if (f->loc) ids[n++] = f->loc;
+    for (int i = 0; i < n; i++) { ct_add("\n    at "); ct_add(loc_names[ids[i]]); }
+  }
+  thrown = false;
+  hal_log_err("panic: ", 7); hal_log_err(crash_text, crash_len); hal_log_err("\n", 1);
+  longjmp(crash_env, 1);
+}
+static void on_fault(const char* what) { crash(what, "", 0); }
+
+// Runs f; false when it crashed (the runtime state is reset to the guard point).
+static bool guarded(void (*f)()) {
+  if (setjmp(crash_env)) { loc_top = &loc_root; cascade_depth = 0; return false; }
+  armed = true;
+  f();
+  armed = false;
+  return true;
+}
+static bool step_result;
+static void step_body() { step_result = loop_once(); }
+static bool boxed = false;  // the red box is on screen
+[[maybe_unused]] static double crash_at[3] = {-1e9, -1e9, -1e9};
+static void crashed_now();
+static void restart() {
+  crashed = boxed = false;
+  guarded(app_deinit);  // may fault on a broken state: the rest is abandoned
+  teardown();
+  gfx::crash_screen(nullptr, 0);
+  if (!guarded(app_init)) crashed_now();
+  else loc_root.loc = 0;
+}
+static void crashed_now() {
+  crashed = true;
+  if (ZRT_CRASH == 1 && gfx::crash_screen(crash_text, crash_len)) { boxed = true; return; }
+#ifndef ZRT_DEV  // dev without a screen: the program stops, the dev host waits for the next build
+  // automatic restart (policy 2, or a red box without a screen); three crashes within five seconds give up
+  crash_at[0] = crash_at[1]; crash_at[1] = crash_at[2]; crash_at[2] = now_ms();
+  if (crash_at[2] - crash_at[0] < 5000) hal_panic("crash loop (3 crashes in 5 s), giving up", "", 0);
+  hal_log_err("zinc: restarting\n", 17);
+  restart();
+#endif
+}
+// Red box loop: keeps the window alive, restarts on A/Start/click.
+static int crash_step() {
+  if (!boxed) return 0;
+  hal_frame_begin();
+  prev_input = input;
+  input.wheel = 0; input.pinch = 1;
+  hal_poll_input(&input);
+  if (display_driver && hal_display->poll) hal_display->poll(&input);
+  if (input.quit) return 0;
+  gfx::present_overlay();
+  hal_frame_end();
+  uint32_t pressed = input.buttons & ~prev_input.buttons;
+  if ((pressed & (HAL_A | HAL_START)) || (!input.pdown && prev_input.pdown)) restart();
+  return 1;
+}
+static int app_step() {
+  if (crashed) return crash_step();
+  if (!guarded(step_body)) { crashed_now(); return 1; }
+  return step_result ? 1 : 0;
+}
+
+int app_main(const HalConfig& cfg, int argc, char** argv, void (*init)(), void (*deinit)()) {
+  start(cfg, argc, argv);
+  app_init = init; app_deinit = deinit;
+  if (ZRT_CRASH == 0) { init(); run_loop(); deinit(); finish(); return 0; }
+  if (hal_trap_faults) hal_trap_faults(on_fault);
+  if (!guarded(init)) crashed_now();
+  loc_root.loc = 0;  // module code has run; later frames report their own functions
+  hal_run(app_step);
+  if (!crashed) guarded(deinit);
+  finish();
+  return crashed ? 101 : 0;
 }
 
 // ---------- console (RT-07, LLRT-style levels, optional JSON lines) ----------
@@ -650,9 +785,14 @@ static void log_init() {
   const char* f = hal_env("ZINC_LOG_FORMAT");
   log_mode = (f && f[0] == 'j') ? 2 : hal_isatty(1) ? 1 : 0;
 }
+void (*inspector_log)(int level, const char* s, uint32_t n) = nullptr;
 void log_emit(int level, StrBuilder& sb) {
   log_init();
   if (telemetry_log) telemetry_log(level, sb.buf, sb.len);
+  if (inspector_log) inspector_log(level, sb.buf, sb.len);
+#ifdef ZRT_DEV
+  if (level == LOG_WARN || level == LOG_ERROR) gfx::log_banner(level, sb.buf, sb.len);  // LogBox-style banner
+#endif
   bool err = level == LOG_WARN || level == LOG_ERROR || level == LOG_TRACE;
   static const char* names[] = {"LOG", "INFO", "DEBUG", "WARN", "ERROR", "TRACE"};
   if (log_mode == 2) {

@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as dgram from 'node:dgram';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { ZINC_ROOT } from './frontend.ts';
+import type { Built, Opts } from './cli.ts';
 
 const TEMPLATES: Record<string, Record<string, string>> = {
   game: {
@@ -131,24 +132,85 @@ export function exportApp(name: string, target: string, exe: string, projectDir:
   return out;
 }
 
-/** UI-20: rebuild and restart on every save. */
-export function dev(buildArgs: string[], projectDir: string, assetsDir?: string) {
+/**
+ * UI-20 / docs/dev-mode.md: rebuild on every save (in process, the compiler stays warm), then per target:
+ *  - macos on macOS, linux on Linux: hot reload — the host (runtime/dev_host.cpp) keeps the window and loads the new
+ *    program library in place ("reload <path>" on fd 3, answered by "ready <ms>");
+ *  - wasm: serve.mjs pushes a reload to the page (server-sent events) when the build changes;
+ *  - --device user@host (rpi1, linux): copy the binary and assets, restart it over ssh (DevTools port forwarded);
+ *  - sim and targets run through docker/QEMU: restart the process.
+ */
+export function dev(o: Opts, build: () => Built | null) {
+  const name = o.project.name, assets = o.project.assets && fs.existsSync(o.project.assets) ? o.project.assets : undefined;
+  if (['esp32', 'ps1', 'ps2'].includes(o.target)) {
+    console.error(`zinc dev: not available on ${o.target} (no process to reload); use zinc build / zinc run and flash. See docs/dev-mode.md`);
+    process.exit(2);
+  }
+  if (o.device && !['rpi1', 'linux'].includes(o.target)) { console.error('zinc dev: --device needs --target rpi1 or linux'); process.exit(2); }
   let child: ChildProcess | null = null;
-  let timer: NodeJS.Timeout | null = null;
-  const restart = () => {
-    if (child) { child.kill(); child = null; }
-    const b = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'build', ...buildArgs, '--print-exe'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
-    if (b.status !== 0) { console.error('zinc dev: build failed, waiting for changes...'); return; }
-    const exe = b.stdout.trim().split('\n').pop()!.split(' ');
-    child = spawn(exe[0], exe.slice(1), { stdio: 'inherit', env: { ...process.env, ...(assetsDir ? { ZINC_ASSETS: assetsDir } : {}) } });
-    console.error(`zinc dev: running (${new Date().toLocaleTimeString()})`);
+  let host = '', hostStamp = 0, version = 0, savedAt = 0, buildMs = 0;
+  const env = { ...process.env, ...(assets ? { ZINC_ASSETS: assets } : {}) };
+  const stop = () => { if (child) { child.removeAllListeners('exit'); child.kill(); child = null; } };
+  const onExit = (c: ChildProcess) => c.on('exit', code => { if (child === c) { child = null; console.error(`zinc dev: program exited (${code}), waiting for changes...`); } });
+
+  const startHost = (b: Built) => {
+    host = b.exe[0]; hostStamp = fs.statSync(host).mtimeMs;
+    const c = spawn(host, [b.lib!, ...o.rest], { stdio: ['inherit', 'inherit', 'inherit', 'pipe'], env: { ...env, ZINC_DEV_FD: '3' } });
+    let buf = '';
+    (c.stdio[3] as NodeJS.ReadableStream).on('data', (d: Buffer) => {
+      buf += d.toString();
+      for (let nl; (nl = buf.indexOf('\n')) >= 0; buf = buf.slice(nl + 1)) {
+        const m = /^ready ([\d.]+)/.exec(buf.slice(0, nl));
+        if (m && savedAt) console.error(`zinc dev: v${version} on screen — save→screen ${Date.now() - savedAt} ms (build ${buildMs} ms, load+first frame ${m[1]} ms)`);
+      }
+    });
+    onExit(c);
+    child = c;
   };
-  fs.watch(projectDir, { recursive: true }, (_e, f) => {
-    if (!f || f.startsWith('build') || f.startsWith('dist') || f.includes('/build/')) return;
+  const hot = (b: Built) => {
+    // each version gets its own file: a fresh image (and fresh statics) even if the old one is not unloaded
+    const hotDir = path.join(b.dir, 'hot');
+    fs.mkdirSync(hotDir, { recursive: true });
+    for (const f of fs.readdirSync(hotDir)) if (f !== `app-${version - 1}.so`) fs.rmSync(path.join(hotDir, f), { force: true });
+    const lib = path.join(hotDir, `app-${++version}.so`);
+    fs.copyFileSync(b.lib!, lib);
+    if (child && fs.statSync(b.exe[0]).mtimeMs === hostStamp) (child.stdio[3] as NodeJS.WritableStream).write(`reload ${lib}\n`);
+    else { stop(); startHost({ ...b, lib }); }
+  };
+  const device = (b: Built) => {
+    // ponytail: restart, not hot reload, on devices; the binary is small and scp is fast on a LAN
+    const exe = path.join(b.dir, 'cmake/app'), dest = `zinc-dev/${name}`;
+    const sh = (cmd: string, args: string[]) => spawnSync(cmd, args, { stdio: 'inherit' }).status === 0;
+    stop();
+    if (!sh('ssh', [o.device!, `mkdir -p ${dest}`]) || !sh('rsync', ['-az', exe, ...(assets ? [assets] : []), `${o.device}:${dest}/`])) { console.error('zinc dev: copy to device failed'); return; }
+    const c = spawn('ssh', ['-tt', '-L', '9229:127.0.0.1:9229', o.device!, `cd ${dest} && ${assets ? `ZINC_ASSETS=${path.basename(assets)} ` : ''}exec ./app`], { stdio: 'inherit' });
+    onExit(c);
+    child = c;
+    console.error(`zinc dev: running on ${o.device} (${Date.now() - savedAt} ms after save)`);
+  };
+  const cycle = () => {
+    const t = Date.now();
+    const b = build();
+    buildMs = Date.now() - t;
+    if (!b) { console.error('zinc dev: build failed, waiting for changes...'); return; }
+    if (b.lib) return hot(b);
+    if (o.device) return device(b);
+    if (o.target === 'wasm' && child) { fs.writeFileSync(path.join(b.dir, 'cmake/.zinc-reload'), String(Date.now())); return; }  // serve.mjs reloads the page
+    stop();
+    child = spawn(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit', env: { ...env, ZINC_DEV: '1' } });
+    onExit(child);
+    console.error(`zinc dev: running (${new Date().toLocaleTimeString()}, build ${buildMs} ms)`);
+  };
+  let timer: NodeJS.Timeout | null = null;
+  fs.watch(o.project.dir, { recursive: true }, (_e, f) => {
+    if (!f || /(^|\/)(build|dist|node_modules)(\/|$)/.test(f) || f.split('/').some(p => p.startsWith('.'))) return;
+    if (!timer) savedAt = Date.now();
     if (timer) clearTimeout(timer);
-    timer = setTimeout(restart, 150);
+    timer = setTimeout(() => { timer = null; cycle(); }, 30);
   });
-  restart();
+  process.on('SIGINT', () => { stop(); process.exit(0); });
+  savedAt = Date.now();
+  cycle();
 }
 
 /** Live view of zinc:telemetry JSON lines sent to udp://host:port. */
