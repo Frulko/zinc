@@ -340,9 +340,15 @@ static int32_t band_y0, band_y1, band_count, workers, pending;
 static unsigned band_gen;
 static std::mutex band_mu;
 static std::condition_variable band_go, band_done;
+// profiler hooks (runtime/gfx.cpp): band spans for the raster phase and the trace; no-ops without zinc:gfx
+extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
+extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
+static bool band_prof;
 static void run_band(int i) {
   int32_t rows = band_y1 - band_y0, a = band_y0 + rows * i / band_count, b = band_y0 + rows * (i + 1) / band_count;
+  uint64_t t0 = band_prof ? hal_time_us() : 0;
   if (b > a) band_fn(fb + (size_t)a * PW, a, b);
+  if (band_prof) zrt_prof_band(i, t0, hal_time_us());
 }
 static void band_worker(int id) {
   unsigned seen = 0;
@@ -367,7 +373,13 @@ static void start_workers() {
   workers = n > 1 ? n - 1 : 0;
 }
 static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
-  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) { fn(fb + (size_t)y0 * PW, y0, y1); return; }
+  band_prof = zrt_profiling() != 0;
+  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) {
+    uint64_t t0 = band_prof ? hal_time_us() : 0;
+    fn(fb + (size_t)y0 * PW, y0, y1);
+    if (band_prof) zrt_prof_band(0, t0, hal_time_us());
+    return;
+  }
   {
     std::lock_guard<std::mutex> l(band_mu);
     band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; pending = workers; band_gen++;

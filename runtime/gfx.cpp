@@ -172,12 +172,15 @@ void log_banner(int, const char* s, uint32_t n) {
   ovl_changed = true;
 }
 
+// ZINC_VISUALIZE=damage|cmds (docs/dev-mode.md): an overlay over the program's frame, allocated only when asked for.
+static struct Vis { Cmd* cmds; uint32_t ncmd, cap; int32_t mode; } vis = {nullptr, 0, 0, -1};  // mode 0 off, 1 damage, 2 cmds
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   raster::Rect all{0, y0, pw, y1};
   if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, all);
   else for (int32_t i = 0; i < (y1 - y0) * pw; i++) rows[i] = 0;
   if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, all);
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
+  if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, all);
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
 #ifndef ZRT_DAMAGE_RECTS
@@ -192,9 +195,212 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
     if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, r);
     if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
     if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
+    if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
   }
 }
 static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
+
+// ---------- ZINC_VISUALIZE: damage flashes / command heat map ----------
+#define ZRT_VIS_FLASHES 64
+struct Flash { raster::Rect r; int32_t born; };
+static Flash* flashes = nullptr;   // allocated with the overlay
+static int32_t nflash = 0;
+static void vis_init() {
+  if (vis.mode >= 0) return;
+  const char* e = hal_env("ZINC_VISUALIZE");
+  vis.mode = !e ? 0 : !__builtin_strcmp(e, "damage") ? 1 : !__builtin_strcmp(e, "cmds") ? 2 : 0;
+  if (!vis.mode) return;
+  vis.cap = ZRT_MAX_DRAW_CMDS + 2 * ZRT_VIS_FLASHES;
+  vis.cmds = (Cmd*)hal_alloc(vis.cap * sizeof(Cmd));
+  flashes = (Flash*)hal_alloc(ZRT_VIS_FLASHES * sizeof(Flash));
+  if (!vis.cmds || !flashes) vis.mode = 0;
+}
+static void vis_rect(const raster::Rect& r, uint8_t kind, uint32_t color, int32_t alpha) {
+  if (vis.ncmd == vis.cap) return;
+  Cmd* c = &vis.cmds[vis.ncmd++];
+  __builtin_memset(c, 0, sizeof(Cmd));
+  c->kind = kind; c->c1 = color; c->alpha = (uint8_t)alpha; c->s = 2.0f * pxk;
+  c->x = (float)r.x0; c->y = (float)r.y0; c->w = (float)(r.x1 - r.x0); c->h = (float)(r.y1 - r.y0);
+}
+/** Rebuilds the overlay after the frame diff (fresh: this frame has new damage). True: the overlay changed, the
+ *  whole screen is presented. Damage rectangles flash and fade over 30 frames, even while the program is idle. */
+static bool vis_update(const Buf* now, bool fresh) {
+  if (vis.mode == 2) {
+    if (!fresh) return false;
+    vis.ncmd = 0;
+    for (uint32_t i = 0; i < now->ncmd; i++) {
+      const Cmd& c = now->cmds[i];
+      if (c.kind == raster::CLEAR || c.kind == raster::CLIP || c.kind == raster::UNCLIP) continue;
+      vis_rect(raster::Rect{(int32_t)c.x, (int32_t)c.y, (int32_t)(c.x + c.w), (int32_t)(c.y + c.h)}, raster::RECT, 0xff0000, 24);
+    }
+    return true;
+  }
+  for (int32_t i = 0; fresh && i < ndmg; i++) {   // a rectangle damaged again restarts its flash (no stacking)
+    int32_t k = 0, m = nflash < ZRT_VIS_FLASHES ? nflash : ZRT_VIS_FLASHES;
+    while (k < m && __builtin_memcmp(&flashes[k].r, &dmg[i], sizeof dmg[i])) k++;
+    if (k < m) flashes[k].born = frame_no; else flashes[nflash++ % ZRT_VIS_FLASHES] = Flash{dmg[i], frame_no};
+  }
+  bool had = vis.ncmd > 0;
+  vis.ncmd = 0;
+  for (int32_t i = 0; i < nflash && i < ZRT_VIS_FLASHES; i++) {
+    int32_t age = frame_no - flashes[i].born;
+    if (age >= 30) continue;
+    vis_rect(flashes[i].r, raster::RECT, 0xff00ff, 60 * (30 - age) / 30);
+    vis_rect(flashes[i].r, raster::BORDER, 0xff00ff, 255 * (30 - age) / 30);
+  }
+  return had || vis.ncmd > 0;
+}
+
+// ---------- profiler (docs/dev-mode.md): per-phase frame timings ----------
+// ZINC_PROFILE=1 prints p50 / p99 / max per phase at exit; the DevTools Tracing domain (plugins/devtools) and
+// ZINC_TRACE=file.json collect the spans as Chrome trace events. Off: one test per mark, no memory.
+}  // namespace gfx
+}  // namespace zrt
+extern "C" void* zrt_host_open(const char* path, const char* mode);  // runtime/host.cpp
+extern "C" size_t zrt_host_io(void* f, void* p, size_t n, int write);
+extern "C" void zrt_host_close(void* f);
+namespace zrt {
+namespace gfx {
+namespace prof {
+enum { APP, INPUT, ANIM, LAYOUT, PAINT, EFFECTS, DIFF, RASTER, PRESENT, N };
+static const char* const NAMES[N] = {"app", "input", "anim", "layout", "paint", "effects", "diff", "raster", "present"};
+#define ZRT_PROF_FRAMES 4096
+#define ZRT_PROF_SPANS 32768
+#define ZRT_PROF_BANDS 8
+struct Span { uint64_t t0; uint32_t dur; uint16_t phase, tid; };   // phase N: the whole frame
+struct State {
+  uint32_t us[ZRT_PROF_FRAMES][N];   // the last frames, per phase
+  uint32_t nframes, nspans;          // totals (both are rings)
+  uint32_t acc[N];
+  Span spans[ZRT_PROF_SPANS];
+  uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
+  uint64_t frame_t0, last;
+  bool summary, tracing;
+};
+static State* st = nullptr;
+static const char* trace_file = nullptr;
+static bool active() { return st && (st->summary || st->tracing); }
+static void enable() {
+  if (st) return;
+  st = (State*)hal_alloc(sizeof(State));
+  if (st) __builtin_memset(st, 0, sizeof(State));
+}
+static void span(uint64_t t0, uint64_t t1, int32_t phase, int32_t tid) {
+  if (!st->tracing) return;
+  st->spans[st->nspans++ % ZRT_PROF_SPANS] = Span{t0, (uint32_t)(t1 - t0), (uint16_t)phase, (uint16_t)tid};
+}
+static void mark(int32_t phase) {
+  uint64_t t = hal_time_us();
+  st->acc[phase] += (uint32_t)(t - st->last);
+  span(st->last, t, phase, 1);
+  st->last = t;
+}
+static void ms(StrBuilder& sb, uint32_t us) {   // "12.34"
+  to_s(sb, us / 1000); sb.ch('.');
+  uint32_t f = us % 1000 / 10;
+  sb.ch((char)('0' + f / 10)); sb.ch((char)('0' + f % 10));
+}
+/** p50 / p99 / max of one column (phase, or N: work = every phase but present). */
+static void stat_line(StrBuilder& sb, int32_t col) {
+  uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES;
+  uint32_t* v = (uint32_t*)hal_alloc((n ? n : 1) * sizeof(uint32_t));
+  if (!v) return;
+  for (uint32_t i = 0; i < n; i++) {
+    uint32_t s = 0;
+    if (col < N) s = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) s += st->us[i][p];
+    v[i] = s;
+  }
+  for (uint32_t gap = n / 2; gap > 0; gap /= 2)   // shell sort: no libc
+    for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && v[j - gap] > v[j]; j -= gap) { uint32_t t = v[j]; v[j] = v[j - gap]; v[j - gap] = t; }
+  sb.cstr(col < N ? NAMES[col] : "work");
+  sb.cstr(" p50="); ms(sb, n ? v[(n - 1) * 50 / 100] : 0);
+  sb.cstr(" p99="); ms(sb, n ? v[(n - 1) * 99 / 100] : 0);
+  sb.cstr(" max="); ms(sb, n ? v[n - 1] : 0);
+  sb.cstr(" ms\n");
+  hal_free(v);
+}
+static void summary() {
+  if (!st || !st->nframes) return;
+  StrBuilder sb;
+  sb.cstr("zinc profile: frames="); to_s(sb, st->nframes); sb.ch(' ');
+  stat_line(sb, N);
+  for (int32_t p = 0; p < N; p++) { sb.cstr("zinc profile: "); stat_line(sb, p); }
+  hal_log_err(sb.buf, sb.len);
+}
+/** The collected spans as a JSON array of Chrome trace events (ts / dur in µs). */
+static String trace_json() {
+  StrBuilder sb;
+  sb.cstr("[{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"zinc\"}},"
+          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}}");
+  for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
+    sb.cstr(",{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":"); to_s(sb, 10 + b);
+    sb.cstr(",\"args\":{\"name\":\"raster band "); to_s(sb, b); sb.cstr("\"}}");
+  }
+  uint32_t n = st ? (st->nspans < ZRT_PROF_SPANS ? st->nspans : ZRT_PROF_SPANS) : 0, first = st ? st->nspans - n : 0;
+  if (n) {
+    sb.cstr(",{\"name\":\"TracingStartedInBrowser\",\"ph\":\"I\",\"s\":\"t\",\"cat\":\"disabled-by-default-devtools.timeline\",\"pid\":1,\"tid\":1,\"ts\":");
+    to_s(sb, st->spans[first % ZRT_PROF_SPANS].t0);
+    sb.cstr(",\"args\":{\"data\":{\"frameTreeNodeId\":1,\"persistentIds\":true,\"frames\":[{\"frame\":\"main\",\"url\":\"zinc://app\",\"name\":\"\",\"processId\":1}]}}}");
+  }
+  for (uint32_t i = first; i < first + n; i++) {
+    const Span& s = st->spans[i % ZRT_PROF_SPANS];
+    sb.cstr(",{\"name\":\""); sb.cstr(s.phase < N ? NAMES[s.phase] : "zinc frame");
+    sb.cstr("\",\"cat\":\"zinc\",\"ph\":\"X\",\"pid\":1,\"tid\":"); to_s(sb, (int32_t)s.tid);
+    sb.cstr(",\"ts\":"); to_s(sb, s.t0); sb.cstr(",\"dur\":"); to_s(sb, s.dur); sb.ch('}');
+  }
+  sb.ch(']');
+  return sb.build();
+}
+static void write_trace() {
+  String s = trace_json();
+  void* f = zrt_host_open(trace_file, "wb");
+  if (f) { zrt_host_io(f, (void*)s.ptr(), s.bytes(), 1); zrt_host_close(f); }
+}
+/** Frame start: ZINC_PROFILE / ZINC_TRACE are read once; the phase clock starts. */
+static void begin() {
+  static bool read = false;
+  if (!read) {
+    read = true;
+    const char* e = hal_env("ZINC_PROFILE");
+    const char* t = hal_env("ZINC_TRACE");
+    if ((e && *e && *e != '0') || (t && *t)) enable();
+    if (st && e && *e && *e != '0') { st->summary = true; at_finish(summary); }
+    if (st && t && *t) { st->tracing = true; trace_file = t; at_finish(write_trace); }
+  }
+  if (!active()) return;
+  st->frame_t0 = st->last = hal_time_us();
+  __builtin_memset(st->acc, 0, sizeof st->acc);
+  __builtin_memset(st->band, 0, sizeof st->band);
+}
+/** After present(): raster = the span of the bands the HAL reported, present = the rest of the call. */
+static void end() {
+  uint64_t t = hal_time_us(), r0 = 0, r1 = 0;
+  for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
+    if (!st->band[b][1]) continue;
+    if (!r0 || st->band[b][0] < r0) r0 = st->band[b][0];
+    if (st->band[b][1] > r1) r1 = st->band[b][1];
+    span(st->band[b][0], st->band[b][1], RASTER, 10 + b);
+  }
+  uint32_t raster = r1 > r0 ? (uint32_t)(r1 - r0) : 0;
+  if (raster) span(r0, r1, RASTER, 1);
+  span(st->last, t, PRESENT, 1);
+  st->acc[RASTER] += raster;
+  st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
+  st->last = t;
+  __builtin_memcpy(st->us[st->nframes % ZRT_PROF_FRAMES], st->acc, sizeof st->acc);
+  st->nframes++;
+  span(st->frame_t0, t, N, 1);
+}
+}  // namespace prof
+bool profiling() { return prof::active(); }
+void profMark(int32_t phase) { if (prof::active() && phase >= 0 && phase < prof::N) prof::mark(phase); }
+/** plugins/devtools Tracing.start (true: returns '') / Tracing.end (false: returns the trace events). */
+String trace(bool on) {
+  if (on) { prof::enable(); if (prof::st) { prof::st->tracing = true; prof::st->nspans = 0; } return String(); }
+  String s = prof::trace_json();
+  if (prof::st && !prof::trace_file) prof::st->tracing = false;
+  return s;
+}
 
 // ---------- frame capture (docs/guide/06-testing.md): ZINC_SHOT, gfx.capture, F12 in zinc dev, DevTools screenshots ----
 // The frame is rasterized again from the retained command list, so it works on every HAL, windowed or headless.
@@ -401,17 +607,22 @@ static void to_physical(Buf& b) {
 }
 
 static bool first_frame() { first = true; return true; }
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
+  vis_init();
+  const bool prof_on = prof::active();
+  if (prof_on) prof::mark(prof::EFFECTS);   // microtasks drained after the frame callback
   pen_n = 0;
   banner_expire();
   if (kept && !first) {  // retained frame: no rasterization, no swap
+    if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
     HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
     ovl_changed = false;
     present(&f);
+    if (prof_on) prof::end();
     after_present();
     return;
   }
@@ -420,6 +631,8 @@ void end_frame() {
   const Buf& before = bufs[cur ^ 1];
   if (first || ovl_changed) set_full_damage();
   else ndmg = raster::diff_rects(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS);
+  if (vis.mode && vis_update(&now, true)) set_full_damage();
+  if (prof_on) prof::mark(prof::DIFF);
   raster::Rect d = {pw, ph, 0, 0};
   for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
   if (!ndmg) d = raster::Rect{0, 0, 0, 0};
@@ -429,12 +642,26 @@ void end_frame() {
   stats.draw_cmds = now.ncmd;
   HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
   present(&f);
+  if (prof_on) prof::end();
   after_present();
   cur ^= 1;
 }
+/** One warning per pool when a frame overflows it (the extra commands are dropped). */
+static void pool_full(int32_t which) {
+  static uint8_t warned = 0;
+  if (warned & (1 << which)) return;
+  warned |= (uint8_t)(1 << which);
+  static const char* const msg[] = {
+    "zinc:gfx: the draw command pool is full (ZRT_MAX_DRAW_CMDS): extra commands are dropped this frame; raise it with -DZRT_MAX_DRAW_CMDS=<n>\n",
+    "zinc:gfx: the text pool is full (ZRT_TEXT_POOL bytes): extra text is dropped this frame; raise it with -DZRT_TEXT_POOL=<n>\n",
+    "zinc:gfx: the point pool is full (ZRT_POINT_POOL floats): extra shapes are dropped this frame; raise it with -DZRT_POINT_POOL=<n>\n"};
+  uint32_t n = 0;
+  while (msg[which][n]) n++;
+  hal_log_err(msg[which], n);
+}
 static Cmd* push(uint8_t kind, uint32_t color, int32_t alpha) {
   Buf& b = bufs[cur];
-  if (b.ncmd == ZRT_MAX_DRAW_CMDS) return nullptr;  // ponytail: extra commands are dropped
+  if (b.ncmd == ZRT_MAX_DRAW_CMDS) { pool_full(0); return nullptr; }  // ponytail: extra commands are dropped
   Cmd* c = &b.cmds[b.ncmd++];
   __builtin_memset(c, 0, sizeof(Cmd));  // padding participates in the frame diff
   c->kind = kind; c->c1 = color & 0xFFFFFF;
@@ -463,7 +690,7 @@ void shadow(double x, double y, double w, double h, double r, double blur, uint3
 static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
   Buf& b = bufs[cur];
   uint32_t n = (uint32_t)pts.length();
-  if (b.npts + n > ZRT_POINT_POOL) return false;
+  if (b.npts + n > ZRT_POINT_POOL) { pool_full(2); return false; }
   c->off = b.npts;
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
   uint32_t i = 0, contours = 0;
@@ -487,7 +714,7 @@ static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
 }
 Cmd* emit(uint8_t kind, const float* pts, uint32_t len) {
   Buf& b = bufs[cur];
-  if (len > ZRT_POINT_POOL - b.npts) return nullptr;
+  if (len > ZRT_POINT_POOL - b.npts) { pool_full(2); return nullptr; }
   Cmd* c = push(kind, 0, 255);
   if (!c || !len) return c;
   __builtin_memcpy(b.pts + b.npts, pts, len * sizeof(float));
@@ -518,7 +745,7 @@ double textWidth(int32_t f, const String& s, double tracking) { return raster::t
 void drawText(int32_t f, double x, double y, const String& s, uint32_t color, int32_t alpha, double tracking) {
   Buf& b = bufs[cur];
   uint32_t n = s.bytes();
-  if (b.ntext + n > ZRT_TEXT_POOL) return;
+  if (b.ntext + n > ZRT_TEXT_POOL) { pool_full(1); return; }
   Cmd* c = push(raster::TEXT, color, alpha);
   if (!c) return;
   __builtin_memcpy(b.text + b.ntext, s.ptr(), n);
@@ -554,7 +781,7 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f, hw = (float)width * 0.5f + 1;
   for (uint32_t i = 0; i < n; i++) { float x = tmp[i * 2], y = tmp[i * 2 + 1]; minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy; }
   c->off = b.npts; c->n = r & 0xFFFF; b.npts += r >> 16;
-  if (!c->n) { b.ncmd--; return; }
+  if (!c->n) { if (ZRT_POINT_POOL - b.npts < 64) pool_full(2); b.ncmd--; return; }
   c->x = minx - hw; c->y = miny - hw; c->w = maxx - minx + 2 * hw; c->h = maxy - miny + 2 * hw;
 }
 /** Runtime image (black), drawable with drawImage and a render target for beginImage. */
@@ -658,4 +885,11 @@ extern "C" __attribute__((weak)) void hal_escape(void) {}
 extern "C" void hal_pen_push(const HalPen* s) {
   if (zrt::det_mode == 1 || zrt::det_mode == 3) return;  // deterministic runs take no live input (tapes carry no pen)
   zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s;
+}
+// Raster bands (the SDL HAL renders them on worker threads): their spans feed the profiler's raster phase and
+// the per-band tracks of the trace. The HAL has weak no-op defaults for programs without zinc:gfx.
+extern "C" int32_t zrt_profiling(void) { return zrt::gfx::prof::active() ? 1 : 0; }
+extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1) {
+  using namespace zrt::gfx::prof;
+  if (st && band >= 0 && band < ZRT_PROF_BANDS) { st->band[band][0] = t0; st->band[band][1] = t1; }
 }

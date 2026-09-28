@@ -15,5 +15,8 @@ export interface Spec extends NativeModule {
   clients(): i32;
   /** The frame on screen as a base64 PNG (Page.captureScreenshot); '' when there is none. */
   screenshot(): string;
+  /** Profiler spans (runtime/gfx.cpp): true starts collecting (returns ''), false returns them as a JSON array of
+   *  Chrome trace events. */
+  trace(on: boolean): string;
 }
 export default requireNative<Spec>('Cdp');
