@@ -336,7 +336,7 @@ void hal_poll_input(HalInput* in) {
 // whole command list clipped to its rows (the rasterizer keeps its scratch buffers per thread), so the pixels are
 // the same as a single-threaded render. ZINC_RENDER_THREADS=n overrides the count (1: no worker threads).
 static void (*band_fn)(uint32_t*, int32_t, int32_t);
-static int32_t band_y0, band_y1, band_count, workers, pending;
+static int32_t band_y0, band_y1, band_count, workers, band_pending;
 static unsigned band_gen;
 static std::mutex band_mu;
 static std::condition_variable band_go, band_done;
@@ -359,7 +359,7 @@ static void band_worker(int id) {
     l.unlock();
     run_band(id);
     l.lock();
-    if (--pending == 0) band_done.notify_one();
+    if (--band_pending == 0) band_done.notify_one();
   }
 }
 static void start_workers() {
@@ -382,12 +382,12 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   }
   {
     std::lock_guard<std::mutex> l(band_mu);
-    band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; pending = workers; band_gen++;
+    band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; band_pending = workers; band_gen++;
   }
   band_go.notify_all();
   run_band(0);
   std::unique_lock<std::mutex> l(band_mu);
-  band_done.wait(l, [] { return pending == 0; });
+  band_done.wait(l, [] { return band_pending == 0; });
 }
 
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
