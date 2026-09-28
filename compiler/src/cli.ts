@@ -707,7 +707,7 @@ function help(topic?: string) {
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
   ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
-  JSX host tags View/Text/Button/Image/ScrollView/Canvas (or view/text/button/image/scroll/canvas), Tailwind-like classes
+  JSX host tags View/Text/Button/Image/ScrollView/Canvas/Input/TextArea (or view/text/button/image/scroll/canvas/input/textarea), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
   Inline {items.map(x => <Row/>)} and {cond ? <A/> : <B/>} / {cond && <A/>} children in both models.

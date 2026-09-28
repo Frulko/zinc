@@ -4,7 +4,7 @@
 // Line breaks are preserved so diagnostics keep their line numbers.
 import { ts } from './frontend.ts';
 
-const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, input: 7, textarea: 8, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5 };
+const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, input: 7, textarea: 8, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5, Input: 7, TextArea: 8 };
 const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows']);
 // text fields and pointer / key events (zinc:ui host ABI: onPointer kinds, edit flags)
 const POINTER_ATTRS: Record<string, number> = { onPointerDown: 0, onPointerMove: 1, onPointerUp: 2, onDoubleClick: 3, onContextMenu: 4, onWheel: 5, onPointerEnter: 6, onPointerLeave: 7 };
