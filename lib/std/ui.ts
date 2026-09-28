@@ -8,6 +8,7 @@ import {
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
   escapeByApp, escapeDefault,
+  scrollDX, scrollDY, scrollPhase,
 } from 'zinc:gfx';
 import { PALETTE, SHADES } from './palette';
 
@@ -103,9 +104,11 @@ export class UiNode {
   scroll: i32 = 0;
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
-  // scroll physics (stepScroll): mouse-wheel target, time of the last user input, and 'live' while the user or an
-  // animation drives the offset (overscroll is then allowed; clampScroll leaves it alone)
-  tgx: number = 0; tgy: number = 0; smooth: boolean = false; inputAt: number = -100000; live: boolean = false;
+  // scroll physics (ScrollAxis, stepScroll), created on the first user scroll; `live` while a gesture or an
+  // animation drives the offset (overscroll allowed; clampScroll leaves it alone)
+  ax: ScrollAxis | null = null; ay: ScrollAxis | null = null; live: boolean = false;
+  keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
+  inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
   responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
   bg: i32 = -1; bgAlpha: i32 = 255;
@@ -258,7 +261,7 @@ export function scrollLeft(h: i32): number { return node(h).sx; }
 /** Scrolls a container to an offset (clamped). */
 export function scrollTo(h: i32, x: number, y: number): void {
   const n = node(h);
-  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.smooth = false; n.live = false;
+  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.ax = null; n.ay = null; n.live = false;
   clampScroll(n);
   n.scrolledAt = clock;
   if (n.virt !== null) layoutDirty = true;
@@ -385,6 +388,8 @@ function applyNumber(n: UiNode, key: string, v: number): void {
   else if (key === 'scale') n.size = 8 * iv;
   else if (key === 'fontSize') n.size = iv;
   else if (key === 'hidden') n.hidden = iv !== 0;
+  else if (key === 'keepFocus') { n.keepFocus = iv !== 0; return; }
+  else if (key === 'inputMode') { n.inputMode = iv; return; }
   else if (key === 'top') n.top = iv; else if (key === 'left') n.left = iv;
   layoutDirty = true;
 }
@@ -1316,63 +1321,129 @@ function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: n
   if (inside && (((axes & 1) !== 0 && canY) || ((axes & 2) !== 0 && canX))) return h;
   return -1;
 }
-// ---- scroll physics, macOS-like: trackpads scroll 1:1 (the OS supplies the momentum), mouse wheels ease to their
-// target, drags keep their velocity (inertia), and past an edge the content stretches with resistance and springs
-// back once the input stops.
+// ---- scroll physics, per axis, after UIScrollView / Flutter / Chromium (docs/ui.md, scrolling):
+//   direct   fingers (trackpad, touch, drag) move the content 1:1; past an edge the closed-form rubber band
+//            (1 - 1/(x*c/dim + 1)) * dim of the raw overscroll is shown (c = 0.55)
+//   release  velocity = least-squares slope of the last 100 ms of positions (0 if the fingers rested > 40 ms);
+//            overscrolled -> bounce with that velocity, fast enough -> inertia, else stop
+//   inertia  v(t) = v0 * 0.998^ms (iOS normal deceleration); crossing an edge hands the velocity to the bounce
+//   bounce   critically damped spring toward the edge (omega 10/s, like the iOS / GTK overshoot)
+//   wheel    mouse-wheel notches: a critically damped spring (omega 30/s) toward a target 48 px per notch
+// Trackpad deltas arrive resampled at frame time (HAL scroll_dx / dy), so the stream is even and nothing judders.
+const RUBBER_C: number = 0.55, DECEL: number = 0.998, BOUNCE_W: number = 10, WHEEL_W: number = 30;
+const MIN_FLING: number = 100, MAX_FLING: number = 8000, MAX_EDGE_V: number = 5000, NOTCH_PX: number = 48;
+const IDLE: i32 = 0, DIRECT: i32 = 1, INERTIA: i32 = 2, BOUNCE: i32 = 3, WHEEL: i32 = 4;
+export class ScrollAxis {
+  mode: i32 = 0;
+  pos: number = 0;       // shown offset
+  raw: number = 0;       // unclamped offset during a direct gesture
+  v: number = 0;         // px/s
+  target: number = 0;    // wheel easing target
+  ts: number[] = [];     // recent direct samples (engine ms, raw) for the release velocity
+  ps: number[] = [];
+}
+function rubberOf(x: number, dim: number): number { return (1 - 1 / (x * RUBBER_C / Math.max(1, dim) + 1)) * dim; }
+function unrubber(f: number, dim: number): number { return f < dim ? f * dim / (RUBBER_C * (dim - f)) : dim * 100; }
+/** Shown offset for a raw one: inside [0, max] as is, beyond it squashed by the rubber band. */
+function banded(raw: number, max: number, dim: number): number {
+  return raw < 0 ? -rubberOf(-raw, dim) : raw > max ? max + rubberOf(raw - max, dim) : raw;
+}
+function beginDirect(a: ScrollAxis, max: number, dim: number): void {
+  if (a.mode === DIRECT) return;
+  // continue from what is shown, even mid-bounce: the raw offset is the rubber band inverted
+  a.raw = a.pos < 0 ? -unrubber(-a.pos, dim) : a.pos > max ? max + unrubber(a.pos - max, dim) : a.pos;
+  a.mode = DIRECT; a.v = 0; a.ts = []; a.ps = [];
+}
+function directBy(a: ScrollAxis, d: number, max: number, dim: number): void {
+  a.raw += d;
+  a.pos = banded(a.raw, max, dim);
+  a.ts.push(clock); a.ps.push(a.raw);
+  while (a.ts.length > 1 && clock - a.ts[0] > 100) { a.ts.shift(); a.ps.shift(); }
+}
+/** Least-squares slope (px/s) of the samples of the last 100 ms; 0 when the fingers rested before lifting. */
+function releaseVelocity(a: ScrollAxis): number {
+  const n = a.ts.length;
+  if (n < 2 || clock - a.ts[n - 1] > 40) return 0;
+  let mt = 0, mp = 0;
+  for (let i = 0; i < n; i++) { mt += a.ts[i]; mp += a.ps[i]; }
+  mt /= n; mp /= n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { const dt = a.ts[i] - mt; num += dt * (a.ps[i] - mp); den += dt * dt; }
+  return den > 0 ? Math.max(-MAX_FLING, Math.min(MAX_FLING, num / den * 1000)) : 0;
+}
+function releaseAxis(a: ScrollAxis, max: number): void {
+  if (a.mode !== DIRECT) return;
+  const v = releaseVelocity(a);
+  if (a.pos < 0 || a.pos > max) { a.mode = BOUNCE; a.v = Math.max(-MAX_EDGE_V, Math.min(MAX_EDGE_V, v)); }
+  else if (Math.abs(v) > MIN_FLING) { a.mode = INERTIA; a.v = v; }
+  else { a.mode = IDLE; a.v = 0; }
+}
+/** Critically damped spring step toward `to` (semi-implicit, small substeps: stable at any frame time). */
+function springStep(a: ScrollAxis, to: number, w: number, dt: number): boolean {
+  const n: i32 = Math.max(1, Math.ceil(dt * 480)), h = dt / n;
+  for (let i = 0; i < n; i++) { a.v += (-w * w * (a.pos - to) - 2 * w * a.v) * h; a.pos += a.v * h; }
+  if (Math.abs(a.pos - to) < 0.3 && Math.abs(a.v) < 6) { a.pos = to; a.v = 0; return false; }
+  return true;
+}
+/** One frame of an axis; false once it rests. */
+function stepAxis(a: ScrollAxis, max: number, dt: number): boolean {
+  if (a.mode === INERTIA) {
+    const f = Math.pow(DECEL, dt * 1000), k = 1000 * Math.log(DECEL);
+    a.pos += a.v * (f - 1) / k;
+    a.v *= f;
+    if (a.pos < 0 || a.pos > max) { a.mode = BOUNCE; a.v = Math.max(-MAX_EDGE_V, Math.min(MAX_EDGE_V, a.v)); }
+    else if (Math.abs(a.v) < 6) { a.mode = IDLE; a.v = 0; return false; }
+    return true;
+  }
+  if (a.mode === BOUNCE) { if (!springStep(a, Math.max(0, Math.min(max, a.pos < 0 ? 0 : max)), BOUNCE_W, dt)) a.mode = IDLE; return a.mode !== IDLE; }
+  if (a.mode === WHEEL) { if (!springStep(a, a.target, WHEEL_W, dt)) a.mode = IDLE; return a.mode !== IDLE; }
+  return a.mode === DIRECT;
+}
 function maxScrollY(n: UiNode): number { return Math.max(0, n.contentH - n.lh); }
 function maxScrollX(n: UiNode): number { return Math.max(0, n.contentW - n.lw); }
-/** Offset after a user delta: past an edge each pixel of input moves the content less (rubber band). */
-function rubber(pos: number, d: number, max: number, dim: number): number {
-  const over = pos < 0 ? -pos : pos > max ? pos - max : 0;
-  if (over > 0 && ((pos < 0 && d < 0) || (pos > max && d > 0))) d *= 0.55 * Math.max(0.02, 1 - over / (dim * 0.4));
-  return pos + d;
-}
+function axisY(n: UiNode): ScrollAxis { let a = n.ay; if (a === null) { a = new ScrollAxis(); a.pos = n.sy; n.ay = a; } return a as ScrollAxis; }
+function axisX(n: UiNode): ScrollAxis { let a = n.ax; if (a === null) { a = new ScrollAxis(); a.pos = n.sx; n.ax = a; } return a as ScrollAxis; }
 function wakeScroll(h: i32): void {
   const n = node(h);
   n.live = true;
   if (scrollers.indexOf(h) < 0) scrollers.push(h);
 }
-/** A user scroll by (dx, dy) pixels, applied at once. */
-function scrollBy(h: i32, dx: number, dy: number): void {
+/** A direct (finger) scroll by (dx, dy) pixels of content offset. */
+function directScroll(h: i32, dx: number, dy: number): void {
   const n = node(h);
-  if ((n.scroll & 1) !== 0 && dy !== 0) n.sy = rubber(n.sy, dy, maxScrollY(n), n.lh);
-  if ((n.scroll & 2) !== 0 && dx !== 0) n.sx = rubber(n.sx, dx, maxScrollX(n), n.lw);
-  n.smooth = false;
-  n.inputAt = clock; n.scrolledAt = clock; paintDirty = true;
+  if ((n.scroll & 1) !== 0) { const a = axisY(n); beginDirect(a, maxScrollY(n), n.lh); if (dy !== 0) directBy(a, dy, maxScrollY(n), n.lh); n.sy = a.pos; }
+  if ((n.scroll & 2) !== 0) { const a = axisX(n); beginDirect(a, maxScrollX(n), n.lw); if (dx !== 0) directBy(a, dx, maxScrollX(n), n.lw); n.sx = a.pos; }
+  n.scrolledAt = clock; paintDirty = true;
   wakeScroll(h);
+}
+/** The fingers left: inertia or bounce from the release velocity. */
+function releaseScroll(h: i32): void {
+  const n = node(h);
+  if (n.ay !== null) releaseAxis(n.ay as ScrollAxis, maxScrollY(n));
+  if (n.ax !== null) releaseAxis(n.ax as ScrollAxis, maxScrollX(n));
+  wakeScroll(h);
+}
+/** Fingers landed on a moving scroller: it stops where it is (an overscroll still springs back). */
+function catchScroll(h: i32): void {
+  const n = node(h);
+  for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL)) { a.mode = IDLE; a.v = 0; }
 }
 function stepScroll(dt: number): void {
   for (let i = scrollers.length - 1; i >= 0; i--) {
     const h = scrollers[i], n = node(h);
     if (!n.alive) { scrollers.splice(i, 1); continue; }
-    const my = maxScrollY(n), mx = maxScrollX(n);
-    const held = dragging && dragScroller === h;
-    let moving = held;
-    if (n.smooth) {
-      const k = 1 - Math.exp(-dt * 18);
-      n.sy += (n.tgy - n.sy) * k; n.sx += (n.tgx - n.sx) * k;
-      if (Math.abs(n.tgy - n.sy) < 0.5 && Math.abs(n.tgx - n.sx) < 0.5) { n.sy = n.tgy; n.sx = n.tgx; n.smooth = false; } else moving = true;
+    let moving = false;
+    if (n.ay !== null) {
+      const a = n.ay as ScrollAxis, my = maxScrollY(n);
+      if (a.mode === IDLE && (a.pos < 0 || a.pos > my)) a.mode = BOUNCE;   // content shrank, or a press ended an overscroll
+      if (stepAxis(a, my, dt)) moving = true;
+      n.sy = a.pos;
     }
-    if (!held && (n.vx !== 0 || n.vy !== 0)) {
-      n.sy += n.vy * dt; n.sx += n.vx * dt;
-      // friction, much stronger once past an edge (the stretch absorbs the momentum)
-      const outY = n.sy < 0 || n.sy > my, outX = n.sx < 0 || n.sx > mx;
-      n.vy *= Math.pow(outY ? 0.00002 : 0.12, dt); n.vx *= Math.pow(outX ? 0.00002 : 0.12, dt);
-      if (Math.abs(n.vy) < 12) n.vy = 0;
-      if (Math.abs(n.vx) < 12) n.vx = 0;
-      if (n.vx !== 0 || n.vy !== 0) moving = true;
-    }
-    // spring back from an overscroll once the fingers / wheel have been quiet for a moment
-    const outY = n.sy < 0 || n.sy > my, outX = n.sx < 0 || n.sx > mx;
-    if ((outY || outX) && !held) {
-      if (clock - n.inputAt > 90 && Math.abs(n.vy) < 400 && Math.abs(n.vx) < 400) {
-        const k = 1 - Math.exp(-dt * 13);
-        const ty = Math.max(0, Math.min(my, n.sy)), tx = Math.max(0, Math.min(mx, n.sx));
-        n.sy += (ty - n.sy) * k; n.sx += (tx - n.sx) * k;
-        if (Math.abs(ty - n.sy) < 0.4) n.sy = ty;
-        if (Math.abs(tx - n.sx) < 0.4) n.sx = tx;
-      }
-      moving = true;
+    if (n.ax !== null) {
+      const a = n.ax as ScrollAxis, mx = maxScrollX(n);
+      if (a.mode === IDLE && (a.pos < 0 || a.pos > mx)) a.mode = BOUNCE;
+      if (stepAxis(a, mx, dt)) moving = true;
+      n.sx = a.pos;
     }
     n.scrolledAt = clock;
     paintDirty = true;
@@ -1490,7 +1561,11 @@ function setFocusTo(h: i32): void {
   focus = h;
   if (h >= 0) { const e = nodes[h].ed; if (e !== null) { e.blinkAt = clock; e.reveal = true; } }
   paintDirty = true;
+  for (const f of focusHandlers) f(h);
 }
+const focusHandlers: ((h: i32) => void)[] = [];
+/** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
+export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
 /** Gives the keyboard focus to a node (-1: none). A text field starts the text input. */
 export function focusNode(h: i32): void { setFocusTo(h); }
 export function focused(): i32 { return focus; }
@@ -1508,13 +1583,7 @@ function pointerMove(px: number, py: number): void {
   if ((held & 1) !== 0 && dragScroller >= 0) {
     if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
     if (dragging) {
-      const n = node(dragScroller);
-      // velocity smoothed over the last frames, so a release after a pause does not throw the content
-      if ((n.scroll & 1) !== 0) n.vy = n.vy * 0.4 + (frameDt > 0 ? -(py - lastY) / frameDt : 0) * 0.6;
-      if ((n.scroll & 2) !== 0) n.vx = n.vx * 0.4 + (frameDt > 0 ? -(px - lastX) / frameDt : 0) * 0.6;
-      const vx = n.vx, vy = n.vy;
-      scrollBy(dragScroller, -(px - lastX), -(py - lastY));
-      n.vx = vx; n.vy = vy;
+      directScroll(dragScroller, -(px - lastX), -(py - lastY));
     }
   }
   if (px === ptrX && py === ptrY) return;
@@ -1531,6 +1600,7 @@ function pointerMove(px: number, py: number): void {
   const t = bubble(hit(px, py, HIT_ANY), PMOVE, false);
   if (t >= 0) fire(t, PMOVE, px, py, -1);
 }
+function keepsFocus(h: i32): boolean { for (let p = h; p >= 0; p = nodes[p].parent) if (nodes[p].keepFocus) return true; return false; }
 function pressAt(px: number, py: number, button: i32): void {
   held = held | bitOf(button);
   if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
@@ -1542,7 +1612,11 @@ function pressAt(px: number, py: number, button: i32): void {
   if (button === 2) { const c = bubble(t, PCONTEXT, false); if (c >= 0) fire(c, PCONTEXT, px, py, button); }
   if (clicks === 2 && button === 0) { const c = bubble(t, PDBL, true); if (c >= 0) fire(c, PDBL, px, py, button); }
   if (button !== 0) return;
-  if (t >= 0 && nodes[t].ed !== null) {
+  if (keepsFocus(t)) {
+    // a virtual keyboard key: it activates on release like a button, but the focused field keeps the focus
+    const h = hit(px, py, HIT_CLICK);
+    if (h >= 0) { pressed = h; paintDirty = true; }
+  } else if (t >= 0 && nodes[t].ed !== null) {
     // text field: caret, word / line selection, drag to select
     setFocusTo(t);
     boxOf(t);
@@ -1561,7 +1635,7 @@ function pressAt(px: number, py: number, button: i32): void {
   }
   dragScroller = selecting >= 0 || capture >= 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3);
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
-  if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; n.smooth = false; }   // a press stops the inertia
+  if (dragScroller >= 0) { catchScroll(dragScroller); wakeScroll(dragScroller); }   // a press stops the inertia
   hoverDirty = true;
 }
 function releaseAt(px: number, py: number, button: i32): void {
@@ -1577,7 +1651,7 @@ function releaseAt(px: number, py: number, button: i32): void {
     if (!dragging && hit(px, py, HIT_CLICK) === h) activate(h);
     paintDirty = true;
   }
-  if (dragging && dragScroller >= 0) wakeScroll(dragScroller);   // inertia and bounce from the release velocity
+  if (dragging && dragScroller >= 0) releaseScroll(dragScroller);   // inertia and bounce from the release velocity
   dragScroller = -1; dragging = false;
 }
 /** One pointer sample: position, and whether `button` is held (HAL button events, the held state, or test hooks). */
@@ -1606,19 +1680,36 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
     }
   }
   if (sc < 0 || (wy === 0 && wx === 0)) return;
+  // mouse wheel notches: a spring toward a target NOTCH_PX per notch (turning further moves the target)
   const n = node(sc);
-  n.vx = 0; n.vy = 0;
-  if (wy !== Math.round(wy) || wx !== Math.round(wx)) {
-    // trackpad (fractional deltas, 1/10 px from SDL on macOS): follow the fingers and the OS momentum 1:1
-    scrollBy(sc, wx * 10, -wy * 10);
-    return;
+  if (wy !== 0 && (n.scroll & 1) !== 0) {
+    const a = axisY(n), base = a.mode === WHEEL ? a.target : a.pos;
+    a.target = Math.max(0, Math.min(maxScrollY(n), base - wy * NOTCH_PX)); a.mode = WHEEL;
   }
-  // mouse wheel notches: ease toward a target 60 px per notch (it accumulates while turning)
-  const baseY = n.smooth ? n.tgy : n.sy, baseX = n.smooth ? n.tgx : n.sx;
-  n.tgy = (n.scroll & 1) !== 0 ? Math.max(0, Math.min(maxScrollY(n), baseY - wy * 60)) : n.sy;
-  n.tgx = (n.scroll & 2) !== 0 ? Math.max(0, Math.min(maxScrollX(n), baseX + wx * 60)) : n.sx;
-  n.smooth = true; n.inputAt = clock; n.scrolledAt = clock; paintDirty = true;
+  if (wx !== 0 && (n.scroll & 2) !== 0) {
+    const a = axisX(n), base = a.mode === WHEEL ? a.target : a.pos;
+    a.target = Math.max(0, Math.min(maxScrollX(n), base + wx * NOTCH_PX)); a.mode = WHEEL;
+  }
+  n.scrolledAt = clock; paintDirty = true;
   wakeScroll(sc);
+}
+// Trackpad gestures (HAL: pixels resampled at frame time + the finger phase): the scroller under the pointer when
+// the gesture starts follows the fingers until they lift, then its inertia takes over. A wheel handler or a
+// scrollable text field under the pointer gets the deltas as wheel steps instead.
+let padScroller: i32 = -1;
+function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
+  if (phase === 3) { const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3); if (sc >= 0) catchScroll(sc); return; }
+  if (phase === 0) return;
+  if (padScroller < 0 || !nodes[padScroller].alive) {
+    if (dx === 0 && dy === 0 && phase !== 2) return;
+    const w = hit(px, py, HIT_WHEEL);
+    const sc = root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, (dy !== 0 ? 1 : 0) | (dx !== 0 ? 2 : 0));
+    if (w >= 0 && (sc < 0 || isAncestor(sc, w))) { wheelInput(px, py, dy / 40, -dx / 40, 1); return; }
+    padScroller = sc;
+    if (sc < 0) return;
+  }
+  directScroll(padScroller, -dx, -dy);
+  if (phase === 2) { releaseScroll(padScroller); padScroller = -1; }
 }
 function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
@@ -1685,6 +1776,7 @@ function inputFrame(): void {
   const px = pointerX(), py = pointerY();
   const wy = wheel(), wx = wheelX(), pz = pinch();
   if (wy !== 0 || wx !== 0 || pz !== 1) wheelInput(px, py, wy, wx, pz);
+  trackpadInput(px, py, scrollDX(), scrollDY(), scrollPhase());
   // button events in order (fast clicks are not lost), else the held state (HALs without button events)
   const nb = buttonEventCount();
   for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
@@ -1826,6 +1918,15 @@ export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
   if (layoutDirty) layout();
   return dispatchKey(key, mods, false).handled;
 }
+// ---- virtual keyboards (lib/std/kit/keyboard.tsx): the same path as the physical keyboard, not the test hooks
+/** Types `s` into the focused text field (replacing the selection), like typed text. */
+export function insertText(s: string): void { if (focus >= 0) { typeInto(focus, s); paintDirty = true; } }
+/** A key press as the physical keyboard would send it ('Backspace', 'Enter', 'ArrowLeft', 'Tab'...). */
+export function sendKey(key: string, mods: i32 = 0): boolean { if (layoutDirty) layout(); return dispatchKey(key, mods, false).handled; }
+/** The focused editable text field, or -1. */
+export function focusedField(): i32 { return focus >= 0 && nodes[focus].ed !== null && !(nodes[focus].ed as Edit).readOnly ? focus : -1; }
+/** inputMode of a text field (0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search); multiline: 7. */
+export function fieldMode(h: i32): i32 { const e = nodes[h].ed; return e !== null && (e as Edit).multi ? 7 : nodes[h].inputMode; }
 /** Text typed into the focused field (focus moves to h first when h >= 0). */
 export function typeText(h: i32, s: string): void {
   synthetic = true;

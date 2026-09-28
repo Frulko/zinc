@@ -119,6 +119,26 @@ Zoom around the pointer: `wx = (e.x - panX) / z`, then `panX = e.x - wx * z2` (s
 uses the nearest baked font size, so its width is approximate at unusual zooms. (`scale` on a `<text>` keeps its
 legacy meaning: font size 8 × scale.)
 
+## Scrolling
+
+Scroll containers (`<ScrollView>`, `overflow-y-auto` / `overflow-x-auto`) run one physics state per axis in
+`lib/std/ui.ts` (`ScrollAxis`), with the constants of the reference implementations:
+
+| phase | behaviour |
+| --- | --- |
+| direct | fingers move the content 1:1; past an edge the shown offset is the closed-form rubber band `(1 - 1/(x·0.55/dim + 1))·dim` of the raw overscroll (UIScrollView) |
+| release | velocity = least-squares slope of the last 100 ms (0 if the fingers rested > 40 ms, like Flutter's VelocityTracker), capped at 8000 px/s |
+| inertia | `v·0.998^ms` (iOS normal deceleration); an edge reached hands the velocity (≤ 5000 px/s) to the bounce |
+| bounce | critically damped spring toward the edge, ω = 10/s (iOS / GTK overshoot) |
+| wheel | notches: a critically damped spring toward 48 px per notch, retargeted while turning |
+
+Input: the SDL HAL reports trackpad fingers (`SDL_HINT_TRACKPAD_IS_TOUCH_ONLY`), so the lift is exact, and
+resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms: Chromium /
+Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). OS momentum is off;
+the engine's inertia replaces it, so the same physics run on touch screens and in tests
+(`tests/conformance/scroll_physics.tsx`). Without finger events a 50 ms gap ends the gesture. Landing fingers
+catches a running inertia.
+
 ## Tests
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a

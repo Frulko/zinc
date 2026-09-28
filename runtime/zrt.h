@@ -739,6 +739,9 @@ String clipboardText();
 void setClipboardText(const String& s);
 void setCursor(int32_t c);
 void escapeByApp(bool on);
+double scrollDX();
+double scrollDY();
+int32_t scrollPhase();
 void escapeDefault();
 }
 

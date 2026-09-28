@@ -85,9 +85,10 @@ resizes. Use them for layouts that follow the window.
 <scroll class="h-full">…</scroll>                          <!-- or class="overflow-y-auto" -->
 ```
 
-Scroll containers behave like macOS: trackpads scroll 1:1 with the system's momentum, mouse-wheel notches ease to
-their target, drags keep their velocity (inertia), and past an edge the content stretches with resistance and
-springs back (rubber band). Scrollbars fade in while scrolling; the keyboard focus is revealed. `overflow-hidden` and
+Scroll containers behave like iOS / macOS: fingers (trackpad, touch screen, mouse drag) move the content 1:1,
+releasing starts an inertia with the release velocity (iOS deceleration), past an edge the content stretches (the
+UIScrollView rubber band) and springs back with the velocity it had, and mouse-wheel notches ease to their target.
+Trackpad deltas are resampled at frame time by the HAL, so uneven event timing never judders (details: docs/ui.md). Scrollbars fade in while scrolling; the keyboard focus is revealed. `overflow-hidden` and
 scroll views clip their children inside the border and its rounded corners (anti-aliased), so borders stay visible
 while the content moves. For long lists, build only the
 visible rows:

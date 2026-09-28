@@ -607,8 +607,13 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     if (PROFILES[o.profile].typing === 'strict' && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: gradual')) { console.log(`skip ${f} (needs the gradual typing profile)`); continue; }
     // console targets have no environment: no deterministic mode (their own frame clock is fixed, timers are not)
     if (['esp32', 'ps1', 'ps2', 'wasm'].includes(o.target) && fs.readFileSync(entry, 'utf8').startsWith('// zinc-test: deterministic')) { console.log(`skip ${f} (needs deterministic mode)`); continue; }
+    // `// zinc-test: skip ps1 esp32`: programs that do not fit a profile (heap, screen) on purpose
+    const skips = /^\/\/ zinc-test: skip ([\w ]+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1].split(' ') ?? [];
+    if (skips.includes(o.profile)) { console.log(`skip ${f} (not for the ${o.profile} profile)`); continue; }
+    // `// zinc-test: max-frames 300`: the frame budget of both sides (the sim stops a screen program at 60 by default)
+    const maxFrames = /^\/\/ zinc-test: max-frames (\d+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1];
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '' } });
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '', ...(maxFrames ? { ZINC_FRAMES: maxFrames } : {}) } });
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const key = profileKey(o);

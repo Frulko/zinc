@@ -50,5 +50,6 @@ export const startTextInput = () => {}, stopTextInput = () => {}, setCursor = ()
 export const clipboardText = () => clipboard, setClipboardText = s => { clipboard = s; };
 export const quit = () => { $z.state.quit = true; };
 export const escapeByApp = () => {}, escapeDefault = () => {};
+export const scrollDX = () => 0, scrollDY = () => 0, scrollPhase = () => 0;
 // headless sim: nothing is rasterized, so there is no frame to save
 export const capture = () => false;

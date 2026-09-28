@@ -63,8 +63,14 @@ void hal_init(const HalConfig* cfg) {
   const char* d = getenv("ZINC_DETERMINISTIC");
   det = (d && *d && *d != '0') || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
   if (!gfx_on) return;
+  // Trackpad scrolling: zinc:ui follows the fingers 1:1 and runs its own inertia from the release velocity, so the
+  // OS momentum events are off, and trackpad touches are reported (without mouse emulation) to know when the
+  // fingers lift (docs/ui.md, scrolling).
 #ifdef SDL_HINT_MAC_SCROLL_MOMENTUM
-  SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "1");   // keep the trackpad's momentum events: native inertia (zinc:ui scrolls 1:1)
+  SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "0");
+#endif
+#ifdef SDL_HINT_TRACKPAD_IS_TOUCH_ONLY
+  SDL_SetHint(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, "1");
 #endif
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
@@ -159,6 +165,53 @@ static void key_push(HalInput* in, int32_t key, int32_t kind, SDL_Keymod mod, co
   in->nkeys++;
 }
 
+// ---- precise scrolling: timestamped cumulative deltas, resampled at frame time (Chromium / Android style:
+// sample time = now - 5 ms, linear between the two bracketing events, extrapolation capped at 8 ms)
+struct ScrollSample { uint64_t t; double x, y; };
+static ScrollSample ss[32];
+static int nss = 0;
+static double cum_x, cum_y, out_x, out_y;
+static bool gesture = false, saw_fingers = false;
+static int tp_fingers = 0, tp_fingers_prev = 0;
+static uint64_t last_precise_us = 0;
+static void scroll_push(uint64_t t, double dx, double dy) {
+  cum_x += dx; cum_y += dy;
+  if (nss == 32) { memmove(ss, ss + 1, sizeof(ss[0]) * 31); nss--; }
+  ss[nss++] = ScrollSample{t, cum_x, cum_y};
+}
+static void scroll_resample(HalInput* in) {
+  in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0;
+  const bool touched = tp_fingers > 0 && tp_fingers_prev == 0;
+  tp_fingers_prev = tp_fingers;
+  if (!gesture) { if (touched) in->scroll_phase = 3; return; }   // fingers landed: catches a running inertia
+  const uint64_t now = SDL_GetTicksNS() / 1000;
+  const bool lifted = saw_fingers ? (tp_fingers == 0) : (now - last_precise_us > 50000);
+  double x = cum_x, y = cum_y;
+  if (!lifted && nss > 0) {
+    uint64_t ts = now > 5000 ? now - 5000 : 0;
+    const ScrollSample& last = ss[nss - 1];
+    if (nss >= 2 && ts > last.t) {   // extrapolate a little past the newest event
+      const ScrollSample& prev = ss[nss - 2];
+      uint64_t span = last.t - prev.t, ahead = ts - last.t, cap = span / 2 < 8000 ? span / 2 : 8000;
+      if (ahead > cap) ahead = cap;
+      double k = span ? (double)ahead / (double)span : 0;
+      x = last.x + (last.x - prev.x) * k; y = last.y + (last.y - prev.y) * k;
+    } else if (ts <= ss[0].t) {
+      x = out_x; y = out_y;   // no event old enough yet
+    } else {
+      int i = nss - 1;
+      while (i > 0 && ss[i - 1].t > ts) i--;
+      const ScrollSample& a = ss[i > 0 ? i - 1 : 0]; const ScrollSample& b = ss[i];
+      double k = b.t > a.t ? (double)(ts - a.t) / (double)(b.t - a.t) : 1;
+      x = a.x + (b.x - a.x) * k; y = a.y + (b.y - a.y) * k;
+    }
+  }
+  in->scroll_dx = (float)(x - out_x); in->scroll_dy = (float)(y - out_y);
+  out_x = x; out_y = y;
+  in->scroll_phase = lifted ? 2 : 1;
+  if (lifted) { gesture = false; nss = 0; cum_x = cum_y = out_x = out_y = 0; }
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   // A display plugin with its own window (LED / OLED / e-ink emulators) still needs this HAL to pump the OS events,
@@ -182,7 +235,24 @@ void hal_poll_input(HalInput* in) {
       b.button = e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0;
       b.down = e.button.down;
     }
-    if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel_x += e.wheel.x;
+    if (e.type == SDL_EVENT_MOUSE_WHEEL) {
+      // notches are whole steps outside a trackpad gesture; anything else is precise (px = delta * 10 on macOS)
+      const bool precise = tp_fingers > 0 || gesture || e.wheel.y != SDL_floorf(e.wheel.y) || e.wheel.x != SDL_floorf(e.wheel.x);
+      if (precise) {
+        const uint64_t t = e.wheel.timestamp / 1000;
+        if (!gesture) { gesture = true; nss = 0; cum_x = cum_y = out_x = out_y = 0; scroll_push(t > 16000 ? t - 16000 : 0, 0, 0); }
+        scroll_push(t, e.wheel.x * 10, e.wheel.y * 10);
+        last_precise_us = SDL_GetTicksNS() / 1000;
+      } else { in->wheel_x += e.wheel.x; in->wheel += e.wheel.y; }
+    }
+    // trackpad fingers (indirect touch devices, SDL_HINT_TRACKPAD_IS_TOUCH_ONLY): how many are down
+    if ((e.type == SDL_EVENT_FINGER_DOWN || e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) &&
+        SDL_GetTouchDeviceType(e.tfinger.touchID) != SDL_TOUCH_DEVICE_DIRECT) {
+      int n = 0;
+      if (SDL_Finger** f = SDL_GetTouchFingers(e.tfinger.touchID, &n)) SDL_free(f);
+      tp_fingers = e.type == SDL_EVENT_FINGER_DOWN ? (n > 0 ? n : 1) : n;
+      saw_fingers = true;
+    }
     if (e.type == SDL_EVENT_PEN_AXIS) {
       if (e.paxis.axis == SDL_PEN_AXIS_PRESSURE) pen.pressure = e.paxis.value;
       if (e.paxis.axis == SDL_PEN_AXIS_XTILT) pen.tilt_x = e.paxis.value;
@@ -209,7 +279,6 @@ void hal_poll_input(HalInput* in) {
     if (gfx_on && e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
       set_fullscreen(!(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
     if (gfx_on && (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED)) apply_size();
-    if (e.type == SDL_EVENT_MOUSE_WHEEL) in->wheel += e.wheel.y;
     if (e.type == SDL_EVENT_PINCH_UPDATE) in->pinch *= e.pinch.scale;
     // touch screens only: trackpad fingers (indirect devices) are the pointer, not screen touches
     if ((e.type == SDL_EVENT_FINGER_DOWN || e.type == SDL_EVENT_FINGER_MOTION) && SDL_GetTouchDeviceType(e.tfinger.touchID) == SDL_TOUCH_DEVICE_DIRECT) {
@@ -225,6 +294,7 @@ void hal_poll_input(HalInput* in) {
       for (int32_t k = 0; k < in->ntouch; k++) if (in->touch[k].id == (int32_t)e.tfinger.fingerID) { in->touch[k] = in->touch[--in->ntouch]; break; }
     }
   }
+  scroll_resample(in);
   const bool* k = SDL_GetKeyboardState(nullptr);
   uint32_t b = 0;
   if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) b |= HAL_UP;

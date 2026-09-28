@@ -597,6 +597,9 @@ void quit() { quit_requested = true; }
 
 // ---- desktop input: keyboard/text queue, mouse buttons, clipboard, cursor, text input
 double wheelX() { return input.wheel_x; }
+double scrollDX() { return input.scroll_dx; }
+double scrollDY() { return input.scroll_dy; }
+int32_t scrollPhase() { return input.scroll_phase; }
 int32_t pointerButtons() { return (int32_t)input.pbuttons; }
 int32_t modifiers() { return (int32_t)input.mods; }
 int32_t keyCount() { return input.nkeys; }

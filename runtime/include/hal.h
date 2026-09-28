@@ -54,6 +54,11 @@ struct HalInput {
   char text[HAL_TEXT_BYTES];
   int32_t nbtn;
   HalButtonEvent btn[HAL_MAX_BUTTON_EVENTS];
+  // precise scrolling (trackpads; additive): pixels since the last poll, resampled at frame time by the HAL so
+  // uneven event timing does not judder (+ = up / left, like wheel), and the gesture phase
+  float scroll_dx, scroll_dy;
+  int32_t scroll_phase;   // 0 none, 1 fingers down / precise stream active, 2 the gesture ended during this poll,
+                          // 3 fingers landed on the trackpad (stops a running inertia)
 };
 // Optional (the runtime has weak defaults: no text input, a process-local clipboard, no cursor shapes).
 // Text input (IME, on-screen keyboard) while a text field is focused; the rectangle is the field (logical pixels).

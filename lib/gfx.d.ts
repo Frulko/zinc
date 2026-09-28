@@ -111,6 +111,11 @@ declare module 'zinc:gfx' {
   export function clipboardText(): string;
   export function setClipboardText(s: string): void;
   export function setCursor(c: Cursor): void;
+  /** Precise scrolling (trackpads) since the last frame, in pixels, resampled at frame time (+ = up / left). */
+  export function scrollDX(): number;
+  export function scrollDY(): number;
+  /** 0 none, 1 gesture active (fingers down), 2 ended this frame (fingers lifted: start the inertia), 3 fingers landed. */
+  export function scrollPhase(): i32;
   /** true: Escape is an ordinary key for the app (zinc:ui sets it); the HAL no longer quits / leaves fullscreen on it. */
   export function escapeByApp(on: boolean): void;
   /** The HAL's own Escape action: leave fullscreen, else quit (nothing in kiosk mode). */
