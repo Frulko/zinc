@@ -10,12 +10,11 @@ const live = process.env.ZINC_DEV === '1';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' };
 const clients = new Set();
 const RELOAD = '<script>new EventSource("/__reload").onmessage = () => location.reload();</script>';
-if (live) {
-  let t;
+if (live) {  // zinc dev touches .zinc-reload after each successful build
   fs.watch(dir, (_e, f) => {
-    if (!/^app\.(wasm|js)$/.test(f ?? '')) return;
-    clearTimeout(t);
-    t = setTimeout(() => { for (const c of clients) c.write('data: reload\n\n'); console.log(`zinc: reload pushed to ${clients.size} page(s)`); }, 100);
+    if (f !== '.zinc-reload') return;
+    for (const c of clients) c.write('data: reload\n\n');
+    console.log(`zinc: reload pushed to ${clients.size} page(s)`);
   });
 }
 http.createServer((req, res) => {

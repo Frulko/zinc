@@ -162,7 +162,7 @@ export function dev(o: Opts, build: () => Built | null) {
     if (!b) { console.error('zinc dev: build failed, waiting for changes...'); return; }
     if (b.lib) return hot(b);
     if (o.device) return device(b);
-    if (o.target === 'wasm' && child) return;  // serve.mjs sees the new files and reloads the page
+    if (o.target === 'wasm' && child) { fs.writeFileSync(path.join(b.dir, 'cmake/.zinc-reload'), String(Date.now())); return; }  // serve.mjs reloads the page
     stop();
     child = spawn(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit', env: { ...env, ZINC_DEV: '1' } });
     onExit(child);
