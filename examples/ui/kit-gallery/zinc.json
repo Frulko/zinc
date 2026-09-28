@@ -1,0 +1,11 @@
+{
+  "name": "kit-gallery",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 960, "height": 800 },
+    "linux": { "width": 960, "height": 800 },
+    "rpi1": { "width": 960, "height": 800 },
+    "wasm": { "width": 960, "height": 800 },
+    "sim": { "width": 960, "height": 800 }
+  }
+}

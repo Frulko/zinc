@@ -1,6 +1,6 @@
 {
   "name": "falling-cubes",
-  "entry": "main.ts",
+  "entry": "src/main.ts",
   "targets": {
     "macos": { "width": 16, "height": 16, "display": "ws2812" },
     "sim": { "width": 16, "height": 16 },

@@ -1,0 +1,4 @@
+{
+  "name": "breakout",
+  "entry": "src/main.ts"
+}

@@ -30,7 +30,7 @@ gfx.onFrame((dt) => { p.update(dt); gfx.clear(0); p.draw(0, 0, 200, 200); });
   that background colour), `player` (callback receiving the `Player`, for play/pause from the app).
 
 Examples: `examples/ui/lottie-gallery` (12 animations in a grid with a fps readout, click a card to pause it),
-`view.ts` there (one file, full window: `LOTTIE=file.json [LOTTIE_FRAME=n]`), `bench.ts` there (numbers below).
+`src/view.ts` there (one file, full window: `LOTTIE=file.json [LOTTIE_FRAME=n]`), `src/bench.ts` there (numbers below).
 
 ## Supported features
 
@@ -83,7 +83,7 @@ only shift/stretch a precomp's inner time); Zinc does the same.
   icons, each frame is rasterized once into a runtime image atlas (w × h·frames, opaque on `bg`) and then drawn
   as a 1:1 row copy. Memory: w·h·4 bytes per frame (a 48 px, 54-frame icon: 500 KiB); refused above `maxBytes`.
 
-## Performance (macOS, M1 Pro, release build, `zinc run examples/ui/lottie-gallery/bench.ts`)
+## Performance (macOS, M1 Pro, release build, `zinc run examples/ui/lottie-gallery/src/bench.ts`)
 
 Every frame of each file rendered off screen at 256×256 (`gfx.beginImage`), ms per frame:
 vector = evaluation + flattening + command emission, raster = rasterization, replay = redrawing an unchanged frame.
@@ -115,7 +115,7 @@ Whole programs (release, `ZINC_FIXED_DT=1/60`, 600 frames, `/usr/bin/time`, user
 
 | program | CPU/frame |
 |---|---|
-| `lottie-gallery` (860×400, 12 animations at 112 px, UI, fps readout; the damaged rectangle covers most of the window every frame) | 2.4 ms (60 fps, ~15 % of a 60 Hz frame) |
+| `lottie-gallery` (860×400, 12 animations at 112 px, UI, fps readout, measured before the kit restyle (96 px cards); the damaged rectangle covers most of the window every frame) | 2.4 ms (60 fps, ~15 % of a 60 Hz frame) |
 | `view.ts` 9squares full window (400×400 composition), playing | 1.3 ms |
 | same, paused | 0.30 ms, vs 0.23 ms for the same program with nothing loaded: an idle animation costs ~0.07 ms (command replay and frame diff), nothing is rasterized |
 

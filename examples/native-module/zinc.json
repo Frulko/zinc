@@ -1,0 +1,4 @@
+{
+  "name": "native-module",
+  "entry": "src/main.ts"
+}

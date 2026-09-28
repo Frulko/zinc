@@ -1,6 +1,6 @@
 {
   "name": "oled-clock",
-  "entry": "main.tsx",
+  "entry": "src/main.tsx",
   "targets": {
     "macos": { "width": 128, "height": 64, "display": "ssd1306" },
     "sim": { "width": 128, "height": 64 },

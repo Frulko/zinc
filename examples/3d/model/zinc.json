@@ -1,6 +1,6 @@
 {
   "name": "model",
-  "entry": "main.ts",
+  "entry": "src/main.ts",
   "targets": {
     "macos": { "width": 640, "height": 480 },
     "rpi1": { "width": 640, "height": 480, "plugins": { "3d": { "scale": 2 } } },

@@ -67,13 +67,17 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       for (const n of names) if (n && (new RegExp(`class\\s+${n}\\b`).test(text) || (n === st.importClause.name?.text && /export\s+default\s+class\b/.test(text)))) classTags.add(n);
     }
   }
-  const lib = react ? 'zinc:ui/react' : 'zinc:ui/solid';
+  // `/** @jsxHelpers ./host */`: a library lowers its JSX (Solid-shaped) against its own helper module; the kit's
+  // helpers (lib/std/kit/host.ts) build fine-grained nodes under Solid and plain reconciled nodes under React
+  const pragma = /@jsxHelpers\s+(\S+)/.exec(text)?.[1];
+  const lib = pragma ?? (react ? 'zinc:ui/react' : 'zinc:ui/solid');
   let counter = 0;
   // PocketJS-style host components (View, Text, Image...) when imported from a components module (or not imported at all)
   const imported = new Map<string, string>();
   for (const st of sf.statements) if (ts.isImportDeclaration(st) && st.importClause?.namedBindings && ts.isNamedImports(st.importClause.namedBindings))
     for (const el of st.importClause.namedBindings.elements) imported.set(el.name.text, (st.moduleSpecifier as ts.StringLiteral).text);
-  const hostImport = (tag: string) => { const m = imported.get(tag); return !m || /components|zinc:ui/.test(m); };
+  // (zinc:ui/kit exports its own Button: an explicit import of a kit component wins over the host tag)
+  const hostImport = (tag: string) => { const m = imported.get(tag); return !m || (/components|zinc:ui/.test(m) && !m.startsWith('zinc:ui/kit')); };
   const isJsx = (n: ts.Node) => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n);
 
   /** Source text of `n` with every JSX sub-expression lowered. */
@@ -203,7 +207,13 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
           if (react) out.push(`for (const __c of ${rewrite(e)}) _append(${parent}, __c);`);
           else out.push(`_for(${parent}, () => (${rewrite(e.expression.expression)}), ${rewrite(e.arguments[0])});`);
         }
-        else out.push(react ? `_text(${parent}, \`\${${rewrite(e)}}\`);` : `_dynText(${parent}, () => \`\${${rewrite(e)}}\`);`);
+        // {cond ? <A/> : <B/>} and {cond && <A/>}: conditional nodes (React: the chosen branch; Solid: a reactive <Show>)
+        else {
+          const cj = conditional(e);
+          if (cj && react) out.push(`_append(${parent}, (${cj.cond}) ? ${cj.yes} : ${cj.no ?? '_el(6)'});`);
+          else if (cj) out.push(`_show(${parent}, () => (${cj.cond}), () => ${cj.yes}, ${cj.no ? `() => ${cj.no}` : 'null'});`);
+          else out.push(react ? `_text(${parent}, \`\${${rewrite(e)}}\`);` : `_dynText(${parent}, () => \`\${${rewrite(e)}}\`);`);
+        }
       } else {
         const cv = element(c, out);
         out.push(`_append(${parent}, ${cv});`);
@@ -211,6 +221,22 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
     }
   };
 
+  /** `c ? <A/> : <B/>` / `c && <A/>` (either branch may be null): condition and lowered branches, or null. */
+  const conditional = (e: ts.Expression): { cond: string; yes: string; no?: string } | null => {
+    const strip = (x: ts.Expression): ts.Expression => ts.isParenthesizedExpression(x) ? strip(x.expression) : x;
+    const branch = (x: ts.Expression): string | undefined => { const b = strip(x); return isJsx(b) ? lower(b as ts.JsxElement) : undefined; };
+    const isNull = (x: ts.Expression) => strip(x).kind === ts.SyntaxKind.NullKeyword;
+    if (ts.isConditionalExpression(e)) {
+      const yes = branch(e.whenTrue), no = branch(e.whenFalse);
+      if (yes && (no || isNull(e.whenFalse))) return { cond: rewrite(e.condition), yes, no };
+      if (no && isNull(e.whenTrue)) return { cond: `!(${rewrite(e.condition)})`, yes: no };
+    }
+    if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      const yes = branch(e.right);
+      if (yes) return { cond: rewrite(e.left), yes };
+    }
+    return null;
+  };
   const returnsJsx = (f: ts.Expression): boolean => {
     if (!ts.isArrowFunction(f) && !ts.isFunctionExpression(f)) return false;
     let b: ts.Node = f.body;
@@ -256,8 +282,17 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       const key = attrs.get('key');
       attrs.delete('key');
       const props = [...attrs].map(([k, x]) => `${k}: ${valueOf(x)}`);
-      const c = onlyChild(n);
-      if (c) props.push(`children: () => ${childNode(c)}`);
+      // several children (or plain text) are passed as one fragment: <Card><Header/><Body/></Card>
+      const kids = childrenOf(n).filter(k => !(ts.isJsxText(k) && !k.text.trim()));
+      // a single {expression} child that is not a node ({c ? <A/> : <B/>}, {xs.map(...)}, {label}) takes that path too
+      const nodeValued = (k: ts.JsxChild) => !ts.isJsxExpression(k) || !k.expression || isJsx(k.expression) ||
+        (ts.isCallExpression(k.expression) && /(^|\.)(children|render[A-Z]\w*)$/.test(k.expression.expression.getText(sf)));
+      if (kids.length > 1 || (kids.length === 1 && (ts.isJsxText(kids[0]) || !nodeValued(kids[0])))) {
+        const lines: string[] = [], f = `__n${counter++}`;
+        lines.push(`const ${f}: i32 = _el(6);`);
+        children(f, kids, lines);
+        props.push(`children: () => ((): i32 => { ${lines.join(' ')} return ${f}; })()`);
+      } else if (kids.length === 1) props.push(`children: () => ${childNode(kids[0])}`);
       const call = `${tag}(${props.length ? `{ ${props.join(', ')} }` : ''})`;
       const keyArg = key ? `'' + (${valueOf(key)})` : "''";
       if (react && classTags.has(tag)) out.push(`_cc(${v}, () => new ${tag}(${props.length ? `{ ${props.join(', ')} }` : '{}'}), ${JSON.stringify(tag)}, ${keyArg});`);

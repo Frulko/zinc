@@ -286,7 +286,9 @@ function usesGfx(sema: Sema): boolean { return sema.fe.sources.some(f => /from [
 const HIDPI_TARGETS = new Set(['macos', 'linux', 'rpi1', 'rmpp', 'wasm']);
 /** Fonts and images baked for this program (cached by content key in the build directory). */
 function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: string } {
-  const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep)).map(f => ({ fileName: f.fileName, text: f.text }));
+  // the kit's own class names and glyphs count as program text (text sizes and characters to bake)
+  const kit = path.join(ZINC_ROOT, 'lib/std/kit') + path.sep;
+  const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep) || f.fileName.startsWith(kit)).map(f => ({ fileName: f.fileName, text: f.text }));
   const assetStamp: string[] = [];
   const walk = (d?: string) => { if (!d || !fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else assetStamp.push(p + ':' + st.mtimeMs); } };
   walk(o.project.assets);
@@ -670,10 +672,12 @@ function help(topic?: string) {
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
-  JSX host tags view/text/button/image/scroll/canvas (and View/Text/Image for PocketJS), Tailwind-like classes
+  JSX host tags View/Text/Button/Image/ScrollView/Canvas (or view/text/button/image/scroll/canvas), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
+  Inline {items.map(x => <Row/>)} and {cond ? <A/> : <B/>} / {cond && <A/>} children in both models.
   Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
+  Components: zinc:ui/kit (shadcn-style Button, Card, Tabs, Switch, Slider, Stat..., light/dark themes, docs/ui-kit.md).
   Responsive: sm: md: lg: xl: 2xl: prefixes (640/768/1024/1280/1536 px), re-evaluated when the window is resized.
   Scrolling: <scroll>/<ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
   <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.

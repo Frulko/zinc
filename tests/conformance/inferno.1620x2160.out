@@ -1,23 +1,41 @@
 view 0,0 1620x2160
   fragment 0,0 0x0
     view 0,0 1620x2160
-      text 40,40 1540x40 "Todos"
-      text 40,96 1540x20 "1 left of 3 · click to toggle, scroll or drag the list"
-      scroll 136,132 1348x1934
-        view 136,132 1348x46
+      view 40,40 1540x56
+        text 40,40 1540x32 "Todos"
+        text 40,76 1540x20 "1 left of 3 · click a task to toggle it"
+      fragment 0,0 0x0
+        view 40,112 1540x8
+          view 40,112 1032x8
+      scroll 136,136 1348x1932
+        view 140,140 1340x44
           fragment 0,0 0x0
-            view 136,132 1348x38
-              text 144,140 197x22 "✓ Compile Inferno to C++"
-        view 136,178 1348x46
+            view 140,140 1340x40
+              view 152,152 16x16
+                text 154,152 11x16 "✓"
+              text 180,150 156x20 "Compile Inferno to C++"
+        view 140,184 1340x44
           fragment 0,0 0x0
-            view 136,178 1348x38
-              text 144,186 202x22 "✓ Run without a JS engine"
-        view 136,224 1348x46
+            view 140,184 1340x40
+              view 152,196 16x16
+                text 154,196 11x16 "✓"
+              text 180,194 160x20 "Run without a JS engine"
+        view 140,228 1340x44
           fragment 0,0 0x0
-            view 136,224 1348x38
-              text 144,232 71x22 "○ Task 3"
-      view 40,2082 1540x38
-        view 40,2082 94x38
-          text 52,2090 70x22 "Add task"
-        view 142,2082 75x38
-          text 154,2090 51x22 "+1000"
+            view 140,228 1340x40
+              view 152,240 16x16
+                text 152,240 16x16 ""
+              text 180,238 45x20 "Task 3"
+      view 40,2084 1540x36
+        fragment 0,0 0x0
+          button 40,2084 91x36
+            fragment 0,0 0x0
+              fragment 0,0 0x0
+                text 56,2092 59x20 "Add task"
+            fragment 0,0 0x0
+        fragment 0,0 0x0
+          button 139,2084 95x36
+            fragment 0,0 0x0
+              fragment 0,0 0x0
+                text 155,2092 63x20 "Add 1000"
+            fragment 0,0 0x0

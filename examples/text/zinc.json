@@ -1,0 +1,9 @@
+{
+  "name": "text",
+  "entry": "src/main-solid.tsx",
+  "targets": {
+    "macos": { "width": 320, "height": 240 },
+    "sim": { "width": 320, "height": 240 },
+    "wasm": { "width": 320, "height": 240 }
+  }
+}

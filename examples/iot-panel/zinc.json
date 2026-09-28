@@ -1,0 +1,10 @@
+{
+  "name": "iot-panel",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 760, "height": 520 },
+    "linux": { "width": 760, "height": 520 },
+    "rpi1": { "width": 760, "height": 520 },
+    "sim": { "width": 760, "height": 520 }
+  }
+}

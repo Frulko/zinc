@@ -1,6 +1,6 @@
 {
   "name": "mapper",
-  "entry": "main.ts",
+  "entry": "src/main.ts",
   "display": "gl",
   "targets": {
     "macos": { "width": 1280, "height": 720 },
