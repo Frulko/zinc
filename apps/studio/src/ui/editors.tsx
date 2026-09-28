@@ -9,7 +9,7 @@ import { BoxFile } from '../project';
 import * as docs from '../docs';
 import { Badge, HSep } from './kit';
 
-const CODE = 'grow w-full font-mono text-[13] bg-white border-0 rounded-none';
+const CODE = 'grow w-full font-mono text-[13] text-zinc-800 bg-white border-0 rounded-none';
 
 /** Expanded template of a built-in box, as the generator will write it. */
 function templateOf(b: Box): string {

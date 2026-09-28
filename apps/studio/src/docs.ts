@@ -9,7 +9,8 @@
 import * as webview from 'zinc:webview';
 import * as fs from 'zinc:fs';
 import { join } from './project';
-import { zincRoot } from './runner';
+import * as sys from 'zinc:sys';
+import { zincRoot, log } from './runner';
 
 let web: webview.WebView | null = null;
 let openCb: ((dir: string) => void) | null = null;
@@ -35,7 +36,7 @@ export function onOpenExample(cb: (dir: string) => void): void { openCb = cb; }
 function create(): webview.WebView {
   const w = webview.create({ url: 'zinc://docs.html', html: '', x: 0, y: 0, w: 1, h: 1 });
   // the allowlist: the page can only call these commands, with arguments checked against our own lists
-  w.handle('listDocs', (_a: string) => JSON.stringify(docList()));
+  w.handle('listDocs', (_a: string) => { log('studio', `docs page: listDocs (${docList().length} files)`); return JSON.stringify(docList()); });
   w.handle('readDoc', (path: string) => {
     if (docList().indexOf(path) < 0) throw new Error(`not a doc: ${path}`);
     return JSON.stringify(fs.readText(join(zincRoot(), path)));
@@ -43,9 +44,14 @@ function create(): webview.WebView {
   w.handle('listExamples', (_a: string) => JSON.stringify(samples()));
   w.handle('openExample', (name: string) => {
     if (samples().indexOf(name) < 0) throw new Error(`no example ${name}`);
+    log('studio', `docs page: openExample ${name}`);
     const cb = openCb;
     if (cb !== null) cb(sampleDir(name));
     return JSON.stringify(`opened ${name}`);
+  });
+  // STUDIO_SHOW=docs-bridge: once the page is loaded, click its first "Open <example>" button (bridge check)
+  if (sys.env('STUDIO_SHOW') === 'docs-bridge') w.onLoad((url: string) => {
+    setTimeout(() => { w.eval("document.querySelector('.example') && document.querySelector('.example').click()"); }, 1500);
   });
   web = w;
   return w;

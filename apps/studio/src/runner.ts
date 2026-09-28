@@ -133,6 +133,8 @@ export function play(dir: string, p: ProjectFile): void {
   const t = targetInfo(p.target);
   const r = writeBuild(dir, p);
   for (const w of r.warnings) log('warn', w);
+  if (t.id === 'sim' && r.modules.indexOf('zinc:ui') >= 0)
+    log('warn', 'Simulator: a program with a screen runs 60 headless frames and exits (timers do not fire in that loop); use Preview or macOS window to watch it');
   log('studio', `generated build/src/main.ts (${p.boxes.length} boxes, ${p.links.length} links) for ${t.label}`);
   const build = join(dir, 'build');
   if (t.id === 'device') {
@@ -180,6 +182,10 @@ function launch(dir: string, t: TargetInfo, exeLine: string): void {
   const cmd = parts[0];
   const args = parts.slice(1);
   const env = ['ZINC_LOG_FORMAT=json', `ZINC_ASSETS=${absolute(join(dir, 'assets'))}`, `ZINC_REMOTE_PORT=${PREVIEW_PORT}`];
+  // a scripted studio (ZINC_FRAMES / ZINC_SHOT) must not pass its own frame budget and screenshot to the app
+  // (-1: no limit on native targets; the sim keeps its default of 60 headless frames)
+  if (sys.env('ZINC_FRAMES') !== '') env.push(t.zincTarget === 'sim' ? 'ZINC_FRAMES=60' : 'ZINC_FRAMES=-1');
+  if (sys.env('ZINC_SHOT') !== '') env.push('ZINC_SHOT=');
   log('studio', `$ ${exeLine}`);
   try {
     const p = proc.spawn(cmd, args, { env: env });

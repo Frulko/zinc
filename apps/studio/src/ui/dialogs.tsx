@@ -18,6 +18,7 @@ let openHook: ((dir: string) => void) | null = null;
 export function setOpenHook(f: (dir: string) => void): void { openHook = f; }
 function openDir(dir: string): void { const f = openHook; if (f !== null) f(dir); }
 
+/** One child (JSX components get a single `children`): put the dialog body in one view. */
 interface CardProps { title: string; children: () => i32 }
 function DialogCard(props: CardProps): i32 {
   return <view class="w-[520] flex-col rounded-xl border border-zinc-200 bg-white shadow-xl">
@@ -27,7 +28,7 @@ function DialogCard(props: CardProps): i32 {
       <IconButton icon="x" onClick={() => closeDialog()} />
     </view>
     <HSep />
-    <view class="flex-col gap-4 p-5">{props.children()}</view>
+    <view class="p-5">{props.children()}</view>
   </view>;
 }
 function renderSection(label: string): i32 { return <text class="text-[11] font-semibold text-zinc-500 tracking-wider">{label.toUpperCase()}</text>; }
@@ -55,6 +56,7 @@ function samples(): string[] {
 }
 function OpenDialog(): i32 {
   return <DialogCard title="Open project">
+    <view class="flex-col gap-4">
     <Field label="Project folder (.zproj)" error={() => openErr()}>
       <view class="flex-row gap-2">
         <input class={inputClass(openErr() !== '')} placeholder="/path/to/project.zproj" value={openPath()} onInput={(v: string) => setOpenPath(v)} onChange={(v: string) => tryOpen()} />
@@ -69,6 +71,7 @@ function OpenDialog(): i32 {
     <view class="flex-col gap-1">
       {renderSection('Samples')}
       <For each={samples()}>{(d: string, _i: i32) => PathRow(d, 'box')}</For>
+    </view>
     </view>
   </DialogCard>;
 }
@@ -89,6 +92,7 @@ function create(): void {
 function NewDialog(): i32 {
   if (newPath() === '') setNewPath(join(sys.env('HOME'), 'my-app.zproj'));
   return <DialogCard title="New project">
+    <view class="flex-col gap-4">
     <Field label="Project folder" hint="Created with project.json and assets/; the parent folder must exist" error={() => newErr()}>
       <input class={inputClass(newErr() !== '')} value={newPath()} onInput={(v: string) => setNewPath(v)} onChange={(v: string) => create()} />
     </Field>
@@ -96,6 +100,7 @@ function NewDialog(): i32 {
       <view class="grow" />
       <Button label="Cancel" onClick={() => closeDialog()} />
       <Button label="Create project" variant="primary" onClick={() => create()} />
+    </view>
     </view>
   </DialogCard>;
 }
@@ -126,6 +131,7 @@ function SshRow(d: string, _i: i32): i32 {
 }
 function DevicesDialog(): i32 {
   return <DialogCard title="Devices">
+    <view class="flex-col gap-4">
     <view class="flex-col gap-2">
       {renderSection('Running apps (display remote, LAN discovery)')}
       <For each={devices.discovered()}>{(a: remote.App, i: i32) => AppRow(a, i)}</For>
@@ -145,6 +151,7 @@ function DevicesDialog(): i32 {
         <Button label="Add" icon="plus" onClick={() => { const e = devices.addSsh(user(), host()); setDevErr(e); if (e === '') setHost(''); }} />
       </view>
       <Show when={devErr() !== ''}><text class="text-[11] text-red-600">{devErr()}</text></Show>
+    </view>
     </view>
   </DialogCard>;
 }

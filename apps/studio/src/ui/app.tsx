@@ -172,11 +172,12 @@ export function startApp(dir: string): void {
   const recent = model.recentProjects();
   const first = dir !== '' ? dir : recent.length > 0 ? recent[0] : docs.sampleDir('hello-flow');
   const demo = sys.env('STUDIO_DEMO') === '1';
-  if (demo) openDemoCopy(first); else openProjectDir(first);
+  if (demo || sys.env('STUDIO_SHOW').startsWith('run:')) openDemoCopy(first); else openProjectDir(first);
   // the web view is a native layer above the UI: shown only on the Docs tab with no dialog open
   createEffect(() => { if (centerTab() === 'Docs' && dialog() === '') docs.show(); else docs.hide(); });
   const root = ui.createNode(ui.VIEW);
   ui.insert(root, App(), -1);
+  const show = sys.env('STUDIO_SHOW');
   let frames = 0, acc = 0;
   ui.mount(root, 0xfafafa, (dt: number) => {
     frames++;
@@ -185,6 +186,7 @@ export function startApp(dir: string): void {
     acc += dt;
     if (acc >= 1) { acc = 0; devices.updateStats(); }
     if (demo) demoStep(frames);
+    if (frames === 30 && show !== '') showState(show);
   });
 }
 
@@ -194,11 +196,23 @@ export function startApp(dir: string): void {
 // then runs the project with the Preview target.
 /** The demo edits and saves: it works on a copy in $TMPDIR, never on the sample itself. */
 async function openDemoCopy(src: string): Promise<void> {
-  const tmp = sys.env('TMPDIR') !== '' ? sys.env('TMPDIR') : '/tmp/';
-  const dst = join(tmp, 'zincstudio-demo.zproj');
+  // the real path: macOS TMPDIR is under the /var -> /private/var symlink, which breaks relative imports of sim builds
+  const r = await proc.run('realpath', [sys.env('TMPDIR') !== '' ? sys.env('TMPDIR') : '/tmp'], {});
+  const dst = join(r.stdout.trim(), 'zincstudio-demo.zproj');
   await proc.run('rm', ['-rf', dst], {});
   await proc.run('cp', ['-R', src, dst], {});
   openProjectDir(dst);
+}
+/** STUDIO_SHOW=code | script | docs | docs-bridge | devices | open | new | asset:<name> | box:<id> | run:<target>:
+ *  a state for screenshots and scripted checks (run:* works on a copy of the project, like STUDIO_DEMO). */
+function showState(s: string): void {
+  if (s === 'code') setCenterTab('Generated code');
+  else if (s === 'docs' || s === 'docs-bridge') setCenterTab('Docs');
+  else if (s === 'script') { model.addBox('script', 420, 260); setCenterTab('Script'); }
+  else if (s === 'devices' || s === 'open' || s === 'new') openDialog(s);
+  else if (s.startsWith('asset:')) model.selectAsset(s.slice(6));
+  else if (s.startsWith('box:')) model.select([s.slice(4)]);
+  else if (s.startsWith('run:')) { model.setTarget(s.slice(4)); run(); }
 }
 function center(h: i32): number[] { const b = ui.screenBox(h); return [b[0] + b[2] / 2, b[1] + b[3] / 2]; }
 function drag(x0: number, y0: number, x1: number, y1: number): void {
@@ -218,7 +232,11 @@ function demoStep(frame: i32): void {
     drag(a[0], a[1], c[0], c[1]);
     a = graph.portScreen(b.id, 'value', true); c = graph.portScreen('b3', 'message', false);
     drag(a[0], a[1], c[0], c[1]);
-    runner.log('studio', `demo: linked ${model.links().length} links`);
+    const n = model.links().length;
+    model.undo();
+    const undone = model.links().length;
+    model.redo();
+    runner.log('studio', `demo: linked, ${n} links (undo: ${undone}, redo: ${model.links().length})`);
   } else if (frame === 40) {
     model.setTarget('preview');
     run();
