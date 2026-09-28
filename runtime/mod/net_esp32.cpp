@@ -20,7 +20,6 @@
 // is left for when there's a board to test it on (QEMU can't exercise a WiFi radio).
 #include "zrt.h"
 #include "mod/net.h"
-#include "mod/sock.h"
 #include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
