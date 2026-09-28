@@ -21,7 +21,8 @@ export class GenResult {
 export function literal(def: BoxDef, name: string, value: string): string {
   const p = def.param(name);
   if (p === null) return JSON.stringify(value);
-  if (p.type === 'number') { const n = parseFloat(value); return isNaN(n) ? p.def : `${n}`; }
+  // invalid or out of range (the inspector shows why): the box default
+  if (p.type === 'number') { const n = parseFloat(value); return isNaN(n) || n < p.min || n > p.max ? p.def : `${n}`; }
   if (p.type === 'bool') return value === 'true' ? 'true' : 'false';
   return JSON.stringify(value);
 }

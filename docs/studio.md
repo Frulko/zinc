@@ -39,7 +39,7 @@ video previews; docker for the Pi (QEMU) target. Start it from the zinc checkout
 - **Delete** removes the selection, **Cmd+D** duplicates it (with the links between the copies), **Cmd+Z** /
   **Shift+Cmd+Z** undo and redo every change, including parameter edits (typing in one field is one step).
 - **Parameters** are edited in the Inspector and checked as you type (numbers, ranges); assets are picked from the
-  project's `assets/` list. An invalid number falls back to the box default in the generated code.
+  project's `assets/` list. An invalid or out-of-range number falls back to the box default in the generated code.
 - **Script box**: select it and open the Script tab (or double-click the card). The code runs when `onStart` fires;
   call `onDone()` to continue the flow. It is Zinc TypeScript; list the modules it uses in its `modules` parameter
   (`zinc:net zinc:gpio`: imported as `net`, `gpio`).
