@@ -113,6 +113,17 @@ static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
   c->x = minx; c->y = miny; c->w = maxx - minx; c->h = maxy - miny;
   return true;
 }
+Cmd* emit(uint8_t kind, const float* pts, uint32_t len) {
+  Buf& b = bufs[cur];
+  if (len > ZRT_POINT_POOL - b.npts) return nullptr;
+  Cmd* c = push(kind, 0, 255);
+  if (!c || !len) return c;
+  __builtin_memcpy(b.pts + b.npts, pts, len * sizeof(float));
+  c->off = b.npts;
+  if (kind == raster::POLY) for (uint32_t i = 0; i < len; i += 1 + 2 * (uint32_t)pts[i]) c->n++;
+  b.npts += len;
+  return c;
+}
 /** Filled polygon from flat [x0, y0, x1, y1, ...] coordinates. */
 void polygon(const Array<double>& pts, uint32_t color, int32_t alpha) {
   if (Cmd* c = push(raster::POLY, color, alpha)) if (!add_points(c, pts, false)) bufs[cur].ncmd--;

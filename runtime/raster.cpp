@@ -46,6 +46,10 @@ static Rect bounds(float x, float y, float w, float h, const Rect& clip) {
 static uint32_t color_at(const Cmd& c, float px, float py) {
   if (c.grad == 1) return lerp_color(c.c1, c.c2, (py - c.y) / (c.h > 0 ? c.h : 1));
   if (c.grad == 2) return lerp_color(c.c1, c.c2, (px - c.x) / (c.w > 0 ? c.w : 1));
+  if (c.grad == 3) {  // radial: c1 at the centre -> c2 at the box edge
+    float dx = (px - c.x) / (c.w > 0 ? c.w : 1) * 2 - 1, dy = (py - c.y) / (c.h > 0 ? c.h : 1) * 2 - 1;
+    return lerp_color(c.c1, c.c2, __builtin_sqrtf(dx * dx + dy * dy));
+  }
   return c.c1;
 }
 static void fill_rrect(const Target& t, const Cmd& c) {
@@ -104,49 +108,98 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   }
 }
 
-// ---------------------------------------------------------------- polygons (nonzero, 4x4 supersampling)
-static const int MAXX = 128;
+// ---------------------------------------------------------------- polygons (nonzero or even-odd, 4x4 supersampling)
+// Edges are bucketed by their first row once per call and walked with an active list, so the cost follows the rows
+// each edge spans, not rows x edges (map tiles and SVG art have thousands of edges).
+struct Edge { float y0, y1, x0, dxdy; int32_t d, next; };
+template<class T> static T* scratch(T*& buf, uint32_t& cap, uint32_t need) {
+  if (need <= cap) return buf;
+  uint32_t n = cap ? cap : 256;
+  while (n < need) n *= 2;
+  T* nb = (T*)hal_alloc((size_t)n * sizeof(T));
+  if (!nb) return nullptr;
+  if (buf) { __builtin_memcpy(nb, buf, (size_t)cap * sizeof(T)); hal_free(buf); }
+  buf = nb; cap = n;
+  return buf;
+}
+static Edge* edges; static uint32_t edge_cap;
+static int32_t* heads; static uint32_t head_cap;
+static uint16_t* accs; static uint32_t acc_cap;
+struct Cross { float x; int32_t d; };
+static int32_t* actives; static uint32_t active_cap;
+static Cross* crosses; static uint32_t cross_cap;
 static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
-  static uint16_t acc[4096];
-  int32_t bw = b.x1 - b.x0;
-  if (bw > 4096) bw = 4096;
-  float xs[MAXX]; int8_t ds[MAXX];
+  int32_t bw = b.x1 - b.x0, rows = b.y1 - b.y0;
+  if (!scratch(heads, head_cap, (uint32_t)rows) || !scratch(accs, acc_cap, (uint32_t)bw)) return;
+  for (int32_t i = 0; i < rows; i++) heads[i] = -1;
+  uint32_t ne = 0;
+  const float* p = pts;
+  for (uint32_t k = 0; k < c.n; k++) {
+    int32_t cnt = (int32_t)p[0];
+    const float* v = p + 1;
+    for (int32_t i = 0; i < cnt; i++) {
+      int32_t j = i + 1 == cnt ? 0 : i + 1;
+      float ax = v[i * 2], ay = v[i * 2 + 1], bx = v[j * 2], by = v[j * 2 + 1];
+      if (ay == by) continue;
+      int32_t d = 1;
+      if (ay > by) { float tx = ax, ty = ay; ax = bx; ay = by; bx = tx; by = ty; d = -1; }
+      if (by <= b.y0 || ay >= b.y1) continue;
+      if (!scratch(edges, edge_cap, ne + 1)) return;
+      int32_t row = ay <= b.y0 ? 0 : ifloor(ay) - b.y0;
+      edges[ne] = Edge{ay, by, ax, (bx - ax) / (by - ay), d, heads[row]};
+      heads[row] = (int32_t)ne++;
+    }
+    p += 1 + cnt * 2;
+  }
+  if (!ne || !scratch(actives, active_cap, ne) || !scratch(crosses, cross_cap, ne)) return;
+  bool evenodd = c.pad & 1;
+  int32_t* active = actives; Cross* xs = crosses;
+  uint32_t na = 0;
+  uint16_t* acc = accs;
+  for (int32_t i = 0; i < bw; i++) acc[i] = 0;
   for (int32_t y = b.y0; y < b.y1; y++) {
-    for (int32_t i = 0; i < bw; i++) acc[i] = 0;
-    bool any = false;
+    for (int32_t e = heads[y - b.y0]; e >= 0; e = edges[e].next) active[na++] = e;
+    if (!na) continue;
+    int32_t lo = bw, hi = -1;
     for (int s = 0; s < 4; s++) {
       float sy = y + (s + 0.5f) / 4;
-      int n = 0;
-      const float* p = pts;
-      for (uint32_t k = 0; k < c.n; k++) {
-        int32_t cnt = (int32_t)p[0];
-        const float* v = p + 1;
-        for (int32_t i = 0; i < cnt; i++) {
-          float ax = v[i * 2], ay = v[i * 2 + 1], bx = v[((i + 1) % cnt) * 2], by = v[((i + 1) % cnt) * 2 + 1];
-          if (ay == by) continue;
-          int8_t d = 1;
-          if (ay > by) { float tx = ax, ty = ay; ax = bx; ay = by; bx = tx; by = ty; d = -1; }
-          if (sy < ay || sy >= by || n >= MAXX) continue;
-          xs[n] = ax + (sy - ay) * (bx - ax) / (by - ay); ds[n] = d; n++;
-        }
-        p += 1 + cnt * 2;
+      int32_t n = 0;
+      for (uint32_t a = 0; a < na; a++) {
+        const Edge& e = edges[active[a]];
+        if (sy < e.y0 || sy >= e.y1) continue;
+        xs[n++] = Cross{e.x0 + (sy - e.y0) * e.dxdy, e.d};
       }
-      for (int i = 1; i < n; i++) { float xv = xs[i]; int8_t dv = ds[i]; int j = i - 1; while (j >= 0 && xs[j] > xv) { xs[j + 1] = xs[j]; ds[j + 1] = ds[j]; j--; } xs[j + 1] = xv; ds[j + 1] = dv; }
-      int wind = 0;
-      for (int i = 0; i + 1 < n; i++) {
-        wind += ds[i];
-        if (!wind) continue;
-        int32_t s0 = iceil((xs[i] - b.x0) * 4 - 0.5f), s1 = ifloor((xs[i + 1] - b.x0) * 4 - 0.5f);
+      for (int32_t i = 1; i < n; i++) { Cross v = xs[i]; int32_t j = i - 1; while (j >= 0 && xs[j].x > v.x) { xs[j + 1] = xs[j]; j--; } xs[j + 1] = v; }
+      int32_t wind = 0;
+      for (int32_t i = 0; i + 1 < n; i++) {
+        wind += xs[i].d;
+        if (evenodd ? !(wind & 1) : !wind) continue;
+        int32_t s0 = iceil((xs[i].x - b.x0) * 4 - 0.5f), s1 = ifloor((xs[i + 1].x - b.x0) * 4 - 0.5f);
         if (s0 < 0) s0 = 0;
         if (s1 > bw * 4 - 1) s1 = bw * 4 - 1;
-        for (int32_t q = s0; q <= s1; q++) acc[q >> 2]++;
-        if (s0 <= s1) any = true;
+        if (s0 > s1) continue;
+        int32_t p0 = s0 >> 2, p1 = s1 >> 2;
+        if (p0 < lo) lo = p0;
+        if (p1 > hi) hi = p1;
+        if (p0 == p1) { acc[p0] += (uint16_t)(s1 - s0 + 1); continue; }
+        acc[p0] += (uint16_t)(4 - (s0 & 3));
+        for (int32_t q = p0 + 1; q < p1; q++) acc[q] += 4;
+        acc[p1] += (uint16_t)((s1 & 3) + 1);
       }
     }
-    if (!any) continue;
-    for (int32_t i = 0; i < bw; i++) if (acc[i]) blend(at(t, b.x0 + i, y), c.c1, (uint32_t)(acc[i] * c.alpha / 16));
+    for (int32_t i = lo; i <= hi; i++) {
+      uint32_t k = acc[i];
+      if (!k) continue;
+      acc[i] = 0;
+      uint32_t col = c.grad ? color_at(c, b.x0 + i + 0.5f, y + 0.5f) : c.c1;
+      if (k >= 16 && c.alpha == 255) at(t, b.x0 + i, y) = col;
+      else blend(at(t, b.x0 + i, y), col, k * c.alpha / 16);
+    }
+    uint32_t keep = 0;  // drop edges that end in this row
+    for (uint32_t a = 0; a < na; a++) if (edges[active[a]].y1 > y + 1) active[keep++] = active[a];
+    na = keep;
   }
 }
 
@@ -409,6 +462,12 @@ uint32_t stroke_contours(const float* p, uint32_t n, float width, bool closed, f
   if (r >= 1.0f) {  // joins and caps; thin lines skip them (invisible at that size)
     int seg = r < 3 ? 6 : r < 8 ? 10 : 16;
     for (uint32_t i = 0; i < n; i++) {
+      if (closed || (i > 0 && i + 1 < n)) {  // interior vertex: no disc where the turn leaves no visible notch
+        uint32_t a = (i + n - 1) % n, b = (i + 1) % n;
+        float ux = p[i * 2] - p[a * 2], uy = p[i * 2 + 1] - p[a * 2 + 1], vx = p[b * 2] - p[i * 2], vy = p[b * 2 + 1] - p[i * 2 + 1];
+        float l2 = (ux * ux + uy * uy) * (vx * vx + vy * vy), cr = ux * vy - uy * vx;
+        if (l2 > 0 && ux * vx + uy * vy > 0 && cr * cr * r * r < 0.1f * l2) continue;  // r * sin(turn) < ~0.3px
+      }
       float q[32];
       for (int k = 0; k < seg; k++) { float a = 6.2831853f * k / seg; q[k * 2] = p[i * 2] + __builtin_cosf(a) * r; q[k * 2 + 1] = p[i * 2 + 1] + __builtin_sinf(a) * r; }
       emit(q, (uint32_t)seg);

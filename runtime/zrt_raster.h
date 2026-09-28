@@ -33,8 +33,8 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP };
 
 struct Cmd {
-  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal; IMAGE: 1 = nearest filter
-  uint8_t pad;
+  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial; IMAGE: 1 = nearest filter
+  uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero)
   int32_t res;                 // font or image index
   float x, y, w, h;            // LINE: x,y -> w,h ; POLY: bbox
   float r, s;                  // radius; border width / shadow blur / line width / tracking
@@ -62,4 +62,11 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 
-}}  // namespace zrt::raster
+}  // namespace raster
+
+namespace gfx {
+/** For C++ plugins: appends a raw command to the current frame, copying `len` floats of payload into the point pool
+ *  (POLY: [count, x, y, ...]*, contour count is filled in). The caller sets the box, colors and flags. Null when full. */
+raster::Cmd* emit(uint8_t kind, const float* pts, uint32_t len);
+}
+}  // namespace zrt
