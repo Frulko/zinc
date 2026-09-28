@@ -164,7 +164,7 @@ function guard<T>(o: Opts, f: () => T): T {
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
   const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '');
-  return path.join(path.dirname(path.resolve(o.entry)), 'build', name);
+  return path.join(o.project.dir || path.dirname(path.resolve(o.entry)), 'build', name);  // next to zinc.json
 }
 
 /** zinc export / deploy: release build with hidden symbol visibility and a stripped executable. */
