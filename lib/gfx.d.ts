@@ -36,6 +36,8 @@ declare module 'zinc:gfx' {
   export function unclip(): void;
   /** Offset added to the coordinates of the following commands (reset every frame). */
   export function translate(x: number, y: number): void;
+  /** Nothing changed this frame: present the previous one again (retained UIs call this when idle). */
+  export function keep(): void;
   export function isDown(b: Btn): boolean;
   export function wasPressed(b: Btn): boolean;
   export function pointerX(): number;

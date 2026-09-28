@@ -11,7 +11,7 @@ export const text = () => {};
 // metrics come from the baked resources (resources.json next to run.mjs), so layouts match native builds
 const R = () => globalThis.$zRes ?? { fonts: [], images: [] };
 export const rrect = () => {}, gradient = () => {}, border = () => {}, shadow = () => {}, polygon = () => {}, path = () => {};
-export const drawText = () => {}, drawImage = () => {}, clip = () => {}, unclip = () => {}, translate = () => {};
+export const drawText = () => {}, drawImage = () => {}, clip = () => {}, unclip = () => {}, translate = () => {}, keep = () => {};
 export function font(name, px) {
   let best = -1, bd = 1 << 30;
   R().fonts.forEach((f, i) => { if (f.name === name && Math.abs(f.px - px) < bd) { bd = Math.abs(f.px - px); best = i; } });

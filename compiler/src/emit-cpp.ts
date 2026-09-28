@@ -25,7 +25,7 @@ export interface CppResult { code: string; usesGfx: boolean; modules: Set<string
 const refLike = (t: ZT) => ['obj', 'fn', 'arr', 'map', 'set', 'promise', 'gen'].includes(t.k);
 const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'tup' ? t.els.some(hasTp) : false) || (t.k === 'arr' || t.k === 'set' || t.k === 'promise' || t.k === 'gen' ? hasTp(t.el) : t.k === 'map' ? hasTp(t.key) || hasTp(t.val) : t.k === 'fn' ? t.params.some(hasTp) || hasTp(t.ret) : t.k === 'obj' ? t.args.some(hasTp) : false);
 
-type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.TypeLiteralNode;
+type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.TypeLiteralNode | ts.ObjectLiteralExpression;
 type FnLike = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 
 interface Frame { kind: 'async' | 'gen'; fields: Map<string, string>; state: number; awaits: Map<ts.Node, string>; el: ZT; name: string }
@@ -62,6 +62,7 @@ class CppEmitter {
   }
   isTop(d: ts.Node): boolean { return ts.isSourceFile(d.parent) || this.s.isModuleLevel(d); }
   declName(d: ts.Node): string {
+    if (this.s.anon.includes(d)) return `__Obj${this.s.classIds.get(d)}`;
     if (ts.isTypeLiteralNode(d)) {
       const alias = this.s.unionOf.get(d)!;
       return `${alias.name.text}_${this.s.unionMembers.get(alias)!.indexOf(d)}`;
@@ -137,6 +138,7 @@ class CppEmitter {
         else if (ts.isImportDeclaration(st) && (st.moduleSpecifier as ts.StringLiteral).text === 'zinc:gfx') this.usesGfx = true;
       }
     }
+    for (const a of this.s.anon) classes.push(a as Cls);
     const ordered = this.topo(classes);
     const decls: string[] = [], defs: string[] = [], protos: string[] = [], bodies: string[] = [], inits: string[] = [];
     for (const c of ordered) decls.push(`namespace ${this.ns(c.getSourceFile())} { ${this.tparams((c as ts.ClassDeclaration).typeParameters)}struct ${this.id(this.declName(c))}; }`);
@@ -193,6 +195,7 @@ class CppEmitter {
   baseOf(c: Cls): { code: string; decl?: ts.Node } {
     const u = this.s.unionOf.get(c);
     if (ts.isTypeLiteralNode(c) || ts.isTypeAliasDeclaration(c)) return u ? { code: this.qual(u), decl: u } : { code: 'zrt::Object' };
+    if (ts.isObjectLiteralExpression(c)) return { code: 'zrt::Object' };
     if (ts.isClassDeclaration(c)) { const eb = this.s.errorBase(c); if (eb) return { code: `zrt::${eb}` }; }
     const hs = c.heritageClauses ?? [];
     const all = hs.flatMap(h => h.types.map(t => ({ t, ext: h.token === this.K.ExtendsKeyword })));
@@ -267,11 +270,16 @@ class CppEmitter {
     const isUnionBase = ts.isTypeAliasDeclaration(c) && this.s.unionMembers.has(c);
     const members = isUnionBase ? this.s.commonFields(c as ts.TypeAliasDeclaration) : this.s.ownMembers(c);
     for (const m of members) {
-      if (ts.isPropertyDeclaration(m) || ts.isPropertySignature(m)) {
+      if (ts.isPropertyDeclaration(m) || ts.isPropertySignature(m) || ts.isPropertyAssignment(m) || ts.isShorthandPropertyAssignment(m)) {
         const raw = m.name.getText();
         const fname = this.id(raw);
         const t = this.s.declType(m);
         const weak = ts.isPropertyDeclaration(m) && this.hasDecorator(m, 'weak');
+        if (ts.isPropertyAssignment(m) || ts.isShorthandPropertyAssignment(m)) {
+          L.push(`  ${this.cpp(t)} ${fname}{};`);
+          if (t.k !== 'fn') jsonFields.push(`  zrt::json_field(sb, first, "${raw}", this->${fname});`);
+          continue;
+        }
         const ft = weak && t.k === 'obj' ? `zrt::Weak<${this.cls(t)}>` : this.cpp(t);
         if (this.isStatic(m)) { L.push(`  static inline ${ft} ${fname}{};`); continue; }
         if (skip.has(raw)) { if (ts.isPropertyDeclaration(m) && m.initializer) fieldInits.push(`  this->${fname} = ${this.conv(m.initializer, t)};`); continue; }
@@ -873,7 +881,7 @@ class CppEmitter {
       if (t.k === 'tup' && ts.isNumericLiteral(e.argumentExpression)) return `${this.expr(e.expression)}.v${e.argumentExpression.text}`;
       return this.s.fail(e, 'Z9015', 'computed property access is only supported on arrays and strings (use Map)');
     }
-    if (ts.isCallExpression(e)) return e.questionDotToken ? this.s.fail(e, 'Z9035', "'?.()' is not supported yet") : this.check(this.call(e), e);
+    if (ts.isCallExpression(e)) return e.questionDotToken ? this.optionalCall(e) : this.check(this.call(e), e);
     if (ts.isNewExpression(e)) return this.check(this.newExpr(e, want), e);
     if (ts.isArrayLiteralExpression(e)) return this.arrLit(e, want);
     if (ts.isObjectLiteralExpression(e)) return this.objLit(e, want);
@@ -943,6 +951,16 @@ class CppEmitter {
     if (ts.isElementAccessExpression(e) && this.s.ztypeOf(e.expression).k === 'arr') return `${this.expr(e.expression)}.ref(${this.index(e.argumentExpression)})`;
     if (ts.isParenthesizedExpression(e)) return this.lval(e.expression);
     return this.expr(e);
+  }
+
+  /** `f?.(args)`: calls a function value only when it is set. */
+  optionalCall(e: ts.CallExpression): string {
+    const ft = this.s.ztypeOf(e.expression);
+    if (ft.k !== 'fn') return this.s.fail(e, 'Z9035', "'?.()' is supported on function values");
+    const f = this.newTmp('f');
+    const call = `${f}(${this.args(e.arguments, ft.params)})`;
+    if (ft.ret.k === 'void') return `([&]() { auto ${f} = ${this.expr(e.expression)}; if (${f} != nullptr) ${call}; }())`;
+    return `([&]() -> ${this.cpp(ft.ret)} { auto ${f} = ${this.expr(e.expression)}; if (${f} == nullptr) return {}; return ${call}; }())`;
   }
 
   /** `a?.b` (single level): null short-circuits to the default value of the result type. */

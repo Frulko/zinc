@@ -1,7 +1,7 @@
 view 0,0 1280x720
   view 0,0 1280x720
     text 8,8 1264x32 "Zinc"
-    text 8,48 1264x8 "UTF-8 text, wrapping and alignment"
-    text 8,64 1264x8 "Zinc compiles a strict subset of TypeScript to native C++, with no JavaScript engine on the device and deterministic memory."
-    text 8,80 1264x8 "right aligned"
-    text 8,96 1264x8 "frame 0"
+    text 8,48 1264x22 "UTF-8 text, wrapping and alignment"
+    text 8,78 1264x22 "Zinc compiles a strict subset of TypeScript to native C++, with no JavaScript engine on the device and deterministic memory."
+    text 8,108 1264x22 "right aligned"
+    text 8,138 1264x22 "frame 0"

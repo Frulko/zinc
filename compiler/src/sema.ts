@@ -69,6 +69,8 @@ export class Sema {
   /** Discriminated unions: alias -> members, member -> alias (LNG-11). */
   unionMembers = new Map<ts.TypeAliasDeclaration, ts.Node[]>();
   unionOf = new Map<ts.Node, ts.TypeAliasDeclaration>();
+  /** Structs synthesized for anonymous object literal / inline object types. */
+  anon: ts.Node[] = [];
   /** Function-likes that may complete by throwing (RT-05 error returns are only emitted where needed). */
   throwing = new Set<ts.Node>();
   anyLambdaThrows = false;
@@ -121,6 +123,12 @@ export class Sema {
         }
       }
       if (ts.isTypeAliasDeclaration(n)) this.registerAlias(n, () => cid++);
+      if (ts.isObjectLiteralExpression(n) && !this.isLib(n) && n.properties.every(p => ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && n.properties.length > 0) {
+        const ct = this.checker.getContextualType(n);
+        const named = ct && (ct.aliasSymbol || (ct.getSymbol()?.declarations ?? []).some(d => ts.isInterfaceDeclaration(d) || ts.isTypeLiteralNode(d) || ts.isClassDeclaration(d)) || ct.isUnion() || this.checker.isTupleType(ct));
+        if (!named) { this.anon.push(n); this.classIds.set(n, cid++); }
+      }
+      if (ts.isTypeLiteralNode(n) && !ts.isTypeAliasDeclaration(n.parent) && !ts.isUnionTypeNode(n.parent) && !this.isLib(n) && n.members.every(m => ts.isPropertySignature(m))) { this.anon.push(n); this.classIds.set(n, cid++); }
       if (ts.isIdentifier(n)) {
         const sym = this.symbolOf(n);
         const decl = sym?.valueDeclaration;
@@ -343,6 +351,7 @@ export class Sema {
 
   /** Property signatures/declarations of an object-like declaration, bases first. */
   members(d: ts.Node): ts.Node[] {
+    if (ts.isObjectLiteralExpression(d)) return [...d.properties];
     if (ts.isTypeLiteralNode(d)) return [...d.members];
     if (ts.isTypeAliasDeclaration(d)) {
       if (ts.isTypeLiteralNode(d.type)) return [...d.type.members];
@@ -360,6 +369,7 @@ export class Sema {
     return first.filter(f => ms.every(m => this.ownMembers(m).some(x => ts.isPropertySignature(x) && x.name.getText() === (f as ts.PropertySignature).name.getText())));
   }
   ownMembers(d: ts.Node): ts.Node[] {
+    if (ts.isObjectLiteralExpression(d)) return [...d.properties];
     if (ts.isTypeLiteralNode(d)) return [...d.members];
     if (ts.isTypeAliasDeclaration(d) && ts.isTypeLiteralNode(d.type)) return [...d.type.members];
     if (ts.isInterfaceDeclaration(d) || ts.isClassDeclaration(d)) return [...d.members];
@@ -392,7 +402,7 @@ export class Sema {
     if (ts.isClassDeclaration(d)) { const b = this.baseClass(d); if (b) out.push(...this.fieldNames(b)); }
     if (ts.isInterfaceDeclaration(d)) for (const h of d.heritageClauses ?? []) for (const t of h.types) { const b = this.declOf(t.expression); if (b) out.push(...this.fieldNames(b)); }
     for (const m of this.members(d)) {
-      if ((ts.isPropertyDeclaration(m) || ts.isPropertySignature(m)) && !(ts.getCombinedModifierFlags(m as ts.Declaration) & ts.ModifierFlags.Static)) {
+      if ((ts.isPropertyDeclaration(m) || ts.isPropertySignature(m) || ts.isPropertyAssignment(m) || ts.isShorthandPropertyAssignment(m)) && (ts.isPropertyAssignment(m) || ts.isShorthandPropertyAssignment(m) || !(ts.getCombinedModifierFlags(m as ts.Declaration) & ts.ModifierFlags.Static))) {
         const n = m.name.getText();
         if (!n.startsWith('#') && !out.includes(n)) out.push(n);
       }
@@ -436,7 +446,7 @@ export class Sema {
     }
     if (ts.isArrayTypeNode(t)) return { k: 'arr', el: this.fromTypeNode(t.elementType, subst) };
     if (ts.isTupleTypeNode(t)) return { k: 'tup', els: t.elements.map(x => this.fromTypeNode(ts.isNamedTupleMember(x) ? x.type : x, subst)) };
-    if (ts.isTypeLiteralNode(t) && this.unionOf.has(t)) return { k: 'obj', decl: t, args: [] };
+    if (ts.isTypeLiteralNode(t) && (this.unionOf.has(t) || this.anon.includes(t))) return { k: 'obj', decl: t, args: [] };
     if (ts.isUnionTypeNode(t)) {
       if (ts.isTypeAliasDeclaration(t.parent) && this.unionMembers.has(t.parent)) return { k: 'obj', decl: t.parent, args: [] };
       const rest = t.types.filter(x => !this.isNullish(x));
@@ -514,6 +524,7 @@ export class Sema {
       const d = sym.declarations?.[0];
       if (d === this.errorDecl) return { k: 'obj', decl: d, args: [] };
       if (d && (!this.isLib(d) || this.libModule(d)) && (ts.isClassDeclaration(d) || ts.isInterfaceDeclaration(d))) return { k: 'obj', decl: d, args };
+      if (d && (ts.isObjectLiteralExpression(d) || ts.isTypeLiteralNode(d)) && this.anon.includes(d)) return { k: 'obj', decl: d, args: [] };
       if (d && ts.isTypeLiteralNode(d)) {
         if (this.unionOf.has(d)) return { k: 'obj', decl: d, args: [] };
         if (ts.isTypeAliasDeclaration(d.parent)) return { k: 'obj', decl: d.parent, args: [] };
@@ -605,6 +616,8 @@ export class Sema {
       return this.fromType(this.checker.getTypeAtLocation(d), d);
     }
     if (ts.isBindingElement(d)) return this.bindingType(d);
+    if (ts.isPropertyAssignment(d)) { const t = this.ztypeOf(d.initializer); return isNum(t) && this.isIntLiteral(d.initializer) ? { k: 'num', m: this.numberKind } : t.k === 'null' ? this.fromType(this.checker.getTypeAtLocation(d), d) : t; }
+    if (ts.isShorthandPropertyAssignment(d)) return this.ztypeOf(d.name);
     if (ts.isParameter(d)) return this.paramType(d, subst);
     if (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d)) {
       if (d.type) return this.fromTypeNode(d.type, subst);

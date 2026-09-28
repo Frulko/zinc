@@ -97,6 +97,9 @@ export function _class(n: i32, c: string): void { ui.setClass(n, c); }
 export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
+export function _img(n: i32, src: string): void { ui.setImage(n, src); }
+export function _focusable(n: i32): void { ui.setFocusable(n, true); }
+export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
 /** A component instance: renders into `host` (a fragment) and re-renders on state changes. */
 export function _rc(host: i32, render: () => i32): void { rerender(new Instance(host, render)); }
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {

@@ -1,41 +1,41 @@
 view 0,0 1280x720
-  view 0,0 1280x148
-    text 16,16 1248x24 "Counter"
-    view 16,48 1248x16
-      button 16,48 24x16
-        text 24,52 8x8 "-"
-      text 48,52 136x8 "count 0 doubled 0"
-      button 192,48 24x16
-        text 200,52 8x8 "+"
+  view 0,0 1280x222
+    text 16,16 1248x28 "Counter"
+    view 16,52 1248x30
+      button 16,52 24x30
+        text 24,56 8x22 "-"
+      text 48,56 139x22 "count 0 doubled 0"
+      button 195,52 27x30
+        text 203,56 11x22 "+"
     fragment 0,0 0x0
       fragment 0,0 0x0
-        text 16,72 1248x8 "small"
+        text 16,90 1248x22 "small"
     fragment 0,0 0x0
-      view 16,88 1248x44
-        text 24,96 1232x8 "list"
-        view 24,108 1232x16
+      view 16,120 1248x86
+        text 24,128 1232x22 "list"
+        view 24,154 1232x44
           fragment 0,0 0x0
             fragment 0,0 0x0
-              text 24,108 1232x8 "0: a"
-              text 24,116 1232x8 "1: b"
+              text 24,154 1232x22 "0: a"
+              text 24,176 1232x22 "1: b"
 view 0,0 1280x720
-  view 0,0 1280x156
-    text 16,16 1248x24 "Counter"
-    view 16,48 1248x16
-      button 16,48 24x16
-        text 24,52 8x8 "-"
-      text 48,52 136x8 "count 3 doubled 6"
-      button 192,48 24x16
-        text 200,52 8x8 "+"
+  view 0,0 1280x244
+    text 16,16 1248x28 "Counter"
+    view 16,52 1248x30
+      button 16,52 24x30
+        text 24,56 8x22 "-"
+      text 48,56 138x22 "count 3 doubled 6"
+      button 194,52 27x30
+        text 202,56 11x22 "+"
     fragment 0,0 0x0
       fragment 0,0 0x0
-        text 16,72 1248x8 "big!"
+        text 16,90 1248x22 "big!"
     fragment 0,0 0x0
-      view 16,88 1248x52
-        text 24,96 1232x8 "list"
-        view 24,108 1232x24
+      view 16,120 1248x108
+        text 24,128 1232x22 "list"
+        view 24,154 1232x66
           fragment 0,0 0x0
             fragment 0,0 0x0
-              text 24,108 1232x8 "0: x"
-              text 24,116 1232x8 "1: y"
-              text 24,124 1232x8 "2: z"
+              text 24,154 1232x22 "0: x"
+              text 24,176 1232x22 "1: y"
+              text 24,198 1232x22 "2: z"

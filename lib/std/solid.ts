@@ -89,6 +89,21 @@ export function onMount(fn: () => void): void { queueMicrotask(fn); }
 
 // ---- JSX lowering helpers (called by compiler-generated code) ----
 export function _el(tag: i32): i32 { return ui.createNode(tag); }
+export function _img(n: i32, src: string): void { ui.setImage(n, src); }
+export function _dynImg(n: i32, get: () => string): void { createEffect(() => { ui.setImage(n, get()); }); }
+export function _focusable(n: i32): void { ui.setFocusable(n, true); }
+export function _ref(n: i32, r: NodeRef): void { r.node = n; }
+
+/** Handle to a mounted node (ref={...}), used by animate(). */
+export class NodeRef { node: i32 = -1; }
+export function createNodeRef(): NodeRef { return new NodeRef(); }
+export interface AnimateOptions { dur?: i32; easing?: string; delay?: i32 }
+/** Engine-driven tween (UI-17): no reactive work per frame. Properties: width, height, opacity, translateX, translateY. */
+export function animate(ref: NodeRef, prop: string, to: number, opts: AnimateOptions): Promise<void> {
+  return ui.animate(ref.node, prop, to, opts.dur ?? 300, opts.easing ?? 'out', opts.delay ?? 0);
+}
+/** Resolves after `ms` milliseconds. */
+export function after(ms: number): Promise<void> { return new Promise<void>(resolve => { setTimeout(resolve, ms); }); }
 export function _text(parent: i32, s: string): void { ui.insert(parent, ui.createText(s), -1); }
 export function _textOf(n: i32, s: string): void { ui.setText(n, s); }
 export function _dynTextOf(n: i32, get: () => string): void { createEffect(() => { ui.setText(n, get()); }); }

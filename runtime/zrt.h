@@ -659,6 +659,7 @@ void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha,
 void clip(double x, double y, double w, double h);
 void unclip();
 void translate(double x, double y);
+void keep();
 bool isDown(int32_t b);
 bool wasPressed(int32_t b);
 double pointerX();

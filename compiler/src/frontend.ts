@@ -4,6 +4,7 @@ import ts from '@typescript/typescript6';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lowerJsx, JsxError } from './jsx.ts';
+import { compileCss, CssError } from './css.ts';
 
 export { ts };
 
@@ -26,6 +27,14 @@ export const STD_MODULES: Record<string, string> = {
   'zinc:ui': path.join(ZINC_ROOT, 'lib/std/ui.ts'),
   'zinc:ui/solid': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
   'zinc:ui/react': path.join(ZINC_ROOT, 'lib/std/react.ts'),
+  // PocketJS apps compile unchanged against these (lib/compat/pocketjs)
+  'solid-js': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
+  '@pocketjs/framework/solid/components': path.join(ZINC_ROOT, 'lib/compat/pocketjs/components.ts'),
+  '@pocketjs/framework/solid/lifecycle': path.join(ZINC_ROOT, 'lib/compat/pocketjs/lifecycle.ts'),
+  '@pocketjs/framework/animation': path.join(ZINC_ROOT, 'lib/compat/pocketjs/animation.ts'),
+  '@pocketjs/framework/solid/std': path.join(ZINC_ROOT, 'lib/compat/pocketjs/std.ts'),
+  '@pocketjs/framework/solid': path.join(ZINC_ROOT, 'lib/compat/pocketjs/mount.ts'),
+  '@pocketjs/framework/clock': path.join(ZINC_ROOT, 'lib/compat/pocketjs/clock.ts'),
 };
 
 export const compilerOptions: ts.CompilerOptions = {
@@ -52,14 +61,24 @@ export function loadProgram(entryPath: string): Frontend {
   const jsxErrors: Diag[] = [];
   // UI: .tsx files are lowered to plain calls before type checking (compiler/src/jsx.ts)
   host.getSourceFile = (f, lang, onError, create) => {
-    if (!f.endsWith('.tsx')) return getSourceFile.call(host, f, lang, onError, create);
-    const text = ts.sys.readFile(f) ?? '';
+    const user = (f.endsWith('.ts') || f.endsWith('.tsx')) && !f.endsWith('.d.ts');
+    if (!user) return getSourceFile.call(host, f, lang, onError, create);
+    let text = ts.sys.readFile(f) ?? '';
+    const custom = new Set<string>();
     try {
-      return ts.createSourceFile(f, lowerJsx(text, f), lang, true, ts.ScriptKind.TSX);
+      // `import './x.css'` -> defineClass calls, on the same line (diagnostics keep their positions)
+      text = text.replace(/import\s+['"]([^'"]+\.css)['"];?/g, (_m, rel: string) => {
+        const rules = compileCss(ts.sys.readFile(path.resolve(path.dirname(f), rel)) ?? '');
+        const calls = [...rules].map(([k, v]) => { custom.add(k); return `__zcss(${JSON.stringify(k)}, ${JSON.stringify(v.join(' '))});`; }).join(' ');
+        return `import { defineClass as __zcss } from 'zinc:ui'; ${calls}`;
+      });
+      if (!f.endsWith('.tsx')) return ts.createSourceFile(f, text, lang, true, ts.ScriptKind.TS);
+      return ts.createSourceFile(f, lowerJsx(text, f, custom), lang, true, ts.ScriptKind.TSX);
     } catch (e) {
-      if (!(e instanceof JsxError)) throw e;
-      const lc = ts.createSourceFile(f, text, lang, true).getLineAndCharacterOfPosition(e.pos);
-      jsxErrors.push({ file: path.relative(process.cwd(), f), line: lc.line + 1, col: lc.character + 1, code: 'Z6001', severity: 'error', message: e.message });
+      if (!(e instanceof JsxError) && !(e instanceof CssError)) throw e;
+      const pos = e instanceof JsxError ? e.pos : 0;
+      const lc = ts.createSourceFile(f, text, lang, true).getLineAndCharacterOfPosition(pos);
+      jsxErrors.push({ file: path.relative(process.cwd(), f), line: lc.line + 1, col: lc.character + 1, code: e instanceof CssError ? 'Z6002' : 'Z6001', severity: 'error', message: e.message });
       return ts.createSourceFile(f, '', lang, true);
     }
   };

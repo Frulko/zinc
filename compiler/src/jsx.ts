@@ -4,19 +4,40 @@
 // Line breaks are preserved so diagnostics keep their line numbers.
 import { ts } from './frontend.ts';
 
-const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5 };
-const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y']);
-const COLORS = new Set(['white', 'black', 'slate-900', 'slate-800', 'slate-700', 'slate-600', 'slate-400', 'slate-200', 'gray-900', 'gray-700', 'gray-500', 'gray-300',
-  'red-500', 'orange-400', 'amber-400', 'yellow-400', 'green-500', 'emerald-400', 'cyan-400', 'blue-500', 'indigo-500', 'purple-500', 'pink-500', 'transparent']);
-const FIXED = new Set(['flex-row', 'flex-col', 'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between',
-  'grow', 'hidden', 'w-full', 'h-full', 'text-left', 'text-center', 'text-right', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'rounded', 'rounded-lg', 'font-bold']);
+const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5 };
+const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY']);
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-/** UI-07: same grammar as applyClass in lib/std/ui.ts; unknown classes are build errors. */
-export function validClass(c: string): boolean {
-  if (FIXED.has(c)) return true;
-  if (/^(p|px|py|gap|w|h)-\d+$/.test(c)) return true;
-  if (c.startsWith('bg-')) return COLORS.has(c.slice(3));
-  if (c.startsWith('text-')) return COLORS.has(c.slice(5));
+let COLORS: Set<string> | null = null;
+function colors(): Set<string> {
+  if (COLORS) return COLORS;
+  const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../lib/std/palette.ts'), 'utf8');
+  COLORS = new Set(['white', 'black', 'transparent']);
+  for (const m of src.matchAll(/'([a-z]+):/g)) for (const sh of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]) COLORS.add(`${m[1]}-${sh}`);
+  return COLORS;
+}
+const FIXED = new Set(['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'grow-0', 'hidden', 'absolute', 'relative', 'static', 'overflow-hidden', 'inset-0',
+  'w-full', 'h-full', 'font-bold', 'font-semibold', 'font-medium', 'font-normal', 'text-left', 'text-center', 'text-right', 'rounded', 'border',
+  'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-none', 'transition', 'transition-colors', 'transition-all', 'ease-in', 'ease-out', 'ease-in-out',
+  'tracking-tight', 'tracking-wide', 'tracking-wider', 'tracking-widest']);
+const NUM = String.raw`(\d+(\.\d+)?|\[\d+(\.\d+)?(px)?\]|\d+/\d+|px)`;
+const COLOR = String.raw`([a-z]+-\d+|white|black|transparent|\[#[0-9a-fA-F]{3,8}\])(/\d+)?`;
+const RULES = [
+  new RegExp(`^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading)-${NUM}$`),
+  /^(items|justify)-(start|center|end|stretch|between|around|evenly)$/,
+  /^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$/,
+  /^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$/,
+  /^bg-gradient-to-(t|b|l|r)$/, /^border-(\d+|\[\d+(px)?\])$/, /^opacity-\d+$/, /^duration-\d+$/,
+];
+/** UI-07: same grammar as applyToken in lib/std/ui.ts; unknown classes are build errors (custom .css classes are declared). */
+export function validClass(c: string, custom?: Set<string>): boolean {
+  if (custom?.has(c)) return true;
+  const v = /^(focus|active|hover):(.*)$/.exec(c);
+  if (v) return validClass(v[2], custom);
+  if (FIXED.has(c) || RULES.some(r => r.test(c))) return true;
+  const m = new RegExp(`^(bg|text|border|from|via|to)-${COLOR}$`).exec(c);
+  if (m) return m[2].startsWith('[') || colors().has(m[2]);
   return false;
 }
 
@@ -25,12 +46,17 @@ export class JsxError extends Error {
   constructor(msg: string, pos: number) { super(msg); this.pos = pos; }
 }
 
-export function lowerJsx(text: string, fileName: string): string {
+export function lowerJsx(text: string, fileName: string, customClasses?: Set<string>): string {
   if (!/<[A-Za-z>]/.test(text)) return text;
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const react = sf.statements.some(s => ts.isImportDeclaration(s) && (s.moduleSpecifier as ts.StringLiteral).text === 'zinc:ui/react');
   const lib = react ? 'zinc:ui/react' : 'zinc:ui/solid';
   let counter = 0;
+  // PocketJS-style host components (View, Text, Image...) when imported from a components module (or not imported at all)
+  const imported = new Map<string, string>();
+  for (const st of sf.statements) if (ts.isImportDeclaration(st) && st.importClause?.namedBindings && ts.isNamedImports(st.importClause.namedBindings))
+    for (const el of st.importClause.namedBindings.elements) imported.set(el.name.text, (st.moduleSpecifier as ts.StringLiteral).text);
+  const hostImport = (tag: string) => { const m = imported.get(tag); return !m || /components|zinc:ui/.test(m); };
   const isJsx = (n: ts.Node) => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n);
 
   /** Source text of `n` with every JSX sub-expression lowered. */
@@ -74,7 +100,7 @@ export function lowerJsx(text: string, fileName: string): string {
       return v;
     }
     const tag = tagOf(n);
-    if (/^[A-Z]/.test(tag)) return component(n, tag, out);
+    if (/^[A-Z]/.test(tag) && !(tag in TAGS && hostImport(tag))) return component(n, tag, out);
     if (!(tag in TAGS)) throw new JsxError(`unknown host component <${tag}> (view, text, button, image, scroll, canvas)`, n.getStart(sf));
     out.push(`const ${v}: i32 = _el(${TAGS[tag]});`);
     for (const a of attrsOf(n)) {
@@ -83,10 +109,24 @@ export function lowerJsx(text: string, fileName: string): string {
       const val = attrValue(a);
       if (name === 'class') {
         if (val.lit !== undefined) {
-          for (const c of val.lit.split(/\s+/).filter(Boolean)) if (!validClass(c)) throw new JsxError(`unknown class '${c}' (UI-07)`, a.getStart(sf));
+          for (const c of val.lit.split(/\s+/).filter(Boolean)) if (!validClass(c, customClasses)) throw new JsxError(`unknown class '${c}' (UI-07)`, a.getStart(sf));
           out.push(`_class(${v}, ${JSON.stringify(val.lit)});`);
         } else out.push(react ? `_class(${v}, ${val.expr});` : `_dynClass(${v}, () => (${val.expr}));`);
-      } else if (name === 'onClick') out.push(`_on(${v}, ${val.expr});`);
+      } else if (name === 'onClick' || name === 'onPress') out.push(`_on(${v}, ${val.expr});`);
+      else if (name === 'style') {
+        const init = a.initializer;
+        const obj = init && ts.isJsxExpression(init) && init.expression && ts.isObjectLiteralExpression(init.expression) ? init.expression : undefined;
+        if (!obj) throw new JsxError('style expects an object literal: style={{ opacity: x }}', a.getStart(sf));
+        for (const p of obj.properties) {
+          if (!ts.isPropertyAssignment(p)) throw new JsxError('style supports `key: value` entries', p.getStart(sf));
+          const key = p.name.getText(sf), e = rewrite(p.initializer);
+          out.push(react || /^[-\d.]+$/.test(e) ? `_num(${v}, '${key}', ${e});` : `_dynNum(${v}, '${key}', () => (${e}));`);
+        }
+      }
+      else if (name === 'src') out.push(val.lit !== undefined ? `_img(${v}, ${JSON.stringify(val.lit)});` : react ? `_img(${v}, ${val.expr});` : `_dynImg(${v}, () => (${val.expr}));`);
+      else if (name === 'ref') out.push(`_ref(${v}, ${val.expr});`);
+      else if (name === 'focusable') out.push(`_focusable(${v});`);
+      else if (name === 'debugName') { /* devtools label: not used by the engine */ }
       else if (name === 'onDraw') out.push(`_draw(${v}, ${val.expr});`);
       else if (NUM_ATTRS.has(name)) {
         if (val.lit !== undefined) out.push(`_num(${v}, '${name}', ${Number(val.lit)});`);
@@ -189,6 +229,6 @@ export function lowerJsx(text: string, fileName: string): string {
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _rc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for';
+  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable';
   return `import { ${helpers} } from '${lib}'; ` + out;
 }

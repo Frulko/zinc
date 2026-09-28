@@ -33,14 +33,21 @@ static int cur = 0;
 static bool first = true;
 static const Buf* shown = nullptr;
 static float tx = 0, ty = 0;  // translation applied to every command (UI transforms)
+static bool kept = false;     // keep(): nothing changed, show the previous frame again
 
 static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncmd, b.text, b.pts}; }
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   raster::render(frame_of(*shown), rows, surf_w, y0, y1, raster::Rect{0, y0, surf_w, y1});
 }
 
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; }
+void keep() { kept = true; }
 void end_frame() {
+  if (kept && !first) {  // retained frame: no rasterization, no swap
+    HalFrame f = {surf_w, surf_h, 0, 0, 0, 0, render_rows};
+    hal_present(&f);
+    return;
+  }
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
   raster::Rect d = first ? raster::Rect{0, 0, surf_w, surf_h} : raster::diff(frame_of(before), frame_of(now), surf_w, surf_h);
