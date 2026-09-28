@@ -9,9 +9,11 @@
 
 extern int zinc_program_main(int argc, char** argv);
 
-// PCSX-Redux debug registers (expansion region 2): a 32-bit read returns "PCSX"; a 16-bit write quits the emulator
-// with that exit code in -testmode. Nothing answers there on a console.
+// PCSX-Redux debug registers (expansion region 2): a 32-bit read returns "PCSX"; an 8-bit write runs Lua exec slot N
+// (targets/ps1/shot.lua: screenshot); a 16-bit write quits the emulator with that exit code in -testmode.
+// Nothing answers there on a console.
 #define REDUX_ID (*(volatile uint32_t*)0xbf802080)
+#define REDUX_SLOT (*(volatile uint8_t*)0xbf802081)
 #define REDUX_EXIT (*(volatile uint16_t*)0xbf802082)
 
 #ifndef ZINC_FRAMES
@@ -63,7 +65,7 @@ const char* hal_env(const char*) { return nullptr; }
 void hal_heap_region(void** base, size_t* size) { *size = ZRT_HEAP_BYTES; *base = malloc(*size); }
 [[noreturn]] static void stop(int code) {
   printf("zinc:exit\n");
-  if (REDUX_ID == 0x58534350) REDUX_EXIT = (uint16_t)code;
+  if (REDUX_ID == 0x58534350) { REDUX_SLOT = 1; REDUX_EXIT = (uint16_t)code; }
   for (;;) VSync(0);
 }
 void hal_panic(const char* msg, const char* file, int line) {
