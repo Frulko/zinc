@@ -5,10 +5,15 @@
 // Click the right panel to launch a rocket.
 import { render, createSignal } from 'zinc:ui/solid';
 import { pointerDown, pointerX, pointerY } from 'zinc:gfx';
+import { clock } from 'zinc:sys';
 import { CanvasRenderingContext2D, Canvas } from 'zinc:canvas';
 
 const [fps, setFps] = createSignal<string>('');
 let time = 0;
+let drawMs = 0;  // time spent in the three canvas callbacks (path building and command emission, not rasterization)
+function timed(f: (x: i32, y: i32, w: i32, h: i32) => void): (x: i32, y: i32, w: i32, h: i32) => void {
+  return (x: i32, y: i32, w: i32, h: i32): void => { const t0 = clock(); f(x, y, w, h); drawMs += clock() - t0; };
+}
 
 // ---------------------------------------------------------------- the clock (w3schools "Canvas Clock")
 const clockCtx = new CanvasRenderingContext2D();
@@ -221,18 +226,19 @@ function App(): i32 {
       <text class="text-amber-400">Canvas 2D sketch</text>
       <text class="text-slate-400">{fps()}</text>
     </view>
-    <canvas class="h-20" onDraw={Shapes}></canvas>
+    <canvas class="h-20" onDraw={timed(Shapes)}></canvas>
     <view class="flex-row grow">
-      <canvas class="grow bg-slate-700" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawClock(clockCtx, x, y, w, h)}></canvas>
-      <canvas class="grow" onDraw={Fireworks}></canvas>
+      <canvas class="grow bg-slate-700" onDraw={timed((x: i32, y: i32, w: i32, h: i32) => drawClock(clockCtx, x, y, w, h))}></canvas>
+      <canvas class="grow" onDraw={timed(Fireworks)}></canvas>
     </view>
   </view>;
 }
 
-let acc = 0, frames: i32 = 0;
+let acc = 0, frames: i32 = 0, total: i32 = 0;
 render(App, 0x0f172a, (dt: number) => {
   time += dt;
   step(dt);
-  acc += dt; frames++;
+  acc += dt; frames++; total++;
   if (acc >= 0.5) { setFps(`${Math.round(frames / acc)} fps`); acc = 0; frames = 0; }
+  if (total % 300 === 0) { console.log(`canvas/sketch: ${(drawMs / 300).toFixed(2)} ms/frame in the canvas callbacks, ${particles.length} particles`); drawMs = 0; }
 });
