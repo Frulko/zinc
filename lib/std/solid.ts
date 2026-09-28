@@ -174,6 +174,7 @@ export function _dynNum(n: i32, key: string, get: () => number): void { createEf
 // text fields and pointer / key events
 export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
 export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
 export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
