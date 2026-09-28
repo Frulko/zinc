@@ -34,9 +34,39 @@ per-representation golden. A program can require the gradual profile with a `// 
 skipped in strict profiles); `// zinc-test: deterministic` marks a program that needs deterministic mode (skipped on
 esp32, ps1, ps2 and wasm, which have no environment to turn it on).
 
+## Your project's tests: `zinc test <dir>`
+
+`zinc test <dir>` works like `tjs test` or `elsa test`. It finds every `test-*.ts(x)` and `*.test.ts(x)` under the
+directory, skipping `build/` and `node_modules/`.
+
+- **How each file runs.** It is built and run as its own program on the target, in deterministic mode.
+- **Pass or fail.** A file passes when it exits with 0. `zinc:assert` throws `AssertionError` on a failed check, and an
+  uncaught error exits with 1.
+- **Timeout.** `ZINC_TEST_TIMEOUT` bounds each program, in milliseconds (default 60000).
+
+```ts
+// tests/test-cart.ts
+import * as assert from 'zinc:assert';
+import { total } from '../src/cart';
+
+assert.equal(total([2, 3]), 5);
+assert.deepEqual([1, 2].map((x: number) => x * 2), [2, 4]);
+assert.throws(() => { total([-1]); }, 'negative');
+```
+
+```sh
+zinc test tests                    # on the host (native build)
+zinc test tests --target sim       # on Node, fast
+zinc test tests --target rpi1      # ARMv6 under QEMU
+```
+
+`zinc:assert` provides `ok`, `equal` / `notEqual` (`===`), `deepEqual` (compares the JSON), `throws(fn, substring?)`,
+`rejects(asyncFn, substring?)` and `fail`. A worked example is in
+[`examples/testing/tests`](../../examples/testing/tests).
+
 ## Conformance-style tests for your own app
 
-There is no separate test-runner binary — reuse the oracle. Split the core of your app into functions that print, run
+To compare targets rather than check values, reuse the oracle. Split the core of your app into functions that print, run
 both sides in deterministic mode, and compare sim against your target:
 
 ```sh
