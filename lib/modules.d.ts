@@ -55,7 +55,8 @@ declare module 'zinc:net' {
 }
 
 declare module 'zinc:osc' {
-  /** OSC 1.0 message: numeric arguments (i/f/d/T/F) and string arguments, in order of type. */
+  /** OSC 1.0 message: numeric arguments (i/f/d/T/F; an r colour gives four numbers R, G, B, A in 0..255) and string
+   *  arguments, in order of type. */
   export interface OscMessage { address: string; numbers: f64[]; strings: string[] }
   export function send(host: string, port: i32, address: string, numbers: f64[], strings?: string[]): void;
   export function listen(port: i32, cb: (m: OscMessage) => void): void;
