@@ -9,10 +9,10 @@ import {
 import { PALETTE, SHADES } from './palette';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
-const TAG_NAMES: string[] = ['view', 'text', 'button', 'image', 'scroll', 'canvas', 'fragment'];
+export const TAG_NAMES: string[] = ['view', 'text', 'button', 'image', 'scroll', 'canvas', 'fragment'];
 const UNSET: i32 = -100000;
 
-class UiNode {
+export class UiNode {
   tag: i32;
   parent: i32 = -1;
   children: i32[] = [];
@@ -694,7 +694,20 @@ export function frame(dt: number, background: i32): void {
   paintDirty = false;
   if (background >= 0) clear(background);
   paint(root, 0, 0, 1);
+  if (highlight >= 0 && nodes[highlight].alive) {
+    const n = nodes[highlight];
+    rrect(n.x, n.y, n.lw, n.lh, 0, 0x3b82f6, 90);
+    border(n.x, n.y, n.lw, n.lh, 0, 1, 0x60a5fa, 255);
+  }
 }
+// ---------------------------------------------------------------- inspector hooks (plugins/devtools)
+let highlight: i32 = -1;
+/** Root handle, or -1. */
+export function inspectRoot(): i32 { return root; }
+/** A live node, or null (freed or out of range). */
+export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
+/** Draws a highlight box over node h (-1: none). */
+export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
 /** Mounts a root node and drives it from the frame loop (UI-13). `extra` runs each frame before drawing. */
 export function mount(h: i32, background: i32, extra: ((dt: number) => void) | null): void {
   setRoot(h);
