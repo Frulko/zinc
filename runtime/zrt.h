@@ -334,6 +334,8 @@ template<class R, class... A> struct Fn<R(A...)> {
   explicit operator bool() const { return (bool)o; }
 };
 template<class R, class... A> bool operator==(const Fn<R(A...)>& f, decltype(nullptr)) { return !f.o; }
+template<class R, class... A> bool operator==(const Fn<R(A...)>& f, const Fn<R(A...)>& g) { return f.o == g.o; }
+template<class R, class... A> bool operator!=(const Fn<R(A...)>& f, const Fn<R(A...)>& g) { return f.o != g.o; }
 template<class R, class... A> bool operator!=(const Fn<R(A...)>& f, decltype(nullptr)) { return (bool)f.o; }
 template<class R, class... A> inline bool truthy(const Fn<R(A...)>& f) { return (bool)f.o; }
 template<class R, class... A> void json(StrBuilder& sb, const Fn<R(A...)>&) { sb.cstr("null"); }
@@ -607,6 +609,8 @@ template<class K, class V> struct Map {
   Array<V> values() const { Array<V> r = Array<V>::with_cap(size()); for (int32_t i = 0; i < slots(); i++) if (live_at(i)) r.push_raw(m->vals[i]); return r; }
 };
 template<class K, class V> void json(StrBuilder& sb, const Map<K, V>&) { sb.cstr("{}"); }
+template<class K, class V> bool operator==(const Map<K, V>& x, const Map<K, V>& y) { return x.m == y.m; }
+template<class K, class V> bool operator!=(const Map<K, V>& x, const Map<K, V>& y) { return x.m != y.m; }
 template<class K, class V> bool operator==(const Map<K, V>& v, decltype(nullptr)) { return !v.m; }
 template<class K, class V> bool operator!=(const Map<K, V>& v, decltype(nullptr)) { return v.m; }
 template<class K, class V> inline bool truthy(const Map<K, V>& v) { return v.m; }
@@ -627,6 +631,8 @@ template<class T> struct Set {
   Array<T> values() const { return m.keys(); }
 };
 template<class T> void json(StrBuilder& sb, const Set<T>&) { sb.cstr("{}"); }
+template<class T> bool operator==(const Set<T>& x, const Set<T>& y) { return x.m.m == y.m.m; }
+template<class T> bool operator!=(const Set<T>& x, const Set<T>& y) { return x.m.m != y.m.m; }
 template<class T> bool operator==(const Set<T>& v, decltype(nullptr)) { return !v.m.m; }
 template<class T> bool operator!=(const Set<T>& v, decltype(nullptr)) { return v.m.m; }
 template<class T> inline bool truthy(const Set<T>& v) { return v.m.m; }

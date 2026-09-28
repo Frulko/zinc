@@ -70,6 +70,8 @@ function parseArgs(argv: string[]): Opts {
   if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory() && fs.existsSync(path.join(o.entry, 'zinc.json')))
     o.entry = path.join(o.entry, JSON.parse(fs.readFileSync(path.join(o.entry, 'zinc.json'), 'utf8')).entry ?? 'src/main.ts');
   if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory()) { const d = o.entry; o.entry = path.join(d, ['main.ts', 'main.tsx', 'src/main.ts', 'src/main.tsx'].find(f => fs.existsSync(path.join(d, f))) ?? 'main.ts'); }
+  // resolve symlinks like Node: relative imports and zinc.json are found next to the real file
+  if (fs.existsSync(o.entry)) { const r = path.relative(process.cwd(), fs.realpathSync(o.entry)); o.entry = r.startsWith('..') ? path.resolve(r) : r; }
   if (!o.profile) o.profile = o.target;
   o.project = loadProject(o.entry);
   const over = o.project.targets[o.profile];

@@ -1030,7 +1030,8 @@ class CppEmitter {
     }
     if (ts.isClassDeclaration(d)) return this.qual(d);
     const top = (ts.isVariableDeclaration(d) || ts.isBindingElement(d)) && this.isTopBinding(d);
-    let name = top ? `${this.ns(d.getSourceFile())}::${this.id(e.text)}` : this.id(e.text);
+    const dn = (d as ts.VariableDeclaration).name;  // `import { x as y }` names the export, not the local alias
+    let name = top ? `${this.ns(d.getSourceFile())}::${this.id(ts.isIdentifier(dn) ? dn.text : e.text)}` : this.id(e.text);
     if (this.s.boxed.has(sym)) name = `${name}->v`;
     const declared = this.s.declType(d);
     const now = this.s.ztypeOf(e);

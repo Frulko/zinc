@@ -1,6 +1,7 @@
 // CMP-02 / CMP-21: the only module that imports the TypeScript API.
 // Other modules use the re-exported `ts` namespace, so a swap to the TS 7.1 API touches this file only.
 import ts from '@typescript/typescript6';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lowerJsx, JsxError } from './jsx.ts';
@@ -98,6 +99,8 @@ export function loadProgram(entryPath: string, extra: string[] = [], virtual?: M
       return ts.createSourceFile(f, '', lang, true);
     }
   };
+  host.resolveModuleNameLiterals = (lits, containing, redirect, opts) =>
+    lits.map(l => ({ resolvedModule: resolveModule(l.text, containing, opts, host, redirect) }));
   const program = ts.createProgram([...extra, entryAbs, ...LIB_FILES], options, host);  // extra modules initialize first
   const checker = program.getTypeChecker();
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
@@ -115,4 +118,11 @@ function toDiag(d: ts.Diagnostic): Diag {
     file: path.relative(process.cwd(), d.file.fileName), line: lc.line + 1, col: lc.character + 1,
     code: `TS${d.code}`, severity: d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error', message: msg,
   };
+}
+
+// like Node, a module reached through a symlink is the file it points to (one module, one set of globals)
+export function resolveModule(spec: string, containing: string, opts: ts.CompilerOptions, host: ts.ModuleResolutionHost, redirect?: ts.ResolvedProjectReference) {
+  const r = ts.resolveModuleName(spec, containing, opts, host, undefined, redirect).resolvedModule;
+  if (r && !r.isExternalLibraryImport) try { r.resolvedFileName = fs.realpathSync(r.resolvedFileName); } catch { /* virtual file */ }
+  return r;
 }

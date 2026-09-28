@@ -2,7 +2,7 @@
 // Zinc numeric semantics (|0 for i32, Math.fround for f32, integer division checks) and runtime checks.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { ts, ZINC_ROOT, STD_MODULES } from './frontend.ts';
+import { ts, ZINC_ROOT, STD_MODULES, resolveModule } from './frontend.ts';
 import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
@@ -106,7 +106,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           if (p.operatorToken.kind === K.EqualsToken) return isFxT(sema.ztypeOf(p.left));
           const other = p.left === e ? p.right : p.left;
           const ot = sema.ztypeOf(other);
-          if (isNum(ot) && isInt(ot.m) && [K.PlusToken, K.MinusToken, K.AsteriskToken, K.PercentToken, K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.AmpersandToken, K.BarToken, K.CaretToken, K.LessThanLessThanToken, K.GreaterThanGreaterThanToken, K.GreaterThanGreaterThanGreaterThanToken].includes(p.operatorToken.kind)) return false;
+          if (isNum(ot) && isInt(ot.m) && [K.PlusToken, K.MinusToken, K.AsteriskToken, K.PercentToken, K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.AmpersandToken, K.BarToken, K.CaretToken, K.LessThanLessThanToken, K.GreaterThanGreaterThanToken, K.GreaterThanGreaterThanGreaterThanToken, K.QuestionQuestionToken].includes(p.operatorToken.kind)) return false;
         }
         if ((ts.isCallExpression(p) || ts.isNewExpression(p)) && p.arguments?.includes(e as ts.Expression)) {
           const i = p.arguments.indexOf(e as ts.Expression);
@@ -118,6 +118,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           return true;
         }
         if (ts.isElementAccessExpression(p) && p.argumentExpression === e) return false;
+        if (ts.isConditionalExpression(p) && p.condition !== e) return isFxT(safeType(p));  // `c ? i32 : 0xffffff` is an i32
         if (ts.isReturnStatement(p)) { const fn = sema.fnOf(p) as ts.SignatureDeclaration | undefined; return !fn || isFxT(safeRet(fn)); }
         if (ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p)) { const t = safeType(ts.isPropertyAssignment(p) ? p.initializer : p.initializer!); void t; }
         if (ts.isArrayLiteralExpression(p)) { const t = sema.contextual(p) ?? safeType(p); return !t || t.k !== 'arr' || isFxT(t.el); }
@@ -142,7 +143,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           ns = spec.replace(/\.spec(\.ts)?$/, '.sim.js');
         }
         else if (spec.startsWith('.')) {
-          const res = ts.resolveModuleName(spec, sf.fileName, sema.fe.program.getCompilerOptions(), ts.sys).resolvedModule?.resolvedFileName;
+          const res = resolveModule(spec, sf.fileName, sema.fe.program.getCompilerOptions(), ts.sys)?.resolvedFileName;
           ns = res && !res.endsWith('.d.ts') ? rel(outFile, outOf(res)) : spec.replace(/\.[cm]?tsx?$/, '') + '.js';
         }
         if (ts.isImportDeclaration(n)) return f.updateImportDeclaration(n, n.modifiers, n.importClause, f.createStringLiteral(ns), n.attributes);
