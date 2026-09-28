@@ -459,7 +459,7 @@ static uint32_t rgb(const float* c) {
 // ---------------------------------------------------------------- geometry (device space)
 // Polylines are stored like gfx.path contours: [count, x0, y0, ...] pieces. An instance is one generated path
 // (1 piece; 0..2 after trims) with a closed flag.
-struct Inst { uint32_t off, len; bool closed; };
+struct Inst { uint32_t off, len; bool closed; float box[5]; };  // box: device x, y, w, h, radius of an axis-aligned rect (w < 0: none)
 static Vec<float> G;      // instance pieces
 static Vec<Inst> I;
 struct Op { int32_t item; uint32_t i0, i1; float alpha; Mat m; };
@@ -500,7 +500,7 @@ static void flatten(const float* v, uint32_t n, bool closed, const Mat& m) {
   uint32_t cnt = (uint32_t)G[head];
   if (closed && cnt > 1 && fabsf(G[head + 1] - G[G.n - 2]) < 1e-3f && fabsf(G[head + 2] - G[G.n - 1]) < 1e-3f) { G.n -= 2; G[head] = (float)(cnt - 1); }
 }
-static void push_inst(uint32_t off, bool closed) { I.push(Inst{off, G.n - off, closed}); }
+static void push_inst(uint32_t off, bool closed) { I.push(Inst{off, G.n - off, closed, {0, 0, -1, 0, 0}}); }
 
 static const float KAPPA = 0.5522848f;
 static void bez_vertex(float x, float y, float ix, float iy, float ox, float oy) { float* d = BEZ.add(6); d[0] = x; d[1] = y; d[2] = ix; d[3] = iy; d[4] = ox; d[5] = oy; }
@@ -559,6 +559,15 @@ static void gen_shape(const Anim& A, const Item& it, float t, const Mat& m) {
   uint32_t off = G.n;
   flatten(BEZ.p, BEZ.n / 6, closed, m);
   push_inst(off, closed);
+  if (it.ty == RECT && m.b == 0 && m.c == 0 && fabsf(fabsf(m.a) - fabsf(m.d)) < 1e-3f) {  // drawn as a rounded-rect command
+    float p0[2], p1[2];
+    apply(m, pos[0] - sz[0] / 2, pos[1] - sz[1] / 2, p0); apply(m, pos[0] + sz[0] / 2, pos[1] + sz[1] / 2, p1);
+    float* b = I[I.n - 1].box;
+    b[0] = p0[0] < p1[0] ? p0[0] : p1[0]; b[1] = p0[1] < p1[1] ? p0[1] : p1[1];
+    b[2] = fabsf(p1[0] - p0[0]); b[3] = fabsf(p1[1] - p0[1]);
+    float r = eval1(A, it.p[2], t, 0) * fabsf(m.a);
+    b[4] = r;
+  }
 }
 
 // ---------------------------------------------------------------- trim paths
@@ -626,7 +635,7 @@ static void trim(const Anim& A, const Item& it, float t, uint32_t i0, uint32_t i
     uint32_t off = G.n;
     float* d = G.add(T2.n);
     if (T2.n) memcpy(d, T2.p, T2.n * sizeof(float));
-    I[i] = Inst{off, T2.n, false};
+    I[i] = Inst{off, T2.n, false, {0, 0, -1, 0, 0}};
   }
 }
 
@@ -713,7 +722,63 @@ static void stroke_piece(const float* p, uint32_t n, bool closed, float hw, int 
 
 // ---------------------------------------------------------------- painting into an op buffer
 // Op buffer: [1, color, alpha, nfloats, contours...] path | [2, x, y, w, h] clip | [3] unclip
-enum { OP_PATH = 1, OP_CLIP = 2, OP_UNCLIP = 3 };
+enum { OP_PATH = 1, OP_CLIP = 2, OP_UNCLIP = 3, OP_RECT = 4 };  // rect: [4, color, alpha, x, y, w, h, r]
+static void emit_rect(Vec<float>& out, uint32_t color, float alpha, float x, float y, float w, float h, float r) {
+  float* d = out.add(8); d[0] = OP_RECT; d[1] = (float)color; d[2] = alpha; d[3] = x; d[4] = y; d[5] = w; d[6] = h; d[7] = r;
+}
+// fill_poly walks every edge of a command for every sub-scanline of its box: big paths with many edges (strokes of
+// large circles) are cut into 16-row bands, each its own command with only its own edges. Clipping each contour to a
+// horizontal strip keeps nonzero winding, and bands meet on pixel rows, so they tile without seams.
+static Vec<float> BAND, CA, CB;
+static void clip_half(const float* p, uint32_t n, float lim, bool below, Vec<float>& out) {
+  out.n = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    const float *a = p + i * 2, *b = p + ((i + 1) % n) * 2;
+    bool ia = below ? a[1] <= lim : a[1] >= lim, ib = below ? b[1] <= lim : b[1] >= lim;
+    if (ia) { float* d = out.add(2); d[0] = a[0]; d[1] = a[1]; }
+    if (ia != ib) { float u = (lim - a[1]) / (b[1] - a[1]); float* d = out.add(2); d[0] = a[0] + (b[0] - a[0]) * u; d[1] = lim; }
+  }
+}
+static void band_split(Vec<float>& out, uint32_t head) {
+  const uint32_t nf = (uint32_t)out[head + 3];
+  float y0 = 1e9f, y1 = -1e9f;
+  uint32_t edges = 0;
+  for (uint32_t o = head + 4; o < head + 4 + nf;) {
+    uint32_t cnt = (uint32_t)out[o];
+    for (uint32_t k = 0; k < cnt; k++) { float y = out[o + 2 + k * 2]; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    edges += cnt; o += 1 + cnt * 2;
+  }
+  float rows = y1 - y0;
+  if (rows < 48 || rows * edges < 30000) return;
+  BAND.n = 0;
+  float* src = BAND.add(nf + 4);
+  memcpy(src, out.p + head, (nf + 4) * sizeof(float));
+  out.n = head;
+  for (float yb = floorf(y0); yb < y1; yb += 16) {
+    uint32_t h = out.n;
+    float* hd = out.add(4); hd[0] = OP_PATH; hd[1] = BAND[1]; hd[2] = BAND[2];
+    for (uint32_t o = 4; o < nf + 4;) {
+      uint32_t cnt = (uint32_t)BAND[o];
+      const float* c = BAND.p + o + 1;
+      o += 1 + cnt * 2;
+      bool any = false;
+      for (uint32_t k = 0; k < cnt && !any; k++) any = c[k * 2 + 1] > yb && c[k * 2 + 1] < yb + 16;
+      if (!any) {  // no vertex in the band: keep the contour only if it spans it
+        float lo = 1e9f, hi = -1e9f;
+        for (uint32_t k = 0; k < cnt; k++) { if (c[k * 2 + 1] < lo) lo = c[k * 2 + 1]; if (c[k * 2 + 1] > hi) hi = c[k * 2 + 1]; }
+        if (hi <= yb || lo >= yb + 16) continue;
+      }
+      clip_half(c, cnt, yb, false, CA);
+      clip_half(CA.p, CA.n / 2, yb + 16, true, CB);
+      if (CB.n < 6) continue;
+      out.push((float)(CB.n / 2));
+      float* d = out.add(CB.n);
+      memcpy(d, CB.p, CB.n * sizeof(float));
+    }
+    out[h + 3] = (float)(out.n - h - 4);
+    if (out.n == h + 4) out.n = h;
+  }
+}
 static void emit_clip(Vec<float>& out, const float* bb) { float* d = out.add(5); d[0] = OP_CLIP; d[1] = bb[0]; d[2] = bb[1]; d[3] = bb[2] - bb[0]; d[4] = bb[3] - bb[1]; }
 static void bbox_add(float* bb, float x, float y) { if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (x > bb[2]) bb[2] = x; if (y > bb[3]) bb[3] = y; }
 
@@ -751,6 +816,12 @@ static void paint(const Anim& A, const Op& op, float t, Vec<float>& out) {
   if (a8 <= 0) return;
   uint32_t head = out.n;
   float* h = out.add(4); h[0] = OP_PATH; h[1] = (float)color; h[2] = (float)(a8 > 255 ? 255 : a8);
+  if ((it.ty == FILL || it.ty == GFILL) && op.i1 == op.i0 + 1 && I[op.i0].box[2] >= 0) {
+    const float* b = I[op.i0].box;
+    out.n = head;
+    emit_rect(out, color, (float)(a8 > 255 ? 255 : a8), b[0], b[1], b[2], b[3], b[4]);
+    return;
+  }
   if (it.ty == FILL || it.ty == GFILL) {
     for (uint32_t i = op.i0; i < op.i1; i++) {
       const Inst& in = I[i];
@@ -772,7 +843,8 @@ static void paint(const Anim& A, const Op& op, float t, Vec<float>& out) {
     }
   }
   out[head + 3] = (float)(out.n - head - 4);
-  if (out.n == head + 4) out.n = head;
+  if (out.n == head + 4) { out.n = head; return; }
+  band_split(out, head);
 }
 
 static void walk(const Anim& A, int32_t list, int32_t n, const Mat& m, float alpha, float t);
@@ -856,6 +928,12 @@ static void render_layer(const Anim& A, const Layer& L, float t, const Mat& view
     render_comp(A, L.comp, ti, m, a, out);
   } else if (L.ty == L_SOLID) {
     int a8 = (int)(a * 255 + 0.5f);
+    if (m.b == 0 && m.c == 0) {
+      float p0[2], p1[2]; apply(m, 0, 0, p0); apply(m, L.w, L.h, p1);
+      emit_rect(out, L.color, (float)a8, p0[0] < p1[0] ? p0[0] : p1[0], p0[1] < p1[1] ? p0[1] : p1[1], fabsf(p1[0] - p0[0]), fabsf(p1[1] - p0[1]), 0);
+      while (clips--) out.push(OP_UNCLIP);
+      return;
+    }
     float* d = out.add(4 + 9);
     d[0] = OP_PATH; d[1] = (float)L.color; d[2] = (float)a8; d[3] = 9; d[4] = 4;
     apply(m, 0, 0, d + 5); apply(m, L.w, 0, d + 7); apply(m, L.w, L.h, d + 9); apply(m, 0, L.h, d + 11);
@@ -889,6 +967,9 @@ static void replay(const Vec<float>& ops, int32_t alpha) {
       for (uint32_t k = 0; k < nf; k++) arr.push_raw(ops[i + 4 + k]);
       zrt::gfx::path(arr, (uint32_t)ops[i + 1], (int32_t)ops[i + 2] * alpha / 255);
       i += 4 + nf;
+    } else if (kind == OP_RECT) {
+      zrt::gfx::rrect(ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6], ops[i + 7], (uint32_t)ops[i + 1], (int32_t)ops[i + 2] * alpha / 255);
+      i += 8;
     } else if (kind == OP_CLIP) { zrt::gfx::clip(ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4]); i += 5; }
     else { zrt::gfx::unclip(); i++; }
   }
