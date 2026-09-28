@@ -424,6 +424,47 @@ Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
   return intersect(r, Rect{0, 0, w, h});
 }
 
+static bool overlaps(Rect a, Rect b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }
+static int64_t area(Rect r) { return (int64_t)(r.x1 - r.x0) * (r.y1 - r.y0); }
+int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max) {
+  int32_t n = 0;
+  const Rect screen{0, 0, w, h};
+  auto add = [&](Rect r) {
+    r = intersect(r, screen);
+    if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+    // merge into an overlapping rect (cascading), else append; over budget, merge the cheapest pair
+    for (;;) {
+      int32_t hit = -1;
+      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r)) { hit = i; break; }
+      if (hit < 0) break;
+      grow(r, out[hit]);
+      out[hit] = out[--n];
+    }
+    if (n < max) { out[n++] = r; return; }
+    int32_t bi = 0; int64_t best = -1;
+    for (int32_t i = 0; i < n; i++) { Rect m = out[i]; grow(m, r); int64_t cost = area(m) - area(out[i]); if (best < 0 || cost < best) { best = cost; bi = i; } }
+    grow(r, out[bi]);
+    out[bi] = out[--n];
+    // the grown rect may now overlap others: re-add it
+    for (;;) {
+      int32_t hit = -1;
+      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r)) { hit = i; break; }
+      if (hit < 0) break;
+      grow(r, out[hit]);
+      out[hit] = out[--n];
+    }
+    out[n++] = r;
+  };
+  uint32_t cnt = a.count > b.count ? a.count : b.count;
+  for (uint32_t i = 0; i < cnt; i++) {
+    bool ina = i < a.count, inb = i < b.count;
+    if (ina && inb && same(a, a.cmds[i], b, b.cmds[i])) continue;
+    if (ina) add(cmd_bounds(a.cmds[i], w, h));
+    if (inb) add(cmd_bounds(b.cmds[i], w, h));
+  }
+  return n;
+}
+
 int32_t find_font(const char* name, uint32_t name_len, int32_t px) {
   int32_t best = -1, bd = 1 << 30;
   for (int32_t i = 0; i < font_count; i++) {

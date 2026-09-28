@@ -61,6 +61,8 @@ struct Frame {
 void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
+/** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */
+int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max);
 
 }  // namespace raster
 

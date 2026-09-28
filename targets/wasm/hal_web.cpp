@@ -61,7 +61,7 @@ void hal_poll_input(HalInput* in) { in->buttons = web_keys(); in->px = (float)we
 void hal_present(const HalFrame* f) {
   if (!fb) fb = (uint32_t*)calloc((size_t)W * H, 4);
   if (f->y1 <= f->y0) return;
-  f->render(fb + (size_t)f->y0 * W, f->y0, f->y1);
+  (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * W, f->y0, f->y1);  // fb keeps the previous frame
   web_blit(fb, W, f->y0, f->y1);
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }

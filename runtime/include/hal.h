@@ -37,6 +37,9 @@ struct HalFrame {
   int32_t w, h;
   int32_t x0, y0, x1, y1;   // damaged rectangle (empty when nothing changed)
   void (*render)(uint32_t* rows, int32_t y0, int32_t y1);  // rows points at row y0 of a w-wide buffer
+  // Same, but only the damaged rectangles are written; the rest of `rows` must still hold the previous frame
+  // (persistent framebuffers). Cheaper when several small areas change (e.g. a grid of animations).
+  void (*render_damage)(uint32_t* rows, int32_t y0, int32_t y1);
 };
 
 // Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the

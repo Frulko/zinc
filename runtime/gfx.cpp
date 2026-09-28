@@ -149,10 +149,27 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, surf_w, y0, y1, all);
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, surf_w, y0, y1, all);
 }
+// damage of the frame being presented, as disjoint rectangles (render_damage)
+#ifndef ZRT_DAMAGE_RECTS
+#define ZRT_DAMAGE_RECTS 8
+#endif
+static raster::Rect dmg[ZRT_DAMAGE_RECTS];
+static int32_t ndmg = 0;
+static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
+  for (int32_t i = 0; i < ndmg; i++) {
+    raster::Rect r{dmg[i].x0, dmg[i].y0 > y0 ? dmg[i].y0 : y0, dmg[i].x1, dmg[i].y1 < y1 ? dmg[i].y1 : y1};
+    if (r.y0 >= r.y1) continue;
+    if (shown) raster::render(frame_of(*shown), rows, surf_w, y0, y1, r);
+    if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, surf_w, y0, y1, r);
+    if (banner.ncmd) raster::render(ovl_frame(banner), rows, surf_w, y0, y1, r);
+  }
+}
+static void set_full_damage() { dmg[0] = raster::Rect{0, 0, surf_w, surf_h}; ndmg = 1; }
 /** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
 void present_overlay() {
   banner_expire();
-  HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows};
+  if (ovl_changed) set_full_damage(); else ndmg = 0;
+  HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows, render_damage};
   ovl_changed = false;
   present(&f);
 }
@@ -163,19 +180,24 @@ void end_frame() {
   pen_n = 0;
   banner_expire();
   if (kept && !first) {  // retained frame: no rasterization, no swap
-    HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows};
+    if (ovl_changed) set_full_damage(); else ndmg = 0;
+    HalFrame f = {surf_w, surf_h, 0, 0, ovl_changed ? surf_w : 0, ovl_changed ? surf_h : 0, render_rows, render_damage};
     ovl_changed = false;
     present(&f);
     return;
   }
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
-  raster::Rect d = first || ovl_changed ? raster::Rect{0, 0, surf_w, surf_h} : raster::diff(frame_of(before), frame_of(now), surf_w, surf_h);
+  if (first || ovl_changed) set_full_damage();
+  else ndmg = raster::diff_rects(frame_of(before), frame_of(now), surf_w, surf_h, dmg, ZRT_DAMAGE_RECTS);
+  raster::Rect d = {surf_w, surf_h, 0, 0};
+  for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
+  if (!ndmg) d = raster::Rect{0, 0, 0, 0};
   ovl_changed = false;
   first = false;
   shown = &now;
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {surf_w, surf_h, d.x0, d.y0, d.x1, d.y1, render_rows};
+  HalFrame f = {surf_w, surf_h, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
   present(&f);
   cur ^= 1;
 }

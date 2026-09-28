@@ -118,7 +118,7 @@ void hal_poll_input(HalInput* in) {
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
   if (f->y1 > f->y0 && f->x1 > f->x0) {
-    f->render(fb + (size_t)f->y0 * W, f->y0, f->y1);
+    (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * W, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, W, f->y1 - f->y0};
     SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * W, W * 4);
   }
