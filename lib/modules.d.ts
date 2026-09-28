@@ -14,6 +14,34 @@ declare module 'zinc:sys' {
   /** Runtime statistics (NFR-16). */
   export function liveObjects(): i32;
   export function allocations(): i32;
+  /** Random bytes from the OS (arc4random, getentropy, esp_fill_random); a clock-seeded xorshift on ps1 / ps2,
+   *  which have no entropy source. */
+  export function randomBytes(n: i32): u8[];
+  /** The UTF-8 bytes of a string. */
+  export function utf8Encode(s: string): u8[];
+  /** UTF-8 to string; each invalid sequence becomes U+FFFD, like TextDecoder. */
+  export function utf8Decode(bytes: u8[]): string;
+  /** Runs `cb` on the event loop when the signal arrives ('SIGINT', 'SIGTERM', 'SIGHUP', 'SIGUSR1', 'SIGUSR2',
+   *  'SIGWINCH', ...); the default action (terminate) no longer happens. Does not keep the program alive.
+   *  POSIX hosts only (no-op elsewhere). @throws on an unknown or uncatchable signal */
+  export function onSignal(signal: string, cb: () => void): void;
+  /** Sends a signal to a process ('SIGTERM', 'SIGKILL', ...); false when it failed. @throws on an unknown signal */
+  export function kill(pid: i32, signal: string): boolean;
+  export function pid(): i32;
+  export function cwd(): string;
+  export function chdir(dir: string): boolean;
+  export function setEnv(name: string, value: string): void;
+  export function unsetEnv(name: string): void;
+  /** Names of the environment variables, sorted. */
+  export function envKeys(): string[];
+  /** 0 stdin, 1 stdout, 2 stderr */
+  export function isatty(fd: i32): boolean;
+  /** Writes to stdout / stderr without a newline. */
+  export function write(s: string): void;
+  export function writeErr(s: string): void;
+  /** Standard input in chunks (UTF-8 sequences never split); '' at end of input. Keeps the program alive until
+   *  then. */
+  export function onStdin(cb: (chunk: string) => void): void;
 }
 
 declare module 'zinc:fs' {
