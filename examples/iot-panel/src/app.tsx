@@ -17,9 +17,8 @@ function Header(): i32 {
 function Metrics(): i32 {
   return <View class="flex-row gap-4">
     <Stat class="grow" label="Temperature" value={() => temperature().toFixed(1)} unit="°C" hint="sensor 1, every frame" />
-    {/* the <>...</> keeps the badge reactive: a lone {cond ? ...} component child is evaluated once */}
     <Stat class="grow" label="LED" value={() => ledOn() ? 'On' : 'Off'} hint={`pin ${LED_PIN}`}>
-      <>{ledOn() ? <Badge label="Lit" variant="success" /> : null}</>
+      {ledOn() && <Badge label="Lit" variant="success" />}
     </Stat>
     <Stat class="grow" label="Button presses" value={() => `${presses()}`} hint={`pin ${BUTTON_PIN}, debounced 20 ms`} />
   </View>;

@@ -265,7 +265,10 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       const props = [...attrs].map(([k, x]) => `${k}: ${valueOf(x)}`);
       // several children (or plain text) are passed as one fragment: <Card><Header/><Body/></Card>
       const kids = childrenOf(n).filter(k => !(ts.isJsxText(k) && !k.text.trim()));
-      if (kids.length > 1 || (kids.length === 1 && ts.isJsxText(kids[0]))) {
+      // a single {expression} child that is not a node ({c ? <A/> : <B/>}, {xs.map(...)}, {label}) takes that path too
+      const nodeValued = (k: ts.JsxChild) => !ts.isJsxExpression(k) || !k.expression || isJsx(k.expression) ||
+        (ts.isCallExpression(k.expression) && /(^|\.)(children|render[A-Z]\w*)$/.test(k.expression.expression.getText(sf)));
+      if (kids.length > 1 || (kids.length === 1 && (ts.isJsxText(kids[0]) || !nodeValued(kids[0])))) {
         const lines: string[] = [], f = `__n${counter++}`;
         lines.push(`const ${f}: i32 = _el(6);`);
         children(f, kids, lines);
