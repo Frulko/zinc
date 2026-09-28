@@ -10,8 +10,6 @@ export interface Spec extends NativeModule {
   /** Render target for a w x h screen box (internal size divided by the `scale` option). Returns `t`, resized if
    *  needed, or a new handle when t < 0. */
   target(t: i32, w: i32, h: i32): i32;
-  /** Runtime image holding the target's colour buffer (draw it with gfx.drawImage). */
-  image(t: i32): i32;
   targetDestroy(t: i32): void;
   /** Starts a frame: clears colour and depth, sets the camera. `view` is a column-major 4x4 matrix; `proj` is the
    *  vertical field of view in radians, or the view height in world units when `ortho`. */
@@ -24,5 +22,7 @@ export interface Spec extends NativeModule {
   draw(mesh: i32, model: number[], color: u32, texture: i32, flags: i32): void;
   /** Ends the frame (the image shows the new pixels); returns the number of triangles rasterized. */
   end(): i32;
+  /** Draws the target's image in the screen box (nearest-neighbour scaling; composes with zinc:gfx commands). */
+  present(t: i32, x: number, y: number, w: number, h: number): void;
 }
 export default requireNative<Spec>('Render3D');

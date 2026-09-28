@@ -1,9 +1,8 @@
 // zinc:3d: software 3D on every target that runs the 2D rasterizer. Scene graph, camera and math live here (Zinc);
 // transform, lighting, clipping and rasterization run in C++ (native/render3d.host.cpp) into a runtime image that
-// render() draws with gfx.drawImage, so 2D UI composes over it. Matrices are flat column-major number[16].
+// render() draws as an ordinary image command (nearest-neighbour when scaled), so 2D UI composes over it. Matrices are flat column-major number[16].
 // Guide: docs/plugins/3d.md.
 import R from './native/render3d.spec';
-import { drawImage } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 
 // ---------------------------------------------------------------- math (flat arrays)
@@ -157,42 +156,50 @@ function grid(idx: i32[], cols: i32, rows: i32): void {
   }
 }
 
-/** Wavefront OBJ: v (optionally followed by r g b in 0..1), vt, vn, f (polygons are fanned, negative indices ok). */
+/** Wavefront OBJ: v (optionally followed by r g b in 0..1), vt, vn, f (polygons are fanned, negative indices ok).
+ *  Files whose faces are plain `f a b c` use the `v` list as is; `v/t/n` references make one vertex per distinct
+ *  reference (through a string map: more memory, avoid on ESP32). */
 export function parseObj(text: string): Mesh {
-  const vp: number[] = [], vc: number[] = [], vt: number[] = [], vn: number[] = [];
+  const vp: number[] = [], vt: number[] = [], vn: number[] = [], vc: u32[] = [];
   const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: u32[] = [], idx: i32[] = [];
   const seen = new Map<string, i32>();
-  let hasUv = false, hasNrm = false, hasCol = false;
-  for (const raw of text.split('\n')) {
-    const w = raw.trim().replaceAll('\t', ' ').split(' ').filter((s: string) => s.length > 0);
+  let hasUv = false, hasNrm = false, hasCol = false, direct = true, faces = false;
+  let start: i32 = 0;
+  while (start < text.length) {
+    let end = text.indexOf('\n', start);
+    if (end < 0) end = text.length;
+    const w = text.slice(start, end).trim().replaceAll('\t', ' ').split(' ').filter((s: string) => s.length > 0);
+    start = end + 1;
     if (w.length < 2) continue;
     const k = w[0];
     if (k === 'v') {
       for (let i = 1; i <= 3; i++) vp.push(parseFloat(w[i]));
       hasCol = hasCol || w.length >= 7;
-      for (let i = 4; i <= 6; i++) vc.push(w.length >= 7 ? parseFloat(w[i]) : 1);
+      vc.push(w.length >= 7 ? rgb(parseFloat(w[4]), parseFloat(w[5]), parseFloat(w[6])) : 0xffffff);
     } else if (k === 'vt') { vt.push(parseFloat(w[1])); vt.push(1 - parseFloat(w[2])); }
     else if (k === 'vn') { for (let i = 1; i <= 3; i++) vn.push(parseFloat(w[i])); }
     else if (k === 'f') {
+      if (!faces) { faces = true; direct = w[1].indexOf('/') < 0; }
       const face: i32[] = [];
       for (let i = 1; i < w.length; i++) {
+        const p = w[i].split('/');
+        const vi = objIndex(p[0], vp.length / 3);
+        if (direct) { face.push(vi); continue; }
         // ponytail: has() + get(), `get() === undefined` is not supported for number values
-        let id: i32 = seen.has(w[i]) ? seen.get(w[i]) ?? 0 : -1;
-        if (id < 0) {
-          const p = w[i].split('/');
-          const vi = objIndex(p[0], vp.length / 3), ti = p.length > 1 ? objIndex(p[1], vt.length / 2) : -1, ni = p.length > 2 ? objIndex(p[2], vn.length / 3) : -1;
-          id = pos.length / 3;
-          for (let a = 0; a < 3; a++) pos.push(vp[vi * 3 + a]);
-          col.push(rgb(vc[vi * 3], vc[vi * 3 + 1], vc[vi * 3 + 2]));
-          if (ti >= 0) { hasUv = true; uv.push(vt[ti * 2]); uv.push(vt[ti * 2 + 1]); } else { uv.push(0); uv.push(0); }
-          if (ni >= 0) { hasNrm = true; for (let a = 0; a < 3; a++) nrm.push(vn[ni * 3 + a]); } else { nrm.push(0); nrm.push(0); nrm.push(0); }
-          seen.set(w[i], id);
-        }
+        if (seen.has(w[i])) { face.push(seen.get(w[i]) ?? 0); continue; }
+        const ti = p.length > 1 ? objIndex(p[1], vt.length / 2) : -1, ni = p.length > 2 ? objIndex(p[2], vn.length / 3) : -1;
+        const id: i32 = pos.length / 3;
+        for (let a = 0; a < 3; a++) pos.push(vp[vi * 3 + a]);
+        col.push(vc[vi]);
+        if (ti >= 0) { hasUv = true; uv.push(vt[ti * 2]); uv.push(vt[ti * 2 + 1]); } else { uv.push(0); uv.push(0); }
+        if (ni >= 0) { hasNrm = true; for (let a = 0; a < 3; a++) nrm.push(vn[ni * 3 + a]); } else { nrm.push(0); nrm.push(0); nrm.push(0); }
+        seen.set(w[i], id);
         face.push(id);
       }
       for (let i = 1; i + 1 < face.length; i++) { idx.push(face[0]); idx.push(face[i]); idx.push(face[i + 1]); }
     }
   }
+  if (direct) return new Mesh(vp, idx, [], [], hasCol ? vc : []);
   return new Mesh(pos, idx, hasNrm ? nrm : [], hasUv ? uv : [], hasCol ? col : []);
 }
 /** OBJ file from the embedded assets. */
@@ -290,26 +297,24 @@ export class Camera {
   /** The render target (colour image + z-buffer) is sized by the last render() box; free it when done. */
   dispose(): void { if (this.rt >= 0) R.targetDestroy(this.rt); this.rt = -1; }
 
-  /** Internal: renders `scene` into this camera's target, returns the image id or -1. */
-  frame(scene: Scene, w: i32, h: i32): i32 {
-    this.rt = R.target(this.rt, w, h);
-    if (this.rt < 0) return -1;
+  /** Renders `scene` seen by this camera into the screen box (x, y, w, h); returns the triangles rasterized. */
+  render(scene: Scene, x: number, y: number, w: number, h: number): i32 {
+    this.rt = R.target(this.rt, Math.round(w), Math.round(h));
+    if (this.rt < 0) return 0;
     mat4LookAt(this.view, this.position, this.target, this.up);
     R.begin(this.rt, scene.background, this.view, this.ortho ? this.height : this.fov * Math.PI / 180, this.near, this.far, this.ortho);
     R.ambient(scene.ambient);
     for (const l of scene.lights) R.light(l.direction[0], l.direction[1], l.direction[2], l.color);
     scene.draw(IDENTITY);
-    lastTriangles = R.end();
-    return R.image(this.rt);
+    const tris = R.end();
+    R.present(this.rt, x, y, w, h);
+    return tris;
   }
 }
 
 const IDENTITY = mat4();
-let lastTriangles: i32 = 0;
 
 /** Renders `scene` seen by `camera` into the screen box (x, y, w, h). Returns the triangles rasterized. */
 export function render(scene: Scene, camera: Camera, x: number, y: number, w: number, h: number): i32 {
-  const img = camera.frame(scene, Math.round(w), Math.round(h));
-  if (img >= 0) drawImage(img, x, y, w, h, 255, 0);
-  return lastTriangles;
+  return camera.render(scene, x, y, w, h);
 }

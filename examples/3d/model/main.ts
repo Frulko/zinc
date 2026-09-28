@@ -25,7 +25,7 @@ scene.add(new Node(plane(10, 10, 10, 10), ground)).setPosition(0, -1.6, 0).setSc
 const camera = new Camera();
 let yaw = 0.4, dist = 6;
 const ui = font('sans', 12);
-let t = 0, ms = 0;
+let t = 0, ms = 0, msSum = 0, msN: i32 = 0;
 
 onFrame((dt: number) => {
   if (!painted) {
@@ -47,7 +47,10 @@ onFrame((dt: number) => {
 
   const t0 = clock();
   const tris = render(scene, camera, 0, 0, width(), height());
-  ms = ms * 0.9 + (clock() - t0) * 0.1;
+  const r = clock() - t0;
+  ms = ms * 0.9 + r * 0.1;
+  msSum += r; msN++;
+  if (msN === 300) { console.log(`3d/model ${width()}x${height()}: ${(msSum / msN).toFixed(2)} ms/render`); msSum = 0; msN = 0; }
   rrect(6, 6, 250, 22, 6, 0x000000, 150);
   drawText(ui, 12, 10, `rocket.obj ${rocketMesh.triangles} tris  ${tris} drawn  ${ms.toFixed(1)} ms`, 0xffffff, 255, 0);
 });

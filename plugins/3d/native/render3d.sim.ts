@@ -25,11 +25,11 @@ export default {
     targets.push(nt);
     return targets.length - 1;
   },
-  image(t: number): number { return targets[t]?.img ?? -1; },
   targetDestroy(t: number): void { const c = targets[t]; if (c) { destroyImage(c.img); targets[t] = null; } },
   begin(): void { tris = 0; },
   ambient(): void {},
   light(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   end(): number { return tris; },
+  present(): void {},
 };

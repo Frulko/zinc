@@ -1,7 +1,7 @@
 // zinc:3d renderer: per-vertex transform and lighting in float, homogeneous clipping (near/far planes + a guard
 // band), backface culling, scanline rasterization with 16.16 fixed-point edges and attributes, a 16- or 32-bit
 // z-buffer, perspective-correct texturing by span subdivision, optional 2x2 ordered dither to RGB565.
-// Colour buffer = a runtime image (raster::dyn_create), shown with gfx.drawImage. docs/plugins/3d.md.
+// Colour buffer = a runtime image (raster::dyn_wrap), drawn as an IMAGE command by present(). docs/plugins/3d.md.
 #include "zinc_native_render3d.h"
 #include "zrt_raster.h"
 #include <stdlib.h>
@@ -48,7 +48,7 @@ static const float GUARD = 2;           // guard band: clip x, y at +-2w (pixels
 enum { VCOL = 1, FLAT = 2, UNLIT = 4, DOUBLE = 8 };
 
 struct Mesh { int32_t nv, ni; float *pos, *nrm, *uv; uint32_t* col; uint16_t* idx; };
-struct Target { int32_t img, w, h; ZT* z; };
+struct Target { int32_t img, w, h; uint32_t* px; ZT* z; };
 struct Tex { const uint32_t* px; int32_t w, h, stride; };
 struct V { float x, y, z, w, r, g, b, u, v; };      // clip space + shade (0..255) + uv
 struct S { float x, y, z, iw, r, g, b, u, v; };     // screen space; u, v premultiplied by iw
@@ -62,6 +62,10 @@ template<class T> struct Pool {
   }
   T* at(int32_t i) const { return i >= 0 && i < n ? p[i] : nullptr; }
 };
+
+/** System memory first, then the Zinc heap (on ESP32 it holds the largest free block); panics when both are full.
+ *  Freed with zrt::mfree, which knows both. */
+static void* mem(size_t n) { void* p = hal_alloc(n ? n : 1); return p ? p : zrt::alloc(n); }
 
 static inline uint32_t pack(float r, float g, float b) {
   int32_t R = (int32_t)r, G = (int32_t)g, B = (int32_t)b;
@@ -222,10 +226,9 @@ static uint32_t** baked;  // 0x00RRGGBB copies of baked images used as textures 
 static bool texture(int32_t id, Tex& t) {
   if (id >= 0 && id < raster::image_count) {
     const raster::Image& im = raster::images[id];
-    if (!baked) baked = (uint32_t**)calloc((size_t)raster::image_count, sizeof(uint32_t*));
+    if (!baked) { baked = (uint32_t**)mem(sizeof(uint32_t*) * (size_t)raster::image_count); memset(baked, 0, sizeof(uint32_t*) * (size_t)raster::image_count); }
     if (!baked[id]) {
-      uint32_t* px = (uint32_t*)malloc((size_t)im.w * im.h * 4);
-      if (!px) return false;
+      uint32_t* px = (uint32_t*)mem((size_t)im.w * im.h * 4);
       for (int32_t i = 0; i < im.w * im.h; i++) { const uint8_t* s = im.rgba + i * 4; px[i] = (uint32_t)s[0] << 16 | (uint32_t)s[1] << 8 | s[2]; }
       baked[id] = px;
     }
@@ -249,15 +252,16 @@ struct Engine : NativeRender3D {
   int32_t meshCreate(Array<N> pos, Array<N> nrm, Array<N> uv, Array<uint32_t> col, Array<int32_t> idx) override {
     int32_t nv = pos.length() / 3, ni = idx.length() / 3 * 3;
     if (nv <= 0 || nv > 65535) return -1;
-    Mesh* m = (Mesh*)calloc(1, sizeof(Mesh));
-    m->nv = nv; m->ni = ni;
-    m->pos = (float*)malloc(sizeof(float) * 3 * (size_t)nv);
-    m->nrm = (float*)calloc(3 * (size_t)nv, sizeof(float));
-    m->idx = (uint16_t*)malloc(sizeof(uint16_t) * (size_t)(ni ? ni : 1));
+    Mesh* m = (Mesh*)mem(sizeof(Mesh));
+    *m = Mesh{nv, ni, nullptr, nullptr, nullptr, nullptr, nullptr};
+    m->pos = (float*)mem(sizeof(float) * 3 * (size_t)nv);
+    m->nrm = (float*)mem(sizeof(float) * 3 * (size_t)nv);
+    memset(m->nrm, 0, sizeof(float) * 3 * (size_t)nv);
+    m->idx = (uint16_t*)mem(sizeof(uint16_t) * (size_t)ni);
     for (int32_t i = 0; i < nv * 3; i++) m->pos[i] = F(pos.a->data[i]);
     for (int32_t i = 0; i < ni; i++) { int32_t k = idx.a->data[i]; m->idx[i] = (uint16_t)(k >= 0 && k < nv ? k : 0); }
-    if (uv.length() >= nv * 2) { m->uv = (float*)malloc(sizeof(float) * 2 * (size_t)nv); for (int32_t i = 0; i < nv * 2; i++) m->uv[i] = F(uv.a->data[i]); }
-    if (col.length() >= nv) { m->col = (uint32_t*)malloc(sizeof(uint32_t) * (size_t)nv); memcpy(m->col, col.a->data, sizeof(uint32_t) * (size_t)nv); }
+    if (uv.length() >= nv * 2) { m->uv = (float*)mem(sizeof(float) * 2 * (size_t)nv); for (int32_t i = 0; i < nv * 2; i++) m->uv[i] = F(uv.a->data[i]); }
+    if (col.length() >= nv) { m->col = (uint32_t*)mem(sizeof(uint32_t) * (size_t)nv); memcpy(m->col, col.a->data, sizeof(uint32_t) * (size_t)nv); }
     if (nrm.length() >= nv * 3) for (int32_t i = 0; i < nv * 3; i++) m->nrm[i] = F(nrm.a->data[i]);
     else for (int32_t t = 0; t < ni; t += 3) {  // smooth normals: area-weighted face normals
       const float *p0 = m->pos + m->idx[t] * 3, *p1 = m->pos + m->idx[t + 1] * 3, *p2 = m->pos + m->idx[t + 2] * 3;
@@ -271,15 +275,16 @@ struct Engine : NativeRender3D {
     }
     if (nv > cap) {
       cap = nv;
-      vs = (V*)realloc(vs, sizeof(V) * (size_t)cap);
-      oc = (uint8_t*)realloc(oc, (size_t)cap);
+      mfree(vs); mfree(oc);
+      vs = (V*)mem(sizeof(V) * (size_t)cap);
+      oc = (uint8_t*)mem((size_t)cap);
     }
     return meshes.add(m);
   }
   void meshDestroy(int32_t id) override {
     Mesh* m = meshes.at(id);
     if (!m) return;
-    free(m->pos); free(m->nrm); free(m->uv); free(m->col); free(m->idx); free(m);
+    mfree(m->pos); mfree(m->nrm); mfree(m->uv); mfree(m->col); mfree(m->idx); mfree(m);
     meshes.p[id] = nullptr;
   }
 
@@ -288,34 +293,27 @@ struct Engine : NativeRender3D {
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     Target* t = targets.at(id);
-    if (!t) {
-      int32_t img = raster::dyn_create(w, h);
-      ZT* z = (ZT*)malloc(sizeof(ZT) * (size_t)w * h);
-      if (img < 0 || !z) { if (img >= 0) raster::dyn_destroy(img); free(z); return -1; }
-      t = (Target*)malloc(sizeof(Target));
-      *t = Target{img, w, h, z};
-      return targets.add(t);
-    }
-    if (t->w != w || t->h != h) {
-      raster::dyn_resize(t->img, w, h);
-      free(t->z); t->z = (ZT*)malloc(sizeof(ZT) * (size_t)w * h);
-      t->w = w; t->h = h;
-    }
+    if (t && t->w == w && t->h == h) return id;
+    if (t) release(t);
+    else { t = (Target*)mem(sizeof(Target)); id = targets.add(t); }
+    t->w = w; t->h = h;
+    t->px = (uint32_t*)mem((size_t)w * h * 4);
+    t->z = (ZT*)mem(sizeof(ZT) * (size_t)w * h);
+    t->img = raster::dyn_wrap(w, h, t->px, w);
     return id;
   }
-  int32_t image(int32_t id) override { Target* t = targets.at(id); return t ? t->img : -1; }
+  void release(Target* t) { if (cur == t) cur = nullptr; raster::dyn_destroy(t->img); mfree(t->px); mfree(t->z); }
   void targetDestroy(int32_t id) override {
     Target* t = targets.at(id);
     if (!t) return;
-    if (cur == t) cur = nullptr;
-    raster::dyn_destroy(t->img); free(t->z); free(t);
+    release(t); mfree(t);
     targets.p[id] = nullptr;
   }
 
   void begin(int32_t id, uint32_t clear, Array<N> view, N proj, N nearN, N farN, bool ortho) override {
     cur = targets.at(id);
-    uint32_t* px = cur ? raster::dyn_pixels(cur->img) : nullptr;
-    if (!px || !cur->z) { cur = nullptr; return; }
+    if (!cur) return;
+    uint32_t* px = cur->px;
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     for (int32_t i = 0, n = cur->w * cur->h; i < n; i++) px[i] = clear & 0xFFFFFF;
     memset(cur->z, 0xFF, sizeof(ZT) * (size_t)cur->w * cur->h);
@@ -358,7 +356,7 @@ struct Engine : NativeRender3D {
     float M[16], MVP[16];
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     mul(MVP, vp, M);
-    Ctx c{raster::dyn_pixels(cur->img), cur->z, cur->w, cur->h, Tex{nullptr, 0, 0, 0}, color & 0xFFFFFF};
+    Ctx c{cur->px, cur->z, cur->w, cur->h, Tex{nullptr, 0, 0, 0}, color & 0xFFFFFF};
     bool textured = tex >= 0 && m->uv && texture(tex, c.tex);
     bool lit = !(flags & UNLIT), flat = flags & FLAT, vcol = (flags & VCOL) && m->col;
     bool smooth = !flat && (lit || vcol);
@@ -421,6 +419,14 @@ struct Engine : NativeRender3D {
     raster::dyn_update(cur->img, nullptr, 0);
     cur = nullptr;
     return tris;
+  }
+  void present(int32_t id, N x, N y, N w, N h) override {
+    Target* t = targets.at(id);
+    if (!t || t->img < 0) return;
+    if (raster::Cmd* c = gfx::emit(raster::IMAGE, nullptr, 0)) {  // grad 1: nearest filter (cheap, keeps the dither)
+      c->x = F(x); c->y = F(y); c->w = F(w); c->h = F(h);
+      c->res = t->img; c->grad = 1; c->c2 = raster::image_version(t->img);
+    }
   }
 };
 

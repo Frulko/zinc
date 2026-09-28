@@ -4,6 +4,6 @@
   "targets": {
     "macos": { "width": 640, "height": 480 },
     "rpi1": { "width": 640, "height": 480, "plugins": { "3d": { "scale": 2 } } },
-    "esp32": { "display": "st7789", "plugins": { "3d": { "scale": 2, "dither": true } } }
+    "esp32": { "display": "st7789", "plugins": { "3d": { "scale": 3, "dither": true } } }
   }
 }
