@@ -26,7 +26,7 @@ const [name, setName] = createSignal('');
 | `rows` | textarea height in lines when no height class is set (default 4) |
 | `wrap={false}` | textarea: no line wrapping, horizontal scroll |
 | `lineNumbers` | textarea: line number gutter; with `lineNumbers` or `font-mono` the textarea is a code editor: Tab inserts 2 spaces, Enter keeps the indentation |
-| `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers and `//` comments |
+| `highlight` | `(line: string) => i32[]`: colour runs `[length, color, length, color...]` for one visual line (`-1`: text colour). `ui.tsHighlight` colours TypeScript / Zinc keywords, types, strings, numbers, `//` comments and `/* */` comments within a line |
 
 Default size: 200 px wide (stretch, `grow`, `w-*` size it), one line (or `rows` lines) high; styled by classes like any
 node (`bg-*`, `text-*`, `border-*`, `rounded-*`, `p-*`, `font-mono`, `text-sm`...). The focused field gets a blue
@@ -38,11 +38,35 @@ Cmd+Up/Down or Ctrl+Home/End to the start / end, PageUp/PageDown, Shift extends;
 Alt/Ctrl, to the line start with Cmd); Cmd/Ctrl+A, C, X, V, Z, Shift+Z / Y; Tab / Shift+Tab move the focus (Tab into
 a single-line field selects it); Escape blurs. Undo coalesces consecutive typing into one step (100 steps).
 The caret blinks without repainting in between; horizontal scroll follows the caret in inputs, vertical scroll and
-the wheel in textareas.
+the wheel in textareas. The wheel scrolls textareas like scroll containers: trackpads 1:1 with a rubber band past the
+edges (the OS supplies the momentum), mouse notches ease 60 px each; at an edge the wheel goes on to an enclosing
+scroll container.
 
 Host ABI: `ui.createNode(ui.INPUT | ui.TEXTAREA)`, `setValue`, `getValue`, `setPlaceholder`, `onText(h, change, f)`,
 `setHighlight`, `select(h, a, b)`, `caretOf`, `selectedText`, `focusNode(h)`, `focused()`; flags through
 `setNumber(h, 'password' | 'readOnly' | 'lineNumbers' | 'wrap' | 'rows', v)`.
+
+### Code editor extensions
+
+For editors built on a textarea (`examples/zed-editor`), on the node handle (`ref`):
+
+| function | |
+| --- | --- |
+| `setMarks(h, marks)` | decorations, flat `[start, end, color, kind]` per mark (UTF-16 offsets): `MARK_LINE` the background of every row of a line (and a brighter line number), `MARK_FILL` / `MARK_STRONG` a translucent / stronger range fill, `MARK_BOX` a 1 px box (matching brackets), `MARK_SQUIGGLE` a wavy underline (diagnostics), `MARK_GUTTER` a dot in the line number gutter. Drawn under the text; each call replaces the marks |
+| `setEditColors(h, colors)` | `[lineNumber, activeLineNumber, gutterLine, selection, caret, indentGuide]`; `-1` keeps the default, `-2` draws none. Indent guides (every 2 columns of leading spaces, blank lines take the smaller indentation around them) are drawn when `indentGuide` is a colour |
+| `setHighlightAt(h, f)` | like `highlight`, with the offset of the row in the value: `f(line, start)`. Highlighters that keep a state per line (block comments, template strings) look it up; takes precedence over `highlight` |
+| `editView(h)` | `[scrollX, scrollY, contentHeight, viewportHeight, lineHeight, rows, gutter, contentWidth]` |
+| `scrollEditTo(h, x, y)` | scrolls (clamped), stopping any wheel easing |
+| `editRowOf(h, offset)` | visual row of an offset (the line when wrapping is off) |
+| `repaint()` | repaint at the next frame |
+
+A canvas with `style={{ lazy: 1 }}` does not force a repaint on every frame: it is drawn when anything else changed
+(or after `ui.repaint()`). Icons and minimaps that only change with the UI stay free when the window is idle; a plain
+canvas keeps the whole window repainting every frame.
+
+Long texts: Zinc strings are UTF-8, so indexing a non-ASCII string (`charCodeAt`, `slice`) costs O(offset). Text fields
+work line by line and slice the visible rows once per frame, so scrolling a 5000-line file stays at the display rate;
+code that walks the value of a large field should do the same (`value.split('\n')`).
 
 ## Pointer events
 
@@ -95,7 +119,8 @@ Order for each key down: the focused node's `onKeyDown` (or its nearest ancestor
 keys, then the global `ui.onKey` handlers, each only if nothing before called `preventDefault()` / handled it.
 Printable keys are handled by a focused text field (typing never triggers single-letter shortcuts). Unhandled
 arrows, Tab / Shift+Tab, Enter and Space drive the existing focus navigation (also from a quick tap); while a text
-field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. Escape is an ordinary key for
+field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. A printable key that a handler
+consumed (`preventDefault()`, e.g. ⌥Z as a shortcut) does not also type its character, as in the DOM. Escape is an ordinary key for
 `zinc:ui` programs (close a dialog, go back: `preventDefault()` in a handler); unhandled, it blurs the focused node, and
 with nothing focused it does the platform default (`gfx.escapeDefault()`: leave fullscreen, else quit; nothing in
 kiosk mode). Plain `zinc:gfx` programs keep the HAL behaviour unless they call `gfx.escapeByApp(true)`.
@@ -141,5 +166,6 @@ Optional HAL hooks with weak defaults in the runtime: `hal_text_input` (SDL_Star
 `modifiers`, `pointerButtons`, `buttonEventCount/X/Y/Button/Down`, `wheelX`, `startTextInput`, `stopTextInput`,
 `clipboardText`, `setClipboardText`, `setCursor` (no-ops / empty on the sim).
 
-Not done yet: IME composition preview (committed text works), block comments in `tsHighlight`, word-wise drag
+Not done yet: IME composition preview (committed text works), comments spanning lines in `tsHighlight` (use
+`setHighlightAt` with a per-line state, as `examples/zed-editor` does), multiple carets, word-wise drag
 selection after a double click, exact-size fonts for continuous zoom.
