@@ -143,6 +143,13 @@ export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
+/** <VirtualList count itemHeight>{(i) => ...}</VirtualList>: visible rows only; rows re-render when the list re-renders. */
+export function _virtual(n: i32, count: i32, itemH: number, render: (i: i32) => i32): void {
+  const prev = cur;
+  cur = null;  // rows are built outside this component's reconciliation (they come and go with scrolling)
+  ui.virtualize(n, count, itemH, (i: i32) => { const p = cur; cur = null; const r = render(i); cur = p; return r; }, null);
+  cur = prev;
+}
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
 /** Class components (Inferno, React classes): state lives on the instance, setState re-renders it. */
@@ -212,3 +219,6 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
   _rc(host, app, 'App', '');
   ui.mount(root, background, onTick);
 }
+
+/** Marker for `<VirtualList count itemHeight>{(i) => ...}</VirtualList>` (lowered by the JSX compiler). */
+export const VirtualList: i32 = 2;

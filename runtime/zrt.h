@@ -559,7 +559,9 @@ template<class K, class V> struct Map {
     }
     if (o->keys) { mfree(o->keys); mfree(o->vals); mfree(o->dead); mfree(o->index); }
     o->keys = nk; o->vals = nv; o->dead = nd; o->cap = ncap;
-    o->icap = ncap * 2;
+    // the index is probed with `& (icap - 1)`: it must be a power of two (>= 2 x entries)
+    o->icap = 16;
+    while (o->icap < ncap * 2) o->icap *= 2;
     o->index = (int32_t*)alloc(sizeof(int32_t) * (size_t)o->icap);
     for (int32_t i = 0; i < o->icap; i++) o->index[i] = -1;
     uint32_t mask = (uint32_t)o->icap - 1;

@@ -1,7 +1,7 @@
 // Inferno compatibility (`import { Component, render, linkEvent } from 'inferno'`): Inferno apps run on Zinc's
 // React engine (lib/std/react.ts) — class components with setState, lifecycle methods, keyed reconciliation.
 import * as ui from 'zinc:ui';
-export { Component, linkEvent, useState, useEffect, useMemo, useRef } from 'zinc:ui/react';
+export { Component, linkEvent, useState, useEffect, useMemo, useRef, VirtualList } from 'zinc:ui/react';
 
 /** `render(<App />)`: the element is already built (and reactive); mounts it full screen (no DOM container). */
 export function render(node: i32): void {

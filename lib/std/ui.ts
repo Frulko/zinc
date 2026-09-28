@@ -4,7 +4,7 @@
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
   onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, textWidth, image, imageWidth, imageHeight,
-  clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn,
+  clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
 } from 'zinc:gfx';
 import { PALETTE, SHADES } from './palette';
 
@@ -30,6 +30,11 @@ export class UiNode {
   abs: boolean = false; top: i32 = UNSET; left: i32 = UNSET; right: i32 = UNSET; bottom: i32 = UNSET;
   hidden: boolean = false;
   overflow: boolean = false;
+  // scrolling (UI-14): 1 vertical, 2 horizontal, 3 both; content size from layout, offset applied at paint/hit time
+  scroll: i32 = 0;
+  sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
+  vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
+  virt: Virtual | null = null;
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
@@ -54,6 +59,16 @@ export class UiNode {
   constructor(tag: i32) { this.tag = tag; }
 }
 
+/** Virtualized list state: only rows in the viewport (+ overscan) exist as nodes. */
+export class Virtual {
+  count: i32 = 0;
+  itemH: number = 40;
+  render: (i: i32) => i32;
+  drop: ((row: i32) => void) | null = null;  // called before a row node is destroyed (reactive cleanup)
+  rows: Map<i32, i32> = new Map<i32, i32>();  // index -> node
+  first: i32 = 0; last: i32 = -1;
+  constructor(render: (i: i32) => i32) { this.render = render; }
+}
 const nodes: UiNode[] = [];
 const free: i32[] = [];
 let layoutDirty = true;
@@ -69,6 +84,7 @@ function node(h: i32): UiNode { return nodes[h]; }
 function defaults(n: UiNode): void {
   if (n.tag === BUTTON) { n.bg = 0x334155; n.pt = 4; n.pb = 4; n.pl = 8; n.pr = 8; n.align = 1; n.justify = 1; n.focusable = true; }
   if (n.tag === TEXT) n.fg = -1;
+  if (n.tag === SCROLL) { n.scroll = 1; n.overflow = true; }
 }
 
 export function createNode(tag: i32): i32 {
@@ -148,6 +164,57 @@ function release(h: i32): void {
 }
 export function listen(h: i32, f: () => void): void { const n = node(h); n.onClick = f; n.focusable = true; }
 export function draw(h: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { node(h).onDraw = f; }
+/** Scroll offset of a scroll container (pixels from the top / left). */
+export function scrollTop(h: i32): number { return node(h).sy; }
+export function scrollLeft(h: i32): number { return node(h).sx; }
+/** Scrolls a container to an offset (clamped). */
+export function scrollTo(h: i32, x: number, y: number): void {
+  const n = node(h);
+  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0;
+  clampScroll(n);
+  n.scrolledAt = clock;
+  if (n.virt !== null) layoutDirty = true;
+  paintDirty = true;
+}
+/**
+ * Makes a scroll container a virtual list of `count` rows of `itemH` pixels: only the rows in view (+3) are built by
+ * `render(i)`, positioned absolutely, and destroyed when they scroll out. Calling it again with a new count or render
+ * function rebuilds the visible rows.
+ */
+export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) => i32, drop: ((row: i32) => void) | null): void {
+  const n = node(h);
+  if (n.scroll === 0) { n.scroll = 1; n.overflow = true; }
+  let v = n.virt;
+  if (v === null) { v = new Virtual(render); n.virt = v; virtList.push(h); }
+  const vv = v as Virtual;
+  vv.render = render; vv.count = count; vv.itemH = itemH; vv.drop = drop;
+  vv.rows.forEach((row: i32, i: i32) => { if (drop !== null) drop(row); detach(h, row); release(row); });
+  vv.rows = new Map<i32, i32>();
+  vv.first = 0; vv.last = -1;
+  layoutDirty = true;
+}
+function syncVirtual(h: i32, n: UiNode): void {
+  const v = n.virt as Virtual;
+  const over: i32 = 3;
+  let first: i32 = Math.floor(n.sy / v.itemH) - over;
+  let last: i32 = Math.ceil((n.sy + n.lh) / v.itemH) + over;
+  if (first < 0) first = 0;
+  if (last > v.count - 1) last = v.count - 1;
+  if (first === v.first && last === v.last) return;
+  const drop: i32[] = [];
+  v.rows.forEach((row: i32, i: i32) => { if (i < first || i > last) drop.push(i); });
+  for (const i of drop) { const row = v.rows.get(i) as i32; const d = v.drop; if (d !== null) d(row); detach(h, row); release(row); v.rows.delete(i); }
+  for (let i = first; i <= last; i++) {
+    if (v.rows.has(i)) continue;
+    const row = v.render(i);
+    const r = node(row);
+    r.abs = true; r.top = Math.round(n.pt + i * v.itemH); r.left = n.pl; r.right = n.pr; r.h = Math.round(v.itemH);
+    insert(h, row, -1);
+    v.rows.set(i, row);
+  }
+  v.first = first; v.last = last;
+  layoutDirty = true;
+}
 export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on; }
 export function setImage(h: i32, name: string): void { node(h).img = image(name); layoutDirty = true; }
 
@@ -249,6 +316,9 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'absolute') { n.abs = true; return true; }
   if (tok === 'hidden') { n.hidden = true; return true; }
   if (tok === 'overflow-hidden') { n.overflow = true; return true; }
+  if (tok === 'overflow-auto' || tok === 'overflow-scroll') { n.overflow = true; n.scroll = 3; return true; }
+  if (tok === 'overflow-y-auto' || tok === 'overflow-y-scroll') { n.overflow = true; n.scroll = n.scroll | 1; return true; }
+  if (tok === 'overflow-x-auto' || tok === 'overflow-x-scroll') { n.overflow = true; n.scroll = n.scroll | 2; return true; }
   if (tok === 'grow' || tok === 'flex-1') { n.grow = 1; return true; }
   if (tok === 'grow-0') { n.grow = 0; return true; }
   if (tok === 'w-full') { n.fullW = true; return true; }
@@ -332,7 +402,7 @@ function resetStyle(n: UiNode): void {
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0;
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
-  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = false;
+  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
@@ -418,7 +488,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     const kids: UiNode[] = [];
     flat(n, kids, false);
     const inner: number = (ownW >= 0 ? ownW : maxW) - n.pl - n.pr;
-    const innerH: number = (ownH >= 0 ? ownH : maxH) - n.pt - n.pb;
+    const innerH: number = (n.scroll & 1) !== 0 ? 1000000 : (ownH >= 0 ? ownH : maxH) - n.pt - n.pb;
     let main: number = 0, cross: number = 0, lineMain: number = 0, lineCross: number = 0;
     let count: i32 = 0;
     for (const c of kids) {
@@ -443,12 +513,22 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     flat(n, abs, true);
     for (const c of abs) measure(c, inner, innerH);
   }
+  if (n.scroll !== 0) {
+    // the viewport is sized by its constraints (grow / full / fixed), the content keeps its natural size
+    n.contentW = n.lw; n.contentH = n.lh;
+    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = v.count * v.itemH + n.pt + n.pb; }
+    if ((n.scroll & 1) !== 0) n.lh = ownH >= 0 ? ownH : n.fullH || n.grow > 0 ? 0 : Math.min(n.contentH, maxH);
+    if ((n.scroll & 2) !== 0) n.lw = ownW >= 0 ? ownW : n.fullW || n.grow > 0 ? 0 : Math.min(n.contentW, maxW);
+  }
   if (ownW >= 0) n.lw = ownW;
   if (ownH >= 0) n.lh = ownH;
 }
-function place(n: UiNode, x: number, y: number, w: number, h: number): void {
-  n.x = x; n.y = y; n.lw = w; n.lh = h;
+function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
+  n.x = x; n.y = y; n.lw = vw; n.lh = vh;
   if (n.tag === TEXT) return;
+  // scroll containers lay their content out at its natural size; the viewport only clips and offsets it
+  const w = (n.scroll & 2) !== 0 ? Math.max(vw, n.contentW) : vw, h = (n.scroll & 1) !== 0 ? Math.max(vh, n.contentH) : vh;
+  if (n.scroll !== 0) clampScroll(n);
   const kids: UiNode[] = [];
   flat(n, kids, false);
   const iw = w - n.pl - n.pr, ih = h - n.pt - n.pb;
@@ -642,16 +722,91 @@ function paint(h: i32, ox: number, oy: number, alpha: number): void {
     if (d !== null) d(Math.round(x), Math.round(y), Math.round(n.lw), Math.round(n.lh));
     if (n.overflow) clip(x, y, n.lw, n.lh);
   }
-  const dx = ox + n.tx, dy = oy + n.ty;
+  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
   for (const c of n.children) paint(c, dx, dy, a);
+  if (n.scroll !== 0) paintScrollbars(n, x, y, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
+}
+function paintScrollbars(n: UiNode, x: number, y: number, a: number): void {
+  // thin overlay bars, shown while scrolling and fading out after ~1 s
+  const age = clock - n.scrolledAt;
+  if (age > 1200) return;
+  const fade = age < 800 ? 1 : 1 - (age - 800) / 400;
+  animating = true;
+  const al: i32 = Math.round(110 * fade * a);
+  if ((n.scroll & 1) !== 0 && n.contentH > n.lh) {
+    const len = Math.max(24, n.lh * n.lh / n.contentH), pos = (n.lh - len) * n.sy / (n.contentH - n.lh);
+    rrect(x + n.lw - 5, y + pos + 2, 3, len - 4, 1.5, 0x64748b, al);
+  }
+  if ((n.scroll & 2) !== 0 && n.contentW > n.lw) {
+    const len = Math.max(24, n.lw * n.lw / n.contentW), pos = (n.lw - len) * n.sx / (n.contentW - n.lw);
+    rrect(x + pos + 2, y + n.lh - 5, len - 4, 3, 1.5, 0x64748b, al);
+  }
+}
+function clampScroll(n: UiNode): void {
+  const maxY = Math.max(0, n.contentH - n.lh), maxX = Math.max(0, n.contentW - n.lw);
+  if (n.sy > maxY) { n.sy = maxY; n.vy = 0; }
+  if (n.sy < 0) { n.sy = 0; n.vy = 0; }
+  if (n.sx > maxX) { n.sx = maxX; n.vx = 0; }
+  if (n.sx < 0) { n.sx = 0; n.vx = 0; }
+}
+
+// ---------------------------------------------------------------- scrolling input
+let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
+let focusShown: i32 = -1;
+const flinging: i32[] = [];
+/** Innermost scroll container under (px, py) that scrolls along `axes` (1 vertical, 2 horizontal). */
+function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, axes: i32): i32 {
+  const n = node(h);
+  if (n.hidden) return -1;
+  const x0 = n.x + ox + n.tx, y0 = n.y + oy + n.ty;
+  const inside = px >= x0 && py >= y0 && px < x0 + n.lw && py < y0 + n.lh;
+  if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
+  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
+  for (let i = n.children.length - 1; i >= 0; i--) { const r = scrollerAt(n.children[i], px, py, dx, dy, axes); if (r >= 0) return r; }
+  const canY = (n.scroll & 1) !== 0 && n.contentH > n.lh, canX = (n.scroll & 2) !== 0 && n.contentW > n.lw;
+  if (inside && (((axes & 1) !== 0 && canY) || ((axes & 2) !== 0 && canX))) return h;
+  return -1;
+}
+/** Inertia after a drag: exponential decay (~0.95 per 60 Hz frame). */
+function stepFling(dt: number): void {
+  for (let i = flinging.length - 1; i >= 0; i--) {
+    const n = node(flinging[i]);
+    const k = Math.pow(0.05, dt);
+    n.vy *= k; n.vx *= k;
+    n.sy += n.vy * dt; n.sx += n.vx * dt;
+    clampScroll(n);
+    n.scrolledAt = clock;
+    paintDirty = true;
+    if (Math.abs(n.vy) < 20 && Math.abs(n.vx) < 20) { n.vx = 0; n.vy = 0; flinging.splice(i, 1); }
+  }
+}
+/** Keyboard focus: scroll every enclosing container so the focused node is visible. */
+function revealFocus(h: i32): void {
+  const f = node(h);
+  let p = f.parent;
+  while (p >= 0) {
+    const n = node(p);
+    if (n.scroll !== 0) {
+      if (f.y < n.y + n.sy) n.sy = f.y - n.y;
+      else if (f.y + f.lh > n.y + n.sy + n.lh) n.sy = f.y + f.lh - n.y - n.lh;
+      clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+    }
+    p = n.parent;
+  }
+}
+const virtList: i32[] = [];  // scroll containers with a virtual list
+function virtuals(): i32[] {
+  for (let i = virtList.length - 1; i >= 0; i--) if (!nodes[virtList[i]].alive || nodes[virtList[i]].virt === null) virtList.splice(i, 1);
+  return virtList;
 }
 
 // ---------------------------------------------------------------- input and frame loop
 function hit(h: i32, px: number, py: number, ox: number, oy: number): i32 {
   const n = node(h);
   if (n.hidden) return -1;
-  const dx = ox + n.tx, dy = oy + n.ty;
+  if (n.overflow && n.tag !== FRAGMENT) { const x0 = n.x + ox + n.tx, y0 = n.y + oy + n.ty; if (px < x0 || py < y0 || px >= x0 + n.lw || py >= y0 + n.lh) return -1; }
+  const dx = ox + n.tx - n.sx, dy = oy + n.ty - n.sy;
   for (let i = n.children.length - 1; i >= 0; i--) {
     const r = hit(n.children[i], px, py, dx, dy);
     if (r >= 0) return r;
@@ -677,17 +832,41 @@ export function frame(dt: number, background: i32): void {
   clock += dt * 1000;
   stepAnims();
   if (layoutDirty) layout();
-  const down = pointerDown();
-  if (down && !wasDown) {
-    const h = hit(root, pointerX(), pointerY(), 0, 0);
-    if (h >= 0) { focus = h; pressed = h; paintDirty = true; }
-  } else if (!down && wasDown && pressed >= 0) {
-    const h = pressed;
-    pressed = -1;
-    if (hit(root, pointerX(), pointerY(), 0, 0) === h) activate(h);
-    paintDirty = true;
+  const down = pointerDown(), px = pointerX(), py = pointerY();
+  // wheel / trackpad: the innermost scroller under the pointer
+  const wy = wheel();
+  if (wy !== 0) {
+    const sc = scrollerAt(root, px, py, 0, 0, 1);
+    if (sc >= 0) { const n = node(sc); n.sy -= wy * 40; n.vy = 0; clampScroll(n); n.scrolledAt = clock; paintDirty = true; }
   }
+  if (down && !wasDown) {
+    const h = hit(root, px, py, 0, 0);
+    if (h >= 0) { focus = h; pressed = h; paintDirty = true; }
+    dragScroller = scrollerAt(root, px, py, 0, 0, 3);
+    dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
+    if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; }
+  } else if (down && dragScroller >= 0) {
+    // drag to scroll: past a few pixels the press becomes a scroll gesture
+    if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
+    if (dragging) {
+      const n = node(dragScroller);
+      if ((n.scroll & 1) !== 0) { n.sy -= py - lastY; n.vy = dt > 0 ? -(py - lastY) / dt : 0; }
+      if ((n.scroll & 2) !== 0) { n.sx -= px - lastX; n.vx = dt > 0 ? -(px - lastX) / dt : 0; }
+      clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+    }
+  } else if (!down && wasDown) {
+    if (pressed >= 0) {
+      const h = pressed;
+      pressed = -1;
+      if (!dragging && hit(root, px, py, 0, 0) === h) activate(h);
+      paintDirty = true;
+    }
+    if (dragging && dragScroller >= 0) flinging.push(dragScroller);
+    dragScroller = -1; dragging = false;
+  }
+  lastX = px; lastY = py;
   wasDown = down;
+  stepFling(dt);
   if (wasPressed(Btn.Down) || wasPressed(Btn.Right) || wasPressed(Btn.Up) || wasPressed(Btn.Left) || wasPressed(Btn.Select)) {
     const list: i32[] = [];
     focusables(root, list);
@@ -698,10 +877,12 @@ export function frame(dt: number, background: i32): void {
       paintDirty = true;
     }
   }
+  if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
   if ((wasPressed(Btn.A) || wasPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
   else if (pressed >= 0 && !down) { pressed = -1; paintDirty = true; }
+  for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
-  if (!paintDirty && !animating && anims.length === 0 && canvases === 0) { keep(); return; }
+  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && flinging.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
@@ -750,6 +931,10 @@ export function setRoot(h: i32): void {
   layoutDirty = true;
 }
 export function click(h: i32): void { activate(h); }
+/** Parent handle (-1 for the root / detached nodes). */
+export function parentOf(h: i32): i32 { return node(h).parent; }
+/** Node that a pointer press at (x, y) would hit, through scroll offsets and clips (-1: none). */
+export function hitAt(x: number, y: number): i32 { if (layoutDirty) layout(); return root < 0 ? -1 : hit(root, x, y, 0, 0); }
 export function find(text: string): i32 {
   for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].text === text) {
     let p = nodes[i].parent;

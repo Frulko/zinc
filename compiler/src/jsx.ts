@@ -215,6 +215,16 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       if (ts.isJsxExpression(c) && c.expression) return isJsx(c.expression) ? lower(c.expression as ts.JsxElement) : rewrite(c.expression);
       return lower(c as ts.JsxElement);
     };
+    if (tag === 'VirtualList') {  // <VirtualList count={n} itemHeight={h} class="...">{(i) => <row/>}</VirtualList>
+      const c = onlyChild(n), count = attrs.get('count'), ih = attrs.get('itemHeight');
+      if (!count || !ih || !c || !ts.isJsxExpression(c) || !c.expression) throw new JsxError('<VirtualList> needs count, itemHeight and a function child: {(i) => <...>}', n.getStart(sf));
+      out.push(`const ${v}: i32 = _el(4);`);
+      const cls = attrs.get('class') ?? attrs.get('className');
+      if (cls?.lit !== undefined) out.push(`_class(${v}, ${JSON.stringify(cls.lit)});`);
+      else if (cls) out.push(react ? `_class(${v}, ${cls.expr});` : `_dynClass(${v}, () => (${cls.expr}));`);
+      out.push(react ? `_virtual(${v}, ${valueOf(count)}, ${valueOf(ih)}, ${rewrite(c.expression)});` : `_virtual(${v}, () => (${valueOf(count)}), ${valueOf(ih)}, ${rewrite(c.expression)});`);
+      return v;
+    }
     out.push(`const ${v}: i32 = _el(6);`);
     if (tag === 'Show' && !react) {
       const fb = attrs.get('fallback');
@@ -259,6 +269,6 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable';
+  const helpers = react ? '_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual' : '_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual';
   return `import { ${helpers} } from '${lib}'; ` + out;
 }

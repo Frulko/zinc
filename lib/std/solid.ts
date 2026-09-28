@@ -190,6 +190,19 @@ export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) 
     keys = nk; nodes = nn; roots = nr;
   });
 }
+/** <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList>: only visible rows exist (keyed by index). */
+export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i32) => i32): void {
+  const roots = new Map<i32, Computation>();  // row node -> its reactive root
+  createEffect(() => {
+    const c = count();
+    // each row renders under its own root, disposed when the row scrolls out or the count changes
+    untrack(() => {
+      ui.virtualize(n, c, itemH, (i: i32) => { const r = newRoot(); const row = rendered(r, () => render(i)); roots.set(row, r); return row; },
+        (row: i32) => { const r = roots.get(row); if (r !== undefined) { dispose(r); roots.delete(row); } });
+      return 0;
+    });
+  });
+}
 /** Mounts the app on the screen; `onTick` runs every frame (games put their update there). */
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {
   const root = ui.createNode(ui.VIEW);
@@ -198,3 +211,5 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
 }
 /** Markers for `import { Show, For } from 'zinc:ui/solid'`: the JSX lowering compiles these tags itself. */
 export const Show: i32 = 0, For: i32 = 1;
+/** Marker for `<VirtualList count itemHeight>{(i) => ...}</VirtualList>` (lowered by the JSX compiler). */
+export const VirtualList: i32 = 2;
