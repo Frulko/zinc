@@ -1,0 +1,16 @@
+{
+  "name": "lottie",
+  "kind": "module",
+  "module": "zinc:lottie",
+  "entry": "index.ts",
+  "description": "Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node",
+  "targets": {
+    "macos": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "linux": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "rpi1": { "defines": ["ZRT_POINT_POOL=131072"] },
+    "rmpp": { "defines": ["ZRT_POINT_POOL=262144"] },
+    "wasm": { "defines": ["ZRT_POINT_POOL=131072"] },
+    "ps2": {},
+    "esp32": { "defines": ["ZRT_POINT_POOL=4096"], "flags": ["-Wno-error=misleading-indentation", "-Wno-missing-field-initializers"] }
+  }
+}

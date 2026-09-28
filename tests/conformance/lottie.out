@@ -1,0 +1,10 @@
+handle 0 size 120.5 64 frames 90 fps 29.97 layers 3
+duration 3.0030
+bad json -1 no layers -1 not an object -1
+second handle 1 default fps 30
+reused handle 0
+missing file -1
+frame 7.5 shown 7 playing true
+looped 3.50
+ended 9.999 false
+segment 3.00 true
