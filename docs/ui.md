@@ -125,7 +125,10 @@ Test hooks drive the input headlessly; from the first call on, the HAL's pointer
 program prints the same on the sim and on native targets (`tests/conformance/input.tsx`, `input_react.tsx`):
 `ui.pointerAt(x, y, down, button = 0, mods = 0)`, `ui.wheelAt(x, y, dy, dx = 0, pinch = 1)`,
 `ui.keyDown(h, key, mods = 0)` (returns whether it was handled), `ui.typeText(h, s)` (`h = -1` keeps the focus).
-`zinc test` gives native runs a private clipboard (`ZINC_CLIPBOARD=local`).
+`zinc test` gives native runs a private clipboard (`ZINC_CLIPBOARD=local`) and runs both sides in deterministic mode
+(virtual clock, fixed `dt`, no live input; [guide](guide/06-testing.md#determinism)). A real session can be recorded
+with `ZINC_RECORD=s.tape` and replayed with `ZINC_REPLAY`; `zinc test --pixels` compares rendered frames with golden
+PNGs (`tests/visual/ui.tsx` hovers and clicks through the hooks).
 
 ## HAL and zinc:gfx
 

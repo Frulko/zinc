@@ -166,6 +166,7 @@ float roundf(float x) { return (float)round((double)x); }
 float floorf(float x) { return (float)floor((double)x); }
 float ceilf(float x) { return (float)ceil((double)x); }
 double fabs(double x) { return from(bits(x) & ~(1ull << 63)); }
+double fmax(double a, double b) { return a != a ? b : b != b ? a : a > b ? a : b; }  // NaN: the other one
 double fmod(double x, double y) {  // exact (shift-subtract on the mantissas), sign of x
   uint64_t ux = bits(x), uy = bits(y), sx = ux & 1ull << 63;
   int ex = (int)(ux >> 52 & 0x7ff), ey = (int)(uy >> 52 & 0x7ff);
@@ -273,3 +274,8 @@ double atan2(double y, double x) {
   return !sx ? a : sy ? a - PI : a + PI;
 }
 }
+
+// No file system on the console: captures come from the emulator (targets/ps1/shot.lua), tapes are not supported.
+extern "C" void* zrt_host_open(const char*, const char*) { return nullptr; }
+extern "C" size_t zrt_host_io(void*, void*, size_t, int) { return 0; }
+extern "C" void zrt_host_close(void*) {}

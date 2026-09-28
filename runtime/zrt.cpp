@@ -32,6 +32,9 @@ extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const cha
 extern "C" int zrt_host_shortest(double v, char* digits, int* exp10);
 extern "C" double zrt_host_strtod(const char* s, int* consumed);
 extern "C" int zrt_host_fixed(double v, int digits, char* out, int cap);
+extern "C" void* zrt_host_open(const char* path, const char* mode);
+extern "C" size_t zrt_host_io(void* f, void* p, size_t n, int write);
+extern "C" void zrt_host_close(void* f);
 
 namespace zrt {
 
@@ -489,7 +492,13 @@ String to_fixed(double v, int32_t digits) {
   int n = zrt_host_fixed(v, digits, b, (int)sizeof b);
   return String::from(b, (uint32_t)n);
 }
-double now_ms() { return (double)hal_time_us() / 1000.0; }
+// Deterministic mode (docs/guide/06-testing.md, Determinism): ZINC_DETERMINISTIC=1, ZINC_RECORD=tape or
+// ZINC_REPLAY=tape. Date.now / performance.now / timers read a virtual clock advanced by the frame time (and, between
+// frames of a program without a frame loop, straight to the next timer); frames use a fixed dt; HAL input is replaced
+// by nothing (1), recorded (2) or read back from a tape (3).
+int32_t det_mode = 0;
+static double vclock = 0;  // virtual ms since start
+double now_ms() { return det_mode ? vclock : (double)hal_time_us() / 1000.0; }
 
 namespace math {
 static uint32_t rng = 0x2545F491u;
@@ -574,29 +583,80 @@ static bool poll_all() {
   return active;
 }
 
-// Runs due timers; returns ms until the next one, or -1 when none are pending.
+// Runs due timers in JS order (due time, then creation), each followed by its microtasks; returns the due time of the
+// next pending timer, or -1 when there is none. ponytail: O(timers) scan per firing, fine for ZRT_TIMERS = 64.
 static double run_timers() {
-  double t = now_ms(), next = -1;
-  for (int i = 0; i < MAX_TIMERS; i++) {
-    if (!timers[i].id) continue;
-    if (timers[i].at <= t) {
-      Fn<void()> f = timers[i].f;
-      if (timers[i].every >= 0) timers[i].at += timers[i].every; else { timers[i].id = 0; timers[i].f = nullptr; }
-      f();
-      check_uncaught();
-      drain_microtasks();
+  for (;;) {
+    int k = -1;
+    for (int i = 0; i < MAX_TIMERS; i++)
+      if (timers[i].id && (k < 0 || timers[i].at < timers[k].at || (timers[i].at == timers[k].at && timers[i].id < timers[k].id))) k = i;
+    if (k < 0) return -1;
+    double t = now_ms();
+    if (timers[k].at > t) return timers[k].at;
+    Fn<void()> f = timers[k].f;
+    if (timers[k].every < 0) { timers[k].id = 0; timers[k].f = nullptr; }
+    else {
+      timers[k].at += timers[k].every;
+      // real time: an interval that fell behind (a long frame, a suspended machine) skips ahead instead of bursting
+      if (!det_mode && timers[k].at <= t) timers[k].at = t + timers[k].every;
     }
-    if (timers[i].id && (next < 0 || timers[i].at - t < next)) next = timers[i].at - t;
+    f();
+    check_uncaught();
+    drain_microtasks();
   }
-  return next;
 }
 
 #ifndef ZRT_MIN_FRAME_US
 #define ZRT_MIN_FRAME_US 8000  // 125 fps
 #endif
 bool display_driver = false;  // a plugins/display-* driver took over the screen and input
+// Input tape (ZINC_RECORD / ZINC_REPLAY): a header, then {frame, HalInput} for every frame whose input differs from the
+// previous one. ponytail: raw structs (~1 KB per changed frame, little-endian hosts with the same hal.h); pen samples
+// (hal_pen_push) and window resizes are not recorded.
+static const char TAPE_MAGIC[8] = {'Z', 'T', 'A', 'P', 'E', '1', 0, 0};
+static void* tape = nullptr;
+static HalInput tape_in, tape_next;  // replay: input in effect, next record
+static int32_t tape_at = -1;         // frame of tape_next (-1: tape ended)
+static void tape_read() {
+  int32_t f;
+  tape_at = tape && zrt_host_io(tape, &f, 4, 0) == 4 && zrt_host_io(tape, &tape_next, sizeof tape_next, 0) == sizeof tape_next ? f : -1;
+}
+static void det_init() {
+  const char* rec = hal_env("ZINC_RECORD");
+  const char* rep = hal_env("ZINC_REPLAY");
+  const char* d = hal_env("ZINC_DETERMINISTIC");
+  det_mode = rep && *rep ? 3 : rec && *rec ? 2 : d && *d && *d != '0' ? 1 : 0;
+  vclock = 0;
+  tape_in = HalInput{};
+  tape_in.pinch = 1;
+  if (det_mode < 2) return;
+  const char* file = det_mode == 3 ? rep : rec;
+  tape = zrt_host_open(file, det_mode == 3 ? "rb" : "wb");
+  if (!tape) hal_panic("cannot open the input tape", file, 0);
+  uint32_t hdr[3];
+  __builtin_memcpy(hdr, TAPE_MAGIC, 8);
+  hdr[2] = (uint32_t)sizeof(HalInput);
+  if (det_mode == 2) { zrt_host_io(tape, hdr, sizeof hdr, 1); return; }
+  uint32_t got[3] = {};
+  if (zrt_host_io(tape, got, sizeof got, 0) != sizeof got || __builtin_memcmp(got, hdr, sizeof hdr)) hal_panic("not an input tape of this Zinc version", file, 0);
+  tape_read();
+}
+/** After the HAL has polled: keeps (and records) or replaces the input of this frame. The HAL's quit stays. */
+static void det_input() {
+  if (det_mode == 2) {
+    if (__builtin_memcmp(&input, &tape_in, sizeof input)) { tape_in = input; zrt_host_io(tape, &frame_no, 4, 1); zrt_host_io(tape, &input, sizeof input, 1); }
+    return;
+  }
+  while (tape_at >= 0 && tape_at <= frame_no) { tape_in = tape_next; tape_read(); }
+  int32_t quit = input.quit;
+  input = tape_in;
+  input.quit = quit;
+}
+static void det_finish() { if (tape) zrt_host_close(tape); tape = nullptr; }
+
 void start(const HalConfig& cfg, int argc, char** argv) {
   zrt_argc = argc; zrt_argv = argv;
+  det_init();
   hal_init(&cfg); surf_w = cfg.width; surf_h = cfg.height;
   display_driver = hal_display && hal_display->init(&cfg);
 }
@@ -615,11 +675,14 @@ bool loop_once() {
     hal_poll_input(&input);
     if (display_driver && hal_display->poll) hal_display->poll(&input);
     if (input.quit) return false;
+    if (det_mode) det_input();
     uint64_t t = hal_time_us();
-    double dt = display_driver ? 0 : hal_fixed_dt();
+    double dt = display_driver && !det_mode ? 0 : hal_fixed_dt();
+    if (det_mode && dt <= 0) dt = 1.0 / 60.0;
     if (!last_frame_us) last_frame_us = t;
     if (dt <= 0) { dt = (double)(t - last_frame_us) / 1e6; if (dt > 0.1) dt = 0.1; }
     last_frame_us = t;
+    vclock += dt * 1000.0;  // the same expression as sim/zinc.mjs: identical doubles
     run_timers();
     poll_all();
     gfx::sync_surface();
@@ -638,7 +701,7 @@ bool loop_once() {
     hal_frame_end();
 #ifndef __EMSCRIPTEN__
     // cap the frame rate when presenting does not block on vsync (hidden window, fbdev): saves CPU, keeps dt sane
-    if (display_driver || hal_fixed_dt() <= 0) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
+    if (!det_mode && (display_driver || hal_fixed_dt() <= 0)) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
 #endif
     return true;
   }
@@ -646,15 +709,25 @@ bool loop_once() {
   double next = run_timers();
   bool active = poll_all() || added != pollers_added;
   if (quit_requested || (next < 0 && !active && !mq_len)) return false;
+  if (det_mode) {
+    // no waiting for timers: the clock jumps to the next one; while pollers have work (sockets), 1 virtual ms per
+    // real ms, like the sleep below
+    double to = active ? vclock + 1 : next;
+    if (next >= 0 && next < to) to = next;
+    if (active) hal_sleep_us(1000);
+    if (to > vclock) vclock = to;
+    return true;
+  }
   if (active) hal_sleep_us(1000);
-  else if (next > 0) hal_sleep_us((uint64_t)(next * 1000));
+  else if (next >= 0) { double wait = next - now_ms(); if (wait > 0) hal_sleep_us((uint64_t)(wait * 1000)); }
   return true;
 }
 static int loop_step() { return loop_once() ? 1 : 0; }
 }  // namespace zrt
 extern "C" void zrt_redraw(void) {
   using namespace zrt;
-  if (in_frame || !frame_cb || quit_requested) return;
+  // deterministic runs: the window system must not run extra frames (the last one stays on screen)
+  if (in_frame || !frame_cb || quit_requested || det_mode) return;
   in_frame = true;
   gfx::sync_surface();
   gfx::begin_frame();
@@ -705,6 +778,7 @@ void finish() {
     hal_log_err(sb.buf, sb.len);
   }
 #endif
+  det_finish();
   if (display_driver && hal_display->shutdown) hal_display->shutdown();
   hal_shutdown();
 }

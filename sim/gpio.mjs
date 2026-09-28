@@ -5,10 +5,10 @@ let started = false;
 function start() {
   if (started) return;
   started = true;
-  const t0 = performance.now();
+  const t0 = $z.perfNow();
   for (const step of (process.env.ZINC_GPIO_SCRIPT ?? '').split(',').filter(Boolean)) {
     const [, p, v, at] = step.match(/^(\d+):(\d+)(?:@([\d.]+))?$/) ?? [];
-    if (p !== undefined) setTimeout(() => deliver(Number(p), Number(v)), Math.max(0, Number(at ?? 0) - (performance.now() - t0)));
+    if (p !== undefined) $z.setTimeout(() => deliver(Number(p), Number(v)), Math.max(0, Number(at ?? 0) - ($z.perfNow() - t0)));
   }
 }
 function deliver(n, value) {
@@ -17,7 +17,7 @@ function deliver(n, value) {
   if (!p.cb || old === value) return;
   const rising = value > old;
   if ((p.edge === 0 && !rising) || (p.edge === 1 && rising)) return;
-  const t = performance.now();
+  const t = $z.perfNow();
   if (t - p.last < p.debounce) return;
   p.last = t;
   const cb = p.cb;

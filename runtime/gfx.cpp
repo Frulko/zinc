@@ -191,6 +191,165 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
   }
 }
 static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
+
+// ---------- frame capture (docs/guide/06-testing.md): ZINC_SHOT, gfx.capture, F12 in zinc dev, DevTools screenshots ----
+// The frame is rasterized again from the retained command list, so it works on every HAL, windowed or headless.
+}  // namespace gfx
+}  // namespace zrt
+extern "C" void* zrt_host_open(const char* path, const char* mode);  // runtime/host.cpp
+extern "C" size_t zrt_host_io(void* f, void* p, size_t n, int write);
+extern "C" void zrt_host_close(void* f);
+namespace zrt {
+namespace gfx {
+/** The frame on screen (overlay included) at physical size, 0x00RRGGBB, from the system allocator (hal_free it). */
+static uint32_t* grab() {
+  init_scale();
+  uint32_t* px = (uint32_t*)hal_alloc((size_t)pw * ph * 4);
+  if (px) render_rows(px, 0, ph);
+  return px;
+}
+static uint32_t crc32(uint32_t c, const uint8_t* p, size_t n) {
+  static uint32_t tab[256];
+  if (!tab[1]) for (uint32_t i = 0; i < 256; i++) { uint32_t v = i; for (int k = 0; k < 8; k++) v = v & 1 ? 0xEDB88320u ^ (v >> 1) : v >> 1; tab[i] = v; }
+  c = ~c;
+  while (n--) c = tab[(c ^ *p++) & 255] ^ (c >> 8);
+  return ~c;
+}
+static uint8_t* put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)(v >> 24); p[1] = (uint8_t)(v >> 16); p[2] = (uint8_t)(v >> 8); p[3] = (uint8_t)v; return p + 4; }
+/** 8-bit RGB PNG with zlib "stored" blocks. ponytail: no compression (~3 bytes per pixel, no dependencies);
+ *  zinc capture and zinc test --pixels recompress with Node's zlib. */
+static uint8_t* encode_png(const uint32_t* px, int32_t w, int32_t h, size_t* out_n) {
+  size_t row = (size_t)w * 3 + 1, raw = row * (size_t)h, blocks = (raw + 65534) / 65535;
+  uint8_t* o = (uint8_t*)hal_alloc(8 + 25 + 12 + 2 + raw + blocks * 5 + 4 + 12);
+  if (!o) return nullptr;
+  uint8_t* p = o;
+  __builtin_memcpy(p, "\x89PNG\r\n\x1a\n", 8); p += 8;
+  p = put32(p, 13);
+  uint8_t* c = p;
+  __builtin_memcpy(p, "IHDR", 4); p = put32(put32(p + 4, (uint32_t)w), (uint32_t)h);
+  *p++ = 8; *p++ = 2; *p++ = 0; *p++ = 0; *p++ = 0;  // 8 bits, RGB, deflate, filter 0, no interlace
+  p = put32(p, crc32(0, c, 17));
+  uint8_t* len = p;
+  c = p += 4;
+  __builtin_memcpy(p, "IDAT", 4); p += 4;
+  *p++ = 0x78; *p++ = 0x01;
+  uint32_t a = 1, b = 0;
+  size_t left = 0;  // bytes left in the current stored block
+  for (int32_t y = 0; y < h; y++) for (size_t i = 0; i < row; i++) {
+    if (!left) {
+      size_t done = (size_t)y * row + i, n = raw - done < 65535 ? raw - done : 65535;
+      *p++ = done + n == raw; *p++ = (uint8_t)n; *p++ = (uint8_t)(n >> 8); *p++ = (uint8_t)~n; *p++ = (uint8_t)(~n >> 8);
+      left = n;
+    }
+    uint8_t v = i ? (uint8_t)(px[(size_t)y * w + (i - 1) / 3] >> (16 - 8 * ((i - 1) % 3))) : 0;  // filter byte, then R G B
+    *p++ = v; left--;
+    a += v; if (a >= 65521) a -= 65521;
+    b += a; if (b >= 65521) b -= 65521;
+  }
+  p = put32(p, b << 16 | a);
+  put32(len, (uint32_t)(p - c - 4));
+  p = put32(p, crc32(0, c, (size_t)(p - c)));
+  p = put32(p, 0);
+  c = p;
+  __builtin_memcpy(p, "IEND", 4); p += 4;
+  p = put32(p, crc32(0, c, 4));
+  *out_n = (size_t)(p - o);
+  return o;
+}
+/** 24-bit bottom-up BMP (ZINC_SHOT=*.bmp, the format older tools expect). */
+static uint8_t* encode_bmp(const uint32_t* px, int32_t w, int32_t h, size_t* out_n) {
+  size_t row = ((size_t)w * 3 + 3) & ~(size_t)3, n = 54 + row * (size_t)h;
+  uint8_t* o = (uint8_t*)hal_alloc(n);
+  if (!o) return nullptr;
+  __builtin_memset(o, 0, n);
+  auto le = [&](int at, uint32_t v) { o[at] = (uint8_t)v; o[at + 1] = (uint8_t)(v >> 8); o[at + 2] = (uint8_t)(v >> 16); o[at + 3] = (uint8_t)(v >> 24); };
+  o[0] = 'B'; o[1] = 'M'; le(2, (uint32_t)n); le(10, 54); le(14, 40); le(18, (uint32_t)w); le(22, (uint32_t)h); o[26] = 1; o[28] = 24;
+  for (int32_t y = 0; y < h; y++) {
+    uint8_t* l = o + 54 + row * (size_t)(h - 1 - y);
+    for (int32_t x = 0; x < w; x++) { uint32_t v = px[(size_t)y * w + x]; l[x * 3] = (uint8_t)v; l[x * 3 + 1] = (uint8_t)(v >> 8); l[x * 3 + 2] = (uint8_t)(v >> 16); }
+  }
+  *out_n = n;
+  return o;
+}
+uint8_t* capture_png(size_t* n) {
+  uint32_t* px = grab();
+  uint8_t* png = px ? encode_png(px, pw, ph, n) : nullptr;
+  if (px) hal_free(px);
+  return png;
+}
+/** Saves the frame on screen: BMP when the path ends in .bmp, PNG otherwise. */
+static bool save(const char* path) {
+  uint32_t n = 0;
+  while (path[n]) n++;
+  bool bmp = n > 4 && path[n - 4] == '.' && (path[n - 3] | 32) == 'b' && (path[n - 2] | 32) == 'm' && (path[n - 1] | 32) == 'p';
+  uint32_t* px = grab();
+  size_t len = 0;
+  uint8_t* data = !px ? nullptr : bmp ? encode_bmp(px, pw, ph, &len) : encode_png(px, pw, ph, &len);
+  if (px) hal_free(px);
+  void* f = data ? zrt_host_open(path, "wb") : nullptr;
+  bool ok = f && zrt_host_io(f, data, len, 1) == len;
+  if (f) zrt_host_close(f);
+  if (data) hal_free(data);
+  return ok;
+}
+bool capture(const String& path) {
+  StrBuilder sb; to_s(sb, path); sb.ch('\0');
+  return save(sb.buf);
+}
+static const char* shot_path = nullptr;  // ZINC_SHOT
+static void save_last() { if (shot_path) save(shot_path); }
+/** "dir/out.png" + 30 -> "dir/out-30.png" */
+static void numbered(char* out, uint32_t cap, const char* path, int32_t n) {
+  uint32_t len = 0, dot = 0;
+  while (path[len]) { if (path[len] == '.') dot = len; if (path[len] == '/') dot = 0; len++; }
+  if (!dot) dot = len;
+  char num[12]; int k = 0;
+  do { num[k++] = (char)('0' + n % 10); n /= 10; } while (n && k < 11);
+  uint32_t o = 0;
+  for (uint32_t i = 0; i < dot && o + 1 < cap; i++) out[o++] = path[i];
+  if (o + 1 < cap) out[o++] = '-';
+  while (k && o + 1 < cap) out[o++] = num[--k];
+  for (uint32_t i = dot; i < len && o + 1 < cap; i++) out[o++] = path[i];
+  out[o] = 0;
+}
+/** After each presented frame: ZINC_SHOT_FRAMES=1,30,60 / ZINC_SHOT_EVERY=n (numbered files), or with ZINC_SHOT alone
+ *  the last frame when the program ends. Display drivers keep their own ZINC_SHOT picture of the emulated device.
+ *  zinc dev: F12 saves the frame to ZINC_SHOT_DIR (build/shots). */
+static void after_present() {
+  static int state = 0;  // 0: environment not read, 1: no shots, 2: shots
+  static const char* list = nullptr;
+  static int32_t every = 0;
+  if (!state) {
+    const char* p = hal_env("ZINC_SHOT");
+    list = hal_env("ZINC_SHOT_FRAMES");
+    for (const char* e = hal_env("ZINC_SHOT_EVERY"); e && *e >= '0' && *e <= '9'; e++) every = every * 10 + (*e - '0');
+    state = p && *p && !display_driver ? 2 : 1;
+    if (state == 2) { shot_path = p; if (!list && !every) at_finish(save_last); }
+  }
+  const int32_t n = frame_no + 1;  // frames are numbered from 1, like ZINC_FRAMES counts them
+  if (state == 2 && (list || every)) {
+    bool want = every > 0 && n % every == 0;
+    for (const char* s = list; s && *s && !want;) {
+      int32_t v = 0;
+      while (*s >= '0' && *s <= '9') v = v * 10 + (*s++ - '0');
+      want = v == n;
+      while (*s && (*s < '0' || *s > '9')) s++;
+    }
+    char out[1024];
+    if (want) { numbered(out, sizeof out, shot_path, n); save(out); }
+  }
+#ifdef ZRT_DEV
+  for (int32_t i = 0; i < input.nkeys; i++) {
+    if (input.keys[i].kind != HAL_KEY_DOWN || input.keys[i].key != HAL_KEY_F1 + 11) continue;
+    StrBuilder sb;
+    const char* dir = hal_env("ZINC_SHOT_DIR");
+    sb.cstr(dir && *dir ? dir : "."); sb.cstr("/frame-"); to_s(sb, n); sb.cstr(".png"); sb.ch('\0');
+    bool ok = save(sb.buf);
+    StrBuilder m; m.cstr(ok ? "zinc dev: frame saved to " : "zinc dev: cannot write "); m.cstr(sb.buf); m.ch('\n');
+    hal_log_err(m.buf, m.len);
+  }
+#endif
+}
 /** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
 void present_overlay() {
   init_scale();
@@ -249,6 +408,7 @@ void end_frame() {
     HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
     ovl_changed = false;
     present(&f);
+    after_present();
     return;
   }
   to_physical(bufs[cur]);
@@ -265,6 +425,7 @@ void end_frame() {
   stats.draw_cmds = now.ncmd;
   HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
   present(&f);
+  after_present();
   cur ^= 1;
 }
 static Cmd* push(uint8_t kind, uint32_t color, int32_t alpha) {
@@ -484,4 +645,7 @@ extern "C" __attribute__((weak)) void hal_set_cursor(int32_t) {}
 extern "C" __attribute__((weak)) void hal_escape_by_app(int32_t) {}
 extern "C" __attribute__((weak)) void hal_escape(void) {}
 // ponytail: a full queue overwrites its last slot, so stroke ends (pen up) survive a slow frame; middles thin out.
-extern "C" void hal_pen_push(const HalPen* s) { zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s; }
+extern "C" void hal_pen_push(const HalPen* s) {
+  if (zrt::det_mode == 1 || zrt::det_mode == 3) return;  // deterministic runs take no live input (tapes carry no pen)
+  zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s;
+}

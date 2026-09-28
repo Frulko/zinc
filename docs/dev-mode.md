@@ -70,6 +70,16 @@ hosts; after a signal in native code the heap may be damaged, which is why dev r
 `console.warn` / `console.error` show a yellow banner at the bottom of the screen in dev builds (count + last
 message, hidden after 8 s), like React Native's LogBox.
 
+## Frame capture, record and replay
+
+- **F12** in the program window (dev builds, any `zinc:gfx` program) saves the frame on screen, overlay included, at
+  its physical size to `<project>/build/shots/frame-<n>.png` (`ZINC_SHOT_DIR` overrides the directory); the terminal
+  prints the path.
+- The inspector answers `Page.captureScreenshot` with the same native frame (below).
+- `ZINC_RECORD=session.tape zinc dev` records the input of the version on screen (each reload starts a new tape) in
+  deterministic mode; `ZINC_REPLAY=session.tape` or `zinc capture --replay` plays it back frame for frame. See
+  [Testing: determinism, captures, record and replay](guide/06-testing.md#determinism).
+
 ## Inspector (plugins/devtools)
 
 `zinc dev` adds `plugins/devtools` to programs that use `zinc:ui` (on macos, linux, rpi1); elsewhere
@@ -85,6 +95,8 @@ message, hidden after 8 s), like React Native's LogBox.
 - **Computed styles**: `CSS.getComputedStyleForNode` with the layout values (position, size, padding, margin, gap,
   flex, colors, font size, radius, opacity);
 - **Overlay.highlightNode** draws a blue box over the node in the app;
+- **Page.captureScreenshot** returns the frame on screen as a base64 PNG, rasterized by the runtime at the window's
+  physical size (`format`, `clip` and `quality` are ignored);
 - **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects);
   `Runtime.evaluate` answers that there is no JavaScript engine;
 - tree changes: `DOM.documentUpdated` for structure/class changes, `DOM.characterDataModified` for text;

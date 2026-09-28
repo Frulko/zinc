@@ -51,14 +51,17 @@ static void set_fullscreen(bool on) { SDL_SetWindowFullscreen(win, on); }
 static bool gfx_on;
 static bool quit;
 static bool escape_app;   // zinc:ui handles Escape (hal_escape_by_app)
-// Test hooks: ZINC_FRAMES=n quits after n frames; ZINC_SHOT=file.bmp saves the last frame.
+// Test hooks: ZINC_FRAMES=n quits after n frames (ZINC_SHOT captures are made by the runtime, runtime/gfx.cpp).
 static long frames_left = -1;
-static const char* shot_path;
+// Deterministic runs (ZINC_DETERMINISTIC / ZINC_RECORD / ZINC_REPLAY): fixed surface size, private clipboard.
+static bool det = false;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
   W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin brings its own window
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
+  const char* d = getenv("ZINC_DETERMINISTIC");
+  det = (d && *d && *d != '0') || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
   if (!gfx_on) return;
 #ifdef SDL_HINT_MAC_SCROLL_MOMENTUM
   SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "1");   // keep the trackpad's momentum events: native inertia (zinc:ui scrolls 1:1)
@@ -77,6 +80,7 @@ void hal_init(const HalConfig* cfg) {
   fill = true;
 #endif
   if (const char* r = getenv("ZINC_RESIZE")) fill = r[0] == 'f';
+  if (det) fill = false;  // the layout must not follow the window
   bool full = false;
 #ifdef ZINC_FULLSCREEN
   full = true;
@@ -96,7 +100,6 @@ void hal_init(const HalConfig* cfg) {
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
   apply_size();
   SDL_AddEventWatch(watch, nullptr);
-  shot_path = getenv("ZINC_SHOT");
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;
@@ -303,9 +306,6 @@ void hal_present(const HalFrame* f) {
   }
   SDL_RenderClear(ren);
   SDL_RenderTexture(ren, tex, nullptr, nullptr);
-  if (shot_path && frames_left == 0) {
-    if (SDL_Surface* sfc = SDL_CreateSurfaceFrom(PW, PH, SDL_PIXELFORMAT_XRGB8888, fb, PW * 4)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
-  }
   SDL_RenderPresent(ren);
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
@@ -320,9 +320,10 @@ void hal_text_input(int32_t on, float x, float y, float w, float h) {
   SDL_SetTextInputArea(win, &r, 0);
   SDL_StartTextInput(win);
 }
-// ZINC_CLIPBOARD=local (set by `zinc test`): a process-local clipboard, so test runs never touch the user's one
+// ZINC_CLIPBOARD=local (set by `zinc test`) or a deterministic run: a process-local clipboard, so test runs never
+// touch the user's one
 static char* clip_local;
-static bool clip_is_local() { const char* c = getenv("ZINC_CLIPBOARD"); return !gfx_on || (c && !strcmp(c, "local")); }
+static bool clip_is_local() { const char* c = getenv("ZINC_CLIPBOARD"); return !gfx_on || det || (c && !strcmp(c, "local")); }
 const char* hal_clipboard_get(void) {
   static char* last;
   if (clip_is_local()) return clip_local ? clip_local : "";

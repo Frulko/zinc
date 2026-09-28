@@ -341,6 +341,9 @@ template<class T> void console_table(const Array<T>& rows) {
 // runtime metrics exposed to zinc:telemetry
 struct Stats { uint64_t frame_us; uint32_t frames; uint32_t draw_cmds; };
 extern Stats stats;
+// deterministic mode (zrt.cpp): 0 off, 1 on (no live input), 2 recording the live input (ZINC_RECORD), 3 replaying
+// a tape (ZINC_REPLAY). Plugins that pace work by time read now_ms(), which is virtual when this is set.
+extern int32_t det_mode;
 // hooks installed by zinc:telemetry (null when the module is not linked)
 extern void (*telemetry_frame)();
 extern void (*telemetry_log)(int level, const char* s, uint32_t n);

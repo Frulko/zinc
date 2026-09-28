@@ -9,7 +9,7 @@ function line(o) {
   else if (mode === 2) process.stdout.write(s + '\n');
   else if (mode === 3) fs.appendFileSync(file, s + '\n');
 }
-const msg = (type, payload) => line({ type, ts: performance.now(), seq: seq++, payload });
+const msg = (type, payload) => line({ type, ts: $z.perfNow(), seq: seq++, payload });
 function open(t) {
   mode = 0;
   if (!t) return;

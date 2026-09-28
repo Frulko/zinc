@@ -259,7 +259,10 @@ export function dev(o: Opts, build: () => Built | null) {
   if (o.device && !['rpi1', 'linux'].includes(o.target)) { console.error('zinc dev: --device needs --target rpi1 or linux'); process.exit(2); }
   let child: ChildProcess | null = null;
   let host = '', hostStamp = 0, version = 0, savedAt = 0, buildMs = 0;
-  const env = { ...process.env, ...(assets ? { ZINC_ASSETS: assets } : {}) };
+  // F12 in the program window saves the frame on screen there (runtime/gfx.cpp)
+  const shots = path.join(o.project.dir, 'build', 'shots');
+  fs.mkdirSync(shots, { recursive: true });
+  const env = { ZINC_SHOT_DIR: shots, ...process.env, ...(assets ? { ZINC_ASSETS: assets } : {}) };
   const stop = () => { if (child) { child.removeAllListeners('exit'); child.kill(); child = null; } };
   const onExit = (c: ChildProcess) => c.on('exit', code => { if (child === c) { child = null; console.error(`zinc dev: program exited (${code}), waiting for changes...`); } });
 

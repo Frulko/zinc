@@ -719,6 +719,8 @@ double pointerY();
 bool pointerDown();
 int32_t frame();
 void quit();
+bool capture(const String& path);
+uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots
 double wheelX();
 int32_t pointerButtons();
 int32_t modifiers();

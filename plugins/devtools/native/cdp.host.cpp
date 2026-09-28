@@ -156,6 +156,15 @@ struct HostCdp : NativeCdp, zrt::Poller {
     return sb.build();
   }
   int32_t clients() override { int k = 0; for (auto& c : cl) if (c.fd >= 0 && c.ws) k++; return k; }
+  zrt::String screenshot() override {
+    size_t n = 0;
+    uint8_t* png = zrt::gfx::capture_png(&n);
+    char* b64 = png ? (char*)hal_alloc((n + 2) / 3 * 4 + 1) : nullptr;
+    zrt::String s;
+    if (b64) { base64(png, (int)n, b64); s = zrt::String::from(b64, (uint32_t)strlen(b64)); hal_free(b64); }
+    if (png) hal_free(png);
+    return s;
+  }
 
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }
 

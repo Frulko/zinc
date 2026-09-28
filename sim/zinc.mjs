@@ -119,7 +119,7 @@ const jsonLog = (process.env.ZINC_LOG_FORMAT ?? '').startsWith('j');
 const LEVELS = { log: 'LOG', info: 'INFO', debug: 'DEBUG', warn: 'WARN', error: 'ERROR', trace: 'TRACE' };
 function emit(level, text) {
   const err = level === 'warn' || level === 'error' || level === 'trace';
-  if (jsonLog) { process.stdout.write(JSON.stringify({ time: performance.now(), level: LEVELS[level], message: text }) + '\n'); return; }
+  if (jsonLog) { process.stdout.write(JSON.stringify({ time: $z.perfNow(), level: LEVELS[level], message: text }) + '\n'); return; }
   if (isTTY && err && !text.includes('\x1b')) { process.stderr.write((level === 'warn' ? '\x1b[33m' : '\x1b[31m') + text + '\x1b[0m\n'); return; }
   (err ? process.stderr : process.stdout).write(text + '\n');
 }
@@ -158,9 +158,9 @@ export const $z = globalThis.$z = {
   c_warn: (...a) => emit('warn', a.map(fmtTop).join(' ')),
   c_error: (...a) => emit('error', a.map(fmtTop).join(' ')),
   c_trace: (...a) => emit('trace', a.map(fmtTop).join(' ')),
-  c_time: (l = 'default') => labels.set(l, performance.now()),
-  c_timeEnd: (l = 'default') => { const t = labels.get(l); labels.delete(l); emit(t === undefined ? 'warn' : 'log', `${l}: ${t === undefined ? 'no such label' : Math.trunc((performance.now() - t) * 1000) / 1000 + 'ms'}`); },
-  c_timeLog: (l = 'default') => { const t = labels.get(l); emit(t === undefined ? 'warn' : 'log', `${l}: ${t === undefined ? 'no such label' : Math.trunc((performance.now() - t) * 1000) / 1000 + 'ms'}`); },
+  c_time: (l = 'default') => labels.set(l, $z.perfNow()),
+  c_timeEnd: (l = 'default') => { const t = labels.get(l); labels.delete(l); emit(t === undefined ? 'warn' : 'log', `${l}: ${t === undefined ? 'no such label' : Math.trunc(($z.perfNow() - t) * 1000) / 1000 + 'ms'}`); },
+  c_timeLog: (l = 'default') => { const t = labels.get(l); emit(t === undefined ? 'warn' : 'log', `${l}: ${t === undefined ? 'no such label' : Math.trunc(($z.perfNow() - t) * 1000) / 1000 + 'ms'}`); },
   c_count: (l = 'default') => { const n = (counts.get(l) ?? 0) + 1; counts.set(l, n); emit('log', `${l}: ${n}`); },
   c_assert: (ok, ...a) => { if (!ok) emit('error', 'Assertion failed' + (a.length ? ': ' + a.map(fmtTop).join(' ') : '')); },
   c_table: rows => emit('log', '(index)\tvalues\n' + rows.map((r, i) => `${i}\t${fmtTop(r)}`).join('\n')),
@@ -243,15 +243,67 @@ const uncaught = e => $z.panic('Uncaught ' + (e instanceof Error ? String(e) : '
 process.on('uncaughtException', uncaught);
 process.on('unhandledRejection', uncaught);
 
+// Deterministic mode (ZINC_DETERMINISTIC / ZINC_RECORD / ZINC_REPLAY, docs/guide/06-testing.md): the virtual clock and
+// timer order of runtime/zrt.cpp. The program's Date.now / performance.now / timers come here (compiler/src/emit-js.ts);
+// Node's own timers stay real. Timers fire in (due time, creation) order, each followed by all its microtasks; frames
+// advance the clock by dt; a program without frames jumps to its next timer, or steps 1 ms at a time while real I/O is
+// pending (sockets, like the native pollers).
+const det = ['ZINC_DETERMINISTIC', 'ZINC_RECORD', 'ZINC_REPLAY'].some(k => { const v = process.env[k] ?? ''; return v !== '' && (k !== 'ZINC_DETERMINISTIC' || v !== '0'); });
+let vclock = 0;
+const timers = new Map();  // id -> { f, at, every } (every < 0: one-shot)
+let nextTimer = 1, pumping = false;
+const realImmediate = setImmediate;
+const drain = () => new Promise(r => realImmediate(r));  // every pending microtask has run
+function dueTimer() {
+  let best;
+  for (const [id, t] of timers) if (!best || t.at < best[1].at) best = [id, t];  // Map order = creation order
+  return best;
+}
+async function runTimers() {
+  for (let d; (d = dueTimer()) && d[1].at <= vclock;) {
+    const [id, t] = d;
+    if (t.every < 0) timers.delete(id); else t.at += t.every;
+    try { t.f(); } catch (e) { uncaught(e); }
+    await drain();
+  }
+}
+const realTimeout = setTimeout, busy = () => process.getActiveResourcesInfo().some(r => r !== 'Immediate');
+// no frame loop: fire timers one after the other, the clock jumping to each (kicked again by a later setTimeout)
+function kick() {
+  if (pumping) return;
+  pumping = true;
+  realImmediate(async () => {
+    for (let d; !state.frameCb && (d = dueTimer());) {
+      if (busy()) { await new Promise(r => realTimeout(r, 1)); vclock = Math.max(vclock, Math.min(d[1].at, vclock + 1)); }
+      else if (d[1].at > vclock) vclock = d[1].at;
+      await runTimers();
+    }
+    pumping = false;
+  });
+}
+const add = (f, ms, every) => { const id = nextTimer++; timers.set(id, { f, at: vclock + Number(ms ?? 0), every }); kick(); return id; };
+Object.assign($z, det ? {
+  dateNow: () => vclock, perfNow: () => vclock,
+  setTimeout: (f, ms) => add(f, ms, -1),
+  setInterval: (f, ms) => add(f, ms, Number(ms ?? 0) < 1 ? 1 : Number(ms)),
+  clearTimeout: id => { timers.delete(id); }, clearInterval: id => { timers.delete(id); },
+} : {
+  dateNow: () => Date.now(), perfNow: () => performance.now(),
+  setTimeout: (f, ms) => setTimeout(f, ms), setInterval: (f, ms) => setInterval(f, ms),
+  clearTimeout: id => clearTimeout(id), clearInterval: id => clearInterval(id),
+});
+
 /** Headless frame loop with a virtual clock (TST-10), same budget as the native null HAL. */
 export async function runMain(load) {
   try { await load(); } catch (e) { uncaught(e); }
+  if (det) await drain();
   if (!state.frameCb) return;
-  const frames = Number(process.env.ZINC_FRAMES ?? 60);
+  const frames = Number(process.env.ZINC_FRAMES ?? 60), dt = 1 / 60;
   for (let i = 0; i < frames && !state.quit; i++) {
-    try { state.frameCb(1 / 60); } catch (e) { uncaught(e); }
+    if (det) { vclock += dt * 1000; await runTimers(); }  // the same expression as runtime/zrt.cpp: identical doubles
+    try { state.frameCb(dt); } catch (e) { uncaught(e); }
     state.frame++;
-    await null;  // let microtasks run between frames, like the native loop
+    await (det ? drain() : null);  // let microtasks run between frames, like the native loop
   }
   process.exit(0);
 }
