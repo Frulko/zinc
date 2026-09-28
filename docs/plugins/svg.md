@@ -42,9 +42,9 @@ one zooming continuously).
 | macos, linux | yes (verified on macOS: gallery screenshots) |
 | rpi1 | yes (docker build, runs under QEMU arm1176, same pixels) |
 | wasm | builds (not run in a browser) |
-| esp32 | small SVGs only: the point pool stays at the default 32k floats there (the plugin raises it to 256k floats on the other targets); see "esp32" below |
+| esp32 | not enabled yet: the code is portable (no STL, default 32k-float point pool fits tiny SVGs), but any zinc:gfx program currently fails to build for esp32 with ESP-IDF 6 (`-Werror=misleading-indentation` on existing lines of `runtime/gfx.cpp` / `runtime/raster.cpp`) |
 
-Point budget: each drawn frame copies the transformed contours into the frame's point pool; strokes cost more (a quad
+Point budget (the plugin raises `ZRT_POINT_POOL` to 256k floats): each drawn frame copies the transformed contours into the frame's point pool; strokes cost more (a quad
 per segment plus round joins where the path turns). Very large documents may drop shapes when the pool is full.
 
 ## Build-time SVG (assets)

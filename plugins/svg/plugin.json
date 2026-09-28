@@ -8,7 +8,6 @@
     "macos": { "defines": ["ZRT_POINT_POOL=262144"] },
     "linux": { "defines": ["ZRT_POINT_POOL=262144"] },
     "rpi1": { "defines": ["ZRT_POINT_POOL=262144"] },
-    "wasm": { "defines": ["ZRT_POINT_POOL=262144"] },
-    "esp32": {}
+    "wasm": { "defines": ["ZRT_POINT_POOL=262144"] }
   }
 }
