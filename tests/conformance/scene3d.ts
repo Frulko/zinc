@@ -9,7 +9,7 @@ const quad = parseObj('# quad\nv 0 0 0\nv 1 0 0 1 0 0\nv 1 1 0\nv 0 1 0\n\nf 1 2
 console.log('plain obj', quad.vertices, quad.triangles);
 const refs = parseObj('v 0 0 0\nv 1 0 0\nv 1 1 0\nvt 0 0\nvt 1 0\nvn 0 0 1\nf 1/1/1 2/2/1 3/1/1\nf 1/1/1 3/1/1 -1/2/1\n');
 console.log('v/t/n obj', refs.vertices, refs.triangles);
-const m = mat4Compose(mat4(), [1, 2, 3], quatFromEuler(0, Math.PI / 2, 0), [2, 2, 2]);
+const m = mat4Compose(mat4(), [1, 2, 3], quatFromEuler(0, Math.PI / 2, 0, [0, 0, 0, 1]), [2, 2, 2]);
 console.log('rotate y 90: x ->', Math.abs(m[0]) < 0.01, Math.abs(m[2] + 2) < 0.01, 'translation', m[12], m[13], m[14]);
 
 const scene = new Scene();

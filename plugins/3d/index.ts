@@ -36,16 +36,18 @@ export function mat4LookAt(out: number[], eye: number[], target: number[], up: n
   out[12] = -vec3Dot(s, eye); out[13] = -vec3Dot(u, eye); out[14] = -vec3Dot(f, eye); out[15] = 1;
   return out;
 }
+function set3(a: number[], x: number, y: number, z: number): void { a[0] = x; a[1] = y; a[2] = z; }
 export function vec3Dot(a: number[], b: number[]): number { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 export function vec3Cross(a: number[], b: number[]): number[] { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
 export function vec3Normalize(a: number[]): number[] {
   const l = Math.sqrt(vec3Dot(a, a));
   return l > 0 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 0];
 }
-/** Quaternion from Euler angles in radians (applied X, then Y, then Z). */
-export function quatFromEuler(x: number, y: number, z: number): number[] {
+/** Quaternion from Euler angles in radians (applied X, then Y, then Z), written into `out`. */
+export function quatFromEuler(x: number, y: number, z: number, out: number[]): number[] {
   const cx = Math.cos(x / 2), sx = Math.sin(x / 2), cy = Math.cos(y / 2), sy = Math.sin(y / 2), cz = Math.cos(z / 2), sz = Math.sin(z / 2);
-  return [sx * cy * cz - cx * sy * sz, cx * sy * cz + sx * cy * sz, cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz];
+  out[0] = sx * cy * cz - cx * sy * sz; out[1] = cx * sy * cz + sx * cy * sz; out[2] = cx * cy * sz - sx * sy * cz; out[3] = cx * cy * cz + sx * sy * sz;
+  return out;
 }
 export function quatFromAxisAngle(ax: number, ay: number, az: number, angle: number): number[] {
   const n = vec3Normalize([ax, ay, az]), s = Math.sin(angle / 2);
@@ -252,10 +254,10 @@ export class Node {
 
   constructor(mesh: Mesh | null, material: Material | null) { this.mesh = mesh; this.material = material; }
   add(child: Node): Node { this.children.push(child); return child; }
-  setPosition(x: number, y: number, z: number): Node { this.position = [x, y, z]; return this; }
+  setPosition(x: number, y: number, z: number): Node { set3(this.position, x, y, z); return this; }
   /** Euler angles in radians (X, then Y, then Z). */
-  setRotation(x: number, y: number, z: number): Node { this.rotation = quatFromEuler(x, y, z); return this; }
-  setScale(x: number, y: number, z: number): Node { this.scale = [x, y, z]; return this; }
+  setRotation(x: number, y: number, z: number): Node { quatFromEuler(x, y, z, this.rotation); return this; }
+  setScale(x: number, y: number, z: number): Node { set3(this.scale, x, y, z); return this; }
 
   /** Updates world matrices and issues draw calls for this subtree. */
   draw(parent: number[]): void {
@@ -292,8 +294,8 @@ export class Camera {
   readonly view: number[] = mat4();
   private rt: i32 = -1;
 
-  lookAt(x: number, y: number, z: number): Camera { this.target = [x, y, z]; return this; }
-  setPosition(x: number, y: number, z: number): Camera { this.position = [x, y, z]; return this; }
+  lookAt(x: number, y: number, z: number): Camera { set3(this.target, x, y, z); return this; }
+  setPosition(x: number, y: number, z: number): Camera { set3(this.position, x, y, z); return this; }
   /** The render target (colour image + z-buffer) is sized by the last render() box; free it when done. */
   dispose(): void { if (this.rt >= 0) R.targetDestroy(this.rt); this.rt = -1; }
 
