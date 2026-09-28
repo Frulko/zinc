@@ -219,7 +219,7 @@ static void to_physical(Buf& b) {
     if (c.kind == raster::CLEAR || c.kind == raster::UNCLIP) continue;
     c.x *= k; c.y *= k; c.w *= k; c.h *= k;
     switch (c.kind) {
-      case raster::RECT: case raster::IMAGE: c.r *= k; break;
+      case raster::RECT: case raster::IMAGE: case raster::CLIP: c.r *= k; break;
       case raster::BORDER: case raster::SHADOW: c.r *= k; c.s *= k; break;
       case raster::TEXT: c.s *= k; c.res = phys_font(c.res); break;
       case raster::POLY: case raster::LINE: {
@@ -404,7 +404,7 @@ void endImage() {
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
 }
-void clip(double x, double y, double w, double h) { if (Cmd* c = push(raster::CLIP, 0, 255)) box(c, x, y, w, h); }
+void clip(double x, double y, double w, double h, double r) { if (Cmd* c = push(raster::CLIP, 0, 255)) { box(c, x, y, w, h); c->r = (float)r; } }
 void unclip() { push(raster::UNCLIP, 0, 255); }
 void translate(double x, double y) { tx = (float)x; ty = (float)y; }
 
@@ -459,6 +459,10 @@ void stopTextInput() { hal_text_input(0, 0, 0, 0, 0); }
 String clipboardText() { const char* s = hal_clipboard_get(); uint32_t n = 0; while (s && s[n]) n++; return String::from(s ? s : "", n); }
 void setClipboardText(const String& s) { hal_clipboard_set(s.ptr(), s.bytes()); }
 void setCursor(int32_t c) { hal_set_cursor(c); }
+// Escape: the HAL leaves fullscreen or quits on it, unless the app takes the key (zinc:ui does, and falls back to
+// escapeDefault() when nothing handled it)
+void escapeByApp(bool on) { hal_escape_by_app(on ? 1 : 0); }
+void escapeDefault() { hal_escape(); }
 }
 }  // namespace zrt
 // Weak defaults for HALs without desktop input: no IME, a process-local clipboard, no cursor shapes.
@@ -473,5 +477,7 @@ extern "C" __attribute__((weak)) void hal_clipboard_set(const char* s, size_t n)
   local_clip[n] = 0;
 }
 extern "C" __attribute__((weak)) void hal_set_cursor(int32_t) {}
+extern "C" __attribute__((weak)) void hal_escape_by_app(int32_t) {}
+extern "C" __attribute__((weak)) void hal_escape(void) {}
 // ponytail: a full queue overwrites its last slot, so stroke ends (pen up) survive a slow frame; middles thin out.
 extern "C" void hal_pen_push(const HalPen* s) { zrt::gfx::pen_q[zrt::gfx::pen_n < ZRT_PEN_SAMPLES ? zrt::gfx::pen_n++ : ZRT_PEN_SAMPLES - 1] = *s; }

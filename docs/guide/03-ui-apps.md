@@ -84,7 +84,11 @@ resizes. Use them for layouts that follow the window.
 <scroll class="h-full">…</scroll>                          <!-- or class="overflow-y-auto" -->
 ```
 
-Scroll containers handle wheel, drag-with-inertia, fading scrollbars and focus reveal. For long lists, build only the
+Scroll containers behave like macOS: trackpads scroll 1:1 with the system's momentum, mouse-wheel notches ease to
+their target, drags keep their velocity (inertia), and past an edge the content stretches with resistance and
+springs back (rubber band). Scrollbars fade in while scrolling; the keyboard focus is revealed. `overflow-hidden` and
+scroll views clip their children inside the border and its rounded corners (anti-aliased), so borders stay visible
+while the content moves. For long lists, build only the
 visible rows:
 
 ```tsx

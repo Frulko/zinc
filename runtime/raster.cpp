@@ -395,10 +395,33 @@ static void draw_image(const Target& t, const Cmd& c) {
 }
 
 // ---------------------------------------------------------------- frame rendering and damage
+// Rounded clips (CLIP with r > 0): children are clipped to the box, then the four corner squares are blended back
+// toward the pixels saved when the clip began, by the rounded-rect coverage, so content never shows outside the
+// curve (scroll views and overflow-hidden cards with rounded corners).
+// ponytail: a fixed pool of saved corner pixels; clips that do not fit it stay square-cornered.
+#ifndef ZRT_CLIP_CORNER_PX
+#define ZRT_CLIP_CORNER_PX 16384
+#endif
+struct RoundClip { float x, y, w, h, r; int32_t R; uint32_t off; bool on; };
+#if ZRT_CLIP_CORNER_PX > 0
+static uint32_t corner_px[ZRT_CLIP_CORNER_PX];
+#endif
+/** Visits the pixels of the four corner squares of a rounded clip that lie in the target's clip `lim`. */
+template<class F> static void corners(const Target& t, const RoundClip& k, Rect lim, F f) {
+  int32_t x0 = ifloor(k.x), y0 = ifloor(k.y), x1 = iceil(k.x + k.w), y1 = iceil(k.y + k.h), R = k.R;
+  const int32_t cx[4] = {x0, x1 - R, x0, x1 - R}, cy[4] = {y0, y0, y1 - R, y1 - R};
+  uint32_t i = k.off;
+  for (int q = 0; q < 4; q++)
+    for (int32_t y = cy[q]; y < cy[q] + R; y++)
+      for (int32_t x = cx[q]; x < cx[q] + R; x++, i++)
+        if (x >= lim.x0 && x < lim.x1 && y >= lim.y0 && y < lim.y1) f(x, y, i);
+  (void)t;
+}
 void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
   Rect base = intersect(damage, Rect{0, y0, w, y1});
   if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
   Rect stack[16]; int sp = 0;
+  RoundClip rstack[16]; uint32_t pool = 0;
   Target t = {band, w, y0, base};
   for (uint32_t i = 0; i < f.count; i++) {
     const Cmd& c = f.cmds[i];
@@ -416,11 +439,38 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
       case TEXT: draw_text(t, c, f.text + c.off); break;
       case IMAGE: draw_image(t, c); break;
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
-      case CLIP:
-        if (sp < 16) stack[sp++] = t.clip;
+      case CLIP: {
+        if (sp >= 16) break;
+        RoundClip k = {c.x, c.y, c.w, c.h, c.r, 0, pool, false};
+#if ZRT_CLIP_CORNER_PX > 0
+        k.R = c.r > 0 ? iceil(c.r < c.w / 2 ? (c.r < c.h / 2 ? c.r : c.h / 2) : (c.w / 2 < c.h / 2 ? c.w / 2 : c.h / 2)) : 0;
+        if (k.R > 0 && pool + 4u * k.R * k.R <= ZRT_CLIP_CORNER_PX) {
+          k.on = true;
+          pool += 4u * k.R * k.R;
+          corners(t, k, t.clip, [&](int32_t x, int32_t y, uint32_t i) { corner_px[i] = at(t, x, y); });
+        }
+#endif
+        rstack[sp] = k;
+        stack[sp++] = t.clip;
         t.clip = intersect(t.clip, bounds(c.x, c.y, c.w, c.h, Rect{-100000, -100000, 100000, 100000}));
         break;
-      case UNCLIP: if (sp > 0) t.clip = stack[--sp]; break;
+      }
+      case UNCLIP: {
+        if (sp <= 0) break;
+        const RoundClip& k = rstack[--sp];
+        t.clip = stack[sp];
+#if ZRT_CLIP_CORNER_PX > 0
+        if (k.on) {
+          float hw = k.w / 2, hh = k.h / 2, cx = k.x + hw, cy = k.y + hh;
+          corners(t, k, t.clip, [&](int32_t x, int32_t y, uint32_t i) {
+            float a = clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, k.r), 0, 1);
+            if (a < 1) at(t, x, y) = lerp_color(corner_px[i], at(t, x, y), a);
+          });
+          pool = k.off;
+        }
+#endif
+        break;
+      }
     }
   }
 }

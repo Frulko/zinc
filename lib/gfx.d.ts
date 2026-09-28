@@ -32,7 +32,8 @@ declare module 'zinc:gfx' {
   export function imageWidth(image: i32): i32;
   export function imageHeight(image: i32): i32;
   export function drawImage(image: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void;
-  export function clip(x: number, y: number, w: number, h: number): void;
+  /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
+  export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;
   /** Offset added to the coordinates of the following commands (reset every frame). */
   export function translate(x: number, y: number): void;
@@ -107,4 +108,8 @@ declare module 'zinc:gfx' {
   export function clipboardText(): string;
   export function setClipboardText(s: string): void;
   export function setCursor(c: Cursor): void;
+  /** true: Escape is an ordinary key for the app (zinc:ui sets it); the HAL no longer quits / leaves fullscreen on it. */
+  export function escapeByApp(on: boolean): void;
+  /** The HAL's own Escape action: leave fullscreen, else quit (nothing in kiosk mode). */
+  export function escapeDefault(): void;
 }

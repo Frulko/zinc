@@ -514,7 +514,7 @@ idf_component_register(SRCS ${srcs.map(f => `"${f}"`).join(' ')}
                        INCLUDE_DIRS "${path.join(ZINC_ROOT, 'runtime')}" "${path.join(ZINC_ROOT, 'runtime/include')}" "${dir}"${ps.includes.map(i => ` "${i}"`).join('')}
                        REQUIRES ${requires.join(' ')}${ps.sources.length ? '\n                       WHOLE_ARCHIVE' : ''})
 ${ps.defines.length || ps.flags.length ? `target_compile_options(\${COMPONENT_LIB} PRIVATE ${[...ps.defines.map(d => `-D${d}`), ...ps.flags].map(x => `"${x.replace(/"/g, '\\"')}"`).join(' ')})` : ''}
-target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
+target_compile_options(\${COMPONENT_LIB} PRIVATE -std=gnu++17 -fno-exceptions -fno-rtti -fwrapv -Wno-unused-variable -Wno-unused-parameter -Wno-unused-label -Wno-unused-but-set-variable -Wno-unused-function -Wno-format -Wno-misleading-indentation -DZRT_HEAP_BYTES=${heap}u${psram ? ' -DZRT_HEAP_PSRAM' : ''} -DZRT_PLATFORM="esp32" -DZRT_MAX_DRAW_CMDS=256 -DZRT_TEXT_POOL=2048 -DZRT_POINT_POOL=1024 -DZRT_MICROTASKS=128 -DZRT_DEFERRED=64 -DZRT_TIMERS=16 -DZRT_CLIP_CORNER_PX=1024${CRASH[o.project.crash ?? 'exit'] ? ` -DZRT_CRASH=${CRASH[o.project.crash!]}` : ''}${wifiDefs})
 set_source_files_properties("${path.join(dir, 'zinc_main.cpp')}" PROPERTIES COMPILE_OPTIONS "-Dmain=zinc_program_main")
 `);
   // fs: a SPIFFS partition ("storage") mounted at /zinc (runtime/mod/fs_esp32.cpp) needs a
@@ -709,7 +709,7 @@ function help(topic?: string) {
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZINC_ESP_CHIP=esp32s3   chip override (zinc test --target esp32)
   ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
-  JSX host tags View/Text/Button/Image/ScrollView/Canvas (or view/text/button/image/scroll/canvas), Tailwind-like classes
+  JSX host tags View/Text/Button/Image/ScrollView/Canvas/Input/TextArea (or view/text/button/image/scroll/canvas/input/textarea), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
   Inline {items.map(x => <Row/>)} and {cond ? <A/> : <B/>} / {cond && <A/>} children in both models.

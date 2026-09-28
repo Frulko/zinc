@@ -9,7 +9,7 @@ set_target_properties(zrt PROPERTIES SOURCES "${_src}")
 target_sources(zrt PRIVATE ${_ps1}/crt_ps1.cpp)
 # 2 MB of RAM: small static pools (gfx command lists are double-buffered)
 target_compile_definitions(zrt PUBLIC ZRT_MAX_DRAW_CMDS=512 ZRT_TEXT_POOL=4096 ZRT_POINT_POOL=2048 ZRT_MICROTASKS=256
-  ZRT_DEFERRED=256 ZRT_TIMERS=16 ZRT_PEN_SAMPLES=4 ZRT_DYN_IMAGES=4)
+  ZRT_DEFERRED=256 ZRT_TIMERS=16 ZRT_PEN_SAMPLES=4 ZRT_DYN_IMAGES=4 ZRT_CLIP_CORNER_PX=0)
 set_source_files_properties(zinc_main.cpp PROPERTIES COMPILE_DEFINITIONS main=zinc_program_main)
 if(DEFINED ZINC_FRAMES)
   set_source_files_properties(${ZINC_HAL} PROPERTIES COMPILE_DEFINITIONS ZINC_FRAMES=${ZINC_FRAMES})

@@ -7,6 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
+  escapeByApp, escapeDefault,
 } from 'zinc:gfx';
 import { PALETTE, SHADES } from './palette';
 
@@ -102,6 +103,9 @@ export class UiNode {
   scroll: i32 = 0;
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
+  // scroll physics (stepScroll): mouse-wheel target, time of the last user input, and 'live' while the user or an
+  // animation drives the offset (overscroll is then allowed; clampScroll leaves it alone)
+  tgx: number = 0; tgy: number = 0; smooth: boolean = false; inputAt: number = -100000; live: boolean = false;
   virt: Virtual | null = null;
   responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
   bg: i32 = -1; bgAlpha: i32 = 255;
@@ -254,7 +258,7 @@ export function scrollLeft(h: i32): number { return node(h).sx; }
 /** Scrolls a container to an offset (clamped). */
 export function scrollTo(h: i32, x: number, y: number): void {
   const n = node(h);
-  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0;
+  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.smooth = false; n.live = false;
   clampScroll(n);
   n.scrolledAt = clock;
   if (n.virt !== null) layoutDirty = true;
@@ -418,6 +422,8 @@ function num(s: string): number {
 }
 /** Border widths are pixels: border-2 = 2px, border-[3px] = 3px. */
 function borderPx(s: string): number { return s.startsWith('[') ? num(s) : num(s) / 4; }
+/** A Tailwind colour name ('indigo-500', 'white', '[#ff8800]') as 0xRRGGBB, or -1 if unknown (canvas drawing in theme colours). */
+export function tailwindColor(name: string): i32 { const c = colorOf(name); return c < 0 ? -1 : c; }
 function colorOf(s: string): i32 {
   initColors();
   const slash = s.indexOf('/');
@@ -941,7 +947,12 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);
     const d = n.onDraw;
     if (d !== null) d(Math.round(x), Math.round(y), Math.round(w), Math.round(hh));
-    if (n.overflow) clip(x, y, w, hh);
+    if (n.overflow) {
+      // children stay inside the border and its rounded corners, like CSS overflow: hidden (the padding box)
+      const bw = n.borderW < 0 ? 1 : n.borderW;
+      const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+      clip(x + l, y + t, w - l - rr, hh - t - b, Math.max(0, r - Math.max(Math.max(t, b), Math.max(l, rr))));
+    }
   }
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
   for (const c of n.children) paint(c, cx, cy, kk, a);
@@ -966,6 +977,7 @@ function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number):
   }
 }
 function clampScroll(n: UiNode): void {
+  if (n.live) return;   // rubber band in progress: stepScroll brings it back
   const maxY = Math.max(0, n.contentH - n.lh), maxX = Math.max(0, n.contentW - n.lw);
   if (n.sy > maxY) { n.sy = maxY; n.vy = 0; }
   if (n.sy < 0) { n.sy = 0; n.vy = 0; }
@@ -1290,7 +1302,7 @@ export function tsHighlight(line: string): i32[] {
 // ---------------------------------------------------------------- scrolling input
 let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
 let focusShown: i32 = -1;
-const flinging: i32[] = [];
+const scrollers: i32[] = [];   // containers whose offset is animating (wheel easing, inertia, rubber band)
 /** Innermost scroll container under (px, py) that scrolls along `axes` (1 vertical, 2 horizontal). */
 function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: number, axes: i32): i32 {
   const n = node(h);
@@ -1304,17 +1316,67 @@ function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: n
   if (inside && (((axes & 1) !== 0 && canY) || ((axes & 2) !== 0 && canX))) return h;
   return -1;
 }
-/** Inertia after a drag: exponential decay (~0.95 per 60 Hz frame). */
-function stepFling(dt: number): void {
-  for (let i = flinging.length - 1; i >= 0; i--) {
-    const n = node(flinging[i]);
-    const k = Math.pow(0.05, dt);
-    n.vy *= k; n.vx *= k;
-    n.sy += n.vy * dt; n.sx += n.vx * dt;
-    clampScroll(n);
+// ---- scroll physics, macOS-like: trackpads scroll 1:1 (the OS supplies the momentum), mouse wheels ease to their
+// target, drags keep their velocity (inertia), and past an edge the content stretches with resistance and springs
+// back once the input stops.
+function maxScrollY(n: UiNode): number { return Math.max(0, n.contentH - n.lh); }
+function maxScrollX(n: UiNode): number { return Math.max(0, n.contentW - n.lw); }
+/** Offset after a user delta: past an edge each pixel of input moves the content less (rubber band). */
+function rubber(pos: number, d: number, max: number, dim: number): number {
+  const over = pos < 0 ? -pos : pos > max ? pos - max : 0;
+  if (over > 0 && ((pos < 0 && d < 0) || (pos > max && d > 0))) d *= 0.55 * Math.max(0.02, 1 - over / (dim * 0.4));
+  return pos + d;
+}
+function wakeScroll(h: i32): void {
+  const n = node(h);
+  n.live = true;
+  if (scrollers.indexOf(h) < 0) scrollers.push(h);
+}
+/** A user scroll by (dx, dy) pixels, applied at once. */
+function scrollBy(h: i32, dx: number, dy: number): void {
+  const n = node(h);
+  if ((n.scroll & 1) !== 0 && dy !== 0) n.sy = rubber(n.sy, dy, maxScrollY(n), n.lh);
+  if ((n.scroll & 2) !== 0 && dx !== 0) n.sx = rubber(n.sx, dx, maxScrollX(n), n.lw);
+  n.smooth = false;
+  n.inputAt = clock; n.scrolledAt = clock; paintDirty = true;
+  wakeScroll(h);
+}
+function stepScroll(dt: number): void {
+  for (let i = scrollers.length - 1; i >= 0; i--) {
+    const h = scrollers[i], n = node(h);
+    if (!n.alive) { scrollers.splice(i, 1); continue; }
+    const my = maxScrollY(n), mx = maxScrollX(n);
+    const held = dragging && dragScroller === h;
+    let moving = held;
+    if (n.smooth) {
+      const k = 1 - Math.exp(-dt * 18);
+      n.sy += (n.tgy - n.sy) * k; n.sx += (n.tgx - n.sx) * k;
+      if (Math.abs(n.tgy - n.sy) < 0.5 && Math.abs(n.tgx - n.sx) < 0.5) { n.sy = n.tgy; n.sx = n.tgx; n.smooth = false; } else moving = true;
+    }
+    if (!held && (n.vx !== 0 || n.vy !== 0)) {
+      n.sy += n.vy * dt; n.sx += n.vx * dt;
+      // friction, much stronger once past an edge (the stretch absorbs the momentum)
+      const outY = n.sy < 0 || n.sy > my, outX = n.sx < 0 || n.sx > mx;
+      n.vy *= Math.pow(outY ? 0.00002 : 0.12, dt); n.vx *= Math.pow(outX ? 0.00002 : 0.12, dt);
+      if (Math.abs(n.vy) < 12) n.vy = 0;
+      if (Math.abs(n.vx) < 12) n.vx = 0;
+      if (n.vx !== 0 || n.vy !== 0) moving = true;
+    }
+    // spring back from an overscroll once the fingers / wheel have been quiet for a moment
+    const outY = n.sy < 0 || n.sy > my, outX = n.sx < 0 || n.sx > mx;
+    if ((outY || outX) && !held) {
+      if (clock - n.inputAt > 90 && Math.abs(n.vy) < 400 && Math.abs(n.vx) < 400) {
+        const k = 1 - Math.exp(-dt * 13);
+        const ty = Math.max(0, Math.min(my, n.sy)), tx = Math.max(0, Math.min(mx, n.sx));
+        n.sy += (ty - n.sy) * k; n.sx += (tx - n.sx) * k;
+        if (Math.abs(ty - n.sy) < 0.4) n.sy = ty;
+        if (Math.abs(tx - n.sx) < 0.4) n.sx = tx;
+      }
+      moving = true;
+    }
     n.scrolledAt = clock;
     paintDirty = true;
-    if (Math.abs(n.vy) < 20 && Math.abs(n.vx) < 20) { n.vx = 0; n.vy = 0; flinging.splice(i, 1); }
+    if (!moving) { n.live = false; n.vx = 0; n.vy = 0; clampScroll(n); scrollers.splice(i, 1); }
   }
 }
 /** Keyboard focus: scroll every enclosing container so the focused node is visible. */
@@ -1447,9 +1509,12 @@ function pointerMove(px: number, py: number): void {
     if (!dragging && Math.abs(py - dragY) + Math.abs(px - dragX) > 6) { dragging = true; pressed = -1; }
     if (dragging) {
       const n = node(dragScroller);
-      if ((n.scroll & 1) !== 0) { n.sy -= py - lastY; n.vy = frameDt > 0 ? -(py - lastY) / frameDt : 0; }
-      if ((n.scroll & 2) !== 0) { n.sx -= px - lastX; n.vx = frameDt > 0 ? -(px - lastX) / frameDt : 0; }
-      clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+      // velocity smoothed over the last frames, so a release after a pause does not throw the content
+      if ((n.scroll & 1) !== 0) n.vy = n.vy * 0.4 + (frameDt > 0 ? -(py - lastY) / frameDt : 0) * 0.6;
+      if ((n.scroll & 2) !== 0) n.vx = n.vx * 0.4 + (frameDt > 0 ? -(px - lastX) / frameDt : 0) * 0.6;
+      const vx = n.vx, vy = n.vy;
+      scrollBy(dragScroller, -(px - lastX), -(py - lastY));
+      n.vx = vx; n.vy = vy;
     }
   }
   if (px === ptrX && py === ptrY) return;
@@ -1496,7 +1561,7 @@ function pressAt(px: number, py: number, button: i32): void {
   }
   dragScroller = selecting >= 0 || capture >= 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, 3);
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
-  if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; }
+  if (dragScroller >= 0) { const n = node(dragScroller); n.vx = 0; n.vy = 0; n.smooth = false; }   // a press stops the inertia
   hoverDirty = true;
 }
 function releaseAt(px: number, py: number, button: i32): void {
@@ -1512,7 +1577,7 @@ function releaseAt(px: number, py: number, button: i32): void {
     if (!dragging && hit(px, py, HIT_CLICK) === h) activate(h);
     paintDirty = true;
   }
-  if (dragging && dragScroller >= 0) flinging.push(dragScroller);
+  if (dragging && dragScroller >= 0) wakeScroll(dragScroller);   // inertia and bounce from the release velocity
   dragScroller = -1; dragging = false;
 }
 /** One pointer sample: position, and whether `button` is held (HAL button events, the held state, or test hooks). */
@@ -1542,9 +1607,18 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
   }
   if (sc < 0 || (wy === 0 && wx === 0)) return;
   const n = node(sc);
-  if (wy !== 0 && (n.scroll & 1) !== 0) { n.sy -= wy * 40; n.vy = 0; }
-  if (wx !== 0 && (n.scroll & 2) !== 0) { n.sx += wx * 40; n.vx = 0; }
-  clampScroll(n); n.scrolledAt = clock; paintDirty = true;
+  n.vx = 0; n.vy = 0;
+  if (wy !== Math.round(wy) || wx !== Math.round(wx)) {
+    // trackpad (fractional deltas, 1/10 px from SDL on macOS): follow the fingers and the OS momentum 1:1
+    scrollBy(sc, wx * 10, -wy * 10);
+    return;
+  }
+  // mouse wheel notches: ease toward a target 60 px per notch (it accumulates while turning)
+  const baseY = n.smooth ? n.tgy : n.sy, baseX = n.smooth ? n.tgx : n.sx;
+  n.tgy = (n.scroll & 1) !== 0 ? Math.max(0, Math.min(maxScrollY(n), baseY - wy * 60)) : n.sy;
+  n.tgx = (n.scroll & 2) !== 0 ? Math.max(0, Math.min(maxScrollX(n), baseX + wx * 60)) : n.sx;
+  n.smooth = true; n.inputAt = clock; n.scrolledAt = clock; paintDirty = true;
+  wakeScroll(sc);
 }
 function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
@@ -1591,6 +1665,8 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   }
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
   for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
+  // Escape nobody used: drop the focus, else the platform's default (leave fullscreen / quit)
+  if (!ev.handled && key === 'Escape') { if (focus >= 0) setFocusTo(-1); else escapeDefault(); ev.handled = true; }
   if (!ev.handled) {
     const i = NAV_KEYS.indexOf(key);
     if (i >= 0) { navKeys = navKeys | (1 << NAV_BTN[i]); if (ev.shift) navBack = true; }
@@ -1647,7 +1723,7 @@ export function frame(dt: number, background: i32): void {
   if (layoutDirty) layout();
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
-  stepFling(dt);
+  stepScroll(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
   if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
@@ -1664,7 +1740,7 @@ export function frame(dt: number, background: i32): void {
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
   if (hoverDirty || paintDirty) updateHover();
-  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && flinging.length === 0) { keep(); return; }
+  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
@@ -1686,6 +1762,7 @@ export function inspectHighlight(h: i32): void { if (highlight !== h) { highligh
 /** Mounts a root node and drives it from the frame loop (UI-13). `extra` runs each frame before drawing. */
 export function mount(h: i32, background: i32, extra: ((dt: number) => void) | null): void {
   setRoot(h);
+  escapeByApp(true);   // Escape reaches onKeyDown / onKey handlers first (dispatchKey)
   onFrame((dt: number) => {
     if (extra !== null) extra(dt);
     frame(dt, background);

@@ -63,6 +63,10 @@ void hal_clipboard_set(const char* s, size_t n);
 enum HalCursor : int32_t { HAL_CURSOR_DEFAULT = 0, HAL_CURSOR_TEXT, HAL_CURSOR_POINTER, HAL_CURSOR_MOVE, HAL_CURSOR_EW_RESIZE,
   HAL_CURSOR_NS_RESIZE, HAL_CURSOR_CROSSHAIR, HAL_CURSOR_GRAB, HAL_CURSOR_GRABBING, HAL_CURSOR_NOT_ALLOWED };
 void hal_set_cursor(int32_t shape);
+// Escape (optional, weak no-ops): by_app = 1 stops the HAL from acting on Escape itself; hal_escape() is its default
+// action (leave fullscreen, else quit; nothing in kiosk mode), called by the app for an unhandled Escape.
+void hal_escape_by_app(int32_t on);
+void hal_escape(void);
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */

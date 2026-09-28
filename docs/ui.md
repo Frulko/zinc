@@ -95,8 +95,10 @@ Order for each key down: the focused node's `onKeyDown` (or its nearest ancestor
 keys, then the global `ui.onKey` handlers, each only if nothing before called `preventDefault()` / handled it.
 Printable keys are handled by a focused text field (typing never triggers single-letter shortcuts). Unhandled
 arrows, Tab / Shift+Tab, Enter and Space drive the existing focus navigation (also from a quick tap); while a text
-field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. On the SDL HAL Escape leaves
-fullscreen or quits, except while a text field has the keyboard (it blurs the field).
+field has the focus the gamepad-style navigation (arrows, WASD, Space...) is off. Escape is an ordinary key for
+`zinc:ui` programs (close a dialog, go back: `preventDefault()` in a handler); unhandled, it blurs the focused node, and
+with nothing focused it does the platform default (`gfx.escapeDefault()`: leave fullscreen, else quit; nothing in
+kiosk mode). Plain `zinc:gfx` programs keep the HAL behaviour unless they call `gfx.escapeByApp(true)`.
 
 ## Zoom and pan
 

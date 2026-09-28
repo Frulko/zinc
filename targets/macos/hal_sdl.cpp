@@ -46,6 +46,7 @@ static bool SDLCALL watch(void*, SDL_Event* e) {
 static void set_fullscreen(bool on) { SDL_SetWindowFullscreen(win, on); }
 static bool gfx_on;
 static bool quit;
+static bool escape_app;   // zinc:ui handles Escape (hal_escape_by_app)
 // Test hooks: ZINC_FRAMES=n quits after n frames; ZINC_SHOT=file.bmp saves the last frame.
 static long frames_left = -1;
 static const char* shot_path;
@@ -55,6 +56,9 @@ void hal_init(const HalConfig* cfg) {
   W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin brings its own window
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   if (!gfx_on) return;
+#ifdef SDL_HINT_MAC_SCROLL_MOMENTUM
+  SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "1");   // keep the trackpad's momentum events: native inertia (zinc:ui scrolls 1:1)
+#endif
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM
@@ -193,9 +197,7 @@ void hal_poll_input(HalInput* in) {
     // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
     if (e.type == SDL_EVENT_QUIT && !kiosk) quit = true;
     // not while a text field has the keyboard: Escape blurs the field first
-    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !kiosk && !(win && SDL_TextInputActive(win))) {
-      if (win && (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN)) set_fullscreen(false); else quit = true;
-    }
+    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !escape_app && !(win && SDL_TextInputActive(win))) hal_escape();
     if (gfx_on && e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
       set_fullscreen(!(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
     if (gfx_on && (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || e.type == SDL_EVENT_WINDOW_RESIZED)) apply_size();
@@ -284,6 +286,11 @@ void hal_clipboard_set(const char* s, size_t n) {
   if (clip_is_local()) { free(clip_local); clip_local = t; return; }
   SDL_SetClipboardText(t);
   free(t);
+}
+void hal_escape_by_app(int32_t on) { escape_app = on != 0; }
+void hal_escape(void) {
+  if (kiosk) return;
+  if (win && (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN)) set_fullscreen(false); else quit = true;
 }
 void hal_set_cursor(int32_t shape) {
   static SDL_Cursor* cache[10];
