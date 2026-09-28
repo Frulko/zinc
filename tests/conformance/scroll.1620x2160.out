@@ -1,0 +1,6 @@
+initial 108 rows: text 8,76 1604x20 "row 0" .. text 8,2216 1604x20 "row 107"
+plain clamped to 540
+after scroll 5000 111 rows: text 8,5016 1604x20 "row 247" .. text 8,7216 1604x20 "row 357"
+clicked row 250
+bottom 17924 107 rows: text 8,17936 1604x20 "row 893" .. text 8,20056 1604x20 "row 999"
+count 50 0 50 rows: text 8,76 1604x20 "row 0" .. text 8,1056 1604x20 "row 49"

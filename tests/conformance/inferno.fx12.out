@@ -1,16 +1,23 @@
 view 0,0 320x240
   fragment 0,0 0x0
-    view 0,0 320x276
+    view 0,0 320x240
       text 16,16 288x32 "Todos"
-      text 16,56 288x20 "1 left · click a task to toggle"
-      fragment 0,0 0x0
-        view 16,84 288x38
-          text 24,92 197x22 "✓ Compile Inferno to C++"
-      fragment 0,0 0x0
-        view 16,130 288x38
-          text 24,138 202x22 "✓ Run without a JS engine"
-      fragment 0,0 0x0
-        view 16,176 288x38
-          text 24,184 71x22 "○ Task 3"
-      view 16,222 288x38
-        text 28,230 264x22 "Add task"
+      text 16,56 288x40 "1 left of 3 · click to toggle, scroll or drag the|list"
+      scroll 16,104 288x74
+        view 16,104 288x46
+          fragment 0,0 0x0
+            view 16,104 288x38
+              text 24,112 197x22 "✓ Compile Inferno to C++"
+        view 16,150 288x46
+          fragment 0,0 0x0
+            view 16,150 288x38
+              text 24,158 202x22 "✓ Run without a JS engine"
+        view 16,196 288x46
+          fragment 0,0 0x0
+            view 16,196 288x38
+              text 24,204 71x22 "○ Task 3"
+      view 16,186 288x38
+        view 16,186 94x38
+          text 28,194 70x22 "Add task"
+        view 118,186 75x38
+          text 130,194 51x22 "+1000"
