@@ -516,7 +516,7 @@ struct Out {
   char* p = nullptr; size_t n = 0, cap = 0;
   void put(const char* s, size_t k) { if (n + k > cap) { cap = (n + k) * 2; p = (char*)realloc(p, cap); } memcpy(p + n, s, k); n += k; }
   void str(const char* s) { put(s, strlen(s)); }
-  void num(double v) { char t[32]; put(t, (size_t)snprintf(t, sizeof t, "%.5g", v)); }
+  void num(double v) { char t[32]; put(t, (size_t)(v == (double)(long long)v ? snprintf(t, sizeof t, "%lld", (long long)v) : snprintf(t, sizeof t, "%.5g", v))); }  // ids stay exact
   void nums(const float* v, int k) { for (int i = 0; i < k; i++) { if (i) put(",", 1); num(v[i]); } }
   void quoted(const char* s) { put("\"", 1); for (; *s; s++) { if (*s == '"' || *s == '\\') put("\\", 1); if ((unsigned char)*s >= 0x20) put(s, 1); } put("\"", 1); }
   void key(const char* k) { str(",\""); str(k); str("\":["); }

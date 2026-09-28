@@ -2,9 +2,10 @@
 // (companion/server.mjs) serves the editor UI and relays it to this app as OSC.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
-// Video layers, once the zinc:video plugin is available: import it and hand a player's frame image to a layer, e.g.
-//   mapping.setImage(layer, player.image)
-// Any runtime image id works (video, camera, gfx.createImage), also over OSC: /layer/<n>/source "image" <id>.
+import { Player, EXTENSIONS, LOOP } from 'zinc:video';
+import { args } from 'zinc:sys';
+// Any runtime image id can feed a layer (video player, camera, gfx.createImage), also over OSC:
+// /layer/<n>/source "image" <id>. Player image ids are stable per player, so saved setups keep their videos.
 
 const PORT: i32 = 9000;
 const FILE = 'mapping.json';
@@ -12,6 +13,15 @@ const FILE = 'mapping.json';
 // A live runtime image, redrawn on the CPU every frame and uploaded by the compositor when its version changes:
 // the same path video frames take.
 const live = gfx.createImage(256, 256);
+
+// Videos of --media DIR (default: media), looped on one layer.
+const argv = args();
+const at = argv.indexOf('--media');
+const player = new Player(640, 360);
+player.repeat = LOOP;
+const videos = player.addFolder(at >= 0 && at + 1 < argv.length ? argv[at + 1] : 'media', EXTENSIONS);
+if (videos > 0) player.play();
+let videoLayer = -1;  // bound once the player knows its frame size
 
 if (!mapping.load(FILE)) {
   const a = mapping.addLayer('pattern', 'test card');
@@ -23,6 +33,10 @@ if (!mapping.load(FILE)) {
   const c = mapping.addLayer('image', 'live');
   mapping.setImage(c, live);
   mapping.set(c, 'corners', [0.38, 0.3, 0.62, 0.3, 0.62, 0.7, 0.38, 0.7]);
+  if (videos > 0) {
+    videoLayer = mapping.addLayer('pattern', 'video');
+    mapping.set(videoLayer, 'corners', [0.3, 0.62, 0.7, 0.66, 0.68, 0.97, 0.32, 0.93]);
+  }
 }
 mapping.listen(PORT);
 console.log(`mapper: OSC on udp ${PORT}, ${mapping.layerCount()} layers (Tab: HUD, F: fullscreen, Esc: quit)`);
@@ -34,6 +48,7 @@ gfx.onFrame((dt: number) => {
   t += dt;
   if (dt > 0) fps = fps * 0.95 + (1 / dt) * 0.05;
   if (gfx.wasPressed(gfx.Btn.Select)) hud = !hud;
+  if (videoLayer >= 0 && player.image >= 0) { mapping.setImage(videoLayer, player.image); videoLayer = -1; }
 
   gfx.beginImage(live);
   gfx.clear(0x101828);
@@ -45,5 +60,5 @@ gfx.onFrame((dt: number) => {
   gfx.endImage();
 
   gfx.clear(0);  // display-gl key colour: black lets the GPU layers show through, only the HUD covers them
-  if (hud) gfx.text(12, gfx.height() - 28, `mapper  osc:${PORT}  layers:${mapping.layerCount()}  ${Math.round(fps)} fps  [Tab] hud`, 0xc0c8d0, 2);
+  if (hud) gfx.text(12, gfx.height() - 28, `mapper  osc:${PORT}  layers:${mapping.layerCount()}  videos:${videos}  ${Math.round(fps)} fps  [Tab] hud`, 0xc0c8d0, 2);
 });
