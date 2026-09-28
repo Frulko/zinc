@@ -1,6 +1,7 @@
 // Project files: a `.zproj` folder holding project.json (the diagram and target settings), assets/ and the
 // generated build/ (zinc.json + src/main.ts). Plain data only: the reactive editor model lives in model.ts.
 import * as fs from 'zinc:fs';
+import * as sys from 'zinc:sys';
 
 export const FORMAT = 'zincstudio/1';
 
@@ -29,6 +30,12 @@ export function join(a: string, b: string): string { return a.endsWith('/') ? a 
 export function basename(p: string): string { const parts = trimSlash(p).split('/'); return parts[parts.length - 1]; }
 export function dirname(p: string): string { const parts = trimSlash(p).split('/'); parts.pop(); return parts.length === 0 ? '.' : parts.join('/'); }
 function trimSlash(p: string): string { return p.length > 1 && p.endsWith('/') ? p.slice(0, p.length - 1) : p; }
+/** Absolute path (relative paths are taken from the current directory, $PWD). */
+export function absolute(p: string): string {
+  if (p.startsWith('/')) return p;
+  const rel = p.startsWith('./') ? p.slice(2) : p;
+  return rel === '.' || rel === '' ? sys.env('PWD') : join(sys.env('PWD'), rel);
+}
 /** Project name from its folder: hello-flow.zproj -> hello-flow. */
 export function nameOf(dir: string): string { const b = basename(dir); return b.endsWith('.zproj') ? b.slice(0, b.length - 6) : b; }
 

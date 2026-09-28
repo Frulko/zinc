@@ -1287,7 +1287,8 @@ class CppEmitter {
     if (e.elements.some(ts.isSpreadElement)) {
       const r = this.newTmp('a');
       const parts = e.elements.map(x => ts.isSpreadElement(x) ? `${r}.push_all(${this.conv(x.expression, t)}); ` : `${r}.push(${this.conv(x, t.el)}); `).join('');
-      return `([&]() { auto ${r} = ${A}::with_cap(0); ${parts}return ${r}; }())`;
+      // explicit return type: an error propagated inside (`return {};`) must not break the lambda's type deduction
+      return `([&]() -> ${A} { auto ${r} = ${A}::with_cap(0); ${parts}return ${r}; }())`;
     }
     return e.elements.length ? `${A}::of(${e.elements.map(x => this.conv(x, t.el)).join(', ')})` : `${A}::with_cap(0)`;
   }
@@ -1317,7 +1318,7 @@ class CppEmitter {
       if (ts.isMethodDeclaration(p)) return this.s.fail(p, 'Z9016', 'methods in object literals are not supported; use a class');
       return this.s.fail(p, 'Z9016', 'only `key: value` properties are supported in object literals');
     }).join('');
-    return `([&]() { auto ${o} = zrt::make<${this.cls(ot)}>(); ${sets}return ${o}; }())`;
+    return `([&]() -> ${this.cpp(ot)} { auto ${o} = zrt::make<${this.cls(ot)}>(); ${sets}return ${o}; }())`;
   }
 
   lambda(f: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration, ft: Extract<ZT, { k: 'fn' }>): string {
