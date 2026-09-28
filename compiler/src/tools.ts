@@ -1,10 +1,11 @@
 // Project tooling: zinc init, zinc export, zinc dev (rebuild + restart on save), zinc monitor (telemetry viewer).
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import * as dgram from 'node:dgram';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { ZINC_ROOT } from './frontend.ts';
-import type { Built, Opts } from './cli.ts';
+import type { Built, Opts, Project } from './cli.ts';
 
 const TEMPLATES: Record<string, Record<string, string>> = {
   game: {
@@ -103,33 +104,112 @@ export function initProject(dir: string, template: string) {
   console.log(`created ${dir} (${template}); next: cd ${dir} && zinc run`);
 }
 
-/** DEV-11: dist/<name>-<target>/ with the executable (assets embedded), scripts and a service unit. */
-export function exportApp(name: string, target: string, exe: string, projectDir: string): string {
-  const out = path.join(projectDir, 'dist', `${name}-${target}`);
+/** DEV-11: dist/<name>-<target>/ with the executable (assets embedded), scripts, a service unit and, for GUI apps,
+ *  the platform's app packaging (macOS .app + Info.plist + .icns, Linux .desktop, AppLoad manifest, web page/favicon).
+ *  version / id / icon come from zinc.json. docs/guide/07-distribution.md */
+export function exportApp(p: Project, target: string, exe: string, buildDir: string): string {
+  const name = p.name, version = p.version ?? '0.1.0', id = p.id ?? `dev.zinc.${name.replace(/[^A-Za-z0-9.-]/g, '-')}`;
+  const out = path.join(p.dir, 'dist', `${name}-${target}`);
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
-  const bin = path.join(out, name);
-  fs.copyFileSync(exe, bin);
-  fs.chmodSync(bin, 0o755);
-  if (target === 'macos' || target === 'linux') spawnSync('strip', target === 'macos' ? ['-x', bin] : [bin]);
+  const report = path.join(buildDir, 'report.json');
+  const gui = fs.existsSync(report) && JSON.parse(fs.readFileSync(report, 'utf8')).usesGfx === true;
+  if (p.icon && !fs.existsSync(p.icon)) throw new Error(`zinc.json icon not found: ${p.icon}`);
   const files: Record<string, string> = {
-    'README.txt': `${name} (${target}) — built with Zinc.\nRun: ./${name}\nThe executable is self-contained: assets are embedded.\n`,
-    'run.sh': `#!/bin/sh\ncd "$(dirname "$0")" && exec ./${name} "$@"\n`,
+    'README.txt': `${name} ${version} (${target}) — built with Zinc.\nRun: ./run.sh\nThe executable is self-contained: assets are embedded.\n`,
   };
+  let bin = path.join(out, name);
+  const copyExe = (to: string) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(exe, to); fs.chmodSync(to, 0o755); };
+
+  if (target === 'wasm') {  // a static site: index.html + app.js + app.wasm (+ favicon)
+    const cm = path.join(buildDir, 'cmake');
+    const html = fs.readFileSync(path.join(cm, 'app.html'), 'utf8').replace('<title>Zinc</title>',
+      `<title>${name.replace(/[<&]/g, '')}</title>${p.icon ? '\n<link rel="icon" href="favicon.png">' : ''}`);
+    fs.writeFileSync(path.join(out, 'index.html'), html);
+    for (const f of ['app.js', 'app.wasm']) fs.copyFileSync(path.join(cm, f), path.join(out, f));
+    if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'favicon.png'));
+    bin = path.join(out, 'app.wasm');
+    files['README.txt'] = `${name} ${version} (wasm) — built with Zinc.\nServe this directory over HTTP (file:// cannot load .wasm), e.g.\n  python3 -m http.server -d . 8080\nthen open http://localhost:8080/\n`;
+  } else if (target === 'esp32') {  // firmware images + esptool flash script (offsets from ESP-IDF's flasher_args.json)
+    const b = path.join(buildDir, 'idf', 'build');
+    const fa = JSON.parse(fs.readFileSync(path.join(b, 'flasher_args.json'), 'utf8')) as { flash_files: Record<string, string>; write_flash_args: string[]; extra_esptool_args?: { chip?: string } };
+    const parts: string[] = [];
+    for (const [off, f] of Object.entries(fa.flash_files)) { fs.copyFileSync(path.join(b, f), path.join(out, path.basename(f))); parts.push(`${off} ${path.basename(f)}`); }
+    bin = path.join(out, path.basename(fa.flash_files['0x10000'] ?? Object.values(fa.flash_files).pop()!));
+    files['flash.sh'] = `#!/bin/sh\n# usage: ./flash.sh /dev/ttyUSB0   (pip install esptool)\nset -e\nPORT="\${1:?usage: flash.sh <serial port>}"\nESPTOOL=$(command -v esptool || command -v esptool.py)\ncd "$(dirname "$0")"\n"$ESPTOOL" --chip ${fa.extra_esptool_args?.chip ?? 'esp32'} -p "$PORT" -b 460800 --before default_reset --after hard_reset write_flash ${fa.write_flash_args.join(' ')} ${parts.join(' ')}\n`;
+    files['README.txt'] = `${name} ${version} (esp32 firmware) — built with Zinc (ESP-IDF).\nFlash: ./flash.sh <serial port>   (needs esptool: pip install esptool)\nSerial console: 115200 baud, e.g. python3 -m serial.tools.miniterm <port> 115200\n`;
+  } else if (target === 'macos' && (gui || p.icon)) {  // Name.app bundle
+    const app = path.join(out, `${name}.app`, 'Contents');
+    bin = path.join(app, 'MacOS', name);
+    copyExe(bin);
+    fs.mkdirSync(path.join(app, 'Resources'), { recursive: true });
+    const icns = p.icon ? macIcns(p.icon, path.join(app, 'Resources', 'icon.icns')) : false;
+    const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const kv: [string, string][] = [['CFBundleName', name], ['CFBundleDisplayName', name], ['CFBundleIdentifier', id], ['CFBundleExecutable', name],
+      ['CFBundleVersion', version], ['CFBundleShortVersionString', version], ['CFBundlePackageType', 'APPL'], ['CFBundleInfoDictionaryVersion', '6.0'],
+      ['LSMinimumSystemVersion', '11.0'], ...(icns ? [['CFBundleIconFile', 'icon']] as [string, string][] : [])];
+    fs.writeFileSync(path.join(app, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${kv.map(([k, v]) => `  <key>${k}</key><string>${esc(v)}</string>`).join('\n')}
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+`);
+    fs.writeFileSync(path.join(app, 'PkgInfo'), 'APPL????');
+    files['run.sh'] = `#!/bin/sh\nexec "$(dirname "$0")/${name}.app/Contents/MacOS/${name}" "$@"\n`;
+  } else {
+    copyExe(bin);
+  }
+  if (target === 'macos' && process.platform === 'darwin') {
+    spawnSync('strip', [bin]);
+    // ad-hoc signature (Apple Silicon refuses unsigned code); ZINC_SIGN_IDENTITY="Developer ID Application: ..." signs
+    // for distribution with the hardened runtime, ready for notarization (xcrun notarytool, see the guide)
+    const ident = process.env.ZINC_SIGN_IDENTITY;
+    const what = bin.includes('.app/') ? path.join(out, `${name}.app`) : bin;
+    const r = spawnSync('codesign', ['--force', '--sign', ident ?? '-', ...(ident ? ['--options', 'runtime', '--timestamp'] : []), what], { encoding: 'utf8' });
+    if (r.status !== 0) console.error(`zinc export: codesign failed: ${r.stderr}`);
+  }
+  if (!['wasm', 'esp32', 'ps1', 'ps2'].includes(target)) files['run.sh'] ??= `#!/bin/sh\ncd "$(dirname "$0")" && exec ./${name} "$@"\n`;
+  if (target === 'ps1') for (const f of ['app.bin', 'app.cue']) {  // bootable CD image next to the PS-EXE
+    const src = path.join(path.dirname(exe), f);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(out, f === 'app.bin' ? `${name}.bin` : `${name}.cue`));
+    if (f === 'app.cue' && fs.existsSync(path.join(out, `${name}.cue`))) fs.writeFileSync(path.join(out, `${name}.cue`), fs.readFileSync(path.join(out, `${name}.cue`), 'utf8').replace(/"app\.bin"/, `"${name}.bin"`));
+  }
   if (target === 'linux' || target === 'rpi1') {
-    files[`${name}.service`] = `[Unit]\nDescription=${name} (Zinc)\nAfter=network-online.target\n\n[Service]\nExecStart=/opt/${name}/${name}\nWorkingDirectory=/opt/${name}\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n`;
-    files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh pi@raspberrypi.local\nset -e\nHOST="\${1:?usage: deploy.sh user@host}"\nrsync -az --delete "$(dirname "$0")/" "$HOST:/tmp/${name}/"\nssh "$HOST" "sudo mkdir -p /opt/${name} && sudo rsync -a /tmp/${name}/ /opt/${name}/ && sudo cp /opt/${name}/${name}.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now ${name}"\n`;
+    files[`${name}.service`] = `[Unit]\nDescription=${name} (Zinc)\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nExecStart=/opt/${name}/${name}\nWorkingDirectory=/opt/${name}\nRestart=on-failure\nRestartSec=2\n\n[Install]\nWantedBy=multi-user.target\n`;
+    if (gui || p.icon) {
+      files[`${name}.desktop`] = `[Desktop Entry]\nType=Application\nName=${name}\nExec=/opt/${name}/${name}\n${p.icon ? `Icon=/opt/${name}/icon.png\n` : ''}Terminal=false\nCategories=Utility;\nX-Zinc-Version=${version}\n`;
+      if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'icon.png'));
+    }
+    files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh pi@raspberrypi.local\nset -e\nHOST="\${1:?usage: deploy.sh user@host}"\nrsync -az --delete "$(dirname "$0")/" "$HOST:/tmp/${name}/"\nssh "$HOST" "sudo mkdir -p /opt/${name} && sudo rsync -a /tmp/${name}/ /opt/${name}/ && sudo cp /opt/${name}/${name}.service /etc/systemd/system/ && { [ ! -f /opt/${name}/${name}.desktop ] || sudo cp /opt/${name}/${name}.desktop /usr/share/applications/; } && sudo systemctl daemon-reload && sudo systemctl enable --now ${name} && sudo systemctl restart ${name}"\n`;
   }
   if (target === 'rmpp') {  // an AppLoad app directory (docs/targets/remarkable-paper-pro.md)
     const dir = `/home/root/xovi/exthome/appload/${name}`;
     files['external.manifest.json'] = JSON.stringify({ name, application: name, workingDirectory: dir, qtfb: true, disablesWindowedMode: true }, null, 2) + '\n';
     files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh [root@10.11.99.1]  (developer mode + xovi/AppLoad installed on the tablet)\nset -e\nHOST="\${1:-root@10.11.99.1}"\nssh "$HOST" "mkdir -p ${dir}"\nscp -q "$(dirname "$0")/${name}" "$(dirname "$0")/external.manifest.json" "$(dirname "$0")/icon.png" "$HOST:${dir}/"\necho "installed in ${dir}: open AppLoad on the tablet, tap reload, then launch '${name}'"\n`;
-    fs.writeFileSync(path.join(out, 'icon.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+    if (p.icon) fs.copyFileSync(p.icon, path.join(out, 'icon.png'));
+    else fs.writeFileSync(path.join(out, 'icon.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
   }
   for (const [f, c] of Object.entries(files)) { fs.writeFileSync(path.join(out, f), c); if (f.endsWith('.sh')) fs.chmodSync(path.join(out, f), 0o755); }
   const size = fs.statSync(bin).size;
-  console.log(`exported ${path.relative(process.cwd(), out)} (${(size / 1024).toFixed(1)} KiB executable)`);
+  console.log(`exported ${path.relative(process.cwd(), out)} (${(size / 1024).toFixed(1)} KiB ${target === 'esp32' ? 'firmware' : target === 'wasm' ? 'wasm' : 'executable'})`);
   return out;
+}
+
+/** icon.png -> .icns with sips + iconutil (macOS only); false when the tools are missing or fail. */
+function macIcns(png: string, dest: string): boolean {
+  if (process.platform !== 'darwin') { console.error('zinc export: .icns needs macOS (sips, iconutil); bundle has no icon'); return false; }
+  const set = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zinc-icon-')), 'icon.iconset');
+  fs.mkdirSync(set);
+  for (const s of [16, 32, 128, 256, 512]) for (const scale of [1, 2]) {
+    const px = s * scale;
+    const r = spawnSync('sips', ['-s', 'format', 'png', '-z', String(px), String(px), png, '--out', path.join(set, `icon_${s}x${s}${scale === 2 ? '@2x' : ''}.png`)], { encoding: 'utf8' });
+    if (r.status !== 0) { console.error(`zinc export: sips failed on ${png}: ${r.stderr}`); return false; }
+  }
+  if (spawnSync('iconutil', ['-c', 'icns', set, '-o', dest]).status !== 0) { console.error('zinc export: iconutil failed'); return false; }
+  return true;
 }
 
 /**
