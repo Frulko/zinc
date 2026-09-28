@@ -159,8 +159,8 @@ Sources: `2.2inch_ESP32-2432S022/` vendor package: `1-Demo/Demo_Arduino/1_1_Fact
   `madctl: 8` (BGR), `invert: 0`, `bl: 0` with `brightness: 255` (LEDC PWM), `touch: "cst820"` on 21/22 at 0x15;
 - `targets.esp32`: `chip: "esp32"`, `flashSize: "4MB"`, `heap: 196608` (asked for; see below), and `sdkconfig`
   lines: 240 MHz CPU (IDF defaults to 160), `CONFIG_FREERTOS_HZ=1000` (1 ms ticks: the frame loop's short sleeps and
-  `vTaskDelay(1)` stop costing up to 10 ms), `-O2` (`CONFIG_COMPILER_OPTIMIZATION_PERF`), and the 1.5 MB app
-  partition (`SINGLE_APP_LARGE`: the demo is ~1.2 MB, most of it baked fonts).
+  `vTaskDelay(1)` stop costing up to 10 ms), `-O2` (`CONFIG_COMPILER_OPTIMIZATION_PERF`), and `appSize: "2M"` (the demo is ~1.65 MB, most of it baked
+  fonts, more than the 1.5 MB of `SINGLE_APP_LARGE`; zinc then writes a custom partition table).
 
 `targets.esp32.sdkconfig` is general: any project can add `sdkconfig.defaults` lines that way (`true`/`false` become
 `y`/`n`); a change triggers a clean `idf.py set-target`.

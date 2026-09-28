@@ -38,12 +38,12 @@
     "esp32": {
       "chip": "esp32",
       "flashSize": "4MB",
+      "appSize": "2M",
       "heap": 196608,
       "sdkconfig": {
         "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true,
         "CONFIG_FREERTOS_HZ": 1000,
-        "CONFIG_COMPILER_OPTIMIZATION_PERF": true,
-        "CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE": true
+        "CONFIG_COMPILER_OPTIMIZATION_PERF": true
       }
     }
   }
