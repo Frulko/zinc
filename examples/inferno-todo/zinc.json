@@ -1,1 +1,1 @@
-{ "name": "inferno-todo", "entry": "main.tsx", "targets": { "macos": { "width": 400, "height": 560, "zoom": 1 }, "sim": { "width": 400, "height": 560 }, "linux": { "width": 400, "height": 560 }, "rpi1": { "width": 400, "height": 560 }, "wasm": { "width": 400, "height": 560 } } }
+{ "name": "inferno-todo", "entry": "src/main.tsx", "targets": { "macos": { "width": 400, "height": 560, "zoom": 1 }, "sim": { "width": 400, "height": 560 }, "linux": { "width": 400, "height": 560 }, "rpi1": { "width": 400, "height": 560 }, "wasm": { "width": 400, "height": 560 } } }
