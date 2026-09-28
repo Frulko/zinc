@@ -1,0 +1,11 @@
+{
+  "name": "mapping",
+  "kind": "module",
+  "module": "zinc:mapping",
+  "entry": "index.ts",
+  "description": "GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl",
+  "targets": {
+    "macos": {},
+    "rpi1": {}
+  }
+}
