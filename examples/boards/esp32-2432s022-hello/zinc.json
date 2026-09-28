@@ -1,0 +1,9 @@
+{
+  "name": "screentest2432",
+  "entry": "src/main.ts",
+  "board": "esp32-2432s022",
+  "targets": {
+    "macos": {},
+    "esp32": {}
+  }
+}
