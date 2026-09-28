@@ -1,13 +1,11 @@
 // Lottie benchmark: renders every frame of each animation off screen (gfx.beginImage/endImage) and reports
 // ms per frame for evaluation + flattening (vector), rasterization (raster), and a redraw of an unchanged frame
 // (replay, what a paused player or a 30 fps file on a 60 Hz loop costs). Release build:
-//   zinc run examples/ui/lottie-gallery/bench.ts
+//   zinc run examples/ui/lottie-gallery/src/bench.ts
 import * as gfx from 'zinc:gfx';
 import { clock } from 'zinc:sys';
 import * as lottie from 'zinc:lottie';
-
-const files: string[] = ['spinner.json', 'shapes.json', 'orbit.json', 'TwitterHeart.json', 'Watermelon.json', 'PinJump.json',
-  'LottieLogo1.json', 'IconTransitions.json', '9squares_AlBoardman.json', 'HamburgerArrow.json', 'Switch.json', 'skottie-trimpath-modes.json'];
+import { FILES } from './files';
 
 function bench(file: string, size: i32): void {
   const a = lottie.load(file);
@@ -33,7 +31,7 @@ function bench(file: string, size: i32): void {
 }
 
 gfx.onFrame((dt: number) => {
-  for (const f of files) bench(f, 256);
+  for (const f of FILES) bench(f, 256);
   bench('LottieLogo1.json', 512);
   bench('TwitterHeart.json', 64);
   bench('skottie_sample_search.json', 48);

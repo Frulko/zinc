@@ -1,1 +1,1 @@
-{ "name": "lottie-gallery", "entry": "main.tsx", "targets": { "macos": { "width": 860, "height": 400 }, "sim": { "width": 860, "height": 400 }, "wasm": { "width": 860, "height": 400 }, "linux": { "width": 860, "height": 400 }, "rpi1": { "width": 860, "height": 400 } } }
+{ "name": "lottie-gallery", "entry": "src/main.tsx", "targets": { "macos": { "width": 860, "height": 400 }, "sim": { "width": 860, "height": 400 }, "wasm": { "width": 860, "height": 400 }, "linux": { "width": 860, "height": 400 }, "rpi1": { "width": 860, "height": 400 } } }
