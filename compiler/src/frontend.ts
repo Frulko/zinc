@@ -68,7 +68,7 @@ export const compilerOptions: ts.CompilerOptions = {
 export const WEB_GLOBALS: Record<string, string> = Object.create(null) as Record<string, string>;
 for (const n of ['URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'atob', 'btoa', 'Event', 'EventTarget', 'CustomEvent',
   'ErrorEvent', 'MessageEvent', 'PromiseRejectionEvent', 'MessageChannel', 'MessagePort', 'AbortController', 'AbortSignal',
-  'DOMException', 'crypto', 'Crypto', 'SubtleCrypto', 'Blob', 'File', 'FormData', 'reportError', 'navigator',
+  'DOMException', 'crypto', 'Crypto', 'SubtleCrypto', 'CryptoKey', 'Blob', 'File', 'FormData', 'reportError', 'navigator', 'structuredClone',
   'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI']) WEB_GLOBALS[n] = 'zinc:web';
 for (const n of ['fetch', 'Request', 'Response', 'Headers']) WEB_GLOBALS[n] = 'zinc:web/fetch';
 const WEB_FILES = new Set(['lib/std/web.ts', 'lib/std/fetch.ts'].map(f => path.join(ZINC_ROOT, f)));

@@ -153,6 +153,10 @@ async function digests(): Promise<void> {
   const id = crypto.randomUUID();
   console.log(r.length, id.length, id.at(14), '89ab'.includes(id.at(19)), id.split('-').length, id !== crypto.randomUUID());
   console.log(navigator.userAgent.length > 0);
+  const orig: unknown = JSON.parse('[1,"two",[3,null]]');
+  const copy = structuredClone(orig);
+  const s = structuredClone('s');
+  console.log('clone', Array.isArray(copy), typeof s === 'string' ? s : '');
 }
 async function main(): Promise<void> {
   await blobs();

@@ -1326,6 +1326,16 @@ export class FormData {
   }
 }
 
+// ================================================================ HTML: structured clone
+/** Deep copy of plain data (strings, numbers, booleans, null, arrays, plain objects; class instances become plain
+ *  objects of their fields, as in the Web). ponytail: through JSON, so no Map / Set / Date / cycles / NaN / undefined
+ *  members (DataCloneError on the Web would be silent here); a real serializer when those are needed. */
+export function structuredClone(value: unknown): unknown {
+  if (value === undefined || value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  const r: unknown = JSON.parse(JSON.stringify(value));
+  return r;
+}
+
 // ================================================================ HTML: navigator
 export class Navigator {
   /** WinterTC: a runtime identifies itself in the default User-Agent. */
