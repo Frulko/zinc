@@ -4,10 +4,6 @@ import { NativeModule, requireNative } from 'zinc:native';
 export interface Spec extends NativeModule {
   /** Parses (validates) a module: a handle, or -1 (see error()). */
   compile(bytes: u8[]): i32;
-  /** Imports as lines "module\tname\tkind" (kind: function, memory, table, global). */
-  imports(m: i32): string;
-  /** Exports as lines "name\tkind". */
-  exports(m: i32): string;
   /** A new instance of a compiled module (a fresh copy): a handle, or -1. Link imports, then start(). */
   instantiate(m: i32): i32;
   /** Routes the import module.name to the onImport callback with this id; false when the module has no such

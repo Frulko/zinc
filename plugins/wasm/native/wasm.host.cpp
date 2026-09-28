@@ -76,8 +76,6 @@ struct HostWasm : NativeWasm {
     mods[h] = Mod{b, n, true};
     return h;
   }
-  zrt::String imports(int32_t) override { return zrt::String(); }  // parsed by index.ts
-  zrt::String exports(int32_t) override { return zrt::String(); }
   int32_t instantiate(int32_t m) override {
     if (m < 0 || m >= MAXM || !mods[m].used) { set_err("module is gone"); return -1; }
     int h = 0;

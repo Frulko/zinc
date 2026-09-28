@@ -19,8 +19,6 @@ export default {
   compile(bytes: number[]): number {
     try { return alloc(mods, new WebAssembly.Module(Uint8Array.from(bytes))); } catch (e: any) { err = e.message; return -1; }
   },
-  imports(_m: number): string { return ''; },
-  exports(_m: number): string { return ''; },
   instantiate(m: number): number { const mod = mods[m]; if (!mod) { err = 'module is gone'; return -1; } return alloc(insts, { m: mod, imports: {}, i: null }); },
   linkImport(h: number, module: string, name: string, id: number): boolean {
     const x = insts[h];
