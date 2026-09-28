@@ -1,0 +1,24 @@
+// After node/test/parallel/test-event-emitter-once.js, -listener-count.js and -remove-listeners.js.
+const assert = require('assert');
+const EventEmitter = require('events');
+const e = new EventEmitter();
+const seen = [];
+e.on('x', (a, b) => seen.push(`on:${a}${b}`));
+e.once('x', common.mustCall((a) => seen.push(`once:${a}`)));
+e.prependListener('x', () => seen.push('first'));
+assert.strictEqual(e.listenerCount('x'), 3);
+assert.strictEqual(e.emit('x', 1, 2), true);
+e.emit('x', 3, 4);
+assert.deepStrictEqual(seen, ['first', 'on:12', 'once:1', 'first', 'on:34']);
+assert.strictEqual(e.listenerCount('x'), 2);
+const f = common.mustNotCall();
+e.on('y', f);
+e.off('y', f);
+assert.strictEqual(e.emit('y'), false);
+e.removeAllListeners('x');
+assert.deepStrictEqual(e.eventNames(), []);
+assert.throws(() => e.emit('error', new Error('boom')), /boom/);
+e.on('error', common.mustCall((err) => assert.strictEqual(err.message, 'handled')));
+e.emit('error', new Error('handled'));
+assert.strictEqual(EventEmitter.defaultMaxListeners, 10);
+common.done();

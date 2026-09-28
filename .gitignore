@@ -7,3 +7,6 @@ zinc.storage
 
 # Chataigne autosaves next to the example project
 examples/chataigne/chataigne-project/*_autosave/
+
+# zinc compat: fetched suites (test262, WPT, quickjs-ng) and scratch programs
+tests/compat/cache/

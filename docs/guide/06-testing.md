@@ -34,6 +34,23 @@ per-representation golden. A program can require the gradual profile with a `// 
 skipped in strict profiles); `// zinc-test: deterministic` marks a program that needs deterministic mode (skipped on
 esp32, ps1, ps2 and wasm, which have no environment to turn it on).
 
+## `zinc compat`: standards conformance
+
+`zinc compat` measures how much of the standards Zinc covers, against reference engines. It runs pinned external suites
+through Zinc (sim and native, gradual and strict profiles) and through Node, Deno, Bun and QuickJS: the WPT files of
+the [WinterTC Minimum Common Web API](https://min-common-api.proposal.wintertc.org/), a test262 sample, curated Node
+API tests and quickjs-ng's own tests. The suites are fetched at the commits pinned in `tests/compat/manifest.json` into
+the git-ignored `tests/compat/cache/` (offline afterwards); results go to `tests/compat/results/<date>.json` and the
+table [reports/compat.md](../reports/compat.md).
+
+```sh
+zinc compat                                # everything, 4 jobs (~20 min)
+zinc compat --suite test262 --filter String/prototype/at   # a slice, not recorded
+zinc compat --engines zinc-sim,node        # fewer engines
+zinc compat --check                        # exit 1 when a Zinc pass of tests/compat/baseline.json regressed
+zinc compat --update-baseline              # record this run's Zinc passes as the baseline
+```
+
 ## Conformance-style tests for your own app
 
 There is no separate test-runner binary — reuse the oracle. Split the core of your app into functions that print, run

@@ -809,6 +809,8 @@ function help(topic?: string) {
                                         conformance: every program must print the same bytes as the sim oracle
                                         (deterministic mode: virtual clock, fixed dt, no live input)
   zinc test --pixels [--update]         visual regression: tests/visual frames vs golden PNGs, pixel for pixel
+  zinc compat [--suite ..] [--check]    standards conformance: WinterTC Web APIs (WPT), test262, Node API and QuickJS
+                                        tests vs Node / Deno / Bun / QuickJS (docs/reports/compat.md; --help for options)
   zinc capture [entry] [--frames 1,60] [--every n] [--out dir] [--replay tape]
                                         render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
@@ -906,6 +908,8 @@ function main() {
   const cmd = argv[0];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help(argv[1]);
   if (cmd === 'doctor') return doctor();
+  // standards conformance: WinterTC / WPT, test262, Node API, QuickJS tests vs reference engines (docs/reports/compat.md)
+  if (cmd === 'compat') process.exit(spawnSync(process.execPath, [path.join(ZINC_ROOT, 'tests/compat/run.mjs'), ...argv.slice(1)], { stdio: 'inherit' }).status ?? 1);
   if (cmd === 'plugins') { console.log(listPlugins(projectDir(argv[1] && !argv[1].startsWith('-') ? path.join(argv[1], 'x') : 'x'))); return; }
   if (cmd === 'init') {
     const t = argv.indexOf('--template');
