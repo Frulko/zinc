@@ -943,6 +943,8 @@ function clampScroll(n: UiNode): void {
 }
 
 // ---------------------------------------------------------------- text fields (<input>, <textarea>)
+// colors as i32 constants: a ternary of two literals is a `number`, which overflows in fixed-point profiles
+const SEL_FOCUSED: i32 = 0x3b82f6, SEL_BLURRED: i32 = 0x64748b, HL_KEYWORD: i32 = 0xc084fc, HL_TYPE: i32 = 0x67e8f9;
 function shown(e: Edit): string { return e.password ? '•'.repeat(e.value.length) : e.value; }
 function isWordChar(c: i32): boolean { return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128; }
 function codeMode(n: UiNode, e: Edit): boolean { return e.multi && (e.lineNumbers || n.family === 'mono'); }
@@ -1051,7 +1053,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       const x0 = xIn(n, e, r, imax(s0, a));
       let x1 = xIn(n, e, r, imin(s1, b));
       if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
-      if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, focused ? 0x3b82f6 : 0x64748b, focused ? 110 : 70);
+      if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, focused ? SEL_FOCUSED : SEL_BLURRED, focused ? 110 : 70);
     }
     const line = s.slice(a, b);
     if (line.length === 0) continue;
@@ -1245,7 +1247,7 @@ export function tsHighlight(line: string): i32[] {
     } else if (c >= 48 && c <= 57) { while (j < n && (isWordChar(line.charCodeAt(j)) || line.charCodeAt(j) === 46)) j++; color = 0xfdba74; }
     else if (isWordChar(c)) {
       while (j < n && isWordChar(line.charCodeAt(j))) j++;
-      color = TS_KEYWORDS.indexOf(line.slice(i, j)) >= 0 ? 0xc084fc : c >= 65 && c <= 90 ? 0x67e8f9 : -1;
+      color = TS_KEYWORDS.indexOf(line.slice(i, j)) >= 0 ? HL_KEYWORD : c >= 65 && c <= 90 ? HL_TYPE : -1;
     }
     if (out.length >= 2 && out[out.length - 1] === color) out[out.length - 2] += j - i;
     else { out.push(j - i); out.push(color); }
@@ -1507,7 +1509,7 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
       return;
     }
   }
-  if (sc < 0) return;
+  if (sc < 0 || (wy === 0 && wx === 0)) return;
   const n = node(sc);
   if (wy !== 0 && (n.scroll & 1) !== 0) { n.sy -= wy * 40; n.vy = 0; }
   if (wx !== 0 && (n.scroll & 2) !== 0) { n.sx += wx * 40; n.vx = 0; }

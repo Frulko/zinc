@@ -17,7 +17,7 @@ tab to textarea true
 code let a = 1;|if (a) {|  a++;|  }
 caret after up 23
 word delete let a = 1;|if (a) {|  ++;|  }
-highlight 5,34044,5,-1,4,8843180,2,-1,7,6583435
+highlight 5,12616956,5,-1,4,8843180,2,-1,7,6583435
 clicked caret 3 focus back true
 double click two
 drag select one two
