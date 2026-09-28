@@ -129,7 +129,7 @@ per target in `zinc.json` `targets.<id>`, or with `ZINC_*` env vars:
 
 | target | constraint |
 | --- | --- |
-| `esp32` | 160 KiB heap, `f32` numbers, strict profile; small screens via display drivers (SSD1306, ST7789, WS2812) |
+| `esp32` | 160 KiB heap (without PSRAM it spans several internal RAM blocks; a UI node costs ~0.5 KiB, a reactive class or text a few hundred bytes more: mount one page at a time, [ESP32-2432S022 demo](../../examples/boards/esp32-2432s022)), `f32` numbers, strict profile; small screens via display drivers (SSD1306, ST7789 SPI/i80, WS2812) |
 | `ps1` | 256 KiB heap, Q20.12 fixed point, **no FPU** (the rasterizer runs in software) |
 | e-ink (`rmpp`) | slow refresh; the driver manages refresh policy — avoid per-frame full redraws, prefer damage |
 | LED matrices / OLED | tiny surface (e.g. 32×8); use `zinc:pixelfont` for text, expect only a handful of draw commands per frame |

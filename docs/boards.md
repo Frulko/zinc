@@ -1,10 +1,11 @@
-# Boards: Waveshare ESP32-S3-Matrix and Pimoroni Scroll pHAT
+# Boards: Waveshare ESP32-S3-Matrix, ESP32-2432S022 and Pimoroni Scroll pHAT
 
-Two ready-made boards with presets, drivers and demos:
+Three ready-made boards with presets, drivers and demos:
 
 | board | target | display | input | demos |
 | --- | --- | --- | --- | --- |
 | [Waveshare ESP32-S3-Matrix](#waveshare-esp32-s3-matrix) | `esp32` (chip `esp32s3`) | 8x8 WS2812 (`ws2812`) | QMI8658 IMU (`zinc:imu`) | `examples/boards/s3-matrix/{text-scroller,tilt-sand,dice,level}` |
+| [ESP32-2432S022 (2.2" CYD)](#esp32-2432s022-jczn-22) | `esp32` (chip `esp32`, no PSRAM) | 240x320 ST7789, 8-bit i80 (`st7789`, `bus: "i80"`) | CST820 touch (pointer), `zinc:device` (backlight, figures) | `examples/boards/esp32-2432s022` |
 | [Raspberry Pi + Pimoroni Scroll pHAT](#pimoroni-scroll-phat) | `rpi1` | 11x5 white LEDs, IS31FL3730 (`scrollphat`) | none | `examples/boards/scrollphat/{badge,cpu-graph,snake}` |
 
 Every demo also runs on the Mac in an emulator window (`zinc run <demo>`), where the IMU is driven by the keyboard and
@@ -124,6 +125,121 @@ axes. **Check them on the board**: run `tilt-sand`, lower the right edge: the sa
 edge (the USB-C side): it must pour down. If an axis is reversed, flip its sign (`"x": "+y"`); if tilting right moves
 the sand up or down, swap the letters. `level` prints the angles once per second for this.
 
+## ESP32-2432S022 (JCZN 2.2")
+
+A "cheap yellow display" board: ESP32-WROOM-32 module (dual-core Xtensa LX6 at 240 MHz, 520 KB SRAM, **no PSRAM**,
+4 MB flash), a 2.2" 240x320 ST7789 IPS panel on an **8-bit parallel (i80) bus** (not SPI), a CST820 self-capacitive
+touch controller (`ESP32-2432S022C`; the `…N` variant has no touch), an FM8002A/SC8002B speaker amplifier on GPIO26,
+a TF slot, a CH340C USB-UART with auto-reset, and a LiPo charger. Demo: `examples/boards/esp32-2432s022`.
+
+| what | pin / value | source |
+| --- | --- | --- |
+| LCD data D0..D7 | GPIO15, 13, 12, 14, 27, 25, 33, 32 | factory sample `Bus_Parallel8` config (`pin_d0..d7`); schematic LCM sheet (DB8..DB15 = IO15, 13, 12, 14, 27, 25, 33, 32) |
+| LCD WR / RD / DC (RS) / CS | GPIO4 / GPIO2 / GPIO16 / GPIO17 | factory sample (`pin_wr`, `pin_rd`, `pin_rs`, `pin_cs`); schematic |
+| LCD reset | none: TFT_RST is the ESP32 EN line (reset with the chip) | schematic (`TFT_RST` on EN), `pin_rst = -1` |
+| bus mode | 8-bit (IM0 tied to 3.3 V), MCU8080, 25 MHz in the vendor code | schematic, `cfg.freq_write = 25000000` |
+| panel | ST7789, 240x320, offsets 0, MADCTL BGR (`rgb_order = false`), no inversion (`invert = false`), 16-bit RGB565 sent high byte first (`LV_COLOR_16_SWAP 1`) | factory sample, LovyanGFX `Panel_LCD` (`MAD_BGR` when `rgb_order` is false), `lv_conf.h` |
+| backlight | GPIO0 → AO3402 N-MOSFET gate (10 kΩ pull-down), active high; also the BOOT strap and button | factory sample (`digitalWrite(0, HIGH)`), schematic |
+| touch I2C | SDA GPIO21, SCL GPIO22, address 0x15; INT not connected, RST on EN | factory sample (`CST820 touch(21, 22, -1, -1)`, `I2C_ADDR_CST820 0x15`), schematic, CST820 datasheet (7-bit address 0x15, 400 kHz max) |
+| touch registers | 0x02 finger count, 0x03..0x06 X/Y (12 bits, high nibble first), write 0xFE = 0xFF to keep it from auto-sleeping | vendor `CST820.cpp` |
+| audio | GPIO26 (DAC2) → SC8002B amplifier, JST 1.25 speaker socket | schematic (unused by the demo) |
+| TF card | CS GPIO5, MOSI GPIO23, CLK GPIO18, MISO GPIO19 | schematic (unused) |
+| USB | CH340C, DTR/RTS auto-reset into the bootloader | schematic |
+
+Sources: `2.2inch_ESP32-2432S022/` vendor package: `1-Demo/Demo_Arduino/1_1_Factory_samples` (LovyanGFX config,
+`CST820.cpp`), `3_1-TFT-LVGL-Benchmark`, `lv_conf.h`, `5-Schematic/ESP32-2432022-{LCM,MCU}-V1.0.png`,
+`2-Specification`, `4-Driver_IC_Data_Sheet/CST820数据手册V1.1.pdf`.
+
+### What the preset sets (`boards/esp32-2432s022.json`)
+
+- `width`/`height` 240x320 (portrait, USB-C at the bottom) on every target, `resize: "letterbox"` on macOS (the
+  emulator window is the panel at 2x);
+- display `st7789` with `bus: "i80"`, the pins above, `hz: 20000000` (20 MHz WR clock, below the vendor's 25 MHz;
+  the ST7789 datasheet asks for a 66 ns write cycle, ~15 MHz, so raise it only after checking), `lines: 12`,
+  `madctl: 8` (BGR), `invert: 0`, `bl: 0` with `brightness: 255` (LEDC PWM), `touch: "cst820"` on 21/22 at 0x15;
+- `targets.esp32`: `chip: "esp32"`, `flashSize: "4MB"`, `heap: 196608` (asked for; see below), and `sdkconfig`
+  lines: 240 MHz CPU (IDF defaults to 160), `CONFIG_FREERTOS_HZ=1000` (1 ms ticks: the frame loop's short sleeps and
+  `vTaskDelay(1)` stop costing up to 10 ms), `-O2` (`CONFIG_COMPILER_OPTIMIZATION_PERF`), and the 1.5 MB app
+  partition (`SINGLE_APP_LARGE`: the demo is ~1.2 MB, most of it baked fonts).
+
+`targets.esp32.sdkconfig` is general: any project can add `sdkconfig.defaults` lines that way (`true`/`false` become
+`y`/`n`); a change triggers a clean `idf.py set-target`.
+
+### Memory: a PSRAM-less ESP32
+
+The classic ESP32 has ~180 KB of byte-addressable DRAM for static data and heap, in several blocks (the largest free
+one is ~110 KB). What the demo firmware uses, from `idf.py size` and the boot log in QEMU:
+
+| | bytes |
+| --- | --- |
+| static DRAM (`.data` + `.bss`: the two draw-command frame buffers, IDF) | 93.5 KB of 180.7 KB (148.7 KB before the changes below) |
+| display driver: one 12-line render band (240x12x4) + the I2S bus' own DMA copy buffer | ~11 KiB + ~11 KiB |
+| Zinc heap (TLSF) | 161 KiB in 2 blocks |
+| left to ESP-IDF (drivers, FreeRTOS, rasterizer scratch) | ~31 KiB |
+
+Changes that made this fit (they help every ESP32 build):
+
+- the Zinc heap may span **several regions**: `hal_heap_region_more` (optional HAL hook, weak default) lets the ESP32
+  HAL add the next largest internal blocks until `ZRT_HEAP_BYTES` is reached, keeping 32 KiB for ESP-IDF. The boot
+  log says what it got: `zinc: heap 161 KiB in 2 block(s), 31 KiB internal RAM left`;
+- an allocation failure now reports `panic: out of memory (heap budget N bytes)` instead of recursing into the
+  allocator until the stack overflows;
+- the runtime TrueType outline scratch (36 KiB, only used where TTF fonts are embedded: hosts) is allocated on first
+  use instead of being static; on esp32 the stroke scratch and the crash-overlay text are sized down
+  (`ZRT_STROKE_POINTS=512`, `ZRT_OVERLAY_TEXT=1024`);
+- `zinc:ui/solid` no longer keeps disposed computations (every `<Show>` branch or list row ever mounted used to stay
+  in a global list: ~100 KiB per mount/unmount cycle of a page), Show/For roots are owned by their scope, and an
+  effect that tracked no signal is dropped after its first run;
+- the i80 driver on the classic ESP32 converts RGB565 in place in the render band (the I2S driver copies it into its
+  own DMA buffer before returning), so it needs no ping-pong buffers.
+
+On a PSRAM board (`"psram": true`) none of this matters: the heap goes to PSRAM (1 MiB).
+
+### Display driver details (`plugins/display-st7789`, `bus: "i80"`)
+
+esp_lcd's i80 bus (`esp_lcd_new_i80_bus`: the I2S peripheral in LCD mode on the ESP32, LCD_CAM on the S3), 8 data
+lines, DC levels cmd 0 / data 1, 8-bit commands and parameters. Init: software reset, sleep out, the ST7789 panel
+tuning the vendor's LovyanGFX sends (porch, gate, VCOM 0x28, power, 60 Hz, gamma), COLMOD 0x55, MADCTL, inversion,
+display on, then the LEDC backlight (5 kHz, 8 bits). Frames: the damaged rows are rendered in bands; each band first
+renders only the damaged rectangles (`HalFrame.render_damage`) over a sentinel colour, so bands no rectangle touches
+are skipped and a band sends only the bounding box of what changed (two small changes far apart cost two small
+transfers). RD (GPIO2) is driven high: the panel is never read.
+
+Touch: `poll()` reads 5 bytes from 0x02 each frame (≈0.2 ms at 400 kHz) and feeds `px`/`py`/`pdown` and one touch
+point, so `zinc:ui` sees a mouse-like pointer (tap, drag, inertial scroll, slider drags). `tswap`/`tflipx`/`tflipy`
+fix a mirrored or rotated touch layer. Without an answering controller (the N variant, QEMU) the demo tours its pages
+by itself.
+
+### zinc:device (`plugins/device`)
+
+```ts
+import * as device from 'zinc:device';
+device.setBacklight(0.6);        // 0..1, perceptual (PWM duty = level²); remembered only in the emulator
+device.hasBacklight(); device.hasTouch();
+device.memory();                 // { zincUsed, zincSize, chipFree, chipMinFree } in bytes (-1: unknown on hosts)
+device.frameMs(); device.drawCmds(); device.chip(); device.cpuMhz();
+```
+
+The backlight goes through the display driver (`zinc_display_backlight`, weakly linked), so the module works with or
+without it. `chipFree` is the ESP32's byte-addressable internal RAM outside the Zinc heap.
+
+### Build, flash, QEMU
+
+```sh
+zinc run examples/boards/esp32-2432s022                        # macOS emulator: 240x320 at 2x, the mouse is the finger
+zinc build examples/boards/esp32-2432s022 --target esp32       # firmware (ESP-IDF v6.0 in docker)
+zinc flash examples/boards/esp32-2432s022 --target esp32 --port /dev/cu.usbserial-110   # CH340: /dev/cu.usbserial-* or /dev/cu.wchusbserial*
+zinc monitor --port /dev/cu.usbserial-110                      # figures every 5 s
+```
+
+The CH340's DTR/RTS reset the chip into the bootloader by themselves; if not, hold BOOT, tap RST, release BOOT. BOOT
+is GPIO0, the backlight pin: pressing it at run time darkens the screen, which is expected.
+
+QEMU (`zinc run … --target esp32`) has no I2S LCD mode: the i80 bus setup would wait forever for the peripheral.
+Add `"targets": { "esp32": { "display": { "debug": 3 } } }` to the project for QEMU runs (no bus I/O, no touch, the
+auto tour starts, and the driver prints a damage summary every 100 frames); `debug: 2` also logs a checksum per frame
+and stops after 60 frames. Remove it before flashing.
+
 ## Pimoroni Scroll pHAT
 
 The original Scroll pHAT: 11x5 white LEDs driven by an ISSI IS31FL3730 on the Pi's I2C bus (SDA GPIO2 / pin 3, SCL
@@ -198,6 +314,10 @@ No board was available. Verified:
   executable) and run in a Debian bookworm armhf container (glibc, no musl), including `zinc:process` (`hostname -I`);
 - `test_frame.cpp` (Scroll pHAT bit order), `zinc flash` without esptool (message) and with it installed in a venv.
 
+- the ESP32-2432S022 demo: macOS emulator on all five pages (screenshots, a scripted keypad check), the firmware
+  (ESP-IDF v6.0, 1.2 MB) and a QEMU run of several minutes with `debug: 3`: the heap spans 2 blocks (161 KiB), the
+  UI peaks at 127 KiB over the auto tour and stays there (no growth across page visits);
+
 To check on the real hardware:
 
 - the ESP32-S3-Matrix LED order, orientation and RGB colour order (`text-scroller` must read left to right, upright
@@ -205,5 +325,8 @@ To check on the real hardware:
 - the IMU axis mapping and signs (`tilt-sand`, see above), the shake threshold, the QMI8658 register setup;
 - the heat at `brightness: 32` over time;
 - flashing over the native USB (auto-reset into the bootloader) and `zinc monitor` on the USB-Serial/JTAG port;
+- the ESP32-2432S022: the whole display path (i80 timing at 20 MHz, byte order, MADCTL BGR, no inversion, the
+  LovyanGFX panel tuning), the touch orientation (`tswap`/`tflipx`/`tflipy`), the LEDC backlight on GPIO0, and the
+  frame rates (QEMU does not model time; the demo README gives estimates);
 - the Scroll pHAT: column/bit orientation (`rotate: 180` if the badge is upside down), the brightness mapping, the
   I2C write with the trailing update byte.

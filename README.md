@@ -74,7 +74,7 @@ Debug builds (`--debug`) use ASan + UBSan and print a leak report. `ZINC_FRAMES=
 - **Developer guide**: [docs/guide/](docs/guide/README.md) — getting started, language, UI apps, headless services,
   plugins, testing, distribution (app bundles, icons, signing), security and obfuscation.
 - **UI kit**: [docs/ui-kit.md](docs/ui-kit.md); **UI input and events**: [docs/ui.md](docs/ui.md).
-- **ZincStudio**: [docs/studio.md](docs/studio.md); **boards** (ESP32-S3 Matrix, Scroll pHAT): [docs/boards.md](docs/boards.md).
+- **ZincStudio**: [docs/studio.md](docs/studio.md); **boards** (ESP32-S3 Matrix, ESP32-2432S022 2.2" touch LCD, Scroll pHAT): [docs/boards.md](docs/boards.md).
 - **Architecture overview** (French): https://claude.ai/artifact/EJAZtwX2HRPtYYBjfypThU
 
 ## What the language covers
@@ -129,7 +129,7 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 | `zinc:devtools` | UI inspector over the Chrome DevTools protocol | [dev mode](docs/dev-mode.md) |
 | `zinc:canvas`, `three` | HTML Canvas 2D-style API; three.js-style scenes, GLTFLoader, OrbitControls | [canvas2d](docs/plugins/canvas2d.md), [three](docs/plugins/three.md) |
 | `zinc:process`, `zinc:remote` + display `remote`, `zinc:webview` | child processes; live remote screens with input; native webview (Tauri-like) | [process](docs/plugins/process.md), [remote](docs/plugins/remote.md), [webview](docs/plugins/webview.md) |
-| `zinc:imu`, display `scrollphat` | QMI8658 motion sensor; Pimoroni Scroll pHAT | [boards](docs/boards.md) |
+| `zinc:imu`, `zinc:device`, display `scrollphat` | QMI8658 motion sensor; backlight and device figures; Pimoroni Scroll pHAT | [boards](docs/boards.md) |
 
 ## Layout
 

@@ -1,0 +1,10 @@
+{
+  "name": "widgets2432",
+  "entry": "src/main.tsx",
+  "board": "esp32-2432s022",
+  "assets": "assets",
+  "targets": {
+    "macos": {},
+    "esp32": {}
+  }
+}
