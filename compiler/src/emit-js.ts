@@ -167,6 +167,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
           if (lib && g === 'JSON' && m === 'parse') return callZ('jsonParse', [...v.arguments]);
           if (lib && g === 'Math' && FX && MATH_FNS.has(m)) return f.createCallExpression(f.createPropertyAccessExpression(f.createPropertyAccessExpression(f.createIdentifier('$z'), 'fxm'), m), undefined, [num(FXB), ...v.arguments]);
+          // f32 profile: the result is rounded to f32, like the C++ side (zrt::math in double, then the profile's number)
+          if (lib && g === 'Math' && sema.numberKind === 'f32' && MATH_FNS.has(m) && m !== 'fround') return callMath('fround', [v]);
         }
         if (ts.isPropertyAccessExpression(c) && (c.name.text === 'keys' || c.name.text === 'values')) {
           const rt = safeType(c.expression);
