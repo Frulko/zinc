@@ -67,6 +67,9 @@ template<class T> struct Pool {
  *  Freed with zrt::mfree, which knows both. */
 static void* mem(size_t n) { void* p = hal_alloc(n ? n : 1); return p ? p : zrt::alloc(n); }
 
+/** float -> 16.16 (or any fixed) with saturation: slivers and extrapolated run ends must not overflow. */
+static inline int32_t fx(float v) { return v >= 2147483520.f ? 2147483520 : v <= -2147483520.f ? -2147483520 : (int32_t)v; }
+
 static inline uint32_t pack(float r, float g, float b) {
   int32_t R = (int32_t)r, G = (int32_t)g, B = (int32_t)b;
   R = R > 255 ? 255 : R < 0 ? 0 : R; G = G > 255 ? 255 : G < 0 ? 0 : G; B = B > 255 ? 255 : B < 0 ? 0 : B;
@@ -114,7 +117,7 @@ static void raster(const Ctx& c, const S* a, const S* b, const S* d) {
   struct Edge { int32_t x, dx; };
   auto edge = [](const S* p, const S* q, int32_t y) {
     float k = (q->x - p->x) / (q->y - p->y);
-    return Edge{(int32_t)((p->x + (y + 0.5f - p->y) * k) * 65536), (int32_t)(k * 65536)};
+    return Edge{fx((p->x + (y + 0.5f - p->y) * k) * 65536), fx(k * 65536)};
   };
   Edge L = edge(a, d, y0), R = {0, 0};
   bool upper = y0 < ym;
@@ -131,22 +134,22 @@ static void raster(const Ctx& c, const S* a, const S* b, const S* d) {
     if (x1 > c.w) x1 = c.w;
     int32_t n = x1 - x0;
     if (n <= 0) continue;
-    float fx = x0 + 0.5f - a->x, fy = y + 0.5f - a->y;
-    int32_t z = (int32_t)((a->z + zx * fx + zy * fy) * ZS), dz = (int32_t)(zx * ZS);
+    float ox = x0 + 0.5f - a->x, oy = y + 0.5f - a->y;
+    int32_t z = fx((a->z + zx * ox + zy * oy) * ZS), dz = fx(zx * ZS);
     int32_t R_ = 0, G_ = 0, B_ = 0, dr = 0, dg = 0, db = 0;
     if (SMOOTH) {
-      R_ = (int32_t)((a->r + rx * fx + ry * fy) * 65536); dr = (int32_t)(rx * 65536);
-      G_ = (int32_t)((a->g + gx * fx + gy * fy) * 65536); dg = (int32_t)(gx * 65536);
-      B_ = (int32_t)((a->b + bx * fx + by * fy) * 65536); db = (int32_t)(bx * 65536);
+      R_ = fx((a->r + rx * ox + ry * oy) * 65536); dr = fx(rx * 65536);
+      G_ = fx((a->g + gx * ox + gy * oy) * 65536); dg = fx(gx * 65536);
+      B_ = fx((a->b + bx * ox + by * oy) * 65536); db = fx(bx * 65536);
     }
     uint32_t* px = c.px + (size_t)y * c.w + x0;
     ZT* zb = c.zb + (size_t)y * c.w + x0;
     float iw = 0, uw = 0, vw = 0;
     int32_t u = 0, v = 0;
     if (TEX) {
-      iw = a->iw + wx * fx + wy * fy; uw = a->u + ux * fx + uy * fy; vw = a->v + vx * fx + vy * fy;
+      iw = a->iw + wx * ox + wy * oy; uw = a->u + ux * ox + uy * oy; vw = a->v + vx * ox + vy * oy;
       float q = 1 / iw;
-      u = (int32_t)(uw * q * 65536); v = (int32_t)(vw * q * 65536);
+      u = fx(uw * q * 65536); v = fx(vw * q * 65536);
     }
     for (int32_t i = 0; i < n;) {
       int32_t len = TEX ? (n - i < ZP_3D_SUBDIV ? n - i : ZP_3D_SUBDIV) : n;
@@ -154,7 +157,7 @@ static void raster(const Ctx& c, const S* a, const S* b, const S* d) {
       if (TEX) {  // exact uv at the end of the run, affine inside it
         iw += wx * len; uw += ux * len; vw += vx * len;
         float q = iw > 1e-9f ? 1 / iw : 0;
-        u2 = (int32_t)(uw * q * 65536); v2 = (int32_t)(vw * q * 65536);
+        u2 = fx(uw * q * 65536); v2 = fx(vw * q * 65536);
         du = (u2 - u) / len; dv = (v2 - v) / len;
       }
       for (int32_t e = i + len; i < e; i++) {
