@@ -119,6 +119,12 @@ export function exportApp(name: string, target: string, exe: string, projectDir:
     files[`${name}.service`] = `[Unit]\nDescription=${name} (Zinc)\nAfter=network-online.target\n\n[Service]\nExecStart=/opt/${name}/${name}\nWorkingDirectory=/opt/${name}\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n`;
     files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh pi@raspberrypi.local\nset -e\nHOST="\${1:?usage: deploy.sh user@host}"\nrsync -az --delete "$(dirname "$0")/" "$HOST:/tmp/${name}/"\nssh "$HOST" "sudo mkdir -p /opt/${name} && sudo rsync -a /tmp/${name}/ /opt/${name}/ && sudo cp /opt/${name}/${name}.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now ${name}"\n`;
   }
+  if (target === 'rmpp') {  // an AppLoad app directory (docs/targets/remarkable-paper-pro.md)
+    const dir = `/home/root/xovi/exthome/appload/${name}`;
+    files['external.manifest.json'] = JSON.stringify({ name, application: name, workingDirectory: dir, qtfb: true, disablesWindowedMode: true }, null, 2) + '\n';
+    files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh [root@10.11.99.1]  (developer mode + xovi/AppLoad installed on the tablet)\nset -e\nHOST="\${1:-root@10.11.99.1}"\nssh "$HOST" "mkdir -p ${dir}"\nscp -q "$(dirname "$0")/${name}" "$(dirname "$0")/external.manifest.json" "$(dirname "$0")/icon.png" "$HOST:${dir}/"\necho "installed in ${dir}: open AppLoad on the tablet, tap reload, then launch '${name}'"\n`;
+    fs.writeFileSync(path.join(out, 'icon.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+  }
   for (const [f, c] of Object.entries(files)) { fs.writeFileSync(path.join(out, f), c); if (f.endsWith('.sh')) fs.chmodSync(path.join(out, f), 0o755); }
   const size = fs.statSync(bin).size;
   console.log(`exported ${path.relative(process.cwd(), out)} (${(size / 1024).toFixed(1)} KiB executable)`);

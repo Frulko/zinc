@@ -32,9 +32,6 @@ struct Update { Rect r; Mode mode; };
 #ifndef ZP_DISPLAY_RMPP_UPGRADE_MS
 #define ZP_DISPLAY_RMPP_UPGRADE_MS 350
 #endif
-#ifndef ZP_DISPLAY_RMPP_DITHER
-#define ZP_DISPLAY_RMPP_DITHER 1
-#endif
 
 struct Panel {
   int32_t w = 0, h = 0;
@@ -63,8 +60,8 @@ inline bool is_bw(uint32_t c) { c &= 0xFFFFFF; return c == 0 || c == 0xFFFFFF; }
 inline uint32_t mono(uint32_t c, int32_t x, int32_t y) { return luma(c) > BAYER[(y & 3) * 4 + (x & 3)] * 16 + 8 ? 0xFFFFFF : 0; }
 /** QUALITY: 16 greys, colours on a 3-level-per-channel cube, both ordered-dithered.
  *  ponytail: generic palette; calibrate against the real Gallery 3 panel (see docs/targets/remarkable-paper-pro.md). */
-inline uint32_t quality(uint32_t c, int32_t x, int32_t y) {
-  if (!ZP_DISPLAY_RMPP_DITHER) return c & 0xFFFFFF;
+inline uint32_t quality(uint32_t c, int32_t x, int32_t y, bool dither) {
+  if (!dither) return c & 0xFFFFFF;
   int32_t r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
   int32_t hi = r > g ? (r > b ? r : b) : (g > b ? g : b), lo = r < g ? (r < b ? r : b) : (g < b ? g : b);
   int32_t t = BAYER[(y & 3) * 4 + (x & 3)];  // 0..15
@@ -94,21 +91,22 @@ inline Rect changed(Panel& p, int32_t y0, int32_t y1) {
 }
 
 /** Quantizes `r` of cur into out for `mode`; returns true when some pixel was not pure black/white (needs an upgrade). */
-inline bool quantize(Panel& p, Rect r, Mode mode) {
+inline bool quantize(Panel& p, Rect r, Mode mode, bool dither) {
   bool grey = false;
   for (int32_t y = r.y0; y < r.y1; y++) {
     const uint32_t* s = p.cur + (size_t)y * p.w;
     uint32_t* d = p.out + (size_t)y * p.w;
     for (int32_t x = r.x0; x < r.x1; x++) {
       if (mode == FAST) { if (!is_bw(s[x])) grey = true; d[x] = mono(s[x], x, y); }
-      else d[x] = quality(s[x], x, y);
+      else d[x] = quality(s[x], x, y, dither);
     }
   }
   return grey;
 }
 
-/** One frame: returns the panel update to issue (mode NONE when nothing needs refreshing). */
-inline Update present(Panel& p, const HalFrame* f, uint64_t now_us) {
+/** One frame: returns the panel update to issue (mode NONE when nothing needs refreshing). `dither`: quantize QUALITY
+ *  pixels ourselves (emulator, raw panels) or hand RGB to a compositor with its own colour pipeline (xochitl). */
+inline Update present(Panel& p, const HalFrame* f, uint64_t now_us, bool dither) {
   const int64_t screen = (int64_t)p.w * p.h;
   Rect c = {0, 0, 0, 0};
   if (f->y1 > f->y0 && f->x1 > f->x0) {
@@ -122,7 +120,7 @@ inline Update present(Panel& p, const HalFrame* f, uint64_t now_us) {
   else if (idle && p.partials >= ZP_DISPLAY_RMPP_FULL_EVERY) u = {Rect{0, 0, p.w, p.h}, FULL};
   else if (idle && !empty(p.pending)) { u = {p.pending, QUALITY}; p.pending = Rect{0, 0, 0, 0}; }
   if (u.mode == NONE) return u;
-  if (quantize(p, u.r, u.mode)) unite(p.pending, u.r);
+  if (quantize(p, u.r, u.mode, dither)) unite(p.pending, u.r);
   if (u.mode == FULL) { p.partials = 0; p.pending = Rect{0, 0, 0, 0}; p.first = false; } else p.partials++;
   p.last_us = now_us;
   return u;

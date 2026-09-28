@@ -33,7 +33,7 @@ static int emu_init(const HalConfig* cfg) {
 }
 static void emu_present(const HalFrame* f) {
   if (!look) { hal_present(f); return; }
-  eink::Update u = eink::present(panel, f, hal_time_us());
+  eink::Update u = eink::present(panel, f, hal_time_us(), true);
   if (u.mode == eink::FULL) {  // flashing refresh: the panel goes black before settling
     for (size_t i = 0, n = (size_t)panel.w * panel.h; i < n; i++) view[i] = 0x26262A;
     show(u.r);
