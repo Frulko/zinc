@@ -1,0 +1,9 @@
+{
+  "name": "notes",
+  "entry": "main.tsx",
+  "display": "rmpp",
+  "targets": {
+    "macos": { "width": 1620, "height": 2160 },
+    "linux": { "width": 1620, "height": 2160 }
+  }
+}
