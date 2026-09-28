@@ -1,0 +1,10 @@
+{
+  "name": "scroll-text",
+  "entry": "main.ts",
+  "targets": {
+    "macos": { "width": 32, "height": 8, "display": "ws2812" },
+    "sim": { "width": 32, "height": 8 },
+    "esp32": { "width": 32, "height": 8, "display": { "driver": "ws2812", "pin": 13, "vertical": true, "serpentine": true } },
+    "rpi1": { "width": 32, "height": 8, "display": { "driver": "ws2812", "vertical": true } }
+  }
+}

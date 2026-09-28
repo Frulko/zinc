@@ -16,7 +16,8 @@ static const char* shot_path;
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
-  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0;
+  W = cfg->width; H = cfg->height; gfx_on = cfg->gfx != 0 && !hal_display;  // a display plugin brings its own window
+  if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   if (!gfx_on) return;
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   int scale = W <= 400 ? 3 : W <= 700 ? 2 : 1;
@@ -27,7 +28,6 @@ void hal_init(const HalConfig* cfg) {
   tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, W, H);
   SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
   fb = (uint32_t*)calloc((size_t)W * H, 4);
-  if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   shot_path = getenv("ZINC_SHOT");
 }
 void hal_shutdown(void) {

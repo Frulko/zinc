@@ -1,0 +1,24 @@
+{
+  "name": "display-ws2812",
+  "kind": "display",
+  "description": "WS2812/NeoPixel LED matrix (ESP32 RMT, Raspberry Pi SPI, macOS emulator)",
+  "options": {
+    "pin": 13,
+    "spidev": "/dev/spidev0.0",
+    "serpentine": true,
+    "vertical": false,
+    "origin": "top-left",
+    "rotate": 0,
+    "brightness": 40,
+    "gamma": 2.2,
+    "order": "GRB",
+    "scale": 24,
+    "debug": false
+  },
+  "targets": {
+    "esp32": { "sources": ["ws2812.cpp"], "idf": ["esp_driver_rmt"] },
+    "rpi1": { "sources": ["ws2812.cpp"], "packages": ["linux-headers"] },
+    "linux": { "sources": ["ws2812.cpp"] },
+    "macos": { "sources": ["ws2812.cpp"] }
+  }
+}
