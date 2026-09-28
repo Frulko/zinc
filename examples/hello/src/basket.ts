@@ -1,4 +1,4 @@
-// A shopping basket: arrays of typed records, map / filter / reduce, and a Map used as a tally.
+// A shopping basket: arrays of typed records, map / filter, loops, and a Map used as a tally.
 
 export interface Item {
   name: string;
@@ -16,7 +16,9 @@ export const BASKET: Item[] = [
 
 /** Sum of the prices, in cents (integers: no rounding surprises). */
 export function totalCents(items: Item[]): i32 {
-  return items.reduce((sum: i32, item: Item) => sum + item.priceCents, 0);
+  let sum: i32 = 0;
+  for (const item of items) sum += item.priceCents;
+  return sum;
 }
 
 /** Names of the items that cost more than `cents`. */
@@ -27,7 +29,10 @@ export function pricierThan(items: Item[], cents: i32): string[] {
 /** How many items come from each aisle, in order of first appearance. */
 export function countByAisle(items: Item[]): Map<string, i32> {
   const counts: Map<string, i32> = new Map<string, i32>();
-  for (const item of items) counts.set(item.aisle, (counts.get(item.aisle) ?? 0) + 1);
+  for (const item of items) {
+    const previous: i32 = counts.get(item.aisle) ?? 0;
+    counts.set(item.aisle, previous + 1);
+  }
   return counts;
 }
 

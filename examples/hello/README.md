@@ -24,7 +24,7 @@ zinc run examples/hello --target rmpp     # reMarkable Paper Pro build, run in i
 | `src/main.ts` | the tour: one function per section, called in order |
 | `src/greeting.ts` | a function and a class with an options interface |
 | `src/counter.ts` | a class with private fields, methods and a getter |
-| `src/basket.ts` | typed records, `map` / `filter` / `reduce`, a `Map` used as a tally, integer money |
+| `src/basket.ts` | typed records, `map` / `filter`, a `Map` used as a tally, integer money |
 | `src/report.ts` | console helpers: headings and aligned `label  value` lines |
 
 The numbers section shows that number formatting follows JavaScript exactly (`0.1 + 0.2` prints
