@@ -35,7 +35,8 @@ zinc run examples/breakout --target wasm   # browser: http://localhost:8080
 zinc run examples/breakout --profile ps1   # macOS window emulating the PS1 profile (Q20.12 fixed point, 320x240, 256 KiB heap)
 zinc run examples/lang --target rpi1       # ARMv6 hard-float binary under QEMU (arm1176)
 zinc run examples/hello --target esp32     # ESP-IDF firmware in Espressif's QEMU
-zinc build examples/hello --target ps2     # PS2 EE ELF (ps2dev)
+zinc run examples/hello --target ps1       # PS-EXE + CD image (PSn00bSDK), run in PCSX-Redux (built-in OpenBIOS)
+zinc build examples/breakout --target ps2  # PS2 EE ELF (ps2dev + gsKit), run it in PCSX2 with your BIOS
 zinc test [--target rpi1|linux|ps1|esp32] [--profile ps1]   # conformance: sim oracle vs target, byte for byte
 
 zinc run examples/pocket-hero              # the PocketJS Hero demo (Hero.tsx unchanged), no JS engine
@@ -75,8 +76,8 @@ strings (UTF-8 storage, UTF-16 indices), arrays, `Map`/`Set`, JSON output, `cons
 | `rmpp` | static aarch64 (docker `zinc/sdk-rmpp`) | e-ink via AppLoad qtfb | reMarkable Paper Pro, pen API, `zinc deploy` |
 | `esp32` | ESP-IDF firmware (Espressif QEMU for tests) | WS2812, SSD1306, ST7789 | f32 numbers, 160 KiB heap |
 | `wasm` | emscripten page | canvas | `zinc run --target wasm` serves it |
-| `ps2` | EE ELF (ps2dev) | — | build only |
-| `ps1` | MIPS I profile (QEMU) | — | fixed point Q20.12 |
+| `ps2` | EE ELF (ps2dev) | gsKit | build only (PCSX2 needs your BIOS) |
+| `ps1` | PS-EXE + CD image (PSn00bSDK) | GPU VRAM upload of damaged bands | fixed point Q20.12, tests run in PCSX-Redux |
 | `sim` | Node.js | headless | the oracle every target is compared with |
 
 ## Modules
@@ -114,10 +115,10 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 compiler/src   frontend (TS 6 API) · sema · jsx/css lowering · emit-cpp · emit-js · native modules · plugins · resources · cli · tools
 lib/           zinc.d.ts, gfx.d.ts, modules.d.ts, std/ (ui, solid, react — written in Zinc), compat/pocketjs, fonts/
 runtime/       zrt.h/.cpp (+ zrt_ext.h), raster/gfx (software renderer), host.cpp, dev_host.cpp, mod/ (built-in modules), hal.h
-targets/       HALs: macos (SDL3), null, common POSIX, wasm, ps2, esp32
+targets/       HALs: macos (SDL3), null, common POSIX, wasm, ps1, ps2, esp32
 plugins/       optional features and display drivers (one directory each, plugin.json)
 sim/           Node shim + sim implementations of the modules
-docker/        SDK images: linux, rpi1, rmpp, mips (ps1 ISA), ps2
+docker/        SDK images: linux, rpi1, rmpp, psx (PSn00bSDK + PCSX-Redux), ps2
 tests/         conformance programs and expected outputs (.out per number representation / resolution), benchmarks
 examples/      basics (hello, lang, breakout…), pocket-hero, video/, maps/, camera/, led/, remarkable/, native-module
 docs/          status, performance, decisions, plugins, targets, dev mode, licenses

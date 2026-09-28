@@ -16,9 +16,9 @@ below were last run at increment 2 with 9 programs.
 | `macos --profile ps1` / `--profile esp32` | native, emulating fixed point Q20.12 / f32 | 9/9 each |
 | `linux` | GCC in `zinc/sdk-linux` (Docker) | 9/9 |
 | `rpi1` | ARMv6 hard-float (`armv6kz+fp`, VFPv2) in `zinc/sdk-rpi1`, QEMU `arm1176`, 1280x720 profile | 9/9 |
-| `ps1` profile | MIPS I (R3000 ISA, `-march=mips1`) under `qemu-mipsel`, fixed point | 8/8 (modules test skipped: not available on ps1) |
+| `ps1` | PS-EXE (PSn00bSDK) run headless in PCSX-Redux (interpreter, OpenBIOS), fixed point | 9/9 (modules not available on ps1 skipped) |
 | `esp32` | ESP-IDF v6.0 firmware in Espressif QEMU (Xtensa), UART output | 8/8 (modules test skipped) |
-| `ps2` | EE ELF (`mips64r5900el-ps2-elf`, ps2sdk) — build only, running needs PCSX2 + BIOS | all programs build |
+| `ps2` | EE ELF (`mips64r5900el-ps2-elf`, ps2sdk + gsKit display, libpad) — build only, running needs PCSX2 + BIOS | all available programs build |
 | `wasm` | emscripten, canvas HAL, verified in Chrome (breakout) | manual |
 
 ## Measured sizes
@@ -47,9 +47,9 @@ below were last run at increment 2 with 9 programs.
 | Memory: RC (RAII), TLSF on hal_heap_region, pools, arenas (runtime escape check), weak refs, incremental freeing, leak report | 🟡 | RC is RAII not compiler-inserted (0001); arena escape checked at runtime, not compile time; `heap: 0` mode and cycle warnings missing |
 | Runtime: strings UTF-8/UTF-16, arrays, Map/Set, JSON, console levels/time/count/assert/table, JSON log mode | ✅ | number → string uses libc (0003) |
 | UI: flexbox (wrap, margins, absolute), Tailwind-like classes + CSS imports, images, engine animations, Solid (keyed `<For>`, ownership), React (reconciled, keys, class components), Inferno and PocketJS compatibility | ✅ | PocketJS Hero compiles unchanged; no text selection/editing widgets |
-| 2D: shared software rasterizer (AA shapes, gradients, shadows, strokes, paths, runtime TTF glyphs, images, runtime images, render-to-image), multi-rect damage, HiDPI | ✅ | SDL3 (Retina), canvas (wasm, 1x), display plugins: fbdev, KMS/GL, SSD1306, ST7789, WS2812, reMarkable e-ink; PS1/PS2 display in progress |
+| 2D: shared software rasterizer (AA shapes, gradients, shadows, strokes, paths, runtime TTF glyphs, images, runtime images, render-to-image), multi-rect damage, HiDPI | ✅ | SDL3 (Retina), canvas (wasm, 1x), PS1 VRAM bands (~20 fps breakout: float rasterizer without FPU), PS2 gsKit (unrun), display plugins: fbdev, KMS/GL, SSD1306, ST7789, WS2812, reMarkable e-ink |
 | Modules: sys, fs, storage, assets, net (fetch+server), osc, mqtt, telemetry, gpio, events, user native specs | ✅ | esp32: NVS, SPIFFS, esp_http_client, driver/gpio (no WiFi station bring-up yet); rpi1: libgpiod |
-| Targets: macos, linux, sim, wasm, rpi1, rmpp (reMarkable Paper Pro), esp32, ps2 (build), ps1 (ISA validation) | 🟡 | PS-EXE packaging and console displays in progress; nothing validated on real hardware yet |
+| Targets: macos, linux, sim, wasm, rpi1, rmpp (reMarkable Paper Pro), esp32, ps1 (PS-EXE, PCSX-Redux), ps2 (build) | 🟡 | PS2 never run (BIOS); nothing validated on real hardware yet |
 | Dyn / `zinc infer` (section 9) | 🟡 | gradual: `any`/`unknown` are a NaN-boxed `Dyn` (JSON.parse, property get/set, index, `in`, `typeof`, ECMAScript operators, checked conversions, narrowing); strict: Z1006/Z1016; `dynSites` in report.json, `--no-dyn`; `zinc infer` (call sites, fields read, allocation sites) and `zinc build app.js` (decision 0014). No `word` representation, per-site caches or function specialisation (DYN-03/04/12) |
 | 3D | 🟡 | `zinc:3d`: scene graph, primitives, OBJ, Gouraud/flat, perspective-correct textures, z-buffer, near clipping (software, all targets incl. fx12); no three.js API compatibility, no transparency/fog |
 
