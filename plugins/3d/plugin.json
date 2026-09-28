@@ -1,0 +1,9 @@
+{
+  "name": "3d",
+  "kind": "module",
+  "module": "zinc:3d",
+  "entry": "index.ts",
+  "description": "Software 3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph, z-buffered rasterizer",
+  "options": { "zbits": 0, "scale": 1, "dither": false, "subdiv": 16 },
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "esp32": {}, "wasm": {} }
+}
