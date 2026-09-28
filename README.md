@@ -28,6 +28,7 @@ zinc doctor
 ```sh
 zinc run examples/breakout                 # game (arrows/A-D/mouse, Space), SDL3 window
 zinc run examples/hero                     # full app: intro, 5 screens, transitions, gallery → detail, physics, ⌘K palette
+zinc run examples/zed-editor               # Zed-style code editor: project tree, tabs, highlighting, minimap, ⌘P / ⌘⇧P, find
 zinc run examples/text/src/main-react.tsx      # same screen as main-solid.tsx, React model
 zinc run examples/iot-panel                # GPIO simulator, live chart, telemetry, OSC (X = button)
 zinc run examples/lang --target sim        # language tour on Node (the oracle)
