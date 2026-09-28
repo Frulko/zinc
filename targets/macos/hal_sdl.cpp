@@ -3,7 +3,11 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <string.h>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
+static void start_workers();   // parallel rasterization (hal_present)
 static SDL_Window* win;
 static SDL_Renderer* ren;
 static SDL_Texture* tex;
@@ -86,6 +90,7 @@ void hal_init(const HalConfig* cfg) {
   if (!SDL_CreateWindowAndRenderer(cfg->title, W * scale, H * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   SDL_SetRenderVSync(ren, 1);
+  start_workers();
   if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
@@ -242,11 +247,57 @@ void hal_poll_input(HalInput* in) {
   in->quit = quit;
 }
 
+// Parallel rasterization: the damaged rows are split into horizontal bands, one per core; each band renders the
+// whole command list clipped to its rows (the rasterizer keeps its scratch buffers per thread), so the pixels are
+// the same as a single-threaded render. ZINC_RENDER_THREADS=n overrides the count (1: no worker threads).
+static void (*band_fn)(uint32_t*, int32_t, int32_t);
+static int32_t band_y0, band_y1, band_count, workers, pending;
+static unsigned band_gen;
+static std::mutex band_mu;
+static std::condition_variable band_go, band_done;
+static void run_band(int i) {
+  int32_t rows = band_y1 - band_y0, a = band_y0 + rows * i / band_count, b = band_y0 + rows * (i + 1) / band_count;
+  if (b > a) band_fn(fb + (size_t)a * PW, a, b);
+}
+static void band_worker(int id) {
+  unsigned seen = 0;
+  for (;;) {
+    std::unique_lock<std::mutex> l(band_mu);
+    band_go.wait(l, [&] { return band_gen != seen; });
+    seen = band_gen;
+    l.unlock();
+    run_band(id);
+    l.lock();
+    if (--pending == 0) band_done.notify_one();
+  }
+}
+static void start_workers() {
+  static bool started = false;
+  if (started) return;
+  started = true;
+  const char* e = getenv("ZINC_RENDER_THREADS");
+  int n = e ? atoi(e) : SDL_GetNumLogicalCPUCores();
+  if (n > 8) n = 8;   // ponytail: memory bandwidth, not cores, limits past ~8 bands
+  for (int i = 1; i < n; i++) std::thread(band_worker, i).detach();
+  workers = n > 1 ? n - 1 : 0;
+}
+static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
+  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) { fn(fb + (size_t)y0 * PW, y0, y1); return; }
+  {
+    std::lock_guard<std::mutex> l(band_mu);
+    band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; pending = workers; band_gen++;
+  }
+  band_go.notify_all();
+  run_band(0);
+  std::unique_lock<std::mutex> l(band_mu);
+  band_done.wait(l, [] { return pending == 0; });
+}
+
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on || f->w != PW || f->h != PH) return;  // a frame rendered for the previous size
   if (f->y1 > f->y0 && f->x1 > f->x0) {
-    (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * PW, f->y0, f->y1);  // fb keeps the previous frame
+    render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
     SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * PW, PW * 4);
   }

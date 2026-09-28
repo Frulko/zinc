@@ -7,6 +7,11 @@ namespace zrt { namespace raster {
 
 static inline float fabsf_(float v) { return v < 0 ? -v : v; }
 static inline float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
+#if (defined(__APPLE__) || defined(__linux__)) && !defined(ESP_PLATFORM)
+#define ZRT_TLS thread_local
+#else
+#define ZRT_TLS
+#endif
 static inline int32_t ifloor(float v) { int32_t i = (int32_t)v; return (float)i > v ? i - 1 : i; }
 static inline int32_t iceil(float v) { int32_t i = (int32_t)v; return (float)i < v ? i + 1 : i; }
 
@@ -52,27 +57,43 @@ static uint32_t color_at(const Cmd& c, float px, float py) {
   }
   return c.c1;
 }
+// Per row, a rounded box covers one horizontal span. Pixels whose centre lies in the box shrunk by `in` are fully
+// covered (plain fill), pixels outside the box grown by `out` are untouched: only the few pixels between the two
+// spans pay for the distance function (a circle 700 px wide costs ~4 sqrt per row instead of 700).
+struct Span { int32_t x0, x1; };   // pixel columns [x0, x1)
+/** Columns whose centres lie inside the rounded box (cx, cy, hw, hh, r) grown by `d` (negative shrinks), on row py. */
+static Span row_span(float py, float cx, float cy, float hw, float hh, float r, float d) {
+  hw += d; hh += d; r += d;
+  if (hw <= 0 || hh <= 0) return Span{0, 0};
+  if (r < 0) r = 0;
+  float qy = fabsf_(py - cy) - (hh - r);
+  if (qy > r) return Span{0, 0};
+  float half = qy <= 0 ? hw : (hw - r) + __builtin_sqrtf(r * r - qy * qy);
+  return Span{iceil(cx - half - 0.5f), ifloor(cx + half - 0.5f) + 1};
+}
 static void fill_rrect(const Target& t, const Cmd& c) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
   float r = clampf(c.r, 0, hw < hh ? hw : hh);
-  int32_t in0 = iceil(c.x + r + 1), in1 = ifloor(c.x + c.w - r - 1);
+  bool per_pixel = c.grad == 2 || c.grad == 3;
   for (int32_t y = b.y0; y < b.y1; y++) {
     float py = y + 0.5f;
-    bool edge_row = fabsf_(py - cy) > hh - (r > 1 ? r : 1);
+    Span o = row_span(py, cx, cy, hw, hh, r, 0.5f), in = row_span(py, cx, cy, hw, hh, r, -0.5f);
+    int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
+    int32_t i0 = in.x0 > x0 ? in.x0 : x0, i1 = in.x1 < x1 ? in.x1 : x1;
+    if (i1 < i0) i1 = i0;
     uint32_t row_color = c.grad == 1 ? color_at(c, 0, py) : c.c1;
-    for (int32_t x = b.x0; x < b.x1; x++) {
-      if (!edge_row && x >= in0 && x < in1 && c.grad != 2) {
-        int32_t e = in1 < b.x1 ? in1 : b.x1;
-        if (c.alpha == 255) for (; x < e; x++) at(t, x, y) = row_color;
-        else for (; x < e; x++) blend(at(t, x, y), row_color, c.alpha);
-        x--;
-        continue;
+    for (int32_t x = x0; x < x1; x++) {
+      if (x == i0 && i1 > i0) {   // fully covered run
+        if (per_pixel) for (; x < i1; x++) blend(at(t, x, y), color_at(c, x + 0.5f, py), c.alpha);
+        else if (c.alpha == 255) for (; x < i1; x++) at(t, x, y) = row_color;
+        else for (; x < i1; x++) blend(at(t, x, y), row_color, c.alpha);
+        if (x >= x1) break;
       }
       float px = x + 0.5f;
       float cov = clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
-      if (cov > 0) blend(at(t, x, y), c.grad == 2 ? color_at(c, px, py) : row_color, (uint32_t)(cov * c.alpha));
+      if (cov > 0) blend(at(t, x, y), per_pixel ? color_at(c, px, py) : row_color, (uint32_t)(cov * c.alpha));
     }
   }
 }
@@ -82,7 +103,11 @@ static void border_rrect(const Target& t, const Cmd& c) {
   float r = clampf(c.r, 0, hw < hh ? hw : hh), ri = r - bw > 0 ? r - bw : 0;
   for (int32_t y = b.y0; y < b.y1; y++) {
     float py = y + 0.5f;
-    for (int32_t x = b.x0; x < b.x1; x++) {
+    // skip the hole: pixels well inside the inner box are not part of the ring
+    Span o = row_span(py, cx, cy, hw, hh, r, 0.5f), hole = row_span(py, cx, cy, hw - bw, hh - bw, ri, -0.5f);
+    int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
+    for (int32_t x = x0; x < x1; x++) {
+      if (x == hole.x0 && hole.x1 > hole.x0) { x = hole.x1 - 1; continue; }
       float px = x + 0.5f;
       float outer = clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
       if (outer <= 0) continue;
@@ -99,7 +124,12 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   float r = clampf(c.r, 0, hw < hh ? hw : hh);
   for (int32_t y = b.y0; y < b.y1; y++) {
     float py = y + 0.5f;
-    for (int32_t x = b.x0; x < b.x1; x++) {
+    // k = 1 where d <= -blur/2 (inside the box shrunk by blur/2), 0 where d >= blur (outside it grown by blur)
+    Span o = row_span(py, cx, cy, hw, hh, r, blur), in = row_span(py, cx, cy, hw, hh, r, -blur * 0.5f);
+    int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
+    int32_t i0 = in.x0 > x0 ? in.x0 : x0, i1 = in.x1 < x1 ? in.x1 : x1;
+    for (int32_t x = x0; x < x1; x++) {
+      if (x == i0 && i1 > i0) { for (; x < i1; x++) blend(at(t, x, y), c.c1, c.alpha); if (x >= x1) break; }
       float d = rr_sdf(x + 0.5f, py, cx, cy, hw, hh, r);
       float k = clampf(1.0f - (d + blur * 0.5f) / (blur * 1.5f), 0, 1);
       k = k * k * (3 - 2 * k);
@@ -151,11 +181,12 @@ template<class T> static T* scratch(T*& buf, uint32_t& cap, uint32_t need) {
   buf = nb; cap = n;
   return buf;
 }
-static Edge* edges; static uint32_t edge_cap;
-static int32_t* heads; static uint32_t head_cap;
-static uint16_t* accs; static uint32_t acc_cap;
-static int32_t* actives; static uint32_t active_cap;
-static int16_t* wds; static uint32_t wd_cap;  // all zero between uses
+// scratch buffers are per thread: hosted HALs rasterize bands of a frame in parallel (hal_sdl.cpp)
+static ZRT_TLS Edge* edges; static ZRT_TLS uint32_t edge_cap;
+static ZRT_TLS int32_t* heads; static ZRT_TLS uint32_t head_cap;
+static ZRT_TLS uint16_t* accs; static ZRT_TLS uint32_t acc_cap;
+static ZRT_TLS int32_t* actives; static ZRT_TLS uint32_t active_cap;
+static ZRT_TLS int16_t* wds; static ZRT_TLS uint32_t wd_cap;  // all zero between uses
 static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
@@ -404,7 +435,7 @@ static void draw_image(const Target& t, const Cmd& c) {
 #endif
 struct RoundClip { float x, y, w, h, r; int32_t R; uint32_t off; bool on; };
 #if ZRT_CLIP_CORNER_PX > 0
-static uint32_t corner_px[ZRT_CLIP_CORNER_PX];
+static ZRT_TLS uint32_t corner_px[ZRT_CLIP_CORNER_PX];
 #endif
 /** Visits the pixels of the four corner squares of a rounded clip that lie in the target's clip `lim`. */
 template<class F> static void corners(const Target& t, const RoundClip& k, Rect lim, F f) {
