@@ -1,0 +1,9 @@
+{
+  "name": "sketch",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 720, "height": 540 },
+    "rpi1": { "width": 720, "height": 540 },
+    "wasm": { "width": 720, "height": 540 }
+  }
+}

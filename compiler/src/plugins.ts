@@ -26,6 +26,7 @@ export interface Plugin {
   kind: 'module' | 'display';
   module?: string;           // import specifier, e.g. zinc:video
   entry?: string;            // absolute path of the Zinc entry
+  modules?: Record<string, string>;  // extra import specifiers -> absolute paths (e.g. three/addons/...)
   targets: Record<string, PluginTarget>;
   options: Record<string, string | number | boolean>;
 }
@@ -59,7 +60,8 @@ export function discover(projDir: string): Plugin[] {
       const p = JSON.parse(fs.readFileSync(f, 'utf8'));
       byName.set(p.name ?? d, {
         name: p.name ?? d, dir, description: p.description ?? '', kind: p.kind ?? 'module', module: p.module,
-        entry: p.module ? path.join(dir, p.entry ?? 'index.ts') : undefined, targets: p.targets ?? {}, options: p.options ?? {},
+        entry: p.module ? path.join(dir, p.entry ?? 'index.ts') : undefined,
+        modules: Object.fromEntries(Object.entries((p.modules ?? {}) as Record<string, string>).map(([k, v]) => [k, path.join(dir, v)])), targets: p.targets ?? {}, options: p.options ?? {},
       });
     }
   }
@@ -70,7 +72,8 @@ export function discover(projDir: string): Plugin[] {
 
 /** Module specifier -> entry file, for the TypeScript `paths` option. */
 export function modulePaths(projDir: string): Record<string, string[]> {
-  return Object.fromEntries(discover(projDir).filter(p => p.module && p.entry).map(p => [p.module!, [p.entry!]]));
+  return Object.fromEntries(discover(projDir).filter(p => p.module && p.entry)
+    .flatMap(p => [[p.module!, [p.entry!]], ...Object.entries(p.modules ?? {}).map(([k, v]) => [k, [v]])]));
 }
 
 /** Display plugin chosen for a target: zinc.json `display` (string or { driver, ...options }), per-target override. */

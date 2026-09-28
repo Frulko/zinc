@@ -213,6 +213,7 @@ static void to_physical(Buf& b) {
       case raster::POLY: case raster::LINE: {
         float* p = b.pts + c.off;
         for (uint32_t n = 0; n < c.n; n++) { uint32_t cnt = (uint32_t)p[0]; for (uint32_t j = 1; j <= cnt * 2; j++) p[j] *= k; p += 1 + cnt * 2; }
+        if (c.grad == 4) for (uint32_t j = 1; j <= 6; j++) p[j] *= k;  // gradient paint geometry (raster.cpp paint_at)
         break;
       }
       default: break;
