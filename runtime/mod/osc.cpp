@@ -50,6 +50,7 @@ struct Listener : Poller {
         else if (c == 'f' && off + 4 <= n) { uint32_t u = rd32(buf + off); float f; __builtin_memcpy(&f, &u, 4); m->numbers.push((double)f); off += 4; }
         else if (c == 'd' && off + 8 <= n) { uint64_t u = (uint64_t)rd32(buf + off) << 32 | rd32(buf + off + 4); double d; __builtin_memcpy(&d, &u, 8); m->numbers.push(d); off += 8; }
         else if (c == 'T' || c == 'F') m->numbers.push(c == 'T' ? 1 : 0);
+        else if (c == 'r' && off + 4 <= n) { for (int32_t k = 0; k < 4; k++) m->numbers.push((double)buf[off + k]); off += 4; }   // RGBA colour: 4 numbers 0..255
         else if (c == 's') { String s; off = str_at(buf, (int32_t)n, off, &s); if (off < 0) break; m->strings.push(s); }
         else break;
       }

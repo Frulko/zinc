@@ -26,8 +26,9 @@ render(App, 0x0f172a, null);   // component, background color, optional per-fram
 
 ## Host tags
 
-`view` (flex container), `text`, `button`, `image`, `scroll`, `canvas`, plus `View`/`Text`/`Image` aliases for
-PocketJS compatibility. Text lives only inside `text`. A `canvas` gives you an immediate-mode `zinc:gfx` draw area:
+`view` (flex container), `text`, `button`, `image`, `scroll`, `canvas`, `input`, `textarea`, plus PascalCase aliases
+(`View`, `Text`, `Button`, `Image`, `ScrollView`, `Canvas`, `Input`, `TextArea`) for PocketJS compatibility. Text lives
+only inside `text`. A `canvas` gives you an immediate-mode `zinc:gfx` draw area:
 
 ```tsx
 <canvas class="grow" onDraw={(x, y, w, h) => { rect(x, y, w, h, 0x0b1220); /* zinc:gfx calls */ }} />

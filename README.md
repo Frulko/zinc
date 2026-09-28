@@ -48,6 +48,7 @@ zinc run examples/led/scroll-text          # WS2812 LED matrix emulator; --targe
 zinc run examples/remarkable/notes         # reMarkable Paper Pro notebook in the e-ink emulator
 zinc run apps/studio                       # ZincStudio: node-based editor (Choregraphe-style), build/run/preview/deploy
 zinc run examples/ui/kit-gallery           # shadcn-style component kit (zinc:ui/kit), light and dark
+ZINC_CHATAIGNE_SIM=1 zinc run examples/chataigne   # show-control companion for Chataigne over OSC (built-in simulator)
 zinc run examples/three/gltf-viewer        # three.js-style API: glTF model, orbit controls, picking
 zinc run examples/canvas/sketch            # HTML Canvas 2D-style API (clock, fireworks)
 zinc run examples/boards/s3-matrix/tilt-sand   # ESP32-S3 Matrix demo in the LED emulator (IMU with arrow keys)

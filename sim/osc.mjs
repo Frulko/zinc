@@ -27,6 +27,7 @@ export function listen(port, cb) {
       else if (c === 'f') { m.numbers.push(b.readFloatBE(off)); off += 4; }
       else if (c === 'd') { m.numbers.push(b.readDoubleBE(off)); off += 8; }
       else if (c === 'T' || c === 'F') m.numbers.push(c === 'T' ? 1 : 0);
+      else if (c === 'r') { for (let k = 0; k < 4; k++) m.numbers.push(b[off + k]); off += 4; }   // RGBA colour: 4 numbers 0..255
       else if (c === 's') { let s; [s, off] = readStr(b, off); m.strings.push(s); }
       else break;
     }

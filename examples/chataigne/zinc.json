@@ -1,0 +1,10 @@
+{
+  "name": "chataigne",
+  "entry": "src/main.tsx",
+  "targets": {
+    "macos": { "width": 1240, "height": 880 },
+    "linux": { "width": 1240, "height": 880 },
+    "rpi1": { "width": 1240, "height": 880 },
+    "sim": { "width": 1240, "height": 880 }
+  }
+}
