@@ -459,22 +459,23 @@ void shadow(double x, double y, double w, double h, double r, double blur, uint3
 static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
   Buf& b = bufs[cur];
   uint32_t n = (uint32_t)pts.length();
-  if (b.npts + n > ZRT_POINT_POOL) return false;
+  if (b.npts + n + 1 > ZRT_POINT_POOL) return false;  // + 1: an open polygon writes its count before n coordinates
   c->off = b.npts;
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
   uint32_t i = 0, contours = 0;
   while (i < n) {
-    uint32_t cnt = (uint32_t)pts.get((int32_t)i);
-    if (!closed_list) cnt = n / 2;
+    // a contour count is program data: negative / NaN / too large must not wrap `i` or claim points not written
+    const uint32_t start = closed_list ? i + 1 : 0, avail = (n - start) / 2;
+    double want = closed_list ? pts.get((int32_t)i) : (double)avail;
+    uint32_t cnt = want >= 1 ? (want < (double)avail ? (uint32_t)want : avail) : 0;
     b.pts[b.npts++] = (float)cnt;
-    const uint32_t start = closed_list ? i + 1 : 0;
-    for (uint32_t k = 0; k < cnt && start + k * 2 + 1 < n; k++) {
+    for (uint32_t k = 0; k < cnt; k++) {
       float x = (float)(pts.get((int32_t)(start + k * 2)) + tx), y = (float)(pts.get((int32_t)(start + k * 2 + 1)) + ty);
       b.pts[b.npts++] = x; b.pts[b.npts++] = y;
       minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
     }
     contours++;
-    if (!closed_list) break;
+    if (!closed_list || want > (double)avail) break;
     i = start + cnt * 2;
   }
   c->n = contours;
@@ -488,7 +489,13 @@ Cmd* emit(uint8_t kind, const float* pts, uint32_t len) {
   if (!c || !len) return c;
   __builtin_memcpy(b.pts + b.npts, pts, len * sizeof(float));
   c->off = b.npts;
-  if (kind == raster::POLY) for (uint32_t i = 0; i < len; i += 1 + 2 * (uint32_t)pts[i]) c->n++;
+  // contours: a count must be a whole number of points that are there; anything else ends the list (the rasterizer
+  // walks these counts, and canvas2d appends a paint record after its contours)
+  if (kind == raster::POLY) for (uint32_t i = 0; i < len;) {
+    float f = pts[i];
+    if (!(f >= 0 && f <= (float)((len - i - 1) / 2)) || (float)(uint32_t)f != f) break;
+    c->n++; i += 1 + 2 * (uint32_t)f;
+  }
   b.npts += len;
   return c;
 }

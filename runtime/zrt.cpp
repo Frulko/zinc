@@ -104,6 +104,7 @@ static void init() {
 }
 [[maybe_unused]] static void* malloc(size_t n) {
   if (!lo) init();
+  if (n > budget) return nullptr;  // also keeps the rounding below from wrapping a huge request to a tiny block
   n = (n + ALIGN - 1) & ~(ALIGN - 1);
   if (n < 2 * sizeof(void*)) n = 2 * sizeof(void*);
   Block* b = find(n);
@@ -161,10 +162,18 @@ void* alloc(size_t n) {
 void mfree(void* p) {
   if (!p || arena_owns(p)) return;
 #ifdef ZRT_DEBUG
-  hal_free(p);
+  if (!pool_give(p)) hal_free(p);
 #else
-  if (tlsf::owns(p)) tlsf::free(p); else hal_free(p);
+  if (tlsf::owns(p)) tlsf::free(p); else if (!pool_give(p)) hal_free(p);
 #endif
+}
+// A pooled object that was weakly referenced is freed by mfree when its last Weak goes: back to its pool, never to
+// the system allocator (its slot is static storage).
+PoolSlab* pool_slabs = nullptr;
+bool pool_give(void* p) {
+  for (PoolSlab* s = pool_slabs; s; s = s->next)
+    if ((unsigned char*)p >= s->lo && (unsigned char*)p < s->hi) { *(void**)p = *s->head; *s->head = p; return true; }
+  return false;
 }
 
 [[noreturn]] static void crash(const char* msg, const char* file, int line);
@@ -206,7 +215,10 @@ static void drain_deferred() {
 
 // ---------- strings ----------
 
+// JS caps strings too (V8: ~2^29 units); here it keeps byte counts, UTF-16 lengths and size math from wrapping
+static const uint32_t MAX_STR = 1u << 30;
 static StrObj* str_alloc(uint32_t n) {
+  if (n > MAX_STR) panic("RangeError: Invalid string length");
   StrObj* s = (StrObj*)alloc(sizeof(StrObj) + n + 1);
   live_objects++;
   char* d = (char*)(s + 1);
@@ -318,10 +330,15 @@ int32_t String::indexOf(const String& n, int32_t from) const {
   return b < 0 ? -1 : byte_to_u16(*this, (uint32_t)b);
 }
 int32_t String::lastIndexOf(const String& n, int32_t from) const {
-  // last match starting at or before `from` (UTF-16 index), like JS
-  int32_t best = -1;
-  for (int32_t i = indexOf(n, 0); i >= 0 && i <= from; i = indexOf(n, i + 1)) best = i;
-  return best;
+  // last match starting at or before `from` (UTF-16 index), like JS: one backward scan (a forward rescan from each
+  // match never ended for an empty needle and was quadratic)
+  uint32_t hn = bytes(), nn = n.bytes();
+  if (nn > hn) return -1;
+  if (from < 0) from = 0;
+  uint32_t b = u16_to_byte(*this, from > length() ? length() : from);
+  if (b > hn - nn) b = hn - nn;
+  for (uint32_t i = b + 1; i-- > 0;) if (__builtin_memcmp(ptr() + i, n.ptr(), nn) == 0) return byte_to_u16(*this, i);
+  return -1;
 }
 bool String::startsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr(), n.ptr(), n.bytes()) == 0; }
 bool String::endsWith(const String& n) const { return n.bytes() <= bytes() && __builtin_memcmp(ptr() + bytes() - n.bytes(), n.ptr(), n.bytes()) == 0; }
@@ -480,7 +497,8 @@ uint32_t hash(const String& s) {
 }
 
 void StrBuilder::raw(const char* p, uint32_t n) {
-  if (len + n > cap) {
+  if (n > cap - len) {  // cap >= len: no wrap-around
+    if (n > MAX_STR || len + n > MAX_STR) panic("RangeError: Invalid string length");
     uint32_t nc = cap < 32 ? 32 : cap * 2; while (nc < len + n) nc *= 2;
     char* nb = (char*)alloc(nc);
     if (buf) { __builtin_memcpy(nb, buf, len); mfree(buf); }
@@ -689,6 +707,11 @@ static int32_t tape_at = -1;         // frame of tape_next (-1: tape ended)
 static void tape_read() {
   int32_t f;
   tape_at = tape && zrt_host_io(tape, &f, 4, 0) == 4 && zrt_host_io(tape, &tape_next, sizeof tape_next, 0) == sizeof tape_next ? f : -1;
+  // a tape is a file: its counts index fixed arrays (touches, keys, text), so they are clamped like a HAL's would be
+  HalInput& in = tape_next;
+  auto clamp = [](int32_t& n, int32_t max) { n = n < 0 ? 0 : n > max ? max : n; };
+  clamp(in.ntouch, HAL_MAX_TOUCH); clamp(in.nkeys, HAL_MAX_KEYS); clamp(in.nbtn, HAL_MAX_BUTTON_EVENTS); clamp(in.ntext, HAL_TEXT_BYTES);
+  for (int32_t i = 0; i < in.nkeys; i++) if ((uint32_t)in.keys[i].off + in.keys[i].len > HAL_TEXT_BYTES) in.keys[i].off = in.keys[i].len = 0;
 }
 static void det_init() {
   const char* rec = hal_env("ZINC_RECORD");
@@ -788,7 +811,7 @@ bool loop_once() {
     return true;
   }
   if (active) hal_sleep_us(1000);
-  else if (next >= 0) { double wait = next - now_ms(); if (wait > 0) hal_sleep_us((uint64_t)(wait * 1000)); }
+  else if (next >= 0) { double wait = next - now_ms(); if (wait > 0) hal_sleep_us(wait < 1000 ? (uint64_t)(wait * 1000) : 1000000); }  // huge delays: wake up every second
   return true;
 }
 static int loop_step() { return loop_once() ? 1 : 0; }
@@ -1042,7 +1065,8 @@ Ref<Arena> Arena::frame(double bytes) {
   // the arena object itself lives on the heap, its block is taken from the heap once
   Arena* a = new (alloc(sizeof(Arena))) Arena();
   live_objects++;
-  a->size = bytes < 256 ? 256 : (size_t)bytes;
+  if (bytes > 1073741824.0) panic("RangeError: arena too large");
+  a->size = bytes >= 256 ? (size_t)bytes : 256;  // NaN too
   a->base = (char*)alloc(a->size);
   a->prev = arena_top; arena_top = a;
   return Ref<Arena>::adopt(a);
@@ -1050,7 +1074,8 @@ Ref<Arena> Arena::frame(double bytes) {
 void Arena::zrt_dispose() {
   if (!base) return;
   if (live) panic("an object allocated in an arena outlives it (MEM-07); copy it out with arena.promote(x)");
-  if (arena_top == this) arena_top = prev;
+  // unlink wherever it is: an arena disposed out of order must not stay in the chain after it is freed
+  for (Arena** pp = &arena_top; *pp; pp = &(*pp)->prev) if (*pp == this) { *pp = prev; break; }
   mfree(base); base = nullptr;  // O(1): nothing inside is freed individually
 }
 Arena::~Arena() { zrt_dispose(); }

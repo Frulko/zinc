@@ -369,9 +369,11 @@ template<class T> struct Array {
     mfree(x);
     live_objects--;
   }
+  // element bytes must fit size_t on 32-bit targets (a wrapped size would be a heap overflow)
+  static size_t bytes_of(int32_t n) { if (n < 0 || (size_t)n > (size_t)-1 / sizeof(T)) panic("RangeError: Invalid array length"); return sizeof(T) * (size_t)n; }
   static Array with_cap(int32_t cap) {
     Array r; r.a = (ArrObj<T>*)alloc(sizeof(ArrObj<T>)); live_objects++;
-    r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(sizeof(T) * (size_t)cap) : nullptr;
+    r.a->rc = 1; r.a->len = 0; r.a->cap = cap; r.a->data = cap ? (T*)alloc(bytes_of(cap)) : nullptr;
     return r;
   }
   template<class... X> static Array of(const X&... xs) { Array r = with_cap((int32_t)sizeof...(xs)); (r.push_raw(T(xs)), ...); return r; }
@@ -380,13 +382,19 @@ template<class T> struct Array {
   void grow(int32_t need) const {
     ArrObj<T>* o = obj();
     if (need <= o->cap) return;
-    int32_t nc = o->cap < 4 ? 4 : o->cap * 2; if (nc < need) nc = need;
-    T* nd = (T*)alloc(sizeof(T) * (size_t)nc);
+    int32_t nc = o->cap < 4 ? 4 : o->cap < 0x40000000 ? o->cap * 2 : 0x7fffffff; if (nc < need) nc = need;
+    T* nd = (T*)alloc(bytes_of(nc));
     for (int32_t i = 0; i < o->len; i++) { new (&nd[i]) T(static_cast<T&&>(o->data[i])); o->data[i].~T(); }
     if (o->data) mfree(o->data);
     o->data = nd; o->cap = nc;
   }
-  void push_raw(const T& v) const { grow(obj()->len + 1); new (&a->data[a->len]) T(v); a->len++; }
+  // v may live in this array (`a.push(...a)`): growing frees the old storage, so copy it first on that path
+  void push_raw(const T& v) const {
+    ArrObj<T>* o = obj();
+    if (o->len < o->cap) { new (&o->data[o->len]) T(v); o->len++; return; }
+    if (o->len == 0x7fffffff) panic("RangeError: Invalid array length");
+    T t(v); grow(o->len + 1); new (&o->data[o->len]) T(static_cast<T&&>(t)); o->len++;
+  }
 
   int32_t length() const { return obj()->len; }
   void set_length(int32_t n) const {
@@ -396,7 +404,10 @@ template<class T> struct Array {
   }
   T& ref(int32_t i) const { ArrObj<T>* o = obj(); if ((uint32_t)i >= (uint32_t)o->len) panic("array index out of bounds"); return o->data[i]; }
   T& ref(double i) const { return ref(idx(i)); }
-  static int32_t idx(double i) { int32_t k = (int32_t)i; if ((double)k != i) panic("non-integer array index"); return k; }
+  static int32_t idx(double i) {
+    if (!(__builtin_fabs(i) < 2147483648.0)) panic(i == i && __builtin_trunc(i) == i ? "array index out of bounds" : "non-integer array index");  // before the cast (UB out of range); NaN fails too
+    int32_t k = (int32_t)i; if ((double)k != i) panic("non-integer array index"); return k;
+  }
   T get(int32_t i) const { return ref(i); }
   T get(double i) const { return ref(idx(i)); }
   template<class I> T get(I i) const { return ref((int32_t)i); }
@@ -455,7 +466,7 @@ template<class T> struct Array {
   // RT-11: stable merge sort
   template<class F> Array sort(F f) const {
     int32_t n = length(); if (n < 2) return *this;
-    T* tmp = (T*)alloc(sizeof(T) * (size_t)n);
+    T* tmp = (T*)alloc(bytes_of(n));
     for (int32_t i = 0; i < n; i++) new (&tmp[i]) T();
     for (int32_t w = 1; w < n; w *= 2) {
       for (int32_t lo = 0; lo < n; lo += 2 * w) {
