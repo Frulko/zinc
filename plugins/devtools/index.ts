@@ -4,7 +4,8 @@
 // screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel). Unknown
 // methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, setClass, TAG_NAMES, TEXT, UiNode } from 'zinc:ui';
+import { width, height } from 'zinc:gfx';
 
 const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000;
 
@@ -67,6 +68,17 @@ function classFromText(text: string): string {
   return j < 0 ? rest : rest.slice(0, j);
 }
 
+// Inspect mode: hovering the app highlights the node in Elements, a click selects it there (and ends the mode).
+let picked: i32 = -1;
+function onPick(h: i32, pressed: boolean): void {
+  if (h < 0) return;
+  if (pressed) {
+    inspectPick(null);
+    Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${h + 1}}}`);
+  } else if (h !== picked) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${h + 1}}}`);
+  picked = h;
+}
+
 function handle(client: i32, msg: string): void {
   const id = Cdp.num(msg, 'id'), method = Cdp.str(msg, 'method');
   const nid = Cdp.num(msg, 'nodeId');
@@ -90,12 +102,16 @@ function handle(client: i32, msg: string): void {
   else if (method === 'CSS.getComputedStyleForNode' && n !== null) result = `{"computedStyle":[${style(n)}]}`;
   else if (method === 'CSS.getMatchedStylesForNode') result = '{"matchedCSSRules":[],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}';
   else if (method === 'Overlay.highlightNode') inspectHighlight(n !== null ? h : -1);
+  else if (method === 'Overlay.setInspectMode') { picked = -1; inspectPick(Cdp.str(msg, 'mode') === 'searchForNode' ? onPick : null); }
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') inspectHighlight(-1);
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
   else if (method === 'Runtime.enable')
     Cdp.send(client, '{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"zinc://app","name":"zinc","uniqueId":"zinc-1","auxData":{"isDefault":true,"type":"default","frameId":"main"}}}}');
-  else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot()}"}`;  // PNG of the frame on screen
+  else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot(0, 0)}"}`;  // PNG of the frame on screen
+  else if (method === 'Page.startScreencast') { cast = client; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = ''; }
+  else if (method === 'Page.stopScreencast') cast = -1;
+  else if (method === 'Page.screencastFrameAck') castReady = true;
   else if (method === 'Tracing.start') Cdp.trace(true);   // the Performance panel: frame phases and raster bands
   else if (method === 'Tracing.end') {
     Cdp.send(client, `{"id":${id},"result":{}}`);
@@ -123,6 +139,19 @@ function treeSignature(h: i32, textEvents: string[]): string {
   for (const c of n.children) s += treeSignature(c, textEvents);
   return s + ')';
 }
+// Screencast (the page view next to the panels): the frame on screen, shrunk to the size the frontend asks for, sent
+// when it changed and the previous one was acknowledged.
+let cast: i32 = -1, castW: i32 = 0, castH: i32 = 0, castReady = true, castLast = '', castSession: i32 = 0;
+setInterval(() => {
+  if (cast < 0 || !castReady) return;
+  if (Cdp.clients() === 0) { cast = -1; return; }
+  const png = Cdp.screenshot(castW, castH);
+  if (png.length === 0 || png === castLast) return;
+  castLast = png; castReady = false; castSession++;
+  Cdp.send(cast, `{"method":"Page.screencastFrame","params":{"data":"${png}","sessionId":${castSession},"metadata":{"offsetTop":0,"pageScaleFactor":1,` +
+    `"deviceWidth":${width()},"deviceHeight":${height()},"scrollOffsetX":0,"scrollOffsetY":0,"timestamp":${Date.now() / 1000}}}}`);
+}, 100);
+
 Cdp.listen(9229, handle);
 setInterval(() => {
   if (Cdp.clients() === 0) { signature = ''; texts.clear(); return; }

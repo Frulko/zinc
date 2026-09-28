@@ -94,6 +94,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
 #ifdef ZP_DEVTOOLS_PORT
     port = ZP_DEVTOOLS_PORT;  // zinc.json plugins.devtools.port
 #endif
+    if (const char* p = getenv("ZINC_DEVTOOLS_PORT")) port = atoi(p);  // two programs at once
     cb = onMessage;
     if (!polling) { polling = true; zrt::add_poller(this); }
     zrt::inspector_log = on_log;
@@ -156,9 +157,9 @@ struct HostCdp : NativeCdp, zrt::Poller {
     return sb.build();
   }
   int32_t clients() override { int k = 0; for (auto& c : cl) if (c.fd >= 0 && c.ws) k++; return k; }
-  zrt::String screenshot() override {
+  zrt::String screenshot(int32_t maxw, int32_t maxh) override {
     size_t n = 0;
-    uint8_t* png = zrt::gfx::capture_png(&n);
+    uint8_t* png = zrt::gfx::capture_png(&n, maxw, maxh);
     char* b64 = png ? (char*)hal_alloc((n + 2) / 3 * 4 + 1) : nullptr;
     zrt::String s;
     if (b64) { base64(png, (int)n, b64); s = zrt::String::from(b64, (uint32_t)strlen(b64)); hal_free(b64); }

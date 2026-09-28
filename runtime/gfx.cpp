@@ -481,9 +481,23 @@ static uint8_t* encode_bmp(const uint32_t* px, int32_t w, int32_t h, size_t* out
   *out_n = n;
   return o;
 }
-uint8_t* capture_png(size_t* n) {
+uint8_t* capture_png(size_t* n, int32_t maxw, int32_t maxh) {
   uint32_t* px = grab();
-  uint8_t* png = px ? encode_png(px, pw, ph, n) : nullptr;
+  int32_t w = pw, h = ph, k = 1;  // shrunk by a whole factor to fit maxw x maxh (DevTools screencast), box-averaged
+  while ((maxw > 0 && w / k > maxw) || (maxh > 0 && h / k > maxh)) k++;
+  if (px && k > 1) {
+    w /= k; h /= k;
+    for (int32_t y = 0; y < h; y++) for (int32_t x = 0; x < w; x++) {
+      uint32_t r = 0, g = 0, b = 0;
+      for (int32_t j = 0; j < k; j++) for (int32_t i = 0; i < k; i++) {
+        uint32_t v = px[(size_t)(y * k + j) * pw + x * k + i];
+        r += v >> 16 & 255; g += v >> 8 & 255; b += v & 255;
+      }
+      uint32_t kk = (uint32_t)(k * k);
+      px[(size_t)y * w + x] = (r / kk) << 16 | (g / kk) << 8 | b / kk;  // in place: row y*w+x is behind the source
+    }
+  }
+  uint8_t* png = px ? encode_png(px, w, h, n) : nullptr;
   if (px) hal_free(px);
   return png;
 }

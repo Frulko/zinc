@@ -2007,6 +2007,7 @@ function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << 
 function inputFrame(): void {
   curMods = modifiers();
   const px = pointerX(), py = pointerY();
+  if (pick !== null) { pickInput(px, py); return; }
   const wy = wheel(), wx = wheelX(), pz = pinch();
   if (wy !== 0 || wx !== 0 || pz !== 1) wheelInput(px, py, wy, wx, pz);
   trackpadInput(px, py, scrollDX(), scrollDY(), scrollPhase());
@@ -2087,8 +2088,9 @@ export function frame(dt: number, background: i32): void {
   if (layers.length > 0) paintLayers();
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
-    rrect(n.x, n.y, n.lw, n.lh, 0, 0x3b82f6, 90);
-    border(n.x, n.y, n.lw, n.lh, 0, 1, 0x60a5fa, 255);
+    boxOf(highlight);  // on the surface: through scroll offsets, transforms and layers
+    rrect(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 0x3b82f6, 90);
+    border(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 1, 0x60a5fa, 255);
   }
   if (prof) profMark(PROF_PAINT);
 }
@@ -2101,6 +2103,23 @@ export function inspectRoot(): i32 { return root; }
 export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
+let pick: ((h: i32, pressed: boolean) => void) | null = null, pickDown = false;
+/** Pick mode (the DevTools inspect arrow): the pointer highlights the node under it and f gets it, pressed on a
+ *  click; the app gets no pointer or key input meanwhile. null ends it. */
+export function inspectPick(f: ((h: i32, pressed: boolean) => void) | null): void {
+  pick = f; pickDown = pointerDown();
+  if (f === null) inspectHighlight(-1);
+}
+function pickInput(px: number, py: number): void {
+  const h = hit(px, py, HIT_NODE);
+  let pressed = false;
+  for (let i = 0; i < buttonEventCount(); i++) if (buttonEventDown(i)) pressed = true;
+  const down = pointerDown();
+  if (down && !pickDown) pressed = true;
+  pickDown = down;
+  inspectHighlight(h);
+  if (pick !== null) (pick as (h: i32, pressed: boolean) => void)(h, pressed);
+}
 /** Mounts a root node and drives it from the frame loop (UI-13). `extra` runs each frame before drawing. */
 export function mount(h: i32, background: i32, extra: ((dt: number) => void) | null): void {
   setRoot(h);

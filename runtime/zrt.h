@@ -760,7 +760,8 @@ int32_t frame();
 int32_t pixelScale();
 void quit();
 bool capture(const String& path);
-uint8_t* capture_png(size_t* n);  // the frame on screen as PNG bytes (hal_free them); DevTools screenshots
+uint8_t* capture_png(size_t* n, int32_t maxw = 0, int32_t maxh = 0);  // the frame on screen as PNG bytes (hal_free them),
+                                                                   // shrunk to fit maxw x maxh; DevTools screenshots
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
 void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
 String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)

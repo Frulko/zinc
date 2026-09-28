@@ -5,6 +5,6 @@ export default {
   num(_msg: string, _key: string): number { return 0; },
   str(_msg: string, _key: string): string { return ''; },
   clients(): number { return 0; },
-  screenshot(): string { return ''; },
+  screenshot(maxW: i32, maxH: i32): string { return ''; },
   trace(_on: boolean): string { return '[]'; },
 };

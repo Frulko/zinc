@@ -84,7 +84,7 @@ message, hidden after 8 s), like React Native's LogBox.
 
 `zinc dev` adds `plugins/devtools` to programs that use `zinc:ui` (on macos, linux, rpi1); elsewhere
 `import 'zinc:devtools'` or `zinc build --devtools` opts in, `--no-devtools` opts out. The program listens on
-`127.0.0.1:9229` (`zinc.json` `plugins.devtools.port`) and speaks a subset of the Chrome DevTools protocol:
+`127.0.0.1:9229` (`zinc.json` `plugins.devtools.port`, or `ZINC_DEVTOOLS_PORT` to run two programs at once) and speaks a subset of the Chrome DevTools protocol:
 
 - discovery: `/json/list`, `/json/version`; in Chrome open `chrome://inspect`, *Configure…* → `localhost:9229`,
   (localhost:9229 is in the default list) then *inspect* under Remote Target (or open
@@ -94,7 +94,13 @@ message, hidden after 8 s), like React Native's LogBox.
   `setAttributesAsText`) restyles the node live; `DOM.getBoxModel`;
 - **Computed styles**: `CSS.getComputedStyleForNode` with the layout values (position, size, padding, margin, gap,
   flex, colors, font size, radius, opacity);
-- **Overlay.highlightNode** draws a blue box over the node in the app;
+- **Overlay.highlightNode** draws a blue box over the node in the app (through scroll offsets and transforms);
+- **inspect mode** (the arrow at the top left, `Overlay.setInspectMode`): hovering the app highlights the node under
+  the pointer, in the app and in Elements (`Overlay.nodeHighlightRequested`); a click selects it in Elements
+  (`Overlay.inspectNodeRequested`) and ends the mode. Meanwhile the app gets no pointer or key input;
+- **screencast** (the page view next to the panels, `Page.startScreencast`): the frame on screen, shrunk by a whole
+  factor to the size DevTools asks for, as PNG, sent when it changed and the previous frame was acknowledged
+  (at most 10 per second);
 - **Page.captureScreenshot** returns the frame on screen as a base64 PNG, rasterized by the runtime at the window's
   physical size (`format`, `clip` and `quality` are ignored);
 - **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects);
