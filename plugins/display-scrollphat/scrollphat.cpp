@@ -120,5 +120,5 @@ static void present(const HalFrame* f) {
 
 static void shutdown() { dev_close(); }
 
-static HalDisplay drv = {init, present, nullptr, shutdown};
+static HalDisplay drv = {init, present, nullptr, shutdown, 0};
 static int reg = (hal_display = &drv, 0);
