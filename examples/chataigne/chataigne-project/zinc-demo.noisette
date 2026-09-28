@@ -1,0 +1,1049 @@
+{
+ "metaData": {
+  "version": "1.10.4",
+  "versionNumber": 68100
+ },
+ "modules": {
+  "items": [
+   {
+    "niceName": "Zinc",
+    "type": "OSC",
+    "params": {
+     "containers": {
+      "oscInput": {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        },
+        {
+         "value": 12000,
+         "controlAddress": "/localPort",
+         "hexMode": false
+        }
+       ]
+      },
+      "oscOutputs": {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "items": [
+        {
+         "parameters": [
+          {
+           "value": true,
+           "controlAddress": "/enabled"
+          },
+          {
+           "value": true,
+           "controlAddress": "/local"
+          },
+          {
+           "value": "127.0.0.1",
+           "controlAddress": "/remoteHost"
+          },
+          {
+           "value": 9000,
+           "controlAddress": "/remotePort",
+           "hexMode": false
+          }
+         ],
+         "niceName": "OSC Output",
+         "type": "BaseItem"
+        }
+       ]
+      }
+     }
+    },
+    "values": {
+     "parameters": [
+      {
+       "controlAddress": "/_zinc_fader_1",
+       "type": "Float",
+       "niceName": "/zinc/fader/1",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_fader_1",
+       "value": 0.0,
+       "minValue": 0.0,
+       "maxValue": 1.0
+      },
+      {
+       "controlAddress": "/_zinc_fader_2",
+       "type": "Float",
+       "niceName": "/zinc/fader/2",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_fader_2",
+       "value": 0.0,
+       "minValue": 0.0,
+       "maxValue": 1.0
+      },
+      {
+       "controlAddress": "/_zinc_fader_3",
+       "type": "Float",
+       "niceName": "/zinc/fader/3",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_fader_3",
+       "value": 0.0,
+       "minValue": 0.0,
+       "maxValue": 1.0
+      },
+      {
+       "controlAddress": "/_zinc_fader_4",
+       "type": "Float",
+       "niceName": "/zinc/fader/4",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_fader_4",
+       "value": 0.0,
+       "minValue": 0.0,
+       "maxValue": 1.0
+      },
+      {
+       "controlAddress": "/_zinc_cue_go",
+       "type": "Trigger",
+       "niceName": "/zinc/cue/go",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_cue_go"
+      },
+      {
+       "controlAddress": "/_zinc_cue_stop",
+       "type": "Trigger",
+       "niceName": "/zinc/cue/stop",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_cue_stop"
+      },
+      {
+       "controlAddress": "/_zinc_toggle_1",
+       "type": "Boolean",
+       "niceName": "/zinc/toggle/1",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_toggle_1",
+       "value": false
+      },
+      {
+       "controlAddress": "/_zinc_toggle_2",
+       "type": "Boolean",
+       "niceName": "/zinc/toggle/2",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_toggle_2",
+       "value": false
+      },
+      {
+       "controlAddress": "/_zinc_toggle_3",
+       "type": "Boolean",
+       "niceName": "/zinc/toggle/3",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_toggle_3",
+       "value": false
+      },
+      {
+       "controlAddress": "/_zinc_xy",
+       "type": "Point2D",
+       "niceName": "/zinc/xy",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_xy",
+       "value": [
+        0.5,
+        0.5
+       ],
+       "minValue": [
+        0.0,
+        0.0
+       ],
+       "maxValue": [
+        1.0,
+        1.0
+       ]
+      },
+      {
+       "controlAddress": "/_zinc_color",
+       "type": "Color",
+       "niceName": "/zinc/color",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_color",
+       "value": [
+        0.39,
+        0.4,
+        0.95,
+        1.0
+       ]
+      },
+      {
+       "controlAddress": "/_zinc_chat",
+       "type": "String",
+       "niceName": "/zinc/chat",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_zinc_chat",
+       "value": ""
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "customVariables": {
+  "items": [
+   {
+    "niceName": "Zinc",
+    "type": "CVGroup",
+    "variables": {
+     "items": [
+      {
+       "parameters": [
+        {
+         "value": 0.0,
+         "minValue": 0.0,
+         "maxValue": 1.0,
+         "default": 0.0,
+         "controlAddress": "/fader1",
+         "feedbackOnly": false,
+         "type": "Float",
+         "niceName": "Fader 1",
+         "customizable": true,
+         "removable": false,
+         "description": "Follows /zinc/fader/1 from the app",
+         "hideInEditor": false
+        }
+       ],
+       "niceName": "Fader 1",
+       "type": "Float Parameter"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "states": {
+  "items": [
+   {
+    "parameters": [
+     {
+      "value": [
+       -200.0,
+       -150.0
+      ],
+      "controlAddress": "/viewUIPosition"
+     },
+     {
+      "value": [
+       400.0,
+       420.0
+      ],
+      "controlAddress": "/viewUISize"
+     },
+     {
+      "value": true,
+      "controlAddress": "/active"
+     }
+    ],
+    "niceName": "Zinc Show",
+    "type": "State",
+    "processors": {
+     "items": [
+      {
+       "niceName": "Cue GO",
+       "type": "Action",
+       "conditions": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_cue_go",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "From Input Value",
+          "type": "From Input Value"
+         }
+        ]
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Cue name",
+          "type": "Consequence",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/cue/name",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "Scene 2"
+              }
+             }
+            ]
+           }
+          }
+         },
+         {
+          "niceName": "Cue running",
+          "type": "Consequence",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/cue/running",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 1
+              }
+             }
+            ]
+           }
+          }
+         },
+         {
+          "niceName": "Play fader sweep",
+          "type": "Consequence",
+          "commandModule": "sequences",
+          "commandPath": "Playback",
+          "commandType": "Play Sequence",
+          "command": {
+           "parameters": [
+            {
+             "value": "/sequences/faderSweep",
+             "controlAddress": "/target"
+            },
+            {
+             "value": true,
+             "controlAddress": "/playFromStart"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Cue Stop",
+       "type": "Action",
+       "conditions": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_cue_stop",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "From Input Value",
+          "type": "From Input Value"
+         }
+        ]
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Cue name",
+          "type": "Consequence",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/cue/name",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "Stopped"
+              }
+             }
+            ]
+           }
+          }
+         },
+         {
+          "niceName": "Cue not running",
+          "type": "Consequence",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/cue/running",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 0
+              }
+             }
+            ]
+           }
+          }
+         },
+         {
+          "niceName": "Stop fader sweep",
+          "type": "Consequence",
+          "commandModule": "sequences",
+          "commandPath": "Playback",
+          "commandType": "Stop Sequence",
+          "command": {
+           "parameters": [
+            {
+             "value": "/sequences/faderSweep",
+             "controlAddress": "/target"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Fader 1 to variable",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_fader_1",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": []
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "customVariables",
+          "commandPath": "",
+          "commandType": "Set Value",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/fader1",
+             "controlAddress": "/target"
+            },
+            {
+             "value": "All",
+             "controlAddress": "/component"
+            },
+            {
+             "value": "Equals",
+             "controlAddress": "/operator"
+            }
+           ],
+           "paramLinks": {
+            "value": {
+             "linkType": 1,
+             "mappingValueIndex": 0
+            }
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Meter 1",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_fader_1",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": [
+         {
+          "niceName": "Remap",
+          "type": "Remap",
+          "filterParams": {
+           "parameters": [
+            {
+             "value": [
+              0.0,
+              0.85
+             ],
+             "controlAddress": "/targetMin_Max"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/meter/1",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Meter 2",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_fader_2",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": [
+         {
+          "niceName": "Remap",
+          "type": "Remap",
+          "filterParams": {
+           "parameters": [
+            {
+             "value": [
+              0.0,
+              0.85
+             ],
+             "controlAddress": "/targetMin_Max"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/meter/2",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Meter 3",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_fader_3",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": [
+         {
+          "niceName": "Remap",
+          "type": "Remap",
+          "filterParams": {
+           "parameters": [
+            {
+             "value": [
+              0.0,
+              0.85
+             ],
+             "controlAddress": "/targetMin_Max"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/meter/3",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Meter 4",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_fader_4",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": [
+         {
+          "niceName": "Remap",
+          "type": "Remap",
+          "filterParams": {
+           "parameters": [
+            {
+             "value": [
+              0.0,
+              0.85
+             ],
+             "controlAddress": "/targetMin_Max"
+            }
+           ],
+           "paramLinks": {}
+          }
+         }
+        ]
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/meter/4",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Chat echo",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/modules/zinc/values/_zinc_chat",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": []
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "zinc",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/zinc/chat",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": ""
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "sequences": {
+  "items": [
+   {
+    "parameters": [
+     {
+      "value": 4.0,
+      "controlAddress": "/totalTime"
+     },
+     {
+      "value": true,
+      "controlAddress": "/loop"
+     }
+    ],
+    "niceName": "Fader Sweep",
+    "type": "Sequence",
+    "layers": {
+     "items": [
+      {
+       "niceName": "Fader 4",
+       "type": "Mapping",
+       "containers": {
+        "automation": {
+         "items": [
+          {
+           "parameters": [
+            {
+             "value": 0.0,
+             "controlAddress": "/position"
+            },
+            {
+             "value": 0.1,
+             "controlAddress": "/value"
+            },
+            {
+             "value": "Linear",
+             "controlAddress": "/easingType"
+            }
+           ],
+           "niceName": "Key",
+           "type": "Key"
+          },
+          {
+           "parameters": [
+            {
+             "value": 2.0,
+             "controlAddress": "/position"
+            },
+            {
+             "value": 0.95,
+             "controlAddress": "/value"
+            },
+            {
+             "value": "Linear",
+             "controlAddress": "/easingType"
+            }
+           ],
+           "niceName": "Key 1",
+           "type": "Key"
+          },
+          {
+           "parameters": [
+            {
+             "value": 4.0,
+             "controlAddress": "/position"
+            },
+            {
+             "value": 0.1,
+             "controlAddress": "/value"
+            },
+            {
+             "value": "Linear",
+             "controlAddress": "/easingType"
+            }
+           ],
+           "niceName": "Key 2",
+           "type": "Key"
+          }
+         ]
+        },
+        "mapping": {
+         "niceName": "Mapping",
+         "type": "Mapping",
+         "outputs": {
+          "items": [
+           {
+            "niceName": "MappingOutput",
+            "type": "BaseItem",
+            "commandModule": "zinc",
+            "commandPath": "",
+            "commandType": "Custom Message",
+            "command": {
+             "parameters": [
+              {
+               "value": "/zinc/fader/4",
+               "controlAddress": "/address"
+              }
+             ],
+             "paramLinks": {},
+             "argManager": {
+              "items": [
+               {
+                "niceName": "#1",
+                "type": "Float",
+                "param": {
+                 "value": 0.0
+                },
+                "paramLink": {
+                 "linkType": 1,
+                 "mappingValueIndex": 0
+                }
+               }
+              ]
+             }
+            }
+           }
+          ]
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

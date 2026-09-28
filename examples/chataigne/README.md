@@ -26,6 +26,27 @@ focus). The Simulator switch there closes the socket and answers like Chataigne 
 Chataigne's OSC module listens on **12000** and sends to **127.0.0.1:9000** by default, the mirror image of the app,
 so on one machine both sides work without touching a port.
 
+### Open the ready-made project
+
+**File > Open > `chataigne-project/zinc-demo.noisette`**, then run the app. The project needs nothing installed:
+
+| Part | What it does |
+| --- | --- |
+| Module **Zinc** | a plain OSC module (Protocol > OSC): listens on 12000, sends to 127.0.0.1:9000, with the app's values already declared: `/zinc/fader/1..4` (Float 0..1), `/zinc/cue/go`, `/zinc/cue/stop` (Trigger), `/zinc/toggle/1..3` (Boolean), `/zinc/xy` (Point2D), `/zinc/color` (Color), `/zinc/chat` (String) |
+| Custom variable **Zinc > Fader 1** | follows fader 1 (mapping *Fader 1 to variable*, a **Set Value** command) |
+| Action **Cue GO** | on `/zinc/cue/go`: sends `/zinc/cue/name "Scene 2"` and `/zinc/cue/running 1`, and plays the sequence |
+| Action **Cue Stop** | on `/zinc/cue/stop`: sends `/zinc/cue/name "Stopped"` and `/zinc/cue/running 0`, and stops the sequence |
+| Mappings **Meter 1..4** | each fader, remapped to 0..0.85, goes back as `/zinc/meter/n` (a **Custom Message** output) |
+| Mapping **Chat echo** | every chat message comes back as a Chataigne bubble |
+| Sequence **Fader Sweep** | 4 s, looping: a mapping layer sweeps `/zinc/fader/4` from 10 % to 95 % and back, so Chataigne moves the app's fader |
+
+Press GO in the app: the cue name changes and fader 4 starts moving on its own; Stop halts it.
+
+The file was written by hand from Chataigne's source (1.10.x) and projects it saved, not saved by Chataigne itself:
+it has not been opened in a real Chataigne yet. If a part fails to load, the rest still does (Chataigne loads each
+item on its own and falls back to defaults), and saving the project from Chataigne rewrites it in its own format.
+Mappings only send on change, so the same chat message twice is echoed once.
+
 ### With the Zinc module (typed values and commands)
 
 `chataigne-module/` is a Chataigne custom module: an OSC module with named values and commands plus a small script.
@@ -106,6 +127,7 @@ for a log, so they only appear with **Meters and faders** switched on.
 | `src/panels/surface.tsx` | the XY pad (a `Canvas` drawn with `zinc:gfx`, dragged with pointer events), swatches |
 | `src/panels/feed.tsx` | chat bubbles and input, the monospace incoming log |
 | `chataigne-module/` | the Chataigne custom module: `module.json` (values, commands, ports) and `zinc.js` |
+| `chataigne-project/zinc-demo.noisette` | a ready-to-open Chataigne project (plain OSC module, actions, mappings, a sequence) |
 | `tools/fake-chataigne.mjs` | a UDP stand-in for Chataigne that prints both directions |
 
 ## Notes
