@@ -665,10 +665,12 @@ function help(topic?: string) {
   ZINC_GPIO_SCRIPT="27:0@1000,..."   scripted GPIO edges for the simulator
   ZINC_QEMU_TIMEOUT=s    esp32 QEMU run limit          ZRT_GPIOD=1   use libgpiod on linux/rpi1 builds`,
     ui: `UI (zinc:ui, zinc:ui/solid, zinc:ui/react; .tsx files)
-  JSX host tags view/text/button/image/scroll/canvas (and View/Text/Image for PocketJS), Tailwind-like classes
+  JSX host tags View/Text/Button/Image/ScrollView/Canvas (or view/text/button/image/scroll/canvas), Tailwind-like classes
   (flexbox, spacing, colours, gradients, radius, shadows, borders, typography, focus:/active: variants),
   import './app.css' (class rules compiled at build time), style={{ opacity, translateX, ... }}, engine animations.
+  Inline {items.map(x => <Row/>)} and {cond ? <A/> : <B/>} / {cond && <A/>} children in both models.
   Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
+  Components: zinc:ui/kit (shadcn-style Button, Card, Tabs, Switch, Slider, Stat..., light/dark themes, docs/ui-kit.md).
   Responsive: sm: md: lg: xl: 2xl: prefixes (640/768/1024/1280/1536 px), re-evaluated when the window is resized.
   Scrolling: <scroll>/<ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
   <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.
