@@ -5,6 +5,8 @@
 
 static SDL_Window* win;
 static SDL_Renderer* ren;
+static SDL_Texture* tex;
+static uint32_t* fb;
 static int W = 320, H = 240;
 static bool gfx_on;
 static bool quit;
@@ -22,6 +24,9 @@ void hal_init(const HalConfig* cfg) {
     hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   SDL_SetRenderLogicalPresentation(ren, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   SDL_SetRenderVSync(ren, 1);
+  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, W, H);
+  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+  fb = (uint32_t*)calloc((size_t)W * H, 4);
   if (const char* f = getenv("ZINC_FRAMES")) frames_left = atol(f);
   shot_path = getenv("ZINC_SHOT");
 }
@@ -63,31 +68,18 @@ void hal_poll_input(HalInput* in) {
   in->quit = quit;
 }
 
-static void color(uint32_t c) { SDL_SetRenderDrawColor(ren, (c >> 16) & 255, (c >> 8) & 255, c & 255, 255); }
-
-void hal_present(const HalDrawList* dl) {
+// The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
+void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
-  char buf[1024];
-  for (uint32_t i = 0; i < dl->count; i++) {
-    const HalDrawCmd& c = dl->cmds[i];
-    color(c.color);
-    switch (c.kind) {
-      case HAL_DRAW_CLEAR: SDL_RenderClear(ren); break;
-      case HAL_DRAW_RECT: { SDL_FRect r = {c.x, c.y, c.w, c.h}; SDL_RenderFillRect(ren, &r); break; }
-      case HAL_DRAW_LINE: SDL_RenderLine(ren, c.x, c.y, c.w, c.h); break;
-      case HAL_DRAW_TEXT: {
-        size_t n = c.text_len < sizeof buf - 1 ? c.text_len : sizeof buf - 1;
-        SDL_memcpy(buf, dl->text + c.text_off, n); buf[n] = 0;
-        float s = (float)c.scale;
-        SDL_SetRenderScale(ren, s, s);
-        SDL_RenderDebugText(ren, c.x / s, c.y / s, buf);
-        SDL_SetRenderScale(ren, 1, 1);
-        break;
-      }
-    }
+  if (f->y1 > f->y0 && f->x1 > f->x0) {
+    f->render(fb + (size_t)f->y0 * W, f->y0, f->y1);
+    SDL_Rect r = {0, f->y0, W, f->y1 - f->y0};
+    SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * W, W * 4);
   }
+  SDL_RenderClear(ren);
+  SDL_RenderTexture(ren, tex, nullptr, nullptr);
   if (shot_path && frames_left == 0) {
-    if (SDL_Surface* sfc = SDL_RenderReadPixels(ren, nullptr)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
+    if (SDL_Surface* sfc = SDL_CreateSurfaceFrom(W, H, SDL_PIXELFORMAT_XRGB8888, fb, W * 4)) { SDL_SaveBMP(sfc, shot_path); SDL_DestroySurface(sfc); }
   }
   SDL_RenderPresent(ren);
 }

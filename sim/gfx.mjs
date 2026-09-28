@@ -8,6 +8,27 @@ export const clear = () => {};
 export const rect = () => {};
 export const line = () => {};
 export const text = () => {};
+// metrics come from the baked resources (resources.json next to run.mjs), so layouts match native builds
+const R = () => globalThis.$zRes ?? { fonts: [], images: [] };
+export const rrect = () => {}, gradient = () => {}, border = () => {}, shadow = () => {}, polygon = () => {}, path = () => {};
+export const drawText = () => {}, drawImage = () => {}, clip = () => {}, unclip = () => {}, translate = () => {};
+export function font(name, px) {
+  let best = -1, bd = 1 << 30;
+  R().fonts.forEach((f, i) => { if (f.name === name && Math.abs(f.px - px) < bd) { bd = Math.abs(f.px - px); best = i; } });
+  return best;
+}
+export const fontAscent = f => R().fonts[f]?.ascent ?? 0;
+export const lineHeight = f => { const x = R().fonts[f]; return x ? x.ascent + x.descent + x.lineGap : 0; };
+export function textWidth(f, s, tracking) {
+  const x = R().fonts[f];
+  if (!x) return 0;
+  let pen = 0;
+  for (const ch of s) { const a = x.adv[ch.codePointAt(0)] ?? x.adv[63]; if (a !== undefined) pen += a + Math.trunc(tracking * 64); }
+  return pen / 64;
+}
+export const image = name => R().images.findIndex(i => i.name === name);
+export const imageWidth = i => R().images[i]?.w ?? 0;
+export const imageHeight = i => R().images[i]?.h ?? 0;
 export const isDown = () => false;
 export const wasPressed = () => false;
 export const pointerX = () => 0;

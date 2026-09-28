@@ -486,11 +486,11 @@ struct Timer { Fn<void()> f; double at, every; int32_t id; };
 static const int MAX_TIMERS = ZRT_TIMERS;
 static Timer timers[MAX_TIMERS];
 static int32_t next_timer_id = 1;
-static Fn<void(double)> frame_cb;
-static HalInput input, prev_input;
-static int32_t frame_no = 0;
-static bool quit_requested = false;
-static int32_t surf_w = 320, surf_h = 240;
+Fn<void(double)> frame_cb;
+HalInput input, prev_input;
+int32_t frame_no = 0;
+bool quit_requested = false;
+int32_t surf_w = 320, surf_h = 240;
 static Poller* pollers = nullptr;
 int zrt_argc = 0;
 char** zrt_argv = nullptr;
@@ -720,47 +720,10 @@ void Arena::zrt_dispose() {
 }
 Arena::~Arena() { zrt_dispose(); }
 }
-// ---------- zinc:gfx: fills a draw list executed by hal_present (UI-12) ----------
+// zinc:gfx lives in runtime/gfx.cpp (linked only by programs that draw); these defaults keep other programs small.
 namespace gfx {
-static const uint32_t MAX_CMDS = ZRT_MAX_DRAW_CMDS, MAX_TEXT = ZRT_TEXT_POOL;
-static HalDrawCmd cmds[MAX_CMDS];
-static char text_pool[MAX_TEXT];
-static uint32_t ncmd = 0, ntext = 0;
-
-void begin_frame() { ncmd = 0; ntext = 0; }
-void end_frame() { HalDrawList dl = {cmds, ncmd, text_pool}; stats.draw_cmds = ncmd; hal_present(&dl); }
-static HalDrawCmd* push(uint8_t kind) {
-  if (ncmd == MAX_CMDS) return nullptr;  // ponytail: silently drops past MAX_CMDS commands per frame
-  HalDrawCmd* c = &cmds[ncmd++];
-  c->kind = kind; c->scale = 1; c->text_len = 0; c->text_off = 0;
-  return c;
-}
-void onFrame(Fn<void(double)> cb) { frame_cb = cb; }
-int32_t width() { return surf_w; }
-int32_t height() { return surf_h; }
-void clear(uint32_t color) { if (HalDrawCmd* c = push(HAL_DRAW_CLEAR)) c->color = color; }
-void rect(double x, double y, double w, double h, uint32_t color) {
-  if (HalDrawCmd* c = push(HAL_DRAW_RECT)) { c->x = (float)x; c->y = (float)y; c->w = (float)w; c->h = (float)h; c->color = color; }
-}
-void line(double x1, double y1, double x2, double y2, uint32_t color) {
-  if (HalDrawCmd* c = push(HAL_DRAW_LINE)) { c->x = (float)x1; c->y = (float)y1; c->w = (float)x2; c->h = (float)y2; c->color = color; }
-}
-void text(double x, double y, const String& s, uint32_t color, int32_t scale) {
-  uint32_t n = s.bytes();
-  if (n > 0xFFFF || ntext + n > MAX_TEXT) return;
-  HalDrawCmd* c = push(HAL_DRAW_TEXT);
-  if (!c) return;
-  __builtin_memcpy(text_pool + ntext, s.ptr(), n);
-  c->x = (float)x; c->y = (float)y; c->color = color; c->scale = (uint8_t)(scale < 1 ? 1 : scale);
-  c->text_off = ntext; c->text_len = (uint16_t)n; ntext += n;
-}
-bool isDown(int32_t b) { return (input.buttons >> b) & 1u; }
-bool wasPressed(int32_t b) { return ((input.buttons >> b) & 1u) && !((prev_input.buttons >> b) & 1u); }
-double pointerX() { return input.px; }
-double pointerY() { return input.py; }
-bool pointerDown() { return input.pdown != 0; }
-int32_t frame() { return frame_no; }
-void quit() { quit_requested = true; }
+__attribute__((weak)) void begin_frame() {}
+__attribute__((weak)) void end_frame() {}
 }
 
 }  // namespace zrt

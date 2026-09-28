@@ -7,6 +7,7 @@ import { Sema, ZincError, type NumKind } from './sema.ts';
 import { emitCpp, type CppResult } from './emit-cpp.ts';
 import { emitJs } from './emit-js.ts';
 import { initProject, exportApp, dev, monitor } from './tools.ts';
+import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
@@ -183,6 +184,28 @@ function assetsSource(o: Opts): string {
   return out.join('\n');
 }
 
+function usesGfx(sema: Sema): boolean { return sema.fe.sources.some(f => /from ['"]zinc:gfx['"]/.test(f.text)); }
+/** Fonts and images baked for this program (cached by content key in the build directory). */
+function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: string } {
+  const user = sema.fe.sources.filter(f => !f.fileName.startsWith(path.join(ZINC_ROOT, 'lib') + path.sep)).map(f => ({ fileName: f.fileName, text: f.text }));
+  const assetStamp: string[] = [];
+  const walk = (d?: string) => { if (!d || !fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else assetStamp.push(p + ':' + st.mtimeMs); } };
+  walk(o.project.assets);
+  const key = JSON.stringify([user.map(u => u.text), assetStamp, fs.statSync(path.join(ZINC_ROOT, 'compiler/src/resources.ts')).mtimeMs]);
+  const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
+  const cpp = path.join(dir, 'zinc_resources.cpp'), json = path.join(dir, 'resources.json'), stamp = path.join(dir, 'resources.key');
+  fs.mkdirSync(dir, { recursive: true });
+  if (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === hash(key) && fs.existsSync(cpp) && fs.existsSync(json)) return { cpp, json: fs.readFileSync(json, 'utf8') };
+  const t = Date.now();
+  const rs = collectResources(user, o.project.assets);
+  writeIfChanged(cpp, resourcesCpp(rs));
+  const j = resourcesJson(rs);
+  fs.writeFileSync(json, j);
+  fs.writeFileSync(stamp, hash(key));
+  log(o, `baked ${rs.fonts.length} font sizes and ${rs.images.length} image(s) in ${Date.now() - t} ms`);
+  return { cpp, json: j };
+}
+
 function run(cmd: string, args: string[], cwd?: string, quiet = false): number {
   const r = spawnSync(cmd, args, { cwd, stdio: quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit', encoding: 'utf8' });
   if (r.error) die(`cannot run ${cmd}: ${r.error.message}`);
@@ -200,12 +223,17 @@ function build(o: Opts): Built {
   const title = o.project.name;
   const prof = PROFILES[o.profile];
   if (o.target === 'sim' || o.emit === 'js') {
-    const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height]));
+    const baked = usesGfx(sema) ? bakeResources(o, sema, dir) : undefined;
+    const runner = guard(o, () => emitJs(sema, dir, o.project.assets, [prof.width, prof.height], baked?.json));
     if (o.emit === 'js') { console.log(runner.files.map(f => f.path).join('\n')); process.exit(0); }
     log(o, `built sim in ${Date.now() - t0} ms -> ${path.relative(process.cwd(), dir)}`);
     return { exe: ['node', path.join(dir, 'run.mjs')], dir };
   }
   const res = guard(o, () => emitCpp(sema, { debug: o.debug, title, width: prof.width, height: prof.height, outDir: dir, target: o.target }));
+  if (res.usesGfx) {
+    const baked = bakeResources(o, sema, dir);
+    res.nativeSources.push(path.join(ZINC_ROOT, 'runtime/raster.cpp'), path.join(ZINC_ROOT, 'runtime/gfx.cpp'), baked.cpp);
+  }
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
   if (res.modules.has('assets')) { writeIfChanged(path.join(dir, 'zinc_assets.cpp'), assetsSource(o)); res.nativeSources.push(path.join(dir, 'zinc_assets.cpp')); }

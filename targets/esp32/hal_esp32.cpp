@@ -43,7 +43,7 @@ void hal_panic(const char* msg, const char* file, int line) {
 void hal_frame_begin(void) {}
 void hal_frame_end(void) { vTaskDelay(1); }
 void hal_poll_input(HalInput* in) { in->buttons = 0; in->px = in->py = 0; in->pdown = 0; in->quit = frames_left-- <= 0; }
-void hal_present(const HalDrawList*) {}
+void hal_present(const HalFrame*) {}
 void hal_surface_size(int* w, int* h) { *w = 320; *h = 240; }
 double hal_fixed_dt(void) { return 1.0 / 30.0; }
 void hal_run(int (*step)(void)) { while (step()) {} }

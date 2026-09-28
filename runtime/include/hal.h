@@ -25,20 +25,12 @@ struct HalInput {
   int32_t quit;          // window closed / frame budget exhausted
 };
 
-enum HalDrawKind : uint8_t { HAL_DRAW_CLEAR, HAL_DRAW_RECT, HAL_DRAW_LINE, HAL_DRAW_TEXT };
-
-struct HalDrawCmd {
-  uint8_t kind, scale;
-  uint16_t text_len;
-  uint32_t color;        // 0xRRGGBB
-  uint32_t text_off;     // into DrawList.text
-  float x, y, w, h;      // for LINE: (x,y)-(w,h)
-};
-
-struct HalDrawList {
-  const HalDrawCmd* cmds;
-  uint32_t count;
-  const char* text;
+/** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
+ *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */
+struct HalFrame {
+  int32_t w, h;
+  int32_t x0, y0, x1, y1;   // damaged rectangle (empty when nothing changed)
+  void (*render)(uint32_t* rows, int32_t y0, int32_t y1);  // rows points at row y0 of a w-wide buffer
 };
 
 void hal_init(const HalConfig* cfg);
@@ -58,7 +50,7 @@ void hal_heap_region(void** base, size_t* size);
 void hal_frame_begin(void);
 void hal_frame_end(void);
 void hal_poll_input(HalInput* in);
-void hal_present(const HalDrawList* dl);
+void hal_present(const HalFrame* f);
 void hal_surface_size(int* w, int* h);
 // Fixed timestep used by headless HALs (virtual clock, TST-10). 0 = real time.
 double hal_fixed_dt(void);
