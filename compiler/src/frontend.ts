@@ -86,7 +86,7 @@ export function loadProgram(entryPath: string, extra: string[] = []): Frontend {
       return ts.createSourceFile(f, '', lang, true);
     }
   };
-  const program = ts.createProgram([entryAbs, ...extra, ...LIB_FILES], options, host);
+  const program = ts.createProgram([...extra, entryAbs, ...LIB_FILES], options, host);  // extra modules initialize first
   const checker = program.getTypeChecker();
   const sources = program.getSourceFiles().filter(f => !f.isDeclarationFile && !f.fileName.includes('/node_modules/'));
   const entry = program.getSourceFile(entryAbs);

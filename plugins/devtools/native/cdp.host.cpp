@@ -66,6 +66,8 @@ const char* field(const zrt::String& msg, const char* key) {
   return p;
 }
 
+zrt::String lit(const char* s) { return zrt::String::from(s, (uint32_t)strlen(s)); }
+
 bool write_all(int fd, const char* p, size_t n) {
   while (n) {
     ssize_t w = ::write(fd, p, n);
@@ -100,9 +102,9 @@ struct HostCdp : NativeCdp, zrt::Poller {
       lfd = (int)strtol(e, &end, 10);
       for (int i = 0; i < MAXC && *end == ','; i++) { cl[i].fd = (int)strtol(end + 1, &end, 10); cl[i].ws = true; }
       unsetenv("ZINC_DEVTOOLS_FDS");
-      send(-1, zrt::String::from("{\"method\":\"Runtime.executionContextsCleared\",\"params\":{}}", 56));
+      send(-1, lit("{\"method\":\"Runtime.executionContextsCleared\",\"params\":{}}"));
       send(-1, context());
-      send(-1, zrt::String::from("{\"method\":\"DOM.documentUpdated\",\"params\":{}}", 44));
+      send(-1, lit("{\"method\":\"DOM.documentUpdated\",\"params\":{}}"));
       return true;
     }
     lfd = socket(AF_INET, SOCK_STREAM, 0);

@@ -98,19 +98,28 @@ function handle(client: i32, msg: string): void {
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }
 
-// Tree changes (nodes created, removed, re-texted, re-classed) refresh the Elements panel, at most once a second.
+// Twice a second: structure or class changes refresh the Elements panel (DOM.documentUpdated); text changes update
+// the text node in place (DOM.characterDataModified).
 let signature = '';
-function treeSignature(h: i32): string {
+const texts = new Map<i32, string>();
+function treeSignature(h: i32, textEvents: string[]): string {
   const n = inspectNode(h);
   if (n === null) return '';
-  let s = `${h}:${n.tag}:${n.cls}:${n.text}(`;
-  for (const c of n.children) s += treeSignature(c);
+  if (n.tag === TEXT) {
+    const old = texts.get(h);
+    if (old !== undefined && old !== n.text) textEvents.push(`{"method":"DOM.characterDataModified","params":{"nodeId":${TEXT_BASE + h},"characterData":${q(n.text)}}}`);
+    texts.set(h, n.text);
+  }
+  let s = `${h}:${n.tag}:${n.cls}:${n.text.length > 0 ? 't' : ''}(`;
+  for (const c of n.children) s += treeSignature(c, textEvents);
   return s + ')';
 }
-if (Cdp.listen(9229, handle)) {
-  setInterval(() => {
-    if (Cdp.clients() === 0) return;
-    const s = treeSignature(inspectRoot());
-    if (s !== signature) { if (signature.length > 0) Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}'); signature = s; }
-  }, 1000);
-}
+Cdp.listen(9229, handle);
+setInterval(() => {
+  if (Cdp.clients() === 0) { signature = ''; texts.clear(); return; }
+  const events: string[] = [];
+  const s = treeSignature(inspectRoot(), events);
+  if (signature.length > 0 && s !== signature) Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}');
+  else for (const e of events) Cdp.send(-1, e);
+  signature = s;
+}, 500);
