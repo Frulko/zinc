@@ -24,7 +24,7 @@
       "rst": -1,
       "bl": 0,
       "brightness": 255,
-      "hz": 20000000,
+      "hz": 10000000,
       "lines": 12,
       "madctl": 8,
       "invert": 0,

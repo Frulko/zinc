@@ -60,7 +60,7 @@ prints `keypad check: unlocked`. `ZINC_STATS=1` prints the figures every second.
 | LCD D6 | 33 | touch SDA | 21 |
 | LCD D7 | 32 | touch SCL | 22 |
 
-Panel settings: MADCTL 0x08 (BGR, portrait), no inversion, no RAM offset, RGB565 high byte first, 20 MHz write clock.
+Panel settings: MADCTL 0x08 (BGR, portrait), no inversion, no RAM offset, RGB565 high byte first, 10 MHz write clock (20 MHz is ignored by the panel on the real board).
 Sources (the vendor's LovyanGFX config, `CST820.cpp`, the schematics) and details: [docs/boards.md](../../../docs/boards.md#esp32-2432s022-jczn-22).
 
 ## Files
@@ -112,8 +112,8 @@ frame of the System page is under 1 ms.
 
 ### ESP32 frame budget (estimates, not measured)
 
-- **Transfer**: 8-bit bus at 20 MHz = 10 Mpixel/s: a full screen (76,800 px) is 7.7 ms, the benchmark's 23 K px
-  2.3 ms. The ESP32's I2S LCD driver also copies each band into its own DMA buffer with the CPU (~1–2 ms per full
+- **Transfer**: 8-bit bus at 10 MHz = 5 Mpixel/s: a full screen (76,800 px) is 15 ms, the benchmark's 23 K px
+  4.6 ms. The ESP32's I2S LCD driver also copies each band into its own DMA buffer with the CPU (~1–2 ms per full
   screen); DMA of one band overlaps the rendering of the next.
 - **Rasterization** (software, float coverage near edges): roughly 10–30 cycles per covered pixel and layer at
   240 MHz. A full-stage transition frame (240x240, 2–3 layers) is then 10–20 ms, i.e. transitions around 30–50 fps;
@@ -125,7 +125,7 @@ Check them on the board with `zinc monitor`: the log gives fps, the slowest fram
 
 ## Not verified (no board was available)
 
-Everything that touches the real hardware: the i80 bus timing at 20 MHz and the byte order on the wire, MADCTL/BGR
+Everything that touches the real hardware: MADCTL/BGR
 and inversion, the ST7789 tuning sequence, the touch orientation (fix with `tswap`/`tflipx`/`tflipy` in the display
 options if a tap lands mirrored), the PWM backlight on GPIO0, the real frame rates and the flashing through the
 CH340. Verified: the emulator (all pages, the keypad check), the firmware build, and QEMU boots with the heap,

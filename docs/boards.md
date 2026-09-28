@@ -154,8 +154,9 @@ Sources: `2.2inch_ESP32-2432S022/` vendor package: `1-Demo/Demo_Arduino/1_1_Fact
 
 - `width`/`height` 240x320 (portrait, USB-C at the bottom) on every target, `resize: "letterbox"` on macOS (the
   emulator window is the panel at 2x);
-- display `st7789` with `bus: "i80"`, the pins above, `hz: 20000000` (20 MHz WR clock, below the vendor's 25 MHz;
-  the ST7789 datasheet asks for a 66 ns write cycle, ~15 MHz, so raise it only after checking), `lines: 12`,
+- display `st7789` with `bus: "i80"`, the pins above, `hz: 10000000` (10 MHz WR clock; on a real board 20 MHz
+  made the panel ignore every command and stay white, while 10 and 5 MHz worked, checked by reading the controller
+  back over a bit-banged bus: RDDPM / RDDCOLMOD / RAMRD; the ST7789 datasheet asks for ~15 MHz at most), `lines: 12`,
   `madctl: 8` (BGR), `invert: 0`, `bl: 0` with `brightness: 255` (LEDC PWM), `touch: "cst820"` on 21/22 at 0x15;
 - `targets.esp32`: `chip: "esp32"`, `flashSize: "4MB"`, `heap: 196608` (asked for; see below), and `sdkconfig`
   lines: 240 MHz CPU (IDF defaults to 160), `CONFIG_FREERTOS_HZ=1000` (1 ms ticks: the frame loop's short sleeps and
@@ -325,7 +326,7 @@ To check on the real hardware:
 - the IMU axis mapping and signs (`tilt-sand`, see above), the shake threshold, the QMI8658 register setup;
 - the heat at `brightness: 32` over time;
 - flashing over the native USB (auto-reset into the bootloader) and `zinc monitor` on the USB-Serial/JTAG port;
-- the ESP32-2432S022: the whole display path (i80 timing at 20 MHz, byte order, MADCTL BGR, no inversion, the
+- the ESP32-2432S022: the whole display path (the i80 timing is verified at 10 MHz and the byte order on the wire too; MADCTL BGR, no inversion, the
   LovyanGFX panel tuning), the touch orientation (`tswap`/`tflipx`/`tflipy`), the LEDC backlight on GPIO0, and the
   frame rates (QEMU does not model time; the demo README gives estimates);
 - the Scroll pHAT: column/bit orientation (`rotate: 180` if the badge is upside down), the brightness mapping, the
