@@ -59,6 +59,7 @@ function parseArgs(argv: string[]): Opts {
     else if (a === '--release') o.debug = false;
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
     else if (a === '--json') o.json = true;
+    else if (a === '--verbose' || a === '-v') VERBOSE = true;
     else if (a === '--no-float') o.noFloat = true;
     else if (a === '--no-dyn') o.noDyn = true;
     else if (a === '--obfuscate') o.obfuscate = true;
@@ -354,8 +355,14 @@ function bakeResources(o: Opts, sema: Sema, dir: string): { cpp: string; json: s
   return { cpp, json: j };
 }
 
-function run(cmd: string, args: string[], cwd?: string, quiet = false): number {
+/** `--verbose` / `-v` / ZINC_VERBOSE=1: stream the output of the build tools instead of showing it only on failure. */
+let VERBOSE = !!process.env.ZINC_VERBOSE;
+function run(cmd: string, args: string[], cwd?: string, quiet = false, what?: string): number {
+  quiet = quiet && !VERBOSE;
+  const t = Date.now();
+  if (what) console.error(`zinc: ${what}${quiet ? ' (output hidden, --verbose to stream it)' : ''}...`);
   const r = spawnSync(cmd, args, { cwd, stdio: quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit', encoding: 'utf8' });
+  if (what) console.error(`zinc: ${what}: ${r.status === 0 ? 'done' : 'failed'} in ${((Date.now() - t) / 1000).toFixed(1)} s`);
   if (r.error) die(`cannot run ${cmd}: ${r.error.message}`);
   if (quiet && r.status !== 0) { process.stderr.write(r.stdout ?? ''); process.stderr.write(r.stderr ?? ''); }
   return r.status ?? 1;
@@ -442,9 +449,9 @@ function build(o: Opts): Built {
   if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
     const genArgs = ['-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`];
     if (spawnSync('ninja', ['--version']).status === 0) genArgs.push('-G', 'Ninja');
-    if (run('cmake', genArgs, undefined, true) !== 0) die('cmake configure failed');
+    if (run('cmake', genArgs, undefined, true, 'configuring (cmake)') !== 0) die('cmake configure failed');
   }
-  if (run('cmake', ['--build', bdir, '-j'], undefined, true) !== 0) die('C++ build failed');
+  if (run('cmake', ['--build', bdir, '-j'], undefined, true, 'compiling C++') !== 0) die('C++ build failed');
   if (mode.hot) {
     const lib = path.join(bdir, 'app.so');
     log(o, `built ${o.target} (dev): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms -> ${path.relative(process.cwd(), lib)}`);
@@ -498,7 +505,7 @@ function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number,
   }
   if (spawnSync('docker', ['image', 'inspect', t.image], { stdio: 'ignore' }).status !== 0) {
     log(o, `building docker image ${t.image} (first time only)...`);
-    if (run('docker', ['build', '-t', t.image, path.join(ZINC_ROOT, t.dockerfile)], undefined, true) !== 0) die('docker build failed');
+    if (run('docker', ['build', '-t', t.image, path.join(ZINC_ROOT, t.dockerfile)], undefined, true, 'building the Docker image (first time only)') !== 0) die('docker build failed');
   }
   // plugin system packages: a derived image per package set, built once
   if (ps.packages.length) {
@@ -521,7 +528,7 @@ function dockerBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number,
   fs.writeFileSync(stamp, want);
   const cm = ['cmake', '-S', '.', '-B', 'cmake', '-DZINC_HEADLESS=ON', `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`, ...t.cmake].map(a => `'${a}'`).join(' ');
   const script = `${cm} >/dev/null && cmake --build cmake -j4`;
-  if (run('docker', [...dockerArgs(dir, t), 'sh', '-c', script], undefined, true) !== 0) die(`C++ build failed (${o.target})`);
+  if (run('docker', [...dockerArgs(dir, t), 'sh', '-c', script], undefined, true, `compiling C++ in Docker (${o.target})`) !== 0) die(`C++ build failed (${o.target})`);
   const out = path.join(bdir, t.out ?? 'app');
   const size = fs.statSync(out).size;
   log(o, `built ${o.target} (docker ${t.image}${t.platform ? ', ' + t.platform : ''}): zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB -> ${path.relative(process.cwd(), out)}`);
@@ -600,7 +607,7 @@ ${customTable ? 'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_
   const t: DockerTarget = { image: IDF_IMAGE, dockerfile: '', cmake: [], run: [] };
   const idfpy = `idf.py -C '${idf}' -B '${path.join(idf, 'build')}'`;
   const steps = [...(setTarget ? [`${idfpy} set-target ${chip}`] : []), `${idfpy} build`, ...(o.cmd === 'flash' ? [`${idfpy} merge-bin`] : [])];
-  if (run('docker', [...dockerArgs(dir, { ...t, entrypoint: 'bash' }), '-c', `source /opt/esp/idf/export.sh >/dev/null 2>&1; ${steps.join(' && ')}`], undefined, true) !== 0) die('ESP-IDF build failed');
+  if (run('docker', [...dockerArgs(dir, { ...t, entrypoint: 'bash' }), '-c', `source /opt/esp/idf/export.sh >/dev/null 2>&1; ${steps.join(' && ')}`], undefined, true, `ESP-IDF build in Docker (${setTarget ? 'set-target + ' : ''}build${o.cmd === 'flash' ? ' + merge-bin' : ''})`) !== 0) die('ESP-IDF build failed');
   fs.writeFileSync(stamp, want);
   const bin = path.join(idf, 'build', `${o.project.name.replace(/[^A-Za-z0-9_]/g, '_')}.bin`);
   const size = fs.existsSync(bin) ? fs.statSync(bin).size : 0;
@@ -626,8 +633,8 @@ function emEnv(): NodeJS.ProcessEnv {
 function wasmBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean): Built {
   Object.assign(process.env, emEnv());
   if (spawnSync('emcc', ['--version']).status !== 0) die('wasm target needs emscripten (brew install emscripten)');
-  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt')) && run('emcmake', ['cmake', '-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`], undefined, true) !== 0) die('emcmake configure failed');
-  if (run('cmake', ['--build', bdir, '-j'], undefined, true) !== 0) die('C++ build failed (wasm)');
+  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt')) && run('emcmake', ['cmake', '-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`], undefined, true, 'configuring (emcmake)') !== 0) die('emcmake configure failed');
+  if (run('cmake', ['--build', bdir, '-j'], undefined, true, 'compiling C++ (wasm)') !== 0) die('C++ build failed (wasm)');
   const wasm = path.join(bdir, 'app.wasm');
   const size = fs.statSync(wasm).size;
   log(o, `built wasm: zinc ${tc - t0} ms, C++ ${Date.now() - tc} ms, ${(size / 1024).toFixed(1)} KiB wasm -> ${path.relative(process.cwd(), path.join(bdir, 'app.html'))}`);
@@ -883,6 +890,7 @@ function help(topic?: string) {
   --emit=hir|mir|cpp|js   print the typed HIR, the SSA MIR, the generated C++ or JavaScript
   --no-dyn           every Dyn (any/unknown) site is an error
   --no-float         reject floating point (fixed-point targets)
+  -v, --verbose      stream cmake / Docker / ESP-IDF output (or ZINC_VERBOSE=1)
   --dev / --devtools / --no-devtools   dev build, UI inspector on/off
   --device user@host remote device for dev/deploy            -- <args>   program arguments
   --display <driver> display plugin for this build, e.g. remote (overrides zinc.json display; env ZINC_DISPLAY)`,
