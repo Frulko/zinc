@@ -551,8 +551,43 @@ class CppEmitter {
     if (!f) return '';
     const I = this.ind(d);
     let out = '';
+    const suspends = (node: ts.Node): boolean => {
+      if (ts.isFunctionLike(node)) return false;
+      return ts.isAwaitExpression(node) || ts.isYieldExpression(node) || !!ts.forEachChild(node, child => suspends(child) || undefined);
+    };
+    const save = (expression: ts.Expression) => {
+      const type = this.s.ztypeOf(expression), code = this.check(this.expr(expression), expression);
+      if (type.k === 'void') { out += `${I}${code};\n`; f.awaits.set(expression, '(void)0'); return; }
+      const name = this.newTmp('operand'); f.fields.set(name, this.cpp(type));
+      out += `${I}${name} = ${code};\n`; f.awaits.set(expression, name);
+    };
     const visit = (n: ts.Node) => {
       if (ts.isFunctionLike(n)) return;
+      if (ts.isBinaryExpression(n) && suspends(n.right) && n.operatorToken.kind < this.K.FirstAssignment && ![this.K.AmpersandAmpersandToken, this.K.BarBarToken, this.K.QuestionQuestionToken].includes(n.operatorToken.kind)) {
+        visit(n.left); save(n.left); visit(n.right); return;
+      }
+      if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && n.arguments?.some(suspends)) {
+        let last = 0; n.arguments.forEach((argument, i) => { if (suspends(argument)) last = i; });
+        if (ts.isPropertyAccessExpression(n.expression)) {
+          const receiver = n.expression.expression, declaration = this.s.declOf(receiver);
+          if (!this.staticOwner(receiver) && (!declaration || !this.s.isLib(declaration))) { visit(receiver); save(receiver); }
+        } else if (ts.isCallExpression(n)) {
+          const declaration=this.s.declOf(n.expression);
+          if (!declaration || !ts.isFunctionDeclaration(declaration)) { visit(n.expression); save(n.expression); }
+        }
+        n.arguments.forEach((argument, i) => { visit(argument); if (i < last) save(argument); });
+        return;
+      }
+      if (ts.isArrayLiteralExpression(n) && n.elements.some(suspends)) {
+        let last=0; n.elements.forEach((element,i) => { if(suspends(element))last=i; });
+        n.elements.forEach((element,i) => {visit(element);if(i<last)save(element);}); return;
+      }
+      if (ts.isObjectLiteralExpression(n) && n.properties.some(suspends)) {
+        const values=n.properties.flatMap(property=>ts.isPropertyAssignment(property)?[property.initializer]:ts.isShorthandPropertyAssignment(property)?[property.name]:ts.isSpreadAssignment(property)?[property.expression]:[]);
+        let last=0; values.forEach((value,i)=>{if(suspends(value))last=i;});
+        values.forEach((value,i)=>{visit(value);if(i<last)save(value);}); return;
+      }
+      if (ts.isElementAccessExpression(n) && suspends(n.argumentExpression)) { visit(n.expression); save(n.expression); visit(n.argumentExpression); return; }
       if (ts.isAwaitExpression(n) || ts.isYieldExpression(n)) {
         ts.forEachChild(n, visit);
         this.checkSuspendPosition(n, s);
@@ -1031,6 +1066,7 @@ class CppEmitter {
   }
 
   expr(e: ts.Expression, want?: ZT): string {
+    const saved = this.ctx.frame?.awaits.get(e); if (saved !== undefined) return saved;
     const K = this.K;
     if (ts.isParenthesizedExpression(e)) return `(${this.expr(e.expression, want)})`;
     if (ts.isNonNullExpression(e) || ts.isSatisfiesExpression(e)) return this.expr(e.expression, want);
