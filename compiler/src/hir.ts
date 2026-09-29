@@ -83,13 +83,14 @@ class Lower {
   }
   cls(c: ts.ClassDeclaration): HClass {
     const base = this.s.baseClass(c);
+    const selfType: Extract<ZT, { k: 'obj' }> = { k: 'obj', decl: c, args: (c.typeParameters ?? []).map(p => ({ k: 'tp', name: p.name.text })) };
     const fieldType = (n: string): ZT => {
       const m = this.s.memberDecl(c, n);
-      if (m) return this.s.declType(m);
+      if (m) return this.s.declType(m, this.s.substFor(selfType, m));
       for (let owner: ts.ClassDeclaration | undefined = c; owner; owner = this.s.baseClass(owner)) {
         const ctor = owner.members.find(ts.isConstructorDeclaration);
         const p = ctor?.parameters.find(x => x.name.getText() === n && !!(ts.getCombinedModifierFlags(x) & (ts.ModifierFlags.Public | ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Readonly)));
-        if (p) return this.s.paramType(p);
+        if (p) return this.s.paramType(p, this.s.substFor(selfType, p));
       }
       return VOID;
     };
@@ -98,7 +99,7 @@ class Lower {
       .map(m => this.fn(m, ts.isConstructorDeclaration(m) ? 'constructor' : `${ts.isGetAccessorDeclaration(m) ? 'get ' : ts.isSetAccessorDeclaration(m) ? 'set ' : ''}${m.name.getText()}`));
     const name = this.symbols?.get(c) ?? c.name?.text ?? 'default';
     if (this.symbols) {
-      const self: HExpr = { k: 'var', t: { k: 'obj', decl: c, args: (c.typeParameters ?? []).map(p => ({ k: 'tp', name: p.name.text })) }, name: 'this' };
+      const self: HExpr = { k: 'var', t: selfType, name: 'this' };
       const initializers: HStmt[] = [];
       for (const p of c.members) if (ts.isPropertyDeclaration(p)) {
         if (ts.getCombinedModifierFlags(p) & ts.ModifierFlags.Static) continue;
@@ -106,7 +107,7 @@ class Lower {
       }
       let ctor = methods.find(f => f.name === 'constructor');
       if (!ctor) {
-        const params = base ? (this.ctorOf(base)?.parameters ?? []).map(p => ({ name: p.name.getText(), t: this.s.paramType(p), cell: false })) : [];
+        const params = base ? (this.ctorOf(base)?.parameters ?? []).map(p => ({ name: p.name.getText(), t: this.s.paramType(p, this.s.substFor(selfType, p)), cell: false })) : [];
         ctor = { name: 'constructor', params, ret: VOID, body: [], throws: false, kind: 'fn', captures: [] };
         if (base) ctor.body.push({ k: 'expr', e: { k: 'call', t: VOID, how: 'static', fn: 'super', args: params.map(p => ({ k: 'var', t: p.t, name: p.name })), check: false } });
         methods.push(ctor);
@@ -115,7 +116,7 @@ class Lower {
         const first = ctor.body[0];
         if (first?.k !== 'expr' || first.e.k !== 'call' || first.e.fn !== 'super') throw new Error('zinc-vm: derived constructors must call super first');
         const params = this.ctorOf(base)?.parameters ?? [];
-        first.e.args = [self, ...first.e.args.map((a,i) => this.conv(a, params[i] ? this.s.paramType(params[i]) : undefined))];
+        first.e.args = [{ ...self, t: this.s.baseType(selfType)! }, ...first.e.args.map((a,i) => this.conv(a, params[i] ? this.s.paramType(params[i], this.s.substFor(selfType, params[i])) : undefined))];
         first.e.fn = `${this.symbols.get(base)}.constructor`;
         ctor.body.splice(1, 0, ...initializers);
       } else ctor.body.unshift(...initializers);
@@ -388,7 +389,10 @@ class Lower {
       }
       const d = s.declOf(e.expression);
       const ctor = d && ts.isClassDeclaration(d) ? this.ctorOf(d) : undefined;
-      return { k: 'new', t, cls: e.expression.getText(), args: (e.arguments ?? []).map((a, i) => this.conv(this.expr(a), ctor?.parameters[i] ? s.paramType(ctor.parameters[i]) : undefined)), check: s.mayThrow(e) };
+      return { k: 'new', t, cls: e.expression.getText(), args: (e.arguments ?? []).map((a, i) => {
+        const parameter = ctor?.parameters[i], expected = parameter ? s.paramType(parameter, s.substFor(t, parameter)) : undefined;
+        return this.conv(this.expr(a, expected), expected);
+      }), check: s.mayThrow(e) };
     }
     if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return { k: 'lambda', t, fn: this.fn(e, '<lambda>') };
     if (ts.isConditionalExpression(e)) return { k: 'cond', t, c: this.cond(e.condition), a: this.conv(this.expr(e.whenTrue), t), b: this.conv(this.expr(e.whenFalse), t) };
@@ -532,7 +536,13 @@ class Lower {
     const callable = !d || (!s.isLib(d) && !ts.isFunctionLike(d)) ? s.tryZ(c) : undefined;
     const bindings = this.symbols && d && (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d)) && d.typeParameters ? s.inferTypeArgs(d, e)
       : this.symbols && d && ts.isPropertyAccessExpression(c) ? s.substFor(s.tryZ(c.expression), d) : undefined;
-    const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p, bindings), undefined)) : callable?.k === 'fn' ? callable.params : [];
+    let params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p, bindings), undefined)) : callable?.k === 'fn' ? callable.params : [];
+    if (this.symbols && c.kind === this.K.SuperKeyword) {
+      const owner = ts.findAncestor(e, ts.isClassDeclaration) as ts.ClassDeclaration;
+      const receiver: Extract<ZT, { k: 'obj' }> = { k: 'obj', decl: owner, args: (owner.typeParameters ?? []).map(p => ({ k: 'tp', name: p.name.text })) };
+      const base = s.baseClass(owner);
+      params = (base ? this.ctorOf(base)?.parameters ?? [] : []).map(p => s.paramType(p, s.substFor(receiver, p)));
+    }
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
     const native = d && this.nativeCalls?.get(d);
     if(this.symbols && native === undefined && d && !s.isLib(d) && ts.isFunctionLike(d)) {

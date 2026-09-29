@@ -808,11 +808,23 @@ export class Sema {
 
   /** Type-parameter substitution for a member accessed through `recv`. */
   substFor(recv: ZT, member: ts.Node): Map<string, ZT> | undefined {
-    if (recv.k !== 'obj' || !recv.args.length) return undefined;
-    const owner = member.parent as ts.ClassLikeDeclaration | ts.InterfaceDeclaration;
+    if (recv.k !== 'obj') return undefined;
+    const owner = (ts.isParameter(member) ? member.parent.parent : member.parent) as ts.ClassLikeDeclaration | ts.InterfaceDeclaration;
+    let concrete: Extract<ZT, { k: 'obj' }> | undefined = recv;
+    while (concrete && concrete.decl !== owner) concrete = this.baseType(concrete);
+    if (!concrete) return undefined;
     const tps = owner?.typeParameters;
     if (!tps) return undefined;
-    return new Map(tps.map((tp, i) => [tp.name.text, recv.args[i]]));
+    return new Map(tps.map((tp, i) => [tp.name.text, concrete!.args[i]]));
+  }
+
+  baseType(recv: Extract<ZT, { k: 'obj' }>): Extract<ZT, { k: 'obj' }> | undefined {
+    if (!ts.isClassDeclaration(recv.decl)) return;
+    const base = this.baseClass(recv.decl);
+    if (!base) return;
+    const bindings = new Map((recv.decl.typeParameters ?? []).map((p, i) => [p.name.text, recv.args[i]]));
+    const heritage = recv.decl.heritageClauses?.find(c => c.token === ts.SyntaxKind.ExtendsKeyword)?.types[0];
+    return { k: 'obj', decl: base, args: (heritage?.typeArguments ?? []).map(t => this.fromTypeNode(t, bindings)) };
   }
 
   // ---------- expression types ----------
@@ -929,7 +941,9 @@ export class Sema {
         if (e.expression.text === 'Array' && a.length === 1) return { k: 'arr', el: a[0] };
       }
       const d = this.declOf(e.expression);
-      if (d && ts.isClassDeclaration(d) && (!this.isLib(d) || this.libModule(d))) return this.fromType(this.checker.getTypeAtLocation(e), e);
+      if (d && ts.isClassDeclaration(d) && (!this.isLib(d) || this.libModule(d))) return e.typeArguments?.length
+        ? { k: 'obj', decl: d, args: e.typeArguments.map(t => this.fromTypeNode(t)) }
+        : this.fromType(this.checker.getTypeAtLocation(e), e);
       if (ts.isIdentifier(e.expression) && ERROR_CLASSES.has(e.expression.text)) return { k: 'obj', decl: this.errorDecl, args: [] };
       if (ts.isIdentifier(e.expression) && e.expression.text === 'Promise') return this.promiseOfNew(e);
     }

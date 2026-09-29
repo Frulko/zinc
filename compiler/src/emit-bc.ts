@@ -93,12 +93,13 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     else if (t.k === 'obj') { const cls = classFor(t); names = cls ? cls.fields.map(f => f.name) : sema.fieldNames(t.decl); types = cls ? cls.fields.map(f => type(f.t)) : names.map(n => type(sema.declType(sema.memberDecl(t.decl, n)!, sema.substFor(t, sema.memberDecl(t.decl, n)!)))); }
     else throw new Error('zinc-vm: unsupported aggregate layout');
     const methods = new Map<number, number>();
-    const addMethods = (decl: ts.ClassDeclaration) => {
-      const base = sema.baseClass(decl); if (base) addMethods(base);
-      const cls = t.k === 'obj' && t.decl === decl ? classFor(t) : classFor({ k: 'obj', decl, args: [] });
+    const addMethods = (owner: Extract<ZT, { k: 'obj' }>) => {
+      const decl = owner.decl;
+      const base = sema.baseType(owner); if (base) addMethods(base);
+      const cls = classFor(owner);
       for (const f of cls?.methods ?? []) if (!f.static && !f.name.endsWith('.constructor')) methods.set(field(f.name.slice(f.name.lastIndexOf('.') + 1)), namesToFunctions.get(f.name)!);
     };
-    if (t.k === 'obj' && ts.isClassDeclaration(t.decl)) addMethods(t.decl);
+    if (t.k === 'obj' && ts.isClassDeclaration(t.decl)) addMethods(t);
     const item = { array: t.k === 'arr', keys: names.map(field), types, methods: [...methods] };
     const existing = layouts.findIndex(l => l.array === item.array && l.keys.join() === item.keys.join() && l.types.join() === item.types.join() && JSON.stringify(l.methods ?? []) === JSON.stringify(item.methods));
     if (existing >= 0) return existing;

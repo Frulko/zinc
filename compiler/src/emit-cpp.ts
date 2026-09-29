@@ -393,7 +393,8 @@ class CppEmitter {
         const first = bodyStmts[0];
         if (first && ts.isExpressionStatement(first) && ts.isCallExpression(first.expression) && first.expression.expression.kind === this.K.SuperKeyword) {
           const bctor = base.decl && ts.isClassDeclaration(base.decl) ? this.ctorParams(base.decl) : [];
-          superArgs = first.expression.arguments.map((a, i) => this.conv(a, bctor[i] ? this.s.paramType(bctor[i]) : this.s.ztypeOf(a))).join(', ');
+          const receiver: Extract<ZT, { k: 'obj' }> = { k: 'obj', decl: c, args: (c.typeParameters ?? []).map(p => ({ k: 'tp', name: p.name.text })) };
+          superArgs = first.expression.arguments.map((a, i) => this.conv(a, bctor[i] ? this.s.paramType(bctor[i], this.s.substFor(receiver, bctor[i])) : this.s.ztypeOf(a))).join(', ');
           bodyStmts = bodyStmts.slice(1);
         }
       } else if (base.decl || this.s.errorBase(c)) {

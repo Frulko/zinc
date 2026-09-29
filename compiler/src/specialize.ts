@@ -83,11 +83,8 @@ export function specialize(module: HModule, roots: Set<string>, sema: Sema) {
     const bindings=new Map(parameters.map((p,i) => [p.name.text,type.args[i]]));
     const instance=clone(template,bindings);instance.name=parameters.length?`${template.name}<${type.args.map(typeKey)}>`:template.name;
     instances.set(key,instance);
-    const base = sema.baseClass(template.decl);
-    if (base) {
-      const heritage = template.decl.heritageClauses?.find(c => c.token === ts.SyntaxKind.ExtendsKeyword)?.types[0];
-      classFor({ k: 'obj', decl: base, args: (heritage?.typeArguments ?? []).map(t => sema.fromTypeNode(t, bindings)) });
-    }
+    const base = sema.baseType(type);
+    if (base) classFor(base);
     // Register all methods before visiting bodies: mutually recursive methods
     // and constructors can refer back to the class currently being instantiated.
     instance.methods=template.methods.map(f => {
