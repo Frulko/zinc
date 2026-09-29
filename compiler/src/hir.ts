@@ -291,11 +291,13 @@ class Lower {
     const tmp = `%sw${this.tmp++}`;
     const clauses = n.caseBlock.clauses;
     const ends = (c: ts.CaseOrDefaultClause) => { const l = c.statements[c.statements.length - 1]; return !!l && (ts.isBreakStatement(l) || ts.isReturnStatement(l) || ts.isThrowStatement(l) || ts.isContinueStatement(l)); };
-    if (!clauses.every((c, i) => ends(c) || (i === clauses.length - 1))) return [{ k: 'opaque', text: `switch with fall-through: ${oneLine(n.expression)}` }];
+    if (!clauses.every((c, i) => !c.statements.length || ends(c) || (i === clauses.length - 1))) return [{ k: 'opaque', text: `switch with fall-through: ${oneLine(n.expression)}` }];
     let chain: HStmt[] = [];
+    let following: HStmt[] = [];
     for (let i = clauses.length - 1; i >= 0; i--) {
       const c = clauses[i];
-      const stmts = c.statements.filter(s => !ts.isBreakStatement(s)).flatMap(s => this.stmt(s, ret));
+      const stmts = c.statements.length ? c.statements.filter(s => !ts.isBreakStatement(s)).flatMap(s => this.stmt(s, ret)) : following;
+      following = stmts;
       chain = ts.isDefaultClause(c) ? stmts : [{ k: 'if', c: { k: 'bin', t: BOOL, op: '==', l: { k: 'var', t: v.t, name: tmp }, r: this.conv(this.expr(c.expression), v.t) }, then: stmts, else: chain }];
     }
     return [{ k: 'let', name: tmp, t: v.t, init: v, cell: false }, ...chain];
