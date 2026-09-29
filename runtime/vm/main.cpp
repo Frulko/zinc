@@ -23,7 +23,7 @@ static void registerGeneratedModules(zinc::Modules&) {}
 #endif
 
 namespace {
-enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, NOPS };
+enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, NOPS };
 enum { VM_REF = 7 };
 struct Heap;
 union Reg { double f; int32_t i; uint32_t u; Heap* h; Reg(): f(0) {} };
@@ -494,7 +494,28 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     else if(method==11)result=text.toLowerCase();
     else if(method==12)result=text.toUpperCase();
     else if(method==13)result=text.charAt(index(1,0));
+    else if(method==14) {
+      auto parts=text.split(string(fp[b+1]));
+      const auto layout=vm->object(fp[a],true).layout;
+      if(vm->layouts[layout].types[0]!=ZINC_STRING)throw std::runtime_error("split requires a string array layout");
+      fp[a].h=vm->allocate(layout,parts.length(),fp);
+      for(int32_t j=0;j<parts.length();j++)fp[a].h->slots[j].h=vm->keepString(parts.get(j).ptr(),parts.get(j).bytes(),fp);
+    }
+    else if(method==15)fp[a]=value(text.charCodeAt(index(1,0)),T);
     if constexpr(T==ZINC_STRING)fp[a].h=vm->keepString(result.ptr(),result.bytes(),fp);
+  } else if constexpr(O==JOIN) {
+    auto& array=vm->object(fp[b],true);const auto element=vm->layouts[array.layout].types[0];
+    if(!element || element>ZINC_STRING)throw std::runtime_error("join requires scalar array elements");
+    zrt::StrBuilder out;
+    for(size_t j=0;j<array.slots.size();j++) {
+      if(j) {if(c)zrt::to_s(out,string(fp[c-1]));else out.ch(',');}
+      const auto r=array.slots[j];
+      if(element==ZINC_STRING)zrt::to_s(out,string(r));
+      else if(element==ZINC_BOOL)zrt::to_s(out,r.u!=0);
+      else zrt::to_s(out,number(r,element));
+      if(out.len>vm->heapLimit)throw std::runtime_error("VM heap memory limit exceeded");
+    }
+    fp[a].h=vm->keepString(out.buf,out.len,fp);
   } else if constexpr(O==SPLICE) {
     auto& source=vm->object(fp[b],true);const auto length=(int64_t)source.slots.size();
     const auto integer=[&](uint32_t index){return (int64_t)(int32_t)uint32(number(fp[index],vm->fns[vm->fn].types[index]));};
@@ -571,7 +592,7 @@ template<int O> Handler typed(uint32_t t) {
 Handler handler(uint32_t op,uint32_t t) {
   switch(op) {
 #define O(n) case n: return typed<n>(t);
-    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE)
+    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN)
 #undef O
   } throw std::runtime_error("invalid opcode");
 }
@@ -699,17 +720,18 @@ uint32_t load(VM& vm,Reader r) {
     }
     else if(i.op==STRING) {
       const auto method=c&255,count=c>>8;
-      check(method<=13 && b<=f.types.size() && count<=f.types.size()-b);
-      const auto minimum=method>=1&&method<=7?2u:1u,maximum=method>=1&&method<=7?3u:method==13?2u:1u;
+      check(method<=15 && b<=f.types.size() && count<=f.types.size()-b);
+      const auto minimum=(method>=1&&method<=7)||method>=14?2u:1u,maximum=method>=1&&method<=7?3u:method>=13?2u:1u;
       check(count>=minimum && count<=maximum);reg(b,ZINC_STRING);reg(a,t);
       if(method>=5 && method<=7)check(t==ZINC_BOOL);
-      else if(method==0 || method==3 || method==4)check(t>=ZINC_I32 && t<=ZINC_F64);
-      else check(t==ZINC_STRING);
+      else if(method==0 || method==3 || method==4 || method==15)check(t>=ZINC_I32 && t<=ZINC_F64);
+      else check(t==(method==14?VM_REF:ZINC_STRING));
       for(uint32_t j=1;j<count;j++) {
-        if(j==1 && method>=3 && method<=7)reg(b+j,ZINC_STRING);
+        if(j==1 && ((method>=3 && method<=7)||method==14))reg(b+j,ZINC_STRING);
         else check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
       }
     }
+    else if(i.op==JOIN) { check(t==ZINC_STRING);reg(a,ZINC_STRING);reg(b,VM_REF);if(c)reg(c-1,ZINC_STRING); }
     else if(i.op==LENGTH || i.op==PUSH) { reg(a,t);reg(b,VM_REF);check(t>=ZINC_I32&&t<=ZINC_F64);if(i.op==PUSH)check(c<f.types.size() && f.types[c]!=ZINC_VOID); }
     else if(i.op==POP) { reg(a,t);reg(b,VM_REF);check(t!=ZINC_VOID); }
     else if(i.op==CONCAT) { reg(a,ZINC_STRING);check(t==ZINC_STRING && b<=f.types.size() && c<=f.types.size()-b);for(uint32_t j=0;j<c;j++)check(f.types[b+j]>ZINC_VOID && f.types[b+j]<=ZINC_STRING); }

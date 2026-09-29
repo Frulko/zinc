@@ -7,7 +7,7 @@ import { ts } from './frontend.ts';
 import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
 const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
@@ -273,11 +273,16 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
               op('splice', 7, a, base, args.length);
-            } else if (types[x] === 6 && ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt'].includes(i.attr!)) {
-              const method = ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt'].indexOf(i.attr!);
+            } else if (types[x] === 6 && ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].includes(i.attr!)) {
+              const method = ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].indexOf(i.attr!);
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
+              if (i.attr === 'split') op('alloc', 7, a, layout(i.t), 0);
               op('string', t, a, base, method | (args.length << 8));
+            } else if (i.attr === 'join' && types[x] === 7 && args.length <= 2) {
+              const array = sourceType(i.args[0]);
+              if (array?.k !== 'arr' || !['str', 'bool', 'num'].includes(array.el.k)) fail('join requires scalar array elements');
+              op('join', 6, a, x, args.length === 2 ? y + 1 : 0);
             } else if (i.attr === 'length' && args.length === 1 && types[x] === 7) op('length', t, a, x);
             else if (i.attr === 'push' && args.length === 2 && types[x] === 7) op('push', t, a, x, y);
             else if (i.attr === 'pop' && args.length === 1 && types[x] === 7) op('pop', t, a, x);

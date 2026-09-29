@@ -1194,6 +1194,11 @@ class CppEmitter {
     // generic parameters: let C++ deduce from the argument's own type
     return as.map((a, i) => {
       if (ts.isSpreadElement(a)) this.s.fail(a, 'Z9016', 'spread arguments are not supported yet');
+      if(ts.isIdentifier(a) && a.text==='undefined' && (ts.isCallExpression(a.parent) || ts.isNewExpression(a.parent))) {
+        const call=a.parent, index=call.arguments?.indexOf(a) ?? -1;
+        const parameter=this.s.checker.getResolvedSignature(call)?.getDeclaration()?.parameters[index];
+        if(parameter?.initializer && !this.literalDefault(parameter))a=parameter.initializer;
+      }
       return this.conv(a, ps[i] && hasTp(ps[i]) ? undefined : ps[i]);
     }).join(', ');
   }

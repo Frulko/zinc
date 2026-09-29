@@ -45,7 +45,7 @@ export interface HModule { file: string; globals: HStmt[]; classes: HClass[]; fn
 
 export function buildHir(s: Sema, nativeCalls?: Map<ts.Node, number>, symbols?: Map<ts.Node, string>): HModule[] {
   const lib = path.join(ZINC_ROOT, 'lib') + path.sep;
-  return s.fe.sources.filter(sf => !sf.fileName.startsWith(lib)).map(sf => new Lower(s, nativeCalls, symbols).module(sf));
+  return s.fe.sources.filter(sf => symbols || !sf.fileName.startsWith(lib)).map(sf => new Lower(s, nativeCalls, symbols).module(sf));
 }
 
 class Lower {
@@ -434,6 +434,21 @@ class Lower {
     const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p), undefined)) : callable?.k === 'fn' ? callable.params : [];
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
     const native = d && this.nativeCalls?.get(d);
+    if(this.symbols && native === undefined && d && !s.isLib(d) && ts.isFunctionLike(d)) {
+      const declaration = d as ts.SignatureDeclaration;
+      for(let i=0;i<declaration.parameters.length;i++) {
+        const parameter=declaration.parameters[i];
+        const omitted=i>=args.length || (ts.isIdentifier(e.arguments[i]) && e.arguments[i].getText()==='undefined');
+        if(!omitted || !parameter.initializer)continue;
+        const checkDefault=(node: ts.Node): void => {
+          if(ts.isIdentifier(node) && declaration.parameters.includes(s.declOf(node) as ts.ParameterDeclaration))
+            throw new Error('zinc-vm: defaults referencing other parameters are not implemented');
+          ts.forEachChild(node,checkDefault);
+        };
+        checkDefault(parameter.initializer);
+        args[i]=this.conv(this.expr(parameter.initializer,params[i]),params[i]);
+      }
+    }
     if (native !== undefined) {
       for (let i = args.length; i < params.length; i++) {
         const p = params[i];
