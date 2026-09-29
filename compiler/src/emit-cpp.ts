@@ -1675,6 +1675,11 @@ class CppEmitter {
       if (ts.isIdentifier(R) && ERROR_CLASSES.has(R.text)) return `zrt::isa<zrt::${R.text}>(${this.expr(L)})`;
       const d = this.s.declOf(R);
       if (!d || !ts.isClassDeclaration(d)) return this.s.fail(R, 'Z9025', 'instanceof needs a class');
+      if (d.typeParameters?.length) {
+        const value = this.newTmp('instance');
+        const test = this.s.ztypeOf(L).k === 'dyn' ? `${value}.tag() == zrt::Dyn::OBJ && ${value}.obj()->zrt_isa(${this.s.classIds.get(d)})` : `${value}.p && ${value}.p->zrt_isa(${this.s.classIds.get(d)})`;
+        return `({ auto ${value} = ${this.expr(L)}; ${test}; })`;
+      }
       return `zrt::isa<${this.qual(d)}>(${this.expr(L)})`;
     }
     const lt = this.s.ztypeOf(L), rt = this.s.ztypeOf(R);

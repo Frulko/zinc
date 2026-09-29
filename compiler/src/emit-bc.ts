@@ -8,7 +8,7 @@ import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 import { specialize } from './specialize.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref', 'dynamic'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref', 'dynamic', 'instanceof'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
 const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set', 'iter', 'dyn'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
@@ -99,6 +99,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
       const base = sema.baseType(owner); if (base) addMethods(base);
       const cls = classFor(owner);
       for (const f of cls?.methods ?? []) if (!f.static && !f.name.endsWith('.constructor')) methods.set(field(f.name.slice(f.name.lastIndexOf('.') + 1)), namesToFunctions.get(f.name)!);
+      if (cls) methods.set(field(`@instance:${symbols.get(decl)}`), namesToFunctions.get(`${cls.name}.constructor`) !);
     };
     if (t.k === 'obj' && ts.isClassDeclaration(t.decl)) addMethods(t);
     const item = { array: t.k === 'arr', keys: names.map(field), types, methods: [...methods] };
@@ -161,7 +162,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
         switch (i.op) {
           case 'param': case 'capture': break;
           case 'undef': case 'const': {
-            if (i.t.k === 'dyn') { if (i.attr !== 'undefined' && i.op !== 'undef') fail('dynamic literal'); op('dynamic', 7, a, 0, 0);break; }
+            if (i.t.k === 'dyn') { if (i.attr !== 'undefined' && i.attr !== 'null' && i.op !== 'undef') fail('dynamic literal'); op('dynamic', 7, a, 0, i.attr === 'null' ? 8 << 8 : 0); break; }
             let v: string | number;
             if (t === 6) { try { v = i.op === 'undef' ? '' : JSON.parse(i.attr!); } catch { fail('string literal'); } }
             else v = t === 7 || i.op === 'undef' ? 0 : Number(i.val ?? i.attr);
@@ -281,7 +282,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             op('call', t, a, fn, base); break;
           }
           case 'call.builtin': case 'call.builtin!':
-            if (i.attr?.startsWith('@methodref:')) {
+            if (i.attr?.startsWith('@instanceof:')) {
+              op('instanceof',1,a,x,field(`@instance:${i.attr.slice(12)}`));
+            } else if (i.attr?.startsWith('@methodref:')) {
               op('methodref', 7, a, x, field(i.attr.slice(11)));
             } else if (i.attr?.startsWith('@native:')) {
               const id = Number(i.attr.slice(8)), base = types.length;

@@ -512,6 +512,11 @@ class Lower {
       const tmp: HExpr = { k: 'var', t, name: `%t${this.tmp++}` };
       return { k: 'cond', t, c: { k: 'bin', t: BOOL, op: '==', l: { k: 'assign', t, target: tmp, v: this.conv(this.expr(e.left), t) }, r: lit({ k: 'null' }, 'null') }, a: this.conv(this.expr(e.right), t), b: tmp };
     }
+    if (this.symbols && op === K.InstanceOfKeyword) {
+      const declaration = s.declOf(e.right), name = declaration && this.symbols.get(declaration);
+      if (!declaration || !ts.isClassDeclaration(declaration) || !name) throw new Error('zinc-vm: instanceof requires a compiled class constructor');
+      return { k: 'call', t: BOOL, how: 'builtin', fn: `@instanceof:${name}`, args: [this.expr(e.left)], check: false };
+    }
     if (lt.k === 'dyn' || rt.k === 'dyn') {
       const args = [this.conv(this.expr(e.left), DYN), this.conv(this.expr(e.right), DYN)];
       if (t.k === 'dyn' || t.k === 'bool') return { k: 'dyn', t, op: tok, args };
