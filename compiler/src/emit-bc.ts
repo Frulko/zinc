@@ -176,6 +176,11 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             op(i.op, t, i.op === 'load' ? a : x, g); break;
           }
           case 'bin': {
+            if (i.attr === '**') {
+              const base=types.length;
+              for (const r of [x,y]) { const dst=types.length;types.push(types[r]);op('mov',types[r],dst,r); }
+              op('math',t,a,base,MATH.indexOf('pow')|(2<<8));narrowByte(a,i.t);break;
+            }
             let left=x, right=y, operand=types[x];
             if (['<<','>>','>>>'].includes(i.attr!)) {
               operand=t;

@@ -266,7 +266,7 @@ inline double trunc(double x) { return __builtin_trunc(x); }
 inline double round(double x) { if (x >= -0.5 && x < 0) return -0.0; double f = __builtin_floor(x); return (x - f >= 0.5) ? f + 1 : f; }  // JS rounds .5 up
 inline double sign(double x) { return x > 0 ? 1 : x < 0 ? -1 : x; }
 inline double sqrt(double x) { return __builtin_sqrt(x); }
-inline double pow(double x, double y) { return __builtin_pow(x, y); }
+inline double pow(double x, double y) { return (__builtin_fabs(x) == 1 && __builtin_isinf(y)) ? __builtin_nan("") : __builtin_pow(x, y); }
 inline double sin(double x) { return __builtin_sin(x); }
 inline double cos(double x) { return __builtin_cos(x); }
 inline double tan(double x) { return __builtin_tan(x); }
