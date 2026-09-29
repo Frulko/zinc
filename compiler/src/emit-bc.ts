@@ -305,10 +305,10 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               if (r === undefined) { r = types.length;types.push(0); }
               if (i.attr === 'Promise.reject' && types[r] !== 7) fail('non-object promise rejection');
               op('promise', 7, a, r, types[r] | (i.attr === 'Promise.reject' ? 256 : 0));
-            } else if (i.attr === 'splice' && types[x] === 7 && (args.length === 2 || args.length === 3)) {
+            } else if ((i.attr === 'splice' || i.attr === 'slice') && types[x] === 7 && args.length >= (i.attr === 'slice' ? 1 : 2) && args.length <= 3) {
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
-              op('splice', 7, a, base, args.length);
+              op('splice', 7, a, base, args.length | (i.attr === 'slice' ? 256 : 0));
             } else if (types[x] === 6 && ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].includes(i.attr!)) {
               const method = ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].indexOf(i.attr!);
               const base = types.length;

@@ -614,11 +614,13 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
   } else if constexpr(O==SPLICE) {
     auto& source=vm->object(fp[b],true);const auto length=(int64_t)source.slots.size();
     const auto integer=[&](uint32_t index){return (int64_t)(int32_t)uint32(number(fp[index],vm->fns[vm->fn].types[index]));};
-    const auto requested=integer(b+1),start=std::max(int64_t(0),std::min(length,requested<0?length+requested:requested));
-    const auto count=c==2?length-start:std::max(int64_t(0),std::min(length-start,integer(b+2)));
+    const bool slice=(c&256)!=0;const auto argc=c&255;
+    const auto clamp=[&](int64_t n){return std::max(int64_t(0),std::min(length,n<0?length+n:n));};
+    const auto start=argc>1?clamp(integer(b+1)):0;
+    const auto count=argc<3?length-start:slice?std::max(int64_t(0),clamp(integer(b+2))-start):std::max(int64_t(0),std::min(length-start,integer(b+2)));
     auto* removed=vm->allocate(source.layout,(size_t)count,fp);
     std::copy_n(source.slots.begin()+start,count,removed->slots.begin());fp[a].h=removed;
-    source.slots.erase(source.slots.begin()+start,source.slots.begin()+start+count);
+    if(!slice)source.slots.erase(source.slots.begin()+start,source.slots.begin()+start+count);
   } else if constexpr(O==MATH) {
     const auto method=c&255,count=c>>8;
     const auto argument=[&](uint32_t j){return number(fp[b+j],vm->fns[vm->fn].types[b+j]);};
@@ -817,8 +819,8 @@ uint32_t load(VM& vm,Reader r) {
       }
     }
     else if(i.op==SPLICE) {
-      check(t==VM_REF && (c==2 || c==3) && b<=f.types.size() && c<=f.types.size()-b);reg(a,VM_REF);reg(b,VM_REF);
-      for(uint32_t j=1;j<c;j++)check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
+      const auto argc=c&255;check(!(c&~511u) && t==VM_REF && argc>=((c&256)?1u:2u) && argc<=3 && b<=f.types.size() && argc<=f.types.size()-b);reg(a,VM_REF);reg(b,VM_REF);
+      for(uint32_t j=1;j<argc;j++)check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
     }
     else if(i.op==MATH) {
       const auto method=c&255,count=c>>8;
