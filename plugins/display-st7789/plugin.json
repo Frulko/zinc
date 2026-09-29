@@ -28,6 +28,8 @@
     "tswap": false,
     "tflipx": false,
     "tflipy": false,
+    "tdebug": false,
+    "perf": false,
     "debug": false
   },
   "targets": {

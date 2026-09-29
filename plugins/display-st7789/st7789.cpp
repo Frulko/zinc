@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_io_i80.h"
@@ -36,13 +38,15 @@ static esp_lcd_panel_io_handle_t io;
 static int frames;
 static uint32_t crc = 2166136261u;
 static bool pwm;              // backlight on LEDC
+static int bl_want = 255;     // requested level; applied once the first frame is on the panel (hides the power-on RAM noise)
 
 static void cmd(int c, const uint8_t* p, int n) { if (io) esp_lcd_panel_io_tx_param(io, c, p, n); }
 
 /** Backlight level 0..255 (PWM when `bl` is set; zinc:device calls it). */
 extern "C" void zinc_display_backlight(int32_t level) {
-  if (!pwm) return;
   level = level < 0 ? 0 : level > 255 ? 255 : level;
+  bl_want = level;
+  if (!pwm || !frames) return;
   ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, level == 255 ? 256u : (uint32_t)level);  // 256: always on
   ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
@@ -180,9 +184,12 @@ static void send(int y, int ry0, int ry1, int x0, int x1) {
 }
 
 static int sent_px;  // pixels sent this frame (debug log)
+extern "C" void zrt_raster_profile(uint32_t* us, uint32_t* n) __attribute__((weak));
+static int64_t t_render, t_send, t_frame;  // `perf` option: microseconds spent rasterizing / converting + sending
 static void present(const HalFrame* f) {
   if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
   sent_px = 0;
+  int64_t tp0 = OPT(PERF) ? esp_timer_get_time() : 0;
   for (int y = f->y0; y < f->y1; y += L) {
     int ye = y + L < f->y1 ? y + L : f->y1;
     int bx0 = f->x0, bx1 = f->x1, by0 = y, by1 = ye;
@@ -206,10 +213,23 @@ static void present(const HalFrame* f) {
       for (int r = by0; r < by1 && !holes; r++) for (int x = bx0; x < bx1; x++) if (band[(r - y) * W + x] == UNTOUCHED) { holes = true; break; }
       if (holes) f->render(band, y, ye);
     } else f->render(band, y, ye);
+    int64_t ts = OPT(PERF) ? esp_timer_get_time() : 0;
     send(y, by0, by1, bx0, bx1);
+    if (OPT(PERF)) t_send += esp_timer_get_time() - ts;
     sent_px += (bx1 - bx0) * (by1 - by0);
   }
+  if (OPT(PERF)) {
+    t_frame += esp_timer_get_time() - tp0; t_render = t_frame - t_send;
+    static int n, px; n++; px += sent_px;
+    if (n == 50) { printf("st7789: perf per presented frame: %d px, present %d us (render %d us, convert+send %d us)\n", px / n, (int)(t_frame / n), (int)(t_render / n), (int)(t_send / n)); n = 0; px = 0; t_frame = t_render = t_send = 0;
+      if (zrt_raster_profile) {
+        uint32_t us[13], cn[13]; zrt_raster_profile(us, cn);
+        static const char* K[13] = {"clear", "rect", "border", "shadow", "line", "text", "image", "poly", "clip", "unclip", "poly-setup(edges)", "poly-sweep(px)", "poly-calls"};
+        for (int i = 0; i < 13; i++) if (cn[i]) printf("st7789:   %-6s %6u us/frame, %u cmds/frame\n", K[i], (unsigned)(us[i] / 50), (unsigned)(cn[i] / 50));
+      } }
+  }
   frames++;
+  if (frames == 1) zinc_display_backlight(bl_want);
   if (OPT(DEBUG) == 3) {  // summary every 100 presented frames: how much of the screen the damage really costs
     static int n = 0, full = 0; static int64_t sum = 0; static int peak = 0;
     n++; sum += sent_px; peak = sent_px > peak ? sent_px : peak; full += sent_px >= W * H * 9 / 10;
@@ -225,14 +245,21 @@ static void present(const HalFrame* f) {
 /** True when a touch controller answered at init (zinc:device hasTouch()). */
 extern "C" int32_t zinc_display_touch(void) { return tp != nullptr; }
 
+static bool tdbg_down;  // touch debug: a press is being tracked
 static void poll(HalInput* in) {
   if (!OPT(DEBUG) || OPT(DEBUG) == 3) in->quit = 0;  // the ESP32 HAL's QEMU frame budget
   if (!tp) return;
   uint8_t reg = 0x02, b[5];
   if (i2c_master_transmit_receive(tp, &reg, 1, b, sizeof b, 20) != ESP_OK) return;
   bool down = (b[0] & 0x0F) != 0;
+  if (!down) tdbg_down = false;
   if (down) {
     float x = (float)((b[1] & 0x0F) << 8 | b[2]), y = (float)((b[3] & 0x0F) << 8 | b[4]);
+    if (OPT(TDEBUG)) {  // raw controller coordinates, once per touch and each time the finger moved 8 px
+      static float lx, ly;
+      if (!tdbg_down || fabsf(x - lx) > 8 || fabsf(y - ly) > 8) { printf("st7789: touch raw %d,%d\n", (int)x, (int)y); lx = x; ly = y; }
+      tdbg_down = true;
+    }
     if (OPT(TSWAP)) { float s = x; x = y; y = s; }
     if (OPT(TFLIPX)) x = W - 1 - x;
     if (OPT(TFLIPY)) y = H - 1 - y;
