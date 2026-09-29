@@ -11,9 +11,10 @@ import { emitAbi } from './abi.ts';
 
 export type Engine = 'native' | 'zinc-vm' | 'quickjs';
 interface Graphics { cpp: string; title: string; headless: boolean; defines: string[] }
-export function buildEngine(s: Sema, engine: Engine, dir: string, target: string, debug: boolean, assets: string | undefined, screen: [number, number], tier: 0 | 1 = 0, nativeLibraries: string[] = [], graphics?: Graphics): { exe: string[]; dir: string; watch: string[] } {
+export function buildEngine(s: Sema, engine: Engine, dir: string, target: string, debug: boolean, assets: string | undefined, screen: [number, number], tier: 0 | 1 = 0, nativeLibraries: string[] = [], graphics?: Graphics, core?: string): { exe: string[]; dir: string; watch: string[] } {
   const host = process.platform === 'darwin' ? 'macos' : 'linux';
   if (target !== host) throw new Error(`${engine}: interpreter builds currently support the host target (${host})`);
+  if (core && path.resolve(core) === path.resolve(dir)) throw new Error('--core output must differ from the core directory');
   fs.mkdirSync(dir, { recursive: true });
   const abi = emitAbi(s, dir, target);
   // Do not silently substitute simulator no-ops for native graphics or services.
@@ -22,6 +23,7 @@ export function buildEngine(s: Sema, engine: Engine, dir: string, target: string
     const name = st.moduleSpecifier.text;
     if (name.startsWith('zinc:') && !STD_MODULES[name] && !abi.imports.has(name)) throw new Error(`${engine}: native module ${name} has no engine ABI adapter yet`);
   }
+  if (core) return compileScript(s, dir, core, target, debug, screen, tier, graphics, abi);
   const sources = [...abi.sources, ...(graphics ? ['gfx.cpp', 'raster.cpp', 'ttf.cpp'].map(file => path.join(ZINC_ROOT, 'runtime', file)).concat(graphics.cpp) : [])], defines = `target_compile_definitions(app PRIVATE ZINC_GENERATED_ABI="${abi.header}")`;
   let program: string;
   if (engine === 'zinc-vm') {
@@ -73,6 +75,7 @@ ${defines}
   if (engine === 'quickjs') artifacts.push(...fs.readdirSync(path.join(dir, 'bundle')).map(file => path.join(dir, 'bundle', file)).filter(file => file !== program));
   const files = artifacts.map(file => ({ path: path.relative(dir, file), sha256: hash(fs.readFileSync(file)) }));
   fs.writeFileSync(path.join(dir, 'engine.json'), JSON.stringify({ engine, target, arch: process.arch, debug, graphics: graphics ? { headless: graphics.headless, screen } : null, tier: engine === 'zinc-vm' ? tier : null,
+    core: engine === 'zinc-vm' ? { version: 1, compiler: coreCompiler(), config: coreConfig(s, target, debug, screen, graphics), files: [exe[0], abi.header, path.join(dir, 'core.abi.json'), config, ...sources, ...nativeLibraries].map(file => ({ path: path.relative(dir, file), sha256: hash(fs.readFileSync(file)) })) } : undefined,
     entry: path.relative(dir, program), libraries: nativeLibraries, fingerprint: hash(JSON.stringify({ engine, target, debug, tier, files })), files }, null, 2) + '\n');
   const runtimeInputs = [path.join(rt, 'zrt.cpp'), path.join(rt, 'zrt.h'), path.join(rt, 'host.cpp'), path.join(root, hal), path.join(root, 'targets/common/hal_posix.cpp'),
     ...fs.readdirSync(path.join(rt, 'vm')).filter(file => /\.(h|cpp)$/.test(file)).map(file => path.join(rt, 'vm', file))];
@@ -80,6 +83,48 @@ ${defines}
 }
 
 function hash(content: string | Buffer): string { return createHash('sha256').update(content).digest('hex'); }
+
+// A core is app-specific: its compiled exports and baked resources bound the scripts it accepts.
+function coreCompiler(): string {
+  const files: string[] = [];
+  for (const folder of ['compiler/src', 'runtime', 'targets/common', 'targets/null', 'targets/macos']) {
+    const walk = (dir: string) => { for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file); else if (/\.(ts|cpp|h)$/.test(entry.name)) files.push(file);
+    } };
+    walk(path.join(ZINC_ROOT, folder));
+  }
+  return hash(files.map(file => path.relative(ZINC_ROOT, file) + ':' + hash(fs.readFileSync(file))).join('\n'));
+}
+function coreConfig(s: Sema, target: string, debug: boolean, screen: [number, number], graphics?: Graphics) {
+  return { target, arch: process.arch, debug, number: s.numberKind, typing: s.typing,
+    graphics: graphics ? { headless: graphics.headless, screen, title: graphics.title, defines: [...graphics.defines].sort(), resources: hash(fs.readFileSync(graphics.cpp)) } : null };
+}
+function compileScript(s: Sema, dir: string, core: string, target: string, debug: boolean, screen: [number, number], tier: 0 | 1, graphics: Graphics | undefined, abi: ReturnType<typeof emitAbi>) {
+  core = fs.realpathSync(core);
+  const manifest = JSON.parse(fs.readFileSync(path.join(core, 'engine.json'), 'utf8'));
+  const fail = (reason: string): never => { throw new Error(`--core: ${reason}; rebuild the core without --core`); };
+  if (manifest.engine !== 'zinc-vm' || manifest.core?.version !== 1) fail('requires a Zinc VM core with current compatibility metadata');
+  if (manifest.core.compiler !== coreCompiler()) fail('compiler/runtime sources changed');
+  if (JSON.stringify(manifest.core.config) !== JSON.stringify(coreConfig(s, target, debug, screen, graphics))) fail('incompatible target, profile, graphics configuration or baked assets');
+  for (const file of manifest.core.files) {
+    const source = path.resolve(core, file.path);
+    if (!fs.existsSync(source) || hash(fs.readFileSync(source)) !== file.sha256) fail(`core artifact changed: ${file.path}`);
+  }
+  const provided = JSON.parse(fs.readFileSync(path.join(core, 'core.abi.json'), 'utf8'));
+  const required = JSON.parse(fs.readFileSync(path.join(dir, 'core.abi.json'), 'utf8'));
+  if (provided.version !== required.version) fail('ABI version differs');
+  for (const item of required.exports) {
+    const candidate = provided.exports.find((other: typeof item) => other.module === item.module && other.name === item.name);
+    if (!candidate || JSON.stringify(candidate) !== JSON.stringify(item)) fail(`missing compatible export ${item.module}/${item.name}`);
+  }
+  const program = path.join(dir, 'app.zbc');
+  fs.writeFileSync(program, emitBytecode(s, abi, map => fs.writeFileSync(program + '.debug', map)));
+  const libraries: string[] = manifest.libraries;
+  const exe = [path.join(core, 'cmake/app'), program, ...(tier ? ['--jit'] : []), ...libraries.flatMap(file => ['--native-library', file])];
+  fs.writeFileSync(path.join(dir, 'engine.json'), JSON.stringify({ engine: 'zinc-vm', core, entry: 'app.zbc', tier, restart: 'process', fingerprint: hash(fs.readFileSync(program)) }, null, 2) + '\n');
+  return { exe, dir, watch: [...s.fe.sources.map(source => source.fileName), ...libraries, path.join(core, 'engine.json')] };
+}
 
 /** Copy the actual static/dynamic-literal module graph, including shared Zinc JS helpers. No checkout paths at runtime. */
 function bundleJs(entry: string, out: string): string {

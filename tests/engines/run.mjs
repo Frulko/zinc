@@ -43,6 +43,7 @@ console.log('ok real graphics captures: all modes match native');
 run(process.execPath, ['tests/engines/destructuring-check.mjs']);
 run(process.execPath, ['tests/engines/generics-check.mjs']);
 run(process.execPath, ['tests/engines/debug-map.mjs']);
+run(process.execPath, ['tests/engines/core-cli.mjs']);
 run(process.execPath, ['tests/engines/array-limits.mjs']);
 run(process.execPath, ['tests/engines/string-limits.mjs']);
 run(process.execPath, ['tests/engines/string-format-limits.mjs']);

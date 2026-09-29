@@ -47,7 +47,7 @@ const PROFILES: Record<string, Profile> = {
 export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string | IconSpec; requires: string[]; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
 /** vals: valued options of zinc capture (--frames, --every, --out, --replay). */
-export interface Opts { headless?: boolean; engine?: Engine; nativeLibraries?: string[]; vmTier?: 0 | 1; project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
+export interface Opts { core?: string; headless?: boolean; engine?: Engine; nativeLibraries?: string[]; vmTier?: 0 | 1; project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
   const o: Opts = { project: { name: '', dir: '', requires: [], targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
@@ -58,6 +58,11 @@ function parseArgs(argv: string[]): Opts {
       const e = a.includes('=') ? a.slice(9) : argv[++i];
       if (!['native', 'zinc-vm', 'quickjs'].includes(e)) die(`unknown engine '${e}' (native, zinc-vm, quickjs)`);
       o.engine = e as Engine;
+    }
+    else if (a === '--core' || a.startsWith('--core=')) {
+      const file = a.includes('=') ? a.slice(7) : argv[++i];
+      if (!file || file.startsWith('--')) die('--core requires a build directory');
+      o.core = path.resolve(file);
     }
     else if (a === '--native-library' || a.startsWith('--native-library=')) {
       const file = a.includes('=') ? a.slice(17) : argv[++i];
@@ -96,6 +101,7 @@ function parseArgs(argv: string[]): Opts {
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
+  if (o.core && (o.engine !== 'zinc-vm' || !['build', 'run', 'capture', 'dev'].includes(o.cmd) || o.nativeLibraries?.length || o.emit)) die('--core supports zinc-vm build/run/capture/dev without --native-library or --emit');
   if (o.nativeLibraries?.length && (!o.engine || o.engine === 'native')) die('--native-library requires --engine zinc-vm or quickjs');
   if (o.vmTier !== undefined && o.engine !== 'zinc-vm') die('--vm-tier / --jit requires --engine zinc-vm');
   if (!o.entry && fs.existsSync('zinc.json')) o.entry = JSON.parse(fs.readFileSync('zinc.json', 'utf8')).entry ?? 'src/main.ts';
@@ -216,7 +222,7 @@ function guard<T>(o: Opts, f: () => T): T {
 
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
-  const name = (o.engine && o.engine !== 'native' ? o.engine + '-' : '') + (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '');
+  const name = (o.engine && o.engine !== 'native' ? o.engine + '-' : '') + (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '') + (o.core ? '-script' : '');
   return path.join(o.project.dir || path.dirname(path.resolve(o.entry)), 'build', name);  // next to zinc.json
 }
 
@@ -439,6 +445,7 @@ function build(o: Opts): Built {
     process.exit(0);
   }
   const dir = outDir(o);
+  if (o.core && (path.resolve(dir) === o.core || (fs.existsSync(dir) && fs.realpathSync(dir) === fs.realpathSync(o.core)))) die('--core output must differ from the core directory');
   fs.mkdirSync(dir, { recursive: true });
   const title = o.project.name;
   const prof = PROFILES[o.profile];
@@ -451,7 +458,7 @@ function build(o: Opts): Built {
     if (display) die(`${o.engine}: display plugin ${display.name} has no application runner adapter yet`);
     try {
       const graphics = usesGfx(sema) ? { ...bakeResources(o, sema, dir), title, headless: !!o.headless, defines: windowDefines(prof, sema) } : undefined;
-      return buildEngine(sema, o.engine, dir, o.target, o.debug, o.project.assets, [prof.width, prof.height], o.vmTier ?? 0, o.nativeLibraries ?? [], graphics);
+      return buildEngine(sema, o.engine, dir, o.target, o.debug, o.project.assets, [prof.width, prof.height], o.vmTier ?? 0, o.nativeLibraries ?? [], graphics, o.core);
     }
     catch (e) { die((e as Error).message); }
   }
@@ -959,6 +966,7 @@ function help(topic?: string) {
     options: `Build options
   --target <id>      platform to build for (default: the host)
   --profile <id>     number representation / resolution / heap of another target (e.g. --profile ps1 on macOS)
+  --core <build-dir>                 reuse VM core; script-only build/run/capture/dev (process restart)
   --native-library <file>             load a trusted ABI module (.so/.dylib), repeatable
   --engine native|zinc-vm|quickjs      execution engine (build/run/test/dev/capture/export; docs/engines.md)
   --vm-tier 0|1                       Zinc VM interpreter or AArch64 baseline JIT (--jit = --vm-tier=1)
@@ -1103,7 +1111,7 @@ function main() {
   if (cmd === 'bench' || (cmd === 'test' && argv.includes('--bench'))) return benchCmd(o, argv);
   if (cmd === 'test') {
     // `zinc test <dir|file>`: the project's own tests; without a path, the conformance suite of this repository
-    const own = argv.slice(1).find((a, i, all) => !a.startsWith('-') && !['--engine', '--vm-tier', '--native-library', '--target', '--profile', '--device', '--port', '--frames', '--every', '--out', '--replay'].includes(all[i - 1] ?? '') && fs.existsSync(a));
+    const own = argv.slice(1).find((a, i, all) => !a.startsWith('-') && !['--engine', '--vm-tier', '--native-library', '--core', '--target', '--profile', '--device', '--port', '--frames', '--every', '--out', '--replay'].includes(all[i - 1] ?? '') && fs.existsSync(a));
     if (own) return userTests(o, own);
     return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
   }
