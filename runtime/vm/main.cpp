@@ -925,7 +925,7 @@ uint32_t load(VM& vm,Reader r) {
       else {check(!source);reg(b,VM_REF);if(action==1)check(t>=ZINC_BOOL && t<=VM_REF);else if(action==2)check(t==ZINC_STRING);else check(t==ZINC_BOOL);if(action>=4 && action<=7)reg(b+1,VM_REF);}
       reg(a,t);
     }
-    else if(i.op==GENCONTROL) {check(c<=10 && t==(c==0 || c==6 || c==10?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {reg(b,VM_REF);if(c>=3 && c!=8 && c!=10)reg(b+1,VM_REF);}}
+    else if(i.op==GENCONTROL) {check(c<=10 && t==(c==0 || c==6 || c==10?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {if(c==10)check(f.gen);reg(b,VM_REF);if(c>=3 && c!=8 && c!=10)reg(b+1,VM_REF);}}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }

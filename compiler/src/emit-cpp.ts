@@ -526,14 +526,13 @@ class CppEmitter {
       : `{\n  auto __f = zrt::make<${ns}::${fname}>();\n${assigns}  __f->step();\n  return __f->zrt_promise();\n}`;
   }
   frameReturn(e: ts.Expression): string {
-    const f = this.ctx.frame!, cleanup = this.frameCleanup('return');
-    const t = this.s.ztypeOf(e);
-    if (f.el.k === 'void' && t.k !== 'promise') return `${this.expr(e)}; ${cleanup} this->zrt_done(); return;`;
+    const f = this.ctx.frame!, t = this.s.ztypeOf(e);
+    if (f.el.k === 'void' && t.k !== 'promise') return `${this.expr(e)}; ${this.frameExit('return', 'this->zrt_done(); return;')}`;
     const expression = t.k === 'promise' ? this.expr(e) : this.conv(e, f.el);
-    if (!cleanup) return `this->zrt_resolve(${expression}); return;`;
+    if (!f.cleanups.length) return `this->zrt_resolve(${expression}); return;`;
     const saved = this.newTmp('return');
     f.fields.set(saved, t.k === 'promise' ? this.cpp(t) : this.val(f.el));
-    return `${saved} = ${expression}; ${cleanup} this->zrt_resolve(${saved}); return;`;
+    return `${saved} = ${expression}; ${this.frameExit('return', `this->zrt_resolve(${saved}); return;`)}`;
   }
   /** Declares a frame field (async/gen) or a local; returns the C++ statement prefix. */
   local(name: string, type: string, init: string | undefined, d: number): string {
@@ -559,13 +558,13 @@ class CppEmitter {
         this.checkSuspendPosition(n, s);
         if (ts.isAwaitExpression(n)) {
           if (f.kind !== 'async') this.s.fail(n, 'Z9018', 'await is only allowed in async functions');
-          const pt = this.s.ztypeOf(n.expression);
-          if (pt.k !== 'promise') this.s.fail(n, 'Z9018', 'await needs a Promise');
+          const source = this.s.ztypeOf(n.expression), pt: Extract<ZT, { k: 'promise' }> = source.k === 'promise' ? source : { k: 'promise', el: source };
+          const expression = source.k === 'promise' ? this.expr(n.expression) : source.k === 'void' ? `((void)(${this.expr(n.expression)}), zrt::Promise<zrt::Unit>::resolved(zrt::Unit{}))` : `zrt::Promise<${this.val(source)}>::resolved(${this.expr(n.expression)})`;
           const field = this.newTmp('aw');
           f.fields.set(field, this.cpp(pt));
           const st = ++f.state;
           f.awaits.set(n, `${field}.value()`);
-          out += `${I}${field} = ${this.expr(n.expression)};\n${I}state = ${st}; zrt::await_(this, ${field}); return;\n  case ${st}:;\n` +
+          out += `${I}${field} = ${expression};\n${I}state = ${st}; zrt::await_(this, ${field}); return;\n  case ${st}:;\n` +
             `${I}if (${field}.rejected()) { zrt::g_err = ${field}.error(); ${this.propagate()}; }\n`;
         } else {
           if (f.kind !== 'gen') this.s.fail(n, 'Z9032', 'yield is only allowed in generators');
@@ -779,7 +778,7 @@ class CppEmitter {
       const f = this.ctx.frame;
       if (f) {
         if (f.kind === 'gen') return `${L}${I}this->returned = ${s.expression ? this.toDynExpr(s.expression) : 'zrt::Dyn()'}; ${this.frameExit('return', 'state = -1; return false;')}\n`;
-        return s.expression ? `${L}${I}${this.frameReturn(s.expression)}\n` : `${L}${I}${this.frameCleanup('return')}this->zrt_done(); return;\n`;
+        return s.expression ? `${L}${I}${this.frameReturn(s.expression)}\n` : `${L}${I}${this.frameExit('return', 'this->zrt_done(); return;')}\n`;
       }
       if (!s.expression || this.ctx.inCtor) return `${L}${I}return;\n`;
       if (this.ctx.ret.k === 'void') return `${L}${I}${this.expr(s.expression)}; return;\n`;
@@ -805,7 +804,7 @@ class CppEmitter {
 
   tryStmt(s: ts.TryStatement, d: number): string {
     const I = this.ind(d), I1 = this.ind(d + 1);
-    if (this.ctx.frame?.kind === 'gen' && s.finallyBlock) {
+    if (this.ctx.frame && s.finallyBlock) {
       const frame = this.ctx.frame, outer = [...frame.cleanups], lexical = { ...this.ctx, catches: [...this.ctx.catches], breaks: [...this.ctx.breaks], continues: [...(this.ctx.continues ?? [])] };
       const emit = (continuation: string): string => {
         const entry = this.newTmp('finally'), pending = this.newTmp('pending');
@@ -824,7 +823,6 @@ class CppEmitter {
       const end = this.newTmp('finallyEnd');
       return body + `${I}${emit(`goto ${end};`)}\n${end}:;\n`;
     }
-    if (this.ctx.frame && s.finallyBlock) this.s.fail(s, 'Z9034', "'finally' inside async functions is not supported yet");
     let out = `${I}{\n`;
     if (s.finallyBlock) {
       const fb = s.finallyBlock;
@@ -839,7 +837,6 @@ class CppEmitter {
     const tryBody = this.block(s.tryBlock, d + 1);
     this.ctx.catches.pop();
     const cc = s.catchClause;
-    if (this.ctx.frame && this.hasAwait(cc.block)) this.s.fail(cc, 'Z9034', 'await inside catch is not supported yet');
     let bind = '';
     if (cc.variableDeclaration) {
       if (!ts.isIdentifier(cc.variableDeclaration.name)) this.s.fail(cc, 'Z9007', 'destructuring a caught error is not supported');

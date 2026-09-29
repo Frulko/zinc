@@ -26,9 +26,9 @@ function command(source, engine) {
   return [path.join(dir, 'cmake/app'), ...(entry ? [path.join(dir, entry)] : []), ...(jit ? ['--jit'] : [])];
 }
 if (!process.argv.includes('--bench-only')) {
-for (const source of ['tests/engines/scalar.ts', 'tests/engines/math.ts', 'tests/engines/switch-groups.ts', 'tests/engines/stdlib-path.ts', 'tests/engines/default-arguments.ts', 'tests/engines/native.ts', 'tests/engines/plain.js', 'tests/engines/modules.ts', 'tests/engines/heap.ts', 'tests/engines/collections.ts', 'tests/engines/splice.ts', 'tests/engines/array-slice.ts', 'tests/engines/array-sort.ts', 'tests/engines/array-queue.ts', 'tests/engines/array-methods.ts', 'tests/engines/string-arrays.ts', 'tests/engines/string-expansion.ts', 'tests/engines/string-format.ts', 'tests/engines/closures.ts', 'tests/engines/bind.ts', 'tests/engines/classes.ts', 'tests/engines/instanceof.ts', 'tests/engines/generics.ts', 'tests/engines/generic-inheritance.ts', 'tests/engines/accessors.ts', 'tests/engines/static-fields.ts', 'tests/engines/destructuring.ts', 'tests/engines/exceptions.ts', 'tests/engines/async.ts', 'tests/engines/async-control.ts', 'tests/engines/promise-jobs.ts', 'tests/engines/promise-timers.ts', 'tests/engines/promise-all.ts', 'tests/engines/promise-chains.ts', 'tests/engines/promise-order.ts', 'tests/engines/generators.ts', 'tests/engines/generator-close.ts', 'tests/engines/generator-api.ts', 'tests/engines/generator-arrays.ts', 'tests/engines/generator-input.ts', 'tests/engines/generator-finally.ts', 'tests/engines/generator-delegate.ts', 'tests/engines/resources.ts', 'tests/engines/callbacks.ts', 'tests/engines/strings.ts', 'tests/engines/services.ts', 'tests/engines/bytes.ts', 'tests/engines/records.ts', 'tests/engines/events.ts']) {
+for (const source of ['tests/engines/scalar.ts', 'tests/engines/math.ts', 'tests/engines/switch-groups.ts', 'tests/engines/stdlib-path.ts', 'tests/engines/default-arguments.ts', 'tests/engines/native.ts', 'tests/engines/plain.js', 'tests/engines/modules.ts', 'tests/engines/heap.ts', 'tests/engines/collections.ts', 'tests/engines/splice.ts', 'tests/engines/array-slice.ts', 'tests/engines/array-sort.ts', 'tests/engines/array-queue.ts', 'tests/engines/array-methods.ts', 'tests/engines/string-arrays.ts', 'tests/engines/string-expansion.ts', 'tests/engines/string-format.ts', 'tests/engines/closures.ts', 'tests/engines/bind.ts', 'tests/engines/classes.ts', 'tests/engines/instanceof.ts', 'tests/engines/generics.ts', 'tests/engines/generic-inheritance.ts', 'tests/engines/accessors.ts', 'tests/engines/static-fields.ts', 'tests/engines/destructuring.ts', 'tests/engines/exceptions.ts', 'tests/engines/async.ts', 'tests/engines/async-control.ts', 'tests/engines/async-finally.ts', 'tests/engines/promise-jobs.ts', 'tests/engines/promise-timers.ts', 'tests/engines/promise-all.ts', 'tests/engines/promise-chains.ts', 'tests/engines/promise-order.ts', 'tests/engines/generators.ts', 'tests/engines/generator-close.ts', 'tests/engines/generator-api.ts', 'tests/engines/generator-arrays.ts', 'tests/engines/generator-input.ts', 'tests/engines/generator-finally.ts', 'tests/engines/generator-delegate.ts', 'tests/engines/resources.ts', 'tests/engines/callbacks.ts', 'tests/engines/strings.ts', 'tests/engines/services.ts', 'tests/engines/bytes.ts', 'tests/engines/records.ts', 'tests/engines/events.ts']) {
   let expected;
-  const modes = source.endsWith('async-control.ts') ? engines.filter(e => e !== 'native') : engines;
+  const modes = engines;
   for (const engine of modes) {
     const out = run(process.execPath, ['compiler/bin/zinc.mjs', 'run', source, ...flags(engine)]);
     expected ??= out; assert.equal(out, expected, `${source}: ${engine}`);
@@ -122,13 +122,15 @@ try {
     for (let n = u(); n > 0; n--) { if (u() === 6) skipString(); else at += 8; }
     for (let n = u(); n > 0; n--) { skipString(); skipString(); const count = u(); at += count * 4 + 4; }
     for (let n = u(); n > 0; n--) { u(); const count = u(); at += count * 8; const methods = u(); at += methods * 8; }
-    const fnCount = u(), entry = u(), offsets = [], entryOffsets = [];
+    const fnCount = u(), entry = u(), offsets = [], entryOffsets = [], functions = [];
     for (let fn = 0; fn < fnCount; fn++) {
-      const regs = u(), params = u(); u(); const count = u(), captures = u(), handlers = u(); at += (regs + params + captures) * 4;
-      for (let i = 0; i < count; i++) { offsets.push(at); if (fn === entry) entryOffsets.push(at); at += 16; }
+      const regs = u(), params = u(), header = u(), count = u(), captures = u(), handlers = u();
+      const types = Array.from({ length: regs }, u), code = []; at += (params + captures) * 4;
+      for (let i = 0; i < count; i++) { offsets.push(at); code.push(at); if (fn === entry) entryOffsets.push(at); at += 16; }
+      functions.push({ header, types, offsets: code });
       at += handlers * 8;
     }
-    return { offsets, entryOffsets };
+    return { offsets, entryOffsets, functions };
   }
   const { offsets, entryOffsets } = instructionOffsets(bytes);
   for (let sample = 0; sample < 24; sample++) {
@@ -152,6 +154,18 @@ try {
         const r = spawnSync(exe, [file, ...(jit ? ['--jit'] : [])], { encoding: 'utf8', timeout: 2000 });
         assert.equal(r.error, undefined); assert.equal(r.signal, null); assert.equal(r.status, 1); assert.match(r.stderr, /bytecode verification failed/);
       }
+    }
+  }
+  {
+    const [exe, bundle] = command('tests/engines/generator-api.ts', 'zinc-vm'), original = fs.readFileSync(bundle);
+    const fn = instructionOffsets(original).functions.find(f => !(f.header & 4096) && f.types.includes(1) && f.offsets.some(o => original[o] === 70 && original.readUInt32LE(o + 12) === 3));
+    assert.ok(fn, 'generator fixture must call next outside a generator');
+    const offset = fn.offsets.find(o => original[o] === 70 && original.readUInt32LE(o + 12) === 3), changed = Buffer.from(original);
+    changed[offset + 1] = 1; changed.writeUInt32LE(fn.types.indexOf(1), offset + 4); changed.writeUInt32LE(10, offset + 12);
+    const file = path.join(tmp, 'invalid-generator-context.zbc'); fs.writeFileSync(file, changed);
+    for (const jit of process.arch === 'arm64' ? [false, true] : [false]) {
+      const r = spawnSync(exe, [file, ...(jit ? ['--jit'] : [])], { encoding: 'utf8', timeout: 2000 });
+      assert.equal(r.error, undefined); assert.equal(r.signal, null); assert.equal(r.status, 1); assert.match(r.stderr, /bytecode verification failed/);
     }
   }
   const jump = entryOffsets.find(offset => bytes[offset] === 25);

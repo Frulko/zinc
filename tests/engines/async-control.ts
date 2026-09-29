@@ -1,4 +1,4 @@
-// Native Zinc currently rejects finally in async functions and await on scalars.
+// Async exception/finally flow, scalar await and repeated rejection cleanup.
 async function fail(): Promise<number> {
   try { await Promise.reject(new Error('rejected')); }
   finally { console.log('inner finally'); }
