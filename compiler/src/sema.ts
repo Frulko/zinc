@@ -817,7 +817,20 @@ export class Sema {
     if (recv.k !== 'obj') return undefined;
     const owner = (ts.isParameter(member) ? member.parent.parent : member.parent) as ts.ClassLikeDeclaration | ts.InterfaceDeclaration;
     let concrete: Extract<ZT, { k: 'obj' }> | undefined = recv;
-    while (concrete && concrete.decl !== owner) concrete = this.baseType(concrete);
+    while (concrete && concrete.decl !== owner) {
+      if (ts.isInterfaceDeclaration(concrete.decl)) {
+        const bindings = new Map((concrete.decl.typeParameters ?? []).map((p, i) => [p.name.text, concrete!.args[i]]));
+        for (const clause of concrete.decl.heritageClauses ?? []) for (const base of clause.types) {
+          const decl = this.declOf(base.expression);
+          if (decl && ts.isInterfaceDeclaration(decl)) {
+            const inherited = this.substFor({ k: 'obj', decl, args: (base.typeArguments ?? []).map(t => this.fromTypeNode(t, bindings)) }, member);
+            if (inherited) return inherited;
+          }
+        }
+        return undefined;
+      }
+      concrete = this.baseType(concrete);
+    }
     if (!concrete) return undefined;
     const tps = owner?.typeParameters;
     if (!tps) return undefined;

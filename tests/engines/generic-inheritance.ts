@@ -19,3 +19,7 @@ const c = new Numbers();
 const d = new Text('world');
 console.log(a.get(), a.count, b.get(), b.count, c.first(), c.get().join(), d.get());
 const base: Base<i32> = a; base.value = 31; console.log(a.get());
+interface Values<T> { values: T; }
+interface Nested<U> extends Values<U[]> { name: string; }
+const record: Nested<i32> = { name: 'nested', values: [4, 5] };
+console.log(record.name, record.values.join());
