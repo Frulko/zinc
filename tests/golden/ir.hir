@@ -75,7 +75,7 @@ module ir.ts
     } catch (e) {
       builtin console.log(e.message): void
     }
-    builtin console.log(static sum(alloc array i32[] {1, 2, 3}): i32, static pick(-(1)): string, static grade(2): string, virtual @shapes[1].len(): f64, dyn.+(dyn.get(@d, "a"), dyn.box<f64->Dyn>(1)), (((%t4 = (((%o5 = @shapes[0]) ==:bool null) ? default : %o5.x)) ==:bool null) ? 0 : %t4), concat(x, ",", y)): void
+    builtin console.log(static sum(alloc array i32[] {1, 2, 3}): i32, static pick(-(1)): string, static grade(2): string, virtual @shapes[1].len(): f64, dyn.+(dyn.get(@d, "a"), dyn.box<f64->Dyn>(1)), (((%t4 = (((%o5 = @shapes[0]) ==:bool null) ? default : %o5.x)) ==:bool null) ? 0 : %t4), concat(@x, ",", @y)): void
     closure @bump(2): void
     builtin static later(4): Promise<f64>.then(lambda(v: f64): void {
     builtin console.log(v, @count): void

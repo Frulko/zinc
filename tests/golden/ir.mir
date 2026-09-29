@@ -125,8 +125,6 @@ module ir.ts
     ret %12
   fn <init>(): void  ; 15 blocks; fold 1, branches pruned 0, blocks merged 1, dce 1
   bb0:
-    %62 = undef y : void
-    %55 = undef x : void
     %0 = load @u : Dyn
     %1 = dyn.typeof %0 : string
     %2 = const "number" : string
@@ -205,16 +203,18 @@ module ir.ts
     br bb15
   bb15:  ; preds bb13, bb14
     %50 = phi [bb13 %49] [bb14 %46] : f64  ; %cond0
-    %57 = const "," : string
-    %64 = concat %55, %57, %62 : string
-    %65 = call.builtin console.log %23, %26, %28, %32, %38, %50, %64 : void
-    %66 = load @bump : (f64) => void
-    %67 = const 2 : f64
-    %68 = call.closure bump %66, %67 : void
-    %69 = const 4 : f64
-    %70 = call.static later %69 : Promise<f64>
-    %71 = closure <lambda>#1[] : (f64) => void
-    %72 = call.builtin then %70, %71 : Promise<void>
+    %51 = load @x : f64
+    %52 = const "," : string
+    %53 = load @y : f64
+    %54 = concat %51, %52, %53 : string
+    %55 = call.builtin console.log %23, %26, %28, %32, %38, %50, %54 : void
+    %56 = load @bump : (f64) => void
+    %57 = const 2 : f64
+    %58 = call.closure bump %56, %57 : void
+    %59 = const 4 : f64
+    %60 = call.static later %59 : Promise<f64>
+    %61 = closure <lambda>#1[] : (f64) => void
+    %62 = call.builtin then %60, %61 : Promise<void>
     ret
   fn <init>::<lambda>#1(v: f64): void  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
   bb0:

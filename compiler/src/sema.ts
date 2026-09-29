@@ -338,7 +338,7 @@ export class Sema {
   }
   isModuleLevel(d: ts.Node): boolean {
     let p = d.parent;
-    while (p && (ts.isVariableDeclarationList(p) || ts.isVariableStatement(p))) p = p.parent;
+    while (p && (ts.isBindingElement(p) || ts.isArrayBindingPattern(p) || ts.isObjectBindingPattern(p) || ts.isVariableDeclaration(p) || ts.isVariableDeclarationList(p) || ts.isVariableStatement(p))) p = p.parent;
     return !!p && ts.isSourceFile(p);
   }
   fnOf(n: ts.Node): ts.Node | undefined {

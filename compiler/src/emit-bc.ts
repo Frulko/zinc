@@ -36,8 +36,11 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
         symbols.set(member, `${symbols.get(st)}.${member.name.getText()}`);
     }
     if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) {
-      if (!ts.isIdentifier(d.name)) throw new Error('zinc-vm: global destructuring is not implemented');
-      symbols.set(d, `m${i}:${d.name.text}`);
+      const bind = (name: ts.BindingName, declaration: ts.Node) => {
+        if (ts.isIdentifier(name)) symbols.set(declaration, `m${i}:${name.text}`);
+        else for (const element of name.elements) if (ts.isBindingElement(element)) bind(element.name, element);
+      };
+      bind(d.name, d);
     }
   }
   const modules = buildHir(sema, abi.calls, symbols).filter(m => !m.file.endsWith('.spec.ts'));
@@ -331,12 +334,14 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
       if (decl.parameters.some(p => machineByte(sema.paramType(p))) || machineByte(sema.retOf(decl))) return;
       if (f.ret > 6 || f.captures.length || f.params.some(p => !f.types[p] || f.types[p] > 6)) return;
       exported.push({ name, kind: 0, index, writable: false });
-    } else if (ts.isVariableDeclaration(decl)) {
+    } else if (ts.isVariableDeclaration(decl) || ts.isBindingElement(decl)) {
       const index = globals.get('@' + symbol);
       const sourceType = sema.declType(decl);
       if (sourceType.k === 'num' && sourceType.m === 'u8') return;
       if (index === undefined || globalTypes[index] > 6) return;
-      exported.push({ name, kind: 1, index, writable: !(decl.parent.flags & ts.NodeFlags.Const) });
+      let declarationList: ts.Node | undefined = decl.parent;
+      while (declarationList && !ts.isVariableDeclarationList(declarationList)) declarationList = declarationList.parent;
+      exported.push({ name, kind: 1, index, writable: !((declarationList?.flags ?? 0) & ts.NodeFlags.Const) });
     }
   };
   const entrySymbol = sema.checker.getSymbolAtLocation(sema.fe.entry);

@@ -71,7 +71,12 @@ class Lower {
           m.globals.push(global); m.ordered.push(global);
         }
       }
-      else if (ts.isVariableStatement(st)) { const ss = this.stmt(st); m.globals.push(...ss); m.ordered.push(...ss); }
+      else if (ts.isVariableStatement(st)) {
+        const ss = this.stmt(st);
+        // Destructuring sources are temporaries of module initialization, not persistent globals.
+        m.globals.push(...ss.filter(s => !this.symbols || (s.k === 'let' && !s.name.startsWith('%'))));
+        m.ordered.push(...ss);
+      }
       else if (!ts.isInterfaceDeclaration(st) && !ts.isTypeAliasDeclaration(st) && !ts.isImportDeclaration(st) && !ts.isExportDeclaration(st) && !ts.isEnumDeclaration(st)) { const ss = this.stmt(st); m.init.push(...ss); m.ordered.push(...ss); }
     }
     return m;
@@ -200,9 +205,10 @@ class Lower {
   destructure(p: ts.BindingPattern, src: HExpr): HStmt[] {
     return p.elements.flatMap((e, i) => {
       if (!ts.isBindingElement(e)) return [];
+      if (this.symbols && (e.dotDotDotToken || e.initializer)) throw new Error('zinc-vm: rest and defaults in destructuring are not implemented');
       const t = this.s.bindingType(e);
       const v: HExpr = ts.isObjectBindingPattern(p) ? { k: 'field', t, obj: src, name: (e.propertyName ?? e.name).getText() } : src.t.k === 'tup' ? { k: 'field', t, obj: src, name: `${i}` } : { k: 'index', t, obj: src, idx: lit(I32, `${i}`) };
-      if (ts.isIdentifier(e.name)) return [{ k: 'let', name: e.name.text, t, init: v, cell: this.boxed(e.name) } as HStmt];
+      if (ts.isIdentifier(e.name)) return [{ k: 'let', name: this.symbols?.get(e) ?? e.name.text, t, init: v, cell: this.boxed(e.name) } as HStmt];
       const tmp = `%d${this.tmp++}`;
       return [{ k: 'let', name: tmp, t, init: v, cell: false } as HStmt, ...this.destructure(e.name, { k: 'var', t, name: tmp })];
     });
@@ -292,7 +298,7 @@ class Lower {
         if (!owner || s.isLib(owner)) return lit(t, String(e.name.text === 'PI' ? Math.PI : Math.E));
       }
       if (d && ts.isEnumMember(d)) return lit(I32, String(s.checker.getConstantValue(d)));
-      if (d && this.symbols?.has(d) && (ts.isVariableDeclaration(d) || ts.isPropertyDeclaration(d))) return { k: 'var', t, name: this.symbols.get(d)!, global: true };
+      if (d && this.symbols?.has(d) && (ts.isVariableDeclaration(d) || ts.isBindingElement(d) || ts.isPropertyDeclaration(d))) return { k: 'var', t, name: this.symbols.get(d)!, global: true };
       const recv = s.tryZ(e.expression);
       const obj = this.expr(e.expression);
       const get: HExpr = recv.k === 'dyn' ? { k: 'dyn', t, op: 'get', args: [obj, lit(STR, JSON.stringify(e.name.text))] }
@@ -364,8 +370,12 @@ class Lower {
       return { k: 'alloc', t, what: t.k === 'dyn' ? 'dynobj' : 'object', items };
     }
     if (ts.isArrayLiteralExpression(e)) {
-      const el = t.k === 'arr' ? t.el : t.k === 'dyn' ? DYN : undefined;
-      return { k: 'alloc', t, what: t.k === 'tup' ? 'tuple' : 'array', items: e.elements.map((x, i) => ({ v: ts.isSpreadElement(x) ? { k: 'un', t: s.ztypeOf(x.expression), op: '...', e: this.expr(x.expression) } : this.conv(this.expr(x, el), t.k === 'tup' ? t.els[i] : el) })) };
+      const arrayType = want?.k === 'arr' || want?.k === 'tup' ? want : t;
+      const el = arrayType.k === 'arr' ? arrayType.el : arrayType.k === 'dyn' ? DYN : undefined;
+      return { k: 'alloc', t: arrayType, what: arrayType.k === 'tup' ? 'tuple' : 'array', items: e.elements.map((x, i) => {
+        const element = arrayType.k === 'tup' ? arrayType.els[i] : el;
+        return { v: ts.isSpreadElement(x) ? { k: 'un', t: s.ztypeOf(x.expression), op: '...', e: this.expr(x.expression) } : this.conv(this.expr(x, element), element) };
+      }) };
     }
     if (ts.isPrefixUnaryExpression(e) || ts.isPostfixUnaryExpression(e)) {
       const op = e.operator === K.PlusPlusToken ? '+' : e.operator === K.MinusMinusToken ? '-' : undefined;
