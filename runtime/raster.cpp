@@ -2,6 +2,12 @@
 // ponytail: float math per pixel near edges; a fixed-point path would help FPU-less targets (ps1).
 #include "zrt.h"
 #include "zrt_raster.h"
+#ifdef ZRT_RASTER_PROFILE
+// -DZRT_RASTER_PROFILE: microseconds per command kind (CLEAR RECT BORDER SHADOW LINE TEXT IMAGE POLY CLIP UNCLIP), then
+// 10: polygon edge setup (n = edges), 11: polygon row sweep (n = painted pixels), 12: polygon calls; read and cleared by
+// zrt_raster_profile (the st7789 `perf` option prints them).
+static uint32_t prof_us[13], prof_n[13];
+#endif
 
 namespace zrt { namespace raster {
 
@@ -195,6 +201,9 @@ static ZRT_TLS int16_t* wds; static ZRT_TLS uint32_t wd_cap;  // all zero betwee
 static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
+#ifdef ZRT_RASTER_PROFILE
+  uint64_t pt0 = hal_time_us(); prof_n[12]++;
+#endif
   int32_t bw = b.x1 - b.x0, rows = b.y1 - b.y0;
   if (!scratch(heads, head_cap, (uint32_t)rows) || !scratch(accs, acc_cap, (uint32_t)bw)) return;
   for (int32_t i = 0; i < rows; i++) heads[i] = -1;
@@ -218,6 +227,9 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
     p += 1 + cnt * 2;
   }
   if (!ne || !scratch(actives, active_cap, ne) || !scratch(wds, wd_cap, (uint32_t)bw * 4 + 4)) return;
+#ifdef ZRT_RASTER_PROFILE
+  uint64_t pt1 = hal_time_us(); prof_us[10] += (uint32_t)(pt1 - pt0); prof_n[10] += ne;
+#endif
   bool evenodd = c.pad & 1;
   const float* paint = c.grad == 4 ? p : nullptr;  // gradient paint record after the contours
   int32_t* active = actives; int16_t* wd = wds;
@@ -247,8 +259,9 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
       if (p1 > hi) hi = p1 < bw ? p1 : bw - 1;
       for (int32_t px = qlo >> 2; px <= p1; px++) {  // 4 subsamples per pixel; runs without crossings in one step
         int16_t* w4 = wd + px * 4;
-        uint64_t any; __builtin_memcpy(&any, w4, 8);
-        if (!any) { if ((evenodd ? (wind & 1) : wind) && px < bw) acc[px] += 4; continue; }
+        // two aligned 32-bit loads: a 64-bit memcpy is a run of byte loads on Xtensa (esp32), the hot spot of this loop
+        typedef uint32_t __attribute__((may_alias)) u32a;
+        if (!(((const u32a*)w4)[0] | ((const u32a*)w4)[1])) { if ((evenodd ? (wind & 1) : wind) && px < bw) acc[px] += 4; continue; }
         for (int k = 0; k < 4; k++) { wind += w4[k]; w4[k] = 0; if ((evenodd ? (wind & 1) : wind) && px < bw) acc[px]++; }
       }
     }
@@ -260,11 +273,17 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
       uint32_t col = paint ? paint_at(paint, b.x0 + i + 0.5f, y + 0.5f, a) : c.grad ? color_at(c, b.x0 + i + 0.5f, y + 0.5f) : c.c1;
       if (k >= 16 && a == 255) at(t, b.x0 + i, y) = col;
       else blend(at(t, b.x0 + i, y), col, k * a / 16);
+#ifdef ZRT_RASTER_PROFILE
+      prof_n[11]++;
+#endif
     }
     uint32_t keep = 0;  // drop edges that end in this row
     for (uint32_t a = 0; a < na; a++) if (edges[active[a]].y1 > y + 1) active[keep++] = active[a];
     na = keep;
   }
+#ifdef ZRT_RASTER_PROFILE
+  prof_us[11] += (uint32_t)(hal_time_us() - pt1);
+#endif
 }
 
 // ---------------------------------------------------------------- text and images
@@ -459,6 +478,9 @@ template<class F> static void corners(const Target& t, const RoundClip& k, Rect 
         if (x >= lim.x0 && x < lim.x1 && y >= lim.y0 && y < lim.y1) f(x, y, i);
   (void)t;
 }
+#ifdef ZRT_RASTER_PROFILE
+extern "C" void zrt_raster_profile(uint32_t* us, uint32_t* n) { for (int i = 0; i < 13; i++) { us[i] = prof_us[i]; n[i] = prof_n[i]; prof_us[i] = prof_n[i] = 0; } }
+#endif
 void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
   Rect base = intersect(damage, Rect{0, y0, w, y1});
   if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
@@ -467,6 +489,9 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
   Target t = {band, w, y0, base};
   for (uint32_t i = 0; i < f.count; i++) {
     const Cmd& c = f.cmds[i];
+#ifdef ZRT_RASTER_PROFILE
+    struct Prof { uint8_t k; uint64_t t0 = hal_time_us(); ~Prof() { prof_us[k] += (uint32_t)(hal_time_us() - t0); prof_n[k]++; } } prof{(uint8_t)c.kind};
+#endif
     switch (c.kind) {
       case CLEAR:
         for (int32_t y = t.clip.y0; y < t.clip.y1; y++) for (int32_t x = t.clip.x0; x < t.clip.x1; x++) at(t, x, y) = c.c1;
