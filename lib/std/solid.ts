@@ -7,19 +7,24 @@ interface Source {
   subscribe(c: Computation): void;
   unsubscribe(c: Computation): void;
 }
+// Shared empty lists: most computations never own, subscribe to or clean up anything, and three empty arrays per
+// computation were a large part of the heap on a 160 KiB device. A list is replaced by a real one on its first push.
+const NO_SRC: Source[] = [];
+const NO_CLN: (() => void)[] = [];
+const NO_OWN: Computation[] = [];
 class Computation {
   fn: () => void;
-  sources: Source[] = [];
-  cleanups: (() => void)[] = [];
+  sources: Source[] = NO_SRC;
+  cleanups: (() => void)[] = NO_CLN;
   queued: boolean = false;
   /** Computations created while this one ran: disposed when it re-runs or is disposed (Solid ownership). */
-  owned: Computation[] = [];
+  owned: Computation[] = NO_OWN;
   parent: Computation | null = null;   // the owner whose `owned` list holds this one
   slot: i32 = -1;   // index in `all` while alive
   constructor(fn: () => void) {
     this.fn = fn; this.slot = all.length; all.push(this);
     const o = owner;
-    if (o !== null) { o.owned.push(this); this.parent = o; }
+    if (o !== null) { if (o.owned === NO_OWN) o.owned = []; o.owned.push(this); this.parent = o; }
   }
 }
 const NOOP = (): void => {};
@@ -37,7 +42,7 @@ function rendered(root: Computation, fn: () => i32): i32 {
 /** Disposes everything `c` owns (the list is detached first: children leaving it would disturb the loop). */
 function disposeOwned(c: Computation): void {
   const list = c.owned;
-  c.owned = [];
+  c.owned = NO_OWN;
   for (const k of list) { k.parent = null; dispose(k); }
 }
 function dispose(c: Computation): void {
@@ -45,9 +50,9 @@ function dispose(c: Computation): void {
   if (p !== null) { const i = p.owned.indexOf(c); if (i >= 0) p.owned.splice(i, 1); c.parent = null; }
   disposeOwned(c);
   for (const s of c.sources) s.unsubscribe(c);
-  c.sources = [];
+  c.sources = NO_SRC;
   for (const f of c.cleanups) f();
-  c.cleanups = [];
+  c.cleanups = NO_CLN;
   c.fn = NOOP;
   // leave the exit list (swap-remove): a disposed computation holds nothing, and keeping it would grow the heap by
   // every Show branch or list row ever mounted
@@ -61,7 +66,7 @@ function dispose(c: Computation): void {
 const all: Computation[] = [];
 /** Breaks the signal <-> computation cycles at exit (called by the runtime before the leak report). */
 export function __dispose(): void {
-  for (const c of all) { c.fn = NOOP; c.sources = []; c.cleanups = []; c.owned = []; c.parent = null; }   // owner <-> child links are cycles too
+  for (const c of all) { c.fn = NOOP; c.sources = NO_SRC; c.cleanups = NO_CLN; c.owned = NO_OWN; c.parent = null; }   // owner <-> child links are cycles too
 }
 let current: Computation | null = null;
 let batchDepth: i32 = 0;
@@ -79,14 +84,15 @@ function track(s: Source): void {
   const c = current;
   if (c === null) return;
   s.subscribe(c);
+  if (c.sources === NO_SRC) c.sources = [];
   c.sources.push(s);
 }
 function run(c: Computation): void {
   disposeOwned(c);
   for (const s of c.sources) s.unsubscribe(c);
-  c.sources = [];
+  c.sources = NO_SRC;
   for (const f of c.cleanups) f();
-  c.cleanups = [];
+  c.cleanups = NO_CLN;
   const prev = current, prevOwner = owner;
   current = c; owner = c;
   c.fn();
@@ -136,7 +142,7 @@ export function batch(fn: () => void): void {
     }
   }
 }
-export function onCleanup(fn: () => void): void { const c = current; if (c !== null) c.cleanups.push(fn); }
+export function onCleanup(fn: () => void): void { const c = current; if (c !== null) { if (c.cleanups === NO_CLN) c.cleanups = []; c.cleanups.push(fn); } }
 export function onMount(fn: () => void): void { queueMicrotask(fn); }
 
 // ---- JSX lowering helpers (called by compiler-generated code) ----

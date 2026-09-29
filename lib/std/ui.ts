@@ -107,6 +107,8 @@ export class Edit {
   constructor(multi: boolean) { this.multi = multi; }
 }
 
+const NO_LINES: string[] = [];
+const NO_LINEW: number[] = [];
 export class UiNode {
   tag: i32;
   parent: i32 = -1;
@@ -148,12 +150,12 @@ export class UiNode {
   size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
-  lines: string[] = []; lineW: number[] = [];
+  lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
   img: i32 = -1;
   focusBg: i32 = -1; activeBg: i32 = -1; focusFg: i32 = -1; activeFg: i32 = -1;
   transMs: number = 0; curBg: i32 = -1; fromBg: i32 = -1; transStart: number = 0;
   focusable: boolean = false;
-  styleKeys: string[] = []; styleVals: number[] = [];
+  styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW;   // shared empties until the first style number
   cls: string = '\u0000';
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
@@ -182,6 +184,10 @@ export class Virtual {
 }
 const nodes: UiNode[] = [];
 const free: i32[] = [];
+/** Stands in for every destroyed node: the slot keeps its number for reuse but drops the node's memory (a page of
+ *  171 nodes held ~100 KiB after it was left, which a 160 KiB ESP32 heap cannot afford). */
+const DEAD: UiNode = new UiNode(0);
+DEAD.alive = false;
 let layoutDirty = true;
 let paintDirty = true;
 let canvases: i32 = 0;
@@ -281,6 +287,7 @@ function release(h: i32): void {
   if (capture === h) capture = -1;
   if (selecting === h) selecting = -1;
   for (const a of anims) if (a.node === h) a.node = -1;
+  nodes[h] = DEAD;
   free.push(h);
 }
 export function listen(h: i32, f: () => void): void { const n = node(h); n.onClick = f; n.focusable = true; }
@@ -394,6 +401,7 @@ function clampI(v: i32, a: i32, b: i32): i32 { return v < a ? a : v > b ? b : v;
 /** Numeric style properties (style={{ ... }}, animate, dynamic attributes). */
 export function setNumber(h: i32, key: string, v: number): void {
   const n = node(h);
+  if (n.styleKeys === NO_LINES) { n.styleKeys = []; n.styleVals = []; }
   const i = n.styleKeys.indexOf(key);
   if (i >= 0) { if (n.styleVals[i] === v) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); }
   applyNumber(n, key, v);
