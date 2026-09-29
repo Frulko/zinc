@@ -456,6 +456,12 @@ class Lower {
         return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
       }
       const recv = this.expr(c.expression);
+      if (this.symbols && recvT.k === 'arr' && ['indexOf', 'includes'].includes(name) && args.length >= 1 && args.length <= 2) {
+        const from = e.arguments[1];
+        return this.arraySearch(name, recv, this.conv(args[0], recvT.el), !from || (ts.isIdentifier(from) && from.text === 'undefined') ? lit(I32, '0') : this.conv(args[1], I32), t);
+      }
+      if (this.symbols && recvT.k === 'arr' && ['every', 'some', 'filter', 'map', 'find', 'findLast', 'findIndex', 'findLastIndex', 'forEach'].includes(name) && args.length === 1)
+        return this.arrayCallback(name, recv, args[0], t);
       if (this.symbols && recvT.k === 'promise' && ['then', 'catch', 'finally'].includes(name) && args.length === 1 && args[0].t.k === 'fn') return this.promiseChain(t, recv, args[0], name);
       if (recvT.k === 'dyn') return { k: 'dyn', t, op: `call ${name}`, args: [recv, ...args] };
       if (recvT.k !== 'obj') return { k: 'call', t, how: 'builtin', fn: name, recv, args, check };
@@ -514,6 +520,68 @@ class Lower {
     return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: fn.params.map(p => p.t), ret: t }, fn }, args: [source, cb], check: false };
   }
 
+
+  /** Array callbacks use ordinary typed VM calls, so captures, GC and exceptions
+   * follow the same path as explicit guest loops. Length is captured once (JS). */
+  arrayCallback(name: string, input: HExpr, callback: HExpr, resultType: ZT): HExpr {
+    if (input.t.k !== 'arr' || callback.t.k !== 'fn' || callback.t.params.length > 2) throw new Error(`zinc-vm: unsupported ${name} callback signature`);
+    const element = input.t.el, signature = callback.t;
+    const findsValue = name === 'find' || name === 'findLast';
+    if (findsValue && !['obj', 'arr', 'fn'].includes(element.k)) throw new Error(`zinc-vm: ${name} requires reference elements until scalar undefined is represented; use findIndex`);
+    if (name === 'map' && signature.ret.k === 'void') throw new Error('zinc-vm: map requires a representable element result');
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
+    const array = variable('%array', input.t), fn = variable('%callback', signature);
+    const length = variable('%length', I32), index = variable('%index', I32), item = variable('%item', element), out = variable('%out', resultType);
+    const declaration = (v: typeof array, init: HExpr): HStmt => ({ k: 'let', name: v.name, t: v.t, init, cell: false });
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = BOOL): HExpr => ({ k: 'bin', op, t, l, r });
+    const size: HExpr = { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: array, args: [], check: false };
+    const reverse = name === 'findLastIndex' || name === 'findLast';
+    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: fn.name, recv: fn,
+      args: [item, index].slice(0, signature.params.length).map((v, i) => this.conv(v, signature.params[i])), check: true };
+    const condition: HExpr = { k: 'un', t: BOOL, op: 'truthy', e: invoke };
+    let action: HStmt;
+    if (name === 'filter') action = { k: 'if', c: condition, then: [{ k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [item], check: false } }], else: [] };
+    else if (name === 'map') action = { k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [invoke], check: false } };
+    else if (name === 'forEach') action = { k: 'expr', e: invoke };
+    else action = { k: 'if', c: name === 'every' ? { k: 'un', t: BOOL, op: '!', e: condition } : condition,
+      then: [{ k: 'return', e: name === 'every' ? lit(BOOL, 'false') : name === 'some' ? lit(BOOL, 'true') : findsValue ? item : index }], else: [] };
+    const body: HStmt[] = [declaration(length, size), declaration(index, reverse ? binary('-', length, lit(I32, '1'), I32) : lit(I32, '0'))];
+    if (name === 'filter' || name === 'map') body.push(declaration(out, { k: 'alloc', t: resultType, what: 'array', items: [] }));
+    // Dense Zinc arrays cannot pass undefined to a typed callback or represent
+    // holes in map's result. Reject that mutation explicitly rather than compact.
+    const missing: HStmt[] = name === 'map' || name.startsWith('find') ? [{ k: 'throw', e: { k: 'new', t: { k: 'obj', decl: this.s.errorDecl, args: [] }, cls: 'Error', args: [lit(STR, JSON.stringify(`typed array ${name} cannot visit removed elements`))], check: false } }] : [];
+    body.push({ k: 'loop', c: binary(reverse ? '>=' : '<', index, reverse ? lit(I32, '0') : length),
+      body: [{ k: 'if', c: binary('<', index, size), then: [declaration(item, { k: 'index', t: element, obj: array, idx: index }), action], else: missing }],
+      step: [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: binary(reverse ? '-' : '+', index, lit(I32, '1'), I32) } }] });
+    body.push({ k: 'return', e: name === 'filter' || name === 'map' ? out : name === 'forEach' ? undefined : name === 'every' ? lit(BOOL, 'true') : name === 'some' ? lit(BOOL, 'false') : findsValue ? lit({ k: 'null' }, 'null') : lit(I32, '-1') });
+    const functionType: ZT = { k: 'fn', params: [input.t, signature], ret: resultType };
+    const helper: HFunc = { name: `<array.${name}>`, params: [array, fn].map(v => ({ name: v.name, t: v.t, cell: false })), ret: resultType, body, throws: true, kind: 'fn', captures: [] };
+    return { k: 'call', t: resultType, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: functionType, fn: helper }, args: [input, callback], check: true };
+  }
+
+  arraySearch(name: string, input: HExpr, target: HExpr, from: HExpr, resultType: ZT): HExpr {
+    if (input.t.k !== 'arr') throw new Error('zinc-vm: expected an array search receiver');
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
+    const array = variable('%array', input.t), needle = variable('%needle', input.t.el), index = variable('%index', I32);
+    const item = variable('%item', input.t.el), length = variable('%length', I32);
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = BOOL): HExpr => ({ k: 'bin', op, t, l, r });
+    const equal = binary('==', item, needle);
+    const nan: HExpr = { k: 'cond', t: BOOL, c: binary('!=', item, item), a: binary('!=', needle, needle), b: lit(BOOL, 'false') };
+    const match: HExpr = name === 'includes' && input.t.el.k === 'num' ? { k: 'cond', t: BOOL, c: equal, a: lit(BOOL, 'true'), b: nan } : equal;
+    const assign = (v: HExpr): HStmt => ({ k: 'expr', e: { k: 'assign', t: I32, target: index, v } });
+    const body: HStmt[] = [
+      { k: 'let', name: length.name, t: I32, cell: false, init: { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: array, args: [], check: false } },
+      { k: 'if', c: binary('<', index, lit(I32, '0')), then: [assign(binary('+', length, index, I32))], else: [] },
+      { k: 'if', c: binary('<', index, lit(I32, '0')), then: [assign(lit(I32, '0'))], else: [] },
+      { k: 'loop', c: binary('<', index, length), body: [
+        { k: 'let', name: item.name, t: item.t, cell: false, init: { k: 'index', t: item.t, obj: array, idx: index } },
+        { k: 'if', c: match, then: [{ k: 'return', e: name === 'includes' ? lit(BOOL, 'true') : index }], else: [] },
+      ], step: [assign(binary('+', index, lit(I32, '1'), I32))] },
+      { k: 'return', e: name === 'includes' ? lit(BOOL, 'false') : lit(I32, '-1') },
+    ];
+    const helper: HFunc = { name: `<array.${name}>`, params: [array, needle, index].map(v => ({ name: v.name, t: v.t, cell: false })), ret: resultType, body, throws: false, kind: 'fn', captures: [] };
+    return { k: 'call', t: resultType, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: { k: 'fn', params: [array.t, needle.t, I32], ret: resultType }, fn: helper }, args: [input, target, from], check: false };
+  }
 
   promiseAll(t: Extract<ZT, { k: 'promise' }>, input: HExpr): HExpr {
     const outType = t.el as Extract<ZT, { k: 'arr' }>;

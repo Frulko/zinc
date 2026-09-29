@@ -484,20 +484,20 @@ template<class T> struct Array {
   // SameValueZero: [NaN].includes(NaN) is true, [NaN].indexOf(NaN) is -1
   bool includes(const T& v, int32_t from = 0) const { ArrObj<T>* o = obj(); for (int32_t i = from_index(from, o->len); i < o->len; i++) if (same_value_zero(o->data[i], v)) return true; return false; }
   T at(int32_t i) const { int32_t n = length(); if (i < 0) i += n; if (i < 0 || i >= n) return T(); return a->data[i]; }
-  template<class F> T find(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
-  template<class F> int32_t findIndex(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return i; return -1; }
-  template<class F> T findLast(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length() && cb2(f, a->data[i], i, 0)) return a->data[i]; return T(); }
-  template<class F> int32_t findLastIndex(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length() && cb2(f, a->data[i], i, 0)) return i; return -1; }
-  template<class F> bool some(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) return true; return false; }
-  template<class F> bool every(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) if (!cb2(f, a->data[i], i, 0)) return false; return true; }
-  template<class F> void forEach(F f) const { for (int32_t i = 0; i < length() && !g_err.p; i++) cb2(f, T(a->data[i]), i, 0); }
+  template<class F> T find(F f) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) { if (i >= length()) panic("typed array find cannot visit removed elements"); T value = a->data[i]; if (cb2(f, value, i, 0)) return value; } return T(); }
+  template<class F> int32_t findIndex(F f) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) { if (i >= length()) panic("typed array findIndex cannot visit removed elements"); if (cb2(f, T(a->data[i]), i, 0)) return i; } return -1; }
+  template<class F> T findLast(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) { if (i >= length()) panic("typed array findLast cannot visit removed elements"); T value = a->data[i]; if (cb2(f, value, i, 0)) return value; } return T(); }
+  template<class F> int32_t findLastIndex(F f) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) { if (i >= length()) panic("typed array findLastIndex cannot visit removed elements"); if (cb2(f, T(a->data[i]), i, 0)) return i; } return -1; }
+  template<class F> bool some(F f) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length() && cb2(f, T(a->data[i]), i, 0)) return true; return false; }
+  template<class F> bool every(F f) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length() && !cb2(f, T(a->data[i]), i, 0)) return false; return true; }
+  template<class F> void forEach(F f) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length()) cb2(f, T(a->data[i]), i, 0); }
   template<class F> auto map(F f) const -> Array<decay_t<decltype(cb2(f, declval<const T&>(), int32_t(0), 0))>> {
     Array<decay_t<decltype(cb2(f, declval<const T&>(), int32_t(0), 0))>> r;
     r = decltype(r)::with_cap(length());
-    for (int32_t i = 0; i < length() && !g_err.p; i++) r.push_raw(cb2(f, a->data[i], i, 0));
+    for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) { if (i >= length()) panic("typed array map cannot visit removed elements"); r.push_raw(cb2(f, T(a->data[i]), i, 0)); }
     return r;
   }
-  template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0; i < length() && !g_err.p; i++) if (cb2(f, a->data[i], i, 0)) r.push_raw(a->data[i]); return r; }
+  template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length()) { T value = a->data[i]; if (cb2(f, value, i, 0)) r.push_raw(value); } return r; }
   template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0; i < length() && !g_err.p; i++) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
   template<class F, class U> U reduceRight(F f, U acc) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length()) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
   // RT-11: stable merge sort
