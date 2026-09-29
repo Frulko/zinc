@@ -7,7 +7,7 @@ import { ts } from './frontend.ts';
 import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
 const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
@@ -260,7 +260,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             op('call', t, a, fn, base); break;
           }
           case 'call.builtin': case 'call.builtin!':
-            if (i.attr?.startsWith('@native:')) {
+            if (i.attr?.startsWith('@methodref:')) {
+              op('methodref', 7, a, x, field(i.attr.slice(11)));
+            } else if (i.attr?.startsWith('@native:')) {
               const id = Number(i.attr.slice(8)), base = types.length;
               if (abi.exports[id].result === 10) { const shape = layout(i.t); op('alloc', 7, a, shape, layouts[shape].types.length); }
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }

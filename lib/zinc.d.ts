@@ -10,7 +10,9 @@ type fx12 = number; type fx16 = number;
 // ---- global types required by the TypeScript checker ----
 interface Object {}
 interface Function {}
-interface CallableFunction extends Function {}
+interface CallableFunction extends Function {
+  bind<T, A extends any[], B extends any[], R>(this: (this: T, ...args: [...A, ...B]) => R, thisArg: T, ...args: A): (...args: B) => R;
+}
 interface NewableFunction extends Function {}
 interface IArguments {}
 interface RegExp {}

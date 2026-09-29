@@ -62,9 +62,17 @@ class CppEmitter {
   dynFns = new Map<ts.Node, string>();
   dynFnDefs: string[] = [];
 
+  boundMethodNames = new Set<string>();
   s: Sema;
   o: CppOptions;
-  constructor(s: Sema, o: CppOptions) { this.s = s; this.o = o; this.native = new NativeModules(s); }
+  constructor(s: Sema, o: CppOptions) {
+    this.s = s; this.o = o; this.native = new NativeModules(s);
+    const visit = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'bind' && ts.isPropertyAccessExpression(n.expression.expression)) this.boundMethodNames.add(n.expression.expression.name.text);
+      ts.forEachChild(n, visit);
+    };
+    s.fe.sources.forEach(visit);
+  }
 
   // ---------- naming ----------
   id(n: string): string {
@@ -406,6 +414,12 @@ class CppEmitter {
         const ret = this.cpp(rt);
         const mname = this.id(m.name.getText());
         L.push(`  ${mt}${st ? 'static ' : virt ? 'virtual ' : ''}${ret} ${mname}(${this.params(m.parameters, true)})${abstract ? ' = 0' : ''};`);
+        if (!st && !m.typeParameters?.length && this.boundMethodNames.has(m.name.getText())) {
+          const args = m.parameters.map((p, i) => ({ type: this.cpp(this.s.paramType(p)), name: `arg${i}` }));
+          const signature = `${ret}(zrt::Ref<zrt::Object>${args.map(a => ', ' + a.type).join('')})`;
+          const call = `zrt::cast<${self}>(receiver)->${self}::${mname}(${args.map(a => a.name).join(', ')})`;
+          L.push(`  virtual zrt::Fn<${signature}> zrt_method_${mname}()${abstract ? ' = 0;' : ` { return [](zrt::Ref<zrt::Object> receiver${args.map(a => ', ' + a.type + ' ' + a.name).join('')}) -> ${ret} { return ${call}; }; }`}`);
+        }
         if (!abstract && ts.isMethodDeclaration(m) && m.body) {
           let body: string;
           if (this.s.isAsyncFn(m) || this.s.isGeneratorFn(m)) {
@@ -1255,7 +1269,21 @@ class CppEmitter {
     return undefined;
   }
 
+  bindFunction(e: ts.CallExpression, source: ts.Expression): string {
+    const signature = this.s.ztypeOf(source), result = this.s.ztypeOf(e);
+    if (signature.k !== 'fn' || result.k !== 'fn' || !e.arguments.length || e.arguments.length - 1 > signature.params.length) return this.s.fail(e, 'Z9050', 'invalid bind arguments');
+    const declaration = ts.isPropertyAccessExpression(source) ? this.s.declOf(source.name) : undefined;
+    const method = declaration && (ts.isMethodDeclaration(declaration) || ts.isMethodSignature(declaration)) && !this.isStatic(declaration);
+    const fn = this.newTmp('boundFn'), receiver = this.newTmp('boundThis');
+    const bound = e.arguments.slice(1).map((a, i) => ({ name: this.newTmp('boundArg'), code: this.conv(a, signature.params[i]) }));
+    const value = method ? `${this.expr((source as ts.PropertyAccessExpression).expression)}->zrt_method_${this.id((source as ts.PropertyAccessExpression).name.text)}()` : this.expr(source);
+    const params = result.params.map((t, i) => ({ type: this.cpp(t), name: `arg${i}` }));
+    const call = `${fn}(${[...(method ? [receiver] : []), ...bound.map(b => b.name), ...params.map(p => p.name)].join(', ')})`;
+    return `({ auto ${fn} = ${value}; auto ${receiver} = ${this.expr(e.arguments[0])}; ${bound.map(b => `auto ${b.name} = ${b.code};`).join(' ')} ${this.cpp(result)}([${[fn, receiver, ...bound.map(b => b.name)].join(', ')}](${params.map(p => p.type + ' ' + p.name).join(', ')}) -> ${this.cpp(result.ret)} { return ${call}; }); })`;
+  }
+
   call(e: ts.CallExpression): string {
+    if (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'bind' && this.s.tryZ(e.expression.expression).k === 'fn') return this.bindFunction(e, e.expression.expression);
     const c = e.expression;
     if (c.kind === this.K.SuperKeyword) return this.s.fail(e, 'Z9021', 'super(...) must be the first statement of the constructor');
     const nat = this.native.call(e, this);

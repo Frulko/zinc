@@ -506,10 +506,30 @@ class Lower {
     const opnd = isNum(t) && !['&', '|', '^', '<<', '>>', '>>>'].includes(tok) ? t : w;
     return { k: 'bin', t, op: tok === '===' ? '==' : tok === '!==' ? '!=' : tok, l: this.conv(this.expr(e.left, opnd), isNum(opnd) ? opnd : undefined), r: this.conv(this.expr(e.right, opnd), isNum(opnd) ? opnd : undefined) };
   }
+  bindFunction(call: ts.CallExpression, source: ts.Expression, result: ZT): HExpr {
+    const signature = this.s.ztypeOf(source);
+    if (signature.k !== 'fn' || result.k !== 'fn' || !call.arguments.length || call.arguments.length - 1 > signature.params.length) throw new Error('zinc-vm: invalid bind arguments');
+    const method = ts.isPropertyAccessExpression(source) ? this.s.declOf(source.name) : undefined;
+    const staticMethod = !!method && ts.isMethodDeclaration(method) && !!(ts.getCombinedModifierFlags(method) & ts.ModifierFlags.Static);
+    const instance = !!method && (ts.isMethodDeclaration(method) || ts.isMethodSignature(method)) && !staticMethod;
+    const receiver = this.expr(call.arguments[0]);
+    const functionType: ZT = instance ? { ...signature, params: [receiver.t, ...signature.params] } : signature;
+    const value: HExpr = instance ? { k: 'call', t: functionType, how: 'builtin', fn: `@methodref:${(source as ts.PropertyAccessExpression).name.text}`, recv: this.expr((source as ts.PropertyAccessExpression).expression), args: [], check: true } : staticMethod ? { k: 'var', t: signature, name: `${this.symbols!.get(method!.parent)!}.${(source as ts.PropertyAccessExpression).name.text}`, global: true } : this.expr(source);
+    const bound = call.arguments.slice(1).map((a, i) => this.conv(this.expr(a, signature.params[i]), signature.params[i]));
+    const captured = [value, receiver, ...bound].map((v, i) => ({ name: `%bound${i}`, t: v.t, cell: false }));
+    const variable = (p: { name: string; t: ZT }): HExpr => ({ k: 'var', name: p.name, t: p.t });
+    const params = result.params.map((t, i) => ({ name: `%arg${i}`, t, cell: false }));
+    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: '<bound target>', recv: variable(captured[0]), args: [...(instance ? [variable(captured[1])] : []), ...captured.slice(2).map(variable), ...params.map(variable)], check: true };
+    const inner: HFunc = { name: '<bound>', kind: 'fn', ret: signature.ret, params, captures: captured.map(p => p.name), captureTypes: captured, throws: true, body: [{ k: 'return', e: invoke }] };
+    const factory: HFunc = { name: '<bind>', kind: 'fn', ret: result, params: captured, captures: [], throws: false, body: [{ k: 'return', e: { k: 'lambda', t: result, fn: inner } }] };
+    return { k: 'call', t: result, how: 'closure', fn: factory.name, recv: { k: 'lambda', t: { k: 'fn', params: captured.map(p => p.t), ret: result }, fn: factory }, args: [value, receiver, ...bound], check: true };
+  }
+
   call(e: ts.CallExpression, t: ZT): HExpr {
     const s = this.s, c = e.expression, check = s.mayThrow(e);
+    if (this.symbols && ts.isPropertyAccessExpression(c) && c.name.text === 'bind' && s.tryZ(c.expression).k === 'fn') return this.bindFunction(e, c.expression, t);
     let d = ts.isPropertyAccessExpression(c) ? s.declOf(c.name) : s.declOf(c);
-    const callable = d && !s.isLib(d) && !ts.isFunctionLike(d) ? s.tryZ(c) : undefined;
+    const callable = !d || (!s.isLib(d) && !ts.isFunctionLike(d)) ? s.tryZ(c) : undefined;
     const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p), undefined)) : callable?.k === 'fn' ? callable.params : [];
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
     const native = d && this.nativeCalls?.get(d);

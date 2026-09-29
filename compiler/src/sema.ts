@@ -171,7 +171,7 @@ export class Sema {
       let changed = true;
       while (changed) {
         changed = false;
-        this.anyLambdaThrows = [...this.throwing].some(f => ts.isArrowFunction(f) || ts.isFunctionExpression(f));
+        this.anyLambdaThrows = [...this.throwing].some(f => ts.isArrowFunction(f) || ts.isFunctionExpression(f)) || calls.some(c => ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression) && c.expression.name.text === 'bind');
         for (const c of calls) {
           const caller = this.fnOf(c);
           if (!caller || this.throwing.has(caller) || this.isAsyncFn(caller)) continue;
@@ -888,6 +888,14 @@ export class Sema {
       }
       if (ts.isPropertyAccessExpression(c)) {
         const recv = this.tryZ(c.expression);
+        if (c.name.text === 'bind' && recv.k === 'fn') {
+          const method = ts.isPropertyAccessExpression(c.expression) ? this.declOf(c.expression.name) : undefined;
+          if (method && (ts.isMethodDeclaration(method) || ts.isMethodSignature(method)) && !(ts.getCombinedModifierFlags(method) & ts.ModifierFlags.Static)) {
+            const receiver = e.arguments[0] && this.tryZ(e.arguments[0]);
+            if (!receiver || receiver.k !== 'obj' || !this.inherits(receiver.decl, method.parent as ts.ClassDeclaration | ts.InterfaceDeclaration)) this.fail(e, 'Z9050', 'bound method receiver must implement its declaring class or interface');
+          }
+          return { ...recv, params: recv.params.slice(Math.max(0, e.arguments.length - 1)) };
+        }
         const lib = this.libMemberType(recv, c.name.text, e);
         if (lib) return lib;
         const d = this.declOf(c.name);
@@ -908,7 +916,7 @@ export class Sema {
         }
         if (d && ts.isFunctionDeclaration(d) && !d.typeParameters && (!this.isLib(d) || this.libModule(d) || (d.type && ts.isTypeReferenceNode(d.type) && MACHINE.has(d.type.typeName.getText()))))
           return this.retOf(d);
-        const ft = d && !this.isLib(d) ? this.tryZ(c) : VOID;
+        const ft = !d || !this.isLib(d) ? this.tryZ(c) : VOID;
         if (ft.k === 'fn' && !(d && ts.isFunctionDeclaration(d))) return ft.ret;
       }
     }

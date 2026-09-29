@@ -23,7 +23,7 @@ static void registerGeneratedModules(zinc::Modules&) {}
 #endif
 
 namespace {
-enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, GENCONTROL, NOPS };
+enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, GENCONTROL, METHODREF, NOPS };
 enum { VM_REF = 7 };
 struct Heap;
 union Reg { double f; int32_t i; uint32_t u; Heap* h; Reg(): f(0) {} };
@@ -483,6 +483,14 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
   } else if constexpr(O==AWAIT) { vm->suspend(ip,fp);ip=nullptr;return;
   } else if constexpr(O==THROW) { vm->poll();vm->exception=fp[a];throw GuestThrow(); }
   else if constexpr(O==EXCEPTION) { fp[a]=vm->exception;vm->exception=Reg(); }
+  else if constexpr(O==METHODREF) {
+    auto& object=vm->object(fp[b],false);const auto& layout=vm->layouts[object.layout];
+    const auto method=std::find_if(layout.methods.begin(),layout.methods.end(),[&](auto entry){return entry.first==c;});
+    if(method==layout.methods.end())throw std::runtime_error("VM method not found");
+    const uint32_t target=method->second;
+    if(!vm->functionValues[target].h){auto* h=vm->allocate(vm->fns[target].closureLayout,0,fp);h->function=target;vm->functionValues[target].h=h;}
+    fp[a]=vm->functionValues[target];
+  }
   else if constexpr(O==FNREF) {
     if (!vm->functionValues[b].h) { auto* h=vm->allocate(vm->fns[b].closureLayout,0,fp);h->function=b;vm->functionValues[b].h=h; }
     fp[a]=vm->functionValues[b];
@@ -679,7 +687,7 @@ template<int O> Handler typed(uint32_t t) {
 Handler handler(uint32_t op,uint32_t t) {
   switch(op) {
 #define O(n) case n: return typed<n>(t);
-    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION) O(GENCONTROL)
+    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION) O(GENCONTROL) O(METHODREF)
 #undef O
   } throw std::runtime_error("invalid opcode");
 }
@@ -784,6 +792,7 @@ uint32_t load(VM& vm,Reader r) {
     else if(i.op==CLOSURE) { reg(a,VM_REF);check(t==VM_REF && b<vm.fns.size());const auto& callee=vm.fns[b];check(c<=f.types.size() && callee.captures.size()<=f.types.size()-c);for(size_t j=0;j<callee.captures.size();j++)reg(c+j,callee.types[callee.captures[j]]); }
     else if(i.op==THROW || i.op==EXCEPTION) { check(t==VM_REF);reg(a,VM_REF); }
     else if(i.op==METHOD) { reg(a,t);reg(b,VM_REF); }
+    else if(i.op==METHODREF) {check(t==VM_REF);reg(a,VM_REF);reg(b,VM_REF);}
     else if(i.op==CALLF) { reg(a,t);reg(b,VM_REF);check(c<=f.types.size()); }
     else if(i.op==ALLOC) { reg(a,VM_REF);check(t==VM_REF && b<vm.layouts.size());check(vm.layouts[b].array ? c<=(1u<<20) : c==vm.layouts[b].types.size()); }
     else if(i.op==INIT) { reg(a,VM_REF);reg(c,t);check(t!=ZINC_VOID); }
