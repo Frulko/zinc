@@ -4,7 +4,7 @@
   "source": "examples/ui/forms",
   "environment": {
     "ZINC_DEMO": "1",
-    "SDL_VIDEODRIVER": "dummy"
+    "SDL_VIDEO_DRIVER": "dummy"
   },
   "frames": [
     1,
