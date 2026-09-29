@@ -549,7 +549,20 @@ class CppEmitter {
         } else {
           if (f.kind !== 'gen') this.s.fail(n, 'Z9032', 'yield is only allowed in generators');
           if (!ts.isExpressionStatement(n.parent)) this.s.fail(n, 'Z9032', 'yield must be a statement (its result is not supported)');
-          if (n.asteriskToken) this.s.fail(n, 'Z9032', 'yield* is not supported yet');
+          if (n.asteriskToken) {
+            const source = this.s.ztypeOf(n.expression!);
+            if (!['arr', 'str', 'gen'].includes(source.k)) this.s.fail(n, 'Z9032', 'yield* requires an array, string or generator');
+            const receiver = this.newTmp('delegate'), index = this.newTmp('delegateIndex');
+            f.fields.set(receiver, this.cpp(source));
+            const gen = source.k === 'gen', st = ++f.state;
+            if (!gen) f.fields.set(index, 'int32_t');
+            const test = gen ? `({ bool __more = ${receiver}->step(); if (zrt::g_err.p) { ${this.propagate()}; } __more; })` : `${index} < ${receiver}.length()`;
+            const width = source.k === 'str' ? `((${receiver}.charCodeAt(${index}) >= 0xd800 && ${receiver}.charCodeAt(${index}) <= 0xdbff && ${receiver}.charCodeAt(${index}+1) >= 0xdc00 && ${receiver}.charCodeAt(${index}+1) <= 0xdfff) ? 2 : 1)` : '1';
+            const value = gen ? `${receiver}->cur` : source.k === 'str' ? `${receiver}.slice(${index}, ${index}+${width})` : `${receiver}.get(${index})`;
+            f.awaits.set(n, '(void)0');
+            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${gen ? '' : `${I}  ${index} += ${width};\n`}${I}}\n${I}${receiver} = {};\n`;
+            return;
+          }
           const st = ++f.state;
           f.awaits.set(n, '(void)0');
           out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n`;
@@ -781,7 +794,7 @@ class CppEmitter {
     let bind = '';
     if (cc.variableDeclaration) {
       if (!ts.isIdentifier(cc.variableDeclaration.name)) this.s.fail(cc, 'Z9007', 'destructuring a caught error is not supported');
-      bind = `${this.ind(d + 2)}zrt::Ref<zrt::Error> ${this.id(cc.variableDeclaration.name.text)} = zrt::take_error();\n`;
+      bind = this.local(this.id(cc.variableDeclaration.name.text), 'zrt::Ref<zrt::Error>', 'zrt::take_error()', d + 2);
     } else bind = `${this.ind(d + 2)}zrt::take_error();\n`;
     const catchBody = cc.block.statements.map(x => this.stmt(x, d + 2)).join('');
     return out + `${I1}${tryBody}\n${I1}goto ${end};\n${I1}${lab}: {\n${bind}${catchBody}${I1}}\n${I1}${end}:;\n${I}}\n`;

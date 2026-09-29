@@ -174,6 +174,7 @@ class Lower {
   stmtInner(n: ts.Statement, ret: ZT): HStmt[] {
     const K = this.K;
     if (ts.isBlock(n)) return n.statements.flatMap(x => this.stmt(x, ret));
+    if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression) && n.expression.asteriskToken) return this.yieldDelegate(n.expression, ret);
     if (ts.isExpressionStatement(n)) return [{ k: 'expr', e: this.expr(n.expression) }];
     if (ts.isVariableStatement(n)) return this.vars(n.declarationList);
     if (ts.isIfStatement(n)) return [{ k: 'if', c: this.cond(n.expression), then: this.body(n.thenStatement, ret), else: n.elseStatement ? this.body(n.elseStatement, ret) : [] }];
@@ -216,6 +217,25 @@ class Lower {
       const tmp = `%d${this.tmp++}`;
       return [{ k: 'let', name: tmp, t, init: v, cell: false } as HStmt, ...this.destructure(e.name, { k: 'var', t, name: tmp })];
     });
+  }
+  yieldDelegate(n: ts.YieldExpression, ret: ZT): HStmt[] {
+    const source = this.expr(n.expression!);
+    if (!['arr', 'str', 'gen'].includes(source.t.k)) throw new Error('yield* requires an array, string or generator');
+    const receiver: HExpr & { k: 'var' } = { k: 'var', t: source.t, name: `%delegate${this.tmp++}` };
+    const index: HExpr & { k: 'var' } = { k: 'var', t: I32, name: `%delegateIndex${this.tmp++}` };
+    const element = source.t.k === 'str' ? STR : (source.t as Extract<ZT, { k: 'arr' | 'gen' }>).el;
+    const generator = source.t.k === 'gen';
+    const condition: HExpr = generator ? { k: 'call', t: BOOL, how: 'method', fn: 'step', recv: receiver, args: [], check: true }
+      : { k: 'bin', t: BOOL, op: '<', l: index, r: { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: receiver, args: [], check: false } };
+    const plus = (a: HExpr, b: HExpr): HExpr => ({ k: 'bin', t: I32, op: '+', l: a, r: b });
+    const code = (at: HExpr): HExpr => ({ k: 'call', t: I32, how: 'builtin', fn: 'charCodeAt', recv: receiver, args: [at], check: false });
+    const between = (v: HExpr, lo: number, hi: number): HExpr => ({ k: 'cond', t: BOOL, c: { k: 'bin', t: BOOL, op: '>=', l: v, r: lit(I32, `${lo}`) }, a: { k: 'bin', t: BOOL, op: '<=', l: v, r: lit(I32, `${hi}`) }, b: lit(BOOL, 'false') });
+    const width: HExpr = source.t.k === 'str' ? { k: 'cond', t: I32, c: between(code(index), 0xd800, 0xdbff), a: { k: 'cond', t: I32, c: between(code(plus(index, lit(I32, '1'))), 0xdc00, 0xdfff), a: lit(I32, '2'), b: lit(I32, '1') }, b: lit(I32, '1') } : lit(I32, '1');
+    const item: HExpr = generator ? { k: 'field', t: element, obj: receiver, name: 'cur' } : source.t.k === 'str' ? { k: 'call', t: STR, how: 'builtin', fn: 'slice', recv: receiver, args: [index, plus(index, width)], check: false } : { k: 'index', t: element, obj: receiver, idx: index };
+    return [{ k: 'let', name: receiver.name, t: receiver.t, init: source, cell: false },
+      ...(generator ? [] : [{ k: 'let', name: index.name, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
+      { k: 'loop', c: condition, body: [{ k: 'expr', e: { k: 'suspend', t: VOID, what: 'yield', e: this.conv(item, ret.k === 'gen' ? ret.el : ret), state: ++this.state } }],
+        step: generator ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: plus(index, width) } }] }];
   }
   /** for-of: an index loop over arrays/strings/Dyn arrays, a slot loop over Map/Set, step() over generators. */
   forOf(n: ts.ForOfStatement, ret: ZT): HStmt[] {
