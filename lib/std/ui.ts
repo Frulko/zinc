@@ -70,6 +70,7 @@ export class Handlers {
   dragAxis: i32 = 3;            // 1 x, 2 y, 3 both
   dragThreshold: number = 8;    // px before a drag takes the pointer (the scroll slop is 8 px too)
   keep: boolean = false;        // grab="keep": an ancestor's drag or scroll never steals the pointer
+  keepX: boolean = false;       // grab="keep-x": only horizontal-ish gestures stay (a mostly vertical drag still scrolls)
   tabIndex: i32 = 0;            // > 0 first in the Tab order, < 0 out of it (still focusable by click)
   disabled: boolean = false;    // no events, no focus, for the node and its subtree
   keyCtx: string = '';          // keyContext
@@ -2242,7 +2243,7 @@ export function typeText(h: i32, s: string): void {
 function hsOf(n: UiNode): Handlers { let s = n.hs; if (s === null) { s = new Handlers(); n.hs = s; } return s as Handlers; }
 /** setNumber keys of this section: grab (1: keep), dragAxis (1 x, 2 y, 3 both), dragThreshold, tabIndex, disabled. */
 function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
-  if (key === 'grab') { hsOf(n).keep = iv !== 0; return true; }
+  if (key === 'grab') { hsOf(n).keep = iv === 1; hsOf(n).keepX = iv === 2; return true; }
   if (key === 'dragAxis') { hsOf(n).dragAxis = iv; return true; }
   if (key === 'dragThreshold') { hsOf(n).dragThreshold = v; return true; }
   if (key === 'tabIndex') { hsOf(n).tabIndex = iv; n.focusable = true; return true; }
@@ -2254,6 +2255,7 @@ export function isDisabled(h: i32): boolean {
   for (let p = h; p >= 0; p = nodes[p].parent) { const s = nodes[p].hs; if (s !== null && (s as Handlers).disabled) return true; }
   return false;
 }
+function keepsX(h: i32): boolean { if (h < 0) return false; const s = nodes[h].hs; return s !== null && (s as Handlers).keepX; }
 function keepsGrab(h: i32): boolean { if (h < 0) return false; const s = nodes[h].hs; return s !== null && (s as Handlers).keep; }
 
 // ---- gesture arbitration (Qt pointer handlers): the press goes to the raw onPointerDown node (capture) and, passively,
@@ -2284,7 +2286,10 @@ function arbitrate(px: number, py: number): void {
     const n = nodes[c];
     if (!n.alive) continue;
     let crossed = false;
-    if (c === dragScroller) crossed = ((n.scroll & 1) !== 0 && n.contentH > n.lh && Math.abs(dy) > SLOP) || ((n.scroll & 2) !== 0 && n.contentW > n.lw && Math.abs(dx) > SLOP);
+    if (c === dragScroller) {
+      crossed = ((n.scroll & 1) !== 0 && n.contentH > n.lh && Math.abs(dy) > SLOP) || ((n.scroll & 2) !== 0 && n.contentW > n.lw && Math.abs(dx) > SLOP);
+      if (crossed && keepsX(capture) && Math.abs(dy) < 2 * Math.abs(dx)) crossed = false;   // a keep-x node (slider) keeps its horizontal drags
+    }
     else {
       const s = n.hs as Handlers, th = s.dragThreshold;
       crossed = s.dragAxis === 1 ? Math.abs(dx) > th : s.dragAxis === 2 ? Math.abs(dy) > th : dx * dx + dy * dy > th * th;

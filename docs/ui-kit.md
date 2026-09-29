@@ -64,7 +64,7 @@ Conventions, identical in both UI models:
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `class?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
 | `Progress` | `value: () => number` (0–100), `accent?`, `class?` | |
-| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `class?` | press and drag on the rail to set the value; keeps the pointer inside scroll views (`grab="keep"`) |
+| `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `class?` | tap the rail or drag sideways to set the value (never at the press: a swipe over it scrolls); keeps horizontal drags inside scroll views (`grab="keep-x"`) |
 | `Avatar` | `name`, `size?` (`sm` `default` `lg`) | initials of the first two words |
 | `Alert` | `title`, `description?`, `variant?` (`default` `destructive` `success`), `icon?`, `class?` | |
 | `List` | `class?`, children | bordered panel of rows |

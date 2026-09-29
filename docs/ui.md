@@ -113,7 +113,7 @@ innermost first, whose threshold the pointer crosses takes the exclusive grab: `
 `dragAxis` (`x`, `y`, `both`) for a drag, 8 px along a scrollable axis for a scroll container. The capture node then
 gets `onPointerCancel`, and no click or tap follows. So a horizontal swipe row in a vertical list keeps horizontal
 moves and gives vertical ones to the list, and a button inside a draggable card clicks unless the card is dragged.
-`grab="keep"` on the capture node stops the stealing (sliders, drawing surfaces).
+`grab="keep"` on the capture node stops the stealing (drawing surfaces); `grab="keep-x"` only keeps mostly horizontal gestures, so a vertical swipe still scrolls (the kit's `Slider`).
 
 | handler | fires |
 | --- | --- |

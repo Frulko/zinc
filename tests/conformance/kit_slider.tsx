@@ -1,4 +1,5 @@
-// zinc:ui/kit Slider driven by the test hooks: a press sets the value, dragging follows the pointer (clamped past the
+// zinc:ui/kit Slider driven by the test hooks: the value is set when the pointer moves sideways or on a tap (the press
+// alone never sets it: a swipe over the rail scrolls), dragging follows the pointer (clamped past the
 // ends, snapped to `step`), moves after the release change nothing, and the arrow keys step the focused slider.
 import { createSignal, createNodeRef, render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';

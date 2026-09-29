@@ -163,7 +163,7 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       else if (name in POINTER_ATTRS) out.push(`_ptr(${v}, ${POINTER_ATTRS[name]}, ${val.expr});`);
       else if (name === 'onKeyDown') out.push(`_key(${v}, ${val.expr});`);
       else if (name === 'dragAxis' && val.lit !== undefined && val.lit in DRAG_AXES) out.push(`_num(${v}, 'dragAxis', ${DRAG_AXES[val.lit]});`);
-      else if (name === 'grab' && (val.lit === 'keep' || val.lit === 'auto')) out.push(`_num(${v}, 'grab', ${val.lit === 'keep' ? 1 : 0});`);
+      else if (name === 'grab' && (val.lit === 'keep' || val.lit === 'keep-x' || val.lit === 'auto')) out.push(`_num(${v}, 'grab', ${val.lit === 'keep' ? 1 : val.lit === 'keep-x' ? 2 : 0});`);
       else if (name === 'keyContext') out.push(`_ctx(${v}, ${val.lit !== undefined ? JSON.stringify(val.lit) : val.expr});`);
       else if (name === 'onInput' || name === 'onChange') out.push(`_onText(${v}, ${name === 'onChange' && !react}, ${val.expr});`);  // React: onChange fires on every edit
       else if (name === 'value' || name === 'placeholder') {

@@ -1,7 +1,9 @@
 /** @jsxHelpers ./host */
 // zinc:ui/kit — Slider: a rail, a filled range and a round thumb. Press anywhere on the rail and drag to set the
 // value (snapped to `step`); when focused, the arrow keys move it by one step. `value` is an accessor, like Progress.
-// It keeps the pointer (grab="keep"): an enclosing scroll view never steals a drag from it.
+// It keeps horizontal drags (grab="keep-x"): an enclosing scroll view scrolls when the finger goes mostly up or down.
+// A touch sets the value on release (a tap) or once it moves sideways, never at the press: a swipe over the rail
+// scrolls the page without touching the value.
 //
 //   <Slider value={volume} onChange={setVolume} min={0} max={100} step={5} />
 import { NodeRef, createNodeRef } from 'zinc:ui/solid';
@@ -37,10 +39,12 @@ function valueAt(rail: NodeRef, x: number, min: number, max: number, step: numbe
 export function Slider(props: SliderProps): i32 {
   const min = props.min ?? 0, max = props.max ?? 100, step = props.step ?? 1;
   const rail = createNodeRef();
-  let dragging = false;   // the rail captures the pointer from the press to the release
+  let dragging = false;   // sideways movement began: the rail follows the pointer until the release
+  let down = false;       // between the press and the release / cancel (moves without a press are hovers)
+  let downX: number = 0;
   const setAt = (x: number): void => props.onChange(valueAt(rail, x, min, max, step));
   return <View ref={rail} class={`flex-row items-center h-5 pr-4 rounded-full cursor-pointer focus:bg-${theme().card} ${props.class ?? ''}`}
-    focusable grab="keep" onKeyDown={(e: ui.KeyEvent) => {
+    focusable grab="keep-x" onKeyDown={(e: ui.KeyEvent) => {
       // arrows nudge the focused slider by one step (1 % of the range without a step)
       const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
       if (d === 0) return;
@@ -48,9 +52,10 @@ export function Slider(props: SliderProps): i32 {
       props.onChange(Math.max(min, Math.min(max, v)));
       e.preventDefault();
     }}
-    onPointerDown={(e: ui.PointerEvent) => { dragging = true; setAt(e.x); }}
-    onPointerMove={(e: ui.PointerEvent) => { if (dragging) setAt(e.x); }}
-    onPointerUp={(e: ui.PointerEvent) => { dragging = false; }}>
+    onPointerDown={(e: ui.PointerEvent) => { down = true; dragging = false; downX = e.x; }}
+    onPointerMove={(e: ui.PointerEvent) => { if (!down) return; if (!dragging && Math.abs(e.x - downX) > 4) dragging = true; if (dragging) setAt(e.x); }}
+    onPointerUp={(e: ui.PointerEvent) => { if (down && !dragging) setAt(e.x); down = false; dragging = false; }}
+    onPointerCancel={(e: ui.PointerEvent) => { down = false; dragging = false; }}>
     <View class={`absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${theme().muted}`} />
     <View class={`h-1.5 rounded-full bg-${theme().primary} w-${Math.round(percent(props.value(), min, max))}/100`} />
     <View class={`w-4 h-4 rounded-full border-2 border-${theme().primary} bg-${theme().card} shadow-sm`} />
