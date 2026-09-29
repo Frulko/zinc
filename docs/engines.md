@@ -47,6 +47,13 @@ types/operations are rejected. It does not silently execute the application as C
 source-order initializers; MIR supplies SSA and phi edges. Edge copies use temporary slots so swaps work correctly.
 The MIR golden now includes exceptional CFG edges and typed async suspension points; HIR preserves effects in void callbacks.
 
+The Zinc typed array contract declares `pop()` and `shift()` as returning `T`. On an empty array,
+native Zinc and Zinc VM return the default value of `T`: zero, false, an empty string, or a null reference.
+Zinc's JS emitter applies the same default when the element type is concrete. Dynamic arrays and raw
+JavaScript executed directly by QuickJS retain JavaScript's `undefined`; unresolved generic element types
+are not normalized by the JS emitter and remain a parity limitation. `shift` and `unshift` mutate the
+receiver; `concat` creates a separate array while preserving the identity of its referenced elements.
+
 The application runners are development tools, not replacements for `Script`'s sandbox contract. In particular,
 QuickJS's application loader reads JS modules from the filesystem; native calls are limited to registered modules.
 The native implementations themselves are trusted code.

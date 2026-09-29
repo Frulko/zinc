@@ -591,7 +591,10 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       vm->push(&h,fp[c],fp);fp[a]=value((double)h.slots.size(),T);
     } else {
       if (l.types[0]!=T) throw std::runtime_error("VM array element type mismatch");
-      if constexpr(O==POP) { fp[a]=h.slots.empty()?Reg():h.slots.back();if(!h.slots.empty())h.slots.pop_back(); }
+      if constexpr(O==POP) {
+        fp[a]=h.slots.empty()?Reg():c?h.slots.front():h.slots.back();
+        if(!h.slots.empty()) {if(c)h.slots.erase(h.slots.begin());else h.slots.pop_back();}
+      }
       else {
         const auto index=O==INDEXSET?b:c;
         const double n=number(fp[index],vm->fns[vm->fn].types[index]);
@@ -983,7 +986,7 @@ uint32_t load(VM& vm,Reader r) {
     }
     else if(i.op==JOIN) { check(t==ZINC_STRING);reg(a,ZINC_STRING);reg(b,VM_REF);if(c)reg(c-1,ZINC_STRING); }
     else if(i.op==LENGTH || i.op==PUSH) { reg(a,t);reg(b,VM_REF);check(t>=ZINC_I32&&t<=ZINC_F64);if(i.op==PUSH)check(c<f.types.size() && f.types[c]!=ZINC_VOID); }
-    else if(i.op==POP) { reg(a,t);reg(b,VM_REF);check(t!=ZINC_VOID); }
+    else if(i.op==POP) { reg(a,t);reg(b,VM_REF);check(t!=ZINC_VOID && c<=1); }
     else if(i.op==CONCAT) { reg(a,ZINC_STRING);check(t==ZINC_STRING && b<=f.types.size() && c<=f.types.size()-b);for(uint32_t j=0;j<c;j++)check(f.types[b+j]>ZINC_VOID && f.types[b+j]<=ZINC_STRING); }
     else if(i.op==TRUTHY) { reg(a,ZINC_BOOL);reg(b,t);check(t!=ZINC_VOID); }
     if(i.op!=RET && i.op!=THROW && i.op!=JMP && i.op!=BR) check(pc+1<f.code.size());

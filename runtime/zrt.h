@@ -451,9 +451,10 @@ template<class T> struct Array {
     return v;
   }
   int32_t unshift(const T& v) const {
-    push_raw(v);
+    T value(v); // v can alias an element that growth or the following moves replace.
+    push_raw(value);
     for (int32_t i = a->len - 1; i > 0; i--) a->data[i] = static_cast<T&&>(a->data[i - 1]);
-    a->data[0] = v;
+    a->data[0] = value;
     return a->len;
   }
   static int32_t clampi(int32_t i, int32_t n) { if (i < 0) { i += n; if (i < 0) i = 0; } return i > n ? n : i; }

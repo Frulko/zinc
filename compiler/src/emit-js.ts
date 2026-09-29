@@ -164,6 +164,13 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
       const v = ts.visitEachChild(n, visit, ctx);
       if (ts.isCallExpression(n) && ts.isCallExpression(v)) {
         const c = n.expression;
+        if (ts.isPropertyAccessExpression(c) && !c.questionDotToken && !n.questionDotToken && ['pop', 'shift'].includes(c.name.text) && !n.arguments.length) {
+          const receiver = safeType(c.expression);
+          if (receiver?.k === 'arr' && !['dyn', 'tp'].includes(receiver.el.k)) {
+            const empty = receiver.el.k === 'num' ? num(0) : receiver.el.k === 'bool' ? f.createFalse() : receiver.el.k === 'str' ? f.createStringLiteral('') : f.createNull();
+            return paren(f.createBinaryExpression(v, K.QuestionQuestionToken, empty));
+          }
+        }
         if (ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression)) {
           const g = c.expression.text, m = c.name.text;
           const lib = !sema.declOf(c.expression) || sema.isLib(sema.declOf(c.expression)!);

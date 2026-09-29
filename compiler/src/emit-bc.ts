@@ -368,7 +368,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               op('join', 6, a, x, args.length === 2 ? y + 1 : 0);
             } else if (i.attr === 'length' && args.length === 1 && types[x] === 7) op('length', t, a, x);
             else if (i.attr === 'push' && args.length === 2 && types[x] === 7) op('push', t, a, x, y);
-            else if (i.attr === 'pop' && args.length === 1 && types[x] === 7) op('pop', t, a, x);
+            else if ((i.attr === 'pop' || i.attr === 'shift') && args.length === 1 && types[x] === 7) op('pop', t, a, x, i.attr === 'shift' ? 1 : 0);
             else if (i.attr === 'console.log') {
               args.forEach((r, k) => { if (k) op('space'); op('print', types[r], r); }); op('newline');
             } else if (i.attr?.startsWith('Math.') && MATH.includes(i.attr.slice(5))) {

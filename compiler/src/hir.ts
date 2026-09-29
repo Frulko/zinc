@@ -598,6 +598,7 @@ class Lower {
       const recvT = s.tryZ(c.expression);
       const name = c.name.text;
       if (recvT.k === 'arr' && (name === 'push' || name === 'unshift') && args.length === 1) args[0] = this.conv(args[0], recvT.el);
+      if (this.symbols && recvT.k === 'arr' && name === 'concat' && args.length === 1) args[0] = this.expr(e.arguments[0], recvT);
       if (recvT.k === 'arr' && name === 'splice' && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') args[1] = lit(I32, '0');
       if (ts.isIdentifier(c.expression) && (!s.declOf(c.expression) || s.isLib(s.declOf(c.expression)!))) {
         if (this.symbols && c.expression.text === 'Promise' && name === 'all' && t.k === 'promise' && t.el.k === 'arr' && args.length === 1) return this.promiseAll(t, args[0]);
@@ -619,6 +620,7 @@ class Lower {
         const expected = name === 'set' && recvT.k === 'map' ? [key, recvT.val] : ['get', 'has', 'delete', 'add'].includes(name) ? [key] : [];
         return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.map((a, i) => this.conv(a, expected[i])), check };
       }
+      if (this.symbols && recvT.k === 'arr' && ['unshift', 'concat'].includes(name) && args.length === 1) return this.arrayAppend(name, recv, args[0]);
       if (this.symbols && recvT.k === 'arr' && name === 'sort' && args.length === 1) return this.arraySort(recv, args[0]);
       if (this.symbols && recvT.k === 'arr' && ['indexOf', 'includes'].includes(name) && args.length >= 1 && args.length <= 2) {
         const from = e.arguments[1];
@@ -638,6 +640,33 @@ class Lower {
     d = s.declOf(c);
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
+  }
+
+  arrayAppend(name: string, input: HExpr, argument: HExpr): HExpr {
+    if (input.t.k !== 'arr') throw new Error('zinc-vm: expected array');
+    const arrayType = input.t, element = arrayType.el, front = name === 'unshift';
+    if (!front && argument.t.k !== 'arr') throw new Error('zinc-vm: concat expects an array');
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name: '%' + name, t });
+    const receiver = variable('array', arrayType), value = variable('value', front ? element : arrayType);
+    const output = variable('output', arrayType), length = variable('length', I32), index = variable('index', I32);
+    const zero = lit(I32, '0'), one = lit(I32, '1');
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = I32): HExpr => ({ k: 'bin', t, op, l, r });
+    const at = (array: HExpr, i: HExpr): HExpr => ({ k: 'index', t: element, obj: array, idx: i });
+    const assign = (target: HExpr, v: HExpr): HStmt => ({ k: 'expr', e: { k: 'assign', t: target.t, target, v } });
+    const declare = (v: typeof receiver, init: HExpr): HStmt => ({ k: 'let', name: v.name, t: v.t, init, cell: false });
+    const call = (fn: string, recv: HExpr, args: HExpr[], t: ZT): HExpr => ({ k: 'call', t, how: 'builtin', fn, recv, args, check: false });
+    const body: HStmt[] = front ? [
+      declare(length, call('push', receiver, [value], I32)), declare(index, binary('-', length, one)),
+      { k: 'loop', c: binary('>', index, zero, BOOL), step: [assign(index, binary('-', index, one))], body: [assign(at(receiver, index), at(receiver, binary('-', index, one)))] },
+      assign(at(receiver, zero), value), { k: 'return', e: length },
+    ] : [
+      declare(output, call('slice', receiver, [], arrayType)), declare(length, call('length', value, [], I32)), declare(index, zero),
+      { k: 'loop', c: binary('<', index, length, BOOL), step: [assign(index, binary('+', index, one))], body: [{ k: 'expr', e: call('push', output, [at(value, index)], I32) }] },
+      { k: 'return', e: output },
+    ];
+    const ret = front ? I32 : arrayType;
+    const fn: HFunc = { name: `<array.${name}>`, kind: 'fn', ret, params: [receiver, value].map(v => ({ name: v.name, t: v.t, cell: false })), captures: [], throws: false, body };
+    return { k: 'call', t: ret, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [arrayType, value.t], ret }, fn }, args: [input, this.conv(argument, value.t)], check: false };
   }
 
   /** Stable bottom-up merge sort of snapshots: comparator effects cannot
