@@ -109,19 +109,23 @@ try {
     assert.equal(r.signal, null); assert.equal(r.status, 1, `${name}: must reject invalid bytecode`);
   }
   // Decode only the container boundaries to mutate real instructions, not a mock VM.
-  let at = 8;
-  const u = () => { const n = bytes.readUInt32LE(at); at += 4; return n; };
-  const skipString = () => { const n = u(); at += n; };
-  { const n = u(); at += n * 4; }
-  for (let n = u(); n > 0; n--) { if (u() === 6) skipString(); else at += 8; }
-  for (let n = u(); n > 0; n--) { skipString(); skipString(); const count = u(); at += count * 4 + 4; }
-  for (let n = u(); n > 0; n--) { u(); const count = u(); at += count * 8; const methods = u(); at += methods * 8; }
-  const fnCount = u(), entry = u(), offsets = [], entryOffsets = [];
-  for (let fn = 0; fn < fnCount; fn++) {
-    const regs = u(), params = u(); u(); const count = u(), captures = u(), handlers = u(); at += (regs + params + captures) * 4;
-    for (let i = 0; i < count; i++) { offsets.push(at); if (fn === entry) entryOffsets.push(at); at += 16; }
-    at += handlers * 8;
+  function instructionOffsets(bytes) {
+    let at = 8;
+    const u = () => { const n = bytes.readUInt32LE(at); at += 4; return n; };
+    const skipString = () => { const n = u(); at += n; };
+    { const n = u(); at += n * 4; }
+    for (let n = u(); n > 0; n--) { if (u() === 6) skipString(); else at += 8; }
+    for (let n = u(); n > 0; n--) { skipString(); skipString(); const count = u(); at += count * 4 + 4; }
+    for (let n = u(); n > 0; n--) { u(); const count = u(); at += count * 8; const methods = u(); at += methods * 8; }
+    const fnCount = u(), entry = u(), offsets = [], entryOffsets = [];
+    for (let fn = 0; fn < fnCount; fn++) {
+      const regs = u(), params = u(); u(); const count = u(), captures = u(), handlers = u(); at += (regs + params + captures) * 4;
+      for (let i = 0; i < count; i++) { offsets.push(at); if (fn === entry) entryOffsets.push(at); at += 16; }
+      at += handlers * 8;
+    }
+    return { offsets, entryOffsets };
   }
+  const { offsets, entryOffsets } = instructionOffsets(bytes);
   for (let sample = 0; sample < 24; sample++) {
     const changed = Buffer.from(bytes), offset = offsets[(sample * 17) % offsets.length];
     changed[offset + (sample % 16)] ^= 1 << (sample % 8);
@@ -129,6 +133,20 @@ try {
     for (const jit of process.arch === 'arm64' ? [false, true] : [false]) {
       const r = spawnSync(vm, [file, ...(jit ? ['--jit'] : [])], { encoding: 'utf8', timeout: 2000, env: { ...process.env, ZINC_EXECUTION_TIMEOUT_MS: '30' } });
       assert.equal(r.error, undefined); assert.equal(r.signal, null); assert.ok(r.status === 0 || r.status === 1, r.stderr);
+    }
+  }
+  // New container/callback instructions must reject forged register indexes before execution.
+  for (const [source, opcode] of [['collections', 69], ['generator-close', 70], ['bind', 71], ['string-arrays', 65], ['string-arrays', 68], ['array-slice', 67]]) {
+    const [exe, bundle] = command(`tests/engines/${source}.ts`, 'zinc-vm');
+    const original = fs.readFileSync(bundle), candidates = instructionOffsets(original).offsets.filter(offset => original[offset] === opcode);
+    assert.ok(candidates.length, `${source}: expected opcode ${opcode}`);
+    for (const offset of candidates.slice(0, 3)) {
+      const changed = Buffer.from(original); changed.writeUInt32LE(0xffffffff, offset + 4);
+      const file = path.join(tmp, 'invalid-register.zbc'); fs.writeFileSync(file, changed);
+      for (const jit of process.arch === 'arm64' ? [false, true] : [false]) {
+        const r = spawnSync(exe, [file, ...(jit ? ['--jit'] : [])], { encoding: 'utf8', timeout: 2000 });
+        assert.equal(r.error, undefined); assert.equal(r.signal, null); assert.equal(r.status, 1); assert.match(r.stderr, /bytecode verification failed/);
+      }
     }
   }
   const jump = entryOffsets.find(offset => bytes[offset] === 25);
