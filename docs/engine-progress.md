@@ -5,7 +5,7 @@ Only engine-related changes are committed; unrelated working-tree edits stay out
 
 | Stage | Status | Remaining acceptance criteria |
 |---|---|---|
-| 1. VM language and memory | In progress | Collection operations, destructuring, typed maps/sets, accessors/bound methods, promises/generators and documented lifetime semantics; compare native, interpreter, JIT and QuickJS |
+| 1. VM language and memory | In progress | Generic specialization, remaining strings, full generator API/dynamic values and documented lifetime semantics; compare native, interpreter, JIT and QuickJS |
 | 2. Common native ABI | Partial baseline | General arrays/nested records/record arguments, mutable buffer ownership, resource-valued callbacks, asynchronous completion and cancellation |
 | 3. Native services and application host | Partial baseline | Missing module/display adapters, exit behavior, deterministic guest timers, UI/input/replay parity |
 | 4. Embedded ScriptEngine | Partial C API | Source compilation and dynamic-value/function/promise bridge behind existing ScriptEngine contract |
@@ -15,7 +15,11 @@ Only engine-related changes are committed; unrelated working-tree edits stay out
 
 ## Current work
 
-Three coordinated workers handle stage 1: array methods, global destructuring, and promise recovery/finalization/adoption.
+Three coordinated workers continue stage 1: generic specialization, string operations, and the public generator API.
+
+Committed batches cover global destructuring, promise chains/adoption, array callbacks/searches, split/join, standard-module imports/default arguments, accessors/lexical receivers, typed Map/Set, yield delegation and loop-driven generator cleanup. Each batch was compared across native, VM, AArch64 JIT and QuickJS in an isolated checkout of the committed files.
+
+A fresh VM build audit still succeeds on only 4 of 58 demos. First failures include generic type parameters, String.repeat, ABI arrays/promises, missing native modules and display adapters. This is not full application parity.
 Each completed batch receives focused checks and an individual commit after integration.
 
 ## Already testable
@@ -29,6 +33,8 @@ node compiler/bin/zinc.mjs run tests/engines/graphics.ts --engine zinc-vm --jit
 node compiler/bin/zinc.mjs run tests/engines/graphics.ts --engine quickjs
 node compiler/bin/zinc.mjs run examples/ui/forms --engine quickjs
 node compiler/bin/zinc.mjs capture tests/engines/graphics.ts --engine zinc-vm --frames 2 --out build/engine-shots
+node compiler/bin/zinc.mjs run tests/engines/collections.ts --engine zinc-vm --jit
+node compiler/bin/zinc.mjs run tests/engines/generator-close.ts --engine quickjs
 node tests/engines/run.mjs
 node tests/engines/embedded.mjs --sanitize
 ```
