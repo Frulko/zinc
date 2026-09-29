@@ -25,7 +25,7 @@
       "bl": 0,
       "brightness": 255,
       "hz": 10000000,
-      "lines": 12,
+      "lines": 6,
       "madctl": 8,
       "invert": 0,
       "touch": "cst820",
@@ -39,10 +39,17 @@
       "chip": "esp32",
       "flashSize": "4MB",
       "appSize": "2M",
+      "pools": { "MAX_DRAW_CMDS": 136, "POINT_POOL": 2048 },
       "heap": 196608,
       "sdkconfig": {
         "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true,
         "CONFIG_FREERTOS_HZ": 1000,
+        "CONFIG_ESP_TASK_WDT_EN": true,
+        "CONFIG_ESP_TASK_WDT_INIT": true,
+        "CONFIG_ESP_TASK_WDT_PANIC": true,
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S": 5,
+        "CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0": false,
+        "CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1": false,
         "CONFIG_COMPILER_OPTIMIZATION_PERF": true
       }
     }

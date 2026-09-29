@@ -7,6 +7,8 @@
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_task_wdt.h"
+#include "esp_debug_helpers.h"
 
 extern int zinc_program_main(int argc, char** argv);
 
@@ -48,7 +50,7 @@ void hal_heap_region(void** base, size_t* size) {
 }
 // The classic ESP32's internal RAM is several blocks (the largest ~110 KiB): the rest of ZRT_HEAP_BYTES comes from
 // the next largest ones, keeping HEAP_RESERVE free for ESP-IDF (drivers, FreeRTOS objects, esp_timer, I2C...).
-static const size_t HEAP_RESERVE = 32 << 10;
+static const size_t HEAP_RESERVE = 24 << 10;   // 21 KiB stayed free with 32: the drivers allocate at init, then little
 int hal_heap_region_more(int i, void** base, size_t* size) {
   if (heap_got >= ZRT_HEAP_BYTES) {
     if (i > 0) printf("zinc: heap %u KiB in %d blocks, %u KiB internal RAM left\n", (unsigned)(heap_got >> 10), i + 1, (unsigned)(heap_caps_get_free_size(INTERNAL) >> 10));
@@ -69,12 +71,20 @@ int hal_heap_region_more(int i, void** base, size_t* size) {
 }
 void hal_panic(const char* msg, const char* file, int line) {
   if (file && *file) printf("panic: %s (%s:%d)\n", msg, file, line); else printf("panic: %s\n", msg);
+  esp_backtrace_print(24);   // the faulting task: decode with xtensa-esp32-elf-addr2line -e <app>.elf
   printf("zinc:exit\n");
   fflush(stdout);
   for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 }
 void hal_frame_begin(void) {}
-void hal_frame_end(void) { vTaskDelay(1); }
+// Task watchdog on the frame loop (only when the project enables CONFIG_ESP_TASK_WDT_EN): a frame that never ends
+// panics with a backtrace and reboots instead of freezing the screen.
+void hal_frame_end(void) {
+  static int wdt = -1;
+  if (wdt < 0) wdt = esp_task_wdt_add(nullptr) == ESP_OK;
+  else if (wdt) esp_task_wdt_reset();
+  vTaskDelay(1);
+}
 void hal_poll_input(HalInput* in) { in->buttons = 0; in->px = in->py = 0; in->pdown = 0; in->quit = frames_left-- <= 0; }
 void hal_present(const HalFrame*) {}
 void hal_surface_size(int* w, int* h) { *w = 320; *h = 240; }
