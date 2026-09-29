@@ -518,17 +518,18 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       bool yielded=false;const bool wasDone=task->done;
       if(c==3)task->sent=fp[b+1].h;
       if(c==4)task->completion=fp[b+1].h;
+      if(c==10)task->completion=vm->currentTask->completion;
       if(c==5 || c==6) {
         if(task->done || !task->pc){task->done=true;vm->exception=fp[b+1];throw GuestThrow();}
         task->awaited=fp[b+1].h;
       }
       if(!task->done) {
-        if(c==1 || c==4) {
+        if(c==1 || c==4 || c==10) {
           if(!task->pc){task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
           else {task->closing=true;yielded=generatorStep(*vm,ip,fp);}
         } else yielded=generatorStep(*vm,ip,fp);
       }
-      if(c==6)fp[a].u=yielded;
+      if(c==6 || c==10){fp[a].u=yielded;if(c==10 && yielded)vm->currentTask->completion=nullptr;}
       else if(c>=3) {
         auto& result=vm->object(fp[a],false);const auto& shape=vm->layouts[result.layout];if(result.slots.size()!=2 || shape.types.size()!=2 || shape.types[0]!=ZINC_BOOL || shape.types[1]!=VM_REF)throw std::runtime_error("invalid iterator result layout");
         result.iteratorResult=true;result.slots[0].u=!yielded;
@@ -924,7 +925,7 @@ uint32_t load(VM& vm,Reader r) {
       else {check(!source);reg(b,VM_REF);if(action==1)check(t>=ZINC_BOOL && t<=VM_REF);else if(action==2)check(t==ZINC_STRING);else check(t==ZINC_BOOL);if(action>=4 && action<=7)reg(b+1,VM_REF);}
       reg(a,t);
     }
-    else if(i.op==GENCONTROL) {check(c<=9 && t==(c==0 || c==6?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {reg(b,VM_REF);if(c>=3 && c!=8)reg(b+1,VM_REF);}}
+    else if(i.op==GENCONTROL) {check(c<=10 && t==(c==0 || c==6 || c==10?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {reg(b,VM_REF);if(c>=3 && c!=8 && c!=10)reg(b+1,VM_REF);}}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }

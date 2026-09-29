@@ -120,9 +120,9 @@ class Builder {
         this.seal(body);
         this.loops.push({ brk: exit, cont: step });
         this.cur = body; this.stmts(s.body); this.jump(step);
-        this.loops.pop();
         this.seal(step);
         this.cur = step; this.stmts(s.step); this.jump(head);
+        this.loops.pop();
         this.seal(head); this.seal(exit);
         this.cur = exit;
         return;

@@ -35,8 +35,8 @@ const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'tup' ? t.els.some(ha
 type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.TypeLiteralNode | ts.ObjectLiteralExpression;
 type FnLike = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 
-interface Frame { cleanups: { code: string; loopDepth: number; catchDepth: number; continueAtSame?: boolean }[]; kind: 'async' | 'gen'; fields: Map<string, string>; state: number; awaits: Map<ts.Node, string>; el: ZT; name: string }
-interface Ctx { ret: ZT; inCtor: boolean; catches: string[]; breaks: (string | null)[]; frame?: Frame; self: string }
+interface Frame { exits: string[]; cleanups: { code: string; emit?: (continuation: string) => string; loopDepth: number; catchDepth: number; continueAtSame?: boolean }[]; kind: 'async' | 'gen'; fields: Map<string, string>; state: number; awaits: Map<ts.Node, string>; el: ZT; name: string }
+interface Ctx { ret: ZT; inCtor: boolean; catches: string[]; breaks: (string | null)[]; continues?: string[]; frame?: Frame; self: string }
 
 const xorshift = (k: number) => { k = (k ^ (k << 13)) >>> 0; k = (k ^ (k >>> 17)) >>> 0; return (k ^ (k << 5)) >>> 0; };
 const litSeed = (i: number) => ((Math.imul(i + 1, 0x9e3779b1) ^ 0x5bd1e995) >>> 0) || 1;
@@ -497,7 +497,7 @@ class CppEmitter {
     const rt = this.s.retOf(f);
     const el: ZT = gen ? (rt.k === 'gen' ? rt.el : this.s.fail(f, 'Z9032', 'annotate generators with Generator<T>')) : (rt.k === 'promise' ? rt.el : VOID);
     const fname = `__${gen ? 'gen' : 'async'}_${baseName}_${this.tmp++}`;
-    const frame: Frame = { cleanups: [], kind: gen ? 'gen' : 'async', fields: new Map(), state: 0, awaits: new Map(), el, name: fname };
+    const frame: Frame = { exits: [], cleanups: [], kind: gen ? 'gen' : 'async', fields: new Map(), state: 0, awaits: new Map(), el, name: fname };
     f.parameters.forEach((p, i) => {
       if (!ts.isIdentifier(p.name)) this.s.fail(p, 'Z9007', 'destructuring parameters of async functions is not supported yet');
       const sym = this.s.symbolOf(p.name);
@@ -516,7 +516,7 @@ class CppEmitter {
     const cases = Array.from({ length: frame.state }, (_, i) => i + 1);
     void cases;
     const end = gen ? '  state = -1;\n  return false;' : '  this->zrt_done();';
-    this.frameBodies.push(`namespace ${ns} {\n${gen ? 'bool' : 'void'} ${fname}::step() {\n  switch (state) {\n  case 0:;\n${stmts}  }\n${end}\n}\n}`);
+    this.frameBodies.push(`namespace ${ns} {\n${gen ? 'bool' : 'void'} ${fname}::step() {\n  switch (state) {\n  case 0:;\n${stmts} goto __frame_end;\n${frame.exits.join("\n")}  }\n__frame_end:;\n${end}\n}\n}`);
     const assigns = f.parameters.map(p => {
       const n = this.id(p.name.getText());
       const sym = this.s.symbolOf(p.name);
@@ -581,12 +581,12 @@ class CppEmitter {
             const value = gen ? `${receiver}->cur` : source.k === 'str' ? `${receiver}.slice(${index}, ${index}+${width})` : `${receiver}.get(${index})`;
             const result = this.newTmp('delegateResult'); f.fields.set(result, 'zrt::Dyn');
             f.awaits.set(n, this.s.ztypeOf(n).k === 'void' ? result : this.coerce(result, DYN, this.s.ztypeOf(n), n));
-            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { auto __error = this->injected; this->injected = nullptr; ${gen ? `bool __more = ${receiver}->raise(__error); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->cur = ${receiver}->cur; return true; }` : `zrt::g_err = zrt::make<zrt::TypeError>(zrt::String::from("iterator does not provide a throw method", 39)); ${this.propagate()};`} }\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->close();` : ''} ${this.frameCleanup('return')} state = -1; return false; }\n${gen ? `${I}${receiver}->sent = this->sent;\n` : `${I}  ${index} += ${width};\n`}${I}}\n${I}${result} = ${gen ? `${receiver}->returned` : 'zrt::Dyn()'};\n${I}${receiver} = {};\n`;
+            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { auto __error = this->injected; this->injected = nullptr; ${gen ? `bool __more = ${receiver}->raise(__error); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->cur = ${receiver}->cur; return true; }` : `zrt::g_err = zrt::make<zrt::TypeError>(zrt::String::from("iterator does not provide a throw method", 39)); ${this.propagate()};`} }\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->returned = this->returned; bool __more = ${receiver}->close(); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->returned = zrt::Dyn(); this->cur = ${receiver}->cur; return true; } this->returned = ${receiver}->returned;` : ''} ${this.frameExit('return', 'state = -1; return false;')} }\n${gen ? `${I}${receiver}->sent = this->sent;\n` : `${I}  ${index} += ${width};\n`}${I}}\n${I}${result} = ${gen ? `${receiver}->returned` : 'zrt::Dyn()'};\n${I}${receiver} = {};\n`;
             return;
           }
           const st = ++f.state;
           f.awaits.set(n, this.coerce('this->sent', DYN, this.s.ztypeOf(n), n));
-          out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { zrt::g_err = this->injected; this->injected = nullptr; ${this.propagate()}; }\n${I}if (this->closing) { this->closing = false; ${this.frameCleanup('return')} state = -1; return false; }\n`;
+          out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { zrt::g_err = this->injected; this->injected = nullptr; ${this.propagate()}; }\n${I}if (this->closing) { this->closing = false; ${this.frameExit('return', 'state = -1; return false;')} }\n`;
         }
         return;
       }
@@ -687,15 +687,20 @@ class CppEmitter {
     this.strictDyn(e, t);
     return t.k === 'bool' ? this.expr(e) : `zrt::truthy(${this.expr(e)})`;
   }
-  frameCleanup(mode: 'return' | 'throw' | 'break' | 'continue'): string {
+  frameExit(mode: 'return' | 'throw' | 'break' | 'continue', continuation: string): string {
     const c = this.ctx;
-    return [...(c.frame?.cleanups ?? [])].reverse().filter(f => mode === 'return' || mode === 'throw' && f.catchDepth >= c.catches.length || mode === 'break' && f.loopDepth >= c.breaks.length || mode === 'continue' && (f.loopDepth > c.breaks.length || !!f.continueAtSame && f.loopDepth === c.breaks.length)).map(f => f.code).join(' ');
+    for (const f of c.frame?.cleanups ?? []) {
+      if (!(mode === 'return' || mode === 'throw' && f.catchDepth >= c.catches.length || mode === 'break' && f.loopDepth >= c.breaks.length || mode === 'continue' && (f.loopDepth > c.breaks.length || !!f.continueAtSame && f.loopDepth === c.breaks.length))) continue;
+      continuation = f.emit ? f.emit(continuation) : f.code + continuation;
+    }
+    return continuation;
   }
+  frameCleanup(mode: 'return' | 'throw' | 'break' | 'continue'): string { return this.frameExit(mode, ''); }
   /** Code that leaves the current function (or jumps to the innermost catch) with zrt::g_err set. */
   propagate(): string {
     const c = this.ctx;
-    if (c.catches.length) return `${this.frameCleanup('throw')} goto ${c.catches[c.catches.length - 1]}`;
-    if (c.frame) return this.frameCleanup('throw') + (c.frame.kind === 'async' ? 'this->zrt_reject(zrt::take_error()); return' : 'state = -1; return false');
+    if (c.catches.length) return this.frameExit('throw', `goto ${c.catches[c.catches.length - 1]};`);
+    if (c.frame) return this.frameExit('throw', c.frame.kind === 'async' ? 'this->zrt_reject(zrt::take_error()); return;' : 'state = -1; return false;');
     return c.inCtor || c.ret.k === 'void' ? 'return' : 'return {}';
   }
   /** Adds the error check after a call that may throw (statement expression, GCC/Clang). */
@@ -744,7 +749,7 @@ class CppEmitter {
       return r;
     }
     if (ts.isWhileStatement(s)) return `${L}${I}while (${this.cond(s.expression)}) ${this.loopBody(s.statement, d)}\n`;
-    if (ts.isDoStatement(s)) return `${L}${I}do ${this.loopBody(s.statement, d)} while (${this.cond(s.expression)});\n`;
+    if (ts.isDoStatement(s)) return `${L}${I}do ${this.loopBody(s.statement, d, ` while (${this.cond(s.expression)});`)}\n`;
     if (ts.isForStatement(s)) {
       let init = '';
       if (s.initializer) init = ts.isVariableDeclarationList(s.initializer) ? this.varList(s.initializer, d + 1) : `${this.ind(d + 1)}${this.expr(s.initializer)};\n`;
@@ -764,16 +769,16 @@ class CppEmitter {
     if (ts.isBreakStatement(s)) {
       if (s.label) this.s.fail(s, 'Z9011', 'labeled statements are not supported yet');
       const top = this.ctx.breaks[this.ctx.breaks.length - 1];
-      return `${I}${this.frameCleanup('break')}${top ? `goto ${top}` : 'break'};\n`;
+      return `${I}${this.frameExit('break', top ? `goto ${top};` : 'break;')}\n`;
     }
     if (ts.isContinueStatement(s)) {
       if (s.label) this.s.fail(s, 'Z9011', 'labeled statements are not supported yet');
-      return `${I}${this.frameCleanup('continue')}continue;\n`;
+      return `${I}${this.frameExit('continue', this.ctx.continues?.length ? `goto ${this.ctx.continues.at(-1)};` : 'continue;')}\n`;
     }
     if (ts.isReturnStatement(s)) {
       const f = this.ctx.frame;
       if (f) {
-        if (f.kind === 'gen') return `${L}${I}${s.expression ? `this->returned = ${this.toDynExpr(s.expression)}; ` : ''}${this.frameCleanup('return')}state = -1; return false;\n`;
+        if (f.kind === 'gen') return `${L}${I}this->returned = ${s.expression ? this.toDynExpr(s.expression) : 'zrt::Dyn()'}; ${this.frameExit('return', 'state = -1; return false;')}\n`;
         return s.expression ? `${L}${I}${this.frameReturn(s.expression)}\n` : `${L}${I}${this.frameCleanup('return')}this->zrt_done(); return;\n`;
       }
       if (!s.expression || this.ctx.inCtor) return `${L}${I}return;\n`;
@@ -801,19 +806,23 @@ class CppEmitter {
   tryStmt(s: ts.TryStatement, d: number): string {
     const I = this.ind(d), I1 = this.ind(d + 1);
     if (this.ctx.frame?.kind === 'gen' && s.finallyBlock) {
-      const final = s.finallyBlock;
-      const validate = (node: ts.Node): void => {
-        if (ts.isFunctionLike(node)) return;
-        if (ts.isYieldExpression(node) || ts.isAwaitExpression(node) || ts.isReturnStatement(node) || ts.isBreakStatement(node) || ts.isContinueStatement(node)) this.s.fail(node, 'Z9034', 'suspension and control transfer inside generator finally are not implemented');
-        ts.forEachChild(node, validate);
+      const frame = this.ctx.frame, outer = [...frame.cleanups], lexical = { ...this.ctx, catches: [...this.ctx.catches], breaks: [...this.ctx.breaks], continues: [...(this.ctx.continues ?? [])] };
+      const emit = (continuation: string): string => {
+        const entry = this.newTmp('finally'), pending = this.newTmp('pending');
+        frame.fields.set(pending, 'zrt::Ref<zrt::Error>');
+        const saved = frame.cleanups; frame.cleanups = outer;
+        const code = this.withCtx(lexical, () => {
+          const body = s.finallyBlock!.statements.map(x => this.stmt(x, d + 1)).join('');
+          return `${entry}:; ${pending} = zrt::take_error();\n${body}if (${pending}.p) { zrt::g_err = ${pending}; ${this.propagate()}; } ${continuation}\n`;
+        });
+        frame.cleanups = saved; frame.exits.push(code);
+        return `goto ${entry}; `;
       };
-      validate(final);
-      const finalBody = this.withCtx({ ...this.ctx, frame: undefined, catches: [], breaks: [], ret: VOID, inCtor: true }, () => final.statements.map(x => this.stmt(x, d + 2)).join(''));
-      const cleanup = `{ auto __pending = zrt::take_error(); ([&]() {\n${finalBody}${I1}})(); if (!zrt::g_err.p) zrt::g_err = __pending; } if (zrt::g_err.p) { ${this.propagate()}; } `;
-      this.ctx.frame.cleanups.push({ code: cleanup, loopDepth: this.ctx.breaks.length, catchDepth: this.ctx.catches.length, continueAtSame: true });
+      frame.cleanups.push({ code: '', emit, loopDepth: this.ctx.breaks.length, catchDepth: this.ctx.catches.length, continueAtSame: true });
       const body = this.tryStmt({ ...s, finallyBlock: undefined } as ts.TryStatement, d);
-      this.ctx.frame.cleanups.pop();
-      return body + `${I}${cleanup}\n`;
+      frame.cleanups.pop();
+      const end = this.newTmp('finallyEnd');
+      return body + `${I}${emit(`goto ${end};`)}\n${end}:;\n`;
     }
     if (this.ctx.frame && s.finallyBlock) this.s.fail(s, 'Z9034', "'finally' inside async functions is not supported yet");
     let out = `${I}{\n`;
@@ -840,11 +849,13 @@ class CppEmitter {
     return out + `${I1}${tryBody}\n${I1}goto ${end};\n${I1}${lab}: {\n${bind}${catchBody}${I1}}\n${I1}${end}:;\n${I}}\n`;
   }
 
-  loopBody(s: ts.Statement, d: number): string {
-    this.ctx.breaks.push(null);
-    const r = this.body(s, d);
-    this.ctx.breaks.pop();
-    return r;
+  loopBody(s: ts.Statement, d: number, tail = ''): string {
+    if (!this.ctx.frame) { this.ctx.breaks.push(null); const r = this.body(s, d); this.ctx.breaks.pop(); return r + tail; }
+    const end = this.newTmp('loopEnd'), next = this.newTmp('loopNext');
+    this.ctx.breaks.push(end); (this.ctx.continues ??= []).push(next);
+    const r = ts.isBlock(s) ? s.statements.map(x => this.stmt(x, d + 1)).join('') : this.stmt(s, d + 1);
+    this.ctx.breaks.pop(); this.ctx.continues.pop();
+    return `{\n${r}${next}:;\n}${tail}\n${end}:;`;
   }
 
   varList(l: ts.VariableDeclarationList, d: number): string {
@@ -908,7 +919,8 @@ class CppEmitter {
     const c = this.newTmp('c'), i = this.newTmp('i');
     const decl = (s.initializer as ts.VariableDeclarationList).declarations?.[0];
     if (!decl) this.s.fail(s, 'Z9005', 'for-of needs a const/let declaration');
-    this.ctx.breaks.push(null);
+    const loopEnd = this.ctx.frame ? this.newTmp('loopEnd') : '', loopNext = this.ctx.frame ? this.newTmp('loopNext') : '';
+    this.ctx.breaks.push(loopEnd || null); if (loopNext) (this.ctx.continues ??= []).push(loopNext);
     let head: string, bind = '', iteration = '';
     const bindTo = (et: ZT, access: string) => {
       if (ts.isIdentifier(decl.name)) {
@@ -947,8 +959,8 @@ class CppEmitter {
     }
     const inner = ts.isBlock(s.statement) ? s.statement.statements.map(x => this.stmt(x, d + 2)).join('') : this.stmt(s.statement, d + 2);
     if (generatorClose && this.ctx.frame) this.ctx.frame.cleanups.pop();
-    this.ctx.breaks.pop();
-    return `${I}{\n${prelude}${I1}${head} {\n${bind}${inner}${I1}}\n${iteration && this.ctx.frame ? `${I1}${iteration} = {};\n` : ''}${generatorClose && this.ctx.frame ? `${I1}${generatorClose}\n` : ''}${I}}\n${generatorClose && !this.ctx.frame ? `${I}if (zrt::g_err.p) { ${this.propagate()}; }\n` : ''}`;
+    this.ctx.breaks.pop(); if (loopNext) this.ctx.continues!.pop();
+    return `${I}{\n${prelude}${I1}${head} {\n${bind}${inner}${loopNext ? `${loopNext}:;` : ''}${I1}}\n${loopEnd ? `${loopEnd}:;` : ''}${iteration && this.ctx.frame ? `${I1}${iteration} = {};\n` : ''}${generatorClose && this.ctx.frame ? `${I1}${generatorClose}\n` : ''}${I}}\n${generatorClose && !this.ctx.frame ? `${I}if (zrt::g_err.p) { ${this.propagate()}; }\n` : ''}`;
   }
 
   switchStmt(s: ts.SwitchStatement, d: number): string {

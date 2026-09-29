@@ -182,7 +182,7 @@ class Lower {
     if (ts.isVariableStatement(n)) return this.vars(n.declarationList);
     if (ts.isIfStatement(n)) return [{ k: 'if', c: this.cond(n.expression), then: this.body(n.thenStatement, ret), else: n.elseStatement ? this.body(n.elseStatement, ret) : [] }];
     if (ts.isWhileStatement(n)) return [{ k: 'loop', c: this.cond(n.expression), body: this.body(n.statement, ret), step: [] }];
-    if (ts.isDoStatement(n)) return [{ k: 'loop', body: [...this.body(n.statement, ret), { k: 'if', c: { k: 'un', t: BOOL, op: '!', e: this.cond(n.expression) }, then: [{ k: 'break' }], else: [] }], step: [] }];
+    if (ts.isDoStatement(n)) return [{ k: 'loop', body: this.body(n.statement, ret), step: [{ k: 'if', c: { k: 'un', t: BOOL, op: '!', e: this.cond(n.expression) }, then: [{ k: 'break' }], else: [] }] }];
     if (ts.isForStatement(n)) {
       const init = !n.initializer ? [] : ts.isVariableDeclarationList(n.initializer) ? this.vars(n.initializer) : [{ k: 'expr', e: this.expr(n.initializer) } as HStmt];
       return [...init, { k: 'loop', c: n.condition ? this.cond(n.condition) : undefined, body: this.body(n.statement, ret), step: n.incrementor ? [{ k: 'expr', e: this.expr(n.incrementor) }] : [] }];
@@ -190,7 +190,7 @@ class Lower {
     if (ts.isForOfStatement(n)) return this.forOf(n, ret);
     if (ts.isBreakStatement(n)) return [{ k: 'break' }];
     if (ts.isContinueStatement(n)) return [{ k: 'continue' }];
-    if (ts.isReturnStatement(n) && ret.k === 'gen') return [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression), DYN) : undefined }];
+    if (ts.isReturnStatement(n) && ret.k === 'gen') return [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression), DYN) : lit(DYN, 'undefined') }];
     if (ts.isReturnStatement(n)) return n.expression && ret.k === 'void' ? [{ k: 'expr', e: this.expr(n.expression) }, { k: 'return' }] : [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression, ret), ret) : undefined }];
     if (ts.isThrowStatement(n)) return [{ k: 'throw', e: this.expr(n.expression) }];
     if (ts.isTryStatement(n)) return [{ k: 'try', hasCatch: !!n.catchClause, bindCell: !!n.catchClause?.variableDeclaration && ts.isIdentifier(n.catchClause.variableDeclaration.name) && this.boxed(n.catchClause.variableDeclaration.name), errorType: { k: 'obj', decl: this.s.errorDecl, args: [] }, body: this.body(n.tryBlock, ret), bind: n.catchClause?.variableDeclaration?.name.getText(), handler: n.catchClause ? this.body(n.catchClause.block, ret) : [], fin: n.finallyBlock ? this.body(n.finallyBlock, ret) : [] }];
@@ -230,7 +230,7 @@ class Lower {
     const body: HStmt[] = [{ k: 'expr', e: expression },
       { k: 'let', name: error.name, t: error.t, cell: false, init: { k: 'call', t: error.t, how: 'builtin', fn: '@generator.takeError', args: [], check: false } },
       { k: 'if', c: { k: 'un', t: BOOL, op: 'truthy', e: error }, then: onError, else: [] },
-      { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: [{ k: 'return' }], else: [] }];
+      { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: delegate && delegate !== 'iterator' ? [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.forwardReturn', recv: delegate, args: [], check: true }, then: [{ k: 'continue' }], else: [{ k: 'return', e: { k: 'call', t: DYN, how: 'builtin', fn: '@generator.result', recv: delegate, args: [], check: false } }] }] : [{ k: 'return' }], else: [] }];
     if (delegate && delegate !== 'iterator') body.push({ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@generator.send', recv: delegate, args: [{ k: 'call', t: DYN, how: 'builtin', fn: '@generator.input', args: [], check: false }], check: false } });
     return delegate && delegate !== 'iterator' ? [{ k: 'loop', body: [...body, { k: 'break' }], step: [] }] : body;
   }
