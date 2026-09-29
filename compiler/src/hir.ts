@@ -504,8 +504,13 @@ class Lower {
         }
       }
     }
-    if (this.symbols && [K.EqualsEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken].includes(op) && (lt.k === 'null' || rt.k === 'null')) {
-      let lookup = lt.k === 'null' ? e.right : e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
+    const nullishLiteral = (x: ts.Expression): boolean => x.kind === K.NullKeyword || (ts.isIdentifier(x) && x.text === 'undefined');
+    if (this.symbols && [K.EqualsEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken].includes(op) && (nullishLiteral(e.left) || nullishLiteral(e.right))) {
+      let lookup = nullishLiteral(e.left) ? e.right : e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
+      if (s.ztypeOf(lookup).k === 'str' && !ts.isCallExpression(lookup)) {
+        const present: HExpr = { k: 'call', t: BOOL, how: 'builtin', fn: '@string.present', args: [this.expr(lookup)], check: false };
+        return op === K.EqualsEqualsToken || op === K.EqualsEqualsEqualsToken ? { k: 'un', t: BOOL, op: '!', e: present } : present;
+      }
       if (ts.isCallExpression(lookup) && ts.isPropertyAccessExpression(lookup.expression) && lookup.expression.name.text === 'get') {
         const mt = s.ztypeOf(lookup.expression.expression);
         if (mt.k === 'map' && ['num', 'bool', 'str'].includes(mt.val.k)) {

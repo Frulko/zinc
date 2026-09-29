@@ -353,7 +353,8 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
               op('splice', 7, a, base, args.length | (i.attr === 'slice' ? 256 : 0));
-            } else if ((i.attr === 'toFixed' || i.attr === 'String.fromCharCode') && types[x] >= 2 && types[x] <= 5) {
+            } else if (i.attr === '@string.present') op('string',1,a,x,26|(1<<8));
+            else if ((i.attr === 'toFixed' || i.attr === 'String.fromCharCode') && types[x] >= 2 && types[x] <= 5) {
               const base=types.length;
               for (const r of args) { const dst=types.length; types.push(types[r]); op('mov',types[r],dst,r); }
               op('string',6,a,base,(i.attr==='toFixed'?22:25)|(args.length<<8));
