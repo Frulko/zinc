@@ -360,11 +360,7 @@ template<class T> void await_(AsyncBase* self, const Promise<T>& p) {
 }
 
 // generator frame: step() runs to the next yield (true) or the end (false).
-template<class T> struct GenFrame : Object {
-  int32_t state = 0; bool closing = false; T cur{};
-  virtual bool step() = 0;
-  void close() { if (state <= 0) { state = -1; return; } closing = true; step(); }
-};
+template<class T> struct GenFrame;
 template<class T> using Gen = Ref<GenFrame<T>>;
 template<class T> void iterator_close(const Gen<T>& value) {
   auto saved = take_error(); value->close(); if (saved.p) g_err = saved;

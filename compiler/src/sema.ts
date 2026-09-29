@@ -15,6 +15,7 @@ export type ZT =
   | { k: 'fn'; params: ZT[]; ret: ZT; dyn?: true }
   | { k: 'promise'; el: ZT }
   | { k: 'gen'; el: ZT }
+  | { k: 'iter' }
   | { k: 'tup'; els: ZT[] }
   | { k: 'tp'; name: string }
   /** the dynamic value of the gradual profile (section 9): `any`, `unknown`, untyped JSON */
@@ -160,7 +161,10 @@ export class Sema {
     };
     for (const sf of this.fe.sources) { if (/\.[cm]?js$/.test(sf.fileName)) this.usesDyn = true; visit(sf); }
     for (const s of captured) if (written.has(s)) this.boxed.add(s);
-    for (const c of calls) this.callTargets(c);  // registers library functions tagged @throws
+    for (const c of calls) {
+      this.callTargets(c);  // registers library functions tagged @throws
+      if (ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression) && ['next', 'return', 'throw'].includes(c.expression.name.text) && this.tryZ(c.expression.expression).k === 'gen') this.usesDyn = true;
+    }
     // throw propagation over the call graph (fixpoint)
     if (this.hasThrow) {
       // Generator creation is lazy; errors propagate from iteration, including through callers.
@@ -529,6 +533,7 @@ export class Sema {
       if (MACHINE.has(name)) return { k: 'num', m: name as NumKind };
       if (subst?.has(name)) return subst.get(name)!;
       const args = (t.typeArguments ?? []).map(a => this.fromTypeNode(a, subst));
+      if (name === 'IteratorResult' || name === 'IteratorYieldResult' || name === 'IteratorReturnResult') return { k: 'iter' };
       if (name === 'Array' || name === 'ReadonlyArray') return { k: 'arr', el: args[0] };
       if (name === 'Map') return { k: 'map', key: args[0], val: args[1] };
       if (name === 'Set') return { k: 'set', el: args[0] };
@@ -564,6 +569,7 @@ export class Sema {
     if (f & ts.TypeFlags.Null) return { k: 'null' };
     if (f & ts.TypeFlags.Never) return VOID;
     if (f & ts.TypeFlags.TypeParameter) return { k: 'tp', name: type.symbol?.name ?? 'T' };
+    if (type.aliasSymbol?.name === 'IteratorResult' || ['IteratorYieldResult', 'IteratorReturnResult'].includes(type.getSymbol()?.name ?? '')) return { k: 'iter' };
     if (type.aliasSymbol) {
       const ad = type.aliasSymbol.declarations?.[0];
       if (ad && ts.isTypeAliasDeclaration(ad) && this.unionMembers.has(ad)) return { k: 'obj', decl: ad, args: [] };
@@ -868,6 +874,15 @@ export class Sema {
     if (ts.isPropertyAccessExpression(e)) {
       const recv = this.tryZ(e.expression);
       const name = e.name.text;
+      if (recv.k === 'iter') {
+        if (name === 'done') return BOOL;
+        if (name === 'value') {
+          if (this.isWrite(e)) return DYN;
+          const checked = this.checker.getTypeAtLocation(e);
+          if (checked.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Void | ts.TypeFlags.Undefined) || checked.isUnion() && checked.types.some(t => t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined))) return DYN;
+          return this.fromType(checked, e);
+        }
+      }
       if (recv.k === 'dyn') return DYN;
       if ((recv.k === 'arr' || recv.k === 'str') && name === 'length') return I32;
       if ((recv.k === 'map' || recv.k === 'set') && name === 'size') return I32;
@@ -1129,6 +1144,7 @@ export class Sema {
       if (name === 'add') return recv;
       if (name === 'values') return { k: 'arr', el: recv.el };
     }
+    if (recv.k === 'gen' && ['next', 'return', 'throw'].includes(name)) return { k: 'iter' };
     if (recv.k === 'promise') {
       if (name === 'catch' || name === 'finally') return recv;
       if (name === 'then') {

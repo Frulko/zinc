@@ -23,7 +23,7 @@ static void registerGeneratedModules(zinc::Modules&) {}
 #endif
 
 namespace {
-enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, GENCONTROL, METHODREF, NOPS };
+enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, GENCONTROL, METHODREF, DYNAMIC, NOPS };
 enum { VM_REF = 7 };
 struct Heap;
 union Reg { double f; int32_t i; uint32_t u; Heap* h; Reg(): f(0) {} };
@@ -45,7 +45,7 @@ struct Heap {
   uint32_t layout = UINT32_MAX; // Strings have no field layout.
   uint32_t promiseState=0, payloadType=0, pc=0, awaitDst=0, catchPc=UINT32_MAX;
   Heap *parent=nullptr, *completion=nullptr, *awaited=nullptr, *waiting=nullptr, *last=nullptr, *nextTask=nullptr;
-  bool handled=false, resolving=false, generator=false, closing=false, running=false, done=false;
+  bool handled=false, resolving=false, generator=false, closing=false, dynamic=false, iteratorResult=false, running=false, done=false;
   Reg yielded;
   ZincHandle nativeHandle=0;
   const ZincHost* nativeHost=nullptr;
@@ -122,6 +122,7 @@ struct VM {
       auto* h=pending.back(); pending.pop_back();
       pointer(h->parent);pointer(h->completion);pointer(h->awaited);pointer(h->waiting);pointer(h->last);pointer(h->nextTask);
       if(h->generator && h->payloadType>=ZINC_STRING)mark(h->yielded);
+      if(h->dynamic) {if(h->payloadType>=ZINC_STRING && h->payloadType<=VM_REF)mark(h->slots[0]);continue;}
       if(h->promiseState) { if(h->payloadType>=ZINC_STRING)mark(h->slots[0]);continue; }
       if(h->collection) {
         const auto& collection=*h->collection;const auto& entries=collection.entries;
@@ -191,6 +192,10 @@ struct VM {
   std::multimap<std::chrono::steady_clock::time_point,Timer> timers;
   uint32_t nextTimer=0;
   bool nativeEvents=false;
+  Heap* box(Reg value,uint32_t type,Reg* fp) {
+    if(type==VM_REF && value.h && value.h->dynamic)return value.h;
+    auto* result=allocate(UINT32_MAX,1,fp);result->dynamic=true;result->payloadType=type;result->slots[0]=value;return result;
+  }
   void finishPromise(Heap* promise, Reg result, uint32_t type, bool rejected) {
     promise->resolving=false;promise->promiseState=rejected?3:2;promise->payloadType=type;promise->slots[0]=result;
     if(rejected)rejections.push_back(promise);
@@ -255,12 +260,28 @@ template<int T> auto typedNumber(Reg r) {
 double number(Reg r, uint32_t t) { return t == ZINC_I32 ? r.i : t == ZINC_BOOL || t == ZINC_U32 ? r.u : r.f; }
 Reg value(double x, uint32_t t) { Reg r; if (t == ZINC_I32 || t == ZINC_U32) r.u = uint32(x); else if (t == ZINC_BOOL) r.u = x != 0 && !std::isnan(x); else r.f = t == ZINC_F32 ? (double)(float)x : x; return r; }
 
+Heap& dynamic(Reg value) {
+  if(!value.h || !value.h->dynamic)throw std::runtime_error("invalid VM dynamic value");return *value.h;
+}
+zrt::Dyn primitiveDyn(const Heap& value) {
+  if(value.payloadType==ZINC_VOID)return zrt::Dyn();
+  if(value.payloadType==8 || (value.payloadType==VM_REF && !value.slots[0].h))return zrt::Dyn(nullptr);
+  if(value.payloadType==ZINC_STRING)return zrt::Dyn(string(value.slots[0]));
+  if(value.payloadType==ZINC_BOOL)return zrt::Dyn(value.slots[0].u!=0);
+  if(value.payloadType<ZINC_STRING)return zrt::Dyn(number(value.slots[0],value.payloadType));
+  throw std::runtime_error("VM dynamic object coercion is not implemented");
+}
+
 void inspectValue(VM& vm, Reg r, uint32_t type, zrt::StrBuilder& out, zrt::Insp& in) {
   if(type==ZINC_VOID)out.cstr("undefined");
   else if(type==ZINC_STRING)zrt::insp(out,in,string(r));
   else if(type==ZINC_BOOL)zrt::insp(out,in,r.u!=0);
   else if(type!=VM_REF)zrt::insp(out,in,number(r,type));
   else if(!r.h)zrt::insp_null(out,in);
+  else if(r.h->dynamic) {if(r.h->payloadType==8)zrt::insp_null(out,in);else inspectValue(vm,r.h->slots[0],r.h->payloadType,out,in);}
+  else if(r.h->iteratorResult) {
+    zrt::InspParts parts;zrt::StrBuilder v,d;v.cstr("value: ");inspectValue(vm,r.h->slots[1],VM_REF,v,in);parts.add(v);d.cstr("done: ");zrt::insp(d,in,r.h->slots[0].u!=0);parts.add(d);zrt::insp_join(out,"","{","}",parts,in.depth*2);
+  }
   else if(r.h->nativeHandle)out.cstr("[NativeResource]");
   else if(r.h->promiseState)out.cstr("Promise {}");
   else if(r.h->function!=UINT32_MAX)out.cstr("[Function (anonymous)]");
@@ -294,6 +315,12 @@ uint32_t methodTarget(VM* vm,const Ins* ip,Reg* fp) {
   return method->second;
 }
 struct GuestThrow : std::runtime_error { GuestThrow():std::runtime_error("uncaught guest exception"){} };
+[[noreturn]] void generatorTypeError(VM& vm,const char* message,Reg* fp) {
+  vm.exception.h=vm.allocate(0,2,fp);
+  vm.exception.h->slots[0].h=vm.keepString(message,strlen(message),fp);
+  vm.exception.h->slots[1].h=vm.keepString("TypeError",9,fp);
+  throw GuestThrow();
+}
 bool routeException(VM* vm,const Ins*& ip,Reg*& fp) {
   for (;;) {
     if(ip->catchPc!=UINT32_MAX) { ip=vm->fns[vm->fn].code.data()+ip->catchPc;return true; }
@@ -366,7 +393,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     auto f=vm->frames[--vm->depth]; if constexpr(T!=ZINC_VOID) f.fp[f.dst]=fp[a]; fp=f.fp; ip=f.ip; vm->fn=f.fn; return;
   } else if constexpr(O==PRINT) {
     if constexpr(T==ZINC_STRING) fwrite(string(fp[a]).ptr(),1,string(fp[a]).bytes(),stdout);
-    else if constexpr(T==VM_REF) { zrt::StrBuilder out;zrt::Insp in{};inspectValue(*vm,fp[a],T,out,in);fwrite(out.buf,1,out.len,stdout); }
+    else if constexpr(T==VM_REF) { zrt::StrBuilder out;zrt::Insp in{};if(fp[a].h && fp[a].h->dynamic && fp[a].h->payloadType==ZINC_STRING)zrt::to_s(out,string(fp[a].h->slots[0]));else inspectValue(*vm,fp[a],T,out,in);fwrite(out.buf,1,out.len,stdout); }
     else if constexpr(T==ZINC_BOOL) fputs(fp[a].u ? "true":"false",stdout);
     else { zrt::StrBuilder sb; zrt::str_num(sb,number(fp[a],T)); fwrite(sb.buf,1,sb.len,stdout); }
   } else if constexpr(O==SPACE) putchar(' ');
@@ -449,16 +476,59 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     if(!task || !task->generator || vm->depth!=vm->boundary)throw std::runtime_error("invalid VM yield");
     task->pc=(uint32_t)(ip-vm->fns[vm->fn].code.data())+1;task->yielded=fp[a];task->payloadType=T;
     std::copy(fp,fp+task->slots.size(),task->slots.begin());vm->suspended=true;ip=nullptr;return;
+  } else if constexpr(O==DYNAMIC) {
+    const auto action=c&255,type=c>>8;
+    if(action==0)fp[a].h=vm->box(type && type!=8?fp[b]:Reg(),type,fp);
+    else if(action==1) {
+      const auto& source=dynamic(fp[b]);
+      if constexpr(T>=ZINC_I32 && T<=ZINC_F64) {
+        if(source.payloadType<ZINC_I32 || source.payloadType>ZINC_F64)throw std::runtime_error("VM dynamic value is not a number");
+        fp[a]=value(number(source.slots[0],source.payloadType),T);
+      } else {if(source.payloadType!=T)throw std::runtime_error("VM dynamic value type mismatch");fp[a]=source.slots[0];}
+    } else if(action==2) {
+      const auto& source=dynamic(fp[b]);const char* name=source.payloadType==0?"undefined":source.payloadType==ZINC_BOOL?"boolean":source.payloadType<ZINC_STRING?"number":source.payloadType==ZINC_STRING?"string":"object";
+      fp[a].h=vm->keepString(name,strlen(name),fp);
+    } else if(action==8) {
+      const auto& source=dynamic(fp[b]);fp[a].u=source.payloadType==0 || source.payloadType==8 || (source.payloadType==VM_REF && !source.slots[0].h);
+    } else if(action==3) {
+      const auto& source=dynamic(fp[b]);
+      fp[a].u=source.payloadType==VM_REF?source.slots[0].h!=nullptr:source.payloadType==8?false:zrt::truthy(primitiveDyn(source));
+    } else {
+      const auto& left=dynamic(fp[b]);const auto& right=dynamic(fp[b+1]);
+      bool equal;
+      if(left.payloadType==VM_REF || right.payloadType==VM_REF) {
+        if(left.payloadType==VM_REF && right.payloadType==VM_REF)equal=left.slots[0].h==right.slots[0].h;
+        else if((left.payloadType==VM_REF && left.slots[0].h) || (right.payloadType==VM_REF && right.slots[0].h))equal=false;
+        else equal=action>=6?zrt::dyn_leq(primitiveDyn(left),primitiveDyn(right)):zrt::dyn_seq(primitiveDyn(left),primitiveDyn(right));
+      } else equal=action>=6?zrt::dyn_leq(primitiveDyn(left),primitiveDyn(right)):zrt::dyn_seq(primitiveDyn(left),primitiveDyn(right));
+      fp[a].u=(action==5 || action==7)?!equal:equal;
+    }
   } else if constexpr(O==GENCONTROL) {
-    if(c==0) {
+    if(c==0 || c==2) {
       if(!vm->currentTask || !vm->currentTask->generator)throw std::runtime_error("generator control outside a generator");
-      fp[a].u=vm->currentTask->closing;vm->currentTask->closing=false;
+      if(c==0){fp[a].u=vm->currentTask->closing;vm->currentTask->closing=false;}
+      else {fp[a].h=vm->currentTask->awaited;vm->currentTask->awaited=nullptr;}
     } else {
       auto* task=fp[b].h;if(!task || !task->generator)throw std::runtime_error("invalid VM generator");
-      if(task->running)throw std::runtime_error("generator is already running");
+      if(task->running)generatorTypeError(*vm,"generator is already running",fp);
+      bool yielded=false;const bool wasDone=task->done;
+      if(c==4)task->completion=fp[b+1].h;
+      if(c==5 || c==6) {
+        if(task->done || !task->pc){task->done=true;vm->exception=fp[b+1];throw GuestThrow();}
+        task->awaited=fp[b+1].h;
+      }
       if(!task->done) {
-        if(task->pc==0) {task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
-        else {task->closing=true;generatorStep(*vm,ip,fp);}
+        if(c==1 || c==4) {
+          if(!task->pc){task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
+          else {task->closing=true;yielded=generatorStep(*vm,ip,fp);}
+        } else yielded=generatorStep(*vm,ip,fp);
+      }
+      if(c==6)fp[a].u=yielded;
+      else if(c>=3) {
+        auto& result=vm->object(fp[a],false);const auto& shape=vm->layouts[result.layout];if(result.slots.size()!=2 || shape.types.size()!=2 || shape.types[0]!=ZINC_BOOL || shape.types[1]!=VM_REF)throw std::runtime_error("invalid iterator result layout");
+        result.iteratorResult=true;result.slots[0].u=!yielded;
+        if(yielded)result.slots[1].h=vm->box(task->yielded,task->payloadType,fp);
+        else {result.slots[1].h=(!wasDone || c==4)&&task->completion?task->completion:vm->box(Reg(),ZINC_VOID,fp);task->completion=nullptr;}
       }
     }
   } else if constexpr(O==GENSTEP) { fp[a].u=generatorStep(*vm,ip,fp);
@@ -718,7 +788,7 @@ template<int O> Handler typed(uint32_t t) {
 Handler handler(uint32_t op,uint32_t t) {
   switch(op) {
 #define O(n) case n: return typed<n>(t);
-    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION) O(GENCONTROL) O(METHODREF)
+    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION) O(GENCONTROL) O(METHODREF) O(DYNAMIC)
 #undef O
   } throw std::runtime_error("invalid opcode");
 }
@@ -806,10 +876,16 @@ uint32_t load(VM& vm,Reader r) {
     else if(i.op==BR) { reg(a,ZINC_BOOL);jump(b);jump(c);i.b=b-(uint32_t)pc;i.c=c-(uint32_t)pc; }
     else if(i.op==CALL) { check(b<vm.fns.size());const auto& callee=vm.fns[b];reg(a,callee.ret);check(callee.captures.empty() && t==callee.ret && c<=f.types.size() && callee.params.size()<=f.types.size()-c);for(size_t j=0;j<callee.params.size();j++)reg(c+j,callee.types[callee.params[j]]); }
     else if(i.op==NATIVE) { check(b<vm.imports.size());const auto& native=*vm.imports[b];reg(a,(native.result==ZINC_BYTES || native.result==ZINC_RECORD)?VM_REF:native.result);check(t==((native.result==ZINC_BYTES || native.result==ZINC_RECORD)?VM_REF:native.result)&&c<=f.types.size()&&native.parameter_count<=f.types.size()-c);for(uint32_t j=0;j<native.parameter_count;j++)reg(c+j,(native.parameters[j]==ZINC_CALLBACK || native.parameters[j]==ZINC_BYTES || native.parameters[j]==ZINC_NUMBERS)?VM_REF:native.parameters[j]); }
-    else if(i.op==RET) { check(t==f.bodyRet || (f.async && t==VM_REF));if(t)reg(a,t); }
+    else if(i.op==RET) { check(t==f.bodyRet || ((f.async || f.gen) && t==VM_REF));if(t)reg(a,t); }
     else if(i.op==PRINT) { check(t!=ZINC_VOID && t<=VM_REF);reg(a,t); }
     else if(i.op==YIELD) { reg(a,t);check(f.gen && t==f.yieldType); }
-    else if(i.op==GENCONTROL) {check(c<=1 && t==(c?ZINC_VOID:ZINC_BOOL));reg(a,t);if(c)reg(b,VM_REF);else check(f.gen);}
+    else if(i.op==DYNAMIC) {
+      const auto action=c&255,source=c>>8;check(action<=8);
+      if(action==0){check(source<=8 && t==VM_REF);if(source && source!=8)reg(b,source);}
+      else {check(!source);reg(b,VM_REF);if(action==1)check(t>=ZINC_BOOL && t<=VM_REF);else if(action==2)check(t==ZINC_STRING);else check(t==ZINC_BOOL);if(action>=4 && action<=7)reg(b+1,VM_REF);}
+      reg(a,t);
+    }
+    else if(i.op==GENCONTROL) {check(c<=6 && t==(c==0 || c==6?ZINC_BOOL:c==1?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2)check(f.gen);else {reg(b,VM_REF);if(c>=4)reg(b+1,VM_REF);}}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }
@@ -1027,7 +1103,7 @@ bool generatorStep(VM& vm,const Ins* ip,Reg* fp) {
   auto* task=fp[ip->b].h;
   if(!task || !task->generator)throw std::runtime_error("invalid VM generator");
   if(task->done)return false;
-  if(task->running)throw std::runtime_error("generator is already running");
+  if(task->running)generatorTypeError(vm,"generator is already running",fp);
   if(vm.depth>=1024)throw std::runtime_error("VM generator call stack overflow");
   Reg* next=fp+vm.fns[vm.fn].types.size();
   if(task->slots.size()>(size_t)(vm.stack.data()+vm.stack.size()-next))throw std::runtime_error("VM register stack overflow");
@@ -1039,7 +1115,7 @@ bool generatorStep(VM& vm,const Ins* ip,Reg* fp) {
   try { execute(vm,task->function,next,task->pc); }
   catch(...) {task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());restore();throw;}
   const bool yielded=vm.suspended;
-  if(!yielded){task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
+  if(!yielded){if(vm.resultType==VM_REF)task->completion=vm.result.h;task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
   restore();return yielded;
 }
 Heap* callbackTask(VM& vm,Reg callback,Reg* fp) {

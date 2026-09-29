@@ -29,7 +29,7 @@ const CONSOLE = new Set(['log', 'info', 'warn', 'error', 'debug', 'trace']);
 export interface CppOptions { debug: boolean; title: string; width: number; height: number; outDir: string; target: string; dev?: boolean; obfuscate?: boolean }
 export interface CppResult { code: string; usesGfx: boolean; modules: Set<string>; nativeSources: string[] }
 
-const refLike = (t: ZT) => ['obj', 'fn', 'arr', 'map', 'set', 'promise', 'gen', 'dyn'].includes(t.k);
+const refLike = (t: ZT) => ['obj', 'fn', 'arr', 'map', 'set', 'promise', 'gen', 'iter', 'dyn'].includes(t.k);
 const hasTp = (t: ZT): boolean => t.k === 'tp' || (t.k === 'tup' ? t.els.some(hasTp) : false) || (t.k === 'arr' || t.k === 'set' || t.k === 'promise' || t.k === 'gen' ? hasTp(t.el) : t.k === 'map' ? hasTp(t.key) || hasTp(t.val) : t.k === 'fn' ? t.params.some(hasTp) || hasTp(t.ret) : t.k === 'obj' ? t.args.some(hasTp) : false);
 
 type Cls = ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.TypeLiteralNode | ts.ObjectLiteralExpression;
@@ -116,6 +116,7 @@ class CppEmitter {
       case 'fn': return `zrt::Fn<${this.cpp(t.ret)}(${t.params.map(p => this.cpp(p)).join(', ')})>`;
       case 'promise': return `zrt::Promise<${this.val(t.el)}>`;
       case 'gen': return `zrt::Gen<${this.cpp(t.el)}>`;
+      case 'iter': return 'zrt::Ref<zrt::IteratorResult>';
       case 'tup': return `zrt::Tup${t.els.length}<${t.els.map(x => this.cpp(x)).join(', ')}>`;
       case 'tp': return t.name;
       case 'dyn': return 'zrt::Dyn';
@@ -576,16 +577,16 @@ class CppEmitter {
             f.fields.set(receiver, this.cpp(source));
             const gen = source.k === 'gen', st = ++f.state;
             if (!gen) f.fields.set(index, 'int32_t');
-            const test = gen ? `({ bool __more = ${receiver}->step(); if (zrt::g_err.p) { ${this.propagate()}; } __more; })` : `${index} < ${receiver}.length()`;
+            const test = gen ? `({ bool __more = ${receiver}->resume(); if (zrt::g_err.p) { ${this.propagate()}; } __more; })` : `${index} < ${receiver}.length()`;
             const width = source.k === 'str' ? `((${receiver}.charCodeAt(${index}) >= 0xd800 && ${receiver}.charCodeAt(${index}) <= 0xdbff && ${receiver}.charCodeAt(${index}+1) >= 0xdc00 && ${receiver}.charCodeAt(${index}+1) <= 0xdfff) ? 2 : 1)` : '1';
             const value = gen ? `${receiver}->cur` : source.k === 'str' ? `${receiver}.slice(${index}, ${index}+${width})` : `${receiver}.get(${index})`;
             f.awaits.set(n, '(void)0');
-            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->close();` : ''} ${this.frameCleanup('return')} state = -1; return false; }\n${gen ? '' : `${I}  ${index} += ${width};\n`}${I}}\n${I}${receiver} = {};\n`;
+            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { auto __error = this->injected; this->injected = nullptr; ${gen ? `bool __more = ${receiver}->raise(__error); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->cur = ${receiver}->cur; return true; }` : `zrt::g_err = zrt::make<zrt::TypeError>(zrt::String::from("iterator does not provide a throw method", 39)); ${this.propagate()};`} }\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->close();` : ''} ${this.frameCleanup('return')} state = -1; return false; }\n${gen ? '' : `${I}  ${index} += ${width};\n`}${I}}\n${I}${receiver} = {};\n`;
             return;
           }
           const st = ++f.state;
           f.awaits.set(n, '(void)0');
-          out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->closing) { this->closing = false; ${this.frameCleanup('return')} state = -1; return false; }\n`;
+          out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { zrt::g_err = this->injected; this->injected = nullptr; ${this.propagate()}; }\n${I}if (this->closing) { this->closing = false; ${this.frameCleanup('return')} state = -1; return false; }\n`;
         }
         return;
       }
@@ -772,7 +773,7 @@ class CppEmitter {
     if (ts.isReturnStatement(s)) {
       const f = this.ctx.frame;
       if (f) {
-        if (f.kind === 'gen') return `${L}${I}${this.frameCleanup('return')}state = -1; return false;\n`;
+        if (f.kind === 'gen') return `${L}${I}${s.expression ? `this->returned = ${this.toDynExpr(s.expression)}; ` : ''}${this.frameCleanup('return')}state = -1; return false;\n`;
         return s.expression ? `${L}${I}${this.frameReturn(s.expression)}\n` : `${L}${I}${this.frameCleanup('return')}this->zrt_done(); return;\n`;
       }
       if (!s.expression || this.ctx.inCtor) return `${L}${I}return;\n`;
@@ -936,7 +937,7 @@ class CppEmitter {
         bind += this.local(k, this.cpp(t.key), `${c}.key_at(${i})`, d + 2) + this.local(v, this.cpp(t.val), `${c}.val_at(${i})`, d + 2);
       } else bind += bindTo(t.el, `${c}.key_at(${i})`);
     } else if (t.k === 'gen') {
-      head = `while (({ bool __more = ${c}->step(); if (zrt::g_err.p) { ${this.propagate()}; } __more; }))`;
+      head = `while (({ bool __more = ${c}->resume(); if (zrt::g_err.p) { ${this.propagate()}; } __more; }))`;
       bind = bindTo(t.el, `${c}->cur`);
     } else return this.s.fail(s.expression, 'Z9005', 'for-of is supported on arrays, strings, Map, Set and generators');
     const generatorClose = t.k === 'gen' ? `zrt::iterator_close(${c}); if (zrt::g_err.p) { ${this.propagate()}; } ` : '';
@@ -1219,6 +1220,7 @@ class CppEmitter {
   }
 
   prop(e: ts.PropertyAccessExpression, recvOverride?: string): string {
+    if (this.s.tryZ(e.expression).k === 'iter') { const value = `${this.expr(e.expression)}->${e.name.text}`, t = this.s.ztypeOf(e); return e.name.text !== 'value' ? value : t.k === 'obj' ? `zrt::dyn_to_obj<${this.cls(t)}>(${value}, "generator value")` : this.coerce(value, DYN, t, e); }
     const ed = this.s.declOf(e.name);
     if (ed && ts.isEnumMember(ed)) {
       const cv = this.s.checker.getConstantValue(ed);
@@ -1351,7 +1353,12 @@ class CppEmitter {
         if (name === 'toString') return `zrt::cat(${this.expr(obj)})`;
       }
       if (t.k === 'promise' && ['then', 'catch', 'finally'].includes(name)) return `${this.expr(obj)}.${name === 'then' ? name : name + '_'}(${this.expr(e.arguments[0])})`;
-      if (t.k === 'gen' && name === 'next') this.s.fail(e, 'Z9032', 'iterate generators with for-of');
+      if (t.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
+        if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(t.el.k) && !(t.el.k === 'arr' && t.el.el.k === 'dyn')) this.s.fail(e, 'Z9032', 'generator API values require scalars, objects or Dyn arrays');
+        if (name === 'next' && e.arguments.some(a => !ts.isIdentifier(a) || a.text !== 'undefined')) this.s.fail(e, 'Z9032', 'generator next(value) is not implemented');
+        const argument = name === 'return' ? (e.arguments[0] ? this.toDynExpr(e.arguments[0]) : 'zrt::Dyn()') : e.arguments[0] ? this.expr(e.arguments[0]) : '';
+        return `zrt::generator_${name}(${this.expr(obj)}${name === 'next' ? '' : ', ' + argument})`;
+      }
       if (t.k === 'arr' || t.k === 'str' || t.k === 'map' || t.k === 'set') return this.builtinCall(e, c, t);
       const od = this.staticOwner(obj);
       const md = this.s.declOf(c.name);
@@ -1447,7 +1454,7 @@ class CppEmitter {
     // Snapshot each argument before later calls can mutate globals referenced by earlier ones.
     const a = values.length > 1 ? values.map(() => this.newTmp('log')) : values;
     const wrap = (call: string) => values.length > 1
-      ? `([&]() { ${values.map((v, i) => `auto ${a[i]} = ${v};`).join(' ')} ${call}; }())` : call;
+      ? `({ ${values.map((v, i) => `auto ${a[i]} = ${v};`).join(' ')} ${call}; })` : call;
     if (CONSOLE.has(name)) return wrap(`zrt::console(zrt::LOG_${name.toUpperCase()}${a.length ? ', ' + a.join(', ') : ''})`);
     if (name === 'time' || name === 'timeEnd' || name === 'timeLog' || name === 'count') return wrap(`zrt::console_${name}(${a[0] ?? this.lit('default')})`);
     if (name === 'assert') return wrap(`zrt::console_assert(${a[0]}${a.length > 1 ? ', ' + a.slice(1).join(', ') : ''})`);
@@ -1679,7 +1686,7 @@ class CppEmitter {
     }
     if (op === K.QuestionQuestionToken && this.s.ztypeOf(e).k === 'dyn') {
       const v = this.newTmp('t');
-      return `([&]() -> zrt::Dyn { zrt::Dyn ${v} = ${this.toDynExpr(L)}; return zrt::dyn_nullish(${v}) ? ${this.toDynExpr(R)} : ${v}; }())`;
+      return `({ zrt::Dyn ${v} = ${this.toDynExpr(L)}; zrt::dyn_nullish(${v}) ? ${this.toDynExpr(R)} : ${v}; })`;
     }
     if (op === K.QuestionQuestionToken) {
       const inner = ts.isParenthesizedExpression(L) ? L.expression : L;

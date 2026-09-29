@@ -23,7 +23,9 @@ declare var Symbol: SymbolConstructor;
 interface IteratorYieldResult<T> { done?: false; value: T; }
 interface IteratorReturnResult<T> { done: true; value: T; }
 type IteratorResult<T, R = any> = IteratorYieldResult<T> | IteratorReturnResult<R>;
-interface Iterator<T, R = any, N = any> { next(...args: [] | [N]): IteratorResult<T, R>; }
+interface Iterator<T, R = any, N = any> {
+  /** @throws */
+  next(...args: [] | [N]): IteratorResult<T, R>; }
 interface Iterable<T, R = any, N = any> { [Symbol.iterator](): Iterator<T, R, N>; }
 interface IterableIterator<T, R = any, N = any> extends Iterator<T, R, N> { [Symbol.iterator](): IterableIterator<T, R, N>; }
 interface IteratorObject<T, R = any, N = any> extends Iterator<T, R, N> { [Symbol.iterator](): IteratorObject<T, R, N>; }
@@ -219,7 +221,13 @@ interface PromiseConstructor {
   all<T>(ps: Promise<T>[]): Promise<T[]>;
 }
 declare var Promise: PromiseConstructor;
-interface Generator<T = unknown, R = any, N = any> extends IteratorObject<T, R, N> { [Symbol.iterator](): Generator<T, R, N>; }
+interface Generator<T = unknown, R = any, N = any> extends IteratorObject<T, R, N> {
+  /** @throws */
+  return(value?: R): IteratorResult<T, R>;
+  /** @throws */
+  throw(error: Error): IteratorResult<T, R>;
+  [Symbol.iterator](): Generator<T, R, N>;
+}
 
 // ---- memory (section 8) ----
 /** MEM-07: `using a = Arena.frame()`; everything allocated until the end of the block is freed in O(1). */

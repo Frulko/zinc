@@ -189,6 +189,7 @@ class Lower {
     if (ts.isForOfStatement(n)) return this.forOf(n, ret);
     if (ts.isBreakStatement(n)) return [{ k: 'break' }];
     if (ts.isContinueStatement(n)) return [{ k: 'continue' }];
+    if (ts.isReturnStatement(n) && ret.k === 'gen') return [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression), DYN) : undefined }];
     if (ts.isReturnStatement(n)) return n.expression && ret.k === 'void' ? [{ k: 'expr', e: this.expr(n.expression) }, { k: 'return' }] : [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression, ret), ret) : undefined }];
     if (ts.isThrowStatement(n)) return [{ k: 'throw', e: this.expr(n.expression) }];
     if (ts.isTryStatement(n)) return [{ k: 'try', hasCatch: !!n.catchClause, bindCell: !!n.catchClause?.variableDeclaration && ts.isIdentifier(n.catchClause.variableDeclaration.name) && this.boxed(n.catchClause.variableDeclaration.name), errorType: { k: 'obj', decl: this.s.errorDecl, args: [] }, body: this.body(n.tryBlock, ret), bind: n.catchClause?.variableDeclaration?.name.getText(), handler: n.catchClause ? this.body(n.catchClause.block, ret) : [], fin: n.finallyBlock ? this.body(n.finallyBlock, ret) : [] }];
@@ -220,8 +221,16 @@ class Lower {
       return [{ k: 'let', name: tmp, t, init: v, cell: false } as HStmt, ...this.destructure(e.name, { k: 'var', t, name: tmp })];
     });
   }
-  yieldStatements(expression: HExpr): HStmt[] {
-    return [{ k: 'expr', e: expression }, { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: [{ k: 'return' }], else: [] }];
+  yieldStatements(expression: HExpr, delegate?: HExpr | 'iterator'): HStmt[] {
+    const error: HExpr & { k: 'var' } = { k: 'var', t: { k: 'obj', decl: this.s.errorDecl, args: [] }, name: `%injected${this.tmp++}` };
+    const onError: HStmt[] = delegate && delegate !== 'iterator'
+      ? [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.forwardThrow', recv: delegate, args: [error], check: true }, then: [{ k: 'continue' }], else: [{ k: 'break' }] }]
+      : [{ k: 'throw', e: delegate === 'iterator' ? { k: 'new', t: error.t, cls: 'TypeError', args: [lit(STR, JSON.stringify('iterator does not provide a throw method'))], check: false } : error }];
+    const body: HStmt[] = [{ k: 'expr', e: expression },
+      { k: 'let', name: error.name, t: error.t, cell: false, init: { k: 'call', t: error.t, how: 'builtin', fn: '@generator.takeError', args: [], check: false } },
+      { k: 'if', c: { k: 'un', t: BOOL, op: 'truthy', e: error }, then: onError, else: [] },
+      { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: [{ k: 'return' }], else: [] }];
+    return delegate && delegate !== 'iterator' ? [{ k: 'loop', body: [...body, { k: 'break' }], step: [] }] : body;
   }
   generatorIteration(receiver: HExpr, loop: HStmt): HStmt[] {
     const close: HStmt = { k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@generator.close', recv: receiver, args: [], check: true } };
@@ -246,7 +255,7 @@ class Lower {
     const between = (v: HExpr, lo: number, hi: number): HExpr => ({ k: 'cond', t: BOOL, c: { k: 'bin', t: BOOL, op: '>=', l: v, r: lit(I32, `${lo}`) }, a: { k: 'bin', t: BOOL, op: '<=', l: v, r: lit(I32, `${hi}`) }, b: lit(BOOL, 'false') });
     const width: HExpr = source.t.k === 'str' ? { k: 'cond', t: I32, c: between(code(index), 0xd800, 0xdbff), a: { k: 'cond', t: I32, c: between(code(plus(index, lit(I32, '1'))), 0xdc00, 0xdfff), a: lit(I32, '2'), b: lit(I32, '1') }, b: lit(I32, '1') } : lit(I32, '1');
     const item: HExpr = generator ? { k: 'field', t: element, obj: receiver, name: 'cur' } : source.t.k === 'str' ? { k: 'call', t: STR, how: 'builtin', fn: 'slice', recv: receiver, args: [index, plus(index, width)], check: false } : { k: 'index', t: element, obj: receiver, idx: index };
-    const loop: HStmt = { k: 'loop', c: condition, body: this.yieldStatements({ k: 'suspend', t: VOID, what: 'yield', e: this.conv(item, ret.k === 'gen' ? ret.el : ret), state: ++this.state }),
+    const loop: HStmt = { k: 'loop', c: condition, body: this.yieldStatements({ k: 'suspend', t: VOID, what: 'yield', e: this.conv(item, ret.k === 'gen' ? ret.el : ret), state: ++this.state }, generator ? receiver : 'iterator'),
       step: generator ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: plus(index, width) } }] };
     return [{ k: 'let', name: receiver.name, t: receiver.t, init: source, cell: false },
       ...(generator ? [] : [{ k: 'let', name: index.name, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
@@ -299,6 +308,7 @@ class Lower {
   }
   /** Coercion point (LNG-05, DYN-07): the conversion the emitters insert. */
   conv(h: HExpr, to: ZT | undefined): HExpr {
+    if (to?.k === 'dyn' && h.t.k === 'null') return { k: 'conv', t: DYN, how: 'dyn.box', e: h };
     if (!to || to.k === 'void' || to.k === 'tp' || zeq(h.t, to) || h.t.k === 'null') return h;
     if (h.t.k === 'dyn') return { k: 'conv', t: to, how: 'dyn.check', e: h };
     if (to.k === 'dyn') return { k: 'conv', t: to, how: 'dyn.box', e: h };
@@ -344,6 +354,7 @@ class Lower {
       if (d && this.symbols?.has(d) && (ts.isVariableDeclaration(d) || ts.isBindingElement(d) || ts.isPropertyDeclaration(d))) return { k: 'var', t, name: this.symbols.get(d)!, global: true };
       const recv = s.tryZ(e.expression);
       const obj = this.expr(e.expression);
+      if (recv.k === 'iter') return e.name.text === 'value' ? this.conv({ k: 'field', t: DYN, obj, name: 'value' }, t) : { k: 'field', t: BOOL, obj, name: 'done' };
       const get: HExpr = recv.k === 'dyn' ? { k: 'dyn', t, op: 'get', args: [obj, lit(STR, JSON.stringify(e.name.text))] }
         : (recv.k === 'arr' || recv.k === 'str' || recv.k === 'map' || recv.k === 'set') ? { k: 'call', t, how: 'builtin', fn: e.name.text, recv: obj, args: [], check: false }
         : d && (ts.isGetAccessorDeclaration(d) || ts.isSetAccessorDeclaration(d)) ? { k: 'call', t, how: 'method', fn: `get ${e.name.text}`, recv: obj, args: [], check: true }
@@ -493,6 +504,10 @@ class Lower {
         }
       }
     }
+    if (op === K.QuestionQuestionToken && lt.k === 'dyn') {
+      const tmp: HExpr = { k: 'var', t: DYN, name: `%optional${this.tmp++}` };
+      return { k: 'cond', t, c: { k: 'call', t: BOOL, how: 'builtin', fn: '@dynamic.nullish', args: [{ k: 'assign', t: DYN, target: tmp, v: this.expr(e.left) }], check: false }, a: this.conv(this.expr(e.right), t), b: this.conv(tmp, t) };
+    }
     if (op === K.QuestionQuestionToken) {
       const tmp: HExpr = { k: 'var', t, name: `%t${this.tmp++}` };
       return { k: 'cond', t, c: { k: 'bin', t: BOOL, op: '==', l: { k: 'assign', t, target: tmp, v: this.conv(this.expr(e.left), t) }, r: lit({ k: 'null' }, 'null') }, a: this.conv(this.expr(e.right), t), b: tmp };
@@ -583,6 +598,13 @@ class Lower {
       }
       const recv = this.expr(c.expression);
       if (this.symbols && recvT.k === 'str' && (name === 'padStart' || name === 'padEnd') && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.slice(0, 1), check };
+      if (recvT.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
+        if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(recvT.el.k) && !(recvT.el.k === 'arr' && recvT.el.el.k === 'dyn')) throw new Error('generator API values require scalars, objects or Dyn arrays');
+        if (name === 'next' && e.arguments.some(a => !ts.isIdentifier(a) || a.text !== 'undefined')) throw new Error('generator next(value) is not implemented');
+        const argument = name === 'return' ? (e.arguments[0] ? this.conv(this.expr(e.arguments[0]), DYN) : lit(DYN, 'undefined')) : args[0];
+        return { k: 'call', t: { k: 'iter' }, how: 'builtin', fn: `@generator.${name}`, recv, args: name === 'next' ? [] : [argument], check: true };
+      }
+
       if (this.symbols && (recvT.k === 'map' || recvT.k === 'set')) {
         if (name === 'forEach' && args.length === 1) return this.collectionCallback(recv, args[0]);
         const key = recvT.k === 'map' ? recvT.key : recvT.el;
@@ -848,6 +870,7 @@ export function typeName(t: ZT): string {
     case 'fn': return `(${t.params.map(typeName).join(', ')}) => ${typeName(t.ret)}`;
     case 'promise': return `Promise<${typeName(t.el)}>`;
     case 'gen': return `Generator<${typeName(t.el)}>`;
+    case 'iter': return 'IteratorResult';
     case 'tup': return `[${t.els.map(typeName).join(', ')}]`;
     case 'tp': return t.name;
   }

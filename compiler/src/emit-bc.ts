@@ -8,9 +8,9 @@ import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 import { specialize } from './specialize.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref', 'dynamic'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
-const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set'].includes(t.k) ? 7 : abiType(t);
+const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set', 'iter', 'dyn'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
 export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
   const sources = sema.fe.sources.filter(f => !abi.imports.has(f.fileName));
@@ -88,7 +88,8 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
   const namesToFunctions = names;
   const layout = (t: ZT) => {
     let names: string[], types: number[];
-    if (t.k === 'arr') { names = ['[]']; types = [type(t.el)]; }
+    if (t.k === 'iter') { names = ['done', 'value']; types = [1, 7]; }
+    else if (t.k === 'arr') { names = ['[]']; types = [type(t.el)]; }
     else if (t.k === 'tup') { names = t.els.map((_, i) => String(i)); types = t.els.map(type); }
     else if (t.k === 'obj') { const cls = classFor(t); names = cls ? cls.fields.map(f => f.name) : sema.fieldNames(t.decl); types = cls ? cls.fields.map(f => type(f.t)) : names.map(n => type(sema.declType(sema.memberDecl(t.decl, n)!, sema.substFor(t, sema.memberDecl(t.decl, n)!)))); }
     else throw new Error('zinc-vm: unsupported aggregate layout');
@@ -160,6 +161,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
         switch (i.op) {
           case 'param': case 'capture': break;
           case 'undef': case 'const': {
+            if (i.t.k === 'dyn') { if (i.attr !== 'undefined' && i.op !== 'undef') fail('dynamic literal'); op('dynamic', 7, a, 0, 0);break; }
             let v: string | number;
             if (t === 6) { try { v = i.op === 'undef' ? '' : JSON.parse(i.attr!); } catch { fail('string literal'); } }
             else v = t === 7 || i.op === 'undef' ? 0 : Number(i.val ?? i.attr);
@@ -181,7 +183,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             }
             op(i.attr!, operand, a, left, right); narrowByte(a, i.t); break;
           }
-          case 'un': op(({ '-': 'neg', '!': 'not', '~': 'bitnot', 'truthy': 'truthy' } as Record<string, string>)[i.attr!] ?? fail(i.attr!), types[x], a, x); narrowByte(a, i.t); break;
+          case 'un':
+            if (i.attr === 'truthy' && sourceType(i.args[0])?.k === 'dyn') { op('dynamic', 1, a, x, 3);break; }
+            op(({ '-': 'neg', '!': 'not', '~': 'bitnot', 'truthy': 'truthy' } as Record<string, string>)[i.attr!] ?? fail(i.attr!), types[x], a, x); narrowByte(a, i.t); break;
           case 'alloc.object': case 'alloc.array': case 'alloc.tuple': {
             const id = layout(i.t), l = layouts[id];
             op('alloc', 7, a, id, l.array ? args.length : l.types.length);
@@ -200,6 +204,14 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             const base = types.length;
             for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
             op('concat', t, a, base, args.length); break;
+          }
+          case 'conv.dyn.box': op('dynamic', 7, a, x, (sourceType(i.args[0])?.k === 'null' ? (byId.get(i.args[0])?.attr === 'undefined' ? 0 : 8) : types[x]) << 8);break;
+          case 'conv.dyn.check': op('dynamic', t, a, x, 1);break;
+          case 'dyn.typeof': op('dynamic', 6, a, x, 2);break;
+          case 'dyn.===': case 'dyn.!==': case 'dyn.==': case 'dyn.!=': {
+            const base = types.length;
+            for (const r of args) { const dst = types.length;types.push(7);op('mov', 7, dst, r); }
+            op('dynamic', 1, a, base, ['dyn.===', 'dyn.!==', 'dyn.==', 'dyn.!='].indexOf(i.op) + 4);break;
           }
           case 'yield': op('yield', types[x], x);break;
           case 'await': {
@@ -295,7 +307,18 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
                 if (method === 11 || method === 12) op('alloc', 7, a, layout(i.t), 0);
                 emit(method, a, t);
               }
-            } else if (i.attr === '@generator.close') op('generator.control', 0, a, x, 1);
+            } else if (i.attr === '@dynamic.nullish') op('dynamic', 1, a, x, 8);
+            else if (['@generator.next', '@generator.return', '@generator.throw'].includes(i.attr!)) {
+              op('alloc', 7, a, layout({ k: 'iter' }), 2);
+              const base = types.length;
+              for (const r of args) { const dst = types.length;types.push(types[r]);op('mov', types[r], dst, r); }
+              op('generator.control', 7, a, base, ['@generator.next', '@generator.return', '@generator.throw'].indexOf(i.attr!) + 3);
+            } else if (i.attr === '@generator.forwardThrow') {
+              const base = types.length;
+              for (const r of args) { const dst = types.length;types.push(7);op('mov', 7, dst, r); }
+              op('generator.control', 1, a, base, 6);
+            } else if (i.attr === '@generator.takeError') op('generator.control', 7, a, 0, 2);
+            else if (i.attr === '@generator.close') op('generator.control', 0, a, x, 1);
             else if (i.attr === '@generator.takeClosing') op('generator.control', 1, a, 0, 0);
             else if (i.attr === '@promise.pending') op('promise.pending', 7, a);
             else if (i.attr === '@promise.resolve' || i.attr === '@promise.reject') {
@@ -359,7 +382,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
         ins[at][3] = ins.length; edge(b, t.a);
         ins[at][4] = ins.length; edge(b, t.b);
       } else if (t.k === 'ret') {
-        op('ret', f.source?.kind === 'gen' || t.v === undefined ? 0 : types[reg(t.v)], t.v === undefined ? 0 : reg(t.v));
+        op('ret', t.v === undefined ? 0 : types[reg(t.v)], t.v === undefined ? 0 : reg(t.v));
       }
       else fail(t.k);
     }

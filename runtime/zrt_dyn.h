@@ -557,3 +557,48 @@ inline Dyn json_parse(const String& s) {
 }
 
 }  // namespace zrt
+
+namespace zrt {
+struct IteratorResult : Object {
+  bool done; Dyn value;
+  IteratorResult(bool finished, Dyn result): done(finished), value(result) {}
+  bool zrt_get(const String& key, Dyn& out) const override {
+    if (key_is(key, "done", 4)) { out = Dyn(done); return true; }
+    if (key_is(key, "value", 5)) { out = value; return true; }
+    return false;
+  }
+  void zrt_ifields(InspParts& parts, Insp& in) const override {
+    StrBuilder a; a.cstr("value: "); insp(a,in,value); parts.add(a);
+    StrBuilder b; b.cstr("done: "); insp(b,in,done); parts.add(b);
+  }
+};
+template<class T> struct GenFrame : Object {
+  int32_t state = 0; bool closing = false, running = false; T cur{}; Dyn returned; Ref<Error> injected;
+  virtual bool step() = 0;
+  bool reentrant() { if (!running) return false; g_err = make<TypeError>(String::from("generator is already running", 28)); return true; }
+  bool resume() { if (reentrant()) return false; running = true; bool yielded = step(); running = false; return yielded; }
+  bool close() { if (reentrant()) return false; if (state <= 0) { state = -1; return false; } closing = true; return resume(); }
+  bool raise(const Ref<Error>& error) {
+    if (reentrant()) return false;
+    if (state <= 0) { state = -1; g_err = error; return false; }
+    injected = error; return resume();
+  }
+};
+template<class T> Ref<IteratorResult> generator_result(const Gen<T>& generator, bool yielded) {
+  if (g_err.p) return {};
+  auto value = yielded ? Dyn(generator->cur) : generator->returned;
+  if (!yielded) generator->returned = Dyn();
+  return make<IteratorResult>(!yielded, value);
+}
+template<class T> Ref<IteratorResult> generator_next(const Gen<T>& generator) {
+  if (generator->state < 0) return make<IteratorResult>(true, Dyn());
+  return generator_result(generator, generator->resume());
+}
+template<class T> Ref<IteratorResult> generator_return(const Gen<T>& generator, Dyn value) {
+  generator->returned = value;
+  return generator_result(generator, generator->close());
+}
+template<class T> Ref<IteratorResult> generator_throw(const Gen<T>& generator, const Ref<Error>& error) {
+  return generator_result(generator, generator->raise(error));
+}
+}  // namespace zrt
