@@ -8,6 +8,13 @@ export function specialize(module: HModule, roots: Set<string>, sema: Sema) {
   const classes = new Map(module.classes.map(c => [c.decl, c]));
   const instances = new Map<string, HClass>();
   const functions = new Map<string, HFunc>();
+  let remaining = 4096, depth = 0;
+  const budget = (count = 1) => { remaining -= count; if (remaining < 0) throw new Error('zinc-vm: generic specialization limit exceeded'); };
+  const descend = <T>(body: () => T): T => {
+    if (depth >= 64) throw new Error('zinc-vm: generic specialization depth limit exceeded');
+    depth++;
+    try { return body(); } finally { depth--; }
+  };
   const declarations = new Map<ts.Node, number>();
   const id = (d: ts.Node) => { if (!declarations.has(d)) declarations.set(d, declarations.size); return declarations.get(d)!; };
   const typeKey = (t: ZT): string => {
@@ -60,15 +67,17 @@ export function specialize(module: HModule, roots: Set<string>, sema: Sema) {
   const instantiate = (template: HFunc, bindings: Map<string, ZT>, name?: string): HFunc => {
     const key = name ?? (bindings.size ? `${template.name}<${[...bindings].sort(([a],[b]) => a.localeCompare(b)).map(([n,t]) => `${n}=${typeKey(t)}`)}>` : template.name);
     const existing = functions.get(key);if(existing)return existing;
-    if (functions.size >= 4096) throw new Error('zinc-vm: generic specialization limit exceeded');
+    budget();
     const fn=clone(template,bindings);fn.name=key;
     if(generic(fn))throw new Error(`zinc-vm: unresolved generic signature ${template.name}`);
-    functions.set(key,fn);visit(fn);return fn;
+    functions.set(key,fn);descend(() => visit(fn));return fn;
   };
   const classFor = (type: Extract<ZT,{k:'obj'}>): HClass | undefined => {
     const template=classes.get(type.decl as ts.ClassDeclaration);if(!template)return;
     if(hasParameter(type))throw new Error(`zinc-vm: unresolved generic class ${template.name}`);
     const key=typeKey(type), existing=instances.get(key);if(existing)return existing;
+    budget(1 + template.methods.length);
+    return descend(() => {
     const parameters=template.decl.typeParameters ?? [];
     if(parameters.length!==type.args.length)throw new Error(`zinc-vm: missing type arguments for ${template.name}`);
     const bindings=new Map(parameters.map((p,i) => [p.name.text,type.args[i]]));
@@ -86,6 +95,7 @@ export function specialize(module: HModule, roots: Set<string>, sema: Sema) {
     });
     instance.methods.forEach(f => {if(generic(f))throw new Error(`zinc-vm: generic method requires specialization: ${f.name}`);visit(f);});
     return instance;
+    });
   };
   const visitType = (t: ZT): void => {
     if(t.k==='obj') {if(!hasParameter(t))classFor(t);t.args.forEach(visitType);}

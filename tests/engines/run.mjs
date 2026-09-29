@@ -41,6 +41,7 @@ for (const source of ['tests/engines/scalar.ts', 'tests/engines/math.ts', 'tests
 run(process.execPath, ['tests/engines/matrix.mjs', 'tests/engines/graphics.ts', '--capture', '--frames', '2', '--out', 'tests/engines/build/graphics-matrix.json']);
 console.log('ok real graphics captures: all modes match native');
 run(process.execPath, ['tests/engines/destructuring-check.mjs']);
+run(process.execPath, ['tests/engines/generics-check.mjs']);
 run(process.execPath, ['tests/engines/array-limits.mjs']);
 run(process.execPath, ['tests/engines/string-limits.mjs']);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zinc-engines-'));
