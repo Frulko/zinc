@@ -7,9 +7,9 @@ import { ts } from './frontend.ts';
 import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
-const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen'].includes(t.k) ? 7 : abiType(t);
+const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
 export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
   const sources = sema.fe.sources.filter(f => !abi.imports.has(f.fileName));
@@ -163,7 +163,15 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
             const g = globals.get(i.attr!) ?? fail(`global ${i.attr}`);
             op(i.op, t, i.op === 'load' ? a : x, g); break;
           }
-          case 'bin': op(i.attr!, types[x], a, x, y); narrowByte(a, i.t); break;
+          case 'bin': {
+            let left=x, right=y, operand=types[x];
+            if (['<<','>>','>>>'].includes(i.attr!)) {
+              operand=t;
+              const convert=(r:number) => { if(types[r]===operand)return r; const dst=types.length;types.push(operand);op('conv',operand,dst,r,types[r]);return dst; };
+              left=convert(x);right=convert(y);
+            }
+            op(i.attr!, operand, a, left, right); narrowByte(a, i.t); break;
+          }
           case 'un': op(({ '-': 'neg', '!': 'not', '~': 'bitnot', 'truthy': 'truthy' } as Record<string, string>)[i.attr!] ?? fail(i.attr!), types[x], a, x); narrowByte(a, i.t); break;
           case 'alloc.object': case 'alloc.array': case 'alloc.tuple': {
             const id = layout(i.t), l = layouts[id];
@@ -194,6 +202,11 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
           }
           case 'exception': op('exception', 7, a); break;
           case 'new': case 'new!': {
+            if (i.t.k === 'map' || i.t.k === 'set') {
+              if (args.length) fail('collection constructor arguments');
+              const key = type(i.t.k === 'map' ? i.t.key : i.t.el), value = i.t.k === 'map' ? type(i.t.val) : 0;
+              op('collection', 7, a, (key << 8) | (value << 16), 0);break;
+            }
             if (i.t.k === 'obj' && i.t.decl === sema.errorDecl) {
               const id = layout(i.t), l = layouts[id];op('alloc', 7, a, id, l.types.length);
               for (const [name, text] of [['name', i.attr ?? 'Error'], ['message', ''], ['stack', '']]) {
@@ -252,6 +265,25 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               if (abi.exports[id].result === 10) { const shape = layout(i.t); op('alloc', 7, a, shape, layouts[shape].types.length); }
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
               op('native', t, a, id, base);
+            } else if (sourceType(i.args[0])?.k === 'map' || sourceType(i.args[0])?.k === 'set') {
+              const collection = sourceType(i.args[0]) as Extract<ZT, { k: 'map' | 'set' }>;
+              const key = type(collection.k === 'map' ? collection.key : collection.el), value = collection.k === 'map' ? type(collection.val) : 0;
+              const packed = (key << 8) | (value << 16);
+              const emit = (method: number, dest: number, result: number) => {
+                const base = types.length;
+                for (const r of args) { const dst = types.length;types.push(types[r]);op('mov', types[r], dst, r); }
+                op('collection', result, dest, packed | method, base);
+              };
+              if (i.attr === 'entry_at' && collection.k === 'map') {
+                const shape = layout(i.t);op('alloc', 7, a, shape, 2);
+                const k = types.length;types.push(key);const v = types.length;types.push(value);
+                emit(9, k, key);emit(10, v, value);op('init', key, a, 0, k);op('init', value, a, 1, v);
+              } else {
+                const methods: Record<string, number> = { size: 1, get: 2, set: 3, add: 3, has: 4, delete: 5, clear: 6, slots: 7, live_at: 8, key_at: 9, entry_at: 9, val_at: 10, keys: 11, values: 12, '@iterate.begin': 13, '@iterate.end': 14 };
+                const method = methods[i.attr!] ?? fail(`collection method ${i.attr}`);
+                if (method === 11 || method === 12) op('alloc', 7, a, layout(i.t), 0);
+                emit(method, a, t);
+              }
             } else if (i.attr === '@promise.pending') op('promise.pending', 7, a);
             else if (i.attr === '@promise.resolve' || i.attr === '@promise.reject') {
               let value = args[1];

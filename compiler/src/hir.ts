@@ -254,8 +254,12 @@ class Lower {
     }
     const bind: HStmt[] = ts.isIdentifier(decl.name) ? [{ k: 'let', name: decl.name.text, t: et, init: item, cell: this.boxed(decl.name) }] : (() => { const tmp = `%d${this.tmp++}`; return [{ k: 'let', name: tmp, t: et, init: item, cell: false } as HStmt, ...this.destructure(decl.name as ts.BindingPattern, { k: 'var', t: et, name: tmp })]; })();
     const step: HStmt[] = src.t.k === 'gen' ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: iv, v: { k: 'bin', t: I32, op: '+', l: iv, r: lit(I32, '1') } } }];
+    const loop: HStmt = { k: 'loop', c: cond, body: [...bind, ...this.body(n.statement, ret)], step };
+    if (this.symbols && (src.t.k === 'map' || src.t.k === 'set')) {
+      loop.body = [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: 'live_at', recv: cv, args: [iv], check: false }, then: loop.body, else: [] }];
+    }
     return [{ k: 'let', name: c, t: coll.t, init: coll, cell: false }, ...(src.t.k === 'gen' ? [] : [{ k: 'let', name: i, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
-      { k: 'loop', c: cond, body: [...bind, ...this.body(n.statement, ret)], step }];
+      ...(this.symbols && (src.t.k === 'map' || src.t.k === 'set') ? this.collectionIteration(cv, loop) : [loop])];
   }
   /** switch without fall-through becomes an if chain on a temporary. */
   switch(n: ts.SwitchStatement, ret: ZT): HStmt[] {
@@ -450,6 +454,27 @@ class Lower {
       const tmp: HExpr = { k: 'var', t, name: `%t${this.tmp++}` };
       return { k: 'cond', t, c: { k: 'un', t: BOOL, op: 'truthy', e: { k: 'assign', t, target: tmp, v: this.conv(this.expr(e.left), t) } }, a: op === K.AmpersandAmpersandToken ? this.conv(this.expr(e.right), t) : tmp, b: op === K.AmpersandAmpersandToken ? tmp : this.conv(this.expr(e.right), t) };
     }
+    if (op === K.QuestionQuestionToken && this.symbols) {
+      let lookup = e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
+      if (ts.isCallExpression(lookup) && ts.isPropertyAccessExpression(lookup.expression) && lookup.expression.name.text === 'get') {
+        const mt = s.ztypeOf(lookup.expression.expression);
+        if (mt.k === 'map') {
+          const receiver: HExpr = { k: 'var', t: mt, name: `%map${this.tmp++}` }, key: HExpr = { k: 'var', t: mt.key, name: `%key${this.tmp++}` };
+          const test: HExpr = { k: 'call', t: BOOL, how: 'builtin', fn: 'has', recv: { k: 'assign', t: mt, target: receiver, v: this.expr(lookup.expression.expression) }, args: [{ k: 'assign', t: mt.key, target: key, v: this.conv(this.expr(lookup.arguments[0]), mt.key) }], check: false };
+          return { k: 'cond', t, c: test, a: { k: 'call', t: mt.val, how: 'builtin', fn: 'get', recv: receiver, args: [key], check: false }, b: this.conv(this.expr(e.right), mt.val) };
+        }
+      }
+    }
+    if (this.symbols && [K.EqualsEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken].includes(op) && (lt.k === 'null' || rt.k === 'null')) {
+      let lookup = lt.k === 'null' ? e.right : e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
+      if (ts.isCallExpression(lookup) && ts.isPropertyAccessExpression(lookup.expression) && lookup.expression.name.text === 'get') {
+        const mt = s.ztypeOf(lookup.expression.expression);
+        if (mt.k === 'map' && ['num', 'bool', 'str'].includes(mt.val.k)) {
+          const present: HExpr = { k: 'call', t: BOOL, how: 'builtin', fn: 'has', recv: this.expr(lookup.expression.expression), args: [this.conv(this.expr(lookup.arguments[0]), mt.key)], check: false };
+          return op === K.EqualsEqualsToken || op === K.EqualsEqualsEqualsToken ? { k: 'un', t: BOOL, op: '!', e: present } : present;
+        }
+      }
+    }
     if (op === K.QuestionQuestionToken) {
       const tmp: HExpr = { k: 'var', t, name: `%t${this.tmp++}` };
       return { k: 'cond', t, c: { k: 'bin', t: BOOL, op: '==', l: { k: 'assign', t, target: tmp, v: this.conv(this.expr(e.left), t) }, r: lit({ k: 'null' }, 'null') }, a: this.conv(this.expr(e.right), t), b: tmp };
@@ -511,6 +536,12 @@ class Lower {
         return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
       }
       const recv = this.expr(c.expression);
+      if (this.symbols && (recvT.k === 'map' || recvT.k === 'set')) {
+        if (name === 'forEach' && args.length === 1) return this.collectionCallback(recv, args[0]);
+        const key = recvT.k === 'map' ? recvT.key : recvT.el;
+        const expected = name === 'set' && recvT.k === 'map' ? [key, recvT.val] : ['get', 'has', 'delete', 'add'].includes(name) ? [key] : [];
+        return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.map((a, i) => this.conv(a, expected[i])), check };
+      }
       if (this.symbols && recvT.k === 'arr' && ['indexOf', 'includes'].includes(name) && args.length >= 1 && args.length <= 2) {
         const from = e.arguments[1];
         return this.arraySearch(name, recv, this.conv(args[0], recvT.el), !from || (ts.isIdentifier(from) && from.text === 'undefined') ? lit(I32, '0') : this.conv(args[1], I32), t);
@@ -529,6 +560,29 @@ class Lower {
     d = s.declOf(c);
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
+  }
+
+  collectionIteration(receiver: HExpr, loop: HStmt): HStmt[] {
+    const call = (name: string): HStmt => ({ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: name, recv: receiver, args: [], check: false } });
+    return [call('@iterate.begin'), { k: 'try', hasCatch: false, bindCell: false, errorType: { k: 'obj', decl: this.s.errorDecl, args: [] }, body: [loop], handler: [], fin: [call('@iterate.end')] }];
+  }
+  collectionCallback(input: HExpr, callback: HExpr): HExpr {
+    if ((input.t.k !== 'map' && input.t.k !== 'set') || callback.t.k !== 'fn') throw new Error('zinc-vm: invalid collection callback');
+    const collection = input.t, signature = callback.t, key = collection.k === 'map' ? collection.key : collection.el;
+    const val = collection.k === 'map' ? collection.val : key;
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
+    const receiver = variable('%collection', collection), fn = variable('%callback', signature), index = variable('%index', I32);
+    const at = (name: string, t: ZT): HExpr => ({ k: 'call', t, how: 'builtin', fn: name, recv: receiver, args: [index], check: false });
+    const args = collection.k === 'map' ? [at('val_at', val), at('key_at', key)] : [at('key_at', key)];
+    if (signature.params.length > args.length) throw new Error('zinc-vm: invalid collection callback arity');
+    const loop: HStmt = { k: 'loop', c: { k: 'bin', t: BOOL, op: '<', l: index, r: { k: 'call', t: I32, how: 'builtin', fn: 'slots', recv: receiver, args: [], check: false } }, body: [
+      { k: 'if', c: at('live_at', BOOL), then: [{ k: 'expr', e: { k: 'call', t: signature.ret, how: 'closure', fn: fn.name, recv: fn, args: args.slice(0, signature.params.length).map((a, i) => this.conv(a, signature.params[i])), check: true } }], else: [] },
+    ], step: [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: { k: 'bin', t: I32, op: '+', l: index, r: lit(I32, '1') } } }] };
+    const helper: HFunc = { name: '<collection.forEach>', kind: 'fn', ret: VOID, captures: [], throws: true,
+      params: [receiver, fn].map(v => ({ name: v.name, t: v.t, cell: false })), body: [
+        { k: 'let', name: index.name, t: I32, init: lit(I32, '0'), cell: false }, ...this.collectionIteration(receiver, loop),
+      ] };
+    return { k: 'call', t: VOID, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: { k: 'fn', params: [collection, signature], ret: VOID }, fn: helper }, args: [input, callback], check: true };
   }
 
   promiseChain(t: ZT, source: HExpr, cb: HExpr, mode: string): HExpr {

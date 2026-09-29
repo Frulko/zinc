@@ -869,7 +869,7 @@ class CppEmitter {
     const decl = (s.initializer as ts.VariableDeclarationList).declarations?.[0];
     if (!decl) this.s.fail(s, 'Z9005', 'for-of needs a const/let declaration');
     this.ctx.breaks.push(null);
-    let head: string, bind = '';
+    let head: string, bind = '', iteration = '';
     const bindTo = (et: ZT, access: string) => {
       if (ts.isIdentifier(decl.name)) {
         const sym = this.s.symbolOf(decl.name);
@@ -879,13 +879,15 @@ class CppEmitter {
       const tmp = this.newTmp('d');
       return this.local(tmp, this.cpp(et), access, d + 2) + this.destructure(decl.name, tmp, et, d + 2);
     };
-    const prelude = t.k === 'dyn' ? this.local(c, 'zrt::Array<zrt::Dyn>', `zrt::dyn_iter(${this.expr(s.expression)})`, d + 1) : this.local(c, this.cpp(t), this.expr(s.expression), d + 1);
+    let prelude = t.k === 'dyn' ? this.local(c, 'zrt::Array<zrt::Dyn>', `zrt::dyn_iter(${this.expr(s.expression)})`, d + 1) : this.local(c, this.cpp(t), this.expr(s.expression), d + 1);
     if (t.k === 'arr' || t.k === 'str' || t.k === 'dyn') {
       const et = t.k === 'arr' ? t.el : t.k === 'dyn' ? DYN : STR;
       head = `for (${this.ctx.frame ? '' : 'int32_t '}${i} = 0; ${i} < ${c}.length(); ${i}++)`;
       if (this.ctx.frame) this.ctx.frame.fields.set(i, 'int32_t');
       bind = bindTo(et, t.k === 'str' ? `${c}.at(${i})` : `${c}.get(${i})`);
     } else if (t.k === 'map' || t.k === 'set') {
+      iteration = this.newTmp('iteration');
+      prelude += this.local(iteration, `typename ${this.cpp(t)}::Iteration`, `${c}.iterate()`, d + 1);
       head = `for (${this.ctx.frame ? '' : 'int32_t '}${i} = 0; ${i} < ${c}.slots(); ${i}++)`;
       if (this.ctx.frame) this.ctx.frame.fields.set(i, 'int32_t');
       bind = `${I1}  if (!${c}.live_at(${i})) continue;\n`;
@@ -900,7 +902,7 @@ class CppEmitter {
     } else return this.s.fail(s.expression, 'Z9005', 'for-of is supported on arrays, strings, Map, Set and generators');
     const inner = ts.isBlock(s.statement) ? s.statement.statements.map(x => this.stmt(x, d + 2)).join('') : this.stmt(s.statement, d + 2);
     this.ctx.breaks.pop();
-    return `${I}{\n${prelude}${I1}${head} {\n${bind}${inner}${I1}}\n${I}}\n`;
+    return `${I}{\n${prelude}${I1}${head} {\n${bind}${inner}${I1}}\n${iteration && this.ctx.frame ? `${I1}${iteration} = {};\n` : ''}${I}}\n`;
   }
 
   switchStmt(s: ts.SwitchStatement, d: number): string {
@@ -1624,7 +1626,10 @@ class CppEmitter {
       const inner = ts.isParenthesizedExpression(L) ? L.expression : L;
       if (ts.isCallExpression(inner) && ts.isPropertyAccessExpression(inner.expression) && inner.expression.name.text === 'get') {
         const mt = this.s.ztypeOf(inner.expression.expression);
-        if (mt.k === 'map') return `${this.expr(inner.expression.expression)}.get_or(${this.conv(inner.arguments[0], mt.key)}, ${this.conv(R, mt.val)})`;
+        if (mt.k === 'map') {
+          const map = this.newTmp('map'), key = this.newTmp('key');
+          return `([&]() -> ${this.cpp(mt.val)} { auto ${map} = ${this.expr(inner.expression.expression)}; auto ${key} = ${this.conv(inner.arguments[0], mt.key)}; return ${map}.has(${key}) ? ${map}.get(${key}) : ${this.conv(R, mt.val)}; }())`;
+        }
       }
       if (this.isChainTop(inner)) return this.chain(inner, this.conv(R, this.s.ztypeOf(e)), this.s.ztypeOf(e));
       if (ts.isPropertyAccessExpression(inner) && inner.questionDotToken) {

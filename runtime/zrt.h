@@ -547,7 +547,7 @@ template<class T> void json(StrBuilder& sb, const Array<T>& v) {
 
 // ---------- Map / Set (LNG-19): open-addressing index + dense insertion-ordered entries ----------
 inline uint32_t hash_u64(uint64_t x) { x ^= x >> 33; x *= 0xff51afd7ed558ccdULL; x ^= x >> 33; return (uint32_t)x; }
-inline uint32_t hash(double v) { if (v == 0) v = 0; uint64_t b; __builtin_memcpy(&b, &v, 8); return hash_u64(b); }
+inline uint32_t hash(double v) { if (v != v) return hash_u64(0x7ff8000000000000ULL); if (v == 0) v = 0; uint64_t b; __builtin_memcpy(&b, &v, 8); return hash_u64(b); }
 inline uint32_t hash(float v) { return hash((double)v); }
 inline uint32_t hash(int32_t v) { return hash((double)v); }
 inline uint32_t hash(uint32_t v) { return hash((double)v); }
@@ -559,10 +559,15 @@ template<class T> uint32_t hash(const Ref<T>& r) { return hash_u64((uint64_t)(ui
 template<class T> inline bool same(const T& a, const T& b) { return a == b; }
 inline bool same(double a, double b) { return a == b || (a != a && b != b); }
 
+template<class T> inline const T& canonical_map_key(const T& v) { return v; }
+inline double canonical_map_key(double v) { return v == 0 ? 0 : v; }
+inline float canonical_map_key(float v) { return v == 0 ? 0 : v; }
+
 template<class K, class V> struct MapObj {
   uint32_t rc;
   int32_t n, cap, live;    // entries used, entries capacity, live count
   int32_t icap;            // index capacity (power of two)
+  uint32_t iterators;      // preserve slot positions across mutation during iteration
   K* keys; V* vals; uint8_t* dead; int32_t* index;
 };
 
@@ -583,7 +588,7 @@ template<class K, class V> struct Map {
   static void drop(O* x) { if (!x || --x->rc) return; wipe(x); mfree(x); live_objects--; }
   static Map make() {
     Map r; r.m = (O*)alloc(sizeof(O)); live_objects++;
-    r.m->rc = 1; r.m->n = r.m->cap = r.m->live = r.m->icap = 0;
+    r.m->rc = 1; r.m->iterators = 0; r.m->n = r.m->cap = r.m->live = r.m->icap = 0;
     r.m->keys = nullptr; r.m->vals = nullptr; r.m->dead = nullptr; r.m->index = nullptr;
     return r;
   }
@@ -600,17 +605,21 @@ template<class K, class V> struct Map {
   }
   void rehash(int32_t ncap) const {
     O* o = m;
-    // compact entries, then rebuild index
+    // Active iterators retain stable slots, including tombstones.
     int32_t j = 0;
+    if (!o->iterators) {
     for (int32_t i = 0; i < o->n; i++) {
       if (o->dead[i]) continue;
       if (i != j) { new (&o->keys[j]) K(static_cast<K&&>(o->keys[i])); new (&o->vals[j]) V(static_cast<V&&>(o->vals[i])); o->keys[i].~K(); o->vals[i].~V(); }
       o->dead[j++] = 0;
     }
     o->n = j;
+    }
     K* nk = (K*)alloc(sizeof(K) * (size_t)ncap); V* nv = (V*)alloc(sizeof(V) * (size_t)ncap); uint8_t* nd = (uint8_t*)alloc((size_t)ncap);
     for (int32_t i = 0; i < o->n; i++) {
-      new (&nk[i]) K(static_cast<K&&>(o->keys[i])); new (&nv[i]) V(static_cast<V&&>(o->vals[i])); o->keys[i].~K(); o->vals[i].~V(); nd[i] = 0;
+      if (!o->dead[i]) { new (&nk[i]) K(static_cast<K&&>(o->keys[i])); new (&nv[i]) V(static_cast<V&&>(o->vals[i])); o->keys[i].~K(); o->vals[i].~V(); }
+      else { new (&nk[i]) K(); new (&nv[i]) V(); }
+      nd[i] = o->dead[i];
     }
     if (o->keys) { mfree(o->keys); mfree(o->vals); mfree(o->dead); mfree(o->index); }
     o->keys = nk; o->vals = nv; o->dead = nd; o->cap = ncap;
@@ -620,7 +629,7 @@ template<class K, class V> struct Map {
     o->index = (int32_t*)alloc(sizeof(int32_t) * (size_t)o->icap);
     for (int32_t i = 0; i < o->icap; i++) o->index[i] = -1;
     uint32_t mask = (uint32_t)o->icap - 1;
-    for (int32_t i = 0; i < o->n; i++) { uint32_t h = hash(o->keys[i]) & mask; while (o->index[h] != -1) h = (h + 1) & mask; o->index[h] = i; }
+    for (int32_t i = 0; i < o->n; i++) if (!o->dead[i]) { uint32_t h = hash(o->keys[i]) & mask; while (o->index[h] != -1) h = (h + 1) & mask; o->index[h] = i; }
   }
   int32_t size() const { return obj()->live; }
   bool has(const K& k) const { return find(k) >= 0; }
@@ -630,9 +639,9 @@ template<class K, class V> struct Map {
     int32_t e = find(k);
     if (e >= 0) { m->vals[e] = v; return *this; }
     O* o = m;
-    if (o->n == o->cap) rehash(o->live * 2 < 8 ? 8 : o->live * 2);
+    if (o->n == o->cap) { const int32_t needed = o->iterators ? o->n : o->live; rehash(needed * 2 < 8 ? 8 : needed * 2); }
     e = o->n++;
-    new (&o->keys[e]) K(k); new (&o->vals[e]) V(v); o->dead[e] = 0; o->live++;
+    new (&o->keys[e]) K(canonical_map_key(k)); new (&o->vals[e]) V(v); o->dead[e] = 0; o->live++;
     uint32_t mask = (uint32_t)o->icap - 1, h = hash(k) & mask;
     while (o->index[h] >= 0) h = (h + 1) & mask;
     o->index[h] = e;
@@ -648,13 +657,28 @@ template<class K, class V> struct Map {
     o->dead[e] = 1; o->live--;
     return true;
   }
-  void clear() const { wipe(obj()); }
+  void clear() const {
+    O* o = obj();if (!o->iterators) { wipe(o);return; }
+    for (int32_t i=0;i<o->n;i++) if (!o->dead[i]) { o->keys[i].~K();o->vals[i].~V();new (&o->keys[i]) K();new (&o->vals[i]) V();o->dead[i]=1; }
+    for (int32_t i=0;i<o->icap;i++) o->index[i]=-1;
+    o->live=0;
+  }
+  struct Iteration {
+    O* state=nullptr;
+    Iteration()=default;
+    explicit Iteration(O* p):state(p){++state->rc;++state->iterators;}
+    Iteration(const Iteration& o):state(o.state){if(state){++state->rc;++state->iterators;}}
+    Iteration(Iteration&& o):state(o.state){o.state=nullptr;}
+    Iteration& operator=(Iteration o){O* p=state;state=o.state;o.state=p;return *this;}
+    ~Iteration(){if(state){--state->iterators;Map::drop(state);}}
+  };
+  Iteration iterate() const {return Iteration(obj());}
   // iteration by slot (for-of and forEach see entries appended during iteration, like JS)
   int32_t slots() const { return obj()->n; }
   bool live_at(int32_t i) const { return !m->dead[i]; }
   K key_at(int32_t i) const { return m->keys[i]; }
   V val_at(int32_t i) const { return m->vals[i]; }
-  template<class F> void forEach(F f) const { for (int32_t i = 0; i < slots() && !g_err.p; i++) if (live_at(i)) cb2(f, val_at(i), key_at(i), 0); }
+  template<class F> void forEach(F f) const { auto iteration=iterate(); for (int32_t i = 0; i < slots() && !g_err.p; i++) if (live_at(i)) cb2(f, val_at(i), key_at(i), 0); }
   Array<K> keys() const { Array<K> r = Array<K>::with_cap(size()); for (int32_t i = 0; i < slots(); i++) if (live_at(i)) r.push_raw(m->keys[i]); return r; }
   Array<V> values() const { Array<V> r = Array<V>::with_cap(size()); for (int32_t i = 0; i < slots(); i++) if (live_at(i)) r.push_raw(m->vals[i]); return r; }
 };
@@ -668,6 +692,8 @@ template<class K, class V> void to_s(StrBuilder& sb, const Map<K, V>&) { sb.cstr
 
 template<class T> struct Set {
   Map<T, uint8_t> m;
+  using Iteration = typename Map<T, uint8_t>::Iteration;
+  Iteration iterate() const { return m.iterate(); }
   static Set make() { Set s; s.m = Map<T, uint8_t>::make(); return s; }
   int32_t size() const { return m.size(); }
   Set add(const T& v) const { m.set(v, 1); return *this; }
@@ -677,7 +703,7 @@ template<class T> struct Set {
   int32_t slots() const { return m.slots(); }
   bool live_at(int32_t i) const { return m.live_at(i); }
   T key_at(int32_t i) const { return m.key_at(i); }
-  template<class F> void forEach(F f) const { for (int32_t i = 0; i < slots(); i++) if (live_at(i)) f(key_at(i)); }
+  template<class F> void forEach(F f) const { auto iteration=iterate(); for (int32_t i = 0; i < slots() && !g_err.p; i++) if (live_at(i)) f(key_at(i)); }
   Array<T> values() const { return m.keys(); }
 };
 template<class T> void json(StrBuilder& sb, const Set<T>&) { sb.cstr("{}"); }

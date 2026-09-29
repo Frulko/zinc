@@ -23,10 +23,20 @@ static void registerGeneratedModules(zinc::Modules&) {}
 #endif
 
 namespace {
-enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, NOPS };
+enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, NOPS };
 enum { VM_REF = 7 };
 struct Heap;
 union Reg { double f; int32_t i; uint32_t u; Heap* h; Reg(): f(0) {} };
+struct CollectionKey { Reg value;uint32_t type=0; };
+uint32_t hash(const CollectionKey& key);
+bool same(const CollectionKey& a,const CollectionKey& b);
+struct Collection {
+  uint32_t keyType,valueType;
+  zrt::Map<CollectionKey,Reg> entries;
+  Collection(uint32_t key,uint32_t value):keyType(key),valueType(value),entries(zrt::Map<CollectionKey,Reg>::make()){}
+  static size_t storage(size_t capacity,size_t indexCapacity){return capacity*(sizeof(CollectionKey)+sizeof(Reg)+1)+indexCapacity*sizeof(int32_t);}
+  size_t bytes() const {return sizeof(Collection)+sizeof(*entries.m)+storage(entries.m->cap,entries.m->icap);}
+};
 struct Layout { bool array; std::vector<uint32_t> keys, types; std::vector<std::pair<uint32_t,uint32_t>> methods; };
 struct Heap {
   Heap* next = nullptr;
@@ -42,9 +52,25 @@ struct Heap {
   ~Heap(){if(nativeHandle)nativeHost->resource_release(nativeHost->context,nativeHandle,nullptr);}
   zrt::String text;
   std::vector<Reg> slots;
-  size_t bytes() const { return sizeof(Heap) + (text.s ? sizeof(zrt::StrObj) + text.bytes() + 1 : 0) + slots.capacity() * sizeof(Reg); }
+  std::unique_ptr<Collection> collection;
+  size_t bytes() const { return sizeof(Heap) + (text.s ? sizeof(zrt::StrObj) + text.bytes() + 1 : 0) + slots.capacity() * sizeof(Reg) + (collection?collection->bytes():0); }
 };
 const zrt::String& string(Reg r) { static const zrt::String empty; return r.h ? r.h->text : empty; }
+uint32_t hash(const CollectionKey& key) {
+  if(key.type==ZINC_STRING)return zrt::hash(string(key.value));
+  if(key.type==VM_REF)return zrt::hash_u64(key.value.h && key.value.h->nativeHandle?key.value.h->nativeHandle:(uint64_t)(uintptr_t)key.value.h);
+  if(key.type==ZINC_I32)return zrt::hash(key.value.i);
+  if(key.type==ZINC_BOOL || key.type==ZINC_U32)return zrt::hash(key.value.u);
+  return zrt::hash(key.value.f);
+}
+bool same(const CollectionKey& a,const CollectionKey& b) {
+  if(a.type!=b.type)return false;
+  if(a.type==ZINC_STRING)return string(a.value)==string(b.value);
+  if(a.type==VM_REF)return a.value.h==b.value.h || (a.value.h && b.value.h && a.value.h->nativeHandle && a.value.h->nativeHandle==b.value.h->nativeHandle);
+  if(a.type==ZINC_I32)return a.value.i==b.value.i;
+  if(a.type==ZINC_BOOL || a.type==ZINC_U32)return a.value.u==b.value.u;
+  return zrt::same(a.value.f,b.value.f);
+}
 struct VM; struct Ins;
 struct GuestCallback { VM* vm;Heap* function;std::string text,error;bool guestError=false; };
 using Handler = void (*)(VM*, const Ins*, Reg*);
@@ -97,6 +123,14 @@ struct VM {
       pointer(h->parent);pointer(h->completion);pointer(h->awaited);pointer(h->waiting);pointer(h->last);pointer(h->nextTask);
       if(h->generator && h->payloadType>=ZINC_STRING)mark(h->yielded);
       if(h->promiseState) { if(h->payloadType>=ZINC_STRING)mark(h->slots[0]);continue; }
+      if(h->collection) {
+        const auto& collection=*h->collection;const auto& entries=collection.entries;
+        for(int32_t j=0;j<entries.slots();j++)if(entries.live_at(j)) {
+          if(collection.keyType>=ZINC_STRING)mark(entries.key_at(j).value);
+          if(collection.valueType>=ZINC_STRING)mark(entries.val_at(j));
+        }
+        continue;
+      }
       if (h->layout==UINT32_MAX) continue;
       const auto& layout=layouts[h->layout];
       for (size_t j=0;j<h->slots.size();j++) if (layout.types[layout.array?0:j]>=ZINC_STRING) mark(h->slots[j]);
@@ -516,6 +550,47 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       if(out.len>vm->heapLimit)throw std::runtime_error("VM heap memory limit exceeded");
     }
     fp[a].h=vm->keepString(out.buf,out.len,fp);
+  } else if constexpr(O==COLLECTION) {
+    const uint32_t method=b&255,keyType=(b>>8)&255,valueType=(b>>16)&255;
+    if(method==0) {
+      vm->reserveHeap(sizeof(Heap)+sizeof(Collection)+sizeof(zrt::MapObj<CollectionKey,Reg>),fp);
+      auto* h=vm->allocate(UINT32_MAX,0,fp);fp[a].h=h;
+      h->collection=std::make_unique<Collection>(keyType,valueType);
+      vm->heapBytes+=h->collection->bytes();vm->peakHeapBytes=std::max(vm->peakHeapBytes,vm->heapBytes);
+    } else {
+      auto* h=fp[c].h;
+      if(!h || !h->collection || h->collection->keyType!=keyType || h->collection->valueType!=valueType)throw std::runtime_error("invalid VM collection type");
+      auto& collection=*h->collection;auto& entries=collection.entries;
+      CollectionKey key;key.type=keyType;
+      if(method>=2 && method<=5) {key.value=fp[c+1];if((keyType==ZINC_F32 || keyType==ZINC_F64) && key.value.f==0)key.value.f=0;}
+      const auto before=collection.bytes();
+      if(method==1)fp[a].i=entries.size();
+      else if(method==2)fp[a]=entries.get(key);
+      else if(method==3) {
+        if(entries.find(key)<0 && entries.m->n==entries.m->cap) {
+          const auto used=entries.m->iterators?entries.m->n:entries.m->live;
+          const size_t capacity=std::max(size_t(8),size_t(used)*2);size_t indexCapacity=16;while(indexCapacity<capacity*2)indexCapacity*=2;
+          const size_t required=Collection::storage(capacity,indexCapacity),current=Collection::storage(entries.m->cap,entries.m->icap);
+          if(required>current)vm->reserveHeap(required-current,fp);
+        }
+        entries.set(key,valueType?fp[c+2]:Reg());fp[a]=fp[c];
+      } else if(method==4)fp[a].u=entries.has(key);
+      else if(method==5)fp[a].u=entries.del(key);
+      else if(method==6)entries.clear();
+      else if(method==7)fp[a].i=entries.slots();
+      else if(method>=8 && method<=10) {
+        const int32_t index=fp[c+1].i;if(index<0 || index>=entries.slots())throw std::runtime_error("VM collection index out of bounds");
+        if(method==8)fp[a].u=entries.live_at(index);
+        else {if(!entries.live_at(index))throw std::runtime_error("VM collection slot is deleted");fp[a]=method==9?entries.key_at(index).value:entries.val_at(index);}
+      } else if(method==11 || method==12) {
+        auto& target=vm->object(fp[a],true);const auto& shape=vm->layouts[target.layout];const auto element=method==11 || !valueType?keyType:valueType;
+        if(shape.types.size()!=1 || shape.types[0]!=element || !target.slots.empty())throw std::runtime_error("invalid VM collection snapshot layout");
+        for(int32_t j=0;j<entries.slots();j++)if(entries.live_at(j))vm->push(&target,method==11 || !valueType?entries.key_at(j).value:entries.val_at(j),fp);
+      } else if(method==13) {
+        if(entries.m->iterators==UINT32_MAX)throw std::runtime_error("too many VM collection iterators");++entries.m->iterators;
+      } else if(method==14) {if(!entries.m->iterators)throw std::runtime_error("invalid VM collection iterator release");--entries.m->iterators;}
+      vm->heapBytes=vm->heapBytes-before+collection.bytes();vm->peakHeapBytes=std::max(vm->peakHeapBytes,vm->heapBytes);
+    }
   } else if constexpr(O==SPLICE) {
     auto& source=vm->object(fp[b],true);const auto length=(int64_t)source.slots.size();
     const auto integer=[&](uint32_t index){return (int64_t)(int32_t)uint32(number(fp[index],vm->fns[vm->fn].types[index]));};
@@ -592,7 +667,7 @@ template<int O> Handler typed(uint32_t t) {
 Handler handler(uint32_t op,uint32_t t) {
   switch(op) {
 #define O(n) case n: return typed<n>(t);
-    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN)
+    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION)
 #undef O
   } throw std::runtime_error("invalid opcode");
 }
@@ -704,6 +779,20 @@ uint32_t load(VM& vm,Reader r) {
     else if(i.op==INDEXGET || i.op==INDEXSET) {
       reg(i.op==INDEXGET?a:c,t);reg(i.op==INDEXGET?b:a,VM_REF);check(t!=ZINC_VOID);
       const auto index=i.op==INDEXGET?c:b;check(index<f.types.size() && f.types[index]>=ZINC_I32 && f.types[index]<=ZINC_F64);
+    }
+    else if(i.op==COLLECTION) {
+      const auto method=b&255,key=(b>>8)&255,value=(b>>16)&255;
+      check(!(b>>24) && method<=14 && key>=ZINC_BOOL && key<=VM_REF && value<=VM_REF);
+      const auto expected=method==0 || method==3 || method==11 || method==12?VM_REF:method==1 || method==7?ZINC_I32:method==4 || method==5 || method==8?ZINC_BOOL:method==2 || method==10?value:method==9?key:ZINC_VOID;
+      check(t==expected);reg(a,t);
+      if(method==0)check(c==0);
+      else {
+        reg(c,VM_REF);
+        if(method>=2 && method<=5)reg(c+1,key);
+        if(method==2 || method==10)check(value!=ZINC_VOID);
+        if(method==3 && value)reg(c+2,value);
+        if(method>=8 && method<=10)reg(c+1,ZINC_I32);
+      }
     }
     else if(i.op==SPLICE) {
       check(t==VM_REF && (c==2 || c==3) && b<=f.types.size() && c<=f.types.size()-b);reg(a,VM_REF);reg(b,VM_REF);
