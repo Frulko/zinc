@@ -1349,7 +1349,7 @@ class CppEmitter {
       const t = this.s.ztypeOf(obj);
       if (t.k === 'dyn') return this.s.fail(e, 'Z9042', `calling '${name}' through a Dyn value is not supported; narrow it first (typeof/instanceof) or convert it (as T)`);
       if (t.k === 'num') {
-        if (name === 'toFixed') return `zrt::to_fixed(${this.conv(obj, F64)}, ${e.arguments[0] ? this.conv(e.arguments[0], I32) : '0'})`;
+        if (name === 'toFixed') return `zrt::to_fixed(${this.conv(obj, F64)}, ${e.arguments[0] && !(ts.isIdentifier(e.arguments[0]) && e.arguments[0].text === 'undefined') ? this.conv(e.arguments[0], I32) : '0'})`;
         if (name === 'toString') return `zrt::cat(${this.expr(obj)})`;
       }
       if (t.k === 'promise' && ['then', 'catch', 'finally'].includes(name)) return `${this.expr(obj)}.${name === 'then' ? name : name + '_'}(${this.expr(e.arguments[0])})`;

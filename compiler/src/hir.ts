@@ -604,6 +604,7 @@ class Lower {
         return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
       }
       const recv = this.expr(c.expression);
+      if (this.symbols && recvT.k === 'num' && name === 'toFixed' && e.arguments.length === 1 && ts.isIdentifier(e.arguments[0]) && e.arguments[0].text === 'undefined') return { k: 'call', t, how: 'builtin', fn: name, recv, args: [], check };
       if (this.symbols && recvT.k === 'str' && (name === 'padStart' || name === 'padEnd') && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.slice(0, 1), check };
       if (recvT.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
         if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(recvT.el.k) && !(recvT.el.k === 'arr' && recvT.el.el.k === 'dyn')) throw new Error('generator API values require scalars, objects or Dyn arrays');

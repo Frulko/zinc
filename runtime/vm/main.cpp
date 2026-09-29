@@ -602,7 +602,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       }
     }
   } else if constexpr(O==STRING) {
-    const auto method=c&255,count=c>>8;const auto& text=string(fp[b]);
+    const auto method=c&255,count=c>>8;const zrt::String empty;const auto& text=method==22?empty:string(fp[b]);
     const auto index=[&](uint32_t j,int32_t fallback) {
       if(j>=count)return fallback;
       const double n=number(fp[b+j],vm->fns[vm->fn].types[b+j]);
@@ -633,6 +633,32 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     else if(method==15)fp[a]=value(text.charCodeAt(index(1,0)),T);
     else if(method==20)fp[a]=value(zrt::parse_float(text),T);
     else if(method==21)fp[a]=value(zrt::parse_int(text,index(1,0)),T);
+    else if(method==22) {
+      const int32_t digits=index(1,0);
+      if(digits<0 || digits>100)throw std::runtime_error("RangeError: toFixed() digits argument must be between 0 and 100");
+      result=zrt::to_fixed(number(fp[b],vm->fns[vm->fn].types[b]),digits);
+    } else if(method==23) {
+      const auto& pattern=string(fp[b+1]);const auto& replacement=string(fp[b+2]);
+      const int32_t match=text.indexOf(pattern);
+      if(match<0)result=text;
+      else {
+        const size_t prefix=text.slice(0,match).bytes(),suffix=text.bytes()-prefix-pattern.bytes();
+        size_t bytes=prefix+suffix;
+        for(uint32_t j=0;j<replacement.bytes();j++) {
+          size_t addition=1;
+          if(replacement.ptr()[j]=='$' && j+1<replacement.bytes()) {
+            const char next=replacement.ptr()[j+1];
+            if(next=='$' || next=='&' || next=='`' || next=='\'') {
+              ++j;addition=next=='$'?1:next=='&'?pattern.bytes():next=='`'?prefix:suffix;
+            }
+          }
+          if(addition>vm->heapLimit || bytes>vm->heapLimit-addition)throw std::runtime_error("VM heap memory limit exceeded");
+          bytes+=addition;
+        }
+        vm->reserveHeap(sizeof(Heap)+sizeof(zrt::StrObj)+1+bytes,fp);
+        result=text.replace(pattern,replacement);
+      }
+    }
     else if(method>=16 && method<=19) {
       size_t bytes=text.bytes();
       if(method==16) {
@@ -944,14 +970,14 @@ uint32_t load(VM& vm,Reader r) {
     }
     else if(i.op==STRING) {
       const auto method=c&255,count=c>>8;
-      check(method<=21 && b<=f.types.size() && count<=f.types.size()-b);
-      const auto minimum=(method>=1&&method<=7)||(method>=14&&method<=19)?2u:1u,maximum=(method>=1&&method<=7)||method==17||method==18?3u:method==20?1u:method>=13?2u:1u;
-      check(count>=minimum && count<=maximum);reg(b,ZINC_STRING);reg(a,t);
+      check(method<=23 && b<=f.types.size() && count<=f.types.size()-b);
+      const auto minimum=method==23?3u:(method>=1&&method<=7)||(method>=14&&method<=19)?2u:1u,maximum=(method>=1&&method<=7)||method==17||method==18||method==23?3u:method==20?1u:method>=13?2u:1u;
+      check(count>=minimum && count<=maximum);if(method==22)check(f.types[b]>=ZINC_I32&&f.types[b]<=ZINC_F64);else reg(b,ZINC_STRING);reg(a,t);
       if(method>=5 && method<=7)check(t==ZINC_BOOL);
-      else if(method==0 || method==3 || method==4 || method==15 || method>=20)check(t>=ZINC_I32 && t<=ZINC_F64);
+      else if(method==0 || method==3 || method==4 || method==15 || method==20 || method==21)check(t>=ZINC_I32 && t<=ZINC_F64);
       else check(t==(method==14?VM_REF:ZINC_STRING));
       for(uint32_t j=1;j<count;j++) {
-        if((j==1 && ((method>=3 && method<=7)||method==14||method==19)) || (j==2 && (method==17||method==18)))reg(b+j,ZINC_STRING);
+        if(method==23 || (j==1 && ((method>=3 && method<=7)||method==14||method==19)) || (j==2 && (method==17||method==18)))reg(b+j,ZINC_STRING);
         else check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
       }
     }
