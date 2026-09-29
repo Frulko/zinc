@@ -680,6 +680,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       for(int32_t j=0;j<parts.length();j++)fp[a].h->slots[j].h=vm->keepString(parts.get(j).ptr(),parts.get(j).bytes(),fp);
     }
     else if(method==15)fp[a]=value(text.charCodeAt(index(1,0)),T);
+    else if(method==27)result=text.indexed(number(fp[b+1],vm->fns[vm->fn].types[b+1]));
     else if(method==26)fp[a].u=fp[b].h!=nullptr;
     else if(method==20)fp[a]=value(zrt::parse_float(text),T);
     else if(method==21)fp[a]=value(zrt::parse_int(text,index(1,0)),T);
@@ -722,7 +723,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
         result=method==17?text.padStart(target,fill):text.padEnd(target,fill);
       }
     }
-    if constexpr(T==ZINC_STRING)fp[a].h=vm->keepString(result.ptr(),result.bytes(),fp);
+    if constexpr(T==ZINC_STRING)fp[a].h=method==27 && !result.s?nullptr:vm->keepString(result.ptr(),result.bytes(),fp);
   } else if constexpr(O==JOIN) {
     auto& array=vm->object(fp[b],true);const auto element=vm->layouts[array.layout].types[0];
     if(!element || element>ZINC_STRING)throw std::runtime_error("join requires scalar array elements");
@@ -1006,14 +1007,14 @@ uint32_t load(VM& vm,Reader r) {
     }
     else if(i.op==STRING) {
       const auto method=c&255,count=c>>8;
-      check(method<=26 && b<=f.types.size() && count<=f.types.size()-b);
-      const auto minimum=(method==23||method==24)?3u:(method>=1&&method<=7)||(method>=14&&method<=19)?2u:1u,maximum=(method>=1&&method<=7)||method==17||method==18||method==23||method==24?3u:method==20||method==25||method==26?1u:method>=13?2u:1u;
+      check(method<=27 && b<=f.types.size() && count<=f.types.size()-b);
+      const auto minimum=method==27?2u:(method==23||method==24)?3u:(method>=1&&method<=7)||(method>=14&&method<=19)?2u:1u,maximum=(method>=1&&method<=7)||method==17||method==18||method==23||method==24?3u:method==20||method==25||method==26?1u:method>=13?2u:1u;
       check(count>=minimum && count<=maximum);if(method==22||method==25)check(f.types[b]>=ZINC_I32&&f.types[b]<=ZINC_F64);else reg(b,ZINC_STRING);reg(a,t);
       if((method>=5 && method<=7)||method==26)check(t==ZINC_BOOL);
       else if(method==0 || method==3 || method==4 || method==15 || method==20 || method==21)check(t>=ZINC_I32 && t<=ZINC_F64);
       else check(t==(method==14?VM_REF:ZINC_STRING));
       for(uint32_t j=1;j<count;j++) {
-        if(method>=23 || (j==1 && ((method>=3 && method<=7)||method==14||method==19)) || (j==2 && (method==17||method==18)))reg(b+j,ZINC_STRING);
+        if(method==23 || method==24 || (j==1 && ((method>=3 && method<=7)||method==14||method==19)) || (j==2 && (method==17||method==18)))reg(b+j,ZINC_STRING);
         else check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
       }
     }

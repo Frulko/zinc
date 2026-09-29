@@ -160,7 +160,7 @@ class Lower {
         }
         if (ts.isIdentifier(n)) {
           const d = this.s.declOf(n);
-          if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && !this.s.isModuleLevel(d) && this.s.fnOf(d) !== f && !isInside(d, f)) { captures.add(n.text); captureTypes.set(n.text, { name: n.text, t: this.s.declType(d), cell: this.boxed(n) }); }
+          if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d) || ts.isBindingElement(d) || (ts.isFunctionDeclaration(d) && !!this.s.fnOf(d))) && !this.s.isModuleLevel(d) && this.s.fnOf(d) !== f && !isInside(d, f)) { captures.add(n.text); captureTypes.set(n.text, { name: n.text, t: ts.isFunctionDeclaration(d) ? this.s.fnType(d) : this.s.declType(d), cell: this.boxed(n) }); }
         }
         ts.forEachChild(n, visit);
       };
@@ -347,7 +347,7 @@ class Lower {
     if (ts.isIdentifier(e)) {
       const d = s.declOf(e);
       if (d && ts.isEnumMember(d)) return lit(I32, String(s.checker.getConstantValue(d)));
-      const global = !!d && (ts.isFunctionDeclaration(d) || ts.isClassDeclaration(d) || s.isModuleLevel(d));
+      const global = !!d && ((ts.isFunctionDeclaration(d) && !s.fnOf(d)) || ts.isClassDeclaration(d) || s.isModuleLevel(d));
       const v: HExpr = { k: 'var', t, name: (d && this.symbols?.get(d)) ?? e.text, cell: this.boxed(e), global };
       if (d && !s.isLib(d) && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && s.declType(d).k === 'dyn' && t.k !== 'dyn' && !s.isWrite(e))
         return { k: 'conv', t, how: 'dyn.check', e: { ...v, t: DYN } };  // DYN-08: narrowed
@@ -469,6 +469,18 @@ class Lower {
       ] };
     return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [input.t, t], ret: t }, fn }, args: [input, this.conv(this.expr(value, t), t)], check: true };
   }
+  optionalScalar(e: ts.Expression): { present: HExpr; value: HExpr } | undefined {
+    while (ts.isParenthesizedExpression(e)) e = e.expression;
+    if (!ts.isPropertyAccessExpression(e)) return;
+    const d = this.s.declOf(e.name), t = this.s.ztypeOf(e);
+    if (!d || (!ts.isPropertySignature(d) && !ts.isPropertyDeclaration(d)) || !d.questionToken || !['num', 'bool'].includes(t.k)) return;
+    const owner = this.expr(e.expression), receiver: HExpr = { k: 'var', t: owner.t, name: `%presence${this.tmp++}` };
+    const assign: HExpr = { k: 'assign', t: owner.t, target: receiver, v: owner };
+    const flag: HExpr = { k: 'field', t: BOOL, obj: e.questionDotToken ? receiver : assign, name: `@has:${e.name.text}` };
+    const present: HExpr = e.questionDotToken ? { k: 'cond', t: BOOL, c: { k: 'bin', t: BOOL, op: '!=', l: assign, r: lit({ k: 'null' }, 'null') }, a: flag, b: lit(BOOL, 'false') } : flag;
+    return { present, value: { k: 'field', t, obj: receiver, name: e.name.text } };
+  }
+
   binary(e: ts.BinaryExpression, t: ZT): HExpr {
     const K = this.K, s = this.s, op = e.operatorToken.kind, tok = e.operatorToken.getText();
     const lt = s.ztypeOf(e.left), rt = s.ztypeOf(e.right);
@@ -498,6 +510,8 @@ class Lower {
       return { k: 'cond', t, c: { k: 'un', t: BOOL, op: 'truthy', e: { k: 'assign', t, target: tmp, v: this.conv(this.expr(e.left), t) } }, a: op === K.AmpersandAmpersandToken ? this.conv(this.expr(e.right), t) : tmp, b: op === K.AmpersandAmpersandToken ? tmp : this.conv(this.expr(e.right), t) };
     }
     if (op === K.QuestionQuestionToken && this.symbols) {
+      const optional = this.optionalScalar(e.left);
+      if (optional) return { k: 'cond', t, c: optional.present, a: this.conv(optional.value, t), b: this.conv(this.expr(e.right), t) };
       let lookup = e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
       if (ts.isCallExpression(lookup) && ts.isPropertyAccessExpression(lookup.expression) && lookup.expression.name.text === 'get') {
         const mt = s.ztypeOf(lookup.expression.expression);
@@ -511,6 +525,8 @@ class Lower {
     const nullishLiteral = (x: ts.Expression): boolean => x.kind === K.NullKeyword || (ts.isIdentifier(x) && x.text === 'undefined');
     if (this.symbols && [K.EqualsEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken].includes(op) && (nullishLiteral(e.left) || nullishLiteral(e.right))) {
       let lookup = nullishLiteral(e.left) ? e.right : e.left;while (ts.isParenthesizedExpression(lookup)) lookup = lookup.expression;
+      const optional = this.optionalScalar(lookup);
+      if (optional) return op === K.EqualsEqualsToken || op === K.EqualsEqualsEqualsToken ? { k: 'un', t: BOOL, op: '!', e: optional.present } : optional.present;
       if (s.ztypeOf(lookup).k === 'str' && !ts.isCallExpression(lookup)) {
         const present: HExpr = { k: 'call', t: BOOL, how: 'builtin', fn: '@string.present', args: [this.expr(lookup)], check: false };
         return op === K.EqualsEqualsToken || op === K.EqualsEqualsEqualsToken ? { k: 'un', t: BOOL, op: '!', e: present } : present;
@@ -522,6 +538,10 @@ class Lower {
           return op === K.EqualsEqualsToken || op === K.EqualsEqualsEqualsToken ? { k: 'un', t: BOOL, op: '!', e: present } : present;
         }
       }
+    }
+    if (this.symbols && op === K.QuestionQuestionToken && lt.k === 'str') {
+      const tmp: HExpr = { k: 'var', t: STR, name: `%optional${this.tmp++}` };
+      return { k: 'cond', t, c: { k: 'call', t: BOOL, how: 'builtin', fn: '@string.present', args: [{ k: 'assign', t: STR, target: tmp, v: this.expr(e.left) }], check: false }, a: this.conv(tmp, t), b: this.conv(this.expr(e.right), t) };
     }
     if (op === K.QuestionQuestionToken && lt.k === 'dyn') {
       const tmp: HExpr = { k: 'var', t: DYN, name: `%optional${this.tmp++}` };
@@ -655,6 +675,7 @@ class Lower {
     }
     if (c.kind === this.K.SuperKeyword) return { k: 'call', t, how: 'static', fn: 'super', args, check };
     d = s.declOf(c);
+    if (d && ts.isFunctionDeclaration(d) && !!s.fnOf(d) && this.symbols) return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
   }

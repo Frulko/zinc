@@ -171,6 +171,7 @@ struct String {
 
   int32_t length() const { return s ? s->u16len : 0; }
   int32_t charCodeAt(int32_t i) const;
+  String indexed(double i) const { return i >= 0 && i < length() && __builtin_trunc(i) == i ? at((int32_t)i) : String(); }
   String charAt(int32_t i) const { return i < 0 || i >= length() ? String() : at(i); }
   String at(int32_t i) const;
   String slice(int32_t a) const { return slice(a, length()); }

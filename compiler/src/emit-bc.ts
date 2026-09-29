@@ -86,6 +86,11 @@ export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) =
   const field = (name: string) => { let id = fields.get(name); if (id === undefined) { id = fields.size; fields.set(name, id); } return id; };
   const layouts: { array: boolean; keys: number[]; types: number[]; methods?: [number, number][] }[] = [{ array: false, keys: [0, 1], types: [6, 6] }];
   const namesToFunctions = names;
+  const optionalScalar = (owner: ZT | undefined, name: string): boolean => {
+    if (owner?.k !== 'obj') return false;
+    const d = sema.memberDecl(owner.decl, name);
+    return !!d && (ts.isPropertySignature(d) || ts.isPropertyDeclaration(d)) && !!d.questionToken && ['num', 'bool'].includes(sema.declType(d, sema.substFor(owner, d)).k);
+  };
   const layout = (t: ZT) => {
     let names: string[], types: number[];
     if (t.k === 'iter') { names = ['done', 'value']; types = [1, 7]; }
@@ -93,6 +98,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) =
     else if (t.k === 'tup') { names = t.els.map((_, i) => String(i)); types = t.els.map(type); }
     else if (t.k === 'obj') { const cls = classFor(t); names = cls ? cls.fields.map(f => f.name) : sema.fieldNames(t.decl); types = cls ? cls.fields.map(f => type(f.t)) : names.map(n => type(sema.declType(sema.memberDecl(t.decl, n)!, sema.substFor(t, sema.memberDecl(t.decl, n)!)))); }
     else throw new Error('zinc-vm: unsupported aggregate layout');
+    for (const name of [...names]) if (optionalScalar(t, name)) { names.push(`@has:${name}`);types.push(1); }
     const methods = new Map<number, number>();
     const addMethods = (owner: Extract<ZT, { k: 'obj' }>) => {
       const decl = owner.decl;
@@ -138,6 +144,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) =
       const n = OPS.indexOf(name); if (n < 0) fail(name);
       ins.push([n, t, a, b, c]); locations.push(location);
     };
+    const boolean = (value: boolean): number => { const r=types.length;types.push(1);const k=constants.length;constants.push({t:1,v:value?1:0});op('const',1,r,k);return r; };
     const narrowByte = (a: number, t: ZT) => {
       if (t.k !== 'num' || t.m !== 'u8') return;
       const mask = types.length; types.push(3); const id = constants.length; constants.push({ t: 3, v: 255 });
@@ -166,8 +173,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) =
           case 'undef': case 'const': {
             if (i.t.k === 'dyn') { if (i.attr !== 'undefined' && i.attr !== 'null' && i.op !== 'undef') fail('dynamic literal'); op('dynamic', 7, a, 0, i.attr === 'null' ? 8 << 8 : 0); break; }
             let v: string | number;
+            if (t === 6 && i.attr === 'default') { const zero=types.length;types.push(6);op('mov',6,a,zero);break; }
             if (t === 6) { try { v = i.op === 'undef' ? '' : JSON.parse(i.attr!); } catch { fail('string literal'); } }
-            else v = t === 7 || i.op === 'undef' ? 0 : Number(i.val ?? i.attr);
+            else v = t === 7 || i.op === 'undef' || i.attr === 'default' ? 0 : Number(i.val ?? i.attr);
             if (i.t.k === 'num' && i.t.m === 'u8') v = Number(v!) & 255;
             const k = constants.length; constants.push({ t, v: v! }); op('const', t, a, k); break;
           }
@@ -200,13 +208,29 @@ export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) =
             const keys = i.attr?.split(',') ?? [];
             args.forEach((r, n) => {
               const slot = l.array || i.op === 'alloc.tuple' ? n : l.keys.indexOf(field(keys[n]));
-              if (slot < 0 || l.types[l.array ? 0 : slot] !== types[r]) fail('aggregate initializer');
-              op('init', types[r], a, slot, r);
+              const optional = !l.array && optionalScalar(i.t, keys[n]);
+              const present = sourceType(i.args[n])?.k !== 'null';
+              if (slot < 0 || ((!optional || present) && l.types[l.array ? 0 : slot] !== types[r])) fail('aggregate initializer');
+              if (!optional || present) op('init', types[r], a, slot, r);
+              if (optional) op('init', 1, a, l.keys.indexOf(field(`@has:${keys[n]}`)), boolean(present));
             }); break;
           }
           case 'field.get': op(i.attr === 'cur' && sourceType(i.args[0])?.k === 'gen' ? 'generator.value' : 'field.get', t, a, x, field(i.attr!)); break;
-          case 'field.set': op('field.set', t, x, y, field(i.attr!)); break;
-          case 'index.get': op('index.get', t, a, x, y); break;
+          case 'field.set': {
+            const optional = optionalScalar(sourceType(i.args[0]), i.attr!);
+            const present = sourceType(i.args[1])?.k !== 'null';
+            if (!optional || present) op('field.set', t, x, y, field(i.attr!));
+            if (optional) op('field.set', 1, x, boolean(present), field(`@has:${i.attr}`));
+            break;
+          }
+          case 'index.get': {
+            if (types[x] === 6) {
+              const base=types.length;
+              for (const r of [x,y]) { const dst=types.length;types.push(types[r]);op('mov',types[r],dst,r); }
+              op('string',6,a,base,27|(2<<8));
+            } else op('index.get', t, a, x, y);
+            break;
+          }
           case 'index.set': op('index.set', t, x, y, args[2]); break;
           case 'concat': {
             const base = types.length;

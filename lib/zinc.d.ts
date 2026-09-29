@@ -67,6 +67,7 @@ declare const Infinity: number;
 
 // ---- String (UTF-8 storage, UTF-16 indices) ----
 interface String {
+  readonly [index: number]: string;
   readonly length: i32;
   charCodeAt(i: i32): i32;
   charAt(i: i32): string;

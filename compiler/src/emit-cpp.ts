@@ -1100,7 +1100,7 @@ class CppEmitter {
       const t = this.s.ztypeOf(e.expression);
       if (t.k === 'dyn') return `zrt::dyn_index(${this.expr(e.expression)}, ${this.toDynExpr(e.argumentExpression)})`;
       if (t.k === 'arr') return `${this.expr(e.expression)}.get(${this.index(e.argumentExpression)})`;
-      if (t.k === 'str') return `${this.expr(e.expression)}.at(${this.conv(e.argumentExpression, I32)})`;
+      if (t.k === 'str') return `${this.expr(e.expression)}.indexed(${this.conv(e.argumentExpression, F64)})`;
       if (t.k === 'tup' && ts.isNumericLiteral(e.argumentExpression)) return `${this.expr(e.expression)}.v${e.argumentExpression.text}`;
       return this.s.fail(e, 'Z9015', 'computed property access is only supported on arrays and strings (use Map)');
     }
@@ -1247,10 +1247,12 @@ class CppEmitter {
       } else return this.s.fail(l, 'Z9035', "element access in a '?.' chain is not supported yet; split it");
       const last = i === links.length - 1;
       if (last) {
+        const property = ts.isPropertyAccessExpression(l) ? this.s.declOf(l.name) : undefined;
+        if (fallback !== undefined && property && this.optVal(property)) body.push(`if (!${cur}->__has_${this.id((l as ts.PropertyAccessExpression).name.text)}) ${miss}`);
         if (isVoid) { body.push(`${code};`); break; }
         const r = this.newTmp('c');
         body.push(`auto ${r} = ${code};`);
-        body.push(fallback !== undefined && refLike(t) ? `return ${r} == nullptr ? ${this.cpp(t)}(${fallback}) : ${this.cpp(t)}(${r});` : `return ${r};`);
+        body.push(fallback !== undefined && (refLike(t) || t.k === 'str') ? `return ${r}${t.k === 'str' ? '.s' : ''} == nullptr ? ${this.cpp(t)}(${fallback}) : ${this.cpp(t)}(${r});` : `return ${r};`);
       } else { const nx = this.newTmp('c'); body.push(`auto ${nx} = ${code};`); cur = nx; }
     }
     return `([&]() -> ${this.cpp(t)} { ${body.join(' ')} }())`;
@@ -1747,10 +1749,7 @@ class CppEmitter {
         }
       }
       if (this.isChainTop(inner)) return this.chain(inner, this.conv(R, this.s.ztypeOf(e)), this.s.ztypeOf(e));
-      if (ts.isPropertyAccessExpression(inner) && inner.questionDotToken) {
-        const t = this.s.ztypeOf(e), v = this.newTmp('o');
-        return `([&]() -> ${this.cpp(t)} { auto ${v} = ${this.expr(inner.expression)}; if (${v} == nullptr) return ${this.conv(R, t)}; return ${this.prop(inner, v)}; }())`;
-      }
+      if (ts.isPropertyAccessExpression(inner) && inner.questionDotToken) return this.chain(inner, this.conv(R, this.s.ztypeOf(e)), this.s.ztypeOf(e));
       const od = ts.isPropertyAccessExpression(inner) ? this.s.declOf(inner.name) : undefined;
       if (od && this.optVal(od)) {  // `p.label ?? 'x'` on an optional value field: presence bit
         const t = this.s.ztypeOf(e), v = this.newTmp('o'), pa = inner as ts.PropertyAccessExpression;
@@ -1785,7 +1784,10 @@ class CppEmitter {
           return `(${opText === '==' ? '!' : ''}${this.expr(g.expression.expression)}.has(${this.args(g.arguments, [(this.s.ztypeOf(g.expression.expression) as Extract<ZT, { k: 'map' }>).key])}))`;
         if (ot.k === 'str') return `(${this.expr(other)}.s ${opText} nullptr)`;
         const od = ts.isPropertyAccessExpression(g) ? this.s.declOf(g.name) : undefined;
-        if (od && this.optVal(od) && ts.isPropertyAccessExpression(g)) return `(${opText === '==' ? '!' : ''}${this.expr(g.expression)}->__has_${this.id(g.name.text)})`;
+        if (od && this.optVal(od) && ts.isPropertyAccessExpression(g)) {
+          if (g.questionDotToken) { const v=this.newTmp('optional'); return `([&]() { auto ${v} = ${this.expr(g.expression)}; return ${opText === '==' ? '!' : ''}(${v} != nullptr && ${v}->__has_${this.id(g.name.text)}); }())`; }
+          return `(${opText === '==' ? '!' : ''}${this.expr(g.expression)}->__has_${this.id(g.name.text)})`;
+        }
         if (ot.k === 'num' || ot.k === 'bool') this.s.fail(e, 'Z1013', `a '${ot.k}' is never null or undefined here; use Map.has / an optional field / a sentinel`);
         return `(${this.expr(other)} ${opText} nullptr)`;
       }
