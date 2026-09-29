@@ -317,8 +317,12 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
               op('splice', 7, a, base, args.length | (i.attr === 'slice' ? 256 : 0));
-            } else if (types[x] === 6 && ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].includes(i.attr!)) {
-              const method = ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt'].indexOf(i.attr!);
+            } else if (['parseFloat', 'Number.parseFloat', 'parseInt', 'Number.parseInt'].includes(i.attr!)) {
+              const base=types.length;
+              for (const r of args) { const dst=types.length; types.push(types[r]); op('mov',types[r],dst,r); }
+              op('string',t,a,base,(i.attr!.endsWith('parseInt')?21:20)|(args.length<<8));
+            } else if (types[x] === 6 && ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt', 'repeat', 'padStart', 'padEnd', 'concat'].includes(i.attr!)) {
+              const method = ['length', 'slice', 'substring', 'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'trim', 'trimStart', 'trimEnd', 'toLowerCase', 'toUpperCase', 'charAt', 'split', 'charCodeAt', 'repeat', 'padStart', 'padEnd', 'concat'].indexOf(i.attr!);
               const base = types.length;
               for (const r of args) { const dst = types.length; types.push(types[r]); op('mov', types[r], dst, r); }
               if (i.attr === 'split') op('alloc', 7, a, layout(i.t), 0);

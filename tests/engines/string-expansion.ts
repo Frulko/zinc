@@ -1,0 +1,32 @@
+const text = 'A😀é';
+console.log('repeat', text.repeat(3), text.repeat(0).length, ''.repeat(3).length);
+console.log('utf16', text.repeat(2).length, text.repeat(2).charCodeAt(2));
+console.log('pads', 'x'.padStart(5), 'x'.padEnd(5), 'abc'.padStart(1, '0'));
+console.log('fill', 'x'.padStart(6, 'ab'), 'x'.padEnd(6, 'ab'), 'x'.padEnd(8, ''));
+const start = 'x'.padStart(4, '😀');
+const end = 'x'.padEnd(4, '😀');
+console.log('split surrogate', start.length, start.charCodeAt(2), end.length, end.charCodeAt(3));
+console.log('astral', '😀'.padStart(6, '🌍'), '😀'.padEnd(6, '🌍'));
+console.log('concat', text.concat('世界'), ''.concat(''), 'a'.concat('b').length);
+let total: i32 = 0;
+let saved = '';
+for (let i: i32 = 0; i < 500; i++) {
+  const item = ('item ' + i).repeat(5).padStart(100, '😀').concat('!');
+  if (i === 0) saved = item;
+  total += item.length;
+}
+console.log('gc', total, saved.length, saved.charCodeAt(0));
+const astral = '😀';
+const high = astral.slice(0, 1), low = astral.substring(2, 1);
+console.log('units', high.length, high.charCodeAt(0), low.length, low.charCodeAt(0));
+console.log('chars', astral.charAt(0).length, astral.charAt(1).charCodeAt(0));
+console.log('unit repeat', high.repeat(2).length, low.repeat(2).charCodeAt(1));
+console.log('unit concat', high.concat(low).length, high.concat(low).charCodeAt(1));
+console.log('interior', ('x😀y🌍z').slice(2, 5).length, ('x😀y🌍z').slice(2, 5).charCodeAt(0), ('x😀y🌍z').slice(2, 5).charCodeAt(2));
+console.log('negative pad', 'ok'.padStart(-2147483648), 'ok'.padEnd(-2));
+console.log('rejoined', high.concat(low) === astral, high.concat(low).indexOf(astral), high.concat(low));
+console.log('undefined fill', 'x'.padStart(3, undefined), 'x'.padEnd(3, undefined));
+console.log('parse float', parseFloat('  -12.5e1x'), Number.parseFloat('0x10'), parseFloat('1e'), parseFloat('Infinity!'));
+console.log('parse invalid', parseFloat('x') !== parseFloat('x'), Number.parseFloat('inf') !== Number.parseFloat('inf'));
+console.log('parse int', parseInt('  -0x20'), Number.parseInt('111', 2), parseInt('zz!', 36), Number.parseInt('08'));
+console.log('parse edge', parseInt('10', 1) !== parseInt('10', 1), 1 / parseInt('-0'), 1 / parseFloat('-0'), parseFloat('\u00a0\ufeff2.5'));

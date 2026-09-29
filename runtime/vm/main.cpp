@@ -556,6 +556,35 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       for(int32_t j=0;j<parts.length();j++)fp[a].h->slots[j].h=vm->keepString(parts.get(j).ptr(),parts.get(j).bytes(),fp);
     }
     else if(method==15)fp[a]=value(text.charCodeAt(index(1,0)),T);
+    else if(method==20)fp[a]=value(zrt::parse_float(text),T);
+    else if(method==21)fp[a]=value(zrt::parse_int(text,index(1,0)),T);
+    else if(method>=16 && method<=19) {
+      size_t bytes=text.bytes();
+      if(method==16) {
+        const int32_t repeats=index(1,0);
+        if(repeats<0)throw std::runtime_error("RangeError: invalid count");
+        if(bytes && size_t(repeats)>vm->heapLimit/bytes)throw std::runtime_error("VM heap memory limit exceeded");
+        bytes*=size_t(repeats);
+        vm->reserveHeap(sizeof(Heap)+sizeof(zrt::StrObj)+1+bytes,fp);
+        if(bytes)result=text.repeat(repeats);
+      } else if(method==19) {
+        const auto& suffix=string(fp[b+1]);
+        if(suffix.bytes()>vm->heapLimit || bytes>vm->heapLimit-suffix.bytes())throw std::runtime_error("VM heap memory limit exceeded");
+        vm->reserveHeap(sizeof(Heap)+sizeof(zrt::StrObj)+1+bytes+suffix.bytes(),fp);
+        result=text.concat(suffix);
+      } else {
+        const int32_t target=index(1,0);
+        const int64_t needed=int64_t(target)-text.length();
+        const zrt::String fill=count>2?string(fp[b+2]):zrt::String::from(" ",1);
+        if(needed>0 && fill.length()) {
+          const size_t full=size_t(needed)/size_t(fill.length());
+          if(full>vm->heapLimit/std::max(size_t(1),size_t(fill.bytes())))throw std::runtime_error("VM heap memory limit exceeded");
+          bytes+=full*fill.bytes()+fill.slice(0,int32_t(needed%fill.length())).bytes();
+        }
+        vm->reserveHeap(sizeof(Heap)+sizeof(zrt::StrObj)+1+bytes,fp);
+        result=method==17?text.padStart(target,fill):text.padEnd(target,fill);
+      }
+    }
     if constexpr(T==ZINC_STRING)fp[a].h=vm->keepString(result.ptr(),result.bytes(),fp);
   } else if constexpr(O==JOIN) {
     auto& array=vm->object(fp[b],true);const auto element=vm->layouts[array.layout].types[0];
@@ -833,14 +862,14 @@ uint32_t load(VM& vm,Reader r) {
     }
     else if(i.op==STRING) {
       const auto method=c&255,count=c>>8;
-      check(method<=15 && b<=f.types.size() && count<=f.types.size()-b);
-      const auto minimum=(method>=1&&method<=7)||method>=14?2u:1u,maximum=method>=1&&method<=7?3u:method>=13?2u:1u;
+      check(method<=21 && b<=f.types.size() && count<=f.types.size()-b);
+      const auto minimum=(method>=1&&method<=7)||(method>=14&&method<=19)?2u:1u,maximum=(method>=1&&method<=7)||method==17||method==18?3u:method==20?1u:method>=13?2u:1u;
       check(count>=minimum && count<=maximum);reg(b,ZINC_STRING);reg(a,t);
       if(method>=5 && method<=7)check(t==ZINC_BOOL);
-      else if(method==0 || method==3 || method==4 || method==15)check(t>=ZINC_I32 && t<=ZINC_F64);
+      else if(method==0 || method==3 || method==4 || method==15 || method>=20)check(t>=ZINC_I32 && t<=ZINC_F64);
       else check(t==(method==14?VM_REF:ZINC_STRING));
       for(uint32_t j=1;j<count;j++) {
-        if(j==1 && ((method>=3 && method<=7)||method==14))reg(b+j,ZINC_STRING);
+        if((j==1 && ((method>=3 && method<=7)||method==14||method==19)) || (j==2 && (method==17||method==18)))reg(b+j,ZINC_STRING);
         else check(f.types[b+j]>=ZINC_I32 && f.types[b+j]<=ZINC_F64);
       }
     }

@@ -270,6 +270,21 @@ String String::from(const char* p, uint32_t n) {
   if (!n) return String(&empty_str);
   StrObj* s = str_alloc(n);
   __builtin_memcpy((char*)s->data, p, n);
+  // Rejoin adjacent WTF-8 surrogate units so concatenation has the same bytes,
+  // comparison and hash as the equivalent UTF-8 astral character.
+  if (__builtin_memchr(p, 0xED, n)) {
+    auto* d = (uint8_t*)s->data; uint32_t out = 0;
+    for (uint32_t i = 0; i < n;) {
+      if (i + 5 < n && d[i] == 0xED && d[i+1] >= 0xA0 && d[i+1] <= 0xAF && (d[i+2] & 0xC0) == 0x80 &&
+          d[i+3] == 0xED && d[i+4] >= 0xB0 && d[i+4] <= 0xBF && (d[i+5] & 0xC0) == 0x80) {
+        const uint32_t high = ((d[i+1] & 0x0F) << 6) | (d[i+2] & 0x3F), low = ((d[i+4] & 0x0F) << 6) | (d[i+5] & 0x3F);
+        const uint32_t cp = 0x10000 + (high << 10) + low;
+        d[out++] = uint8_t(0xF0 | (cp >> 18)); d[out++] = uint8_t(0x80 | ((cp >> 12) & 0x3F));
+        d[out++] = uint8_t(0x80 | ((cp >> 6) & 0x3F)); d[out++] = uint8_t(0x80 | (cp & 0x3F)); i += 6;
+      } else d[out++] = d[i++];
+    }
+    d[out] = 0; s->len = out;
+  }
   str_measure(s);
   return adopt(s);
 }
@@ -323,21 +338,40 @@ int32_t String::charCodeAt(int32_t i) const {
   }
   return 0;
 }
+// Keep UTF-16 slices exact even when a boundary splits an astral code point.
+// Isolated surrogate units use WTF-8 internally; aligned slices still share storage.
+static String sub_utf16(const String& s, int32_t a, int32_t b) {
+  if (b <= a) return String(&empty_str);
+  const uint32_t begin = u16_to_byte(s, a), end = u16_to_byte(s, b);
+  const bool low = a < s.length() && begin == u16_to_byte(s, a + 1);
+  const bool high = b < s.length() && end == u16_to_byte(s, b + 1);
+  if (!low && !high) return sub_bytes(s, begin, end);
+  StrBuilder out;
+  const auto unit = [&](int32_t value) {
+    const char bytes[] = { char(0xE0 | (value >> 12)), char(0x80 | ((value >> 6) & 0x3F)), char(0x80 | (value & 0x3F)) };
+    out.raw(bytes, 3);
+  };
+  if (low) unit(s.charCodeAt(a));
+  const uint32_t stop = high ? end - 4 : end;
+  out.raw(s.ptr() + begin, stop - begin);
+  if (high) unit(s.charCodeAt(b - 1));
+  return out.build();
+}
 String String::at(int32_t i) const {
   int32_t n = length(); if (i < 0) i += n; if (i < 0 || i >= n) return String();
-  return sub_bytes(*this, u16_to_byte(*this, i), u16_to_byte(*this, i + 1));
+  return sub_utf16(*this, i, i + 1);
 }
 static int32_t clampi(int32_t i, int32_t n) { if (i < 0) { i += n; if (i < 0) i = 0; } return i > n ? n : i; }
 String String::slice(int32_t a, int32_t b) const {
   int32_t n = length(); a = clampi(a, n); b = clampi(b, n);
   if (b <= a) return String(&empty_str);
-  return sub_bytes(*this, u16_to_byte(*this, a), u16_to_byte(*this, b));
+  return sub_utf16(*this, a, b);
 }
 String String::substring(int32_t a, int32_t b) const {
   int32_t n = length();
   a = a < 0 ? 0 : a > n ? n : a; b = b < 0 ? 0 : b > n ? n : b;
   if (a > b) { int32_t t = a; a = b; b = t; }
-  return sub_bytes(*this, u16_to_byte(*this, a), u16_to_byte(*this, b));
+  return sub_utf16(*this, a, b);
 }
 static int32_t byte_to_u16(const String& s, uint32_t b) {
   if (s.is_ascii()) return (int32_t)b;
@@ -417,8 +451,8 @@ String String::trimEnd() const { return trim_ws(*this, false, true); }
 static StrObj lit_space = {IMMORTAL, 1, 1, 1, " ", nullptr};
 StrObj lit_comma = {IMMORTAL, 1, 1, 1, ",", nullptr};
 static String pad(const String& s, int32_t n, const String& f, bool start) {
-  int32_t need = n - s.length();
-  if (need <= 0 || f.length() == 0) return s;
+  if (n <= s.length() || f.length() == 0) return s;
+  const int32_t need = n - s.length();
   StrBuilder sb;
   if (!start) to_s(sb, s);
   int32_t fl = f.length();
@@ -429,11 +463,12 @@ static String pad(const String& s, int32_t n, const String& f, bool start) {
   return sb.build();
 }
 String String::padStart(int32_t n) const { return pad(*this, n, String(&lit_space), true); }
-String String::padStart(int32_t n, const String& f) const { return pad(*this, n, f, true); }
+String String::padStart(int32_t n, const String& f) const { return pad(*this, n, f.s ? f : String(&lit_space), true); }
 String String::padEnd(int32_t n) const { return pad(*this, n, String(&lit_space), false); }
-String String::padEnd(int32_t n, const String& f) const { return pad(*this, n, f, false); }
+String String::padEnd(int32_t n, const String& f) const { return pad(*this, n, f.s ? f : String(&lit_space), false); }
 String String::repeat(int32_t n) const {
   if (n < 0) panic("RangeError: invalid count");
+  if (!n || !bytes()) return String();
   StrBuilder sb; for (int32_t i = 0; i < n; i++) to_s(sb, *this); return sb.build();
 }
 static String map_ascii(const String& s, bool up) {

@@ -572,6 +572,7 @@ class Lower {
         return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
       }
       const recv = this.expr(c.expression);
+      if (this.symbols && recvT.k === 'str' && (name === 'padStart' || name === 'padEnd') && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.slice(0, 1), check };
       if (this.symbols && (recvT.k === 'map' || recvT.k === 'set')) {
         if (name === 'forEach' && args.length === 1) return this.collectionCallback(recv, args[0]);
         const key = recvT.k === 'map' ? recvT.key : recvT.el;
