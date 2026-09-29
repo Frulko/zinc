@@ -7,7 +7,7 @@ import { ts } from './frontend.ts';
 import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
-const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection'];
+const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
 const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set'].includes(t.k) ? 7 : abiType(t);
 interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
@@ -284,7 +284,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
                 if (method === 11 || method === 12) op('alloc', 7, a, layout(i.t), 0);
                 emit(method, a, t);
               }
-            } else if (i.attr === '@promise.pending') op('promise.pending', 7, a);
+            } else if (i.attr === '@generator.close') op('generator.control', 0, a, x, 1);
+            else if (i.attr === '@generator.takeClosing') op('generator.control', 1, a, 0, 0);
+            else if (i.attr === '@promise.pending') op('promise.pending', 7, a);
             else if (i.attr === '@promise.resolve' || i.attr === '@promise.reject') {
               let value = args[1];
               if (value === undefined) { value = types.length;types.push(0); }

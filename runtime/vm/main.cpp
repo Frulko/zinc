@@ -23,7 +23,7 @@ static void registerGeneratedModules(zinc::Modules&) {}
 #endif
 
 namespace {
-enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, NOPS };
+enum Op { K, MOV, LOAD, STORE, ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, XOR, SHL, SHR, USHR, NEG, NOT, BITNOT, CONV, JMP, BR, CALL, RET, PRINT, SPACE, NEWLINE, SQRT, ABS, FLOOR, CEIL, TRUNC, NATIVE, ALLOC, INIT, FIELDGET, FIELDSET, INDEXGET, INDEXSET, LENGTH, PUSH, POP, CONCAT, TRUTHY, CLOSURE, CALLF, FNREF, METHOD, THROW, EXCEPTION, PROMISE, AWAIT, PENDING, SETTLE, MICROTASK, TIMER, CANCELTIMER, YIELD, GENSTEP, GENVALUE, STRING, MATH, SPLICE, JOIN, COLLECTION, GENCONTROL, NOPS };
 enum { VM_REF = 7 };
 struct Heap;
 union Reg { double f; int32_t i; uint32_t u; Heap* h; Reg(): f(0) {} };
@@ -45,7 +45,7 @@ struct Heap {
   uint32_t layout = UINT32_MAX; // Strings have no field layout.
   uint32_t promiseState=0, payloadType=0, pc=0, awaitDst=0, catchPc=UINT32_MAX;
   Heap *parent=nullptr, *completion=nullptr, *awaited=nullptr, *waiting=nullptr, *last=nullptr, *nextTask=nullptr;
-  bool handled=false, resolving=false, generator=false, running=false, done=false;
+  bool handled=false, resolving=false, generator=false, closing=false, running=false, done=false;
   Reg yielded;
   ZincHandle nativeHandle=0;
   const ZincHost* nativeHost=nullptr;
@@ -449,6 +449,18 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     if(!task || !task->generator || vm->depth!=vm->boundary)throw std::runtime_error("invalid VM yield");
     task->pc=(uint32_t)(ip-vm->fns[vm->fn].code.data())+1;task->yielded=fp[a];task->payloadType=T;
     std::copy(fp,fp+task->slots.size(),task->slots.begin());vm->suspended=true;ip=nullptr;return;
+  } else if constexpr(O==GENCONTROL) {
+    if(c==0) {
+      if(!vm->currentTask || !vm->currentTask->generator)throw std::runtime_error("generator control outside a generator");
+      fp[a].u=vm->currentTask->closing;vm->currentTask->closing=false;
+    } else {
+      auto* task=fp[b].h;if(!task || !task->generator)throw std::runtime_error("invalid VM generator");
+      if(task->running)throw std::runtime_error("generator is already running");
+      if(!task->done) {
+        if(task->pc==0) {task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
+        else {task->closing=true;generatorStep(*vm,ip,fp);}
+      }
+    }
   } else if constexpr(O==GENSTEP) { fp[a].u=generatorStep(*vm,ip,fp);
   } else if constexpr(O==GENVALUE) {
     auto* task=fp[b].h;
@@ -667,7 +679,7 @@ template<int O> Handler typed(uint32_t t) {
 Handler handler(uint32_t op,uint32_t t) {
   switch(op) {
 #define O(n) case n: return typed<n>(t);
-    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION)
+    O(K) O(MOV) O(LOAD) O(STORE) O(ADD) O(SUB) O(MUL) O(DIV) O(MOD) O(LT) O(LE) O(GT) O(GE) O(EQ) O(NE) O(AND) O(OR) O(XOR) O(SHL) O(SHR) O(USHR) O(NEG) O(NOT) O(BITNOT) O(CONV) O(JMP) O(BR) O(CALL) O(RET) O(PRINT) O(SPACE) O(NEWLINE) O(SQRT) O(ABS) O(FLOOR) O(CEIL) O(TRUNC) O(NATIVE) O(ALLOC) O(INIT) O(FIELDGET) O(FIELDSET) O(INDEXGET) O(INDEXSET) O(LENGTH) O(PUSH) O(POP) O(CONCAT) O(TRUTHY) O(CLOSURE) O(CALLF) O(FNREF) O(METHOD) O(THROW) O(EXCEPTION) O(PROMISE) O(AWAIT) O(PENDING) O(SETTLE) O(MICROTASK) O(TIMER) O(CANCELTIMER) O(YIELD) O(GENSTEP) O(GENVALUE) O(STRING) O(MATH) O(SPLICE) O(JOIN) O(COLLECTION) O(GENCONTROL)
 #undef O
   } throw std::runtime_error("invalid opcode");
 }
@@ -758,6 +770,7 @@ uint32_t load(VM& vm,Reader r) {
     else if(i.op==RET) { check(t==f.bodyRet || (f.async && t==VM_REF));if(t)reg(a,t); }
     else if(i.op==PRINT) { check(t!=ZINC_VOID && t<=VM_REF);reg(a,t); }
     else if(i.op==YIELD) { reg(a,t);check(f.gen && t==f.yieldType); }
+    else if(i.op==GENCONTROL) {check(c<=1 && t==(c?ZINC_VOID:ZINC_BOOL));reg(a,t);if(c)reg(b,VM_REF);else check(f.gen);}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }

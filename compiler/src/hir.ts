@@ -175,6 +175,7 @@ class Lower {
     const K = this.K;
     if (ts.isBlock(n)) return n.statements.flatMap(x => this.stmt(x, ret));
     if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression) && n.expression.asteriskToken) return this.yieldDelegate(n.expression, ret);
+    if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression)) return this.yieldStatements(this.expr(n.expression));
     if (ts.isExpressionStatement(n)) return [{ k: 'expr', e: this.expr(n.expression) }];
     if (ts.isVariableStatement(n)) return this.vars(n.declarationList);
     if (ts.isIfStatement(n)) return [{ k: 'if', c: this.cond(n.expression), then: this.body(n.thenStatement, ret), else: n.elseStatement ? this.body(n.elseStatement, ret) : [] }];
@@ -218,6 +219,18 @@ class Lower {
       return [{ k: 'let', name: tmp, t, init: v, cell: false } as HStmt, ...this.destructure(e.name, { k: 'var', t, name: tmp })];
     });
   }
+  yieldStatements(expression: HExpr): HStmt[] {
+    return [{ k: 'expr', e: expression }, { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: [{ k: 'return' }], else: [] }];
+  }
+  generatorIteration(receiver: HExpr, loop: HStmt): HStmt[] {
+    const close: HStmt = { k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@generator.close', recv: receiver, args: [], check: true } };
+    const error: ZT = { k: 'obj', decl: this.s.errorDecl, args: [] };
+    const reason = `%iterationError${this.tmp++}`;
+    return [{ k: 'try', hasCatch: true, bind: reason, bindCell: false, errorType: error, body: [loop], handler: [
+      { k: 'try', hasCatch: true, bindCell: false, errorType: error, body: [close], handler: [], fin: [] },
+      { k: 'throw', e: { k: 'var', t: error, name: reason } },
+    ], fin: [close] }];
+  }
   yieldDelegate(n: ts.YieldExpression, ret: ZT): HStmt[] {
     const source = this.expr(n.expression!);
     if (!['arr', 'str', 'gen'].includes(source.t.k)) throw new Error('yield* requires an array, string or generator');
@@ -232,10 +245,11 @@ class Lower {
     const between = (v: HExpr, lo: number, hi: number): HExpr => ({ k: 'cond', t: BOOL, c: { k: 'bin', t: BOOL, op: '>=', l: v, r: lit(I32, `${lo}`) }, a: { k: 'bin', t: BOOL, op: '<=', l: v, r: lit(I32, `${hi}`) }, b: lit(BOOL, 'false') });
     const width: HExpr = source.t.k === 'str' ? { k: 'cond', t: I32, c: between(code(index), 0xd800, 0xdbff), a: { k: 'cond', t: I32, c: between(code(plus(index, lit(I32, '1'))), 0xdc00, 0xdfff), a: lit(I32, '2'), b: lit(I32, '1') }, b: lit(I32, '1') } : lit(I32, '1');
     const item: HExpr = generator ? { k: 'field', t: element, obj: receiver, name: 'cur' } : source.t.k === 'str' ? { k: 'call', t: STR, how: 'builtin', fn: 'slice', recv: receiver, args: [index, plus(index, width)], check: false } : { k: 'index', t: element, obj: receiver, idx: index };
+    const loop: HStmt = { k: 'loop', c: condition, body: this.yieldStatements({ k: 'suspend', t: VOID, what: 'yield', e: this.conv(item, ret.k === 'gen' ? ret.el : ret), state: ++this.state }),
+      step: generator ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: plus(index, width) } }] };
     return [{ k: 'let', name: receiver.name, t: receiver.t, init: source, cell: false },
       ...(generator ? [] : [{ k: 'let', name: index.name, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
-      { k: 'loop', c: condition, body: [{ k: 'expr', e: { k: 'suspend', t: VOID, what: 'yield', e: this.conv(item, ret.k === 'gen' ? ret.el : ret), state: ++this.state } }],
-        step: generator ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: plus(index, width) } }] }];
+      ...(generator ? this.generatorIteration(receiver, loop) : [loop])];
   }
   /** for-of: an index loop over arrays/strings/Dyn arrays, a slot loop over Map/Set, step() over generators. */
   forOf(n: ts.ForOfStatement, ret: ZT): HStmt[] {
@@ -259,7 +273,7 @@ class Lower {
       loop.body = [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: 'live_at', recv: cv, args: [iv], check: false }, then: loop.body, else: [] }];
     }
     return [{ k: 'let', name: c, t: coll.t, init: coll, cell: false }, ...(src.t.k === 'gen' ? [] : [{ k: 'let', name: i, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
-      ...(this.symbols && (src.t.k === 'map' || src.t.k === 'set') ? this.collectionIteration(cv, loop) : [loop])];
+      ...(this.symbols && (src.t.k === 'map' || src.t.k === 'set') ? this.collectionIteration(cv, loop) : src.t.k === 'gen' ? this.generatorIteration(cv, loop) : [loop])];
   }
   /** switch without fall-through becomes an if chain on a temporary. */
   switch(n: ts.SwitchStatement, ret: ZT): HStmt[] {
