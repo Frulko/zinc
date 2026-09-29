@@ -203,7 +203,7 @@ struct PromiseBase;
 extern PromiseBase* promises_head;  // every live promise (teardown breaks promise <-> async frame cycles)
 struct PromiseBase : Object {
   uint8_t st = 0;        // 0 pending, 1 fulfilled, 2 rejected
-  bool handled = false;
+  bool handled = false, resolving = false;
   Ref<Error> err;
   Array<Fn<void()>> conts;
   PromiseBase* prev_live = nullptr;
@@ -218,11 +218,13 @@ struct PromiseBase : Object {
   void reject(const Ref<Error>& e);
 };
 void track_rejection(PromiseBase* p);
-inline void PromiseBase::reject(const Ref<Error>& e) { if (st) return; st = 2; err = e; if (!conts.length()) track_rejection(this); flush(); }
+inline void PromiseBase::reject(const Ref<Error>& e) { if (st || resolving) return; st = 2; err = e; if (!conts.length()) track_rejection(this); flush(); }
 
+template<class T> struct Promise;
 template<class T> struct PromiseObj : PromiseBase {
   T val{};
-  void resolve(const T& v) { if (st) return; st = 1; val = v; flush(); }
+  void resolve(const T& v) { if (st || resolving) return; st = 1; val = v; flush(); }
+  void resolve(const Promise<T>& value);
 };
 template<class T> struct Resolver {
   Ref<PromiseObj<T>> p;
@@ -235,6 +237,12 @@ struct Rejecter {
 };
 template<class F, class A> auto cb1(F& f, const A& a, int) -> decltype(f(a)) { return f(a); }
 template<class F, class A> auto cb1(F& f, const A&, long) -> decltype(f()) { return f(); }
+
+template<class T> struct PromiseValue { using type = T; };
+template<> struct PromiseValue<void> { using type = Unit; };
+template<class T> struct PromiseValue<Promise<T>> { using type = T; };
+template<class T> Promise<T> promise_resolve(const T& value);
+template<class T> Promise<T> promise_resolve(Promise<T> value);
 
 template<class T> struct Promise {
   Ref<PromiseObj<T>> p;
@@ -250,17 +258,69 @@ template<class T> struct Promise {
   bool rejected() const { return p->st == 2; }
   Ref<Error> error() const { return p->err; }
   T value() const { return p->val; }
-  template<class F> Promise<Unit> then(F f) const {
-    Promise<Unit> r = Promise<Unit>::make_pending();
+  template<class F> void resolve_call(F f) const {
+    if constexpr (is_same<decltype(f()), void>::value) {
+      f(); if (g_err.p) p->reject(take_error()); else p->resolve(T{});
+    } else {
+      auto value = f(); if (g_err.p) p->reject(take_error()); else p->resolve(value);
+    }
+  }
+  template<class F> auto then(F f) const {
+    using U = typename PromiseValue<decltype(cb1(f, p->val, 0))>::type;
+    Promise<U> r = Promise<U>::make_pending();
     Ref<PromiseObj<T>> self = p;
     self->on_settle([self, f, r]() mutable {
       if (self->st == 2) { r.p->reject(self->err); return; }
-      cb1(f, self->val, 0);
-      if (g_err.p) r.p->reject(take_error()); else r.p->resolve(Unit{});
+      r.resolve_call([&]() { return cb1(f, self->val, 0); });
+    });
+    return r;
+  }
+  template<class F> Promise catch_(F f) const {
+    Promise r = make_pending(); Ref<PromiseObj<T>> self = p;
+    self->on_settle([self, f, r]() mutable {
+      if (self->st == 1) r.p->resolve(self->val);
+      else r.resolve_call([&]() { return cb1(f, self->err, 0); });
+    });
+    return r;
+  }
+  template<class F> Promise finally_(F f) const {
+    Promise r = make_pending(); Ref<PromiseObj<T>> self = p;
+    self->on_settle([self, f, r]() mutable {
+      const auto finish = [self, r](auto cleanup) {
+        auto pass = cleanup.then([self]() -> T {
+          if (self->st == 2) { g_err = self->err; return {}; }
+          return self->val;
+        });
+        r.p->resolve(pass);
+      };
+      if constexpr (is_same<decltype(f()), void>::value) {
+        f(); if (g_err.p) r.p->reject(take_error()); else finish(Promise<Unit>::resolved());
+      } else {
+        auto value = f(); if (g_err.p) r.p->reject(take_error()); else finish(promise_resolve(value));
+      }
     });
     return r;
   }
 };
+template<class T> Promise<T> promise_resolve(const T& value) { return Promise<T>::resolved(value); }
+template<class T> Promise<T> promise_resolve(Promise<T> value) { return value; }
+template<class T> void PromiseObj<T>::resolve(const Promise<T>& value) {
+  if (st || resolving) return;
+  if (value.p.p == this) {
+    reject(make<TypeError>(String::from("promise cannot resolve itself", 29))); return;
+  }
+  resolving = true;
+  Ref<PromiseObj<T>> self(this), source = value.p;
+  // Assimilation calls the source's then in a job, then settles through its queued reaction.
+  microtask([self, source]() {
+    source->on_settle([self, source]() {
+      self->resolving = false;
+      if (source->st == 2) self->reject(source->err); else self->resolve(source->val);
+    });
+  });
+}
+template<class A, class B> bool operator==(const Promise<A>& a, const Promise<B>& b) { return a.p == b.p; }
+template<class A, class B> bool operator!=(const Promise<A>& a, const Promise<B>& b) { return !(a == b); }
 template<class T> inline bool truthy(const Promise<T>& v) { return (bool)v.p; }
 template<class T> void to_s(StrBuilder& sb, const Promise<T>&) { sb.cstr("[object Promise]"); }
 template<class T> void json(StrBuilder& sb, const Promise<T>&) { sb.cstr("{}"); }
@@ -289,6 +349,7 @@ struct AsyncBase : Object { int32_t state = 0; virtual void step() = 0; };
 template<class T> struct AsyncFrame : AsyncBase {
   Ref<PromiseObj<T>> prom = zrt::make<PromiseObj<T>>();
   void zrt_resolve(const T& v) { state = -1; prom->resolve(v); }
+  void zrt_resolve(const Promise<T>& v) { state = -1; prom->resolve(v); }
   void zrt_done() { zrt_resolve(T{}); }
   void zrt_reject(const Ref<Error>& e) { state = -1; prom->reject(e); }
   Promise<T> zrt_promise() { Promise<T> r; r.p = prom; return r; }

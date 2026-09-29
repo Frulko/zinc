@@ -35,7 +35,7 @@ struct Heap {
   uint32_t layout = UINT32_MAX; // Strings have no field layout.
   uint32_t promiseState=0, payloadType=0, pc=0, awaitDst=0, catchPc=UINT32_MAX;
   Heap *parent=nullptr, *completion=nullptr, *awaited=nullptr, *waiting=nullptr, *last=nullptr, *nextTask=nullptr;
-  bool handled=false, generator=false, running=false, done=false;
+  bool handled=false, resolving=false, generator=false, running=false, done=false;
   Reg yielded;
   ZincHandle nativeHandle=0;
   const ZincHost* nativeHost=nullptr;
@@ -157,11 +157,26 @@ struct VM {
   std::multimap<std::chrono::steady_clock::time_point,Timer> timers;
   uint32_t nextTimer=0;
   bool nativeEvents=false;
-  void settle(Heap* promise, Reg result, uint32_t type, bool rejected) {
-    promise->promiseState=rejected?3:2;promise->payloadType=type;promise->slots[0]=result;
+  void finishPromise(Heap* promise, Reg result, uint32_t type, bool rejected) {
+    promise->resolving=false;promise->promiseState=rejected?3:2;promise->payloadType=type;promise->slots[0]=result;
     if(rejected)rejections.push_back(promise);
     for(auto* task=promise->waiting;task;) { auto* next=task->nextTask;task->nextTask=nullptr;jobs.push_back(task);task=next; }
     promise->waiting=promise->last=nullptr;
+  }
+  void settle(Heap* promise, Reg result, uint32_t type, bool rejected, Reg* fp=nullptr) {
+    if(promise->promiseState>=2 || promise->resolving)return;
+    if(!rejected && type==VM_REF && result.h && result.h->promiseState) {
+      promise->resolving=true;promise->payloadType=VM_REF;promise->slots[0]=result;
+      if(result.h==promise) {
+        promise->slots[0].h=allocate(0,2,fp);
+        const char text[]="promise cannot resolve itself";
+        promise->slots[0].h->slots[0].h=keepString(text,sizeof(text)-1,fp);
+        promise->slots[0].h->slots[1].h=keepString("TypeError",9,fp);
+        finishPromise(promise,promise->slots[0],VM_REF,true);
+      } else {
+        auto* job=allocate(UINT32_MAX,0,fp);job->completion=promise;job->awaited=result.h;jobs.push_back(job);
+      }
+    } else finishPromise(promise,result,type,rejected);
   }
   void suspend(const Ins* ip, Reg* fp) {
     auto* promise=fp[ip->b].h;
@@ -409,7 +424,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
   } else if constexpr(O==SETTLE) {
     auto* p=fp[a].h;
     if(!p || !p->promiseState)throw std::runtime_error("invalid VM promise resolver");
-    if(p->promiseState==1)vm->settle(p,fp[b],T,c!=0);
+    if(p->promiseState==1)vm->settle(p,fp[b],T,c!=0,fp);
   } else if constexpr(O==MICROTASK) { vm->jobs.push_back(callbackTask(*vm,fp[a],fp));
   } else if constexpr(O==TIMER) { setTimer(*vm,ip,fp);
   } else if constexpr(O==CANCELTIMER) {
@@ -644,7 +659,7 @@ uint32_t load(VM& vm,Reader r) {
     else if(i.op==BR) { reg(a,ZINC_BOOL);jump(b);jump(c);i.b=b-(uint32_t)pc;i.c=c-(uint32_t)pc; }
     else if(i.op==CALL) { check(b<vm.fns.size());const auto& callee=vm.fns[b];reg(a,callee.ret);check(callee.captures.empty() && t==callee.ret && c<=f.types.size() && callee.params.size()<=f.types.size()-c);for(size_t j=0;j<callee.params.size();j++)reg(c+j,callee.types[callee.params[j]]); }
     else if(i.op==NATIVE) { check(b<vm.imports.size());const auto& native=*vm.imports[b];reg(a,(native.result==ZINC_BYTES || native.result==ZINC_RECORD)?VM_REF:native.result);check(t==((native.result==ZINC_BYTES || native.result==ZINC_RECORD)?VM_REF:native.result)&&c<=f.types.size()&&native.parameter_count<=f.types.size()-c);for(uint32_t j=0;j<native.parameter_count;j++)reg(c+j,(native.parameters[j]==ZINC_CALLBACK || native.parameters[j]==ZINC_BYTES || native.parameters[j]==ZINC_NUMBERS)?VM_REF:native.parameters[j]); }
-    else if(i.op==RET) { check(t==f.bodyRet);if(t)reg(a,t); }
+    else if(i.op==RET) { check(t==f.bodyRet || (f.async && t==VM_REF));if(t)reg(a,t); }
     else if(i.op==PRINT) { check(t!=ZINC_VOID && t<=VM_REF);reg(a,t); }
     else if(i.op==YIELD) { reg(a,t);check(f.gen && t==f.yieldType); }
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
@@ -787,6 +802,20 @@ ZincHandle callbackHandle(VM& vm,Reg fn) {
   const auto handle=vm.modules.resources.add(callback.get(),zinc::callbackKind,[](void* p){delete (zinc::Callback*)p;});callback.release();return handle;
 }
 void runTask(VM& vm, Heap* task, Reg* fp) {
+  if(task->function==UINT32_MAX) {
+    auto* source=task->awaited;
+    if(!task->pc) {
+      task->pc=1;source->handled=true;
+      if(source->promiseState==1) {
+        if(source->last)source->last->nextTask=task;else source->waiting=task;
+        source->last=task;
+      } else vm.jobs.push_back(task);
+    } else {
+      vm.finishPromise(task->completion,source->slots[0],source->payloadType,source->promiseState==3);
+      task->completion=task->awaited=nullptr;
+    }
+    return;
+  }
   auto* previousTask=vm.currentTask;const auto previousFn=vm.fn,previousDepth=vm.depth,previousBoundary=vm.boundary;
   const bool previousSuspended=vm.suspended;
   task->parent=previousTask;vm.currentTask=task;vm.fn=task->function;vm.boundary=vm.depth;vm.suspended=false;
@@ -805,7 +834,7 @@ void runTask(VM& vm, Heap* task, Reg* fp) {
       }
     }
     execute(vm,task->function,fp,pc);
-    if(!vm.suspended && task->completion)vm.settle(task->completion,vm.result,vm.resultType,false);
+    if(!vm.suspended && task->completion)vm.settle(task->completion,vm.result,vm.resultType,false,fp);
   } catch(const GuestThrow&) { if(!task->completion)throw;vm.settle(task->completion,vm.exception,VM_REF,true);vm.exception=Reg(); }
   catch(...) { vm.currentTask=previousTask;vm.fn=previousFn;vm.depth=previousDepth;vm.boundary=previousBoundary;vm.suspended=previousSuspended;throw; }
   task->parent=nullptr;vm.currentTask=previousTask;vm.fn=previousFn;vm.depth=previousDepth;vm.boundary=previousBoundary;vm.suspended=previousSuspended;

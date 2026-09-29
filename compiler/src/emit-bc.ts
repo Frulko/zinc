@@ -305,8 +305,6 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
         ins[at][3] = ins.length; edge(b, t.a);
         ins[at][4] = ins.length; edge(b, t.b);
       } else if (t.k === 'ret') {
-        const returned = sourceType(t.v);
-        if (f.source?.kind === 'async' && returned?.k === 'promise') fail('returning a promise directly; use return await');
         op('ret', f.source?.kind === 'gen' || t.v === undefined ? 0 : types[reg(t.v)], t.v === undefined ? 0 : reg(t.v));
       }
       else fail(t.k);

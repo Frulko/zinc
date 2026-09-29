@@ -456,19 +456,7 @@ class Lower {
         return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
       }
       const recv = this.expr(c.expression);
-      if (this.symbols && recvT.k === 'promise' && name === 'then' && args.length === 1 && args[0].t.k === 'fn') {
-        const cb = args[0], ft = cb.t as Extract<ZT, { k: 'fn' }>;
-        const p: HExpr = { k: 'var', t: recvT, name: '%promise' };
-        const callback: HExpr = { k: 'var', t: ft, name: '%callback' };
-        const value: HExpr = { k: 'var', t: recvT.el, name: '%value' };
-        const invoke: HExpr = { k: 'call', t: ft.ret, how: 'closure', fn: '%callback', recv: callback, args: ft.params.length ? [value] : [], check: true };
-        const fn: HFunc = { name: '<then>', params: [{ name: p.name, t: p.t, cell: false }, { name: callback.name, t: ft, cell: false }],
-          ret: t, kind: 'async', captures: [], throws: false, body: [
-            { k: 'let', name: value.name, t: value.t, init: { k: 'suspend', t: value.t, what: 'await', e: p, state: 1 }, cell: false },
-            { k: 'expr', e: ft.ret.k === 'promise' ? { k: 'suspend', t: ft.ret.el, what: 'await', e: invoke, state: 2 } : invoke },
-          ] };
-        return { k: 'call', t, how: 'closure', fn: '<then>', recv: { k: 'lambda', t: { k: 'fn', params: fn.params.map(p => p.t), ret: t }, fn }, args: [recv, cb], check: false };
-      }
+      if (this.symbols && recvT.k === 'promise' && ['then', 'catch', 'finally'].includes(name) && args.length === 1 && args[0].t.k === 'fn') return this.promiseChain(t, recv, args[0], name);
       if (recvT.k === 'dyn') return { k: 'dyn', t, op: `call ${name}`, args: [recv, ...args] };
       if (recvT.k !== 'obj') return { k: 'call', t, how: 'builtin', fn: name, recv, args, check };
       if (d && (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d))) return { k: 'call', t, how: 'closure', fn: name, recv: { k: 'field', t: s.declType(d), obj: recv, name }, args, check };
@@ -481,6 +469,51 @@ class Lower {
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
   }
+
+  promiseChain(t: ZT, source: HExpr, cb: HExpr, mode: string): HExpr {
+    const src = source.t as Extract<ZT, { k: 'promise' }>, ft = cb.t as Extract<ZT, { k: 'fn' }>;
+    const error: ZT = { k: 'obj', decl: this.s.errorDecl, args: [] };
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
+    const promise = variable('%promise', src), callback = variable('%callback', ft), value = variable('%value', src.el);
+    const reason = variable('%reason', error), caught = variable('%error', error), failed = variable('%failed', BOOL);
+    const awaitSource: HExpr = { k: 'suspend', t: src.el, what: 'await', e: promise, state: 1 };
+    const invoke = (arg?: HExpr): HExpr => ({ k: 'call', t: ft.ret, how: 'closure', fn: callback.name, recv: callback, args: ft.params.length && arg ? [arg] : [], check: true });
+    const ret = (e: HExpr): HStmt => ({ k: 'return', e: e.t.k === 'promise' ? e : this.conv(e, t.k === 'promise' ? t.el : t) });
+    const letValue: HStmt = { k: 'let', name: value.name, t: value.t, init: awaitSource, cell: false };
+    let body: HStmt[];
+    if (mode === 'then') body = [letValue, ret(invoke(value))];
+    else if (mode === 'catch') body = [{ k: 'try', hasCatch: true, bind: caught.name, bindCell: false, errorType: error, fin: [],
+      body: [letValue, ret(value)], handler: ft.ret.k === 'void' && src.el.k !== 'void'
+        // A callback that only throws has TS `never`, represented as void in Zinc.
+        // Its unreachable return still needs the chain's value type for verification.
+        ? [{ k: 'expr', e: invoke(caught) }, ret(lit(src.el, src.el.k === 'str' ? '""' : src.el.k === 'bool' ? 'false' : '0'))]
+        : [ret(invoke(caught))] }];
+    else {
+      const cleanupType: ZT = ft.ret.k === 'promise' ? ft.ret : { k: 'promise', el: ft.ret };
+      const cleanup = variable('%cleanup', cleanupType);
+      const saved = src.el.k === 'void' ? variable('%value', BOOL) : value;
+      const inner: HFunc = { name: '<finally:pass>', kind: 'async', ret: t, captures: [], throws: false,
+        params: [cleanup, saved, failed, reason].map(v => ({ name: v.name, t: v.t, cell: false })), body: [
+          { k: 'expr', e: { k: 'suspend', t: cleanupType.el, what: 'await', e: cleanup, state: 1 } },
+          { k: 'if', c: failed, then: [{ k: 'throw', e: reason }], else: [] }, src.el.k === 'void' ? { k: 'return' } : ret(value),
+        ] };
+      body = [
+        { k: 'let', name: saved.name, t: saved.t, init: lit(saved.t, saved.t.k === 'str' ? '""' : saved.t.k === 'bool' ? 'false' : '0'), cell: false },
+        { k: 'let', name: reason.name, t: error, init: lit(error, 'null'), cell: false },
+        { k: 'let', name: failed.name, t: BOOL, init: lit(BOOL, 'false'), cell: false },
+        { k: 'try', hasCatch: true, bind: caught.name, bindCell: false, errorType: error, fin: [],
+          body: [{ k: 'expr', e: src.el.k === 'void' ? awaitSource : { k: 'assign', t: value.t, target: value, v: awaitSource } }], handler: [
+            { k: 'expr', e: { k: 'assign', t: error, target: reason, v: caught } },
+            { k: 'expr', e: { k: 'assign', t: BOOL, target: failed, v: lit(BOOL, 'true') } },
+          ] },
+        { k: 'let', name: cleanup.name, t: cleanupType, init: { k: 'call', t: cleanupType, how: 'builtin', fn: 'Promise.resolve', args: [invoke()], check: true }, cell: false },
+        ret({ k: 'call', t, how: 'closure', fn: inner.name, recv: { k: 'lambda', t: { k: 'fn', params: inner.params.map(p => p.t), ret: t }, fn: inner }, args: [cleanup, saved, failed, reason], check: false }),
+      ];
+    }
+    const fn: HFunc = { name: `<${mode}>`, params: [promise, callback].map(v => ({ name: v.name, t: v.t, cell: false })), ret: t, kind: 'async', captures: [], throws: false, body };
+    return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: fn.params.map(p => p.t), ret: t }, fn }, args: [source, cb], check: false };
+  }
+
 
   promiseAll(t: Extract<ZT, { k: 'promise' }>, input: HExpr): HExpr {
     const outType = t.el as Extract<ZT, { k: 'arr' }>;

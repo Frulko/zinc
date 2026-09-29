@@ -875,7 +875,7 @@ export class Sema {
       const c = e.expression;
       if (ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'Promise' && e.arguments.length) {
         const a = this.ztypeOf(e.arguments[0]);
-        if (c.name.text === 'resolve') return { k: 'promise', el: a };
+        if (c.name.text === 'resolve') return a.k === 'promise' ? a : { k: 'promise', el: a };
         if (c.name.text === 'all' && a.k === 'arr' && a.el.k === 'promise') return { k: 'promise', el: { k: 'arr', el: a.el.el } };
       }
       if (ts.isPropertyAccessExpression(c)) {
@@ -1099,7 +1099,14 @@ export class Sema {
       if (name === 'add') return recv;
       if (name === 'values') return { k: 'arr', el: recv.el };
     }
-    if (recv.k === 'promise' && name === 'then') return { k: 'promise', el: VOID };
+    if (recv.k === 'promise') {
+      if (name === 'catch' || name === 'finally') return recv;
+      if (name === 'then') {
+        const callback = this.ztypeOf(call.arguments[0]);
+        const value = callback.k === 'fn' ? callback.ret : VOID;
+        return value.k === 'promise' ? value : { k: 'promise', el: value };
+      }
+    }
     return undefined;
   }
 

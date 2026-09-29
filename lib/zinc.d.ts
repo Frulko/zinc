@@ -196,10 +196,21 @@ declare var JSON: JSON;
 declare function queueMicrotask(f: () => void): void;
 
 // ---- Promise (LNG-16): futures resolved by the event loop ----
-interface PromiseLike<T> { then(f: (v: T) => void): PromiseLike<void>; }
-interface Promise<T> { then(f: (v: T) => void): Promise<void>; }
+interface PromiseLike<T> {
+  then<U>(f: (v: T) => Promise<U>): PromiseLike<U>;
+  then<U>(f: (v: T) => U): PromiseLike<U>;
+}
+interface Promise<T> {
+  then<U>(f: (v: T) => Promise<U>): Promise<U>;
+  then<U>(f: (v: T) => U): Promise<U>;
+  catch(f: (reason: Error) => Promise<T>): Promise<T>;
+  catch(f: (reason: Error) => T): Promise<T>;
+  finally(f: () => Promise<void>): Promise<T>;
+  finally(f: () => void): Promise<T>;
+}
 interface PromiseConstructor {
   new <T>(executor: (resolve: (value: T) => void, reject: (reason: Error) => void) => void): Promise<T>;
+  resolve<T>(v: Promise<T>): Promise<T>;
   resolve<T>(v: T): Promise<T>;
   resolve(): Promise<void>;
   reject<T = never>(e: Error): Promise<T>;

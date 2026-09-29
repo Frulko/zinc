@@ -511,6 +511,7 @@ class CppEmitter {
   }
   frameReturn(e: ts.Expression): string {
     const f = this.ctx.frame!;
+    if (this.s.ztypeOf(e).k === 'promise') return `this->zrt_resolve(${this.expr(e)}); return;`;
     return f.el.k === 'void' ? `${this.expr(e)}; this->zrt_done(); return;` : `this->zrt_resolve(${this.conv(e, f.el)}); return;`;
   }
   /** Declares a frame field (async/gen) or a local; returns the C++ statement prefix. */
@@ -1253,7 +1254,7 @@ class CppEmitter {
         }
         if (isLibGlobal && g === 'Promise') {
           const pt = this.s.ztypeOf(e) as Extract<ZT, { k: 'promise' }>;
-          if (name === 'resolve') return `zrt::Promise<${this.val(pt.el)}>::resolved(${e.arguments[0] ? this.conv(e.arguments[0], pt.el) : ''})`;
+          if (name === 'resolve') return e.arguments[0] && this.s.ztypeOf(e.arguments[0]).k === 'promise' ? this.expr(e.arguments[0]) : `zrt::Promise<${this.val(pt.el)}>::resolved(${e.arguments[0] ? this.conv(e.arguments[0], pt.el) : ''})`;
           if (name === 'reject') return `zrt::Promise<${this.val(pt.el)}>::rejected(${this.expr(e.arguments[0])})`;
           if (name === 'all') return `zrt::promise_all(${this.expr(e.arguments[0])})`;
         }
@@ -1270,7 +1271,7 @@ class CppEmitter {
         if (name === 'toFixed') return `zrt::to_fixed(${this.conv(obj, F64)}, ${e.arguments[0] ? this.conv(e.arguments[0], I32) : '0'})`;
         if (name === 'toString') return `zrt::cat(${this.expr(obj)})`;
       }
-      if (t.k === 'promise' && name === 'then') return `${this.expr(obj)}.then(${this.expr(e.arguments[0])})`;
+      if (t.k === 'promise' && ['then', 'catch', 'finally'].includes(name)) return `${this.expr(obj)}.${name === 'then' ? name : name + '_'}(${this.expr(e.arguments[0])})`;
       if (t.k === 'gen' && name === 'next') this.s.fail(e, 'Z9032', 'iterate generators with for-of');
       if (t.k === 'arr' || t.k === 'str' || t.k === 'map' || t.k === 'set') return this.builtinCall(e, c, t);
       const od = this.staticOwner(obj);
