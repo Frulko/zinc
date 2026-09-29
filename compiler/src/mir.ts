@@ -184,6 +184,7 @@ class Builder {
       case 'concat': return this.emit('concat', h.t, h.parts.map(E));
       case 'alloc': return this.emit(`alloc.${h.what}`, h.t, h.items.map(i => E(i.v)), h.items.map(i => i.name ?? '_').join(','));
       case 'lambda': this.lambdas.push(h.fn); return this.emit('closure', h.t, h.fn.captures.map(c => this.read(c, this.cur)), `${h.fn.name}#${this.lambdas.length}[${h.fn.captures.join(',')}]`);
+      case 'seq': this.stmts(h.body); return E(h.value);
       case 'suspend': return this.emit(h.what, h.t, [E(h.e)], `#${h.state}`);
       case 'opaque': return this.emit('opaque', h.t, [], h.text);
       case 'cond': {

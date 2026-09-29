@@ -569,7 +569,6 @@ class CppEmitter {
             `${I}if (${field}.rejected()) { zrt::g_err = ${field}.error(); ${this.propagate()}; }\n`;
         } else {
           if (f.kind !== 'gen') this.s.fail(n, 'Z9032', 'yield is only allowed in generators');
-          if (!ts.isExpressionStatement(n.parent)) this.s.fail(n, 'Z9032', 'yield must be a statement (its result is not supported)');
           if (n.asteriskToken) {
             const source = this.s.ztypeOf(n.expression!);
             if (!['arr', 'str', 'gen'].includes(source.k)) this.s.fail(n, 'Z9032', 'yield* requires an array, string or generator');
@@ -580,12 +579,13 @@ class CppEmitter {
             const test = gen ? `({ bool __more = ${receiver}->resume(); if (zrt::g_err.p) { ${this.propagate()}; } __more; })` : `${index} < ${receiver}.length()`;
             const width = source.k === 'str' ? `((${receiver}.charCodeAt(${index}) >= 0xd800 && ${receiver}.charCodeAt(${index}) <= 0xdbff && ${receiver}.charCodeAt(${index}+1) >= 0xdc00 && ${receiver}.charCodeAt(${index}+1) <= 0xdfff) ? 2 : 1)` : '1';
             const value = gen ? `${receiver}->cur` : source.k === 'str' ? `${receiver}.slice(${index}, ${index}+${width})` : `${receiver}.get(${index})`;
-            f.awaits.set(n, '(void)0');
-            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { auto __error = this->injected; this->injected = nullptr; ${gen ? `bool __more = ${receiver}->raise(__error); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->cur = ${receiver}->cur; return true; }` : `zrt::g_err = zrt::make<zrt::TypeError>(zrt::String::from("iterator does not provide a throw method", 39)); ${this.propagate()};`} }\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->close();` : ''} ${this.frameCleanup('return')} state = -1; return false; }\n${gen ? '' : `${I}  ${index} += ${width};\n`}${I}}\n${I}${receiver} = {};\n`;
+            const result = this.newTmp('delegateResult'); f.fields.set(result, 'zrt::Dyn');
+            f.awaits.set(n, this.s.ztypeOf(n).k === 'void' ? result : this.coerce(result, DYN, this.s.ztypeOf(n), n));
+            out += `${I}${receiver} = ${this.expr(n.expression!)};\n${gen ? '' : `${I}${index} = 0;\n`}${I}while (${test}) {\n${I}  this->cur = ${value}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { auto __error = this->injected; this->injected = nullptr; ${gen ? `bool __more = ${receiver}->raise(__error); if (zrt::g_err.p) { ${this.propagate()}; } if (__more) { this->cur = ${receiver}->cur; return true; }` : `zrt::g_err = zrt::make<zrt::TypeError>(zrt::String::from("iterator does not provide a throw method", 39)); ${this.propagate()};`} }\n${I}if (this->closing) { this->closing = false; ${gen ? `${receiver}->close();` : ''} ${this.frameCleanup('return')} state = -1; return false; }\n${gen ? `${I}${receiver}->sent = this->sent;\n` : `${I}  ${index} += ${width};\n`}${I}}\n${I}${result} = ${gen ? `${receiver}->returned` : 'zrt::Dyn()'};\n${I}${receiver} = {};\n`;
             return;
           }
           const st = ++f.state;
-          f.awaits.set(n, '(void)0');
+          f.awaits.set(n, this.coerce('this->sent', DYN, this.s.ztypeOf(n), n));
           out += `${I}this->cur = ${n.expression ? this.conv(n.expression, f.el) : `${this.cpp(f.el)}{}`}; state = ${st}; return true;\n  case ${st}:;\n${I}if (this->injected.p) { zrt::g_err = this->injected; this->injected = nullptr; ${this.propagate()}; }\n${I}if (this->closing) { this->closing = false; ${this.frameCleanup('return')} state = -1; return false; }\n`;
         }
         return;
@@ -1355,9 +1355,8 @@ class CppEmitter {
       if (t.k === 'promise' && ['then', 'catch', 'finally'].includes(name)) return `${this.expr(obj)}.${name === 'then' ? name : name + '_'}(${this.expr(e.arguments[0])})`;
       if (t.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
         if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(t.el.k) && !(t.el.k === 'arr' && t.el.el.k === 'dyn')) this.s.fail(e, 'Z9032', 'generator API values require scalars, objects or Dyn arrays');
-        if (name === 'next' && e.arguments.some(a => !ts.isIdentifier(a) || a.text !== 'undefined')) this.s.fail(e, 'Z9032', 'generator next(value) is not implemented');
-        const argument = name === 'return' ? (e.arguments[0] ? this.toDynExpr(e.arguments[0]) : 'zrt::Dyn()') : e.arguments[0] ? this.expr(e.arguments[0]) : '';
-        return `zrt::generator_${name}(${this.expr(obj)}${name === 'next' ? '' : ', ' + argument})`;
+        const argument = name !== 'throw' ? (e.arguments[0] ? this.toDynExpr(e.arguments[0]) : 'zrt::Dyn()') : e.arguments[0] ? this.expr(e.arguments[0]) : '';
+        return `zrt::generator_${name}(${this.expr(obj)}${', ' + argument})`;
       }
       if (t.k === 'arr' || t.k === 'str' || t.k === 'map' || t.k === 'set') return this.builtinCall(e, c, t);
       const od = this.staticOwner(obj);

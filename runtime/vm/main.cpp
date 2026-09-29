@@ -44,7 +44,7 @@ struct Heap {
   uint32_t function = UINT32_MAX;
   uint32_t layout = UINT32_MAX; // Strings have no field layout.
   uint32_t promiseState=0, payloadType=0, pc=0, awaitDst=0, catchPc=UINT32_MAX;
-  Heap *parent=nullptr, *completion=nullptr, *awaited=nullptr, *waiting=nullptr, *last=nullptr, *nextTask=nullptr;
+  Heap *sent=nullptr, *parent=nullptr, *completion=nullptr, *awaited=nullptr, *waiting=nullptr, *last=nullptr, *nextTask=nullptr;
   bool handled=false, resolving=false, generator=false, closing=false, dynamic=false, iteratorResult=false, running=false, done=false;
   Reg yielded;
   ZincHandle nativeHandle=0;
@@ -120,7 +120,7 @@ struct VM {
     for(auto* promise:rejections)pointer(promise);
     while (!pending.empty()) {
       auto* h=pending.back(); pending.pop_back();
-      pointer(h->parent);pointer(h->completion);pointer(h->awaited);pointer(h->waiting);pointer(h->last);pointer(h->nextTask);
+      pointer(h->sent);pointer(h->parent);pointer(h->completion);pointer(h->awaited);pointer(h->waiting);pointer(h->last);pointer(h->nextTask);
       if(h->generator && h->payloadType>=ZINC_STRING)mark(h->yielded);
       if(h->dynamic) {if(h->payloadType>=ZINC_STRING && h->payloadType<=VM_REF)mark(h->slots[0]);continue;}
       if(h->promiseState) { if(h->payloadType>=ZINC_STRING)mark(h->slots[0]);continue; }
@@ -504,14 +504,19 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       fp[a].u=(action==5 || action==7)?!equal:equal;
     }
   } else if constexpr(O==GENCONTROL) {
-    if(c==0 || c==2) {
+    if(c==0 || c==2 || c==7) {
       if(!vm->currentTask || !vm->currentTask->generator)throw std::runtime_error("generator control outside a generator");
       if(c==0){fp[a].u=vm->currentTask->closing;vm->currentTask->closing=false;}
+      else if(c==7) {fp[a].h=vm->currentTask->sent?vm->currentTask->sent:vm->box(Reg(),ZINC_VOID,fp);}
       else {fp[a].h=vm->currentTask->awaited;vm->currentTask->awaited=nullptr;}
+    } else if(c==8 || c==9) {
+      auto* task=fp[b].h;if(!task || !task->generator)throw std::runtime_error("invalid VM generator");
+      if(c==8)fp[a].h=task->completion?task->completion:vm->box(Reg(),ZINC_VOID,fp);else task->sent=fp[b+1].h;
     } else {
       auto* task=fp[b].h;if(!task || !task->generator)throw std::runtime_error("invalid VM generator");
       if(task->running)generatorTypeError(*vm,"generator is already running",fp);
       bool yielded=false;const bool wasDone=task->done;
+      if(c==3)task->sent=fp[b+1].h;
       if(c==4)task->completion=fp[b+1].h;
       if(c==5 || c==6) {
         if(task->done || !task->pc){task->done=true;vm->exception=fp[b+1];throw GuestThrow();}
@@ -919,7 +924,7 @@ uint32_t load(VM& vm,Reader r) {
       else {check(!source);reg(b,VM_REF);if(action==1)check(t>=ZINC_BOOL && t<=VM_REF);else if(action==2)check(t==ZINC_STRING);else check(t==ZINC_BOOL);if(action>=4 && action<=7)reg(b+1,VM_REF);}
       reg(a,t);
     }
-    else if(i.op==GENCONTROL) {check(c<=6 && t==(c==0 || c==6?ZINC_BOOL:c==1?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2)check(f.gen);else {reg(b,VM_REF);if(c>=4)reg(b+1,VM_REF);}}
+    else if(i.op==GENCONTROL) {check(c<=9 && t==(c==0 || c==6?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {reg(b,VM_REF);if(c>=3 && c!=8)reg(b+1,VM_REF);}}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }

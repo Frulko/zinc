@@ -573,7 +573,7 @@ struct IteratorResult : Object {
   }
 };
 template<class T> struct GenFrame : Object {
-  int32_t state = 0; bool closing = false, running = false; T cur{}; Dyn returned; Ref<Error> injected;
+  int32_t state = 0; bool closing = false, running = false; T cur{}; Dyn returned, sent; Ref<Error> injected;
   virtual bool step() = 0;
   bool reentrant() { if (!running) return false; g_err = make<TypeError>(String::from("generator is already running", 28)); return true; }
   bool resume() { if (reentrant()) return false; running = true; bool yielded = step(); running = false; return yielded; }
@@ -590,7 +590,8 @@ template<class T> Ref<IteratorResult> generator_result(const Gen<T>& generator, 
   if (!yielded) generator->returned = Dyn();
   return make<IteratorResult>(!yielded, value);
 }
-template<class T> Ref<IteratorResult> generator_next(const Gen<T>& generator) {
+template<class T> Ref<IteratorResult> generator_next(const Gen<T>& generator, Dyn input = Dyn()) {
+  generator->sent = input;
   if (generator->state < 0) return make<IteratorResult>(true, Dyn());
   return generator_result(generator, generator->resume());
 }

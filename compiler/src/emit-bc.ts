@@ -322,6 +322,9 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               op('generator.control', 1, a, base, 6);
             } else if (i.attr === '@generator.takeError') op('generator.control', 7, a, 0, 2);
             else if (i.attr === '@generator.close') op('generator.control', 0, a, x, 1);
+            else if (i.attr === '@generator.result') op('generator.control', 7, a, x, 8);
+            else if (i.attr === '@generator.send') { const base=types.length; for(const r of args){const dst=types.length;types.push(7);op('mov',7,dst,r);} op('generator.control',0,a,base,9); }
+            else if (i.attr === '@generator.input') op('generator.control', 7, a, 0, 7);
             else if (i.attr === '@generator.takeClosing') op('generator.control', 1, a, 0, 0);
             else if (i.attr === '@promise.pending') op('promise.pending', 7, a);
             else if (i.attr === '@promise.resolve' || i.attr === '@promise.reject') {

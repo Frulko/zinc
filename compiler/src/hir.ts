@@ -24,6 +24,7 @@ export type HExpr =
   | { k: 'alloc'; t: ZT; what: string; items: { name?: string; v: HExpr }[] }
   | { k: 'lambda'; t: ZT; fn: HFunc }
   | { k: 'assign'; t: ZT; target: HExpr; v: HExpr; post?: boolean }
+  | { k: 'seq'; t: ZT; body: HStmt[]; value: HExpr }
   | { k: 'suspend'; t: ZT; what: 'await' | 'yield'; e: HExpr; state: number }
   | { k: 'opaque'; t: ZT; text: string };
 export type HStmt =
@@ -176,7 +177,7 @@ class Lower {
     const K = this.K;
     if (ts.isBlock(n)) return n.statements.flatMap(x => this.stmt(x, ret));
     if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression) && n.expression.asteriskToken) return this.yieldDelegate(n.expression, ret);
-    if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression)) return this.yieldStatements(this.expr(n.expression));
+    if (ts.isExpressionStatement(n) && ts.isYieldExpression(n.expression)) return [{ k: 'expr', e: this.expr(n.expression) }];
     if (ts.isExpressionStatement(n)) return [{ k: 'expr', e: this.expr(n.expression) }];
     if (ts.isVariableStatement(n)) return this.vars(n.declarationList);
     if (ts.isIfStatement(n)) return [{ k: 'if', c: this.cond(n.expression), then: this.body(n.thenStatement, ret), else: n.elseStatement ? this.body(n.elseStatement, ret) : [] }];
@@ -230,6 +231,7 @@ class Lower {
       { k: 'let', name: error.name, t: error.t, cell: false, init: { k: 'call', t: error.t, how: 'builtin', fn: '@generator.takeError', args: [], check: false } },
       { k: 'if', c: { k: 'un', t: BOOL, op: 'truthy', e: error }, then: onError, else: [] },
       { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: [{ k: 'return' }], else: [] }];
+    if (delegate && delegate !== 'iterator') body.push({ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@generator.send', recv: delegate, args: [{ k: 'call', t: DYN, how: 'builtin', fn: '@generator.input', args: [], check: false }], check: false } });
     return delegate && delegate !== 'iterator' ? [{ k: 'loop', body: [...body, { k: 'break' }], step: [] }] : body;
   }
   generatorIteration(receiver: HExpr, loop: HStmt): HStmt[] {
@@ -241,7 +243,7 @@ class Lower {
       { k: 'throw', e: { k: 'var', t: error, name: reason } },
     ], fin: [close] }];
   }
-  yieldDelegate(n: ts.YieldExpression, ret: ZT): HStmt[] {
+  yieldDelegate(n: ts.YieldExpression, ret: ZT, result?: HExpr & { k: 'var' }): HStmt[] {
     const source = this.expr(n.expression!);
     if (!['arr', 'str', 'gen'].includes(source.t.k)) throw new Error('yield* requires an array, string or generator');
     const receiver: HExpr & { k: 'var' } = { k: 'var', t: source.t, name: `%delegate${this.tmp++}` };
@@ -259,7 +261,8 @@ class Lower {
       step: generator ? [] : [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: plus(index, width) } }] };
     return [{ k: 'let', name: receiver.name, t: receiver.t, init: source, cell: false },
       ...(generator ? [] : [{ k: 'let', name: index.name, t: I32, init: lit(I32, '0'), cell: false } as HStmt]),
-      ...(generator ? this.generatorIteration(receiver, loop) : [loop])];
+      ...(generator ? this.generatorIteration(receiver, loop) : [loop]),
+      ...(result ? [{ k: 'let', name: result.name, t: DYN, cell: false, init: generator ? { k: 'call', t: DYN, how: 'builtin', fn: '@generator.result', recv: receiver, args: [], check: false } : lit(DYN, 'undefined') } as HStmt] : [])];
   }
   /** for-of: an index loop over arrays/strings/Dyn arrays, a slot loop over Map/Set, step() over generators. */
   forOf(n: ts.ForOfStatement, ret: ZT): HStmt[] {
@@ -410,9 +413,14 @@ class Lower {
     if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return { k: 'lambda', t, fn: this.fn(e, '<lambda>') };
     if (ts.isConditionalExpression(e)) return { k: 'cond', t, c: this.cond(e.condition), a: this.conv(this.expr(e.whenTrue), t), b: this.conv(this.expr(e.whenFalse), t) };
     if (ts.isYieldExpression(e)) {
-      if (e.asteriskToken || !ts.isExpressionStatement(e.parent)) return { k: 'opaque', t: VOID, text: 'yield* and yield results are not implemented' };
+      if (e.asteriskToken) {
+        const fn = s.fnOf(e), ret = fn && ts.isFunctionLike(fn) ? s.retOf(fn as ts.SignatureDeclaration) : VOID;
+        const result: HExpr & { k: 'var' } = { k: 'var', t: DYN, name: `%delegateResult${this.tmp++}` };
+        return { k: 'seq', t: t.k === 'void' ? DYN : t, body: this.yieldDelegate(e, ret, result), value: t.k === 'void' ? result : this.conv(result, t) };
+      }
       const fn = s.fnOf(e), ret = fn && ts.isFunctionLike(fn) ? s.retOf(fn as ts.SignatureDeclaration) : undefined;
-      return { k: 'suspend', t: VOID, what: 'yield', e: e.expression ? this.conv(this.expr(e.expression), ret?.k === 'gen' ? ret.el : undefined) : lit(VOID, 'undefined'), state: ++this.state };
+      const point: HExpr = { k: 'suspend', t: VOID, what: 'yield', e: e.expression ? this.conv(this.expr(e.expression), ret?.k === 'gen' ? ret.el : undefined) : lit(VOID, 'undefined'), state: ++this.state };
+      return { k: 'seq', t, body: this.yieldStatements(point), value: this.conv({ k: 'call', t: DYN, how: 'builtin', fn: '@generator.input', args: [], check: false }, t) };
     }
     if (ts.isAwaitExpression(e)) return { k: 'suspend', t, what: 'await', e: this.expr(e.expression), state: ++this.state };
     if (ts.isTypeOfExpression(e)) {
@@ -609,9 +617,8 @@ class Lower {
       if (this.symbols && recvT.k === 'str' && (name === 'padStart' || name === 'padEnd') && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.slice(0, 1), check };
       if (recvT.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
         if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(recvT.el.k) && !(recvT.el.k === 'arr' && recvT.el.el.k === 'dyn')) throw new Error('generator API values require scalars, objects or Dyn arrays');
-        if (name === 'next' && e.arguments.some(a => !ts.isIdentifier(a) || a.text !== 'undefined')) throw new Error('generator next(value) is not implemented');
-        const argument = name === 'return' ? (e.arguments[0] ? this.conv(this.expr(e.arguments[0]), DYN) : lit(DYN, 'undefined')) : args[0];
-        return { k: 'call', t: { k: 'iter' }, how: 'builtin', fn: `@generator.${name}`, recv, args: name === 'next' ? [] : [argument], check: true };
+        const argument = name !== 'throw' ? (e.arguments[0] ? this.conv(this.expr(e.arguments[0]), DYN) : lit(DYN, 'undefined')) : args[0];
+        return { k: 'call', t: { k: 'iter' }, how: 'builtin', fn: `@generator.${name}`, recv, args: [argument], check: true };
       }
 
       if (this.symbols && (recvT.k === 'map' || recvT.k === 'set')) {
@@ -930,6 +937,7 @@ export function printExpr(h: HExpr): string {
     case 'alloc': return `alloc ${h.what} ${typeName(h.t)} {${h.items.map(i => (i.name ? i.name + ': ' : '') + P(i.v)).join(', ')}}`;
     case 'lambda': return `lambda${h.fn.captures.length ? `[${h.fn.captures.join(', ')}]` : ''}${printSig(h.fn)} ${printBlock(h.fn.body, 1).trimStart()}`;
     case 'assign': return `(${h.post ? 'post ' : ''}${P(h.target)} = ${P(h.v)})`;
+    case 'seq': return `${printBlock(h.body, 0)} ${P(h.value)}`;
     case 'suspend': return `${h.what}#${h.state}(${P(h.e)})`;
     case 'opaque': return `opaque{${h.text}}`;
   }
