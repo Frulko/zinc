@@ -149,15 +149,17 @@ static void init() {
 }
 }
 
+static void drain_deferred();
 void* alloc(size_t n) {
 #ifdef ZRT_DEBUG
   void* p = hal_alloc(n ? n : 1);
 #else
   void* p = tlsf::malloc(n ? n : 1);
+  if (!p) { drain_deferred(); p = tlsf::malloc(n ? n : 1); }   // release cascades cut short by MAX_CASCADE hold memory until drained
 #endif
   if (!p) {
     // no allocation from here on (a StrBuilder would recurse into alloc): format into a static buffer
-    static char msg[96];
+    static char msg[128];
     const char* head = "out of memory (heap budget ";
     uint32_t k = 0;
     while (*head) msg[k++] = *head++;
@@ -165,9 +167,17 @@ void* alloc(size_t n) {
     uint64_t v = (uint64_t)tlsf::budget;
     do { digits[nd++] = (char)('0' + v % 10); v /= 10; } while (v && nd < 24);
     while (nd) msg[k++] = digits[--nd];
-    const char* tail = " bytes)";
+    const char* tail = " bytes, asked ";
     while (*tail) msg[k++] = *tail++;
-    msg[k] = 0;
+    v = (uint64_t)n; nd = 0;
+    do { digits[nd++] = (char)('0' + v % 10); v /= 10; } while (v && nd < 24);
+    while (nd) msg[k++] = digits[--nd];
+    tail = ", in use ";
+    while (*tail) msg[k++] = *tail++;
+    v = (uint64_t)tlsf::used; nd = 0;
+    do { digits[nd++] = (char)('0' + v % 10); v /= 10; } while (v && nd < 24);
+    while (nd) msg[k++] = digits[--nd];
+    msg[k++] = ')'; msg[k] = 0;
     panic(msg);
   }
   alloc_count++;
