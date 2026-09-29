@@ -5,6 +5,7 @@ import { lowerMir, type MFunc } from './mir.ts';
 import { type Sema, type ZT, VOID } from './sema.ts';
 import { ts } from './frontend.ts';
 import { ABI_VERSION, abiType, type AbiResult } from './abi.ts';
+import { specialize } from './specialize.ts';
 
 // Kept in the same order as runtime/vm/main.cpp. All integers in ZBC4 are little endian.
 const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref'];
@@ -52,9 +53,15 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
   });
   const hir = [{ file: '<linked>', globals: linked.flatMap(m => m.globals), classes: linked.flatMap(m => m.classes),
     fns: linked.flatMap(m => m.fns), init: [] as HStmt[], ordered: linked.flatMap(m => m.ordered) }];
-  const classes = new Map(hir[0].classes.map(c => [c.decl, c]));
-  hir[0].fns.push(...hir[0].classes.flatMap(c => c.methods));
-  hir[0].classes = [];
+  const roots = new Set<string>();
+  for (const st of sema.fe.entry.statements) if (ts.isFunctionDeclaration(st) && symbols.has(st) &&
+    (!ts.isExternalModule(sema.fe.entry) || (ts.getCombinedModifierFlags(st) & ts.ModifierFlags.Export))) roots.add(symbols.get(st)!);
+  const entryModule = sema.checker.getSymbolAtLocation(sema.fe.entry);
+  if (entryModule) for (const item of sema.checker.getExportsOfModule(entryModule)) {
+    const symbol = item.flags & ts.SymbolFlags.Alias ? sema.checker.getAliasedSymbol(item) : item;
+    for (const decl of symbol.declarations ?? []) if (symbols.has(decl) && ts.isFunctionDeclaration(decl)) roots.add(symbols.get(decl)!);
+  }
+  const { classFor } = specialize(hir[0], roots, sema);
   const globals = new Map<string, number>();
   const globalTypes: number[] = [];
   for (const m of hir) for (const s of m.globals) {
@@ -83,12 +90,13 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     let names: string[], types: number[];
     if (t.k === 'arr') { names = ['[]']; types = [type(t.el)]; }
     else if (t.k === 'tup') { names = t.els.map((_, i) => String(i)); types = t.els.map(type); }
-    else if (t.k === 'obj') { const cls = ts.isClassDeclaration(t.decl) ? classes.get(t.decl) : undefined; names = cls ? cls.fields.map(f => f.name) : sema.fieldNames(t.decl); types = cls ? cls.fields.map(f => type(f.t)) : names.map(n => type(sema.declType(sema.memberDecl(t.decl, n)!))); }
+    else if (t.k === 'obj') { const cls = classFor(t); names = cls ? cls.fields.map(f => f.name) : sema.fieldNames(t.decl); types = cls ? cls.fields.map(f => type(f.t)) : names.map(n => type(sema.declType(sema.memberDecl(t.decl, n)!, sema.substFor(t, sema.memberDecl(t.decl, n)!)))); }
     else throw new Error('zinc-vm: unsupported aggregate layout');
     const methods = new Map<number, number>();
     const addMethods = (decl: ts.ClassDeclaration) => {
       const base = sema.baseClass(decl); if (base) addMethods(base);
-      for (const f of classes.get(decl)?.methods ?? []) if (!f.static && !f.name.endsWith('.constructor')) methods.set(field(f.name.slice(f.name.lastIndexOf('.') + 1)), namesToFunctions.get(f.name)!);
+      const cls = t.k === 'obj' && t.decl === decl ? classFor(t) : classFor({ k: 'obj', decl, args: [] });
+      for (const f of cls?.methods ?? []) if (!f.static && !f.name.endsWith('.constructor')) methods.set(field(f.name.slice(f.name.lastIndexOf('.') + 1)), namesToFunctions.get(f.name)!);
     };
     if (t.k === 'obj' && ts.isClassDeclaration(t.decl)) addMethods(t.decl);
     const item = { array: t.k === 'arr', keys: names.map(field), types, methods: [...methods] };
@@ -217,7 +225,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               break;
             }
             if (i.t.k !== 'obj' || !ts.isClassDeclaration(i.t.decl)) fail('constructor');
-            const cls = i.t.k === 'obj' && ts.isClassDeclaration(i.t.decl) ? classes.get(i.t.decl) : undefined;
+            const cls = i.t.k === 'obj' && ts.isClassDeclaration(i.t.decl) ? classFor(i.t) : undefined;
             if (!cls) fail('constructor class');
             const fn = names.get(`${cls!.name}.constructor`)!;
             const id = layout(i.t); op('alloc', 7, a, id, layouts[id].types.length);

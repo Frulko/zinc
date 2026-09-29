@@ -98,7 +98,7 @@ class Lower {
       .map(m => this.fn(m, ts.isConstructorDeclaration(m) ? 'constructor' : `${ts.isGetAccessorDeclaration(m) ? 'get ' : ts.isSetAccessorDeclaration(m) ? 'set ' : ''}${m.name.getText()}`));
     const name = this.symbols?.get(c) ?? c.name?.text ?? 'default';
     if (this.symbols) {
-      const self: HExpr = { k: 'var', t: { k: 'obj', decl: c, args: [] }, name: 'this' };
+      const self: HExpr = { k: 'var', t: { k: 'obj', decl: c, args: (c.typeParameters ?? []).map(p => ({ k: 'tp', name: p.name.text })) }, name: 'this' };
       const initializers: HStmt[] = [];
       for (const p of c.members) if (ts.isPropertyDeclaration(p)) {
         if (ts.getCombinedModifierFlags(p) & ts.ModifierFlags.Static) continue;
@@ -530,7 +530,9 @@ class Lower {
     if (this.symbols && ts.isPropertyAccessExpression(c) && c.name.text === 'bind' && s.tryZ(c.expression).k === 'fn') return this.bindFunction(e, c.expression, t);
     let d = ts.isPropertyAccessExpression(c) ? s.declOf(c.name) : s.declOf(c);
     const callable = !d || (!s.isLib(d) && !ts.isFunctionLike(d)) ? s.tryZ(c) : undefined;
-    const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p), undefined)) : callable?.k === 'fn' ? callable.params : [];
+    const bindings = this.symbols && d && (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d)) && d.typeParameters ? s.inferTypeArgs(d, e)
+      : this.symbols && d && ts.isPropertyAccessExpression(c) ? s.substFor(s.tryZ(c.expression), d) : undefined;
+    const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p, bindings), undefined)) : callable?.k === 'fn' ? callable.params : [];
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
     const native = d && this.nativeCalls?.get(d);
     if(this.symbols && native === undefined && d && !s.isLib(d) && ts.isFunctionLike(d)) {
