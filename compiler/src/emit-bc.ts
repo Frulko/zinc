@@ -182,7 +182,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
               op('math',t,a,base,MATH.indexOf('pow')|(2<<8));narrowByte(a,i.t);break;
             }
             let left=x, right=y, operand=types[x];
-            if (['<<','>>','>>>'].includes(i.attr!)) {
+            if (['&','|','^','<<','>>','>>>'].includes(i.attr!)) {
               operand=t;
               const convert=(r:number) => { if(types[r]===operand)return r; const dst=types.length;types.push(operand);op('conv',operand,dst,r,types[r]);return dst; };
               left=convert(x);right=convert(y);
