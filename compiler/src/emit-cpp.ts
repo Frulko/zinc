@@ -515,7 +515,7 @@ class CppEmitter {
     this.frameDefs.push(`namespace ${ns} {\nstruct ${fname} : ${baseT} {\n${fields}\n  ${gen ? 'bool' : 'void'} step() override;\n};\n}`);
     const cases = Array.from({ length: frame.state }, (_, i) => i + 1);
     void cases;
-    const end = gen ? '  state = -1;\n  return false;' : '  this->zrt_done();';
+    const end = gen ? '  this->returned = zrt::Dyn(); state = -1;\n  return false;' : '  this->zrt_done();';
     this.frameBodies.push(`namespace ${ns} {\n${gen ? 'bool' : 'void'} ${fname}::step() {\n  switch (state) {\n  case 0:;\n${stmts} goto __frame_end;\n${frame.exits.join("\n")}  }\n__frame_end:;\n${end}\n}\n}`);
     const assigns = f.parameters.map(p => {
       const n = this.id(p.name.getText());

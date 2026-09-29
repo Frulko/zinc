@@ -504,9 +504,10 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
       fp[a].u=(action==5 || action==7)?!equal:equal;
     }
   } else if constexpr(O==GENCONTROL) {
-    if(c==0 || c==2 || c==7) {
+    if(c==0 || c==2 || c==7 || c==11) {
       if(!vm->currentTask || !vm->currentTask->generator)throw std::runtime_error("generator control outside a generator");
       if(c==0){fp[a].u=vm->currentTask->closing;vm->currentTask->closing=false;}
+      else if(c==11) {fp[a].h=vm->currentTask->completion?vm->currentTask->completion:vm->box(Reg(),ZINC_VOID,fp);}
       else if(c==7) {fp[a].h=vm->currentTask->sent?vm->currentTask->sent:vm->box(Reg(),ZINC_VOID,fp);}
       else {fp[a].h=vm->currentTask->awaited;vm->currentTask->awaited=nullptr;}
     } else if(c==8 || c==9) {
@@ -912,7 +913,7 @@ uint32_t load(VM& vm,Reader r) {
       else {check(!source);reg(b,VM_REF);if(action==1)check(t>=ZINC_BOOL && t<=VM_REF);else if(action==2)check(t==ZINC_STRING);else check(t==ZINC_BOOL);if(action>=4 && action<=7)reg(b+1,VM_REF);}
       reg(a,t);
     }
-    else if(i.op==GENCONTROL) {check(c<=10 && t==(c==0 || c==6 || c==10?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7)check(f.gen);else {if(c==10)check(f.gen);reg(b,VM_REF);if(c>=3 && c!=8 && c!=10)reg(b+1,VM_REF);}}
+    else if(i.op==GENCONTROL) {check(c<=11 && t==(c==0 || c==6 || c==10?ZINC_BOOL:c==1 || c==9?ZINC_VOID:VM_REF));reg(a,t);if(c==0 || c==2 || c==7 || c==11)check(f.gen);else {if(c==10)check(f.gen);reg(b,VM_REF);if(c>=3 && c!=8 && c!=10)reg(b+1,VM_REF);}}
     else if(i.op==GENSTEP) { reg(a,ZINC_BOOL);reg(b,VM_REF);check(t==ZINC_BOOL); }
     else if(i.op==GENVALUE) { reg(a,t);reg(b,VM_REF); }
     else if(i.op==PENDING) { reg(a,VM_REF);check(t==VM_REF); }
@@ -1143,7 +1144,7 @@ bool generatorStep(VM& vm,const Ins* ip,Reg* fp) {
   try { execute(vm,task->function,next,task->pc); }
   catch(...) {task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());restore();throw;}
   const bool yielded=vm.suspended;
-  if(!yielded){if(vm.resultType==VM_REF)task->completion=vm.result.h;task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
+  if(!yielded){task->completion=vm.resultType==VM_REF?vm.result.h:nullptr;task->done=true;std::fill(task->slots.begin(),task->slots.end(),Reg());}
   restore();return yielded;
 }
 Heap* callbackTask(VM& vm,Reg callback,Reg* fp) {

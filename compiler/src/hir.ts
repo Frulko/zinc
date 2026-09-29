@@ -230,7 +230,7 @@ class Lower {
     const body: HStmt[] = [{ k: 'expr', e: expression },
       { k: 'let', name: error.name, t: error.t, cell: false, init: { k: 'call', t: error.t, how: 'builtin', fn: '@generator.takeError', args: [], check: false } },
       { k: 'if', c: { k: 'un', t: BOOL, op: 'truthy', e: error }, then: onError, else: [] },
-      { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: delegate && delegate !== 'iterator' ? [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.forwardReturn', recv: delegate, args: [], check: true }, then: [{ k: 'continue' }], else: [{ k: 'return', e: { k: 'call', t: DYN, how: 'builtin', fn: '@generator.result', recv: delegate, args: [], check: false } }] }] : [{ k: 'return' }], else: [] }];
+      { k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.takeClosing', args: [], check: false }, then: delegate && delegate !== 'iterator' ? [{ k: 'if', c: { k: 'call', t: BOOL, how: 'builtin', fn: '@generator.forwardReturn', recv: delegate, args: [], check: true }, then: [{ k: 'continue' }], else: [{ k: 'return', e: { k: 'call', t: DYN, how: 'builtin', fn: '@generator.result', recv: delegate, args: [], check: false } }] }] : [{ k: 'return', e: { k: 'call', t: DYN, how: 'builtin', fn: '@generator.pendingResult', args: [], check: false } }], else: [] }];
     if (delegate && delegate !== 'iterator') body.push({ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@generator.send', recv: delegate, args: [{ k: 'call', t: DYN, how: 'builtin', fn: '@generator.input', args: [], check: false }], check: false } });
     return delegate && delegate !== 'iterator' ? [{ k: 'loop', body: [...body, { k: 'break' }], step: [] }] : body;
   }
