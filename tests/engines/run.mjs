@@ -50,7 +50,7 @@ try {
   assert.equal(cyclic.error, undefined); assert.equal(cyclic.signal, null); assert.notEqual(cyclic.status, 0);
   assert.match(cyclic.stderr, /cyclic module initialization/);
   const collectionsCheck = path.join(tmp, 'collections-check');
-  run(process.env.CXX ?? 'c++', ['-std=c++17', 'tests/engines/collections.cpp', '-Iruntime/include', '-Iruntime', path.join(path.dirname(command('tests/engines/collections.ts', 'native')[0]), 'libzrt.a'), '-o', collectionsCheck]);run(collectionsCheck, []);
+  run(process.env.CXX ?? 'c++', ['-std=c++17', '-fno-rtti', 'tests/engines/collections.cpp', '-Iruntime/include', '-Iruntime', path.join(path.dirname(command('tests/engines/collections.ts', 'zinc-vm')[0]), 'libzrt.a'), '-o', collectionsCheck]);run(collectionsCheck, []);
   const resourceCheck = path.join(tmp, 'resource-check');
   run(process.env.CXX ?? 'c++', ['-std=c++17', 'tests/engines/resources.cpp', '-o', resourceCheck]);run(resourceCheck, []);
   const abiCheck = path.join(tmp, 'abi-check');
