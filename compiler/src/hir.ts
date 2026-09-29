@@ -579,6 +579,7 @@ class Lower {
         const expected = name === 'set' && recvT.k === 'map' ? [key, recvT.val] : ['get', 'has', 'delete', 'add'].includes(name) ? [key] : [];
         return { k: 'call', t, how: 'builtin', fn: name, recv, args: args.map((a, i) => this.conv(a, expected[i])), check };
       }
+      if (this.symbols && recvT.k === 'arr' && name === 'sort' && args.length === 1) return this.arraySort(recv, args[0]);
       if (this.symbols && recvT.k === 'arr' && ['indexOf', 'includes'].includes(name) && args.length >= 1 && args.length <= 2) {
         const from = e.arguments[1];
         return this.arraySearch(name, recv, this.conv(args[0], recvT.el), !from || (ts.isIdentifier(from) && from.text === 'undefined') ? lit(I32, '0') : this.conv(args[1], I32), t);
@@ -597,6 +598,51 @@ class Lower {
     d = s.declOf(c);
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
+  }
+
+  /** Stable bottom-up merge sort of snapshots: comparator effects cannot
+   * invalidate elements, and a thrown comparison publishes no sorted writes. */
+  arraySort(input: HExpr, callback: HExpr): HExpr {
+    if (input.t.k !== 'arr' || callback.t.k !== 'fn' || callback.t.params.length > 2 || callback.t.ret.k !== 'num') throw new Error('zinc-vm: invalid sort comparator');
+    const arrayType = input.t, signature = callback.t, element = arrayType.el;
+    const variable = (name: string, t: ZT = I32): HExpr & { k: 'var' } => ({ k: 'var', name: '%' + name, t });
+    const receiver = variable('array', arrayType), compare = variable('compare', signature);
+    const source = variable('source', arrayType), target = variable('target', arrayType), swap = variable('swap', arrayType);
+    const n = variable('length'), width = variable('width'), lo = variable('lo'), mid = variable('mid'), hi = variable('hi'), i = variable('i'), j = variable('j'), k = variable('k');
+    const zero = lit(I32, '0'), one = lit(I32, '1');
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = I32): HExpr => ({ k: 'bin', t, op, l, r });
+    const less = (a: HExpr, b: HExpr) => binary('<', a, b, BOOL);
+    const assignment = (to: HExpr, value: HExpr): HStmt => ({ k: 'expr', e: { k: 'assign', t: to.t, target: to, v: value } });
+    const increment = (to: HExpr) => assignment(to, binary('+', to, one));
+    const declaration = (to: typeof n, init: HExpr): HStmt => ({ k: 'let', name: to.name, t: to.t, init, cell: false });
+    const at = (array: HExpr, index: HExpr): HExpr => ({ k: 'index', t: element, obj: array, idx: index });
+    const min = (a: HExpr, b: HExpr): HExpr => ({ k: 'cond', t: I32, c: less(a, b), a, b });
+    const boundary = (start: HExpr) => binary('+', start, min(width, binary('-', n, start)));
+    const copy = (index: HExpr): HStmt[] => [assignment(at(target, k), at(source, index)), increment(index), increment(k)];
+    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: compare.name, recv: compare,
+      args: [at(source, j), at(source, i)].slice(0, signature.params.length).map((value, index) => this.conv(value, signature.params[index])), check: true };
+    const merge: HStmt = { k: 'loop', c: less(lo, n), step: [assignment(lo, hi)], body: [
+      declaration(mid, boundary(lo)), declaration(hi, boundary(mid)), declaration(i, lo), declaration(j, mid), declaration(k, lo),
+      { k: 'loop', c: { k: 'cond', t: BOOL, c: less(i, mid), a: less(j, hi), b: lit(BOOL, 'false') }, step: [], body: [
+        { k: 'if', c: less(invoke, lit(signature.ret, '0')), then: copy(j), else: copy(i) },
+      ] },
+      { k: 'loop', c: less(i, mid), step: [], body: copy(i) },
+      { k: 'loop', c: less(j, hi), step: [], body: copy(j) },
+    ] };
+    const snapshot = (): HExpr => ({ k: 'call', t: arrayType, how: 'builtin', fn: 'slice', recv: receiver, args: [], check: false });
+    const body: HStmt[] = [declaration(n, { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: receiver, args: [], check: false }),
+      { k: 'if', c: less(n, lit(I32, '2')), then: [{ k: 'return', e: receiver }], else: [] },
+      declaration(source, snapshot()), declaration(target, snapshot()), declaration(width, one),
+      { k: 'loop', c: less(width, n), step: [], body: [declaration(lo, zero), merge,
+        declaration(swap, source), assignment(source, target), assignment(target, swap),
+        { k: 'if', c: binary('>=', width, binary('-', n, width), BOOL), then: [{ k: 'break' }], else: [] },
+        assignment(width, binary('*', width, lit(I32, '2'))),
+      ] },
+      declaration(i, zero), { k: 'loop', c: less(i, n), step: [increment(i)], body: [assignment(at(receiver, i), at(source, i))] },
+      { k: 'return', e: receiver },
+    ];
+    const fn: HFunc = { name: '<array.sort>', kind: 'fn', ret: arrayType, params: [receiver, compare].map(v => ({ name: v.name, t: v.t, cell: false })), captures: [], throws: true, body };
+    return { k: 'call', t: arrayType, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [arrayType, signature], ret: arrayType }, fn }, args: [input, callback], check: true };
   }
 
   collectionIteration(receiver: HExpr, loop: HStmt): HStmt[] {

@@ -503,19 +503,26 @@ template<class T> struct Array {
   // RT-11: stable merge sort
   template<class F> Array sort(F f) const {
     int32_t n = length(); if (n < 2) return *this;
-    T* tmp = (T*)alloc(bytes_of(n));
-    for (int32_t i = 0; i < n; i++) new (&tmp[i]) T();
-    for (int32_t w = 1; w < n; w *= 2) {
-      for (int32_t lo = 0; lo < n; lo += 2 * w) {
-        int32_t mid = lo + w < n ? lo + w : n, hi = lo + 2 * w < n ? lo + 2 * w : n, i = lo, j = mid, k = lo;
-        while (i < mid && j < hi) tmp[k++] = is_neg(f(a->data[j], a->data[i])) ? a->data[j++] : a->data[i++];
-        while (i < mid) tmp[k++] = a->data[i++];
-        while (j < hi) tmp[k++] = a->data[j++];
+    // Comparators may resize the receiver or throw. Sort captured elements and
+    // publish only after every comparison succeeds, preserving appended items.
+    Array source = slice(), target = slice();
+    for (int32_t w = 1; w < n;) {
+      for (int32_t lo = 0; lo < n;) {
+        int32_t mid = lo + (w < n-lo ? w : n-lo), hi = mid + (w < n-mid ? w : n-mid), i = lo, j = mid, k = lo;
+        while (i < mid && j < hi) {
+          const bool right = is_neg(f(source.a->data[j], source.a->data[i]));
+          if (g_err.p) return *this;
+          target.a->data[k++] = right ? source.a->data[j++] : source.a->data[i++];
+        }
+        while (i < mid) target.a->data[k++] = source.a->data[i++];
+        while (j < hi) target.a->data[k++] = source.a->data[j++];
+        lo = hi;
       }
-      for (int32_t i = 0; i < n; i++) a->data[i] = tmp[i];
+      Array swap = source; source = target; target = swap;
+      if (w >= n-w) break;
+      w *= 2;
     }
-    for (int32_t i = 0; i < n; i++) tmp[i].~T();
-    mfree(tmp);
+    for (int32_t i = 0; i < n; i++) set(i, source.a->data[i]);
     return *this;
   }
   Array reverse() const { int32_t n = length(); for (int32_t i = 0; i < n / 2; i++) { T t = a->data[i]; a->data[i] = a->data[n - 1 - i]; a->data[n - 1 - i] = t; } return *this; }
