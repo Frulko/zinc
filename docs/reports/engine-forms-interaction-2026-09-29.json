@@ -1,0 +1,71 @@
+{
+  "date": "2026-09-29",
+  "revision": "8a685d5",
+  "source": "examples/ui/forms",
+  "environment": {
+    "ZINC_DEMO": "1",
+    "SDL_VIDEODRIVER": "dummy"
+  },
+  "frames": [
+    1,
+    6
+  ],
+  "results": [
+    {
+      "engine": "native",
+      "status": 0,
+      "images": [
+        {
+          "file": "forms-1.png",
+          "sha256": "4843647c30983888d8c033beb57dfdd9d2db4c2c426f2595283cab6b9ea3aeeb"
+        },
+        {
+          "file": "forms-6.png",
+          "sha256": "f2ae49312aa9a27b7269492781327fda14e02d2db5926e971652b3510c30cb97"
+        }
+      ]
+    },
+    {
+      "engine": "zinc-vm",
+      "status": 0,
+      "images": [
+        {
+          "file": "forms-1.png",
+          "sha256": "4843647c30983888d8c033beb57dfdd9d2db4c2c426f2595283cab6b9ea3aeeb"
+        },
+        {
+          "file": "forms-6.png",
+          "sha256": "f2ae49312aa9a27b7269492781327fda14e02d2db5926e971652b3510c30cb97"
+        }
+      ]
+    },
+    {
+      "engine": "zinc-vm-jit",
+      "status": 0,
+      "images": [
+        {
+          "file": "forms-1.png",
+          "sha256": "4843647c30983888d8c033beb57dfdd9d2db4c2c426f2595283cab6b9ea3aeeb"
+        },
+        {
+          "file": "forms-6.png",
+          "sha256": "f2ae49312aa9a27b7269492781327fda14e02d2db5926e971652b3510c30cb97"
+        }
+      ]
+    },
+    {
+      "engine": "quickjs",
+      "status": 0,
+      "images": [
+        {
+          "file": "forms-1.png",
+          "sha256": "4843647c30983888d8c033beb57dfdd9d2db4c2c426f2595283cab6b9ea3aeeb"
+        },
+        {
+          "file": "forms-6.png",
+          "sha256": "f2ae49312aa9a27b7269492781327fda14e02d2db5926e971652b3510c30cb97"
+        }
+      ]
+    }
+  ]
+}
