@@ -5,7 +5,7 @@ Only engine-related changes are committed; unrelated working-tree edits stay out
 
 | Stage | Status | Remaining acceptance criteria |
 |---|---|---|
-| 1. VM language and memory | In progress | Generic specialization, remaining strings, full generator API/dynamic values and documented lifetime semantics; compare native, interpreter, JIT and QuickJS |
+| 1. VM language and memory | In progress | Remaining demo string/reduction operations, typed-array dynamic values, native async control flow and documented lifetime semantics; compare native, interpreter, JIT and QuickJS |
 | 2. Common native ABI | Partial baseline | General arrays/nested records/record arguments, mutable buffer ownership, resource-valued callbacks, asynchronous completion and cancellation |
 | 3. Native services and application host | Partial baseline | Missing module/display adapters, exit behavior, deterministic guest timers, UI/input/replay parity |
 | 4. Embedded ScriptEngine | Partial C API | Source compilation and dynamic-value/function/promise bridge behind existing ScriptEngine contract |
@@ -15,11 +15,16 @@ Only engine-related changes are committed; unrelated working-tree edits stay out
 
 ## Current work
 
-Three coordinated workers continue stage 1: generic specialization, string operations, and the public generator API.
+Current stage 1 work covers the remaining string/array operations exposed by demos, dynamic typed-array payloads,
+and native async control flow. Committed batches include generic inheritance, stable sort, array queues, string
+parsing/formatting, instanceof and the public generator protocol with inputs, delegation and suspendable finally.
+Each batch receives a four-mode comparison. The common suite passed at `0afe934`; later additions have focused
+checks while the next complete run is pending. Twelve existing conformance programs also passed in native and
+sim on an isolated archive of `aa70e4e`, without updating goldens.
 
-Committed batches cover global destructuring, promise chains/adoption, array callbacks/searches, split/join, standard-module imports/default arguments, accessors/lexical receivers, typed Map/Set, yield delegation and loop-driven generator cleanup. Each batch was compared across native, VM, AArch64 JIT and QuickJS in an isolated checkout of the committed files.
-
-A fresh VM build audit still succeeds on only 4 of 58 demos. First failures include generic type parameters, String.repeat, ABI arrays/promises, missing native modules and display adapters. This is not full application parity.
+The last complete build audit had 5 of 58 VM demos building; subsequent changes have moved their first language
+failures forward. A new full audit is pending. ABI arrays/promises, modules and display adapters still prevent
+full application parity.
 Each completed batch receives focused checks and an individual commit after integration.
 
 ## Already testable

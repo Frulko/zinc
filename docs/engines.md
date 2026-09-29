@@ -159,8 +159,11 @@ those same runtime implementations; Unicode and retained-string fixtures compare
 
 Static class fields use typed globals initialized in source order, with their references traced by the same collector.
 
-The supported array methods currently include length, indexing/append-at-length, push/pop, deletion-only splice and for-of; other array
-methods, maps/sets, accessors, bound methods, full promise APIs and the full generator protocol remain incomplete.
+Typed arrays support indexing/append-at-length, push/pop/shift/unshift, shallow slice/concat, deletion-only
+splice, scalar join/searches, map/filter/forEach/some/every and stable sort. Map/Set operations preserve iteration
+order while callbacks mutate the collection. Instance accessors, lexical receivers, explicit bind, nominal
+instanceof and reachable generic function/class specializations are implemented. Generic inheritance substitutes
+base fields, methods and constructor arguments; specialization has explicit size and recursion limits.
 Async functions execute their synchronous prefix immediately. `await` saves the typed register frame in the
 collected heap and resumes through a FIFO microtask queue, including already-resolved promises. AArch64 async
 functions have a checked continuation dispatch table; resumed code executes in the selected tier. Ordinary
@@ -170,16 +173,17 @@ fail the runner after draining jobs. Suspended frames, active async parents, pro
 are traced; handled rejections are released during collection. Tests exercise repeated suspension and rejection
 under the 64 KiB budget, plus multiple consumers in registration order.
 
-Promise executors, the existing typed void-result `.then` profile, `Promise.all`, `queueMicrotask`, and
-set/clear timeout/interval run in both tiers. Timers create fresh callback frames; suspended interval callbacks
-can overlap. This is not yet the full Promise API: `.catch`/`.finally`, arbitrary promise adoption, async native
-completion and returning a promise directly from an async body remain unsupported. Primitive rejection reasons
-are rejected at compilation. Awaiting a scalar and finally in async functions are compared against QuickJS:
-the existing native backend rejects those two constructs. The common async fixture runs in all four modes.
+Promise executors, typed `.then`/`.catch`/`.finally` chains, promise adoption, `Promise.all`, `queueMicrotask`,
+and set/clear timeout/interval run in both tiers. Timers create fresh callback frames; suspended interval callbacks
+can overlap. Async native completion belongs to the remaining ABI work. Primitive rejection reasons remain
+outside the typed Error contract. The `async-control` fixture still excludes native Zinc while its async-finally
+and scalar-await support is completed; other promise fixtures compare all four modes.
 
-Typed generators start lazily, save frames at statement `yield`, and resume through `for-of` in both tiers.
-Captured and yielded references are traced; completion and exceptions release saved frame slots. `yield*`,
-`next(value)`, iterator `return`/`throw`, IteratorClose on break and async generators remain unsupported.
+Typed generators start lazily and preserve captured/yielded references in traced frames. Public `next(value)`,
+`return` and `throw` produce `{value, done}` results with exact `undefined`. Delegation forwards inputs, exceptions,
+returns and terminal values. Loop exits close iterators; finally blocks can yield, replace returns and transfer
+control. Completion and exceptions release saved frame slots. Public typed-array payload boxing and async
+generators remain outside this committed subset.
 
 Guest Error/TypeError/etc. construction, throw/rethrow and try/catch/finally use explicit exceptional CFG edges.
 The JIT propagates guest exceptions as status codes; C++ exceptions never cross generated frames. Host failures
