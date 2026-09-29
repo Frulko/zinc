@@ -544,45 +544,79 @@ static String map_case(const String& s, bool up) {
 }
 String String::toUpperCase() const { return map_case(*this, true); }
 String String::toLowerCase() const { return map_case(*this, false); }
-// GetSubstitution for a string pattern: $$, $& (the match), $` (before it), $' (after it); anything else is literal
-static void substitute(StrBuilder& sb, const String& s, uint32_t k, uint32_t len, const String& rep) {
-  const char* r = rep.ptr(); uint32_t n = rep.bytes();
-  for (uint32_t i = 0; i < n; i++) {
-    char c = i + 1 < n && r[i] == '$' ? r[i + 1] : 0;
-    if (c == '$') sb.ch('$');
-    else if (c == '&') sb.raw(s.ptr() + k, len);
-    else if (c == '`') sb.raw(s.ptr(), k);
-    else if (c == '\'') sb.raw(s.ptr() + k + len, s.bytes() - k - len);
-    else { sb.ch(r[i]); continue; }
+// GetSubstitution for a string pattern. A split point denotes the boundary
+// between the two UTF-16 units of the astral code point at byte offset k.
+template<class Writer> static void replacement_unit(Writer& out, uint32_t unit) {
+  const char bytes[] = { char(0xE0 | (unit >> 12)), char(0x80 | ((unit >> 6) & 0x3F)), char(0x80 | (unit & 0x3F)) };
+  out.raw(bytes, 3);
+}
+template<class Writer> static void substitute(Writer& out, const String& s, uint32_t k, uint32_t len, const String& rep, uint32_t split = 0) {
+  const char* r = rep.ptr(); const uint32_t n = rep.bytes();
+  for (uint32_t i = 0; i < n && !out.full(); i++) {
+    const char c = i + 1 < n && r[i] == '$' ? r[i + 1] : 0;
+    if (c == '$') out.ch('$');
+    else if (c == '&') out.raw(s.ptr() + k, len);
+    else if (c == '`') {
+      out.raw(s.ptr(), k);
+      if (split) replacement_unit(out, 0xD800 + ((split - 0x10000) >> 10));
+    } else if (c == '\'') {
+      if (split) replacement_unit(out, 0xDC00 + ((split - 0x10000) & 0x3FF));
+      const uint32_t end = split ? k + 4 : k + len;
+      out.raw(s.ptr() + end, s.bytes() - end);
+    } else { out.ch(r[i]); continue; }
     i++;
   }
 }
-String String::replace(const String& a, const String& b) const {
-  int32_t k = find_bytes(*this, a, 0);
-  if (k < 0) return *this;
-  StrBuilder sb;
-  sb.raw(ptr(), (uint32_t)k); substitute(sb, *this, (uint32_t)k, a.bytes(), b); sb.raw(ptr() + k + a.bytes(), bytes() - (uint32_t)k - a.bytes());
-  return sb.build();
-}
-String String::replaceAll(const String& a, const String& b) const {
-  StrBuilder sb; uint32_t p = 0;
-  if (!a.bytes()) {  // an empty pattern matches before every character and at the end
-    // ponytail: at code point boundaries; JS also matches between the two UTF-16 halves of an astral character
-    const uint8_t* d = (const uint8_t*)ptr();
-    while (p < bytes()) {
-      uint32_t w = d[p] < 0x80 ? 1 : d[p] < 0xE0 ? 2 : d[p] < 0xF0 ? 3 : 4;
-      substitute(sb, *this, p, 0, b); sb.raw(ptr() + p, w); p += w;
+// The same traversal measures bounded VM output and builds the native result.
+// UTF-8 decoding is streaming; empty patterns match every UTF-16 boundary.
+template<class Writer> static bool replace_into(Writer& out, const String& s, const String& pattern, const String& rep, bool all) {
+  if (all && !pattern.bytes()) {
+    if (!rep.bytes()) return false;
+    const auto* bytes = (const uint8_t*)s.ptr(); uint32_t at = 0;
+    while (at < s.bytes() && !out.full()) {
+      uint32_t width; const uint32_t cp = decode(bytes, s.bytes(), at, &width);
+      substitute(out, s, at, 0, rep);
+      if (cp >= 0x10000) {
+        replacement_unit(out, 0xD800 + ((cp - 0x10000) >> 10));
+        substitute(out, s, at, 0, rep, cp);
+        replacement_unit(out, 0xDC00 + ((cp - 0x10000) & 0x3FF));
+      } else out.raw(s.ptr() + at, width);
+      at += width;
     }
-    substitute(sb, *this, p, 0, b);
-    return sb.build();
+    if (!out.full()) substitute(out, s, s.bytes(), 0, rep);
+    return true;
   }
-  for (;;) {
-    int32_t k = find_bytes(*this, a, p);
-    if (k < 0) break;
-    sb.raw(ptr() + p, (uint32_t)k - p); substitute(sb, *this, (uint32_t)k, a.bytes(), b); p = (uint32_t)k + a.bytes();
+  uint32_t at = 0; bool found = false;
+  while (!out.full()) {
+    const int32_t match = find_bytes(s, pattern, at);
+    if (match < 0) break;
+    found = true;
+    out.raw(s.ptr() + at, uint32_t(match) - at);
+    substitute(out, s, uint32_t(match), pattern.bytes(), rep);
+    at = uint32_t(match) + pattern.bytes();
+    if (!all) break;
   }
-  sb.raw(ptr() + p, bytes() - p);
-  return sb.build();
+  if (found && !out.full()) out.raw(s.ptr() + at, s.bytes() - at);
+  return found;
+}
+struct ReplacementSize {
+  uint64_t size = 0, limit;
+  bool full() const { return size > limit; }
+  void raw(const char*, uint32_t n) { if (!full()) size += n; }
+  void ch(char) { raw(nullptr, 1); }
+};
+uint64_t replacement_bytes(const String& text, const String& pattern, const String& replacement, bool all, uint64_t limit) {
+  ReplacementSize out{0, limit};
+  return replace_into(out, text, pattern, replacement, all) ? out.size : text.bytes();
+}
+struct ReplacementBuilder : StrBuilder { bool full() const { return false; } };
+String String::replace(const String& pattern, const String& replacement) const {
+  ReplacementBuilder out;
+  return replace_into(out, *this, pattern, replacement, false) ? out.build() : *this;
+}
+String String::replaceAll(const String& pattern, const String& replacement) const {
+  ReplacementBuilder out;
+  return replace_into(out, *this, pattern, replacement, true) ? out.build() : *this;
 }
 bool operator==(const String& a, const String& b) {
   return a.s == b.s || (a.bytes() == b.bytes() && __builtin_memcmp(a.ptr(), b.ptr(), a.bytes()) == 0);

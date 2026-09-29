@@ -331,6 +331,7 @@ inline bool is_integer(double v) { return is_finite(v) && __builtin_trunc(v) == 
 double parse_float(const String& s);
 double parse_int(const String& s, int32_t radix = 0);
 String to_fixed(double v, int32_t digits);
+uint64_t replacement_bytes(const String& text, const String& pattern, const String& replacement, bool all, uint64_t limit);
 double now_ms();
 
 // ---------- closures ----------
