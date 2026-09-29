@@ -33,6 +33,7 @@ struct Dyn {
   explicit Dyn(const Unit&) {}
   explicit Dyn(const String& s) : v(STR | (uint64_t)(uintptr_t)s.s) { sretain(s.s); }
   explicit Dyn(const Array<Dyn>& a) : v(a.a ? ARR | (uint64_t)(uintptr_t)a.a : NUL) { if (a.a) a.a->rc++; }
+  template<class T> explicit Dyn(const Array<T>& a);
   template<class T> explicit Dyn(const Ref<T>& r) : v(r.p ? OBJ | (uint64_t)(uintptr_t)static_cast<Object*>(r.p) : NUL) { retain(r.p); }
   Dyn(const Dyn& o) : v(o.v) { hold(); }
   Dyn(Dyn&& o) : v(o.v) { o.v = UNDEF; }
@@ -63,6 +64,34 @@ struct Dyn {
     }
   }
 };
+
+// Typed arrays retain their original storage when crossing a Dyn boundary.
+struct DynTypedArray : Object {
+  static constexpr uint32_t ZRT_CID = 0xFFFF11;
+  bool zrt_isa(uint32_t id) const override { return id == ZRT_CID; }
+  virtual const void* identity() const = 0;
+  virtual const void* elementType() const = 0;
+};
+template<class T> const void* dyn_array_type() { static const char token = 0; return &token; }
+template<class T> struct DynTypedArrayOf : DynTypedArray {
+  Array<T> value;
+  explicit DynTypedArrayOf(const Array<T>& source): value(source) {}
+  const void* identity() const override { return value.a; }
+  const void* elementType() const override { return dyn_array_type<T>(); }
+  void zrt_inspect(StrBuilder& sb, Insp& in) const override { insp(sb, in, value); }
+  void zrt_json(StrBuilder& sb) const override { json(sb, value); }
+  void zrt_str(StrBuilder& sb) const override { to_s(sb, value); }
+  bool zrt_get(const String& key, Dyn& out) const override {
+    if (key.bytes() == 6 && !__builtin_memcmp(key.ptr(), "length", 6)) { out = Dyn(value.length()); return true; }
+    if (!key.bytes()) return false;
+    uint64_t index=0;
+    for(uint32_t i=0;i<key.bytes();i++) { const char c=key.ptr()[i]; if(c<'0'||c>'9'||index>INT32_MAX)return false; index=index*10+c-'0'; }
+    if(index>=(uint64_t)value.length())return false;
+    out=Dyn(value.get((int32_t)index)); return true;
+  }
+};
+template<class T> Dyn::Dyn(const Array<T>& a) : Dyn(a.a ? Dyn(make<DynTypedArrayOf<T>>(a)) : Dyn(nullptr)) {}
+inline DynTypedArray* dyn_typed_array(const Dyn& d) { return d.tag()==Dyn::OBJ && d.obj()->zrt_isa(DynTypedArray::ZRT_CID) ? static_cast<DynTypedArray*>(d.obj()) : nullptr; }
 
 // Dynamic objects (JSON, literals typed `any`): insertion-ordered dictionary (DYN-05).
 // ponytail: JS lists integer-like keys first; here every key keeps insertion order.
@@ -108,7 +137,7 @@ inline Dyn dyn_obj() { return Dyn(make<DynObj>()); }
 inline bool dyn_nullish(const Dyn& d) { return d.nullish(); }
 inline bool dyn_is_null(const Dyn& d) { return d.v == Dyn::NUL; }
 inline bool dyn_is_undef(const Dyn& d) { return d.v == Dyn::UNDEF; }
-inline bool dyn_is_array(const Dyn& d) { return d.tag() == Dyn::ARR; }
+inline bool dyn_is_array(const Dyn& d) { return d.tag() == Dyn::ARR || dyn_typed_array(d); }
 inline bool operator==(const Dyn& d, decltype(nullptr)) { return d.nullish(); }
 inline bool operator!=(const Dyn& d, decltype(nullptr)) { return !d.nullish(); }
 template<class T> bool isa(const Dyn& d) { return d.tag() == Dyn::OBJ && d.obj()->zrt_isa(T::ZRT_CID); }
@@ -233,6 +262,7 @@ inline Array<Dyn> dyn_to_arr(const Dyn& d) {
 }
 /** Dyn -> T[]: a checked copy (the typed array does not alias the dynamic one). */
 template<class T, class F> Array<T> dyn_to_arr_of(const Dyn& d, F f) {
+  if (auto* box = dyn_typed_array(d)) { if (box->elementType() != dyn_array_type<T>()) dyn_bad_conv(d, "typed array"); return static_cast<DynTypedArrayOf<T>*>(box)->value; }
   Array<Dyn> a = dyn_to_arr(d);
   if (!a.a) return Array<T>();
   Array<T> r = Array<T>::with_cap(a.length());
@@ -339,13 +369,15 @@ inline bool dyn_seq(const Dyn& a, const Dyn& b) {
   if (a.is_num() || b.is_num()) return a.is_num() && b.is_num() && a.num() == b.num();
   if (a.tag() != b.tag()) return false;
   if (a.tag() == Dyn::STR) return a.str() == b.str();
+  auto* left=dyn_typed_array(a); auto* right=dyn_typed_array(b);
+  if(left && right)return left->identity()==right->identity();
   return a.v == b.v;
 }
 inline bool operator==(const Dyn& a, const Dyn& b) { return dyn_seq(a, b); }
 inline bool operator!=(const Dyn& a, const Dyn& b) { return !dyn_seq(a, b); }
 // Map<any, V> / Set<any> keys: SameValueZero
 inline bool same(const Dyn& a, const Dyn& b) { return dyn_seq(a, b) || (a.is_num() && b.is_num() && a.num() != a.num() && b.num() != b.num()); }
-inline uint32_t hash(const Dyn& d) { return d.is_num() ? hash(d.num()) : d.tag() == Dyn::STR ? hash(d.str()) : hash_u64(d.v); }
+inline uint32_t hash(const Dyn& d) { if(auto* box=dyn_typed_array(d))return hash_u64((uintptr_t)box->identity()); return d.is_num() ? hash(d.num()) : d.tag() == Dyn::STR ? hash(d.str()) : hash_u64(d.v); }
 /** == */
 inline bool dyn_leq(const Dyn& a, const Dyn& b) {
   if (a.nullish() || b.nullish()) return a.nullish() && b.nullish();

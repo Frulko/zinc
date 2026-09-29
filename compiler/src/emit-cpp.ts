@@ -1366,7 +1366,7 @@ class CppEmitter {
       }
       if (t.k === 'promise' && ['then', 'catch', 'finally'].includes(name)) return `${this.expr(obj)}.${name === 'then' ? name : name + '_'}(${this.expr(e.arguments[0])})`;
       if (t.k === 'gen' && ['next', 'return', 'throw'].includes(name)) {
-        if (!['num', 'bool', 'str', 'obj', 'dyn'].includes(t.el.k) && !(t.el.k === 'arr' && t.el.el.k === 'dyn')) this.s.fail(e, 'Z9032', 'generator API values require scalars, objects or Dyn arrays');
+        if (!['num', 'bool', 'str', 'obj', 'dyn', 'arr'].includes(t.el.k)) this.s.fail(e, 'Z9032', 'generator API values require scalars, objects or Dyn arrays');
         const argument = name !== 'throw' ? (e.arguments[0] ? this.toDynExpr(e.arguments[0]) : 'zrt::Dyn()') : e.arguments[0] ? this.expr(e.arguments[0]) : '';
         return `zrt::generator_${name}(${this.expr(obj)}${', ' + argument})`;
       }
@@ -1922,9 +1922,7 @@ class CppEmitter {
       case 'num': case 'bool': case 'str': case 'obj': return `zrt::Dyn(${code})`;
       case 'null': return 'zrt::Dyn(nullptr)';
       case 'void': return `((void)(${code}), zrt::Dyn())`;
-      case 'arr':
-        if (from.el.k === 'dyn') return `zrt::Dyn(${code})`;
-        return this.s.fail(at, 'Z9040', `a typed array (${this.cpp(from)}) cannot become Dyn without a copy that would break aliasing; declare it any[]`);
+      case 'arr': return `zrt::Dyn(${code})`;
     }
     return this.s.fail(at, 'Z9041', `a value of type '${from.k}' cannot become Dyn (only primitives, objects and any[])`);
   }
