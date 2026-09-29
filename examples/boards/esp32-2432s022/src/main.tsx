@@ -12,7 +12,7 @@ import { Shell, Page } from './components/Shell';
 import * as device from 'zinc:device';
 import { setTheme, DARK, LIGHT } from 'zinc:ui/kit';
 import { PAGES, page, fps, frameMs, HOME, CONTROLS, MUSIC, BENCH, SYSTEM, go, stepClock, stepTour, brightness, setBrightness, setDark, dark, setTour, stepNav, live } from './app/state';
-import { stepMotion } from './app/motion';
+import { stepMotion, setReduceMotion } from './app/motion';
 import { stepSensors } from './app/sensors';
 import { stepMusic, toggle } from './app/music';
 import { stepBench } from './app/bench';
@@ -81,6 +81,15 @@ function firstScroller(h: i32): i32 {
   return -1;
 }
 
+/** Number of nodes of the mounted UI (stats only). */
+function countNodes(h: i32): i32 {
+  const n = ui.inspectNode(h);
+  if (n === null) return 0;
+  let c = 1;
+  for (const k of (n as ui.UiNode).children) c += countNodes(k);
+  return c;
+}
+
 // Serial log of the figures (always on the board: `zinc monitor`; ZINC_STATS=1 in the emulator)
 const STATS: boolean = BOARD || env('ZINC_STATS') !== '';
 let statsClock: number = 0, maxCmds: i32 = 0, peakHeap: i32 = 0;
@@ -91,7 +100,7 @@ function logStats(dt: number): void {
   if (statsClock < (BOARD ? 5 : 1)) return;
   statsClock = 0;
   const m = device.memory();
-  console.log(`${PAGES[page()].label}: ${fps()} fps, slowest frame ${frameMs().toFixed(1)} ms, draw cmds max ${maxCmds}, zinc heap peak ${Math.round(peakHeap / 1024)}/${Math.round(m.zincSize / 1024)} KiB, chip RAM free ${Math.round(m.chipFree / 1024)} KiB (min ${Math.round(m.chipMinFree / 1024)})`);
+  console.log(`${PAGES[page()].label}: ${fps()} fps, slowest frame ${frameMs().toFixed(1)} ms, draw cmds max ${maxCmds}, nodes ${countNodes(ui.inspectRoot())}, zinc heap now ${Math.round(device.zincHeapUsed() / 1024)} peak ${Math.round(peakHeap / 1024)}/${Math.round(m.zincSize / 1024)} KiB, chip RAM free ${Math.round(m.chipFree / 1024)} KiB (min ${Math.round(m.chipMinFree / 1024)})`);
   maxCmds = 0; peakHeap = 0;
 }
 
@@ -109,6 +118,7 @@ function tick(dt: number): void {
   stepSystem(dt);
 }
 
+if (BOARD) setReduceMotion(true);   // the panel repaints slowly: no page transitions or scrolling chart by default
 setTheme(dark() ? DARK : LIGHT);
 setBrightness(brightness());
 // no touch controller (the ESP32-2432S022N variant, or QEMU): the demo shows itself

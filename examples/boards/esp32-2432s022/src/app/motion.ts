@@ -9,6 +9,10 @@ export const easeOut: Ease = (t: number): number => { const u = 1 - t; return 1 
 export const easeIn: Ease = (t: number): number => t * t;
 export const easeInOut: Ease = (t: number): number => t < 0.5 ? 4 * t * t * t : 1 - (2 - 2 * t) * (2 - 2 * t) * (2 - 2 * t) / 2;
 
+/** Reduce motion: every tween lands at once (no page transition, no easing) and the dashboard chart advances one
+ *  sample at a time instead of scrolling: on the ESP32 a full repaint of an animated chart costs ~40 ms. */
+export const [reduceMotion, setReduceMotion] = createSignal<boolean>(false);
+
 const running: Tween[] = [];
 
 export class Tween {
@@ -27,6 +31,7 @@ export class Tween {
   }
   /** Animates from the current value to `target` in `seconds`. */
   to(target: number, seconds: number, ease: Ease = easeOut): void {
+    if (reduceMotion()) { this.snap(target); return; }
     this.from = this.get(); this.target = target; this.t = 0; this.dur = seconds; this.ease = ease;
     if (running.indexOf(this) < 0) running.push(this);
   }

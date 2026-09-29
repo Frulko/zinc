@@ -4,6 +4,7 @@ import { createSignal } from 'zinc:ui/solid';
 import { Slider, Switch, Progress } from 'zinc:ui/kit';
 import * as device from 'zinc:device';
 import { Panel, Caption, InfoRow, tk } from '../components/ui';
+import { reduceMotion, setReduceMotion } from '../app/motion';
 import { brightness, setBrightness, dark, setDark, tour, setTour, fps, frameMs, uptime, clockText } from '../app/state';
 
 // figures refreshed twice a second (one signal, so each row re-reads the device once per refresh)
@@ -38,6 +39,7 @@ export function System(): i32 {
         </View>
         <Switch checked={dark} onChange={setDark} label="Dark theme" />
         <Switch checked={tour} onChange={setTour} label="Auto tour" />
+        <Switch checked={reduceMotion} onChange={setReduceMotion} label="Reduce motion" />
       </Panel>
 
       <Panel class="py-2">

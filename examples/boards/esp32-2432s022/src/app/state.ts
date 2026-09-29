@@ -3,7 +3,7 @@
 import { createSignal } from 'zinc:ui/solid';
 import { setTheme, LIGHT, DARK } from 'zinc:ui/kit';
 import * as device from 'zinc:device';
-import { Tween, easeOut, easeIn } from './motion';
+import { Tween, easeOut, easeIn, reduceMotion } from './motion';
 
 // ---- navigation
 export class PageInfo {
@@ -37,6 +37,7 @@ export function go(i: i32): void {
   if (i === page() || i < 0 || i >= PAGES.length) return;
   from = page(); dir = i > page() ? 1 : -1;
   setPage(i);
+  if (reduceMotion()) { nav.snap(1); return; }   // stepNav swaps the page on the next frame, no fade
   nav.snap(0); nav.to(1, 0.34, easeOut);
   leave.to(1, 0.12, easeIn);
 }

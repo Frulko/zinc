@@ -1,7 +1,7 @@
 // Simulated readings for the dashboard: a load that wanders, a slow temperature, humidity, and a throughput series
 // sampled 6 times a second. A small deterministic PRNG keeps screenshots reproducible.
 import { createSignal } from 'zinc:ui/solid';
-import { Tween, easeInOut } from './motion';
+import { Tween, easeInOut, reduceMotion } from './motion';
 
 let seed: i32 = 12345;
 /** 0..1, xorshift32 (integer math: exact with the esp32 profile's f32 numbers too). */
@@ -15,7 +15,7 @@ function nextSample(): number { v = Math.max(8, Math.min(96, v + (rand() - 0.5) 
 for (let i = 0; i < SAMPLES; i++) series.push(nextSample());
 let phase: number = 0;
 /** 0..1 between two samples: the chart scrolls smoothly instead of jumping. */
-export function chartPhase(): number { return phase; }
+export function chartPhase(): number { return reduceMotion() ? 0 : phase; }
 
 /** Gauge value 0..1, eased toward a new target every 1.5 s. */
 export const load = new Tween(0.42);
