@@ -1745,7 +1745,7 @@ class CppEmitter {
         const mt = this.s.ztypeOf(inner.expression.expression);
         if (mt.k === 'map') {
           const map = this.newTmp('map'), key = this.newTmp('key');
-          return `([&]() -> ${this.cpp(mt.val)} { auto ${map} = ${this.expr(inner.expression.expression)}; auto ${key} = ${this.conv(inner.arguments[0], mt.key)}; return ${map}.has(${key}) ? ${map}.get(${key}) : ${this.conv(R, mt.val)}; }())`;
+          return `({ auto ${map} = ${this.expr(inner.expression.expression)}; auto ${key} = ${this.conv(inner.arguments[0], mt.key)}; ${map}.has(${key}) ? ${map}.get(${key}) : ${this.conv(R, mt.val)}; })`;
         }
       }
       if (this.isChainTop(inner)) return this.chain(inner, this.conv(R, this.s.ztypeOf(e)), this.s.ztypeOf(e));
