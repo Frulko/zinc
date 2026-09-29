@@ -1,0 +1,116 @@
+{
+  "date": "2026-09-29T12:07:17.857Z",
+  "mode": "capture",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "node": "v24.14.0",
+  "frames": 2,
+  "timeout": 120000,
+  "engines": [
+    "native",
+    "zinc-vm",
+    "zinc-vm-jit",
+    "quickjs"
+  ],
+  "results": [
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "capture": {
+        "ms": 4437.619958,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5904773e3a94/native/gl-check-2.png\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 0.9 s\nzinc: built macos: zinc 116 ms, C++ 857 ms, 1750.7 KiB -> examples/ui/gl-check/build/macos/cmake/app\n"
+      },
+      "pixels": [
+        {
+          "file": "gl-check-2.png",
+          "sha256": "0492d1bca0bcf2ba3443b613c8279fcf18568e20f673e1c8409cbe2c454f615e"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm",
+      "success": true,
+      "capture": {
+        "ms": 6896.0503340000005,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5904773e3a94/zinc-vm/gl-check-2.png\n",
+        "stderr": "zinc: baked 14 font sizes and 1 image(s) in 222 ms\n"
+      },
+      "pixels": [
+        {
+          "file": "gl-check-2.png",
+          "sha256": "0492d1bca0bcf2ba3443b613c8279fcf18568e20f673e1c8409cbe2c454f615e"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": true,
+      "capture": {
+        "ms": 606.8682499999995,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5904773e3a94/zinc-vm-jit/gl-check-2.png\n",
+        "stderr": ""
+      },
+      "pixels": [
+        {
+          "file": "gl-check-2.png",
+          "sha256": "0492d1bca0bcf2ba3443b613c8279fcf18568e20f673e1c8409cbe2c454f615e"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "capture": {
+        "ms": 12511.753667,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5904773e3a94/quickjs/gl-check-2.png\n",
+        "stderr": "zinc: baked 14 font sizes and 1 image(s) in 212 ms\n"
+      },
+      "pixels": [
+        {
+          "file": "gl-check-2.png",
+          "sha256": "0492d1bca0bcf2ba3443b613c8279fcf18568e20f673e1c8409cbe2c454f615e"
+        }
+      ],
+      "pixelsMatchNative": true
+    }
+  ],
+  "summary": {
+    "native": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "zinc-vm": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "zinc-vm-jit": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "quickjs": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    }
+  }
+}

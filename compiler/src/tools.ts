@@ -398,27 +398,57 @@ export function dev(o: Opts, build: () => Built | null) {
     child = c;
     console.error(`zinc dev: running on ${o.device} (${Date.now() - savedAt} ms after save)`);
   };
-  const cycle = () => {
-    const t = Date.now();
-    const b = build();
-    buildMs = Date.now() - t;
-    if (!b) { console.error('zinc dev: build failed, waiting for changes...'); return; }
-    if (b.lib) return hot(b);
-    if (o.device) return device(b);
-    if (o.target === 'wasm' && child) { fs.writeFileSync(path.join(b.dir, 'cmake/.zinc-reload'), String(Date.now())); return; }  // serve.mjs reloads the page
-    stop();
-    child = spawn(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit', env: { ...env, ZINC_DEV: '1' } });
-    onExit(child);
-    console.error(`zinc dev: running (${new Date().toLocaleTimeString()}, build ${buildMs} ms)`);
+  const external = new Map<string, fs.FSWatcher>();
+  const stopGuest = async () => {
+    const previous = child; if (!previous) return;
+    child = null; previous.removeAllListeners('exit');
+    await new Promise<void>(resolve => {
+      const kill = setTimeout(() => previous.kill('SIGKILL'), 250);
+      previous.once('exit', () => { clearTimeout(kill); resolve(); });
+      previous.kill();
+    });
+  };
+  let building = false, dirty = false;
+  const cycle = async () => {
+    if (building) { dirty = true; return; }
+    building = true;
+    try {
+      // A fresh guest runtime must not observe a partially rewritten module graph during rebuild.
+      // A guest may handle SIGTERM; bound graceful shutdown before resorting to SIGKILL.
+      if (o.engine && o.engine !== 'native') await stopGuest();
+      const t = Date.now();
+      const b = build();
+      buildMs = Date.now() - t;
+      if (!b) { console.error('zinc dev: build failed, waiting for changes...'); return; }
+      // Imported modules and native libraries can live outside the project watcher.
+      const outside = new Set((b.watch ?? []).map(file => path.resolve(file)).filter(file => !file.startsWith(path.resolve(o.project.dir) + path.sep)));
+      for (const [file, watcher] of external) if (!outside.has(file)) { watcher.close(); external.delete(file); }
+      for (const file of outside) if (!external.has(file)) external.set(file, fs.watch(path.dirname(file), (_event, name) => {
+        if (name === path.basename(file)) schedule();
+      }));
+      if (b.lib) return hot(b);
+      if (o.device) return device(b);
+      if (o.target === 'wasm' && child) { fs.writeFileSync(path.join(b.dir, 'cmake/.zinc-reload'), String(Date.now())); return; }  // serve.mjs reloads the page
+      stop();
+      child = spawn(b.exe[0], [...b.exe.slice(1), ...o.rest], { stdio: 'inherit', env: { ...env, ZINC_DEV: '1' } });
+      onExit(child);
+      console.error(`zinc dev: running (${new Date().toLocaleTimeString()}, build ${buildMs} ms)`);
+    } finally { building = false; if (dirty) { dirty = false; schedule(); } }
   };
   let timer: NodeJS.Timeout | null = null;
-  fs.watch(o.project.dir, { recursive: true }, (_e, f) => {
-    if (!f || /(^|\/)(build|dist|node_modules)(\/|$)/.test(f) || f.split('/').some(p => p.startsWith('.'))) return;
+  const schedule = () => {
     if (!timer) savedAt = Date.now();
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = null; cycle(); }, 30);
+  };
+  fs.watch(o.project.dir, { recursive: true }, (_e, f) => {
+    if (!f || /(^|\/)(build|dist|node_modules)(\/|$)/.test(f) || f.split('/').some(p => p.startsWith('.'))) return;
+    schedule();
   });
-  process.on('SIGINT', () => { stop(); process.exit(0); });
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => {
+    if (o.engine && o.engine !== 'native') await stopGuest(); else stop();
+    process.exit(0);
+  });
   savedAt = Date.now();
   cycle();
 }

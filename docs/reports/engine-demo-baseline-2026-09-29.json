@@ -1,0 +1,2802 @@
+{
+  "date": "2026-09-29T11:48:39.017Z",
+  "mode": "build",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "node": "v24.14.0",
+  "frames": 60,
+  "timeout": 120000,
+  "engines": [
+    "native",
+    "zinc-vm",
+    "zinc-vm-jit",
+    "quickjs"
+  ],
+  "results": [
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2475.357208,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/3d/cubes/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 401.5377920000001,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 392.5104580000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 405.3601249999997,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2512.2315,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/3d/model/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.8 s\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 415.5777080000007,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 452.0011249999998,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 456.73579100000006,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1786.5660839999991,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 332.7207079999989,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 328.50666699999965,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 330.3482500000009,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 11090.518999999998,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 8.8 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 969.429666,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 1085.3834580000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 995.2767500000009,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2370.6866670000018,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/s3-matrix/dice/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 351.8477920000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 341.0649169999997,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 347.58420900000056,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2319.2831670000014,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/s3-matrix/level/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 354.1115420000024,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 343.4872499999983,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 350.58712500000183,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2076.665582999998,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/s3-matrix/text-scroller/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 352.4330409999966,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 354.7014999999956,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 353.8442500000019,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2166.2320829999953,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/s3-matrix/tilt-sand/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.6 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 394.15479100000084,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 374.455375000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 356.08995900000446,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2062.270875000002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/scrollphat/badge/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 366.3240420000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 361.1359589999993,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 367.1391250000015,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1971.9194170000046,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/scrollphat/cpu-graph/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 351.3644579999964,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 342.63095800000156,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 347.1290420000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2294.9137499999997,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/scrollphat/snake/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 368.0714580000058,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 347.12862499999756,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 359.5531659999979,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1904.1918749999968,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/bouncing-ball/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 329.3009589999929,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 337.31795799999963,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 335.18345899999986,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2035.911583000001,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/breakout/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 472.98545799999556,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 363.05833300000086,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 367.07483299999876,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2361.0872089999975,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/camera/bench/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.6 s\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 344.2305000000051,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 344.2399579999983,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 366.62070899999526,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2124.586374999999,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/camera/cli/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.5 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 380.3474169999972,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 433.28379100000166,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 350.6030840000021,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9851.645375,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/camera/remote/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 8.1 s\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 863.9285830000008,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 864.9250000000029,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 909.5869579999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 6080.840333,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/canvas/sketch/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 729.5017499999958,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 710.8241249999992,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 733.2935419999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 11695.352333000003,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/chataigne/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 9.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 915.0452079999959,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 897.4332500000019,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 873.002250000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1535.2307080000028,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/hello/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 356.924417000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support map\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 359.35441600000195,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support map\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 587.0467919999937,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/hello/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/hello/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 18352.362416999997,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/hero/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 15.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 1221.4034159999865,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 1210.1941660000011,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 1283.5977080000011,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9168.472125,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/inferno-todo/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 829.4624999999942,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 847.3345419999969,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 835.9141660000168,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9866.659041999985,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/iot-panel/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.8 s\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 841.2846669999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 833.6338329999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 848.4963329999882,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1778.442041000002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/lang/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 376.91091700000106,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: static fields are not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 362.5030839999963,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: static fields are not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 742.4383340000059,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/lang/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/lang/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2171.3937079999887,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/led/falling-cubes/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.6 s\n"
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 341.9605830000073,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 337.227332999988,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 364.6256670000148,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 4830.959792000009,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/led/oled-clock/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 3.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 695.1393329999992,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 682.549417000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 698.0554580000171,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2051.414791999996,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/led/scroll-text/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 331.85491600001114,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 371.9076669999922,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 350.75995900001726,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9660.978917,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/maps/explorer/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 859.8504169999796,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 921.2057090000017,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 874.4451659999904,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 11577.456833000004,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/maps/navigation/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 9.9 s\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 1063.538916999998,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 995.308417000022,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 970.5523749999993,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 8868.235708000022,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/maps/svg-gallery/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.1 s\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 827.2633750000095,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 817.1449999999895,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 816.364499999996,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9449.744791000005,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/modules-showcase/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 835.4330840000184,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 824.508542000025,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 820.3890830000164,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1264.5395410000056,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/native-module/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 0.9 s\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 323.6791249999951,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 321.8603750000184,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 326.1737500000163,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 4693.739417000004,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/pinball/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 3.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 570.2062499999884,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 570.1587500000023,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 565.1157499999972,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5664.9801670000015,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/pocket-hero/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 717.0814589999791,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 728.7436250000028,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 719.4909579999803,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2038.7040839999972,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/process/cli/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 351.5146249999816,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 353.5849579999922,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 377.4828339999949,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5549.860000000015,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/process/shell/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 716.7272499999963,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 671.052416999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 706.6231249999837,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5766.87854200002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/remarkable/dashboard/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 717.6671669999778,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 690.0291250000009,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 731.0321249999979,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5537.104041000013,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/remarkable/notes/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 725.4792919999745,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 730.7471670000232,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 721.6248339999875,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5562.12283399998,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/remote/viewer/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 684.2280829999945,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 682.9700829999929,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 687.3115419999813,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9632.578791999986,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/scripting/bench/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.7 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 8.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 374.6008750000037,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 359.63758300000336,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 365.43074999999953,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 10333.348624999984,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/scripting/breakout-mods/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 1.1 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 8.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 403.39033299998846,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 381.1760409999988,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 385.5812079999596,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 17226.972875000036,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/scripting/playground/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.7 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 14.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 837.6277080000145,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 818.6385409999639,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 811.8701250000158,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2578.1659169999766,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/service/sensor-hub/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 1.2 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.0 s\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 333.63162499998,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 331.83820800000103,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 336.93404099997133,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 8608.941833999997,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/text/build/main-solid-macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 6.8 s\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 813.5111250000191,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 859.5362500000047,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 807.5815419999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5034.80791600002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/three/cubes/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 3.6 s\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 597.5072500000242,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 564.0053339999868,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 588.3239999999641,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 8683.589042000007,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/three/gltf-viewer/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 6.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 902.7623749999912,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 902.0093750000233,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 878.5943339999649,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5475.828207999992,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/figma-storyboard/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 3.7 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 739.3590829999885,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 710.2899169999873,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 715.6748329999973,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5612.979042000021,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/forms/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 724.1888749999925,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 772.1450420000474,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 757.5906249999534,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1868.1942090000375,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 337.8369589999784,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 331.34391599998344,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 334.7461670000339,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 8990.781916000007,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/keyboard/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 818.1932909999741,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 812.579458000022,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 808.5215829999652,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9012.107416999992,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/kit-gallery/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.3 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 843.6357080000453,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 839.2067500000121,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 850.0244579999708,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 8940.32250000001,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/lottie-gallery/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 845.1944589999621,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 813.3301250000368,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 824.7140840000357,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gfx has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2148.637875000015,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/video/bounce/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.5 s\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 367.79116600001,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 351.4824160000426,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 358.6261250000098,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 2098.904084000038,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/video/looper/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 396.35129100002814,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 384.4968339999905,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 385.5666670000064,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "native",
+      "success": false,
+      "build": {
+        "ms": 1961.457041000016,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: failed in 1.4 s\n-- Configuring done (0.1s)\n-- Generating done (0.0s)\n-- Build files have been written to: /Users/mowmow/Lab/zinc/examples/video/mapper/build/macos/cmake\n[  5%] Building CXX object CMakeFiles/zrt.dir/Users/mowmow/Lab/zinc/runtime/zrt.cpp.o\n[ 16%] Building CXX object CMakeFiles/zrt.dir/Users/mowmow/Lab/zinc/runtime/host.cpp.o\n[ 16%] Building CXX object CMakeFiles/zrt.dir/Users/mowmow/Lab/zinc/runtime/mod/fs.cpp.o\n[ 22%] Building CXX object CMakeFiles/zrt.dir/Users/mowmow/Lab/zinc/runtime/mod/osc.cpp.o\n[ 27%] Building CXX object CMakeFiles/zrt.dir/Users/mowmow/Lab/zinc/runtime/mod/sys.cpp.o\n[ 33%] Linking CXX static library libzrt.a\n[ 33%] Built target zrt\n[ 38%] Building CXX object CMakeFiles/app.dir/zinc_main.cpp.o\n[ 44%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/targets/macos/hal_sdl.cpp.o\n[ 50%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/targets/common/hal_posix.cpp.o\n[ 55%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/plugins/mapping/native/mapping.host.cpp.o\n[ 72%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/plugins/display-gl/src/display_gl.cpp.o\n[ 83%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/runtime/gfx.cpp.o\n[ 83%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/runtime/raster.cpp.o\n[ 72%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/plugins/video/native/video.host.cpp.o\n[ 83%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/plugins/display-gl/src/sdl.cpp.o\n[ 88%] Building CXX object CMakeFiles/app.dir/zinc_resources.cpp.o\n[ 94%] Building CXX object CMakeFiles/app.dir/Users/mowmow/Lab/zinc/runtime/ttf.cpp.o\n/Users/mowmow/Lab/zinc/examples/video/mapper/build/macos/zinc_main.cpp:707:483: error: non-void block should return a value\n  707 |       m_hud::drawHud(zrt::Array<zrt::Ref<m_hud::HudStat>>::of(([&]() -> zrt::Ref<m_hud::HudStat> { auto __o12 = zrt::make<m_hud::HudStat>(); __o12->label = zrt::String(&zs40); __o12->value = zrt::cat(zrt::String(&zs41), m_main::OSC_PORT); return __o12; }()), ([&]() -> zrt::Ref<m_hud::HudStat> { auto __o13 = zrt::make<m_hud::HudStat>(); __o13->label = zrt::String(&zs42); __o13->value = zrt::cat(({ auto __r = m_____________plugins_mapping_index::layerCount(); if (zrt::g_err.p) { return; } __r; })); return __o13; }()), ([&]() -> zrt::Ref<m_hud::HudStat> { auto __o14 = zrt::make<m_hud::HudStat>(); __o14->label = zrt::String(&zs43); __o14->value = zrt::cat(m_main::videos); return __o14; }()), ([&]() -> zrt::Ref<m_hud::HudStat> { auto __o15 = zrt::make<m_hud::HudStat>(); __o15->label = zrt::String(&zs44); __o15->value = zrt::cat(zrt::math::round(m_main::fps), zrt::String(&zs45)); return __o15; }())), zrt::String(&zs46));\n      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ^\n1 error generated.\nmake[2]: *** [CMakeFiles/app.dir/zinc_main.cpp.o] Error 1\nmake[2]: *** Waiting for unfinished jobs....\nmake[1]: *** [CMakeFiles/app.dir/all] Error 2\nmake: *** [all] Error 2\nzinc: C++ build failed\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 360.16708400001517,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 359.5343340000254,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 357.985457999981,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1986.6663749999716,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/video/quad/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.4 s\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 363.3022500000079,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 353.22641699999804,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 352.5512909999816,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 5501.570333999989,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/webview/hybrid/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 4.2 s\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 706.5315830000327,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 702.3809170000022,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 715.3559159999713,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 1632.9168750000536,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/zed-editor/sample/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: configuring (cmake) (output hidden, --verbose to stream it)...\nzinc: configuring (cmake): done in 0.4 s\nzinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 0.9 s\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 350.85491699998965,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m1:celsius: unsupported builtin Math.round\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 342.83708299999125,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m1:celsius: unsupported builtin Math.round\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 607.0297080000164,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/zed-editor/sample/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/zed-editor/sample/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "native",
+      "success": true,
+      "build": {
+        "ms": 9833.788292000012,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/zed-editor/build/macos/cmake/app\"]\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 7.8 s\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 932.1837079999968,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 904.3150000000023,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 938.970541000017,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v2 does not yet support arr\n"
+      }
+    }
+  ]
+}

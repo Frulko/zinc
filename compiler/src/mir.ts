@@ -1,15 +1,15 @@
 // MIR (CMP-08): HIR functions lowered to SSA over a control-flow graph (Braun et al., "Simple and Efficient
 // Construction of SSA Form"), then two passes: constant folding (with branch pruning) and dead code elimination.
 // ponytail: an inspection stage (--emit=mir), not the input of the C++ emitter; the C++ compiler still does the
-// optimisation work (docs/decisions/0013). Functions with try/catch, async or generators are listed, not lowered.
+// optimisation work (docs/decisions/0013). Exceptional CFG edges are lowered; async and generator suspension points are explicit.
 // Missing passes of CMP-08: inlining, devirtualisation, ranges (number -> i32), bounds, escape, RC optimisation.
 import { type ZT, BOOL, VOID, isNum, isInt } from './sema.ts';
 import { type HModule, type HFunc, type HStmt, type HExpr, typeName, printExpr } from './hir.ts';
 
 interface Inst { id: number; op: string; t: ZT; args: number[]; attr?: string; block: Block; val?: number | boolean }
-type Term = { k: 'br'; to: Block } | { k: 'cbr'; c: number; a: Block; b: Block } | { k: 'ret'; v?: number } | { k: 'throw'; v: number } | { k: 'none' };
+type Term = { k: 'br'; to: Block } | { k: 'cbr'; c: number; a: Block; b: Block } | { k: 'ret'; v?: number } | { k: 'throw'; v: number; to?: Block } | { k: 'invoke'; normal: Block; error: Block } | { k: 'none' };
 interface Block { id: number; phis: Inst[]; insts: Inst[]; term: Term; preds: Block[]; sealed: boolean }
-export interface MFunc { name: string; sig: string; blocks: Block[]; note?: string; stats: string }
+export interface MFunc { name: string; sig: string; blocks: Block[]; note?: string; stats: string; source?: HFunc }
 
 const PURE = new Set(['const', 'bin', 'un', 'phi', 'param', 'capture', 'undef', 'conv.num', 'concat']);
 
@@ -20,40 +20,56 @@ class Builder {
   defs = new Map<string, Map<Block, number>>();
   incomplete = new Map<Block, Map<string, Inst>>();
   insts = new Map<number, Inst>();
+  replacements = new Map<number, number>();
+  resolved(id: number): number { while (this.replacements.has(id)) id = this.replacements.get(id)!; return id; }
   loops: { brk: Block; cont: Block }[] = [];
   lambdas: HFunc[] = [];
   conds = 0;
+  expressionValues = new Map<HExpr, number>();
+  handler?: Block;
+  finalizers: { body: HStmt[]; handler?: Block; loopDepth: number }[] = [];
 
   block(): Block { const b: Block = { id: this.blocks.length, phis: [], insts: [], term: { k: 'none' }, preds: [], sealed: false }; this.blocks.push(b); return b; }
   emit(op: string, t: ZT, args: number[], attr?: string): number {
-    const i: Inst = { id: this.next++, op, t, args, attr, block: this.cur };
+    const i: Inst = { id: this.next++, op, t, args: args.map(a => this.resolved(a)), attr, block: this.cur };
     this.cur.insts.push(i);
     this.insts.set(i.id, i);
+    if (this.handler && (op.startsWith('call.') || op === 'new' || op === 'new!' || op === 'await')) {
+      const previous = this.cur, normal = this.block(); normal.sealed = true;
+      previous.term = { k: 'invoke', normal, error: this.handler };
+      normal.preds.push(previous); this.handler.preds.push(previous); this.cur = normal;
+    }
     return i.id;
   }
   jump(to: Block) { if (this.cur.term.k === 'none') { this.cur.term = { k: 'br', to }; to.preds.push(this.cur); } }
   branch(c: number, a: Block, b: Block) { this.cur.term = { k: 'cbr', c, a, b }; a.preds.push(this.cur); b.preds.push(this.cur); }
 
   // ---------- SSA construction ----------
-  write(v: string, b: Block, val: number) { let m = this.defs.get(v); if (!m) this.defs.set(v, m = new Map()); m.set(b, val); }
+  write(v: string, b: Block, val: number) { let m = this.defs.get(v); if (!m) this.defs.set(v, m = new Map()); m.set(b, this.resolved(val)); }
   read(v: string, b: Block): number {
     const d = this.defs.get(v)?.get(b);
-    if (d !== undefined) return d;
+    if (d !== undefined) return this.resolved(d);
     let val: number;
     if (!b.sealed) { const phi = this.phi(b, v); let m = this.incomplete.get(b); if (!m) this.incomplete.set(b, m = new Map()); m.set(v, phi); val = phi.id; }
     else if (b.preds.length === 1) val = this.read(v, b.preds[0]);
     else if (!b.preds.length) { const save = this.cur; this.cur = b; val = this.emit('undef', VOID, [], v); this.cur = save; b.insts.unshift(b.insts.pop()!); }
     else { const phi = this.phi(b, v); this.write(v, b, phi.id); val = this.operands(v, phi); }
     this.write(v, b, val);
-    return val;
+    return this.resolved(val);
   }
   phi(b: Block, v: string): Inst { const i: Inst = { id: this.next++, op: 'phi', t: VOID, args: [], attr: v, block: b }; b.phis.push(i); this.insts.set(i.id, i); return i; }
   operands(v: string, phi: Inst): number {
-    for (const p of phi.block.preds) phi.args.push(this.read(v, p));
+    // read() can replace phi.args while simplifying another phi: evaluate it before taking the array receiver.
+    for (const p of phi.block.preds) { const operand = this.read(v, p); phi.args.push(this.resolved(operand)); }
+    phi.args = phi.args.map(a => this.resolved(a));
     phi.t = this.insts.get(phi.args.find(a => a !== phi.id) ?? -1)?.t ?? VOID;
     return this.trivial(phi);
   }
   trivial(phi: Inst): number {
+    // Recursive reads may simplify this phi while one of its operands is being built.
+    if (!this.insts.has(phi.id)) return this.resolved(phi.id);
+    if (phi.args.length !== phi.block.preds.length) return phi.id;
+    phi.args = phi.args.map(a => this.resolved(a));
     let same: number | undefined;
     for (const a of phi.args) { if (a === same || a === phi.id) continue; if (same !== undefined) return phi.id; same = a; }
     if (same === undefined) return phi.id;
@@ -64,6 +80,8 @@ class Builder {
     return same;
   }
   replace(from: number, to: number) {
+    to = this.resolved(to);
+    this.replacements.set(from, to);
     for (const i of this.insts.values()) i.args = i.args.map(a => a === from ? to : a);
     for (const b of this.blocks) { if (b.term.k === 'cbr' && b.term.c === from) b.term.c = to; if ((b.term.k === 'ret' || b.term.k === 'throw') && b.term.v === from) b.term.v = to; }
     for (const m of this.defs.values()) for (const [k, x] of m) if (x === from) m.set(k, to);
@@ -109,15 +127,45 @@ class Builder {
         this.cur = exit;
         return;
       }
-      case 'break': case 'continue': { const l = this.loops[this.loops.length - 1]; this.jump(s.k === 'break' ? l.brk : l.cont); this.dead(); return; }
-      case 'return': { const v = s.e ? this.expr(s.e) : undefined; this.cur.term = { k: 'ret', v }; this.dead(); return; }  // expr() may move this.cur
-      case 'throw': { const v = this.expr(s.e); this.cur.term = { k: 'throw', v }; this.dead(); return; }
-      default: this.emit('opaque', VOID, [], s.k === 'opaque' ? s.text : s.k);
+      case 'break': case 'continue': { this.finalize(false); const l = this.loops[this.loops.length - 1]; this.jump(s.k === 'break' ? l.brk : l.cont); this.dead(); return; }
+      case 'return': { const v = s.e ? this.expr(s.e) : undefined; this.finalize(true); this.cur.term = { k: 'ret', v }; this.dead(); return; }  // expr() may move this.cur
+      case 'throw': { this.raise(this.expr(s.e)); return; }
+      case 'try': this.tryStmt(s); return;
+      case 'opaque': this.emit('opaque', VOID, [], s.text);
     }
+  }
+  raise(v: number) { this.cur.term = { k: 'throw', v, to: this.handler }; this.handler?.preds.push(this.cur); this.dead(); }
+  finalize(returning: boolean) {
+    const saved = this.finalizers, handler = this.handler;
+    for (let i = saved.length - 1; i >= 0; i--) if (returning || this.loops.length <= saved[i].loopDepth) {
+      this.finalizers = saved.slice(0, i); this.handler = saved[i].handler; this.stmts(saved[i].body);
+    }
+    this.finalizers = saved; this.handler = handler;
+  }
+  tryStmt(s: Extract<HStmt, { k: 'try' }>) {
+    const outer = this.handler, after = this.block(), end = this.block();
+    const cleanup = s.fin.length ? this.block() : undefined;
+    const caught = s.hasCatch ? this.block() : cleanup;
+    this.handler = caught ?? outer;
+    if (s.fin.length) this.finalizers.push({ body: s.fin, handler: outer, loopDepth: this.loops.length });
+    this.stmts(s.body); this.jump(after);
+    if (s.hasCatch) {
+      this.seal(caught!); this.cur = caught!; this.handler = cleanup ?? outer;
+      const error = this.emit('exception', s.errorType, []); if (s.bind) this.write(s.bind, this.cur, s.bindCell ? this.emit('cell.new', s.errorType, [error], s.bind) : error);
+      this.stmts(s.handler); this.jump(after);
+    }
+    if (s.fin.length) this.finalizers.pop();
+    this.handler = outer; this.seal(after); this.cur = after; this.stmts(s.fin); this.jump(end);
+    if (cleanup) {
+      this.seal(cleanup); this.cur = cleanup;
+      const error = this.emit('exception', s.errorType, []); this.stmts(s.fin); this.raise(error);
+    }
+    this.seal(end); this.cur = end;
   }
   /** Code after a jump lands in a fresh block with no predecessor (removed as unreachable). */
   dead() { const b = this.block(); b.sealed = true; this.cur = b; }
   expr(h: HExpr): number {
+    const cached = this.expressionValues.get(h); if (cached !== undefined) return cached;
     const E = (x: HExpr) => this.expr(x);
     switch (h.k) {
       case 'lit': { const id = this.emit('const', h.t, [], h.v); const i = this.insts.get(id)!; i.val = h.v === 'true' ? true : h.v === 'false' ? false : isNum(h.t) ? Number(h.v) : undefined; return id; }
@@ -150,13 +198,20 @@ class Builder {
       }
       case 'assign': {
         const t = h.target;
-        const old = h.post ? E(t) : -1;
+        // Evaluate a field/index receiver once, before the RHS; compound updates reuse its old value.
+        const obj = t.k === 'field' || t.k === 'index' ? E(t.obj) : undefined;
+        const index = t.k === 'index' ? E(t.idx) : undefined;
+        const needsOld = h.post || (h.v.k === 'bin' && h.v.l === t);
+        const old = needsOld ? t.k === 'field' ? this.emit('field.get', t.t, [obj!], t.name)
+          : t.k === 'index' ? this.emit('index.get', t.t, [obj!, index!]) : E(t) : -1;
+        if (needsOld) this.expressionValues.set(t, old);
         const v = E(h.v);
+        this.expressionValues.delete(t);
         if (t.k === 'var' && t.global) this.emit('store', t.t, [v], '@' + t.name);
         else if (t.k === 'var' && t.cell) this.emit('cell.store', t.t, [this.read(t.name, this.cur), v], t.name);
         else if (t.k === 'var') this.write(t.name, this.cur, v);
-        else if (t.k === 'field') this.emit('field.set', t.t, [E(t.obj), v], t.name);
-        else if (t.k === 'index') this.emit('index.set', t.t, [E(t.obj), E(t.idx), v]);
+        else if (t.k === 'field') this.emit('field.set', t.t, [obj!, v], t.name);
+        else if (t.k === 'index') this.emit('index.set', t.t, [obj!, index!, v]);
         else this.emit('opaque', t.t, [v], `assign to ${printExpr(t)}`);
         return h.post ? old : v;
       }
@@ -164,25 +219,17 @@ class Builder {
   }
 }
 
-function has(ss: HStmt[], f: (s: HStmt) => boolean): boolean {
-  return ss.some(s => f(s) || (s.k === 'if' && (has(s.then, f) || has(s.else, f))) || (s.k === 'loop' && (has(s.body, f) || has(s.step, f))) || (s.k === 'try'));
-}
-
 export function lowerFn(f: HFunc, name: string, out: MFunc[], method = false) {
   const sig = `(${f.params.map(p => `${p.name}: ${typeName(p.t)}`).join(', ')}): ${typeName(f.ret)}`;
-  if (f.kind !== 'fn' || has(f.body, s => s.k === 'try')) {
-    out.push({ name, sig, blocks: [], stats: '', note: f.kind !== 'fn' ? `${f.kind} function: a state machine emitted directly (not lowered)` : 'try/catch: not lowered' });
-    return;
-  }
   const b = new Builder();
   b.cur = b.block(); b.cur.sealed = true;
-  for (const p of f.params) b.write(p.name, b.cur, b.emit('param', p.t, [], p.name));
+  for (const p of f.params) { const v = b.emit('param', p.t, [], p.name); b.write(p.name, b.cur, p.cell ? b.emit('cell.new', p.t, [v], p.name) : v); }
   if (method) b.write('this', b.cur, b.emit('param', VOID, [], 'this'));
   for (const c of f.captures) b.write(c, b.cur, b.emit('capture', VOID, [], c));
   b.stmts(f.body);
   if (b.cur.term.k === 'none') b.cur.term = { k: 'ret' };
   const stats = optimize(b);
-  out.push({ name, sig, blocks: b.blocks, stats });
+  out.push({ name, sig, blocks: b.blocks, stats, source: f });
   b.lambdas.forEach((l, i) => lowerFn(l, `${name}::${l.name}#${i + 1}`, out));
 }
 
@@ -210,6 +257,15 @@ function fold(i: Inst, x: Inst[]): number | boolean | undefined {
   return undefined;  // ponytail: fixed point and 64-bit kinds are not folded
 }
 function optimize(b: Builder): string {
+  // Loop and exceptional back edges can seal a phi before its input phi has a type.
+  const phiUsers = new Map<number, Inst[]>();
+  for (const i of b.insts.values()) if (i.op === 'phi') for (const a of i.args) {
+    const users = phiUsers.get(a) ?? [];users.push(i);phiUsers.set(a, users);
+  }
+  const typed = [...b.insts.values()].filter(i => i.t.k !== 'void');
+  for (let n = 0; n < typed.length; n++) for (const phi of phiUsers.get(typed[n].id) ?? []) {
+    if (phi.t.k === 'void') { phi.t = typed[n].t;typed.push(phi); }
+  }
   let folded = 0, pruned = 0;
   const entry = b.blocks[0];
   for (let changed = true; changed;) {
@@ -233,7 +289,7 @@ function optimize(b: Builder): string {
   }
   // unreachable blocks
   const live = new Set<Block>();
-  const succ = (x: Block) => x.term.k === 'br' ? [x.term.to] : x.term.k === 'cbr' ? [x.term.a, x.term.b] : [];
+  const succ = (x: Block) => x.term.k === 'br' ? [x.term.to] : x.term.k === 'cbr' ? [x.term.a, x.term.b] : x.term.k === 'invoke' ? [x.term.normal, x.term.error] : x.term.k === 'throw' && x.term.to ? [x.term.to] : [];
   const walk = (x: Block) => { if (live.has(x)) return; live.add(x); succ(x).forEach(walk); };
   walk(entry);
   for (const bl of b.blocks) if (!live.has(bl)) for (const s of succ(bl)) if (live.has(s)) {
@@ -301,7 +357,7 @@ export function printMir(mods: { file: string; fns: MFunc[] }[]): string {
           out.push(`    ${v(i.id)} = ${rhs} : ${typeName(i.t)}`);
         }
         const t = b.term;
-        out.push(`    ${t.k === 'br' ? `br bb${t.to.id}` : t.k === 'cbr' ? `br ${v(t.c)} ? bb${t.a.id} : bb${t.b.id}` : t.k === 'ret' ? `ret${t.v !== undefined ? ' ' + v(t.v) : ''}` : t.k === 'throw' ? `throw ${v(t.v)}` : 'unreachable'}`);
+        out.push(`    ${t.k === 'br' ? `br bb${t.to.id}` : t.k === 'cbr' ? `br ${v(t.c)} ? bb${t.a.id} : bb${t.b.id}` : t.k === 'ret' ? `ret${t.v !== undefined ? ' ' + v(t.v) : ''}` : t.k === 'invoke' ? `invoke -> bb${t.normal.id} catch bb${t.error.id}` : t.k === 'throw' ? `throw ${v(t.v)}${t.to ? ' catch bb' + t.to.id : ''}` : 'unreachable'}`);
       }
     }
   }

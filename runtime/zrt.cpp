@@ -669,12 +669,9 @@ static double vclock = 0;  // virtual ms since start
 double now_ms() { return det_mode ? vclock : (double)hal_time_us() / 1000.0; }
 
 namespace math {
-static uint32_t rng = 0x2545F491u;
-double random() {  // xorshift32, identical in sim/zinc.mjs
-  rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
-  return (double)rng / 4294967296.0;
-}
-void seed(uint32_t s) { rng = s ? s : 0x2545F491u; }
+static uint32_t rng = defaultSeed;
+double random() { return random(rng); } // xorshift32, identical in sim/zinc.mjs
+void seed(uint32_t s) { seed(rng, s); }
 }
 
 // ---------- event loop (RT-10) ----------
@@ -777,6 +774,15 @@ static double run_timers() {
 #ifndef ZRT_MIN_FRAME_US
 #define ZRT_MIN_FRAME_US 8000  // 125 fps
 #endif
+bool poll_host(bool& frame) {
+  frame = bool(frame_cb);
+  if (frame) return loop_once();
+  drain_microtasks();
+  const uint32_t added=pollers_added;
+  const double next=run_timers();
+  const bool active=poll_all();
+  return !quit_requested && (active || next>=0 || mq_len || added!=pollers_added);
+}
 bool display_driver = false;  // a plugins/display-* driver took over the screen and input
 // Input tape (ZINC_RECORD / ZINC_REPLAY): a header, then {frame, HalInput} for every frame whose input differs from the
 // previous one. ponytail: raw structs (~1 KB per changed frame, little-endian hosts with the same hal.h); pen samples
@@ -1175,4 +1181,3 @@ __attribute__((weak)) void end_frame() {}
 }
 
 }  // namespace zrt
-

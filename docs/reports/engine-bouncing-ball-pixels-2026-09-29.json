@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-29T12:04:24.733Z",
+  "mode": "capture",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "node": "v24.14.0",
+  "frames": 60,
+  "timeout": 120000,
+  "engines": [
+    "native",
+    "quickjs"
+  ],
+  "results": [
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "native",
+      "success": true,
+      "capture": {
+        "ms": 3234.315416,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/23ca4490bb4f/native/bouncing-ball-60.png\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 1.0 s\nzinc: built macos: zinc 138 ms, C++ 982 ms, 1671.8 KiB -> examples/bouncing-ball/build/macos/cmake/app\n"
+      },
+      "pixels": [
+        {
+          "file": "bouncing-ball-60.png",
+          "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "capture": {
+        "ms": 13425.893457999999,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/23ca4490bb4f/quickjs/bouncing-ball-60.png\n",
+        "stderr": "zinc: baked 8 font sizes and 0 image(s) in 200 ms\n"
+      },
+      "pixels": [
+        {
+          "file": "bouncing-ball-60.png",
+          "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca"
+        }
+      ],
+      "pixelsMatchNative": true
+    }
+  ]
+}

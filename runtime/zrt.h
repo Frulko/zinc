@@ -6,7 +6,11 @@
 
 static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "Zinc targets are little-endian");
 
+#ifdef ZRT_HOSTED_CPP
+#include <new>
+#else
 inline void* operator new(size_t, void* p) noexcept { return p; }
+#endif
 
 namespace zrt {
 
@@ -259,7 +263,7 @@ inline double abs(double x) { return __builtin_fabs(x); }
 inline double floor(double x) { return __builtin_floor(x); }
 inline double ceil(double x) { return __builtin_ceil(x); }
 inline double trunc(double x) { return __builtin_trunc(x); }
-inline double round(double x) { double f = __builtin_floor(x); return (x - f >= 0.5) ? f + 1 : f; }  // JS rounds .5 up
+inline double round(double x) { if (x >= -0.5 && x < 0) return -0.0; double f = __builtin_floor(x); return (x - f >= 0.5) ? f + 1 : f; }  // JS rounds .5 up
 inline double sign(double x) { return x > 0 ? 1 : x < 0 ? -1 : x; }
 inline double sqrt(double x) { return __builtin_sqrt(x); }
 inline double pow(double x, double y) { return __builtin_pow(x, y); }
@@ -276,6 +280,12 @@ inline double max(double a, double b) { return (a != a || b != b) ? a + b : (a >
 inline float fround(double x) { return (float)x; }
 inline int32_t imul(int32_t a, int32_t b) { return (int32_t)((uint32_t)a * (uint32_t)b); }
 inline int32_t clz32(int32_t x) { return x == 0 ? 32 : __builtin_clz((uint32_t)x); }
+constexpr uint32_t defaultSeed = 0x2545F491u;
+inline double random(uint32_t& state) {
+  state ^= state << 13; state ^= state >> 17; state ^= state << 5;
+  return (double)state / 4294967296.0;
+}
+inline void seed(uint32_t& state, uint32_t value) { state = value ? value : defaultSeed; }
 double random();
 void seed(uint32_t s);
 }
@@ -455,6 +465,7 @@ template<class T> struct Array {
     for (int32_t i = s; i < e; i++) r.push_raw(a->data[i]);
     return r;
   }
+  Array splice(int32_t s) const { return splice(s, length()); }
   Array splice(int32_t s, int32_t cnt) const {
     int32_t n = length(); s = clampi(s, n); if (cnt < 0) cnt = 0; if (cnt > n - s) cnt = n - s;
     Array r = slice(s, s + cnt);
@@ -683,6 +694,8 @@ void clear_timer(int32_t id);
 void start(const HalConfig& cfg, int argc = 0, char** argv = nullptr);
 void run_loop();
 bool loop_once();
+/** Native timers/pollers checkpoint; drives a paced frame when onFrame is registered. */
+bool poll_host(bool& frame);
 void finish();
 /** Program entry used by generated code: start, init, event loop, deinit, finish; crash policy (ZRT_CRASH). */
 int app_main(const HalConfig& cfg, int argc, char** argv, void (*init)(), void (*deinit)());

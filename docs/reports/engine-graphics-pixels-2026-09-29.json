@@ -1,0 +1,116 @@
+{
+  "date": "2026-09-29T12:22:03.354Z",
+  "mode": "capture",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "node": "v24.14.0",
+  "frames": 2,
+  "timeout": 120000,
+  "engines": [
+    "native",
+    "zinc-vm",
+    "zinc-vm-jit",
+    "quickjs"
+  ],
+  "results": [
+    {
+      "entry": "tests/engines/graphics.ts",
+      "engine": "native",
+      "success": true,
+      "capture": {
+        "ms": 633.7552089999999,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5139c9a7f962/native/engines-2.png\n",
+        "stderr": "zinc: compiling C++ (output hidden, --verbose to stream it)...\nzinc: compiling C++: done in 0.2 s\nzinc: built macos: zinc 89 ms, C++ 171 ms, 1669.1 KiB -> tests/engines/build/graphics-macos/cmake/app\n"
+      },
+      "pixels": [
+        {
+          "file": "engines-2.png",
+          "sha256": "5ef937891a562cea7314232a3d609780dbd432b11e416ddb401b9a55dfa4888d"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "tests/engines/graphics.ts",
+      "engine": "zinc-vm",
+      "success": true,
+      "capture": {
+        "ms": 577.5554589999999,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5139c9a7f962/zinc-vm/engines-2.png\n",
+        "stderr": ""
+      },
+      "pixels": [
+        {
+          "file": "engines-2.png",
+          "sha256": "5ef937891a562cea7314232a3d609780dbd432b11e416ddb401b9a55dfa4888d"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "tests/engines/graphics.ts",
+      "engine": "zinc-vm-jit",
+      "success": true,
+      "capture": {
+        "ms": 545.544167,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5139c9a7f962/zinc-vm-jit/engines-2.png\n",
+        "stderr": ""
+      },
+      "pixels": [
+        {
+          "file": "engines-2.png",
+          "sha256": "5ef937891a562cea7314232a3d609780dbd432b11e416ddb401b9a55dfa4888d"
+        }
+      ],
+      "pixelsMatchNative": true
+    },
+    {
+      "entry": "tests/engines/graphics.ts",
+      "engine": "quickjs",
+      "success": true,
+      "capture": {
+        "ms": 3351.663875,
+        "status": 0,
+        "signal": null,
+        "stdout": "tests/engines/build/matrix-shots/5139c9a7f962/quickjs/engines-2.png\n",
+        "stderr": ""
+      },
+      "pixels": [
+        {
+          "file": "engines-2.png",
+          "sha256": "5ef937891a562cea7314232a3d609780dbd432b11e416ddb401b9a55dfa4888d"
+        }
+      ],
+      "pixelsMatchNative": true
+    }
+  ],
+  "summary": {
+    "native": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "zinc-vm": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "zinc-vm-jit": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    },
+    "quickjs": {
+      "attempted": 1,
+      "succeeded": 1,
+      "mismatched": 0
+    }
+  }
+}

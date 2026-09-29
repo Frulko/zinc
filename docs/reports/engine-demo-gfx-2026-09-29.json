@@ -1,0 +1,2122 @@
+{
+  "date": "2026-09-29T12:07:03.005Z",
+  "mode": "build",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "node": "v24.14.0",
+  "frames": 60,
+  "timeout": 120000,
+  "engines": [
+    "zinc-vm",
+    "zinc-vm-jit",
+    "quickjs"
+  ],
+  "results": [
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 444.902,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 417.178,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/cubes/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 423.17662499999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 406.30224999999996,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 400.17499999999995,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/3d/model/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 421.33004100000016,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "zinc-vm",
+      "success": true,
+      "build": {
+        "ms": 5329.458417,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/zinc-vm-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/zinc-vm-macos/app.zbc\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": true,
+      "build": {
+        "ms": 629.4366250000003,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/zinc-vm-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/zinc-vm-macos/app.zbc\",\"--jit\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022-hello/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 1970.0466250000009,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/boards/esp32-2432s022-hello/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 974.6494579999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:device has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 950.7284590000017,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:device has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/esp32-2432s022/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 991.7146250000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:device has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 360.25,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 353.02408399999877,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/dice/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 354.5980000000018,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 361.58770800000093,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 404.5991670000003,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/level/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 364.37024999999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 387.3889999999992,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 381.9405000000006,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/text-scroller/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 366.16200000000026,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 388.47966700000325,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 364.1821660000023,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/s3-matrix/tilt-sand/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 379.4827080000032,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:imu has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 369.5184169999993,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 377.2206670000014,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/badge/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 380.2527090000003,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 368.91270799999984,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 379.7902499999982,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/cpu-graph/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 365.2049169999991,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 377.02058300000135,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 406.2497919999987,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/boards/scrollphat/snake/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 381.7504169999993,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 423.37658400000146,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:randomColor: unsupported builtin Math.random\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 404.4564169999976,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:randomColor: unsupported builtin Math.random\n"
+      }
+    },
+    {
+      "entry": "examples/bouncing-ball/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 1959.4012079999993,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/bouncing-ball/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/bouncing-ball/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 433.10162499999933,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:buildWall: unsupported builtin Math.min\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 407.0417500000003,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:buildWall: unsupported builtin Math.min\n"
+      }
+    },
+    {
+      "entry": "examples/breakout/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 1965.2147919999989,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/breakout/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/breakout/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 389.01179200000115,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 377.28350000000137,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/bench/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 375.0822499999995,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 400.81083299999955,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 407.6464999999989,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/cli/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 374.61020799999824,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 924.4142920000013,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 863.6671659999993,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/camera/remote/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 890.1112089999988,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 900.2607080000016,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: number[] snapshots currently support readonly gfx arguments only\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 844.2235839999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: number[] snapshots currently support readonly gfx arguments only\n"
+      }
+    },
+    {
+      "entry": "examples/canvas/sketch/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 823.930124999999,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: number[] snapshots currently support readonly gfx arguments only\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 990.4461670000019,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:osc has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 956.1823749999967,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:osc has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/chataigne/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 1043.9059169999964,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:osc has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 431.1580000000031,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support map\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 413.0018340000024,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support map\n"
+      }
+    },
+    {
+      "entry": "examples/hello/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 1769.2311249999984,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/hello/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/hello/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 1326.1305830000056,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 1278.1731670000008,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/hero/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 1294.7570829999968,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 882.0119590000031,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 915.9235419999968,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/inferno-todo/src/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 11969.072500000002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/inferno-todo/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/inferno-todo/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 931.0262920000023,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gpio has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 854.3405829999974,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:gpio has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/iot-panel/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 877.6534580000007,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:gpio has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 407.84337499999674,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support tp\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 396.2592499999955,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support tp\n"
+      }
+    },
+    {
+      "entry": "examples/lang/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 2353.2767499999973,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/lang/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/lang/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 387.9734580000004,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:Board.update: unsupported builtin splice\n"
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 384.8194999999978,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m0:Board.update: unsupported builtin splice\n"
+      }
+    },
+    {
+      "entry": "examples/led/falling-cubes/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 2483.855708000003,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/led/falling-cubes/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/led/falling-cubes/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 730.3136669999949,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: unsupported module /Users/mowmow/Lab/zinc/lib/std/palette.ts\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 745.583083000005,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: unsupported module /Users/mowmow/Lab/zinc/lib/std/palette.ts\n"
+      }
+    },
+    {
+      "entry": "examples/led/oled-clock/src/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 11812.294832999993,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/led/oled-clock/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/led/oled-clock/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 360.2075000000041,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 352.3164589999942,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/led/scroll-text/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 374.63954200000444,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:pixelfont has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 892.815499999997,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 824.7712919999904,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/explorer/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 871.3367500000022,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 979.2271250000049,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 976.5557499999995,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/navigation/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 1416.7232079999958,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 908.2945000000036,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:svg has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 858.7706250000047,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:svg has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/maps/svg-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 883.4437920000055,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:svg has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 855.0158329999977,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 874.2177499999962,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/modules-showcase/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 856.7364579999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 349.9285830000008,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 337.1733329999988,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/native-module/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 325.30716699999175,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:telemetry has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 606.9547909999965,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 598.6034169999912,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pinball/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 579.3914579999982,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 800.7964579999971,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: unsupported module /Users/mowmow/Lab/zinc/lib/std/signals.ts\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 792.1172080000106,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: unsupported module /Users/mowmow/Lab/zinc/lib/std/signals.ts\n"
+      }
+    },
+    {
+      "entry": "examples/pocket-hero/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 12813.569333000007,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/pocket-hero/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/pocket-hero/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 383.0705420000013,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 359.4156670000084,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/cli/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 390.0066250000091,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 775.9244999999937,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:process has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 738.3237910000025,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:process has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/process/shell/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 741.3542080000043,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:process has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 760.8756250000006,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 748.3331250000047,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/dashboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 716.4585420000076,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 755.3021670000016,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 703.708083999998,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remarkable/notes/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 773.900542000003,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:ink has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 734.3629169999913,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 710.0368330000056,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/remote/viewer/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 725.8967919999996,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support promise\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 393.89816700000665,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 371.68700000000536,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/bench/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 380.0272910000058,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 412.77116699999897,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 416.2781249999971,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/breakout-mods/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 445.3441249999887,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 841.9410409999982,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 843.4967920000054,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/scripting/playground/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 858.8345419999969,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 336.25704199999745,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 341.95987500000047,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/service/sensor-hub/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 349.3614579999994,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:net has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 859.3819159999985,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 860.3204160000023,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/text/src/main-solid.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 12473.882916000002,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/text/build/quickjs-main-solid-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/text/build/quickjs-main-solid-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 645.1539589999884,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 638.9476250000007,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/cubes/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 628.6892919999955,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 940.9792080000043,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 970.0516660000139,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/three/gltf-viewer/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 964.2329160000081,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 738.933624999976,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 766.9890829999931,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/figma-storyboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 12029.359541999991,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/figma-storyboard/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/figma-storyboard/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 752.7846250000002,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 818.6903749999765,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/forms/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 11822.576541999995,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/forms/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/forms/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm",
+      "success": true,
+      "build": {
+        "ms": 6019.140167000005,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/zinc-vm-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/zinc-vm-macos/app.zbc\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": true,
+      "build": {
+        "ms": 601.5482919999922,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/zinc-vm-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/zinc-vm-macos/app.zbc\",\"--jit\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/gl-check/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 11571.831000000006,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/gl-check/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 1046.9639159999788,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 871.505124999996,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/keyboard/src/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 11649.046291000006,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/keyboard/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/keyboard/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 927.9480830000248,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 850.0279580000206,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: global destructuring is not implemented\n"
+      }
+    },
+    {
+      "entry": "examples/ui/kit-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 12844.976000000024,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/ui/kit-gallery/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/ui/kit-gallery/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 924.9410419999913,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:assets has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 1108.421541000018,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: native module zinc:assets has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/ui/lottie-gallery/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 935.320166999998,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: native module zinc:assets has no engine ABI adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 417.1787079999922,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 390.74324999999953,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/bounce/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 405.30554200001643,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 409.0009579999896,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 391.9668749999837,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/looper/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 394.60725000000093,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 532.3125410000212,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: display plugin display-gl has no application runner adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 442.44020799998543,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: display plugin display-gl has no application runner adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/video/mapper/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 408.93558300001314,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: quickjs: display plugin display-gl has no application runner adapter yet\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 580.3402499999793,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 436.80004200001713,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/video/quad/src/main.ts",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 455.43758399999933,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI: sys.exit requires the shared application event loop\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 834.5662090000114,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 721.8365829999966,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/webview/hybrid/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 749.7536250000121,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 385.80895900001633,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m2:report: unsupported builtin map\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 390.7347920000029,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: zinc-vm: m2:report: unsupported builtin map\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/sample/src/main.ts",
+      "engine": "quickjs",
+      "success": true,
+      "build": {
+        "ms": 2282.3165410000074,
+        "status": 0,
+        "signal": null,
+        "stdout": "[\"/Users/mowmow/Lab/zinc/examples/zed-editor/sample/build/quickjs-macos/cmake/app\",\"/Users/mowmow/Lab/zinc/examples/zed-editor/sample/build/quickjs-macos/bundle/run.mjs\"]\n",
+        "stderr": ""
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "zinc-vm",
+      "success": false,
+      "build": {
+        "ms": 907.2694159999955,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "zinc-vm-jit",
+      "success": false,
+      "build": {
+        "ms": 893.9280420000141,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    },
+    {
+      "entry": "examples/zed-editor/src/main.tsx",
+      "engine": "quickjs",
+      "success": false,
+      "build": {
+        "ms": 897.2196249999979,
+        "status": 2,
+        "signal": null,
+        "stdout": "",
+        "stderr": "zinc: native ABI v3 does not yet support arr\n"
+      }
+    }
+  ],
+  "summary": {
+    "zinc-vm": {
+      "attempted": 58,
+      "succeeded": 2,
+      "mismatched": 0
+    },
+    "zinc-vm-jit": {
+      "attempted": 58,
+      "succeeded": 2,
+      "mismatched": 0
+    },
+    "quickjs": {
+      "attempted": 58,
+      "succeeded": 16,
+      "mismatched": 0
+    }
+  }
+}

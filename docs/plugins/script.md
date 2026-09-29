@@ -222,6 +222,58 @@ The ESP32 profile is `strict`, where `unknown` must be narrowed before use, whic
 
 ## The Zinc VM engine
 
+The experimental [CLI engines](../engines.md) share a native ABI and include a Zinc VM JIT.
+`new Script({engine: 'zinc-vm'})` remains unavailable: its source-evaluation and dynamic-value contract
+has not yet been implemented. The embedding API below executes real VM bytecode independently of QuickJS.
+
+### Embedding a compiled application
+
+[`runtime/include/zinc_vm.h`](../../runtime/include/zinc_vm.h) exposes a C API implemented by
+[`runtime/vm/embedded.cpp`](../../runtime/vm/embedded.cpp). It uses the same loader, verifier, collector,
+interpreter and AArch64 JIT as the CLI, with no compiler subprocess at execution time.
+
+1. Compile on the development host: `zinc build file.ts --engine zinc-vm` produces `app.zbc` in the
+   application's engine build directory. The same frontend accepts supported JavaScript inputs.
+2. Create a context with `zinc_vm_create`. Explicit options control its managed heap, register stack,
+   execution timeout and interpreter/JIT selection. They do not read process environment variables.
+3. Register allowed native descriptors with `zinc_vm_register` before loading. The context exposes its
+   ABI host table through `zinc_vm_host`; it registers no filesystem, network or other service implicitly.
+4. Pass the bytecode buffer to `zinc_vm_load`, then initialize the application once with `zinc_vm_run`.
+   The load copies and verifies the bytes, so the caller can free its buffer immediately afterward.
+   ZBC4 stores the entry module's public function/global names, including aliases and reexports.
+   Script files without module exports expose their top-level declarations.
+5. Inspect a binding's kind and signature with `zinc_vm_lookup`, call a function with `zinc_vm_call`,
+   or read/write globals with `zinc_vm_get`/`zinc_vm_set`. Values use the shared `ZincValue` scalar tags:
+   bool, i32, u32, f32, f64 and UTF-8 strings; function results may also be void. Const globals are read-only.
+   Function arguments must match the declared tags; strings are copied across the boundary. Other bindings
+   (objects, u8, async functions, generators, function-valued globals) are not exposed by this API.
+6. Release with `zinc_vm_destroy`. Guest resources are released before module disposal. Module registration
+   transfers ownership only on success; descriptors must remain alive until their disposal callback.
+
+`zinc_vm_run` executes the application entry and its pending jobs/timers. Distinct instances have separate
+VM heaps, globals and native registries. `zinc_vm_interrupt` is callable from another thread; all other
+operations on all contexts share one host thread because the underlying Zinc runtime still has process-global
+state. Destruction must follow the end of execution and must not race any operation. A failed load or run
+requires destroying that context. Subsequent named calls receive fresh deadlines. Ordinary script throws
+from a named call return an error and leave the instance callable, retaining mutations that preceded the throw;
+timeouts, interruptions and runtime failures invalidate it. Calls drain pending jobs/timers before returning,
+and reentrant C API entries are rejected. The managed-heap budget excludes bytecode metadata, native resources,
+JIT pages and the separately bounded register stack; it is not a process RSS limit. VM printing currently
+uses process stdout. Trusted native exports control their own allocations and side effects.
+
+This is a typed compiled-application API, **not** the complete `ScriptEngine` API: it does not provide source
+`eval`, `Dyn` conversion, source stacks, function handles or host async settlement. The full contract still
+needs an embeddable frontend (or an explicit development-host compilation service), dynamic field/source
+metadata, the dynamic-value bridge, async entries and recovery after execution-limit failures.
+
+Run `node tests/engines/embedded.mjs` (optionally `--sanitize`) to compile and link a C++ host against this
+API and the existing runtime. It checks actual compiler output, independent instances, native module
+ownership, malformed input, memory/time limits and cross-thread interruption in interpreter and JIT modes.
+It also checks named signatures, aliases/reexports, read-only globals, repeated calls with GC, state isolation
+and a successful call after a script exception.
+
+### Remaining ScriptEngine integration
+
 `ScriptEngine` is the contract a second engine implements. Any engine must honour:
 - **values**: `Dyn` in and out, copied, with the conversions of the [value model](#value-model);
 - **errors**: a `ScriptError` of the right `kind`, and `file` / `line` of the innermost script frame;
@@ -230,7 +282,7 @@ The ESP32 profile is `strict`, where `unknown` must be narrowed before use, whic
 - **sandbox**: only what the host exposes.
 
 The VM ([docs/reports/zinc-vm.md](../reports/zinc-vm.md)) is a typed register bytecode (`.zbc`) emitted from
-MIR, with a Tier 0 interpreter that runs everywhere. It fits behind the interface as follows:
+MIR, with a Tier 0 interpreter on the supported host platforms. The following remains the target design:
 
 - **What it runs.** The VM runs *Zinc* (TypeScript), compiled ahead of time to `.zbc` by the Zinc compiler, not
   JavaScript source. `engine: 'zinc-vm'` gets:
@@ -256,5 +308,5 @@ MIR, with a Tier 0 interpreter that runs everywhere. It fits behind the interfac
   engine-generated error texts would need per-engine expectations, which is why the tests print `kind`,
   `type` and `line`.
 
-Adding it touches `createEngine` in `plugins/script/index.ts` (one branch) and a `ZincVmEngine implements
-ScriptEngine` class. The facade, the tests and the apps stay as they are.
+Once those capabilities are implemented, `createEngine` in `plugins/script/index.ts` can select a real
+`ZincVmEngine implements ScriptEngine`; enabling the branch before then would misrepresent the contract.

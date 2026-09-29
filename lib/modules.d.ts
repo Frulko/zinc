@@ -196,6 +196,8 @@ declare module 'zinc:events' {
 declare module 'zinc:native' {
   /** Base of every native module spec (NAT-01). */
   export interface NativeModule {}
+  /** Opaque native ownership. Pass it to module methods; it has no guest-visible fields. */
+  export interface NativeResource {}
   /** `export default requireNative<Spec>('Name')` in native/<name>.spec.ts */
   export function requireNative<T extends NativeModule>(name: string): T;
 }

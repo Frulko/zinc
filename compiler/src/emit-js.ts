@@ -3,13 +3,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT, STD_MODULES, resolveModule } from './frontend.ts';
+import { abiDefault } from './abi.ts';
 import { Sema, type ZT, type NumKind, type DynShape, isNum, isInt, isDynFn } from './sema.ts';
 
 const MATH_FNS = new Set(['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround']);
 
 export interface JsResult { files: { path: string }[] }
 
-export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [number, number] = [320, 240], resources?: string): JsResult {
+export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [number, number] = [320, 240], resources?: string, nativeImports?: Map<string, string>): JsResult {
   const K = ts.SyntaxKind;
   const roots = sema.fe.sources.map(s => path.dirname(s.fileName));
   const root = roots.reduce((a, b) => { while (a !== path.dirname(a) && !(b + '/').startsWith(a + '/')) a = path.dirname(a); return a; });  // stops at '/'
@@ -84,7 +85,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         while (c && !(ctor = c.members.find(ts.isConstructorDeclaration))) c = sema.baseClass(c);
         return ctor ? ctor.parameters.map(p => sema.paramType(p)) : [];
       }
-      if ((ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && !sema.isLib(d)) return d.parameters.map(p => sema.paramType(p));
+      if ((ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) && (!sema.isLib(d) || nativeImports?.has('zinc:' + sema.libModule(d)))) return d.parameters.map(p => sema.paramType(p));
       if (ts.isPropertyAccessExpression(call.expression)) {
         const rt = safeType(call.expression.expression), m = call.expression.name.text;
         if (rt?.k === 'arr' && ['push', 'unshift', 'indexOf', 'lastIndexOf', 'includes', 'fill'].includes(m)) return [rt.el];
@@ -144,12 +145,14 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         const spec = n.moduleSpecifier.text;
         let ns = spec;
         const mapped = STD_MODULES[spec] ?? sema.fe.program.getCompilerOptions().paths?.[spec]?.[0];  // std + plugins
-        if (mapped) ns = rel(outFile, outOf(mapped));
+        if (nativeImports?.has(spec)) ns = nativeImports.get(spec)!;
+        else if (mapped) ns = rel(outFile, outOf(mapped));
         else if (spec.startsWith('zinc:')) ns = rel(outFile, path.join(ZINC_ROOT, `sim/${spec.slice(5)}.mjs`));
         else if (spec.startsWith('.') && /\.spec(\.ts)?$/.test(spec)) {
+          const nativeSpec = path.resolve(path.dirname(sf.fileName), spec.replace(/\.ts$/, '') + '.ts');
           const src = path.resolve(path.dirname(sf.fileName), spec.replace(/\.ts$/, '')).replace(/\.spec$/, '.sim.ts');
-          simImpls.add(src);
-          ns = spec.replace(/\.spec(\.ts)?$/, '.sim.js');
+          if (nativeImports) { ns = nativeImports.get(nativeSpec) ?? (() => { throw new Error(`native ABI module not found: ${nativeSpec}`); })(); }
+          else { simImpls.add(src); ns = spec.replace(/\.spec(\.ts)?$/, '.sim.js'); }
         }
         else if (spec.startsWith('.')) {
           const res = resolveModule(spec, sf.fileName, sema.fe.program.getCompilerOptions(), ts.sys)?.resolvedFileName;
@@ -166,7 +169,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           const lib = !sema.declOf(c.expression) || sema.isLib(sema.declOf(c.expression)!);
           if (lib && g === 'console') return callZ('c_' + m, [...v.arguments]);
           // clocks and timers go through the shim: deterministic runs put them on the virtual clock (sim/zinc.mjs)
-          if (lib && (g === 'Date' || g === 'performance') && m === 'now') return fxq(callZ(g === 'Date' ? 'dateNow' : 'perfNow', []));
+          if (lib && (g === 'Date' || g === 'performance') && m === 'now') return fxq(nativeImports ? v : callZ(g === 'Date' ? 'dateNow' : 'perfNow', []));
           if (lib && g === 'Math' && m === 'random') return fxq(callZ('random', []));
           if (lib && g === 'Math' && m === 'seed') return callZ('seed', [...v.arguments]);
           if (lib && g === 'JSON' && m === 'parse') return callZ('jsonParse', [...v.arguments]);
@@ -178,7 +181,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           const rt = safeType(c.expression);
           if (rt?.k === 'map' || rt?.k === 'set') return f.createCallExpression(f.createPropertyAccessExpression(f.createIdentifier('Array'), 'from'), undefined, [v]);
         }
-        if (ts.isIdentifier(c) && /^(setTimeout|setInterval|clearTimeout|clearInterval)$/.test(c.text) && (!sema.declOf(c) || sema.isLib(sema.declOf(c)!))) return callZ(c.text, [...v.arguments]);
+        if (ts.isIdentifier(c) && /^(setTimeout|setInterval|clearTimeout|clearInterval)$/.test(c.text) && (!sema.declOf(c) || sema.isLib(sema.declOf(c)!))) return nativeImports ? v : callZ(c.text, [...v.arguments]);
         if (FX && ts.isIdentifier(c) && (c.text === 'parseInt' || c.text === 'parseFloat')) return fxq(v);
         // numbers coming back from native code (spec methods, zinc:* modules) cross as f64 and are converted to the
         // profile's number at the boundary, like the C++ side does
@@ -193,6 +196,16 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
           }
         }
         const ps = paramTypes(n);
+        const declaration = sema.declOf(ts.isPropertyAccessExpression(c) ? c.name : c);
+        if (declaration && ts.isFunctionDeclaration(declaration) && nativeImports?.has('zinc:' + sema.libModule(declaration))) {
+          const args = v.arguments.map((a, i) => conv(a, n.arguments[i], ps[i]));
+          for (const p of declaration.parameters.slice(args.length)) {
+            const value = abiDefault(sema, declaration, p);
+            if (value === undefined) throw new Error('native ABI: missing required argument');
+            args.push(value === 'false' ? f.createFalse() : f.createNumericLiteral(0));
+          }
+          return f.updateCallExpression(v, v.expression, v.typeArguments, args);
+        }
         if (ps.length) return f.updateCallExpression(v, v.expression, v.typeArguments, v.arguments.map((a, i) => conv(a, n.arguments[i], ps[i])));
         return v;
       }
@@ -214,8 +227,28 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         return f.updateArrowFunction(v, v.modifiers, v.typeParameters, v.parameters, v.type, v.equalsGreaterThanToken, conv(v.body as ts.Expression, n.body, safeRet(n)));
       if (ts.isArrayLiteralExpression(n) && ts.isArrayLiteralExpression(v)) {
         const ctxT = sema.contextual(n) ?? safeType(n);
-        if (ctxT?.k === 'arr') return f.updateArrayLiteralExpression(v, v.elements.map((x, i) => conv(x, n.elements[i], ctxT.el)));
+        if (ctxT?.k === 'arr') return f.updateArrayLiteralExpression(v, v.elements.map((x, i) => ts.isSpreadElement(x) ? x : conv(x, n.elements[i], ctxT.el)));
         return v;
+      }
+      if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === K.PlusPlusToken || n.operator === K.MinusMinusToken)) {
+        const t = safeType(n.operand);
+        if (t?.k === 'num' && t.m === 'u8') {
+          const prefix: ts.Expression[] = [];
+          const once = (value: ts.Expression) => { const temp = f.createTempVariable(ctx.hoistVariableDeclaration); prefix.push(f.createAssignment(temp, value)); return temp; };
+          let target = (v as ts.PrefixUnaryExpression).operand;
+          if (ts.isPropertyAccessExpression(target)) target = f.updatePropertyAccessExpression(target, once(target.expression), target.name);
+          else if (ts.isElementAccessExpression(target)) target = f.updateElementAccessExpression(target, once(target.expression), once(target.argumentExpression));
+          const array = ts.isElementAccessExpression(target) && ts.isElementAccessExpression(n.operand) && safeType(n.operand.expression)?.k === 'arr' ? target : undefined;
+          const old = once(array ? callZ('get', [array.expression, array.argumentExpression]) : target);
+          const next = narrow(bin(old, n.operator === K.PlusPlusToken ? K.PlusToken : K.MinusToken, num(1)), t.m);
+          const write = array ? callZ('set', [array.expression, array.argumentExpression, next]) : f.createAssignment(target, next);
+          return paren(f.createCommaListExpression([...prefix, write, ts.isPostfixUnaryExpression(n) ? old : next]));
+        }
+      }
+      // Numeric assertions are machine conversions in Zinc, including narrowing literals.
+      if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText() !== 'const') {
+        const to = sema.fromTypeNode(n.type), from = safeType(n.expression);
+        if (isNum(to) && from && isNum(from)) return narrow((v as ts.AsExpression).expression, to.m);
       }
       // Dyn: checked conversions where the C++ emitter converts too
       if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText() !== 'const' && safeType(n.expression)?.k === 'dyn') {
@@ -262,9 +295,23 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
         if (baseOp === undefined) return v;
         const rt = safeType(n.right)!;
         const m = sema.arith(baseOp, n.left, lt, n.right, rt);
-        const leftRead = visit(n.left) as ts.Expression;
+        const prefix: ts.Expression[] = [];
+        const once = (value: ts.Expression) => {
+          const temp = f.createTempVariable(ctx.hoistVariableDeclaration);
+          prefix.push(f.createAssignment(temp, value)); return temp;
+        };
+        let target = v.left, array: ts.ElementAccessExpression | undefined;
+        if (ts.isPropertyAccessExpression(target)) target = f.updatePropertyAccessExpression(target, once(target.expression), target.name);
+        else if (ts.isElementAccessExpression(target)) {
+          const indexed = f.updateElementAccessExpression(target, once(target.expression), once(target.argumentExpression));
+          target = indexed;
+          if (ts.isElementAccessExpression(n.left) && safeType(n.left.expression)?.k === 'arr') array = indexed;
+        }
+        const leftRead = array ? callZ('get', [array.expression, array.argumentExpression]) : target;
         const val = arith(baseOp, n.left, n.right, leftRead, v.right, m);
-        return f.createAssignment(v.left, conv(val, n, lt) === val ? narrowTo(val, m, lt.m) : val);
+        const result = conv(val, n, lt) === val ? narrowTo(val, m, lt.m) : val;
+        const write = array ? callZ('set', [array.expression, array.argumentExpression, result]) : f.createAssignment(target, result);
+        return prefix.length ? paren(f.createCommaListExpression([...prefix, write])) : write;
       }
       if (!t || !isNum(t)) return v;
       return arith(op, n.left, n.right, v.left, v.right, t.m) ?? v;
@@ -299,6 +346,7 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
 
   fs.mkdirSync(outDir, { recursive: true });
   for (const s of sema.fe.sources) {
+    if (nativeImports?.has(s.fileName)) continue;
     const r = sema.fe.program.emit(s, (fileName, text) => {
       if (!fileName.endsWith('.js')) return;
       const out = outOf(s.fileName);
@@ -330,6 +378,8 @@ export function emitJs(sema: Sema, outDir: string, assetsDir?: string, screen: [
   const entryJs = './' + path.relative(outDir, outOf(sema.fe.entry.fileName));
   fs.writeFileSync(path.join(outDir, 'run.mjs'),
     `// Generated by zinc. Runs the program under Node with the Zinc sim shim.\nglobalThis.$zScreen = [${screen[0]}, ${screen[1]}];\n${resources ? `globalThis.$zRes = JSON.parse((await import('node:fs')).readFileSync(new URL('./resources.json', import.meta.url), 'utf8'));\n` : ''}${assetsDir ? `globalThis.$zAssetsDir = new URL(${JSON.stringify(path.relative(outDir, assetsDir) + '/')}, import.meta.url).pathname;\n` : ''}import { runMain } from '${rel(path.join(outDir, 'run.mjs'), path.join(ZINC_ROOT, 'sim/zinc.mjs'))}';\nawait runMain(() => import('${entryJs}'));\n`);
+  if (nativeImports) fs.writeFileSync(path.join(outDir, 'run.mjs'),
+    `// Generated QuickJS entry.\nglobalThis.$zScreen = ${JSON.stringify(screen)};\n${resources ? `globalThis.$zRes = ${resources};\n` : ''}${assetsDir ? `globalThis.$zAssetsDir = ${JSON.stringify(assetsDir)};\n` : ''}import { runMain } from '${rel(path.join(outDir, 'run.mjs'), path.join(ZINC_ROOT, 'sim/zinc.mjs'))}';\nawait runMain(() => import('${entryJs}'));\n`);
   return { files };
 }
 

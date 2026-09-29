@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-29T12:14:18.386Z",
+  "entry": "examples/bouncing-ball/src/main.ts",
+  "mode": "capture",
+  "frames": [
+    1,
+    60
+  ],
+  "results": [
+    {
+      "engine": "native",
+      "frame": 1,
+      "sha256": "5f8db6db715b74a039b5c0f475efe6de5a9770b7c738023bb930186b28b13c9c",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "quickjs",
+      "frame": 1,
+      "sha256": "5f8db6db715b74a039b5c0f475efe6de5a9770b7c738023bb930186b28b13c9c",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "vm",
+      "frame": 1,
+      "sha256": "5f8db6db715b74a039b5c0f475efe6de5a9770b7c738023bb930186b28b13c9c",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "jit",
+      "frame": 1,
+      "sha256": "5f8db6db715b74a039b5c0f475efe6de5a9770b7c738023bb930186b28b13c9c",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "native",
+      "frame": 60,
+      "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "quickjs",
+      "frame": 60,
+      "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "vm",
+      "frame": 60,
+      "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca",
+      "pixelsMatchNative": true
+    },
+    {
+      "engine": "jit",
+      "frame": 60,
+      "sha256": "a108b8d1bc3b76bc476235c7725b44606ce94f6fc4bf5322ed1b8d3242816aca",
+      "pixelsMatchNative": true
+    }
+  ]
+}

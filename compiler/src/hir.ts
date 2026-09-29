@@ -3,6 +3,7 @@
 // boxed captures (cells), calls that may throw (status check after the call, RT-05), virtual dispatch,
 // for-of/destructuring/`?.`/`??`/templates desugared, async and generator bodies as numbered suspend points.
 // It is built from the same Sema queries as emit-cpp.ts; the emitters do not consume it yet (docs/decisions/0013).
+import { abiDefault } from './abi.ts';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
 import { Sema, ZincError, type ZT, zeq, isNum, I32, BOOL, STR, VOID, DYN, F64 } from './sema.ts';
@@ -33,18 +34,18 @@ export type HStmt =
   | { k: 'break' } | { k: 'continue' }
   | { k: 'return'; e?: HExpr }
   | { k: 'throw'; e: HExpr }
-  | { k: 'try'; body: HStmt[]; bind?: string; handler: HStmt[]; fin: HStmt[] }
+  | { k: 'try'; body: HStmt[]; bind?: string; bindCell?: boolean; handler: HStmt[]; fin: HStmt[]; hasCatch: boolean; errorType: ZT }
   | { k: 'opaque'; text: string };
 export interface HFunc {
   name: string; params: { name: string; t: ZT; cell: boolean }[]; ret: ZT; body: HStmt[];
-  throws: boolean; kind: 'fn' | 'async' | 'gen'; captures: string[];
+  throws: boolean; kind: 'fn' | 'async' | 'gen'; captures: string[]; static?: boolean; captureTypes?: { name: string; t: ZT; cell: boolean }[];
 }
-export interface HClass { name: string; base?: string; fields: { name: string; t: ZT }[]; methods: HFunc[]; virtual: boolean }
-export interface HModule { file: string; globals: HStmt[]; classes: HClass[]; fns: HFunc[]; init: HStmt[] }
+export interface HClass { decl: ts.ClassDeclaration; name: string; base?: string; fields: { name: string; t: ZT }[]; methods: HFunc[]; virtual: boolean }
+export interface HModule { file: string; globals: HStmt[]; classes: HClass[]; fns: HFunc[]; init: HStmt[]; ordered: HStmt[] }
 
-export function buildHir(s: Sema): HModule[] {
+export function buildHir(s: Sema, nativeCalls?: Map<ts.Node, number>, symbols?: Map<ts.Node, string>): HModule[] {
   const lib = path.join(ZINC_ROOT, 'lib') + path.sep;
-  return s.fe.sources.filter(sf => !sf.fileName.startsWith(lib)).map(sf => new Lower(s).module(sf));
+  return s.fe.sources.filter(sf => !sf.fileName.startsWith(lib)).map(sf => new Lower(s, nativeCalls, symbols).module(sf));
 }
 
 class Lower {
@@ -52,15 +53,26 @@ class Lower {
   tmp = 0;
   state = 0;
   s: Sema;
-  constructor(s: Sema) { this.s = s; }
+  nativeCalls?: Map<ts.Node, number>;
+  symbols?: Map<ts.Node, string>;
+  constructor(s: Sema, nativeCalls?: Map<ts.Node, number>, symbols?: Map<ts.Node, string>) { this.s = s; this.nativeCalls = nativeCalls; this.symbols = symbols; }
 
   module(sf: ts.SourceFile): HModule {
-    const m: HModule = { file: path.relative(this.s.root, sf.fileName), globals: [], classes: [], fns: [], init: [] };
+    const m: HModule = { file: path.relative(this.s.root, sf.fileName), globals: [], classes: [], fns: [], init: [], ordered: [] };
     for (const st of sf.statements) {
-      if (ts.isFunctionDeclaration(st) && st.body) m.fns.push(this.fn(st, st.name?.text ?? 'default'));
-      else if (ts.isClassDeclaration(st)) m.classes.push(this.cls(st));
-      else if (ts.isVariableStatement(st)) m.globals.push(...this.stmt(st));
-      else if (!ts.isInterfaceDeclaration(st) && !ts.isTypeAliasDeclaration(st) && !ts.isImportDeclaration(st) && !ts.isExportDeclaration(st) && !ts.isEnumDeclaration(st)) m.init.push(...this.stmt(st));
+      if (ts.isFunctionDeclaration(st) && st.body) m.fns.push(this.fn(st, this.symbols?.get(st) ?? st.name?.text ?? 'default'));
+      else if (ts.isClassDeclaration(st)) {
+        m.classes.push(this.cls(st));
+        if (this.symbols) for (const property of st.members) {
+          const name = this.symbols.get(property);
+          if (!ts.isPropertyDeclaration(property) || !name) continue;
+          const t = this.s.declType(property);
+          const global: HStmt = { k: 'let', name, t, cell: false, init: property.initializer ? this.conv(this.expr(property.initializer, t), t) : undefined };
+          m.globals.push(global); m.ordered.push(global);
+        }
+      }
+      else if (ts.isVariableStatement(st)) { const ss = this.stmt(st); m.globals.push(...ss); m.ordered.push(...ss); }
+      else if (!ts.isInterfaceDeclaration(st) && !ts.isTypeAliasDeclaration(st) && !ts.isImportDeclaration(st) && !ts.isExportDeclaration(st) && !ts.isEnumDeclaration(st)) { const ss = this.stmt(st); m.init.push(...ss); m.ordered.push(...ss); }
     }
     return m;
   }
@@ -69,13 +81,46 @@ class Lower {
     const fieldType = (n: string): ZT => {
       const m = this.s.memberDecl(c, n);
       if (m) return this.s.declType(m);
-      const p = this.ctorOf(c)?.parameters.find(x => x.name.getText() === n);  // parameter property
-      return p ? this.s.paramType(p) : VOID;
+      for (let owner: ts.ClassDeclaration | undefined = c; owner; owner = this.s.baseClass(owner)) {
+        const ctor = owner.members.find(ts.isConstructorDeclaration);
+        const p = ctor?.parameters.find(x => x.name.getText() === n && !!(ts.getCombinedModifierFlags(x) & (ts.ModifierFlags.Public | ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Readonly)));
+        if (p) return this.s.paramType(p);
+      }
+      return VOID;
     };
     const fields = this.s.fieldNames(c).map(n => ({ name: n, t: this.safe(() => fieldType(n), VOID) }));
     const methods = c.members.filter((m): m is ts.MethodDeclaration | ts.ConstructorDeclaration => (ts.isMethodDeclaration(m) || ts.isConstructorDeclaration(m)) && !!m.body)
       .map(m => this.fn(m, ts.isConstructorDeclaration(m) ? 'constructor' : m.name.getText()));
-    return { name: c.name?.text ?? 'default', base: base?.name?.text ?? this.s.errorBase(c), fields, methods, virtual: this.s.hierarchy.has(c) || this.s.implemented(c).length > 0 };
+    const name = this.symbols?.get(c) ?? c.name?.text ?? 'default';
+    if (this.symbols) {
+      const self: HExpr = { k: 'var', t: { k: 'obj', decl: c, args: [] }, name: 'this' };
+      const initializers: HStmt[] = [];
+      for (const p of c.members) if (ts.isPropertyDeclaration(p)) {
+        if (ts.getCombinedModifierFlags(p) & ts.ModifierFlags.Static) continue;
+        if (p.initializer) { const t = this.s.declType(p); initializers.push({ k: 'expr', e: { k: 'assign', t, target: { k: 'field', t, obj: self, name: p.name.getText() }, v: this.conv(this.expr(p.initializer, t), t) } }); }
+      }
+      let ctor = methods.find(f => f.name === 'constructor');
+      if (!ctor) {
+        const params = base ? (this.ctorOf(base)?.parameters ?? []).map(p => ({ name: p.name.getText(), t: this.s.paramType(p), cell: false })) : [];
+        ctor = { name: 'constructor', params, ret: VOID, body: [], throws: false, kind: 'fn', captures: [] };
+        if (base) ctor.body.push({ k: 'expr', e: { k: 'call', t: VOID, how: 'static', fn: 'super', args: params.map(p => ({ k: 'var', t: p.t, name: p.name })), check: false } });
+        methods.push(ctor);
+      }
+      if (base) {
+        const first = ctor.body[0];
+        if (first?.k !== 'expr' || first.e.k !== 'call' || first.e.fn !== 'super') throw new Error('zinc-vm: derived constructors must call super first');
+        const params = this.ctorOf(base)?.parameters ?? [];
+        first.e.args = [self, ...first.e.args.map((a,i) => this.conv(a, params[i] ? this.s.paramType(params[i]) : undefined))];
+        first.e.fn = `${this.symbols.get(base)}.constructor`;
+        ctor.body.splice(1, 0, ...initializers);
+      } else ctor.body.unshift(...initializers);
+      for (const f of methods) {
+        f.name = `${name}.${f.name}`;
+        if (!f.static) f.params.unshift({ name: 'this', t: self.t, cell: false });
+      }
+    }
+    return { decl: c, name, base: base?.name?.text ?? this.s.errorBase(c), fields, methods, virtual: this.s.hierarchy.has(c) || this.s.implemented(c).length > 0 };
+
   }
   fn(f: ts.SignatureDeclaration & { body?: ts.Node }, name: string): HFunc {
     const kind = this.s.isAsyncFn(f) ? 'async' : this.s.isGeneratorFn(f) ? 'gen' : 'fn';
@@ -95,20 +140,21 @@ class Lower {
       body.splice(0, 0, ...(sup ? this.stmt(first, ret) : []));  // base constructor first, then field stores
       body.push(...b.statements.slice(sup ? 1 : 0).flatMap(x => this.stmt(x, ret)));
     }
-    else if (b) body.push({ k: 'return', e: this.conv(this.expr(b as ts.Expression), ret) });
+    else if (b) body.push(ret.k === 'void' ? { k: 'expr', e: this.expr(b as ts.Expression) } : { k: 'return', e: this.conv(this.expr(b as ts.Expression), ret) });
     const captures = new Set<string>();
+    const captureTypes = new Map<string, { name: string; t: ZT; cell: boolean }>();
     if (ts.isArrowFunction(f) || ts.isFunctionExpression(f) || (ts.isFunctionDeclaration(f) && !ts.isSourceFile(f.parent))) {
       const visit = (n: ts.Node) => {
         if (ts.isIdentifier(n)) {
           const d = this.s.declOf(n);
-          if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && !this.s.isModuleLevel(d) && this.s.fnOf(d) !== f && !isInside(d, f)) captures.add(n.text);
+          if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && !this.s.isModuleLevel(d) && this.s.fnOf(d) !== f && !isInside(d, f)) { captures.add(n.text); captureTypes.set(n.text, { name: n.text, t: this.s.declType(d), cell: this.boxed(n) }); }
         }
         ts.forEachChild(n, visit);
       };
       if (b) visit(b);
     }
     this.state = saved;
-    return { name, params, ret, body, throws: this.s.throwing.has(f), kind, captures: [...captures] };
+    return { name, params, ret, body, throws: this.s.throwing.has(f), kind, captures: [...captures], static: !!(ts.getCombinedModifierFlags(f as ts.Declaration) & ts.ModifierFlags.Static), captureTypes: [...captureTypes.values()] };
   }
 
   // ---------- statements ----------
@@ -131,9 +177,9 @@ class Lower {
     if (ts.isForOfStatement(n)) return this.forOf(n, ret);
     if (ts.isBreakStatement(n)) return [{ k: 'break' }];
     if (ts.isContinueStatement(n)) return [{ k: 'continue' }];
-    if (ts.isReturnStatement(n)) return [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression, ret), ret) : undefined }];
+    if (ts.isReturnStatement(n)) return n.expression && ret.k === 'void' ? [{ k: 'expr', e: this.expr(n.expression) }, { k: 'return' }] : [{ k: 'return', e: n.expression ? this.conv(this.expr(n.expression, ret), ret) : undefined }];
     if (ts.isThrowStatement(n)) return [{ k: 'throw', e: this.expr(n.expression) }];
-    if (ts.isTryStatement(n)) return [{ k: 'try', body: this.body(n.tryBlock, ret), bind: n.catchClause?.variableDeclaration?.name.getText(), handler: n.catchClause ? this.body(n.catchClause.block, ret) : [], fin: n.finallyBlock ? this.body(n.finallyBlock, ret) : [] }];
+    if (ts.isTryStatement(n)) return [{ k: 'try', hasCatch: !!n.catchClause, bindCell: !!n.catchClause?.variableDeclaration && ts.isIdentifier(n.catchClause.variableDeclaration.name) && this.boxed(n.catchClause.variableDeclaration.name), errorType: { k: 'obj', decl: this.s.errorDecl, args: [] }, body: this.body(n.tryBlock, ret), bind: n.catchClause?.variableDeclaration?.name.getText(), handler: n.catchClause ? this.body(n.catchClause.block, ret) : [], fin: n.finallyBlock ? this.body(n.finallyBlock, ret) : [] }];
     if (ts.isSwitchStatement(n)) return this.switch(n, ret);
     if (ts.isFunctionDeclaration(n) && n.body && n.name) return [{ k: 'let', name: n.name.text, t: this.s.fnType(n), init: { k: 'lambda', t: this.s.fnType(n), fn: this.fn(n, n.name.text) }, cell: false }];
     if (ts.isEmptyStatement(n) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n)) return [];
@@ -148,7 +194,7 @@ class Lower {
         return [{ k: 'let', name: tmp, t: src.t, init: src, cell: false } as HStmt, ...this.destructure(d.name, { k: 'var', t: src.t, name: tmp })];
       }
       const t = this.s.declType(d);
-      return [{ k: 'let', name: d.name.text, t, init: d.initializer ? this.conv(this.expr(d.initializer, t), t) : undefined, cell: this.boxed(d.name) } as HStmt];
+      return [{ k: 'let', name: this.symbols?.get(d) ?? d.name.text, t, init: d.initializer ? this.conv(this.expr(d.initializer, t), t) : undefined, cell: this.boxed(d.name) } as HStmt];
     });
   }
   destructure(p: ts.BindingPattern, src: HExpr): HStmt[] {
@@ -234,14 +280,19 @@ class Lower {
       const d = s.declOf(e);
       if (d && ts.isEnumMember(d)) return lit(I32, String(s.checker.getConstantValue(d)));
       const global = !!d && (ts.isFunctionDeclaration(d) || ts.isClassDeclaration(d) || s.isModuleLevel(d));
-      const v: HExpr = { k: 'var', t, name: e.text, cell: this.boxed(e), global };
+      const v: HExpr = { k: 'var', t, name: (d && this.symbols?.get(d)) ?? e.text, cell: this.boxed(e), global };
       if (d && !s.isLib(d) && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && s.declType(d).k === 'dyn' && t.k !== 'dyn' && !s.isWrite(e))
         return { k: 'conv', t, how: 'dyn.check', e: { ...v, t: DYN } };  // DYN-08: narrowed
       return v;
     }
     if (ts.isPropertyAccessExpression(e)) {
       const d = s.declOf(e.name);
+      if (this.symbols && ts.isIdentifier(e.expression) && e.expression.text === 'Math' && (e.name.text === 'PI' || e.name.text === 'E')) {
+        const owner = s.declOf(e.expression);
+        if (!owner || s.isLib(owner)) return lit(t, String(e.name.text === 'PI' ? Math.PI : Math.E));
+      }
       if (d && ts.isEnumMember(d)) return lit(I32, String(s.checker.getConstantValue(d)));
+      if (d && this.symbols?.has(d) && (ts.isVariableDeclaration(d) || ts.isPropertyDeclaration(d))) return { k: 'var', t, name: this.symbols.get(d)!, global: true };
       const recv = s.tryZ(e.expression);
       const obj = this.expr(e.expression);
       const get: HExpr = recv.k === 'dyn' ? { k: 'dyn', t, op: 'get', args: [obj, lit(STR, JSON.stringify(e.name.text))] }
@@ -258,17 +309,47 @@ class Lower {
       const obj = this.expr(e.expression), idx = this.expr(e.argumentExpression);
       if (recv.k === 'dyn') return { k: 'dyn', t, op: 'index', args: [obj, this.conv(idx, DYN)] };
       if (recv.k === 'tup') return { k: 'field', t, obj, name: e.argumentExpression.getText() };
-      return { k: 'index', t, obj, idx: recv.k === 'arr' ? this.conv(idx, I32) : idx };
+      return { k: 'index', t, obj, idx };
     }
     if (ts.isCallExpression(e)) return this.call(e, t);
     if (ts.isNewExpression(e)) {
+      if (this.symbols && t.k === 'promise' && ts.isIdentifier(e.expression) && e.expression.text === 'Promise' && e.arguments?.length === 1) {
+        const executor = this.expr(e.arguments[0]);
+        const promise: HExpr = { k: 'var', t, name: '%promise' };
+        const error: ZT = { k: 'obj', decl: s.errorDecl, args: [] };
+        const resolver = (reject: boolean): HExpr => {
+          const valueType = reject ? error : t.el;
+          const params = valueType.k === 'void' ? [] : [{ name: '%value', t: valueType, cell: false }];
+          const fn: HFunc = { name: reject ? '<reject>' : '<resolve>', params, ret: VOID, kind: 'fn', captures: [promise.name], captureTypes: [{ name: promise.name, t, cell: false }], throws: false,
+            body: [{ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: reject ? '@promise.reject' : '@promise.resolve', recv: promise,
+              args: params.length ? [{ k: 'var', t: valueType, name: '%value' }] : [], check: false } }] };
+          return { k: 'lambda', t: { k: 'fn', params: params.map(p => p.t), ret: VOID }, fn };
+        };
+        const resolve = resolver(false), reject = resolver(true);
+        const exType = executor.t;
+        if (exType.k !== 'fn') return { k: 'opaque', t, text: 'Promise executor must be a function' };
+        const body: HStmt[] = [
+          { k: 'let', name: promise.name, t, init: { k: 'call', t, how: 'builtin', fn: '@promise.pending', args: [], check: false }, cell: false },
+          { k: 'try', hasCatch: true, bindCell: false, bind: '%error', errorType: error, fin: [], body: [
+            { k: 'expr', e: { k: 'call', t: exType.ret, how: 'closure', fn: '%executor', recv: { k: 'var', t: exType, name: '%executor' }, args: [resolve, reject].slice(0, exType.params.length), check: true } },
+          ], handler: [{ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: '@promise.reject', recv: promise, args: [{ k: 'var', t: error, name: '%error' }], check: false } }] },
+          { k: 'return', e: promise },
+        ];
+        const fn: HFunc = { name: '<Promise>', params: [{ name: '%executor', t: exType, cell: false }], ret: t, body, kind: 'fn', captures: [], throws: false };
+        return { k: 'call', t, how: 'closure', fn: '<Promise>', recv: { k: 'lambda', t: { k: 'fn', params: [exType], ret: t }, fn }, args: [executor], check: false };
+      }
       const d = s.declOf(e.expression);
       const ctor = d && ts.isClassDeclaration(d) ? this.ctorOf(d) : undefined;
       return { k: 'new', t, cls: e.expression.getText(), args: (e.arguments ?? []).map((a, i) => this.conv(this.expr(a), ctor?.parameters[i] ? s.paramType(ctor.parameters[i]) : undefined)), check: s.mayThrow(e) };
     }
     if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return { k: 'lambda', t, fn: this.fn(e, '<lambda>') };
     if (ts.isConditionalExpression(e)) return { k: 'cond', t, c: this.cond(e.condition), a: this.conv(this.expr(e.whenTrue), t), b: this.conv(this.expr(e.whenFalse), t) };
-    if (ts.isAwaitExpression(e) || ts.isYieldExpression(e)) return { k: 'suspend', t, what: ts.isAwaitExpression(e) ? 'await' : 'yield', e: e.expression ? this.expr(e.expression) : lit(VOID, 'undefined'), state: ++this.state };
+    if (ts.isYieldExpression(e)) {
+      if (e.asteriskToken || !ts.isExpressionStatement(e.parent)) return { k: 'opaque', t: VOID, text: 'yield* and yield results are not implemented' };
+      const fn = s.fnOf(e), ret = fn && ts.isFunctionLike(fn) ? s.retOf(fn as ts.SignatureDeclaration) : undefined;
+      return { k: 'suspend', t: VOID, what: 'yield', e: e.expression ? this.conv(this.expr(e.expression), ret?.k === 'gen' ? ret.el : undefined) : lit(VOID, 'undefined'), state: ++this.state };
+    }
+    if (ts.isAwaitExpression(e)) return { k: 'suspend', t, what: 'await', e: this.expr(e.expression), state: ++this.state };
     if (ts.isTypeOfExpression(e)) {
       const o = this.expr(e.expression);
       return o.t.k === 'dyn' ? { k: 'dyn', t: STR, op: 'typeof', args: [o] } : lit(STR, JSON.stringify(({ num: 'number', bool: 'boolean', str: 'string', void: 'undefined', fn: 'function' } as Record<string, string>)[o.t.k] ?? 'object'));
@@ -339,13 +420,45 @@ class Lower {
   call(e: ts.CallExpression, t: ZT): HExpr {
     const s = this.s, c = e.expression, check = s.mayThrow(e);
     let d = ts.isPropertyAccessExpression(c) ? s.declOf(c.name) : s.declOf(c);
-    const params = d && !s.isLib(d) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p), undefined)) : [];
+    const callable = d && !s.isLib(d) && !ts.isFunctionLike(d) ? s.tryZ(c) : undefined;
+    const params = d && (!s.isLib(d) || this.nativeCalls?.has(d)) && ts.isFunctionLike(d) ? (d as ts.SignatureDeclaration).parameters.map(p => this.safe(() => s.paramType(p), undefined)) : callable?.k === 'fn' ? callable.params : [];
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
+    const native = d && this.nativeCalls?.get(d);
+    if (native !== undefined) {
+      for (let i = args.length; i < params.length; i++) {
+        const p = params[i];
+        const value = abiDefault(s, d as ts.SignatureDeclaration, (d as ts.SignatureDeclaration).parameters[i]);
+        if (value === undefined || !p) throw new Error('native ABI: missing required argument');
+        args.push(lit(p, value));
+      }
+      return { k: 'call', t, how: 'builtin', fn: `@native:${native}`, args, check };
+    }
+    if (d && ts.isFunctionDeclaration(d) && this.symbols?.has(d)) return { k: 'call', t, how: 'static', fn: this.symbols.get(d)!, args, check };
+    if (d && ts.isMethodDeclaration(d) && ts.isClassDeclaration(d.parent) && this.symbols?.has(d.parent) && (ts.getCombinedModifierFlags(d) & ts.ModifierFlags.Static)) return { k: 'call', t, how: 'static', fn: `${this.symbols.get(d.parent)}.${d.name.getText()}`, args, check };
+    if (d && ts.isPropertyDeclaration(d) && this.symbols?.has(d)) return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
     if (ts.isPropertyAccessExpression(c)) {
       const recvT = s.tryZ(c.expression);
       const name = c.name.text;
-      if (ts.isIdentifier(c.expression) && (!s.declOf(c.expression) || s.isLib(s.declOf(c.expression)!))) return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
+      if (recvT.k === 'arr' && (name === 'push' || name === 'unshift') && args.length === 1) args[0] = this.conv(args[0], recvT.el);
+      if (recvT.k === 'arr' && name === 'splice' && e.arguments.length === 2 && ts.isIdentifier(e.arguments[1]) && e.arguments[1].text === 'undefined') args[1] = lit(I32, '0');
+      if (ts.isIdentifier(c.expression) && (!s.declOf(c.expression) || s.isLib(s.declOf(c.expression)!))) {
+        if (this.symbols && c.expression.text === 'Promise' && name === 'all' && t.k === 'promise' && t.el.k === 'arr' && args.length === 1) return this.promiseAll(t, args[0]);
+        return { k: 'call', t, how: 'builtin', fn: `${c.expression.text}.${name}`, args, check };
+      }
       const recv = this.expr(c.expression);
+      if (this.symbols && recvT.k === 'promise' && name === 'then' && args.length === 1 && args[0].t.k === 'fn') {
+        const cb = args[0], ft = cb.t as Extract<ZT, { k: 'fn' }>;
+        const p: HExpr = { k: 'var', t: recvT, name: '%promise' };
+        const callback: HExpr = { k: 'var', t: ft, name: '%callback' };
+        const value: HExpr = { k: 'var', t: recvT.el, name: '%value' };
+        const invoke: HExpr = { k: 'call', t: ft.ret, how: 'closure', fn: '%callback', recv: callback, args: ft.params.length ? [value] : [], check: true };
+        const fn: HFunc = { name: '<then>', params: [{ name: p.name, t: p.t, cell: false }, { name: callback.name, t: ft, cell: false }],
+          ret: t, kind: 'async', captures: [], throws: false, body: [
+            { k: 'let', name: value.name, t: value.t, init: { k: 'suspend', t: value.t, what: 'await', e: p, state: 1 }, cell: false },
+            { k: 'expr', e: ft.ret.k === 'promise' ? { k: 'suspend', t: ft.ret.el, what: 'await', e: invoke, state: 2 } : invoke },
+          ] };
+        return { k: 'call', t, how: 'closure', fn: '<then>', recv: { k: 'lambda', t: { k: 'fn', params: fn.params.map(p => p.t), ret: t }, fn }, args: [recv, cb], check: false };
+      }
       if (recvT.k === 'dyn') return { k: 'dyn', t, op: `call ${name}`, args: [recv, ...args] };
       if (recvT.k !== 'obj') return { k: 'call', t, how: 'builtin', fn: name, recv, args, check };
       if (d && (ts.isPropertyDeclaration(d) || ts.isPropertySignature(d))) return { k: 'call', t, how: 'closure', fn: name, recv: { k: 'field', t: s.declType(d), obj: recv, name }, args, check };
@@ -357,6 +470,41 @@ class Lower {
     d = s.declOf(c);
     if (d && ts.isFunctionDeclaration(d)) return { k: 'call', t, how: s.isLib(d) ? 'builtin' : 'static', fn: c.getText(), args, check };
     return { k: 'call', t, how: 'closure', fn: c.getText(), recv: this.expr(c), args, check };
+  }
+
+  promiseAll(t: Extract<ZT, { k: 'promise' }>, input: HExpr): HExpr {
+    const outType = t.el as Extract<ZT, { k: 'arr' }>;
+    const error: ZT = { k: 'obj', decl: this.s.errorDecl, args: [] };
+    const variable = (name: string, type: ZT, cell = false): HExpr & { k: 'var' } => ({ k: 'var', name, t: type, cell });
+    const values = variable('%values', input.t), out = variable('%out', outType), promise = variable('%promise', t);
+    const count = variable('%count', I32), left = variable('%left', I32, true), index = variable('%index', I32);
+    const item = variable('%item', { k: 'promise', el: outType.el }), value = variable('%value', outType.el);
+    const settle = (reject: boolean, value: HExpr): HStmt => ({ k: 'expr', e: { k: 'call', t: VOID, how: 'builtin', fn: reject ? '@promise.reject' : '@promise.resolve', recv: promise, args: [value], check: false } });
+    const captures = [out, promise, index, left];
+    const callback: HFunc = { name: '<all:item>', params: [{ name: item.name, t: item.t, cell: false }], ret: { k: 'promise', el: VOID }, kind: 'async', throws: false,
+      captures: captures.map(v => v.name), captureTypes: captures.map(v => ({ name: v.name, t: v.t, cell: !!v.cell })), body: [
+        { k: 'try', hasCatch: true, bind: '%error', bindCell: false, errorType: error, fin: [], body: [
+          { k: 'let', name: value.name, t: value.t, cell: false, init: { k: 'suspend', t: value.t, what: 'await', e: item, state: 1 } },
+          { k: 'expr', e: { k: 'assign', t: value.t, target: { k: 'index', t: value.t, obj: out, idx: index }, v: value } },
+          { k: 'expr', e: { k: 'assign', t: I32, target: left, v: { k: 'bin', t: I32, op: '-', l: left, r: lit(I32, '1') } } },
+          { k: 'if', c: { k: 'bin', t: BOOL, op: '==', l: left, r: lit(I32, '0') }, then: [settle(false, out)], else: [] },
+        ], handler: [settle(true, variable('%error', error))] },
+      ] };
+    const body: HStmt[] = [
+      { k: 'let', name: promise.name, t, cell: false, init: { k: 'call', t, how: 'builtin', fn: '@promise.pending', args: [], check: false } },
+      { k: 'let', name: out.name, t: outType, cell: false, init: { k: 'alloc', t: outType, what: 'array', items: [] } },
+      { k: 'let', name: count.name, t: I32, cell: false, init: { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: values, args: [], check: false } },
+      { k: 'let', name: left.name, t: I32, cell: true, init: count },
+      { k: 'if', c: { k: 'bin', t: BOOL, op: '==', l: count, r: lit(I32, '0') }, then: [settle(false, out)], else: [] },
+      { k: 'let', name: index.name, t: I32, cell: false, init: lit(I32, '0') },
+      { k: 'loop', c: { k: 'bin', t: BOOL, op: '<', l: index, r: count }, body: [
+        { k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [lit(outType.el, outType.el.k === 'str' ? '""' : outType.el.k === 'bool' ? 'false' : '0')], check: false } },
+        { k: 'expr', e: { k: 'call', t: callback.ret, how: 'closure', fn: callback.name, recv: { k: 'lambda', t: { k: 'fn', params: [item.t], ret: callback.ret }, fn: callback }, args: [{ k: 'index', t: item.t, obj: values, idx: index }], check: false } },
+      ], step: [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: { k: 'bin', t: I32, op: '+', l: index, r: lit(I32, '1') } } }] },
+      { k: 'return', e: promise },
+    ];
+    const fn: HFunc = { name: '<all>', params: [{ name: values.name, t: values.t, cell: false }], ret: t, kind: 'fn', captures: [], throws: false, body };
+    return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [values.t], ret: t }, fn }, args: [input], check: false };
   }
 
   ctorOf(c: ts.ClassDeclaration): ts.ConstructorDeclaration | undefined {

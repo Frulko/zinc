@@ -17,6 +17,7 @@ import { collectResources, resourcesCpp, resourcesJson } from './resources.ts';
 import { activePlugins, buildSettings, discover, listPlugins, projectDir, withBoard, type BuildSettings } from './plugins.ts';
 import { flash, serialMonitor } from './flash.ts';
 import * as png from './png.ts';
+import { buildEngine, exportEngine, type Engine } from './engines.ts';
 
 interface Profile { number: NumKind; width: number; height: number; typing: 'strict' | 'gradual'; heap: number; noFpu?: boolean; zoom?: number; resize?: 'fill' | 'letterbox'; fullscreen?: boolean; kiosk?: boolean;
   /** esp32 only (docs/boards.md): ESP-IDF chip (esp32, esp32s3), PSRAM for the Zinc heap, flash size ("4MB"). */
@@ -46,17 +47,34 @@ const PROFILES: Record<string, Profile> = {
 export interface Project { name: string; dir: string; assets?: string; crash?: string; version?: string; id?: string; icon?: string | IconSpec; requires: string[]; targets: Record<string, Partial<Profile>> }
 /** dev: `zinc dev` build (source locations, red box, hot-reload library on the host platform, docs/dev-mode.md). */
 /** vals: valued options of zinc capture (--frames, --every, --out, --replay). */
-export interface Opts { project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
+export interface Opts { headless?: boolean; engine?: Engine; nativeLibraries?: string[]; vmTier?: 0 | 1; project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
   const o: Opts = { project: { name: '', dir: '', requires: [], targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') { o.rest = argv.slice(i + 1); break; }
-    if (a === '--target') o.target = argv[++i];
+    if (a === '--engine' || a.startsWith('--engine=')) {
+      const e = a.includes('=') ? a.slice(9) : argv[++i];
+      if (!['native', 'zinc-vm', 'quickjs'].includes(e)) die(`unknown engine '${e}' (native, zinc-vm, quickjs)`);
+      o.engine = e as Engine;
+    }
+    else if (a === '--native-library' || a.startsWith('--native-library=')) {
+      const file = a.includes('=') ? a.slice(17) : argv[++i];
+      if (!file || file.startsWith('--')) die('--native-library requires a file path');
+      (o.nativeLibraries ??= []).push(path.resolve(file));
+    }
+    else if (a === '--jit') o.vmTier = 1;
+    else if (a === '--vm-tier' || a.startsWith('--vm-tier=')) {
+      const tier = a.includes('=') ? a.slice(10) : argv[++i];
+      if (tier !== '0' && tier !== '1') die('--vm-tier supports 0 (interpreter) or 1 (JIT)');
+      o.vmTier = Number(tier) as 0 | 1;
+    }
+    else if (a === '--target') o.target = argv[++i];
     else if (a.startsWith('--target=')) o.target = a.slice(9);
     else if (a === '--profile') o.profile = argv[++i];
     else if (a.startsWith('--profile=')) o.profile = a.slice(10);
+    else if (a === '--headless') o.headless = true;
     else if (a === '--debug') o.debug = true;
     else if (a === '--release') o.debug = false;
     else if (a.startsWith('--emit=')) o.emit = a.slice(7);
@@ -78,6 +96,8 @@ function parseArgs(argv: string[]): Opts {
     else if (!a.startsWith('-')) o.entry = a;
     else die(`unknown option ${a}`);
   }
+  if (o.nativeLibraries?.length && (!o.engine || o.engine === 'native')) die('--native-library requires --engine zinc-vm or quickjs');
+  if (o.vmTier !== undefined && o.engine !== 'zinc-vm') die('--vm-tier / --jit requires --engine zinc-vm');
   if (!o.entry && fs.existsSync('zinc.json')) o.entry = JSON.parse(fs.readFileSync('zinc.json', 'utf8')).entry ?? 'src/main.ts';
   if (!o.entry) o.entry = ['src/main.ts', 'src/main.tsx', 'main.ts', 'main.tsx'].find(f => fs.existsSync(f)) ?? 'main.ts';
   if (fs.existsSync(o.entry) && fs.statSync(o.entry).isDirectory() && fs.existsSync(path.join(o.entry, 'zinc.json')))
@@ -90,6 +110,8 @@ function parseArgs(argv: string[]): Opts {
   const over = o.project.targets[o.profile];
   if (over && PROFILES[o.profile]) PROFILES[o.profile] = { ...PROFILES[o.profile], ...over };
   if (!PROFILES[o.target]) die(`unknown target '${o.target}' (available: ${Object.keys(PROFILES).join(', ')})`);
+  const engineHost = process.platform === 'darwin' ? 'macos' : 'linux';
+  if (o.engine && o.engine !== 'native' && o.target !== engineHost) die(`${o.engine}: application runners require the host target (${engineHost})`);
   if (!PROFILES[o.profile]) die(`unknown profile '${o.profile}'`);
   // capabilities of the target profile (docs/targets/capabilities.md): zinc:platform, and the app's requirements
   const caps = capsFor(o.profile, PROFILES[o.profile]);
@@ -194,7 +216,7 @@ function guard<T>(o: Opts, f: () => T): T {
 
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
-  const name = (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '');
+  const name = (o.engine && o.engine !== 'native' ? o.engine + '-' : '') + (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '');
   return path.join(o.project.dir || path.dirname(path.resolve(o.entry)), 'build', name);  // next to zinc.json
 }
 
@@ -202,8 +224,9 @@ function outDir(o: Opts): string {
 function isDist(o: Opts): boolean { return (o.cmd === 'export' || o.cmd === 'deploy') && !o.debug; }
 
 function writeIfChanged(file: string, content: string) {
-  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === content) return;
+  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === content) return false;
   fs.writeFileSync(file, content);
+  return true;
 }
 
 const MOD_LIBS: Record<string, string> = { net: 'CURL::libcurl', gpio_linux: 'libgpiod' };
@@ -372,7 +395,7 @@ function run(cmd: string, args: string[], cwd?: string, quiet = false, what?: st
 }
 
 /** lib: the program as a module for runtime/dev_host.cpp (hot reload, exe is the host). */
-export interface Built { exe: string[]; dir: string; lib?: string }
+export interface Built { exe: string[]; dir: string; lib?: string; watch?: string[] }
 const CRASH: Record<string, number> = { exit: 0, redbox: 1, restart: 2 };
 /** zinc dev reloads in place when the target runs on this machine (macos on macOS, linux on Linux). */
 function hotTarget(o: Opts): boolean { return o.dev && !o.device && ((o.target === 'macos' && process.platform === 'darwin') || (o.target === 'linux' && process.platform === 'linux')); }
@@ -419,6 +442,19 @@ function build(o: Opts): Built {
   fs.mkdirSync(dir, { recursive: true });
   const title = o.project.name;
   const prof = PROFILES[o.profile];
+  if (o.engine && o.engine !== 'native') {
+    if (o.emit || !['build', 'run', 'test', 'bench', 'dev', 'export', 'capture'].includes(o.cmd)) die(`${o.engine}: ${o.cmd} is not supported by the application runner yet`);
+    if (o.device || o.devtools) die(`${o.engine}: remote dev and the UI inspector are not implemented yet`);
+    const active = activePlugins(projectDir(o.entry), sema.fe.sources.map(file => file.fileName), o.target);
+    if (active.errors.length) die(active.errors.join('\n'));
+    const display = active.plugins.find(plugin => plugin.kind === 'display');
+    if (display) die(`${o.engine}: display plugin ${display.name} has no application runner adapter yet`);
+    try {
+      const graphics = usesGfx(sema) ? { ...bakeResources(o, sema, dir), title, headless: !!o.headless, defines: windowDefines(prof, sema) } : undefined;
+      return buildEngine(sema, o.engine, dir, o.target, o.debug, o.project.assets, [prof.width, prof.height], o.vmTier ?? 0, o.nativeLibraries ?? [], graphics);
+    }
+    catch (e) { die((e as Error).message); }
+  }
   if (o.target === 'sim' || o.emit === 'js') {
     const simFlags = pluginSettings(o, sema).nodeFlags;
     // the sim is the oracle, so it refuses what the native backend refuses (Z9042, Z1013... are found while emitting
@@ -443,14 +479,14 @@ function build(o: Opts): Built {
   writeIfChanged(path.join(dir, 'zinc_main.cpp'), res.code);
   if (o.emit === 'cpp') { process.stdout.write(res.code); process.exit(0); }
   if (res.modules.has('assets')) { writeIfChanged(path.join(dir, 'zinc_assets.cpp'), assetsSource(o)); res.nativeSources.push(path.join(dir, 'zinc_assets.cpp')); }
-  writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, windowDefines(prof, sema)));
+  const cmakeChanged = writeIfChanged(path.join(dir, 'CMakeLists.txt'), cmakeLists(dir, res, o.debug, prof.heap, o.profile, ps, mode, windowDefines(prof, sema)));
   const tc = Date.now();
   const bdir = path.join(dir, 'cmake');
   if (DOCKER[o.target] && !(o.target === 'linux' && process.platform === 'linux')) return dockerBuild(o, dir, bdir, sema, tc, t0, res.usesGfx, ps, res.modules);
   if (o.target === 'wasm') return wasmBuild(o, dir, bdir, sema, tc, t0, res.usesGfx);
   if (o.target === 'esp32') return espBuild(o, dir, res, sema, tc, t0, prof.heap, ps);
-  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
-    const genArgs = ['-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`];
+  if (cmakeChanged || !fs.existsSync(path.join(bdir, 'CMakeCache.txt'))) {
+    const genArgs = ['-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`, ...(o.headless ? ['-DZINC_HEADLESS=ON'] : [])];
     if (spawnSync('ninja', ['--version']).status === 0) genArgs.push('-G', 'Ninja');
     if (run('cmake', genArgs, undefined, true, 'configuring (cmake)') !== 0) die('cmake configure failed');
   }
@@ -637,7 +673,7 @@ function emEnv(): NodeJS.ProcessEnv {
 function wasmBuild(o: Opts, dir: string, bdir: string, sema: Sema, tc: number, t0: number, gfx: boolean): Built {
   Object.assign(process.env, emEnv());
   if (spawnSync('emcc', ['--version']).status !== 0) die('wasm target needs emscripten (brew install emscripten)');
-  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt')) && run('emcmake', ['cmake', '-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`], undefined, true, 'configuring (emcmake)') !== 0) die('emcmake configure failed');
+  if (!fs.existsSync(path.join(bdir, 'CMakeCache.txt')) && run('emcmake', ['cmake', '-S', dir, '-B', bdir, `-DCMAKE_BUILD_TYPE=${o.debug ? 'Debug' : 'Release'}`, ...(o.headless ? ['-DZINC_HEADLESS=ON'] : [])], undefined, true, 'configuring (emcmake)') !== 0) die('emcmake configure failed');
   if (run('cmake', ['--build', bdir, '-j'], undefined, true, 'compiling C++ (wasm)') !== 0) die('C++ build failed (wasm)');
   const wasm = path.join(bdir, 'app.wasm');
   const size = fs.statSync(wasm).size;
@@ -680,7 +716,7 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     // `// zinc-test: max-frames 300`: the frame budget of both sides (the sim stops a screen program at 60 by default)
     const maxFrames = /^\/\/ zinc-test: max-frames (\d+)$/m.exec(fs.readFileSync(entry, 'utf8'))?.[1];
     const runOne = (target: string): string => {
-      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '', ...(maxFrames ? { ZINC_FRAMES: maxFrames } : {}) } });
+      const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', entry, '--target', target, '--profile', o.profile, ...(target !== 'sim' ? engineArgs(o) : []), ...(o.debug ? ['--debug'] : [])], { encoding: 'utf8', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '', ...(maxFrames ? { ZINC_FRAMES: maxFrames } : {}) } });
       return (r.stdout ?? '').replace(/\r\n/g, '\n') + (r.status ? `[exit ${r.status}] ${(r.stderr ?? '').split('\n').filter(l => !l.startsWith('zinc:')).join('\n')}` : '');
     };
     const key = profileKey(o);
@@ -689,7 +725,7 @@ function test(o: Opts, update: boolean, updateGolden = false) {
     if (update || !fs.existsSync(expectFile)) fs.writeFileSync(expectFile, sim);
     const expected = fs.readFileSync(expectFile, 'utf8');
     const results: [string, string][] = [['sim', sim]];
-    if (o.target !== 'sim') results.push([o.target, runOne(o.target)]);
+    if (o.target !== 'sim') results.push([o.engine && o.engine !== 'native' ? `${o.target}/${o.engine}${o.engine === 'zinc-vm' ? `/tier${o.vmTier ?? 0}` : ''}` : o.target, runOne(o.target)]);
     for (const [t, out] of results) {
       if (out.includes('Z5003')) { console.log(`skip ${f} [${t}] (module not available on this target)`); continue; }
       const ok = out === expected;
@@ -714,6 +750,9 @@ function test(o: Opts, update: boolean, updateGolden = false) {
 /** zinc test <dir|file> (like `tjs test` / `elsa test`): every `test-*.ts(x)` / `*.test.ts(x)` under the directory
  *  is built and run on the target (deterministic mode) and passes when it exits with 0; zinc:assert throws (uncaught:
  *  exit 1) on a failed check. ZINC_TEST_TIMEOUT (ms, default 60000) bounds each program. */
+function engineArgs(o: Opts): string[] {
+  return [...(o.engine ? ['--engine', o.engine] : []), ...(o.vmTier !== undefined ? ['--vm-tier', String(o.vmTier)] : []), ...(o.nativeLibraries ?? []).flatMap(file => ['--native-library', file]), ...(o.headless ? ['--headless'] : [])];
+}
 function userTests(o: Opts, where: string) {
   const files: string[] = [];
   const walk = (d: string) => {
@@ -730,8 +769,8 @@ function userTests(o: Opts, where: string) {
   let failed = 0;
   for (const f of files) {
     const t0 = Date.now();
-    const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', f, '--target', o.target, '--profile', o.profile, ...(o.debug ? ['--debug'] : [])],
-      { encoding: 'utf8', timeout, env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '' } });
+    const r = spawnSync(process.execPath, [path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs'), 'run', f, '--target', o.target, '--profile', o.profile, ...engineArgs(o), ...(o.debug ? ['--debug'] : [])],
+      { encoding: 'utf8', timeout, killSignal: 'SIGKILL', env: { ...DETERMINISTIC, ...process.env, ZINC_LOG_FORMAT: '' } });
     const ok = r.status === 0;
     if (!ok) failed++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${path.relative(process.cwd(), f)} (${Date.now() - t0} ms)${r.error ? ' timed out' : ''}`);
@@ -776,6 +815,7 @@ function frameList(s: string | undefined): number[] {
 /** zinc capture: frames of any program as PNG files (docs/guide/06-testing.md). */
 function capture(o: Opts) {
   if (!CAPTURE_TARGETS.includes(o.target)) die(`zinc capture supports --target ${CAPTURE_TARGETS.join(', ')} (the sim draws nothing; ps1: ZINC_SHOT through the emulator)`);
+  if (o.engine && o.engine !== 'native') o.headless = true;
   const frames = frameList(o.vals.frames), every = Number(o.vals.every ?? 0);
   const b = build(o);
   const out = path.resolve(o.vals.out ?? path.join(o.project.dir, 'build', 'shots'));
@@ -919,6 +959,10 @@ function help(topic?: string) {
     options: `Build options
   --target <id>      platform to build for (default: the host)
   --profile <id>     number representation / resolution / heap of another target (e.g. --profile ps1 on macOS)
+  --native-library <file>             load a trusted ABI module (.so/.dylib), repeatable
+  --engine native|zinc-vm|quickjs      execution engine (build/run/test/dev/capture/export; docs/engines.md)
+  --vm-tier 0|1                       Zinc VM interpreter or AArch64 baseline JIT (--jit = --vm-tier=1)
+  --headless         real rasterization and captures with the null HAL (no window)
   --debug            ASan + UBSan, leak report at exit        --release (default)
   --emit=hir|mir|cpp|js   print the typed HIR, the SSA MIR, the generated C++ or JavaScript
   --no-dyn           every Dyn (any/unknown) site is an error
@@ -985,7 +1029,7 @@ function help(topic?: string) {
   };
   if (topic === 'plugins') { console.log(listPlugins(projectDir('x'))); return; }
   if (topic && T[topic]) { console.log(T[topic]); return; }
-  console.log(`zinc — strict TypeScript compiled to native C++ (no JavaScript engine on the device)\n\n${T.commands}\n\n${T.targets}\n\n${T.options}\n\n${T.env}\n\n${T.testing}\n\n${T.ui}\n\nPlugins (compiled in only when imported, or chosen as display in zinc.json)\n${listPlugins(projectDir('x'))}\n\n${T.docs}\n\nentry defaults to zinc.json "entry", src/main.ts or main.ts; a directory means its zinc.json / main.ts.`);
+  console.log(`zinc — TypeScript to native C++; experimental --engine zinc-vm|quickjs\n\n${T.commands}\n\n${T.targets}\n\n${T.options}\n\n${T.env}\n\n${T.testing}\n\n${T.ui}\n\nPlugins (compiled in only when imported, or chosen as display in zinc.json)\n${listPlugins(projectDir('x'))}\n\n${T.docs}\n\nentry defaults to zinc.json "entry", src/main.ts or main.ts; a directory means its zinc.json / main.ts.`);
 }
 
 function main() {
@@ -1021,7 +1065,7 @@ function main() {
     const o = parseArgs(argv);
     o.dev = true;
     // the UI inspector (plugins/devtools) comes with zinc:ui programs on hosts that can listen on a socket
-    if (!argv.includes('--no-devtools') && ['macos', 'linux', 'rpi1'].includes(o.target) && usesUi(o.project.dir)) o.devtools = true;
+    if ((!o.engine || o.engine === 'native') && !argv.includes('--no-devtools') && ['macos', 'linux', 'rpi1'].includes(o.target) && usesUi(o.project.dir)) o.devtools = true;
     return dev(o, () => { try { return build(o); } catch (e) { if (e instanceof Exit) return null; throw e; } });
   }
   const o = parseArgs(argv);
@@ -1032,10 +1076,15 @@ function main() {
     if (o.json) console.log('[]'); else console.error(`zinc: ${o.entry}: no errors`);
     return;
   }
-  if (cmd === 'build') { const b = build(o); if (argv.includes('--print-exe')) console.log(b.exe.join(' ')); return; }
+  if (cmd === 'build') { const b = build(o); if (argv.includes('--print-exe')) console.log(o.json ? JSON.stringify(b.exe) : b.exe.join(' ')); return; }
   if (cmd === 'export' || cmd === 'deploy') {
     if (o.target === 'sim') die('export needs a native target');
     const b = build(o);
+    if (o.engine && o.engine !== 'native') {
+      try { console.error(`zinc: exported ${exportEngine(o.project, o.engine, o.target, b.dir)}`); }
+      catch (e) { die((e as Error).message); }
+      return;
+    }
     const out = exportApp(o.project, o.target, DOCKER[o.target] ? path.join(b.dir, 'cmake', DOCKER[o.target].out ?? 'app') : b.exe[0], b.dir);
     if (cmd === 'deploy') {
       const script = path.join(out, 'deploy.sh');
@@ -1054,7 +1103,7 @@ function main() {
   if (cmd === 'bench' || (cmd === 'test' && argv.includes('--bench'))) return benchCmd(o, argv);
   if (cmd === 'test') {
     // `zinc test <dir|file>`: the project's own tests; without a path, the conformance suite of this repository
-    const own = argv.slice(1).find((a, i, all) => !a.startsWith('-') && !['--target', '--profile', '--device', '--port', '--frames', '--every', '--out', '--replay'].includes(all[i - 1] ?? '') && fs.existsSync(a));
+    const own = argv.slice(1).find((a, i, all) => !a.startsWith('-') && !['--engine', '--vm-tier', '--native-library', '--target', '--profile', '--device', '--port', '--frames', '--every', '--out', '--replay'].includes(all[i - 1] ?? '') && fs.existsSync(a));
     if (own) return userTests(o, own);
     return argv.includes('--pixels') ? pixelTest(o, argv.includes('--update')) : test(o, argv.includes('--update'), argv.includes('--update-golden'));
   }

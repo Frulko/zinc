@@ -70,7 +70,14 @@ module ir.ts
     %12 = bin / %8, %11 : f64
     %13 = conv.num f64->i32 %12 : i32
     ret %13
-  fn later(v: f64): Promise<f64>  ; async function: a state machine emitted directly (not lowered)
+  fn later(v: f64): Promise<f64>  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param v : f64
+    %1 = call.builtin Promise.resolve %0 : Promise<f64>
+    %2 = await #1 %1 : f64
+    %3 = const 2 : f64
+    %4 = bin * %2, %3 : f64
+    ret %4
   fn Vec.constructor(x: f64, y: f64): void  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
   bb0:
     %0 = param x : f64
@@ -116,4 +123,102 @@ module ir.ts
     %11 = bin + %7, %10 : f64
     %12 = call.builtin Math.sqrt %11 : f64
     ret %12
-  fn <init>(): void  ; try/catch: not lowered
+  fn <init>(): void  ; 15 blocks; fold 1, branches pruned 0, blocks merged 1, dce 1
+  bb0:
+    %62 = undef y : void
+    %55 = undef x : void
+    %0 = load @u : Dyn
+    %1 = dyn.typeof %0 : string
+    %2 = const "number" : string
+    %3 = bin == %1, %2 : bool
+    br %3 ? bb1 : bb2
+  bb1:  ; preds bb0
+    %4 = load @u : Dyn
+    %5 = conv.dyn.check Dyn->f64 %4 : f64
+    %6 = const 1 : f64
+    %7 = bin + %5, %6 : f64
+    %8 = call.builtin console.log %7 : void
+    br bb3
+  bb2:  ; preds bb0
+    br bb3
+  bb3:  ; preds bb1, bb2
+    %9 = const 7 : i32
+    %10 = const 2 : i32
+    %11 = call.static! safeDiv %9, %10 : i32
+    invoke -> bb7 catch bb6
+  bb4:  ; preds bb9, bb6
+    %19 = const 1 : i32
+    %20 = const 2 : i32
+    %21 = const 3 : i32
+    %22 = alloc.array _,_,_ %19, %20, %21 : i32[]
+    %23 = call.static sum %22 : i32
+    %25 = const -1 : f64
+    %26 = call.static pick %25 : string
+    %27 = const 2 : i32
+    %28 = call.static grade %27 : string
+    %29 = load @shapes : Vec[]
+    %30 = const 1 : f64
+    %31 = index.get %29, %30 : Vec
+    %32 = call.virtual len %31 : f64
+    %33 = load @d : Dyn
+    %34 = const "a" : string
+    %35 = dyn.get %33, %34 : Dyn
+    %36 = const 1 : f64
+    %37 = conv.dyn.box f64->Dyn %36 : Dyn
+    %38 = dyn.+ %35, %37 : Dyn
+    %39 = load @shapes : Vec[]
+    %40 = const 0 : f64
+    %41 = index.get %39, %40 : Vec
+    %42 = const null : null
+    %43 = bin == %41, %42 : bool
+    br %43 ? bb10 : bb11
+  bb6:  ; preds bb3, bb7, bb8
+    %16 = exception : Error
+    %17 = field.get message %16 : string
+    %18 = call.builtin console.log %17 : void
+    br bb4
+  bb7:  ; preds bb3
+    %12 = const 1 : i32
+    %13 = const 0 : i32
+    %14 = call.static! safeDiv %12, %13 : i32
+    invoke -> bb8 catch bb6
+  bb8:  ; preds bb7
+    %15 = call.builtin console.log %11, %14 : void
+    invoke -> bb9 catch bb6
+  bb9:  ; preds bb8
+    br bb4
+  bb10:  ; preds bb4
+    %44 = const default : f64
+    br bb12
+  bb11:  ; preds bb4
+    %45 = field.get x %41 : f64
+    br bb12
+  bb12:  ; preds bb10, bb11
+    %46 = phi [bb10 %44] [bb11 %45] : f64  ; %cond1
+    %47 = const null : null
+    %48 = bin == %46, %47 : bool
+    br %48 ? bb13 : bb14
+  bb13:  ; preds bb12
+    %49 = const 0 : f64
+    br bb15
+  bb14:  ; preds bb12
+    br bb15
+  bb15:  ; preds bb13, bb14
+    %50 = phi [bb13 %49] [bb14 %46] : f64  ; %cond0
+    %57 = const "," : string
+    %64 = concat %55, %57, %62 : string
+    %65 = call.builtin console.log %23, %26, %28, %32, %38, %50, %64 : void
+    %66 = load @bump : (f64) => void
+    %67 = const 2 : f64
+    %68 = call.closure bump %66, %67 : void
+    %69 = const 4 : f64
+    %70 = call.static later %69 : Promise<f64>
+    %71 = closure <lambda>#1[] : (f64) => void
+    %72 = call.builtin then %70, %71 : Promise<void>
+    ret
+  fn <init>::<lambda>#1(v: f64): void  ; 1 block; fold 0, branches pruned 0, blocks merged 0, dce 0
+  bb0:
+    %0 = param v : f64
+    %1 = load @count : f64
+    %2 = call.builtin console.log %0, %1 : void
+    ret

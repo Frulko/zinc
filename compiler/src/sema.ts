@@ -116,6 +116,7 @@ export class Sema {
     const captured = new Set<ts.Symbol>();
     const written = new Set<ts.Symbol>();
     const calls: (ts.CallExpression | ts.NewExpression)[] = [];
+    const iterations: ts.ForOfStatement[] = [];
     let cid = 1;
     const visit = (n: ts.Node) => {
       this.forbid(n);
@@ -148,6 +149,7 @@ export class Sema {
         }
       }
       if (ts.isForStatement(n)) this.loopCounter(n);
+      if (ts.isForOfStatement(n)) iterations.push(n);
       if (ts.isThrowStatement(n)) { this.hasThrow = true; const f = this.fnOf(n); if (f) this.throwing.add(f); }
       if (ts.isCallExpression(n) || ts.isNewExpression(n)) calls.push(n);
       if (this.opts.warnFloat && ts.isTypeReferenceNode(n) && (n.typeName.getText() === 'f32' || n.typeName.getText() === 'f64')) {
@@ -161,6 +163,11 @@ export class Sema {
     for (const c of calls) this.callTargets(c);  // registers library functions tagged @throws
     // throw propagation over the call graph (fixpoint)
     if (this.hasThrow) {
+      // Generator creation is lazy; errors propagate from iteration, including through callers.
+      for (const loop of iterations) {
+        const caller = this.fnOf(loop);
+        if (caller && !this.isAsyncFn(caller) && this.tryZ(loop.expression).k === 'gen') this.throwing.add(caller);
+      }
       let changed = true;
       while (changed) {
         changed = false;
@@ -276,6 +283,11 @@ export class Sema {
         r.fns.push(...fnArgs);
         if (ts.getJSDocTags(d).some(t => t.tagName.text === 'throws')) { r.fns.push(d); this.throwing.add(d); this.hasThrow = true; }
       }
+      else if (d && ts.isMethodSignature(d) && d.getSourceFile().fileName.endsWith('.spec.ts')) {
+        // Native implementations can set g_err themselves or invoke a retained
+        // guest callback; their bodies are outside this call graph.
+        r.fns.push(d);this.throwing.add(d);this.hasThrow = true;
+      }
       else if (d && ts.isFunctionDeclaration(d)) r.fns.push(d);
       else if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) r.fns.push(...(this.methodsByName.get(d.name.getText()) ?? []));
       else r.dynamic = true;
@@ -287,7 +299,7 @@ export class Sema {
   mayThrow(c: ts.CallExpression | ts.NewExpression): boolean {
     if (!this.hasThrow) return false;
     const t = this.callTargets(c);
-    if (t.fns.some(f => this.throwing.has(f) && !this.isAsyncFn(f))) return true;
+    if (t.fns.some(f => this.throwing.has(f) && !this.isAsyncFn(f) && !this.isGeneratorFn(f))) return true;
     return t.dynamic && this.anyLambdaThrows;
   }
   isAsyncFn(f: ts.Node): boolean {

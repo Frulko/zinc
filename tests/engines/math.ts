@@ -1,0 +1,14 @@
+console.log('limits', Math.min(), Math.max(), Math.min(8), Math.max(-3));
+console.log('fold', Math.min(7, -2, 9, 0), Math.max(7, -2, 9, 0), Math.min(2, Math.sqrt(-1)), Math.max(Math.sqrt(-1), 3));
+console.log('zero', 1 / Math.min(0, -0), 1 / Math.max(-0, 0), 1 / Math.round(-0.25), 1 / Math.round(-0.5), 1 / Math.sign(-0));
+console.log('round', Math.floor(-1.2), Math.ceil(-1.2), Math.trunc(-1.2), Math.round(-1.5), Math.round(1.5), Math.abs(-4));
+console.log('functions', Math.sqrt(81), Math.pow(2, 8), Math.sin(0), Math.cos(0), Math.tan(0), Math.atan2(0, 1), Math.exp(0), Math.log(1), Math.hypot(3, 4));
+console.log('constants', Math.PI, Math.E);
+console.log('machine', Math.fround(1.337), Math.imul(-1, 5), Math.imul(2147483647, 2), Math.clz32(0), Math.clz32(1), Math.clz32(-1));
+Math.seed(123);
+const a = Math.random(), b = Math.random(), c = Math.random();
+console.log('random', a, b, c);
+Math.seed(123);
+console.log('reseed', Math.random() === a);
+Math.seed(0);
+console.log('default', Math.random());

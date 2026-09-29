@@ -105,7 +105,7 @@ interface Array<T> {
   shift(): T;
   unshift(v: T): i32;
   slice(start?: i32, end?: i32): T[];
-  splice(start: i32, count: i32): T[];
+  splice(start: i32, count?: i32): T[];
   indexOf(v: T, fromIndex?: i32): i32;
   lastIndexOf(v: T, fromIndex?: i32): i32;
   /** SameValueZero: NaN is found. */

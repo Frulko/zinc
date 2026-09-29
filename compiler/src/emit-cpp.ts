@@ -178,7 +178,8 @@ class CppEmitter {
     const ordered = this.topo(classes);
     const decls: string[] = [], defs: string[] = [], protos: string[] = [], bodies: string[] = [], inits: string[] = [];
     for (const c of ordered) decls.push(`namespace ${this.ns(c.getSourceFile())} { ${this.tparams((c as ts.ClassDeclaration).typeParameters)}struct ${this.id(this.declName(c))}; }`);
-    for (const c of ordered) { const [d, b] = this.classDef(c); defs.push(d); bodies.push(b); }
+    const nativeRecords = new Set<ts.Node>(this.native.recordDecls()), nativeRecordDefs = new Map<ts.Node, string>();
+    for (const c of ordered) { const [d, b] = this.classDef(c); if (nativeRecords.has(c)) nativeRecordDefs.set(c, d); else defs.push(d); bodies.push(b); }
     const gl: string[] = [];
     for (const g of globals) {
       for (const n of this.boundNames(g.name)) gl.push(`namespace ${this.ns(g.getSourceFile())} { ${this.cpp(this.s.declType(n.decl))} ${this.id(n.name)}{}; }`);
@@ -214,7 +215,7 @@ class CppEmitter {
       const ok = MODULE_TARGETS[m];
       if (ok && !ok.includes(this.o.target)) this.s.fail(this.s.fe.entry, 'Z5003', `module 'zinc:${m}' is not available on target '${this.o.target}' (available: ${ok.join(', ')})`);
     }
-    if (this.native.user.size) this.native.writeHeaders(this.o.outDir, t => this.cpp(t));
+    if (this.native.user.size) this.native.writeHeaders(this.o.outDir, t => this.cpp(t), decl => nativeRecordDefs.get(decl)!);
     return { code, usesGfx: this.usesGfx, modules: this.native.used, nativeSources: this.native.user.size ? this.native.sources(this.o.target) : [] };
   }
 
@@ -880,7 +881,7 @@ class CppEmitter {
         bind += this.local(k, this.cpp(t.key), `${c}.key_at(${i})`, d + 2) + this.local(v, this.cpp(t.val), `${c}.val_at(${i})`, d + 2);
       } else bind += bindTo(t.el, `${c}.key_at(${i})`);
     } else if (t.k === 'gen') {
-      head = `while (${c}->step())`;
+      head = `while (({ bool __more = ${c}->step(); if (zrt::g_err.p) { ${this.propagate()}; } __more; }))`;
       bind = bindTo(t.el, `${c}->cur`);
     } else return this.s.fail(s.expression, 'Z9005', 'for-of is supported on arrays, strings, Map, Set and generators');
     const inner = ts.isBlock(s.statement) ? s.statement.statements.map(x => this.stmt(x, d + 2)).join('') : this.stmt(s.statement, d + 2);
@@ -1361,11 +1362,16 @@ class CppEmitter {
   /** console.* (RT-07): one formatter shared with sim; levels, timers, assert. */
   consoleCall(name: string, e: ts.CallExpression): string {
     for (const x of e.arguments) this.strictDyn(x);
-    const a = e.arguments.map(x => this.expr(x));
-    if (CONSOLE.has(name)) return `zrt::console(zrt::LOG_${name.toUpperCase()}${a.length ? ', ' + a.join(', ') : ''})`;
-    if (name === 'time' || name === 'timeEnd' || name === 'timeLog' || name === 'count') return `zrt::console_${name}(${a[0] ?? this.lit('default')})`;
-    if (name === 'assert') return `zrt::console_assert(${this.cond(e.arguments[0])}${a.length > 1 ? ', ' + a.slice(1).join(', ') : ''})`;
-    if (name === 'table') return `zrt::console_table(${a[0]})`;
+    const values = e.arguments.map((x, i) => name === 'assert' && i === 0 ? this.cond(x) : this.expr(x));
+    // C++ call arguments have no left-to-right guarantee, and console borrows its values.
+    // Snapshot each argument before later calls can mutate globals referenced by earlier ones.
+    const a = values.length > 1 ? values.map(() => this.newTmp('log')) : values;
+    const wrap = (call: string) => values.length > 1
+      ? `([&]() { ${values.map((v, i) => `auto ${a[i]} = ${v};`).join(' ')} ${call}; }())` : call;
+    if (CONSOLE.has(name)) return wrap(`zrt::console(zrt::LOG_${name.toUpperCase()}${a.length ? ', ' + a.join(', ') : ''})`);
+    if (name === 'time' || name === 'timeEnd' || name === 'timeLog' || name === 'count') return wrap(`zrt::console_${name}(${a[0] ?? this.lit('default')})`);
+    if (name === 'assert') return wrap(`zrt::console_assert(${a[0]}${a.length > 1 ? ', ' + a.slice(1).join(', ') : ''})`);
+    if (name === 'table') return wrap(`zrt::console_table(${a[0]})`);
     return this.s.fail(e, 'Z9019', `console.${name} is not supported`);
   }
 
@@ -1375,6 +1381,9 @@ class CppEmitter {
     // `undefined` for an optional parameter means "absent" ('abc'.padEnd(5, undefined), s.slice(1, undefined))
     const params = this.s.checker.getResolvedSignature(e)?.getDeclaration()?.parameters ?? [];
     let a: readonly ts.Expression[] = e.arguments;
+    // Unlike an omitted deleteCount, explicit undefined means delete zero items.
+    if (t.k === 'arr' && name === 'splice' && a.length === 2 && ts.isIdentifier(a[1]) && a[1].text === 'undefined')
+      return `${recv}.splice(${this.conv(a[0], I32)}, 0)`;
     while (a.length && ts.isIdentifier(a[a.length - 1]) && (a[a.length - 1] as ts.Identifier).text === 'undefined' && (params[a.length - 1]?.questionToken || params[a.length - 1]?.initializer)) a = a.slice(0, -1);
     const cb = (x: ts.Expression) => this.expr(x);
     let args: string[];
@@ -1449,8 +1458,8 @@ class CppEmitter {
     if (e.elements.some(ts.isSpreadElement)) {
       const r = this.newTmp('a');
       const parts = e.elements.map(x => ts.isSpreadElement(x) ? `${r}.push_all(${this.conv(x.expression, t)}); ` : `${r}.push(${this.conv(x, t.el)}); `).join('');
-      // explicit return type: an error propagated inside (`return {};`) must not break the lambda's type deduction
-      return `([&]() -> ${A} { auto ${r} = ${A}::with_cap(0); ${parts}return ${r}; }())`;
+      // Keep error returns/gotos in the enclosing guest function, as check() does.
+      return `({ auto ${r} = ${A}::with_cap(0); ${parts}${r}; })`;
     }
     return e.elements.length ? `${A}::of(${e.elements.map(x => this.conv(x, t.el)).join(', ')})` : `${A}::with_cap(0)`;
   }
@@ -1480,7 +1489,7 @@ class CppEmitter {
       if (ts.isMethodDeclaration(p)) return this.s.fail(p, 'Z9016', 'methods in object literals are not supported; use a class');
       return this.s.fail(p, 'Z9016', 'only `key: value` properties are supported in object literals');
     }).join('');
-    return `([&]() -> ${this.cpp(ot)} { auto ${o} = zrt::make<${this.cls(ot)}>(); ${sets}return ${o}; }())`;
+    return `({ auto ${o} = zrt::make<${this.cls(ot)}>(); ${sets}${o}; })`;
   }
 
   lambda(f: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration, ft: Extract<ZT, { k: 'fn' }>): string {
@@ -1907,7 +1916,7 @@ class CppEmitter {
       }
       return this.s.fail(p, 'Z9016', 'only `key: value` properties are supported in a Dyn object literal');
     }).join('');
-    return `([&]() { zrt::Dyn ${o} = zrt::dyn_obj(); ${sets}return ${o}; }())`;
+    return `({ zrt::Dyn ${o} = zrt::dyn_obj(); ${sets}${o}; })`;
   }
   /** Fields readable/writable through Dyn (DYN-04): zrt_get/zrt_set overrides, only when the program uses Dyn. */
   dynAccessors(c: Cls, self: string, tp: string, baseCode: string, fields: { raw: string; t: ZT; weak: boolean; opt: boolean }[]): [string[], string[]] {

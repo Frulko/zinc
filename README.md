@@ -10,6 +10,8 @@ the executables Zinc produces do not need Node.
 
 Status and what is missing: **[docs/reports/STATUS.md](docs/reports/STATUS.md)**. Performance vs QuickJS (the engine under PocketJS) and Node: **[docs/reports/PERF.md](docs/reports/PERF.md)** — about 13× faster than QuickJS (geometric mean of 10 kernels, 2× to 80×; Node.js wins fannkuch), 70 KiB binaries, 2 ms startup.
 
+Experimental execution engines: [`--engine native|zinc-vm|quickjs`](docs/engines.md), a shared native ABI, SDL/headless graphics, and `--engine zinc-vm --jit` on AArch64. Full application/UI parity is still in progress.
+
 ## Requirements
 
 - Node.js ≥ 23.6 and pnpm (`pnpm install`)

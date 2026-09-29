@@ -1,0 +1,7 @@
+object void literal
+object return literal
+spread void literal
+dynamic void literal
+object catch literal
+spread catch literal
+dynamic catch literal

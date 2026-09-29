@@ -269,7 +269,7 @@ void chmod(const String& path, int32_t mode) {
 // ponytail: stat polling every 100 ms of the watched file or the entries of the watched directory (not recursive);
 // FSEvents / inotify would be cheaper and catch same-size writes within one mtime tick.
 struct Snap { String name; double size, mtime; };
-struct Watch { int32_t id; String path; Fn<void(String, String)> cb; Array<String> names; Array<double> sizes, mtimes; };
+struct Watch : Object { int32_t id; String path; Fn<void(String, String)> cb; Array<String> names; Array<double> sizes, mtimes; };
 static void snapshot(const String& path, Array<String>& names, Array<double>& sizes, Array<double>& mtimes) {
   names = Array<String>::with_cap(0); sizes = Array<double>::with_cap(0); mtimes = Array<double>::with_cap(0);
   CPath p(path); struct stat st;
@@ -289,7 +289,7 @@ static void snapshot(const String& path, Array<String>& names, Array<double>& si
   }
 }
 struct Watcher : Poller {
-  Array<Watch*> ws;  // null until the first watch, and again after shutdown (no object left for the leak report)
+  Array<Ref<Watch>> ws;  // Active polls retain watches through callback cancellation.
   uint64_t last = 0;
   bool poll() override {
     if (!ws.a || !ws.length()) return false;
@@ -297,7 +297,7 @@ struct Watcher : Poller {
     if (now - last < 100000) return true;
     last = now;
     for (int32_t k = 0; k < ws.length(); k++) {
-      Watch* w = ws.get(k);
+      auto w = ws.get(k);
       Array<String> names; Array<double> sizes, mtimes;
       snapshot(w->path, names, sizes, mtimes);
       Array<String> evs = Array<String>::with_cap(0), files = Array<String>::with_cap(0);
@@ -322,27 +322,27 @@ struct Watcher : Poller {
     }
     return ws.a && ws.length() > 0;
   }
-  void shutdown() override { for (int32_t i = 0; ws.a && i < ws.length(); i++) { Watch* w = ws.get(i); w->~Watch(); mfree(w); } ws = Array<Watch*>(); }
+  void shutdown() override { for (int32_t i = 0; ws.a && i < ws.length(); i++) ws.get(i)->cb = nullptr;ws = {}; }
 };
 static Watcher* watcher = nullptr;
 static int32_t next_watch = 1;
 int32_t watch(const String& path, Fn<void(String, String)> cb) {
   if (!exists(path)) { errno = ENOENT; fail_errno("watch", path); return 0; }
   if (!watcher) { watcher = new (alloc(sizeof(Watcher))) Watcher(); add_poller(watcher); watcher->last = hal_time_us(); }
-  Watch* w = new (alloc(sizeof(Watch))) Watch();
+  auto w = make<Watch>();
   w->id = next_watch++; w->path = path; w->cb = cb;
   snapshot(path, w->names, w->sizes, w->mtimes);
-  if (!watcher->ws.a) watcher->ws = Array<Watch*>::with_cap(1);
+  if (!watcher->ws.a) watcher->ws = Array<Ref<Watch>>::with_cap(1);
   watcher->ws.push(w);
   return w->id;
 }
 void unwatch(int32_t id) {
   if (!watcher || !watcher->ws.a) return;
   for (int32_t i = 0; i < watcher->ws.length(); i++) {
-    Watch* w = watcher->ws.get(i);
+    auto w = watcher->ws.get(i);
     if (w->id != id) continue;
+    w->cb = nullptr;
     watcher->ws.splice(i, 1);
-    w->~Watch(); mfree(w);
     return;
   }
 }
