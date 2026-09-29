@@ -629,6 +629,7 @@ class Lower {
       }
       if (this.symbols && recvT.k === 'arr' && ['unshift', 'concat'].includes(name) && args.length === 1) return this.arrayAppend(name, recv, args[0]);
       if (this.symbols && recvT.k === 'arr' && name === 'sort' && args.length === 1) return this.arraySort(recv, args[0]);
+      if (this.symbols && recvT.k === 'arr' && ['reduce', 'reduceRight'].includes(name) && args.length === 2) return this.arrayReduce(name, recv, args[0], args[1], t);
       if (this.symbols && recvT.k === 'arr' && ['indexOf', 'includes'].includes(name) && args.length >= 1 && args.length <= 2) {
         const from = e.arguments[1];
         return this.arraySearch(name, recv, this.conv(args[0], recvT.el), !from || (ts.isIdentifier(from) && from.text === 'undefined') ? lit(I32, '0') : this.conv(args[1], I32), t);
@@ -674,6 +675,28 @@ class Lower {
     const ret = front ? I32 : arrayType;
     const fn: HFunc = { name: `<array.${name}>`, kind: 'fn', ret, params: [receiver, value].map(v => ({ name: v.name, t: v.t, cell: false })), captures: [], throws: false, body };
     return { k: 'call', t: ret, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [arrayType, value.t], ret }, fn }, args: [input, this.conv(argument, value.t)], check: false };
+  }
+
+  arrayReduce(name: string, input: HExpr, callback: HExpr, initial: HExpr, resultType: ZT): HExpr {
+    if (input.t.k !== 'arr' || callback.t.k !== 'fn' || callback.t.params.length > 3) throw new Error(`zinc-vm: ${name} requires a callback with at most three parameters`);
+    const signature = callback.t, element = input.t.el;
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name: '%' + name, t });
+    const array = variable('array', input.t), fn = variable('callback', signature), acc = variable('acc', resultType);
+    const length = variable('length', I32), index = variable('index', I32), item = variable('item', element);
+    const declaration = (v: typeof array, init: HExpr): HStmt => ({ k: 'let', name: v.name, t: v.t, init, cell: false });
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = BOOL): HExpr => ({ k: 'bin', op, t, l, r });
+    const assign = (target: HExpr, v: HExpr): HStmt => ({ k: 'expr', e: { k: 'assign', t: target.t, target, v } });
+    const size: HExpr = { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: array, args: [], check: false };
+    const reverse = name === 'reduceRight';
+    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: fn.name, recv: fn,
+      args: [acc, item, index].slice(0, signature.params.length).map((v, i) => this.conv(v, signature.params[i])), check: true };
+    const body: HStmt[] = [declaration(length, size), declaration(index, reverse ? binary('-', length, lit(I32, '1'), I32) : lit(I32, '0')),
+      { k: 'loop', c: binary(reverse ? '>=' : '<', index, reverse ? lit(I32, '0') : length),
+        body: [{ k: 'if', c: binary('<', index, size), then: [declaration(item, { k: 'index', t: element, obj: array, idx: index }), assign(acc, this.conv(invoke, resultType))], else: [] }],
+        step: [assign(index, binary(reverse ? '-' : '+', index, lit(I32, '1'), I32))] },
+      { k: 'return', e: acc }];
+    const helper: HFunc = { name: `<array.${name}>`, params: [array, fn, acc].map(v => ({ name: v.name, t: v.t, cell: false })), ret: resultType, body, throws: true, kind: 'fn', captures: [] };
+    return { k: 'call', t: resultType, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: { k: 'fn', params: [input.t, signature, resultType], ret: resultType }, fn: helper }, args: [input, callback, this.conv(initial, resultType)], check: true };
   }
 
   /** Stable bottom-up merge sort of snapshots: comparator effects cannot

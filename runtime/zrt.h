@@ -366,8 +366,9 @@ template<class R, class... A> void to_s(StrBuilder& sb, const Fn<R(A...)>&) { sb
 // Callbacks may declare fewer parameters than JS passes (v, i).
 template<class F, class A, class B> auto cb2(F& f, const A& a, const B& b, int) -> decltype(f(a, b)) { return f(a, b); }
 template<class F, class A, class B> auto cb2(F& f, const A& a, const B&, long) -> decltype(f(a)) { return f(a); }
+template<class F, class A, class B> auto cb2(F& f, const A&, const B&, ...) -> decltype(f()) { return f(); }
 template<class F, class A, class B, class C> auto cb3(F& f, const A& a, const B& b, const C& c, int) -> decltype(f(a, b, c)) { return f(a, b, c); }
-template<class F, class A, class B, class C> auto cb3(F& f, const A& a, const B& b, const C&, long) -> decltype(f(a, b)) { return f(a, b); }
+template<class F, class A, class B, class C> auto cb3(F& f, const A& a, const B& b, const C&, long) -> decltype(cb2(f, a, b, 0)) { return cb2(f, a, b, 0); }
 
 // ---------- arrays (LNG-07) ----------
 template<class X> inline bool is_neg(const X& x) { return x < 0; }
@@ -500,8 +501,8 @@ template<class T> struct Array {
     return r;
   }
   template<class F> Array filter(F f) const { Array r = with_cap(0); for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length()) { T value = a->data[i]; if (cb2(f, value, i, 0)) r.push_raw(value); } return r; }
-  template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0; i < length() && !g_err.p; i++) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
-  template<class F, class U> U reduceRight(F f, U acc) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length()) acc = cb3(f, acc, a->data[i], i, 0); return acc; }
+  template<class F, class U> U reduce(F f, U acc) const { for (int32_t i = 0, n = length(); i < n && !g_err.p; i++) if (i < length()) acc = cb3(f, acc, T(a->data[i]), i, 0); return acc; }
+  template<class F, class U> U reduceRight(F f, U acc) const { for (int32_t i = length() - 1; i >= 0 && !g_err.p; i--) if (i < length()) acc = cb3(f, acc, T(a->data[i]), i, 0); return acc; }
   // RT-11: stable merge sort
   template<class F> Array sort(F f) const {
     int32_t n = length(); if (n < 2) return *this;
