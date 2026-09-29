@@ -94,8 +94,8 @@ class Lower {
       return VOID;
     };
     const fields = this.s.fieldNames(c).map(n => ({ name: n, t: this.safe(() => fieldType(n), VOID) }));
-    const methods = c.members.filter((m): m is ts.MethodDeclaration | ts.ConstructorDeclaration => (ts.isMethodDeclaration(m) || ts.isConstructorDeclaration(m)) && !!m.body)
-      .map(m => this.fn(m, ts.isConstructorDeclaration(m) ? 'constructor' : m.name.getText()));
+    const methods = c.members.filter((m): m is ts.MethodDeclaration | ts.ConstructorDeclaration | ts.GetAccessorDeclaration | ts.SetAccessorDeclaration => (ts.isMethodDeclaration(m) || ts.isConstructorDeclaration(m) || ts.isGetAccessorDeclaration(m) || ts.isSetAccessorDeclaration(m)) && !!m.body)
+      .map(m => this.fn(m, ts.isConstructorDeclaration(m) ? 'constructor' : `${ts.isGetAccessorDeclaration(m) ? 'get ' : ts.isSetAccessorDeclaration(m) ? 'set ' : ''}${m.name.getText()}`));
     const name = this.symbols?.get(c) ?? c.name?.text ?? 'default';
     if (this.symbols) {
       const self: HExpr = { k: 'var', t: { k: 'obj', decl: c, args: [] }, name: 'this' };
@@ -132,7 +132,7 @@ class Lower {
     const saved = this.state;
     this.state = 0;
     const params = f.parameters.map(p => ({ name: p.name.getText(), t: this.safe(() => this.s.paramType(p), DYN), cell: ts.isIdentifier(p.name) && this.boxed(p.name) }));
-    const ret = ts.isConstructorDeclaration(f) ? VOID : this.safe(() => this.s.retOf(f), VOID);
+    const ret = ts.isConstructorDeclaration(f) || ts.isSetAccessorDeclaration(f) ? VOID : this.safe(() => this.s.retOf(f), VOID);
     const body: HStmt[] = [];
     if (ts.isConstructorDeclaration(f)) for (const p of f.parameters)  // parameter properties are field stores
       if (ts.getCombinedModifierFlags(p) & (ts.ModifierFlags.Public | ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Readonly))
@@ -150,6 +150,10 @@ class Lower {
     const captureTypes = new Map<string, { name: string; t: ZT; cell: boolean }>();
     if (ts.isArrowFunction(f) || ts.isFunctionExpression(f) || (ts.isFunctionDeclaration(f) && !ts.isSourceFile(f.parent))) {
       const visit = (n: ts.Node) => {
+        if (this.symbols && n.kind === this.K.ThisKeyword && ts.isArrowFunction(f)) {
+          const t = this.s.ztypeOf(n as ts.Expression);
+          captures.add('this'); captureTypes.set('this', { name: 'this', t, cell: false });
+        }
         if (ts.isIdentifier(n)) {
           const d = this.s.declOf(n);
           if (d && (ts.isVariableDeclaration(d) || ts.isParameter(d)) && !this.s.isModuleLevel(d) && this.s.fnOf(d) !== f && !isInside(d, f)) { captures.add(n.text); captureTypes.set(n.text, { name: n.text, t: this.s.declType(d), cell: this.boxed(n) }); }
@@ -303,7 +307,7 @@ class Lower {
       const obj = this.expr(e.expression);
       const get: HExpr = recv.k === 'dyn' ? { k: 'dyn', t, op: 'get', args: [obj, lit(STR, JSON.stringify(e.name.text))] }
         : (recv.k === 'arr' || recv.k === 'str' || recv.k === 'map' || recv.k === 'set') ? { k: 'call', t, how: 'builtin', fn: e.name.text, recv: obj, args: [], check: false }
-        : d && ts.isGetAccessorDeclaration(d) ? { k: 'call', t, how: 'method', fn: `get ${e.name.text}`, recv: obj, args: [], check: false }
+        : d && (ts.isGetAccessorDeclaration(d) || ts.isSetAccessorDeclaration(d)) ? { k: 'call', t, how: 'method', fn: `get ${e.name.text}`, recv: obj, args: [], check: true }
         : { k: 'field', t, obj, name: e.name.text };
       if (!e.questionDotToken) return get;
       const tmp: HExpr = { k: 'var', t: obj.t, name: `%o${this.tmp++}` };  // a?.b: null test on a temporary
@@ -386,10 +390,26 @@ class Lower {
     if (ts.isBinaryExpression(e)) return this.binary(e, t);
     return { k: 'opaque', t, text: oneLine(e) };
   }
+  accessorAssign(target: ts.PropertyAccessExpression, value: ts.Expression, t: ZT, declaration: ts.GetAccessorDeclaration | ts.SetAccessorDeclaration): HExpr {
+    const setter = (ts.isObjectLiteralExpression(declaration.parent) ? declaration.parent.properties : declaration.parent.members).find(m => ts.isSetAccessorDeclaration(m) && m.name.getText() === target.name.text) as ts.SetAccessorDeclaration | undefined;
+    if (!setter) throw new Error(`zinc-vm: accessor ${target.name.text} has no setter`);
+    const input = this.expr(target.expression), parameterType = this.s.paramType(setter.parameters[0]);
+    const receiver: HExpr = { k: 'var', t: input.t, name: '%receiver' }, assigned: HExpr = { k: 'var', t, name: '%value' };
+    const fn: HFunc = { name: '<accessor assignment>', kind: 'fn', ret: t, captures: [], throws: true,
+      params: [{ name: '%receiver', t: input.t, cell: false }, { name: '%value', t, cell: false }], body: [
+        { k: 'expr', e: { k: 'call', t: VOID, how: 'method', fn: `set ${target.name.text}`, recv: receiver, args: [this.conv(assigned, parameterType)], check: true } },
+        { k: 'return', e: assigned },
+      ] };
+    return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: [input.t, t], ret: t }, fn }, args: [input, this.conv(this.expr(value, t), t)], check: true };
+  }
   binary(e: ts.BinaryExpression, t: ZT): HExpr {
     const K = this.K, s = this.s, op = e.operatorToken.kind, tok = e.operatorToken.getText();
     const lt = s.ztypeOf(e.left), rt = s.ztypeOf(e.right);
     if (op === K.EqualsToken) {
+      if (this.symbols && ts.isPropertyAccessExpression(e.left)) {
+        const d = s.declOf(e.left.name);
+        if (d && (ts.isGetAccessorDeclaration(d) || ts.isSetAccessorDeclaration(d))) return this.accessorAssign(e.left, e.right, lt, d);
+      }
       const target = this.expr(e.left);
       if (target.k === 'dyn') return { k: 'dyn', t: DYN, op: target.op === 'get' ? 'set' : 'set_index', args: [...target.args, this.conv(this.expr(e.right), DYN)] };
       return { k: 'assign', t: lt, target, v: this.conv(this.expr(e.right, lt), lt) };

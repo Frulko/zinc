@@ -115,7 +115,7 @@ export class Sema {
   private analyze() {
     const captured = new Set<ts.Symbol>();
     const written = new Set<ts.Symbol>();
-    const calls: (ts.CallExpression | ts.NewExpression)[] = [];
+    const calls: (ts.CallExpression | ts.NewExpression | ts.PropertyAccessExpression | ts.BinaryExpression)[] = [];
     const iterations: ts.ForOfStatement[] = [];
     let cid = 1;
     const visit = (n: ts.Node) => {
@@ -151,7 +151,7 @@ export class Sema {
       if (ts.isForStatement(n)) this.loopCounter(n);
       if (ts.isForOfStatement(n)) iterations.push(n);
       if (ts.isThrowStatement(n)) { this.hasThrow = true; const f = this.fnOf(n); if (f) this.throwing.add(f); }
-      if (ts.isCallExpression(n) || ts.isNewExpression(n)) calls.push(n);
+      if (ts.isCallExpression(n) || ts.isNewExpression(n) || ts.isPropertyAccessExpression(n) || (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken)) calls.push(n);
       if (this.opts.warnFloat && ts.isTypeReferenceNode(n) && (n.typeName.getText() === 'f32' || n.typeName.getText() === 'f64')) {
         if (this.opts.noFloat) this.fail(n, 'Z4001', `'${n.typeName.getText()}' needs software floating point on this target (--no-float)`);
         this.warn(n, 'Z4001', `'${n.typeName.getText()}' is emulated in software on this target (no FPU)`);
@@ -265,10 +265,17 @@ export class Sema {
   }
 
   // ---------- throw analysis ----------
-  callTargets(c: ts.CallExpression | ts.NewExpression): CallTargets {
+  callTargets(c: ts.CallExpression | ts.NewExpression | ts.PropertyAccessExpression | ts.BinaryExpression): CallTargets {
     let r = this.targetCache.get(c);
     if (r) return r;
     r = { fns: [], dynamic: false };
+    if (ts.isPropertyAccessExpression(c) || ts.isBinaryExpression(c)) {
+      const property = ts.isPropertyAccessExpression(c) ? c : ts.isPropertyAccessExpression(c.left) ? c.left : undefined;
+      const d = property && this.declOf(property.name);
+      // Accessors dispatch virtually; conservatively check all accessor entries.
+      r.dynamic = !!d && (ts.isGetAccessorDeclaration(d) || ts.isSetAccessorDeclaration(d));
+      this.targetCache.set(c, r); return r;
+    }
     const fnArgs = (c.arguments ?? []).filter(a => ts.isArrowFunction(a) || ts.isFunctionExpression(a));
     if (ts.isNewExpression(c)) {
       for (let d = this.declOf(c.expression); d && ts.isClassDeclaration(d); d = this.baseClass(d)) {
@@ -296,11 +303,11 @@ export class Sema {
     return r;
   }
   /** Whether a call may complete with a pending error (needs a check after it). */
-  mayThrow(c: ts.CallExpression | ts.NewExpression): boolean {
+  mayThrow(c: ts.CallExpression | ts.NewExpression | ts.PropertyAccessExpression | ts.BinaryExpression): boolean {
     if (!this.hasThrow) return false;
     const t = this.callTargets(c);
     if (t.fns.some(f => this.throwing.has(f) && !this.isAsyncFn(f) && !this.isGeneratorFn(f))) return true;
-    return t.dynamic && this.anyLambdaThrows;
+    return t.dynamic && ((ts.isPropertyAccessExpression(c) || ts.isBinaryExpression(c)) || this.anyLambdaThrows);
   }
   isAsyncFn(f: ts.Node): boolean {
     return ts.isFunctionLike(f) && !!(ts.getCombinedModifierFlags(f as ts.Declaration) & ts.ModifierFlags.Async);
@@ -705,6 +712,7 @@ export class Sema {
       }
       return this.fromType(this.checker.getTypeAtLocation(d), d);
     }
+    if (ts.isSetAccessorDeclaration(d)) return this.paramType(d.parameters[0], subst);
     if (ts.isGetAccessorDeclaration(d)) return d.type ? this.fromTypeNode(d.type, subst) : this.retOf(d);
     if (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d) || ts.isMethodSignature(d)) return this.fnType(d, subst);
     if (ts.isEnumMember(d)) return I32;

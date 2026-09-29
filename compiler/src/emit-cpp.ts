@@ -662,7 +662,7 @@ class CppEmitter {
   }
   /** Adds the error check after a call that may throw (statement expression, GCC/Clang). */
   check(code: string, e: ts.Node): string {
-    if (!(ts.isCallExpression(e) || ts.isNewExpression(e)) || !this.s.mayThrow(e)) return code;
+    if (!(ts.isCallExpression(e) || ts.isNewExpression(e) || ts.isPropertyAccessExpression(e) || ts.isBinaryExpression(e)) || !this.s.mayThrow(e)) return code;
     const t = this.s.tryZ(e as ts.Expression);
     if (t.k === 'void') return `({ ${code}; if (zrt::g_err.p) { ${this.propagate()}; } })`;
     return `({ auto __r = ${code}; if (zrt::g_err.p) { ${this.propagate()}; } __r; })`;
@@ -989,7 +989,7 @@ class CppEmitter {
     if (e.kind === K.ThisKeyword) return this.ctx.self;
     if (ts.isIdentifier(e)) return this.ident(e);
     if (this.isChainTop(e)) return this.chain(e);
-    if (ts.isPropertyAccessExpression(e)) return e.questionDotToken ? this.optional(e) : this.prop(e);
+    if (ts.isPropertyAccessExpression(e)) return this.check(e.questionDotToken ? this.optional(e) : this.prop(e), e);
     if (ts.isElementAccessExpression(e)) {
       const t = this.s.ztypeOf(e.expression);
       if (t.k === 'dyn') return `zrt::dyn_index(${this.expr(e.expression)}, ${this.toDynExpr(e.argumentExpression)})`;
@@ -1030,7 +1030,7 @@ class CppEmitter {
       }
     }
     if (ts.isPostfixUnaryExpression(e)) return `${this.lval(e.operand)}${e.operator === K.PlusPlusToken ? '++' : '--'}`;
-    if (ts.isBinaryExpression(e)) return this.binary(e, want);
+    if (ts.isBinaryExpression(e)) return this.check(this.binary(e, want), e);
     if (ts.isTypeOfExpression(e)) {
       const t = this.s.ztypeOf(e.expression);
       if (t.k === 'dyn') return `zrt::dyn_typeof(${this.expr(e.expression)})`;
@@ -1181,7 +1181,7 @@ class CppEmitter {
     if ((t.k === 'arr' || t.k === 'str') && name === 'length') return `${recv}.length()`;
     if ((t.k === 'map' || t.k === 'set') && name === 'size') return `${recv}.size()`;
     const d = this.s.declOf(e.name);
-    if (d && ts.isGetAccessorDeclaration(d)) return `${recv}->get_${this.id(name)}()`;
+    if (d && (ts.isGetAccessorDeclaration(d) || ts.isSetAccessorDeclaration(d))) return `${recv}->get_${this.id(name)}()`;
     if (t.k === 'obj') {
       const md = d ?? this.s.memberDecl(t.decl, name);
       if (md && ts.isPropertyDeclaration(md) && this.hasDecorator(md, 'weak')) return `${recv}->${this.id(name)}.get()`;
@@ -1725,6 +1725,11 @@ class CppEmitter {
     return this.s.fail(L.parent, 'Z9000', `operator '${ts.tokenToString(op)}' is not supported`);
   }
 
+  assignAccessor(target: ts.PropertyAccessExpression, value: ts.Expression, setter: ts.SetAccessorDeclaration): string {
+    const receiver = this.newTmp('receiver'), assigned = this.newTmp('assigned');
+    return `({ auto ${receiver} = ${this.expr(target.expression)}; auto ${assigned} = ${this.conv(value, this.s.paramType(setter.parameters[0]))}; ${receiver}->set_${this.id(target.name.text)}(${assigned}); ${assigned}; })`;
+  }
+
   assign(L: ts.Expression, R: ts.Expression): string {
     const lt = this.s.ztypeOf(L);
     if (ts.isPropertyAccessExpression(L) && this.s.ztypeOf(L.expression).k === 'dyn') return `zrt::dyn_set(${this.expr(L.expression)}, ${this.lit(L.name.text)}, ${this.toDynExpr(R)})`;
@@ -1733,10 +1738,10 @@ class CppEmitter {
       const d = this.s.declOf(L.name);
       const rt = this.s.ztypeOf(L.expression);
       if ((rt.k === 'arr') && L.name.text === 'length') return `${this.expr(L.expression)}.set_length(${this.conv(R, I32)})`;
-      if (d && ts.isSetAccessorDeclaration(d)) return `${this.expr(L.expression)}->set_${this.id(L.name.text)}(${this.conv(R, this.s.paramType(d.parameters[0]))})`;
+      if (d && ts.isSetAccessorDeclaration(d)) return this.assignAccessor(L, R, d);
       if (d && ts.isGetAccessorDeclaration(d)) {
         const setter = (d.parent as ts.ClassDeclaration).members.find(m => ts.isSetAccessorDeclaration(m) && m.name.getText() === L.name.text) as ts.SetAccessorDeclaration | undefined;
-        if (setter) return `${this.expr(L.expression)}->set_${this.id(L.name.text)}(${this.conv(R, this.s.paramType(setter.parameters[0]))})`;
+        if (setter) return this.assignAccessor(L, R, setter);
       }
       if (d && ts.isPropertyDeclaration(d) && this.hasDecorator(d, 'weak')) return `${this.expr(L.expression)}->${this.id(L.name.text)} = ${this.conv(R, lt)}`;
     }
