@@ -8,7 +8,8 @@ import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
 import { Sema, ZincError, type ZT, zeq, isNum, I32, BOOL, STR, VOID, DYN, F64 } from './sema.ts';
 
-export type HExpr =
+export interface SourceLocation { file: string; line: number; column: number }
+export type HExpr = (
   | { k: 'lit'; t: ZT; v: string }
   | { k: 'var'; t: ZT; name: string; cell?: boolean; global?: boolean }
   | { k: 'field'; t: ZT; obj: HExpr; name: string }
@@ -26,8 +27,8 @@ export type HExpr =
   | { k: 'assign'; t: ZT; target: HExpr; v: HExpr; post?: boolean }
   | { k: 'seq'; t: ZT; body: HStmt[]; value: HExpr }
   | { k: 'suspend'; t: ZT; what: 'await' | 'yield'; e: HExpr; state: number }
-  | { k: 'opaque'; t: ZT; text: string };
-export type HStmt =
+  | { k: 'opaque'; t: ZT; text: string }) & { loc?: SourceLocation };
+export type HStmt = (
   | { k: 'let'; name: string; t: ZT; init?: HExpr; cell: boolean }
   | { k: 'expr'; e: HExpr }
   | { k: 'if'; c: HExpr; then: HStmt[]; else: HStmt[] }
@@ -36,8 +37,9 @@ export type HStmt =
   | { k: 'return'; e?: HExpr }
   | { k: 'throw'; e: HExpr }
   | { k: 'try'; body: HStmt[]; bind?: string; bindCell?: boolean; handler: HStmt[]; fin: HStmt[]; hasCatch: boolean; errorType: ZT }
-  | { k: 'opaque'; text: string };
+  | { k: 'opaque'; text: string }) & { loc?: SourceLocation };
 export interface HFunc {
+  loc?: SourceLocation;
   name: string; params: { name: string; t: ZT; cell: boolean }[]; ret: ZT; body: HStmt[];
   throws: boolean; kind: 'fn' | 'async' | 'gen'; captures: string[]; static?: boolean; captureTypes?: { name: string; t: ZT; cell: boolean }[];
 }
@@ -165,12 +167,14 @@ class Lower {
       if (b) visit(b);
     }
     this.state = saved;
-    return { name, params, ret, body, throws: this.s.throwing.has(f), kind, captures: [...captures], static: !!(ts.getCombinedModifierFlags(f as ts.Declaration) & ts.ModifierFlags.Static), captureTypes: [...captureTypes.values()] };
+    return { loc: this.location(f), name, params, ret, body, throws: this.s.throwing.has(f), kind, captures: [...captures], static: !!(ts.getCombinedModifierFlags(f as ts.Declaration) & ts.ModifierFlags.Static), captureTypes: [...captureTypes.values()] };
   }
+
+  location(node: ts.Node): SourceLocation { const file = node.getSourceFile(), at = file.getLineAndCharacterOfPosition(node.getStart(file)); return { file: path.relative(this.s.root, file.fileName), line: at.line + 1, column: at.character + 1 }; }
 
   // ---------- statements ----------
   stmt(n: ts.Statement, ret: ZT = VOID): HStmt[] {
-    try { return this.stmtInner(n, ret); } catch (e) { if (e instanceof ZincError) return [{ k: 'opaque', text: `${e.diag.code} ${oneLine(n)}` }]; throw e; }
+    try { return this.stmtInner(n, ret).map(statement => ({ ...statement, loc: statement.loc ?? this.location(n) })); } catch (e) { if (e instanceof ZincError) return [{ k: 'opaque', text: `${e.diag.code} ${oneLine(n)}` }]; throw e; }
   }
   body(n: ts.Statement, ret: ZT): HStmt[] { return ts.isBlock(n) ? n.statements.flatMap(x => this.stmt(x, ret)) : this.stmt(n, ret); }
   stmtInner(n: ts.Statement, ret: ZT): HStmt[] {
@@ -322,7 +326,7 @@ class Lower {
     return h;
   }
   expr(e: ts.Expression, want?: ZT): HExpr {
-    try { return this.exprInner(e, want); } catch (err) { if (err instanceof ZincError) return { k: 'opaque', t: VOID, text: `${err.diag.code} ${oneLine(e)}` }; throw err; }
+    try { const expression = this.exprInner(e, want); return { ...expression, loc: expression.loc ?? this.location(e) }; } catch (err) { if (err instanceof ZincError) return { k: 'opaque', t: VOID, text: `${err.diag.code} ${oneLine(e)}` }; throw err; }
   }
   exprInner(e: ts.Expression, want?: ZT): HExpr {
     const K = this.K, s = this.s;

@@ -42,6 +42,7 @@ run(process.execPath, ['tests/engines/matrix.mjs', 'tests/engines/graphics.ts', 
 console.log('ok real graphics captures: all modes match native');
 run(process.execPath, ['tests/engines/destructuring-check.mjs']);
 run(process.execPath, ['tests/engines/generics-check.mjs']);
+run(process.execPath, ['tests/engines/debug-map.mjs']);
 run(process.execPath, ['tests/engines/array-limits.mjs']);
 run(process.execPath, ['tests/engines/string-limits.mjs']);
 run(process.execPath, ['tests/engines/string-format-limits.mjs']);
@@ -189,8 +190,8 @@ try {
     ['bounds-index', 'const a: i32[] = [1]; console.log(a[2]);', /array index out of bounds/],
     ['null-object', 'interface A { x: i32; } let a: A | null = null; console.log(a!.x);', /null VM object/],
     ['async-timeout', 'async function spin(): Promise<void> { while (true) await Promise.resolve(); } spin();', /timed out/],
-    ['unhandled-async', "async function fail(): Promise<void> { await Promise.resolve(); throw new Error('unhandled'); } fail();", /unhandled VM promise rejection/],
-    ['uncaught-guest', "throw new Error('unhandled');", /uncaught guest exception/],
+    ['unhandled-async', "async function fail(): Promise<void> { await Promise.resolve(); throw new Error('unhandled'); } fail();", /Error: unhandled/],
+    ['uncaught-guest', "throw new Error('unhandled');", /Error: unhandled/],
     ['heap-limit', 'const a: i32[] = []; for (let i: i32 = 0; i < 100000; i++) a.push(i);', /heap memory limit/],
   ]) {
     const file = path.join(tmp, name + '.ts'); fs.writeFileSync(file, source);

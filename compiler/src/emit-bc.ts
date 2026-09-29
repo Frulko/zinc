@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 // Experimental typed bytecode backend. Unsupported HIR/MIR is rejected, never executed as native code.
-import { buildHir, type HStmt } from './hir.ts';
+import { buildHir, type HStmt, type SourceLocation } from './hir.ts';
 import { lowerMir, type MFunc } from './mir.ts';
 import { type Sema, type ZT, VOID } from './sema.ts';
 import { ts } from './frontend.ts';
@@ -11,8 +11,8 @@ import { specialize } from './specialize.ts';
 const OPS = ['const', 'mov', 'load', 'store', '+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '&', '|', '^', '<<', '>>', '>>>', 'neg', 'not', 'bitnot', 'conv', 'jump', 'branch', 'call', 'ret', 'print', 'space', 'newline', 'sqrt', 'abs', 'floor', 'ceil', 'trunc', 'native', 'alloc', 'init', 'field.get', 'field.set', 'index.get', 'index.set', 'length', 'push', 'pop', 'concat', 'truthy', 'closure', 'call.closure', 'fnref', 'call.method', 'throw', 'exception', 'promise', 'await', 'promise.pending', 'promise.settle', 'microtask', 'timer', 'timer.cancel', 'yield', 'generator.step', 'generator.value', 'string', 'math', 'splice', 'join', 'collection', 'generator.control', 'methodref', 'dynamic', 'instanceof'];
 const MATH = ['abs', 'floor', 'ceil', 'round', 'trunc', 'sign', 'sqrt', 'pow', 'sin', 'cos', 'tan', 'atan2', 'exp', 'log', 'hypot', 'min', 'max', 'fround', 'imul', 'clz32', 'random', 'seed'];
 const type = (t: ZT): number => t.k === 'num' && t.m === 'u8' ? 3 : ['obj', 'arr', 'tup', 'null', 'fn', 'promise', 'gen', 'map', 'set', 'iter', 'dyn'].includes(t.k) ? 7 : abiType(t);
-interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][] }
-export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
+interface Code { types: number[]; params: number[]; captures: number[]; ret: number; ins: number[][]; handlers: [number, number][]; locations: (SourceLocation | undefined)[] }
+export function emitBytecode(sema: Sema, abi: AbiResult, debug?: (map: Buffer) => void): Buffer {
   const sources = sema.fe.sources.filter(f => !abi.imports.has(f.fileName));
   const available = new Set(sources), visited = new Set<ts.SourceFile>(), active = new Set<ts.SourceFile>();
   const ordered: ts.SourceFile[] = [];
@@ -74,7 +74,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
   lower.init = lower.ordered.map((g): HStmt => {
     if (!globalStatements.has(g)) return g;
     if (g.k !== 'let') throw new Error('zinc-vm: unsupported global initializer');
-    return { k: 'expr', e: { k: 'assign', t: g.t, target: { k: 'var', t: g.t, name: g.name, global: true }, v: g.init ?? { k: 'lit', t: g.t, v: g.t.k === 'bool' ? 'false' : g.t.k === 'str' ? JSON.stringify('') : '0' } } };
+    return { loc: g.loc, k: 'expr', e: { k: 'assign', t: g.t, target: { k: 'var', t: g.t, name: g.name, global: true }, v: g.init ?? { k: 'lit', t: g.t, v: g.t.k === 'bool' ? 'false' : g.t.k === 'str' ? JSON.stringify('') : '0' } } };
   });
   const fs = lowerMir(hir)[0].fns;
   if (!fs.some(f => f.name === '<init>')) fs.push({ name: '<init>', sig: '(): void', stats: '', blocks: [] });
@@ -126,6 +126,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     }
     const reg = (id: number) => regs.get(id) ?? fail(`register %${id}`);
     const ins: number[][] = [];
+    const locations: (SourceLocation | undefined)[] = []; let location = f.source?.loc;
     const handlers: [number, number][] = [];
     const declaredParams = f.source?.params ?? [];
     const params = declaredParams.map(p => {
@@ -135,7 +136,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     });
     const op = (name: string, t = 0, a = 0, b = 0, c = 0) => {
       const n = OPS.indexOf(name); if (n < 0) fail(name);
-      ins.push([n, t, a, b, c]);
+      ins.push([n, t, a, b, c]); locations.push(location);
     };
     const narrowByte = (a: number, t: ZT) => {
       if (t.k !== 'num' || t.m !== 'u8') return;
@@ -158,6 +159,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     for (const b of f.blocks) {
       labels.set(b.id, ins.length);
       for (const i of b.insts) {
+        location = i.loc ?? f.source?.loc;
         const a = reg(i.id), t = type(i.t), args = i.args.map(reg), [x = 0, y = 0] = args;
         switch (i.op) {
           case 'param': case 'capture': break;
@@ -392,7 +394,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
           default: fail(i.op);
         }
       }
-      const t = b.term;
+      const t = b.term; location = t.loc ?? location;
       if (t.k === 'invoke') {
         const at = ins.length - 1;edge(b, t.normal);handlers.push([at, ins.length]);edge(b, t.error);
       } else if (t.k === 'throw') {
@@ -415,7 +417,7 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
       if (!found) { const cap = f.source!.captureTypes!.find(c => c.name === name)!; const r = types.length; types.push(cap.cell ? 7 : type(cap.t)); return r; }
       return reg(found.id);
     });
-    return { types, params, captures, ret: f.source?.kind === 'gen' ? 4096 | (type(f.source.ret.k === 'gen' ? f.source.ret.el : VOID) << 13) | 7 : f.source?.kind === 'async' ? 256 | (type(f.source.ret.k === 'promise' ? f.source.ret.el : VOID) << 9) | 7 : sig.ret, ins, handlers };
+    return { types, params, captures, ret: f.source?.kind === 'gen' ? 4096 | (type(f.source.ret.k === 'gen' ? f.source.ret.el : VOID) << 13) | 7 : f.source?.kind === 'async' ? 256 | (type(f.source.ret.k === 'promise' ? f.source.ret.el : VOID) << 9) | 7 : sig.ret, ins, handlers, locations };
   };
   const code = fs.map(compile);
   // Only the entry module's public bindings cross the embedding boundary. Script
@@ -483,5 +485,20 @@ export function emitBytecode(sema: Sema, abi: AbiResult): Buffer {
     const name = Buffer.from(e.name); u(name.length); chunks.push(name);
     u(e.kind); u(e.index); u(e.writable ? 1 : 0);
   }
-  return Buffer.concat(chunks);
+  const bytes = Buffer.concat(chunks);
+  if (debug) {
+    const parts: Buffer[] = [Buffer.from('ZDB1')];
+    const word = (value: number) => { const b=Buffer.alloc(4);b.writeUInt32LE(value);parts.push(b); };
+    const text = (value: string) => {const b=Buffer.from(value);word(b.length);parts.push(b);};
+    let fingerprint=2166136261;for(const byte of bytes)fingerprint=Math.imul(fingerprint ^ byte,16777619)>>>0;
+    word(fingerprint);word(code.length);
+    code.forEach((functionCode,index) => {
+      text(fs[index].name.replace(/^m\d+:/, ''));
+      const changes: {pc:number;loc:SourceLocation}[]=[];
+      functionCode.locations.forEach((loc,pc)=>{if(loc && JSON.stringify(loc)!==JSON.stringify(changes.at(-1)?.loc))changes.push({pc,loc});});
+      word(changes.length);for(const {pc,loc} of changes){word(pc);text(loc.file);word(loc.line);word(loc.column);}
+    });
+    debug(Buffer.concat(parts));
+  }
+  return bytes;
 }

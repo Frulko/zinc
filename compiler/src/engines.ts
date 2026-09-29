@@ -26,7 +26,7 @@ export function buildEngine(s: Sema, engine: Engine, dir: string, target: string
   let program: string;
   if (engine === 'zinc-vm') {
     program = path.join(dir, 'app.zbc');
-    fs.writeFileSync(program, emitBytecode(s, abi));
+    fs.writeFileSync(program, emitBytecode(s, abi, map => fs.writeFileSync(program + '.debug', map)));
   } else {
     emitJs(s, dir, assets, screen, undefined, abi.imports);
     program = bundleJs(path.join(dir, 'run.mjs'), path.join(dir, 'bundle'));
@@ -69,6 +69,7 @@ ${defines}
   }
   const exe = [path.join(bdir, 'app'), program, ...(engine === 'zinc-vm' && tier === 1 ? ['--jit'] : []), ...nativeLibraries.flatMap(file => ['--native-library', file])];
   const artifacts = [exe[0], program, path.join(dir, 'core.abi.json'), ...nativeLibraries];
+  if (engine === 'zinc-vm') artifacts.push(program + '.debug');
   if (engine === 'quickjs') artifacts.push(...fs.readdirSync(path.join(dir, 'bundle')).map(file => path.join(dir, 'bundle', file)).filter(file => file !== program));
   const files = artifacts.map(file => ({ path: path.relative(dir, file), sha256: hash(fs.readFileSync(file)) }));
   fs.writeFileSync(path.join(dir, 'engine.json'), JSON.stringify({ engine, target, arch: process.arch, debug, graphics: graphics ? { headless: graphics.headless, screen } : null, tier: engine === 'zinc-vm' ? tier : null,
@@ -124,7 +125,7 @@ export function exportEngine(project: Project, engine: Engine, target: string, d
   fs.chmodSync(path.join(out, 'runner'), 0o755);
   const program = engine === 'quickjs' ? 'bundle/run.mjs' : 'app.zbc';
   if (engine === 'quickjs') fs.cpSync(path.join(dir, 'bundle'), path.join(out, 'bundle'), { recursive: true });
-  else fs.copyFileSync(path.join(dir, 'app.zbc'), path.join(out, 'app.zbc'));
+  else { fs.copyFileSync(path.join(dir, 'app.zbc'), path.join(out, 'app.zbc')); if (fs.existsSync(path.join(dir, 'app.zbc.debug'))) fs.copyFileSync(path.join(dir, 'app.zbc.debug'), path.join(out, 'app.zbc.debug')); }
   if (engine === 'quickjs') {
     const entry = path.join(out, program);
     fs.writeFileSync(entry, fs.readFileSync(entry, 'utf8').replace(/globalThis\.\$zAssetsDir = [^\n]*;\n/, 'globalThis.$zAssetsDir = "./assets";\n'));

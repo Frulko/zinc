@@ -38,7 +38,10 @@ struct Collection {
   size_t bytes() const {return sizeof(Collection)+sizeof(*entries.m)+storage(entries.m->cap,entries.m->icap);}
 };
 struct Layout { bool array; std::vector<uint32_t> keys, types; std::vector<std::pair<uint32_t,uint32_t>> methods; };
+struct DebugFrame { uint32_t function, pc; };
+struct SourcePoint { uint32_t pc, line, column; std::string file; };
 struct Heap {
+  std::unique_ptr<std::vector<DebugFrame>> trace;
   Heap* next = nullptr;
   bool marked = false;
   uint32_t function = UINT32_MAX;
@@ -53,7 +56,7 @@ struct Heap {
   zrt::String text;
   std::vector<Reg> slots;
   std::unique_ptr<Collection> collection;
-  size_t bytes() const { return sizeof(Heap) + (text.s ? sizeof(zrt::StrObj) + text.bytes() + 1 : 0) + slots.capacity() * sizeof(Reg) + (collection?collection->bytes():0); }
+  size_t bytes() const { return sizeof(Heap) + (text.s ? sizeof(zrt::StrObj) + text.bytes() + 1 : 0) + slots.capacity() * sizeof(Reg) + (collection?collection->bytes():0) + (trace ? sizeof(*trace) + trace->capacity()*sizeof(DebugFrame) : 0); }
 };
 const zrt::String& string(Reg r) { static const zrt::String empty; return r.h ? r.h->text : empty; }
 uint32_t hash(const CollectionKey& key) {
@@ -76,7 +79,7 @@ struct GuestCallback { VM* vm;Heap* function;std::string text,error;bool guestEr
 using Handler = void (*)(VM*, const Ins*, Reg*);
 using JitFn = int (*)(VM*, Reg*, uint32_t);
 struct Ins { Handler h{}; uint32_t a{}, b{}, c{}; uint8_t op{}, t{}; uint32_t catchPc=UINT32_MAX; };
-struct Fn { std::vector<uint32_t> types, params, refs, captures; uint32_t ret, bodyRet, closureLayout, frameLayout, yieldType=0; bool async=false, gen=false; std::vector<Ins> code; };
+struct Fn { std::string name; std::vector<SourcePoint> locations; std::vector<uint32_t> types, params, refs, captures; uint32_t ret, bodyRet, closureLayout, frameLayout, yieldType=0; bool async=false, gen=false; std::vector<Ins> code; };
 struct Frame { const Ins* ip; Reg* fp; uint32_t dst; uint32_t fn; };
 struct VM {
   struct Export {std::string name;uint32_t kind,index;bool writable;};
@@ -314,6 +317,41 @@ uint32_t methodTarget(VM* vm,const Ins* ip,Reg* fp) {
   for(size_t j=0;j<f.params.size();j++)if(f.types[f.params[j]]!=caller.types[ip->b+j])throw std::runtime_error("VM method argument type mismatch");
   return method->second;
 }
+void captureTrace(VM& vm,const Ins* ip,Heap* error=nullptr) {
+  if(!error)error=vm.exception.h;
+  if(!error || error->trace)return;
+  auto trace=std::make_unique<std::vector<DebugFrame>>();
+  const auto add=[&](uint32_t function,const Ins* instruction) {
+    if(function>=vm.fns.size())return;
+    const auto& code=vm.fns[function].code;
+    const auto start=(uintptr_t)code.data(), address=(uintptr_t)instruction;
+    if(address<start || address>=start+code.size()*sizeof(Ins) || (address-start)%sizeof(Ins))return;
+    trace->push_back({function,(uint32_t)((address-start)/sizeof(Ins))});
+  };
+  add(vm.fn,ip);
+  for(uint32_t i=vm.depth;i>0;i--){const auto& frame=vm.frames[i-1];if(frame.ip)add(frame.fn,frame.ip-1);}
+  const auto bytes=sizeof(*trace)+trace->capacity()*sizeof(DebugFrame);
+  if(bytes>vm.heapLimit-vm.heapBytes)return;
+  vm.heapBytes+=bytes;vm.peakHeapBytes=std::max(vm.peakHeapBytes,vm.heapBytes);error->trace=std::move(trace);
+}
+std::string guestDiagnostic(VM& vm,Heap* error) {
+  std::string result="Error: uncaught guest exception";
+  if(!error)return result;
+  try {
+    Reg r;r.h=error;
+    const auto& message=string(vm.field(r,0,ZINC_STRING)), &name=string(vm.field(r,1,ZINC_STRING));
+    result=std::string(name.ptr(),name.bytes())+": "+std::string(message.ptr(),message.bytes());
+  } catch(...) {}
+  if(error->trace)for(const auto& frame:*error->trace) {
+    const auto& fn=vm.fns[frame.function];
+    result+="\n    at "+(fn.name.empty()?"function#"+std::to_string(frame.function):fn.name);
+    const SourcePoint* source=nullptr;
+    for(const auto& point:fn.locations){if(point.pc>frame.pc)break;source=&point;}
+    if(source)result+=" ("+source->file+":"+std::to_string(source->line)+":"+std::to_string(source->column)+")";
+    else result+=" (bytecode:"+std::to_string(frame.pc)+")";
+  }
+  return result;
+}
 struct GuestThrow : std::runtime_error { GuestThrow():std::runtime_error("uncaught guest exception"){} };
 [[noreturn]] void generatorTypeError(VM& vm,const char* message,Reg* fp) {
   vm.exception.h=vm.allocate(0,2,fp);
@@ -322,6 +360,7 @@ struct GuestThrow : std::runtime_error { GuestThrow():std::runtime_error("uncaug
   throw GuestThrow();
 }
 bool routeException(VM* vm,const Ins*& ip,Reg*& fp) {
+  captureTrace(*vm,ip);
   for (;;) {
     if(ip->catchPc!=UINT32_MAX) { ip=vm->fns[vm->fn].code.data()+ip->catchPc;return true; }
     if(vm->depth==vm->boundary)return false;
@@ -547,7 +586,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
   } else if constexpr(O==SETTLE) {
     auto* p=fp[a].h;
     if(!p || !p->promiseState)throw std::runtime_error("invalid VM promise resolver");
-    if(p->promiseState==1)vm->settle(p,fp[b],T,c!=0,fp);
+    if(p->promiseState==1){if(c && T==VM_REF)captureTrace(*vm,ip,fp[b].h);vm->settle(p,fp[b],T,c!=0,fp);}
   } else if constexpr(O==MICROTASK) { vm->jobs.push_back(callbackTask(*vm,fp[a],fp));
   } else if constexpr(O==TIMER) { setTimer(*vm,ip,fp);
   } else if constexpr(O==CANCELTIMER) {
@@ -556,7 +595,7 @@ template<int O, int T> void step(VM* vm, const Ins*& ip, Reg*& fp) {
     for(auto it=vm->timers.begin();it!=vm->timers.end();++it)if(it->second.id==id){vm->timers.erase(it);break;}
   } else if constexpr(O==PROMISE) {
     if(c==VM_REF && fp[b].h && fp[b].h->promiseState)fp[a]=fp[b];
-    else { auto* h=vm->allocate(UINT32_MAX,1,fp);vm->settle(h,fp[b],c&255,(c&256)!=0);fp[a].h=h; }
+    else { auto* h=vm->allocate(UINT32_MAX,1,fp);if((c&256) && (c&255)==VM_REF)captureTrace(*vm,ip,fp[b].h);vm->settle(h,fp[b],c&255,(c&256)!=0);fp[a].h=h; }
   } else if constexpr(O==AWAIT) { vm->suspend(ip,fp);ip=nullptr;return;
   } else if constexpr(O==THROW) { vm->poll();vm->exception=fp[a];throw GuestThrow(); }
   else if constexpr(O==EXCEPTION) { fp[a]=vm->exception;vm->exception=Reg(); }
@@ -987,12 +1026,36 @@ uint32_t load(VM& vm,Reader r) {
   }
   return entry;
 }
+uint32_t debugFingerprint(const std::vector<uint8_t>& bytes) {uint32_t hash=2166136261u;for(auto byte:bytes)hash=(hash^byte)*16777619u;return hash;}
+void loadDebug(VM& vm,const char* file,uint32_t fingerprint) {
+  try {
+    std::ifstream in(std::string(file)+".debug",std::ios::binary|std::ios::ate);
+    if(!in || in.tellg()<12 || in.tellg()>(64<<20))return;
+    Reader r;r.bytes.resize((size_t)in.tellg());in.seekg(0);in.read((char*)r.bytes.data(),r.bytes.size());
+    if(!in || memcmp(r.bytes.data(),"ZDB1",4))return;
+    r.at=4;if(r.u()!=fingerprint || r.count()!=vm.fns.size())return;
+    std::vector<std::pair<std::string,std::vector<SourcePoint>>> metadata;
+    for(const auto& fn:vm.fns) {
+      const auto name=r.str();const auto count=r.count();
+      if(count>fn.code.size())return;
+      std::vector<SourcePoint> points;
+      for(uint32_t i=0;i<count;i++) {
+        const auto pc=r.u();const auto source=r.str();const auto line=r.u(),column=r.u();
+        if(pc>=fn.code.size() || (!points.empty() && pc<=points.back().pc) || !line || !column)return;
+        points.push_back({pc,line,column,source});
+      }
+      metadata.emplace_back(name,std::move(points));
+    }
+    if(r.at!=r.bytes.size())return;
+    for(size_t i=0;i<metadata.size();i++){vm.fns[i].name=std::move(metadata[i].first);vm.fns[i].locations=std::move(metadata[i].second);}
+  } catch(const std::exception&) {} // Missing, stale or malformed debug data never changes execution.
+}
 uint32_t load(VM& vm,const char* file) {
   std::ifstream in(file,std::ios::binary|std::ios::ate);
   if(!in || in.tellg()<4 || in.tellg()>(64<<20))throw std::runtime_error("invalid bytecode file size");
   Reader r;r.bytes.resize((size_t)in.tellg());in.seekg(0);in.read((char*)r.bytes.data(),r.bytes.size());
   if(!in)throw std::runtime_error("cannot read bytecode file");
-  return load(vm,std::move(r));
+  const auto fingerprint=debugFingerprint(r.bytes);const auto entry=load(vm,std::move(r));loadDebug(vm,file,fingerprint);return entry;
 }
 }
 #include "jit.h"
@@ -1058,7 +1121,7 @@ int32_t invokeCallback(void* context,const ZincValue* args,uint32_t count,uint32
     return ZINC_OK;
   } catch(const GuestThrow&) {
     callback.guestError=true;
-    try {const auto& message=string(vm.field(vm.exception,0,ZINC_STRING));callback.error.assign(message.ptr(),message.bytes());}catch(...){callback.error="guest callback threw";}
+    callback.error=guestDiagnostic(vm,vm.exception.h);
     restore();
   } catch(const std::exception& e) {restore();callback.error=e.what();}
   catch(...) {restore();callback.error="guest callback threw";}
@@ -1173,7 +1236,7 @@ void setTimer(VM& vm,const Ins* ip,Reg* fp) {
 }
 void drainMicrotasks(VM& vm) {
     while(!vm.jobs.empty()) { vm.poll();auto* task=vm.jobs.front();vm.jobs.pop_front();runTask(vm,task,vm.stack.data()); }
-    for(auto* promise:vm.rejections)if(!promise->handled)throw std::runtime_error("unhandled VM promise rejection");
+    for(auto* promise:vm.rejections)if(!promise->handled){vm.exception=promise->slots[0];throw GuestThrow();}
     vm.rejections.clear();
 }
 void drainJobs(VM& vm) {
@@ -1208,8 +1271,10 @@ int main(int argc,char** argv) {
     VM vm;vm.nativeEvents=true;
     zinc::RunnerHost host(argc,argv);
     options.load(vm.modules);registerGeneratedModules(vm.modules); const auto entry=load(vm,argv[1]); vm.deadline=zinc::deadline();
-    if(options.jit) { Jit code(vm);execute(vm,entry,vm.stack.data());drainJobs(vm); }
-    else { execute(vm,entry,vm.stack.data());drainJobs(vm); }
+    try {
+      if(options.jit) { Jit code(vm);execute(vm,entry,vm.stack.data());drainJobs(vm); }
+      else { execute(vm,entry,vm.stack.data());drainJobs(vm); }
+    } catch(const GuestThrow&) {fprintf(stderr,"zinc-vm: %s\n",guestDiagnostic(vm,vm.exception.h).c_str());return 1;}
     if (std::getenv("ZINC_VM_STATS")) fprintf(stderr,"{\"engine\":\"zinc-vm\",\"tier\":%d,\"heapBytes\":%zu,\"peakHeapBytes\":%zu,\"collections\":%llu}\n",options.jit?1:0,vm.heapBytes,vm.peakHeapBytes,(unsigned long long)vm.collections);
   } catch(const std::exception& e) { fprintf(stderr,"zinc-vm: %s\n",e.what());return 1; }
 }

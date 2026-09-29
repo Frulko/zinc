@@ -30,7 +30,7 @@ template<int O,int T> int jitHelper(VM* vm,const Ins* ip,Reg* fp) {
       if constexpr(T!=ZINC_VOID)fp[ip->a]=vm->result;
     } else { step<O,T>(vm,ip,fp); }
     return O==AWAIT || O==YIELD?3:0;
-  } catch(const GuestThrow&) { return 2; } catch(const std::exception& e) { snprintf(vm->jitError,sizeof(vm->jitError),"%s",e.what());return 1; }
+  } catch(const GuestThrow&) { captureTrace(*vm,ip);return 2; } catch(const std::exception& e) { snprintf(vm->jitError,sizeof(vm->jitError),"%s",e.what());return 1; }
 }
 template<int O> JitHelper jitTyped(uint32_t t) {
   switch(t) {

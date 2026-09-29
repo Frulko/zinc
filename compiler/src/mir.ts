@@ -4,16 +4,17 @@
 // optimisation work (docs/decisions/0013). Exceptional CFG edges are lowered; async and generator suspension points are explicit.
 // Missing passes of CMP-08: inlining, devirtualisation, ranges (number -> i32), bounds, escape, RC optimisation.
 import { type ZT, BOOL, VOID, isNum, isInt } from './sema.ts';
-import { type HModule, type HFunc, type HStmt, type HExpr, typeName, printExpr } from './hir.ts';
+import { type SourceLocation, type HModule, type HFunc, type HStmt, type HExpr, typeName, printExpr } from './hir.ts';
 
-interface Inst { id: number; op: string; t: ZT; args: number[]; attr?: string; block: Block; val?: number | boolean }
-type Term = { k: 'br'; to: Block } | { k: 'cbr'; c: number; a: Block; b: Block } | { k: 'ret'; v?: number } | { k: 'throw'; v: number; to?: Block } | { k: 'invoke'; normal: Block; error: Block } | { k: 'none' };
+interface Inst { loc?: SourceLocation; id: number; op: string; t: ZT; args: number[]; attr?: string; block: Block; val?: number | boolean }
+type Term = ({ k: 'br'; to: Block } | { k: 'cbr'; c: number; a: Block; b: Block } | { k: 'ret'; v?: number } | { k: 'throw'; v: number; to?: Block } | { k: 'invoke'; normal: Block; error: Block } | { k: 'none' }) & { loc?: SourceLocation };
 interface Block { id: number; phis: Inst[]; insts: Inst[]; term: Term; preds: Block[]; sealed: boolean }
 export interface MFunc { name: string; sig: string; blocks: Block[]; note?: string; stats: string; source?: HFunc }
 
 const PURE = new Set(['const', 'bin', 'un', 'phi', 'param', 'capture', 'undef', 'conv.num', 'concat']);
 
 class Builder {
+  loc?: SourceLocation;
   blocks: Block[] = [];
   cur!: Block;
   next = 0;
@@ -31,18 +32,18 @@ class Builder {
 
   block(): Block { const b: Block = { id: this.blocks.length, phis: [], insts: [], term: { k: 'none' }, preds: [], sealed: false }; this.blocks.push(b); return b; }
   emit(op: string, t: ZT, args: number[], attr?: string): number {
-    const i: Inst = { id: this.next++, op, t, args: args.map(a => this.resolved(a)), attr, block: this.cur };
+    const i: Inst = { loc: this.loc, id: this.next++, op, t, args: args.map(a => this.resolved(a)), attr, block: this.cur };
     this.cur.insts.push(i);
     this.insts.set(i.id, i);
     if (this.handler && (op.startsWith('call.') || op === 'new' || op === 'new!' || op === 'await')) {
       const previous = this.cur, normal = this.block(); normal.sealed = true;
-      previous.term = { k: 'invoke', normal, error: this.handler };
+      previous.term = { loc: this.loc, k: 'invoke', normal, error: this.handler };
       normal.preds.push(previous); this.handler.preds.push(previous); this.cur = normal;
     }
     return i.id;
   }
-  jump(to: Block) { if (this.cur.term.k === 'none') { this.cur.term = { k: 'br', to }; to.preds.push(this.cur); } }
-  branch(c: number, a: Block, b: Block) { this.cur.term = { k: 'cbr', c, a, b }; a.preds.push(this.cur); b.preds.push(this.cur); }
+  jump(to: Block) { if (this.cur.term.k === 'none') { this.cur.term = { loc: this.loc, k: 'br', to }; to.preds.push(this.cur); } }
+  branch(c: number, a: Block, b: Block) { this.cur.term = { loc: this.loc, k: 'cbr', c, a, b }; a.preds.push(this.cur); b.preds.push(this.cur); }
 
   // ---------- SSA construction ----------
   write(v: string, b: Block, val: number) { let m = this.defs.get(v); if (!m) this.defs.set(v, m = new Map()); m.set(b, this.resolved(val)); }
@@ -94,7 +95,8 @@ class Builder {
 
   // ---------- lowering ----------
   stmts(ss: HStmt[]) { for (const s of ss) this.stmt(s); }
-  stmt(s: HStmt) {
+  stmt(s: HStmt) { const previous = this.loc; this.loc = s.loc ?? previous; try { this.stmtInner(s); } finally { this.loc = previous; } }
+  stmtInner(s: HStmt) {
     switch (s.k) {
       case 'let': {
         const v = s.init ? this.expr(s.init) : this.emit('undef', s.t, [], s.name);
@@ -128,13 +130,13 @@ class Builder {
         return;
       }
       case 'break': case 'continue': { this.finalize(false); const l = this.loops[this.loops.length - 1]; this.jump(s.k === 'break' ? l.brk : l.cont); this.dead(); return; }
-      case 'return': { const v = s.e ? this.expr(s.e) : undefined; this.finalize(true); this.cur.term = { k: 'ret', v }; this.dead(); return; }  // expr() may move this.cur
+      case 'return': { const v = s.e ? this.expr(s.e) : undefined; this.finalize(true); this.cur.term = { loc: this.loc, k: 'ret', v }; this.dead(); return; }  // expr() may move this.cur
       case 'throw': { this.raise(this.expr(s.e)); return; }
       case 'try': this.tryStmt(s); return;
       case 'opaque': this.emit('opaque', VOID, [], s.text);
     }
   }
-  raise(v: number) { this.cur.term = { k: 'throw', v, to: this.handler }; this.handler?.preds.push(this.cur); this.dead(); }
+  raise(v: number) { this.cur.term = { loc: this.loc, k: 'throw', v, to: this.handler }; this.handler?.preds.push(this.cur); this.dead(); }
   finalize(returning: boolean) {
     const saved = this.finalizers, handler = this.handler;
     for (let i = saved.length - 1; i >= 0; i--) if (returning || this.loops.length <= saved[i].loopDepth) {
@@ -164,7 +166,8 @@ class Builder {
   }
   /** Code after a jump lands in a fresh block with no predecessor (removed as unreachable). */
   dead() { const b = this.block(); b.sealed = true; this.cur = b; }
-  expr(h: HExpr): number {
+  expr(h: HExpr): number { const previous = this.loc; this.loc = h.loc ?? previous; try { return this.exprInner(h); } finally { this.loc = previous; } }
+  exprInner(h: HExpr): number {
     const cached = this.expressionValues.get(h); if (cached !== undefined) return cached;
     const E = (x: HExpr) => this.expr(x);
     switch (h.k) {
@@ -228,7 +231,7 @@ export function lowerFn(f: HFunc, name: string, out: MFunc[], method = false) {
   if (method) b.write('this', b.cur, b.emit('param', VOID, [], 'this'));
   for (const c of f.captures) b.write(c, b.cur, b.emit('capture', VOID, [], c));
   b.stmts(f.body);
-  if (b.cur.term.k === 'none') b.cur.term = { k: 'ret' };
+  if (b.cur.term.k === 'none') b.cur.term = { loc: f.loc, k: 'ret' };
   const stats = optimize(b);
   out.push({ name, sig, blocks: b.blocks, stats, source: f });
   b.lambdas.forEach((l, i) => lowerFn(l, `${name}::${l.name}#${i + 1}`, out));
@@ -284,7 +287,7 @@ function optimize(b: Builder): string {
       if (c?.op !== 'const' || typeof c.val !== 'boolean') continue;
       const [keep, drop] = c.val ? [t.a, t.b] : [t.b, t.a];
       if (keep !== drop) { const k = drop.preds.indexOf(bl); drop.preds.splice(k, 1); for (const p of drop.phis) p.args.splice(k, 1); }
-      bl.term = { k: 'br', to: keep };
+      bl.term = { loc: t.loc, k: 'br', to: keep };
       pruned++; changed = true;
     }
   }
