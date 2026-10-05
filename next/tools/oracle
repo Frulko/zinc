@@ -1,0 +1,9 @@
+#!/bin/sh
+# Reference-checker oracle: exit 0 if the reference checker accepts FILE, non-zero otherwise.
+# Default: the repo's tsc 7 (the native, tsgo-class checker) with lib/zinc.d.ts as prelude, which aliases the machine
+# types (`type i32 = number`, f32, u8, ...). So the oracle sees i32 as number: it accepts a superset of what our checker
+# accepts, never a subset. Our checker adds the numeric-kind rules on top; those extra rejections are covered by our own
+# fixtures, not by the oracle. Swap the checker with ZN_ORACLE (it receives the file as its last argument).
+root=$(cd "$(dirname "$0")/../.." && pwd)
+if [ -n "$ZN_ORACLE" ]; then exec $ZN_ORACLE "$@"; fi
+exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --target esnext --types "" "$root/lib/zinc.d.ts" "$@"

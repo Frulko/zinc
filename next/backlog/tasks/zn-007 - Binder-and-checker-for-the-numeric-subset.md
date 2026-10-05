@@ -4,7 +4,7 @@ title: Binder and checker for the numeric subset
 status: Backlog
 assignee: []
 created_date: '2026-10-05 14:21'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-05 15:36'
 labels:
   - size-L
 milestone: m-1
@@ -22,5 +22,5 @@ As an **App developer**, I want types checked (numbers, functions, returns), so 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 accepts/rejects the same fixtures as `tsgo` on a 30-file differential set; any disagreement on an accepted program is a bug; checker port notes recorded.
+- [ ] #1 on a 30-file differential set, every program we accept is accepted by the oracle (`next/tools/oracle`); any violation is a bug; rejections of invalid fixtures carry a Z-code; notes record which parts were ported from the reference checker.
 <!-- AC:END -->

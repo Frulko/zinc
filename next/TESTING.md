@@ -38,11 +38,16 @@ reported with the measurement, not rounded.
 
 | Gate | Threshold |
 |---|---|
-| M1 / ZN-011 | `fib` output equals golden with no Node; checker accepts exactly the programs `tsgo` accepts on a 30-file set (0 disagreements on accepted programs); interpreter `fib` at least 5× faster than QuickJS; M1 used at most 1.5× its budget |
+| M1 / ZN-011 | `fib` output equals golden with no Node; every program the checker accepts on a 30-file set is accepted by the oracle (0 violations); interpreter `fib` at least 5× faster than QuickJS; M1 used at most 1.5× its budget |
 | M3 | 18/18 conformance in the interpreter; live objects 0 at exit; destruction order equals current native on the order fixtures |
 | M4 | Interpreter and AOT byte-identical on the corpus; fib, nbody, binarytrees, sort within 3× of current native on AOT; interpreter at least 5× faster than QuickJS on numeric kernels and not slower on strings, jsonout and the Dyn kernel |
 | M5 | Pixel golden identical |
 | M6 | Hello runs on a device with no manual toolchain step |
+
+Oracle and machine types: the oracle is the repo's tsc 7 with `lib/zinc.d.ts`, where `i32`, `f32`, `u8` and the other machine
+types are aliases of `number` (`next/tools/oracle`). Our checker is therefore stricter than the oracle by design (it tracks
+numeric kinds); the check is one-way: everything we accept the oracle accepts, and our extra rejections have our own
+fixtures with Z-codes.
 
 Benchmark method: median of 11 runs, idle machine, clean tree, versioned JSON artifact, losses published (lesson from
 `docs/reports/perryts-comparison.md`).

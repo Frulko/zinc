@@ -15,10 +15,10 @@ ordinal: 13000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-- Acceptance: the corresponding sections of `examples/lang` pass; type errors match `tsgo` on the fixtures.
+- Acceptance: the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`next/tools/oracle`).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the corresponding sections of `examples/lang` pass; type errors match `tsgo` on the fixtures.
+- [ ] #1 the corresponding sections of `examples/lang` pass; every program we accept is accepted by the oracle (`next/tools/oracle`).
 <!-- AC:END -->
