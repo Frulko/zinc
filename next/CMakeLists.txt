@@ -17,6 +17,9 @@ endif()
 add_library(zn_frontend STATIC src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 
+add_library(zn_ir STATIC src/ir/ir.cpp src/ir/lower.cpp)
+target_link_libraries(zn_ir PUBLIC zn_frontend)
+
 add_library(zn_zbc STATIC src/zbc/zbc.cpp)
 target_include_directories(zn_zbc PUBLIC include src)
 
@@ -24,4 +27,7 @@ add_library(zn_vm STATIC src/vm/vm.cpp)
 target_link_libraries(zn_vm PUBLIC zn_zbc)
 
 add_executable(zinc src/main.cpp)
-target_link_libraries(zinc PRIVATE zn_vm zn_zbc zn_frontend)
+target_link_libraries(zinc PRIVATE zn_vm zn_zbc zn_ir zn_frontend)
+
+add_executable(ir_test tests/unit/ir_test.cpp)
+target_link_libraries(ir_test PRIVATE zn_ir)

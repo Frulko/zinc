@@ -27,25 +27,6 @@ bool numFromName(std::string_view s, Num& out) {
   return false;
 }
 
-// Lossless implicit conversions between machine kinds.
-bool widens(Num from, Num to) {
-  if (from == to) return true;
-  auto in = [&](std::initializer_list<Num> l) { for (Num x : l) if (x == from) return true; return false; };
-  switch (to) {
-    case Num::f64: return in({Num::f32, Num::i8, Num::i16, Num::i32, Num::u8, Num::u16, Num::u32});
-    case Num::f32: return in({Num::i8, Num::i16, Num::u8, Num::u16});
-    case Num::i64: return in({Num::i8, Num::i16, Num::i32, Num::u8, Num::u16, Num::u32});
-    case Num::isize: return in({Num::i8, Num::i16, Num::i32, Num::u8, Num::u16});
-    case Num::u64: return in({Num::u8, Num::u16, Num::u32});
-    case Num::usize: return in({Num::u8, Num::u16});
-    case Num::i32: return in({Num::i8, Num::i16, Num::u8, Num::u16});
-    case Num::u32: return in({Num::u8, Num::u16});
-    case Num::i16: return in({Num::i8, Num::u8});
-    case Num::u16: return in({Num::u8});
-    default: return false;
-  }
-}
-
 struct Checker {
   const Ast& a;
   Checked out;
@@ -660,6 +641,25 @@ struct Checker {
 };
 
 }  // namespace
+
+// Lossless implicit conversions between machine kinds.
+bool widens(Num from, Num to) {
+  if (from == to) return true;
+  auto in = [&](std::initializer_list<Num> l) { for (Num x : l) if (x == from) return true; return false; };
+  switch (to) {
+    case Num::f64: return in({Num::f32, Num::i8, Num::i16, Num::i32, Num::u8, Num::u16, Num::u32});
+    case Num::f32: return in({Num::i8, Num::i16, Num::u8, Num::u16});
+    case Num::i64: return in({Num::i8, Num::i16, Num::i32, Num::u8, Num::u16, Num::u32});
+    case Num::isize: return in({Num::i8, Num::i16, Num::i32, Num::u8, Num::u16});
+    case Num::u64: return in({Num::u8, Num::u16, Num::u32});
+    case Num::usize: return in({Num::u8, Num::u16});
+    case Num::i32: return in({Num::i8, Num::i16, Num::u8, Num::u16});
+    case Num::u32: return in({Num::u8, Num::u16});
+    case Num::i16: return in({Num::i8, Num::u8});
+    case Num::u16: return in({Num::u8});
+    default: return false;
+  }
+}
 
 Checked check(const Ast& ast) {
   Checker c(ast);

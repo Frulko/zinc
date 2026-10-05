@@ -8,6 +8,7 @@
 #include "frontend/diagnostics.h"
 #include "frontend/lexer.h"
 #include "frontend/parser.h"
+#include "ir/ir.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
@@ -61,6 +62,29 @@ int main(int argc, char** argv) {
     if (!diags.empty()) return 1;
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, res.ast, src).c_str(), stdout);
     return 0;
+  }
+  if (argc == 3 && !std::strcmp(argv[1], "--emit=ir")) {  // zinc --emit=ir <file>: parse, check, lower, verify, dump
+    std::ifstream in(argv[2], std::ios::binary);
+    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    std::string src = buf.str();
+    auto res = zn::frontend::parse(src);
+    auto checked = zn::frontend::check(res.ast);
+    auto diags = res.diags;
+    diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
+    if (diags.empty()) {
+      auto low = zn::ir::lower(res.ast, checked, src);
+      diags = low.diags;
+      if (diags.empty()) {
+        std::string bad = zn::ir::verify(low.module);
+        if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); return 3; }
+        std::fputs(zn::ir::dump(low.module).c_str(), stdout);
+        return 0;
+      }
+    }
+    for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, argv[2]).c_str());
+    return 1;
   }
   if (argc == 3 && !std::strcmp(argv[1], "explain")) {  // zinc explain Z0001|--markdown|--codes
     std::string out = !std::strcmp(argv[2], "--markdown") ? zn::frontend::markdown()

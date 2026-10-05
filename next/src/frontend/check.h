@@ -62,6 +62,9 @@ struct Checked {
 };
 
 Checked check(const Ast& ast);
+
+// Lossless implicit conversion between machine numeric kinds (also used by the IR lowering).
+bool widens(Num from, Num to);
 std::string typeName(const Checked& c, TypeId t);
 
 // One line per Function, Method, Param, Declarator and Field: `line:col Kind name: type`.

@@ -39,7 +39,7 @@ enum class N : std::uint8_t {
   Number,     // text=source
   BigInt,     // text=source
   String,     // text=source with quotes
-  Template,   // [expr...] (the substitutions, in order)
+  Template,   // [quasi, expr, quasi, expr, ..., quasi]: quasis are String nodes with the raw text between delimiters (no quotes)
   Literal,    // text=true|false|null
   This,       //
   Array,      // [elem...]  (Spread allowed)

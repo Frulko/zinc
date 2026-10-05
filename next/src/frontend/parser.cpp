@@ -328,6 +328,11 @@ struct Parser {
     return mk(N::New, st, prevEnd(), {}, std::move(kids));
   }
 
+  // Raw text of a template piece without its delimiters (`, ${ and }), as a String node.
+  std::uint32_t quasi(const Token& k, std::uint32_t lead, std::uint32_t trail) {
+    return mk(N::String, k.start + lead, k.end - trail, s.substr(k.start + lead, k.end - k.start - lead - trail));
+  }
+
   std::uint32_t primary() {
     const Token& k = cur();
     std::uint32_t st = k.start;
@@ -340,12 +345,22 @@ struct Parser {
         ++i;
         if (isP("=>")) unsupported("arrow functions");
         return mk(N::Ident, st, prevEnd(), txt(t[i - 1]));
-      case Tok::TemplateNoSub: ++i; return mk(N::Template, st, prevEnd());
-      case Tok::TemplateHead: {
+      case Tok::TemplateNoSub: {
+        std::uint32_t q = quasi(k, 1, 1);
         ++i;
-        std::vector<std::uint32_t> parts{expression()};
-        while (cur().kind == Tok::TemplateMiddle) { ++i; parts.push_back(expression()); }
+        return mk(N::Template, st, prevEnd(), {}, {q});
+      }
+      case Tok::TemplateHead: {
+        std::vector<std::uint32_t> parts{quasi(k, 1, 2)};
+        ++i;
+        parts.push_back(expression());
+        while (cur().kind == Tok::TemplateMiddle) {
+          parts.push_back(quasi(cur(), 1, 2));
+          ++i;
+          parts.push_back(expression());
+        }
         if (cur().kind != Tok::TemplateTail) unexpected();
+        parts.push_back(quasi(cur(), 1, 1));
         ++i;
         return mk(N::Template, st, prevEnd(), {}, std::move(parts));
       }
