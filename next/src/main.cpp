@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <iterator>
+#include <vector>
 #include <sstream>
 #include <string>
 
@@ -9,17 +11,68 @@
 #include "frontend/lexer.h"
 #include "frontend/parser.h"
 #include "ir/ir.h"
+#include "zbc/zbc.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
+
+// Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
+static int compileToZbc(const char* path, zn::zbc::Module& out) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) { std::fprintf(stderr, "cannot read %s\n", path); return 2; }
+  std::stringstream buf;
+  buf << in.rdbuf();
+  std::string src = buf.str();
+  auto res = zn::frontend::parse(src);
+  auto checked = zn::frontend::check(res.ast);
+  auto diags = res.diags;
+  diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
+  if (diags.empty()) {
+    auto low = zn::ir::lower(res.ast, checked, src);
+    diags = low.diags;
+    if (diags.empty()) {
+      auto em = zn::zbc::emit(low.module);
+      for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
+      if (!em.errors.empty()) return 1;
+      std::string bad = zn::zbc::verify(em.module);
+      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid ZBC: %s\n", bad.c_str()); return 3; }
+      out = std::move(em.module);
+      return 0;
+    }
+  }
+  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, path).c_str());
+  return 1;
+}
 
 int main(int argc, char** argv) {
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::puts("zinc-next 0.0.1");
     return 0;
   }
-  if (argc == 2 && !std::strcmp(argv[1], "--selftest")) {  // stub: emitter output runs on the VM
-    auto code = zn::zbc::stubProgram();
-    return zn::zbc::fits(2, 1) && zn::vm::run(code) == static_cast<int>(code.size()) ? 0 : 1;
+  if (argc == 3 && !std::strcmp(argv[1], "--emit=zbc")) {  // zinc --emit=zbc <file>: disassembly
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::fputs(zn::zbc::disassemble(zm).c_str(), stdout);
+    return 0;
+  }
+  if (argc == 4 && !std::strcmp(argv[1], "--emit=zbc-bin")) {  // zinc --emit=zbc-bin <file> <out.zbc>
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    auto bytes = zn::zbc::encode(zm);
+    std::ofstream out(argv[3], std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    return out ? 0 : 2;
+  }
+  if (argc == 4 && !std::strcmp(argv[1], "zbc")) {  // zinc zbc --check|--dump <file.zbc>: decode and verify a bytecode file
+    std::ifstream in(argv[3], std::ios::binary);
+    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    zn::zbc::Module zm;
+    std::string err;
+    if (!zn::zbc::decode(bytes, zm, err)) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
+    err = zn::zbc::verify(zm);
+    if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[3], err.c_str()); return 1; }
+    if (!std::strcmp(argv[2], "--dump")) std::fputs(zn::zbc::disassemble(zm).c_str(), stdout);
+    return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "lex")) {  // zinc lex --check|--dump <file>
     std::ifstream in(argv[3], std::ios::binary);

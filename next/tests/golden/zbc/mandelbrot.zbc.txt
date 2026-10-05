@@ -1,0 +1,63 @@
+func @main() -> void nregs=14
+   0  LoadI    r0, 400
+   1  LoadI    r1, 400
+   2  LoadI    r2, 200
+   3  LoadK    r3, f64 0
+   4  LoadI    r4, 0
+   5  LtI      r5, r4, r1
+   6  JmpIfNot r5, -> 59
+   7  I64ToF64 r5, r4
+   8  I64ToF64 r6, r1
+   9  DivF64   r5, r5, r6
+  10  LoadK    r6, f64 3
+  11  MulF64   r5, r5, r6
+  12  LoadK    r6, f64 1.5
+  13  SubF64   r5, r5, r6
+  14  LoadI    r6, 0
+  15  Move     r7, r3
+  16  LtI      r8, r6, r0
+  17  JmpIfNot r8, -> 55
+  18  I64ToF64 r8, r6
+  19  I64ToF64 r9, r0
+  20  DivF64   r8, r8, r9
+  21  LoadK    r9, f64 3
+  22  MulF64   r8, r8, r9
+  23  LoadK    r9, f64 2
+  24  SubF64   r8, r8, r9
+  25  LoadK    r9, f64 0
+  26  LoadK    r10, f64 0
+  27  LoadI    r11, 0
+  28  MulF64   r12, r9, r9
+  29  MulF64   r13, r10, r10
+  30  AddF64   r12, r12, r13
+  31  LoadK    r13, f64 4
+  32  LeF64    r12, r12, r13
+  33  JmpIfNot r12, -> 35
+  34  LtI      r12, r11, r2
+  35  JmpIfNot r12, -> 49
+  36  MulF64   r12, r9, r9
+  37  MulF64   r13, r10, r10
+  38  SubF64   r12, r12, r13
+  39  AddF64   r12, r12, r8
+  40  LoadK    r13, f64 2
+  41  MulF64   r9, r13, r9
+  42  MulF64   r9, r9, r10
+  43  AddF64   r10, r9, r5
+  44  LoadI    r9, 1
+  45  AddI32   r9, r11, r9
+  46  Move     r11, r9
+  47  Move     r9, r12
+  48  Jmp      -> 28
+  49  I64ToF64 r8, r11
+  50  AddF64   r8, r7, r8
+  51  LoadI    r9, 1
+  52  AddI32   r6, r6, r9
+  53  Move     r7, r8
+  54  Jmp      -> 16
+  55  LoadI    r5, 1
+  56  AddI32   r4, r4, r5
+  57  Move     r3, r7
+  58  Jmp      -> 5
+  59  LogF64   r3
+  60  LogEnd   
+  61  RetV     

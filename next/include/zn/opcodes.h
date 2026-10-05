@@ -1,28 +1,76 @@
 #pragma once
-// ZBC opcodes, defined once as an X-macro so the emitter, the interpreter and the disassembler cannot drift.
-// Stub set: ZN-009 extends it.
+// ZBC opcodes: typed register bytecode, defined once so the emitter, verifier, interpreter, AOT and disassembler cannot
+// drift. Registers hold 64-bit slots of one of three classes: I (integers of every width, sign- or zero-extended to
+// canonical form, and booleans), S (f32 bits), D (f64). Operations are typed, so the interpreter checks no tags; the
+// verifier proves every register has the class its use expects.
+//
+// X(Name, Format, inB, inC, out): `inB`/`inC` are the classes read from operands B and C, `out` the class written to A
+// ('_' none, 'M' special-cased by the verifier, e.g. Move, Call, Ret).
 #include <cstdint>
 
-#define ZN_OPCODES(X) \
-  X(Nop)              \
-  X(LoadInt)          \
-  X(Add)              \
-  X(Call)             \
-  X(Ret)
+#define ZN_OPCODES(X)                                                                                           \
+  X(Nop, OP, _, _, _) X(Trap, OP, _, _, _)                                                                      \
+  X(Move, ABC, M, _, M) X(LoadI, AD, _, _, I) X(LoadK, AD, _, _, M)                                             \
+  X(AddI32, ABC, I, I, I) X(SubI32, ABC, I, I, I) X(MulI32, ABC, I, I, I) X(DivI32, ABC, I, I, I) X(RemI32, ABC, I, I, I) \
+  X(AddU32, ABC, I, I, I) X(SubU32, ABC, I, I, I) X(MulU32, ABC, I, I, I) X(DivU32, ABC, I, I, I) X(RemU32, ABC, I, I, I) \
+  X(AddI64, ABC, I, I, I) X(SubI64, ABC, I, I, I) X(MulI64, ABC, I, I, I) X(DivI64, ABC, I, I, I) X(RemI64, ABC, I, I, I) \
+  X(AddU64, ABC, I, I, I) X(SubU64, ABC, I, I, I) X(MulU64, ABC, I, I, I) X(DivU64, ABC, I, I, I) X(RemU64, ABC, I, I, I) \
+  X(AddF32, ABC, S, S, S) X(SubF32, ABC, S, S, S) X(MulF32, ABC, S, S, S) X(DivF32, ABC, S, S, S) X(RemF32, ABC, S, S, S) \
+  X(AddF64, ABC, D, D, D) X(SubF64, ABC, D, D, D) X(MulF64, ABC, D, D, D) X(DivF64, ABC, D, D, D) X(RemF64, ABC, D, D, D) \
+  X(PowF64, ABC, D, D, D) X(Atan2F64, ABC, D, D, D) X(MinF64, ABC, D, D, D) X(MaxF64, ABC, D, D, D)             \
+  X(NegI32, ABC, I, _, I) X(NegU32, ABC, I, _, I) X(NegI64, ABC, I, _, I) X(NegF32, ABC, S, _, S) X(NegF64, ABC, D, _, D) \
+  X(And, ABC, I, I, I) X(Or, ABC, I, I, I) X(Xor, ABC, I, I, I) X(Not64, ABC, I, _, I) X(NotB, ABC, I, _, I)   \
+  X(ShlI32, ABC, I, I, I) X(ShrI32, ABC, I, I, I) X(ShlU32, ABC, I, I, I) X(ShrU32, ABC, I, I, I)             \
+  X(ShlI64, ABC, I, I, I) X(ShrI64, ABC, I, I, I) X(ShlU64, ABC, I, I, I) X(ShrU64, ABC, I, I, I)             \
+  X(NarrowI8, ABC, I, _, I) X(NarrowI16, ABC, I, _, I) X(NarrowI32, ABC, I, _, I)                              \
+  X(NarrowU8, ABC, I, _, I) X(NarrowU16, ABC, I, _, I) X(NarrowU32, ABC, I, _, I)                              \
+  X(EqI, ABC, I, I, I) X(NeI, ABC, I, I, I) X(LtI, ABC, I, I, I) X(LeI, ABC, I, I, I) X(LtU, ABC, I, I, I) X(LeU, ABC, I, I, I) \
+  X(EqF32, ABC, S, S, I) X(NeF32, ABC, S, S, I) X(LtF32, ABC, S, S, I) X(LeF32, ABC, S, S, I)                  \
+  X(EqF64, ABC, D, D, I) X(NeF64, ABC, D, D, I) X(LtF64, ABC, D, D, I) X(LeF64, ABC, D, D, I)                  \
+  X(I64ToF64, ABC, I, _, D) X(I64ToF32, ABC, I, _, S) X(U64ToF64, ABC, I, _, D) X(U64ToF32, ABC, I, _, S)       \
+  X(F64ToI64, ABC, D, _, I) X(F64ToU64, ABC, D, _, I) X(F32ToI64, ABC, S, _, I) X(F32ToU64, ABC, S, _, I)       \
+  X(F32ToF64, ABC, S, _, D) X(F64ToF32, ABC, D, _, S)                                                           \
+  X(SqrtF64, ABC, D, _, D) X(AbsF64, ABC, D, _, D) X(FloorF64, ABC, D, _, D) X(CeilF64, ABC, D, _, D)           \
+  X(RoundF64, ABC, D, _, D) X(TruncF64, ABC, D, _, D) X(SinF64, ABC, D, _, D) X(CosF64, ABC, D, _, D)           \
+  X(TanF64, ABC, D, _, D) X(AtanF64, ABC, D, _, D) X(ExpF64, ABC, D, _, D) X(LnF64, ABC, D, _, D)              \
+  X(Jmp, AX, _, _, _) X(JmpIf, AD, _, _, _) X(JmpIfNot, AD, _, _, _)                                           \
+  X(Call, AD, _, _, M) X(Ret, ABC, _, _, M) X(RetV, OP, _, _, _) X(Throw, ABC, _, _, _)                         \
+  X(GetGlobal, AD, _, _, M) X(SetGlobal, AD, _, _, M)                                                           \
+  X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
+  X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)
 
 namespace zn {
 
 enum class Op : std::uint8_t {
-#define X(name) name,
+#define X(name, fmt, b, c, out) name,
   ZN_OPCODES(X)
 #undef X
   Count
 };
 
-inline constexpr const char* kOpNames[] = {
-#define X(name) #name,
+enum class Fmt : std::uint8_t { OP, ABC, AD, AX };
+enum class RC : std::uint8_t { None, I, S, D, M };  // register class expected or produced
+
+struct OpInfo {
+  const char* name;
+  Fmt fmt;
+  RC inB, inC, out;
+};
+
+namespace detail {
+inline constexpr RC _ = RC::None;
+inline constexpr RC I = RC::I;
+inline constexpr RC S = RC::S;
+inline constexpr RC D = RC::D;
+inline constexpr RC M = RC::M;
+}  // namespace detail
+
+inline constexpr OpInfo kOpInfo[] = {
+#define X(name, fmt, b, c, out) {#name, Fmt::fmt, detail::b, detail::c, detail::out},
     ZN_OPCODES(X)
 #undef X
 };
+
+inline constexpr const OpInfo& opInfo(Op o) { return kOpInfo[static_cast<unsigned>(o)]; }
 
 }  // namespace zn

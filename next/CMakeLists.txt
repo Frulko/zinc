@@ -20,7 +20,8 @@ target_include_directories(zn_frontend PUBLIC include src)
 add_library(zn_ir STATIC src/ir/ir.cpp src/ir/lower.cpp)
 target_link_libraries(zn_ir PUBLIC zn_frontend)
 
-add_library(zn_zbc STATIC src/zbc/zbc.cpp)
+add_library(zn_zbc STATIC src/zbc/zbc.cpp src/zbc/emit.cpp)
+target_link_libraries(zn_zbc PUBLIC zn_ir)
 target_include_directories(zn_zbc PUBLIC include src)
 
 add_library(zn_vm STATIC src/vm/vm.cpp)
@@ -31,3 +32,6 @@ target_link_libraries(zinc PRIVATE zn_vm zn_zbc zn_ir zn_frontend)
 
 add_executable(ir_test tests/unit/ir_test.cpp)
 target_link_libraries(ir_test PRIVATE zn_ir)
+
+add_executable(zbc_test tests/unit/zbc_test.cpp)
+target_link_libraries(zbc_test PRIVATE zn_zbc)

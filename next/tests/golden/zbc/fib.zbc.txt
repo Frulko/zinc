@@ -1,0 +1,20 @@
+func @main() -> void nregs=1
+   0  LoadI    r0, 32
+   1  Call     r0, @fib
+   2  LogI     r0
+   3  LogEnd   
+   4  RetV     
+func @fib(i) -> i nregs=3
+   0  LoadI    r1, 2
+   1  LtI      r1, r0, r1
+   2  JmpIfNot r1, -> 4
+   3  Ret      r0
+   4  LoadI    r1, 1
+   5  SubI32   r1, r0, r1
+   6  Call     r1, @fib
+   7  LoadI    r2, 2
+   8  SubI32   r0, r0, r2
+   9  Move     r2, r0
+  10  Call     r2, @fib
+  11  AddI32   r0, r1, r2
+  12  Ret      r0
