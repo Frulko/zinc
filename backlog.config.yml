@@ -1,0 +1,17 @@
+project_name: "Zinc Next"
+default_status: "Backlog"
+statuses: ["Backlog", "Ready", "In Progress", "Review", "Done"]
+labels: []
+date_format: yyyy-mm-dd
+max_column_width: 20
+auto_open_browser: false
+default_port: 6420
+remote_operations: true
+auto_commit: false
+filesystem_only: false
+zero_padded_ids: 3
+bypass_git_hooks: true
+check_active_branches: true
+active_branch_days: 30
+task_prefix: "zn"
+backlog_directory: "next/backlog"
