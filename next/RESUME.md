@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0 (ZN-001..003), ZN-004 lexer, ZN-005 parser, ZN-006 diagnostics registry (`include/zn/diagnostics.h`, `zinc explain`).
-- Ready: none; next by ordinal is ZN-007 (Binder and checker). Nothing in progress.
+- Done: M0, ZN-004 lexer, ZN-005 parser, ZN-006 diagnostics registry, ZN-007 binder and checker (`next/src/frontend/check.h`, `zinc check --check|--types`, differential T1 `oracle_diff`).
+- Ready: none; next by ordinal is ZN-008 (Typed SSA IR and --emit=ir). Nothing in progress.
 
 ## Next
 
-`/zn-start` (picks ZN-007 via `next/tools/next-task`).
+`/zn-start` (picks ZN-008 via `next/tools/next-task`).
 
 ## Watch out
 
@@ -29,6 +29,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 | ZN-004 | ~100k in / ~4M cached / ~35k out (same session, incremental) |
 | M1 | ZN-005 | ~80k in / ~3M cached / ~30k out (same session, incremental) |
 | M1 | ZN-006 | ~50k in / ~2M cached / ~20k out (same session, incremental) |
+| M1 | ZN-007 | ~120k in / ~6M cached / ~60k out (same session, incremental; size L) |
 
 ## Lexer notes (ZN-004)
 
@@ -40,3 +41,10 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Syntax codes Z0001-Z0005 live in `include/zn/diagnostics.h` (Z0005 = unsupported). New codes: add one X(...) entry, one fixture in `tests/golden/*/errors`, regenerate `next/docs/diagnostics.md` with `zinc explain --markdown`.
 - Unsupported yet (Z0005): arrows, object literals, modules, generics, modifiers, switch/try/throw, interfaces. Later tasks (ZN-012..) lift them one by one.
+
+## Checker notes (ZN-007) for the IR
+
+- `Checked` gives a type per AST node (`nodeType`), the resolved symbol per Ident (`nodeSym`), types interned in `types`, objects (classes, Math, console) in `objs`. ZN-008 lowers from the AST plus this.
+- Numeric kinds are first class (`Num`); `i32 / i32` is f64 (JS semantics); `.length` is i32. Literals adapt to the target kind syntactically.
+- Stricter than TS on purpose; the oracle (`next/tools/oracle`, tsc 7 + lib/zinc.d.ts) must accept everything we accept.
+- New codes: add the registry entry, a fixture in `tests/golden/checker/errors`, regenerate `next/docs/diagnostics.md`.
