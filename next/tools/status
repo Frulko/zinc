@@ -1,0 +1,8 @@
+#!/bin/sh
+# Where are we? Current task, progress, uncommitted work, last commits, next step. Read-only.
+cd "$(dirname "$0")/../.." || exit 2
+echo "== Task"; next/tools/next-task
+backlog task list --plain 2>/dev/null | awk '/^(In Progress|Ready|Done):/ {s=$0; print s; next} /^[A-Za-z]/ {s=""} s && /ZN-/'
+echo "== Uncommitted (next/)"; git status --short next/ | sed 's/^/  /'; [ -n "$(git status --short next/)" ] || echo "  clean"
+echo "== Last commits"; git log -5 --oneline -- next/ | sed 's/^/  /'
+echo "== Resume file"; sed -n '/^## State/,/^## Watch/p' next/RESUME.md | sed '$d'
