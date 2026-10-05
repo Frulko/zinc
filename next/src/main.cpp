@@ -5,6 +5,7 @@
 #include <string>
 
 #include "frontend/lexer.h"
+#include "frontend/parser.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
@@ -30,6 +31,23 @@ int main(int argc, char** argv) {
     if (!err.empty()) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
     return 0;
   }
-  std::fputs("usage: zinc --version | lex --check|--dump <file>\n", stderr);
+  if (argc == 4 && !std::strcmp(argv[1], "parse")) {  // zinc parse --check|--dump <file>
+    std::ifstream in(argv[3], std::ios::binary);
+    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    std::string src = buf.str();
+    auto res = zn::frontend::parse(src);
+    for (const auto& d : res.diags) {
+      auto lc = zn::frontend::lineCol(src, d.pos);
+      std::fprintf(stderr, "%s:%u:%u: error %s: %s\n", argv[3], lc.line, lc.col, d.code, d.message.c_str());
+    }
+    if (!res.diags.empty()) return 1;
+    if (!std::strcmp(argv[2], "--dump")) { std::fputs(zn::frontend::dump(res.ast).c_str(), stdout); return 0; }
+    std::string err = zn::frontend::validate(res.ast);
+    if (!err.empty()) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
+    return 0;
+  }
+  std::fputs("usage: zinc --version | lex|parse --check|--dump <file>\n", stderr);
   return 2;
 }

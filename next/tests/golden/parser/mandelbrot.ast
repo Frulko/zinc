@@ -1,0 +1,124 @@
+Program
+  VarDecl const
+    Declarator W
+      TypeRef i32
+      Number 400
+  VarDecl const
+    Declarator H
+      TypeRef i32
+      Number 400
+  VarDecl const
+    Declarator MAX_ITER
+      TypeRef i32
+      Number 200
+  VarDecl let
+    Declarator checksum
+      TypeRef number
+      Number 0
+  For
+    VarDecl let
+      Declarator py
+        TypeRef i32
+        Number 0
+    Binary <
+      Ident py
+      Ident H
+    UpdatePost ++
+      Ident py
+    Block
+      VarDecl const
+        Declarator y0
+          TypeRef number
+          Binary -
+            Binary *
+              Binary /
+                Ident py
+                Ident H
+              Number 3.0
+            Number 1.5
+      For
+        VarDecl let
+          Declarator px
+            TypeRef i32
+            Number 0
+        Binary <
+          Ident px
+          Ident W
+        UpdatePost ++
+          Ident px
+        Block
+          VarDecl const
+            Declarator x0
+              TypeRef number
+              Binary -
+                Binary *
+                  Binary /
+                    Ident px
+                    Ident W
+                  Number 3.0
+                Number 2.0
+          VarDecl let
+            Declarator x
+              TypeRef number
+              Number 0
+          VarDecl let
+            Declarator y
+              TypeRef number
+              Number 0
+          VarDecl let
+            Declarator iter
+              TypeRef i32
+              Number 0
+          While
+            Binary &&
+              Binary <=
+                Binary +
+                  Binary *
+                    Ident x
+                    Ident x
+                  Binary *
+                    Ident y
+                    Ident y
+                Number 4
+              Binary <
+                Ident iter
+                Ident MAX_ITER
+            Block
+              VarDecl const
+                Declarator xt
+                  TypeRef number
+                  Binary +
+                    Binary -
+                      Binary *
+                        Ident x
+                        Ident x
+                      Binary *
+                        Ident y
+                        Ident y
+                    Ident x0
+              ExprStmt
+                Assign =
+                  Ident y
+                  Binary +
+                    Binary *
+                      Binary *
+                        Number 2
+                        Ident x
+                      Ident y
+                    Ident y0
+              ExprStmt
+                Assign =
+                  Ident x
+                  Ident xt
+              ExprStmt
+                UpdatePost ++
+                  Ident iter
+          ExprStmt
+            Assign +=
+              Ident checksum
+              Ident iter
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Ident checksum

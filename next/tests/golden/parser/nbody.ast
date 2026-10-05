@@ -1,0 +1,607 @@
+Program
+  VarDecl const
+    Declarator STEPS
+      TypeRef i32
+      Number 600000
+  VarDecl const
+    Declarator SOLAR_MASS
+      TypeRef number
+      Binary *
+        Binary *
+          Number 4
+          Member PI
+            Ident Math
+        Member PI
+          Ident Math
+  VarDecl const
+    Declarator DAYS_PER_YEAR
+      TypeRef number
+      Number 365.24
+  Class Body
+    Field x
+      TypeRef number
+      _
+    Field y
+      TypeRef number
+      _
+    Field z
+      TypeRef number
+      _
+    Field vx
+      TypeRef number
+      _
+    Field vy
+      TypeRef number
+      _
+    Field vz
+      TypeRef number
+      _
+    Field mass
+      TypeRef number
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Assign =
+            Member x
+              This
+            Ident x
+        ExprStmt
+          Assign =
+            Member y
+              This
+            Ident y
+        ExprStmt
+          Assign =
+            Member z
+              This
+            Ident z
+        ExprStmt
+          Assign =
+            Member vx
+              This
+            Ident vx
+        ExprStmt
+          Assign =
+            Member vy
+              This
+            Ident vy
+        ExprStmt
+          Assign =
+            Member vz
+              This
+            Ident vz
+        ExprStmt
+          Assign =
+            Member mass
+              This
+            Ident mass
+      Param x
+        TypeRef number
+        _
+      Param y
+        TypeRef number
+        _
+      Param z
+        TypeRef number
+        _
+      Param vx
+        TypeRef number
+        _
+      Param vy
+        TypeRef number
+        _
+      Param vz
+        TypeRef number
+        _
+      Param mass
+        TypeRef number
+        _
+  VarDecl const
+    Declarator bodies
+      TypeArray
+        TypeRef Body
+      Array
+        New
+          Ident Body
+          Number 0
+          Number 0
+          Number 0
+          Number 0
+          Number 0
+          Number 0
+          Ident SOLAR_MASS
+        New
+          Ident Body
+          Number 4.84143144246472090e+00
+          Unary -
+            Number 1.16032004402742839e+00
+          Unary -
+            Number 1.03622044471123109e-01
+          Binary *
+            Number 1.66007664274403694e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 7.69901118419740425e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Unary -
+              Number 6.90460016972063023e-05
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 9.54791938424326609e-04
+            Ident SOLAR_MASS
+        New
+          Ident Body
+          Number 8.34336671824457987e+00
+          Number 4.12479856412430479e+00
+          Unary -
+            Number 4.03523417114321381e-01
+          Binary *
+            Unary -
+              Number 2.76742510726862411e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 4.99852801234917238e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 2.30417297573763929e-05
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 2.85885980666130812e-04
+            Ident SOLAR_MASS
+        New
+          Ident Body
+          Number 1.28943695621391310e+01
+          Unary -
+            Number 1.51111514016986312e+01
+          Unary -
+            Number 2.23307578892655734e-01
+          Binary *
+            Number 2.96460137564761618e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 2.37847173959480950e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Unary -
+              Number 2.96589568540237556e-05
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 4.36624404335156298e-05
+            Ident SOLAR_MASS
+        New
+          Ident Body
+          Number 1.53796971148509165e+01
+          Unary -
+            Number 2.59193146099879641e+01
+          Number 1.79258772950371181e-01
+          Binary *
+            Number 2.68067772490389322e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 1.62824170038242295e-03
+            Ident DAYS_PER_YEAR
+          Binary *
+            Unary -
+              Number 9.51592254519715870e-05
+            Ident DAYS_PER_YEAR
+          Binary *
+            Number 5.15138902046611451e-05
+            Ident SOLAR_MASS
+  Function offsetMomentum
+    TypeRef void
+    Block
+      VarDecl let
+        Declarator px
+          TypeRef number
+          Number 0
+        Declarator py
+          TypeRef number
+          Number 0
+        Declarator pz
+          TypeRef number
+          Number 0
+      ForOf const
+        Declarator b
+          _
+          _
+        Ident bodies
+        Block
+          ExprStmt
+            Assign +=
+              Ident px
+              Binary *
+                Member vx
+                  Ident b
+                Member mass
+                  Ident b
+          ExprStmt
+            Assign +=
+              Ident py
+              Binary *
+                Member vy
+                  Ident b
+                Member mass
+                  Ident b
+          ExprStmt
+            Assign +=
+              Ident pz
+              Binary *
+                Member vz
+                  Ident b
+                Member mass
+                  Ident b
+      ExprStmt
+        Assign =
+          Member vx
+            Index
+              Ident bodies
+              Number 0
+          Binary /
+            Unary -
+              Ident px
+            Ident SOLAR_MASS
+      ExprStmt
+        Assign =
+          Member vy
+            Index
+              Ident bodies
+              Number 0
+          Binary /
+            Unary -
+              Ident py
+            Ident SOLAR_MASS
+      ExprStmt
+        Assign =
+          Member vz
+            Index
+              Ident bodies
+              Number 0
+          Binary /
+            Unary -
+              Ident pz
+            Ident SOLAR_MASS
+  Function advance
+    TypeRef void
+    Block
+      VarDecl const
+        Declarator n
+          TypeRef i32
+          Member length
+            Ident bodies
+      For
+        VarDecl let
+          Declarator i
+            TypeRef i32
+            Number 0
+        Binary <
+          Ident i
+          Ident n
+        UpdatePost ++
+          Ident i
+        Block
+          VarDecl const
+            Declarator bi
+              _
+              Index
+                Ident bodies
+                Ident i
+          For
+            VarDecl let
+              Declarator j
+                TypeRef i32
+                Binary +
+                  Ident i
+                  Number 1
+            Binary <
+              Ident j
+              Ident n
+            UpdatePost ++
+              Ident j
+            Block
+              VarDecl const
+                Declarator bj
+                  _
+                  Index
+                    Ident bodies
+                    Ident j
+              VarDecl const
+                Declarator dx
+                  TypeRef number
+                  Binary -
+                    Member x
+                      Ident bi
+                    Member x
+                      Ident bj
+              VarDecl const
+                Declarator dy
+                  TypeRef number
+                  Binary -
+                    Member y
+                      Ident bi
+                    Member y
+                      Ident bj
+              VarDecl const
+                Declarator dz
+                  TypeRef number
+                  Binary -
+                    Member z
+                      Ident bi
+                    Member z
+                      Ident bj
+              VarDecl const
+                Declarator dSq
+                  TypeRef number
+                  Binary +
+                    Binary +
+                      Binary *
+                        Ident dx
+                        Ident dx
+                      Binary *
+                        Ident dy
+                        Ident dy
+                    Binary *
+                      Ident dz
+                      Ident dz
+              VarDecl const
+                Declarator distance
+                  TypeRef number
+                  Call
+                    Member sqrt
+                      Ident Math
+                    Ident dSq
+              VarDecl const
+                Declarator mag
+                  TypeRef number
+                  Binary /
+                    Ident dt
+                    Binary *
+                      Ident dSq
+                      Ident distance
+              ExprStmt
+                Assign -=
+                  Member vx
+                    Ident bi
+                  Binary *
+                    Binary *
+                      Ident dx
+                      Member mass
+                        Ident bj
+                    Ident mag
+              ExprStmt
+                Assign -=
+                  Member vy
+                    Ident bi
+                  Binary *
+                    Binary *
+                      Ident dy
+                      Member mass
+                        Ident bj
+                    Ident mag
+              ExprStmt
+                Assign -=
+                  Member vz
+                    Ident bi
+                  Binary *
+                    Binary *
+                      Ident dz
+                      Member mass
+                        Ident bj
+                    Ident mag
+              ExprStmt
+                Assign +=
+                  Member vx
+                    Ident bj
+                  Binary *
+                    Binary *
+                      Ident dx
+                      Member mass
+                        Ident bi
+                    Ident mag
+              ExprStmt
+                Assign +=
+                  Member vy
+                    Ident bj
+                  Binary *
+                    Binary *
+                      Ident dy
+                      Member mass
+                        Ident bi
+                    Ident mag
+              ExprStmt
+                Assign +=
+                  Member vz
+                    Ident bj
+                  Binary *
+                    Binary *
+                      Ident dz
+                      Member mass
+                        Ident bi
+                    Ident mag
+      ForOf const
+        Declarator b
+          _
+          _
+        Ident bodies
+        Block
+          ExprStmt
+            Assign +=
+              Member x
+                Ident b
+              Binary *
+                Ident dt
+                Member vx
+                  Ident b
+          ExprStmt
+            Assign +=
+              Member y
+                Ident b
+              Binary *
+                Ident dt
+                Member vy
+                  Ident b
+          ExprStmt
+            Assign +=
+              Member z
+                Ident b
+              Binary *
+                Ident dt
+                Member vz
+                  Ident b
+    Param dt
+      TypeRef number
+      _
+  Function energy
+    TypeRef number
+    Block
+      VarDecl let
+        Declarator e
+          TypeRef number
+          Number 0
+      VarDecl const
+        Declarator n
+          TypeRef i32
+          Member length
+            Ident bodies
+      For
+        VarDecl let
+          Declarator i
+            TypeRef i32
+            Number 0
+        Binary <
+          Ident i
+          Ident n
+        UpdatePost ++
+          Ident i
+        Block
+          VarDecl const
+            Declarator bi
+              _
+              Index
+                Ident bodies
+                Ident i
+          ExprStmt
+            Assign +=
+              Ident e
+              Binary *
+                Binary *
+                  Number 0.5
+                  Member mass
+                    Ident bi
+                Binary +
+                  Binary +
+                    Binary *
+                      Member vx
+                        Ident bi
+                      Member vx
+                        Ident bi
+                    Binary *
+                      Member vy
+                        Ident bi
+                      Member vy
+                        Ident bi
+                  Binary *
+                    Member vz
+                      Ident bi
+                    Member vz
+                      Ident bi
+          For
+            VarDecl let
+              Declarator j
+                TypeRef i32
+                Binary +
+                  Ident i
+                  Number 1
+            Binary <
+              Ident j
+              Ident n
+            UpdatePost ++
+              Ident j
+            Block
+              VarDecl const
+                Declarator bj
+                  _
+                  Index
+                    Ident bodies
+                    Ident j
+              VarDecl const
+                Declarator dx
+                  TypeRef number
+                  Binary -
+                    Member x
+                      Ident bi
+                    Member x
+                      Ident bj
+              VarDecl const
+                Declarator dy
+                  TypeRef number
+                  Binary -
+                    Member y
+                      Ident bi
+                    Member y
+                      Ident bj
+              VarDecl const
+                Declarator dz
+                  TypeRef number
+                  Binary -
+                    Member z
+                      Ident bi
+                    Member z
+                      Ident bj
+              VarDecl const
+                Declarator distance
+                  TypeRef number
+                  Call
+                    Member sqrt
+                      Ident Math
+                    Binary +
+                      Binary +
+                        Binary *
+                          Ident dx
+                          Ident dx
+                        Binary *
+                          Ident dy
+                          Ident dy
+                      Binary *
+                        Ident dz
+                        Ident dz
+              ExprStmt
+                Assign -=
+                  Ident e
+                  Binary /
+                    Binary *
+                      Member mass
+                        Ident bi
+                      Member mass
+                        Ident bj
+                    Ident distance
+      Return
+        Ident e
+  ExprStmt
+    Call
+      Ident offsetMomentum
+  For
+    VarDecl let
+      Declarator i
+        TypeRef i32
+        Number 0
+    Binary <
+      Ident i
+      Ident STEPS
+    UpdatePost ++
+      Ident i
+    ExprStmt
+      Call
+        Ident advance
+        Number 0.01
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member toFixed
+          Call
+            Ident energy
+        Number 9

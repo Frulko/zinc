@@ -1,0 +1,37 @@
+Program
+  Function fib
+    TypeRef i32
+    Block
+      If
+        Binary <
+          Ident n
+          Number 2
+        Return
+          Ident n
+        _
+      Return
+        Binary +
+          Call
+            Ident fib
+            Binary -
+              Ident n
+              Number 1
+          Call
+            Ident fib
+            Binary -
+              Ident n
+              Number 2
+    Param n
+      TypeRef i32
+      _
+  VarDecl const
+    Declarator result
+      TypeRef i32
+      Call
+        Ident fib
+        Number 32
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Ident result
