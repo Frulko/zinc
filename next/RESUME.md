@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: ZN-002 (cmake skeleton, quiet runner, harness in `next/tools/`), ZN-001 (`next/corpus` frozen, `corpus/freeze.sh` regenerates, T0 `corpus` checks hashes).
-- Ready: ZN-003. Nothing in progress.
+- Done: ZN-002, ZN-001, ZN-003 (M0 complete: skeleton, frozen corpus, shared headers `next/include/zn`, stub zbc and vm).
+- Ready: none; next by ordinal is ZN-004 (Lexer, M1). Nothing in progress.
 
 ## Next
 
-`/zn-start` (picks ZN-003 via `next/tools/next-task`).
+`/zn-start` (picks ZN-004 via `next/tools/next-task`).
 
 ## Watch out
 
@@ -25,4 +25,4 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 | Milestone | Task | Usage |
 |---|---|---|
-| M0 | ZN-002, ZN-001 | ~100k in / ~3M cached / ~30k out, one session (harness work included) |
+| M0 | ZN-002, ZN-001, ZN-003 | ~150k in / ~5M cached / ~45k out, one session (harness work included) |
