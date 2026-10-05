@@ -1,22 +1,22 @@
 # Zinc Next: resume
 
-Overwritten at the end of every session. Read this and the current task (`backlog task list --plain`), nothing else.
+Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume`) for the live state.
 
 ## State
 
-- Date: 2026-10-05. Phase: planning done, no code yet.
-- Design: `docs/reports/zinc-next-design.md` (C++20, typed SSA IR, ZBC interpreter as reference, AOT derived from it).
-- Backlog: 31 tasks in `next/backlog/tasks/`, milestones M0–M6. Ready: ZN-001, ZN-002, ZN-003.
-- Nothing in progress. No code under `next/` besides the backlog.
+- Date: 2026-10-05. Phase: M0 in progress.
+- Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
+- Done: ZN-002 (cmake skeleton, `zinc --version`, quiet runner `next/tests/run`, harness in `next/tools/`).
+- Ready: ZN-001, ZN-003. Nothing in progress.
 
 ## Next
 
-Start ZN-002 first (skeleton + quiet test runner, see `next/TESTING.md`), then ZN-001, then ZN-003.
-`backlog task edit 2 -s "In Progress"`.
+`/zn-start` (picks ZN-001 via `next/tools/next-task`), then ZN-003.
 
 ## Watch out
 
 - The working tree has many unrelated uncommitted changes (compiler, examples, plugins). Never `git add .`; add paths explicitly.
-- Do not touch the existing compiler in `compiler/` except for fixes.
-- Estimates (sizes, 6–8 months) are unvalidated; ZN-011 is the first decision gate.
-- Note `/usage` in the task notes at the end of each session to measure cost per milestone.
+- Do not touch `compiler/` except for fixes.
+- Task files record almost no dependencies; `next-task` follows the ordinal order.
+- Estimates are unvalidated; ZN-011 is the first decision gate.
+- Usage per task is recorded by `next/tools/usage` in the task notes (ZN-002: ~50k in / 1.6M cached / 15k out, estimate).
