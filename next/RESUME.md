@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, ZN-004 lexer, ZN-005 parser, ZN-006 diagnostics, ZN-007 checker, ZN-008 typed SSA IR (`next/src/ir`, `zinc --emit=ir`, verifier, goldens in `tests/golden/ir`).
-- Ready: none; next by ordinal is ZN-009 (ZBC emitter with register allocation). Nothing in progress.
+- Done: M0, ZN-004..008 (lexer, parser, diagnostics, checker, IR), ZN-009 ZBC (`include/zn/opcodes.h`, `next/src/zbc`, `zinc --emit=zbc`, binary format, typed verifier).
+- Ready: none; next by ordinal is ZN-010 (Interpreter runs fib), then ZN-011 = gate M1 (the loop stops there). Nothing in progress.
 
 ## Next
 
-`/zn-start` (picks ZN-009 via `next/tools/next-task`).
+`/zn-start` (picks ZN-010 via `next/tools/next-task`).
 
 ## Watch out
 
@@ -31,6 +31,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 | ZN-006 | ~50k in / ~2M cached / ~20k out (same session, incremental) |
 | M1 | ZN-007 | ~120k in / ~6M cached / ~60k out (same session, incremental; size L) |
 | M1 | ZN-008 | ~110k in / ~5M cached / ~55k out (same session, incremental; size M) |
+| M1 | ZN-009 | ~100k in / ~4M cached / ~50k out (same session, incremental; size M) |
 
 ## Lexer notes (ZN-004)
 
@@ -57,3 +58,13 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Types: `ref Class`, `T[]`, `str`, `bool`, numeric kinds. Globals are accessed with `getglobal`/`setglobal`; builtins with `builtin <name>(args)` (list in `include/zn/builtins.h`, shared with the VM).
 - Register allocation input: every value has one definition; block params are the only merge points. Value ids are dense per function.
 - Unsupported in lowering (Z0005): closures, default parameters, null, spread, for-in.
+
+## ZBC notes (ZN-009) for the interpreter
+
+- Registers are 64-bit slots of class I (all ints, bools), S (f32 bits), D (f64). Ints are kept canonical (sign- or zero-extended); `Narrow*` ops re-canonicalise after narrow arithmetic; `Add/Sub/MulI32` etc. wrap at 32 bits, U32 variants wrap and zero-extend.
+- Calls: `Call A, fn`: args are in r[A..A+n), the callee's frame starts at r[A] (callee r0 = first arg), the result is left in r[A]. Everything at or above A is clobbered. Frame size per function is `nregs`; check stack depth against `kMaxCallDepth`.
+- `Ret r` copies r to the callee's r0 (= caller's r[A]). `console.log` is `LogX` per argument, `LogSep` between, `LogEnd` newline; the VM owns number formatting (JS Number to string; the golden for fib is `2178309`).
+- `LoadI` D is a signed 16-bit immediate; `LoadK` reads the per-function pool. Jump operands are absolute instruction indices.
+- Always run `zbc::verify` after decode and before executing (the typed VM relies on it; `zinc zbc --check`). Decode bounds-checks but does not verify.
+- The emitter's value correctness is unproven until ZN-010 runs the goldens: if an output differs, suspect regalloc/parallel moves first (`next/src/zbc/emit.cpp`).
+- Unsupported (per-function error): heap ops, strings, exceptions (unwind edges), fixed-point kinds.
