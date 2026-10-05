@@ -1,0 +1,14 @@
+sum 6
+done 3
+parse error at line 1 empty input
+done 2
+type error: not a number: x
+done 2
+inner finally
+caught RangeError: inner
+open a
+open b
+using a b
+close b
+close a
+[ 2, 4, 6 ] Error: plain

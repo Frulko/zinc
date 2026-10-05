@@ -1,0 +1,11 @@
+platform ok true true
+hello world true [ 'a.txt', 'b.txt' ]
+caught ENOENT: cannot open build/modtest/missing.txt
+[ 'a.txt' ]
+fr 5 true
+event one
+event two
+edge 27 0 1
+osc /scene/brightness 0.5,3 on
+http 200 true you asked POST /ping?x=1 hi
+mqtt mqtt: cannot connect

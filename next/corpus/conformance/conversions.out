@@ -1,0 +1,9 @@
+42 31 1000 0 NaN -Infinity 1 2.5 0
+false true false true false false true
+1.7976931348623157e+308 5e-324 Infinity -Infinity NaN -9007199254740991
+true false false 3.5 255
+0 NaN NaN -Infinity 1 0.5 2.5
+a[-|a|b-c|$|$1]b-c a<X>b<X>c -a-b-c- x $x
+abc  | bc 2,3 2
+SyntaxError true
+31 2.5 0 NaN 1 -1 true

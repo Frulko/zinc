@@ -1,0 +1,6 @@
+initial 12 rows: text 8,76 304x20 "row 0" .. text 8,296 304x20 "row 11"
+plain clamped to 540
+after scroll 5000 15 rows: text 8,5016 304x20 "row 247" .. text 8,5296 304x20 "row 261"
+clicked row 250
+bottom 19844 11 rows: text 8,19856 304x20 "row 989" .. text 8,20056 304x20 "row 999"
+count 50 844 11 rows: text 8,856 304x20 "row 39" .. text 8,1056 304x20 "row 49"
