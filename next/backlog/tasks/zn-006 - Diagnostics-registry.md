@@ -1,10 +1,10 @@
 ---
 id: ZN-006
 title: Diagnostics registry
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-05 14:21'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-05 15:34'
 labels:
   - size-S
 milestone: m-1
@@ -21,5 +21,11 @@ As an **App developer**, I want every error to have a code, a title, a reason, a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 registry file drives messages and docs; one fixture per code; `zinc explain` prints the entry.
+- [x] #1 registry file drives messages and docs; one fixture per code; `zinc explain` prints the entry.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+include/zn/diagnostics.h is the registry (X-macro: name, code, title, why, fix, example); generates kZ* constants, messages, 'zinc explain <code>|--codes|--markdown' and next/docs/diagnostics.md. Parser codes renumbered Z0001-Z0005 (unsupported is now Z0005). T0 diagnostics: every code has a fixture, every registry example triggers its own code, docs are current, unknown code rejected (each verified by breaking it). Not done (ponytail): code frames in output, add when the checker emits multi-line context. usage: 28000 in / 265691 cached / 2479 out tokens, 5 turns (session total, estimate)
+<!-- SECTION:NOTES:END -->

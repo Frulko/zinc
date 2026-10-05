@@ -6,6 +6,8 @@
 #include <string_view>
 #include <vector>
 
+#include "zn/diagnostics.h"
+
 namespace zn::frontend {
 
 inline constexpr std::uint32_t kNone = 0xFFFFFFFFu;
@@ -74,16 +76,15 @@ struct Ast {
 };
 
 struct Diag {
-  const char* code;  // Z0001... (registry and explanations: ZN-006)
-  std::uint32_t pos; // byte offset
-  std::string message;
+  const char* code;     // registry code (zn/diagnostics.h)
+  std::uint32_t pos;    // byte offset
+  std::string detail;   // what was found or expected, appended to the registry title
 };
 
-// Syntax codes (the full registry comes with ZN-006).
-inline constexpr const char* kZUnexpectedToken = "Z0001";
-inline constexpr const char* kZExpected = "Z0002";
-inline constexpr const char* kZBadLiteral = "Z0003";
-inline constexpr const char* kZBadAssignTarget = "Z0004";
-inline constexpr const char* kZUnsupported = "Z0006";  // valid TypeScript the engine does not support (yet)
+using zn::kZBadAssignTarget;
+using zn::kZBadLiteral;
+using zn::kZExpected;
+using zn::kZUnexpectedToken;
+using zn::kZUnsupported;
 
 }  // namespace zn::frontend

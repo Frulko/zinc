@@ -33,20 +33,20 @@ struct Parser {
     throw Stop{};
   }
   [[noreturn]] void unexpected() {
-    if (cur().kind == Tok::Error) fail(kZBadLiteral, cur().start, "invalid or unterminated token");
-    fail(kZUnexpectedToken, cur().start, eof() ? "unexpected end of input" : "unexpected '" + std::string(txt()) + "'");
+    if (cur().kind == Tok::Error) fail(kZBadLiteral, cur().start, "");
+    fail(kZUnexpectedToken, cur().start, eof() ? "end of input" : "'" + std::string(txt()) + "'");
   }
-  [[noreturn]] void unsupported(const char* what) { fail(kZUnsupported, cur().start, std::string(what) + " is not supported yet"); }
+  [[noreturn]] void unsupported(const char* what) { fail(kZUnsupported, cur().start, what); }
 
   void expectP(std::string_view p) {
-    if (!isP(p)) fail(kZExpected, cur().start, "expected '" + std::string(p) + "'");
+    if (!isP(p)) fail(kZExpected, cur().start, "'" + std::string(p) + "'");
     ++i;
   }
   bool eatP(std::string_view p) { if (isP(p)) { ++i; return true; } return false; }
   void semi() {
     if (eatP(";")) return;
     if (isP("}") || eof() || newlineBefore()) return;
-    fail(kZExpected, cur().start, "expected ';'");
+    fail(kZExpected, cur().start, "';'");
   }
 
   // ---- nodes
@@ -210,7 +210,7 @@ struct Parser {
     Op op = operatorAt();
     if (op.ntoks && isAssignOp(op.text)) {
       N k = r.ast.nodes[lhs].kind;
-      if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(lhs), "invalid assignment target");
+      if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(lhs), "");
       i += op.ntoks;
       std::uint32_t rhs = assignment();
       return mk(N::Assign, startOf(lhs), endOf(rhs), op.text, {lhs, rhs});
@@ -526,7 +526,7 @@ struct Parser {
     if (isKw("do")) {
       ++i;
       std::uint32_t body = statement();
-      if (!isKw("while")) fail(kZExpected, cur().start, "expected 'while'");
+      if (!isKw("while")) fail(kZExpected, cur().start, "'while'");
       ++i; expectP("(");
       std::uint32_t test = expression();
       expectP(")");
