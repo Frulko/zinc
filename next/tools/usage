@@ -1,0 +1,7 @@
+#!/bin/sh
+# Print "usage: <in> in / <cached> cached / <out> out tokens, <n> turns" for the current session transcript.
+# Estimate from the transcript, not the exact /usage figure. Paste the line into the task notes.
+f=$(ls -t "$HOME"/.claude/projects/"$(pwd | sed 's|/|-|g')"/*.jsonl 2>/dev/null | head -1)
+[ -n "$f" ] || { echo "usage: n/a"; exit 0; }
+jq -rs '[.[] | select(.message.usage) | .message] | unique_by(.id) |
+  "usage: \(map(.usage.input_tokens + .usage.cache_creation_input_tokens) | add) in / \(map(.usage.cache_read_input_tokens) | add) cached / \(map(.usage.output_tokens) | add) out tokens, \(length) turns"' "$f"

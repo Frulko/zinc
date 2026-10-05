@@ -32,3 +32,10 @@ include each other. No cycles. `main.cpp` may include any module's public header
 - Do not touch `compiler/` except for fixes. Reuse `runtime/` through its existing headers, never copy it.
 - Commits: English, conventional (`type(scope): imperative description`, no final period, 72 chars max, scope `next` or
   the module), no co-author, explicit paths only, task file in the same commit as its code.
+
+## Harness (used by /zn-start, /zn-end and loops)
+
+- `next/tools/next-task`: prints `TASK ZN-xxx <title>` or `STOP <reason>` (gate, decision, nothing left). Never pick a task any other way.
+- `next/tools/usage`: prints the session token usage line to paste into the task notes (estimate, not `/usage`).
+- `next/tests/run --tier t0|t1|t2 [--only name]`: quiet runner, details in `next/.logs/`.
+- Loop contract: one invocation = one task, ending with `NEXT: ZN-xxx` or `STOP: <reason>` on the last line.

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Print the task to work on: "TASK ZN-xxx <title>" or "STOP <reason>".
+# Order: In Progress, then Ready, then the lowest-ordinal Backlog task (task files do not record dependencies, the
+# ordinal is the plan's sequence). Gates and the packaging decision stop a loop. Used by /zn-start and /zn-end.
+id=$(backlog task list --plain 2>/dev/null | awk '
+  /^In Progress:/ {s = 1; next} /^Ready:/ {s = 2; next} /^Backlog:/ {s = 3; next} /^[A-Za-z]/ {s = 0}
+  s && /ZN-/ && (!(s in first)) {first[s] = $1}
+  END { print first[1] ? first[1] : first[2] ? first[2] : first[3] }')
+[ -n "$id" ] || { echo "STOP nothing left"; exit 0; }
+title=$(backlog task "${id#ZN-}" --plain | awk -F' - ' '/^Task ZN-/ {print $2; exit}')
+case $title in
+  Gate:*|*packaging\ decision*) echo "STOP gate $id $title" ;;
+  *) echo "TASK $id $title" ;;
+esac
