@@ -1,0 +1,10 @@
+const xs: i32[] = [1, 2, 3];
+xs.push(4);
+const last: i32 = xs.pop();
+let sum: i32 = 0;
+for (const x of xs) sum += x;
+for (let i: i32 = 0; i < xs.length; i++) sum += xs[i];
+const grid: f64[][] = [[1, 2], [3, 4]];
+const cell: f64 = grid[1][0];
+const empty: string[] = [];
+console.log(sum, last, cell, empty.length);

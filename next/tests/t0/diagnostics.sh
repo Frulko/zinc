@@ -7,7 +7,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for code in $("$ZINC" explain --codes); do
   grep -qs "^$code " tests/golden/*/errors/*.expect || { echo "no fixture for $code"; fail=1; }
   "$ZINC" explain "$code" | sed '1,/^Example:/d' > "$tmp/ex.ts"
-  got=$("$ZINC" parse --check "$tmp/ex.ts" 2>&1 | sed -E 's/^[^:]*:[0-9]+:[0-9]+: error (Z[0-9]+):.*/\1/')
+  got=$("$ZINC" check --check "$tmp/ex.ts" 2>&1 | head -1 | sed -E 's/^[^:]*:[0-9]+:[0-9]+: error (Z[0-9]+):.*/\1/')
   [ "$got" = "$code" ] || { echo "example of $code reports '$got'"; fail=1; }
 done
 "$ZINC" explain --markdown | diff -q - docs/diagnostics.md >/dev/null || { echo "docs/diagnostics.md is stale: run zinc explain --markdown > docs/diagnostics.md"; fail=1; }

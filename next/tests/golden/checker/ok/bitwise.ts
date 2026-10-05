@@ -1,0 +1,10 @@
+const a: i32 = 12;
+const b: i32 = 10;
+const and: i32 = a & b;
+const or: i32 = a | b;
+const xor: i32 = a ^ b;
+const shl: i32 = a << 2;
+const shr: i32 = a >> 1;
+const ushr: u32 = a >>> 1;
+const not: i32 = ~a;
+console.log(and, or, xor, shl, shr, ushr, not);

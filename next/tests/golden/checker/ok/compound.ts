@@ -1,0 +1,14 @@
+let n: i32 = 10;
+n += 5;
+n -= 3;
+n *= 2;
+n++;
+--n;
+let f: f64 = 1.5;
+f += n;
+f /= 2;
+f **= 2;
+let s: string = "a";
+s += "b";
+s += 1;
+console.log(n, f, s);

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 
+#include "frontend/check.h"
 #include "frontend/diagnostics.h"
 #include "frontend/lexer.h"
 #include "frontend/parser.h"
@@ -44,6 +45,21 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[2], "--dump")) { std::fputs(zn::frontend::dump(res.ast).c_str(), stdout); return 0; }
     std::string err = zn::frontend::validate(res.ast);
     if (!err.empty()) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
+    return 0;
+  }
+  if (argc == 4 && !std::strcmp(argv[1], "check")) {  // zinc check --check|--types <file>: parse, then check
+    std::ifstream in(argv[3], std::ios::binary);
+    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    std::string src = buf.str();
+    auto res = zn::frontend::parse(src);
+    auto checked = zn::frontend::check(res.ast);
+    auto diags = res.diags;
+    diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
+    for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, argv[3]).c_str());
+    if (!diags.empty()) return 1;
+    if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, res.ast, src).c_str(), stdout);
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "explain")) {  // zinc explain Z0001|--markdown|--codes

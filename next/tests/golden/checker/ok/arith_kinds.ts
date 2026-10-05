@@ -1,0 +1,11 @@
+const a: i32 = 7;
+const b: i32 = 2;
+const sum: i32 = a + b;
+const prod: i32 = a * b;
+const ratio: f64 = a / b;
+const wide: f64 = a;
+const small: i8 = 5;
+const grown: i32 = small + a;
+const half: f64 = 0.5 * wide;
+const lit: i32 = -3;
+console.log(sum, prod, ratio, grown, half, lit);
