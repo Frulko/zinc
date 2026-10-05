@@ -11,7 +11,8 @@ Overwritten at the end of every session. Read this and the current task (`backlo
 
 ## Next
 
-Start ZN-001 (freeze the corpus outputs): `backlog task edit 1 -s "In Progress"`.
+Start ZN-002 first (skeleton + quiet test runner, see `next/TESTING.md`), then ZN-001, then ZN-003.
+`backlog task edit 2 -s "In Progress"`.
 
 ## Watch out
 

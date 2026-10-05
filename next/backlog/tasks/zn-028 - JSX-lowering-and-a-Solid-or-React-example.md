@@ -4,7 +4,7 @@ title: JSX lowering and a Solid or React example
 status: Backlog
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-05 14:54'
 labels:
   - size-L
 milestone: m-5
@@ -21,4 +21,5 @@ ordinal: 28000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 one example screen matches its pixel golden in interpreter and AOT.
+- [ ] #2 M5 demo: UI screen matches its pixel golden headless
 <!-- AC:END -->

@@ -4,7 +4,7 @@ title: Benchmarks against QuickJS and native
 status: Backlog
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-05 14:54'
 labels:
   - size-M
 milestone: m-4
@@ -21,4 +21,5 @@ As the **Maintainer**, I want honest numbers, including losses (lesson from Perr
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 median of 11 runs; `fib`, `nbody`, `binarytrees`, `sort` within 3× of native on AOT; interpreter ≥ 5× QuickJS on numeric kernels and never slower than QuickJS on `strings`, `jsonout` and a `Dyn` kernel; JSON artifact kept.
+- [ ] #2 M4 demo: benchmark table with all thresholds from next/TESTING.md, losses included, JSON artifact committed
 <!-- AC:END -->

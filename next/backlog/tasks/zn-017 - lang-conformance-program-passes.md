@@ -4,7 +4,7 @@ title: '`lang` conformance program passes'
 status: Backlog
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-05 14:54'
 labels:
   - size-S
 milestone: m-2
@@ -21,4 +21,5 @@ ordinal: 17000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 byte-identical to the frozen golden from ZN-001.
+- [ ] #2 M2 demo: examples/lang passes at tier t1 with quiet output
 <!-- AC:END -->

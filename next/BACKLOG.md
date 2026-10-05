@@ -10,6 +10,8 @@ backlog task list --plain   # for agents
 backlog task edit 7 -s "In Progress"
 ```
 
+Testing tiers, demos and thresholds: [TESTING.md](TESTING.md).
+
 Columns: Backlog → Ready → In Progress → Review → Done. At most one task In Progress.
 
 ## Rules
