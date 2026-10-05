@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release)  # benchmarks and the speed gates need -O2
+endif()
+
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 
 add_compile_options(-Wall -Wextra)

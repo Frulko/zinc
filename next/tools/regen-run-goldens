@@ -1,0 +1,14 @@
+#!/bin/sh
+# Regenerate tests/golden/run/*.out with Node (dev-time reference; the checked-in files are what tests compare to).
+# Covers tests/golden/run/*.ts and the numeric programs of tests/golden/checker/ok that emit bytecode.
+# Node strips the annotations, so programs here must not depend on machine-integer wrapping except through `| 0`.
+cd "$(dirname "$0")/.." || exit 2
+ZINC=${ZINC:-build/zinc}
+for f in tests/golden/run/*.ts; do
+  node --experimental-strip-types --no-warnings "$f" > "${f%.ts}.out" || { echo "node failed: $f"; exit 1; }
+done
+for f in tests/golden/checker/ok/*.ts; do
+  "$ZINC" --emit=zbc "$f" >/dev/null 2>&1 || continue
+  n=$(basename "$f" .ts)
+  node --experimental-strip-types --no-warnings "$f" > "tests/golden/run/ok_$n.out" || { echo "node failed: $f"; exit 1; }
+done

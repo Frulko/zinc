@@ -1,15 +1,23 @@
 #pragma once
-// Stub of the interpreter. Replaced by the real one in ZN-010.
-#include <cstdint>
-#include <vector>
+// ZBC interpreter: the reference semantics. Computed-goto dispatch, an explicit call stack (no C++ recursion), typed
+// operations with no tag checks: it trusts zbc::verify(), so callers must verify a module before running it.
+#include <string>
 
+#include "zbc/zbc.h"
 #include "zn/limits.h"
-#include "zn/opcodes.h"
 #include "zn/value.h"
 
 namespace zn::vm {
 
-// Number of ops executed before Ret, or -1 if the program is malformed.
-int run(const std::vector<Op>& code);
+struct Result {
+  bool ok = true;
+  std::string error;  // runtime error: division by zero, stack overflow, trap, uncaught throw
+};
+
+// Runs functions[0] (main). Program output (console.log) is appended to `out`, also when execution fails midway.
+Result run(const zbc::Module& m, std::string& out);
+
+// ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
+std::string numberToString(double v);
 
 }  // namespace zn::vm

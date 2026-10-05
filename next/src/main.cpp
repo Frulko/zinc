@@ -11,7 +11,9 @@
 #include "frontend/lexer.h"
 #include "frontend/parser.h"
 #include "ir/ir.h"
+#include "vm/vm.h"
 #include "zbc/zbc.h"
+#include "vm/vm.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
@@ -46,6 +48,24 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
 int main(int argc, char** argv) {
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::puts("zinc-next 0.0.1");
+    return 0;
+  }
+  if (argc == 3 && !std::strcmp(argv[1], "run")) {  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
+    std::string path = argv[2];
+    zn::zbc::Module zm;
+    if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
+      std::ifstream in(path, std::ios::binary);
+      if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+      std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      std::string err;
+      if (!zn::zbc::decode(bytes, zm, err)) { std::fprintf(stderr, "%s: %s\n", argv[2], err.c_str()); return 1; }
+      err = zn::zbc::verify(zm);
+      if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
+    } else if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::string out;
+    auto res = zn::vm::run(zm, out);
+    std::fwrite(out.data(), 1, out.size(), stdout);
+    if (!res.ok) { std::fprintf(stderr, "runtime error: %s\n", res.error.c_str()); return 1; }
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=zbc")) {  // zinc --emit=zbc <file>: disassembly

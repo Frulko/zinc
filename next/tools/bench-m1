@@ -1,0 +1,13 @@
+#!/bin/sh
+# Reproduce the M1 interpreter measurements (docs: next/TESTING.md, gate ZN-011): median of 11 runs, interpreter vs
+# QuickJS (qjs) and Node (reference only), for fib and mandelbrot. Needs qjs and node; writes next/bench/m1-*.json.
+# Method: idle machine, clean tree, release build (the default). JS versions strip the annotations from the kernels.
+cd "$(dirname "$0")/.." || exit 2
+ZINC=${ZINC:-build/zinc}
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+for k in fib mandelbrot; do
+  sed 's/: i32//g; s/: number//g' ../tests/bench/kernels/$k.ts > "$tmp/$k.js"
+  "$ZINC" --emit=zbc-bin ../tests/bench/kernels/$k.ts "$tmp/$k.zbc" || exit 1
+done
+tools/bench bench/m1-fib.json "interp=$ZINC run $tmp/fib.zbc" "interp_with_compile=$ZINC run ../tests/bench/kernels/fib.ts" "quickjs=qjs $tmp/fib.js" "node=node $tmp/fib.js"
+tools/bench bench/m1-mandelbrot.json "interp=$ZINC run $tmp/mandelbrot.zbc" "quickjs=qjs $tmp/mandelbrot.js" "node=node $tmp/mandelbrot.js"
