@@ -1,0 +1,37 @@
+#!/bin/sh
+# Quiet runner: one PASS/FAIL line per test, details in next/.logs/. See next/TESTING.md.
+# Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
+# Usage: tests/run [--tier t0|t1|t2] [--only <name>]   (env ZINC = binary, default build/zinc)
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(dirname "$here")
+tier=t0; only=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --tier) tier=$2; shift 2 ;;
+    --only) only=$2; shift 2 ;;
+    *) echo "unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
+case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
+export ZINC=${ZINC:-$root/build/zinc}
+mkdir -p "$root/.logs"
+log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
+: > "$log"
+pass=0; fail=0
+for t in $tiers; do
+  for f in "$here/$t"/*.sh; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f" .sh)
+    [ -z "$only" ] || [ "$only" = "$name" ] || continue
+    if sh "$f" >"$log.tmp" 2>&1; then
+      echo "PASS $name"; pass=$((pass + 1))
+    else
+      echo "FAIL $name"; fail=$((fail + 1))
+      { echo "=== $name"; cat "$log.tmp"; } >> "$log"
+    fi
+  done
+done
+rm -f "$log.tmp"
+echo "$pass passed, $fail failed"
+if [ "$fail" -gt 0 ]; then echo "log: $log"; head -20 "$log"; exit 1; fi
+rm -f "$log"
