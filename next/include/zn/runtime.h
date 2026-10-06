@@ -23,7 +23,7 @@
   X(StrLength, "string.length", "s>i", 1) X(StrCharCodeAt, "string.charCodeAt", "si>i", 0)                          \
   X(StrSlice, "string.slice", "szj>s", 0) X(StrSubstring, "string.substring", "szj>s", 0)                          \
   X(StrToUpperCase, "string.toUpperCase", "s>s", 0) X(StrToLowerCase, "string.toLowerCase", "s>s", 0)             \
-  X(StrSplit, "string.split", "ss>S", 0) X(StrIndexOf, "string.indexOf", "ssz>i", 0)                                \
+  X(StrSplit, "string.split", "ss>S", 0) X(StrIndexOf, "string.indexOf", "ssz>i", 0) X(StrLastIndexOf, "string.lastIndexOf", "ssj>i", 0)                                \
   X(StrIncludes, "string.includes", "ssz>b", 0) X(StrStartsWith, "string.startsWith", "ssz>b", 0)                    \
   X(StrEndsWith, "string.endsWith", "ssj>b", 0) X(StrTrim, "string.trim", "s>s", 0)         \
   X(StrTrimStart, "string.trimStart", "s>s", 0) X(StrTrimEnd, "string.trimEnd", "s>s", 0) X(StrConcatM, "string.concat", "ss>s", 0)                                 \

@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify). Ready: next by ordinal is ZN-038, then ZN-039, ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify), ZN-038 (language gaps). Ready: next by ordinal is ZN-039 (unknown/Dyn, plus the `any` lines of literal_errors), then ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-038.
+`/loop /zn-start` resumes with ZN-039.
 
 ## Watch out
 
@@ -213,3 +213,15 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Array literals mixing `T` and `null` are `(T | null)[]`; `console.log` of a value known to be `null` prints `null`; `string | null` prints like a string at the top level.
 - JSON.stringify(x) of one argument: a generated serialiser per type (`jsonFunction` in inspect.cpp, `jsonSym` in check.cpp), same closure mechanism as console.log formatters; classes dispatch on `instanceof`, records and classes serialise fields in layout order, Map and Set give `{}`, functions are skipped. A replacer or indent is Z0005.
 - Property narrowing (`n.name !== null` then `n.name.length`) still does not exist: copy to a local first. `find`/`findLast` still print 'undefined' text on primitive arrays in console.log only.
+
+## ZN-038 notes (language gaps)
+
+- Optional members: `name?: T` in interfaces and object types is a property of type `T | null` (flag kFlagOptional); an object literal that leaves it out gets `null`. Class fields written `x?: T` are still plain `T`.
+- Spread: `[...a, 1, ...b]` is `a.concat([1]).concat(b)` (a leading literal takes the expected element type); `{ ...a, x: 1 }` becomes one property per field of `a` (the spread expression must be cheap to repeat).
+- Default parameters are evaluated at the call site (a default that reads another parameter is unsupported). Callee-side `new` and virtual calls do not pad defaults yet.
+- Optional chaining `a?.b`, `a?.f()`: the checker types it `T | null` (`flags & kFlagOptional`, only on nullable receivers; a single object, string, array, Map or Set), the lowering evaluates the receiver once (`optionalAccess`). `a?.b.c` does not short-circuit the whole chain: write `a?.b?.c`.
+- Interface properties: a property of an interface that also has methods is a getter on the interface; classes satisfy it with a field (synthesised getter, `fieldGetter` in the lowering) or a getter. Interfaces made only of properties stay records.
+- Object types `{ kind: 'circle'; r: number }` are anonymous records; a string-literal property type is `string` plus the literal (`Member::literal`). A union of records is an IR interface the records implement (`unionIface`); `s.kind` on the union reads the field by dynamic class; `s.kind === 'x'`, `!==` and `switch (s.kind)` narrow the union, and a switch covering every member counts as terminating (`exhaustiveSwitch`). console.log of such unions dispatches with `instanceof` on anonymous records (synthetic class symbols in the generated scope).
+- Static generic methods are generic functions named `Class.method` (instances are plain functions); instance generic methods are still Z0005. `??=`, `||=`, `&&=` rewrite to `a = a ?? b` (the read side is a clone of the target).
+- `@weak`, `@pooled(n)` and other decorators parse and are ignored; `Arena.frame(n)` exists as a no-op class with `[Symbol.dispose]` (prelude `kArenaPrelude`). A `for (let ...)` loop variable that closures capture and the loop modifies is copied per iteration.
+- `a ?? b` joins the types when they differ (a union of two classes, or the wider one); `T | null` for function types works; Map.get is allowed in console.log (null when missing); string `lastIndexOf` added.

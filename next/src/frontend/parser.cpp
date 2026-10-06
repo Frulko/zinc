@@ -232,7 +232,33 @@ struct Parser {
       expectP("]");
       return mk(N::TypeTuple, st, prevEnd(), {}, std::move(es));
     }
-    if (isP("{")) unsupported("object types");
+    if (isP("{")) {  // an object type: { a: A; b?: B }
+      ++i;
+      std::vector<std::uint32_t> fields;
+      while (!isP("}")) {
+        if (eof()) unexpected();
+        if (eatP(";") || eatP(",")) continue;
+        std::uint32_t fs = cur().start;
+        std::uint32_t fl = isId("readonly") && !isP(":", 1) && !isP("?", 1) ? (++i, kFlagReadonly) : 0;
+        std::string_view fname;
+        memberName(fname);
+        if (isP("(") || isP("<")) unsupported("methods in object types");
+        bool opt = eatP("?");
+        std::uint32_t ft = kNone;
+        expectP(":");
+        ft = type();
+        if (opt) {
+          std::uint32_t nul = mk(N::TypeRef, startOf(ft), endOf(ft), "null", {});
+          ft = mk(N::TypeUnion, startOf(ft), endOf(ft), {}, {ft, nul});
+          fl |= kFlagOptional;
+        }
+        std::uint32_t fid = mk(N::Field, fs, prevEnd(), fname, {ft, kNone});
+        r.ast.nodes[fid].flags = fl;
+        fields.push_back(fid);
+      }
+      expectP("}");
+      return mk(N::TypeObject, st, prevEnd(), {}, std::move(fields));
+    }
     unexpected();
   }
 
@@ -394,10 +420,11 @@ struct Parser {
         std::uint32_t opStart = cur().start;
         ++i;
         if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::PrivateName) unexpected();
-        std::string_view name = opt ? s.substr(opStart, cur().end - opStart) : txt();
-        if (opt) { /* text keeps the "?." prefix so the checker can tell */ }
+        (void)opStart;
+        std::string_view name = txt();
         ++i;
         e = mk(N::Member, startOf(e), prevEnd(), name, {e});
+        if (opt) r.ast.nodes[e].flags |= kFlagOptional;  // `a?.b`
       } else if (isP("[")) {
         ++i;
         std::uint32_t ix = expression();
@@ -756,6 +783,7 @@ struct Parser {
     while (!isP("}")) {
       if (eof()) unexpected();
       if (eatP(";")) continue;
+      skipDecorators();
       std::uint32_t ms = cur().start;
       std::uint32_t fl = modifiers();
       std::string_view mname;
@@ -767,7 +795,8 @@ struct Parser {
       memberName(mname);
       }
       if (isP("(") || isP("<")) {
-        if (isP("<")) unsupported("generic methods");
+        std::vector<std::uint32_t> mtps;
+        if (isP("<")) { if (!(fl & kFlagStatic)) unsupported("generic methods (only static ones)"); mtps = typeParams(); }
         auto ps = params(false);
         if ((fl & kFlagGetter) && !ps.empty()) unsupported("getters with parameters");
         std::uint32_t ret = kNone;
@@ -780,6 +809,7 @@ struct Parser {
         mk_.insert(mk_.end(), ps.begin(), ps.end());
         std::uint32_t id = mk(N::Method, ms, prevEnd(), mname, std::move(mk_));
         r.ast.nodes[id].flags = fl;
+        if (!mtps.empty()) r.ast.tparams[id] = std::move(mtps);
         members.push_back(id);
         if (mname == "constructor") ctor = id;
       } else {
@@ -820,7 +850,7 @@ struct Parser {
       std::uint32_t fl = modifiers();
       std::string_view mname;
       memberName(mname);
-      if (isP("?")) unsupported("optional members");
+      bool optional = !isP("(") && eatP("?");  // `name?: T` is a property of type `T | null` that object literals may leave out
       if (isP("(") || isP("<")) {
         if (isP("<")) unsupported("generic methods");
         auto ps = params(false);
@@ -835,6 +865,11 @@ struct Parser {
       } else {
         std::uint32_t ty = kNone;
         if (eatP(":")) ty = type();
+        if (optional && ty != kNone) {
+          std::uint32_t nul = mk(N::TypeRef, startOf(ty), endOf(ty), "null", {});
+          ty = mk(N::TypeUnion, startOf(ty), endOf(ty), {}, {ty, nul});
+          fl |= kFlagOptional;
+        }
         if (!eatP(";")) eatP(",");
         std::uint32_t id = mk(N::Field, ms, prevEnd(), mname, {ty, kNone});
         r.ast.nodes[id].flags = fl;
@@ -897,6 +932,14 @@ struct Parser {
     ++i;
     std::vector<std::uint32_t> props;
     while (!isP("}")) {
+      if (isP("...")) {  // `{ ...other, x: 1 }`
+        std::uint32_t ss = cur().start;
+        ++i;
+        std::uint32_t e = assignment();
+        props.push_back(mk(N::Spread, ss, prevEnd(), {}, {e}));
+        if (!eatP(",")) break;
+        continue;
+      }
       if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
       std::uint32_t ps = cur().start, pe = cur().end;
       std::string_view key = txt();
@@ -1029,9 +1072,24 @@ struct Parser {
     return mk(N::Export, st, prevEnd(), {}, {d});
   }
 
+  // `@name` and `@name(args)` before a declaration: accepted and ignored (@weak, @pooled(n) change memory behaviour only)
+  void skipDecorators() {
+    while (isP("@")) {
+      ++i;
+      if (cur().kind != Tok::Ident) unexpected();
+      ++i;
+      while (isP(".") && at(1).kind == Tok::Ident) i += 2;
+      if (isP("(")) {
+        int depth = 0;
+        do { if (isP("(")) ++depth; else if (isP(")")) --depth; if (eof()) unexpected(); ++i; } while (depth > 0);
+      }
+    }
+  }
+
   std::uint32_t statement() {
     bool top = topLevel;
     topLevel = false;
+    skipDecorators();
     std::uint32_t st = cur().start;
     if (isKw("import") && !(isP("(", 1) || isP(".", 1))) { if (!top) unsupported("imports below the top level"); return importDecl(); }
     if (isKw("export")) { if (!top) unsupported("exports below the top level"); return exportDecl(); }
@@ -1140,7 +1198,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject"};
   return names[static_cast<int>(k)];
 }
 

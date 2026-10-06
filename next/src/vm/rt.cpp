@@ -427,6 +427,16 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = static_cast<Slot>(k < 0 ? -1 : u16Index(s, static_cast<std::uint32_t>(k)));
       return nullptr;
     }
+    case Rt::StrLastIndexOf: {
+      StrObj *s = S(a[0]), *n = S(a[1]);
+      NN(s && n);
+      std::uint32_t from = byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len));  // the last match starting at or before `from`
+      std::int64_t best = -1;
+      if (n->len <= s->len) for (std::int64_t k = std::min<std::int64_t>(from, s->len - n->len); k >= 0; --k)
+        if (std::memcmp(s->data() + k, n->data(), n->len) == 0) { best = k; break; }
+      a[0] = static_cast<Slot>(best < 0 ? -1 : u16Index(s, static_cast<std::uint32_t>(best)));
+      return nullptr;
+    }
     case Rt::StrIncludes: { StrObj *s = S(a[0]), *n = S(a[1]); NN(s && n); a[0] = boolSlot(findBytes(s, n, byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len))) >= 0); return nullptr; }
     case Rt::StrStartsWith: {
       StrObj *s = S(a[0]), *n = S(a[1]);

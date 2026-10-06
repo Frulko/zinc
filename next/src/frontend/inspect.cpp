@@ -53,10 +53,8 @@ bool inspectableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
     case TK::Map: return seen.count(t) || (seen.insert(t), inspectableRec(c, x.params[0], seen) && inspectableRec(c, x.elem, seen));
     case TK::Union: {
       std::size_t objs = 0;
-      for (TypeId m : x.params) { if (m == 5 /* tNull */) continue; ++objs; }
-      if (objs != 1) return false;  // `T | null`
-      for (TypeId m : x.params) if (m != 5 && !inspectableRec(c, m, seen)) return false;
-      return true;
+      for (TypeId m : x.params) { if (m == 5 /* tNull */) continue; ++objs; if (!inspectableRec(c, m, seen)) return false; if (objs > 1 && c.types[m].k != TK::Object) return false; }
+      return objs >= 1;  // `T | null`, or a union of objects (records with a discriminant)
     }
     case TK::Object: {
       if (seen.count(t)) return true;
@@ -242,9 +240,16 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
       break;
     }
     case TK::Union: {
-      TypeId member = kNoType;
-      for (TypeId m : x.params) if (m != 5) member = m;
-      body = "  if (v === null) return 'null';\n  return " + call(member, "v", "lvl") + ";\n";
+      std::vector<TypeId> members;
+      bool hasNull = false;
+      for (TypeId m : x.params) { if (m == 5) hasNull = true; else members.push_back(m); }
+      if (hasNull) body = "  if (v === null) return 'null';\n";
+      if (members.size() == 1) { body += "  return " + call(members[0], "v", "lvl") + ";\n"; break; }
+      for (std::size_t k = 0; k < members.size(); ++k) {  // the dynamic class decides
+        if (k + 1 == members.size()) { body += "  return " + call(members[k], "v", "lvl") + ";\n"; break; }
+        classes.push_back(members[k]);
+        body += "  if (v instanceof " + inspectClassName(members[k]) + ") return " + call(members[k], "v", "lvl") + ";\n";
+      }
       break;
     }
     case TK::Object: {

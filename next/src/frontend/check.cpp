@@ -254,6 +254,27 @@ struct Checker {
         break;
       }
       case N::TypeArray: r = arrayOf(annotation(x.kids[0])); break;
+      case N::TypeLit: {  // 'a' is a string, 1 a number, true a boolean (a property declared with one remembers the value, see TypeObject)
+        char ch = x.text.empty() ? ' ' : x.text[0];
+        r = (ch == '\'' || ch == '"') ? tStr : (x.text == "true" || x.text == "false") ? tBool : num(Num::f64);
+        break;
+      }
+      case N::TypeObject: {  // { a: A; b?: B }: an anonymous record
+        std::vector<std::pair<std::string, TypeId>> shape;
+        std::vector<std::string> lits;
+        bool failed = false;
+        for (std::uint32_t f : std::vector<std::uint32_t>(x.kids)) {
+          const Node& fn = n(f);
+          TypeId ft = annotation(fn.kids[0]);
+          if (bad(ft)) failed = true;
+          std::string lit;
+          if (n(fn.kids[0]).kind == N::TypeLit && (n(fn.kids[0]).text[0] == '\'' || n(fn.kids[0]).text[0] == '"')) lit = std::string(n(fn.kids[0]).text.substr(1, n(fn.kids[0]).text.size() - 2));
+          shape.push_back({std::string(fn.text), ft});
+          lits.push_back(lit);
+        }
+        r = failed ? tError : recordOf(shape, lits);
+        break;
+      }
       case N::TypeFunc: {  // (a: A, b: B) => R
         std::vector<TypeId> ps;
         for (std::size_t k = 1; k < x.kids.size(); ++k) {
@@ -373,7 +394,7 @@ struct Checker {
     return ty(l).k == TK::Object && ty(r).k == TK::Object && (objAssignable(ty(l).obj, ty(r).obj) || objAssignable(ty(r).obj, ty(l).obj));
   }
 
-  TypeId binaryExpr(std::uint32_t i, const Node& x) {
+  TypeId binaryExpr(std::uint32_t i, const Node& x, TypeId expected0 = kNoType) {
     const std::string op(x.text);
     std::uint32_t le = x.kids[0], re = x.kids[1];
     if (op == ",") { expr(le); return expr(re); }
@@ -385,11 +406,14 @@ struct Checker {
       TypeId base = l0;
       if (!bad(l0) && !isMapGet(le)) {
         if (!hasNull(l0)) { diag(kZBadOperand, i, "'?" "?' on '" + name(l0) + "', which cannot be null"); expr(re); return tError; }
+        if (l0 == tNull) return expr(re, expected0);  // known to be null: the right operand is the result
         base = withoutNull(l0);
         if (base == kNoType) base = tError;
       }
       TypeId r0 = expr(re, bad(base) ? kNoType : base);
       if (bad(base) || bad(r0)) return tError;
+      if (!assignable(r0, base, kNone) && assignable(base, r0, kNone)) return r0;  // `a ?? b` where b is the wider type
+      if (!assignable(r0, base, kNone) && ty(base).k == TK::Object && ty(r0).k == TK::Object) return unionOf({base, r0});  // two classes: their union
       require(r0, base, re);
       return base;
     }
@@ -397,7 +421,7 @@ struct Checker {
       TypeId lt = expr(le);
       const Node& rn = n(re);
       std::uint32_t rs = rn.kind == N::Ident ? lookup(rn.text) : kNone;
-      if (rs == kNone || out.syms[rs].kind != SymKind::Class || out.objs[ty(out.syms[rs].type).obj].isInterface || out.objs[ty(out.syms[rs].type).obj].isRecord) {
+      if (rs == kNone || out.syms[rs].kind != SymKind::Class || out.objs[ty(out.syms[rs].type).obj].isInterface || (out.objs[ty(out.syms[rs].type).obj].isRecord && !inspectMode)) {
         diag(kZBadOperand, re, "the right-hand side of 'instanceof' must be a class");
         return tBool;
       }
@@ -571,9 +595,15 @@ struct Checker {
     else text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
     addAliases(closure);
     for (TypeId u : closure) fmtDeclared.insert(u);
-    for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
-      for (std::uint32_t s = 0; s < out.syms.size(); ++s)
-        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
+    for (TypeId cl : classTypes) {  // instanceof needs the class itself in scope
+      bool found = false;
+      for (std::uint32_t s = 0; s < out.syms.size() && !found; ++s)
+        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; found = true; }
+      if (!found) {  // an anonymous record has no symbol: make one for the generated code
+        out.syms.push_back({SymKind::Class, keep(inspectClassName(cl)), cl, kNone, true});
+        (*genScope)[out.syms.back().name] = static_cast<std::uint32_t>(out.syms.size() - 1);
+      }
+    }
     declareSource(text, at);
     std::uint32_t sym = (*genScope)[keep(inspectLogName(t))];
     restoreCtx(sv);
@@ -1006,6 +1036,13 @@ struct Checker {
       result = tVoid;
     } else {
       TypeId ct;
+      if (n(callee).kind == N::Member && n(n(callee).kids[0]).kind == N::Ident) {  // Class.method<T>(...): the generic function `Class.method`
+        std::uint32_t cs = lookup(n(n(callee).kids[0]).text);
+        if (cs != kNone && out.syms[cs].kind == SymKind::Class) {
+          std::uint32_t gs2 = lookup(keep(std::string(n(n(callee).kids[0]).text) + "." + std::string(n(callee).text)));
+          if (gs2 != kNone && out.syms[gs2].kind == SymKind::GenericFunc) { a.nodes[callee].kind = N::Ident; a.nodes[callee].text = out.syms[gs2].name; a.nodes[callee].kids.clear(); }
+        }
+      }
       const Node& cn = n(callee);
       if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
@@ -1039,6 +1076,7 @@ struct Checker {
       }
       ft = ct;
       result = ty(ft).elem;
+      if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = unionOf({result, tNull});  // a?.f(): the result, or null
     }
     const Type f = ty(ft);  // copy: expr() below may grow `types`
     std::size_t argc = x.kids.size() - 1;
@@ -1062,7 +1100,7 @@ struct Checker {
     }
     if (!isNew && n(callee).kind == N::Member && n(callee).text == "get" && i != nullishLeft) {  // Map.get has no `undefined` to test: it is only usable under `??`
       TypeId rt = out.nodeType[n(callee).kids[0]];
-      if (rt != kNoType && ty(rt).k == TK::Map) diag(kZUnsupported, i, "Map.get outside '?" "?' (use has() to test for a key)");
+      if (rt != kNoType && ty(rt).k == TK::Map && i != logArg) diag(kZUnsupported, i, "Map.get outside '?" "?' and console.log (use has() to test for a key)");
     }
     return result;
   }
@@ -1122,7 +1160,23 @@ struct Checker {
           }
           return expected;
         }
+        bool spread = false;
+        for (std::uint32_t e : x.kids) spread = spread || n(e).kind == N::Spread;
+        if (spread) {  // [...a, 1, ...b]: the pieces concatenated in order (a literal run between spreads is an array literal of its own)
+          std::vector<std::vector<std::uint32_t>> holes;
+          std::vector<std::uint32_t> run;
+          auto flush = [&]() { if (!run.empty()) { holes.push_back({newNode(N::Array, {}, run, i)}); run.clear(); } };
+          for (std::uint32_t e : std::vector<std::uint32_t>(x.kids)) {
+            if (n(e).kind == N::Spread) { flush(); holes.push_back({n(e).kids[0]}); } else run.push_back(e);
+          }
+          flush();
+          std::string text = holes.size() == 1 ? "__H0.slice()" : "__H0";
+          for (std::size_t k = 1; k < holes.size(); ++k) text += ".concat(__H" + std::to_string(k) + ")";
+          if (expected != kNoType && ty(expected).k == TK::Array) spreadHint = {holes[0][0], ty(expected).elem};  // a leading literal run takes the element type expected
+          if (replaceWith(i, text, holes)) return expr0(i, expected);
+        }
         TypeId el = (expected != kNoType && ty(expected).k == TK::Array) ? ty(expected).elem : kNoType;
+        if (el == kNoType && spreadHint.first == i) el = spreadHint.second;
         if (x.kids.empty()) {
           if (el == kNoType) { diag(kZCannotInfer, i, "empty array literal"); return tError; }
           return arrayOf(el);
@@ -1142,7 +1196,7 @@ struct Checker {
         if (first == kNoType) { diag(kZCannotInfer, i, "array of only null"); return tError; }
         return arrayOf(sawNull && !bad(first) ? unionOf({first, tNull}) : first);
       }
-      case N::Binary: return binaryExpr(i, x);
+      case N::Binary: return binaryExpr(i, x, expected);
       case N::Unary: {
         const std::string op(x.text);
         TypeId t = expr(x.kids[0]);
@@ -1199,7 +1253,10 @@ struct Checker {
         TypeId vt = expr(value);
         if (bad(tt) || bad(vt)) return tt;
         std::string bop = op.substr(0, op.size() - 1);
-        if (bop == "&&" || bop == "||" || bop == "?\?") { diag(kZUnsupported, i, "operator '" + op + "'"); return tt; }
+        if (bop == "&&" || bop == "||" || bop == "?\?") {  // a ||= b is a = a || b
+          if (replaceWith(i, "__H0 = __H1 " + bop + " __H2", {{target}, {cloneNode(target, false)}, {value}})) return expr0(i, expected);
+          return tt;
+        }
         if (bop == "+" && tt == tStr && stringifiable(vt)) return tt;
         if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(tt) + "' and '" + name(vt) + "'"); return tt; }
         Num r = (bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>") ? Num::i32 : bop == ">>>" ? Num::u32 : arith(bop, target, ty(tt).num, value, ty(vt).num);
@@ -1229,7 +1286,7 @@ struct Checker {
       case N::Call: return callExpr(i, x, false);
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
-        if (x.text.size() && x.text[0] == '?') { diag(kZUnsupported, i, "optional chaining"); return tError; }
+        const bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
         if (isBuiltin(x.kids[0], "Number")) {  // the constants of Number
           static const std::pair<const char*, const char*> kConsts[] = {{"MAX_VALUE", "1.7976931348623157e308"}, {"MIN_VALUE", "5e-324"}, {"POSITIVE_INFINITY", "Infinity"}, {"NEGATIVE_INFINITY", "-Infinity"},
                                                                         {"NaN", "NaN"}, {"MAX_SAFE_INTEGER", "9007199254740991"}, {"MIN_SAFE_INTEGER", "-9007199254740991"}, {"EPSILON", "2.220446049250313e-16"}};
@@ -1266,6 +1323,22 @@ struct Checker {
         }
         TypeId ot = expr(x.kids[0]);
         if (bad(ot)) return tError;
+        if (opt && !hasNull(ot)) a.nodes[i].flags &= ~kFlagOptional;  // on a value that cannot be null `?.` is plain `.`
+        if (opt && hasNull(ot)) {
+          ot = withoutNull(ot);
+          if (ot == kNoType || ty(ot).k == TK::Union || ty(ot).k == TK::Num || ty(ot).k == TK::Bool) { diag(kZUnsupported, i, "'?.' on a value that is not a single object, string, array, Map or Set"); return tError; }
+          out.nodeType[x.kids[0]] = ot;  // the receiver as the access sees it: not null
+        }
+        if (ty(ot).k == TK::Union && !hasNull(ot)) {  // a field every member of a union of objects has, with the same type
+          TypeId common = kNoType;
+          bool all = true;
+          for (TypeId mt : ty(ot).params) {
+            const Member* mm = ty(mt).k == TK::Object ? findMember(mt, x.text) : nullptr;
+            if (!mm || mm->method || (common != kNoType && common != mm->type)) { all = false; break; }
+            common = mm->type;
+          }
+          if (all && common != kNoType) return common;
+        }
         ot = appOrDiag(ot, x.kids[0]);
         if (bad(ot)) return tError;
         if (on.kind == N::This && ctorStmts && !pendingExempt && std::find(ctorPending.begin(), ctorPending.end(), std::string(x.text)) != ctorPending.end())
@@ -1275,7 +1348,9 @@ struct Checker {
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
         if (!m) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
-        return m->getter ? ty(m->type).elem : m->type;
+        TypeId mt = m->getter ? ty(m->type).elem : m->type;
+        if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull});  // a?.b is b, or null
+        return mt;
       }
       case N::Index: {
         TypeId ot = expr(x.kids[0]), it = expr(x.kids[1]);
@@ -1315,6 +1390,8 @@ struct Checker {
     return false;
   }
   bool endless(std::uint32_t test) const { return test == kNone || (n(test).kind == N::Literal && n(test).text == "true"); }
+  std::pair<std::uint32_t, TypeId> spreadHint{kNone, kNoType};  // the leading literal of a spread array and the element type it should have
+  std::set<std::uint32_t> exhaustiveSwitch;  // switches whose cases cover every member of a union of records
   bool terminates(std::uint32_t s) const {
     if (s == kNone) return false;
     const Node& x = n(s);
@@ -1333,7 +1410,7 @@ struct Checker {
           if (cl.kids[0] == kNone) hasDefault = true;
           for (std::size_t j = 1; j < cl.kids.size(); ++j) if (hasBreak(a, cl.kids[j])) return false;
         }
-        if (!hasDefault || x.kids.size() < 2) return false;
+        if ((!hasDefault && !exhaustiveSwitch.count(s)) || x.kids.size() < 2) return false;
         const Node& last = n(x.kids.back());
         for (std::size_t j = 1; j < last.kids.size(); ++j) if (terminates(last.kids[j])) return true;
         return false;
@@ -1617,16 +1694,42 @@ struct Checker {
         ++switches;
         push();
         bool seenDefault = false;
+        // switch (s.kind) over a union of records with literal `kind`s: each case sees the members it selects
+        std::uint32_t discSym = kNone;
+        std::string_view discField;
+        if (n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident && out.nodeSym[n(x.kids[0]).kids[0]] != kNone && trackable(out.nodeSym[n(x.kids[0]).kids[0]])) {
+          discSym = out.nodeSym[n(x.kids[0]).kids[0]];
+          discField = n(x.kids[0]).text;
+        }
+        TypeId discCur = discSym != kNone ? currentType(discSym) : kNoType;
+        std::vector<std::string> pendingLits, allLits;
+        auto membersFor = [&](const std::vector<std::string>& lits) {
+          std::vector<TypeId> ms;
+          for (const std::string& lit : lits) { TypeId nt = narrowByLiteral(discCur, discField, lit, true); if (nt != kNoType) for (TypeId m : unionMembers(nt)) if (std::find(ms.begin(), ms.end(), m) == ms.end()) ms.push_back(m); }
+          return ms;
+        };
+        bool discUnion = discCur != kNoType && ty(discCur).k == TK::Union;
         for (std::size_t k = 1; k < x.kids.size(); ++k) {
           const Node& cl = n(x.kids[k]);
           if (cl.kids[0] == kNone) { if (seenDefault) diag(kZDuplicateDeclaration, x.kids[k], "'default' clause"); seenDefault = true; }
           else {
             TypeId tt = appOrDiag(expr(cl.kids[0], dt), cl.kids[0]);
             if (!bad(tt) && !bad(dt) && !comparable(dt, tt)) diag(kZBadOperand, cl.kids[0], "case of '" + name(tt) + "' in a switch on '" + name(dt) + "'");
+            if (n(cl.kids[0]).kind == N::String) { std::string lit(n(cl.kids[0]).text.substr(1, n(cl.kids[0]).text.size() - 2)); pendingLits.push_back(lit); allLits.push_back(lit); }
           }
           std::vector<std::uint32_t> body(cl.kids.begin() + 1, cl.kids.end());
+          std::size_t cm = narrowing.size();
+          if (discUnion && !body.empty()) {
+            std::vector<TypeId> ms;
+            if (cl.kids[0] == kNone) { std::vector<TypeId> covered = membersFor(allLits); for (TypeId m : unionMembers(discCur)) if (std::find(covered.begin(), covered.end(), m) == covered.end()) ms.push_back(m); }
+            else ms = membersFor(pendingLits);
+            if (!ms.empty() && ms.size() < unionMembers(discCur).size()) narrowing.push_back({discSym, unionOf(ms)});
+          }
           stmtList(body);
+          narrowing.resize(cm);
+          if (!body.empty()) pendingLits.clear();
         }
+        if (discUnion && !seenDefault && membersFor(allLits).size() == unionMembers(discCur).size()) exhaustiveSwitch.insert(s);
         pop();
         --switches;
         loops = savedLoops;
@@ -1733,6 +1836,17 @@ struct Checker {
     }
     return keep.empty() ? kNoType : unionOf(keep);
   }
+  // The members of the union `cur` of records whose property `field` is (keepEqual) or is not the literal `lit`.
+  TypeId narrowByLiteral(TypeId cur, std::string_view field, const std::string& lit, bool keepEqual) {
+    if (ty(cur).k != TK::Union) return kNoType;
+    std::vector<TypeId> keep;
+    for (TypeId m : ty(cur).params) {
+      const Member* mm = ty(m).k == TK::Object ? findMember(m, std::string(field)) : nullptr;
+      if (!mm || !mm->hasLiteral) { keep.push_back(m); continue; }
+      if ((mm->literal == lit) == keepEqual) keep.push_back(m);
+    }
+    return keep.empty() ? kNoType : unionOf(keep);
+  }
   void factsOf(std::uint32_t cond, bool truthy, std::vector<Fact>& fs) {
     const Node& c = n(cond);
     if (c.kind == N::Unary && c.text == "!") { factsOf(c.kids[0], !truthy, fs); return; }
@@ -1741,6 +1855,17 @@ struct Checker {
     if (c.text == "||") { if (!truthy) { factsOf(c.kids[0], false, fs); factsOf(c.kids[1], false, fs); } return; }
     bool eq = c.text == "==" || c.text == "===", ne = c.text == "!=" || c.text == "!==";
     if (eq || ne) {
+      std::uint32_t dm = n(c.kids[0]).kind == N::Member && n(c.kids[1]).kind == N::String ? c.kids[0] : n(c.kids[1]).kind == N::Member && n(c.kids[0]).kind == N::String ? c.kids[1] : kNone;
+      if (dm != kNone) {  // s.kind === 'circle': the members of the union s has whose `kind` is (or is not) 'circle'
+        std::uint32_t sn = n(dm).kids[0], ln = dm == c.kids[0] ? c.kids[1] : c.kids[0];
+        if (n(sn).kind == N::Ident && out.nodeSym[sn] != kNone && trackable(out.nodeSym[sn])) {
+          std::uint32_t sy = out.nodeSym[sn];
+          TypeId cur = currentType(sy, &fs);
+          TypeId nt = narrowByLiteral(cur, n(dm).text, std::string(n(ln).text.substr(1, n(ln).text.size() - 2)), eq == truthy);
+          if (nt != kNoType && nt != cur) fs.push_back({sy, nt});
+        }
+        return;
+      }
       auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
       std::uint32_t idn = isNullLit(c.kids[1]) && n(c.kids[0]).kind == N::Ident ? c.kids[0] : isNullLit(c.kids[0]) && n(c.kids[1]).kind == N::Ident ? c.kids[1] : kNone;
       if (idn == kNone || out.nodeSym[idn] == kNone || !trackable(out.nodeSym[idn])) return;
@@ -1856,9 +1981,10 @@ struct Checker {
     return true;
   }
   // ---- anonymous records: one class per distinct list of (name, type)
-  std::map<std::vector<std::pair<std::string, TypeId>>, std::uint32_t> recordObjs;
-  TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape) {
-    auto it = recordObjs.find(shape);
+  std::map<std::pair<std::vector<std::pair<std::string, TypeId>>, std::vector<std::string>>, std::uint32_t> recordObjs;
+  TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape, const std::vector<std::string>& lits = {}) {
+    auto rkey = std::make_pair(shape, lits);
+    auto it = recordObjs.find(rkey);
     if (it != recordObjs.end()) return objType(it->second);
     ObjInfo info;
     info.isClass = true; info.isRecord = true;
@@ -1866,21 +1992,66 @@ struct Checker {
     bool tmpl = false;
     auto oi = static_cast<std::uint32_t>(out.objs.size());
     for (std::size_t i = 0; i < shape.size(); ++i) {
-      info.name += (i ? "; " : " ") + shape[i].first + ": " + name(shape[i].second);
+      bool lit = i < lits.size() && !lits[i].empty();
+      info.name += (i ? "; " : " ") + shape[i].first + ": " + (lit ? "'" + lits[i] + "'" : name(shape[i].second));
       tmpl = tmpl || hasParam(shape[i].second);
-      Member m; m.name = shape[i].first; m.type = shape[i].second; m.owner = oi; info.members.push_back(std::move(m));
+      Member m; m.name = shape[i].first; m.type = shape[i].second; m.owner = oi;
+      if (lit) { m.literal = lits[i]; m.hasLiteral = true; }
+      info.members.push_back(std::move(m));
     }
     info.name += shape.empty() ? "}" : " }";
     info.isTemplate = tmpl;
     out.objs.push_back(std::move(info));
-    recordObjs[shape] = oi;
+    recordObjs[rkey] = oi;
     return objType(oi);
   }
   // `{ a: 1, b }`: checked against the record it is expected to be, else its own anonymous record
+  // The instance fields of an object type, inherited first.
+  void instanceFields(std::uint32_t obj, std::vector<Member>& outFields) {
+    if (out.objs[obj].parent != kNoObj) instanceFields(out.objs[obj].parent, outFields);
+    for (const Member& m : out.objs[obj].members) if (!m.method && !m.isStatic) outFields.push_back(m);
+  }
+  // `{ ...a, x: 1 }`: the spread becomes one property per field of `a` (read from the same expression), later entries replacing earlier ones.
+  void expandSpreads(std::uint32_t i) {
+    std::vector<std::pair<std::string_view, std::uint32_t>> entries;
+    auto put = [&](std::string_view nm, std::uint32_t v) {
+      for (auto& e : entries) if (e.first == nm) { e.second = v; return; }
+      entries.push_back({nm, v});
+    };
+    for (std::uint32_t p : std::vector<std::uint32_t>(n(i).kids)) {
+      if (n(p).kind != N::Spread) { put(n(p).text, n(p).kids[0]); continue; }
+      std::uint32_t sn = n(p).kids[0];
+      TypeId st = expr(sn);
+      if (bad(st)) continue;
+      if (ty(st).k != TK::Object || out.objs[ty(st).obj].isTuple) { diag(kZUnsupported, p, "spread of '" + name(st) + "' in an object literal"); continue; }
+      ensureBuilt(ty(st).obj);
+      std::vector<Member> fs;
+      instanceFields(ty(st).obj, fs);
+      for (const Member& f : fs) put(keep(f.name), newNode(N::Member, keep(f.name), {sn}, p));
+    }
+    std::vector<std::uint32_t> props;
+    for (auto& e : entries) props.push_back(newNode(N::Prop, e.first, {e.second}, i));
+    a.nodes[i].kids = props;
+  }
+
   TypeId objectLit(std::uint32_t i, const Node& x, TypeId expected) {
+    for (std::uint32_t p : x.kids) if (n(p).kind == N::Spread) { expandSpreads(i); break; }
     TypeId rec = kNoType;
-    if (expected != kNoType) for (TypeId mt : unionMembers(expected)) if (ty(mt).k == TK::Object && out.objs[ty(mt).obj].isRecord) rec = mt;
     const std::vector<std::uint32_t> props(x.kids);
+    if (expected != kNoType) {
+      for (TypeId mt : unionMembers(expected)) if (ty(mt).k == TK::Object && out.objs[ty(mt).obj].isRecord) {
+        // among several records the literal-typed properties (`kind: 'circle'`) pick the one the literal is
+        bool match = true;
+        for (const Member& mm : out.objs[ty(mt).obj].members) {
+          if (!mm.hasLiteral) continue;
+          bool found = false;
+          for (std::uint32_t p : props) if (n(p).kind == N::Prop && n(p).text == mm.name && n(n(p).kids[0]).kind == N::String) found = n(n(p).kids[0]).text.substr(1, n(n(p).kids[0]).text.size() - 2) == mm.literal;
+          match = match && found;
+        }
+        if (rec == kNoType || match) rec = mt;
+        if (match && rec == mt) { bool lits = false; for (const Member& mm : out.objs[ty(mt).obj].members) lits = lits || mm.hasLiteral; if (lits) break; }
+      }
+    }
     if (rec != kNoType) {
       std::uint32_t oi = ty(rec).obj;
       ensureBuilt(oi);
@@ -1896,8 +2067,16 @@ struct Checker {
         seen[k] = 1;
         TypeId vt = expr(pn.kids[0], members[k].type);
         require(vt, members[k].type, pn.kids[0]);
+        if (members[k].hasLiteral && !(n(pn.kids[0]).kind == N::String && n(pn.kids[0]).text.substr(1, n(pn.kids[0]).text.size() - 2) == members[k].literal)) diag(kZNotAssignable, pn.kids[0], "a value other than '" + members[k].literal + "'");
       }
-      for (std::size_t k = 0; k < members.size(); ++k) if (!seen[k]) diag(kZNotAssignable, i, "missing property '" + members[k].name + "' for '" + rname + "'");
+      for (std::size_t k = 0; k < members.size(); ++k) {
+        if (seen[k]) continue;
+        if (!members[k].optional) { diag(kZNotAssignable, i, "missing property '" + members[k].name + "' for '" + rname + "'"); continue; }
+        std::uint32_t nul = newNode(N::Literal, "null", {}, i);  // an optional property left out is null
+        out.nodeType[nul] = tNull;
+        std::uint32_t prop = newNode(N::Prop, keep(members[k].name), {nul}, i);
+        a.nodes[i].kids.push_back(prop);
+      }
       return rec;
     }
     std::vector<std::pair<std::string, TypeId>> shape;
@@ -2097,6 +2276,7 @@ struct Checker {
     std::uint32_t symId = kNone;
     withAliasScope(g, args, [&]() {
       std::uint32_t clone = cloneNode(g.node, true);
+      a.nodes[clone].kind = N::Function;  // a static method instantiates as a plain function
       std::vector<std::uint32_t> ps;
       TypeId sig = signature(clone, 2, false, ps);
       out.nodeType[clone] = sig;
@@ -2285,16 +2465,23 @@ struct Checker {
     }
     for (std::uint32_t m : mems) {
       const Node& mn = n(m);
+      if (a.tparams.count(m)) continue;  // a static generic method: a generic function of its own
       std::uint32_t fl = mn.flags;
       bool isCtor = mn.kind == N::Method && mn.text == "constructor";
       bool dup = false;
       if (!isCtor) for (const Member& e : out.objs[objIdx].members) if (e.owner == objIdx && e.name == mn.text && e.isStatic == ((fl & frontend::kFlagStatic) != 0)) dup = true;
       if (dup || (isCtor && ctorNode != kNone)) { diag(kZDuplicateDeclaration, m, "'" + std::string(mn.text) + "'"); continue; }
-      if (isIface && mn.kind == N::Field) { diag(kZUnsupported, m, "interface properties"); continue; }
       if (isIface && isCtor) { diag(kZUnsupported, m, "constructors in interfaces"); continue; }
       if ((fl & frontend::kFlagAbstract) && !isIface && !(out.objs[objIdx].isAbstract)) diag(kZAbstractViolation, m, "abstract member '" + std::string(mn.text) + "' in a concrete class");
       Member mem;
       mem.name = std::string(mn.text); mem.owner = objIdx; mem.access = accessOf(fl); mem.isStatic = (fl & frontend::kFlagStatic) != 0;
+      if (mn.kind == N::Field && isIface) {  // an interface property reads like a getter; classes satisfy it with a field or a getter
+        TypeId t = mn.kids[0] != kNone ? annotation(mn.kids[0]) : tError;
+        out.nodeType[m] = t;
+        mem.type = func({}, t, 0); mem.method = true; mem.readonly = true; mem.isAbstract = true; mem.getter = true;
+        out.objs[objIdx].members.push_back(std::move(mem));
+        continue;
+      }
       if (mn.kind == N::Field) {
         TypeId t = tError;
         if (mn.kids[0] != kNone) t = annotation(mn.kids[0]);
@@ -2304,7 +2491,7 @@ struct Checker {
           if (t == tError) diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         } else diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         out.nodeType[m] = t;
-        mem.type = t; mem.readonly = (fl & frontend::kFlagReadonly) != 0;
+        mem.type = t; mem.readonly = (fl & frontend::kFlagReadonly) != 0; mem.optional = (fl & frontend::kFlagOptional) != 0;
       } else {
         std::vector<std::uint32_t> ps;
         TypeId sig = signature(m, 2, isCtor, ps);
@@ -2338,6 +2525,7 @@ struct Checker {
           std::uint32_t io = ty(it).obj;
           for (const Member& im : out.objs[io].members) {
             const Member* m = lookupMember(objIdx, im.name, false);
+            if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && ty(im.type).elem == m->type) continue;  // a property satisfied by a field
             if (!m || !m->method || m->type != im.type || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
           }
         }
@@ -2463,6 +2651,21 @@ struct Checker {
       g.node = s; g.tp = tp->second; g.scopes = scopes; g.isFunc = k == N::Function;
       generics[gs] = std::move(g);
       genericSyms.push_back(gs);
+    }
+    for (std::uint32_t s : stmts) {  // static generic methods are generic functions named `Class.method`
+      if (n(s).kind != N::Class || a.tparams.count(s)) continue;
+      for (std::size_t k = frontend::kClassMembersFrom; k < n(s).kids.size(); ++k) {
+        std::uint32_t mi = n(s).kids[k];
+        auto tp = a.tparams.find(mi);
+        if (n(mi).kind != N::Method || tp == a.tparams.end()) continue;
+        std::string_view full = keep(std::string(n(s).text) + "." + std::string(n(mi).text));
+        std::uint32_t gs = declare(SymKind::GenericFunc, full, kNoType, mi, true, mi);
+        out.nodeSym[mi] = gs;
+        GenericDecl g;
+        g.node = mi; g.tp = tp->second; g.scopes = scopes; g.isFunc = true;
+        generics[gs] = std::move(g);
+        genericSyms.push_back(gs);
+      }
     }
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Class && n(s).kind != N::Interface) continue;
@@ -2590,6 +2793,7 @@ static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t i
   for (const Member& im : c.objs[iface].members) {
     if (im.isStatic) continue;
     const Member* m = lookupMember(c, obj, im.name, false);
+    if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
     if (!m || !m->method || m->type != im.type || m->access != 0) return false;
   }
   return true;

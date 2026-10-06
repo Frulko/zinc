@@ -411,6 +411,14 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
 }
 )ZN";
 
+// Arenas hold per-frame memory in the AOT runtime; here an arena is a scope marker that releases nothing.
+const char* kArenaPrelude = R"ZN(
+class Arena {
+  static frame(size: i32): Arena { return new Arena(); }
+  [Symbol.dispose](): void {}
+}
+)ZN";
+
 // JSON.parse: a validator (the parsed value needs Dyn values); throws SyntaxError at the first offence.
 const char* kJsonPrelude = R"ZN(
 class __JsonCheck {
@@ -500,6 +508,11 @@ bool needsAsync(const Ast& A) {
   return false;
 }
 
+bool needsArena(const Ast& A) {
+  for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "Arena") return true;
+  return false;
+}
+
 bool needsJson(const Ast& A) {
   for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "JSON") return true;
   return false;
@@ -523,11 +536,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
   L.load(entry, std::move(text));
   bool async = p.diags.empty() && needsAsync(p.ast);
   bool json = p.diags.empty() && needsJson(p.ast);
+  bool arena = p.diags.empty() && needsArena(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? kJsonPrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? kJsonPrelude : "") + (arena ? kArenaPrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

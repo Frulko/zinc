@@ -1,5 +1,5 @@
 interface Point { x: number; y: number; }
-interface Mixed { x: number; f(): number; }
+interface Mixed { x: number; f(): number; }  // valid: a property and a method
 class C { constructor(public x: number, public y: number) {} }
 const a: Point = { x: 1 };
 const b: Point = { x: 1, y: 2, z: 3 };

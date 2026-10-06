@@ -10,7 +10,7 @@ for k in inherit interfaces devirt statics param_props abstract many_props gener
   "$ZINC" --emit=ir tests/golden/run/$k.ts 2>&1 | diff -q - tests/golden/ir/$k.ir >/dev/null || { echo "ir golden differs: $k"; fail=1; }
 done
 for f in tests/golden/checker/ok/*.ts; do
-  case $(basename "$f") in default_params.ts|nested.ts) "$ZINC" --emit=ir "$f" >/dev/null 2>&1 && { echo "expected unsupported: $f"; fail=1; }; continue ;; esac
+  case $(basename "$f") in nested.ts) "$ZINC" --emit=ir "$f" >/dev/null 2>&1 && { echo "expected unsupported: $f"; fail=1; }; continue ;; esac
   "$ZINC" --emit=ir "$f" >/dev/null 2>/tmp/zn-ir-err.$$ || { echo "lowering failed: $f"; head -2 /tmp/zn-ir-err.$$; fail=1; }
 done
 rm -f /tmp/zn-ir-err.$$
