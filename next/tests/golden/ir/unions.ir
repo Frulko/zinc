@@ -1,10 +1,13 @@
+zir 1
+selector .bark() -> i32
+selector .fly() -> i32
 class Item { value: i32, next: ref Item }
 class Animal { legs: i32 }
 class Dog : Animal { legs: i32 }
-  vtable .bark -> @Dog.bark
+  sel .bark -> @Dog.bark
 class Bird : Animal { legs: i32 }
-  vtable .fly -> @Bird.fly
-class [i32, i32] { 0: i32, 1: i32 }
+  sel .fly -> @Bird.fly
+class "[i32, i32]" { 0: i32, 1: i32 }
 func @main() -> void {
 bb0:
   %0: ref Item = new Item

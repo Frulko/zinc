@@ -10,7 +10,7 @@ builtin str[]
 builtin f64[]
 builtin ref Point[]
 builtin Map<str, ref Point>
-builtin ref { id: f64; label: string; ok: boolean }[]
+builtin ref "{ id: f64; label: string; ok: boolean }"[]
 func @main() -> void nregs=6
    0  New      r0, Point
    1  LoadK    r1, f64 3
@@ -218,7 +218,7 @@ func @main() -> void nregs=6
  204  SetField r1, r2, .1
  205  LoadI    r2, 0
  206  SetField r1, r2, .2
- 207  New      r2, ref { id: f64; label: string; ok: boolean }[]
+ 207  New      r2, ref "{ id: f64; label: string; ok: boolean }"[]
  208  Retain   r0
  209  ArrPush  r3, r2, r0
  210  Retain   r1

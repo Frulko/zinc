@@ -1,8 +1,11 @@
+zir 1
+selector .sum() -> i32
+selector .total() -> i32
 class P { x: i32, y: i32, z: i32 }
-  vtable .sum -> @P.sum
+  sel .sum -> @P.sum
 class Q : P { x: i32, y: i32, z: i32, w: i32 }
-  vtable .total -> @Q.total
-  vtable .sum -> @P.sum
+  sel .total -> @Q.total
+  sel .sum -> @P.sum
 func @main() -> void {
 bb0:
   %0: ref Q = new Q

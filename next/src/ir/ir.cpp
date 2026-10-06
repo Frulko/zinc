@@ -1,5 +1,6 @@
 #include "ir/ir.h"
 
+#include <cctype>
 #include <cstdio>
 
 namespace zn::ir {
@@ -66,6 +67,19 @@ std::uint8_t effects(const Module& m, const Inst& i) {
   }
 }
 
+// A name of the text format: bare when it is made of letters, digits, `_`, `$` and `.`, else quoted like a string (class names such as
+// `fn (i32) => i32` and `{ a: f64 }` hold spaces and punctuation).
+static std::string quoteStr(const std::string& s) {
+  std::string o = "\"";
+  for (char c : s) o += c == '\n' ? "\\n" : c == '\t' ? "\\t" : c == '"' ? "\\\"" : c == '\\' ? "\\\\" : std::string(1, c);
+  return o + "\"";
+}
+std::string nameText(const std::string& s) {
+  bool bare = !s.empty();
+  for (char c : s) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$' || c == '.')) bare = false;
+  return bare ? s : quoteStr(s);
+}
+
 std::string typeName(const Module& m, TypeId t) {
   const Type& x = m.types[t];
   switch (x.k) {
@@ -76,7 +90,7 @@ std::string typeName(const Module& m, TypeId t) {
       static const char* n[] = {"f64", "f32", "fx12", "fx16", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "isize", "usize"};
       return n[static_cast<int>(x.num)];
     }
-    case Type::K::Ref: return "ref " + m.classes[x.aux].name;
+    case Type::K::Ref: return "ref " + nameText(m.classes[x.aux].name);
     case Type::K::Array: return typeName(m, x.aux) + "[]";
     case Type::K::Map: return "Map<" + typeName(m, x.aux2) + ", " + typeName(m, x.aux) + ">";
     case Type::K::Set: return "Set<" + typeName(m, x.aux) + ">";
@@ -110,6 +124,13 @@ std::string fmtDouble(double d) {
   return buf;
 }
 
+// A selector is named by its text name; a second selector with the same name (another signature) is `name#1`, a third `name#2`...
+std::string selText(const Module& m, std::uint32_t id) {
+  std::size_t k = 0;
+  for (std::uint32_t j = 0; j < id; ++j) if (m.selectors[j].name == m.selectors[id].name) ++k;
+  return nameText(m.selectors[id].name) + (k ? "#" + std::to_string(k) : "");
+}
+
 std::string instText(const Module& m, const Function& f, const Inst& i) {
   (void)f;
   std::string s;
@@ -124,12 +145,12 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
       else if (rt.k == Type::K::Num && (rt.num == Num::f64 || rt.num == Num::f32 || rt.num == Num::fx12 || rt.num == Num::fx16)) s += " " + fmtDouble(i.fimm);
       else s += " " + std::to_string(i.imm);
       return s;
-    case IrOp::Call: s += " @" + m.functions[i.sym].name; break;
-    case IrOp::CallVirt: s += " ." + m.selectors[i.sym].name; break;
+    case IrOp::Call: s += " @" + nameText(m.functions[i.sym].name); break;
+    case IrOp::CallVirt: s += " ." + selText(m, i.sym); break;
     case IrOp::Builtin: s += std::string(" ") + builtinName(static_cast<Builtin>(i.sym)); break;
-    case IrOp::New: case IrOp::InstOf: s += " " + m.classes[i.sym].name; break;
+    case IrOp::New: case IrOp::InstOf: s += " " + nameText(m.classes[i.sym].name); break;
     case IrOp::GetField: case IrOp::SetField: s += " ." + std::to_string(i.sym); break;
-    case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + m.globals[i.sym].name; break;
+    case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + nameText(m.globals[i.sym].name); break;
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
     case IrOp::Rt: s += std::string(" ") + rtInfo(static_cast<zn::Rt>(i.sym)).name; break;
     default: break;
@@ -149,28 +170,34 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
 }  // namespace
 
 std::string dump(const Module& m) {
-  std::string out;
+  std::string out = std::string("zir ") + std::to_string(kTextVersion) + "\n";
+  for (const Selector& sel : m.selectors) {
+    out += "selector ." + selText(m, static_cast<std::uint32_t>(&sel - m.selectors.data())) + "(";
+    for (std::size_t i = 0; i < sel.params.size(); ++i) out += (i ? ", " : "") + typeName(m, sel.params[i]);
+    out += ") -> " + typeName(m, sel.ret) + "\n";
+  }
   for (const Class& c : m.classes) {
-    out += (c.isInterface ? "interface " : c.isAbstract ? "abstract class " : "class ") + c.name;
-    if (c.parent != kNoClass) out += " : " + m.classes[c.parent].name;
+    out += (c.isInterface ? "interface " : c.isAbstract ? "abstract class " : "class ") + nameText(c.name);
+    if (c.parent != kNoClass) out += " : " + nameText(m.classes[c.parent].name);
     if (!c.implements.empty()) {
       out += " implements";
-      for (std::size_t i = 0; i < c.implements.size(); ++i) out += (i ? ", " : " ") + m.classes[c.implements[i]].name;
+      for (std::size_t i = 0; i < c.implements.size(); ++i) out += (i ? ", " : " ") + nameText(m.classes[c.implements[i]].name);
     }
     if (!c.isInterface) {
       out += " {";
-      for (std::size_t i = 0; i < c.fields.size(); ++i) out += (i ? ", " : " ") + c.fields[i].name + ": " + typeName(m, c.fields[i].type);
+      for (std::size_t i = 0; i < c.fields.size(); ++i) out += (i ? ", " : " ") + nameText(c.fields[i].name) + ": " + typeName(m, c.fields[i].type);
       out += c.fields.empty() ? "}" : " }";
     }
     out += "\n";
     for (std::uint32_t sel : c.selectors) {
-      if (c.isInterface) { out += "  method ." + m.selectors[sel].name + "\n"; continue; }
-      if (sel < c.vtable.size() && c.vtable[sel] != kNoClass) out += "  vtable ." + m.selectors[sel].name + " -> @" + m.functions[c.vtable[sel]].name + "\n";
+      out += "  sel ." + selText(m, sel);
+      if (!c.isInterface && sel < c.vtable.size() && c.vtable[sel] != kNoClass) out += " -> @" + nameText(m.functions[c.vtable[sel]].name);
+      out += "\n";
     }
   }
-  for (const Global& g : m.globals) out += "global @@" + g.name + ": " + typeName(m, g.type) + "\n";
+  for (const Global& g : m.globals) out += "global @@" + nameText(g.name) + ": " + typeName(m, g.type) + "\n";
   for (const Function& f : m.functions) {
-    out += "func @" + f.name + "(";
+    out += "func @" + nameText(f.name) + "(";
     for (std::size_t i = 0; i < f.params.size(); ++i) out += (i ? ", " : "") + v(f.params[i]) + ": " + typeName(m, f.valueTypes[f.params[i]]);
     out += ") -> " + typeName(m, f.ret) + " {\n";
     for (std::size_t b = 0; b < f.blocks.size(); ++b) {

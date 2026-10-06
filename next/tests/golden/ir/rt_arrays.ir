@@ -1,24 +1,29 @@
+zir 1
+selector .call(str, str) -> f64
+selector .call#1(f64, f64) -> f64
+selector .call#2(ref Job, ref Job) -> f64
+selector .call#3(i32, i32) -> f64
 class Job { prio: i32, tag: str }
-interface fn (string, string) => f64
-  method .call
-class lambda0 implements fn (string, string) => f64 {}
-  vtable .call -> @lambda0
-class lambda1 implements fn (string, string) => f64 {}
-  vtable .call -> @lambda1
-interface fn (f64, f64) => f64
-  method .call
-class lambda2 implements fn (f64, f64) => f64 {}
-  vtable .call -> @lambda2
-class lambda3 implements fn (f64, f64) => f64 {}
-  vtable .call -> @lambda3
-interface fn (Job, Job) => f64
-  method .call
-class lambda4 implements fn (Job, Job) => f64 {}
-  vtable .call -> @lambda4
-interface fn (i32, i32) => f64
-  method .call
-class lambda5 implements fn (i32, i32) => f64 {}
-  vtable .call -> @lambda5
+interface "fn (string, string) => f64"
+  sel .call
+class lambda0 implements "fn (string, string) => f64" {}
+  sel .call -> @lambda0
+class lambda1 implements "fn (string, string) => f64" {}
+  sel .call -> @lambda1
+interface "fn (f64, f64) => f64"
+  sel .call#1
+class lambda2 implements "fn (f64, f64) => f64" {}
+  sel .call#1 -> @lambda2
+class lambda3 implements "fn (f64, f64) => f64" {}
+  sel .call#1 -> @lambda3
+interface "fn (Job, Job) => f64"
+  sel .call#2
+class lambda4 implements "fn (Job, Job) => f64" {}
+  sel .call#2 -> @lambda4
+interface "fn (i32, i32) => f64"
+  sel .call#3
+class lambda5 implements "fn (i32, i32) => f64" {}
+  sel .call#3 -> @lambda5
 func @main() -> void {
 bb0:
   %0: i32[] = arrnew i32[]
@@ -133,13 +138,13 @@ bb4:
   %94: bool = call @__g3(%76, %92, %93)
   builtin console.log(%86, %88, %91, %94)
   %95: ref lambda0 = new lambda0
-  %96: ref fn (string, string) => f64 = refcast %95
+  %96: ref "fn (string, string) => f64" = refcast %95
   %97: str[] = rt Array.sort(%76, %96)
   %98: str = const " "
   %99: str = rt Array.join(%76, %98)
   builtin console.log(%99)
   %100: ref lambda1 = new lambda1
-  %101: ref fn (string, string) => f64 = refcast %100
+  %101: ref "fn (string, string) => f64" = refcast %100
   %102: str[] = rt Array.sort(%76, %101)
   %103: str = const " "
   %104: str = rt Array.join(%76, %103)
@@ -156,7 +161,7 @@ bb4:
   %114: f64 = const 0
   %115: i32 = arrpush %105, %114
   %116: ref lambda2 = new lambda2
-  %117: ref fn (f64, f64) => f64 = refcast %116
+  %117: ref "fn (f64, f64) => f64" = refcast %116
   %118: f64[] = rt Array.sort(%105, %117)
   %119: i32 = const 0
   %120: f64 = arrget %105, %119
@@ -170,7 +175,7 @@ bb4:
   %128: f64 = arrget %105, %127
   builtin console.log(%120, %122, %124, %126, %128)
   %129: ref lambda3 = new lambda3
-  %130: ref fn (f64, f64) => f64 = refcast %129
+  %130: ref "fn (f64, f64) => f64" = refcast %129
   %131: f64[] = rt Array.sort(%105, %130)
   %132: i32 = const 0
   %133: i32 = const 2
@@ -207,7 +212,7 @@ bb4:
   call @Job.constructor(%156, %157, %158)
   %159: i32 = arrpush %139, %156
   %160: ref lambda4 = new lambda4
-  %161: ref fn (Job, Job) => f64 = refcast %160
+  %161: ref "fn (Job, Job) => f64" = refcast %160
   %162: ref Job[] = rt Array.sort(%139, %161)
   %163: str = const ""
   %164: i32 = const 0
@@ -354,7 +359,7 @@ bb19:
   br bb17(%275)
 bb20:
   %276: ref lambda5 = new lambda5
-  %277: ref fn (i32, i32) => f64 = refcast %276
+  %277: ref "fn (i32, i32) => f64" = refcast %276
   %278: i32[] = rt Array.sort(%256, %277)
   %279: bool = const true
   %280: i32 = const 1

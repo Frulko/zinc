@@ -1,12 +1,15 @@
+zir 1
+selector .area() -> f64
+selector .scale(f64) -> f64
 interface Shape
-  method .area
-  method .scale
+  sel .area
+  sel .scale
 class Sq implements Shape { s: f64 }
-  vtable .area -> @Sq.area
-  vtable .scale -> @Sq.scale
+  sel .area -> @Sq.area
+  sel .scale -> @Sq.scale
 class Circ implements Shape { r: f64 }
-  vtable .area -> @Circ.area
-  vtable .scale -> @Circ.scale
+  sel .area -> @Circ.area
+  sel .scale -> @Circ.scale
 func @main() -> void {
 bb0:
   %0: ref Sq = new Sq

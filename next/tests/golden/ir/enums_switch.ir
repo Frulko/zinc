@@ -1,9 +1,12 @@
+zir 1
+selector .area() -> i32
+selector .isSquare() -> bool
 class Rect { w: i32, h: i32 }
-  vtable .area -> @Rect.area
-  vtable .isSquare -> @Rect.isSquare
+  sel .area -> @Rect.area
+  sel .isSquare -> @Rect.isSquare
 class Sq : Rect { w: i32, h: i32 }
-  vtable .area -> @Sq.area
-  vtable .isSquare -> @Rect.isSquare
+  sel .area -> @Sq.area
+  sel .isSquare -> @Rect.isSquare
 func @main() -> void {
 bb0:
   %0: i32 = const 0

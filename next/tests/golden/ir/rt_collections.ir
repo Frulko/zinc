@@ -1,3 +1,4 @@
+zir 1
 class Box { v: i32 }
 func @main() -> void {
 bb0:

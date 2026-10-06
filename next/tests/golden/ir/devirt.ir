@@ -1,7 +1,9 @@
+zir 1
+selector .get() -> i32
 class Base { v: i32 }
-  vtable .get -> @Base.get
+  sel .get -> @Base.get
 class Unused : Base { v: i32 }
-  vtable .get -> @Unused.get
+  sel .get -> @Unused.get
 func @main() -> void {
 bb0:
   %0: ref Base = new Base

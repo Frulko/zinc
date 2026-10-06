@@ -1,10 +1,11 @@
+zir 1
 class Point { x: f64, y: f64 }
 class Named { name: str, tags: str[] }
 class Line { from: ref Point, to: ref Point }
-class { id: f64; label: string; ok: boolean } { id: f64, label: str, ok: bool }
-class { v: f64 } { v: f64 }
-class { inner: { v: f64 }; list: f64[] } { inner: ref { v: f64 }, list: f64[] }
-class { key: string; n: f64 } { key: str, n: f64 }
+class "{ id: f64; label: string; ok: boolean }" { id: f64, label: str, ok: bool }
+class "{ v: f64 }" { v: f64 }
+class "{ inner: { v: f64 }; list: f64[] }" { inner: ref "{ v: f64 }", list: f64[] }
+class "{ key: string; n: f64 }" { key: str, n: f64 }
 func @main() -> void {
 bb0:
   %0: ref Point = new Point
@@ -122,36 +123,36 @@ bb7(%76: ref Point):
   %80: str = const "z"
   %81: bool = rt Map.has(%66, %80)
   builtin console.log(%79, %81)
-  %82: ref { id: f64; label: string; ok: boolean } = new { id: f64; label: string; ok: boolean }
+  %82: ref "{ id: f64; label: string; ok: boolean }" = new "{ id: f64; label: string; ok: boolean }"
   %83: f64 = const 7
   setfield .0 %82, %83
   %84: str = const "seven"
   setfield .1 %82, %84
   %85: bool = const true
   setfield .2 %82, %85
-  %86: ref { id: f64; label: string; ok: boolean } = new { id: f64; label: string; ok: boolean }
+  %86: ref "{ id: f64; label: string; ok: boolean }" = new "{ id: f64; label: string; ok: boolean }"
   %87: f64 = const 8
   setfield .0 %86, %87
   %88: str = const "eight"
   setfield .1 %86, %88
   %89: bool = const false
   setfield .2 %86, %89
-  %90: ref { id: f64; label: string; ok: boolean }[] = arrnew ref { id: f64; label: string; ok: boolean }[]
+  %90: ref "{ id: f64; label: string; ok: boolean }"[] = arrnew ref "{ id: f64; label: string; ok: boolean }"[]
   %91: i32 = arrpush %90, %82
   %92: i32 = arrpush %90, %86
   %93: f64 = getfield .0 %82
   %94: f64 = getfield .0 %86
   %95: f64 = add %93, %94
   %96: i32 = const 1
-  %97: ref { id: f64; label: string; ok: boolean } = arrget %90, %96
+  %97: ref "{ id: f64; label: string; ok: boolean }" = arrget %90, %96
   %98: str = getfield .1 %97
   %99: i32 = arrlen %90
   %100: bool = getfield .2 %82
   builtin console.log(%95, %98, %99, %100)
   %101: str = getfield .1 %86
   builtin console.log(%101)
-  %102: ref { inner: { v: f64 }; list: f64[] } = new { inner: { v: f64 }; list: f64[] }
-  %103: ref { v: f64 } = new { v: f64 }
+  %102: ref "{ inner: { v: f64 }; list: f64[] }" = new "{ inner: { v: f64 }; list: f64[] }"
+  %103: ref "{ v: f64 }" = new "{ v: f64 }"
   %104: f64 = const 1.5
   setfield .0 %103, %104
   setfield .0 %102, %103
@@ -163,7 +164,7 @@ bb7(%76: ref Point):
   %110: f64 = const 3
   %111: i32 = arrpush %105, %110
   setfield .1 %102, %105
-  %112: ref { v: f64 } = getfield .0 %102
+  %112: ref "{ v: f64 }" = getfield .0 %102
   %113: f64 = getfield .0 %112
   %114: f64 = const 2
   %115: f64 = mul %113, %114
@@ -171,7 +172,7 @@ bb7(%76: ref Point):
   %117: i32 = arrlen %116
   builtin console.log(%115, %117)
   %118: str = const "q"
-  %119: ref { key: string; n: f64 } = new { key: string; n: f64 }
+  %119: ref "{ key: string; n: f64 }" = new "{ key: string; n: f64 }"
   setfield .0 %119, %118
   %120: f64 = const 2
   setfield .1 %119, %120

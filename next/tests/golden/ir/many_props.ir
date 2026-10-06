@@ -1,8 +1,11 @@
+zir 1
+selector .sum() -> i32
+selector .twice() -> i32
 class Many { a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i32, j: i32, k: i32, l: i32 }
-  vtable .sum -> @Many.sum
+  sel .sum -> @Many.sum
 class Sub : Many { a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i32, j: i32, k: i32, l: i32 }
-  vtable .twice -> @Sub.twice
-  vtable .sum -> @Many.sum
+  sel .twice -> @Sub.twice
+  sel .sum -> @Many.sum
 func @main() -> void {
 bb0:
   %0: ref Many = new Many

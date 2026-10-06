@@ -1,28 +1,33 @@
+zir 1
+selector .call(f64) -> f64
+selector .call#1(i32) -> i32
+selector .__errorString() -> str
+selector .area() -> i32
 class Error { message: str, name: str }
-  vtable .__errorString -> @Error.__errorString
+  sel .__errorString -> @Error.__errorString
 class TypeError : Error { message: str, name: str }
-  vtable .__errorString -> @Error.__errorString
+  sel .__errorString -> @Error.__errorString
 class RangeError : Error { message: str, name: str }
-  vtable .__errorString -> @Error.__errorString
+  sel .__errorString -> @Error.__errorString
 class SyntaxError : Error { message: str, name: str }
-  vtable .__errorString -> @Error.__errorString
+  sel .__errorString -> @Error.__errorString
 class AppError : Error { message: str, name: str, code: i32 }
-  vtable .__errorString -> @Error.__errorString
+  sel .__errorString -> @Error.__errorString
 class Shape {}
-  vtable .area -> @Shape.area
+  sel .area -> @Shape.area
 class Bad : Shape {}
-  vtable .area -> @Bad.area
+  sel .area -> @Bad.area
 class Res { name: str }
-interface fn (f64) => f64
-  method .call
-interface fn (i32) => i32
-  method .call
-class lambda0 implements fn (f64) => f64 {}
-  vtable .call -> @lambda0
-class lambda1:lazy implements fn (i32) => i32 {}
-  vtable .call -> @lambda1:lazy
-class cell str { v: str }
-class cell f64 { v: f64 }
+interface "fn (f64) => f64"
+  sel .call
+interface "fn (i32) => i32"
+  sel .call#1
+class lambda0 implements "fn (f64) => f64" {}
+  sel .call -> @lambda0
+class "lambda1:lazy" implements "fn (i32) => i32" {}
+  sel .call#1 -> @"lambda1:lazy"
+class "cell str" { v: str }
+class "cell f64" { v: f64 }
 global @@log: str
 func @main() -> void {
 bb0:
@@ -86,7 +91,7 @@ bb8:
   %37: f64 = const 3
   %38: i32 = arrpush %32, %37
   %39: ref lambda0 = new lambda0
-  %40: ref fn (f64) => f64 = refcast %39
+  %40: ref "fn (f64) => f64" = refcast %39
   %41: f64[] = call @__g0(%32, %40) unwind bb13
   br bb14
 bb9(%42: f64):
@@ -100,10 +105,10 @@ bb11:
   %47: f64 = add %25, %46
   br bb9(%47)
 bb12:
-  %48: ref lambda1:lazy = new lambda1:lazy
-  %49: ref fn (i32) => i32 = refcast %48
+  %48: ref "lambda1:lazy" = new "lambda1:lazy"
+  %49: ref "fn (i32) => i32" = refcast %48
   %50: i32 = const -9
-  %51: i32 = callvirt .call(%49, %50) unwind bb17
+  %51: i32 = callvirt .call#1(%49, %50) unwind bb17
   br bb18
 bb13(%52: ref Error):
   %53: str = const ""
@@ -340,7 +345,7 @@ bb4:
 func @c() -> str {
 bb0:
   %0: str = const "start"
-  %1: ref cell str = new cell str
+  %1: ref "cell str" = new "cell str"
   setfield .0 %1, %0
   %2: str = const "in-try"
   setfield .0 %1, %2
@@ -370,7 +375,7 @@ bb3:
 func @d() -> str {
 bb0:
   %0: str = const ""
-  %1: ref cell str = new cell str
+  %1: ref "cell str" = new "cell str"
   setfield .0 %1, %0
   %2: f64 = const 0
   br bb1(%2)
@@ -509,7 +514,7 @@ bb0:
 func @h() -> i32 {
 bb0:
   %0: f64 = const 0
-  %1: ref cell f64 = new cell f64
+  %1: ref "cell f64" = new "cell f64"
   setfield .0 %1, %0
   %2: f64 = const -1
   br bb1(%2)
@@ -544,7 +549,7 @@ bb7:
   setfield .0 %1, %18
   br bb5
 }
-func @__g0(%0: f64[], %1: ref fn (f64) => f64) -> f64[] {
+func @__g0(%0: f64[], %1: ref "fn (f64) => f64") -> f64[] {
 bb0:
   %2: f64[] = arrnew f64[]
   %3: i32 = const 0
@@ -1503,7 +1508,7 @@ bb1:
 bb2:
   ret %1
 }
-func @lambda1:lazy(%0: ref lambda1:lazy, %1: i32) -> i32 {
+func @"lambda1:lazy"(%0: ref "lambda1:lazy", %1: i32) -> i32 {
 bb0:
   %2: i32 = call @risky(%1)
   ret %2

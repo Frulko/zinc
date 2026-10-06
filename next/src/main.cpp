@@ -410,6 +410,17 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
     return 0;
   }
+  if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text
+    std::string text, err;
+    if (!readFile(argv[3], text)) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
+    zn::ir::Module m;
+    if (!zn::ir::parse(text, m, err)) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
+    std::string bad = zn::ir::verify(m);
+    if (!bad.empty()) { std::fprintf(stderr, "%s: invalid IR: %s\n", argv[3], bad.c_str()); return 1; }
+    if (zn::ir::dump(m) != text) { std::fprintf(stderr, "%s: the dump read back differs from the file (not in canonical form)\n", argv[3]); return 1; }
+    std::printf("ok: zir %d, %zu classes, %zu functions\n", zn::ir::kTextVersion, m.classes.size(), m.functions.size());
+    return 0;
+  }
   if (argc == 3 && (!std::strcmp(argv[1], "--emit=ir") || !std::strcmp(argv[1], "--emit=ir-rc"))) {  // zinc --emit=ir <file>: parse, check, lower, verify, dump
     zn::frontend::Program prog;
     zn::frontend::Checked checked;

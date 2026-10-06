@@ -1,3 +1,4 @@
+zir 1
 func @main() -> void {
 bb0:
   %0: str = const "hello"

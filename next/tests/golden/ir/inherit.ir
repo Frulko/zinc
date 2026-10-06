@@ -1,12 +1,15 @@
+zir 1
+selector .sound() -> i32
+selector .describe() -> i32
 class Animal { legs: i32 }
-  vtable .sound -> @Animal.sound
-  vtable .describe -> @Animal.describe
+  sel .sound -> @Animal.sound
+  sel .describe -> @Animal.describe
 class Dog : Animal { legs: i32, tricks: i32 }
-  vtable .sound -> @Dog.sound
-  vtable .describe -> @Animal.describe
+  sel .sound -> @Dog.sound
+  sel .describe -> @Animal.describe
 class Bird : Animal { legs: i32 }
-  vtable .sound -> @Bird.sound
-  vtable .describe -> @Animal.describe
+  sel .sound -> @Bird.sound
+  sel .describe -> @Animal.describe
 func @main() -> void {
 bb0:
   %0: ref Dog = new Dog

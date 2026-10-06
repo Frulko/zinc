@@ -613,7 +613,12 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
   Reader r(bytes);
   auto fail = [&](const char* msg) { err = msg; return false; };
   for (char c : kMagic) if (r.u8() != static_cast<std::uint8_t>(c)) return fail("not a ZBC file (bad magic)");
-  if (r.u32() != kVersion) return fail("unsupported ZBC version");
+  std::uint32_t version = r.u32();
+  if (version != kVersion) {  // no migration: a ZBC file is a build product, written again by the zinc that runs it (docs/ir-format.md)
+    err = "ZBC version " + std::to_string(version) + " is " + (version < kVersion ? "older" : "newer") + " than the supported version " + std::to_string(kVersion) +
+          (version < kVersion ? ": rebuild the program with this zinc (`zinc build`, `zinc --emit=zbc-bin`)" : ": update zinc");
+    return false;
+  }
   out = Module{};
   std::uint32_t nc = r.u32();
   if (nc > kMaxClasses) return fail("too many classes");

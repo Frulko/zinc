@@ -334,3 +334,6 @@ fixed the scripted input of the null HAL (button events repeated every frame). Z
 
 ## ZN-051 (Done)
 `zinc run <file> --engine quickjs`: QuickJS-ng 0.17.0 in `third_party/quickjs-ng`, `src/qjs`, doc `docs/reports/zinc-next-quickjs.md`. Next by ordinal: ZN-052 (stable IR/ZBC format).
+
+## ZN-052 (Done)
+IR text version 1 (`zir 1`), `ir::parse`, `zinc ir --check`, ZBC refuses other versions with a message; `docs/ir-format.md`, `tests/compat/`. Next by ordinal: ZN-053 (packaging).

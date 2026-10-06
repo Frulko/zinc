@@ -1,10 +1,15 @@
+zir 1
+selector .area() -> i32
+selector .double() -> i32
 abstract class Base {}
+  sel .area
+  sel .double
 class A : Base {}
-  vtable .area -> @A.area
-  vtable .double -> @Base.double
+  sel .area -> @A.area
+  sel .double -> @Base.double
 class B : Base { n: i32 }
-  vtable .area -> @B.area
-  vtable .double -> @Base.double
+  sel .area -> @B.area
+  sel .double -> @Base.double
 func @main() -> void {
 bb0:
   %0: ref A = new A

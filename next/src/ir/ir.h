@@ -141,7 +141,12 @@ struct Module {
 
 std::uint8_t effects(const Module& m, const Inst& i);
 std::string typeName(const Module& m, TypeId t);
+// The text format (docs/ir-format.md) and its version, the first line of every dump (`zir 1`).
+inline constexpr int kTextVersion = 1;
+std::string nameText(const std::string& s);  // a name as the text prints it: bare, or quoted when it has other characters than letters, digits, _ $ .
 std::string dump(const Module& m);
+// Reads a dump back. False with `err` ("line N: ...") on a malformed text, an unknown or missing version, or a name that is not declared.
+bool parse(std::string_view text, Module& out, std::string& err);
 // Empty when well formed; otherwise the first problem found (function, block and instruction named).
 std::string verify(const Module& m);
 

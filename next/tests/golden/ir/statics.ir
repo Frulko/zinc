@@ -1,3 +1,4 @@
+zir 1
 class Counter { id: i32 }
 global @@Counter.created: i32
 global @@Counter.step: i32
