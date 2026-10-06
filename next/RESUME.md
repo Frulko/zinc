@@ -308,3 +308,8 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Interpreter stacks are sized per machine (`Machine::stackSlots`, `maxDepth`; 0 = the 20 MB host default) and `Call` checks the register stack.
 - To close AC 1: plug an ESP32, run `zinc flash --target esp32` then `zinc run hello.ts --target esp32`.
 - Next: ZN-031 (the single-app packaging decision: a gate, the loop stops there).
+
+## ZN-031 notes (Done): decisions
+- `docs/reports/zinc-next-decisions.md`: name Zinc Atelier (check in ZN-056), app shell written in zinc:ui, QuickJS as a full second engine, IR unstable now but must become stable, clang not replaced for now.
+- Plan after M6, by ordinal: ZN-047 live window and input, ZN-048 bake fonts and images, ZN-049 host modules for apps, ZN-050 the app shell, ZN-051 QuickJS engine, ZN-052 stable IR and ZBC, ZN-053 packaging, ZN-054 Windows and Linux hosts, ZN-055 hardware validation (closes ZN-030 AC 1), ZN-056 name check; then ZN-041 interpreter speed, ZN-042 typed AOT, ZN-043 mquickjs evaluation.
+- `tools/next-task` now reads task ids that carry a priority tag (it skipped them before).

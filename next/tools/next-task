@@ -4,8 +4,8 @@
 # ordinal is the plan's sequence). Gates and the packaging decision stop a loop. Used by /zn-start and /zn-end.
 id=$(backlog task list --plain 2>/dev/null | awk '
   /^In Progress:/ {s = 1; next} /^Ready:/ {s = 2; next} /^Backlog:/ {s = 3; next} /^[A-Za-z]/ {s = 0}
-  s && /ZN-/ && (!(s in first)) {first[s] = $1}
-  s == 3 && /ZN-/ {all = all " " $1}
+  s && /ZN-/ && (!(s in first)) {match($0, /ZN-[0-9]+/); first[s] = substr($0, RSTART, RLENGTH)}
+  s == 3 && /ZN-/ {match($0, /ZN-[0-9]+/); all = all " " substr($0, RSTART, RLENGTH)}
   END { if (first[1]) print first[1]; else if (first[2]) print first[2]; else print "ORD" all }')
 case $id in ORD*)  # lowest ordinal among the Backlog tasks (ids are not in plan order)
   best=; bo=999999999
