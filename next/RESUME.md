@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, M1 (gate decision `docs/decisions/0015-zinc-next-m1-gate.md`), ZN-012 classes (inheritance, interfaces, closed-world layout and dispatch through IR, ZBC and VM).
-- Ready: none; next by ordinal is ZN-013 (Generics, unions, tuples, destructuring). Nothing in progress.
+- Done: M0, M1 (gate decision 0015), ZN-012 classes, ZN-013 generics, tuples, destructuring, unions and null (see the notes below).
+- Ready: none; next by ordinal is ZN-014 (Closures and captured cells). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-013.
+`/loop /zn-start` resumes with ZN-014.
 
 ## Watch out
 
@@ -34,6 +34,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 | ZN-009 | ~100k in / ~4M cached / ~50k out (same session, incremental; size M) |
 | M1 | ZN-010 | ~90k in / ~3M cached / ~45k out (same session, incremental; size M) |
 | M2 | ZN-012 | ~130k in / ~7M cached / ~65k out (same session; size L; includes 28-snippet adversarial rounds and an ASan-found parser bug) |
+| M2 | ZN-013 | ~600k in / ~18M cached / ~150k out (same session; size L; includes 150+ adversarial snippets and three review rounds) |
 
 ## Lexer notes (ZN-004)
 
