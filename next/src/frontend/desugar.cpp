@@ -109,10 +109,12 @@ struct Desugar {
     std::string L = fresh("__loop"), NX = fresh("__next");
     std::string again = callK(update != kNone ? NX : L);
     Ctx lc = c;
-    lc.brk = kt + " return;";
+    std::string release = L + " = (): void => { };";  // the loop's lambda names itself: drop that reference when the loop ends so nothing is left in a cycle
+    lc.brk = release + " " + kt + " return;";
     lc.cont = again;
     Holes h{{}, {}, S(body, lc, again)};
     std::string text = "let " + L + ": () => void = (): void => { };\n";
+    if (gen) text += "__g.onClose.push((): void => { " + L + " = (): void => { }; });\n";  // a generator abandoned in the middle of this loop lets go of it
     if (update != kNone) {
       h[1] = {exprStmt(update)};
       text += "const " + NX + " = (): void => { " + (c.rej.empty() ? "__H1; " : "try { __H1; } catch (__eu) { " + c.rej + "(__eu); return; } ") + callK(L) + " };\n";
@@ -120,7 +122,7 @@ struct Desugar {
     Id test = cond;
     if (test == kNone) test = expr("true");
     h[0] = {test};
-    text += L + " = (): void => { " + wrap(c, "if (!(__H0)) { " + kt + " return; } __H2;") + " };\n" + callK(L);
+    text += L + " = (): void => { " + wrap(c, "if (!(__H0)) { " + release + " " + kt + " return; } __H2;") + " };\n" + callK(L);
     Ids r = sn(text, h);
     out.insert(out.end(), r.begin(), r.end());
   }

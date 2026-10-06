@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify), ZN-038 (language gaps), ZN-039 (Dyn). Ready: next by ordinal is ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. Next by ordinal: see `tools/next-task` (ZN-022 AOT is M4) (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-021.
+`/loop /zn-start` resumes with `next/tools/next-task` (M3 is complete).
 
 ## Watch out
 
@@ -195,7 +195,7 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Checker: `Promise<void>` is the class `PromiseV` (rewritten syntactically); `p.then/p.catch` become `__then/__thenV/__thenFromV/__thenVV/__catch/__catchV` (receiver kind and callback result decide); `__await` becomes `__awaitV` for a PromiseV; `Promise.resolve/all` become `__resolved(V)/__all`.
 - Supported positions of `await`/`yield`: statement, variable initialiser, assignment (any operator), returned value, inside blocks, if, while, for, for-of over arrays, try/catch. Everything else (finally around await, switch, expressions, async arrows/methods, async generators, `yield` as a value) is Z0005.
 - Generators are lazy: `next()` runs continuations until one sets `value`; `Generator.next(): boolean` and `value[0]` differ from JS iterator results, `for...of` is the supported way to consume them. A loop that skips yields recurses once per skipped iteration in async mode only (generators trampoline through `cont`).
-- Known: rewritten loops are self-referencing closures, so async programs leak under ZN_LEAK_CHECK (async.ts, generators.ts are in the `cyclic` list of tests/t1/rc.sh) until a cycle strategy exists. `ZN_DUMP_AST=1` dumps the program tree after desugaring to stderr.
+- Rewritten loops are self-referencing closures: they reassign themselves to an empty lambda when the loop ends, and an abandoned generator (`break` in a for-of) calls `close()`, which releases them (`onClose`). Leak-free under ZN_LEAK_CHECK. `ZN_DUMP_AST=1` dumps the program tree after desugaring to stderr.
 - Tests: goldens `tests/golden/run/{async,generators}`, errors `tests/golden/checker/errors/{await_position,generator_no_type,async_arrow}`, T1 conformance runs `tests/conformance/async.ts` against `corpus/conformance/async.out`.
 
 ## ZN-037 notes (library gaps)

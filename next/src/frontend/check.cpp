@@ -1817,7 +1817,7 @@ struct Checker {
         if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) == 0) {  // pull values lazily: while (g.next()) { const x = g.value[0]; ... }
           std::string g = "__g" + std::to_string(s);
           const Node& d0 = n(x.kids[0]);
-          auto r = snippet(a, "{ const " + g + " = __H0; while (" + g + ".next()) { " + std::string(x.text) + " " + std::string(d0.text) + " = " + g + ".value[0]; __H1; } }", {{x.kids[1]}, {x.kids[2]}}, s);
+          auto r = snippet(a, "{ const " + g + " = __H0; while (" + g + ".next()) { " + std::string(x.text) + " " + std::string(d0.text) + " = " + g + ".value[0]; __H1; } " + g + ".close(); }", {{x.kids[1]}, {x.kids[2]}}, s);
           out.nodeType.resize(a.nodes.size(), kNoType);
           out.nodeSym.resize(a.nodes.size(), kNone);
           if (r.empty()) break;

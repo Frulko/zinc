@@ -278,6 +278,14 @@ class Generator<T> {
   done: boolean = false;
   value: T[] = [];
   cont: () => void = () => { };
+  onClose: (() => void)[] = [];
+  close(): void {  // abandon the generator: its continuation no longer holds it, and the loops it was in let go of themselves
+    this.done = true;
+    this.cont = () => { };
+    const fs = this.onClose;
+    this.onClose = [];
+    for (const f of fs) f();
+  }
   next(): boolean {
     this.value = [];
     while (!this.done && this.value.length === 0) {
