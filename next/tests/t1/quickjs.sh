@@ -1,14 +1,14 @@
 #!/bin/sh
 # QuickJS engine (ZN-051): the programs of the golden corpus that need no typed features print the frozen output on QuickJS-ng (types stripped),
 # and a zinc:gfx program draws the pixels of its golden through the host calls generated from the runtime table.
-# Not run on QuickJS: inspect_cycles (`<ref *1>` markers), and the M3 programs that rely on i32 / f32 arithmetic, Dyn corners or the typed clock (tour, features, dyn, dyn_unknown, clock).
+# Not run on QuickJS: inspect_cycles (`<ref *1>` markers), u64_literals (JavaScript numbers are doubles), and the M3 programs that rely on i32 / f32 arithmetic, Dyn corners or the typed clock (tour, features, dyn, dyn_unknown, clock).
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for f in tests/golden/run/*.ts; do
   b=$(basename "$f" .ts)
   [ -f "tests/golden/run/$b.out" ] || continue
-  [ "$b" = inspect_cycles ] && continue
+  case "$b" in inspect_cycles|u64_literals) continue ;; esac  # no <ref> markers; JavaScript numbers are doubles, so 64-bit integer literals differ
   "$ZINC" run "$f" --engine quickjs 2>/dev/null | cmp -s - "tests/golden/run/$b.out" || { echo "$b differs on quickjs"; fail=1; }
 done
 for b in array_search async conversions dyn_literals errors generic_static literal_errors literal_member_arrays pinball_physics regressions regressions2 shapes string_number_edges; do
