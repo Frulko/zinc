@@ -197,6 +197,7 @@ struct Checker {
         break;
       }
       case N::TypeArray: r = arrayOf(annotation(x.kids[0])); break;
+      case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       default: diag(kZUnsupported, t, "this type syntax"); break;
     }
     out.nodeType[t] = r;
@@ -410,6 +411,16 @@ struct Checker {
         return out.syms[s].type;
       }
       case N::Array: {
+        if (expected != kNoType && isTupleType(expected)) {  // a tuple literal: each element against its position
+          const ObjInfo& to = out.objs[ty(expected).obj];
+          if (x.kids.size() != to.members.size()) { diag(kZNotAssignable, i, "a literal of " + std::to_string(x.kids.size()) + " element(s) to '" + to.name + "'"); for (std::uint32_t e : x.kids) expr(e); return expected; }
+          for (std::size_t k = 0; k < x.kids.size(); ++k) {
+            if (n(x.kids[k]).kind == N::Spread) { diag(kZUnsupported, x.kids[k], "spread in tuple literals"); continue; }
+            TypeId et = to.members[k].type;
+            require(expr(x.kids[k], et), et, x.kids[k]);
+          }
+          return expected;
+        }
         TypeId el = (expected != kNoType && ty(expected).k == TK::Array) ? ty(expected).elem : kNoType;
         if (x.kids.empty()) {
           if (el == kNoType) { diag(kZCannotInfer, i, "empty array literal"); return tError; }
@@ -449,6 +460,19 @@ struct Checker {
       }
       case N::Assign: {
         std::uint32_t target = x.kids[0], value = x.kids[1];
+        if (n(target).kind == N::ArrayPattern) {  // [a, b] = value
+          if (x.text != "=") { diag(kZBadAssignTarget, target, ""); return tError; }
+          std::vector<TypeId> hint;  // the targets' own types shape a literal on the right
+          bool known = true;
+          for (std::uint32_t e : std::vector<std::uint32_t>(n(target).kids)) {
+            N ek = n(e).kind;
+            if (ek == N::Ident || ek == N::Member || ek == N::Index) { TypeId tt = expr(e); hint.push_back(tt); }
+            else known = false;
+          }
+          TypeId vt = expr(value, known ? tupleOf(hint) : kNoType);
+          bindPattern(target, vt, false, false);
+          return vt;
+        }
         pendingExempt = x.text == "=";  // the target of a plain assignment is written, not read
         TypeId tt = expr(target);
         pendingExempt = false;
@@ -523,6 +547,14 @@ struct Checker {
         TypeId ot = expr(x.kids[0]), it = expr(x.kids[1]);
         ot = appOrDiag(ot, x.kids[0]); it = appOrDiag(it, x.kids[1]);
         if (bad(ot) || bad(it)) return tError;
+        if (isTupleType(ot)) {  // t[0]: the index must be a constant inside the tuple
+          const Node& ix = n(x.kids[1]);
+          const ObjInfo& to = out.objs[ty(ot).obj];
+          if (ix.kind != N::Number || !isIntLit(a, x.kids[1])) { diag(kZNotIndexable, x.kids[1], "a tuple is indexed with a constant"); return tError; }
+          std::size_t k = static_cast<std::size_t>(std::strtoull(std::string(ix.text).c_str(), nullptr, 10));
+          if (k >= to.members.size()) { diag(kZNotAssignable, x.kids[1], "index " + std::to_string(k) + " of '" + to.name + "'"); return tError; }
+          return to.members[k].type;
+        }
         if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
         if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "'" + name(it) + "' to 'number'"); return tError; }
         return ty(ot).elem;
@@ -569,9 +601,94 @@ struct Checker {
     return t;
   }
 
+  // ---- destructuring: declare (or assign) the targets of a pattern from a value of type `vt`
+  void declareErrorTargets(std::uint32_t pat, bool isDecl, bool isConst) {
+    const Node& p = n(pat);
+    for (std::uint32_t k : std::vector<std::uint32_t>(p.kids)) {
+      std::uint32_t e = k;
+      if (n(e).kind == N::PatProp || n(e).kind == N::Spread) e = n(e).kids[0];
+      if (n(e).kind == N::ArrayPattern || n(e).kind == N::ObjectPattern) declareErrorTargets(e, isDecl, isConst);
+      else if (n(e).kind == N::Ident && isDecl) out.nodeSym[e] = declare(SymKind::Var, n(e).text, tError, e, isConst, e);
+    }
+  }
+  // An array literal that is destructured right away is a tuple (its nested literals too, following the pattern).
+  TypeId literalAsTuple(std::uint32_t lit, std::uint32_t pat) {
+    std::vector<TypeId> es;
+    const std::vector<std::uint32_t> elems = n(lit).kids, pats = n(pat).kids;
+    for (std::size_t k = 0; k < elems.size(); ++k) {
+      std::uint32_t e = elems[k];
+      if (n(e).kind == N::Spread) { diag(kZUnsupported, e, "spread elements"); es.push_back(tError); continue; }
+      if (n(e).kind == N::Array && k < pats.size() && n(pats[k]).kind == N::ArrayPattern) es.push_back(literalAsTuple(e, pats[k]));
+      else es.push_back(expr(e));
+    }
+    TypeId t = tupleOf(es);
+    out.nodeType[lit] = t;
+    return t;
+  }
+  void bindTarget(std::uint32_t target, TypeId t, bool isDecl, bool isConst) {
+    const Node& x = n(target);
+    out.nodeType[target] = t;
+    if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(target, t, isDecl, isConst); return; }
+    if (x.kind == N::Ident && isDecl) { out.nodeSym[target] = declare(SymKind::Var, x.text, t, target, isConst, target); return; }
+    TypeId tt = expr(target);  // assignment to an existing variable, member or element
+    lvalue(target);
+    require(t, tt, target);
+  }
+  void bindPattern(std::uint32_t pat, TypeId vt, bool isDecl, bool isConst) {
+    const Node& p = n(pat);
+    out.nodeType[pat] = vt;
+    if (bad(vt)) { declareErrorTargets(pat, isDecl, isConst); return; }
+    TypeId va = appOrDiag(vt, pat);
+    if (bad(va)) { declareErrorTargets(pat, isDecl, isConst); return; }
+    if (p.kind == N::ArrayPattern) {
+      bool tup = isTupleType(va), arr = ty(va).k == TK::Array;
+      if (!tup && !arr) { diag(kZNotIndexable, pat, "'" + name(vt) + "' cannot be destructured as an array"); declareErrorTargets(pat, isDecl, isConst); return; }
+      const std::vector<std::uint32_t> elems = p.kids;
+      for (std::size_t k = 0; k < elems.size(); ++k) {
+        std::uint32_t e = elems[k];
+        if (n(e).kind == N::Empty) continue;
+        if (n(e).kind == N::Spread) {
+          if (tup) { diag(kZUnsupported, e, "rest elements of a tuple"); declareErrorTargets(pat, isDecl, isConst); continue; }
+          bindTarget(n(e).kids[0], va, isDecl, isConst);  // the rest of an array is an array
+          continue;
+        }
+        if (tup && k >= out.objs[ty(va).obj].members.size()) {
+          diag(kZNotAssignable, e, "'" + name(va) + "' has no element " + std::to_string(k));
+          std::vector<std::uint32_t> one{e};
+          bindTarget(e, tError, isDecl, isConst);
+          continue;
+        }
+        bindTarget(e, tup ? out.objs[ty(va).obj].members[k].type : ty(va).elem, isDecl, isConst);
+      }
+      return;
+    }
+    // object pattern: the properties of a class or interface instance
+    if (ty(va).k != TK::Object || isTupleType(va)) { diag(kZNotIndexable, pat, "'" + name(vt) + "' cannot be destructured as an object"); declareErrorTargets(pat, isDecl, isConst); return; }
+    for (std::uint32_t pp : std::vector<std::uint32_t>(p.kids)) {
+      const Node& pn = n(pp);
+      const Member* m = findMember(va, pn.text);
+      TypeId et = tError;
+      if (!m || m->method) diag(kZNoSuchProperty, pp, "'" + std::string(pn.text) + "' on '" + name(va) + "'");
+      else { if (!accessible(*m)) diag(kZNotAccessible, pp, "'" + std::string(pn.text) + "'"); et = m->type; }
+      out.nodeType[pp] = et;
+      bindTarget(pn.kids[0], et, isDecl, isConst);
+    }
+  }
+
   void varDecl(std::uint32_t d, bool isConst) {
     const Node& x = n(d);
     std::uint32_t ann = x.kids[0], init = x.kids[1];
+    if (x.kids.size() > 2 && x.kids[2] != kNone) {  // const [a, b] = ... / const {x, y} = ...
+      std::uint32_t pat = x.kids[2];
+      TypeId t = tError;
+      if (init == kNone) diag(kZUnsupported, d, "destructuring declarations without an initializer");
+      else if (ann != kNone) { t = annotation(ann); require(expr(init, t), t, init); }
+      else if (n(init).kind == N::Array && n(pat).kind == N::ArrayPattern) t = literalAsTuple(init, pat);  // a literal destructured at once is a tuple
+      else t = expr(init);
+      out.nodeType[d] = t;
+      bindPattern(pat, t, true, isConst);
+      return;
+    }
     TypeId t = tError;
     if (init == kNone) diag(kZUnsupported, d, "declarations without an initializer");
     if (ann != kNone) {
@@ -616,7 +733,8 @@ struct Checker {
         push();
         const Node& d = n(x.kids[0]);
         out.nodeType[x.kids[0]] = el;
-        out.nodeSym[x.kids[0]] = declare(SymKind::Var, d.text, el, x.kids[0], x.text == "const", x.kids[0]);
+        if (d.kids.size() > 2 && d.kids[2] != kNone) bindPattern(d.kids[2], el, true, x.text == "const");
+        else out.nodeSym[x.kids[0]] = declare(SymKind::Var, d.text, el, x.kids[0], x.text == "const", x.kids[0]);
         ++loops; statement(x.kids[2]); --loops;
         pop();
         break;
@@ -674,13 +792,35 @@ struct Checker {
     for (std::size_t k = 0; k < params.size(); ++k) {
       const Node& p = n(params[k]);
       if (p.kids[1] != kNone) require(expr(p.kids[1], ft.params[k]), ft.params[k], p.kids[1]);
-      out.nodeSym[params[k]] = declare(SymKind::Param, p.text, ft.params[k], params[k], false, params[k]);
+      if (p.kids.size() > 2 && p.kids[2] != kNone) bindPattern(p.kids[2], ft.params[k], true, false);
+      else out.nodeSym[params[k]] = declare(SymKind::Param, p.text, ft.params[k], params[k], false, params[k]);
     }
     stmtList(n(f.kids[1]).kids);
     pop();
     if (!isCtor && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
   }
+
+  // ---- tuples: an anonymous class per distinct element list, fields named 0, 1, ...
+  std::map<std::vector<TypeId>, std::uint32_t> tupleObjs;
+  TypeId tupleOf(const std::vector<TypeId>& elems) {
+    auto it = tupleObjs.find(elems);
+    if (it != tupleObjs.end()) return objType(it->second);
+    ObjInfo info;
+    info.isClass = true; info.isTuple = true;
+    info.name = "[";
+    for (std::size_t i = 0; i < elems.size(); ++i) info.name += (i ? ", " : "") + name(elems[i]);
+    info.name += "]";
+    bool tmpl = false;
+    for (TypeId e : elems) tmpl = tmpl || hasParam(e);
+    info.isTemplate = tmpl;
+    auto oi = static_cast<std::uint32_t>(out.objs.size());
+    for (std::size_t i = 0; i < elems.size(); ++i) { Member m; m.name = std::to_string(i); m.type = elems[i]; m.owner = oi; info.members.push_back(std::move(m)); }
+    out.objs.push_back(std::move(info));
+    tupleObjs[elems] = oi;
+    return objType(oi);
+  }
+  bool isTupleType(TypeId t) const { return ty(t).k == TK::Object && out.objs[ty(t).obj].isTuple; }
 
   // ---- generics: templates are checked once over opaque type parameters, then instantiated by cloning their nodes
   struct GenericDecl {

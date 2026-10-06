@@ -319,6 +319,14 @@ struct Lowering {
           std::uint32_t cs = c.nodeSym[x.kids[0]];
           if (cs != kNil && c.syms[cs].kind == SymKind::Class) instantiated[c.types[c.syms[cs].type].obj] = 1;
         }
+        if (pass == 0 && (x.kind == N::Declarator || x.kind == N::Param) && x.kids.size() > 2 && x.kids[2] != kNil) {  // identifiers bound by a pattern
+          std::function<void(std::uint32_t)> own = [&](std::uint32_t pn) {
+            const Node& q = n(pn);
+            if (q.kind == N::Ident) { if (c.nodeSym[pn] != kNil) { ownerFn[c.nodeSym[pn]] = cur; topLevel[c.nodeSym[pn]] = top && x.kind == N::Declarator; } return; }
+            for (std::uint32_t k : q.kids) if (k != kNil) own(k);
+          };
+          own(x.kids[2]);
+        }
         if ((x.kind == N::Declarator || x.kind == N::Param) && c.nodeSym[i] != kNil && pass == 0) {
           ownerFn[c.nodeSym[i]] = cur;
           topLevel[c.nodeSym[i]] = top && x.kind == N::Declarator;
@@ -510,6 +518,7 @@ struct Lowering::FnLower {
 
   TypeId natural(std::uint32_t node) { return L.irType(c.nodeType[node], node); }
   bool isNumTy(TypeId t) const { return ty(t).k == Type::K::Num; }
+  bool isTupleObj(frontend::TypeId t) const { return c.types[t].k == frontend::TK::Object && c.objs[c.types[t].obj].isTuple; }
 
   ValueId exprTo(std::uint32_t node, TypeId want) { return coerce(expr(node, want), want); }
 
@@ -596,6 +605,15 @@ struct Lowering::FnLower {
         return readSym(s);
       }
       case N::Array: {
+        if (isTupleObj(c.nodeType[i])) {  // a tuple literal: a fresh object with one field per element
+          std::uint32_t obj = c.types[c.nodeType[i]].obj, cls = L.classOfObj[obj];
+          ValueId o = emit(IrOp::New, m.refT(cls), {}, 0, 0, cls);
+          for (std::size_t k = 0; k < x.kids.size(); ++k) {
+            TypeId ft = m.classes[cls].fields[k].type;
+            emit(IrOp::SetField, m.voidT(), {o, exprTo(x.kids[k], ft)}, 0, 0, static_cast<std::uint32_t>(k));
+          }
+          return o;
+        }
         TypeId at = natural(i);
         TypeId el = ty(at).aux;
         ValueId arr = emit(IrOp::ArrNew, at);
@@ -639,6 +657,11 @@ struct Lowering::FnLower {
         return x.kind == N::UpdatePre ? nv : old;
       }
       case N::Assign: {
+        if (n(x.kids[0]).kind == N::ArrayPattern) {  // [a, b] = value: the value is evaluated before any target is written
+          ValueId v = expr(x.kids[1]);
+          bindPattern(x.kids[0], v);
+          return v;
+        }
         LVal lv = lvalue(x.kids[0]);
         ValueId nv;
         if (x.text == "=") nv = exprTo(x.kids[1], lv.type);
@@ -701,6 +724,11 @@ struct Lowering::FnLower {
         return emit(IrOp::GetField, natural(i), {obj}, 0, 0, fi);
       }
       case N::Index: {
+        if (isTupleObj(c.nodeType[x.kids[0]])) {  // t[k] with a constant k: a field
+          ValueId obj = expr(x.kids[0]);
+          auto k = static_cast<std::uint32_t>(std::strtoull(std::string(n(x.kids[1]).text).c_str(), nullptr, 10));
+          return emit(IrOp::GetField, natural(i), {obj}, 0, 0, k);
+        }
         ValueId arr = expr(x.kids[0]);
         ValueId idx = exprTo(x.kids[1], m.numT(NumK::i32));
         return emit(IrOp::ArrGet, natural(i), {arr, idx});
@@ -727,6 +755,12 @@ struct Lowering::FnLower {
       lv.k = LVal::Field;
       lv.obj = expr(x.kids[0]);
       lv.field = L.fieldIndex(c.types[c.nodeType[x.kids[0]]].obj, x.text);
+      return lv;
+    }
+    if (isTupleObj(c.nodeType[x.kids[0]])) {
+      lv.k = LVal::Field;
+      lv.obj = expr(x.kids[0]);
+      lv.field = static_cast<std::uint32_t>(std::strtoull(std::string(n(x.kids[1]).text).c_str(), nullptr, 10));
       return lv;
     }
     lv.k = LVal::Elem;
@@ -838,8 +872,48 @@ struct Lowering::FnLower {
   }
 
   // ---- statements
+  // ---- destructuring: write the elements or properties of `v` into the pattern's targets
+  void assignTarget(std::uint32_t node, ValueId val) {
+    const Node& x = n(node);
+    if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(node, val); return; }
+    if (x.kind == N::Ident) {
+      std::uint32_t sym = c.nodeSym[node];
+      writeSym(sym, coerce(val, L.irType(c.syms[sym].type)));
+      return;
+    }
+    LVal lv = lvalue(node);
+    store(lv, val);
+  }
+  void bindPattern(std::uint32_t pat, ValueId v) {
+    const Node& p = n(pat);
+    frontend::TypeId vt = c.nodeType[pat];
+    const frontend::Type& ct = c.types[vt];
+    if (p.kind == N::ArrayPattern) {
+      bool tup = isTupleObj(vt);
+      for (std::size_t k = 0; k < p.kids.size(); ++k) {
+        std::uint32_t e = p.kids[k];
+        if (n(e).kind == N::Empty) continue;
+        if (n(e).kind == N::Spread) { unsupported(e, "rest patterns"); continue; }
+        ValueId elem;
+        if (tup) elem = emit(IrOp::GetField, L.irType(c.objs[ct.obj].members[k].type), {v}, 0, 0, static_cast<std::uint32_t>(k));
+        else elem = emit(IrOp::ArrGet, L.irType(ct.elem), {v, constNum(m.numT(NumK::i32), static_cast<double>(k))});
+        assignTarget(e, elem);
+      }
+      return;
+    }
+    for (std::uint32_t pp : p.kids) {  // {a, b: x}: fields of a class instance
+      std::uint32_t fi = L.fieldIndex(ct.obj, n(pp).text);
+      ValueId prop = emit(IrOp::GetField, L.irType(c.nodeType[pp]), {v}, 0, 0, fi);
+      assignTarget(n(pp).kids[0], prop);
+    }
+  }
+
   void declare(std::uint32_t d, bool) {
     const Node& x = n(d);
+    if (x.kids.size() > 2 && x.kids[2] != kNil) {  // const [a, b] = ... / const {x, y} = ...
+      bindPattern(x.kids[2], expr(x.kids[1]));
+      return;
+    }
     std::uint32_t s = c.nodeSym[d];
     TypeId t = L.irType(c.syms[s].type, d);
     ValueId v = exprTo(x.kids[1], t);
@@ -939,8 +1013,8 @@ struct Lowering::FnLower {
         sealed[body] = 1;
         cur = body;
         ValueId elem = emit(IrOp::ArrGet, ty(tv(arr)).aux, {readVar(arrVar, cur), readVar(idxVar, cur)});
-        std::uint32_t es = c.nodeSym[x.kids[0]];
-        writeSym(es, elem);
+        if (n(x.kids[0]).kids.size() > 2 && n(x.kids[0]).kids[2] != kNil) bindPattern(n(x.kids[0]).kids[2], elem);
+        else writeSym(c.nodeSym[x.kids[0]], elem);
         loopBody(x.kids[2], exit, update);
         br(update);
         seal(update);
@@ -1047,6 +1121,7 @@ struct Lowering::FnLower {
     if (fn && fn->kind != N::Class) {  // Function or Method: parameters become variables
       for (std::size_t k = 0; k < fn->kids.size() - 2; ++k) {
         std::uint32_t p = fn->kids[2 + k];
+        if (n(p).kids.size() > 2 && n(p).kids[2] != kNil) { bindPattern(n(p).kids[2], f.params[first + k]); continue; }
         std::uint32_t ps = c.nodeSym[p];
         if (ps != kNil && !L.global[ps]) writeVar(ps, f.params[first + k]);
         if (n(p).kids[1] != kNil) L.unsupported(p, "default parameter values in the IR");

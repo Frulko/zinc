@@ -70,6 +70,63 @@ struct Parser {
     return t.size() - 1;
   }
 
+  // ---- binding patterns: [a, [b, c], ...rest] and {a, b: x, c: [d, e]}
+  std::uint32_t bindingTarget() {
+    std::uint32_t st = cur().start;
+    if (isP("[")) return arrayPattern();
+    if (isP("{")) return objectPattern();
+    if (cur().kind != Tok::Ident) unexpected();
+    std::string_view name = txt(); ++i;
+    return mk(N::Ident, st, prevEnd(), name);
+  }
+  std::uint32_t arrayPattern() {
+    std::uint32_t st = cur().start;
+    ++i;  // [
+    std::vector<std::uint32_t> elems;
+    while (!isP("]")) {
+      std::uint32_t es = cur().start;
+      if (isP(",")) { elems.push_back(mk(N::Empty, es, es)); ++i; continue; }  // a hole
+      if (eatP("...")) { std::uint32_t t = bindingTarget(); elems.push_back(mk(N::Spread, es, prevEnd(), {}, {t})); }
+      else elems.push_back(bindingTarget());
+      if (isP("=")) unsupported("default values in patterns");
+      if (!eatP(",")) break;
+    }
+    expectP("]");
+    return mk(N::ArrayPattern, st, prevEnd(), {}, std::move(elems));
+  }
+  std::uint32_t objectPattern() {
+    std::uint32_t st = cur().start;
+    ++i;  // {
+    std::vector<std::uint32_t> props;
+    while (!isP("}")) {
+      std::uint32_t ps = cur().start;
+      if (isP("...")) unsupported("object rest patterns");
+      if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword) unexpected();
+      std::string_view key = txt();
+      std::uint32_t target;
+      if (at(1).kind == Tok::Punct && txt(at(1)) == ":") { i += 2; target = bindingTarget(); }
+      else { std::uint32_t is = cur().start; ++i; target = mk(N::Ident, is, prevEnd(), key); }  // shorthand {a}
+      if (isP("=")) unsupported("default values in patterns");
+      props.push_back(mk(N::PatProp, ps, prevEnd(), key, {target}));
+      if (!eatP(",")) break;
+    }
+    expectP("}");
+    return mk(N::ObjectPattern, st, prevEnd(), {}, std::move(props));
+  }
+  // An array literal on the left of `=` becomes an assignment pattern (targets may be members and elements).
+  void toAssignPattern(std::uint32_t id) {
+    Node& nd = r.ast.nodes[id];
+    if (nd.kind == N::Array) {
+      nd.kind = N::ArrayPattern;
+      for (std::uint32_t k : std::vector<std::uint32_t>(nd.kids)) {
+        N kk = r.ast.nodes[k].kind;
+        if (kk == N::Array) toAssignPattern(k);
+        else if (kk == N::Spread) { toAssignPattern(r.ast.nodes[k].kids[0]); }
+        else if (kk != N::Ident && kk != N::Member && kk != N::Index) fail(kZBadAssignTarget, r.ast.nodes[k].start, "");
+      }
+    } else if (nd.kind != N::Ident && nd.kind != N::Member && nd.kind != N::Index) fail(kZBadAssignTarget, nd.start, "");
+  }
+
   std::uint32_t param(bool inType) {
     std::uint32_t st = cur().start;
     bool rest = eatP("...");
@@ -78,10 +135,14 @@ struct Parser {
       pflags |= isId("public") ? kFlagPublic : isId("private") ? kFlagPrivate : isId("protected") ? kFlagProtected : kFlagReadonly;
       ++i;
     }
-    if (cur().kind != Tok::Ident && !(inType && cur().kind == Tok::Keyword && isKw("this"))) {
-      if (isP("{") || isP("[")) unsupported("destructuring parameters");
-      unexpected();
+    if (!inType && !rest && (isP("{") || isP("["))) {  // destructured parameter
+      std::uint32_t pat = bindingTarget();
+      std::uint32_t ty2 = kNone;
+      if (eatP(":")) ty2 = type();
+      if (isP("=")) unsupported("default values for destructured parameters");
+      return mk(N::Param, st, prevEnd(), {}, {ty2, kNone, pat});
     }
+    if (cur().kind != Tok::Ident && !(inType && cur().kind == Tok::Keyword && isKw("this"))) unexpected();
     std::string_view name = txt();
     if (rest) name = s.substr(st, cur().end - st);
     ++i;
@@ -215,7 +276,8 @@ struct Parser {
     Op op = operatorAt();
     if (op.ntoks && isAssignOp(op.text)) {
       N k = r.ast.nodes[lhs].kind;
-      if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(lhs), "");
+      if (k == N::Array && op.text == "=") toAssignPattern(lhs);
+      else if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(lhs), "");
       i += op.ntoks;
       std::uint32_t rhs = assignment();
       return mk(N::Assign, startOf(lhs), endOf(rhs), op.text, {lhs, rhs});
@@ -433,7 +495,14 @@ struct Parser {
 
   std::uint32_t declarator() {
     std::uint32_t st = cur().start;
-    if (cur().kind != Tok::Ident) { if (isP("[") || isP("{")) unsupported("destructuring"); unexpected(); }
+    if (isP("[") || isP("{")) {  // destructuring declaration
+      std::uint32_t pat = bindingTarget();
+      std::uint32_t ty2 = kNone, init2 = kNone;
+      if (eatP(":")) ty2 = type();
+      if (eatP("=")) init2 = assignment();
+      return mk(N::Declarator, st, prevEnd(), {}, {ty2, init2, pat});
+    }
+    if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
     std::uint32_t ty = kNone, init = kNone;
     if (eatP(":")) ty = type();
@@ -670,11 +739,26 @@ struct Parser {
     ++i;  // for
     if (isId("await")) unsupported("for await");
     expectP("(");
-    if (atVarDecl() && at(1).kind == Tok::Ident && (isId("of", 2) || (at(2).kind == Tok::Keyword && txt(at(2)) == "in"))) {
+    // `for (const x of ...)` and `for (const [a, b] of ...)`: find where the binding ends
+    std::size_t afterBinding = 0;
+    if (atVarDecl()) {
+      if (at(1).kind == Tok::Ident) afterBinding = 2;
+      else if (isP("[", 1) || isP("{", 1)) {
+        int depth = 0;
+        std::size_t k = 1;
+        for (; i + k < t.size(); ++k) {
+          const Token& tk = t[i + k];
+          if (tk.kind == Tok::Punct) { std::string_view p = txt(tk); if (p == "[" || p == "{") ++depth; else if (p == "]" || p == "}") { if (--depth == 0) { ++k; break; } } }
+        }
+        afterBinding = k;
+      }
+    }
+    if (afterBinding && (isId("of", afterBinding) || (at(afterBinding).kind == Tok::Keyword && txt(at(afterBinding)) == "in"))) {
       std::string_view kind = txt(); ++i;
       std::uint32_t ds = cur().start;
-      std::string_view name = txt(); ++i;
-      std::uint32_t d = mk(N::Declarator, ds, prevEnd(), name, {kNone, kNone});
+      std::uint32_t d;
+      if (isP("[") || isP("{")) { std::uint32_t pat = bindingTarget(); d = mk(N::Declarator, ds, prevEnd(), {}, {kNone, kNone, pat}); }
+      else { std::string_view name = txt(); ++i; d = mk(N::Declarator, ds, prevEnd(), name, {kNone, kNone}); }
       bool isOf = isId("of");
       ++i;
       std::uint32_t it = isOf ? assignment() : expression();
@@ -763,7 +847,7 @@ const char* kindName(N k) {
       "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
-      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam"};
+      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp"};
   return names[static_cast<int>(k)];
 }
 

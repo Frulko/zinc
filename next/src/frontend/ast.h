@@ -20,9 +20,9 @@ enum class N : std::uint8_t {
   Block,      // [stmt...]
   Empty,      //
   VarDecl,    // text=let|const|var  [Declarator...]
-  Declarator, // text=name  [type|none, init|none]
+  Declarator, // text=name  [type|none, init|none, pattern?]; a destructuring declarator has empty text and a pattern as third kid
   Function,   // text=name  [returnType|none, body|none, Param...]
-  Param,      // text=name  [type|none, default|none]; text starts with "..." for a rest parameter
+  Param,      // text=name  [type|none, default|none, pattern?]; text starts with "..." for a rest parameter; empty text and a pattern for a destructured parameter
   Class,      // text=name  [extends TypeRef|none, Heritage|none (implements), Field|Method...]; flags: abstract
   Interface,  // text=name  [Heritage|none (extends), Field|Method...] (members are signatures)
   Heritage,   // [TypeRef...]
@@ -67,6 +67,10 @@ enum class N : std::uint8_t {
   TypeTuple,  // [element...]
   TypeLit,    // text=literal source
   TypeParam,  // text=name  [constraint type|none]; listed in Ast::tparams, not among the declaration's kids
+  // binding and assignment patterns
+  ArrayPattern,   // [target | Empty (hole) | Spread(target) ...]; a target is an Ident, a nested pattern or, in an assignment, a Member or Index
+  ObjectPattern,  // [PatProp...]
+  PatProp,        // text=property name  [target]
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.

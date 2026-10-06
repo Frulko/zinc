@@ -1,0 +1,217 @@
+Program
+  Class P
+    _
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt [synthetic]
+          Assign =
+            Member x
+              This
+            Ident x
+        ExprStmt [synthetic]
+          Assign =
+            Member y
+              This
+            Ident y
+      Param x [public]
+        TypeRef i32
+        _
+      Param y [public]
+        TypeRef i32
+        _
+    Field x [public]
+      TypeRef i32
+      _
+    Field y [public]
+      TypeRef i32
+      _
+  Function minmax
+    TypeTuple
+      TypeRef i32
+      TypeRef i32
+    Block
+      Return
+        Cond
+          Binary <
+            Ident a
+            Ident b
+          Array
+            Ident a
+            Ident b
+          Array
+            Ident b
+            Ident a
+    Param a
+      TypeRef i32
+      _
+    Param b
+      TypeRef i32
+      _
+  Function dist
+    TypeRef i32
+    Block
+      Return
+        Binary +
+          Binary +
+            Binary +
+              Ident ax
+              Ident ay
+            Ident x
+          Ident y
+    Param
+      TypeTuple
+        TypeRef i32
+        TypeRef i32
+      _
+      ArrayPattern
+        Ident ax
+        Ident ay
+    Param
+      TypeRef P
+      _
+      ObjectPattern
+        PatProp x
+          Ident x
+        PatProp y
+          Ident y
+  VarDecl const
+    Declarator t
+      TypeTuple
+        TypeRef i32
+        TypeRef f64
+      Array
+        Number 1
+        Number 2.5
+  VarDecl const
+    Declarator
+      _
+      Ident t
+      ArrayPattern
+        Ident a
+        Ident b
+  VarDecl const
+    Declarator
+      _
+      Call
+        Ident minmax
+        Number 5
+        Number 3
+      ArrayPattern
+        Ident lo
+        Ident hi
+  VarDecl let
+    Declarator x
+      TypeRef i32
+      Number 1
+  VarDecl let
+    Declarator y
+      TypeRef i32
+      Number 2
+  ExprStmt
+    Assign =
+      ArrayPattern
+        Ident x
+        Ident y
+      Array
+        Ident y
+        Ident x
+  VarDecl const
+    Declarator
+      _
+      New
+        Ident P
+        Number 7
+        Number 8
+      ObjectPattern
+        PatProp x
+          Ident px
+        PatProp y
+          Ident py
+  VarDecl const
+    Declarator
+      _
+      Array
+        Array
+          Number 1
+          Number 2
+        Number 3
+      ArrayPattern
+        ArrayPattern
+          Ident n1
+          Ident n2
+        Ident n3
+  ExprStmt
+    Assign =
+      Index
+        Ident t
+        Number 0
+      Number 9
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Ident a
+      Ident b
+      Ident lo
+      Ident hi
+      Ident x
+      Ident y
+      Ident px
+      Ident py
+      Call
+        Ident dist
+        Array
+          Number 1
+          Number 2
+        New
+          Ident P
+          Number 3
+          Number 4
+      Index
+        Ident t
+        Number 0
+      Index
+        Ident t
+        Number 1
+      Ident n1
+      Ident n2
+      Ident n3
+  VarDecl let
+    Declarator i
+      TypeRef i32
+      Number 0
+  VarDecl let
+    Declarator j
+      TypeRef i32
+      Number 10
+  For
+    VarDecl let
+      Declarator k
+        TypeRef i32
+        Number 0
+    Binary <
+      Ident k
+      Number 4
+    UpdatePost ++
+      Ident k
+    Block
+      ExprStmt
+        Assign =
+          ArrayPattern
+            Ident i
+            Ident j
+          Array
+            Binary -
+              Ident j
+              Ident k
+            Binary +
+              Ident i
+              Ident k
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Ident i
+      Ident j
