@@ -318,3 +318,7 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Window: `zinc run app.tsx` opens the SDL3 window (live) unless `ZINC_HEADLESS`, `ZINC_DETERMINISTIC`, `ZINC_RECORD`, `ZINC_REPLAY` or no SDL3; `src/host/hal_dispatch.cpp` forwards to `sdl_hal_*` or `null_hal_*` (the old HAL files compiled with renamed functions, see CMakeLists). `zinc build` programs link SDL3 through `ZN_HOST_LIBS`. Scripted input for headless runs: `ZINC_INPUT=file` (see `docs/reports/zinc-next-window.md`).
 - Tests: T1 `input.sh`, T2 `input_aot.sh`; goldens `tests/golden/ui/{click,type}`. Not done: images and offscreen (`createImage`, `beginImage`) in zinc:gfx; mouse and keyboard through the OS were not driven by a test.
 - Next by ordinal: ZN-048 (bake fonts and images in the engine).
+
+## ZN-048 notes (Done)
+- `src/res/res.cpp` bakes fonts and images from the program's own texts (see `docs/reports/zinc-next-resources.md`); the frozen `src/host/baked_resources.cpp` is gone. `zinc bake <prog> -o blob.bin` dumps the blob; `tests/t0/res_check.py` compares it with `tests/golden/res/expected.json` (made once with the old Node tool: bit-identical). stb_image is vendored in `third_party/stb`.
+- Next by ordinal: ZN-049 (host modules apps need: fs, storage, net, os, timers; the examples must compile), ZN-050 (the app shell).

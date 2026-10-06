@@ -3,6 +3,7 @@
 // their parameter letters; the engine decodes the arguments into HostArg values and calls `hostGfx` with the entry's id (an
 // `zn::Rt` value). `src/host` provides the function by linking the existing runtime (runtime/gfx.cpp, raster, zrt). When none is
 // installed the calls trap with a clear message.
+#include <cstddef>
 #include <cstdint>
 
 namespace zn::host {
@@ -21,5 +22,7 @@ using HostCall = void (*)(int id, const HostArg* args, HostArg* result);
 extern HostCall hostGfx;
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();
+// Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
+bool installResources(const std::uint8_t* blob, std::size_t size);
 
 }  // namespace zn::host

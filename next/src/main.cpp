@@ -18,6 +18,7 @@
 #include "aot/aot.h"
 #include "zn/host.h"
 #include "prof/prof.h"
+#include "res/res.h"
 #ifdef ZN_HOST_LIBS
 #define HOSTLIBS + std::string(" '") + ZN_HOST_LIBS + "'"   // the window library the host links
 #else
@@ -58,10 +59,24 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
 }
 
 // Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
+static std::vector<std::string> gSources;  // the texts of the files of the last program compiled: they decide which fonts and images are baked
+
+// The baked fonts and images of the last program compiled, as one blob (src/res); assets are the `assets` directory beside the entry file or above it.
+static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
+  namespace fs = std::filesystem;
+  zn::res::Options o;
+  o.fontDir = std::string(ZN_SOURCE_DIR) + "/../lib/fonts";
+  fs::path dir = fs::absolute(entry).parent_path();
+  for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
+  return zn::res::bake(gSources, o, blob, err);
+}
+
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   zn::frontend::Program prog;
   zn::frontend::Checked checked;
   if (!loadChecked(path, prog, checked)) return 1;
+  gSources.clear();
+  for (const auto& f : prog.files) gSources.push_back(f.text);
   std::vector<zn::frontend::Diag> diags;
   {
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
@@ -143,6 +158,13 @@ int main(int argc, char** argv) {
     } else if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
+#ifdef ZN_HOST_GFX
+    if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them
+      std::vector<std::uint8_t> blob;
+      std::string err;
+      if (!bakeResources(argv[2], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
+    }
+#endif
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
   }
@@ -213,6 +235,16 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "zinc: flashing the core to %s\n", port.c_str());
     return std::system(cmd.c_str()) == 0 ? 0 : 1;
   }
+  if (argc == 5 && !std::strcmp(argv[1], "bake") && !std::strcmp(argv[3], "-o")) {  // zinc bake <file> -o <blob>: the baked fonts and images of a program (for inspection and tests)
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::vector<std::uint8_t> blob;
+    std::string err;
+    if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::ofstream out(argv[4], std::ios::binary);
+    out.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
+    return out ? 0 : 2;
+  }
   if (argc >= 2 && !std::strcmp(argv[1], "toolchain")) {  // zinc toolchain install|path|targets|sha256 <file>
     std::string sub = argc >= 3 ? argv[2] : "";
     if (sub == "install" || sub == "path") {
@@ -260,7 +292,12 @@ int main(int argc, char** argv) {
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     namespace fs = std::filesystem;
     fs::path libs = fs::absolute(argv[0]).parent_path(), cpp = fs::path(argv[4]).string() + ".cpp";
-    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    std::vector<std::uint8_t> blob;
+    if (zn::aot::usesHost(zm)) {
+      std::string err;
+      if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+    }
+    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     const char* cxx = std::getenv("CXX");
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I " ZN_SOURCE_DIR "/include -I " ZN_SOURCE_DIR "/src -I " ZN_SOURCE_DIR "/third_party/mimalloc/include '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" +
