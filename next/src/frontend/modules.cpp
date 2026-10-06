@@ -1,4 +1,5 @@
 #include "frontend/modules.h"
+#include "frontend/jsx.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -104,6 +105,15 @@ struct Loader {
 
   std::uint32_t load(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
+    if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
+      std::size_t before = prog.diags.size();
+      text = lowerJsx(text, prog.diags, fi);
+      if (prog.diags.size() > before) {  // the JSX did not lower: no point parsing it as it is
+        prog.files.push_back({path, std::move(text)});
+        done[path] = kNone;
+        return kNone;
+      }
+    }
     prog.files.push_back({path, std::move(text)});
     visiting[path] = true;
     ParseResult pr = parse(prog.files[fi].text);

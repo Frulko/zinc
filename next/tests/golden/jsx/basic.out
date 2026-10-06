@@ -1,0 +1,25 @@
+clicked
+node 0
+  class flex-col p-3
+  num gap=8
+  on
+  node 1
+    dynTextOf Hello 2 items
+  node 6
+    node 0
+      class badge
+      node 1
+        dynTextOf x
+      node 1
+        textOf child
+  node 1
+    textOf shown
+  node 1
+    textOf yes
+  node 1
+    dynTextOf a
+  node 1
+    dynTextOf b
+  node 6
+    node 1
+      textOf frag

@@ -2181,11 +2181,22 @@ struct Checker {
   }
 
   // ---- lambdas: checked where they appear, so they see the variables around them
+  bool padCallbacks = false;  // set while the arguments of a generic call are checked (the library's own array methods keep their arity)
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
-    const Node& x = n(i);
     Type et;
     bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
     if (haveExpected) et = ty(expected);
+    // JavaScript callbacks may take fewer parameters than they are called with (`items.map(x => ...)` for `(x, i) => ...`):
+    // the missing ones are added unused, so the function has the expected type.
+    if (haveExpected && padCallbacks) {
+      for (std::size_t k = n(i).kids.size() - 2; k < et.params.size(); ++k) {
+        std::vector<std::uint32_t> st = snippet(a, "(__unused" + std::to_string(k) + ") => 0;", {}, i);
+        if (st.empty()) break;
+        std::uint32_t extra = n(n(st[0]).kids[0]).kids[2];
+        a.nodes[i].kids.push_back(extra);
+      }
+    }
+    const Node& x = n(i);
     std::size_t np = x.kids.size() - 2;
     std::vector<TypeId> ps;
     for (std::size_t k = 0; k < np; ++k) {
@@ -2717,6 +2728,13 @@ struct Checker {
     return true;
   }
 
+  bool mentionsUnbound(const GenericDecl& g, TypeId t, const std::vector<TypeId>& bound) {
+    const Type x = ty(t);
+    if (x.k == TK::Param) { for (std::size_t i = 0; i < g.selfParams.size(); ++i) if (g.selfParams[i] == t) return bound[i] == kNoType; return false; }
+    if (x.k == TK::Array) return mentionsUnbound(g, x.elem, bound);
+    if (x.k == TK::Func) { for (TypeId p : x.params) if (mentionsUnbound(g, p, bound)) return true; return mentionsUnbound(g, x.elem, bound); }
+    return false;
+  }
   // `t` with the template's type parameters replaced by what is bound so far (kNoType where nothing is).
   TypeId substitute(const GenericDecl& g, TypeId t, const std::vector<TypeId>& bound) {
     const Type x = ty(t);
@@ -2753,7 +2771,15 @@ struct Checker {
       if (out.nodeType[argNodes[k]] != kNoType && !unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k) {  // function expressions, now that the other arguments have bound what they can
       if (out.nodeType[argNodes[k]] != kNoType) continue;
-      TypeId lt = expr(argNodes[k], substitute(g, f.params[k], bound));
+      TypeId want = substitute(g, f.params[k], bound);
+      if (ty(f.params[k]).k == TK::Func && mentionsUnbound(g, ty(f.params[k]).elem, bound)) {  // the result type is what the lambda is to tell
+        std::vector<TypeId> ps;
+        for (TypeId p : ty(f.params[k]).params) ps.push_back(substitute(g, p, bound));
+        want = func(ps, kNoType, ty(f.params[k]).minArgs, ty(f.params[k]).variadic);
+      }
+      padCallbacks = true;
+      TypeId lt = expr(argNodes[k], want);
+      padCallbacks = false;
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
     }
     for (std::size_t i = 0; i < bound.size(); ++i)

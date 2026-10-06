@@ -272,3 +272,9 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Run headless like the old tool: `ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=n ZINC_SHOT=out.png ZINC_SHOT_FRAMES=n zinc run prog.ts`. Compare with `tools/pngdiff`. Tests: T0 `host.sh` (frame 20 vs `corpus/ui/clock-20.png`), T1 `ui.sh` (frames 20 and 60 vs `tests/visual`).
 - `src/host/baked_resources.cpp` is the old build's resource file trimmed to 6 fonts and no TTF data; other programs need their own (a later task should generate it without Node).
 - Next: ZN-028 (JSX lowering).
+
+## ZN-028 notes (Done, scope split)
+- `src/frontend/jsx.cpp`: token-based port of `compiler/src/jsx.ts`, run by the module loader on every `.tsx` file before parsing (`lowerJsx`). Solid and React helpers, `@jsxHelpers ./mod` pragma, Show/For, `&&`, `?:`, `.map`, fragments, components. Not ported: `style` attribute, VirtualList, React class components, class-name and hook-rule checks (ZN-044).
+- Checker: callbacks with fewer parameters than expected get unused parameters, only in generic call arguments (`padCallbacks`); generic inference takes a lambda's result type when the parameter type mentions unbound type parameters.
+- Tests: T0 `jsx.sh` with `tests/golden/jsx/` (a recording stand-in for the helpers). The React model has no golden yet (needs `zinc:ui/react` to resolve).
+- Next tasks by ordinal: ZN-044 (compile the zinc:ui stack, tests/visual/ui.tsx frame 1 in the interpreter), ZN-045 (AOT with the host), then ZN-029.
