@@ -18,6 +18,7 @@
 #include "aot/aot.h"
 #include "zn/host.h"
 #include "prof/prof.h"
+#include "tc/tc.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "vm/vm.h"
@@ -136,6 +137,42 @@ int main(int argc, char** argv) {
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
+  }
+  if (argc >= 2 && !std::strcmp(argv[1], "toolchain")) {  // zinc toolchain install|path|targets|sha256 <file>
+    std::string sub = argc >= 3 ? argv[2] : "";
+    if (sub == "install" || sub == "path") {
+      std::string zig, err;
+      if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      std::puts(zig.c_str());
+      return 0;
+    }
+    if (sub == "targets") {
+      for (const auto& t : zn::tc::targets()) std::printf("%-14s %s\n", t.name, t.note);
+      return 0;
+    }
+    if (sub == "sha256" && argc == 4) {
+      std::string h = zn::tc::sha256File(argv[3]);
+      if (h.empty()) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
+      std::printf("%s  %s\n", h.c_str(), argv[3]);
+      return 0;
+    }
+    std::fprintf(stderr, "usage: zinc toolchain install | path | targets | sha256 <file>\n");
+    return 2;
+  }
+  if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine
+    namespace fs = std::filesystem;
+    const zn::tc::Target* target = zn::tc::findTarget(argv[3]);
+    if (!target) { std::fprintf(stderr, "unknown target '%s' (zinc toolchain targets)\n", argv[3]); return 2; }
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[4], zm)) return rc;
+    std::string zig, err;
+    if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    fs::path cpp = fs::path(argv[6]).string() + ".cpp";
+    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    bool ok = zn::tc::crossBuild(zig, ZN_SOURCE_DIR, cpp.string(), argv[3], argv[6], err);
+    if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
+    if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    return 0;
   }
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
     zn::zbc::Module zm;

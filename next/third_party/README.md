@@ -6,3 +6,4 @@ and `zig c++` and needs no install step (ARCHITECTURE.md, rules).
 | Library | Version | Licence | Used for |
 |---|---|---|---|
 | mimalloc | v2.1.7 (`src/static.c` build, global `operator new/delete` and the object allocator of `src/rt`) | MIT | Fast malloc/free for the many small objects of the runtime (interpreter and AOT programs) |
+| crypto-algorithms sha256 | commit cfbde48 (B-Con, 2015; `sha256.c`: 4cbc93d3…, `sha256.h`: a946e621…) | Public domain | SHA-256 of the toolchain downloads (src/tc) |

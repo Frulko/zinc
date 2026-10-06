@@ -296,3 +296,8 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `tools/bench-m4` now stores user/system time and peak RSS and lists regressions against `git show HEAD:next/bench/m4.json` (`--check-regressions`, `--baseline`, `--tolerance`). Run it on an idle machine: a run beside the tests flags noise.
 - One line was added to the old runtime: `runtime/zrt.cpp` / `zrt.h` `finish_run()`. Other uncommitted changes in `runtime/` and `docs/` are not mine.
 - Next by ordinal: ZN-029 (toolchain manager), ZN-030, ZN-031 (decision, stops the loop).
+
+## ZN-029 notes (Done)
+- `src/tc`: pinned zig 0.15.2 per host (macOS and Linux, aarch64 and x86_64), downloaded with curl into `~/.zinc` (`ZINC_HOME`), SHA-256 checked against the pin before unpacking; `zinc build --target <t>` compiles the runtime for the target with it (objects cached per target) and links the program. Targets: aarch64-linux, armhf-linux, x86_64-linux, aarch64-macos, x86_64-macos. Env: ZINC_HOME, ZINC_ZIG, ZINC_TC_MIRROR. Doc: `docs/reports/zinc-next-toolchain.md`. Tests: T0 `tc.sh`, T2 `cross.sh` (home in `build/tc-home`).
+- Engine sources are read from the repo (`ZN_SOURCE_DIR`); packaging them is part of ZN-031.
+- Next by ordinal: ZN-030 (ESP32), then ZN-031 (decision: stops the loop).
