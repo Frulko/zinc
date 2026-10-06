@@ -14,7 +14,7 @@ done
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for spec in "hero/src/main.tsx hero 30" "remarkable/dashboard/src/main.tsx dashboard 3" "remarkable/notes/src/main.tsx notes 3"; do
   set -- $spec
-  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=$3 ZINC_SIZE=1100x700 ZINC_SCALE=1 ZINC_SHOT="$tmp/$2.png" ZINC_SHOT_FRAMES=$3 "$ZINC" run "../examples/$1" >/dev/null 2>&1
+  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=$3 ZINC_SIZE=480x300 ZINC_SCALE=1 ZINC_SHOT="$tmp/$2.png" ZINC_SHOT_FRAMES=$3 "$ZINC" run "../examples/$1" >/dev/null 2>&1
   tools/pngdiff "$tmp/$2-$3.png" "tests/golden/examples/$2-$3.png" >/dev/null || { echo "$2: frame $3 differs from tests/golden/examples/$2-$3.png"; fail=1; }
 done
 exit $fail
