@@ -343,3 +343,6 @@ IR text version 1 (`zir 1`), `ir::parse`, `zinc ir --check`, ZBC refuses other v
 
 ## ZN-054 (Review)
 Linux verified in Docker (T0-T2 pass), CI workflow `.github/workflows/zinc-next.yml` written, Windows not ported; doc `docs/reports/zinc-next-hosts.md`. Next by ordinal: ZN-055 (hardware validation, needs boards) then ZN-056.
+
+## ZN-055 (Backlog, blocked on hardware)
+Needs real boards (none reachable). `tools/validate-hardware esp32|pi` and `docs/reports/zinc-next-hardware.md` are ready. Remaining after it: ZN-056 (name check), 041, 042, 043. Resume with `/loop /zn-start` after choosing: run ZN-055 by hand, or skip it (`backlog task edit ZN-055 -s Done` only when truly run).

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Hardware validation (ZN-055): the steps that need real boards, scripted so the results can be pasted into docs/reports/zinc-next-hardware.md.
+#   tools/validate-hardware esp32 <serial-port>        flash the core, run hello.ts and a small library program on the board
+#   tools/validate-hardware pi <user@host> [arch]      cross build hello and fib for aarch64-linux (default) or armhf-linux, copy, run, time
+# Prints one line per check: `ok name` or `FAIL name: why`; exit 1 if any failed. Needs the board; nothing here runs without one.
+cd "$(dirname "$0")/.." || exit 2
+ZINC=${ZINC:-build/zinc}
+fail=0
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+check() { name=$1; shift; if out=$("$@" 2>&1); then echo "ok $name"; else echo "FAIL $name: $(echo "$out" | tail -n 2 | tr '\n' ' ')"; fail=1; fi; }
+printf 'console.log("hello from the board");\nlet s = 0;\nfor (let i = 0; i < 1000; i++) s += i;\nconsole.log(s);\n' > "$tmp/hello.ts"
+case $1 in
+  esp32)
+    port=$2; [ -n "$port" ] || { echo "usage: $0 esp32 <serial-port>"; exit 2; }
+    "$ZINC" --version
+    check flash "$ZINC" flash --target esp32 --port "$port"
+    check hello sh -c "[ \"\$($ZINC run $tmp/hello.ts --target esp32 --port $port)\" = 'hello from the board
+499500' ]"
+    check library sh -c "$ZINC run tests/golden/run/library.ts --target esp32 --port $port | diff -q - tests/golden/run/library.out"
+    ;;
+  pi)
+    host=$2; arch=${3:-aarch64-linux}; [ -n "$host" ] || { echo "usage: $0 pi <user@host> [aarch64-linux|armhf-linux]"; exit 2; }
+    check build "$ZINC" build --target "$arch" "$tmp/hello.ts" -o "$tmp/hello-pi"
+    check build-fib "$ZINC" build --target "$arch" ../tests/bench/kernels/fib.ts -o "$tmp/fib-pi"
+    check copy scp -q "$tmp/hello-pi" "$tmp/fib-pi" "$host:/tmp/"
+    check hello sh -c "[ \"\$(ssh $host /tmp/hello-pi)\" = 'hello from the board
+499500' ]"
+    check fib sh -c "ssh $host 'time /tmp/fib-pi' 2>&1 | head -3"
+    ssh "$host" 'uname -a; cat /proc/device-tree/model 2>/dev/null; echo' </dev/null
+    ;;
+  *) echo "usage: $0 esp32 <port> | pi <user@host> [arch]"; exit 2 ;;
+esac
+exit $fail
