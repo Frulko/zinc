@@ -349,7 +349,7 @@ struct Checker {
       TypeId lt = expr(le);
       const Node& rn = n(re);
       std::uint32_t rs = rn.kind == N::Ident ? lookup(rn.text) : kNone;
-      if (rs == kNone || out.syms[rs].kind != SymKind::Class || out.objs[ty(out.syms[rs].type).obj].isInterface) {
+      if (rs == kNone || out.syms[rs].kind != SymKind::Class || out.objs[ty(out.syms[rs].type).obj].isInterface || out.objs[ty(out.syms[rs].type).obj].isRecord) {
         diag(kZBadOperand, re, "the right-hand side of 'instanceof' must be a class");
         return tBool;
       }
@@ -464,7 +464,7 @@ struct Checker {
       out.nodeSym[callee] = s;
       result = out.syms[s].type;
       const ObjInfo& oi = out.objs[ty(result).obj];
-      if (oi.isInterface) { diag(kZNotCallable, callee, "an interface cannot be instantiated"); for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
+      if (oi.isInterface || oi.isRecord) { diag(kZNotCallable, callee, "an interface cannot be instantiated"); for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
       if (oi.isAbstract) diag(kZAbstractViolation, callee, "cannot instantiate abstract class '" + oi.name + "'");
       if (usedBeforeDeclaration(s, callee)) diag(kZCannotFindName, callee, "class '" + oi.name + "' used before its declaration");
       if (!ctorAccessible(oi, ty(result).obj)) diag(kZNotAccessible, callee, "the constructor of '" + oi.name + "'");
@@ -564,6 +564,7 @@ struct Checker {
         return trackable(s) ? currentType(s) : out.syms[s].type;
       }
       case N::FuncExpr: return funcExpr(i, expected);
+      case N::ObjectLit: return objectLit(i, x, expected);
       case N::Array: {
         if (expected != kNoType && isTupleType(expected)) {  // a tuple literal: each element against its position
           const ObjInfo& to = out.objs[ty(expected).obj];
@@ -1214,6 +1215,72 @@ struct Checker {
     return ft;
   }
 
+  // An interface made only of data properties is a record: values of it come from object literals.
+  bool isRecordDecl(std::uint32_t iface) const {
+    const Node& c = n(iface);
+    if (c.kids[0] != kNone || c.kids.size() < 2 || a.tparams.count(iface)) return false;
+    for (std::size_t k = 1; k < c.kids.size(); ++k) if (n(c.kids[k]).kind != N::Field) return false;
+    return true;
+  }
+  // ---- anonymous records: one class per distinct list of (name, type)
+  std::map<std::vector<std::pair<std::string, TypeId>>, std::uint32_t> recordObjs;
+  TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape) {
+    auto it = recordObjs.find(shape);
+    if (it != recordObjs.end()) return objType(it->second);
+    ObjInfo info;
+    info.isClass = true; info.isRecord = true;
+    info.name = "{";
+    bool tmpl = false;
+    auto oi = static_cast<std::uint32_t>(out.objs.size());
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+      info.name += (i ? "; " : " ") + shape[i].first + ": " + name(shape[i].second);
+      tmpl = tmpl || hasParam(shape[i].second);
+      Member m; m.name = shape[i].first; m.type = shape[i].second; m.owner = oi; info.members.push_back(std::move(m));
+    }
+    info.name += shape.empty() ? "}" : " }";
+    info.isTemplate = tmpl;
+    out.objs.push_back(std::move(info));
+    recordObjs[shape] = oi;
+    return objType(oi);
+  }
+  // `{ a: 1, b }`: checked against the record it is expected to be, else its own anonymous record
+  TypeId objectLit(std::uint32_t i, const Node& x, TypeId expected) {
+    TypeId rec = kNoType;
+    if (expected != kNoType) for (TypeId mt : unionMembers(expected)) if (ty(mt).k == TK::Object && out.objs[ty(mt).obj].isRecord) rec = mt;
+    const std::vector<std::uint32_t> props(x.kids);
+    if (rec != kNoType) {
+      std::uint32_t oi = ty(rec).obj;
+      ensureBuilt(oi);
+      const std::vector<Member> members = out.objs[oi].members;
+      const std::string rname = out.objs[oi].name;
+      std::vector<char> seen(members.size(), 0);
+      for (std::uint32_t p : props) {
+        const Node& pn = n(p);
+        std::size_t k = 0;
+        while (k < members.size() && members[k].name != pn.text) ++k;
+        if (k == members.size()) { diag(kZNoSuchProperty, p, "'" + std::string(pn.text) + "' does not exist in '" + rname + "'"); expr(pn.kids[0]); continue; }
+        if (seen[k]) diag(kZDuplicateDeclaration, p, "property '" + std::string(pn.text) + "'");
+        seen[k] = 1;
+        TypeId vt = expr(pn.kids[0], members[k].type);
+        require(vt, members[k].type, pn.kids[0]);
+      }
+      for (std::size_t k = 0; k < members.size(); ++k) if (!seen[k]) diag(kZNotAssignable, i, "missing property '" + members[k].name + "' for '" + rname + "'");
+      return rec;
+    }
+    std::vector<std::pair<std::string, TypeId>> shape;
+    bool bad_ = false;
+    for (std::uint32_t p : props) {
+      const Node& pn = n(p);
+      TypeId vt = expr(pn.kids[0]);
+      if (bad(vt) || vt == tNull || vt == tVoid) { if (!bad(vt)) diag(kZCannotInfer, p, "property '" + std::string(pn.text) + "'"); bad_ = true; continue; }
+      bool dup = false;
+      for (auto& e : shape) dup = dup || e.first == pn.text;
+      if (dup) { diag(kZDuplicateDeclaration, p, "property '" + std::string(pn.text) + "'"); bad_ = true; continue; }
+      shape.push_back({std::string(pn.text), vt});
+    }
+    return bad_ ? tError : recordOf(shape);
+  }
+
   // ---- tuples: an anonymous class per distinct element list, fields named 0, 1, ...
   std::map<std::vector<TypeId>, std::uint32_t> tupleObjs;
   TypeId tupleOf(const std::vector<TypeId>& elems) {
@@ -1435,7 +1502,7 @@ struct Checker {
       } else if (out.syms[sy].kind == SymKind::Class && rn.kids.empty()) {
         o = ty(out.syms[sy].type).obj;
       } else { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
-      if (out.objs[o].isInterface != wantInterface) { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
+      if (out.objs[o].isRecord || out.objs[o].isInterface != wantInterface) { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
       return o;
     };
     if (cn.kind == N::Class && cn.kids[0] != kNone) {
@@ -1548,7 +1615,7 @@ struct Checker {
 
   void classMembers(std::uint32_t cls, std::uint32_t objIdx) {
     const Node& c = n(cls);
-    bool isIface = c.kind == N::Interface;
+    bool isIface = c.kind == N::Interface && !out.objs[objIdx].isRecord;
     TypeId self = objType(objIdx);
     std::uint32_t par = out.objs[objIdx].parent;
     std::vector<std::pair<std::uint32_t, TypeId>> methods;  // node, signature
@@ -1603,11 +1670,10 @@ struct Checker {
       out.objs[objIdx].members.push_back(std::move(mem));
     }
     if (!isIface && par != kNoObj && out.objs[par].ctorAccess == 2) diag(kZNotAccessible, cls, "cannot extend '" + out.objs[par].name + "': its constructor is private");
-    if (!isIface) {
-      // a derived class without a constructor takes its base class's parameters
+    if (!isIface) {      // a derived class without a constructor takes its base class's parameters
       if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs);
       // `implements I`: every member of I must be present with the same type
-      if (c.kids[1] != kNone)
+      if (c.kind == N::Class && c.kids[1] != kNone)
         for (std::uint32_t r : std::vector<std::uint32_t>(n(c.kids[1]).kids)) {
           TypeId it = annotation(r);
           if (bad(it)) continue;
@@ -1635,7 +1701,7 @@ struct Checker {
       // strictPropertyInitialization: an instance field without initializer must be assigned at the top level of the constructor
       for (std::uint32_t m : mems) {
         const Node& mn = n(m);
-        if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & frontend::kFlagStatic)) continue;
+        if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & frontend::kFlagStatic) || out.objs[objIdx].isRecord) continue;
         bool assigned = false;
         if (ctorNode != kNone && n(ctorNode).kids[1] != kNone)
           for (std::uint32_t st : n(n(ctorNode).kids[1]).kids) {
@@ -1746,8 +1812,9 @@ struct Checker {
       if (a.tparams.count(s)) continue;
       ObjInfo info;
       info.name = std::string(n(s).text);
-      info.isClass = n(s).kind == N::Class;
-      info.isInterface = n(s).kind == N::Interface;
+      info.isRecord = n(s).kind == N::Interface && isRecordDecl(s);
+      info.isClass = n(s).kind == N::Class || info.isRecord;
+      info.isInterface = n(s).kind == N::Interface && !info.isRecord;
       info.isAbstract = (n(s).flags & frontend::kFlagAbstract) != 0;
       out.objs.push_back(info);
       auto oi = static_cast<std::uint32_t>(out.objs.size() - 1);

@@ -84,6 +84,8 @@ enum class N : std::uint8_t {
   Case,           // [test|none (default), statement...]
   Enum,           // text=name  [EnumMember...]
   EnumMember,     // text=name  [initialiser|none]
+  ObjectLit,      // [Prop...]   (`{ a: 1, b }`)
+  Prop,           // text=name  [value]
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.

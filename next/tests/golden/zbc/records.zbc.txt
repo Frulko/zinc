@@ -1,0 +1,247 @@
+class Point { f64, f64 }
+class Named { ref str, ref str[] }
+class Line { ref Point, ref Point }
+class { id: f64; label: string; ok: boolean } { f64, ref str, i }
+class { v: f64 } { f64 }
+class { inner: { v: f64 }; list: f64[] } { ref { v: f64 }, ref f64[] }
+class { key: string; n: f64 } { ref str, f64 }
+builtin str
+builtin str[]
+builtin f64[]
+builtin ref Point[]
+builtin Map<str, ref Point>
+builtin ref { id: f64; label: string; ok: boolean }[]
+func @main() -> void nregs=7
+   0  New      r0, Point
+   1  LoadK    r1, f64 3
+   2  SetField r0, r1, .0
+   3  LoadK    r1, f64 4
+   4  SetField r0, r1, .1
+   5  New      r2, Point
+   6  LoadK    r1, f64 1
+   7  SetField r2, r1, .1
+   8  LoadK    r1, f64 2
+   9  SetField r2, r1, .0
+  10  Call     r3, @zero
+  11  Move     r4, r3
+  12  Move     r3, r0
+  13  Call     r3, @dist2
+  14  Move     r4, r0
+  15  Move     r5, r2
+  16  Call     r4, @dist2
+  17  LoadK    r6, f64 9
+  18  Move     r5, r0
+  19  Call     r5, @withX
+  20  GetField r1, r5, .0
+  21  LoadK    r6, f64 9
+  22  Move     r5, r0
+  23  Call     r5, @withX
+  24  GetField r2, r5, .1
+  25  LogF64   r3
+  26  LogSep   
+  27  LogF64   r4
+  28  LogSep   
+  29  LogF64   r1
+  30  LogSep   
+  31  LogF64   r2
+  32  LogEnd   
+  33  New      r1, Named
+  34  LoadStr  r2, "zed"
+  35  SetField r1, r2, .0
+  36  New      r2, str[]
+  37  LoadStr  r3, "a"
+  38  ArrPush  r3, r2, r3
+  39  LoadStr  r3, "b"
+  40  ArrPush  r3, r2, r3
+  41  SetField r1, r2, .1
+  42  GetField r2, r1, .1
+  43  LoadStr  r3, "c"
+  44  ArrPush  r2, r2, r3
+  45  GetField r2, r1, .0
+  46  GetField r3, r1, .1
+  47  LoadStr  r4, "+"
+  48  Rt       r3, Array.join
+  49  GetField r1, r1, .1
+  50  ArrLen   r1, r1
+  51  LogStr   r2
+  52  LogSep   
+  53  LogStr   r3
+  54  LogSep   
+  55  LogI     r1
+  56  LogEnd   
+  57  New      r1, Line
+  58  New      r2, Point
+  59  LoadK    r3, f64 1
+  60  SetField r2, r3, .0
+  61  LoadK    r3, f64 2
+  62  SetField r2, r3, .1
+  63  SetField r1, r2, .0
+  64  SetField r1, r0, .1
+  65  GetField r2, r1, .1
+  66  LoadK    r3, f64 10
+  67  SetField r2, r3, .0
+  68  GetField r2, r1, .0
+  69  GetField r2, r2, .1
+  70  GetField r1, r1, .1
+  71  GetField r1, r1, .0
+  72  GetField r3, r0, .0
+  73  LogF64   r2
+  74  LogSep   
+  75  LogF64   r1
+  76  LogSep   
+  77  LogF64   r3
+  78  LogEnd   
+  79  New      r1, ref Point[]
+  80  New      r2, Point
+  81  LoadK    r3, f64 1
+  82  SetField r2, r3, .0
+  83  LoadK    r3, f64 1
+  84  SetField r2, r3, .1
+  85  ArrPush  r2, r1, r2
+  86  New      r2, Point
+  87  LoadK    r3, f64 2
+  88  SetField r2, r3, .0
+  89  LoadK    r3, f64 4
+  90  SetField r2, r3, .1
+  91  ArrPush  r2, r1, r2
+  92  ArrPush  r0, r1, r0
+  93  LoadK    r0, f64 0
+  94  LoadI    r2, 0
+  95  ArrLen   r3, r1
+  96  JLeI     r3, r2, -> 106
+  98  ArrGet   r3, r1, r2
+  99  GetField r4, r3, .0
+ 100  GetField r3, r3, .1
+ 101  MulF64   r3, r4, r3
+ 102  AddF64   r3, r0, r3
+ 103  AddI32K  r2, r2, 1
+ 104  Move     r0, r3
+ 105  Jmp      -> 95
+ 106  ArrLen   r1, r1
+ 107  LogF64   r0
+ 108  LogSep   
+ 109  LogI     r1
+ 110  LogEnd   
+ 111  New      r0, Map<str, ref Point>
+ 112  LoadStr  r2, "k"
+ 113  New      r3, Point
+ 114  LoadK    r1, f64 5
+ 115  SetField r3, r1, .0
+ 116  LoadK    r1, f64 6
+ 117  SetField r3, r1, .1
+ 118  Move     r1, r0
+ 119  Rt       r1, Map.set
+ 120  LoadStr  r2, "k"
+ 121  Move     r3, r0
+ 122  Move     r4, r2
+ 123  Rt       r3, Map.has
+ 124  JmpIfNot r3, -> 128
+ 125  Move     r1, r0
+ 126  Rt       r1, Map.get
+ 127  Jmp      -> 129
+ 128  Call     r1, @zero
+ 129  GetField r2, r1, .0
+ 130  GetField r1, r1, .1
+ 131  AddF64   r1, r2, r1
+ 132  LoadStr  r3, "z"
+ 133  Move     r2, r0
+ 134  Rt       r2, Map.has
+ 135  LogF64   r1
+ 136  LogSep   
+ 137  LogBool  r2
+ 138  LogEnd   
+ 139  New      r0, { id: f64; label: string; ok: boolean }
+ 140  LoadK    r1, f64 7
+ 141  SetField r0, r1, .0
+ 142  LoadStr  r1, "seven"
+ 143  SetField r0, r1, .1
+ 144  LoadI    r1, 1
+ 145  SetField r0, r1, .2
+ 146  New      r1, { id: f64; label: string; ok: boolean }
+ 147  LoadK    r2, f64 8
+ 148  SetField r1, r2, .0
+ 149  LoadStr  r2, "eight"
+ 150  SetField r1, r2, .1
+ 151  LoadI    r2, 0
+ 152  SetField r1, r2, .2
+ 153  New      r2, ref { id: f64; label: string; ok: boolean }[]
+ 154  ArrPush  r3, r2, r0
+ 155  ArrPush  r3, r2, r1
+ 156  GetField r3, r0, .0
+ 157  GetField r4, r1, .0
+ 158  AddF64   r3, r3, r4
+ 159  LoadI    r4, 1
+ 160  ArrGet   r4, r2, r4
+ 161  GetField r4, r4, .1
+ 162  ArrLen   r2, r2
+ 163  GetField r0, r0, .2
+ 164  LogF64   r3
+ 165  LogSep   
+ 166  LogStr   r4
+ 167  LogSep   
+ 168  LogI     r2
+ 169  LogSep   
+ 170  LogBool  r0
+ 171  LogEnd   
+ 172  GetField r0, r1, .1
+ 173  LogStr   r0
+ 174  LogEnd   
+ 175  New      r0, { inner: { v: f64 }; list: f64[] }
+ 176  New      r1, { v: f64 }
+ 177  LoadK    r2, f64 1.5
+ 178  SetField r1, r2, .0
+ 179  SetField r0, r1, .0
+ 180  New      r1, f64[]
+ 181  LoadK    r2, f64 1
+ 182  ArrPush  r2, r1, r2
+ 183  LoadK    r2, f64 2
+ 184  ArrPush  r2, r1, r2
+ 185  LoadK    r2, f64 3
+ 186  ArrPush  r2, r1, r2
+ 187  SetField r0, r1, .1
+ 188  GetField r1, r0, .0
+ 189  GetField r1, r1, .0
+ 190  LoadK    r2, f64 2
+ 191  MulF64   r1, r1, r2
+ 192  GetField r0, r0, .1
+ 193  ArrLen   r0, r0
+ 194  LogF64   r1
+ 195  LogSep   
+ 196  LogI     r0
+ 197  LogEnd   
+ 198  LoadStr  r0, "q"
+ 199  New      r1, { key: string; n: f64 }
+ 200  SetField r1, r0, .0
+ 201  LoadK    r0, f64 2
+ 202  SetField r1, r0, .1
+ 203  GetField r0, r1, .0
+ 204  GetField r1, r1, .1
+ 205  LogStr   r0
+ 206  LogSep   
+ 207  LogF64   r1
+ 208  LogEnd   
+ 209  RetV     
+func @dist2(ref Point, ref Point) -> f64 nregs=4
+   0  GetField r2, r0, .0
+   1  GetField r3, r1, .0
+   2  SubF64   r2, r2, r3
+   3  GetField r0, r0, .1
+   4  GetField r1, r1, .1
+   5  SubF64   r0, r0, r1
+   6  MulF64   r1, r2, r2
+   7  MulF64   r0, r0, r0
+   8  AddF64   r0, r1, r0
+   9  Ret      r0
+func @zero() -> ref Point nregs=2
+   0  New      r0, Point
+   1  LoadK    r1, f64 0
+   2  SetField r0, r1, .0
+   3  LoadK    r1, f64 0
+   4  SetField r0, r1, .1
+   5  Ret      r0
+func @withX(ref Point, f64) -> ref Point nregs=3
+   0  New      r2, Point
+   1  SetField r2, r1, .0
+   2  GetField r0, r0, .1
+   3  SetField r2, r0, .1
+   4  Ret      r2

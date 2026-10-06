@@ -850,6 +850,15 @@ struct Lowering::FnLower {
         }
         return arr;
       }
+      case N::ObjectLit: {  // a fresh object of the record class, fields set in source order
+        std::uint32_t obj = c.types[c.nodeType[i]].obj, cls = L.classOfObj[obj];
+        ValueId o = emit(IrOp::New, m.refT(cls), {}, 0, 0, cls);
+        for (std::uint32_t p : x.kids) {
+          std::uint32_t fi = L.fieldIndex(obj, n(p).text);
+          emit(IrOp::SetField, m.voidT(), {o, exprTo(n(p).kids[0], m.classes[cls].fields[fi].type)}, 0, 0, fi);
+        }
+        return o;
+      }
       case N::Binary: {
         std::string_view o = x.text;
         if (o == ",") { expr(x.kids[0]); return expr(x.kids[1], want); }

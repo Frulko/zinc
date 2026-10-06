@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-033 (interface properties and object literals); ZN-017 follows ZN-032..035. Nothing in progress.
+- Ready: none; next by ordinal is ZN-034 (console.log inspect format); ZN-017 follows ZN-032..035. Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-033.
+`/loop /zn-start` resumes with ZN-034.
 
 ## Watch out
 
@@ -133,3 +133,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Numeric enums: `SymKind::Enum`, a distinct i32 `Type` (`obj` = 1 + index into `Checked::enumNames`) that accepts only its own members but converts to any number; members are constants (`Checked::enumMembers`), initialisers must be integer literals (else Z0005). No `const enum`, no string enums, no reverse mapping.
 - `switch`: cases compare with `===` semantics (numbers, strings, booleans, enums); clauses fall through; `break` leaves the switch, `continue` the enclosing loop; a switch with a `default`, no `break` and a last clause that returns counts as terminating.
 - Known gap against tsc: tsc narrows `const`/assigned variables to literal types and then rejects comparisons such as `switch (1) { case 2: }` or `d === E.B` after `d = E.A`; we do not, so such programs are accepted by us and rejected by the oracle (pre-existing class: `const x = 1; if (x === 2)`).
+
+## ZN-033 notes (records and object literals)
+
+- An interface made only of data properties (no `extends`, no methods, not generic) is a *record*: `ObjInfo::isRecord`, lowered as a final class whose values come only from object literals (`N::ObjectLit` / `N::Prop`, shorthand `{ x }` supported; methods, spreads, computed keys and optional properties are Z0005). Mixed interfaces (properties and methods) are still Z0005.
+- A literal is checked against the record it is expected to be (assignment, argument, return, array element, `T | null`): unknown, duplicate and missing properties are errors. Without an expected record it gets an anonymous record interned by its ordered (name, type) list (`recordOf`), named `{ x: f64; y: f64 }`.
+- Records are nominal: two interfaces of the same shape, or an anonymous value passed where a named record is expected, are different types (stricter than tsc, which is structural). Classes are not assignable to records, records cannot be extended, instantiated with `new` or used with `instanceof`.
+- Lowering: `New` of the record class and one `SetField` per property in source order.

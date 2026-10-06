@@ -528,7 +528,7 @@ struct Parser {
           expectP("]");
           return mk(N::Array, st, prevEnd(), {}, std::move(es));
         }
-        if (isP("{")) unsupported("object literals");
+        if (isP("{")) return objectLiteral();
         unexpected();
       default: unexpected();
     }
@@ -835,6 +835,28 @@ struct Parser {
 
   bool topLevel = false;  // the statement being parsed is directly in the program
 
+  std::uint32_t objectLiteral() {
+    std::uint32_t st = cur().start;
+    ++i;
+    std::vector<std::uint32_t> props;
+    while (!isP("}")) {
+      if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
+      std::uint32_t ps = cur().start, pe = cur().end;
+      std::string_view key = txt();
+      bool str = cur().kind == Tok::String;
+      if (str) key = key.substr(1, key.size() - 2);
+      ++i;
+      std::uint32_t value;
+      if (eatP(":")) value = assignment();
+      else if (!str && (isP(",") || isP("}"))) value = mk(N::Ident, ps, pe, key);  // shorthand `{ x }`
+      else unsupported("methods, spreads and computed keys in object literals");
+      props.push_back(mk(N::Prop, ps, prevEnd(), key, {value}));
+      if (!eatP(",")) break;
+    }
+    expectP("}");
+    return mk(N::ObjectLit, st, prevEnd(), {}, std::move(props));
+  }
+
   std::uint32_t switchStmt() {
     std::uint32_t st = cur().start;
     ++i;
@@ -1036,7 +1058,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop"};
   return names[static_cast<int>(k)];
 }
 

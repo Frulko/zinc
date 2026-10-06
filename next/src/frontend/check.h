@@ -50,6 +50,7 @@ struct ObjInfo {
   bool isInterface = false;
   bool isAbstract = false;
   bool isTuple = false;                   // an anonymous class [A, B]: fields named 0, 1, ...
+  bool isRecord = false;                  // an interface of data properties, or the shape of an object literal: a final class made only by literals
   std::uint8_t ctorAccess = 0;            // 0 public, 1 protected, 2 private
   std::uint32_t parent = 0xFFFFFFFFu;     // extended class (ObjInfo index)
   std::uint32_t genericSym = 0xFFFFFFFFu; // the generic class or interface this is an instance of
