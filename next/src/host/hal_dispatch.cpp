@@ -67,6 +67,7 @@ int keyCode(const std::string& n) {
 }
 void applyScript(HalInput* in) {
   if (!scriptRead) readScript();
+  in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;  // the events of a frame are the script's, like the window HAL's (hal_sdl.cpp)
   in->px = curX; in->py = curY; in->pdown = heldButtons & 1; in->pbuttons = heldButtons;
   for (const Event& e : script) {
     if (e.frame != pollNo) continue;

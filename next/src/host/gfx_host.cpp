@@ -1,5 +1,6 @@
 // The graphics host: serves the Rt::HostGfx* calls (include/zn/runtime.h) over the existing runtime (runtime/gfx.cpp, raster.cpp),
 // headless. Compiled with the runtime's flags (C++17, no exceptions, no RTTI, no FP contraction) so the pixels match its builds.
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,7 +51,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxFrames: {
       static HalConfig cfg = {320, 240, "zinc", 1};
       static bool started = false;
-      if (!started) { started = true; zrt::start(cfg, 0, nullptr); }
+      if (!started) {
+        started = true;
+        int w = 0, h = 0;
+        if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
+        zrt::start(cfg, 0, nullptr);
+      }
       const char* f = getenv("ZINC_FRAMES");
       r->i = f ? atoi(f) : zn_hal_is_live() ? 0x7fffffff : 60;  // a window runs until it is closed
       break;

@@ -101,6 +101,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
 }
 
 int main(int argc, char** argv) {
+  if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
 #endif

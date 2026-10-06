@@ -163,6 +163,10 @@
   X(HostOsCpus, "host.osCpus", ">i", 2) \
   X(HostOsUser, "host.osUser", ">s", 2) \
   X(HostOsLoad, "host.osLoad", "i>d", 2) \
+  X(HostProcSpawn, "host.procSpawn", "s>i", 2) \
+  X(HostProcRead, "host.procRead", "i>s", 2) \
+  X(HostProcStatus, "host.procStatus", "i>i", 2) \
+  X(HostProcKill, "host.procKill", "i>n", 2) \
   X(HostHostLast, "host.hostLast", ">n", 2)
 
 namespace zn {

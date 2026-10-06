@@ -261,6 +261,14 @@ export interface UserInfo { username: string; uid: i32; gid: i32; shell: string;
 export function userInfo(): UserInfo { return { username: __host_osUser(), uid: 0, gid: 0, shell: '', homedir: __host_osHomedir() }; }
 )ZN";
 
+const char* kProcessModule = R"ZN(
+// A child process runs a shell command line, its stdout and stderr merged; read it without blocking, poll for the exit code.
+export function spawn(commandLine: string): i32 { return __host_procSpawn(commandLine); }
+export function read(handle: i32): string { return __host_procRead(handle); }
+export function status(handle: i32): i32 { return __host_procStatus(handle); }
+export function kill(handle: i32): void { __host_procKill(handle); }
+)ZN";
+
 const char* kNativeModule = R"ZN(
 export interface NativeModule {}
 export interface NativeResource {}
@@ -274,6 +282,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:storage") return kStorageModule;
   if (spec == "zinc:assets") return kAssetsModule;
   if (spec == "zinc:os") return kOsModule;
+  if (spec == "zinc:process") return kProcessModule;
   if (spec == "zinc:native") return kNativeModule;
   return nullptr;
 }
