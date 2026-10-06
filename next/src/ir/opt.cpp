@@ -379,6 +379,52 @@ void unrollRecursion(Module& m) {
   }
 }
 
+// `arr.sort((a, b) => a - b)` on an f64[] (and `b - a`): the comparator is a closure that was just made and does only the subtraction, so the runtime sorts with the
+// comparison in place of a call per comparison (the same stable merge, the same results, NaN included).
+void specializeSort(Module& m) {
+  std::uint32_t callSel = UINT32_MAX;
+  for (std::uint32_t k = 0; k < m.selectors.size(); ++k) {
+    const Selector& s = m.selectors[k];
+    if (s.name == "call" && s.params.size() == 2 && m.types[s.ret].k == Type::K::Num && m.types[s.ret].num == frontend::Num::f64 && s.params[0] == s.params[1] && m.types[s.params[0]].k == Type::K::Num && m.types[s.params[0]].num == frontend::Num::f64) { callSel = k; break; }
+  }
+  if (callSel == UINT32_MAX) return;
+  // 1: ascending (a - b), -1: descending (b - a), 0: another body
+  auto direction = [&](std::uint32_t cls) {
+    const Class& c = m.classes[cls];
+    if (callSel >= c.vtable.size() || c.vtable[callSel] == kNoClass) return 0;
+    const Function& f = m.functions[c.vtable[callSel]];
+    if (f.blocks.size() != 1 || f.blocks[0].insts.size() != 2 || f.params.size() != 3) return 0;
+    const Inst& sub = f.blocks[0].insts[0];
+    const Inst& ret = f.blocks[0].insts[1];
+    if (sub.op != IrOp::Sub || ret.op != IrOp::Ret || ret.args.size() != 1 || ret.args[0] != sub.res) return 0;
+    if (sub.args[0] == f.params[1] && sub.args[1] == f.params[2]) return 1;
+    if (sub.args[0] == f.params[2] && sub.args[1] == f.params[1]) return -1;
+    return 0;
+  };
+  for (Function& f : m.functions) {
+    std::vector<int> closure(f.valueTypes.size(), -1);  // per value: the class of a `new` closure
+    std::vector<ValueId> castOf(f.valueTypes.size(), kNoValue);
+    for (const Block& b : f.blocks)
+      for (const Inst& i : b.insts) {
+        if (i.op == IrOp::New && i.res != kNoValue) closure[i.res] = static_cast<int>(i.sym);
+        if (i.op == IrOp::RefCast && i.res != kNoValue) castOf[i.res] = i.args[0];
+      }
+    for (Block& b : f.blocks)
+      for (Inst& i : b.insts) {
+        if (i.op != IrOp::Rt || i.sym != static_cast<std::uint32_t>(zn::Rt::ArrSort) || i.args.size() != 2) continue;
+        const Type& at = m.types[f.valueTypes[i.args[0]]];
+        if (at.k != Type::K::Array || m.types[at.aux].k != Type::K::Num || m.types[at.aux].num != frontend::Num::f64) continue;
+        ValueId c = i.args[1];
+        if (castOf[c] != kNoValue) c = castOf[c];
+        if (closure[c] < 0) continue;
+        int d = direction(static_cast<std::uint32_t>(closure[c]));
+        if (d == 0) continue;
+        i.sym = static_cast<std::uint32_t>(d > 0 ? zn::Rt::ArrSortAsc : zn::Rt::ArrSortDesc);
+        i.args.resize(1);
+      }
+  }
+}
+
 // x / c for a constant power of two c is x * (1 / c) exactly (no rounding differs: scaling by a power of two only changes the exponent), and a multiply
 // is several times cheaper than a divide.
 void divByPowerOfTwo(Module& m) {
@@ -412,7 +458,8 @@ void divByPowerOfTwo(Module& m) {
 
 }  // namespace
 
-void optimize(Module& m) {
+void optimize(Module& m, bool deviceCore) {
+  if (!deviceCore) specializeSort(m);
   devirtualize(m);
   for (int round = 0; round < 3 && inlineRound(m); ++round) devirtualize(m);
   if (!std::getenv("ZN_NO_UNROLL")) unrollRecursion(m);

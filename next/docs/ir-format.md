@@ -62,7 +62,7 @@ Instruction words are one 32-bit word each (`include/zn/bytecode.h`); the opcode
 
 ### Version rules
 
-- The version rises with any change to the layout above, to an opcode's meaning or number, or to the order of the runtime table (a call is encoded by its row number: new rows go at the end).
+- The version rises with any change to the layout above, to an opcode's meaning or number, or to the order of the runtime table (a call is encoded by its row number: new rows go at the very end, after the host rows, so no known id moves; a file that uses a row an older core lacks needs the newer core: `arrSortAsc` and `arrSortDesc` are such rows, which the optimizer writes for `sort((a, b) => a - b)` on an f64[]).
 - A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 4: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
 - No migration: a ZBC file is a build product (the device core and `zinc run` are always built from the same release as the files they load). The firmware image and the host tools are released together;
   `tests/compat/fib-v4.zbc` is the version 4 reference file and `tests/t0/irformat.sh` checks it loads and that other versions are refused with these messages.

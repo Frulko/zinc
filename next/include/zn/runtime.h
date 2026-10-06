@@ -167,7 +167,9 @@
   X(HostProcRead, "host.procRead", "i>s", 2) \
   X(HostProcStatus, "host.procStatus", "i>i", 2) \
   X(HostProcKill, "host.procKill", "i>n", 2) \
-  X(HostHostLast, "host.hostLast", ">n", 2)
+  X(HostHostLast, "host.hostLast", ">n", 2) \
+  /* internal rows after the host ones, so no id that a ZBC file or a firmware knows moves: what the optimizer rewrites a call into (not members of any type): a stable sort of an f64[] whose comparator was (a, b) => a - b or (a, b) => b - a, without callbacks */ \
+  X(ArrSortAsc, "internal.arrSortAsc", "a>a", 0) X(ArrSortDesc, "internal.arrSortDesc", "a>a", 0)
 
 namespace zn {
 

@@ -221,6 +221,29 @@ bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, bool 
   return true;
 }
 
+// The same merge for an f64[] sorted by (a, b) => a - b (or b - a): the comparison is made here, no function is called. `sign` is 1 or -1.
+void mergeSortNumbers(std::vector<Slot>& v, double sign) {
+  std::size_t n = v.size();
+  bool nan = false;
+  for (Slot x : v) if (std::isnan(std::bit_cast<double>(x))) { nan = true; break; }
+  if (!nan) {  // a total order (a - b > 0 is a > b here): the library's stable sort gives the same permutation as the merge below
+    if (sign > 0) std::stable_sort(v.begin(), v.end(), [](Slot x, Slot y) { return std::bit_cast<double>(x) < std::bit_cast<double>(y); });
+    else std::stable_sort(v.begin(), v.end(), [](Slot x, Slot y) { return std::bit_cast<double>(x) > std::bit_cast<double>(y); });
+    return;
+  }
+  std::vector<Slot> tmp(n);
+  auto gt = [&](Slot x, Slot y) { return sign * (std::bit_cast<double>(x) - std::bit_cast<double>(y)) > 0; };  // what `cmp(x, y) > 0` was
+  for (std::size_t width = 1; width < n; width *= 2) {
+    for (std::size_t lo = 0; lo < n; lo += 2 * width) {
+      std::size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n), i = lo, j = mid, k = lo;
+      while (i < mid && j < hi) tmp[k++] = gt(v[i], v[j]) ? v[j++] : v[i++];
+      while (i < mid) tmp[k++] = v[i++];
+      while (j < hi) tmp[k++] = v[j++];
+    }
+    v.swap(tmp);
+  }
+}
+
 // Number.prototype.toFixed for finite |v| < 1e21. printf rounds an exact tie to even where JavaScript takes the larger
 // magnitude ((2.5).toFixed(0) is "3"); ties are found on the exact decimal expansion, so 1.005 keeps printf's result.
 std::string toFixed(double v, int digits) {
@@ -553,7 +576,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
 
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 #define NN(x) do { if (!(x)) return kNull; } while (0)
-  if (id >= Rt::HostGfxFrames) return hostRt(m, id, a);
+  if (id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) return hostRt(m, id, a);
   switch (id) {
     // ---- internal string operations
     case Rt::StrConcat: case Rt::StrConcatM: {
@@ -850,6 +873,13 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       if (!cmp) return "not a comparator";
       if (!mergeSort(m, o->v, cmp, fn, o->cls->elemRef, scratch)) return m.error.c_str();
       m.retain(o);  // the result is a new reference to the same array
+      return nullptr;
+    }
+    case Rt::ArrSortAsc: case Rt::ArrSortDesc: {
+      ArrObj* o = A(a[0]);
+      NN(o);
+      mergeSortNumbers(o->v, id == Rt::ArrSortAsc ? 1.0 : -1.0);
+      m.retain(o);
       return nullptr;
     }
     case Rt::ArrSlice: {

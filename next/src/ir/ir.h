@@ -154,7 +154,8 @@ std::string verify(const Module& m);
 void insertRc(Module& m);
 
 // Devirtualises single-target virtual calls and inlines small functions; run before insertRc.
-void optimize(Module& m);
+// `deviceCore`: the module runs on a device core built from an older release, so the rewrites that need a newer runtime row (the number sort) are left out.
+void optimize(Module& m, bool deviceCore = false);
 
 // Lowers a checked program. Fails with diagnostics (Z0005) for constructs the IR does not cover yet.
 struct LowerResult {

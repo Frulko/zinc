@@ -63,6 +63,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
 }
 
 // Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
+static bool gDeviceCore = false;  // the program goes to a device core (ESP32): the optimizer only writes runtime calls that every core release has
 static std::vector<std::string> gSources;  // the texts of the files of the last program compiled: they decide which fonts and images are baked
 
 // The baked fonts and images of the last program compiled, as one blob (src/res); assets are the `assets` directory beside the entry file or above it.
@@ -86,7 +87,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     diags = low.diags;
     if (diags.empty()) {
-      if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module);
+      if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module, gDeviceCore);
       zn::ir::insertRc(low.module);
       std::string badIr = zn::ir::verify(low.module);
       if (!badIr.empty()) { std::fprintf(stderr, "internal error: invalid IR after reference counting: %s\n", badIr.c_str()); return 3; }
@@ -239,6 +240,7 @@ int main(int argc, char** argv) {
     }
     if (target != "esp32") { std::fprintf(stderr, "zinc: --target %s runs through `zinc build --target`; `run` supports esp32\n", target.c_str()); return 2; }
     zn::zbc::Module zm;
+    gDeviceCore = true;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::vector<std::uint8_t> bytes = zn::zbc::encode(zm);
     zn::dev::Link link;
@@ -353,7 +355,7 @@ int main(int argc, char** argv) {
     }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" +
-                      (fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
+                      (zn::aot::usesHost(zm) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
@@ -457,7 +459,7 @@ int main(int argc, char** argv) {
     if (!loadChecked(argv[2], prog, checked)) return 1;
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     if (low.diags.empty()) {
-      if (!std::strcmp(argv[1], "--emit=ir-rc")) { if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module); zn::ir::insertRc(low.module); }
+      if (!std::strcmp(argv[1], "--emit=ir-rc")) { if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module, gDeviceCore); zn::ir::insertRc(low.module); }
       std::string bad = zn::ir::verify(low.module);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); if (std::getenv("ZN_DUMP_BAD")) { std::string d = zn::ir::dump(low.module); std::fwrite(d.data(), 1, d.size(), stdout); } return 3; }
       std::fputs(zn::ir::dump(low.module).c_str(), stdout);
