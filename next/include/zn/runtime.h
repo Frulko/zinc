@@ -54,7 +54,51 @@
   X(HostGfxDrawImage, "host.gfxDrawImage", "iddddid>n", 2) X(HostGfxClip, "host.gfxClip", "ddddd>n", 2) X(HostGfxUnclip, "host.gfxUnclip", ">n", 2)       \
   X(HostGfxTranslate, "host.gfxTranslate", "dd>n", 2) X(HostGfxKeep, "host.gfxKeep", ">n", 2) X(HostGfxWidth, "host.gfxWidth", ">i", 2)                \
   X(HostGfxHeight, "host.gfxHeight", ">i", 2) X(HostGfxPixelScale, "host.gfxPixelScale", ">i", 2)                      \
-  X(HostGfxProfiling, "host.gfxProfiling", ">b", 2) X(HostGfxProfMark, "host.gfxProfMark", "i>n", 2) X(HostGfxFinish, "host.gfxFinish", ">n", 2)
+  X(HostGfxProfiling, "host.gfxProfiling", ">b", 2) X(HostGfxProfMark, "host.gfxProfMark", "i>n", 2) X(HostGfxFinish, "host.gfxFinish", ">n", 2) \
+  X(HostGfxPoll, "host.gfxPoll", ">d", 2) \
+  X(HostGfxShouldQuit, "host.gfxShouldQuit", ">b", 2) \
+  X(HostGfxQuit, "host.gfxQuit", ">n", 2) \
+  X(HostGfxWheel, "host.gfxWheel", ">d", 2) \
+  X(HostGfxWheelX, "host.gfxWheelX", ">d", 2) \
+  X(HostGfxPinch, "host.gfxPinch", ">d", 2) \
+  X(HostGfxScrollDX, "host.gfxScrollDX", ">d", 2) \
+  X(HostGfxScrollDY, "host.gfxScrollDY", ">d", 2) \
+  X(HostGfxScrollPhase, "host.gfxScrollPhase", ">i", 2) \
+  X(HostGfxTouchCount, "host.gfxTouchCount", ">i", 2) \
+  X(HostGfxTouchX, "host.gfxTouchX", "i>d", 2) \
+  X(HostGfxTouchY, "host.gfxTouchY", "i>d", 2) \
+  X(HostGfxTouchId, "host.gfxTouchId", "i>i", 2) \
+  X(HostGfxPenCount, "host.gfxPenCount", ">i", 2) \
+  X(HostGfxPenX, "host.gfxPenX", "i>d", 2) \
+  X(HostGfxPenY, "host.gfxPenY", "i>d", 2) \
+  X(HostGfxPenPressure, "host.gfxPenPressure", "i>d", 2) \
+  X(HostGfxPenTiltX, "host.gfxPenTiltX", "i>d", 2) \
+  X(HostGfxPenTiltY, "host.gfxPenTiltY", "i>d", 2) \
+  X(HostGfxPenFlags, "host.gfxPenFlags", "i>i", 2) \
+  X(HostGfxIsDown, "host.gfxIsDown", "i>b", 2) \
+  X(HostGfxWasPressed, "host.gfxWasPressed", "i>b", 2) \
+  X(HostGfxPointerX, "host.gfxPointerX", ">d", 2) \
+  X(HostGfxPointerY, "host.gfxPointerY", ">d", 2) \
+  X(HostGfxPointerDown, "host.gfxPointerDown", ">b", 2) \
+  X(HostGfxPointerButtons, "host.gfxPointerButtons", ">i", 2) \
+  X(HostGfxModifiers, "host.gfxModifiers", ">i", 2) \
+  X(HostGfxKeyCount, "host.gfxKeyCount", ">i", 2) \
+  X(HostGfxKeyKind, "host.gfxKeyKind", "i>i", 2) \
+  X(HostGfxKeyMods, "host.gfxKeyMods", "i>i", 2) \
+  X(HostGfxKeyName, "host.gfxKeyName", "i>s", 2) \
+  X(HostGfxButtonEventCount, "host.gfxButtonEventCount", ">i", 2) \
+  X(HostGfxButtonEventX, "host.gfxButtonEventX", "i>d", 2) \
+  X(HostGfxButtonEventY, "host.gfxButtonEventY", "i>d", 2) \
+  X(HostGfxButtonEventButton, "host.gfxButtonEventButton", "i>i", 2) \
+  X(HostGfxButtonEventDown, "host.gfxButtonEventDown", "i>b", 2) \
+  X(HostGfxStartTextInput, "host.gfxStartTextInput", "dddd>n", 2) \
+  X(HostGfxStopTextInput, "host.gfxStopTextInput", ">n", 2) \
+  X(HostGfxClipboardText, "host.gfxClipboardText", ">s", 2) \
+  X(HostGfxSetClipboardText, "host.gfxSetClipboardText", "s>n", 2) \
+  X(HostGfxSetCursor, "host.gfxSetCursor", "i>n", 2) \
+  X(HostGfxEscapeByApp, "host.gfxEscapeByApp", "b>n", 2) \
+  X(HostGfxEscapeDefault, "host.gfxEscapeDefault", ">n", 2) \
+  X(HostGfxCapture, "host.gfxCapture", "s>b", 2)
 
 namespace zn {
 

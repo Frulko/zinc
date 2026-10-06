@@ -1349,7 +1349,12 @@ struct Checker {
       case N::Number: return num(Num::f64);
       case N::BigInt: diag(kZUnsupported, i, "bigint"); return tError;
       case N::String: return tStr;
-      case N::Template: for (std::uint32_t k : x.kids) expr(k); return tStr;
+      case N::Template:
+        for (std::uint32_t k : x.kids) {
+          TypeId pt = expr(k);
+          if (!bad(pt) && ty(pt).k == TK::Func) diag(kZNotAssignable, k, "'" + name(pt) + "' to 'string' (call the function)");
+        }
+        return tStr;
       case N::Literal: return x.text == "null" ? tNull : tBool;
       case N::This:
         if (curClass == kNone || curStatic) { diag(kZNotAllowedHere, i, "'this'"); return tError; }

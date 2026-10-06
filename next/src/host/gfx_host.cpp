@@ -1,6 +1,7 @@
 // The graphics host: serves the Rt::HostGfx* calls (include/zn/runtime.h) over the existing runtime (runtime/gfx.cpp, raster.cpp),
 // headless. Compiled with the runtime's flags (C++17, no exceptions, no RTTI, no FP contraction) so the pixels match its builds.
 #include <stdlib.h>
+#include <string.h>
 
 #include "hal.h"
 #include "zn/host.h"
@@ -10,8 +11,11 @@
 
 namespace zrt {
 extern int32_t frame_no;
-namespace gfx { void begin_frame(); void end_frame(); }
+extern HalInput input, prev_input;
+extern bool quit_requested;
+namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); }
 }
+extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
 
 namespace {
 
@@ -26,6 +30,18 @@ zrt::Array<double> arr(const HostArg& a) {
   return r;
 }
 
+bool quitFlag = false;
+uint64_t lastFrameUs = 0, frameStartUs = 0;
+char* sbuf = nullptr;  // the string a call returns lives here until the next call
+size_t scap = 0;
+void answer(zn::host::HostArg* r, const char* p, size_t n) {
+  if (n + 1 > scap) { scap = n + 64; sbuf = static_cast<char*>(realloc(sbuf, scap)); }
+  memcpy(sbuf, p, n);
+  sbuf[n] = 0;
+  r->p = sbuf;
+  r->n = static_cast<uint32_t>(n);
+}
+
 void call(int id, const HostArg* a, HostArg* r) {
   namespace g = zrt::gfx;
   auto u = [&](int k) { return static_cast<uint32_t>(a[k].i); };
@@ -36,11 +52,20 @@ void call(int id, const HostArg* a, HostArg* r) {
       static bool started = false;
       if (!started) { started = true; zrt::start(cfg, 0, nullptr); }
       const char* f = getenv("ZINC_FRAMES");
-      r->i = f ? atoi(f) : 60;
+      r->i = f ? atoi(f) : zn_hal_is_live() ? 0x7fffffff : 60;  // a window runs until it is closed
       break;
     }
     case Rt::HostGfxBegin: g::begin_frame(); break;
-    case Rt::HostGfxEnd: g::end_frame(); zrt::frame_no++; break;
+    case Rt::HostGfxEnd: {
+      g::end_frame();
+      zrt::frame_no++;
+      hal_frame_end();
+      if (hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
+        uint64_t spent = hal_time_us() - frameStartUs;
+        if (spent < 8000) hal_sleep_us(8000 - spent);
+      }
+      break;
+    }
     case Rt::HostGfxClear: g::clear(u(0)); break;
     case Rt::HostGfxRect: g::rect(a[0].d, a[1].d, a[2].d, a[3].d, u(4)); break;
     case Rt::HostGfxRRect: g::rrect(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, u(5), n(6)); break;
@@ -68,6 +93,63 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
+    case Rt::HostGfxPoll: {  // the start of a frame as the runtime's loop does it: input, then the time step (fixed headless, measured with a window)
+      hal_frame_begin();
+      zrt::prev_input = zrt::input;
+      zrt::input.wheel = 0; zrt::input.pinch = 1;
+      hal_poll_input(&zrt::input);
+      if (zrt::input.quit) quitFlag = true;
+      uint64_t t = hal_time_us();
+      double fixed = hal_fixed_dt(), dt = fixed;
+      if (fixed <= 0) { dt = lastFrameUs ? static_cast<double>(t - lastFrameUs) / 1e6 : 1.0 / 60.0; if (dt > 0.1) dt = 0.1; }
+      lastFrameUs = frameStartUs = t;
+      zrt::gfx::sync_surface();
+      r->d = dt;
+      break;
+    }
+    case Rt::HostGfxShouldQuit: r->i = (quitFlag || zrt::quit_requested) ? 1 : 0; break;
+    case Rt::HostGfxQuit: g::quit(); break;
+    case Rt::HostGfxKeyName: { zrt::String k = g::keyName(n(0)); answer(r, k.ptr(), k.bytes()); break; }
+    case Rt::HostGfxClipboardText: { zrt::String k = g::clipboardText(); answer(r, k.ptr(), k.bytes()); break; }
+    case Rt::HostGfxSetClipboardText: g::setClipboardText(str(a[0])); break;
+    case Rt::HostGfxStartTextInput: g::startTextInput(a[0].d, a[1].d, a[2].d, a[3].d); break;
+    case Rt::HostGfxCapture: r->i = g::capture(str(a[0])) ? 1 : 0; break;
+    case Rt::HostGfxEscapeByApp: g::escapeByApp(a[0].i != 0); break;
+    case Rt::HostGfxWheel: r->d = g::wheel(); break;
+    case Rt::HostGfxWheelX: r->d = g::wheelX(); break;
+    case Rt::HostGfxPinch: r->d = g::pinch(); break;
+    case Rt::HostGfxScrollDX: r->d = g::scrollDX(); break;
+    case Rt::HostGfxScrollDY: r->d = g::scrollDY(); break;
+    case Rt::HostGfxScrollPhase: r->i = g::scrollPhase(); break;
+    case Rt::HostGfxTouchCount: r->i = g::touchCount(); break;
+    case Rt::HostGfxTouchX: r->d = g::touchX(n(0)); break;
+    case Rt::HostGfxTouchY: r->d = g::touchY(n(0)); break;
+    case Rt::HostGfxTouchId: r->i = g::touchId(n(0)); break;
+    case Rt::HostGfxPenCount: r->i = g::penCount(); break;
+    case Rt::HostGfxPenX: r->d = g::penX(n(0)); break;
+    case Rt::HostGfxPenY: r->d = g::penY(n(0)); break;
+    case Rt::HostGfxPenPressure: r->d = g::penPressure(n(0)); break;
+    case Rt::HostGfxPenTiltX: r->d = g::penTiltX(n(0)); break;
+    case Rt::HostGfxPenTiltY: r->d = g::penTiltY(n(0)); break;
+    case Rt::HostGfxPenFlags: r->i = g::penFlags(n(0)); break;
+    case Rt::HostGfxIsDown: r->i = g::isDown(n(0)) ? 1 : 0; break;
+    case Rt::HostGfxWasPressed: r->i = g::wasPressed(n(0)) ? 1 : 0; break;
+    case Rt::HostGfxPointerX: r->d = g::pointerX(); break;
+    case Rt::HostGfxPointerY: r->d = g::pointerY(); break;
+    case Rt::HostGfxPointerDown: r->i = g::pointerDown() ? 1 : 0; break;
+    case Rt::HostGfxPointerButtons: r->i = g::pointerButtons(); break;
+    case Rt::HostGfxModifiers: r->i = g::modifiers(); break;
+    case Rt::HostGfxKeyCount: r->i = g::keyCount(); break;
+    case Rt::HostGfxKeyKind: r->i = g::keyKind(n(0)); break;
+    case Rt::HostGfxKeyMods: r->i = g::keyMods(n(0)); break;
+    case Rt::HostGfxButtonEventCount: r->i = g::buttonEventCount(); break;
+    case Rt::HostGfxButtonEventX: r->d = g::buttonEventX(n(0)); break;
+    case Rt::HostGfxButtonEventY: r->d = g::buttonEventY(n(0)); break;
+    case Rt::HostGfxButtonEventButton: r->i = g::buttonEventButton(n(0)); break;
+    case Rt::HostGfxButtonEventDown: r->i = g::buttonEventDown(n(0)) ? 1 : 0; break;
+    case Rt::HostGfxStopTextInput: g::stopTextInput(); break;
+    case Rt::HostGfxSetCursor: g::setCursor(n(0)); break;
+    case Rt::HostGfxEscapeDefault: g::escapeDefault(); break;
     case Rt::HostGfxProfiling: r->i = g::profiling() ? 1 : 0; break;
     case Rt::HostGfxProfMark: g::profMark(n(0)); break;
     case Rt::HostGfxFinish: zrt::finish_run(); break;  // the profile summary, the trace file and the last-frame capture

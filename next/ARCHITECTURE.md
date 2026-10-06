@@ -14,7 +14,7 @@ next/
   src/rt/         the runtime both engines share: machine, objects, reference counting, runtime calls (ZN-022)
   src/vm/         interpreter (provides Machine::exec by dispatching bytecode)
   src/aot/        ZBC → C++ emitter; the C++ it writes calls include/zn/ops.h and links src/rt
-  src/host/       the graphics host (ZN-027): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
+  src/host/       the graphics host (ZN-027, ZN-047: one binary, a window or headless HAL picked at run time): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
   src/prof/       the profilers of the interpreter (zinc profile, zinc mem, ZN-046); includes rt and vm, only main includes it
   src/tc/         the toolchain manager (ZN-029): the pinned `zig c++`, its checksum-verified download, cross builds; depends on nothing of the engine
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc

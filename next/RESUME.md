@@ -313,3 +313,8 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `docs/reports/zinc-next-decisions.md`: name Zinc Atelier (check in ZN-056), app shell written in zinc:ui, QuickJS as a full second engine, IR unstable now but must become stable, clang not replaced for now.
 - Plan after M6, by ordinal: ZN-047 live window and input, ZN-048 bake fonts and images, ZN-049 host modules for apps, ZN-050 the app shell, ZN-051 QuickJS engine, ZN-052 stable IR and ZBC, ZN-053 packaging, ZN-054 Windows and Linux hosts, ZN-055 hardware validation (closes ZN-030 AC 1), ZN-056 name check; then ZN-041 interpreter speed, ZN-042 typed AOT, ZN-043 mquickjs evaluation.
 - `tools/next-task` now reads task ids that carry a priority tag (it skipped them before).
+
+## ZN-047 notes (Done)
+- Window: `zinc run app.tsx` opens the SDL3 window (live) unless `ZINC_HEADLESS`, `ZINC_DETERMINISTIC`, `ZINC_RECORD`, `ZINC_REPLAY` or no SDL3; `src/host/hal_dispatch.cpp` forwards to `sdl_hal_*` or `null_hal_*` (the old HAL files compiled with renamed functions, see CMakeLists). `zinc build` programs link SDL3 through `ZN_HOST_LIBS`. Scripted input for headless runs: `ZINC_INPUT=file` (see `docs/reports/zinc-next-window.md`).
+- Tests: T1 `input.sh`, T2 `input_aot.sh`; goldens `tests/golden/ui/{click,type}`. Not done: images and offscreen (`createImage`, `beginImage`) in zinc:gfx; mouse and keyboard through the OS were not driven by a test.
+- Next by ordinal: ZN-048 (bake fonts and images in the engine).

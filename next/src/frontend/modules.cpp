@@ -46,8 +46,8 @@ let __frameCb: ((dt: number) => void) | null = null;
 let __frameNo: i32 = 0;
 function __gfxLoop(): void {
   const n = __host_gfxFrames();
-  const dt = 1 / 60;
   for (let f: i32 = 0; f < n; f++) {
+    const dt = __host_gfxPoll();
     __clock += dt * 1000;
     __frameTimers();
     __host_gfxBegin();
@@ -56,6 +56,7 @@ function __gfxLoop(): void {
     __drainJobs();
     __host_gfxEnd();
     __frameNo++;
+    if (__host_gfxShouldQuit()) break;
   }
   __host_gfxFinish();
 }
@@ -88,57 +89,56 @@ export function clip(x: number, y: number, w: number, h: number, radius: number 
 export function unclip(): void { __host_gfxUnclip(); }
 export function translate(x: number, y: number): void { __host_gfxTranslate(x, y); }
 export function keep(): void { __host_gfxKeep(); }
-// Headless input: a run without a window (the deterministic mode) has no pointer, keys, touch or pen.
+// Input: read from the HAL (a window, or nothing when headless: no pointer, keys, touch or pen).
 export enum Btn { Up = 0, Down = 1, Left = 2, Right = 3, A = 4, B = 5, X = 6, Y = 7, L = 8, R = 9, Start = 10, Select = 11 }
 export enum Mod { Shift = 1, Ctrl = 2, Alt = 4, Meta = 8 }
 export enum KeyKind { Down = 0, Up = 1, Repeat = 2, Text = 3 }
 export enum Cursor { Default = 0, Text = 1, Pointer = 2, Move = 3, EwResize = 4, NsResize = 5, Crosshair = 6, Grab = 7, Grabbing = 8, NotAllowed = 9 }
 export enum PenFlag { Down = 1, Eraser = 2, Hover = 4 }
-export function wheel(): number { return 0; }
-export function wheelX(): number { return 0; }
-export function pinch(): number { return 1; }
-export function touchCount(): i32 { return 0; }
-export function touchX(i: i32): number { return 0; }
-export function touchY(i: i32): number { return 0; }
-export function touchId(i: i32): i32 { return 0; }
-export function penCount(): i32 { return 0; }
-export function penX(i: i32): number { return 0; }
-export function penY(i: i32): number { return 0; }
-export function penPressure(i: i32): number { return 0; }
-export function penTiltX(i: i32): number { return 0; }
-export function penTiltY(i: i32): number { return 0; }
-export function penFlags(i: i32): i32 { return 0; }
-export function isDown(b: Btn): boolean { return false; }
-export function wasPressed(b: Btn): boolean { return false; }
-export function pointerX(): number { return 0; }
-export function pointerY(): number { return 0; }
-export function pointerDown(): boolean { return false; }
-export function pointerButtons(): i32 { return 0; }
-export function modifiers(): i32 { return 0; }
-export function keyCount(): i32 { return 0; }
-export function keyKind(i: i32): KeyKind { return KeyKind.Down; }
-export function keyMods(i: i32): i32 { return 0; }
-export function keyName(i: i32): string { return ''; }
-export function buttonEventCount(): i32 { return 0; }
-export function buttonEventX(i: i32): number { return 0; }
-export function buttonEventY(i: i32): number { return 0; }
-export function buttonEventButton(i: i32): i32 { return 0; }
-export function buttonEventDown(i: i32): boolean { return false; }
-export function startTextInput(x: number, y: number, w: number, h: number): void {}
-export function stopTextInput(): void {}
-let __clipboard: string = '';
-export function clipboardText(): string { return __clipboard; }
-export function setClipboardText(s: string): void { __clipboard = s; }
-export function setCursor(c: Cursor): void {}
-export function scrollDX(): number { return 0; }
-export function scrollDY(): number { return 0; }
-export function scrollPhase(): i32 { return 0; }
-export function escapeByApp(on: boolean): void {}
-export function escapeDefault(): void {}
+export function wheel(): number { return __host_gfxWheel(); }
+export function wheelX(): number { return __host_gfxWheelX(); }
+export function pinch(): number { return __host_gfxPinch(); }
+export function touchCount(): i32 { return __host_gfxTouchCount(); }
+export function touchX(i: i32): number { return __host_gfxTouchX(i); }
+export function touchY(i: i32): number { return __host_gfxTouchY(i); }
+export function touchId(i: i32): i32 { return __host_gfxTouchId(i); }
+export function penCount(): i32 { return __host_gfxPenCount(); }
+export function penX(i: i32): number { return __host_gfxPenX(i); }
+export function penY(i: i32): number { return __host_gfxPenY(i); }
+export function penPressure(i: i32): number { return __host_gfxPenPressure(i); }
+export function penTiltX(i: i32): number { return __host_gfxPenTiltX(i); }
+export function penTiltY(i: i32): number { return __host_gfxPenTiltY(i); }
+export function penFlags(i: i32): i32 { return __host_gfxPenFlags(i); }
+export function isDown(b: Btn): boolean { return __host_gfxIsDown(b); }
+export function wasPressed(b: Btn): boolean { return __host_gfxWasPressed(b); }
+export function pointerX(): number { return __host_gfxPointerX(); }
+export function pointerY(): number { return __host_gfxPointerY(); }
+export function pointerDown(): boolean { return __host_gfxPointerDown(); }
+export function pointerButtons(): i32 { return __host_gfxPointerButtons(); }
+export function modifiers(): i32 { return __host_gfxModifiers(); }
+export function keyCount(): i32 { return __host_gfxKeyCount(); }
+export function keyKind(i: i32): KeyKind { return __host_gfxKeyKind(i); }
+export function keyMods(i: i32): i32 { return __host_gfxKeyMods(i); }
+export function keyName(i: i32): string { return __host_gfxKeyName(i); }
+export function buttonEventCount(): i32 { return __host_gfxButtonEventCount(); }
+export function buttonEventX(i: i32): number { return __host_gfxButtonEventX(i); }
+export function buttonEventY(i: i32): number { return __host_gfxButtonEventY(i); }
+export function buttonEventButton(i: i32): i32 { return __host_gfxButtonEventButton(i); }
+export function buttonEventDown(i: i32): boolean { return __host_gfxButtonEventDown(i); }
+export function startTextInput(x: number, y: number, w: number, h: number): void { __host_gfxStartTextInput(x, y, w, h); }
+export function stopTextInput(): void { __host_gfxStopTextInput(); }
+export function clipboardText(): string { return __host_gfxClipboardText(); }
+export function setClipboardText(s: string): void { __host_gfxSetClipboardText(s); }
+export function setCursor(c: Cursor): void { __host_gfxSetCursor(c); }
+export function scrollDX(): number { return __host_gfxScrollDX(); }
+export function scrollDY(): number { return __host_gfxScrollDY(); }
+export function scrollPhase(): i32 { return __host_gfxScrollPhase(); }
+export function escapeByApp(on: boolean): void { __host_gfxEscapeByApp(on); }
+export function escapeDefault(): void { __host_gfxEscapeDefault(); }
 export function profiling(): boolean { return __host_gfxProfiling(); }
 export function profMark(phase: i32): void { __host_gfxProfMark(phase); }
-export function quit(): void {}
-export function capture(path: string): boolean { return false; }
+export function quit(): void { __host_gfxQuit(); }
+export function capture(path: string): boolean { return __host_gfxCapture(path); }
 )ZN";
 
 const char* hostModuleSource(std::string_view spec) { return spec == "zinc:gfx" ? kGfxModule : nullptr; }

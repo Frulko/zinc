@@ -788,7 +788,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::HostGfxShadow: case Rt::HostGfxPolygon: case Rt::HostGfxPath: case Rt::HostGfxStroke: case Rt::HostGfxFontAscent:
     case Rt::HostGfxLineHeight: case Rt::HostGfxTextWidth: case Rt::HostGfxImage: case Rt::HostGfxImageWidth: case Rt::HostGfxImageHeight:
     case Rt::HostGfxDrawImage: case Rt::HostGfxClip: case Rt::HostGfxUnclip: case Rt::HostGfxTranslate: case Rt::HostGfxKeep:
-    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: case Rt::HostGfxProfiling: case Rt::HostGfxProfMark: case Rt::HostGfxFinish: {
+    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: case Rt::HostGfxProfiling: case Rt::HostGfxProfMark: case Rt::HostGfxFinish: case Rt::HostGfxPoll: case Rt::HostGfxShouldQuit: case Rt::HostGfxQuit: case Rt::HostGfxWheel: case Rt::HostGfxWheelX: case Rt::HostGfxPinch: case Rt::HostGfxScrollDX: case Rt::HostGfxScrollDY: case Rt::HostGfxScrollPhase: case Rt::HostGfxTouchCount: case Rt::HostGfxTouchX: case Rt::HostGfxTouchY: case Rt::HostGfxTouchId: case Rt::HostGfxPenCount: case Rt::HostGfxPenX: case Rt::HostGfxPenY: case Rt::HostGfxPenPressure: case Rt::HostGfxPenTiltX: case Rt::HostGfxPenTiltY: case Rt::HostGfxPenFlags: case Rt::HostGfxIsDown: case Rt::HostGfxWasPressed: case Rt::HostGfxPointerX: case Rt::HostGfxPointerY: case Rt::HostGfxPointerDown: case Rt::HostGfxPointerButtons: case Rt::HostGfxModifiers: case Rt::HostGfxKeyCount: case Rt::HostGfxKeyKind: case Rt::HostGfxKeyMods: case Rt::HostGfxKeyName: case Rt::HostGfxButtonEventCount: case Rt::HostGfxButtonEventX: case Rt::HostGfxButtonEventY: case Rt::HostGfxButtonEventButton: case Rt::HostGfxButtonEventDown: case Rt::HostGfxStartTextInput: case Rt::HostGfxStopTextInput: case Rt::HostGfxClipboardText: case Rt::HostGfxSetClipboardText: case Rt::HostGfxSetCursor: case Rt::HostGfxEscapeByApp: case Rt::HostGfxEscapeDefault: case Rt::HostGfxCapture: {
       if (!zn::host::hostGfx) return "zinc:gfx is not available in this build";
       const RtInfo& ri = rtInfo(id);
       zn::host::HostArg args[12], res;
@@ -805,7 +805,8 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       zn::host::hostGfx(static_cast<int>(id), args, &res);
       switch (rtRet(ri)) {
         case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
-        case 'i': a[0] = static_cast<Slot>(res.i); break;
+        case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
+        case 's': { StrObj* so = m.newStr(static_cast<const char*>(res.p), res.n); a[0] = P(so); break; }
         default: break;
       }
       return nullptr;
