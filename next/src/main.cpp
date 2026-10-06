@@ -89,7 +89,12 @@ int main(int argc, char** argv) {
     auto res = zn::vm::run(zm, out, trace);
     std::fwrite(out.data(), 1, out.size(), stdout);
     if (trace) std::fwrite(res.trace.data(), 1, res.trace.size(), stderr);
-    if (!res.ok) { std::fprintf(stderr, "runtime error: %s\n", res.error.c_str()); return 1; }
+    if (!res.ok) {
+      std::fflush(stdout);  // what the program printed comes before the error
+      if (res.error.rfind("panic: ", 0) == 0) { std::fprintf(stderr, "%s\n", res.error.c_str()); return 101; }  // an uncaught exception
+      std::fprintf(stderr, "runtime error: %s\n", res.error.c_str());
+      return 1;
+    }
     if (std::getenv("ZN_LEAK_CHECK") && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }

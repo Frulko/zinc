@@ -129,7 +129,7 @@ func @main() -> void nregs=12
   97  Release  r1
   98  Move     r1, r2
   99  Call     r0, @__g0
- 100  Call     r0, @__log46
+ 100  Call     r0, @__log48
  101  Jmp      -> 117
  102  LoadStr  r2, ""
  103  Move     r3, r1
@@ -1490,7 +1490,7 @@ func @__reduce(ref i64[], ref str[], ref str, ref str, ref str, i, i, i, i) -> r
  148  Release  r4
  149  Release  r15
  150  Ret      r16
-func @__fmt46(ref f64[], ref i64[], i) -> ref str nregs=13
+func @__fmt48(ref f64[], ref i64[], i) -> ref str nregs=13
    0  ArrLen   r3, r0
    1  JNeIK    r3, 0, -> 7
    3  Release  r0
@@ -1539,7 +1539,7 @@ func @__fmt46(ref f64[], ref i64[], i) -> ref str nregs=13
   51  Retain   r1
   52  Move     r8, r1
   53  Move     r9, r5
-  54  Call     r7, @__fmt6
+  54  Call     r7, @__fmt7
   55  ArrPush  r7, r2, r7
   56  AddI32K  r6, r6, 1
   57  Jmp      -> 48
@@ -1595,11 +1595,11 @@ func @__fmt46(ref f64[], ref i64[], i) -> ref str nregs=13
  109  Move     r8, r12
  110  Call     r0, @__reduce
  111  Ret      r0
-func @__fmt6(f64, ref i64[], i) -> ref str nregs=3
+func @__fmt7(f64, ref i64[], i) -> ref str nregs=3
    0  Release  r1
    1  Call     r0, @__num
    2  Ret      r0
-func @__log46(ref f64[]) -> ref str nregs=3
+func @__log48(ref f64[]) -> ref str nregs=3
    0  New      r1, i64[]
    1  LoadI    r2, 0
    2  ArrPush  r2, r1, r2
@@ -1624,7 +1624,7 @@ func @__log46(ref f64[]) -> ref str nregs=3
   21  LoadI    r2, 0
   22  ArrPush  r2, r1, r2
   23  LoadI    r2, 0
-  24  Call     r0, @__fmt46
+  24  Call     r0, @__fmt48
   25  Ret      r0
 func @lambda0(ref lambda0, f64) -> f64 nregs=6
    0  Release  r0

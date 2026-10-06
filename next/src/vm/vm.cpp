@@ -232,6 +232,22 @@ ArrObj* Machine::newArr(const ClassRT* cls) {
   return o;
 }
 
+// "Name: message" of an exception: what its __errorString() method says, else its class name.
+std::string Machine::exceptionText(Obj* exc) {
+  const ClassRT& c = *exc->cls;
+  for (std::uint32_t sel : mod->classes[c.id].selectors) {
+    if (mod->selectors[sel].name != "__errorString" || sel >= c.vtable.size() || !c.vtable[sel]) continue;
+    const Func* f = c.vtable[sel];
+    std::vector<Slot> regs(f->nregs + 4, 0);
+    retain(exc);  // the callee owns its parameters
+    regs[0] = reinterpret_cast<Slot>(exc);
+    std::string saved = error;
+    if (exec(f, regs.data()) && regs[0]) { const StrObj* s = reinterpret_cast<const StrObj*>(regs[0]); error = saved; return std::string(s->data(), s->len); }
+    error = saved;
+  }
+  return c.name;
+}
+
 const Func* Machine::findComparator(const Obj* fn, zbc::VType elem) const {
   if (!fn) return nullptr;
   const ClassRT& c = *fn->cls;
@@ -426,7 +442,7 @@ L_Throw: {  // unwind to the nearest handler that takes the object, through the 
       if (fn->handlers[k].at == idx && isSubclassRT(reinterpret_cast<Obj*>(exc)->cls, fn->handlers[k].cls)) { hit = &fn->handlers[k]; break; }
     if (hit) { r[hit->reg] = exc; pc = code + hit->target; NEXT(); }
     const Frame f = *--fp;
-    if (!f.ret) { error = "uncaught exception: " + reinterpret_cast<Obj*>(exc)->cls->name; return false; }
+    if (!f.ret) { error = "panic: Uncaught " + exceptionText(reinterpret_cast<Obj*>(exc)); return false; }
     r = f.base; fn = f.fn; code = fn->code; at = f.ret - 1;
   }
 }

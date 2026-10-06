@@ -4,8 +4,15 @@
 # output, which differs from tour.out only by headings and line splits (checked when the golden was made).
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
-for b in tour errors async array_search string_number_edges conversions clock literal_member_arrays features generic_static regressions regressions2; do
-  "$ZINC" run ../tests/conformance/$b.ts 2>&1 | diff -q - corpus/conformance/$b.out >/dev/null || { echo "$b output differs from the frozen corpus"; fail=1; }
+# The frozen output of a program that ends with an uncaught exception has a last line `[exit 101] panic: Uncaught ...`.
+run() {
+  out=$("$ZINC" run "$1" 2>"${TMPDIR:-/tmp}/zn-conf.$$"); code=$?
+  [ -n "$out" ] && printf '%s\n' "$out"
+  if [ $code -ne 0 ]; then printf '[exit %s] %s\n' "$code" "$(cat "${TMPDIR:-/tmp}/zn-conf.$$")"; else cat "${TMPDIR:-/tmp}/zn-conf.$$"; fi
+  rm -f "${TMPDIR:-/tmp}/zn-conf.$$"
+}
+for b in tour errors async array_search string_number_edges conversions clock literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals dyn_unknown literal_errors; do
+  run ../tests/conformance/$b.ts | diff -q - corpus/conformance/$b.out >/dev/null || { echo "$b output differs from the frozen corpus"; fail=1; }
 done
 "$ZINC" run ../examples/lang/src/main.ts 2>&1 | diff -q - tests/golden/lang/lang.out >/dev/null || { echo "examples/lang output differs from its golden"; fail=1; }
 exit $fail

@@ -6,6 +6,8 @@
 
 #include "frontend/desugar.h"
 #include "frontend/diagnostics.h"
+#include "frontend/dyn.h"
+#include "frontend/inspect.h"
 #include "frontend/parser.h"
 
 namespace zn::frontend {
@@ -419,86 +421,6 @@ class Arena {
 }
 )ZN";
 
-// JSON.parse: a validator (the parsed value needs Dyn values); throws SyntaxError at the first offence.
-const char* kJsonPrelude = R"ZN(
-class __JsonCheck {
-  i: i32 = 0;
-  constructor(public s: string) {}
-  fail(): void { throw new SyntaxError(this.i < this.s.length ? 'Unexpected token ' + this.s.charAt(this.i) + ' in JSON at position ' + this.i : 'Unexpected end of JSON input'); }
-  ws(): void { while (this.i < this.s.length && (this.s.charAt(this.i) === ' ' || this.s.charAt(this.i) === '\t' || this.s.charAt(this.i) === '\n' || this.s.charAt(this.i) === '\r')) this.i++; }
-  lit(w: string): void { if (this.s.startsWith(w, this.i)) this.i += w.length; else this.fail(); }
-  digits(): boolean {
-    const st = this.i;
-    while (this.i < this.s.length && this.s.charCodeAt(this.i) >= 48 && this.s.charCodeAt(this.i) <= 57) this.i++;
-    return this.i > st;
-  }
-  num(): void {
-    if (this.s.charAt(this.i) === '-') this.i++;
-    if (this.s.charAt(this.i) === '0') this.i++; else if (!this.digits()) this.fail();
-    if (this.s.charAt(this.i) === '.') { this.i++; if (!this.digits()) this.fail(); }
-    if (this.s.charAt(this.i) === 'e' || this.s.charAt(this.i) === 'E') {
-      this.i++;
-      if (this.s.charAt(this.i) === '+' || this.s.charAt(this.i) === '-') this.i++;
-      if (!this.digits()) this.fail();
-    }
-  }
-  str(): void {
-    this.i++;
-    while (this.i < this.s.length && this.s.charAt(this.i) !== '"') {
-      const c = this.s.charCodeAt(this.i);
-      if (c < 32) this.fail();
-      if (c === 92) { this.i++; if ('"\\/bfnrtu'.indexOf(this.s.charAt(this.i)) < 0) this.fail(); }
-      this.i++;
-    }
-    if (this.i >= this.s.length) this.fail();
-    this.i++;
-  }
-  value(): void {
-    this.ws();
-    const c = this.s.charAt(this.i);
-    if (c === '{') {
-      this.i++;
-      this.ws();
-      if (this.s.charAt(this.i) === '}') { this.i++; return; }
-      for (;;) {
-        this.ws();
-        if (this.s.charAt(this.i) !== '"') this.fail();
-        this.str();
-        this.ws();
-        if (this.s.charAt(this.i) !== ':') this.fail();
-        this.i++;
-        this.value();
-        this.ws();
-        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
-        if (this.s.charAt(this.i) === '}') { this.i++; return; }
-        this.fail();
-      }
-    } else if (c === '[') {
-      this.i++;
-      this.ws();
-      if (this.s.charAt(this.i) === ']') { this.i++; return; }
-      for (;;) {
-        this.value();
-        this.ws();
-        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
-        if (this.s.charAt(this.i) === ']') { this.i++; return; }
-        this.fail();
-      }
-    } else if (c === '"') this.str();
-    else if (c === 't') this.lit('true');
-    else if (c === 'f') this.lit('false');
-    else if (c === 'n') this.lit('null');
-    else this.num();
-  }
-}
-function __jsonValidate(s: string): void {
-  const p = new __JsonCheck(s);
-  p.value();
-  p.ws();
-  if (p.i < s.length) p.fail();
-}
-)ZN";
-
 bool needsAsync(const Ast& A) {
   for (const Node& x : A.nodes) {
     if (x.kind == N::Await || x.kind == N::Yield) return true;
@@ -513,8 +435,12 @@ bool needsArena(const Ast& A) {
   return false;
 }
 
+// Dyn: `any`, `unknown`, `undefined` and JSON.parse bring the classes and helpers of dyn.cpp (with the console.log and JSON helpers they use).
 bool needsJson(const Ast& A) {
-  for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "JSON") return true;
+  for (const Node& x : A.nodes) {
+    if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && x.text == "undefined")) return true;
+    if (x.kind == N::Member && x.text == "parse" && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "JSON") return true;
+  }
   return false;
 }
 
@@ -541,7 +467,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
   if (!p.diags.empty()) return p;
   if (p.diags.empty() && (async || json || arena || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? kJsonPrelude : "") + (arena ? kArenaPrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

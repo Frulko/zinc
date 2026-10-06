@@ -85,7 +85,7 @@ enum class N : std::uint8_t {
   Enum,           // text=name  [EnumMember...]
   EnumMember,     // text=name  [initialiser|none]
   ObjectLit,      // [Prop...]   (`{ a: 1, b }`)
-  Prop,           // text=name  [value]
+  Prop,           // text=name  [value]; a computed key `[k]: v` has no text and [value, key]
   As,             // [expression, type]   (`e as T`)
   Try,            // [block, catch Ident|none, catch block|none, finally block|none]
   Throw,          // [expression]

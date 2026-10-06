@@ -1,1 +1,1 @@
-uncaught exception: Error
+panic: Uncaught Error: boom

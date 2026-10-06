@@ -48,7 +48,7 @@ bool inspectableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
   if (t == kNoType) return false;
   const Type& x = c.types[t];
   switch (x.k) {
-    case TK::Num: case TK::Bool: case TK::Str: case TK::Null: case TK::Func: return true;
+    case TK::Num: case TK::Bool: case TK::Str: case TK::Null: case TK::Func: case TK::Any: return true;
     case TK::Array: case TK::Set: return seen.count(t) || (seen.insert(t), inspectableRec(c, x.elem, seen));
     case TK::Map: return seen.count(t) || (seen.insert(t), inspectableRec(c, x.params[0], seen) && inspectableRec(c, x.elem, seen));
     case TK::Union: {
@@ -61,6 +61,7 @@ bool inspectableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
       seen.insert(t);
       const ObjInfo& oi = c.objs[x.obj];
       if (oi.isTemplate) return false;
+      if (oi.name == "Dyn") return true;  // `unknown`
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       for (const Member* m : fs) if (!isIdent(m->name) && !oi.isTuple) return false;
@@ -77,7 +78,7 @@ bool jsonableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
   if (t == kNoType) return false;
   const Type& x = c.types[t];
   switch (x.k) {
-    case TK::Num: case TK::Bool: case TK::Str: case TK::Null: return true;
+    case TK::Num: case TK::Bool: case TK::Str: case TK::Null: case TK::Any: return true;
     case TK::Array: case TK::Set: return seen.count(t) || (seen.insert(t), x.k == TK::Set || jsonableRec(c, x.elem, seen));
     case TK::Map: return true;
     case TK::Union: {
@@ -92,6 +93,7 @@ bool jsonableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
       seen.insert(t);
       const ObjInfo& oi = c.objs[x.obj];
       if (oi.isTemplate) return false;
+      if (oi.name == "Dyn") return true;  // `unknown`
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       for (const Member* m : fs) if (!isIdent(m->name) && !oi.isTuple) return false;
@@ -134,6 +136,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     case TK::Bool: body = "  return v ? 'true' : 'false';\n"; break;
     case TK::Str: body = "  return __jsonQuote(v);\n"; break;
     case TK::Null: body = "  return 'null';\n"; break;
+    case TK::Any: body = "  return __dynJson(v);\n"; break;
     case TK::Map: case TK::Set: body = "  return '{}';\n"; break;
     case TK::Array:
       body = "  const out: string[] = [];\n  for (let i: i32 = 0; i < v.length; i++) out.push(" + call(x.elem, "v[i]") + ");\n  return '[' + out.join(',') + ']';\n";
@@ -146,6 +149,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     }
     case TK::Object: {
       const ObjInfo& oi = c.objs[x.obj];
+      if (oi.name == "Dyn") { body = "  return __dynJson(v);\n"; break; }
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       if (oi.isTuple) {
@@ -220,6 +224,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
     case TK::Str: body = "  return __q(v);\n"; break;
     case TK::Null: body = "  return 'null';\n"; break;
     case TK::Func: body = "  return __fnName(__classname(v));\n"; break;
+    case TK::Any: body = "  return __fmtDyn(v, c, lvl);\n"; break;
     case TK::Array: {
       body += "  if (v.length === 0) return '[]';\n" + cyc + "  if (lvl > 2) return '[Array]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
       body += "  const n: i32 = v.length > 100 ? 100 : v.length;\n  c[0] += 2;\n  for (let i: i32 = 0; i < n; i++) out.push(" + call(x.elem, "v[i]", "l") + ");\n  c[0] -= 2;\n";
@@ -254,6 +259,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
     }
     case TK::Object: {
       const ObjInfo& oi = c.objs[x.obj];
+      if (oi.name == "Dyn") { body = "  return __fmtDyn(v, c, lvl);\n"; break; }
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       std::string cname = oi.name.substr(0, oi.name.find('<'));

@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify), ZN-038 (language gaps). Ready: next by ordinal is ZN-039 (unknown/Dyn, plus the `any` lines of literal_errors), then ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify), ZN-038 (language gaps), ZN-039 (Dyn). Ready: next by ordinal is ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-039.
+`/loop /zn-start` resumes with ZN-021.
 
 ## Watch out
 
@@ -225,3 +225,14 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Static generic methods are generic functions named `Class.method` (instances are plain functions); instance generic methods are still Z0005. `??=`, `||=`, `&&=` rewrite to `a = a ?? b` (the read side is a clone of the target).
 - `@weak`, `@pooled(n)` and other decorators parse and are ignored; `Arena.frame(n)` exists as a no-op class with `[Symbol.dispose]` (prelude `kArenaPrelude`). A `for (let ...)` loop variable that closures capture and the loop modifies is copied per iteration.
 - `a ?? b` joins the types when they differ (a union of two classes, or the wider one); `T | null` for function types works; Map.get is allowed in console.log (null when missing); string `lastIndexOf` added.
+
+## ZN-039 notes (Dyn: any and unknown)
+
+- Representation (option A): a Dyn is a reference to a class of the Zinc prelude `src/frontend/dyn.cpp` (`Dyn`; `DynUndef`, `DynNull`, `DynBool`, `DynNum`, `DynStr`, `DynArr`, `DynObj` over a `Map<string, Dyn>`, and `DynRefT<T>`, a live view of a typed object with closures for get/set/has/format/json). The prelude comes with `any`, `unknown`, `undefined` or `JSON.parse` in the program, together with the console.log and JSON helpers (inspectPrelude, jsonPrelude).
+- Types: `any` is `tDyn` (assignable to and from everything), `unknown` is the class `Dyn` (accepts everything, converts back only by narrowing or `as`). In the prelude and in generated code (`rawDyn()`) `any` behaves as the class Dyn itself.
+- Conversions are inserted by `require()` (`convertDyn`): `__dynTo<t>` wraps a typed value (numbers, strings, arrays by copy, objects as views), `__dynFrom<t>` is a checked conversion back (TypeError `cannot convert Dyn (string) to number`; records are rebuilt field by field, classes only unwrap their own view). Converters are generated per type (`dynConverter`, `dynSym`), like the console.log formatters.
+- Operators, property reads and writes, index, `typeof`, `in`, `instanceof`, `!`, unary +/-, `==`, `===`, `&&`, `||`, `??`, `++`, compound assignments and `for...of` on a Dyn are rewritten into helper calls (`__dynAdd`, `__dynGet`, `__dynSet`, ...). `typeof x === 'number'` and `x instanceof C` narrow a Dyn variable (reads of the narrowed variable are the checked conversion). Object literals where an `any` is expected, and literals with computed keys, are dynamic objects (`__dynObjOf`).
+- JSON.parse builds a Dyn tree (error message `JSON.parse: invalid JSON`); JSON.stringify and console.log of a Dyn use `__dynJson` and `__fmtDyn`. `typeof` of a typed value is a constant string.
+- Uncaught exceptions: the VM prints `panic: Uncaught <Name>: <message>` (the exception's `__errorString()`) on stderr and exits with 101; the conformance runner prints the frozen `[exit 101] ...` line from it.
+- `ZN_DUMP_GEN=1` prints the generated Zinc source (formatters, serialisers, Dyn converters) to stderr.
+- Not done: method calls on a Dyn (`d.f()`), `?.` on a Dyn, bitwise operators on a Dyn, Map/Set views.

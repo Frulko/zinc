@@ -18,6 +18,8 @@ done
 "$ZINC" --emit=zbc-bin ../tests/bench/kernels/fib.ts "$tmp/fib.zbc" && "$ZINC" run "$tmp/fib.zbc" | diff -q - corpus/bench/fib.out >/dev/null || { echo "bytecode file output differs"; fail=1; }
 for f in tests/golden/run/errors/*.ts; do
   out=$("$ZINC" run "$f" 2>&1); rc=$?
-  [ $rc -eq 1 ] && echo "$out" | grep -q "$(cat "${f%.ts}.expect")" || { echo "runtime error fixture $(basename "$f"): rc=$rc '$out'"; fail=1; }
+  # an uncaught exception ends the program with code 101 and `panic: Uncaught <Name>: <message>`; other runtime errors with code 1
+  case "$(basename "$f")" in uncaught.ts) want=101 ;; *) want=1 ;; esac
+  [ $rc -eq $want ] && echo "$out" | grep -q "$(cat "${f%.ts}.expect")" || { echo "runtime error fixture $(basename "$f"): rc=$rc '$out'"; fail=1; }
 done
 exit $fail

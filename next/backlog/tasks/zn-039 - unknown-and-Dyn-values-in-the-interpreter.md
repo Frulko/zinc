@@ -1,10 +1,10 @@
 ---
 id: ZN-039
 title: unknown and Dyn values in the interpreter
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 11:23'
-updated_date: '2026-10-06 12:26'
+updated_date: '2026-10-06 12:57'
 labels:
   - size-L
 milestone: m-3
@@ -20,5 +20,5 @@ Programs: dyn, dyn_literals, dyn_unknown, and literal_errors (its `any` lines). 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 dyn, dyn_literals and dyn_unknown match their frozen goldens in the interpreter
+- [x] #1 dyn, dyn_literals, dyn_unknown and literal_errors match their frozen goldens in the interpreter
 <!-- AC:END -->

@@ -116,6 +116,9 @@ struct Lowering {
       case frontend::TK::Set: return m.setT(irType(x.elem, at));
       case frontend::TK::Map: return m.mapT(irType(x.params[0], at), irType(x.elem, at));
       case frontend::TK::Func: if (!typeHasParam(t)) return m.refT(fnClassOf(t)); break;
+      case frontend::TK::Any:  // `any` of a program: a reference to the Dyn class of the prelude
+        for (std::uint32_t o = 0; o < c.objs.size(); ++o) if (c.objs[o].name == "Dyn" && c.objs[o].isClass && classOfObj[o] != kNil) return m.refT(classOfObj[o]);
+        break;
       case frontend::TK::Object:
         if (classOfObj[x.obj] != kNil) return m.refT(classOfObj[x.obj]);
         break;
@@ -887,6 +890,13 @@ struct Lowering::FnLower {
     return false;
   }
 
+  // The type of a node, with an `any` seen as the class Dyn it is a reference to.
+  const frontend::Type& asClassType(frontend::TypeId t, frontend::Type& scratch) {
+    if (c.types[t].k != frontend::TK::Any) return c.types[t];
+    scratch.k = frontend::TK::Object;
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) if (c.objs[o].name == "Dyn" && c.objs[o].isClass) { scratch.obj = o; break; }
+    return scratch;
+  }
   TypeId natural(std::uint32_t node) { return L.irType(c.nodeType[node], node); }
   bool isNumTy(TypeId t) const { return ty(t).k == Type::K::Num; }
   bool isTupleObj(frontend::TypeId t) const { return c.types[t].k == frontend::TK::Object && c.objs[c.types[t].obj].isTuple; }
@@ -897,7 +907,8 @@ struct Lowering::FnLower {
   // The text of an expression: an object converts through its toString().
   ValueId toStrOf(std::uint32_t node) {
     ValueId v = expr(node);
-    const frontend::Type& ct = c.types[c.nodeType[node]];
+    frontend::Type anyAsDyn;
+    const frontend::Type& ct = asClassType(c.nodeType[node], anyAsDyn);
     if (ty(tv(v)).k == Type::K::Ref && ct.k == frontend::TK::Object) return invokeMethod(v, ct.obj, frontend::lookupMember(c, ct.obj, "toString", false) ? "toString" : "__errorString", {});
     return toStr(v);
   }
@@ -1358,7 +1369,8 @@ struct Lowering::FnLower {
           for (const auto& [nm, v] : c.enumMembers.at(os)) if (nm == x.text) return constNum(m.numT(NumK::i32), static_cast<double>(v));
         }
         frontend::TypeId ot = c.nodeType[x.kids[0]];
-        const frontend::Type& ct = c.types[ot];
+        frontend::Type anyAsDyn;
+        const frontend::Type& ct = asClassType(ot, anyAsDyn);
         ValueId obj = expr(x.kids[0]);
         if (ct.k == frontend::TK::Object) {
           const frontend::Member* gm = frontend::lookupMember(c, ct.obj, x.text, false);
@@ -1652,7 +1664,8 @@ struct Lowering::FnLower {
         auto it = L.staticFn.find(Lowering::mkey(sm->owner, callee.text));
         if (it != L.staticFn.end()) return callFunction(it->second, {}, x.kids, 1);
       } else {
-        const frontend::Type& ct = c.types[c.nodeType[callee.kids[0]]];
+        frontend::Type anyAsDyn;
+        const frontend::Type& ct = asClassType(c.nodeType[callee.kids[0]], anyAsDyn);
         ValueId recv = expr(callee.kids[0]);
         if (ct.k == frontend::TK::Array) {
           TypeId el = L.irType(ct.elem);

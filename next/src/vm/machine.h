@@ -93,6 +93,7 @@ struct Frame {
 
 struct Machine {
   const zbc::Module* mod = nullptr;
+  std::string exceptionText(Obj* exc);
   std::vector<Func> funcs;
   std::vector<ClassRT> classes;
   std::vector<Slot> globals;

@@ -940,6 +940,17 @@ struct Parser {
         if (!eatP(",")) break;
         continue;
       }
+      if (isP("[")) {  // a computed key: { [name]: value }, only meaningful for a Dyn object
+        std::uint32_t ps0 = cur().start;
+        ++i;
+        std::uint32_t key = assignment();
+        expectP("]");
+        expectP(":");
+        std::uint32_t value = assignment();
+        props.push_back(mk(N::Prop, ps0, prevEnd(), {}, {value, key}));
+        if (!eatP(",")) break;
+        continue;
+      }
       if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
       std::uint32_t ps = cur().start, pe = cur().end;
       std::string_view key = txt();

@@ -18,7 +18,7 @@ if(ZN_SANITIZE)
 endif()
 
 # Dependency direction: include/zn <- frontend <- ir <- zbc <- vm (see ARCHITECTURE.md).
-add_library(zn_frontend STATIC src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp)
+add_library(zn_frontend STATIC src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 
 add_library(zn_ir STATIC src/ir/ir.cpp src/ir/lower.cpp src/ir/rc.cpp)
