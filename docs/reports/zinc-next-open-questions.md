@@ -94,3 +94,34 @@ If the same primitives serve AS3 and JSX, the API is agnostic. Details and the O
 4. UI property spec with pixel goldens (section 5), before ZN-028.
 5. Scene API and event model spec with a framework-free conformance test (ZN-027 scope).
 6. Prior-art reading list from `haxe-as3-prior-art.md`, section 7.
+
+## 6. Porting react-dom code with a shim (evaluation, 2026-10-06)
+
+Question: can a shim layer (as React Native did) let web code written for react-dom run on Zinc?
+
+What React Native actually does: it does **not** shim react-dom. React is split into the reconciler (`react-reconciler`, platform
+independent) and a renderer (`react-dom`, `react-native`, `ink`, `react-three-fiber`). A renderer is a *host config*: createInstance,
+appendChild, commitUpdate... for its own primitives (`View`, `Text`). `react-native-web` is the reverse shim (RN API on top of the
+DOM). So there are three different things to compare.
+
+| Option | What it is | Runs unmodified react-dom code? | Cost | Verdict |
+|---|---|---|---|---|
+| A. Host config on our scene core | A Zinc renderer for `react-reconciler`: `div`, `span`, `img`, `input`, `button`... map to scene nodes, `style` maps to the layout/paint properties we already specify (the RN-parity list), `onClick`... to gestures | Components yes (JSX, hooks, props); anything touching `document`, `window`, `ref.current.getBoundingClientRect`, CSS classes, `dangerouslySetInnerHTML` no | Medium: ~1.5k lines of host config + a CSS-subset mapper; needs real React, i.e. an engine that runs JS (QuickJS mode) or our own reconciler (`lib/std/react.ts`, 234 lines, already a reconciliation model) | Recommended |
+| B. Shim the DOM under unmodified react-dom | Implement `document.createElement`, `Node`, events, `getComputedStyle`, CSS cascade/selectors, `classList`, `innerHTML` over the scene core | Yes in principle | Very high: it is a browser. Cascade, selectors, inline layout, text editing, event bubbling/capture, form controls, MutationObserver; every missing API is a runtime failure in third-party code | Not worth it |
+| C. Compile-time mapping | Treat `div`/`span`/... as intrinsic JSX tags in the compiler (what `lib/std/react.ts` and the signals frontend do): same source, our own runtime | Only code written against the supported subset | Low | Keep as the fast path (AOT, no JS engine) |
+
+Findings that shape the choice:
+- The compile-to-native path (typed AOT) cannot run arbitrary npm React: React and its ecosystem are dynamic (Proxies, getters,
+  `arguments`, prototype tricks). Running real React needs the QuickJS mode (design §6), and then option A is a host config in
+  JS on top of the Zinc scene API exposed to QuickJS. Our typed path should keep its own small React-like (option C).
+- The web DOM subset that actually matters for ported component code is small: block/inline `div`/`span`/`p`, `img`, `input`/`textarea`/
+  `button`, flex layout, a style object, pointer/keyboard events. Class names and stylesheets are the part that does not port: they
+  need a CSS parser plus cascade, which is option B's cost in miniature; a build-time tool that resolves class names to style objects
+  (CSS-in-JS style) is cheaper.
+- Tailwind/CSS-module projects are the common case that breaks under A and C; support would be a separate "static CSS to style
+  objects" step, not a DOM.
+
+Recommendation: do A on top of the QuickJS mode (so real React and hooks libraries run) with a documented DOM subset, keep C for
+typed/AOT apps, and do not build B. Prerequisites already planned: scene core and the RN-parity property list (section 5), the
+QuickJS runner (ZN-028 area). A proof of concept (host config + `div/span/button` + flex + click) is a one-task spike once the scene
+core exists (M5); it would answer how much unmodified code runs before committing.
