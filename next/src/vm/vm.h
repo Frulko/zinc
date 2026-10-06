@@ -20,7 +20,4 @@ struct Result {
 // `traceFree` prints one line per destroyed object (its class) to `out` after the program's own output lines.
 Result run(const zbc::Module& m, std::string& out, bool traceFree = false);
 
-// ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
-std::string numberToString(double v);
-
 }  // namespace zn::vm

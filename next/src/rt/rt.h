@@ -1,25 +1,35 @@
 #pragma once
-// Interpreter state shared by the dispatch loop (vm.cpp) and the runtime calls (rt.cpp): loaded functions and classes,
-// the heap objects (plain objects, strings, arrays, Map and Set) and the call stack. Memory is released at exit;
-// reference counting is ZN-018.
+// The runtime both engines share, the interpreter (src/vm) and the compiled programs (src/aot output): loaded functions and
+// classes, the heap objects (plain objects, strings, arrays, Map and Set) with reference counting, the call stack, and the
+// runtime calls (rtCall). `Machine::exec` runs one function and is provided by the engine that links this library.
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "vm/vm.h"
+#include "zbc/zbc.h"
+#include "zn/limits.h"
 #include "zn/runtime.h"
+#include "zn/value.h"
 
-namespace zn::vm {
+namespace zn::rt {
 
-using Slot = std::uint64_t;
+using zn::Slot;
 
+// ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
+std::string numberToString(double v);
+
+struct Machine;
+
+// A function of the loaded module. The interpreter runs `code`; a compiled program also sets `native`, which runs the function
+// on the register window `base` and returns 0 (done), 1 (an exception is in flight in Machine::thrown) or 2 (a trap, Machine::error).
 struct Func {
   const std::uint32_t* code;
   const zbc::Const* consts;
   std::uint32_t nregs;
   const zbc::Handler* handlers;
   std::uint32_t nhandlers;
+  int (*native)(Machine&, Slot*) = nullptr;
 };
 
 // How a key (or an element compared by indexOf/includes) is hashed and compared.
@@ -85,6 +95,12 @@ struct MapObj : Obj {
   Table t;
 };
 
+inline bool isSubclassRT(const ClassRT* c, std::uint32_t target) {
+  if (c->id == target) return true;
+  for (std::uint32_t s : c->supers) if (s == target) return true;
+  return false;
+}
+
 struct Frame {
   const std::uint32_t* ret;  // instruction to resume in the caller; null marks the entry of one exec()
   const Func* fn;
@@ -105,6 +121,8 @@ struct Machine {
   std::string* out = nullptr;
   std::string error;
   std::string trace;
+  Obj* thrown = nullptr;  // a compiled program: the exception being unwound (the interpreter keeps it in a register)
+  std::uint32_t depth = 0;  // a compiled program: the call depth
   std::vector<std::uint8_t> globalRef;  // per global: holds a reference
   Slot* stack = nullptr;
   std::vector<Frame> frames;
@@ -133,7 +151,7 @@ struct Machine {
   StrObj* newStr(const char* p, std::size_t n);
   ArrObj* newArr(const ClassRT* cls);
   // Runs `callee` with its frame at `base` (arguments already in base[0..]) until it returns; the result is in base[0].
-  bool exec(const Func* callee, Slot* base);
+  bool exec(const Func* callee, Slot* base);  // defined by the engine: the interpreter, or the compiled program
   // The `call(elem, elem): f64` method of a function object (a comparator), or null. The verifier proved the static class has one.
   const Func* findComparator(const Obj* fn, zbc::VType elem) const;
   bool callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, bool refs, Slot* scratch, double& result);
@@ -143,4 +161,4 @@ struct Machine {
 // error message.
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch);
 
-}  // namespace zn::vm
+}  // namespace zn::rt

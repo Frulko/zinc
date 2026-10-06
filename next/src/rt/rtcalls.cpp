@@ -6,9 +6,9 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "vm/machine.h"
+#include "rt/rt.h"
 
-namespace zn::vm {
+namespace zn::rt {
 
 namespace {
 
@@ -676,4 +676,4 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
   return "unknown runtime call";
 }
 
-}  // namespace zn::vm
+}  // namespace zn::rt
