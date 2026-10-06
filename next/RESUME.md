@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0 and M1 (ZN-001..011): lexer, parser, diagnostics, checker, IR, ZBC, interpreter, gate decision `docs/decisions/0015-zinc-next-m1-gate.md` (continue to M2).
-- Ready: none; next by ordinal is ZN-012 (Classes and closed-world layouts, M2). Nothing in progress.
+- Done: M0, M1 (gate decision `docs/decisions/0015-zinc-next-m1-gate.md`), ZN-012 classes (inheritance, interfaces, closed-world layout and dispatch through IR, ZBC and VM).
+- Ready: none; next by ordinal is ZN-013 (Generics, unions, tuples, destructuring). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-012.
+`/loop /zn-start` resumes with ZN-013.
 
 ## Watch out
 
@@ -33,6 +33,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 | ZN-008 | ~110k in / ~5M cached / ~55k out (same session, incremental; size M) |
 | M1 | ZN-009 | ~100k in / ~4M cached / ~50k out (same session, incremental; size M) |
 | M1 | ZN-010 | ~90k in / ~3M cached / ~45k out (same session, incremental; size M) |
+| M2 | ZN-012 | ~130k in / ~7M cached / ~65k out (same session; size L; includes 28-snippet adversarial rounds and an ASan-found parser bug) |
 
 ## Lexer notes (ZN-004)
 
@@ -80,3 +81,13 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 used at most 1.5x its budget | To judge: M1 tasks S,M,S,L,M,M,M (+gate S) = about 15-19 sessions budgeted; the whole M0+M1 ran in one long autonomous session, ~0.6M in / 36.6M cached / 0.33M out tokens, 179 turns (`tools/usage`) |
 
 Options for the speed threshold: (a) keep 5x for the AOT path only and measure the interpreter against QuickJS as "faster" (2x+), (b) invest in immediate-operand and fused compare-branch ops, direct threading (estimated 3-3.5x), (c) accept 2x and let AOT carry the claim. Other findings: libm differs from V8's fdlibm in the last digit for `tan` (bundle fdlibm before transcendental goldens); closures, default parameters, null, spread, heap values in ZBC are still Z0005 / "no bytecode yet" (M2 tasks).
+
+## Classes notes (ZN-012) for the next tasks
+
+- AST: `Class` kids = [extends|none, Heritage|none, members...] (`kClassMembersFrom` = 2); `Interface` kids = [Heritage|none, members...]; modifier bits in `Node::flags` (`kFlag*`), parameter properties become Fields plus synthetic `this.x = x` statements.
+- Checker: `ObjInfo` has parent, ifaces, isInterface/isAbstract, ctorAccess; `Member` has owner/access/isStatic/isAbstract. Public helpers `isSubclass`, `lookupMember`, `objAssignable` are used by the IR lowering.
+- IR: `Class` has parent, full field layout (inherited first), `implements`, `selectors`, `vtable`; ops `refcast` and `callvirt`; devirtualisation looks at instantiated classes only (`new` sites).
+- ZBC: register state `Ref(class)` with subtype checks; `Downcast` is checked at run time; objects leak until RC (ZN-018); the class table is part of the file (format v2).
+- Run goldens needing parameter properties are generated with `node --experimental-transform-types` (tools/regen-run-goldens).
+- Always test parser changes under the ASan build: `mk()` grows the node vector, never hold a `Node&` across it.
+- Not yet: interface properties, accessors (get/set), generics, `instanceof`, arrays/strings in ZBC (ZN-015), TDZ for let/const in the VM (globals read as 0 before initialisation).
