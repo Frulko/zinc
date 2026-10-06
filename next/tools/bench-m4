@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""M4 benchmark table (ZN-024): interpreter, AOT, QuickJS and the current native toolchain on the bench kernels.
+
+usage: tools/bench-m4 [--runs N] [--out bench/m4.json] [--md docs]   (default 11 runs, one warm-up each, median reported)
+Interpreter time is `zinc run kernel.zbc` (compile excluded); AOT is the program `zinc build` writes; QuickJS is `qjs` on the
+kernel with its types stripped by Node; native is the old toolchain's release binary in tests/bench/kernels/build/<k>-macos when
+present. Every engine's output is compared with corpus/bench/<k>.out first. Losses are printed and kept in the artifact.
+Thresholds (TESTING.md, M4): AOT within 3x of native on fib, nbody, binarytrees, sort; interpreter at least 5x faster than
+QuickJS on the numeric kernels (fib, nbody, mandelbrot, spectralnorm, fannkuchredux) and not slower on strings, jsonout and dynsum.
+"""
+import json, os, platform, statistics, subprocess, sys, tempfile, time
+
+args = sys.argv[1:]
+runs, out, md = 11, "bench/m4.json", "../docs/reports/zinc-next-m4-benchmarks.md"
+while args:
+    a = args.pop(0)
+    if a == "--runs": runs = int(args.pop(0))
+    elif a == "--out": out = args.pop(0)
+    elif a == "--md": md = args.pop(0)
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(root)
+zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
+kernels = ["fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux", "binarytrees", "sort", "mapset", "strings", "jsonout", "dynsum"]
+numeric = {"fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux"}
+aot_native = {"fib", "nbody", "binarytrees", "sort"}
+no_slower = {"strings", "jsonout", "dynsum"}
+tmp = tempfile.mkdtemp()
+
+def run(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+def median_of(cmd, expect):
+    r = run(cmd)
+    if r.returncode != 0 or r.stdout != expect:
+        return None
+    times = []
+    for _ in range(runs):
+        t = time.perf_counter(); run(cmd); times.append(time.perf_counter() - t)
+    return {"median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times}
+
+results, failures = {}, []
+for k in kernels:
+    src = f"../tests/bench/kernels/{k}.ts"
+    expect = open(f"corpus/bench/{k}.out").read()
+    js = f"{tmp}/{k}.js"
+    open(js, "w").write(run(f"node -e \"const m=require('module');process.stdout.write(m.stripTypeScriptTypes(require('fs').readFileSync('{src}','utf8')))\"").stdout)
+    zbc = f"{tmp}/{k}.zbc"
+    run(f"{zinc} --emit=zbc-bin {src} {zbc}")
+    aot = f"{tmp}/{k}.aot"
+    b = run(f"{zinc} build {src} -o {aot}")
+    nat = f"../tests/bench/kernels/build/{k}-macos/cmake/app"
+    cell = {
+        "interp": median_of(f"{zinc} run {zbc}", expect),
+        "aot": median_of(aot, expect) if b.returncode == 0 else None,
+        "quickjs": median_of(f"qjs {js}", expect),
+        "native": median_of(nat, expect) if os.path.exists(nat) else None,
+    }
+    results[k] = cell
+    for e, v in cell.items():
+        if v is None and not (e == "native" and not os.path.exists(nat)): failures.append(f"{k}: {e} did not run or printed a different output")
+
+def ms(c): return "n/a" if c is None else f"{c['median_s']*1000:.1f}"
+rows, verdicts = [], []
+for k in kernels:
+    c = results[k]
+    med = {e: (v["median_s"] if v else None) for e, v in c.items()}
+    r_aot = med["aot"] / med["native"] if med["aot"] and med["native"] else None
+    r_q = med["quickjs"] / med["interp"] if med["quickjs"] and med["interp"] else None
+    ok = []
+    if k in aot_native: ok.append(("AOT within 3x of native", r_aot is not None and r_aot <= 3.0, r_aot))
+    if k in numeric: ok.append(("interpreter at least 5x QuickJS", r_q is not None and r_q >= 5.0, r_q))
+    if k in no_slower: ok.append(("interpreter not slower than QuickJS", r_q is not None and r_q >= 1.0, r_q))
+    for what, passed, val in ok: verdicts.append({"kernel": k, "threshold": what, "value": val, "pass": bool(passed)})
+    rows.append((k, ms(c["interp"]), ms(c["aot"]), ms(c["quickjs"]), ms(c["native"]), r_aot, r_q))
+
+doc = {"runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures}
+os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+json.dump(doc, open(out, "w"), indent=1)
+lines = ["# Zinc Next: M4 benchmarks", "", f"Median of {runs} runs (one warm-up), wall clock, ms. Machine: {platform.platform()}. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `next/bench/m4.json`.", "",
+         "| kernel | interp | AOT | QuickJS | native | AOT / native | QuickJS / interp |", "|---|---:|---:|---:|---:|---:|---:|"]
+for k, i, a, q, n, ra, rq in rows:
+    lines.append(f"| {k} | {i} | {a} | {q} | {n} | {'n/a' if ra is None else f'{ra:.2f}x'} | {'n/a' if rq is None else f'{rq:.2f}x'} |")
+lines += ["", "## Thresholds", "", "| kernel | threshold | measured | result |", "|---|---|---:|---|"]
+for v in verdicts:
+    lines.append(f"| {v['kernel']} | {v['threshold']} | {'n/a' if v['value'] is None else format(v['value'], '.2f') + 'x'} | {'pass' if v['pass'] else '**LOSS**'} |")
+if failures: lines += ["", "## Failed runs", ""] + [f"- {f}" for f in failures]
+open(md, "w").write("\n".join(lines) + "\n")
+print("\n".join(lines))
+sys.exit(0 if all(v["pass"] for v in verdicts) and not failures else 1)

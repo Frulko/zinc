@@ -7,7 +7,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. ZN-022 (AOT emitter) and ZN-023 (`tools/diff-matrix`, T2 `tests/t2/diff.sh`: 67 programs, interpreter vs AOT vs frozen output, 0 differences) are Done; next by ordinal: see `tools/next-task` (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. ZN-022 (AOT emitter) and ZN-023 (`tools/diff-matrix`, T2 `tests/t2/diff.sh`: 67 programs, interpreter vs AOT vs frozen output, 0 differences) and ZN-024 (`tools/bench-m4`, `bench/m4.json`, `docs/reports/zinc-next-m4-benchmarks.md`: 5 of 15 thresholds missed, moved to ZN-025/ZN-026) are Done; next by ordinal: see `tools/next-task` (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
@@ -245,3 +245,8 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - All 38 programs of tests/golden/run print the same compiled as interpreted. Rough times, interpreter vs AOT: fib 0.05 vs 0.02 s, nbody 0.56 vs 0.14, mandelbrot 0.26 vs 0.02, spectralnorm 1.11 vs 0.27, sort 0.29 vs 0.25 (the registers still live in memory; promoting them to C++ locals is a later optimisation, ZN-024/026).
 - Also added for binarytrees: narrowing of `local.field` (`node.left === null`, assignments to the property; depth one, a symbol per property in `pathSyms`).
 - Tests: T0 `tests/t0/aot.sh` (golden `tests/golden/aot/fib.cpp`, syntax check), T0 `tests/t0/rt.sh` + `tests/unit/ops_test.cpp`, T1 `tests/t1/aot.sh` (fib, nbody, binarytrees, sort and five run goldens built and compared).
+
+## ZN-024 notes (benchmarks)
+
+- `tools/bench-m4` runs the 11 kernels (new: `tests/bench/kernels/dynsum.ts`, the Dyn kernel; `corpus/bench/dynsum.out`) as interpreter, AOT, QuickJS (types stripped with Node) and the old native build (`tests/bench/kernels/build/<k>-macos/cmake/app`), checks every output, takes the median of 11 runs and writes `bench/m4.json` and the markdown report. Exit code 1 while a threshold is missed.
+- Missed (measured): interpreter vs QuickJS on fib 4.46x, mandelbrot 2.78x, spectralnorm 3.78x (need 5x); AOT vs native on nbody 3.65x (need 3x); dynsum 12x slower than QuickJS (JSON.parse is Zinc code in the interpreter). Acceptance for them moved to ZN-026 (passes: inlining, fused ops, register locals in AOT) and ZN-025 (native JSON.parse, inline caches).
