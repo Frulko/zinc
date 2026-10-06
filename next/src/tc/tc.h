@@ -27,6 +27,13 @@ std::string sha256File(const std::string& path);
 // The path of a usable zig: $ZINC_ZIG, or the pinned one (downloaded and verified when missing). False with `err` set when that fails.
 bool ensureZig(std::string& zigPath, std::string& err);
 
+// The path of esptool (Espressif's flashing tool, a standalone binary), downloaded and verified like the zig. $ZINC_ESPTOOL names your own.
+bool ensureEsptool(std::string& path, std::string& err);
+
+// The command line that starts the ESP32 emulator on the core firmware image, with the serial port on its stdin and stdout. Downloads the
+// pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.
+bool qemuCommand(const std::string& chip, const std::string& sourceRoot, std::string& cmd, std::string& err);
+
 // Compiles `cppFile` (the C++ of a program, src/aot) together with the runtime for `target` and writes the executable `outFile`.
 // `sourceRoot` is the directory of the engine sources (next/). Objects of the runtime are cached per target under home()/cache.
 bool crossBuild(const std::string& zig, const std::string& sourceRoot, const std::string& cppFile, const std::string& target, const std::string& outFile, std::string& err);

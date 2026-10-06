@@ -12,8 +12,10 @@ Result runModule(const zbc::Module& mod, std::string& out, bool traceFree, void 
 }
 
 Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
-                       void (*finish)(Machine&, const void*), const void* finishData) {
+                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots, std::size_t maxDepth) {
   Machine m;
+  m.stackSlots = stackSlots;
+  m.maxDepth = maxDepth;
   m.out = &out;
   m.traceFree = traceFree;
   Result res;

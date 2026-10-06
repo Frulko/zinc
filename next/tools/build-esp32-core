@@ -1,0 +1,19 @@
+#!/bin/sh
+# Builds the core firmware of an ESP32 (firmware/esp32) with ESP-IDF and writes the flash image kept in firmware/esp32/prebuilt (ZN-030).
+# Needs git, python3 and network the first time: ESP-IDF 5.5.5 and its toolchain are installed into ~/.zinc (about 1.5 GB). Users do not run this:
+# `zinc flash --target esp32` and `zinc run --target esp32 --qemu` use the image that is committed. Run it after changing src/dev, src/rt, src/vm,
+# src/zbc or the firmware, and commit the new image.
+set -e
+cd "$(dirname "$0")/../firmware/esp32"
+export IDF_TOOLS_PATH="$HOME/.zinc/esp-tools"
+IDF="$HOME/.zinc/esp-idf"
+if [ ! -d "$IDF" ]; then
+  git clone --depth 1 -b v5.5.5 --recurse-submodules --shallow-submodules -j8 https://github.com/espressif/esp-idf "$IDF"
+  (cd "$IDF" && ./install.sh esp32)
+fi
+. "$IDF/export.sh" >/dev/null
+[ -f sdkconfig ] || idf.py set-target esp32
+idf.py build
+mkdir -p prebuilt
+(cd build && esptool.py --chip esp32 merge_bin -o ../prebuilt/esp32-core-flash.bin @flash_args)   # offset 0, the used part only
+echo "image: $(wc -c < prebuilt/esp32-core-flash.bin) bytes, sha256 $(shasum -a 256 prebuilt/esp32-core-flash.bin | cut -d' ' -f1)"

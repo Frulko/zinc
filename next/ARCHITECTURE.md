@@ -17,6 +17,8 @@ next/
   src/host/       the graphics host (ZN-027): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
   src/prof/       the profilers of the interpreter (zinc profile, zinc mem, ZN-046); includes rt and vm, only main includes it
   src/tc/         the toolchain manager (ZN-029): the pinned `zig c++`, its checksum-verified download, cross builds; depends on nothing of the engine
+  src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
+  firmware/esp32/ the ESP-IDF project of the ESP32 core; its image is kept in firmware/esp32/prebuilt (rebuilt by tools/build-esp32-core)
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```

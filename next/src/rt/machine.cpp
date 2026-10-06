@@ -167,7 +167,9 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs, m.functions[i].handlers.data(), static_cast<std::uint32_t>(m.functions[i].handlers.size())};
   // Verified code never reads a register before writing it, so the stack needs no initialisation; calloc hands out
   // lazily zeroed pages, so the 20 MB is not touched until used.
-  stack = static_cast<Slot*>(std::calloc(kStackSlots, sizeof(Slot)));
+  std::size_t slots = stackSlots ? stackSlots : kStackSlots;
+  stack = static_cast<Slot*>(std::calloc(slots, sizeof(Slot)));
+  stackEnd = stack ? stack + slots : nullptr;
   if (!stack) { err = "out of memory"; return false; }
   globals.assign(m.globals.size(), 0);
   for (const zbc::VType& gt : m.globals) globalRef.push_back(gt.cls == zbc::Cls::R);
@@ -207,9 +209,10 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
   if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
   for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; strConsts.push_back(so); }
-  frames.resize(kMaxCallDepth);
+  std::size_t depthMax = maxDepth ? maxDepth : kMaxCallDepth;
+  frames.resize(depthMax);
   fp = frames.data();
-  framesEnd = frames.data() + kMaxCallDepth;
+  framesEnd = frames.data() + depthMax;
   return true;
 }
 

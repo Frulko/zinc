@@ -16,6 +16,7 @@ using zn::rt::Result;
 // `traceFree` prints one line per destroyed object (its class) to `out` after the program's own output lines.
 Result run(const zbc::Module& m, std::string& out, bool traceFree = false);
 // With hooks: `setup` runs after the module is loaded and before main, `finish` after the run (see rt::runModuleHooked).
-Result runHooked(const zbc::Module& m, std::string& out, void (*setup)(rt::Machine&, const void*), const void* setupData, void (*finish)(rt::Machine&, const void*), const void* finishData);
+Result runHooked(const zbc::Module& m, std::string& out, void (*setup)(rt::Machine&, const void*), const void* setupData, void (*finish)(rt::Machine&, const void*), const void* finishData,
+                 std::size_t stackSlots = 0, std::size_t maxDepth = 0);
 
 }  // namespace zn::vm

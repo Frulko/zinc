@@ -301,3 +301,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `src/tc`: pinned zig 0.15.2 per host (macOS and Linux, aarch64 and x86_64), downloaded with curl into `~/.zinc` (`ZINC_HOME`), SHA-256 checked against the pin before unpacking; `zinc build --target <t>` compiles the runtime for the target with it (objects cached per target) and links the program. Targets: aarch64-linux, armhf-linux, x86_64-linux, aarch64-macos, x86_64-macos. Env: ZINC_HOME, ZINC_ZIG, ZINC_TC_MIRROR. Doc: `docs/reports/zinc-next-toolchain.md`. Tests: T0 `tc.sh`, T2 `cross.sh` (home in `build/tc-home`).
 - Engine sources are read from the repo (`ZN_SOURCE_DIR`); packaging them is part of ZN-031.
 - Next by ordinal: ZN-030 (ESP32), then ZN-031 (decision: stops the loop).
+
+## ZN-030 notes (Review: needs a physical ESP32 for AC 1)
+- `zinc run prog.ts --target esp32 [--port P | --qemu | --device CMD]`, `zinc flash --target esp32`, `zinc device-sim`, `zinc toolchain esptool`. Protocol `include/zn/devproto.h`; device core `src/dev/core.cpp` (shared by the firmware and the simulator); client `src/dev/client.cpp`; firmware `firmware/esp32` (ESP-IDF 5.5.5 installed under `~/.zinc` by `tools/build-esp32-core`; the image is committed: `firmware/esp32/prebuilt/esp32-core-flash.bin`). Rebuild and commit the image after changing src/dev, src/rt, src/vm or src/zbc.
+- QEMU (Espressif 9.2.2, xtensa), esptool 5.4.0: pinned with SHA-256 in `src/tc/tc.cpp`, downloaded on first use. Tests: T0 `device.sh`, T2 `esp32_qemu.sh`. Doc: `docs/reports/zinc-next-esp32.md`.
+- Interpreter stacks are sized per machine (`Machine::stackSlots`, `maxDepth`; 0 = the 20 MB host default) and `Call` checks the register stack.
+- To close AC 1: plug an ESP32, run `zinc flash --target esp32` then `zinc run hello.ts --target esp32`.
+- Next: ZN-031 (the single-app packaging decision: a gate, the loop stops there).

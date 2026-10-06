@@ -162,6 +162,9 @@ struct Machine {
   std::vector<Frame> frames;
   Frame* fp = nullptr;
   Frame* framesEnd = nullptr;
+  // Sizes of the interpreter stacks: 0 means the default of limits.h (20 MB of register slots, 10000 frames); small devices set them before load().
+  std::size_t stackSlots = 0, maxDepth = 0;
+  Slot* stackEnd = nullptr;
   const Func* volatile curFn = nullptr;  // the interpreter: the function being run, for the sampling profiler (zinc profile)
 
   ~Machine();
@@ -218,7 +221,7 @@ struct Result {
 Result runModule(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData);
 // The same with a `finish` that sees the machine after the run (globals released, leaks counted), for the profilers (src/prof).
 Result runModuleHooked(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
-                       void (*finish)(Machine&, const void*), const void* finishData);
+                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots = 0, std::size_t maxDepth = 0);
 
 // Prints the program's output and, if it failed, the error; returns the exit code: 0, 101 for an uncaught exception, 1 for
 // another runtime error, 4 for leaked objects when ZN_LEAK_CHECK is set.

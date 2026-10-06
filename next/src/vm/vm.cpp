@@ -69,7 +69,7 @@ L_JmpIfNot: if (!r[A]) pc = code + dOf(w); NEXT();
 L_Call: {
   const Func* callee = &funcs[dOf(w)];
   Slot* nb = r + A;
-  if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
+  if (__builtin_expect(fp == framesEnd || nb + callee->nregs > stackEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
   r = nb; fn = callee; curFn = fn; code = callee->code; pc = code;
   NEXT();
@@ -110,7 +110,7 @@ L_CallVirt: {
   const char* e = nullptr;
   const Func* callee = op::virtualTarget(r, A, dOf(w), e);
   if (__builtin_expect(e != nullptr, 0)) TRAP(e);
-  if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
+  if (__builtin_expect(fp == framesEnd || r + A + callee->nregs > stackEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
   r = r + A; fn = callee; curFn = fn; code = callee->code; pc = code;
   NEXT();
@@ -156,8 +156,9 @@ namespace zn::vm {
 using namespace zn::rt;
 
 Result run(const zbc::Module& mod, std::string& out, bool traceFree) { return runModule(mod, out, traceFree, nullptr, nullptr); }
-Result runHooked(const zbc::Module& mod, std::string& out, void (*setup)(Machine&, const void*), const void* setupData, void (*finish)(Machine&, const void*), const void* finishData) {
-  return runModuleHooked(mod, out, false, setup, setupData, finish, finishData);
+Result runHooked(const zbc::Module& mod, std::string& out, void (*setup)(Machine&, const void*), const void* setupData, void (*finish)(Machine&, const void*), const void* finishData,
+                 std::size_t stackSlots, std::size_t maxDepth) {
+  return runModuleHooked(mod, out, false, setup, setupData, finish, finishData, stackSlots, maxDepth);
 }
 
 }  // namespace zn::vm

@@ -19,6 +19,9 @@
 #include "zn/host.h"
 #include "prof/prof.h"
 #include "tc/tc.h"
+#include "dev/client.h"
+#include "dev/core.h"
+#include <unistd.h>
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "vm/vm.h"
@@ -138,12 +141,85 @@ int main(int argc, char** argv) {
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
   }
+  if (argc >= 2 && !std::strcmp(argv[1], "device-sim")) {  // zinc device-sim: the device core of src/dev on stdin and stdout (what a flashed ESP32 does on its UART)
+    zn::dev::CoreConfig cfg;
+    for (int k = 2; k + 1 < argc; k += 2) {
+      if (!std::strcmp(argv[k], "--stack")) cfg.stackSlots = static_cast<std::size_t>(std::atoll(argv[k + 1]));
+      else if (!std::strcmp(argv[k], "--depth")) cfg.maxDepth = static_cast<std::size_t>(std::atoll(argv[k + 1]));
+    }
+    zn::dev::Core core(cfg, [](const char* p, std::size_t n) { std::fwrite(p, 1, n, stdout); std::fflush(stdout); });
+    core.announce();
+    std::uint8_t buf[512];
+    for (;;) {
+      ssize_t n = ::read(0, buf, sizeof buf);
+      if (n <= 0) return 0;
+      core.feed(buf, static_cast<std::size_t>(n));
+    }
+  }
+  if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--target")) {  // zinc run <file> --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]
+    std::string target = argv[4], port, deviceCmd;
+    bool qemu = false, showLog = false;
+    int bootMs = 15000, runMs = 60000;
+    for (int k = 5; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "--port") && k + 1 < argc) port = argv[++k];
+      else if (!std::strcmp(argv[k], "--device") && k + 1 < argc) deviceCmd = argv[++k];
+      else if (!std::strcmp(argv[k], "--qemu")) qemu = true;
+      else if (!std::strcmp(argv[k], "--boot-ms") && k + 1 < argc) bootMs = std::atoi(argv[++k]);
+      else if (!std::strcmp(argv[k], "--run-ms") && k + 1 < argc) runMs = std::atoi(argv[++k]);
+      else if (!std::strcmp(argv[k], "--log")) showLog = true;
+      else { std::fprintf(stderr, "unknown option %s\n", argv[k]); return 2; }
+    }
+    if (target != "esp32") { std::fprintf(stderr, "zinc: --target %s runs through `zinc build --target`; `run` supports esp32\n", target.c_str()); return 2; }
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::vector<std::uint8_t> bytes = zn::zbc::encode(zm);
+    zn::dev::Link link;
+    std::string err;
+    if (!deviceCmd.empty()) { if (!zn::dev::spawnCommand(deviceCmd, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; } }
+    else if (qemu) {
+      std::string cmd;
+      if (!zn::tc::qemuCommand("esp32", ZN_SOURCE_DIR, cmd, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!zn::dev::spawnCommand(cmd, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    } else {
+      if (port.empty()) port = zn::dev::findSerialPort();
+      if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in, give --port <path>, or try the emulator with --qemu\n"); return 1; }
+      if (!zn::dev::openSerial(port, 115200, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    }
+    zn::dev::Answer ans;
+    std::string log;
+    bool ok = zn::dev::upload(link, bytes, ans, err, bootMs, runMs, &log);
+    zn::dev::closeLink(link);
+    if (showLog) std::fputs(log.c_str(), stderr);
+    if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::fwrite(ans.output.data(), 1, ans.output.size(), stdout);
+    if (std::getenv("ZN_DEVICE_STATS")) std::fprintf(stderr, "device: core %s, free heap %zu bytes, status %d, %zu object(s) left\n", ans.coreVersion.c_str(), ans.freeHeap, ans.status, ans.leaked);
+    return ans.status;
+  }
+  if (argc >= 4 && !std::strcmp(argv[1], "flash") && !std::strcmp(argv[2], "--target")) {  // zinc flash --target esp32 [--port P]: the core firmware onto the board
+    if (std::strcmp(argv[3], "esp32")) { std::fprintf(stderr, "zinc: flash supports esp32\n"); return 2; }
+    std::string port, err, tool;
+    for (int k = 4; k + 1 < argc; k += 2) if (!std::strcmp(argv[k], "--port")) port = argv[k + 1];
+    if (port.empty()) port = zn::dev::findSerialPort();
+    if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
+    std::string image = std::string(ZN_SOURCE_DIR) + "/firmware/esp32/prebuilt/esp32-core-flash.bin";
+    if (!std::filesystem::exists(image)) { std::fprintf(stderr, "zinc: the core firmware image is missing: %s\n", image.c_str()); return 1; }
+    if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::string cmd = "'" + tool + "' --chip esp32 -p '" + port + "' -b 460800 write-flash 0x0 '" + image + "'";
+    std::fprintf(stderr, "zinc: flashing the core to %s\n", port.c_str());
+    return std::system(cmd.c_str()) == 0 ? 0 : 1;
+  }
   if (argc >= 2 && !std::strcmp(argv[1], "toolchain")) {  // zinc toolchain install|path|targets|sha256 <file>
     std::string sub = argc >= 3 ? argv[2] : "";
     if (sub == "install" || sub == "path") {
       std::string zig, err;
       if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(zig.c_str());
+      return 0;
+    }
+    if (sub == "esptool") {
+      std::string tool, err;
+      if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      std::puts(tool.c_str());
       return 0;
     }
     if (sub == "targets") {
@@ -156,7 +232,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install | path | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | targets | sha256 <file>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine
