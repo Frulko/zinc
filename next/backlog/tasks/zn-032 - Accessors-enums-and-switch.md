@@ -1,0 +1,23 @@
+---
+id: ZN-032
+title: 'Accessors, enums and switch'
+status: Backlog
+assignee: []
+created_date: '2026-10-06 09:14'
+labels:
+  - size-M
+milestone: m-2
+dependencies: []
+ordinal: 16100
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Prerequisite found when starting ZN-017 (the lang tour needs them): get accessors, numeric enums, switch with fall-through.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 A program using get accessors, numeric enums and switch/default/fall-through runs with the Node output
+<!-- AC:END -->

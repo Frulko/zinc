@@ -4,7 +4,7 @@ title: '`lang` conformance program passes'
 status: Backlog
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:54'
+updated_date: '2026-10-06 09:14'
 labels:
   - size-S
 milestone: m-2
