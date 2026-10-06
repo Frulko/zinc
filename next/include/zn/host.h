@@ -20,8 +20,10 @@ using HostCall = void (*)(int id, const HostArg* args, HostArg* result);
 
 // Installed by the host library at startup; null in an engine built without one.
 extern HostCall hostGfx;
+extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
-void installGfx();
+void installGfx();    // the graphics host and the system modules (installSys) together
+void installSys();    // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (src/host/sys_host.cpp)
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
 

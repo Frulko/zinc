@@ -19,6 +19,7 @@
 #include "zn/host.h"
 #include "prof/prof.h"
 #include "res/res.h"
+#include "zn/hostsys.h"
 #ifdef ZN_HOST_LIBS
 #define HOSTLIBS + std::string(" '") + ZN_HOST_LIBS + "'"   // the window library the host links
 #else
@@ -141,7 +142,7 @@ int main(int argc, char** argv) {
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
-  if (argc == 3 && !std::strcmp(argv[1], "run")) {  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
+  if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];
     zn::zbc::Module zm;
     if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
@@ -159,6 +160,14 @@ int main(int argc, char** argv) {
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
 #ifdef ZN_HOST_GFX
+    {  // the program's arguments (after `--`) and its assets directory (beside the entry file or above it) for zinc:sys and zinc:assets
+      std::vector<std::string> args;
+      for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
+      zn::host::setProgramArgs(args);
+      namespace fs = std::filesystem;
+      fs::path dir = fs::absolute(argv[2]).parent_path();
+      for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+    }
     if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them
       std::vector<std::uint8_t> blob;
       std::string err;
@@ -381,7 +390,7 @@ int main(int argc, char** argv) {
     if (low.diags.empty()) {
       if (!std::strcmp(argv[1], "--emit=ir-rc")) { if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module); zn::ir::insertRc(low.module); }
       std::string bad = zn::ir::verify(low.module);
-      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); if (std::getenv("ZN_DUMP_BAD")) std::fputs(zn::ir::dump(low.module).c_str(), stdout); return 3; }
+      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); if (std::getenv("ZN_DUMP_BAD")) { std::string d = zn::ir::dump(low.module); std::fwrite(d.data(), 1, d.size(), stdout); } return 3; }
       std::fputs(zn::ir::dump(low.module).c_str(), stdout);
       return 0;
     }

@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <map>
 #include <set>
 
@@ -141,7 +142,154 @@ export function quit(): void { __host_gfxQuit(); }
 export function capture(path: string): boolean { return __host_gfxCapture(path); }
 )ZN";
 
-const char* hostModuleSource(std::string_view spec) { return spec == "zinc:gfx" ? kGfxModule : nullptr; }
+
+// The system modules (lib/modules.d.ts) over the flat host calls of src/host/sys_host.cpp. Errors read `CODE: op path`, as in the d.ts.
+const char* kSysModule = R"ZN(
+export function args(): string[] { const r: string[] = []; const n = __host_sysArgsCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_sysArg(i)); return r; }
+export function env(name: string): string { return __host_sysEnv(name); }
+export function exit(code: i32): void { __host_sysExit(code); }
+export function platform(): string { return __host_sysPlatform(); }
+export function clock(): f64 { return Date.now(); }
+export function liveObjects(): i32 { return 0; }
+export function allocations(): i32 { return 0; }
+export function randomBytes(n: i32): u8[] { const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_sysRandomByte() as u8); return r; }
+export function utf8Encode(s: string): u8[] { const r: u8[] = []; const n = __host_sysUtf8Len(s); for (let i: i32 = 0; i < n; i++) r.push(__host_sysUtf8Byte(s, i) as u8); return r; }
+export function utf8Decode(bytes: u8[]): string { return __host_sysUtf8Decode(bytes); }
+export function onSignal(signal: string, cb: () => void): void {}
+export function kill(pid: i32, signal: string): boolean { return false; }
+export function pid(): i32 { return __host_sysPid(); }
+export function cwd(): string { return __host_sysCwd(); }
+export function chdir(dir: string): boolean { return __host_sysChdir(dir); }
+export function setEnv(name: string, value: string): void { __host_sysSetEnv(name, value); }
+export function unsetEnv(name: string): void { __host_sysUnsetEnv(name); }
+export function envKeys(): string[] { const r: string[] = []; const n = __host_sysEnvKeysCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_sysEnvKey(i)); return r; }
+export function isatty(fd: i32): boolean { return __host_sysIsatty(fd); }
+export function write(s: string): void { __host_sysWrite(s); }
+export function writeErr(s: string): void { __host_sysWriteErr(s); }
+export function onStdin(cb: (chunk: string) => void): void {}
+)ZN";
+
+const char* kFsModule = R"ZN(
+function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()); }
+export function readText(path: string): string { const s = __host_fsReadText(path); check(); return s; }
+export function writeText(path: string, data: string): void { __host_fsWriteText(path, data); check(); }
+export function appendText(path: string, data: string): void { __host_fsAppendText(path, data); check(); }
+export function exists(path: string): boolean { return __host_fsExists(path); }
+export function list(dir: string): string[] {
+  const n = __host_fsListCount(dir);
+  check();
+  const r: string[] = [];
+  for (let i: i32 = 0; i < n; i++) r.push(__host_fsListName(i));
+  return r;
+}
+export function remove(path: string, recursive: boolean = false): boolean { return __host_fsRemove(path, recursive); }
+export function mkdir(path: string, recursive: boolean = false): boolean { return __host_fsMkdir(path, recursive); }
+export function readBytes(path: string): u8[] {
+  const n = __host_fsLoad(path);
+  check();
+  const r: u8[] = [];
+  for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
+  return r;
+}
+export function writeBytes(path: string, data: u8[]): void { __host_fsWriteBytes(path, data); check(); }
+export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
+export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
+function statOf(path: string, link: boolean): Stat {
+  if (!__host_fsStat(path, link)) check();
+  return { size: __host_fsStatD(0), mtimeMs: __host_fsStatD(1), atimeMs: __host_fsStatD(2), ctimeMs: __host_fsStatD(3), mode: __host_fsStatI(0),
+           isFile: __host_fsStatI(1) !== 0, isDirectory: __host_fsStatI(2) !== 0, isSymlink: __host_fsStatI(3) !== 0 };
+}
+export function stat(path: string): Stat { return statOf(path, false); }
+export function lstat(path: string): Stat { return statOf(path, true); }
+export function readDir(dir: string): DirEntry[] {
+  const n = __host_fsListCount(dir);
+  check();
+  const r: DirEntry[] = [];
+  for (let i: i32 = 0; i < n; i++) { const k = __host_fsListKind(i); r.push({ name: __host_fsListName(i), isFile: (k & 1) !== 0, isDirectory: (k & 2) !== 0, isSymlink: (k & 4) !== 0 }); }
+  return r;
+}
+export function rename(from: string, to: string): void { __host_fsRename(from, to); check(); }
+export function copyFile(from: string, to: string): void { __host_fsCopyFile(from, to); check(); }
+export function realpath(path: string): string { const s = __host_fsRealpath(path); check(); return s; }
+export function mkdtemp(prefix: string): string { const s = __host_fsMkdtemp(prefix); check(); return s; }
+export function tmpdir(): string { return __host_fsTmpdir(); }
+export function symlink(target: string, path: string): void { throw new Error('ENOSYS: symlink is not supported by this engine yet'); }
+export function readlink(path: string): string { throw new Error('ENOSYS: readlink is not supported by this engine yet'); }
+export function chmod(path: string, mode: i32): void { throw new Error('ENOSYS: chmod is not supported by this engine yet'); }
+export function watch(path: string, cb: (event: string, name: string) => void): i32 { throw new Error('ENOSYS: fs.watch is not supported by this engine yet'); }
+export function unwatch(id: i32): void {}
+)ZN";
+
+const char* kStorageModule = R"ZN(
+export function get(key: string): string { return __host_storageGet(key); }
+export function set(key: string, value: string): void { __host_storageSet(key, value); }
+export function remove(key: string): void { __host_storageRemove(key); }
+export function keys(): string[] { const r: string[] = []; const n = __host_storageKeysCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_storageKey(i)); return r; }
+)ZN";
+
+const char* kAssetsModule = R"ZN(
+function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()); }
+export function readText(name: string): string { const s = __host_assetsReadText(name); check(); return s; }
+export function readBytes(name: string): u8[] {
+  const n = __host_assetsLoad(name);
+  check();
+  const r: u8[] = [];
+  for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
+  return r;
+}
+export function exists(name: string): boolean { return __host_assetsExists(name); }
+export function list(): string[] { const r: string[] = []; const n = __host_assetsCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_assetsName(i)); return r; }
+)ZN";
+
+const char* kOsModule = R"ZN(
+export function hostname(): string { return __host_osHostname(); }
+export function homedir(): string { return __host_osHomedir(); }
+export function tmpdir(): string { return __host_fsTmpdir(); }
+export function arch(): string { return __host_osArch(); }
+export function type(): string { return __host_osType(); }
+export function release(): string { return __host_osRelease(); }
+export function uptime(): f64 { return __host_osUptime(); }
+export function loadavg(): f64[] { return [__host_osLoad(0), __host_osLoad(1), __host_osLoad(2)]; }
+export function totalmem(): f64 { return __host_osTotalmem(); }
+export function freemem(): f64 { return __host_osFreemem(); }
+export interface CpuInfo { model: string; speed: f64 }
+export function cpus(): CpuInfo[] { const r: CpuInfo[] = []; const n = __host_osCpus(); for (let i: i32 = 0; i < n; i++) r.push({ model: '', speed: 0 }); return r; }
+export function availableParallelism(): i32 { return __host_osCpus(); }
+export interface NetworkInterface { name: string; address: string; netmask: string; family: string; mac: string; internal: boolean }
+export function networkInterfaces(): NetworkInterface[] { return []; }
+export interface UserInfo { username: string; uid: i32; gid: i32; shell: string; homedir: string }
+export function userInfo(): UserInfo { return { username: __host_osUser(), uid: 0, gid: 0, shell: '', homedir: __host_osHomedir() }; }
+)ZN";
+
+const char* kNativeModule = R"ZN(
+export interface NativeModule {}
+export interface NativeResource {}
+export function requireNative<T>(name: string): T { throw new Error('the native module ' + name + ' is not linked into this engine'); }
+)ZN";
+
+const char* hostModuleSource(std::string_view spec) {
+  if (spec == "zinc:gfx") return kGfxModule;
+  if (spec == "zinc:sys") return kSysModule;
+  if (spec == "zinc:fs") return kFsModule;
+  if (spec == "zinc:storage") return kStorageModule;
+  if (spec == "zinc:assets") return kAssetsModule;
+  if (spec == "zinc:os") return kOsModule;
+  if (spec == "zinc:native") return kNativeModule;
+  return nullptr;
+}
+
+// The names a destructuring pattern binds (`[a, , { b, c: d }, ...rest]`).
+void collectBound(const Ast& A, std::uint32_t pat, std::vector<std::string_view>& out) {
+  if (pat == kNone) return;
+  const Node& p = A.nodes[pat];
+  if (p.kind == N::Ident) { out.push_back(p.text); return; }
+  for (std::uint32_t k : p.kids) {
+    if (k == kNone) continue;
+    const Node& c = A.nodes[k];
+    if (c.kind == N::PatProp || c.kind == N::Spread) { if (!c.kids.empty()) collectBound(A, c.kids[0], out); else out.push_back(c.text); }
+    else collectBound(A, k, out);
+  }
+}
 
 struct Loader {
   Program& prog;
@@ -150,6 +298,33 @@ struct Loader {
   std::map<std::string, bool> visiting;
   std::vector<std::uint32_t> flat;             // the program's statements in module order
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
+  std::map<std::string, std::string> plugins;  // 'zinc:lottie' -> plugins/lottie/index.ts (read from plugin.json files)
+  std::set<std::string> pluginDirsRead;
+  // Reads the plugin.json files of `<root>/*/`: the engine's plugins/ next to lib/, and the plugins/ directory of the project that imports
+  // (every directory above the importing file may hold one, like the old compiler's project plugins).
+  void readPluginsIn(const std::string& dir) {
+    if (!pluginDirsRead.insert(dir).second) return;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(dir, ec)) {
+      std::string text;
+      std::string manifest = (e.path() / "plugin.json").string();
+      if (!read(manifest, text)) continue;
+      auto field = [&](const char* key) {
+        std::size_t at = text.find(std::string("\"") + key + "\"");
+        if (at == std::string::npos) return std::string();
+        std::size_t q1 = text.find('"', text.find(':', at) + 1), q2 = q1 == std::string::npos ? q1 : text.find('"', q1 + 1);
+        return q2 == std::string::npos ? std::string() : text.substr(q1 + 1, q2 - q1 - 1);
+      };
+      std::string mod = field("module"), entry = field("entry");
+      if (!mod.empty() && !entry.empty() && !plugins.count(mod)) plugins[mod] = (e.path() / entry).string();
+    }
+  }
+  void readPlugins(const std::string& fromFile) {
+    namespace fs = std::filesystem;
+    for (fs::path d = fs::path(fromFile).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) readPluginsIn((d / "plugins").string());
+    if (!stdRoot.empty()) readPluginsIn((fs::path(stdRoot).parent_path().parent_path() / "plugins").string());
+  }
 
   Loader(Program& p, const ReadFile& r) : prog(p), read(r) {}
 
@@ -166,6 +341,13 @@ struct Loader {
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
       auto hit = kStd.find(spec);
+      readPlugins(prog.files[fromFile].path);
+      auto pl = plugins.find(spec);
+      if (pl != plugins.end()) {  // a plugin: its module source is Zinc, its native part comes from the sim file of its spec (see below)
+        if (done.count(pl->second)) return done[pl->second];
+        std::string text;
+        if (read(pl->second, text)) return load(pl->second, std::move(text));
+      }
       if (hit != kStd.end() && !stdRoot.empty()) {
         std::string path = stdRoot + "/" + hit->second, text;
         if (done.count(path)) return done[path];
@@ -178,6 +360,13 @@ struct Loader {
     if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) { diag(kZUnsupported, fromFile, node, "package imports ('" + spec + "')"); return kNone; }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
     std::string text;
+    // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API
+    // that the old simulator ran, takes its place (deterministic and headless)
+    if (base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {
+      std::string simPath = base.substr(0, base.size() - 5) + ".sim.ts";
+      if (done.count(simPath)) return done[simPath];
+      if (read(simPath, text)) return load(simPath, std::move(text));
+    }
     for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
       std::string cand = base + ext;
       if (done.count(cand)) return done[cand];
@@ -244,12 +433,18 @@ struct Loader {
           case N::Export: {
             std::uint32_t d = x.kids[0];
             const Node& dn = A.nodes[d];
+            bool isDefault = (x.flags & kFlagDefault) != 0;
             if (dn.kind == N::VarDecl) {
               for (std::uint32_t dc : std::vector<std::uint32_t>(dn.kids)) {
-                if (A.nodes[dc].text.empty()) { diag(kZUnsupported, fi, dc, "export of a destructuring declaration"); continue; }
-                mod.exports.push_back({A.nodes[dc].text, A.nodes[dc].text, kNone, false, dc});
+                if (A.nodes[dc].text.empty()) {  // `export const [a, b] = ...` / `export const { a, b } = ...`: every bound name is exported
+                  std::vector<std::string_view> names;
+                  collectBound(A, A.nodes[dc].kids.size() > 2 ? A.nodes[dc].kids[2] : kNone, names);
+                  for (std::string_view nm : names) mod.exports.push_back({nm, nm, kNone, false, dc});
+                  continue;
+                }
+                mod.exports.push_back({isDefault ? std::string_view("default") : A.nodes[dc].text, A.nodes[dc].text, kNone, false, dc});
               }
-            } else mod.exports.push_back({dn.text, dn.text, kNone, false, d});
+            } else mod.exports.push_back({isDefault ? std::string_view("default") : dn.text, dn.text, kNone, false, d});
             mod.stmts.push_back(d);
             break;
           }
@@ -672,7 +867,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   L.stdRoot = stdRoot;
   L.load(entry, std::move(text));
   bool usesGfx = false;
-  for (const SourceFile& f : p.files) if (f.path == "zinc:gfx") usesGfx = true;
+  for (const SourceFile& f : p.files) if (f.path == "zinc:gfx" || f.path == "zinc:sys") usesGfx = true;  // (the frame loop is only entered by onFrame; zinc:sys needs the clock of the async prelude)
   if (p.diags.empty()) {  // without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`)
     bool dyn = false;
     for (const Node& x : p.ast.nodes) {

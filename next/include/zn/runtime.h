@@ -7,6 +7,7 @@
 // element, key and value type of the receiver:
 //   s string   i i32   u u32   b boolean   d f64   n none (result only)
 //   j i32 that may be omitted (defaults to INT32_MAX)   z i32 that may be omitted (defaults to 0)   w string that may be omitted (" ")   y string that may be omitted (",")
+//   B u8[] / i32[] (a borrowed array of integers; as a parameter only)
 //   x any reference (an object, string, array, Map or Set)
 //   a, m, t    the receiver array, Map, Set (as a result: the receiver again)
 //   e element of the receiver's array or Set   k key of the Map   v value of the Map
@@ -98,7 +99,71 @@
   X(HostGfxSetCursor, "host.gfxSetCursor", "i>n", 2) \
   X(HostGfxEscapeByApp, "host.gfxEscapeByApp", "b>n", 2) \
   X(HostGfxEscapeDefault, "host.gfxEscapeDefault", ">n", 2) \
-  X(HostGfxCapture, "host.gfxCapture", "s>b", 2)
+  X(HostGfxCapture, "host.gfxCapture", "s>b", 2) \
+  X(HostSysFirst, "host.sysFirst", ">n", 2) \
+  X(HostSysArgsCount, "host.sysArgsCount", ">i", 2) \
+  X(HostSysArg, "host.sysArg", "i>s", 2) \
+  X(HostSysEnv, "host.sysEnv", "s>s", 2) \
+  X(HostSysExit, "host.sysExit", "i>n", 2) \
+  X(HostSysPlatform, "host.sysPlatform", ">s", 2) \
+  X(HostSysPid, "host.sysPid", ">i", 2) \
+  X(HostSysCwd, "host.sysCwd", ">s", 2) \
+  X(HostSysChdir, "host.sysChdir", "s>b", 2) \
+  X(HostSysSetEnv, "host.sysSetEnv", "ss>n", 2) \
+  X(HostSysUnsetEnv, "host.sysUnsetEnv", "s>n", 2) \
+  X(HostSysEnvKeysCount, "host.sysEnvKeysCount", ">i", 2) \
+  X(HostSysEnvKey, "host.sysEnvKey", "i>s", 2) \
+  X(HostSysIsatty, "host.sysIsatty", "i>b", 2) \
+  X(HostSysWrite, "host.sysWrite", "s>n", 2) \
+  X(HostSysWriteErr, "host.sysWriteErr", "s>n", 2) \
+  X(HostSysRandomByte, "host.sysRandomByte", ">i", 2) \
+  X(HostSysUtf8Len, "host.sysUtf8Len", "s>i", 2) \
+  X(HostSysUtf8Byte, "host.sysUtf8Byte", "si>i", 2) \
+  X(HostSysUtf8Decode, "host.sysUtf8Decode", "B>s", 2) \
+  X(HostFsFailed, "host.fsFailed", ">b", 2) \
+  X(HostFsError, "host.fsError", ">s", 2) \
+  X(HostFsReadText, "host.fsReadText", "s>s", 2) \
+  X(HostFsWriteText, "host.fsWriteText", "ss>n", 2) \
+  X(HostFsAppendText, "host.fsAppendText", "ss>n", 2) \
+  X(HostFsExists, "host.fsExists", "s>b", 2) \
+  X(HostFsListCount, "host.fsListCount", "s>i", 2) \
+  X(HostFsListName, "host.fsListName", "i>s", 2) \
+  X(HostFsListKind, "host.fsListKind", "i>i", 2) \
+  X(HostFsRemove, "host.fsRemove", "sb>b", 2) \
+  X(HostFsMkdir, "host.fsMkdir", "sb>b", 2) \
+  X(HostFsLoad, "host.fsLoad", "s>i", 2) \
+  X(HostFsByte, "host.fsByte", "i>i", 2) \
+  X(HostFsWriteBytes, "host.fsWriteBytes", "sB>n", 2) \
+  X(HostFsStat, "host.fsStat", "sb>b", 2) \
+  X(HostFsStatD, "host.fsStatD", "i>d", 2) \
+  X(HostFsStatI, "host.fsStatI", "i>i", 2) \
+  X(HostFsRename, "host.fsRename", "ss>n", 2) \
+  X(HostFsCopyFile, "host.fsCopyFile", "ss>n", 2) \
+  X(HostFsRealpath, "host.fsRealpath", "s>s", 2) \
+  X(HostFsTmpdir, "host.fsTmpdir", ">s", 2) \
+  X(HostFsMkdtemp, "host.fsMkdtemp", "s>s", 2) \
+  X(HostStorageGet, "host.storageGet", "s>s", 2) \
+  X(HostStorageSet, "host.storageSet", "ss>n", 2) \
+  X(HostStorageRemove, "host.storageRemove", "s>n", 2) \
+  X(HostStorageKeysCount, "host.storageKeysCount", ">i", 2) \
+  X(HostStorageKey, "host.storageKey", "i>s", 2) \
+  X(HostAssetsExists, "host.assetsExists", "s>b", 2) \
+  X(HostAssetsReadText, "host.assetsReadText", "s>s", 2) \
+  X(HostAssetsLoad, "host.assetsLoad", "s>i", 2) \
+  X(HostAssetsCount, "host.assetsCount", ">i", 2) \
+  X(HostAssetsName, "host.assetsName", "i>s", 2) \
+  X(HostOsHostname, "host.osHostname", ">s", 2) \
+  X(HostOsHomedir, "host.osHomedir", ">s", 2) \
+  X(HostOsArch, "host.osArch", ">s", 2) \
+  X(HostOsType, "host.osType", ">s", 2) \
+  X(HostOsRelease, "host.osRelease", ">s", 2) \
+  X(HostOsUptime, "host.osUptime", ">d", 2) \
+  X(HostOsTotalmem, "host.osTotalmem", ">d", 2) \
+  X(HostOsFreemem, "host.osFreemem", ">d", 2) \
+  X(HostOsCpus, "host.osCpus", ">i", 2) \
+  X(HostOsUser, "host.osUser", ">s", 2) \
+  X(HostOsLoad, "host.osLoad", "i>d", 2) \
+  X(HostHostLast, "host.hostLast", ">n", 2)
 
 namespace zn {
 

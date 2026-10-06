@@ -4,7 +4,7 @@ title: 'Host modules apps need: fs, storage, net, os, timers'
 status: Review
 assignee: []
 created_date: '2026-10-06 16:41'
-updated_date: '2026-10-06 17:29'
+updated_date: '2026-10-06 17:49'
 labels:
   - size-L
 dependencies: []

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <map>
+#include <set>
 
 #include "ir/ir.h"
 
@@ -121,29 +122,78 @@ bool inlineRound(Module& m) {
   return changed;
 }
 
-// Float constants used inside a loop are loaded once in the entry block (one LoadK per iteration saved per use).
+// Float constants used inside a loop are loaded once in the entry block (one LoadK per iteration saved per use). Only constants of blocks that are in
+// a cycle, and at most kHoistMax of them: each hoisted value keeps a register for the whole function.
+constexpr std::size_t kHoistMax = 24;
+
+std::vector<bool> loopBlocks(const Function& f) {
+  std::size_t nb = f.blocks.size();
+  std::vector<std::vector<std::size_t>> succ(nb), pred(nb);
+  for (std::size_t b = 0; b < nb; ++b)
+    for (const Edge& e : f.blocks[b].insts.back().edges) { succ[b].push_back(e.to); pred[e.to].push_back(b); }
+  // Kosaraju: a block is in a loop when its strongly connected component has more than one block or it branches to itself
+  std::vector<std::size_t> order, comp(nb, SIZE_MAX);
+  std::vector<bool> seen(nb, false);
+  std::vector<std::pair<std::size_t, std::size_t>> stack;
+  for (std::size_t r = 0; r < nb; ++r) {
+    if (seen[r]) continue;
+    stack.push_back({r, 0}); seen[r] = true;
+    while (!stack.empty()) {
+      auto& [v, i] = stack.back();
+      if (i < succ[v].size()) { std::size_t w = succ[v][i++]; if (!seen[w]) { seen[w] = true; stack.push_back({w, 0}); } }
+      else { order.push_back(v); stack.pop_back(); }
+    }
+  }
+  std::vector<std::size_t> size;
+  for (std::size_t k = order.size(); k-- > 0;) {
+    std::size_t r = order[k];
+    if (comp[r] != SIZE_MAX) continue;
+    std::size_t id = size.size(), count = 0;
+    std::vector<std::size_t> work{r};
+    comp[r] = id;
+    while (!work.empty()) { std::size_t v = work.back(); work.pop_back(); ++count; for (std::size_t w : pred[v]) if (comp[w] == SIZE_MAX) { comp[w] = id; work.push_back(w); } }
+    size.push_back(count);
+  }
+  std::vector<bool> in(nb, false);
+  for (std::size_t b = 0; b < nb; ++b) {
+    in[b] = size[comp[b]] > 1;
+    for (std::size_t w : succ[b]) if (w == b) in[b] = true;
+  }
+  return in;
+}
+
 void hoistConsts(Module& m) {
   for (Function& f : m.functions) {
-    bool loop = false;
-    for (std::size_t b = 0; b < f.blocks.size() && !loop; ++b)
-      for (const Edge& e : f.blocks[b].insts.back().edges) if (e.to <= b) loop = true;
-    if (!loop) continue;
-    std::map<std::pair<TypeId, std::uint64_t>, ValueId> seen;
+    std::vector<bool> inLoop = loopBlocks(f);
+    std::map<std::pair<TypeId, std::uint64_t>, std::size_t> uses;  // distinct float constants in loop blocks and how often they appear
+    auto isFloatConst = [&](const Inst& i) {
+      const Type& t = m.types[i.ty];
+      return i.op == IrOp::Const && t.k == Type::K::Num && (t.num == frontend::Num::f64 || t.num == frontend::Num::f32);
+    };
+    auto key = [&](const Inst& i) { std::uint64_t bits; std::memcpy(&bits, &i.fimm, sizeof bits); return std::make_pair(i.ty, bits); };
+    bool any = false;
+    for (std::size_t b = 0; b < f.blocks.size(); ++b)
+      if (inLoop[b]) for (const Inst& i : f.blocks[b].insts) if (isFloatConst(i)) { ++uses[key(i)]; any = true; }
+    if (!any) continue;
+    std::vector<std::pair<std::size_t, std::pair<TypeId, std::uint64_t>>> ranked;
+    for (auto& [k, n] : uses) ranked.push_back({n, k});
+    std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    std::set<std::pair<TypeId, std::uint64_t>> chosen;
+    for (std::size_t k = 0; k < ranked.size() && k < kHoistMax; ++k) chosen.insert(ranked[k].second);
+    std::map<std::pair<TypeId, std::uint64_t>, ValueId> seenVal;
     std::vector<Inst> hoisted;
     std::vector<ValueId> rename(f.valueTypes.size(), kNoValue);
-    for (Block& b : f.blocks) {
+    for (std::size_t b = 0; b < f.blocks.size(); ++b) {
+      if (!inLoop[b]) continue;
       std::vector<Inst> keep;
-      for (Inst& i : b.insts) {
-        const Type& t = m.types[i.ty];
-        if (i.op == IrOp::Const && t.k == Type::K::Num && (t.num == frontend::Num::f64 || t.num == frontend::Num::f32)) {
-          std::uint64_t bits; static_assert(sizeof bits == sizeof i.fimm);
-          std::memcpy(&bits, &i.fimm, sizeof bits);
-          auto [it, fresh] = seen.try_emplace({i.ty, bits}, i.res);
+      for (Inst& i : f.blocks[b].insts) {
+        if (isFloatConst(i) && chosen.count(key(i))) {
+          auto [it, fresh] = seenVal.try_emplace(key(i), i.res);
           if (fresh) hoisted.push_back(i);
           rename[i.res] = it->second;
         } else keep.push_back(std::move(i));
       }
-      b.insts = std::move(keep);
+      f.blocks[b].insts = std::move(keep);
     }
     if (hoisted.empty()) continue;
     for (Block& b : f.blocks)

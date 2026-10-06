@@ -10,7 +10,7 @@
 #include "rt/rt.h"
 #include "zn/host.h"
 
-namespace zn::host { HostCall hostGfx = nullptr; }
+namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; }
 
 namespace zn::rt {
 
@@ -517,8 +517,43 @@ struct JsonBuild {
   }
 };
 
+// ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
+static const char* hostRt(Machine& m, Rt id, Slot* a) {
+  const RtInfo& ri = rtInfo(id);
+  bool sys = id >= Rt::HostSysFirst;
+  zn::host::HostCall call = sys ? zn::host::hostSys : zn::host::hostGfx;
+  // what needs the machine: the program's standard output is buffered in the machine, so writes and exit go through it
+  if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
+  if (id == Rt::HostSysExit) {
+    std::fwrite(m.out->data(), 1, m.out->size(), stdout);
+    std::fflush(stdout);
+    std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
+  }
+  if (!call) return sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
+  zn::host::HostArg args[12], res;
+  for (unsigned k = 0; k < rtParamCount(ri); ++k) {
+    zn::host::HostArg& h = args[k];
+    switch (rtParam(ri, k)) {
+      case 'd': h.d = std::bit_cast<double>(a[k]); break;
+      case 's': { StrObj* s = S(a[k]); if (!s) return kNull; h.p = s->data(); h.n = s->len; break; }
+      case 'D': case 'B': { ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]); if (!arr) return kNull; h.p = arr->v.data(); h.n = static_cast<std::uint32_t>(arr->v.size()); break; }
+      case 'u': h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
+      default: h.i = static_cast<std::int64_t>(a[k]); break;  // i (sign-extended), b
+    }
+  }
+  call(static_cast<int>(id), args, &res);
+  switch (rtRet(ri)) {
+    case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
+    case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
+    case 's': { StrObj* so = m.newStr(static_cast<const char*>(res.p), res.n); a[0] = P(so); break; }
+    default: break;
+  }
+  return nullptr;
+}
+
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 #define NN(x) do { if (!(x)) return kNull; } while (0)
+  if (id >= Rt::HostGfxFrames) return hostRt(m, id, a);
   switch (id) {
     // ---- internal string operations
     case Rt::StrConcat: case Rt::StrConcatM: {
@@ -782,35 +817,6 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = nd;
       return nullptr;
     }
-    // ---- the host (zinc:gfx): arguments decoded by their letters, the work done through the installed call (zn/host.h)
-    case Rt::HostGfxFrames: case Rt::HostGfxBegin: case Rt::HostGfxEnd: case Rt::HostGfxClear: case Rt::HostGfxRect: case Rt::HostGfxRRect:
-    case Rt::HostGfxFont: case Rt::HostGfxDrawText: case Rt::HostGfxLine: case Rt::HostGfxText: case Rt::HostGfxGradient: case Rt::HostGfxBorder:
-    case Rt::HostGfxShadow: case Rt::HostGfxPolygon: case Rt::HostGfxPath: case Rt::HostGfxStroke: case Rt::HostGfxFontAscent:
-    case Rt::HostGfxLineHeight: case Rt::HostGfxTextWidth: case Rt::HostGfxImage: case Rt::HostGfxImageWidth: case Rt::HostGfxImageHeight:
-    case Rt::HostGfxDrawImage: case Rt::HostGfxClip: case Rt::HostGfxUnclip: case Rt::HostGfxTranslate: case Rt::HostGfxKeep:
-    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: case Rt::HostGfxProfiling: case Rt::HostGfxProfMark: case Rt::HostGfxFinish: case Rt::HostGfxPoll: case Rt::HostGfxShouldQuit: case Rt::HostGfxQuit: case Rt::HostGfxWheel: case Rt::HostGfxWheelX: case Rt::HostGfxPinch: case Rt::HostGfxScrollDX: case Rt::HostGfxScrollDY: case Rt::HostGfxScrollPhase: case Rt::HostGfxTouchCount: case Rt::HostGfxTouchX: case Rt::HostGfxTouchY: case Rt::HostGfxTouchId: case Rt::HostGfxPenCount: case Rt::HostGfxPenX: case Rt::HostGfxPenY: case Rt::HostGfxPenPressure: case Rt::HostGfxPenTiltX: case Rt::HostGfxPenTiltY: case Rt::HostGfxPenFlags: case Rt::HostGfxIsDown: case Rt::HostGfxWasPressed: case Rt::HostGfxPointerX: case Rt::HostGfxPointerY: case Rt::HostGfxPointerDown: case Rt::HostGfxPointerButtons: case Rt::HostGfxModifiers: case Rt::HostGfxKeyCount: case Rt::HostGfxKeyKind: case Rt::HostGfxKeyMods: case Rt::HostGfxKeyName: case Rt::HostGfxButtonEventCount: case Rt::HostGfxButtonEventX: case Rt::HostGfxButtonEventY: case Rt::HostGfxButtonEventButton: case Rt::HostGfxButtonEventDown: case Rt::HostGfxStartTextInput: case Rt::HostGfxStopTextInput: case Rt::HostGfxClipboardText: case Rt::HostGfxSetClipboardText: case Rt::HostGfxSetCursor: case Rt::HostGfxEscapeByApp: case Rt::HostGfxEscapeDefault: case Rt::HostGfxCapture: {
-      if (!zn::host::hostGfx) return "zinc:gfx is not available in this build";
-      const RtInfo& ri = rtInfo(id);
-      zn::host::HostArg args[12], res;
-      for (unsigned k = 0; k < rtParamCount(ri); ++k) {
-        zn::host::HostArg& h = args[k];
-        switch (rtParam(ri, k)) {
-          case 'd': h.d = std::bit_cast<double>(a[k]); break;
-          case 's': { StrObj* s = S(a[k]); NN(s); h.p = s->data(); h.n = s->len; break; }
-          case 'D': { ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]); NN(arr); h.p = arr->v.data(); h.n = static_cast<std::uint32_t>(arr->v.size()); break; }
-          case 'u': h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
-          default: h.i = static_cast<std::int64_t>(a[k]); break;  // i (sign-extended), b
-        }
-      }
-      zn::host::hostGfx(static_cast<int>(id), args, &res);
-      switch (rtRet(ri)) {
-        case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
-        case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
-        case 's': { StrObj* so = m.newStr(static_cast<const char*>(res.p), res.n); a[0] = P(so); break; }
-        default: break;
-      }
-      return nullptr;
-    }
     case Rt::ToNumber: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(toNumberJs(s)); return nullptr; }
     case Rt::ParseFloat: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseFloatJs(s)); return nullptr; }
     case Rt::FromCharCode: {
@@ -943,6 +949,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::Count: break;
+    default: break;  // the host entries (Rt::HostGfxFrames and after) were handled above
   }
 #undef NN
   return "unknown runtime call";

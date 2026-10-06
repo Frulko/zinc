@@ -369,11 +369,28 @@ struct Lowering {
   std::unordered_map<std::uint32_t, LambdaInfo> lambdas;                          // FuncExpr (or closure-needing nested Function) node -> info
   std::unordered_set<std::uint32_t> closureFns;  // nested function declarations that use variables of the code around them: closures, like lambdas
   // The variables a lambda or nested function captures: those of its own, and the closures of the nested functions it uses.
+  std::unordered_set<std::uint32_t> topVars;  // the variables declared at the top level of a module: globals, never captured
+  void collectTopVars() {
+    std::function<void(std::uint32_t)> pat = [&](std::uint32_t pn) {
+      if (pn == kNil) return;
+      const Node& q = n(pn);
+      if (q.kind == N::Ident) { if (c.nodeSym[pn] != kNil) topVars.insert(c.nodeSym[pn]); return; }
+      for (std::uint32_t k : q.kids) pat(k);
+    };
+    for (std::uint32_t st : n(a.root).kids) {
+      if (n(st).kind != N::VarDecl) continue;
+      for (std::uint32_t d : n(st).kids) {
+        if (c.nodeSym[d] != kNil) topVars.insert(c.nodeSym[d]);
+        if (n(d).kids.size() > 2) pat(n(d).kids[2]);
+      }
+    }
+  }
   std::vector<std::uint32_t> capsOf(std::uint32_t node) const {
     std::vector<std::uint32_t> r;
     auto cap = c.captures.find(node);
     if (cap == c.captures.end()) return r;
     for (std::uint32_t s : cap->second) {
+      if (topVars.count(s)) continue;  // a global: read where it lives
       if (c.syms[s].kind == SymKind::Func && (!closureFns.count(c.syms[s].decl) || c.syms[s].decl == node)) continue;  // a plain function is called directly; a closure reaches itself through its own object (no cycle)
       r.push_back(s);
     }
@@ -384,7 +401,7 @@ struct Lowering {
       changed = false;
       for (const auto& [node, caps] : c.captures) {
         if (n(node).kind != N::Function || closureFns.count(node) || c.nodeType[node] == frontend::kNoType) continue;
-        if (!capsOf(node).empty()) { closureFns.insert(node); changed = true; }
+        if (!capsOf(node).empty()) { closureFns.insert(node); changed = true; if (std::getenv("ZN_DEBUG_CLOSURES")) { std::fprintf(stderr, "closure fn %s:", std::string(n(node).text).c_str()); for (std::uint32_t s : capsOf(node)) std::fprintf(stderr, " %s", std::string(c.syms[s].name).c_str()); std::fprintf(stderr, "\n"); } }
       }
     }
   }
@@ -693,6 +710,7 @@ struct Lowering {
     collectClassNodes(a.root);
     for (std::uint32_t inst : c.instances) collectClassNodes(inst);
     addFunction("main", {}, m.voidT());  // function 0
+    collectTopVars();
     computeClosureFns();
     collectFunctions(n(a.root).kids, "");
     collectFunctions(c.instances, "");  // monomorphised generic functions and classes
@@ -1549,6 +1567,7 @@ struct Lowering::FnLower {
       case 'i': case 'j': case 'z': return m.numT(NumK::i32);
       case 'u': return m.numT(NumK::u32);
       case 'D': return m.arrayT(m.numT(NumK::f64));
+      case 'B': return m.arrayT(m.numT(NumK::u8));
       case 'b': return m.boolT();
       case 'd': return m.numT(NumK::f64);
       case 'n': return m.voidT();

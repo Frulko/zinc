@@ -161,6 +161,6 @@ void call(int id, const HostArg* a, HostArg* r) {
 
 namespace zn::host {
 
-void installGfx() { hostGfx = call; }
+void installGfx() { hostGfx = call; installSys(); }
 
 }  // namespace zn::host
