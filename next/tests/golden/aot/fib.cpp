@@ -56,4 +56,6 @@ bool zn::rt::Machine::exec(const Func* f, Slot* base) {
   return st == 0;
 }
 
-int main() { return zn::rt::runProgram(kModule, sizeof kModule, kNatives, 2); }
+int main() {
+  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, 2);
+}

@@ -286,3 +286,7 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Generic templates skip the array/Map helper rewrites (`hasParam`), their instances are checked with real types.
 - Not done: live window (SDL HAL and input), AOT with the host (ZN-045), baking fonts without the old tool, profiling suite (ZN-046).
 - Next by ordinal: ZN-045, ZN-046, then ZN-029.
+
+## ZN-045 notes (Done)
+- AOT programs that call the host (`Rt::Host*`) install it in `main` and `zinc build` links `libzn_host_gfx.a`. M5 demo met: clock (T1 `ui.sh`) and ui.tsx (T2 `ui_aot.sh`) match the pixel goldens in interpreter and AOT. A live window (SDL HAL and input) is not done.
+- Next by ordinal: ZN-046 (profiling suite), then ZN-029 (toolchain manager).

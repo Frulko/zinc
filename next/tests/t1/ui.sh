@@ -15,6 +15,12 @@ for n in 1 40; do
     || { echo "ui.tsx failed at $n frames: $(head -c 300 "$tmp/err")"; fail=1; continue; }
   tools/pngdiff "$tmp/ui-$n.png" ../tests/visual/ui-$n.png >/dev/null || { echo "ui frame $n differs from tests/visual/ui-$n.png"; fail=1; }
 done
+# the compiled program draws the same frame (the graphics host is linked into it)
+"$ZINC" build ../tests/visual/clock.ts -o "$tmp/clock_aot" 2>"$tmp/err" || { echo "aot build of clock.ts failed: $(head -c 300 "$tmp/err")"; fail=1; }
+if [ -x "$tmp/clock_aot" ]; then
+  ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=20 ZINC_SHOT="$tmp/ca.png" ZINC_SHOT_FRAMES=20 "$tmp/clock_aot" >/dev/null 2>&1
+  tools/pngdiff "$tmp/ca-20.png" ../tests/visual/clock-20.png >/dev/null || { echo "aot clock frame 20 differs"; fail=1; }
+fi
 printf "import { nothing } from 'zinc:nope';\n" > "$tmp/bad.ts"
 "$ZINC" run "$tmp/bad.ts" 2>&1 | grep -q "Z0" || { echo "an unknown zinc: module is not reported"; fail=1; }
 exit $fail
