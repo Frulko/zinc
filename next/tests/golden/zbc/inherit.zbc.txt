@@ -1,0 +1,76 @@
+class Animal { i }
+  vtable .sound -> @Animal.sound
+  vtable .describe -> @Animal.describe
+class Dog : Animal { i, i }
+  vtable .sound -> @Dog.sound
+  vtable .describe -> @Animal.describe
+class Bird : Animal { i }
+  vtable .sound -> @Bird.sound
+  vtable .describe -> @Animal.describe
+func @main() -> void nregs=6
+   0  New      r0, Dog
+   1  Move     r1, r0
+   2  Call     r1, @Dog.constructor
+   3  New      r1, Bird
+   4  Move     r2, r1
+   5  Call     r2, @Bird.constructor
+   6  Move     r2, r0
+   7  Call     r2, @Animal.describe
+   8  Move     r3, r1
+   9  Call     r3, @Animal.describe
+  10  GetField r4, r0, .1
+  11  GetField r5, r0, .0
+  12  LogI     r2
+  13  LogSep   
+  14  LogI     r3
+  15  LogSep   
+  16  LogI     r4
+  17  LogSep   
+  18  LogI     r5
+  19  LogEnd   
+  20  Move     r2, r0
+  21  Call     r2, @twice
+  22  Move     r3, r1
+  23  Call     r3, @twice
+  24  LogI     r2
+  25  LogSep   
+  26  LogI     r3
+  27  LogEnd   
+  28  RetV     
+func @Animal.constructor(ref Animal, i) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     
+func @Animal.sound(ref Animal) -> i nregs=1
+   0  LoadI    r0, 0
+   1  Ret      r0
+func @Animal.describe(ref Animal) -> i nregs=3
+   0  GetField r1, r0, .0
+   1  LoadI    r2, 10
+   2  MulI32   r1, r1, r2
+   3  Move     r2, r0
+   4  CallVirt r2, .sound
+   5  AddI32   r0, r1, r2
+   6  Ret      r0
+func @Dog.constructor(ref Dog) -> void nregs=3
+   0  Move     r1, r0
+   1  LoadI    r2, 4
+   2  Call     r1, @Animal.constructor
+   3  LoadI    r1, 3
+   4  SetField r0, r1, .1
+   5  RetV     
+func @Dog.sound(ref Dog) -> i nregs=1
+   0  LoadI    r0, 1
+   1  Ret      r0
+func @Bird.constructor(ref Bird) -> void nregs=2
+   0  LoadI    r1, 2
+   1  Call     r0, @Animal.constructor
+   2  RetV     
+func @Bird.sound(ref Bird) -> i nregs=1
+   0  Call     r0, @Animal.sound
+   1  AddI32K  r0, r0, 2
+   2  Ret      r0
+func @twice(ref Animal) -> i nregs=2
+   0  CallVirt r0, .sound
+   1  LoadI    r1, 2
+   2  MulI32   r0, r0, r1
+   3  Ret      r0

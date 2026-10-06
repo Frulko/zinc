@@ -25,12 +25,21 @@ int builtinArity(Builtin b) {
 
 const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
-      "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "call", "builtin", "new", "getfield", "setfield",
+      "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "call", "callvirt", "builtin", "new", "getfield", "setfield",
       "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen",
       "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
 }
 bool isTerminator(IrOp o) { return o == IrOp::Br || o == IrOp::CondBr || o == IrOp::Ret || o == IrOp::Throw || o == IrOp::Unreachable; }
+
+bool Module::isSubtype(std::uint32_t a, std::uint32_t b) const {
+  if (a >= classes.size() || b >= classes.size()) return false;
+  for (std::uint32_t k = 0, o = a; o != kNoClass && k < 1000; o = classes[o].parent, ++k) {
+    if (o == b) return true;
+    for (std::uint32_t i : classes[o].implements) if (i == b) return true;
+  }
+  return false;
+}
 
 TypeId Module::intern(const Type& t) {
   for (TypeId i = 0; i < types.size(); ++i) if (types[i] == t) return i;
@@ -41,7 +50,7 @@ TypeId Module::intern(const Type& t) {
 std::uint8_t effects(const Module& m, const Inst& i) {
   auto isInt = [&](TypeId t) { const Type& x = m.types[t]; return x.k == Type::K::Num && x.num != Num::f64 && x.num != Num::f32 && x.num != Num::fx12 && x.num != Num::fx16; };
   switch (i.op) {
-    case IrOp::Call: case IrOp::Builtin: return kReads | kWrites | kThrows;
+    case IrOp::Call: case IrOp::CallVirt: case IrOp::Builtin: return kReads | kWrites | kThrows;
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
     case IrOp::New: case IrOp::ArrNew: case IrOp::StrConcat: case IrOp::ToStr: return kAllocs;
     case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: return kReads;
@@ -111,6 +120,7 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
       else s += " " + std::to_string(i.imm);
       return s;
     case IrOp::Call: s += " @" + m.functions[i.sym].name; break;
+    case IrOp::CallVirt: s += " ." + m.selectors[i.sym].name; break;
     case IrOp::Builtin: s += std::string(" ") + builtinName(static_cast<Builtin>(i.sym)); break;
     case IrOp::New: s += " " + m.classes[i.sym].name; break;
     case IrOp::GetField: case IrOp::SetField: s += " ." + std::to_string(i.sym); break;
@@ -121,12 +131,12 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
   if (i.op == IrOp::Br) return s + " " + edgeText(i.edges[0]);
   if (i.op == IrOp::CondBr) return s + " " + v(i.args[0]) + ", " + edgeText(i.edges[0]) + ", " + edgeText(i.edges[1]);
   if (!i.args.empty()) {
-    bool call = i.op == IrOp::Call || i.op == IrOp::Builtin;
+    bool call = i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin;
     s += call ? "(" : " ";
     for (std::size_t k = 0; k < i.args.size(); ++k) s += (k ? ", " : "") + v(i.args[k]);
     if (call) s += ")";
-  } else if (i.op == IrOp::Call || i.op == IrOp::Builtin) s += "()";
-  if (i.op == IrOp::Call && !i.edges.empty()) s += " unwind " + edgeText(i.edges[0]);
+  } else if (i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin) s += "()";
+  if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) s += " unwind " + edgeText(i.edges[0]);
   return s;
 }
 
@@ -135,9 +145,22 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
 std::string dump(const Module& m) {
   std::string out;
   for (const Class& c : m.classes) {
-    out += "class " + c.name + " {";
-    for (std::size_t i = 0; i < c.fields.size(); ++i) out += (i ? ", " : " ") + c.fields[i].name + ": " + typeName(m, c.fields[i].type);
-    out += c.fields.empty() ? "}\n" : " }\n";
+    out += (c.isInterface ? "interface " : c.isAbstract ? "abstract class " : "class ") + c.name;
+    if (c.parent != kNoClass) out += " : " + m.classes[c.parent].name;
+    if (!c.implements.empty()) {
+      out += " implements";
+      for (std::size_t i = 0; i < c.implements.size(); ++i) out += (i ? ", " : " ") + m.classes[c.implements[i]].name;
+    }
+    if (!c.isInterface) {
+      out += " {";
+      for (std::size_t i = 0; i < c.fields.size(); ++i) out += (i ? ", " : " ") + c.fields[i].name + ": " + typeName(m, c.fields[i].type);
+      out += c.fields.empty() ? "}" : " }";
+    }
+    out += "\n";
+    for (std::uint32_t sel : c.selectors) {
+      if (c.isInterface) { out += "  method ." + m.selectors[sel].name + "\n"; continue; }
+      if (sel < c.vtable.size() && c.vtable[sel] != kNoClass) out += "  vtable ." + m.selectors[sel].name + " -> @" + m.functions[c.vtable[sel]].name + "\n";
+    }
   }
   for (const Global& g : m.globals) out += "global @@" + g.name + ": " + typeName(m, g.type) + "\n";
   for (const Function& f : m.functions) {
@@ -196,7 +219,7 @@ struct Verifier {
       const auto& insts = f.blocks[b].insts;
       if (insts.empty()) continue;
       for (const Edge& e : insts.back().edges) if (e.to < n && !reach[e.to]) { reach[e.to] = true; stack.push_back(e.to); }
-      for (const Inst& i : insts) if (i.op == IrOp::Call) for (const Edge& e : i.edges) if (e.to < n && !reach[e.to]) { reach[e.to] = true; stack.push_back(e.to); }
+      for (const Inst& i : insts) if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (const Edge& e : i.edges) if (e.to < n && !reach[e.to]) { reach[e.to] = true; stack.push_back(e.to); }
     }
     std::vector<std::vector<BlockId>> preds(n);
     for (BlockId b = 0; b < n; ++b) {
@@ -294,6 +317,27 @@ struct Verifier {
         if (i.edges.size() > 1) return fail(b, ii, "a call has at most one unwind edge");
         break;
       }
+      case IrOp::RefCast: {
+        if (!arity(1) || m.types[i.ty].k != Type::K::Ref || m.types[tyOf(i.args[0])].k != Type::K::Ref) return err.empty() ? fail(b, ii, "refcast needs references") : false;
+        std::uint32_t from = m.types[tyOf(i.args[0])].aux, to = m.types[i.ty].aux;
+        if (!m.isSubtype(from, to) && !m.isSubtype(to, from)) return fail(b, ii, "refcast between unrelated classes " + m.classes[from].name + " and " + m.classes[to].name);
+        break;
+      }
+      case IrOp::CallVirt: {
+        if (i.sym >= m.selectors.size()) return fail(b, ii, "callvirt of a missing selector");
+        const Selector& sel = m.selectors[i.sym];
+        if (i.args.empty() || m.types[tyOf(i.args[0])].k != Type::K::Ref) return fail(b, ii, "callvirt needs a receiver reference");
+        const Class& rc = m.classes[m.types[tyOf(i.args[0])].aux];
+        bool visible = false;
+        for (std::uint32_t sv : rc.selectors) if (sv == i.sym) visible = true;
+        if (!visible) return fail(b, ii, "selector ." + sel.name + " is not a method of " + rc.name);
+        if (i.args.size() != sel.params.size() + 1) return fail(b, ii, "callvirt ." + sel.name + " passes " + std::to_string(i.args.size() - 1) + " arguments for " + std::to_string(sel.params.size()));
+        for (std::size_t k = 0; k < sel.params.size(); ++k)
+          if (tyOf(i.args[k + 1]) != sel.params[k]) return fail(b, ii, "argument " + std::to_string(k) + " of ." + sel.name + " has type " + typeName(m, tyOf(i.args[k + 1])) + ", expected " + typeName(m, sel.params[k]));
+        if (i.ty != sel.ret) return fail(b, ii, "callvirt result type differs from ." + sel.name + "'s return type");
+        if (i.edges.size() > 1) return fail(b, ii, "a call has at most one unwind edge");
+        break;
+      }
       case IrOp::Builtin: {
         if (i.sym >= static_cast<std::uint32_t>(Builtin::Count)) return fail(b, ii, "unknown builtin");
         int ar = builtinArity(static_cast<Builtin>(i.sym));
@@ -303,12 +347,14 @@ struct Verifier {
       case IrOp::New:
         if (!arity(0)) return false;
         if (i.sym >= m.classes.size() || m.types[i.ty].k != Type::K::Ref || m.types[i.ty].aux != i.sym) return fail(b, ii, "new must produce a ref of its class");
+        if (m.classes[i.sym].isInterface || m.classes[i.sym].isAbstract) return fail(b, ii, "new of the " + std::string(m.classes[i.sym].isInterface ? "interface " : "abstract class ") + m.classes[i.sym].name);
         break;
       case IrOp::GetField: case IrOp::SetField: {
         if (!arity(i.op == IrOp::GetField ? 1 : 2)) return false;
         const Type& ot = m.types[tyOf(i.args[0])];
         if (ot.k != Type::K::Ref) return fail(b, ii, "field access on a non-ref");
         const Class& c = m.classes[ot.aux];
+        if (c.isInterface) return fail(b, ii, "field access on the interface " + c.name);
         if (i.sym >= c.fields.size()) return fail(b, ii, "field index out of range for " + c.name);
         if (i.op == IrOp::GetField && i.ty != c.fields[i.sym].type) return fail(b, ii, "getfield result type differs from the field type");
         if (i.op == IrOp::SetField && tyOf(i.args[1]) != c.fields[i.sym].type) return fail(b, ii, "setfield value type differs from the field type");
@@ -359,7 +405,7 @@ struct Verifier {
       case IrOp::Throw: if (!arity(1)) return false; break;
       case IrOp::Unreachable: if (!arity(0)) return false; break;
     }
-    if (i.op == IrOp::Call && !i.edges.empty()) {
+    if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) {
       if (!i.edges[0].args.empty()) return fail(b, ii, "an unwind edge carries no arguments");
       if (i.edges[0].to >= f.blocks.size() || i.edges[0].to == 0) return fail(b, ii, "unwind edge to a missing block");
     } else if (!isTerminator(i.op) && !i.edges.empty()) return fail(b, ii, "only calls and terminators have edges");
@@ -400,8 +446,41 @@ struct Verifier {
 
 }  // namespace
 
+namespace {
+// Class tables: parents exist, layouts extend the parent's, and every concrete class implements every selector it exposes.
+std::string verifyClasses(const Module& m) {
+  for (std::size_t ci = 0; ci < m.classes.size(); ++ci) {
+    const Class& c = m.classes[ci];
+    if (c.parent != kNoClass) {
+      if (c.parent >= m.classes.size() || m.classes[c.parent].isInterface) return "class " + c.name + " has an invalid parent";
+      const Class& p = m.classes[c.parent];
+      if (c.fields.size() < p.fields.size()) return "class " + c.name + " does not keep its parent's fields";
+      for (std::size_t k = 0; k < p.fields.size(); ++k)
+        if (c.fields[k].name != p.fields[k].name || c.fields[k].type != p.fields[k].type) return "class " + c.name + " moves the field " + p.fields[k].name + " of " + p.name;
+    }
+    for (std::uint32_t i : c.implements) if (i >= m.classes.size() || !m.classes[i].isInterface) return "class " + c.name + " implements a non-interface";
+    for (std::uint32_t sel : c.selectors) if (sel >= m.selectors.size()) return "class " + c.name + " names a missing selector";
+    if (c.isInterface || c.isAbstract) continue;
+    if (c.vtable.size() != m.selectors.size()) return "class " + c.name + " has a vtable of the wrong size";
+    for (std::uint32_t sel : c.selectors) {
+      std::uint32_t fn = c.vtable[sel];
+      const Selector& s = m.selectors[sel];
+      if (fn == kNoClass || fn >= m.functions.size()) return "class " + c.name + " has no implementation of ." + s.name;
+      const Function& f = m.functions[fn];
+      if (f.params.size() != s.params.size() + 1) return "class " + c.name + ": @" + f.name + " does not match the signature of ." + s.name;
+      const Type& rt = m.types[f.valueTypes[f.params[0]]];
+      if (rt.k != Type::K::Ref || !m.isSubtype(static_cast<std::uint32_t>(ci), rt.aux)) return "class " + c.name + ": the receiver of @" + f.name + " is not a supertype of the class";
+      for (std::size_t k = 0; k < s.params.size(); ++k) if (f.valueTypes[f.params[k + 1]] != s.params[k]) return "class " + c.name + ": @" + f.name + " parameter types differ from ." + s.name;
+      if (f.ret != s.ret) return "class " + c.name + ": @" + f.name + " returns a different type than ." + s.name;
+    }
+  }
+  return "";
+}
+}  // namespace
+
 std::string verify(const Module& m) {
   if (m.functions.empty() || m.functions[0].name != "main") return "module has no @main as function 0";
+  if (std::string e = verifyClasses(m); !e.empty()) return e;
   for (const Function& f : m.functions) {
     Verifier v(m, f);
     if (!v.run()) return v.err;

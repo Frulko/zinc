@@ -1,0 +1,102 @@
+class Many { i, i, i, i, i, i, i, i, i, i, i, i }
+  vtable .sum -> @Many.sum
+class Sub : Many { i, i, i, i, i, i, i, i, i, i, i, i }
+  vtable .twice -> @Sub.twice
+  vtable .sum -> @Many.sum
+func @main() -> void nregs=14
+   0  New      r0, Many
+   1  LoadI    r2, 1
+   2  LoadI    r3, 1
+   3  LoadI    r4, 1
+   4  LoadI    r5, 1
+   5  LoadI    r6, 1
+   6  LoadI    r7, 1
+   7  LoadI    r8, 1
+   8  LoadI    r9, 1
+   9  LoadI    r10, 1
+  10  LoadI    r11, 1
+  11  LoadI    r12, 1
+  12  LoadI    r13, 1
+  13  Move     r1, r0
+  14  Call     r1, @Many.constructor
+  15  New      r1, Sub
+  16  Move     r2, r1
+  17  Call     r2, @Sub.constructor
+  18  Move     r2, r0
+  19  Call     r2, @Many.sum
+  20  Move     r3, r1
+  21  Call     r3, @Many.sum
+  22  Move     r4, r1
+  23  Call     r4, @Sub.twice
+  24  GetField r0, r1, .11
+  25  LogI     r2
+  26  LogSep   
+  27  LogI     r3
+  28  LogSep   
+  29  LogI     r4
+  30  LogSep   
+  31  LogI     r0
+  32  LogEnd   
+  33  RetV     
+func @Many.constructor(ref Many, i, i, i, i, i, i, i, i, i, i, i, i) -> void nregs=13
+   0  SetField r0, r1, .0
+   1  SetField r0, r2, .1
+   2  SetField r0, r3, .2
+   3  SetField r0, r4, .3
+   4  SetField r0, r5, .4
+   5  SetField r0, r6, .5
+   6  SetField r0, r7, .6
+   7  SetField r0, r8, .7
+   8  SetField r0, r9, .8
+   9  SetField r0, r10, .9
+  10  SetField r0, r11, .10
+  11  SetField r0, r12, .11
+  12  RetV     
+func @Many.sum(ref Many) -> i nregs=3
+   0  GetField r1, r0, .0
+   1  GetField r2, r0, .1
+   2  AddI32   r1, r1, r2
+   3  GetField r2, r0, .2
+   4  AddI32   r1, r1, r2
+   5  GetField r2, r0, .3
+   6  AddI32   r1, r1, r2
+   7  GetField r2, r0, .4
+   8  AddI32   r1, r1, r2
+   9  GetField r2, r0, .5
+  10  AddI32   r1, r1, r2
+  11  GetField r2, r0, .6
+  12  AddI32   r1, r1, r2
+  13  GetField r2, r0, .7
+  14  AddI32   r1, r1, r2
+  15  GetField r2, r0, .8
+  16  AddI32   r1, r1, r2
+  17  GetField r2, r0, .9
+  18  AddI32   r1, r1, r2
+  19  GetField r2, r0, .10
+  20  AddI32   r1, r1, r2
+  21  GetField r0, r0, .11
+  22  AddI32   r0, r1, r0
+  23  Ret      r0
+func @Sub.constructor(ref Sub) -> void nregs=13
+   0  LoadI    r1, 1
+   1  LoadI    r2, 2
+   2  LoadI    r3, 3
+   3  LoadI    r4, 4
+   4  LoadI    r5, 5
+   5  LoadI    r6, 6
+   6  LoadI    r7, 7
+   7  LoadI    r8, 8
+   8  LoadI    r9, 9
+   9  LoadI    r10, 10
+  10  LoadI    r11, 11
+  11  LoadI    r12, 12
+  12  Call     r0, @Many.constructor
+  13  RetV     
+func @Sub.twice(ref Sub) -> i nregs=3
+   0  Move     r1, r0
+   1  Call     r1, @Many.sum
+   2  LoadI    r2, 2
+   3  MulI32   r1, r1, r2
+   4  GetField r0, r0, .9
+   5  AddI32   r0, r1, r0
+   6  Ret      r0

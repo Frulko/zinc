@@ -1,5 +1,6 @@
 // AST + checker results -> typed SSA IR. Locals use on-the-fly SSA construction (Braun et al.) with block parameters
 // as phis; trivial parameters are removed afterwards. Top-level variables used by functions become globals.
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -47,13 +48,20 @@ struct Lowering {
   Module m;
   std::vector<frontend::Diag> diags;
 
-  std::vector<std::uint32_t> classOfObj;                         // checker object -> IR class
-  std::unordered_map<std::uint32_t, std::uint32_t> funcOfNode;   // Function/Method node -> function index
-  std::unordered_map<std::uint64_t, std::uint32_t> methodFn;     // (checker object << 32 | member name hash) -> function
-  std::unordered_map<std::uint32_t, std::uint32_t> ctorOfClass;  // IR class -> constructor function
-  std::vector<std::int64_t> ownerFn;                             // per symbol: owning function (0 = main), -1 unknown
-  std::vector<char> topLevel, global;                            // per symbol
-  std::vector<std::uint32_t> globalIndex;                        // per symbol
+  std::vector<std::uint32_t> classOfObj;                          // checker object -> IR class
+  std::unordered_map<std::uint32_t, std::uint32_t> funcOfNode;    // Function/Method node -> function index
+  std::unordered_map<std::string, std::uint32_t> methodFn;        // "obj:name" -> instance method function (concrete only)
+  std::unordered_map<std::string, std::uint32_t> staticFn;        // "obj:name" -> static method function
+  std::unordered_map<std::string, std::uint32_t> staticGlobal;    // "obj:name" -> global of a static field
+  std::unordered_map<std::uint32_t, std::uint32_t> ctorOfClass;   // IR class -> constructor function
+  std::unordered_map<std::uint32_t, std::uint32_t> classNodeOfObj;  // checker object -> its Class node
+  std::vector<char> instantiated;                                 // per checker object: appears in a `new`
+  std::vector<std::vector<std::pair<std::string, frontend::TypeId>>> layouts;  // per object: instance fields, parent first
+  std::vector<char> layoutDone;
+  std::unordered_map<std::string, std::uint32_t> selectorIds;
+  std::vector<std::int64_t> ownerFn;                              // per symbol: owning function (0 = main), -1 unknown
+  std::vector<char> topLevel, global;                             // per symbol
+  std::vector<std::uint32_t> globalIndex;                         // per symbol
   std::unordered_map<std::string, std::uint32_t> stringIds;
 
   struct Job { std::uint32_t fn; std::uint32_t node; std::uint32_t cls; bool ctor; std::uint32_t classNode; };
@@ -64,7 +72,7 @@ struct Lowering {
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
   void unsupported(std::uint32_t node, const std::string& what) { diags.push_back({frontend::kZUnsupported, n(node).start, what}); }
 
-  static std::uint64_t mkey(std::uint32_t obj, std::string_view name) { return (static_cast<std::uint64_t>(obj) << 32) ^ std::hash<std::string_view>{}(name); }
+  static std::string mkey(std::uint32_t obj, std::string_view name) { return std::to_string(obj) + ":" + std::string(name); }
 
   TypeId irType(frontend::TypeId t, std::uint32_t at = kNil) {
     const frontend::Type& x = c.types[t];
@@ -90,31 +98,108 @@ struct Lowering {
     return stringIds[s] = static_cast<std::uint32_t>(m.strings.size() - 1);
   }
 
-  std::uint32_t fieldIndex(std::uint32_t obj, std::string_view name) const {
-    std::uint32_t k = 0;
-    for (const frontend::Member& mem : c.objs[obj].members) {
-      if (mem.method) continue;
-      if (mem.name == name) return k;
-      ++k;
+  // ---- classes: layout, selectors, vtables
+  const std::vector<std::pair<std::string, frontend::TypeId>>& layoutOf(std::uint32_t obj) {
+    if (!layoutDone[obj]) {
+      layoutDone[obj] = 1;
+      std::vector<std::pair<std::string, frontend::TypeId>> lay;
+      if (c.objs[obj].parent != kNil) lay = layoutOf(c.objs[obj].parent);
+      for (const frontend::Member& mem : c.objs[obj].members)
+        if (!mem.method && !mem.isStatic && mem.owner == obj) lay.push_back({mem.name, mem.type});
+      layouts[obj] = std::move(lay);
+    }
+    return layouts[obj];
+  }
+  std::uint32_t fieldIndex(std::uint32_t obj, std::string_view name) {
+    const auto& lay = layoutOf(obj);
+    for (std::uint32_t k = 0; k < lay.size(); ++k) if (lay[k].first == name) return k;
+    return kNil;
+  }
+
+  std::uint32_t selectorFor(const std::string& name, frontend::TypeId ft) {
+    std::string key = name + "#" + std::to_string(ft);
+    auto it = selectorIds.find(key);
+    if (it != selectorIds.end()) return it->second;
+    Selector s;
+    s.name = name;
+    for (frontend::TypeId p : c.types[ft].params) s.params.push_back(irType(p));
+    s.ret = irType(c.types[ft].elem);
+    m.selectors.push_back(std::move(s));
+    return selectorIds[key] = static_cast<std::uint32_t>(m.selectors.size() - 1);
+  }
+
+  std::uint32_t resolveMethod(std::uint32_t obj, std::string_view name) const {
+    for (std::uint32_t o = obj, k = 0; o != kNil && k < 1000; o = c.objs[o].parent, ++k) {
+      auto it = methodFn.find(mkey(o, name));
+      if (it != methodFn.end()) return it->second;
     }
     return kNil;
   }
 
-  // ---- module structure
+  // Closed world: if every instantiated class that can be the receiver resolves `name` to one function, call it directly.
+  bool devirtualize(std::uint32_t recvObj, std::string_view name, std::uint32_t& fnOut) const {
+    std::uint32_t found = kNil;
+    for (std::uint32_t k = 0; k < c.objs.size(); ++k) {
+      if (!instantiated[k] || !frontend::objAssignable(c, k, recvObj)) continue;
+      std::uint32_t fn = resolveMethod(k, name);
+      if (fn == kNil) return false;
+      if (found != kNil && found != fn) return false;
+      found = fn;
+    }
+    fnOut = found;
+    return found != kNil;
+  }
+
   void collectClasses() {
     classOfObj.assign(c.objs.size(), kNil);
+    layouts.assign(c.objs.size(), {});
+    layoutDone.assign(c.objs.size(), 0);
+    instantiated.assign(c.objs.size(), 0);
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
-      if (!c.objs[o].isClass) continue;
+      if (!c.objs[o].isClass && !c.objs[o].isInterface) continue;
       classOfObj[o] = static_cast<std::uint32_t>(m.classes.size());
-      m.classes.push_back({c.objs[o].name, {}});
+      Class cl;
+      cl.name = c.objs[o].name;
+      cl.isInterface = c.objs[o].isInterface;
+      cl.isAbstract = c.objs[o].isAbstract;
+      m.classes.push_back(std::move(cl));
     }
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
       if (classOfObj[o] == kNil) continue;
+      Class& cl = m.classes[classOfObj[o]];
+      if (c.objs[o].parent != kNil) cl.parent = classOfObj[c.objs[o].parent];
+      if (!cl.isInterface) for (const auto& [nm, t] : layoutOf(o)) cl.fields.push_back({nm, irType(t)});
+      for (std::uint32_t i = 0; i < c.objs.size(); ++i)
+        if (i != o && classOfObj[i] != kNil && c.objs[i].isInterface && frontend::objAssignable(c, o, i)) cl.implements.push_back(classOfObj[i]);
       for (const frontend::Member& mem : c.objs[o].members)
-        if (!mem.method) m.classes[classOfObj[o]].fields.push_back({mem.name, irType(mem.type)});
+        if (!mem.method && mem.isStatic && mem.owner == o) {
+          m.globals.push_back({c.objs[o].name + "." + mem.name, irType(mem.type)});
+          staticGlobal[mkey(o, mem.name)] = static_cast<std::uint32_t>(m.globals.size() - 1);
+        }
     }
   }
 
+  void buildVtables() {
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) {  // selectors visible on each class
+      if (classOfObj[o] == kNil) continue;
+      Class& cl = m.classes[classOfObj[o]];
+      for (std::uint32_t p = o, k = 0; p != kNil && k < 1000; p = c.objs[p].parent, ++k)
+        for (const frontend::Member& mem : c.objs[p].members) {
+          if (!mem.method || mem.isStatic) continue;
+          std::uint32_t sel = selectorFor(mem.name, mem.type);
+          if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
+        }
+    }
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
+      if (classOfObj[o] == kNil) continue;
+      Class& cl = m.classes[classOfObj[o]];
+      if (cl.isInterface || cl.isAbstract) continue;
+      cl.vtable.assign(m.selectors.size(), kNil);
+      for (std::uint32_t sel : cl.selectors) cl.vtable[sel] = resolveMethod(o, m.selectors[sel].name);
+    }
+  }
+
+  // ---- module structure
   std::uint32_t addFunction(const std::string& name, const std::vector<TypeId>& params, TypeId ret) {
     Function f;
     f.name = name;
@@ -122,6 +207,36 @@ struct Lowering {
     for (TypeId t : params) { f.valueTypes.push_back(t); f.params.push_back(static_cast<ValueId>(f.valueTypes.size() - 1)); }
     m.functions.push_back(std::move(f));
     return static_cast<std::uint32_t>(m.functions.size() - 1);
+  }
+
+  bool classHasInit(const Node& cls) const {
+    for (std::size_t k = frontend::kClassMembersFrom; k < cls.kids.size(); ++k) {
+      const Node& mn = n(cls.kids[k]);
+      if (mn.kind == N::Field && mn.kids[1] != kNil && !(mn.flags & frontend::kFlagStatic)) return true;
+    }
+    return false;
+  }
+  bool classHasExplicitCtor(const Node& cls) const {
+    for (std::size_t k = frontend::kClassMembersFrom; k < cls.kids.size(); ++k) {
+      const Node& mn = n(cls.kids[k]);
+      if (mn.kind == N::Method && mn.text == "constructor") return true;
+    }
+    return false;
+  }
+  // A class needs a constructor function when it declares one, has instance initialisers, or extends a class that needs one.
+  bool needsCtor(std::uint32_t obj) const {
+    auto it = classNodeOfObj.find(obj);
+    if (it == classNodeOfObj.end()) return false;
+    const Node& cls = n(it->second);
+    if (classHasExplicitCtor(cls) || classHasInit(cls)) return true;
+    return c.objs[obj].parent != kNil && needsCtor(c.objs[obj].parent);
+  }
+
+  void collectClassNodes(std::uint32_t i) {
+    if (i == kNil) return;
+    const Node& x = n(i);
+    if (x.kind == N::Class) classNodeOfObj[c.types[c.nodeType[i]].obj] = i;
+    for (std::uint32_t k : x.kids) collectClassNodes(k);
   }
 
   void collectFunctions(const std::vector<std::uint32_t>& stmts, const std::string& prefix) {
@@ -139,25 +254,31 @@ struct Lowering {
       } else if (x.kind == N::Class) {
         std::uint32_t obj = c.types[c.nodeType[s]].obj, cls = classOfObj[obj];
         TypeId self = m.refT(cls);
-        bool hasCtor = false, hasInit = false;
-        for (std::uint32_t mem : x.kids) {
+        bool hasCtor = false;
+        for (std::size_t k = frontend::kClassMembersFrom; k < x.kids.size(); ++k) {
+          std::uint32_t mem = x.kids[k];
           const Node& mn = n(mem);
-          if (mn.kind == N::Field && mn.kids[1] != kNil) hasInit = true;
           if (mn.kind != N::Method) continue;
-          frontend::TypeId sig = c.nodeType[mem];
-          bool isCtor = mn.text == "constructor";
+          bool isCtor = mn.text == "constructor", isStatic = (mn.flags & frontend::kFlagStatic) != 0;
           hasCtor = hasCtor || isCtor;
-          std::vector<TypeId> ps{self};
+          if (mn.kids[1] == kNil) continue;  // abstract: no body, no function
+          frontend::TypeId sig = c.nodeType[mem];
+          std::vector<TypeId> ps;
+          if (!isStatic) ps.push_back(self);
           for (frontend::TypeId p : c.types[sig].params) ps.push_back(irType(p, mem));
           std::string nm = std::string(x.text) + "." + std::string(mn.text);
           std::uint32_t fi = addFunction(nm, ps, isCtor ? m.voidT() : irType(c.types[sig].elem, mem));
           funcOfNode[mem] = fi;
-          if (isCtor) ctorOfClass[cls] = fi; else methodFn[mkey(obj, mn.text)] = fi;
-          jobs.push_back({fi, mem, cls, isCtor, s});
-          if (mn.kids[1] != kNil) collectFunctions(n(mn.kids[1]).kids, nm + ".");
+          if (isCtor) ctorOfClass[cls] = fi;
+          else if (isStatic) staticFn[mkey(obj, mn.text)] = fi;
+          else methodFn[mkey(obj, mn.text)] = fi;
+          jobs.push_back({fi, mem, isStatic ? kNil : cls, isCtor, s});
+          collectFunctions(n(mn.kids[1]).kids, nm + ".");
         }
-        if (!hasCtor && hasInit) {  // field initializers need a constructor to run in
-          std::uint32_t fi = addFunction(std::string(x.text) + ".constructor", {self}, m.voidT());
+        if (!hasCtor && needsCtor(obj)) {  // initialisers and the base constructor need a constructor to run in
+          std::vector<TypeId> ps{self};
+          if (c.objs[obj].ctor != frontend::kNoType) for (frontend::TypeId p : c.types[c.objs[obj].ctor].params) ps.push_back(irType(p, s));
+          std::uint32_t fi = addFunction(std::string(x.text) + ".constructor", ps, m.voidT());
           ctorOfClass[cls] = fi;
           jobs.push_back({fi, s, cls, true, s});
         }
@@ -177,14 +298,22 @@ struct Lowering {
         const Node& x = n(i);
         std::int64_t cur = fn;
         if (x.kind == N::Function || x.kind == N::Method) { auto it = funcOfNode.find(i); if (it != funcOfNode.end()) cur = it->second; }
-        if (x.kind == N::Class) {  // field initializers run in the constructor
+        if (x.kind == N::Interface) return;
+        if (x.kind == N::Class) {  // instance field initializers run in the constructor, static ones where the class is declared
           std::uint32_t cls = classOfObj[c.types[c.nodeType[i]].obj];
           auto it = ctorOfClass.find(cls);
-          for (std::uint32_t mem : x.kids) {
-            if (n(mem).kind == N::Field) walk(n(mem).kids[1], it != ctorOfClass.end() ? static_cast<std::int64_t>(it->second) : fn, false);
-            else walk(mem, fn, false);
+          for (std::size_t k = frontend::kClassMembersFrom; k < x.kids.size(); ++k) {
+            std::uint32_t mem = x.kids[k];
+            if (n(mem).kind == N::Field) {
+              bool isStatic = (n(mem).flags & frontend::kFlagStatic) != 0;
+              walk(n(mem).kids[1], (!isStatic && it != ctorOfClass.end()) ? static_cast<std::int64_t>(it->second) : fn, false);
+            } else walk(mem, fn, false);
           }
           return;
+        }
+        if (x.kind == N::New && pass == 0) {
+          std::uint32_t cs = c.nodeSym[x.kids[0]];
+          if (cs != kNil && c.syms[cs].kind == SymKind::Class) instantiated[c.types[c.syms[cs].type].obj] = 1;
         }
         if ((x.kind == N::Declarator || x.kind == N::Param) && c.nodeSym[i] != kNil && pass == 0) {
           ownerFn[c.nodeSym[i]] = cur;
@@ -213,10 +342,12 @@ struct Lowering {
   void lowerAll();
   void run() {
     collectClasses();
+    collectClassNodes(a.root);
     addFunction("main", {}, m.voidT());  // function 0
     collectFunctions(n(a.root).kids, "");
     jobs.insert(jobs.begin(), Job{0, kNil, kNil, false, kNil});
     analyze();
+    buildVtables();
     lowerAll();
   }
 };
@@ -288,6 +419,7 @@ struct Lowering::FnLower {
   ValueId coerce(ValueId v, TypeId to) {
     if (v == kNoValue || tv(v) == to) return v;
     if (ty(tv(v)).k == Type::K::Num && ty(to).k == Type::K::Num) return emit(IrOp::Conv, to, {v});
+    if (ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref) return emit(IrOp::RefCast, to, {v});  // subtype (or closed-world proven) cast
     return v;
   }
 
@@ -545,8 +677,13 @@ struct Lowering::FnLower {
       case N::New: return newObject(i, x);
       case N::Member: {
         const Node& on = n(x.kids[0]);
-        if (on.kind == N::Ident && c.nodeSym[x.kids[0]] != kNil && c.syms[c.nodeSym[x.kids[0]]].kind == SymKind::Builtin) {
+        std::uint32_t os = on.kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
+        if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
           return constNum(m.numT(NumK::f64), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
+        }
+        if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
+          const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
+          return emit(IrOp::GetGlobal, natural(i), {}, 0, 0, L.staticGlobal[Lowering::mkey(sm->owner, x.text)]);
         }
         frontend::TypeId ot = c.nodeType[x.kids[0]];
         const frontend::Type& ct = c.types[ot];
@@ -566,13 +703,20 @@ struct Lowering::FnLower {
   }
 
   // ---- lvalues
-  struct LVal { enum K { Var, Field, Elem } k; std::uint32_t sym = kNil; ValueId obj = kNoValue, idx = kNoValue; std::uint32_t field = 0; TypeId type = 0; };
+  struct LVal { enum K { Var, Field, Elem, Static } k; std::uint32_t sym = kNil; ValueId obj = kNoValue, idx = kNoValue; std::uint32_t field = 0; TypeId type = 0; };
   LVal lvalue(std::uint32_t node) {
     const Node& x = n(node);
     LVal lv;
     lv.type = natural(node);
     if (x.kind == N::Ident) { lv.k = LVal::Var; lv.sym = c.nodeSym[node]; return lv; }
     if (x.kind == N::Member) {
+      std::uint32_t os = n(x.kids[0]).kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
+      if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
+        const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
+        lv.k = LVal::Static;
+        lv.field = L.staticGlobal[Lowering::mkey(sm->owner, x.text)];
+        return lv;
+      }
       lv.k = LVal::Field;
       lv.obj = expr(x.kids[0]);
       lv.field = L.fieldIndex(c.types[c.nodeType[x.kids[0]]].obj, x.text);
@@ -585,12 +729,14 @@ struct Lowering::FnLower {
   }
   ValueId load(const LVal& lv) {
     if (lv.k == LVal::Var) return readSym(lv.sym);
+    if (lv.k == LVal::Static) return emit(IrOp::GetGlobal, lv.type, {}, 0, 0, lv.field);
     if (lv.k == LVal::Field) return emit(IrOp::GetField, lv.type, {lv.obj}, 0, 0, lv.field);
     return emit(IrOp::ArrGet, lv.type, {lv.obj, lv.idx});
   }
   void store(const LVal& lv, ValueId v) {
     v = coerce(v, lv.type);
     if (lv.k == LVal::Var) writeSym(lv.sym, v);
+    else if (lv.k == LVal::Static) emit(IrOp::SetGlobal, m.voidT(), {v}, 0, 0, lv.field);
     else if (lv.k == LVal::Field) emit(IrOp::SetField, m.voidT(), {lv.obj, v}, 0, 0, lv.field);
     else emit(IrOp::ArrSet, m.voidT(), {lv.obj, lv.idx, v});
   }
@@ -609,15 +755,31 @@ struct Lowering::FnLower {
 
   ValueId builtin(Builtin b, std::vector<ValueId> args, TypeId ret) { return emit(IrOp::Builtin, ret, std::move(args), 0, 0, static_cast<std::uint32_t>(b)); }
 
+  ValueId thisValue(std::uint32_t asObj) {
+    ValueId t = readVar(thisVar, cur);
+    return coerce(t, m.refT(L.classOfObj[asObj]));
+  }
+  std::uint32_t currentObj() { return c.types[c.nodeType[job.classNode]].obj; }
+
   ValueId call(std::uint32_t i, const Node& x) {
     const Node& callee = n(x.kids[0]);
+    if (callee.kind == N::Super) {  // super(args): the base class constructor, if it has a function
+      std::uint32_t par = c.objs[currentObj()].parent;
+      auto it = L.ctorOfClass.find(L.classOfObj[par]);
+      if (it == L.ctorOfClass.end()) return kNoValue;
+      return callFunction(it->second, {thisValue(par)}, x.kids, 1);
+    }
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
     } else if (callee.kind == N::Member) {
       const Node& on = n(callee.kids[0]);
       std::uint32_t os = on.kind == N::Ident ? c.nodeSym[callee.kids[0]] : kNil;
-      if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
+      if (on.kind == N::Super) {  // super.method(args): the base implementation, called directly
+        std::uint32_t par = c.objs[currentObj()].parent;
+        std::uint32_t fn = L.resolveMethod(par, callee.text);
+        if (fn != kNil) return callFunction(fn, {thisValue(par)}, x.kids, 1);
+      } else if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
         std::string full = std::string(on.text) + "." + std::string(callee.text);
         for (std::uint32_t b = 0; b < static_cast<std::uint32_t>(Builtin::Count); ++b) {
           if (full != builtinName(static_cast<Builtin>(b))) continue;
@@ -626,6 +788,10 @@ struct Lowering::FnLower {
           for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(log ? expr(x.kids[k]) : exprTo(x.kids[k], m.numT(NumK::f64)));
           return builtin(static_cast<Builtin>(b), std::move(vs), log ? m.voidT() : m.numT(NumK::f64));
         }
+      } else if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticMethod(args)
+        const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, callee.text, true);
+        auto it = L.staticFn.find(Lowering::mkey(sm->owner, callee.text));
+        if (it != L.staticFn.end()) return callFunction(it->second, {}, x.kids, 1);
       } else {
         const frontend::Type& ct = c.types[c.nodeType[callee.kids[0]]];
         ValueId recv = expr(callee.kids[0]);
@@ -637,8 +803,16 @@ struct Lowering::FnLower {
           ValueId digits = exprTo(x.kids[1], m.numT(NumK::i32));
           return builtin(Builtin::NumToFixed, {coerce(recv, m.numT(NumK::f64)), digits}, m.strT());
         } else if (ct.k == frontend::TK::Object) {
-          auto it = L.methodFn.find(mkey(ct.obj, callee.text));
-          if (it != L.methodFn.end()) return callFunction(it->second, {recv}, x.kids, 1);
+          std::uint32_t direct = kNil;
+          if (L.devirtualize(ct.obj, callee.text, direct)) {  // one possible implementation in the closed world
+            const Function& cf = m.functions[direct];
+            return callFunction(direct, {coerce(recv, cf.valueTypes[cf.params[0]])}, x.kids, 1);
+          }
+          std::uint32_t sel = L.selectorFor(std::string(callee.text), c.nodeType[x.kids[0]]);
+          const Selector& sg = m.selectors[sel];
+          std::vector<ValueId> vs{recv};
+          for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(exprTo(x.kids[k + 1], sg.params[k]));
+          return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, sel);
         }
       }
     }
@@ -674,7 +848,17 @@ struct Lowering::FnLower {
   void stmt(std::uint32_t s) {
     const Node& x = n(s);
     switch (x.kind) {
-      case N::Empty: case N::Function: case N::Class: break;
+      case N::Empty: case N::Function: case N::Interface: break;
+      case N::Class: {  // static field initialisers run where the class is declared
+        std::uint32_t obj = c.types[c.nodeType[s]].obj;
+        for (std::size_t k = frontend::kClassMembersFrom; k < x.kids.size(); ++k) {
+          const Node& mn = n(x.kids[k]);
+          if (mn.kind != N::Field || !(mn.flags & frontend::kFlagStatic) || mn.kids[1] == kNil) continue;
+          std::uint32_t g = L.staticGlobal[Lowering::mkey(obj, mn.text)];
+          emit(IrOp::SetGlobal, m.voidT(), {exprTo(mn.kids[1], m.globals[g].type)}, 0, 0, g);
+        }
+        break;
+      }
       case N::Block: for (std::uint32_t k : x.kids) stmt(k); break;
       case N::VarDecl: for (std::uint32_t d : x.kids) declare(d, x.text == "const"); break;
       case N::ExprStmt: expr(x.kids[0]); break;
@@ -860,19 +1044,39 @@ struct Lowering::FnLower {
         if (n(p).kids[1] != kNil) L.unsupported(p, "default parameter values in the IR");
       }
     }
-    if (job.ctor) {  // field initializers first
+    const std::vector<std::uint32_t>* body = nullptr;
+    if (job.node == kNil) body = &n(a.root).kids;
+    else if (fn->kind != N::Class && fn->kids[1] != kNil) body = &n(fn->kids[1]).kids;
+    std::size_t idx = 0;
+    if (job.ctor) {  // [super(...)] [parameter properties] field initialisers, then the rest of the body
+      std::uint32_t obj = c.types[c.nodeType[job.classNode]].obj, par = c.objs[obj].parent;
+      auto isSuperCall = [&](std::uint32_t st) {
+        return n(st).kind == N::ExprStmt && n(n(st).kids[0]).kind == N::Call && n(n(n(st).kids[0]).kids[0]).kind == N::Super;
+      };
+      if (fn->kind == N::Class) {  // synthesized: forward the parameters to the base constructor
+        if (par != kNil) {
+          auto it = L.ctorOfClass.find(L.classOfObj[par]);
+          if (it != L.ctorOfClass.end()) {
+            std::vector<ValueId> vs{thisValue(par)};
+            for (std::size_t k = 1; k < f.params.size(); ++k) vs.push_back(f.params[k]);
+            emit(IrOp::Call, m.functions[it->second].ret, std::move(vs), 0, 0, it->second);
+          }
+        }
+      } else if (par != kNil && body && !body->empty() && isSuperCall((*body)[0])) {
+        stmt((*body)[0]);
+        idx = 1;
+      }
+      while (body && idx < body->size() && (n((*body)[idx]).flags & frontend::kFlagSynthetic)) stmt((*body)[idx++]);
       const Node& cls = n(job.classNode);
-      std::uint32_t obj = c.types[c.nodeType[job.classNode]].obj;
-      for (std::uint32_t mem : cls.kids) {
-        const Node& mn = n(mem);
-        if (mn.kind != N::Field || mn.kids[1] == kNil) continue;
+      for (std::size_t k = frontend::kClassMembersFrom; k < cls.kids.size(); ++k) {
+        const Node& mn = n(cls.kids[k]);
+        if (mn.kind != N::Field || mn.kids[1] == kNil || (mn.flags & frontend::kFlagStatic)) continue;
         std::uint32_t fi = L.fieldIndex(obj, mn.text);
         TypeId ft = m.classes[job.cls].fields[fi].type;
         emit(IrOp::SetField, m.voidT(), {readVar(thisVar, cur), exprTo(mn.kids[1], ft)}, 0, 0, fi);
       }
     }
-    if (job.node == kNil) { for (std::uint32_t s : n(a.root).kids) stmt(s); }
-    else if (fn->kind != N::Class) { if (fn->kids[1] != kNil) for (std::uint32_t s : n(fn->kids[1]).kids) stmt(s); }
+    if (body) for (; idx < body->size(); ++idx) stmt((*body)[idx]);
     if (open()) {
       if (ty(f.ret).k == Type::K::Void) terminate(IrOp::Ret, {}, {});
       else terminate(IrOp::Unreachable, {}, {});

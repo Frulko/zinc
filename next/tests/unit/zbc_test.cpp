@@ -12,6 +12,7 @@
 
 using namespace zn;
 using namespace zn::zbc;
+using zn::ir::kNoClass;
 
 namespace {
 
@@ -25,7 +26,8 @@ void expect(const char* name, const Module& m, const char* want) {
 
 Function fn(const char* name, std::vector<std::uint32_t> code, std::uint32_t nregs, std::vector<Cls> params = {}, Cls ret = Cls::None) {
   Function f;
-  f.name = name; f.code = std::move(code); f.nregs = nregs; f.params = std::move(params); f.ret = ret;
+  f.name = name; f.code = std::move(code); f.nregs = nregs; f.ret = VType{ret, 0};
+  for (Cls c : params) f.params.push_back(VType{c, 0});
   return f;
 }
 
@@ -71,7 +73,7 @@ int main() {
   bad("ret value in a void function", "void function", [](Module& m) { m.functions[0].code = {encAD(Op::LoadI, 0, 1), encABC(Op::Ret, 0)}; });
   bad("ret class mismatch", "expected", [](Module& m) {
     auto& f = m.functions[0];
-    f.ret = Cls::D;
+    f.ret = VType{Cls::D, 0};
     f.code = {encAD(Op::LoadI, 0, 1), encABC(Op::Ret, 0)};
   });
   bad("call argument class", "argument", [](Module& m) {
@@ -138,6 +140,74 @@ int main() {
     m.functions.push_back(fn("main", {encAD(Op::LoadI, 0, 4), encAD(Op::Call, 0, 1), encABC(Op::LogI, 0), encABC(Op::LogEnd, 0), encABC(Op::RetV, 0)}, 2));
     m.functions.push_back(fn("g", {encAD(Op::LoadI, 1, 1), encABC(Op::AddI32, 0, 0, 1), encABC(Op::Ret, 0)}, 2, {Cls::I}, Cls::I));
     expect("valid call", m, "");
+  }
+  // ---- object operations: A {i, f64}, B : A {i, f64, i}, interface I { .f() -> i }, a function implementing it
+  auto objModule = [](std::vector<std::uint32_t> mainCode, std::uint32_t nregs) {
+    Module m;
+    ClassInfo a; a.name = "A"; a.fields = {VType{Cls::I, 0}, VType{Cls::D, 0}};
+    ClassInfo b; b.name = "B"; b.parent = 0; b.supers = {0, 2}; b.fields = {VType{Cls::I, 0}, VType{Cls::D, 0}, VType{Cls::I, 0}};
+    ClassInfo i; i.name = "I"; i.isInterface = true; i.selectors = {0};
+    b.selectors = {0}; b.vtable = {1};
+    a.vtable = {kNoClass};  // A exposes no selector; its vtable has one empty slot
+    m.classes = {a, b, i};
+    m.classes[0].supers = {};
+    m.selectors.push_back(SelInfo{"f", {}, VType{Cls::I, 0}});
+    m.functions.push_back(fn("main", std::move(mainCode), nregs));
+    Function impl = fn("B.f", {encAD(Op::LoadI, 0, 7), encABC(Op::Ret, 0)}, 2);
+    impl.params = {VType{Cls::R, 1}};
+    impl.ret = VType{Cls::I, 0};
+    m.functions.push_back(impl);
+    return m;
+  };
+  {
+    Module m = objModule({encAD(Op::New, 0, 1), encAD(Op::LoadI, 1, 5), encABC(Op::SetField, 0, 1, 2), encABC(Op::GetField, 2, 0, 2),
+                          encABC(Op::GetField, 3, 0, 1), encAD(Op::Downcast, 0, 1), encAD(Op::CallVirt, 0, 0), encABC(Op::RetV, 0)}, 4);
+    expect("valid object use and virtual call", m, "");
+  }
+  expect("field index outside the class", objModule({encAD(Op::New, 0, 1), encABC(Op::GetField, 1, 0, 9), encABC(Op::RetV, 0)}, 2), "does not exist");
+  expect("stored value of the wrong class", objModule({encAD(Op::New, 0, 1), encAD(Op::LoadI, 1, 5), encABC(Op::SetField, 0, 1, 1), encABC(Op::RetV, 0)}, 2), "expected f64");
+  expect("field access on an integer", objModule({encAD(Op::LoadI, 0, 1), encABC(Op::GetField, 1, 0, 0), encABC(Op::RetV, 0)}, 2), "expected a reference");
+  expect("new of an interface", objModule({encAD(Op::New, 0, 2), encABC(Op::RetV, 0)}, 1), "interface");
+  expect("virtual call of a selector the class lacks", objModule({encAD(Op::New, 0, 0), encAD(Op::CallVirt, 0, 0), encABC(Op::RetV, 0)}, 1), "is not a method");
+  expect("field of a subclass read through the base", objModule({encAD(Op::New, 0, 1), encAD(Op::Downcast, 0, 0), encABC(Op::GetField, 1, 0, 2), encABC(Op::RetV, 0)}, 2), "does not exist");
+  expect("references of unrelated classes joined", [&] {
+    Module m = objModule({encAD(Op::LoadI, 2, 1), encAD(Op::JmpIf, 2, 4), encAD(Op::New, 0, 1), encAX(Op::Jmp, 5), encAD(Op::New, 0, 0), encABC(Op::GetField, 1, 0, 0), encABC(Op::RetV, 0)}, 3);
+    return m;
+  }(), "");  // B and A join to A, which has field 0: valid
+  expect("join keeps a common base only", [&] {
+    Module m = objModule({encAD(Op::LoadI, 2, 1), encAD(Op::JmpIf, 2, 4), encAD(Op::New, 0, 1), encAX(Op::Jmp, 5), encAD(Op::New, 0, 0), encABC(Op::GetField, 1, 0, 2), encABC(Op::RetV, 0)}, 3);
+    return m;
+  }(), "does not exist");  // the joined register is an A: field 2 is B's
+  {  // a subtype passes where its base is expected, but not the other way around
+    Module m = objModule({encAD(Op::New, 0, 1), encAD(Op::Call, 0, 2), encABC(Op::RetV, 0)}, 2);
+    Function takesA = fn("takesA", {encABC(Op::RetV, 0)}, 1);
+    takesA.params = {VType{Cls::R, 0}};
+    m.functions.push_back(takesA);
+    expect("subtype argument", m, "");
+    Function takesB = fn("takesB", {encABC(Op::RetV, 0)}, 1);
+    takesB.params = {VType{Cls::R, 1}};
+    Module m2 = objModule({encAD(Op::New, 0, 0), encAD(Op::Call, 0, 2), encABC(Op::RetV, 0)}, 2);
+    m2.functions.push_back(takesB);
+    expect("base argument where a subtype is expected", m2, "expected ref B");
+  }
+  {  // class tables
+    Module m = objModule({encABC(Op::RetV, 0)}, 1);
+    m.classes[1].vtable = {kNoClass};
+    expect("concrete class without an implementation", m, "no implementation");
+    Module m2 = objModule({encABC(Op::RetV, 0)}, 1);
+    m2.classes[1].fields.pop_back(); m2.classes[1].fields.pop_back();
+    expect("subclass drops its parent's fields", m2, "parent's fields");
+    Module m3 = objModule({encABC(Op::RetV, 0)}, 1);
+    m3.classes[1].fields[1] = VType{Cls::I, 0};
+    expect("subclass changes a parent field", m3, "changes a field");
+    Module m4 = objModule({encABC(Op::RetV, 0)}, 1);
+    m4.functions[1].ret = VType{Cls::D, 0};
+    m4.functions[1].code = {encAD(Op::LoadK, 0, 0), encABC(Op::Ret, 0)};
+    m4.functions[1].consts.push_back({Cls::D, 0});
+    expect("implementation returns another type", m4, "another type");
+    Module m5 = objModule({encABC(Op::RetV, 0)}, 1);
+    m5.classes[1].parent = 7;
+    expect("unknown parent", m5, "invalid parent");
   }
   {  // binary format
     Module m = compile("function fib(n: i32): i32 { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nconsole.log(fib(10));\n");

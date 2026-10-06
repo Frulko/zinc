@@ -1,0 +1,56 @@
+Program
+  Class Counter
+    _
+    _
+    Field created [static]
+      TypeRef i32
+      Number 0
+    Field step [static]
+      TypeRef i32
+      Number 5
+    Field id
+      TypeRef i32
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          UpdatePost ++
+            Member created
+              Ident Counter
+        ExprStmt
+          Assign =
+            Member id
+              This
+            Binary *
+              Member created
+                Ident Counter
+              Member step
+                Ident Counter
+    Method make [static]
+      TypeRef Counter
+      Block
+        Return
+          New
+            Ident Counter
+  VarDecl const
+    Declarator a
+      _
+      New
+        Ident Counter
+  VarDecl const
+    Declarator b
+      _
+      Call
+        Member make
+          Ident Counter
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Member id
+        Ident a
+      Member id
+        Ident b
+      Member created
+        Ident Counter

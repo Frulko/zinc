@@ -1,0 +1,104 @@
+Program
+  Class P
+    _
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt [synthetic]
+          Assign =
+            Member x
+              This
+            Ident x
+        ExprStmt [synthetic]
+          Assign =
+            Member y
+              This
+            Ident y
+        ExprStmt [synthetic]
+          Assign =
+            Member z
+              This
+            Ident z
+      Param x [public]
+        TypeRef i32
+        _
+      Param y [private]
+        TypeRef i32
+        _
+      Param z [readonly]
+        TypeRef i32
+        _
+    Method sum
+      TypeRef i32
+      Block
+        Return
+          Binary +
+            Binary +
+              Member x
+                This
+              Member y
+                This
+            Member z
+              This
+    Field x [public]
+      TypeRef i32
+      _
+    Field y [private]
+      TypeRef i32
+      _
+    Field z [readonly]
+      TypeRef i32
+      _
+  Class Q
+    TypeRef P
+    _
+    Field w
+      TypeRef i32
+      Number 7
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Call
+            Super
+            Ident a
+            Binary +
+              Ident a
+              Number 1
+            Binary +
+              Ident a
+              Number 2
+      Param a
+        TypeRef i32
+        _
+    Method total
+      TypeRef i32
+      Block
+        Return
+          Binary +
+            Call
+              Member sum
+                This
+            Member w
+              This
+  VarDecl const
+    Declarator q
+      _
+      New
+        Ident Q
+        Number 10
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member sum
+          Ident q
+      Call
+        Member total
+          Ident q
+      Member x
+        Ident q
+      Member z
+        Ident q

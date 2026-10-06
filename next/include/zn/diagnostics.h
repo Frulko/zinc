@@ -58,7 +58,27 @@
     "break and continue need an enclosing loop, return needs a function, this needs a class.",                        \
     "Move the statement.", "break;")                                                                                  \
   X(NotIndexable, "Z0113", "Expression cannot be indexed or iterated",                                                 \
-    "Only arrays can be indexed or used with for...of for now.", "Use an array.", "let a = 1;\na[0];")
+    "Only arrays can be indexed or used with for...of for now.", "Use an array.", "let a = 1;\na[0];") \
+  X(InvalidHierarchy, "Z0114", "Invalid class hierarchy or override",                                                  \
+    "A class must extend a class, an override must keep the base member's kind and type, and the hierarchy must not "  \
+    "loop.", "Match the base class member, or rename the member.",                                                   \
+    "class A { f(): i32 { return 1; } }\nclass B extends A { f(): string { return \"x\"; } }")                          \
+  X(AbstractViolation, "Z0115", "Abstract member misused",                                                             \
+    "Abstract classes cannot be instantiated, abstract members belong in abstract classes, and a concrete class must "  \
+    "implement every abstract member it inherits.", "Implement the member, or make the class abstract.",              \
+    "abstract class A { abstract f(): i32; }\nclass B extends A { }")                                                  \
+  X(MissingInterfaceMember, "Z0116", "Class does not implement the interface",                                         \
+    "A class that declares `implements I` must have a public member for every member of I with the same type.",       \
+    "Add the missing member or fix its type.",                                                                        \
+    "interface I { f(): i32; }\nclass A implements I { }")                                                             \
+  X(NotAccessible, "Z0117", "Member is not accessible",                                                                \
+    "A private member is visible only inside its class, a protected member inside its class and subclasses.",         \
+    "Use a public member or access it from inside the class.",                                                        \
+    "class A { private x: i32 = 1; }\nconst a = new A();\nconsole.log(a.x);")                                          \
+  X(BadSuperCall, "Z0118", "Invalid super call",                                                                       \
+    "A derived class constructor must start with `super(...)`, and `super` is only valid in a derived class.",        \
+    "Call super(...) as the first statement of the constructor.",                                                     \
+    "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")
 
 namespace zn {
 

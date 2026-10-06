@@ -194,3 +194,62 @@ Fix: Use an array.
 let a = 1;
 a[0];
 ```
+
+## Z0114: Invalid class hierarchy or override
+
+A class must extend a class, an override must keep the base member's kind and type, and the hierarchy must not loop.
+
+Fix: Match the base class member, or rename the member.
+
+```ts
+class A { f(): i32 { return 1; } }
+class B extends A { f(): string { return "x"; } }
+```
+
+## Z0115: Abstract member misused
+
+Abstract classes cannot be instantiated, abstract members belong in abstract classes, and a concrete class must implement every abstract member it inherits.
+
+Fix: Implement the member, or make the class abstract.
+
+```ts
+abstract class A { abstract f(): i32; }
+class B extends A { }
+```
+
+## Z0116: Class does not implement the interface
+
+A class that declares `implements I` must have a public member for every member of I with the same type.
+
+Fix: Add the missing member or fix its type.
+
+```ts
+interface I { f(): i32; }
+class A implements I { }
+```
+
+## Z0117: Member is not accessible
+
+A private member is visible only inside its class, a protected member inside its class and subclasses.
+
+Fix: Use a public member or access it from inside the class.
+
+```ts
+class A { private x: i32 = 1; }
+const a = new A();
+console.log(a.x);
+```
+
+## Z0118: Invalid super call
+
+A derived class constructor must start with `super(...)`, and `super` is only valid in a derived class.
+
+Fix: Call super(...) as the first statement of the constructor.
+
+```ts
+class A { }
+class B extends A {
+  x: i32 = 1;
+  constructor() { this.x = 2; }
+}
+```

@@ -73,8 +73,11 @@ struct Parser {
   std::uint32_t param(bool inType) {
     std::uint32_t st = cur().start;
     bool rest = eatP("...");
-    if ((isId("public") || isId("private") || isId("protected") || isId("readonly")) && at(1).kind == Tok::Ident)
-      unsupported("parameter properties");
+    std::uint32_t pflags = 0;  // parameter properties: constructor(private x: i32)
+    while ((isId("public") || isId("private") || isId("protected") || isId("readonly")) && at(1).kind == Tok::Ident) {
+      pflags |= isId("public") ? kFlagPublic : isId("private") ? kFlagPrivate : isId("protected") ? kFlagProtected : kFlagReadonly;
+      ++i;
+    }
     if (cur().kind != Tok::Ident && !(inType && cur().kind == Tok::Keyword && isKw("this"))) {
       if (isP("{") || isP("[")) unsupported("destructuring parameters");
       unexpected();
@@ -86,7 +89,9 @@ struct Parser {
     std::uint32_t ty = kNone, def = kNone;
     if (eatP(":")) ty = type();
     if (!inType && eatP("=")) def = assignment();
-    return mk(N::Param, st, prevEnd(), name, {ty, def});
+    std::uint32_t id = mk(N::Param, st, prevEnd(), name, {ty, def});
+    r.ast.nodes[id].flags = pflags;
+    return id;
   }
 
   std::vector<std::uint32_t> params(bool inType) {
@@ -366,6 +371,7 @@ struct Parser {
       }
       case Tok::Keyword:
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }
+        if (isKw("super")) { ++i; return mk(N::Super, st, prevEnd()); }
         if (isKw("true") || isKw("false") || isKw("null")) { ++i; return mk(N::Literal, st, prevEnd(), txt(t[i - 1])); }
         if (isKw("function") || isKw("class")) unsupported("function and class expressions");
         unexpected();
@@ -446,45 +452,169 @@ struct Parser {
     return mk(N::Function, st, prevEnd(), name, std::move(kids));
   }
 
-  std::uint32_t classDecl() {
+  // Modifiers before a member name; a word is a modifier only when a member name follows it.
+  std::uint32_t modifiers() {
+    std::uint32_t fl = 0;
+    for (;;) {
+      std::uint32_t f = isId("public") ? kFlagPublic : isId("private") ? kFlagPrivate : isId("protected") ? kFlagProtected
+                      : isId("static") ? kFlagStatic : isId("readonly") ? kFlagReadonly : isId("abstract") ? kFlagAbstract
+                      : isId("override") ? kFlagOverride : 0;
+      if (!f || isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1) || isP("?", 1) || isP("}", 1)) return fl;
+      fl |= f;
+      ++i;
+    }
+  }
+
+  std::uint32_t heritage() {  // a comma separated list of type references
+    std::uint32_t st = cur().start;
+    std::vector<std::uint32_t> refs;
+    do {
+      std::uint32_t t = typePrimary();
+      if (r.ast.nodes[t].kind != N::TypeRef) unexpected();
+      refs.push_back(t);
+    } while (eatP(","));
+    return mk(N::Heritage, st, prevEnd(), {}, std::move(refs));
+  }
+
+  // Parameter properties become fields plus `this.x = x;` at the top of the constructor body (after a leading super call).
+  void desugarParamProperties(std::uint32_t ctor, std::vector<std::uint32_t>& members) {
+    // copy what the loop needs: mk() grows the node vector and would invalidate references into it
+    const std::vector<std::uint32_t> ctorKids = r.ast.nodes[ctor].kids;
+    std::uint32_t body = ctorKids[1];
+    if (body == kNone) return;
+    std::vector<std::uint32_t> assigns;
+    for (std::size_t k = 2; k < ctorKids.size(); ++k) {
+      const Node pn = r.ast.nodes[ctorKids[k]];
+      if (!(pn.flags & (kFlagPublic | kFlagPrivate | kFlagProtected | kFlagReadonly))) continue;
+      std::uint32_t field = mk(N::Field, pn.start, pn.end, pn.text, {pn.kids[0], kNone});
+      r.ast.nodes[field].flags = pn.flags;
+      members.push_back(field);
+      std::uint32_t bs = r.ast.nodes[body].start;  // synthesized nodes sit on the body's opening brace
+      std::uint32_t th = mk(N::This, bs, bs + 1);
+      std::uint32_t mem = mk(N::Member, bs, bs + 1, pn.text, {th});
+      std::uint32_t id = mk(N::Ident, bs, bs + 1, pn.text);
+      std::uint32_t as = mk(N::Assign, bs, bs + 1, "=", {mem, id});
+      std::uint32_t es = mk(N::ExprStmt, bs, bs + 1, {}, {as});
+      r.ast.nodes[es].flags = kFlagSynthetic;
+      assigns.push_back(es);
+    }
+    if (assigns.empty()) return;
+    auto& stmts = r.ast.nodes[body].kids;
+    std::size_t at = 0;
+    if (!stmts.empty()) {
+      const Node& first = r.ast.nodes[stmts[0]];
+      if (first.kind == N::ExprStmt && r.ast.nodes[first.kids[0]].kind == N::Call && r.ast.nodes[r.ast.nodes[first.kids[0]].kids[0]].kind == N::Super) at = 1;
+    }
+    stmts.insert(stmts.begin() + static_cast<std::ptrdiff_t>(at), assigns.begin(), assigns.end());
+  }
+
+  void memberName(std::string_view& name) {
+    if (isId("get") || isId("set") || isId("async") || isId("declare") || isP("*") || isP("[")) {
+      if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("accessors, async and computed member names");
+    }
+    if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
+    name = txt();
+    ++i;
+  }
+
+  std::uint32_t classDecl(std::uint32_t classFlags) {
     std::uint32_t st = cur().start;
     ++i;  // class
     if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
     if (isP("<")) unsupported("generics");
-    if (isKw("extends") || isId("implements")) unsupported("inheritance");
+    std::uint32_t ext = kNone, impl = kNone;
+    if (isKw("extends")) {
+      ++i;
+      ext = typePrimary();
+      if (r.ast.nodes[ext].kind != N::TypeRef) unexpected();
+    }
+    if (isId("implements")) { ++i; impl = heritage(); }
     expectP("{");
+    std::vector<std::uint32_t> kids{ext, impl};
     std::vector<std::uint32_t> members;
+    std::uint32_t ctor = kNone;
     while (!isP("}")) {
       if (eof()) unexpected();
       if (eatP(";")) continue;
       std::uint32_t ms = cur().start;
-      if (isId("public") || isId("private") || isId("protected") || isId("static") || isId("readonly") || isId("declare") ||
-          isId("override") || isId("abstract") || isId("get") || isId("set") || isId("async") || isP("*") || isP("["))
-        if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1)))
-          unsupported("member modifiers, accessors and computed names");
-      if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
-      std::string_view mname = txt(); ++i;
+      std::uint32_t fl = modifiers();
+      std::string_view mname;
+      memberName(mname);
       if (isP("(") || isP("<")) {
         if (isP("<")) unsupported("generics");
         auto ps = params(false);
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
-        std::uint32_t body = block();
-        std::vector<std::uint32_t> kids{ret, body};
-        kids.insert(kids.end(), ps.begin(), ps.end());
-        members.push_back(mk(N::Method, ms, prevEnd(), mname, std::move(kids)));
+        std::uint32_t body = kNone;
+        if (isP("{")) body = block();
+        else if (fl & kFlagAbstract) semi();
+        else fail(kZExpected, cur().start, "'{'");
+        std::vector<std::uint32_t> mk_{ret, body};
+        mk_.insert(mk_.end(), ps.begin(), ps.end());
+        std::uint32_t id = mk(N::Method, ms, prevEnd(), mname, std::move(mk_));
+        r.ast.nodes[id].flags = fl;
+        members.push_back(id);
+        if (mname == "constructor") ctor = id;
       } else {
         eatP("?");
         std::uint32_t ty = kNone, init = kNone;
         if (eatP(":")) ty = type();
         if (eatP("=")) init = assignment();
         semi();
-        members.push_back(mk(N::Field, ms, prevEnd(), mname, {ty, init}));
+        std::uint32_t id = mk(N::Field, ms, prevEnd(), mname, {ty, init});
+        r.ast.nodes[id].flags = fl;
+        members.push_back(id);
       }
     }
     ++i;
-    return mk(N::Class, st, prevEnd(), name, std::move(members));
+    if (ctor != kNone) desugarParamProperties(ctor, members);
+    kids.insert(kids.end(), members.begin(), members.end());
+    std::uint32_t id = mk(N::Class, st, prevEnd(), name, std::move(kids));
+    r.ast.nodes[id].flags = classFlags;
+    return id;
+  }
+
+  std::uint32_t interfaceDecl() {
+    std::uint32_t st = cur().start;
+    ++i;  // interface
+    if (cur().kind != Tok::Ident) unexpected();
+    std::string_view name = txt(); ++i;
+    if (isP("<")) unsupported("generics");
+    std::uint32_t ext = kNone;
+    if (isKw("extends")) { ++i; ext = heritage(); }
+    expectP("{");
+    std::vector<std::uint32_t> kids{ext};
+    while (!isP("}")) {
+      if (eof()) unexpected();
+      if (eatP(";") || eatP(",")) continue;
+      std::uint32_t ms = cur().start;
+      std::uint32_t fl = modifiers();
+      std::string_view mname;
+      memberName(mname);
+      if (isP("?")) unsupported("optional members");
+      if (isP("(") || isP("<")) {
+        if (isP("<")) unsupported("generics");
+        auto ps = params(false);
+        std::uint32_t ret = kNone;
+        if (eatP(":")) ret = type();
+        if (!eatP(";")) eatP(",");
+        std::vector<std::uint32_t> mk_{ret, kNone};
+        mk_.insert(mk_.end(), ps.begin(), ps.end());
+        std::uint32_t id = mk(N::Method, ms, prevEnd(), mname, std::move(mk_));
+        r.ast.nodes[id].flags = fl;
+        kids.push_back(id);
+      } else {
+        std::uint32_t ty = kNone;
+        if (eatP(":")) ty = type();
+        if (!eatP(";")) eatP(",");
+        std::uint32_t id = mk(N::Field, ms, prevEnd(), mname, {ty, kNone});
+        r.ast.nodes[id].flags = fl;
+        kids.push_back(id);
+      }
+    }
+    ++i;
+    return mk(N::Interface, st, prevEnd(), name, std::move(kids));
   }
 
   std::uint32_t forStmt() {
@@ -521,7 +651,9 @@ struct Parser {
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
     if (atVarDecl()) return varDecl(true);
     if (isKw("function")) return function();
-    if (isKw("class")) return classDecl();
+    if (isKw("class")) return classDecl(0);
+    if (isId("abstract") && at(1).kind == Tok::Keyword && txt(at(1)) == "class") { ++i; std::uint32_t id = classDecl(kFlagAbstract); r.ast.nodes[id].start = st; return id; }
+    if (isId("interface") && at(1).kind == Tok::Ident) return interfaceDecl();
     if (isKw("if")) {
       ++i; expectP("(");
       std::uint32_t test = expression();
@@ -564,7 +696,6 @@ struct Parser {
     if (isKw("import") || isKw("export")) unsupported("modules");
     if (isKw("switch") || isKw("try") || isKw("throw")) unsupported("switch, try and throw");
     if (isId("type") && at(1).kind == Tok::Ident) unsupported("type aliases");
-    if (isId("interface")) unsupported("interfaces");
     if (isKw("enum")) unsupported("enums");
     std::uint32_t e = expression();
     semi();
@@ -581,8 +712,8 @@ struct Parser {
 
 const char* kindName(N k) {
   static const char* names[] = {"Program", "Block", "Empty", "VarDecl", "Declarator", "Function", "Param", "Class",
-      "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
-      "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Array", "Spread", "Binary", "Unary",
+      "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
+      "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit"};
   return names[static_cast<int>(k)];
@@ -594,6 +725,13 @@ void dumpNode(const Ast& a, std::uint32_t n, int depth, std::string& out) {
   const Node& x = a.nodes[n];
   out += kindName(x.kind);
   if (!x.text.empty()) { out += ' '; out += x.text; }
+  if (x.flags) {
+    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic"};
+    out += " [";
+    bool first = true;
+    for (int b = 0; b < 8; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
+    out += "]";
+  }
   out += '\n';
   for (std::uint32_t k : x.kids) dumpNode(a, k, depth + 1, out);
 }

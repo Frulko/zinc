@@ -5,7 +5,10 @@
 // verifier proves every register has the class its use expects.
 //
 // X(Name, Format, inB, inC, out): `inB`/`inC` are the classes read from operands B and C, `out` the class written to A
-// ('_' none, 'M' special-cased by the verifier, e.g. Move, Call, Ret).
+// ('_' none, 'M' special-cased by the verifier, e.g. Move, Call, Ret, and everything that touches references).
+// Object operations: New A,class | GetField A,B,idx (A = B.field idx) | SetField A,B,idx (A.field idx = B) |
+// CallVirt A,selector (receiver in r[A], window like Call) | Downcast A,class (r[A] = r[A] checked as the class; the
+// register keeps the value and gains the class) | EqR/NeR compare references.
 #include <cstdint>
 
 #define ZN_OPCODES(X)                                                                                           \
@@ -40,6 +43,8 @@
   X(JEqIK, AK2, _, _, _) X(JNeIK, AK2, _, _, _) X(JLtIK, AK2, _, _, _) X(JLeIK, AK2, _, _, _)                  \
   X(JGtIK, AK2, _, _, _) X(JGeIK, AK2, _, _, _)                                                                 \
   X(Call, AD, _, _, M) X(Ret, ABC, _, _, M) X(RetV, OP, _, _, _) X(Throw, ABC, _, _, _)                         \
+  X(New, AD, _, _, M) X(GetField, ABC, M, _, M) X(SetField, ABC, M, _, _) X(CallVirt, AD, _, _, M)               \
+  X(Downcast, AD, _, _, M) X(EqR, ABC, M, M, I) X(NeR, ABC, M, M, I)                                            \
   X(GetGlobal, AD, _, _, M) X(SetGlobal, AD, _, _, M)                                                           \
   X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
   X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)

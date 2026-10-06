@@ -18,6 +18,8 @@ Program
       TypeRef number
       Number 365.24
   Class Body
+    _
+    _
     Field x
       TypeRef number
       _

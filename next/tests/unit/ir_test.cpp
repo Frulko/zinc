@@ -153,6 +153,72 @@ int main() {
     B::add(f, 3, IrOp::Neg, b.i32, {x}, B::val(f, b.i32));  // x is defined only on one path
     b.ret(f, 3);
   });
+  {  // classes: A {i32}, B : A {i32, f64}, C {} unrelated, I interface; B implements I through selector .f
+    auto classModule = [](const std::function<void(B&, Function&)>& body) {
+      B b;
+      Function& f = b.m.functions[0];
+      Class a; a.name = "A"; a.fields = {Field{"x", b.i32}};
+      Class bb; bb.name = "B"; bb.parent = 0; bb.fields = {Field{"x", b.i32}, Field{"y", b.f64}};
+      Class c; c.name = "C";
+      Class i; i.name = "I"; i.isInterface = true;
+      b.m.classes = {a, bb, c, i};
+      b.m.classes[1].implements = {3};
+      b.m.selectors.push_back(Selector{"f", {}, b.i32});
+      b.m.classes[1].selectors = {0}; b.m.classes[3].selectors = {0};
+      b.m.classes[0].vtable = {kNoClass}; b.m.classes[1].vtable = {1}; b.m.classes[2].vtable = {kNoClass};
+      Function impl = b.mkFn("B.f", {b.m.refT(1)}, b.i32);
+      ValueId one = b.cst(impl, 0, b.i32);
+      B::add(impl, 0, IrOp::Ret, b.voidT, {one}, kNoValue);
+      b.m.functions.push_back(impl);
+      body(b, f);
+      return b.m;
+    };
+    expect("valid class use: upcast, field, virtual call", classModule([](B& b, Function& f) {
+      ValueId o = B::val(f, b.m.refT(1));
+      B::add(f, 0, IrOp::New, b.m.refT(1), {}, o, 0, 1);
+      ValueId up = B::val(f, b.m.refT(0));
+      B::add(f, 0, IrOp::RefCast, b.m.refT(0), {o}, up);
+      ValueId x = B::val(f, b.i32);
+      B::add(f, 0, IrOp::GetField, b.i32, {up}, x, 0, 0);
+      ValueId asI = B::val(f, b.m.refT(3));
+      B::add(f, 0, IrOp::RefCast, b.m.refT(3), {o}, asI);
+      ValueId r = B::val(f, b.i32);
+      B::add(f, 0, IrOp::CallVirt, b.i32, {asI}, r, 0, 0);
+      b.ret(f, 0);
+    }), "");
+    expect("refcast between unrelated classes", classModule([](B& b, Function& f) {
+      ValueId o = B::val(f, b.m.refT(2));
+      B::add(f, 0, IrOp::New, b.m.refT(2), {}, o, 0, 2);
+      B::add(f, 0, IrOp::RefCast, b.m.refT(0), {o}, B::val(f, b.m.refT(0)));
+      b.ret(f, 0);
+    }), "unrelated");
+    expect("callvirt of a selector the class lacks", classModule([](B& b, Function& f) {
+      ValueId o = B::val(f, b.m.refT(0));
+      B::add(f, 0, IrOp::New, b.m.refT(0), {}, o, 0, 0);
+      B::add(f, 0, IrOp::CallVirt, b.i32, {o}, B::val(f, b.i32), 0, 0);
+      b.ret(f, 0);
+    }), "is not a method");
+    expect("new of an interface", classModule([](B& b, Function& f) {
+      B::add(f, 0, IrOp::New, b.m.refT(3), {}, B::val(f, b.m.refT(3)), 0, 3);
+      b.ret(f, 0);
+    }), "interface");
+    expect("field access on an interface", classModule([](B& b, Function& f) {
+      ValueId o = B::val(f, b.m.refT(1));
+      B::add(f, 0, IrOp::New, b.m.refT(1), {}, o, 0, 1);
+      ValueId asI = B::val(f, b.m.refT(3));
+      B::add(f, 0, IrOp::RefCast, b.m.refT(3), {o}, asI);
+      B::add(f, 0, IrOp::GetField, b.i32, {asI}, B::val(f, b.i32), 0, 0);
+      b.ret(f, 0);
+    }), "interface");
+    expect("field offset moved in a subclass", classModule([](B& b, Function& f) {
+      b.m.classes[1].fields[0].name = "z";
+      b.ret(f, 0);
+    }), "moves the field");
+    expect("concrete class missing its implementation", classModule([](B& b, Function& f) {
+      b.m.classes[1].vtable = {kNoClass};
+      b.ret(f, 0);
+    }), "no implementation");
+  }
   if (failures == 0) return 0;
   std::printf("%d failure(s)\n", failures);
   return 1;

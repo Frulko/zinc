@@ -34,6 +34,10 @@ struct Member {
   TypeId type;
   bool readonly = false;
   bool method = false;
+  std::uint32_t owner = 0xFFFFFFFFu;  // declaring class or interface (ObjInfo index)
+  std::uint8_t access = 0;            // 0 public, 1 protected, 2 private
+  bool isStatic = false;
+  bool isAbstract = false;
 };
 
 struct ObjInfo {
@@ -41,6 +45,11 @@ struct ObjInfo {
   std::vector<Member> members;
   TypeId ctor = kNoType;  // Func type of the constructor (classes only)
   bool isClass = false;
+  bool isInterface = false;
+  bool isAbstract = false;
+  std::uint8_t ctorAccess = 0;            // 0 public, 1 protected, 2 private
+  std::uint32_t parent = 0xFFFFFFFFu;     // extended class (ObjInfo index)
+  std::vector<std::uint32_t> ifaces;       // interfaces named in `implements`
 };
 
 enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin };
@@ -65,6 +74,11 @@ Checked check(const Ast& ast);
 
 // Lossless implicit conversion between machine numeric kinds (also used by the IR lowering).
 bool widens(Num from, Num to);
+
+// Class relations over ObjInfo indices (also used by the IR lowering for closed-world devirtualisation).
+bool isSubclass(const Checked& c, std::uint32_t a, std::uint32_t b);                   // a == b or a derives from b
+const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view name, bool wantStatic);
+bool objAssignable(const Checked& c, std::uint32_t a, std::uint32_t b);               // subclass, or structurally an interface
 std::string typeName(const Checked& c, TypeId t);
 
 // One line per Function, Method, Param, Declarator and Field: `line:col Kind name: type`.

@@ -41,7 +41,9 @@ enum class IrOp : std::uint8_t {
   Neg, Not, BitNot,
   Eq, Ne, Lt, Le, Gt, Ge,                                   // result bool; operands of one type
   Conv,                                                     // numeric kind conversion
+  RefCast,                                                  // reference to a related class or interface; no runtime effect
   Call,                                                     // sym = function; optional edges[0] = unwind
+  CallVirt,                                                 // args[0] = receiver, sym = selector; dispatches through the receiver's vtable
   Builtin,                                                  // sym = Builtin
   New, GetField, SetField, GetGlobal, SetGlobal,
   ArrNew, ArrGet, ArrSet, ArrLen, ArrPush, ArrPop,
@@ -83,12 +85,34 @@ struct Function {
 };
 
 struct Field { std::string name; TypeId type; };
-struct Class { std::string name; std::vector<Field> fields; };
+inline constexpr std::uint32_t kNoClass = 0xFFFFFFFFu;
+
+// A virtual method signature (without the receiver); a call through a vtable names one.
+struct Selector {
+  std::string name;
+  std::vector<TypeId> params;
+  TypeId ret = 0;
+};
+
+// Closed-world class layout: `fields` is the full layout (inherited fields first, so a field has one offset in every
+// subclass). `implements` lists the interfaces the class (or interface) satisfies, parents' included. `selectors` are the
+// virtual methods visible on the class; `vtable` maps a selector id to the implementing function (kNoClass: none).
+struct Class {
+  std::string name;
+  std::vector<Field> fields;
+  std::uint32_t parent = kNoClass;
+  bool isInterface = false;
+  bool isAbstract = false;
+  std::vector<std::uint32_t> implements;
+  std::vector<std::uint32_t> selectors;
+  std::vector<std::uint32_t> vtable;
+};
 struct Global { std::string name; TypeId type; };
 
 struct Module {
   std::vector<Type> types;
   std::vector<Class> classes;
+  std::vector<Selector> selectors;
   std::vector<Global> globals;
   std::vector<std::string> strings;
   std::vector<Function> functions;  // functions[0] is @main, the top-level code
@@ -100,6 +124,8 @@ struct Module {
   TypeId numT(frontend::Num n) { return intern({Type::K::Num, n, 0}); }
   TypeId refT(std::uint32_t cls) { return intern({Type::K::Ref, frontend::Num::f64, cls}); }
   TypeId arrayT(TypeId elem) { return intern({Type::K::Array, frontend::Num::f64, elem}); }
+  // a is b, derives from b, or satisfies the interface b
+  bool isSubtype(std::uint32_t a, std::uint32_t b) const;
 };
 
 std::uint8_t effects(const Module& m, const Inst& i);

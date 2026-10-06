@@ -1,0 +1,60 @@
+Program
+  Class Base [abstract]
+    _
+    _
+    Method area [abstract]
+      TypeRef i32
+      _
+    Method double
+      TypeRef i32
+      Block
+        Return
+          Binary *
+            Call
+              Member area
+                This
+            Number 2
+  Class A
+    TypeRef Base
+    _
+    Method area
+      TypeRef i32
+      Block
+        Return
+          Number 5
+  Class B
+    TypeRef Base
+    _
+    Field n
+      TypeRef i32
+      Number 3
+    Method area
+      TypeRef i32
+      Block
+        Return
+          Binary *
+            Member n
+              This
+            Number 4
+  Function run
+    TypeRef i32
+    Block
+      Return
+        Call
+          Member double
+            Ident x
+    Param x
+      TypeRef Base
+      _
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Ident run
+        New
+          Ident A
+      Call
+        Ident run
+        New
+          Ident B

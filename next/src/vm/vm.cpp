@@ -79,6 +79,25 @@ struct Func {
   const zbc::Const* consts;
   std::uint32_t nregs;
 };
+struct ClassRT {
+  std::uint32_t id = 0;
+  std::uint32_t nfields = 0;
+  std::vector<std::uint32_t> supers;
+  std::vector<const Func*> vtable;  // by selector id; empty for interfaces and abstract classes
+};
+// Objects: a header followed by one 64-bit slot per field. Memory is released at exit; reference counting is ZN-018.
+struct Obj {
+  const ClassRT* cls;
+  std::uint32_t rc;
+  std::uint32_t pad;
+  Slot* fields() { return reinterpret_cast<Slot*>(this + 1); }
+};
+bool isSubclassRT(const ClassRT* c, std::uint32_t target) {
+  if (c->id == target) return true;
+  for (std::uint32_t s : c->supers) if (s == target) return true;
+  return false;
+}
+
 struct Frame {
   const std::uint32_t* ret;  // instruction to resume in the caller
   const Func* fn;
@@ -96,6 +115,18 @@ Result run(const zbc::Module& m, std::string& out) {
   if (!stackMem) return {false, "out of memory"};
   Slot* const stackBase = stackMem.get();
   std::vector<Slot> globals(m.globals.size(), 0);
+  std::vector<ClassRT> classes(m.classes.size());
+  for (std::size_t i = 0; i < classes.size(); ++i) {
+    classes[i].id = static_cast<std::uint32_t>(i);
+    classes[i].nfields = static_cast<std::uint32_t>(m.classes[i].fields.size());
+    classes[i].supers = m.classes[i].supers;
+    if (!m.classes[i].isInterface && !m.classes[i].isAbstract) {
+      classes[i].vtable.assign(m.selectors.size(), nullptr);
+      for (std::uint32_t sel : m.classes[i].selectors) classes[i].vtable[sel] = &funcs[m.classes[i].vtable[sel]];
+    }
+  }
+  std::vector<Obj*> allocated;
+  struct Releaser { std::vector<Obj*>& v; ~Releaser() { for (Obj* o : v) std::free(o); } } releaser{allocated};
   std::vector<Frame> frames(kMaxCallDepth);
   Frame* fp = frames.data();                      // next free frame
   Frame* const framesEnd = frames.data() + kMaxCallDepth;
@@ -262,6 +293,43 @@ L_RetV: {
   NEXT();
 }
 L_Throw: TRAP("uncaught exception");
+L_New: {
+  const ClassRT* cr = &classes[dOf(w)];
+  auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
+  if (!o) TRAP("out of memory");
+  o->cls = cr;
+  allocated.push_back(o);
+  r[A] = reinterpret_cast<Slot>(o);
+  NEXT();
+}
+L_GetField: {
+  auto* o = reinterpret_cast<Obj*>(r[B]);
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  r[A] = o->fields()[C];
+  NEXT();
+}
+L_SetField: {
+  auto* o = reinterpret_cast<Obj*>(r[A]);
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  o->fields()[C] = r[B];
+  NEXT();
+}
+L_CallVirt: {
+  auto* o = reinterpret_cast<Obj*>(r[A]);
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  const Func* callee = o->cls->vtable[dOf(w)];
+  if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
+  *fp++ = {pc, fn, r};
+  r = r + A; fn = callee; code = callee->code; pc = code;
+  NEXT();
+}
+L_Downcast: {
+  auto* o = reinterpret_cast<Obj*>(r[A]);
+  if (o && !isSubclassRT(o->cls, dOf(w))) TRAP("invalid cast");
+  NEXT();
+}
+L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
+L_NeR: r[A] = Slot{r[B] != r[C]}; NEXT();
 L_GetGlobal: r[A] = globals[dOf(w)]; NEXT();
 L_SetGlobal: globals[dOf(w)] = r[A]; NEXT();
 L_LogI: out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();

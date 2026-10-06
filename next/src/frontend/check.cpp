@@ -1,5 +1,6 @@
 #include "frontend/check.h"
 
+#include <algorithm>
 #include <functional>
 #include <unordered_map>
 
@@ -34,6 +35,12 @@ struct Checker {
   std::vector<std::function<void()>>* defer = nullptr;
   TypeId curRet = kNoType;      // return type of the enclosing function
   std::uint32_t curClass = kNone;  // ObjInfo index of the enclosing class
+  std::uint32_t curCtor = kNone;   // class whose constructor body is being checked
+  bool curStatic = false;          // inside a static method or static initializer
+  bool immediate = true;           // straight-line code that runs when reached (not inside a function, method or instance initializer)
+  const std::vector<std::uint32_t>* ctorStmts = nullptr;  // top-level statements of the constructor being checked
+  std::vector<std::string> ctorPending;                   // own fields without initializer, not yet assigned in the constructor
+  bool pendingExempt = false;                              // evaluating the target of `this.f = ...`
   int loops = 0;
 
   explicit Checker(const Ast& ast) : a(ast) {
@@ -82,6 +89,26 @@ struct Checker {
     return x.kind == N::Number || (x.kind == N::Unary && (x.text == "-" || x.text == "+") && isNumLit(ast, x.kids[0]));
   }
 
+  // ---- classes and interfaces
+  static constexpr std::uint32_t kNoObj = 0xFFFFFFFFu;
+  bool isSubclass(std::uint32_t a, std::uint32_t b) const { return frontend::isSubclass(out, a, b); }
+  const Member* lookupMember(std::uint32_t obj, std::string_view nm, bool wantStatic) const { return frontend::lookupMember(out, obj, nm, wantStatic); }
+  bool objAssignable(std::uint32_t a, std::uint32_t b) const { return frontend::objAssignable(out, a, b); }
+  // A class is not available before its declaration runs (TypeScript: used before its declaration).
+  bool usedBeforeDeclaration(std::uint32_t sym, std::uint32_t useNode) const {
+    return immediate && out.syms[sym].decl != kNone && n(useNode).start < n(out.syms[sym].decl).start;
+  }
+  bool ctorAccessible(const ObjInfo& o, std::uint32_t objIdx) const {
+    if (o.ctorAccess == 0) return true;
+    if (curClass == kNoObj) return false;
+    return o.ctorAccess == 2 ? curClass == objIdx : isSubclass(curClass, objIdx);
+  }
+  bool accessible(const Member& m) const {
+    if (m.access == 0 || m.owner == kNoObj) return true;
+    if (curClass == kNoObj) return false;
+    return m.access == 2 ? curClass == m.owner : isSubclass(curClass, m.owner);
+  }
+
   bool assignable(TypeId from, TypeId to, std::uint32_t node) {
     if (from == to || bad(from) || bad(to) || ty(to).k == TK::Any) return true;
     const Type &f = ty(from), &t = ty(to);
@@ -89,6 +116,7 @@ struct Checker {
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
       return widens(f.num, t.num);
     }
+    if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj);
     return false;
   }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
@@ -117,14 +145,16 @@ struct Checker {
     auto mathFn = [&](const char* nm, int argc, ObjInfo& o) {
       o.members.push_back({nm, func(std::vector<TypeId>(static_cast<std::size_t>(argc), num(Num::f64)), num(Num::f64), static_cast<std::uint32_t>(argc)), true, true});
     };
-    ObjInfo math{"Math", {}, kNone, false};
+    ObjInfo math;
+    math.name = "Math";
     math.members.push_back({"PI", num(Num::f64), true, false});
     math.members.push_back({"E", num(Num::f64), true, false});
     for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "atan", "exp", "log"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max"}) mathFn(f, 2, math);
     out.objs.push_back(math);
     declare(SymKind::Builtin, "Math", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
-    ObjInfo con{"console", {}, kNone, false};
+    ObjInfo con;
+    con.name = "console";
     con.members.push_back({"log", func({tAny}, tVoid, 0, true), true, true});
     out.objs.push_back(con);
     declare(SymKind::Builtin, "console", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
@@ -162,8 +192,7 @@ struct Checker {
   // ---- members
   const Member* findMember(TypeId t, std::string_view nm) {
     if (ty(t).k != TK::Object) return nullptr;
-    for (const Member& m : out.objs[ty(t).obj].members) if (m.name == nm) return &m;
-    return nullptr;
+    return lookupMember(ty(t).obj, nm, false);
   }
   // Builtin members of primitives and arrays; the result's Member lives in `scratch`.
   bool primMember(TypeId t, std::string_view nm, Member& scratch) {
@@ -205,7 +234,10 @@ struct Checker {
     return Num::f64;
   }
 
-  bool comparable(TypeId l, TypeId r) { return l == r || (isNum(l) && isNum(r)) || bad(l) || bad(r); }
+  bool comparable(TypeId l, TypeId r) {
+    if (l == r || (isNum(l) && isNum(r)) || bad(l) || bad(r)) return true;
+    return ty(l).k == TK::Object && ty(r).k == TK::Object && (objAssignable(ty(l).obj, ty(r).obj) || objAssignable(ty(r).obj, ty(l).obj));
+  }
 
   TypeId binaryExpr(std::uint32_t i, const Node& x) {
     const std::string op(x.text);
@@ -235,8 +267,12 @@ struct Checker {
     if (x.kind == N::Member) {
       TypeId ot = out.nodeType[x.kids[0]];
       Member scratch;
-      const Member* m = findMember(ot, x.text);
+      const Member* m = nullptr;
+      const Node& on = n(x.kids[0]);
+      if (on.kind == N::Ident && out.nodeSym[x.kids[0]] != kNone && out.syms[out.nodeSym[x.kids[0]]].kind == SymKind::Class) m = lookupMember(ty(out.syms[out.nodeSym[x.kids[0]]].type).obj, x.text, true);
+      else m = findMember(ot, x.text);
       if (!m && primMember(ot, x.text, scratch)) m = &scratch;
+      if (m && m->readonly && !m->method && curCtor != kNoObj && m->owner == curCtor && on.kind == N::This) return true;  // readonly fields are assignable in their constructor
       if (m && (m->readonly || m->method)) { diag(kZAssignToConst, t, "'" + std::string(x.text) + "'"); return false; }
       return true;
     }
@@ -258,8 +294,24 @@ struct Checker {
       }
       out.nodeSym[callee] = s;
       result = out.syms[s].type;
-      ft = out.objs[ty(result).obj].ctor;
+      const ObjInfo& oi = out.objs[ty(result).obj];
+      if (oi.isInterface) { diag(kZNotCallable, callee, "an interface cannot be instantiated"); for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
+      if (oi.isAbstract) diag(kZAbstractViolation, callee, "cannot instantiate abstract class '" + oi.name + "'");
+      if (usedBeforeDeclaration(s, callee)) diag(kZCannotFindName, callee, "class '" + oi.name + "' used before its declaration");
+      if (!ctorAccessible(oi, ty(result).obj)) diag(kZNotAccessible, callee, "the constructor of '" + oi.name + "'");
+      ft = oi.ctor;
       if (ft == kNoType) ft = func({}, tVoid, 0);
+    } else if (n(callee).kind == N::Super) {
+      std::uint32_t par = curClass != kNoObj ? out.objs[curClass].parent : kNoObj;
+      if (par == kNoObj || curCtor != curClass) {
+        diag(kZBadSuperCall, i, par == kNoObj ? "'super' in a class that does not extend" : "'super()' outside a constructor");
+        for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]);
+        return tError;
+      }
+      out.nodeType[callee] = objType(par);
+      ft = out.objs[par].ctor;
+      if (ft == kNoType) ft = func({}, tVoid, 0);
+      result = tVoid;
     } else {
       TypeId ct = expr(callee);
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
@@ -295,8 +347,9 @@ struct Checker {
       case N::Template: for (std::uint32_t k : x.kids) expr(k); return tStr;
       case N::Literal: return x.text == "null" ? tNull : tBool;
       case N::This:
-        if (curClass == kNone) { diag(kZNotAllowedHere, i, "'this'"); return tError; }
+        if (curClass == kNone || curStatic) { diag(kZNotAllowedHere, i, "'this'"); return tError; }
         return objType(curClass);
+      case N::Super: diag(kZBadSuperCall, i, "'super' must be called or used with a property access"); return tError;
       case N::Ident: {
         std::uint32_t s = lookup(x.text);
         if (s == kNone) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }
@@ -342,7 +395,9 @@ struct Checker {
       }
       case N::Assign: {
         std::uint32_t target = x.kids[0], value = x.kids[1];
+        pendingExempt = x.text == "=";  // the target of a plain assignment is written, not read
         TypeId tt = expr(target);
+        pendingExempt = false;
         bool ok = lvalue(target);
         const std::string op(x.text);
         if (op == "=") {
@@ -375,12 +430,37 @@ struct Checker {
       case N::New: return callExpr(i, x, true);
       case N::Member: {
         if (x.text.size() && x.text[0] == '?') { diag(kZUnsupported, i, "optional chaining"); return tError; }
+        const Node& on = n(x.kids[0]);
+        if (on.kind == N::Super) {  // super.method(...)
+          std::uint32_t par = curClass != kNoObj ? out.objs[curClass].parent : kNoObj;
+          if (par == kNoObj) { diag(kZBadSuperCall, i, "'super' in a class that does not extend"); return tError; }
+          out.nodeType[x.kids[0]] = objType(par);
+          const Member* m = lookupMember(par, x.text, false);
+          if (!m || !m->method) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on the base class"); return tError; }
+          if (m->isAbstract) { diag(kZAbstractViolation, i, "abstract method '" + std::string(x.text) + "' cannot be called through super"); return tError; }
+          if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
+          return m->type;
+        }
+        if (on.kind == N::Ident) {  // Class.staticMember
+          std::uint32_t cs = lookup(on.text);
+          if (cs != kNone && out.syms[cs].kind == SymKind::Class && !out.objs[ty(out.syms[cs].type).obj].isInterface) {
+            out.nodeSym[x.kids[0]] = cs;
+            if (usedBeforeDeclaration(cs, x.kids[0])) diag(kZCannotFindName, x.kids[0], "class '" + std::string(on.text) + "' used before its declaration");
+            const Member* m = lookupMember(ty(out.syms[cs].type).obj, x.text, true);
+            if (!m) { diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
+            if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
+            return m->type;
+          }
+        }
         TypeId ot = expr(x.kids[0]);
         if (bad(ot)) return tError;
+        if (on.kind == N::This && ctorStmts && !pendingExempt && std::find(ctorPending.begin(), ctorPending.end(), std::string(x.text)) != ctorPending.end())
+          diag(kZUninitializedField, i, "'" + std::string(x.text) + "' is read before it is assigned");
         Member scratch;
         const Member* m = findMember(ot, x.text);
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
         if (!m) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
+        if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         return m->type;
       }
       case N::Index: {
@@ -494,7 +574,7 @@ struct Checker {
       case N::Break: case N::Continue:
         if (loops == 0) diag(kZNotAllowedHere, s, x.kind == N::Break ? "'break' outside a loop" : "'continue' outside a loop");
         break;
-      case N::Function: case N::Class: break;  // hoisted by stmtList
+      case N::Function: case N::Class: case N::Interface: break;  // hoisted by stmtList
       default: diag(kZUnsupported, s, "this statement"); break;
     }
   }
@@ -520,7 +600,8 @@ struct Checker {
     TypeId ret = tVoid;
     if (!isCtor) {
       if (f.kids[0] != kNone) ret = annotation(f.kids[0]);
-      else if (f.kids[1] != kNone && hasValueReturn(a, f.kids[1])) { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; }
+      else if (f.kids[1] == kNone) { diag(kZCannotInfer, static_cast<std::uint32_t>(&f - a.nodes.data()), "return type of '" + std::string(f.text) + "'"); ret = tError; }
+      else if (hasValueReturn(a, f.kids[1])) { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; }
     }
     return func(std::move(ps), ret, minArgs);
   }
@@ -529,8 +610,8 @@ struct Checker {
     const Node& f = n(fn);
     if (f.kids[1] == kNone) return;
     Type ft = ty(sig);
-    TypeId savedRet = curRet; int savedLoops = loops;
-    curRet = isCtor ? tVoid : ft.elem; loops = 0;
+    TypeId savedRet = curRet; int savedLoops = loops; bool savedImmediate = immediate;
+    curRet = isCtor ? tVoid : ft.elem; loops = 0; immediate = false;
     push();
     for (std::size_t k = 0; k < params.size(); ++k) {
       const Node& p = n(params[k]);
@@ -540,20 +621,43 @@ struct Checker {
     stmtList(n(f.kids[1]).kids);
     pop();
     if (!isCtor && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
-    curRet = savedRet; loops = savedLoops;
+    curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
   }
+
+  // Members of a class or interface node, in order.
+  std::vector<std::uint32_t> membersOf(std::uint32_t node) const {
+    const Node& c = n(node);
+    std::size_t from = c.kind == N::Class ? kClassMembersFrom : 1;
+    return std::vector<std::uint32_t>(c.kids.begin() + static_cast<std::ptrdiff_t>(from), c.kids.end());
+  }
+
+  static std::uint8_t accessOf(std::uint32_t fl) { return (fl & frontend::kFlagPrivate) ? 2 : (fl & frontend::kFlagProtected) ? 1 : 0; }
 
   void classMembers(std::uint32_t cls, std::uint32_t objIdx) {
     const Node& c = n(cls);
+    bool isIface = c.kind == N::Interface;
     TypeId self = objType(objIdx);
+    std::uint32_t par = out.objs[objIdx].parent;
     std::vector<std::pair<std::uint32_t, TypeId>> methods;  // node, signature
     std::vector<std::vector<std::uint32_t>> methodParams;
     std::uint32_t ctorNode = kNone;
-    for (std::uint32_t m : c.kids) {
+    std::vector<std::uint32_t> mems = membersOf(cls);
+    if (isIface) {  // an interface carries the methods of the interfaces it extends
+      for (std::uint32_t pi : out.objs[objIdx].ifaces)
+        for (const Member& pm : out.objs[pi].members) out.objs[objIdx].members.push_back(pm);
+    }
+    for (std::uint32_t m : mems) {
       const Node& mn = n(m);
+      std::uint32_t fl = mn.flags;
+      bool isCtor = mn.kind == N::Method && mn.text == "constructor";
       bool dup = false;
-      for (const Member& e : out.objs[objIdx].members) if (e.name == mn.text) dup = true;
-      if (dup || (mn.kind == N::Method && mn.text == "constructor" && ctorNode != kNone)) { diag(kZDuplicateDeclaration, m, "'" + std::string(mn.text) + "'"); continue; }
+      if (!isCtor) for (const Member& e : out.objs[objIdx].members) if (e.owner == objIdx && e.name == mn.text && e.isStatic == ((fl & frontend::kFlagStatic) != 0)) dup = true;
+      if (dup || (isCtor && ctorNode != kNone)) { diag(kZDuplicateDeclaration, m, "'" + std::string(mn.text) + "'"); continue; }
+      if (isIface && mn.kind == N::Field) { diag(kZUnsupported, m, "interface properties"); continue; }
+      if (isIface && isCtor) { diag(kZUnsupported, m, "constructors in interfaces"); continue; }
+      if ((fl & frontend::kFlagAbstract) && !isIface && !(out.objs[objIdx].isAbstract)) diag(kZAbstractViolation, m, "abstract member '" + std::string(mn.text) + "' in a concrete class");
+      Member mem;
+      mem.name = std::string(mn.text); mem.owner = objIdx; mem.access = accessOf(fl); mem.isStatic = (fl & frontend::kFlagStatic) != 0;
       if (mn.kind == N::Field) {
         TypeId t = tError;
         if (mn.kids[0] != kNone) t = annotation(mn.kids[0]);
@@ -563,41 +667,104 @@ struct Checker {
           if (t == tError) diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         } else diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         out.nodeType[m] = t;
-        out.objs[objIdx].members.push_back({std::string(mn.text), t, false, false});
+        mem.type = t; mem.readonly = (fl & frontend::kFlagReadonly) != 0;
       } else {
         std::vector<std::uint32_t> ps;
-        bool isCtor = mn.text == "constructor";
         TypeId sig = signature(mn, 2, isCtor, ps);
         out.nodeType[m] = sig;
-        if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); ctorNode = m; }
-        else out.objs[objIdx].members.push_back({std::string(mn.text), sig, true, true});
+        if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
+        mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
         methods.push_back({m, sig});
         methodParams.push_back(std::move(ps));
+        if (mn.kids[1] == kNone && !isIface && !(fl & frontend::kFlagAbstract) && !isCtor) diag(kZAbstractViolation, m, "method '" + std::string(mn.text) + "' has no body");
+        if (isCtor) continue;
       }
+      // an override must keep the base member's kind and type
+      if (!mem.isStatic && par != kNoObj) {
+        const Member* pm = lookupMember(par, mem.name, false);
+        if (pm && (!mem.method || !pm->method || pm->type != mem.type || pm->access == 2)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' does not match the base class member");
+        else if (!pm && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
+      } else if (!par && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
+      out.objs[objIdx].members.push_back(std::move(mem));
     }
-    // strictPropertyInitialization: a field without initializer must be assigned at the top level of the constructor
-    for (std::uint32_t m : c.kids) {
-      const Node& mn = n(m);
-      if (mn.kind != N::Field || mn.kids[1] != kNone) continue;
-      bool assigned = false;
-      if (ctorNode != kNone && n(ctorNode).kids[1] != kNone)
-        for (std::uint32_t st : n(n(ctorNode).kids[1]).kids) {
-          const Node& sn = n(st);
-          if (sn.kind != N::ExprStmt) continue;
-          const Node& as = n(sn.kids[0]);
-          if (as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == mn.text && n(n(as.kids[0]).kids[0]).kind == N::This) assigned = true;
+    if (!isIface && par != kNoObj && out.objs[par].ctorAccess == 2) diag(kZNotAccessible, cls, "cannot extend '" + out.objs[par].name + "': its constructor is private");
+    if (!isIface) {
+      // a derived class without a constructor takes its base class's parameters
+      if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs);
+      // `implements I`: every member of I must be present with the same type
+      if (c.kids[1] != kNone)
+        for (std::uint32_t r : n(c.kids[1]).kids) {
+          std::uint32_t is = lookup(n(r).text);
+          if (is == kNone || out.syms[is].kind != SymKind::Class || !out.objs[ty(out.syms[is].type).obj].isInterface) { diag(kZInvalidHierarchy, r, "'implements' needs an interface"); continue; }
+          std::uint32_t io = ty(out.syms[is].type).obj;
+          for (const Member& im : out.objs[io].members) {
+            const Member* m = lookupMember(objIdx, im.name, false);
+            if (!m || !m->method || m->type != im.type || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
+          }
         }
-      if (!assigned) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
-    }
-    defer->push_back([this, cls, objIdx, methods, methodParams]() {
-      std::uint32_t saved = curClass;
-      curClass = objIdx;
-      for (std::uint32_t m : n(cls).kids) {
-        const Node& mn = n(m);
-        if (mn.kind == N::Field && mn.kids[1] != kNone && out.nodeType[m] != kNoType) require(expr(mn.kids[1], out.nodeType[m]), out.nodeType[m], mn.kids[1]);
+      // a concrete class must implement every abstract member in its chain
+      if (!out.objs[objIdx].isAbstract)
+        for (std::uint32_t o = objIdx; o != kNoObj; o = out.objs[o].parent)
+          for (const Member& am : out.objs[o].members) {
+            if (!am.isAbstract || am.isStatic) continue;
+            const Member* impl = lookupMember(objIdx, am.name, false);
+            if (!impl || impl->isAbstract) { diag(kZAbstractViolation, cls, "abstract '" + am.name + "' is not implemented"); break; }
+          }
+      // a derived class constructor must start with super(...)
+      if (par != kNoObj && ctorNode != kNone && n(ctorNode).kids[1] != kNone) {
+        const auto& body = n(n(ctorNode).kids[1]).kids;
+        bool ok = !body.empty() && n(body[0]).kind == N::ExprStmt && n(n(body[0]).kids[0]).kind == N::Call && n(n(n(body[0]).kids[0]).kids[0]).kind == N::Super;
+        if (!ok) diag(kZBadSuperCall, ctorNode, "a derived class constructor must start with super(...)");
       }
-      for (std::size_t k = 0; k < methods.size(); ++k) checkBody(methods[k].first, methods[k].second, methodParams[k], n(methods[k].first).text == "constructor");
+      // strictPropertyInitialization: an instance field without initializer must be assigned at the top level of the constructor
+      for (std::uint32_t m : mems) {
+        const Node& mn = n(m);
+        if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & frontend::kFlagStatic)) continue;
+        bool assigned = false;
+        if (ctorNode != kNone && n(ctorNode).kids[1] != kNone)
+          for (std::uint32_t st : n(n(ctorNode).kids[1]).kids) {
+            const Node& sn = n(st);
+            if (sn.kind != N::ExprStmt) continue;
+            const Node& as = n(sn.kids[0]);
+            if (as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == mn.text && n(n(as.kids[0]).kids[0]).kind == N::This) assigned = true;
+          }
+        if (!assigned) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
+      }
+    }
+    defer->push_back([this, objIdx, methods, methodParams, mems]() {
+      std::uint32_t saved = curClass;
+      bool savedStatic = curStatic, savedImmediate = immediate;
+      curClass = objIdx;
+      for (std::uint32_t m : mems) {
+        const Node& mn = n(m);
+        if (mn.kind == N::Field && mn.kids[1] != kNone && out.nodeType[m] != kNoType) {
+          curStatic = (mn.flags & frontend::kFlagStatic) != 0;
+          immediate = curStatic;  // static initialisers run where the class is declared, instance ones at construction
+          require(expr(mn.kids[1], out.nodeType[m]), out.nodeType[m], mn.kids[1]);
+        }
+      }
+      immediate = savedImmediate;
+      for (std::size_t k = 0; k < methods.size(); ++k) {
+        const Node& mn = n(methods[k].first);
+        bool isCtor = mn.text == "constructor";
+        curStatic = (mn.flags & frontend::kFlagStatic) != 0;
+        std::uint32_t savedCtor = curCtor;
+        const std::vector<std::uint32_t>* savedStmts = ctorStmts;
+        std::vector<std::string> savedPending = ctorPending;
+        if (isCtor) {
+          curCtor = objIdx;
+          ctorPending.clear();
+          for (std::uint32_t m : mems) {
+            const Node& fn = n(m);
+            if (fn.kind == N::Field && fn.kids[1] == kNone && !(fn.flags & frontend::kFlagStatic)) ctorPending.push_back(std::string(fn.text));
+          }
+          ctorStmts = n(methods[k].first).kids[1] != kNone ? &n(n(methods[k].first).kids[1]).kids : nullptr;
+        }
+        checkBody(methods[k].first, methods[k].second, methodParams[k], isCtor);
+        curCtor = savedCtor; ctorStmts = savedStmts; ctorPending = savedPending;
+      }
       curClass = saved;
+      curStatic = savedStatic;
     });
   }
 
@@ -605,18 +772,62 @@ struct Checker {
     std::vector<std::function<void()>> mine;
     auto* saved = defer;
     defer = &mine;
-    // hoist classes first (functions may mention them), then functions
+    // hoist classes and interfaces first (functions may mention them), then functions
     std::vector<std::pair<std::uint32_t, std::uint32_t>> classes;
     for (std::uint32_t s : stmts) {
-      if (n(s).kind != N::Class) continue;
-      out.objs.push_back({std::string(n(s).text), {}, kNone, true});
+      if (n(s).kind != N::Class && n(s).kind != N::Interface) continue;
+      ObjInfo info;
+      info.name = std::string(n(s).text);
+      info.isClass = n(s).kind == N::Class;
+      info.isInterface = n(s).kind == N::Interface;
+      info.isAbstract = (n(s).flags & frontend::kFlagAbstract) != 0;
+      out.objs.push_back(info);
       auto oi = static_cast<std::uint32_t>(out.objs.size() - 1);
       TypeId t = objType(oi);
       out.nodeType[s] = t;
       out.nodeSym[s] = declare(SymKind::Class, n(s).text, t, s, true, s);
       classes.push_back({s, oi});
     }
-    for (auto [s, oi] : classes) classMembers(s, oi);
+    // resolve `extends` (and an interface's extended interfaces) before members, so bases are collected first
+    auto resolve = [&](std::uint32_t refNode, bool wantInterface) -> std::uint32_t {
+      std::uint32_t sy = n(refNode).kids.empty() ? lookup(n(refNode).text) : kNone;
+      if (sy == kNone) { diag(kZCannotFindName, refNode, "'" + std::string(n(refNode).text) + "'"); return kNoObj; }
+      if (out.syms[sy].kind != SymKind::Class || out.objs[ty(out.syms[sy].type).obj].isInterface != wantInterface) {
+        diag(kZInvalidHierarchy, refNode, wantInterface ? "'" + std::string(n(refNode).text) + "' is not an interface" : "'" + std::string(n(refNode).text) + "' is not a class");
+        return kNoObj;
+      }
+      return ty(out.syms[sy].type).obj;
+    };
+    for (auto [s, oi] : classes) {
+      const Node& cn = n(s);
+      if (cn.kind == N::Class && cn.kids[0] != kNone) {
+        out.objs[oi].parent = resolve(cn.kids[0], false);
+        std::uint32_t po = out.objs[oi].parent;
+        if (po != kNoObj) {
+          std::uint32_t ps = lookup(n(cn.kids[0]).text);
+          if (ps != kNone && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
+        }
+      }
+      if (cn.kind == N::Interface && cn.kids[0] != kNone)
+        for (std::uint32_t r : n(cn.kids[0]).kids) { std::uint32_t io = resolve(r, true); if (io != kNoObj) out.objs[oi].ifaces.push_back(io); }
+    }
+    for (auto [s, oi] : classes) {  // a hierarchy that loops back on itself
+      std::uint32_t k = 0;
+      for (std::uint32_t o = out.objs[oi].parent; o != kNoObj; o = out.objs[o].parent)
+        if (o == oi || ++k > out.objs.size()) { diag(kZInvalidHierarchy, s, "circular inheritance"); out.objs[oi].parent = kNoObj; break; }
+    }
+    std::vector<char> built(out.objs.size() + 1, 0);
+    std::function<void(std::uint32_t, std::uint32_t)> build = [&](std::uint32_t s, std::uint32_t oi) {
+      if (built[oi]) return;
+      built[oi] = 1;
+      for (auto [s2, o2] : classes) {
+        bool dep = o2 == out.objs[oi].parent;
+        for (std::uint32_t pi : out.objs[oi].ifaces) dep = dep || pi == o2;
+        if (dep) build(s2, o2);
+      }
+      classMembers(s, oi);
+    };
+    for (auto [s, oi] : classes) build(s, oi);
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Function) continue;
       std::vector<std::uint32_t> ps;
@@ -626,7 +837,16 @@ struct Checker {
       if (n(s).kids[1] == kNone) { diag(kZUnsupported, s, "function declarations without a body"); continue; }
       defer->push_back([this, s, sig, ps]() { checkBody(s, sig, ps, false); });
     }
-    for (std::uint32_t s : stmts) statement(s);
+    for (std::uint32_t s : stmts) {
+      statement(s);
+      if (&stmts == ctorStmts && n(s).kind == N::ExprStmt) {  // `this.f = ...` at the top level of a constructor assigns f
+        const Node& as = n(n(s).kids[0]);
+        if (as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(n(as.kids[0]).kids[0]).kind == N::This) {
+          auto it = std::find(ctorPending.begin(), ctorPending.end(), std::string(n(as.kids[0]).text));
+          if (it != ctorPending.end()) ctorPending.erase(it);
+        }
+      }
+    }
     for (auto& f : mine) f();
     defer = saved;
   }
@@ -641,6 +861,35 @@ struct Checker {
 };
 
 }  // namespace
+
+bool isSubclass(const Checked& c, std::uint32_t a, std::uint32_t b) {
+  for (std::uint32_t k = 0; a != 0xFFFFFFFFu && k < 1000; a = c.objs[a].parent, ++k) if (a == b) return true;
+  return false;
+}
+
+// A member found through the class chain: instance members, or static ones when wantStatic.
+const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view name, bool wantStatic) {
+  for (std::uint32_t o = obj, k = 0; o != 0xFFFFFFFFu && k < 1000; o = c.objs[o].parent, ++k)
+    for (const Member& m : c.objs[o].members) if (m.name == name && m.isStatic == wantStatic) return &m;
+  return nullptr;
+}
+
+// Structural check against an interface: every method of the interface, with the same type, is public on `obj`.
+static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t iface) {
+  for (const Member& im : c.objs[iface].members) {
+    if (im.isStatic) continue;
+    const Member* m = lookupMember(c, obj, im.name, false);
+    if (!m || !m->method || m->type != im.type || m->access != 0) return false;
+  }
+  return true;
+}
+
+bool objAssignable(const Checked& c, std::uint32_t a, std::uint32_t b) {
+  if (a == b) return true;
+  if (c.objs[b].isInterface) return structuralMatch(c, a, b);
+  if (c.objs[a].isInterface) return false;
+  return isSubclass(c, a, b);
+}
 
 // Lossless implicit conversions between machine kinds.
 bool widens(Num from, Num to) {

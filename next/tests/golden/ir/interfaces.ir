@@ -1,0 +1,78 @@
+interface Shape
+  method .area
+  method .scale
+class Sq implements Shape { s: f64 }
+  vtable .area -> @Sq.area
+  vtable .scale -> @Sq.scale
+class Circ implements Shape { r: f64 }
+  vtable .area -> @Circ.area
+  vtable .scale -> @Circ.scale
+func @main() -> void {
+bb0:
+  %0: ref Sq = new Sq
+  %1: f64 = const 2
+  call @Sq.constructor(%0, %1)
+  %2: ref Shape = refcast %0
+  %3: ref Circ = new Circ
+  %4: f64 = const 1
+  call @Circ.constructor(%3, %4)
+  %5: ref Shape = refcast %3
+  %6: f64 = call @total(%2, %5)
+  %7: ref Circ = new Circ
+  %8: f64 = const 2
+  call @Circ.constructor(%7, %8)
+  %9: ref Shape = refcast %7
+  %10: ref Sq = new Sq
+  %11: f64 = const 3
+  call @Sq.constructor(%10, %11)
+  %12: ref Shape = refcast %10
+  %13: f64 = call @total(%9, %12)
+  builtin console.log(%6, %13)
+  ret
+}
+func @Sq.constructor(%0: ref Sq, %1: f64) -> void {
+bb0:
+  setfield .0 %0, %1
+  ret
+}
+func @Sq.area(%0: ref Sq) -> f64 {
+bb0:
+  %1: f64 = getfield .0 %0
+  %2: f64 = getfield .0 %0
+  %3: f64 = mul %1, %2
+  ret %3
+}
+func @Sq.scale(%0: ref Sq, %1: f64) -> f64 {
+bb0:
+  %2: f64 = call @Sq.area(%0)
+  %3: f64 = mul %2, %1
+  ret %3
+}
+func @Circ.constructor(%0: ref Circ, %1: f64) -> void {
+bb0:
+  setfield .0 %0, %1
+  ret
+}
+func @Circ.area(%0: ref Circ) -> f64 {
+bb0:
+  %1: f64 = const 3
+  %2: f64 = getfield .0 %0
+  %3: f64 = mul %1, %2
+  %4: f64 = getfield .0 %0
+  %5: f64 = mul %3, %4
+  ret %5
+}
+func @Circ.scale(%0: ref Circ, %1: f64) -> f64 {
+bb0:
+  %2: f64 = call @Circ.area(%0)
+  %3: f64 = add %2, %1
+  ret %3
+}
+func @total(%0: ref Shape, %1: ref Shape) -> f64 {
+bb0:
+  %2: f64 = callvirt .area(%0)
+  %3: f64 = const 2
+  %4: f64 = callvirt .scale(%1, %3)
+  %5: f64 = add %2, %4
+  ret %5
+}

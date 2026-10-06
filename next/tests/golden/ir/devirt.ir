@@ -1,0 +1,34 @@
+class Base { v: i32 }
+  vtable .get -> @Base.get
+class Unused : Base { v: i32 }
+  vtable .get -> @Unused.get
+func @main() -> void {
+bb0:
+  %0: ref Base = new Base
+  call @Base.constructor(%0)
+  %1: i32 = call @Base.get(%0)
+  builtin console.log(%1)
+  ret
+}
+func @Base.get(%0: ref Base) -> i32 {
+bb0:
+  %1: i32 = getfield .0 %0
+  ret %1
+}
+func @Base.constructor(%0: ref Base) -> void {
+bb0:
+  %1: i32 = const 1
+  setfield .0 %0, %1
+  ret
+}
+func @Unused.get(%0: ref Unused) -> i32 {
+bb0:
+  %1: i32 = const 99
+  ret %1
+}
+func @Unused.constructor(%0: ref Unused) -> void {
+bb0:
+  %1: ref Base = refcast %0
+  call @Base.constructor(%1)
+  ret
+}

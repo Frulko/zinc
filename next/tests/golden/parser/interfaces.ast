@@ -1,0 +1,130 @@
+Program
+  Interface Shape
+    _
+    Method area
+      TypeRef f64
+      _
+    Method scale
+      TypeRef f64
+      _
+      Param k
+        TypeRef f64
+        _
+  Class Sq
+    _
+    Heritage
+      TypeRef Shape
+    Field s
+      TypeRef f64
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Assign =
+            Member s
+              This
+            Ident s
+      Param s
+        TypeRef f64
+        _
+    Method area
+      TypeRef f64
+      Block
+        Return
+          Binary *
+            Member s
+              This
+            Member s
+              This
+    Method scale
+      TypeRef f64
+      Block
+        Return
+          Binary *
+            Call
+              Member area
+                This
+            Ident k
+      Param k
+        TypeRef f64
+        _
+  Class Circ
+    _
+    Heritage
+      TypeRef Shape
+    Field r
+      TypeRef f64
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Assign =
+            Member r
+              This
+            Ident r
+      Param r
+        TypeRef f64
+        _
+    Method area
+      TypeRef f64
+      Block
+        Return
+          Binary *
+            Binary *
+              Number 3
+              Member r
+                This
+            Member r
+              This
+    Method scale
+      TypeRef f64
+      Block
+        Return
+          Binary +
+            Call
+              Member area
+                This
+            Ident k
+      Param k
+        TypeRef f64
+        _
+  Function total
+    TypeRef f64
+    Block
+      Return
+        Binary +
+          Call
+            Member area
+              Ident a
+          Call
+            Member scale
+              Ident b
+            Number 2
+    Param a
+      TypeRef Shape
+      _
+    Param b
+      TypeRef Shape
+      _
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Ident total
+        New
+          Ident Sq
+          Number 2
+        New
+          Ident Circ
+          Number 1
+      Call
+        Ident total
+        New
+          Ident Circ
+          Number 2
+        New
+          Ident Sq
+          Number 3

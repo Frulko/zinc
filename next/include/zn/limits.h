@@ -11,5 +11,7 @@ inline constexpr std::uint32_t kMaxRegisters = 256;       // register operands a
 inline constexpr std::uint32_t kMaxCodeWords = 65535;     // conditional jump targets are 16 bits
 inline constexpr std::uint32_t kMaxFunctions = 65535;     // Call's function operand is 16 bits
 inline constexpr std::uint32_t kMaxConsts = 65535;        // LoadK's pool index is 16 bits
+inline constexpr std::uint32_t kMaxClasses = 60000;       // class ids are 16 bits (register states use 16)
+inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField index is 8 bits
 
 }  // namespace zn
