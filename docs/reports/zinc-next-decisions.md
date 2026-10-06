@@ -61,3 +61,25 @@ Limits: a trademark office search (USPTO, EUIPO, WIPO) and a registrar's availab
 Measured (`zinc-next-mquickjs.md`): about as fast as QuickJS, 4 to 7 times slower than the Zinc interpreter; 103 KB of Thumb-2 code against 125 KB for the Zinc core; 8 KB of heap for fib against a 24 KB register file, and 4 bytes per number in an array
 against 8. It runs ES5 strict mode only, so the ES2022 path of ZN-051 does not carry over. **Decision: not adopted, not vendored.** Revisit for a product that needs user JavaScript on a device with under 100 KB of free RAM; then as a fallback engine behind `zinc:script`.
 
+## 7. Parity plan decisions (2026-10-07)
+
+Made under `next/RULES.md` from the four parity audits in `docs/reports/parity/` (01 language and standard library, 02 examples, 03 plugins and targets, 04 library choices). Scores follow RULES.md section 4; the reasoning and the evidence are in the audit files.
+
+| # | Question | Decision | Why in one line | Revisit when |
+|---|---|---|---|---|
+| D1 | Native-module ABI | Evolve `runtime/include/zinc_abi.h` v4 into `next/include/zn/native.h`: a typed export table with the signature letters of `runtime.h`, bound by name at load, one `CallNative` opcode, versioning and finalizers from Node-API, own/borrow rules from WIT. libffi only for `zinc:ffi` | Exists and is tested on two engines; plugin C++ links unchanged through a `zrt` marshalling layer; no rewrite of ~12 000 lines | An ABI v2 is needed by a plugin that cannot express its API |
+| D2 | Plugins: shared library or linked in | Desktop interpreter: one shared library per plugin, built and cached by the pinned zig; AOT programs and firmware: static link, registered by generated code | Small `zinc`, hot reload, cache; static where there is no dynamic loader | A target without `dlopen` needs the desktop path |
+| D3 | Prototype plugin C++ | Compatibility adapters (`src/native/zrt_compat`) keep the 22 native specs unchanged; new native code uses the C ABI | Same behaviour at once, no churn | The adapters cost more than 10% on a plugin benchmark |
+| D4 | PS2 | Build-only gate; the PCSX2 runner runs only when the owner supplies a BIOS path | An emulator cannot run without a BIOS we may not ship | The owner supplies a BIOS |
+| D5 | PS1 | Spike first (a freestanding runtime and fixed-point lowering), the target afterwards; not on the critical path | Largest and most uncertain target | The spike's verdict |
+| D6 | Raspberry Pi | `aarch64-linux` is the primary Pi target (qemu-user as the gate); armv6 (`armhf`) secondary | Matches `raspberry-pi.md`; 64-bit Pi OS is the shipped OS | A Pi 1 product need |
+| D7 | Sockets and event loop | libuv on desktop and Pi, llhttp plus own glue for HTTP, wslay for WebSocket, mbedTLS for TLS and crypto; mongoose and wolfSSL rejected for licence | Mature, MIT/Apache, portable (also what a later Windows port needs) | Footprint on small targets |
+| D8 | SVG and Lottie | ThorVG for both on desktop-class targets; nanosvg stays for the tiny profile. Goldens are re-baked in their own commits with a tolerance, the shared rasterizer remains the reference for shapes | Proven, maintained, one library for two formats instead of 1800 custom lines | A pixel regression the tolerance cannot absorb |
+| D9 | Display simulation depth | Level 1 (window plus frame hashes) for all, Level 2 (chip models for SSD1306, ST7789, WS2812, IS31FL3730, QMI8658 behind a bus shim) for the shipped boards | "Validated by simulator" must mean the bus bytes were checked | Chip models prove too costly for a panel |
+| D10 | Regex, Unicode, JSON, numbers | QuickJS-ng libregexp/libunicode (split files), libunibreak, yyjson, fast_float, dragonbox | Same regex semantics as the JS engine, fastest permissive options | A measurement says otherwise (each adopting task measures) |
+| D11 | Fonts, images, rendering | stb_truetype plus a desktop HarfBuzz/SheenBidi tier; stb_image/stb_image_write, libwebp as plugin; software rasterizer is the reference and GLAD GL 3.3/GLES3 a second path; SDL3 vendored statically | Keeps pixels stable and sizes small; GPU is an addition | GPU path drift in goldens |
+| D12 | Media | VideoToolbox/V4L2 first, dav1d and openh264 as run-time plugins, miniaudio/minimp3 for audio; FFmpeg only as a dynamically loaded plugin (LGPL) | Licence safety | A format gap |
+| D13 | JIT | No JIT now. If measured need appears, a sljit baseline JIT from ZBC. The AOT and the typed interpreter already meet the performance gates; the prototype's AArch64 JIT is not ported | Complexity and security surface for no measured gain | Interpreter needs another 2x on a target without a compiler |
+| D14 | Fast-math AOT (ZN-042) | No fast-math: bit-identical rounding across engines is a product rule. nbody stays about 2.9x native; vectorization without FMA contraction is a separate optimisation task | Determinism over a benchmark | Owner asks |
+| D15 | Corpora and fuzzing | test262 subset, WPT URL/encoding data, wasm testsuite, JSONTestSuite as pinned data; libFuzzer with ASan/UBSan on the parser and the ZBC verifier | Reuse existing oracles | none |
+
