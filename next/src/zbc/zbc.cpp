@@ -66,7 +66,7 @@ bool aIsReg(Op op) {
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
   if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt;
-  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::LogStr || op == Op::SetField || op == Op::ArrSet;
+  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::LogStr || op == Op::Retain || op == Op::Release || op == Op::SetField || op == Op::ArrSet;
 }
 bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
 bool cIsReg(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABC && i.inC != RC::None; }
@@ -327,6 +327,7 @@ struct Verifier {
         if (strCls == kNoCls) return fail(pc, "string constant in a module without a string class");
         s[aOf(w)] = static_cast<St>(4 + strCls);
         return true;
+      case Op::Retain: case Op::Release: return needRef(aOf(w), "operand");
       case Op::LogStr:
         if (strCls == kNoCls) return fail(pc, "string operand in a module without a string class");
         return needType(aOf(w), VType{Cls::R, static_cast<std::uint16_t>(strCls)}, "operand");

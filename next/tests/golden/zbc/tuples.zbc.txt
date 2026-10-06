@@ -3,7 +3,7 @@ class [i32, i32] { i, i }
 class [i32, f64] { i, f64 }
 class [f64, f64] { f64, f64 }
 class [[f64, f64], f64] { ref [f64, f64], f64 }
-func @main() -> void nregs=17
+func @main() -> void nregs=18
    0  New      r0, [i32, f64]
    1  LoadI    r1, 1
    2  SetField r0, r1, .0
@@ -15,101 +15,112 @@ func @main() -> void nregs=17
    8  LoadI    r4, 3
    9  Call     r3, @minmax
   10  GetField r4, r3, .0
-  11  GetField r3, r3, .1
-  12  LoadI    r5, 1
-  13  LoadI    r6, 2
-  14  New      r7, [i32, i32]
-  15  SetField r7, r6, .0
-  16  SetField r7, r5, .1
-  17  GetField r5, r7, .0
-  18  GetField r6, r7, .1
-  19  New      r7, P
-  20  LoadI    r9, 7
-  21  LoadI    r10, 8
-  22  Move     r8, r7
-  23  Call     r8, @P.constructor
-  24  GetField r8, r7, .0
-  25  GetField r7, r7, .1
-  26  New      r9, [[f64, f64], f64]
-  27  New      r10, [f64, f64]
-  28  LoadK    r11, f64 1
-  29  SetField r10, r11, .0
-  30  LoadK    r11, f64 2
-  31  SetField r10, r11, .1
-  32  SetField r9, r10, .0
-  33  LoadK    r10, f64 3
-  34  SetField r9, r10, .1
-  35  GetField r10, r9, .0
-  36  GetField r11, r10, .0
-  37  GetField r10, r10, .1
-  38  GetField r9, r9, .1
-  39  LoadI    r12, 9
-  40  SetField r0, r12, .0
-  41  New      r12, [i32, i32]
-  42  LoadI    r13, 1
-  43  SetField r12, r13, .0
-  44  LoadI    r13, 2
-  45  SetField r12, r13, .1
-  46  New      r13, P
-  47  LoadI    r15, 3
-  48  LoadI    r16, 4
-  49  Move     r14, r13
-  50  Call     r14, @P.constructor
-  51  Call     r12, @dist
-  52  GetField r13, r0, .0
-  53  GetField r0, r0, .1
-  54  LogI     r1
-  55  LogSep   
-  56  LogF64   r2
-  57  LogSep   
-  58  LogI     r4
-  59  LogSep   
-  60  LogI     r3
-  61  LogSep   
-  62  LogI     r5
-  63  LogSep   
-  64  LogI     r6
-  65  LogSep   
-  66  LogI     r8
-  67  LogSep   
-  68  LogI     r7
-  69  LogSep   
-  70  LogI     r12
-  71  LogSep   
-  72  LogI     r13
-  73  LogSep   
-  74  LogF64   r0
-  75  LogSep   
-  76  LogF64   r11
-  77  LogSep   
-  78  LogF64   r10
-  79  LogSep   
-  80  LogF64   r9
-  81  LogEnd   
-  82  LoadI    r0, 0
-  83  LoadI    r1, 10
-  84  LoadI    r2, 0
-  85  JGeIK    r2, 4, -> 98
-  87  New      r3, [i32, i32]
-  88  SubI32   r4, r1, r2
-  89  SetField r3, r4, .0
-  90  AddI32   r4, r0, r2
-  91  SetField r3, r4, .1
-  92  GetField r4, r3, .0
-  93  GetField r3, r3, .1
-  94  AddI32K  r2, r2, 1
-  95  Move     r1, r3
-  96  Move     r0, r4
-  97  Jmp      -> 85
-  98  LogI     r0
-  99  LogSep   
- 100  LogI     r1
- 101  LogEnd   
- 102  RetV     
+  11  GetField r5, r3, .1
+  12  Release  r3
+  13  LoadI    r3, 1
+  14  LoadI    r6, 2
+  15  New      r7, [i32, i32]
+  16  SetField r7, r6, .0
+  17  SetField r7, r3, .1
+  18  GetField r3, r7, .0
+  19  GetField r6, r7, .1
+  20  Release  r7
+  21  New      r7, P
+  22  LoadI    r9, 7
+  23  LoadI    r10, 8
+  24  Retain   r7
+  25  Move     r8, r7
+  26  Call     r8, @P.constructor
+  27  GetField r8, r7, .0
+  28  GetField r9, r7, .1
+  29  Release  r7
+  30  New      r7, [[f64, f64], f64]
+  31  New      r10, [f64, f64]
+  32  LoadK    r11, f64 1
+  33  SetField r10, r11, .0
+  34  LoadK    r11, f64 2
+  35  SetField r10, r11, .1
+  36  SetField r7, r10, .0
+  37  LoadK    r10, f64 3
+  38  SetField r7, r10, .1
+  39  GetField r10, r7, .0
+  40  Retain   r10
+  41  GetField r11, r10, .0
+  42  GetField r12, r10, .1
+  43  Release  r10
+  44  GetField r10, r7, .1
+  45  Release  r7
+  46  LoadI    r7, 9
+  47  SetField r0, r7, .0
+  48  New      r13, [i32, i32]
+  49  LoadI    r7, 1
+  50  SetField r13, r7, .0
+  51  LoadI    r7, 2
+  52  SetField r13, r7, .1
+  53  New      r14, P
+  54  LoadI    r16, 3
+  55  LoadI    r17, 4
+  56  Retain   r14
+  57  Move     r15, r14
+  58  Call     r15, @P.constructor
+  59  Call     r13, @dist
+  60  GetField r7, r0, .0
+  61  GetField r14, r0, .1
+  62  Release  r0
+  63  LogI     r1
+  64  LogSep   
+  65  LogF64   r2
+  66  LogSep   
+  67  LogI     r4
+  68  LogSep   
+  69  LogI     r5
+  70  LogSep   
+  71  LogI     r3
+  72  LogSep   
+  73  LogI     r6
+  74  LogSep   
+  75  LogI     r8
+  76  LogSep   
+  77  LogI     r9
+  78  LogSep   
+  79  LogI     r13
+  80  LogSep   
+  81  LogI     r7
+  82  LogSep   
+  83  LogF64   r14
+  84  LogSep   
+  85  LogF64   r11
+  86  LogSep   
+  87  LogF64   r12
+  88  LogSep   
+  89  LogF64   r10
+  90  LogEnd   
+  91  LoadI    r0, 0
+  92  LoadI    r1, 10
+  93  LoadI    r2, 0
+  94  JGeIK    r2, 4, -> 108
+  96  New      r3, [i32, i32]
+  97  SubI32   r4, r1, r2
+  98  SetField r3, r4, .0
+  99  AddI32   r4, r0, r2
+ 100  SetField r3, r4, .1
+ 101  GetField r4, r3, .0
+ 102  GetField r5, r3, .1
+ 103  Release  r3
+ 104  AddI32K  r2, r2, 1
+ 105  Move     r1, r5
+ 106  Move     r0, r4
+ 107  Jmp      -> 94
+ 108  LogI     r0
+ 109  LogSep   
+ 110  LogI     r1
+ 111  LogEnd   
+ 112  RetV     
 func @P.constructor(ref P, i, i) -> void nregs=3
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
-   2  RetV     
+   2  Release  r0
+   3  RetV     
 func @minmax(i, i) -> ref [i32, i32] nregs=3
    0  JLeI     r1, r0, -> 6
    2  New      r2, [i32, i32]
@@ -120,12 +131,14 @@ func @minmax(i, i) -> ref [i32, i32] nregs=3
    7  SetField r2, r1, .0
    8  SetField r2, r0, .1
    9  Ret      r2
-func @dist(ref [i32, i32], ref P) -> i nregs=4
+func @dist(ref [i32, i32], ref P) -> i nregs=5
    0  GetField r2, r0, .0
-   1  GetField r0, r0, .1
-   2  GetField r3, r1, .0
-   3  GetField r1, r1, .1
-   4  AddI32   r0, r2, r0
-   5  AddI32   r0, r0, r3
-   6  AddI32   r0, r0, r1
-   7  Ret      r0
+   1  GetField r3, r0, .1
+   2  Release  r0
+   3  GetField r0, r1, .0
+   4  GetField r4, r1, .1
+   5  Release  r1
+   6  AddI32   r1, r2, r3
+   7  AddI32   r0, r1, r0
+   8  AddI32   r0, r0, r4
+   9  Ret      r0

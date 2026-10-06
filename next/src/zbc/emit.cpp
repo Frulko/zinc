@@ -613,6 +613,8 @@ struct FnEmitter {
         put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
         return true;
       }
+      case IrOp::Retain: put(encABC(Op::Retain, R(i.args[0]))); return true;
+      case IrOp::Release: put(encABC(Op::Release, R(i.args[0]))); return true;
       case IrOp::ArrNew: put(encAD(Op::New, d, vtOf(i.ty).ref)); return true;
       case IrOp::ArrGet: put(encABC(Op::ArrGet, d, R(i.args[0]), R(i.args[1]))); return true;
       case IrOp::ArrSet: put(encABC(Op::ArrSet, R(i.args[0]), R(i.args[1]), R(i.args[2]))); return true;

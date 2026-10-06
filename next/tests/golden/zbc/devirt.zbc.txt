@@ -4,22 +4,30 @@ class Unused : Base { i }
   vtable .get -> @Unused.get
 func @main() -> void nregs=2
    0  New      r0, Base
-   1  Move     r1, r0
-   2  Call     r1, @Base.constructor
-   3  Call     r0, @Base.get
-   4  LogI     r0
-   5  LogEnd   
-   6  RetV     
-func @Base.get(ref Base) -> i nregs=1
-   0  GetField r0, r0, .0
-   1  Ret      r0
+   1  Retain   r0
+   2  Move     r1, r0
+   3  Call     r1, @Base.constructor
+   4  Call     r0, @Base.get
+   5  LogI     r0
+   6  LogEnd   
+   7  RetV     
+func @Base.get(ref Base) -> i nregs=2
+   0  GetField r1, r0, .0
+   1  Release  r0
+   2  Ret      r1
 func @Base.constructor(ref Base) -> void nregs=2
    0  LoadI    r1, 1
    1  SetField r0, r1, .0
-   2  RetV     
+   2  Release  r0
+   3  RetV     
 func @Unused.get(ref Unused) -> i nregs=1
-   0  LoadI    r0, 99
-   1  Ret      r0
-func @Unused.constructor(ref Unused) -> void nregs=1
-   0  Call     r0, @Base.constructor
-   1  RetV     
+   0  Release  r0
+   1  LoadI    r0, 99
+   2  Ret      r0
+func @Unused.constructor(ref Unused) -> void nregs=2
+   0  Move     r1, r0
+   1  Retain   r1
+   2  Release  r0
+   3  Move     r0, r1
+   4  Call     r0, @Base.constructor
+   5  RetV     

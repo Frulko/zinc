@@ -26,7 +26,7 @@ int builtinArity(Builtin b) {
 const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
       "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "instof", "call", "callvirt", "builtin", "new", "getfield", "setfield",
-      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "rt",
+      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "retain", "release", "rt",
       "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
 }
@@ -52,6 +52,7 @@ std::uint8_t effects(const Module& m, const Inst& i) {
   switch (i.op) {
     case IrOp::Call: case IrOp::CallVirt: case IrOp::Builtin: return kReads | kWrites | kThrows;
     case IrOp::Rt: return kReads | kWrites | kThrows | kAllocs;
+    case IrOp::Retain: case IrOp::Release: return kWrites;
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
     case IrOp::New: case IrOp::ArrNew: case IrOp::StrConcat: case IrOp::ToStr: return kAllocs;
     case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: case IrOp::InstOf: return kReads;
@@ -398,6 +399,12 @@ struct Verifier {
       case IrOp::StrLen:
         if (!arity(1) || m.types[tyOf(i.args[0])].k != Type::K::Str) return err.empty() ? fail(b, ii, "strlen needs a string") : false;
         break;
+      case IrOp::Retain: case IrOp::Release: {
+        if (!arity(1)) return false;
+        Type::K k = m.types[tyOf(i.args[0])].k;
+        if (k != Type::K::Ref && k != Type::K::Str && k != Type::K::Array && k != Type::K::Map && k != Type::K::Set) return fail(b, ii, "retain or release of a value that is not a reference");
+        break;
+      }
       case IrOp::Rt: {
         if (i.sym >= static_cast<std::uint32_t>(zn::Rt::Count)) return fail(b, ii, "unknown runtime call");
         const RtInfo& ri = rtInfo(static_cast<zn::Rt>(i.sym));

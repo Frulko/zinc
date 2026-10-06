@@ -146,7 +146,7 @@ double parseFloatJs(const StrObj* s) {
 }
 
 // Stable merge sort; `cmp(a, b) > 0` puts b first. Fails when the comparator does.
-bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, Slot* scratch) {
+bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, bool refs, Slot* scratch) {
   std::size_t n = v.size();
   std::vector<Slot> tmp(n);
   for (std::size_t width = 1; width < n; width *= 2) {
@@ -154,7 +154,7 @@ bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, Slot*
       std::size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n), i = lo, j = mid, k = lo;
       while (i < mid && j < hi) {
         double c;
-        if (!m.callComparator(cmp, fn, v[i], v[j], scratch, c)) return false;
+        if (!m.callComparator(cmp, fn, v[i], v[j], refs, scratch, c)) return false;
         tmp[k++] = c > 0 ? v[j++] : v[i++];
       }
       while (i < mid) tmp[k++] = v[i++];
@@ -306,7 +306,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       auto* o = reinterpret_cast<Obj*>(a[0]);
       NN(o);
       auto* cls = const_cast<ClassRT*>(o->cls);
-      if (!cls->nameStr) cls->nameStr = m.newStr(cls->name.data(), cls->name.size());
+      if (!cls->nameStr) { cls->nameStr = m.newStr(cls->name.data(), cls->name.size()); cls->nameStr->rc = kImmortal; }
       a[0] = P(cls->nameStr);
       return nullptr;
     }
@@ -481,7 +481,8 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       auto* fn = reinterpret_cast<Obj*>(a[1]);
       const Func* cmp = m.findComparator(fn, m.mod->classes[o->cls->id].elem);
       if (!cmp) return "not a comparator";
-      if (!mergeSort(m, o->v, cmp, fn, scratch)) return m.error.c_str();
+      if (!mergeSort(m, o->v, cmp, fn, o->cls->elemRef, scratch)) return m.error.c_str();
+      m.retain(o);  // the result is a new reference to the same array
       return nullptr;
     }
     case Rt::ArrSlice: {
@@ -490,10 +491,11 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       std::int64_t n = static_cast<std::int64_t>(o->v.size()), from = clampRel(I(a[1]), n), to = clampRel(I(a[2]), n);
       ArrObj* r = m.newArr(o->cls);
       if (to > from) r->v.assign(o->v.begin() + from, o->v.begin() + to);
+      if (o->cls->elemRef) for (Slot e : r->v) m.retain(reinterpret_cast<Obj*>(e));
       a[0] = P(r);
       return nullptr;
     }
-    case Rt::ArrReverse: { ArrObj* o = A(a[0]); NN(o); std::reverse(o->v.begin(), o->v.end()); return nullptr; }
+    case Rt::ArrReverse: { ArrObj* o = A(a[0]); NN(o); std::reverse(o->v.begin(), o->v.end()); m.retain(o); return nullptr; }
     case Rt::ArrIndexOf: case Rt::ArrIncludes: {
       ArrObj* o = A(a[0]);
       NN(o);
@@ -514,11 +516,54 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 
     // ---- Map and Set
     case Rt::MapGet: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); std::int32_t e = o->t.find(a[1]); a[0] = e < 0 ? 0 : o->t.vals[static_cast<std::size_t>(e)]; return nullptr; }
-    case Rt::MapSet: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); o->t.put(a[1], a[2]); return nullptr; }
-    case Rt::SetAdd: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); o->t.put(a[1], 0); return nullptr; }
+    case Rt::MapSet: {  // the key and the value are consumed: stored, or released when the key was already there
+      MapObj* o = M(a[0]);
+      NN(o);
+      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
+      std::int32_t e = o->t.find(a[1]);
+      if (e >= 0) {
+        Slot old = o->t.vals[static_cast<std::size_t>(e)];
+        o->t.vals[static_cast<std::size_t>(e)] = a[2];
+        if (o->cls->elemRef) m.releaseSlot(old);
+        if (o->cls->keyRef) m.releaseSlot(a[1]);
+      } else o->t.put(a[1], a[2]);
+      m.retain(o);  // the result is a new reference to the same Map
+      return nullptr;
+    }
+    case Rt::SetAdd: {
+      MapObj* o = M(a[0]);
+      NN(o);
+      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
+      if (o->t.find(a[1]) >= 0) { if (o->cls->keyRef) m.releaseSlot(a[1]); } else o->t.put(a[1], 0);
+      m.retain(o);
+      return nullptr;
+    }
     case Rt::MapHas: case Rt::SetHas: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); a[0] = boolSlot(o->t.find(a[1]) >= 0); return nullptr; }
-    case Rt::MapDelete: case Rt::SetDelete: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); a[0] = boolSlot(o->t.erase(a[1])); return nullptr; }
-    case Rt::MapClear: case Rt::SetClear: { MapObj* o = M(a[0]); NN(o); o->t.clear(); return nullptr; }
+    case Rt::MapDelete: case Rt::SetDelete: {
+      MapObj* o = M(a[0]);
+      NN(o);
+      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
+      std::int32_t e = o->t.find(a[1]);
+      Slot key = 0, val = 0;
+      if (e >= 0) { key = o->t.keys[static_cast<std::size_t>(e)]; if (o->t.hasVals) val = o->t.vals[static_cast<std::size_t>(e)]; o->t.erase(a[1]); }
+      bool found = e >= 0;
+      a[0] = boolSlot(found);
+      if (found) { if (o->t.hasVals && o->cls->elemRef) m.releaseSlot(val); if (o->cls->keyRef) m.releaseSlot(key); }
+      return nullptr;
+    }
+    case Rt::MapClear: case Rt::SetClear: {
+      MapObj* o = M(a[0]);
+      NN(o);
+      Table old = std::move(o->t);
+      o->t = Table();
+      o->t.kk = old.kk; o->t.hasVals = old.hasVals;
+      for (std::size_t i = 0; i < old.keys.size(); ++i) {
+        if (old.dead[i]) continue;
+        if (old.hasVals && o->cls->elemRef) m.releaseSlot(old.vals[i]);
+        if (o->cls->keyRef) m.releaseSlot(old.keys[i]);
+      }
+      return nullptr;
+    }
     case Rt::MapSize: case Rt::SetSize: { MapObj* o = M(a[0]); NN(o); a[0] = o->t.live; return nullptr; }
     case Rt::MapKeys: case Rt::MapValues: case Rt::SetValues: {
       MapObj* o = M(a[0]);
@@ -526,7 +571,13 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       const Table& t = o->t;
       ArrObj* r = m.newArr(id == Rt::MapKeys ? o->cls->keysArray : o->cls->valuesArray);
       r->v.reserve(t.live);
-      for (std::size_t i = 0; i < t.keys.size(); ++i) if (!t.dead[i]) r->v.push_back(id == Rt::MapValues ? t.vals[i] : t.keys[i]);
+      bool refs = id == Rt::MapValues ? o->cls->elemRef : o->cls->keyRef;
+      for (std::size_t i = 0; i < t.keys.size(); ++i) {
+        if (t.dead[i]) continue;
+        Slot e = id == Rt::MapValues ? t.vals[i] : t.keys[i];
+        if (refs) m.retain(reinterpret_cast<Obj*>(e));
+        r->v.push_back(e);
+      }
       a[0] = P(r);
       return nullptr;
     }

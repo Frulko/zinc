@@ -52,6 +52,7 @@ enum class IrOp : std::uint8_t {
   ArrNew,                                                   // a new empty array, Map or Set of the result type
   ArrGet, ArrSet, ArrLen, ArrPush, ArrPop,
   StrConcat, ToStr, StrLen,
+  Retain, Release,                                          // one more / one less reference to a string, array, Map, Set or object (immortal and null values ignore them); inserted by insertRc
   Rt,                                                       // sym = zn::Rt (zn/runtime.h): string, array, Map and Set operations; args[0] is the receiver
   Br, CondBr, Ret, Throw, Unreachable,                      // terminators
 };
@@ -140,6 +141,9 @@ std::string typeName(const Module& m, TypeId t);
 std::string dump(const Module& m);
 // Empty when well formed; otherwise the first problem found (function, block and instruction named).
 std::string verify(const Module& m);
+
+// Inserts Retain and Release so that every reference is released exactly once on every path (see rc.cpp for the conventions).
+void insertRc(Module& m);
 
 // Lowers a checked program. Fails with diagnostics (Z0005) for constructs the IR does not cover yet.
 struct LowerResult {

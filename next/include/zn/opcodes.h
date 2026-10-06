@@ -12,6 +12,7 @@
 // the class) | InstanceOf A,class (r[A] = r[A] is a non-null instance of the class, as an integer).
 // Strings, arrays, Map and Set are objects of builtin classes: LoadStr A,string | New A,class (an empty array, Map or Set) |
 // ArrGet A,B,C (A = B[C]) | ArrSet A,B,C (A[B] = C) | ArrLen A,B | ArrPush A,B,C (B.push(C), A = new length) | LogStr A |
+// Retain A / Release A (one more / one less reference to the object, string, array, Map or Set in r[A]; null and immortal values are ignored) |
 // Rt A,id (the runtime call `id` of zn/runtime.h: arguments in r[A..], result in r[A], a call window like Call).
 #include <cstdint>
 
@@ -51,7 +52,7 @@
   X(Downcast, AD, _, _, M) X(EqR, ABC, M, M, I) X(NeR, ABC, M, M, I) X(LoadNull, AD, _, _, M) X(InstanceOf, AD, _, _, M)                                            \
   X(GetGlobal, AD, _, _, M) X(SetGlobal, AD, _, _, M)                                                           \
   X(LoadStr, AD, _, _, M) X(ArrGet, ABC, M, I, M) X(ArrSet, ABC, I, M, _) X(ArrLen, ABC, M, _, I) X(ArrPush, ABC, M, M, I) \
-  X(Rt, AD, _, _, M) X(LogStr, ABC, _, _, _)                                                                    \
+  X(Rt, AD, _, _, M) X(LogStr, ABC, _, _, _) X(Retain, ABC, _, _, _) X(Release, ABC, _, _, _)                                                                    \
   X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
   X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)
 

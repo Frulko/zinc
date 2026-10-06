@@ -4,6 +4,7 @@
 // reference counting is ZN-018.
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "vm/vm.h"
@@ -34,14 +35,18 @@ struct ClassRT {
   std::vector<const Func*> vtable;  // by selector id; empty for interfaces, abstract classes and builtin classes
   KeyKind elemKind = KeyKind::Int;  // array and Set elements, Map values
   KeyKind keyKind = KeyKind::Int;   // Map keys, Set elements
+  std::vector<std::uint8_t> fieldRef;    // per field: holds a reference (released when the object dies, and when overwritten)
+  bool elemRef = false, keyRef = false;  // array and Set elements / Map values, and Map keys, are references
   const ClassRT* valuesArray = nullptr;  // the array class of the elements (Map.values, Set.values)
   const ClassRT* keysArray = nullptr;    // the array class of a Map's keys
 };
 
+inline constexpr std::uint32_t kImmortal = 0xFFFFFFFFu;  // a reference count that never changes (string constants)
+
 struct Obj {
   const ClassRT* cls;
-  std::uint32_t rc;
-  std::uint32_t pad;
+  std::uint32_t rc;   // references held; new objects start at 1
+  std::uint32_t pad;  // index in Machine::allocated
   Slot* fields() { return reinterpret_cast<Slot*>(this + 1); }
 };
 
@@ -92,9 +97,12 @@ struct Machine {
   std::vector<StrObj*> strConsts;
   const ClassRT* strClass = nullptr;
   const ClassRT* strArray = nullptr;  // string[]
-  std::vector<Obj*> allocated;
+  std::vector<Obj*> allocated;      // every live object, so the leftovers can be counted and freed at exit
+  bool traceFree = false;           // print the class of each object as it is destroyed (debugging, destruction order tests)
   std::string* out = nullptr;
   std::string error;
+  std::string trace;
+  std::vector<std::uint8_t> globalRef;  // per global: holds a reference
   Slot* stack = nullptr;
   std::vector<Frame> frames;
   Frame* fp = nullptr;
@@ -103,13 +111,29 @@ struct Machine {
   ~Machine();
   bool load(const zbc::Module& m, std::string& err);
 
+  std::unordered_map<const Obj*, std::uint32_t> serials;  // with traceFree: the allocation number of each live object
+  std::uint32_t nextSerial = 0;
+  void track(Obj* o) {
+    o->pad = static_cast<std::uint32_t>(allocated.size());
+    allocated.push_back(o);
+    if (traceFree) serials[o] = nextSerial++;
+  }
+  void retain(Obj* o) { if (o && o->rc != kImmortal) ++o->rc; }
+  bool release(Obj* o) {  // false: the count was already zero (a bug in the bytecode)
+    if (!o || o->rc == kImmortal) return true;
+    if (o->rc == 0) return false;
+    if (--o->rc == 0) destroy(o);
+    return true;
+  }
+  void destroy(Obj* o);
+  void releaseSlot(Slot s) { release(reinterpret_cast<Obj*>(s)); }
   StrObj* newStr(const char* p, std::size_t n);
   ArrObj* newArr(const ClassRT* cls);
   // Runs `callee` with its frame at `base` (arguments already in base[0..]) until it returns; the result is in base[0].
   bool exec(const Func* callee, Slot* base);
   // The `call(elem, elem): f64` method of a function object (a comparator), or null. The verifier proved the static class has one.
   const Func* findComparator(const Obj* fn, zbc::VType elem) const;
-  bool callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, Slot* scratch, double& result);
+  bool callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, bool refs, Slot* scratch, double& result);
 };
 
 // Runs one runtime call: arguments in a[0..], result in a[0]; `scratch` is free stack for callbacks. Returns null, or the

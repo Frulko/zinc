@@ -7,19 +7,22 @@ func @main() -> void nregs=3
    2  LoadI    r0, 5
    3  SetGlobalr0, g1
    4  New      r0, Counter
-   5  Move     r1, r0
-   6  Call     r1, @Counter.constructor
-   7  Call     r1, @Counter.make
-   8  GetField r0, r0, .0
-   9  GetField r1, r1, .0
-  10  GetGlobalr2, g0
-  11  LogI     r0
-  12  LogSep   
-  13  LogI     r1
-  14  LogSep   
-  15  LogI     r2
-  16  LogEnd   
-  17  RetV     
+   5  Retain   r0
+   6  Move     r1, r0
+   7  Call     r1, @Counter.constructor
+   8  Call     r1, @Counter.make
+   9  GetField r2, r0, .0
+  10  Release  r0
+  11  GetField r0, r1, .0
+  12  Release  r1
+  13  GetGlobalr1, g0
+  14  LogI     r2
+  15  LogSep   
+  16  LogI     r0
+  17  LogSep   
+  18  LogI     r1
+  19  LogEnd   
+  20  RetV     
 func @Counter.constructor(ref Counter) -> void nregs=3
    0  GetGlobalr1, g0
    1  AddI32K  r1, r1, 1
@@ -28,9 +31,11 @@ func @Counter.constructor(ref Counter) -> void nregs=3
    4  GetGlobalr2, g1
    5  MulI32   r1, r1, r2
    6  SetField r0, r1, .0
-   7  RetV     
+   7  Release  r0
+   8  RetV     
 func @Counter.make() -> ref Counter nregs=2
    0  New      r0, Counter
-   1  Move     r1, r0
-   2  Call     r1, @Counter.constructor
-   3  Ret      r0
+   1  Retain   r0
+   2  Move     r1, r0
+   3  Call     r1, @Counter.constructor
+   4  Ret      r0

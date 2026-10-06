@@ -51,6 +51,9 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     diags = low.diags;
     if (diags.empty()) {
+      zn::ir::insertRc(low.module);
+      std::string badIr = zn::ir::verify(low.module);
+      if (!badIr.empty()) { std::fprintf(stderr, "internal error: invalid IR after reference counting: %s\n", badIr.c_str()); return 3; }
       auto em = zn::zbc::emit(low.module);
       for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
       if (!em.errors.empty()) return 1;
@@ -82,9 +85,12 @@ int main(int argc, char** argv) {
       if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
     } else if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::string out;
-    auto res = zn::vm::run(zm, out);
+    bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
+    auto res = zn::vm::run(zm, out, trace);
     std::fwrite(out.data(), 1, out.size(), stdout);
+    if (trace) std::fwrite(res.trace.data(), 1, res.trace.size(), stderr);
     if (!res.ok) { std::fprintf(stderr, "runtime error: %s\n", res.error.c_str()); return 1; }
+    if (std::getenv("ZN_LEAK_CHECK") && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=zbc")) {  // zinc --emit=zbc <file>: disassembly
@@ -147,12 +153,13 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
     return 0;
   }
-  if (argc == 3 && !std::strcmp(argv[1], "--emit=ir")) {  // zinc --emit=ir <file>: parse, check, lower, verify, dump
+  if (argc == 3 && (!std::strcmp(argv[1], "--emit=ir") || !std::strcmp(argv[1], "--emit=ir-rc"))) {  // zinc --emit=ir <file>: parse, check, lower, verify, dump
     zn::frontend::Program prog;
     zn::frontend::Checked checked;
     if (!loadChecked(argv[2], prog, checked)) return 1;
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     if (low.diags.empty()) {
+      if (!std::strcmp(argv[1], "--emit=ir-rc")) zn::ir::insertRc(low.module);
       std::string bad = zn::ir::verify(low.module);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); return 3; }
       std::fputs(zn::ir::dump(low.module).c_str(), stdout);

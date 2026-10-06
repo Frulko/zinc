@@ -91,6 +91,56 @@ KeyKind keyKindOf(const zbc::Module& m, zbc::VType t) {
 
 }  // namespace
 
+// The last reference to `root` is gone: destroy it and, depth first, whatever only it kept alive. Order, as with the native
+// runtime's RAII: an object's fields in reverse order of declaration, an array's elements first to last, a Map's entries
+// first to last (key, then value).
+void Machine::destroy(Obj* root) {
+  std::vector<Obj*> pending;  // references still to release; the top is released next
+  auto drop = [&](Obj* o) { if (o && o->rc != kImmortal) pending.push_back(o); };
+  auto freeNode = [&](Obj* o) {
+    if (traceFree) { trace += "free " + o->cls->name + " #" + std::to_string(serials[o]) + "\n"; serials.erase(o); }
+    switch (o->cls->kind) {
+      case zbc::CKind::Object: {
+        Slot* f = o->fields();
+        for (std::uint32_t k = 0; k < o->cls->nfields; ++k) if (o->cls->fieldRef[k]) drop(reinterpret_cast<Obj*>(f[k]));  // pushed first-to-last: the last field is released first
+        break;
+      }
+      case zbc::CKind::Array: {
+        auto* a = static_cast<ArrObj*>(o);
+        if (o->cls->elemRef) for (std::size_t k = a->v.size(); k-- > 0;) drop(reinterpret_cast<Obj*>(a->v[k]));
+        break;
+      }
+      case zbc::CKind::Map: case zbc::CKind::Set: {
+        auto* mo = static_cast<MapObj*>(o);
+        const Table& t = mo->t;
+        for (std::size_t k = t.keys.size(); k-- > 0;) {
+          if (t.dead[k]) continue;
+          if (t.hasVals && o->cls->elemRef) drop(reinterpret_cast<Obj*>(t.vals[k]));
+          if (o->cls->keyRef) drop(reinterpret_cast<Obj*>(t.keys[k]));
+        }
+        break;
+      }
+      case zbc::CKind::String: break;
+    }
+    std::uint32_t at = o->pad;  // leave the registry in O(1)
+    allocated[at] = allocated.back();
+    allocated[at]->pad = at;
+    allocated.pop_back();
+    switch (o->cls->kind) {
+      case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
+      case zbc::CKind::Map: case zbc::CKind::Set: delete static_cast<MapObj*>(o); break;
+      default: std::free(o); break;
+    }
+  };
+  freeNode(root);
+  while (!pending.empty()) {
+    Obj* o = pending.back();
+    pending.pop_back();
+    if (o->rc == 0) continue;  // released more often than held: ignore here, a Release instruction traps on it
+    if (--o->rc == 0) freeNode(o);
+  }
+}
+
 Machine::~Machine() {
   for (Obj* o : allocated) {
     switch (o->cls->kind) {
@@ -111,6 +161,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   stack = static_cast<Slot*>(std::calloc(kStackSlots, sizeof(Slot)));
   if (!stack) { err = "out of memory"; return false; }
   globals.assign(m.globals.size(), 0);
+  for (const zbc::VType& gt : m.globals) globalRef.push_back(gt.cls == zbc::Cls::R);
   classes.resize(m.classes.size());
   std::map<std::pair<std::uint8_t, std::uint32_t>, const ClassRT*> arrayOf;  // (class of the element's VType, ref) -> array class
   auto arrKey = [](zbc::VType t) { return std::make_pair(static_cast<std::uint8_t>(t.cls), t.cls == zbc::Cls::R ? std::uint32_t{t.ref} : 0u); };
@@ -121,6 +172,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     c.name = ci.name;
     c.kind = ci.kind;
     c.nfields = static_cast<std::uint32_t>(ci.fields.size());
+    for (const zbc::VType& ft : ci.fields) c.fieldRef.push_back(ft.cls == zbc::Cls::R);
     c.supers = ci.supers;
     if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract) {
       c.vtable.assign(m.selectors.size(), nullptr);
@@ -133,6 +185,8 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     if (ci.kind != zbc::CKind::Object && ci.kind != zbc::CKind::String) {
       c.elemKind = keyKindOf(m, ci.elem);
       c.keyKind = ci.kind == zbc::CKind::Map ? keyKindOf(m, ci.key) : c.elemKind;
+      c.elemRef = ci.elem.cls == zbc::Cls::R;
+      c.keyRef = (ci.kind == zbc::CKind::Map ? ci.key : ci.elem).cls == zbc::Cls::R;
     }
   }
   for (std::size_t i = 0; i < classes.size(); ++i) {
@@ -143,7 +197,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   }
   if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
   if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
-  for (const std::string& s : m.strings) strConsts.push_back(newStr(s.data(), s.size()));
+  for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; strConsts.push_back(so); }
   frames.resize(kMaxCallDepth);
   fp = frames.data();
   framesEnd = frames.data() + kMaxCallDepth;
@@ -153,7 +207,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
 StrObj* Machine::newStr(const char* p, std::size_t n) {
   auto* s = static_cast<StrObj*>(std::malloc(sizeof(StrObj) + n + 1));
   if (!s) std::abort();
-  s->cls = strClass; s->rc = 0; s->pad = 0;
+  s->cls = strClass; s->rc = 1;
   s->len = static_cast<std::uint32_t>(n);
   char* d = reinterpret_cast<char*>(s + 1);
   if (n) std::memcpy(d, p, n);
@@ -167,14 +221,14 @@ StrObj* Machine::newStr(const char* p, std::size_t n) {
   }
   s->ascii = ascii;
   s->u16len = units;
-  allocated.push_back(s);
+  track(s);
   return s;
 }
 
 ArrObj* Machine::newArr(const ClassRT* cls) {
   auto* o = new ArrObj();
-  o->cls = cls; o->rc = 0; o->pad = 0;
-  allocated.push_back(o);
+  o->cls = cls; o->rc = 1;
+  track(o);
   return o;
 }
 
@@ -188,7 +242,9 @@ const Func* Machine::findComparator(const Obj* fn, zbc::VType elem) const {
   return nullptr;
 }
 
-bool Machine::callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, Slot* scratch, double& result) {
+bool Machine::callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, bool refs, Slot* scratch, double& result) {
+  retain(fn);  // the callee owns its parameters and releases them
+  if (refs) { retain(reinterpret_cast<Obj*>(a)); retain(reinterpret_cast<Obj*>(b)); }
   scratch[0] = reinterpret_cast<Slot>(fn);
   scratch[1] = a;
   scratch[2] = b;
@@ -365,17 +421,17 @@ L_New: {
   if (cr->kind == zbc::CKind::Array) { r[A] = reinterpret_cast<Slot>(newArr(cr)); NEXT(); }
   if (cr->kind == zbc::CKind::Map || cr->kind == zbc::CKind::Set) {
     auto* o = new MapObj();
-    o->cls = cr; o->rc = 0; o->pad = 0;
+    o->cls = cr; o->rc = 1;
     o->t.kk = cr->keyKind;
     o->t.hasVals = cr->kind == zbc::CKind::Map;
-    allocated.push_back(o);
+    track(o);
     r[A] = reinterpret_cast<Slot>(o);
     NEXT();
   }
   auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
   if (!o) TRAP("out of memory");
-  o->cls = cr;
-  allocated.push_back(o);
+  o->cls = cr; o->rc = 1;
+  track(o);
   r[A] = reinterpret_cast<Slot>(o);
   NEXT();
 }
@@ -388,7 +444,9 @@ L_GetField: {
 L_SetField: {
   auto* o = reinterpret_cast<Obj*>(r[A]);
   if (__builtin_expect(!o, 0)) TRAP("null reference");
+  Slot old = o->fields()[C];
   o->fields()[C] = r[B];
+  if (o->cls->fieldRef[C]) releaseSlot(old);
   NEXT();
 }
 L_CallVirt: {
@@ -414,7 +472,9 @@ L_InstanceOf: {
 L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
 L_NeR: r[A] = Slot{r[B] != r[C]}; NEXT();
 L_GetGlobal: r[A] = globals[dOf(w)]; NEXT();
-L_SetGlobal: globals[dOf(w)] = r[A]; NEXT();
+L_SetGlobal: { Slot old = globals[dOf(w)]; globals[dOf(w)] = r[A]; if (globalRef[dOf(w)]) releaseSlot(old); NEXT(); }
+L_Retain: retain(reinterpret_cast<Obj*>(r[A])); NEXT();
+L_Release: if (__builtin_expect(!release(reinterpret_cast<Obj*>(r[A])), 0)) TRAP("release of an object that is already dead"); NEXT();
 L_LoadStr: r[A] = reinterpret_cast<Slot>(strConsts[dOf(w)]); NEXT();
 L_ArrGet: {
   auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
@@ -428,7 +488,7 @@ L_ArrSet: {
   if (__builtin_expect(!o, 0)) TRAP("null reference");
   Slot i = r[B];
   if (__builtin_expect(i >= o->v.size(), 0)) { if (i != o->v.size()) TRAP("array index out of bounds"); o->v.push_back(r[C]); }  // writing at length appends, like the native runtime
-  else o->v[i] = r[C];
+  else { Slot old = o->v[i]; o->v[i] = r[C]; if (o->cls->elemRef) releaseSlot(old); }
   NEXT();
 }
 L_ArrLen: {
@@ -472,13 +532,19 @@ L_LogEnd: *out += '\n'; NEXT();
 #undef DIVLIKE
 }
 
-Result run(const zbc::Module& mod, std::string& out) {
+Result run(const zbc::Module& mod, std::string& out, bool traceFree) {
   Machine m;
   m.out = &out;
+  m.traceFree = traceFree;
   Result res;
   std::string err;
   if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
   if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; }
+  else {
+    for (std::size_t g = m.globals.size(); g-- > 0;) if (m.globalRef[g]) { Slot v = m.globals[g]; m.globals[g] = 0; m.releaseSlot(v); }  // statics die in reverse order of definition
+    for (const Obj* o : m.allocated) if (o->rc != kImmortal) ++res.leaked;
+  }
+  res.trace = std::move(m.trace);
   return res;
 }
 

@@ -79,4 +79,16 @@ inline const char* rtMember(const RtInfo& r) { return std::strchr(r.name, '.') +
 // Whether the row belongs to the owner ("string", "Array", "Map", "Set").
 inline bool rtOwnedBy(const RtInfo& r, const char* owner) { std::size_t n = std::strlen(owner); return std::strncmp(r.name, owner, n) == 0 && r.name[n] == '.'; }
 
+// Ownership (reference counting, ZN-018). A runtime call borrows its arguments except the ones it stores, which it consumes
+// (the caller gives up its reference): the key and value of Map.set, the element of Set.add. A result is a new reference
+// except Map.get, which lends the stored value (the caller retains it if it keeps it).
+inline bool rtConsumes(Rt id, unsigned paramIndex) {
+  switch (id) {
+    case Rt::MapSet: return paramIndex == 1 || paramIndex == 2;
+    case Rt::SetAdd: return paramIndex == 1;
+    default: return false;
+  }
+}
+inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
+
 }  // namespace zn

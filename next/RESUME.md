@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-018 (explicit RC insertion and elision, milestone M3). Nothing in progress.
+- Ready: none; next by ordinal is ZN-019 (exceptions in the IR, milestone M3). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-018.
+`/loop /zn-start` resumes with ZN-019.
 
 ## Watch out
 
@@ -169,3 +169,12 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Function values print their name: `ClassName` returns the closure class's name (`lambdaN:name`, `fnref name`, or plain `lambdaN` when anonymous); `Checked::lambdaNames` gives a function expression the name JavaScript would infer (`const f = ...`, `f = ...`, `{ f: ... }`, `f = ...` field initialisers). Arrow functions passed or stored anonymously print `[Function (anonymous)]`.
 - Parameter properties now come before the declared fields in a class's field order (as the TypeScript-to-JavaScript transform does), so objects print like Node; layout and goldens changed accordingly.
 - Still open: strings with newlines longer than 16 characters are not split, functions of other kinds (methods as values) are not supported by the language yet.
+
+## ZN-018 notes (reference counting)
+
+- `ir::insertRc` (src/ir/rc.cpp) runs after lowering in the compile pipeline (`--emit=ir` shows the IR before it, `--emit=ir-rc` after). Conventions: every string, array, Map, Set and object value is owned once; parameters, block parameters and results of New/ArrNew/calls/string ops/runtime calls are new references; loads (GetField, GetGlobal, ArrGet, Map.get) and RefCast lend, so the pass retains them. Stores, call arguments, `ret` and edge arguments consume; a value used again after a consuming use is retained first; a value is released after its last use or on the edge where it stops being live (critical edges are split). String constants and null are never retained or released. Runtime-call ownership is in `include/zn/runtime.h` (`rtConsumes`, `rtResultBorrowed`); calls that return their receiver (Map.set, Set.add, sort, reverse) return a new reference.
+- ZBC: `Retain A` / `Release A` (verified as reference registers). VM: counts in `Obj::rc` (immortal = 0xFFFFFFFF for constants), `Machine::destroy` releases iteratively in the order the native C++ runtime would: an object's fields in reverse declaration order, array elements first to last, Map entries first to last; SetField, SetGlobal and ArrSet release the value they overwrite; globals are released in reverse order when main returns; `ZN_LEAK_CHECK=1` makes `zinc run` fail when objects remain, `ZN_TRACE_FREE=1` prints one `free <class> #<allocation number>` line per destroyed object to stderr.
+- Differences from the old native runtime, deliberate: a local dies at its last use, not at the end of its scope (the destruction point is now a property of the IR). Cycles leak (a Button whose callback captures the button, cyclic data); there is no cycle warning yet (design 5.3).
+- Safety note: the verifier does not prove that Retain/Release balance. Compiler output is balanced (the whole corpus runs clean under ASan with zero leaks outside the two cyclic programs), but hand-written bytecode could release twice and free an object that is still in use. Do not run untrusted bytecode until a reference-count verifier exists (or the bundle is signed).
+- Elision so far is only "the last use consumes" (no retain, no release); borrowed parameters and load/store pairing are not optimised. Measured: the kernels run at the same speed as before.
+- Tests: `tests/t1/rc.sh` (leaks over the corpus, destruction order `tests/golden/rc/order.trace`).

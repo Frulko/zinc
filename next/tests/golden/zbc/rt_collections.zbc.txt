@@ -10,10 +10,10 @@ builtin Map<str, ref Box>
 builtin Set<ref Box>
 builtin Map<str, str[]>
 builtin Set<i32>
-func @main() -> void nregs=10
+func @main() -> void nregs=12
    0  New      r0, Map<i32, i32>
    1  LoadI    r1, 0
-   2  JGeIK    r1, 20, -> 22
+   2  JGeIK    r1, 20, -> 23
    4  LoadI    r2, 7
    5  RemI32   r3, r1, r2
    6  LoadI    r2, 7
@@ -30,484 +30,569 @@ func @main() -> void nregs=10
   17  AddI32   r4, r4, r1
   18  Move     r2, r0
   19  Rt       r2, Map.set
-  20  AddI32K  r1, r1, 1
-  21  Jmp      -> 2
-  22  Move     r1, r0
-  23  Rt       r1, Map.size
-  24  LoadI    r3, 0
-  25  Move     r4, r0
-  26  Move     r5, r3
-  27  Rt       r4, Map.has
-  28  JmpIfNot r4, -> 32
-  29  Move     r2, r0
-  30  Rt       r2, Map.get
-  31  Jmp      -> 33
-  32  LoadI    r2, -1
-  33  LoadI    r4, 3
-  34  Move     r5, r0
-  35  Move     r6, r4
-  36  Rt       r5, Map.has
-  37  JmpIfNot r5, -> 41
-  38  Move     r3, r0
-  39  Rt       r3, Map.get
-  40  Jmp      -> 42
-  41  LoadI    r3, -1
-  42  LoadI    r5, 6
-  43  Move     r6, r0
-  44  Move     r7, r5
-  45  Rt       r6, Map.has
-  46  JmpIfNot r6, -> 50
-  47  Move     r4, r0
-  48  Rt       r4, Map.get
-  49  Jmp      -> 51
-  50  LoadI    r4, -1
-  51  LoadI    r6, 100
-  52  Move     r7, r0
-  53  Move     r8, r6
-  54  Rt       r7, Map.has
-  55  JmpIfNot r7, -> 59
-  56  Move     r5, r0
-  57  Rt       r5, Map.get
-  58  Jmp      -> 60
-  59  LoadI    r5, -1
-  60  LoadI    r7, 4
-  61  Move     r6, r0
-  62  Rt       r6, Map.has
-  63  LoadI    r8, 7
-  64  Move     r7, r0
-  65  Rt       r7, Map.has
-  66  LogI     r1
-  67  LogSep   
-  68  LogI     r2
-  69  LogSep   
-  70  LogI     r3
-  71  LogSep   
-  72  LogI     r4
-  73  LogSep   
-  74  LogI     r5
-  75  LogSep   
-  76  LogBool  r6
-  77  LogSep   
-  78  LogBool  r7
-  79  LogEnd   
-  80  LoadI    r2, 3
-  81  Move     r1, r0
-  82  Rt       r1, Map.delete
-  83  LoadI    r3, 3
-  84  Move     r2, r0
-  85  Rt       r2, Map.delete
-  86  Move     r3, r0
-  87  Rt       r3, Map.size
-  88  LoadI    r5, 3
-  89  Move     r4, r0
-  90  Rt       r4, Map.has
-  91  LoadI    r6, 3
-  92  Move     r7, r0
-  93  Move     r8, r6
-  94  Rt       r7, Map.has
-  95  JmpIfNot r7, -> 99
-  96  Move     r5, r0
-  97  Rt       r5, Map.get
-  98  Jmp      -> 100
-  99  LoadI    r5, 0
- 100  LogBool  r1
- 101  LogSep   
- 102  LogBool  r2
- 103  LogSep   
- 104  LogI     r3
- 105  LogSep   
- 106  LogBool  r4
- 107  LogSep   
- 108  LogI     r5
- 109  LogEnd   
- 110  LoadI    r2, 3
- 111  LoadI    r3, 1
- 112  Move     r1, r0
- 113  Rt       r1, Map.set
- 114  LoadStr  r1, ""
- 115  Move     r2, r0
- 116  Rt       r2, Map.keys
- 117  LoadI    r3, 0
- 118  ArrLen   r4, r2
- 119  JLeI     r4, r3, -> 131
- 121  ArrGet   r4, r2, r3
- 122  Rt       r4, string.#i2s
- 123  LoadStr  r5, " "
- 124  Rt       r4, string.#concat
- 125  Move     r5, r4
- 126  Move     r4, r1
- 127  Rt       r4, string.#concat
- 128  AddI32K  r3, r3, 1
- 129  Move     r1, r4
- 130  Jmp      -> 118
- 131  LoadStr  r2, ""
- 132  Move     r3, r0
- 133  Rt       r3, Map.values
- 134  LoadI    r4, 0
- 135  ArrLen   r5, r3
- 136  JLeI     r5, r4, -> 148
- 138  ArrGet   r5, r3, r4
- 139  Rt       r5, string.#i2s
- 140  LoadStr  r6, " "
- 141  Rt       r5, string.#concat
- 142  Move     r6, r5
- 143  Move     r5, r2
- 144  Rt       r5, string.#concat
- 145  AddI32K  r4, r4, 1
- 146  Move     r2, r5
- 147  Jmp      -> 135
- 148  LoadStr  r3, "|"
- 149  LogStr   r1
- 150  LogSep   
- 151  LogStr   r3
- 152  LogSep   
- 153  LogStr   r2
- 154  LogEnd   
- 155  Move     r1, r0
- 156  Rt       r1, Map.clear
- 157  Move     r1, r0
- 158  Rt       r1, Map.size
- 159  LoadI    r3, 1
- 160  Move     r4, r0
- 161  Move     r5, r3
- 162  Rt       r4, Map.has
- 163  JmpIfNot r4, -> 167
- 164  Move     r2, r0
- 165  Rt       r2, Map.get
- 166  Jmp      -> 169
- 167  LoadI    r0, 7
- 168  Move     r2, r0
- 169  LogI     r1
- 170  LogSep   
- 171  LogI     r2
- 172  LogEnd   
- 173  New      r0, Map<str, i32>
- 174  LoadStr  r1, "the cat and the hat and the bat"
- 175  LoadStr  r2, " "
- 176  Rt       r1, string.split
- 177  LoadI    r2, 0
- 178  ArrLen   r3, r1
- 179  JLeI     r3, r2, -> 197
- 181  ArrGet   r4, r1, r2
- 182  Move     r5, r0
- 183  Move     r6, r4
- 184  Rt       r5, Map.has
- 185  JmpIfNot r5, -> 190
- 186  Move     r5, r0
- 187  Move     r6, r4
- 188  Rt       r5, Map.get
- 189  Jmp      -> 192
- 190  LoadI    r3, 0
- 191  Move     r5, r3
- 192  AddI32K  r5, r5, 1
- 193  Move     r3, r0
- 194  Rt       r3, Map.set
- 195  AddI32K  r2, r2, 1
- 196  Jmp      -> 178
- 197  LoadStr  r2, ""
- 198  Move     r3, r0
- 199  Rt       r3, Map.keys
- 200  LoadI    r4, 0
- 201  ArrLen   r5, r3
- 202  JLeI     r5, r4, -> 230
- 204  ArrGet   r6, r3, r4
- 205  LoadStr  r8, "="
- 206  Move     r7, r6
- 207  Rt       r7, string.#concat
- 208  Move     r8, r0
- 209  Move     r9, r6
- 210  Rt       r8, Map.has
- 211  JmpIfNot r8, -> 216
- 212  Move     r8, r0
- 213  Move     r9, r6
- 214  Rt       r8, Map.get
- 215  Jmp      -> 218
- 216  LoadI    r5, 0
- 217  Move     r8, r5
- 218  Rt       r8, string.#i2s
- 219  Move     r5, r7
- 220  Move     r6, r8
- 221  Rt       r5, string.#concat
- 222  LoadStr  r6, " "
- 223  Rt       r5, string.#concat
- 224  Move     r6, r5
- 225  Move     r5, r2
- 226  Rt       r5, string.#concat
- 227  AddI32K  r4, r4, 1
- 228  Move     r2, r5
- 229  Jmp      -> 201
- 230  Move     r3, r0
- 231  Rt       r3, Map.size
- 232  LogI     r3
- 233  LogSep   
- 234  LogStr   r2
- 235  LogEnd   
- 236  New      r0, Set<str>
- 237  LoadI    r2, 0
- 238  ArrLen   r3, r1
- 239  JLeI     r3, r2, -> 246
- 241  ArrGet   r4, r1, r2
- 242  Move     r3, r0
- 243  Rt       r3, Set.add
- 244  AddI32K  r2, r2, 1
- 245  Jmp      -> 238
- 246  Move     r1, r0
- 247  Rt       r1, Set.size
- 248  LoadStr  r3, "cat"
- 249  Move     r2, r0
- 250  Rt       r2, Set.has
- 251  LoadStr  r4, "dog"
- 252  Move     r3, r0
- 253  Rt       r3, Set.has
- 254  LoadStr  r5, "cat"
- 255  Move     r4, r0
- 256  Rt       r4, Set.delete
- 257  LoadStr  r6, "cat"
- 258  Move     r5, r0
- 259  Rt       r5, Set.has
- 260  Move     r6, r0
- 261  Rt       r6, Set.size
- 262  LogI     r1
- 263  LogSep   
- 264  LogBool  r2
- 265  LogSep   
- 266  LogBool  r3
- 267  LogSep   
- 268  LogBool  r4
- 269  LogSep   
- 270  LogBool  r5
- 271  LogSep   
- 272  LogI     r6
- 273  LogEnd   
- 274  LoadStr  r1, ""
- 275  Move     r2, r0
- 276  Rt       r2, Set.values
- 277  LoadI    r0, 0
- 278  ArrLen   r3, r2
- 279  JLeI     r3, r0, -> 290
- 281  ArrGet   r3, r2, r0
- 282  LoadStr  r4, ","
- 283  Rt       r3, string.#concat
- 284  Move     r4, r3
- 285  Move     r3, r1
- 286  Rt       r3, string.#concat
- 287  AddI32K  r0, r0, 1
- 288  Move     r1, r3
- 289  Jmp      -> 278
- 290  LogStr   r1
- 291  LogEnd   
- 292  New      r0, Map<f64, str>
- 293  LoadK    r2, f64 nan
- 294  LoadStr  r3, "nan"
- 295  Move     r1, r0
- 296  Rt       r1, Map.set
- 297  LoadK    r2, f64 0
- 298  LoadStr  r3, "zero"
- 299  Move     r1, r0
- 300  Rt       r1, Map.set
- 301  LoadK    r2, f64 -0
- 302  LoadStr  r3, "negzero"
- 303  Move     r1, r0
- 304  Rt       r1, Map.set
- 305  LoadK    r2, f64 1.5
- 306  LoadStr  r3, "x"
- 307  Move     r1, r0
- 308  Rt       r1, Map.set
- 309  Move     r1, r0
- 310  Rt       r1, Map.size
- 311  LoadK    r3, f64 nan
- 312  Move     r4, r0
- 313  Move     r5, r3
- 314  Rt       r4, Map.has
- 315  JmpIfNot r4, -> 319
- 316  Move     r2, r0
- 317  Rt       r2, Map.get
- 318  Jmp      -> 320
- 319  LoadStr  r2, "?"
- 320  LoadK    r4, f64 0
- 321  Move     r5, r0
+  20  Release  r2
+  21  AddI32K  r1, r1, 1
+  22  Jmp      -> 2
+  23  Move     r1, r0
+  24  Rt       r1, Map.size
+  25  LoadI    r3, 0
+  26  Move     r4, r0
+  27  Move     r5, r3
+  28  Rt       r4, Map.has
+  29  JmpIfNot r4, -> 33
+  30  Move     r2, r0
+  31  Rt       r2, Map.get
+  32  Jmp      -> 34
+  33  LoadI    r2, -1
+  34  LoadI    r4, 3
+  35  Move     r5, r0
+  36  Move     r6, r4
+  37  Rt       r5, Map.has
+  38  JmpIfNot r5, -> 42
+  39  Move     r3, r0
+  40  Rt       r3, Map.get
+  41  Jmp      -> 43
+  42  LoadI    r3, -1
+  43  LoadI    r5, 6
+  44  Move     r6, r0
+  45  Move     r7, r5
+  46  Rt       r6, Map.has
+  47  JmpIfNot r6, -> 51
+  48  Move     r4, r0
+  49  Rt       r4, Map.get
+  50  Jmp      -> 52
+  51  LoadI    r4, -1
+  52  LoadI    r6, 100
+  53  Move     r7, r0
+  54  Move     r8, r6
+  55  Rt       r7, Map.has
+  56  JmpIfNot r7, -> 60
+  57  Move     r5, r0
+  58  Rt       r5, Map.get
+  59  Jmp      -> 61
+  60  LoadI    r5, -1
+  61  LoadI    r7, 4
+  62  Move     r6, r0
+  63  Rt       r6, Map.has
+  64  LoadI    r8, 7
+  65  Move     r7, r0
+  66  Rt       r7, Map.has
+  67  LogI     r1
+  68  LogSep   
+  69  LogI     r2
+  70  LogSep   
+  71  LogI     r3
+  72  LogSep   
+  73  LogI     r4
+  74  LogSep   
+  75  LogI     r5
+  76  LogSep   
+  77  LogBool  r6
+  78  LogSep   
+  79  LogBool  r7
+  80  LogEnd   
+  81  LoadI    r2, 3
+  82  Move     r1, r0
+  83  Rt       r1, Map.delete
+  84  LoadI    r3, 3
+  85  Move     r2, r0
+  86  Rt       r2, Map.delete
+  87  Move     r3, r0
+  88  Rt       r3, Map.size
+  89  LoadI    r5, 3
+  90  Move     r4, r0
+  91  Rt       r4, Map.has
+  92  LoadI    r6, 3
+  93  Move     r7, r0
+  94  Move     r8, r6
+  95  Rt       r7, Map.has
+  96  JmpIfNot r7, -> 100
+  97  Move     r5, r0
+  98  Rt       r5, Map.get
+  99  Jmp      -> 101
+ 100  LoadI    r5, 0
+ 101  LogBool  r1
+ 102  LogSep   
+ 103  LogBool  r2
+ 104  LogSep   
+ 105  LogI     r3
+ 106  LogSep   
+ 107  LogBool  r4
+ 108  LogSep   
+ 109  LogI     r5
+ 110  LogEnd   
+ 111  LoadI    r2, 3
+ 112  LoadI    r3, 1
+ 113  Move     r1, r0
+ 114  Rt       r1, Map.set
+ 115  Release  r1
+ 116  LoadStr  r1, ""
+ 117  Move     r2, r0
+ 118  Rt       r2, Map.keys
+ 119  LoadI    r3, 0
+ 120  ArrLen   r4, r2
+ 121  JLeI     r4, r3, -> 137
+ 123  ArrGet   r4, r2, r3
+ 124  Rt       r4, string.#i2s
+ 125  LoadStr  r6, " "
+ 126  Move     r5, r4
+ 127  Rt       r5, string.#concat
+ 128  Release  r4
+ 129  Move     r6, r1
+ 130  Move     r7, r5
+ 131  Rt       r6, string.#concat
+ 132  Release  r1
+ 133  Release  r5
+ 134  AddI32K  r3, r3, 1
+ 135  Move     r1, r6
+ 136  Jmp      -> 120
+ 137  Release  r2
+ 138  LoadStr  r2, ""
+ 139  Move     r3, r0
+ 140  Rt       r3, Map.values
+ 141  LoadI    r4, 0
+ 142  ArrLen   r5, r3
+ 143  JLeI     r5, r4, -> 159
+ 145  ArrGet   r5, r3, r4
+ 146  Rt       r5, string.#i2s
+ 147  LoadStr  r7, " "
+ 148  Move     r6, r5
+ 149  Rt       r6, string.#concat
+ 150  Release  r5
+ 151  Move     r7, r2
+ 152  Move     r8, r6
+ 153  Rt       r7, string.#concat
+ 154  Release  r2
+ 155  Release  r6
+ 156  AddI32K  r4, r4, 1
+ 157  Move     r2, r7
+ 158  Jmp      -> 142
+ 159  Release  r3
+ 160  LoadStr  r3, "|"
+ 161  LogStr   r1
+ 162  LogSep   
+ 163  LogStr   r3
+ 164  LogSep   
+ 165  LogStr   r2
+ 166  LogEnd   
+ 167  Release  r1
+ 168  Release  r2
+ 169  Move     r1, r0
+ 170  Rt       r1, Map.clear
+ 171  Move     r1, r0
+ 172  Rt       r1, Map.size
+ 173  LoadI    r3, 1
+ 174  Move     r4, r0
+ 175  Move     r5, r3
+ 176  Rt       r4, Map.has
+ 177  JmpIfNot r4, -> 182
+ 178  Move     r2, r0
+ 179  Rt       r2, Map.get
+ 180  Release  r0
+ 181  Jmp      -> 185
+ 182  Release  r0
+ 183  LoadI    r0, 7
+ 184  Move     r2, r0
+ 185  LogI     r1
+ 186  LogSep   
+ 187  LogI     r2
+ 188  LogEnd   
+ 189  New      r0, Map<str, i32>
+ 190  LoadStr  r1, "the cat and the hat and the bat"
+ 191  LoadStr  r2, " "
+ 192  Rt       r1, string.split
+ 193  LoadI    r2, 0
+ 194  ArrLen   r3, r1
+ 195  JLeI     r3, r2, -> 215
+ 197  ArrGet   r4, r1, r2
+ 198  Retain   r4
+ 199  Move     r5, r0
+ 200  Move     r6, r4
+ 201  Rt       r5, Map.has
+ 202  JmpIfNot r5, -> 207
+ 203  Move     r5, r0
+ 204  Move     r6, r4
+ 205  Rt       r5, Map.get
+ 206  Jmp      -> 209
+ 207  LoadI    r3, 0
+ 208  Move     r5, r3
+ 209  AddI32K  r5, r5, 1
+ 210  Move     r3, r0
+ 211  Rt       r3, Map.set
+ 212  Release  r3
+ 213  AddI32K  r2, r2, 1
+ 214  Jmp      -> 194
+ 215  LoadStr  r2, ""
+ 216  Move     r3, r0
+ 217  Rt       r3, Map.keys
+ 218  LoadI    r4, 0
+ 219  ArrLen   r5, r3
+ 220  JLeI     r5, r4, -> 257
+ 222  ArrGet   r5, r3, r4
+ 223  Retain   r5
+ 224  LoadStr  r7, "="
+ 225  Move     r6, r5
+ 226  Rt       r6, string.#concat
+ 227  Move     r7, r0
+ 228  Move     r8, r5
+ 229  Rt       r7, Map.has
+ 230  JmpIfNot r7, -> 236
+ 231  Move     r7, r0
+ 232  Move     r8, r5
+ 233  Rt       r7, Map.get
+ 234  Release  r5
+ 235  Jmp      -> 239
+ 236  Release  r5
+ 237  LoadI    r5, 0
+ 238  Move     r7, r5
+ 239  Rt       r7, string.#i2s
+ 240  Move     r8, r6
+ 241  Move     r9, r7
+ 242  Rt       r8, string.#concat
+ 243  Release  r6
+ 244  Release  r7
+ 245  LoadStr  r10, " "
+ 246  Move     r9, r8
+ 247  Rt       r9, string.#concat
+ 248  Release  r8
+ 249  Move     r10, r2
+ 250  Move     r11, r9
+ 251  Rt       r10, string.#concat
+ 252  Release  r2
+ 253  Release  r9
+ 254  AddI32K  r4, r4, 1
+ 255  Move     r2, r10
+ 256  Jmp      -> 219
+ 257  Release  r3
+ 258  Move     r3, r0
+ 259  Rt       r3, Map.size
+ 260  Release  r0
+ 261  LogI     r3
+ 262  LogSep   
+ 263  LogStr   r2
+ 264  LogEnd   
+ 265  Release  r2
+ 266  New      r0, Set<str>
+ 267  LoadI    r2, 0
+ 268  ArrLen   r3, r1
+ 269  JLeI     r3, r2, -> 278
+ 271  ArrGet   r4, r1, r2
+ 272  Retain   r4
+ 273  Move     r3, r0
+ 274  Rt       r3, Set.add
+ 275  Release  r3
+ 276  AddI32K  r2, r2, 1
+ 277  Jmp      -> 268
+ 278  Release  r1
+ 279  Move     r1, r0
+ 280  Rt       r1, Set.size
+ 281  LoadStr  r3, "cat"
+ 282  Move     r2, r0
+ 283  Rt       r2, Set.has
+ 284  LoadStr  r4, "dog"
+ 285  Move     r3, r0
+ 286  Rt       r3, Set.has
+ 287  LoadStr  r5, "cat"
+ 288  Move     r4, r0
+ 289  Rt       r4, Set.delete
+ 290  LoadStr  r6, "cat"
+ 291  Move     r5, r0
+ 292  Rt       r5, Set.has
+ 293  Move     r6, r0
+ 294  Rt       r6, Set.size
+ 295  LogI     r1
+ 296  LogSep   
+ 297  LogBool  r2
+ 298  LogSep   
+ 299  LogBool  r3
+ 300  LogSep   
+ 301  LogBool  r4
+ 302  LogSep   
+ 303  LogBool  r5
+ 304  LogSep   
+ 305  LogI     r6
+ 306  LogEnd   
+ 307  LoadStr  r1, ""
+ 308  Move     r2, r0
+ 309  Rt       r2, Set.values
+ 310  Release  r0
+ 311  LoadI    r0, 0
+ 312  ArrLen   r3, r2
+ 313  JLeI     r3, r0, -> 329
+ 315  ArrGet   r3, r2, r0
+ 316  Retain   r3
+ 317  LoadStr  r5, ","
+ 318  Move     r4, r3
+ 319  Rt       r4, string.#concat
+ 320  Release  r3
+ 321  Move     r5, r1
  322  Move     r6, r4
- 323  Rt       r5, Map.has
- 324  JmpIfNot r5, -> 328
- 325  Move     r3, r0
- 326  Rt       r3, Map.get
- 327  Jmp      -> 329
- 328  LoadStr  r3, "?"
- 329  LoadK    r5, f64 1.5
- 330  Move     r6, r0
- 331  Move     r7, r5
- 332  Rt       r6, Map.has
- 333  JmpIfNot r6, -> 337
- 334  Move     r4, r0
- 335  Rt       r4, Map.get
- 336  Jmp      -> 338
- 337  LoadStr  r4, "?"
- 338  LoadK    r6, f64 2
- 339  Move     r7, r0
- 340  Move     r8, r6
- 341  Rt       r7, Map.has
- 342  JmpIfNot r7, -> 346
- 343  Move     r5, r0
- 344  Rt       r5, Map.get
- 345  Jmp      -> 348
- 346  LoadStr  r0, "?"
- 347  Move     r5, r0
- 348  LogI     r1
- 349  LogSep   
- 350  LogStr   r2
- 351  LogSep   
- 352  LogStr   r3
- 353  LogSep   
- 354  LogStr   r4
- 355  LogSep   
- 356  LogStr   r5
- 357  LogEnd   
- 358  New      r0, Map<str, ref Box>
- 359  LoadStr  r2, "a"
- 360  New      r3, Box
- 361  LoadI    r5, 1
- 362  Move     r4, r3
- 363  Call     r4, @Box.constructor
- 364  Move     r1, r0
- 365  Rt       r1, Map.set
- 366  LoadStr  r2, "a"
- 367  Move     r1, r0
- 368  Rt       r1, Map.has
- 369  LoadStr  r3, "b"
- 370  Move     r2, r0
- 371  Rt       r2, Map.has
- 372  LoadStr  r4, "a"
- 373  Move     r5, r0
- 374  Move     r6, r4
- 375  Rt       r5, Map.has
- 376  JmpIfNot r5, -> 380
- 377  Move     r3, r0
- 378  Rt       r3, Map.get
- 379  Jmp      -> 384
- 380  New      r3, Box
- 381  LoadI    r5, 9
- 382  Move     r4, r3
- 383  Call     r4, @Box.constructor
- 384  GetField r3, r3, .0
- 385  LoadStr  r5, "b"
- 386  Move     r6, r0
- 387  Move     r7, r5
- 388  Rt       r6, Map.has
- 389  JmpIfNot r6, -> 393
- 390  Move     r4, r0
- 391  Rt       r4, Map.get
- 392  Jmp      -> 398
- 393  New      r0, Box
- 394  LoadI    r5, 9
- 395  Move     r4, r0
- 396  Call     r4, @Box.constructor
- 397  Move     r4, r0
- 398  GetField r0, r4, .0
- 399  LogBool  r1
+ 323  Rt       r5, string.#concat
+ 324  Release  r1
+ 325  Release  r4
+ 326  AddI32K  r0, r0, 1
+ 327  Move     r1, r5
+ 328  Jmp      -> 312
+ 329  Release  r2
+ 330  LogStr   r1
+ 331  LogEnd   
+ 332  Release  r1
+ 333  New      r0, Map<f64, str>
+ 334  LoadK    r2, f64 nan
+ 335  LoadStr  r3, "nan"
+ 336  Move     r1, r0
+ 337  Rt       r1, Map.set
+ 338  Release  r1
+ 339  LoadK    r2, f64 0
+ 340  LoadStr  r3, "zero"
+ 341  Move     r1, r0
+ 342  Rt       r1, Map.set
+ 343  Release  r1
+ 344  LoadK    r2, f64 -0
+ 345  LoadStr  r3, "negzero"
+ 346  Move     r1, r0
+ 347  Rt       r1, Map.set
+ 348  Release  r1
+ 349  LoadK    r2, f64 1.5
+ 350  LoadStr  r3, "x"
+ 351  Move     r1, r0
+ 352  Rt       r1, Map.set
+ 353  Release  r1
+ 354  Move     r1, r0
+ 355  Rt       r1, Map.size
+ 356  LoadK    r3, f64 nan
+ 357  Move     r4, r0
+ 358  Move     r5, r3
+ 359  Rt       r4, Map.has
+ 360  JmpIfNot r4, -> 365
+ 361  Move     r2, r0
+ 362  Rt       r2, Map.get
+ 363  Retain   r2
+ 364  Jmp      -> 366
+ 365  LoadStr  r2, "?"
+ 366  LoadK    r4, f64 0
+ 367  Move     r5, r0
+ 368  Move     r6, r4
+ 369  Rt       r5, Map.has
+ 370  JmpIfNot r5, -> 375
+ 371  Move     r3, r0
+ 372  Rt       r3, Map.get
+ 373  Retain   r3
+ 374  Jmp      -> 376
+ 375  LoadStr  r3, "?"
+ 376  LoadK    r5, f64 1.5
+ 377  Move     r6, r0
+ 378  Move     r7, r5
+ 379  Rt       r6, Map.has
+ 380  JmpIfNot r6, -> 385
+ 381  Move     r4, r0
+ 382  Rt       r4, Map.get
+ 383  Retain   r4
+ 384  Jmp      -> 386
+ 385  LoadStr  r4, "?"
+ 386  LoadK    r6, f64 2
+ 387  Move     r7, r0
+ 388  Move     r8, r6
+ 389  Rt       r7, Map.has
+ 390  JmpIfNot r7, -> 396
+ 391  Move     r5, r0
+ 392  Rt       r5, Map.get
+ 393  Retain   r5
+ 394  Release  r0
+ 395  Jmp      -> 399
+ 396  Release  r0
+ 397  LoadStr  r0, "?"
+ 398  Move     r5, r0
+ 399  LogI     r1
  400  LogSep   
- 401  LogBool  r2
+ 401  LogStr   r2
  402  LogSep   
- 403  LogI     r3
+ 403  LogStr   r3
  404  LogSep   
- 405  LogI     r0
- 406  LogEnd   
- 407  New      r0, Set<ref Box>
- 408  New      r2, Box
- 409  LoadI    r4, 1
- 410  Move     r3, r2
- 411  Call     r3, @Box.constructor
- 412  Move     r3, r0
- 413  Move     r4, r2
- 414  Rt       r3, Set.add
- 415  Move     r3, r0
- 416  Move     r4, r2
- 417  Rt       r3, Set.add
- 418  New      r4, Box
- 419  LoadI    r6, 1
- 420  Move     r5, r4
- 421  Call     r5, @Box.constructor
- 422  Move     r3, r0
- 423  Rt       r3, Set.add
- 424  Move     r3, r0
- 425  Rt       r3, Set.size
- 426  Move     r4, r0
- 427  Move     r5, r2
- 428  Rt       r4, Set.has
- 429  New      r6, Box
- 430  LoadI    r8, 1
- 431  Move     r7, r6
- 432  Call     r7, @Box.constructor
- 433  Move     r5, r0
- 434  Rt       r5, Set.has
- 435  LogI     r3
- 436  LogSep   
- 437  LogBool  r4
- 438  LogSep   
- 439  LogBool  r5
- 440  LogEnd   
- 441  New      r0, Map<str, str[]>
- 442  LoadStr  r2, "x"
- 443  New      r3, str[]
- 444  Move     r1, r0
- 445  Rt       r1, Map.set
- 446  LoadStr  r2, "x"
- 447  Move     r3, r0
- 448  Move     r4, r2
- 449  Rt       r3, Map.has
- 450  JmpIfNot r3, -> 454
- 451  Move     r1, r0
- 452  Rt       r1, Map.get
- 453  Jmp      -> 455
- 454  New      r1, str[]
- 455  LoadStr  r2, "never"
- 456  ArrPush  r1, r1, r2
- 457  Move     r1, r0
- 458  Rt       r1, Map.size
- 459  LoadStr  r3, "x"
- 460  Move     r2, r0
- 461  Rt       r2, Map.has
- 462  LogI     r1
- 463  LogSep   
- 464  LogBool  r2
- 465  LogEnd   
- 466  New      r0, Set<i32>
- 467  LoadI    r1, 12345
- 468  LoadI    r2, 0
- 469  LoadI    r3, 5000
- 470  JLeI     r3, r2, -> 487
- 472  LoadK    r3, i 1664525
- 473  MulU32   r1, r1, r3
- 474  LoadK    r3, i 1013904223
- 475  AddU32   r1, r1, r3
- 476  LoadI    r3, 0
- 477  ShrU32   r1, r1, r3
- 478  LoadI    r3, 16
- 479  ShrU32   r3, r1, r3
- 480  LoadI    r4, 1000
- 481  RemU32   r3, r3, r4
- 482  NarrowI32r4, r3
- 483  Move     r3, r0
- 484  Rt       r3, Set.add
- 485  AddI32K  r2, r2, 1
- 486  Jmp      -> 469
- 487  LoadI    r1, 0
- 488  Move     r2, r0
- 489  Rt       r2, Set.values
- 490  LoadI    r3, 0
- 491  ArrLen   r4, r2
- 492  JLeI     r4, r3, -> 499
- 494  ArrGet   r4, r2, r3
- 495  AddI32   r4, r1, r4
- 496  AddI32K  r3, r3, 1
- 497  Move     r1, r4
- 498  Jmp      -> 491
- 499  Move     r2, r0
- 500  Rt       r2, Set.size
- 501  LogI     r2
- 502  LogSep   
- 503  LogI     r1
- 504  LogEnd   
- 505  RetV     
+ 405  LogStr   r4
+ 406  LogSep   
+ 407  LogStr   r5
+ 408  LogEnd   
+ 409  Release  r2
+ 410  Release  r3
+ 411  Release  r4
+ 412  Release  r5
+ 413  New      r0, Map<str, ref Box>
+ 414  LoadStr  r2, "a"
+ 415  New      r3, Box
+ 416  LoadI    r5, 1
+ 417  Retain   r3
+ 418  Move     r4, r3
+ 419  Call     r4, @Box.constructor
+ 420  Move     r1, r0
+ 421  Rt       r1, Map.set
+ 422  Release  r1
+ 423  LoadStr  r2, "a"
+ 424  Move     r1, r0
+ 425  Rt       r1, Map.has
+ 426  LoadStr  r3, "b"
+ 427  Move     r2, r0
+ 428  Rt       r2, Map.has
+ 429  LoadStr  r4, "a"
+ 430  Move     r5, r0
+ 431  Move     r6, r4
+ 432  Rt       r5, Map.has
+ 433  JmpIfNot r5, -> 438
+ 434  Move     r3, r0
+ 435  Rt       r3, Map.get
+ 436  Retain   r3
+ 437  Jmp      -> 443
+ 438  New      r3, Box
+ 439  LoadI    r5, 9
+ 440  Retain   r3
+ 441  Move     r4, r3
+ 442  Call     r4, @Box.constructor
+ 443  GetField r4, r3, .0
+ 444  Release  r3
+ 445  LoadStr  r6, "b"
+ 446  Move     r7, r0
+ 447  Move     r8, r6
+ 448  Rt       r7, Map.has
+ 449  JmpIfNot r7, -> 455
+ 450  Move     r5, r0
+ 451  Rt       r5, Map.get
+ 452  Retain   r5
+ 453  Release  r0
+ 454  Jmp      -> 462
+ 455  Release  r0
+ 456  New      r0, Box
+ 457  LoadI    r6, 9
+ 458  Retain   r0
+ 459  Move     r5, r0
+ 460  Call     r5, @Box.constructor
+ 461  Move     r5, r0
+ 462  GetField r0, r5, .0
+ 463  Release  r5
+ 464  LogBool  r1
+ 465  LogSep   
+ 466  LogBool  r2
+ 467  LogSep   
+ 468  LogI     r4
+ 469  LogSep   
+ 470  LogI     r0
+ 471  LogEnd   
+ 472  New      r0, Set<ref Box>
+ 473  New      r1, Box
+ 474  LoadI    r3, 1
+ 475  Retain   r1
+ 476  Move     r2, r1
+ 477  Call     r2, @Box.constructor
+ 478  Retain   r1
+ 479  Move     r2, r0
+ 480  Move     r3, r1
+ 481  Rt       r2, Set.add
+ 482  Release  r2
+ 483  Retain   r1
+ 484  Move     r2, r0
+ 485  Move     r3, r1
+ 486  Rt       r2, Set.add
+ 487  Release  r2
+ 488  New      r3, Box
+ 489  LoadI    r5, 1
+ 490  Retain   r3
+ 491  Move     r4, r3
+ 492  Call     r4, @Box.constructor
+ 493  Move     r2, r0
+ 494  Rt       r2, Set.add
+ 495  Release  r2
+ 496  Move     r2, r0
+ 497  Rt       r2, Set.size
+ 498  Move     r3, r0
+ 499  Move     r4, r1
+ 500  Rt       r3, Set.has
+ 501  Release  r1
+ 502  New      r1, Box
+ 503  LoadI    r5, 1
+ 504  Retain   r1
+ 505  Move     r4, r1
+ 506  Call     r4, @Box.constructor
+ 507  Move     r4, r0
+ 508  Move     r5, r1
+ 509  Rt       r4, Set.has
+ 510  Release  r0
+ 511  Release  r1
+ 512  LogI     r2
+ 513  LogSep   
+ 514  LogBool  r3
+ 515  LogSep   
+ 516  LogBool  r4
+ 517  LogEnd   
+ 518  New      r0, Map<str, str[]>
+ 519  LoadStr  r2, "x"
+ 520  New      r3, str[]
+ 521  Move     r1, r0
+ 522  Rt       r1, Map.set
+ 523  Release  r1
+ 524  LoadStr  r2, "x"
+ 525  Move     r3, r0
+ 526  Move     r4, r2
+ 527  Rt       r3, Map.has
+ 528  JmpIfNot r3, -> 533
+ 529  Move     r1, r0
+ 530  Rt       r1, Map.get
+ 531  Retain   r1
+ 532  Jmp      -> 534
+ 533  New      r1, str[]
+ 534  LoadStr  r2, "never"
+ 535  ArrPush  r2, r1, r2
+ 536  Release  r1
+ 537  Move     r1, r0
+ 538  Rt       r1, Map.size
+ 539  LoadStr  r3, "x"
+ 540  Move     r2, r0
+ 541  Rt       r2, Map.has
+ 542  Release  r0
+ 543  LogI     r1
+ 544  LogSep   
+ 545  LogBool  r2
+ 546  LogEnd   
+ 547  New      r0, Set<i32>
+ 548  LoadI    r1, 12345
+ 549  LoadI    r2, 0
+ 550  LoadI    r3, 5000
+ 551  JLeI     r3, r2, -> 569
+ 553  LoadK    r3, i 1664525
+ 554  MulU32   r1, r1, r3
+ 555  LoadK    r3, i 1013904223
+ 556  AddU32   r1, r1, r3
+ 557  LoadI    r3, 0
+ 558  ShrU32   r1, r1, r3
+ 559  LoadI    r3, 16
+ 560  ShrU32   r3, r1, r3
+ 561  LoadI    r4, 1000
+ 562  RemU32   r3, r3, r4
+ 563  NarrowI32r4, r3
+ 564  Move     r3, r0
+ 565  Rt       r3, Set.add
+ 566  Release  r3
+ 567  AddI32K  r2, r2, 1
+ 568  Jmp      -> 550
+ 569  LoadI    r1, 0
+ 570  Move     r2, r0
+ 571  Rt       r2, Set.values
+ 572  LoadI    r3, 0
+ 573  ArrLen   r4, r2
+ 574  JLeI     r4, r3, -> 581
+ 576  ArrGet   r4, r2, r3
+ 577  AddI32   r4, r1, r4
+ 578  AddI32K  r3, r3, 1
+ 579  Move     r1, r4
+ 580  Jmp      -> 573
+ 581  Release  r2
+ 582  Move     r2, r0
+ 583  Rt       r2, Set.size
+ 584  Release  r0
+ 585  LogI     r2
+ 586  LogSep   
+ 587  LogI     r1
+ 588  LogEnd   
+ 589  RetV     
 func @Box.constructor(ref Box, i) -> void nregs=2
    0  SetField r0, r1, .0
-   1  RetV     
+   1  Release  r0
+   2  RetV     
