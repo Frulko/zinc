@@ -355,3 +355,6 @@ Interpreter at 5x+ QuickJS on every numeric kernel (see the ZN-041 section of th
 
 ## ZN-042 (Review)
 No typed backend (experiments: Slot is not the cost; native nbody uses NEON and FMA). AOT startup without SDL, number sort specialisation, device-core flag. `docs/reports/zinc-next-perf.md`. Open: fib 1.42x (typed calls), nbody 2.88x (needs a fast-math profile decision), 4-byte refs. Next by ordinal: ZN-043 (mquickjs evaluation).
+
+## ZN-043 (Done)
+mquickjs evaluated and not adopted (`docs/reports/zinc-next-mquickjs.md`, decisions section 6). Backlog left: ZN-055 (parked, hardware). In Review: ZN-042, 049, 053, 054. Next: `tools/next-task`.

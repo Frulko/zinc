@@ -56,3 +56,8 @@ conflict appears: **Zinc Foundry** (`zincfoundry.com` looks free), not Zinc Forg
 
 Limits: a trademark office search (USPTO, EUIPO, WIPO) and a registrar's availability check are not scriptable from here; the table is evidence for the decision, not legal advice.
 
+## 6. MicroQuickJS (ZN-043, 2026-10-06)
+
+Measured (`zinc-next-mquickjs.md`): about as fast as QuickJS, 4 to 7 times slower than the Zinc interpreter; 103 KB of Thumb-2 code against 125 KB for the Zinc core; 8 KB of heap for fib against a 24 KB register file, and 4 bytes per number in an array
+against 8. It runs ES5 strict mode only, so the ES2022 path of ZN-051 does not carry over. **Decision: not adopted, not vendored.** Revisit for a product that needs user JavaScript on a device with under 100 KB of free RAM; then as a fallback engine behind `zinc:script`.
+
