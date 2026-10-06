@@ -1456,6 +1456,13 @@ struct Checker {
         if (!bad(vt) && !assignable(vt, target, kNone) && !assignable(target, vt, kNone)) diag(kZNotAssignable, i, "conversion of '" + name(vt) + "' to '" + name(target) + "'");
         return target;
       }
+      case N::NonNull: {
+        TypeId vt = expr(x.kids[0]);
+        if (bad(vt)) return tError;
+        TypeId nn = withoutNull(vt);
+        if (nn == kNoType || nn == tNull) { diag(kZNotAssignable, i, "'" + name(vt) + "' to a non-null type"); return tError; }
+        return nn;
+      }
       case N::Array: {
         if (expected != kNoType && ty(expected).k == TK::Union) {  // `T[] | null`: the literal is the array
           TypeId only = kNoType;

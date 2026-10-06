@@ -444,7 +444,8 @@ struct Parser {
         std::string_view op = txt(); ++i;
         e = mk(N::UpdatePost, startOf(e), prevEnd(), op, {e});
       } else if (isP("!") && !newlineBefore()) {
-        unsupported("non-null assertions");
+        ++i;
+        e = mk(N::NonNull, startOf(e), prevEnd(), {}, {e});
       } else if (cur().kind == Tok::TemplateNoSub || cur().kind == Tok::TemplateHead) {
         unsupported("tagged templates");
       } else return e;

@@ -87,6 +87,7 @@ enum class N : std::uint8_t {
   ObjectLit,      // [Prop...]   (`{ a: 1, b }`)
   Prop,           // text=name  [value]; a computed key `[k]: v` has no text and [value, key]
   As,             // [expression, type]   (`e as T`)
+  NonNull,        // [expression]   (`e!`: the non-null type of e, a null reference traps)
   Try,            // [block, catch Ident|none, catch block|none, finally block|none]
   Throw,          // [expression]
   Await,          // [expression]

@@ -151,6 +151,7 @@ struct Stripper {
           blank(k, x.end);
           break;
         }
+        case N::NonNull: blank(x.end - 1, x.end); break;  // the `!`
         case N::Enum: enumDecl(x); break;
         default: break;
       }

@@ -1,9 +1,10 @@
 ---
 id: ZN-061
 title: Non-null assertion x!
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:48'
+updated_date: '2026-10-06 23:49'
 labels:
   - language
   - size-S
@@ -20,7 +21,13 @@ Parse `x!` (postfix) and `x!.y`; the checker types it as the non-null type of x 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures: `x!` on T|null yields T and traps on null with exit 101; `x!` on a non-null type is accepted (like tsc)
-- [ ] #2 the four files above get past this construct
-- [ ] #3 oracle_diff reports no violation
+- [x] #1 fixtures: `x!` on T|null yields T and traps on null with exit 101; `x!` on a non-null type is accepted (like tsc)
+- [x] #2 the four files above get past this construct
+- [x] #3 oracle_diff reports no violation
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. N::NonNull node; checker types it as withoutNull; lowering reuses the checked downcast; QuickJS strip blanks the '!'. The four files now fail only on other constructs (package imports, regex literals).
+<!-- SECTION:NOTES:END -->

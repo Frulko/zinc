@@ -1310,6 +1310,7 @@ struct Lowering::FnLower {
         }
         return arr;
       }
+      case N::NonNull: return coerce(expr(x.kids[0], L.irType(c.nodeType[i])), L.irType(c.nodeType[i]));  // x!: the checked unwrap of the downcast
       case N::As: return coerce(expr(x.kids[0], L.irType(c.nodeType[i])), L.irType(c.nodeType[i]));  // a numeric conversion or a checked downcast
       case N::ObjectLit: {  // a fresh object of the record class, fields set in source order
         std::uint32_t obj = c.types[c.nodeType[i]].obj, cls = L.classOfObj[obj];
