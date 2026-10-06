@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0 and M1 build tasks ZN-001..010: lexer, parser, diagnostics, checker, IR, ZBC, interpreter (`zinc run fib.ts` prints the golden, no Node).
-- Ready: none. NEXT IS THE GATE ZN-011 (review M1): the maintainer decides, the loop stops here. Nothing in progress.
+- Done: M0 and M1 (ZN-001..011): lexer, parser, diagnostics, checker, IR, ZBC, interpreter, gate decision `docs/decisions/0015-zinc-next-m1-gate.md` (continue to M2).
+- Ready: none; next by ordinal is ZN-012 (Classes and closed-world layouts, M2). Nothing in progress.
 
 ## Next
 
-Review the gate numbers below and in the ZN-010 task notes, then decide on ZN-011 (go / simplify / change approach).
+`/loop /zn-start` resumes with ZN-012.
 
 ## Watch out
 
@@ -76,7 +76,7 @@ Review the gate numbers below and in the ZN-010 task notes, then decide on ZN-01
 |---|---|
 | `fib` output equals golden with no Node | MET (`zinc run`, T0 `run`; also mandelbrot) |
 | Checker: every accepted program accepted by the oracle on a 30-file set | MET: 43 files, 0 violations (+ 28 adversarial snippets, 0 violations) |
-| Interpreter `fib` at least 5x faster than QuickJS | NOT MET: 2.15x (112 ms vs 240 ms); mandelbrot 2.66x; Node JIT 50 ms (artifacts `next/bench/m1-*.json`, `tools/bench-m1`) |
+| Interpreter `fib` at least 5x faster than QuickJS | NOT MET after one optimisation round: 4.45x (56.6 ms vs 252 ms, was 2.15x); mandelbrot 2.7x; Node JIT 51-57 ms (artifacts `next/bench/m1-*.json`, `tools/bench-m1`). Accepted at the gate, see the decision |
 | M1 used at most 1.5x its budget | To judge: M1 tasks S,M,S,L,M,M,M (+gate S) = about 15-19 sessions budgeted; the whole M0+M1 ran in one long autonomous session, ~0.6M in / 36.6M cached / 0.33M out tokens, 179 turns (`tools/usage`) |
 
 Options for the speed threshold: (a) keep 5x for the AOT path only and measure the interpreter against QuickJS as "faster" (2x+), (b) invest in immediate-operand and fused compare-branch ops, direct threading (estimated 3-3.5x), (c) accept 2x and let AOT carry the claim. Other findings: libm differs from V8's fdlibm in the last digit for `tan` (bundle fdlibm before transcendental goldens); closures, default parameters, null, spread, heap values in ZBC are still Z0005 / "no bytecode yet" (M2 tasks).
