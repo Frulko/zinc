@@ -1,0 +1,269 @@
+func @main() -> void {
+bb0:
+  %0: str = const "hello"
+  %1: str = const ", "
+  %2: str = strconcat %0, %1
+  %3: str = const "world"
+  %4: str = strconcat %2, %3
+  %5: i32 = strlen %4
+  builtin console.log(%4, %5)
+  %6: str = const "hello"
+  %7: bool = eq %0, %6
+  %8: str = const "hello"
+  %9: bool = ne %0, %8
+  %10: bool = eq %0, %4
+  %11: str = const "abc"
+  %12: str = const "abd"
+  %13: bool = lt %11, %12
+  %14: str = const "b"
+  %15: str = const "a"
+  %16: bool = gt %14, %15
+  %17: str = const "a"
+  %18: str = const "a"
+  %19: bool = le %17, %18
+  %20: str = const "z"
+  %21: str = const "zz"
+  %22: bool = ge %20, %21
+  %23: str = const "a"
+  %24: str = const "ab"
+  %25: bool = lt %23, %24
+  builtin console.log(%7, %9, %10, %13, %16, %19, %22, %25)
+  %26: i32 = const 42
+  %27: str = const "n="
+  %28: str = tostr %26
+  %29: str = strconcat %27, %28
+  %30: str = const " quarter="
+  %31: str = strconcat %29, %30
+  %32: f64 = conv %26
+  %33: f64 = const 8
+  %34: f64 = div %32, %33
+  %35: str = tostr %34
+  %36: str = strconcat %31, %35
+  %37: str = const " flag="
+  %38: str = strconcat %36, %37
+  %39: i32 = const 3
+  %40: bool = gt %26, %39
+  %41: str = tostr %40
+  %42: str = strconcat %38, %41
+  %43: str = const ""
+  %44: str = strconcat %42, %43
+  builtin console.log(%44)
+  %45: u32 = const 4000000000
+  %46: i32 = const -17
+  %47: f64 = const 0.10000000000000001
+  %48: f64 = const 0.20000000000000001
+  %49: f64 = add %47, %48
+  %50: str = tostr %26
+  %51: str = const "!"
+  %52: str = strconcat %50, %51
+  %53: str = tostr %46
+  %54: str = tostr %45
+  %55: str = tostr %49
+  %56: f64 = const 1e+21
+  %57: str = tostr %56
+  builtin console.log(%52, %53, %54, %55, %57)
+  %58: str = const "  Hello, World  "
+  %59: str = rt string.trim(%58)
+  %60: str = const "|"
+  %61: str = strconcat %59, %60
+  %62: str = rt string.trim(%58)
+  %63: i32 = strlen %62
+  %64: str = rt string.toUpperCase(%58)
+  %65: str = rt string.toLowerCase(%58)
+  builtin console.log(%61, %63, %64, %65)
+  %66: str = rt string.trim(%58)
+  %67: i32 = const 0
+  %68: i32 = rt string.charCodeAt(%66, %67)
+  %69: i32 = const 4
+  %70: i32 = rt string.charCodeAt(%66, %69)
+  %71: i32 = const 1
+  %72: str = rt string.charAt(%66, %71)
+  %73: i32 = const 99
+  %74: str = rt string.charAt(%66, %73)
+  %75: str = const ""
+  %76: bool = eq %74, %75
+  builtin console.log(%68, %70, %72, %76)
+  %77: i32 = const 7
+  %78: i32 = const 2147483647
+  %79: str = rt string.slice(%66, %77, %78)
+  %80: i32 = const 0
+  %81: i32 = const 5
+  %82: str = rt string.slice(%66, %80, %81)
+  %83: i32 = const -5
+  %84: i32 = const 2147483647
+  %85: str = rt string.slice(%66, %83, %84)
+  %86: i32 = const -5
+  %87: i32 = const -2
+  %88: str = rt string.slice(%66, %86, %87)
+  %89: i32 = const 5
+  %90: i32 = const 2
+  %91: str = rt string.slice(%66, %89, %90)
+  %92: str = const ""
+  %93: bool = eq %91, %92
+  %94: i32 = const 3
+  %95: i32 = const 100
+  %96: str = rt string.slice(%66, %94, %95)
+  builtin console.log(%79, %82, %85, %88, %93, %96)
+  %97: i32 = const 7
+  %98: i32 = const 2147483647
+  %99: str = rt string.substring(%66, %97, %98)
+  %100: i32 = const 5
+  %101: i32 = const 0
+  %102: str = rt string.substring(%66, %100, %101)
+  %103: i32 = const -3
+  %104: i32 = const 2
+  %105: str = rt string.substring(%66, %103, %104)
+  %106: i32 = const 4
+  %107: i32 = const 4
+  %108: str = rt string.substring(%66, %106, %107)
+  %109: str = const ""
+  %110: bool = eq %108, %109
+  builtin console.log(%99, %102, %105, %110)
+  %111: str = const "o"
+  %112: i32 = rt string.indexOf(%66, %111)
+  %113: str = const "World"
+  %114: i32 = rt string.indexOf(%66, %113)
+  %115: str = const "xyz"
+  %116: i32 = rt string.indexOf(%66, %115)
+  %117: str = const ""
+  %118: i32 = rt string.indexOf(%66, %117)
+  builtin console.log(%112, %114, %116, %118)
+  %119: str = const "lo, W"
+  %120: bool = rt string.includes(%66, %119)
+  %121: str = const "LO"
+  %122: bool = rt string.includes(%66, %121)
+  %123: str = const "Hell"
+  %124: bool = rt string.startsWith(%66, %123)
+  %125: str = const "ell"
+  %126: bool = rt string.startsWith(%66, %125)
+  %127: str = const "ld"
+  %128: bool = rt string.endsWith(%66, %127)
+  %129: str = const "Wor"
+  %130: bool = rt string.endsWith(%66, %129)
+  builtin console.log(%120, %122, %124, %126, %128, %130)
+  %131: str = const "ab"
+  %132: i32 = const 3
+  %133: str = rt string.repeat(%131, %132)
+  %134: str = const "x"
+  %135: i32 = const 0
+  %136: str = rt string.repeat(%134, %135)
+  %137: str = const ""
+  %138: bool = eq %136, %137
+  %139: str = const "abc"
+  %140: i32 = const 1
+  %141: str = rt string.repeat(%139, %140)
+  builtin console.log(%133, %138, %141)
+  %142: str = const "a,b,,c,"
+  %143: str = const ","
+  %144: str[] = rt string.split(%142, %143)
+  %145: i32 = arrlen %144
+  %146: str = const "|"
+  %147: str = rt Array.join(%144, %146)
+  %148: str = const "abc"
+  %149: str = const ""
+  %150: str[] = rt string.split(%148, %149)
+  %151: str = const "."
+  %152: str = rt Array.join(%150, %151)
+  %153: str = const "abc"
+  %154: str = const "x"
+  %155: str[] = rt string.split(%153, %154)
+  %156: i32 = arrlen %155
+  %157: str = const ""
+  %158: str = const ","
+  %159: str[] = rt string.split(%157, %158)
+  %160: i32 = arrlen %159
+  %161: str = const ""
+  %162: str = const ""
+  %163: str[] = rt string.split(%161, %162)
+  %164: i32 = arrlen %163
+  builtin console.log(%145, %147, %152, %156, %160, %164)
+  %165: str = const "one two  three"
+  %166: str = const " "
+  %167: str[] = rt string.split(%165, %166)
+  %168: i32 = arrlen %167
+  %169: str = const "k=v=w"
+  %170: str = const "="
+  %171: str[] = rt string.split(%169, %170)
+  %172: str = const " "
+  %173: str = rt Array.join(%171, %172)
+  builtin console.log(%168, %173)
+  %174: str = const "héllo wörld"
+  %175: i32 = strlen %174
+  %176: i32 = const 1
+  %177: i32 = rt string.charCodeAt(%174, %176)
+  %178: i32 = const 1
+  %179: i32 = const 4
+  %180: str = rt string.slice(%174, %178, %179)
+  %181: str = const "w"
+  %182: i32 = rt string.indexOf(%174, %181)
+  %183: str = rt string.toUpperCase(%174)
+  %184: i32 = strlen %183
+  %185: str = const "ö"
+  %186: str[] = rt string.split(%174, %185)
+  %187: i32 = arrlen %186
+  builtin console.log(%175, %177, %180, %182, %184, %187)
+  %188: str = const "a😀b"
+  %189: i32 = strlen %188
+  %190: i32 = const 1
+  %191: i32 = rt string.charCodeAt(%188, %190)
+  %192: i32 = const 2
+  %193: i32 = rt string.charCodeAt(%188, %192)
+  %194: str = const "b"
+  %195: i32 = rt string.indexOf(%188, %194)
+  %196: i32 = const 0
+  %197: i32 = const 1
+  %198: str = rt string.slice(%188, %196, %197)
+  %199: i32 = const 3
+  %200: i32 = const 2147483647
+  %201: str = rt string.slice(%188, %199, %200)
+  %202: str = strconcat %198, %201
+  builtin console.log(%189, %191, %193, %195, %202)
+  %203: str = const "ünï"
+  %204: str = rt string.trim(%203)
+  %205: i32 = strlen %204
+  %206: str = const " \t\n x "
+  %207: str = rt string.trim(%206)
+  %208: str = const "x"
+  %209: bool = eq %207, %208
+  builtin console.log(%205, %209)
+  %210: str = const ""
+  %211: i32 = const 0
+  br bb1(%211, %210)
+bb1(%212: i32, %213: str):
+  %214: i32 = const 5
+  %215: bool = lt %212, %214
+  condbr %215, bb2, bb4
+bb2:
+  %216: str = tostr %212
+  %217: str = strconcat %213, %216
+  br bb3
+bb3:
+  %218: i32 = const 1
+  %219: i32 = add %212, %218
+  br bb1(%219, %217)
+bb4:
+  %220: str = const "|"
+  %221: f64 = const 1.5
+  %222: str = tostr %221
+  %223: str = strconcat %220, %222
+  %224: bool = const true
+  %225: str = tostr %224
+  %226: str = strconcat %223, %225
+  %227: str = strconcat %213, %226
+  %228: i32 = strlen %227
+  builtin console.log(%227, %228)
+  %229: str = const "zinc"
+  %230: str = call @greet(%229)
+  %231: str = const ""
+  %232: str = call @greet(%231)
+  %233: str = const "hi "
+  %234: bool = eq %232, %233
+  builtin console.log(%230, %234)
+  ret
+}
+func @greet(%0: str) -> str {
+bb0:
+  %1: str = const "hi "
+  %2: str = strconcat %1, %0
+  ret %2
+}

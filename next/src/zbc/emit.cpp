@@ -63,20 +63,46 @@ constexpr Op kArith[6][5] = {
     {Op::AddF64, Op::SubF64, Op::MulF64, Op::DivF64, Op::RemF64},
 };
 
-VType vtOfType(const ir::Module& im, ir::TypeId t) {
-  const ir::Type& x = im.types[t];
-  switch (x.k) {
-    case ir::Type::K::Bool: return {Cls::I, 0};
-    case ir::Type::K::Num: return {x.num == NumK::f64 ? Cls::D : x.num == NumK::f32 ? Cls::S : Cls::I, 0};
-    case ir::Type::K::Ref: return {Cls::R, static_cast<std::uint16_t>(x.aux)};
-    default: return {Cls::None, 0};
+// IR types to ZBC value types. Strings, arrays, Map and Set map to builtin classes, appended to the module's class table on
+// first use (after the IR's own classes, whose indices stay as they are).
+struct TypeTable {
+  const ir::Module& im;
+  Module& zm;
+  std::uint32_t strCls = ir::kNoClass;
+
+  std::uint16_t coll(CKind k, VType elem, VType key, ir::TypeId t) {
+    for (std::size_t c = 0; c < zm.classes.size(); ++c) {
+      const ClassInfo& ci = zm.classes[c];
+      if (ci.kind == k && (k == CKind::String || (ci.elem == elem && ci.key == key))) return static_cast<std::uint16_t>(c);
+    }
+    ClassInfo info;
+    info.name = ir::typeName(im, t);
+    info.kind = k;
+    info.elem = elem;
+    info.key = key;
+    zm.classes.push_back(std::move(info));
+    return static_cast<std::uint16_t>(zm.classes.size() - 1);
   }
-}
+  VType vt(ir::TypeId t) {
+    const ir::Type& x = im.types[t];
+    switch (x.k) {
+      case ir::Type::K::Bool: return {Cls::I, 0};
+      case ir::Type::K::Num: return {x.num == NumK::f64 ? Cls::D : x.num == NumK::f32 ? Cls::S : Cls::I, 0};
+      case ir::Type::K::Ref: return {Cls::R, static_cast<std::uint16_t>(x.aux)};
+      case ir::Type::K::Str: return {Cls::R, coll(CKind::String, {}, {}, t)};
+      case ir::Type::K::Array: { VType e = vt(x.aux); return {Cls::R, coll(CKind::Array, e, {}, t)}; }
+      case ir::Type::K::Set: { VType e = vt(x.aux); return {Cls::R, coll(CKind::Set, e, {}, t)}; }
+      case ir::Type::K::Map: { VType e = vt(x.aux), k = vt(x.aux2); return {Cls::R, coll(CKind::Map, e, k, t)}; }
+      default: return {Cls::None, 0};
+    }
+  }
+};
 
 struct FnEmitter {
   const ir::Module& im;
   const ir::Function& f;
   Function& zf;
+  TypeTable& tt;
   std::string error;
 
   std::size_t nb, nv;
@@ -89,12 +115,12 @@ struct FnEmitter {
   std::vector<std::uint32_t> callBase;         // per position
   std::uint32_t frame = 0;
 
-  FnEmitter(const ir::Module& mod, const ir::Function& fn, Function& out) : im(mod), f(fn), zf(out), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
+  FnEmitter(const ir::Module& mod, const ir::Function& fn, Function& out, TypeTable& types) : im(mod), f(fn), zf(out), tt(types), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
 
   bool fail(const std::string& msg) { if (error.empty()) error = msg; return false; }
 
   const ir::Type& ty(ir::TypeId t) const { return im.types[t]; }
-  VType vtOf(ir::TypeId t) const { return vtOfType(im, t); }
+  VType vtOf(ir::TypeId t) const { return tt.vt(t); }
   NumK numOf(ValueId v) const { return ty(f.valueTypes[v]).num; }
   bool isNumV(ValueId v) const { return ty(f.valueTypes[v]).k == ir::Type::K::Num; }
 
@@ -108,27 +134,32 @@ struct FnEmitter {
           if (isFxK(t.num)) return fail("fixed-point kinds are not supported yet");
           cls[v] = t.num == NumK::f64 ? Cls::D : t.num == NumK::f32 ? Cls::S : Cls::I;
           break;
-        case ir::Type::K::Ref: cls[v] = Cls::R; break;
+        case ir::Type::K::Ref: case ir::Type::K::Str: case ir::Type::K::Array: case ir::Type::K::Map: case ir::Type::K::Set: cls[v] = Cls::R; (void)vtOf(f.valueTypes[v]); break;  // also adds the builtin class
         case ir::Type::K::Void: break;
-        default: return fail("strings and arrays have no bytecode yet (ZN-015)");
       }
     }
     zf.params.clear();
     for (ValueId p : f.params) zf.params.push_back(vtOf(f.valueTypes[p]));
     const ir::Type& rt = ty(f.ret);
-    if (rt.k == ir::Type::K::Str || rt.k == ir::Type::K::Array || (rt.k == ir::Type::K::Num && isFxK(rt.num))) return fail("unsupported return type");
+    if (rt.k == ir::Type::K::Num && isFxK(rt.num)) return fail("unsupported return type");
     zf.ret = vtOf(f.ret);
     for (const ir::Block& b : f.blocks)
       for (const ir::Inst& i : b.insts) {
         if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) return fail("exceptional edges have no bytecode yet (ZN-019)");
-        switch (i.op) {
-          case IrOp::ArrNew: case IrOp::ArrGet: case IrOp::ArrSet: case IrOp::ArrLen: case IrOp::ArrPush: case IrOp::ArrPop:
-          case IrOp::StrConcat: case IrOp::ToStr: case IrOp::StrLen:
-            return fail("array and string operations have no bytecode yet (ZN-015)");
-          default: break;
-        }
+        if (i.op == IrOp::ToStr && isFxK(ty(f.valueTypes[i.args[0]]).num)) return fail("fixed-point kinds are not supported yet");
       }
     return true;
+  }
+
+  // Instructions that take their operands in a call window (consecutive registers above every live one) and leave the
+  // result in its first register: calls and everything that runs in the runtime.
+  bool isWindow(const ir::Inst& i) const {
+    switch (i.op) {
+      case IrOp::Builtin: return i.sym == static_cast<std::uint32_t>(ir::Builtin::NumToFixed);
+      case IrOp::Call: case IrOp::CallVirt: case IrOp::Rt: case IrOp::StrConcat: case IrOp::ToStr: case IrOp::StrLen: case IrOp::ArrPop: return true;
+      case IrOp::Eq: case IrOp::Ne: case IrOp::Lt: case IrOp::Le: case IrOp::Gt: case IrOp::Ge: return ty(f.valueTypes[i.args[0]]).k == ir::Type::K::Str;
+      default: return false;
+    }
   }
 
   // ---- instruction selection plan: immediate operands and fused compare-and-jump
@@ -283,7 +314,7 @@ struct FnEmitter {
     for (BlockId b : order)
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) {
         const ir::Inst& ci = f.blocks[b].insts[k];
-        if (ci.op != IrOp::Call && ci.op != IrOp::CallVirt) continue;
+        if (!isWindow(ci)) continue;
         for (std::size_t a = 0; a < ci.args.size(); ++a)
           if (end[ci.args[a]] == ipos[b][k] && callPosOf[ci.args[a]] == kNoReg) { callPosOf[ci.args[a]] = ipos[b][k]; slotOf[ci.args[a]] = static_cast<std::uint32_t>(a); }
       }
@@ -331,7 +362,7 @@ struct FnEmitter {
         const ir::Inst& i = f.blocks[b].insts[k];
         std::uint32_t pos = ipos[b][k];
         expire(pos);
-        if (i.op == IrOp::Call || i.op == IrOp::CallVirt) {
+        if (isWindow(i)) {
           std::uint32_t base = 0;
           for (ValueId a : active) base = std::max(base, reg[a] + 1);
           std::uint32_t nargs = static_cast<std::uint32_t>(i.args.size());
@@ -452,6 +483,16 @@ struct FnEmitter {
     return true;
   }
 
+  // A runtime call: the operands go to the call window, the result comes back in its first register.
+  bool rtOp(const ir::Inst& i, std::uint32_t pos, zn::Rt id) {
+    std::uint32_t base = callBase[pos];
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> mvs;
+    for (std::size_t a = 0; a < i.args.size(); ++a) mvs.push_back({base + static_cast<std::uint32_t>(a), reg[i.args[a]]});
+    parallelMoves(mvs);
+    put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
+    return true;
+  }
+
   bool emitInst(BlockId b, std::size_t k) {
     const ir::Inst& i = f.blocks[b].insts[k];
     std::uint32_t pos = ipos[b][k];
@@ -460,6 +501,11 @@ struct FnEmitter {
     switch (i.op) {
       case IrOp::Const:
         if (noReg[i.res]) return true;
+        if (ty(i.ty).k == ir::Type::K::Str) {
+          if (static_cast<std::uint64_t>(i.imm) >= kMaxStrings) return fail("too many string constants");
+          put(encAD(Op::LoadStr, d, static_cast<std::uint32_t>(i.imm)));
+          return true;
+        }
         if (ty(i.ty).k == ir::Type::K::Ref) { put(encAD(Op::LoadNull, d, ty(i.ty).aux)); return true; }
         loadConst(d, i);
         return true;
@@ -515,8 +561,16 @@ struct FnEmitter {
         if (fuse[b].on && fuse[b].at == k) return true;  // emitted as part of the block's CondBr
         ValueId x = i.args[0], y = i.args[1];
         const ir::Type& t = ty(f.valueTypes[x]);
-        if (t.k == ir::Type::K::Str) return fail("string comparison has no bytecode yet");
-        if (t.k == ir::Type::K::Ref) { put(encABC(i.op == IrOp::Eq ? Op::EqR : Op::NeR, d, R(x), R(y))); return true; }
+        if (t.k == ir::Type::K::Str) {  // content comparison in the runtime: > and >= swap the operands
+          bool swapped = i.op == IrOp::Gt || i.op == IrOp::Ge;
+          Rt id = (i.op == IrOp::Eq || i.op == IrOp::Ne) ? Rt::StrEq : (i.op == IrOp::Lt || i.op == IrOp::Gt) ? Rt::StrLt : Rt::StrLe;
+          std::uint32_t base = callBase[pos];
+          parallelMoves({{base, R(swapped ? y : x)}, {base + 1, R(swapped ? x : y)}});
+          put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
+          if (i.op == IrOp::Ne) put(encABC(Op::NotB, base, base));
+          return true;
+        }
+        if (t.k == ir::Type::K::Ref || t.k == ir::Type::K::Array || t.k == ir::Type::K::Map || t.k == ir::Type::K::Set) { put(encABC(i.op == IrOp::Eq ? Op::EqR : Op::NeR, d, R(x), R(y))); return true; }
         bool fl = t.k == ir::Type::K::Num && isFloatK(t.num);
         bool f32 = fl && t.num == NumK::f32;
         bool uns = t.k == ir::Type::K::Num && !isSigned(t.num) && !fl;
@@ -546,6 +600,24 @@ struct FnEmitter {
         put(encAD(Op::CallVirt, base, i.sym));
         return true;
       }
+      case IrOp::Rt: return rtOp(i, pos, static_cast<zn::Rt>(i.sym));
+      case IrOp::StrConcat: return rtOp(i, pos, zn::Rt::StrConcat);
+      case IrOp::StrLen: return rtOp(i, pos, zn::Rt::StrLength);
+      case IrOp::ArrPop: return rtOp(i, pos, zn::Rt::ArrPop);
+      case IrOp::ToStr: {
+        const ir::Type& at = ty(f.valueTypes[i.args[0]]);
+        std::uint32_t base = callBase[pos];
+        parallelMoves({{base, R(i.args[0])}});
+        zn::Rt id = at.k == ir::Type::K::Bool ? zn::Rt::BoolToStr : at.num == NumK::f64 || at.num == NumK::f32 ? zn::Rt::NumToStrD : isSigned(at.num) ? zn::Rt::NumToStrI : zn::Rt::NumToStrU;
+        if (at.k == ir::Type::K::Num && at.num == NumK::f32) put(encABC(Op::F32ToF64, base, base));
+        put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
+        return true;
+      }
+      case IrOp::ArrNew: put(encAD(Op::New, d, vtOf(i.ty).ref)); return true;
+      case IrOp::ArrGet: put(encABC(Op::ArrGet, d, R(i.args[0]), R(i.args[1]))); return true;
+      case IrOp::ArrSet: put(encABC(Op::ArrSet, R(i.args[0]), R(i.args[1]), R(i.args[2]))); return true;
+      case IrOp::ArrLen: put(encABC(Op::ArrLen, d, R(i.args[0]))); return true;
+      case IrOp::ArrPush: put(encABC(Op::ArrPush, d, R(i.args[0]), R(i.args[1]))); return true;
       case IrOp::New: put(encAD(Op::New, d, i.sym)); return true;
       case IrOp::GetField: put(encABC(Op::GetField, d, R(i.args[0]), i.sym)); return true;
       case IrOp::SetField: put(encABC(Op::SetField, R(i.args[0]), R(i.args[1]), i.sym)); return true;
@@ -557,10 +629,13 @@ struct FnEmitter {
       }
       case IrOp::Builtin: {
         auto bi = static_cast<ir::Builtin>(i.sym);
+        if (bi == ir::Builtin::NumToFixed) return rtOp(i, pos, zn::Rt::NumToFixed);
         if (bi == ir::Builtin::ConsoleLog) {
           for (std::size_t a = 0; a < i.args.size(); ++a) {
             if (a) put(encABC(Op::LogSep, 0));
             const ir::Type& t = ty(f.valueTypes[i.args[a]]);
+            if (t.k != ir::Type::K::Bool && t.k != ir::Type::K::Num && t.k != ir::Type::K::Str) return fail("console.log of this type has no bytecode yet");
+            if (t.k == ir::Type::K::Str) { put(encABC(Op::LogStr, R(i.args[a]))); continue; }
             Op op = t.k == ir::Type::K::Bool ? Op::LogBool : t.num == NumK::f64 ? Op::LogF64 : t.num == NumK::f32 ? Op::LogF32 : isSigned(t.num) ? Op::LogI : Op::LogU;
             put(encABC(op, R(i.args[a])));
           }
@@ -674,32 +749,39 @@ struct FnEmitter {
 
 EmitResult emit(const ir::Module& m) {
   EmitResult r;
-  for (const ir::Global& g : m.globals) r.module.globals.push_back(vtOfType(m, g.type));
+  r.module.strings = m.strings;
+  TypeTable tt{m, r.module};
+  for (const ir::Class& c : m.classes) {  // the IR's classes first: their indices are the IR's
+    ClassInfo info;
+    info.name = c.name;
+    r.module.classes.push_back(std::move(info));
+  }
+  for (const ir::Global& g : m.globals) r.module.globals.push_back(tt.vt(g.type));
   for (const ir::Selector& sel : m.selectors) {
     SelInfo si;
     si.name = sel.name;
-    for (ir::TypeId t : sel.params) si.params.push_back(vtOfType(m, t));
-    si.ret = vtOfType(m, sel.ret);
+    for (ir::TypeId t : sel.params) si.params.push_back(tt.vt(t));
+    si.ret = tt.vt(sel.ret);
     r.module.selectors.push_back(std::move(si));
   }
   for (std::size_t ci = 0; ci < m.classes.size(); ++ci) {
     const ir::Class& c = m.classes[ci];
     ClassInfo info;
     info.name = c.name; info.parent = c.parent; info.isInterface = c.isInterface; info.isAbstract = c.isAbstract;
-    for (const ir::Field& fl : c.fields) info.fields.push_back(vtOfType(m, fl.type));
+    for (const ir::Field& fl : c.fields) info.fields.push_back(tt.vt(fl.type));
     // supertypes: every ancestor and every interface satisfied by the class or an ancestor
     for (std::uint32_t o = c.parent, k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k) info.supers.push_back(o);
     for (std::uint32_t o = static_cast<std::uint32_t>(ci), k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k)
       for (std::uint32_t i : m.classes[o].implements) if (std::find(info.supers.begin(), info.supers.end(), i) == info.supers.end()) info.supers.push_back(i);
     info.selectors = c.selectors;
     info.vtable = c.vtable;
-    r.module.classes.push_back(std::move(info));
+    r.module.classes[ci] = std::move(info);
   }
   r.module.functions.resize(m.functions.size());
   for (std::size_t i = 0; i < m.functions.size(); ++i) {
     Function& zf = r.module.functions[i];
     zf.name = m.functions[i].name;
-    FnEmitter e(m, m.functions[i], zf);
+    FnEmitter e(m, m.functions[i], zf, tt);
     if (!e.run()) {
       r.errors.push_back("@" + zf.name + ": " + e.error);
       zf.code.clear();

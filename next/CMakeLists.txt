@@ -28,7 +28,7 @@ add_library(zn_zbc STATIC src/zbc/zbc.cpp src/zbc/emit.cpp)
 target_link_libraries(zn_zbc PUBLIC zn_ir)
 target_include_directories(zn_zbc PUBLIC include src)
 
-add_library(zn_vm STATIC src/vm/vm.cpp)
+add_library(zn_vm STATIC src/vm/vm.cpp src/vm/rt.cpp)
 target_link_libraries(zn_vm PUBLIC zn_zbc)
 
 add_executable(zinc src/main.cpp)

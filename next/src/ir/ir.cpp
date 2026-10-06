@@ -26,7 +26,7 @@ int builtinArity(Builtin b) {
 const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
       "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "instof", "call", "callvirt", "builtin", "new", "getfield", "setfield",
-      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen",
+      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "rt",
       "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
 }
@@ -51,6 +51,7 @@ std::uint8_t effects(const Module& m, const Inst& i) {
   auto isInt = [&](TypeId t) { const Type& x = m.types[t]; return x.k == Type::K::Num && x.num != Num::f64 && x.num != Num::f32 && x.num != Num::fx12 && x.num != Num::fx16; };
   switch (i.op) {
     case IrOp::Call: case IrOp::CallVirt: case IrOp::Builtin: return kReads | kWrites | kThrows;
+    case IrOp::Rt: return kReads | kWrites | kThrows | kAllocs;
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
     case IrOp::New: case IrOp::ArrNew: case IrOp::StrConcat: case IrOp::ToStr: return kAllocs;
     case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: case IrOp::InstOf: return kReads;
@@ -76,6 +77,8 @@ std::string typeName(const Module& m, TypeId t) {
     }
     case Type::K::Ref: return "ref " + m.classes[x.aux].name;
     case Type::K::Array: return typeName(m, x.aux) + "[]";
+    case Type::K::Map: return "Map<" + typeName(m, x.aux2) + ", " + typeName(m, x.aux) + ">";
+    case Type::K::Set: return "Set<" + typeName(m, x.aux) + ">";
   }
   return "?";
 }
@@ -127,12 +130,13 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     case IrOp::GetField: case IrOp::SetField: s += " ." + std::to_string(i.sym); break;
     case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + m.globals[i.sym].name; break;
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
+    case IrOp::Rt: s += std::string(" ") + rtInfo(static_cast<zn::Rt>(i.sym)).name; break;
     default: break;
   }
   if (i.op == IrOp::Br) return s + " " + edgeText(i.edges[0]);
   if (i.op == IrOp::CondBr) return s + " " + v(i.args[0]) + ", " + edgeText(i.edges[0]) + ", " + edgeText(i.edges[1]);
   if (!i.args.empty()) {
-    bool call = i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin;
+    bool call = i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin || i.op == IrOp::Rt;
     s += call ? "(" : " ";
     for (std::size_t k = 0; k < i.args.size(); ++k) s += (k ? ", " : "") + v(i.args[k]);
     if (call) s += ")";
@@ -372,7 +376,7 @@ struct Verifier {
         if (i.op == IrOp::SetGlobal && tyOf(i.args[0]) != m.globals[i.sym].type) return fail(b, ii, "setglobal value type differs from the global's type");
         break;
       case IrOp::ArrNew:
-        if (!arity(0) || m.types[i.ty].k != Type::K::Array) return err.empty() ? fail(b, ii, "arrnew must produce an array") : false;
+        if (!arity(0) || (m.types[i.ty].k != Type::K::Array && m.types[i.ty].k != Type::K::Map && m.types[i.ty].k != Type::K::Set)) return err.empty() ? fail(b, ii, "arrnew must produce an array, a Map or a Set") : false;
         break;
       case IrOp::ArrGet: case IrOp::ArrSet: case IrOp::ArrLen: case IrOp::ArrPush: case IrOp::ArrPop: {
         std::size_t need = i.op == IrOp::ArrGet ? 2 : i.op == IrOp::ArrSet ? 3 : i.op == IrOp::ArrPush ? 2 : 1;
@@ -394,6 +398,15 @@ struct Verifier {
       case IrOp::StrLen:
         if (!arity(1) || m.types[tyOf(i.args[0])].k != Type::K::Str) return err.empty() ? fail(b, ii, "strlen needs a string") : false;
         break;
+      case IrOp::Rt: {
+        if (i.sym >= static_cast<std::uint32_t>(zn::Rt::Count)) return fail(b, ii, "unknown runtime call");
+        const RtInfo& ri = rtInfo(static_cast<zn::Rt>(i.sym));
+        if (!arity(rtParamCount(ri))) return false;
+        Type::K rk = m.types[tyOf(i.args[0])].k;
+        bool okRecv = rtOwnedBy(ri, "string") ? rk == Type::K::Str : rtOwnedBy(ri, "Array") ? rk == Type::K::Array : rtOwnedBy(ri, "Map") ? rk == Type::K::Map : rk == Type::K::Set;
+        if (!okRecv) return fail(b, ii, std::string("runtime call ") + ri.name + " on a receiver of another type");
+        break;
+      }
       case IrOp::Br:
         if (!arity(0) || i.edges.size() != 1) return err.empty() ? fail(b, ii, "br needs one edge") : false;
         return checkEdge(b, ii, i.edges[0]);

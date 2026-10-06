@@ -1,10 +1,10 @@
 #!/bin/sh
-# VM: fib and mandelbrot print the frozen corpus outputs (no Node), every run golden matches (outputs generated once with
+# VM: the kernels that run (fib, mandelbrot, nbody, spectralnorm, strings, mapset, sort) print the frozen corpus outputs (no Node), every run golden matches (outputs generated once with
 # Node by tools/regen-run-goldens), a bytecode file runs like its source, and runtime errors are reported, not crashes.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-for k in fib mandelbrot; do
+for k in fib mandelbrot nbody spectralnorm strings mapset sort; do
   "$ZINC" run ../tests/bench/kernels/$k.ts 2>&1 | diff -q - corpus/bench/$k.out >/dev/null || { echo "output differs from the frozen corpus: $k"; fail=1; }
 done
 for f in tests/golden/run/*.ts; do

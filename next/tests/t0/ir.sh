@@ -6,7 +6,7 @@ fail=0
 for k in fib mandelbrot nbody; do
   "$ZINC" --emit=ir ../tests/bench/kernels/$k.ts 2>&1 | diff -q - tests/golden/ir/$k.ir >/dev/null || { echo "ir golden differs: $k"; fail=1; }
 done
-for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions closures closures2; do
+for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions closures closures2 rt_strings rt_arrays rt_collections; do
   "$ZINC" --emit=ir tests/golden/run/$k.ts 2>&1 | diff -q - tests/golden/ir/$k.ir >/dev/null || { echo "ir golden differs: $k"; fail=1; }
 done
 for f in tests/golden/checker/ok/*.ts; do

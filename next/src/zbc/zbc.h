@@ -17,6 +17,8 @@ namespace zn::zbc {
 // (the class travels with the type, see VType). None = void / undefined.
 enum class Cls : std::uint8_t { None, I, S, D, R };
 
+enum class CKind : std::uint8_t { Object, String, Array, Map, Set };
+
 struct VType {
   Cls cls = Cls::None;
   std::uint16_t ref = 0;  // class id when cls == R
@@ -31,8 +33,12 @@ struct Const {
 // Closed-world class table. `supers` lists every ancestor and every interface the class satisfies (not the class itself);
 // `fields` is the full layout (inherited first); `selectors` are the virtual methods visible on the class and `vtable`
 // maps every selector id to a function index (kNoClass: none, interfaces and abstract classes have no vtable).
+// Strings, arrays, Map and Set are builtin classes with no fields, selectors or parent: `elem` is the element type of an
+// array or Set and the value type of a Map, `key` the key type of a Map. Each distinct one appears once in the table.
 struct ClassInfo {
   std::string name;
+  CKind kind = CKind::Object;
+  VType elem, key;
   std::uint32_t parent = ir::kNoClass;
   bool isInterface = false;
   bool isAbstract = false;
@@ -59,13 +65,14 @@ struct Function {
 };
 
 struct Module {
+  std::vector<std::string> strings;  // LoadStr operands
   std::vector<VType> globals;
   std::vector<ClassInfo> classes;
   std::vector<SelInfo> selectors;
   std::vector<Function> functions;  // functions[0] is main
 };
 
-// Emits ZBC for the numeric subset. Constructs without bytecode yet (heap objects, arrays, strings, exceptions) are
+// Emits ZBC. Constructs without bytecode yet (exceptions, fixed-point numbers) are
 // reported in `errors`, one per function, and that function's code is left empty.
 struct EmitResult {
   Module module;

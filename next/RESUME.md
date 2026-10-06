@@ -4,14 +4,14 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 ## State
 
-- Date: 2026-10-05. Phase: M0 in progress.
+- Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures (see the notes below).
-- Ready: none; next by ordinal is ZN-015 (Strings, arrays, Map and Set through zrt). Nothing in progress.
+- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set (see the notes below).
+- Ready: none; next by ordinal is ZN-016 (modules). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-015.
+`/loop /zn-start` resumes with ZN-016.
 
 ## Watch out
 
@@ -110,3 +110,11 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Checker data for the lowering: `Checked::captures` (transitive), `lambdaUsesThis`, `funcValueUses`; lambdas are checked inline so they see the surrounding scope.
 - Unsupported (Z0005 in the lowering): nested named functions that use variables of the enclosing function (use an arrow), a captured `for (let ...)` variable that the loop modifies (JS copies it per iteration), method values (`obj.m` without a call), generic lambdas. Function-value calls are not devirtualised yet.
 - Next: ZN-015 puts strings, arrays, Map and Set into ZBC and the VM (ZN-014's tests avoid arrays on purpose).
+
+## ZN-015 notes (strings, arrays, Map, Set)
+
+- ZBC format v3: strings, arrays, Map and Set are builtin classes in the class table (`ClassInfo::kind/elem/key`, one per distinct type, appended after the IR's classes) plus a string table (`LoadStr`). Ops: `ArrGet/ArrSet/ArrLen/ArrPush`, `New` on a collection class, `LogStr`, and `Rt A,id`.
+- `include/zn/runtime.h` is the single table of runtime calls (name, signature letters, flags): the checker derives members and types from it, the lowering emits `IrOp::Rt`, the verifier types `Rt` from the letters, `src/vm/rt.cpp` implements them. Adding a string/array/Map/Set method = one row + one VM case. Rt uses a call window like `Call`.
+- VM: `Machine` (`src/vm/machine.h`), re-entrant `exec()` (sort calls the comparator through it; entry frames count against the depth limit). Strings are UTF-8 with a UTF-16 view; Map/Set are insertion-ordered hash tables; everything leaks until ZN-018.
+- Checker: integer kinds convert implicitly among themselves (wrapping, needed by the kernels); `??` only on nullable references or directly on `Map.get` (which has no `undefined`; use `has`); `Map.values()/keys()` and `Set.values()` return arrays (as lib/zinc.d.ts says; Node returns iterators, so Node-run goldens iterate with for-of).
+- Limits: `charCodeAt` out of range gives 0 (not NaN), `pop` on empty gives 0, case mapping only for ASCII, `join` only on `string[]`, no `console.log` of arrays/Map/Set, no `sort()` without comparator, no Map/Set constructor arguments, no for-of directly over Map/Set.

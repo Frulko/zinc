@@ -82,6 +82,8 @@ struct Lowering {
       case frontend::TK::Str: return m.strT();
       case frontend::TK::Void: return m.voidT();
       case frontend::TK::Array: return m.arrayT(irType(x.elem, at));
+      case frontend::TK::Set: return m.setT(irType(x.elem, at));
+      case frontend::TK::Map: return m.mapT(irType(x.params[0], at), irType(x.elem, at));
       case frontend::TK::Func: if (!typeHasParam(t)) return m.refT(fnClassOf(t)); break;
       case frontend::TK::Object:
         if (classOfObj[x.obj] != kNil) return m.refT(classOfObj[x.obj]);
@@ -189,7 +191,8 @@ struct Lowering {
         if (create) fnClassOf(t);
         for (frontend::TypeId p : std::vector<frontend::TypeId>(x.params)) scan(p, true);
         scan(x.elem, true);
-      } else if (x.k == frontend::TK::Array) scan(x.elem, true);
+      } else if (x.k == frontend::TK::Array || x.k == frontend::TK::Set) scan(x.elem, true);
+      else if (x.k == frontend::TK::Map) { scan(x.params[0], true); scan(x.elem, true); }
       else if (x.k == frontend::TK::Union) for (frontend::TypeId p : std::vector<frontend::TypeId>(x.params)) scan(p, true);
     };
     for (const frontend::Symbol& sy : c.syms) {
@@ -252,7 +255,8 @@ struct Lowering {
     const frontend::Type& x = c.types[t];
     switch (x.k) {
       case frontend::TK::Param: return true;
-      case frontend::TK::Array: return typeHasParam(x.elem);
+      case frontend::TK::Array: case frontend::TK::Set: return typeHasParam(x.elem);
+      case frontend::TK::Map: return typeHasParam(x.elem) || typeHasParam(x.params[0]);
       case frontend::TK::Func: { if (typeHasParam(x.elem)) return true; for (auto p : x.params) if (typeHasParam(p)) return true; return false; }
       case frontend::TK::Union: { for (auto p : x.params) if (typeHasParam(p)) return true; return false; }
       case frontend::TK::Object: return c.objs[x.obj].isTemplate;
@@ -854,6 +858,7 @@ struct Lowering::FnLower {
           std::uint32_t cls = L.classOfObj[c.types[c.nodeType[x.kids[1]]].obj];
           return emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls);
         }
+        if (o == "??") return nullish(i, x);
         if (o == "&&") return shortCircuit(x, true);
         if (o == "||") return shortCircuit(x, false);
         if (o == "==" || o == "===" || o == "!=" || o == "!==" || o == "<" || o == "<=" || o == ">" || o == ">=") return compare(i, x);
@@ -959,6 +964,7 @@ struct Lowering::FnLower {
         ValueId obj = expr(x.kids[0]);
         if (ct.k == frontend::TK::Array) return emit(IrOp::ArrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Str) return emit(IrOp::StrLen, m.numT(NumK::i32), {obj});
+        if (ct.k == frontend::TK::Map || ct.k == frontend::TK::Set) return emit(IrOp::Rt, m.numT(NumK::i32), {obj}, 0, 0, static_cast<std::uint32_t>(ct.k == frontend::TK::Map ? zn::Rt::MapSize : zn::Rt::SetSize));
         std::uint32_t fi = L.fieldIndex(ct.obj, x.text);
         return emit(IrOp::GetField, natural(i), {obj}, 0, 0, fi);
       }
@@ -1035,6 +1041,79 @@ struct Lowering::FnLower {
 
   ValueId builtin(Builtin b, std::vector<ValueId> args, TypeId ret) { return emit(IrOp::Builtin, ret, std::move(args), 0, 0, static_cast<std::uint32_t>(b)); }
 
+  // The IR type a letter of the runtime table (zn/runtime.h) stands for, given the receiver's IR type.
+  TypeId rtIrType(char l, TypeId recv) {
+    const Type r = ty(recv);
+    switch (l) {
+      case 's': return m.strT();
+      case 'i': case 'j': return m.numT(NumK::i32);
+      case 'b': return m.boolT();
+      case 'd': return m.numT(NumK::f64);
+      case 'n': return m.voidT();
+      case 'a': case 'm': case 't': return recv;
+      case 'e': case 'v': return r.aux;
+      case 'k': return r.aux2;
+      case 'A': case 'V': return m.arrayT(r.aux);
+      case 'K': return m.arrayT(r.aux2);
+      case 'S': return m.arrayT(m.strT());
+      default: return m.voidT();
+    }
+  }
+  // recv.member(args) on a string, array, Map or Set: one Rt call; an omitted trailing `j` argument is INT32_MAX.
+  ValueId rtMemberCall(const Node& callee, const std::vector<std::uint32_t>& args, ValueId recv, const char* owner) {
+    for (const RtInfo& r : kRtInfo) {
+      if ((r.flags & 2) || !rtOwnedBy(r, owner) || callee.text != rtMember(r)) continue;
+      TypeId rtyp = tv(recv);
+      std::vector<ValueId> vs{recv};
+      for (unsigned k = 1; k < rtParamCount(r); ++k) {
+        char l = rtParam(r, k);
+        if (k < args.size()) {
+          if (l == 'c') vs.push_back(coerce(expr(args[k]), L.irType(c.nodeType[args[k]])));  // the comparator keeps its own function type
+          else vs.push_back(exprTo(args[k], rtIrType(l, rtyp)));
+        } else vs.push_back(constNum(m.numT(NumK::i32), 2147483647));
+      }
+      return emit(IrOp::Rt, rtIrType(rtRet(r), rtyp), std::move(vs), 0, 0, static_cast<std::uint32_t>(r.id));
+    }
+    return kNoValue;
+  }
+
+  // a ?? b. A Map.get has no null to test: ask the Map whether it holds the key.
+  ValueId nullish(std::uint32_t i, const Node& x) {
+    TypeId rt = natural(i);
+    const Node& ln = n(x.kids[0]);
+    BlockId hb = newBlock(), eb = newBlock(), join = newBlock();
+    ValueId jp = newValue(rt);
+    f.blocks[join].params.push_back(jp);
+    bool mapGet = false;
+    if (ln.kind == N::Call && n(ln.kids[0]).kind == N::Member && n(ln.kids[0]).text == "get") {
+      const frontend::Type& mt = c.types[c.nodeType[n(ln.kids[0]).kids[0]]];
+      mapGet = mt.k == frontend::TK::Map;
+    }
+    if (mapGet) {
+      ValueId mp = expr(n(ln.kids[0]).kids[0]);
+      ValueId key = exprTo(ln.kids[1], ty(tv(mp)).aux2);
+      ValueId has = emit(IrOp::Rt, m.boolT(), {mp, key}, 0, 0, static_cast<std::uint32_t>(zn::Rt::MapHas));
+      condbr(has, hb, eb);
+      sealed[hb] = sealed[eb] = 1;
+      cur = hb;
+      ValueId g = emit(IrOp::Rt, ty(tv(mp)).aux, {mp, key}, 0, 0, static_cast<std::uint32_t>(zn::Rt::MapGet));
+      br(join, {coerce(g, rt)});
+    } else {
+      ValueId l = expr(x.kids[0]);
+      ValueId nl = emit(IrOp::Const, tv(l));
+      condbr(emit(IrOp::Ne, m.boolT(), {l, nl}), hb, eb);
+      sealed[hb] = sealed[eb] = 1;
+      cur = hb;
+      br(join, {coerce(l, rt)});
+    }
+    cur = eb;
+    ValueId d = exprTo(x.kids[1], rt);
+    br(join, {d});
+    seal(join);
+    cur = join;
+    return jp;
+  }
+
   ValueId thisValue(std::uint32_t asObj) {
     ValueId t = readVar(thisVar, cur);
     return coerce(t, m.refT(L.classOfObj[asObj]));
@@ -1107,6 +1186,11 @@ struct Lowering::FnLower {
           TypeId el = L.irType(ct.elem);
           if (callee.text == "push") return emit(IrOp::ArrPush, m.numT(NumK::i32), {recv, exprTo(x.kids[1], el)});
           if (callee.text == "pop") return emit(IrOp::ArrPop, el, {recv});
+        }
+        if (ct.k == frontend::TK::Num && callee.text == "toString") return emit(IrOp::ToStr, m.strT(), {recv});
+        if (ct.k == frontend::TK::Str || ct.k == frontend::TK::Array || ct.k == frontend::TK::Map || ct.k == frontend::TK::Set) {
+          ValueId r = rtMemberCall(callee, x.kids, recv, ct.k == frontend::TK::Str ? "string" : ct.k == frontend::TK::Array ? "Array" : ct.k == frontend::TK::Map ? "Map" : "Set");
+          if (r != kNoValue || ty(tv(recv)).k != Type::K::Void) return r;
         } else if (ct.k == frontend::TK::Num && callee.text == "toFixed") {
           ValueId digits = exprTo(x.kids[1], m.numT(NumK::i32));
           return builtin(Builtin::NumToFixed, {coerce(recv, m.numT(NumK::f64)), digits}, m.strT());
@@ -1129,6 +1213,7 @@ struct Lowering::FnLower {
   }
 
   ValueId newObject(std::uint32_t i, const Node& x) {
+    if (c.types[c.nodeType[i]].k == frontend::TK::Map || c.types[c.nodeType[i]].k == frontend::TK::Set) return emit(IrOp::ArrNew, L.irType(c.nodeType[i]));
     std::uint32_t s = c.nodeSym[x.kids[0]];
     std::uint32_t obj = c.types[c.syms[s].type].obj, cls = L.classOfObj[obj];
     (void)i;

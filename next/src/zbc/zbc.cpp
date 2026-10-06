@@ -1,7 +1,10 @@
 #include "zbc/zbc.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+
+#include "zn/runtime.h"
 
 namespace zn::zbc {
 
@@ -62,8 +65,8 @@ bool aIsReg(Op op) {
   const OpInfo& i = opInfo(op);
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
-  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf;
-  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::SetField;
+  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt;
+  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::LogStr || op == Op::SetField || op == Op::ArrSet;
 }
 bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
 bool cIsReg(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABC && i.inC != RC::None; }
@@ -83,9 +86,19 @@ std::uint32_t jumpTarget(const std::vector<std::uint32_t>& code, std::size_t pc)
 std::string verifyTables(const Module& m) {
   auto vtOk = [&](VType t) { return t.cls != Cls::R || t.ref < m.classes.size(); };
   if (m.classes.size() > kMaxClasses) return "too many classes";
+  std::uint32_t nStr = 0;
   for (std::size_t ci = 0; ci < m.classes.size(); ++ci) {
     const ClassInfo& c = m.classes[ci];
     std::string who = "class " + c.name + ": ";
+    if (c.kind != CKind::Object) {  // strings, arrays, Map and Set: no members, one class per distinct type
+      if (c.parent != kNoCls || c.isInterface || c.isAbstract || !c.fields.empty() || !c.selectors.empty() || !c.supers.empty() || !c.vtable.empty()) return who + "a builtin class has no members";
+      if (!vtOk(c.elem) || !vtOk(c.key)) return who + "element of an unknown class";
+      if ((c.kind == CKind::String && c.elem.cls != Cls::None) || (c.kind != CKind::Map && c.key.cls != Cls::None) || (c.kind != CKind::String && c.elem.cls == Cls::None) || (c.kind == CKind::Map && c.key.cls == Cls::None)) return who + "invalid element or key type";
+      if (c.kind == CKind::String && ++nStr > 1) return who + "more than one string class";
+      for (std::size_t cj = 0; cj < ci; ++cj)
+        if (c.kind != CKind::String && m.classes[cj].kind == c.kind && m.classes[cj].elem == c.elem && m.classes[cj].key == c.key) return who + "duplicates " + m.classes[cj].name;
+      continue;
+    }
     if (c.parent != kNoCls && (c.parent >= m.classes.size() || m.classes[c.parent].isInterface)) return who + "invalid parent";
     if (c.fields.size() > kMaxFields) return who + "too many fields";
     for (VType t : c.fields) if (!vtOk(t)) return who + "field of an unknown class";
@@ -131,7 +144,16 @@ struct Verifier {
   std::string err;
   using State = std::vector<St>;  // per register
 
-  Verifier(const Module& mod, std::size_t idx) : m(mod), f(mod.functions[idx]), fi(idx) {}
+  std::uint32_t strCls = kNoCls;
+
+  Verifier(const Module& mod, std::size_t idx) : m(mod), f(mod.functions[idx]), fi(idx) {
+    for (std::size_t c = 0; c < m.classes.size() && strCls == kNoCls; ++c) if (m.classes[c].kind == CKind::String) strCls = static_cast<std::uint32_t>(c);
+  }
+  // The class of a builtin collection with this element (and key), or kNoCls.
+  std::uint32_t findColl(CKind k, VType elem, VType key = {}) const {
+    for (std::size_t c = 0; c < m.classes.size(); ++c) if (m.classes[c].kind == k && m.classes[c].elem == elem && m.classes[c].key == key) return static_cast<std::uint32_t>(c);
+    return kNoCls;
+  }
 
   bool fail(std::size_t pc, const std::string& msg) {
     if (err.empty()) err = "@" + f.name + " pc " + std::to_string(pc) + ": " + msg;
@@ -168,6 +190,8 @@ struct Verifier {
             case Op::JmpIf: case Op::JmpIfNot: if (d >= f.code.size()) return fail(pc, "jump target out of range"); break;
             case Op::Call: if (d >= m.functions.size()) return fail(pc, "call to a missing function"); break;
             case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
+            case Op::LoadStr: if (d >= m.strings.size()) return fail(pc, "string index out of range"); break;
+            case Op::Rt: if (d >= static_cast<unsigned>(Rt::Count)) return fail(pc, "unknown runtime call"); break;
             case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: if (d >= m.classes.size()) return fail(pc, "unknown class"); break;
             case Op::CallVirt: if (d >= m.selectors.size()) return fail(pc, "unknown selector"); break;
             default: break;
@@ -254,6 +278,7 @@ struct Verifier {
       case Op::New: {
         const ClassInfo& c = m.classes[dOf(w)];
         if (c.isInterface || c.isAbstract) return fail(pc, "new of the " + std::string(c.isInterface ? "interface " : "abstract class ") + c.name);
+        if (c.kind == CKind::String) return fail(pc, "new of the string class (strings come from constants and runtime calls)");
         s[aOf(w)] = static_cast<St>(4 + dOf(w));
         return true;
       }
@@ -298,6 +323,91 @@ struct Verifier {
         if (!needRef(bOf(w), "operand") || !needRef(cOf(w), "operand")) return false;
         s[aOf(w)] = 1;
         return true;
+      case Op::LoadStr:
+        if (strCls == kNoCls) return fail(pc, "string constant in a module without a string class");
+        s[aOf(w)] = static_cast<St>(4 + strCls);
+        return true;
+      case Op::LogStr:
+        if (strCls == kNoCls) return fail(pc, "string operand in a module without a string class");
+        return needType(aOf(w), VType{Cls::R, static_cast<std::uint16_t>(strCls)}, "operand");
+      case Op::ArrGet: case Op::ArrSet: case Op::ArrLen: case Op::ArrPush: {
+        bool set = op == Op::ArrSet;
+        unsigned arr = set ? aOf(w) : bOf(w);
+        if (!needRef(arr, "array")) return false;
+        const ClassInfo& c = m.classes[s[arr] - 4];
+        if (c.kind != CKind::Array) return fail(pc, "r" + std::to_string(arr) + " holds " + c.name + ", expected an array");
+        if (op == Op::ArrGet) { if (!needCls(cOf(w), Cls::I, "index")) return false; s[aOf(w)] = enc(c.elem); return true; }
+        if (set) return needCls(bOf(w), Cls::I, "index") && needType(cOf(w), c.elem, "stored value");
+        if (op == Op::ArrPush && !needType(cOf(w), c.elem, "pushed value")) return false;
+        s[aOf(w)] = 1;
+        return true;
+      }
+      case Op::Rt: {
+        const RtInfo& ri = rtInfo(static_cast<Rt>(dOf(w)));
+        unsigned base = aOf(w), np = rtParamCount(ri);
+        if (base + std::max(np, 1u) > f.nregs) return fail(pc, std::string("call window of ") + ri.name + " does not fit in the frame");
+        bool needStr = std::strpbrk(ri.sig, "sS") != nullptr;
+        if (needStr && strCls == kNoCls) return fail(pc, std::string(ri.name) + " in a module without a string class");
+        VType strT{Cls::R, static_cast<std::uint16_t>(strCls)};
+        char l0 = rtParam(ri, 0);
+        bool collRecv = l0 == 'a' || l0 == 'm' || l0 == 't';
+        std::uint32_t self = kNoCls;
+        const ClassInfo* rc = nullptr;
+        if (collRecv) {  // the receiver is an array, Map or Set: the element, key and value letters refer to it
+          if (!needRef(base, "receiver")) return false;
+          self = static_cast<std::uint32_t>(s[base] - 4);
+          rc = &m.classes[self];
+          CKind want = l0 == 'a' ? CKind::Array : l0 == 'm' ? CKind::Map : CKind::Set;
+          if (rc->kind != want) return fail(pc, std::string(ri.name) + " on " + rc->name);
+          if (ri.id == Rt::ArrJoin && !(rc->elem == strT)) return fail(pc, "join of an array that is not a string[]");
+        }
+        for (unsigned k = 0; k < np; ++k) {
+          char l = rtParam(ri, k);
+          unsigned reg = base + k;
+          bool ok = true;
+          switch (l) {
+            case 'a': case 'm': case 't': break;  // the receiver, checked above
+            case 's': ok = needType(reg, strT, "argument"); break;
+            case 'i': case 'j': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
+            case 'd': ok = needCls(reg, Cls::D, "argument"); break;
+            case 'e': case 'v': ok = rc && needType(reg, rc->elem, "argument"); break;
+            case 'k': ok = rc && needType(reg, rc->key, "argument"); break;
+            case 'c': {  // an object whose class has `call(E, E): f64`
+              ok = rc && needRef(reg, "comparator");
+              if (!ok) break;
+              const ClassInfo& cc = m.classes[s[reg] - 4];
+              bool found = false;
+              for (std::uint32_t sel : cc.selectors) {
+                const SelInfo& si = m.selectors[sel];
+                if (si.name == "call" && si.params.size() == 2 && si.params[0] == rc->elem && si.params[1] == rc->elem && si.ret.cls == Cls::D) found = true;
+              }
+              if (!found) ok = fail(pc, "r" + std::to_string(reg) + " holds " + cc.name + ", which has no call(E, E): f64 for the comparator");
+              break;
+            }
+            default: ok = fail(pc, "bad runtime signature");
+          }
+          if (!ok) return false;
+        }
+        for (std::size_t r = base; r < s.size(); ++r) s[r] = 0;  // the callee's frame overlays everything from the window up
+        char rl = rtRet(ri);
+        std::uint32_t rcls = kNoCls;
+        switch (rl) {
+          case 'n': return true;
+          case 's': s[base] = static_cast<St>(4 + strCls); return true;
+          case 'i': case 'j': case 'b': s[base] = 1; return true;
+          case 'd': s[base] = 3; return true;
+          case 'a': case 'm': case 't': s[base] = static_cast<St>(4 + self); return true;
+          case 'e': case 'v': if (!rc) return fail(pc, "bad runtime signature"); s[base] = enc(rc->elem); return true;
+          case 'k': if (!rc) return fail(pc, "bad runtime signature"); s[base] = enc(rc->key); return true;
+          case 'A': case 'V': if (!rc) return fail(pc, "bad runtime signature"); rcls = findColl(CKind::Array, rc->elem); break;
+          case 'K': if (!rc) return fail(pc, "bad runtime signature"); rcls = findColl(CKind::Array, rc->key); break;
+          case 'S': rcls = findColl(CKind::Array, strT); break;
+          default: return fail(pc, "bad runtime signature");
+        }
+        if (rcls == kNoCls) return fail(pc, std::string("no array class for the result of ") + ri.name);
+        s[base] = static_cast<St>(4 + rcls);
+        return true;
+      }
       default: break;
     }
     if (info.fmt == Fmt::ABK) { if (!needCls(bOf(w), Cls::I, "operand")) return false; s[aOf(w)] = 1; return true; }
@@ -356,10 +466,10 @@ struct Verifier {
   }
 };
 
-// ---- binary format. "ZBC2", u32 version, then: classes, selectors, globals, functions (see encode()).
+// ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 2;
+constexpr std::uint32_t kVersion = 3;
 
 struct Writer {
   std::vector<std::uint8_t> b;
@@ -435,6 +545,8 @@ std::vector<std::uint8_t> encode(const Module& m) {
     w.str(c.name);
     w.u32(c.parent);
     w.u8(static_cast<std::uint8_t>((c.isInterface ? 1 : 0) | (c.isAbstract ? 2 : 0)));
+    w.u8(static_cast<std::uint8_t>(c.kind));
+    if (c.kind != CKind::Object) { w.vt(c.elem); w.vt(c.key); }
     w.u32s(c.supers);
     w.u32(static_cast<std::uint32_t>(c.fields.size()));
     for (VType t : c.fields) w.vt(t);
@@ -448,6 +560,8 @@ std::vector<std::uint8_t> encode(const Module& m) {
     for (VType t : s.params) w.vt(t);
     w.vt(s.ret);
   }
+  w.u32(static_cast<std::uint32_t>(m.strings.size()));
+  for (const std::string& t : m.strings) w.str(t);
   w.u32(static_cast<std::uint32_t>(m.globals.size()));
   for (VType t : m.globals) w.vt(t);
   w.u32(static_cast<std::uint32_t>(m.functions.size()));
@@ -479,6 +593,10 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     c.parent = r.u32();
     std::uint8_t fl = r.u8();
     c.isInterface = fl & 1; c.isAbstract = (fl & 2) != 0;
+    std::uint8_t kd = r.u8();
+    if (kd > static_cast<std::uint8_t>(CKind::Set)) return fail("invalid class kind");
+    c.kind = static_cast<CKind>(kd);
+    if (c.kind != CKind::Object && (!r.vt(c.elem) || !r.vt(c.key))) return fail("invalid element type");
     if (!r.u32s(c.supers)) return fail("truncated file (class supertypes)");
     std::uint32_t nf = r.u32();
     if (nf > kMaxFields) return fail("too many fields");
@@ -496,6 +614,9 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (!r.vt(s.ret)) return fail("invalid selector type");
     out.selectors.push_back(std::move(s));
   }
+  std::uint32_t nstr = r.u32();
+  if (nstr > kMaxStrings || !r.has(static_cast<std::size_t>(nstr) * 4)) return fail("too many strings");
+  for (std::uint32_t i = 0; i < nstr; ++i) { std::string t; if (!r.str(t)) return fail("truncated file (strings)"); out.strings.push_back(std::move(t)); }
   std::uint32_t ng = r.u32();
   if (!r.has(ng)) return fail("truncated file (globals)");
   for (std::uint32_t i = 0; i < ng; ++i) { VType t; if (!r.vt(t)) return fail("invalid global type"); out.globals.push_back(t); }
@@ -533,6 +654,7 @@ std::string disassemble(const Module& m) {
   std::string out;
   for (std::size_t ci = 0; ci < m.classes.size(); ++ci) {
     const ClassInfo& c = m.classes[ci];
+    if (c.kind != CKind::Object) { out += "builtin " + c.name + "\n"; continue; }
     out += std::string(c.isInterface ? "interface " : c.isAbstract ? "abstract class " : "class ") + c.name;
     if (c.parent != kNoCls && c.parent < m.classes.size()) out += " : " + m.classes[c.parent].name;
     if (!c.isInterface) {
@@ -570,6 +692,8 @@ std::string disassemble(const Module& m) {
           case Op::JmpIf: case Op::JmpIfNot: ops = r(aOf(w)) + ", -> " + std::to_string(dOf(w)); break;
           case Op::Call: ops = r(aOf(w)) + ", @" + (dOf(w) < m.functions.size() ? m.functions[dOf(w)].name : "?"); break;
           case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: ops = r(aOf(w)) + ", " + clsN(dOf(w)); break;
+          case Op::LoadStr: ops = r(aOf(w)) + ", " + (dOf(w) < m.strings.size() ? "\"" + m.strings[dOf(w)] + "\"" : std::string("?")); break;
+          case Op::Rt: ops = r(aOf(w)) + ", " + (dOf(w) < static_cast<unsigned>(Rt::Count) ? rtInfo(static_cast<Rt>(dOf(w))).name : "?"); break;
           case Op::CallVirt: ops = r(aOf(w)) + ", ." + (dOf(w) < m.selectors.size() ? m.selectors[dOf(w)].name : "?"); break;
           default: ops = r(aOf(w)) + ", g" + std::to_string(dOf(w)); break;
         }

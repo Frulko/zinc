@@ -10,6 +10,7 @@
 
 #include "frontend/check.h"
 #include "zn/builtins.h"
+#include "zn/runtime.h"
 
 namespace zn::ir {
 
@@ -19,10 +20,11 @@ using BlockId = std::uint32_t;
 inline constexpr std::uint32_t kNoValue = 0xFFFFFFFFu;
 
 struct Type {
-  enum class K : std::uint8_t { Void, Bool, Num, Str, Ref, Array } k = K::Void;
+  enum class K : std::uint8_t { Void, Bool, Num, Str, Ref, Array, Map, Set } k = K::Void;
   frontend::Num num = frontend::Num::f64;  // Num
-  std::uint32_t aux = 0;                   // Ref: class index; Array: element TypeId
-  bool operator==(const Type& o) const { return k == o.k && num == o.num && aux == o.aux; }
+  std::uint32_t aux = 0;                   // Ref: class index; Array and Set: element TypeId; Map: value TypeId
+  std::uint32_t aux2 = 0;                  // Map: key TypeId
+  bool operator==(const Type& o) const { return k == o.k && num == o.num && aux == o.aux && aux2 == o.aux2; }
 };
 
 enum class Builtin : std::uint32_t {
@@ -47,8 +49,10 @@ enum class IrOp : std::uint8_t {
   CallVirt,                                                 // args[0] = receiver, sym = selector; dispatches through the receiver's vtable
   Builtin,                                                  // sym = Builtin
   New, GetField, SetField, GetGlobal, SetGlobal,
-  ArrNew, ArrGet, ArrSet, ArrLen, ArrPush, ArrPop,
+  ArrNew,                                                   // a new empty array, Map or Set of the result type
+  ArrGet, ArrSet, ArrLen, ArrPush, ArrPop,
   StrConcat, ToStr, StrLen,
+  Rt,                                                       // sym = zn::Rt (zn/runtime.h): string, array, Map and Set operations; args[0] is the receiver
   Br, CondBr, Ret, Throw, Unreachable,                      // terminators
 };
 const char* opName(IrOp o);
@@ -125,6 +129,8 @@ struct Module {
   TypeId numT(frontend::Num n) { return intern({Type::K::Num, n, 0}); }
   TypeId refT(std::uint32_t cls) { return intern({Type::K::Ref, frontend::Num::f64, cls}); }
   TypeId arrayT(TypeId elem) { return intern({Type::K::Array, frontend::Num::f64, elem}); }
+  TypeId mapT(TypeId key, TypeId val) { return intern({Type::K::Map, frontend::Num::f64, val, key}); }
+  TypeId setT(TypeId elem) { return intern({Type::K::Set, frontend::Num::f64, elem}); }
   // a is b, derives from b, or satisfies the interface b
   bool isSubtype(std::uint32_t a, std::uint32_t b) const;
 };

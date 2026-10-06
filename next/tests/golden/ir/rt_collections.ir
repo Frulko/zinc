@@ -1,0 +1,447 @@
+class Box { v: i32 }
+func @main() -> void {
+bb0:
+  %0: Map<i32, i32> = arrnew Map<i32, i32>
+  %1: i32 = const 0
+  br bb1(%1)
+bb1(%2: i32):
+  %3: i32 = const 20
+  %4: bool = lt %2, %3
+  condbr %4, bb2, bb4
+bb2:
+  %5: i32 = const 7
+  %6: i32 = rem %2, %5
+  %7: i32 = const 7
+  %8: i32 = rem %2, %7
+  %9: bool = rt Map.has(%0, %8)
+  condbr %9, bb5, bb6
+bb3:
+  %10: i32 = const 1
+  %11: i32 = add %2, %10
+  br bb1(%11)
+bb4:
+  %12: i32 = rt Map.size(%0)
+  %13: i32 = const 0
+  %14: bool = rt Map.has(%0, %13)
+  condbr %14, bb8, bb9
+bb5:
+  %15: i32 = rt Map.get(%0, %8)
+  br bb7(%15)
+bb6:
+  %16: i32 = const 0
+  br bb7(%16)
+bb7(%17: i32):
+  %18: i32 = add %17, %2
+  %19: Map<i32, i32> = rt Map.set(%0, %6, %18)
+  br bb3
+bb8:
+  %20: i32 = rt Map.get(%0, %13)
+  br bb10(%20)
+bb9:
+  %21: i32 = const -1
+  br bb10(%21)
+bb10(%22: i32):
+  %23: i32 = const 3
+  %24: bool = rt Map.has(%0, %23)
+  condbr %24, bb11, bb12
+bb11:
+  %25: i32 = rt Map.get(%0, %23)
+  br bb13(%25)
+bb12:
+  %26: i32 = const -1
+  br bb13(%26)
+bb13(%27: i32):
+  %28: i32 = const 6
+  %29: bool = rt Map.has(%0, %28)
+  condbr %29, bb14, bb15
+bb14:
+  %30: i32 = rt Map.get(%0, %28)
+  br bb16(%30)
+bb15:
+  %31: i32 = const -1
+  br bb16(%31)
+bb16(%32: i32):
+  %33: i32 = const 100
+  %34: bool = rt Map.has(%0, %33)
+  condbr %34, bb17, bb18
+bb17:
+  %35: i32 = rt Map.get(%0, %33)
+  br bb19(%35)
+bb18:
+  %36: i32 = const -1
+  br bb19(%36)
+bb19(%37: i32):
+  %38: i32 = const 4
+  %39: bool = rt Map.has(%0, %38)
+  %40: i32 = const 7
+  %41: bool = rt Map.has(%0, %40)
+  builtin console.log(%12, %22, %27, %32, %37, %39, %41)
+  %42: i32 = const 3
+  %43: bool = rt Map.delete(%0, %42)
+  %44: i32 = const 3
+  %45: bool = rt Map.delete(%0, %44)
+  %46: i32 = rt Map.size(%0)
+  %47: i32 = const 3
+  %48: bool = rt Map.has(%0, %47)
+  %49: i32 = const 3
+  %50: bool = rt Map.has(%0, %49)
+  condbr %50, bb20, bb21
+bb20:
+  %51: i32 = rt Map.get(%0, %49)
+  br bb22(%51)
+bb21:
+  %52: i32 = const 0
+  br bb22(%52)
+bb22(%53: i32):
+  builtin console.log(%43, %45, %46, %48, %53)
+  %54: i32 = const 3
+  %55: i32 = const 1
+  %56: Map<i32, i32> = rt Map.set(%0, %54, %55)
+  %57: str = const ""
+  %58: i32[] = rt Map.keys(%0)
+  %59: i32 = const 0
+  br bb23(%59, %57)
+bb23(%60: i32, %61: str):
+  %62: i32 = arrlen %58
+  %63: bool = lt %60, %62
+  condbr %63, bb24, bb26
+bb24:
+  %64: i32 = arrget %58, %60
+  %65: str = tostr %64
+  %66: str = const " "
+  %67: str = strconcat %65, %66
+  %68: str = strconcat %61, %67
+  br bb25
+bb25:
+  %69: i32 = const 1
+  %70: i32 = add %60, %69
+  br bb23(%70, %68)
+bb26:
+  %71: str = const ""
+  %72: i32[] = rt Map.values(%0)
+  %73: i32 = const 0
+  br bb27(%73, %71)
+bb27(%74: i32, %75: str):
+  %76: i32 = arrlen %72
+  %77: bool = lt %74, %76
+  condbr %77, bb28, bb30
+bb28:
+  %78: i32 = arrget %72, %74
+  %79: str = tostr %78
+  %80: str = const " "
+  %81: str = strconcat %79, %80
+  %82: str = strconcat %75, %81
+  br bb29
+bb29:
+  %83: i32 = const 1
+  %84: i32 = add %74, %83
+  br bb27(%84, %82)
+bb30:
+  %85: str = const "|"
+  builtin console.log(%61, %85, %75)
+  rt Map.clear(%0)
+  %86: i32 = rt Map.size(%0)
+  %87: i32 = const 1
+  %88: bool = rt Map.has(%0, %87)
+  condbr %88, bb31, bb32
+bb31:
+  %89: i32 = rt Map.get(%0, %87)
+  br bb33(%89)
+bb32:
+  %90: i32 = const 7
+  br bb33(%90)
+bb33(%91: i32):
+  builtin console.log(%86, %91)
+  %92: Map<str, i32> = arrnew Map<str, i32>
+  %93: str = const "the cat and the hat and the bat"
+  %94: str = const " "
+  %95: str[] = rt string.split(%93, %94)
+  %96: i32 = const 0
+  br bb34(%96)
+bb34(%97: i32):
+  %98: i32 = arrlen %95
+  %99: bool = lt %97, %98
+  condbr %99, bb35, bb37
+bb35:
+  %100: str = arrget %95, %97
+  %101: bool = rt Map.has(%92, %100)
+  condbr %101, bb38, bb39
+bb36:
+  %102: i32 = const 1
+  %103: i32 = add %97, %102
+  br bb34(%103)
+bb37:
+  %104: str = const ""
+  %105: str[] = rt Map.keys(%92)
+  %106: i32 = const 0
+  br bb41(%106, %104)
+bb38:
+  %107: i32 = rt Map.get(%92, %100)
+  br bb40(%107)
+bb39:
+  %108: i32 = const 0
+  br bb40(%108)
+bb40(%109: i32):
+  %110: i32 = const 1
+  %111: i32 = add %109, %110
+  %112: Map<str, i32> = rt Map.set(%92, %100, %111)
+  br bb36
+bb41(%113: i32, %114: str):
+  %115: i32 = arrlen %105
+  %116: bool = lt %113, %115
+  condbr %116, bb42, bb44
+bb42:
+  %117: str = arrget %105, %113
+  %118: str = const "="
+  %119: str = strconcat %117, %118
+  %120: bool = rt Map.has(%92, %117)
+  condbr %120, bb45, bb46
+bb43:
+  %121: i32 = const 1
+  %122: i32 = add %113, %121
+  br bb41(%122, %133)
+bb44:
+  %123: i32 = rt Map.size(%92)
+  builtin console.log(%123, %114)
+  %124: Set<str> = arrnew Set<str>
+  %125: i32 = const 0
+  br bb48(%125)
+bb45:
+  %126: i32 = rt Map.get(%92, %117)
+  br bb47(%126)
+bb46:
+  %127: i32 = const 0
+  br bb47(%127)
+bb47(%128: i32):
+  %129: str = tostr %128
+  %130: str = strconcat %119, %129
+  %131: str = const " "
+  %132: str = strconcat %130, %131
+  %133: str = strconcat %114, %132
+  br bb43
+bb48(%134: i32):
+  %135: i32 = arrlen %95
+  %136: bool = lt %134, %135
+  condbr %136, bb49, bb51
+bb49:
+  %137: str = arrget %95, %134
+  %138: Set<str> = rt Set.add(%124, %137)
+  br bb50
+bb50:
+  %139: i32 = const 1
+  %140: i32 = add %134, %139
+  br bb48(%140)
+bb51:
+  %141: i32 = rt Set.size(%124)
+  %142: str = const "cat"
+  %143: bool = rt Set.has(%124, %142)
+  %144: str = const "dog"
+  %145: bool = rt Set.has(%124, %144)
+  %146: str = const "cat"
+  %147: bool = rt Set.delete(%124, %146)
+  %148: str = const "cat"
+  %149: bool = rt Set.has(%124, %148)
+  %150: i32 = rt Set.size(%124)
+  builtin console.log(%141, %143, %145, %147, %149, %150)
+  %151: str = const ""
+  %152: str[] = rt Set.values(%124)
+  %153: i32 = const 0
+  br bb52(%153, %151)
+bb52(%154: i32, %155: str):
+  %156: i32 = arrlen %152
+  %157: bool = lt %154, %156
+  condbr %157, bb53, bb55
+bb53:
+  %158: str = arrget %152, %154
+  %159: str = const ","
+  %160: str = strconcat %158, %159
+  %161: str = strconcat %155, %160
+  br bb54
+bb54:
+  %162: i32 = const 1
+  %163: i32 = add %154, %162
+  br bb52(%163, %161)
+bb55:
+  builtin console.log(%155)
+  %164: Map<f64, str> = arrnew Map<f64, str>
+  %165: f64 = const nan
+  %166: str = const "nan"
+  %167: Map<f64, str> = rt Map.set(%164, %165, %166)
+  %168: f64 = const 0
+  %169: str = const "zero"
+  %170: Map<f64, str> = rt Map.set(%164, %168, %169)
+  %171: f64 = const -0
+  %172: str = const "negzero"
+  %173: Map<f64, str> = rt Map.set(%164, %171, %172)
+  %174: f64 = const 1.5
+  %175: str = const "x"
+  %176: Map<f64, str> = rt Map.set(%164, %174, %175)
+  %177: i32 = rt Map.size(%164)
+  %178: f64 = const nan
+  %179: bool = rt Map.has(%164, %178)
+  condbr %179, bb56, bb57
+bb56:
+  %180: str = rt Map.get(%164, %178)
+  br bb58(%180)
+bb57:
+  %181: str = const "?"
+  br bb58(%181)
+bb58(%182: str):
+  %183: f64 = const 0
+  %184: bool = rt Map.has(%164, %183)
+  condbr %184, bb59, bb60
+bb59:
+  %185: str = rt Map.get(%164, %183)
+  br bb61(%185)
+bb60:
+  %186: str = const "?"
+  br bb61(%186)
+bb61(%187: str):
+  %188: f64 = const 1.5
+  %189: bool = rt Map.has(%164, %188)
+  condbr %189, bb62, bb63
+bb62:
+  %190: str = rt Map.get(%164, %188)
+  br bb64(%190)
+bb63:
+  %191: str = const "?"
+  br bb64(%191)
+bb64(%192: str):
+  %193: f64 = const 2
+  %194: bool = rt Map.has(%164, %193)
+  condbr %194, bb65, bb66
+bb65:
+  %195: str = rt Map.get(%164, %193)
+  br bb67(%195)
+bb66:
+  %196: str = const "?"
+  br bb67(%196)
+bb67(%197: str):
+  builtin console.log(%177, %182, %187, %192, %197)
+  %198: Map<str, ref Box> = arrnew Map<str, ref Box>
+  %199: str = const "a"
+  %200: ref Box = new Box
+  %201: i32 = const 1
+  call @Box.constructor(%200, %201)
+  %202: Map<str, ref Box> = rt Map.set(%198, %199, %200)
+  %203: str = const "a"
+  %204: bool = rt Map.has(%198, %203)
+  %205: str = const "b"
+  %206: bool = rt Map.has(%198, %205)
+  %207: str = const "a"
+  %208: bool = rt Map.has(%198, %207)
+  condbr %208, bb68, bb69
+bb68:
+  %209: ref Box = rt Map.get(%198, %207)
+  br bb70(%209)
+bb69:
+  %210: ref Box = new Box
+  %211: i32 = const 9
+  call @Box.constructor(%210, %211)
+  br bb70(%210)
+bb70(%212: ref Box):
+  %213: i32 = getfield .0 %212
+  %214: str = const "b"
+  %215: bool = rt Map.has(%198, %214)
+  condbr %215, bb71, bb72
+bb71:
+  %216: ref Box = rt Map.get(%198, %214)
+  br bb73(%216)
+bb72:
+  %217: ref Box = new Box
+  %218: i32 = const 9
+  call @Box.constructor(%217, %218)
+  br bb73(%217)
+bb73(%219: ref Box):
+  %220: i32 = getfield .0 %219
+  builtin console.log(%204, %206, %213, %220)
+  %221: Set<ref Box> = arrnew Set<ref Box>
+  %222: ref Box = new Box
+  %223: i32 = const 1
+  call @Box.constructor(%222, %223)
+  %224: Set<ref Box> = rt Set.add(%221, %222)
+  %225: Set<ref Box> = rt Set.add(%221, %222)
+  %226: ref Box = new Box
+  %227: i32 = const 1
+  call @Box.constructor(%226, %227)
+  %228: Set<ref Box> = rt Set.add(%221, %226)
+  %229: i32 = rt Set.size(%221)
+  %230: bool = rt Set.has(%221, %222)
+  %231: ref Box = new Box
+  %232: i32 = const 1
+  call @Box.constructor(%231, %232)
+  %233: bool = rt Set.has(%221, %231)
+  builtin console.log(%229, %230, %233)
+  %234: Map<str, str[]> = arrnew Map<str, str[]>
+  %235: str = const "x"
+  %236: str[] = arrnew str[]
+  %237: Map<str, str[]> = rt Map.set(%234, %235, %236)
+  %238: str = const "x"
+  %239: bool = rt Map.has(%234, %238)
+  condbr %239, bb74, bb75
+bb74:
+  %240: str[] = rt Map.get(%234, %238)
+  br bb76(%240)
+bb75:
+  %241: str[] = arrnew str[]
+  br bb76(%241)
+bb76(%242: str[]):
+  %243: str = const "never"
+  %244: i32 = arrpush %242, %243
+  %245: i32 = rt Map.size(%234)
+  %246: str = const "x"
+  %247: bool = rt Map.has(%234, %246)
+  builtin console.log(%245, %247)
+  %248: Set<i32> = arrnew Set<i32>
+  %249: u32 = const 12345
+  %250: i32 = const 0
+  br bb77(%250, %249)
+bb77(%251: i32, %252: u32):
+  %253: i32 = const 5000
+  %254: bool = lt %251, %253
+  condbr %254, bb78, bb80
+bb78:
+  %255: u32 = const 1664525
+  %256: u32 = mul %252, %255
+  %257: u32 = const 1013904223
+  %258: u32 = add %256, %257
+  %259: u32 = const 0
+  %260: u32 = ushr %258, %259
+  %261: u32 = const 16
+  %262: u32 = ushr %260, %261
+  %263: u32 = const 1000
+  %264: u32 = rem %262, %263
+  %265: i32 = conv %264
+  %266: Set<i32> = rt Set.add(%248, %265)
+  br bb79
+bb79:
+  %267: i32 = const 1
+  %268: i32 = add %251, %267
+  br bb77(%268, %260)
+bb80:
+  %269: i32 = const 0
+  %270: i32[] = rt Set.values(%248)
+  %271: i32 = const 0
+  br bb81(%271, %269)
+bb81(%272: i32, %273: i32):
+  %274: i32 = arrlen %270
+  %275: bool = lt %272, %274
+  condbr %275, bb82, bb84
+bb82:
+  %276: i32 = arrget %270, %272
+  %277: i32 = add %273, %276
+  br bb83
+bb83:
+  %278: i32 = const 1
+  %279: i32 = add %272, %278
+  br bb81(%279, %277)
+bb84:
+  %280: i32 = rt Set.size(%248)
+  builtin console.log(%280, %273)
+  ret
+}
+func @Box.constructor(%0: ref Box, %1: i32) -> void {
+bb0:
+  setfield .0 %0, %1
+  ret
+}

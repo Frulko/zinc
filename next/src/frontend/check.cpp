@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "frontend/lexer.h"
+#include "zn/runtime.h"
 
 namespace zn::frontend {
 namespace {
@@ -44,6 +45,8 @@ struct Checker {
   std::vector<std::uint32_t> fnStack;  // enclosing function, method and lambda nodes, innermost last
   std::uint32_t calleeNode = kNone;    // the callee being evaluated, so a bare function name can be told from a call
   bool atTop = false, declAsGlobal = false;
+  std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
+  TypeId newExpected = kNoType;       // the type a `new Map()` or `new Set()` is expected to have
   static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
   TypeId inferredRet = kNoType;
   bool immediate = true;           // straight-line code that runs when reached (not inside a function, method or instance initializer)
@@ -75,6 +78,8 @@ struct Checker {
   }
   TypeId num(Num m) { Type t; t.k = TK::Num; t.num = m; return intern(t); }
   TypeId arrayOf(TypeId e) { Type t; t.k = TK::Array; t.elem = e; return intern(t); }
+  TypeId mapOf(TypeId k, TypeId v) { Type t; t.k = TK::Map; t.params = {k}; t.elem = v; return intern(t); }
+  TypeId setOf(TypeId e) { Type t; t.k = TK::Set; t.elem = e; return intern(t); }
   TypeId func(std::vector<TypeId> ps, TypeId ret, std::uint32_t minArgs, bool variadic = false) {
     Type t; t.k = TK::Func; t.elem = ret; t.params = std::move(ps); t.minArgs = minArgs; t.variadic = variadic; return intern(t);
   }
@@ -126,7 +131,7 @@ struct Checker {
     const Type &f = ty(from), &t = ty(to);
     if (f.k == TK::Num && t.k == TK::Num) {
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
-      return widens(f.num, t.num);
+      return widens(f.num, t.num) || (isInt(f.num) && isInt(t.num));  // machine integers convert among themselves (wrapping), like the number type they alias
     }
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj);
     return false;
@@ -191,6 +196,8 @@ struct Checker {
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
+        else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
+        else if (x.text == "Set" && x.kids.size() == 1 && lookup(x.text) == kNone) r = setOf(annotation(x.kids[0]));
         else {
           std::uint32_t s = lookup(x.text);
           if (s == kNone) diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
@@ -238,14 +245,45 @@ struct Checker {
     if (ty(t).k != TK::Object) return nullptr;
     return lookupMember(ty(t).obj, nm, false);
   }
-  // Builtin members of primitives and arrays; the result's Member lives in `scratch`.
+  // The type a letter of the runtime table (zn/runtime.h) stands for, given the receiver's type.
+  TypeId rtLetter(char l, TypeId recv) {
+    const Type r = ty(recv);
+    switch (l) {
+      case 's': return tStr;
+      case 'i': case 'j': return num(Num::i32);
+      case 'b': return tBool;
+      case 'd': return num(Num::f64);
+      case 'n': return tVoid;
+      case 'a': case 'm': case 't': return recv;
+      case 'e': case 'v': return r.elem;
+      case 'k': return r.params[0];
+      case 'A': case 'V': return arrayOf(r.elem);
+      case 'K': return arrayOf(r.params[0]);
+      case 'S': return arrayOf(tStr);
+      case 'c': return func({r.elem, r.elem}, num(Num::f64), 2);
+      default: return kNoType;
+    }
+  }
+  // Builtin members of primitives, arrays, strings, Map and Set; the result's Member lives in `scratch`.
   bool primMember(TypeId t, std::string_view nm, Member& scratch) {
-    const Type& x = ty(t);
+    const Type x = ty(t);
     if (x.k == TK::Array && nm == "length") { scratch = {"length", num(Num::i32), false, false}; return true; }
     if (x.k == TK::Array && nm == "push") { scratch = {"push", func({x.elem}, num(Num::i32), 1), true, true}; return true; }
     if (x.k == TK::Array && nm == "pop") { scratch = {"pop", func({}, x.elem, 0), true, true}; return true; }
-    if (x.k == TK::Str && nm == "length") { scratch = {"length", num(Num::i32), true, false}; return true; }
     if (x.k == TK::Num && nm == "toFixed") { scratch = {"toFixed", func({num(Num::i32)}, tStr, 0), true, true}; return true; }
+    if (x.k == TK::Num && nm == "toString") { scratch = {"toString", func({}, tStr, 0), true, true}; return true; }
+    const char* owner = x.k == TK::Str ? "string" : x.k == TK::Array ? "Array" : x.k == TK::Map ? "Map" : x.k == TK::Set ? "Set" : nullptr;
+    if (!owner) return false;
+    for (const RtInfo& r : kRtInfo) {
+      if ((r.flags & 2) || !rtOwnedBy(r, owner) || nm != rtMember(r)) continue;
+      if (x.k == TK::Array && r.id == Rt::ArrJoin && x.elem != tStr) return false;  // join is for string arrays
+      TypeId ret = rtLetter(rtRet(r), t);
+      if (r.flags & 1) { scratch = {std::string(nm), ret, true, false}; return true; }
+      std::vector<TypeId> ps;
+      for (unsigned k = 1; k < rtParamCount(r); ++k) ps.push_back(rtLetter(rtParam(r, k), t));
+      scratch = {std::string(nm), func(ps, ret, rtMinUserParams(r)), true, true};
+      return true;
+    }
     return false;
   }
 
@@ -289,7 +327,22 @@ struct Checker {
     const std::string op(x.text);
     std::uint32_t le = x.kids[0], re = x.kids[1];
     if (op == ",") { expr(le); return expr(re); }
-    if (op == "in" || op == "??") { diag(kZUnsupported, i, "operator '" + op + "'"); return tError; }
+    if (op == "in") { diag(kZUnsupported, i, "operator '" + op + "'"); return tError; }
+    if (op == "??") {
+      nullishLeft = le;
+      TypeId l0 = expr(le);
+      nullishLeft = kNone;
+      TypeId base = l0;
+      if (!bad(l0) && !isMapGet(le)) {
+        if (!hasNull(l0)) { diag(kZBadOperand, i, "'?" "?' on '" + name(l0) + "', which cannot be null"); expr(re); return tError; }
+        base = withoutNull(l0);
+        if (base == kNoType) base = tError;
+      }
+      TypeId r0 = expr(re, bad(base) ? kNoType : base);
+      if (bad(base) || bad(r0)) return tError;
+      require(r0, base, re);
+      return base;
+    }
     if (op == "instanceof") {
       TypeId lt = expr(le);
       const Node& rn = n(re);
@@ -349,6 +402,32 @@ struct Checker {
     return x.kind == N::Index;
   }
 
+  // `m.get(k)` on a Map: a value that may be missing (`undefined` in TypeScript), so it is only usable as the left of `??`.
+  bool isMapGet(std::uint32_t node) const {
+    const Node& c = n(node);
+    if (c.kind != N::Call || n(c.kids[0]).kind != N::Member || n(c.kids[0]).text != "get") return false;
+    TypeId rt = out.nodeType[n(c.kids[0]).kids[0]];
+    return rt != kNoType && ty(rt).k == TK::Map;
+  }
+  TypeId newCollection(std::uint32_t i, const Node& c, const std::vector<std::uint32_t>& argNodes) {
+    bool isMap = c.text == "Map";
+    TypeId want = newExpected;
+    newExpected = kNoType;
+    TypeId t = tError;
+    auto ex = a.targs.find(i);
+    if (ex != a.targs.end()) {
+      std::vector<TypeId> args;
+      for (std::uint32_t k : std::vector<std::uint32_t>(ex->second)) args.push_back(annotation(k));
+      if (args.size() != (isMap ? 2u : 1u)) { diag(kZWrongArgCount, i, "expected " + std::string(isMap ? "2" : "1") + " type argument(s), got " + std::to_string(args.size())); return tError; }
+      t = isMap ? mapOf(args[0], args[1]) : setOf(args[0]);
+    } else if (want != kNoType && ty(want).k == (isMap ? TK::Map : TK::Set)) t = want;
+    else { diag(kZCannotInfer, i, "the type arguments of '" + std::string(c.text) + "'"); return tError; }
+    for (std::uint32_t an : argNodes) expr(an);
+    if (!argNodes.empty()) diag(kZUnsupported, i, "constructor arguments of '" + std::string(c.text) + "'");
+    for (TypeId e : isMap ? std::vector<TypeId>{ty(t).params[0], ty(t).elem} : std::vector<TypeId>{ty(t).elem}) if (bad(e)) return tError;
+    return t;
+  }
+
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
     std::uint32_t callee = x.kids[0];
     TypeId ft = kNoType;
@@ -373,6 +452,7 @@ struct Checker {
         if (inst == kNone) return tError;
         s = inst;
       }
+      if (c.kind == N::Ident && s == kNone && (c.text == "Map" || c.text == "Set")) return newCollection(i, c, argNodes);
       if (s == kNone || out.syms[s].kind != SymKind::Class) {
         if (c.kind == N::Ident && s == kNone) diag(kZCannotFindName, callee, "'" + std::string(c.text) + "'");
         else diag(kZNotCallable, callee, "only classes can be used with new");
@@ -438,6 +518,10 @@ struct Checker {
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
       if (expected != kNoType) require(at, expected, arg);
+    }
+    if (!isNew && n(callee).kind == N::Member && n(callee).text == "get" && i != nullishLeft) {  // Map.get has no `undefined` to test: it is only usable under `??`
+      TypeId rt = out.nodeType[n(callee).kids[0]];
+      if (rt != kNoType && ty(rt).k == TK::Map) diag(kZUnsupported, i, "Map.get outside '?" "?' (use has() to test for a key)");
     }
     return result;
   }
@@ -561,7 +645,7 @@ struct Checker {
         if (bop == "+" && tt == tStr && (vt == tStr || isNum(vt) || vt == tBool)) return tt;
         if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(tt) + "' and '" + name(vt) + "'"); return tt; }
         Num r = (bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>") ? Num::i32 : bop == ">>>" ? Num::u32 : arith(bop, target, ty(tt).num, value, ty(vt).num);
-        if (!widens(r, ty(tt).num)) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
+        if (!widens(r, ty(tt).num) && !(isInt(r) && isInt(ty(tt).num))) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
         return tt;
       }
       case N::Cond: {
@@ -585,7 +669,7 @@ struct Checker {
         return p;
       }
       case N::Call: return callExpr(i, x, false);
-      case N::New: return callExpr(i, x, true);
+      case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
         if (x.text.size() && x.text[0] == '?') { diag(kZUnsupported, i, "optional chaining"); return tError; }
         const Node& on = n(x.kids[0]);
@@ -1144,7 +1228,8 @@ struct Checker {
     const Type& x = ty(t);
     switch (x.k) {
       case TK::Param: return true;
-      case TK::Array: return hasParam(x.elem);
+      case TK::Array: case TK::Set: return hasParam(x.elem);
+      case TK::Map: return hasParam(x.elem) || hasParam(x.params[0]);
       case TK::Func: { if (hasParam(x.elem)) return true; for (TypeId p : x.params) if (hasParam(p)) return true; return false; }
       case TK::Object: { for (TypeId p : out.objs[x.obj].typeArgs) if (hasParam(p)) return true; return false; }
       default: return false;
@@ -1722,6 +1807,8 @@ std::string typeName(const Checked& c, TypeId t) {
     case TK::Void: return "void";
     case TK::Null: return "null";
     case TK::Array: return typeName(c, x.elem) + "[]";
+    case TK::Map: return "Map<" + typeName(c, x.params[0]) + ", " + typeName(c, x.elem) + ">";
+    case TK::Set: return "Set<" + typeName(c, x.elem) + ">";
     case TK::Object: return c.objs[x.obj].name;
     case TK::Param: return c.tparams[x.obj].name;
     case TK::Union: { std::string u; for (std::size_t i = 0; i < x.params.size(); ++i) u += (i ? " | " : "") + typeName(c, x.params[i]); return u; }

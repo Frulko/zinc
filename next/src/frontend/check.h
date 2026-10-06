@@ -17,14 +17,14 @@ namespace zn::frontend {
 using TypeId = std::uint32_t;
 inline constexpr TypeId kNoType = 0xFFFFFFFFu;
 
-enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param, Union };
+enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param, Union, Map, Set };
 enum class Num : std::uint8_t { f64, f32, fx12, fx16, i8, i16, i32, i64, u8, u16, u32, u64, isize, usize };
 
 struct Type {
   TK k = TK::Error;
   Num num = Num::f64;           // Num
-  TypeId elem = 0;              // Array: element; Func: return type
-  std::vector<TypeId> params;   // Func: parameters; Union: members, sorted and without duplicates
+  TypeId elem = 0;              // Array and Set: element; Map: value; Func: return type
+  std::vector<TypeId> params;   // Func: parameters; Union: members, sorted and without duplicates; Map: the key type
   std::uint32_t minArgs = 0;    // Func
   bool variadic = false;        // Func (builtin console.log)
   std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams

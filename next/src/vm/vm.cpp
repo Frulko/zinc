@@ -1,4 +1,4 @@
-#include "vm/vm.h"
+#include "vm/machine.h"
 
 #include <bit>
 #include <cmath>
@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -42,7 +43,6 @@ std::string numberToString(double v) {
 
 namespace {
 
-using Slot = std::uint64_t;
 // Every frame starts at most 255 slots above its caller's base and has at most 256 registers, so a depth check alone
 // bounds the stack: no per-call stack-end check.
 constexpr std::size_t kStackSlots = std::size_t{kMaxCallDepth} * kMaxRegisters + kMaxRegisters;
@@ -74,82 +74,148 @@ double jsRound(double x) {  // round half toward +infinity
 double jsMin(double a, double b) { return (a != a || b != b) ? NAN : (a < b ? a : b); }
 double jsMax(double a, double b) { return (a != a || b != b) ? NAN : (a > b ? a : b); }
 
-struct Func {
-  const std::uint32_t* code;
-  const zbc::Const* consts;
-  std::uint32_t nregs;
-};
-struct ClassRT {
-  std::uint32_t id = 0;
-  std::uint32_t nfields = 0;
-  std::vector<std::uint32_t> supers;
-  std::vector<const Func*> vtable;  // by selector id; empty for interfaces and abstract classes
-};
-// Objects: a header followed by one 64-bit slot per field. Memory is released at exit; reference counting is ZN-018.
-struct Obj {
-  const ClassRT* cls;
-  std::uint32_t rc;
-  std::uint32_t pad;
-  Slot* fields() { return reinterpret_cast<Slot*>(this + 1); }
-};
 bool isSubclassRT(const ClassRT* c, std::uint32_t target) {
   if (c->id == target) return true;
   for (std::uint32_t s : c->supers) if (s == target) return true;
   return false;
 }
 
-struct Frame {
-  const std::uint32_t* ret;  // instruction to resume in the caller
-  const Func* fn;
-  Slot* base;
-};
+KeyKind keyKindOf(const zbc::Module& m, zbc::VType t) {
+  switch (t.cls) {
+    case zbc::Cls::S: return KeyKind::F32;
+    case zbc::Cls::D: return KeyKind::F64;
+    case zbc::Cls::R: return m.classes[t.ref].kind == zbc::CKind::String ? KeyKind::Str : KeyKind::Ref;
+    default: return KeyKind::Int;
+  }
+}
 
 }  // namespace
 
-Result run(const zbc::Module& m, std::string& out) {
-  std::vector<Func> funcs(m.functions.size());
+Machine::~Machine() {
+  for (Obj* o : allocated) {
+    switch (o->cls->kind) {
+      case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
+      case zbc::CKind::Map: case zbc::CKind::Set: delete static_cast<MapObj*>(o); break;
+      default: std::free(o); break;
+    }
+  }
+  std::free(stack);
+}
+
+bool Machine::load(const zbc::Module& m, std::string& err) {
+  mod = &m;
+  funcs.resize(m.functions.size());
   for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs};
   // Verified code never reads a register before writing it, so the stack needs no initialisation; calloc hands out
   // lazily zeroed pages, so the 20 MB is not touched until used.
-  std::unique_ptr<Slot[], decltype(&std::free)> stackMem(static_cast<Slot*>(std::calloc(kStackSlots, sizeof(Slot))), &std::free);
-  if (!stackMem) return {false, "out of memory"};
-  Slot* const stackBase = stackMem.get();
-  std::vector<Slot> globals(m.globals.size(), 0);
-  std::vector<ClassRT> classes(m.classes.size());
+  stack = static_cast<Slot*>(std::calloc(kStackSlots, sizeof(Slot)));
+  if (!stack) { err = "out of memory"; return false; }
+  globals.assign(m.globals.size(), 0);
+  classes.resize(m.classes.size());
+  std::map<std::pair<std::uint8_t, std::uint32_t>, const ClassRT*> arrayOf;  // (class of the element's VType, ref) -> array class
+  auto arrKey = [](zbc::VType t) { return std::make_pair(static_cast<std::uint8_t>(t.cls), t.cls == zbc::Cls::R ? std::uint32_t{t.ref} : 0u); };
   for (std::size_t i = 0; i < classes.size(); ++i) {
-    classes[i].id = static_cast<std::uint32_t>(i);
-    classes[i].nfields = static_cast<std::uint32_t>(m.classes[i].fields.size());
-    classes[i].supers = m.classes[i].supers;
-    if (!m.classes[i].isInterface && !m.classes[i].isAbstract) {
-      classes[i].vtable.assign(m.selectors.size(), nullptr);
-      for (std::uint32_t sel : m.classes[i].selectors) classes[i].vtable[sel] = &funcs[m.classes[i].vtable[sel]];
+    const zbc::ClassInfo& ci = m.classes[i];
+    ClassRT& c = classes[i];
+    c.id = static_cast<std::uint32_t>(i);
+    c.kind = ci.kind;
+    c.nfields = static_cast<std::uint32_t>(ci.fields.size());
+    c.supers = ci.supers;
+    if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract) {
+      c.vtable.assign(m.selectors.size(), nullptr);
+      for (std::uint32_t sel : ci.selectors) {
+        c.vtable[sel] = &funcs[ci.vtable[sel]];
+      }
+    }
+    if (ci.kind == zbc::CKind::String) strClass = &c;
+    if (ci.kind == zbc::CKind::Array) arrayOf[arrKey(ci.elem)] = &c;
+    if (ci.kind != zbc::CKind::Object && ci.kind != zbc::CKind::String) {
+      c.elemKind = keyKindOf(m, ci.elem);
+      c.keyKind = ci.kind == zbc::CKind::Map ? keyKindOf(m, ci.key) : c.elemKind;
     }
   }
-  std::vector<Obj*> allocated;
-  struct Releaser { std::vector<Obj*>& v; ~Releaser() { for (Obj* o : v) std::free(o); } } releaser{allocated};
-  std::vector<Frame> frames(kMaxCallDepth);
-  Frame* fp = frames.data();                      // next free frame
-  Frame* const framesEnd = frames.data() + kMaxCallDepth;
+  for (std::size_t i = 0; i < classes.size(); ++i) {
+    const zbc::ClassInfo& ci = m.classes[i];
+    auto find = [&](zbc::VType t) { auto it = arrayOf.find(arrKey(t)); return it == arrayOf.end() ? nullptr : it->second; };
+    if (ci.kind == zbc::CKind::Map || ci.kind == zbc::CKind::Set) { classes[i].valuesArray = find(ci.elem); if (ci.kind == zbc::CKind::Map) classes[i].keysArray = find(ci.key); }
+    if (ci.kind == zbc::CKind::Set) classes[i].keysArray = classes[i].valuesArray;
+  }
+  if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
+  if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
+  for (const std::string& s : m.strings) strConsts.push_back(newStr(s.data(), s.size()));
+  frames.resize(kMaxCallDepth);
+  fp = frames.data();
+  framesEnd = frames.data() + kMaxCallDepth;
+  return true;
+}
 
+StrObj* Machine::newStr(const char* p, std::size_t n) {
+  auto* s = static_cast<StrObj*>(std::malloc(sizeof(StrObj) + n + 1));
+  if (!s) std::abort();
+  s->cls = strClass; s->rc = 0; s->pad = 0;
+  s->len = static_cast<std::uint32_t>(n);
+  char* d = reinterpret_cast<char*>(s + 1);
+  if (n) std::memcpy(d, p, n);
+  d[n] = 0;
+  bool ascii = true;
+  std::uint32_t units = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    auto b = static_cast<std::uint8_t>(d[i]);
+    if (b >= 0x80) ascii = false;
+    if ((b & 0xC0) != 0x80) units += b >= 0xF0 ? 2 : 1;
+  }
+  s->ascii = ascii;
+  s->u16len = units;
+  allocated.push_back(s);
+  return s;
+}
+
+ArrObj* Machine::newArr(const ClassRT* cls) {
+  auto* o = new ArrObj();
+  o->cls = cls; o->rc = 0; o->pad = 0;
+  allocated.push_back(o);
+  return o;
+}
+
+const Func* Machine::findComparator(const Obj* fn, zbc::VType elem) const {
+  if (!fn) return nullptr;
+  const ClassRT& c = *fn->cls;
+  for (std::uint32_t sel : mod->classes[c.id].selectors) {
+    const zbc::SelInfo& si = mod->selectors[sel];
+    if (si.name == "call" && si.params.size() == 2 && si.params[0] == elem && si.params[1] == elem && si.ret.cls == zbc::Cls::D && sel < c.vtable.size() && c.vtable[sel]) return c.vtable[sel];
+  }
+  return nullptr;
+}
+
+bool Machine::callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, Slot* scratch, double& result) {
+  scratch[0] = reinterpret_cast<Slot>(fn);
+  scratch[1] = a;
+  scratch[2] = b;
+  if (!exec(cmp, scratch)) return false;
+  result = asD(scratch[0]);
+  return true;
+}
+
+bool Machine::exec(const Func* entry, Slot* base) {
   static const void* const labels[] = {
 #define X(name, fmt, b, c, o) &&L_##name,
       ZN_OPCODES(X)
 #undef X
   };
+  if (fp == framesEnd) { error = "stack overflow"; return false; }
+  *fp++ = {nullptr, nullptr, nullptr};  // marks where this exec() returns
 
-  const Func* fn = &funcs[0];
+  const Func* fn = entry;
   const std::uint32_t* code = fn->code;
   const std::uint32_t* pc = code;
-  Slot* r = stackBase;
+  Slot* r = base;
   std::uint32_t w;
-  Result res;
-  const char* err = nullptr;
 
 #define NEXT() do { w = *pc++; goto *labels[w & 0xFFu]; } while (0)
 #define A aOf(w)
 #define B bOf(w)
 #define C cOf(w)
-#define TRAP(msg) do { err = msg; goto fail; } while (0)
+#define TRAP(msg) do { error = msg; return false; } while (0)
   NEXT();
 
 L_Nop: NEXT();
@@ -280,21 +346,31 @@ L_Call: {
 }
 L_Ret: {
   Slot v = r[A];
-  if (fp == frames.data()) goto done;
-  const Frame& f = *--fp;
+  const Frame f = *--fp;
   r[0] = v;
+  if (!f.ret) return true;
   r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
   NEXT();
 }
 L_RetV: {
-  if (fp == frames.data()) goto done;
-  const Frame& f = *--fp;
+  const Frame f = *--fp;
+  if (!f.ret) return true;
   r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
   NEXT();
 }
 L_Throw: TRAP("uncaught exception");
 L_New: {
   const ClassRT* cr = &classes[dOf(w)];
+  if (cr->kind == zbc::CKind::Array) { r[A] = reinterpret_cast<Slot>(newArr(cr)); NEXT(); }
+  if (cr->kind == zbc::CKind::Map || cr->kind == zbc::CKind::Set) {
+    auto* o = new MapObj();
+    o->cls = cr; o->rc = 0; o->pad = 0;
+    o->t.kk = cr->keyKind;
+    o->t.hasVals = cr->kind == zbc::CKind::Map;
+    allocated.push_back(o);
+    r[A] = reinterpret_cast<Slot>(o);
+    NEXT();
+  }
   auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
   if (!o) TRAP("out of memory");
   o->cls = cr;
@@ -338,19 +414,54 @@ L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
 L_NeR: r[A] = Slot{r[B] != r[C]}; NEXT();
 L_GetGlobal: r[A] = globals[dOf(w)]; NEXT();
 L_SetGlobal: globals[dOf(w)] = r[A]; NEXT();
-L_LogI: out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();
-L_LogU: out += std::to_string(r[A]); NEXT();
-L_LogF64: { double d = asD(r[A]); out += (d == 0 && std::signbit(d)) ? std::string("-0") : numberToString(d); NEXT(); }  // console.log prints -0
-L_LogF32: out += numberToString(static_cast<double>(asF(r[A]))); NEXT();
-L_LogBool: out += r[A] ? "true" : "false"; NEXT();
-L_LogSep: out += ' '; NEXT();
-L_LogEnd: out += '\n'; NEXT();
-
-fail:
-  res.ok = false;
-  res.error = err;
-done:
-  return res;
+L_LoadStr: r[A] = reinterpret_cast<Slot>(strConsts[dOf(w)]); NEXT();
+L_ArrGet: {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  if (__builtin_expect(r[C] >= o->v.size(), 0)) TRAP("array index out of bounds");
+  r[A] = o->v[r[C]];
+  NEXT();
+}
+L_ArrSet: {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[A]));
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  Slot i = r[B];
+  if (__builtin_expect(i >= o->v.size(), 0)) { if (i != o->v.size()) TRAP("array index out of bounds"); o->v.push_back(r[C]); }  // writing at length appends, like the native runtime
+  else o->v[i] = r[C];
+  NEXT();
+}
+L_ArrLen: {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  r[A] = o->v.size();
+  NEXT();
+}
+L_ArrPush: {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
+  if (__builtin_expect(!o, 0)) TRAP("null reference");
+  if (__builtin_expect(o->v.size() >= 0x7fffffffu, 0)) TRAP("RangeError: Invalid array length");
+  o->v.push_back(r[C]);
+  r[A] = o->v.size();
+  NEXT();
+}
+L_Rt: {
+  const char* e = rtCall(*this, static_cast<Rt>(dOf(w)), r + A, r + fn->nregs);
+  if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; return false; }
+  NEXT();
+}
+L_LogStr: {
+  auto* s = reinterpret_cast<StrObj*>(r[A]);
+  if (!s) TRAP("null reference");
+  out->append(s->data(), s->len);
+  NEXT();
+}
+L_LogI: *out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();
+L_LogU: *out += std::to_string(r[A]); NEXT();
+L_LogF64: { double d = asD(r[A]); *out += (d == 0 && std::signbit(d)) ? std::string("-0") : numberToString(d); NEXT(); }  // console.log prints -0
+L_LogF32: *out += numberToString(static_cast<double>(asF(r[A]))); NEXT();
+L_LogBool: *out += r[A] ? "true" : "false"; NEXT();
+L_LogSep: *out += ' '; NEXT();
+L_LogEnd: *out += '\n'; NEXT();
 #undef NEXT
 #undef A
 #undef B
@@ -358,6 +469,16 @@ done:
 #undef TRAP
 #undef ARITH
 #undef DIVLIKE
+}
+
+Result run(const zbc::Module& mod, std::string& out) {
+  Machine m;
+  m.out = &out;
+  Result res;
+  std::string err;
+  if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
+  if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; }
+  return res;
 }
 
 }  // namespace zn::vm

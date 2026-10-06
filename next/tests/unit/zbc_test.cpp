@@ -214,6 +214,66 @@ int main() {
     m5.classes[1].parent = 7;
     expect("unknown parent", m5, "invalid parent");
   }
+  {  // strings, arrays, Map, Set and runtime calls
+    auto rt = [](Rt id) { return static_cast<unsigned>(id); };
+    auto coll = [](const char* name, CKind k, VType elem, VType key = {}) {
+      ClassInfo c;
+      c.name = name; c.kind = k; c.elem = elem; c.key = key;
+      return c;
+    };
+    // 0 string, 1 i[], 2 string[], 3 Map<i, i>, 4 Set<i>, 5 interface fn { call(i, i): f64 }
+    auto collModule = [&](std::vector<std::uint32_t> code, std::uint32_t nregs) {
+      Module m;
+      m.strings = {"hi", "x"};
+      m.classes = {coll("string", CKind::String, {}), coll("i[]", CKind::Array, VType{Cls::I, 0}), coll("string[]", CKind::Array, VType{Cls::R, 0}),
+                   coll("Map<i, i>", CKind::Map, VType{Cls::I, 0}, VType{Cls::I, 0}), coll("Set<i>", CKind::Set, VType{Cls::I, 0})};
+      ClassInfo fnI;
+      fnI.name = "fn"; fnI.isInterface = true; fnI.selectors = {0};
+      m.classes.push_back(fnI);
+      m.selectors.push_back(SelInfo{"call", {VType{Cls::I, 0}, VType{Cls::I, 0}}, VType{Cls::D, 0}});
+      m.functions.push_back(fn("main", std::move(code), nregs));
+      return m;
+    };
+    expect("string length", collModule({encAD(Op::LoadStr, 0, 0), encAD(Op::Rt, 0, rt(Rt::StrLength)), encABC(Op::LogI, 0), encABC(Op::RetV, 0)}, 2), "");
+    expect("string log and concat", collModule({encAD(Op::LoadStr, 0, 0), encAD(Op::LoadStr, 1, 1), encAD(Op::Rt, 0, rt(Rt::StrConcat)), encABC(Op::LogStr, 0), encABC(Op::RetV, 0)}, 3), "");
+    expect("array push, get, set, length", collModule({encAD(Op::New, 0, 1), encAD(Op::LoadI, 1, 5), encABC(Op::ArrPush, 2, 0, 1), encAD(Op::LoadI, 2, 0),
+        encABC(Op::ArrGet, 3, 0, 2), encABC(Op::ArrSet, 0, 2, 3), encABC(Op::ArrLen, 3, 0), encABC(Op::LogI, 3), encABC(Op::RetV, 0)}, 4), "");
+    expect("map and set", collModule({encAD(Op::New, 0, 3), encAD(Op::LoadI, 1, 1), encAD(Op::LoadI, 2, 2), encAD(Op::Rt, 0, rt(Rt::MapSet)), encAD(Op::New, 0, 3),
+        encAD(Op::Rt, 0, rt(Rt::MapValues)), encAD(Op::New, 0, 4), encAD(Op::LoadI, 1, 1), encAD(Op::Rt, 0, rt(Rt::SetAdd)), encAD(Op::Rt, 0, rt(Rt::SetValues)), encABC(Op::RetV, 0)}, 4), "");
+    expect("sort with a comparator", collModule({encAD(Op::New, 0, 1), encAD(Op::LoadNull, 1, 5), encAD(Op::Rt, 0, rt(Rt::ArrSort)), encABC(Op::RetV, 0)}, 3), "");
+    expect("string constant without a string class", [&] { Module m; m.strings = {"hi"}; m.classes = {coll("i[]", CKind::Array, VType{Cls::I, 0})}; m.functions.push_back(fn("main", {encAD(Op::LoadStr, 0, 0), encABC(Op::RetV, 0)}, 1)); return m; }(), "string class");
+    expect("string index out of range", collModule({encAD(Op::LoadStr, 0, 9), encABC(Op::RetV, 0)}, 1), "string index");
+    expect("new of the string class", collModule({encAD(Op::New, 0, 0), encABC(Op::RetV, 0)}, 1), "string class");
+    expect("pushed value of the wrong class", collModule({encAD(Op::New, 0, 2), encAD(Op::LoadI, 1, 5), encABC(Op::ArrPush, 2, 0, 1), encABC(Op::RetV, 0)}, 3), "expected ref string");
+    expect("array operation on a map", collModule({encAD(Op::New, 0, 3), encABC(Op::ArrLen, 1, 0), encABC(Op::RetV, 0)}, 2), "expected an array");
+    expect("array index is not an integer", collModule({encAD(Op::New, 0, 1), encAD(Op::LoadStr, 1, 0), encABC(Op::ArrGet, 2, 0, 1), encABC(Op::RetV, 0)}, 3), "expected i");
+    expect("string call on an array", collModule({encAD(Op::New, 0, 1), encAD(Op::Rt, 0, rt(Rt::StrLength)), encABC(Op::RetV, 0)}, 2), "expected ref string");
+    expect("array call on a set", collModule({encAD(Op::New, 0, 4), encAD(Op::Rt, 0, rt(Rt::ArrReverse)), encABC(Op::RetV, 0)}, 2), "on Set<i>");
+    expect("join of an array that is not a string[]", collModule({encAD(Op::New, 0, 1), encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 0, rt(Rt::ArrJoin)), encABC(Op::RetV, 0)}, 3), "string[]");
+    expect("map key of the wrong class", collModule({encAD(Op::New, 0, 3), encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 0, rt(Rt::MapHas)), encABC(Op::RetV, 0)}, 3), "expected i");
+    expect("comparator that is not a function", collModule({encAD(Op::New, 0, 1), encAD(Op::New, 1, 1), encAD(Op::Rt, 0, rt(Rt::ArrSort)), encABC(Op::RetV, 0)}, 3), "comparator");
+    expect("unknown runtime call", collModule({encAD(Op::Rt, 0, 999), encABC(Op::RetV, 0)}, 1), "unknown runtime call");
+    expect("runtime call window outside the frame", collModule({encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 1, rt(Rt::StrConcat)), encABC(Op::RetV, 0)}, 2), "does not fit");
+    expect("result array class missing", [&] { Module m; m.classes = {coll("Map<i, i>", CKind::Map, VType{Cls::I, 0}, VType{Cls::I, 0})}; m.functions.push_back(fn("main", {encAD(Op::New, 0, 0), encAD(Op::Rt, 0, static_cast<unsigned>(Rt::MapKeys)), encABC(Op::RetV, 0)}, 2)); return m; }(), "no array class");
+    expect("duplicate array class", [&] { Module m = collModule({encABC(Op::RetV, 0)}, 1); m.classes.push_back(coll("again", CKind::Array, VType{Cls::I, 0})); return m; }(), "duplicates");
+    expect("two string classes", [&] { Module m = collModule({encABC(Op::RetV, 0)}, 1); m.classes.push_back(coll("string2", CKind::String, {})); return m; }(), "more than one string class");
+    expect("builtin class with a parent", [&] { Module m = collModule({encABC(Op::RetV, 0)}, 1); m.classes[1].parent = 0; return m; }(), "no members");
+    expect("array of an unknown class", [&] { Module m = collModule({encABC(Op::RetV, 0)}, 1); m.classes[2].elem = VType{Cls::R, 99}; return m; }(), "unknown class");
+    {  // the binary form keeps classes of builtin kinds and the string table
+      Module m = compile("const xs: string[] = ['a', 'b'];\nconst m: Map<string, i32> = new Map<string, i32>();\nm.set(xs.join('-'), 1);\nconsole.log(xs.length, m.size, 'ok');\n");
+      expect("emitted strings and collections verify", m, "");
+      auto bytes = encode(m);
+      Module back; std::string err;
+      if (!decode(bytes, back, err)) { std::printf("FAIL decode with builtin classes: %s\n", err.c_str()); ++failures; }
+      else if (disassemble(back) != disassemble(m) || back.strings != m.strings) { std::printf("FAIL builtin classes round trip\n"); ++failures; }
+      else expect("decoded strings and collections verify", back, "");
+      for (std::size_t k = 0; k < bytes.size(); k += 3) {  // corrupt bytes are rejected or still verify, never crash
+        auto flipped = bytes; flipped[k] ^= 0x5A;
+        Module x; std::string e;
+        if (decode(flipped, x, e)) (void)verify(x);
+      }
+    }
+  }
   {  // binary format
     Module m = compile("function fib(n: i32): i32 { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nconsole.log(fib(10));\n");
     expect("emitted fib verifies", m, "");
