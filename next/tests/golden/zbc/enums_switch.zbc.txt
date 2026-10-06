@@ -7,9 +7,9 @@ class Sq : Rect { i, i }
 builtin str
 builtin ref Rect[]
 func @main() -> void nregs=17
-   0  LoadK    r0, f64 0
-   1  LoadK    r1, f64 6
-   2  LoadK    r2, f64 3
+   0  LoadK    r0, f64 6
+   1  LoadK    r1, f64 3
+   2  LoadK    r2, f64 0
    3  LoadK    r3, f64 1
    4  LoadK    r4, f64 100
    5  LoadK    r5, f64 10
@@ -297,22 +297,22 @@ func @main() -> void nregs=17
  311  LogSep   
  312  LogBool  r7
  313  LogEnd   
- 314  Move     r6, r0
- 315  Move     r7, r0
- 316  JNLtF    r6, r1, -> 332
- 318  RemF64   r8, r6, r2
- 319  JNeF     r8, r0, -> 323
- 321  Move     r8, r7
+ 314  LoadK    r6, f64 0
+ 315  LoadK    r7, f64 0
+ 316  JNLtF    r7, r0, -> 332
+ 318  RemF64   r8, r7, r1
+ 319  JNeF     r8, r2, -> 323
+ 321  Move     r8, r6
  322  Jmp      -> 329
  323  JNeF     r8, r3, -> 327
- 325  AddF64   r8, r7, r5
+ 325  AddF64   r8, r6, r5
  326  Jmp      -> 328
- 327  AddF64   r8, r7, r3
+ 327  AddF64   r8, r6, r3
  328  AddF64   r8, r8, r4
- 329  AddF64   r6, r6, r3
- 330  Move     r7, r8
+ 329  AddF64   r7, r7, r3
+ 330  Move     r6, r8
  331  Jmp      -> 316
- 332  LogF64   r7
+ 332  LogF64   r6
  333  LogEnd   
  334  LoadI    r0, 10
  335  LoadI    r1, 10

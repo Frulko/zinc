@@ -295,7 +295,7 @@ struct Checker {
           std::string lit;
           if (n(fn.kids[0]).kind == N::TypeLit && (n(fn.kids[0]).text[0] == '\'' || n(fn.kids[0]).text[0] == '"')) lit = std::string(n(fn.kids[0]).text.substr(1, n(fn.kids[0]).text.size() - 2));
           shape.push_back({std::string(fn.text), ft});
-          lits.push_back(lit);
+          lits.push_back((fn.flags & frontend::kFlagOptional) ? std::string("\x01") : lit);
         }
         r = failed ? tError : recordOf(shape, lits);
         break;
@@ -333,6 +333,7 @@ struct Checker {
       case 'i': case 'j': case 'z': return num(Num::i32);
       case 'u': return num(Num::u32);
       case 'D': return arrayOf(num(Num::f64));
+      case 'B': return arrayOf(num(Num::u8));
       case 'w': case 'y': return tStr;
       case 'b': return tBool;
       case 'd': return num(Num::f64);
@@ -801,7 +802,9 @@ struct Checker {
     TypeId K = ty(mt).params[0], V = ty(mt).elem;
     if (hasParam(mt)) return tError;  // a generic template's own check (see arrayHof)
     if (kids.size() != 2) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(kids.size() - 1)); for (std::size_t k = 1; k < kids.size(); ++k) expr(kids[k]); return tError; }
+    padCallbacks = false;
     TypeId lt = expr(kids[1], func({V, K}, tVoid, 1));
+    padCallbacks = true;
     if (bad(lt)) return tError;
     if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 1-2 parameter(s) for 'forEach'"); return tError; }
     std::vector<TypeId> aliases{mt, lt, K, V};
@@ -887,7 +890,9 @@ struct Checker {
     std::size_t arity = 1;
     auto callback = [&](TypeId expectRet, std::vector<TypeId> ps) -> TypeId {
       std::uint32_t arg = args[fold ? 0 : 0];
+      padCallbacks = false;
       TypeId lt = expr(arg, func(ps, expectRet, 1));
+      padCallbacks = true;
       if (bad(lt)) return tError;
       if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > ps.size()) { diag(kZNotAssignable, arg, "a function of 1-" + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
       for (std::size_t k = 0; k < ty(lt).params.size(); ++k) if (!assignable(ps[k], ty(lt).params[k], kNone)) { diag(kZNotAssignable, arg, "callback parameter '" + name(ps[k]) + "' to '" + name(ty(lt).params[k]) + "'"); return tError; }
@@ -1411,6 +1416,15 @@ struct Checker {
         return target;
       }
       case N::Array: {
+        if (expected != kNoType && ty(expected).k == TK::Union) {  // `T[] | null`: the literal is the array
+          TypeId only = kNoType;
+          int arrays = 0;
+          for (TypeId mt : unionMembers(expected)) if (ty(mt).k == TK::Array) { only = mt; ++arrays; }
+          if (arrays == 1) {
+            TypeId t = expr0(i, only);
+            return t;
+          }
+        }
         if (expected != kNoType && isTupleType(expected)) {  // a tuple literal: each element against its position
           const ObjInfo& to = out.objs[ty(expected).obj];
           if (x.kids.size() != to.members.size()) { diag(kZNotAssignable, i, "a literal of " + std::to_string(x.kids.size()) + " element(s) to '" + to.name + "'"); for (std::uint32_t e : x.kids) expr(e); return expected; }
@@ -1505,6 +1519,20 @@ struct Checker {
           std::string bop = x.text == "=" ? "" : std::string(x.text.substr(0, x.text.size() - 1));
           if (rewriteDynStore(i, target, bop, value, false)) return expr0(i, expected);
         }
+        if (n(target).kind == N::Member && x.text == "=" && !(n(target).flags & kFlagOptional)) {  // obj.name = v where the class has `set name(v)`: a call of the setter
+          std::uint32_t objNode = n(target).kids[0];
+          TypeId ot = n(objNode).kind == N::This ? (curClass == kNone ? kNoType : objType(curClass)) : expr(objNode);
+          if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object) {
+            const Member* setter = lookupMember(ty(ot).obj, "__set_" + std::string(n(target).text), false);
+            const Member* plain = lookupMember(ty(ot).obj, n(target).text, false);
+            if (setter && !(plain && !plain->method && !plain->getter)) {
+              if (!pureCallee(objNode)) { diag(kZUnsupported, i, "a property with a setter assigned through a computed object"); return tError; }
+              std::vector<std::vector<std::uint32_t>> holes{{cloneNode(objNode, false)}, {value}};
+              if (!replaceWith(i, "__H0.__set_" + std::string(n(target).text) + "(__H1)", holes)) return tError;
+              return expr0(i, expected);
+            }
+          }
+        }
         if (n(target).kind == N::ArrayPattern) {  // [a, b] = value
           if (x.text != "=") { diag(kZBadAssignTarget, target, ""); return tError; }
           std::vector<TypeId> hint;  // the targets' own types shape a literal on the right
@@ -1552,7 +1580,7 @@ struct Checker {
         return tt;
       }
       case N::Cond: {
-        TypeId c = expr(x.kids[0]);
+        TypeId c = truthiness(x.kids[0], expr(x.kids[0]));
         if (!bad(c) && c != tBool) diag(kZNotAssignable, x.kids[0], "'" + name(c) + "' to 'boolean'");
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft); factsOf(x.kids[0], false, ff);
@@ -1723,8 +1751,22 @@ struct Checker {
     }
   }
 
+  // `if (x)` on a value that may be null (an object, array, function or string): true when it is there (and not the empty string); written as
+  // the comparison it stands for, which the narrowing already understands. Only for names and property paths (they are read twice).
+  TypeId truthiness(std::uint32_t e, TypeId t) {
+    if (bad(t) || t == tBool || !pureCallee(e) || !hasNull(t)) return t;
+    TypeId inner = withoutNull(t);
+    if (inner == kNoType || bad(inner)) return t;
+    TK k = ty(inner).k;
+    bool str = inner == tStr;
+    if (!(str || k == TK::Object || k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Func)) return t;
+    std::vector<std::vector<std::uint32_t>> holes{{cloneNode(e, false)}};  // the node itself is replaced: its copies go into the comparison
+    if (str) holes.push_back({cloneNode(e, false)});
+    if (!replaceWith(e, str ? "(__H0 !== null && __H1 !== '')" : "(__H0 !== null)", holes)) return t;
+    return expr(e);
+  }
   TypeId condition(std::uint32_t e) {
-    TypeId t = expr(e);
+    TypeId t = truthiness(e, expr(e));
     if (!bad(t) && t != tBool) diag(kZNotAssignable, e, "'" + name(t) + "' to 'boolean'");
     return t;
   }
@@ -2315,7 +2357,21 @@ struct Checker {
   }
 
   // ---- lambdas: checked where they appear, so they see the variables around them
-  bool padCallbacks = false;  // set while the arguments of a generic call are checked (the library's own array methods keep their arity)
+  // Whether a function declaration sits inside the body of another function, method or lambda (found from the tree, not from what is being checked).
+  std::set<std::uint32_t> nestedFuncs;
+  bool nestedBuilt = false;
+  void markNested(std::uint32_t node, bool inside) {
+    if (node == kNone) return;
+    const Node& x = n(node);
+    if (x.kind == N::Function && inside) nestedFuncs.insert(node);
+    bool in = inside || x.kind == N::Function || x.kind == N::Method || x.kind == N::FuncExpr;
+    for (std::uint32_t k : x.kids) markNested(k, in);
+  }
+  bool isNestedFunction(std::uint32_t node) {
+    if (!nestedBuilt) { nestedBuilt = true; markNested(a.root, false); for (std::uint32_t pre : a.prelude) markNested(pre, false); }
+    return nestedFuncs.count(node) != 0;
+  }
+  bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
     Type et;
     bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
@@ -2396,11 +2452,13 @@ struct Checker {
     bool tmpl = false;
     auto oi = static_cast<std::uint32_t>(out.objs.size());
     for (std::size_t i = 0; i < shape.size(); ++i) {
-      bool lit = i < lits.size() && !lits[i].empty();
-      info.name += (i ? "; " : " ") + shape[i].first + ": " + (lit ? "'" + lits[i] + "'" : name(shape[i].second));
+      bool opt = i < lits.size() && lits[i] == "\x01";  // an optional member (`b?: B`): marked in the literal slot
+      bool lit = i < lits.size() && !lits[i].empty() && !opt;
+      info.name += (i ? "; " : " ") + shape[i].first + (opt ? "?" : "") + ": " + (lit ? "'" + lits[i] + "'" : name(shape[i].second));
       tmpl = tmpl || hasParam(shape[i].second);
       Member m; m.name = shape[i].first; m.type = shape[i].second; m.owner = oi;
       if (lit) { m.literal = lits[i]; m.hasLiteral = true; }
+      m.optional = opt;
       info.members.push_back(std::move(m));
     }
     info.name += shape.empty() ? "}" : " }";
@@ -2913,9 +2971,7 @@ struct Checker {
         for (TypeId p : ty(f.params[k]).params) ps.push_back(substitute(g, p, bound));
         want = func(ps, kNoType, ty(f.params[k]).minArgs, ty(f.params[k]).variadic);
       }
-      padCallbacks = true;
       TypeId lt = expr(argNodes[k], want);
-      padCallbacks = false;
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
     }
     for (std::size_t i = 0; i < bound.size(); ++i)
@@ -2970,6 +3026,13 @@ struct Checker {
         else if (mn.kids[1] != kNone) {
           const Node& in = n(mn.kids[1]);
           t = in.kind == N::Number ? num(Num::f64) : in.kind == N::String ? tStr : (in.kind == N::Literal && in.text != "null") ? tBool : tError;
+          if (t == tError && (in.kind == N::Call || in.kind == N::New || in.kind == N::Template || in.kind == N::Binary || in.kind == N::Unary || in.kind == N::Cond || in.kind == N::Member)) {
+            // any other initializer: its type, when it can be told from here (names it uses are in scope; the class is not yet built)
+            std::size_t before = out.diags.size();
+            TypeId it = expr(mn.kids[1]);
+            if (out.diags.size() > before) out.diags.resize(before);
+            if (!bad(it) && it != tNull && it != tVoid) t = it;
+          }
           if (t == tError) diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         } else diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         out.nodeType[m] = t;
@@ -3185,7 +3248,7 @@ struct Checker {
       TypeId sig = signature(s, 2, false, ps);
       out.nodeType[s] = sig;
       out.nodeSym[s] = declare(SymKind::Func, n(s).text, sig, s, true, s);
-      if (!fnStack.empty() && !declAsGlobal) {  // a nested function: another function may use it (and it may use the variables around it), so it is captured like a variable
+      if (isNestedFunction(s)) {  // a nested function: another function may use it (and it may use the variables around it), so it is captured like a variable
         out.syms[out.nodeSym[s]].ownerFn = fnStack.back();
         out.syms[out.nodeSym[s]].reassigned = true;  // its closure is stored after the closures that call it exist: a shared cell
       }

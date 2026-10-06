@@ -322,3 +322,8 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 ## ZN-048 notes (Done)
 - `src/res/res.cpp` bakes fonts and images from the program's own texts (see `docs/reports/zinc-next-resources.md`); the frozen `src/host/baked_resources.cpp` is gone. `zinc bake <prog> -o blob.bin` dumps the blob; `tests/t0/res_check.py` compares it with `tests/golden/res/expected.json` (made once with the old Node tool: bit-identical). stb_image is vendored in `third_party/stb`.
 - Next by ordinal: ZN-049 (host modules apps need: fs, storage, net, os, timers; the examples must compile), ZN-050 (the app shell).
+
+## ZN-049 (Review, over budget)
+Class setters done (`set x(v)` becomes `__set_x`, `obj.x = v` rewritten by the checker). Remaining before the examples run: async class
+methods, Date getters, zinc:gfx image targets (createImage/beginImage/endImage), lib/std narrowing errors (hero). Next: split these into a
+follow-up task, then ZN-050. T1: 27 passed (zbc goldens regenerated after prelude growth).

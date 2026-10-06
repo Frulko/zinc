@@ -797,7 +797,13 @@ struct Parser {
         i += 5;
       } else {
       if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
-      memberName(mname);
+      if (isId("set") && at(1).kind == Tok::Ident && isP("(", 2)) {  // `set name(v: T) { ... }`: a method called __set_name; `obj.name = v` calls it
+        ++i;
+        static std::deque<std::string> setterNames;  // process-wide: nodes of merged modules view these names, so they must outlive this parse
+        setterNames.push_back("__set_" + std::string(txt()));
+        mname = setterNames.back();
+        ++i;
+      } else memberName(mname);
       }
       if (isP("(") || isP("<")) {
         std::vector<std::uint32_t> mtps;
@@ -965,7 +971,13 @@ struct Parser {
       std::uint32_t value;
       if (eatP(":")) value = assignment();
       else if (!str && (isP(",") || isP("}"))) value = mk(N::Ident, ps, pe, key);  // shorthand `{ x }`
-      else unsupported("methods, spreads and computed keys in object literals");
+      else if (isP("(") && !str) {  // a method: `{ f(x: i32): i32 { ... } }`, a function expression (use arrow functions to capture `this`)
+        auto mps = params(false);
+        std::uint32_t ret = kNone;
+        if (eatP(":")) ret = type();
+        std::uint32_t body = withFn(false, false, [&] { return block(); });
+        value = funcExpr(ps, mps, ret, body, false);
+      } else unsupported("getters, setters and string-named methods in object literals");
       props.push_back(mk(N::Prop, ps, prevEnd(), key, {value}));
       if (!eatP(",")) break;
     }
@@ -1043,9 +1055,21 @@ struct Parser {
       semi();
       return mk(N::Import, st, prevEnd(), src, {spec});
     }
-    if (cur().kind == Tok::Ident) unsupported("default imports");
-    expectP("{");
     std::vector<std::uint32_t> specs;
+    if (cur().kind == Tok::Ident) {  // `import X from './m'` (also `import X, { a, b } from './m'`): the default export, named "default"
+      std::uint32_t s0 = cur().start;
+      std::uint32_t id = mk(N::Ident, cur().start, cur().end, txt());
+      ++i;
+      specs.push_back(mk(N::ImportSpec, s0, prevEnd(), "default", {id}));
+      if (!eatP(",")) {
+        if (!isId("from")) fail(kZExpected, cur().start, "'from'");
+        ++i;
+        std::string_view src = sourceString();
+        semi();
+        return mk(N::Import, st, prevEnd(), src, std::move(specs));
+      }
+    }
+    expectP("{");
     while (!isP("}")) {
       if (cur().kind != Tok::Ident) unexpected();
       std::uint32_t s0 = cur().start, ls = s0, le = cur().end;
@@ -1067,7 +1091,21 @@ struct Parser {
   std::uint32_t exportDecl() {
     std::uint32_t st = cur().start;
     ++i;
-    if (isKw("default")) unsupported("default exports");
+    if (isKw("default")) {  // `export default <declaration>` or `export default <expression>;` (a module-level const named __default)
+      ++i;
+      std::uint32_t d;
+      if (isKw("function") || isKw("class") || (isId("async") && at(1).kind == Tok::Keyword && txt(at(1)) == "function") || (isId("abstract") && at(1).kind == Tok::Keyword && txt(at(1)) == "class")) d = statement();
+      else {
+        std::uint32_t es = cur().start;
+        std::uint32_t e = assignment();
+        semi();
+        std::uint32_t decl = mk(N::Declarator, es, prevEnd(), "__default", {kNone, e});
+        d = mk(N::VarDecl, es, prevEnd(), "const", {decl});
+      }
+      std::uint32_t ex = mk(N::Export, st, prevEnd(), {}, {d});
+      r.ast.nodes[ex].flags = kFlagDefault;
+      return ex;
+    }
     if (isP("*")) {
       ++i;
       if (isId("as")) unsupported("namespace re-exports");
