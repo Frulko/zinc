@@ -191,6 +191,8 @@ struct Checker {
     str.members.push_back({"fromCharCode", func({num(Num::i32)}, tStr, 1), true, true});
     out.objs.push_back(str);
     declare(SymKind::Builtin, "String", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    declare(SymKind::Builtin, "__identity", func({tAny}, num(Num::i64), 1), kNone, true, 0);  // for generated code: the identity of a reference
+    declare(SymKind::Builtin, "__classname", func({tAny}, tStr, 1), kNone, true, 0);       // the class name of an object, for [Function: name]
     declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
@@ -531,7 +533,7 @@ struct Checker {
       for (TypeId d : deps) todo.push_back(d);
       for (TypeId cl : classes) classTypes.insert(cl);
     }
-    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0], 0);\n}\n";
+    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
     addAliases(closure);
     for (TypeId u : closure) fmtDeclared.insert(u);
     for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
@@ -2220,6 +2222,13 @@ bool widens(Num from, Num to) {
 Checked check(Ast& ast) {
   Checker c(ast);
   if (ast.root != kNone) c.run();
+  auto isFn = [&](std::uint32_t k) { return k != kNone && ast.nodes[k].kind == N::FuncExpr; };
+  for (std::uint32_t i = 0; i < ast.nodes.size(); ++i) {  // name inference for function expressions, as JavaScript does
+    const Node& x = ast.nodes[i];
+    if ((x.kind == N::Declarator || x.kind == N::Field) && x.kids.size() > 1 && !x.text.empty() && isFn(x.kids[1])) c.out.lambdaNames[x.kids[1]] = std::string(x.text);
+    else if (x.kind == N::Prop && isFn(x.kids[0])) c.out.lambdaNames[x.kids[0]] = std::string(x.text);
+    else if (x.kind == N::Assign && x.text == "=" && isFn(x.kids[1]) && (ast.nodes[x.kids[0]].kind == N::Ident || ast.nodes[x.kids[0]].kind == N::Member)) c.out.lambdaNames[x.kids[1]] = std::string(ast.nodes[x.kids[0]].text);
+  }
   return std::move(c.out);
 }
 

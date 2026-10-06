@@ -2,6 +2,12 @@ Program
   Class P
     _
     _
+    Field x [public]
+      TypeRef i32
+      _
+    Field y [public]
+      TypeRef i32
+      _
     Method constructor
       _
       Block
@@ -21,12 +27,6 @@ Program
       Param y [public]
         TypeRef i32
         _
-    Field x [public]
-      TypeRef i32
-      _
-    Field y [public]
-      TypeRef i32
-      _
   Function minmax
     TypeTuple
       TypeRef i32

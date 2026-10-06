@@ -2,6 +2,15 @@ Program
   Class P
     _
     _
+    Field x [public]
+      TypeRef i32
+      _
+    Field y [private]
+      TypeRef i32
+      _
+    Field z [readonly]
+      TypeRef i32
+      _
     Method constructor
       _
       Block
@@ -41,15 +50,6 @@ Program
                 This
             Member z
               This
-    Field x [public]
-      TypeRef i32
-      _
-    Field y [private]
-      TypeRef i32
-      _
-    Field z [readonly]
-      TypeRef i32
-      _
   Class Q
     TypeRef P
     _

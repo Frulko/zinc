@@ -94,6 +94,7 @@ struct Checked {
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> captures;
   std::vector<std::uint32_t> lambdaUsesThis;
   std::vector<std::uint32_t> funcValueUses;
+  std::unordered_map<std::uint32_t, std::string> lambdaNames;  // the name a function expression takes from `const f = ...`, `f = ...`, `{ f: ... }` or a field initialiser
   // Numeric enums: members and values per enum symbol; the enum's type is i32.
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::string, std::int64_t>>> enumMembers;
   std::vector<std::string> enumNames;  // an enum's type is an i32 Type with obj = 1 + its index here: assignable only from itself

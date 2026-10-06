@@ -22,8 +22,12 @@ struct Func {
 // How a key (or an element compared by indexOf/includes) is hashed and compared.
 enum class KeyKind : std::uint8_t { Int, F32, F64, Str, Ref };
 
+struct StrObj;
+
 struct ClassRT {
   std::uint32_t id = 0;
+  std::string name;
+  StrObj* nameStr = nullptr;  // the name as a string object, made on first use
   zbc::CKind kind = zbc::CKind::Object;
   std::uint32_t nfields = 0;
   std::vector<std::uint32_t> supers;

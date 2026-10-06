@@ -118,6 +118,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     const zbc::ClassInfo& ci = m.classes[i];
     ClassRT& c = classes[i];
     c.id = static_cast<std::uint32_t>(i);
+    c.name = ci.name;
     c.kind = ci.kind;
     c.nfields = static_cast<std::uint32_t>(ci.fields.size());
     c.supers = ci.supers;

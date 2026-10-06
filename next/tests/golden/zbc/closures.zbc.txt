@@ -12,16 +12,16 @@ class lambda1 { ref fn (i32) => i32, ref fn (i32) => i32 }
   vtable .call -> @lambda1
 class lambda2 { i }
   vtable .call -> @lambda2
-class lambda3 { ref Button }
-  vtable .call -> @lambda3
-class lambda4 {}
-  vtable .call -> @lambda4
+class lambda3:on { ref Button }
+  vtable .call -> @lambda3:on
+class lambda4:add5 {}
+  vtable .call -> @lambda4:add5
 class lambda5 {}
   vtable .call -> @lambda5
 class lambda6 {}
   vtable .call -> @lambda6
-class lambda7 {}
-  vtable .call -> @lambda7
+class lambda7:addTo {}
+  vtable .call -> @lambda7:addTo
 class fnref double {}
   vtable .call -> @fnref double$call
 global g0: i
@@ -33,7 +33,7 @@ func @main() -> void nregs=10
    3  Move     r1, r0
    4  CallVirt r1, .call
    5  Call     r1, @makeCounter
-   6  New      r2, lambda4
+   6  New      r2, lambda4:add5
    7  LoadI    r3, 10
    8  SetGlobalr3, g0
    9  Move     r3, r0
@@ -86,7 +86,7 @@ func @main() -> void nregs=10
   56  LogEnd   
   57  LoadI    r0, 0
   58  SetGlobalr0, g1
-  59  New      r0, lambda7
+  59  New      r0, lambda7:addTo
   60  LoadI    r2, 3
   61  Move     r1, r0
   62  CallVirt r1, .call
@@ -124,7 +124,7 @@ func @makeAdder(i) -> ref fn (i32) => i32 nregs=2
 func @Button.constructor(ref Button) -> void nregs=2
    0  LoadI    r1, 0
    1  SetField r0, r1, .0
-   2  New      r1, lambda3
+   2  New      r1, lambda3:on
    3  SetField r1, r0, .0
    4  SetField r0, r1, .1
    5  RetV     
@@ -150,14 +150,14 @@ func @lambda2(ref lambda2, i) -> i nregs=2
    0  GetField r0, r0, .0
    1  AddI32   r0, r1, r0
    2  Ret      r0
-func @lambda3(ref lambda3) -> i nregs=2
+func @lambda3:on(ref lambda3:on) -> i nregs=2
    0  GetField r0, r0, .0
    1  GetField r1, r0, .0
    2  AddI32K  r1, r1, 1
    3  SetField r0, r1, .0
    4  GetField r0, r0, .0
    5  Ret      r0
-func @lambda4(ref lambda4, i) -> i nregs=2
+func @lambda4:add5(ref lambda4:add5, i) -> i nregs=2
    0  AddI32K  r0, r1, 5
    1  Ret      r0
 func @lambda5(ref lambda5, i) -> i nregs=2
@@ -168,7 +168,7 @@ func @lambda6(ref lambda6, i) -> i nregs=2
    0  LoadI    r0, 2
    1  MulI32   r0, r1, r0
    2  Ret      r0
-func @lambda7(ref lambda7, i) -> void nregs=2
+func @lambda7:addTo(ref lambda7:addTo, i) -> void nregs=2
    0  GetGlobalr0, g1
    1  AddI32   r0, r0, r1
    2  SetGlobalr0, g1

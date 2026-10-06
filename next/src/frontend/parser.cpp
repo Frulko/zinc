@@ -655,12 +655,13 @@ struct Parser {
     std::uint32_t body = ctorKids[1];
     if (body == kNone) return;
     std::vector<std::uint32_t> assigns;
+    std::ptrdiff_t nField = 0;  // parameter properties come before the declared fields, as in the TypeScript-to-JavaScript transform
     for (std::size_t k = 2; k < ctorKids.size(); ++k) {
       const Node pn = r.ast.nodes[ctorKids[k]];
       if (!(pn.flags & (kFlagPublic | kFlagPrivate | kFlagProtected | kFlagReadonly))) continue;
       std::uint32_t field = mk(N::Field, pn.start, pn.end, pn.text, {pn.kids[0], kNone});
       r.ast.nodes[field].flags = pn.flags;
-      members.push_back(field);
+      members.insert(members.begin() + nField++, field);
       std::uint32_t bs = r.ast.nodes[body].start;  // synthesized nodes sit on the body's opening brace
       std::uint32_t th = mk(N::This, bs, bs + 1);
       std::uint32_t mem = mk(N::Member, bs, bs + 1, pn.text, {th});

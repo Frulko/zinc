@@ -24,18 +24,18 @@ class lambda3 { ref cell i32 }
   vtable .call -> @lambda3
 class lambda4 { ref fn (i32) => i32 }
   vtable .call -> @lambda4
-class lambda5 {}
-  vtable .call -> @lambda5
-class lambda6 { ref cell i32 }
-  vtable .call -> @lambda6
-class lambda7 { i }
-  vtable .call -> @lambda7
+class lambda5:bump {}
+  vtable .call -> @lambda5:bump
+class lambda6:add { ref cell i32 }
+  vtable .call -> @lambda6:add
+class lambda7:f { i }
+  vtable .call -> @lambda7:f
 class lambda8 { ref Counter }
   vtable .call -> @lambda8
 class lambda9 {}
   vtable .call -> @lambda9
-class lambda10 {}
-  vtable .call -> @lambda10
+class lambda10:fn2 {}
+  vtable .call -> @lambda10:fn2
 class lambda11 {}
   vtable .call -> @lambda11
 class lambda12 {}
@@ -46,7 +46,7 @@ global g0: i
 func @main() -> void nregs=11
    0  LoadI    r0, 0
    1  SetGlobalr0, g0
-   2  New      r0, lambda5
+   2  New      r0, lambda5:bump
    3  Call     r1, @counterPair
    4  GetField r2, r1, .0
    5  GetField r3, r1, .1
@@ -106,7 +106,7 @@ func @main() -> void nregs=11
   59  LogSep   
   60  LogI     r0
   61  LogEnd   
-  62  New      r0, lambda10
+  62  New      r0, lambda10:fn2
   63  LoadI    r1, 6
   64  LoadI    r2, 7
   65  CallVirt r0, .call
@@ -152,7 +152,7 @@ func @sq(i) -> i nregs=1
 func @accumulate(i) -> i nregs=5
    0  New      r1, cell i32
    1  SetField r1, r0, .0
-   2  New      r0, lambda6
+   2  New      r0, lambda6:add
    3  SetField r0, r1, .0
    4  Move     r2, r0
    5  LoadI    r4, 1
@@ -168,7 +168,7 @@ func @loopy() -> i nregs=4
    2  JGeIK    r1, 3, -> 14
    4  LoadI    r2, 10
    5  MulI32   r2, r1, r2
-   6  New      r3, lambda7
+   6  New      r3, lambda7:f
    7  SetField r3, r2, .0
    8  Move     r2, r3
    9  CallVirt r2, .call
@@ -221,19 +221,19 @@ func @lambda4(ref lambda4, i) -> i nregs=5
    5  Move     r1, r3
    6  CallVirt r0, .call
    7  Ret      r0
-func @lambda5(ref lambda5, i) -> void nregs=2
+func @lambda5:bump(ref lambda5:bump, i) -> void nregs=2
    0  GetGlobalr0, g0
    1  AddI32   r0, r0, r1
    2  SetGlobalr0, g0
    3  RetV     
-func @lambda6(ref lambda6, i) -> void nregs=3
+func @lambda6:add(ref lambda6:add, i) -> void nregs=3
    0  GetField r2, r0, .0
    1  GetField r2, r2, .0
    2  AddI32   r1, r2, r1
    3  GetField r0, r0, .0
    4  SetField r0, r1, .0
    5  RetV     
-func @lambda7(ref lambda7) -> i nregs=1
+func @lambda7:f(ref lambda7:f) -> i nregs=1
    0  GetField r0, r0, .0
    1  AddI32K  r0, r0, 1
    2  Ret      r0
@@ -248,7 +248,7 @@ func @lambda8(ref lambda8) -> i nregs=3
 func @lambda9(ref lambda9, i) -> i nregs=2
    0  AddI32K  r0, r1, 1
    1  Ret      r0
-func @lambda10(ref lambda10, i, i) -> i nregs=3
+func @lambda10:fn2(ref lambda10:fn2, i, i) -> i nregs=3
    0  MulI32   r0, r1, r2
    1  Ret      r0
 func @lambda11(ref lambda11, i) -> i nregs=2

@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-036 (cyclic console.log, function names), then ZN-018 (explicit RC, milestone M3). Nothing in progress.
+- Ready: none; next by ordinal is ZN-018 (explicit RC insertion and elision, milestone M3). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-036.
+`/loop /zn-start` resumes with ZN-018.
 
 ## Watch out
 
@@ -162,3 +162,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `tests/conformance/tour.ts` (with `./shapes`) prints exactly `corpus/conformance/tour.out`; `examples/lang` runs too and its output is frozen in `tests/golden/lang/lang.out` (the tour split into modules, with headings). Both are checked by `tests/t1/conformance.sh`.
 - Added `e as T` (type assertions): numeric conversion, checked downcast, or an object literal read as a record; T must be assignable one way or the other (a subset of what tsc accepts).
 - M2 summary: classes, generics, closures, strings/arrays/Map/Set, modules, accessors, enums, switch, records, console.log inspect format, callbacks and the string library, all on the interpreter with Node-identical goldens (`tests/golden/run`). Open from M2: ZN-036, RC (ZN-018, M3), exceptions (ZN-019), async/generators (ZN-020), the remaining 17 conformance programs (ZN-021).
+
+## ZN-036 notes (cycles and function names in console.log)
+
+- The generated formatters carry a context `i64[]`: indent, current depth, the ancestors' identities (slots 2..5), the circular targets found (6..9, count in 10). Containers check their identity against their ancestors first (`[Circular *n]`) and print `<ref *n>` when something below pointed back at them, like Node. Identity comes from the internal runtime call `ObjId` (any reference to an integer; the pointer itself), reached from generated code through the builtin `__identity`.
+- Function values print their name: `ClassName` returns the closure class's name (`lambdaN:name`, `fnref name`, or plain `lambdaN` when anonymous); `Checked::lambdaNames` gives a function expression the name JavaScript would infer (`const f = ...`, `f = ...`, `{ f: ... }`, `f = ...` field initialisers). Arrow functions passed or stored anonymously print `[Function (anonymous)]`.
+- Parameter properties now come before the declared fields in a class's field order (as the TypeScript-to-JavaScript transform does), so objects print like Node; layout and goldens changed accordingly.
+- Still open: strings with newlines longer than 16 characters are not split, functions of other kinds (methods as values) are not supported by the language yet.

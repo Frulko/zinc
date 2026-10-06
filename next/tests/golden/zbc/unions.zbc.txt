@@ -1,4 +1,4 @@
-class Item { ref Item, i }
+class Item { i, ref Item }
 class Animal { i }
 class Dog : Animal { i }
   vtable .bark -> @Dog.bark
@@ -34,7 +34,7 @@ func @main() -> void nregs=11
   25  LoadNull r0, Item
   26  NeR      r0, r1, r0
   27  JmpIfNot r0, -> 30
-  28  GetField r0, r1, .1
+  28  GetField r0, r1, .0
   29  Jmp      -> 31
   30  LoadI    r0, -9
   31  LoadNull r1, Item
@@ -85,13 +85,13 @@ func @main() -> void nregs=11
   76  LoadNull r3, Item
   77  Move     r1, r0
   78  Call     r1, @Item.constructor
-  79  GetField r0, r0, .1
+  79  GetField r0, r0, .0
   80  LogI     r0
   81  LogEnd   
   82  RetV     
 func @Item.constructor(ref Item, i, ref Item) -> void nregs=3
-   0  SetField r0, r1, .1
-   1  SetField r0, r2, .0
+   0  SetField r0, r1, .0
+   1  SetField r0, r2, .1
    2  RetV     
 func @Animal.constructor(ref Animal, i) -> void nregs=2
    0  SetField r0, r1, .0
@@ -115,9 +115,9 @@ func @sum(ref Item) -> i nregs=3
    1  LoadNull r2, Item
    2  NeR      r2, r0, r2
    3  JmpIfNot r2, -> 9
-   4  GetField r2, r0, .1
+   4  GetField r2, r0, .0
    5  AddI32   r2, r1, r2
-   6  GetField r0, r0, .0
+   6  GetField r0, r0, .1
    7  Move     r1, r2
    8  Jmp      -> 1
    9  Ret      r1
@@ -127,16 +127,16 @@ func @firstValue(ref Item) -> i nregs=2
    2  JmpIfNot r1, -> 5
    3  LoadI    r1, -1
    4  Ret      r1
-   5  GetField r0, r0, .1
+   5  GetField r0, r0, .0
    6  Ret      r0
 func @find(ref Item, i) -> ref Item nregs=3
    0  LoadNull r2, Item
    1  NeR      r2, r0, r2
    2  JmpIfNot r2, -> 9
-   3  GetField r2, r0, .1
+   3  GetField r2, r0, .0
    4  JNeI     r2, r1, -> 7
    6  Ret      r0
-   7  GetField r0, r0, .0
+   7  GetField r0, r0, .1
    8  Jmp      -> 0
    9  LoadNull r0, Item
   10  Ret      r0

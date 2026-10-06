@@ -299,6 +299,7 @@ struct Lowering {
       if (cap != c.captures.end()) li.caps = cap->second;
       Class cl;
       cl.name = "lambda" + std::to_string(lambdas.size());
+      if (auto ln = c.lambdaNames.find(i); ln != c.lambdaNames.end()) cl.name += ":" + ln->second;  // the runtime name of the function
       for (std::uint32_t sym : li.caps) {
         TypeId ft = irType(c.syms[sym].type, i);
         cl.fields.push_back({std::string(c.syms[sym].name), isCell(sym) ? m.refT(cellClass(ft)) : ft});
@@ -1213,6 +1214,10 @@ struct Lowering::FnLower {
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__identity" || callee.text == "__classname")) {
+        bool isId = callee.text == "__identity";
+        return emit(IrOp::Rt, isId ? m.numT(NumK::i64) : m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(isId ? zn::Rt::ObjId : zn::Rt::ClassName));
+      }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "parseInt" || callee.text == "parseFloat")) {
         bool isInt = callee.text == "parseInt";
         std::vector<ValueId> vs{exprTo(x.kids[1], m.strT())};

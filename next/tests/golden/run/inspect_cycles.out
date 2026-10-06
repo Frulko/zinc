@@ -1,0 +1,52 @@
+<ref *1> Item {
+  name: 'a',
+  next: [Circular *1],
+  kids: [],
+  tags: Map(0) {}
+}
+<ref *1> Item {
+  name: 'b',
+  next: Item { name: 'c', next: [Circular *1], kids: [], tags: Map(0) {} },
+  kids: [],
+  tags: Map(0) {}
+}
+<ref *1> Item {
+  name: 'root',
+  next: null,
+  kids: [
+    [Circular *1],
+    Item { name: 'leaf', next: null, kids: [], tags: Map(0) {} }
+  ],
+  tags: Map(0) {}
+}
+<ref *1> Item {
+  name: 'holder',
+  next: null,
+  kids: [],
+  tags: Map(1) { 'self' => [Circular *1] }
+}
+Item {
+  name: 'p',
+  next: null,
+  kids: [
+    <ref *1> Item {
+      name: 'q',
+      next: [Circular *1],
+      kids: [Array],
+      tags: Map(0) {}
+    }
+  ],
+  tags: Map(0) {}
+} [
+  Item { name: 'p', next: null, kids: [ [Item] ], tags: Map(0) {} },
+  <ref *1> Item {
+    name: 'q',
+    next: [Circular *1],
+    kids: [ [Item] ],
+    tags: Map(0) {}
+  }
+]
+[Function: named] [Function: arrow] { run: [Function: run], plain: [Function: arrow] }
+[ [Function: named], [Function (anonymous)] ] Handler { fn: [Function: named], cb: [Function: cb] }
+[Function: later]
+[Function: arrow]

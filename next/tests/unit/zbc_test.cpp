@@ -252,6 +252,8 @@ int main() {
     expect("join of an array that is not a string[]", collModule({encAD(Op::New, 0, 1), encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 0, rt(Rt::ArrJoin)), encABC(Op::RetV, 0)}, 3), "string[]");
     expect("map key of the wrong class", collModule({encAD(Op::New, 0, 3), encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 0, rt(Rt::MapHas)), encABC(Op::RetV, 0)}, 3), "expected i");
     expect("comparator that is not a function", collModule({encAD(Op::New, 0, 1), encAD(Op::New, 1, 1), encAD(Op::Rt, 0, rt(Rt::ArrSort)), encABC(Op::RetV, 0)}, 3), "comparator");
+    expect("identity and class name of a reference", collModule({encAD(Op::New, 0, 3), encAD(Op::Rt, 0, rt(Rt::ObjId)), encABC(Op::LogI, 0), encAD(Op::New, 0, 1), encAD(Op::Rt, 0, rt(Rt::ClassName)), encABC(Op::LogStr, 0), encABC(Op::RetV, 0)}, 2), "");
+    expect("identity of an integer", collModule({encAD(Op::LoadI, 0, 1), encAD(Op::Rt, 0, rt(Rt::ObjId)), encABC(Op::RetV, 0)}, 2), "expected a reference");
     expect("unknown runtime call", collModule({encAD(Op::Rt, 0, 999), encABC(Op::RetV, 0)}, 1), "unknown runtime call");
     expect("runtime call window outside the frame", collModule({encAD(Op::LoadStr, 1, 0), encAD(Op::Rt, 1, rt(Rt::StrConcat)), encABC(Op::RetV, 0)}, 2), "does not fit");
     expect("result array class missing", [&] { Module m; m.classes = {coll("Map<i, i>", CKind::Map, VType{Cls::I, 0}, VType{Cls::I, 0})}; m.functions.push_back(fn("main", {encAD(Op::New, 0, 0), encAD(Op::Rt, 0, static_cast<unsigned>(Rt::MapKeys)), encABC(Op::RetV, 0)}, 2)); return m; }(), "no array class");

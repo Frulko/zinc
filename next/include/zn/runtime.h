@@ -7,6 +7,7 @@
 // element, key and value type of the receiver:
 //   s string   i i32   b boolean   d f64   n none (result only)
 //   j i32 that may be omitted (defaults to INT32_MAX)   z i32 that may be omitted (defaults to 0)   w string that may be omitted (" ")
+//   x any reference (an object, string, array, Map or Set)
 //   a, m, t    the receiver array, Map, Set (as a result: the receiver again)
 //   e element of the receiver's array or Set   k key of the Map   v value of the Map
 //   A E[]   K K[]   V V[]   S string[]   c a function value (E, E) => f64: an object whose class has a `call` selector (the comparator of sort)
@@ -18,7 +19,7 @@
   X(StrConcat, "string.#concat", "ss>s", 2) X(StrEq, "string.#eq", "ss>b", 2) X(StrLt, "string.#lt", "ss>b", 2)   \
   X(StrLe, "string.#le", "ss>b", 2)                                                                                 \
   X(NumToStrI, "string.#i2s", "i>s", 2) X(NumToStrU, "string.#u2s", "i>s", 2) X(NumToStrD, "string.#d2s", "d>s", 2) \
-  X(BoolToStr, "string.#b2s", "b>s", 2) X(NumToFixed, "string.#tofixed", "di>s", 2)                                                                          \
+  X(BoolToStr, "string.#b2s", "b>s", 2) X(ObjId, "string.#objid", "x>i", 2) X(ClassName, "string.#classname", "x>s", 2) X(NumToFixed, "string.#tofixed", "di>s", 2)                                                                          \
   X(StrLength, "string.length", "s>i", 1) X(StrCharCodeAt, "string.charCodeAt", "si>i", 0)                          \
   X(StrSlice, "string.slice", "szj>s", 0) X(StrSubstring, "string.substring", "szj>s", 0)                          \
   X(StrToUpperCase, "string.toUpperCase", "s>s", 0) X(StrToLowerCase, "string.toLowerCase", "s>s", 0)             \

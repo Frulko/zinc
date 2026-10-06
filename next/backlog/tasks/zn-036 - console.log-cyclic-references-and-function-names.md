@@ -1,9 +1,10 @@
 ---
 id: ZN-036
 title: 'console.log: cyclic references and function names'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 10:02'
+updated_date: '2026-10-06 10:18'
 labels:
   - size-M
 milestone: m-2
@@ -19,5 +20,11 @@ Follow-up of ZN-034, requested by the user: avoid infinite recursion on cyclic d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 console.log of self-referencing objects, arrays and Maps prints the same as Node; named functions and arrow functions assigned to variables or properties print [Function: name]
+- [x] #1 console.log of self-referencing objects, arrays and Maps prints the same as Node; named functions and arrow functions assigned to variables or properties print [Function: name]
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Cycles (<ref *n>/[Circular *n]) and function names match Node (inspect_cycles golden); ObjId/ClassName runtime calls with verifier tests; ASan T1 green. Param properties now precede declared fields.
+<!-- SECTION:NOTES:END -->

@@ -2,6 +2,9 @@ Program
   Class Item
     _
     _
+    Field value [public]
+      TypeRef i32
+      _
     Field next
       TypeUnion
         TypeRef Item
@@ -28,9 +31,6 @@ Program
           TypeRef Item
           TypeRef null
         _
-    Field value [public]
-      TypeRef i32
-      _
   TypeAlias Maybe
     TypeParams
       TypeParam T
@@ -45,6 +45,9 @@ Program
   Class Animal
     _
     _
+    Field legs [public]
+      TypeRef i32
+      _
     Method constructor
       _
       Block
@@ -56,9 +59,6 @@ Program
       Param legs [public]
         TypeRef i32
         _
-    Field legs [public]
-      TypeRef i32
-      _
   Class Dog
     TypeRef Animal
     _

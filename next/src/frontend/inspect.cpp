@@ -90,33 +90,34 @@ bool inspectable(const Checked& c, TypeId t) {
 
 std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vector<TypeId>& deps, std::vector<TypeId>& classes) {
   const Type& x = c.types[t];
-  std::string head = "function " + inspectFmtName(t) + "(v: " + inspectAliasName(t) + ", c: i32[], lvl: i32): string {\n";
+  std::string head = "function " + inspectFmtName(t) + "(v: " + inspectAliasName(t) + ", c: i64[], lvl: i32): string {\n";
   std::string body;
+  const std::string cyc = "  const id: i64 = __identity(v);\n  for (let k: i32 = 0; k < lvl; k++) if (c[2 + k] === id) return __circ(c, id);\n";
   auto call = [&](TypeId ct, const std::string& val, const char* lv) { deps.push_back(ct); return inspectFmtName(ct) + "(" + val + ", c, " + lv + ")"; };
   auto reduce = [&](const std::string& open, const std::string& close, bool arr, bool numeric, const std::string& more) {
-    return "  return __reduce(c, out, " + std::string("'', ") + open + ", " + close + ", l, " + (arr ? "true" : "false") + ", " + (numeric ? "true" : "false") + ", " + more + ");\n";
+    return "  return __reduce(c, out, " + std::string("__ref(c, id), ") + open + ", " + close + ", l, " + (arr ? "true" : "false") + ", " + (numeric ? "true" : "false") + ", " + more + ");\n";
   };
   switch (x.k) {
     case TK::Num: body = "  return " + numCall(c, t) + ";\n"; break;
     case TK::Bool: body = "  return `${v}`;\n"; break;
     case TK::Str: body = "  return __q(v);\n"; break;
     case TK::Null: body = "  return 'null';\n"; break;
-    case TK::Func: body = "  return '[Function (anonymous)]';\n"; break;
+    case TK::Func: body = "  return __fnName(__classname(v));\n"; break;
     case TK::Array: {
-      body += "  if (v.length === 0) return '[]';\n  if (lvl > 2) return '[Array]';\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
+      body += "  if (v.length === 0) return '[]';\n" + cyc + "  if (lvl > 2) return '[Array]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
       body += "  const n: i32 = v.length > 100 ? 100 : v.length;\n  c[0] += 2;\n  for (let i: i32 = 0; i < n; i++) out.push(" + call(x.elem, "v[i]", "l") + ");\n  c[0] -= 2;\n";
       body += "  if (v.length > n) out.push('... ' + (v.length - n) + ' more item' + (v.length - n > 1 ? 's' : ''));\n";
       body += reduce("'['", "']'", true, c.types[x.elem].k == TK::Num, "v.length > n");
       break;
     }
     case TK::Set: {
-      body += "  if (v.size === 0) return 'Set(0) {}';\n  if (lvl > 2) return '[Set]';\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
+      body += "  if (v.size === 0) return 'Set(0) {}';\n" + cyc + "  if (lvl > 2) return '[Set]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
       body += "  const items = v.values();\n  c[0] += 2;\n  for (const e of items) out.push(" + call(x.elem, "e", "l") + ");\n  c[0] -= 2;\n";
       body += reduce("'Set(' + v.size + ') {'", "'}'", false, false, "false");
       break;
     }
     case TK::Map: {
-      body += "  if (v.size === 0) return 'Map(0) {}';\n  if (lvl > 2) return '[Map]';\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
+      body += "  if (v.size === 0) return 'Map(0) {}';\n" + cyc + "  if (lvl > 2) return '[Map]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n";
       body += "  const ks = v.keys();\n  const vs = v.values();\n  c[0] += 2;\n  for (let i: i32 = 0; i < ks.length; i++) out.push(" + call(x.params[0], "ks[i]", "l") + " + ' => ' + " + call(x.elem, "vs[i]", "l") + ");\n  c[0] -= 2;\n";
       body += reduce("'Map(' + v.size + ') {'", "'}'", false, false, "false");
       break;
@@ -136,7 +137,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
         if (fs.empty()) { body = "  return '[]';\n"; break; }
         bool numeric = true;
         for (const Member* m : fs) numeric = numeric && c.types[m->type].k == TK::Num;
-        body += "  if (lvl > 2) return '[Array]';\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n  c[0] += 2;\n";
+        body += cyc + "  if (lvl > 2) return '[Array]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n  c[0] += 2;\n";
         for (const Member* m : fs) body += "  out.push(" + call(m->type, "v[" + m->name + "]", "l") + ");\n";
         body += "  c[0] -= 2;\n" + reduce("'['", "']'", true, numeric, "false");
         break;
@@ -153,7 +154,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
       }
       std::string prefix = plain ? "" : cname + " ";
       if (fs.empty()) { body += "  return '" + prefix + "{}';\n"; break; }
-      body += "  if (lvl > 2) return '[" + (plain ? std::string("Object") : cname) + "]';\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n  c[0] += 2;\n";
+      body += cyc + "  if (lvl > 2) return '[" + (plain ? std::string("Object") : cname) + "]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n  c[0] += 2;\n";
       for (const Member* m : fs) body += "  out.push('" + m->name + ": ' + " + call(m->type, "v." + m->name, "l") + ");\n";
       body += "  c[0] -= 2;\n" + reduce("'" + prefix + "{'", "'}'", false, false, "false");
       break;
@@ -161,12 +162,33 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
     default: body = "  return '[unknown]';\n"; break;
   }
   std::string text = head + body + "}\n";
-  if (withLog) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0], 0);\n}\n";
+  if (withLog) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
   return text;
 }
 
 const char* inspectPrelude() {
   return R"ZN(
+function __circ(c: i64[], id: i64): string {
+  const n: i32 = c[10];
+  for (let i: i32 = 0; i < n; i++) if (c[6 + i] === id) return '[Circular *' + (i + 1) + ']';
+  c[6 + n] = id;
+  c[10] = n + 1;
+  return '[Circular *' + (n + 1) + ']';
+}
+function __ref(c: i64[], id: i64): string {
+  const n: i32 = c[10];
+  for (let i: i32 = 0; i < n; i++) if (c[6 + i] === id) return '<ref *' + (i + 1) + '>';
+  return '';
+}
+function __fnName(n: string): string {
+  let name: string = '';
+  if (n.startsWith('fnref ')) name = n.slice(6);
+  else {
+    const k: i32 = n.indexOf(':');
+    if (k >= 0) name = n.slice(k + 1);
+  }
+  return name === '' ? '[Function (anonymous)]' : '[Function: ' + name + ']';
+}
 function __num(v: number): string {
   return v === 0 && 1 / v < 0 ? '-0' : `${v}`;
 }
@@ -217,7 +239,7 @@ function __below(output: string[], start: i32, base: string): boolean {
   }
   return base === '' || !base.includes('\n');
 }
-function __group(c: i32[], output: string[], numeric: boolean, more: boolean): string[] {
+function __group(c: i64[], output: string[], numeric: boolean, more: boolean): string[] {
   let total: i32 = 0;
   let maxLen: i32 = 0;
   const n: i32 = more ? output.length - 1 : output.length;
@@ -259,7 +281,7 @@ function __group(c: i32[], output: string[], numeric: boolean, more: boolean): s
   }
   return output;
 }
-function __reduce(c: i32[], output: string[], base: string, open: string, close: string, level: i32, isArray: boolean, numeric: boolean, more: boolean): string {
+function __reduce(c: i64[], output: string[], base: string, open: string, close: string, level: i32, isArray: boolean, numeric: boolean, more: boolean): string {
   let out: string[] = output;
   const entries: i32 = out.length;
   if (isArray && entries > 6) out = __group(c, out, numeric, more);

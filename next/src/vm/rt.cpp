@@ -301,6 +301,15 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = P(m.newStr(s.data(), s.size()));
       return nullptr;
     }
+    case Rt::ObjId: return nullptr;  // the pointer itself is the identity (the verifier types the result as an integer)
+    case Rt::ClassName: {
+      auto* o = reinterpret_cast<Obj*>(a[0]);
+      NN(o);
+      auto* cls = const_cast<ClassRT*>(o->cls);
+      if (!cls->nameStr) cls->nameStr = m.newStr(cls->name.data(), cls->name.size());
+      a[0] = P(cls->nameStr);
+      return nullptr;
+    }
     case Rt::BoolToStr: a[0] = P(a[0] ? m.newStr("true", 4) : m.newStr("false", 5)); return nullptr;
 
     // ---- strings

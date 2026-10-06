@@ -12,16 +12,16 @@ class lambda1 implements fn (i32) => i32 { g: ref fn (i32) => i32, f: ref fn (i3
   vtable .call -> @lambda1
 class lambda2 implements fn (i32) => i32 { k: i32 }
   vtable .call -> @lambda2
-class lambda3 implements fn () => i32 { this: ref Button }
-  vtable .call -> @lambda3
-class lambda4 implements fn (i32) => i32 {}
-  vtable .call -> @lambda4
+class lambda3:on implements fn () => i32 { this: ref Button }
+  vtable .call -> @lambda3:on
+class lambda4:add5 implements fn (i32) => i32 {}
+  vtable .call -> @lambda4:add5
 class lambda5 implements fn (i32) => i32 {}
   vtable .call -> @lambda5
 class lambda6 implements fn (i32) => i32 {}
   vtable .call -> @lambda6
-class lambda7 implements fn (i32) => void {}
-  vtable .call -> @lambda7
+class lambda7:addTo implements fn (i32) => void {}
+  vtable .call -> @lambda7:addTo
 class fnref double implements fn (i32) => i32 {}
   vtable .call -> @fnref double$call
 global @@k: i32
@@ -32,7 +32,7 @@ bb0:
   %1: i32 = callvirt .call(%0)
   %2: i32 = callvirt .call(%0)
   %3: ref fn () => i32 = call @makeCounter()
-  %4: ref lambda4 = new lambda4
+  %4: ref lambda4:add5 = new lambda4:add5
   %5: ref fn (i32) => i32 = refcast %4
   %6: i32 = const 10
   setglobal @@k %6
@@ -67,7 +67,7 @@ bb0:
   builtin console.log(%31, %32)
   %33: i32 = const 0
   setglobal @@total %33
-  %34: ref lambda7 = new lambda7
+  %34: ref lambda7:addTo = new lambda7:addTo
   %35: ref fn (i32) => void = refcast %34
   %36: i32 = const 3
   callvirt .call(%35, %36)
@@ -117,7 +117,7 @@ func @Button.constructor(%0: ref Button) -> void {
 bb0:
   %1: i32 = const 0
   setfield .0 %0, %1
-  %2: ref lambda3 = new lambda3
+  %2: ref lambda3:on = new lambda3:on
   setfield .0 %2, %0
   %3: ref fn () => i32 = refcast %2
   setfield .1 %0, %3
@@ -149,7 +149,7 @@ bb0:
   %3: i32 = add %1, %2
   ret %3
 }
-func @lambda3(%0: ref lambda3) -> i32 {
+func @lambda3:on(%0: ref lambda3:on) -> i32 {
 bb0:
   %1: ref Button = getfield .0 %0
   %2: i32 = getfield .0 %1
@@ -159,7 +159,7 @@ bb0:
   %5: i32 = getfield .0 %1
   ret %5
 }
-func @lambda4(%0: ref lambda4, %1: i32) -> i32 {
+func @lambda4:add5(%0: ref lambda4:add5, %1: i32) -> i32 {
 bb0:
   %2: i32 = const 5
   %3: i32 = add %1, %2
@@ -177,7 +177,7 @@ bb0:
   %3: i32 = mul %1, %2
   ret %3
 }
-func @lambda7(%0: ref lambda7, %1: i32) -> void {
+func @lambda7:addTo(%0: ref lambda7:addTo, %1: i32) -> void {
 bb0:
   %2: i32 = getglobal @@total
   %3: i32 = add %2, %1
