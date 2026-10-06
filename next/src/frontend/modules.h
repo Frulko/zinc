@@ -25,7 +25,8 @@ struct Program {
 // Reads a file into `out`; false if it cannot be read.
 using ReadFile = std::function<bool(const std::string& path, std::string& out)>;
 
-Program loadProgram(const std::string& entry, const ReadFile& read);
+// `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false);
 
 // `file:line:col: error Zxxxx: title: detail` for a diagnostic of the program.
 std::string formatDiag(const Program& p, const Diag& d);

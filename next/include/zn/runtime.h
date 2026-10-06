@@ -10,6 +10,7 @@
 //   x any reference (an object, string, array, Map or Set)
 //   a, m, t    the receiver array, Map, Set (as a result: the receiver again)
 //   e element of the receiver's array or Set   k key of the Map   v value of the Map
+//   r the class of the second argument (JSON parsing: the Dyn the null singleton belongs to)
 //   A E[]   K K[]   V V[]   S string[]   c a function value (E, E) => f64: an object whose class has a `call` selector (the comparator of sort)
 // flags: 0 method, 1 property (a getter, no call syntax), 2 internal (operators and conversions, no member syntax).
 #include <cstdint>
@@ -30,7 +31,8 @@
   X(StrCharAt, "string.charAt", "si>s", 0) X(StrRepeat, "string.repeat", "si>s", 0)   \
   X(StrPadStart, "string.padStart", "siw>s", 0) X(StrPadEnd, "string.padEnd", "siw>s", 0)                          \
   X(StrReplace, "string.replace", "sss>s", 0) X(StrReplaceAll, "string.replaceAll", "sss>s", 0)                  \
-  X(ParseInt, "string.#parseInt", "sz>d", 2) X(ParseFloat, "string.#parseFloat", "s>d", 2) X(ToNumber, "string.#toNumber", "s>d", 2)                          \
+  X(ParseInt, "string.#parseInt", "sz>d", 2) X(ParseFloat, "string.#parseFloat", "s>d", 2) X(ToNumber, "string.#toNumber", "s>d", 2) X(JsonParse, "string.#jsonParse", "sx>r", 2)  \
+  X(DynGetFast, "string.#dynGetFast", "xxs>r", 2) X(DynAddFast, "string.#dynAddFast", "xx>r", 2)                          \
   X(FromCharCode, "string.#fromCharCode", "i>s", 2)                                \
   X(ArrJoin, "Array.join", "ay>s", 0) X(ArrSort, "Array.sort", "ac>a", 0) X(ArrSlice, "Array.slice", "azj>a", 0)   \
   X(ArrReverse, "Array.reverse", "a>a", 0) X(ArrIndexOf, "Array.indexOf", "ae>i", 0)                               \

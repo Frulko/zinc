@@ -96,6 +96,7 @@ struct Checker {
   bool isNum(TypeId t) const { return ty(t).k == TK::Num; }
   bool bad(TypeId t) const { return ty(t).k == TK::Error; }
   // ---- Dyn (`any` is tDyn, `unknown` is the class Dyn of the prelude; both are references to the classes of dyn.cpp)
+  bool generating = false;       // declaring generated code: its `any` is not the program's
   bool inPrelude = false;        // checking the prelude: `any` there is the class Dyn itself
   bool rawDyn() const { return inspectMode || inPrelude; }
   std::uint32_t dynObj = kNone;  // the ObjInfo of class Dyn, once the prelude has been checked
@@ -214,6 +215,9 @@ struct Checker {
     declare(SymKind::Builtin, "__classname", func({tAny}, tStr, 1), kNone, true, 0);       // the class name of an object, for [Function: name]
     declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
+    declare(SymKind::Builtin, "__dynGetFast", func({tDyn, tDyn, tStr}, tDyn, 3), kNone, true, 0);  // Dyn property read in the runtime; 0 when not handled
+    declare(SymKind::Builtin, "__dynAddFast", func({tDyn, tDyn}, tDyn, 2), kNone, true, 0);       // Dyn number + number in the runtime; 0 when not handled
+    declare(SymKind::Builtin, "__jsonNative", func({tStr, tDyn}, tDyn, 2), kNone, true, 0);  // JSON.parse in the runtime, for the Dyn prelude
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(Num::f64), 1), kNone, true, 0);  // Number(string), for generated code
     for (const char* nm : {"Boolean", "JSON", "Array"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;
@@ -237,7 +241,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
-        else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) r = tDyn;
+        else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating) diag(kZDynInStrict, t, "`any`"); }
         else if (x.kids.empty() && x.text == "unknown" && lookup("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
         else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
@@ -569,6 +573,7 @@ struct Checker {
   }
   // Parses generated functions, declares them in genScope and queues their bodies (checked with access checks off).
   void declareSource(const std::string& text, std::uint32_t at) {
+    struct Gen { bool& f; Gen(bool& x) : f(x) { f = true; } ~Gen() { f = false; } } gen(generating);
     if (std::getenv("ZN_DUMP_GEN")) std::fputs(text.c_str(), stderr);
     for (std::uint32_t s : mergeSource(text, at)) {  // declare every function first: their bodies refer to each other
       std::vector<std::uint32_t> ps;
@@ -743,7 +748,7 @@ struct Checker {
   }
   // A value that meets a Dyn (or a Dyn that meets a typed target) at `node`: wrap it in the conversion.
   void convertDyn(TypeId from, TypeId to, std::uint32_t node) {
-    if (bad(from) || bad(to) || dynObjOf() == kNone) return;
+    if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
       if (from == tNull) { a.nodes[node].kind = N::Ident; a.nodes[node].text = "__null"; a.nodes[node].kids.clear(); out.nodeSym[node] = lookup("__null"); out.nodeType[node] = tDyn; return; }
       if (!dynConvertible(out, from) || hasParam(from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
@@ -1061,6 +1066,7 @@ struct Checker {
       }
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "parse" && args.size() == 1) {  // parse validates the text; its value needs Dyn
         if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
+        if (a.strict && !rawDyn()) diag(kZDynInStrict, i, "the result of JSON.parse is `any`");
         return rewrite("__jsonParse(__H0)", {{args[0]}});
       }
       if (on == "Array" && isBuiltin(cn.kids[0], "Array") && m == "isArray" && args.size() == 1) {  // Array.isArray(x)
@@ -1416,6 +1422,7 @@ struct Checker {
         TypeId vt = expr(value);
         if (bad(tt) || bad(vt)) return tt;
         std::string bop = op.substr(0, op.size() - 1);
+        if (!rawDyn() && isDyn(vt) && isNum(tt) && bop == "+" && replaceWith(i, "__H0 = __dynAddNum(__H1, __H2)", {{target}, {cloneNode(target, false)}, {value}})) return expr0(i, expected);  // total += d
         if (!rawDyn() && (isDyn(vt) || isDyn(tt)) && bop != "&&" && bop != "||" && bop != "?\?" && replaceWith(i, "__H0 = __H1 " + bop + " __H2", {{target}, {cloneNode(target, false)}, {value}})) return expr0(i, expected);
         if (bop == "&&" || bop == "||" || bop == "?\?") {  // a ||= b is a = a || b
           if (replaceWith(i, "__H0 = __H1 " + bop + " __H2", {{target}, {cloneNode(target, false)}, {value}})) return expr0(i, expected);

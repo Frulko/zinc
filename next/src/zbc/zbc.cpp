@@ -401,12 +401,14 @@ struct Verifier {
           }
           if (!ok) return false;
         }
+        St argState = np > 1 ? s[base + 1] : 0;  // the state of the second argument, for a result that has its class
         for (std::size_t r = base; r < s.size(); ++r) s[r] = 0;  // the callee's frame overlays everything from the window up
         char rl = rtRet(ri);
         std::uint32_t rcls = kNoCls;
         switch (rl) {
           case 'n': return true;
           case 's': s[base] = static_cast<St>(4 + strCls); return true;
+          case 'r': s[base] = argState; return true;
           case 'i': case 'j': case 'b': s[base] = 1; return true;
           case 'd': s[base] = 3; return true;
           case 'a': case 'm': case 't': s[base] = static_cast<St>(4 + self); return true;

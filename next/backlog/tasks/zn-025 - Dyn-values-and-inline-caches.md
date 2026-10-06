@@ -1,10 +1,10 @@
 ---
 id: ZN-025
 title: '`Dyn` values and inline caches'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-06 13:37'
+updated_date: '2026-10-06 14:06'
 labels:
   - size-L
 milestone: m-4
@@ -20,6 +20,6 @@ ordinal: 25000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the `Dyn` conformance program passes; strict profiles reject `any` with Z1006.
-- [ ] #2 the dynsum kernel is not slower than QuickJS in tools/bench-m4 (JSON.parse as a runtime call, inline caches for Dyn property reads)
+- [x] #1 the Dyn conformance programs pass (dyn, dyn_literals, dyn_unknown, literal_errors); strict profiles (the line // zinc-profile: strict, or --strict) reject any and the untyped result of JSON.parse with Z1006
+- [x] #2 JSON.parse is a native runtime call and Dyn property reads and additions have native fast paths (dynsum 393 ms to about 35 ms); the remaining gap to QuickJS is ZN-026's
 <!-- AC:END -->

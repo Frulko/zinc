@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -32,8 +33,10 @@ static bool readFile(const std::string& path, std::string& out) {
 }
 
 // Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
+static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
+
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
-  prog = zn::frontend::loadProgram(path, readFile);
+  prog = zn::frontend::loadProgram(path, readFile, gStrict);
   auto diags = prog.diags;
   if (diags.empty()) {
     checked = zn::frontend::check(prog.ast);
@@ -70,6 +73,8 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
 }
 
 int main(int argc, char** argv) {
+  for (int k = 1; k < argc; ++k)  // `--strict` anywhere on the command line selects the strict profile
+    if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::puts("zinc-next 0.0.1");
     return 0;
@@ -82,8 +87,11 @@ int main(int argc, char** argv) {
       if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
       std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
       std::string err;
+      auto t0 = std::chrono::steady_clock::now();
       if (!zn::zbc::decode(bytes, zm, err)) { std::fprintf(stderr, "%s: %s\n", argv[2], err.c_str()); return 1; }
+      auto t1 = std::chrono::steady_clock::now();
       err = zn::zbc::verify(zm);
+      if (std::getenv("ZN_TIMING")) std::fprintf(stderr, "decode %.2f ms, verify %.2f ms\n", std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count());
       if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
     } else if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::string out;
@@ -98,7 +106,7 @@ int main(int argc, char** argv) {
     fs::path libs = fs::absolute(argv[0]).parent_path(), cpp = fs::path(argv[4]).string() + ".cpp";
     { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     const char* cxx = std::getenv("CXX");
-    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I " ZN_SOURCE_DIR "/include -I " ZN_SOURCE_DIR "/src '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" +
+    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I " ZN_SOURCE_DIR "/include -I " ZN_SOURCE_DIR "/src -I " ZN_SOURCE_DIR "/third_party/mimalloc/include '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "' -o '" + argv[4] + "'";
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);

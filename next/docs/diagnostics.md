@@ -263,3 +263,15 @@ Fix: Fix the path or create the file.
 ```ts
 import { x } from './missing';
 ```
+
+## Z1006: `any` is not allowed in a strict profile
+
+A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.
+
+Fix: Give the value a type, use `unknown` and narrow it, or drop the strict profile.
+
+```ts
+// zinc-profile: strict
+const x: any = 1;
+console.log(x);
+```

@@ -3,6 +3,7 @@
 #include "rt/rt.h"
 
 #include <bit>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -22,11 +23,10 @@ std::string numberToString(double v) {
   if (std::isinf(v)) return v > 0 ? "Infinity" : "-Infinity";
   std::string sign = v < 0 ? "-" : "";
   v = std::fabs(v);
+  if (v < 9007199254740992.0 && v == std::floor(v)) return sign + std::to_string(static_cast<std::uint64_t>(v));  // an integer: its digits
   char buf[48];
-  for (int p = 1; p <= 17; ++p) {  // shortest digit count that round-trips
-    std::snprintf(buf, sizeof buf, "%.*e", p - 1, v);
-    if (std::strtod(buf, nullptr) == v) break;
-  }
+  auto tc = std::to_chars(buf, buf + sizeof buf - 1, v, std::chars_format::scientific);  // the shortest digits that round-trip (the standard library's Ryu)
+  *tc.ptr = 0;
   std::string s = buf;  // d.ddde[+-]XX
   std::size_t e = s.find('e');
   int exp10 = std::atoi(s.c_str() + e + 1);
@@ -67,7 +67,8 @@ KeyKind keyKindOf(const zbc::Module& m, zbc::VType t) {
 // runtime's RAII: an object's fields in reverse order of declaration, an array's elements first to last, a Map's entries
 // first to last (key, then value).
 void Machine::destroy(Obj* root) {
-  std::vector<Obj*> pending;  // references still to release; the top is released next
+  std::vector<Obj*>& pending = destroyStack;  // references still to release; the top is released next (kept between calls: no allocation per destruction)
+  pending.clear();
   auto drop = [&](Obj* o) { if (o && o->rc != kImmortal) pending.push_back(o); };
   auto freeNode = [&](Obj* o) {
     if (traceFree) { trace += "free " + o->cls->name + " #" + std::to_string(serials[o]) + "\n"; serials.erase(o); }
@@ -101,7 +102,7 @@ void Machine::destroy(Obj* root) {
     switch (o->cls->kind) {
       case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
       case zbc::CKind::Map: case zbc::CKind::Set: delete static_cast<MapObj*>(o); break;
-      default: std::free(o); break;
+      default: freeRaw(o); break;
     }
   };
   freeNode(root);
@@ -118,7 +119,7 @@ Machine::~Machine() {
     switch (o->cls->kind) {
       case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
       case zbc::CKind::Map: case zbc::CKind::Set: delete static_cast<MapObj*>(o); break;
-      default: std::free(o); break;
+      default: freeRaw(o); break;
     }
   }
   std::free(stack);
@@ -177,7 +178,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
 }
 
 StrObj* Machine::newStr(const char* p, std::size_t n) {
-  auto* s = static_cast<StrObj*>(std::malloc(sizeof(StrObj) + n + 1));
+  auto* s = static_cast<StrObj*>(allocRaw(sizeof(StrObj) + n + 1));
   if (!s) std::abort();
   s->cls = strClass; s->rc = 1;
   s->len = static_cast<std::uint32_t>(n);
@@ -202,6 +203,20 @@ ArrObj* Machine::newArr(const ClassRT* cls) {
   o->cls = cls; o->rc = 1;
   track(o);
   return o;
+}
+
+bool Machine::resolveDyn() {
+  if (dynMap) return true;
+  for (const ClassRT& c : classes) {
+    if (c.name == "DynNum") dynNum = &c; else if (c.name == "DynStr") dynStr = &c; else if (c.name == "DynBool") dynBool = &c;
+    else if (c.name == "DynArr") dynArr = &c; else if (c.name == "DynObj") dynObj = &c;
+  }
+  for (std::size_t i = 0; i < mod->classes.size(); ++i) {
+    const zbc::ClassInfo& ci = mod->classes[i];
+    if (ci.kind == zbc::CKind::Array && ci.elem.cls == zbc::Cls::R && mod->classes[ci.elem.ref].name == "Dyn") dynItems = &classes[i];
+    if (ci.kind == zbc::CKind::Map && ci.key.cls == zbc::Cls::R && mod->classes[ci.key.ref].kind == zbc::CKind::String && ci.elem.cls == zbc::Cls::R && mod->classes[ci.elem.ref].name == "Dyn") dynMap = &classes[i];
+  }
+  return dynNum && dynStr && dynBool && dynArr && dynObj && dynItems && dynMap;
 }
 
 // "Name: message" of an exception: what its __errorString() method says, else its class name.

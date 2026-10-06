@@ -10,6 +10,10 @@
 #include <unordered_map>
 #include <vector>
 
+#ifndef ZN_NO_MIMALLOC
+#include <mimalloc.h>
+#endif
+
 #include "zbc/zbc.h"
 #include "zn/limits.h"
 #include "zn/runtime.h"
@@ -18,6 +22,17 @@
 namespace zn::rt {
 
 using zn::Slot;
+
+// Object memory: mimalloc, except in sanitizer builds (ZN_NO_MIMALLOC), where the plain allocator keeps ASan's checks.
+#ifdef ZN_NO_MIMALLOC
+inline void* allocRaw(std::size_t n) { return std::malloc(n); }
+inline void* allocZero(std::size_t n) { return std::calloc(1, n); }
+inline void freeRaw(void* p) { std::free(p); }
+#else
+inline void* allocRaw(std::size_t n) { return mi_malloc(n); }
+inline void* allocZero(std::size_t n) { return mi_zalloc(n); }
+inline void freeRaw(void* p) { mi_free(p); }
+#endif
 
 // ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
 std::string numberToString(double v);
@@ -124,6 +139,10 @@ struct Machine {
   std::string* out = nullptr;
   std::string error;
   std::string trace;
+  // The classes of the Dyn prelude, found by name on first use (JSON.parse and the Dyn fast paths build and read them natively).
+  const ClassRT *dynNum = nullptr, *dynStr = nullptr, *dynBool = nullptr, *dynArr = nullptr, *dynObj = nullptr, *dynItems = nullptr, *dynMap = nullptr;
+  bool resolveDyn();
+  std::vector<Obj*> destroyStack;
   Obj* thrown = nullptr;  // a compiled program: the exception being unwound (the interpreter keeps it in a register)
   std::uint32_t depth = 0;  // a compiled program: the call depth
   std::vector<std::uint8_t> globalRef;  // per global: holds a reference
@@ -201,7 +220,7 @@ inline const char* newObject(Machine& m, std::uint32_t cls, Slot& dst) {
     dst = reinterpret_cast<Slot>(o);
     return nullptr;
   }
-  auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
+  auto* o = static_cast<Obj*>(allocZero(sizeof(Obj) + cr->nfields * sizeof(Slot)));
   if (!o) return "out of memory";
   o->cls = cr; o->rc = 1;
   m.track(o);

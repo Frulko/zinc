@@ -114,7 +114,7 @@ bb13(%52: ref Error):
   builtin console.log(%57)
   br bb12
 bb14:
-  %58: str = call @__log48(%41) unwind bb13
+  %58: str = call @__log51(%41) unwind bb13
   br bb15
 bb15:
   builtin console.log(%58)
@@ -1333,7 +1333,7 @@ bb18(%70: str):
   %82: str = strconcat %81, %4
   ret %82
 }
-func @__fmt48(%0: f64[], %1: i64[], %2: i32) -> str {
+func @__fmt51(%0: f64[], %1: i64[], %2: i32) -> str {
 bb0:
   %3: i32 = arrlen %0
   %4: i32 = const 0
@@ -1459,7 +1459,7 @@ bb0:
   %3: str = call @__num(%0)
   ret %3
 }
-func @__log48(%0: f64[]) -> str {
+func @__log51(%0: f64[]) -> str {
 bb0:
   %1: i64[] = arrnew i64[]
   %2: i64 = const 0
@@ -1485,7 +1485,7 @@ bb0:
   %22: i64 = const 0
   %23: i32 = arrpush %1, %22
   %24: i32 = const 0
-  %25: str = call @__fmt48(%0, %1, %24)
+  %25: str = call @__fmt51(%0, %1, %24)
   ret %25
 }
 func @lambda0(%0: ref lambda0, %1: f64) -> f64 {

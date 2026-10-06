@@ -283,10 +283,16 @@ function __dynNumber(d: Dyn): f64 {
   return __toNumber(d.toString());
 }
 function __dynAdd(a: Dyn, b: Dyn): any {
+  const fast: any = __dynAddFast(a, b);
+  if (__identity(fast) !== 0) return fast;
   const pa: Dyn = __dynPrim(a);
   const pb: Dyn = __dynPrim(b);
   if (pa instanceof DynStr || pb instanceof DynStr) return new DynStr(pa.toString() + pb.toString());
   return new DynNum(__dynNumber(pa) + __dynNumber(pb));
+}
+function __dynAddNum(t: f64, d: Dyn): f64 {  // total += d where total is a number: no boxing of the total in the common case
+  if (d instanceof DynNum) return t + d.v;
+  return __dynToNum(__dynAdd(new DynNum(t), d));
 }
 function __dynSub(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) - __dynNumber(b)); }
 function __dynMul(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) * __dynNumber(b)); }
@@ -353,6 +359,8 @@ function __dynGetN(o: Dyn, i: f64): any {
   return __dynGet(o, `${i}`);
 }
 function __dynGet(o: Dyn, k: string): any {
+  const fast: any = __dynGetFast(o, __undef, k);
+  if (__identity(fast) !== 0) return fast;
   if (o instanceof DynObj) {
     const v: Dyn = o.map.get(k) ?? __undef;
     return v;
@@ -496,123 +504,9 @@ function __dynJson(d: Dyn): string {
   return 'null';
 }
 
-class __JsonParse {
-  i: i32 = 0;
-  constructor(public s: string) {}
-  fail(): void { throw new SyntaxError('JSON.parse: invalid JSON'); }
-  ws(): void { while (this.i < this.s.length && (this.s.charAt(this.i) === ' ' || this.s.charAt(this.i) === '\t' || this.s.charAt(this.i) === '\n' || this.s.charAt(this.i) === '\r')) this.i++; }
-  lit(w: string, v: any): any { if (this.s.startsWith(w, this.i)) { this.i += w.length; return v; } this.fail(); return v; }
-  digits(): boolean {
-    const st: i32 = this.i;
-    while (this.i < this.s.length && this.s.charCodeAt(this.i) >= 48 && this.s.charCodeAt(this.i) <= 57) this.i++;
-    return this.i > st;
-  }
-  num(): any {
-    const st: i32 = this.i;
-    if (this.s.charAt(this.i) === '-') this.i++;
-    if (this.s.charAt(this.i) === '0') this.i++; else if (!this.digits()) this.fail();
-    if (this.s.charAt(this.i) === '.') { this.i++; if (!this.digits()) this.fail(); }
-    if (this.s.charAt(this.i) === 'e' || this.s.charAt(this.i) === 'E') {
-      this.i++;
-      if (this.s.charAt(this.i) === '+' || this.s.charAt(this.i) === '-') this.i++;
-      if (!this.digits()) this.fail();
-    }
-    return new DynNum(__toNumber(this.s.slice(st, this.i)));
-  }
-  hex4(): i32 {
-    let r: i32 = 0;
-    for (let k: i32 = 0; k < 4; k++) {
-      const h: i32 = this.s.charCodeAt(this.i + k);
-      const d: i32 = h >= 48 && h <= 57 ? h - 48 : h >= 97 && h <= 102 ? h - 87 : h >= 65 && h <= 70 ? h - 55 : -1;
-      if (d < 0) this.fail();
-      r = r * 16 + d;
-    }
-    this.i += 4;
-    return r;
-  }
-  str(): string {
-    this.i++;
-    let out: string = '';
-    let start: i32 = this.i;
-    while (this.i < this.s.length && this.s.charAt(this.i) !== '"') {
-      const c: i32 = this.s.charCodeAt(this.i);
-      if (c < 32) this.fail();
-      if (c === 92) {
-        out += this.s.slice(start, this.i);
-        this.i++;
-        const e: string = this.s.charAt(this.i);
-        this.i++;
-        if (e === 'n') out += '\n';
-        else if (e === 't') out += '\t';
-        else if (e === 'r') out += '\r';
-        else if (e === 'b') out += '\b';
-        else if (e === 'f') out += '\f';
-        else if (e === '/') out += '/';
-        else if (e === '\\') out += '\\';
-        else if (e === '"') out += '"';
-        else if (e === 'u') {
-          let u: i32 = this.hex4();
-          if (u >= 55296 && u < 56320 && this.s.startsWith('\\u', this.i)) {
-            const save: i32 = this.i;
-            this.i += 2;
-            const lo: i32 = this.hex4();
-            if (lo >= 56320 && lo < 57344) u = 65536 + (u - 55296) * 1024 + (lo - 56320); else this.i = save;
-          }
-          out += String.fromCharCode(u);
-        } else this.fail();
-        start = this.i;
-      } else this.i++;
-    }
-    if (this.i >= this.s.length) this.fail();
-    out += this.s.slice(start, this.i);
-    this.i++;
-    return out;
-  }
-  value(): any {
-    this.ws();
-    const c: string = this.s.charAt(this.i);
-    if (c === '{') {
-      this.i++;
-      const m: Map<string, Dyn> = new Map<string, Dyn>();
-      this.ws();
-      if (this.s.charAt(this.i) === '}') { this.i++; return new DynObj(m); }
-      for (;;) {
-        this.ws();
-        if (this.s.charAt(this.i) !== '"') this.fail();
-        const k: string = this.str();
-        this.ws();
-        if (this.s.charAt(this.i) !== ':') this.fail();
-        this.i++;
-        m.set(k, this.value());
-        this.ws();
-        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
-        if (this.s.charAt(this.i) === '}') { this.i++; return new DynObj(m); }
-        this.fail();
-      }
-    } else if (c === '[') {
-      this.i++;
-      const items: any[] = [];
-      this.ws();
-      if (this.s.charAt(this.i) === ']') { this.i++; return new DynArr(items); }
-      for (;;) {
-        items.push(this.value());
-        this.ws();
-        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
-        if (this.s.charAt(this.i) === ']') { this.i++; return new DynArr(items); }
-        this.fail();
-      }
-    } else if (c === '"') return new DynStr(this.str());
-    else if (c === 't') return this.lit('true', new DynBool(true));
-    else if (c === 'f') return this.lit('false', new DynBool(false));
-    else if (c === 'n') return this.lit('null', __null);
-    return this.num();
-  }
-}
 function __jsonParse(s: string): any {
-  const p: __JsonParse = new __JsonParse(s);
-  const v: any = p.value();
-  p.ws();
-  if (p.i < s.length) p.fail();
+  const v: any = __jsonNative(s, __null);  // the runtime builds the Dyn tree; null (0) when the text is not JSON
+  if (__identity(v) === 0) throw new SyntaxError('JSON.parse: invalid JSON');
   return v;
 }
 )ZN";

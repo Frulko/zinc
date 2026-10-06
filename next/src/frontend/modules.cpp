@@ -462,10 +462,11 @@ bool needsErrors(const Ast& A) {
 
 }  // namespace
 
-Program loadProgram(const std::string& entry, const ReadFile& read) {
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict) {
   Program p;
   std::string text;
   if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
+  p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
   Loader L(p, read);
   L.load(entry, std::move(text));
   bool async = p.diags.empty() && needsAsync(p.ast);

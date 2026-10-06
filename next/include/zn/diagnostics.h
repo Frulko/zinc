@@ -81,7 +81,11 @@
     "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")                       \
   X(ModuleNotFound, "Z0119", "Cannot find module",                                                                     \
     "An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are "  \
-    "tried.", "Fix the path or create the file.", "import { x } from './missing';")
+    "tried.", "Fix the path or create the file.", "import { x } from './missing';")                                      \
+  X(DynInStrict, "Z1006", "`any` is not allowed in a strict profile",                                                  \
+    "A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value "\
+    "statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.",         \
+    "Give the value a type, use `unknown` and narrow it, or drop the strict profile.", "// zinc-profile: strict\nconst x: any = 1;\nconsole.log(x);")
 
 namespace zn {
 

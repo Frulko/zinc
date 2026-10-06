@@ -1,6 +1,7 @@
 // Runtime calls of the VM (zn/runtime.h): strings, arrays, Map and Set. Strings are immutable UTF-8 objects with a
 // JavaScript (UTF-16) view for lengths and indices; an ASCII string is indexed by byte.
 #include <algorithm>
+#include <unordered_map>
 #include <bit>
 #include <cstdio>
 #include <cstdlib>
@@ -315,6 +316,204 @@ bool Table::erase(Slot k) {
 
 void Table::clear() { keys.clear(); vals.clear(); dead.clear(); index.clear(); live = 0; }
 
+
+// JSON.parse into the Dyn classes of the prelude (src/frontend/dyn.cpp): objects, arrays, numbers, strings and booleans are
+// built directly, `null` is the singleton the caller passes. Returns an owned reference, or 0 when the text is not JSON.
+struct JsonBuild {
+  Machine& m;
+  const char* p;
+  const char* end;
+  Slot nullv;
+  JsonBuild(Machine& mm, const char* begin, const char* stop, Slot nul) : m(mm), p(begin), end(stop), nullv(nul) {}
+  const ClassRT *num = nullptr, *str = nullptr, *boo = nullptr, *arr = nullptr, *obj = nullptr, *items = nullptr, *map = nullptr;
+  // Immutable values that repeat in a document are made once and shared: keys, short strings, small integers, true and false.
+  std::unordered_map<std::string_view, StrObj*> keyCache;  // views into the cached strings themselves
+  std::unordered_map<std::string_view, Slot> strCache;
+  Slot smallInts[256] = {};
+  Slot trueNode = 0, falseNode = 0;
+  void dropCaches() {
+    for (auto& [k, v] : keyCache) m.release(v);
+    for (auto& [k, v] : strCache) m.releaseSlot(v);
+    for (Slot v : smallInts) if (v) m.releaseSlot(v);
+    if (trueNode) m.releaseSlot(trueNode);
+    if (falseNode) m.releaseSlot(falseNode);
+  }
+  Slot shared(Slot& cell, const ClassRT* cls, Slot field) {
+    if (!cell) cell = node(cls, field);
+    if (cell) m.retain(reinterpret_cast<Obj*>(cell));
+    return cell;
+  }
+
+  bool classes() {
+    if (!m.resolveDyn()) return false;
+    num = m.dynNum; str = m.dynStr; boo = m.dynBool; arr = m.dynArr; obj = m.dynObj; items = m.dynItems; map = m.dynMap;
+    return true;
+  }
+  void ws() { while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) ++p; }
+  Slot node(const ClassRT* cls, Slot field) {
+    Slot o = 0;
+    if (op::newObject(m, cls->id, o)) return 0;
+    reinterpret_cast<Obj*>(o)->fields()[0] = field;
+    return o;
+  }
+  bool hex4(unsigned& v) {
+    if (end - p < 4) return false;
+    v = 0;
+    for (int k = 0; k < 4; ++k) {
+      char h = p[k];
+      unsigned d = h >= '0' && h <= '9' ? h - '0' : h >= 'a' && h <= 'f' ? h - 'a' + 10 : h >= 'A' && h <= 'F' ? h - 'A' + 10 : 99;
+      if (d > 15) return false;
+      v = v * 16 + d;
+    }
+    p += 4;
+    return true;
+  }
+  static void utf8(std::string& o, unsigned c) {
+    if (c < 0x80) o += static_cast<char>(c);
+    else if (c < 0x800) { o += static_cast<char>(0xC0 | c >> 6); o += static_cast<char>(0x80 | (c & 0x3F)); }
+    else if (c < 0x10000) { o += static_cast<char>(0xE0 | c >> 12); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
+    else { o += static_cast<char>(0xF0 | c >> 18); o += static_cast<char>(0x80 | ((c >> 12) & 0x3F)); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
+  }
+  // A string literal at p (after the opening quote) into a new string object, or null.
+  StrObj* string() {
+    std::string out;
+    const char* start = p;
+    bool plain = true;
+    while (p < end && *p != '"') {
+      auto c = static_cast<unsigned char>(*p);
+      if (c < 32) return nullptr;
+      if (c == '\\') {
+        if (plain) { out.assign(start, p); plain = false; }
+        ++p;
+        if (p >= end) return nullptr;
+        char e = *p++;
+        switch (e) {
+          case 'n': out += '\n'; break;
+          case 't': out += '\t'; break;
+          case 'r': out += '\r'; break;
+          case 'b': out += '\b'; break;
+          case 'f': out += '\f'; break;
+          case '/': out += '/'; break;
+          case '\\': out += '\\'; break;
+          case '"': out += '"'; break;
+          case 'u': {
+            unsigned u;
+            if (!hex4(u)) return nullptr;
+            if (u >= 0xD800 && u < 0xDC00 && end - p >= 6 && p[0] == '\\' && p[1] == 'u') {
+              const char* save = p;
+              p += 2;
+              unsigned lo;
+              if (hex4(lo) && lo >= 0xDC00 && lo < 0xE000) u = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00); else p = save;
+            }
+            utf8(out, u >= 0xD800 && u < 0xE000 ? 0xFFFD : u);
+            break;
+          }
+          default: return nullptr;
+        }
+      } else {
+        if (!plain) out += static_cast<char>(c);
+        ++p;
+      }
+    }
+    if (p >= end) return nullptr;
+    StrObj* r = plain ? m.newStr(start, static_cast<std::size_t>(p - start)) : m.newStr(out.data(), out.size());
+    ++p;  // the closing quote
+    return r;
+  }
+  bool lit(const char* w, std::size_t n) { if (static_cast<std::size_t>(end - p) < n || std::memcmp(p, w, n) != 0) return false; p += n; return true; }
+
+  Slot value(int depth) {
+    if (depth > 400) return 0;
+    ws();
+    if (p >= end) return 0;
+    char c = *p;
+    if (c == '{') {
+      ++p;
+      Slot mapv = 0;
+      if (op::newObject(m, map->id, mapv)) return 0;
+      auto* mo = reinterpret_cast<MapObj*>(mapv);
+      mo->t.kk = map->keyKind;
+      mo->t.hasVals = true;
+      mo->t.keys.reserve(4); mo->t.vals.reserve(4); mo->t.dead.reserve(4);  // most objects have a few keys: no regrowth
+      auto fail = [&]() { m.release(mo); return Slot{0}; };
+      ws();
+      if (p < end && *p == '}') { ++p; return node(obj, mapv); }
+      for (;;) {
+        ws();
+        if (p >= end || *p != '"') return fail();
+        ++p;
+        const char* keyStart = p;
+        StrObj* k = string();
+        if (!k) return fail();
+        {  // the same key text is one string object for the whole document
+          auto it = keyCache.find(std::string_view(k->data(), k->len));
+          if (it == keyCache.end()) { m.retain(k); keyCache.emplace(std::string_view(k->data(), k->len), k); }
+          else { m.release(k); k = it->second; m.retain(k); }
+        }
+        (void)keyStart;
+        ws();
+        if (p >= end || *p != ':') { m.release(k); return fail(); }
+        ++p;
+        Slot v = value(depth + 1);
+        if (!v) { m.release(k); return fail(); }
+        std::int32_t e = mo->t.find(reinterpret_cast<Slot>(k));
+        if (e >= 0) {  // a repeated key: the last value wins
+          m.releaseSlot(mo->t.vals[static_cast<std::size_t>(e)]);
+          mo->t.vals[static_cast<std::size_t>(e)] = v;
+          m.release(k);
+        } else mo->t.put(reinterpret_cast<Slot>(k), v);
+        ws();
+        if (p < end && *p == ',') { ++p; continue; }
+        if (p < end && *p == '}') { ++p; return node(obj, mapv); }
+        return fail();
+      }
+    }
+    if (c == '[') {
+      ++p;
+      ArrObj* a = m.newArr(items);
+      a->v.reserve(4);
+      auto fail = [&]() { m.release(a); return Slot{0}; };
+      ws();
+      if (p < end && *p == ']') { ++p; return node(arr, reinterpret_cast<Slot>(a)); }
+      for (;;) {
+        Slot v = value(depth + 1);
+        if (!v) return fail();
+        a->v.push_back(v);
+        ws();
+        if (p < end && *p == ',') { ++p; continue; }
+        if (p < end && *p == ']') { ++p; return node(arr, reinterpret_cast<Slot>(a)); }
+        return fail();
+      }
+    }
+    if (c == '"') {
+      ++p;
+      StrObj* sv = string();
+      if (!sv) return 0;
+      if (sv->len <= 16) {  // short strings repeat (tags, enum-like values): share the node
+        auto it = strCache.find(std::string_view(sv->data(), sv->len));
+        if (it != strCache.end()) { m.release(sv); m.retain(reinterpret_cast<Obj*>(it->second)); return it->second; }
+        Slot nd = node(str, reinterpret_cast<Slot>(sv));
+        if (nd) { m.retain(reinterpret_cast<Obj*>(nd)); strCache.emplace(std::string_view(sv->data(), sv->len), nd); }
+        return nd;
+      }
+      return node(str, reinterpret_cast<Slot>(sv));
+    }
+    if (c == 't') return lit("true", 4) ? shared(trueNode, boo, 1) : 0;
+    if (c == 'f') return lit("false", 5) ? shared(falseNode, boo, 0) : 0;
+    if (c == 'n') { if (!lit("null", 4)) return 0; m.retain(reinterpret_cast<Obj*>(nullv)); return nullv; }
+    const char* st = p;
+    if (p < end && *p == '-') ++p;
+    if (p < end && *p == '0') ++p;
+    else if (p < end && *p >= '1' && *p <= '9') while (p < end && *p >= '0' && *p <= '9') ++p;
+    else return 0;
+    if (p < end && *p == '.') { ++p; const char* d = p; while (p < end && *p >= '0' && *p <= '9') ++p; if (p == d) return 0; }
+    if (p < end && (*p == 'e' || *p == 'E')) { ++p; if (p < end && (*p == '+' || *p == '-')) ++p; const char* d = p; while (p < end && *p >= '0' && *p <= '9') ++p; if (p == d) return 0; }
+    double d = std::strtod(st, nullptr);  // the text is NUL-terminated and the grammar was checked: strtod stops where the number ends
+    if (d >= 0 && d < 256 && d == static_cast<double>(static_cast<int>(d)) && !std::signbit(d)) return shared(smallInts[static_cast<int>(d)], num, std::bit_cast<Slot>(d));
+    return node(num, std::bit_cast<Slot>(d));
+  }
+};
+
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 #define NN(x) do { if (!(x)) return kNull; } while (0)
   switch (id) {
@@ -539,6 +738,47 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::ParseInt: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseIntJs(s, I(a[1]))); return nullptr; }
+    case Rt::JsonParse: {
+      StrObj* text = S(a[0]);
+      NN(text);
+      JsonBuild jb(m, text->data(), text->data() + text->len, a[1]);
+      if (!jb.classes()) return "JSON.parse needs the Dyn classes of the prelude";
+      Slot v = jb.value(0);
+      if (v) { jb.ws(); if (jb.p != jb.end) { m.releaseSlot(v); v = 0; } }  // text after the value
+      jb.dropCaches();
+      a[0] = v;
+      return nullptr;
+    }
+    case Rt::DynGetFast: {  // d.name on a plain Dyn object, or the length of a Dyn array: no allocation but the result; 0 for everything else
+      Obj* o = reinterpret_cast<Obj*>(a[0]);
+      a[0] = 0;
+      if (!o || !m.resolveDyn()) return nullptr;
+      StrObj* key = S(a[2]);
+      NN(key);
+      if (o->cls == m.dynObj) {
+        auto* mo = reinterpret_cast<MapObj*>(o->fields()[0]);
+        std::int32_t e = mo->t.find(reinterpret_cast<Slot>(key));
+        Slot v = e >= 0 ? mo->t.vals[static_cast<std::size_t>(e)] : a[1];  // a missing property is the undefined the caller passed
+        m.retain(reinterpret_cast<Obj*>(v));
+        a[0] = v;
+      } else if (o->cls == m.dynArr && key->len == 6 && std::memcmp(key->data(), "length", 6) == 0) {
+        Slot nd = 0;
+        if (op::newObject(m, m.dynNum->id, nd)) return "out of memory";
+        reinterpret_cast<Obj*>(nd)->fields()[0] = std::bit_cast<Slot>(static_cast<double>(reinterpret_cast<ArrObj*>(o->fields()[0])->v.size()));
+        a[0] = nd;
+      }
+      return nullptr;
+    }
+    case Rt::DynAddFast: {  // number + number; 0 for every other pair
+      Obj *x = reinterpret_cast<Obj*>(a[0]), *y = reinterpret_cast<Obj*>(a[1]);
+      a[0] = 0;
+      if (!x || !y || !m.resolveDyn() || x->cls != m.dynNum || y->cls != m.dynNum) return nullptr;
+      Slot nd = 0;
+      if (op::newObject(m, m.dynNum->id, nd)) return "out of memory";
+      reinterpret_cast<Obj*>(nd)->fields()[0] = std::bit_cast<Slot>(std::bit_cast<double>(x->fields()[0]) + std::bit_cast<double>(y->fields()[0]));
+      a[0] = nd;
+      return nullptr;
+    }
     case Rt::ToNumber: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(toNumberJs(s)); return nullptr; }
     case Rt::ParseFloat: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseFloatJs(s)); return nullptr; }
     case Rt::FromCharCode: {

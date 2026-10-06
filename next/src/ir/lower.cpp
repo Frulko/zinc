@@ -1630,6 +1630,14 @@ struct Lowering::FnLower {
         bool isId = callee.text == "__identity";
         return emit(IrOp::Rt, isId ? m.numT(NumK::i64) : m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(isId ? zn::Rt::ObjId : zn::Rt::ClassName));
       }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__jsonNative" || callee.text == "__dynGetFast" || callee.text == "__dynAddFast")) {
+        // runtime calls on Dyn values (the prelude's fast paths): the result is a Dyn of the class of the second argument; 0 when the case is not handled
+        zn::Rt id = callee.text == "__jsonNative" ? zn::Rt::JsonParse : callee.text == "__dynGetFast" ? zn::Rt::DynGetFast : zn::Rt::DynAddFast;
+        const RtInfo& ri = rtInfo(id);
+        std::vector<ValueId> vs;
+        for (unsigned k = 0; k < rtParamCount(ri); ++k) vs.push_back(rtParam(ri, k) == 's' ? exprTo(x.kids[k + 1], m.strT()) : expr(x.kids[k + 1]));
+        return emit(IrOp::Rt, tv(vs[1]), std::move(vs), 0, 0, static_cast<std::uint32_t>(id));
+      }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__toNumber")
         return emit(IrOp::Rt, m.numT(NumK::f64), {exprTo(x.kids[1], m.strT())}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ToNumber));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "parseInt" || callee.text == "parseFloat")) {

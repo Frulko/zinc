@@ -30,6 +30,7 @@ never include each other. The programs `aot` writes include `include/zn` and `rt
 - No logic in `main.cpp`. No globals, no singletons: pass state explicitly.
 - C++20, builds warning-free with `-Wall -Wextra` on clang and `zig c++`, clean under ASan/UBSan.
 - Every module ships a T0 test in `tests/t0/` in the same commit.
+- Prefer a proven library to our own code (JSON, number formatting, allocator, regex, Unicode, hashing, compression...). A dependency is vendored under `third_party/<name>/` with its licence and a pinned version, builds with clang and `zig c++`, needs no install step for the user, and is listed in `third_party/README.md`. Write our own only when no mature library fits, and say why in the task notes.
 - Do not touch `compiler/` except for fixes. Reuse `runtime/` through its existing headers, never copy it.
 - Commits: English, conventional (`type(scope): imperative description`, no final period, 72 chars max, scope `next` or
   the module), no co-author, explicit paths only, task file in the same commit as its code.

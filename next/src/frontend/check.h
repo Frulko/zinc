@@ -39,7 +39,7 @@ struct Member {
   std::uint8_t access = 0;            // 0 public, 1 protected, 2 private
   bool isStatic = false;
   bool isAbstract = false;
-  std::string literal;                // a property typed with a string literal (`kind: 'circle'`): its type is string, only this value is allowed
+  std::string literal = {};                // a property typed with a string literal (`kind: 'circle'`): its type is string, only this value is allowed
   bool hasLiteral = false;
   bool optional = false;              // declared `name?: T`: an object literal may leave it out (it is then null)
   bool getter = false;                // a `get name()` accessor: `type` is the method's signature, a read calls it
