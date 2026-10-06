@@ -1,0 +1,6 @@
+1 /a/b.ts 1 14 Z0103 Type is not assignable: 'string' to 'i32'
+2 b 7 88 a
+2 layout 50 2
+atelier/main.tsx,atelier/model.ts
+true anim,app,diff,effects,input,layout,paint,present,zinc frame
+1 fib

@@ -327,3 +327,7 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 Class setters done (`set x(v)` becomes `__set_x`, `obj.x = v` rewritten by the checker). Remaining before the examples run: async class
 methods, Date getters, zinc:gfx image targets (createImage/beginImage/endImage), lib/std narrowing errors (hero). Next: split these into a
 follow-up task, then ZN-050. T1: 27 passed (zbc goldens regenerated after prelude growth).
+
+## ZN-050 (Done)
+Zinc Atelier in `app/atelier` (`zinc run app/atelier/main.tsx -- <dir>`), doc `docs/reports/zinc-next-atelier.md`. New: `zinc:process`, `ZINC_SIZE`, `ZINC_BIN`;
+fixed the scripted input of the null HAL (button events repeated every frame). ZN-049 stays in Review; its rest is ZN-057. Next by ordinal: ZN-051 (QuickJS).

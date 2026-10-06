@@ -1,0 +1,1 @@
+[{"name":"layout","ph":"X","pid":1,"tid":1,"ts":0,"dur":3200},{"name":"paint","ph":"X","pid":1,"tid":1,"ts":4000,"dur":1500},{"name":"layout","ph":"X","pid":1,"tid":1,"ts":9000,"dur":2800},{"name":"raster","ph":"X","pid":1,"tid":1,"ts":12000,"dur":900}]

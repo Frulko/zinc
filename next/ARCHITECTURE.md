@@ -20,6 +20,7 @@ next/
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
   firmware/esp32/ the ESP-IDF project of the ESP32 core; its image is kept in firmware/esp32/prebuilt (rebuilt by tools/build-esp32-core)
+  app/atelier/    Zinc Atelier (ZN-050), the desktop app: Zinc source run by the engine, talks to the CLI through zinc:process; not part of the engine build
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```
