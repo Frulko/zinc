@@ -376,6 +376,10 @@ struct Checker {
   TypeId expr(std::uint32_t i, TypeId expected = kNoType) {
     if (rewritten.count(i)) return out.nodeType[i];
     TypeId t = expr0(i, expected);
+    if (t == kNoType) {  // a symbol whose declaration failed has no type: the error was reported there; if none was, say so rather than crash
+      if (out.diags.empty()) diag(kZCannotInfer, i, "the type of this expression");
+      t = tError;
+    }
     out.nodeType[i] = t;
     return t;
   }
@@ -832,7 +836,7 @@ struct Checker {
       if (args.empty()) { std::uint32_t sep = newNode(N::String, "\",\"", {}, i); out.nodeType[sep] = tStr; args.push_back(sep); }
       else if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
       std::string key = "join," + std::to_string(at);
-      std::uint32_t sym = helper(key, "function $F(a: " + inspectAliasName(at) + ", sep: string): string {\n  let r = '';\n  for (let k: i32 = 0; k < a.length; k++) {\n    if (k > 0) r += sep;\n    r += " + std::string(isDyn(E) ? "__dynJoin(a[k])" : "`${a[k]}`") + ";\n  }\n  return r;\n}\n", {at}, i);
+      std::uint32_t sym = helper(key, "function $F(a: " + inspectAliasName(at) + ", sep: string): string {\n  let r = '';\n  for (let k: i32 = 0; k < a.length; k++) {\n    if (k > 0) r += sep;\n    r += " + std::string(isDyn(E) ? "__dynJoin(a[k])" : hasNull(E) ? "(a[k] === null ? '' : `${a[k]}`)" : "`${a[k]}`") + ";\n  }\n  return r;\n}\n", {at}, i);
       std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
       out.nodeSym[id] = sym;
       out.nodeType[id] = out.syms[sym].type;
@@ -1356,9 +1360,17 @@ struct Checker {
       case N::BigInt: diag(kZUnsupported, i, "bigint"); return tError;
       case N::String: return tStr;
       case N::Template:
-        for (std::uint32_t k : x.kids) {
+        for (std::size_t ki = 0; ki < n(i).kids.size(); ++ki) {
+          std::uint32_t k = n(i).kids[ki];
           TypeId pt = expr(k);
           if (!bad(pt) && ty(pt).k == TK::Func) diag(kZNotAssignable, k, "'" + name(pt) + "' to 'string' (call the function)");
+          if (!bad(pt) && ty(pt).k == TK::Union && hasNull(pt)) {  // `${x}` of a nullable number or boolean prints null or the value
+            TypeId base = withoutNull(pt);
+            if (base != kNoType && (ty(base).k == TK::Num || base == tBool)) {
+              std::uint32_t h = helper("fmtNullable:" + std::to_string(pt), "function $F(v: " + inspectAliasName(pt) + "): string { return v === null ? 'null' : '' + v; }", {pt}, k);
+              a.nodes[i].kids[ki] = callGenerated(h, {k}, k);
+            }
+          }
         }
         return tStr;
       case N::Literal: return x.text == "null" ? tNull : tBool;

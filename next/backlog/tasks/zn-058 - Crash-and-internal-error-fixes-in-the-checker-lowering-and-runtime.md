@@ -1,9 +1,10 @@
 ---
 id: ZN-058
 title: 'Crash and internal-error fixes in the checker, lowering and runtime'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:48'
+updated_date: '2026-10-06 23:13'
 labels:
   - language
   - bug
@@ -21,7 +22,13 @@ Parity audit 01 and 02 found: `zinc check` segfaults (exit 139) on an unknown st
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tests/golden fixtures for each of the four cases: the first two exit 1 with a diagnostic (Z0101 or Z0106), never 139; the third prints the same digits as Node; the fourth prints 18446744073709551615; the fifth ends with exit code 101 and the message
-- [ ] #2 an ASan build of zinc (cmake -DZN_SANITIZE=ON) checks every file of examples/ without a sanitizer report
-- [ ] #3 T0 and T1 pass
+- [x] #1 tests/golden fixtures for each of the four cases: the first two exit 1 with a diagnostic (Z0101 or Z0106), never 139; the third prints the same digits as Node; the fourth prints 18446744073709551615; the fifth ends with exit code 101 and the message
+- [x] #2 an ASan build of zinc (cmake -DZN_SANITIZE=ON) checks every file of examples/ without a sanitizer report
+- [x] #3 T0 and T1 pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Fixed: checker segfault (a symbol with no type now gives tError and a diagnostic), nullable number/boolean in templates and join (generated formatter; join prints empty for null like JS), exact 64-bit integer literals (u64 max, i64 beyond 2^53, negated literals), unhandled rejections (uncaught error, exit 101, after the microtasks drain). Promise statics are ZN-070 (L-promise). ASan zinc checked 69 example entry files clean.
+<!-- SECTION:NOTES:END -->

@@ -1247,6 +1247,16 @@ struct Lowering::FnLower {
         bool isInt;
         double v = parseNumber(x.text, isInt);
         TypeId t = (want != kNoValue && isNumTy(want)) ? want : m.numT(NumK::f64);
+        NumK nk = ty(t).num;
+        if (isInt && (nk == NumK::i64 || nk == NumK::u64 || nk == NumK::isize || nk == NumK::usize)) {  // a 64-bit integer literal is exact (the double above loses everything past 2^53)
+          std::string digits;
+          for (char ch : x.text) if (ch != '_') digits += ch;
+          int base = 10;
+          if (digits.size() > 1 && digits[0] == '0' && std::strchr("xXbBoO", digits[1])) { base = digits[1] == 'x' || digits[1] == 'X' ? 16 : digits[1] == 'b' || digits[1] == 'B' ? 2 : 8; digits = digits.substr(2); }
+          char* end = nullptr;
+          unsigned long long u = std::strtoull(digits.c_str(), &end, base);
+          if (end && *end == 0) return emit(IrOp::Const, t, {}, static_cast<std::int64_t>(u), 0);
+        }
         return constNum(t, v);
       }
       case N::String: return constStr(unescape(x.text.substr(1, x.text.size() - 2)));
@@ -1334,6 +1344,9 @@ struct Lowering::FnLower {
       case N::Unary: {
         TypeId rt = natural(i);
         double v;
+        if (x.text == "-" && n(x.kids[0]).kind == N::Number && want != kNoValue && isNumTy(want) &&
+            (ty(want).num == NumK::i64 || ty(want).num == NumK::u64 || ty(want).num == NumK::isize || ty(want).num == NumK::usize))
+          return emit(IrOp::Neg, want, {expr(x.kids[0], want)});  // the exact 64-bit literal, negated at run time (a double would round it)
         if (x.text == "-" && numLit(x, a, v) && want != kNoValue && isNumTy(want)) return constNum(want, v);
         if (x.text == "!") return emit(IrOp::Not, m.boolT(), {exprTo(x.kids[0], m.boolT())});
         if (x.text == "-") return emit(IrOp::Neg, rt, {exprTo(x.kids[0], rt)});

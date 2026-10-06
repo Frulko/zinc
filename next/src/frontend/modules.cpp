@@ -669,6 +669,7 @@ function __drainJobs(): void {
   }
   __jobs = [];
   __jobHead = 0;
+  __checkRejections();
 }
 let __frameHook: (() => void) | null = null;
 // One frame of a program with a frame loop (zinc:gfx): the timers due at the new clock fire in order of time then creation,
@@ -716,11 +717,23 @@ function __runLoop(): void {
   }
 }
 
+// A promise rejected with nobody waiting for it when the microtasks have drained is an uncaught error, as in Node (exit code 101 and the message).
+let __rejected: PromiseBase[] = [];
+function __checkRejections(): void {
+  const list = __rejected;
+  __rejected = [];
+  for (const p of list) {
+    const e = p.error;
+    if (!p.handled && e !== null) throw e;
+  }
+}
 class PromiseBase {
   state: i32 = 0;
   error: Error | null = null;
+  handled: boolean = false;
   waiters: Job[] = [];
   subscribe(j: Job): void {
+    this.handled = true;
     if (this.state === 0) this.waiters.push(j); else __enqueue(j);
   }
   settle(): void {
@@ -731,6 +744,7 @@ class PromiseBase {
     if (this.state !== 0) return;
     this.state = 2;
     this.error = e;
+    if (!this.handled) __rejected.push(this);
     this.settle();
   }
 }
