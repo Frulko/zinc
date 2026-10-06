@@ -100,9 +100,19 @@ set_source_files_properties(third_party/sha256/sha256.c PROPERTIES COMPILE_OPTIO
 add_library(zn_prof STATIC src/prof/prof.cpp)
 target_link_libraries(zn_prof PUBLIC zn_vm)
 
+# QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.
+add_library(zn_quickjs STATIC third_party/quickjs-ng/quickjs-amalgam.c)
+target_include_directories(zn_quickjs PUBLIC third_party/quickjs-ng)
+target_compile_definitions(zn_quickjs PRIVATE QUICKJS_NG_BUILD)
+set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_quickjs PRIVATE -w -O2)
+add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp)
+target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
+target_include_directories(zn_qjs PUBLIC include src)
+
 add_executable(zinc src/main.cpp)
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_link_libraries(zinc PRIVATE zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
   if(ZN_SDL_LIB)

@@ -20,6 +20,7 @@
 #include "prof/prof.h"
 #include "res/res.h"
 #include "zn/hostsys.h"
+#include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
 #define HOSTLIBS + std::string(" '") + ZN_HOST_LIBS + "'"   // the window library the host links
 #else
@@ -142,6 +143,32 @@ int main(int argc, char** argv) {
     if (!isMem) std::fprintf(stderr, "wrote %s\n", po.speedscope.c_str());
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
+  }
+  if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
+    if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
+    zn::qjs::Options qo;
+    qo.entry = argv[2];
+    qo.stdRoot = std::string(ZN_SOURCE_DIR) + "/../lib/std";
+#ifdef ZN_HOST_GFX
+    {
+      std::vector<std::string> args;
+      for (int k = 6; k < argc; ++k) args.push_back(argv[k]);
+      zn::host::setProgramArgs(args);
+      namespace fs = std::filesystem;
+      fs::path dir = fs::absolute(argv[2]).parent_path();
+      for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+      std::vector<std::uint8_t> blob;
+      std::string err;
+      {  // the fonts and images the program names: the texts of its files (the Zinc loader follows the imports, a program that does not parse as Zinc bakes from its own text)
+        zn::frontend::Program prog = zn::frontend::loadProgram(argv[2], readFile, false, qo.stdRoot);
+        gSources.clear();
+        for (const auto& f : prog.files) gSources.push_back(f.text);
+        if (gSources.empty()) { std::string t; if (readFile(argv[2], t)) gSources.push_back(t); }
+      }
+      if (bakeResources(argv[2], blob, err)) zn::host::installResources(blob.data(), blob.size());
+    }
+#endif
+    return zn::qjs::run(qo);
   }
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];

@@ -331,3 +331,6 @@ follow-up task, then ZN-050. T1: 27 passed (zbc goldens regenerated after prelud
 ## ZN-050 (Done)
 Zinc Atelier in `app/atelier` (`zinc run app/atelier/main.tsx -- <dir>`), doc `docs/reports/zinc-next-atelier.md`. New: `zinc:process`, `ZINC_SIZE`, `ZINC_BIN`;
 fixed the scripted input of the null HAL (button events repeated every frame). ZN-049 stays in Review; its rest is ZN-057. Next by ordinal: ZN-051 (QuickJS).
+
+## ZN-051 (Done)
+`zinc run <file> --engine quickjs`: QuickJS-ng 0.17.0 in `third_party/quickjs-ng`, `src/qjs`, doc `docs/reports/zinc-next-quickjs.md`. Next by ordinal: ZN-052 (stable IR/ZBC format).

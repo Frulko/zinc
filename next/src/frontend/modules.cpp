@@ -63,6 +63,7 @@ function __gfxLoop(): void {
 }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
 export function frame(): i32 { return __frameNo; }
+// ---- api: everything below is shared with the QuickJS engine (src/qjs), which brings its own frame loop
 export function width(): i32 { return __host_gfxWidth(); }
 export function height(): i32 { return __host_gfxHeight(); }
 export function pixelScale(): i32 { return __host_gfxPixelScale(); }
@@ -937,6 +938,20 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
 std::string formatDiag(const Program& p, const Diag& d) {
   const SourceFile& f = p.files[d.file < p.files.size() ? d.file : 0];
   return format(d, f.text, f.path);
+}
+
+
+const char* builtinModuleSource(std::string_view spec) { return hostModuleSource(spec); }
+
+std::string_view stdModuleFile(std::string_view spec) {
+  if (spec == "zinc:ui") return "ui.ts";
+  if (spec == "zinc:ui/solid") return "solid.ts";
+  if (spec == "zinc:ui/react") return "react.ts";
+  if (spec == "zinc:ui/kit") return "kit/index.ts";
+  if (spec == "zinc:signals") return "signals.ts";
+  if (spec == "zinc:path") return "path.ts";
+  if (spec == "zinc:assert") return "assert.ts";
+  return "";
 }
 
 }  // namespace zn::frontend
