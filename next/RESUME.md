@@ -263,4 +263,5 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `rc.cpp` `lendsForever`: borrowed loads in functions that never lend a ref away get no retain/release (nbody `advance` has none now) but AOT time did not move (100 ms).
 - `aot.cpp`: leaf functions keep registers in C++ locals (nbody 130 to 100 ms).
 - zbc goldens regenerated (inlining changes the code). T0, T1, T2 green.
-- Still open: interpreter dispatch cost (fib/nbody/mandelbrot are 3 to 5x QuickJS, need 5x), AOT nbody 3.3x native (needs 3x), dynsum, and an idle-machine run of `tools/bench-m4`.
+- Later in ZN-026: float consts hoisted out of loops, loop counters updated in place (emit.cpp), fused f64 compare-and-jump (JEqF..JNLeF, NaN-correct). AOT thresholds, dynsum, jsonout pass; interpreter still 3.0 to 4.8x QuickJS on fib/mandelbrot/spectralnorm, moved to ZN-041. ZN-026 Done.
+- (superseded) Still open: interpreter dispatch cost (fib/nbody/mandelbrot are 3 to 5x QuickJS, need 5x), AOT nbody 3.3x native (needs 3x), dynsum, and an idle-machine run of `tools/bench-m4`.

@@ -147,7 +147,10 @@ ZN_DIV_OPS(X)
 // Fused compare-and-jump conditions over two slots, and over a slot and an immediate.
 #define ZN_JUMP_OPS(X) \
   X(JEqI, a == b) X(JNeI, a != b) X(JLtI, static_cast<std::int64_t>(a) < static_cast<std::int64_t>(b)) X(JLeI, static_cast<std::int64_t>(a) <= static_cast<std::int64_t>(b)) \
-  X(JLtU, a < b) X(JLeU, a <= b)
+  X(JLtU, a < b) X(JLeU, a <= b) \
+  /* f64 compares; the negated forms differ from the opposite compare when an operand is NaN */ \
+  X(JEqF, asD(a) == asD(b)) X(JNeF, asD(a) != asD(b)) X(JLtF, asD(a) < asD(b)) X(JLeF, asD(a) <= asD(b)) \
+  X(JNLtF, !(asD(a) < asD(b))) X(JNLeF, !(asD(a) <= asD(b)))
 #define X(name, cond) inline bool name(Slot a, Slot b) { return cond; }
 ZN_JUMP_OPS(X)
 #undef X

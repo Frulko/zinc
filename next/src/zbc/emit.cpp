@@ -164,7 +164,7 @@ struct FnEmitter {
 
   // ---- instruction selection plan: immediate operands and fused compare-and-jump
   struct KForm { bool on = false; ValueId other = 0; int imm = 0; };
-  struct Fuse { bool on = false; std::size_t at = 0; IrOp cop = IrOp::Eq; ValueId x = 0, y = 0; bool yImm = false; int imm = 0; bool uns = false; };
+  struct Fuse { bool on = false; std::size_t at = 0; IrOp cop = IrOp::Eq; ValueId x = 0, y = 0; bool yImm = false; int imm = 0; bool uns = false; bool flt = false; };
   std::vector<std::uint32_t> uses;
   std::vector<char> noReg;       // values that never occupy a register: folded constants and fused compare results
   std::vector<KForm> kform;      // per result value: add/sub with an immediate
@@ -219,10 +219,12 @@ struct FnEmitter {
       const ir::Type& ot = ty(f.valueTypes[c.args[0]]);
       bool numInt = ot.k == ir::Type::K::Num && !isFloatK(ot.num);
       bool boolEq = ot.k == ir::Type::K::Bool && (c.op == IrOp::Eq || c.op == IrOp::Ne);
-      if (!numInt && !boolEq) continue;
+      bool f64 = ot.k == ir::Type::K::Num && ot.num == NumK::f64;
+      if (!numInt && !boolEq && !f64) continue;
       Fuse fz;
       fz.on = true; fz.at = b.insts.size() - 2; fz.cop = c.op; fz.x = c.args[0]; fz.y = c.args[1];
       fz.uns = numInt && !isSigned(ot.num);
+      fz.flt = f64;
       bool orderCmp = c.op != IrOp::Eq && c.op != IrOp::Ne;
       if (numInt && !(fz.uns && orderCmp)) {  // immediate forms are signed (or equality)
         int k;
@@ -376,6 +378,21 @@ struct FnEmitter {
           continue;
         }
         if (i.res != ir::kNoValue && !noReg[i.res]) {
+          // Update in place: the last instruction before a branch computes a block argument from its own parameter (i = i + 1):
+          // the result may overwrite the parameter's register, because the edge overwrites it anyway (the register is
+          // not tracked as owned by the result; the parameter keeps it).
+          if (k + 2 == f.blocks[b].insts.size() && f.blocks[b].insts.back().op == IrOp::Br && f.blocks[b].insts.back().edges.size() == 1) {
+            const ir::Edge& e = f.blocks[b].insts.back().edges[0];
+            std::size_t uses = 0, at = 0;
+            for (std::size_t q = 0; q < e.args.size(); ++q) if (e.args[q] == i.res) { ++uses; at = q; }
+            if (uses == 1 && end[i.res] == ipos[b][k + 1]) {
+              ValueId p = f.blocks[e.to].params[at];
+              std::uint32_t pr = reg[p];
+              bool ok = pr != kNoReg && owner[pr] == p && reg[p] != kNoReg && f.valueTypes[p] == f.valueTypes[i.res];
+              for (std::size_t q = 0; ok && q < e.args.size(); ++q) if (q != at && reg[e.args[q]] == pr) ok = false;
+              if (ok) { reg[i.res] = pr; continue; }
+            }
+          }
           std::uint32_t r = pick(i.res);
           if (r == kNoReg) return fail("function needs more than 256 registers");
           take(i.res, r);
@@ -695,7 +712,14 @@ struct FnEmitter {
           std::size_t patchAt = at;
           if (fz.on) {
             IrOp op = jumpIfTrue ? fz.cop : negate(fz.cop);
-            if (fz.yImm) {
+            if (fz.flt) {  // f64: the negation of < and <= is a form of its own (NaN)
+              ValueId x = fz.x, y = fz.y;
+              IrOp base = fz.cop;
+              if (base == IrOp::Gt || base == IrOp::Ge) { std::swap(x, y); base = mirror(base); }
+              Op o = base == IrOp::Eq ? (jumpIfTrue ? Op::JEqF : Op::JNeF) : base == IrOp::Ne ? (jumpIfTrue ? Op::JNeF : Op::JEqF)
+                   : base == IrOp::Lt ? (jumpIfTrue ? Op::JLtF : Op::JNLtF) : (jumpIfTrue ? Op::JLeF : Op::JNLeF);
+              put(encABC(o, R(x), R(y)));
+            } else if (fz.yImm) {
               Op o = op == IrOp::Eq ? Op::JEqIK : op == IrOp::Ne ? Op::JNeIK : op == IrOp::Lt ? Op::JLtIK : op == IrOp::Le ? Op::JLeIK : op == IrOp::Gt ? Op::JGtIK : Op::JGeIK;
               put(encABC(o, R(fz.x), 0, static_cast<unsigned>(fz.imm) & 0xFFu));
             } else {

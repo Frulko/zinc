@@ -6,332 +6,327 @@ class Sq : Rect { i, i }
   vtable .isSquare -> @Rect.isSquare
 builtin str
 builtin ref Rect[]
-func @main() -> void nregs=11
-   0  LoadI    r0, 0
-   1  JNeIK    r0, 0, -> 5
-   3  LoadStr  r1, "up"
-   4  Jmp      -> 15
-   5  JNeIK    r0, 10, -> 8
-   7  Jmp      -> 10
-   8  JNeIK    r0, 11, -> 13
-  10  LoadStr  r0, "side"
-  11  Move     r1, r0
-  12  Jmp      -> 15
-  13  LoadStr  r0, "down"
-  14  Move     r1, r0
-  15  LoadI    r0, 1
-  16  JNeIK    r0, 0, -> 20
-  18  LoadStr  r2, "up"
-  19  Jmp      -> 30
-  20  JNeIK    r0, 10, -> 23
-  22  Jmp      -> 25
-  23  JNeIK    r0, 11, -> 28
-  25  LoadStr  r0, "side"
-  26  Move     r2, r0
-  27  Jmp      -> 30
-  28  LoadStr  r0, "down"
-  29  Move     r2, r0
-  30  LoadI    r0, 10
-  31  JNeIK    r0, 0, -> 35
-  33  LoadStr  r3, "up"
-  34  Jmp      -> 45
-  35  JNeIK    r0, 10, -> 38
-  37  Jmp      -> 40
-  38  JNeIK    r0, 11, -> 43
-  40  LoadStr  r0, "side"
-  41  Move     r3, r0
-  42  Jmp      -> 45
-  43  LoadStr  r0, "down"
-  44  Move     r3, r0
-  45  LoadI    r0, 11
-  46  JNeIK    r0, 0, -> 50
-  48  LoadStr  r4, "up"
-  49  Jmp      -> 60
-  50  JNeIK    r0, 10, -> 53
-  52  Jmp      -> 55
-  53  JNeIK    r0, 11, -> 58
-  55  LoadStr  r0, "side"
-  56  Move     r4, r0
-  57  Jmp      -> 60
-  58  LoadStr  r0, "down"
-  59  Move     r4, r0
-  60  LoadI    r0, 11
-  61  LoadI    r5, -1
-  62  LoadI    r6, 6
-  63  LogStr   r1
-  64  LogSep   
-  65  LogStr   r2
-  66  LogSep   
-  67  LogStr   r3
-  68  LogSep   
-  69  LogStr   r4
+func @main() -> void nregs=17
+   0  LoadK    r0, f64 0
+   1  LoadK    r1, f64 6
+   2  LoadK    r2, f64 3
+   3  LoadK    r3, f64 1
+   4  LoadK    r4, f64 100
+   5  LoadK    r5, f64 10
+   6  LoadI    r6, 0
+   7  JNeIK    r6, 0, -> 11
+   9  LoadStr  r7, "up"
+  10  Jmp      -> 21
+  11  JNeIK    r6, 10, -> 14
+  13  Jmp      -> 16
+  14  JNeIK    r6, 11, -> 19
+  16  LoadStr  r6, "side"
+  17  Move     r7, r6
+  18  Jmp      -> 21
+  19  LoadStr  r6, "down"
+  20  Move     r7, r6
+  21  LoadI    r6, 1
+  22  JNeIK    r6, 0, -> 26
+  24  LoadStr  r8, "up"
+  25  Jmp      -> 36
+  26  JNeIK    r6, 10, -> 29
+  28  Jmp      -> 31
+  29  JNeIK    r6, 11, -> 34
+  31  LoadStr  r6, "side"
+  32  Move     r8, r6
+  33  Jmp      -> 36
+  34  LoadStr  r6, "down"
+  35  Move     r8, r6
+  36  LoadI    r6, 10
+  37  JNeIK    r6, 0, -> 41
+  39  LoadStr  r9, "up"
+  40  Jmp      -> 51
+  41  JNeIK    r6, 10, -> 44
+  43  Jmp      -> 46
+  44  JNeIK    r6, 11, -> 49
+  46  LoadStr  r6, "side"
+  47  Move     r9, r6
+  48  Jmp      -> 51
+  49  LoadStr  r6, "down"
+  50  Move     r9, r6
+  51  LoadI    r6, 11
+  52  JNeIK    r6, 0, -> 56
+  54  LoadStr  r10, "up"
+  55  Jmp      -> 66
+  56  JNeIK    r6, 10, -> 59
+  58  Jmp      -> 61
+  59  JNeIK    r6, 11, -> 64
+  61  LoadStr  r6, "side"
+  62  Move     r10, r6
+  63  Jmp      -> 66
+  64  LoadStr  r6, "down"
+  65  Move     r10, r6
+  66  LoadI    r6, 11
+  67  LoadI    r11, -1
+  68  LoadI    r12, 6
+  69  LogStr   r7
   70  LogSep   
-  71  LogI     r0
+  71  LogStr   r8
   72  LogSep   
-  73  LogI     r5
+  73  LogStr   r9
   74  LogSep   
-  75  LogI     r6
-  76  LogEnd   
-  77  Release  r1
-  78  Release  r2
-  79  Release  r3
-  80  Release  r4
-  81  LoadI    r0, 1
-  82  LoadStr  r1, ""
-  83  JNeIK    r0, 1, -> 90
-  85  LoadStr  r3, "one "
-  86  Move     r2, r1
-  87  Rt       r2, string.#concat
-  88  Move     r1, r2
-  89  Jmp      -> 98
-  90  JEqIK    r0, 2, -> 103
-  92  JNeIK    r0, 3, -> 98
-  94  LoadStr  r3, "three "
-  95  Move     r2, r1
-  96  Rt       r2, string.#concat
-  97  Jmp      -> 107
-  98  LoadStr  r3, "dflt "
-  99  Move     r2, r1
- 100  Rt       r2, string.#concat
- 101  Release  r1
- 102  Move     r1, r2
- 103  LoadStr  r3, "two "
- 104  Move     r2, r1
- 105  Rt       r2, string.#concat
- 106  Release  r1
- 107  LoadStr  r4, "|"
- 108  Move     r3, r2
- 109  Rt       r3, string.#concat
- 110  Release  r2
- 111  LoadI    r0, 2
- 112  LoadStr  r1, ""
- 113  JNeIK    r0, 1, -> 120
- 115  LoadStr  r5, "one "
- 116  Move     r4, r1
- 117  Rt       r4, string.#concat
- 118  Move     r1, r4
- 119  Jmp      -> 128
- 120  JEqIK    r0, 2, -> 133
- 122  JNeIK    r0, 3, -> 128
- 124  LoadStr  r5, "three "
- 125  Move     r4, r1
- 126  Rt       r4, string.#concat
- 127  Jmp      -> 137
- 128  LoadStr  r5, "dflt "
- 129  Move     r4, r1
- 130  Rt       r4, string.#concat
- 131  Release  r1
- 132  Move     r1, r4
- 133  LoadStr  r5, "two "
- 134  Move     r4, r1
- 135  Rt       r4, string.#concat
- 136  Release  r1
- 137  LoadStr  r6, "|"
- 138  Move     r5, r4
- 139  Rt       r5, string.#concat
- 140  Release  r4
- 141  LoadI    r0, 3
- 142  LoadStr  r1, ""
- 143  JNeIK    r0, 1, -> 150
- 145  LoadStr  r7, "one "
- 146  Move     r6, r1
- 147  Rt       r6, string.#concat
- 148  Move     r1, r6
- 149  Jmp      -> 158
- 150  JEqIK    r0, 2, -> 163
- 152  JNeIK    r0, 3, -> 158
- 154  LoadStr  r7, "three "
- 155  Move     r6, r1
- 156  Rt       r6, string.#concat
- 157  Jmp      -> 167
- 158  LoadStr  r7, "dflt "
- 159  Move     r6, r1
- 160  Rt       r6, string.#concat
- 161  Release  r1
- 162  Move     r1, r6
- 163  LoadStr  r7, "two "
- 164  Move     r6, r1
- 165  Rt       r6, string.#concat
- 166  Release  r1
- 167  LoadStr  r8, "|"
- 168  Move     r7, r6
- 169  Rt       r7, string.#concat
- 170  Release  r6
- 171  LoadI    r0, 4
- 172  LoadStr  r1, ""
- 173  JNeIK    r0, 1, -> 180
- 175  LoadStr  r9, "one "
- 176  Move     r8, r1
- 177  Rt       r8, string.#concat
- 178  Move     r1, r8
- 179  Jmp      -> 188
- 180  JEqIK    r0, 2, -> 193
- 182  JNeIK    r0, 3, -> 188
- 184  LoadStr  r9, "three "
- 185  Move     r8, r1
- 186  Rt       r8, string.#concat
- 187  Jmp      -> 197
- 188  LoadStr  r9, "dflt "
- 189  Move     r8, r1
- 190  Rt       r8, string.#concat
- 191  Release  r1
- 192  Move     r1, r8
- 193  LoadStr  r9, "two "
- 194  Move     r8, r1
- 195  Rt       r8, string.#concat
- 196  Release  r1
- 197  LoadStr  r10, "|"
- 198  Move     r9, r8
- 199  Rt       r9, string.#concat
- 200  Release  r8
- 201  LogStr   r3
- 202  LogSep   
- 203  LogStr   r5
- 204  LogSep   
- 205  LogStr   r7
- 206  LogSep   
+  75  LogStr   r10
+  76  LogSep   
+  77  LogI     r6
+  78  LogSep   
+  79  LogI     r11
+  80  LogSep   
+  81  LogI     r12
+  82  LogEnd   
+  83  Release  r7
+  84  Release  r8
+  85  Release  r9
+  86  Release  r10
+  87  LoadI    r6, 1
+  88  LoadStr  r7, ""
+  89  JNeIK    r6, 1, -> 96
+  91  LoadStr  r9, "one "
+  92  Move     r8, r7
+  93  Rt       r8, string.#concat
+  94  Move     r7, r8
+  95  Jmp      -> 104
+  96  JEqIK    r6, 2, -> 109
+  98  JNeIK    r6, 3, -> 104
+ 100  LoadStr  r9, "three "
+ 101  Move     r8, r7
+ 102  Rt       r8, string.#concat
+ 103  Jmp      -> 113
+ 104  LoadStr  r9, "dflt "
+ 105  Move     r8, r7
+ 106  Rt       r8, string.#concat
+ 107  Release  r7
+ 108  Move     r7, r8
+ 109  LoadStr  r9, "two "
+ 110  Move     r8, r7
+ 111  Rt       r8, string.#concat
+ 112  Release  r7
+ 113  LoadStr  r10, "|"
+ 114  Move     r9, r8
+ 115  Rt       r9, string.#concat
+ 116  Release  r8
+ 117  LoadI    r6, 2
+ 118  LoadStr  r7, ""
+ 119  JNeIK    r6, 1, -> 126
+ 121  LoadStr  r11, "one "
+ 122  Move     r10, r7
+ 123  Rt       r10, string.#concat
+ 124  Move     r7, r10
+ 125  Jmp      -> 134
+ 126  JEqIK    r6, 2, -> 139
+ 128  JNeIK    r6, 3, -> 134
+ 130  LoadStr  r11, "three "
+ 131  Move     r10, r7
+ 132  Rt       r10, string.#concat
+ 133  Jmp      -> 143
+ 134  LoadStr  r11, "dflt "
+ 135  Move     r10, r7
+ 136  Rt       r10, string.#concat
+ 137  Release  r7
+ 138  Move     r7, r10
+ 139  LoadStr  r11, "two "
+ 140  Move     r10, r7
+ 141  Rt       r10, string.#concat
+ 142  Release  r7
+ 143  LoadStr  r12, "|"
+ 144  Move     r11, r10
+ 145  Rt       r11, string.#concat
+ 146  Release  r10
+ 147  LoadI    r6, 3
+ 148  LoadStr  r7, ""
+ 149  JNeIK    r6, 1, -> 156
+ 151  LoadStr  r13, "one "
+ 152  Move     r12, r7
+ 153  Rt       r12, string.#concat
+ 154  Move     r7, r12
+ 155  Jmp      -> 164
+ 156  JEqIK    r6, 2, -> 169
+ 158  JNeIK    r6, 3, -> 164
+ 160  LoadStr  r13, "three "
+ 161  Move     r12, r7
+ 162  Rt       r12, string.#concat
+ 163  Jmp      -> 173
+ 164  LoadStr  r13, "dflt "
+ 165  Move     r12, r7
+ 166  Rt       r12, string.#concat
+ 167  Release  r7
+ 168  Move     r7, r12
+ 169  LoadStr  r13, "two "
+ 170  Move     r12, r7
+ 171  Rt       r12, string.#concat
+ 172  Release  r7
+ 173  LoadStr  r14, "|"
+ 174  Move     r13, r12
+ 175  Rt       r13, string.#concat
+ 176  Release  r12
+ 177  LoadI    r6, 4
+ 178  LoadStr  r7, ""
+ 179  JNeIK    r6, 1, -> 186
+ 181  LoadStr  r15, "one "
+ 182  Move     r14, r7
+ 183  Rt       r14, string.#concat
+ 184  Move     r7, r14
+ 185  Jmp      -> 194
+ 186  JEqIK    r6, 2, -> 199
+ 188  JNeIK    r6, 3, -> 194
+ 190  LoadStr  r15, "three "
+ 191  Move     r14, r7
+ 192  Rt       r14, string.#concat
+ 193  Jmp      -> 203
+ 194  LoadStr  r15, "dflt "
+ 195  Move     r14, r7
+ 196  Rt       r14, string.#concat
+ 197  Release  r7
+ 198  Move     r7, r14
+ 199  LoadStr  r15, "two "
+ 200  Move     r14, r7
+ 201  Rt       r14, string.#concat
+ 202  Release  r7
+ 203  LoadStr  r16, "|"
+ 204  Move     r15, r14
+ 205  Rt       r15, string.#concat
+ 206  Release  r14
  207  LogStr   r9
- 208  LogEnd   
- 209  Release  r3
- 210  Release  r5
- 211  Release  r7
- 212  Release  r9
- 213  LoadStr  r0, "a"
- 214  LoadStr  r2, "a"
- 215  Move     r1, r0
- 216  Rt       r1, string.#eq
- 217  JmpIfNot r1, -> 220
- 218  LoadI    r1, 1
- 219  Jmp      -> 228
- 220  LoadStr  r1, "bb"
- 221  Rt       r0, string.#eq
- 222  JmpIfNot r0, -> 226
- 223  LoadI    r0, 2
- 224  Move     r1, r0
- 225  Jmp      -> 228
- 226  LoadI    r0, 0
- 227  Move     r1, r0
- 228  LoadStr  r2, "bb"
- 229  LoadStr  r4, "a"
- 230  Move     r3, r2
- 231  Rt       r3, string.#eq
- 232  JmpIfNot r3, -> 235
- 233  LoadI    r0, 1
- 234  Jmp      -> 241
- 235  LoadStr  r3, "bb"
- 236  Rt       r2, string.#eq
- 237  JmpIfNot r2, -> 240
- 238  LoadI    r0, 2
- 239  Jmp      -> 241
- 240  LoadI    r0, 0
- 241  LoadStr  r2, "c"
- 242  LoadStr  r4, "a"
- 243  Move     r3, r2
- 244  Rt       r3, string.#eq
- 245  JmpIfNot r3, -> 248
- 246  LoadI    r3, 1
- 247  Jmp      -> 256
- 248  LoadStr  r3, "bb"
- 249  Rt       r2, string.#eq
- 250  JmpIfNot r2, -> 254
- 251  LoadI    r2, 2
- 252  Move     r3, r2
- 253  Jmp      -> 256
- 254  LoadI    r2, 0
- 255  Move     r3, r2
- 256  LogI     r1
- 257  LogSep   
- 258  LogI     r0
- 259  LogSep   
- 260  LogI     r3
- 261  LogEnd   
- 262  New      r0, Rect
- 263  LoadI    r1, 3
- 264  LoadI    r2, 4
- 265  SetField r0, r1, .0
- 266  SetField r0, r2, .1
- 267  New      r1, ref Rect[]
- 268  Retain   r0
- 269  ArrPush  r2, r1, r0
- 270  New      r2, Sq
- 271  LoadI    r3, 5
- 272  Move     r4, r2
- 273  Retain   r4
- 274  SetField r4, r3, .0
- 275  SetField r4, r3, .1
- 276  Release  r4
- 277  Move     r3, r2
- 278  Retain   r3
- 279  Release  r2
- 280  ArrPush  r2, r1, r3
- 281  Retain   r0
- 282  Move     r2, r0
- 283  CallVirt r2, .area
- 284  GetField r3, r0, .0
- 285  GetField r4, r0, .1
- 286  Release  r0
- 287  EqI      r0, r3, r4
- 288  LoadI    r3, 1
- 289  ArrGet   r3, r1, r3
- 290  Retain   r3
- 291  CallVirt r3, .area
- 292  LoadI    r4, 1
- 293  ArrGet   r4, r1, r4
- 294  Retain   r4
- 295  Release  r1
- 296  GetField r1, r4, .0
- 297  GetField r5, r4, .1
- 298  Release  r4
- 299  EqI      r1, r1, r5
- 300  LogI     r2
- 301  LogSep   
- 302  LogBool  r0
- 303  LogSep   
- 304  LogI     r3
- 305  LogSep   
- 306  LogBool  r1
- 307  LogEnd   
- 308  LoadK    r0, f64 0
- 309  LoadK    r1, f64 0
- 310  LoadK    r2, f64 6
- 311  LtF64    r2, r1, r2
- 312  JmpIfNot r2, -> 334
- 313  LoadK    r2, f64 3
- 314  RemF64   r2, r1, r2
- 315  LoadK    r3, f64 0
- 316  EqF64    r3, r2, r3
- 317  JmpIfNot r3, -> 320
- 318  Move     r2, r0
- 319  Jmp      -> 330
- 320  LoadK    r3, f64 1
- 321  EqF64    r2, r2, r3
- 322  JmpIfNot r2, -> 326
- 323  LoadK    r2, f64 10
- 324  AddF64   r2, r0, r2
- 325  Jmp      -> 328
- 326  LoadK    r2, f64 1
- 327  AddF64   r2, r0, r2
- 328  LoadK    r3, f64 100
- 329  AddF64   r2, r2, r3
- 330  LoadK    r3, f64 1
- 331  AddF64   r1, r1, r3
- 332  Move     r0, r2
- 333  Jmp      -> 310
- 334  LogF64   r0
- 335  LogEnd   
- 336  LoadI    r0, 10
- 337  LoadI    r1, 10
- 338  EqI      r1, r0, r1
- 339  AddI32K  r0, r0, 1
- 340  LoadI    r2, 5
- 341  AddI32K  r2, r2, 0
- 342  LogBool  r1
+ 208  LogSep   
+ 209  LogStr   r11
+ 210  LogSep   
+ 211  LogStr   r13
+ 212  LogSep   
+ 213  LogStr   r15
+ 214  LogEnd   
+ 215  Release  r9
+ 216  Release  r11
+ 217  Release  r13
+ 218  Release  r15
+ 219  LoadStr  r6, "a"
+ 220  LoadStr  r8, "a"
+ 221  Move     r7, r6
+ 222  Rt       r7, string.#eq
+ 223  JmpIfNot r7, -> 226
+ 224  LoadI    r7, 1
+ 225  Jmp      -> 234
+ 226  LoadStr  r7, "bb"
+ 227  Rt       r6, string.#eq
+ 228  JmpIfNot r6, -> 232
+ 229  LoadI    r6, 2
+ 230  Move     r7, r6
+ 231  Jmp      -> 234
+ 232  LoadI    r6, 0
+ 233  Move     r7, r6
+ 234  LoadStr  r8, "bb"
+ 235  LoadStr  r10, "a"
+ 236  Move     r9, r8
+ 237  Rt       r9, string.#eq
+ 238  JmpIfNot r9, -> 241
+ 239  LoadI    r6, 1
+ 240  Jmp      -> 247
+ 241  LoadStr  r9, "bb"
+ 242  Rt       r8, string.#eq
+ 243  JmpIfNot r8, -> 246
+ 244  LoadI    r6, 2
+ 245  Jmp      -> 247
+ 246  LoadI    r6, 0
+ 247  LoadStr  r8, "c"
+ 248  LoadStr  r10, "a"
+ 249  Move     r9, r8
+ 250  Rt       r9, string.#eq
+ 251  JmpIfNot r9, -> 254
+ 252  LoadI    r9, 1
+ 253  Jmp      -> 262
+ 254  LoadStr  r9, "bb"
+ 255  Rt       r8, string.#eq
+ 256  JmpIfNot r8, -> 260
+ 257  LoadI    r8, 2
+ 258  Move     r9, r8
+ 259  Jmp      -> 262
+ 260  LoadI    r8, 0
+ 261  Move     r9, r8
+ 262  LogI     r7
+ 263  LogSep   
+ 264  LogI     r6
+ 265  LogSep   
+ 266  LogI     r9
+ 267  LogEnd   
+ 268  New      r6, Rect
+ 269  LoadI    r7, 3
+ 270  LoadI    r8, 4
+ 271  SetField r6, r7, .0
+ 272  SetField r6, r8, .1
+ 273  New      r7, ref Rect[]
+ 274  Retain   r6
+ 275  ArrPush  r8, r7, r6
+ 276  New      r8, Sq
+ 277  LoadI    r9, 5
+ 278  Move     r10, r8
+ 279  Retain   r10
+ 280  SetField r10, r9, .0
+ 281  SetField r10, r9, .1
+ 282  Release  r10
+ 283  Move     r9, r8
+ 284  Retain   r9
+ 285  Release  r8
+ 286  ArrPush  r8, r7, r9
+ 287  Retain   r6
+ 288  Move     r8, r6
+ 289  CallVirt r8, .area
+ 290  GetField r9, r6, .0
+ 291  GetField r10, r6, .1
+ 292  Release  r6
+ 293  EqI      r6, r9, r10
+ 294  LoadI    r9, 1
+ 295  ArrGet   r9, r7, r9
+ 296  Retain   r9
+ 297  CallVirt r9, .area
+ 298  LoadI    r10, 1
+ 299  ArrGet   r10, r7, r10
+ 300  Retain   r10
+ 301  Release  r7
+ 302  GetField r7, r10, .0
+ 303  GetField r11, r10, .1
+ 304  Release  r10
+ 305  EqI      r7, r7, r11
+ 306  LogI     r8
+ 307  LogSep   
+ 308  LogBool  r6
+ 309  LogSep   
+ 310  LogI     r9
+ 311  LogSep   
+ 312  LogBool  r7
+ 313  LogEnd   
+ 314  Move     r6, r0
+ 315  Move     r7, r0
+ 316  JNLtF    r6, r1, -> 332
+ 318  RemF64   r8, r6, r2
+ 319  JNeF     r8, r0, -> 323
+ 321  Move     r8, r7
+ 322  Jmp      -> 329
+ 323  JNeF     r8, r3, -> 327
+ 325  AddF64   r8, r7, r5
+ 326  Jmp      -> 328
+ 327  AddF64   r8, r7, r3
+ 328  AddF64   r8, r8, r4
+ 329  AddF64   r6, r6, r3
+ 330  Move     r7, r8
+ 331  Jmp      -> 316
+ 332  LogF64   r7
+ 333  LogEnd   
+ 334  LoadI    r0, 10
+ 335  LoadI    r1, 10
+ 336  EqI      r1, r0, r1
+ 337  AddI32K  r0, r0, 1
+ 338  LoadI    r2, 5
+ 339  AddI32K  r2, r2, 0
+ 340  LogBool  r1
+ 341  LogSep   
+ 342  LogI     r0
  343  LogSep   
- 344  LogI     r0
- 345  LogSep   
- 346  LogI     r2
- 347  LogEnd   
- 348  RetV     
+ 344  LogI     r2
+ 345  LogEnd   
+ 346  RetV     
 func @describe(i) -> ref str nregs=2
    0  JNeIK    r0, 0, -> 4
    2  LoadStr  r1, "up"

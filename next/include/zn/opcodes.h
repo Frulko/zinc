@@ -44,7 +44,8 @@
   X(AddI32K, ABK, I, _, I)                                                                                      \
   X(Jmp, AX, _, _, _) X(JmpIf, AD, _, _, _) X(JmpIfNot, AD, _, _, _)                                           \
   X(JEqI, AB2, _, _, _) X(JNeI, AB2, _, _, _) X(JLtI, AB2, _, _, _) X(JLeI, AB2, _, _, _)                      \
-  X(JLtU, AB2, _, _, _) X(JLeU, AB2, _, _, _)                                                                   \
+  X(JLtU, AB2, _, _, _) X(JLeU, AB2, _, _, _) X(JEqF, AB2, _, _, _) X(JNeF, AB2, _, _, _)                          \
+  X(JLtF, AB2, _, _, _) X(JLeF, AB2, _, _, _) X(JNLtF, AB2, _, _, _) X(JNLeF, AB2, _, _, _)                                                                   \
   X(JEqIK, AK2, _, _, _) X(JNeIK, AK2, _, _, _) X(JLtIK, AK2, _, _, _) X(JLeIK, AK2, _, _, _)                  \
   X(JGtIK, AK2, _, _, _) X(JGeIK, AK2, _, _, _)                                                                 \
   X(Call, AD, _, _, M) X(Ret, ABC, _, _, M) X(RetV, OP, _, _, _) X(Throw, ABC, _, _, _)                         \

@@ -25,6 +25,8 @@ int main() {
   CHECK(ShlI32(sx32(1), 33) == sx32(2));                                              // the shift count is masked
   CHECK(NarrowI8(sx(300), 0) == sx(44) && NarrowU8(sx(-1), 0) == 255);
   CHECK(JLtI(sx(-1), sx(1)) && !JLtU(sx(-1), sx(1)));
+  CHECK(JNLtF(fromD(NAN), fromD(1.0)) && !JLtF(fromD(NAN), fromD(1.0)));  // not (a < b) holds for NaN
+  CHECK(JNLeF(fromD(2.0), fromD(1.0)) && JLeF(fromD(1.0), fromD(1.0)) && JNeF(fromD(NAN), fromD(NAN)));
   CHECK(AddI32K(sx32(5), -7) == sx32(-2));
   if (failures == 0) std::puts("ops_test: ok");
   return failures ? 1 : 0;

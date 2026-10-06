@@ -2,6 +2,7 @@
 // inlining of small functions. The IR is in SSA form with block parameters, so inlining splits the call's block, clones the
 // callee's blocks with fresh values and turns each Ret into a branch to the continuation block.
 #include <algorithm>
+#include <cstring>
 #include <map>
 
 #include "ir/ir.h"
@@ -120,9 +121,45 @@ bool inlineRound(Module& m) {
   return changed;
 }
 
+// Float constants used inside a loop are loaded once in the entry block (one LoadK per iteration saved per use).
+void hoistConsts(Module& m) {
+  for (Function& f : m.functions) {
+    bool loop = false;
+    for (std::size_t b = 0; b < f.blocks.size() && !loop; ++b)
+      for (const Edge& e : f.blocks[b].insts.back().edges) if (e.to <= b) loop = true;
+    if (!loop) continue;
+    std::map<std::pair<TypeId, std::uint64_t>, ValueId> seen;
+    std::vector<Inst> hoisted;
+    std::vector<ValueId> rename(f.valueTypes.size(), kNoValue);
+    for (Block& b : f.blocks) {
+      std::vector<Inst> keep;
+      for (Inst& i : b.insts) {
+        const Type& t = m.types[i.ty];
+        if (i.op == IrOp::Const && t.k == Type::K::Num && (t.num == frontend::Num::f64 || t.num == frontend::Num::f32)) {
+          std::uint64_t bits; static_assert(sizeof bits == sizeof i.fimm);
+          std::memcpy(&bits, &i.fimm, sizeof bits);
+          auto [it, fresh] = seen.try_emplace({i.ty, bits}, i.res);
+          if (fresh) hoisted.push_back(i);
+          rename[i.res] = it->second;
+        } else keep.push_back(std::move(i));
+      }
+      b.insts = std::move(keep);
+    }
+    if (hoisted.empty()) continue;
+    for (Block& b : f.blocks)
+      for (Inst& i : b.insts) {
+        for (ValueId& a : i.args) if (rename[a] != kNoValue) a = rename[a];
+        for (Edge& e : i.edges) for (ValueId& a : e.args) if (rename[a] != kNoValue) a = rename[a];
+      }
+    auto& entry = f.blocks[0].insts;
+    entry.insert(entry.begin(), hoisted.begin(), hoisted.end());
+  }
+}
+
 }  // namespace
 
 void optimize(Module& m) {
+  hoistConsts(m);
   devirtualize(m);
   for (int round = 0; round < 3 && inlineRound(m); ++round) devirtualize(m);
 }

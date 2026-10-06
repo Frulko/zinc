@@ -426,7 +426,11 @@ struct Verifier {
       default: break;
     }
     if (info.fmt == Fmt::ABK) { if (!needCls(bOf(w), Cls::I, "operand")) return false; s[aOf(w)] = 1; return true; }
-    if (info.fmt == Fmt::AB2) return needCls(aOf(w), Cls::I, "operand") && needCls(bOf(w), Cls::I, "operand");
+    if (info.fmt == Fmt::AB2) {
+      bool flt = op == Op::JEqF || op == Op::JNeF || op == Op::JLtF || op == Op::JLeF || op == Op::JNLtF || op == Op::JNLeF;
+      Cls c = flt ? Cls::D : Cls::I;
+      return needCls(aOf(w), c, "operand") && needCls(bOf(w), c, "operand");
+    }
     if (info.fmt == Fmt::AK2) return needCls(aOf(w), Cls::I, "operand");
     if (info.inB != RC::None && !needCls(bOf(w), rcToCls(info.inB), "operand")) return false;
     if (info.inC != RC::None && !needCls(cOf(w), rcToCls(info.inC), "operand")) return false;
