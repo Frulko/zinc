@@ -64,6 +64,10 @@ struct Symbol {
   TypeId type;
   std::uint32_t decl;  // declaring node or kNone
   bool isConst;
+  std::uint32_t ownerFn = 0xFFFFFFFFu;  // function or lambda node that declares a variable (none: top-level code)
+  bool isGlobal = false;                // a variable declared directly at the top level: reached through a global, never captured
+  bool captured = false;                // referenced from a lambda or nested function other than its owner
+  bool reassigned = false;              // assigned after its declaration: a captured one then lives in a shared cell
 };
 
 // A type parameter of a generic declaration, seen as an opaque type while the template itself is checked.
@@ -83,6 +87,11 @@ struct Checked {
   // Concrete instances of generic functions and classes: cloned declaration nodes to lower, with their names.
   std::vector<std::uint32_t> instances;
   std::unordered_map<std::uint32_t, std::string> nodeNames;
+  // Closures: variables each lambda (or nested function) captures, transitively; lambdas that use `this`; identifiers that
+  // name a function without calling it.
+  std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> captures;
+  std::vector<std::uint32_t> lambdaUsesThis;
+  std::vector<std::uint32_t> funcValueUses;
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.

@@ -414,6 +414,45 @@ struct Parser {
     return mk(N::String, k.start + lead, k.end - trail, s.substr(k.start + lead, k.end - k.start - lead - trail));
   }
 
+  // ---- function expressions
+  // The body after `=>`: a block, or an expression wrapped in a block that returns it.
+  std::uint32_t arrowBody() {
+    if (isP("{")) return block();
+    std::uint32_t e = assignment();
+    std::uint32_t ret = mk(N::Return, startOf(e), endOf(e), {}, {e});
+    return mk(N::Block, startOf(e), endOf(e), {}, {ret});
+  }
+  std::uint32_t funcExpr(std::uint32_t st, std::vector<std::uint32_t> ps, std::uint32_t ret, std::uint32_t body, bool arrow) {
+    std::vector<std::uint32_t> kids{ret, body};
+    kids.insert(kids.end(), ps.begin(), ps.end());
+    std::uint32_t id = mk(N::FuncExpr, st, prevEnd(), {}, std::move(kids));
+    if (arrow) r.ast.nodes[id].flags = kFlagArrow;
+    return id;
+  }
+  // At `(`: is this the parameter list of an arrow function?
+  bool arrowAhead() {
+    std::size_t close = matchingParen(0);
+    if (close + 1 >= t.size()) return false;
+    const Token& nx = t[close + 1];
+    if (nx.kind != Tok::Punct) return false;
+    if (txt(nx) == "=>") return true;
+    if (txt(nx) != ":") return false;
+    std::size_t save = i, diagCount = r.diags.size();  // `(x): R =>`: try to read the return type
+    bool ok = false;
+    try { i = close + 2; type(); ok = isP("=>"); } catch (const Stop&) { r.diags.resize(diagCount); }
+    i = save;
+    return ok;
+  }
+  std::uint32_t arrowFunction() {
+    std::uint32_t st = cur().start;
+    auto ps = params(false);
+    std::uint32_t ret = kNone;
+    if (eatP(":")) ret = type();
+    expectP("=>");
+    std::uint32_t body = arrowBody();
+    return funcExpr(st, std::move(ps), ret, body, true);
+  }
+
   std::uint32_t primary() {
     const Token& k = cur();
     std::uint32_t st = k.start;
@@ -424,7 +463,13 @@ struct Parser {
       case Tok::Ident:
         if (isId("async") && at(1).kind == Tok::Keyword && txt(at(1)) == "function") unsupported("async functions");
         ++i;
-        if (isP("=>")) unsupported("arrow functions");
+        if (isP("=>")) {  // x => ...
+          std::string_view pname = txt(t[i - 1]);
+          std::uint32_t p = mk(N::Param, st, prevEnd(), pname, {kNone, kNone});
+          ++i;
+          std::uint32_t body = arrowBody();
+          return funcExpr(st, {p}, kNone, body, true);
+        }
         return mk(N::Ident, st, prevEnd(), txt(t[i - 1]));
       case Tok::TemplateNoSub: {
         std::uint32_t q = quasi(k, 1, 1);
@@ -449,12 +494,21 @@ struct Parser {
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }
         if (isKw("super")) { ++i; return mk(N::Super, st, prevEnd()); }
         if (isKw("true") || isKw("false") || isKw("null")) { ++i; return mk(N::Literal, st, prevEnd(), txt(t[i - 1])); }
-        if (isKw("function") || isKw("class")) unsupported("function and class expressions");
+        if (isKw("function")) {  // function (a: T): R { ... }; a name is allowed and ignored
+          ++i;
+          if (isP("*")) unsupported("generators");
+          if (cur().kind == Tok::Ident) ++i;
+          auto ps = params(false);
+          std::uint32_t ret = kNone;
+          if (eatP(":")) ret = type();
+          std::uint32_t body = block();
+          return funcExpr(st, std::move(ps), ret, body, false);
+        }
+        if (isKw("class")) unsupported("class expressions");
         unexpected();
       case Tok::Punct:
         if (isP("(")) {
-          std::size_t after = std::min(matchingParen(0) + 1, t.size() - 1);
-          if (t[after].kind == Tok::Punct && txt(t[after]) == "=>") unsupported("arrow functions");
+          if (arrowAhead()) return arrowFunction();
           ++i;
           std::uint32_t e = expression();
           expectP(")");
@@ -858,7 +912,7 @@ const char* kindName(N k) {
       "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
-      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias"};
+      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr"};
   return names[static_cast<int>(k)];
 }
 
@@ -869,10 +923,10 @@ void dumpNode(const Ast& a, std::uint32_t n, int depth, std::string& out) {
   out += kindName(x.kind);
   if (!x.text.empty()) { out += ' '; out += x.text; }
   if (x.flags) {
-    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic"};
+    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic", "arrow"};
     out += " [";
     bool first = true;
-    for (int b = 0; b < 8; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
+    for (int b = 0; b < 9; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
     out += "]";
   }
   out += '\n';

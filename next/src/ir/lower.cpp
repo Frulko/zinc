@@ -64,7 +64,7 @@ struct Lowering {
   std::vector<std::uint32_t> globalIndex;                         // per symbol
   std::unordered_map<std::string, std::uint32_t> stringIds;
 
-  struct Job { std::uint32_t fn; std::uint32_t node; std::uint32_t cls; bool ctor; std::uint32_t classNode; };
+  struct Job { std::uint32_t fn; std::uint32_t node; std::uint32_t cls; bool ctor; std::uint32_t classNode; bool lambda = false; };
   std::vector<Job> jobs;
 
   Lowering(const frontend::Ast& ast, const frontend::Checked& ch) : a(ast), c(ch) {}
@@ -82,6 +82,7 @@ struct Lowering {
       case frontend::TK::Str: return m.strT();
       case frontend::TK::Void: return m.voidT();
       case frontend::TK::Array: return m.arrayT(irType(x.elem, at));
+      case frontend::TK::Func: if (!typeHasParam(t)) return m.refT(fnClassOf(t)); break;
       case frontend::TK::Object:
         if (classOfObj[x.obj] != kNil) return m.refT(classOfObj[x.obj]);
         break;
@@ -180,6 +181,25 @@ struct Lowering {
       cl.isAbstract = c.objs[o].isAbstract;
       m.classes.push_back(std::move(cl));
     }
+    // every function type used as a value gets its interface before the vtables are sized
+    std::function<void(frontend::TypeId, bool)> scan = [&](frontend::TypeId t, bool create) {
+      if (t == frontend::kNoType || typeHasParam(t)) return;
+      const frontend::Type& x = c.types[t];
+      if (x.k == frontend::TK::Func) {
+        if (create) fnClassOf(t);
+        for (frontend::TypeId p : std::vector<frontend::TypeId>(x.params)) scan(p, true);
+        scan(x.elem, true);
+      } else if (x.k == frontend::TK::Array) scan(x.elem, true);
+      else if (x.k == frontend::TK::Union) for (frontend::TypeId p : std::vector<frontend::TypeId>(x.params)) scan(p, true);
+    };
+    for (const frontend::Symbol& sy : c.syms) {
+      if (sy.kind == SymKind::Var || sy.kind == SymKind::Param) scan(sy.type, true);
+      else if (sy.kind == SymKind::Func) scan(sy.type, false);  // a declared function is not a value until it is used as one
+    }
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
+      if (classOfObj[o] == kNil) continue;
+      for (const frontend::Member& mem : c.objs[o].members) scan(mem.type, !mem.method);
+    }
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
       if (classOfObj[o] == kNil) continue;
       Class& cl = m.classes[classOfObj[o]];
@@ -213,6 +233,137 @@ struct Lowering {
       cl.vtable.assign(m.selectors.size(), kNil);
       for (std::uint32_t sel : cl.selectors) cl.vtable[sel] = resolveMethod(o, m.selectors[sel].name);
     }
+  }
+
+  // ---- closures: a lambda is a class with the captured variables as fields and one method, `call`; a function type is an
+  // interface with that method; a captured variable that is reassigned lives in a shared cell (a one-field class)
+  struct LambdaInfo {
+    std::uint32_t node = 0, fn = 0, cls = 0;
+    std::vector<std::uint32_t> caps;   // captured symbols, in field order
+    std::int32_t thisField = -1;       // field holding the captured `this`, if any
+  };
+  std::unordered_map<std::uint32_t, LambdaInfo> lambdas;                          // FuncExpr node -> info
+  std::unordered_map<frontend::TypeId, std::uint32_t> fnClassOfType;              // function type -> IR interface
+  std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkOfSym;  // function symbol -> {class, function}
+  std::unordered_map<TypeId, std::uint32_t> cellOfType;
+  bool isCell(std::uint32_t s) const { return c.syms[s].captured && c.syms[s].reassigned && !c.syms[s].isGlobal; }
+
+  bool typeHasParam(frontend::TypeId t) const {
+    const frontend::Type& x = c.types[t];
+    switch (x.k) {
+      case frontend::TK::Param: return true;
+      case frontend::TK::Array: return typeHasParam(x.elem);
+      case frontend::TK::Func: { if (typeHasParam(x.elem)) return true; for (auto p : x.params) if (typeHasParam(p)) return true; return false; }
+      case frontend::TK::Union: { for (auto p : x.params) if (typeHasParam(p)) return true; return false; }
+      case frontend::TK::Object: return c.objs[x.obj].isTemplate;
+      default: return false;
+    }
+  }
+  std::uint32_t fnClassOf(frontend::TypeId ft) {
+    auto it = fnClassOfType.find(ft);
+    if (it != fnClassOfType.end()) return it->second;
+    Class cl;
+    cl.name = "fn " + frontend::typeName(c, ft);
+    cl.isInterface = true;
+    m.classes.push_back(std::move(cl));
+    auto id = static_cast<std::uint32_t>(m.classes.size() - 1);
+    fnClassOfType[ft] = id;
+    std::uint32_t sel = selectorFor("call", ft);
+    m.classes[id].selectors = {sel};
+    return id;
+  }
+  std::uint32_t cellClass(TypeId t) {
+    auto it = cellOfType.find(t);
+    if (it != cellOfType.end()) return it->second;
+    Class cl;
+    cl.name = "cell " + typeName(m, t);
+    cl.fields = {Field{"v", t}};
+    m.classes.push_back(std::move(cl));
+    return cellOfType[t] = static_cast<std::uint32_t>(m.classes.size() - 1);
+  }
+
+  void collectLambdas(std::uint32_t i, std::uint32_t curObj) {
+    if (i == kNil) return;
+    const Node& x = n(i);
+    if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface || x.kind == N::FuncExpr) && c.nodeType[i] == frontend::kNoType) return;  // a generic template
+    if (x.kind == N::Interface) return;
+    if (x.kind == N::Class) curObj = c.types[c.nodeType[i]].obj;
+    if (x.kind == N::FuncExpr && !typeHasParam(c.nodeType[i])) {
+      LambdaInfo li;
+      li.node = i;
+      auto cap = c.captures.find(i);
+      if (cap != c.captures.end()) li.caps = cap->second;
+      Class cl;
+      cl.name = "lambda" + std::to_string(lambdas.size());
+      for (std::uint32_t sym : li.caps) {
+        TypeId ft = irType(c.syms[sym].type, i);
+        cl.fields.push_back({std::string(c.syms[sym].name), isCell(sym) ? m.refT(cellClass(ft)) : ft});
+      }
+      bool usesThis = std::find(c.lambdaUsesThis.begin(), c.lambdaUsesThis.end(), i) != c.lambdaUsesThis.end();
+      if (usesThis && curObj != kNil && classOfObj[curObj] != kNil) {
+        li.thisField = static_cast<std::int32_t>(cl.fields.size());
+        cl.fields.push_back({"this", m.refT(classOfObj[curObj])});
+      }
+      frontend::TypeId ftype = c.nodeType[i];
+      cl.implements = {fnClassOf(ftype)};
+      cl.selectors = {selectorFor("call", ftype)};
+      m.classes.push_back(std::move(cl));
+      li.cls = static_cast<std::uint32_t>(m.classes.size() - 1);
+      std::vector<TypeId> ps{m.refT(li.cls)};
+      for (frontend::TypeId p : c.types[ftype].params) ps.push_back(irType(p, i));
+      li.fn = addFunction(m.classes[li.cls].name, ps, irType(c.types[ftype].elem, i));
+      funcOfNode[i] = li.fn;
+      jobs.push_back({li.fn, i, kNil, false, kNil, true});
+      lambdas[i] = li;
+    }
+    for (std::uint32_t k : x.kids) collectLambdas(k, curObj);
+  }
+
+  // A function used as a value gets a class whose `call` forwards to it.
+  void buildThunks() {
+    for (std::uint32_t node : c.funcValueUses) {
+      std::uint32_t sym = c.nodeSym[node];
+      if (sym == kNil || thunkOfSym.count(sym)) continue;
+      auto target = funcOfNode.find(c.syms[sym].decl);
+      if (target == funcOfNode.end()) continue;
+      frontend::TypeId ftype = c.nodeType[node];
+      if (typeHasParam(ftype)) continue;
+      Class cl;
+      cl.name = "fnref " + std::string(c.syms[sym].name);
+      cl.implements = {fnClassOf(ftype)};
+      cl.selectors = {selectorFor("call", ftype)};
+      m.classes.push_back(std::move(cl));
+      auto cls = static_cast<std::uint32_t>(m.classes.size() - 1);
+      const Function& tf = m.functions[target->second];
+      std::vector<TypeId> ps{m.refT(cls)};
+      for (ValueId pv : tf.params) ps.push_back(tf.valueTypes[pv]);
+      std::uint32_t fi = addFunction(m.classes[cls].name + "$call", ps, tf.ret);
+      Function& f = m.functions[fi];
+      f.blocks.emplace_back();
+      f.blocks[0].params = f.params;
+      Inst call;
+      call.op = IrOp::Call; call.sym = target->second; call.ty = tf.ret;
+      for (std::size_t k = 1; k < f.params.size(); ++k) call.args.push_back(f.params[k]);
+      if (m.types[tf.ret].k != Type::K::Void) { f.valueTypes.push_back(tf.ret); call.res = static_cast<ValueId>(f.valueTypes.size() - 1); }
+      ValueId rv = call.res;
+      f.blocks[0].insts.push_back(std::move(call));
+      Inst ret;
+      ret.op = IrOp::Ret; ret.ty = m.voidT();
+      if (rv != kNoValue) ret.args = {rv};
+      f.blocks[0].insts.push_back(std::move(ret));
+      thunkOfSym[sym] = {cls, fi};
+    }
+  }
+
+  // Lambda and thunk classes implement `call` with their function.
+  void finishClosureClasses() {
+    auto finish = [&](std::uint32_t cls, std::uint32_t fn) {
+      Class& cl = m.classes[cls];
+      cl.vtable.assign(m.selectors.size(), kNil);
+      cl.vtable[cl.selectors[0]] = fn;
+    };
+    for (auto& [node, li] : lambdas) finish(li.cls, li.fn);
+    for (auto& [sym, th] : thunkOfSym) finish(th.first, th.second);
   }
 
   // ---- module structure
@@ -268,6 +419,7 @@ struct Lowering {
         std::string nm = prefix + (inm != c.nodeNames.end() ? inm->second : std::string(x.text));
         std::uint32_t fi = addFunction(nm, ps, irType(c.types[sig].elem, s));
         funcOfNode[s] = fi;
+        if (c.captures.count(s) && !c.captures.at(s).empty()) unsupported(s, "a nested function that uses variables of the function around it (use an arrow function)");
         jobs.push_back({fi, s, kNil, false, kNil});
         if (x.kids[1] != kNil) collectFunctions(n(x.kids[1]).kids, nm + ".");
       } else if (x.kind == N::Class) {
@@ -317,7 +469,7 @@ struct Lowering {
         const Node& x = n(i);
         if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface) && c.nodeType[i] == frontend::kNoType) return;  // a generic template
         std::int64_t cur = fn;
-        if (x.kind == N::Function || x.kind == N::Method) { auto it = funcOfNode.find(i); if (it != funcOfNode.end()) cur = it->second; }
+        if (x.kind == N::Function || x.kind == N::Method || x.kind == N::FuncExpr) { auto it = funcOfNode.find(i); if (it != funcOfNode.end()) cur = it->second; }
         if (x.kind == N::Interface) return;
         if (x.kind == N::Class) {  // instance field initializers run in the constructor, static ones where the class is declared
           std::uint32_t cls = classOfObj[c.types[c.nodeType[i]].obj];
@@ -350,7 +502,8 @@ struct Lowering {
         if (x.kind == N::Ident && pass == 1) {
           std::uint32_t s = c.nodeSym[i];
           if (s != kNil && (c.syms[s].kind == SymKind::Var || c.syms[s].kind == SymKind::Param) && ownerFn[s] != cur && ownerFn[s] != -1) {
-            if (topLevel[s]) global[s] = 1; else unsupported(i, "closures (captured variable '" + std::string(x.text) + "')");
+            if (topLevel[s]) global[s] = 1;
+            else if (!c.syms[s].captured) unsupported(i, "a variable of another function ('" + std::string(x.text) + "')");
           }
         }
         bool childTop = x.kind == N::Program || (top && x.kind == N::VarDecl);
@@ -376,10 +529,16 @@ struct Lowering {
     addFunction("main", {}, m.voidT());  // function 0
     collectFunctions(n(a.root).kids, "");
     collectFunctions(c.instances, "");  // monomorphised generic functions and classes
+    collectLambdas(a.root, kNil);
+    for (std::uint32_t inst : c.instances) collectLambdas(inst, kNil);
+    buildThunks();
     jobs.insert(jobs.begin(), Job{0, kNil, kNil, false, kNil});
     analyze();
     buildVtables();
+    finishClosureClasses();
     lowerAll();
+    for (Class& cl : m.classes)  // selectors may have appeared since a vtable was filled
+      if (!cl.isInterface && !cl.isAbstract) cl.vtable.resize(m.selectors.size(), kNil);
   }
 };
 
@@ -399,10 +558,12 @@ struct Lowering::FnLower {
   BlockId cur = 0;
   std::vector<std::pair<BlockId, BlockId>> loopTargets;  // (break, continue)
   std::uint32_t thisVar, nextVar;
+  const Lowering::LambdaInfo* lam = nullptr;  // set when this function is a lambda body
 
   FnLower(Lowering& l, Job j) : L(l), m(l.m), a(l.a), c(l.c), f(l.m.functions[j.fn]), job(j) {
     thisVar = static_cast<std::uint32_t>(c.syms.size());
     nextVar = thisVar + 1;
+    if (j.lambda) lam = &l.lambdas.at(j.node);
   }
 
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
@@ -500,13 +661,39 @@ struct Lowering::FnLower {
   }
 
   // ---- variables
+  // The environment field of a captured symbol in the lambda being lowered, or -1.
+  int capField(std::uint32_t s) const {
+    if (!lam) return -1;
+    for (std::size_t k = 0; k < lam->caps.size(); ++k) if (lam->caps[k] == s) return static_cast<int>(k);
+    return -1;
+  }
+  // The variable's own storage: for a cell variable the cell itself, for the others the value.
+  ValueId storageOf(std::uint32_t s) {
+    int fi = capField(s);
+    if (fi >= 0) return emit(IrOp::GetField, m.classes[lam->cls].fields[static_cast<std::size_t>(fi)].type, {f.params[0]}, 0, 0, static_cast<std::uint32_t>(fi));
+    return readVar(s, cur);
+  }
   ValueId readSym(std::uint32_t s) {
     if (L.global[s]) return emit(IrOp::GetGlobal, L.irType(c.syms[s].type), {}, 0, 0, L.globalIndex[s]);
-    return readVar(s, cur);
+    if (L.isCell(s)) return emit(IrOp::GetField, L.irType(c.syms[s].type), {storageOf(s)}, 0, 0, 0);
+    return storageOf(s);
   }
   void writeSym(std::uint32_t s, ValueId v) {
     if (L.global[s]) { emit(IrOp::SetGlobal, m.voidT(), {coerce(v, m.globals[L.globalIndex[s]].type)}, 0, 0, L.globalIndex[s]); return; }
+    if (L.isCell(s)) { emit(IrOp::SetField, m.voidT(), {storageOf(s), coerce(v, L.irType(c.syms[s].type))}, 0, 0, 0); return; }
     writeVar(s, v);
+  }
+  // The first write of a variable: a captured, reassigned one gets its cell here.
+  void declSym(std::uint32_t s, ValueId v) {
+    if (!L.global[s] && L.isCell(s)) {
+      TypeId t = L.irType(c.syms[s].type);
+      std::uint32_t cls = L.cellClass(t);
+      ValueId cell = emit(IrOp::New, m.refT(cls), {}, 0, 0, cls);
+      emit(IrOp::SetField, m.voidT(), {cell, coerce(v, t)}, 0, 0, 0);
+      writeVar(s, cell);
+      return;
+    }
+    writeSym(s, v);
   }
 
   // ---- expressions
@@ -631,6 +818,11 @@ struct Lowering::FnLower {
         std::uint32_t s = c.nodeSym[i];
         if (s == kNil) return constNum(m.numT(NumK::f64), 0);
         if (c.syms[s].kind == SymKind::Builtin) return constNum(m.numT(NumK::f64), x.text == "NaN" ? std::nan("") : HUGE_VAL);
+        if (c.syms[s].kind == SymKind::Func) {  // a function used as a value
+          auto th = L.thunkOfSym.find(s);
+          if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
+          return emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first);
+        }
         ValueId v = readSym(s);
         if (c.nodeType[i] != frontend::kNoType && c.types[c.nodeType[i]].k == frontend::TK::Object) return coerce(v, natural(i));  // a variable narrowed by instanceof
         return v;
@@ -739,6 +931,17 @@ struct Lowering::FnLower {
         cur = join;
         return jp;
       }
+      case N::FuncExpr: {  // a closure: an object holding the captured variables
+        const Lowering::LambdaInfo& li = L.lambdas.at(i);
+        ValueId o = emit(IrOp::New, m.refT(li.cls), {}, 0, 0, li.cls);
+        for (std::size_t k = 0; k < li.caps.size(); ++k) {
+          std::uint32_t sym = li.caps[k];
+          ValueId v = L.isCell(sym) ? storageOf(sym) : readSym(sym);  // a cell is shared, anything else is copied
+          emit(IrOp::SetField, m.voidT(), {o, coerce(v, m.classes[li.cls].fields[k].type)}, 0, 0, static_cast<std::uint32_t>(k));
+        }
+        if (li.thisField >= 0) emit(IrOp::SetField, m.voidT(), {o, coerce(readVar(thisVar, cur), m.classes[li.cls].fields[static_cast<std::size_t>(li.thisField)].type)}, 0, 0, static_cast<std::uint32_t>(li.thisField));
+        return o;
+      }
       case N::Call: return call(i, x);
       case N::New: return newObject(i, x);
       case N::Member: {
@@ -838,8 +1041,36 @@ struct Lowering::FnLower {
   }
   std::uint32_t currentObj() { return c.types[c.nodeType[job.classNode]].obj; }
 
+  // Is this call a call of a function value (a variable, a field, a call result, a lambda) rather than of a declared function or method?
+  bool isValueCall(const Node& callee, std::uint32_t calleeId) {
+    frontend::TypeId ct = c.nodeType[calleeId];
+    if (ct == frontend::kNoType || c.types[ct].k != frontend::TK::Func) return false;
+    if (callee.kind == N::Ident) {
+      std::uint32_t sy = c.nodeSym[calleeId];
+      return sy != kNil && c.syms[sy].kind != SymKind::Func && c.syms[sy].kind != SymKind::Builtin;
+    }
+    if (callee.kind == N::Member) {
+      const Node& on = n(callee.kids[0]);
+      if (on.kind == N::Super) return false;
+      if (on.kind == N::Ident && c.nodeSym[callee.kids[0]] != kNil && (c.syms[c.nodeSym[callee.kids[0]]].kind == SymKind::Class || c.syms[c.nodeSym[callee.kids[0]]].kind == SymKind::Builtin)) return false;
+      frontend::TypeId ot = c.nodeType[callee.kids[0]];
+      if (ot == frontend::kNoType || c.types[ot].k != frontend::TK::Object) return false;
+      const frontend::Member* mem = frontend::lookupMember(c, c.types[ot].obj, callee.text, false);
+      return mem && !mem->method;
+    }
+    return callee.kind != N::Super;
+  }
+
   ValueId call(std::uint32_t i, const Node& x) {
     const Node& callee = n(x.kids[0]);
+    if (isValueCall(callee, x.kids[0])) {  // f(args): the closure's `call` through its function type's vtable
+      frontend::TypeId ftype = c.nodeType[x.kids[0]];
+      ValueId fv = coerce(expr(x.kids[0]), L.irType(ftype));
+      const Selector& sg = m.selectors[L.selectorFor("call", ftype)];
+      std::vector<ValueId> vs{fv};
+      for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(exprTo(x.kids[k + 1], sg.params[k]));
+      return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, L.selectorFor("call", ftype));
+    }
     if (callee.kind == N::Super) {  // super(args): the base class constructor, if it has a function
       std::uint32_t par = c.objs[currentObj()].parent;
       auto it = L.ctorOfClass.find(L.classOfObj[par]);
@@ -909,18 +1140,19 @@ struct Lowering::FnLower {
 
   // ---- statements
   // ---- destructuring: write the elements or properties of `v` into the pattern's targets
-  void assignTarget(std::uint32_t node, ValueId val) {
+  void assignTarget(std::uint32_t node, ValueId val, bool isDecl) {
     const Node& x = n(node);
-    if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(node, val); return; }
+    if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(node, val, isDecl); return; }
     if (x.kind == N::Ident) {
       std::uint32_t sym = c.nodeSym[node];
-      writeSym(sym, coerce(val, L.irType(c.syms[sym].type)));
+      ValueId cv = coerce(val, L.irType(c.syms[sym].type));
+      if (isDecl) declSym(sym, cv); else writeSym(sym, cv);
       return;
     }
     LVal lv = lvalue(node);
     store(lv, val);
   }
-  void bindPattern(std::uint32_t pat, ValueId v) {
+  void bindPattern(std::uint32_t pat, ValueId v, bool isDecl = false) {
     const Node& p = n(pat);
     frontend::TypeId vt = c.nodeType[pat];
     const frontend::Type& ct = c.types[vt];
@@ -933,27 +1165,27 @@ struct Lowering::FnLower {
         ValueId elem;
         if (tup) elem = emit(IrOp::GetField, L.irType(c.objs[ct.obj].members[k].type), {v}, 0, 0, static_cast<std::uint32_t>(k));
         else elem = emit(IrOp::ArrGet, L.irType(ct.elem), {v, constNum(m.numT(NumK::i32), static_cast<double>(k))});
-        assignTarget(e, elem);
+        assignTarget(e, elem, isDecl);
       }
       return;
     }
     for (std::uint32_t pp : p.kids) {  // {a, b: x}: fields of a class instance
       std::uint32_t fi = L.fieldIndex(ct.obj, n(pp).text);
       ValueId prop = emit(IrOp::GetField, L.irType(c.nodeType[pp]), {v}, 0, 0, fi);
-      assignTarget(n(pp).kids[0], prop);
+      assignTarget(n(pp).kids[0], prop, isDecl);
     }
   }
 
   void declare(std::uint32_t d, bool) {
     const Node& x = n(d);
     if (x.kids.size() > 2 && x.kids[2] != kNil) {  // const [a, b] = ... / const {x, y} = ...
-      bindPattern(x.kids[2], expr(x.kids[1]));
+      bindPattern(x.kids[2], expr(x.kids[1]), true);
       return;
     }
     std::uint32_t s = c.nodeSym[d];
     TypeId t = L.irType(c.syms[s].type, d);
     ValueId v = exprTo(x.kids[1], t);
-    writeSym(s, v);
+    declSym(s, v);
   }
 
   void loopBody(std::uint32_t body, BlockId brk, BlockId cont) {
@@ -1018,6 +1250,8 @@ struct Lowering::FnLower {
         break;
       }
       case N::For: {
+        if (x.kids[0] != kNil && n(x.kids[0]).kind == N::VarDecl)
+          for (std::uint32_t d : n(x.kids[0]).kids) if (c.nodeSym[d] != kNil && L.isCell(c.nodeSym[d])) unsupported(d, "a closure capturing a loop variable that the loop modifies");
         if (x.kids[0] != kNil) { if (n(x.kids[0]).kind == N::VarDecl) stmt(x.kids[0]); else expr(x.kids[0]); }
         BlockId header = newBlock(), body = newBlock(), update = newBlock(), exit = newBlock();
         br(header);
@@ -1049,8 +1283,8 @@ struct Lowering::FnLower {
         sealed[body] = 1;
         cur = body;
         ValueId elem = emit(IrOp::ArrGet, ty(tv(arr)).aux, {readVar(arrVar, cur), readVar(idxVar, cur)});
-        if (n(x.kids[0]).kids.size() > 2 && n(x.kids[0]).kids[2] != kNil) bindPattern(n(x.kids[0]).kids[2], elem);
-        else writeSym(c.nodeSym[x.kids[0]], elem);
+        if (n(x.kids[0]).kids.size() > 2 && n(x.kids[0]).kids[2] != kNil) bindPattern(n(x.kids[0]).kids[2], elem, true);
+        else declSym(c.nodeSym[x.kids[0]], elem);
         loopBody(x.kids[2], exit, update);
         br(update);
         seal(update);
@@ -1153,13 +1387,17 @@ struct Lowering::FnLower {
       writeVar(thisVar, f.params[0]);
       first = 1;
     }
+    if (lam) {  // the closure object is the first parameter
+      first = 1;
+      if (lam->thisField >= 0) writeVar(thisVar, emit(IrOp::GetField, m.classes[lam->cls].fields[static_cast<std::size_t>(lam->thisField)].type, {f.params[0]}, 0, 0, static_cast<std::uint32_t>(lam->thisField)));
+    }
     const Node* fn = job.node == kNil ? nullptr : &n(job.node);
     if (fn && fn->kind != N::Class) {  // Function or Method: parameters become variables
       for (std::size_t k = 0; k < fn->kids.size() - 2; ++k) {
         std::uint32_t p = fn->kids[2 + k];
-        if (n(p).kids.size() > 2 && n(p).kids[2] != kNil) { bindPattern(n(p).kids[2], f.params[first + k]); continue; }
+        if (n(p).kids.size() > 2 && n(p).kids[2] != kNil) { bindPattern(n(p).kids[2], f.params[first + k], true); continue; }
         std::uint32_t ps = c.nodeSym[p];
-        if (ps != kNil && !L.global[ps]) writeVar(ps, f.params[first + k]);
+        if (ps != kNil && !L.global[ps]) declSym(ps, f.params[first + k]);
         if (n(p).kids[1] != kNil) L.unsupported(p, "default parameter values in the IR");
       }
     }

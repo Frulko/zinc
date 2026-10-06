@@ -50,7 +50,7 @@ The syntax is valid TypeScript but this engine does not implement it yet.
 Fix: Rewrite it with supported syntax, or wait for the task that adds it.
 
 ```ts
-let f = (x: number) => x;
+function* g() { }
 ```
 
 ## Z0101: Cannot find name

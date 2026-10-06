@@ -1,0 +1,256 @@
+Program
+  Function makeCounter
+    TypeFunc
+      TypeRef i32
+    Block
+      VarDecl let
+        Declarator calls
+          TypeRef i32
+          Number 0
+      Return
+        FuncExpr [arrow]
+          _
+          Block
+            ExprStmt
+              UpdatePost ++
+                Ident calls
+            Return
+              Ident calls
+  Function apply
+    TypeRef i32
+    Block
+      Return
+        Call
+          Ident f
+          Ident v
+    Param f
+      TypeFunc
+        TypeRef i32
+        Param x
+          TypeRef i32
+          _
+      _
+    Param v
+      TypeRef i32
+      _
+  Function compose
+    TypeFunc
+      TypeRef i32
+      Param x
+        TypeRef i32
+        _
+    Block
+      Return
+        FuncExpr [arrow]
+          TypeRef i32
+          Block
+            Return
+              Call
+                Ident g
+                Call
+                  Ident f
+                  Ident x
+          Param x
+            TypeRef i32
+            _
+    Param f
+      TypeFunc
+        TypeRef i32
+        Param x
+          TypeRef i32
+          _
+      _
+    Param g
+      TypeFunc
+        TypeRef i32
+        Param x
+          TypeRef i32
+          _
+      _
+  Function double
+    TypeRef i32
+    Block
+      Return
+        Binary *
+          Ident x
+          Number 2
+    Param x
+      TypeRef i32
+      _
+  Function makeAdder
+    TypeFunc
+      TypeRef i32
+      Param x
+        TypeRef i32
+        _
+    Block
+      Return
+        FuncExpr [arrow]
+          _
+          Block
+            Return
+              Binary +
+                Ident x
+                Ident k
+          Param x
+            _
+            _
+    Param k
+      TypeRef i32
+      _
+  Class Button
+    _
+    _
+    Field n
+      TypeRef i32
+      Number 0
+    Field on
+      TypeFunc
+        TypeRef i32
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Assign =
+            Member on
+              This
+            FuncExpr [arrow]
+              _
+              Block
+                ExprStmt
+                  UpdatePost ++
+                    Member n
+                      This
+                Return
+                  Member n
+                    This
+  VarDecl const
+    Declarator next
+      _
+      Call
+        Ident makeCounter
+  ExprStmt
+    Call
+      Ident next
+  ExprStmt
+    Call
+      Ident next
+  VarDecl const
+    Declarator other
+      _
+      Call
+        Ident makeCounter
+  VarDecl const
+    Declarator add5
+      _
+      FuncExpr [arrow]
+        TypeRef i32
+        Block
+          Return
+            Binary +
+              Ident x
+              Number 5
+        Param x
+          TypeRef i32
+          _
+  VarDecl const
+    Declarator k
+      TypeRef i32
+      Number 10
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Ident next
+      Call
+        Ident other
+      Call
+        Ident apply
+        Ident add5
+        Number 1
+      Call
+        Ident apply
+        FuncExpr [arrow]
+          _
+          Block
+            Return
+              Binary *
+                Ident x
+                Ident k
+          Param x
+            _
+            _
+        Number 3
+      Call
+        Call
+          Ident compose
+          Ident add5
+          FuncExpr [arrow]
+            _
+            Block
+              Return
+                Binary *
+                  Ident x
+                  Number 2
+            Param x
+              _
+              _
+        Number 1
+      Call
+        Call
+          Ident compose
+          Ident double
+          Call
+            Ident makeAdder
+            Number 3
+        Number 4
+  VarDecl const
+    Declarator b
+      _
+      New
+        Ident Button
+  ExprStmt
+    Call
+      Member on
+        Ident b
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member on
+          Ident b
+      Member n
+        Ident b
+  VarDecl let
+    Declarator total
+      TypeRef i32
+      Number 0
+  VarDecl const
+    Declarator addTo
+      _
+      FuncExpr [arrow]
+        TypeRef void
+        Block
+          ExprStmt
+            Assign +=
+              Ident total
+              Ident v
+        Param v
+          TypeRef i32
+          _
+  ExprStmt
+    Call
+      Ident addTo
+      Number 3
+  ExprStmt
+    Call
+      Ident addTo
+      Number 4
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Ident total

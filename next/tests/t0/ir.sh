@@ -6,7 +6,7 @@ fail=0
 for k in fib mandelbrot nbody; do
   "$ZINC" --emit=ir ../tests/bench/kernels/$k.ts 2>&1 | diff -q - tests/golden/ir/$k.ir >/dev/null || { echo "ir golden differs: $k"; fail=1; }
 done
-for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions; do
+for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions closures closures2; do
   "$ZINC" --emit=ir tests/golden/run/$k.ts 2>&1 | diff -q - tests/golden/ir/$k.ir >/dev/null || { echo "ir golden differs: $k"; fail=1; }
 done
 for f in tests/golden/checker/ok/*.ts; do
@@ -14,5 +14,9 @@ for f in tests/golden/checker/ok/*.ts; do
   "$ZINC" --emit=ir "$f" >/dev/null 2>/tmp/zn-ir-err.$$ || { echo "lowering failed: $f"; head -2 /tmp/zn-ir-err.$$; fail=1; }
 done
 rm -f /tmp/zn-ir-err.$$
+for f in tests/golden/unsupported/*.ts; do  # constructs the lowering reports as unsupported, with the code and position
+  got=$("$ZINC" --emit=ir "$f" 2>&1 | sed -E 's/^[^:]*:([0-9]+:[0-9]+): error (Z[0-9]+):.*/\2 \1/')
+  [ "$got" = "$(cat "${f%.ts}.expect")" ] || { echo "unsupported fixture $(basename "$f"): got '$got'"; fail=1; }
+done
 "$(dirname "$ZINC")/ir_test" || fail=1
 exit $fail

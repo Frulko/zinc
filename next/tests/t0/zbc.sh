@@ -12,7 +12,7 @@ for k in fib mandelbrot; do
   head -c 40 "$tmp/$k.zbc" > "$tmp/trunc.zbc"
   "$ZINC" zbc --check "$tmp/trunc.zbc" >/dev/null 2>&1 && { echo "truncated file accepted: $k"; fail=1; }
 done
-for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions; do
+for k in inherit interfaces devirt statics param_props abstract many_props generics tuples unions closures closures2; do
   "$ZINC" --emit=zbc tests/golden/run/$k.ts 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "zbc golden differs: $k"; fail=1; }
   "$ZINC" --emit=zbc-bin tests/golden/run/$k.ts "$tmp/$k.zbc" && "$ZINC" zbc --dump "$tmp/$k.zbc" 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "binary round trip differs: $k"; fail=1; }
 done

@@ -20,7 +20,7 @@
     "Assign to a variable or property instead.", "1 + 2 = a;")                                                         \
   X(Unsupported, "Z0005", "Syntax not supported yet",                                                                  \
     "The syntax is valid TypeScript but this engine does not implement it yet.",                                      \
-    "Rewrite it with supported syntax, or wait for the task that adds it.", "let f = (x: number) => x;") \
+    "Rewrite it with supported syntax, or wait for the task that adds it.", "function* g() { }") \
   X(CannotFindName, "Z0101", "Cannot find name",                                                                      \
     "The identifier is not declared in this scope, or is declared later in the same scope.",                          \
     "Declare it before use, or fix the spelling.", "let a = b;")                                                       \

@@ -8,7 +8,7 @@ for k in fib mandelbrot nbody; do
   "$ZINC" parse --check "$src" || fail=1
   "$ZINC" parse --dump "$src" | diff -q - tests/golden/parser/$k.ast >/dev/null || { echo "golden differs: $k"; fail=1; }
 done
-for k in param_props interfaces abstract statics generics tuples unions; do
+for k in param_props interfaces abstract statics generics tuples unions closures closures2; do
   "$ZINC" parse --check tests/golden/run/$k.ts || fail=1
   "$ZINC" parse --dump tests/golden/run/$k.ts | diff -q - tests/golden/parser/$k.ast >/dev/null || { echo "golden differs: $k"; fail=1; }
 done

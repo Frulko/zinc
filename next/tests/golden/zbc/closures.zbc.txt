@@ -1,0 +1,179 @@
+class Button { i, ref fn () => i32 }
+interface fn () => i32
+  method .call
+interface fn (i32) => i32
+  method .call
+interface fn (i32) => void
+  method .call
+class cell i32 { i }
+class lambda0 { ref cell i32 }
+  vtable .call -> @lambda0
+class lambda1 { ref fn (i32) => i32, ref fn (i32) => i32 }
+  vtable .call -> @lambda1
+class lambda2 { i }
+  vtable .call -> @lambda2
+class lambda3 { ref Button }
+  vtable .call -> @lambda3
+class lambda4 {}
+  vtable .call -> @lambda4
+class lambda5 {}
+  vtable .call -> @lambda5
+class lambda6 {}
+  vtable .call -> @lambda6
+class lambda7 {}
+  vtable .call -> @lambda7
+class fnref double {}
+  vtable .call -> @fnref double$call
+global g0: i
+global g1: i
+func @main() -> void nregs=10
+   0  Call     r0, @makeCounter
+   1  Move     r1, r0
+   2  CallVirt r1, .call
+   3  Move     r1, r0
+   4  CallVirt r1, .call
+   5  Call     r1, @makeCounter
+   6  New      r2, lambda4
+   7  LoadI    r3, 10
+   8  SetGlobalr3, g0
+   9  Move     r3, r0
+  10  CallVirt r3, .call
+  11  Move     r4, r1
+  12  CallVirt r4, .call
+  13  LoadI    r6, 1
+  14  Move     r5, r2
+  15  Call     r5, @apply
+  16  New      r0, lambda5
+  17  Move     r6, r0
+  18  LoadI    r7, 3
+  19  Call     r6, @apply
+  20  New      r0, lambda6
+  21  Move     r8, r0
+  22  Move     r7, r2
+  23  Call     r7, @compose
+  24  LoadI    r8, 1
+  25  CallVirt r7, .call
+  26  New      r0, fnref double
+  27  Move     r8, r0
+  28  LoadI    r9, 3
+  29  Call     r9, @makeAdder
+  30  Call     r8, @compose
+  31  LoadI    r9, 4
+  32  CallVirt r8, .call
+  33  LogI     r3
+  34  LogSep   
+  35  LogI     r4
+  36  LogSep   
+  37  LogI     r5
+  38  LogSep   
+  39  LogI     r6
+  40  LogSep   
+  41  LogI     r7
+  42  LogSep   
+  43  LogI     r8
+  44  LogEnd   
+  45  New      r0, Button
+  46  Move     r1, r0
+  47  Call     r1, @Button.constructor
+  48  GetField r1, r0, .1
+  49  CallVirt r1, .call
+  50  GetField r1, r0, .1
+  51  CallVirt r1, .call
+  52  GetField r0, r0, .0
+  53  LogI     r1
+  54  LogSep   
+  55  LogI     r0
+  56  LogEnd   
+  57  LoadI    r0, 0
+  58  SetGlobalr0, g1
+  59  New      r0, lambda7
+  60  LoadI    r2, 3
+  61  Move     r1, r0
+  62  CallVirt r1, .call
+  63  LoadI    r1, 4
+  64  CallVirt r0, .call
+  65  GetGlobalr0, g1
+  66  LogI     r0
+  67  LogEnd   
+  68  RetV     
+func @makeCounter() -> ref fn () => i32 nregs=2
+   0  LoadI    r0, 0
+   1  New      r1, cell i32
+   2  SetField r1, r0, .0
+   3  New      r0, lambda0
+   4  SetField r0, r1, .0
+   5  Ret      r0
+func @apply(ref fn (i32) => i32, i) -> i nregs=2
+   0  CallVirt r0, .call
+   1  Ret      r0
+func @compose(ref fn (i32) => i32, ref fn (i32) => i32) -> ref fn (i32) => i32 nregs=3
+   0  New      r2, lambda1
+   1  SetField r2, r1, .0
+   2  SetField r2, r0, .1
+   3  Move     r0, r2
+   4  Ret      r0
+func @double(i) -> i nregs=2
+   0  LoadI    r1, 2
+   1  MulI32   r0, r0, r1
+   2  Ret      r0
+func @makeAdder(i) -> ref fn (i32) => i32 nregs=2
+   0  New      r1, lambda2
+   1  SetField r1, r0, .0
+   2  Move     r0, r1
+   3  Ret      r0
+func @Button.constructor(ref Button) -> void nregs=2
+   0  LoadI    r1, 0
+   1  SetField r0, r1, .0
+   2  New      r1, lambda3
+   3  SetField r1, r0, .0
+   4  SetField r0, r1, .1
+   5  RetV     
+func @lambda0(ref lambda0) -> i nregs=3
+   0  GetField r1, r0, .0
+   1  GetField r1, r1, .0
+   2  AddI32K  r1, r1, 1
+   3  GetField r2, r0, .0
+   4  SetField r2, r1, .0
+   5  GetField r0, r0, .0
+   6  GetField r0, r0, .0
+   7  Ret      r0
+func @lambda1(ref lambda1, i) -> i nregs=5
+   0  GetField r2, r0, .0
+   1  GetField r3, r0, .1
+   2  Move     r4, r1
+   3  CallVirt r3, .call
+   4  Move     r0, r2
+   5  Move     r1, r3
+   6  CallVirt r0, .call
+   7  Ret      r0
+func @lambda2(ref lambda2, i) -> i nregs=2
+   0  GetField r0, r0, .0
+   1  AddI32   r0, r1, r0
+   2  Ret      r0
+func @lambda3(ref lambda3) -> i nregs=2
+   0  GetField r0, r0, .0
+   1  GetField r1, r0, .0
+   2  AddI32K  r1, r1, 1
+   3  SetField r0, r1, .0
+   4  GetField r0, r0, .0
+   5  Ret      r0
+func @lambda4(ref lambda4, i) -> i nregs=2
+   0  AddI32K  r0, r1, 5
+   1  Ret      r0
+func @lambda5(ref lambda5, i) -> i nregs=2
+   0  GetGlobalr0, g0
+   1  MulI32   r0, r1, r0
+   2  Ret      r0
+func @lambda6(ref lambda6, i) -> i nregs=2
+   0  LoadI    r0, 2
+   1  MulI32   r0, r1, r0
+   2  Ret      r0
+func @lambda7(ref lambda7, i) -> void nregs=2
+   0  GetGlobalr0, g1
+   1  AddI32   r0, r0, r1
+   2  SetGlobalr0, g1
+   3  RetV     
+func @fnref double$call(ref fnref double, i) -> i nregs=2
+   0  Move     r0, r1
+   1  Call     r0, @double
+   2  Ret      r0

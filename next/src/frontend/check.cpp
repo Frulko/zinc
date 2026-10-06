@@ -41,6 +41,11 @@ struct Checker {
   std::uint32_t curClass = kNone;  // ObjInfo index of the enclosing class
   std::uint32_t curCtor = kNone;   // class whose constructor body is being checked
   bool curStatic = false;          // inside a static method or static initializer
+  std::vector<std::uint32_t> fnStack;  // enclosing function, method and lambda nodes, innermost last
+  std::uint32_t calleeNode = kNone;    // the callee being evaluated, so a bare function name can be told from a call
+  bool atTop = false, declAsGlobal = false;
+  static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
+  TypeId inferredRet = kNoType;
   bool immediate = true;           // straight-line code that runs when reached (not inside a function, method or instance initializer)
   const std::vector<std::uint32_t>* ctorStmts = nullptr;  // top-level statements of the constructor being checked
   std::vector<std::string> ctorPending;                   // own fields without initializer, not yet assigned in the constructor
@@ -139,6 +144,10 @@ struct Checker {
     if (scopes.back()->count(nm)) { diag(kZDuplicateDeclaration, at, "'" + std::string(nm) + "'"); return (*scopes.back())[nm]; }
     out.syms.push_back({k, nm, t, decl, isConst});
     auto id = static_cast<std::uint32_t>(out.syms.size() - 1);
+    if (k == SymKind::Var || k == SymKind::Param) {
+      out.syms[id].ownerFn = fnStack.empty() ? kNone : fnStack.back();
+      out.syms[id].isGlobal = k == SymKind::Var && declAsGlobal;
+    }
     (*scopes.back())[nm] = id;
     return id;
   }
@@ -205,6 +214,17 @@ struct Checker {
         break;
       }
       case N::TypeArray: r = arrayOf(annotation(x.kids[0])); break;
+      case N::TypeFunc: {  // (a: A, b: B) => R
+        std::vector<TypeId> ps;
+        for (std::size_t k = 1; k < x.kids.size(); ++k) {
+          std::uint32_t pn = x.kids[k];
+          if (n(pn).kids[0] == kNone) { diag(kZCannotInfer, pn, "parameter '" + std::string(n(pn).text) + "' of a function type"); ps.push_back(tError); }
+          else ps.push_back(annotation(n(pn).kids[0]));
+        }
+        TypeId rt = annotation(x.kids[0]);
+        r = func(ps, rt, static_cast<std::uint32_t>(ps.size()));
+        break;
+      }
       case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms); break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       default: diag(kZUnsupported, t, "this type syntax"); break;
@@ -397,7 +417,7 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
-      } else ct = expr(callee);
+      } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ty(ct).k != TK::Func) {
         diag(kZNotCallable, callee, "'" + name(ct) + "'");
@@ -432,6 +452,11 @@ struct Checker {
       case N::Literal: return x.text == "null" ? tNull : tBool;
       case N::This:
         if (curClass == kNone || curStatic) { diag(kZNotAllowedHere, i, "'this'"); return tError; }
+        for (std::size_t k = fnStack.size(); k-- > 0;) {  // arrow functions capture the `this` of the code around them
+          if (n(fnStack[k]).kind != N::FuncExpr) break;
+          if (!(n(fnStack[k]).flags & frontend::kFlagArrow)) { diag(kZNotAllowedHere, i, "'this' in a function expression (use an arrow function)"); return tError; }
+          out.lambdaUsesThis.push_back(fnStack[k]);
+        }
         return objType(curClass);
       case N::Super: diag(kZBadSuperCall, i, "'super' must be called or used with a property access"); return tError;
       case N::Ident: {
@@ -441,8 +466,17 @@ struct Checker {
         if (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
         if (out.syms[s].kind == SymKind::TypeAlias) { diag(kZNotAllowedHere, i, "type parameter '" + std::string(x.text) + "' used as a value"); return tError; }
+        if (trackable(s) && !out.syms[s].isGlobal && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {
+          out.syms[s].captured = true;  // used inside a lambda or nested function that does not declare it
+          for (std::size_t k = fnStack.size(); k-- > 0 && fnStack[k] != out.syms[s].ownerFn;) {
+            auto& cs = out.captures[fnStack[k]];
+            if (std::find(cs.begin(), cs.end(), s) == cs.end()) cs.push_back(s);
+          }
+        }
+        if (out.syms[s].kind == SymKind::Func && i != calleeNode) out.funcValueUses.push_back(i);
         return trackable(s) ? currentType(s) : out.syms[s].type;
       }
+      case N::FuncExpr: return funcExpr(i, expected);
       case N::Array: {
         if (expected != kNoType && isTupleType(expected)) {  // a tuple literal: each element against its position
           const ObjInfo& to = out.objs[ty(expected).obj];
@@ -485,6 +519,7 @@ struct Checker {
       }
       case N::UpdatePre: case N::UpdatePost: {
         TypeId t0 = expr(x.kids[0]);
+        if (n(x.kids[0]).kind == N::Ident && out.nodeSym[x.kids[0]] != kNone && trackable(out.nodeSym[x.kids[0]])) out.syms[out.nodeSym[x.kids[0]]].reassigned = true;
         TypeId t = appOrDiag(t0, x.kids[0]);
         if (bad(t)) return tError;
         if (!isNum(t)) { diag(kZBadOperand, i, "'" + std::string(x.text) + "' on '" + name(t) + "'"); return tError; }
@@ -510,7 +545,7 @@ struct Checker {
         TypeId tt = expr(target);
         pendingExempt = false;
         std::uint32_t tsym = n(target).kind == N::Ident ? out.nodeSym[target] : kNone;
-        if (tsym != kNone && trackable(tsym)) { tt = out.syms[tsym].type; out.nodeType[target] = tt; }  // an assignment is checked against the declared type
+        if (tsym != kNone && trackable(tsym)) { tt = out.syms[tsym].type; out.nodeType[target] = tt; out.syms[tsym].reassigned = true; }  // an assignment is checked against the declared type
         bool ok = lvalue(target);
         const std::string op(x.text);
         if (op == "=") {
@@ -676,6 +711,7 @@ struct Checker {
     if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(target, t, isDecl, isConst); return; }
     if (x.kind == N::Ident && isDecl) { out.nodeSym[target] = declare(SymKind::Var, x.text, t, target, isConst, target); return; }
     TypeId tt = expr(target);  // assignment to an existing variable, member or element
+    if (x.kind == N::Ident && out.nodeSym[target] != kNone && trackable(out.nodeSym[target])) out.syms[out.nodeSym[target]].reassigned = true;
     lvalue(target);
     require(t, tt, target);
   }
@@ -753,10 +789,12 @@ struct Checker {
 
   void statement(std::uint32_t s) {
     const Node& x = n(s);
+    bool top = atTop;  // a statement directly in the program's top-level list
+    atTop = false;
     switch (x.kind) {
       case N::Empty: break;
       case N::Block: { std::size_t mark = narrowing.size(); push(); stmtList(x.kids); pop(); narrowing.resize(mark); break; }
-      case N::VarDecl: for (std::uint32_t d : x.kids) varDecl(d, x.text == "const"); break;
+      case N::VarDecl: declAsGlobal = top; for (std::uint32_t d : x.kids) varDecl(d, x.text == "const"); declAsGlobal = false; break;
       case N::ExprStmt: expr(x.kids[0]); break;
       case N::If: {
         condition(x.kids[0]);
@@ -826,6 +864,12 @@ struct Checker {
       }
       case N::Return: {
         if (curRet == kNoType) { diag(kZNotAllowedHere, s, "'return' outside a function"); break; }
+        if (curRet == kInferRet) {  // a lambda without a return type: the first return decides, the others must fit
+          if (x.kids[0] == kNone) { if (inferredRet == kNoType) inferredRet = tVoid; break; }
+          TypeId rt = expr(x.kids[0]);
+          if (inferredRet == kNoType) inferredRet = rt; else require(rt, inferredRet, x.kids[0]);
+          break;
+        }
         if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any) diag(kZNotAssignable, s, "'void' to '" + name(curRet) + "'"); break; }
         TypeId t = expr(x.kids[0], curRet);
         require(t, curRet, x.kids[0]);
@@ -871,6 +915,7 @@ struct Checker {
     const Node& f = n(fn);
     if (f.kids[1] == kNone) return;
     Type ft = ty(sig);
+    fnStack.push_back(fn);
     auto savedNarrowing = std::move(narrowing);
     narrowing.clear();
     TypeId savedRet = curRet; int savedLoops = loops; bool savedImmediate = immediate;
@@ -887,6 +932,7 @@ struct Checker {
     if (!isCtor && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
     narrowing = std::move(savedNarrowing);
+    fnStack.pop_back();
   }
 
   // ---- unions: members flattened, deduplicated and sorted so equal unions share one type id
@@ -988,6 +1034,56 @@ struct Checker {
     }
   }
 
+  // ---- lambdas: checked where they appear, so they see the variables around them
+  TypeId funcExpr(std::uint32_t i, TypeId expected) {
+    const Node& x = n(i);
+    Type et;
+    bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
+    if (haveExpected) et = ty(expected);
+    std::size_t np = x.kids.size() - 2;
+    std::vector<TypeId> ps;
+    for (std::size_t k = 0; k < np; ++k) {
+      std::uint32_t p = x.kids[2 + k];
+      const Node& pn = n(p);
+      TypeId t = tError;
+      if (pn.kids[1] != kNone) diag(kZUnsupported, p, "default values for lambda parameters");
+      else if (pn.kids[0] != kNone) t = annotation(pn.kids[0]);
+      else if (haveExpected && k < et.params.size()) t = et.params[k];
+      else diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "' of a function expression");
+      out.nodeType[p] = t;
+      ps.push_back(t);
+    }
+    TypeId ret = x.kids[0] != kNone ? annotation(x.kids[0]) : haveExpected ? et.elem : kNoType;
+    if (haveExpected && et.params.size() != np && x.kids[0] == kNone) { /* the arity is checked by the caller's assignability */ }
+    // check the body in the scope where the lambda appears
+    TypeId savedRet = curRet, savedInferred = inferredRet;
+    int savedLoops = loops;
+    bool savedImmediate = immediate;
+    auto savedNarrowing = std::move(narrowing);
+    narrowing.clear();
+    curRet = ret == kNoType ? kInferRet : ret;
+    inferredRet = kNoType;
+    loops = 0;
+    immediate = false;
+    fnStack.push_back(i);
+    push();
+    for (std::size_t k = 0; k < np; ++k) {
+      std::uint32_t p = x.kids[2 + k];
+      if (n(p).kids.size() > 2 && n(p).kids[2] != kNone) bindPattern(n(p).kids[2], ps[k], true, false);
+      else out.nodeSym[p] = declare(SymKind::Param, n(p).text, ps[k], p, false, p);
+    }
+    stmtList(n(x.kids[1]).kids);
+    pop();
+    fnStack.pop_back();
+    if (ret == kNoType) ret = inferredRet != kNoType ? inferredRet : tVoid;
+    if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
+    curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
+    narrowing = std::move(savedNarrowing);
+    TypeId ft = func(ps, ret, static_cast<std::uint32_t>(np));
+    out.nodeType[i] = ft;
+    return ft;
+  }
+
   // ---- tuples: an anonymous class per distinct element list, fields named 0, 1, ...
   std::map<std::vector<TypeId>, std::uint32_t> tupleObjs;
   TypeId tupleOf(const std::vector<TypeId>& elems) {
@@ -1028,11 +1124,12 @@ struct Checker {
     TypeId curRet; std::uint32_t curClass, curCtor; bool curStatic, immediate, pendingExempt; int loops;
     const std::vector<std::uint32_t>* ctorStmts; std::vector<std::string> ctorPending;
     std::vector<std::pair<std::uint32_t, TypeId>> narrowing;
+    std::vector<std::uint32_t> fnStack;
   };
-  Ctx saveCtx() const { return {scopes, curRet, curClass, curCtor, curStatic, immediate, pendingExempt, loops, ctorStmts, ctorPending, narrowing}; }
+  Ctx saveCtx() const { return {scopes, curRet, curClass, curCtor, curStatic, immediate, pendingExempt, loops, ctorStmts, ctorPending, narrowing, fnStack}; }
   void restoreCtx(const Ctx& c) {
     scopes = c.scopes; curRet = c.curRet; curClass = c.curClass; curCtor = c.curCtor; curStatic = c.curStatic; immediate = c.immediate;
-    pendingExempt = c.pendingExempt; loops = c.loops; ctorStmts = c.ctorStmts; ctorPending = c.ctorPending; narrowing = c.narrowing;
+    pendingExempt = c.pendingExempt; loops = c.loops; ctorStmts = c.ctorStmts; ctorPending = c.ctorPending; narrowing = c.narrowing; fnStack = c.fnStack;
   }
   void ensureBuilt(std::uint32_t obj) {
     auto it = pendingBuild.find(obj);
@@ -1532,7 +1629,9 @@ struct Checker {
       ensureSelf(g);
       if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
+    bool rootList = &stmts == &n(a.root).kids;
     for (std::uint32_t s : stmts) {
+      atTop = rootList;
       statement(s);
       if (&stmts == ctorStmts && n(s).kind == N::ExprStmt) {  // `this.f = ...` at the top level of a constructor assigns f
         const Node& as = n(n(s).kids[0]);
