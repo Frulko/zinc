@@ -29,7 +29,7 @@ RECV = {
     "Promise": ("const r: Promise<f64> = Promise.resolve(1);", "r"),
     "PromiseConstructor": ("", "Promise"),
 }
-WRAP = {"Map.get": "console.log(%s);"}  # results the checker only lets through console.log, `??` or `as T` (ZN-065 lifts this)
+WRAP = {k: "console.log(%s);" for k in ("Map.get", "Array.find", "Array.findLast", "Array.at")}  # results the checker only lets through console.log, `??` or `as T` (ZN-065 lifts this)
 BIND = {"T": "f64", "K": "string", "V": "f64", "U": "f64", "R": "f64"}
 
 def strip_comments(s):

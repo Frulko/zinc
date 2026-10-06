@@ -135,7 +135,10 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
   X(AcosF64, fromD(std::acos(asD(x)))) \
   X(SinhF64, fromD(std::sinh(asD(x)))) \
   X(CoshF64, fromD(std::cosh(asD(x)))) \
-  X(TanhF64, fromD(std::tanh(asD(x))))
+  X(TanhF64, fromD(std::tanh(asD(x)))) \
+  X(SignF64, fromD(asD(x) > 0 ? 1.0 : asD(x) < 0 ? -1.0 : asD(x))) \
+  X(FroundF64, fromD(static_cast<double>(static_cast<float>(asD(x))))) \
+  X(Clz32F64, fromD(std::countl_zero(static_cast<std::uint32_t>(static_cast<std::int64_t>(asD(x))))))
 
 // X(Name, condition that the operation is defined, expression): division and remainder trap when the condition fails.
 #define ZN_DIV_OPS(X) \

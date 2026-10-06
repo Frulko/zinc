@@ -1,0 +1,6 @@
+const s = new Set<number>()
+s.add(3); s.add(1); s.add(2)
+s.forEach((v) => { console.log(v) })
+const w = new Set<string>()
+w.add('a'); w.add('b')
+w.forEach((v, k) => { console.log(v + k) })

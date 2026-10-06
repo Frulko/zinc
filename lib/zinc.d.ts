@@ -159,7 +159,7 @@ interface Set<T> {
   has(v: T): boolean;
   delete(v: T): boolean;
   clear(): void;
-  forEach(f: (v: T) => void): void;
+  forEach(f: (v: T, k: T) => void): void;
   values(): T[];
   [Symbol.iterator](): SetIterator<T>;
 }

@@ -192,7 +192,7 @@ struct Checker {
     math.name = "Math";
     math.members.push_back({"PI", num(Num::f64), true, false});
     math.members.push_back({"E", num(Num::f64), true, false});
-    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh"}) mathFn(f, 1, math);
+    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
     out.objs.push_back(math);
@@ -786,7 +786,7 @@ struct Checker {
   }
 
   static bool isHofName(std::string_view m) {
-    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
+    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "at", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
     return false;
   }
   // arr.map(f) and friends: the call becomes a call of a helper generated in Zinc for this element and callback type.
@@ -804,7 +804,8 @@ struct Checker {
     const std::vector<std::uint32_t> kids = n(i).kids;
     std::uint32_t recvNode = n(kids[0]).kids[0];
     TypeId mt = out.nodeType[recvNode];
-    TypeId K = ty(mt).params[0], V = ty(mt).elem;
+    bool isSet = ty(mt).k == TK::Set;  // Set.forEach passes the element as value and as key
+    TypeId K = isSet ? ty(mt).elem : ty(mt).params[0], V = ty(mt).elem;
     if (hasParam(mt)) return tError;  // a generic template's own check (see arrayHof)
     if (kids.size() != 2) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(kids.size() - 1)); for (std::size_t k = 1; k < kids.size(); ++k) expr(kids[k]); return tError; }
     padCallbacks = false;
@@ -813,9 +814,10 @@ struct Checker {
     if (bad(lt)) return tError;
     if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 1-2 parameter(s) for 'forEach'"); return tError; }
     std::vector<TypeId> aliases{mt, lt, K, V};
-    std::string call = ty(lt).params.size() == 1 ? "f(m.get(k) as " + inspectAliasName(V) + ")" : "f(m.get(k) as " + inspectAliasName(V) + ", k)";
+    std::string val = isSet ? "k" : "m.get(k) as " + inspectAliasName(V);
+    std::string call = ty(lt).params.size() == 1 ? "f(" + val + ")" : "f(" + val + ", k)";
     std::string key = "mapForEach," + std::to_string(mt) + "," + std::to_string(lt);
-    std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n  for (const k of m.keys()) " + call + ";\n}\n", aliases, i);
+    std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n  for (const k of m." + std::string(isSet ? "values" : "keys") + "()) " + call + ";\n}\n", aliases, i);
     std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
     out.nodeSym[id] = sym;
     out.nodeType[id] = out.syms[sym].type;
@@ -879,6 +881,31 @@ struct Checker {
       std::vector<std::uint32_t> nk{id, recvNode};
       nk.insert(nk.end(), args.begin(), args.end());
       a.nodes[i].kids = std::move(nk);
+      return result;
+    }
+    if (m == "at") {  // a negative index counts from the end; out of range is undefined, so like 'find' the result is only usable in '??' and console.log
+      if (args.size() != 1) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      TypeId it = expr(args[0]);
+      if (!bad(it) && !isNum(it)) { diag(kZNotAssignable, args[0], "'" + name(it) + "' to 'number'"); return tError; }
+      if (i != nullishLeft && i != logArg) { diag(kZUnsupported, i, "'at' outside '?" "?' and console.log (the result may be undefined)"); return tError; }
+      bool prim = ty(E).k == TK::Num || E == tBool || E == tStr;
+      std::string sig, body;
+      TypeId result;
+      if (prim) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
+        if (i != logArg) { diag(kZUnsupported, i, "'at' on arrays of numbers, booleans or strings outside console.log"); return tError; }
+        result = tStr;
+        sig = "(a: " + inspectAliasName(at) + ", i: i32): string";
+        body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return 'undefined';\n  return `${a[k]}`;\n";
+      } else {
+        result = unionOf({E, tNull});
+        sig = "(a: " + inspectAliasName(at) + ", i: i32): " + inspectAliasName(result);
+        body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return null;\n  return a[k];\n";
+      }
+      std::uint32_t sym = helper("at," + std::to_string(at), "function $F" + sig + " {\n" + body + "}\n", {at, result}, i);
+      std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+      out.nodeSym[id] = sym;
+      out.nodeType[id] = out.syms[sym].type;
+      a.nodes[i].kids = {id, recvNode, args[0]};
       return result;
     }
     bool search = m == "indexOf" || m == "lastIndexOf" || m == "includes" || m == "fill";
@@ -1306,7 +1333,7 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
-      } else if (cn.kind == N::Member && cn.text == "forEach" && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Map) {
+      } else if (cn.kind == N::Member && cn.text == "forEach" && n(cn.kids[0]).kind != N::Super && (ty(expr(cn.kids[0])).k == TK::Map || ty(out.nodeType[cn.kids[0]]).k == TK::Set)) {
         return mapForEach(i);
       } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
         return arrayHof(i, cn.text);

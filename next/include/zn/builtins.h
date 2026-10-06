@@ -8,5 +8,5 @@
   X(MathCos, "Math.cos", 1) X(MathTan, "Math.tan", 1) X(MathAtan, "Math.atan", 1) X(MathExp, "Math.exp", 1)          \
   X(MathLog, "Math.log", 1) X(MathPow, "Math.pow", 2) X(MathAtan2, "Math.atan2", 2) X(MathMin, "Math.min", 2)        \
   X(MathMax, "Math.max", 2) X(NumToFixed, "Number.toFixed", 2) \
-  X(MathCbrt, "Math.cbrt", 1) X(MathLog2, "Math.log2", 1) X(MathLog10, "Math.log10", 1) X(MathLog1p, "Math.log1p", 1) X(MathExpm1, "Math.expm1", 1) X(MathAsin, "Math.asin", 1) X(MathAcos, "Math.acos", 1) X(MathSinh, "Math.sinh", 1) X(MathCosh, "Math.cosh", 1) X(MathTanh, "Math.tanh", 1) X(MathHypot, "Math.hypot", 2)
+  X(MathCbrt, "Math.cbrt", 1) X(MathLog2, "Math.log2", 1) X(MathLog10, "Math.log10", 1) X(MathLog1p, "Math.log1p", 1) X(MathExpm1, "Math.expm1", 1) X(MathAsin, "Math.asin", 1) X(MathAcos, "Math.acos", 1) X(MathSinh, "Math.sinh", 1) X(MathCosh, "Math.cosh", 1) X(MathTanh, "Math.tanh", 1) X(MathHypot, "Math.hypot", 2) X(MathSign, "Math.sign", 1) X(MathFround, "Math.fround", 1) X(MathClz32, "Math.clz32", 1)
 
