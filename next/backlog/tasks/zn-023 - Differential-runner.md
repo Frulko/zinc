@@ -1,10 +1,10 @@
 ---
 id: ZN-023
 title: Differential runner
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-06 13:25'
 labels:
   - size-M
 milestone: m-4
@@ -20,5 +20,5 @@ As **CI**, I want interpreter, AOT and the current native compiler compared on t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 one command prints a matrix; any difference fails the build.
+- [x] #1 one command prints a matrix; any difference fails the build.
 <!-- AC:END -->

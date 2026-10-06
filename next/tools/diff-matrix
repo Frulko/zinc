@@ -1,0 +1,49 @@
+#!/bin/sh
+# Differential runner (ZN-023): every program of the corpus runs interpreted and compiled (AOT) and both outputs are compared with
+# the frozen expected output (what the current native toolchain printed). Prints one line per program,
+#   <program> interp=ok|DIFF aot=ok|DIFF|BUILD
+# and a summary; the exit code is non-zero if any cell differs. Usage: tools/diff-matrix [-j N] [name ...]   (env ZINC, default build/zinc)
+cd "$(dirname "$0")/.." || exit 2
+ZINC=${ZINC:-$PWD/build/zinc}; export ZINC
+jobs=4
+if [ "$1" = "-j" ]; then jobs=$2; shift 2; fi
+tmp=$(mktemp -d); export tmp; trap 'rm -rf "$tmp"' EXIT
+list=$tmp/list
+if [ $# -gt 0 ]; then for n in "$@"; do echo "$n"; done > "$list"; else
+  { for f in tests/golden/run/*.ts; do echo "run:$(basename "$f" .ts)"; done
+    for b in $(cat corpus/M3-set.txt); do echo "conf:$b"; done
+    for f in ../tests/bench/kernels/*.ts; do k=$(basename "$f" .ts); [ -f "corpus/bench/$k.out" ] && echo "bench:$k"; done; } > "$list"
+fi
+cat > "$tmp/one" <<'ONE'
+#!/bin/sh
+# one program: kind:name -> src, expected output, whether the output carries an `[exit N]` line
+cd "$ROOT" || exit 2
+kind=${1%%:*}; name=${1#*:}
+case $kind in
+  run) src=tests/golden/run/$name.ts; exp=tests/golden/run/$name.out ;;
+  conf) src=../tests/conformance/$name.ts; exp=corpus/conformance/$name.out ;;
+  bench) src=../tests/bench/kernels/$name.ts; exp=corpus/bench/$name.out ;;
+esac
+# run a command, printing stdout, then stderr, and for a failing exit code the frozen `[exit N] <stderr>` form (conformance only)
+exec_one() {
+  out=$("$@" 2>"$tmp/$name.err"); code=$?
+  [ -n "$out" ] && printf '%s\n' "$out"
+  if [ "$kind" = conf ] && [ $code -ne 0 ]; then printf '[exit %s] %s\n' "$code" "$(cat "$tmp/$name.err")"; else cat "$tmp/$name.err"; fi
+}
+exec_one "$ZINC" run "$src" > "$tmp/$name.i"
+if [ "$kind" = conf ]; then sed 's/^\[exit 101\] //' "$exp" > "$tmp/$name.exp"; sed 's/^\[exit 101\] //' "$tmp/$name.i" > "$tmp/$name.i2"; mv "$tmp/$name.i2" "$tmp/$name.i"; else cp "$exp" "$tmp/$name.exp"; fi
+if diff -q "$tmp/$name.i" "$tmp/$name.exp" >/dev/null; then i=ok; else i=DIFF; fi
+if "$ZINC" build "$src" -o "$tmp/$name.bin" >"$tmp/$name.build" 2>&1; then
+  exec_one "$tmp/$name.bin" > "$tmp/$name.a"
+  [ "$kind" = conf ] && { sed 's/^\[exit 101\] //' "$tmp/$name.a" > "$tmp/$name.a2"; mv "$tmp/$name.a2" "$tmp/$name.a"; }
+  if diff -q "$tmp/$name.a" "$tmp/$name.exp" >/dev/null; then a=ok; else a=DIFF; fi
+else a=BUILD; fi
+echo "$name interp=$i aot=$a"
+ONE
+chmod +x "$tmp/one"
+export ROOT=$PWD
+xargs -P "$jobs" -n 1 "$tmp/one" < "$list" | sort > "$tmp/matrix"
+cat "$tmp/matrix"
+total=$(wc -l < "$tmp/matrix"); bad=$(grep -c "DIFF\|BUILD" "$tmp/matrix")
+echo "$total programs, $bad with a difference"
+[ "$bad" -eq 0 ]

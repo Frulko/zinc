@@ -9,7 +9,7 @@ tool output staying in the context, so every runner prints a summary and writes 
 |---|---|---|---|
 | T0 | After each change (seconds) | Golden or unit test of the stage touched only | One line per failure |
 | T1 | End of a task | The milestone demo (below) | A summary of a few lines |
-| T2 | End of a milestone, once | Whole corpus, interpreter vs AOT vs current native, benchmarks | Summary only; full log in `next/.logs/` |
+| T2 | End of a milestone, once | Whole corpus, interpreter vs AOT vs the frozen output of the current native toolchain (`tools/diff-matrix`, one line per program), benchmarks | Summary only; full log in `next/.logs/` |
 
 Runner rules (built in ZN-002):
 

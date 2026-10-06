@@ -7,7 +7,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. ZN-022 (AOT emitter) is Done; next by ordinal: see `tools/next-task` (ZN-023 differential runner) (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. ZN-022 (AOT emitter) and ZN-023 (`tools/diff-matrix`, T2 `tests/t2/diff.sh`: 67 programs, interpreter vs AOT vs frozen output, 0 differences) are Done; next by ordinal: see `tools/next-task` (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
