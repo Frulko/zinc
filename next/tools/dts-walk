@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Does every member of lib/zinc.d.ts (the prototype's reference list of supported members) compile on this engine?
+
+usage: tools/dts-walk [--exceptions tests/data/std_surface.exceptions] [--list]
+Parses the interfaces of the standard library out of the .d.ts, writes one probe call per member (a receiver of a fixed type, arguments made from the parameter types),
+runs `zinc check --check` on all probes and prints the members that fail with the compiler's message. Members named in the exceptions file (`Interface.member  reason`) are
+skipped; the exit code is 1 when a member fails that is not an exception. A method that is present and a declaration that the checker handles by rewriting count the same: it compiles.
+"""
+import os, re, subprocess, sys, tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+DTS = os.path.join(ROOT, "..", "lib", "zinc.d.ts")
+ZINC = os.environ.get("ZINC", os.path.join(ROOT, "build", "zinc"))
+
+# receiver declaration and member prefix per interface; T is bound to f64, K to string, V to f64, U to f64
+RECV = {
+    "Number": ("const r: number = 1.5;", "r"),
+    "NumberConstructor": ("", "Number"),
+    "String": ('const r: string = "abc";', "r"),
+    "StringConstructor": ("", "String"),
+    "Array": ("const r: f64[] = [1, 2, 3];", "r"),
+    "ArrayConstructor": ("", "Array"),
+    "Map": ("const r = new Map<string, f64>();", "r"),
+    "Set": ("const r = new Set<f64>();", "r"),
+    "Math": ("", "Math"),
+    "Console": ("", "console"),
+    "JSON": ("", "JSON"),
+    "Promise": ("const r: Promise<f64> = Promise.resolve(1);", "r"),
+    "PromiseConstructor": ("", "Promise"),
+}
+WRAP = {"Map.get": "console.log(%s);"}  # results the checker only lets through console.log, `??` or `as T` (ZN-065 lifts this)
+BIND = {"T": "f64", "K": "string", "V": "f64", "U": "f64", "R": "f64"}
+
+def strip_comments(s):
+    s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
+    return re.sub(r"//[^\n]*", "", s)
+
+def interfaces(text):
+    out = {}
+    for m in re.finditer(r"interface (\w+)(?:<[^>{]*>)?(?: extends [^{]+)? \{", text):
+        depth, i = 1, m.end()
+        while depth and i < len(text):
+            depth += (text[i] == "{") - (text[i] == "}")
+            i += 1
+        out[m.group(1)] = text[m.end():i - 1]
+    return out
+
+def split_params(p):
+    parts, depth, cur = [], 0, ""
+    for ch in p:
+        if ch in "(<[{": depth += 1
+        if ch in ")>]}" and not (ch == ">" and cur.endswith("=")): depth -= 1
+        if ch == "," and depth == 0: parts.append(cur); cur = ""
+        else: cur += ch
+    if cur.strip(): parts.append(cur)
+    return parts
+
+def value(t):
+    t = t.strip()
+    for k, v in BIND.items(): t = re.sub(r"\b%s\b" % k, v, t)
+    if t.startswith("(") and "=>" in t:  # a callback with as many parameters as the signature has (the engine pads missing ones, never extra ones)
+        head, _, ret = t.rpartition("=>")
+        nparams = len(split_params(head.strip()[1:-1])) if head.strip()[1:-1].strip() else 0
+        ret = ret.strip()
+        names = ", ".join("a%d" % k for k in range(nparams))
+        return "(%s) => %s" % (names, value(ret) if ret != "void" else "{}")
+    if t.endswith("[]"): return "[" + value(t[:-2]) + "]"
+    if t in ("number", "f64", "i32", "u32", "f32", "u8", "i64", "u64"): return "1"
+    if t == "string": return '"a"'
+    if t == "boolean": return "true"
+    if t == "void": return ""
+    if t.startswith("Promise<"): return "Promise.resolve(1)"
+    if t == "unknown" or t == "any": return "1"
+    return "1"
+
+def members(body):
+    for line in body.split(";"):
+        line = line.strip()
+        m = re.match(r"^(?:readonly )?(\w+)\s*(<[^>(]*>)?\s*\((.*)\)\s*:\s*(.+)$", line, re.S)
+        if m:
+            name, _, params, ret = m.groups()
+            yield name, "method", params.replace("\n", " ")
+            continue
+        m = re.match(r"^(?:readonly )?(\w+)\??\s*:\s*(.+)$", line, re.S)
+        if m and not line.startswith("["): yield m.group(1), "prop", ""
+
+def main():
+    exc = {}
+    if "--exceptions" in sys.argv:
+        for l in open(sys.argv[sys.argv.index("--exceptions") + 1]):
+            if l.strip() and not l.startswith("#"):
+                k, _, why = l.strip().partition(" ")
+                exc[k] = why.strip()
+    ifaces = interfaces(strip_comments(open(DTS).read()))
+    probes = []  # (id, code)
+    for name, (decl, prefix) in RECV.items():
+        key = "Array" if name == "Array" else name
+        body = ifaces.get(name)
+        if body is None: continue
+        for mem, kind, params in members(body):
+            ident = "%s.%s" % (name, mem)
+            if ident in exc or mem == "new": continue
+            if kind == "method":
+                args = []
+                for p in split_params(params):
+                    p = p.strip()
+                    if not p or p.startswith("..."): continue
+                    if re.match(r"^\w+\?", p): continue  # optional: left out
+                    args.append(value(p.split(":", 1)[1] if ":" in p else "number"))
+                call = "%s.%s(%s);" % (prefix, mem, ", ".join(args))
+            else:
+                call = "const _v = %s.%s;" % (prefix, mem)
+            if ident in WRAP: call = WRAP[ident] % call.rstrip(";")
+            probes.append((ident, "%s\n%s\n" % (decl, call)))
+    if "--list" in sys.argv:
+        for i, _ in probes: print(i)
+        return
+    fails = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for ident, code in probes:
+            f = os.path.join(tmp, "p.ts")
+            open(f, "w").write(code)
+            r = subprocess.run([ZINC, "check", "--check", f], capture_output=True, text=True, timeout=60)
+            if r.returncode != 0:
+                msg = (r.stderr or r.stdout).strip().split("\n")[0]
+                fails.append((ident, msg.split(": error ")[-1][:110] if ": error " in msg else msg[:110] + (" [crash %d]" % r.returncode if r.returncode > 1 else "")))
+    print("%d members probed, %d fail" % (len(probes), len(fails)))
+    for i, m in fails: print("FAIL %-28s %s" % (i, m))
+    sys.exit(1 if fails else 0)
+
+main()

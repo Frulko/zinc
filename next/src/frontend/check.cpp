@@ -192,8 +192,8 @@ struct Checker {
     math.name = "Math";
     math.members.push_back({"PI", num(Num::f64), true, false});
     math.members.push_back({"E", num(Num::f64), true, false});
-    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log"}) mathFn(f, 1, math);
-    for (const char* f : {"pow", "atan2", "min", "max"}) mathFn(f, 2, math);
+    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh"}) mathFn(f, 1, math);
+    for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
     out.objs.push_back(math);
     declare(SymKind::Builtin, "Math", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);

@@ -63,6 +63,7 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
   X(RemF64, fromD(std::fmod(asD(x), asD(y)))) \
   X(PowF64, fromD(std::pow(asD(x), asD(y)))) \
   X(Atan2F64, fromD(std::atan2(asD(x), asD(y)))) \
+  X(HypotF64, fromD(std::hypot(asD(x), asD(y)))) \
   X(MinF64, fromD(jsMin(asD(x), asD(y)))) \
   X(MaxF64, fromD(jsMax(asD(x), asD(y)))) \
   X(NegI32, sx32(static_cast<std::int32_t>(0u - static_cast<std::uint32_t>(x)))) \
@@ -124,7 +125,17 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
   X(TanF64, fromD(std::tan(asD(x)))) \
   X(AtanF64, fromD(std::atan(asD(x)))) \
   X(ExpF64, fromD(std::exp(asD(x)))) \
-  X(LnF64, fromD(std::log(asD(x))))
+  X(LnF64, fromD(std::log(asD(x)))) \
+  X(CbrtF64, fromD(std::cbrt(asD(x)))) \
+  X(Log2F64, fromD(std::log2(asD(x)))) \
+  X(Log10F64, fromD(std::log10(asD(x)))) \
+  X(Log1pF64, fromD(std::log1p(asD(x)))) \
+  X(Expm1F64, fromD(std::expm1(asD(x)))) \
+  X(AsinF64, fromD(std::asin(asD(x)))) \
+  X(AcosF64, fromD(std::acos(asD(x)))) \
+  X(SinhF64, fromD(std::sinh(asD(x)))) \
+  X(CoshF64, fromD(std::cosh(asD(x)))) \
+  X(TanhF64, fromD(std::tanh(asD(x))))
 
 // X(Name, condition that the operation is defined, expression): division and remainder trap when the condition fails.
 #define ZN_DIV_OPS(X) \

@@ -689,6 +689,17 @@ struct FnEmitter {
           case ir::Builtin::MathAtan2: op = Op::Atan2F64; break;
           case ir::Builtin::MathMin: op = Op::MinF64; break;
           case ir::Builtin::MathMax: op = Op::MaxF64; break;
+          case ir::Builtin::MathCbrt: op = Op::CbrtF64; break;
+          case ir::Builtin::MathLog2: op = Op::Log2F64; break;
+          case ir::Builtin::MathLog10: op = Op::Log10F64; break;
+          case ir::Builtin::MathLog1p: op = Op::Log1pF64; break;
+          case ir::Builtin::MathExpm1: op = Op::Expm1F64; break;
+          case ir::Builtin::MathAsin: op = Op::AsinF64; break;
+          case ir::Builtin::MathAcos: op = Op::AcosF64; break;
+          case ir::Builtin::MathSinh: op = Op::SinhF64; break;
+          case ir::Builtin::MathCosh: op = Op::CoshF64; break;
+          case ir::Builtin::MathTanh: op = Op::TanhF64; break;
+          case ir::Builtin::MathHypot: op = Op::HypotF64; break;
           default: return fail(std::string("builtin ") + ir::builtinName(bi) + " has no bytecode yet");
         }
         put(i.args.size() == 2 ? encABC(op, d, R(i.args[0]), R(i.args[1])) : encABC(op, d, R(i.args[0])));
