@@ -945,6 +945,42 @@ function __catchV(p: PromiseV, f: (e: Error) => void): PromiseV {
   return r;
 }
 
+// finally: the callback runs on either outcome, then the result (or the error) passes through unchanged
+class FinallyJob<T> extends Job {
+  hops: i32 = 0;
+  constructor(public p: Promise<T>, public f: () => void, public r: Promise<T>) { super(); }
+  run(): void {
+    if (this.hops === 0) {
+      try { this.f(); } catch (e) { this.r.rejectWith(e); return; }
+    }
+    if (this.hops < 2) { this.hops++; __enqueue(this); return; }
+    const err = this.p.error;
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value[0]);
+  }
+}
+function __finally<T>(p: Promise<T>, f: () => void): Promise<T> {
+  const r = __newPromise<T>();
+  p.subscribe(new FinallyJob<T>(p, f, r));
+  return r;
+}
+class FinallyJobV extends Job {
+  hops: i32 = 0;
+  constructor(public p: PromiseV, public f: () => void, public r: PromiseV) { super(); }
+  run(): void {
+    if (this.hops === 0) {
+      try { this.f(); } catch (e) { this.r.rejectWith(e); return; }
+    }
+    if (this.hops < 2) { this.hops++; __enqueue(this); return; }
+    const err = this.p.error;
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith();
+  }
+}
+function __finallyV(p: PromiseV, f: () => void): PromiseV {
+  const r = __newPromiseV();
+  p.subscribe(new FinallyJobV(p, f, r));
+  return r;
+}
+
 function __resolved<T>(v: T): Promise<T> {
   const p = __newPromise<T>();
   p.resolveWith(v);

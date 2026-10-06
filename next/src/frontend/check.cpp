@@ -1206,13 +1206,14 @@ struct Checker {
     };
     while (!isNew && x.kids.size() > 1 && n(x.kids.back()).kind == N::Ident && n(x.kids.back()).text == "undefined" && lookup("undefined") == kNone && optionalArgMethod(n(x.kids[0]))) a.nodes[i].kids.pop_back();  // a trailing `undefined` is an omitted argument
     if (!isNew) { TypeId lc = libraryCall(i); if (lc != kNoType) return lc; }
-    if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
+    if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
       int pk = promiseKind(expr(obj));
       if (pk != 0) {
         bool then = n(x.kids[0]).text == "then";
-        a.nodes[i].kids[0] = newNode(N::Ident, then ? (pk == 2 ? "__thenFromV" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
+        bool fin = n(x.kids[0]).text == "finally";
+        a.nodes[i].kids[0] = newNode(N::Ident, fin ? (pk == 2 ? "__finallyV" : "__finally") : then ? (pk == 2 ? "__thenFromV" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
         a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
       }
     }
