@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-035 (array and string library); ZN-017 follows. Nothing in progress.
+- Ready: none; next by ordinal is ZN-017 (the `lang` conformance program), then ZN-036 (cyclic console.log, function names). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-035.
+`/loop /zn-start` resumes with ZN-017.
 
 ## Watch out
 
@@ -147,3 +147,12 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Classes dispatch on the dynamic type with an `instanceof` chain over their concrete subclasses (most derived first); interfaces through their implementations; private fields are printed (`inspectMode` bypasses access checks only in generated code). Records print without a name.
 - Limits: functions print `[Function (anonymous)]` (Node prints the name), strings longer than 16 characters with newlines are not split across lines, cyclic data recurse forever, non-ASCII strings that need escaping lose surrogate pairs, unions other than `T | null` and generic templates are not inspectable (the bytecode emitter then reports it).
 - Programs that never print an object or array carry none of this code (the prelude is added on the first use).
+
+## ZN-035 notes (array and string library)
+
+- Machine numbers now convert implicitly among themselves, including float to integer (truncating), like the number type they alias in tsc and in the old compiler (`let sum = 0; return sum` in an i32 function). Non-integer literals into integer targets and anything involving fixed-point kinds are still errors; an enum accepts only itself.
+- `arr.map/filter/some/every/forEach/reduce/concat/findIndex` and `for (... of map|set|string)` are rewritten by the checker into calls of helper functions generated as Zinc source per element and callback type (`Checker::helper`, `callGenerated`, `arrayHof`), the same mechanism as the console.log formatters; nothing new in IR, ZBC or VM. `reduce` needs an initial value; callbacks take only the element (and the accumulator).
+- Runtime table: optional parameters `z` (default 0) and `w` (default " "), `slice()` without arguments, `padStart`, `padEnd`, `replace`, `replaceAll`, `parseInt`, `parseFloat`, `String.fromCharCode`; `Math.imul` lowers to a 32-bit multiply. `Math.atan` was removed from the checker: lib/zinc.d.ts has only `atan2`.
+- `a || b` and `a && b` on strings and numbers yield an operand (NaN is falsy); a literal on the left is an error, as in tsc (TS2872/2873).
+- tools/oracle now mimics the old compiler's configuration (`--noLib --target ES2022 --module ESNext --moduleResolution Bundler` with lib/zinc.d.ts); with the default lib it rejected for-of over Map and Set.
+- examples/lang now compiles and runs end to end; its output has section headings the frozen `corpus/conformance/tour.out` does not (that file matches tests/conformance/tour.ts): ZN-017 must settle which program is the reference.

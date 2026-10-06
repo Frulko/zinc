@@ -776,6 +776,33 @@ struct Lowering::FnLower {
     return emit(op, m.boolT(), {l, r});
   }
 
+  // a || b and a && b on strings and numbers yield an operand: `a || b` is a when a is truthy, else b.
+  ValueId truthy(ValueId v) {
+    const Type t = ty(tv(v));
+    if (t.k == Type::K::Str) return emit(IrOp::Gt, m.boolT(), {emit(IrOp::StrLen, m.numT(NumK::i32), {v}), constNum(m.numT(NumK::i32), 0)});
+    if (t.k == Type::K::Num && (t.num == NumK::f64 || t.num == NumK::f32)) {  // NaN is falsy: abs(v) > 0 is false for it
+      TypeId f64 = m.numT(NumK::f64);
+      return emit(IrOp::Gt, m.boolT(), {builtin(Builtin::MathAbs, {coerce(v, f64)}, f64), constNum(f64, 0)});
+    }
+    return emit(IrOp::Ne, m.boolT(), {v, constNum(tv(v), 0)});
+  }
+  ValueId valueShortCircuit(std::uint32_t i, const Node& x, bool isAnd) {
+    TypeId rt = natural(i);
+    ValueId l = exprTo(x.kids[0], rt);
+    BlockId rhs = newBlock(), join = newBlock();
+    ValueId jp = newValue(rt);
+    f.blocks[join].params.push_back(jp);
+    ValueId cond = truthy(l);
+    if (isAnd) terminate(IrOp::CondBr, {cond}, {Edge{rhs, {}}, Edge{join, {l}}});
+    else terminate(IrOp::CondBr, {cond}, {Edge{join, {l}}, Edge{rhs, {}}});
+    sealed[rhs] = 1;
+    cur = rhs;
+    br(join, {exprTo(x.kids[1], rt)});
+    seal(join);
+    cur = join;
+    return jp;
+  }
+
   ValueId shortCircuit(const Node& x, bool isAnd) {
     ValueId l = exprTo(x.kids[0], m.boolT());
     BlockId rhs = newBlock(), join = newBlock();
@@ -868,6 +895,7 @@ struct Lowering::FnLower {
           return emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls);
         }
         if (o == "??") return nullish(i, x);
+        if ((o == "&&" || o == "||") && ty(natural(i)).k != Type::K::Bool) return valueShortCircuit(i, x, o == "&&");
         if (o == "&&") return shortCircuit(x, true);
         if (o == "||") return shortCircuit(x, false);
         if (o == "==" || o == "===" || o == "!=" || o == "!==" || o == "<" || o == "<=" || o == ">" || o == ">=") return compare(i, x);
@@ -1069,8 +1097,8 @@ struct Lowering::FnLower {
   TypeId rtIrType(char l, TypeId recv) {
     const Type r = ty(recv);
     switch (l) {
-      case 's': return m.strT();
-      case 'i': case 'j': return m.numT(NumK::i32);
+      case 's': case 'w': return m.strT();
+      case 'i': case 'j': case 'z': return m.numT(NumK::i32);
       case 'b': return m.boolT();
       case 'd': return m.numT(NumK::f64);
       case 'n': return m.voidT();
@@ -1094,7 +1122,8 @@ struct Lowering::FnLower {
         if (k < args.size()) {
           if (l == 'c') vs.push_back(coerce(expr(args[k]), L.irType(c.nodeType[args[k]])));  // the comparator keeps its own function type
           else vs.push_back(exprTo(args[k], rtIrType(l, rtyp)));
-        } else vs.push_back(constNum(m.numT(NumK::i32), 2147483647));
+        } else if (l == 'w') vs.push_back(constStr(" "));
+        else vs.push_back(constNum(m.numT(NumK::i32), l == 'z' ? 0 : 2147483647));
       }
       return emit(IrOp::Rt, rtIrType(rtRet(r), rtyp), std::move(vs), 0, 0, static_cast<std::uint32_t>(r.id));
     }
@@ -1183,6 +1212,12 @@ struct Lowering::FnLower {
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "parseInt" || callee.text == "parseFloat")) {
+        bool isInt = callee.text == "parseInt";
+        std::vector<ValueId> vs{exprTo(x.kids[1], m.strT())};
+        if (isInt) vs.push_back(x.kids.size() > 2 ? exprTo(x.kids[2], m.numT(NumK::i32)) : constNum(m.numT(NumK::i32), 0));
+        return emit(IrOp::Rt, m.numT(NumK::f64), std::move(vs), 0, 0, static_cast<std::uint32_t>(isInt ? zn::Rt::ParseInt : zn::Rt::ParseFloat));
+      }
     } else if (callee.kind == N::Member) {
       const Node& on = n(callee.kids[0]);
       std::uint32_t os = on.kind == N::Ident ? c.nodeSym[callee.kids[0]] : kNil;
@@ -1192,6 +1227,8 @@ struct Lowering::FnLower {
         if (fn != kNil) return callFunction(fn, {thisValue(par)}, x.kids, 1);
       } else if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
         std::string full = std::string(on.text) + "." + std::string(callee.text);
+        if (full == "String.fromCharCode") return emit(IrOp::Rt, m.strT(), {exprTo(x.kids[1], m.numT(NumK::i32))}, 0, 0, static_cast<std::uint32_t>(zn::Rt::FromCharCode));
+        if (full == "Math.imul") { TypeId i32 = m.numT(NumK::i32); ValueId l = exprTo(x.kids[1], i32), r = exprTo(x.kids[2], i32); return emit(IrOp::Mul, i32, {l, r}); }
         for (std::uint32_t b = 0; b < static_cast<std::uint32_t>(Builtin::Count); ++b) {
           if (full != builtinName(static_cast<Builtin>(b))) continue;
           std::vector<ValueId> vs;

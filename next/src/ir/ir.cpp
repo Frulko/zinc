@@ -403,7 +403,8 @@ struct Verifier {
         const RtInfo& ri = rtInfo(static_cast<zn::Rt>(i.sym));
         if (!arity(rtParamCount(ri))) return false;
         Type::K rk = m.types[tyOf(i.args[0])].k;
-        bool okRecv = rtOwnedBy(ri, "string") ? rk == Type::K::Str : rtOwnedBy(ri, "Array") ? rk == Type::K::Array : rtOwnedBy(ri, "Map") ? rk == Type::K::Map : rk == Type::K::Set;
+        char l0 = rtParam(ri, 0);
+        bool okRecv = l0 == 's' ? rk == Type::K::Str : l0 == 'a' ? rk == Type::K::Array : l0 == 'm' ? rk == Type::K::Map : l0 == 't' ? rk == Type::K::Set : true;
         if (!okRecv) return fail(b, ii, std::string("runtime call ") + ri.name + " on a receiver of another type");
         break;
       }

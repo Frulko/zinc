@@ -6,4 +6,4 @@
 # fixtures, not by the oracle. Swap the checker with ZN_ORACLE (it receives the file as its last argument).
 root=$(cd "$(dirname "$0")/../.." && pwd)
 if [ -n "$ZN_ORACLE" ]; then exec $ZN_ORACLE "$@"; fi
-exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --target esnext --types "" "$root/lib/zinc.d.ts" "$@"
+exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --noLib --target ES2022 --module ESNext --moduleResolution Bundler --types "" "$root/lib/zinc.d.ts" "$@"

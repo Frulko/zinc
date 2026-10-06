@@ -101,6 +101,50 @@ bool elemEq(KeyKind k, Slot a, Slot b, bool nanEqual) {
 std::uint64_t mix(std::uint64_t x) { x ^= x >> 33; x *= 0xff51afd7ed558ccdULL; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ULL; x ^= x >> 33; return x; }
 std::uint64_t hashDouble(double d) { if (d != d) return 0x7ff8; if (d == 0) d = 0; return mix(std::bit_cast<std::uint64_t>(d)); }
 
+// parseInt: leading whitespace, a sign, an optional 0x prefix when the radix is 0 or 16, then digits of the radix; NaN when none.
+double parseIntJs(const StrObj* s, std::int64_t radix) {
+  const auto* p = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::uint32_t i = 0, n = s->len, w;
+  while (i < n && (w = wsAt(p + i, n - i))) i += w;
+  bool neg = false;
+  if (i < n && (p[i] == '+' || p[i] == '-')) neg = p[i++] == '-';
+  if (radix != 0 && (radix < 2 || radix > 36)) return NAN;
+  if ((radix == 0 || radix == 16) && i + 1 < n && p[i] == '0' && (p[i + 1] == 'x' || p[i + 1] == 'X')) { i += 2; radix = 16; }
+  if (radix == 0) radix = 10;
+  double v = 0;
+  bool any = false;
+  for (; i < n; ++i) {
+    int d = p[i] >= '0' && p[i] <= '9' ? p[i] - '0' : p[i] >= 'a' && p[i] <= 'z' ? p[i] - 'a' + 10 : p[i] >= 'A' && p[i] <= 'Z' ? p[i] - 'A' + 10 : 99;
+    if (d >= radix) break;
+    v = v * static_cast<double>(radix) + d;
+    any = true;
+  }
+  return any ? (neg ? -v : v) : NAN;
+}
+
+// parseFloat: the longest prefix that is a decimal literal (or Infinity) after leading whitespace.
+double parseFloatJs(const StrObj* s) {
+  const auto* p = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::uint32_t i = 0, n = s->len, w;
+  while (i < n && (w = wsAt(p + i, n - i))) i += w;
+  std::uint32_t st = i;
+  if (i < n && (p[i] == '+' || p[i] == '-')) ++i;
+  if (n - i >= 8 && std::memcmp(p + i, "Infinity", 8) == 0) return p[st] == '-' ? -INFINITY : INFINITY;
+  std::uint32_t d0 = i;
+  while (i < n && p[i] >= '0' && p[i] <= '9') ++i;
+  bool digits = i > d0;
+  if (i < n && p[i] == '.') { std::uint32_t f0 = ++i; while (i < n && p[i] >= '0' && p[i] <= '9') ++i; digits = digits || i > f0; }
+  if (!digits) return NAN;
+  if (i < n && (p[i] == 'e' || p[i] == 'E')) {
+    std::uint32_t e = i + 1;
+    if (e < n && (p[e] == '+' || p[e] == '-')) ++e;
+    std::uint32_t e0 = e;
+    while (e < n && p[e] >= '0' && p[e] <= '9') ++e;
+    if (e > e0) i = e;
+  }
+  return std::strtod(std::string(reinterpret_cast<const char*>(p) + st, i - st).c_str(), nullptr);
+}
+
 // Stable merge sort; `cmp(a, b) > 0` puts b first. Fails when the comparator does.
 bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, Slot* scratch) {
   std::size_t n = v.size();
@@ -347,6 +391,61 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       if (n > 0 && static_cast<std::uint64_t>(s->len) * static_cast<std::uint64_t>(n) > 0x7fffffffu) return "RangeError: Invalid string length";
       std::string r;
       for (std::int64_t i = 0; i < n; ++i) r.append(s->data(), s->len);
+      a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+
+    case Rt::StrPadStart: case Rt::StrPadEnd: {
+      StrObj *s = S(a[0]), *fill = S(a[2]);
+      NN(s && fill);
+      std::int64_t target = I(a[1]), len = s->u16len;
+      if (target <= len || fill->len == 0) return nullptr;  // a[0] is already the result
+      if (target > 0x7fffffff) return "RangeError: Invalid string length";
+      std::u16string pad, f = toU16(fill);
+      while (static_cast<std::int64_t>(pad.size()) < target - len) pad += f;
+      pad.resize(static_cast<std::size_t>(target - len));
+      std::string padUtf8 = toUtf8(pad.data(), pad.size());
+      std::string r = id == Rt::StrPadStart ? padUtf8 + std::string(s->data(), s->len) : std::string(s->data(), s->len) + padUtf8;
+      a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+    case Rt::StrReplace: case Rt::StrReplaceAll: {
+      StrObj *s = S(a[0]), *pat = S(a[1]), *rep = S(a[2]);
+      NN(s && pat && rep);
+      std::string r;
+      std::uint32_t from = 0;
+      bool all = id == Rt::StrReplaceAll;
+      if (pat->len == 0) {  // between every character (replaceAll) or at the start (replace)
+        const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
+        for (std::uint32_t i = 0; i <= s->len;) {
+          r.append(rep->data(), rep->len);
+          if (!all) { r.append(s->data(), s->len); break; }
+          if (i == s->len) break;
+          std::uint32_t k = i + 1;
+          while (k < s->len && (d[k] & 0xC0) == 0x80) ++k;
+          r.append(s->data() + i, k - i);
+          i = k;
+        }
+      } else {
+        for (;;) {
+          std::int64_t k = findBytes(s, pat, from);
+          if (k < 0) break;
+          r.append(s->data() + from, static_cast<std::size_t>(k) - from);
+          r.append(rep->data(), rep->len);
+          from = static_cast<std::uint32_t>(k) + pat->len;
+          if (!all) break;
+        }
+        r.append(s->data() + from, s->len - from);
+      }
+      if (r.size() > 0x7fffffffu) return "RangeError: Invalid string length";
+      a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+    case Rt::ParseInt: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseIntJs(s, I(a[1]))); return nullptr; }
+    case Rt::ParseFloat: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseFloatJs(s)); return nullptr; }
+    case Rt::FromCharCode: {
+      char16_t u = static_cast<char16_t>(a[0] & 0xFFFF);
+      std::string r = toUtf8(&u, 1);
       a[0] = P(m.newStr(r.data(), r.size()));
       return nullptr;
     }

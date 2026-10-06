@@ -137,7 +137,7 @@ struct Checker {
     if (f.k == TK::Num && t.k == TK::Num) {
       if (t.obj != 0) return f.obj == t.obj;  // an enum takes only its own members (TypeScript rejects other literals too)
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
-      return widens(f.num, t.num) || (isInt(f.num) && isInt(t.num));  // machine integers convert among themselves (wrapping), like the number type they alias
+      return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj);
     return false;
@@ -176,8 +176,9 @@ struct Checker {
     math.name = "Math";
     math.members.push_back({"PI", num(Num::f64), true, false});
     math.members.push_back({"E", num(Num::f64), true, false});
-    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "atan", "exp", "log"}) mathFn(f, 1, math);
+    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max"}) mathFn(f, 2, math);
+    math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
     out.objs.push_back(math);
     declare(SymKind::Builtin, "Math", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     ObjInfo con;
@@ -185,6 +186,13 @@ struct Checker {
     con.members.push_back({"log", func({tAny}, tVoid, 0, true), true, true});
     out.objs.push_back(con);
     declare(SymKind::Builtin, "console", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    ObjInfo str;
+    str.name = "String";
+    str.members.push_back({"fromCharCode", func({num(Num::i32)}, tStr, 1), true, true});
+    out.objs.push_back(str);
+    declare(SymKind::Builtin, "String", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
+    declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
     declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);
   }
@@ -257,7 +265,8 @@ struct Checker {
     const Type r = ty(recv);
     switch (l) {
       case 's': return tStr;
-      case 'i': case 'j': return num(Num::i32);
+      case 'i': case 'j': case 'z': return num(Num::i32);
+      case 'w': return tStr;
       case 'b': return tBool;
       case 'd': return num(Num::f64);
       case 'n': return tVoid;
@@ -377,6 +386,8 @@ struct Checker {
     if (!eqOp) { l = appOrDiag(l, le); r = appOrDiag(r, re); }
     if (bad(l) || bad(r)) return (op == "&&" || op == "||" || op == "==" || op == "!=" || op == "===" || op == "!==" || op == "<" || op == ">" || op == "<=" || op == ">=") ? tBool : tError;
     auto fail = [&]() { diag(kZBadOperand, i, "'" + op + "' on '" + name(l) + "' and '" + name(r) + "'"); return tError; };
+    if ((op == "&&" || op == "||") && (n(le).kind == N::String || n(le).kind == N::Number || n(le).kind == N::Template)) { diag(kZBadOperand, le, "the left operand of '" + op + "' is a literal, always truthy or always falsy"); return tError; }
+    if ((op == "&&" || op == "||") && l != tBool && (l == tStr || isNum(l))) return require(r, l, re) ? l : tError;  // `a || b` yields a value: the first truthy operand
     if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "'" + name(l == tBool ? r : l) + "' to 'boolean'"), tBool);
     if (op == "==" || op == "!=" || op == "===" || op == "!==") return comparable(l, r) ? tBool : (fail(), tBool);
     if (op == "<" || op == ">" || op == "<=" || op == ">=") return ((isNum(l) && isNum(r)) || (l == tStr && r == tStr)) ? tBool : (fail(), tBool);
@@ -439,38 +450,18 @@ struct Checker {
     return a.nodes[pr.ast.root + off].kids;
   }
 
-  // The symbol of __log<t>, generating (and declaring) the formatters of t and of every type it prints.
-  std::uint32_t inspectLog(TypeId t, std::uint32_t at) {
-    auto hit = logSym.find(t);
-    if (hit != logSym.end()) return hit->second;
-    Ctx sv = saveCtx();
-    if (!genScope) genScope = std::make_shared<Scope>();
-    scopes = {scopes.front(), genScope};
-    curClass = kNoObj; curCtor = kNoObj; curStatic = false;
-    std::string text;
-    if (!preludeDone) { preludeDone = true; text = inspectPrelude(); }
-    std::vector<TypeId> todo{t}, closure;
-    std::set<TypeId> classTypes;
-    while (!todo.empty()) {
-      TypeId u = todo.back();
-      todo.pop_back();
-      if (fmtDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
-      closure.push_back(u);
-      std::vector<TypeId> deps, classes;
-      text += inspectFunction(out, u, false, deps, classes);
-      for (TypeId d : deps) todo.push_back(d);
-      for (TypeId cl : classes) classTypes.insert(cl);
+  // Alias names `__T<id>` for generated code, declared once in genScope.
+  std::set<TypeId> aliased;
+  void addAliases(const std::vector<TypeId>& types) {
+    for (TypeId u : types) {
+      if (!aliased.insert(u).second) continue;
+      out.syms.push_back({SymKind::TypeAlias, keep(inspectAliasName(u)), u, kNone, true});
+      (*genScope)[out.syms.back().name] = static_cast<std::uint32_t>(out.syms.size() - 1);
     }
-    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0], 0);\n}\n";
-    for (TypeId u : closure) {
-      declare(SymKind::TypeAlias, keep(inspectAliasName(u)), u, kNone, true, at);
-      fmtDeclared.insert(u);
-    }
-    for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
-      for (std::uint32_t s = 0; s < out.syms.size(); ++s)
-        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
-    std::vector<std::uint32_t> stmts = mergeSource(text, at);
-    for (std::uint32_t s : stmts) {  // declare every function first: their bodies refer to each other
+  }
+  // Parses generated functions, declares them in genScope and queues their bodies (checked with access checks off).
+  void declareSource(const std::string& text, std::uint32_t at) {
+    for (std::uint32_t s : mergeSource(text, at)) {  // declare every function first: their bodies refer to each other
       std::vector<std::uint32_t> ps;
       TypeId sig = signature(s, 2, false, ps);
       out.nodeType[s] = sig;
@@ -487,6 +478,66 @@ struct Checker {
         restoreCtx(sv2);
       });
     }
+  }
+  void enterGenerated() {
+    if (!genScope) genScope = std::make_shared<Scope>();
+    scopes = {scopes.front(), genScope};
+    curClass = kNoObj; curCtor = kNoObj; curStatic = false;
+  }
+  // A call node of a generated function (`sym`) with the given argument nodes; its type is the function's return type.
+  std::uint32_t callGenerated(std::uint32_t sym, std::vector<std::uint32_t> args, std::uint32_t at) {
+    std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, at);
+    out.nodeSym[id] = sym;
+    out.nodeType[id] = out.syms[sym].type;
+    args.insert(args.begin(), id);
+    std::uint32_t call = newNode(N::Call, {}, std::move(args), at);
+    out.nodeType[call] = ty(out.syms[sym].type).elem;
+    return call;
+  }
+  // A helper function generated once per `key`: `body` is its source with the name `__g<n>` substituted for `$F`.
+  std::map<std::string, std::uint32_t> genFuncs;
+  int genCounter = 0;
+  std::uint32_t helper(const std::string& key, std::string text, const std::vector<TypeId>& aliases, std::uint32_t at) {
+    auto hit = genFuncs.find(key);
+    if (hit != genFuncs.end()) return hit->second;
+    std::string fname = "__g" + std::to_string(genCounter++);
+    for (std::size_t p; (p = text.find("$F")) != std::string::npos;) text.replace(p, 2, fname);
+    Ctx sv = saveCtx();
+    enterGenerated();
+    addAliases(aliases);
+    declareSource(text, at);
+    std::uint32_t sym = (*genScope)[keep(fname)];
+    restoreCtx(sv);
+    return genFuncs[key] = sym;
+  }
+
+  // The symbol of __log<t>, generating (and declaring) the formatters of t and of every type it prints.
+  std::uint32_t inspectLog(TypeId t, std::uint32_t at) {
+    auto hit = logSym.find(t);
+    if (hit != logSym.end()) return hit->second;
+    Ctx sv = saveCtx();
+    enterGenerated();
+    std::string text;
+    if (!preludeDone) { preludeDone = true; text = inspectPrelude(); }
+    std::vector<TypeId> todo{t}, closure;
+    std::set<TypeId> classTypes;
+    while (!todo.empty()) {
+      TypeId u = todo.back();
+      todo.pop_back();
+      if (fmtDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
+      closure.push_back(u);
+      std::vector<TypeId> deps, classes;
+      text += inspectFunction(out, u, false, deps, classes);
+      for (TypeId d : deps) todo.push_back(d);
+      for (TypeId cl : classes) classTypes.insert(cl);
+    }
+    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0], 0);\n}\n";
+    addAliases(closure);
+    for (TypeId u : closure) fmtDeclared.insert(u);
+    for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
+      for (std::uint32_t s = 0; s < out.syms.size(); ++s)
+        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
+    declareSource(text, at);
     std::uint32_t sym = (*genScope)[keep(inspectLogName(t))];
     restoreCtx(sv);
     logSym[t] = sym;
@@ -496,6 +547,91 @@ struct Checker {
   bool needsInspect(TypeId t) const {
     TK k = ty(t).k;
     return (k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Object || k == TK::Union || k == TK::Func) && !hasParam(t) && inspectable(out, t);
+  }
+
+  static bool isHofName(std::string_view m) { return m == "map" || m == "filter" || m == "some" || m == "every" || m == "forEach" || m == "reduce" || m == "concat" || m == "findIndex"; }
+  // arr.map(f) and friends: the call becomes a call of a helper generated in Zinc for this element and callback type.
+  TypeId arrayHof(std::uint32_t i, std::string_view method) {
+    const std::vector<std::uint32_t> kids = n(i).kids;
+    std::uint32_t recvNode = n(kids[0]).kids[0];
+    TypeId at = out.nodeType[recvNode];
+    TypeId E = ty(at).elem;
+    std::vector<std::uint32_t> args(kids.begin() + 1, kids.end());
+    std::string m(method);
+    std::size_t want = m == "reduce" ? 2 : 1;
+    if (args.size() != want) { diag(kZWrongArgCount, i, "expected " + std::to_string(want) + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+    std::string A = inspectAliasName(at);
+    TypeId result = tError;
+    std::string body, sig, fn;
+    std::vector<TypeId> aliases{at};
+    auto callback = [&](TypeId expectRet, std::vector<TypeId> ps) -> TypeId {
+      std::uint32_t arg = args[0];
+      TypeId lt = expr(arg, func(ps, expectRet, static_cast<std::uint32_t>(ps.size())));
+      if (bad(lt)) return tError;
+      if (ty(lt).k != TK::Func || ty(lt).params.size() != ps.size()) { diag(kZNotAssignable, arg, "a function of " + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
+      for (std::size_t k = 0; k < ps.size(); ++k) if (!assignable(ps[k], ty(lt).params[k], kNone)) { diag(kZNotAssignable, arg, "callback parameter '" + name(ps[k]) + "' to '" + name(ty(lt).params[k]) + "'"); return tError; }
+      aliases.push_back(lt);
+      return lt;
+    };
+    if (m == "reduce") {
+      TypeId ut = expr(args[1]);
+      if (bad(ut)) { expr(args[0]); return tError; }
+      TypeId lt = callback(ut, {ut, E});
+      if (bad(lt)) return tError;
+      if (!assignable(ty(lt).elem, ut, kNone)) { diag(kZNotAssignable, args[0], "'" + name(ty(lt).elem) + "' to '" + name(ut) + "'"); return tError; }
+      aliases.push_back(ut);
+      std::string U = inspectAliasName(ut);
+      sig = "(a: " + A + ", f: " + inspectAliasName(lt) + ", init: " + U + "): " + U;
+      body = "  let acc: " + U + " = init;\n  for (const e of a) acc = f(acc, e);\n  return acc;\n";
+      result = ut;
+    } else if (m == "concat") {
+      TypeId bt = expr(args[0], at);
+      if (bad(bt) || !require(bt, at, args[0])) return tError;
+      sig = "(a: " + A + ", b: " + A + "): " + A;
+      body = "  const r: " + A + " = [];\n  for (const e of a) r.push(e);\n  for (const e of b) r.push(e);\n  return r;\n";
+      result = at;
+    } else {
+      bool boolRet = m == "filter" || m == "some" || m == "every" || m == "findIndex";
+      TypeId lt = callback(boolRet ? tBool : kNoType, {E});
+      if (bad(lt)) return tError;
+      TypeId U = ty(lt).elem;
+      if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "'" + name(U) + "' to 'boolean'"); return tError; }
+      std::string F = inspectAliasName(lt);
+      if (m == "map") {
+        if (U == tVoid || bad(U)) { diag(kZCannotInfer, args[0], "the result type of 'map'"); return tError; }
+        result = arrayOf(U);
+        aliases.push_back(result);
+        std::string R = inspectAliasName(result);
+        sig = "(a: " + A + ", f: " + F + "): " + R;
+        body = "  const r: " + R + " = [];\n  for (const e of a) r.push(f(e));\n  return r;\n";
+      } else if (m == "filter") {
+        result = at;
+        sig = "(a: " + A + ", f: " + F + "): " + A;
+        body = "  const r: " + A + " = [];\n  for (const e of a) if (f(e)) r.push(e);\n  return r;\n";
+      } else if (m == "some" || m == "every") {
+        result = tBool;
+        sig = "(a: " + A + ", f: " + F + "): boolean";
+        body = m == "some" ? "  for (const e of a) if (f(e)) return true;\n  return false;\n" : "  for (const e of a) if (!f(e)) return false;\n  return true;\n";
+      } else if (m == "findIndex") {
+        result = num(Num::i32);
+        sig = "(a: " + A + ", f: " + F + "): i32";
+        body = "  for (let i: i32 = 0; i < a.length; i++) if (f(a[i])) return i;\n  return -1;\n";
+      } else {  // forEach
+        result = tVoid;
+        sig = "(a: " + A + ", f: " + F + "): void";
+        body = "  for (const e of a) f(e);\n";
+      }
+    }
+    std::string key = m;
+    for (TypeId t : aliases) key += "," + std::to_string(t);
+    std::uint32_t sym = helper(key, "function $F" + sig + " {\n" + body + "}\n", aliases, i);
+    std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+    out.nodeSym[id] = sym;
+    out.nodeType[id] = out.syms[sym].type;
+    std::vector<std::uint32_t> nk{id, recvNode};
+    nk.insert(nk.end(), args.begin(), args.end());
+    a.nodes[i].kids = std::move(nk);
+    return result;
   }
 
   // `m.get(k)` on a Map: a value that may be missing (`undefined` in TypeScript), so it is only usable as the left of `??`.
@@ -593,6 +729,8 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
+      } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array) {
+        return arrayHof(i, cn.text);
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ty(ct).k != TK::Func) {
@@ -615,12 +753,7 @@ struct Checker {
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
-        std::uint32_t fsym = inspectLog(at, arg);
-        std::uint32_t id = newNode(N::Ident, keep(inspectLogName(at)), {}, arg);
-        out.nodeSym[id] = fsym;
-        out.nodeType[id] = out.syms[fsym].type;
-        std::uint32_t call = newNode(N::Call, {}, {id, arg}, arg);
-        out.nodeType[call] = tStr;
+        std::uint32_t call = callGenerated(inspectLog(at, arg), {arg}, arg);
         a.nodes[i].kids[k + 1] = call;
         at = tStr;
       }
@@ -754,7 +887,7 @@ struct Checker {
         if (bop == "+" && tt == tStr && (vt == tStr || isNum(vt) || vt == tBool)) return tt;
         if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(tt) + "' and '" + name(vt) + "'"); return tt; }
         Num r = (bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>") ? Num::i32 : bop == ">>>" ? Num::u32 : arith(bop, target, ty(tt).num, value, ty(vt).num);
-        if (!widens(r, ty(tt).num) && !(isInt(r) && isInt(ty(tt).num))) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
+        if (!widens(r, ty(tt).num) && (isFx(r) || isFx(ty(tt).num))) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
         return tt;
       }
       case N::Cond: {
@@ -1063,6 +1196,17 @@ struct Checker {
         if (x.kind == N::ForIn) { diag(kZUnsupported, s, "for...in"); break; }
         resetAssigned(s);
         TypeId it = expr(x.kids[1]);
+        if (!bad(it) && (ty(it).k == TK::Map || ty(it).k == TK::Set || ty(it).k == TK::Str)) {  // iterate a generated array of the entries, values or characters
+          const Type itt = ty(it);
+          TypeId arr = itt.k == TK::Map ? arrayOf(tupleOf({itt.params[0], itt.elem})) : itt.k == TK::Set ? arrayOf(itt.elem) : arrayOf(tStr);
+          std::string text = "function $F(m: " + inspectAliasName(it) + "): " + inspectAliasName(arr) + " {\n";
+          if (itt.k == TK::Map) text += "  const ks = m.keys();\n  const vs = m.values();\n  const r: " + inspectAliasName(arr) + " = [];\n  for (let i: i32 = 0; i < ks.length; i++) r.push([ks[i], vs[i]]);\n  return r;\n";
+          else text += itt.k == TK::Set ? "  return m.values();\n" : "  return m.split('');\n";
+          text += "}\n";
+          std::uint32_t call = callGenerated(helper("iter" + std::to_string(it), text, {it, arr}, s), {x.kids[1]}, s);
+          a.nodes[s].kids[1] = call;
+          it = out.nodeType[call];
+        }
         TypeId el = tError;
         if (!bad(it)) { if (ty(it).k == TK::Array) el = ty(it).elem; else diag(kZNotIndexable, x.kids[1], "'" + name(it) + "'"); }
         push();

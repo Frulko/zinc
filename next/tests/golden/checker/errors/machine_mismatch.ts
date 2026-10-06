@@ -1,2 +1,2 @@
 const f: f64 = 1.5;
-const i: i32 = f;
+const x: fx12 = f;

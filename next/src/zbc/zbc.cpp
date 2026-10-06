@@ -346,7 +346,7 @@ struct Verifier {
         const RtInfo& ri = rtInfo(static_cast<Rt>(dOf(w)));
         unsigned base = aOf(w), np = rtParamCount(ri);
         if (base + std::max(np, 1u) > f.nregs) return fail(pc, std::string("call window of ") + ri.name + " does not fit in the frame");
-        bool needStr = std::strpbrk(ri.sig, "sS") != nullptr;
+        bool needStr = std::strpbrk(ri.sig, "sSw") != nullptr;
         if (needStr && strCls == kNoCls) return fail(pc, std::string(ri.name) + " in a module without a string class");
         VType strT{Cls::R, static_cast<std::uint16_t>(strCls)};
         char l0 = rtParam(ri, 0);
@@ -367,8 +367,8 @@ struct Verifier {
           bool ok = true;
           switch (l) {
             case 'a': case 'm': case 't': break;  // the receiver, checked above
-            case 's': ok = needType(reg, strT, "argument"); break;
-            case 'i': case 'j': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
+            case 's': case 'w': ok = needType(reg, strT, "argument"); break;
+            case 'i': case 'j': case 'z': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
             case 'd': ok = needCls(reg, Cls::D, "argument"); break;
             case 'e': case 'v': ok = rc && needType(reg, rc->elem, "argument"); break;
             case 'k': ok = rc && needType(reg, rc->key, "argument"); break;
