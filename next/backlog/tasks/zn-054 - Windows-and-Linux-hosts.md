@@ -4,11 +4,13 @@ title: Windows and Linux hosts
 status: Review
 assignee: []
 created_date: '2026-10-06 16:42'
-updated_date: '2026-10-06 19:01'
+updated_date: '2026-10-06 23:06'
 labels:
   - size-L
+  - parked
+  - windows
 dependencies: []
-ordinal: 32700
+ordinal: 90100
 ---
 
 ## Description

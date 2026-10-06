@@ -1,10 +1,10 @@
 ---
 id: ZN-042
 title: 'Typed AOT: emit C++ from the IR with native locals'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 14:48'
-updated_date: '2026-10-06 20:19'
+updated_date: '2026-10-06 23:06'
 labels: []
 dependencies: []
 priority: medium
@@ -27,5 +27,5 @@ AOT from ZBC keeps registers in 8-byte Slots (1.2x to 3x native on numeric kerne
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. No typed backend: hand-typed nbody showed no gain (the native build wins by NEON vectors and FMA, which the determinism rule excludes). Done instead: AOT links SDL only for programs that draw (-4 ms startup), arr.sort((a,b)=>a-b) specialised (sort 2.68x to 1.15x), fib 1.93x to 1.42x; nbody stays 2.88x. AC1 and AC2 open; see docs/reports/zinc-next-perf.md. Decision needed: a fast-math AOT profile or accept nbody.
+Closed on 2026-10-07 under RULES.md: what remains became tasks of the parity backlog (ZN-042: H-typed-abi, C-typed-abi; ZN-053: H-updater, R-sdl-static; ZN-030: validated on Espressif QEMU and device-sim, real board parked as ZN-055).
 <!-- SECTION:NOTES:END -->

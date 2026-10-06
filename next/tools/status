@@ -5,12 +5,17 @@ echo "== Next tasks"; next/tools/next-task --list 5
 echo "== Task"; next/tools/next-task
 echo "== Progress"; python3 - <<'PY'
 import glob, re, collections
+names = {}
+for mp in glob.glob("next/backlog/milestones/*.md"):
+    mt = open(mp, encoding="utf-8").read()
+    mi = re.search(r"^id: (.*)$", mt, re.M); mn = re.search(r"^title: (.*)$", mt, re.M)
+    if mi and mn: names[mi.group(1).strip("'\" ")] = mn.group(1).strip("'\" ")
 done = collections.Counter(); total = collections.Counter(); parked = collections.Counter()
 for p in glob.glob("next/backlog/tasks/zn-*.md"):
     t = open(p, encoding="utf-8").read()
     fm = t.split("\n---\n")[0]
     m = re.search(r"^milestone: (.*)$", fm, re.M)
-    ms = m.group(1).strip("'\" ") if m else "(none)"
+    ms = names.get(m.group(1).strip("'\" "), m.group(1).strip("'\" ")) if m else "(earlier work)"
     st = re.search(r"^status: (.*)$", fm, re.M).group(1)
     total[ms] += 1
     if st == "Done": done[ms] += 1

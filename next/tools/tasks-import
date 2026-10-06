@@ -6,9 +6,11 @@ file:  {"milestone": "M7 Language parity",          # optional default milestone
         "ordinal_base": 40000,                       # optional: tasks get base, base+10, ... in file order unless they set "ordinal"
         "tasks": [{"key": "regex", "title": "...", "description": "...", "ac": ["..."], "size": "M",
                    "labels": ["language"], "deps": ["other-key", "ZN-012"], "parent": "ZN-100", "milestone": "...", "priority": "high"}]}
-Keys are local to the file; `deps` may mix keys of earlier tasks and existing ids. Prints `key ZN-xxx` per task.
+Keys are remembered in next/backlog/keys.json; `deps` may mix keys of earlier tasks (this file or an earlier import) and existing ids. Prints `key ZN-xxx` per task.
 """
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
+
+KEYS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backlog", "keys.json")  # key -> id of every imported task, so later files can depend on earlier ones
 
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -21,7 +23,8 @@ def main():
     dry = "--dry-run" in sys.argv
     spec = json.load(open(args[0]))
     existing = run(["backlog", "milestone", "list", "--plain"]) if not dry else ""
-    made, ordinal = {}, spec.get("ordinal_base")
+    made = json.load(open(KEYS)) if os.path.exists(KEYS) else {}
+    ordinal = spec.get("ordinal_base")
     for ms in {spec.get("milestone")} | {t.get("milestone") for t in spec["tasks"]}:
         if ms and ms not in existing and not dry:
             run(["backlog", "milestone", "add", ms])
@@ -59,6 +62,7 @@ def main():
         if not m:
             sys.exit("could not read the id from: " + out[:200])
         made[t["key"]] = m.group(1)
+        json.dump(made, open(KEYS, "w"), indent=1, sort_keys=True)
         print(t["key"], m.group(1))
 
 main()

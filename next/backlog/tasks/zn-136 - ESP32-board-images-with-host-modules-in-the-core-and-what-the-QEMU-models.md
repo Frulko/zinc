@@ -1,0 +1,28 @@
+---
+id: ZN-136
+title: 'ESP32 board images with host modules in the core, and what the QEMU models'
+status: Backlog
+assignee: []
+created_date: '2026-10-06 23:01'
+labels:
+  - targets
+  - simulator
+  - size-L
+milestone: m-11
+dependencies:
+  - ZN-131
+  - ZN-123
+ordinal: 40780
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+First list what the pinned Espressif QEMU models (I2C, SPI, RMT, LEDC, GPIO, RGB LCD for esp32 and esp32s3) and record it in zinc-next-esp32.md; then prebuilt images per board preset (ws2812, ssd1306, st7789 + cst820, imu, gpio, net, NVS storage, canvas2d, lottie, 3d, pixelfont) with IDF REQUIRES from plugin.json and zinc:gfx over the panel HAL; per driver, QEMU or device-sim is the gate.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 a table of QEMU-modelled peripherals in the doc
+- [ ] #2 s3-matrix and 2432s022 images boot in QEMU and in device-sim and report their module list
+<!-- AC:END -->
