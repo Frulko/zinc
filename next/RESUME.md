@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-05. Phase: M0 in progress.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, M1 (gate decision 0015), ZN-012 classes, ZN-013 generics, tuples, destructuring, unions and null (see the notes below).
-- Ready: none; next by ordinal is ZN-014 (Closures and captured cells). Nothing in progress.
+- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures (see the notes below).
+- Ready: none; next by ordinal is ZN-015 (Strings, arrays, Map and Set through zrt). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-014.
+`/loop /zn-start` resumes with ZN-015.
 
 ## Watch out
 
@@ -35,6 +35,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 | M1 | ZN-010 | ~90k in / ~3M cached / ~45k out (same session, incremental; size M) |
 | M2 | ZN-012 | ~130k in / ~7M cached / ~65k out (same session; size L; includes 28-snippet adversarial rounds and an ASan-found parser bug) |
 | M2 | ZN-013 | ~600k in / ~18M cached / ~150k out (same session; size L; includes 150+ adversarial snippets and three review rounds) |
+| M2 | ZN-014 | ~150k in / ~5M cached / ~45k out (same session; size M) |
 
 ## Lexer notes (ZN-004)
 
@@ -101,3 +102,11 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Type aliases (`type X = ...`, generic ones included) are resolved lazily in their declaration scope.
 - ZBC: `LoadNull`, `InstanceOf`; null is a valid reference everywhere, field access and virtual calls trap on it at run time.
 - Still open for M2: closures (ZN-014), strings/arrays/Map/Set through zrt (ZN-015), modules (ZN-016), the `lang` conformance program (ZN-017). The one-way rule against the oracle held on 150+ adversarial snippets; keep running such rounds when you add a feature, and run parser changes under the ASan build.
+
+## Closures notes (ZN-014)
+
+- A lambda is a class (`lambdaN`) with the captured variables (and `this`) as fields, implementing the interface of its function type (`fn (i32) => i32`) whose single method is `call`; calling a function value is `callvirt .call`. A named function used as a value gets a thunk class (`fnref name`).
+- A captured variable that is also reassigned (`Symbol::captured && reassigned`, not a global) lives in a cell (`cell T`, one field `v`); other captured variables are copied into the closure. Top-level variables stay globals.
+- Checker data for the lowering: `Checked::captures` (transitive), `lambdaUsesThis`, `funcValueUses`; lambdas are checked inline so they see the surrounding scope.
+- Unsupported (Z0005 in the lowering): nested named functions that use variables of the enclosing function (use an arrow), a captured `for (let ...)` variable that the loop modifies (JS copies it per iteration), method values (`obj.m` without a call), generic lambdas. Function-value calls are not devirtualised yet.
+- Next: ZN-015 puts strings, arrays, Map and Set into ZBC and the VM (ZN-014's tests avoid arrays on purpose).
