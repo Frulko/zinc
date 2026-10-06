@@ -1,7 +1,10 @@
 #include "frontend/modules.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <map>
 
+#include "frontend/desugar.h"
 #include "frontend/diagnostics.h"
 #include "frontend/parser.h"
 
@@ -137,6 +140,270 @@ class TypeError extends Error { constructor(message: string) { super(message); t
 class RangeError extends Error { constructor(message: string) { super(message); this.name = 'RangeError'; } }
 )ZN";
 
+// Promises, timers and the microtask queue, written in Zinc: added when a program uses async functions, generators, Promise,
+// setTimeout or queueMicrotask. Its top-level code (the queues) runs before the program; `__runLoop()` runs after it.
+const char* kAsyncPrelude = R"ZN(
+abstract class Job { abstract run(): void; }
+class FnJob extends Job {
+  constructor(public f: () => void) { super(); }
+  run(): void { this.f(); }
+}
+class Timer {
+  constructor(public at: f64, public seq: i32, public f: () => void) {}
+}
+let __jobs: Job[] = [];
+let __jobHead: i32 = 0;
+let __timers: Timer[] = [];
+let __clock: f64 = 0;
+let __timerSeq: i32 = 0;
+
+function __enqueue(j: Job): void { __jobs.push(j); }
+function queueMicrotask(f: () => void): void { __jobs.push(new FnJob(f)); }
+function setTimeout(f: () => void, ms: f64): i32 {
+  __timerSeq++;
+  __timers.push(new Timer(__clock + (ms > 1 ? ms : 1), __timerSeq, f));
+  return __timerSeq;
+}
+function clearTimeout(id: i32): void {
+  __timers = __timers.filter(t => t.seq !== id);
+}
+function __drainJobs(): void {
+  while (__jobHead < __jobs.length) {
+    const j = __jobs[__jobHead];
+    __jobHead++;
+    j.run();
+  }
+  __jobs = [];
+  __jobHead = 0;
+}
+function __runLoop(): void {
+  __drainJobs();
+  while (__timers.length > 0) {
+    let best: i32 = 0;
+    for (let i: i32 = 1; i < __timers.length; i++) {
+      const a = __timers[i];
+      const b = __timers[best];
+      if (a.at < b.at || (a.at === b.at && a.seq < b.seq)) best = i;
+    }
+    const t = __timers[best];
+    const rest: Timer[] = [];
+    for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
+    __timers = rest;
+    if (t.at > __clock) __clock = t.at;
+    t.f();
+    __drainJobs();
+  }
+}
+
+class PromiseBase {
+  state: i32 = 0;
+  error: Error | null = null;
+  waiters: Job[] = [];
+  subscribe(j: Job): void {
+    if (this.state === 0) this.waiters.push(j); else __enqueue(j);
+  }
+  settle(): void {
+    for (const w of this.waiters) __enqueue(w);
+    this.waiters = [];
+  }
+  rejectWith(e: Error): void {
+    if (this.state !== 0) return;
+    this.state = 2;
+    this.error = e;
+    this.settle();
+  }
+}
+class Promise<T> extends PromiseBase {
+  value: T[] = [];
+  constructor(executor: (resolve: (value: T) => void) => void) {
+    super();
+    executor((v: T) => { this.resolveWith(v); });
+  }
+  resolveWith(v: T): void {
+    if (this.state !== 0) return;
+    this.state = 1;
+    this.value = [v];
+    this.settle();
+  }
+}
+
+class PromiseV extends PromiseBase {
+  constructor(executor: (resolve: () => void) => void) {
+    super();
+    executor(() => { this.resolveWith(); });
+  }
+  resolveWith(): void {
+    if (this.state !== 0) return;
+    this.state = 1;
+    this.settle();
+  }
+}
+class AwaitJob<T> extends Job {
+  constructor(public p: Promise<T>, public k: (v: T) => void, public rej: (e: Error) => void) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) this.rej(err); else this.k(this.p.value[0]);
+  }
+}
+function __await<T>(p: Promise<T>, k: (v: T) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJob<T>(p, k, rej)); }
+class AwaitJobV extends Job {
+  constructor(public p: PromiseV, public k: (v: i32) => void, public rej: (e: Error) => void) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) this.rej(err); else this.k(0);
+  }
+}
+function __awaitV(p: PromiseV, k: (v: i32) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJobV(p, k, rej)); }
+
+// Generators run as continuations: `cont` is the rest of the body, `next` runs it until it yields a value or ends.
+class Generator<T> {
+  done: boolean = false;
+  value: T[] = [];
+  cont: () => void = () => { };
+  next(): boolean {
+    this.value = [];
+    while (!this.done && this.value.length === 0) {
+      const c = this.cont;
+      this.cont = () => { this.done = true; };
+      c();
+    }
+    return this.value.length > 0;
+  }
+}
+function __newPromise<T>(): Promise<T> { return new Promise<T>(r => { }); }
+function __newPromiseV(): PromiseV { return new PromiseV(r => { }); }
+
+// then: four flavours, by whether the promise and the callback result carry a value
+class ThenJob<T, U> extends Job {
+  constructor(public p: Promise<T>, public f: (v: T) => U, public r: Promise<U>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.r.rejectWith(err); return; }
+    try { this.r.resolveWith(this.f(this.p.value[0])); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __then<T, U>(p: Promise<T>, f: (v: T) => U): Promise<U> {
+  const r = __newPromise<U>();
+  p.subscribe(new ThenJob<T, U>(p, f, r));
+  return r;
+}
+class ThenJobV<T> extends Job {
+  constructor(public p: Promise<T>, public f: (v: T) => void, public r: PromiseV) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.r.rejectWith(err); return; }
+    try { this.f(this.p.value[0]); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __thenV<T>(p: Promise<T>, f: (v: T) => void): PromiseV {
+  const r = __newPromiseV();
+  p.subscribe(new ThenJobV<T>(p, f, r));
+  return r;
+}
+class ThenJobFromV<U> extends Job {
+  constructor(public p: PromiseV, public f: () => U, public r: Promise<U>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.r.rejectWith(err); return; }
+    try { this.r.resolveWith(this.f()); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __thenFromV<U>(p: PromiseV, f: () => U): Promise<U> {
+  const r = __newPromise<U>();
+  p.subscribe(new ThenJobFromV<U>(p, f, r));
+  return r;
+}
+class ThenJobVV extends Job {
+  constructor(public p: PromiseV, public f: () => void, public r: PromiseV) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.r.rejectWith(err); return; }
+    try { this.f(); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __thenVV(p: PromiseV, f: () => void): PromiseV {
+  const r = __newPromiseV();
+  p.subscribe(new ThenJobVV(p, f, r));
+  return r;
+}
+
+// catch
+class CatchJob<T> extends Job {
+  constructor(public p: Promise<T>, public f: (e: Error) => T, public r: Promise<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) { this.r.resolveWith(this.p.value[0]); return; }
+    try { this.r.resolveWith(this.f(err)); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __catch<T>(p: Promise<T>, f: (e: Error) => T): Promise<T> {
+  const r = __newPromise<T>();
+  p.subscribe(new CatchJob<T>(p, f, r));
+  return r;
+}
+class CatchJobV extends Job {
+  constructor(public p: PromiseV, public f: (e: Error) => void, public r: PromiseV) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) { this.r.resolveWith(); return; }
+    try { this.f(err); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __catchV(p: PromiseV, f: (e: Error) => void): PromiseV {
+  const r = __newPromiseV();
+  p.subscribe(new CatchJobV(p, f, r));
+  return r;
+}
+
+function __resolved<T>(v: T): Promise<T> {
+  const p = __newPromise<T>();
+  p.resolveWith(v);
+  return p;
+}
+function __resolvedV(): PromiseV {
+  const p = __newPromiseV();
+  p.resolveWith();
+  return p;
+}
+
+// all
+class AllJob<T> extends Job {
+  constructor(public p: Promise<T>, public all: AllState<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.all.result.rejectWith(err); return; }
+    this.all.left--;
+    if (this.all.left === 0) {
+      const out: T[] = [];
+      for (const q of this.all.items) out.push(q.value[0]);
+      this.all.result.resolveWith(out);
+    }
+  }
+}
+class AllState<T> {
+  left: i32 = 0;
+  items: Promise<T>[] = [];
+  result: Promise<T[]> = __newPromise<T[]>();
+}
+function __all<T>(ps: Promise<T>[]): Promise<T[]> {
+  const st = new AllState<T>();
+  st.items = ps;
+  st.left = ps.length;
+  if (ps.length === 0) { st.result.resolveWith([]); return st.result; }
+  for (const p of ps) p.subscribe(new AllJob<T>(p, st));
+  return st.result;
+}
+)ZN";
+
+bool needsAsync(const Ast& A) {
+  for (const Node& x : A.nodes) {
+    if (x.kind == N::Await || x.kind == N::Yield) return true;
+    if ((x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method) && (x.flags & (kFlagAsync | kFlagGenerator))) return true;
+    if ((x.kind == N::Ident || x.kind == N::TypeRef) && (x.text == "Promise" || x.text == "queueMicrotask" || x.text == "setTimeout" || x.text == "clearTimeout" || x.text == "Generator")) return true;
+  }
+  return false;
+}
+
 bool needsErrors(const Ast& A) {
   for (const Node& x : A.nodes) {
     if (x.kind == N::Try || x.kind == N::Throw || (x.kind == N::VarDecl && x.text == "using")) return true;
@@ -153,9 +420,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
   if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
   Loader L(p, read);
   L.load(entry, std::move(text));
-  if (p.diags.empty() && needsErrors(p.ast)) {
+  bool async = p.diags.empty() && needsAsync(p.ast);
+  if (async) desugarAsync(p.ast, p.diags);
+  if (!p.diags.empty()) return p;
+  if (p.diags.empty() && (async || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", kErrorPrelude});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());
@@ -170,9 +440,25 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
       L.flat.insert(L.flat.begin(), p.ast.prelude.begin(), p.ast.prelude.end());
     }
   }
+  if (async && !L.flat.empty()) {  // run the event loop once the program's own statements are done
+    p.ast.generated.push_back("__runLoop();");
+    ParseResult pr = parse(p.ast.generated.back());
+    if (pr.ast.root != kNone && pr.diags.empty()) {
+      auto off = static_cast<std::uint32_t>(p.ast.nodes.size());
+      for (Node& nd : pr.ast.nodes) {
+        for (std::uint32_t& k : nd.kids) if (k != kNone) k += off;
+        nd.file = 0; nd.start = nd.end = 0;
+        p.ast.nodes.push_back(std::move(nd));
+      }
+      std::uint32_t call = p.ast.nodes[pr.ast.root + off].kids[0];
+      L.flat.push_back(call);
+      if (!p.ast.modules.empty()) p.ast.modules.back().stmts.push_back(call);
+    }
+  }
   Node root{N::Program, 0, 0, {}, L.flat, 0, 0};
   p.ast.nodes.push_back(std::move(root));
   p.ast.root = static_cast<std::uint32_t>(p.ast.nodes.size() - 1);
+  if (std::getenv("ZN_DUMP_AST")) std::fputs(dump(p.ast).c_str(), stderr);
   return p;
 }
 

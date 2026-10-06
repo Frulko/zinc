@@ -1,0 +1,18 @@
+start
+end
+microtask
+chain 2
+caught first
+no7
+rejected propagates
+timeout 0
+yes
+caught after await
+all [ 3, 1, 2 ]
+for 9
+loop 1
+r 3
+errors done
+while 3
+for-of abc
+loops done

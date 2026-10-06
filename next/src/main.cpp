@@ -161,7 +161,7 @@ int main(int argc, char** argv) {
     if (low.diags.empty()) {
       if (!std::strcmp(argv[1], "--emit=ir-rc")) zn::ir::insertRc(low.module);
       std::string bad = zn::ir::verify(low.module);
-      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); return 3; }
+      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); if (std::getenv("ZN_DUMP_BAD")) std::fputs(zn::ir::dump(low.module).c_str(), stdout); return 3; }
       std::fputs(zn::ir::dump(low.module).c_str(), stdout);
       return 0;
     }

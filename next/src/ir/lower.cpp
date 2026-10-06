@@ -568,6 +568,7 @@ struct Lowering::FnLower {
   struct Cleanup { std::uint32_t node = kNil; std::uint32_t sym = kNil; std::size_t handlerDepth = 0; };
   std::vector<BlockId> handlers;
   std::vector<Cleanup> cleanups;
+  std::unordered_map<BlockId, BlockId> handlerEntry;  // handler block -> the block that was current when its try began
   std::uint32_t thisVar, nextVar;
   const Lowering::LambdaInfo* lam = nullptr;  // set when this function is a lambda body
 
@@ -657,6 +658,11 @@ struct Lowering::FnLower {
     if (it != defs[b].end()) return it->second;
     TypeId t = varType[var];
     ValueId v;
+    if (auto he = handlerEntry.find(b); he != handlerEntry.end()) {  // a handler is entered from many calls: it sees what the try began with
+      v = readVar(var, he->second);
+      defs[b][var] = v;
+      return v;
+    }
     if (!sealed[b]) {
       v = newValue(t);
       f.blocks[b].params.push_back(v);
@@ -778,7 +784,7 @@ struct Lowering::FnLower {
   BlockId newHandlerBlock() {  // sees the variables as they are now: those a try body assigns live in cells
     BlockId h = newBlock();
     sealed[h] = 1;
-    defs[h] = defs[cur];
+    handlerEntry[h] = cur;  // variables are read as the block where the try began has them
     f.blocks[h].params.push_back(newValue(excType()));
     return h;
   }
@@ -1631,6 +1637,7 @@ struct Lowering::FnLower {
       }
       case N::Return: {
         if (x.kids[0] == kNil) { runCleanups(0); terminate(IrOp::Ret, {}, {}); }
+        else if (ty(f.ret).k == Type::K::Void) { expr(x.kids[0]); runCleanups(0); terminate(IrOp::Ret, {}, {}); }  // `return voidCall();`
         else { ValueId rv = exprTo(x.kids[0], f.ret); runCleanups(0); terminate(IrOp::Ret, {rv}, {}); }
         startDead();
         break;

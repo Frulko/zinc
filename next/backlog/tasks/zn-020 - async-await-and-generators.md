@@ -1,10 +1,10 @@
 ---
 id: ZN-020
 title: async/await and generators
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-06 11:20'
 labels:
   - size-L
 milestone: m-3
@@ -20,5 +20,5 @@ ordinal: 20000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the `async` conformance program passes; timers and microtask order match the golden.
+- [x] #1 the `async` conformance program passes; timers and microtask order match the golden.
 <!-- AC:END -->

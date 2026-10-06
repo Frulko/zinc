@@ -16,6 +16,13 @@ struct Parser {
   ParseResult r;
 
   // ---- tokens
+  bool inAsync = false, inGenerator = false;  // `await` and `yield` are operators only inside such functions
+  template <class F> std::uint32_t withFn(bool async, bool gen, F&& body) {
+    bool sa = inAsync, sg = inGenerator;
+    inAsync = async; inGenerator = gen;
+    struct Restore { Parser& p; bool a, g; ~Restore() { p.inAsync = a; p.inGenerator = g; } } restore{*this, sa, sg};
+    return body();
+  }
   const Token& cur() const { return t[i]; }
   const Token& at(std::size_t k) const { return t[std::min(i + k, t.size() - 1)]; }
   std::string_view txt(const Token& k) const { return s.substr(k.start, k.end - k.start); }
@@ -276,6 +283,12 @@ struct Parser {
   }
 
   std::uint32_t assignment() {
+    if (inGenerator && isId("yield")) {
+      std::uint32_t st = cur().start;
+      ++i;
+      std::uint32_t e = (isP(";") || isP(")") || isP("}") || isP("]") || isP(",") || eof() || newlineBefore()) ? kNone : assignment();
+      return mk(N::Yield, st, prevEnd(), {}, {e});
+    }
     std::uint32_t lhs = conditional();
     Op op = operatorAt();
     if (op.ntoks && isAssignOp(op.text)) {
@@ -319,6 +332,11 @@ struct Parser {
 
   std::uint32_t unary() {
     std::uint32_t st = cur().start;
+    if (inAsync && isId("await")) {
+      ++i;
+      std::uint32_t e = unary();
+      return mk(N::Await, st, endOf(e), {}, {e});
+    }
     if (cur().kind == Tok::Punct && (isP("!") || isP("~") || isP("+") || isP("-"))) {
       std::string_view op = txt(); ++i;
       std::uint32_t e = unary();
@@ -453,14 +471,29 @@ struct Parser {
     i = save;
     return ok;
   }
-  std::uint32_t arrowFunction() {
-    std::uint32_t st = cur().start;
+  // function (a: T): R { ... }, from the `function` keyword; a name is allowed and ignored
+  std::uint32_t functionExpr(std::uint32_t st, bool async) {
+    ++i;
+    bool gen = eatP("*");
+    if (cur().kind == Tok::Ident) ++i;
+    auto ps = params(false);
+    std::uint32_t ret = kNone;
+    if (eatP(":")) ret = type();
+    std::uint32_t body = withFn(async, gen, [&] { return block(); });
+    std::uint32_t id = funcExpr(st, std::move(ps), ret, body, false);
+    r.ast.nodes[id].flags |= (async ? kFlagAsync : 0) | (gen ? kFlagGenerator : 0);
+    return id;
+  }
+  std::uint32_t arrowFunction(bool async = false, std::uint32_t st0 = kNone) {
+    std::uint32_t st = st0 != kNone ? st0 : cur().start;
     auto ps = params(false);
     std::uint32_t ret = kNone;
     if (eatP(":")) ret = type();
     expectP("=>");
-    std::uint32_t body = arrowBody();
-    return funcExpr(st, std::move(ps), ret, body, true);
+    std::uint32_t body = withFn(async, false, [&] { return arrowBody(); });
+    std::uint32_t id = funcExpr(st, std::move(ps), ret, body, true);
+    if (async) r.ast.nodes[id].flags |= kFlagAsync;
+    return id;
   }
 
   std::uint32_t primary() {
@@ -471,13 +504,29 @@ struct Parser {
       case Tok::BigInt: ++i; return mk(N::BigInt, st, prevEnd(), txt(t[i - 1]));
       case Tok::String: ++i; return mk(N::String, st, prevEnd(), txt(t[i - 1]));
       case Tok::Ident:
-        if (isId("async") && at(1).kind == Tok::Keyword && txt(at(1)) == "function") unsupported("async functions");
+        if (isId("async") && !newlineAt(1)) {
+          if (at(1).kind == Tok::Keyword && txt(at(1)) == "function") {  // async function (...) { ... }
+            ++i;
+            return functionExpr(st, true);
+          }
+          if (isP("(", 1)) { ++i; if (arrowAhead()) return arrowFunction(true, st); --i; }
+          else if (at(1).kind == Tok::Ident && isP("=>", 2)) {  // async x => ...
+            i += 2;
+            std::string_view pname = txt(t[i - 1]);
+            std::uint32_t p = mk(N::Param, t[i - 1].start, t[i - 1].end, pname, {kNone, kNone});
+            ++i;
+            std::uint32_t body = withFn(true, false, [&] { return arrowBody(); });
+            std::uint32_t id = funcExpr(st, {p}, kNone, body, true);
+            r.ast.nodes[id].flags |= kFlagAsync;
+            return id;
+          }
+        }
         ++i;
         if (isP("=>")) {  // x => ...
           std::string_view pname = txt(t[i - 1]);
           std::uint32_t p = mk(N::Param, st, prevEnd(), pname, {kNone, kNone});
           ++i;
-          std::uint32_t body = arrowBody();
+          std::uint32_t body = withFn(false, false, [&] { return arrowBody(); });
           return funcExpr(st, {p}, kNone, body, true);
         }
         return mk(N::Ident, st, prevEnd(), txt(t[i - 1]));
@@ -504,16 +553,7 @@ struct Parser {
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }
         if (isKw("super")) { ++i; return mk(N::Super, st, prevEnd()); }
         if (isKw("true") || isKw("false") || isKw("null")) { ++i; return mk(N::Literal, st, prevEnd(), txt(t[i - 1])); }
-        if (isKw("function")) {  // function (a: T): R { ... }; a name is allowed and ignored
-          ++i;
-          if (isP("*")) unsupported("generators");
-          if (cur().kind == Tok::Ident) ++i;
-          auto ps = params(false);
-          std::uint32_t ret = kNone;
-          if (eatP(":")) ret = type();
-          std::uint32_t body = block();
-          return funcExpr(st, std::move(ps), ret, body, false);
-        }
+        if (isKw("function")) return functionExpr(st, false);
         if (isKw("class")) unsupported("class expressions");
         unexpected();
       case Tok::Punct:
@@ -609,10 +649,10 @@ struct Parser {
     return as;
   }
 
-  std::uint32_t function() {
-    std::uint32_t st = cur().start;
+  std::uint32_t function(bool async = false, std::uint32_t st0 = kNone) {
+    std::uint32_t st = st0 != kNone ? st0 : cur().start;
     ++i;  // function
-    if (isP("*")) unsupported("generators");
+    bool gen = eatP("*");
     if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
     std::vector<std::uint32_t> tps;
@@ -620,10 +660,11 @@ struct Parser {
     auto ps = params(false);
     std::uint32_t ret = kNone;
     if (eatP(":")) ret = type();
-    std::uint32_t body = isP("{") ? block() : (semi(), kNone);
+    std::uint32_t body = isP("{") ? withFn(async, gen, [&] { return block(); }) : (semi(), kNone);
     std::vector<std::uint32_t> kids{ret, body};
     kids.insert(kids.end(), ps.begin(), ps.end());
     std::uint32_t fid = mk(N::Function, st, prevEnd(), name, std::move(kids));
+    r.ast.nodes[fid].flags |= (async ? kFlagAsync : 0) | (gen ? kFlagGenerator : 0);
     if (!tps.empty()) r.ast.tparams[fid] = std::move(tps);
     return fid;
   }
@@ -998,6 +1039,7 @@ struct Parser {
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
     if (atVarDecl()) return varDecl(true);
     if (isKw("function")) return function();
+    if (isId("async") && at(1).kind == Tok::Keyword && txt(at(1)) == "function" && !newlineAt(1)) { ++i; return function(true, st); }
     if (isKw("class")) return classDecl(0);
     if (isId("abstract") && at(1).kind == Tok::Keyword && txt(at(1)) == "class") { ++i; std::uint32_t id = classDecl(kFlagAbstract); r.ast.nodes[id].start = st; return id; }
     if (isId("interface") && at(1).kind == Tok::Ident) return interfaceDecl();
@@ -1098,7 +1140,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield"};
   return names[static_cast<int>(k)];
 }
 
@@ -1109,10 +1151,10 @@ void dumpNode(const Ast& a, std::uint32_t n, int depth, std::string& out) {
   out += kindName(x.kind);
   if (!x.text.empty()) { out += ' '; out += x.text; }
   if (x.flags) {
-    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic", "arrow", "getter"};
+    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic", "arrow", "getter", "async", "generator"};
     out += " [";
     bool first = true;
-    for (int b = 0; b < 10; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
+    for (int b = 0; b < 12; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
     out += "]";
   }
   out += '\n';

@@ -4,7 +4,7 @@
 # order, an array's elements first to last, a Map's entries first to last, a local at its last use.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
-cyclic="closures.ts inspect_cycles.ts"   # closures.ts: a button whose callback captures the button
+cyclic="closures.ts inspect_cycles.ts async.ts generators.ts"   # closures.ts: a button whose callback captures the button; async.ts, generators.ts: the lambdas of a rewritten loop name themselves
 for f in tests/golden/run/*.ts ../tests/conformance/tour.ts ../tests/conformance/errors.ts ../examples/lang/src/main.ts tests/golden/modules/modules.ts \
     ../tests/bench/kernels/fib.ts ../tests/bench/kernels/mandelbrot.ts ../tests/bench/kernels/nbody.ts ../tests/bench/kernels/spectralnorm.ts \
     ../tests/bench/kernels/strings.ts ../tests/bench/kernels/mapset.ts ../tests/bench/kernels/sort.ts; do

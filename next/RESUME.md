@@ -4,14 +4,14 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 ## State
 
-- Date: 2026-10-06. Phase: M2.
+- Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-020 (async/await and generators, milestone M3). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Ready: next by ordinal is ZN-021 (conformance 18/18 in the interpreter). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-020.
+`/loop /zn-start` resumes with ZN-021.
 
 ## Watch out
 
@@ -187,3 +187,13 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - ZBC format v4: `Function::handlers` (call pc, target, class, register). The VM unwinds frame by frame, taking the first handler whose class matches the thrown object, delivering the object in its register. An exception that reaches the entry of the program (or a native callback such as a sort comparator) is fatal: `uncaught exception: <class>`.
 - Tests: goldens `exceptions` (Node-identical), the frozen `errors` conformance program (byte-identical; `tests/t1/conformance.sh`), leak-free (`tests/t1/rc.sh`), verifier unit tests for handlers, ASan T1 green.
 - Limits: `new Error()` needs a message (no default parameters yet); `e.stack`, `cause` and `finally` overriding a return value with a jump are untested; no `catch` by type (use `instanceof`); exceptions do not cross native callbacks; user subclasses that override `toString` print through `__errorString` when typed as Error.
+
+## ZN-020 notes (async/await and generators)
+
+- No coroutine support in the IR or VM: `src/frontend/desugar.cpp` rewrites async functions and generators into continuation-passing code over closures before checking (`desugarAsync`, called by `loadProgram`). Code is written as text and spliced with the user's nodes by `src/frontend/snippet.cpp` (`__H<n>` holes; the checker also uses it for `for...of` over a Generator).
+- The Promise, microtask queue, timers (virtual clock, delays below 1 ms count as 1 like Node) and `Generator<T>` are Zinc source in `kAsyncPrelude` (modules.cpp); `__runLoop();` is appended to the entry module.
+- Checker: `Promise<void>` is the class `PromiseV` (rewritten syntactically); `p.then/p.catch` become `__then/__thenV/__thenFromV/__thenVV/__catch/__catchV` (receiver kind and callback result decide); `__await` becomes `__awaitV` for a PromiseV; `Promise.resolve/all` become `__resolved(V)/__all`.
+- Supported positions of `await`/`yield`: statement, variable initialiser, assignment (any operator), returned value, inside blocks, if, while, for, for-of over arrays, try/catch. Everything else (finally around await, switch, expressions, async arrows/methods, async generators, `yield` as a value) is Z0005.
+- Generators are lazy: `next()` runs continuations until one sets `value`; `Generator.next(): boolean` and `value[0]` differ from JS iterator results, `for...of` is the supported way to consume them. A loop that skips yields recurses once per skipped iteration in async mode only (generators trampoline through `cont`).
+- Known: rewritten loops are self-referencing closures, so async programs leak under ZN_LEAK_CHECK (async.ts, generators.ts are in the `cyclic` list of tests/t1/rc.sh) until a cycle strategy exists. `ZN_DUMP_AST=1` dumps the program tree after desugaring to stderr.
+- Tests: goldens `tests/golden/run/{async,generators}`, errors `tests/golden/checker/errors/{await_position,generator_no_type,async_arrow}`, T1 conformance runs `tests/conformance/async.ts` against `corpus/conformance/async.out`.

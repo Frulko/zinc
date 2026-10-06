@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "frontend/inspect.h"
+#include "frontend/snippet.h"
 #include "frontend/lexer.h"
 #include "frontend/parser.h"
 #include "zn/runtime.h"
@@ -681,7 +682,24 @@ struct Checker {
     return t;
   }
 
+  // 0: not a promise, 1: Promise<T>, 2: Promise<void>
+  int promiseKind(TypeId t) {
+    if (bad(t) || ty(t).k != TK::Object) return 0;
+    std::string nm = name(t);
+    return nm == "PromiseV" ? 2 : nm.rfind("Promise<", 0) == 0 ? 1 : 0;
+  }
+
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
+    if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
+      // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
+      std::uint32_t obj = n(x.kids[0]).kids[0];
+      int pk = promiseKind(expr(obj));
+      if (pk != 0) {
+        bool then = n(x.kids[0]).text == "then";
+        a.nodes[i].kids[0] = newNode(N::Ident, then ? (pk == 2 ? "__thenFromV" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
+        a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
+      }
+    }
     std::uint32_t callee = x.kids[0];
     TypeId ft = kNoType;
     TypeId result = tError;
@@ -690,7 +708,14 @@ struct Checker {
     if (isNew) {
       const Node& c = n(callee);
       std::uint32_t s = c.kind == N::Ident ? lookup(c.text) : kNone;
-      if (s != kNone && out.syms[s].kind == SymKind::GenericClass) {
+      if (s != kNone && out.syms[s].kind == SymKind::GenericClass && a.targs.count(i)) {  // explicit type arguments: the arguments are checked against the parameter types
+        std::vector<TypeId> targs;
+        for (std::uint32_t t : std::vector<std::uint32_t>(a.targs[i])) targs.push_back(annotation(t));
+        if (targs.size() != generics[s].tp.size()) { diag(kZWrongArgCount, i, "expected " + std::to_string(generics[s].tp.size()) + " type argument(s), got " + std::to_string(targs.size())); for (std::uint32_t an : argNodes) expr(an); return tError; }
+        std::uint32_t inst = instantiateClass(s, targs, callee);
+        if (inst == kNone) { for (std::uint32_t an : argNodes) expr(an); return tError; }
+        s = inst;
+      } else if (s != kNone && out.syms[s].kind == SymKind::GenericClass) {
         for (std::uint32_t an : argNodes) expr(an);
         preEvaluated = true;
         GenericDecl& g = generics[s];
@@ -735,9 +760,10 @@ struct Checker {
     } else {
       TypeId ct;
       const Node& cn = n(callee);
+      if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
-        for (std::uint32_t an : argNodes) expr(an);
+        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr) expr(an);  // function expressions wait for the type arguments the others give
         preEvaluated = true;
         GenericDecl& g = generics[gs];
         ensureSelf(g);
@@ -745,7 +771,12 @@ struct Checker {
         if (ts == kNone) return tError;
         std::vector<TypeId> targs = typeArgsFor(gs, i, argNodes, out.syms[ts].type);
         if (targs.empty()) return tError;
-        std::uint32_t inst = instantiateFunc(gs, targs, callee);
+        if ((cn.text == "__then" || cn.text == "__thenFromV") && targs.back() == tVoid) {  // the callback returns nothing: the helpers of a Promise<void> result
+          targs.pop_back();
+          a.nodes[callee].text = cn.text == "__then" ? "__thenV" : "__thenVV";
+          gs = lookup(cn.text);
+        }
+        std::uint32_t inst = out.syms[gs].kind == SymKind::GenericFunc ? instantiateFunc(gs, targs, callee) : gs;
         if (inst == kNone) return tError;
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
@@ -1000,7 +1031,7 @@ struct Checker {
         if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "'" + name(it) + "' to 'number'"); return tError; }
         return ty(ot).elem;
       }
-      default: diag(kZUnsupported, i, "this expression"); return tError;
+      default: diag(kZUnsupported, i, "this expression (node kind " + std::to_string(static_cast<int>(x.kind)) + ")"); return tError;
     }
   }
 
@@ -1275,6 +1306,18 @@ struct Checker {
           std::uint32_t call = callGenerated(helper("iter" + std::to_string(it), text, {it, arr}, s), {x.kids[1]}, s);
           a.nodes[s].kids[1] = call;
           it = out.nodeType[call];
+        }
+        if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) == 0) {  // pull values lazily: while (g.next()) { const x = g.value[0]; ... }
+          std::string g = "__g" + std::to_string(s);
+          const Node& d0 = n(x.kids[0]);
+          auto r = snippet(a, "{ const " + g + " = __H0; while (" + g + ".next()) { " + std::string(x.text) + " " + std::string(d0.text) + " = " + g + ".value[0]; __H1; } }", {{x.kids[1]}, {x.kids[2]}}, s);
+          out.nodeType.resize(a.nodes.size(), kNoType);
+          out.nodeSym.resize(a.nodes.size(), kNone);
+          if (r.empty()) break;
+          a.nodes[s].kind = N::Block;
+          a.nodes[s].kids = n(r[0]).kids;
+          statement(s);
+          break;
         }
         TypeId el = tError;
         if (!bad(it)) { if (ty(it).k == TK::Array) el = ty(it).elem; else diag(kZNotIndexable, x.kids[1], "'" + name(it) + "'"); }
@@ -1912,6 +1955,22 @@ struct Checker {
     return true;
   }
 
+  // `t` with the template's type parameters replaced by what is bound so far (kNoType where nothing is).
+  TypeId substitute(const GenericDecl& g, TypeId t, const std::vector<TypeId>& bound) {
+    const Type x = ty(t);
+    switch (x.k) {
+      case TK::Param:
+        for (std::size_t i = 0; i < g.selfParams.size(); ++i) if (g.selfParams[i] == t) return bound[i];
+        return t;
+      case TK::Array: { TypeId e = substitute(g, x.elem, bound); return e == kNoType ? t : arrayOf(e); }
+      case TK::Func: {
+        std::vector<TypeId> ps;
+        for (TypeId p : x.params) ps.push_back(substitute(g, p, bound));
+        return func(ps, substitute(g, x.elem, bound), x.minArgs, x.variadic);
+      }
+      default: return t;
+    }
+  }
   // Type arguments of a call or new: explicit ones, else inferred from the already evaluated argument types. Empty on failure.
   std::vector<TypeId> typeArgsFor(std::uint32_t gsym, std::uint32_t callNode, const std::vector<std::uint32_t>& argNodes, TypeId templateFunc) {
     GenericDecl& g = generics[gsym];
@@ -1921,12 +1980,20 @@ struct Checker {
       std::vector<TypeId> args;
       for (std::uint32_t t : std::vector<std::uint32_t>(ex->second)) args.push_back(annotation(t));
       if (args.size() != g.tp.size()) { diag(kZWrongArgCount, callNode, "expected " + std::to_string(g.tp.size()) + " type argument(s), got " + std::to_string(args.size())); return {}; }
+      const Type fe = ty(templateFunc);
+      for (std::size_t k = 0; k < argNodes.size() && k < fe.params.size(); ++k)
+        if (out.nodeType[argNodes[k]] == kNoType) expr(argNodes[k], substitute(g, fe.params[k], args));
       return args;
     }
     std::vector<TypeId> bound(g.tp.size(), kNoType);
     const Type f = ty(templateFunc);
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)
-      if (!unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
+      if (out.nodeType[argNodes[k]] != kNoType && !unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
+    for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k) {  // function expressions, now that the other arguments have bound what they can
+      if (out.nodeType[argNodes[k]] != kNoType) continue;
+      TypeId lt = expr(argNodes[k], substitute(g, f.params[k], bound));
+      if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
+    }
     for (std::size_t i = 0; i < bound.size(); ++i)
       if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }
     return bound;
