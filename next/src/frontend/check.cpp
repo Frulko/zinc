@@ -423,6 +423,7 @@ struct Checker {
       if (!rawDyn() && isDyn(l0) && replaceWith(i, "__dynNullish(__H0, (): any => __H1)", {{le}, {re}})) return expr0(i, expected0);
       TypeId base = l0;
       if (!bad(l0) && !isMapGet(le)) {
+        if (!hasNull(l0) && pathSymOf(le) != kNone && hasNull(out.syms[pathSymOf(le)].type)) { expr(re); return l0; }  // a property known not to be null here
         if (!hasNull(l0)) { diag(kZBadOperand, i, "'?" "?' on '" + name(l0) + "', which cannot be null"); expr(re); return tError; }
         if (l0 == tNull) return expr(re, expected0);  // known to be null: the right operand is the result
         base = withoutNull(l0);
@@ -1401,10 +1402,15 @@ struct Checker {
         if (tsym != kNone && trackable(tsym)) { tt = out.syms[tsym].type; out.nodeType[target] = tt; out.syms[tsym].reassigned = true; }  // an assignment is checked against the declared type
         bool ok = lvalue(target);
         const std::string op(x.text);
+        if (n(target).kind == N::Ident && tsym != kNone && trackable(tsym)) resetPaths(tsym);  // `node = other`: nothing is known of node.left any more
         if (op == "=") {
           TypeId vt = expr(value, tt);
           if (ok) require(vt, tt, value);
           if (tsym != kNone && trackable(tsym) && ty(tt).k == TK::Union && !bad(vt) && assignable(vt, tt, kNone)) narrowing.push_back({tsym, vt});  // known after the assignment
+          if (n(target).kind == N::Member && !bad(vt) && assignable(vt, tt, kNone) && ty(tt).k == TK::Union) {  // node.left = x: what x was is known
+            std::uint32_t ps = pathSymFor2(target, tt);
+            if (ps != kNone) narrowing.push_back({ps, vt});
+          }
           return tt;
         }
         TypeId vt = expr(value);
@@ -1479,7 +1485,10 @@ struct Checker {
             return m->type;
           }
         }
+        bool exemptHere = pendingExempt;
+        pendingExempt = false;  // only the property being written is exempt, not the object it is read from
         TypeId ot = expr(x.kids[0]);
+        pendingExempt = exemptHere;
         if (bad(ot)) return tError;
         if (ot == tDyn) {  // a property of an `any`; inside the prelude and generated code `any` is the class Dyn
           if (rawDyn() && dynObjOf() != kNone) ot = objType(dynObj);
@@ -1513,6 +1522,8 @@ struct Checker {
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         TypeId mt = m->getter ? ty(m->type).elem : m->type;
         if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull});  // a?.b is b, or null
+        if (!m->getter && !m->method && ty(mt).k == TK::Union && on.kind == N::Ident && out.nodeSym[x.kids[0]] != kNone && trackable(out.nodeSym[x.kids[0]]) && !pendingExempt)
+          return currentType(pathSymFor(out.nodeSym[x.kids[0]], x.text, mt));  // narrowed by an earlier test of this property
         return mt;
       }
       case N::Index: {
@@ -1986,6 +1997,30 @@ struct Checker {
   // ---- narrowing: flow-sensitive types of local variables and parameters (innermost fact last)
   using Fact = std::pair<std::uint32_t, TypeId>;
   std::vector<Fact> narrowing;
+  // Narrowing of `local.field` (a property of a local or parameter, as `node.left === null` establishes): the property gets a symbol of its own.
+  std::map<std::pair<std::uint32_t, std::string>, std::uint32_t> pathSyms;
+  std::uint32_t pathSymFor(std::uint32_t base, std::string_view field, TypeId declared) {
+    auto key = std::make_pair(base, std::string(field));
+    auto it = pathSyms.find(key);
+    if (it != pathSyms.end()) return it->second;
+    out.syms.push_back({SymKind::Var, keep(std::string(out.syms[base].name) + "." + std::string(field)), declared, kNone, false});
+    return pathSyms[key] = static_cast<std::uint32_t>(out.syms.size() - 1);
+  }
+  // The symbol standing for the node `local.field`, if it is one (and the field's declared type is a union worth narrowing).
+  std::uint32_t pathSymOf(std::uint32_t node) {
+    const Node& x = n(node);
+    if (x.kind != N::Member || n(x.kids[0]).kind != N::Ident || out.nodeSym[x.kids[0]] == kNone || !trackable(out.nodeSym[x.kids[0]])) return kNone;
+    auto it = pathSyms.find({out.nodeSym[x.kids[0]], std::string(x.text)});
+    return it == pathSyms.end() ? kNone : it->second;
+  }
+  std::uint32_t pathSymFor2(std::uint32_t member, TypeId declared) {  // the symbol of `local.field` for a property node, created if need be
+    const Node& x = n(member);
+    if (n(x.kids[0]).kind != N::Ident || out.nodeSym[x.kids[0]] == kNone || !trackable(out.nodeSym[x.kids[0]])) return kNone;
+    return pathSymFor(out.nodeSym[x.kids[0]], x.text, declared);
+  }
+  void resetPaths(std::uint32_t base) {  // the local was assigned: what was known about its properties is gone
+    for (auto& [k, sy] : pathSyms) if (k.first == base) narrowing.push_back({sy, out.syms[sy].type});
+  }
   bool trackable(std::uint32_t sym) const { return out.syms[sym].kind == SymKind::Var || out.syms[sym].kind == SymKind::Param; }
   TypeId currentType(std::uint32_t sym, const std::vector<Fact>* extra = nullptr) const {
     if (extra) for (auto it = extra->rbegin(); it != extra->rend(); ++it) if (it->first == sym) return it->second;
@@ -2054,9 +2089,11 @@ struct Checker {
         return;
       }
       auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
-      std::uint32_t idn = isNullLit(c.kids[1]) && n(c.kids[0]).kind == N::Ident ? c.kids[0] : isNullLit(c.kids[0]) && n(c.kids[1]).kind == N::Ident ? c.kids[1] : kNone;
-      if (idn == kNone || out.nodeSym[idn] == kNone || !trackable(out.nodeSym[idn])) return;
-      std::uint32_t sy = out.nodeSym[idn];
+      auto testable = [&](std::uint32_t k) { return n(k).kind == N::Ident || (n(k).kind == N::Member && pathSymOf(k) != kNone); };
+      std::uint32_t idn = isNullLit(c.kids[1]) && testable(c.kids[0]) ? c.kids[0] : isNullLit(c.kids[0]) && testable(c.kids[1]) ? c.kids[1] : kNone;
+      if (idn == kNone) return;
+      std::uint32_t sy = n(idn).kind == N::Member ? pathSymOf(idn) : out.nodeSym[idn];
+      if (sy == kNone || !trackable(sy)) return;
       TypeId cur = currentType(sy, &fs);
       if (eq == truthy) { if (hasNull(cur)) fs.push_back({sy, tNull}); }
       else { TypeId nn = withoutNull(cur); if (nn != kNoType && nn != cur) fs.push_back({sy, nn}); }
@@ -2107,7 +2144,22 @@ struct Checker {
     for (std::string_view nm : names) {
       std::uint32_t sy = lookup(nm);
       if (sy != kNone && trackable(sy) && ty(out.syms[sy].type).k == TK::Union) narrowing.push_back({sy, out.syms[sy].type});
+      if (sy != kNone && trackable(sy)) resetPaths(sy);
     }
+    std::vector<std::pair<std::string_view, std::string_view>> members;
+    collectAssignedMembers(loopNode, members);
+    for (auto& [base, field] : members) {
+      std::uint32_t sy = lookup(base);
+      if (sy == kNone || !trackable(sy)) continue;
+      auto it = pathSyms.find({sy, std::string(field)});
+      if (it != pathSyms.end()) narrowing.push_back({it->second, out.syms[it->second].type});
+    }
+  }
+  void collectAssignedMembers(std::uint32_t i, std::vector<std::pair<std::string_view, std::string_view>>& v) const {
+    if (i == kNone) return;
+    const Node& x = n(i);
+    if ((x.kind == N::Assign || x.kind == N::UpdatePre || x.kind == N::UpdatePost) && n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident) v.push_back({n(n(x.kids[0]).kids[0]).text, n(x.kids[0]).text});
+    for (std::uint32_t k : x.kids) collectAssignedMembers(k, v);
   }
 
   // ---- lambdas: checked where they appear, so they see the variables around them

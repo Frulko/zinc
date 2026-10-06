@@ -1410,7 +1410,9 @@ struct Lowering::FnLower {
         if (ct.k == frontend::TK::Str) return emit(IrOp::StrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Map || ct.k == frontend::TK::Set) return emit(IrOp::Rt, m.numT(NumK::i32), {obj}, 0, 0, static_cast<std::uint32_t>(ct.k == frontend::TK::Map ? zn::Rt::MapSize : zn::Rt::SetSize));
         std::uint32_t fi = L.fieldIndex(ct.obj, x.text);
-        return emit(IrOp::GetField, natural(i), {obj}, 0, 0, fi);
+        TypeId fieldT = m.classes[ty(tv(obj)).aux].fields[fi].type;  // the stored type; the node may be narrowed from it (T | null to T)
+        ValueId fv = emit(IrOp::GetField, fieldT, {obj}, 0, 0, fi);
+        return c.nodeType[i] == 5u ? fv : coerce(fv, natural(i));  // (known to be null: the stored reference itself)
       }
       case N::Index: {
         if (isTupleObj(c.nodeType[x.kids[0]])) {  // t[k] with a constant k: a field
@@ -1545,6 +1547,7 @@ struct Lowering::FnLower {
     TypeId rt = natural(i);
     const Node& ln = n(x.kids[0]);
     if (c.nodeType[x.kids[0]] == 5u) { expr(x.kids[0]); return exprTo(x.kids[1], rt); }  // the left is known to be null
+    if (n(x.kids[0]).kind == N::Member && c.nodeType[x.kids[0]] != frontend::kNoType && (c.types[c.nodeType[x.kids[0]]].k == frontend::TK::Num || c.types[c.nodeType[x.kids[0]]].k == frontend::TK::Bool)) return exprTo(x.kids[0], rt);  // a property narrowed to a number: the default is never used
     BlockId hb = newBlock(), eb = newBlock(), join = newBlock();
     ValueId jp = newValue(rt);
     f.blocks[join].params.push_back(jp);

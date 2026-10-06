@@ -140,7 +140,7 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
 #define X(name, expr) inline Slot name([[maybe_unused]] Slot x, [[maybe_unused]] Slot y) { return expr; }
 ZN_ARITH_OPS(X)
 #undef X
-#define X(name, zero, expr) inline bool name##Defined(Slot x, [[maybe_unused]] Slot y) { return zero; } inline Slot name(Slot x, Slot y) { return expr; }
+#define X(name, zero, expr) inline bool name##Defined([[maybe_unused]] Slot x, [[maybe_unused]] Slot y) { return zero; } inline Slot name(Slot x, Slot y) { return expr; }
 ZN_DIV_OPS(X)
 #undef X
 

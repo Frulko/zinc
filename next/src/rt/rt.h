@@ -2,7 +2,10 @@
 // The runtime both engines share, the interpreter (src/vm) and the compiled programs (src/aot output): loaded functions and
 // classes, the heap objects (plain objects, strings, arrays, Map and Set) with reference counting, the call stack, and the
 // runtime calls (rtCall). `Machine::exec` runs one function and is provided by the engine that links this library.
+#include <bit>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -160,5 +163,122 @@ struct Machine {
 // Runs one runtime call: arguments in a[0..], result in a[0]; `scratch` is free stack for callbacks. Returns null, or the
 // error message.
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch);
+
+// The outcome of running a module.
+struct Result {
+  bool ok = true;
+  std::string error;       // runtime error: division by zero, stack overflow, trap, uncaught throw (`panic: Uncaught ...`)
+  std::string trace;       // with traceFree: one `free <class>` line per destroyed object, in destruction order
+  std::size_t leaked = 0;  // objects still alive after main returned and the globals were released (cycles, or a bug)
+};
+
+// Loads `m`, lets `setup` bind engine-specific code to the functions, runs functions[0] (main) and releases the globals.
+// Program output (console.log) is appended to `out`, also when execution fails midway.
+Result runModule(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData);
+
+// Prints the program's output and, if it failed, the error; returns the exit code: 0, 101 for an uncaught exception, 1 for
+// another runtime error, 4 for leaked objects when ZN_LEAK_CHECK is set.
+int report(const Result& res, const std::string& out, bool traceFree);
+
+// The entry point of a compiled program: decodes and verifies the embedded module, binds `natives[i]` to function i and runs it.
+int runProgram(const unsigned char* zbcBytes, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count);
+
+// ---- the object and heap instructions, one definition for the interpreter and the compiled programs. Each takes the register
+// window and the operands of the instruction and returns null, or the message of the trap.
+namespace op {
+
+constexpr const char* kNullRef = "null reference";
+
+inline const char* newObject(Machine& m, std::uint32_t cls, Slot& dst) {
+  const ClassRT* cr = &m.classes[cls];
+  if (cr->kind == zbc::CKind::Array) { dst = reinterpret_cast<Slot>(m.newArr(cr)); return nullptr; }
+  if (cr->kind == zbc::CKind::Map || cr->kind == zbc::CKind::Set) {
+    auto* o = new MapObj();
+    o->cls = cr; o->rc = 1;
+    o->t.kk = cr->keyKind;
+    o->t.hasVals = cr->kind == zbc::CKind::Map;
+    m.track(o);
+    dst = reinterpret_cast<Slot>(o);
+    return nullptr;
+  }
+  auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
+  if (!o) return "out of memory";
+  o->cls = cr; o->rc = 1;
+  m.track(o);
+  dst = reinterpret_cast<Slot>(o);
+  return nullptr;
+}
+inline const char* getField(Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = reinterpret_cast<Obj*>(r[b]);
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  r[a] = o->fields()[c];
+  return nullptr;
+}
+inline const char* setField(Machine& m, Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = reinterpret_cast<Obj*>(r[a]);
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  Slot old = o->fields()[c];
+  o->fields()[c] = r[b];
+  if (o->cls->fieldRef[c]) m.releaseSlot(old);
+  return nullptr;
+}
+// The function a virtual call on r[a] with selector `sel` runs, or null with `err` set.
+inline const Func* virtualTarget(const Slot* r, unsigned a, unsigned sel, const char*& err) {
+  auto* o = reinterpret_cast<const Obj*>(r[a]);
+  if (__builtin_expect(!o, 0)) { err = kNullRef; return nullptr; }
+  return o->cls->vtable[sel];
+}
+inline const char* downcast(const Slot* r, unsigned a, unsigned cls) {
+  auto* o = reinterpret_cast<const Obj*>(r[a]);
+  return o && !isSubclassRT(o->cls, cls) ? "invalid cast" : nullptr;
+}
+inline Slot instanceOf(Slot v, unsigned cls) {
+  auto* o = reinterpret_cast<const Obj*>(v);
+  return Slot{o && isSubclassRT(o->cls, cls)};
+}
+inline const char* release(Machine& m, Slot v) {
+  return __builtin_expect(!m.release(reinterpret_cast<Obj*>(v)), 0) ? "release of an object that is already dead" : nullptr;
+}
+inline const char* arrGet(Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[b]));
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  if (__builtin_expect(r[c] >= o->v.size(), 0)) return "array index out of bounds";
+  r[a] = o->v[r[c]];
+  return nullptr;
+}
+inline const char* arrSet(Machine& m, Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[a]));
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  Slot i = r[b];
+  if (__builtin_expect(i >= o->v.size(), 0)) { if (i != o->v.size()) return "array index out of bounds"; o->v.push_back(r[c]); }  // writing at length appends, like the native runtime
+  else { Slot old = o->v[i]; o->v[i] = r[c]; if (o->cls->elemRef) m.releaseSlot(old); }
+  return nullptr;
+}
+inline const char* arrLen(Slot* r, unsigned a, unsigned b) {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[b]));
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  r[a] = o->v.size();
+  return nullptr;
+}
+inline const char* arrPush(Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[b]));
+  if (__builtin_expect(!o, 0)) return kNullRef;
+  if (__builtin_expect(o->v.size() >= 0x7fffffffu, 0)) return "RangeError: Invalid array length";
+  o->v.push_back(r[c]);
+  r[a] = o->v.size();
+  return nullptr;
+}
+inline const char* logStr(Machine& m, Slot v) {
+  auto* s = reinterpret_cast<StrObj*>(v);
+  if (!s) return kNullRef;
+  m.out->append(s->data(), s->len);
+  return nullptr;
+}
+inline void logF64(Machine& m, Slot v) {
+  double d = std::bit_cast<double>(v);
+  *m.out += (d == 0 && std::signbit(d)) ? std::string("-0") : numberToString(d);  // console.log prints -0
+}
+
+}  // namespace op
 
 }  // namespace zn::rt

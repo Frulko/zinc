@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. Next by ordinal: see `tools/next-task` (ZN-022 AOT is M4) (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). M3 conformance (ZN-021, the 18 programs of `corpus/M3-set.txt`, report `docs/reports/zinc-next-m3-conformance.md`) is Done. ZN-022 (AOT emitter) is Done; next by ordinal: see `tools/next-task` (ZN-023 differential runner) (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with `next/tools/next-task` (M3 is complete).
+`/loop /zn-start` resumes with `next/tools/next-task` (M3 is complete, M4 started).
 
 ## Watch out
 
@@ -236,3 +236,12 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Uncaught exceptions: the VM prints `panic: Uncaught <Name>: <message>` (the exception's `__errorString()`) on stderr and exits with 101; the conformance runner prints the frozen `[exit 101] ...` line from it.
 - `ZN_DUMP_GEN=1` prints the generated Zinc source (formatters, serialisers, Dyn converters) to stderr.
 - Not done: method calls on a Dyn (`d.f()`), `?.` on a Dyn, bitwise operators on a Dyn, Map/Set views.
+
+## ZN-022 notes (AOT emitter)
+
+- Architecture (option A, ARCHITECTURE.md updated): `include/zn/ops.h` holds the value semantics of every pure operation (`ZN_ARITH_OPS`, `ZN_DIV_OPS`, `ZN_JUMP_OPS`, `ZN_JUMP_IMM_OPS`, `AddI32K`); the interpreter's dispatch loop and the generated C++ both call them. `src/rt/` is the runtime both engines share (machine, objects, RC, rtCall, `rt::op::*` for the object instructions, `runModule`, `report`, `runProgram`). `Machine::exec` is the only function the engine provides: the interpreter (src/vm/vm.cpp) or the compiled program.
+- `src/aot/aot.cpp` (`emitCpp`): one C++ function per ZBC function over the interpreter's register window (`int f(Machine&, Slot* r)`, 0 done, 1 exception in `m.thrown`, 2 trap in `m.error`), labels at jump and handler targets, handler tables as per-call-site `isSubclassRT` checks, the call depth counted in `m.depth`. The module is embedded as ZBC bytes and loaded by the same `Machine::load`, so classes, vtables, strings and globals are identical to the interpreter's.
+- `zinc --emit=cpp f.ts` prints the C++; `zinc build f.ts -o out` writes `out.cpp` (kept with ZN_KEEP_CPP=1), compiles it with `$CXX` (default `c++`) against `include`, `src` and the `libzn_*.a` next to the zinc binary, so it works from a build directory only (installation and the zig toolchain are later tasks).
+- All 38 programs of tests/golden/run print the same compiled as interpreted. Rough times, interpreter vs AOT: fib 0.05 vs 0.02 s, nbody 0.56 vs 0.14, mandelbrot 0.26 vs 0.02, spectralnorm 1.11 vs 0.27, sort 0.29 vs 0.25 (the registers still live in memory; promoting them to C++ locals is a later optimisation, ZN-024/026).
+- Also added for binarytrees: narrowing of `local.field` (`node.left === null`, assignments to the property; depth one, a symbol per property in `pathSyms`).
+- Tests: T0 `tests/t0/aot.sh` (golden `tests/golden/aot/fib.cpp`, syntax check), T0 `tests/t0/rt.sh` + `tests/unit/ops_test.cpp`, T1 `tests/t1/aot.sh` (fib, nbody, binarytrees, sort and five run goldens built and compared).

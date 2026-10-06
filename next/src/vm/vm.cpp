@@ -102,109 +102,41 @@ L_Throw: {  // unwind to the nearest handler that takes the object, through the 
     r = f.base; fn = f.fn; code = fn->code; at = f.ret - 1;
   }
 }
-L_New: {
-  const ClassRT* cr = &classes[dOf(w)];
-  if (cr->kind == zbc::CKind::Array) { r[A] = reinterpret_cast<Slot>(newArr(cr)); NEXT(); }
-  if (cr->kind == zbc::CKind::Map || cr->kind == zbc::CKind::Set) {
-    auto* o = new MapObj();
-    o->cls = cr; o->rc = 1;
-    o->t.kk = cr->keyKind;
-    o->t.hasVals = cr->kind == zbc::CKind::Map;
-    track(o);
-    r[A] = reinterpret_cast<Slot>(o);
-    NEXT();
-  }
-  auto* o = static_cast<Obj*>(std::calloc(1, sizeof(Obj) + cr->nfields * sizeof(Slot)));
-  if (!o) TRAP("out of memory");
-  o->cls = cr; o->rc = 1;
-  track(o);
-  r[A] = reinterpret_cast<Slot>(o);
-  NEXT();
-}
-L_GetField: {
-  auto* o = reinterpret_cast<Obj*>(r[B]);
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  r[A] = o->fields()[C];
-  NEXT();
-}
-L_SetField: {
-  auto* o = reinterpret_cast<Obj*>(r[A]);
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  Slot old = o->fields()[C];
-  o->fields()[C] = r[B];
-  if (o->cls->fieldRef[C]) releaseSlot(old);
-  NEXT();
-}
+L_New: { if (const char* e = op::newObject(*this, dOf(w), r[A])) TRAP(e); NEXT(); }
+L_GetField: { if (const char* e = op::getField(r, A, B, C)) TRAP(e); NEXT(); }
+L_SetField: { if (const char* e = op::setField(*this, r, A, B, C)) TRAP(e); NEXT(); }
 L_CallVirt: {
-  auto* o = reinterpret_cast<Obj*>(r[A]);
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  const Func* callee = o->cls->vtable[dOf(w)];
+  const char* e = nullptr;
+  const Func* callee = op::virtualTarget(r, A, dOf(w), e);
+  if (__builtin_expect(e != nullptr, 0)) TRAP(e);
   if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
   r = r + A; fn = callee; code = callee->code; pc = code;
   NEXT();
 }
-L_Downcast: {
-  auto* o = reinterpret_cast<Obj*>(r[A]);
-  if (o && !isSubclassRT(o->cls, dOf(w))) TRAP("invalid cast");
-  NEXT();
-}
+L_Downcast: { if (const char* e = op::downcast(r, A, dOf(w))) TRAP(e); NEXT(); }
 L_LoadNull: r[A] = 0; NEXT();
-L_InstanceOf: {
-  auto* o = reinterpret_cast<Obj*>(r[A]);
-  r[A] = Slot{o && isSubclassRT(o->cls, dOf(w))};
-  NEXT();
-}
+L_InstanceOf: r[A] = op::instanceOf(r[A], dOf(w)); NEXT();
 L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
 L_NeR: r[A] = Slot{r[B] != r[C]}; NEXT();
 L_GetGlobal: r[A] = globals[dOf(w)]; NEXT();
 L_SetGlobal: { Slot old = globals[dOf(w)]; globals[dOf(w)] = r[A]; if (globalRef[dOf(w)]) releaseSlot(old); NEXT(); }
 L_Retain: retain(reinterpret_cast<Obj*>(r[A])); NEXT();
-L_Release: if (__builtin_expect(!release(reinterpret_cast<Obj*>(r[A])), 0)) TRAP("release of an object that is already dead"); NEXT();
+L_Release: if (const char* e = op::release(*this, r[A])) TRAP(e); NEXT();
 L_LoadStr: r[A] = reinterpret_cast<Slot>(strConsts[dOf(w)]); NEXT();
-L_ArrGet: {
-  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  if (__builtin_expect(r[C] >= o->v.size(), 0)) TRAP("array index out of bounds");
-  r[A] = o->v[r[C]];
-  NEXT();
-}
-L_ArrSet: {
-  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[A]));
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  Slot i = r[B];
-  if (__builtin_expect(i >= o->v.size(), 0)) { if (i != o->v.size()) TRAP("array index out of bounds"); o->v.push_back(r[C]); }  // writing at length appends, like the native runtime
-  else { Slot old = o->v[i]; o->v[i] = r[C]; if (o->cls->elemRef) releaseSlot(old); }
-  NEXT();
-}
-L_ArrLen: {
-  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  r[A] = o->v.size();
-  NEXT();
-}
-L_ArrPush: {
-  auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[B]));
-  if (__builtin_expect(!o, 0)) TRAP("null reference");
-  if (__builtin_expect(o->v.size() >= 0x7fffffffu, 0)) TRAP("RangeError: Invalid array length");
-  o->v.push_back(r[C]);
-  r[A] = o->v.size();
-  NEXT();
-}
+L_ArrGet: { if (const char* e = op::arrGet(r, A, B, C)) TRAP(e); NEXT(); }
+L_ArrSet: { if (const char* e = op::arrSet(*this, r, A, B, C)) TRAP(e); NEXT(); }
+L_ArrLen: { if (const char* e = op::arrLen(r, A, B)) TRAP(e); NEXT(); }
+L_ArrPush: { if (const char* e = op::arrPush(r, A, B, C)) TRAP(e); NEXT(); }
 L_Rt: {
   const char* e = rtCall(*this, static_cast<Rt>(dOf(w)), r + A, r + fn->nregs);
   if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; return false; }
   NEXT();
 }
-L_LogStr: {
-  auto* s = reinterpret_cast<StrObj*>(r[A]);
-  if (!s) TRAP("null reference");
-  out->append(s->data(), s->len);
-  NEXT();
-}
+L_LogStr: { if (const char* e = op::logStr(*this, r[A])) TRAP(e); NEXT(); }
 L_LogI: *out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();
 L_LogU: *out += std::to_string(r[A]); NEXT();
-L_LogF64: { double d = asD(r[A]); *out += (d == 0 && std::signbit(d)) ? std::string("-0") : numberToString(d); NEXT(); }  // console.log prints -0
+L_LogF64: op::logF64(*this, r[A]); NEXT();
 L_LogF32: *out += numberToString(static_cast<double>(asF(r[A]))); NEXT();
 L_LogBool: *out += r[A] ? "true" : "false"; NEXT();
 L_LogSep: *out += ' '; NEXT();
@@ -222,20 +154,6 @@ namespace zn::vm {
 
 using namespace zn::rt;
 
-Result run(const zbc::Module& mod, std::string& out, bool traceFree) {
-  Machine m;
-  m.out = &out;
-  m.traceFree = traceFree;
-  Result res;
-  std::string err;
-  if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
-  if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; }
-  else {
-    for (std::size_t g = m.globals.size(); g-- > 0;) if (m.globalRef[g]) { Slot v = m.globals[g]; m.globals[g] = 0; m.releaseSlot(v); }  // statics die in reverse order of definition
-    for (const Obj* o : m.allocated) if (o->rc != kImmortal) ++res.leaked;
-  }
-  res.trace = std::move(m.trace);
-  return res;
-}
+Result run(const zbc::Module& mod, std::string& out, bool traceFree) { return runModule(mod, out, traceFree, nullptr, nullptr); }
 
 }  // namespace zn::vm

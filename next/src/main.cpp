@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <cstring>
 #include <fstream>
@@ -13,6 +14,7 @@
 #include "frontend/modules.h"
 #include "frontend/parser.h"
 #include "ir/ir.h"
+#include "aot/aot.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "vm/vm.h"
@@ -87,18 +89,29 @@ int main(int argc, char** argv) {
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
     auto res = zn::vm::run(zm, out, trace);
-    std::fwrite(out.data(), 1, out.size(), stdout);
-    if (trace) std::fwrite(res.trace.data(), 1, res.trace.size(), stderr);
-    if (!res.ok) {
-      std::fflush(stdout);  // what the program printed comes before the error
-      if (res.error.rfind("panic: ", 0) == 0) { std::fprintf(stderr, "%s\n", res.error.c_str()); return 101; }  // an uncaught exception
-      std::fprintf(stderr, "runtime error: %s\n", res.error.c_str());
-      return 1;
-    }
-    if (std::getenv("ZN_LEAK_CHECK") && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
+    return zn::rt::report(res, out, trace);
+  }
+  if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    namespace fs = std::filesystem;
+    fs::path libs = fs::absolute(argv[0]).parent_path(), cpp = fs::path(argv[4]).string() + ".cpp";
+    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    const char* cxx = std::getenv("CXX");
+    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I " ZN_SOURCE_DIR "/include -I " ZN_SOURCE_DIR "/src '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" +
+                      (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "' -o '" + argv[4] + "'";
+    int rc = std::system(cmd.c_str());
+    if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
+    if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
     return 0;
   }
-  if (argc == 3 && !std::strcmp(argv[1], "--emit=zbc")) {  // zinc --emit=zbc <file>: disassembly
+  if (argc == 3 && !std::strcmp(argv[1], "--emit=cpp")) {  // zinc --emit=cpp <file>: the C++ of the AOT build
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::fputs(zn::aot::emitCpp(zm).c_str(), stdout);
+    return 0;
+  }
+  if (argc == 3 && !std::strcmp(argv[1], "--emit=zbc")) { // zinc --emit=zbc <file>: disassembly
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::fputs(zn::zbc::disassemble(zm).c_str(), stdout);

@@ -28,14 +28,18 @@ add_library(zn_zbc STATIC src/zbc/zbc.cpp src/zbc/emit.cpp)
 target_link_libraries(zn_zbc PUBLIC zn_ir)
 target_include_directories(zn_zbc PUBLIC include src)
 
-add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp)
+add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp)
 target_link_libraries(zn_rt PUBLIC zn_zbc)
 
 add_library(zn_vm STATIC src/vm/vm.cpp)
 target_link_libraries(zn_vm PUBLIC zn_rt)
 
+add_library(zn_aot STATIC src/aot/aot.cpp)
+target_link_libraries(zn_aot PUBLIC zn_zbc)
+
 add_executable(zinc src/main.cpp)
-target_link_libraries(zinc PRIVATE zn_vm zn_zbc zn_ir zn_frontend)
+target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(zinc PRIVATE zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 
 add_executable(ir_test tests/unit/ir_test.cpp)
 target_link_libraries(ir_test PRIVATE zn_ir)
