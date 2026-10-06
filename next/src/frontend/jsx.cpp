@@ -8,6 +8,7 @@
 #include <cctype>
 #include <map>
 #include <memory>
+#include <regex>
 #include <set>
 
 #include "frontend/lexer.h"
@@ -48,6 +49,58 @@ struct Elem {
 };
 
 struct Failure { std::uint32_t pos; std::string msg; };
+
+// UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
+bool validClass(const std::string& c) {
+  static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
+      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "inset-0", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal",
+      "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
+      "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
+  static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px)?\]|\d+/\d+|px))";
+  static const std::string color = R"(([a-z]+-\d+|white|black|transparent|\[#[0-9a-fA-F]{3,8}\])(/\d+)?)";
+  static const std::vector<std::regex> rules = {
+      std::regex(R"(^font-\[[A-Za-z0-9_.-]+\]$)"),
+      std::regex(R"(^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$)"),
+      std::regex("^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading)-" + num + "$"),
+      std::regex(R"(^(items|justify)-(start|center|end|stretch|between|around|evenly)$)"),
+      std::regex(R"(^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$)"),
+      std::regex(R"(^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$)"),
+      std::regex(R"(^bg-gradient-to-(t|b|l|r)$)"), std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
+      std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
+  static const std::regex variant(R"(^(focus|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex colored("^(bg|text|border|from|via|to)-" + color + "$");
+  static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
+  std::smatch m;
+  if (std::regex_match(c, m, variant)) return validClass(m[2].str());
+  if (fixed.count(c)) return true;
+  for (const std::regex& r : rules) if (std::regex_match(c, r)) return true;
+  if (std::regex_match(c, m, colored)) {
+    std::string col = m[2].str();
+    if (col[0] == '[' || col == "white" || col == "black" || col == "transparent") return true;
+    std::size_t dash = col.find('-');
+    if (dash == std::string::npos || !families.count(col.substr(0, dash))) return false;
+    std::string shade = col.substr(dash + 1);
+    return shade == "50" || shade == "950" || (shade.size() == 3 && shade[1] == '0' && shade[2] == '0' && shade[0] >= '1' && shade[0] <= '9');
+  }
+  return false;
+}
+
+// Style objects (compiler/src/ui-style.ts): CSS-like keys become the numeric style operations of zinc:ui.
+const std::map<std::string, std::vector<std::string>> kStyleAliases = {
+    {"padding", {"paddingTop", "paddingRight", "paddingBottom", "paddingLeft"}}, {"paddingHorizontal", {"paddingLeft", "paddingRight"}}, {"paddingVertical", {"paddingTop", "paddingBottom"}},
+    {"margin", {"marginTop", "marginRight", "marginBottom", "marginLeft"}}, {"marginHorizontal", {"marginLeft", "marginRight"}}, {"marginVertical", {"marginTop", "marginBottom"}},
+    {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}};
+const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
+    "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "hidden", "lazy"};
+const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
+    {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
+    {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
+    {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
+    {"position", {{"relative", 0}, {"static", 0}, {"absolute", 1}}}, {"display", {{"flex", 0}, {"none", 1}}},
+    {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
+    {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
+    {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}}};
 
 std::string quote(const std::string& s) {
   std::string r = "\"";
@@ -288,6 +341,83 @@ struct Lowering {
     return jsxOnly(x0, x1);
   }
 
+  // ---- style={...}: an object, an array of layers, a conditional of those, or any expression of type Style
+  std::string styleLayers(std::size_t a, std::size_t b) {
+    strip(a, b);
+    if (isP(a, "[") && match(a) == b - 1) {
+      std::string out = "[";
+      std::size_t from = a + 1;
+      bool first = true;
+      auto emit = [&](std::size_t x, std::size_t y) { if (x < y) { out += (first ? "" : ", ") + styleExpr(x, y); first = false; } };
+      scan(a + 1, b - 1, [&](std::size_t i, const std::string& x) { if (x == ",") { emit(from, i); from = i + 1; } else if (x == "...") fail(i, "spread style arrays are unsupported"); });
+      emit(from, b - 1);
+      return out + "]";
+    }
+    return "[" + styleExpr(a, b) + "]";
+  }
+  std::string styleExpr(std::size_t a, std::size_t b) {
+    strip(a, b);
+    if (b == a + 1 && (isK(a, "null") || isK(a, "false") || (t[a].kind == Tok::Ident && tx(a) == "undefined"))) return "new __ZStyle([], [])";
+    std::size_t q = 0, colon = 0, andAt = 0;
+    int depth = 0;
+    scan(a, b, [&](std::size_t i, const std::string& x) {
+      if (x == "?") { if (!q) q = i; ++depth; }
+      else if (x == ":" && q && depth > 0) { if (--depth == 0 && !colon) colon = i; }
+      else if (x == "&&" && !q) andAt = i;
+    });
+    if (q && colon) return "(" + rw(a, q) + " ? " + styleExpr(q + 1, colon) + " : " + styleExpr(colon + 1, b) + ")";
+    if (andAt && !q) return "(" + rw(a, andAt) + " ? " + styleExpr(andAt + 1, b) + " : new __ZStyle([], []))";
+    if (isP(a, "{") && match(a) == b - 1) return styleObject(a + 1, b - 1);
+    return rw(a, b);
+  }
+  std::string styleObject(std::size_t a, std::size_t b) {
+    std::vector<std::string> keys, values;
+    std::size_t from = a;
+    std::vector<std::pair<std::size_t, std::size_t>> props;
+    scan(a, b, [&](std::size_t i, const std::string& x) { if (x == ",") { props.push_back({from, i}); from = i + 1; } });
+    if (from < b) props.push_back({from, b});
+    for (auto [x, y] : props) {
+      if (x >= y) continue;
+      if (!(t[x].kind == Tok::Ident || t[x].kind == Tok::String)) fail(x, "style objects use named properties; compose with style={[base, override]}");
+      std::string key = tx(x);
+      if (t[x].kind == Tok::String) key = key.substr(1, key.size() - 2);
+      std::size_t vb = x + 1, ve = y;
+      std::string raw;
+      if (isP(x + 1, ":")) vb = x + 2; else { vb = x; ve = x + 1; }  // shorthand `{ gap }`
+      raw = rw(vb, ve);
+      for (std::size_t k = 0; k < key.size(); ++k)  // font-size -> fontSize
+        if (key[k] == '-' && k + 1 < key.size()) { key.erase(k, 1); key[k] = static_cast<char>(std::toupper(static_cast<unsigned char>(key[k]))); }
+      auto dynamicKeys = [&](const std::string& val) {
+        auto al = kStyleAliases.find(key);
+        std::vector<std::string> ks = al != kStyleAliases.end() ? al->second : kStyleNumeric.count(key) ? std::vector<std::string>{key} : std::vector<std::string>{};
+        if (ks.empty()) fail(x, "style '" + key + "' needs a supported literal value (or is unsupported)");
+        for (const std::string& k : ks) {
+          keys.push_back(quote(k)); values.push_back(val);
+          if (k == "backgroundColor") { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }
+        }
+      };
+      if (ve == vb + 1 && t[vb].kind == Tok::String) {  // 'row', '#fff', '12px'
+        std::string sv = tx(vb);
+        sv = sv.substr(1, sv.size() - 2);
+        auto en = kStyleEnums.find(key);
+        if (en != kStyleEnums.end()) {
+          auto ev = en->second.find(sv);
+          if (ev == en->second.end()) fail(vb, "unsupported " + key + ": " + sv);
+          keys.push_back(quote(key == "display" ? "hidden" : key)); values.push_back(num(ev->second));
+        } else if (!sv.empty() && sv[0] == '#' && (sv.size() == 7 || sv.size() == 4)) {
+          std::string hex = sv.substr(1);
+          if (hex.size() == 3) hex = std::string{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]};
+          dynamicKeys(std::to_string(std::stol(hex, nullptr, 16)));
+        } else if (!sv.empty() && sv.find_first_not_of("0123456789.") == std::string::npos) dynamicKeys(sv);
+        else if (sv.size() > 2 && sv.compare(sv.size() - 2, 2, "px") == 0 && sv.substr(0, sv.size() - 2).find_first_not_of("0123456789.") == std::string::npos) dynamicKeys(sv.substr(0, sv.size() - 2));
+        else fail(vb, "unsupported " + key + ": '" + sv + "'");
+      } else dynamicKeys("(" + raw + ")");
+    }
+    std::string ks, vs;
+    for (std::size_t k = 0; k < keys.size(); ++k) { ks += (k ? ", " : "") + keys[k]; vs += (k ? ", " : "") + values[k]; }
+    return "new __ZStyle([" + ks + "], [" + vs + "])";
+  }
+
   std::string element(const Elem& e, std::vector<std::string>& out) {
     std::string v = "__n" + std::to_string(counter++);
     if (e.frag) {
@@ -312,10 +442,24 @@ struct Lowering {
       bool lit = a.kind == 1;
       auto push = [&](const std::string& l) { out.push_back(l); };
       if (name == "class") {
-        if (lit) push("_class(" + v + ", " + quote(a.lit) + ");");
+        if (lit) {
+          std::size_t at = 0;
+          while (at < a.lit.size()) {
+            while (at < a.lit.size() && std::isspace(static_cast<unsigned char>(a.lit[at]))) ++at;
+            std::size_t end = at;
+            while (end < a.lit.size() && !std::isspace(static_cast<unsigned char>(a.lit[end]))) ++end;
+            if (end > at && !validClass(a.lit.substr(at, end - at))) fail(a.tok, "unknown class '" + a.lit.substr(at, end - at) + "' (UI-07)");
+            at = end;
+          }
+          push("_class(" + v + ", " + quote(a.lit) + ");");
+        }
         else push(react ? "_class(" + v + ", " + expr + ");" : "_dynClass(" + v + ", () => (" + expr + "));");
       } else if (name == "onClick" || name == "onPress") push("_on(" + v + ", " + expr + ");");
-      else if (name == "style") fail(a.tok, "the style attribute is not supported yet");
+      else if (name == "style") {
+        if (a.kind != 2) fail(a.tok, "style expects an object, a StyleSheet entry or an array of styles");
+        std::string layers = styleLayers(a.eb, a.ee);
+        push(react ? "_styles(" + v + ", " + layers + ");" : "_dynStyles(" + v + ", () => " + layers + ");");
+      }
       else if (name == "src") push(lit ? "_img(" + v + ", " + quote(a.lit) + ");" : react ? "_img(" + v + ", " + expr + ");" : "_dynImg(" + v + ", () => (" + expr + "));");
       else if (name == "ref") push("_ref(" + v + ", " + expr + ");");
       else if (name == "focusable") push("_focusable(" + v + ");");
@@ -517,7 +661,8 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     const char* input = "_styles, _ptr, _key, _onText, _str, _hl, _ctx";
     std::string helpers = L.react ? std::string("_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ") + input
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
-    return "import { " + helpers + " } from '" + L.lib + "'; " + out;
+    std::string styleImport = out.find("new __ZStyle(") != std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
+    return styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out;
   } catch (const Failure& f) {
     diags.push_back({"Z0005", f.pos, "JSX: " + f.msg, file});
     return std::string(src);

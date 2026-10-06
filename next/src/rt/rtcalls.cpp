@@ -10,7 +10,7 @@
 #include "rt/rt.h"
 #include "zn/host.h"
 
-namespace zn::host { const Gfx* gfx = nullptr; }
+namespace zn::host { HostCall hostGfx = nullptr; }
 
 namespace zn::rt {
 
@@ -782,22 +782,31 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = nd;
       return nullptr;
     }
-    // ---- the host (zinc:gfx): arguments decoded here, the work done through the installed table (zn/host.h)
-    case Rt::HostGfxFrames: case Rt::HostGfxBegin: case Rt::HostGfxEnd: case Rt::HostGfxClear: case Rt::HostGfxRect:
-    case Rt::HostGfxRRect: case Rt::HostGfxFont: case Rt::HostGfxDrawText: {
-      const zn::host::Gfx* g = zn::host::gfx;
-      if (!g) return "zinc:gfx is not available in this build";
-      auto D = [&](unsigned k) { return std::bit_cast<double>(a[k]); };
-      auto U = [&](unsigned k) { return static_cast<std::uint32_t>(a[k]); };
-      switch (id) {
-        case Rt::HostGfxFrames: a[0] = static_cast<Slot>(static_cast<std::int64_t>(g->frames())); break;
-        case Rt::HostGfxBegin: g->begin(); break;
-        case Rt::HostGfxEnd: g->end(); break;
-        case Rt::HostGfxClear: g->clear(U(0)); break;
-        case Rt::HostGfxRect: g->rect(D(0), D(1), D(2), D(3), U(4)); break;
-        case Rt::HostGfxRRect: g->rrect(D(0), D(1), D(2), D(3), D(4), U(5), static_cast<std::int32_t>(U(6))); break;
-        case Rt::HostGfxFont: { StrObj* s = S(a[0]); NN(s); a[0] = static_cast<Slot>(static_cast<std::int64_t>(g->font(s->data(), s->len, static_cast<std::int32_t>(U(1))))); break; }
-        default: { StrObj* s = S(a[3]); NN(s); g->drawText(static_cast<std::int32_t>(U(0)), D(1), D(2), s->data(), s->len, U(4), static_cast<std::int32_t>(U(5)), D(6)); break; }
+    // ---- the host (zinc:gfx): arguments decoded by their letters, the work done through the installed call (zn/host.h)
+    case Rt::HostGfxFrames: case Rt::HostGfxBegin: case Rt::HostGfxEnd: case Rt::HostGfxClear: case Rt::HostGfxRect: case Rt::HostGfxRRect:
+    case Rt::HostGfxFont: case Rt::HostGfxDrawText: case Rt::HostGfxLine: case Rt::HostGfxText: case Rt::HostGfxGradient: case Rt::HostGfxBorder:
+    case Rt::HostGfxShadow: case Rt::HostGfxPolygon: case Rt::HostGfxPath: case Rt::HostGfxStroke: case Rt::HostGfxFontAscent:
+    case Rt::HostGfxLineHeight: case Rt::HostGfxTextWidth: case Rt::HostGfxImage: case Rt::HostGfxImageWidth: case Rt::HostGfxImageHeight:
+    case Rt::HostGfxDrawImage: case Rt::HostGfxClip: case Rt::HostGfxUnclip: case Rt::HostGfxTranslate: case Rt::HostGfxKeep:
+    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: {
+      if (!zn::host::hostGfx) return "zinc:gfx is not available in this build";
+      const RtInfo& ri = rtInfo(id);
+      zn::host::HostArg args[12], res;
+      for (unsigned k = 0; k < rtParamCount(ri); ++k) {
+        zn::host::HostArg& h = args[k];
+        switch (rtParam(ri, k)) {
+          case 'd': h.d = std::bit_cast<double>(a[k]); break;
+          case 's': { StrObj* s = S(a[k]); NN(s); h.p = s->data(); h.n = s->len; break; }
+          case 'D': { ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]); NN(arr); h.p = arr->v.data(); h.n = static_cast<std::uint32_t>(arr->v.size()); break; }
+          case 'u': h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
+          default: h.i = static_cast<std::int64_t>(a[k]); break;  // i (sign-extended), b
+        }
+      }
+      zn::host::hostGfx(static_cast<int>(id), args, &res);
+      switch (rtRet(ri)) {
+        case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
+        case 'i': a[0] = static_cast<Slot>(res.i); break;
+        default: break;
       }
       return nullptr;
     }

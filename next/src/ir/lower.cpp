@@ -366,7 +366,28 @@ struct Lowering {
     std::vector<std::uint32_t> caps;   // captured symbols, in field order
     std::int32_t thisField = -1;       // field holding the captured `this`, if any
   };
-  std::unordered_map<std::uint32_t, LambdaInfo> lambdas;                          // FuncExpr node -> info
+  std::unordered_map<std::uint32_t, LambdaInfo> lambdas;                          // FuncExpr (or closure-needing nested Function) node -> info
+  std::unordered_set<std::uint32_t> closureFns;  // nested function declarations that use variables of the code around them: closures, like lambdas
+  // The variables a lambda or nested function captures: those of its own, and the closures of the nested functions it uses.
+  std::vector<std::uint32_t> capsOf(std::uint32_t node) const {
+    std::vector<std::uint32_t> r;
+    auto cap = c.captures.find(node);
+    if (cap == c.captures.end()) return r;
+    for (std::uint32_t s : cap->second) {
+      if (c.syms[s].kind == SymKind::Func && (!closureFns.count(c.syms[s].decl) || c.syms[s].decl == node)) continue;  // a plain function is called directly; a closure reaches itself through its own object (no cycle)
+      r.push_back(s);
+    }
+    return r;
+  }
+  void computeClosureFns() {
+    for (bool changed = true; changed;) {
+      changed = false;
+      for (const auto& [node, caps] : c.captures) {
+        if (n(node).kind != N::Function || closureFns.count(node) || c.nodeType[node] == frontend::kNoType) continue;
+        if (!capsOf(node).empty()) { closureFns.insert(node); changed = true; }
+      }
+    }
+  }
   std::unordered_map<frontend::TypeId, std::uint32_t> fnClassOfType;              // function type -> IR interface
   std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkOfSym;  // function symbol -> {class, function}
   std::unordered_map<TypeId, std::uint32_t> cellOfType;
@@ -429,14 +450,14 @@ struct Lowering {
     if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface || x.kind == N::FuncExpr) && c.nodeType[i] == frontend::kNoType) return;  // a generic template
     if (x.kind == N::Interface) return;
     if (x.kind == N::Class) curObj = c.types[c.nodeType[i]].obj;
-    if (x.kind == N::FuncExpr && !typeHasParam(c.nodeType[i])) {
+    if ((x.kind == N::FuncExpr || (x.kind == N::Function && closureFns.count(i))) && !typeHasParam(c.nodeType[i])) {
       LambdaInfo li;
       li.node = i;
-      auto cap = c.captures.find(i);
-      if (cap != c.captures.end()) li.caps = cap->second;
+      li.caps = capsOf(i);
       Class cl;
       cl.name = "lambda" + std::to_string(lambdas.size());
       if (auto ln = c.lambdaNames.find(i); ln != c.lambdaNames.end()) cl.name += ":" + ln->second;  // the runtime name of the function
+      else if (x.kind == N::Function) cl.name += ":" + std::string(x.text);
       for (std::uint32_t sym : li.caps) {
         TypeId ft = irType(c.syms[sym].type, i);
         cl.fields.push_back({std::string(c.syms[sym].name), isCell(sym) ? m.refT(cellClass(ft)) : ft});
@@ -465,7 +486,7 @@ struct Lowering {
   void buildThunks() {
     for (std::uint32_t node : c.funcValueUses) {
       std::uint32_t sym = c.nodeSym[node];
-      if (sym == kNil || thunkOfSym.count(sym)) continue;
+      if (sym == kNil || thunkOfSym.count(sym) || closureFns.count(c.syms[sym].decl)) continue;
       auto target = funcOfNode.find(c.syms[sym].decl);
       if (target == funcOfNode.end()) continue;
       frontend::TypeId ftype = c.nodeType[node];
@@ -553,6 +574,10 @@ struct Lowering {
     for (std::uint32_t s : stmts) {
       const Node& x = n(s);
       if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface) && c.nodeType[s] == frontend::kNoType) continue;  // a generic template
+      if (x.kind == N::Function && closureFns.count(s)) {  // a closure (see collectLambdas); the functions declared inside it are still collected
+        if (x.kids[1] != kNil) collectFunctions(n(x.kids[1]).kids, std::string(x.text) + ".");
+        continue;
+      }
       if (x.kind == N::Function) {
         frontend::TypeId sig = c.nodeType[s];
         std::vector<TypeId> ps;
@@ -561,7 +586,6 @@ struct Lowering {
         std::string nm = prefix + (inm != c.nodeNames.end() ? inm->second : std::string(x.text));
         std::uint32_t fi = addFunction(nm, ps, irType(c.types[sig].elem, s));
         funcOfNode[s] = fi; nodeOfFunc[fi] = s;
-        if (c.captures.count(s) && !c.captures.at(s).empty()) unsupported(s, "a nested function that uses variables of the function around it (use an arrow function)");
         jobs.push_back({fi, s, kNil, false, kNil});
         if (x.kids[1] != kNil) collectFunctions(n(x.kids[1]).kids, nm + ".");
       } else if (x.kind == N::Class) {
@@ -669,6 +693,7 @@ struct Lowering {
     collectClassNodes(a.root);
     for (std::uint32_t inst : c.instances) collectClassNodes(inst);
     addFunction("main", {}, m.voidT());  // function 0
+    computeClosureFns();
     collectFunctions(n(a.root).kids, "");
     collectFunctions(c.instances, "");  // monomorphised generic functions and classes
     collectLambdas(a.root, kNil);
@@ -845,6 +870,7 @@ struct Lowering::FnLower {
     return readVar(s, cur);
   }
   ValueId readSym(std::uint32_t s) {
+    if (lam && c.syms[s].kind == SymKind::Func && c.syms[s].decl == lam->node) return f.params[0];  // a nested function used inside itself: its own closure object
     if (L.global[s]) return emit(IrOp::GetGlobal, L.irType(c.syms[s].type), {}, 0, 0, L.globalIndex[s]);
     if (L.isCell(s)) return emit(IrOp::GetField, L.irType(c.syms[s].type), {storageOf(s)}, 0, 0, 0);
     return storageOf(s);
@@ -1015,7 +1041,18 @@ struct Lowering::FnLower {
     rethrow(e);
     cur = after;
   }
+  // A nested function that is a closure keeps its closure in a variable (a shared cell when others capture it); the cell exists from the
+  // start of the block, so closures created before the declaration see the function once it is stored.
+  void declareClosureFns(const std::vector<std::uint32_t>& list) {
+    for (std::uint32_t st : list) {
+      if (n(st).kind != N::Function || !L.closureFns.count(st)) continue;
+      std::uint32_t sym = c.nodeSym[st];
+      TypeId ft = L.irType(c.syms[sym].type, st);
+      declSym(sym, emit(IrOp::Const, ft, {}, ty(ft).builtinRef() ? ir::kNullConst : 0));
+    }
+  }
   void stmtsFrom(const std::vector<std::uint32_t>& list, std::size_t from) {
+    if (from == 0) declareClosureFns(list);
     for (std::size_t i = from; i < list.size(); ++i) {
       const Node& s = n(list[i]);
       stmt(list[i]);
@@ -1216,7 +1253,7 @@ struct Lowering::FnLower {
         std::uint32_t s = c.nodeSym[i];
         if (s == kNil) return constNum(m.numT(NumK::f64), 0);
         if (c.syms[s].kind == SymKind::Builtin) return constNum(m.numT(NumK::f64), x.text == "NaN" ? std::nan("") : HUGE_VAL);
-        if (c.syms[s].kind == SymKind::Func) {  // a function used as a value
+        if (c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) {  // a function used as a value
           auto th = L.thunkOfSym.find(s);
           if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
           return emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first);
@@ -1342,7 +1379,7 @@ struct Lowering::FnLower {
         cur = join;
         return jp;
       }
-      case N::FuncExpr: {  // a closure: an object holding the captured variables
+      case N::Function: case N::FuncExpr: {  // a closure: an object holding the captured variables
         const Lowering::LambdaInfo& li = L.lambdas.at(i);
         ValueId o = emit(IrOp::New, m.refT(li.cls), {}, 0, 0, li.cls);
         for (std::size_t k = 0; k < li.caps.size(); ++k) {
@@ -1511,6 +1548,7 @@ struct Lowering::FnLower {
       case 's': case 'w': case 'y': return m.strT();
       case 'i': case 'j': case 'z': return m.numT(NumK::i32);
       case 'u': return m.numT(NumK::u32);
+      case 'D': return m.arrayT(m.numT(NumK::f64));
       case 'b': return m.boolT();
       case 'd': return m.numT(NumK::f64);
       case 'n': return m.voidT();
@@ -1594,7 +1632,7 @@ struct Lowering::FnLower {
     if (ct == frontend::kNoType || c.types[ct].k != frontend::TK::Func) return false;
     if (callee.kind == N::Ident) {
       std::uint32_t sy = c.nodeSym[calleeId];
-      return sy != kNil && c.syms[sy].kind != SymKind::Func && c.syms[sy].kind != SymKind::Builtin;
+      return sy != kNil && (c.syms[sy].kind != SymKind::Func || L.closureFns.count(c.syms[sy].decl)) && c.syms[sy].kind != SymKind::Builtin;
     }
     if (callee.kind == N::Member) {
       const Node& on = n(callee.kids[0]);
@@ -1626,7 +1664,7 @@ struct Lowering::FnLower {
     }
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
-      if (s != kNil && c.syms[s].kind == SymKind::Func) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
+      if (s != kNil && c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__identity" || callee.text == "__classname")) {
         bool isId = callee.text == "__identity";
         return emit(IrOp::Rt, isId ? m.numT(NumK::i64) : m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(isId ? zn::Rt::ObjId : zn::Rt::ClassName));
@@ -1806,7 +1844,10 @@ struct Lowering::FnLower {
   void stmt(std::uint32_t s) {
     const Node& x = n(s);
     switch (x.kind) {
-      case N::Empty: case N::Function: case N::Interface: case N::TypeAlias: case N::Enum: break;
+      case N::Function:
+        if (L.closureFns.count(s)) writeSym(c.nodeSym[s], expr(s));  // the closure of a nested function that uses variables around it
+        break;
+      case N::Empty: case N::Interface: case N::TypeAlias: case N::Enum: break;
       case N::Switch: {  // a chain of tests, then the clause bodies in order so a clause without `break` falls into the next
         ValueId disc = expr(x.kids[0]);
         TypeId dt = tv(disc);
@@ -2025,7 +2066,7 @@ struct Lowering::FnLower {
     for (Block& b : f.blocks) {
       for (ValueId& p : b.params) p = remap[p];
       for (Inst& i : b.insts) {
-        for (ValueId& v : i.args) v = remap[v];
+        for (ValueId& v : i.args) { if (v >= remap.size()) { std::fprintf(stderr, "internal error: instruction %s of @%s uses a missing value\n", opName(i.op), f.name.c_str()); std::abort(); } v = remap[v]; }
         for (Edge& e : i.edges) for (ValueId& v : e.args) v = remap[v];
         if (i.res != kNoValue) i.res = remap[i.res];
       }

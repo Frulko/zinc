@@ -7,7 +7,7 @@ node 0
     dynTextOf Hello 2 items
   node 6
     node 0
-      class badge
+      class rounded
       node 1
         dynTextOf x
       node 1

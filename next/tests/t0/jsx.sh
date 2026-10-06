@@ -6,4 +6,5 @@ fail=0
 "$ZINC" run tests/golden/jsx/basic.tsx 2>&1 | diff -q - tests/golden/jsx/basic.out >/dev/null || { echo "jsx basic output differs"; fail=1; }
 "$ZINC" run tests/golden/jsx/bad_attr.tsx 2>&1 | grep -q "Z0005.*unknown attribute 'zoom' on <View>" || { echo "unknown attribute not reported"; fail=1; }
 "$ZINC" run tests/golden/jsx/bad_text.tsx 2>&1 | grep -q "Z0005.*can only contain text" || { echo "element inside <Text> not reported"; fail=1; }
+"$ZINC" run tests/golden/jsx/bad_class.tsx 2>&1 | grep -q "Z0005.*unknown class .bogus-class." || { echo "unknown class not reported"; fail=1; }
 exit $fail

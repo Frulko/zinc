@@ -157,10 +157,15 @@ struct Parser {
     std::string_view name = txt();
     if (rest) name = s.substr(st, cur().end - st);
     ++i;
-    if (eatP("?")) {}
+    bool optional = eatP("?");
     std::uint32_t ty = kNone, def = kNone;
     if (eatP(":")) ty = type();
     if (!inType && eatP("=")) def = assignment();
+    if (optional && ty != kNone) {  // `x?: T` is `x: T | null = null`
+      std::uint32_t nul = mk(N::TypeRef, st, prevEnd(), "null");
+      ty = mk(N::TypeUnion, st, prevEnd(), {}, {ty, nul});
+      if (!inType && def == kNone) def = mk(N::Literal, st, prevEnd(), "null");
+    }
     std::uint32_t id = mk(N::Param, st, prevEnd(), name, {ty, def});
     r.ast.nodes[id].flags = pflags;
     return id;
@@ -414,7 +419,7 @@ struct Parser {
         if (opt && (isP("[", 1) || isP("(", 1))) {
           ++i;
           if (isP("[")) { ++i; std::uint32_t ix = expression(); expectP("]"); e = mk(N::Index, startOf(e), prevEnd(), {}, {e, ix}); }
-          else { auto as = arguments(); as.insert(as.begin(), e); e = mk(N::Call, startOf(e), prevEnd(), {}, std::move(as)); }
+          else { auto as = arguments(); as.insert(as.begin(), e); e = mk(N::Call, startOf(e), prevEnd(), {}, std::move(as)); r.ast.nodes[e].flags |= kFlagOptional; }  // `f?.(x)`
           continue;
         }
         std::uint32_t opStart = cur().start;
@@ -813,13 +818,13 @@ struct Parser {
         members.push_back(id);
         if (mname == "constructor") ctor = id;
       } else {
-        eatP("?");
+        bool definite = !eatP("?") && eatP("!");  // `x!: T`: definitely assigned later
         std::uint32_t ty = kNone, init = kNone;
         if (eatP(":")) ty = type();
         if (eatP("=")) init = assignment();
         semi();
         std::uint32_t id = mk(N::Field, ms, prevEnd(), mname, {ty, init});
-        r.ast.nodes[id].flags = fl;
+        r.ast.nodes[id].flags = fl | (definite ? kFlagDefinite : 0);
         members.push_back(id);
       }
     }
@@ -1023,7 +1028,21 @@ struct Parser {
     ++i;
     if (isId("type") && isP("{", 1)) ++i;
     if (cur().kind == Tok::String) { std::string_view src = sourceString(); semi(); return mk(N::Import, st, prevEnd(), src); }
-    if (isP("*")) unsupported("namespace imports");
+    if (isP("*")) {  // `import * as ns from './x'`: one spec named "*"; the loader rewrites `ns.name` into a named import
+      std::uint32_t s0 = cur().start;
+      ++i;
+      if (!isId("as")) fail(kZExpected, cur().start, "'as'");
+      ++i;
+      if (cur().kind != Tok::Ident) unexpected();
+      std::uint32_t id = mk(N::Ident, cur().start, cur().end, txt());
+      ++i;
+      std::uint32_t spec = mk(N::ImportSpec, s0, prevEnd(), "*", {id});
+      if (!isId("from")) fail(kZExpected, cur().start, "'from'");
+      ++i;
+      std::string_view src = sourceString();
+      semi();
+      return mk(N::Import, st, prevEnd(), src, {spec});
+    }
     if (cur().kind == Tok::Ident) unsupported("default imports");
     expectP("{");
     std::vector<std::uint32_t> specs;

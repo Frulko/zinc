@@ -26,7 +26,8 @@ struct Program {
 using ReadFile = std::function<bool(const std::string& path, std::string& out)>;
 
 // `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false);
+// `stdRoot` is the directory of the standard modules written in Zinc (lib/std): 'zinc:ui' and the like resolve to files there.
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "");
 
 // `file:line:col: error Zxxxx: title: detail` for a diagnostic of the program.
 std::string formatDiag(const Program& p, const Diag& d);

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <set>
 
 #include "frontend/desugar.h"
 #include "frontend/diagnostics.h"
@@ -59,11 +60,84 @@ function __gfxLoop(): void {
 }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
 export function frame(): i32 { return __frameNo; }
+export function width(): i32 { return __host_gfxWidth(); }
+export function height(): i32 { return __host_gfxHeight(); }
+export function pixelScale(): i32 { return __host_gfxPixelScale(); }
 export function clear(color: u32): void { __host_gfxClear(color); }
 export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
+export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }
+export function text(x: number, y: number, s: string, color: u32, scale: i32): void { __host_gfxText(x, y, s, color, scale); }
 export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void { __host_gfxRRect(x, y, w, h, r, color, alpha); }
+export function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void { __host_gfxGradient(x, y, w, h, r, c1, c2, vertical, alpha); }
+export function border(x: number, y: number, w: number, h: number, r: number, bw: number, color: u32, alpha: i32): void { __host_gfxBorder(x, y, w, h, r, bw, color, alpha); }
+export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void { __host_gfxShadow(x, y, w, h, r, blur, color, alpha); }
+export function polygon(points: number[], color: u32, alpha: i32): void { __host_gfxPolygon(points, color, alpha); }
+export function path(contours: number[], color: u32, alpha: i32): void { __host_gfxPath(contours, color, alpha); }
+export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void { __host_gfxStroke(points, width, color, alpha, closed); }
 export function font(family: string, px: i32): i32 { return __host_gfxFont(family, px); }
+export function fontAscent(f: i32): i32 { return __host_gfxFontAscent(f); }
+export function lineHeight(f: i32): i32 { return __host_gfxLineHeight(f); }
+export function textWidth(f: i32, s: string, tracking: number): number { return __host_gfxTextWidth(f, s, tracking); }
 export function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void { __host_gfxDrawText(font, x, y, s, color, alpha, tracking); }
+export function image(name: string): i32 { return __host_gfxImage(name); }
+export function imageWidth(img: i32): i32 { return __host_gfxImageWidth(img); }
+export function imageHeight(img: i32): i32 { return __host_gfxImageHeight(img); }
+export function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void { __host_gfxDrawImage(img, x, y, w, h, alpha, radius); }
+export function clip(x: number, y: number, w: number, h: number, radius: number = 0): void { __host_gfxClip(x, y, w, h, radius); }
+export function unclip(): void { __host_gfxUnclip(); }
+export function translate(x: number, y: number): void { __host_gfxTranslate(x, y); }
+export function keep(): void { __host_gfxKeep(); }
+// Headless input: a run without a window (the deterministic mode) has no pointer, keys, touch or pen.
+export enum Btn { Up = 0, Down = 1, Left = 2, Right = 3, A = 4, B = 5, X = 6, Y = 7, L = 8, R = 9, Start = 10, Select = 11 }
+export enum Mod { Shift = 1, Ctrl = 2, Alt = 4, Meta = 8 }
+export enum KeyKind { Down = 0, Up = 1, Repeat = 2, Text = 3 }
+export enum Cursor { Default = 0, Text = 1, Pointer = 2, Move = 3, EwResize = 4, NsResize = 5, Crosshair = 6, Grab = 7, Grabbing = 8, NotAllowed = 9 }
+export enum PenFlag { Down = 1, Eraser = 2, Hover = 4 }
+export function wheel(): number { return 0; }
+export function wheelX(): number { return 0; }
+export function pinch(): number { return 1; }
+export function touchCount(): i32 { return 0; }
+export function touchX(i: i32): number { return 0; }
+export function touchY(i: i32): number { return 0; }
+export function touchId(i: i32): i32 { return 0; }
+export function penCount(): i32 { return 0; }
+export function penX(i: i32): number { return 0; }
+export function penY(i: i32): number { return 0; }
+export function penPressure(i: i32): number { return 0; }
+export function penTiltX(i: i32): number { return 0; }
+export function penTiltY(i: i32): number { return 0; }
+export function penFlags(i: i32): i32 { return 0; }
+export function isDown(b: Btn): boolean { return false; }
+export function wasPressed(b: Btn): boolean { return false; }
+export function pointerX(): number { return 0; }
+export function pointerY(): number { return 0; }
+export function pointerDown(): boolean { return false; }
+export function pointerButtons(): i32 { return 0; }
+export function modifiers(): i32 { return 0; }
+export function keyCount(): i32 { return 0; }
+export function keyKind(i: i32): KeyKind { return KeyKind.Down; }
+export function keyMods(i: i32): i32 { return 0; }
+export function keyName(i: i32): string { return ''; }
+export function buttonEventCount(): i32 { return 0; }
+export function buttonEventX(i: i32): number { return 0; }
+export function buttonEventY(i: i32): number { return 0; }
+export function buttonEventButton(i: i32): i32 { return 0; }
+export function buttonEventDown(i: i32): boolean { return false; }
+export function startTextInput(x: number, y: number, w: number, h: number): void {}
+export function stopTextInput(): void {}
+let __clipboard: string = '';
+export function clipboardText(): string { return __clipboard; }
+export function setClipboardText(s: string): void { __clipboard = s; }
+export function setCursor(c: Cursor): void {}
+export function scrollDX(): number { return 0; }
+export function scrollDY(): number { return 0; }
+export function scrollPhase(): i32 { return 0; }
+export function escapeByApp(on: boolean): void {}
+export function escapeDefault(): void {}
+export function profiling(): boolean { return false; }
+export function profMark(phase: i32): void {}
+export function quit(): void {}
+export function capture(path: string): boolean { return false; }
 )ZN";
 
 const char* hostModuleSource(std::string_view spec) { return spec == "zinc:gfx" ? kGfxModule : nullptr; }
@@ -74,6 +148,7 @@ struct Loader {
   std::map<std::string, std::uint32_t> done;   // path -> module index
   std::map<std::string, bool> visiting;
   std::vector<std::uint32_t> flat;             // the program's statements in module order
+  std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
 
   Loader(Program& p, const ReadFile& r) : prog(p), read(r) {}
 
@@ -87,6 +162,15 @@ struct Loader {
     if (spec.rfind("zinc:", 0) == 0) {
       if (done.count(spec)) return done[spec];
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
+      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
+                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
+      auto hit = kStd.find(spec);
+      if (hit != kStd.end() && !stdRoot.empty()) {
+        std::string path = stdRoot + "/" + hit->second, text;
+        if (done.count(path)) return done[path];
+        if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
+        if (read(path, text)) return load(path, std::move(text));
+      }
       diag(kZModuleNotFound, fromFile, node, "'" + spec + "'");
       return kNone;
     }
@@ -130,6 +214,7 @@ struct Loader {
       for (auto& [k, v] : pr.ast.tparams) { auto& d = A.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       for (auto& [k, v] : pr.ast.targs) { auto& d = A.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       ModuleInfo mod;
+      std::vector<std::pair<std::string, std::uint32_t>> namespaces;  // `import * as ns` of this module: alias, module
       mod.path = path;
       mod.file = fi;
       for (std::uint32_t st : std::vector<std::uint32_t>(A.nodes[pr.ast.root + off].kids)) {
@@ -138,7 +223,10 @@ struct Loader {
           case N::Import: {
             std::uint32_t from = resolve(fi, st, x.text);
             if (from == kNone) break;
-            for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) mod.imports.push_back({from, A.nodes[sp].text, A.nodes[A.nodes[sp].kids[0]].text, sp});
+            for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) {
+              if (A.nodes[sp].text == "*") { namespaces.push_back({std::string(A.nodes[A.nodes[sp].kids[0]].text), from}); continue; }
+              mod.imports.push_back({from, A.nodes[sp].text, A.nodes[A.nodes[sp].kids[0]].text, sp});
+            }
             break;
           }
           case N::ExportAll: {
@@ -165,6 +253,29 @@ struct Loader {
             break;
           }
           default: mod.stmts.push_back(st);
+        }
+      }
+      // `import * as ns`: every `ns.name` of this file becomes the named import `ns$name`
+      for (const auto& [alias, from] : namespaces) {
+        std::set<std::string> added;
+        for (std::size_t k = off; k < A.nodes.size(); ++k) {
+          Node& nd = A.nodes[k];
+          if (nd.file != fi) continue;
+          std::string prop;
+          if (nd.kind == N::Member && !nd.kids.empty() && nd.kids[0] != kNone && A.nodes[nd.kids[0]].kind == N::Ident && A.nodes[nd.kids[0]].text == alias) {
+            prop = std::string(nd.text);
+            A.generated.push_back(alias + "$" + prop);
+            nd.kind = N::Ident; nd.text = A.generated.back(); nd.kids.clear();
+          } else if (nd.kind == N::TypeRef && nd.text.size() > alias.size() + 1 && nd.text.compare(0, alias.size() + 1, alias + ".") == 0) {
+            prop = std::string(nd.text.substr(alias.size() + 1));
+            A.generated.push_back(alias + "$" + prop);
+            nd.text = A.generated.back();
+          } else continue;
+          if (from == kNone || !added.insert(prop).second) continue;
+          A.generated.push_back(prop);
+          std::string_view propText = A.generated.back();
+          A.generated.push_back(alias + "$" + prop);
+          mod.imports.push_back({from, propText, A.generated.back(), static_cast<std::uint32_t>(k)});
         }
       }
       result = static_cast<std::uint32_t>(A.modules.size());
@@ -551,15 +662,28 @@ bool needsErrors(const Ast& A) {
 
 }  // namespace
 
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict) {
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot) {
   Program p;
   std::string text;
   if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
   Loader L(p, read);
+  L.stdRoot = stdRoot;
   L.load(entry, std::move(text));
   bool usesGfx = false;
   for (const SourceFile& f : p.files) if (f.path == "zinc:gfx") usesGfx = true;
+  if (p.diags.empty()) {  // without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`)
+    bool dyn = false;
+    for (const Node& x : p.ast.nodes) {
+      if (x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) dyn = true;
+      if (x.kind == N::Member && x.text == "parse" && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "JSON") dyn = true;
+    }
+    if (!dyn)
+      for (Node& x : p.ast.nodes) {
+        if (x.kind == N::Ident && x.text == "undefined" && x.kids.empty()) { x.kind = N::Literal; x.text = "null"; }
+        else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) x.text = "null";
+      }
+  }
   bool async = p.diags.empty() && (usesGfx || needsAsync(p.ast));
   bool json = p.diags.empty() && needsJson(p.ast);
   bool arena = p.diags.empty() && needsArena(p.ast);

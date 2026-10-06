@@ -37,7 +37,7 @@ static bool readFile(const std::string& path, std::string& out) {
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
-  prog = zn::frontend::loadProgram(path, readFile, gStrict);
+  prog = zn::frontend::loadProgram(path, readFile, gStrict, std::string(ZN_SOURCE_DIR) + "/../lib/std");
   auto diags = prog.diags;
   if (diags.empty()) {
     checked = zn::frontend::check(prog.ast);

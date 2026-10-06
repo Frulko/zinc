@@ -54,6 +54,7 @@ struct Checker {
   std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
   std::uint32_t exprStmtOf = kNone;   // the expression of the expression statement being checked
   std::uint32_t logArg = kNone;       // the console.log argument being checked
+  std::uint32_t asOperand = kNone;    // the operand of the `as` being checked: `m.get(k) as T` states that the key is there
   TypeId newExpected = kNoType;       // the type a `new Map()` or `new Set()` is expected to have
   static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
   TypeId inferredRet = kNoType;
@@ -149,7 +150,7 @@ struct Checker {
     if (ty(from).k == TK::Param) { TypeId c = out.tparams[ty(from).obj].constraint; return c != kNoType && assignable(c, to, node); }
     const Type &f = ty(from), &t = ty(to);
     if (f.k == TK::Num && t.k == TK::Num) {
-      if (t.obj != 0) return f.obj == t.obj;  // an enum takes only its own members (TypeScript rejects other literals too)
+      if (t.obj != 0) return f.obj == t.obj || (f.obj == 0 && !(node != kNone && isNumLit(a, node)));  // an enum takes its own members and, like TypeScript, any number that is not a literal
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
       return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
@@ -331,6 +332,7 @@ struct Checker {
       case 's': return tStr;
       case 'i': case 'j': case 'z': return num(Num::i32);
       case 'u': return num(Num::u32);
+      case 'D': return arrayOf(num(Num::f64));
       case 'w': case 'y': return tStr;
       case 'b': return tBool;
       case 'd': return num(Num::f64);
@@ -778,17 +780,41 @@ struct Checker {
   }
 
   static bool isHofName(std::string_view m) {
-    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "indexOf", "lastIndexOf", "includes", "fill", "join"}) if (m == h) return true;
+    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
     return false;
   }
   // arr.map(f) and friends: the call becomes a call of a helper generated in Zinc for this element and callback type.
   // Array methods written in Zinc: callbacks may take (element, index) (reduce: accumulator, element, index), and the search
   // methods take their optional index arguments. Each call becomes a call of a generated function, one per element type.
   TypeId arrayHof(std::uint32_t i, std::string_view method) {
+    if (hasParam(out.nodeType[n(n(i).kids[0]).kids[0]])) return tError;  // a generic template's own check: only its instances are lowered, and they are checked again with the real types
     std::uint32_t before = n(i).kids[0];
     TypeId r = arrayHof0(i, method);
     if (n(i).kids[0] != before) { rewritten.insert(i); out.nodeType[i] = r; }
     return r;
+  }
+  // m.forEach((value, key) => ...): a helper written in Zinc over the keys; the callback may take just the value
+  TypeId mapForEach(std::uint32_t i) {
+    const std::vector<std::uint32_t> kids = n(i).kids;
+    std::uint32_t recvNode = n(kids[0]).kids[0];
+    TypeId mt = out.nodeType[recvNode];
+    TypeId K = ty(mt).params[0], V = ty(mt).elem;
+    if (hasParam(mt)) return tError;  // a generic template's own check (see arrayHof)
+    if (kids.size() != 2) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(kids.size() - 1)); for (std::size_t k = 1; k < kids.size(); ++k) expr(kids[k]); return tError; }
+    TypeId lt = expr(kids[1], func({V, K}, tVoid, 1));
+    if (bad(lt)) return tError;
+    if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 1-2 parameter(s) for 'forEach'"); return tError; }
+    std::vector<TypeId> aliases{mt, lt, K, V};
+    std::string call = ty(lt).params.size() == 1 ? "f(m.get(k) as " + inspectAliasName(V) + ")" : "f(m.get(k) as " + inspectAliasName(V) + ", k)";
+    std::string key = "mapForEach," + std::to_string(mt) + "," + std::to_string(lt);
+    std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n  for (const k of m.keys()) " + call + ";\n}\n", aliases, i);
+    std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+    out.nodeSym[id] = sym;
+    out.nodeType[id] = out.syms[sym].type;
+    a.nodes[i].kids = {id, recvNode, kids[1]};
+    rewritten.insert(i);
+    out.nodeType[i] = tVoid;
+    return tVoid;
   }
   TypeId arrayHof0(std::uint32_t i, std::string_view method) {
     const std::vector<std::uint32_t> kids = n(i).kids;
@@ -808,6 +834,44 @@ struct Checker {
       out.nodeType[id] = out.syms[sym].type;
       a.nodes[i].kids = {id, recvNode, args[0]};
       return tStr;
+    }
+    if (m == "shift" || m == "unshift" || m == "splice") {  // the mutators that move elements: written in Zinc over push, pop and indexing
+      std::string A = inspectAliasName(at), Es = inspectAliasName(E), body, sig;
+      std::vector<TypeId> aliases{at, E};
+      TypeId i32 = num(Num::i32), result;
+      std::size_t lo = m == "shift" ? 0 : 1, hi = m == "shift" ? 0 : m == "unshift" ? 1 : 2;
+      if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "expected " + std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "") + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (m == "shift") {
+        TK ek = isDyn(E) ? TK::Any : ty(E).k;
+        bool refLike = E == tStr || ek == TK::Array || ek == TK::Map || ek == TK::Set || ek == TK::Object || ek == TK::Func;
+        result = E;  // an empty array gives null (the default of the element type for numbers and booleans): like the library code written for TypeScript without strict nulls, the type stays E
+        std::string R = Es;
+        if (refLike) { TypeId nullable = unionOf({E, tNull}); aliases.push_back(nullable); R = inspectAliasName(nullable); }  // the helper may return null; the representation of a nullable reference is the reference
+        std::string none = refLike ? "null" : E == tBool ? "false" : "0";
+        sig = "(a: " + A + "): " + R;
+        body = "  if (a.length === 0) return " + none + ";\n  const f = a[0];\n  for (let k: i32 = 1; k < a.length; k++) a[k - 1] = a[k];\n  a.pop();\n  return f;\n";
+      } else if (m == "unshift") {
+        TypeId xt = expr(args[0], E);
+        if (bad(xt) || !require(xt, E, args[0])) return tError;
+        result = i32;
+        sig = "(a: " + A + ", x: " + Es + "): i32";
+        body = "  a.push(x);\n  for (let k: i32 = a.length - 1; k > 0; k--) a[k] = a[k - 1];\n  a[0] = x;\n  return a.length;\n";
+      } else {
+        for (std::size_t k = 0; k < args.size(); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "'" + name(t) + "' to 'number'"); }
+        if (args.size() < 2) { std::uint32_t id = newNode(N::Number, "2147483647", {}, i); out.nodeType[id] = i32; args.push_back(id); }
+        result = at;
+        sig = "(a: " + A + ", start: i32, count: i32): " + A;
+        body = "  const n: i32 = a.length;\n  let s: i32 = start < 0 ? n + start : start;\n  if (s < 0) s = 0;\n  if (s > n) s = n;\n  let c: i32 = count;\n  if (c > n - s) c = n - s;\n  if (c < 0) c = 0;\n  const r: " + A + " = [];\n  for (let k: i32 = 0; k < c; k++) r.push(a[s + k]);\n  for (let k: i32 = s; k + c < n; k++) a[k] = a[k + c];\n  for (let k: i32 = 0; k < c; k++) a.pop();\n  return r;\n";
+      }
+      std::string key = m + "," + std::to_string(at);
+      std::uint32_t sym = helper(key, "function $F" + sig + " {\n" + body + "}\n", aliases, i);
+      std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+      out.nodeSym[id] = sym;
+      out.nodeType[id] = out.syms[sym].type;
+      std::vector<std::uint32_t> nk{id, recvNode};
+      nk.insert(nk.end(), args.begin(), args.end());
+      a.nodes[i].kids = std::move(nk);
+      return result;
     }
     bool search = m == "indexOf" || m == "lastIndexOf" || m == "includes" || m == "fill";
     bool fold = m == "reduce" || m == "reduceRight";
@@ -1099,7 +1163,32 @@ struct Checker {
     return kNoType;
   }
 
+  // f?.(args) with f of type `(...) => R | null`: the call when f is there, null (or nothing, for R void) when it is not
+  bool pureCallee(std::uint32_t c) const {
+    const Node& x = n(c);
+    return x.kind == N::Ident || x.kind == N::This || (x.kind == N::Member && !(x.flags & kFlagOptional) && pureCallee(x.kids[0])) || (x.kind == N::Member && pureCallee(x.kids[0]));
+  }
+  bool optionalCall(std::uint32_t i, TypeId expected, TypeId& result) {
+    std::uint32_t callee = n(i).kids[0];
+    TypeId ct = expr(callee);
+    if (bad(ct) || !hasNull(ct)) return false;
+    TypeId ft = withoutNull(ct);
+    if (ft == kNoType || ty(ft).k != TK::Func) return false;
+    if (!pureCallee(callee)) { diag(kZUnsupported, i, "an optional call of a callee that is not a plain name or property path"); result = tError; return true; }
+    bool isVoid = ty(ft).elem == tVoid;
+    std::vector<std::vector<std::uint32_t>> holes{{callee}, {cloneNode(callee, false)}};
+    std::string args;
+    for (std::size_t k = 1; k < n(i).kids.size(); ++k) { holes.push_back({n(i).kids[k]}); args += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(k + 1); }
+    std::string text = isVoid ? "(() => { if (__H0 !== null) __H1(" + args + "); })()" : "(__H0 !== null ? __H1(" + args + ") : null)";
+    if (!replaceWith(i, text, holes)) { result = tError; return true; }
+    result = expr0(i, expected);
+    return true;
+  }
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
+    if (!isNew && (x.flags & kFlagOptional) && !n(i).kids.empty()) {
+      TypeId r;
+      if (optionalCall(i, kNoType, r)) return r;
+    }
     auto optionalArgMethod = [&](const Node& cal) {  // the library methods whose trailing arguments may be written `undefined`
       if (cal.kind != N::Member) return false;
       for (std::string_view m : {"padEnd", "padStart", "slice", "substring", "indexOf", "lastIndexOf", "includes", "startsWith", "endsWith", "split", "join", "fill", "toFixed"}) if (cal.text == m) return true;
@@ -1188,7 +1277,7 @@ struct Checker {
       if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
-        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr) expr(an);  // function expressions wait for the type arguments the others give
+        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty())) expr(an);  // function expressions and empty array literals wait for the type arguments the others give
         preEvaluated = true;
         GenericDecl& g = generics[gs];
         ensureSelf(g);
@@ -1206,6 +1295,8 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
+      } else if (cn.kind == N::Member && cn.text == "forEach" && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Map) {
+        return mapForEach(i);
       } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
         return arrayHof(i, cn.text);
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
@@ -1241,7 +1332,13 @@ struct Checker {
     }
     if (!isNew && n(callee).kind == N::Member && n(callee).text == "get" && i != nullishLeft) {  // Map.get has no `undefined` to test: it is only usable under `??`
       TypeId rt = out.nodeType[n(callee).kids[0]];
-      if (rt != kNoType && ty(rt).k == TK::Map && i != logArg) diag(kZUnsupported, i, "Map.get outside '?" "?' and console.log (use has() to test for a key)");
+      if (rt != kNoType && ty(rt).k == TK::Map && i != logArg) {
+        TypeId v = result;
+        TK vk = v == kNoType || bad(v) ? TK::Any : ty(v).k;
+        bool refLike = v == tStr || vk == TK::Array || vk == TK::Map || vk == TK::Set || vk == TK::Object || vk == TK::Func;
+        if (refLike) result = unionOf({v, tNull});        // a missing key reads as null
+        else if (i != asOperand) diag(kZUnsupported, i, "Map.get of numbers or booleans outside '?" "?', 'as T' and console.log (use has() to test for a key)");
+      }
     }
     return result;
   }
@@ -1272,7 +1369,8 @@ struct Checker {
         if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
         if (out.syms[s].kind == SymKind::Enum) { diag(kZNotAllowedHere, i, "enum '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::TypeAlias) { diag(kZNotAllowedHere, i, "type parameter '" + std::string(x.text) + "' used as a value"); return tError; }
-        if (trackable(s) && !out.syms[s].isGlobal && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {
+        bool nestedFunc = out.syms[s].kind == SymKind::Func && out.syms[s].ownerFn != kNone;
+        if ((trackable(s) || nestedFunc) && !out.syms[s].isGlobal && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {
           out.syms[s].captured = true;  // used inside a lambda or nested function that does not declare it
           for (std::size_t k = fnStack.size(); k-- > 0 && fnStack[k] != out.syms[s].ownerFn;) {
             auto& cs = out.captures[fnStack[k]];
@@ -1292,7 +1390,10 @@ struct Checker {
       case N::As: {  // e as T: T must be comparable with the type of e
         TypeId target = annotation(x.kids[1]);
         if (bad(target)) { expr(x.kids[0]); return tError; }
+        std::uint32_t savedAs = asOperand;
+        asOperand = x.kids[0];
         TypeId vt = expr(x.kids[0], target);
+        asOperand = savedAs;
         if (!bad(vt) && !rawDyn() && ((isDyn(vt) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)))) {  // a checked conversion from or to a Dyn
           std::uint32_t operand = x.kids[0];
           convertDyn(vt, target, operand);
@@ -1460,6 +1561,8 @@ struct Checker {
         if (bad(p)) return q;
         if (bad(q)) return p;
         if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) return expected;  // both branches fit the type asked for (c ? 1 : 0 into an i32)
+        if (q == tNull && p != tNull && !isDyn(p)) return unionOf({p, tNull});  // c ? x : null
+        if (p == tNull && q != tNull && !isDyn(q)) return unionOf({q, tNull});
         if (assignable(q, p, x.kids[2])) return p;
         if (assignable(p, q, x.kids[1])) return q;
         diag(kZNotAssignable, x.kids[2], "'" + name(q) + "' to '" + name(p) + "'");
@@ -1711,9 +1814,20 @@ struct Checker {
       return;
     }
     TypeId t = tError;
-    if (init == kNone) diag(kZUnsupported, d, "declarations without an initializer");
+    if (init == kNone && (ann == kNone || isConst)) diag(kZUnsupported, d, "declarations without an initializer");
     if (ann != kNone) {
       t = annotation(ann);
+      if (init == kNone && !bad(t) && !isConst) {  // `let x: T;`: assigned before it is read (flow analysis is not done): start from the default of T
+        TK k = ty(t).k;
+        const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : nullptr;
+        if (!text) diag(kZUnsupported, d, "a declaration without an initializer of type '" + name(t) + "'");
+        else {
+          auto st = snippet(a, std::string(text) + ";", {}, d);
+          out.nodeType.resize(a.nodes.size(), kNoType);
+          out.nodeSym.resize(a.nodes.size(), kNone);
+          if (!st.empty() && n(st[0]).kind == N::ExprStmt) { a.nodes[d].kids[1] = n(st[0]).kids[0]; init = a.nodes[d].kids[1]; }
+        }
+      }
       if (init != kNone) require(expr(init, t), t, init);
     } else if (init != kNone) {
       t = expr(init);
@@ -1723,7 +1837,7 @@ struct Checker {
     out.nodeSym[d] = declare(SymKind::Var, x.text, t, d, isConst, d);
     if (ann != kNone && init != kNone && ty(t).k == TK::Union) {
       TypeId vt = out.nodeType[init];
-      if (vt != kNoType && !bad(vt) && assignable(vt, t, kNone)) narrowing.push_back({out.nodeSym[d], vt});
+      if (vt != kNoType && !bad(vt) && vt != tNull && assignable(vt, t, kNone)) narrowing.push_back({out.nodeSym[d], vt});  // not to null: a later branch may store a value, and the join forgets nothing
     }
   }
 
@@ -1733,7 +1847,7 @@ struct Checker {
     atTop = false;
     switch (x.kind) {
       case N::Empty: break;
-      case N::Block: { std::size_t mark = narrowing.size(); push(); stmtList(x.kids); pop(); narrowing.resize(mark); break; }
+      case N::Block: push(); stmtList(x.kids); pop(); break;  // what the block learned about outer variables holds after it, as in TypeScript's flow analysis
       case N::VarDecl:
         declAsGlobal = top;
         for (std::uint32_t d : x.kids) {
@@ -1782,13 +1896,28 @@ struct Checker {
         factsOf(x.kids[0], true, ft);
         factsOf(x.kids[0], false, ff);
         std::size_t mark = narrowing.size();
+        // what the branches make of the variables the condition is about, joined afterwards (`if (x === null) x = make();`)
+        auto typeNow = [&](std::uint32_t sy) { for (std::size_t k = narrowing.size(); k-- > 0;) if (narrowing[k].first == sy) return narrowing[k].second; return out.syms[sy].type; };
+        std::vector<std::uint32_t> watched;
+        for (const Fact& f : ft) watched.push_back(f.first);
+        for (const Fact& f : ff) watched.push_back(f.first);
+        std::vector<TypeId> thenEnd, elseEnd;
         pushFacts(ft);
         statement(x.kids[1]);
+        for (std::uint32_t sy : watched) thenEnd.push_back(typeNow(sy));
         narrowing.resize(mark);
-        if (x.kids[2] != kNone) { pushFacts(ff); statement(x.kids[2]); narrowing.resize(mark); }
+        pushFacts(ff);
+        if (x.kids[2] != kNone) statement(x.kids[2]);
+        for (std::uint32_t sy : watched) elseEnd.push_back(typeNow(sy));
+        narrowing.resize(mark);
         bool thenExits = exitsAbruptly(x.kids[1]), elseExits = x.kids[2] != kNone && exitsAbruptly(x.kids[2]);
         if (thenExits && !elseExits) pushFacts(ff);       // `if (x === null) return;` leaves x non-null afterwards
         else if (elseExits && !thenExits) pushFacts(ft);
+        else if (!thenExits && !elseExits)
+          for (std::size_t k = 0; k < watched.size(); ++k) {
+            TypeId j = thenEnd[k] == elseEnd[k] ? thenEnd[k] : unionOf({thenEnd[k], elseEnd[k]});
+            if (j != out.syms[watched[k]].type && j != kNoType && !bad(j)) narrowing.push_back({watched[k], j});
+          }
         break;
       }
       case N::While: {
@@ -2191,6 +2320,8 @@ struct Checker {
     if (haveExpected && padCallbacks) {
       for (std::size_t k = n(i).kids.size() - 2; k < et.params.size(); ++k) {
         std::vector<std::uint32_t> st = snippet(a, "(__unused" + std::to_string(k) + ") => 0;", {}, i);
+        out.nodeType.resize(a.nodes.size(), kNoType);
+        out.nodeSym.resize(a.nodes.size(), kNone);
         if (st.empty()) break;
         std::uint32_t extra = n(n(st[0]).kids[0]).kids[2];
         a.nodes[i].kids.push_back(extra);
@@ -2892,7 +3023,7 @@ struct Checker {
       // strictPropertyInitialization: an instance field without initializer must be assigned at the top level of the constructor
       for (std::uint32_t m : mems) {
         const Node& mn = n(m);
-        if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & frontend::kFlagStatic) || out.objs[objIdx].isRecord) continue;
+        if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & (frontend::kFlagStatic | frontend::kFlagDefinite)) || out.objs[objIdx].isRecord) continue;
         bool assigned = false;
         if (ctorNode != kNone && n(ctorNode).kids[1] != kNone)
           for (std::uint32_t st : n(n(ctorNode).kids[1]).kids) {
@@ -3049,6 +3180,10 @@ struct Checker {
       TypeId sig = signature(s, 2, false, ps);
       out.nodeType[s] = sig;
       out.nodeSym[s] = declare(SymKind::Func, n(s).text, sig, s, true, s);
+      if (!fnStack.empty() && !declAsGlobal) {  // a nested function: another function may use it (and it may use the variables around it), so it is captured like a variable
+        out.syms[out.nodeSym[s]].ownerFn = fnStack.back();
+        out.syms[out.nodeSym[s]].reassigned = true;  // its closure is stored after the closures that call it exist: a shared cell
+      }
       if (n(s).kids[1] == kNone) { diag(kZUnsupported, s, "function declarations without a body"); continue; }
       defer->push_back([this, s, sig, ps]() { checkBody(s, sig, ps, false); });
     }

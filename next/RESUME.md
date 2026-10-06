@@ -278,3 +278,11 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Checker: callbacks with fewer parameters than expected get unused parameters, only in generic call arguments (`padCallbacks`); generic inference takes a lambda's result type when the parameter type mentions unbound type parameters.
 - Tests: T0 `jsx.sh` with `tests/golden/jsx/` (a recording stand-in for the helpers). The React model has no golden yet (needs `zinc:ui/react` to resolve).
 - Next tasks by ordinal: ZN-044 (compile the zinc:ui stack, tests/visual/ui.tsx frame 1 in the interpreter), ZN-045 (AOT with the host), then ZN-029.
+
+## ZN-044 notes (Done)
+- `tests/visual/ui.tsx` frames 1 and 40 match the old goldens (T1 `ui.sh`). Std modules resolve through `loadProgram(..., stdRoot)` (lib/std); `import * as ns` is rewritten by the loader into named imports (`ns$name`).
+- Without any/unknown/JSON.parse, `undefined` is `null` (loader rewrite). Host surface: `Rt::HostGfx*` entries are served by `src/host/gfx_host.cpp` through `zn::host::hostGfx`; input functions of zinc:gfx are headless stubs in the module source.
+- Nested functions that use outer variables are closures: `closureFns` in `lower.cpp`, a shared cell per function made at block start, a function reaches itself through its own closure object (no cycle). Mutual recursion between two such functions still forms a reference cycle (leak).
+- Generic templates skip the array/Map helper rewrites (`hasParam`), their instances are checked with real types.
+- Not done: live window (SDL HAL and input), AOT with the host (ZN-045), baking fonts without the old tool, profiling suite (ZN-046).
+- Next by ordinal: ZN-045, ZN-046, then ZN-029.

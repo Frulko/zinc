@@ -361,7 +361,7 @@ func @main() -> void nregs=17
  330  Release  r1
  331  Move     r1, r2
  332  Call     r0, @__g0
- 333  Call     r0, @__log57
+ 333  Call     r0, @__log41
  334  Jmp      -> 374
  335  LoadStr  r2, ""
  336  GetField r3, r1, .0
@@ -2020,7 +2020,7 @@ func @__reduce(ref i64[], ref str[], ref str, ref str, ref str, i, i, i, i) -> r
  178  Release  r4
  179  Release  r15
  180  Ret      r16
-func @__fmt57(ref f64[], ref i64[], i) -> ref str nregs=13
+func @__fmt41(ref f64[], ref i64[], i) -> ref str nregs=13
    0  ArrLen   r3, r0
    1  JNeIK    r3, 0, -> 7
    3  Release  r0
@@ -2225,7 +2225,7 @@ func @__fmt7(f64, ref i64[], i) -> ref str nregs=6
   21  Release  r3
   22  Move     r1, r4
   23  Ret      r1
-func @__log57(ref f64[]) -> ref str nregs=3
+func @__log41(ref f64[]) -> ref str nregs=3
    0  New      r1, i64[]
    1  LoadI    r2, 0
    2  ArrPush  r2, r1, r2
@@ -2250,7 +2250,7 @@ func @__log57(ref f64[]) -> ref str nregs=3
   21  LoadI    r2, 0
   22  ArrPush  r2, r1, r2
   23  LoadI    r2, 0
-  24  Call     r0, @__fmt57
+  24  Call     r0, @__fmt41
   25  Ret      r0
 func @lambda0(ref lambda0, f64) -> f64 nregs=6
    0  Release  r0

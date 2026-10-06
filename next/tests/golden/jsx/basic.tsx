@@ -2,7 +2,7 @@
 import { dump } from './helpers';
 
 function Badge(props: { label: string; children: () => i32 }): i32 {
-  return <View class="badge"><Text>{props.label}</Text>{props.children()}</View>;
+  return <View class="rounded"><Text>{props.label}</Text>{props.children()}</View>;
 }
 
 const items: string[] = ['a', 'b'];

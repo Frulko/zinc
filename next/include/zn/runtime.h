@@ -42,10 +42,18 @@
   X(MapValues, "Map.values", "m>V", 0) X(MapSize, "Map.size", "m>i", 1)                                            \
   X(SetAdd, "Set.add", "te>t", 0) X(SetHas, "Set.has", "te>b", 0) X(SetDelete, "Set.delete", "te>b", 0)           \
   X(SetClear, "Set.clear", "t>n", 0) X(SetValues, "Set.values", "t>A", 0) X(SetSize, "Set.size", "t>i", 1)                  \
-  /* host: functions of the program's host (zinc:gfx); the checker declares them as __host_<member>, a program reaches them through the module wrappers */ \
-  X(HostGfxFrames, "host.gfxFrames", ">i", 2) X(HostGfxBegin, "host.gfxBegin", ">n", 2) X(HostGfxEnd, "host.gfxEnd", ">n", 2) \
-  X(HostGfxClear, "host.gfxClear", "u>n", 2) X(HostGfxRect, "host.gfxRect", "ddddu>n", 2) X(HostGfxRRect, "host.gfxRRect", "dddddui>n", 2) \
-  X(HostGfxFont, "host.gfxFont", "si>i", 2) X(HostGfxDrawText, "host.gfxDrawText", "iddsuid>n", 2)
+  /* host: functions of the program's host (zinc:gfx); the checker declares them as __host_<member>, the wrappers of the host modules call them. D: f64[] */ \
+  X(HostGfxFrames, "host.gfxFrames", ">i", 2) X(HostGfxBegin, "host.gfxBegin", ">n", 2) X(HostGfxEnd, "host.gfxEnd", ">n", 2)                          \
+  X(HostGfxClear, "host.gfxClear", "u>n", 2) X(HostGfxRect, "host.gfxRect", "ddddu>n", 2) X(HostGfxRRect, "host.gfxRRect", "dddddui>n", 2)        \
+  X(HostGfxFont, "host.gfxFont", "si>i", 2) X(HostGfxDrawText, "host.gfxDrawText", "iddsuid>n", 2)                                               \
+  X(HostGfxLine, "host.gfxLine", "ddddu>n", 2) X(HostGfxText, "host.gfxText", "ddsui>n", 2)                                                      \
+  X(HostGfxGradient, "host.gfxGradient", "ddddduubi>n", 2) X(HostGfxBorder, "host.gfxBorder", "ddddddui>n", 2) X(HostGfxShadow, "host.gfxShadow", "ddddddui>n", 2) \
+  X(HostGfxPolygon, "host.gfxPolygon", "Dui>n", 2) X(HostGfxPath, "host.gfxPath", "Dui>n", 2) X(HostGfxStroke, "host.gfxStroke", "Dduib>n", 2)  \
+  X(HostGfxFontAscent, "host.gfxFontAscent", "i>i", 2) X(HostGfxLineHeight, "host.gfxLineHeight", "i>i", 2) X(HostGfxTextWidth, "host.gfxTextWidth", "isd>d", 2) \
+  X(HostGfxImage, "host.gfxImage", "s>i", 2) X(HostGfxImageWidth, "host.gfxImageWidth", "i>i", 2) X(HostGfxImageHeight, "host.gfxImageHeight", "i>i", 2)       \
+  X(HostGfxDrawImage, "host.gfxDrawImage", "iddddid>n", 2) X(HostGfxClip, "host.gfxClip", "ddddd>n", 2) X(HostGfxUnclip, "host.gfxUnclip", ">n", 2)       \
+  X(HostGfxTranslate, "host.gfxTranslate", "dd>n", 2) X(HostGfxKeep, "host.gfxKeep", ">n", 2) X(HostGfxWidth, "host.gfxWidth", ">i", 2)                \
+  X(HostGfxHeight, "host.gfxHeight", ">i", 2) X(HostGfxPixelScale, "host.gfxPixelScale", ">i", 2)
 
 namespace zn {
 

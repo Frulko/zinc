@@ -100,7 +100,8 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagArrow = 256,  // an arrow function (captures `this`)
                                kFlagGetter = 512,  // a `get name()` accessor: a Method read like a property
                                kFlagAsync = 1024, kFlagGenerator = 2048,  // `async function`, `function*`
-                               kFlagOptional = 4096;  // `name?: T` (the type is `T | null`)
+                               kFlagOptional = 4096,  // `name?: T` (the type is `T | null`)
+                               kFlagDefinite = 8192;  // `name!: T`: assigned elsewhere, not checked in the constructor
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;
