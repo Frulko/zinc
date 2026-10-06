@@ -91,3 +91,9 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Run goldens needing parameter properties are generated with `node --experimental-transform-types` (tools/regen-run-goldens).
 - Always test parser changes under the ASan build: `mk()` grows the node vector, never hold a `Node&` across it.
 - Not yet: interface properties, accessors (get/set), generics, `instanceof`, arrays/strings in ZBC (ZN-015), TDZ for let/const in the VM (globals read as 0 before initialisation).
+
+## ZN-013 progress (generics done, rest pending)
+
+- Done: generic functions, classes and interfaces (type parameters with `extends` constraints, explicit and inferred type arguments, `Box<T>` types, generic bases and `implements I<T>`). Templates are checked once over opaque `Param` types (a type parameter acts as its constraint: `app()`), concrete uses clone the declaration node into the AST with `T` bound as a `TypeAlias` and are lowered as ordinary functions/classes named `Box<i32>`, `identity<f64>` (`Checked::instances`, `nodeNames`).
+- Not yet in ZN-013: tuples, destructuring, unions (`T | null`, narrowing, boxing), generic methods and static members of generic classes (Z0005). Programs in `tests/golden/run` use `node --experimental-transform-types`.
+- Next steps for the task: tuples + array/object destructuring, then nullable references and unions.
