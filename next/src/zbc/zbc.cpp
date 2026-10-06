@@ -18,15 +18,26 @@ const char* clsName(Cls c) {
 
 Cls rcToCls(RC r) { return r == RC::I ? Cls::I : r == RC::S ? Cls::S : r == RC::D ? Cls::D : Cls::None; }
 
+bool isFused(Op op) { Fmt f = opInfo(op).fmt; return f == Fmt::AB2 || f == Fmt::AK2; }
 bool aIsReg(Op op) {
   const OpInfo& i = opInfo(op);
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
+  if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
   if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal;
   return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool;
 }
-bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABC && i.inB != RC::None; }
+bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
 bool cIsReg(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABC && i.inC != RC::None; }
+bool cIsImm(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABK || i.fmt == Fmt::AK2; }
 bool isTerminator(Op op) { return op == Op::Jmp || op == Op::Ret || op == Op::RetV || op == Op::Throw || op == Op::Trap; }
+bool isCondJump(Op op) { return op == Op::JmpIf || op == Op::JmpIfNot || isFused(op); }
+// Jump target of a conditional or unconditional jump at pc.
+std::uint32_t jumpTarget(const std::vector<std::uint32_t>& code, std::size_t pc) {
+  Op op = static_cast<Op>(opOf(code[pc]));
+  if (op == Op::Jmp) return axOf(code[pc]);
+  if (isFused(op)) return pc + 1 < code.size() ? code[pc + 1] : 0xFFFFFFFFu;
+  return dOf(code[pc]);
+}
 
 // ---- verifier
 
@@ -44,38 +55,58 @@ struct Verifier {
     return false;
   }
 
+  std::vector<char> isStart;
+
   bool structure() {
     if (f.nregs > kMaxRegisters) return fail(0, "frame has more than " + std::to_string(kMaxRegisters) + " registers");
     if (f.params.size() > f.nregs) return fail(0, "more parameters than registers");
     if (f.code.empty()) return fail(0, "function has no code");
     if (f.code.size() > kMaxCodeWords) return fail(0, "function is too large");
     if (f.consts.size() > kMaxConsts) return fail(0, "too many constants");
-    for (std::size_t pc = 0; pc < f.code.size(); ++pc) {
+    isStart.assign(f.code.size() + 1, 0);
+    std::size_t lastStart = 0;
+    for (std::size_t pc = 0; pc < f.code.size();) {
       std::uint32_t w = f.code[pc];
       if (opOf(w) >= static_cast<unsigned>(Op::Count)) return fail(pc, "unknown opcode " + std::to_string(opOf(w)));
       Op op = static_cast<Op>(opOf(w));
       const OpInfo& info = opInfo(op);
+      isStart[pc] = 1;
+      lastStart = pc;
       auto reg = [&](unsigned r, const char* what) { return r < f.nregs || fail(pc, std::string(what) + " register r" + std::to_string(r) + " is outside the frame (" + std::to_string(f.nregs) + ")"); };
-      if (info.fmt == Fmt::OP) { if ((w >> 8) != 0) return fail(pc, "operands on an operand-less instruction"); continue; }
-      if (info.fmt == Fmt::AX) { if (axOf(w) >= f.code.size()) return fail(pc, "jump target out of range"); continue; }
-      if (aIsReg(op) && !reg(aOf(w), "A")) return false;
-      if (info.fmt == Fmt::ABC) {
-        if (bIsReg(op) || op == Op::Move) { if (!reg(bOf(w), "B")) return false; } else if (bOf(w) != 0) return fail(pc, "unused operand B is not zero");
-        if (cIsReg(op)) { if (!reg(cOf(w), "C")) return false; } else if (cOf(w) != 0) return fail(pc, "unused operand C is not zero");
-        if (!aIsReg(op) && aOf(w) != 0) return fail(pc, "unused operand A is not zero");
-      } else {  // AD
-        unsigned d = dOf(w);
-        switch (op) {
-          case Op::LoadK: if (d >= f.consts.size()) return fail(pc, "constant index out of range"); break;
-          case Op::JmpIf: case Op::JmpIfNot: if (d >= f.code.size()) return fail(pc, "jump target out of range"); break;
-          case Op::Call: if (d >= m.functions.size()) return fail(pc, "call to a missing function"); break;
-          case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
-          default: break;
+      if (instrLen(op) == 2 && pc + 1 >= f.code.size()) return fail(pc, "instruction is cut off by the end of the code");
+      if (info.fmt == Fmt::OP) { if ((w >> 8) != 0) return fail(pc, "operands on an operand-less instruction"); }
+      else if (info.fmt == Fmt::AX) { if (axOf(w) >= f.code.size()) return fail(pc, "jump target out of range"); }
+      else {
+        if (aIsReg(op) && !reg(aOf(w), "A")) return false;
+        if (info.fmt == Fmt::AD) {
+          unsigned d = dOf(w);
+          switch (op) {
+            case Op::LoadK: if (d >= f.consts.size()) return fail(pc, "constant index out of range"); break;
+            case Op::JmpIf: case Op::JmpIfNot: if (d >= f.code.size()) return fail(pc, "jump target out of range"); break;
+            case Op::Call: if (d >= m.functions.size()) return fail(pc, "call to a missing function"); break;
+            case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
+            default: break;
+          }
+        } else {  // ABC, ABK, AB2, AK2
+          if (bIsReg(op) || op == Op::Move) { if (!reg(bOf(w), "B")) return false; } else if (bOf(w) != 0) return fail(pc, "unused operand B is not zero");
+          if (cIsReg(op)) { if (!reg(cOf(w), "C")) return false; } else if (!cIsImm(op) && cOf(w) != 0) return fail(pc, "unused operand C is not zero");
+          if (!aIsReg(op) && aOf(w) != 0) return fail(pc, "unused operand A is not zero");
+          if (isFused(op) && f.code[pc + 1] >= f.code.size()) return fail(pc, "jump target out of range");
         }
       }
+      pc += instrLen(op);
     }
-    Op last = static_cast<Op>(opOf(f.code.back()));
-    if (!isTerminator(last)) return fail(f.code.size() - 1, "code can fall off the end");
+    // every jump must land on the first word of an instruction
+    for (std::size_t pc = 0; pc < f.code.size();) {
+      Op op = static_cast<Op>(opOf(f.code[pc]));
+      if (op == Op::Jmp || isCondJump(op)) {
+        std::uint32_t t = jumpTarget(f.code, pc);
+        if (t >= f.code.size() || !isStart[t]) return fail(pc, "jump target is not the start of an instruction");
+      }
+      pc += instrLen(op);
+    }
+    Op last = static_cast<Op>(opOf(f.code[lastStart]));
+    if (!isTerminator(last)) return fail(lastStart, "code can fall off the end");
     return true;
   }
 
@@ -127,6 +158,9 @@ struct Verifier {
       }
       default: break;
     }
+    if (info.fmt == Fmt::ABK) { if (!need(bOf(w), Cls::I, "operand")) return false; s[aOf(w)] = static_cast<std::uint8_t>(Cls::I); return true; }
+    if (info.fmt == Fmt::AB2) return need(aOf(w), Cls::I, "operand") && need(bOf(w), Cls::I, "operand");
+    if (info.fmt == Fmt::AK2) return need(aOf(w), Cls::I, "operand");
     if (info.inB != RC::None && !need(bOf(w), rcToCls(info.inB), "operand")) return false;
     if (info.inC != RC::None && !need(cOf(w), rcToCls(info.inC), "operand")) return false;
     if (info.out != RC::None) s[aOf(w)] = static_cast<std::uint8_t>(rcToCls(info.out));
@@ -138,11 +172,12 @@ struct Verifier {
     std::size_t n = f.code.size();
     std::vector<char> leader(n + 1, 0);
     leader[0] = 1;
-    for (std::size_t pc = 0; pc < n; ++pc) {
+    for (std::size_t pc = 0; pc < n;) {
       Op op = static_cast<Op>(opOf(f.code[pc]));
-      if (op == Op::Jmp) leader[axOf(f.code[pc])] = 1;
-      if (op == Op::JmpIf || op == Op::JmpIfNot) leader[dOf(f.code[pc])] = 1;
-      if (isTerminator(op) || op == Op::JmpIf || op == Op::JmpIfNot) leader[pc + 1] = 1;
+      if (op == Op::Jmp || isCondJump(op)) leader[jumpTarget(f.code, pc)] = 1;
+      std::size_t next = pc + instrLen(op);
+      if (isTerminator(op) || isCondJump(op)) leader[next] = 1;
+      pc = next;
     }
     std::vector<State> in(n);
     std::vector<char> have(n, 0);
@@ -158,19 +193,21 @@ struct Verifier {
     while (!work.empty()) {
       std::size_t pc = work.back(); work.pop_back();
       State s = in[pc];
-      for (;; ++pc) {
+      for (;;) {
         if (!step(pc, s)) return false;
         Op op = static_cast<Op>(opOf(f.code[pc]));
+        std::size_t next = pc + instrLen(op);
         if (op == Op::Jmp) { push(axOf(f.code[pc]), s); break; }
         if (isTerminator(op)) break;
-        if (op == Op::JmpIf || op == Op::JmpIfNot) {
-          push(dOf(f.code[pc]), s);
-          if (pc + 1 >= n) return fail(pc, "code can fall off the end");
-          push(pc + 1, s);
+        if (isCondJump(op)) {
+          push(jumpTarget(f.code, pc), s);
+          if (next >= n) return fail(pc, "code can fall off the end");
+          push(next, s);
           break;
         }
-        if (pc + 1 >= n) return fail(pc, "code can fall off the end");
-        if (leader[pc + 1]) { push(pc + 1, s); break; }
+        if (next >= n) return fail(pc, "code can fall off the end");
+        if (leader[next]) { push(next, s); break; }
+        pc = next;
       }
     }
     return true;
@@ -288,10 +325,10 @@ std::string disassemble(const Module& m) {
     out += "func @" + f.name + "(";
     for (std::size_t i = 0; i < f.params.size(); ++i) out += (i ? ", " : "") + std::string(clsName(f.params[i]));
     out += ") -> " + std::string(clsName(f.ret)) + " nregs=" + std::to_string(f.nregs) + "\n";
-    for (std::size_t pc = 0; pc < f.code.size(); ++pc) {
+    for (std::size_t pc = 0; pc < f.code.size();) {
       std::uint32_t w = f.code[pc];
       char head[24];
-      if (opOf(w) >= static_cast<unsigned>(Op::Count)) { out += "  ?\n"; continue; }
+      if (opOf(w) >= static_cast<unsigned>(Op::Count)) { out += "  ?\n"; ++pc; continue; }
       Op op = static_cast<Op>(opOf(w));
       const OpInfo& info = opInfo(op);
       std::snprintf(head, sizeof head, "%4zu  %-9s", pc, info.name);
@@ -306,12 +343,19 @@ std::string disassemble(const Module& m) {
           case Op::Call: ops = r(aOf(w)) + ", @" + (dOf(w) < m.functions.size() ? m.functions[dOf(w)].name : "?"); break;
           default: ops = r(aOf(w)) + ", g" + std::to_string(dOf(w)); break;
         }
+      } else if (info.fmt == Fmt::ABK) {
+        ops = r(aOf(w)) + ", " + r(bOf(w)) + ", " + std::to_string(immOf(w));
+      } else if (info.fmt == Fmt::AB2) {
+        ops = r(aOf(w)) + ", " + r(bOf(w)) + ", -> " + std::to_string(pc + 1 < f.code.size() ? f.code[pc + 1] : 0u);
+      } else if (info.fmt == Fmt::AK2) {
+        ops = r(aOf(w)) + ", " + std::to_string(immOf(w)) + ", -> " + std::to_string(pc + 1 < f.code.size() ? f.code[pc + 1] : 0u);
       } else if (info.fmt == Fmt::ABC) {
         if (aIsReg(op)) ops = r(aOf(w));
         if (bIsReg(op) || op == Op::Move) ops += (ops.empty() ? "" : ", ") + r(bOf(w));
         if (cIsReg(op)) ops += (ops.empty() ? "" : ", ") + r(cOf(w));
       }
       out += s + ops + "\n";
+      pc += instrLen(op);
     }
   }
   return out;

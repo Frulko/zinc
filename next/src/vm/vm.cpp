@@ -97,7 +97,8 @@ Result run(const zbc::Module& m, std::string& out) {
   Slot* const stackBase = stackMem.get();
   std::vector<Slot> globals(m.globals.size(), 0);
   std::vector<Frame> frames(kMaxCallDepth);
-  std::uint32_t depth = 0;
+  Frame* fp = frames.data();                      // next free frame
+  Frame* const framesEnd = frames.data() + kMaxCallDepth;
 
   static const void* const labels[] = {
 #define X(name, fmt, b, c, o) &&L_##name,
@@ -223,28 +224,40 @@ L_LoadK: r[A] = fn->consts[dOf(w)].bits; NEXT();
   ARITH(ExpF64, fromD(std::exp(asD(x))))
   ARITH(LnF64, fromD(std::log(asD(x))))
 
+L_AddI32K: r[A] = sx32(static_cast<std::int32_t>(static_cast<std::uint32_t>(r[B]) + static_cast<std::uint32_t>(static_cast<std::int32_t>(immOf(w))))); NEXT();
+
+// Fused compare-and-jump: word 0 holds the operands, word 1 (now at *pc) the absolute target.
+#define FJ(name, cond) L_##name: { if (cond) pc = code + *pc; else ++pc; NEXT(); }
+#define SI(x) static_cast<std::int64_t>(x)
+  FJ(JEqI, r[A] == r[B]) FJ(JNeI, r[A] != r[B]) FJ(JLtI, SI(r[A]) < SI(r[B])) FJ(JLeI, SI(r[A]) <= SI(r[B]))
+  FJ(JLtU, r[A] < r[B]) FJ(JLeU, r[A] <= r[B])
+  FJ(JEqIK, SI(r[A]) == immOf(w)) FJ(JNeIK, SI(r[A]) != immOf(w)) FJ(JLtIK, SI(r[A]) < immOf(w))
+  FJ(JLeIK, SI(r[A]) <= immOf(w)) FJ(JGtIK, SI(r[A]) > immOf(w)) FJ(JGeIK, SI(r[A]) >= immOf(w))
+#undef FJ
+#undef SI
+
 L_Jmp: pc = code + axOf(w); NEXT();
 L_JmpIf: if (r[A]) pc = code + dOf(w); NEXT();
 L_JmpIfNot: if (!r[A]) pc = code + dOf(w); NEXT();
 L_Call: {
   const Func* callee = &funcs[dOf(w)];
   Slot* nb = r + A;
-  if (__builtin_expect(depth >= kMaxCallDepth, 0)) TRAP("stack overflow");
-  frames[depth++] = {pc, fn, r};
+  if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
+  *fp++ = {pc, fn, r};
   r = nb; fn = callee; code = callee->code; pc = code;
   NEXT();
 }
 L_Ret: {
   Slot v = r[A];
-  if (depth == 0) goto done;
-  const Frame& f = frames[--depth];
+  if (fp == frames.data()) goto done;
+  const Frame& f = *--fp;
   r[0] = v;
   r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
   NEXT();
 }
 L_RetV: {
-  if (depth == 0) goto done;
-  const Frame& f = frames[--depth];
+  if (fp == frames.data()) goto done;
+  const Frame& f = *--fp;
   r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
   NEXT();
 }

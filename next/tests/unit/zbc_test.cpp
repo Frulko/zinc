@@ -102,6 +102,37 @@ int main() {
               encABC(Op::NegI32, 2, 0),        // 5: join: r0 is f64 on one path and int on the other
               encABC(Op::RetV, 0)};
   });
+  bad("fused jump target inside an instruction", "start of an instruction", [](Module& m) {
+    // word 1 of the fused jump (index 2) is data, not an instruction: jumping to it must be rejected
+    m.functions[0].code = {encAD(Op::LoadI, 0, 1), encABC(Op::JEqIK, 0, 0, 1), 2, encABC(Op::RetV, 0)};
+  });
+  bad("fused jump cut off by the end", "cut off", [](Module& m) { m.functions[0].code = {encAD(Op::LoadI, 0, 1), encABC(Op::JEqIK, 0, 0, 1)}; });
+  bad("fused jump target out of range", "jump target", [](Module& m) { m.functions[0].code = {encAD(Op::LoadI, 0, 1), encABC(Op::JLtI, 0, 0), 99, encABC(Op::RetV, 0)}; });
+  bad("fused jump on a float", "holds f64", [](Module& m) {
+    auto& f = m.functions[0];
+    f.consts.push_back({Cls::D, 0});
+    f.code = {encAD(Op::LoadK, 0, 0), encABC(Op::JEqIK, 0, 0, 1), 3, encABC(Op::RetV, 0)};
+  });
+  bad("immediate add on a float", "holds f64", [](Module& m) {
+    auto& f = m.functions[0];
+    f.consts.push_back({Cls::D, 0});
+    f.code = {encAD(Op::LoadK, 0, 0), encABC(Op::AddI32K, 1, 0, 5), encABC(Op::RetV, 0)};
+  });
+  bad("fused jump with a stray operand", "not zero", [](Module& m) { m.functions[0].code = {encAD(Op::LoadI, 0, 1), encABC(Op::JEqIK, 0, 3, 1), 3, encABC(Op::RetV, 0)}; });
+  {  // valid: fused jumps, both forms, a loop with an immediate add
+    Module m = mod(fn("main", {encAD(Op::LoadI, 0, 0),            // 0: r0 = 0
+                               encAD(Op::LoadI, 1, 5),            // 1: r1 = 5
+                               encABC(Op::JLtI, 0, 1),            // 2: while r0 < r1 ...
+                               6,                                 // 3: -> 6
+                               encABC(Op::RetV, 0),               // 4
+                               encABC(Op::Nop, 0),                // 5 (unreachable padding)
+                               encABC(Op::AddI32K, 0, 0, 1),      // 6: r0 += 1
+                               encABC(Op::JGeIK, 0, 0, 9),        // 7: if r0 >= 9 jump
+                               4,                                 // 8: -> 4
+                               encAX(Op::Jmp, 2)},                // 9: back to the test
+                       2));
+    expect("valid fused jumps and immediate add", m, "");
+  }
   {  // valid: a diamond that agrees on classes, and a call whose result is read
     Module m;
     m.functions.push_back(fn("main", {encAD(Op::LoadI, 0, 4), encAD(Op::Call, 0, 1), encABC(Op::LogI, 0), encABC(Op::LogEnd, 0), encABC(Op::RetV, 0)}, 2));

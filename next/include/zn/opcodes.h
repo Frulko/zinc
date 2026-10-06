@@ -33,7 +33,12 @@
   X(SqrtF64, ABC, D, _, D) X(AbsF64, ABC, D, _, D) X(FloorF64, ABC, D, _, D) X(CeilF64, ABC, D, _, D)           \
   X(RoundF64, ABC, D, _, D) X(TruncF64, ABC, D, _, D) X(SinF64, ABC, D, _, D) X(CosF64, ABC, D, _, D)           \
   X(TanF64, ABC, D, _, D) X(AtanF64, ABC, D, _, D) X(ExpF64, ABC, D, _, D) X(LnF64, ABC, D, _, D)              \
+  X(AddI32K, ABK, I, _, I)                                                                                      \
   X(Jmp, AX, _, _, _) X(JmpIf, AD, _, _, _) X(JmpIfNot, AD, _, _, _)                                           \
+  X(JEqI, AB2, _, _, _) X(JNeI, AB2, _, _, _) X(JLtI, AB2, _, _, _) X(JLeI, AB2, _, _, _)                      \
+  X(JLtU, AB2, _, _, _) X(JLeU, AB2, _, _, _)                                                                   \
+  X(JEqIK, AK2, _, _, _) X(JNeIK, AK2, _, _, _) X(JLtIK, AK2, _, _, _) X(JLeIK, AK2, _, _, _)                  \
+  X(JGtIK, AK2, _, _, _) X(JGeIK, AK2, _, _, _)                                                                 \
   X(Call, AD, _, _, M) X(Ret, ABC, _, _, M) X(RetV, OP, _, _, _) X(Throw, ABC, _, _, _)                         \
   X(GetGlobal, AD, _, _, M) X(SetGlobal, AD, _, _, M)                                                           \
   X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
@@ -48,7 +53,10 @@ enum class Op : std::uint8_t {
   Count
 };
 
-enum class Fmt : std::uint8_t { OP, ABC, AD, AX };
+// OP: no operands. ABC: three registers. AD: register + 16-bit. AX: 24-bit. ABK: registers A,B + signed 8-bit immediate C.
+// AB2 and AK2 are two-word fused compare-and-jump: word 0 holds the compared registers A,B (AB2) or A and an 8-bit
+// immediate C (AK2), word 1 the absolute jump target.
+enum class Fmt : std::uint8_t { OP, ABC, AD, AX, ABK, AB2, AK2 };
 enum class RC : std::uint8_t { None, I, S, D, M };  // register class expected or produced
 
 struct OpInfo {
@@ -72,5 +80,8 @@ inline constexpr OpInfo kOpInfo[] = {
 };
 
 inline constexpr const OpInfo& opInfo(Op o) { return kOpInfo[static_cast<unsigned>(o)]; }
+
+// Instruction length in 32-bit words.
+inline constexpr unsigned instrLen(Op o) { return (opInfo(o).fmt == Fmt::AB2 || opInfo(o).fmt == Fmt::AK2) ? 2 : 1; }
 
 }  // namespace zn

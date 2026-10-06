@@ -121,6 +121,78 @@ struct FnEmitter {
     return true;
   }
 
+  // ---- instruction selection plan: immediate operands and fused compare-and-jump
+  struct KForm { bool on = false; ValueId other = 0; int imm = 0; };
+  struct Fuse { bool on = false; std::size_t at = 0; IrOp cop = IrOp::Eq; ValueId x = 0, y = 0; bool yImm = false; int imm = 0; bool uns = false; };
+  std::vector<std::uint32_t> uses;
+  std::vector<char> noReg;       // values that never occupy a register: folded constants and fused compare results
+  std::vector<KForm> kform;      // per result value: add/sub with an immediate
+  std::vector<Fuse> fuse;        // per block: compare fused into the block's CondBr
+
+  static IrOp mirror(IrOp o) { return o == IrOp::Lt ? IrOp::Gt : o == IrOp::Gt ? IrOp::Lt : o == IrOp::Le ? IrOp::Ge : o == IrOp::Ge ? IrOp::Le : o; }
+  static IrOp negate(IrOp o) { return o == IrOp::Eq ? IrOp::Ne : o == IrOp::Ne ? IrOp::Eq : o == IrOp::Lt ? IrOp::Ge : o == IrOp::Ge ? IrOp::Lt : o == IrOp::Le ? IrOp::Gt : IrOp::Le; }
+
+  void plan() {
+    uses.assign(nv, 0);
+    noReg.assign(nv, 0);
+    kform.assign(nv, KForm{});
+    fuse.assign(nb, Fuse{});
+    std::vector<const ir::Inst*> defOf(nv, nullptr);
+    for (const ir::Block& b : f.blocks)
+      for (const ir::Inst& i : b.insts) {
+        for (ValueId a : i.args) ++uses[a];
+        for (const ir::Edge& e : i.edges) for (ValueId a : e.args) ++uses[a];
+        if (i.res != ir::kNoValue) defOf[i.res] = &i;
+      }
+    // a single-use integer constant that fits a signed byte
+    auto smallConst = [&](ValueId v, int& out) {
+      const ir::Inst* d = defOf[v];
+      if (!d || d->op != IrOp::Const || uses[v] != 1) return false;
+      const ir::Type& t = ty(d->ty);
+      if (t.k != ir::Type::K::Num || isFloatK(t.num)) return false;
+      std::int64_t c = canon(t.num, d->imm);
+      if (c < -128 || c > 127) return false;
+      out = static_cast<int>(c);
+      return true;
+    };
+    for (std::size_t bi = 0; bi < nb; ++bi) {
+      const ir::Block& b = f.blocks[bi];
+      for (const ir::Inst& i : b.insts) {
+        if ((i.op != IrOp::Add && i.op != IrOp::Sub) || i.res == ir::kNoValue) continue;
+        const ir::Type& t = ty(i.ty);
+        if (t.k != ir::Type::K::Num || famOf(t.num) != Fam::I32) continue;
+        int c;
+        if (smallConst(i.args[1], c) && (i.op == IrOp::Add || (-c >= -128 && -c <= 127))) {
+          kform[i.res] = {true, i.args[0], i.op == IrOp::Add ? c : -c};
+          noReg[i.args[1]] = 1;
+        } else if (i.op == IrOp::Add && smallConst(i.args[0], c)) {
+          kform[i.res] = {true, i.args[1], c};
+          noReg[i.args[0]] = 1;
+        }
+      }
+      if (b.insts.size() < 2) continue;
+      const ir::Inst& term = b.insts.back();
+      const ir::Inst& c = b.insts[b.insts.size() - 2];
+      bool isCmp = c.op == IrOp::Eq || c.op == IrOp::Ne || c.op == IrOp::Lt || c.op == IrOp::Le || c.op == IrOp::Gt || c.op == IrOp::Ge;
+      if (term.op != IrOp::CondBr || !isCmp || term.args[0] != c.res || uses[c.res] != 1) continue;
+      const ir::Type& ot = ty(f.valueTypes[c.args[0]]);
+      bool numInt = ot.k == ir::Type::K::Num && !isFloatK(ot.num);
+      bool boolEq = ot.k == ir::Type::K::Bool && (c.op == IrOp::Eq || c.op == IrOp::Ne);
+      if (!numInt && !boolEq) continue;
+      Fuse fz;
+      fz.on = true; fz.at = b.insts.size() - 2; fz.cop = c.op; fz.x = c.args[0]; fz.y = c.args[1];
+      fz.uns = numInt && !isSigned(ot.num);
+      bool orderCmp = c.op != IrOp::Eq && c.op != IrOp::Ne;
+      if (numInt && !(fz.uns && orderCmp)) {  // immediate forms are signed (or equality)
+        int k;
+        if (smallConst(fz.y, k)) { fz.yImm = true; fz.imm = k; noReg[fz.y] = 1; }
+        else if (smallConst(fz.x, k)) { std::swap(fz.x, fz.y); fz.cop = mirror(fz.cop); fz.yImm = true; fz.imm = k; noReg[fz.y] = 1; }
+      }
+      noReg[c.res] = 1;
+      fuse[bi] = fz;
+    }
+  }
+
   // ---- layout and liveness
   void layout() {
     std::vector<char> seen(nb, 0);
@@ -196,6 +268,15 @@ struct FnEmitter {
           feeds[e.args[k]].push_back(p);
           fedBy[p].push_back(e.args[k]);
         }
+    // An argument whose last use is a call can be computed straight into its window slot: remember the call and slot.
+    std::vector<std::uint32_t> callPosOf(nv, kNoReg), slotOf(nv, 0);
+    for (BlockId b : order)
+      for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) {
+        const ir::Inst& ci = f.blocks[b].insts[k];
+        if (ci.op != IrOp::Call) continue;
+        for (std::size_t a = 0; a < ci.args.size(); ++a)
+          if (end[ci.args[a]] == ipos[b][k] && callPosOf[ci.args[a]] == kNoReg) { callPosOf[ci.args[a]] = ipos[b][k]; slotOf[ci.args[a]] = static_cast<std::uint32_t>(a); }
+      }
     std::vector<ValueId> owner(kMaxRegisters, ir::kNoValue);
     std::vector<ValueId> active;
     std::uint32_t top = 0;  // one past the highest register used
@@ -214,6 +295,11 @@ struct FnEmitter {
       std::uint32_t h = hint[v];
       if (h == kNoReg) for (ValueId a : fedBy[v]) if (reg[a] != kNoReg && owner[reg[a]] == ir::kNoValue) { h = reg[a]; break; }
       if (h == kNoReg) for (ValueId p : feeds[v]) if (reg[p] != kNoReg && owner[reg[p]] == ir::kNoValue) { h = reg[p]; break; }
+      if (h == kNoReg && callPosOf[v] != kNoReg) {  // estimate the window base from the values already live across the call
+        std::uint32_t base = 0;
+        for (ValueId a : active) if (end[a] > callPosOf[v]) base = std::max(base, reg[a] + 1);
+        h = base + slotOf[v];
+      }
       if (h != kNoReg && h < kMaxRegisters && owner[h] == ir::kNoValue) return h;
       for (std::uint32_t r = 0; r < kMaxRegisters; ++r) if (owner[r] == ir::kNoValue) return r;
       return kNoReg;
@@ -245,7 +331,7 @@ struct FnEmitter {
           if (i.res != ir::kNoValue) { take(i.res, base); setHints(i.res); }
           continue;
         }
-        if (i.res != ir::kNoValue) {
+        if (i.res != ir::kNoValue && !noReg[i.res]) {
           std::uint32_t r = pick(i.res);
           if (r == kNoReg) return fail("function needs more than 256 registers");
           take(i.res, r);
@@ -258,8 +344,9 @@ struct FnEmitter {
   }
 
   // ---- emission
-  struct Fixup { std::size_t at; BlockId target; bool ad; };
-  struct Stub { std::size_t jmpAt; std::vector<std::pair<std::uint32_t, std::uint32_t>> moves; BlockId target; };
+  enum class Patch { Ax, Ad, Word };  // where a jump target lives: 24-bit, high 16 bits, or the instruction's second word
+  struct Fixup { std::size_t at; BlockId target; Patch kind; };
+  struct Stub { std::size_t at; Patch kind; std::vector<std::pair<std::uint32_t, std::uint32_t>> moves; BlockId target; };
   std::vector<Fixup> fixups;
   std::vector<Stub> stubs;
   std::vector<std::size_t> blockStart;
@@ -361,9 +448,14 @@ struct FnEmitter {
     auto R = [&](ValueId v) { return reg[v]; };
     std::uint32_t d = i.res != ir::kNoValue ? reg[i.res] : 0;
     switch (i.op) {
-      case IrOp::Const: loadConst(d, i); return true;
+      case IrOp::Const: if (noReg[i.res]) return true; loadConst(d, i); return true;
       case IrOp::Add: case IrOp::Sub: case IrOp::Mul: case IrOp::Div: case IrOp::Rem: {
         NumK n = numOf(i.res);
+        if (kform[i.res].on) {
+          put(encABC(Op::AddI32K, d, R(kform[i.res].other), static_cast<unsigned>(kform[i.res].imm) & 0xFFu));
+          Op nop; if (narrowOp(n, nop)) put(encABC(nop, d, d));
+          return true;
+        }
         int idx = i.op == IrOp::Add ? 0 : i.op == IrOp::Sub ? 1 : i.op == IrOp::Mul ? 2 : i.op == IrOp::Div ? 3 : 4;
         put(encABC(kArith[static_cast<int>(famOf(n))][idx], d, R(i.args[0]), R(i.args[1])));
         Op nop; if (narrowOp(n, nop)) put(encABC(nop, d, d));
@@ -405,6 +497,7 @@ struct FnEmitter {
         return true;
       }
       case IrOp::Eq: case IrOp::Ne: case IrOp::Lt: case IrOp::Le: case IrOp::Gt: case IrOp::Ge: {
+        if (fuse[b].on && fuse[b].at == k) return true;  // emitted as part of the block's CondBr
         ValueId x = i.args[0], y = i.args[1];
         const ir::Type& t = ty(f.valueTypes[x]);
         if (t.k == ir::Type::K::Str) return fail("string comparison has no bytecode yet");
@@ -468,26 +561,43 @@ struct FnEmitter {
       case IrOp::SetGlobal: put(encAD(Op::SetGlobal, R(i.args[0]), i.sym)); return true;
       case IrOp::Br: {
         parallelMoves(edgeMoves(i.edges[0]));
-        if (lay[i.edges[0].to] != lay[b] + 1) { fixups.push_back({zf.code.size(), i.edges[0].to, false}); put(encAX(Op::Jmp, 0)); }
+        if (lay[i.edges[0].to] != lay[b] + 1) { fixups.push_back({zf.code.size(), i.edges[0].to, Patch::Ax}); put(encAX(Op::Jmp, 0)); }
         return true;
       }
       case IrOp::CondBr: {
         auto mt = edgeMoves(i.edges[0]), me = edgeMoves(i.edges[1]);
         for (auto* v : {&mt, &me}) v->erase(std::remove_if(v->begin(), v->end(), [](auto& m) { return m.first == m.second; }), v->end());
-        bool thenNext = lay[i.edges[0].to] == lay[b] + 1;
-        if (thenNext && mt.empty()) {  // fall into the then block, jump away when the condition is false
+        const Fuse& fz = fuse[b];
+        // Emit a conditional jump taken when the condition equals `jumpIfTrue`, to `target` (through a stub when the edge has moves).
+        auto condJump = [&](bool jumpIfTrue, const std::vector<std::pair<std::uint32_t, std::uint32_t>>& moves, BlockId target) {
           std::size_t at = zf.code.size();
-          put(encAD(Op::JmpIfNot, R(i.args[0]), 0));
-          if (me.empty()) fixups.push_back({at, i.edges[1].to, true});
-          else stubs.push_back({at, me, i.edges[1].to});
+          Patch kind = Patch::Ad;
+          std::size_t patchAt = at;
+          if (fz.on) {
+            IrOp op = jumpIfTrue ? fz.cop : negate(fz.cop);
+            if (fz.yImm) {
+              Op o = op == IrOp::Eq ? Op::JEqIK : op == IrOp::Ne ? Op::JNeIK : op == IrOp::Lt ? Op::JLtIK : op == IrOp::Le ? Op::JLeIK : op == IrOp::Gt ? Op::JGtIK : Op::JGeIK;
+              put(encABC(o, R(fz.x), 0, static_cast<unsigned>(fz.imm) & 0xFFu));
+            } else {
+              ValueId x = fz.x, y = fz.y;
+              if (op == IrOp::Gt || op == IrOp::Ge) { std::swap(x, y); op = mirror(op); }
+              Op o = op == IrOp::Eq ? Op::JEqI : op == IrOp::Ne ? Op::JNeI : op == IrOp::Lt ? (fz.uns ? Op::JLtU : Op::JLtI) : (fz.uns ? Op::JLeU : Op::JLeI);
+              put(encABC(o, R(x), R(y)));
+            }
+            put(0);
+            kind = Patch::Word;
+            patchAt = at + 1;
+          } else put(encAD(jumpIfTrue ? Op::JmpIf : Op::JmpIfNot, R(i.args[0]), 0));
+          if (moves.empty()) fixups.push_back({patchAt, target, kind});
+          else stubs.push_back({patchAt, kind, moves, target});
+        };
+        if (lay[i.edges[0].to] == lay[b] + 1 && mt.empty()) {  // fall into the then block, jump away when the condition is false
+          condJump(false, me, i.edges[1].to);
           return true;
         }
-        std::size_t at = zf.code.size();
-        put(encAD(Op::JmpIf, R(i.args[0]), 0));
-        if (mt.empty()) fixups.push_back({at, i.edges[0].to, true});
-        else stubs.push_back({at, mt, i.edges[0].to});
+        condJump(true, mt, i.edges[0].to);
         parallelMoves(me);
-        if (lay[i.edges[1].to] != lay[b] + 1) { fixups.push_back({zf.code.size(), i.edges[1].to, false}); put(encAX(Op::Jmp, 0)); }
+        if (lay[i.edges[1].to] != lay[b] + 1) { fixups.push_back({zf.code.size(), i.edges[1].to, Patch::Ax}); put(encAX(Op::Jmp, 0)); }
         return true;
       }
       case IrOp::Ret: if (i.args.empty()) put(encABC(Op::RetV, 0)); else put(encABC(Op::Ret, R(i.args[0]))); return true;
@@ -499,6 +609,7 @@ struct FnEmitter {
 
   bool run() {
     if (!classify()) return false;
+    plan();
     layout();
     intervals();
     if (!allocate()) return false;
@@ -507,17 +618,18 @@ struct FnEmitter {
       blockStart[b] = zf.code.size();
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) if (!emitInst(b, k)) return false;
     }
+    auto patch = [&](std::size_t at, Patch kind, std::uint32_t t) {
+      if (kind == Patch::Ax) zf.code[at] = encAX(Op::Jmp, t);
+      else if (kind == Patch::Ad) zf.code[at] = (zf.code[at] & 0xFFFFu) | (t << 16);
+      else zf.code[at] = t;
+    };
     for (Stub& s : stubs) {
-      zf.code[s.jmpAt] = (zf.code[s.jmpAt] & 0xFFFFu) | (static_cast<std::uint32_t>(zf.code.size()) << 16);
+      patch(s.at, s.kind, static_cast<std::uint32_t>(zf.code.size()));
       parallelMoves(s.moves);
-      fixups.push_back({zf.code.size(), s.target, false});
+      fixups.push_back({zf.code.size(), s.target, Patch::Ax});
       put(encAX(Op::Jmp, 0));
     }
-    for (const Fixup& x : fixups) {
-      std::uint32_t t = static_cast<std::uint32_t>(blockStart[x.target]);
-      if (x.ad) zf.code[x.at] = (zf.code[x.at] & 0xFFFFu) | (t << 16);
-      else zf.code[x.at] = encAX(Op::Jmp, t);
-    }
+    for (const Fixup& x : fixups) patch(x.at, x.kind, static_cast<std::uint32_t>(blockStart[x.target]));
     zf.nregs = frame + (usedScratch ? 1 : 0);
     if (zf.nregs > kMaxRegisters) return fail("function needs more than 256 registers");
     if (zf.code.size() > kMaxCodeWords) return fail("function is too large");
