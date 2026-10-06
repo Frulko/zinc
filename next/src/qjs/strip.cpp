@@ -69,7 +69,7 @@ struct Stripper {
       std::uint32_t e = at;
       while (e < s.size() && (std::isalnum(static_cast<unsigned char>(s[e])) || s[e] == '_' || s[e] == '$')) e++;
       std::string_view w = s.substr(at, e - at);
-      if (w != "public" && w != "private" && w != "protected" && w != "readonly" && w != "abstract" && w != "override" && w != "declare") return;
+      if (w != "public" && w != "private" && w != "protected" && w != "readonly" && w != "abstract" && w != "override" && w != "declare" && w != "accessor") return;  // accessor: a plain field
       std::uint32_t nx = e;
       while (space(nx)) nx++;
       if (nx >= s.size() || std::string_view("(:=;?<}!,)").find(s[nx]) != std::string_view::npos) return;  // a member that is called like a modifier
@@ -147,10 +147,12 @@ struct Stripper {
         case N::Export: if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) blank(x.start, x.end); break;
         case N::As: {
           std::uint32_t k = n(x.kids[0]).end;
-          while (k + 2 <= x.end && !(s.substr(k, 2) == "as" && (k == 0 || !std::isalnum(static_cast<unsigned char>(s[k - 1]))) && space(k + 2))) k++;
+          const std::string_view word = x.text.empty() ? std::string_view("as") : x.text;  // "as" or "satisfies"
+          while (k + word.size() <= x.end && !(s.substr(k, word.size()) == word && (k == 0 || !std::isalnum(static_cast<unsigned char>(s[k - 1]))) && space(k + word.size()))) k++;
           blank(k, x.end);
           break;
         }
+        case N::Empty: if (x.text == "declare") blank(x.start, x.end); break;  // an ambient declaration
         case N::NonNull: blank(x.end - 1, x.end); break;  // the `!`
         case N::Enum: enumDecl(x); break;
         default: break;

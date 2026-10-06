@@ -184,6 +184,11 @@ struct Parser {
 
   std::uint32_t type() {
     std::uint32_t st = cur().start;
+    if ((cur().kind == Tok::Ident || isKw("this")) && isId("is", 1) && !newlineAt(1)) {  // a type predicate `x is T` is a boolean (its narrowing is not tracked)
+      i += 2;
+      type();
+      return mk(N::TypeRef, st, prevEnd(), "boolean", {});
+    }
     eatP("|");
     std::uint32_t first = typePostfix();
     if (!isP("|")) return first;
@@ -202,6 +207,11 @@ struct Parser {
   std::uint32_t typePrimary() {
     std::uint32_t st = cur().start;
     Tok k = cur().kind;
+    if (isId("keyof") && (at(1).kind == Tok::Ident || isP("(", 1) || isP("{", 1))) {  // `keyof T`: string literal types are plain strings, so it is a string
+      ++i;
+      typePostfix();
+      return mk(N::TypeRef, st, prevEnd(), "string", {});
+    }
     if (k == Tok::Ident || isKw("void") || isKw("null") || isKw("this")) {
       ++i;
       while (isP(".") && at(1).kind == Tok::Ident) i += 2;
@@ -217,7 +227,9 @@ struct Parser {
     if (k == Tok::Number || k == Tok::String || isKw("true") || isKw("false")) { ++i; return mk(N::TypeLit, st, prevEnd(), s.substr(st, prevEnd() - st)); }
     if (isP("(")) {
       std::size_t close = matchingParen(0);
-      if (close + 1 < t.size() && t[close + 1].kind == Tok::Punct && txt(t[close + 1]) == "=>") {
+      // `(() => T) =>`: a parenthesized type before an arrow is not a parameter list (parameters never start with `(`)
+      bool paramList = !isP("(", 1) && !(at(1).kind == Tok::Ident && at(2).kind == Tok::Punct && !(isP(":", 2) || isP(",", 2) || isP("?", 2) || isP(")", 2) || isP("=", 2)));
+      if (paramList && close + 1 < t.size() && t[close + 1].kind == Tok::Punct && txt(t[close + 1]) == "=>") {
         auto ps = params(true);
         expectP("=>");
         std::uint32_t ret = type();
@@ -346,10 +358,13 @@ struct Parser {
   std::uint32_t binary(int minPrec) {
     std::uint32_t lhs = unary();
     for (;;) {
-      if (isId("as") && !newlineBefore() && minPrec <= 8) {  // a type assertion binds like a relational operator
+      if ((isId("as") || isId("satisfies")) && !newlineBefore() && minPrec <= 8) {  // a type assertion binds like a relational operator
+        std::string_view word = txt();
         ++i;
-        std::uint32_t ty = type();
-        lhs = mk(N::As, startOf(lhs), prevEnd(), {}, {lhs, ty});
+        std::uint32_t ty;
+        if (word == "as" && isKw("const")) { std::uint32_t cs = cur().start; ++i; ty = mk(N::TypeRef, cs, prevEnd(), "const", {}); }  // `as const` is erased
+        else ty = type();
+        lhs = mk(N::As, startOf(lhs), prevEnd(), word, {lhs, ty});  // text: "as" or "satisfies"
         continue;
       }
       Op op = operatorAt();
@@ -583,6 +598,12 @@ struct Parser {
         return mk(N::Template, st, prevEnd(), {}, std::move(parts));
       }
       case Tok::Keyword:
+        if (isKw("import") && isP(".", 1) && isId("meta", 2) && isP(".", 3) && at(4).kind == Tok::Ident) {  // import.meta.url, .dirname, .filename: the loader turns the marker into the module's string
+          std::string_view prop = txt(at(4));
+          if (prop != "url" && prop != "dirname" && prop != "filename") unsupported("import.meta members other than url, dirname and filename");
+          i += 5;
+          return mk(N::Ident, st, prevEnd(), prop == "url" ? "__meta_url" : prop == "dirname" ? "__meta_dirname" : "__meta_filename");
+        }
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }
         if (isKw("super")) { ++i; return mk(N::Super, st, prevEnd()); }
         if (isKw("true") || isKw("false") || isKw("null")) { ++i; return mk(N::Literal, st, prevEnd(), txt(t[i - 1])); }
@@ -708,7 +729,8 @@ struct Parser {
     for (;;) {
       std::uint32_t f = isId("public") ? kFlagPublic : isId("private") ? kFlagPrivate : isId("protected") ? kFlagProtected
                       : isId("static") ? kFlagStatic : isId("readonly") ? kFlagReadonly : isId("abstract") ? kFlagAbstract
-                      : isId("override") ? kFlagOverride : 0;
+                      : isId("override") ? kFlagOverride : isId("accessor") ? kFlagSynthetic : 0;  // `accessor x` is a plain field (the flag is dropped below)
+      if (f == kFlagSynthetic) { if (at(1).kind == Tok::Ident || at(1).kind == Tok::PrivateName) { ++i; continue; } return fl; }
       if (!f || isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1) || isP("?", 1) || isP("}", 1)) return fl;
       fl |= f;
       ++i;
@@ -763,7 +785,7 @@ struct Parser {
     if (isId("set") || isId("async") || isId("declare") || isP("*") || isP("[")) {
       if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("setters, async and computed member names");
     }
-    if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
+    if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::PrivateName) unexpected();
     name = txt();
     ++i;
   }
@@ -791,6 +813,21 @@ struct Parser {
       if (eatP(";")) continue;
       skipDecorators();
       std::uint32_t ms = cur().start;
+      if (isId("static") && isP("{", 1)) {  // `static { ... }`: a static field whose initializer runs the block once, at class definition
+        static std::deque<std::string> blockNames;  // see setterNames below
+        blockNames.push_back("__static_block_" + std::to_string(blockNames.size()));
+        i += 1;
+        std::uint32_t body = block();
+        std::uint32_t zero = mk(N::Number, ms, prevEnd(), "0");
+        std::uint32_t ret = mk(N::Return, ms, prevEnd(), {}, {zero});
+        r.ast.nodes[body].kids.push_back(ret);
+        std::uint32_t fn = funcExpr(ms, {}, kNone, body, true);
+        std::uint32_t call = mk(N::Call, ms, prevEnd(), {}, {fn});
+        std::uint32_t id = mk(N::Field, ms, prevEnd(), blockNames.back(), {kNone, call});
+        r.ast.nodes[id].flags = kFlagStatic | kFlagSynthetic;
+        members.push_back(id);
+        continue;
+      }
       std::uint32_t fl = modifiers();
       std::string_view mname;
       if (isP("[") && isId("Symbol", 1) && isP(".", 2) && isId("dispose", 3) && isP("]", 4)) {  // [Symbol.dispose]()
@@ -1073,6 +1110,7 @@ struct Parser {
     }
     expectP("{");
     while (!isP("}")) {
+      if (isId("type") && at(1).kind == Tok::Ident && !isId("as", 1)) ++i;  // `import { a, type B }`: the specifier is type-only; types import like values
       if (cur().kind != Tok::Ident) unexpected();
       std::uint32_t s0 = cur().start, ls = s0, le = cur().end;
       std::string_view name = txt(), local = name;
@@ -1121,6 +1159,7 @@ struct Parser {
       ++i;
       std::vector<std::uint32_t> specs;
       while (!isP("}")) {
+        if (isId("type") && at(1).kind == Tok::Ident && !isId("as", 1)) ++i;  // `export { type B }`
         if (cur().kind != Tok::Ident) unexpected();
         std::uint32_t s0 = cur().start, es = s0, ee = cur().end;
         std::string_view name = txt(), exported = name;
@@ -1165,6 +1204,12 @@ struct Parser {
     if (isKw("export")) { if (!top) unsupported("exports below the top level"); return exportDecl(); }
     if (isP("{")) return block();
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
+    if (isId("declare") && !newlineAt(1) && (at(1).kind == Tok::Keyword || at(1).kind == Tok::Ident) && !isP("=", 1)) {  // `declare const x: T`: ambient, ignored
+      ++i;
+      statement();
+      return mk(N::Empty, st, prevEnd(), "declare");
+    }
+    if (isKw("const") && at(1).kind == Tok::Keyword && txt(at(1)) == "enum") { ++i; std::uint32_t id = enumDecl(); r.ast.nodes[id].start = st; return id; }  // a const enum is an enum
     if (atVarDecl()) return varDecl(true);
     if (isKw("function")) return function();
     if (isId("async") && at(1).kind == Tok::Keyword && txt(at(1)) == "function" && !newlineAt(1)) { ++i; return function(true, st); }
@@ -1268,7 +1313,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull"};
   return names[static_cast<int>(k)];
 }
 

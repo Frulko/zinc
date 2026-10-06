@@ -1107,6 +1107,16 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   if (p.diags.empty())  // console.error, warn, info and debug print like console.log (to the standard output: the engine has one text stream)
     for (Node& x : p.ast.nodes)
       if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "error" || x.text == "warn" || x.text == "info" || x.text == "debug" || x.text == "trace")) x.text = "log";
+  if (p.diags.empty())  // import.meta.url, dirname and filename: the module's own path as a string
+    for (Node& x : p.ast.nodes) {
+      if (x.kind != N::Ident || x.text.size() < 7 || x.text.substr(0, 7) != "__meta_") continue;
+      static std::deque<std::string> metaTexts;  // nodes view these, so they outlive the call
+      std::filesystem::path abs = std::filesystem::absolute(p.files[x.file].path).lexically_normal();
+      std::string v = x.text == "__meta_url" ? "file://" + abs.string() : x.text == "__meta_dirname" ? abs.parent_path().string() : abs.string();
+      metaTexts.push_back("'" + v + "'");
+      x.kind = N::String;
+      x.text = metaTexts.back();
+    }
   bool consoleX = p.diags.empty() && needsConsole(p.ast);
   bool consoleT = p.diags.empty() && needsConsoleTime(p.ast);
   if (consoleX)  // console.count and friends are calls of the prelude's functions; console.trace prints like console.log

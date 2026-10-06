@@ -1439,6 +1439,13 @@ struct Checker {
       case N::FuncExpr: return funcExpr(i, expected);
       case N::ObjectLit: return objectLit(i, x, expected);
       case N::As: {  // e as T: T must be comparable with the type of e
+        if (n(x.kids[1]).kind == N::TypeRef && n(x.kids[1]).text == "const") return expr(x.kids[0], expected);  // `as const` only narrows literals: erased
+        if (x.text == "satisfies") {  // e satisfies T: e must be assignable to T and keeps its own type
+          TypeId target = annotation(x.kids[1]);
+          TypeId vt = expr(x.kids[0], bad(target) ? kNoType : target);
+          if (!bad(target) && !bad(vt)) require(vt, target, x.kids[0]);
+          return vt;
+        }
         TypeId target = annotation(x.kids[1]);
         if (bad(target)) { expr(x.kids[0]); return tError; }
         std::uint32_t savedAs = asOperand;
@@ -1569,7 +1576,9 @@ struct Checker {
         }
         if (n(target).kind == N::Member && x.text == "=" && !(n(target).flags & kFlagOptional)) {  // obj.name = v where the class has `set name(v)`: a call of the setter
           std::uint32_t objNode = n(target).kids[0];
-          TypeId ot = n(objNode).kind == N::This ? (curClass == kNone ? kNoType : objType(curClass)) : expr(objNode);
+          std::uint32_t objSym = n(objNode).kind == N::Ident ? lookup(n(objNode).text) : kNone;
+          bool classRef = objSym != kNone && (out.syms[objSym].kind == SymKind::Class || out.syms[objSym].kind == SymKind::GenericClass || out.syms[objSym].kind == SymKind::Enum);  // C.n = v: a static field, not a setter
+          TypeId ot = classRef ? kNoType : n(objNode).kind == N::This ? (curClass == kNone ? kNoType : objType(curClass)) : expr(objNode);
           if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object) {
             const Member* setter = lookupMember(ty(ot).obj, "__set_" + std::string(n(target).text), false);
             const Member* plain = lookupMember(ty(ot).obj, n(target).text, false);
