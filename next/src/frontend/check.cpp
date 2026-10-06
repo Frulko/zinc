@@ -63,7 +63,7 @@ struct Checker {
 
   // ---- diagnostics
   void diag(const char* code, std::uint32_t node, std::string detail = "") {
-    out.diags.push_back({code, a.nodes[node].start, std::move(detail)});
+    out.diags.push_back({code, a.nodes[node].start, std::move(detail), a.nodes[node].file});
   }
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
 
@@ -110,7 +110,7 @@ struct Checker {
   bool objAssignable(std::uint32_t a, std::uint32_t b) const { return frontend::objAssignable(out, a, b); }
   // A class is not available before its declaration runs (TypeScript: used before its declaration).
   bool usedBeforeDeclaration(std::uint32_t sym, std::uint32_t useNode) const {
-    return immediate && out.syms[sym].decl != kNone && n(useNode).start < n(out.syms[sym].decl).start;
+    return immediate && out.syms[sym].decl != kNone && n(useNode).file == n(out.syms[sym].decl).file && n(useNode).start < n(out.syms[sym].decl).start;
   }
   bool ctorAccessible(const ObjInfo& o, std::uint32_t objIdx) const {
     if (o.ctorAccess == 0) return true;
@@ -1397,7 +1397,7 @@ struct Checker {
       std::uint32_t po = out.objs[oi].parent;
       if (po != kNoObj && out.objs[po].genericSym == kNoObj) {
         std::uint32_t ps = lookup(n(cn.kids[0]).text);
-        if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
+        if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).file == cn.file && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
       }
     }
     if (cn.kind == N::Interface && cn.kids[0] != kNone)
@@ -1714,7 +1714,7 @@ struct Checker {
       ensureSelf(g);
       if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
-    bool rootList = &stmts == &n(a.root).kids;
+    bool rootList = &stmts == topList;
     for (std::uint32_t s : stmts) {
       atTop = rootList;
       statement(s);
@@ -1730,11 +1730,45 @@ struct Checker {
     defer = saved;
   }
 
+  const std::vector<std::uint32_t>* topList = nullptr;  // the statement list of the module being checked
+  std::vector<std::map<std::string_view, std::uint32_t>> exportsOf;  // per module: exported name -> symbol
+
   void run() {
     builtins();
-    push();
-    stmtList(n(a.root).kids);
-    pop();
+    if (a.modules.empty()) {  // one parsed file
+      push();
+      topList = &n(a.root).kids;
+      stmtList(*topList);
+      pop();
+      pop();
+      return;
+    }
+    exportsOf.resize(a.modules.size());
+    for (std::uint32_t mi = 0; mi < a.modules.size(); ++mi) {  // initialisation order: a module after the modules it imports
+      const ModuleInfo& mod = a.modules[mi];
+      push();
+      for (const ModuleImport& im : mod.imports) {
+        auto it = exportsOf[im.from].find(im.name);
+        if (it == exportsOf[im.from].end()) { diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' is not exported by '" + a.modules[im.from].path + "'"); continue; }
+        if (scopes.back()->count(im.local)) { diag(kZDuplicateDeclaration, im.node, "'" + std::string(im.local) + "'"); continue; }
+        (*scopes.back())[im.local] = it->second;
+      }
+      topList = &mod.stmts;
+      stmtList(mod.stmts);
+      auto& mine = exportsOf[mi];
+      auto add = [&](std::string_view nm, std::uint32_t sym, std::uint32_t node) {
+        if (!mine.emplace(nm, sym).second) diag(kZDuplicateDeclaration, node, "export '" + std::string(nm) + "'");
+      };
+      for (const ModuleExport& e : mod.exports) {
+        if (e.all) { for (auto& [nm, sym] : exportsOf[e.from]) mine.emplace(nm, sym); continue; }
+        std::uint32_t sym = kNone;
+        if (e.from == kNone) { auto f = scopes.back()->find(e.local); if (f != scopes.back()->end()) sym = f->second; }
+        else { auto f = exportsOf[e.from].find(e.local); if (f != exportsOf[e.from].end()) sym = f->second; }
+        if (sym == kNone) { diag(kZCannotFindName, e.node, "'" + std::string(e.local) + "' " + (e.from == kNone ? "is not declared in this module" : "is not exported by '" + a.modules[e.from].path + "'")); continue; }
+        add(e.name, sym, e.node);
+      }
+      pop();
+    }
     pop();
   }
 };

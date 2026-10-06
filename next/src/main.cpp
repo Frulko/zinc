@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <filesystem>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -9,6 +10,7 @@
 #include "frontend/check.h"
 #include "frontend/diagnostics.h"
 #include "frontend/lexer.h"
+#include "frontend/modules.h"
 #include "frontend/parser.h"
 #include "ir/ir.h"
 #include "vm/vm.h"
@@ -17,19 +19,36 @@
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
-// Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
-static int compileToZbc(const char* path, zn::zbc::Module& out) {
+static bool readFile(const std::string& path, std::string& out) {
+  if (!std::filesystem::is_regular_file(path)) return false;
   std::ifstream in(path, std::ios::binary);
-  if (!in) { std::fprintf(stderr, "cannot read %s\n", path); return 2; }
+  if (!in) return false;
   std::stringstream buf;
   buf << in.rdbuf();
-  std::string src = buf.str();
-  auto res = zn::frontend::parse(src);
-  auto checked = zn::frontend::check(res.ast);
-  auto diags = res.diags;
-  diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
+  out = buf.str();
+  return true;
+}
+
+// Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
+static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
+  prog = zn::frontend::loadProgram(path, readFile);
+  auto diags = prog.diags;
   if (diags.empty()) {
-    auto low = zn::ir::lower(res.ast, checked, src);
+    checked = zn::frontend::check(prog.ast);
+    diags = checked.diags;
+  }
+  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
+  return diags.empty();
+}
+
+// Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
+static int compileToZbc(const char* path, zn::zbc::Module& out) {
+  zn::frontend::Program prog;
+  zn::frontend::Checked checked;
+  if (!loadChecked(path, prog, checked)) return 1;
+  std::vector<zn::frontend::Diag> diags;
+  {
+    auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     diags = low.diags;
     if (diags.empty()) {
       auto em = zn::zbc::emit(low.module);
@@ -41,7 +60,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       return 0;
     }
   }
-  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, path).c_str());
+  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
   return 1;
 }
 
@@ -122,41 +141,24 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "check")) {  // zinc check --check|--types <file>: parse, then check
-    std::ifstream in(argv[3], std::ios::binary);
-    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
-    std::stringstream buf;
-    buf << in.rdbuf();
-    std::string src = buf.str();
-    auto res = zn::frontend::parse(src);
-    auto checked = zn::frontend::check(res.ast);
-    auto diags = res.diags;
-    diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
-    for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, argv[3]).c_str());
-    if (!diags.empty()) return 1;
-    if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, res.ast, src).c_str(), stdout);
+    zn::frontend::Program prog;
+    zn::frontend::Checked checked;
+    if (!loadChecked(argv[3], prog, checked)) return 1;
+    if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=ir")) {  // zinc --emit=ir <file>: parse, check, lower, verify, dump
-    std::ifstream in(argv[2], std::ios::binary);
-    if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
-    std::stringstream buf;
-    buf << in.rdbuf();
-    std::string src = buf.str();
-    auto res = zn::frontend::parse(src);
-    auto checked = zn::frontend::check(res.ast);
-    auto diags = res.diags;
-    diags.insert(diags.end(), checked.diags.begin(), checked.diags.end());
-    if (diags.empty()) {
-      auto low = zn::ir::lower(res.ast, checked, src);
-      diags = low.diags;
-      if (diags.empty()) {
-        std::string bad = zn::ir::verify(low.module);
-        if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); return 3; }
-        std::fputs(zn::ir::dump(low.module).c_str(), stdout);
-        return 0;
-      }
+    zn::frontend::Program prog;
+    zn::frontend::Checked checked;
+    if (!loadChecked(argv[2], prog, checked)) return 1;
+    auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
+    if (low.diags.empty()) {
+      std::string bad = zn::ir::verify(low.module);
+      if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); return 3; }
+      std::fputs(zn::ir::dump(low.module).c_str(), stdout);
+      return 0;
     }
-    for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::format(d, src, argv[2]).c_str());
+    for (const auto& d : low.diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
     return 1;
   }
   if (argc == 3 && !std::strcmp(argv[1], "explain")) {  // zinc explain Z0001|--markdown|--codes

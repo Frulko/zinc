@@ -831,8 +831,86 @@ struct Parser {
     return mk(N::For, st, prevEnd(), {}, {init, test, update, body});
   }
 
-  std::uint32_t statement() {
+  bool topLevel = false;  // the statement being parsed is directly in the program
+
+  std::string_view sourceString() {
+    if (cur().kind != Tok::String) fail(kZExpected, cur().start, "a module path string");
+    std::string_view p = txt();
+    ++i;
+    return p;
+  }
+  // `import './x'`, `import { a, b as c } from './x'`
+  std::uint32_t importDecl() {
     std::uint32_t st = cur().start;
+    ++i;
+    if (isId("type") && isP("{", 1)) ++i;
+    if (cur().kind == Tok::String) { std::string_view src = sourceString(); semi(); return mk(N::Import, st, prevEnd(), src); }
+    if (isP("*")) unsupported("namespace imports");
+    if (cur().kind == Tok::Ident) unsupported("default imports");
+    expectP("{");
+    std::vector<std::uint32_t> specs;
+    while (!isP("}")) {
+      if (cur().kind != Tok::Ident) unexpected();
+      std::uint32_t s0 = cur().start, ls = s0, le = cur().end;
+      std::string_view name = txt(), local = name;
+      ++i;
+      if (isId("as")) { ++i; if (cur().kind != Tok::Ident) unexpected(); ls = cur().start; le = cur().end; local = txt(); ++i; }
+      std::uint32_t id = mk(N::Ident, ls, le, local);
+      specs.push_back(mk(N::ImportSpec, s0, prevEnd(), name, {id}));
+      if (!eatP(",")) break;
+    }
+    expectP("}");
+    if (!isId("from")) fail(kZExpected, cur().start, "'from'");
+    ++i;
+    std::string_view src = sourceString();
+    semi();
+    return mk(N::Import, st, prevEnd(), src, std::move(specs));
+  }
+  // `export <declaration>`, `export { a, b as c } [from './x']`, `export * from './x'`
+  std::uint32_t exportDecl() {
+    std::uint32_t st = cur().start;
+    ++i;
+    if (isKw("default")) unsupported("default exports");
+    if (isP("*")) {
+      ++i;
+      if (isId("as")) unsupported("namespace re-exports");
+      if (!isId("from")) fail(kZExpected, cur().start, "'from'");
+      ++i;
+      std::string_view src = sourceString();
+      semi();
+      return mk(N::ExportAll, st, prevEnd(), src);
+    }
+    if (isP("{")) {
+      ++i;
+      std::vector<std::uint32_t> specs;
+      while (!isP("}")) {
+        if (cur().kind != Tok::Ident) unexpected();
+        std::uint32_t s0 = cur().start, es = s0, ee = cur().end;
+        std::string_view name = txt(), exported = name;
+        ++i;
+        if (isId("as")) { ++i; if (cur().kind != Tok::Ident) unexpected(); es = cur().start; ee = cur().end; exported = txt(); ++i; }
+        std::uint32_t id = mk(N::Ident, es, ee, exported);
+        specs.push_back(mk(N::ExportSpec, s0, prevEnd(), name, {id}));
+        if (!eatP(",")) break;
+      }
+      expectP("}");
+      std::string_view src;
+      if (isId("from")) { ++i; src = sourceString(); }
+      semi();
+      return mk(N::ExportList, st, prevEnd(), src, std::move(specs));
+    }
+    std::uint32_t d = statement();
+    N dk = r.ast.nodes[d].kind;
+    if (dk != N::Function && dk != N::Class && dk != N::Interface && dk != N::TypeAlias && dk != N::VarDecl) fail(kZUnexpectedToken, st, "export of this statement");
+    return mk(N::Export, st, prevEnd(), {}, {d});
+  }
+
+  std::uint32_t statement() {
+    bool top = topLevel;
+    topLevel = false;
+    std::uint32_t st = cur().start;
+    if (isKw("import") && !(isP("(", 1) || isP(".", 1))) { if (!top) unsupported("imports below the top level"); return importDecl(); }
+    if (isKw("export")) { if (!top) unsupported("exports below the top level"); return exportDecl(); }
     if (isP("{")) return block();
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
     if (atVarDecl()) return varDecl(true);
@@ -879,7 +957,6 @@ struct Parser {
       semi();
       return mk(brk ? N::Break : N::Continue, st, prevEnd());
     }
-    if (isKw("import") || isKw("export")) unsupported("modules");
     if (isKw("switch") || isKw("try") || isKw("throw")) unsupported("switch, try and throw");
     if (isId("type") && at(1).kind == Tok::Ident) {  // type Name<T> = Type;
       ++i;
@@ -902,7 +979,7 @@ struct Parser {
   void run() {
     std::uint32_t st = cur().start;
     std::vector<std::uint32_t> ss;
-    while (!eof()) ss.push_back(statement());
+    while (!eof()) { topLevel = true; ss.push_back(statement()); }
     r.ast.root = mk(N::Program, st, cur().end, {}, std::move(ss));
   }
 };
@@ -912,7 +989,8 @@ const char* kindName(N k) {
       "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
-      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr"};
+      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll"};
   return names[static_cast<int>(k)];
 }
 

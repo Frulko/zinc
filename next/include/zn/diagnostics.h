@@ -78,7 +78,10 @@
   X(BadSuperCall, "Z0118", "Invalid super call",                                                                       \
     "A derived class constructor must start with `super(...)`, and `super` is only valid in a derived class.",        \
     "Call super(...) as the first statement of the constructor.",                                                     \
-    "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")
+    "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")                       \
+  X(ModuleNotFound, "Z0119", "Cannot find module",                                                                     \
+    "An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are "  \
+    "tried.", "Fix the path or create the file.", "import { x } from './missing';")
 
 namespace zn {
 

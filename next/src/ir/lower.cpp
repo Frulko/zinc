@@ -70,7 +70,7 @@ struct Lowering {
   Lowering(const frontend::Ast& ast, const frontend::Checked& ch) : a(ast), c(ch) {}
 
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
-  void unsupported(std::uint32_t node, const std::string& what) { diags.push_back({frontend::kZUnsupported, n(node).start, what}); }
+  void unsupported(std::uint32_t node, const std::string& what) { diags.push_back({frontend::kZUnsupported, n(node).start, what, n(node).file}); }
 
   static std::string mkey(std::uint32_t obj, std::string_view name) { return std::to_string(obj) + ":" + std::string(name); }
 

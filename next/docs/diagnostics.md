@@ -253,3 +253,13 @@ class B extends A {
   constructor() { this.x = 2; }
 }
 ```
+
+## Z0119: Cannot find module
+
+An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are tried.
+
+Fix: Fix the path or create the file.
+
+```ts
+import { x } from './missing';
+```

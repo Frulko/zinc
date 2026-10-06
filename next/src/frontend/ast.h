@@ -73,6 +73,13 @@ enum class N : std::uint8_t {
   PatProp,        // text=property name  [target]
   TypeAlias,      // text=name  [type]; type parameters in Ast::tparams
   FuncExpr,       // arrow function or function expression: [returnType|none, body Block, Param...]; an expression body is wrapped in a Block with a Return
+  // modules (top level only)
+  Import,         // text=source with quotes  [ImportSpec...]   (`import './x'` has no specs)
+  ImportSpec,     // text=imported name  [Ident local name]
+  Export,         // [declaration]   (`export function f() {}`, `export class`, `export const`, `export interface`, `export type`)
+  ExportList,     // text=source with quotes, or empty  [ExportSpec...]   (`export { a, b as c }` and `export { a } from './x'`)
+  ExportSpec,     // text=local (or imported) name  [Ident exported name]
+  ExportAll,      // text=source with quotes   (`export * from './x'`)
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.
@@ -85,13 +92,33 @@ inline constexpr std::size_t kClassMembersFrom = 2;
 
 struct Node {
   N kind;
-  std::uint32_t start, end;  // byte offsets, [start, end)
+  std::uint32_t start, end;  // byte offsets, [start, end) in the node's file
   std::string_view text;     // views the source
   std::vector<std::uint32_t> kids;
   std::uint32_t flags = 0;
+  std::uint32_t file = 0;    // index into the program's files (see modules.h)
+}; 
+
+// One source file of a program, in initialisation order: its statements (imports and exports unwrapped), what it imports
+// and what it exports. `from` is the module index of the file named in the statement.
+struct ModuleImport { std::uint32_t from; std::string_view name, local; std::uint32_t node; };
+struct ModuleExport {
+  std::string_view name;       // the exported name
+  std::string_view local;      // the module's own name for it, or the imported name of a re-export
+  std::uint32_t from = kNone;  // re-export: module index; otherwise kNone
+  bool all = false;            // `export * from`
+  std::uint32_t node = kNone;
+};
+struct ModuleInfo {
+  std::string path;
+  std::uint32_t file = 0;
+  std::vector<std::uint32_t> stmts;
+  std::vector<ModuleImport> imports;
+  std::vector<ModuleExport> exports;
 };
 
 struct Ast {
+  std::vector<ModuleInfo> modules;  // empty for a single parsed file; then root's kids are the statements
   std::deque<Node> nodes;  // a deque: references stay valid while the checker clones declarations
   std::uint32_t root = kNone;
   // Type parameters of a generic Function, Class or Interface, and the explicit type arguments of a Call or New.
@@ -100,8 +127,9 @@ struct Ast {
 
 struct Diag {
   const char* code;     // registry code (zn/diagnostics.h)
-  std::uint32_t pos;    // byte offset
+  std::uint32_t pos;    // byte offset in `file`
   std::string detail;   // what was found or expected, appended to the registry title
+  std::uint32_t file = 0;
 };
 
 using zn::kZBadAssignTarget;

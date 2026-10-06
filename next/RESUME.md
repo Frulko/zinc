@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set (see the notes below).
-- Ready: none; next by ordinal is ZN-016 (modules). Nothing in progress.
+- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
+- Ready: none; next by ordinal is ZN-017 (the `lang` conformance program). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-016.
+`/loop /zn-start` resumes with ZN-017.
 
 ## Watch out
 
@@ -118,3 +118,11 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - VM: `Machine` (`src/vm/machine.h`), re-entrant `exec()` (sort calls the comparator through it; entry frames count against the depth limit). Strings are UTF-8 with a UTF-16 view; Map/Set are insertion-ordered hash tables; everything leaks until ZN-018.
 - Checker: integer kinds convert implicitly among themselves (wrapping, needed by the kernels); `??` only on nullable references or directly on `Map.get` (which has no `undefined`; use `has`); `Map.values()/keys()` and `Set.values()` return arrays (as lib/zinc.d.ts says; Node returns iterators, so Node-run goldens iterate with for-of).
 - Limits: `charCodeAt` out of range gives 0 (not NaN), `pop` on empty gives 0, case mapping only for ASCII, `join` only on `string[]`, no `console.log` of arrays/Map/Set, no `sort()` without comparator, no Map/Set constructor arguments, no for-of directly over Map/Set.
+
+## ZN-016 notes (modules)
+
+- `frontend/modules.{h,cpp}`: `loadProgram(entry, readFile)` parses every file once (relative imports only; `.ts`, `.tsx`, `/index.ts` tried), merges the nodes into one `Ast` (`Node::file`, `Diag::file`, `formatDiag`), orders modules so imports come first, and flattens every module's statements into `root.kids` (imports unwrapped, `export` stripped) so the lowering is unchanged: `@main` runs the modules' top-level code in init order.
+- Checker: with `Ast::modules` non-empty each module gets its own scope; imports alias the exporter's symbols (live bindings for free); exports are resolved after the module is checked. `ast.modules` empty = a single parsed file (unit tests, `parse`).
+- Position comparisons ("used before declaration") only compare nodes of the same file. New code Z0119 (module not found); missing exports reuse Z0101.
+- Limits: default/namespace imports and exports, package imports ('zinc:ui' etc.), circular imports (Z0005), dynamic import. Two modules may declare the same top-level name; names in IR/ZBC dumps are not qualified by module.
+- Test: `tests/t0/modules.sh` with `tests/golden/modules/` (output hand-verified; Node cannot run the extensionless imports).
