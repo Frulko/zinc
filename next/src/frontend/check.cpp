@@ -53,7 +53,7 @@ struct Checker {
   const std::vector<std::uint32_t>* ctorStmts = nullptr;  // top-level statements of the constructor being checked
   std::vector<std::string> ctorPending;                   // own fields without initializer, not yet assigned in the constructor
   bool pendingExempt = false;                              // evaluating the target of `this.f = ...`
-  int loops = 0;
+  int loops = 0, switches = 0;
 
   explicit Checker(Ast& ast) : a(ast) {
     out.nodeType.assign(a.nodes.size(), kNoType);
@@ -130,6 +130,7 @@ struct Checker {
     if (ty(from).k == TK::Param) { TypeId c = out.tparams[ty(from).obj].constraint; return c != kNoType && assignable(c, to, node); }
     const Type &f = ty(from), &t = ty(to);
     if (f.k == TK::Num && t.k == TK::Num) {
+      if (t.obj != 0) return f.obj == t.obj;  // an enum takes only its own members (TypeScript rejects other literals too)
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
       return widens(f.num, t.num) || (isInt(f.num) && isInt(t.num));  // machine integers convert among themselves (wrapping), like the number type they alias
     }
@@ -201,6 +202,7 @@ struct Checker {
         else {
           std::uint32_t s = lookup(x.text);
           if (s == kNone) diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
+          else if (out.syms[s].kind == SymKind::Enum && x.kids.empty()) r = out.syms[s].type;
           else if (out.syms[s].kind == SymKind::TypeAlias && x.kids.empty()) r = out.syms[s].type != kNoType ? out.syms[s].type : resolveAlias(s);
           else if (out.syms[s].kind == SymKind::GenericAlias) {
             std::vector<TypeId> args;
@@ -549,6 +551,7 @@ struct Checker {
         out.nodeSym[i] = s;
         if (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
+        if (out.syms[s].kind == SymKind::Enum) { diag(kZNotAllowedHere, i, "enum '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::TypeAlias) { diag(kZNotAllowedHere, i, "type parameter '" + std::string(x.text) + "' used as a value"); return tError; }
         if (trackable(s) && !out.syms[s].isGlobal && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {
           out.syms[s].captured = true;  // used inside a lambda or nested function that does not declare it
@@ -683,7 +686,14 @@ struct Checker {
           if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
           return m->type;
         }
-        if (on.kind == N::Ident) {  // Class.staticMember
+        if (on.kind == N::Ident) {  // Enum.Member, Class.staticMember
+          std::uint32_t es = lookup(on.text);
+          if (es != kNone && out.syms[es].kind == SymKind::Enum) {
+            out.nodeSym[x.kids[0]] = es;
+            for (auto& [nm, v] : out.enumMembers[es]) if (nm == x.text) return out.syms[es].type;
+            diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on enum '" + std::string(on.text) + "'");
+            return tError;
+          }
           std::uint32_t cs = lookup(on.text);
           if (cs != kNone && out.syms[cs].kind == SymKind::Class && !out.objs[ty(out.syms[cs].type).obj].isInterface) {
             out.nodeSym[x.kids[0]] = cs;
@@ -705,7 +715,7 @@ struct Checker {
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
         if (!m) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
-        return m->type;
+        return m->getter ? ty(m->type).elem : m->type;
       }
       case N::Index: {
         TypeId ot = expr(x.kids[0]), it = expr(x.kids[1]);
@@ -740,7 +750,7 @@ struct Checker {
     if (s == kNone) return false;
     const Node& x = ast.nodes[s];
     if (x.kind == N::Break) return true;
-    if (x.kind == N::For || x.kind == N::ForOf || x.kind == N::ForIn || x.kind == N::While || x.kind == N::DoWhile || x.kind == N::Function || x.kind == N::Class) return false;
+    if (x.kind == N::For || x.kind == N::ForOf || x.kind == N::ForIn || x.kind == N::While || x.kind == N::DoWhile || x.kind == N::Switch || x.kind == N::Function || x.kind == N::Class) return false;
     for (std::uint32_t k : x.kids) if (hasBreak(ast, k)) return true;
     return false;
   }
@@ -755,6 +765,18 @@ struct Checker {
       case N::While: return endless(x.kids[0]) && !hasBreak(a, x.kids[1]);
       case N::DoWhile: return endless(x.kids[1]) && !hasBreak(a, x.kids[0]);
       case N::For: return endless(x.kids[1]) && !hasBreak(a, x.kids[3]);
+      case N::Switch: {  // a default, no break out of the switch, and the last clause (which every other one falls into) ends the function
+        bool hasDefault = false;
+        for (std::size_t k = 1; k < x.kids.size(); ++k) {
+          const Node& cl = n(x.kids[k]);
+          if (cl.kids[0] == kNone) hasDefault = true;
+          for (std::size_t j = 1; j < cl.kids.size(); ++j) if (hasBreak(a, cl.kids[j])) return false;
+        }
+        if (!hasDefault || x.kids.size() < 2) return false;
+        const Node& last = n(x.kids.back());
+        for (std::size_t j = 1; j < last.kids.size(); ++j) if (terminates(last.kids[j])) return true;
+        return false;
+      }
       default: return false;
     }
   }
@@ -960,9 +982,33 @@ struct Checker {
         break;
       }
       case N::Break: case N::Continue:
-        if (loops == 0) diag(kZNotAllowedHere, s, x.kind == N::Break ? "'break' outside a loop" : "'continue' outside a loop");
+        if (loops == 0 && (x.kind == N::Continue || switches == 0)) diag(kZNotAllowedHere, s, x.kind == N::Break ? "'break' outside a loop or switch" : "'continue' outside a loop");
         break;
-      case N::Function: case N::Class: case N::Interface: case N::TypeAlias: break;  // hoisted by stmtList
+      case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: break;  // hoisted by stmtList
+      case N::Switch: {
+        TypeId dt = appOrDiag(expr(x.kids[0]), x.kids[0]);
+        if (!bad(dt) && !isNum(dt) && dt != tStr && dt != tBool) diag(kZBadOperand, x.kids[0], "'switch' on '" + name(dt) + "'");
+        std::size_t mark = narrowing.size();
+        int savedLoops = loops;
+        ++switches;
+        push();
+        bool seenDefault = false;
+        for (std::size_t k = 1; k < x.kids.size(); ++k) {
+          const Node& cl = n(x.kids[k]);
+          if (cl.kids[0] == kNone) { if (seenDefault) diag(kZDuplicateDeclaration, x.kids[k], "'default' clause"); seenDefault = true; }
+          else {
+            TypeId tt = appOrDiag(expr(cl.kids[0], dt), cl.kids[0]);
+            if (!bad(tt) && !bad(dt) && !comparable(dt, tt)) diag(kZBadOperand, cl.kids[0], "case of '" + name(tt) + "' in a switch on '" + name(dt) + "'");
+          }
+          std::vector<std::uint32_t> body(cl.kids.begin() + 1, cl.kids.end());
+          stmtList(body);
+        }
+        pop();
+        --switches;
+        loops = savedLoops;
+        narrowing.resize(mark);
+        break;
+      }
       default: diag(kZUnsupported, s, "this statement"); break;
     }
   }
@@ -1541,6 +1587,8 @@ struct Checker {
         out.nodeType[m] = sig;
         if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
         mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
+        mem.getter = (fl & frontend::kFlagGetter) != 0;
+        if (mem.getter && (isIface || mem.isStatic)) diag(kZUnsupported, m, isIface ? "accessors in interfaces" : "static accessors");
         methods.push_back({m, sig});
         methodParams.push_back(std::move(ps));
         if (mn.kids[1] == kNone && !isIface && !(fl & frontend::kFlagAbstract) && !isCtor) diag(kZAbstractViolation, m, "method '" + std::string(mn.text) + "' has no body");
@@ -1549,7 +1597,7 @@ struct Checker {
       // an override must keep the base member's kind and type
       if (!mem.isStatic && par != kNoObj) {
         const Member* pm = lookupMember(par, mem.name, false);
-        if (pm && (!mem.method || !pm->method || pm->type != mem.type || pm->access == 2)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' does not match the base class member");
+        if (pm && (!mem.method || !pm->method || pm->type != mem.type || pm->access == 2 || pm->getter != mem.getter)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' does not match the base class member");
         else if (!pm && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
       } else if (!par && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
       out.objs[objIdx].members.push_back(std::move(mem));
@@ -1647,6 +1695,29 @@ struct Checker {
     // hoist classes and interfaces first (functions may mention them), then functions
     std::vector<std::pair<std::uint32_t, std::uint32_t>> classes;
     std::vector<std::uint32_t> genericSyms, aliasSyms;
+    for (std::uint32_t s : stmts) {  // numeric enums: the type is i32, the members are constants
+      if (n(s).kind != N::Enum) continue;
+      out.enumNames.push_back(std::string(n(s).text));
+      Type et; et.k = TK::Num; et.num = Num::i32; et.obj = static_cast<std::uint32_t>(out.enumNames.size());
+      std::uint32_t es = declare(SymKind::Enum, n(s).text, intern(et), s, true, s);
+      out.nodeSym[s] = es;
+      std::int64_t next = 0;
+      auto& members = out.enumMembers[es];
+      for (std::uint32_t mi : n(s).kids) {
+        const Node& mn = n(mi);
+        if (mn.kids[0] != kNone) {
+          const Node* v = &n(mn.kids[0]);
+          bool neg = v->kind == N::Unary && v->text == "-";
+          if (neg) v = &n(v->kids[0]);
+          if (v->kind != N::Number || !isIntLit(a, mn.kids[0])) { diag(kZUnsupported, mi, "computed enum members"); continue; }
+          next = std::strtoll(std::string(v->text).c_str(), nullptr, 0);
+          if (neg) next = -next;
+        }
+        for (auto& e : members) if (e.first == mn.text) diag(kZDuplicateDeclaration, mi, "'" + std::string(mn.text) + "'");
+        members.push_back({std::string(mn.text), next});
+        ++next;
+      }
+    }
     for (std::uint32_t s : stmts) {  // type aliases: declared now, resolved on first use
       if (n(s).kind != N::TypeAlias) continue;
       auto tp = a.tparams.find(s);
@@ -1835,7 +1906,7 @@ std::string typeName(const Checked& c, TypeId t) {
   switch (x.k) {
     case TK::Error: return "error";
     case TK::Any: return "any";
-    case TK::Num: return numName(x.num);
+    case TK::Num: return x.obj ? c.enumNames[x.obj - 1] : numName(x.num);
     case TK::Bool: return "boolean";
     case TK::Str: return "string";
     case TK::Void: return "void";

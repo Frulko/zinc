@@ -27,7 +27,7 @@ struct Type {
   std::vector<TypeId> params;   // Func: parameters; Union: members, sorted and without duplicates; Map: the key type
   std::uint32_t minArgs = 0;    // Func
   bool variadic = false;        // Func (builtin console.log)
-  std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams
+  std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams; Num: 1 + index into Checked::enumNames for an enum type
 };
 
 struct Member {
@@ -39,6 +39,7 @@ struct Member {
   std::uint8_t access = 0;            // 0 public, 1 protected, 2 private
   bool isStatic = false;
   bool isAbstract = false;
+  bool getter = false;                // a `get name()` accessor: `type` is the method's signature, a read calls it
 };
 
 struct ObjInfo {
@@ -57,7 +58,7 @@ struct ObjInfo {
   std::vector<std::uint32_t> ifaces;       // interfaces named in `implements`
 };
 
-enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin, TypeAlias, GenericFunc, GenericClass, GenericAlias };
+enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin, TypeAlias, GenericFunc, GenericClass, GenericAlias, Enum };
 struct Symbol {
   SymKind kind;
   std::string_view name;
@@ -92,6 +93,9 @@ struct Checked {
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> captures;
   std::vector<std::uint32_t> lambdaUsesThis;
   std::vector<std::uint32_t> funcValueUses;
+  // Numeric enums: members and values per enum symbol; the enum's type is i32.
+  std::unordered_map<std::uint32_t, std::vector<std::pair<std::string, std::int64_t>>> enumMembers;
+  std::vector<std::string> enumNames;  // an enum's type is an i32 Type with obj = 1 + its index here: assignable only from itself
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.

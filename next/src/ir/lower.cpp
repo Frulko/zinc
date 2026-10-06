@@ -959,9 +959,24 @@ struct Lowering::FnLower {
           const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
           return emit(IrOp::GetGlobal, natural(i), {}, 0, 0, L.staticGlobal[Lowering::mkey(sm->owner, x.text)]);
         }
+        if (os != kNil && c.syms[os].kind == SymKind::Enum) {  // Enum.Member: a constant
+          for (const auto& [nm, v] : c.enumMembers.at(os)) if (nm == x.text) return constNum(m.numT(NumK::i32), static_cast<double>(v));
+        }
         frontend::TypeId ot = c.nodeType[x.kids[0]];
         const frontend::Type& ct = c.types[ot];
         ValueId obj = expr(x.kids[0]);
+        if (ct.k == frontend::TK::Object) {
+          const frontend::Member* gm = frontend::lookupMember(c, ct.obj, x.text, false);
+          if (gm && gm->getter) {  // reading an accessor calls it
+            std::uint32_t direct = kNil;
+            if (L.devirtualize(ct.obj, x.text, direct)) {
+              const Function& cf = m.functions[direct];
+              return callFunction(direct, {coerce(obj, cf.valueTypes[cf.params[0]])}, x.kids, x.kids.size());
+            }
+            std::uint32_t sel = L.selectorFor(std::string(x.text), gm->type);
+            return emit(IrOp::CallVirt, m.selectors[sel].ret, {obj}, 0, 0, sel);
+          }
+        }
         if (ct.k == frontend::TK::Array) return emit(IrOp::ArrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Str) return emit(IrOp::StrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Map || ct.k == frontend::TK::Set) return emit(IrOp::Rt, m.numT(NumK::i32), {obj}, 0, 0, static_cast<std::uint32_t>(ct.k == frontend::TK::Map ? zn::Rt::MapSize : zn::Rt::SetSize));
@@ -1282,7 +1297,38 @@ struct Lowering::FnLower {
   void stmt(std::uint32_t s) {
     const Node& x = n(s);
     switch (x.kind) {
-      case N::Empty: case N::Function: case N::Interface: case N::TypeAlias: break;
+      case N::Empty: case N::Function: case N::Interface: case N::TypeAlias: case N::Enum: break;
+      case N::Switch: {  // a chain of tests, then the clause bodies in order so a clause without `break` falls into the next
+        ValueId disc = expr(x.kids[0]);
+        TypeId dt = tv(disc);
+        std::size_t nc = x.kids.size() - 1, defIdx = nc;
+        BlockId end = newBlock();
+        std::vector<BlockId> bodies(nc);
+        for (BlockId& b : bodies) b = newBlock();
+        for (std::size_t k = 0; k < nc; ++k) if (n(x.kids[1 + k]).kids[0] == kNil) defIdx = k;
+        for (std::size_t k = 0; k < nc; ++k) {
+          std::uint32_t test = n(x.kids[1 + k]).kids[0];
+          if (test == kNil) continue;
+          ValueId eq = emit(IrOp::Eq, m.boolT(), {disc, exprTo(test, dt)});
+          BlockId next = newBlock();
+          condbr(eq, bodies[k], next);
+          sealed[next] = 1;
+          cur = next;
+        }
+        br(defIdx < nc ? bodies[defIdx] : end);
+        loopTargets.push_back({end, loopTargets.empty() ? end : loopTargets.back().second});
+        for (std::size_t k = 0; k < nc; ++k) {
+          sealed[bodies[k]] = 1;
+          cur = bodies[k];
+          const Node& cl = n(x.kids[1 + k]);
+          for (std::size_t j = 1; j < cl.kids.size(); ++j) stmt(cl.kids[j]);
+          br(k + 1 < nc ? bodies[k + 1] : end);
+        }
+        loopTargets.pop_back();
+        seal(end);
+        cur = end;
+        break;
+      }
       case N::Class: {  // static field initialisers run where the class is declared
         if (c.nodeType[s] == frontend::kNoType) break;  // a generic template
         std::uint32_t obj = c.types[c.nodeType[s]].obj;

@@ -675,8 +675,8 @@ struct Parser {
   }
 
   void memberName(std::string_view& name) {
-    if (isId("get") || isId("set") || isId("async") || isId("declare") || isP("*") || isP("[")) {
-      if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("accessors, async and computed member names");
+    if (isId("set") || isId("async") || isId("declare") || isP("*") || isP("[")) {
+      if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("setters, async and computed member names");
     }
     if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
     name = txt();
@@ -707,10 +707,12 @@ struct Parser {
       std::uint32_t ms = cur().start;
       std::uint32_t fl = modifiers();
       std::string_view mname;
+      if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
       memberName(mname);
       if (isP("(") || isP("<")) {
         if (isP("<")) unsupported("generic methods");
         auto ps = params(false);
+        if ((fl & kFlagGetter) && !ps.empty()) unsupported("getters with parameters");
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
         std::uint32_t body = kNone;
@@ -833,6 +835,49 @@ struct Parser {
 
   bool topLevel = false;  // the statement being parsed is directly in the program
 
+  std::uint32_t switchStmt() {
+    std::uint32_t st = cur().start;
+    ++i;
+    expectP("(");
+    std::uint32_t disc = expression();
+    expectP(")");
+    expectP("{");
+    std::vector<std::uint32_t> kids{disc};
+    while (!isP("}")) {
+      std::uint32_t cs = cur().start, test = kNone;
+      if (isKw("case")) { ++i; test = expression(); }
+      else if (isKw("default")) ++i;
+      else unexpected();
+      expectP(":");
+      std::vector<std::uint32_t> body{test};
+      while (!isP("}") && !isKw("case") && !isKw("default")) { if (eof()) unexpected(); body.push_back(statement()); }
+      kids.push_back(mk(N::Case, cs, prevEnd(), {}, std::move(body)));
+    }
+    ++i;
+    return mk(N::Switch, st, prevEnd(), {}, std::move(kids));
+  }
+
+  std::uint32_t enumDecl() {
+    std::uint32_t st = cur().start;
+    ++i;
+    if (cur().kind != Tok::Ident) unexpected();
+    std::string_view name = txt();
+    ++i;
+    expectP("{");
+    std::vector<std::uint32_t> ms;
+    while (!isP("}")) {
+      if (cur().kind != Tok::Ident) unexpected();
+      std::uint32_t s0 = cur().start;
+      std::string_view mn = txt();
+      ++i;
+      std::uint32_t init = eatP("=") ? assignment() : kNone;
+      ms.push_back(mk(N::EnumMember, s0, prevEnd(), mn, {init}));
+      if (!eatP(",")) break;
+    }
+    expectP("}");
+    return mk(N::Enum, st, prevEnd(), name, std::move(ms));
+  }
+
   std::string_view sourceString() {
     if (cur().kind != Tok::String) fail(kZExpected, cur().start, "a module path string");
     std::string_view p = txt();
@@ -901,7 +946,7 @@ struct Parser {
     }
     std::uint32_t d = statement();
     N dk = r.ast.nodes[d].kind;
-    if (dk != N::Function && dk != N::Class && dk != N::Interface && dk != N::TypeAlias && dk != N::VarDecl) fail(kZUnexpectedToken, st, "export of this statement");
+    if (dk != N::Function && dk != N::Class && dk != N::Interface && dk != N::TypeAlias && dk != N::VarDecl && dk != N::Enum) fail(kZUnexpectedToken, st, "export of this statement");
     return mk(N::Export, st, prevEnd(), {}, {d});
   }
 
@@ -957,7 +1002,8 @@ struct Parser {
       semi();
       return mk(brk ? N::Break : N::Continue, st, prevEnd());
     }
-    if (isKw("switch") || isKw("try") || isKw("throw")) unsupported("switch, try and throw");
+    if (isKw("switch")) return switchStmt();
+    if (isKw("try") || isKw("throw")) unsupported("try and throw");
     if (isId("type") && at(1).kind == Tok::Ident) {  // type Name<T> = Type;
       ++i;
       std::string_view name = txt(); ++i;
@@ -970,7 +1016,7 @@ struct Parser {
       if (!tps.empty()) r.ast.tparams[id] = std::move(tps);
       return id;
     }
-    if (isKw("enum")) unsupported("enums");
+    if (isKw("enum")) return enumDecl();
     std::uint32_t e = expression();
     semi();
     return mk(N::ExprStmt, st, prevEnd(), {}, {e});
@@ -990,7 +1036,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember"};
   return names[static_cast<int>(k)];
 }
 
@@ -1001,10 +1047,10 @@ void dumpNode(const Ast& a, std::uint32_t n, int depth, std::string& out) {
   out += kindName(x.kind);
   if (!x.text.empty()) { out += ' '; out += x.text; }
   if (x.flags) {
-    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic", "arrow"};
+    static const char* fn[] = {"abstract", "static", "readonly", "private", "protected", "public", "override", "synthetic", "arrow", "getter"};
     out += " [";
     bool first = true;
-    for (int b = 0; b < 9; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
+    for (int b = 0; b < 10; ++b) if (x.flags & (1u << b)) { out += (first ? "" : " "); out += fn[b]; first = false; }
     out += "]";
   }
   out += '\n';

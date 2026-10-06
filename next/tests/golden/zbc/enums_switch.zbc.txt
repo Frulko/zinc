@@ -1,0 +1,212 @@
+class Rect { i, i }
+  vtable .area -> @Rect.area
+  vtable .isSquare -> @Rect.isSquare
+class Sq : Rect { i, i }
+  vtable .area -> @Sq.area
+  vtable .isSquare -> @Rect.isSquare
+builtin str
+builtin ref Rect[]
+func @main() -> void nregs=7
+   0  LoadI    r0, 0
+   1  Call     r0, @describe
+   2  LoadI    r1, 1
+   3  Call     r1, @describe
+   4  LoadI    r2, 10
+   5  Call     r2, @describe
+   6  LoadI    r3, 11
+   7  Call     r3, @describe
+   8  LoadI    r4, 11
+   9  LoadI    r5, -1
+  10  LoadI    r6, 6
+  11  LogStr   r0
+  12  LogSep   
+  13  LogStr   r1
+  14  LogSep   
+  15  LogStr   r2
+  16  LogSep   
+  17  LogStr   r3
+  18  LogSep   
+  19  LogI     r4
+  20  LogSep   
+  21  LogI     r5
+  22  LogSep   
+  23  LogI     r6
+  24  LogEnd   
+  25  LoadI    r0, 1
+  26  Call     r0, @weird
+  27  LoadI    r1, 2
+  28  Call     r1, @weird
+  29  LoadI    r2, 3
+  30  Call     r2, @weird
+  31  LoadI    r3, 4
+  32  Call     r3, @weird
+  33  LogStr   r0
+  34  LogSep   
+  35  LogStr   r1
+  36  LogSep   
+  37  LogStr   r2
+  38  LogSep   
+  39  LogStr   r3
+  40  LogEnd   
+  41  LoadStr  r0, "a"
+  42  Call     r0, @word
+  43  LoadStr  r1, "bb"
+  44  Call     r1, @word
+  45  LoadStr  r2, "c"
+  46  Call     r2, @word
+  47  LogI     r0
+  48  LogSep   
+  49  LogI     r1
+  50  LogSep   
+  51  LogI     r2
+  52  LogEnd   
+  53  New      r0, Rect
+  54  LoadI    r2, 3
+  55  LoadI    r3, 4
+  56  Move     r1, r0
+  57  Call     r1, @Rect.constructor
+  58  New      r1, ref Rect[]
+  59  ArrPush  r2, r1, r0
+  60  New      r2, Sq
+  61  LoadI    r4, 5
+  62  Move     r3, r2
+  63  Call     r3, @Sq.constructor
+  64  ArrPush  r2, r1, r2
+  65  Move     r2, r0
+  66  CallVirt r2, .area
+  67  Move     r3, r0
+  68  Call     r3, @Rect.isSquare
+  69  LoadI    r0, 1
+  70  ArrGet   r4, r1, r0
+  71  CallVirt r4, .area
+  72  LoadI    r0, 1
+  73  ArrGet   r5, r1, r0
+  74  Call     r5, @Rect.isSquare
+  75  LogI     r2
+  76  LogSep   
+  77  LogBool  r3
+  78  LogSep   
+  79  LogI     r4
+  80  LogSep   
+  81  LogBool  r5
+  82  LogEnd   
+  83  LoadK    r0, f64 0
+  84  LoadK    r1, f64 0
+  85  LoadK    r2, f64 6
+  86  LtF64    r2, r1, r2
+  87  JmpIfNot r2, -> 109
+  88  LoadK    r2, f64 3
+  89  RemF64   r2, r1, r2
+  90  LoadK    r3, f64 0
+  91  EqF64    r3, r2, r3
+  92  JmpIfNot r3, -> 95
+  93  Move     r2, r0
+  94  Jmp      -> 105
+  95  LoadK    r3, f64 1
+  96  EqF64    r2, r2, r3
+  97  JmpIfNot r2, -> 101
+  98  LoadK    r2, f64 10
+  99  AddF64   r2, r0, r2
+ 100  Jmp      -> 103
+ 101  LoadK    r2, f64 1
+ 102  AddF64   r2, r0, r2
+ 103  LoadK    r3, f64 100
+ 104  AddF64   r2, r2, r3
+ 105  LoadK    r3, f64 1
+ 106  AddF64   r1, r1, r3
+ 107  Move     r0, r2
+ 108  Jmp      -> 85
+ 109  LogF64   r0
+ 110  LogEnd   
+ 111  LoadI    r0, 10
+ 112  LoadI    r1, 10
+ 113  EqI      r1, r0, r1
+ 114  AddI32K  r0, r0, 1
+ 115  LoadI    r2, 5
+ 116  AddI32K  r2, r2, 0
+ 117  LogBool  r1
+ 118  LogSep   
+ 119  LogI     r0
+ 120  LogSep   
+ 121  LogI     r2
+ 122  LogEnd   
+ 123  RetV     
+func @describe(i) -> ref str nregs=2
+   0  JNeIK    r0, 0, -> 4
+   2  LoadStr  r1, "up"
+   3  Ret      r1
+   4  JNeIK    r0, 10, -> 7
+   6  Jmp      -> 9
+   7  JNeIK    r0, 11, -> 11
+   9  LoadStr  r0, "side"
+  10  Ret      r0
+  11  LoadStr  r0, "down"
+  12  Ret      r0
+func @weird(i) -> ref str nregs=5
+   0  LoadStr  r1, ""
+   1  JNeIK    r0, 1, -> 8
+   3  LoadStr  r3, "one "
+   4  Move     r2, r1
+   5  Rt       r2, string.#concat
+   6  Move     r1, r2
+   7  Jmp      -> 16
+   8  JEqIK    r0, 2, -> 22
+  10  JNeIK    r0, 3, -> 16
+  12  LoadStr  r3, "three "
+  13  Move     r2, r1
+  14  Rt       r2, string.#concat
+  15  Jmp      -> 28
+  16  LoadStr  r0, "dflt "
+  17  Move     r4, r0
+  18  Move     r0, r1
+  19  Move     r1, r4
+  20  Rt       r0, string.#concat
+  21  Move     r1, r0
+  22  LoadStr  r0, "two "
+  23  Move     r4, r0
+  24  Move     r0, r1
+  25  Move     r1, r4
+  26  Rt       r0, string.#concat
+  27  Move     r2, r0
+  28  LoadStr  r1, "|"
+  29  Move     r0, r2
+  30  Rt       r0, string.#concat
+  31  Ret      r0
+func @word(ref str) -> i nregs=3
+   0  LoadStr  r2, "a"
+   1  Move     r1, r0
+   2  Rt       r1, string.#eq
+   3  JmpIfNot r1, -> 6
+   4  LoadI    r1, 1
+   5  Ret      r1
+   6  LoadStr  r1, "bb"
+   7  Rt       r0, string.#eq
+   8  JmpIfNot r0, -> 11
+   9  LoadI    r0, 2
+  10  Ret      r0
+  11  LoadI    r0, 0
+  12  Ret      r0
+func @Rect.constructor(ref Rect, i, i) -> void nregs=3
+   0  SetField r0, r1, .0
+   1  SetField r0, r2, .1
+   2  RetV     
+func @Rect.area(ref Rect) -> i nregs=2
+   0  GetField r1, r0, .0
+   1  GetField r0, r0, .1
+   2  MulI32   r0, r1, r0
+   3  Ret      r0
+func @Rect.isSquare(ref Rect) -> i nregs=2
+   0  GetField r1, r0, .0
+   1  GetField r0, r0, .1
+   2  EqI      r0, r1, r0
+   3  Ret      r0
+func @Sq.constructor(ref Sq, i) -> void nregs=3
+   0  Move     r2, r1
+   1  Call     r0, @Rect.constructor
+   2  RetV     
+func @Sq.area(ref Sq) -> i nregs=2
+   0  GetField r1, r0, .0
+   1  GetField r0, r0, .0
+   2  MulI32   r0, r1, r0
+   3  AddI32K  r0, r0, 1
+   4  Ret      r0

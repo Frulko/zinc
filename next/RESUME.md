@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-017 (the `lang` conformance program). Nothing in progress.
+- Ready: none; next by ordinal is ZN-033 (interface properties and object literals); ZN-017 follows ZN-032..035. Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-017.
+`/loop /zn-start` resumes with ZN-033.
 
 ## Watch out
 
@@ -126,3 +126,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Position comparisons ("used before declaration") only compare nodes of the same file. New code Z0119 (module not found); missing exports reuse Z0101.
 - Limits: default/namespace imports and exports, package imports ('zinc:ui' etc.), circular imports (Z0005), dynamic import. Two modules may declare the same top-level name; names in IR/ZBC dumps are not qualified by module.
 - Test: `tests/t0/modules.sh` with `tests/golden/modules/` (output hand-verified; Node cannot run the extensionless imports).
+
+## ZN-032 notes (accessors, enums, switch)
+
+- `get name(): T {}` is a Method with `kFlagGetter`; the class `Member` keeps the method signature and has `getter = true`; a read of `obj.name` is typed as the return type and lowered to a (devirtualised or virtual) call. Setters, static and interface accessors are Z0005.
+- Numeric enums: `SymKind::Enum`, a distinct i32 `Type` (`obj` = 1 + index into `Checked::enumNames`) that accepts only its own members but converts to any number; members are constants (`Checked::enumMembers`), initialisers must be integer literals (else Z0005). No `const enum`, no string enums, no reverse mapping.
+- `switch`: cases compare with `===` semantics (numbers, strings, booleans, enums); clauses fall through; `break` leaves the switch, `continue` the enclosing loop; a switch with a `default`, no `break` and a last clause that returns counts as terminating.
+- Known gap against tsc: tsc narrows `const`/assigned variables to literal types and then rejects comparisons such as `switch (1) { case 2: }` or `d === E.B` after `d = E.A`; we do not, so such programs are accepted by us and rejected by the oracle (pre-existing class: `const x = 1; if (x === 2)`).
