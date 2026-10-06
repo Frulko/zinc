@@ -36,3 +36,23 @@ reads it back, and a compatibility test over old dumps. Task ZN-052. Until then 
 - `clang` is not replaced by an in-process backend for now: the pinned `zig c++` is downloaded, checked and used in about 20 s (ZN-029) and
   cross builds for aarch64, armhf and x86_64 work. Revisit if the toolchain size or the first-build time proves a problem for users.
 - The default path for devices is bytecode upload to a preflashed core (ZN-030); AOT is the path for speed.
+
+## 5. Name check for Zinc Atelier (ZN-056, 2026-10-06)
+
+What was searched, and what came back (a web search and DNS and registry look-ups; no trademark office was queried, see the limits):
+
+| Where | Result |
+|---|---|
+| Web search "Zinc Atelier" (software, app, trademark) | no product, company or mark of that name |
+| Marks containing ZINC (USPTO listings found by the search) | several registrations of the single word ZINC for software and apps (TemTree Co., Senseeker Engineering, Silver-Katz Entertainment, Summum S.A.) and a mark of Zinc Labs Inc (OpenObserve); older products named Zinc: the Zinc Application Framework (a C++ GUI toolkit), Zinc Inc. (messaging) |
+| Domains | `zincatelier.com` is registered (Cloudflare name servers, no site); `zincatelier.io` is not registered; `zincatelier.dev` and `.app` have no DNS records (probably free, to be confirmed at a registrar); `zincforge.com` is registered (Porkbun); `zincforge.dev` and `zincfoundry.com` have no records |
+| Registries | `zinc-atelier` and `zincatelier` are free on npm, PyPI and crates.io |
+| GitHub | no repository named zinc atelier |
+
+**Decision.** Keep **Zinc Atelier** as the name of the app. No product carries it and the registries are free. The risk is the word ZINC, not Atelier: other owners hold ZINC marks in software classes, so
+the name is used descriptively as "Zinc Atelier, the app of the Zinc language" and not registered as a mark by us until a lawyer has cleared it. Domain: register `zincatelier.dev` (or `.app`) first; `.com` is taken. Fallback if a
+conflict appears: **Zinc Foundry** (`zincfoundry.com` looks free), not Zinc Forge (`zincforge.com` is taken). The legacy ZincStudio box editor keeps its name; the two do not coexist in one package
+(Atelier is the app of the new engine, ZincStudio belongs to the old compiler).
+
+Limits: a trademark office search (USPTO, EUIPO, WIPO) and a registrar's availability check are not scriptable from here; the table is evidence for the decision, not legal advice.
+
