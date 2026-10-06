@@ -16,18 +16,58 @@ namespace zn::rt {
 
 using namespace zn::ops;
 
+// Superinstructions: a pair of neighbouring instructions that the interpreter runs as one dispatch. The pair stays two words long, the first word gets the fused opcode
+// (the real opcodes end at Op::Count) and the second keeps its own encoding, so jump targets, handler positions and the size of the code are unchanged and a jump to
+// the second instruction still runs it alone. `AddI32K` then `Call` (an argument computed just before a call: fib(n - 1)) and `AddI32` then `Ret` (return a + b).
+constexpr std::uint32_t kFusedCallAddK = static_cast<std::uint32_t>(Op::Count), kFusedRetAddI32 = static_cast<std::uint32_t>(Op::Count) + 1;
+
+// The pair at word i (and its length), or 0 when there is none.
+static std::uint32_t fusedAt(const std::uint32_t* code, std::size_t n, std::size_t i, unsigned& len) {
+  Op a = static_cast<Op>(opOf(code[i]));
+  len = a < Op::Count ? instrLen(a) : 1;
+  if (len != 1 || i + 1 >= n || (a != Op::AddI32K && a != Op::AddI32)) return 0;
+  Op b = static_cast<Op>(opOf(code[i + 1]));
+  return a == Op::AddI32K && b == Op::Call ? kFusedCallAddK : a == Op::AddI32 && b == Op::Ret ? kFusedRetAddI32 : 0;
+}
+
+static void fuseAll(Machine& m) {
+  m.fusedReady = true;
+  m.fusedCode.resize(m.funcs.size());
+  for (std::size_t f = 0; f < m.funcs.size(); ++f) {
+    Func& fn = m.funcs[f];
+    if (fn.native || !fn.code) continue;
+    std::size_t n = m.codeLen[f];
+    unsigned len = 1;
+    std::size_t first = n;
+    for (std::size_t i = 0; i < n; i += len) if (fusedAt(fn.code, n, i, len)) { first = i; break; }
+    if (first == n) continue;  // nothing to fuse: the function keeps running from the module's own code
+    std::vector<std::uint32_t> code(fn.code, fn.code + n);
+    for (std::size_t i = first; i < n; i += len)
+      if (std::uint32_t fused = fusedAt(code.data(), n, i, len)) code[i] = (code[i] & ~0xFFu) | fused;
+    m.fusedCode[f] = std::move(code);
+    fn.code = m.fusedCode[f].data();
+  }
+}
+
 // The interpreter: the engine that provides Machine::exec.
 bool Machine::exec(const Func* entry, Slot* base) {
+  if (!fusedReady) fuseAll(*this);
+  return trackFn ? execT<true>(entry, base) : execT<false>(entry, base); }
+
+// kTrack: keep `curFn` up to date for the sampling profiler (zinc profile); a normal run does not pay for the stores.
+template <bool kTrack>
+bool Machine::execT(const Func* entry, Slot* base) {
   static const void* const labels[] = {
 #define X(name, fmt, b, c, o) &&L_##name,
       ZN_OPCODES(X)
 #undef X
+      &&L_CallAddK, &&L_RetAddI32,  // the superinstructions (kFusedFirst...), after the real opcodes
   };
   if (fp == framesEnd) { error = "stack overflow"; return false; }
   *fp++ = {nullptr, nullptr, nullptr};  // marks where this exec() returns
 
   const Func* fn = entry;
-  curFn = fn;
+  if constexpr (kTrack) curFn = fn;
   const std::uint32_t* code = fn->code;
   const std::uint32_t* pc = code;
   Slot* r = base;
@@ -71,21 +111,27 @@ L_Call: {
   Slot* nb = r + A;
   if (__builtin_expect(fp == framesEnd || nb + callee->nregs > stackEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
-  r = nb; fn = callee; curFn = fn; code = callee->code; pc = code;
+  r = nb; fn = callee; if constexpr (kTrack) curFn = fn;
+  code = callee->code; pc = code;
   NEXT();
 }
+// the first half of a fused pair, then the second as a plain instruction
+L_CallAddK: { r[A] = zn::ops::AddI32K(r[B], immOf(w)); w = *pc++; goto L_Call; }
+L_RetAddI32: { r[A] = zn::ops::AddI32(r[B], r[C]); w = *pc++; goto L_Ret; }
 L_Ret: {
   Slot v = r[A];
   const Frame f = *--fp;
   r[0] = v;
   if (!f.ret) return true;
-  r = f.base; fn = f.fn; curFn = fn; code = fn->code; pc = f.ret;
+  r = f.base; fn = f.fn; if constexpr (kTrack) curFn = fn;
+  code = fn->code; pc = f.ret;
   NEXT();
 }
 L_RetV: {
   const Frame f = *--fp;
   if (!f.ret) return true;
-  r = f.base; fn = f.fn; curFn = fn; code = fn->code; pc = f.ret;
+  r = f.base; fn = f.fn; if constexpr (kTrack) curFn = fn;
+  code = fn->code; pc = f.ret;
   NEXT();
 }
 L_Throw: {  // unwind to the nearest handler that takes the object, through the callers if need be
@@ -100,7 +146,8 @@ L_Throw: {  // unwind to the nearest handler that takes the object, through the 
     if (hit) { r[hit->reg] = exc; pc = code + hit->target; NEXT(); }
     const Frame f = *--fp;
     if (!f.ret) { error = "panic: Uncaught " + exceptionText(reinterpret_cast<Obj*>(exc)); return false; }
-    r = f.base; fn = f.fn; curFn = fn; code = fn->code; at = f.ret - 1;
+    r = f.base; fn = f.fn; if constexpr (kTrack) curFn = fn;
+  code = fn->code; at = f.ret - 1;
   }
 }
 L_New: { if (const char* e = op::newObject(*this, dOf(w), r[A])) TRAP(e); NEXT(); }
@@ -112,7 +159,8 @@ L_CallVirt: {
   if (__builtin_expect(e != nullptr, 0)) TRAP(e);
   if (__builtin_expect(fp == framesEnd || r + A + callee->nregs > stackEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
-  r = r + A; fn = callee; curFn = fn; code = callee->code; pc = code;
+  r = r + A; fn = callee; if constexpr (kTrack) curFn = fn;
+  code = callee->code; pc = code;
   NEXT();
 }
 L_Downcast: { if (const char* e = op::downcast(r, A, dOf(w))) TRAP(e); NEXT(); }
@@ -148,6 +196,9 @@ L_LogEnd: *out += '\n'; NEXT();
 #undef C
 #undef TRAP
 }
+
+template bool Machine::execT<true>(const Func*, Slot*);
+template bool Machine::execT<false>(const Func*, Slot*);
 
 }  // namespace zn::rt
 

@@ -185,59 +185,57 @@ func @main() -> void nregs=11
  178  LoadI    r10, 4
  179  SetField r9, r10, .0
  180  Release  r9
- 181  JmpIfNot r7, -> 187
- 182  LoadNull r9, Dog
- 183  NeR      r9, r8, r9
+ 181  JmpIfNot r7, -> 188
+ 182  LoadNull r7, Dog
+ 183  NeR      r7, r8, r7
  184  Release  r8
- 185  Move     r7, r9
- 186  Jmp      -> 188
- 187  Release  r8
- 188  JmpIfNot r7, -> 191
+ 185  JmpIf    r7, -> 189
+ 186  LoadI    r7, 0
+ 187  Jmp      -> 190
+ 188  Release  r8
  189  LoadI    r7, 1
- 190  Jmp      -> 192
- 191  LoadI    r7, 0
- 192  LoadI    r8, 1
- 193  LoadNull r9, Dog
- 194  JmpIfNot r8, -> 197
- 195  LoadNull r8, Dog
- 196  NeR      r8, r9, r8
- 197  JmpIfNot r8, -> 200
+ 190  LoadI    r8, 1
+ 191  LoadNull r9, Dog
+ 192  JmpIfNot r8, -> 198
+ 193  LoadNull r8, Dog
+ 194  NeR      r8, r9, r8
+ 195  JmpIf    r8, -> 198
+ 196  LoadI    r8, 0
+ 197  Jmp      -> 199
  198  LoadI    r8, 1
- 199  Jmp      -> 201
- 200  LoadI    r8, 0
- 201  LogI     r4
+ 199  LogI     r4
+ 200  LogSep   
+ 201  LogI     r3
  202  LogSep   
- 203  LogI     r3
+ 203  LogI     r5
  204  LogSep   
- 205  LogI     r5
+ 205  LogI     r0
  206  LogSep   
- 207  LogI     r0
+ 207  LogBool  r1
  208  LogSep   
- 209  LogBool  r1
+ 209  LogI     r2
  210  LogSep   
- 211  LogI     r2
+ 211  LogI     r6
  212  LogSep   
- 213  LogI     r6
+ 213  LogI     r7
  214  LogSep   
- 215  LogI     r7
- 216  LogSep   
- 217  LogI     r8
- 218  LogEnd   
- 219  LoadNull r0, Item
- 220  LoadNull r1, Item
- 221  EqR      r0, r0, r1
- 222  LogBool  r0
- 223  LogEnd   
- 224  New      r0, Item
- 225  LoadI    r1, 5
- 226  LoadNull r2, Item
- 227  SetField r0, r1, .0
- 228  SetField r0, r2, .1
- 229  GetField r1, r0, .0
- 230  Release  r0
- 231  LogI     r1
- 232  LogEnd   
- 233  RetV     
+ 215  LogI     r8
+ 216  LogEnd   
+ 217  LoadNull r0, Item
+ 218  LoadNull r1, Item
+ 219  EqR      r0, r0, r1
+ 220  LogBool  r0
+ 221  LogEnd   
+ 222  New      r0, Item
+ 223  LoadI    r1, 5
+ 224  LoadNull r2, Item
+ 225  SetField r0, r1, .0
+ 226  SetField r0, r2, .1
+ 227  GetField r1, r0, .0
+ 228  Release  r0
+ 229  LogI     r1
+ 230  LogEnd   
+ 231  RetV     
 func @Item.constructor(ref Item, i, ref Item) -> void nregs=3
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
@@ -347,16 +345,14 @@ func @describe(ref Animal) -> i nregs=4
   32  Release  r0
   33  LoadI    r0, 0
   34  Ret      r0
-func @pick(i, ref Dog) -> i nregs=3
-   0  JmpIfNot r0, -> 6
-   1  LoadNull r2, Dog
-   2  NeR      r2, r1, r2
+func @pick(i, ref Dog) -> i nregs=2
+   0  JmpIfNot r0, -> 7
+   1  LoadNull r0, Dog
+   2  NeR      r0, r1, r0
    3  Release  r1
-   4  Move     r0, r2
-   5  Jmp      -> 7
-   6  Release  r1
-   7  JmpIfNot r0, -> 10
-   8  LoadI    r0, 1
-   9  Jmp      -> 11
-  10  LoadI    r0, 0
-  11  Ret      r0
+   4  JmpIfNot r0, -> 8
+   5  LoadI    r0, 1
+   6  Jmp      -> 9
+   7  Release  r1
+   8  LoadI    r0, 0
+   9  Ret      r0

@@ -46,6 +46,7 @@ void onProf(int) {
 void startTimer(Machine& m, const void* data) {
   const auto* o = static_cast<const ProfileOptions*>(data);
   g.m = &m;
+  m.trackFn = true;
   g.hz = o->hz > 0 ? o->hz : 1000;
   struct sigaction sa;
   sa.sa_handler = onProf;

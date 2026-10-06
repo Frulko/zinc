@@ -9,9 +9,11 @@ static const unsigned char kModule[] = {
   90,66,67,50,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
   2,0,0,0,4,0,0,0,109,97,105,110,0,0,1,0,5,0,0,0,3,0,32,0,
   121,0,1,0,145,0,0,0,151,0,0,0,123,0,0,0,0,0,0,0,0,0,0,0,
-  3,0,0,0,102,105,98,1,1,1,3,0,9,0,0,0,120,0,0,2,3,0,0,0,
-  122,0,0,0,99,1,0,255,121,1,1,0,99,2,0,254,121,2,1,0,5,0,1,2,
-  122,0,0,0,0,0,0,0,0,0,0,0,
+  3,0,0,0,102,105,98,1,1,1,4,0,23,0,0,0,120,0,0,2,3,0,0,0,
+  122,0,0,0,99,1,0,255,120,1,0,2,7,0,0,0,100,12,0,0,99,2,1,255,
+  121,2,1,0,99,3,1,254,121,3,1,0,5,1,2,3,99,0,0,254,120,0,0,2,
+  16,0,0,0,100,21,0,0,99,2,0,255,121,2,1,0,99,3,0,254,121,3,1,0,
+  5,0,2,3,5,0,1,0,122,0,0,0,0,0,0,0,0,0,0,0,
 };
 
 static int f0(Machine& m, Slot* r);
@@ -38,10 +40,26 @@ static int f1(Machine& m, Slot* r) {
   { r[0] = r[0]; --m.depth; return 0; }
 L3:
   r[1] = zn::ops::AddI32K(r[0], -1);
-  { int st = f1(m, r + 1); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[2] = zn::ops::AddI32K(r[0], -2);
+  if (zn::ops::JGeIK(r[1], 2)) goto L7;
+  goto L12;
+L7:
+  r[2] = zn::ops::AddI32K(r[1], -1);
   { int st = f1(m, r + 2); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[0] = zn::ops::AddI32(r[1], r[2]);
+  r[3] = zn::ops::AddI32K(r[1], -2);
+  { int st = f1(m, r + 3); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
+  r[1] = zn::ops::AddI32(r[2], r[3]);
+L12:
+  r[0] = zn::ops::AddI32K(r[0], -2);
+  if (zn::ops::JGeIK(r[0], 2)) goto L16;
+  goto L21;
+L16:
+  r[2] = zn::ops::AddI32K(r[0], -1);
+  { int st = f1(m, r + 2); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
+  r[3] = zn::ops::AddI32K(r[0], -2);
+  { int st = f1(m, r + 3); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
+  r[0] = zn::ops::AddI32(r[2], r[3]);
+L21:
+  r[0] = zn::ops::AddI32(r[1], r[0]);
   { r[0] = r[0]; --m.depth; return 0; }
   --m.depth;
   return 0;

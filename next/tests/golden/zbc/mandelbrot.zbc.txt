@@ -1,4 +1,4 @@
-func @main() -> void nregs=19
+func @main() -> void nregs=20
    0  LoadK    r0, f64 3
    1  LoadK    r1, f64 1.5
    2  LoadK    r2, f64 2
@@ -9,7 +9,7 @@ func @main() -> void nregs=19
    7  LoadI    r7, 200
    8  LoadK    r8, f64 0
    9  LoadI    r9, 0
-  10  JLeI     r6, r9, -> 55
+  10  JLeI     r6, r9, -> 53
   12  I64ToF64 r10, r9
   13  I64ToF64 r11, r6
   14  DivF64   r10, r10, r11
@@ -17,7 +17,7 @@ func @main() -> void nregs=19
   16  SubF64   r10, r10, r1
   17  LoadI    r11, 0
   18  Move     r12, r8
-  19  JLeI     r5, r11, -> 52
+  19  JLeI     r5, r11, -> 50
   21  I64ToF64 r13, r11
   22  I64ToF64 r14, r5
   23  DivF64   r13, r13, r14
@@ -29,29 +29,25 @@ func @main() -> void nregs=19
   29  Move     r14, r3
   30  MulF64   r17, r14, r14
   31  MulF64   r18, r15, r15
-  32  AddF64   r17, r17, r18
-  33  LeF64    r17, r17, r4
-  34  JmpIfNot r17, -> 36
-  35  LtI      r17, r16, r7
-  36  JmpIfNot r17, -> 47
-  37  MulF64   r17, r14, r14
-  38  MulF64   r18, r15, r15
-  39  SubF64   r17, r17, r18
-  40  AddF64   r17, r17, r13
-  41  MulF64   r14, r2, r14
-  42  MulF64   r14, r14, r15
-  43  AddF64   r15, r14, r10
-  44  AddI32K  r16, r16, 1
-  45  Move     r14, r17
-  46  Jmp      -> 30
-  47  I64ToF64 r13, r16
-  48  AddF64   r13, r12, r13
-  49  AddI32K  r11, r11, 1
-  50  Move     r12, r13
-  51  Jmp      -> 19
-  52  AddI32K  r9, r9, 1
-  53  Move     r8, r12
-  54  Jmp      -> 10
-  55  LogF64   r8
-  56  LogEnd   
-  57  RetV     
+  32  AddF64   r19, r17, r18
+  33  JNLeF    r19, r4, -> 45
+  35  JLeI     r7, r16, -> 45
+  37  SubF64   r17, r17, r18
+  38  AddF64   r17, r17, r13
+  39  MulF64   r14, r2, r14
+  40  MulF64   r14, r14, r15
+  41  AddF64   r15, r14, r10
+  42  AddI32K  r16, r16, 1
+  43  Move     r14, r17
+  44  Jmp      -> 30
+  45  I64ToF64 r13, r16
+  46  AddF64   r13, r12, r13
+  47  AddI32K  r11, r11, 1
+  48  Move     r12, r13
+  49  Jmp      -> 19
+  50  AddI32K  r9, r9, 1
+  51  Move     r8, r12
+  52  Jmp      -> 10
+  53  LogF64   r8
+  54  LogEnd   
+  55  RetV     

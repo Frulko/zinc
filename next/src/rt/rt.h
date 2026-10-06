@@ -198,6 +198,11 @@ struct Machine {
   StrObj* newStr(const char* p, std::size_t n);
   ArrObj* newArr(const ClassRT* cls);
   // Runs `callee` with its frame at `base` (arguments already in base[0..]) until it returns; the result is in base[0].
+  bool fusedReady = false;                   // the interpreter has replaced pairs of instructions by its superinstructions in the copies below
+  std::vector<std::vector<std::uint32_t>> fusedCode;
+  std::vector<std::size_t> codeLen;          // per function, the words of code (set where the functions are made)
+  bool trackFn = false;                      // the interpreter keeps curFn current (set by the profiler before the run)
+  template <bool kTrack> bool execT(const Func* callee, Slot* base);  // the interpreter's loop (src/vm), one copy with the curFn stores and one without
   bool exec(const Func* callee, Slot* base);  // defined by the engine: the interpreter, or the compiled program
   // The `call(elem, elem): f64` method of a function object (a comparator), or null. The verifier proved the static class has one.
   const Func* findComparator(const Obj* fn, zbc::VType elem) const;

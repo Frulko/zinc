@@ -164,6 +164,8 @@ Machine::~Machine() {
 bool Machine::load(const zbc::Module& m, std::string& err) {
   mod = &m;
   funcs.resize(m.functions.size());
+  codeLen.resize(funcs.size());
+  for (std::size_t i = 0; i < funcs.size(); ++i) codeLen[i] = m.functions[i].code.size();
   for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs, m.functions[i].handlers.data(), static_cast<std::uint32_t>(m.functions[i].handlers.size())};
   // Verified code never reads a register before writing it, so the stack needs no initialisation; calloc hands out
   // lazily zeroed pages, so the 20 MB is not touched until used.

@@ -349,3 +349,6 @@ Needs real boards (none reachable). `tools/validate-hardware esp32|pi` and `docs
 
 ## ZN-056 (Done)
 Name check recorded (decisions section 5): Zinc Atelier kept, lawyer clearance for the ZINC marks before registering. Next by ordinal: ZN-041 (interpreter speed), 042, 043; ZN-055 parked (hardware).
+
+## ZN-041 (Done)
+Interpreter at 5x+ QuickJS on every numeric kernel (see the ZN-041 section of the m4 report). Next by ordinal: ZN-042 (typed AOT), ZN-043 (mquickjs); ZN-055 parked (hardware), ZN-049/053/054 in Review.

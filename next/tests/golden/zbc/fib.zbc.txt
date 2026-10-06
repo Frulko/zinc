@@ -4,12 +4,24 @@ func @main() -> void nregs=1
    2  LogI     r0
    3  LogEnd   
    4  RetV     
-func @fib(i) -> i nregs=3
+func @fib(i) -> i nregs=4
    0  JGeIK    r0, 2, -> 3
    2  Ret      r0
    3  AddI32K  r1, r0, -1
-   4  Call     r1, @fib
-   5  AddI32K  r2, r0, -2
-   6  Call     r2, @fib
-   7  AddI32   r0, r1, r2
-   8  Ret      r0
+   4  JGeIK    r1, 2, -> 7
+   6  Jmp      -> 12
+   7  AddI32K  r2, r1, -1
+   8  Call     r2, @fib
+   9  AddI32K  r3, r1, -2
+  10  Call     r3, @fib
+  11  AddI32   r1, r2, r3
+  12  AddI32K  r0, r0, -2
+  13  JGeIK    r0, 2, -> 16
+  15  Jmp      -> 21
+  16  AddI32K  r2, r0, -1
+  17  Call     r2, @fib
+  18  AddI32K  r3, r0, -2
+  19  Call     r3, @fib
+  20  AddI32   r0, r2, r3
+  21  AddI32   r0, r1, r0
+  22  Ret      r0
