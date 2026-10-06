@@ -276,6 +276,30 @@ int main() {
       }
     }
   }
+  {  // exceptions: handlers of calls, the register of the exception, what a handler can still read
+    auto excModule = [&](std::vector<std::uint32_t> mainCode, std::vector<Handler> hs, std::uint32_t nregs = 4) {
+      Module m;
+      ClassInfo e;
+      e.name = "E";
+      m.classes.push_back(e);
+      m.functions.push_back(fn("main", std::move(mainCode), nregs));
+      m.functions[0].handlers = std::move(hs);
+      m.functions.push_back(fn("thrower", {encAD(Op::New, 0, 0), encABC(Op::Throw, 0)}, 1));
+      return m;
+    };
+    // pc0 LoadI r0; pc1 Call r1 (unwinds to pc3 with the exception in r2); pc2 RetV; pc3 handler: log r0, return
+    std::vector<std::uint32_t> good = {encAD(Op::LoadI, 0, 5), encAD(Op::Call, 1, 1), encABC(Op::RetV, 0), encABC(Op::LogI, 0), encABC(Op::RetV, 0)};
+    expect("a handler that reads what was live before the call", excModule(good, {Handler{1, 3, 0, 2}}), "");
+    expect("a handler that reads a call-window register", excModule({encAD(Op::LoadI, 0, 5), encAD(Op::Call, 1, 1), encABC(Op::RetV, 0), encABC(Op::LogI, 1), encABC(Op::RetV, 0)}, {Handler{1, 3, 0, 2}}), "before it holds a value");
+    expect("a handler that rethrows the exception", excModule({encAD(Op::LoadI, 0, 5), encAD(Op::Call, 1, 1), encABC(Op::RetV, 0), encABC(Op::Throw, 2)}, {Handler{1, 3, 0, 2}}), "");
+    expect("a handler for something that cannot throw", excModule(good, {Handler{0, 3, 0, 2}}), "cannot throw");
+    expect("a handler outside the code", excModule(good, {Handler{99, 3, 0, 2}}), "not an instruction");
+    expect("a handler target in the middle of nothing", excModule(good, {Handler{1, 77, 0, 2}}), "handler target");
+    expect("a handler register outside the frame", excModule(good, {Handler{1, 3, 0, 9}}), "handler register");
+    expect("a handler for an unknown class", excModule(good, {Handler{1, 3, 5, 2}}), "unknown class");
+    expect("two handlers for one call", excModule(good, {Handler{1, 3, 0, 2}, Handler{1, 3, 0, 2}}), "two handlers");
+    expect("throw of an integer", excModule({encAD(Op::LoadI, 0, 5), encABC(Op::Throw, 0)}, {}, 1), "expected a reference");
+  }
   {  // binary format
     Module m = compile("function fib(n: i32): i32 { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nconsole.log(fib(10));\n");
     expect("emitted fib verifies", m, "");

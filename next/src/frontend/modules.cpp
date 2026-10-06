@@ -125,6 +125,26 @@ struct Loader {
   }
 };
 
+// The built-in classes of exceptions, written in Zinc and added when a program throws, catches or mentions them.
+const char* kErrorPrelude = R"ZN(
+class Error {
+  message: string;
+  name: string = 'Error';
+  constructor(message: string) { this.message = message; }
+  __errorString(): string { return this.message === '' ? this.name : this.name + ': ' + this.message; }
+}
+class TypeError extends Error { constructor(message: string) { super(message); this.name = 'TypeError'; } }
+class RangeError extends Error { constructor(message: string) { super(message); this.name = 'RangeError'; } }
+)ZN";
+
+bool needsErrors(const Ast& A) {
+  for (const Node& x : A.nodes) {
+    if (x.kind == N::Try || x.kind == N::Throw || (x.kind == N::VarDecl && x.text == "using")) return true;
+    if ((x.kind == N::Ident || x.kind == N::TypeRef) && (x.text == "Error" || x.text == "TypeError" || x.text == "RangeError")) return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 Program loadProgram(const std::string& entry, const ReadFile& read) {
@@ -133,6 +153,23 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
   if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
   Loader L(p, read);
   L.load(entry, std::move(text));
+  if (p.diags.empty() && needsErrors(p.ast)) {
+    auto fi = static_cast<std::uint32_t>(p.files.size());
+    p.files.push_back({"<prelude>", kErrorPrelude});
+    ParseResult pr = parse(p.files[fi].text);
+    if (pr.ast.root != kNone && pr.diags.empty()) {
+      auto off = static_cast<std::uint32_t>(p.ast.nodes.size());
+      for (Node& nd : pr.ast.nodes) {
+        for (std::uint32_t& k : nd.kids) if (k != kNone) k += off;
+        nd.file = fi;
+        p.ast.nodes.push_back(std::move(nd));
+      }
+      for (auto& [k, v] : pr.ast.tparams) { auto& d = p.ast.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
+      for (auto& [k, v] : pr.ast.targs) { auto& d = p.ast.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
+      p.ast.prelude = p.ast.nodes[pr.ast.root + off].kids;
+      L.flat.insert(L.flat.begin(), p.ast.prelude.begin(), p.ast.prelude.end());
+    }
+  }
   Node root{N::Program, 0, 0, {}, L.flat, 0, 0};
   p.ast.nodes.push_back(std::move(root));
   p.ast.root = static_cast<std::uint32_t>(p.ast.nodes.size() - 1);

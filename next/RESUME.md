@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-019 (exceptions in the IR, milestone M3). Nothing in progress.
+- Ready: none; next by ordinal is ZN-020 (async/await and generators, milestone M3). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-019.
+`/loop /zn-start` resumes with ZN-020.
 
 ## Watch out
 
@@ -178,3 +178,12 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Safety note: the verifier does not prove that Retain/Release balance. Compiler output is balanced (the whole corpus runs clean under ASan with zero leaks outside the two cyclic programs), but hand-written bytecode could release twice and free an object that is still in use. Do not run untrusted bytecode until a reference-count verifier exists (or the bundle is signed).
 - Elision so far is only "the last use consumes" (no retain, no release); borrowed parameters and load/store pairing are not optimised. Measured: the kernels run at the same speed as before.
 - Tests: `tests/t1/rc.sh` (leaks over the corpus, destruction order `tests/golden/rc/order.trace`).
+
+## ZN-019 notes (exceptions)
+
+- Language: `throw` (only Error subclasses), `try/catch/finally` (the catch variable is an `Error`; `catch (e: T)` annotations are ignored), `using` with `[Symbol.dispose]()` (disposed in reverse order, also on exceptions, return, break and continue). `Error`, `TypeError`, `RangeError` are Zinc source in `frontend/modules.cpp` (`kErrorPrelude`), added in front of the program when it throws, catches, or mentions them; `Error(message: string)` needs its argument and converts to text through the hidden method `__errorString()` ("Name: message"), so `Error.toString` is not callable by user code (tsc's `Error` has none). Runtime faults (null, bounds, division by zero) are still traps, not catchable (decision 0006).
+- IR: a call inside a try has an unwind edge `edges[0]` to a handler block whose single parameter is the exception (no arguments on the edge); the call ends its block so the handler sees the variables as they were. `throw` inside a try is a `br` to the handler with the exception; elsewhere a `Throw` terminator. Handlers snapshot the variables at try entry, so locals assigned inside a try (or a using scope, or a catch body when there is a finally) live in cells (`Checker::markCells`). `finally` bodies and `using` disposals are inlined on every path (normal, each return/break/continue crossing them, and a catch-all handler that rethrows).
+- RC: `insertRc` computes which functions can throw, gives every call that can unwind and has owned values a cleanup pad (`release` them, then `br` to the handler or `throw`), and extends liveness to handlers.
+- ZBC format v4: `Function::handlers` (call pc, target, class, register). The VM unwinds frame by frame, taking the first handler whose class matches the thrown object, delivering the object in its register. An exception that reaches the entry of the program (or a native callback such as a sort comparator) is fatal: `uncaught exception: <class>`.
+- Tests: goldens `exceptions` (Node-identical), the frozen `errors` conformance program (byte-identical; `tests/t1/conformance.sh`), leak-free (`tests/t1/rc.sh`), verifier unit tests for handlers, ASan T1 green.
+- Limits: `new Error()` needs a message (no default parameters yet); `e.stack`, `cause` and `finally` overriding a return value with a jump are untested; no `catch` by type (use `instanceof`); exceptions do not cross native callbacks; user subclasses that override `toString` print through `__errorString` when typed as Error.

@@ -155,7 +155,7 @@ Machine::~Machine() {
 bool Machine::load(const zbc::Module& m, std::string& err) {
   mod = &m;
   funcs.resize(m.functions.size());
-  for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs};
+  for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs, m.functions[i].handlers.data(), static_cast<std::uint32_t>(m.functions[i].handlers.size())};
   // Verified code never reads a register before writing it, so the stack needs no initialisation; calloc hands out
   // lazily zeroed pages, so the 20 MB is not touched until used.
   stack = static_cast<Slot*>(std::calloc(kStackSlots, sizeof(Slot)));
@@ -415,7 +415,21 @@ L_RetV: {
   r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
   NEXT();
 }
-L_Throw: TRAP("uncaught exception");
+L_Throw: {  // unwind to the nearest handler that takes the object, through the callers if need be
+  Slot exc = r[A];
+  if (!exc) TRAP("null reference");
+  const std::uint32_t* at = pc - 1;  // the throwing instruction
+  for (;;) {
+    auto idx = static_cast<std::uint32_t>(at - code);
+    const zbc::Handler* hit = nullptr;
+    for (std::uint32_t k = 0; k < fn->nhandlers; ++k)
+      if (fn->handlers[k].at == idx && isSubclassRT(reinterpret_cast<Obj*>(exc)->cls, fn->handlers[k].cls)) { hit = &fn->handlers[k]; break; }
+    if (hit) { r[hit->reg] = exc; pc = code + hit->target; NEXT(); }
+    const Frame f = *--fp;
+    if (!f.ret) { error = "uncaught exception: " + reinterpret_cast<Obj*>(exc)->cls->name; return false; }
+    r = f.base; fn = f.fn; code = fn->code; at = f.ret - 1;
+  }
+}
 L_New: {
   const ClassRT* cr = &classes[dOf(w)];
   if (cr->kind == zbc::CKind::Array) { r[A] = reinterpret_cast<Slot>(newArr(cr)); NEXT(); }

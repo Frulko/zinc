@@ -145,7 +145,6 @@ struct FnEmitter {
     zf.ret = vtOf(f.ret);
     for (const ir::Block& b : f.blocks)
       for (const ir::Inst& i : b.insts) {
-        if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) return fail("exceptional edges have no bytecode yet (ZN-019)");
         if (i.op == IrOp::ToStr && isFxK(ty(f.valueTypes[i.args[0]]).num)) return fail("fixed-point kinds are not supported yet");
       }
     return true;
@@ -240,8 +239,10 @@ struct FnEmitter {
     std::vector<BlockId> post;
     std::function<void(BlockId)> visit = [&](BlockId b) {
       seen[b] = 1;
-      const auto& es = f.blocks[b].insts.back().edges;
-      for (std::size_t k = es.size(); k-- > 0;) if (!seen[es[k].to]) visit(es[k].to);
+      for (std::size_t ii = f.blocks[b].insts.size(); ii-- > 0;) {  // the targets of a terminator, and the handlers of the calls before it
+        const auto& es = f.blocks[b].insts[ii].edges;
+        for (std::size_t k = es.size(); k-- > 0;) if (!seen[es[k].to]) visit(es[k].to);
+      }
       post.push_back(b);
     };
     visit(0);
@@ -282,8 +283,9 @@ struct FnEmitter {
       changed = false;
       for (std::size_t k = order.size(); k-- > 0;) {
         BlockId b = order[k];
-        for (const ir::Edge& e : f.blocks[b].insts.back().edges)
-          for (std::size_t v = 0; v < nv; ++v) if (in[e.to][v] && !out[b][v]) { out[b][v] = 1; changed = true; }
+        for (const ir::Inst& si : f.blocks[b].insts)
+          for (const ir::Edge& e : si.edges)
+            for (std::size_t v = 0; v < nv; ++v) if (in[e.to][v] && !out[b][v]) { out[b][v] = 1; changed = true; }
         for (std::size_t v = 0; v < nv; ++v) if (!in[b][v] && (use[b][v] || (out[b][v] && !kill[b][v]))) { in[b][v] = 1; changed = true; }
       }
     }
@@ -388,6 +390,7 @@ struct FnEmitter {
   enum class Patch { Ax, Ad, Word };  // where a jump target lives: 24-bit, high 16 bits, or the instruction's second word
   struct Fixup { std::size_t at; BlockId target; Patch kind; };
   struct Stub { std::size_t at; Patch kind; std::vector<std::pair<std::uint32_t, std::uint32_t>> moves; BlockId target; };
+  std::vector<std::pair<std::uint32_t, BlockId>> unwinds;  // (pc of a call that can unwind, its handler block)
   std::vector<Fixup> fixups;
   std::vector<Stub> stubs;
   std::vector<std::size_t> blockStart;
@@ -589,6 +592,7 @@ struct FnEmitter {
         std::vector<std::pair<std::uint32_t, std::uint32_t>> mvs;
         for (std::size_t a = 0; a < i.args.size(); ++a) mvs.push_back({base + static_cast<std::uint32_t>(a), R(i.args[a])});
         parallelMoves(mvs);
+        if (!i.edges.empty()) unwinds.push_back({static_cast<std::uint32_t>(zf.code.size()), i.edges[0].to});
         put(encAD(Op::Call, base, i.sym));
         return true;
       }
@@ -597,6 +601,7 @@ struct FnEmitter {
         std::vector<std::pair<std::uint32_t, std::uint32_t>> mvs;
         for (std::size_t a = 0; a < i.args.size(); ++a) mvs.push_back({base + static_cast<std::uint32_t>(a), R(i.args[a])});
         parallelMoves(mvs);
+        if (!i.edges.empty()) unwinds.push_back({static_cast<std::uint32_t>(zf.code.size()), i.edges[0].to});
         put(encAD(Op::CallVirt, base, i.sym));
         return true;
       }
@@ -740,6 +745,10 @@ struct FnEmitter {
       put(encAX(Op::Jmp, 0));
     }
     for (const Fixup& x : fixups) patch(x.at, x.kind, static_cast<std::uint32_t>(blockStart[x.target]));
+    for (auto [at, target] : unwinds) {
+      ValueId exc = f.blocks[target].params[0];
+      zf.handlers.push_back({at, static_cast<std::uint32_t>(blockStart[target]), vtOf(f.valueTypes[exc]).ref, static_cast<std::uint8_t>(reg[exc])});
+    }
     zf.nregs = frame + (usedScratch ? 1 : 0);
     if (zf.nregs > kMaxRegisters) return fail("function needs more than 256 registers");
     if (zf.code.size() > kMaxCodeWords) return fail("function is too large");

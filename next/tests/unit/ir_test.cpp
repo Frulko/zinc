@@ -61,7 +61,11 @@ int main() {
     thrower.blocks[0].insts.back() = Inst{IrOp::Ret, b.voidT, kNoValue, {thrower.params[0]}, 0, 0, 0, {}};
     b.m.functions.push_back(thrower);
     Function& f = b.m.functions[0];
-    f.blocks.resize(4);
+    Class err;
+    err.name = "Error";
+    b.m.classes.push_back(err);
+    TypeId errT = b.m.refT(0);
+    f.blocks.resize(5);
     ValueId zero = b.cst(f, 0, b.i32, 0);
     B::add(f, 0, IrOp::Br, b.voidT, {}, kNoValue, 0, 0, {Edge{1, {zero}}});
     ValueId p = B::val(f, b.i32);
@@ -71,13 +75,15 @@ int main() {
     B::add(f, 1, IrOp::Lt, b.boolT, {p, lim}, c);
     B::add(f, 1, IrOp::CondBr, b.voidT, {c}, kNoValue, 0, 0, {Edge{2, {}}, Edge{3, {}}});
     ValueId r = B::val(f, b.i32);
-    B::add(f, 2, IrOp::Call, b.i32, {p}, r, 0, 1, {Edge{3, {}}});  // unwind edge to bb3
+    B::add(f, 2, IrOp::Call, b.i32, {p}, r, 0, 1, {Edge{4, {}}});  // unwind edge to bb4, whose parameter is the exception
     ValueId one = b.cst(f, 2, b.i32, 1);
     ValueId nx = B::val(f, b.i32);
     B::add(f, 2, IrOp::Add, b.i32, {r, one}, nx);
     B::add(f, 2, IrOp::Br, b.voidT, {}, kNoValue, 0, 0, {Edge{1, {nx}}});
-    ValueId err = b.cst(f, 3, b.i32, 7);
-    B::add(f, 3, IrOp::Throw, b.voidT, {err}, kNoValue);
+    b.ret(f, 3);
+    ValueId exc = B::val(f, errT);
+    f.blocks[4].params.push_back(exc);
+    B::add(f, 4, IrOp::Throw, b.voidT, {exc}, kNoValue);
     expect("valid loop with unwind and throw", b.m, "");
     Inst call;
     call.op = IrOp::Call;

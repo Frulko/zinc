@@ -1,0 +1,9 @@
+2 -2 in-try|RangeError|negative: -1 b0f0 f1 b2f2 f3 
+app 404 wrapped negative: -5 1 206
+v2:4tmp2
+caught zero
+11
+Error: in map 2
+RangeError negative: -9
+a-try a-fin b-catch b-fin inner-fin rethrow g-fin 
+3 TypeError: t Error

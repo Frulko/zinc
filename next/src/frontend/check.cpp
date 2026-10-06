@@ -191,6 +191,12 @@ struct Checker {
     str.members.push_back({"fromCharCode", func({num(Num::i32)}, tStr, 1), true, true});
     out.objs.push_back(str);
     declare(SymKind::Builtin, "String", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    ObjInfo numObj;
+    numObj.name = "Number";
+    numObj.members.push_back({"isNaN", func({num(Num::f64)}, tBool, 1), true, true});
+    numObj.members.push_back({"isFinite", func({num(Num::f64)}, tBool, 1), true, true});
+    out.objs.push_back(numObj);
+    declare(SymKind::Builtin, "Number", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     declare(SymKind::Builtin, "__identity", func({tAny}, num(Num::i64), 1), kNone, true, 0);  // for generated code: the identity of a reference
     declare(SymKind::Builtin, "__classname", func({tAny}, tStr, 1), kNone, true, 0);       // the class name of an object, for [Function: name]
     declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
@@ -334,6 +340,19 @@ struct Checker {
     return Num::f64;
   }
 
+  // A value `'x' + v` and `${v}` can turn into text: numbers, booleans, strings, and objects with `toString(): string`.
+  bool stringifiable(TypeId t) {
+    if (t == tStr || isNum(t) || t == tBool) return true;
+    if (ty(t).k != TK::Object) return false;
+    const Member* m = lookupMember(ty(t).obj, "toString", false);
+    if (!m) m = lookupMember(ty(t).obj, "__errorString", false);  // an Error converts to "Name: message"
+    return m && m->method && ty(m->type).params.empty() && ty(m->type).elem == tStr;
+  }
+  std::uint32_t errorObj() {  // the built-in Error class
+    std::uint32_t s = lookup("Error");
+    return (s != kNone && out.syms[s].kind == SymKind::Class) ? ty(out.syms[s].type).obj : kNoObj;
+  }
+
   bool comparable(TypeId l, TypeId r) {
     if (l == r || (isNum(l) && isNum(r)) || bad(l) || bad(r) || l == tNull || r == tNull) return true;  // anything may be compared with null
     if (ty(l).k == TK::Union) { for (TypeId m : ty(l).params) if (comparable(m, r)) return true; return false; }
@@ -393,7 +412,7 @@ struct Checker {
     if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "'" + name(l == tBool ? r : l) + "' to 'boolean'"), tBool);
     if (op == "==" || op == "!=" || op == "===" || op == "!==") return comparable(l, r) ? tBool : (fail(), tBool);
     if (op == "<" || op == ">" || op == "<=" || op == ">=") return ((isNum(l) && isNum(r)) || (l == tStr && r == tStr)) ? tBool : (fail(), tBool);
-    if (op == "+" && (l == tStr || r == tStr)) return ((l == tStr || isNum(l) || l == tBool) && (r == tStr || isNum(r) || r == tBool)) ? tStr : fail();
+    if (op == "+" && (l == tStr || r == tStr)) return (stringifiable(l) && stringifiable(r)) ? tStr : fail();
     if (!isNum(l) || !isNum(r)) return fail();
     if (op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>") return num(Num::i32);
     if (op == ">>>") return num(Num::u32);
@@ -893,7 +912,7 @@ struct Checker {
         if (bad(tt) || bad(vt)) return tt;
         std::string bop = op.substr(0, op.size() - 1);
         if (bop == "&&" || bop == "||" || bop == "?\?") { diag(kZUnsupported, i, "operator '" + op + "'"); return tt; }
-        if (bop == "+" && tt == tStr && (vt == tStr || isNum(vt) || vt == tBool)) return tt;
+        if (bop == "+" && tt == tStr && stringifiable(vt)) return tt;
         if (!isNum(tt) || !isNum(vt)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(tt) + "' and '" + name(vt) + "'"); return tt; }
         Num r = (bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>") ? Num::i32 : bop == ">>>" ? Num::u32 : arith(bop, target, ty(tt).num, value, ty(vt).num);
         if (!widens(r, ty(tt).num) && (isFx(r) || isFx(ty(tt).num))) diag(kZNotAssignable, i, "'" + std::string(numName(r)) + "' to '" + name(tt) + "'");
@@ -1007,7 +1026,8 @@ struct Checker {
     if (s == kNone) return false;
     const Node& x = n(s);
     switch (x.kind) {
-      case N::Return: return true;
+      case N::Return: case N::Throw: return true;
+      case N::Try: return (terminates(x.kids[0]) && (x.kids[2] == kNone || terminates(x.kids[2]))) || (x.kids[3] != kNone && terminates(x.kids[3]));
       case N::Block: for (std::uint32_t k : x.kids) if (terminates(k)) return true; return false;
       case N::If: return x.kids[2] != kNone && terminates(x.kids[1]) && terminates(x.kids[2]);
       case N::While: return endless(x.kids[0]) && !hasBreak(a, x.kids[1]);
@@ -1148,7 +1168,47 @@ struct Checker {
     switch (x.kind) {
       case N::Empty: break;
       case N::Block: { std::size_t mark = narrowing.size(); push(); stmtList(x.kids); pop(); narrowing.resize(mark); break; }
-      case N::VarDecl: declAsGlobal = top; for (std::uint32_t d : x.kids) varDecl(d, x.text == "const"); declAsGlobal = false; break;
+      case N::VarDecl:
+        declAsGlobal = top;
+        for (std::uint32_t d : x.kids) {
+          varDecl(d, x.text == "const" || x.text == "using");
+          if (x.text == "using" && n(d).kids.size() > 1 && out.nodeSym[d] != kNone) {  // the value must know how to dispose itself
+            TypeId vt = out.syms[out.nodeSym[d]].type;
+            const Member* dm = (!bad(vt) && ty(vt).k == TK::Object) ? lookupMember(ty(vt).obj, "[Symbol.dispose]", false) : nullptr;
+            if (!bad(vt) && (!dm || !dm->method || !ty(dm->type).params.empty())) diag(kZNotAssignable, d, "'" + name(vt) + "' has no [Symbol.dispose]() to use with 'using'");
+          }
+        }
+        declAsGlobal = false;
+        break;
+      case N::Throw: {
+        TypeId t = expr(x.kids[0]);
+        std::uint32_t eo = errorObj();
+        if (eo == kNoObj) { diag(kZCannotFindName, s, "'Error'"); break; }
+        if (!bad(t) && (ty(t).k != TK::Object || !isSubclass(ty(t).obj, eo))) diag(kZNotAssignable, x.kids[0], "'" + name(t) + "' to 'Error'");
+        break;
+      }
+      case N::Try: {
+        std::size_t mark = narrowing.size();
+        markCells(x.kids[0]);
+        if (x.kids[2] != kNone && x.kids[3] != kNone) markCells(x.kids[2]);
+        statement(x.kids[0]);
+        narrowing.resize(mark);
+        if (x.kids[2] != kNone) {
+          push();
+          if (x.kids[1] != kNone) {
+            std::uint32_t eo = errorObj();
+            TypeId et = eo == kNoObj ? tError : objType(eo);
+            if (eo == kNoObj) diag(kZCannotFindName, s, "'Error'");
+            out.nodeType[x.kids[1]] = et;
+            out.nodeSym[x.kids[1]] = declare(SymKind::Var, n(x.kids[1]).text, et, x.kids[1], false, x.kids[1]);
+          }
+          statement(x.kids[2]);
+          pop();
+          narrowing.resize(mark);
+        }
+        if (x.kids[3] != kNone) { statement(x.kids[3]); narrowing.resize(mark); }
+        break;
+      }
       case N::ExprStmt: expr(x.kids[0]); break;
       case N::If: {
         condition(x.kids[0]);
@@ -1391,11 +1451,21 @@ struct Checker {
       if (nt != kNoType) fs.push_back({sy, nt});
     }
   }
+  // A handler sees the variables as they were when its try began, so locals that code in a try (or a using scope) assigns live in
+  // cells: the handler reads the cell, whichever call threw.
+  void markCells(std::uint32_t node) {
+    std::vector<std::string_view> names;
+    collectAssigned(node, names);
+    for (std::string_view nm : names) {
+      std::uint32_t sy = lookup(nm);
+      if (sy != kNone && trackable(sy) && !out.syms[sy].isGlobal) { out.syms[sy].captured = true; out.syms[sy].reassigned = true; }
+    }
+  }
   bool exitsAbruptly(std::uint32_t st) const {
     if (st == kNone) return false;
     const Node& x = n(st);
     switch (x.kind) {
-      case N::Return: case N::Break: case N::Continue: return true;
+      case N::Return: case N::Break: case N::Continue: case N::Throw: return true;
       case N::Block: for (std::uint32_t k : x.kids) if (exitsAbruptly(k)) return true; return false;
       case N::If: return x.kids[2] != kNone && exitsAbruptly(x.kids[1]) && exitsAbruptly(x.kids[2]);
       default: return false;
@@ -2111,7 +2181,9 @@ struct Checker {
       if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
     bool rootList = &stmts == topList;
-    for (std::uint32_t s : stmts) {
+    for (std::size_t si = 0; si < stmts.size(); ++si) {
+      std::uint32_t s = stmts[si];
+      if (n(s).kind == N::VarDecl && n(s).text == "using") for (std::size_t r = si + 1; r < stmts.size(); ++r) markCells(stmts[r]);
       atTop = rootList;
       statement(s);
       if (&stmts == ctorStmts && n(s).kind == N::ExprStmt) {  // `this.f = ...` at the top level of a constructor assigns f
@@ -2139,6 +2211,7 @@ struct Checker {
       pop();
       return;
     }
+    if (!a.prelude.empty()) { topList = &a.prelude; stmtList(a.prelude); }  // Error and friends, in the scope every module sees
     exportsOf.resize(a.modules.size());
     for (std::uint32_t mi = 0; mi < a.modules.size(); ++mi) {  // initialisation order: a module after the modules it imports
       const ModuleInfo& mod = a.modules[mi];

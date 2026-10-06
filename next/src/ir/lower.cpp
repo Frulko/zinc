@@ -562,6 +562,12 @@ struct Lowering::FnLower {
   std::unordered_map<std::uint32_t, TypeId> varType;
   BlockId cur = 0;
   std::vector<std::pair<BlockId, BlockId>> loopTargets;  // (break, continue)
+  std::vector<std::size_t> loopCleanups;                  // per loop target: how many cleanups were active outside it
+  // Exceptions: a call inside a `try` unwinds to the innermost handler, a block with one parameter, the exception. A
+  // cleanup (a `finally` body or a `using` disposal) is also run before every `return`, `break` and `continue` that leaves it.
+  struct Cleanup { std::uint32_t node = kNil; std::uint32_t sym = kNil; std::size_t handlerDepth = 0; };
+  std::vector<BlockId> handlers;
+  std::vector<Cleanup> cleanups;
   std::uint32_t thisVar, nextVar;
   const Lowering::LambdaInfo* lam = nullptr;  // set when this function is a lambda body
 
@@ -591,7 +597,16 @@ struct Lowering::FnLower {
     i.op = op; i.ty = t; i.args = std::move(args); i.imm = imm; i.fimm = fimm; i.sym = sym;
     if (ty(t).k != Type::K::Void) i.res = newValue(t);
     f.blocks[cur].insts.push_back(std::move(i));
-    return f.blocks[cur].insts.back().res;
+    ValueId res = f.blocks[cur].insts.back().res;
+    if ((op == IrOp::Call || op == IrOp::CallVirt) && !handlers.empty()) {  // the call may unwind: it ends its block so the handler sees the variables as they were
+      f.blocks[cur].insts.back().edges = {Edge{handlers.back(), {}}};
+      preds[handlers.back()].push_back(cur);
+      BlockId next = newBlock();
+      br(next);
+      sealed[next] = 1;
+      cur = next;
+    }
+    return res;
   }
   bool open() const { return f.blocks[cur].insts.empty() || !isTerminator(f.blocks[cur].insts.back().op); }
   void startDead() { cur = newBlock(); sealed[cur] = 1; }  // code after a terminator: no predecessors, removed later
@@ -731,6 +746,123 @@ struct Lowering::FnLower {
   ValueId exprTo(std::uint32_t node, TypeId want) { return coerce(expr(node, want), want); }
 
   ValueId toStr(ValueId v) { return ty(tv(v)).k == Type::K::Str ? v : emit(IrOp::ToStr, m.strT(), {v}); }
+  // The text of an expression: an object converts through its toString().
+  ValueId toStrOf(std::uint32_t node) {
+    ValueId v = expr(node);
+    const frontend::Type& ct = c.types[c.nodeType[node]];
+    if (ty(tv(v)).k == Type::K::Ref && ct.k == frontend::TK::Object) return invokeMethod(v, ct.obj, frontend::lookupMember(c, ct.obj, "toString", false) ? "toString" : "__errorString", {});
+    return toStr(v);
+  }
+  // recv.name(args) for a method found by name (toString, [Symbol.dispose]): direct when the closed world allows it.
+  ValueId invokeMethod(ValueId recv, std::uint32_t obj, std::string_view name, std::vector<ValueId> args) {
+    std::uint32_t direct = kNil;
+    std::vector<ValueId> vs;
+    if (L.devirtualize(obj, name, direct)) {
+      const Function& cf = m.functions[direct];
+      vs.push_back(coerce(recv, cf.valueTypes[cf.params[0]]));
+      vs.insert(vs.end(), args.begin(), args.end());
+      return emit(IrOp::Call, cf.ret, std::move(vs), 0, 0, direct);
+    }
+    const frontend::Member* mem = frontend::lookupMember(c, obj, name, false);
+    std::uint32_t sel = L.selectorFor(std::string(name), mem->type);
+    vs.push_back(recv);
+    vs.insert(vs.end(), args.begin(), args.end());
+    return emit(IrOp::CallVirt, m.selectors[sel].ret, std::move(vs), 0, 0, sel);
+  }
+
+  // ---- exceptions
+  TypeId excType() {
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) if (c.objs[o].name == "Error" && c.objs[o].isClass && L.classOfObj[o] != kNil) return m.refT(L.classOfObj[o]);
+    return m.voidT();
+  }
+  BlockId newHandlerBlock() {  // sees the variables as they are now: those a try body assigns live in cells
+    BlockId h = newBlock();
+    sealed[h] = 1;
+    defs[h] = defs[cur];
+    f.blocks[h].params.push_back(newValue(excType()));
+    return h;
+  }
+  void rethrow(ValueId e) {
+    if (!handlers.empty()) br(handlers.back(), {e});
+    else terminate(IrOp::Throw, {e}, {});
+  }
+  void emitCleanup(const Cleanup& cl) {
+    if (cl.node != kNil) { stmt(cl.node); return; }
+    ValueId v = readSym(cl.sym);
+    invokeMethod(v, c.types[c.syms[cl.sym].type].obj, "[Symbol.dispose]", {});
+  }
+  // The cleanups from the innermost down to index `downTo`, as a jump out of them runs them.
+  void runCleanups(std::size_t downTo) {
+    auto savedCleanups = cleanups;
+    auto savedHandlers = handlers;
+    for (std::size_t i = savedCleanups.size(); i-- > downTo;) {
+      cleanups.resize(i);
+      handlers.resize(savedCleanups[i].handlerDepth);
+      emitCleanup(savedCleanups[i]);
+    }
+    cleanups = std::move(savedCleanups);
+    handlers = std::move(savedHandlers);
+  }
+  void tryStmt(const Node& x) {
+    std::uint32_t body = x.kids[0], param = x.kids[1], handler = x.kids[2], fin = x.kids[3];
+    BlockId join = newBlock();
+    BlockId hFin = kNil, hCatch = kNil;
+    std::size_t outerHandlers = handlers.size();
+    if (fin != kNil) { hFin = newHandlerBlock(); handlers.push_back(hFin); cleanups.push_back({fin, kNil, outerHandlers}); }
+    if (handler != kNil) { hCatch = newHandlerBlock(); handlers.push_back(hCatch); }
+    stmt(body);
+    if (handler != kNil) handlers.pop_back();
+    br(join);
+    if (handler != kNil) {  // the catch clause runs under the finally handler only
+      cur = hCatch;
+      ValueId e = f.blocks[hCatch].params[0];
+      if (param != kNil) declSym(c.nodeSym[param], e);
+      stmt(handler);
+      br(join);
+    }
+    if (fin != kNil) { handlers.pop_back(); cleanups.pop_back(); }
+    seal(join);
+    cur = join;
+    if (fin == kNil) return;
+    stmt(fin);  // completing normally
+    if (!open()) startDead();
+    BlockId after = cur;
+    cur = hFin;  // an exception that no catch took: the same code, then on to the next handler
+    ValueId e = f.blocks[hFin].params[0];
+    stmt(fin);
+    rethrow(e);
+    cur = after;
+  }
+  // `using a = ...;` and the statements after it, which end by disposing of what was declared (in reverse order).
+  void usingScope(const std::vector<std::uint32_t>& list, std::size_t at) {
+    const Node& d = n(list[at]);
+    std::vector<std::uint32_t> syms;
+    for (std::uint32_t decl : d.kids) if (c.nodeSym[decl] != kNil) syms.push_back(c.nodeSym[decl]);
+    std::size_t outerHandlers = handlers.size();
+    BlockId h = newHandlerBlock();
+    handlers.push_back(h);
+    for (std::uint32_t s : syms) cleanups.push_back({kNil, s, outerHandlers});
+    stmtsFrom(list, at + 1);
+    for (std::size_t k = 0; k < syms.size(); ++k) cleanups.pop_back();
+    handlers.pop_back();
+    auto disposeAll = [&]() { for (std::size_t k = syms.size(); k-- > 0;) emitCleanup({kNil, syms[k], 0}); };
+    if (!open()) startDead();
+    disposeAll();  // the normal way out
+    if (!open()) startDead();
+    BlockId after = cur;
+    cur = h;  // an exception: dispose, then on to the next handler
+    ValueId e = f.blocks[h].params[0];
+    disposeAll();
+    rethrow(e);
+    cur = after;
+  }
+  void stmtsFrom(const std::vector<std::uint32_t>& list, std::size_t from) {
+    for (std::size_t i = from; i < list.size(); ++i) {
+      const Node& s = n(list[i]);
+      stmt(list[i]);
+      if (s.kind == N::VarDecl && s.text == "using") { usingScope(list, i); return; }
+    }
+  }
 
   IrOp arithOp(std::string_view op) {
     if (op == "+") return IrOp::Add;
@@ -833,7 +965,7 @@ struct Lowering::FnLower {
       case N::Template: {
         ValueId acc = kNoValue;
         for (std::size_t k = 0; k < x.kids.size(); ++k) {
-          ValueId part = (k % 2 == 0) ? constStr(unescape(n(x.kids[k]).text)) : toStr(expr(x.kids[k]));
+          ValueId part = (k % 2 == 0) ? constStr(unescape(n(x.kids[k]).text)) : toStrOf(x.kids[k]);
           acc = acc == kNoValue ? part : emit(IrOp::StrConcat, m.strT(), {acc, part});
         }
         return acc;
@@ -903,7 +1035,7 @@ struct Lowering::FnLower {
         if (o == "==" || o == "===" || o == "!=" || o == "!==" || o == "<" || o == "<=" || o == ">" || o == ">=") return compare(i, x);
         TypeId rt = natural(i);
         if (ty(rt).k == Type::K::Str) {
-          ValueId l = toStr(expr(x.kids[0])), r = toStr(expr(x.kids[1]));
+          ValueId l = toStrOf(x.kids[0]), r = toStrOf(x.kids[1]);
           return emit(IrOp::StrConcat, rt, {l, r});
         }
         ValueId l = exprTo(x.kids[0], rt), r = exprTo(x.kids[1], rt);
@@ -940,7 +1072,7 @@ struct Lowering::FnLower {
         else {
           std::string_view bop = x.text.substr(0, x.text.size() - 1);
           ValueId old = load(lv);
-          if (ty(lv.type).k == Type::K::Str) nv = emit(IrOp::StrConcat, lv.type, {old, toStr(expr(x.kids[1]))});
+          if (ty(lv.type).k == Type::K::Str) nv = emit(IrOp::StrConcat, lv.type, {old, toStrOf(x.kids[1])});
           else {
             bool shift = bop == "&" || bop == "|" || bop == "^" || bop == "<<" || bop == ">>" || bop == ">>>";
             TypeId opT = shift ? m.numT(bop == ">>>" ? NumK::u32 : NumK::i32) : natural(x.kids[1]);
@@ -1234,6 +1366,12 @@ struct Lowering::FnLower {
       } else if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
         std::string full = std::string(on.text) + "." + std::string(callee.text);
         if (full == "String.fromCharCode") return emit(IrOp::Rt, m.strT(), {exprTo(x.kids[1], m.numT(NumK::i32))}, 0, 0, static_cast<std::uint32_t>(zn::Rt::FromCharCode));
+        if (full == "Number.isNaN" || full == "Number.isFinite") {
+          TypeId f64 = m.numT(NumK::f64);
+          ValueId v = exprTo(x.kids[1], f64);
+          if (full == "Number.isNaN") return emit(IrOp::Ne, m.boolT(), {v, v});
+          return emit(IrOp::Eq, m.boolT(), {emit(IrOp::Sub, f64, {v, v}), constNum(f64, 0)});
+        }
         if (full == "Math.imul") { TypeId i32 = m.numT(NumK::i32); ValueId l = exprTo(x.kids[1], i32), r = exprTo(x.kids[2], i32); return emit(IrOp::Mul, i32, {l, r}); }
         for (std::uint32_t b = 0; b < static_cast<std::uint32_t>(Builtin::Count); ++b) {
           if (full != builtinName(static_cast<Builtin>(b))) continue;
@@ -1342,8 +1480,10 @@ struct Lowering::FnLower {
 
   void loopBody(std::uint32_t body, BlockId brk, BlockId cont) {
     loopTargets.push_back({brk, cont});
+    loopCleanups.push_back(cleanups.size());
     stmt(body);
     loopTargets.pop_back();
+    loopCleanups.pop_back();
   }
 
   void stmt(std::uint32_t s) {
@@ -1369,14 +1509,17 @@ struct Lowering::FnLower {
         }
         br(defIdx < nc ? bodies[defIdx] : end);
         loopTargets.push_back({end, loopTargets.empty() ? end : loopTargets.back().second});
+        loopCleanups.push_back(cleanups.size());
         for (std::size_t k = 0; k < nc; ++k) {
           sealed[bodies[k]] = 1;
           cur = bodies[k];
           const Node& cl = n(x.kids[1 + k]);
-          for (std::size_t j = 1; j < cl.kids.size(); ++j) stmt(cl.kids[j]);
+          std::vector<std::uint32_t> clauseBody(cl.kids.begin() + 1, cl.kids.end());
+          stmtsFrom(clauseBody, 0);
           br(k + 1 < nc ? bodies[k + 1] : end);
         }
         loopTargets.pop_back();
+        loopCleanups.pop_back();
         seal(end);
         cur = end;
         break;
@@ -1392,8 +1535,15 @@ struct Lowering::FnLower {
         }
         break;
       }
-      case N::Block: for (std::uint32_t k : x.kids) stmt(k); break;
-      case N::VarDecl: for (std::uint32_t d : x.kids) declare(d, x.text == "const"); break;
+      case N::Block: stmtsFrom(x.kids, 0); break;
+      case N::VarDecl: for (std::uint32_t d : x.kids) declare(d, x.text == "const" || x.text == "using"); break;
+      case N::Try: tryStmt(x); break;
+      case N::Throw: {
+        ValueId e = coerce(expr(x.kids[0]), excType());
+        rethrow(e);
+        startDead();
+        break;
+      }
       case N::ExprStmt: expr(x.kids[0]); break;
       case N::If: {
         ValueId cond = exprTo(x.kids[0], m.boolT());
@@ -1480,13 +1630,13 @@ struct Lowering::FnLower {
         break;
       }
       case N::Return: {
-        if (x.kids[0] == kNil) terminate(IrOp::Ret, {}, {});
-        else terminate(IrOp::Ret, {exprTo(x.kids[0], f.ret)}, {});
+        if (x.kids[0] == kNil) { runCleanups(0); terminate(IrOp::Ret, {}, {}); }
+        else { ValueId rv = exprTo(x.kids[0], f.ret); runCleanups(0); terminate(IrOp::Ret, {rv}, {}); }
         startDead();
         break;
       }
-      case N::Break: terminate(IrOp::Br, {}, {Edge{loopTargets.back().first, {}}}); startDead(); break;
-      case N::Continue: terminate(IrOp::Br, {}, {Edge{loopTargets.back().second, {}}}); startDead(); break;
+      case N::Break: runCleanups(loopCleanups.back()); terminate(IrOp::Br, {}, {Edge{loopTargets.back().first, {}}}); startDead(); break;
+      case N::Continue: runCleanups(loopCleanups.back()); terminate(IrOp::Br, {}, {Edge{loopTargets.back().second, {}}}); startDead(); break;
       default: unsupported(s, "this statement"); break;
     }
   }
@@ -1519,8 +1669,13 @@ struct Lowering::FnLower {
     for (bool changed = true; changed;) {
       changed = false;
       std::vector<std::vector<Edge*>> incoming(f.blocks.size());
-      for (Block& b : f.blocks) for (Inst& i : b.insts) for (Edge& e : i.edges) incoming[e.to].push_back(&e);
+      std::vector<char> handlerBlock(f.blocks.size(), 0);
+      for (Block& b : f.blocks) for (Inst& i : b.insts) {
+        for (Edge& e : i.edges) incoming[e.to].push_back(&e);
+        if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (Edge& e : i.edges) handlerBlock[e.to] = 1;
+      }
       for (BlockId b = 1; b < f.blocks.size() && !changed; ++b) {
+        if (handlerBlock[b]) continue;  // its parameter is the exception, delivered by the unwinder
         for (std::size_t p = f.blocks[b].params.size(); p-- > 0 && !changed;) {
           ValueId pv = f.blocks[b].params[p], same = kNoValue;
           bool trivial = true;
@@ -1616,7 +1771,7 @@ struct Lowering::FnLower {
         emit(IrOp::SetField, m.voidT(), {readVar(thisVar, cur), exprTo(mn.kids[1], ft)}, 0, 0, fi);
       }
     }
-    if (body) for (; idx < body->size(); ++idx) stmt((*body)[idx]);
+    if (body) stmtsFrom(*body, idx);
     if (open()) {
       if (ty(f.ret).k == Type::K::Void) terminate(IrOp::Ret, {}, {});
       else terminate(IrOp::Unreachable, {}, {});

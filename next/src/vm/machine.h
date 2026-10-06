@@ -18,6 +18,8 @@ struct Func {
   const std::uint32_t* code;
   const zbc::Const* consts;
   std::uint32_t nregs;
+  const zbc::Handler* handlers;
+  std::uint32_t nhandlers;
 };
 
 // How a key (or an element compared by indexOf/includes) is hashed and compared.

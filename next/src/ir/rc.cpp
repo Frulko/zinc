@@ -43,11 +43,23 @@ bool resultBorrowed(const Inst& i) {
 struct Rc {
   Module& m;
   Function& f;
+  const std::vector<char>& mayThrow;  // per function
   std::size_t nb, nv;
   std::vector<char> tracked;
   std::vector<std::vector<char>> liveIn, liveOut, reach;
 
-  Rc(Module& mod, Function& fn) : m(mod), f(fn), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
+  Rc(Module& mod, Function& fn, const std::vector<char>& thr) : m(mod), f(fn), mayThrow(thr), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
+
+  // Every block a block can continue in: its terminator's targets and the handlers of its calls.
+  template <class F> void successors(BlockId b, F&& fn) const {
+    for (const Inst& i : f.blocks[b].insts) for (const Edge& e : i.edges) fn(e.to);
+  }
+  bool throws(const Inst& i) const {
+    if (i.op == IrOp::Call) return mayThrow[i.sym];
+    if (i.op != IrOp::CallVirt) return false;
+    for (const Class& c : m.classes) if (!c.isInterface && !c.isAbstract && i.sym < c.vtable.size() && c.vtable[i.sym] < m.functions.size() && mayThrow[c.vtable[i.sym]]) return true;
+    return false;
+  }
 
   bool isTracked(ValueId v) const { return v < nv && tracked[v]; }
 
@@ -75,7 +87,7 @@ struct Rc {
     while (!work.empty()) {
       BlockId b = work.back();
       work.pop_back();
-      for (const Edge& e : f.blocks[b].insts.back().edges) if (!reach[0][e.to]) { reach[0][e.to] = 1; work.push_back(e.to); }
+      successors(b, [&](BlockId s) { if (!reach[0][s]) { reach[0][s] = 1; work.push_back(s); } });
     }
     std::vector<std::vector<char>> use(nb, std::vector<char>(nv, 0)), def(nb, std::vector<char>(nv, 0));
     for (BlockId b = 0; b < nb; ++b) {
@@ -94,27 +106,39 @@ struct Rc {
       changed = false;
       for (BlockId b = nb; b-- > 0;) {
         if (!reach[0][b]) continue;
-        for (const Edge& e : f.blocks[b].insts.back().edges)
-          for (std::size_t v = 0; v < nv; ++v) if (liveIn[e.to][v] && !liveOut[b][v]) { liveOut[b][v] = 1; changed = true; }
+        successors(b, [&](BlockId s) {
+          for (std::size_t v = 0; v < nv; ++v) if (liveIn[s][v] && !liveOut[b][v]) { liveOut[b][v] = 1; changed = true; }
+        });
         for (std::size_t v = 0; v < nv; ++v)
           if (!liveIn[b][v] && (use[b][v] || (liveOut[b][v] && !def[b][v]))) { liveIn[b][v] = 1; changed = true; }
       }
     }
   }
 
+  static constexpr BlockId kNoBlockRc = 0xFFFFFFFFu;
+
+  TypeId errorRefType() const {
+    for (std::size_t c = 0; c < m.classes.size(); ++c) if (m.classes[c].name == "Error") return m.refT(static_cast<std::uint32_t>(c));
+    return m.voidT();
+  }
+
   void block(BlockId b) {
-    Block& blk = f.blocks[b];
-    const std::size_t n = blk.insts.size();
+    const std::vector<Inst> src = f.blocks[b].insts;
+    const std::vector<ValueId> params = f.blocks[b].params;
+    const std::size_t n = src.size();
     std::vector<long> lastIdx(nv, -1);  // the last instruction (the terminator counts its edge arguments) using each value
     for (std::size_t p = 0; p < n; ++p) {
-      for (ValueId a : blk.insts[p].args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
-      for (const Edge& e : blk.insts[p].edges) for (ValueId a : e.args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
+      for (ValueId a : src[p].args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
+      for (const Edge& e : src[p].edges) for (ValueId a : e.args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
     }
     auto usedAfter = [&](ValueId v, std::size_t p) { return liveOut[b][v] || lastIdx[v] > static_cast<long>(p); };
     std::vector<Inst> out;
-    for (ValueId p : blk.params) if (isTracked(p) && !liveOut[b][p] && lastIdx[p] < 0) out.push_back(op(IrOp::Release, p));
+    std::vector<char> avail(nv, 0);  // tracked values this block has by now: live in, parameters, results so far
+    for (std::size_t v = 0; v < nv; ++v) avail[v] = liveIn[b][v];
+    for (ValueId p : params) if (isTracked(p)) avail[p] = 1;
+    for (ValueId p : params) if (isTracked(p) && !liveOut[b][p] && lastIdx[p] < 0) out.push_back(op(IrOp::Release, p));
     for (std::size_t p = 0; p + 1 < n; ++p) {
-      Inst inst = blk.insts[p];
+      Inst inst = src[p];
       std::map<ValueId, std::pair<int, int>> counts;  // consuming, borrowing occurrences in this instruction
       for (std::size_t k = 0; k < inst.args.size(); ++k)
         if (isTracked(inst.args[k])) (consumes(inst, k) ? counts[inst.args[k]].first : counts[inst.args[k]].second)++;
@@ -126,18 +150,46 @@ struct Rc {
         if (dies && cb.first == 0) releaseAfter.push_back(v);
       }
       ValueId res = inst.res;
+      if (throws(inst) || !inst.edges.empty()) {
+        // What this frame still owns when the call unwinds and the handler has no use for is released first, on a path of its own.
+        BlockId handler = inst.edges.empty() ? kNoBlockRc : inst.edges[0].to;
+        std::vector<ValueId> rel;
+        for (std::size_t v = 0; v < nv; ++v) {
+          if (!isTracked(static_cast<ValueId>(v)) || !avail[v] || static_cast<ValueId>(v) == res) continue;
+          if (handler != kNoBlockRc && liveIn[handler][v]) continue;
+          auto cb = counts.find(static_cast<ValueId>(v));
+          bool diesHere = cb != counts.end() && !liveOut[b][v] && lastIdx[v] == static_cast<long>(p);
+          bool consumedHere = diesHere && cb->second.first > 0;
+          bool owned = usedAfter(static_cast<ValueId>(v), p) || (diesHere && cb->second.first == 0);
+          if (owned && !consumedHere) rel.push_back(static_cast<ValueId>(v));
+        }
+        if (!rel.empty()) {
+          Block pad;
+          TypeId et = handler != kNoBlockRc ? f.valueTypes[f.blocks[handler].params[0]] : errorRefType();
+          f.valueTypes.push_back(et);
+          ValueId x = static_cast<ValueId>(f.valueTypes.size() - 1);  // not tracked: a pad only passes it on
+          pad.params.push_back(x);
+          for (ValueId v : rel) pad.insts.push_back(op(IrOp::Release, v));
+          Inst last;
+          last.ty = m.voidT();
+          if (handler != kNoBlockRc) { last.op = IrOp::Br; last.edges = {Edge{handler, {x}}}; }
+          else { last.op = IrOp::Throw; last.args = {x}; }
+          pad.insts.push_back(std::move(last));
+          f.blocks.push_back(std::move(pad));
+          inst.edges = {Edge{static_cast<BlockId>(f.blocks.size() - 1), {}}};
+        }
+      }
       out.push_back(std::move(inst));
       if (res != kNoValue && isTracked(res)) {
+        avail[res] = 1;
         bool used = usedAfter(res, p);
-        if (resultBorrowed(blk.insts[p])) { if (used) out.push_back(op(IrOp::Retain, res)); }  // before the lender can be released
+        if (resultBorrowed(src[p])) { if (used) out.push_back(op(IrOp::Retain, res)); }  // before the lender can be released
         else if (!used) out.push_back(op(IrOp::Release, res));
       }
       for (ValueId v : releaseAfter) out.push_back(op(IrOp::Release, v));
     }
-    Inst term = blk.insts[n - 1];
-    if (term.op == IrOp::Ret || term.op == IrOp::Throw) {  // the returned value is consumed; nothing else is live
-      for (std::size_t k = 0; k < term.args.size(); ++k) (void)k;
-    } else if (term.op == IrOp::Br || term.op == IrOp::CondBr) {
+    Inst term = src[n - 1];
+    if (term.op == IrOp::Br || term.op == IrOp::CondBr) {
       std::vector<char> here = liveOut[b];  // owned at the terminator: live out, or passed along some edge (and so unused on the others)
       for (const Edge& e : term.edges) for (ValueId a : e.args) if (isTracked(a)) here[a] = 1;
       for (std::size_t ei = 0; ei < term.edges.size(); ++ei) {
@@ -151,7 +203,7 @@ struct Rc {
           if (needed[a] || transferred[a]) fix.push_back(op(IrOp::Retain, a));
           else transferred[a] = 1;
         }
-        for (std::size_t v = 0; v < nv; ++v) if (here[v] && !needed[v] && !passed[v]) fix.push_back(op(IrOp::Release, static_cast<ValueId>(v)));
+        for (std::size_t v = 0; v < nv && v < here.size(); ++v) if (here[v] && !needed[v] && !passed[v]) fix.push_back(op(IrOp::Release, static_cast<ValueId>(v)));
         if (fix.empty()) continue;
         if (term.op == IrOp::Br) { for (Inst& x : fix) out.push_back(std::move(x)); continue; }
         Block nbk;  // a split edge holds the fix-ups of one outgoing path
@@ -178,9 +230,31 @@ struct Rc {
 
 }  // namespace
 
+namespace {
+// Functions that can raise an exception: they throw, or call (or may dispatch to) one that can.
+std::vector<char> throwingFunctions(const Module& m) {
+  std::vector<char> thr(m.functions.size(), 0);
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
+      if (thr[fi]) continue;
+      for (const Block& b : m.functions[fi].blocks)
+        for (const Inst& i : b.insts) {
+          bool t = i.op == IrOp::Throw || (i.op == IrOp::Call && thr[i.sym]);
+          if (i.op == IrOp::CallVirt)
+            for (const Class& c : m.classes) if (!c.isInterface && !c.isAbstract && i.sym < c.vtable.size() && c.vtable[i.sym] < m.functions.size() && thr[c.vtable[i.sym]]) t = true;
+          if (t) { thr[fi] = 1; changed = true; break; }
+        }
+    }
+  }
+  return thr;
+}
+}  // namespace
+
 void insertRc(Module& m) {
+  std::vector<char> thr = throwingFunctions(m);
   for (Function& f : m.functions) {
-    Rc rc(m, f);
+    Rc rc(m, f, thr);
     rc.run();
   }
 }

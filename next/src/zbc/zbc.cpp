@@ -216,6 +216,17 @@ struct Verifier {
     }
     Op last = static_cast<Op>(opOf(f.code[lastStart]));
     if (!isTerminator(last)) return fail(lastStart, "code can fall off the end");
+    std::vector<char> hasHandler(f.code.size(), 0);
+    for (const Handler& h : f.handlers) {
+      if (h.at >= f.code.size() || !isStart[h.at]) return fail(h.at, "handler for something that is not an instruction");
+      Op hop = static_cast<Op>(opOf(f.code[h.at]));
+      if (hop != Op::Call && hop != Op::CallVirt && hop != Op::Throw) return fail(h.at, "handler for an instruction that cannot throw");
+      if (hasHandler[h.at]) return fail(h.at, "two handlers for one instruction");
+      hasHandler[h.at] = 1;
+      if (h.target >= f.code.size() || !isStart[h.target]) return fail(h.at, "handler target is not the start of an instruction");
+      if (h.reg >= f.nregs) return fail(h.at, "handler register is outside the frame");
+      if (h.cls >= m.classes.size()) return fail(h.at, "handler for an unknown class");
+    }
     return true;
   }
 
@@ -257,7 +268,7 @@ struct Verifier {
       case Op::GetGlobal: s[aOf(w)] = enc(m.globals[dOf(w)]); return true;
       case Op::SetGlobal: return needType(aOf(w), m.globals[dOf(w)], "operand");
       case Op::JmpIf: case Op::JmpIfNot: return needCls(aOf(w), Cls::I, "condition");
-      case Op::Throw: return defined(aOf(w), "thrown value");
+      case Op::Throw: return needRef(aOf(w), "thrown value");
       case Op::LogI: case Op::LogU: case Op::LogBool: return needCls(aOf(w), Cls::I, "operand");
       case Op::LogF64: return needCls(aOf(w), Cls::D, "operand");
       case Op::LogF32: return needCls(aOf(w), Cls::S, "operand");
@@ -433,6 +444,8 @@ struct Verifier {
       if (isTerminator(op) || isCondJump(op)) leader[next] = 1;
       pc = next;
     }
+    std::vector<const Handler*> handlerAt(n, nullptr);
+    for (const Handler& h : f.handlers) { handlerAt[h.at] = &h; leader[h.target] = 1; }
     std::vector<State> in(n);
     std::vector<char> have(n, 0);
     State entry(f.nregs, 0);
@@ -448,8 +461,15 @@ struct Verifier {
       std::size_t pc = work.back(); work.pop_back();
       State s = in[pc];
       for (;;) {
+        State before = handlerAt[pc] ? s : State();
         if (!step(pc, s)) return false;
         Op op = static_cast<Op>(opOf(f.code[pc]));
+        if (handlerAt[pc]) {  // the handler sees the registers below the call window as they were, and the exception
+          const Handler& h = *handlerAt[pc];
+          if (op != Op::Throw) for (std::size_t r = aOf(f.code[pc]); r < before.size(); ++r) before[r] = 0;
+          before[h.reg] = static_cast<St>(4 + h.cls);
+          push(h.target, before);
+        }
         std::size_t next = pc + instrLen(op);
         if (op == Op::Jmp) { push(axOf(f.code[pc]), s); break; }
         if (isTerminator(op)) break;
@@ -471,7 +491,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 3;
+constexpr std::uint32_t kVersion = 4;
 
 struct Writer {
   std::vector<std::uint8_t> b;
@@ -577,6 +597,8 @@ std::vector<std::uint8_t> encode(const Module& m) {
     for (std::uint32_t x : f.code) w.u32(x);
     w.u32(static_cast<std::uint32_t>(f.consts.size()));
     for (const Const& c : f.consts) { w.u8(static_cast<std::uint8_t>(c.cls)); w.u64(c.bits); }
+    w.u32(static_cast<std::uint32_t>(f.handlers.size()));
+    for (const Handler& h : f.handlers) { w.u32(h.at); w.u32(h.target); w.u16(h.cls); w.u8(h.reg); }
   }
   return w.b;
 }
@@ -644,6 +666,9 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
       c.bits = r.u64();
       f.consts.push_back(c);
     }
+    std::uint32_t nh = r.u32();
+    if (nh > kMaxCodeWords || !r.has(static_cast<std::size_t>(nh) * 11)) return fail("truncated file (handlers)");
+    for (std::uint32_t k = 0; k < nh; ++k) { Handler h; h.at = r.u32(); h.target = r.u32(); h.cls = r.u16(); h.reg = r.u8(); f.handlers.push_back(h); }
     if (r.bad) return fail("truncated file");
     out.functions.push_back(std::move(f));
   }
@@ -714,6 +739,7 @@ std::string disassemble(const Module& m) {
       out += s + ops + "\n";
       pc += instrLen(op);
     }
+    for (const Handler& h : f.handlers) out += "  handler " + std::to_string(h.at) + " -> " + std::to_string(h.target) + " r" + std::to_string(h.reg) + " " + (h.cls < m.classes.size() ? m.classes[h.cls].name : std::string("?")) + "\n";
   }
   return out;
 }

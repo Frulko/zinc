@@ -55,6 +55,15 @@ struct SelInfo {
   VType ret;
 };
 
+// An exception raised by the Call, CallVirt or Throw at `at` goes to `target` when the thrown object is an instance of `cls`
+// (otherwise the exception moves on to the caller); the object arrives in register `reg`, typed as `cls`.
+struct Handler {
+  std::uint32_t at = 0;
+  std::uint32_t target = 0;
+  std::uint16_t cls = 0;
+  std::uint8_t reg = 0;
+};
+
 struct Function {
   std::string name;
   std::vector<VType> params;     // classes of r0..r(n-1) on entry
@@ -62,6 +71,7 @@ struct Function {
   std::uint32_t nregs = 0;       // frame size; a call's window starts at a register below it
   std::vector<std::uint32_t> code;
   std::vector<Const> consts;
+  std::vector<Handler> handlers;
 };
 
 struct Module {

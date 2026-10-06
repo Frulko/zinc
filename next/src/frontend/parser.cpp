@@ -28,6 +28,10 @@ struct Parser {
     return i > 0 && s.substr(t[i - 1].end, cur().start - t[i - 1].end).find('\n') != std::string_view::npos;
   }
 
+  bool newlineAt(std::size_t k) const {  // a line break before token i+k
+    return i + k > 0 && i + k < t.size() && s.substr(t[i + k - 1].end, t[i + k].start - t[i + k - 1].end).find('\n') != std::string_view::npos;
+  }
+
   [[noreturn]] void fail(const char* code, std::uint32_t pos, std::string msg) {
     r.diags.push_back({code, pos, std::move(msg)});
     throw Stop{};
@@ -551,7 +555,7 @@ struct Parser {
   }
 
   bool atLetDecl() const { return isId("let") && (at(1).kind == Tok::Ident || isP("[", 1) || isP("{", 1)); }
-  bool atVarDecl() const { return isKw("const") || isKw("var") || atLetDecl(); }
+  bool atVarDecl() const { return isKw("const") || isKw("var") || atLetDecl() || (isId("using") && at(1).kind == Tok::Ident && !newlineAt(1)); }
 
   std::uint32_t declarator() {
     std::uint32_t st = cur().start;
@@ -714,8 +718,13 @@ struct Parser {
       std::uint32_t ms = cur().start;
       std::uint32_t fl = modifiers();
       std::string_view mname;
+      if (isP("[") && isId("Symbol", 1) && isP(".", 2) && isId("dispose", 3) && isP("]", 4)) {  // [Symbol.dispose]()
+        mname = s.substr(cur().start, at(4).end - cur().start);
+        i += 5;
+      } else {
       if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
       memberName(mname);
+      }
       if (isP("(") || isP("<")) {
         if (isP("<")) unsupported("generic methods");
         auto ps = params(false);
@@ -1032,7 +1041,31 @@ struct Parser {
       return mk(brk ? N::Break : N::Continue, st, prevEnd());
     }
     if (isKw("switch")) return switchStmt();
-    if (isKw("try") || isKw("throw")) unsupported("try and throw");
+    if (isKw("throw")) {
+      ++i;
+      if (newlineBefore()) fail(kZExpected, cur().start, "an expression after 'throw' on the same line");
+      std::uint32_t e = expression();
+      semi();
+      return mk(N::Throw, st, prevEnd(), {}, {e});
+    }
+    if (isKw("try")) {
+      ++i;
+      std::uint32_t body = block(), param = kNone, handler = kNone, fin = kNone;
+      if (isKw("catch")) {
+        ++i;
+        if (eatP("(")) {
+          if (cur().kind != Tok::Ident) unexpected();
+          param = mk(N::Ident, cur().start, cur().end, txt());
+          ++i;
+          if (eatP(":")) type();  // the variable is an Error whatever is written
+          expectP(")");
+        }
+        handler = block();
+      }
+      if (isKw("finally")) { ++i; fin = block(); }
+      if (handler == kNone && fin == kNone) fail(kZExpected, cur().start, "'catch' or 'finally'");
+      return mk(N::Try, st, prevEnd(), {}, {body, param, handler, fin});
+    }
     if (isId("type") && at(1).kind == Tok::Ident) {  // type Name<T> = Type;
       ++i;
       std::string_view name = txt(); ++i;
@@ -1065,7 +1098,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw"};
   return names[static_cast<int>(k)];
 }
 

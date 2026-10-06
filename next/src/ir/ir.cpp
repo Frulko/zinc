@@ -434,6 +434,8 @@ struct Verifier {
     if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) {
       if (!i.edges[0].args.empty()) return fail(b, ii, "an unwind edge carries no arguments");
       if (i.edges[0].to >= f.blocks.size() || i.edges[0].to == 0) return fail(b, ii, "unwind edge to a missing block");
+      const auto& hp = f.blocks[i.edges[0].to].params;
+      if (hp.size() != 1 || (m.types[tyOf(hp[0])].k != Type::K::Ref)) return fail(b, ii, "an unwind edge goes to a block whose only parameter is the exception");
     } else if (!isTerminator(i.op) && !i.edges.empty()) return fail(b, ii, "only calls and terminators have edges");
     bool hasRes = m.types[i.ty].k != Type::K::Void;
     if (i.res != kNoValue && !hasRes) return fail(b, ii, "a void instruction defines a value");
