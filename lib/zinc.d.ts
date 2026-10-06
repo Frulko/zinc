@@ -174,6 +174,8 @@ interface Math {
   sign(x: number): number; sqrt(x: number): number; pow(x: number, y: number): number;
   sin(x: number): number; cos(x: number): number; tan(x: number): number; atan2(y: number, x: number): number;
   exp(x: number): number; log(x: number): number; hypot(a: number, b: number): number;
+  cbrt(x: number): number; log2(x: number): number; log10(x: number): number; log1p(x: number): number; expm1(x: number): number;
+  asin(x: number): number; acos(x: number): number; sinh(x: number): number; cosh(x: number): number; tanh(x: number): number;
   fround(x: number): f32; imul(a: i32, b: i32): i32; clz32(x: i32): i32;
   /** Deterministic xorshift32; same sequence on sim and native. */
   random(): number;
