@@ -2,7 +2,9 @@
 // Untyped syntax tree: one uniform node type, kind-specific child layout (documented per kind). The checker (ZN-007)
 // builds typed information beside it. kNone marks an absent optional child.
 #include <cstdint>
+#include <deque>
 #include <string>
+#include <unordered_map>
 #include <string_view>
 #include <vector>
 
@@ -64,6 +66,7 @@ enum class N : std::uint8_t {
   TypeFunc,   // [returnType, Param...]
   TypeTuple,  // [element...]
   TypeLit,    // text=literal source
+  TypeParam,  // text=name  [constraint type|none]; listed in Ast::tparams, not among the declaration's kids
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.
@@ -82,8 +85,10 @@ struct Node {
 };
 
 struct Ast {
-  std::vector<Node> nodes;
+  std::deque<Node> nodes;  // a deque: references stay valid while the checker clones declarations
   std::uint32_t root = kNone;
+  // Type parameters of a generic Function, Class or Interface, and the explicit type arguments of a Call or New.
+  std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> tparams, targs;
 };
 
 struct Diag {

@@ -1,0 +1,131 @@
+class IntBox : Box<i32> { i }
+  vtable .twice -> @IntBox.twice
+  vtable .get -> @Box<i32>.get
+  vtable .set -> @Box<i32>.set
+class Box<i32> { i }
+  vtable .get -> @Box<i32>.get
+  vtable .set -> @Box<i32>.set
+class Pair<i32, f64> { i, f64 }
+  vtable .swap -> @Pair<i32, f64>.swap
+class Pair<f64, i32> { f64, i }
+  vtable .swap -> @Pair<f64, i32>.swap
+interface Getter<i32>
+  method .get
+class Box<f64> { f64 }
+  vtable .get -> @Box<f64>.get
+  vtable .set -> @Box<f64>.set
+func @main() -> void nregs=7
+   0  New      r0, Box<i32>
+   1  LoadI    r2, 7
+   2  Move     r1, r0
+   3  Call     r1, @Box<i32>.constructor
+   4  Move     r1, r0
+   5  Call     r1, @Box<i32>.get
+   6  AddI32K  r2, r1, 1
+   7  Move     r1, r0
+   8  Call     r1, @Box<i32>.set
+   9  New      r1, Pair<i32, f64>
+  10  LoadI    r3, 1
+  11  LoadK    r4, f64 2.5
+  12  Move     r2, r1
+  13  Call     r2, @Pair<i32, f64>.constructor
+  14  Move     r2, r1
+  15  Call     r2, @Pair<i32, f64>.swap
+  16  LoadK    r3, f64 5
+  17  Call     r3, @identity<f64>
+  18  LoadI    r4, 1
+  19  LoadK    r5, f64 1
+  20  LoadK    r6, f64 2
+  21  Call     r4, @pick<f64>
+  22  Move     r5, r0
+  23  Call     r5, @Box<i32>.get
+  24  GetField r0, r1, .0
+  25  GetField r1, r2, .0
+  26  GetField r2, r2, .1
+  27  LogF64   r3
+  28  LogSep   
+  29  LogF64   r4
+  30  LogSep   
+  31  LogI     r5
+  32  LogSep   
+  33  LogI     r0
+  34  LogSep   
+  35  LogF64   r1
+  36  LogSep   
+  37  LogI     r2
+  38  LogEnd   
+  39  New      r0, IntBox
+  40  LoadI    r2, 21
+  41  Move     r1, r0
+  42  Call     r1, @IntBox.constructor
+  43  Move     r1, r0
+  44  Call     r1, @IntBox.twice
+  45  LogI     r1
+  46  LogEnd   
+  47  Downcast r0, Box<i32>
+  48  Call     r0, @Box<i32>.get
+  49  LogI     r0
+  50  LogEnd   
+  51  New      r0, Box<f64>
+  52  LoadK    r2, f64 3.5
+  53  Move     r1, r0
+  54  Call     r1, @Box<f64>.constructor
+  55  Call     r0, @Box<f64>.get
+  56  LogF64   r0
+  57  LogEnd   
+  58  RetV     
+func @IntBox.twice(ref IntBox) -> i nregs=2
+   0  Call     r0, @Box<i32>.get
+   1  LoadI    r1, 2
+   2  MulI32   r0, r0, r1
+   3  Ret      r0
+func @IntBox.constructor(ref IntBox, i) -> void nregs=2
+   0  Call     r0, @Box<i32>.constructor
+   1  RetV     
+func @Box<i32>.constructor(ref Box<i32>, i) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     
+func @Box<i32>.get(ref Box<i32>) -> i nregs=1
+   0  GetField r0, r0, .0
+   1  Ret      r0
+func @Box<i32>.set(ref Box<i32>, i) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     
+func @Pair<f64, i32>.constructor(ref Pair<f64, i32>, f64, i) -> void nregs=3
+   0  SetField r0, r1, .0
+   1  SetField r0, r2, .1
+   2  RetV     
+func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=5
+   0  New      r1, Pair<i32, f64>
+   1  GetField r3, r0, .1
+   2  GetField r4, r0, .0
+   3  Move     r2, r1
+   4  Call     r2, @Pair<i32, f64>.constructor
+   5  Ret      r1
+func @Pair<i32, f64>.constructor(ref Pair<i32, f64>, i, f64) -> void nregs=3
+   0  SetField r0, r1, .0
+   1  SetField r0, r2, .1
+   2  RetV     
+func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=5
+   0  New      r1, Pair<f64, i32>
+   1  GetField r3, r0, .1
+   2  GetField r4, r0, .0
+   3  Move     r2, r1
+   4  Call     r2, @Pair<f64, i32>.constructor
+   5  Ret      r1
+func @identity<f64>(f64) -> f64 nregs=1
+   0  Ret      r0
+func @pick<f64>(i, f64, f64) -> f64 nregs=3
+   0  JmpIfNot r0, -> 2
+   1  Jmp      -> 3
+   2  Move     r1, r2
+   3  Ret      r1
+func @Box<f64>.constructor(ref Box<f64>, f64) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     
+func @Box<f64>.get(ref Box<f64>) -> f64 nregs=1
+   0  GetField r0, r0, .0
+   1  Ret      r0
+func @Box<f64>.set(ref Box<f64>, f64) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     

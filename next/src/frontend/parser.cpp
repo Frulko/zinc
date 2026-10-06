@@ -282,7 +282,17 @@ struct Parser {
 
   std::uint32_t postfix() {
     std::uint32_t e = isKw("new") ? newExpr() : primary();
+    std::vector<std::uint32_t> pendingTargs;  // explicit type arguments of the call being built: f<T>(x)
     for (;;) {
+      if (isP("<") && (r.ast.nodes[e].kind == N::Ident || r.ast.nodes[e].kind == N::Member)) {
+        std::size_t save = i, diagCount = r.diags.size();
+        bool ok = false;
+        try {
+          auto targs = typeArgs();
+          if (isP("(")) { pendingTargs = std::move(targs); ok = true; }
+        } catch (const Stop&) { r.diags.resize(diagCount); }
+        if (!ok) { i = save; return e; }  // an ordinary comparison
+      }
       if (isP(".") || isP("?.")) {
         bool opt = isP("?.");
         if (opt && (isP("[", 1) || isP("(", 1))) {
@@ -307,6 +317,7 @@ struct Parser {
         auto as = arguments();
         as.insert(as.begin(), e);
         e = mk(N::Call, startOf(e), prevEnd(), {}, std::move(as));
+        if (!pendingTargs.empty()) { r.ast.targs[e] = std::move(pendingTargs); pendingTargs.clear(); }
       } else if ((isP("++") || isP("--")) && !newlineBefore()) {
         std::string_view op = txt(); ++i;
         e = mk(N::UpdatePost, startOf(e), prevEnd(), op, {e});
@@ -327,10 +338,13 @@ struct Parser {
       std::string_view name = txt(); ++i;
       callee = mk(N::Member, startOf(callee), prevEnd(), name, {callee});
     }
-    if (isP("<")) unsupported("explicit type arguments");
+    std::vector<std::uint32_t> targs;
+    if (isP("<")) targs = typeArgs();
     std::vector<std::uint32_t> kids{callee};
     if (isP("(")) { auto as = arguments(); kids.insert(kids.end(), as.begin(), as.end()); }
-    return mk(N::New, st, prevEnd(), {}, std::move(kids));
+    std::uint32_t nid = mk(N::New, st, prevEnd(), {}, std::move(kids));
+    if (!targs.empty()) r.ast.targs[nid] = std::move(targs);
+    return nid;
   }
 
   // Raw text of a template piece without its delimiters (`, ${ and }), as a String node.
@@ -436,20 +450,49 @@ struct Parser {
     return mk(N::VarDecl, st, prevEnd(), kind, std::move(ds));
   }
 
+  // `<T, U extends Foo>` at a declaration
+  std::vector<std::uint32_t> typeParams() {
+    ++i;  // <
+    std::vector<std::uint32_t> ps;
+    while (!isP(">")) {
+      std::uint32_t st = cur().start;
+      if (cur().kind != Tok::Ident) unexpected();
+      std::string_view name = txt(); ++i;
+      std::uint32_t cons = kNone;
+      if (isKw("extends")) { ++i; cons = type(); }
+      if (isP("=")) unsupported("type parameter defaults");
+      ps.push_back(mk(N::TypeParam, st, prevEnd(), name, {cons}));
+      if (!eatP(",")) break;
+    }
+    expectP(">");
+    return ps;
+  }
+  // `<A, B>` at a use: the explicit type arguments of a call or new
+  std::vector<std::uint32_t> typeArgs() {
+    ++i;  // <
+    std::vector<std::uint32_t> as;
+    while (!isP(">")) { as.push_back(type()); if (!eatP(",")) break; }
+    expectP(">");
+    return as;
+  }
+
   std::uint32_t function() {
     std::uint32_t st = cur().start;
     ++i;  // function
     if (isP("*")) unsupported("generators");
     if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
-    if (isP("<")) unsupported("generics");
+    std::vector<std::uint32_t> tps;
+    if (isP("<")) tps = typeParams();
     auto ps = params(false);
     std::uint32_t ret = kNone;
     if (eatP(":")) ret = type();
     std::uint32_t body = isP("{") ? block() : (semi(), kNone);
     std::vector<std::uint32_t> kids{ret, body};
     kids.insert(kids.end(), ps.begin(), ps.end());
-    return mk(N::Function, st, prevEnd(), name, std::move(kids));
+    std::uint32_t fid = mk(N::Function, st, prevEnd(), name, std::move(kids));
+    if (!tps.empty()) r.ast.tparams[fid] = std::move(tps);
+    return fid;
   }
 
   // Modifiers before a member name; a word is a modifier only when a member name follows it.
@@ -522,7 +565,8 @@ struct Parser {
     ++i;  // class
     if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
-    if (isP("<")) unsupported("generics");
+    std::vector<std::uint32_t> tps;
+    if (isP("<")) tps = typeParams();
     std::uint32_t ext = kNone, impl = kNone;
     if (isKw("extends")) {
       ++i;
@@ -542,7 +586,7 @@ struct Parser {
       std::string_view mname;
       memberName(mname);
       if (isP("(") || isP("<")) {
-        if (isP("<")) unsupported("generics");
+        if (isP("<")) unsupported("generic methods");
         auto ps = params(false);
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
@@ -572,6 +616,7 @@ struct Parser {
     kids.insert(kids.end(), members.begin(), members.end());
     std::uint32_t id = mk(N::Class, st, prevEnd(), name, std::move(kids));
     r.ast.nodes[id].flags = classFlags;
+    if (!tps.empty()) r.ast.tparams[id] = std::move(tps);
     return id;
   }
 
@@ -580,7 +625,8 @@ struct Parser {
     ++i;  // interface
     if (cur().kind != Tok::Ident) unexpected();
     std::string_view name = txt(); ++i;
-    if (isP("<")) unsupported("generics");
+    std::vector<std::uint32_t> tps;
+    if (isP("<")) tps = typeParams();
     std::uint32_t ext = kNone;
     if (isKw("extends")) { ++i; ext = heritage(); }
     expectP("{");
@@ -594,7 +640,7 @@ struct Parser {
       memberName(mname);
       if (isP("?")) unsupported("optional members");
       if (isP("(") || isP("<")) {
-        if (isP("<")) unsupported("generics");
+        if (isP("<")) unsupported("generic methods");
         auto ps = params(false);
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
@@ -614,7 +660,9 @@ struct Parser {
       }
     }
     ++i;
-    return mk(N::Interface, st, prevEnd(), name, std::move(kids));
+    std::uint32_t id = mk(N::Interface, st, prevEnd(), name, std::move(kids));
+    if (!tps.empty()) r.ast.tparams[id] = std::move(tps);
+    return id;
   }
 
   std::uint32_t forStmt() {
@@ -715,7 +763,7 @@ const char* kindName(N k) {
       "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
-      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit"};
+      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam"};
   return names[static_cast<int>(k)];
 }
 
@@ -733,6 +781,16 @@ void dumpNode(const Ast& a, std::uint32_t n, int depth, std::string& out) {
     out += "]";
   }
   out += '\n';
+  auto tp = a.tparams.find(n);
+  if (tp != a.tparams.end()) {
+    out.append(static_cast<std::size_t>(depth + 1) * 2, ' '); out += "TypeParams\n";
+    for (std::uint32_t k : tp->second) dumpNode(a, k, depth + 2, out);
+  }
+  auto ta = a.targs.find(n);
+  if (ta != a.targs.end()) {
+    out.append(static_cast<std::size_t>(depth + 1) * 2, ' '); out += "TypeArgs\n";
+    for (std::uint32_t k : ta->second) dumpNode(a, k, depth + 2, out);
+  }
   for (std::uint32_t k : x.kids) dumpNode(a, k, depth + 1, out);
 }
 

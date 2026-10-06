@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <map>
+#include <memory>
 #include <unordered_map>
 
 #include "frontend/lexer.h"
@@ -29,9 +31,11 @@ bool numFromName(std::string_view s, Num& out) {
 }
 
 struct Checker {
-  const Ast& a;
+  Ast& a;
   Checked out;
-  std::vector<std::unordered_map<std::string_view, std::uint32_t>> scopes;
+  using Scope = std::unordered_map<std::string_view, std::uint32_t>;
+  // Scopes are shared so a snapshot (a generic declaration's) sees names declared in its scope later.
+  std::vector<std::shared_ptr<Scope>> scopes;
   std::vector<std::function<void()>>* defer = nullptr;
   TypeId curRet = kNoType;      // return type of the enclosing function
   std::uint32_t curClass = kNone;  // ObjInfo index of the enclosing class
@@ -43,7 +47,7 @@ struct Checker {
   bool pendingExempt = false;                              // evaluating the target of `this.f = ...`
   int loops = 0;
 
-  explicit Checker(const Ast& ast) : a(ast) {
+  explicit Checker(Ast& ast) : a(ast) {
     out.nodeType.assign(a.nodes.size(), kNoType);
     out.nodeSym.assign(a.nodes.size(), kNone);
     for (TK k : {TK::Error, TK::Any, TK::Bool, TK::Str, TK::Void, TK::Null}) { Type t; t.k = k; out.types.push_back(t); }
@@ -111,6 +115,7 @@ struct Checker {
 
   bool assignable(TypeId from, TypeId to, std::uint32_t node) {
     if (from == to || bad(from) || bad(to) || ty(to).k == TK::Any) return true;
+    if (ty(from).k == TK::Param) { TypeId c = out.tparams[ty(from).obj].constraint; return c != kNoType && assignable(c, to, node); }
     const Type &f = ty(from), &t = ty(to);
     if (f.k == TK::Num && t.k == TK::Num) {
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
@@ -126,17 +131,17 @@ struct Checker {
   }
 
   // ---- scopes
-  void push() { scopes.emplace_back(); }
+  void push() { scopes.push_back(std::make_shared<Scope>()); }
   void pop() { scopes.pop_back(); }
   std::uint32_t declare(SymKind k, std::string_view nm, TypeId t, std::uint32_t decl, bool isConst, std::uint32_t at) {
-    if (scopes.back().count(nm)) { diag(kZDuplicateDeclaration, at, "'" + std::string(nm) + "'"); return scopes.back()[nm]; }
+    if (scopes.back()->count(nm)) { diag(kZDuplicateDeclaration, at, "'" + std::string(nm) + "'"); return (*scopes.back())[nm]; }
     out.syms.push_back({k, nm, t, decl, isConst});
     auto id = static_cast<std::uint32_t>(out.syms.size() - 1);
-    scopes.back()[nm] = id;
+    (*scopes.back())[nm] = id;
     return id;
   }
   std::uint32_t lookup(std::string_view nm) const {
-    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) { auto f = it->find(nm); if (f != it->end()) return f->second; }
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) { auto f = (*it)->find(nm); if (f != (*it)->end()) return f->second; }
     return kNone;
   }
 
@@ -176,9 +181,18 @@ struct Checker {
         else if (x.kids.empty() && x.text == "null") r = tNull;
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
         else {
-          std::uint32_t s = x.kids.empty() ? lookup(x.text) : kNone;
-          if (s != kNone && out.syms[s].kind == SymKind::Class) r = out.syms[s].type;
-          else diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
+          std::uint32_t s = lookup(x.text);
+          if (s == kNone) diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
+          else if (out.syms[s].kind == SymKind::TypeAlias && x.kids.empty()) r = out.syms[s].type;
+          else if (out.syms[s].kind == SymKind::Class && x.kids.empty()) r = out.syms[s].type;
+          else if (out.syms[s].kind == SymKind::GenericClass) {
+            std::vector<TypeId> args;
+            for (std::uint32_t k : x.kids) args.push_back(annotation(k));
+            std::uint32_t inst = args.size() == generics[s].tp.size() ? instantiateClass(s, args, t) : kNone;
+            if (inst != kNone) r = out.syms[inst].type;
+            else if (args.size() != generics[s].tp.size()) diag(kZCannotInfer, t, "'" + std::string(x.text) + "' needs " + std::to_string(generics[s].tp.size()) + " type argument(s)");
+          } else if (!x.kids.empty()) diag(kZNotAssignable, t, "'" + std::string(x.text) + "' is not generic");
+          else diag(kZCannotFindName, t, "'" + std::string(x.text) + "' is not a type");
         }
         break;
       }
@@ -245,6 +259,8 @@ struct Checker {
     if (op == ",") { expr(le); return expr(re); }
     if (op == "in" || op == "instanceof" || op == "??") { diag(kZUnsupported, i, "operator '" + op + "'"); return tError; }
     TypeId l = expr(le), r = expr(re);
+    bool eqOp = op == "==" || op == "!=" || op == "===" || op == "!==";
+    if (!eqOp) { l = appOrDiag(l, le); r = appOrDiag(r, re); }
     if (bad(l) || bad(r)) return (op == "&&" || op == "||" || op == "==" || op == "!=" || op == "===" || op == "!==" || op == "<" || op == ">" || op == "<=" || op == ">=") ? tBool : tError;
     auto fail = [&]() { diag(kZBadOperand, i, "'" + op + "' on '" + name(l) + "' and '" + name(r) + "'"); return tError; };
     if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "'" + name(l == tBool ? r : l) + "' to 'boolean'"), tBool);
@@ -283,9 +299,26 @@ struct Checker {
     std::uint32_t callee = x.kids[0];
     TypeId ft = kNoType;
     TypeId result = tError;
+    bool preEvaluated = false;  // generic calls evaluate their arguments first to infer type arguments
+    const std::vector<std::uint32_t> argNodes(x.kids.begin() + 1, x.kids.end());
     if (isNew) {
       const Node& c = n(callee);
       std::uint32_t s = c.kind == N::Ident ? lookup(c.text) : kNone;
+      if (s != kNone && out.syms[s].kind == SymKind::GenericClass) {
+        for (std::uint32_t an : argNodes) expr(an);
+        preEvaluated = true;
+        GenericDecl& g = generics[s];
+        ensureSelf(g);
+        std::uint32_t ts = instantiateClass(s, g.selfParams, callee);
+        if (ts == kNone) return tError;
+        TypeId ctorT = out.objs[ty(out.syms[ts].type).obj].ctor;
+        if (ctorT == kNoType) ctorT = func({}, tVoid, 0);
+        std::vector<TypeId> targs = typeArgsFor(s, i, argNodes, ctorT);
+        if (targs.empty()) return tError;
+        std::uint32_t inst = instantiateClass(s, targs, callee);
+        if (inst == kNone) return tError;
+        s = inst;
+      }
       if (s == kNone || out.syms[s].kind != SymKind::Class) {
         if (c.kind == N::Ident && s == kNone) diag(kZCannotFindName, callee, "'" + std::string(c.text) + "'");
         else diag(kZNotCallable, callee, "only classes can be used with new");
@@ -313,8 +346,25 @@ struct Checker {
       if (ft == kNoType) ft = func({}, tVoid, 0);
       result = tVoid;
     } else {
-      TypeId ct = expr(callee);
-      if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]); return tError; }
+      TypeId ct;
+      const Node& cn = n(callee);
+      std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
+      if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
+        for (std::uint32_t an : argNodes) expr(an);
+        preEvaluated = true;
+        GenericDecl& g = generics[gs];
+        ensureSelf(g);
+        std::uint32_t ts = instantiateFunc(gs, g.selfParams, callee);
+        if (ts == kNone) return tError;
+        std::vector<TypeId> targs = typeArgsFor(gs, i, argNodes, out.syms[ts].type);
+        if (targs.empty()) return tError;
+        std::uint32_t inst = instantiateFunc(gs, targs, callee);
+        if (inst == kNone) return tError;
+        out.nodeSym[callee] = inst;
+        ct = out.syms[inst].type;
+        out.nodeType[callee] = ct;
+      } else ct = expr(callee);
+      if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ty(ct).k != TK::Func) {
         diag(kZNotCallable, callee, "'" + name(ct) + "'");
         for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]);
@@ -332,7 +382,7 @@ struct Checker {
       std::uint32_t arg = x.kids[k + 1];
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
-      TypeId at = expr(arg, expected);
+      TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
       if (expected != kNoType) require(at, expected, arg);
     }
     return result;
@@ -354,7 +404,9 @@ struct Checker {
         std::uint32_t s = lookup(x.text);
         if (s == kNone) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }
         out.nodeSym[i] = s;
-        if (out.syms[s].kind == SymKind::Class) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
+        if (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
+        if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
+        if (out.syms[s].kind == SymKind::TypeAlias) { diag(kZNotAllowedHere, i, "type parameter '" + std::string(x.text) + "' used as a value"); return tError; }
         return out.syms[s].type;
       }
       case N::Array: {
@@ -378,6 +430,7 @@ struct Checker {
       case N::Unary: {
         const std::string op(x.text);
         TypeId t = expr(x.kids[0]);
+        if (op != "typeof" && op != "void" && op != "delete") t = appOrDiag(t, x.kids[0]);
         if (bad(t)) return op == "!" ? tBool : tError;
         if (op == "!") { if (t != tBool) diag(kZNotAssignable, x.kids[0], "'" + name(t) + "' to 'boolean'"); return tBool; }
         if (op == "typeof") return tStr;
@@ -387,11 +440,12 @@ struct Checker {
         return op == "~" ? num(Num::i32) : t;
       }
       case N::UpdatePre: case N::UpdatePost: {
-        TypeId t = expr(x.kids[0]);
+        TypeId t0 = expr(x.kids[0]);
+        TypeId t = appOrDiag(t0, x.kids[0]);
         if (bad(t)) return tError;
         if (!isNum(t)) { diag(kZBadOperand, i, "'" + std::string(x.text) + "' on '" + name(t) + "'"); return tError; }
         lvalue(x.kids[0]);
-        return t;
+        return t0;
       }
       case N::Assign: {
         std::uint32_t target = x.kids[0], value = x.kids[1];
@@ -454,6 +508,8 @@ struct Checker {
         }
         TypeId ot = expr(x.kids[0]);
         if (bad(ot)) return tError;
+        ot = appOrDiag(ot, x.kids[0]);
+        if (bad(ot)) return tError;
         if (on.kind == N::This && ctorStmts && !pendingExempt && std::find(ctorPending.begin(), ctorPending.end(), std::string(x.text)) != ctorPending.end())
           diag(kZUninitializedField, i, "'" + std::string(x.text) + "' is read before it is assigned");
         Member scratch;
@@ -465,6 +521,7 @@ struct Checker {
       }
       case N::Index: {
         TypeId ot = expr(x.kids[0]), it = expr(x.kids[1]);
+        ot = appOrDiag(ot, x.kids[0]); it = appOrDiag(it, x.kids[1]);
         if (bad(ot) || bad(it)) return tError;
         if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
         if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "'" + name(it) + "' to 'number'"); return tError; }
@@ -580,7 +637,8 @@ struct Checker {
   }
 
   // ---- functions and classes
-  TypeId signature(const Node& f, std::size_t firstParam, bool isCtor, std::vector<std::uint32_t>& params) {
+  TypeId signature(std::uint32_t fid, std::size_t firstParam, bool isCtor, std::vector<std::uint32_t>& params) {
+    const Node& f = n(fid);
     std::vector<TypeId> ps;
     std::uint32_t minArgs = 0;
     bool optional = false;
@@ -600,7 +658,7 @@ struct Checker {
     TypeId ret = tVoid;
     if (!isCtor) {
       if (f.kids[0] != kNone) ret = annotation(f.kids[0]);
-      else if (f.kids[1] == kNone) { diag(kZCannotInfer, static_cast<std::uint32_t>(&f - a.nodes.data()), "return type of '" + std::string(f.text) + "'"); ret = tError; }
+      else if (f.kids[1] == kNone) { diag(kZCannotInfer, fid, "return type of '" + std::string(f.text) + "'"); ret = tError; }
       else if (hasValueReturn(a, f.kids[1])) { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; }
     }
     return func(std::move(ps), ret, minArgs);
@@ -622,6 +680,277 @@ struct Checker {
     pop();
     if (!isCtor && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
+  }
+
+  // ---- generics: templates are checked once over opaque type parameters, then instantiated by cloning their nodes
+  struct GenericDecl {
+    std::uint32_t node = kNone;
+    std::vector<std::uint32_t> tp;                      // TypeParam nodes
+    std::vector<std::shared_ptr<Scope>> scopes;         // scope chain at the declaration
+    std::vector<TypeId> selfParams;                     // the template's own Param types
+    std::map<std::vector<TypeId>, std::uint32_t> inst;  // type arguments -> instance symbol
+    bool isFunc = false;
+  };
+  std::unordered_map<std::uint32_t, GenericDecl> generics;  // by symbol
+  int instDepth = 0;
+  std::unordered_map<std::uint32_t, std::function<void()>> pendingBuild;  // class member collection not yet done, by object
+
+  struct Ctx {
+    std::vector<std::shared_ptr<Scope>> scopes;
+    TypeId curRet; std::uint32_t curClass, curCtor; bool curStatic, immediate, pendingExempt; int loops;
+    const std::vector<std::uint32_t>* ctorStmts; std::vector<std::string> ctorPending;
+  };
+  Ctx saveCtx() const { return {scopes, curRet, curClass, curCtor, curStatic, immediate, pendingExempt, loops, ctorStmts, ctorPending}; }
+  void restoreCtx(const Ctx& c) {
+    scopes = c.scopes; curRet = c.curRet; curClass = c.curClass; curCtor = c.curCtor; curStatic = c.curStatic; immediate = c.immediate;
+    pendingExempt = c.pendingExempt; loops = c.loops; ctorStmts = c.ctorStmts; ctorPending = c.ctorPending;
+  }
+  void ensureBuilt(std::uint32_t obj) {
+    auto it = pendingBuild.find(obj);
+    if (it == pendingBuild.end()) return;
+    auto f = std::move(it->second);
+    pendingBuild.erase(it);
+    f();
+  }
+
+  TypeId paramType(std::uint32_t idx) { Type t; t.k = TK::Param; t.obj = idx; return intern(t); }
+  bool hasParam(TypeId t) const {
+    const Type& x = ty(t);
+    switch (x.k) {
+      case TK::Param: return true;
+      case TK::Array: return hasParam(x.elem);
+      case TK::Func: { if (hasParam(x.elem)) return true; for (TypeId p : x.params) if (hasParam(p)) return true; return false; }
+      case TK::Object: { for (TypeId p : out.objs[x.obj].typeArgs) if (hasParam(p)) return true; return false; }
+      default: return false;
+    }
+  }
+  bool anyParam(const std::vector<TypeId>& v) const { for (TypeId t : v) if (hasParam(t)) return true; return false; }
+  // The type whose members and operators apply: a type parameter acts as its constraint.
+  TypeId app(TypeId t) const {
+    for (int k = 0; k < 16 && ty(t).k == TK::Param; ++k) {
+      TypeId c = out.tparams[ty(t).obj].constraint;
+      if (c == kNoType) return tError;
+      t = c;
+    }
+    return t;
+  }
+
+  // `app`, reporting an operation on an unconstrained type parameter.
+  TypeId appOrDiag(TypeId t, std::uint32_t node) {
+    if (ty(t).k != TK::Param) return t;
+    TypeId r = app(t);
+    if (bad(r)) diag(kZBadOperand, node, "type parameter '" + name(t) + "' has no constraint that allows this");
+    return r;
+  }
+
+  std::uint32_t cloneNode(std::uint32_t id, bool dropTParams) {
+    if (id == kNone) return kNone;
+    Node copy = a.nodes[id];
+    for (auto& k : copy.kids) k = cloneNode(k, false);
+    a.nodes.push_back(copy);
+    auto nid = static_cast<std::uint32_t>(a.nodes.size() - 1);
+    out.nodeType.push_back(kNoType);
+    out.nodeSym.push_back(kNone);
+    if (!dropTParams) {
+      auto it = a.tparams.find(id);
+      if (it != a.tparams.end()) { auto src = it->second; std::vector<std::uint32_t> v; for (std::uint32_t t : src) v.push_back(cloneNode(t, false)); a.tparams[nid] = std::move(v); }
+    }
+    auto ta = a.targs.find(id);
+    if (ta != a.targs.end()) { auto src = ta->second; std::vector<std::uint32_t> v; for (std::uint32_t t : src) v.push_back(cloneNode(t, false)); a.targs[nid] = std::move(v); }
+    return nid;
+  }
+
+  template <class F> void withAliasScope(const GenericDecl& g, const std::vector<TypeId>& args, F&& fn) {
+    Ctx saved = saveCtx();
+    scopes = g.scopes;
+    push();
+    for (std::size_t i = 0; i < g.tp.size(); ++i) declare(SymKind::TypeAlias, n(g.tp[i]).text, args[i], g.tp[i], true, g.tp[i]);
+    fn();
+    restoreCtx(saved);
+  }
+
+  void ensureSelf(GenericDecl& g) {
+    if (!g.selfParams.empty() || g.tp.empty()) return;
+    std::vector<std::uint32_t> idx;
+    for (std::uint32_t tpn : g.tp) {
+      out.tparams.push_back({std::string(n(tpn).text), kNoType});
+      idx.push_back(static_cast<std::uint32_t>(out.tparams.size() - 1));
+      g.selfParams.push_back(paramType(idx.back()));
+    }
+    withAliasScope(g, g.selfParams, [&]() {
+      for (std::size_t i = 0; i < g.tp.size(); ++i)
+        if (n(g.tp[i]).kids[0] != kNone) out.tparams[idx[i]].constraint = annotation(n(g.tp[i]).kids[0]);
+    });
+  }
+
+  std::string argsText(const std::vector<TypeId>& args) const {
+    std::string s = "<";
+    for (std::size_t i = 0; i < args.size(); ++i) s += (i ? ", " : "") + name(args[i]);
+    return s + ">";
+  }
+
+  bool checkConstraints(GenericDecl& g, const std::vector<TypeId>& args, std::uint32_t at) {
+    bool ok = true;
+    withAliasScope(g, args, [&]() {
+      for (std::size_t i = 0; i < g.tp.size(); ++i) {
+        if (n(g.tp[i]).kids[0] == kNone) continue;
+        TypeId c = annotation(n(g.tp[i]).kids[0]);
+        if (!assignable(args[i], c, kNone)) { diag(kZNotAssignable, at, "type argument '" + name(args[i]) + "' does not satisfy '" + name(c) + "'"); ok = false; }
+      }
+    });
+    return ok;
+  }
+
+  // The instance symbol of generic function `gsym` for these type arguments (kNone on failure).
+  std::uint32_t instantiateFunc(std::uint32_t gsym, const std::vector<TypeId>& args, std::uint32_t at) {
+    GenericDecl& g = generics[gsym];
+    auto hit = g.inst.find(args);
+    if (hit != g.inst.end()) return hit->second;
+    if (instDepth >= 64) { diag(kZCannotInfer, at, "generic instantiation is nested too deeply"); return kNone; }
+    ++instDepth;
+    ensureSelf(g);
+    if (!anyParam(args) && !checkConstraints(g, args, at)) { --instDepth; return kNone; }
+    std::uint32_t symId = kNone;
+    withAliasScope(g, args, [&]() {
+      std::uint32_t clone = cloneNode(g.node, true);
+      std::vector<std::uint32_t> ps;
+      TypeId sig = signature(clone, 2, false, ps);
+      out.nodeType[clone] = sig;
+      out.syms.push_back({SymKind::Func, n(g.node).text, sig, clone, true});
+      symId = static_cast<std::uint32_t>(out.syms.size() - 1);
+      out.nodeSym[clone] = symId;
+      g.inst[args] = symId;
+      if (!anyParam(args)) { out.instances.push_back(clone); out.nodeNames[clone] = std::string(n(g.node).text) + argsText(args); }
+      auto snap = scopes;  // includes the alias scope
+      defer->push_back([this, clone, sig, ps, snap]() {
+        Ctx sv = saveCtx();
+        scopes = snap; curClass = kNoObj; curCtor = kNoObj; curStatic = false;
+        checkBody(clone, sig, ps, false);
+        restoreCtx(sv);
+      });
+    });
+    --instDepth;
+    return symId;
+  }
+
+  // Links a class to its base class and an interface to the interfaces it extends (generic bases are instantiated).
+  void resolveHeritage(std::uint32_t s, std::uint32_t oi) {
+    const Node& cn = n(s);
+    auto resolve = [&](std::uint32_t refNode, bool wantInterface) -> std::uint32_t {
+      const Node& rn = n(refNode);
+      std::uint32_t sy = lookup(rn.text);
+      if (sy == kNone) { diag(kZCannotFindName, refNode, "'" + std::string(rn.text) + "'"); return kNoObj; }
+      std::uint32_t o = kNoObj;
+      if (out.syms[sy].kind == SymKind::GenericClass) {
+        std::vector<TypeId> args;
+        for (std::uint32_t k : rn.kids) args.push_back(annotation(k));
+        if (args.size() != generics[sy].tp.size()) { diag(kZCannotInfer, refNode, "'" + std::string(rn.text) + "' needs " + std::to_string(generics[sy].tp.size()) + " type argument(s)"); return kNoObj; }
+        std::uint32_t inst = instantiateClass(sy, args, refNode);
+        if (inst == kNone) return kNoObj;
+        o = ty(out.syms[inst].type).obj;
+      } else if (out.syms[sy].kind == SymKind::Class && rn.kids.empty()) {
+        o = ty(out.syms[sy].type).obj;
+      } else { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
+      if (out.objs[o].isInterface != wantInterface) { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
+      return o;
+    };
+    if (cn.kind == N::Class && cn.kids[0] != kNone) {
+      out.objs[oi].parent = resolve(cn.kids[0], false);
+      std::uint32_t po = out.objs[oi].parent;
+      if (po != kNoObj && out.objs[po].genericSym == kNoObj) {
+        std::uint32_t ps = lookup(n(cn.kids[0]).text);
+        if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
+      }
+    }
+    if (cn.kind == N::Interface && cn.kids[0] != kNone)
+      for (std::uint32_t r : std::vector<std::uint32_t>(n(cn.kids[0]).kids)) { std::uint32_t io = resolve(r, true); if (io != kNoObj) out.objs[oi].ifaces.push_back(io); }
+  }
+
+  // The class symbol of generic class or interface `gsym` for these type arguments (kNone on failure).
+  std::uint32_t instantiateClass(std::uint32_t gsym, const std::vector<TypeId>& args, std::uint32_t at) {
+    GenericDecl& g = generics[gsym];
+    auto hit = g.inst.find(args);
+    if (hit != g.inst.end()) return hit->second;
+    if (instDepth >= 64) { diag(kZCannotInfer, at, "generic instantiation is nested too deeply"); return kNone; }
+    ++instDepth;
+    ensureSelf(g);
+    if (!anyParam(args) && !checkConstraints(g, args, at)) { --instDepth; return kNone; }
+    std::uint32_t symId = kNone;
+    withAliasScope(g, args, [&]() {
+      const Node& tn = n(g.node);
+      ObjInfo info;
+      info.name = std::string(tn.text) + argsText(args);
+      info.isClass = tn.kind == N::Class;
+      info.isInterface = tn.kind == N::Interface;
+      info.isAbstract = (tn.flags & frontend::kFlagAbstract) != 0;
+      info.genericSym = gsym; info.typeArgs = args; info.isTemplate = anyParam(args);
+      out.objs.push_back(info);
+      auto oi = static_cast<std::uint32_t>(out.objs.size() - 1);
+      TypeId t = objType(oi);
+      std::uint32_t clone = cloneNode(g.node, true);
+      out.nodeType[clone] = t;
+      out.syms.push_back({SymKind::Class, tn.text, t, clone, true});
+      symId = static_cast<std::uint32_t>(out.syms.size() - 1);
+      out.nodeSym[clone] = symId;
+      g.inst[args] = symId;
+      resolveHeritage(clone, oi);
+      ensureBuilt(out.objs[oi].parent);
+      for (std::uint32_t pi : out.objs[oi].ifaces) ensureBuilt(pi);
+      classMembers(clone, oi);
+      if (!anyParam(args)) out.instances.push_back(clone);
+    });
+    --instDepth;
+    return symId;
+  }
+
+  // ---- inference: bind the template's own type parameters from the argument types
+  bool unify(const GenericDecl& g, TypeId p, TypeId arg, std::vector<TypeId>& bound, std::uint32_t argNode) {
+    const Type& pt = ty(p);
+    if (pt.k == TK::Param) {
+      for (std::size_t i = 0; i < g.selfParams.size(); ++i) {
+        if (g.selfParams[i] != p) continue;
+        if (bound[i] == kNoType) { bound[i] = arg; return true; }
+        if (bound[i] == arg) return true;
+        if (assignable(arg, bound[i], argNode)) return true;
+        if (assignable(bound[i], arg, kNone)) { bound[i] = arg; return true; }
+        diag(kZNotAssignable, argNode, "'" + name(arg) + "' to '" + name(bound[i]) + "' for type parameter '" + out.tparams[pt.obj].name + "'");
+        return false;
+      }
+      return true;  // a type parameter of an enclosing template: no binding, the argument check decides
+    }
+    const Type& at = ty(arg);
+    if (pt.k == TK::Array && at.k == TK::Array) return unify(g, pt.elem, at.elem, bound, argNode);
+    if (pt.k == TK::Func && at.k == TK::Func && pt.params.size() == at.params.size()) {
+      for (std::size_t i = 0; i < pt.params.size(); ++i) if (!unify(g, pt.params[i], at.params[i], bound, argNode)) return false;
+      return unify(g, pt.elem, at.elem, bound, argNode);
+    }
+    if (pt.k == TK::Object && at.k == TK::Object) {
+      const ObjInfo &po = out.objs[pt.obj], &ao = out.objs[at.obj];
+      if (po.genericSym != kNoObj && po.genericSym == ao.genericSym && po.typeArgs.size() == ao.typeArgs.size()) {
+        for (std::size_t i = 0; i < po.typeArgs.size(); ++i) if (!unify(g, po.typeArgs[i], ao.typeArgs[i], bound, argNode)) return false;
+      }
+    }
+    return true;
+  }
+
+  // Type arguments of a call or new: explicit ones, else inferred from the already evaluated argument types. Empty on failure.
+  std::vector<TypeId> typeArgsFor(std::uint32_t gsym, std::uint32_t callNode, const std::vector<std::uint32_t>& argNodes, TypeId templateFunc) {
+    GenericDecl& g = generics[gsym];
+    ensureSelf(g);
+    auto ex = a.targs.find(callNode);
+    if (ex != a.targs.end()) {
+      std::vector<TypeId> args;
+      for (std::uint32_t t : std::vector<std::uint32_t>(ex->second)) args.push_back(annotation(t));
+      if (args.size() != g.tp.size()) { diag(kZWrongArgCount, callNode, "expected " + std::to_string(g.tp.size()) + " type argument(s), got " + std::to_string(args.size())); return {}; }
+      return args;
+    }
+    std::vector<TypeId> bound(g.tp.size(), kNoType);
+    const Type f = ty(templateFunc);
+    for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)
+      if (!unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
+    for (std::size_t i = 0; i < bound.size(); ++i)
+      if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }
+    return bound;
   }
 
   // Members of a class or interface node, in order.
@@ -670,7 +999,7 @@ struct Checker {
         mem.type = t; mem.readonly = (fl & frontend::kFlagReadonly) != 0;
       } else {
         std::vector<std::uint32_t> ps;
-        TypeId sig = signature(mn, 2, isCtor, ps);
+        TypeId sig = signature(m, 2, isCtor, ps);
         out.nodeType[m] = sig;
         if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
         mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
@@ -693,10 +1022,11 @@ struct Checker {
       if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs);
       // `implements I`: every member of I must be present with the same type
       if (c.kids[1] != kNone)
-        for (std::uint32_t r : n(c.kids[1]).kids) {
-          std::uint32_t is = lookup(n(r).text);
-          if (is == kNone || out.syms[is].kind != SymKind::Class || !out.objs[ty(out.syms[is].type).obj].isInterface) { diag(kZInvalidHierarchy, r, "'implements' needs an interface"); continue; }
-          std::uint32_t io = ty(out.syms[is].type).obj;
+        for (std::uint32_t r : std::vector<std::uint32_t>(n(c.kids[1]).kids)) {
+          TypeId it = annotation(r);
+          if (bad(it)) continue;
+          if (ty(it).k != TK::Object || !out.objs[ty(it).obj].isInterface) { diag(kZInvalidHierarchy, r, "'implements' needs an interface"); continue; }
+          std::uint32_t io = ty(it).obj;
           for (const Member& im : out.objs[io].members) {
             const Member* m = lookupMember(objIdx, im.name, false);
             if (!m || !m->method || m->type != im.type || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
@@ -731,7 +1061,10 @@ struct Checker {
         if (!assigned) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
       }
     }
-    defer->push_back([this, objIdx, methods, methodParams, mems]() {
+    auto snapScopes = scopes;
+    defer->push_back([this, objIdx, methods, methodParams, mems, snapScopes]() {
+      Ctx savedCtx = saveCtx();
+      scopes = snapScopes;
       std::uint32_t saved = curClass;
       bool savedStatic = curStatic, savedImmediate = immediate;
       curClass = objIdx;
@@ -765,6 +1098,7 @@ struct Checker {
       }
       curClass = saved;
       curStatic = savedStatic;
+      restoreCtx(savedCtx);
     });
   }
 
@@ -774,8 +1108,22 @@ struct Checker {
     defer = &mine;
     // hoist classes and interfaces first (functions may mention them), then functions
     std::vector<std::pair<std::uint32_t, std::uint32_t>> classes;
+    std::vector<std::uint32_t> genericSyms;
+    for (std::uint32_t s : stmts) {
+      N k = n(s).kind;
+      if (k != N::Class && k != N::Interface && k != N::Function) continue;
+      auto tp = a.tparams.find(s);
+      if (tp == a.tparams.end()) continue;
+      std::uint32_t gs = declare(k == N::Function ? SymKind::GenericFunc : SymKind::GenericClass, n(s).text, kNoType, s, true, s);
+      out.nodeSym[s] = gs;
+      GenericDecl g;
+      g.node = s; g.tp = tp->second; g.scopes = scopes; g.isFunc = k == N::Function;
+      generics[gs] = std::move(g);
+      genericSyms.push_back(gs);
+    }
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Class && n(s).kind != N::Interface) continue;
+      if (a.tparams.count(s)) continue;
       ObjInfo info;
       info.name = std::string(n(s).text);
       info.isClass = n(s).kind == N::Class;
@@ -788,54 +1136,33 @@ struct Checker {
       out.nodeSym[s] = declare(SymKind::Class, n(s).text, t, s, true, s);
       classes.push_back({s, oi});
     }
-    // resolve `extends` (and an interface's extended interfaces) before members, so bases are collected first
-    auto resolve = [&](std::uint32_t refNode, bool wantInterface) -> std::uint32_t {
-      std::uint32_t sy = n(refNode).kids.empty() ? lookup(n(refNode).text) : kNone;
-      if (sy == kNone) { diag(kZCannotFindName, refNode, "'" + std::string(n(refNode).text) + "'"); return kNoObj; }
-      if (out.syms[sy].kind != SymKind::Class || out.objs[ty(out.syms[sy].type).obj].isInterface != wantInterface) {
-        diag(kZInvalidHierarchy, refNode, wantInterface ? "'" + std::string(n(refNode).text) + "' is not an interface" : "'" + std::string(n(refNode).text) + "' is not a class");
-        return kNoObj;
-      }
-      return ty(out.syms[sy].type).obj;
-    };
-    for (auto [s, oi] : classes) {
-      const Node& cn = n(s);
-      if (cn.kind == N::Class && cn.kids[0] != kNone) {
-        out.objs[oi].parent = resolve(cn.kids[0], false);
-        std::uint32_t po = out.objs[oi].parent;
-        if (po != kNoObj) {
-          std::uint32_t ps = lookup(n(cn.kids[0]).text);
-          if (ps != kNone && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
-        }
-      }
-      if (cn.kind == N::Interface && cn.kids[0] != kNone)
-        for (std::uint32_t r : n(cn.kids[0]).kids) { std::uint32_t io = resolve(r, true); if (io != kNoObj) out.objs[oi].ifaces.push_back(io); }
-    }
+    for (auto [s, oi] : classes) resolveHeritage(s, oi);
     for (auto [s, oi] : classes) {  // a hierarchy that loops back on itself
       std::uint32_t k = 0;
       for (std::uint32_t o = out.objs[oi].parent; o != kNoObj; o = out.objs[o].parent)
         if (o == oi || ++k > out.objs.size()) { diag(kZInvalidHierarchy, s, "circular inheritance"); out.objs[oi].parent = kNoObj; break; }
     }
-    std::vector<char> built(out.objs.size() + 1, 0);
-    std::function<void(std::uint32_t, std::uint32_t)> build = [&](std::uint32_t s, std::uint32_t oi) {
-      if (built[oi]) return;
-      built[oi] = 1;
-      for (auto [s2, o2] : classes) {
-        bool dep = o2 == out.objs[oi].parent;
-        for (std::uint32_t pi : out.objs[oi].ifaces) dep = dep || pi == o2;
-        if (dep) build(s2, o2);
-      }
-      classMembers(s, oi);
-    };
-    for (auto [s, oi] : classes) build(s, oi);
+    for (auto [s, oi] : classes) {
+      pendingBuild[oi] = [this, s, oi]() {
+        ensureBuilt(out.objs[oi].parent);
+        for (std::uint32_t pi : out.objs[oi].ifaces) ensureBuilt(pi);
+        classMembers(s, oi);
+      };
+    }
+    for (auto [s, oi] : classes) ensureBuilt(oi);
     for (std::uint32_t s : stmts) {
-      if (n(s).kind != N::Function) continue;
+      if (n(s).kind != N::Function || a.tparams.count(s)) continue;
       std::vector<std::uint32_t> ps;
-      TypeId sig = signature(n(s), 2, false, ps);
+      TypeId sig = signature(s, 2, false, ps);
       out.nodeType[s] = sig;
       out.nodeSym[s] = declare(SymKind::Func, n(s).text, sig, s, true, s);
       if (n(s).kids[1] == kNone) { diag(kZUnsupported, s, "function declarations without a body"); continue; }
       defer->push_back([this, s, sig, ps]() { checkBody(s, sig, ps, false); });
+    }
+    for (std::uint32_t gs : genericSyms) {  // check every template once, over its own type parameters
+      GenericDecl& g = generics[gs];
+      ensureSelf(g);
+      if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
     for (std::uint32_t s : stmts) {
       statement(s);
@@ -847,7 +1174,7 @@ struct Checker {
         }
       }
     }
-    for (auto& f : mine) f();
+    for (std::size_t di = 0; di < mine.size(); ++di) { auto f = mine[di]; f(); }  // closures may add more closures
     defer = saved;
   }
 
@@ -910,7 +1237,7 @@ bool widens(Num from, Num to) {
   }
 }
 
-Checked check(const Ast& ast) {
+Checked check(Ast& ast) {
   Checker c(ast);
   if (ast.root != kNone) c.run();
   return std::move(c.out);
@@ -929,6 +1256,7 @@ std::string typeName(const Checked& c, TypeId t) {
     case TK::Null: return "null";
     case TK::Array: return typeName(c, x.elem) + "[]";
     case TK::Object: return c.objs[x.obj].name;
+    case TK::Param: return c.tparams[x.obj].name;
     case TK::Func: {
       std::string s = "(";
       for (std::size_t i = 0; i < x.params.size(); ++i) s += (i ? ", " : "") + typeName(c, x.params[i]);

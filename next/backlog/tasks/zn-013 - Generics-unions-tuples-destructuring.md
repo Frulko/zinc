@@ -1,10 +1,10 @@
 ---
 id: ZN-013
 title: 'Generics, unions, tuples, destructuring'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-05 14:22'
+updated_date: '2026-10-06 07:40'
 labels:
   - size-L
 milestone: m-2

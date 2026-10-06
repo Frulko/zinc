@@ -1,0 +1,230 @@
+Program
+  Function identity
+    TypeParams
+      TypeParam T
+        _
+    TypeRef T
+    Block
+      Return
+        Ident x
+    Param x
+      TypeRef T
+      _
+  Function pick
+    TypeParams
+      TypeParam T
+        _
+    TypeRef T
+    Block
+      Return
+        Cond
+          Ident c
+          Ident a
+          Ident b
+    Param c
+      TypeRef boolean
+      _
+    Param a
+      TypeRef T
+      _
+    Param b
+      TypeRef T
+      _
+  Class Box
+    TypeParams
+      TypeParam T
+        _
+    _
+    _
+    Field v
+      TypeRef T
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Assign =
+            Member v
+              This
+            Ident v
+      Param v
+        TypeRef T
+        _
+    Method get
+      TypeRef T
+      Block
+        Return
+          Member v
+            This
+    Method set
+      TypeRef void
+      Block
+        ExprStmt
+          Assign =
+            Member v
+              This
+            Ident v
+      Param v
+        TypeRef T
+        _
+  Class Pair
+    TypeParams
+      TypeParam A
+        _
+      TypeParam B
+        _
+    _
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt [synthetic]
+          Assign =
+            Member first
+              This
+            Ident first
+        ExprStmt [synthetic]
+          Assign =
+            Member second
+              This
+            Ident second
+      Param first [public]
+        TypeRef A
+        _
+      Param second [public]
+        TypeRef B
+        _
+    Method swap
+      TypeRef Pair
+        TypeRef B
+        TypeRef A
+      Block
+        Return
+          New
+            TypeArgs
+              TypeRef B
+              TypeRef A
+            Ident Pair
+            Member second
+              This
+            Member first
+              This
+    Field first [public]
+      TypeRef A
+      _
+    Field second [public]
+      TypeRef B
+      _
+  Interface Getter
+    TypeParams
+      TypeParam T
+        _
+    _
+    Method get
+      TypeRef T
+      _
+  Class IntBox
+    TypeRef Box
+      TypeRef i32
+    _
+    Method twice
+      TypeRef i32
+      Block
+        Return
+          Binary *
+            Call
+              Member get
+                This
+            Number 2
+  VarDecl const
+    Declarator b
+      _
+      New
+        TypeArgs
+          TypeRef i32
+        Ident Box
+        Number 7
+  ExprStmt
+    Call
+      Member set
+        Ident b
+      Binary +
+        Call
+          Member get
+            Ident b
+        Number 1
+  VarDecl const
+    Declarator p
+      _
+      New
+        TypeArgs
+          TypeRef i32
+          TypeRef f64
+        Ident Pair
+        Number 1
+        Number 2.5
+  VarDecl const
+    Declarator q
+      _
+      Call
+        Member swap
+          Ident p
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Ident identity
+        Number 5
+      Call
+        Ident pick
+        Literal true
+        Number 1
+        Number 2
+      Call
+        Member get
+          Ident b
+      Member first
+        Ident p
+      Member first
+        Ident q
+      Member second
+        Ident q
+  VarDecl const
+    Declarator ib
+      _
+      New
+        Ident IntBox
+        Number 21
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member twice
+          Ident ib
+  VarDecl const
+    Declarator g
+      TypeRef Getter
+        TypeRef i32
+      Ident ib
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member get
+          Ident g
+  VarDecl const
+    Declarator b2
+      _
+      New
+        Ident Box
+        Number 3.5
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Member get
+          Ident b2

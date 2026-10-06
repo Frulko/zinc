@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "frontend/ast.h"
@@ -16,7 +17,7 @@ namespace zn::frontend {
 using TypeId = std::uint32_t;
 inline constexpr TypeId kNoType = 0xFFFFFFFFu;
 
-enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object };
+enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param };
 enum class Num : std::uint8_t { f64, f32, fx12, fx16, i8, i16, i32, i64, u8, u16, u32, u64, isize, usize };
 
 struct Type {
@@ -26,7 +27,7 @@ struct Type {
   std::vector<TypeId> params;   // Func
   std::uint32_t minArgs = 0;    // Func
   bool variadic = false;        // Func (builtin console.log)
-  std::uint32_t obj = 0;        // Object: index into Checked::objs
+  std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams
 };
 
 struct Member {
@@ -49,10 +50,13 @@ struct ObjInfo {
   bool isAbstract = false;
   std::uint8_t ctorAccess = 0;            // 0 public, 1 protected, 2 private
   std::uint32_t parent = 0xFFFFFFFFu;     // extended class (ObjInfo index)
+  std::uint32_t genericSym = 0xFFFFFFFFu; // the generic class or interface this is an instance of
+  std::vector<TypeId> typeArgs;           // its type arguments
+  bool isTemplate = false;                // an instance over type parameters: checked, never lowered
   std::vector<std::uint32_t> ifaces;       // interfaces named in `implements`
 };
 
-enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin };
+enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin, TypeAlias, GenericFunc, GenericClass };
 struct Symbol {
   SymKind kind;
   std::string_view name;
@@ -61,16 +65,27 @@ struct Symbol {
   bool isConst;
 };
 
+// A type parameter of a generic declaration, seen as an opaque type while the template itself is checked.
+struct TParam {
+  std::string name;
+  TypeId constraint = kNoType;
+};
+
 struct Checked {
   std::vector<Type> types;
+  std::vector<TParam> tparams;
   std::vector<ObjInfo> objs;
   std::vector<Symbol> syms;
   std::vector<TypeId> nodeType;        // per AST node: type of an expression or declared type of a declaration, else kNoType
   std::vector<std::uint32_t> nodeSym;  // per AST node: resolved symbol of an Ident, else kNone
   std::vector<Diag> diags;
+  // Concrete instances of generic functions and classes: cloned declaration nodes to lower, with their names.
+  std::vector<std::uint32_t> instances;
+  std::unordered_map<std::uint32_t, std::string> nodeNames;
 };
 
-Checked check(const Ast& ast);
+// Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.
+Checked check(Ast& ast);
 
 // Lossless implicit conversion between machine numeric kinds (also used by the IR lowering).
 bool widens(Num from, Num to);

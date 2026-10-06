@@ -156,7 +156,7 @@ struct Lowering {
     layoutDone.assign(c.objs.size(), 0);
     instantiated.assign(c.objs.size(), 0);
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
-      if (!c.objs[o].isClass && !c.objs[o].isInterface) continue;
+      if ((!c.objs[o].isClass && !c.objs[o].isInterface) || c.objs[o].isTemplate) continue;
       classOfObj[o] = static_cast<std::uint32_t>(m.classes.size());
       Class cl;
       cl.name = c.objs[o].name;
@@ -235,6 +235,7 @@ struct Lowering {
   void collectClassNodes(std::uint32_t i) {
     if (i == kNil) return;
     const Node& x = n(i);
+    if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface) && c.nodeType[i] == frontend::kNoType) return;  // a generic template: only its instances are lowered
     if (x.kind == N::Class) classNodeOfObj[c.types[c.nodeType[i]].obj] = i;
     for (std::uint32_t k : x.kids) collectClassNodes(k);
   }
@@ -242,11 +243,13 @@ struct Lowering {
   void collectFunctions(const std::vector<std::uint32_t>& stmts, const std::string& prefix) {
     for (std::uint32_t s : stmts) {
       const Node& x = n(s);
+      if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface) && c.nodeType[s] == frontend::kNoType) continue;  // a generic template
       if (x.kind == N::Function) {
         frontend::TypeId sig = c.nodeType[s];
         std::vector<TypeId> ps;
         for (frontend::TypeId p : c.types[sig].params) ps.push_back(irType(p, s));
-        std::string nm = prefix + std::string(x.text);
+        auto inm = c.nodeNames.find(s);
+        std::string nm = prefix + (inm != c.nodeNames.end() ? inm->second : std::string(x.text));
         std::uint32_t fi = addFunction(nm, ps, irType(c.types[sig].elem, s));
         funcOfNode[s] = fi;
         jobs.push_back({fi, s, kNil, false, kNil});
@@ -266,7 +269,7 @@ struct Lowering {
           std::vector<TypeId> ps;
           if (!isStatic) ps.push_back(self);
           for (frontend::TypeId p : c.types[sig].params) ps.push_back(irType(p, mem));
-          std::string nm = std::string(x.text) + "." + std::string(mn.text);
+          std::string nm = c.objs[obj].name + "." + std::string(mn.text);
           std::uint32_t fi = addFunction(nm, ps, isCtor ? m.voidT() : irType(c.types[sig].elem, mem));
           funcOfNode[mem] = fi;
           if (isCtor) ctorOfClass[cls] = fi;
@@ -278,7 +281,7 @@ struct Lowering {
         if (!hasCtor && needsCtor(obj)) {  // initialisers and the base constructor need a constructor to run in
           std::vector<TypeId> ps{self};
           if (c.objs[obj].ctor != frontend::kNoType) for (frontend::TypeId p : c.types[c.objs[obj].ctor].params) ps.push_back(irType(p, s));
-          std::uint32_t fi = addFunction(std::string(x.text) + ".constructor", ps, m.voidT());
+          std::uint32_t fi = addFunction(c.objs[obj].name + ".constructor", ps, m.voidT());
           ctorOfClass[cls] = fi;
           jobs.push_back({fi, s, cls, true, s});
         }
@@ -296,6 +299,7 @@ struct Lowering {
       std::function<void(std::uint32_t, std::int64_t, bool)> walk = [&](std::uint32_t i, std::int64_t fn, bool top) {
         if (i == kNil) return;
         const Node& x = n(i);
+        if ((x.kind == N::Class || x.kind == N::Function || x.kind == N::Interface) && c.nodeType[i] == frontend::kNoType) return;  // a generic template
         std::int64_t cur = fn;
         if (x.kind == N::Function || x.kind == N::Method) { auto it = funcOfNode.find(i); if (it != funcOfNode.end()) cur = it->second; }
         if (x.kind == N::Interface) return;
@@ -329,6 +333,7 @@ struct Lowering {
         for (std::uint32_t k : x.kids) walk(k, cur, childTop);
       };
       walk(a.root, 0, true);
+      for (std::uint32_t inst : c.instances) walk(inst, 0, false);
     }
     for (std::uint32_t s = 0; s < c.syms.size(); ++s) {
       if (!global[s]) continue;
@@ -343,8 +348,10 @@ struct Lowering {
   void run() {
     collectClasses();
     collectClassNodes(a.root);
+    for (std::uint32_t inst : c.instances) collectClassNodes(inst);
     addFunction("main", {}, m.voidT());  // function 0
     collectFunctions(n(a.root).kids, "");
+    collectFunctions(c.instances, "");  // monomorphised generic functions and classes
     jobs.insert(jobs.begin(), Job{0, kNil, kNil, false, kNil});
     analyze();
     buildVtables();
@@ -850,6 +857,7 @@ struct Lowering::FnLower {
     switch (x.kind) {
       case N::Empty: case N::Function: case N::Interface: break;
       case N::Class: {  // static field initialisers run where the class is declared
+        if (c.nodeType[s] == frontend::kNoType) break;  // a generic template
         std::uint32_t obj = c.types[c.nodeType[s]].obj;
         for (std::size_t k = frontend::kClassMembersFrom; k < x.kids.size(); ++k) {
           const Node& mn = n(x.kids[k]);
