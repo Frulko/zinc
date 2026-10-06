@@ -14,6 +14,7 @@
 #include "frontend/lexer.h"
 #include "frontend/modules.h"
 #include "frontend/parser.h"
+#include "frontend/plugin_manifest.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
 #include "zn/host.h"
@@ -441,6 +442,13 @@ int main(int argc, char** argv) {
     if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/updates", path, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::printf("downloaded and verified: %s\nopen it to install (the macOS app: drag it over the old one; Linux: unpack over the old directory)\n", path.c_str());
     return 0;
+  }
+  if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [dir]: the plugins found (the engine's plugins/ by default), one per line, and the manifests that do not load
+    std::vector<std::string> problems;
+    std::string dir = argc >= 3 ? argv[2] : gRoot + "/../plugins";
+    std::fputs(zn::frontend::describePlugins(dir, problems).c_str(), stdout);
+    for (const std::string& p : problems) std::fprintf(stderr, "zinc: %s\n", p.c_str());
+    return problems.empty() ? 0 : 1;
   }
   if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text
     std::string text, err;

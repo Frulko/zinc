@@ -18,8 +18,14 @@ if(ZN_SANITIZE)
 endif()
 
 # Dependency direction: include/zn <- frontend <- ir <- zbc <- rt <- vm (see ARCHITECTURE.md).
-add_library(zn_frontend STATIC src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp)
+add_library(zn_yyjson STATIC third_party/yyjson/yyjson.c)
+target_include_directories(zn_yyjson PUBLIC third_party/yyjson)
+set_target_properties(zn_yyjson PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_yyjson PRIVATE -w -O2)
+
+add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
+target_link_libraries(zn_frontend PUBLIC zn_yyjson)
 
 add_library(zn_ir STATIC src/ir/ir.cpp src/ir/parse.cpp src/ir/lower.cpp src/ir/rc.cpp src/ir/opt.cpp)
 target_link_libraries(zn_ir PUBLIC zn_frontend)

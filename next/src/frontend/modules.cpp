@@ -1,5 +1,6 @@
 #include "frontend/modules.h"
 #include "frontend/jsx.h"
+#include "frontend/plugin_manifest.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -383,14 +384,13 @@ struct Loader {
       std::string text;
       std::string manifest = (e.path() / "plugin.json").string();
       if (!read(manifest, text)) continue;
-      auto field = [&](const char* key) {
-        std::size_t at = text.find(std::string("\"") + key + "\"");
-        if (at == std::string::npos) return std::string();
-        std::size_t q1 = text.find('"', text.find(':', at) + 1), q2 = q1 == std::string::npos ? q1 : text.find('"', q1 + 1);
-        return q2 == std::string::npos ? std::string() : text.substr(q1 + 1, q2 - q1 - 1);
-      };
-      std::string mod = field("module"), entry = field("entry");
-      if (!mod.empty() && !entry.empty() && !plugins.count(mod)) plugins[mod] = (e.path() / entry).string();
+      PluginManifest pm;
+      std::string err;
+      std::vector<std::string> warnings;
+      if (!parsePluginManifest(text, pm, err, warnings)) { std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), err.c_str()); continue; }
+      for (const std::string& w : warnings) std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), w.c_str());
+      std::string mod = pm.module, entry = pm.entry;
+      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) plugins[mod] = (e.path() / entry).string();
     }
   }
   void readPlugins(const std::string& fromFile) {

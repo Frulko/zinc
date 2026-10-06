@@ -10,3 +10,5 @@ and `zig c++` and needs no install step (ARCHITECTURE.md, rules).
 | stb_image | v2.30 (nothings/stb commit 2c980bb, `stb_image.h` sha256 594c2fe3…, PNG only) | MIT or public domain | PNG decoding of the assets (src/res) |
 | QuickJS-ng | 0.17.0 (`quickjs-amalgam.c` sha256 7c853a67…, `quickjs.h` 747a7744…; the amalgamation of plugins/script/vendor/quickjs) | MIT | The second engine, `zinc run --engine quickjs` (src/qjs) |
 | macos-shim | our own stand-in headers (CommonCrypto) | n/a | `zig cc` for macOS targets has no CommonCrypto; mimalloc includes it (src/tc cross builds) |
+| yyjson | 0.13.0 (`yyjson.c`, `yyjson.h` from the release archive, archive sha256 34e0f62a…) | MIT | JSON reading: plugin.json (src/frontend/plugin_manifest.cpp); later zinc.json, tsconfig paths, JSON.parse (ZN-L-json-numbers) |
+
