@@ -119,6 +119,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxClipboardText: { zrt::String k = g::clipboardText(); answer(r, k.ptr(), k.bytes()); break; }
     case Rt::HostGfxSetClipboardText: g::setClipboardText(str(a[0])); break;
     case Rt::HostGfxStartTextInput: g::startTextInput(a[0].d, a[1].d, a[2].d, a[3].d); break;
+    case Rt::HostGfxCreateImage: r->i = g::createImage(n(0), n(1)); break;
+    case Rt::HostGfxDestroyImage: g::destroyImage(n(0)); break;
+    case Rt::HostGfxBeginImage: g::beginImage(n(0)); break;
+    case Rt::HostGfxEndImage: g::endImage(); break;
     case Rt::HostGfxCapture: r->i = g::capture(str(a[0])) ? 1 : 0; break;
     case Rt::HostGfxEscapeByApp: g::escapeByApp(a[0].i != 0); break;
     case Rt::HostGfxWheel: r->d = g::wheel(); break;

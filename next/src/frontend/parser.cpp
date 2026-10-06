@@ -796,6 +796,7 @@ struct Parser {
         mname = s.substr(cur().start, at(4).end - cur().start);
         i += 5;
       } else {
+      if (isId("async") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1) || isP("?", 1))) { ++i; fl |= kFlagAsync; }  // `async name(...)`
       if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
       if (isId("set") && at(1).kind == Tok::Ident && isP("(", 2)) {  // `set name(v: T) { ... }`: a method called __set_name; `obj.name = v` calls it
         ++i;
@@ -813,7 +814,7 @@ struct Parser {
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
         std::uint32_t body = kNone;
-        if (isP("{")) body = block();
+        if (isP("{")) body = withFn((fl & kFlagAsync) != 0, false, [&] { return block(); });  // `await` is an operator in an async method's body
         else if (fl & kFlagAbstract) semi();
         else fail(kZExpected, cur().start, "'{'");
         std::vector<std::uint32_t> mk_{ret, body};

@@ -250,7 +250,8 @@ struct Desugar {
     for (Id i = 0; i < count; ++i) {
       N k = n(i).kind;
       if (k == N::Function) function(i);
-      else if ((k == N::FuncExpr || k == N::Method) && (n(i).flags & (kFlagAsync | kFlagGenerator))) unsupported(i, k == N::Method ? "async methods and generator methods" : "async arrow functions and generator expressions");
+      else if (k == N::Method && (n(i).flags & kFlagAsync) && !(n(i).flags & kFlagGenerator)) function(i);  // the same body rewrite; `this` is captured by the arrow it makes
+      else if ((k == N::FuncExpr || k == N::Method) && (n(i).flags & (kFlagAsync | kFlagGenerator))) unsupported(i, k == N::Method ? "generator methods" : "async arrow functions and generator expressions");
     }
   }
 };

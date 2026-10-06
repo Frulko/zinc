@@ -447,6 +447,7 @@ struct Checker {
       }
       TypeId r0 = expr(re, bad(base) ? kNoType : base);
       if (bad(base) || bad(r0)) return tError;
+      if (r0 == tNull) return l0;  // `a ?? null` is still nullable
       if (!assignable(r0, base, kNone) && assignable(base, r0, kNone)) return r0;  // `a ?? b` where b is the wider type
       if (!assignable(r0, base, kNone) && ty(base).k == TK::Object && ty(r0).k == TK::Object) return unionOf({base, r0});  // two classes: their union
       require(r0, base, re);
@@ -1533,6 +1534,17 @@ struct Checker {
             }
           }
         }
+        if (n(target).kind == N::Member && x.text == "=" && n(target).text == "length" && !(n(target).flags & kFlagOptional)) {  // arr.length = n: a call that truncates
+          std::uint32_t objNode = n(target).kids[0];
+          if (pureCallee(objNode)) {
+            TypeId ot = expr(objNode);
+            if (!bad(ot) && ty(ot).k == TK::Array) {
+              std::vector<std::vector<std::uint32_t>> holes{{cloneNode(objNode, false)}, {value}};
+              if (!replaceWith(i, "__H0.__setLength(__H1)", holes)) return tError;
+              return expr0(i, expected);
+            }
+          }
+        }
         if (n(target).kind == N::ArrayPattern) {  // [a, b] = value
           if (x.text != "=") { diag(kZBadAssignTarget, target, ""); return tError; }
           std::vector<TypeId> hint;  // the targets' own types shape a literal on the right
@@ -2374,8 +2386,16 @@ struct Checker {
   bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
     Type et;
+    if (expected != kNoType && ty(expected).k == TK::Union) {  // `(() => void) | null` (an optional callback): the function type is what the lambda is checked against
+      TypeId only = kNoType;
+      for (TypeId m : ty(expected).params) { if (m == tNull) continue; if (only != kNoType || ty(m).k != TK::Func) { only = kNoType; break; } only = m; }
+      if (only != kNoType) expected = only;
+    }
     bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
     if (haveExpected) et = ty(expected);
+    // `() => expr` where a function returning nothing is expected: the value is dropped, as in TypeScript
+    if (haveExpected && et.elem == tVoid && n(i).kids[0] == kNone && n(n(i).kids[1]).kids.size() == 1 && n(n(n(i).kids[1]).kids[0]).kind == N::Return && !n(n(n(i).kids[1]).kids[0]).kids.empty() && n(n(n(i).kids[1]).kids[0]).kids[0] != kNone)
+      a.nodes[n(n(i).kids[1]).kids[0]].kind = N::ExprStmt;
     // JavaScript callbacks may take fewer parameters than they are called with (`items.map(x => ...)` for `(x, i) => ...`):
     // the missing ones are added unused, so the function has the expected type.
     if (haveExpected && padCallbacks) {
@@ -2961,6 +2981,18 @@ struct Checker {
     }
     std::vector<TypeId> bound(g.tp.size(), kNoType);
     const Type f = ty(templateFunc);
+    // a function expression whose parameters are annotated says what they are: `each(() => [0, 1, 2], (i: i32) => ...)` is i32 all through, so the literals of the first one become i32
+    for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k) {
+      const Node& an = n(argNodes[k]);
+      if (an.kind != N::FuncExpr || ty(f.params[k]).k != TK::Func) continue;
+      const Type& ft = ty(f.params[k]);
+      for (std::size_t j = 2; j < an.kids.size() && j - 2 < ft.params.size(); ++j) {
+        const Node& pn = n(an.kids[j]);
+        if (pn.kids.empty() || pn.kids[0] == kNone) continue;
+        TypeId at = annotation(pn.kids[0]);
+        if (!bad(at) && ty(ft.params[j - 2]).k == TK::Param) unify(g, ft.params[j - 2], at, bound, argNodes[k]);
+      }
+    }
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)
       if (out.nodeType[argNodes[k]] != kNoType && !unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k) {  // function expressions, now that the other arguments have bound what they can

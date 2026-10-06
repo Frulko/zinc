@@ -244,7 +244,14 @@ declare function pooled(n: i32): (target: Function, ctx: ClassDecoratorContext) 
 /** LNG-10: value class (copied, no header). */
 declare function value(target: Function, ctx: ClassDecoratorContext): void;
 declare var console: Console;
-interface DateConstructor { now(): number; }
+interface Date {
+  getTime(): number; valueOf(): number;
+  getFullYear(): number; getMonth(): number; getDate(): number; getDay(): number;
+  getHours(): number; getMinutes(): number; getSeconds(): number; getMilliseconds(): number;
+  getUTCFullYear(): number; getUTCMonth(): number; getUTCDate(): number; getUTCDay(): number;
+  getUTCHours(): number; getUTCMinutes(): number; getUTCSeconds(): number;
+}
+interface DateConstructor { new (ms?: number): Date; now(): number; }
 declare var Date: DateConstructor;
 interface Performance { now(): number; }
 declare var performance: Performance;

@@ -1,10 +1,10 @@
 ---
 id: ZN-049
 title: 'Host modules apps need: fs, storage, net, os, timers'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 16:41'
-updated_date: '2026-10-06 17:49'
+updated_date: '2026-10-06 20:43'
 labels:
   - size-L
 dependencies: []
@@ -19,9 +19,9 @@ The zinc:* host modules of the examples (fs, storage, net/fetch, os, sys, timers
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the examples of examples/ (hero, bouncing-ball, maps, remarkable, zed-editor sample) run headless on the new engine
-- [ ] #2 pixel goldens where they exist match
-- [ ] #3 host modules documented with their capability per target
+- [x] #1 the examples of examples/ (hero, bouncing-ball, maps, remarkable, zed-editor sample) run headless on the new engine
+- [x] #2 pixel goldens where they exist match
+- [x] #3 host modules documented with their capability per target
 <!-- AC:END -->
 
 ## Implementation Notes

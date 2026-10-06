@@ -119,6 +119,7 @@ const char* kPrelude = R"JS(
   let timers = [];
   g.__clock = () => clock;
   Date.now = () => clock;
+  for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
   g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };
   g.clearTimeout = g.clearInterval = id => { timers = timers.filter(t => t.id !== id); };

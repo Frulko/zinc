@@ -57,7 +57,7 @@ using zn::host::HostArg;
 JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int magic) {
   const auto id = static_cast<zn::Rt>(magic);
   const zn::RtInfo& ri = zn::rtInfo(id);
-  const bool sys = id >= zn::Rt::HostSysFirst;
+  const bool sys = zn::isSysRow(id);
   if (id == zn::Rt::HostSysWrite || id == zn::Rt::HostSysWriteErr || id == zn::Rt::HostSysExit) {
     if (id == zn::Rt::HostSysExit) {
       int32_t code = 0;
@@ -221,7 +221,7 @@ bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
 
 JSValue global(Engine& e, const char* name) { JSValue g = JS_GetGlobalObject(e.ctx); JSValue v = JS_GetPropertyStr(e.ctx, g, name); JS_FreeValue(e.ctx, g); return v; }
 
-void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (id >= zn::Rt::HostSysFirst ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
+void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
 
 // the frame loop of a zinc:gfx program: poll, clock, due timers, begin, the callback, end (what the typed engine's __gfxLoop does)
 bool frameLoop(Engine& e) {

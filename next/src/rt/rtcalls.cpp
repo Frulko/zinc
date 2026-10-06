@@ -543,7 +543,7 @@ struct JsonBuild {
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
 static const char* hostRt(Machine& m, Rt id, Slot* a) {
   const RtInfo& ri = rtInfo(id);
-  bool sys = id >= Rt::HostSysFirst;
+  bool sys = isSysRow(id);
   zn::host::HostCall call = sys ? zn::host::hostSys : zn::host::hostGfx;
   // what needs the machine: the program's standard output is buffered in the machine, so writes and exit go through it
   if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
@@ -588,7 +588,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = P(m.newStr(r.data(), r.size()));
       return nullptr;
     }
-    case Rt::StrEq: { StrObj *x = S(a[0]), *y = S(a[1]); NN(x && y); a[0] = boolSlot(x == y || (x->len == y->len && std::memcmp(x->data(), y->data(), x->len) == 0)); return nullptr; }
+    case Rt::StrEq: { StrObj *x = S(a[0]), *y = S(a[1]); if (!x || !y) { a[0] = boolSlot(x == y); return nullptr; } a[0] = boolSlot(x == y || (x->len == y->len && std::memcmp(x->data(), y->data(), x->len) == 0)); return nullptr; }
     case Rt::StrLt: case Rt::StrLe: {
       StrObj *x = S(a[0]), *y = S(a[1]);
       NN(x && y);
@@ -647,6 +647,27 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       StrObj* s = S(a[0]);
       NN(s);
       std::int64_t i = I(a[1]);
+      a[0] = P(i < 0 || i >= s->u16len ? m.newStr("", 0) : subStr(m, s, i, i + 1));
+      return nullptr;
+    }
+    case Rt::ArrSetLength: {  // arr.length = n: shorter drops (and releases) the tail, longer pads with zero or null
+      ArrObj* o = A(a[0]);
+      NN(o);
+      std::int64_t n = I(a[1]);
+      if (n < 0 || n > 0x7fffffffLL) return "RangeError: Invalid array length";
+      std::size_t keep = static_cast<std::size_t>(n);
+      if (keep < o->v.size()) {
+        std::vector<Slot> tail(o->v.begin() + static_cast<std::ptrdiff_t>(keep), o->v.end());
+        o->v.resize(keep);
+        if (o->cls->elemRef) for (Slot t : tail) m.releaseSlot(t);
+      } else o->v.resize(keep, 0);
+      return nullptr;
+    }
+    case Rt::StrAt: {  // s.at(i): a negative index counts from the end; out of range gives "" (not undefined)
+      StrObj* s = S(a[0]);
+      NN(s);
+      std::int64_t i = I(a[1]);
+      if (i < 0) i += s->u16len;
       a[0] = P(i < 0 || i >= s->u16len ? m.newStr("", 0) : subStr(m, s, i, i + 1));
       return nullptr;
     }
@@ -742,7 +763,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       StrObj *s = S(a[0]), *fill = S(a[2]);
       NN(s && fill);
       std::int64_t target = I(a[1]), len = s->u16len;
-      if (target <= len || fill->len == 0) return nullptr;  // a[0] is already the result
+      if (target <= len || fill->len == 0) { m.retain(s); return nullptr; }  // the receiver is the result: a new reference to it (the caller releases its own)
       if (target > 0x7fffffff) return "RangeError: Invalid string length";
       std::u16string pad, f = toU16(fill);
       while (static_cast<std::int64_t>(pad.size()) < target - len) pad += f;

@@ -91,6 +91,10 @@ export function clip(x: number, y: number, w: number, h: number, radius: number 
 export function unclip(): void { __host_gfxUnclip(); }
 export function translate(x: number, y: number): void { __host_gfxTranslate(x, y); }
 export function keep(): void { __host_gfxKeep(); }
+export function createImage(w: i32, h: i32): i32 { return __host_gfxCreateImage(w, h); }
+export function destroyImage(image: i32): void { __host_gfxDestroyImage(image); }
+export function beginImage(image: i32): void { __host_gfxBeginImage(image); }
+export function endImage(): void { __host_gfxEndImage(); }
 // Input: read from the HAL (a window, or nothing when headless: no pointer, keys, touch or pen).
 export enum Btn { Up = 0, Down = 1, Left = 2, Right = 3, A = 4, B = 5, X = 6, Y = 7, L = 8, R = 9, Start = 10, Select = 11 }
 export enum Mod { Shift = 1, Ctrl = 2, Alt = 4, Meta = 8 }
@@ -270,6 +274,64 @@ export function status(handle: i32): i32 { return __host_procStatus(handle); }
 export function kill(handle: i32): void { __host_procKill(handle); }
 )ZN";
 
+const char* kNetModule = R"ZN(
+// zinc:net over the curl of the machine, run as a child process (zinc:process) and polled from a timer: fetch(url) resolves with the status and the body.
+// A transport failure resolves with status 0 (not ok) instead of rejecting. Only the parts of the Web API the examples use: Headers, method, body, headers, text().
+import * as proc from 'zinc:process';
+export class Headers {
+  names: string[] = [];
+  values: string[] = [];
+  constructor() {}
+  set(name: string, value: string): void {
+    const k = name.toLowerCase();
+    for (let i: i32 = 0; i < this.names.length; i++) if (this.names[i] === k) { this.values[i] = value; return; }
+    this.names.push(k); this.values.push(value);
+  }
+  append(name: string, value: string): void { const k = name.toLowerCase(); for (let i: i32 = 0; i < this.names.length; i++) if (this.names[i] === k) { this.values[i] = this.values[i] + ', ' + value; return; } this.names.push(k); this.values.push(value); }
+  has(name: string): boolean { return this.names.indexOf(name.toLowerCase()) >= 0; }
+  get(name: string): string { const i = this.names.indexOf(name.toLowerCase()); return i < 0 ? '' : this.values[i]; }
+  keys(): string[] { const r: string[] = this.names.slice(); r.sort((a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)); return r; }
+}
+export interface RequestInit { method?: string; body?: string; contentType?: string; headers?: Headers; timeoutMs?: i32 }
+export class Response {
+  status: i32;
+  ok: boolean;
+  statusText: string = '';
+  url: string;
+  headers: Headers = new Headers();
+  body: string;
+  constructor(status: i32, url: string, body: string) { this.status = status; this.ok = status >= 200 && status < 300; this.url = url; this.body = body; }
+  text(): Promise<string> { return Promise.resolve(this.body); }
+}
+class Fetch {
+  handle: i32;
+  url: string;
+  out: string = '';
+  done: (v: Response) => void;
+  constructor(handle: i32, url: string, done: (v: Response) => void) { this.handle = handle; this.url = url; this.done = done; }
+  run(): void {
+    this.out += proc.read(this.handle);
+    const code = proc.status(this.handle);
+    if (code < 0) { setTimeout(() => { this.run(); }, 5); return; }
+    this.out += proc.read(this.handle);
+    const cut = this.out.lastIndexOf('\n');
+    const status = code === 0 && cut >= 0 ? parseInt(this.out.substring(cut + 1)) : 0;
+    this.done(new Response(status, this.url, code === 0 && cut >= 0 ? this.out.substring(0, cut) : ''));
+  }
+}
+function quote(s: string): string { return "'" + s.split("'").join("'\\''") + "'"; }
+export function fetch(url: string, init?: RequestInit): Promise<Response> {
+  return new Promise<Response>((resolve: (v: Response) => void) => {
+    const method = init !== undefined && init.method !== undefined ? init.method as string : 'GET';
+    let cmd = "curl -sS -L -m " + ((init !== undefined && init.timeoutMs !== undefined ? init.timeoutMs as i32 : 120000) / 1000) + " -X " + method + " -w '\\n%{http_code}'";
+    if (init !== undefined && init.body !== undefined) cmd += ' --data-binary ' + quote(init.body as string);
+    if (init !== undefined && init.contentType !== undefined) cmd += ' -H ' + quote('Content-Type: ' + (init.contentType as string));
+    if (init !== undefined && init.headers !== undefined) { const h = init.headers as Headers; for (let i: i32 = 0; i < h.names.length; i++) cmd += ' -H ' + quote(h.names[i] + ': ' + h.values[i]); }
+    new Fetch(proc.spawn(cmd + ' ' + quote(url) + ' 2>/dev/null'), url, resolve).run();
+  });
+}
+)ZN";
+
 const char* kNativeModule = R"ZN(
 export interface NativeModule {}
 export interface NativeResource {}
@@ -284,6 +346,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:assets") return kAssetsModule;
   if (spec == "zinc:os") return kOsModule;
   if (spec == "zinc:process") return kProcessModule;
+  if (spec == "zinc:net") return kNetModule;
   if (spec == "zinc:native") return kNativeModule;
   return nullptr;
 }
@@ -373,9 +436,12 @@ struct Loader {
     // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API
     // that the old simulator ran, takes its place (deterministic and headless)
     if (base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {
-      std::string simPath = base.substr(0, base.size() - 5) + ".sim.ts";
-      if (done.count(simPath)) return done[simPath];
-      if (read(simPath, text)) return load(simPath, std::move(text));
+      // x.next.ts, written for this engine, wins over the x.sim.ts that the old simulator ran (which may use TypeScript the Zinc subset does not have)
+      for (const char* suffix : {".next.ts", ".sim.ts"}) {
+        std::string simPath = base.substr(0, base.size() - 5) + suffix;
+        if (done.count(simPath)) return done[simPath];
+        if (read(simPath, text)) return load(simPath, std::move(text));
+      }
     }
     for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
       std::string cand = base + ext;
@@ -392,6 +458,7 @@ struct Loader {
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
       text = lowerJsx(text, prog.diags, fi);
+      if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
       if (prog.diags.size() > before) {  // the JSX did not lower: no point parsing it as it is
         prog.files.push_back({path, std::move(text)});
         done[path] = kNone;
@@ -555,7 +622,43 @@ function clearTimeout(id: i32): void {
 }
 function clearInterval(id: i32): void { clearTimeout(id); }
 // Deterministic time: the clock only moves when the event loop jumps to the next timer.
-class Date { static now(): f64 { return __clock; } }
+// Dates are UTC (the engine has no time zones): the same fields a program reads on every host.
+class Date {
+  t: f64;
+  constructor(ms: number = __clock) { this.t = ms; }
+  static now(): f64 { return __clock; }
+  getTime(): f64 { return this.t; }
+  valueOf(): f64 { return this.t; }
+  private days(): f64 { return Math.floor(this.t / 86400000); }
+  private msOfDay(): f64 { return this.t - this.days() * 86400000; }
+  getHours(): f64 { return Math.floor(this.msOfDay() / 3600000); }
+  getMinutes(): f64 { return Math.floor(this.msOfDay() / 60000) % 60; }
+  getSeconds(): f64 { return Math.floor(this.msOfDay() / 1000) % 60; }
+  getMilliseconds(): f64 { return this.msOfDay() % 1000; }
+  getDay(): f64 { const d = (this.days() + 4) % 7; return d < 0 ? d + 7 : d; }
+  private civil(which: i32): f64 {  // Howard Hinnant's days-to-civil: 0 year, 1 month (0 based), 2 day of the month
+    const z = this.days() + 719468;
+    const era = Math.floor(z / 146097);
+    const doe = z - era * 146097;
+    const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+    const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+    const mp = Math.floor((5 * doy + 2) / 153);
+    const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+    const m = mp < 10 ? mp + 3 : mp - 9;
+    if (which === 0) return yoe + era * 400 + (m <= 2 ? 1 : 0);
+    return which === 1 ? m - 1 : d;
+  }
+  getFullYear(): f64 { return this.civil(0); }
+  getMonth(): f64 { return this.civil(1); }
+  getDate(): f64 { return this.civil(2); }
+  getUTCHours(): f64 { return this.getHours(); }
+  getUTCMinutes(): f64 { return this.getMinutes(); }
+  getUTCSeconds(): f64 { return this.getSeconds(); }
+  getUTCDay(): f64 { return this.getDay(); }
+  getUTCFullYear(): f64 { return this.getFullYear(); }
+  getUTCMonth(): f64 { return this.getMonth(); }
+  getUTCDate(): f64 { return this.getDate(); }
+}
 class Performance { now(): f64 { return __clock; } }
 const performance = new Performance();
 function __drainJobs(): void {
@@ -878,18 +981,21 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   L.load(entry, std::move(text));
   bool usesGfx = false;
   for (const SourceFile& f : p.files) if (f.path == "zinc:gfx" || f.path == "zinc:sys") usesGfx = true;  // (the frame loop is only entered by onFrame; zinc:sys needs the clock of the async prelude)
-  if (p.diags.empty()) {  // without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`)
-    bool dyn = false;
+  if (p.diags.empty()) {  // in a file without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`); a file that uses Dyn keeps the Dyn undefined
+    std::set<std::uint32_t> dynFiles;
     for (const Node& x : p.ast.nodes) {
-      if (x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) dyn = true;
-      if (x.kind == N::Member && x.text == "parse" && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "JSON") dyn = true;
+      if (x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) dynFiles.insert(x.file);
+      if (x.kind == N::Member && x.text == "parse" && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "JSON") dynFiles.insert(x.file);
     }
-    if (!dyn)
-      for (Node& x : p.ast.nodes) {
-        if (x.kind == N::Ident && x.text == "undefined" && x.kids.empty()) { x.kind = N::Literal; x.text = "null"; }
-        else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) x.text = "null";
-      }
+    for (Node& x : p.ast.nodes) {
+      if (dynFiles.count(x.file)) continue;
+      if (x.kind == N::Ident && x.text == "undefined" && x.kids.empty()) { x.kind = N::Literal; x.text = "null"; }
+      else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) x.text = "null";
+    }
   }
+  if (p.diags.empty())  // console.error, warn, info and debug print like console.log (to the standard output: the engine has one text stream)
+    for (Node& x : p.ast.nodes)
+      if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "error" || x.text == "warn" || x.text == "info" || x.text == "debug")) x.text = "log";
   bool async = p.diags.empty() && (usesGfx || needsAsync(p.ast));
   bool json = p.diags.empty() && needsJson(p.ast);
   bool arena = p.diags.empty() && needsArena(p.ast);

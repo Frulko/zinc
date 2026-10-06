@@ -77,7 +77,7 @@ bool Machine::execT(const Func* entry, Slot* base) {
 #define A aOf(w)
 #define B bOf(w)
 #define C cOf(w)
-#define TRAP(msg) do { error = msg; return false; } while (0)
+#define TRAP(msg) do { error = msg; if (__builtin_expect(trapTrace, 0)) error += " (in @" + mod->functions[static_cast<std::size_t>(fn - funcs.data())].name + " at word " + std::to_string(pc - code - 1) + ")"; return false; } while (0)
   NEXT();
 
 L_Nop: NEXT();
@@ -179,7 +179,7 @@ L_ArrLen: { if (const char* e = op::arrLen(r, A, B)) TRAP(e); NEXT(); }
 L_ArrPush: { if (const char* e = op::arrPush(r, A, B, C)) TRAP(e); NEXT(); }
 L_Rt: {
   const char* e = rtCall(*this, static_cast<Rt>(dOf(w)), r + A, r + fn->nregs);
-  if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; return false; }
+  if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; if (__builtin_expect(trapTrace, 0)) error += " (in @" + mod->functions[static_cast<std::size_t>(fn - funcs.data())].name + " at word " + std::to_string(pc - code - 1) + ", runtime call " + zn::rtInfo(static_cast<Rt>(dOf(w))).name + ")"; return false; }
   NEXT();
 }
 L_LogStr: { if (const char* e = op::logStr(*this, r[A])) TRAP(e); NEXT(); }

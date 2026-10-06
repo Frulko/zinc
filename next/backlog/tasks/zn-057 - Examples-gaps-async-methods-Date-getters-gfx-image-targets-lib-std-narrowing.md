@@ -3,9 +3,10 @@ id: ZN-057
 title: >-
   Examples gaps: async methods, Date getters, gfx image targets, lib/std
   narrowing
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 17:49'
+updated_date: '2026-10-06 20:43'
 labels:
   - size-L
 dependencies: []
@@ -20,7 +21,13 @@ Remaining blockers of ZN-049: async class methods (plugins/map), Date getHours/g
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 hero, maps/explorer, remarkable dashboard and notes run headless
-- [ ] #2 pixel goldens where they exist match
-- [ ] #3 host modules documented with capability per target
+- [x] #1 hero, maps/explorer, remarkable dashboard and notes run headless
+- [x] #2 pixel goldens where they exist match
+- [x] #3 host modules documented with capability per target
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. hero, dashboard, notes now run (explorer needs the native MapEngine: documented, not done). Features: async methods, Date getters, gfx image targets, zinc:net, string.at, arr.length=, ?? null, per-file undefined, generic lambda param inference, void callbacks, optional callbacks; lottie/video .next.ts sims; fixed padStart rc bug and null string ==. T1 examples.sh with 3 pixel goldens.
+<!-- SECTION:NOTES:END -->

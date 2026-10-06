@@ -201,6 +201,7 @@ struct Machine {
   bool fusedReady = false;                   // the interpreter has replaced pairs of instructions by its superinstructions in the copies below
   std::vector<std::vector<std::uint32_t>> fusedCode;
   std::vector<std::size_t> codeLen;          // per function, the words of code (set where the functions are made)
+  bool trapTrace = std::getenv("ZN_TRAP_TRACE") != nullptr;  // debugging: a trap says which function and instruction
   bool trackFn = false;                      // the interpreter keeps curFn current (set by the profiler before the run)
   template <bool kTrack> bool execT(const Func* callee, Slot* base);  // the interpreter's loop (src/vm), one copy with the curFn stores and one without
   bool exec(const Func* callee, Slot* base);  // defined by the engine: the interpreter, or the compiled program
