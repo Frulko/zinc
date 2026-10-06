@@ -1506,10 +1506,11 @@ struct Lowering::FnLower {
 
   // The IR type a letter of the runtime table (zn/runtime.h) stands for, given the receiver's IR type.
   TypeId rtIrType(char l, TypeId recv) {
-    const Type r = ty(recv);
+    const Type r = recv == frontend::kNoType ? Type{} : ty(recv);
     switch (l) {
       case 's': case 'w': case 'y': return m.strT();
       case 'i': case 'j': case 'z': return m.numT(NumK::i32);
+      case 'u': return m.numT(NumK::u32);
       case 'b': return m.boolT();
       case 'd': return m.numT(NumK::f64);
       case 'n': return m.voidT();
@@ -1637,6 +1638,14 @@ struct Lowering::FnLower {
         std::vector<ValueId> vs;
         for (unsigned k = 0; k < rtParamCount(ri); ++k) vs.push_back(rtParam(ri, k) == 's' ? exprTo(x.kids[k + 1], m.strT()) : expr(x.kids[k + 1]));
         return emit(IrOp::Rt, tv(vs[1]), std::move(vs), 0, 0, static_cast<std::uint32_t>(id));
+      }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__host_", 0) == 0) {  // a function of the host (runtime.h, owner "host")
+        for (const RtInfo& r : kRtInfo) {
+          if (!rtOwnedBy(r, "host") || callee.text.substr(7) != rtMember(r)) continue;
+          std::vector<ValueId> vs;
+          for (unsigned k = 0; k < rtParamCount(r); ++k) vs.push_back(exprTo(x.kids[k + 1], rtIrType(rtParam(r, k), frontend::kNoType)));
+          return emit(IrOp::Rt, rtIrType(rtRet(r), frontend::kNoType), std::move(vs), 0, 0, static_cast<std::uint32_t>(r.id));
+        }
       }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__toNumber")
         return emit(IrOp::Rt, m.numT(NumK::f64), {exprTo(x.kids[1], m.strT())}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ToNumber));

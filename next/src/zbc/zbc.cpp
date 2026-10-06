@@ -381,7 +381,7 @@ struct Verifier {
             case 'a': case 'm': case 't': break;  // the receiver, checked above
             case 'x': ok = needRef(reg, "argument"); break;
             case 's': case 'w': case 'y': ok = needType(reg, strT, "argument"); break;
-            case 'i': case 'j': case 'z': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
+            case 'i': case 'u': case 'j': case 'z': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
             case 'd': ok = needCls(reg, Cls::D, "argument"); break;
             case 'e': case 'v': ok = rc && needType(reg, rc->elem, "argument"); break;
             case 'k': ok = rc && needType(reg, rc->key, "argument"); break;

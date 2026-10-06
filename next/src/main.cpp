@@ -16,6 +16,7 @@
 #include "frontend/parser.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
+#include "zn/host.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "vm/vm.h"
@@ -74,6 +75,9 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
 }
 
 int main(int argc, char** argv) {
+#ifdef ZN_HOST_GFX
+  zn::host::installGfx();
+#endif
   for (int k = 1; k < argc; ++k)  // `--strict` anywhere on the command line selects the strict profile
     if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {

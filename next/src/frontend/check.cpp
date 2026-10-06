@@ -165,6 +165,7 @@ struct Checker {
   // ---- scopes
   void push() { scopes.push_back(std::make_shared<Scope>()); }
   void pop() { scopes.pop_back(); }
+  std::deque<std::string> hostNames;
   std::uint32_t declare(SymKind k, std::string_view nm, TypeId t, std::uint32_t decl, bool isConst, std::uint32_t at) {
     if (scopes.back()->count(nm)) { diag(kZDuplicateDeclaration, at, "'" + std::string(nm) + "'"); return (*scopes.back())[nm]; }
     out.syms.push_back({k, nm, t, decl, isConst});
@@ -224,6 +225,13 @@ struct Checker {
       o.name = nm;
       out.objs.push_back(o);
       declare(SymKind::Builtin, nm, objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    }
+    for (const RtInfo& r : kRtInfo) {  // the host's functions (runtime.h, owner "host"): __host_<member>, called by the wrappers of the host modules
+      if (!rtOwnedBy(r, "host")) continue;
+      std::vector<TypeId> ps;
+      for (unsigned k = 0; k < rtParamCount(r); ++k) ps.push_back(rtLetter(rtParam(r, k), kNoType));
+      hostNames.push_back("__host_" + std::string(rtMember(r)));  // symbols keep a view of their name
+      declare(SymKind::Builtin, hostNames.back(), func(ps, rtLetter(rtRet(r), kNoType), rtParamCount(r)), kNone, true, 0);
     }
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
     declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);
@@ -318,10 +326,11 @@ struct Checker {
   }
   // The type a letter of the runtime table (zn/runtime.h) stands for, given the receiver's type.
   TypeId rtLetter(char l, TypeId recv) {
-    const Type r = ty(recv);
+    const Type r = recv == kNoType ? Type{} : ty(recv);
     switch (l) {
       case 's': return tStr;
       case 'i': case 'j': case 'z': return num(Num::i32);
+      case 'u': return num(Num::u32);
       case 'w': case 'y': return tStr;
       case 'b': return tBool;
       case 'd': return num(Num::f64);
@@ -1075,6 +1084,8 @@ struct Checker {
         if (isDyn(at)) return rewrite("__dynIsArray(__H0)", {{args[0]}});
         return rewrite(ty(at).k == TK::Array ? "true" : "false", {});
       }
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "random" && args.empty()) return rewrite("__mathRandom()", {});
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && args.size() != 2) {
         std::string nm(m);
         if (args.empty()) return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});

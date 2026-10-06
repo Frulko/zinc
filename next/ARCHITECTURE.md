@@ -14,13 +14,14 @@ next/
   src/rt/         the runtime both engines share: machine, objects, reference counting, runtime calls (ZN-022)
   src/vm/         interpreter (provides Machine::exec by dispatching bytecode)
   src/aot/        ZBC → C++ emitter; the C++ it writes calls include/zn/ops.h and links src/rt
+  src/host/       the graphics host (ZN-027): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```
 
 ## Dependency direction
 
-`include/zn` ← `frontend` ← `ir` ← `zbc` ← `rt` ← `vm`, and `zbc` ← `aot`. A module includes only modules to its left; `vm` and `aot`
+`include/zn` ← `frontend` ← `ir` ← `zbc` ← `rt` ← `vm`, and `zbc` ← `aot`. `host` includes only `include/zn` (the table) and the old `runtime/` headers; `rt` calls it through the table, never links it. A module includes only modules to its left; `vm` and `aot`
 never include each other. The programs `aot` writes include `include/zn` and `rt` (they are not part of `aot`). No cycles. `main.cpp` may include any module's public header.
 
 ## Rules

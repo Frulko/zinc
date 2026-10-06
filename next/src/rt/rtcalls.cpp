@@ -8,6 +8,9 @@
 #include <cstring>
 
 #include "rt/rt.h"
+#include "zn/host.h"
+
+namespace zn::host { const Gfx* gfx = nullptr; }
 
 namespace zn::rt {
 
@@ -777,6 +780,25 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       if (op::newObject(m, m.dynNum->id, nd)) return "out of memory";
       reinterpret_cast<Obj*>(nd)->fields()[0] = std::bit_cast<Slot>(std::bit_cast<double>(x->fields()[0]) + std::bit_cast<double>(y->fields()[0]));
       a[0] = nd;
+      return nullptr;
+    }
+    // ---- the host (zinc:gfx): arguments decoded here, the work done through the installed table (zn/host.h)
+    case Rt::HostGfxFrames: case Rt::HostGfxBegin: case Rt::HostGfxEnd: case Rt::HostGfxClear: case Rt::HostGfxRect:
+    case Rt::HostGfxRRect: case Rt::HostGfxFont: case Rt::HostGfxDrawText: {
+      const zn::host::Gfx* g = zn::host::gfx;
+      if (!g) return "zinc:gfx is not available in this build";
+      auto D = [&](unsigned k) { return std::bit_cast<double>(a[k]); };
+      auto U = [&](unsigned k) { return static_cast<std::uint32_t>(a[k]); };
+      switch (id) {
+        case Rt::HostGfxFrames: a[0] = static_cast<Slot>(static_cast<std::int64_t>(g->frames())); break;
+        case Rt::HostGfxBegin: g->begin(); break;
+        case Rt::HostGfxEnd: g->end(); break;
+        case Rt::HostGfxClear: g->clear(U(0)); break;
+        case Rt::HostGfxRect: g->rect(D(0), D(1), D(2), D(3), U(4)); break;
+        case Rt::HostGfxRRect: g->rrect(D(0), D(1), D(2), D(3), D(4), U(5), static_cast<std::int32_t>(U(6))); break;
+        case Rt::HostGfxFont: { StrObj* s = S(a[0]); NN(s); a[0] = static_cast<Slot>(static_cast<std::int64_t>(g->font(s->data(), s->len, static_cast<std::int32_t>(U(1))))); break; }
+        default: { StrObj* s = S(a[3]); NN(s); g->drawText(static_cast<std::int32_t>(U(0)), D(1), D(2), s->data(), s->len, U(4), static_cast<std::int32_t>(U(5)), D(6)); break; }
+      }
       return nullptr;
     }
     case Rt::ToNumber: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(toNumberJs(s)); return nullptr; }

@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+# Compares two PNG files pixel for pixel (8-bit RGB or RGBA, any filter): `pngdiff a.png b.png` prints the number of differing pixels
+# and exits 1 when there are any or the sizes differ. Standard library only: the old goldens are compressed PNGs, the runtime writes stored ones.
+import sys, zlib, struct
+def dec(p):
+    d=open(p,'rb').read(); i=8; idat=b''; w=h=0
+    while i<len(d):
+        n,=struct.unpack('>I',d[i:i+4]); t=d[i+4:i+8]; b=d[i+8:i+8+n]; i+=12+n
+        if t==b'IHDR': w,h,bd,ct=struct.unpack('>IIBB',b[:10])
+        if t==b'IDAT': idat+=b
+    raw=zlib.decompress(idat); bpp=3 if ct==2 else 4; stride=w*bpp; out=bytearray(); prev=bytearray(stride)
+    for y in range(h):
+        f=raw[y*(stride+1)]; row=bytearray(raw[y*(stride+1)+1:(y+1)*(stride+1)])
+        for x in range(stride):
+            a=row[x-bpp] if x>=bpp else 0; b=prev[x]; c=prev[x-bpp] if x>=bpp else 0
+            if f==1: row[x]=(row[x]+a)&255
+            elif f==2: row[x]=(row[x]+b)&255
+            elif f==3: row[x]=(row[x]+(a+b)//2)&255
+            elif f==4:
+                pa=abs(b-c); pb=abs(a-c); pc=abs(a+b-2*c)
+                pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c)
+                row[x]=(row[x]+pr)&255
+        out+=row; prev=row
+    return w,h,bpp,bytes(out)
+a=dec(sys.argv[1]); b=dec(sys.argv[2])
+if a[:3]!=b[:3]: print('size differs',a[:3],b[:3]); sys.exit(1)
+n=sum(1 for i in range(0,len(a[3]),a[2]) if a[3][i:i+3]!=b[3][i:i+3])
+print('differing pixels:',n); sys.exit(1 if n else 0)

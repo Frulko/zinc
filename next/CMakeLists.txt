@@ -49,9 +49,27 @@ target_link_libraries(zn_vm PUBLIC zn_rt)
 add_library(zn_aot STATIC src/aot/aot.cpp)
 target_link_libraries(zn_aot PUBLIC zn_zbc)
 
+# The graphics host (ZN-027): the existing runtime (runtime/: zrt, raster, gfx) behind the zn::host::Gfx table, headless.
+# Built with the runtime's own flags so its pixels match the old builds. Off where the runtime does not build.
+option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
+set(ZN_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/../runtime)
+if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
+  add_library(zn_host_gfx STATIC src/host/gfx_host.cpp src/host/baked_resources.cpp
+    ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
+    ${CMAKE_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_SOURCE_DIR}/../targets/common/hal_posix.cpp)
+  set_target_properties(zn_host_gfx PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+  target_include_directories(zn_host_gfx PUBLIC include PRIVATE ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include)
+  target_compile_options(zn_host_gfx PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)
+  target_compile_definitions(zn_host_gfx PRIVATE ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="macos")
+endif()
+
 add_executable(zinc src/main.cpp)
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_link_libraries(zinc PRIVATE zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+if(TARGET zn_host_gfx)
+  target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
+  target_link_libraries(zinc PRIVATE zn_host_gfx)
+endif()
 
 add_executable(ir_test tests/unit/ir_test.cpp)
 target_link_libraries(ir_test PRIVATE zn_ir)

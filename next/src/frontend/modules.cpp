@@ -36,6 +36,37 @@ std::string normalize(const std::string& p) {
   return r;
 }
 
+// The host's modules ('zinc:gfx'), written in Zinc over the __host_* functions of the runtime table (zn/runtime.h, owner "host").
+// A first subset of lib/gfx.d.ts: frames, clear, rect, rrect, fonts and text. `onFrame` hands the callback to the frame loop,
+// which runs in place of the timer loop once the program's own statements are done (see kAsyncPrelude).
+const char* kGfxModule = R"ZN(
+let __frameCb: ((dt: number) => void) | null = null;
+let __frameNo: i32 = 0;
+function __gfxLoop(): void {
+  const n = __host_gfxFrames();
+  const dt = 1 / 60;
+  for (let f: i32 = 0; f < n; f++) {
+    __clock += dt * 1000;
+    __frameTimers();
+    __host_gfxBegin();
+    const cb = __frameCb;
+    if (cb !== null) cb(dt);
+    __drainJobs();
+    __host_gfxEnd();
+    __frameNo++;
+  }
+}
+export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
+export function frame(): i32 { return __frameNo; }
+export function clear(color: u32): void { __host_gfxClear(color); }
+export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
+export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void { __host_gfxRRect(x, y, w, h, r, color, alpha); }
+export function font(family: string, px: i32): i32 { return __host_gfxFont(family, px); }
+export function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void { __host_gfxDrawText(font, x, y, s, color, alpha, tracking); }
+)ZN";
+
+const char* hostModuleSource(std::string_view spec) { return spec == "zinc:gfx" ? kGfxModule : nullptr; }
+
 struct Loader {
   Program& prog;
   const ReadFile& read;
@@ -52,6 +83,12 @@ struct Loader {
   // The module index for an import of `spec` (with quotes) from file `fromFile`, loading it first; kNone on error.
   std::uint32_t resolve(std::uint32_t fromFile, std::uint32_t node, std::string_view quoted) {
     std::string spec(quoted.substr(1, quoted.size() - 2));
+    if (spec.rfind("zinc:", 0) == 0) {
+      if (done.count(spec)) return done[spec];
+      if (const char* src = hostModuleSource(spec)) return load(spec, src);
+      diag(kZModuleNotFound, fromFile, node, "'" + spec + "'");
+      return kNone;
+    }
     if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) { diag(kZUnsupported, fromFile, node, "package imports ('" + spec + "')"); return kNone; }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
     std::string text;
@@ -143,6 +180,19 @@ class RangeError extends Error { constructor(message: string) { super(message); 
 class SyntaxError extends Error { constructor(message: string) { super(message); this.name = 'SyntaxError'; } }
 )ZN";
 
+// Math.random and Math.seed: the generator of the old runtime (xorshift32, default seed 0x2545F491), so seeded programs print the same numbers.
+// The checker rewrites the two calls into these functions; the prelude is added when a program mentions them.
+const char* kRandomPrelude = R"ZN(
+let __rng: u32 = 0x2545F491;
+function __mathSeed(s: u32): void { __rng = s !== 0 ? s : 0x2545F491; }
+function __mathRandom(): f64 {
+  __rng = __rng ^ (__rng << 13);
+  __rng = __rng ^ (__rng >>> 17);
+  __rng = __rng ^ (__rng << 5);
+  return __rng / 4294967296;
+}
+)ZN";
+
 // Promises, timers and the microtask queue, written in Zinc: added when a program uses async functions, generators, Promise,
 // setTimeout or queueMicrotask. Its top-level code (the queues) runs before the program; `__runLoop()` runs after it.
 const char* kAsyncPrelude = R"ZN(
@@ -190,7 +240,30 @@ function __drainJobs(): void {
   __jobs = [];
   __jobHead = 0;
 }
+let __frameHook: (() => void) | null = null;
+// One frame of a program with a frame loop (zinc:gfx): the timers due at the new clock fire in order of time then creation,
+// as in the old runtime; an interval is re-armed before it runs, so it can cancel itself.
+function __frameTimers(): void {
+  while (__timers.length > 0) {
+    let best: i32 = 0;
+    for (let i: i32 = 1; i < __timers.length; i++) {
+      const a = __timers[i];
+      const b = __timers[best];
+      if (a.at < b.at || (a.at === b.at && a.id < b.id)) best = i;
+    }
+    const t = __timers[best];
+    if (t.at > __clock) return;
+    const rest: Timer[] = [];
+    for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
+    __timers = rest;
+    if (t.every > 0) { __timerSeq++; __timers.push(new Timer(t.at + t.every, __timerSeq, t.id, t.every, t.f)); }
+    t.f();
+    __drainJobs();
+  }
+}
 function __runLoop(): void {
+  const hook = __frameHook;
+  if (hook !== null) { hook(); return; }
   __drainJobs();
   while (__timers.length > 0) {
     let best: i32 = 0;
@@ -438,6 +511,12 @@ bool needsAsync(const Ast& A) {
   return false;
 }
 
+bool needsRandom(const Ast& A) {
+  for (const Node& x : A.nodes)
+    if (x.kind == N::Member && (x.text == "random" || x.text == "seed") && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "Math") return true;
+  return false;
+}
+
 bool needsArena(const Ast& A) {
   for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "Arena") return true;
   return false;
@@ -469,14 +548,17 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict)
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
   Loader L(p, read);
   L.load(entry, std::move(text));
-  bool async = p.diags.empty() && needsAsync(p.ast);
+  bool usesGfx = false;
+  for (const SourceFile& f : p.files) if (f.path == "zinc:gfx") usesGfx = true;
+  bool async = p.diags.empty() && (usesGfx || needsAsync(p.ast));
   bool json = p.diags.empty() && needsJson(p.ast);
   bool arena = p.diags.empty() && needsArena(p.ast);
+  bool random = p.diags.empty() && needsRandom(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || random || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

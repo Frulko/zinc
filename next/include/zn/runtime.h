@@ -5,7 +5,7 @@
 //
 // X(Id, "owner.member", "params>ret", flags). The receiver is the first parameter. Type letters, with E/K/V the
 // element, key and value type of the receiver:
-//   s string   i i32   b boolean   d f64   n none (result only)
+//   s string   i i32   u u32   b boolean   d f64   n none (result only)
 //   j i32 that may be omitted (defaults to INT32_MAX)   z i32 that may be omitted (defaults to 0)   w string that may be omitted (" ")   y string that may be omitted (",")
 //   x any reference (an object, string, array, Map or Set)
 //   a, m, t    the receiver array, Map, Set (as a result: the receiver again)
@@ -41,7 +41,11 @@
   X(MapDelete, "Map.delete", "mk>b", 0) X(MapClear, "Map.clear", "m>n", 0) X(MapKeys, "Map.keys", "m>K", 0)        \
   X(MapValues, "Map.values", "m>V", 0) X(MapSize, "Map.size", "m>i", 1)                                            \
   X(SetAdd, "Set.add", "te>t", 0) X(SetHas, "Set.has", "te>b", 0) X(SetDelete, "Set.delete", "te>b", 0)           \
-  X(SetClear, "Set.clear", "t>n", 0) X(SetValues, "Set.values", "t>A", 0) X(SetSize, "Set.size", "t>i", 1)
+  X(SetClear, "Set.clear", "t>n", 0) X(SetValues, "Set.values", "t>A", 0) X(SetSize, "Set.size", "t>i", 1)                  \
+  /* host: functions of the program's host (zinc:gfx); the checker declares them as __host_<member>, a program reaches them through the module wrappers */ \
+  X(HostGfxFrames, "host.gfxFrames", ">i", 2) X(HostGfxBegin, "host.gfxBegin", ">n", 2) X(HostGfxEnd, "host.gfxEnd", ">n", 2) \
+  X(HostGfxClear, "host.gfxClear", "u>n", 2) X(HostGfxRect, "host.gfxRect", "ddddu>n", 2) X(HostGfxRRect, "host.gfxRRect", "dddddui>n", 2) \
+  X(HostGfxFont, "host.gfxFont", "si>i", 2) X(HostGfxDrawText, "host.gfxDrawText", "iddsuid>n", 2)
 
 namespace zn {
 

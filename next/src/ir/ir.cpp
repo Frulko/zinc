@@ -410,6 +410,7 @@ struct Verifier {
         if (i.sym >= static_cast<std::uint32_t>(zn::Rt::Count)) return fail(b, ii, "unknown runtime call");
         const RtInfo& ri = rtInfo(static_cast<zn::Rt>(i.sym));
         if (!arity(rtParamCount(ri))) return false;
+        if (rtParamCount(ri) == 0) break;
         Type::K rk = m.types[tyOf(i.args[0])].k;
         char l0 = rtParam(ri, 0);
         bool okRecv = l0 == 's' ? rk == Type::K::Str : l0 == 'a' ? rk == Type::K::Array : l0 == 'm' ? rk == Type::K::Map : l0 == 't' ? rk == Type::K::Set : l0 == 'x' ? (rk == Type::K::Ref || rk == Type::K::Str || rk == Type::K::Array || rk == Type::K::Map || rk == Type::K::Set) : true;

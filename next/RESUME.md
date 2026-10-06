@@ -265,3 +265,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - zbc goldens regenerated (inlining changes the code). T0, T1, T2 green.
 - Later in ZN-026: float consts hoisted out of loops, loop counters updated in place (emit.cpp), fused f64 compare-and-jump (JEqF..JNLeF, NaN-correct). AOT thresholds, dynsum, jsonout pass; interpreter still 3.0 to 4.8x QuickJS on fib/mandelbrot/spectralnorm, moved to ZN-041. ZN-026 Done.
 - (superseded) Still open: interpreter dispatch cost (fib/nbody/mandelbrot are 3 to 5x QuickJS, need 5x), AOT nbody 3.3x native (needs 3x), dynsum, and an idle-machine run of `tools/bench-m4`.
+
+## ZN-027 notes (Done)
+- Host calls are `Rt::HostGfx*` (owner `host`, flag 2) -> `zn::host::Gfx` table (`include/zn/host.h`) installed by `src/host/gfx_host.cpp` (links `../runtime`: zrt, raster, gfx, `targets/null/hal_null.cpp`, `targets/common/hal_posix.cpp`; C++17 flags of the old build, `ZN_HOST_GFX`). The runtime starts lazily on the first `frames()` call.
+- `zinc:gfx` is a module written in Zinc (`kGfxModule` in `modules.cpp`) over `__host_*` builtins; the frame loop (`__gfxLoop`) replaces `__runLoop` through `__frameHook`; timers fire in the old runtime's order (`__frameTimers`).
+- Run headless like the old tool: `ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=n ZINC_SHOT=out.png ZINC_SHOT_FRAMES=n zinc run prog.ts`. Compare with `tools/pngdiff`. Tests: T0 `host.sh` (frame 20 vs `corpus/ui/clock-20.png`), T1 `ui.sh` (frames 20 and 60 vs `tests/visual`).
+- `src/host/baked_resources.cpp` is the old build's resource file trimmed to 6 fonts and no TTF data; other programs need their own (a later task should generate it without Node).
+- Next: ZN-028 (JSX lowering).
