@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-034 (console.log inspect format); ZN-017 follows ZN-032..035. Nothing in progress.
+- Ready: none; next by ordinal is ZN-035 (array and string library); ZN-017 follows. Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-034.
+`/loop /zn-start` resumes with ZN-035.
 
 ## Watch out
 
@@ -140,3 +140,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - A literal is checked against the record it is expected to be (assignment, argument, return, array element, `T | null`): unknown, duplicate and missing properties are errors. Without an expected record it gets an anonymous record interned by its ordered (name, type) list (`recordOf`), named `{ x: f64; y: f64 }`.
 - Records are nominal: two interfaces of the same shape, or an anonymous value passed where a named record is expected, are different types (stricter than tsc, which is structural). Classes are not assignable to records, records cannot be extended, instantiated with `new` or used with `instanceof`.
 - Lowering: `New` of the record class and one `SetField` per property in source order.
+
+## ZN-034 notes (console.log of objects, arrays, Map, Set)
+
+- The checker rewrites a `console.log` argument of an inspectable non-primitive type into `__log<id>(arg)`, a formatter generated as Zinc source (`frontend/inspect.{h,cpp}`, a port of Node's `formatValue`/`reduceToSingleString`/`groupArrayElements`: single line within 80 columns, numeric arrays in columns, depth 2 with `[Object]`/`[Array]`, 100-item limit, `-0`, quoting rules, class names, `Map(n) {}`/`Set(n) {}`). The text is parsed and merged into the program (`Ast::generated`, `Checker::mergeSource`), declared in a private scope (`genScope`) and lowered as ordinary functions through `Checked::instances`. The VM and the verifier know nothing about it, so AOT gets it for free.
+- Classes dispatch on the dynamic type with an `instanceof` chain over their concrete subclasses (most derived first); interfaces through their implementations; private fields are printed (`inspectMode` bypasses access checks only in generated code). Records print without a name.
+- Limits: functions print `[Function (anonymous)]` (Node prints the name), strings longer than 16 characters with newlines are not split across lines, cyclic data recurse forever, non-ASCII strings that need escaping lose surrogate pairs, unions other than `T | null` and generic templates are not inspectable (the bytecode emitter then reports it).
+- Programs that never print an object or array carry none of this code (the prelude is added on the first use).

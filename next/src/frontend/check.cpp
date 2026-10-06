@@ -4,9 +4,12 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <set>
 #include <unordered_map>
 
+#include "frontend/inspect.h"
 #include "frontend/lexer.h"
+#include "frontend/parser.h"
 #include "zn/runtime.h"
 
 namespace zn::frontend {
@@ -45,6 +48,7 @@ struct Checker {
   std::vector<std::uint32_t> fnStack;  // enclosing function, method and lambda nodes, innermost last
   std::uint32_t calleeNode = kNone;    // the callee being evaluated, so a bare function name can be told from a call
   bool atTop = false, declAsGlobal = false;
+  bool inspectMode = false;           // checking a generated console.log formatter
   std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
   TypeId newExpected = kNoType;       // the type a `new Map()` or `new Set()` is expected to have
   static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
@@ -118,6 +122,7 @@ struct Checker {
     return o.ctorAccess == 2 ? curClass == objIdx : isSubclass(curClass, objIdx);
   }
   bool accessible(const Member& m) const {
+    if (inspectMode) return true;  // generated formatters print private fields too
     if (m.access == 0 || m.owner == kNoObj) return true;
     if (curClass == kNoObj) return false;
     return m.access == 2 ? curClass == m.owner : isSubclass(curClass, m.owner);
@@ -404,6 +409,95 @@ struct Checker {
     return x.kind == N::Index;
   }
 
+  // ---- console.log of arrays, objects, Map and Set: the argument becomes a call of a formatter generated as Zinc source
+  std::shared_ptr<Scope> genScope;               // names of generated code: aliases, classes and formatters
+  std::map<TypeId, std::uint32_t> logSym;        // __log<t> symbol by type
+  std::set<TypeId> fmtDeclared;                  // types whose __fmt<t> exists
+  bool preludeDone = false;
+
+  std::uint32_t newNode(N kind, std::string_view text, std::vector<std::uint32_t> kids, std::uint32_t at) {
+    a.nodes.push_back({kind, n(at).start, n(at).end, text, std::move(kids), 0, n(at).file});
+    out.nodeType.push_back(kNoType);
+    out.nodeSym.push_back(kNone);
+    return static_cast<std::uint32_t>(a.nodes.size() - 1);
+  }
+  std::string_view keep(std::string s) { return a.generated.emplace_back(std::move(s)); }
+
+  // Parses generated source and merges its nodes into the program; returns its top-level statements.
+  std::vector<std::uint32_t> mergeSource(const std::string& text, std::uint32_t at) {
+    a.generated.push_back(text);
+    ParseResult pr = parse(a.generated.back());
+    if (pr.ast.root == kNone || !pr.diags.empty()) { diag(kZUnsupported, at, "internal error: a generated formatter does not parse: " + (pr.diags.empty() ? std::string("?") : pr.diags[0].detail)); return {}; }
+    auto off = static_cast<std::uint32_t>(a.nodes.size());
+    for (Node& nd : pr.ast.nodes) {
+      for (std::uint32_t& k : nd.kids) if (k != kNone) k += off;
+      nd.file = n(at).file;
+      a.nodes.push_back(std::move(nd));
+    }
+    out.nodeType.resize(a.nodes.size(), kNoType);
+    out.nodeSym.resize(a.nodes.size(), kNone);
+    return a.nodes[pr.ast.root + off].kids;
+  }
+
+  // The symbol of __log<t>, generating (and declaring) the formatters of t and of every type it prints.
+  std::uint32_t inspectLog(TypeId t, std::uint32_t at) {
+    auto hit = logSym.find(t);
+    if (hit != logSym.end()) return hit->second;
+    Ctx sv = saveCtx();
+    if (!genScope) genScope = std::make_shared<Scope>();
+    scopes = {scopes.front(), genScope};
+    curClass = kNoObj; curCtor = kNoObj; curStatic = false;
+    std::string text;
+    if (!preludeDone) { preludeDone = true; text = inspectPrelude(); }
+    std::vector<TypeId> todo{t}, closure;
+    std::set<TypeId> classTypes;
+    while (!todo.empty()) {
+      TypeId u = todo.back();
+      todo.pop_back();
+      if (fmtDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
+      closure.push_back(u);
+      std::vector<TypeId> deps, classes;
+      text += inspectFunction(out, u, false, deps, classes);
+      for (TypeId d : deps) todo.push_back(d);
+      for (TypeId cl : classes) classTypes.insert(cl);
+    }
+    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0], 0);\n}\n";
+    for (TypeId u : closure) {
+      declare(SymKind::TypeAlias, keep(inspectAliasName(u)), u, kNone, true, at);
+      fmtDeclared.insert(u);
+    }
+    for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
+      for (std::uint32_t s = 0; s < out.syms.size(); ++s)
+        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
+    std::vector<std::uint32_t> stmts = mergeSource(text, at);
+    for (std::uint32_t s : stmts) {  // declare every function first: their bodies refer to each other
+      std::vector<std::uint32_t> ps;
+      TypeId sig = signature(s, 2, false, ps);
+      out.nodeType[s] = sig;
+      out.nodeSym[s] = declare(SymKind::Func, n(s).text, sig, s, true, s);
+      out.instances.push_back(s);
+      out.nodeNames[s] = std::string(n(s).text);
+      auto snap = scopes;
+      defer->push_back([this, s, sig, ps, snap]() {
+        Ctx sv2 = saveCtx();
+        bool savedMode = inspectMode;
+        scopes = snap; curClass = kNoObj; curCtor = kNoObj; curStatic = false; inspectMode = true;
+        checkBody(s, sig, ps, false);
+        inspectMode = savedMode;
+        restoreCtx(sv2);
+      });
+    }
+    std::uint32_t sym = (*genScope)[keep(inspectLogName(t))];
+    restoreCtx(sv);
+    logSym[t] = sym;
+    return sym;
+  }
+  // A console.log argument that is not a number, boolean or string is printed through a generated formatter.
+  bool needsInspect(TypeId t) const {
+    TK k = ty(t).k;
+    return (k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Object || k == TK::Union || k == TK::Func) && !hasParam(t) && inspectable(out, t);
+  }
+
   // `m.get(k)` on a Map: a value that may be missing (`undefined` in TypeScript), so it is only usable as the left of `??`.
   bool isMapGet(std::uint32_t node) const {
     const Node& c = n(node);
@@ -519,6 +613,17 @@ struct Checker {
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
+      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
+          out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
+        std::uint32_t fsym = inspectLog(at, arg);
+        std::uint32_t id = newNode(N::Ident, keep(inspectLogName(at)), {}, arg);
+        out.nodeSym[id] = fsym;
+        out.nodeType[id] = out.syms[fsym].type;
+        std::uint32_t call = newNode(N::Call, {}, {id, arg}, arg);
+        out.nodeType[call] = tStr;
+        a.nodes[i].kids[k + 1] = call;
+        at = tStr;
+      }
       if (expected != kNoType) require(at, expected, arg);
     }
     if (!isNew && n(callee).kind == N::Member && n(callee).text == "get" && i != nullishLeft) {  // Map.get has no `undefined` to test: it is only usable under `??`
