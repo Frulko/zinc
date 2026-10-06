@@ -361,3 +361,11 @@ mquickjs evaluated and not adopted (`docs/reports/zinc-next-mquickjs.md`, decisi
 
 ## ZN-057 and ZN-049 (Done)
 The example apps run (T1 `examples.sh`, doc `docs/reports/zinc-next-hostmodules.md`); maps/explorer needs the native map engine. Left: ZN-055 (hardware), Review: 042, 053, 054. Next: `tools/next-task`.
+
+## State at the end of the plan (2026-10-06)
+Everything that can be done without hardware, a Windows machine or a maintainer decision is done. What is left, by who must act:
+- **A board in hand:** ZN-055 (`tools/validate-hardware esp32|pi`, table in `docs/reports/zinc-next-hardware.md`); it also closes ZN-030 AC1.
+- **A Windows machine:** ZN-054 (port notes in `docs/reports/zinc-next-hosts.md`; the CI workflow lists the job); ZN-053 AC1 on Linux/Windows packages.
+- **A decision:** ZN-042 (a fast-math AOT profile for nbody, a typed C calling convention for fib; see `docs/reports/zinc-next-perf.md`).
+- Not mine to commit: the uncommitted changes of others in `lib/std` and the docs.
+Resume: `/loop /zn-start` stops at ZN-055 (needs boards); mark it Done only after a real run.
