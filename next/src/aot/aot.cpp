@@ -80,16 +80,25 @@ struct FnEmitter {
     return s;
   }
   std::string afterCall(std::uint32_t pc) {
-    return "if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; " + unwind(pc, "e") + "} --m.depth; return st; }";
+    return "if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; " + unwind(pc, "e") + "} --m.depth; return st; }";  // (only in functions that call)
   }
-  std::string trap(const std::string& msg) { return "{ m.error = " + msg + "; --m.depth; return 2; }"; }
+  bool leaf = false;  // no calls and no runtime calls: the registers can live in C++ locals
+  std::string unwindDepth() { return leaf ? "" : "--m.depth; "; }
+  std::string trap(const std::string& msg) { return "{ m.error = " + msg + "; " + unwindDepth() + "return 2; }"; }
   std::string checked(const std::string& call) { return "{ const char* e = " + call + "; if (__builtin_expect(e != nullptr, 0)) " + trap("e") + " }"; }
 
   void emit() {
     collectLabels();
-    out += "// function " + std::to_string(index) + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* r) {\n";
-    line("if (__builtin_expect(m.depth >= kMaxCallDepth, 0)) { m.error = \"stack overflow\"; return 2; }");
-    line("++m.depth;");
+    leaf = true;
+    for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt") leaf = false; }
+    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf ? "win" : "r") + ") {\n";
+    if (leaf) {  // the registers are C++ locals so the compiler keeps them in machine registers; arguments come in, the result goes out through the window
+      line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
+      for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
+    } else {
+      line("if (__builtin_expect(m.depth >= kMaxCallDepth, 0)) { m.error = \"stack overflow\"; return 2; }");
+      line("++m.depth;");
+    }
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) {
       std::uint32_t w = f.code[pc];
       const OpInfoRow& o = kOps[opOf(w)];
@@ -112,9 +121,9 @@ struct FnEmitter {
       else if (o.fmt == Fmt::AK2) line("if (zn::ops::" + nm + "(" + r(A) + ", " + num(immOf(w)) + ")) goto L" + std::to_string(f.code[pc + 1]) + ";");
       else if (nm == "Call") line("{ int st = f" + std::to_string(D) + "(m, r + " + std::to_string(A) + "); " + afterCall(P) + " }");
       else if (nm == "CallVirt") line("{ const char* ce = nullptr; const Func* cf = op::virtualTarget(r, " + std::to_string(A) + ", " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " int st = cf->native(m, r + " + std::to_string(A) + "); " + afterCall(P) + " }");
-      else if (nm == "Ret") line("{ r[0] = " + r(A) + "; --m.depth; return 0; }");
-      else if (nm == "RetV") line("{ --m.depth; return 0; }");
-      else if (nm == "Throw") line("{ if (!" + r(A) + ") " + trap("op::kNullRef") + " Obj* e = reinterpret_cast<Obj*>(" + r(A) + "); " + unwind(P, "e") + "m.thrown = e; --m.depth; return 1; }");
+      else if (nm == "Ret") line(leaf ? "{ win[0] = " + r(A) + "; return 0; }" : "{ r[0] = " + r(A) + "; --m.depth; return 0; }");
+      else if (nm == "RetV") line(leaf ? "return 0;" : "{ --m.depth; return 0; }");
+      else if (nm == "Throw") line("{ if (!" + r(A) + ") " + trap("op::kNullRef") + " Obj* e = reinterpret_cast<Obj*>(" + r(A) + "); " + unwind(P, "e") + "m.thrown = e; " + unwindDepth() + "return 1; }");
       else if (nm == "New") line(checked("op::newObject(m, " + std::to_string(D) + ", " + r(A) + ")"));
       else if (nm == "GetField") line(checked("op::getField(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
       else if (nm == "SetField") line(checked("op::setField(m, r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
@@ -143,7 +152,7 @@ struct FnEmitter {
       else if (nm == "LogEnd") line("*m.out += '\\n';");
       else line("#error \"AOT: no translation for " + nm + "\"");
     }
-    line("--m.depth;");
+    if (!leaf) line("--m.depth;");
     line("return 0;");
     out += "}\n\n";
   }

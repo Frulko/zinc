@@ -5,28 +5,41 @@ class Q : P { i, i, i, i }
   vtable .sum -> @P.sum
 func @main() -> void nregs=5
    0  New      r0, Q
-   1  LoadI    r2, 10
-   2  Retain   r0
-   3  Move     r1, r0
-   4  Call     r1, @Q.constructor
-   5  Move     r1, r0
-   6  Retain   r1
-   7  Call     r1, @P.sum
-   8  Retain   r0
-   9  Move     r2, r0
-  10  Call     r2, @Q.total
-  11  GetField r3, r0, .0
-  12  GetField r4, r0, .2
-  13  Release  r0
-  14  LogI     r1
-  15  LogSep   
-  16  LogI     r2
-  17  LogSep   
-  18  LogI     r3
-  19  LogSep   
-  20  LogI     r4
-  21  LogEnd   
-  22  RetV     
+   1  LoadI    r1, 10
+   2  Move     r2, r0
+   3  AddI32K  r3, r1, 1
+   4  AddI32K  r4, r1, 2
+   5  SetField r2, r1, .0
+   6  SetField r2, r3, .1
+   7  SetField r2, r4, .2
+   8  LoadI    r1, 7
+   9  SetField r0, r1, .3
+  10  Move     r1, r0
+  11  GetField r2, r1, .0
+  12  GetField r3, r1, .1
+  13  AddI32   r2, r2, r3
+  14  GetField r1, r1, .2
+  15  AddI32   r1, r2, r1
+  16  Move     r2, r0
+  17  GetField r3, r2, .0
+  18  GetField r4, r2, .1
+  19  AddI32   r3, r3, r4
+  20  GetField r2, r2, .2
+  21  AddI32   r2, r3, r2
+  22  GetField r3, r0, .3
+  23  AddI32   r2, r2, r3
+  24  GetField r3, r0, .0
+  25  GetField r4, r0, .2
+  26  Release  r0
+  27  LogI     r1
+  28  LogSep   
+  29  LogI     r2
+  30  LogSep   
+  31  LogI     r3
+  32  LogSep   
+  33  LogI     r4
+  34  LogEnd   
+  35  RetV     
 func @P.constructor(ref P, i, i, i) -> void nregs=4
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
@@ -41,24 +54,29 @@ func @P.sum(ref P) -> i nregs=3
    4  Release  r0
    5  AddI32   r0, r1, r2
    6  Ret      r0
-func @Q.constructor(ref Q, i) -> void nregs=6
+func @Q.constructor(ref Q, i) -> void nregs=5
    0  Move     r2, r0
    1  Retain   r2
    2  AddI32K  r3, r1, 1
    3  AddI32K  r4, r1, 2
-   4  Move     r5, r1
-   5  Move     r1, r2
-   6  Move     r2, r5
-   7  Call     r1, @P.constructor
+   4  SetField r2, r1, .0
+   5  SetField r2, r3, .1
+   6  SetField r2, r4, .2
+   7  Release  r2
    8  LoadI    r1, 7
    9  SetField r0, r1, .3
   10  Release  r0
   11  RetV     
-func @Q.total(ref Q) -> i nregs=3
+func @Q.total(ref Q) -> i nregs=4
    0  Move     r1, r0
    1  Retain   r1
-   2  Call     r1, @P.sum
-   3  GetField r2, r0, .3
-   4  Release  r0
-   5  AddI32   r0, r1, r2
-   6  Ret      r0
+   2  GetField r2, r1, .0
+   3  GetField r3, r1, .1
+   4  AddI32   r2, r2, r3
+   5  GetField r3, r1, .2
+   6  Release  r1
+   7  AddI32   r1, r2, r3
+   8  GetField r2, r0, .3
+   9  Release  r0
+  10  AddI32   r0, r1, r2
+  11  Ret      r0

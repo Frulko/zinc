@@ -129,427 +129,566 @@ func @main() -> void nregs=10
  100  LogSep   
  101  LogI     r2
  102  LogEnd   
- 103  LoadI    r2, 16
- 104  LoadI    r3, 0
- 105  Retain   r0
- 106  Move     r1, r0
- 107  Call     r1, @__g0
- 108  LoadI    r3, 1000
- 109  LoadI    r4, 0
- 110  Retain   r0
- 111  Move     r2, r0
- 112  Call     r2, @__g0
- 113  LoadI    r4, 49
- 114  LoadI    r5, 0
- 115  Retain   r0
- 116  Move     r3, r0
- 117  Call     r3, @__g1
- 118  LoadI    r5, 50
- 119  LoadI    r6, 0
- 120  Move     r4, r0
- 121  Call     r4, @__g1
- 122  LogI     r1
- 123  LogSep   
- 124  LogI     r2
- 125  LogSep   
- 126  LogBool  r3
- 127  LogSep   
- 128  LogBool  r4
- 129  LogEnd   
- 130  New      r0, i32[]
- 131  ArrLen   r1, r0
- 132  LoadI    r3, 1
- 133  LoadI    r4, 0
- 134  Move     r2, r0
- 135  Call     r2, @__g0
- 136  LogI     r1
- 137  LogSep   
- 138  LogI     r2
- 139  LogEnd   
- 140  New      r0, str[]
- 141  LoadStr  r1, "pear"
- 142  ArrPush  r1, r0, r1
- 143  LoadStr  r1, "apple"
- 144  ArrPush  r1, r0, r1
- 145  LoadStr  r1, "fig"
- 146  ArrPush  r1, r0, r1
- 147  LoadStr  r1, "banana"
- 148  ArrPush  r1, r0, r1
- 149  LoadStr  r2, ", "
- 150  Move     r1, r0
- 151  Rt       r1, Array.join
- 152  LoadStr  r3, ""
- 153  Move     r2, r0
- 154  Rt       r2, Array.join
- 155  LoadStr  r4, "fig"
- 156  LoadI    r5, 0
- 157  Retain   r0
- 158  Move     r3, r0
- 159  Call     r3, @__g2
- 160  LoadStr  r5, "kiwi"
- 161  LoadI    r6, 0
- 162  Retain   r0
- 163  Move     r4, r0
- 164  Call     r4, @__g3
- 165  LogStr   r1
- 166  LogSep   
- 167  LogStr   r2
- 168  LogSep   
- 169  LogI     r3
- 170  LogSep   
- 171  LogBool  r4
- 172  LogEnd   
- 173  Release  r1
- 174  Release  r2
- 175  New      r1, lambda0
- 176  Move     r2, r1
- 177  Retain   r2
- 178  Release  r1
- 179  Move     r3, r0
- 180  Move     r4, r2
- 181  Rt       r3, Array.sort
- 182  Release  r3
- 183  Release  r2
- 184  LoadStr  r2, " "
- 185  Move     r1, r0
- 186  Rt       r1, Array.join
- 187  LogStr   r1
- 188  LogEnd   
- 189  Release  r1
- 190  New      r1, lambda1
- 191  Move     r2, r1
- 192  Retain   r2
- 193  Release  r1
- 194  Move     r3, r0
- 195  Move     r4, r2
- 196  Rt       r3, Array.sort
- 197  Release  r3
- 198  Release  r2
- 199  LoadStr  r2, " "
- 200  Move     r1, r0
- 201  Rt       r1, Array.join
- 202  Release  r0
- 203  LogStr   r1
- 204  LogEnd   
- 205  Release  r1
- 206  New      r0, f64[]
- 207  LoadK    r1, f64 3.5
- 208  ArrPush  r1, r0, r1
- 209  LoadK    r1, f64 -1
- 210  ArrPush  r1, r0, r1
- 211  LoadK    r1, f64 2.25
- 212  ArrPush  r1, r0, r1
- 213  LoadK    r1, f64 10
- 214  ArrPush  r1, r0, r1
- 215  LoadK    r1, f64 0
- 216  ArrPush  r1, r0, r1
- 217  New      r1, lambda2
- 218  Move     r2, r1
- 219  Retain   r2
- 220  Release  r1
- 221  Move     r3, r0
- 222  Move     r4, r2
- 223  Rt       r3, Array.sort
- 224  Release  r3
- 225  Release  r2
- 226  LoadI    r1, 0
- 227  ArrGet   r1, r0, r1
- 228  LoadI    r2, 1
- 229  ArrGet   r2, r0, r2
- 230  LoadI    r3, 2
- 231  ArrGet   r3, r0, r3
- 232  LoadI    r4, 3
- 233  ArrGet   r4, r0, r4
- 234  LoadI    r5, 4
- 235  ArrGet   r5, r0, r5
- 236  LogF64   r1
- 237  LogSep   
- 238  LogF64   r2
- 239  LogSep   
- 240  LogF64   r3
- 241  LogSep   
- 242  LogF64   r4
- 243  LogSep   
- 244  LogF64   r5
- 245  LogEnd   
- 246  New      r1, lambda3
- 247  Move     r2, r1
- 248  Retain   r2
- 249  Release  r1
- 250  Move     r3, r0
- 251  Move     r4, r2
- 252  Rt       r3, Array.sort
- 253  Release  r3
- 254  Release  r2
- 255  LoadI    r2, 0
- 256  LoadI    r3, 2
- 257  Move     r1, r0
- 258  Rt       r1, Array.slice
- 259  LoadI    r2, 0
- 260  ArrGet   r2, r1, r2
- 261  Release  r1
- 262  LoadI    r1, 4
- 263  ArrGet   r1, r0, r1
- 264  Release  r0
- 265  LogF64   r2
- 266  LogSep   
- 267  LogF64   r1
- 268  LogEnd   
- 269  New      r0, ref Job[]
- 270  New      r1, Job
- 271  LoadI    r3, 2
- 272  LoadStr  r4, "a"
- 273  Retain   r1
- 274  Move     r2, r1
- 275  Call     r2, @Job.constructor
- 276  ArrPush  r1, r0, r1
- 277  New      r1, Job
- 278  LoadI    r3, 1
- 279  LoadStr  r4, "b"
- 280  Retain   r1
- 281  Move     r2, r1
- 282  Call     r2, @Job.constructor
- 283  ArrPush  r1, r0, r1
- 284  New      r1, Job
- 285  LoadI    r3, 2
- 286  LoadStr  r4, "c"
- 287  Retain   r1
- 288  Move     r2, r1
- 289  Call     r2, @Job.constructor
- 290  ArrPush  r1, r0, r1
- 291  New      r1, Job
- 292  LoadI    r3, 1
- 293  LoadStr  r4, "d"
- 294  Retain   r1
- 295  Move     r2, r1
- 296  Call     r2, @Job.constructor
- 297  ArrPush  r1, r0, r1
- 298  New      r1, Job
- 299  LoadI    r3, 0
- 300  LoadStr  r4, "e"
- 301  Retain   r1
- 302  Move     r2, r1
- 303  Call     r2, @Job.constructor
- 304  ArrPush  r1, r0, r1
- 305  New      r1, lambda4
- 306  Move     r2, r1
- 307  Retain   r2
- 308  Release  r1
- 309  Move     r3, r0
- 310  Move     r4, r2
- 311  Rt       r3, Array.sort
- 312  Release  r3
- 313  Release  r2
- 314  LoadStr  r1, ""
- 315  LoadI    r2, 0
- 316  ArrLen   r3, r0
- 317  JLeI     r3, r2, -> 343
- 319  ArrGet   r3, r0, r2
- 320  Retain   r3
- 321  GetField r4, r3, .1
- 322  Retain   r4
- 323  GetField r5, r3, .0
- 324  Release  r3
- 325  Rt       r5, string.#i2s
- 326  Move     r6, r4
- 327  Move     r7, r5
- 328  Rt       r6, string.#concat
- 329  Release  r4
- 330  Release  r5
- 331  LoadStr  r8, " "
- 332  Move     r7, r6
- 333  Rt       r7, string.#concat
- 334  Release  r6
- 335  Move     r8, r1
- 336  Move     r9, r7
- 337  Rt       r8, string.#concat
- 338  Release  r1
- 339  Release  r7
- 340  AddI32K  r2, r2, 1
- 341  Move     r1, r8
- 342  Jmp      -> 316
- 343  LogStr   r1
- 344  LogEnd   
- 345  Release  r1
- 346  LoadI    r1, 3
- 347  ArrGet   r2, r0, r1
- 348  Retain   r2
- 349  LoadI    r3, 0
- 350  Retain   r0
- 351  Move     r1, r0
- 352  Call     r1, @__g4
- 353  New      r3, Job
- 354  LoadI    r5, 0
- 355  LoadStr  r6, "e"
- 356  Retain   r3
- 357  Move     r4, r3
- 358  Call     r4, @Job.constructor
- 359  LoadI    r4, 0
- 360  Move     r2, r0
- 361  Call     r2, @__g5
- 362  LogI     r1
- 363  LogSep   
- 364  LogBool  r2
- 365  LogEnd   
- 366  New      r0, i32[][]
- 367  New      r1, i32[]
- 368  LoadI    r2, 1
- 369  ArrPush  r2, r1, r2
- 370  LoadI    r2, 2
- 371  ArrPush  r2, r1, r2
- 372  LoadI    r2, 3
- 373  ArrPush  r2, r1, r2
- 374  ArrPush  r1, r0, r1
- 375  New      r1, i32[]
- 376  LoadI    r2, 4
- 377  ArrPush  r2, r1, r2
- 378  LoadI    r2, 5
- 379  ArrPush  r2, r1, r2
- 380  LoadI    r2, 6
- 381  ArrPush  r2, r1, r2
- 382  ArrPush  r1, r0, r1
- 383  New      r1, i32[]
- 384  LoadI    r2, 7
- 385  ArrPush  r2, r1, r2
- 386  LoadI    r2, 8
- 387  ArrPush  r2, r1, r2
- 388  LoadI    r2, 9
- 389  ArrPush  r2, r1, r2
- 390  ArrPush  r1, r0, r1
- 391  LoadI    r1, 1
- 392  ArrGet   r1, r0, r1
- 393  Retain   r1
- 394  LoadI    r2, 1
- 395  LoadI    r3, 50
- 396  ArrSet   r1, r2, r3
- 397  Release  r1
- 398  LoadI    r1, 0
- 399  LoadI    r2, 0
- 400  ArrLen   r3, r0
- 401  JLeI     r3, r2, -> 419
- 403  ArrGet   r3, r0, r2
- 404  Retain   r3
- 405  LoadI    r4, 0
- 406  Move     r5, r1
- 407  ArrLen   r6, r3
- 408  JLeI     r6, r4, -> 415
- 410  ArrGet   r6, r3, r4
- 411  AddI32   r6, r5, r6
- 412  AddI32K  r4, r4, 1
- 413  Move     r5, r6
- 414  Jmp      -> 407
- 415  Release  r3
- 416  AddI32K  r2, r2, 1
- 417  Move     r1, r5
- 418  Jmp      -> 400
- 419  ArrLen   r2, r0
- 420  LoadI    r3, 2
- 421  ArrGet   r3, r0, r3
- 422  Retain   r3
- 423  LoadI    r4, 0
- 424  ArrGet   r4, r3, r4
- 425  Release  r3
- 426  LoadI    r3, 1
- 427  ArrGet   r3, r0, r3
- 428  Retain   r3
- 429  Release  r0
- 430  LoadI    r0, 1
- 431  ArrGet   r0, r3, r0
- 432  Release  r3
- 433  LogI     r2
- 434  LogSep   
- 435  LogI     r4
- 436  LogSep   
- 437  LogI     r0
- 438  LogSep   
- 439  LogI     r1
- 440  LogEnd   
- 441  New      r0, str[][]
- 442  LoadStr  r1, "a b c"
- 443  LoadStr  r2, " "
- 444  Rt       r1, string.split
- 445  ArrPush  r1, r0, r1
- 446  New      r1, str[]
- 447  LoadStr  r2, "d"
- 448  ArrPush  r2, r1, r2
- 449  ArrPush  r1, r0, r1
- 450  LoadI    r1, 0
- 451  ArrGet   r1, r0, r1
- 452  Retain   r1
- 453  ArrLen   r2, r1
- 454  Release  r1
- 455  LoadI    r1, 0
- 456  ArrGet   r1, r0, r1
- 457  Retain   r1
- 458  LoadStr  r4, "+"
- 459  Move     r3, r1
- 460  Rt       r3, Array.join
- 461  Release  r1
- 462  LoadI    r1, 1
- 463  ArrGet   r1, r0, r1
- 464  Retain   r1
- 465  Release  r0
- 466  LoadI    r0, 0
- 467  ArrGet   r0, r1, r0
- 468  Retain   r0
- 469  Release  r1
- 470  LogI     r2
- 471  LogSep   
- 472  LogStr   r3
- 473  LogSep   
- 474  LogStr   r0
- 475  LogEnd   
- 476  Release  r3
- 477  Release  r0
- 478  New      r0, i32[]
- 479  LoadI    r1, 0
- 480  LoadI    r2, 1000
- 481  JLeI     r2, r1, -> 490
- 483  LoadI    r2, 7919
- 484  MulI32   r2, r1, r2
- 485  LoadI    r3, 1009
- 486  RemI32   r2, r2, r3
- 487  ArrPush  r2, r0, r2
- 488  AddI32K  r1, r1, 1
- 489  Jmp      -> 480
- 490  New      r1, lambda5
- 491  Move     r2, r1
- 492  Retain   r2
+ 103  LoadI    r1, 0
+ 104  JGeIK    r1, 0, -> 110
+ 106  ArrLen   r2, r0
+ 107  AddI32   r2, r2, r1
+ 108  Move     r1, r2
+ 109  Jmp      -> 110
+ 110  JGeIK    r1, 0, -> 113
+ 112  LoadI    r1, 0
+ 113  ArrLen   r2, r0
+ 114  JLeI     r2, r1, -> 122
+ 116  ArrGet   r2, r0, r1
+ 117  JNeIK    r2, 16, -> 120
+ 119  Jmp      -> 123
+ 120  AddI32K  r1, r1, 1
+ 121  Jmp      -> 113
+ 122  LoadI    r1, -1
+ 123  LoadI    r2, 1000
+ 124  LoadI    r3, 0
+ 125  JGeIK    r3, 0, -> 131
+ 127  ArrLen   r4, r0
+ 128  AddI32   r4, r4, r3
+ 129  Move     r3, r4
+ 130  Jmp      -> 131
+ 131  JGeIK    r3, 0, -> 134
+ 133  LoadI    r3, 0
+ 134  ArrLen   r4, r0
+ 135  JLeI     r4, r3, -> 143
+ 137  ArrGet   r4, r0, r3
+ 138  JNeI     r4, r2, -> 141
+ 140  Jmp      -> 145
+ 141  AddI32K  r3, r3, 1
+ 142  Jmp      -> 134
+ 143  LoadI    r2, -1
+ 144  Move     r3, r2
+ 145  LoadI    r2, 0
+ 146  JGeIK    r2, 0, -> 152
+ 148  ArrLen   r4, r0
+ 149  AddI32   r4, r4, r2
+ 150  Move     r2, r4
+ 151  Jmp      -> 152
+ 152  JGeIK    r2, 0, -> 155
+ 154  LoadI    r2, 0
+ 155  ArrLen   r4, r0
+ 156  JLeI     r4, r2, -> 165
+ 158  ArrGet   r4, r0, r2
+ 159  JNeIK    r4, 49, -> 163
+ 161  LoadI    r4, 1
+ 162  Jmp      -> 167
+ 163  AddI32K  r2, r2, 1
+ 164  Jmp      -> 155
+ 165  LoadI    r2, 0
+ 166  Move     r4, r2
+ 167  LoadI    r2, 0
+ 168  JGeIK    r2, 0, -> 174
+ 170  ArrLen   r5, r0
+ 171  AddI32   r5, r5, r2
+ 172  Move     r2, r5
+ 173  Jmp      -> 174
+ 174  JGeIK    r2, 0, -> 177
+ 176  LoadI    r2, 0
+ 177  ArrLen   r5, r0
+ 178  JLeI     r5, r2, -> 188
+ 180  ArrGet   r5, r0, r2
+ 181  JNeIK    r5, 50, -> 186
+ 183  Release  r0
+ 184  LoadI    r5, 1
+ 185  Jmp      -> 191
+ 186  AddI32K  r2, r2, 1
+ 187  Jmp      -> 177
+ 188  Release  r0
+ 189  LoadI    r0, 0
+ 190  Move     r5, r0
+ 191  LogI     r1
+ 192  LogSep   
+ 193  LogI     r3
+ 194  LogSep   
+ 195  LogBool  r4
+ 196  LogSep   
+ 197  LogBool  r5
+ 198  LogEnd   
+ 199  New      r0, i32[]
+ 200  ArrLen   r1, r0
+ 201  LoadI    r2, 0
+ 202  JGeIK    r2, 0, -> 208
+ 204  ArrLen   r3, r0
+ 205  AddI32   r3, r3, r2
+ 206  Move     r2, r3
+ 207  Jmp      -> 208
+ 208  JGeIK    r2, 0, -> 211
+ 210  LoadI    r2, 0
+ 211  ArrLen   r3, r0
+ 212  JLeI     r3, r2, -> 221
+ 214  ArrGet   r3, r0, r2
+ 215  JNeIK    r3, 1, -> 219
+ 217  Release  r0
+ 218  Jmp      -> 224
+ 219  AddI32K  r2, r2, 1
+ 220  Jmp      -> 211
+ 221  Release  r0
+ 222  LoadI    r0, -1
+ 223  Move     r2, r0
+ 224  LogI     r1
+ 225  LogSep   
+ 226  LogI     r2
+ 227  LogEnd   
+ 228  New      r0, str[]
+ 229  LoadStr  r1, "pear"
+ 230  ArrPush  r1, r0, r1
+ 231  LoadStr  r1, "apple"
+ 232  ArrPush  r1, r0, r1
+ 233  LoadStr  r1, "fig"
+ 234  ArrPush  r1, r0, r1
+ 235  LoadStr  r1, "banana"
+ 236  ArrPush  r1, r0, r1
+ 237  LoadStr  r2, ", "
+ 238  Move     r1, r0
+ 239  Rt       r1, Array.join
+ 240  LoadStr  r3, ""
+ 241  Move     r2, r0
+ 242  Rt       r2, Array.join
+ 243  LoadStr  r3, "fig"
+ 244  LoadI    r4, 0
+ 245  JGeIK    r4, 0, -> 251
+ 247  ArrLen   r5, r0
+ 248  AddI32   r5, r5, r4
+ 249  Move     r4, r5
+ 250  Jmp      -> 251
+ 251  JGeIK    r4, 0, -> 254
+ 253  LoadI    r4, 0
+ 254  ArrLen   r5, r0
+ 255  JLeI     r5, r4, -> 267
+ 257  ArrGet   r5, r0, r4
+ 258  Retain   r5
+ 259  Move     r6, r5
+ 260  Move     r7, r3
+ 261  Rt       r6, string.#eq
+ 262  Release  r5
+ 263  JmpIfNot r6, -> 265
+ 264  Jmp      -> 269
+ 265  AddI32K  r4, r4, 1
+ 266  Jmp      -> 254
+ 267  LoadI    r3, -1
+ 268  Move     r4, r3
+ 269  LoadStr  r3, "kiwi"
+ 270  LoadI    r5, 0
+ 271  JGeIK    r5, 0, -> 277
+ 273  ArrLen   r6, r0
+ 274  AddI32   r6, r6, r5
+ 275  Move     r5, r6
+ 276  Jmp      -> 277
+ 277  JGeIK    r5, 0, -> 280
+ 279  LoadI    r5, 0
+ 280  ArrLen   r6, r0
+ 281  JLeI     r6, r5, -> 294
+ 283  ArrGet   r6, r0, r5
+ 284  Retain   r6
+ 285  Move     r7, r6
+ 286  Move     r8, r3
+ 287  Rt       r7, string.#eq
+ 288  Release  r6
+ 289  JmpIfNot r7, -> 292
+ 290  LoadI    r6, 1
+ 291  Jmp      -> 296
+ 292  AddI32K  r5, r5, 1
+ 293  Jmp      -> 280
+ 294  LoadI    r3, 0
+ 295  Move     r6, r3
+ 296  LogStr   r1
+ 297  LogSep   
+ 298  LogStr   r2
+ 299  LogSep   
+ 300  LogI     r4
+ 301  LogSep   
+ 302  LogBool  r6
+ 303  LogEnd   
+ 304  Release  r1
+ 305  Release  r2
+ 306  New      r1, lambda0
+ 307  Move     r2, r1
+ 308  Retain   r2
+ 309  Release  r1
+ 310  Move     r3, r0
+ 311  Move     r4, r2
+ 312  Rt       r3, Array.sort
+ 313  Release  r3
+ 314  Release  r2
+ 315  LoadStr  r2, " "
+ 316  Move     r1, r0
+ 317  Rt       r1, Array.join
+ 318  LogStr   r1
+ 319  LogEnd   
+ 320  Release  r1
+ 321  New      r1, lambda1
+ 322  Move     r2, r1
+ 323  Retain   r2
+ 324  Release  r1
+ 325  Move     r3, r0
+ 326  Move     r4, r2
+ 327  Rt       r3, Array.sort
+ 328  Release  r3
+ 329  Release  r2
+ 330  LoadStr  r2, " "
+ 331  Move     r1, r0
+ 332  Rt       r1, Array.join
+ 333  Release  r0
+ 334  LogStr   r1
+ 335  LogEnd   
+ 336  Release  r1
+ 337  New      r0, f64[]
+ 338  LoadK    r1, f64 3.5
+ 339  ArrPush  r1, r0, r1
+ 340  LoadK    r1, f64 -1
+ 341  ArrPush  r1, r0, r1
+ 342  LoadK    r1, f64 2.25
+ 343  ArrPush  r1, r0, r1
+ 344  LoadK    r1, f64 10
+ 345  ArrPush  r1, r0, r1
+ 346  LoadK    r1, f64 0
+ 347  ArrPush  r1, r0, r1
+ 348  New      r1, lambda2
+ 349  Move     r2, r1
+ 350  Retain   r2
+ 351  Release  r1
+ 352  Move     r3, r0
+ 353  Move     r4, r2
+ 354  Rt       r3, Array.sort
+ 355  Release  r3
+ 356  Release  r2
+ 357  LoadI    r1, 0
+ 358  ArrGet   r1, r0, r1
+ 359  LoadI    r2, 1
+ 360  ArrGet   r2, r0, r2
+ 361  LoadI    r3, 2
+ 362  ArrGet   r3, r0, r3
+ 363  LoadI    r4, 3
+ 364  ArrGet   r4, r0, r4
+ 365  LoadI    r5, 4
+ 366  ArrGet   r5, r0, r5
+ 367  LogF64   r1
+ 368  LogSep   
+ 369  LogF64   r2
+ 370  LogSep   
+ 371  LogF64   r3
+ 372  LogSep   
+ 373  LogF64   r4
+ 374  LogSep   
+ 375  LogF64   r5
+ 376  LogEnd   
+ 377  New      r1, lambda3
+ 378  Move     r2, r1
+ 379  Retain   r2
+ 380  Release  r1
+ 381  Move     r3, r0
+ 382  Move     r4, r2
+ 383  Rt       r3, Array.sort
+ 384  Release  r3
+ 385  Release  r2
+ 386  LoadI    r2, 0
+ 387  LoadI    r3, 2
+ 388  Move     r1, r0
+ 389  Rt       r1, Array.slice
+ 390  LoadI    r2, 0
+ 391  ArrGet   r2, r1, r2
+ 392  Release  r1
+ 393  LoadI    r1, 4
+ 394  ArrGet   r1, r0, r1
+ 395  Release  r0
+ 396  LogF64   r2
+ 397  LogSep   
+ 398  LogF64   r1
+ 399  LogEnd   
+ 400  New      r0, ref Job[]
+ 401  New      r1, Job
+ 402  LoadI    r2, 2
+ 403  LoadStr  r3, "a"
+ 404  SetField r1, r2, .0
+ 405  SetField r1, r3, .1
+ 406  ArrPush  r1, r0, r1
+ 407  New      r1, Job
+ 408  LoadI    r2, 1
+ 409  LoadStr  r3, "b"
+ 410  SetField r1, r2, .0
+ 411  SetField r1, r3, .1
+ 412  ArrPush  r1, r0, r1
+ 413  New      r1, Job
+ 414  LoadI    r2, 2
+ 415  LoadStr  r3, "c"
+ 416  SetField r1, r2, .0
+ 417  SetField r1, r3, .1
+ 418  ArrPush  r1, r0, r1
+ 419  New      r1, Job
+ 420  LoadI    r2, 1
+ 421  LoadStr  r3, "d"
+ 422  SetField r1, r2, .0
+ 423  SetField r1, r3, .1
+ 424  ArrPush  r1, r0, r1
+ 425  New      r1, Job
+ 426  LoadI    r2, 0
+ 427  LoadStr  r3, "e"
+ 428  SetField r1, r2, .0
+ 429  SetField r1, r3, .1
+ 430  ArrPush  r1, r0, r1
+ 431  New      r1, lambda4
+ 432  Move     r2, r1
+ 433  Retain   r2
+ 434  Release  r1
+ 435  Move     r3, r0
+ 436  Move     r4, r2
+ 437  Rt       r3, Array.sort
+ 438  Release  r3
+ 439  Release  r2
+ 440  LoadStr  r1, ""
+ 441  LoadI    r2, 0
+ 442  ArrLen   r3, r0
+ 443  JLeI     r3, r2, -> 469
+ 445  ArrGet   r3, r0, r2
+ 446  Retain   r3
+ 447  GetField r4, r3, .1
+ 448  Retain   r4
+ 449  GetField r5, r3, .0
+ 450  Release  r3
+ 451  Rt       r5, string.#i2s
+ 452  Move     r6, r4
+ 453  Move     r7, r5
+ 454  Rt       r6, string.#concat
+ 455  Release  r4
+ 456  Release  r5
+ 457  LoadStr  r8, " "
+ 458  Move     r7, r6
+ 459  Rt       r7, string.#concat
+ 460  Release  r6
+ 461  Move     r8, r1
+ 462  Move     r9, r7
+ 463  Rt       r8, string.#concat
+ 464  Release  r1
+ 465  Release  r7
+ 466  AddI32K  r2, r2, 1
+ 467  Move     r1, r8
+ 468  Jmp      -> 442
+ 469  LogStr   r1
+ 470  LogEnd   
+ 471  Release  r1
+ 472  LoadI    r1, 3
+ 473  ArrGet   r1, r0, r1
+ 474  Retain   r1
+ 475  LoadI    r2, 0
+ 476  JGeIK    r2, 0, -> 482
+ 478  ArrLen   r3, r0
+ 479  AddI32   r3, r3, r2
+ 480  Move     r2, r3
+ 481  Jmp      -> 482
+ 482  JGeIK    r2, 0, -> 485
+ 484  LoadI    r2, 0
+ 485  ArrLen   r3, r0
+ 486  JLeI     r3, r2, -> 497
+ 488  ArrGet   r3, r0, r2
+ 489  Retain   r3
+ 490  EqR      r4, r3, r1
+ 491  Release  r3
+ 492  JmpIfNot r4, -> 495
  493  Release  r1
- 494  Move     r3, r0
- 495  Move     r4, r2
- 496  Rt       r3, Array.sort
- 497  Release  r3
- 498  Release  r2
- 499  LoadI    r1, 1
- 500  LoadI    r2, 1
- 501  ArrLen   r3, r0
- 502  JLeI     r3, r2, -> 513
- 504  AddI32K  r3, r2, -1
- 505  ArrGet   r3, r0, r3
- 506  ArrGet   r4, r0, r2
- 507  JLeI     r3, r4, -> 528
- 509  LoadI    r3, 0
- 510  AddI32K  r2, r2, 1
- 511  Move     r1, r3
- 512  Jmp      -> 501
- 513  LoadI    r2, 0
- 514  ArrGet   r2, r0, r2
- 515  LoadI    r3, 999
- 516  ArrGet   r3, r0, r3
- 517  ArrLen   r4, r0
- 518  Release  r0
- 519  LogBool  r1
- 520  LogSep   
- 521  LogI     r2
- 522  LogSep   
- 523  LogI     r3
- 524  LogSep   
- 525  LogI     r4
- 526  LogEnd   
- 527  RetV     
- 528  Move     r3, r1
- 529  Jmp      -> 510
+ 494  Jmp      -> 500
+ 495  AddI32K  r2, r2, 1
+ 496  Jmp      -> 485
+ 497  Release  r1
+ 498  LoadI    r1, -1
+ 499  Move     r2, r1
+ 500  New      r1, Job
+ 501  LoadI    r3, 0
+ 502  LoadStr  r4, "e"
+ 503  SetField r1, r3, .0
+ 504  SetField r1, r4, .1
+ 505  LoadI    r3, 0
+ 506  JGeIK    r3, 0, -> 512
+ 508  ArrLen   r4, r0
+ 509  AddI32   r4, r4, r3
+ 510  Move     r3, r4
+ 511  Jmp      -> 512
+ 512  JGeIK    r3, 0, -> 515
+ 514  LoadI    r3, 0
+ 515  ArrLen   r4, r0
+ 516  JLeI     r4, r3, -> 529
+ 518  ArrGet   r4, r0, r3
+ 519  Retain   r4
+ 520  EqR      r5, r4, r1
+ 521  Release  r4
+ 522  JmpIfNot r5, -> 527
+ 523  Release  r0
+ 524  Release  r1
+ 525  LoadI    r4, 1
+ 526  Jmp      -> 533
+ 527  AddI32K  r3, r3, 1
+ 528  Jmp      -> 515
+ 529  Release  r0
+ 530  Release  r1
+ 531  LoadI    r0, 0
+ 532  Move     r4, r0
+ 533  LogI     r2
+ 534  LogSep   
+ 535  LogBool  r4
+ 536  LogEnd   
+ 537  New      r0, i32[][]
+ 538  New      r1, i32[]
+ 539  LoadI    r2, 1
+ 540  ArrPush  r2, r1, r2
+ 541  LoadI    r2, 2
+ 542  ArrPush  r2, r1, r2
+ 543  LoadI    r2, 3
+ 544  ArrPush  r2, r1, r2
+ 545  ArrPush  r1, r0, r1
+ 546  New      r1, i32[]
+ 547  LoadI    r2, 4
+ 548  ArrPush  r2, r1, r2
+ 549  LoadI    r2, 5
+ 550  ArrPush  r2, r1, r2
+ 551  LoadI    r2, 6
+ 552  ArrPush  r2, r1, r2
+ 553  ArrPush  r1, r0, r1
+ 554  New      r1, i32[]
+ 555  LoadI    r2, 7
+ 556  ArrPush  r2, r1, r2
+ 557  LoadI    r2, 8
+ 558  ArrPush  r2, r1, r2
+ 559  LoadI    r2, 9
+ 560  ArrPush  r2, r1, r2
+ 561  ArrPush  r1, r0, r1
+ 562  LoadI    r1, 1
+ 563  ArrGet   r1, r0, r1
+ 564  Retain   r1
+ 565  LoadI    r2, 1
+ 566  LoadI    r3, 50
+ 567  ArrSet   r1, r2, r3
+ 568  Release  r1
+ 569  LoadI    r1, 0
+ 570  LoadI    r2, 0
+ 571  ArrLen   r3, r0
+ 572  JLeI     r3, r2, -> 590
+ 574  ArrGet   r3, r0, r2
+ 575  Retain   r3
+ 576  LoadI    r4, 0
+ 577  Move     r5, r1
+ 578  ArrLen   r6, r3
+ 579  JLeI     r6, r4, -> 586
+ 581  ArrGet   r6, r3, r4
+ 582  AddI32   r6, r5, r6
+ 583  AddI32K  r4, r4, 1
+ 584  Move     r5, r6
+ 585  Jmp      -> 578
+ 586  Release  r3
+ 587  AddI32K  r2, r2, 1
+ 588  Move     r1, r5
+ 589  Jmp      -> 571
+ 590  ArrLen   r2, r0
+ 591  LoadI    r3, 2
+ 592  ArrGet   r3, r0, r3
+ 593  Retain   r3
+ 594  LoadI    r4, 0
+ 595  ArrGet   r4, r3, r4
+ 596  Release  r3
+ 597  LoadI    r3, 1
+ 598  ArrGet   r3, r0, r3
+ 599  Retain   r3
+ 600  Release  r0
+ 601  LoadI    r0, 1
+ 602  ArrGet   r0, r3, r0
+ 603  Release  r3
+ 604  LogI     r2
+ 605  LogSep   
+ 606  LogI     r4
+ 607  LogSep   
+ 608  LogI     r0
+ 609  LogSep   
+ 610  LogI     r1
+ 611  LogEnd   
+ 612  New      r0, str[][]
+ 613  LoadStr  r1, "a b c"
+ 614  LoadStr  r2, " "
+ 615  Rt       r1, string.split
+ 616  ArrPush  r1, r0, r1
+ 617  New      r1, str[]
+ 618  LoadStr  r2, "d"
+ 619  ArrPush  r2, r1, r2
+ 620  ArrPush  r1, r0, r1
+ 621  LoadI    r1, 0
+ 622  ArrGet   r1, r0, r1
+ 623  Retain   r1
+ 624  ArrLen   r2, r1
+ 625  Release  r1
+ 626  LoadI    r1, 0
+ 627  ArrGet   r1, r0, r1
+ 628  Retain   r1
+ 629  LoadStr  r4, "+"
+ 630  Move     r3, r1
+ 631  Rt       r3, Array.join
+ 632  Release  r1
+ 633  LoadI    r1, 1
+ 634  ArrGet   r1, r0, r1
+ 635  Retain   r1
+ 636  Release  r0
+ 637  LoadI    r0, 0
+ 638  ArrGet   r0, r1, r0
+ 639  Retain   r0
+ 640  Release  r1
+ 641  LogI     r2
+ 642  LogSep   
+ 643  LogStr   r3
+ 644  LogSep   
+ 645  LogStr   r0
+ 646  LogEnd   
+ 647  Release  r3
+ 648  Release  r0
+ 649  New      r0, i32[]
+ 650  LoadI    r1, 0
+ 651  LoadI    r2, 1000
+ 652  JLeI     r2, r1, -> 661
+ 654  LoadI    r2, 7919
+ 655  MulI32   r2, r1, r2
+ 656  LoadI    r3, 1009
+ 657  RemI32   r2, r2, r3
+ 658  ArrPush  r2, r0, r2
+ 659  AddI32K  r1, r1, 1
+ 660  Jmp      -> 651
+ 661  New      r1, lambda5
+ 662  Move     r2, r1
+ 663  Retain   r2
+ 664  Release  r1
+ 665  Move     r3, r0
+ 666  Move     r4, r2
+ 667  Rt       r3, Array.sort
+ 668  Release  r3
+ 669  Release  r2
+ 670  LoadI    r1, 1
+ 671  LoadI    r2, 1
+ 672  ArrLen   r3, r0
+ 673  JLeI     r3, r2, -> 684
+ 675  AddI32K  r3, r2, -1
+ 676  ArrGet   r3, r0, r3
+ 677  ArrGet   r4, r0, r2
+ 678  JLeI     r3, r4, -> 699
+ 680  LoadI    r3, 0
+ 681  AddI32K  r2, r2, 1
+ 682  Move     r1, r3
+ 683  Jmp      -> 672
+ 684  LoadI    r2, 0
+ 685  ArrGet   r2, r0, r2
+ 686  LoadI    r3, 999
+ 687  ArrGet   r3, r0, r3
+ 688  ArrLen   r4, r0
+ 689  Release  r0
+ 690  LogBool  r1
+ 691  LogSep   
+ 692  LogI     r2
+ 693  LogSep   
+ 694  LogI     r3
+ 695  LogSep   
+ 696  LogI     r4
+ 697  LogEnd   
+ 698  RetV     
+ 699  Move     r3, r1
+ 700  Jmp      -> 681
 func @Job.constructor(ref Job, i, ref str) -> void nregs=3
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1

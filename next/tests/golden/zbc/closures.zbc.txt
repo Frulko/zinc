@@ -26,99 +26,136 @@ class fnref double {}
   vtable .call -> @fnref double$call
 global g0: i
 global g1: i
-func @main() -> void nregs=12
-   0  Call     r0, @makeCounter
-   1  Retain   r0
-   2  Move     r1, r0
-   3  CallVirt r1, .call
-   4  Retain   r0
+func @main() -> void nregs=11
+   0  LoadI    r0, 0
+   1  New      r1, cell i32
+   2  SetField r1, r0, .0
+   3  New      r0, lambda0
+   4  SetField r0, r1, .0
    5  Move     r1, r0
-   6  CallVirt r1, .call
-   7  Call     r1, @makeCounter
-   8  New      r2, lambda4:add5
-   9  Move     r3, r2
-  10  Retain   r3
-  11  Release  r2
-  12  LoadI    r2, 10
-  13  SetGlobalr2, g0
-  14  Move     r4, r0
-  15  CallVirt r4, .call
-  16  Move     r5, r1
-  17  CallVirt r5, .call
-  18  LoadI    r7, 1
-  19  Retain   r3
-  20  Move     r6, r3
-  21  Call     r6, @apply
-  22  New      r0, lambda5
-  23  Move     r7, r0
-  24  Retain   r7
+   6  Retain   r1
+   7  Release  r0
+   8  Retain   r1
+   9  Move     r2, r1
+  10  CallVirt r2, .call
+  11  Retain   r1
+  12  Move     r2, r1
+  13  CallVirt r2, .call
+  14  LoadI    r0, 0
+  15  New      r2, cell i32
+  16  SetField r2, r0, .0
+  17  New      r0, lambda0
+  18  SetField r0, r2, .0
+  19  Move     r2, r0
+  20  Retain   r2
+  21  Release  r0
+  22  New      r0, lambda4:add5
+  23  Move     r3, r0
+  24  Retain   r3
   25  Release  r0
-  26  LoadI    r8, 3
-  27  Call     r7, @apply
-  28  New      r0, lambda6
-  29  Move     r9, r0
-  30  Retain   r9
-  31  Release  r0
-  32  Move     r8, r3
-  33  Call     r8, @compose
-  34  LoadI    r9, 1
-  35  CallVirt r8, .call
-  36  New      r0, fnref double
-  37  Move     r9, r0
-  38  Retain   r9
+  26  LoadI    r0, 10
+  27  SetGlobalr0, g0
+  28  Move     r4, r1
+  29  CallVirt r4, .call
+  30  Move     r5, r2
+  31  CallVirt r5, .call
+  32  LoadI    r7, 1
+  33  Retain   r3
+  34  Move     r6, r3
+  35  CallVirt r6, .call
+  36  New      r0, lambda5
+  37  Move     r7, r0
+  38  Retain   r7
   39  Release  r0
-  40  LoadI    r10, 3
-  41  Call     r10, @makeAdder
-  42  Call     r9, @compose
-  43  LoadI    r10, 4
-  44  CallVirt r9, .call
-  45  LogI     r4
-  46  LogSep   
-  47  LogI     r5
-  48  LogSep   
-  49  LogI     r6
-  50  LogSep   
-  51  LogI     r7
-  52  LogSep   
-  53  LogI     r8
-  54  LogSep   
-  55  LogI     r9
-  56  LogEnd   
-  57  New      r0, Button
-  58  Retain   r0
-  59  Move     r1, r0
-  60  Call     r1, @Button.constructor
-  61  GetField r1, r0, .1
-  62  Retain   r1
-  63  CallVirt r1, .call
-  64  GetField r1, r0, .1
-  65  Retain   r1
-  66  CallVirt r1, .call
-  67  GetField r2, r0, .0
-  68  Release  r0
-  69  LogI     r1
-  70  LogSep   
-  71  LogI     r2
-  72  LogEnd   
-  73  LoadI    r0, 0
-  74  SetGlobalr0, g1
-  75  New      r0, lambda7:addTo
-  76  Move     r1, r0
-  77  Retain   r1
-  78  Release  r0
-  79  LoadI    r3, 3
-  80  Retain   r1
-  81  Move     r2, r1
-  82  CallVirt r2, .call
-  83  LoadI    r0, 4
-  84  Move     r11, r0
-  85  Move     r0, r1
-  86  Move     r1, r11
-  87  CallVirt r0, .call
-  88  GetGlobalr0, g1
-  89  LogI     r0
-  90  LogEnd   
-  91  RetV     
+  40  LoadI    r8, 3
+  41  CallVirt r7, .call
+  42  New      r0, lambda6
+  43  Move     r1, r0
+  44  Retain   r1
+  45  Release  r0
+  46  New      r0, lambda1
+  47  SetField r0, r1, .0
+  48  SetField r0, r3, .1
+  49  Move     r1, r0
+  50  Retain   r1
+  51  Release  r0
+  52  LoadI    r9, 1
+  53  Move     r8, r1
+  54  CallVirt r8, .call
+  55  New      r0, fnref double
+  56  Move     r1, r0
+  57  Retain   r1
+  58  Release  r0
+  59  LoadI    r0, 3
+  60  New      r2, lambda2
+  61  SetField r2, r0, .0
+  62  Move     r0, r2
+  63  Retain   r0
+  64  Release  r2
+  65  New      r2, lambda1
+  66  SetField r2, r0, .0
+  67  SetField r2, r1, .1
+  68  Move     r0, r2
+  69  Retain   r0
+  70  Release  r2
+  71  LoadI    r10, 4
+  72  Move     r9, r0
+  73  CallVirt r9, .call
+  74  LogI     r4
+  75  LogSep   
+  76  LogI     r5
+  77  LogSep   
+  78  LogI     r6
+  79  LogSep   
+  80  LogI     r7
+  81  LogSep   
+  82  LogI     r8
+  83  LogSep   
+  84  LogI     r9
+  85  LogEnd   
+  86  New      r0, Button
+  87  LoadI    r1, 0
+  88  SetField r0, r1, .0
+  89  New      r1, lambda3:on
+  90  Retain   r0
+  91  SetField r1, r0, .0
+  92  Move     r2, r1
+  93  Retain   r2
+  94  Release  r1
+  95  SetField r0, r2, .1
+  96  GetField r1, r0, .1
+  97  Retain   r1
+  98  CallVirt r1, .call
+  99  GetField r1, r0, .1
+ 100  Retain   r1
+ 101  CallVirt r1, .call
+ 102  GetField r2, r0, .0
+ 103  Release  r0
+ 104  LogI     r1
+ 105  LogSep   
+ 106  LogI     r2
+ 107  LogEnd   
+ 108  LoadI    r0, 0
+ 109  SetGlobalr0, g1
+ 110  New      r0, lambda7:addTo
+ 111  Move     r1, r0
+ 112  Retain   r1
+ 113  Release  r0
+ 114  Move     r0, r1
+ 115  Downcast r0, lambda7:addTo
+ 116  GetGlobalr0, g1
+ 117  AddI32K  r0, r0, 3
+ 118  SetGlobalr0, g1
+ 119  Move     r0, r1
+ 120  Downcast r0, lambda7:addTo
+ 121  Release  r1
+ 122  GetGlobalr0, g1
+ 123  AddI32K  r0, r0, 4
+ 124  SetGlobalr0, g1
+ 125  GetGlobalr0, g1
+ 126  LogI     r0
+ 127  LogEnd   
+ 128  RetV     
 func @makeCounter() -> ref fn () => i32 nregs=2
    0  LoadI    r0, 0
    1  New      r1, cell i32
@@ -228,6 +265,6 @@ func @lambda7:addTo(ref lambda7:addTo, i) -> void nregs=2
    4  RetV     
 func @fnref double$call(ref fnref double, i) -> i nregs=2
    0  Release  r0
-   1  Move     r0, r1
-   2  Call     r0, @double
+   1  LoadI    r0, 2
+   2  MulI32   r0, r1, r0
    3  Ret      r0

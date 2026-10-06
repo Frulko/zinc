@@ -7,50 +7,48 @@ class Sq { f64 }
 class Circ { f64 }
   vtable .area -> @Circ.area
   vtable .scale -> @Circ.scale
-func @main() -> void nregs=5
+func @main() -> void nregs=7
    0  New      r0, Sq
-   1  LoadK    r2, f64 2
-   2  Retain   r0
+   1  LoadK    r1, f64 2
+   2  SetField r0, r1, .0
    3  Move     r1, r0
-   4  Call     r1, @Sq.constructor
-   5  Move     r1, r0
-   6  Retain   r1
-   7  Release  r0
-   8  New      r0, Circ
-   9  LoadK    r3, f64 1
-  10  Retain   r0
-  11  Move     r2, r0
-  12  Call     r2, @Circ.constructor
-  13  Move     r2, r0
-  14  Retain   r2
-  15  Release  r0
-  16  Move     r0, r1
-  17  Move     r1, r2
-  18  Call     r0, @total
-  19  New      r1, Circ
-  20  LoadK    r3, f64 2
-  21  Retain   r1
-  22  Move     r2, r1
-  23  Call     r2, @Circ.constructor
-  24  Move     r2, r1
-  25  Retain   r2
-  26  Release  r1
-  27  New      r1, Sq
-  28  LoadK    r4, f64 3
-  29  Retain   r1
-  30  Move     r3, r1
-  31  Call     r3, @Sq.constructor
-  32  Move     r3, r1
-  33  Retain   r3
-  34  Release  r1
-  35  Move     r1, r2
-  36  Move     r2, r3
-  37  Call     r1, @total
-  38  LogF64   r0
-  39  LogSep   
-  40  LogF64   r1
-  41  LogEnd   
-  42  RetV     
+   4  Retain   r1
+   5  Release  r0
+   6  New      r0, Circ
+   7  LoadK    r2, f64 1
+   8  SetField r0, r2, .0
+   9  Move     r2, r0
+  10  Retain   r2
+  11  Release  r0
+  12  Move     r3, r1
+  13  CallVirt r3, .area
+  14  LoadK    r5, f64 2
+  15  Move     r4, r2
+  16  CallVirt r4, .scale
+  17  AddF64   r0, r3, r4
+  18  New      r1, Circ
+  19  LoadK    r2, f64 2
+  20  SetField r1, r2, .0
+  21  Move     r2, r1
+  22  Retain   r2
+  23  Release  r1
+  24  New      r1, Sq
+  25  LoadK    r3, f64 3
+  26  SetField r1, r3, .0
+  27  Move     r3, r1
+  28  Retain   r3
+  29  Release  r1
+  30  Move     r4, r2
+  31  CallVirt r4, .area
+  32  LoadK    r6, f64 2
+  33  Move     r5, r3
+  34  CallVirt r5, .scale
+  35  AddF64   r1, r4, r5
+  36  LogF64   r0
+  37  LogSep   
+  38  LogF64   r1
+  39  LogEnd   
+  40  RetV     
 func @Sq.constructor(ref Sq, f64) -> void nregs=2
    0  SetField r0, r1, .0
    1  Release  r0
@@ -61,11 +59,13 @@ func @Sq.area(ref Sq) -> f64 nregs=3
    2  Release  r0
    3  MulF64   r0, r1, r2
    4  Ret      r0
-func @Sq.scale(ref Sq, f64) -> f64 nregs=3
-   0  Move     r2, r0
-   1  Call     r2, @Sq.area
-   2  MulF64   r0, r2, r1
-   3  Ret      r0
+func @Sq.scale(ref Sq, f64) -> f64 nregs=4
+   0  GetField r2, r0, .0
+   1  GetField r3, r0, .0
+   2  Release  r0
+   3  MulF64   r0, r2, r3
+   4  MulF64   r0, r0, r1
+   5  Ret      r0
 func @Circ.constructor(ref Circ, f64) -> void nregs=2
    0  SetField r0, r1, .0
    1  Release  r0
@@ -78,11 +78,15 @@ func @Circ.area(ref Circ) -> f64 nregs=3
    4  Release  r0
    5  MulF64   r0, r1, r2
    6  Ret      r0
-func @Circ.scale(ref Circ, f64) -> f64 nregs=3
-   0  Move     r2, r0
-   1  Call     r2, @Circ.area
-   2  AddF64   r0, r2, r1
-   3  Ret      r0
+func @Circ.scale(ref Circ, f64) -> f64 nregs=4
+   0  LoadK    r2, f64 3
+   1  GetField r3, r0, .0
+   2  MulF64   r2, r2, r3
+   3  GetField r3, r0, .0
+   4  Release  r0
+   5  MulF64   r0, r2, r3
+   6  AddF64   r0, r0, r1
+   7  Ret      r0
 func @total(ref Shape, ref Shape) -> f64 nregs=5
    0  Move     r2, r0
    1  CallVirt r2, .area

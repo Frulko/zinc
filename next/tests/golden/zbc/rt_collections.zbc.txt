@@ -420,178 +420,166 @@ func @main() -> void nregs=12
  413  New      r0, Map<str, ref Box>
  414  LoadStr  r2, "a"
  415  New      r3, Box
- 416  LoadI    r5, 1
- 417  Retain   r3
- 418  Move     r4, r3
- 419  Call     r4, @Box.constructor
- 420  Move     r1, r0
- 421  Rt       r1, Map.set
- 422  Release  r1
- 423  LoadStr  r2, "a"
- 424  Move     r1, r0
- 425  Rt       r1, Map.has
- 426  LoadStr  r3, "b"
- 427  Move     r2, r0
- 428  Rt       r2, Map.has
- 429  LoadStr  r4, "a"
- 430  Move     r5, r0
- 431  Move     r6, r4
- 432  Rt       r5, Map.has
- 433  JmpIfNot r5, -> 438
- 434  Move     r3, r0
- 435  Rt       r3, Map.get
- 436  Retain   r3
- 437  Jmp      -> 443
- 438  New      r3, Box
- 439  LoadI    r5, 9
- 440  Retain   r3
- 441  Move     r4, r3
- 442  Call     r4, @Box.constructor
- 443  GetField r4, r3, .0
- 444  Release  r3
- 445  LoadStr  r6, "b"
- 446  Move     r7, r0
- 447  Move     r8, r6
- 448  Rt       r7, Map.has
- 449  JmpIfNot r7, -> 455
- 450  Move     r5, r0
- 451  Rt       r5, Map.get
- 452  Retain   r5
- 453  Release  r0
- 454  Jmp      -> 462
- 455  Release  r0
- 456  New      r0, Box
- 457  LoadI    r6, 9
- 458  Retain   r0
- 459  Move     r5, r0
- 460  Call     r5, @Box.constructor
- 461  Move     r5, r0
- 462  GetField r0, r5, .0
- 463  Release  r5
- 464  LogBool  r1
- 465  LogSep   
- 466  LogBool  r2
- 467  LogSep   
- 468  LogI     r4
- 469  LogSep   
- 470  LogI     r0
- 471  LogEnd   
- 472  New      r0, Set<ref Box>
- 473  New      r1, Box
- 474  LoadI    r3, 1
+ 416  LoadI    r1, 1
+ 417  SetField r3, r1, .0
+ 418  Move     r1, r0
+ 419  Rt       r1, Map.set
+ 420  Release  r1
+ 421  LoadStr  r2, "a"
+ 422  Move     r1, r0
+ 423  Rt       r1, Map.has
+ 424  LoadStr  r3, "b"
+ 425  Move     r2, r0
+ 426  Rt       r2, Map.has
+ 427  LoadStr  r4, "a"
+ 428  Move     r5, r0
+ 429  Move     r6, r4
+ 430  Rt       r5, Map.has
+ 431  JmpIfNot r5, -> 436
+ 432  Move     r3, r0
+ 433  Rt       r3, Map.get
+ 434  Retain   r3
+ 435  Jmp      -> 439
+ 436  New      r3, Box
+ 437  LoadI    r4, 9
+ 438  SetField r3, r4, .0
+ 439  GetField r4, r3, .0
+ 440  Release  r3
+ 441  LoadStr  r6, "b"
+ 442  Move     r7, r0
+ 443  Move     r8, r6
+ 444  Rt       r7, Map.has
+ 445  JmpIfNot r7, -> 451
+ 446  Move     r5, r0
+ 447  Rt       r5, Map.get
+ 448  Retain   r5
+ 449  Release  r0
+ 450  Jmp      -> 456
+ 451  Release  r0
+ 452  New      r0, Box
+ 453  LoadI    r3, 9
+ 454  SetField r0, r3, .0
+ 455  Move     r5, r0
+ 456  GetField r0, r5, .0
+ 457  Release  r5
+ 458  LogBool  r1
+ 459  LogSep   
+ 460  LogBool  r2
+ 461  LogSep   
+ 462  LogI     r4
+ 463  LogSep   
+ 464  LogI     r0
+ 465  LogEnd   
+ 466  New      r0, Set<ref Box>
+ 467  New      r1, Box
+ 468  LoadI    r2, 1
+ 469  SetField r1, r2, .0
+ 470  Retain   r1
+ 471  Move     r2, r0
+ 472  Move     r3, r1
+ 473  Rt       r2, Set.add
+ 474  Release  r2
  475  Retain   r1
- 476  Move     r2, r1
- 477  Call     r2, @Box.constructor
- 478  Retain   r1
- 479  Move     r2, r0
- 480  Move     r3, r1
- 481  Rt       r2, Set.add
- 482  Release  r2
- 483  Retain   r1
- 484  Move     r2, r0
- 485  Move     r3, r1
- 486  Rt       r2, Set.add
- 487  Release  r2
- 488  New      r3, Box
- 489  LoadI    r5, 1
- 490  Retain   r3
- 491  Move     r4, r3
- 492  Call     r4, @Box.constructor
- 493  Move     r2, r0
- 494  Rt       r2, Set.add
- 495  Release  r2
- 496  Move     r2, r0
- 497  Rt       r2, Set.size
- 498  Move     r3, r0
- 499  Move     r4, r1
- 500  Rt       r3, Set.has
- 501  Release  r1
- 502  New      r1, Box
- 503  LoadI    r5, 1
- 504  Retain   r1
- 505  Move     r4, r1
- 506  Call     r4, @Box.constructor
- 507  Move     r4, r0
- 508  Move     r5, r1
- 509  Rt       r4, Set.has
- 510  Release  r0
+ 476  Move     r2, r0
+ 477  Move     r3, r1
+ 478  Rt       r2, Set.add
+ 479  Release  r2
+ 480  New      r3, Box
+ 481  LoadI    r2, 1
+ 482  SetField r3, r2, .0
+ 483  Move     r2, r0
+ 484  Rt       r2, Set.add
+ 485  Release  r2
+ 486  Move     r2, r0
+ 487  Rt       r2, Set.size
+ 488  Move     r3, r0
+ 489  Move     r4, r1
+ 490  Rt       r3, Set.has
+ 491  Release  r1
+ 492  New      r1, Box
+ 493  LoadI    r4, 1
+ 494  SetField r1, r4, .0
+ 495  Move     r4, r0
+ 496  Move     r5, r1
+ 497  Rt       r4, Set.has
+ 498  Release  r0
+ 499  Release  r1
+ 500  LogI     r2
+ 501  LogSep   
+ 502  LogBool  r3
+ 503  LogSep   
+ 504  LogBool  r4
+ 505  LogEnd   
+ 506  New      r0, Map<str, str[]>
+ 507  LoadStr  r2, "x"
+ 508  New      r3, str[]
+ 509  Move     r1, r0
+ 510  Rt       r1, Map.set
  511  Release  r1
- 512  LogI     r2
- 513  LogSep   
- 514  LogBool  r3
- 515  LogSep   
- 516  LogBool  r4
- 517  LogEnd   
- 518  New      r0, Map<str, str[]>
- 519  LoadStr  r2, "x"
- 520  New      r3, str[]
- 521  Move     r1, r0
- 522  Rt       r1, Map.set
- 523  Release  r1
- 524  LoadStr  r2, "x"
- 525  Move     r3, r0
- 526  Move     r4, r2
- 527  Rt       r3, Map.has
- 528  JmpIfNot r3, -> 533
- 529  Move     r1, r0
- 530  Rt       r1, Map.get
- 531  Retain   r1
- 532  Jmp      -> 534
- 533  New      r1, str[]
- 534  LoadStr  r2, "never"
- 535  ArrPush  r2, r1, r2
- 536  Release  r1
- 537  Move     r1, r0
- 538  Rt       r1, Map.size
- 539  LoadStr  r3, "x"
- 540  Move     r2, r0
- 541  Rt       r2, Map.has
- 542  Release  r0
- 543  LogI     r1
- 544  LogSep   
- 545  LogBool  r2
- 546  LogEnd   
- 547  New      r0, Set<i32>
- 548  LoadI    r1, 12345
- 549  LoadI    r2, 0
- 550  LoadI    r3, 5000
- 551  JLeI     r3, r2, -> 569
- 553  LoadK    r3, i 1664525
- 554  MulU32   r1, r1, r3
- 555  LoadK    r3, i 1013904223
- 556  AddU32   r1, r1, r3
- 557  LoadI    r3, 0
- 558  ShrU32   r1, r1, r3
- 559  LoadI    r3, 16
- 560  ShrU32   r3, r1, r3
- 561  LoadI    r4, 1000
- 562  RemU32   r3, r3, r4
- 563  NarrowI32r4, r3
- 564  Move     r3, r0
- 565  Rt       r3, Set.add
- 566  Release  r3
- 567  AddI32K  r2, r2, 1
- 568  Jmp      -> 550
- 569  LoadI    r1, 0
+ 512  LoadStr  r2, "x"
+ 513  Move     r3, r0
+ 514  Move     r4, r2
+ 515  Rt       r3, Map.has
+ 516  JmpIfNot r3, -> 521
+ 517  Move     r1, r0
+ 518  Rt       r1, Map.get
+ 519  Retain   r1
+ 520  Jmp      -> 522
+ 521  New      r1, str[]
+ 522  LoadStr  r2, "never"
+ 523  ArrPush  r2, r1, r2
+ 524  Release  r1
+ 525  Move     r1, r0
+ 526  Rt       r1, Map.size
+ 527  LoadStr  r3, "x"
+ 528  Move     r2, r0
+ 529  Rt       r2, Map.has
+ 530  Release  r0
+ 531  LogI     r1
+ 532  LogSep   
+ 533  LogBool  r2
+ 534  LogEnd   
+ 535  New      r0, Set<i32>
+ 536  LoadI    r1, 12345
+ 537  LoadI    r2, 0
+ 538  LoadI    r3, 5000
+ 539  JLeI     r3, r2, -> 557
+ 541  LoadK    r3, i 1664525
+ 542  MulU32   r1, r1, r3
+ 543  LoadK    r3, i 1013904223
+ 544  AddU32   r1, r1, r3
+ 545  LoadI    r3, 0
+ 546  ShrU32   r1, r1, r3
+ 547  LoadI    r3, 16
+ 548  ShrU32   r3, r1, r3
+ 549  LoadI    r4, 1000
+ 550  RemU32   r3, r3, r4
+ 551  NarrowI32r4, r3
+ 552  Move     r3, r0
+ 553  Rt       r3, Set.add
+ 554  Release  r3
+ 555  AddI32K  r2, r2, 1
+ 556  Jmp      -> 538
+ 557  LoadI    r1, 0
+ 558  Move     r2, r0
+ 559  Rt       r2, Set.values
+ 560  LoadI    r3, 0
+ 561  ArrLen   r4, r2
+ 562  JLeI     r4, r3, -> 569
+ 564  ArrGet   r4, r2, r3
+ 565  AddI32   r4, r1, r4
+ 566  AddI32K  r3, r3, 1
+ 567  Move     r1, r4
+ 568  Jmp      -> 561
+ 569  Release  r2
  570  Move     r2, r0
- 571  Rt       r2, Set.values
- 572  LoadI    r3, 0
- 573  ArrLen   r4, r2
- 574  JLeI     r4, r3, -> 581
- 576  ArrGet   r4, r2, r3
- 577  AddI32   r4, r1, r4
- 578  AddI32K  r3, r3, 1
- 579  Move     r1, r4
- 580  Jmp      -> 573
- 581  Release  r2
- 582  Move     r2, r0
- 583  Rt       r2, Set.size
- 584  Release  r0
- 585  LogI     r2
- 586  LogSep   
- 587  LogI     r1
- 588  LogEnd   
- 589  RetV     
+ 571  Rt       r2, Set.size
+ 572  Release  r0
+ 573  LogI     r2
+ 574  LogSep   
+ 575  LogI     r1
+ 576  LogEnd   
+ 577  RetV     
 func @Box.constructor(ref Box, i) -> void nregs=2
    0  SetField r0, r1, .0
    1  Release  r0

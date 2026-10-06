@@ -257,3 +257,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - JSON.parse: `Rt::JsonParse` (runtime.h letter `r` = result class of the second argument) builds DynNum/DynStr/DynBool/DynArr/DynObj objects directly; `Machine::resolveDyn` finds the classes by name. `Rt::DynGetFast` and `Rt::DynAddFast` are fast paths the prelude tries first (0 means: take the Zinc slow path). `total += d` on a number is `__dynAddNum`.
 - Strict profile: `// zinc-profile: strict` in the first 400 bytes of the entry file, or `--strict` on the command line (`Ast::strict`); `any` and JSON.parse give Z1006; `unknown` stays allowed.
 - Benchmarks were rerun on a loaded machine (see the caveat in docs/reports/zinc-next-m4-benchmarks.md); rerun on an idle one before trusting thresholds. dynsum is within about 10 percent of QuickJS; its threshold moved to ZN-026.
+
+## ZN-026 notes (in progress)
+- `src/ir/opt.cpp` (`optimize`, before `insertRc`; `ZN_NO_OPT=1` disables): single-target devirtualisation (RefCast when the receiver is wider) and inlining of callees up to 40 instructions that return and do not recurse. Measured gain (min user ms, interpreter): spectralnorm 1070 to 980, fannkuchredux 1320 to 1270; no change on fib, nbody, mandelbrot, sort (little to inline). The "two kernels" gain is small, not decisive.
+- `rc.cpp` `lendsForever`: borrowed loads in functions that never lend a ref away get no retain/release (nbody `advance` has none now) but AOT time did not move (100 ms).
+- `aot.cpp`: leaf functions keep registers in C++ locals (nbody 130 to 100 ms).
+- zbc goldens regenerated (inlining changes the code). T0, T1, T2 green.
+- Still open: interpreter dispatch cost (fib/nbody/mandelbrot are 3 to 5x QuickJS, need 5x), AOT nbody 3.3x native (needs 3x), dynsum, and an idle-machine run of `tools/bench-m4`.

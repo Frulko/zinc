@@ -538,20 +538,22 @@ func @main() -> void nregs=13
  534  LogI     r7
  535  LogEnd   
  536  Release  r6
- 537  LoadStr  r0, "zinc"
- 538  Call     r0, @greet
- 539  LoadStr  r1, ""
- 540  Call     r1, @greet
- 541  LoadStr  r3, "hi "
- 542  Move     r2, r1
- 543  Rt       r2, string.#eq
- 544  Release  r1
- 545  LogStr   r0
- 546  LogSep   
- 547  LogBool  r2
- 548  LogEnd   
- 549  Release  r0
- 550  RetV     
+ 537  LoadStr  r1, "zinc"
+ 538  LoadStr  r0, "hi "
+ 539  Rt       r0, string.#concat
+ 540  LoadStr  r2, ""
+ 541  LoadStr  r1, "hi "
+ 542  Rt       r1, string.#concat
+ 543  LoadStr  r3, "hi "
+ 544  Move     r2, r1
+ 545  Rt       r2, string.#eq
+ 546  Release  r1
+ 547  LogStr   r0
+ 548  LogSep   
+ 549  LogBool  r2
+ 550  LogEnd   
+ 551  Release  r0
+ 552  RetV     
 func @greet(ref str) -> ref str nregs=3
    0  LoadStr  r1, "hi "
    1  Move     r2, r0

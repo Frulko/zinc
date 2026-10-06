@@ -13,21 +13,24 @@ func @main() -> void nregs=3
    2  Retain   r1
    3  Release  r0
    4  Move     r0, r1
-   5  Call     r0, @run
-   6  New      r1, B
-   7  Retain   r1
-   8  Move     r2, r1
-   9  Call     r2, @B.constructor
-  10  Move     r2, r1
-  11  Retain   r2
-  12  Release  r1
-  13  Move     r1, r2
-  14  Call     r1, @run
-  15  LogI     r0
-  16  LogSep   
-  17  LogI     r1
-  18  LogEnd   
-  19  RetV     
+   5  CallVirt r0, .area
+   6  LoadI    r1, 2
+   7  MulI32   r0, r0, r1
+   8  New      r1, B
+   9  LoadI    r2, 3
+  10  SetField r1, r2, .0
+  11  Move     r2, r1
+  12  Retain   r2
+  13  Release  r1
+  14  Move     r1, r2
+  15  CallVirt r1, .area
+  16  LoadI    r2, 2
+  17  MulI32   r1, r1, r2
+  18  LogI     r0
+  19  LogSep   
+  20  LogI     r1
+  21  LogEnd   
+  22  RetV     
 func @Base.double(ref Base) -> i nregs=2
    0  CallVirt r0, .area
    1  LoadI    r1, 2
@@ -48,6 +51,8 @@ func @B.constructor(ref B) -> void nregs=2
    1  SetField r0, r1, .0
    2  Release  r0
    3  RetV     
-func @run(ref Base) -> i nregs=1
-   0  Call     r0, @Base.double
-   1  Ret      r0
+func @run(ref Base) -> i nregs=2
+   0  CallVirt r0, .area
+   1  LoadI    r1, 2
+   2  MulI32   r0, r0, r1
+   3  Ret      r0

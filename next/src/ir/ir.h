@@ -148,6 +148,9 @@ std::string verify(const Module& m);
 // Inserts Retain and Release so that every reference is released exactly once on every path (see rc.cpp for the conventions).
 void insertRc(Module& m);
 
+// Devirtualises single-target virtual calls and inlines small functions; run before insertRc.
+void optimize(Module& m);
+
 // Lowers a checked program. Fails with diagnostics (Z0005) for constructs the IR does not cover yet.
 struct LowerResult {
   Module module;

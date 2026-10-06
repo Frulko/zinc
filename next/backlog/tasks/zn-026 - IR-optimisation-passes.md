@@ -1,10 +1,10 @@
 ---
 id: ZN-026
 title: IR optimisation passes
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-05 14:22'
-updated_date: '2026-10-06 14:06'
+updated_date: '2026-10-06 14:08'
 labels:
   - size-L
 milestone: m-4

@@ -3,46 +3,145 @@ class Many { i, i, i, i, i, i, i, i, i, i, i, i }
 class Sub : Many { i, i, i, i, i, i, i, i, i, i, i, i }
   vtable .twice -> @Sub.twice
   vtable .sum -> @Many.sum
-func @main() -> void nregs=14
+func @main() -> void nregs=15
    0  New      r0, Many
-   1  LoadI    r2, 1
-   2  LoadI    r3, 1
-   3  LoadI    r4, 1
-   4  LoadI    r5, 1
-   5  LoadI    r6, 1
-   6  LoadI    r7, 1
-   7  LoadI    r8, 1
-   8  LoadI    r9, 1
-   9  LoadI    r10, 1
-  10  LoadI    r11, 1
-  11  LoadI    r12, 1
-  12  LoadI    r13, 1
-  13  Retain   r0
-  14  Move     r1, r0
-  15  Call     r1, @Many.constructor
-  16  New      r1, Sub
-  17  Retain   r1
-  18  Move     r2, r1
-  19  Call     r2, @Sub.constructor
-  20  Move     r2, r0
-  21  Call     r2, @Many.sum
-  22  Move     r3, r1
-  23  Retain   r3
-  24  Call     r3, @Many.sum
-  25  Retain   r1
-  26  Move     r4, r1
-  27  Call     r4, @Sub.twice
-  28  GetField r0, r1, .11
-  29  Release  r1
-  30  LogI     r2
-  31  LogSep   
-  32  LogI     r3
-  33  LogSep   
-  34  LogI     r4
-  35  LogSep   
-  36  LogI     r0
-  37  LogEnd   
-  38  RetV     
+   1  LoadI    r1, 1
+   2  LoadI    r2, 1
+   3  LoadI    r3, 1
+   4  LoadI    r4, 1
+   5  LoadI    r5, 1
+   6  LoadI    r6, 1
+   7  LoadI    r7, 1
+   8  LoadI    r8, 1
+   9  LoadI    r9, 1
+  10  LoadI    r10, 1
+  11  LoadI    r11, 1
+  12  LoadI    r12, 1
+  13  SetField r0, r1, .0
+  14  SetField r0, r2, .1
+  15  SetField r0, r3, .2
+  16  SetField r0, r4, .3
+  17  SetField r0, r5, .4
+  18  SetField r0, r6, .5
+  19  SetField r0, r7, .6
+  20  SetField r0, r8, .7
+  21  SetField r0, r9, .8
+  22  SetField r0, r10, .9
+  23  SetField r0, r11, .10
+  24  SetField r0, r12, .11
+  25  New      r1, Sub
+  26  Move     r2, r1
+  27  LoadI    r3, 1
+  28  LoadI    r4, 2
+  29  LoadI    r5, 3
+  30  LoadI    r6, 4
+  31  LoadI    r7, 5
+  32  LoadI    r8, 6
+  33  LoadI    r9, 7
+  34  LoadI    r10, 8
+  35  LoadI    r11, 9
+  36  LoadI    r12, 10
+  37  LoadI    r13, 11
+  38  LoadI    r14, 12
+  39  SetField r2, r3, .0
+  40  SetField r2, r4, .1
+  41  SetField r2, r5, .2
+  42  SetField r2, r6, .3
+  43  SetField r2, r7, .4
+  44  SetField r2, r8, .5
+  45  SetField r2, r9, .6
+  46  SetField r2, r10, .7
+  47  SetField r2, r11, .8
+  48  SetField r2, r12, .9
+  49  SetField r2, r13, .10
+  50  SetField r2, r14, .11
+  51  GetField r2, r0, .0
+  52  GetField r3, r0, .1
+  53  AddI32   r2, r2, r3
+  54  GetField r3, r0, .2
+  55  AddI32   r2, r2, r3
+  56  GetField r3, r0, .3
+  57  AddI32   r2, r2, r3
+  58  GetField r3, r0, .4
+  59  AddI32   r2, r2, r3
+  60  GetField r3, r0, .5
+  61  AddI32   r2, r2, r3
+  62  GetField r3, r0, .6
+  63  AddI32   r2, r2, r3
+  64  GetField r3, r0, .7
+  65  AddI32   r2, r2, r3
+  66  GetField r3, r0, .8
+  67  AddI32   r2, r2, r3
+  68  GetField r3, r0, .9
+  69  AddI32   r2, r2, r3
+  70  GetField r3, r0, .10
+  71  AddI32   r2, r2, r3
+  72  GetField r3, r0, .11
+  73  Release  r0
+  74  AddI32   r0, r2, r3
+  75  Move     r2, r1
+  76  GetField r3, r2, .0
+  77  GetField r4, r2, .1
+  78  AddI32   r3, r3, r4
+  79  GetField r4, r2, .2
+  80  AddI32   r3, r3, r4
+  81  GetField r4, r2, .3
+  82  AddI32   r3, r3, r4
+  83  GetField r4, r2, .4
+  84  AddI32   r3, r3, r4
+  85  GetField r4, r2, .5
+  86  AddI32   r3, r3, r4
+  87  GetField r4, r2, .6
+  88  AddI32   r3, r3, r4
+  89  GetField r4, r2, .7
+  90  AddI32   r3, r3, r4
+  91  GetField r4, r2, .8
+  92  AddI32   r3, r3, r4
+  93  GetField r4, r2, .9
+  94  AddI32   r3, r3, r4
+  95  GetField r4, r2, .10
+  96  AddI32   r3, r3, r4
+  97  GetField r2, r2, .11
+  98  AddI32   r2, r3, r2
+  99  Move     r3, r1
+ 100  GetField r4, r3, .0
+ 101  GetField r5, r3, .1
+ 102  AddI32   r4, r4, r5
+ 103  GetField r5, r3, .2
+ 104  AddI32   r4, r4, r5
+ 105  GetField r5, r3, .3
+ 106  AddI32   r4, r4, r5
+ 107  GetField r5, r3, .4
+ 108  AddI32   r4, r4, r5
+ 109  GetField r5, r3, .5
+ 110  AddI32   r4, r4, r5
+ 111  GetField r5, r3, .6
+ 112  AddI32   r4, r4, r5
+ 113  GetField r5, r3, .7
+ 114  AddI32   r4, r4, r5
+ 115  GetField r5, r3, .8
+ 116  AddI32   r4, r4, r5
+ 117  GetField r5, r3, .9
+ 118  AddI32   r4, r4, r5
+ 119  GetField r5, r3, .10
+ 120  AddI32   r4, r4, r5
+ 121  GetField r3, r3, .11
+ 122  AddI32   r3, r4, r3
+ 123  LoadI    r4, 2
+ 124  MulI32   r3, r3, r4
+ 125  GetField r4, r1, .9
+ 126  AddI32   r3, r3, r4
+ 127  GetField r4, r1, .11
+ 128  Release  r1
+ 129  LogI     r0
+ 130  LogSep   
+ 131  LogI     r2
+ 132  LogSep   
+ 133  LogI     r3
+ 134  LogSep   
+ 135  LogI     r4
+ 136  LogEnd   
+ 137  RetV     
 func @Many.constructor(ref Many, i, i, i, i, i, i, i, i, i, i, i, i) -> void nregs=13
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
@@ -84,7 +183,7 @@ func @Many.sum(ref Many) -> i nregs=3
   22  Release  r0
   23  AddI32   r0, r1, r2
   24  Ret      r0
-func @Sub.constructor(ref Sub) -> void nregs=14
+func @Sub.constructor(ref Sub) -> void nregs=13
    0  Move     r1, r0
    1  Retain   r1
    2  Release  r0
@@ -100,18 +199,50 @@ func @Sub.constructor(ref Sub) -> void nregs=14
   12  LoadI    r10, 10
   13  LoadI    r11, 11
   14  LoadI    r12, 12
-  15  Move     r13, r0
-  16  Move     r0, r1
-  17  Move     r1, r13
-  18  Call     r0, @Many.constructor
-  19  RetV     
-func @Sub.twice(ref Sub) -> i nregs=3
+  15  SetField r1, r0, .0
+  16  SetField r1, r2, .1
+  17  SetField r1, r3, .2
+  18  SetField r1, r4, .3
+  19  SetField r1, r5, .4
+  20  SetField r1, r6, .5
+  21  SetField r1, r7, .6
+  22  SetField r1, r8, .7
+  23  SetField r1, r9, .8
+  24  SetField r1, r10, .9
+  25  SetField r1, r11, .10
+  26  SetField r1, r12, .11
+  27  Release  r1
+  28  RetV     
+func @Sub.twice(ref Sub) -> i nregs=4
    0  Move     r1, r0
    1  Retain   r1
-   2  Call     r1, @Many.sum
-   3  LoadI    r2, 2
-   4  MulI32   r1, r1, r2
-   5  GetField r2, r0, .9
-   6  Release  r0
-   7  AddI32   r0, r1, r2
-   8  Ret      r0
+   2  GetField r2, r1, .0
+   3  GetField r3, r1, .1
+   4  AddI32   r2, r2, r3
+   5  GetField r3, r1, .2
+   6  AddI32   r2, r2, r3
+   7  GetField r3, r1, .3
+   8  AddI32   r2, r2, r3
+   9  GetField r3, r1, .4
+  10  AddI32   r2, r2, r3
+  11  GetField r3, r1, .5
+  12  AddI32   r2, r2, r3
+  13  GetField r3, r1, .6
+  14  AddI32   r2, r2, r3
+  15  GetField r3, r1, .7
+  16  AddI32   r2, r2, r3
+  17  GetField r3, r1, .8
+  18  AddI32   r2, r2, r3
+  19  GetField r3, r1, .9
+  20  AddI32   r2, r2, r3
+  21  GetField r3, r1, .10
+  22  AddI32   r2, r2, r3
+  23  GetField r3, r1, .11
+  24  Release  r1
+  25  AddI32   r1, r2, r3
+  26  LoadI    r2, 2
+  27  MulI32   r1, r1, r2
+  28  GetField r2, r0, .9
+  29  Release  r0
+  30  AddI32   r0, r1, r2
+  31  Ret      r0

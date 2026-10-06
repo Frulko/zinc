@@ -56,6 +56,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     diags = low.diags;
     if (diags.empty()) {
+      if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module);
       zn::ir::insertRc(low.module);
       std::string badIr = zn::ir::verify(low.module);
       if (!badIr.empty()) { std::fprintf(stderr, "internal error: invalid IR after reference counting: %s\n", badIr.c_str()); return 3; }
@@ -185,7 +186,7 @@ int main(int argc, char** argv) {
     if (!loadChecked(argv[2], prog, checked)) return 1;
     auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
     if (low.diags.empty()) {
-      if (!std::strcmp(argv[1], "--emit=ir-rc")) zn::ir::insertRc(low.module);
+      if (!std::strcmp(argv[1], "--emit=ir-rc")) { if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module); zn::ir::insertRc(low.module); }
       std::string bad = zn::ir::verify(low.module);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid IR: %s\n", bad.c_str()); if (std::getenv("ZN_DUMP_BAD")) std::fputs(zn::ir::dump(low.module).c_str(), stdout); return 3; }
       std::fputs(zn::ir::dump(low.module).c_str(), stdout);

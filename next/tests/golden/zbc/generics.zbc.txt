@@ -16,59 +16,59 @@ class Box<f64> { f64 }
   vtable .set -> @Box<f64>.set
 func @main() -> void nregs=7
    0  New      r0, Box<i32>
-   1  LoadI    r2, 7
-   2  Retain   r0
-   3  Move     r1, r0
-   4  Call     r1, @Box<i32>.constructor
-   5  Retain   r0
-   6  Move     r1, r0
-   7  Call     r1, @Box<i32>.get
-   8  AddI32K  r2, r1, 1
-   9  Retain   r0
-  10  Move     r1, r0
-  11  Call     r1, @Box<i32>.set
-  12  New      r1, Pair<i32, f64>
-  13  LoadI    r3, 1
-  14  LoadK    r4, f64 2.5
-  15  Retain   r1
-  16  Move     r2, r1
-  17  Call     r2, @Pair<i32, f64>.constructor
-  18  Retain   r1
-  19  Move     r2, r1
-  20  Call     r2, @Pair<i32, f64>.swap
-  21  LoadK    r3, f64 5
-  22  Call     r3, @identity<f64>
-  23  LoadI    r4, 1
-  24  LoadK    r5, f64 1
-  25  LoadK    r6, f64 2
-  26  Call     r4, @pick<f64>
-  27  Move     r5, r0
-  28  Call     r5, @Box<i32>.get
-  29  GetField r0, r1, .0
-  30  Release  r1
-  31  GetField r1, r2, .0
-  32  GetField r6, r2, .1
-  33  Release  r2
-  34  LogF64   r3
+   1  LoadI    r1, 7
+   2  SetField r0, r1, .0
+   3  GetField r1, r0, .0
+   4  AddI32K  r1, r1, 1
+   5  SetField r0, r1, .0
+   6  New      r1, Pair<i32, f64>
+   7  LoadI    r2, 1
+   8  LoadK    r3, f64 2.5
+   9  SetField r1, r2, .0
+  10  SetField r1, r3, .1
+  11  New      r2, Pair<f64, i32>
+  12  GetField r3, r1, .1
+  13  GetField r4, r1, .0
+  14  SetField r2, r3, .0
+  15  SetField r2, r4, .1
+  16  LoadK    r3, f64 5
+  17  LoadI    r4, 1
+  18  LoadK    r5, f64 1
+  19  LoadK    r6, f64 2
+  20  JmpIfNot r4, -> 22
+  21  Jmp      -> 23
+  22  Move     r5, r6
+  23  GetField r4, r0, .0
+  24  Release  r0
+  25  GetField r0, r1, .0
+  26  Release  r1
+  27  GetField r1, r2, .0
+  28  GetField r6, r2, .1
+  29  Release  r2
+  30  LogF64   r3
+  31  LogSep   
+  32  LogF64   r5
+  33  LogSep   
+  34  LogI     r4
   35  LogSep   
-  36  LogF64   r4
+  36  LogI     r0
   37  LogSep   
-  38  LogI     r5
+  38  LogF64   r1
   39  LogSep   
-  40  LogI     r0
-  41  LogSep   
-  42  LogF64   r1
-  43  LogSep   
-  44  LogI     r6
-  45  LogEnd   
-  46  New      r0, IntBox
-  47  LoadI    r2, 21
-  48  Retain   r0
-  49  Move     r1, r0
-  50  Call     r1, @IntBox.constructor
-  51  Retain   r0
-  52  Move     r1, r0
-  53  Call     r1, @IntBox.twice
+  40  LogI     r6
+  41  LogEnd   
+  42  New      r0, IntBox
+  43  LoadI    r1, 21
+  44  Move     r2, r0
+  45  Retain   r2
+  46  SetField r2, r1, .0
+  47  Release  r2
+  48  Move     r1, r0
+  49  Retain   r1
+  50  GetField r2, r1, .0
+  51  Release  r1
+  52  LoadI    r1, 2
+  53  MulI32   r1, r2, r1
   54  LogI     r1
   55  LogEnd   
   56  Move     r1, r0
@@ -78,24 +78,24 @@ func @main() -> void nregs=7
   60  Downcast r0, Box<i32>
   61  Retain   r0
   62  Release  r1
-  63  Call     r0, @Box<i32>.get
-  64  LogI     r0
-  65  LogEnd   
-  66  New      r0, Box<f64>
-  67  LoadK    r2, f64 3.5
-  68  Retain   r0
-  69  Move     r1, r0
-  70  Call     r1, @Box<f64>.constructor
-  71  Call     r0, @Box<f64>.get
-  72  LogF64   r0
+  63  GetField r1, r0, .0
+  64  Release  r0
+  65  LogI     r1
+  66  LogEnd   
+  67  New      r0, Box<f64>
+  68  LoadK    r1, f64 3.5
+  69  SetField r0, r1, .0
+  70  GetField r1, r0, .0
+  71  Release  r0
+  72  LogF64   r1
   73  LogEnd   
   74  RetV     
 func @IntBox.twice(ref IntBox) -> i nregs=2
    0  Move     r1, r0
    1  Retain   r1
    2  Release  r0
-   3  Move     r0, r1
-   4  Call     r0, @Box<i32>.get
+   3  GetField r0, r1, .0
+   4  Release  r1
    5  LoadI    r1, 2
    6  MulI32   r0, r0, r1
    7  Ret      r0
@@ -103,8 +103,8 @@ func @IntBox.constructor(ref IntBox, i) -> void nregs=3
    0  Move     r2, r0
    1  Retain   r2
    2  Release  r0
-   3  Move     r0, r2
-   4  Call     r0, @Box<i32>.constructor
+   3  SetField r2, r1, .0
+   4  Release  r2
    5  RetV     
 func @Box<i32>.constructor(ref Box<i32>, i) -> void nregs=2
    0  SetField r0, r1, .0
@@ -123,29 +123,27 @@ func @Pair<f64, i32>.constructor(ref Pair<f64, i32>, f64, i) -> void nregs=3
    1  SetField r0, r2, .1
    2  Release  r0
    3  RetV     
-func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=5
+func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=4
    0  New      r1, Pair<i32, f64>
-   1  GetField r3, r0, .1
-   2  GetField r4, r0, .0
+   1  GetField r2, r0, .1
+   2  GetField r3, r0, .0
    3  Release  r0
-   4  Retain   r1
-   5  Move     r2, r1
-   6  Call     r2, @Pair<i32, f64>.constructor
-   7  Ret      r1
+   4  SetField r1, r2, .0
+   5  SetField r1, r3, .1
+   6  Ret      r1
 func @Pair<i32, f64>.constructor(ref Pair<i32, f64>, i, f64) -> void nregs=3
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
    2  Release  r0
    3  RetV     
-func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=5
+func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=4
    0  New      r1, Pair<f64, i32>
-   1  GetField r3, r0, .1
-   2  GetField r4, r0, .0
+   1  GetField r2, r0, .1
+   2  GetField r3, r0, .0
    3  Release  r0
-   4  Retain   r1
-   5  Move     r2, r1
-   6  Call     r2, @Pair<f64, i32>.constructor
-   7  Ret      r1
+   4  SetField r1, r2, .0
+   5  SetField r1, r3, .1
+   6  Ret      r1
 func @identity<f64>(f64) -> f64 nregs=1
    0  Ret      r0
 func @pick<f64>(i, f64, f64) -> f64 nregs=3

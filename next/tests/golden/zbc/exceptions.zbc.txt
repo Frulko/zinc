@@ -32,208 +32,536 @@ global g0: ref str
 func @main() -> void nregs=12
    0  LoadStr  r0, ""
    1  SetGlobalr0, g0
-   2  Call     r0, @a
-   3  Call     r1, @b
-   4  Call     r2, @c
-   5  Call     r3, @d
-   6  LogI     r0
-   7  LogSep   
-   8  LogI     r1
-   9  LogSep   
-  10  LogStr   r2
-  11  LogSep   
-  12  LogStr   r3
-  13  LogEnd   
-  14  Release  r2
-  15  Release  r3
-  16  Call     r0, @e2
-  17  Call     r1, @f
-  18  Call     r2, @g
-  19  Call     r3, @h
-  20  LogStr   r0
-  21  LogSep   
-  22  LogStr   r1
-  23  LogSep   
-  24  LogI     r2
-  25  LogSep   
-  26  LogI     r3
-  27  LogEnd   
-  28  Release  r0
-  29  Release  r1
-  30  LoadI    r2, 2
-  31  Call     r2, @viaStack
-  32  Jmp      -> 38
-  33  Release  r0
-  34  Throw    r3
-  35  Release  r0
-  36  Release  r1
-  37  Throw    r3
-  38  LogStr   r2
-  39  LogEnd   
-  40  Release  r2
-  41  LoadI    r0, 0
-  42  Call     r0, @viaStack
-  43  Jmp      -> 54
-  44  LoadStr  r2, "caught"
-  45  GetField r3, r1, .0
-  46  Retain   r3
-  47  Release  r1
-  48  LogStr   r2
-  49  LogSep   
-  50  LogStr   r3
-  51  LogEnd   
-  52  Release  r3
-  53  Jmp      -> 57
-  54  LogStr   r0
-  55  LogEnd   
-  56  Release  r0
-  57  New      r0, ref Shape[]
-  58  New      r1, Shape
-  59  ArrPush  r1, r0, r1
-  60  New      r1, Bad
-  61  Move     r2, r1
-  62  Retain   r2
-  63  Release  r1
-  64  ArrPush  r1, r0, r2
-  65  LoadK    r1, f64 0
-  66  LoadI    r2, 0
-  67  ArrLen   r3, r0
-  68  JLeI     r3, r2, -> 84
-  70  ArrGet   r3, r0, r2
-  71  Retain   r3
-  72  CallVirt r3, .area
-  73  Jmp      -> 79
-  74  Release  r4
-  75  LoadK    r4, f64 10
-  76  AddF64   r4, r1, r4
-  77  Move     r3, r4
-  78  Jmp      -> 81
-  79  I64ToF64 r3, r3
-  80  AddF64   r3, r1, r3
-  81  AddI32K  r2, r2, 1
-  82  Move     r1, r3
-  83  Jmp      -> 67
-  84  Release  r0
-  85  LogF64   r1
-  86  LogEnd   
-  87  New      r0, f64[]
-  88  LoadK    r1, f64 1
-  89  ArrPush  r1, r0, r1
-  90  LoadK    r1, f64 2
-  91  ArrPush  r1, r0, r1
-  92  LoadK    r1, f64 3
-  93  ArrPush  r1, r0, r1
-  94  New      r1, lambda0
-  95  Move     r2, r1
-  96  Retain   r2
-  97  Release  r1
-  98  Move     r1, r2
-  99  Call     r0, @__g0
- 100  Call     r0, @__log51
- 101  Jmp      -> 117
- 102  LoadStr  r2, ""
- 103  Move     r3, r1
- 104  Call     r3, @Error.__errorString
- 105  Move     r4, r2
- 106  Move     r5, r3
- 107  Rt       r4, string.#concat
- 108  Release  r3
- 109  LoadStr  r6, ""
- 110  Move     r5, r4
- 111  Rt       r5, string.#concat
- 112  Release  r4
- 113  LogStr   r5
- 114  LogEnd   
- 115  Release  r5
- 116  Jmp      -> 120
- 117  LogStr   r0
- 118  LogEnd   
- 119  Release  r0
- 120  New      r0, lambda1:lazy
- 121  Move     r1, r0
- 122  Retain   r1
- 123  Release  r0
- 124  LoadI    r0, -9
- 125  Move     r11, r0
- 126  Move     r0, r1
- 127  Move     r1, r11
- 128  CallVirt r0, .call
- 129  Jmp      -> 142
- 130  GetField r1, r0, .1
- 131  Retain   r1
- 132  GetField r2, r0, .0
- 133  Retain   r2
- 134  Release  r0
- 135  LogStr   r1
- 136  LogSep   
- 137  LogStr   r2
- 138  LogEnd   
- 139  Release  r1
- 140  Release  r2
- 141  Jmp      -> 142
- 142  GetGlobalr0, g0
- 143  Retain   r0
- 144  LogStr   r0
- 145  LogEnd   
- 146  Release  r0
- 147  New      r0, AppError
- 148  LoadI    r2, 3
- 149  LoadStr  r3, "x"
- 150  Retain   r0
- 151  Move     r1, r0
- 152  Call     r1, @AppError.constructor
- 153  GetField r1, r0, .2
- 154  Release  r0
- 155  LoadStr  r2, ""
- 156  New      r0, TypeError
- 157  LoadStr  r4, "t"
- 158  Retain   r0
- 159  Move     r3, r0
- 160  Call     r3, @TypeError.constructor
- 161  Move     r3, r0
- 162  Retain   r3
- 163  Release  r0
- 164  Call     r3, @Error.__errorString
- 165  Move     r4, r2
- 166  Move     r5, r3
- 167  Rt       r4, string.#concat
- 168  Release  r3
- 169  LoadStr  r6, ""
- 170  Move     r5, r4
- 171  Rt       r5, string.#concat
- 172  Release  r4
- 173  LoadStr  r6, ""
- 174  New      r7, Error
- 175  LoadStr  r9, ""
- 176  Retain   r7
- 177  Move     r8, r7
- 178  Call     r8, @Error.constructor
- 179  Call     r7, @Error.__errorString
- 180  Move     r8, r6
- 181  Move     r9, r7
- 182  Rt       r8, string.#concat
- 183  Release  r7
- 184  LoadStr  r10, ""
- 185  Move     r9, r8
- 186  Rt       r9, string.#concat
- 187  Release  r8
- 188  LogI     r1
- 189  LogSep   
- 190  LogStr   r5
- 191  LogSep   
- 192  LogStr   r9
- 193  LogEnd   
- 194  Release  r5
- 195  Release  r9
- 196  RetV     
-  handler 17 -> 33 r3 Error
-  handler 19 -> 35 r3 Error
-  handler 31 -> 44 r1 Error
-  handler 42 -> 44 r1 Error
-  handler 72 -> 74 r4 Error
-  handler 99 -> 102 r1 Error
-  handler 100 -> 102 r1 Error
-  handler 128 -> 130 r0 Error
+   2  LoadStr  r0, "a-try"
+   3  Call     r0, @trace
+   4  LoadI    r0, 1
+   5  Call     r0, @risky
+   6  Jmp      -> 39
+   7  Release  r1
+   8  LoadStr  r1, "never"
+   9  Call     r1, @trace
+  10  Jmp      -> 24
+  11  LoadStr  r2, "a-fin"
+  12  GetGlobalr3, g0
+  13  Retain   r3
+  14  LoadStr  r5, " "
+  15  Move     r4, r2
+  16  Rt       r4, string.#concat
+  17  Move     r5, r3
+  18  Move     r6, r4
+  19  Rt       r5, string.#concat
+  20  Release  r3
+  21  Release  r4
+  22  SetGlobalr5, g0
+  23  Throw    r1
+  24  LoadI    r1, -1
+  25  LoadStr  r2, "a-fin"
+  26  GetGlobalr3, g0
+  27  Retain   r3
+  28  LoadStr  r5, " "
+  29  Move     r4, r2
+  30  Rt       r4, string.#concat
+  31  Move     r5, r3
+  32  Move     r6, r4
+  33  Rt       r5, string.#concat
+  34  Release  r3
+  35  Release  r4
+  36  SetGlobalr5, g0
+  37  Move     r0, r1
+  38  Jmp      -> 51
+  39  LoadStr  r1, "a-fin"
+  40  GetGlobalr2, g0
+  41  Retain   r2
+  42  LoadStr  r4, " "
+  43  Move     r3, r1
+  44  Rt       r3, string.#concat
+  45  Move     r4, r2
+  46  Move     r5, r3
+  47  Rt       r4, string.#concat
+  48  Release  r2
+  49  Release  r3
+  50  SetGlobalr4, g0
+  51  LoadI    r1, 0
+  52  Call     r1, @risky
+  53  Jmp      -> 86
+  54  Release  r2
+  55  LoadStr  r2, "b-catch"
+  56  Call     r2, @trace
+  57  Jmp      -> 71
+  58  LoadStr  r3, "b-fin"
+  59  GetGlobalr4, g0
+  60  Retain   r4
+  61  LoadStr  r6, " "
+  62  Move     r5, r3
+  63  Rt       r5, string.#concat
+  64  Move     r6, r4
+  65  Move     r7, r5
+  66  Rt       r6, string.#concat
+  67  Release  r4
+  68  Release  r5
+  69  SetGlobalr6, g0
+  70  Throw    r2
+  71  LoadI    r2, -2
+  72  LoadStr  r3, "b-fin"
+  73  GetGlobalr4, g0
+  74  Retain   r4
+  75  LoadStr  r6, " "
+  76  Move     r5, r3
+  77  Rt       r5, string.#concat
+  78  Move     r6, r4
+  79  Move     r7, r5
+  80  Rt       r6, string.#concat
+  81  Release  r4
+  82  Release  r5
+  83  SetGlobalr6, g0
+  84  Move     r1, r2
+  85  Jmp      -> 98
+  86  LoadStr  r2, "b-fin"
+  87  GetGlobalr3, g0
+  88  Retain   r3
+  89  LoadStr  r5, " "
+  90  Move     r4, r2
+  91  Rt       r4, string.#concat
+  92  Move     r5, r3
+  93  Move     r6, r4
+  94  Rt       r5, string.#concat
+  95  Release  r3
+  96  Release  r4
+  97  SetGlobalr5, g0
+  98  LoadStr  r2, "start"
+  99  New      r3, cell str
+ 100  SetField r3, r2, .0
+ 101  LoadStr  r2, "in-try"
+ 102  SetField r3, r2, .0
+ 103  LoadI    r4, -1
+ 104  Call     r4, @risky
+ 105  Jmp      -> 134
+ 106  GetField r4, r3, .0
+ 107  Retain   r4
+ 108  LoadStr  r5, "|"
+ 109  GetField r6, r2, .1
+ 110  Retain   r6
+ 111  Move     r7, r5
+ 112  Move     r8, r6
+ 113  Rt       r7, string.#concat
+ 114  Release  r6
+ 115  LoadStr  r9, "|"
+ 116  Move     r8, r7
+ 117  Rt       r8, string.#concat
+ 118  Release  r7
+ 119  GetField r5, r2, .0
+ 120  Retain   r5
+ 121  Release  r2
+ 122  Move     r9, r8
+ 123  Move     r10, r5
+ 124  Rt       r9, string.#concat
+ 125  Release  r8
+ 126  Release  r5
+ 127  Move     r10, r4
+ 128  Move     r11, r9
+ 129  Rt       r10, string.#concat
+ 130  Release  r4
+ 131  Release  r9
+ 132  SetField r3, r10, .0
+ 133  Jmp      -> 136
+ 134  LoadStr  r2, "unreachable"
+ 135  SetField r3, r2, .0
+ 136  GetField r2, r3, .0
+ 137  Retain   r2
+ 138  Release  r3
+ 139  Call     r3, @d
+ 140  LogI     r0
+ 141  LogSep   
+ 142  LogI     r1
+ 143  LogSep   
+ 144  LogStr   r2
+ 145  LogSep   
+ 146  LogStr   r3
+ 147  LogEnd   
+ 148  Release  r2
+ 149  Release  r3
+ 150  LoadI    r0, 0
+ 151  Call     r0, @risky
+ 152  Jmp      -> 160
+ 153  LoadStr  r1, "inner-fin"
+ 154  Call     r1, @trace
+ 155  Jmp      -> 159
+ 156  Release  r0
+ 157  Move     r0, r1
+ 158  Jmp      -> 163
+ 159  Jmp      -> 163
+ 160  LoadStr  r0, "inner-fin"
+ 161  Call     r0, @trace
+ 162  Jmp      -> 184
+ 163  Move     r1, r0
+ 164  InstanceOfr1, AppError
+ 165  JmpIfNot r1, -> 180
+ 166  LoadStr  r1, "app "
+ 167  Move     r2, r0
+ 168  Downcast r2, AppError
+ 169  Retain   r2
+ 170  Release  r0
+ 171  GetField r3, r2, .2
+ 172  Release  r2
+ 173  Move     r2, r3
+ 174  Rt       r2, string.#i2s
+ 175  Move     r3, r1
+ 176  Move     r4, r2
+ 177  Rt       r3, string.#concat
+ 178  Release  r2
+ 179  Jmp      -> 186
+ 180  Release  r0
+ 181  LoadStr  r0, "other"
+ 182  Move     r3, r0
+ 183  Jmp      -> 186
+ 184  LoadStr  r0, "none"
+ 185  Move     r3, r0
+ 186  LoadI    r4, -5
+ 187  Call     r4, @risky
+ 188  Jmp      -> 218
+ 189  LoadStr  r4, "rethrow"
+ 190  Call     r4, @trace
+ 191  Jmp      -> 194
+ 192  Release  r0
+ 193  Jmp      -> 214
+ 194  New      r1, AppError
+ 195  LoadI    r5, 1
+ 196  LoadStr  r6, "wrapped "
+ 197  GetField r2, r0, .0
+ 198  Retain   r2
+ 199  Release  r0
+ 200  Move     r7, r2
+ 201  Rt       r6, string.#concat
+ 202  Release  r2
+ 203  Retain   r1
+ 204  Move     r4, r1
+ 205  Call     r4, @AppError.constructor
+ 206  Jmp      -> 210
+ 207  Release  r1
+ 208  Move     r1, r0
+ 209  Jmp      -> 214
+ 210  Move     r0, r1
+ 211  Retain   r0
+ 212  Release  r1
+ 213  Move     r1, r0
+ 214  GetField r0, r1, .0
+ 215  Retain   r0
+ 216  Release  r1
+ 217  Jmp      -> 219
+ 218  LoadStr  r0, "none"
+ 219  LoadI    r1, 1
+ 220  LoadStr  r4, "g-fin"
+ 221  GetGlobalr2, g0
+ 222  Retain   r2
+ 223  LoadStr  r5, " "
+ 224  Rt       r4, string.#concat
+ 225  Move     r5, r2
+ 226  Move     r6, r4
+ 227  Rt       r5, string.#concat
+ 228  Release  r2
+ 229  Release  r4
+ 230  SetGlobalr5, g0
+ 231  LoadK    r2, f64 0
+ 232  New      r4, cell f64
+ 233  SetField r4, r2, .0
+ 234  LoadK    r2, f64 -1
+ 235  LoadK    r5, f64 3
+ 236  LtF64    r5, r2, r5
+ 237  JmpIfNot r5, -> 255
+ 238  GetField r5, r4, .0
+ 239  F64ToI64 r6, r2
+ 240  NarrowI32r6, r6
+ 241  Call     r6, @risky
+ 242  Jmp      -> 249
+ 243  Release  r7
+ 244  GetField r7, r4, .0
+ 245  LoadK    r8, f64 100
+ 246  AddF64   r7, r7, r8
+ 247  SetField r4, r7, .0
+ 248  Jmp      -> 252
+ 249  I64ToF64 r6, r6
+ 250  AddF64   r5, r5, r6
+ 251  SetField r4, r5, .0
+ 252  LoadK    r5, f64 1
+ 253  AddF64   r2, r2, r5
+ 254  Jmp      -> 235
+ 255  GetField r2, r4, .0
+ 256  Release  r4
+ 257  F64ToI64 r2, r2
+ 258  NarrowI32r2, r2
+ 259  LogStr   r3
+ 260  LogSep   
+ 261  LogStr   r0
+ 262  LogSep   
+ 263  LogI     r1
+ 264  LogSep   
+ 265  LogI     r2
+ 266  LogEnd   
+ 267  Release  r3
+ 268  Release  r0
+ 269  LoadI    r0, 2
+ 270  Call     r0, @viaStack
+ 271  LogStr   r0
+ 272  LogEnd   
+ 273  Release  r0
+ 274  LoadI    r0, 0
+ 275  Call     r0, @viaStack
+ 276  Jmp      -> 287
+ 277  LoadStr  r2, "caught"
+ 278  GetField r3, r1, .0
+ 279  Retain   r3
+ 280  Release  r1
+ 281  LogStr   r2
+ 282  LogSep   
+ 283  LogStr   r3
+ 284  LogEnd   
+ 285  Release  r3
+ 286  Jmp      -> 290
+ 287  LogStr   r0
+ 288  LogEnd   
+ 289  Release  r0
+ 290  New      r0, ref Shape[]
+ 291  New      r1, Shape
+ 292  ArrPush  r1, r0, r1
+ 293  New      r1, Bad
+ 294  Move     r2, r1
+ 295  Retain   r2
+ 296  Release  r1
+ 297  ArrPush  r1, r0, r2
+ 298  LoadK    r1, f64 0
+ 299  LoadI    r2, 0
+ 300  ArrLen   r3, r0
+ 301  JLeI     r3, r2, -> 317
+ 303  ArrGet   r3, r0, r2
+ 304  Retain   r3
+ 305  CallVirt r3, .area
+ 306  Jmp      -> 312
+ 307  Release  r4
+ 308  LoadK    r4, f64 10
+ 309  AddF64   r4, r1, r4
+ 310  Move     r3, r4
+ 311  Jmp      -> 314
+ 312  I64ToF64 r3, r3
+ 313  AddF64   r3, r1, r3
+ 314  AddI32K  r2, r2, 1
+ 315  Move     r1, r3
+ 316  Jmp      -> 300
+ 317  Release  r0
+ 318  LogF64   r1
+ 319  LogEnd   
+ 320  New      r0, f64[]
+ 321  LoadK    r1, f64 1
+ 322  ArrPush  r1, r0, r1
+ 323  LoadK    r1, f64 2
+ 324  ArrPush  r1, r0, r1
+ 325  LoadK    r1, f64 3
+ 326  ArrPush  r1, r0, r1
+ 327  New      r1, lambda0
+ 328  Move     r2, r1
+ 329  Retain   r2
+ 330  Release  r1
+ 331  Move     r1, r2
+ 332  Call     r0, @__g0
+ 333  Call     r0, @__log51
+ 334  Jmp      -> 374
+ 335  LoadStr  r2, ""
+ 336  GetField r3, r1, .0
+ 337  Retain   r3
+ 338  LoadStr  r5, ""
+ 339  Move     r4, r3
+ 340  Rt       r4, string.#eq
+ 341  Release  r3
+ 342  JmpIfNot r4, -> 347
+ 343  GetField r3, r1, .1
+ 344  Retain   r3
+ 345  Release  r1
+ 346  Jmp      -> 362
+ 347  GetField r3, r1, .1
+ 348  Retain   r3
+ 349  LoadStr  r5, ": "
+ 350  Move     r4, r3
+ 351  Rt       r4, string.#concat
+ 352  Release  r3
+ 353  GetField r3, r1, .0
+ 354  Retain   r3
+ 355  Release  r1
+ 356  Move     r5, r4
+ 357  Move     r6, r3
+ 358  Rt       r5, string.#concat
+ 359  Release  r4
+ 360  Release  r3
+ 361  Move     r3, r5
+ 362  Move     r4, r2
+ 363  Move     r5, r3
+ 364  Rt       r4, string.#concat
+ 365  Release  r3
+ 366  LoadStr  r6, ""
+ 367  Move     r5, r4
+ 368  Rt       r5, string.#concat
+ 369  Release  r4
+ 370  LogStr   r5
+ 371  LogEnd   
+ 372  Release  r5
+ 373  Jmp      -> 377
+ 374  LogStr   r0
+ 375  LogEnd   
+ 376  Release  r0
+ 377  New      r0, lambda1:lazy
+ 378  Move     r1, r0
+ 379  Retain   r1
+ 380  Release  r0
+ 381  LoadI    r0, -9
+ 382  Move     r2, r1
+ 383  Downcast r2, lambda1:lazy
+ 384  Retain   r2
+ 385  Release  r1
+ 386  Move     r1, r0
+ 387  Move     r0, r2
+ 388  Call     r0, @lambda1:lazy
+ 389  Jmp      -> 402
+ 390  GetField r1, r0, .1
+ 391  Retain   r1
+ 392  GetField r2, r0, .0
+ 393  Retain   r2
+ 394  Release  r0
+ 395  LogStr   r1
+ 396  LogSep   
+ 397  LogStr   r2
+ 398  LogEnd   
+ 399  Release  r1
+ 400  Release  r2
+ 401  Jmp      -> 402
+ 402  GetGlobalr0, g0
+ 403  Retain   r0
+ 404  LogStr   r0
+ 405  LogEnd   
+ 406  Release  r0
+ 407  New      r0, AppError
+ 408  LoadI    r1, 3
+ 409  LoadStr  r2, "x"
+ 410  Move     r3, r0
+ 411  Retain   r3
+ 412  LoadStr  r4, "Error"
+ 413  SetField r3, r4, .1
+ 414  SetField r3, r2, .0
+ 415  Release  r3
+ 416  SetField r0, r1, .2
+ 417  GetField r1, r0, .2
+ 418  Release  r0
+ 419  LoadStr  r2, ""
+ 420  New      r0, TypeError
+ 421  LoadStr  r3, "t"
+ 422  Move     r4, r0
+ 423  Retain   r4
+ 424  LoadStr  r5, "Error"
+ 425  SetField r4, r5, .1
+ 426  SetField r4, r3, .0
+ 427  Release  r4
+ 428  LoadStr  r3, "TypeError"
+ 429  SetField r0, r3, .1
+ 430  Move     r3, r0
+ 431  Retain   r3
+ 432  Release  r0
+ 433  GetField r0, r3, .0
+ 434  Retain   r0
+ 435  LoadStr  r5, ""
+ 436  Move     r4, r0
+ 437  Rt       r4, string.#eq
+ 438  Release  r0
+ 439  JmpIfNot r4, -> 444
+ 440  GetField r0, r3, .1
+ 441  Retain   r0
+ 442  Release  r3
+ 443  Jmp      -> 459
+ 444  GetField r0, r3, .1
+ 445  Retain   r0
+ 446  LoadStr  r5, ": "
+ 447  Move     r4, r0
+ 448  Rt       r4, string.#concat
+ 449  Release  r0
+ 450  GetField r0, r3, .0
+ 451  Retain   r0
+ 452  Release  r3
+ 453  Move     r5, r4
+ 454  Move     r6, r0
+ 455  Rt       r5, string.#concat
+ 456  Release  r4
+ 457  Release  r0
+ 458  Move     r0, r5
+ 459  Move     r3, r0
+ 460  Rt       r2, string.#concat
+ 461  Release  r0
+ 462  LoadStr  r4, ""
+ 463  Move     r3, r2
+ 464  Rt       r3, string.#concat
+ 465  Release  r2
+ 466  LoadStr  r4, ""
+ 467  New      r0, Error
+ 468  LoadStr  r2, ""
+ 469  LoadStr  r5, "Error"
+ 470  SetField r0, r5, .1
+ 471  SetField r0, r2, .0
+ 472  GetField r2, r0, .0
+ 473  Retain   r2
+ 474  LoadStr  r6, ""
+ 475  Move     r5, r2
+ 476  Rt       r5, string.#eq
+ 477  Release  r2
+ 478  JmpIfNot r5, -> 483
+ 479  GetField r2, r0, .1
+ 480  Retain   r2
+ 481  Release  r0
+ 482  Jmp      -> 498
+ 483  GetField r2, r0, .1
+ 484  Retain   r2
+ 485  LoadStr  r6, ": "
+ 486  Move     r5, r2
+ 487  Rt       r5, string.#concat
+ 488  Release  r2
+ 489  GetField r2, r0, .0
+ 490  Retain   r2
+ 491  Release  r0
+ 492  Move     r6, r5
+ 493  Move     r7, r2
+ 494  Rt       r6, string.#concat
+ 495  Release  r5
+ 496  Release  r2
+ 497  Move     r2, r6
+ 498  Move     r5, r2
+ 499  Rt       r4, string.#concat
+ 500  Release  r2
+ 501  LoadStr  r6, ""
+ 502  Move     r5, r4
+ 503  Rt       r5, string.#concat
+ 504  Release  r4
+ 505  LogI     r1
+ 506  LogSep   
+ 507  LogStr   r3
+ 508  LogSep   
+ 509  LogStr   r5
+ 510  LogEnd   
+ 511  Release  r3
+ 512  Release  r5
+ 513  RetV     
+  handler 3 -> 7 r1 Error
+  handler 5 -> 7 r1 Error
+  handler 9 -> 11 r1 Error
+  handler 52 -> 54 r2 Error
+  handler 56 -> 58 r2 Error
+  handler 104 -> 106 r2 Error
+  handler 151 -> 153 r0 Error
+  handler 154 -> 156 r1 Error
+  handler 161 -> 163 r0 Error
+  handler 187 -> 189 r0 Error
+  handler 190 -> 192 r1 Error
+  handler 205 -> 207 r0 Error
+  handler 241 -> 243 r7 Error
+  handler 270 -> 277 r1 Error
+  handler 275 -> 277 r1 Error
+  handler 305 -> 307 r4 Error
+  handler 332 -> 335 r1 Error
+  handler 333 -> 335 r1 Error
+  handler 388 -> 390 r0 Error
 func @Error.constructor(ref Error, ref str) -> void nregs=3
    0  LoadStr  r2, "Error"
    1  SetField r0, r2, .1
@@ -271,10 +599,10 @@ func @Error.__errorString(ref Error) -> ref str nregs=5
 func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
    0  Move     r2, r0
    1  Retain   r2
-   2  Move     r3, r1
-   3  Move     r1, r2
-   4  Move     r2, r3
-   5  Call     r1, @Error.constructor
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
    6  LoadStr  r1, "TypeError"
    7  SetField r0, r1, .1
    8  Release  r0
@@ -282,10 +610,10 @@ func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
 func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
    0  Move     r2, r0
    1  Retain   r2
-   2  Move     r3, r1
-   3  Move     r1, r2
-   4  Move     r2, r3
-   5  Call     r1, @Error.constructor
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
    6  LoadStr  r1, "RangeError"
    7  SetField r0, r1, .1
    8  Release  r0
@@ -293,10 +621,10 @@ func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
 func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
    0  Move     r2, r0
    1  Retain   r2
-   2  Move     r3, r1
-   3  Move     r1, r2
-   4  Move     r2, r3
-   5  Call     r1, @Error.constructor
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
    6  LoadStr  r1, "SyntaxError"
    7  SetField r0, r1, .1
    8  Release  r0
@@ -304,10 +632,10 @@ func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
 func @AppError.constructor(ref AppError, i, ref str) -> void nregs=5
    0  Move     r3, r0
    1  Retain   r3
-   2  Move     r4, r2
-   3  Move     r2, r3
-   4  Move     r3, r4
-   5  Call     r2, @Error.constructor
+   2  LoadStr  r4, "Error"
+   3  SetField r3, r4, .1
+   4  SetField r3, r2, .0
+   5  Release  r3
    6  SetField r0, r1, .2
    7  Release  r0
    8  RetV     
@@ -315,24 +643,28 @@ func @Shape.area(ref Shape) -> i nregs=1
    0  Release  r0
    1  LoadI    r0, 1
    2  Ret      r0
-func @Bad.area(ref Bad) -> i nregs=4
+func @Bad.area(ref Bad) -> i nregs=5
    0  Release  r0
    1  New      r0, AppError
-   2  LoadI    r2, 7
-   3  LoadStr  r3, "bad shape"
-   4  Retain   r0
-   5  Move     r1, r0
-   6  Call     r1, @AppError.constructor
-   7  Move     r1, r0
-   8  Retain   r1
-   9  Release  r0
-  10  Throw    r1
+   2  LoadI    r1, 7
+   3  LoadStr  r2, "bad shape"
+   4  Move     r3, r0
+   5  Retain   r3
+   6  LoadStr  r4, "Error"
+   7  SetField r3, r4, .1
+   8  SetField r3, r2, .0
+   9  Release  r3
+  10  SetField r0, r1, .2
+  11  Move     r1, r0
+  12  Retain   r1
+  13  Release  r0
+  14  Throw    r1
 func @Res.constructor(ref Res, ref str) -> void nregs=2
    0  SetField r0, r1, .0
    1  Release  r0
    2  RetV     
 func @risky(i) -> i nregs=6
-   0  JGeIK    r0, 0, -> 18
+   0  JGeIK    r0, 0, -> 22
    2  New      r1, RangeError
    3  LoadStr  r2, "negative: "
    4  Move     r3, r0
@@ -341,28 +673,36 @@ func @risky(i) -> i nregs=6
    7  Move     r5, r3
    8  Rt       r4, string.#concat
    9  Release  r3
-  10  Retain   r1
-  11  Move     r2, r1
-  12  Move     r3, r4
-  13  Call     r2, @RangeError.constructor
-  14  Move     r2, r1
-  15  Retain   r2
-  16  Release  r1
-  17  Throw    r2
-  18  JNeIK    r0, 0, -> 30
-  20  New      r1, AppError
-  21  LoadI    r3, 404
-  22  LoadStr  r4, "zero"
-  23  Retain   r1
-  24  Move     r2, r1
-  25  Call     r2, @AppError.constructor
-  26  Move     r2, r1
-  27  Retain   r2
-  28  Release  r1
-  29  Throw    r2
-  30  LoadI    r1, 2
-  31  MulI32   r0, r0, r1
-  32  Ret      r0
+  10  Move     r2, r1
+  11  Retain   r2
+  12  LoadStr  r3, "Error"
+  13  SetField r2, r3, .1
+  14  SetField r2, r4, .0
+  15  Release  r2
+  16  LoadStr  r2, "RangeError"
+  17  SetField r1, r2, .1
+  18  Move     r2, r1
+  19  Retain   r2
+  20  Release  r1
+  21  Throw    r2
+  22  JNeIK    r0, 0, -> 38
+  24  New      r1, AppError
+  25  LoadI    r2, 404
+  26  LoadStr  r3, "zero"
+  27  Move     r4, r1
+  28  Retain   r4
+  29  LoadStr  r5, "Error"
+  30  SetField r4, r5, .1
+  31  SetField r4, r3, .0
+  32  Release  r4
+  33  SetField r1, r2, .2
+  34  Move     r2, r1
+  35  Retain   r2
+  36  Release  r1
+  37  Throw    r2
+  38  LoadI    r1, 2
+  39  MulI32   r0, r0, r1
+  40  Ret      r0
 func @viaStack(i) -> ref str nregs=10
    0  New      r1, Res
    1  LoadStr  r2, "tmp"
@@ -372,42 +712,76 @@ func @viaStack(i) -> ref str nregs=10
    5  Move     r5, r3
    6  Rt       r4, string.#concat
    7  Release  r3
-   8  Retain   r1
-   9  Move     r2, r1
-  10  Move     r3, r4
-  11  Call     r2, @Res.constructor
-  12  LoadStr  r2, "v"
-  13  Move     r3, r0
-  14  Rt       r3, string.#i2s
-  15  Move     r4, r2
-  16  Move     r5, r3
-  17  Rt       r4, string.#concat
-  18  Release  r3
-  19  LoadStr  r6, ":"
-  20  Move     r5, r4
-  21  Rt       r5, string.#concat
-  22  Release  r4
-  23  Move     r6, r0
-  24  Call     r6, @risky
-  25  Rt       r6, string.#i2s
-  26  Move     r7, r5
-  27  Move     r8, r6
-  28  Rt       r7, string.#concat
-  29  Release  r5
-  30  Release  r6
-  31  GetField r0, r1, .0
-  32  Retain   r0
-  33  Release  r1
-  34  Move     r8, r7
-  35  Move     r9, r0
-  36  Rt       r8, string.#concat
-  37  Release  r7
-  38  Release  r0
-  39  Ret      r8
-  40  Release  r1
-  41  Release  r5
-  42  Throw    r0
-  handler 24 -> 40 r0 Error
+   8  SetField r1, r4, .0
+   9  LoadStr  r2, "v"
+  10  Move     r3, r0
+  11  Rt       r3, string.#i2s
+  12  Move     r4, r2
+  13  Move     r5, r3
+  14  Rt       r4, string.#concat
+  15  Release  r3
+  16  LoadStr  r6, ":"
+  17  Move     r5, r4
+  18  Rt       r5, string.#concat
+  19  Release  r4
+  20  JGeIK    r0, 0, -> 44
+  22  Release  r1
+  23  Release  r5
+  24  New      r2, RangeError
+  25  LoadStr  r6, "negative: "
+  26  Move     r7, r0
+  27  Rt       r7, string.#i2s
+  28  Move     r8, r6
+  29  Move     r9, r7
+  30  Rt       r8, string.#concat
+  31  Release  r7
+  32  Move     r3, r2
+  33  Retain   r3
+  34  LoadStr  r4, "Error"
+  35  SetField r3, r4, .1
+  36  SetField r3, r8, .0
+  37  Release  r3
+  38  LoadStr  r3, "RangeError"
+  39  SetField r2, r3, .1
+  40  Move     r3, r2
+  41  Retain   r3
+  42  Release  r2
+  43  Throw    r3
+  44  JNeIK    r0, 0, -> 62
+  46  Release  r1
+  47  Release  r5
+  48  New      r2, AppError
+  49  LoadI    r3, 404
+  50  LoadStr  r4, "zero"
+  51  Move     r6, r2
+  52  Retain   r6
+  53  LoadStr  r7, "Error"
+  54  SetField r6, r7, .1
+  55  SetField r6, r4, .0
+  56  Release  r6
+  57  SetField r2, r3, .2
+  58  Move     r3, r2
+  59  Retain   r3
+  60  Release  r2
+  61  Throw    r3
+  62  LoadI    r2, 2
+  63  MulI32   r0, r0, r2
+  64  Move     r6, r0
+  65  Rt       r6, string.#i2s
+  66  Move     r7, r5
+  67  Move     r8, r6
+  68  Rt       r7, string.#concat
+  69  Release  r5
+  70  Release  r6
+  71  GetField r0, r1, .0
+  72  Retain   r0
+  73  Release  r1
+  74  Move     r8, r7
+  75  Move     r9, r0
+  76  Rt       r8, string.#concat
+  77  Release  r7
+  78  Release  r0
+  79  Ret      r8
 func @trace(ref str) -> void nregs=5
    0  GetGlobalr1, g0
    1  Retain   r1
@@ -422,47 +796,107 @@ func @trace(ref str) -> void nregs=5
   10  Release  r2
   11  SetGlobalr3, g0
   12  RetV     
-func @a() -> i nregs=3
+func @a() -> i nregs=7
    0  LoadStr  r0, "a-try"
    1  Call     r0, @trace
    2  LoadI    r0, 1
    3  Call     r0, @risky
-   4  Jmp      -> 16
+   4  Jmp      -> 36
    5  Release  r1
    6  LoadStr  r1, "never"
    7  Call     r1, @trace
-   8  Jmp      -> 12
+   8  Jmp      -> 22
    9  LoadStr  r2, "a-fin"
-  10  Call     r2, @trace
-  11  Throw    r1
-  12  LoadI    r1, -1
-  13  LoadStr  r2, "a-fin"
-  14  Call     r2, @trace
-  15  Ret      r1
-  16  LoadStr  r1, "a-fin"
-  17  Call     r1, @trace
-  18  Ret      r0
+  10  GetGlobalr3, g0
+  11  Retain   r3
+  12  LoadStr  r5, " "
+  13  Move     r4, r2
+  14  Rt       r4, string.#concat
+  15  Move     r5, r3
+  16  Move     r6, r4
+  17  Rt       r5, string.#concat
+  18  Release  r3
+  19  Release  r4
+  20  SetGlobalr5, g0
+  21  Throw    r1
+  22  LoadI    r1, -1
+  23  LoadStr  r2, "a-fin"
+  24  GetGlobalr3, g0
+  25  Retain   r3
+  26  LoadStr  r5, " "
+  27  Move     r4, r2
+  28  Rt       r4, string.#concat
+  29  Move     r5, r3
+  30  Move     r6, r4
+  31  Rt       r5, string.#concat
+  32  Release  r3
+  33  Release  r4
+  34  SetGlobalr5, g0
+  35  Ret      r1
+  36  LoadStr  r1, "a-fin"
+  37  GetGlobalr2, g0
+  38  Retain   r2
+  39  LoadStr  r4, " "
+  40  Move     r3, r1
+  41  Rt       r3, string.#concat
+  42  Move     r4, r2
+  43  Move     r5, r3
+  44  Rt       r4, string.#concat
+  45  Release  r2
+  46  Release  r3
+  47  SetGlobalr4, g0
+  48  Ret      r0
   handler 1 -> 5 r1 Error
   handler 3 -> 5 r1 Error
   handler 7 -> 9 r1 Error
-func @b() -> i nregs=3
+func @b() -> i nregs=7
    0  LoadI    r0, 0
    1  Call     r0, @risky
-   2  Jmp      -> 14
+   2  Jmp      -> 34
    3  Release  r1
    4  LoadStr  r1, "b-catch"
    5  Call     r1, @trace
-   6  Jmp      -> 10
+   6  Jmp      -> 20
    7  LoadStr  r2, "b-fin"
-   8  Call     r2, @trace
-   9  Throw    r1
-  10  LoadI    r1, -2
-  11  LoadStr  r2, "b-fin"
-  12  Call     r2, @trace
-  13  Ret      r1
-  14  LoadStr  r1, "b-fin"
-  15  Call     r1, @trace
-  16  Ret      r0
+   8  GetGlobalr3, g0
+   9  Retain   r3
+  10  LoadStr  r5, " "
+  11  Move     r4, r2
+  12  Rt       r4, string.#concat
+  13  Move     r5, r3
+  14  Move     r6, r4
+  15  Rt       r5, string.#concat
+  16  Release  r3
+  17  Release  r4
+  18  SetGlobalr5, g0
+  19  Throw    r1
+  20  LoadI    r1, -2
+  21  LoadStr  r2, "b-fin"
+  22  GetGlobalr3, g0
+  23  Retain   r3
+  24  LoadStr  r5, " "
+  25  Move     r4, r2
+  26  Rt       r4, string.#concat
+  27  Move     r5, r3
+  28  Move     r6, r4
+  29  Rt       r5, string.#concat
+  30  Release  r3
+  31  Release  r4
+  32  SetGlobalr5, g0
+  33  Ret      r1
+  34  LoadStr  r1, "b-fin"
+  35  GetGlobalr2, g0
+  36  Retain   r2
+  37  LoadStr  r4, " "
+  38  Move     r3, r1
+  39  Rt       r3, string.#concat
+  40  Move     r4, r2
+  41  Move     r5, r3
+  42  Rt       r4, string.#concat
+  43  Release  r2
+  44  Release  r3
+  45  SetGlobalr4, g0
+  46  Ret      r0
   handler 1 -> 3 r1 Error
   handler 5 -> 7 r1 Error
 func @c() -> ref str nregs=10
@@ -681,11 +1115,21 @@ func @f() -> ref str nregs=6
   handler 1 -> 3 r0 Error
   handler 4 -> 6 r1 Error
   handler 19 -> 21 r0 Error
-func @g() -> i nregs=2
+func @g() -> i nregs=6
    0  LoadI    r0, 1
    1  LoadStr  r1, "g-fin"
-   2  Call     r1, @trace
-   3  Ret      r0
+   2  GetGlobalr2, g0
+   3  Retain   r2
+   4  LoadStr  r4, " "
+   5  Move     r3, r1
+   6  Rt       r3, string.#concat
+   7  Move     r4, r2
+   8  Move     r5, r3
+   9  Rt       r4, string.#concat
+  10  Release  r2
+  11  Release  r3
+  12  SetGlobalr4, g0
+  13  Ret      r0
 func @h() -> i nregs=6
    0  LoadK    r0, f64 0
    1  New      r1, cell f64
@@ -717,27 +1161,38 @@ func @h() -> i nregs=6
   27  NarrowI32r0, r0
   28  Ret      r0
   handler 10 -> 12 r4 Error
-func @__g0(ref f64[], ref fn (f64) => f64) -> ref f64[] nregs=6
+func @__g0(ref f64[], ref fn (f64) => f64) -> ref f64[] nregs=10
    0  New      r2, f64[]
    1  LoadI    r3, 0
    2  ArrLen   r4, r0
-   3  JLeI     r4, r3, -> 17
-   5  ArrGet   r5, r0, r3
-   6  Retain   r1
-   7  Move     r4, r1
-   8  CallVirt r4, .call
-   9  ArrPush  r4, r2, r4
-  10  Jmp      -> 15
+   3  JLeI     r4, r3, -> 29
+   5  ArrGet   r4, r0, r3
+   6  Move     r5, r1
+   7  Downcast r5, lambda0
+   8  LoadK    r5, f64 2
+   9  EqF64    r5, r4, r5
+  10  JmpIfNot r5, -> 26
   11  Release  r0
   12  Release  r1
   13  Release  r2
-  14  Throw    r4
-  15  AddI32K  r3, r3, 1
-  16  Jmp      -> 2
-  17  Release  r0
-  18  Release  r1
-  19  Ret      r2
-  handler 8 -> 11 r4 Error
+  14  New      r5, Error
+  15  LoadStr  r6, "in map "
+  16  Move     r7, r4
+  17  Rt       r7, string.#d2s
+  18  Move     r8, r6
+  19  Move     r9, r7
+  20  Rt       r8, string.#concat
+  21  Release  r7
+  22  LoadStr  r6, "Error"
+  23  SetField r5, r6, .1
+  24  SetField r5, r8, .0
+  25  Throw    r5
+  26  ArrPush  r4, r2, r4
+  27  AddI32K  r3, r3, 1
+  28  Jmp      -> 2
+  29  Release  r0
+  30  Release  r1
+  31  Ret      r2
 func @__circ(ref i64[], i) -> ref str nregs=9
    0  LoadI    r2, 10
    1  ArrGet   r2, r0, r2
@@ -893,7 +1348,7 @@ func @__hex2(i) -> ref str nregs=6
   14  Release  r2
   15  Release  r3
   16  Ret      r4
-func @__q(ref str) -> ref str nregs=11
+func @__q(ref str) -> ref str nregs=14
    0  LoadStr  r1, "'"
    1  LoadStr  r3, "'"
    2  LoadI    r4, 0
@@ -948,7 +1403,7 @@ func @__q(ref str) -> ref str nregs=11
   52  Move     r6, r1
   53  Rt       r5, string.#eq
   54  Release  r4
-  55  JmpIfNot r5, -> 188
+  55  JmpIfNot r5, -> 202
   56  LoadI    r4, 0
   57  AddI32K  r3, r3, 1
   58  Move     r2, r4
@@ -969,7 +1424,7 @@ func @__q(ref str) -> ref str nregs=11
   73  Move     r3, r1
   74  Move     r4, r0
   75  Rt       r4, string.length
-  76  JLeI     r4, r2, -> 181
+  76  JLeI     r4, r2, -> 195
   78  Move     r4, r0
   79  Move     r5, r2
   80  Rt       r4, string.charCodeAt
@@ -993,89 +1448,103 @@ func @__q(ref str) -> ref str nregs=11
   98  Release  r3
   99  Release  r6
  100  Move     r4, r7
- 101  Jmp      -> 178
+ 101  Jmp      -> 192
  102  JNeIK    r4, 10, -> 110
  104  Release  r5
  105  LoadStr  r7, "\n"
  106  Move     r6, r3
  107  Rt       r6, string.#concat
  108  Release  r3
- 109  Jmp      -> 177
+ 109  Jmp      -> 191
  110  JNeIK    r4, 9, -> 118
  112  Release  r5
  113  LoadStr  r7, "\t"
  114  Move     r6, r3
  115  Rt       r6, string.#concat
  116  Release  r3
- 117  Jmp      -> 177
+ 117  Jmp      -> 191
  118  JNeIK    r4, 13, -> 126
  120  Release  r5
  121  LoadStr  r7, "\r"
  122  Move     r6, r3
  123  Rt       r6, string.#concat
  124  Release  r3
- 125  Jmp      -> 177
+ 125  Jmp      -> 191
  126  JNeIK    r4, 8, -> 134
  128  Release  r5
  129  LoadStr  r7, "\b"
  130  Move     r6, r3
  131  Rt       r6, string.#concat
  132  Release  r3
- 133  Jmp      -> 177
+ 133  Jmp      -> 191
  134  JNeIK    r4, 12, -> 142
  136  Release  r5
  137  LoadStr  r7, "\f"
  138  Move     r6, r3
  139  Rt       r6, string.#concat
  140  Release  r3
- 141  Jmp      -> 177
+ 141  Jmp      -> 191
  142  JNeIK    r4, 11, -> 150
  144  Release  r5
  145  LoadStr  r7, "\v"
  146  Move     r6, r3
  147  Rt       r6, string.#concat
  148  Release  r3
- 149  Jmp      -> 177
+ 149  Jmp      -> 191
  150  LoadI    r6, 32
  151  LtI      r6, r4, r6
  152  JmpIf    r6, -> 155
  153  LoadI    r6, 127
  154  EqI      r6, r4, r6
- 155  JmpIfNot r6, -> 170
+ 155  JmpIfNot r6, -> 184
  156  Release  r5
  157  LoadStr  r6, "\x"
- 158  Move     r7, r4
- 159  Call     r7, @__hex2
- 160  Move     r8, r6
- 161  Move     r9, r7
- 162  Rt       r8, string.#concat
- 163  Release  r7
- 164  Move     r9, r3
- 165  Move     r10, r8
- 166  Rt       r9, string.#concat
- 167  Release  r3
- 168  Release  r8
- 169  Jmp      -> 176
- 170  Move     r6, r3
- 171  Move     r7, r5
- 172  Rt       r6, string.#concat
- 173  Release  r3
- 174  Release  r5
- 175  Move     r9, r6
- 176  Move     r6, r9
- 177  Move     r4, r6
- 178  AddI32K  r2, r2, 1
- 179  Move     r3, r4
- 180  Jmp      -> 74
- 181  Release  r0
- 182  Move     r4, r3
- 183  Move     r5, r1
- 184  Rt       r4, string.#concat
- 185  Release  r1
- 186  Release  r3
- 187  Ret      r4
- 188  Move     r4, r2
- 189  Jmp      -> 57
+ 158  LoadStr  r7, "0123456789ABCDEF"
+ 159  LoadI    r8, 4
+ 160  ShrI32   r8, r4, r8
+ 161  LoadI    r9, 15
+ 162  And      r9, r8, r9
+ 163  Move     r8, r7
+ 164  Rt       r8, string.charAt
+ 165  LoadI    r9, 15
+ 166  And      r10, r4, r9
+ 167  Move     r9, r7
+ 168  Rt       r9, string.charAt
+ 169  Move     r10, r8
+ 170  Move     r11, r9
+ 171  Rt       r10, string.#concat
+ 172  Release  r8
+ 173  Release  r9
+ 174  Move     r11, r6
+ 175  Move     r12, r10
+ 176  Rt       r11, string.#concat
+ 177  Release  r10
+ 178  Move     r12, r3
+ 179  Move     r13, r11
+ 180  Rt       r12, string.#concat
+ 181  Release  r3
+ 182  Release  r11
+ 183  Jmp      -> 190
+ 184  Move     r6, r3
+ 185  Move     r7, r5
+ 186  Rt       r6, string.#concat
+ 187  Release  r3
+ 188  Release  r5
+ 189  Move     r12, r6
+ 190  Move     r6, r12
+ 191  Move     r4, r6
+ 192  AddI32K  r2, r2, 1
+ 193  Move     r3, r4
+ 194  Jmp      -> 74
+ 195  Release  r0
+ 196  Move     r4, r3
+ 197  Move     r5, r1
+ 198  Rt       r4, string.#concat
+ 199  Release  r1
+ 200  Release  r3
+ 201  Ret      r4
+ 202  Move     r4, r2
+ 203  Jmp      -> 57
 func @__padStart(ref str, i) -> ref str nregs=5
    0  Move     r2, r0
    1  Rt       r2, string.length
@@ -1177,7 +1646,7 @@ func @__group(ref i64[], ref str[], i, i) -> ref str[] nregs=19
   16  ArrPush  r9, r7, r10
   17  AddI32K  r9, r10, 2
   18  AddI32   r9, r4, r9
-  19  JLeI     r10, r5, -> 181
+  19  JLeI     r10, r5, -> 225
   21  AddI32K  r8, r8, 1
   22  Move     r4, r9
   23  Move     r5, r10
@@ -1200,7 +1669,7 @@ func @__group(ref i64[], ref str[], i, i) -> ref str[] nregs=19
   40  LoadI    r9, 6
   41  LeI      r5, r5, r9
   42  Move     r9, r5
-  43  JmpIfNot r9, -> 178
+  43  JmpIfNot r9, -> 222
   44  I64ToF64 r5, r8
   45  I64ToF64 r4, r4
   46  ArrLen   r9, r1
@@ -1248,7 +1717,7 @@ func @__group(ref i64[], ref str[], i, i) -> ref str[] nregs=19
   90  Move     r10, r9
   91  JLeI     r6, r10, -> 100
   93  ArrGet   r12, r7, r10
-  94  JLeI     r12, r11, -> 183
+  94  JLeI     r12, r11, -> 227
   96  ArrGet   r12, r7, r10
   97  AddI32   r10, r10, r4
   98  Move     r11, r12
@@ -1259,7 +1728,7 @@ func @__group(ref i64[], ref str[], i, i) -> ref str[] nregs=19
  103  Jmp      -> 86
  104  Release  r7
  105  LoadI    r9, 0
- 106  JLeI     r6, r9, -> 169
+ 106  JLeI     r6, r9, -> 213
  108  AddI32   r10, r9, r4
  109  I64ToF64 r10, r10
  110  I64ToF64 r11, r6
@@ -1272,70 +1741,111 @@ func @__group(ref i64[], ref str[], i, i) -> ref str[] nregs=19
  117  Move     r12, r11
  118  Move     r11, r9
  119  AddI32K  r13, r10, -1
- 120  JLeI     r13, r11, -> 150
+ 120  JLeI     r13, r11, -> 177
  122  ArrGet   r13, r1, r11
  123  Retain   r13
  124  LoadStr  r15, ", "
  125  Move     r14, r13
  126  Rt       r14, string.#concat
  127  Release  r13
- 128  JmpIfNot r2, -> 134
+ 128  JmpIfNot r2, -> 149
  129  SubI32   r13, r11, r9
- 130  ArrGet   r16, r8, r13
+ 130  ArrGet   r13, r8, r13
  131  Move     r15, r14
- 132  Call     r15, @__padStart
- 133  Jmp      -> 141
- 134  SubI32   r13, r11, r9
- 135  ArrGet   r13, r8, r13
- 136  Move     r18, r13
- 137  Move     r13, r14
- 138  Move     r14, r18
- 139  Call     r13, @__padEnd
- 140  Move     r15, r13
- 141  Move     r16, r12
- 142  Move     r17, r15
- 143  Rt       r16, string.#concat
- 144  Release  r12
- 145  Release  r15
- 146  AddI32K  r13, r11, 1
- 147  Move     r11, r13
- 148  Move     r12, r16
- 149  Jmp      -> 119
- 150  JmpIfNot r2, -> 158
- 151  ArrGet   r13, r1, r11
- 152  Retain   r13
- 153  SubI32   r10, r11, r9
- 154  ArrGet   r10, r8, r10
- 155  AddI32K  r14, r10, -2
- 156  Call     r13, @__padStart
- 157  Jmp      -> 161
- 158  ArrGet   r10, r1, r11
- 159  Retain   r10
- 160  Move     r13, r10
- 161  Move     r14, r12
- 162  Move     r15, r13
- 163  Rt       r14, string.#concat
- 164  Release  r12
- 165  Release  r13
- 166  ArrPush  r10, r5, r14
- 167  AddI32   r9, r9, r4
- 168  Jmp      -> 106
- 169  Release  r8
- 170  JmpIfNot r3, -> 176
- 171  ArrGet   r2, r1, r6
- 172  Retain   r2
- 173  Release  r1
- 174  ArrPush  r2, r5, r2
- 175  Jmp      -> 177
- 176  Release  r1
- 177  Ret      r5
- 178  Release  r0
- 179  Release  r7
- 180  Ret      r1
- 181  Move     r10, r5
- 182  Jmp      -> 21
- 183  Move     r12, r11
- 184  Jmp      -> 97
+ 132  Rt       r15, string.length
+ 133  JLtI     r15, r13, -> 137
+ 135  Move     r13, r14
+ 136  Jmp      -> 148
+ 137  LoadStr  r15, " "
+ 138  Move     r16, r14
+ 139  Rt       r16, string.length
+ 140  SubI32   r16, r13, r16
+ 141  Rt       r15, string.repeat
+ 142  Move     r16, r15
+ 143  Move     r17, r14
+ 144  Rt       r16, string.#concat
+ 145  Release  r14
+ 146  Release  r15
+ 147  Move     r13, r16
+ 148  Jmp      -> 168
+ 149  SubI32   r13, r11, r9
+ 150  ArrGet   r13, r8, r13
+ 151  Move     r15, r14
+ 152  Rt       r15, string.length
+ 153  JLtI     r15, r13, -> 156
+ 155  Jmp      -> 167
+ 156  LoadStr  r15, " "
+ 157  Move     r16, r14
+ 158  Rt       r16, string.length
+ 159  SubI32   r16, r13, r16
+ 160  Rt       r15, string.repeat
+ 161  Move     r16, r14
+ 162  Move     r17, r15
+ 163  Rt       r16, string.#concat
+ 164  Release  r14
+ 165  Release  r15
+ 166  Move     r14, r16
+ 167  Move     r13, r14
+ 168  Move     r14, r12
+ 169  Move     r15, r13
+ 170  Rt       r14, string.#concat
+ 171  Release  r12
+ 172  Release  r13
+ 173  AddI32K  r13, r11, 1
+ 174  Move     r11, r13
+ 175  Move     r12, r14
+ 176  Jmp      -> 119
+ 177  JmpIfNot r2, -> 203
+ 178  ArrGet   r10, r1, r11
+ 179  Retain   r10
+ 180  SubI32   r13, r11, r9
+ 181  ArrGet   r13, r8, r13
+ 182  AddI32K  r13, r13, -2
+ 183  Move     r14, r10
+ 184  Rt       r14, string.length
+ 185  JLtI     r14, r13, -> 188
+ 187  Jmp      -> 202
+ 188  LoadStr  r14, " "
+ 189  Move     r15, r10
+ 190  Rt       r15, string.length
+ 191  SubI32   r13, r13, r15
+ 192  Move     r18, r13
+ 193  Move     r13, r14
+ 194  Move     r14, r18
+ 195  Rt       r13, string.repeat
+ 196  Move     r14, r13
+ 197  Move     r15, r10
+ 198  Rt       r14, string.#concat
+ 199  Release  r10
+ 200  Release  r13
+ 201  Move     r10, r14
+ 202  Jmp      -> 205
+ 203  ArrGet   r10, r1, r11
+ 204  Retain   r10
+ 205  Move     r13, r12
+ 206  Move     r14, r10
+ 207  Rt       r13, string.#concat
+ 208  Release  r12
+ 209  Release  r10
+ 210  ArrPush  r10, r5, r13
+ 211  AddI32   r9, r9, r4
+ 212  Jmp      -> 106
+ 213  Release  r8
+ 214  JmpIfNot r3, -> 220
+ 215  ArrGet   r2, r1, r6
+ 216  Retain   r2
+ 217  Release  r1
+ 218  ArrPush  r2, r5, r2
+ 219  Jmp      -> 221
+ 220  Release  r1
+ 221  Ret      r5
+ 222  Release  r0
+ 223  Release  r7
+ 224  Ret      r1
+ 225  Move     r10, r5
+ 226  Jmp      -> 21
+ 227  Move     r12, r11
+ 228  Jmp      -> 97
 func @__reduce(ref i64[], ref str[], ref str, ref str, ref str, i, i, i, i) -> ref str nregs=18
    0  ArrLen   r9, r1
    1  JmpIfNot r6, -> 4
@@ -1357,7 +1867,7 @@ func @__reduce(ref i64[], ref str[], ref str, ref str, ref str, i, i, i, i) -> r
   17  JmpIfNot r5, -> 20
   18  ArrLen   r5, r1
   19  EqI      r5, r9, r5
-  20  JmpIfNot r5, -> 87
+  20  JmpIfNot r5, -> 117
   21  ArrLen   r5, r1
   22  LoadI    r6, 0
   23  ArrGet   r6, r0, r6
@@ -1370,126 +1880,154 @@ func @__reduce(ref i64[], ref str[], ref str, ref str, ref str, i, i, i, i) -> r
   30  AddI64   r5, r5, r6
   31  LoadI    r6, 10
   32  AddI64   r5, r5, r6
-  33  NarrowI32r6, r5
-  34  Retain   r2
-  35  Retain   r1
-  36  Move     r5, r1
-  37  Move     r7, r2
-  38  Call     r5, @__below
-  39  JmpIfNot r5, -> 87
-  40  LoadStr  r6, ", "
-  41  Move     r5, r1
-  42  Rt       r5, Array.join
-  43  LoadStr  r7, "
+  33  NarrowI32r5, r5
+  34  ArrLen   r6, r1
+  35  AddI32   r5, r6, r5
+  36  ArrLen   r6, r1
+  37  AddI32   r6, r5, r6
+  38  JLeIK    r6, 80, -> 42
+  40  LoadI    r6, 0
+  41  Jmp      -> 69
+  42  LoadI    r6, 0
+  43  ArrLen   r7, r1
+  44  JLeI     r7, r6, -> 59
+  46  ArrGet   r7, r1, r6
+  47  Retain   r7
+  48  Move     r8, r7
+  49  Rt       r8, string.length
+  50  Release  r7
+  51  AddI32   r5, r5, r8
+  52  JLeIK    r5, 80, -> 57
+  54  LoadI    r7, 0
+  55  Move     r6, r7
+  56  Jmp      -> 69
+  57  AddI32K  r6, r6, 1
+  58  Jmp      -> 43
+  59  LoadStr  r6, ""
+  60  Move     r5, r2
+  61  Rt       r5, string.#eq
+  62  JmpIf    r5, -> 68
+  63  LoadStr  r6, "
 "
-  44  LoadI    r8, 0
-  45  Move     r6, r5
-  46  Rt       r6, string.includes
-  47  NotB     r6, r6
-  48  JmpIfNot r6, -> 86
-  49  Release  r0
-  50  Release  r1
-  51  LoadStr  r7, ""
-  52  Move     r6, r2
-  53  Rt       r6, string.#eq
-  54  JmpIfNot r6, -> 58
-  55  Release  r2
-  56  LoadStr  r6, ""
-  57  Jmp      -> 62
-  58  LoadStr  r7, " "
-  59  Move     r6, r2
-  60  Rt       r6, string.#concat
-  61  Release  r2
-  62  Move     r7, r6
-  63  Move     r8, r3
-  64  Rt       r7, string.#concat
-  65  Release  r3
-  66  Release  r6
-  67  LoadStr  r9, " "
-  68  Move     r8, r7
-  69  Rt       r8, string.#concat
-  70  Release  r7
-  71  Move     r9, r8
-  72  Move     r10, r5
-  73  Rt       r9, string.#concat
-  74  Release  r5
-  75  Release  r8
-  76  LoadStr  r11, " "
-  77  Move     r10, r9
-  78  Rt       r10, string.#concat
-  79  Release  r9
-  80  Move     r11, r10
-  81  Move     r12, r4
-  82  Rt       r11, string.#concat
-  83  Release  r4
-  84  Release  r10
-  85  Ret      r11
-  86  Release  r5
-  87  LoadStr  r5, "
+  64  LoadI    r7, 0
+  65  Move     r5, r2
+  66  Rt       r5, string.includes
+  67  NotB     r5, r5
+  68  Move     r6, r5
+  69  JmpIfNot r6, -> 117
+  70  LoadStr  r6, ", "
+  71  Move     r5, r1
+  72  Rt       r5, Array.join
+  73  LoadStr  r7, "
 "
-  88  LoadStr  r6, " "
-  89  LoadI    r7, 0
-  90  ArrGet   r7, r0, r7
-  91  Release  r0
-  92  NarrowI32r7, r7
-  93  Rt       r6, string.repeat
-  94  Move     r7, r5
-  95  Move     r8, r6
-  96  Rt       r7, string.#concat
-  97  Release  r6
-  98  LoadStr  r9, ""
-  99  Move     r8, r2
- 100  Rt       r8, string.#eq
- 101  JmpIfNot r8, -> 105
- 102  Release  r2
- 103  LoadStr  r0, ""
- 104  Jmp      -> 110
- 105  LoadStr  r9, " "
- 106  Move     r8, r2
- 107  Rt       r8, string.#concat
- 108  Release  r2
- 109  Move     r0, r8
- 110  Move     r8, r0
- 111  Move     r9, r3
- 112  Rt       r8, string.#concat
- 113  Release  r3
- 114  Release  r0
- 115  Move     r9, r8
- 116  Move     r10, r7
- 117  Rt       r9, string.#concat
- 118  Release  r8
- 119  LoadStr  r11, "  "
- 120  Move     r10, r9
- 121  Rt       r10, string.#concat
- 122  Release  r9
- 123  LoadStr  r11, ","
- 124  Move     r12, r7
- 125  Rt       r11, string.#concat
- 126  LoadStr  r13, "  "
- 127  Move     r12, r11
- 128  Rt       r12, string.#concat
- 129  Release  r11
- 130  Move     r13, r1
- 131  Move     r14, r12
- 132  Rt       r13, Array.join
- 133  Release  r1
- 134  Release  r12
- 135  Move     r14, r10
- 136  Move     r15, r13
- 137  Rt       r14, string.#concat
- 138  Release  r10
- 139  Release  r13
- 140  Move     r15, r14
- 141  Move     r16, r7
- 142  Rt       r15, string.#concat
- 143  Release  r7
- 144  Release  r14
- 145  Move     r16, r15
- 146  Move     r17, r4
- 147  Rt       r16, string.#concat
- 148  Release  r4
- 149  Release  r15
- 150  Ret      r16
+  74  LoadI    r8, 0
+  75  Move     r6, r5
+  76  Rt       r6, string.includes
+  77  NotB     r6, r6
+  78  JmpIfNot r6, -> 116
+  79  Release  r0
+  80  Release  r1
+  81  LoadStr  r7, ""
+  82  Move     r6, r2
+  83  Rt       r6, string.#eq
+  84  JmpIfNot r6, -> 88
+  85  Release  r2
+  86  LoadStr  r6, ""
+  87  Jmp      -> 92
+  88  LoadStr  r7, " "
+  89  Move     r6, r2
+  90  Rt       r6, string.#concat
+  91  Release  r2
+  92  Move     r7, r6
+  93  Move     r8, r3
+  94  Rt       r7, string.#concat
+  95  Release  r3
+  96  Release  r6
+  97  LoadStr  r9, " "
+  98  Move     r8, r7
+  99  Rt       r8, string.#concat
+ 100  Release  r7
+ 101  Move     r9, r8
+ 102  Move     r10, r5
+ 103  Rt       r9, string.#concat
+ 104  Release  r5
+ 105  Release  r8
+ 106  LoadStr  r11, " "
+ 107  Move     r10, r9
+ 108  Rt       r10, string.#concat
+ 109  Release  r9
+ 110  Move     r11, r10
+ 111  Move     r12, r4
+ 112  Rt       r11, string.#concat
+ 113  Release  r4
+ 114  Release  r10
+ 115  Ret      r11
+ 116  Release  r5
+ 117  LoadStr  r5, "
+"
+ 118  LoadStr  r6, " "
+ 119  LoadI    r7, 0
+ 120  ArrGet   r7, r0, r7
+ 121  Release  r0
+ 122  NarrowI32r7, r7
+ 123  Rt       r6, string.repeat
+ 124  Move     r7, r5
+ 125  Move     r8, r6
+ 126  Rt       r7, string.#concat
+ 127  Release  r6
+ 128  LoadStr  r9, ""
+ 129  Move     r8, r2
+ 130  Rt       r8, string.#eq
+ 131  JmpIfNot r8, -> 135
+ 132  Release  r2
+ 133  LoadStr  r0, ""
+ 134  Jmp      -> 140
+ 135  LoadStr  r9, " "
+ 136  Move     r8, r2
+ 137  Rt       r8, string.#concat
+ 138  Release  r2
+ 139  Move     r0, r8
+ 140  Move     r8, r0
+ 141  Move     r9, r3
+ 142  Rt       r8, string.#concat
+ 143  Release  r3
+ 144  Release  r0
+ 145  Move     r9, r8
+ 146  Move     r10, r7
+ 147  Rt       r9, string.#concat
+ 148  Release  r8
+ 149  LoadStr  r11, "  "
+ 150  Move     r10, r9
+ 151  Rt       r10, string.#concat
+ 152  Release  r9
+ 153  LoadStr  r11, ","
+ 154  Move     r12, r7
+ 155  Rt       r11, string.#concat
+ 156  LoadStr  r13, "  "
+ 157  Move     r12, r11
+ 158  Rt       r12, string.#concat
+ 159  Release  r11
+ 160  Move     r13, r1
+ 161  Move     r14, r12
+ 162  Rt       r13, Array.join
+ 163  Release  r1
+ 164  Release  r12
+ 165  Move     r14, r10
+ 166  Move     r15, r13
+ 167  Rt       r14, string.#concat
+ 168  Release  r10
+ 169  Release  r13
+ 170  Move     r15, r14
+ 171  Move     r16, r7
+ 172  Rt       r15, string.#concat
+ 173  Release  r7
+ 174  Release  r14
+ 175  Move     r16, r15
+ 176  Move     r17, r4
+ 177  Rt       r16, string.#concat
+ 178  Release  r4
+ 179  Release  r15
+ 180  Ret      r16
 func @__fmt51(ref f64[], ref i64[], i) -> ref str nregs=13
    0  ArrLen   r3, r0
    1  JNeIK    r3, 0, -> 7
@@ -1500,105 +2038,201 @@ func @__fmt51(ref f64[], ref i64[], i) -> ref str nregs=13
    7  Move     r3, r0
    8  Rt       r3, string.#objid
    9  LoadI    r4, 0
-  10  JLeI     r2, r4, -> 23
+  10  JLeI     r2, r4, -> 63
   12  AddI32K  r5, r4, 2
   13  ArrGet   r5, r1, r5
-  14  JNeI     r5, r3, -> 21
+  14  JNeI     r5, r3, -> 61
   16  Release  r0
-  17  Move     r5, r1
-  18  Move     r6, r3
-  19  Call     r5, @__circ
-  20  Ret      r5
-  21  AddI32K  r4, r4, 1
-  22  Jmp      -> 10
-  23  JLeIK    r2, 2, -> 29
-  25  Release  r0
-  26  Release  r1
-  27  LoadStr  r4, "[Array]"
-  28  Ret      r4
-  29  AddI32K  r4, r2, 2
-  30  ArrSet   r1, r4, r3
-  31  AddI32K  r5, r2, 1
-  32  LoadI    r2, 1
-  33  Move     r4, r5
-  34  ArrSet   r1, r2, r4
-  35  New      r2, str[]
-  36  ArrLen   r4, r0
-  37  JLeIK    r4, 100, -> 41
-  39  LoadI    r4, 100
-  40  Jmp      -> 42
-  41  ArrLen   r4, r0
-  42  LoadI    r6, 0
-  43  ArrGet   r7, r1, r6
-  44  LoadI    r8, 2
-  45  AddI64   r7, r7, r8
+  17  LoadI    r5, 10
+  18  ArrGet   r5, r1, r5
+  19  NarrowI32r5, r5
+  20  LoadI    r6, 0
+  21  JLeI     r5, r6, -> 42
+  23  AddI32K  r7, r6, 6
+  24  ArrGet   r7, r1, r7
+  25  JNeI     r7, r3, -> 40
+  27  Release  r1
+  28  LoadStr  r7, "[Circular *"
+  29  AddI32K  r8, r6, 1
+  30  Rt       r8, string.#i2s
+  31  Move     r9, r7
+  32  Move     r10, r8
+  33  Rt       r9, string.#concat
+  34  Release  r8
+  35  LoadStr  r11, "]"
+  36  Move     r10, r9
+  37  Rt       r10, string.#concat
+  38  Release  r9
+  39  Jmp      -> 60
+  40  AddI32K  r6, r6, 1
+  41  Jmp      -> 21
+  42  AddI32K  r6, r5, 6
+  43  ArrSet   r1, r6, r3
+  44  LoadI    r6, 10
+  45  AddI32K  r7, r5, 1
   46  ArrSet   r1, r6, r7
-  47  LoadI    r6, 0
-  48  JLeI     r4, r6, -> 58
-  50  ArrGet   r7, r0, r6
-  51  Retain   r1
-  52  Move     r8, r1
-  53  Move     r9, r5
-  54  Call     r7, @__fmt7
-  55  ArrPush  r7, r2, r7
-  56  AddI32K  r6, r6, 1
-  57  Jmp      -> 48
-  58  LoadI    r6, 0
-  59  ArrGet   r7, r1, r6
-  60  LoadI    r8, 2
-  61  SubI64   r7, r7, r8
-  62  ArrSet   r1, r6, r7
-  63  ArrLen   r6, r0
-  64  JLeI     r6, r4, -> 91
-  66  LoadStr  r6, "... "
-  67  ArrLen   r7, r0
-  68  SubI32   r7, r7, r4
-  69  Rt       r7, string.#i2s
-  70  Move     r8, r6
-  71  Move     r9, r7
-  72  Rt       r8, string.#concat
-  73  Release  r7
-  74  LoadStr  r10, " more item"
-  75  Move     r9, r8
-  76  Rt       r9, string.#concat
-  77  Release  r8
-  78  ArrLen   r6, r0
-  79  SubI32   r6, r6, r4
-  80  JLeIK    r6, 1, -> 84
-  82  LoadStr  r6, "s"
-  83  Jmp      -> 85
-  84  LoadStr  r6, ""
-  85  Move     r10, r9
-  86  Move     r11, r6
-  87  Rt       r10, string.#concat
-  88  Release  r9
-  89  Release  r6
-  90  ArrPush  r6, r2, r10
-  91  Retain   r1
-  92  Move     r6, r1
-  93  Move     r7, r3
-  94  Call     r6, @__ref
-  95  LoadStr  r3, "["
-  96  LoadStr  r7, "]"
-  97  LoadI    r8, 1
-  98  LoadI    r9, 1
-  99  ArrLen   r10, r0
- 100  Release  r0
- 101  LtI      r0, r4, r10
- 102  Move     r4, r7
- 103  Move     r7, r9
- 104  Move     r12, r0
- 105  Move     r0, r1
- 106  Move     r1, r2
- 107  Move     r2, r6
- 108  Move     r6, r8
- 109  Move     r8, r12
- 110  Call     r0, @__reduce
- 111  Ret      r0
-func @__fmt7(f64, ref i64[], i) -> ref str nregs=3
+  47  Release  r1
+  48  LoadStr  r6, "[Circular *"
+  49  AddI32K  r7, r5, 1
+  50  Rt       r7, string.#i2s
+  51  Move     r8, r6
+  52  Move     r9, r7
+  53  Rt       r8, string.#concat
+  54  Release  r7
+  55  LoadStr  r10, "]"
+  56  Move     r9, r8
+  57  Rt       r9, string.#concat
+  58  Release  r8
+  59  Move     r10, r9
+  60  Ret      r10
+  61  AddI32K  r4, r4, 1
+  62  Jmp      -> 10
+  63  JLeIK    r2, 2, -> 69
+  65  Release  r0
+  66  Release  r1
+  67  LoadStr  r4, "[Array]"
+  68  Ret      r4
+  69  AddI32K  r4, r2, 2
+  70  ArrSet   r1, r4, r3
+  71  AddI32K  r5, r2, 1
+  72  LoadI    r2, 1
+  73  Move     r4, r5
+  74  ArrSet   r1, r2, r4
+  75  New      r2, str[]
+  76  ArrLen   r4, r0
+  77  JLeIK    r4, 100, -> 81
+  79  LoadI    r4, 100
+  80  Jmp      -> 82
+  81  ArrLen   r4, r0
+  82  LoadI    r6, 0
+  83  ArrGet   r7, r1, r6
+  84  LoadI    r8, 2
+  85  AddI64   r7, r7, r8
+  86  ArrSet   r1, r6, r7
+  87  LoadI    r6, 0
+  88  JLeI     r4, r6, -> 116
+  90  ArrGet   r7, r0, r6
+  91  LoadK    r8, f64 0
+  92  EqF64    r8, r7, r8
+  93  JmpIfNot r8, -> 98
+  94  LoadK    r8, f64 1
+  95  DivF64   r8, r8, r7
+  96  LoadK    r9, f64 0
+  97  LtF64    r8, r8, r9
+  98  JmpIfNot r8, -> 101
+  99  LoadStr  r8, "-0"
+ 100  Jmp      -> 113
+ 101  LoadStr  r8, ""
+ 102  Move     r9, r7
+ 103  Rt       r9, string.#d2s
+ 104  Move     r10, r8
+ 105  Move     r11, r9
+ 106  Rt       r10, string.#concat
+ 107  Release  r9
+ 108  LoadStr  r12, ""
+ 109  Move     r11, r10
+ 110  Rt       r11, string.#concat
+ 111  Release  r10
+ 112  Move     r8, r11
+ 113  ArrPush  r7, r2, r8
+ 114  AddI32K  r6, r6, 1
+ 115  Jmp      -> 88
+ 116  LoadI    r6, 0
+ 117  ArrGet   r7, r1, r6
+ 118  LoadI    r8, 2
+ 119  SubI64   r7, r7, r8
+ 120  ArrSet   r1, r6, r7
+ 121  ArrLen   r6, r0
+ 122  JLeI     r6, r4, -> 149
+ 124  LoadStr  r6, "... "
+ 125  ArrLen   r7, r0
+ 126  SubI32   r7, r7, r4
+ 127  Rt       r7, string.#i2s
+ 128  Move     r8, r6
+ 129  Move     r9, r7
+ 130  Rt       r8, string.#concat
+ 131  Release  r7
+ 132  LoadStr  r10, " more item"
+ 133  Move     r9, r8
+ 134  Rt       r9, string.#concat
+ 135  Release  r8
+ 136  ArrLen   r6, r0
+ 137  SubI32   r6, r6, r4
+ 138  JLeIK    r6, 1, -> 142
+ 140  LoadStr  r6, "s"
+ 141  Jmp      -> 143
+ 142  LoadStr  r6, ""
+ 143  Move     r10, r9
+ 144  Move     r11, r6
+ 145  Rt       r10, string.#concat
+ 146  Release  r9
+ 147  Release  r6
+ 148  ArrPush  r6, r2, r10
+ 149  LoadI    r6, 10
+ 150  ArrGet   r6, r1, r6
+ 151  NarrowI32r6, r6
+ 152  LoadI    r7, 0
+ 153  JLeI     r6, r7, -> 173
+ 155  AddI32K  r8, r7, 6
+ 156  ArrGet   r8, r1, r8
+ 157  JNeI     r8, r3, -> 171
+ 159  LoadStr  r8, "<ref *"
+ 160  AddI32K  r9, r7, 1
+ 161  Rt       r9, string.#i2s
+ 162  Move     r10, r8
+ 163  Move     r11, r9
+ 164  Rt       r10, string.#concat
+ 165  Release  r9
+ 166  LoadStr  r12, ">"
+ 167  Move     r11, r10
+ 168  Rt       r11, string.#concat
+ 169  Release  r10
+ 170  Jmp      -> 175
+ 171  AddI32K  r7, r7, 1
+ 172  Jmp      -> 153
+ 173  LoadStr  r3, ""
+ 174  Move     r11, r3
+ 175  LoadStr  r3, "["
+ 176  LoadStr  r6, "]"
+ 177  LoadI    r7, 1
+ 178  LoadI    r8, 1
+ 179  ArrLen   r9, r0
+ 180  Release  r0
+ 181  LtI      r0, r4, r9
+ 182  Move     r4, r6
+ 183  Move     r6, r7
+ 184  Move     r7, r8
+ 185  Move     r8, r0
+ 186  Move     r0, r1
+ 187  Move     r1, r2
+ 188  Move     r2, r11
+ 189  Call     r0, @__reduce
+ 190  Ret      r0
+func @__fmt7(f64, ref i64[], i) -> ref str nregs=6
    0  Release  r1
-   1  Call     r0, @__num
-   2  Ret      r0
+   1  LoadK    r1, f64 0
+   2  EqF64    r1, r0, r1
+   3  JmpIfNot r1, -> 8
+   4  LoadK    r1, f64 1
+   5  DivF64   r1, r1, r0
+   6  LoadK    r2, f64 0
+   7  LtF64    r1, r1, r2
+   8  JmpIfNot r1, -> 11
+   9  LoadStr  r1, "-0"
+  10  Jmp      -> 23
+  11  LoadStr  r1, ""
+  12  Move     r2, r0
+  13  Rt       r2, string.#d2s
+  14  Move     r3, r1
+  15  Move     r4, r2
+  16  Rt       r3, string.#concat
+  17  Release  r2
+  18  LoadStr  r5, ""
+  19  Move     r4, r3
+  20  Rt       r4, string.#concat
+  21  Release  r3
+  22  Move     r1, r4
+  23  Ret      r1
 func @__log51(ref f64[]) -> ref str nregs=3
    0  New      r1, i64[]
    1  LoadI    r2, 0
@@ -1630,7 +2264,7 @@ func @lambda0(ref lambda0, f64) -> f64 nregs=6
    0  Release  r0
    1  LoadK    r0, f64 2
    2  EqF64    r0, r1, r0
-   3  JmpIfNot r0, -> 17
+   3  JmpIfNot r0, -> 16
    4  New      r0, Error
    5  LoadStr  r2, "in map "
    6  Move     r3, r1
@@ -1639,14 +2273,49 @@ func @lambda0(ref lambda0, f64) -> f64 nregs=6
    9  Move     r5, r3
   10  Rt       r4, string.#concat
   11  Release  r3
-  12  Retain   r0
-  13  Move     r2, r0
-  14  Move     r3, r4
-  15  Call     r2, @Error.constructor
-  16  Throw    r0
-  17  Ret      r1
-func @lambda1:lazy(ref lambda1:lazy, i) -> i nregs=2
+  12  LoadStr  r2, "Error"
+  13  SetField r0, r2, .1
+  14  SetField r0, r4, .0
+  15  Throw    r0
+  16  Ret      r1
+func @lambda1:lazy(ref lambda1:lazy, i) -> i nregs=6
    0  Release  r0
-   1  Move     r0, r1
-   2  Call     r0, @risky
-   3  Ret      r0
+   1  JGeIK    r1, 0, -> 23
+   3  New      r0, RangeError
+   4  LoadStr  r2, "negative: "
+   5  Move     r3, r1
+   6  Rt       r3, string.#i2s
+   7  Move     r4, r2
+   8  Move     r5, r3
+   9  Rt       r4, string.#concat
+  10  Release  r3
+  11  Move     r2, r0
+  12  Retain   r2
+  13  LoadStr  r3, "Error"
+  14  SetField r2, r3, .1
+  15  SetField r2, r4, .0
+  16  Release  r2
+  17  LoadStr  r2, "RangeError"
+  18  SetField r0, r2, .1
+  19  Move     r2, r0
+  20  Retain   r2
+  21  Release  r0
+  22  Throw    r2
+  23  JNeIK    r1, 0, -> 39
+  25  New      r0, AppError
+  26  LoadI    r2, 404
+  27  LoadStr  r3, "zero"
+  28  Move     r4, r0
+  29  Retain   r4
+  30  LoadStr  r5, "Error"
+  31  SetField r4, r5, .1
+  32  SetField r4, r3, .0
+  33  Release  r4
+  34  SetField r0, r2, .2
+  35  Move     r2, r0
+  36  Retain   r2
+  37  Release  r0
+  38  Throw    r2
+  39  LoadI    r0, 2
+  40  MulI32   r0, r1, r0
+  41  Ret      r0

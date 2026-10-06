@@ -71,12 +71,31 @@ struct Rc {
     return i;
   }
 
+  // Whether nothing in the function can release a reference or pass one on: no calls, no stores of references, no references in block
+  // parameters or the result. Then what a load lends stays alive as long as the function runs, and needs no retain and release.
+  bool lendsForever() const {
+    if (refLike(m, f.ret)) return false;
+    for (const Block& b : f.blocks) {
+      for (ValueId p : b.params) if (refLike(m, f.valueTypes[p])) return false;
+      for (const Inst& i : b.insts) {
+        switch (i.op) {
+          case IrOp::Call: case IrOp::CallVirt: case IrOp::Rt: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return false;
+          case IrOp::SetField: if (refLike(m, f.valueTypes[i.args[1]])) return false; break;
+          case IrOp::ArrSet: case IrOp::ArrPush: if (refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]])) return false; break;
+          default: break;
+        }
+      }
+    }
+    return true;
+  }
+
   void classify() {
     tracked.assign(nv, 0);
+    bool lent = lendsForever();
     for (const Block& b : f.blocks) {
       for (ValueId p : b.params) tracked[p] = refLike(m, f.valueTypes[p]);
       for (const Inst& i : b.insts)
-        if (i.res != kNoValue && i.op != IrOp::Const) tracked[i.res] = refLike(m, f.valueTypes[i.res]);
+        if (i.res != kNoValue && i.op != IrOp::Const) tracked[i.res] = refLike(m, f.valueTypes[i.res]) && !(lent && resultBorrowed(i));
     }
   }
 

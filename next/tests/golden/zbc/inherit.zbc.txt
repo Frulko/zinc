@@ -9,42 +9,63 @@ class Bird : Animal { i }
   vtable .describe -> @Animal.describe
 func @main() -> void nregs=6
    0  New      r0, Dog
-   1  Retain   r0
-   2  Move     r1, r0
-   3  Call     r1, @Dog.constructor
-   4  New      r1, Bird
-   5  Retain   r1
-   6  Move     r2, r1
-   7  Call     r2, @Bird.constructor
-   8  Move     r2, r0
-   9  Retain   r2
-  10  Call     r2, @Animal.describe
-  11  Move     r3, r1
-  12  Retain   r3
-  13  Call     r3, @Animal.describe
-  14  GetField r4, r0, .1
-  15  GetField r5, r0, .0
-  16  LogI     r2
-  17  LogSep   
-  18  LogI     r3
-  19  LogSep   
-  20  LogI     r4
-  21  LogSep   
-  22  LogI     r5
-  23  LogEnd   
-  24  Move     r2, r0
-  25  Retain   r2
-  26  Release  r0
-  27  Call     r2, @twice
-  28  Move     r3, r1
-  29  Retain   r3
-  30  Release  r1
-  31  Call     r3, @twice
+   1  Move     r1, r0
+   2  Retain   r1
+   3  LoadI    r2, 4
+   4  SetField r1, r2, .0
+   5  Release  r1
+   6  LoadI    r1, 3
+   7  SetField r0, r1, .1
+   8  New      r1, Bird
+   9  Move     r2, r1
+  10  Retain   r2
+  11  LoadI    r3, 2
+  12  SetField r2, r3, .0
+  13  Release  r2
+  14  Move     r2, r0
+  15  Retain   r2
+  16  GetField r3, r2, .0
+  17  LoadI    r4, 10
+  18  MulI32   r3, r3, r4
+  19  Move     r4, r2
+  20  CallVirt r4, .sound
+  21  AddI32   r2, r3, r4
+  22  Move     r3, r1
+  23  Retain   r3
+  24  GetField r4, r3, .0
+  25  LoadI    r5, 10
+  26  MulI32   r4, r4, r5
+  27  Move     r5, r3
+  28  CallVirt r5, .sound
+  29  AddI32   r3, r4, r5
+  30  GetField r4, r0, .1
+  31  GetField r5, r0, .0
   32  LogI     r2
   33  LogSep   
   34  LogI     r3
-  35  LogEnd   
-  36  RetV     
+  35  LogSep   
+  36  LogI     r4
+  37  LogSep   
+  38  LogI     r5
+  39  LogEnd   
+  40  Move     r2, r0
+  41  Retain   r2
+  42  Release  r0
+  43  CallVirt r2, .sound
+  44  LoadI    r0, 2
+  45  MulI32   r0, r2, r0
+  46  Move     r2, r1
+  47  Retain   r2
+  48  Release  r1
+  49  Move     r1, r2
+  50  CallVirt r1, .sound
+  51  LoadI    r2, 2
+  52  MulI32   r1, r1, r2
+  53  LogI     r0
+  54  LogSep   
+  55  LogI     r1
+  56  LogEnd   
+  57  RetV     
 func @Animal.constructor(ref Animal, i) -> void nregs=2
    0  SetField r0, r1, .0
    1  Release  r0
@@ -65,33 +86,30 @@ func @Dog.constructor(ref Dog) -> void nregs=3
    0  Move     r1, r0
    1  Retain   r1
    2  LoadI    r2, 4
-   3  Call     r1, @Animal.constructor
-   4  LoadI    r1, 3
-   5  SetField r0, r1, .1
-   6  Release  r0
-   7  RetV     
+   3  SetField r1, r2, .0
+   4  Release  r1
+   5  LoadI    r1, 3
+   6  SetField r0, r1, .1
+   7  Release  r0
+   8  RetV     
 func @Dog.sound(ref Dog) -> i nregs=1
    0  Release  r0
    1  LoadI    r0, 1
    2  Ret      r0
-func @Bird.constructor(ref Bird) -> void nregs=3
+func @Bird.constructor(ref Bird) -> void nregs=2
    0  Move     r1, r0
    1  Retain   r1
    2  Release  r0
    3  LoadI    r0, 2
-   4  Move     r2, r0
-   5  Move     r0, r1
-   6  Move     r1, r2
-   7  Call     r0, @Animal.constructor
-   8  RetV     
+   4  SetField r1, r0, .0
+   5  Release  r1
+   6  RetV     
 func @Bird.sound(ref Bird) -> i nregs=2
    0  Move     r1, r0
-   1  Retain   r1
-   2  Release  r0
-   3  Move     r0, r1
-   4  Call     r0, @Animal.sound
-   5  AddI32K  r0, r0, 2
-   6  Ret      r0
+   1  Release  r0
+   2  LoadI    r0, 0
+   3  AddI32K  r0, r0, 2
+   4  Ret      r0
 func @twice(ref Animal) -> i nregs=2
    0  CallVirt r0, .sound
    1  LoadI    r1, 2
