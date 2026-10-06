@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps). Ready: next by ordinal is ZN-040 (JSON.stringify and nullable primitives), then ZN-038, ZN-039, ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps), ZN-040 (nullable primitives, JSON.stringify). Ready: next by ordinal is ZN-038, then ZN-039, ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-040.
+`/loop /zn-start` resumes with ZN-038.
 
 ## Watch out
 
@@ -206,3 +206,10 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Runtime: trimStart/trimEnd/concat, positional includes/startsWith/endsWith/indexOf, `$$ $& $\` $'` in replace, `__toNumber` (Number of a string), `join` default separator letter `y` in zn/runtime.h, string escapes `\u`, `\u{}`, `\x` as UTF-8, Math.min/max signed zeros.
 - Time is deterministic: `Date.now()` and `performance.now()` read the event loop's virtual clock (setTimeout 0 does not round up to 1 ms); setInterval/clearInterval added. `Date` has only `now`.
 - Prelude: `SyntaxError` joined the Error prelude; a JSON validator prelude is added when `JSON` appears. Rt ids shifted: ir and zbc goldens were regenerated.
+
+## ZN-040 notes (nullable primitives, JSON.stringify)
+
+- `T | null` representation (option A): strings, arrays, Map and Set keep their own IR type and may hold null (`Const` with `imm == ir::kNullConst`, emitted as `LoadNull` of the builtin class; `s === null` is a reference comparison, `EqR`); numbers and booleans live in a box class `Box<type>` created on demand by the lowering (`boxClass`), so `number | null` is a reference that is null or holds the value. `coerce` boxes a number where the union is expected and unboxes where the checker narrowed it (`Ident` reads, `??`); `boxCompare` handles `x === y` with nullable operands.
+- Array literals mixing `T` and `null` are `(T | null)[]`; `console.log` of a value known to be `null` prints `null`; `string | null` prints like a string at the top level.
+- JSON.stringify(x) of one argument: a generated serialiser per type (`jsonFunction` in inspect.cpp, `jsonSym` in check.cpp), same closure mechanism as console.log formatters; classes dispatch on `instanceof`, records and classes serialise fields in layout order, Map and Set give `{}`, functions are skipped. A replacer or indent is Z0005.
+- Property narrowing (`n.name !== null` then `n.name.length`) still does not exist: copy to a local first. `find`/`findLast` still print 'undefined' text on primitive arrays in console.log only.

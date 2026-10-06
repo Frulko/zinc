@@ -266,7 +266,6 @@ struct Checker {
         break;
       }
       case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms);
-        if (!bad(r)) for (TypeId m : ty(r).params) if (ty(r).k == TK::Union && (ty(m).k == TK::Num || ty(m).k == TK::Str || ty(m).k == TK::Array || ty(m).k == TK::Map || ty(m).k == TK::Set || m == tBool) && std::find(ty(r).params.begin(), ty(r).params.end(), tNull) != ty(r).params.end()) { diag(kZUnsupported, t, "a number, boolean, string, array, Map or Set that may be null"); break; }
         break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       default: diag(kZUnsupported, t, "this type syntax"); break;
@@ -566,7 +565,10 @@ struct Checker {
       for (TypeId d : deps) todo.push_back(d);
       for (TypeId cl : classes) classTypes.insert(cl);
     }
-    text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
+    bool strMember = false;  // `string | null` at the top level prints the string itself, like a string
+    if (ty(t).k == TK::Union) for (TypeId m : ty(t).params) if (ty(m).k == TK::Str) strMember = true;
+    if (strMember) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return v === null ? 'null' : v;\n}\n";
+    else text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
     addAliases(closure);
     for (TypeId u : closure) fmtDeclared.insert(u);
     for (TypeId cl : classTypes)  // instanceof needs the class itself in scope
@@ -576,6 +578,40 @@ struct Checker {
     std::uint32_t sym = (*genScope)[keep(inspectLogName(t))];
     restoreCtx(sv);
     logSym[t] = sym;
+    return sym;
+  }
+  // The symbol of __js<t>, the generated serialiser JSON.stringify calls for a value of type t.
+  std::map<TypeId, std::uint32_t> jsonSyms;
+  std::set<TypeId> jsonDeclared;
+  bool jsonPreludeDone = false;
+  std::uint32_t jsonSym(TypeId t, std::uint32_t at) {
+    auto hit = jsonSyms.find(t);
+    if (hit != jsonSyms.end()) return hit->second;
+    Ctx sv = saveCtx();
+    enterGenerated();
+    std::string text;
+    if (!jsonPreludeDone) { jsonPreludeDone = true; text = jsonPrelude(); }
+    std::vector<TypeId> todo{t}, closure;
+    std::set<TypeId> classTypes;
+    while (!todo.empty()) {
+      TypeId u = todo.back();
+      todo.pop_back();
+      if (jsonDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
+      closure.push_back(u);
+      std::vector<TypeId> deps, classes;
+      text += jsonFunction(out, u, deps, classes);
+      for (TypeId d : deps) todo.push_back(d);
+      for (TypeId cl : classes) classTypes.insert(cl);
+    }
+    addAliases(closure);
+    for (TypeId u : closure) jsonDeclared.insert(u);
+    for (TypeId cl : classTypes)
+      for (std::uint32_t s = 0; s < out.syms.size(); ++s)
+        if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
+    declareSource(text, at);
+    std::uint32_t sym = (*genScope)[keep(jsonName(t))];
+    restoreCtx(sv);
+    jsonSyms[t] = sym;
     return sym;
   }
   // A console.log argument that is not a number, boolean or string is printed through a generated formatter.
@@ -865,6 +901,21 @@ struct Checker {
           return tBool;
         }
       }
+      if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify") {
+        if (args.size() != 1) { diag(kZUnsupported, i, "JSON.stringify with a replacer or an indent"); for (std::uint32_t arg : args) expr(arg); return tError; }
+        TypeId at = expr(args[0]);
+        if (bad(at)) return tError;
+        if (at == tNull) return rewrite("'null'", {});
+        if (!jsonable(out, at) || hasParam(at)) { diag(kZUnsupported, args[0], "JSON.stringify of '" + name(at) + "'"); return tError; }
+        std::uint32_t sym = jsonSym(at, i);
+        std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        a.nodes[i].kids = {id, args[0]};
+        rewritten.insert(i);
+        out.nodeType[i] = tStr;
+        return tStr;
+      }
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "parse" && args.size() == 1) {  // parse validates the text; its value needs Dyn
         if (i != exprStmtOf) { diag(kZUnsupported, i, "the value of JSON.parse (needs Dyn values)"); return tError; }
         if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
@@ -1000,6 +1051,7 @@ struct Checker {
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       if (!isNew && n(callee).kind == N::Member && n(callee).text == "log") logArg = arg;
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
+      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && at == tNull && replaceWith(arg, "'null'", {})) at = expr(arg);  // a value known to be null
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
         std::uint32_t call = callGenerated(inspectLog(at, arg), {arg}, arg);
@@ -1075,16 +1127,20 @@ struct Checker {
           if (el == kNoType) { diag(kZCannotInfer, i, "empty array literal"); return tError; }
           return arrayOf(el);
         }
-        TypeId first = tError;
+        TypeId first = kNoType;
+        bool sawNull = false;  // [1, null]: the elements are `number | null`
         for (std::size_t k = 0; k < x.kids.size(); ++k) {
           std::uint32_t e = x.kids[k];
           if (n(e).kind == N::Spread) { diag(kZUnsupported, e, "spread elements"); continue; }
           TypeId t = expr(e, el);
           if (el != kNoType) require(t, el, e);
-          else if (k == 0) first = t;
+          else if (t == tNull) sawNull = true;
+          else if (first == kNoType) first = t;
           else if (!assignable(t, first, e)) { diag(kZNotAssignable, e, "'" + name(t) + "' to '" + name(first) + "'"); }
         }
-        return arrayOf(el != kNoType ? el : first);
+        if (el != kNoType) return arrayOf(el);
+        if (first == kNoType) { diag(kZCannotInfer, i, "array of only null"); return tError; }
+        return arrayOf(sawNull && !bad(first) ? unionOf({first, tNull}) : first);
       }
       case N::Binary: return binaryExpr(i, x);
       case N::Unary: {

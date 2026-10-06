@@ -1,0 +1,6 @@
+[{"id":1,"label":"a \"quoted\" \\ line\nbreak\ttab","ok":true},{"id":2,"label":"é€𝄞","ok":false}]
+{"name":"shape","pts":[{"x":1,"y":2.5},{"x":0,"y":1e+21}],"tag":null}
+{"name":"shape","pts":[{"x":1,"y":2.5},{"x":0,"y":1e+21}],"tag":"x"} ["x",null] null 42 "hi" true
+[null,null,1.5] [[1,2],[3]] {} []
+["k",7] {"a":[{"b":2},{"b":3}]}
+"\u0001\u001f"

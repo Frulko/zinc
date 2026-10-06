@@ -1,0 +1,18 @@
+null null null
+1
+2 [ 'a', 'b' ]
+[ 'a', null, 'c' ] 3
+none Q x
+c
+5 null false true
+6
+5 -1
+null
+false
+[ true, null, false ] 3
+4 [ 1, null, 3 ]
+null
+9
+five same other other
+[ 1, null ] 1 7
+Map(2) { 'a' => null, 'b' => 2 }

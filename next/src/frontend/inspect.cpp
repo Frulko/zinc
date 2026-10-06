@@ -53,8 +53,8 @@ bool inspectableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
     case TK::Map: return seen.count(t) || (seen.insert(t), inspectableRec(c, x.params[0], seen) && inspectableRec(c, x.elem, seen));
     case TK::Union: {
       std::size_t objs = 0;
-      for (TypeId m : x.params) { if (m == 5 /* tNull */) continue; if (c.types[m].k != TK::Object) return false; ++objs; }
-      if (objs != 1) return false;
+      for (TypeId m : x.params) { if (m == 5 /* tNull */) continue; ++objs; }
+      if (objs != 1) return false;  // `T | null`
       for (TypeId m : x.params) if (m != 5 && !inspectableRec(c, m, seen)) return false;
       return true;
     }
@@ -74,6 +74,37 @@ bool inspectableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
   }
 }
 
+// Whether JSON.stringify can serialise values of the type (functions are skipped as properties but cannot be the value).
+bool jsonableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
+  if (t == kNoType) return false;
+  const Type& x = c.types[t];
+  switch (x.k) {
+    case TK::Num: case TK::Bool: case TK::Str: case TK::Null: return true;
+    case TK::Array: case TK::Set: return seen.count(t) || (seen.insert(t), x.k == TK::Set || jsonableRec(c, x.elem, seen));
+    case TK::Map: return true;
+    case TK::Union: {
+      std::size_t members = 0;
+      for (TypeId m : x.params) { if (m == 5 /* tNull */) continue; ++members; }
+      if (members != 1) return false;
+      for (TypeId m : x.params) if (m != 5 && !jsonableRec(c, m, seen)) return false;
+      return true;
+    }
+    case TK::Object: {
+      if (seen.count(t)) return true;
+      seen.insert(t);
+      const ObjInfo& oi = c.objs[x.obj];
+      if (oi.isTemplate) return false;
+      std::vector<const Member*> fs;
+      fieldsOf(c, x.obj, fs);
+      for (const Member* m : fs) if (!isIdent(m->name) && !oi.isTuple) return false;
+      for (const Member* m : fs) if (c.types[m->type].k != TK::Func && !jsonableRec(c, m->type, seen)) return false;
+      if (!oi.isTuple && !oi.isRecord) for (std::uint32_t o : implementations(c, x.obj)) if (!jsonableRec(c, typeOfObj(c, o), seen)) return false;
+      return true;
+    }
+    default: return false;
+  }
+}
+
 std::string numCall(const Checked& c, TypeId t) { return isFloatNum(c.types[t].num) ? "__num(v)" : "`${v}`"; }
 
 }  // namespace
@@ -86,6 +117,94 @@ std::string inspectClassName(TypeId t) { return "__C" + std::to_string(t); }
 bool inspectable(const Checked& c, TypeId t) {
   std::set<TypeId> seen;
   return inspectableRec(c, t, seen);
+}
+
+std::string jsonName(TypeId t) { return "__js" + std::to_string(t); }
+
+bool jsonable(const Checked& c, TypeId t) {
+  std::set<TypeId> seen;
+  return c.types[t].k != TK::Func && jsonableRec(c, t, seen);
+}
+
+std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, std::vector<TypeId>& classes) {
+  const Type& x = c.types[t];
+  std::string head = "function " + jsonName(t) + "(v: " + inspectAliasName(t) + "): string {\n";
+  std::string body;
+  auto call = [&](TypeId ct, const std::string& val) { deps.push_back(ct); return jsonName(ct) + "(" + val + ")"; };
+  switch (x.k) {
+    case TK::Num: body = "  return __jsonNum(v);\n"; break;
+    case TK::Bool: body = "  return v ? 'true' : 'false';\n"; break;
+    case TK::Str: body = "  return __jsonQuote(v);\n"; break;
+    case TK::Null: body = "  return 'null';\n"; break;
+    case TK::Map: case TK::Set: body = "  return '{}';\n"; break;
+    case TK::Array:
+      body = "  const out: string[] = [];\n  for (let i: i32 = 0; i < v.length; i++) out.push(" + call(x.elem, "v[i]") + ");\n  return '[' + out.join(',') + ']';\n";
+      break;
+    case TK::Union: {
+      TypeId member = kNoType;
+      for (TypeId m : x.params) if (m != 5) member = m;
+      body = "  if (v === null) return 'null';\n  return " + call(member, "v") + ";\n";
+      break;
+    }
+    case TK::Object: {
+      const ObjInfo& oi = c.objs[x.obj];
+      std::vector<const Member*> fs;
+      fieldsOf(c, x.obj, fs);
+      if (oi.isTuple) {
+        body = "  const out: string[] = [];\n";
+        for (const Member* m : fs) body += "  out.push(" + call(m->type, "v[" + m->name + "]") + ");\n";
+        body += "  return '[' + out.join(',') + ']';\n";
+        break;
+      }
+      if (!oi.isRecord) {  // a class or interface: the dynamic type decides, most derived first
+        for (std::uint32_t o : implementations(c, x.obj)) {
+          TypeId ot = typeOfObj(c, o);
+          classes.push_back(ot);
+          body += "  if (v instanceof " + inspectClassName(ot) + ") return " + call(ot, "v") + ";\n";
+        }
+        if (oi.isInterface || oi.isAbstract) { body += "  return '{}';\n"; break; }
+      }
+      body += "  const out: string[] = [];\n";
+      for (const Member* m : fs) if (c.types[m->type].k != TK::Func) body += "  out.push('\"" + m->name + "\":' + " + call(m->type, "v." + m->name) + ");\n";
+      body += "  return '{' + out.join(',') + '}';\n";
+      break;
+    }
+    default: body = "  return 'null';\n"; break;
+  }
+  return head + body + "}\n";
+}
+
+const char* jsonPrelude() {
+  return R"ZN(
+function __jsonNum(v: f64): string { return v - v === 0 ? `${v}` : 'null'; }
+function __jsonQuote(s: string): string {
+  let plain = true;
+  for (let i: i32 = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 32 || c === 34 || c === 92) { plain = false; break; }
+  }
+  if (plain) return '"' + s + '"';
+  const out: string[] = ['"'];
+  let start: i32 = 0;
+  for (let i: i32 = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 32 && c !== 34 && c !== 92) continue;
+    out.push(s.slice(start, i));
+    start = i + 1;
+    if (c === 34) out.push('\\"');
+    else if (c === 92) out.push('\\\\');
+    else if (c === 10) out.push('\\n');
+    else if (c === 13) out.push('\\r');
+    else if (c === 9) out.push('\\t');
+    else if (c === 8) out.push('\\b');
+    else if (c === 12) out.push('\\f');
+    else out.push('\\u00' + '0123456789abcdef'.charAt(c >> 4) + '0123456789abcdef'.charAt(c & 15));
+  }
+  out.push(s.slice(start));
+  out.push('"');
+  return out.join('');
+}
+)ZN";
 }
 
 std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vector<TypeId>& deps, std::vector<TypeId>& classes) {

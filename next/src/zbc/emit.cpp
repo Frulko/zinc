@@ -103,6 +103,7 @@ struct FnEmitter {
   const ir::Function& f;
   Function& zf;
   TypeTable& tt;
+  std::vector<const ir::Inst*> defOf;  // the instruction defining each value, for peephole decisions
   std::string error;
 
   std::size_t nb, nv;
@@ -177,7 +178,7 @@ struct FnEmitter {
     noReg.assign(nv, 0);
     kform.assign(nv, KForm{});
     fuse.assign(nb, Fuse{});
-    std::vector<const ir::Inst*> defOf(nv, nullptr);
+    defOf.assign(nv, nullptr);
     for (const ir::Block& b : f.blocks)
       for (const ir::Inst& i : b.insts) {
         for (ValueId a : i.args) ++uses[a];
@@ -504,6 +505,7 @@ struct FnEmitter {
     switch (i.op) {
       case IrOp::Const:
         if (noReg[i.res]) return true;
+        if (i.imm == ir::kNullConst && ty(i.ty).builtinRef()) { put(encAD(Op::LoadNull, d, tt.vt(i.ty).ref)); return true; }
         if (ty(i.ty).k == ir::Type::K::Str) {
           if (static_cast<std::uint64_t>(i.imm) >= kMaxStrings) return fail("too many string constants");
           put(encAD(Op::LoadStr, d, static_cast<std::uint32_t>(i.imm)));
@@ -564,6 +566,9 @@ struct FnEmitter {
         if (fuse[b].on && fuse[b].at == k) return true;  // emitted as part of the block's CondBr
         ValueId x = i.args[0], y = i.args[1];
         const ir::Type& t = ty(f.valueTypes[x]);
+        auto isNullConst = [&](ValueId v) { return defOf[v] && defOf[v]->op == IrOp::Const && defOf[v]->imm == ir::kNullConst && ty(defOf[v]->ty).builtinRef(); };
+        bool nullTest = (i.op == IrOp::Eq || i.op == IrOp::Ne) && (isNullConst(x) || isNullConst(y));  // `s === null`: identity, not content
+        if (t.k == ir::Type::K::Str && nullTest) { put(encABC(i.op == IrOp::Eq ? Op::EqR : Op::NeR, d, R(x), R(y))); return true; }
         if (t.k == ir::Type::K::Str) {  // content comparison in the runtime: > and >= swap the operands
           bool swapped = i.op == IrOp::Gt || i.op == IrOp::Ge;
           Rt id = (i.op == IrOp::Eq || i.op == IrOp::Ne) ? Rt::StrEq : (i.op == IrOp::Lt || i.op == IrOp::Gt) ? Rt::StrLt : Rt::StrLe;

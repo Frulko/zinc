@@ -27,4 +27,10 @@ bool inspectable(const Checked& c, TypeId t);
 // class types named with instanceof are appended to `classes`.
 std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vector<TypeId>& deps, std::vector<TypeId>& classes);
 
+// JSON.stringify: the same machinery, one generated function __js<id>(v) per type.
+std::string jsonName(TypeId t);
+const char* jsonPrelude();
+bool jsonable(const Checked& c, TypeId t);
+std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, std::vector<TypeId>& classes);
+
 }  // namespace zn::frontend

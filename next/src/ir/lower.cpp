@@ -121,8 +121,15 @@ struct Lowering {
           if (mt == frontend::kNoType) continue;
           const frontend::Type& mtt = c.types[mt];
           if (mtt.k == frontend::TK::Null) continue;
+          if (mtt.k == frontend::TK::Str || mtt.k == frontend::TK::Array || mtt.k == frontend::TK::Map || mtt.k == frontend::TK::Set) {  // `string | null`, `T[] | null`: the type itself holds null
+            if (x.params.size() == 2 && (x.params[0] == 5u || x.params[1] == 5u)) return irType(mt, at);
+          }
           if (mtt.k != frontend::TK::Object || classOfObj[mtt.obj] == kNil) { objs.clear(); break; }
           objs.push_back(mtt.obj);
+        }
+        if (objs.empty() && x.params.size() == 2 && (x.params[0] == 5u || x.params[1] == 5u)) {  // `number | null`, `boolean | null`: a box that is null or holds the value
+          frontend::TypeId pm = x.params[0] == 5u ? x.params[1] : x.params[0];
+          if (c.types[pm].k == frontend::TK::Num || c.types[pm].k == frontend::TK::Bool) return m.refT(boxClass(irType(pm, at)));
         }
         for (std::uint32_t cand : objs) {
           bool all = true;
@@ -232,9 +239,11 @@ struct Lowering {
     }
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
       if (classOfObj[o] == kNil) continue;
+      std::vector<std::pair<std::string, TypeId>> fl;  // irType may add box classes, so no reference into m.classes is held across it
+      if (!m.classes[classOfObj[o]].isInterface) for (const auto& [nm, t] : layoutOf(o)) fl.push_back({nm, irType(t)});
       Class& cl = m.classes[classOfObj[o]];
       if (c.objs[o].parent != kNil) cl.parent = classOfObj[c.objs[o].parent];
-      if (!cl.isInterface) for (const auto& [nm, t] : layoutOf(o)) cl.fields.push_back({nm, irType(t)});
+      for (auto& f : fl) cl.fields.push_back({f.first, f.second});
       for (std::uint32_t i = 0; i < c.objs.size(); ++i)
         if (i != o && classOfObj[i] != kNil && c.objs[i].isInterface && frontend::objAssignable(c, o, i)) cl.implements.push_back(classOfObj[i]);
       for (const frontend::Member& mem : c.objs[o].members)
@@ -290,6 +299,22 @@ struct Lowering {
       default: return false;
     }
   }
+  // The class holding a number or boolean that may be null: `number | null` is a reference to one of these, or null.
+  std::unordered_map<TypeId, std::uint32_t> boxOfPrim;
+  std::unordered_map<std::uint32_t, TypeId> primOfBox;
+  std::uint32_t boxClass(TypeId prim) {
+    auto it = boxOfPrim.find(prim);
+    if (it != boxOfPrim.end()) return it->second;
+    Class cl;
+    cl.name = "Box<" + typeName(m, prim) + ">";
+    cl.fields.push_back({"v", prim});
+    m.classes.push_back(std::move(cl));
+    auto idx = static_cast<std::uint32_t>(m.classes.size() - 1);
+    boxOfPrim[prim] = idx;
+    primOfBox[idx] = prim;
+    return idx;
+  }
+
   std::uint32_t fnClassOf(frontend::TypeId ft) {
     auto it = fnClassOfType.find(ft);
     if (it != fnClassOfType.end()) return it->second;
@@ -659,6 +684,14 @@ struct Lowering::FnLower {
   ValueId coerce(ValueId v, TypeId to) {
     if (v == kNoValue || tv(v) == to) return v;
     if (ty(tv(v)).k == Type::K::Num && ty(to).k == Type::K::Num) return emit(IrOp::Conv, to, {v});
+    bool fromPrim = ty(tv(v)).k == Type::K::Num || ty(tv(v)).k == Type::K::Bool, toPrim = ty(to).k == Type::K::Num || ty(to).k == Type::K::Bool;
+    if (fromPrim && ty(to).k == Type::K::Ref && L.primOfBox.count(ty(to).aux)) {  // a number or boolean stored where `T | null` is expected
+      ValueId pv = coerce(v, L.primOfBox[ty(to).aux]);
+      ValueId o = emit(IrOp::New, to, {}, 0, 0, ty(to).aux);
+      emit(IrOp::SetField, m.voidT(), {o, pv}, 0, 0, 0);
+      return o;
+    }
+    if (toPrim && ty(tv(v)).k == Type::K::Ref && L.primOfBox.count(ty(tv(v)).aux)) return coerce(emit(IrOp::GetField, L.primOfBox[ty(tv(v)).aux], {v}, 0, 0, 0), to);  // narrowed to the value
     if (ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref) return emit(IrOp::RefCast, to, {v});  // subtype (or closed-world proven) cast
     return v;
   }
@@ -919,16 +952,60 @@ struct Lowering::FnLower {
     return m.numT(NumK::f64);
   }
 
+  // null of a reference, string, array, Map or Set type
+  ValueId nullConst(TypeId t) { return emit(IrOp::Const, t, {}, ty(t).k == Type::K::Ref ? 0 : kNullConst); }
+
+  // `a === b` where a or b is a `number | null` (a box or null): equal when both are null or both hold equal values.
+  ValueId boxCompare(ValueId lv, ValueId rv, bool ne) {
+    auto isBox = [&](ValueId v) { return ty(tv(v)).k == Type::K::Ref && L.primOfBox.count(ty(tv(v)).aux); };
+    bool lb = isBox(lv), rb = isBox(rv);
+    BlockId join = newBlock();
+    ValueId jp = newValue(m.boolT());
+    f.blocks[join].params.push_back(jp);
+    auto isNull = [&](ValueId v) { return emit(IrOp::Eq, m.boolT(), {v, nullConst(tv(v))}); };
+    if (lb) {
+      BlockId nul = newBlock(), nn = newBlock();
+      condbr(isNull(lv), nul, nn);
+      sealed[nul] = sealed[nn] = 1;
+      cur = nul;
+      br(join, {rb ? isNull(rv) : constBool(false)});
+      cur = nn;
+    }
+    if (rb) {
+      BlockId nul = newBlock(), nn = newBlock();
+      condbr(isNull(rv), nul, nn);
+      sealed[nul] = sealed[nn] = 1;
+      cur = nul;
+      br(join, {constBool(false)});
+      cur = nn;
+    }
+    ValueId l = lb ? coerce(lv, L.primOfBox[ty(tv(lv)).aux]) : lv, r = rb ? coerce(rv, L.primOfBox[ty(tv(rv)).aux]) : rv;
+    if (isNumTy(tv(l)) && isNumTy(tv(r))) { TypeId common = commonNum(tv(l), tv(r)); l = coerce(l, common); r = coerce(r, common); }
+    br(join, {emit(IrOp::Eq, m.boolT(), {l, r})});
+    seal(join);
+    cur = join;
+    return ne ? emit(IrOp::Not, m.boolT(), {jp}) : jp;
+  }
+
   ValueId compare(std::uint32_t node, const Node& x) {
     std::uint32_t le = x.kids[0], re = x.kids[1];
     auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
     if (isNullLit(le) || isNullLit(re)) {  // x === null: compare with a null reference of x's type
       std::uint32_t other = isNullLit(le) ? re : le;
       ValueId o = expr(other);
-      ValueId nl = emit(IrOp::Const, tv(o));
       std::string_view ox = x.text;
+      if (ty(tv(o)).k == Type::K::Num || ty(tv(o)).k == Type::K::Bool) return constBool(ox == "!=" || ox == "!==");  // a number or boolean (narrowed from `T | null`) is not null
+      ValueId nl = nullConst(tv(o));
       IrOp cmp = (ox == "==" || ox == "===") ? IrOp::Eq : IrOp::Ne;
       return emit(cmp, m.boolT(), isNullLit(le) ? std::vector<ValueId>{nl, o} : std::vector<ValueId>{o, nl});
+    }
+    {
+      auto isBoxTy = [&](TypeId t) { return ty(t).k == Type::K::Ref && L.primOfBox.count(ty(t).aux); };
+      std::string_view o = x.text;
+      if ((o == "==" || o == "===" || o == "!=" || o == "!==") && (isBoxTy(natural(le)) || isBoxTy(natural(re)))) {
+        ValueId lv = expr(le), rv = expr(re);
+        return boxCompare(lv, rv, o == "!=" || o == "!==");
+      }
     }
     double dv;
     bool lLit = numLit(n(le), a, dv), rLit = numLit(n(re), a, dv);
@@ -1006,6 +1083,7 @@ struct Lowering::FnLower {
       case N::Literal:
         if (x.text == "null") {
           if (want != kNoValue && ty(want).k == Type::K::Ref) return emit(IrOp::Const, want);
+          if (want != kNoValue && (ty(want).k == Type::K::Str || ty(want).k == Type::K::Array || ty(want).k == Type::K::Map || ty(want).k == Type::K::Set)) return emit(IrOp::Const, want, {}, kNullConst);
           unsupported(i, "null without a reference type to give it");
           return constBool(false);
         }
@@ -1022,6 +1100,7 @@ struct Lowering::FnLower {
         }
         ValueId v = readSym(s);
         if (c.nodeType[i] != frontend::kNoType && c.types[c.nodeType[i]].k == frontend::TK::Object) return coerce(v, natural(i));  // a variable narrowed by instanceof
+        if (c.nodeType[i] != frontend::kNoType && (c.types[c.nodeType[i]].k == frontend::TK::Num || c.types[c.nodeType[i]].k == frontend::TK::Bool) && ty(tv(v)).k == Type::K::Ref) return coerce(v, natural(i));  // a `number | null` narrowed to the number
         return v;
       }
       case N::Array: {
@@ -1321,7 +1400,7 @@ struct Lowering::FnLower {
       br(join, {coerce(g, rt)});
     } else {
       ValueId l = expr(x.kids[0]);
-      ValueId nl = emit(IrOp::Const, tv(l));
+      ValueId nl = nullConst(tv(l));
       condbr(emit(IrOp::Ne, m.boolT(), {l, nl}), hb, eb);
       sealed[hb] = sealed[eb] = 1;
       cur = hb;

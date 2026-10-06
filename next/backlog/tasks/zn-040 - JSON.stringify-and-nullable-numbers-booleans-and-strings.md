@@ -1,9 +1,10 @@
 ---
 id: ZN-040
 title: 'JSON.stringify and nullable numbers, booleans and strings'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 11:40'
+updated_date: '2026-10-06 12:05'
 labels:
   - size-L
 milestone: m-3
@@ -19,5 +20,5 @@ Needed by literal_member_arrays: JSON.stringify of records, arrays and tuples th
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 literal_member_arrays matches its frozen golden in the interpreter; string | null, number | null and boolean | null work in variables, parameters, returns, ?? and narrowing
+- [x] #1 literal_member_arrays matches its frozen golden in the interpreter; string | null, number | null and boolean | null work in variables, parameters, returns, ?? and narrowing
 <!-- AC:END -->

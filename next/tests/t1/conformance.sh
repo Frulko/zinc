@@ -4,7 +4,7 @@
 # output, which differs from tour.out only by headings and line splits (checked when the golden was made).
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
-for b in tour errors async array_search string_number_edges conversions clock; do
+for b in tour errors async array_search string_number_edges conversions clock literal_member_arrays; do
   "$ZINC" run ../tests/conformance/$b.ts 2>&1 | diff -q - corpus/conformance/$b.out >/dev/null || { echo "$b output differs from the frozen corpus"; fail=1; }
 done
 "$ZINC" run ../examples/lang/src/main.ts 2>&1 | diff -q - tests/golden/lang/lang.out >/dev/null || { echo "examples/lang output differs from its golden"; fail=1; }

@@ -18,6 +18,8 @@ using TypeId = std::uint32_t;
 using ValueId = std::uint32_t;
 using BlockId = std::uint32_t;
 inline constexpr std::uint32_t kNoValue = 0xFFFFFFFFu;
+// A Const of a string, array, Map or Set type with this `imm` is null (references to objects have only null as a constant).
+inline constexpr std::int64_t kNullConst = -1;
 
 struct Type {
   enum class K : std::uint8_t { Void, Bool, Num, Str, Ref, Array, Map, Set } k = K::Void;
@@ -25,6 +27,7 @@ struct Type {
   std::uint32_t aux = 0;                   // Ref: class index; Array and Set: element TypeId; Map: value TypeId
   std::uint32_t aux2 = 0;                  // Map: key TypeId
   bool operator==(const Type& o) const { return k == o.k && num == o.num && aux == o.aux && aux2 == o.aux2; }
+  bool builtinRef() const { return k == K::Str || k == K::Array || k == K::Map || k == K::Set; }  // may be a Const null (kNullConst)
 };
 
 enum class Builtin : std::uint32_t {
