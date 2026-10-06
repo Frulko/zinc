@@ -803,6 +803,13 @@ struct Checker {
       }
       case N::FuncExpr: return funcExpr(i, expected);
       case N::ObjectLit: return objectLit(i, x, expected);
+      case N::As: {  // e as T: T must be comparable with the type of e
+        TypeId target = annotation(x.kids[1]);
+        if (bad(target)) { expr(x.kids[0]); return tError; }
+        TypeId vt = expr(x.kids[0], target);
+        if (!bad(vt) && !assignable(vt, target, kNone) && !assignable(target, vt, kNone)) diag(kZNotAssignable, i, "conversion of '" + name(vt) + "' to '" + name(target) + "'");
+        return target;
+      }
       case N::Array: {
         if (expected != kNoType && isTupleType(expected)) {  // a tuple literal: each element against its position
           const ObjInfo& to = out.objs[ty(expected).obj];

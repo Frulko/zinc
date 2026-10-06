@@ -298,6 +298,12 @@ struct Parser {
   std::uint32_t binary(int minPrec) {
     std::uint32_t lhs = unary();
     for (;;) {
+      if (isId("as") && !newlineBefore() && minPrec <= 8) {  // a type assertion binds like a relational operator
+        ++i;
+        std::uint32_t ty = type();
+        lhs = mk(N::As, startOf(lhs), prevEnd(), {}, {lhs, ty});
+        continue;
+      }
       Op op = operatorAt();
       int p = op.ntoks ? precedence(op.text) : 0;
       if (p == 0 || p < minPrec) return lhs;
@@ -1058,7 +1064,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As"};
   return names[static_cast<int>(k)];
 }
 

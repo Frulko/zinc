@@ -6,12 +6,12 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 - Date: 2026-10-06. Phase: M2.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
-- Done: M0, M1, ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Ready: none; next by ordinal is ZN-017 (the `lang` conformance program), then ZN-036 (cyclic console.log, function names). Nothing in progress.
+- Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
+- Ready: none; next by ordinal is ZN-036 (cyclic console.log, function names), then ZN-018 (explicit RC, milestone M3). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-017.
+`/loop /zn-start` resumes with ZN-036.
 
 ## Watch out
 
@@ -156,3 +156,9 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - `a || b` and `a && b` on strings and numbers yield an operand (NaN is falsy); a literal on the left is an error, as in tsc (TS2872/2873).
 - tools/oracle now mimics the old compiler's configuration (`--noLib --target ES2022 --module ESNext --moduleResolution Bundler` with lib/zinc.d.ts); with the default lib it rejected for-of over Map and Set.
 - examples/lang now compiles and runs end to end; its output has section headings the frozen `corpus/conformance/tour.out` does not (that file matches tests/conformance/tour.ts): ZN-017 must settle which program is the reference.
+
+## ZN-017 notes (M2 demo)
+
+- `tests/conformance/tour.ts` (with `./shapes`) prints exactly `corpus/conformance/tour.out`; `examples/lang` runs too and its output is frozen in `tests/golden/lang/lang.out` (the tour split into modules, with headings). Both are checked by `tests/t1/conformance.sh`.
+- Added `e as T` (type assertions): numeric conversion, checked downcast, or an object literal read as a record; T must be assignable one way or the other (a subset of what tsc accepts).
+- M2 summary: classes, generics, closures, strings/arrays/Map/Set, modules, accessors, enums, switch, records, console.log inspect format, callbacks and the string library, all on the interpreter with Node-identical goldens (`tests/golden/run`). Open from M2: ZN-036, RC (ZN-018, M3), exceptions (ZN-019), async/generators (ZN-020), the remaining 17 conformance programs (ZN-021).
