@@ -7,11 +7,11 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 - Date: 2026-10-06. Phase: M3.
 - Design: `docs/reports/zinc-next-design.md`. Rules: `next/ARCHITECTURE.md`. Tests: `next/TESTING.md`.
 - Done: M0, M1, M2 (the `tour` conformance program is byte-identical to the frozen output; ZN-017), ZN-012 classes, ZN-013 generics/tuples/unions, ZN-014 closures, ZN-015 strings/arrays/Map/Set, ZN-016 modules (see the notes below).
-- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Ready: next by ordinal is ZN-021 (conformance 18/18 in the interpreter). Nothing in progress.
+- Done also: ZN-016..ZN-019, ZN-032..ZN-036, ZN-020 (async/await and generators). Done also: ZN-037 (library gaps). Ready: next by ordinal is ZN-040 (JSON.stringify and nullable primitives), then ZN-038, ZN-039, ZN-021 (the 18 M3 programs, `corpus/M3-set.txt`). Nothing in progress.
 
 ## Next
 
-`/loop /zn-start` resumes with ZN-021.
+`/loop /zn-start` resumes with ZN-040.
 
 ## Watch out
 
@@ -197,3 +197,12 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 - Generators are lazy: `next()` runs continuations until one sets `value`; `Generator.next(): boolean` and `value[0]` differ from JS iterator results, `for...of` is the supported way to consume them. A loop that skips yields recurses once per skipped iteration in async mode only (generators trampoline through `cont`).
 - Known: rewritten loops are self-referencing closures, so async programs leak under ZN_LEAK_CHECK (async.ts, generators.ts are in the `cyclic` list of tests/t1/rc.sh) until a cycle strategy exists. `ZN_DUMP_AST=1` dumps the program tree after desugaring to stderr.
 - Tests: goldens `tests/golden/run/{async,generators}`, errors `tests/golden/checker/errors/{await_position,generator_no_type,async_arrow}`, T1 conformance runs `tests/conformance/async.ts` against `corpus/conformance/async.out`.
+
+## ZN-037 notes (library gaps)
+
+- Array methods are Zinc source generated per element type (`arrayHof` in check.cpp): callbacks may take (element, index), reduce (acc, element, index); new find/findLast/findLastIndex/reduceRight/fill/lastIndexOf, indexOf/includes with a start index (includes is SameValueZero), `join` of any element type (strings still use the runtime join). Rewritten calls are recorded in `rewritten`, so checking them twice is harmless.
+- `find`/`findLast` return `T | null` for objects (only under `??` or in console.log); on numbers, booleans and strings only in console.log, as text ('undefined' when missing), because nullable primitives do not exist yet (ZN-040). Annotations like `number | null` or `string | null` are Z0005 instead of crashing the lowering.
+- `libraryCall` (check.cpp) rewrites `Number(x)`, `String(x)`, `Boolean(x)`, `Number.parseInt/parseFloat/isInteger/isSafeInteger`, the Number constants, `Math.min/max` with any argument count, unary `+`/`-` on strings and booleans, and `JSON.parse(text)` (validates only, as a statement: its value needs Dyn, ZN-039). A trailing `undefined` argument is dropped.
+- Runtime: trimStart/trimEnd/concat, positional includes/startsWith/endsWith/indexOf, `$$ $& $\` $'` in replace, `__toNumber` (Number of a string), `join` default separator letter `y` in zn/runtime.h, string escapes `\u`, `\u{}`, `\x` as UTF-8, Math.min/max signed zeros.
+- Time is deterministic: `Date.now()` and `performance.now()` read the event loop's virtual clock (setTimeout 0 does not round up to 1 ms); setInterval/clearInterval added. `Date` has only `now`.
+- Prelude: `SyntaxError` joined the Error prelude; a JSON validator prelude is added when `JSON` appears. Rt ids shifted: ir and zbc goldens were regenerated.

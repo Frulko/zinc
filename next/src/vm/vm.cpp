@@ -71,8 +71,8 @@ double jsRound(double x) {  // round half toward +infinity
   double f = std::floor(x);
   return x - f >= 0.5 ? f + 1 : f;
 }
-double jsMin(double a, double b) { return (a != a || b != b) ? NAN : (a < b ? a : b); }
-double jsMax(double a, double b) { return (a != a || b != b) ? NAN : (a > b ? a : b); }
+double jsMin(double a, double b) { return (a != a || b != b) ? NAN : a == b ? (std::signbit(a) ? a : b) : (a < b ? a : b); }  // min(0, -0) is -0
+double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a == b ? (std::signbit(a) ? b : a) : (a > b ? a : b); }  // max(-0, 0) is 0
 
 bool isSubclassRT(const ClassRT* c, std::uint32_t target) {
   if (c->id == target) return true;

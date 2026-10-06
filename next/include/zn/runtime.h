@@ -6,7 +6,7 @@
 // X(Id, "owner.member", "params>ret", flags). The receiver is the first parameter. Type letters, with E/K/V the
 // element, key and value type of the receiver:
 //   s string   i i32   b boolean   d f64   n none (result only)
-//   j i32 that may be omitted (defaults to INT32_MAX)   z i32 that may be omitted (defaults to 0)   w string that may be omitted (" ")
+//   j i32 that may be omitted (defaults to INT32_MAX)   z i32 that may be omitted (defaults to 0)   w string that may be omitted (" ")   y string that may be omitted (",")
 //   x any reference (an object, string, array, Map or Set)
 //   a, m, t    the receiver array, Map, Set (as a result: the receiver again)
 //   e element of the receiver's array or Set   k key of the Map   v value of the Map
@@ -23,15 +23,16 @@
   X(StrLength, "string.length", "s>i", 1) X(StrCharCodeAt, "string.charCodeAt", "si>i", 0)                          \
   X(StrSlice, "string.slice", "szj>s", 0) X(StrSubstring, "string.substring", "szj>s", 0)                          \
   X(StrToUpperCase, "string.toUpperCase", "s>s", 0) X(StrToLowerCase, "string.toLowerCase", "s>s", 0)             \
-  X(StrSplit, "string.split", "ss>S", 0) X(StrIndexOf, "string.indexOf", "ss>i", 0)                                \
-  X(StrIncludes, "string.includes", "ss>b", 0) X(StrStartsWith, "string.startsWith", "ss>b", 0)                    \
-  X(StrEndsWith, "string.endsWith", "ss>b", 0) X(StrTrim, "string.trim", "s>s", 0)                                 \
+  X(StrSplit, "string.split", "ss>S", 0) X(StrIndexOf, "string.indexOf", "ssz>i", 0)                                \
+  X(StrIncludes, "string.includes", "ssz>b", 0) X(StrStartsWith, "string.startsWith", "ssz>b", 0)                    \
+  X(StrEndsWith, "string.endsWith", "ssj>b", 0) X(StrTrim, "string.trim", "s>s", 0)         \
+  X(StrTrimStart, "string.trimStart", "s>s", 0) X(StrTrimEnd, "string.trimEnd", "s>s", 0) X(StrConcatM, "string.concat", "ss>s", 0)                                 \
   X(StrCharAt, "string.charAt", "si>s", 0) X(StrRepeat, "string.repeat", "si>s", 0)   \
   X(StrPadStart, "string.padStart", "siw>s", 0) X(StrPadEnd, "string.padEnd", "siw>s", 0)                          \
   X(StrReplace, "string.replace", "sss>s", 0) X(StrReplaceAll, "string.replaceAll", "sss>s", 0)                  \
-  X(ParseInt, "string.#parseInt", "sz>d", 2) X(ParseFloat, "string.#parseFloat", "s>d", 2)                          \
+  X(ParseInt, "string.#parseInt", "sz>d", 2) X(ParseFloat, "string.#parseFloat", "s>d", 2) X(ToNumber, "string.#toNumber", "s>d", 2)                          \
   X(FromCharCode, "string.#fromCharCode", "i>s", 2)                                \
-  X(ArrJoin, "Array.join", "as>s", 0) X(ArrSort, "Array.sort", "ac>a", 0) X(ArrSlice, "Array.slice", "azj>a", 0)   \
+  X(ArrJoin, "Array.join", "ay>s", 0) X(ArrSort, "Array.sort", "ac>a", 0) X(ArrSlice, "Array.slice", "azj>a", 0)   \
   X(ArrReverse, "Array.reverse", "a>a", 0) X(ArrIndexOf, "Array.indexOf", "ae>i", 0)                               \
   X(ArrIncludes, "Array.includes", "ae>b", 0) X(ArrPop, "Array.#pop", "a>e", 2)                                    \
   X(MapGet, "Map.get", "mk>v", 0) X(MapSet, "Map.set", "mkv>m", 0) X(MapHas, "Map.has", "mk>b", 0)                 \
@@ -71,7 +72,7 @@ inline unsigned rtUserParams(const RtInfo& r) { return rtParamCount(r) - 1; }
 // Parameters that must be given: those before the first optional one (j, z, w).
 inline unsigned rtMinUserParams(const RtInfo& r) {
   unsigned n = 0;
-  for (unsigned k = 1; k < rtParamCount(r); ++k) { char l = r.sig[k]; if (l == 'j' || l == 'z' || l == 'w') break; ++n; }
+  for (unsigned k = 1; k < rtParamCount(r); ++k) { char l = r.sig[k]; if (l == 'j' || l == 'z' || l == 'w' || l == 'y') break; ++n; }
   return n;
 }
 // The member name after the owner prefix ("slice" in "string.slice").

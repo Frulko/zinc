@@ -1,6 +1,7 @@
 // AST + checker results -> typed SSA IR. Locals use on-the-fly SSA construction (Braun et al.) with block parameters
 // as phis; trivial parameters are removed afterwards. Top-level variables used by functions become globals.
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -19,11 +20,26 @@ using frontend::SymKind;
 using NumK = frontend::Num;
 constexpr std::uint32_t kNil = frontend::kNone;
 
+void appendUtf8(std::string& o, std::uint32_t c) {
+  if (c < 0x80) o += static_cast<char>(c);
+  else if (c < 0x800) { o += static_cast<char>(0xC0 | c >> 6); o += static_cast<char>(0x80 | (c & 0x3F)); }
+  else if (c < 0x10000) { o += static_cast<char>(0xE0 | c >> 12); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
+  else { o += static_cast<char>(0xF0 | c >> 18); o += static_cast<char>(0x80 | ((c >> 12) & 0x3F)); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
+}
+
+// The text of a string literal body: escapes resolved, \xNN and \uNNNN (with surrogate pairs) and \u{...} as UTF-8.
 std::string unescape(std::string_view s) {
   std::string o;
+  auto hex = [&](std::size_t from, std::size_t n, std::uint32_t& v) {
+    if (from + n > s.size()) return false;
+    v = 0;
+    for (std::size_t k = 0; k < n; ++k) { char h = s[from + k]; if (!std::isxdigit(static_cast<unsigned char>(h))) return false; v = v * 16 + static_cast<std::uint32_t>(h <= '9' ? h - '0' : (h | 32) - 'a' + 10); }
+    return true;
+  };
   for (std::size_t i = 0; i < s.size(); ++i) {
     if (s[i] != '\\' || i + 1 >= s.size()) { o += s[i]; continue; }
     char c = s[++i];
+    std::uint32_t v;
     switch (c) {
       case 'n': o += '\n'; break;
       case 'r': o += '\r'; break;
@@ -32,10 +48,21 @@ std::string unescape(std::string_view s) {
       case 'b': o += '\b'; break;
       case 'f': o += '\f'; break;
       case 'v': o += '\v'; break;
-      case 'x': {
-        if (i + 2 < s.size()) { o += static_cast<char>(std::strtol(std::string(s.substr(i + 1, 2)).c_str(), nullptr, 16)); i += 2; }
+      case '\n': break;  // line continuation
+      case 'x': if (hex(i + 1, 2, v)) { appendUtf8(o, v); i += 2; } else o += c; break;
+      case 'u':
+        if (i + 1 < s.size() && s[i + 1] == '{') {
+          std::size_t e = s.find('}', i);
+          if (e != std::string_view::npos && hex(i + 2, e - i - 2, v)) { appendUtf8(o, v); i = e; break; }
+        } else if (hex(i + 1, 4, v)) {
+          i += 4;
+          std::uint32_t lo;
+          if (v >= 0xD800 && v < 0xDC00 && i + 2 < s.size() && s[i + 1] == '\\' && s[i + 2] == 'u' && hex(i + 3, 4, lo) && lo >= 0xDC00 && lo < 0xE000) { v = 0x10000 + ((v - 0xD800) << 10) + (lo - 0xDC00); i += 6; }
+          appendUtf8(o, v >= 0xD800 && v < 0xE000 ? 0xFFFD : v);
+          break;
+        }
+        o += c;
         break;
-      }
       default: o += c; break;
     }
   }
@@ -1237,7 +1264,7 @@ struct Lowering::FnLower {
   TypeId rtIrType(char l, TypeId recv) {
     const Type r = ty(recv);
     switch (l) {
-      case 's': case 'w': return m.strT();
+      case 's': case 'w': case 'y': return m.strT();
       case 'i': case 'j': case 'z': return m.numT(NumK::i32);
       case 'b': return m.boolT();
       case 'd': return m.numT(NumK::f64);
@@ -1263,6 +1290,7 @@ struct Lowering::FnLower {
           if (l == 'c') vs.push_back(coerce(expr(args[k]), L.irType(c.nodeType[args[k]])));  // the comparator keeps its own function type
           else vs.push_back(exprTo(args[k], rtIrType(l, rtyp)));
         } else if (l == 'w') vs.push_back(constStr(" "));
+        else if (l == 'y') vs.push_back(constStr(","));
         else vs.push_back(constNum(m.numT(NumK::i32), l == 'z' ? 0 : 2147483647));
       }
       return emit(IrOp::Rt, rtIrType(rtRet(r), rtyp), std::move(vs), 0, 0, static_cast<std::uint32_t>(r.id));
@@ -1356,6 +1384,8 @@ struct Lowering::FnLower {
         bool isId = callee.text == "__identity";
         return emit(IrOp::Rt, isId ? m.numT(NumK::i64) : m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(isId ? zn::Rt::ObjId : zn::Rt::ClassName));
       }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__toNumber")
+        return emit(IrOp::Rt, m.numT(NumK::f64), {exprTo(x.kids[1], m.strT())}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ToNumber));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "parseInt" || callee.text == "parseFloat")) {
         bool isInt = callee.text == "parseInt";
         std::vector<ValueId> vs{exprTo(x.kids[1], m.strT())};

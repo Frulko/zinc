@@ -51,6 +51,8 @@ struct Checker {
   bool atTop = false, declAsGlobal = false;
   bool inspectMode = false;           // checking a generated console.log formatter
   std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
+  std::uint32_t exprStmtOf = kNone;   // the expression of the expression statement being checked
+  std::uint32_t logArg = kNone;       // the console.log argument being checked
   TypeId newExpected = kNoType;       // the type a `new Map()` or `new Set()` is expected to have
   static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
   TypeId inferredRet = kNoType;
@@ -202,6 +204,13 @@ struct Checker {
     declare(SymKind::Builtin, "__classname", func({tAny}, tStr, 1), kNone, true, 0);       // the class name of an object, for [Function: name]
     declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
+    declare(SymKind::Builtin, "__toNumber", func({tStr}, num(Num::f64), 1), kNone, true, 0);  // Number(string), for generated code
+    for (const char* nm : {"Boolean", "JSON"}) {  // namespaces whose calls the checker rewrites
+      ObjInfo o;
+      o.name = nm;
+      out.objs.push_back(o);
+      declare(SymKind::Builtin, nm, objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
+    }
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
     declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);
   }
@@ -256,7 +265,9 @@ struct Checker {
         r = func(ps, rt, static_cast<std::uint32_t>(ps.size()));
         break;
       }
-      case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms); break; }
+      case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms);
+        if (!bad(r)) for (TypeId m : ty(r).params) if (ty(r).k == TK::Union && (ty(m).k == TK::Num || ty(m).k == TK::Str || ty(m).k == TK::Array || ty(m).k == TK::Map || ty(m).k == TK::Set || m == tBool) && std::find(ty(r).params.begin(), ty(r).params.end(), tNull) != ty(r).params.end()) { diag(kZUnsupported, t, "a number, boolean, string, array, Map or Set that may be null"); break; }
+        break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       default: diag(kZUnsupported, t, "this type syntax"); break;
     }
@@ -275,7 +286,7 @@ struct Checker {
     switch (l) {
       case 's': return tStr;
       case 'i': case 'j': case 'z': return num(Num::i32);
-      case 'w': return tStr;
+      case 'w': case 'y': return tStr;
       case 'b': return tBool;
       case 'd': return num(Num::f64);
       case 'n': return tVoid;
@@ -313,7 +324,9 @@ struct Checker {
   }
 
   // ---- expressions
+  std::set<std::uint32_t> rewritten;  // calls already turned into calls of generated functions: checking them again gives the same type
   TypeId expr(std::uint32_t i, TypeId expected = kNoType) {
+    if (rewritten.count(i)) return out.nodeType[i];
     TypeId t = expr0(i, expected);
     out.nodeType[i] = t;
     return t;
@@ -571,41 +584,110 @@ struct Checker {
     return (k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Object || k == TK::Union || k == TK::Func) && !hasParam(t) && inspectable(out, t);
   }
 
-  static bool isHofName(std::string_view m) { return m == "map" || m == "filter" || m == "some" || m == "every" || m == "forEach" || m == "reduce" || m == "concat" || m == "findIndex"; }
+  static bool isHofName(std::string_view m) {
+    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "indexOf", "lastIndexOf", "includes", "fill", "join"}) if (m == h) return true;
+    return false;
+  }
   // arr.map(f) and friends: the call becomes a call of a helper generated in Zinc for this element and callback type.
+  // Array methods written in Zinc: callbacks may take (element, index) (reduce: accumulator, element, index), and the search
+  // methods take their optional index arguments. Each call becomes a call of a generated function, one per element type.
   TypeId arrayHof(std::uint32_t i, std::string_view method) {
+    std::uint32_t before = n(i).kids[0];
+    TypeId r = arrayHof0(i, method);
+    if (n(i).kids[0] != before) { rewritten.insert(i); out.nodeType[i] = r; }
+    return r;
+  }
+  TypeId arrayHof0(std::uint32_t i, std::string_view method) {
     const std::vector<std::uint32_t> kids = n(i).kids;
     std::uint32_t recvNode = n(kids[0]).kids[0];
     TypeId at = out.nodeType[recvNode];
     TypeId E = ty(at).elem;
     std::vector<std::uint32_t> args(kids.begin() + 1, kids.end());
     std::string m(method);
-    std::size_t want = m == "reduce" ? 2 : 1;
-    if (args.size() != want) { diag(kZWrongArgCount, i, "expected " + std::to_string(want) + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+    if (m == "join") {  // elements other than strings are converted like template literals
+      if (args.size() > 1) { diag(kZWrongArgCount, i, "expected 0-1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      if (args.empty()) { std::uint32_t sep = newNode(N::String, "\",\"", {}, i); out.nodeType[sep] = tStr; args.push_back(sep); }
+      else if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
+      std::string key = "join," + std::to_string(at);
+      std::uint32_t sym = helper(key, "function $F(a: " + inspectAliasName(at) + ", sep: string): string {\n  let r = '';\n  for (let k: i32 = 0; k < a.length; k++) {\n    if (k > 0) r += sep;\n    r += `${a[k]}`;\n  }\n  return r;\n}\n", {at}, i);
+      std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+      out.nodeSym[id] = sym;
+      out.nodeType[id] = out.syms[sym].type;
+      a.nodes[i].kids = {id, recvNode, args[0]};
+      return tStr;
+    }
+    bool search = m == "indexOf" || m == "lastIndexOf" || m == "includes" || m == "fill";
+    bool fold = m == "reduce" || m == "reduceRight";
+    std::size_t lo = fold ? 2 : 1, hi = fold ? 2 : m == "fill" ? 3 : search ? 2 : 1;
+    if (args.size() < lo || args.size() > hi) { diag(kZWrongArgCount, i, "expected " + std::to_string(lo) + (hi != lo ? "-" + std::to_string(hi) : "") + ", got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
     std::string A = inspectAliasName(at);
+    TypeId i32 = num(Num::i32);
     TypeId result = tError;
-    std::string body, sig, fn;
+    std::string body, sig;
     std::vector<TypeId> aliases{at};
+    std::string key = m;
+    // the function value of a callback, checked against (ps...) with at most as many parameters; `arity` is what it takes
+    std::size_t arity = 1;
     auto callback = [&](TypeId expectRet, std::vector<TypeId> ps) -> TypeId {
-      std::uint32_t arg = args[0];
-      TypeId lt = expr(arg, func(ps, expectRet, static_cast<std::uint32_t>(ps.size())));
+      std::uint32_t arg = args[fold ? 0 : 0];
+      TypeId lt = expr(arg, func(ps, expectRet, 1));
       if (bad(lt)) return tError;
-      if (ty(lt).k != TK::Func || ty(lt).params.size() != ps.size()) { diag(kZNotAssignable, arg, "a function of " + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
-      for (std::size_t k = 0; k < ps.size(); ++k) if (!assignable(ps[k], ty(lt).params[k], kNone)) { diag(kZNotAssignable, arg, "callback parameter '" + name(ps[k]) + "' to '" + name(ty(lt).params[k]) + "'"); return tError; }
+      if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > ps.size()) { diag(kZNotAssignable, arg, "a function of 1-" + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
+      for (std::size_t k = 0; k < ty(lt).params.size(); ++k) if (!assignable(ps[k], ty(lt).params[k], kNone)) { diag(kZNotAssignable, arg, "callback parameter '" + name(ps[k]) + "' to '" + name(ty(lt).params[k]) + "'"); return tError; }
+      arity = ty(lt).params.size();
       aliases.push_back(lt);
       return lt;
     };
-    if (m == "reduce") {
-      TypeId ut = expr(args[1]);
+    auto pad = [&](const char* text) {
+      std::uint32_t id = newNode(N::Number, text, {}, i);
+      out.nodeType[id] = i32;
+      args.push_back(id);
+    };
+    auto indexArg = [&](std::size_t k) {
+      TypeId t = expr(args[k]);
+      if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "'" + name(t) + "' to 'number'");
+    };
+    bool floatElem = ty(E).k == TK::Num && (ty(E).num == Num::f64 || ty(E).num == Num::f32);
+    if (search) {
+      TypeId xt = m == "fill" ? expr(args[0], E) : expr(args[0], E);
+      if (!bad(xt) && !require(xt, E, args[0])) return tError;
+      for (std::size_t k = 1; k < args.size(); ++k) indexArg(k);
+      std::string Es = inspectAliasName(E);
+      aliases.push_back(E);
+      std::string eq = "a[k] === x";
+      if (m == "includes" && floatElem) eq = "(a[k] === x || (a[k] !== a[k] && x !== x))";
+      if (m == "indexOf" || m == "includes") {
+        if (args.size() < 2) pad("0");
+        result = m == "indexOf" ? i32 : tBool;
+        sig = "(a: " + A + ", x: " + Es + ", from: i32): " + (m == "indexOf" ? "i32" : "boolean");
+        body = "  let s: i32 = from < 0 ? a.length + from : from;\n  if (s < 0) s = 0;\n  for (let k: i32 = s; k < a.length; k++) if (" + eq + ") return " + (m == "indexOf" ? "k" : "true") + ";\n  return " + (m == "indexOf" ? "-1" : "false") + ";\n";
+      } else if (m == "lastIndexOf") {
+        if (args.size() < 2) pad("2147483647");
+        result = i32;
+        sig = "(a: " + A + ", x: " + Es + ", from: i32): i32";
+        body = "  let s: i32 = from < 0 ? a.length + from : from;\n  if (s > a.length - 1) s = a.length - 1;\n  for (let k: i32 = s; k >= 0; k--) if (" + eq + ") return k;\n  return -1;\n";
+      } else {  // fill
+        if (args.size() < 2) pad("0");
+        if (args.size() < 3) pad("2147483647");
+        result = at;
+        sig = "(a: " + A + ", x: " + Es + ", start: i32, end: i32): " + A;
+        body = "  let s: i32 = start < 0 ? a.length + start : start;\n  if (s < 0) s = 0;\n  let e: i32 = end < 0 ? a.length + end : end;\n  if (e > a.length) e = a.length;\n  for (let k: i32 = s; k < e; k++) a[k] = x;\n  return a;\n";
+      }
+    } else if (fold) {
+      TypeId want = kNoType;  // an empty array literal takes the type its callback annotates for the accumulator
+      if (n(args[1]).kind == N::Array && n(args[1]).kids.empty() && n(args[0]).kind == N::FuncExpr && n(args[0]).kids.size() > 2 && n(n(args[0]).kids[2]).kids[0] != kNone) want = annotation(n(n(args[0]).kids[2]).kids[0]);
+      TypeId ut = expr(args[1], want);
       if (bad(ut)) { expr(args[0]); return tError; }
-      TypeId lt = callback(ut, {ut, E});
+      TypeId lt = callback(ut, {ut, E, i32});
       if (bad(lt)) return tError;
       if (!assignable(ty(lt).elem, ut, kNone)) { diag(kZNotAssignable, args[0], "'" + name(ty(lt).elem) + "' to '" + name(ut) + "'"); return tError; }
       aliases.push_back(ut);
       std::string U = inspectAliasName(ut);
-      sig = "(a: " + A + ", f: " + inspectAliasName(lt) + ", init: " + U + "): " + U;
-      body = "  let acc: " + U + " = init;\n  for (const e of a) acc = f(acc, e);\n  return acc;\n";
+      std::string call = arity == 2 ? "f(acc, a[k])" : "f(acc, a[k], k)";
+      sig = "(a: " + A + ", f: " + inspectAliasName(ty(lt).k == TK::Func ? lt : lt) + ", init: " + U + "): " + U;
+      body = "  let acc: " + U + " = init;\n  " + (m == "reduce" ? "for (let k: i32 = 0; k < a.length; k++)" : "for (let k: i32 = a.length - 1; k >= 0; k--)") + " acc = " + call + ";\n  return acc;\n";
       result = ut;
+      key += "," + std::to_string(arity);
     } else if (m == "concat") {
       TypeId bt = expr(args[0], at);
       if (bad(bt) || !require(bt, at, args[0])) return tError;
@@ -613,38 +695,54 @@ struct Checker {
       body = "  const r: " + A + " = [];\n  for (const e of a) r.push(e);\n  for (const e of b) r.push(e);\n  return r;\n";
       result = at;
     } else {
-      bool boolRet = m == "filter" || m == "some" || m == "every" || m == "findIndex";
-      TypeId lt = callback(boolRet ? tBool : kNoType, {E});
+      bool boolRet = m == "filter" || m == "some" || m == "every" || m == "findIndex" || m == "find" || m == "findLast" || m == "findLastIndex";
+      TypeId lt = callback(boolRet ? tBool : kNoType, {E, i32});
       if (bad(lt)) return tError;
       TypeId U = ty(lt).elem;
       if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "'" + name(U) + "' to 'boolean'"); return tError; }
       std::string F = inspectAliasName(lt);
+      std::string call = arity == 1 ? "f(a[k])" : "f(a[k], k)";
+      std::string fwd = "for (let k: i32 = 0; k < a.length; k++)", bwd = "for (let k: i32 = a.length - 1; k >= 0; k--)";
+      key += "," + std::to_string(arity);
       if (m == "map") {
         if (U == tVoid || bad(U)) { diag(kZCannotInfer, args[0], "the result type of 'map'"); return tError; }
         result = arrayOf(U);
         aliases.push_back(result);
         std::string R = inspectAliasName(result);
         sig = "(a: " + A + ", f: " + F + "): " + R;
-        body = "  const r: " + R + " = [];\n  for (const e of a) r.push(f(e));\n  return r;\n";
+        body = "  const r: " + R + " = [];\n  " + fwd + " r.push(" + call + ");\n  return r;\n";
       } else if (m == "filter") {
         result = at;
         sig = "(a: " + A + ", f: " + F + "): " + A;
-        body = "  const r: " + A + " = [];\n  for (const e of a) if (f(e)) r.push(e);\n  return r;\n";
+        body = "  const r: " + A + " = [];\n  " + fwd + " if (" + call + ") r.push(a[k]);\n  return r;\n";
       } else if (m == "some" || m == "every") {
         result = tBool;
         sig = "(a: " + A + ", f: " + F + "): boolean";
-        body = m == "some" ? "  for (const e of a) if (f(e)) return true;\n  return false;\n" : "  for (const e of a) if (!f(e)) return false;\n  return true;\n";
-      } else if (m == "findIndex") {
-        result = num(Num::i32);
+        body = m == "some" ? "  " + fwd + " if (" + call + ") return true;\n  return false;\n" : "  " + fwd + " if (!" + call + ") return false;\n  return true;\n";
+      } else if (m == "findIndex" || m == "findLastIndex") {
+        result = i32;
         sig = "(a: " + A + ", f: " + F + "): i32";
-        body = "  for (let i: i32 = 0; i < a.length; i++) if (f(a[i])) return i;\n  return -1;\n";
+        body = "  " + (m == "findIndex" ? fwd : bwd) + " if (" + call + ") return k;\n  return -1;\n";
+      } else if (m == "find" || m == "findLast") {
+        if (i != nullishLeft && i != logArg) diag(kZUnsupported, i, "'" + m + "' outside '?" "?' and console.log (the result may be undefined)");
+        bool prim = ty(E).k == TK::Num || E == tBool || E == tStr;
+        if (prim && i != logArg) { diag(kZUnsupported, i, "'" + m + "' on arrays of numbers, booleans or strings outside console.log"); return tError; }
+        if (prim) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
+          result = tStr;
+          sig = "(a: " + A + ", f: " + F + "): string";
+          body = "  " + (m == "find" ? fwd : bwd) + " if (" + call + ") return `${a[k]}`;\n  return 'undefined';\n";
+        } else {
+          result = unionOf({E, tNull});
+          aliases.push_back(result);
+          sig = "(a: " + A + ", f: " + F + "): " + inspectAliasName(result);
+          body = "  " + (m == "find" ? fwd : bwd) + " if (" + call + ") return a[k];\n  return null;\n";
+        }
       } else {  // forEach
         result = tVoid;
         sig = "(a: " + A + ", f: " + F + "): void";
-        body = "  for (const e of a) f(e);\n";
+        body = "  " + fwd + " " + call + ";\n";
       }
     }
-    std::string key = m;
     for (TypeId t : aliases) key += "," + std::to_string(t);
     std::uint32_t sym = helper(key, "function $F" + sig + " {\n" + body + "}\n", aliases, i);
     std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
@@ -689,7 +787,105 @@ struct Checker {
     return nm == "PromiseV" ? 2 : nm.rfind("Promise<", 0) == 0 ? 1 : 0;
   }
 
+  // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
+  bool replaceWith(std::uint32_t i, const std::string& text, const std::vector<std::vector<std::uint32_t>>& holes) {
+    if (text == "__H0") { a.nodes[i] = a.nodes[holes[0][0]]; return true; }  // the argument itself (a lone hole would read as a statement hole)
+    auto r = snippet(a, text + ";", holes, i);
+    out.nodeType.resize(a.nodes.size(), kNoType);
+    out.nodeSym.resize(a.nodes.size(), kNone);
+    if (r.empty() || n(r[0]).kind != N::ExprStmt) return false;
+    std::uint32_t e = n(r[0]).kids[0];
+    a.nodes[i] = a.nodes[e];
+    return true;
+  }
+  bool isBuiltin(std::uint32_t node, std::string_view nm) {
+    const Node& x = n(node);
+    if (x.kind != N::Ident || x.text != nm) return false;
+    std::uint32_t s = lookup(x.text);
+    return s != kNone && out.syms[s].kind == SymKind::Builtin;
+  }
+  // Number(x), String(x), Boolean(x), the Number statics and Math.min / Math.max with any number of arguments: rewritten
+  // into expressions and generated helpers. Returns kNoType when the call is none of these.
+  TypeId libraryCall(std::uint32_t i) {
+    const std::vector<std::uint32_t> kids = n(i).kids;
+    std::vector<std::uint32_t> args(kids.begin() + 1, kids.end());
+    const Node& cn = n(kids[0]);
+    auto rewrite = [&](const std::string& text, std::vector<std::vector<std::uint32_t>> holes) -> TypeId {
+      if (!replaceWith(i, text, holes)) { diag(kZUnsupported, i, "internal error: library rewrite did not parse"); return tError; }
+      return expr0(i, kNoType);
+    };
+    if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
+      if (args.size() > 1) { diag(kZWrongArgCount, i, "expected 0-1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
+      std::string nm(cn.text);
+      if (args.empty()) return rewrite(nm == "String" ? "''" : nm == "Number" ? "0" : "false", {});
+      TypeId at = expr(args[0]);
+      if (bad(at)) return tError;
+      const Type t = ty(at);
+      bool num_ = t.k == TK::Num, str = t.k == TK::Str, bl = at == tBool, arr = t.k == TK::Array;
+      if (nm == "String") {
+        if (str) return rewrite("__H0", {{args[0]}});
+        if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
+        if (arr) return rewrite("__H0.join(',')", {{args[0]}});
+      } else if (nm == "Number") {
+        if (str) return rewrite("__toNumber(__H0)", {{args[0]}});
+        if (num_) return rewrite("__H0", {{args[0]}});
+        if (bl) return rewrite("(__H0 ? 1 : 0)", {{args[0]}});
+      } else {
+        if (str) return rewrite("(__H0.length > 0)", {{args[0]}});
+        if (bl) return rewrite("__H0", {{args[0]}});
+        if (num_) {
+          std::string A = inspectAliasName(at);
+          std::uint32_t sym = helper("truthy," + std::to_string(at), "function $F(x: " + A + "): boolean { return x !== 0 && x === x; }\n", {at}, i);
+          std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+          out.nodeSym[id] = sym;
+          out.nodeType[id] = out.syms[sym].type;
+          a.nodes[i].kids = {id, args[0]};
+          rewritten.insert(i);
+          out.nodeType[i] = tBool;
+          return tBool;
+        }
+      }
+      diag(kZUnsupported, i, nm + "() of '" + name(at) + "'");
+      return tError;
+    }
+    if (cn.kind == N::Member && n(cn.kids[0]).kind == N::Ident) {
+      std::string_view on = n(cn.kids[0]).text, m = cn.text;
+      if (on == "Number" && isBuiltin(cn.kids[0], "Number")) {
+        if (m == "parseFloat" && args.size() == 1) return rewrite("parseFloat(__H0)", {{args[0]}});
+        if (m == "parseInt" && (args.size() == 1 || args.size() == 2)) return rewrite(args.size() == 1 ? "parseInt(__H0)" : "parseInt(__H0, __H1)", args.size() == 1 ? std::vector<std::vector<std::uint32_t>>{{args[0]}} : std::vector<std::vector<std::uint32_t>>{{args[0]}, {args[1]}});
+        if ((m == "isSafeInteger" || m == "isInteger") && args.size() == 1) {
+          std::uint32_t sym = helper(std::string(m), std::string("function $F(x: f64): boolean { return x === Math.floor(x) && x - x === 0") + (m == "isSafeInteger" ? " && Math.abs(x) <= 9007199254740991" : "") + "; }\n", {}, i);
+          std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+          out.nodeSym[id] = sym;
+          out.nodeType[id] = out.syms[sym].type;
+          a.nodes[i].kids = {id, args[0]};
+          expr(args[0]);
+          rewritten.insert(i);
+          out.nodeType[i] = tBool;
+          return tBool;
+        }
+      }
+      if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "parse" && args.size() == 1) {  // parse validates the text; its value needs Dyn
+        if (i != exprStmtOf) { diag(kZUnsupported, i, "the value of JSON.parse (needs Dyn values)"); return tError; }
+        if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
+        return rewrite("__jsonValidate(__H0)", {{args[0]}});
+      }
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && args.size() != 2) {
+        std::string nm(m);
+        if (args.empty()) return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});
+        if (args.size() == 1) return rewrite("Math." + nm + "(__H0, __H0)", {{args[0]}});
+        std::string text = "__H0";
+        std::vector<std::vector<std::uint32_t>> holes{{args[0]}};
+        for (std::size_t k = 1; k < args.size(); ++k) { text = "Math." + nm + "(" + text + ", __H" + std::to_string(k) + ")"; holes.push_back({args[k]}); }
+        return rewrite(text, holes);
+      }
+    }
+    return kNoType;
+  }
+
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
+    while (!isNew && x.kids.size() > 1 && n(x.kids.back()).kind == N::Ident && n(x.kids.back()).text == "undefined" && lookup("undefined") == kNone) a.nodes[i].kids.pop_back();  // a trailing `undefined` is an omitted argument
+    if (!isNew) { TypeId lc = libraryCall(i); if (lc != kNoType) return lc; }
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
@@ -781,7 +977,7 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
-      } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array) {
+      } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
         return arrayHof(i, cn.text);
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
@@ -802,6 +998,7 @@ struct Checker {
       std::uint32_t arg = x.kids[k + 1];
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
+      if (!isNew && n(callee).kind == N::Member && n(callee).text == "log") logArg = arg;
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
@@ -899,6 +1096,10 @@ struct Checker {
         if (op == "typeof") return tStr;
         if (op == "void") return tVoid;
         if (op == "delete") { diag(kZUnsupported, i, "'delete'"); return tError; }
+        if ((op == "+" || op == "-") && (t == tStr || t == tBool)) {  // string and boolean operands convert like Number(x)
+          std::string conv = t == tStr ? "__toNumber(__H0)" : "(__H0 ? 1 : 0)";
+          if (replaceWith(i, op == "-" ? "-" + conv : conv, {{x.kids[0]}})) return expr0(i, expected);
+        }
         if (!isNum(t)) { diag(kZBadOperand, i, "'" + op + "' on '" + name(t) + "'"); return tError; }
         return op == "~" ? num(Num::i32) : t;
       }
@@ -973,6 +1174,11 @@ struct Checker {
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
         if (x.text.size() && x.text[0] == '?') { diag(kZUnsupported, i, "optional chaining"); return tError; }
+        if (isBuiltin(x.kids[0], "Number")) {  // the constants of Number
+          static const std::pair<const char*, const char*> kConsts[] = {{"MAX_VALUE", "1.7976931348623157e308"}, {"MIN_VALUE", "5e-324"}, {"POSITIVE_INFINITY", "Infinity"}, {"NEGATIVE_INFINITY", "-Infinity"},
+                                                                        {"NaN", "NaN"}, {"MAX_SAFE_INTEGER", "9007199254740991"}, {"MIN_SAFE_INTEGER", "-9007199254740991"}, {"EPSILON", "2.220446049250313e-16"}};
+          for (auto [nm, lit] : kConsts) if (x.text == nm && replaceWith(i, lit, {})) return expr0(i, expected);
+        }
         const Node& on = n(x.kids[0]);
         if (on.kind == N::Super) {  // super.method(...)
           std::uint32_t par = curClass != kNoObj ? out.objs[curClass].parent : kNoObj;
@@ -1240,7 +1446,7 @@ struct Checker {
         if (x.kids[3] != kNone) { statement(x.kids[3]); narrowing.resize(mark); }
         break;
       }
-      case N::ExprStmt: expr(x.kids[0]); break;
+      case N::ExprStmt: exprStmtOf = x.kids[0]; expr(x.kids[0]); break;
       case N::If: {
         condition(x.kids[0]);
         std::vector<Fact> ft, ff;

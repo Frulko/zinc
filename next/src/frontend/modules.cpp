@@ -138,6 +138,7 @@ class Error {
 }
 class TypeError extends Error { constructor(message: string) { super(message); this.name = 'TypeError'; } }
 class RangeError extends Error { constructor(message: string) { super(message); this.name = 'RangeError'; } }
+class SyntaxError extends Error { constructor(message: string) { super(message); this.name = 'SyntaxError'; } }
 )ZN";
 
 // Promises, timers and the microtask queue, written in Zinc: added when a program uses async functions, generators, Promise,
@@ -149,7 +150,7 @@ class FnJob extends Job {
   run(): void { this.f(); }
 }
 class Timer {
-  constructor(public at: f64, public seq: i32, public f: () => void) {}
+  constructor(public at: f64, public seq: i32, public id: i32, public every: f64, public f: () => void) {}
 }
 let __jobs: Job[] = [];
 let __jobHead: i32 = 0;
@@ -159,14 +160,25 @@ let __timerSeq: i32 = 0;
 
 function __enqueue(j: Job): void { __jobs.push(j); }
 function queueMicrotask(f: () => void): void { __jobs.push(new FnJob(f)); }
-function setTimeout(f: () => void, ms: f64): i32 {
+let __cancelled: i32[] = [];
+let __ids: i32 = 0;
+function __addTimer(f: () => void, ms: f64, every: f64): i32 {
   __timerSeq++;
-  __timers.push(new Timer(__clock + (ms > 1 ? ms : 1), __timerSeq, f));
-  return __timerSeq;
+  __ids++;
+  __timers.push(new Timer(__clock + (ms > 0 ? ms : 0), __timerSeq, __ids, every, f));
+  return __ids;
 }
+function setTimeout(f: () => void, ms: f64): i32 { return __addTimer(f, ms, 0); }
+function setInterval(f: () => void, ms: f64): i32 { return __addTimer(f, ms, ms > 1 ? ms : 1); }
 function clearTimeout(id: i32): void {
-  __timers = __timers.filter(t => t.seq !== id);
+  __cancelled.push(id);
+  __timers = __timers.filter(t => t.id !== id);
 }
+function clearInterval(id: i32): void { clearTimeout(id); }
+// Deterministic time: the clock only moves when the event loop jumps to the next timer.
+class Date { static now(): f64 { return __clock; } }
+class Performance { now(): f64 { return __clock; } }
+const performance = new Performance();
 function __drainJobs(): void {
   while (__jobHead < __jobs.length) {
     const j = __jobs[__jobHead];
@@ -191,6 +203,10 @@ function __runLoop(): void {
     __timers = rest;
     if (t.at > __clock) __clock = t.at;
     t.f();
+    if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
+      __timerSeq++;
+      __timers.push(new Timer(t.at + t.every, __timerSeq, t.id, t.every, t.f));
+    }
     __drainJobs();
   }
 }
@@ -395,12 +411,97 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
 }
 )ZN";
 
+// JSON.parse: a validator (the parsed value needs Dyn values); throws SyntaxError at the first offence.
+const char* kJsonPrelude = R"ZN(
+class __JsonCheck {
+  i: i32 = 0;
+  constructor(public s: string) {}
+  fail(): void { throw new SyntaxError(this.i < this.s.length ? 'Unexpected token ' + this.s.charAt(this.i) + ' in JSON at position ' + this.i : 'Unexpected end of JSON input'); }
+  ws(): void { while (this.i < this.s.length && (this.s.charAt(this.i) === ' ' || this.s.charAt(this.i) === '\t' || this.s.charAt(this.i) === '\n' || this.s.charAt(this.i) === '\r')) this.i++; }
+  lit(w: string): void { if (this.s.startsWith(w, this.i)) this.i += w.length; else this.fail(); }
+  digits(): boolean {
+    const st = this.i;
+    while (this.i < this.s.length && this.s.charCodeAt(this.i) >= 48 && this.s.charCodeAt(this.i) <= 57) this.i++;
+    return this.i > st;
+  }
+  num(): void {
+    if (this.s.charAt(this.i) === '-') this.i++;
+    if (this.s.charAt(this.i) === '0') this.i++; else if (!this.digits()) this.fail();
+    if (this.s.charAt(this.i) === '.') { this.i++; if (!this.digits()) this.fail(); }
+    if (this.s.charAt(this.i) === 'e' || this.s.charAt(this.i) === 'E') {
+      this.i++;
+      if (this.s.charAt(this.i) === '+' || this.s.charAt(this.i) === '-') this.i++;
+      if (!this.digits()) this.fail();
+    }
+  }
+  str(): void {
+    this.i++;
+    while (this.i < this.s.length && this.s.charAt(this.i) !== '"') {
+      const c = this.s.charCodeAt(this.i);
+      if (c < 32) this.fail();
+      if (c === 92) { this.i++; if ('"\\/bfnrtu'.indexOf(this.s.charAt(this.i)) < 0) this.fail(); }
+      this.i++;
+    }
+    if (this.i >= this.s.length) this.fail();
+    this.i++;
+  }
+  value(): void {
+    this.ws();
+    const c = this.s.charAt(this.i);
+    if (c === '{') {
+      this.i++;
+      this.ws();
+      if (this.s.charAt(this.i) === '}') { this.i++; return; }
+      for (;;) {
+        this.ws();
+        if (this.s.charAt(this.i) !== '"') this.fail();
+        this.str();
+        this.ws();
+        if (this.s.charAt(this.i) !== ':') this.fail();
+        this.i++;
+        this.value();
+        this.ws();
+        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
+        if (this.s.charAt(this.i) === '}') { this.i++; return; }
+        this.fail();
+      }
+    } else if (c === '[') {
+      this.i++;
+      this.ws();
+      if (this.s.charAt(this.i) === ']') { this.i++; return; }
+      for (;;) {
+        this.value();
+        this.ws();
+        if (this.s.charAt(this.i) === ',') { this.i++; continue; }
+        if (this.s.charAt(this.i) === ']') { this.i++; return; }
+        this.fail();
+      }
+    } else if (c === '"') this.str();
+    else if (c === 't') this.lit('true');
+    else if (c === 'f') this.lit('false');
+    else if (c === 'n') this.lit('null');
+    else this.num();
+  }
+}
+function __jsonValidate(s: string): void {
+  const p = new __JsonCheck(s);
+  p.value();
+  p.ws();
+  if (p.i < s.length) p.fail();
+}
+)ZN";
+
 bool needsAsync(const Ast& A) {
   for (const Node& x : A.nodes) {
     if (x.kind == N::Await || x.kind == N::Yield) return true;
     if ((x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method) && (x.flags & (kFlagAsync | kFlagGenerator))) return true;
-    if ((x.kind == N::Ident || x.kind == N::TypeRef) && (x.text == "Promise" || x.text == "queueMicrotask" || x.text == "setTimeout" || x.text == "clearTimeout" || x.text == "Generator")) return true;
+    if ((x.kind == N::Ident || x.kind == N::TypeRef) && (x.text == "Promise" || x.text == "queueMicrotask" || x.text == "setTimeout" || x.text == "clearTimeout" || x.text == "setInterval" || x.text == "clearInterval" || x.text == "Date" || x.text == "performance" || x.text == "Generator")) return true;
   }
+  return false;
+}
+
+bool needsJson(const Ast& A) {
+  for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "JSON") return true;
   return false;
 }
 
@@ -421,11 +522,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read) {
   Loader L(p, read);
   L.load(entry, std::move(text));
   bool async = p.diags.empty() && needsAsync(p.ast);
+  bool json = p.diags.empty() && needsJson(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? kJsonPrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

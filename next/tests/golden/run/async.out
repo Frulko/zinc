@@ -5,7 +5,7 @@ chain 2
 caught first
 no7
 rejected propagates
-timeout 0
+timeout 1
 yes
 caught after await
 all [ 3, 1, 2 ]

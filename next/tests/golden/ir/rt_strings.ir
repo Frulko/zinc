@@ -120,145 +120,157 @@ bb0:
   %110: bool = eq %108, %109
   builtin console.log(%99, %102, %105, %110)
   %111: str = const "o"
-  %112: i32 = rt string.indexOf(%66, %111)
-  %113: str = const "World"
-  %114: i32 = rt string.indexOf(%66, %113)
-  %115: str = const "xyz"
-  %116: i32 = rt string.indexOf(%66, %115)
-  %117: str = const ""
-  %118: i32 = rt string.indexOf(%66, %117)
-  builtin console.log(%112, %114, %116, %118)
-  %119: str = const "lo, W"
-  %120: bool = rt string.includes(%66, %119)
-  %121: str = const "LO"
-  %122: bool = rt string.includes(%66, %121)
-  %123: str = const "Hell"
-  %124: bool = rt string.startsWith(%66, %123)
-  %125: str = const "ell"
-  %126: bool = rt string.startsWith(%66, %125)
-  %127: str = const "ld"
-  %128: bool = rt string.endsWith(%66, %127)
-  %129: str = const "Wor"
-  %130: bool = rt string.endsWith(%66, %129)
-  builtin console.log(%120, %122, %124, %126, %128, %130)
-  %131: str = const "ab"
-  %132: i32 = const 3
-  %133: str = rt string.repeat(%131, %132)
-  %134: str = const "x"
-  %135: i32 = const 0
-  %136: str = rt string.repeat(%134, %135)
-  %137: str = const ""
-  %138: bool = eq %136, %137
-  %139: str = const "abc"
-  %140: i32 = const 1
-  %141: str = rt string.repeat(%139, %140)
-  builtin console.log(%133, %138, %141)
-  %142: str = const "a,b,,c,"
-  %143: str = const ","
-  %144: str[] = rt string.split(%142, %143)
-  %145: i32 = arrlen %144
-  %146: str = const "|"
-  %147: str = rt Array.join(%144, %146)
-  %148: str = const "abc"
-  %149: str = const ""
-  %150: str[] = rt string.split(%148, %149)
-  %151: str = const "."
-  %152: str = rt Array.join(%150, %151)
-  %153: str = const "abc"
-  %154: str = const "x"
-  %155: str[] = rt string.split(%153, %154)
-  %156: i32 = arrlen %155
-  %157: str = const ""
-  %158: str = const ","
-  %159: str[] = rt string.split(%157, %158)
-  %160: i32 = arrlen %159
-  %161: str = const ""
-  %162: str = const ""
-  %163: str[] = rt string.split(%161, %162)
-  %164: i32 = arrlen %163
-  builtin console.log(%145, %147, %152, %156, %160, %164)
-  %165: str = const "one two  three"
-  %166: str = const " "
-  %167: str[] = rt string.split(%165, %166)
-  %168: i32 = arrlen %167
-  %169: str = const "k=v=w"
-  %170: str = const "="
-  %171: str[] = rt string.split(%169, %170)
-  %172: str = const " "
-  %173: str = rt Array.join(%171, %172)
-  builtin console.log(%168, %173)
-  %174: str = const "héllo wörld"
-  %175: i32 = strlen %174
-  %176: i32 = const 1
-  %177: i32 = rt string.charCodeAt(%174, %176)
-  %178: i32 = const 1
-  %179: i32 = const 4
-  %180: str = rt string.slice(%174, %178, %179)
-  %181: str = const "w"
-  %182: i32 = rt string.indexOf(%174, %181)
-  %183: str = rt string.toUpperCase(%174)
-  %184: i32 = strlen %183
-  %185: str = const "ö"
-  %186: str[] = rt string.split(%174, %185)
-  %187: i32 = arrlen %186
-  builtin console.log(%175, %177, %180, %182, %184, %187)
-  %188: str = const "a😀b"
-  %189: i32 = strlen %188
-  %190: i32 = const 1
-  %191: i32 = rt string.charCodeAt(%188, %190)
-  %192: i32 = const 2
-  %193: i32 = rt string.charCodeAt(%188, %192)
-  %194: str = const "b"
-  %195: i32 = rt string.indexOf(%188, %194)
-  %196: i32 = const 0
-  %197: i32 = const 1
-  %198: str = rt string.slice(%188, %196, %197)
-  %199: i32 = const 3
-  %200: i32 = const 2147483647
-  %201: str = rt string.slice(%188, %199, %200)
-  %202: str = strconcat %198, %201
-  builtin console.log(%189, %191, %193, %195, %202)
-  %203: str = const "ünï"
-  %204: str = rt string.trim(%203)
-  %205: i32 = strlen %204
-  %206: str = const " \t\n x "
-  %207: str = rt string.trim(%206)
-  %208: str = const "x"
-  %209: bool = eq %207, %208
-  builtin console.log(%205, %209)
-  %210: str = const ""
-  %211: i32 = const 0
-  br bb1(%211, %210)
-bb1(%212: i32, %213: str):
-  %214: i32 = const 5
-  %215: bool = lt %212, %214
-  condbr %215, bb2, bb4
+  %112: i32 = const 0
+  %113: i32 = rt string.indexOf(%66, %111, %112)
+  %114: str = const "World"
+  %115: i32 = const 0
+  %116: i32 = rt string.indexOf(%66, %114, %115)
+  %117: str = const "xyz"
+  %118: i32 = const 0
+  %119: i32 = rt string.indexOf(%66, %117, %118)
+  %120: str = const ""
+  %121: i32 = const 0
+  %122: i32 = rt string.indexOf(%66, %120, %121)
+  builtin console.log(%113, %116, %119, %122)
+  %123: str = const "lo, W"
+  %124: i32 = const 0
+  %125: bool = rt string.includes(%66, %123, %124)
+  %126: str = const "LO"
+  %127: i32 = const 0
+  %128: bool = rt string.includes(%66, %126, %127)
+  %129: str = const "Hell"
+  %130: i32 = const 0
+  %131: bool = rt string.startsWith(%66, %129, %130)
+  %132: str = const "ell"
+  %133: i32 = const 0
+  %134: bool = rt string.startsWith(%66, %132, %133)
+  %135: str = const "ld"
+  %136: i32 = const 2147483647
+  %137: bool = rt string.endsWith(%66, %135, %136)
+  %138: str = const "Wor"
+  %139: i32 = const 2147483647
+  %140: bool = rt string.endsWith(%66, %138, %139)
+  builtin console.log(%125, %128, %131, %134, %137, %140)
+  %141: str = const "ab"
+  %142: i32 = const 3
+  %143: str = rt string.repeat(%141, %142)
+  %144: str = const "x"
+  %145: i32 = const 0
+  %146: str = rt string.repeat(%144, %145)
+  %147: str = const ""
+  %148: bool = eq %146, %147
+  %149: str = const "abc"
+  %150: i32 = const 1
+  %151: str = rt string.repeat(%149, %150)
+  builtin console.log(%143, %148, %151)
+  %152: str = const "a,b,,c,"
+  %153: str = const ","
+  %154: str[] = rt string.split(%152, %153)
+  %155: i32 = arrlen %154
+  %156: str = const "|"
+  %157: str = rt Array.join(%154, %156)
+  %158: str = const "abc"
+  %159: str = const ""
+  %160: str[] = rt string.split(%158, %159)
+  %161: str = const "."
+  %162: str = rt Array.join(%160, %161)
+  %163: str = const "abc"
+  %164: str = const "x"
+  %165: str[] = rt string.split(%163, %164)
+  %166: i32 = arrlen %165
+  %167: str = const ""
+  %168: str = const ","
+  %169: str[] = rt string.split(%167, %168)
+  %170: i32 = arrlen %169
+  %171: str = const ""
+  %172: str = const ""
+  %173: str[] = rt string.split(%171, %172)
+  %174: i32 = arrlen %173
+  builtin console.log(%155, %157, %162, %166, %170, %174)
+  %175: str = const "one two  three"
+  %176: str = const " "
+  %177: str[] = rt string.split(%175, %176)
+  %178: i32 = arrlen %177
+  %179: str = const "k=v=w"
+  %180: str = const "="
+  %181: str[] = rt string.split(%179, %180)
+  %182: str = const " "
+  %183: str = rt Array.join(%181, %182)
+  builtin console.log(%178, %183)
+  %184: str = const "héllo wörld"
+  %185: i32 = strlen %184
+  %186: i32 = const 1
+  %187: i32 = rt string.charCodeAt(%184, %186)
+  %188: i32 = const 1
+  %189: i32 = const 4
+  %190: str = rt string.slice(%184, %188, %189)
+  %191: str = const "w"
+  %192: i32 = const 0
+  %193: i32 = rt string.indexOf(%184, %191, %192)
+  %194: str = rt string.toUpperCase(%184)
+  %195: i32 = strlen %194
+  %196: str = const "ö"
+  %197: str[] = rt string.split(%184, %196)
+  %198: i32 = arrlen %197
+  builtin console.log(%185, %187, %190, %193, %195, %198)
+  %199: str = const "a😀b"
+  %200: i32 = strlen %199
+  %201: i32 = const 1
+  %202: i32 = rt string.charCodeAt(%199, %201)
+  %203: i32 = const 2
+  %204: i32 = rt string.charCodeAt(%199, %203)
+  %205: str = const "b"
+  %206: i32 = const 0
+  %207: i32 = rt string.indexOf(%199, %205, %206)
+  %208: i32 = const 0
+  %209: i32 = const 1
+  %210: str = rt string.slice(%199, %208, %209)
+  %211: i32 = const 3
+  %212: i32 = const 2147483647
+  %213: str = rt string.slice(%199, %211, %212)
+  %214: str = strconcat %210, %213
+  builtin console.log(%200, %202, %204, %207, %214)
+  %215: str = const "ünï"
+  %216: str = rt string.trim(%215)
+  %217: i32 = strlen %216
+  %218: str = const " \t\n x "
+  %219: str = rt string.trim(%218)
+  %220: str = const "x"
+  %221: bool = eq %219, %220
+  builtin console.log(%217, %221)
+  %222: str = const ""
+  %223: i32 = const 0
+  br bb1(%223, %222)
+bb1(%224: i32, %225: str):
+  %226: i32 = const 5
+  %227: bool = lt %224, %226
+  condbr %227, bb2, bb4
 bb2:
-  %216: str = tostr %212
-  %217: str = strconcat %213, %216
+  %228: str = tostr %224
+  %229: str = strconcat %225, %228
   br bb3
 bb3:
-  %218: i32 = const 1
-  %219: i32 = add %212, %218
-  br bb1(%219, %217)
+  %230: i32 = const 1
+  %231: i32 = add %224, %230
+  br bb1(%231, %229)
 bb4:
-  %220: str = const "|"
-  %221: f64 = const 1.5
-  %222: str = tostr %221
-  %223: str = strconcat %220, %222
-  %224: bool = const true
-  %225: str = tostr %224
-  %226: str = strconcat %223, %225
-  %227: str = strconcat %213, %226
-  %228: i32 = strlen %227
-  builtin console.log(%227, %228)
-  %229: str = const "zinc"
-  %230: str = call @greet(%229)
-  %231: str = const ""
-  %232: str = call @greet(%231)
-  %233: str = const "hi "
-  %234: bool = eq %232, %233
-  builtin console.log(%230, %234)
+  %232: str = const "|"
+  %233: f64 = const 1.5
+  %234: str = tostr %233
+  %235: str = strconcat %232, %234
+  %236: bool = const true
+  %237: str = tostr %236
+  %238: str = strconcat %235, %237
+  %239: str = strconcat %225, %238
+  %240: i32 = strlen %239
+  builtin console.log(%239, %240)
+  %241: str = const "zinc"
+  %242: str = call @greet(%241)
+  %243: str = const ""
+  %244: str = call @greet(%243)
+  %245: str = const "hi "
+  %246: bool = eq %244, %245
+  builtin console.log(%242, %246)
   ret
 }
 func @greet(%0: str) -> str {

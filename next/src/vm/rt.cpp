@@ -83,6 +83,16 @@ std::uint32_t wsAt(const std::uint8_t* p, std::uint32_t n) {
   return c == 0x1680 || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF ? 3 : 0;
 }
 
+// Byte offset of UTF-16 index u (already clamped to [0, length]).
+std::uint32_t byteOf(const StrObj* s, std::int64_t u) {
+  if (s->ascii) return static_cast<std::uint32_t>(u);
+  const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::int64_t n = 0;
+  std::uint32_t i = 0;
+  while (i < s->len && n < u) { n += d[i] >= 0xF0 ? 2 : 1; ++i; while (i < s->len && (d[i] & 0xC0) == 0x80) ++i; }
+  return i;
+}
+
 inline std::int64_t clampRel(std::int64_t i, std::int64_t n) { if (i < 0) { i += n; if (i < 0) i = 0; } return i > n ? n : i; }
 
 Slot boolSlot(bool b) { return b ? 1 : 0; }
@@ -143,6 +153,48 @@ double parseFloatJs(const StrObj* s) {
     if (e > e0) i = e;
   }
   return std::strtod(std::string(reinterpret_cast<const char*>(p) + st, i - st).c_str(), nullptr);
+}
+
+// Number(string): the whole string, trimmed, is a decimal literal, Infinity, or a 0x / 0o / 0b integer; "" is 0; else NaN.
+double toNumberJs(const StrObj* s) {
+  const auto* p = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::uint32_t lo = 0, hi = s->len, w;
+  while (lo < hi && (w = wsAt(p + lo, hi - lo))) lo += w;
+  for (bool more = true; more && hi > lo;) {
+    more = false;
+    for (std::uint32_t len = 1; len <= 3 && len <= hi - lo; ++len)
+      if (wsAt(p + hi - len, len) == len) { hi -= len; more = true; break; }
+  }
+  if (lo == hi) return 0;
+  std::string t(reinterpret_cast<const char*>(p) + lo, hi - lo);
+  std::size_t i = 0;
+  if (t.size() > 2 && t[0] == '0' && std::strchr("xXoObB", t[1])) {
+    int radix = (t[1] | 32) == 'x' ? 16 : (t[1] | 32) == 'o' ? 8 : 2;
+    double v = 0;
+    for (std::size_t k = 2; k < t.size(); ++k) {
+      int d = t[k] >= '0' && t[k] <= '9' ? t[k] - '0' : (t[k] | 32) >= 'a' && (t[k] | 32) <= 'z' ? (t[k] | 32) - 'a' + 10 : 99;
+      if (d >= radix) return NAN;
+      v = v * radix + d;
+    }
+    return v;
+  }
+  if (t[i] == '+' || t[i] == '-') ++i;
+  if (t.compare(i, std::string::npos, "Infinity") == 0) return t[0] == '-' ? -INFINITY : INFINITY;
+  std::size_t d0 = i;
+  while (i < t.size() && t[i] >= '0' && t[i] <= '9') ++i;
+  bool digits = i > d0;
+  if (i < t.size() && t[i] == '.') { std::size_t f0 = ++i; while (i < t.size() && t[i] >= '0' && t[i] <= '9') ++i; digits = digits || i > f0; }
+  if (!digits) return NAN;
+  if (i < t.size() && (t[i] == 'e' || t[i] == 'E')) {
+    std::size_t e = i + 1;
+    if (e < t.size() && (t[e] == '+' || t[e] == '-')) ++e;
+    std::size_t e0 = e;
+    while (e < t.size() && t[e] >= '0' && t[e] <= '9') ++e;
+    if (e == e0) return NAN;
+    i = e;
+  }
+  if (i != t.size()) return NAN;
+  return std::strtod(t.c_str(), nullptr);
 }
 
 // Stable merge sort; `cmp(a, b) > 0` puts b first. Fails when the comparator does.
@@ -267,7 +319,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 #define NN(x) do { if (!(x)) return kNull; } while (0)
   switch (id) {
     // ---- internal string operations
-    case Rt::StrConcat: {
+    case Rt::StrConcat: case Rt::StrConcatM: {
       StrObj *x = S(a[0]), *y = S(a[1]);
       NN(x && y);
       if (static_cast<std::uint64_t>(x->len) + y->len > 0x7fffffffu) return "RangeError: Invalid string length";
@@ -371,20 +423,32 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::StrIndexOf: {
       StrObj *s = S(a[0]), *n = S(a[1]);
       NN(s && n);
-      std::int64_t k = findBytes(s, n, 0);
+      std::int64_t k = findBytes(s, n, byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len)));
       a[0] = static_cast<Slot>(k < 0 ? -1 : u16Index(s, static_cast<std::uint32_t>(k)));
       return nullptr;
     }
-    case Rt::StrIncludes: { StrObj *s = S(a[0]), *n = S(a[1]); NN(s && n); a[0] = boolSlot(findBytes(s, n, 0) >= 0); return nullptr; }
-    case Rt::StrStartsWith: { StrObj *s = S(a[0]), *n = S(a[1]); NN(s && n); a[0] = boolSlot(n->len <= s->len && std::memcmp(s->data(), n->data(), n->len) == 0); return nullptr; }
-    case Rt::StrEndsWith: { StrObj *s = S(a[0]), *n = S(a[1]); NN(s && n); a[0] = boolSlot(n->len <= s->len && std::memcmp(s->data() + s->len - n->len, n->data(), n->len) == 0); return nullptr; }
-    case Rt::StrTrim: {
+    case Rt::StrIncludes: { StrObj *s = S(a[0]), *n = S(a[1]); NN(s && n); a[0] = boolSlot(findBytes(s, n, byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len))) >= 0); return nullptr; }
+    case Rt::StrStartsWith: {
+      StrObj *s = S(a[0]), *n = S(a[1]);
+      NN(s && n);
+      std::uint32_t at = byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len));
+      a[0] = boolSlot(n->len <= s->len - at && std::memcmp(s->data() + at, n->data(), n->len) == 0);
+      return nullptr;
+    }
+    case Rt::StrEndsWith: {
+      StrObj *s = S(a[0]), *n = S(a[1]);
+      NN(s && n);
+      std::uint32_t end = byteOf(s, std::clamp<std::int64_t>(I(a[2]), 0, s->u16len));
+      a[0] = boolSlot(n->len <= end && std::memcmp(s->data() + end - n->len, n->data(), n->len) == 0);
+      return nullptr;
+    }
+    case Rt::StrTrim: case Rt::StrTrimStart: case Rt::StrTrimEnd: {
       StrObj* s = S(a[0]);
       NN(s);
       const auto* p = reinterpret_cast<const std::uint8_t*>(s->data());
       std::uint32_t lo = 0, hi = s->len, w;
-      while (lo < hi && (w = wsAt(p + lo, hi - lo))) lo += w;
-      for (bool more = true; more && hi > lo;) {  // a whitespace code point ends at hi: try each possible start
+      while (id != Rt::StrTrimEnd && lo < hi && (w = wsAt(p + lo, hi - lo))) lo += w;
+      for (bool more = id != Rt::StrTrimStart; more && hi > lo;) {  // a whitespace code point ends at hi: try each possible start
         more = false;
         for (std::uint32_t len = 1; len <= 3 && len <= hi - lo; ++len)
           if (wsAt(p + hi - len, len) == len) { hi -= len; more = true; break; }
@@ -424,10 +488,24 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       std::string r;
       std::uint32_t from = 0;
       bool all = id == Rt::StrReplaceAll;
+      // the replacement with $$ $& $` $' expanded for a match of s at [at, at + pat->len)
+      auto put = [&](std::uint32_t at) {
+        for (std::uint32_t k = 0; k < rep->len; ++k) {
+          char c = rep->data()[k];
+          if (c != '$' || k + 1 >= rep->len) { r += c; continue; }
+          char d = rep->data()[k + 1];
+          if (d == '$') r += '$';
+          else if (d == '&') r.append(s->data() + at, pat->len);
+          else if (d == '`') r.append(s->data(), at);
+          else if (d == '\'') r.append(s->data() + at + pat->len, s->len - at - pat->len);
+          else { r += c; continue; }
+          ++k;
+        }
+      };
       if (pat->len == 0) {  // between every character (replaceAll) or at the start (replace)
         const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
         for (std::uint32_t i = 0; i <= s->len;) {
-          r.append(rep->data(), rep->len);
+          put(i);
           if (!all) { r.append(s->data(), s->len); break; }
           if (i == s->len) break;
           std::uint32_t k = i + 1;
@@ -440,7 +518,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
           std::int64_t k = findBytes(s, pat, from);
           if (k < 0) break;
           r.append(s->data() + from, static_cast<std::size_t>(k) - from);
-          r.append(rep->data(), rep->len);
+          put(static_cast<std::uint32_t>(k));
           from = static_cast<std::uint32_t>(k) + pat->len;
           if (!all) break;
         }
@@ -451,6 +529,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::ParseInt: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseIntJs(s, I(a[1]))); return nullptr; }
+    case Rt::ToNumber: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(toNumberJs(s)); return nullptr; }
     case Rt::ParseFloat: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseFloatJs(s)); return nullptr; }
     case Rt::FromCharCode: {
       char16_t u = static_cast<char16_t>(a[0] & 0xFFFF);

@@ -94,289 +94,298 @@ bb4:
   %58: i32 = arrget %0, %57
   builtin console.log(%52, %56, %58)
   %59: i32 = const 16
-  %60: i32 = rt Array.indexOf(%0, %59)
-  %61: i32 = const 1000
-  %62: i32 = rt Array.indexOf(%0, %61)
-  %63: i32 = const 49
-  %64: bool = rt Array.includes(%0, %63)
-  %65: i32 = const 50
-  %66: bool = rt Array.includes(%0, %65)
-  builtin console.log(%60, %62, %64, %66)
-  %67: i32[] = arrnew i32[]
-  %68: i32 = arrlen %67
-  %69: i32 = const 1
-  %70: i32 = rt Array.indexOf(%67, %69)
-  builtin console.log(%68, %70)
-  %71: str[] = arrnew str[]
-  %72: str = const "pear"
-  %73: i32 = arrpush %71, %72
-  %74: str = const "apple"
-  %75: i32 = arrpush %71, %74
-  %76: str = const "fig"
-  %77: i32 = arrpush %71, %76
-  %78: str = const "banana"
-  %79: i32 = arrpush %71, %78
-  %80: str = const ", "
-  %81: str = rt Array.join(%71, %80)
-  %82: str = const ""
-  %83: str = rt Array.join(%71, %82)
-  %84: str = const "fig"
-  %85: i32 = rt Array.indexOf(%71, %84)
-  %86: str = const "kiwi"
-  %87: bool = rt Array.includes(%71, %86)
-  builtin console.log(%81, %83, %85, %87)
-  %88: ref lambda0 = new lambda0
-  %89: ref fn (string, string) => f64 = refcast %88
-  %90: str[] = rt Array.sort(%71, %89)
-  %91: str = const " "
-  %92: str = rt Array.join(%71, %91)
-  builtin console.log(%92)
-  %93: ref lambda1 = new lambda1
-  %94: ref fn (string, string) => f64 = refcast %93
-  %95: str[] = rt Array.sort(%71, %94)
-  %96: str = const " "
-  %97: str = rt Array.join(%71, %96)
-  builtin console.log(%97)
-  %98: f64[] = arrnew f64[]
-  %99: f64 = const 3.5
-  %100: i32 = arrpush %98, %99
-  %101: f64 = const -1
-  %102: i32 = arrpush %98, %101
-  %103: f64 = const 2.25
-  %104: i32 = arrpush %98, %103
-  %105: f64 = const 10
-  %106: i32 = arrpush %98, %105
-  %107: f64 = const 0
-  %108: i32 = arrpush %98, %107
-  %109: ref lambda2 = new lambda2
-  %110: ref fn (f64, f64) => f64 = refcast %109
-  %111: f64[] = rt Array.sort(%98, %110)
-  %112: i32 = const 0
-  %113: f64 = arrget %98, %112
-  %114: i32 = const 1
-  %115: f64 = arrget %98, %114
-  %116: i32 = const 2
-  %117: f64 = arrget %98, %116
-  %118: i32 = const 3
-  %119: f64 = arrget %98, %118
-  %120: i32 = const 4
-  %121: f64 = arrget %98, %120
-  builtin console.log(%113, %115, %117, %119, %121)
-  %122: ref lambda3 = new lambda3
-  %123: ref fn (f64, f64) => f64 = refcast %122
-  %124: f64[] = rt Array.sort(%98, %123)
-  %125: i32 = const 0
-  %126: i32 = const 2
-  %127: f64[] = rt Array.slice(%98, %125, %126)
-  %128: i32 = const 0
-  %129: f64 = arrget %127, %128
-  %130: i32 = const 4
-  %131: f64 = arrget %98, %130
-  builtin console.log(%129, %131)
-  %132: ref Job[] = arrnew ref Job[]
-  %133: ref Job = new Job
-  %134: i32 = const 2
-  %135: str = const "a"
-  call @Job.constructor(%133, %134, %135)
-  %136: i32 = arrpush %132, %133
-  %137: ref Job = new Job
-  %138: i32 = const 1
-  %139: str = const "b"
-  call @Job.constructor(%137, %138, %139)
-  %140: i32 = arrpush %132, %137
-  %141: ref Job = new Job
-  %142: i32 = const 2
-  %143: str = const "c"
-  call @Job.constructor(%141, %142, %143)
-  %144: i32 = arrpush %132, %141
-  %145: ref Job = new Job
-  %146: i32 = const 1
-  %147: str = const "d"
-  call @Job.constructor(%145, %146, %147)
-  %148: i32 = arrpush %132, %145
-  %149: ref Job = new Job
-  %150: i32 = const 0
-  %151: str = const "e"
-  call @Job.constructor(%149, %150, %151)
-  %152: i32 = arrpush %132, %149
-  %153: ref lambda4 = new lambda4
-  %154: ref fn (Job, Job) => f64 = refcast %153
-  %155: ref Job[] = rt Array.sort(%132, %154)
-  %156: str = const ""
+  %60: i32 = const 0
+  %61: i32 = call @__g0(%0, %59, %60)
+  %62: i32 = const 1000
+  %63: i32 = const 0
+  %64: i32 = call @__g0(%0, %62, %63)
+  %65: i32 = const 49
+  %66: i32 = const 0
+  %67: bool = call @__g1(%0, %65, %66)
+  %68: i32 = const 50
+  %69: i32 = const 0
+  %70: bool = call @__g1(%0, %68, %69)
+  builtin console.log(%61, %64, %67, %70)
+  %71: i32[] = arrnew i32[]
+  %72: i32 = arrlen %71
+  %73: i32 = const 1
+  %74: i32 = const 0
+  %75: i32 = call @__g0(%71, %73, %74)
+  builtin console.log(%72, %75)
+  %76: str[] = arrnew str[]
+  %77: str = const "pear"
+  %78: i32 = arrpush %76, %77
+  %79: str = const "apple"
+  %80: i32 = arrpush %76, %79
+  %81: str = const "fig"
+  %82: i32 = arrpush %76, %81
+  %83: str = const "banana"
+  %84: i32 = arrpush %76, %83
+  %85: str = const ", "
+  %86: str = rt Array.join(%76, %85)
+  %87: str = const ""
+  %88: str = rt Array.join(%76, %87)
+  %89: str = const "fig"
+  %90: i32 = const 0
+  %91: i32 = call @__g2(%76, %89, %90)
+  %92: str = const "kiwi"
+  %93: i32 = const 0
+  %94: bool = call @__g3(%76, %92, %93)
+  builtin console.log(%86, %88, %91, %94)
+  %95: ref lambda0 = new lambda0
+  %96: ref fn (string, string) => f64 = refcast %95
+  %97: str[] = rt Array.sort(%76, %96)
+  %98: str = const " "
+  %99: str = rt Array.join(%76, %98)
+  builtin console.log(%99)
+  %100: ref lambda1 = new lambda1
+  %101: ref fn (string, string) => f64 = refcast %100
+  %102: str[] = rt Array.sort(%76, %101)
+  %103: str = const " "
+  %104: str = rt Array.join(%76, %103)
+  builtin console.log(%104)
+  %105: f64[] = arrnew f64[]
+  %106: f64 = const 3.5
+  %107: i32 = arrpush %105, %106
+  %108: f64 = const -1
+  %109: i32 = arrpush %105, %108
+  %110: f64 = const 2.25
+  %111: i32 = arrpush %105, %110
+  %112: f64 = const 10
+  %113: i32 = arrpush %105, %112
+  %114: f64 = const 0
+  %115: i32 = arrpush %105, %114
+  %116: ref lambda2 = new lambda2
+  %117: ref fn (f64, f64) => f64 = refcast %116
+  %118: f64[] = rt Array.sort(%105, %117)
+  %119: i32 = const 0
+  %120: f64 = arrget %105, %119
+  %121: i32 = const 1
+  %122: f64 = arrget %105, %121
+  %123: i32 = const 2
+  %124: f64 = arrget %105, %123
+  %125: i32 = const 3
+  %126: f64 = arrget %105, %125
+  %127: i32 = const 4
+  %128: f64 = arrget %105, %127
+  builtin console.log(%120, %122, %124, %126, %128)
+  %129: ref lambda3 = new lambda3
+  %130: ref fn (f64, f64) => f64 = refcast %129
+  %131: f64[] = rt Array.sort(%105, %130)
+  %132: i32 = const 0
+  %133: i32 = const 2
+  %134: f64[] = rt Array.slice(%105, %132, %133)
+  %135: i32 = const 0
+  %136: f64 = arrget %134, %135
+  %137: i32 = const 4
+  %138: f64 = arrget %105, %137
+  builtin console.log(%136, %138)
+  %139: ref Job[] = arrnew ref Job[]
+  %140: ref Job = new Job
+  %141: i32 = const 2
+  %142: str = const "a"
+  call @Job.constructor(%140, %141, %142)
+  %143: i32 = arrpush %139, %140
+  %144: ref Job = new Job
+  %145: i32 = const 1
+  %146: str = const "b"
+  call @Job.constructor(%144, %145, %146)
+  %147: i32 = arrpush %139, %144
+  %148: ref Job = new Job
+  %149: i32 = const 2
+  %150: str = const "c"
+  call @Job.constructor(%148, %149, %150)
+  %151: i32 = arrpush %139, %148
+  %152: ref Job = new Job
+  %153: i32 = const 1
+  %154: str = const "d"
+  call @Job.constructor(%152, %153, %154)
+  %155: i32 = arrpush %139, %152
+  %156: ref Job = new Job
   %157: i32 = const 0
-  br bb5(%157, %156)
-bb5(%158: i32, %159: str):
-  %160: i32 = arrlen %132
-  %161: bool = lt %158, %160
-  condbr %161, bb6, bb8
+  %158: str = const "e"
+  call @Job.constructor(%156, %157, %158)
+  %159: i32 = arrpush %139, %156
+  %160: ref lambda4 = new lambda4
+  %161: ref fn (Job, Job) => f64 = refcast %160
+  %162: ref Job[] = rt Array.sort(%139, %161)
+  %163: str = const ""
+  %164: i32 = const 0
+  br bb5(%164, %163)
+bb5(%165: i32, %166: str):
+  %167: i32 = arrlen %139
+  %168: bool = lt %165, %167
+  condbr %168, bb6, bb8
 bb6:
-  %162: ref Job = arrget %132, %158
-  %163: str = getfield .1 %162
-  %164: i32 = getfield .0 %162
-  %165: str = tostr %164
-  %166: str = strconcat %163, %165
-  %167: str = const " "
-  %168: str = strconcat %166, %167
-  %169: str = strconcat %159, %168
+  %169: ref Job = arrget %139, %165
+  %170: str = getfield .1 %169
+  %171: i32 = getfield .0 %169
+  %172: str = tostr %171
+  %173: str = strconcat %170, %172
+  %174: str = const " "
+  %175: str = strconcat %173, %174
+  %176: str = strconcat %166, %175
   br bb7
 bb7:
-  %170: i32 = const 1
-  %171: i32 = add %158, %170
-  br bb5(%171, %169)
+  %177: i32 = const 1
+  %178: i32 = add %165, %177
+  br bb5(%178, %176)
 bb8:
-  builtin console.log(%159)
-  %172: i32 = const 3
-  %173: ref Job = arrget %132, %172
-  %174: i32 = rt Array.indexOf(%132, %173)
-  %175: ref Job = new Job
-  %176: i32 = const 0
-  %177: str = const "e"
-  call @Job.constructor(%175, %176, %177)
-  %178: bool = rt Array.includes(%132, %175)
-  builtin console.log(%174, %178)
-  %179: i32[][] = arrnew i32[][]
-  %180: i32[] = arrnew i32[]
-  %181: i32 = const 1
-  %182: i32 = arrpush %180, %181
-  %183: i32 = const 2
-  %184: i32 = arrpush %180, %183
-  %185: i32 = const 3
-  %186: i32 = arrpush %180, %185
-  %187: i32 = arrpush %179, %180
-  %188: i32[] = arrnew i32[]
-  %189: i32 = const 4
-  %190: i32 = arrpush %188, %189
-  %191: i32 = const 5
-  %192: i32 = arrpush %188, %191
-  %193: i32 = const 6
-  %194: i32 = arrpush %188, %193
-  %195: i32 = arrpush %179, %188
-  %196: i32[] = arrnew i32[]
-  %197: i32 = const 7
-  %198: i32 = arrpush %196, %197
-  %199: i32 = const 8
-  %200: i32 = arrpush %196, %199
-  %201: i32 = const 9
-  %202: i32 = arrpush %196, %201
-  %203: i32 = arrpush %179, %196
-  %204: i32 = const 1
-  %205: i32[] = arrget %179, %204
-  %206: i32 = const 1
-  %207: i32 = const 50
-  arrset %205, %206, %207
-  %208: i32 = const 0
-  %209: i32 = const 0
-  br bb9(%209, %208)
-bb9(%210: i32, %211: i32):
-  %212: i32 = arrlen %179
-  %213: bool = lt %210, %212
-  condbr %213, bb10, bb12
+  builtin console.log(%166)
+  %179: i32 = const 3
+  %180: ref Job = arrget %139, %179
+  %181: i32 = const 0
+  %182: i32 = call @__g4(%139, %180, %181)
+  %183: ref Job = new Job
+  %184: i32 = const 0
+  %185: str = const "e"
+  call @Job.constructor(%183, %184, %185)
+  %186: i32 = const 0
+  %187: bool = call @__g5(%139, %183, %186)
+  builtin console.log(%182, %187)
+  %188: i32[][] = arrnew i32[][]
+  %189: i32[] = arrnew i32[]
+  %190: i32 = const 1
+  %191: i32 = arrpush %189, %190
+  %192: i32 = const 2
+  %193: i32 = arrpush %189, %192
+  %194: i32 = const 3
+  %195: i32 = arrpush %189, %194
+  %196: i32 = arrpush %188, %189
+  %197: i32[] = arrnew i32[]
+  %198: i32 = const 4
+  %199: i32 = arrpush %197, %198
+  %200: i32 = const 5
+  %201: i32 = arrpush %197, %200
+  %202: i32 = const 6
+  %203: i32 = arrpush %197, %202
+  %204: i32 = arrpush %188, %197
+  %205: i32[] = arrnew i32[]
+  %206: i32 = const 7
+  %207: i32 = arrpush %205, %206
+  %208: i32 = const 8
+  %209: i32 = arrpush %205, %208
+  %210: i32 = const 9
+  %211: i32 = arrpush %205, %210
+  %212: i32 = arrpush %188, %205
+  %213: i32 = const 1
+  %214: i32[] = arrget %188, %213
+  %215: i32 = const 1
+  %216: i32 = const 50
+  arrset %214, %215, %216
+  %217: i32 = const 0
+  %218: i32 = const 0
+  br bb9(%218, %217)
+bb9(%219: i32, %220: i32):
+  %221: i32 = arrlen %188
+  %222: bool = lt %219, %221
+  condbr %222, bb10, bb12
 bb10:
-  %214: i32[] = arrget %179, %210
-  %215: i32 = const 0
-  br bb13(%215, %211)
+  %223: i32[] = arrget %188, %219
+  %224: i32 = const 0
+  br bb13(%224, %220)
 bb11:
-  %216: i32 = const 1
-  %217: i32 = add %210, %216
-  br bb9(%217, %250)
-bb12:
-  %218: i32 = arrlen %179
-  %219: i32 = const 2
-  %220: i32[] = arrget %179, %219
-  %221: i32 = const 0
-  %222: i32 = arrget %220, %221
-  %223: i32 = const 1
-  %224: i32[] = arrget %179, %223
   %225: i32 = const 1
-  %226: i32 = arrget %224, %225
-  builtin console.log(%218, %222, %226, %211)
-  %227: str[][] = arrnew str[][]
-  %228: str = const "a b c"
-  %229: str = const " "
-  %230: str[] = rt string.split(%228, %229)
-  %231: i32 = arrpush %227, %230
-  %232: str[] = arrnew str[]
-  %233: str = const "d"
-  %234: i32 = arrpush %232, %233
-  %235: i32 = arrpush %227, %232
-  %236: i32 = const 0
-  %237: str[] = arrget %227, %236
-  %238: i32 = arrlen %237
-  %239: i32 = const 0
-  %240: str[] = arrget %227, %239
-  %241: str = const "+"
-  %242: str = rt Array.join(%240, %241)
-  %243: i32 = const 1
-  %244: str[] = arrget %227, %243
+  %226: i32 = add %219, %225
+  br bb9(%226, %259)
+bb12:
+  %227: i32 = arrlen %188
+  %228: i32 = const 2
+  %229: i32[] = arrget %188, %228
+  %230: i32 = const 0
+  %231: i32 = arrget %229, %230
+  %232: i32 = const 1
+  %233: i32[] = arrget %188, %232
+  %234: i32 = const 1
+  %235: i32 = arrget %233, %234
+  builtin console.log(%227, %231, %235, %220)
+  %236: str[][] = arrnew str[][]
+  %237: str = const "a b c"
+  %238: str = const " "
+  %239: str[] = rt string.split(%237, %238)
+  %240: i32 = arrpush %236, %239
+  %241: str[] = arrnew str[]
+  %242: str = const "d"
+  %243: i32 = arrpush %241, %242
+  %244: i32 = arrpush %236, %241
   %245: i32 = const 0
-  %246: str = arrget %244, %245
-  builtin console.log(%238, %242, %246)
-  %247: i32[] = arrnew i32[]
+  %246: str[] = arrget %236, %245
+  %247: i32 = arrlen %246
   %248: i32 = const 0
-  br bb17(%248)
-bb13(%249: i32, %250: i32):
-  %251: i32 = arrlen %214
-  %252: bool = lt %249, %251
-  condbr %252, bb14, bb16
+  %249: str[] = arrget %236, %248
+  %250: str = const "+"
+  %251: str = rt Array.join(%249, %250)
+  %252: i32 = const 1
+  %253: str[] = arrget %236, %252
+  %254: i32 = const 0
+  %255: str = arrget %253, %254
+  builtin console.log(%247, %251, %255)
+  %256: i32[] = arrnew i32[]
+  %257: i32 = const 0
+  br bb17(%257)
+bb13(%258: i32, %259: i32):
+  %260: i32 = arrlen %223
+  %261: bool = lt %258, %260
+  condbr %261, bb14, bb16
 bb14:
-  %253: i32 = arrget %214, %249
-  %254: i32 = add %250, %253
+  %262: i32 = arrget %223, %258
+  %263: i32 = add %259, %262
   br bb15
 bb15:
-  %255: i32 = const 1
-  %256: i32 = add %249, %255
-  br bb13(%256, %254)
+  %264: i32 = const 1
+  %265: i32 = add %258, %264
+  br bb13(%265, %263)
 bb16:
   br bb11
-bb17(%257: i32):
-  %258: i32 = const 1000
-  %259: bool = lt %257, %258
-  condbr %259, bb18, bb20
+bb17(%266: i32):
+  %267: i32 = const 1000
+  %268: bool = lt %266, %267
+  condbr %268, bb18, bb20
 bb18:
-  %260: i32 = const 7919
-  %261: i32 = mul %257, %260
-  %262: i32 = const 1009
-  %263: i32 = rem %261, %262
-  %264: i32 = arrpush %247, %263
+  %269: i32 = const 7919
+  %270: i32 = mul %266, %269
+  %271: i32 = const 1009
+  %272: i32 = rem %270, %271
+  %273: i32 = arrpush %256, %272
   br bb19
 bb19:
-  %265: i32 = const 1
-  %266: i32 = add %257, %265
-  br bb17(%266)
+  %274: i32 = const 1
+  %275: i32 = add %266, %274
+  br bb17(%275)
 bb20:
-  %267: ref lambda5 = new lambda5
-  %268: ref fn (i32, i32) => f64 = refcast %267
-  %269: i32[] = rt Array.sort(%247, %268)
-  %270: bool = const true
-  %271: i32 = const 1
-  br bb21(%271, %270)
-bb21(%272: i32, %273: bool):
-  %274: i32 = arrlen %247
-  %275: bool = lt %272, %274
-  condbr %275, bb22, bb24
+  %276: ref lambda5 = new lambda5
+  %277: ref fn (i32, i32) => f64 = refcast %276
+  %278: i32[] = rt Array.sort(%256, %277)
+  %279: bool = const true
+  %280: i32 = const 1
+  br bb21(%280, %279)
+bb21(%281: i32, %282: bool):
+  %283: i32 = arrlen %256
+  %284: bool = lt %281, %283
+  condbr %284, bb22, bb24
 bb22:
-  %276: i32 = const 1
-  %277: i32 = sub %272, %276
-  %278: i32 = arrget %247, %277
-  %279: i32 = arrget %247, %272
-  %280: bool = gt %278, %279
-  condbr %280, bb25, bb26(%273)
+  %285: i32 = const 1
+  %286: i32 = sub %281, %285
+  %287: i32 = arrget %256, %286
+  %288: i32 = arrget %256, %281
+  %289: bool = gt %287, %288
+  condbr %289, bb25, bb26(%282)
 bb23:
-  %281: i32 = const 1
-  %282: i32 = add %272, %281
-  br bb21(%282, %289)
+  %290: i32 = const 1
+  %291: i32 = add %281, %290
+  br bb21(%291, %298)
 bb24:
-  %283: i32 = const 0
-  %284: i32 = arrget %247, %283
-  %285: i32 = const 999
-  %286: i32 = arrget %247, %285
-  %287: i32 = arrlen %247
-  builtin console.log(%273, %284, %286, %287)
+  %292: i32 = const 0
+  %293: i32 = arrget %256, %292
+  %294: i32 = const 999
+  %295: i32 = arrget %256, %294
+  %296: i32 = arrlen %256
+  builtin console.log(%282, %293, %295, %296)
   ret
 bb25:
-  %288: bool = const false
-  br bb26(%288)
-bb26(%289: bool):
+  %297: bool = const false
+  br bb26(%297)
+bb26(%298: bool):
   br bb23
 }
 func @Job.constructor(%0: ref Job, %1: i32, %2: str) -> void {
@@ -384,6 +393,249 @@ bb0:
   setfield .0 %0, %1
   setfield .1 %0, %2
   ret
+}
+func @__g0(%0: i32[], %1: i32, %2: i32) -> i32 {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: i32 = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: i32 = const -1
+  ret %19
+bb10:
+  ret %12
+bb11:
+  br bb8
+}
+func @__g1(%0: i32[], %1: i32, %2: i32) -> bool {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: i32 = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: bool = const false
+  ret %19
+bb10:
+  %20: bool = const true
+  ret %20
+bb11:
+  br bb8
+}
+func @__g2(%0: str[], %1: str, %2: i32) -> i32 {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: str = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: i32 = const -1
+  ret %19
+bb10:
+  ret %12
+bb11:
+  br bb8
+}
+func @__g3(%0: str[], %1: str, %2: i32) -> bool {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: str = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: bool = const false
+  ret %19
+bb10:
+  %20: bool = const true
+  ret %20
+bb11:
+  br bb8
+}
+func @__g4(%0: ref Job[], %1: ref Job, %2: i32) -> i32 {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: ref Job = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: i32 = const -1
+  ret %19
+bb10:
+  ret %12
+bb11:
+  br bb8
+}
+func @__g5(%0: ref Job[], %1: ref Job, %2: i32) -> bool {
+bb0:
+  %3: i32 = const 0
+  %4: bool = lt %2, %3
+  condbr %4, bb1, bb2
+bb1:
+  %5: i32 = arrlen %0
+  %6: i32 = add %5, %2
+  br bb3(%6)
+bb2:
+  br bb3(%2)
+bb3(%7: i32):
+  %8: i32 = const 0
+  %9: bool = lt %7, %8
+  condbr %9, bb4, bb5(%7)
+bb4:
+  %10: i32 = const 0
+  br bb5(%10)
+bb5(%11: i32):
+  br bb6(%11)
+bb6(%12: i32):
+  %13: i32 = arrlen %0
+  %14: bool = lt %12, %13
+  condbr %14, bb7, bb9
+bb7:
+  %15: ref Job = arrget %0, %12
+  %16: bool = eq %15, %1
+  condbr %16, bb10, bb11
+bb8:
+  %17: i32 = const 1
+  %18: i32 = add %12, %17
+  br bb6(%18)
+bb9:
+  %19: bool = const false
+  ret %19
+bb10:
+  %20: bool = const true
+  ret %20
+bb11:
+  br bb8
 }
 func @lambda0(%0: ref lambda0, %1: str, %2: str) -> f64 {
 bb0:

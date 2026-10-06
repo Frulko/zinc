@@ -267,279 +267,291 @@ func @main() -> void nregs=13
  263  Release  r2
  264  Release  r3
  265  LoadStr  r2, "o"
- 266  Move     r1, r0
- 267  Rt       r1, string.indexOf
- 268  LoadStr  r3, "World"
- 269  Move     r2, r0
- 270  Rt       r2, string.indexOf
- 271  LoadStr  r4, "xyz"
- 272  Move     r3, r0
- 273  Rt       r3, string.indexOf
- 274  LoadStr  r5, ""
- 275  Move     r4, r0
- 276  Rt       r4, string.indexOf
- 277  LogI     r1
- 278  LogSep   
- 279  LogI     r2
- 280  LogSep   
- 281  LogI     r3
+ 266  LoadI    r3, 0
+ 267  Move     r1, r0
+ 268  Rt       r1, string.indexOf
+ 269  LoadStr  r3, "World"
+ 270  LoadI    r4, 0
+ 271  Move     r2, r0
+ 272  Rt       r2, string.indexOf
+ 273  LoadStr  r4, "xyz"
+ 274  LoadI    r5, 0
+ 275  Move     r3, r0
+ 276  Rt       r3, string.indexOf
+ 277  LoadStr  r5, ""
+ 278  LoadI    r6, 0
+ 279  Move     r4, r0
+ 280  Rt       r4, string.indexOf
+ 281  LogI     r1
  282  LogSep   
- 283  LogI     r4
- 284  LogEnd   
- 285  LoadStr  r2, "lo, W"
- 286  Move     r1, r0
- 287  Rt       r1, string.includes
- 288  LoadStr  r3, "LO"
- 289  Move     r2, r0
- 290  Rt       r2, string.includes
- 291  LoadStr  r4, "Hell"
- 292  Move     r3, r0
- 293  Rt       r3, string.startsWith
- 294  LoadStr  r5, "ell"
- 295  Move     r4, r0
- 296  Rt       r4, string.startsWith
- 297  LoadStr  r6, "ld"
- 298  Move     r5, r0
- 299  Rt       r5, string.endsWith
- 300  LoadStr  r7, "Wor"
- 301  Move     r6, r0
- 302  Rt       r6, string.endsWith
- 303  Release  r0
- 304  LogBool  r1
- 305  LogSep   
- 306  LogBool  r2
- 307  LogSep   
- 308  LogBool  r3
- 309  LogSep   
- 310  LogBool  r4
- 311  LogSep   
- 312  LogBool  r5
- 313  LogSep   
- 314  LogBool  r6
- 315  LogEnd   
- 316  LoadStr  r0, "ab"
- 317  LoadI    r1, 3
- 318  Rt       r0, string.repeat
- 319  LoadStr  r1, "x"
- 320  LoadI    r2, 0
- 321  Rt       r1, string.repeat
- 322  LoadStr  r3, ""
- 323  Move     r2, r1
- 324  Rt       r2, string.#eq
- 325  Release  r1
- 326  LoadStr  r3, "abc"
- 327  LoadI    r4, 1
- 328  Rt       r3, string.repeat
- 329  LogStr   r0
- 330  LogSep   
- 331  LogBool  r2
- 332  LogSep   
- 333  LogStr   r3
- 334  LogEnd   
- 335  Release  r0
- 336  Release  r3
- 337  LoadStr  r0, "a,b,,c,"
- 338  LoadStr  r1, ","
- 339  Rt       r0, string.split
- 340  ArrLen   r1, r0
- 341  LoadStr  r3, "|"
- 342  Move     r2, r0
- 343  Rt       r2, Array.join
- 344  Release  r0
- 345  LoadStr  r3, "abc"
- 346  LoadStr  r4, ""
- 347  Rt       r3, string.split
- 348  LoadStr  r5, "."
- 349  Move     r4, r3
- 350  Rt       r4, Array.join
- 351  Release  r3
- 352  LoadStr  r5, "abc"
- 353  LoadStr  r6, "x"
- 354  Rt       r5, string.split
- 355  ArrLen   r0, r5
- 356  Release  r5
- 357  LoadStr  r5, ""
- 358  LoadStr  r6, ","
- 359  Rt       r5, string.split
- 360  ArrLen   r3, r5
- 361  Release  r5
- 362  LoadStr  r5, ""
- 363  LoadStr  r6, ""
+ 283  LogI     r2
+ 284  LogSep   
+ 285  LogI     r3
+ 286  LogSep   
+ 287  LogI     r4
+ 288  LogEnd   
+ 289  LoadStr  r2, "lo, W"
+ 290  LoadI    r3, 0
+ 291  Move     r1, r0
+ 292  Rt       r1, string.includes
+ 293  LoadStr  r3, "LO"
+ 294  LoadI    r4, 0
+ 295  Move     r2, r0
+ 296  Rt       r2, string.includes
+ 297  LoadStr  r4, "Hell"
+ 298  LoadI    r5, 0
+ 299  Move     r3, r0
+ 300  Rt       r3, string.startsWith
+ 301  LoadStr  r5, "ell"
+ 302  LoadI    r6, 0
+ 303  Move     r4, r0
+ 304  Rt       r4, string.startsWith
+ 305  LoadStr  r6, "ld"
+ 306  LoadK    r7, i 2147483647
+ 307  Move     r5, r0
+ 308  Rt       r5, string.endsWith
+ 309  LoadStr  r7, "Wor"
+ 310  LoadK    r8, i 2147483647
+ 311  Move     r6, r0
+ 312  Rt       r6, string.endsWith
+ 313  Release  r0
+ 314  LogBool  r1
+ 315  LogSep   
+ 316  LogBool  r2
+ 317  LogSep   
+ 318  LogBool  r3
+ 319  LogSep   
+ 320  LogBool  r4
+ 321  LogSep   
+ 322  LogBool  r5
+ 323  LogSep   
+ 324  LogBool  r6
+ 325  LogEnd   
+ 326  LoadStr  r0, "ab"
+ 327  LoadI    r1, 3
+ 328  Rt       r0, string.repeat
+ 329  LoadStr  r1, "x"
+ 330  LoadI    r2, 0
+ 331  Rt       r1, string.repeat
+ 332  LoadStr  r3, ""
+ 333  Move     r2, r1
+ 334  Rt       r2, string.#eq
+ 335  Release  r1
+ 336  LoadStr  r3, "abc"
+ 337  LoadI    r4, 1
+ 338  Rt       r3, string.repeat
+ 339  LogStr   r0
+ 340  LogSep   
+ 341  LogBool  r2
+ 342  LogSep   
+ 343  LogStr   r3
+ 344  LogEnd   
+ 345  Release  r0
+ 346  Release  r3
+ 347  LoadStr  r0, "a,b,,c,"
+ 348  LoadStr  r1, ","
+ 349  Rt       r0, string.split
+ 350  ArrLen   r1, r0
+ 351  LoadStr  r3, "|"
+ 352  Move     r2, r0
+ 353  Rt       r2, Array.join
+ 354  Release  r0
+ 355  LoadStr  r3, "abc"
+ 356  LoadStr  r4, ""
+ 357  Rt       r3, string.split
+ 358  LoadStr  r5, "."
+ 359  Move     r4, r3
+ 360  Rt       r4, Array.join
+ 361  Release  r3
+ 362  LoadStr  r5, "abc"
+ 363  LoadStr  r6, "x"
  364  Rt       r5, string.split
- 365  ArrLen   r6, r5
+ 365  ArrLen   r0, r5
  366  Release  r5
- 367  LogI     r1
- 368  LogSep   
- 369  LogStr   r2
- 370  LogSep   
- 371  LogStr   r4
- 372  LogSep   
- 373  LogI     r0
- 374  LogSep   
- 375  LogI     r3
- 376  LogSep   
- 377  LogI     r6
- 378  LogEnd   
- 379  Release  r2
- 380  Release  r4
- 381  LoadStr  r0, "one two  three"
- 382  LoadStr  r1, " "
- 383  Rt       r0, string.split
- 384  ArrLen   r1, r0
- 385  Release  r0
- 386  LoadStr  r2, "k=v=w"
- 387  LoadStr  r3, "="
- 388  Rt       r2, string.split
- 389  LoadStr  r4, " "
- 390  Move     r3, r2
- 391  Rt       r3, Array.join
- 392  Release  r2
- 393  LogI     r1
- 394  LogSep   
- 395  LogStr   r3
- 396  LogEnd   
- 397  Release  r3
- 398  LoadStr  r0, "héllo wörld"
- 399  Move     r1, r0
- 400  Rt       r1, string.length
- 401  LoadI    r3, 1
- 402  Move     r2, r0
- 403  Rt       r2, string.charCodeAt
- 404  LoadI    r4, 1
- 405  LoadI    r5, 4
- 406  Move     r3, r0
- 407  Rt       r3, string.slice
- 408  LoadStr  r5, "w"
- 409  Move     r4, r0
- 410  Rt       r4, string.indexOf
- 411  Move     r5, r0
- 412  Rt       r5, string.toUpperCase
- 413  Move     r6, r5
- 414  Rt       r6, string.length
- 415  Release  r5
- 416  LoadStr  r8, "ö"
- 417  Move     r7, r0
- 418  Rt       r7, string.split
- 419  ArrLen   r0, r7
- 420  Release  r7
- 421  LogI     r1
- 422  LogSep   
- 423  LogI     r2
- 424  LogSep   
- 425  LogStr   r3
- 426  LogSep   
- 427  LogI     r4
- 428  LogSep   
- 429  LogI     r6
- 430  LogSep   
- 431  LogI     r0
- 432  LogEnd   
- 433  Release  r3
- 434  LoadStr  r0, "a😀b"
- 435  Move     r1, r0
- 436  Rt       r1, string.length
- 437  LoadI    r3, 1
- 438  Move     r2, r0
- 439  Rt       r2, string.charCodeAt
- 440  LoadI    r4, 2
- 441  Move     r3, r0
- 442  Rt       r3, string.charCodeAt
- 443  LoadStr  r5, "b"
- 444  Move     r4, r0
- 445  Rt       r4, string.indexOf
- 446  LoadI    r6, 0
- 447  LoadI    r7, 1
- 448  Move     r5, r0
- 449  Rt       r5, string.slice
- 450  LoadI    r7, 3
- 451  LoadK    r8, i 2147483647
- 452  Move     r6, r0
- 453  Rt       r6, string.slice
- 454  Move     r7, r5
- 455  Move     r8, r6
- 456  Rt       r7, string.#concat
- 457  Release  r5
- 458  Release  r6
- 459  LogI     r1
- 460  LogSep   
- 461  LogI     r2
- 462  LogSep   
- 463  LogI     r3
- 464  LogSep   
- 465  LogI     r4
- 466  LogSep   
- 467  LogStr   r7
- 468  LogEnd   
- 469  Release  r7
- 470  LoadStr  r0, "ünï"
- 471  Rt       r0, string.trim
- 472  Move     r1, r0
- 473  Rt       r1, string.length
- 474  Release  r0
- 475  LoadStr  r2, " 	
+ 367  LoadStr  r5, ""
+ 368  LoadStr  r6, ","
+ 369  Rt       r5, string.split
+ 370  ArrLen   r3, r5
+ 371  Release  r5
+ 372  LoadStr  r5, ""
+ 373  LoadStr  r6, ""
+ 374  Rt       r5, string.split
+ 375  ArrLen   r6, r5
+ 376  Release  r5
+ 377  LogI     r1
+ 378  LogSep   
+ 379  LogStr   r2
+ 380  LogSep   
+ 381  LogStr   r4
+ 382  LogSep   
+ 383  LogI     r0
+ 384  LogSep   
+ 385  LogI     r3
+ 386  LogSep   
+ 387  LogI     r6
+ 388  LogEnd   
+ 389  Release  r2
+ 390  Release  r4
+ 391  LoadStr  r0, "one two  three"
+ 392  LoadStr  r1, " "
+ 393  Rt       r0, string.split
+ 394  ArrLen   r1, r0
+ 395  Release  r0
+ 396  LoadStr  r2, "k=v=w"
+ 397  LoadStr  r3, "="
+ 398  Rt       r2, string.split
+ 399  LoadStr  r4, " "
+ 400  Move     r3, r2
+ 401  Rt       r3, Array.join
+ 402  Release  r2
+ 403  LogI     r1
+ 404  LogSep   
+ 405  LogStr   r3
+ 406  LogEnd   
+ 407  Release  r3
+ 408  LoadStr  r0, "héllo wörld"
+ 409  Move     r1, r0
+ 410  Rt       r1, string.length
+ 411  LoadI    r3, 1
+ 412  Move     r2, r0
+ 413  Rt       r2, string.charCodeAt
+ 414  LoadI    r4, 1
+ 415  LoadI    r5, 4
+ 416  Move     r3, r0
+ 417  Rt       r3, string.slice
+ 418  LoadStr  r5, "w"
+ 419  LoadI    r6, 0
+ 420  Move     r4, r0
+ 421  Rt       r4, string.indexOf
+ 422  Move     r5, r0
+ 423  Rt       r5, string.toUpperCase
+ 424  Move     r6, r5
+ 425  Rt       r6, string.length
+ 426  Release  r5
+ 427  LoadStr  r8, "ö"
+ 428  Move     r7, r0
+ 429  Rt       r7, string.split
+ 430  ArrLen   r0, r7
+ 431  Release  r7
+ 432  LogI     r1
+ 433  LogSep   
+ 434  LogI     r2
+ 435  LogSep   
+ 436  LogStr   r3
+ 437  LogSep   
+ 438  LogI     r4
+ 439  LogSep   
+ 440  LogI     r6
+ 441  LogSep   
+ 442  LogI     r0
+ 443  LogEnd   
+ 444  Release  r3
+ 445  LoadStr  r0, "a😀b"
+ 446  Move     r1, r0
+ 447  Rt       r1, string.length
+ 448  LoadI    r3, 1
+ 449  Move     r2, r0
+ 450  Rt       r2, string.charCodeAt
+ 451  LoadI    r4, 2
+ 452  Move     r3, r0
+ 453  Rt       r3, string.charCodeAt
+ 454  LoadStr  r5, "b"
+ 455  LoadI    r6, 0
+ 456  Move     r4, r0
+ 457  Rt       r4, string.indexOf
+ 458  LoadI    r6, 0
+ 459  LoadI    r7, 1
+ 460  Move     r5, r0
+ 461  Rt       r5, string.slice
+ 462  LoadI    r7, 3
+ 463  LoadK    r8, i 2147483647
+ 464  Move     r6, r0
+ 465  Rt       r6, string.slice
+ 466  Move     r7, r5
+ 467  Move     r8, r6
+ 468  Rt       r7, string.#concat
+ 469  Release  r5
+ 470  Release  r6
+ 471  LogI     r1
+ 472  LogSep   
+ 473  LogI     r2
+ 474  LogSep   
+ 475  LogI     r3
+ 476  LogSep   
+ 477  LogI     r4
+ 478  LogSep   
+ 479  LogStr   r7
+ 480  LogEnd   
+ 481  Release  r7
+ 482  LoadStr  r0, "ünï"
+ 483  Rt       r0, string.trim
+ 484  Move     r1, r0
+ 485  Rt       r1, string.length
+ 486  Release  r0
+ 487  LoadStr  r2, " 	
  x "
- 476  Rt       r2, string.trim
- 477  LoadStr  r4, "x"
- 478  Move     r3, r2
- 479  Rt       r3, string.#eq
- 480  Release  r2
- 481  LogI     r1
- 482  LogSep   
- 483  LogBool  r3
- 484  LogEnd   
- 485  LoadStr  r0, ""
- 486  LoadI    r1, 0
- 487  JGeIK    r1, 5, -> 499
- 489  Move     r2, r1
- 490  Rt       r2, string.#i2s
- 491  Move     r3, r0
- 492  Move     r4, r2
- 493  Rt       r3, string.#concat
- 494  Release  r0
- 495  Release  r2
- 496  AddI32K  r1, r1, 1
- 497  Move     r0, r3
- 498  Jmp      -> 487
- 499  LoadStr  r1, "|"
- 500  LoadK    r2, f64 1.5
- 501  Rt       r2, string.#d2s
- 502  Move     r3, r1
- 503  Move     r4, r2
- 504  Rt       r3, string.#concat
- 505  Release  r2
- 506  LoadI    r4, 1
- 507  Rt       r4, string.#b2s
- 508  Move     r5, r3
- 509  Move     r6, r4
- 510  Rt       r5, string.#concat
- 511  Release  r3
- 512  Release  r4
- 513  Move     r6, r0
- 514  Move     r7, r5
- 515  Rt       r6, string.#concat
- 516  Release  r0
- 517  Release  r5
- 518  Move     r7, r6
- 519  Rt       r7, string.length
- 520  LogStr   r6
- 521  LogSep   
- 522  LogI     r7
- 523  LogEnd   
- 524  Release  r6
- 525  LoadStr  r0, "zinc"
- 526  Call     r0, @greet
- 527  LoadStr  r1, ""
- 528  Call     r1, @greet
- 529  LoadStr  r3, "hi "
- 530  Move     r2, r1
- 531  Rt       r2, string.#eq
- 532  Release  r1
- 533  LogStr   r0
- 534  LogSep   
- 535  LogBool  r2
- 536  LogEnd   
- 537  Release  r0
- 538  RetV     
+ 488  Rt       r2, string.trim
+ 489  LoadStr  r4, "x"
+ 490  Move     r3, r2
+ 491  Rt       r3, string.#eq
+ 492  Release  r2
+ 493  LogI     r1
+ 494  LogSep   
+ 495  LogBool  r3
+ 496  LogEnd   
+ 497  LoadStr  r0, ""
+ 498  LoadI    r1, 0
+ 499  JGeIK    r1, 5, -> 511
+ 501  Move     r2, r1
+ 502  Rt       r2, string.#i2s
+ 503  Move     r3, r0
+ 504  Move     r4, r2
+ 505  Rt       r3, string.#concat
+ 506  Release  r0
+ 507  Release  r2
+ 508  AddI32K  r1, r1, 1
+ 509  Move     r0, r3
+ 510  Jmp      -> 499
+ 511  LoadStr  r1, "|"
+ 512  LoadK    r2, f64 1.5
+ 513  Rt       r2, string.#d2s
+ 514  Move     r3, r1
+ 515  Move     r4, r2
+ 516  Rt       r3, string.#concat
+ 517  Release  r2
+ 518  LoadI    r4, 1
+ 519  Rt       r4, string.#b2s
+ 520  Move     r5, r3
+ 521  Move     r6, r4
+ 522  Rt       r5, string.#concat
+ 523  Release  r3
+ 524  Release  r4
+ 525  Move     r6, r0
+ 526  Move     r7, r5
+ 527  Rt       r6, string.#concat
+ 528  Release  r0
+ 529  Release  r5
+ 530  Move     r7, r6
+ 531  Rt       r7, string.length
+ 532  LogStr   r6
+ 533  LogSep   
+ 534  LogI     r7
+ 535  LogEnd   
+ 536  Release  r6
+ 537  LoadStr  r0, "zinc"
+ 538  Call     r0, @greet
+ 539  LoadStr  r1, ""
+ 540  Call     r1, @greet
+ 541  LoadStr  r3, "hi "
+ 542  Move     r2, r1
+ 543  Rt       r2, string.#eq
+ 544  Release  r1
+ 545  LogStr   r0
+ 546  LogSep   
+ 547  LogBool  r2
+ 548  LogEnd   
+ 549  Release  r0
+ 550  RetV     
 func @greet(ref str) -> ref str nregs=3
    0  LoadStr  r1, "hi "
    1  Move     r2, r0

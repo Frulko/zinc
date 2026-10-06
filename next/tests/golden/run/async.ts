@@ -77,5 +77,5 @@ rejected().catch(e => { console.log('rejected', e.message); });
 Promise.all([delayed(3, 4), delayed(1, 2), delayed(2, 3)]).then(v => { console.log('all', v); });
 Promise.resolve(1).then(v => v + 1).then(v => { console.log('chain', v); });
 queueMicrotask(() => { console.log('microtask'); });
-setTimeout(() => { console.log('timeout 0'); }, 0);
+setTimeout(() => { console.log('timeout 1'); }, 1);
 console.log('end');
