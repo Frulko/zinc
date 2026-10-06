@@ -5,5 +5,9 @@
 # accepts, never a subset. Our checker adds the numeric-kind rules on top; those extra rejections are covered by our own
 # fixtures, not by the oracle. Swap the checker with ZN_ORACLE (it receives the file as its last argument).
 root=$(cd "$(dirname "$0")/../.." && pwd)
+if [ "$1" = "--available" ]; then  # exit 0 when the reference checker can run here (Node and the repo's node_modules), else 1: the tests that need it skip themselves
+  if [ -n "$ZN_ORACLE" ]; then exit 0; fi
+  "$root/node_modules/.bin/tsc" --version >/dev/null 2>&1; exit $?
+fi
 if [ -n "$ZN_ORACLE" ]; then exec $ZN_ORACLE "$@"; fi
 exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --noLib --useUnknownInCatchVariables false --target ES2022 --module ESNext --moduleResolution Bundler --types "" "$root/lib/zinc.d.ts" "$@"

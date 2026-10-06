@@ -193,6 +193,17 @@ bool qemuCommand(const std::string& chip, const std::string& root, std::string& 
     if (!fetchTool("the emulator", *pin, base + "/" + pin->file, dir, "bin/qemu-system-xtensa", err)) return false;
     bin = dir / "bin/qemu-system-xtensa";
   }
+#ifdef __linux__
+  {  // Espressif's QEMU is dynamically linked against libraries a bare system may lack: say which, instead of a dead pipe
+    std::string missing;
+    if (FILE* p = popen(("ldd " + quote(bin.string()) + " 2>&1 | grep 'not found' | awk '{print $1}'").c_str(), "r")) {
+      char b[256];
+      while (std::fgets(b, sizeof b, p)) { std::string l = b; while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back(); missing += (missing.empty() ? "" : ", ") + l; }
+      pclose(p);
+    }
+    if (!missing.empty()) { err = "the emulator needs libraries this machine lacks: " + missing + " (Debian and Ubuntu: apt install libpixman-1-0 libsdl2-2.0-0 libslirp0)"; return false; }
+  }
+#endif
   // a copy of the flash: the emulator writes to it
   fs::path work = fs::path(home()) / "cache" / "esp32-flash.bin";
   std::error_code ec;
@@ -217,7 +228,7 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   fs::path cache = fs::path(home()) / "cache" / t->name;
   std::error_code ec;
   fs::create_directories(cache, ec);
-  std::string flags = std::string("-target ") + t->zigTarget + " -O2 -w -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include");
+  std::string flags = std::string("-target ") + t->zigTarget + " -O2 -w -ffp-contract=off -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include");
   if (std::string(t->name).size() > 6 && std::string(t->name).substr(std::string(t->name).size() - 6) == "-macos") flags += " -I " + quote(root + "/third_party/macos-shim");  // CommonCrypto for mimalloc
   if (std::string(t->name) == "armhf-linux") flags += " -mcpu=arm1176jzf_s";  // runs on every 32-bit Pi, the first one included
   struct Src { std::string path; bool c; };

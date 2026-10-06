@@ -17,14 +17,17 @@ export ZINC=${ZINC:-$root/build/zinc}
 mkdir -p "$root/.logs"
 log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
 : > "$log"
-pass=0; fail=0
+pass=0; fail=0; skip=0
 for t in $tiers; do
   for f in "$here/$t"/*.sh; do
     [ -e "$f" ] || continue
     name=$(basename "$f" .sh)
     [ -z "$only" ] || [ "$only" = "$name" ] || continue
-    if sh "$f" >"$log.tmp" 2>&1; then
+    sh "$f" >"$log.tmp" 2>&1; rc=$?
+    if [ $rc -eq 0 ]; then
       echo "PASS $name"; pass=$((pass + 1))
+    elif [ $rc -eq 77 ]; then
+      echo "SKIP $name ($(head -c 80 "$log.tmp"))"; skip=$((skip + 1))   # exit 77: a prerequisite of the machine is missing, said in the first line
     else
       echo "FAIL $name"; fail=$((fail + 1))
       { echo "=== $name"; cat "$log.tmp"; } >> "$log"
@@ -32,6 +35,7 @@ for t in $tiers; do
   done
 done
 rm -f "$log.tmp"
-echo "$pass passed, $fail failed"
+extra=""; [ "$skip" -gt 0 ] && extra=", $skip skipped"
+echo "$pass passed, $fail failed$extra"
 if [ "$fail" -gt 0 ]; then echo "log: $log"; head -20 "$log"; exit 1; fi
 rm -f "$log"

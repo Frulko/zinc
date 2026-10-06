@@ -340,3 +340,6 @@ IR text version 1 (`zir 1`), `ir::parse`, `zinc ir --check`, ZBC refuses other v
 
 ## ZN-053 (Review)
 `tools/package`, `zinc --root`, `zinc update`, `tools/sign-macos`, `tools/appimage`; doc `docs/reports/zinc-next-packaging.md`; T0/T2 `package.sh`. macOS verified on a clean HOME; Linux/Windows pending (ZN-054). Next by ordinal: ZN-054.
+
+## ZN-054 (Review)
+Linux verified in Docker (T0-T2 pass), CI workflow `.github/workflows/zinc-next.yml` written, Windows not ported; doc `docs/reports/zinc-next-hosts.md`. Next by ordinal: ZN-055 (hardware validation, needs boards) then ZN-056.

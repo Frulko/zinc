@@ -1,0 +1,47 @@
+# Zinc Next (next/): build and test on every host. T0 and T1 on each OS; T2 (downloads zig and QEMU, about 100 MB) on Linux and macOS.
+# Windows is listed so the day the host is ported (ZN-054) it starts running; until then its job may fail and does not block.
+name: zinc-next
+on:
+  push:
+    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', '.github/workflows/zinc-next.yml']
+  pull_request:
+    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', '.github/workflows/zinc-next.yml']
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: linux-x86_64, tier: t2 }
+          - { os: ubuntu-24.04-arm, name: linux-aarch64, tier: t2 }
+          - { os: macos-14, name: macos-arm64, tier: t2 }
+          - { os: windows-latest, name: windows-x86_64, tier: t1, experimental: true }
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libpixman-1-0 libsdl2-2.0-0 libslirp0  # the last three: Espressif's QEMU
+      - name: Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake sdl3 || true
+      - name: Build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+      - name: Tests (${{ matrix.tier }})
+        env:
+          ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
+        run: tests/run --tier ${{ matrix.tier }}
+      - name: Package (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: tools/package --out dist
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'Windows'
+        with:
+          name: package-${{ matrix.name }}
+          path: next/dist/*

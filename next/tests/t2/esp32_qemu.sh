@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-export ZINC_HOME="$PWD/build/tc-home"
+export ZINC_HOME="${ZINC_TEST_HOME:-$PWD/build/tc-home}"
 printf "console.log('hello from an ESP32');\nlet s = 0;\nfor (let i = 0; i < 1000; i++) s += i;\nconsole.log(s);\n" > "$tmp/hello.ts"
 [ "$("$ZINC" run "$tmp/hello.ts" --target esp32 --qemu 2>"$tmp/err")" = "hello from an ESP32
 499500" ] || { echo "hello on the emulated ESP32 differs: $(tail -c 200 "$tmp/err")"; fail=1; }

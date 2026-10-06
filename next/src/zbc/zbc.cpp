@@ -714,7 +714,7 @@ std::string disassemble(const Module& m) {
     out += ") -> " + vtName(m, f.ret) + " nregs=" + std::to_string(f.nregs) + "\n";
     for (std::size_t pc = 0; pc < f.code.size();) {
       std::uint32_t w = f.code[pc];
-      char head[24];
+      char head[48];
       if (opOf(w) >= static_cast<unsigned>(Op::Count)) { out += "  ?\n"; ++pc; continue; }
       Op op = static_cast<Op>(opOf(w));
       const OpInfo& info = opInfo(op);

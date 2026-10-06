@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 "$ZINC" run tests/golden/modules/modules.ts 2>&1 | diff -q - tests/golden/modules/modules.out >/dev/null || { echo "modules output differs"; fail=1; }
 "$ZINC" --emit=ir tests/golden/modules/modules.ts >/dev/null 2>&1 || { echo "modules do not lower"; fail=1; }
-tools/oracle tests/golden/modules/modules.ts >/dev/null 2>&1 || { echo "oracle rejects the modules program"; fail=1; }
+! tools/oracle --available || tools/oracle tests/golden/modules/modules.ts >/dev/null 2>&1 || { echo "oracle rejects the modules program"; fail=1; }
 check() {  # file, expected "Zxxxx file:line:col" first diagnostic
   got=$("$ZINC" check --check "tests/golden/modules/$1" 2>&1 | head -1 | sed -E 's/^[^:]*\/([^/:]*):([0-9]+:[0-9]+): error (Z[0-9]+):.*/\3 \1:\2/')
   [ "$got" = "$2" ] || { echo "$1: got '$got', want '$2'"; fail=1; }

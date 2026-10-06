@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-tools/package --out "$tmp/dist" >/dev/null 2>"$tmp/err" || { echo "tools/package failed: $(tail -c 300 "$tmp/err")"; exit 1; }
+tools/package --build "$(dirname "$ZINC")" --out "$tmp/dist" >/dev/null 2>"$tmp/err" || { echo "tools/package failed: $(tail -c 300 "$tmp/err")"; exit 1; }
 case "$(uname -s)" in
   Darwin) (cd "$tmp" && unzip -q dist/Zinc-*-macos-*.zip) ; Z="$tmp/Zinc Atelier.app/Contents/MacOS/zinc"; APP="$tmp/Zinc Atelier.app/Contents/Resources/zinc/next/app/atelier/main.tsx" ;;
   *) (cd "$tmp" && tar -xzf dist/zinc-*-linux-*.tar.gz) ; Z=$(echo "$tmp"/zinc-*/bin/zinc); APP=$(echo "$tmp"/zinc-*/share/zinc/next/app/atelier/main.tsx) ;;

@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-export ZINC_HOME="$PWD/build/tc-home"
+export ZINC_HOME="${ZINC_TEST_HOME:-$PWD/build/tc-home}"
 unset ZINC_ZIG
 "$ZINC" build --target aarch64-linux ../tests/bench/kernels/fib.ts -o "$tmp/fib_arm" 2>"$tmp/err" || { echo "cross build failed: $(tail -c 300 "$tmp/err")"; exit 1; }
 python3 - "$tmp/fib_arm" <<'PY' || { echo "the output is not an aarch64 Linux executable"; fail=1; }

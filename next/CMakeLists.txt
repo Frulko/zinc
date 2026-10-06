@@ -11,7 +11,7 @@ endif()
 
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
 if(ZN_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)

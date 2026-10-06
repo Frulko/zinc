@@ -2,6 +2,7 @@
 # Differential check against the oracle (tools/oracle, needs Node): every program our checker accepts must be accepted by
 # the oracle. A program we reject and the oracle accepts is allowed (machine numeric kinds, boolean conditions): counted.
 cd "$(dirname "$0")/../.." || exit 2
+tools/oracle --available || { echo "skipped: the reference checker (Node, tsc) cannot run here"; exit 77; }
 violations=0; agree=0; stricter=0; total=0
 for f in tests/golden/checker/ok/*.ts tests/golden/run/*.ts tests/golden/checker/errors/*.ts ../tests/bench/kernels/fib.ts ../tests/bench/kernels/mandelbrot.ts ../tests/bench/kernels/nbody.ts ../tests/bench/kernels/spectralnorm.ts ../tests/bench/kernels/strings.ts ../tests/bench/kernels/mapset.ts ../tests/bench/kernels/sort.ts; do
   total=$((total + 1))
