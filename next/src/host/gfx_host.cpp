@@ -68,6 +68,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
+    case Rt::HostGfxProfiling: r->i = g::profiling() ? 1 : 0; break;
+    case Rt::HostGfxProfMark: g::profMark(n(0)); break;
+    case Rt::HostGfxFinish: zrt::finish_run(); break;  // the profile summary, the trace file and the last-frame capture
     default: break;
   }
 }

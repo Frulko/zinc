@@ -8,6 +8,11 @@
 namespace zn::rt {
 
 Result runModule(const zbc::Module& mod, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData) {
+  return runModuleHooked(mod, out, traceFree, setup, setupData, nullptr, nullptr);
+}
+
+Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
+                       void (*finish)(Machine&, const void*), const void* finishData) {
   Machine m;
   m.out = &out;
   m.traceFree = traceFree;
@@ -20,6 +25,7 @@ Result runModule(const zbc::Module& mod, std::string& out, bool traceFree, void 
     for (std::size_t g = m.globals.size(); g-- > 0;) if (m.globalRef[g]) { Slot v = m.globals[g]; m.globals[g] = 0; m.releaseSlot(v); }  // statics die in reverse order of definition
     for (const Obj* o : m.allocated) if (o->rc != kImmortal) ++res.leaked;
   }
+  if (finish) finish(m, finishData);
   res.trace = std::move(m.trace);
   return res;
 }

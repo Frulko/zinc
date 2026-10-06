@@ -13,6 +13,7 @@ inline void* operator new(size_t, void* p) noexcept { return p; }
 #endif
 
 namespace zrt {
+void finish_run();  // see zrt.cpp: runs the finishers of a host-driven run
 
 #if __SIZEOF_POINTER__ == 8
 typedef int64_t isize; typedef uint64_t usize;

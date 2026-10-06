@@ -290,3 +290,9 @@ Options for the speed threshold: (a) keep 5x for the AOT path only and measure t
 ## ZN-045 notes (Done)
 - AOT programs that call the host (`Rt::Host*`) install it in `main` and `zinc build` links `libzn_host_gfx.a`. M5 demo met: clock (T1 `ui.sh`) and ui.tsx (T2 `ui_aot.sh`) match the pixel goldens in interpreter and AOT. A live window (SDL HAL and input) is not done.
 - Next by ordinal: ZN-046 (profiling suite), then ZN-029 (toolchain manager).
+
+## ZN-046 notes (Done)
+- `zinc profile <prog> [--hz --speedscope --folded]`, `zinc mem <prog> [--json --check-leaks]` (src/prof, run in the interpreter; `Machine::curFn` is set at calls for the sampler, `Machine::mem` counts only when enabled), `tools/resmon` (tools/zn_resmon.py), frame phases through `ZINC_PROFILE=1 ZINC_TRACE=file` on zinc:gfx apps. Doc: `docs/reports/zinc-next-profiling.md`. T0 `prof.sh`.
+- `tools/bench-m4` now stores user/system time and peak RSS and lists regressions against `git show HEAD:next/bench/m4.json` (`--check-regressions`, `--baseline`, `--tolerance`). Run it on an idle machine: a run beside the tests flags noise.
+- One line was added to the old runtime: `runtime/zrt.cpp` / `zrt.h` `finish_run()`. Other uncommitted changes in `runtime/` and `docs/` are not mine.
+- Next by ordinal: ZN-029 (toolchain manager), ZN-030, ZN-031 (decision, stops the loop).

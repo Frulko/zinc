@@ -8,15 +8,21 @@ present. Every engine's output is compared with corpus/bench/<k>.out first. Loss
 Thresholds (TESTING.md, M4): AOT within 3x of native on fib, nbody, binarytrees, sort; interpreter at least 5x faster than
 QuickJS on the numeric kernels (fib, nbody, mandelbrot, spectralnorm, fannkuchredux) and not slower on strings, jsonout and dynsum.
 """
-import json, os, platform, statistics, subprocess, sys, tempfile, time
+import json, os, platform, shlex, statistics, subprocess, sys, tempfile, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import zn_resmon
 
 args = sys.argv[1:]
 runs, out, md = 11, "bench/m4.json", "../docs/reports/zinc-next-m4-benchmarks.md"
+baseline, check, tolerance = None, False, 0.15
 while args:
     a = args.pop(0)
     if a == "--runs": runs = int(args.pop(0))
     elif a == "--out": out = args.pop(0)
     elif a == "--md": md = args.pop(0)
+    elif a == "--baseline": baseline = args.pop(0)      # a bench json to compare with (default: the one committed at HEAD)
+    elif a == "--check-regressions": check = True       # exit 3 when a time or peak RSS is more than `tolerance` worse than the baseline
+    elif a == "--tolerance": tolerance = float(args.pop(0))
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(root)
 zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
@@ -36,7 +42,9 @@ def median_of(cmd, expect):
     times = []
     for _ in range(runs):
         t = time.perf_counter(); run(cmd); times.append(time.perf_counter() - t)
-    return {"median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times}
+    res = zn_resmon.measure(shlex.split(cmd), interval=0.02)  # one more run: CPU time and peak RSS of the process
+    return {"median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times,
+            "user_s": res["user_s"], "sys_s": res["sys_s"], "peak_rss_mb": res["peak_rss_mb"]}
 
 results, failures = {}, []
 for k in kernels:
@@ -73,7 +81,22 @@ for k in kernels:
     for what, passed, val in ok: verdicts.append({"kernel": k, "threshold": what, "value": val, "pass": bool(passed)})
     rows.append((k, ms(c["interp"]), ms(c["aot"]), ms(c["quickjs"]), ms(c["native"]), r_aot, r_q))
 
-doc = {"runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures}
+# regressions against the previous numbers (the file committed at HEAD unless --baseline): median time and peak RSS per kernel and engine
+regressions = []
+try:
+    old = json.load(open(baseline)) if baseline else json.loads(subprocess.run(["git", "show", "HEAD:next/" + out], capture_output=True, text=True, check=True).stdout)
+except Exception:
+    old = None
+if old:
+    for k, cell in results.items():
+        for e, v in cell.items():
+            o = (old.get("results", {}).get(k) or {}).get(e)
+            if not v or not o: continue
+            for key, label in (("median_s", "time"), ("peak_rss_mb", "peak RSS")):
+                if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance):
+                    regressions.append(f"{k} {e} {label}: {o[key]:.3f} -> {v[key]:.3f} (+{(v[key] / o[key] - 1) * 100:.0f}%)")
+
+doc = {"runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
 os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 json.dump(doc, open(out, "w"), indent=1)
 lines = ["# Zinc Next: M4 benchmarks", "", f"Median of {runs} runs (one warm-up), wall clock, ms. Machine: {platform.platform()}. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `next/bench/m4.json`.", "",
@@ -83,7 +106,13 @@ for k, i, a, q, n, ra, rq in rows:
 lines += ["", "## Thresholds", "", "| kernel | threshold | measured | result |", "|---|---|---:|---|"]
 for v in verdicts:
     lines.append(f"| {v['kernel']} | {v['threshold']} | {'n/a' if v['value'] is None else format(v['value'], '.2f') + 'x'} | {'pass' if v['pass'] else '**LOSS**'} |")
+lines += ["", "## Resources (one extra run per cell)", "", "| kernel | interp RSS MB | AOT RSS MB | interp user s | AOT user s |", "|---|---:|---:|---:|---:|"]
+for k in kernels:
+    c = results[k]
+    g = lambda e, key: "n/a" if not c.get(e) else f"{c[e][key]:.2f}"
+    lines.append(f"| {k} | {g('interp', 'peak_rss_mb')} | {g('aot', 'peak_rss_mb')} | {g('interp', 'user_s')} | {g('aot', 'user_s')} |")
+if regressions: lines += ["", f"## Regressions against the previous numbers (more than {tolerance * 100:.0f}% worse)", ""] + [f"- {r}" for r in regressions]
 if failures: lines += ["", "## Failed runs", ""] + [f"- {f}" for f in failures]
 open(md, "w").write("\n".join(lines) + "\n")
 print("\n".join(lines))
-sys.exit(0 if all(v["pass"] for v in verdicts) and not failures else 1)
+sys.exit(3 if check and regressions else 0 if all(v["pass"] for v in verdicts) and not failures else 1)

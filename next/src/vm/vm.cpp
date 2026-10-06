@@ -27,6 +27,7 @@ bool Machine::exec(const Func* entry, Slot* base) {
   *fp++ = {nullptr, nullptr, nullptr};  // marks where this exec() returns
 
   const Func* fn = entry;
+  curFn = fn;
   const std::uint32_t* code = fn->code;
   const std::uint32_t* pc = code;
   Slot* r = base;
@@ -70,7 +71,7 @@ L_Call: {
   Slot* nb = r + A;
   if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
-  r = nb; fn = callee; code = callee->code; pc = code;
+  r = nb; fn = callee; curFn = fn; code = callee->code; pc = code;
   NEXT();
 }
 L_Ret: {
@@ -78,13 +79,13 @@ L_Ret: {
   const Frame f = *--fp;
   r[0] = v;
   if (!f.ret) return true;
-  r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
+  r = f.base; fn = f.fn; curFn = fn; code = fn->code; pc = f.ret;
   NEXT();
 }
 L_RetV: {
   const Frame f = *--fp;
   if (!f.ret) return true;
-  r = f.base; fn = f.fn; code = fn->code; pc = f.ret;
+  r = f.base; fn = f.fn; curFn = fn; code = fn->code; pc = f.ret;
   NEXT();
 }
 L_Throw: {  // unwind to the nearest handler that takes the object, through the callers if need be
@@ -99,7 +100,7 @@ L_Throw: {  // unwind to the nearest handler that takes the object, through the 
     if (hit) { r[hit->reg] = exc; pc = code + hit->target; NEXT(); }
     const Frame f = *--fp;
     if (!f.ret) { error = "panic: Uncaught " + exceptionText(reinterpret_cast<Obj*>(exc)); return false; }
-    r = f.base; fn = f.fn; code = fn->code; at = f.ret - 1;
+    r = f.base; fn = f.fn; curFn = fn; code = fn->code; at = f.ret - 1;
   }
 }
 L_New: { if (const char* e = op::newObject(*this, dOf(w), r[A])) TRAP(e); NEXT(); }
@@ -111,7 +112,7 @@ L_CallVirt: {
   if (__builtin_expect(e != nullptr, 0)) TRAP(e);
   if (__builtin_expect(fp == framesEnd, 0)) TRAP("stack overflow");
   *fp++ = {pc, fn, r};
-  r = r + A; fn = callee; code = callee->code; pc = code;
+  r = r + A; fn = callee; curFn = fn; code = callee->code; pc = code;
   NEXT();
 }
 L_Downcast: { if (const char* e = op::downcast(r, A, dOf(w))) TRAP(e); NEXT(); }
@@ -155,5 +156,8 @@ namespace zn::vm {
 using namespace zn::rt;
 
 Result run(const zbc::Module& mod, std::string& out, bool traceFree) { return runModule(mod, out, traceFree, nullptr, nullptr); }
+Result runHooked(const zbc::Module& mod, std::string& out, void (*setup)(Machine&, const void*), const void* setupData, void (*finish)(Machine&, const void*), const void* finishData) {
+  return runModuleHooked(mod, out, false, setup, setupData, finish, finishData);
+}
 
 }  // namespace zn::vm

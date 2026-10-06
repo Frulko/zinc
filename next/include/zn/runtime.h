@@ -53,7 +53,8 @@
   X(HostGfxImage, "host.gfxImage", "s>i", 2) X(HostGfxImageWidth, "host.gfxImageWidth", "i>i", 2) X(HostGfxImageHeight, "host.gfxImageHeight", "i>i", 2)       \
   X(HostGfxDrawImage, "host.gfxDrawImage", "iddddid>n", 2) X(HostGfxClip, "host.gfxClip", "ddddd>n", 2) X(HostGfxUnclip, "host.gfxUnclip", ">n", 2)       \
   X(HostGfxTranslate, "host.gfxTranslate", "dd>n", 2) X(HostGfxKeep, "host.gfxKeep", ">n", 2) X(HostGfxWidth, "host.gfxWidth", ">i", 2)                \
-  X(HostGfxHeight, "host.gfxHeight", ">i", 2) X(HostGfxPixelScale, "host.gfxPixelScale", ">i", 2)
+  X(HostGfxHeight, "host.gfxHeight", ">i", 2) X(HostGfxPixelScale, "host.gfxPixelScale", ">i", 2)                      \
+  X(HostGfxProfiling, "host.gfxProfiling", ">b", 2) X(HostGfxProfMark, "host.gfxProfMark", "i>n", 2) X(HostGfxFinish, "host.gfxFinish", ">n", 2)
 
 namespace zn {
 

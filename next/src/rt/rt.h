@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -125,6 +126,17 @@ struct Frame {
   Slot* base;
 };
 
+// Memory and reference-counting statistics (zinc mem): counted only when a Machine has them (Machine::enableMem).
+struct ClassMem {
+  std::uint64_t allocs = 0, frees = 0, live = 0, peakLive = 0;
+  std::uint64_t headerBytes = 0;   // bytes of the object itself (header, fields, string bytes), cumulative
+  std::uint64_t payloadBytes = 0;  // arrays and Maps: the capacity of their storage when they die (or at exit), cumulative
+};
+struct MemStats {
+  std::uint64_t retains = 0, releases = 0, allocs = 0, frees = 0, live = 0, peakLive = 0, liveBytes = 0, peakBytes = 0;
+  std::vector<ClassMem> perClass;  // by class id
+};
+
 struct Machine {
   const zbc::Module* mod = nullptr;
   std::string exceptionText(Obj* exc);
@@ -150,6 +162,7 @@ struct Machine {
   std::vector<Frame> frames;
   Frame* fp = nullptr;
   Frame* framesEnd = nullptr;
+  const Func* volatile curFn = nullptr;  // the interpreter: the function being run, for the sampling profiler (zinc profile)
 
   ~Machine();
   bool load(const zbc::Module& m, std::string& err);
@@ -159,11 +172,20 @@ struct Machine {
   void track(Obj* o) {
     o->pad = static_cast<std::uint32_t>(allocated.size());
     allocated.push_back(o);
+    if (mem) memTrack(o);
     if (traceFree) serials[o] = nextSerial++;
   }
-  void retain(Obj* o) { if (o && o->rc != kImmortal) ++o->rc; }
+  std::unique_ptr<MemStats> memStats;
+  MemStats* mem = nullptr;
+  void enableMem() { memStats = std::make_unique<MemStats>(); memStats->perClass.resize(classes.size()); mem = memStats.get(); }
+  std::size_t objBytes(const Obj* o) const;                 // the fixed size of an object
+  std::size_t payloadBytes(const Obj* o) const;             // arrays and Maps: the capacity of their storage
+  void memTrack(Obj* o);
+  void memFree(Obj* o);
+  void retain(Obj* o) { if (o && o->rc != kImmortal) { ++o->rc; if (mem) ++mem->retains; } }
   bool release(Obj* o) {  // false: the count was already zero (a bug in the bytecode)
     if (!o || o->rc == kImmortal) return true;
+    if (mem) ++mem->releases;
     if (o->rc == 0) return false;
     if (--o->rc == 0) destroy(o);
     return true;
@@ -194,6 +216,9 @@ struct Result {
 // Loads `m`, lets `setup` bind engine-specific code to the functions, runs functions[0] (main) and releases the globals.
 // Program output (console.log) is appended to `out`, also when execution fails midway.
 Result runModule(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData);
+// The same with a `finish` that sees the machine after the run (globals released, leaks counted), for the profilers (src/prof).
+Result runModuleHooked(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
+                       void (*finish)(Machine&, const void*), const void* finishData);
 
 // Prints the program's output and, if it failed, the error; returns the exit code: 0, 101 for an uncaught exception, 1 for
 // another runtime error, 4 for leaked objects when ZN_LEAK_CHECK is set.

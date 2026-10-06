@@ -788,7 +788,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::HostGfxShadow: case Rt::HostGfxPolygon: case Rt::HostGfxPath: case Rt::HostGfxStroke: case Rt::HostGfxFontAscent:
     case Rt::HostGfxLineHeight: case Rt::HostGfxTextWidth: case Rt::HostGfxImage: case Rt::HostGfxImageWidth: case Rt::HostGfxImageHeight:
     case Rt::HostGfxDrawImage: case Rt::HostGfxClip: case Rt::HostGfxUnclip: case Rt::HostGfxTranslate: case Rt::HostGfxKeep:
-    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: {
+    case Rt::HostGfxWidth: case Rt::HostGfxHeight: case Rt::HostGfxPixelScale: case Rt::HostGfxProfiling: case Rt::HostGfxProfMark: case Rt::HostGfxFinish: {
       if (!zn::host::hostGfx) return "zinc:gfx is not available in this build";
       const RtInfo& ri = rtInfo(id);
       zn::host::HostArg args[12], res;

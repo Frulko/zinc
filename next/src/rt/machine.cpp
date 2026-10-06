@@ -63,6 +63,41 @@ KeyKind keyKindOf(const zbc::Module& m, zbc::VType t) {
 
 }  // namespace
 
+std::size_t Machine::objBytes(const Obj* o) const {
+  switch (o->cls->kind) {
+    case zbc::CKind::Object: return sizeof(Obj) + static_cast<std::size_t>(o->cls->nfields) * sizeof(Slot);
+    case zbc::CKind::String: return sizeof(StrObj) + static_cast<const StrObj*>(o)->len + 1;
+    case zbc::CKind::Array: return sizeof(ArrObj);
+    default: return sizeof(MapObj);
+  }
+}
+std::size_t Machine::payloadBytes(const Obj* o) const {
+  switch (o->cls->kind) {
+    case zbc::CKind::Array: return static_cast<const ArrObj*>(o)->v.capacity() * sizeof(Slot);
+    case zbc::CKind::Map: case zbc::CKind::Set: {
+      const Table& t = static_cast<const MapObj*>(o)->t;
+      return (t.keys.capacity() + t.vals.capacity()) * sizeof(Slot) + t.dead.capacity() + t.index.capacity() * sizeof(std::int32_t);
+    }
+    default: return 0;
+  }
+}
+void Machine::memTrack(Obj* o) {
+  ClassMem& c = mem->perClass[o->cls->id];
+  std::size_t b = objBytes(o);
+  ++mem->allocs; ++c.allocs; ++c.live; c.headerBytes += b;
+  if (c.live > c.peakLive) c.peakLive = c.live;
+  if (++mem->live > mem->peakLive) mem->peakLive = mem->live;
+  mem->liveBytes += b;
+  if (mem->liveBytes > mem->peakBytes) mem->peakBytes = mem->liveBytes;
+}
+void Machine::memFree(Obj* o) {
+  ClassMem& c = mem->perClass[o->cls->id];
+  std::size_t b = objBytes(o), p = payloadBytes(o);
+  ++mem->frees; ++c.frees; --c.live; --mem->live;
+  c.payloadBytes += p;
+  mem->liveBytes -= b;
+}
+
 // The last reference to `root` is gone: destroy it and, depth first, whatever only it kept alive. Order, as with the native
 // runtime's RAII: an object's fields in reverse order of declaration, an array's elements first to last, a Map's entries
 // first to last (key, then value).
@@ -71,6 +106,7 @@ void Machine::destroy(Obj* root) {
   pending.clear();
   auto drop = [&](Obj* o) { if (o && o->rc != kImmortal) pending.push_back(o); };
   auto freeNode = [&](Obj* o) {
+    if (mem) memFree(o);
     if (traceFree) { trace += "free " + o->cls->name + " #" + std::to_string(serials[o]) + "\n"; serials.erase(o); }
     switch (o->cls->kind) {
       case zbc::CKind::Object: {

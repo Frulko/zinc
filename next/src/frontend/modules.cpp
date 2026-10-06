@@ -57,6 +57,7 @@ function __gfxLoop(): void {
     __host_gfxEnd();
     __frameNo++;
   }
+  __host_gfxFinish();
 }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
 export function frame(): i32 { return __frameNo; }
@@ -134,8 +135,8 @@ export function scrollDY(): number { return 0; }
 export function scrollPhase(): i32 { return 0; }
 export function escapeByApp(on: boolean): void {}
 export function escapeDefault(): void {}
-export function profiling(): boolean { return false; }
-export function profMark(phase: i32): void {}
+export function profiling(): boolean { return __host_gfxProfiling(); }
+export function profMark(phase: i32): void { __host_gfxProfMark(phase); }
 export function quit(): void {}
 export function capture(path: string): boolean { return false; }
 )ZN";

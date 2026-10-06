@@ -1,5 +1,5 @@
 #!/bin/sh
-# Reference counting (ZN-018): every program of the corpus ends with no live object (ZN_LEAK_CHECK), except the ones that
+# Reference counting (ZN-018): every program of the corpus ends with no live object (`zinc mem --check-leaks`, ZN-046), except the ones that
 # build reference cycles on purpose (features.ts of the M3 set: its `@weak` parent link is accepted and ignored, so the pair leaks); the destruction order is the frozen one (ZN_TRACE_FREE): an object's fields in reverse
 # order, an array's elements first to last, a Map's entries first to last, a local at its last use.
 cd "$(dirname "$0")/../.." || exit 2
@@ -9,7 +9,7 @@ for f in tests/golden/run/*.ts $(for b in $(cat corpus/M3-set.txt); do [ "$b" = 
     ../tests/bench/kernels/fib.ts ../tests/bench/kernels/mandelbrot.ts ../tests/bench/kernels/nbody.ts ../tests/bench/kernels/spectralnorm.ts \
     ../tests/bench/kernels/strings.ts ../tests/bench/kernels/mapset.ts ../tests/bench/kernels/sort.ts; do
   case " $cyclic " in *" $(basename "$f") "*) continue ;; esac
-  ZN_LEAK_CHECK=1 "$ZINC" run "$f" >/dev/null 2>"${TMPDIR:-/tmp}/zn-leak.$$"; rc=$?
+  "$ZINC" mem "$f" --check-leaks >/dev/null 2>"${TMPDIR:-/tmp}/zn-leak.$$"; rc=$?
   # exit 101 is an uncaught exception that some programs end with on purpose; a leak is reported on stderr either way
   if { [ $rc -ne 0 ] && [ $rc -ne 101 ]; } || grep -q "leaked" "${TMPDIR:-/tmp}/zn-leak.$$"; then echo "leak or failure: $f: $(head -c 120 "${TMPDIR:-/tmp}/zn-leak.$$")"; fail=1; fi
 done

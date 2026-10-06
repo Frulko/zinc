@@ -1,9 +1,10 @@
 ---
 id: ZN-046
 title: 'Profiling suite: CPU, RAM, frame time, energy'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 15:37'
+updated_date: '2026-10-06 16:15'
 labels: []
 dependencies: []
 priority: high
@@ -18,9 +19,15 @@ A set of tools to measure the engine and the apps it runs: per-function time and
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 zinc profile <prog> writes a flame graph (speedscope or pprof) and a per-function table for the interpreter
-- [ ] #2 zinc mem <prog> reports peak and per-class memory, live objects at exit and retain/release counts; the leak check of the tests uses it
-- [ ] #3 UI apps report frame-time phases with p50/p99 and a Perfetto trace; the zinc:ui examples run under it headless
-- [ ] #4 a resource sampler records CPU and RSS over a run and, where available, energy; tools/bench-m4 stores the numbers and flags regressions between commits
-- [ ] #5 documented in docs/, with one T0 test per tool
+- [x] #1 zinc profile <prog> writes a flame graph (speedscope or pprof) and a per-function table for the interpreter
+- [x] #2 zinc mem <prog> reports peak and per-class memory, live objects at exit and retain/release counts; the leak check of the tests uses it
+- [x] #3 UI apps report frame-time phases with p50/p99 and a Perfetto trace; the zinc:ui examples run under it headless
+- [x] #4 a resource sampler records CPU and RSS over a run and, where available, energy; tools/bench-m4 stores the numbers and flags regressions between commits
+- [x] #5 documented in docs/, with one T0 test per tool
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a (tools/usage had no data). Done: zinc profile (sampling, speedscope and folded stacks, table), zinc mem (per class counts, retain/release, peak RSS, --check-leaks used by rc.sh), UI frame phases and Perfetto trace through the runtime profiler (zinc:gfx profiling/profMark/finish; one 2-line addition to runtime/zrt.cpp: finish_run), tools/resmon + zn_resmon.py (CPU, RSS, energy via RAPL or powermetrics), bench-m4 records user/system time and peak RSS and flags regressions against HEAD. docs/reports/zinc-next-profiling.md, T0 prof.sh. Not covered: exact instruction counts, energy on the Pi rig.
+<!-- SECTION:NOTES:END -->

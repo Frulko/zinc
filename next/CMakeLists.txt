@@ -63,9 +63,12 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   target_compile_definitions(zn_host_gfx PRIVATE ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="macos")
 endif()
 
+add_library(zn_prof STATIC src/prof/prof.cpp)
+target_link_libraries(zn_prof PUBLIC zn_vm)
+
 add_executable(zinc src/main.cpp)
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_link_libraries(zinc PRIVATE zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
   target_link_libraries(zinc PRIVATE zn_host_gfx)

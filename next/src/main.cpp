@@ -17,6 +17,7 @@
 #include "ir/ir.h"
 #include "aot/aot.h"
 #include "zn/host.h"
+#include "prof/prof.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "vm/vm.h"
@@ -82,6 +83,38 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::puts("zinc-next 0.0.1");
+    return 0;
+  }
+  if (argc >= 3 && (!std::strcmp(argv[1], "profile") || !std::strcmp(argv[1], "mem"))) {  // zinc profile|mem <file.ts|file.zbc> [options]: the interpreter under a profiler
+    bool isMem = !std::strcmp(argv[1], "mem"), json = false, checkLeaks = false;
+    zn::prof::ProfileOptions po;
+    po.speedscope = "zinc.speedscope.json";
+    for (int k = 3; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "--json")) json = true;
+      else if (!std::strcmp(argv[k], "--check-leaks")) checkLeaks = true;
+      else if (!std::strcmp(argv[k], "--hz") && k + 1 < argc) po.hz = std::atoi(argv[++k]);
+      else if (!std::strcmp(argv[k], "--speedscope") && k + 1 < argc) po.speedscope = argv[++k];
+      else if (!std::strcmp(argv[k], "--folded") && k + 1 < argc) po.folded = argv[++k];
+      else { std::fprintf(stderr, "unknown option %s\n", argv[k]); return 2; }
+    }
+    zn::zbc::Module zm;
+    std::string path = argv[2];
+    if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
+      std::ifstream in(path, std::ios::binary);
+      if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+      std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      std::string err;
+      if (!zn::zbc::decode(bytes, zm, err)) { std::fprintf(stderr, "%s: %s\n", argv[2], err.c_str()); return 1; }
+      err = zn::zbc::verify(zm);
+      if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
+    } else if (int rc = compileToZbc(argv[2], zm)) return rc;
+    std::string out, report;
+    zn::rt::Result res = isMem ? zn::prof::memory(zm, out, json, report) : zn::prof::profile(zm, out, po, report);
+    std::fwrite(out.data(), 1, out.size(), stderr);  // the program's own output goes to stderr: stdout is the report
+    std::fputs(report.c_str(), stdout);
+    if (!res.ok) { std::fprintf(stderr, "%s\n", res.error.c_str()); return res.error.rfind("panic: ", 0) == 0 ? 101 : 1; }
+    if (!isMem) std::fprintf(stderr, "wrote %s\n", po.speedscope.c_str());
+    if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "run")) {  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute

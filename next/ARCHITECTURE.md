@@ -15,6 +15,7 @@ next/
   src/vm/         interpreter (provides Machine::exec by dispatching bytecode)
   src/aot/        ZBC → C++ emitter; the C++ it writes calls include/zn/ops.h and links src/rt
   src/host/       the graphics host (ZN-027): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
+  src/prof/       the profilers of the interpreter (zinc profile, zinc mem, ZN-046); includes rt and vm, only main includes it
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```
