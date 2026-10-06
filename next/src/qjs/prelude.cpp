@@ -110,8 +110,20 @@ const char* kPrelude = R"JS(
   function format(args) { return args.map(a => inspect(a, true)).join(' '); }
   g.console = {
     log: (...a) => write(format(a) + '\n'), info: (...a) => write(format(a) + '\n'), debug: (...a) => write(format(a) + '\n'),
-    error: (...a) => writeErr(format(a) + '\n'), warn: (...a) => writeErr(format(a) + '\n'),
+    error: (...a) => writeErr(format(a) + '\n'), warn: (...a) => writeErr(format(a) + '\n'), trace: (...a) => write(format(a) + '\n'),
   };
+  {  // count, assert and the timers print like the checked engine's console (one text stream, virtual clock)
+    const counts = new Map(), timers = new Map();
+    const lab = l => l === undefined ? 'default' : String(l);
+    Object.assign(g.console, {
+      count: l => { l = lab(l); const n = (counts.get(l) || 0) + 1; counts.set(l, n); write(l + ': ' + n + '\n'); },
+      countReset: l => { counts.set(lab(l), 0); },
+      assert: (ok, ...a) => { if (!ok) write(a.length ? 'Assertion failed: ' + format(a) + '\n' : 'Assertion failed\n'); },
+      time: l => { l = lab(l); if (!timers.has(l)) timers.set(l, g.__clock()); },
+      timeLog: l => { l = lab(l); if (timers.has(l)) write(l + ': ' + (g.__clock() - timers.get(l)) + 'ms\n'); },
+      timeEnd: l => { l = lab(l); if (timers.has(l)) { write(l + ': ' + (g.__clock() - timers.get(l)) + 'ms\n'); timers.delete(l); } },
+    });
+  }
   g.__inspect = v => inspect(v, false);
 
   // timers: virtual clock in milliseconds

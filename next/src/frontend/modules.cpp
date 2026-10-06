@@ -587,6 +587,53 @@ function __mathRandom(): f64 {
 }
 )ZN";
 
+// console.count, countReset, assert, time, timeEnd and timeLog: the checker-visible calls are rewritten to these functions (modules.cpp, below).
+// Like console.error they print to the one text stream; the timers read the engine clock, so they need the async prelude.
+const char* kConsolePrelude = R"ZN(
+let __cLabels: string[] = [];
+let __cCounts: i32[] = [];
+function __cIndex(label: string): i32 {
+  for (let k: i32 = 0; k < __cLabels.length; k++) if (__cLabels[k] === label) return k;
+  __cLabels.push(label);
+  __cCounts.push(0);
+  return __cLabels.length - 1;
+}
+function __consoleCount(label: string = 'default'): void {
+  const k = __cIndex(label);
+  __cCounts[k] = __cCounts[k] + 1;
+  console.log(`${label}: ${__cCounts[k]}`);
+}
+function __consoleCountReset(label: string = 'default'): void { __cCounts[__cIndex(label)] = 0; }
+function __consoleAssert(ok: boolean, msg: string = ''): void {
+  if (!ok) console.log(msg === '' ? 'Assertion failed' : `Assertion failed: ${msg}`);
+}
+)ZN";
+const char* kConsoleTimePrelude = R"ZN(
+let __tLabels: string[] = [];
+let __tStarts: f64[] = [];
+function __tIndex(label: string): i32 {
+  for (let k: i32 = 0; k < __tLabels.length; k++) if (__tLabels[k] === label) return k;
+  return -1;
+}
+function __consoleTime(label: string = 'default'): void {
+  const k = __tIndex(label);
+  if (k >= 0) { __tStarts[k] = performance.now(); return; }
+  __tLabels.push(label);
+  __tStarts.push(performance.now());
+}
+function __consoleTimeLog(label: string = 'default'): void {
+  const k = __tIndex(label);
+  if (k >= 0) console.log(`${label}: ${performance.now() - __tStarts[k]}ms`);
+}
+function __consoleTimeEnd(label: string = 'default'): void {
+  const k = __tIndex(label);
+  if (k < 0) return;
+  console.log(`${label}: ${performance.now() - __tStarts[k]}ms`);
+  __tLabels.splice(k, 1);
+  __tStarts.splice(k, 1);
+}
+)ZN";
+
 // Promises, timers and the microtask queue, written in Zinc: added when a program uses async functions, generators, Promise,
 // setTimeout or queueMicrotask. Its top-level code (the queues) runs before the program; `__runLoop()` runs after it.
 const char* kAsyncPrelude = R"ZN(
@@ -955,6 +1002,20 @@ bool needsAsync(const Ast& A) {
   return false;
 }
 
+bool isConsoleCall(const Ast& A, const Node& x, std::initializer_list<const char*> names) {
+  if (x.kind != N::Member || x.kids.empty() || A.nodes[x.kids[0]].kind != N::Ident || A.nodes[x.kids[0]].text != "console") return false;
+  for (const char* m : names) if (x.text == m) return true;
+  return false;
+}
+bool needsConsole(const Ast& A) {
+  for (const Node& x : A.nodes) if (isConsoleCall(A, x, {"count", "countReset", "assert", "time", "timeEnd", "timeLog"})) return true;
+  return false;
+}
+bool needsConsoleTime(const Ast& A) {
+  for (const Node& x : A.nodes) if (isConsoleCall(A, x, {"time", "timeEnd", "timeLog"})) return true;
+  return false;
+}
+
 bool needsRandom(const Ast& A) {
   for (const Node& x : A.nodes)
     if (x.kind == N::Member && (x.text == "random" || x.text == "seed") && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "Math") return true;
@@ -1009,16 +1070,25 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   }
   if (p.diags.empty())  // console.error, warn, info and debug print like console.log (to the standard output: the engine has one text stream)
     for (Node& x : p.ast.nodes)
-      if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "error" || x.text == "warn" || x.text == "info" || x.text == "debug")) x.text = "log";
-  bool async = p.diags.empty() && (usesGfx || needsAsync(p.ast));
+      if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "error" || x.text == "warn" || x.text == "info" || x.text == "debug" || x.text == "trace")) x.text = "log";
+  bool consoleX = p.diags.empty() && needsConsole(p.ast);
+  bool consoleT = p.diags.empty() && needsConsoleTime(p.ast);
+  if (consoleX)  // console.count and friends are calls of the prelude's functions; console.trace prints like console.log
+    for (Node& x : p.ast.nodes) {
+      if (!isConsoleCall(p.ast, x, {"count", "countReset", "assert", "time", "timeEnd", "timeLog"})) continue;
+      std::string_view nm = x.text;
+      x.kind = N::Ident; x.kids.clear();
+      x.text = nm == "count" ? "__consoleCount" : nm == "countReset" ? "__consoleCountReset" : nm == "assert" ? "__consoleAssert" : nm == "time" ? "__consoleTime" : nm == "timeEnd" ? "__consoleTimeEnd" : "__consoleTimeLog";  // literals: the text is a view
+    }
+  bool async = p.diags.empty() && (usesGfx || consoleT || needsAsync(p.ast));
   bool json = p.diags.empty() && needsJson(p.ast);
   bool arena = p.diags.empty() && needsArena(p.ast);
   bool random = p.diags.empty() && needsRandom(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || random || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || random || consoleX || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

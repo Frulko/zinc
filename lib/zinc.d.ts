@@ -188,7 +188,7 @@ declare var Math: Math;
 interface Console {
   log(...args: unknown[]): void; info(...args: unknown[]): void; debug(...args: unknown[]): void;
   warn(...args: unknown[]): void; error(...args: unknown[]): void; trace(...args: unknown[]): void;
-  time(label?: string): void; timeEnd(label?: string): void; timeLog(label?: string): void; count(label?: string): void;
+  time(label?: string): void; timeEnd(label?: string): void; timeLog(label?: string): void; count(label?: string): void; countReset(label?: string): void;
   assert(cond: boolean, ...args: unknown[]): void; table<T>(rows: T[]): void;
 }
 interface JSON {

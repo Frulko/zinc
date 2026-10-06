@@ -1,0 +1,6 @@
+console.count()
+console.count('a')
+console.count()
+console.countReset()
+console.count()
+console.assert(1 + 1 === 2, 'fine')
