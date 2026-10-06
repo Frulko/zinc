@@ -1,23 +1,85 @@
-#!/bin/sh
-# Print the task to work on: "TASK ZN-xxx <title>" or "STOP <reason>".
-# Order: In Progress, then Ready, then the lowest-ordinal Backlog task (task files do not record dependencies, the
-# ordinal is the plan's sequence). Gates and the packaging decision stop a loop. Used by /zn-start and /zn-end.
-id=$(backlog task list --plain 2>/dev/null | awk '
-  /^In Progress:/ {s = 1; next} /^Ready:/ {s = 2; next} /^Backlog:/ {s = 3; next} /^[A-Za-z]/ {s = 0}
-  s && /ZN-/ && (!(s in first)) {match($0, /ZN-[0-9]+/); first[s] = substr($0, RSTART, RLENGTH)}
-  s == 3 && /ZN-/ {match($0, /ZN-[0-9]+/); all = all " " substr($0, RSTART, RLENGTH)}
-  END { if (first[1]) print first[1]; else if (first[2]) print first[2]; else print "ORD" all }')
-case $id in ORD*)  # lowest ordinal among the Backlog tasks (ids are not in plan order)
-  best=; bo=999999999
-  for t in ${id#ORD}; do
-    o=$(grep -h '^ordinal:' "$(dirname "$0")"/../backlog/tasks/$(echo "$t" | tr 'A-Z' 'a-z')\ -*.md 2>/dev/null | head -1 | awk '{print $2}')
-    [ -n "$o" ] && [ "$o" -lt "$bo" ] && { bo=$o; best=$t; }
-  done
-  id=$best ;;
-esac
-[ -n "$id" ] || { echo "STOP nothing left"; exit 0; }
-title=$(backlog task "${id#ZN-}" --plain | awk -F' - ' '/^Task ZN-/ {print $2; exit}')
-case $title in
-  Gate:*|*packaging\ decision*) echo "STOP gate $id $title" ;;
-  *) echo "TASK $id $title" ;;
-esac
+#!/usr/bin/env python3
+"""Print the task to work on: `TASK ZN-xxx <title>` or `STOP nothing left`.
+
+Order: the task In Progress, else the lowest-ordinal Ready or Backlog task that is not parked and whose dependencies are all Done or Review.
+(Review counts: its follow-up tasks hold what is left.) Labels: `parked` (needs a board, Windows or the owner; see RULES.md) is skipped.
+`next-task --list [N]` prints the next N startable tasks; `--why` explains what is skipped and why. Used by /zn-start, /zn-end and tools/status.
+"""
+import glob, os, re, sys
+
+root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backlog", "tasks")
+
+def parse(path):
+    text = open(path, encoding="utf-8").read()
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return None
+    fm, cur, t = {}, None, {}
+    for line in m.group(1).split("\n"):
+        if re.match(r"^\s+- ", line) and cur:
+            t.setdefault(cur, []).append(line.strip()[2:].strip().strip("'\""))
+            continue
+        k = re.match(r"^([a-z_]+):\s*(.*)$", line)
+        if k:
+            cur = k.group(1)
+            v = k.group(2).strip()
+            if v in ("[]", ""):
+                t[cur] = []
+            elif v == ">-":
+                t[cur] = ""
+            else:
+                t[cur] = v.strip("'\"")
+        elif cur and line.startswith("  ") and isinstance(t.get(cur), str):
+            t[cur] += " " + line.strip()
+    t["title"] = " ".join(str(t.get("title", "")).split())
+    t["path"] = path
+    return t
+
+tasks = {}
+for p in glob.glob(os.path.join(root, "zn-*.md")):
+    t = parse(p)
+    if t and t.get("id"):
+        tasks[t["id"]] = t
+
+def ordinal(t):
+    try:
+        return float(t.get("ordinal", 1e12))
+    except ValueError:
+        return 1e12
+
+def status(t):
+    return t.get("status", "")
+
+def skipped(t):
+    if "parked" in t.get("labels", []):
+        return "parked"
+    for d in t.get("dependencies", []):
+        dt = tasks.get(d)
+        if dt is None:
+            return "unknown dependency " + d
+        if status(dt) not in ("Done", "Review"):
+            return "waits for " + d
+    return None
+
+def startable():
+    cands = [t for t in tasks.values() if status(t) in ("Ready", "Backlog") and skipped(t) is None]
+    return sorted(cands, key=ordinal)
+
+args = sys.argv[1:]
+working = sorted([t for t in tasks.values() if status(t) == "In Progress"], key=ordinal)
+if "--list" in args:
+    n = int(args[args.index("--list") + 1]) if len(args) > args.index("--list") + 1 else 10
+    for t in (working + startable())[:n]:
+        print("%s %-11s %s" % (t["id"], status(t), t["title"]))
+    sys.exit(0)
+if "--why" in args:
+    for t in sorted(tasks.values(), key=ordinal):
+        if status(t) in ("Ready", "Backlog"):
+            print("%s %s: %s" % (t["id"], t["title"][:60], skipped(t) or "startable"))
+    sys.exit(0)
+pick = working[0] if working else (startable()[0] if startable() else None)
+if pick is None:
+    waiting = [t for t in tasks.values() if status(t) in ("Ready", "Backlog")]
+    print("STOP nothing left (%d tasks parked or waiting on dependencies)" % len(waiting))
+else:
+    print("TASK %s %s" % (pick["id"], pick["title"]))

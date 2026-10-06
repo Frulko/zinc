@@ -1,8 +1,22 @@
 #!/bin/sh
-# Where are we? Current task, progress, uncommitted work, last commits, next step. Read-only.
+# Where are we? Next tasks, progress per milestone, uncommitted work, last commits. Read-only.
 cd "$(dirname "$0")/../.." || exit 2
+echo "== Next tasks"; next/tools/next-task --list 5
 echo "== Task"; next/tools/next-task
-backlog task list --plain 2>/dev/null | awk '/^(In Progress|Ready|Done):/ {s=$0; print s; next} /^[A-Za-z]/ {s=""} s && /ZN-/'
+echo "== Progress"; python3 - <<'PY'
+import glob, re, collections
+done = collections.Counter(); total = collections.Counter(); parked = collections.Counter()
+for p in glob.glob("next/backlog/tasks/zn-*.md"):
+    t = open(p, encoding="utf-8").read()
+    fm = t.split("\n---\n")[0]
+    m = re.search(r"^milestone: (.*)$", fm, re.M)
+    ms = m.group(1).strip("'\" ") if m else "(none)"
+    st = re.search(r"^status: (.*)$", fm, re.M).group(1)
+    total[ms] += 1
+    if st == "Done": done[ms] += 1
+    if "- parked" in fm: parked[ms] += 1
+for ms in sorted(total):
+    print("  %-34s %3d/%-3d done%s" % (ms[:34], done[ms], total[ms], ("  (%d parked)" % parked[ms]) if parked[ms] else ""))
+PY
 echo "== Uncommitted (next/)"; git status --short next/ | sed 's/^/  /'; [ -n "$(git status --short next/)" ] || echo "  clean"
 echo "== Last commits"; git log -5 --oneline -- next/ | sed 's/^/  /'
-echo "== Resume file"; sed -n '/^## State/,/^## Watch/p' next/RESUME.md | sed '$d'

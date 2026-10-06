@@ -1,5 +1,7 @@
 # Zinc Next: architecture rules
 
+See also `RULES.md` (rules of engagement: never stop, simulators for hardware, proven libraries, decisions) and `TESTING.md`.
+
 Binding for every task. Source of truth for the layout: `docs/reports/zinc-next-design.md` §7. A change that breaks a rule
 below needs a maintainer decision first, not a silent exception.
 

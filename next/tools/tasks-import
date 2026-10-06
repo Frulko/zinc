@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Create backlog tasks from a JSON file (precise tasks in bulk, with dependencies by key).
+
+usage: tools/tasks-import tasks.json [--dry-run]
+file:  {"milestone": "M7 Language parity",          # optional default milestone (created when missing)
+        "ordinal_base": 40000,                       # optional: tasks get base, base+10, ... in file order unless they set "ordinal"
+        "tasks": [{"key": "regex", "title": "...", "description": "...", "ac": ["..."], "size": "M",
+                   "labels": ["language"], "deps": ["other-key", "ZN-012"], "parent": "ZN-100", "milestone": "...", "priority": "high"}]}
+Keys are local to the file; `deps` may mix keys of earlier tasks and existing ids. Prints `key ZN-xxx` per task.
+"""
+import json, re, subprocess, sys
+
+def run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit("failed: %s\n%s" % (" ".join(cmd[:4]), r.stderr or r.stdout))
+    return r.stdout
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    dry = "--dry-run" in sys.argv
+    spec = json.load(open(args[0]))
+    existing = run(["backlog", "milestone", "list", "--plain"]) if not dry else ""
+    made, ordinal = {}, spec.get("ordinal_base")
+    for ms in {spec.get("milestone")} | {t.get("milestone") for t in spec["tasks"]}:
+        if ms and ms not in existing and not dry:
+            run(["backlog", "milestone", "add", ms])
+    for t in spec["tasks"]:
+        cmd = ["backlog", "task", "create", t["title"], "--plain"]
+        if t.get("description"):
+            cmd += ["-d", t["description"]]
+        for ac in t.get("ac", []):
+            cmd += ["--ac", ac]
+        labels = list(t.get("labels", [])) + (["size-" + t["size"]] if t.get("size") else [])
+        if labels:
+            cmd += ["-l", ",".join(labels)]
+        deps = [made.get(d, d) for d in t.get("deps", [])]
+        if deps:
+            cmd += ["--dep", ",".join(deps)]
+        parent = t.get("parent")
+        if parent:
+            cmd += ["-p", made.get(parent, parent)]
+        ms = t.get("milestone") or spec.get("milestone")
+        if ms:
+            cmd += ["-m", ms]
+        if t.get("priority"):
+            cmd += ["--priority", t["priority"]]
+        o = t.get("ordinal", ordinal)
+        if o is not None:
+            cmd += ["--ordinal", str(o)]
+            if "ordinal" not in t:
+                ordinal += 10
+        if dry:
+            print(t["key"], " ".join(cmd[:6]), "...")
+            made[t["key"]] = "ZN-?"
+            continue
+        out = run(cmd)
+        m = re.search(r"Task (ZN-\d+)", out)
+        if not m:
+            sys.exit("could not read the id from: " + out[:200])
+        made[t["key"]] = m.group(1)
+        print(t["key"], m.group(1))
+
+main()

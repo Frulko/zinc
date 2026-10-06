@@ -54,6 +54,10 @@ Benchmark method: median of 11 runs, idle machine, clean tree, versioned JSON ar
 
 ## Budget rule
 
-Task sizes: S ≈ 1 session, M ≈ 2–3, L ≈ 4+. If a task uses more than 1.5× its budget, stop and decide with the
-maintainer: simplify, split, or change approach. Record `/usage` in the task notes at the end of each session so the
+Task sizes: S ≈ 1 session, M ≈ 2–3, L ≈ 4+. If a task uses more than 1.5× its budget, split it and carry on (`RULES.md` §2); do not stop. Record `/usage` in the task notes at the end of each session so the
 cost per milestone is measured, not guessed.
+
+## Hardware and simulators
+
+No test depends on a board. ESP32: Espressif QEMU and `zinc device-sim`; Pi and other ARM: QEMU user/system or the pinned zig cross build run in a container; PS1: PCSX-Redux; panels, LEDs, e-ink and IMU: the in-process emulators of the display
+and sensor plugins; camera: the fake camera. Tests that need a tool the machine lacks exit 77 (`SKIP`).
