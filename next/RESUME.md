@@ -12,7 +12,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 ## Next
 
-`/loop /zn-start` runs the backlog: one task per invocation, the lowest ordinal whose dependencies are Done or Review. First tasks: ZN-058 (crash fixes), 059 (plugin entry), 060 (std pack).
+`/loop /zn-start` runs the backlog: one task per invocation, the lowest ordinal whose dependencies are Done or Review. Done so far: ZN-058, 059, 060 (std pack). Run `tools/next-task` for the next one.
 
 ## Watch out
 

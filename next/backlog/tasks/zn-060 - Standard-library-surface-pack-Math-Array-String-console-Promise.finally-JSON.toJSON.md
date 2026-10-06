@@ -3,9 +3,10 @@ id: ZN-060
 title: >-
   Standard library surface pack (Math, Array, String, console, Promise.finally,
   JSON.toJSON)
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:48'
+updated_date: '2026-10-06 23:44'
 labels:
   - language
   - stdlib
@@ -23,7 +24,13 @@ Make lib/zinc.d.ts (the prototype's reference list of supported members) true on
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a generated test walks every member of lib/zinc.d.ts and fails on any that does not compile (a list of deliberate exceptions with reasons is kept in the test)
-- [ ] #2 outputs of the new members equal Node's on a fixture per member (tests/golden/run/std_pack_*.ts)
-- [ ] #3 T0 and T1 pass; bench-m4 shows no regression above 5%
+- [x] #1 a generated test walks every member of lib/zinc.d.ts and fails on any that does not compile (a list of deliberate exceptions with reasons is kept in the test)
+- [x] #2 outputs of the new members equal Node's on a fixture per member (tests/golden/run/std_pack_*.ts)
+- [x] #3 T0 and T1 pass; bench-m4 shows no regression above 5%
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Added Math cbrt/log2/log10/log1p/expm1/asin/acos/sinh/cosh/tanh/hypot/sign/fround/clz32, Array.at, Set.forEach, console.count/countReset/assert/time*/trace, Promise.finally; tools/dts-walk + t0 std_surface; exceptions: Console.table, Promise.catch probe artifact, Promise.reject (statics).
+<!-- SECTION:NOTES:END -->
