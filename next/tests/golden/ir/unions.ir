@@ -1,0 +1,197 @@
+class Item { next: ref Item, value: i32 }
+class Animal { legs: i32 }
+class Dog : Animal { legs: i32 }
+  vtable .bark -> @Dog.bark
+class Bird : Animal { legs: i32 }
+  vtable .fly -> @Bird.fly
+class [i32, i32] { 0: i32, 1: i32 }
+func @main() -> void {
+bb0:
+  %0: ref Item = new Item
+  %1: i32 = const 1
+  %2: ref Item = new Item
+  %3: i32 = const 2
+  %4: ref Item = new Item
+  %5: i32 = const 3
+  %6: ref Item = const null
+  call @Item.constructor(%4, %5, %6)
+  call @Item.constructor(%2, %3, %4)
+  call @Item.constructor(%0, %1, %2)
+  %7: i32 = const 2
+  %8: ref Item = call @find(%0, %7)
+  %9: i32 = const 9
+  %10: ref Item = call @find(%0, %9)
+  %11: i32 = call @sum(%0)
+  %12: i32 = call @firstValue(%0)
+  %13: ref Item = const null
+  %14: i32 = call @firstValue(%13)
+  %15: ref Item = const null
+  %16: bool = ne %8, %15
+  condbr %16, bb1, bb2
+bb1:
+  %17: i32 = getfield .1 %8
+  br bb3(%17)
+bb2:
+  %18: i32 = const -9
+  br bb3(%18)
+bb3(%19: i32):
+  %20: ref Item = const null
+  %21: bool = eq %10, %20
+  %22: ref Dog = new Dog
+  call @Dog.constructor(%22)
+  %23: ref Animal = refcast %22
+  %24: i32 = call @describe(%23)
+  %25: ref Bird = new Bird
+  call @Bird.constructor(%25)
+  %26: ref Animal = refcast %25
+  %27: i32 = call @describe(%26)
+  %28: bool = const true
+  %29: ref Dog = new Dog
+  call @Dog.constructor(%29)
+  %30: i32 = call @pick(%28, %29)
+  %31: bool = const true
+  %32: ref Dog = const null
+  %33: i32 = call @pick(%31, %32)
+  builtin console.log(%11, %12, %14, %19, %21, %24, %27, %30, %33)
+  %34: ref Item = const null
+  %35: ref Item = const null
+  %36: bool = eq %34, %35
+  builtin console.log(%36)
+  %37: ref Item = new Item
+  %38: i32 = const 5
+  %39: ref Item = const null
+  call @Item.constructor(%37, %38, %39)
+  %40: i32 = getfield .1 %37
+  builtin console.log(%40)
+  ret
+}
+func @Item.constructor(%0: ref Item, %1: i32, %2: ref Item) -> void {
+bb0:
+  setfield .1 %0, %1
+  setfield .0 %0, %2
+  ret
+}
+func @Animal.constructor(%0: ref Animal, %1: i32) -> void {
+bb0:
+  setfield .0 %0, %1
+  ret
+}
+func @Dog.constructor(%0: ref Dog) -> void {
+bb0:
+  %1: ref Animal = refcast %0
+  %2: i32 = const 4
+  call @Animal.constructor(%1, %2)
+  ret
+}
+func @Dog.bark(%0: ref Dog) -> i32 {
+bb0:
+  %1: i32 = const 1
+  ret %1
+}
+func @Bird.constructor(%0: ref Bird) -> void {
+bb0:
+  %1: ref Animal = refcast %0
+  %2: i32 = const 2
+  call @Animal.constructor(%1, %2)
+  ret
+}
+func @Bird.fly(%0: ref Bird) -> i32 {
+bb0:
+  %1: i32 = const 2
+  ret %1
+}
+func @sum(%0: ref Item) -> i32 {
+bb0:
+  %1: i32 = const 0
+  br bb1(%0, %1)
+bb1(%2: ref Item, %3: i32):
+  %4: ref Item = const null
+  %5: bool = ne %2, %4
+  condbr %5, bb2, bb3
+bb2:
+  %6: i32 = getfield .1 %2
+  %7: i32 = add %3, %6
+  %8: ref Item = getfield .0 %2
+  br bb1(%8, %7)
+bb3:
+  ret %3
+}
+func @firstValue(%0: ref Item) -> i32 {
+bb0:
+  %1: ref Item = const null
+  %2: bool = eq %0, %1
+  condbr %2, bb1, bb2
+bb1:
+  %3: i32 = const -1
+  ret %3
+bb2:
+  %4: i32 = getfield .1 %0
+  ret %4
+}
+func @find(%0: ref Item, %1: i32) -> ref Item {
+bb0:
+  br bb1(%0)
+bb1(%2: ref Item):
+  %3: ref Item = const null
+  %4: bool = ne %2, %3
+  condbr %4, bb2, bb3
+bb2:
+  %5: i32 = getfield .1 %2
+  %6: bool = eq %5, %1
+  condbr %6, bb4, bb5
+bb3:
+  %7: ref Item = const null
+  ret %7
+bb4:
+  ret %2
+bb5:
+  %8: ref Item = getfield .0 %2
+  br bb1(%8)
+}
+func @describe(%0: ref Animal) -> i32 {
+bb0:
+  %1: bool = instof Dog %0
+  condbr %1, bb1, bb2
+bb1:
+  %2: ref Dog = refcast %0
+  %3: i32 = call @Dog.bark(%2)
+  %4: i32 = const 10
+  %5: i32 = mul %3, %4
+  %6: ref Dog = refcast %0
+  %7: i32 = getfield .0 %6
+  %8: i32 = add %5, %7
+  ret %8
+bb2:
+  %9: bool = instof Bird %0
+  condbr %9, bb3, bb4
+bb3:
+  %10: ref Bird = refcast %0
+  %11: i32 = call @Bird.fly(%10)
+  %12: i32 = const 10
+  %13: i32 = mul %11, %12
+  %14: ref Bird = refcast %0
+  %15: i32 = getfield .0 %14
+  %16: i32 = add %13, %15
+  ret %16
+bb4:
+  %17: i32 = const 0
+  ret %17
+}
+func @pick(%0: bool, %1: ref Dog) -> i32 {
+bb0:
+  condbr %0, bb1, bb2(%0)
+bb1:
+  %2: ref Dog = const null
+  %3: bool = ne %1, %2
+  br bb2(%3)
+bb2(%4: bool):
+  condbr %4, bb3, bb4
+bb3:
+  %5: i32 = call @Dog.bark(%1)
+  br bb5(%5)
+bb4:
+  %6: i32 = const 0
+  br bb5(%6)
+bb5(%7: i32):
+  ret %7
+}

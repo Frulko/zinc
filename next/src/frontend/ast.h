@@ -71,6 +71,7 @@ enum class N : std::uint8_t {
   ArrayPattern,   // [target | Empty (hole) | Spread(target) ...]; a target is an Ident, a nested pattern or, in an assignment, a Member or Index
   ObjectPattern,  // [PatProp...]
   PatProp,        // text=property name  [target]
+  TypeAlias,      // text=name  [type]; type parameters in Ast::tparams
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.

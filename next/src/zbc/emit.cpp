@@ -458,7 +458,12 @@ struct FnEmitter {
     auto R = [&](ValueId v) { return reg[v]; };
     std::uint32_t d = i.res != ir::kNoValue ? reg[i.res] : 0;
     switch (i.op) {
-      case IrOp::Const: if (noReg[i.res]) return true; loadConst(d, i); return true;
+      case IrOp::Const:
+        if (noReg[i.res]) return true;
+        if (ty(i.ty).k == ir::Type::K::Ref) { put(encAD(Op::LoadNull, d, ty(i.ty).aux)); return true; }
+        loadConst(d, i);
+        return true;
+      case IrOp::InstOf: mv(d, R(i.args[0])); put(encAD(Op::InstanceOf, d, i.sym)); return true;
       case IrOp::Add: case IrOp::Sub: case IrOp::Mul: case IrOp::Div: case IrOp::Rem: {
         NumK n = numOf(i.res);
         if (kform[i.res].on) {

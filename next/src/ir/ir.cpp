@@ -25,7 +25,7 @@ int builtinArity(Builtin b) {
 
 const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
-      "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "call", "callvirt", "builtin", "new", "getfield", "setfield",
+      "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "instof", "call", "callvirt", "builtin", "new", "getfield", "setfield",
       "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen",
       "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
@@ -53,7 +53,7 @@ std::uint8_t effects(const Module& m, const Inst& i) {
     case IrOp::Call: case IrOp::CallVirt: case IrOp::Builtin: return kReads | kWrites | kThrows;
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
     case IrOp::New: case IrOp::ArrNew: case IrOp::StrConcat: case IrOp::ToStr: return kAllocs;
-    case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: return kReads;
+    case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: case IrOp::InstOf: return kReads;
     case IrOp::ArrGet: return kReads | kThrows;                      // bounds trap
     case IrOp::SetField: case IrOp::SetGlobal: return kWrites;
     case IrOp::ArrSet: return kWrites | kThrows;
@@ -114,7 +114,8 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
   const Type& rt = m.types[i.ty];
   switch (i.op) {
     case IrOp::Const:
-      if (rt.k == Type::K::Str) s += " " + escape(m.strings[static_cast<std::size_t>(i.imm)]);
+      if (rt.k == Type::K::Ref) s += " null";
+      else if (rt.k == Type::K::Str) s += " " + escape(m.strings[static_cast<std::size_t>(i.imm)]);
       else if (rt.k == Type::K::Bool) s += i.imm ? " true" : " false";
       else if (rt.k == Type::K::Num && (rt.num == Num::f64 || rt.num == Num::f32 || rt.num == Num::fx12 || rt.num == Num::fx16)) s += " " + fmtDouble(i.fimm);
       else s += " " + std::to_string(i.imm);
@@ -122,7 +123,7 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     case IrOp::Call: s += " @" + m.functions[i.sym].name; break;
     case IrOp::CallVirt: s += " ." + m.selectors[i.sym].name; break;
     case IrOp::Builtin: s += std::string(" ") + builtinName(static_cast<Builtin>(i.sym)); break;
-    case IrOp::New: s += " " + m.classes[i.sym].name; break;
+    case IrOp::New: case IrOp::InstOf: s += " " + m.classes[i.sym].name; break;
     case IrOp::GetField: case IrOp::SetField: s += " ." + std::to_string(i.sym); break;
     case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + m.globals[i.sym].name; break;
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
@@ -277,7 +278,8 @@ struct Verifier {
       case IrOp::Const: {
         if (!arity(0)) return false;
         const Type& t = m.types[i.ty];
-        if (t.k != Type::K::Num && t.k != Type::K::Bool && t.k != Type::K::Str) return fail(b, ii, "const of a non-scalar type");
+        if (t.k != Type::K::Num && t.k != Type::K::Bool && t.k != Type::K::Str && t.k != Type::K::Ref) return fail(b, ii, "const of a non-scalar type");
+        if (t.k == Type::K::Ref && i.imm != 0) return fail(b, ii, "the only reference constant is null");
         if (t.k == Type::K::Str && (i.imm < 0 || static_cast<std::size_t>(i.imm) >= m.strings.size())) return fail(b, ii, "const string index out of range");
         break;
       }
@@ -301,7 +303,7 @@ struct Verifier {
         if (m.types[i.ty].k != Type::K::Bool) return fail(b, ii, "comparison must produce bool");
         if (tyOf(i.args[0]) != tyOf(i.args[1])) return fail(b, ii, "comparison operands differ: " + typeName(m, tyOf(i.args[0])) + " and " + typeName(m, tyOf(i.args[1])));
         Type::K k = m.types[tyOf(i.args[0])].k;
-        if (k != Type::K::Num && k != Type::K::Str && !(k == Type::K::Bool && (i.op == IrOp::Eq || i.op == IrOp::Ne))) return fail(b, ii, "comparison on an unordered type");
+        if (k != Type::K::Num && k != Type::K::Str && !((k == Type::K::Bool || k == Type::K::Ref) && (i.op == IrOp::Eq || i.op == IrOp::Ne))) return fail(b, ii, "comparison on an unordered type");
         break;
       }
       case IrOp::Conv:
@@ -323,6 +325,9 @@ struct Verifier {
         if (!m.isSubtype(from, to) && !m.isSubtype(to, from)) return fail(b, ii, "refcast between unrelated classes " + m.classes[from].name + " and " + m.classes[to].name);
         break;
       }
+      case IrOp::InstOf:
+        if (!arity(1) || i.sym >= m.classes.size() || m.types[i.ty].k != Type::K::Bool || m.types[tyOf(i.args[0])].k != Type::K::Ref) return err.empty() ? fail(b, ii, "instof needs a reference and a class") : false;
+        break;
       case IrOp::CallVirt: {
         if (i.sym >= m.selectors.size()) return fail(b, ii, "callvirt of a missing selector");
         const Selector& sel = m.selectors[i.sym];

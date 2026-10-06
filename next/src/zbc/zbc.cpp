@@ -62,7 +62,7 @@ bool aIsReg(Op op) {
   const OpInfo& i = opInfo(op);
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
-  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast;
+  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf;
   return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::SetField;
 }
 bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
@@ -168,7 +168,7 @@ struct Verifier {
             case Op::JmpIf: case Op::JmpIfNot: if (d >= f.code.size()) return fail(pc, "jump target out of range"); break;
             case Op::Call: if (d >= m.functions.size()) return fail(pc, "call to a missing function"); break;
             case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
-            case Op::New: case Op::Downcast: if (d >= m.classes.size()) return fail(pc, "unknown class"); break;
+            case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: if (d >= m.classes.size()) return fail(pc, "unknown class"); break;
             case Op::CallVirt: if (d >= m.selectors.size()) return fail(pc, "unknown selector"); break;
             default: break;
           }
@@ -285,6 +285,11 @@ struct Verifier {
         if (sel.ret.cls != Cls::None) s[base] = enc(sel.ret);
         return true;
       }
+      case Op::LoadNull: s[aOf(w)] = static_cast<St>(4 + dOf(w)); return true;
+      case Op::InstanceOf:
+        if (!needRef(aOf(w), "value")) return false;
+        s[aOf(w)] = 1;
+        return true;
       case Op::Downcast:
         if (!needRef(aOf(w), "value")) return false;
         s[aOf(w)] = static_cast<St>(4 + dOf(w));
@@ -564,7 +569,7 @@ std::string disassemble(const Module& m) {
           case Op::LoadK: ops = r(aOf(w)) + ", " + (dOf(w) < f.consts.size() ? constText(f.consts[dOf(w)]) : "?"); break;
           case Op::JmpIf: case Op::JmpIfNot: ops = r(aOf(w)) + ", -> " + std::to_string(dOf(w)); break;
           case Op::Call: ops = r(aOf(w)) + ", @" + (dOf(w) < m.functions.size() ? m.functions[dOf(w)].name : "?"); break;
-          case Op::New: case Op::Downcast: ops = r(aOf(w)) + ", " + clsN(dOf(w)); break;
+          case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: ops = r(aOf(w)) + ", " + clsN(dOf(w)); break;
           case Op::CallVirt: ops = r(aOf(w)) + ", ." + (dOf(w) < m.selectors.size() ? m.selectors[dOf(w)].name : "?"); break;
           default: ops = r(aOf(w)) + ", g" + std::to_string(dOf(w)); break;
         }

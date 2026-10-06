@@ -85,6 +85,22 @@ struct Lowering {
       case frontend::TK::Object:
         if (classOfObj[x.obj] != kNil) return m.refT(classOfObj[x.obj]);
         break;
+      case frontend::TK::Union: {  // references with null: the class every member derives from (null is a null reference)
+        std::vector<std::uint32_t> objs;
+        for (frontend::TypeId mt : x.params) {
+          if (mt == frontend::kNoType) continue;
+          const frontend::Type& mtt = c.types[mt];
+          if (mtt.k == frontend::TK::Null) continue;
+          if (mtt.k != frontend::TK::Object || classOfObj[mtt.obj] == kNil) { objs.clear(); break; }
+          objs.push_back(mtt.obj);
+        }
+        for (std::uint32_t cand : objs) {
+          bool all = true;
+          for (std::uint32_t o : objs) all = all && frontend::objAssignable(c, o, cand);
+          if (all) return m.refT(classOfObj[cand]);
+        }
+        break;
+      }
       default: break;
     }
     if (at != kNil) unsupported(at, "this type in the IR");
@@ -548,6 +564,15 @@ struct Lowering::FnLower {
 
   ValueId compare(std::uint32_t node, const Node& x) {
     std::uint32_t le = x.kids[0], re = x.kids[1];
+    auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
+    if (isNullLit(le) || isNullLit(re)) {  // x === null: compare with a null reference of x's type
+      std::uint32_t other = isNullLit(le) ? re : le;
+      ValueId o = expr(other);
+      ValueId nl = emit(IrOp::Const, tv(o));
+      std::string_view ox = x.text;
+      IrOp cmp = (ox == "==" || ox == "===") ? IrOp::Eq : IrOp::Ne;
+      return emit(cmp, m.boolT(), isNullLit(le) ? std::vector<ValueId>{nl, o} : std::vector<ValueId>{o, nl});
+    }
     double dv;
     bool lLit = numLit(n(le), a, dv), rLit = numLit(n(re), a, dv);
     TypeId lt = natural(le), rt = natural(re), common;
@@ -595,14 +620,20 @@ struct Lowering::FnLower {
         return acc;
       }
       case N::Literal:
-        if (x.text == "null") { unsupported(i, "null"); return constBool(false); }
+        if (x.text == "null") {
+          if (want != kNoValue && ty(want).k == Type::K::Ref) return emit(IrOp::Const, want);
+          unsupported(i, "null without a reference type to give it");
+          return constBool(false);
+        }
         return constBool(x.text == "true");
       case N::This: return readVar(thisVar, cur);
       case N::Ident: {
         std::uint32_t s = c.nodeSym[i];
         if (s == kNil) return constNum(m.numT(NumK::f64), 0);
         if (c.syms[s].kind == SymKind::Builtin) return constNum(m.numT(NumK::f64), x.text == "NaN" ? std::nan("") : HUGE_VAL);
-        return readSym(s);
+        ValueId v = readSym(s);
+        if (c.nodeType[i] != frontend::kNoType && c.types[c.nodeType[i]].k == frontend::TK::Object) return coerce(v, natural(i));  // a variable narrowed by instanceof
+        return v;
       }
       case N::Array: {
         if (isTupleObj(c.nodeType[i])) {  // a tuple literal: a fresh object with one field per element
@@ -626,6 +657,11 @@ struct Lowering::FnLower {
       case N::Binary: {
         std::string_view o = x.text;
         if (o == ",") { expr(x.kids[0]); return expr(x.kids[1], want); }
+        if (o == "instanceof") {
+          ValueId v = expr(x.kids[0]);
+          std::uint32_t cls = L.classOfObj[c.types[c.nodeType[x.kids[1]]].obj];
+          return emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls);
+        }
         if (o == "&&") return shortCircuit(x, true);
         if (o == "||") return shortCircuit(x, false);
         if (o == "==" || o == "===" || o == "!=" || o == "!==" || o == "<" || o == "<=" || o == ">" || o == ">=") return compare(i, x);
@@ -929,7 +965,7 @@ struct Lowering::FnLower {
   void stmt(std::uint32_t s) {
     const Node& x = n(s);
     switch (x.kind) {
-      case N::Empty: case N::Function: case N::Interface: break;
+      case N::Empty: case N::Function: case N::Interface: case N::TypeAlias: break;
       case N::Class: {  // static field initialisers run where the class is declared
         if (c.nodeType[s] == frontend::kNoType) break;  // a generic template
         std::uint32_t obj = c.types[c.nodeType[s]].obj;

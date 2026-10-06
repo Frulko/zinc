@@ -1,0 +1,332 @@
+Program
+  Class Item
+    _
+    _
+    Field next
+      TypeUnion
+        TypeRef Item
+        TypeRef null
+      _
+    Method constructor
+      _
+      Block
+        ExprStmt [synthetic]
+          Assign =
+            Member value
+              This
+            Ident value
+        ExprStmt
+          Assign =
+            Member next
+              This
+            Ident next
+      Param value [public]
+        TypeRef i32
+        _
+      Param next
+        TypeUnion
+          TypeRef Item
+          TypeRef null
+        _
+    Field value [public]
+      TypeRef i32
+      _
+  TypeAlias Maybe
+    TypeParams
+      TypeParam T
+        _
+    TypeUnion
+      TypeRef T
+      TypeRef null
+  TypeAlias Pair
+    TypeTuple
+      TypeRef i32
+      TypeRef i32
+  Class Animal
+    _
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt [synthetic]
+          Assign =
+            Member legs
+              This
+            Ident legs
+      Param legs [public]
+        TypeRef i32
+        _
+    Field legs [public]
+      TypeRef i32
+      _
+  Class Dog
+    TypeRef Animal
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Call
+            Super
+            Number 4
+    Method bark
+      TypeRef i32
+      Block
+        Return
+          Number 1
+  Class Bird
+    TypeRef Animal
+    _
+    Method constructor
+      _
+      Block
+        ExprStmt
+          Call
+            Super
+            Number 2
+    Method fly
+      TypeRef i32
+      Block
+        Return
+          Number 2
+  Function sum
+    TypeRef i32
+    Block
+      VarDecl let
+        Declarator total
+          TypeRef i32
+          Number 0
+      VarDecl let
+        Declarator cur
+          TypeUnion
+            TypeRef Item
+            TypeRef null
+          Ident list
+      While
+        Binary !==
+          Ident cur
+          Literal null
+        Block
+          ExprStmt
+            Assign +=
+              Ident total
+              Member value
+                Ident cur
+          ExprStmt
+            Assign =
+              Ident cur
+              Member next
+                Ident cur
+      Return
+        Ident total
+    Param list
+      TypeUnion
+        TypeRef Item
+        TypeRef null
+      _
+  Function firstValue
+    TypeRef i32
+    Block
+      If
+        Binary ===
+          Ident list
+          Literal null
+        Return
+          Unary -
+            Number 1
+        _
+      Return
+        Member value
+          Ident list
+    Param list
+      TypeRef Maybe
+        TypeRef Item
+      _
+  Function find
+    TypeUnion
+      TypeRef Item
+      TypeRef null
+    Block
+      VarDecl let
+        Declarator cur
+          _
+          Ident list
+      While
+        Binary !==
+          Ident cur
+          Literal null
+        Block
+          If
+            Binary ===
+              Member value
+                Ident cur
+              Ident v
+            Return
+              Ident cur
+            _
+          ExprStmt
+            Assign =
+              Ident cur
+              Member next
+                Ident cur
+      Return
+        Literal null
+    Param list
+      TypeUnion
+        TypeRef Item
+        TypeRef null
+      _
+    Param v
+      TypeRef i32
+      _
+  Function describe
+    TypeRef i32
+    Block
+      If
+        Binary instanceof
+          Ident a
+          Ident Dog
+        Return
+          Binary +
+            Binary *
+              Call
+                Member bark
+                  Ident a
+              Number 10
+            Member legs
+              Ident a
+        _
+      If
+        Binary instanceof
+          Ident a
+          Ident Bird
+        Return
+          Binary +
+            Binary *
+              Call
+                Member fly
+                  Ident a
+              Number 10
+            Member legs
+              Ident a
+        _
+      Return
+        Number 0
+    Param a
+      TypeRef Animal
+      _
+  Function pick
+    TypeRef i32
+    Block
+      Return
+        Cond
+          Binary &&
+            Ident c
+            Binary !==
+              Ident d
+              Literal null
+          Call
+            Member bark
+              Ident d
+          Number 0
+    Param c
+      TypeRef boolean
+      _
+    Param d
+      TypeUnion
+        TypeRef Dog
+        TypeRef null
+      _
+  VarDecl const
+    Declarator list
+      _
+      New
+        Ident Item
+        Number 1
+        New
+          Ident Item
+          Number 2
+          New
+            Ident Item
+            Number 3
+            Literal null
+  VarDecl const
+    Declarator found
+      _
+      Call
+        Ident find
+        Ident list
+        Number 2
+  VarDecl const
+    Declarator missing
+      _
+      Call
+        Ident find
+        Ident list
+        Number 9
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Call
+        Ident sum
+        Ident list
+      Call
+        Ident firstValue
+        Ident list
+      Call
+        Ident firstValue
+        Literal null
+      Cond
+        Binary !==
+          Ident found
+          Literal null
+        Member value
+          Ident found
+        Unary -
+          Number 9
+      Binary ===
+        Ident missing
+        Literal null
+      Call
+        Ident describe
+        New
+          Ident Dog
+      Call
+        Ident describe
+        New
+          Ident Bird
+      Call
+        Ident pick
+        Literal true
+        New
+          Ident Dog
+      Call
+        Ident pick
+        Literal true
+        Literal null
+  VarDecl let
+    Declarator n
+      TypeRef Maybe
+        TypeRef Item
+      Literal null
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Binary ===
+        Ident n
+        Literal null
+  ExprStmt
+    Assign =
+      Ident n
+      New
+        Ident Item
+        Number 5
+        Literal null
+  ExprStmt
+    Call
+      Member log
+        Ident console
+      Member value
+        Ident n

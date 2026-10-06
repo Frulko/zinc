@@ -190,6 +190,11 @@ int main() {
     m2.functions.push_back(takesB);
     expect("base argument where a subtype is expected", m2, "expected ref B");
   }
+  expect("null reference compared", objModule({encAD(Op::LoadNull, 0, 1), encAD(Op::New, 1, 1), encABC(Op::EqR, 2, 0, 1), encABC(Op::LogBool, 2), encABC(Op::RetV, 0)}, 3), "");
+  expect("instanceof result is an integer", objModule({encAD(Op::New, 0, 1), encAD(Op::InstanceOf, 0, 0), encABC(Op::LogBool, 0), encABC(Op::RetV, 0)}, 1), "");
+  expect("instanceof of an integer", objModule({encAD(Op::LoadI, 0, 1), encAD(Op::InstanceOf, 0, 0), encABC(Op::RetV, 0)}, 1), "expected a reference");
+  expect("null of an unknown class", objModule({encAD(Op::LoadNull, 0, 9), encABC(Op::RetV, 0)}, 1), "unknown class");
+  expect("field of a null reference verifies", objModule({encAD(Op::LoadNull, 0, 1), encABC(Op::GetField, 1, 0, 0), encABC(Op::RetV, 0)}, 2), "");  // the VM traps at run time
   {  // class tables
     Module m = objModule({encABC(Op::RetV, 0)}, 1);
     m.classes[1].vtable = {kNoClass};

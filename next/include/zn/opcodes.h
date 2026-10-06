@@ -8,7 +8,8 @@
 // ('_' none, 'M' special-cased by the verifier, e.g. Move, Call, Ret, and everything that touches references).
 // Object operations: New A,class | GetField A,B,idx (A = B.field idx) | SetField A,B,idx (A.field idx = B) |
 // CallVirt A,selector (receiver in r[A], window like Call) | Downcast A,class (r[A] = r[A] checked as the class; the
-// register keeps the value and gains the class) | EqR/NeR compare references.
+// register keeps the value and gains the class) | EqR/NeR compare references | LoadNull A,class (r[A] = null, typed as
+// the class) | InstanceOf A,class (r[A] = r[A] is a non-null instance of the class, as an integer).
 #include <cstdint>
 
 #define ZN_OPCODES(X)                                                                                           \
@@ -44,7 +45,7 @@
   X(JGtIK, AK2, _, _, _) X(JGeIK, AK2, _, _, _)                                                                 \
   X(Call, AD, _, _, M) X(Ret, ABC, _, _, M) X(RetV, OP, _, _, _) X(Throw, ABC, _, _, _)                         \
   X(New, AD, _, _, M) X(GetField, ABC, M, _, M) X(SetField, ABC, M, _, _) X(CallVirt, AD, _, _, M)               \
-  X(Downcast, AD, _, _, M) X(EqR, ABC, M, M, I) X(NeR, ABC, M, M, I)                                            \
+  X(Downcast, AD, _, _, M) X(EqR, ABC, M, M, I) X(NeR, ABC, M, M, I) X(LoadNull, AD, _, _, M) X(InstanceOf, AD, _, _, M)                                            \
   X(GetGlobal, AD, _, _, M) X(SetGlobal, AD, _, _, M)                                                           \
   X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
   X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)

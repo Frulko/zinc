@@ -210,6 +210,26 @@ int main() {
       B::add(f, 0, IrOp::GetField, b.i32, {asI}, B::val(f, b.i32), 0, 0);
       b.ret(f, 0);
     }), "interface");
+    expect("null reference and comparison", classModule([](B& b, Function& f) {
+      ValueId nl = B::val(f, b.m.refT(0));
+      B::add(f, 0, IrOp::Const, b.m.refT(0), {}, nl, 0);
+      ValueId o = B::val(f, b.m.refT(0));
+      B::add(f, 0, IrOp::New, b.m.refT(0), {}, o, 0, 0);
+      ValueId eq = B::val(f, b.boolT);
+      B::add(f, 0, IrOp::Eq, b.boolT, {o, nl}, eq);
+      ValueId is = B::val(f, b.boolT);
+      B::add(f, 0, IrOp::InstOf, b.boolT, {o}, is, 0, 1);
+      b.ret(f, 0);
+    }), "");
+    expect("a reference constant other than null", classModule([](B& b, Function& f) {
+      B::add(f, 0, IrOp::Const, b.m.refT(0), {}, B::val(f, b.m.refT(0)), 5);
+      b.ret(f, 0);
+    }), "null");
+    expect("instof of an integer", classModule([](B& b, Function& f) {
+      ValueId x = b.cst(f, 0, b.i32);
+      B::add(f, 0, IrOp::InstOf, b.boolT, {x}, B::val(f, b.boolT), 0, 1);
+      b.ret(f, 0);
+    }), "instof");
     expect("field offset moved in a subclass", classModule([](B& b, Function& f) {
       b.m.classes[1].fields[0].name = "z";
       b.ret(f, 0);

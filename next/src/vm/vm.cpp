@@ -328,6 +328,12 @@ L_Downcast: {
   if (o && !isSubclassRT(o->cls, dOf(w))) TRAP("invalid cast");
   NEXT();
 }
+L_LoadNull: r[A] = 0; NEXT();
+L_InstanceOf: {
+  auto* o = reinterpret_cast<Obj*>(r[A]);
+  r[A] = Slot{o && isSubclassRT(o->cls, dOf(w))};
+  NEXT();
+}
 L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
 L_NeR: r[A] = Slot{r[B] != r[C]}; NEXT();
 L_GetGlobal: r[A] = globals[dOf(w)]; NEXT();

@@ -1,0 +1,180 @@
+class Item { ref Item, i }
+class Animal { i }
+class Dog : Animal { i }
+  vtable .bark -> @Dog.bark
+class Bird : Animal { i }
+  vtable .fly -> @Bird.fly
+class [i32, i32] { i, i }
+func @main() -> void nregs=11
+   0  New      r0, Item
+   1  LoadI    r2, 1
+   2  New      r3, Item
+   3  LoadI    r5, 2
+   4  New      r6, Item
+   5  LoadI    r8, 3
+   6  LoadNull r9, Item
+   7  Move     r7, r6
+   8  Call     r7, @Item.constructor
+   9  Move     r4, r3
+  10  Call     r4, @Item.constructor
+  11  Move     r1, r0
+  12  Call     r1, @Item.constructor
+  13  LoadI    r2, 2
+  14  Move     r1, r0
+  15  Call     r1, @find
+  16  LoadI    r3, 9
+  17  Move     r2, r0
+  18  Call     r2, @find
+  19  Move     r3, r0
+  20  Call     r3, @sum
+  21  Move     r4, r0
+  22  Call     r4, @firstValue
+  23  LoadNull r5, Item
+  24  Call     r5, @firstValue
+  25  LoadNull r0, Item
+  26  NeR      r0, r1, r0
+  27  JmpIfNot r0, -> 30
+  28  GetField r0, r1, .1
+  29  Jmp      -> 31
+  30  LoadI    r0, -9
+  31  LoadNull r1, Item
+  32  EqR      r1, r2, r1
+  33  New      r2, Dog
+  34  Move     r6, r2
+  35  Call     r6, @Dog.constructor
+  36  Move     r6, r2
+  37  Call     r6, @describe
+  38  New      r2, Bird
+  39  Move     r7, r2
+  40  Call     r7, @Bird.constructor
+  41  Move     r7, r2
+  42  Call     r7, @describe
+  43  LoadI    r8, 1
+  44  New      r9, Dog
+  45  Move     r10, r9
+  46  Call     r10, @Dog.constructor
+  47  Call     r8, @pick
+  48  LoadI    r9, 1
+  49  LoadNull r10, Dog
+  50  Call     r9, @pick
+  51  LogI     r3
+  52  LogSep   
+  53  LogI     r4
+  54  LogSep   
+  55  LogI     r5
+  56  LogSep   
+  57  LogI     r0
+  58  LogSep   
+  59  LogBool  r1
+  60  LogSep   
+  61  LogI     r6
+  62  LogSep   
+  63  LogI     r7
+  64  LogSep   
+  65  LogI     r8
+  66  LogSep   
+  67  LogI     r9
+  68  LogEnd   
+  69  LoadNull r0, Item
+  70  LoadNull r1, Item
+  71  EqR      r0, r0, r1
+  72  LogBool  r0
+  73  LogEnd   
+  74  New      r0, Item
+  75  LoadI    r2, 5
+  76  LoadNull r3, Item
+  77  Move     r1, r0
+  78  Call     r1, @Item.constructor
+  79  GetField r0, r0, .1
+  80  LogI     r0
+  81  LogEnd   
+  82  RetV     
+func @Item.constructor(ref Item, i, ref Item) -> void nregs=3
+   0  SetField r0, r1, .1
+   1  SetField r0, r2, .0
+   2  RetV     
+func @Animal.constructor(ref Animal, i) -> void nregs=2
+   0  SetField r0, r1, .0
+   1  RetV     
+func @Dog.constructor(ref Dog) -> void nregs=2
+   0  LoadI    r1, 4
+   1  Call     r0, @Animal.constructor
+   2  RetV     
+func @Dog.bark(ref Dog) -> i nregs=1
+   0  LoadI    r0, 1
+   1  Ret      r0
+func @Bird.constructor(ref Bird) -> void nregs=2
+   0  LoadI    r1, 2
+   1  Call     r0, @Animal.constructor
+   2  RetV     
+func @Bird.fly(ref Bird) -> i nregs=1
+   0  LoadI    r0, 2
+   1  Ret      r0
+func @sum(ref Item) -> i nregs=3
+   0  LoadI    r1, 0
+   1  LoadNull r2, Item
+   2  NeR      r2, r0, r2
+   3  JmpIfNot r2, -> 9
+   4  GetField r2, r0, .1
+   5  AddI32   r2, r1, r2
+   6  GetField r0, r0, .0
+   7  Move     r1, r2
+   8  Jmp      -> 1
+   9  Ret      r1
+func @firstValue(ref Item) -> i nregs=2
+   0  LoadNull r1, Item
+   1  EqR      r1, r0, r1
+   2  JmpIfNot r1, -> 5
+   3  LoadI    r1, -1
+   4  Ret      r1
+   5  GetField r0, r0, .1
+   6  Ret      r0
+func @find(ref Item, i) -> ref Item nregs=3
+   0  LoadNull r2, Item
+   1  NeR      r2, r0, r2
+   2  JmpIfNot r2, -> 9
+   3  GetField r2, r0, .1
+   4  JNeI     r2, r1, -> 7
+   6  Ret      r0
+   7  GetField r0, r0, .0
+   8  Jmp      -> 0
+   9  LoadNull r0, Item
+  10  Ret      r0
+func @describe(ref Animal) -> i nregs=3
+   0  Move     r1, r0
+   1  InstanceOfr1, Dog
+   2  JmpIfNot r1, -> 13
+   3  Move     r1, r0
+   4  Downcast r1, Dog
+   5  Call     r1, @Dog.bark
+   6  LoadI    r2, 10
+   7  MulI32   r1, r1, r2
+   8  Move     r2, r0
+   9  Downcast r2, Dog
+  10  GetField r2, r2, .0
+  11  AddI32   r1, r1, r2
+  12  Ret      r1
+  13  Move     r1, r0
+  14  InstanceOfr1, Bird
+  15  JmpIfNot r1, -> 25
+  16  Move     r1, r0
+  17  Downcast r1, Bird
+  18  Call     r1, @Bird.fly
+  19  LoadI    r2, 10
+  20  MulI32   r1, r1, r2
+  21  Downcast r0, Bird
+  22  GetField r0, r0, .0
+  23  AddI32   r0, r1, r0
+  24  Ret      r0
+  25  LoadI    r0, 0
+  26  Ret      r0
+func @pick(i, ref Dog) -> i nregs=2
+   0  JmpIfNot r0, -> 3
+   1  LoadNull r0, Dog
+   2  NeR      r0, r1, r0
+   3  JmpIfNot r0, -> 7
+   4  Move     r0, r1
+   5  Call     r0, @Dog.bark
+   6  Jmp      -> 8
+   7  LoadI    r0, 0
+   8  Ret      r0

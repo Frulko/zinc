@@ -827,7 +827,18 @@ struct Parser {
     }
     if (isKw("import") || isKw("export")) unsupported("modules");
     if (isKw("switch") || isKw("try") || isKw("throw")) unsupported("switch, try and throw");
-    if (isId("type") && at(1).kind == Tok::Ident) unsupported("type aliases");
+    if (isId("type") && at(1).kind == Tok::Ident) {  // type Name<T> = Type;
+      ++i;
+      std::string_view name = txt(); ++i;
+      std::vector<std::uint32_t> tps;
+      if (isP("<")) tps = typeParams();
+      expectP("=");
+      std::uint32_t ty = type();
+      semi();
+      std::uint32_t id = mk(N::TypeAlias, st, prevEnd(), name, {ty});
+      if (!tps.empty()) r.ast.tparams[id] = std::move(tps);
+      return id;
+    }
     if (isKw("enum")) unsupported("enums");
     std::uint32_t e = expression();
     semi();
@@ -847,7 +858,7 @@ const char* kindName(N k) {
       "Interface", "Heritage", "Field", "Method", "If", "For", "ForOf", "ForIn", "While", "DoWhile", "Return", "Break", "Continue", "ExprStmt",
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
-      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp"};
+      "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias"};
   return names[static_cast<int>(k)];
 }
 

@@ -35,13 +35,14 @@ const char* builtinName(Builtin b);
 int builtinArity(Builtin b);  // -1: variadic
 
 enum class IrOp : std::uint8_t {
-  Const,                                                    // imm (int, bool, string index) or fimm
+  Const,                                                    // imm (int, bool, string index) or fimm; a reference constant is null
   Add, Sub, Mul, Div, Rem, Pow,                             // numeric, operands and result of one type
   And, Or, Xor, Shl, Shr, UShr,                             // integer kinds
   Neg, Not, BitNot,
   Eq, Ne, Lt, Le, Gt, Ge,                                   // result bool; operands of one type
   Conv,                                                     // numeric kind conversion
-  RefCast,                                                  // reference to a related class or interface; no runtime effect
+  RefCast,                                                  // reference to a related class or interface (checked at run time when it is a downcast)
+  InstOf,                                                   // sym = class; bool, false for null
   Call,                                                     // sym = function; optional edges[0] = unwind
   CallVirt,                                                 // args[0] = receiver, sym = selector; dispatches through the receiver's vtable
   Builtin,                                                  // sym = Builtin

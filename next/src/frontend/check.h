@@ -17,14 +17,14 @@ namespace zn::frontend {
 using TypeId = std::uint32_t;
 inline constexpr TypeId kNoType = 0xFFFFFFFFu;
 
-enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param };
+enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param, Union };
 enum class Num : std::uint8_t { f64, f32, fx12, fx16, i8, i16, i32, i64, u8, u16, u32, u64, isize, usize };
 
 struct Type {
   TK k = TK::Error;
   Num num = Num::f64;           // Num
   TypeId elem = 0;              // Array: element; Func: return type
-  std::vector<TypeId> params;   // Func
+  std::vector<TypeId> params;   // Func: parameters; Union: members, sorted and without duplicates
   std::uint32_t minArgs = 0;    // Func
   bool variadic = false;        // Func (builtin console.log)
   std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams
@@ -57,7 +57,7 @@ struct ObjInfo {
   std::vector<std::uint32_t> ifaces;       // interfaces named in `implements`
 };
 
-enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin, TypeAlias, GenericFunc, GenericClass };
+enum class SymKind : std::uint8_t { Var, Param, Func, Class, Builtin, TypeAlias, GenericFunc, GenericClass, GenericAlias };
 struct Symbol {
   SymKind kind;
   std::string_view name;
