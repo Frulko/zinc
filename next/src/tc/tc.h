@@ -38,4 +38,17 @@ bool qemuCommand(const std::string& chip, const std::string& sourceRoot, std::st
 // `sourceRoot` is the directory of the engine sources (next/). Objects of the runtime are cached per target under home()/cache.
 bool crossBuild(const std::string& zig, const std::string& sourceRoot, const std::string& cppFile, const std::string& target, const std::string& outFile, std::string& err);
 
+// The directory of the engine's own files (next/ of a checkout, or share/zinc/next of a package): lib/std, the runtime sources for cross builds, the
+// core firmware. $ZINC_ROOT, else `<exe>/../share/zinc/next` (Linux package) or `<exe>/../Resources/zinc/next` (macOS app), else `compiledIn` (a
+// development build runs from its checkout).
+std::string sourceRoot(const std::string& compiledIn);
+std::string executablePath();  // the running binary, resolved; empty when unknown
+
+// Updates: a manifest is a text file of `key=value` lines (version, url, sha256, notes), fetched with curl from $ZINC_UPDATE_URL (or an argument).
+struct UpdateInfo { std::string version, url, sha256, notes; };
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err);
+bool newerVersion(const std::string& candidate, const std::string& current);  // dotted numbers
+// Downloads info.url into `dir`, checks its SHA-256 against the manifest before keeping it; `path` is the verified file.
+bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string& path, std::string& err);
+
 }  // namespace zn::tc

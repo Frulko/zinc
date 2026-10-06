@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Zinc packaging (ZN-053): one self-contained download for this machine's OS.
+
+  tools/package [--build build] [--out dist] [--budget-only]
+
+macOS: dist/Zinc-<version>-macos-<arch>.zip holding "Zinc Atelier.app" (the engine, lib/std, the runtime sources for cross builds, the core
+firmware, the app, SDL3 in Frameworks). Linux: dist/zinc-<version>-linux-<arch>.tar.gz (bin, lib, share/zinc) and, when appimagetool is
+installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-054).
+Then the size of each package is checked against its budget (tools/package-budget in this file); over budget exits 3.
+Signing and notarization are separate (tools/sign-macos).
+"""
+import json, os, platform, re, shutil, subprocess, sys, tarfile, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+NEXT = os.path.dirname(HERE)
+REPO = os.path.dirname(NEXT)
+VERSION = "0.0.1"
+# size budgets in MB of the download (the archive); a package over its budget fails the script
+BUDGET_MB = {"macos": 40, "linux": 40}
+
+def arg(name, default):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
+def copy_tree(src, dst, keep=None):
+    """Copy a directory, keeping only files for which keep(relative path) is true; symlinks are not followed."""
+    for root, dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('node_modules', 'build', 'vendor')]
+        for f in files:
+            r = os.path.normpath(os.path.join(rel, f))
+            if f.startswith('.') or (keep and not keep(r)):
+                continue
+            out = os.path.join(dst, r)
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            shutil.copy2(os.path.join(root, f), out)
+
+def payload(share):
+    """share/zinc: next/ (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, the plugins' Zinc sources."""
+    nx = os.path.join(share, "next")
+    copy_tree(os.path.join(NEXT, "include"), os.path.join(nx, "include"))
+    copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
+    mi = os.path.join(NEXT, "third_party", "mimalloc")
+    copy_tree(mi, os.path.join(nx, "third_party", "mimalloc"), lambda r: r.startswith(('src', 'include', 'LICENSE')))
+    copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
+    shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
+    copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
+    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx')))
+    copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
+    copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
+    copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
+    open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
+
+def run(*cmd, check=True):
+    return subprocess.run(cmd, check=check, capture_output=True, text=True)
+
+def bundle_libs_macos(binary, libdir):
+    """Copy the non-system dylibs the binary needs next to it and point the binary at them."""
+    os.makedirs(libdir, exist_ok=True)
+    for line in run("otool", "-L", binary).stdout.splitlines()[1:]:
+        path = line.strip().split(" ")[0]
+        if path.startswith(("/usr/lib/", "/System/")):
+            continue
+        name = os.path.basename(path)
+        shutil.copy2(path, os.path.join(libdir, name))
+        os.chmod(os.path.join(libdir, name), 0o755)
+        run("install_name_tool", "-id", "@rpath/" + name, os.path.join(libdir, name))
+        run("install_name_tool", "-change", path, "@executable_path/../Frameworks/" + name, binary)
+    for f in os.listdir(libdir):  # arm64 refuses to load code whose signature broke: ad hoc sign (tools/sign-macos signs for distribution)
+        run("codesign", "--force", "--sign", "-", os.path.join(libdir, f))
+    run("codesign", "--force", "--sign", "-", binary)
+
+def zip_dir(src, out, root):
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for r, ds, fs_ in os.walk(src, followlinks=False):
+            for n in ds + fs_:
+                p = os.path.join(r, n)
+                arc = os.path.join(root, os.path.relpath(p, src))
+                if os.path.islink(p):
+                    info = zipfile.ZipInfo(arc); info.create_system = 3; info.external_attr = (0o120755 << 16)
+                    z.writestr(info, os.readlink(p))
+                elif os.path.isfile(p):
+                    info = zipfile.ZipInfo.from_file(p, arc); info.compress_type = zipfile.ZIP_DEFLATED
+                    with open(p, "rb") as f: z.writestr(info, f.read(), zipfile.ZIP_DEFLATED, 9)
+
+LAUNCHER = """#!/bin/sh
+# Zinc Atelier: opens the app on ~/Zinc (a first project is created there).
+here="$(cd "$(dirname "$0")" && pwd)"
+proj="${ZINC_PROJECT:-$HOME/Zinc}"
+mkdir -p "$proj"
+[ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\\n' > "$proj/hello.ts"
+exec "$here/zinc" run "$here/../Resources/zinc/next/app/atelier/main.tsx" -- "$proj"
+"""
+
+PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Zinc Atelier</string>
+<key>CFBundleDisplayName</key><string>Zinc Atelier</string>
+<key>CFBundleIdentifier</key><string>dev.zinc.atelier</string>
+<key>CFBundleVersion</key><string>%s</string>
+<key>CFBundleShortVersionString</key><string>%s</string>
+<key>CFBundleExecutable</key><string>zinc-atelier</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+"""
+
+def package_macos(build, out):
+    arch = platform.machine()
+    app = os.path.join(out, "stage", "Zinc Atelier.app")
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    macos, res = os.path.join(app, "Contents", "MacOS"), os.path.join(app, "Contents", "Resources")
+    os.makedirs(macos); os.makedirs(res)
+    binary = os.path.join(macos, "zinc")
+    shutil.copy2(os.path.join(build, "zinc"), binary)
+    bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
+    payload(os.path.join(res, "zinc"))
+    with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
+    os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
+    open(os.path.join(app, "Contents", "Info.plist"), "w").write(PLIST % (VERSION, VERSION))
+    run("codesign", "--force", "--sign", "-", "--deep", app)
+    archive = os.path.join(out, "Zinc-%s-macos-%s.zip" % (VERSION, arch))
+    if os.path.exists(archive): os.remove(archive)
+    run("ditto", "-c", "-k", "--keepParent", app, archive)  # ditto keeps the bundle's metadata and symlinks
+    return "macos", archive
+
+def package_linux(build, out):
+    arch = platform.machine()
+    name = "zinc-%s-linux-%s" % (VERSION, arch)
+    root = os.path.join(out, "stage", name)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    os.makedirs(os.path.join(root, "bin")); os.makedirs(os.path.join(root, "lib"))
+    shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
+    ldd = run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout
+    for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
+        if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):
+            continue
+        shutil.copy2(m.group(2), os.path.join(root, "lib", m.group(1)))
+    if shutil.which("patchelf"):
+        run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", "zinc"))
+    payload(os.path.join(root, "share", "zinc"))
+    archive = os.path.join(out, name + ".tar.gz")
+    with tarfile.open(archive, "w:gz", compresslevel=9) as t:
+        t.add(root, arcname=name)
+    return "linux", archive
+
+def main():
+    build = os.path.abspath(arg("--build", os.path.join(NEXT, "build")))
+    out = os.path.abspath(arg("--out", os.path.join(NEXT, "dist")))
+    os.makedirs(out, exist_ok=True)
+    if not os.path.exists(os.path.join(build, "zinc")):
+        sys.exit("no %s/zinc: build first (cmake --build build)" % build)
+    system = platform.system()
+    if system == "Darwin": kind, archive = package_macos(build, out)
+    elif system == "Linux": kind, archive = package_linux(build, out)
+    else: sys.exit("packaging for %s comes with the Windows host (ZN-054)" % system)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    mb = os.path.getsize(archive) / 1e6
+    report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind]}
+    json.dump(report, open(os.path.join(out, "sizes-%s.json" % kind), "w"), indent=1)
+    print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
+    if mb > BUDGET_MB[kind]:
+        sys.exit(3)
+
+main()

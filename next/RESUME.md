@@ -337,3 +337,6 @@ fixed the scripted input of the null HAL (button events repeated every frame). Z
 
 ## ZN-052 (Done)
 IR text version 1 (`zir 1`), `ir::parse`, `zinc ir --check`, ZBC refuses other versions with a message; `docs/ir-format.md`, `tests/compat/`. Next by ordinal: ZN-053 (packaging).
+
+## ZN-053 (Review)
+`tools/package`, `zinc --root`, `zinc update`, `tools/sign-macos`, `tools/appimage`; doc `docs/reports/zinc-next-packaging.md`; T0/T2 `package.sh`. macOS verified on a clean HOME; Linux/Windows pending (ZN-054). Next by ordinal: ZN-054.

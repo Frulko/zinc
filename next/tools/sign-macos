@@ -1,0 +1,36 @@
+#!/bin/sh
+# Signing and notarization of the macOS package (ZN-053), scripted end to end. Needs an Apple Developer ID and a notarytool keychain profile:
+#   ZINC_SIGN_IDENTITY   "Developer ID Application: Name (TEAMID)"
+#   ZINC_NOTARY_PROFILE  the name given to `xcrun notarytool store-credentials`
+#   tools/sign-macos [--dry-run] dist/Zinc-<version>-macos-<arch>.zip
+# --dry-run prints each command and runs none (what tests/t0/package.sh checks); without it the script stops at the first failing step.
+# Steps: unpack, sign every Mach-O (dylibs first, the binary, then the bundle) with the hardened runtime, zip, submit and wait for notarization,
+# staple the ticket to the app, check it with spctl, zip again as the file to publish.
+set -e
+dry=0
+[ "$1" = "--dry-run" ] && { dry=1; shift; }
+zip=$1
+[ -n "$zip" ] || { echo "usage: tools/sign-macos [--dry-run] <Zinc-...-macos-...zip>" >&2; exit 2; }
+if [ $dry -eq 0 ]; then
+  [ -n "$ZINC_SIGN_IDENTITY" ] || { echo "set ZINC_SIGN_IDENTITY to your Developer ID Application identity" >&2; exit 2; }
+  [ -n "$ZINC_NOTARY_PROFILE" ] || { echo "set ZINC_NOTARY_PROFILE to a notarytool keychain profile" >&2; exit 2; }
+fi
+ID=${ZINC_SIGN_IDENTITY:-"Developer ID Application: (dry run)"}
+PROFILE=${ZINC_NOTARY_PROFILE:-dry-run}
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+step() { echo "+ $*"; [ $dry -eq 1 ] || "$@"; }
+app="$work/Zinc Atelier.app"
+step ditto -x -k "$zip" "$work"
+[ $dry -eq 1 ] && app="<unpacked>/Zinc Atelier.app"
+for f in "$app"/Contents/Frameworks/*.dylib "$app/Contents/MacOS/zinc"; do
+  step codesign --force --timestamp --options runtime --sign "$ID" "$f"
+done
+step codesign --force --timestamp --options runtime --sign "$ID" "$app"
+step codesign --verify --deep --strict "$app"
+step ditto -c -k --keepParent "$app" "$work/notarize.zip"
+step xcrun notarytool submit "$work/notarize.zip" --keychain-profile "$PROFILE" --wait
+step xcrun stapler staple "$app"
+step spctl --assess --type execute --verbose "$app"
+out="${zip%.zip}-notarized.zip"
+step ditto -c -k --keepParent "$app" "$out"
+echo "signed and notarized: $out"

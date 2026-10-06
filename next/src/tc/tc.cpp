@@ -8,6 +8,9 @@
 #include <iterator>
 #include <map>
 #include <sstream>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 extern "C" {
 #include "sha256.h"  // third_party/sha256 (public domain)
@@ -215,6 +218,7 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   std::error_code ec;
   fs::create_directories(cache, ec);
   std::string flags = std::string("-target ") + t->zigTarget + " -O2 -w -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include");
+  if (std::string(t->name).size() > 6 && std::string(t->name).substr(std::string(t->name).size() - 6) == "-macos") flags += " -I " + quote(root + "/third_party/macos-shim");  // CommonCrypto for mimalloc
   if (std::string(t->name) == "armhf-linux") flags += " -mcpu=arm1176jzf_s";  // runs on every 32-bit Pi, the first one included
   struct Src { std::string path; bool c; };
   std::vector<Src> srcs = {{"src/rt/machine.cpp", false}, {"src/rt/rtcalls.cpp", false}, {"src/rt/program.cpp", false}, {"src/rt/alloc.cpp", false}, {"src/zbc/zbc.cpp", false}, {"third_party/mimalloc/src/static.c", true}};
@@ -237,6 +241,83 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   }
   std::string cmd = quote(zig) + " c++ -std=c++20 " + flags + " " + quote(cppFile) + objs + " -o " + quote(outFile);
   return run(cmd, err, "the compiler");
+}
+
+
+std::string executablePath() {
+#ifdef __APPLE__
+  char buf[4096];
+  std::uint32_t n = sizeof buf;
+  if (_NSGetExecutablePath(buf, &n) != 0) return "";
+  std::error_code ec;
+  fs::path p = fs::canonical(buf, ec);
+  return ec ? std::string(buf) : p.string();
+#else
+  std::error_code ec;
+  fs::path p = fs::read_symlink("/proc/self/exe", ec);
+  return ec ? "" : p.string();
+#endif
+}
+
+std::string sourceRoot(const std::string& compiledIn) {
+  if (const char* r = std::getenv("ZINC_ROOT")) if (*r) return r;
+  std::string exe = executablePath();
+  if (!exe.empty()) {
+    fs::path dir = fs::path(exe).parent_path();
+    for (const char* rel : {"../share/zinc/next", "../Resources/zinc/next"}) {
+      fs::path c = dir / rel;
+      std::error_code ec;
+      if (fs::exists(c / "include/zn/runtime.h", ec)) return fs::weakly_canonical(c, ec).string();
+    }
+  }
+  return compiledIn;
+}
+
+bool newerVersion(const std::string& candidate, const std::string& current) {
+  auto parts = [](const std::string& v) { std::vector<long> r; std::stringstream ss(v); std::string t; while (std::getline(ss, t, '.')) r.push_back(std::atol(t.c_str())); return r; };
+  std::vector<long> a = parts(candidate), b = parts(current);
+  for (std::size_t i = 0; i < std::max(a.size(), b.size()); ++i) {
+    long x = i < a.size() ? a[i] : 0, y = i < b.size() ? b[i] : 0;
+    if (x != y) return x > y;
+  }
+  return false;
+}
+
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) {
+  fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(std::rand()));
+  std::string cmd = "curl -fL --retry 2 -sS -o " + quote(tmp.string()) + " " + quote(manifestUrl);
+  if (!run(cmd, err, "fetching the update manifest")) return false;
+  std::ifstream in(tmp);
+  std::string line;
+  while (std::getline(in, line)) {
+    auto eq = line.find('=');
+    if (eq == std::string::npos || line[0] == '#') continue;
+    std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+    if (k == "version") info.version = v; else if (k == "url") info.url = v; else if (k == "sha256") info.sha256 = v; else if (k == "notes") info.notes = v;
+  }
+  std::error_code ec;
+  fs::remove(tmp, ec);
+  if (info.version.empty() || info.url.empty() || info.sha256.size() != 64) { err = "the update manifest needs version, url and a 64 digit sha256"; return false; }
+  return true;
+}
+
+bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string& path, std::string& err) {
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  std::string name = fs::path(info.url).filename().string();
+  if (name.empty()) name = "zinc-update-" + info.version;
+  fs::path part = fs::path(dir) / (name + ".part"), done = fs::path(dir) / name;
+  if (!run("curl -fL --retry 3 -sS -o " + quote(part.string()) + " " + quote(info.url), err, "the download")) return false;
+  std::string got = sha256File(part.string());
+  if (got != info.sha256) {
+    fs::remove(part, ec);
+    err = "checksum mismatch for " + name + ": expected " + info.sha256 + ", got " + (got.empty() ? "nothing" : got) + "; the download was discarded";
+    return false;
+  }
+  fs::rename(part, done, ec);
+  if (ec) { err = "cannot keep the download: " + ec.message(); return false; }
+  path = done.string();
+  return true;
 }
 
 }  // namespace zn::tc

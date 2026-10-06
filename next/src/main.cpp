@@ -36,6 +36,8 @@
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
+static const char* const kVersionText = "0.0.1";
+static std::string gRoot = ZN_SOURCE_DIR;  // the engine files: the checkout, or the package around the binary (zn::tc::sourceRoot)
 static bool readFile(const std::string& path, std::string& out) {
   if (!std::filesystem::is_regular_file(path)) return false;
   std::ifstream in(path, std::ios::binary);
@@ -50,7 +52,7 @@ static bool readFile(const std::string& path, std::string& out) {
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
-  prog = zn::frontend::loadProgram(path, readFile, gStrict, std::string(ZN_SOURCE_DIR) + "/../lib/std");
+  prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std");
   auto diags = prog.diags;
   if (diags.empty()) {
     checked = zn::frontend::check(prog.ast);
@@ -67,7 +69,7 @@ static std::vector<std::string> gSources;  // the texts of the files of the last
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
-  o.fontDir = std::string(ZN_SOURCE_DIR) + "/../lib/fonts";
+  o.fontDir = gRoot + "/../lib/fonts";
   fs::path dir = fs::absolute(entry).parent_path();
   for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
   return zn::res::bake(gSources, o, blob, err);
@@ -102,14 +104,16 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
 }
 
 int main(int argc, char** argv) {
+  gRoot = zn::tc::sourceRoot(ZN_SOURCE_DIR);
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
 #endif
   for (int k = 1; k < argc; ++k)  // `--strict` anywhere on the command line selects the strict profile
     if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+  if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
-    std::puts("zinc-next 0.0.1");
+    std::printf("zinc-next %s\n", kVersionText);
     return 0;
   }
   if (argc >= 3 && (!std::strcmp(argv[1], "profile") || !std::strcmp(argv[1], "mem"))) {  // zinc profile|mem <file.ts|file.zbc> [options]: the interpreter under a profiler
@@ -148,7 +152,7 @@ int main(int argc, char** argv) {
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
     zn::qjs::Options qo;
     qo.entry = argv[2];
-    qo.stdRoot = std::string(ZN_SOURCE_DIR) + "/../lib/std";
+    qo.stdRoot = gRoot + "/../lib/std";
 #ifdef ZN_HOST_GFX
     {
       std::vector<std::string> args;
@@ -242,7 +246,7 @@ int main(int argc, char** argv) {
     if (!deviceCmd.empty()) { if (!zn::dev::spawnCommand(deviceCmd, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; } }
     else if (qemu) {
       std::string cmd;
-      if (!zn::tc::qemuCommand("esp32", ZN_SOURCE_DIR, cmd, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!zn::tc::qemuCommand("esp32", gRoot, cmd, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       if (!zn::dev::spawnCommand(cmd, link, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     } else {
       if (port.empty()) port = zn::dev::findSerialPort();
@@ -265,7 +269,7 @@ int main(int argc, char** argv) {
     for (int k = 4; k + 1 < argc; k += 2) if (!std::strcmp(argv[k], "--port")) port = argv[k + 1];
     if (port.empty()) port = zn::dev::findSerialPort();
     if (port.empty()) { std::fprintf(stderr, "zinc: no ESP32 found on a serial port; plug it in or give --port <path>\n"); return 1; }
-    std::string image = std::string(ZN_SOURCE_DIR) + "/firmware/esp32/prebuilt/esp32-core-flash.bin";
+    std::string image = gRoot + "/firmware/esp32/prebuilt/esp32-core-flash.bin";
     if (!std::filesystem::exists(image)) { std::fprintf(stderr, "zinc: the core firmware image is missing: %s\n", image.c_str()); return 1; }
     if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::string cmd = "'" + tool + "' --chip esp32 -p '" + port + "' -b 460800 write-flash 0x0 '" + image + "'";
@@ -319,7 +323,7 @@ int main(int argc, char** argv) {
     if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     fs::path cpp = fs::path(argv[6]).string() + ".cpp";
     { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
-    bool ok = zn::tc::crossBuild(zig, ZN_SOURCE_DIR, cpp.string(), argv[3], argv[6], err);
+    bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err);
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     return 0;
@@ -336,7 +340,18 @@ int main(int argc, char** argv) {
     }
     { std::ofstream o(cpp); o << zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     const char* cxx = std::getenv("CXX");
-    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I " ZN_SOURCE_DIR "/include -I " ZN_SOURCE_DIR "/src -I " ZN_SOURCE_DIR "/third_party/mimalloc/include '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
+    bool haveLibs = fs::exists(libs / "libzn_rt.a");
+    bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
+    if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
+      if (zn::aot::usesHost(zm)) { std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX)\n"); fs::remove(cpp); return 1; }
+      std::string zig, err;
+      if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); fs::remove(cpp); return 1; }
+      bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), zn::tc::hostName(), argv[4], err);
+      if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
+      if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      return 0;
+    }
+    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" +
                       (fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     int rc = std::system(cmd.c_str());
@@ -408,6 +423,21 @@ int main(int argc, char** argv) {
     zn::frontend::Checked checked;
     if (!loadChecked(argv[3], prog, checked)) return 1;
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
+    return 0;
+  }
+  if (argc >= 2 && !std::strcmp(argv[1], "update")) {  // zinc update [--check] [manifest-url]: look for a newer release; without --check, download and verify it
+    bool checkOnly = argc >= 3 && !std::strcmp(argv[2], "--check");
+    const char* url = argc >= (checkOnly ? 4 : 3) ? argv[checkOnly ? 3 : 2] : std::getenv("ZINC_UPDATE_URL");
+    if (!url || !*url) { std::fprintf(stderr, "usage: zinc update [--check] <manifest-url>   (or set ZINC_UPDATE_URL)\n"); return 2; }
+    zn::tc::UpdateInfo info;
+    std::string err;
+    if (!zn::tc::fetchManifest(url, info, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!zn::tc::newerVersion(info.version, kVersionText)) { std::printf("zinc %s is up to date (latest %s)\n", kVersionText, info.version.c_str()); return 0; }
+    std::printf("zinc %s is available (this is %s)%s%s\n", info.version.c_str(), kVersionText, info.notes.empty() ? "" : ": ", info.notes.c_str());
+    if (checkOnly) return 10;  // an update exists
+    std::string path;
+    if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/updates", path, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::printf("downloaded and verified: %s\nopen it to install (the macOS app: drag it over the old one; Linux: unpack over the old directory)\n", path.c_str());
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text

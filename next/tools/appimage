@@ -1,0 +1,34 @@
+#!/bin/sh
+# The Linux AppImage of Zinc Atelier (ZN-053): wraps the tar.gz of tools/package. Needs appimagetool (https://github.com/AppImage/appimagetool).
+#   tools/appimage dist/zinc-<version>-linux-<arch>.tar.gz   ->   dist/Zinc_Atelier-<version>-<arch>.AppImage
+set -e
+tgz=$1
+[ -n "$tgz" ] || { echo "usage: tools/appimage <zinc-...-linux-...tar.gz>" >&2; exit 2; }
+command -v appimagetool >/dev/null 2>&1 || { echo "appimagetool is not installed: the tar.gz is the package on this machine" >&2; exit 3; }
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+tar -xzf "$tgz" -C "$work"
+dir=$(echo "$work"/zinc-*)
+ver=$(cat "$dir/share/zinc/VERSION")
+arch=$(uname -m)
+app="$work/Zinc_Atelier.AppDir"
+mkdir -p "$app/usr"
+cp -R "$dir"/bin "$dir"/lib "$dir"/share "$app/usr/"
+cat > "$app/AppRun" <<'RUN'
+#!/bin/sh
+here="$(dirname "$(readlink -f "$0")")"
+proj="${ZINC_PROJECT:-$HOME/Zinc}"
+mkdir -p "$proj"
+[ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\n' > "$proj/hello.ts"
+exec "$here/usr/bin/zinc" run "$here/usr/share/zinc/next/app/atelier/main.tsx" -- "$proj"
+RUN
+chmod +x "$app/AppRun"
+cat > "$app/zinc-atelier.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Zinc Atelier
+Exec=AppRun
+Icon=zinc-atelier
+Categories=Development;
+DESKTOP
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="12" fill="#0f172a"/><text x="32" y="44" font-size="34" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif">Z</text></svg>\n' > "$app/zinc-atelier.svg"
+ARCH=$arch appimagetool "$app" "$(dirname "$tgz")/Zinc_Atelier-$ver-$arch.AppImage"
