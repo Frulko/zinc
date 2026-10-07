@@ -1,6 +1,7 @@
 #include "gl/webgl1.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 
 #include "glad/gl.h"
@@ -43,8 +44,47 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
   return pre + body;
 }
 
+
+// true when every float-typed declaration has a precision (default or qualifier)
+bool fragmentPrecisionOk(const std::string& src) {
+  std::string t;   // comments out
+  for (std::size_t i = 0; i < src.size(); ++i) {
+    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
+    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); i = e == std::string::npos ? src.size() : e + 1; t += ' '; }
+    else t += src[i];
+  }
+  auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+  std::string prev;
+  bool defaultFloat = false;
+  for (std::size_t i = 0; i < t.size();) {
+    if (!isId(t[i]) || std::isdigit(static_cast<unsigned char>(t[i]))) { ++i; continue; }
+    std::size_t j = i;
+    while (j < t.size() && isId(t[j])) ++j;
+    std::string id = t.substr(i, j - i);
+    if (id == "precision") {   // precision <q> <type>;
+      std::size_t e = t.find(';', j);
+      std::string rest = t.substr(j, e == std::string::npos ? std::string::npos : e - j);
+      if (rest.find("float") != std::string::npos) defaultFloat = true;
+      i = e == std::string::npos ? t.size() : e;
+      prev.clear();
+      continue;
+    }
+    const bool floatType = id == "float" || id == "vec2" || id == "vec3" || id == "vec4" || id == "mat2" || id == "mat3" || id == "mat4";
+    if (floatType && !defaultFloat) {
+      std::size_t k = j;
+      while (k < t.size() && std::isspace(static_cast<unsigned char>(t[k]))) ++k;
+      const bool ctor = k < t.size() && t[k] == '(';
+      if (!ctor && prev != "lowp" && prev != "mediump" && prev != "highp") return false;
+    }
+    prev = id;
+    i = j;
+  }
+  return true;
+}
+
 // WebGL format/type table (spec 5.14.8): which (format, type) pairs texImage2D accepts, and the bytes per pixel.
-bool formatType(std::uint32_t format, std::uint32_t type, int& bpp) {
+}  // namespace
+bool formatType(std::uint32_t format, std::uint32_t type, int& bpp) {   // shared with webgl1_more.cpp
   int ch = format == GL_ALPHA || format == GL_LUMINANCE ? 1 : format == GL_LUMINANCE_ALPHA ? 2 : format == GL_RGB ? 3 : format == GL_RGBA ? 4 : 0;
   if (!ch) return false;
   if (type == GL_UNSIGNED_BYTE) { bpp = ch; return true; }
@@ -52,6 +92,7 @@ bool formatType(std::uint32_t format, std::uint32_t type, int& bpp) {
   if ((type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1) && format == GL_RGBA) { bpp = 2; return true; }
   return false;
 }
+namespace {
 
 }  // namespace
 
@@ -172,12 +213,12 @@ void WebGL1::compileShader(Id id) {
   auto it = shaders_.find(id);
   if (it == shaders_.end()) return error(GL_INVALID_OPERATION);
   Shader& s = it->second;
-  // GLSL ES 1.00 requires a default float precision in fragment shaders; desktop GLSL does not, so the rule is enforced here (WebGL conformance: glsl/misc/shaders-with-... precision)
-  if (s.type == GL_FRAGMENT_SHADER) {
-    std::size_t at = s.source.find("precision");
-    bool has = false;
-    while (at != std::string::npos && !has) { std::size_t e = s.source.find(';', at); has = e != std::string::npos && s.source.substr(at, e - at).find("float") != std::string::npos; at = s.source.find("precision", at + 9); }
-    if (!has) { s.compiled = false; s.log = "ERROR: 0:1: 'float' : No precision specified (fragment shaders need a default float precision)"; return; }
+  // GLSL ES 1.00 requires a precision for every float declaration in a fragment shader: a default (`precision mediump float;`) or a qualifier on the declaration.
+  // Desktop GLSL does not, so the rule is checked here on the source with its comments removed.
+  if (s.type == GL_FRAGMENT_SHADER && !fragmentPrecisionOk(s.source)) {
+    s.compiled = false;
+    s.log = "ERROR: 0:1: 'float' : No precision specified (fragment shaders need a default float precision)";
+    return;
   }
   std::string full = translate(s.source, s.type, gl_.info().es);
   const char* p = full.c_str();
@@ -250,6 +291,13 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return l; }
   if (name.compare(0, 3, "gl_") == 0 || name.compare(0, 6, "webgl_") == 0) return l;
+  std::size_t br = name.find('[');
+  if (br != std::string::npos) {   // "u[3]": digits only, an index that fits an int, and the closing bracket last (a huge index must not wrap into a valid one)
+    std::size_t close = name.find(']', br);
+    if (close != name.size() - 1 || close == br + 1) return l;
+    std::uint64_t idx = 0;
+    for (std::size_t i = br + 1; i < close; ++i) { if (name[i] < '0' || name[i] > '9') return l; idx = idx * 10 + static_cast<std::uint64_t>(name[i] - '0'); if (idx > 0x7fffffffu) return l; }
+  }
   int loc = glGetUniformLocation(it->second.name, name.c_str());
   if (loc < 0) return l;
   std::string base = name.substr(0, name.find('['));
@@ -355,6 +403,7 @@ void WebGL1::deleteTexture(Id id) {
   if (it == textures_.end()) return;
   glDeleteTextures(1, &it->second.name);
   for (Id& b : tex2d_) if (b == id) b = 0;
+  for (Id& b : texCube_) if (b == id) b = 0;
   for (auto& f : fbos_) if (f.second.color == id) f.second.color = 0;
   textures_.erase(it);
 }
@@ -364,19 +413,22 @@ void WebGL1::activeTexture(std::uint32_t unit) {
   glActiveTexture(unit);
 }
 void WebGL1::bindTexture(std::uint32_t target, Id id) {
-  if (target != GL_TEXTURE_2D) return error(GL_INVALID_ENUM);   // cube maps: follow-up
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) return error(GL_INVALID_ENUM);
   std::uint32_t name = 0;
   if (id) {
     auto it = textures_.find(id);
     if (it == textures_.end()) return error(GL_INVALID_OPERATION);
+    if (it->second.target && it->second.target != target) return error(GL_INVALID_OPERATION);   // a texture keeps the target of its first bind
+    it->second.target = target;
     name = it->second.name;
     it->second.bound = true;
   }
-  tex2d_[activeUnit_] = id;
-  glBindTexture(GL_TEXTURE_2D, name);
+  (target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_] = id;
+  glBindTexture(target, name);
 }
 void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) {
-  if (target != GL_TEXTURE_2D) return error(GL_INVALID_ENUM);
+  const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   int bpp = 0;
   const bool validFormat = format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA;
   const bool validType = type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5 || type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1;
@@ -384,8 +436,9 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   if (level < 0 || width < 0 || height < 0 || width > maxTexSize_ || height > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
   if (internalformat != format) return error(GL_INVALID_OPERATION);
   if (!formatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
-  Id id = tex2d_[activeUnit_];
+  Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (!id) return error(GL_INVALID_OPERATION);
+  if (face && width != height) return error(GL_INVALID_VALUE);   // cube faces are square
   if (data) {
     std::size_t row = static_cast<std::size_t>(width) * bpp;
     row = (row + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
@@ -399,16 +452,17 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
     else if (format == GL_RGB) gi = type == GL_UNSIGNED_BYTE ? GL_RGB8 : GL_RGB;
     else gi = type == GL_UNSIGNED_BYTE ? GL_RGBA8 : GL_RGBA;
     const GLint sw[3][4] = {{GL_ZERO, GL_ZERO, GL_ZERO, GL_RED}, {GL_RED, GL_RED, GL_RED, GL_ONE}, {GL_RED, GL_RED, GL_RED, GL_GREEN}};
-    if (format == GL_ALPHA) glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, sw[0]);
-    else if (format == GL_LUMINANCE) glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, sw[1]);
-    else if (format == GL_LUMINANCE_ALPHA) glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, sw[2]);
+    const GLenum bt = face ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+    if (format == GL_ALPHA) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[0]);
+    else if (format == GL_LUMINANCE) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[1]);
+    else if (format == GL_LUMINANCE_ALPHA) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[2]);
   }
-  glTexImage2D(GL_TEXTURE_2D, level, static_cast<GLint>(gi), width, height, 0, gf, type, data);
+  glTexImage2D(target, level, static_cast<GLint>(gi), width, height, 0, gf, type, data);
   Tex& t = textures_[id];
   if (level == 0) { t.w = width; t.h = height; t.format = format; }
 }
 void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) {
-  if (target != GL_TEXTURE_2D) return error(GL_INVALID_ENUM);
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) return error(GL_INVALID_ENUM);
   bool ok = false;
   switch (pname) {
     case GL_TEXTURE_MIN_FILTER: ok = v == GL_NEAREST || v == GL_LINEAR || v == GL_NEAREST_MIPMAP_NEAREST || v == GL_LINEAR_MIPMAP_NEAREST || v == GL_NEAREST_MIPMAP_LINEAR || v == GL_LINEAR_MIPMAP_LINEAR; break;
@@ -417,8 +471,8 @@ void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) {
     default: return error(GL_INVALID_ENUM);
   }
   if (!ok) return error(GL_INVALID_ENUM);
-  if (!tex2d_[activeUnit_]) return error(GL_INVALID_OPERATION);
-  glTexParameteri(GL_TEXTURE_2D, pname, v);
+  if (!(target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_]) return error(GL_INVALID_OPERATION);
+  glTexParameteri(target, pname, v);
 }
 
 // ---- framebuffers
@@ -437,7 +491,7 @@ void WebGL1::bindFramebuffer(std::uint32_t target, Id id) {
 void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level) {
   if (target != GL_FRAMEBUFFER) return error(GL_INVALID_ENUM);
   if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT) return error(GL_INVALID_ENUM);
-  if (textarget != GL_TEXTURE_2D) return error(GL_INVALID_ENUM);
+  if (textarget != GL_TEXTURE_2D && !(textarget >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && textarget <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)) return error(GL_INVALID_ENUM);
   if (level != 0) return error(GL_INVALID_VALUE);
   if (!fbo_) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
@@ -447,7 +501,7 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
     name = it->second.name;
   }
   if (attachment == GL_COLOR_ATTACHMENT0) fbos_[fbo_].color = tex;
-  glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, name, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, textarget, name, 0);
 }
 std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   if (target != GL_FRAMEBUFFER) { error(GL_INVALID_ENUM); return 0; }

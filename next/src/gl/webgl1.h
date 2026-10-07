@@ -12,6 +12,8 @@
 namespace zn::gl {
 
 using Id = std::uint32_t;   // 0: null object
+bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
+constexpr int kMaxVertexAttribs = 16;
 struct UniformLoc { Id program = 0; int location = -1; std::uint32_t type = 0; int size = 0; bool valid() const { return program && location >= 0; } };
 
 class WebGL1 {
@@ -75,13 +77,84 @@ class WebGL1 {
   void framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level);
   std::uint32_t checkFramebufferStatus(std::uint32_t target);
   void readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes);
+  Id createRenderbuffer();
+  void deleteRenderbuffer(Id r);
+  void bindRenderbuffer(std::uint32_t target, Id r);
+  void renderbufferStorage(std::uint32_t target, std::uint32_t internalformat, int width, int height);
+  void framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachment, std::uint32_t rbtarget, Id rb);
+  void deleteFramebuffer(Id f);
+  // more state (pass-through with the spec's enum and range checks)
+  void blendColor(float r, float g, float b, float a);
+  void blendEquation(std::uint32_t mode);
+  void blendEquationSeparate(std::uint32_t rgb, std::uint32_t a);
+  void blendFunc(std::uint32_t s, std::uint32_t d);
+  void blendFuncSeparate(std::uint32_t srgb, std::uint32_t drgb, std::uint32_t sa, std::uint32_t da);
+  void clearDepth(float d);
+  void clearStencil(int s);
+  void colorMask(bool r, bool g, bool b, bool a);
+  void cullFace(std::uint32_t mode);
+  void depthFunc(std::uint32_t f);
+  void depthMask(bool m);
+  void depthRange(float n, float f);
+  void frontFace(std::uint32_t mode);
+  void hint(std::uint32_t target, std::uint32_t mode);
+  void lineWidth(float w);
+  void polygonOffset(float factor, float units);
+  void sampleCoverage(float v, bool invert);
+  void stencilFunc(std::uint32_t f, int ref, std::uint32_t mask);
+  void stencilFuncSeparate(std::uint32_t face, std::uint32_t f, int ref, std::uint32_t mask);
+  void stencilMask(std::uint32_t mask);
+  void stencilMaskSeparate(std::uint32_t face, std::uint32_t mask);
+  void stencilOp(std::uint32_t fail, std::uint32_t zfail, std::uint32_t zpass);
+  void stencilOpSeparate(std::uint32_t face, std::uint32_t fail, std::uint32_t zfail, std::uint32_t zpass);
+  void flush();
+  void finish();
+  // queries
+  bool isEnabled(std::uint32_t cap);
+  bool isShader(Id id) const { return shaders_.count(id) != 0; }
+  bool isProgram(Id id) const { return programs_.count(id) != 0; }
+  bool isTexture(Id id) const { return textures_.count(id) != 0 && textures_.at(id).bound; }
+  bool isFramebuffer(Id id) const { return fbos_.count(id) != 0; }
+  bool isRenderbuffer(Id id) const { return rbos_.count(id) != 0; }
+  std::string shaderSourceOf(Id s) const;
+  std::uint32_t shaderTypeOf(Id s) const;
+  void deleteShader(Id s);
+  void deleteProgram(Id p);
+  void detachShader(Id p, Id s);
+  void validateProgram(Id p);
+  struct Active { std::string name; int size = 0; std::uint32_t type = 0; bool ok = false; };
+  Active getActiveUniform(Id p, std::uint32_t index);
+  Active getActiveAttrib(Id p, std::uint32_t index);
+  int programParameter(Id p, std::uint32_t pname, bool& ok);   // ACTIVE_UNIFORMS, ACTIVE_ATTRIBUTES, ATTACHED_SHADERS, DELETE/LINK/VALIDATE_STATUS
+  /** getParameter for the pnames WebGL1 defines that have a plain number / numbers / string value; ok false: INVALID_ENUM was set (or the value is an object: kind 'o'). */
+  struct Param { char kind = 0; std::vector<double> v; std::string s; Id object = 0; int objKind = 0; bool ok = false; };   // kind: b bool, i int, f float, a array (v), s string, o object, n null
+  Param getParameter(std::uint32_t pname);
+  Param getVertexAttrib(std::uint32_t index, std::uint32_t pname);
+  Param getBufferParameter(std::uint32_t target, std::uint32_t pname);
+  Param getTexParameter(std::uint32_t target, std::uint32_t pname);
+  Param getUniform(Id p, const UniformLoc& l);
+  void getShaderPrecisionFormat(std::uint32_t shadertype, std::uint32_t precisiontype, int out[3]);
+  // more uniforms, attributes, textures
+  void uniform3f(const UniformLoc& l, float x, float y, float z);
+  void uniform2i(const UniformLoc& l, int x, int y);
+  void uniform3i(const UniformLoc& l, int x, int y, int z);
+  void uniform4i(const UniformLoc& l, int x, int y, int z, int w);
+  void uniformNfv(const UniformLoc& l, int n, const float* v, std::size_t count);   // uniform1fv..4fv
+  void uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count);     // uniform1iv..4iv
+  void uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const float* v, std::size_t count);   // 2, 3, 4
+  void vertexAttribNf(std::uint32_t index, int n, const float* v);
+  void texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void copyTexImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int x, int y, int width, int height, int border);
+  void copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int x, int y, int width, int height);
+  void generateMipmap(std::uint32_t target);
 
  private:
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false; };
   struct Program { std::uint32_t name = 0; Id vs = 0, fs = 0; bool linked = false; std::string log; std::map<std::string, int> attribBindings; };
-  struct Tex { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
+  struct Tex { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0, target = 0; bool bound = false; };
   struct Fbo { std::uint32_t name = 0; Id color = 0; };
+  struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false; std::int64_t offset = 0; };
 
   void error(std::uint32_t code) { flags_ |= bit(code); }
@@ -95,7 +168,8 @@ class WebGL1 {
   std::map<Id, Program> programs_;
   std::map<Id, Tex> textures_;
   std::map<Id, Fbo> fbos_;
-  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, fbo_ = 0;
+  std::map<Id, Rbo> rbos_;
+  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, fbo_ = 0, rbo_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
   int unpackAlignment_ = 4, maxTexSize_ = 0;
