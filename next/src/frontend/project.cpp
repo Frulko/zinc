@@ -44,6 +44,7 @@ bool reverseDns(const std::string& id) {   // com.example.notes: two or more dot
 }
 
 const std::vector<std::string>* gGranted = nullptr;
+std::string gAppJson;
 
 }  // namespace
 
@@ -51,6 +52,8 @@ const std::vector<std::string>& systemFeatures() {
   static const std::vector<std::string> f = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener"};
   return f;
 }
+void setSystemAppJson(const std::string& json) { gAppJson = json; }
+const std::string& systemAppJson() { return gAppJson; }
 void setSystemPermissions(const std::vector<std::string>* granted) { gGranted = granted; }
 const std::vector<std::string>* systemPermissions() { return gGranted; }
 std::string systemFeatureOf(const std::string& spec) {
@@ -132,6 +135,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (!yyjson_is_obj(a)) return fatal(lineOf(text, "app"), "\"app\" must be an object");
     AppInfo& app = out.app;
     app.present = true;
+    { char* js = yyjson_val_write(a, 0, nullptr); if (js) { app.json = js; std::free(js); } }
     auto str = [&](const char* key, std::string& dst) -> bool { yyjson_val* x = yyjson_obj_get(a, key); if (!x) return true; if (!yyjson_is_str(x)) return fatal(lineOf(text, key), std::string("app.") + key + " must be a string"); dst = yyjson_get_str(x); return true; };
     if (!str("id", app.id) || !str("name", app.name) || !str("version", app.version) || !str("icon", app.icon) || !str("copyright", app.copyright) || !str("category", app.category)) return false;
     if (app.id.empty()) return fatal(lineOf(text, "app"), "app.id is required (a reverse-DNS id such as com.example.notes)");

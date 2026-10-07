@@ -3,9 +3,11 @@
 // permission it needs, the native side refuses an op whose permission was not compiled in.
 import S from './native/system.spec';
 import { GRANTED } from 'zinc:system/permissions';
+import { APP } from 'zinc:system/app';
 import * as sys from 'zinc:sys';
 
 S.setPermissions(GRANTED);
+S.setApp(APP);
 
 export class SystemError extends Error {
   code: string;
@@ -27,6 +29,10 @@ export function call(op: string, args: unknown): unknown {
   return r;
 }
 
+let closePrevented = false;
+/** Inside a 'window' close-requested handler: keeps the window open (close to tray). Without it the close goes ahead after the handlers. */
+export function preventClose(): void { closePrevented = true; }
+
 const handlers: ((args: string[]) => void)[][] = [];
 const names: string[] = [];
 let listening = false;
@@ -35,10 +41,15 @@ function listen(): void {
   listening = true;
   S.onEvent((json: string) => {
     const e = JSON.parse(json);
+    const closing = e.type === 'window' && e.args[0] === 'close-requested';
+    if (closing) closePrevented = false;
     const i = names.indexOf(e.type);
-    if (i < 0) return;
-    const list = handlers[i];
-    for (let k = 0; k < list.length; k++) list[k](e.args);
+    if (i >= 0) {
+      const list = handlers[i];
+      for (let k = 0; k < list.length; k++) list[k](e.args);
+    }
+    // the HAL kept the window open while the handlers ran: unless one of them vetoed, the close goes through now
+    if (closing && !closePrevented) call('window.confirmClose', {});
   });
 }
 /** Subscribes to an event: 'menu-click', 'tray-click', 'notification-click', 'shortcut', 'drop', 'open-url', 'second-instance', 'power', 'appearance', 'window'... `args` are the event's words. */

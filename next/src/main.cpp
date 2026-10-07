@@ -112,6 +112,36 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   gPlugins.push_back(lib);
 }
 
+#ifdef ZN_HOST_GFX
+#include "hal_window.h"
+#include "yyjson.h"
+extern "C" void hal_set_window_config(const HalWindowConfig*) __attribute__((weak));   // the SDL HAL has it; the headless HAL does not
+// zinc.json app.window (ZN-233): the properties the window needs before it exists. A size given here is used when the target does not give one.
+static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions& target) {
+  yyjson_doc* doc = yyjson_read(json.c_str(), json.size(), 0);
+  if (!doc) return;
+  yyjson_val* w = yyjson_doc_get_root(doc);
+  auto num = [&](const char* k, double& d) { yyjson_val* v = yyjson_obj_get(w, k); if (v && yyjson_is_num(v)) { d = yyjson_get_num(v); return true; } return false; };
+  auto flag = [&](const char* k, bool& b) { yyjson_val* v = yyjson_obj_get(w, k); if (v && yyjson_is_bool(v)) { b = yyjson_get_bool(v); return true; } return false; };
+  HalWindowConfig c = {};
+  double x = 0, y = 0, n = 0;
+  if (num("width", n) && target.width == 0) target.width = static_cast<int>(n);
+  if (num("height", n) && target.height == 0) target.height = static_cast<int>(n);
+  if (num("minWidth", n)) c.min_w = static_cast<int>(n);
+  if (num("minHeight", n)) c.min_h = static_cast<int>(n);
+  if (num("x", x) && num("y", y)) { c.has_position = 1; c.x = static_cast<int>(x); c.y = static_cast<int>(y); }
+  bool b = false, frame = true;
+  if (flag("alwaysOnTop", b)) c.always_on_top = b;
+  if (flag("transparent", b)) c.transparent = b;
+  if (flag("resizable", b)) c.not_resizable = !b;
+  if (flag("frame", frame) && !frame) c.borderless = 1;
+  if (yyjson_val* tb = yyjson_obj_get(w, "titleBar"); tb && yyjson_is_str(tb) && !std::strcmp(yyjson_get_str(tb), "none")) c.borderless = 1;
+  if (yyjson_val* t = yyjson_obj_get(w, "title"); t && yyjson_is_str(t)) std::snprintf(c.title, sizeof c.title, "%s", yyjson_get_str(t));
+  yyjson_doc_free(doc);
+  if (hal_set_window_config) hal_set_window_config(&c);
+}
+#endif
+
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
@@ -119,6 +149,7 @@ static bool gStrict = false;  // --strict (a file-local switch of the command li
 static bool loadManifestPermissions(const char* path) {
   static std::vector<std::string> granted;
   granted.clear();
+  std::string appJson;
   std::string pf = zn::frontend::findProjectFile(path);
   if (!pf.empty()) {
     std::ifstream in(pf);
@@ -126,9 +157,10 @@ static bool loadManifestPermissions(const char* path) {
     zn::frontend::Project p;
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget());
+    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; }
   }
   zn::frontend::setSystemPermissions(&granted);
+  zn::frontend::setSystemAppJson(appJson);
   return true;
 }
 
@@ -361,6 +393,9 @@ int main(int argc, char** argv) {
         const char* order[] = {"linux", "sim"};
 #endif
         for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
+#ifdef ZN_HOST_GFX
+        if (!project.app.window.empty()) applyAppWindow(project.app.window, window);   // zinc.json app.window: size when the target gives none, window properties for the HAL
+#endif
       }
     }
     installDisplayDriver(projectDir, path.c_str());

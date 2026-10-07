@@ -242,6 +242,7 @@ set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded wit
 target_link_libraries(zinc PRIVATE zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
+  target_include_directories(zinc PRIVATE ${ZN_RUNTIME_DIR}/include)   # hal_window.h (ZN-233)
   if(ZN_SDL_LIB)
     set(ZN_HOST_LIBS_LINE "'${ZN_SDL_LIB}'")
     if(ZN_SDL_VENDORED_BUILD)   # what the static archive needs from the system, repeated by `zinc build` (the frameworks SDL's cocoa/metal build links)

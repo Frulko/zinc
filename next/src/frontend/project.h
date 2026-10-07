@@ -22,7 +22,8 @@ struct AppInfo {
   std::string id, name, version, icon, copyright, category;   // id is reverse DNS: com.example.notes
   bool dock = true;                                          // false: LSUIElement, a tray-only app
   std::vector<std::string> urlSchemes, fileTypes;
-  std::string window;                                        // the `window` object as JSON text (read by the HAL window creation, ZN-233)
+  std::string window;                                        // the `window` object as JSON text (title, width, height, minWidth, minHeight, x, y, frame, titleBar, alwaysOnTop, transparent, resizable)
+  std::string json;                                          // the whole `app` object as JSON text (what zinc:system/app bakes for the simulator's log)
 };
 
 struct Project {
@@ -44,6 +45,9 @@ struct Project {
 std::vector<std::string> permissionsFor(const Project& p, const std::string& target);
 // The features a `permissions` entry may name (`notification`, `tray`, `window:state`...): the system modules of lib/std/system.
 const std::vector<std::string>& systemFeatures();
+// The `app` object of the project being compiled as JSON text ("" when there is none): baked as the constant of the synthetic module zinc:system/app.
+void setSystemAppJson(const std::string& json);
+const std::string& systemAppJson();
 // The permissions of the project being compiled (null: none declared); `zinc:system/<feature>` is refused without its permission (Z5006).
 void setSystemPermissions(const std::vector<std::string>* granted);
 const std::vector<std::string>* systemPermissions();

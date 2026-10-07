@@ -1,5 +1,6 @@
 // SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
 #include "hal.h"
+#include "hal_window.h"
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,14 @@ static int zoom = 1;
 // Window behaviour (zinc.json targets.<id>: resize "fill" | "letterbox", fullscreen, kiosk; ZINC_RESIZE / ZINC_FULLSCREEN /
 // ZINC_KIOSK override). fill: the logical surface follows the window (responsive layouts); letterbox: fixed surface, scaled.
 static bool fill = false, kiosk = false;
+// ZN-233: window properties from zinc.json app.window, the close veto and file drops (runtime/include/hal_window.h)
+static HalWindowConfig wcfg;
+static bool wcfg_set = false;
+static int (*close_handler)(void) = nullptr;
+static void (*drop_handler)(const char*, int) = nullptr;
+extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
+extern "C" void hal_set_close_handler(int (*h)(void)) { close_handler = h; }
+extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler = h; }
 
 static void alloc_surface() {
   if (tex) SDL_DestroyTexture(tex);
@@ -107,8 +116,25 @@ void hal_init(const HalConfig* cfg) {
     const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
     if (fit < 1) { ww = (int)(ww * fit); wh = (int)(wh * fit); }
   }
-  if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
-    hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  if (!wcfg_set) {
+    if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
+      hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  } else {   // window properties of the app (frameless, always on top, position, minimum size, transparent)
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, wcfg.title[0] ? wcfg.title : cfg->title);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, ww);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, wh);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, !wcfg.not_resizable);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, wcfg.borderless != 0);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg.always_on_top != 0);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN, wcfg.transparent != 0);
+    if (wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
+    win = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
+    if (!win || !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    if (wcfg.min_w > 0 || wcfg.min_h > 0) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
+  }
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   SDL_SetRenderVSync(ren, 1);
@@ -285,7 +311,8 @@ void hal_poll_input(HalInput* in) {
       }
     }
     // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
-    if (e.type == SDL_EVENT_QUIT && !kiosk) quit = true;
+    if (e.type == SDL_EVENT_QUIT && !kiosk && (!close_handler || close_handler())) quit = true;   // a handler may veto (close to tray)
+    if (drop_handler && (e.type == SDL_EVENT_DROP_FILE || e.type == SDL_EVENT_DROP_TEXT) && e.drop.data) drop_handler(e.drop.data, e.type == SDL_EVENT_DROP_TEXT);
     // not while a text field has the keyboard: Escape blurs the field first
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !escape_app && !(win && SDL_TextInputActive(win))) hal_escape();
     if (gfx_on && e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))

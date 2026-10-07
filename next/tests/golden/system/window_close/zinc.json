@@ -1,0 +1,1 @@
+{"name":"window_close","entry":"main.ts","permissions":["window"],"app":{"id":"com.example.win","window":{"title":"Notes","width":1100,"height":720,"minWidth":640,"titleBar":"none","alwaysOnTop":true}}}

@@ -1,0 +1,6 @@
+[system] window.create {"title":"Notes","width":1100,"height":720,"minWidth":640,"titleBar":"none","alwaysOnTop":true}
+[system] event {"type":"window","args":["close-requested"]}
+[system] window.confirmClose {}
+[system] event {"type":"drop","args":["/tmp/a.md","/tmp/with space.png"]}
+window close-requested
+dropped 2 /tmp/a.md /tmp/with space.png

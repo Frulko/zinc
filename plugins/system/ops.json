@@ -290,6 +290,13 @@
    },
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "window.confirmClose",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
   }
  ],
  "events": [

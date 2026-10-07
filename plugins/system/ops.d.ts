@@ -33,6 +33,7 @@ export interface OpArgs {
   'clipboard.writeRich': { text: string; html?: string };
   'clipboard.readRich': {  };
   'opener.open': { target: string };
+  'window.confirmClose': {  };
 }
 
 export interface OpResult {
@@ -67,6 +68,7 @@ export interface OpResult {
   'clipboard.writeRich': {};
   'clipboard.readRich': {text: string; html: string};
   'opener.open': {};
+  'window.confirmClose': {};
 }
 
 export type OpName = keyof OpArgs;

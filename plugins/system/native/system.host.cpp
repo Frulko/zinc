@@ -5,9 +5,15 @@
 #include "zinc_native_system.h"
 #include "ops.gen.h"
 #include "hal.h"
+#include "hal_window.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+extern "C" void hal_set_close_handler(int (*)(void)) __attribute__((weak));   // the desktop HAL has them (runtime/include/hal_window.h); headless HALs do not
+extern "C" void hal_set_drop_handler(void (*)(const char*, int)) __attribute__((weak));
+
+namespace zrt { extern bool quit_requested; }   // the runtime's request to end the program (runtime/zrt.cpp)
 
 namespace {
 const int MAXEV = 256, EVLEN = 480, MAXGRANT = 64;
@@ -46,6 +52,30 @@ struct Sim : NativeSystem, zrt::Poller {
     else if (l && *l) logFile = fopen(l, "w");
     else if (det && *det && *det != '0') toStdout = true;
     zrt::add_poller(this);
+    if (hal_set_close_handler) hal_set_close_handler(&Sim::onClose);
+    if (hal_set_drop_handler) hal_set_drop_handler(&Sim::onDrop);
+  }
+  static Sim*& self() { static Sim* s = nullptr; return s; }
+  static int onClose();
+  static void onDrop(const char* path, int isText);
+  void deliver(const char* json) {
+    log("[system] event ", json);
+    zrt::Fn<void(zrt::String)> f = cb;
+    if (f) f(zrt::String::from(json, (uint32_t)strlen(json)));
+  }
+  void setApp(zrt::String json) override {
+    const char* p = json.ptr();
+    uint32_t n = json.bytes();
+    const char* key = "\"window\":";
+    for (uint32_t i = 0; i + 9 < n; i++) {
+      if (memcmp(p + i, key, 9)) continue;
+      uint32_t j = i + 9, depth = 0, k = j;
+      for (; k < n; k++) { if (p[k] == '{') depth++; else if (p[k] == '}' && --depth == 0) { k++; break; } }
+      char buf[1024];
+      snprintf(buf, sizeof buf, "%.*s", (int)(k - j), p + j);
+      log("[system] window.create ", buf);   // what the HAL is asked to create the window with
+      return;
+    }
   }
   void log(const char* a, const char* b = "", const char* c = "", const char* d = "") {
     char line[2600];
@@ -75,6 +105,7 @@ struct Sim : NativeSystem, zrt::Poller {
   zrt::String backend() override { return zrt::String::from("sim", 3); }
   zrt::String call(zrt::String op, zrt::String json) override {
     char name[96], args[2048];
+    self() = this;
     snprintf(name, sizeof name, "%.*s", (int)op.bytes(), op.ptr());
     snprintf(args, sizeof args, "%.*s", (int)json.bytes(), json.ptr());
     char buf[512];
@@ -86,6 +117,7 @@ struct Sim : NativeSystem, zrt::Poller {
         return zrt::String::from(buf, (uint32_t)n);
       }
       log("[system] ", name, " ", args);
+      if (!strcmp(name, "window.confirmClose") && hal_set_close_handler) zrt::quit_requested = true;   // a real window: the veto of the close button ends here
       return zrt::String::from(o.sim, (uint32_t)strlen(o.sim));
     }
     log("[system] error unknown op ", name);
@@ -134,18 +166,32 @@ struct Sim : NativeSystem, zrt::Poller {
     ticks++;
     while (next < nscript && script[next].tick <= ticks) {
       const char* json = script[next++].json;
-      log("[system] event ", json);
-      zrt::Fn<void(zrt::String)> f = cb;
-      if (f) f(zrt::String::from(json, (uint32_t)strlen(json)));
+      deliver(json);
     }
     return next < nscript;   // the loop stays alive while events are due
   }
   void shutdown() override { cb = nullptr; if (logFile) { fclose(logFile); logFile = nullptr; } }
 };
+
+int Sim::onClose() {   // the window's close button: a handler may veto with window.preventClose
+  Sim* s = self();
+  if (!s || !s->cb) return 1;   // nobody listens: close
+  s->deliver("{\"type\":\"window\",\"args\":[\"close-requested\"]}");
+  return 0;                     // the handlers run next (the callback is queued); the close goes ahead through window.confirmClose unless one vetoes
+}
+void Sim::onDrop(const char* path, int isText) {
+  Sim* s = self();
+  if (!s) return;
+  char json[1200] = "{\"type\":\"drop\",\"args\":[";
+  appendJson(json, sizeof json, path);
+  strncat(json, isText ? ",\"text\"]}" : "]}", sizeof json - strlen(json) - 1);
+  s->deliver(json);
+}
 }  // namespace
 
 NativeSystem* zinc_create_System() {
   static Sim inst;
   inst.rc = zrt::IMMORTAL;
+  Sim::self() = &inst;
   return &inst;
 }

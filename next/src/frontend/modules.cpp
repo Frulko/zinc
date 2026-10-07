@@ -1174,6 +1174,13 @@ struct Loader {
         if (done.count(path)) return done[path];
         return load(path, "export const GRANTED: string = '" + csv + "';\n");
       }
+      if (spec == "zinc:system/app") {   // the app object of zinc.json as JSON text: the simulator logs the window request from it
+        std::string quoted;
+        for (char c : systemAppJson()) { if (c == '\\' || c == '\'') quoted += '\\'; quoted += c; }
+        const std::string path = "zinc:system/app";
+        if (done.count(path)) return done[path];
+        return load(path, "export const APP: string = '" + quoted + "';\n");
+      }
       auto hit = kStd.find(spec);
       if (std::string feature = systemFeatureOf(spec); !feature.empty() && hit != kStd.end()) {   // a system module needs its permission in zinc.json (deny by default)
         const std::vector<std::string>* granted = systemPermissions();
