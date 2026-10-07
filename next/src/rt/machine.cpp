@@ -251,6 +251,7 @@ bool Machine::resolveDyn() {
   for (const ClassRT& c : classes) {
     if (c.name == "DynNum") dynNum = &c; else if (c.name == "DynStr") dynStr = &c; else if (c.name == "DynBool") dynBool = &c;
     else if (c.name == "DynArr") dynArr = &c; else if (c.name == "DynObj") dynObj = &c;
+    else if (c.name == "DynUndef") dynUndef = &c; else if (c.name == "DynNull") dynNull = &c;
   }
   for (std::size_t i = 0; i < mod->classes.size(); ++i) {
     const zbc::ClassInfo& ci = mod->classes[i];

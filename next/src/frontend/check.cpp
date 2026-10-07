@@ -140,6 +140,31 @@ struct Checker {
     if (x.kind == N::Unary && (x.text == "-" || x.text == "+")) return isIntLit(ast, x.kids[0]);
     return false;
   }
+  // The value of an integer literal (with its sign) as a double: enough to see whether it fits a machine kind.
+  static double intLitValue(const Ast& ast, std::uint32_t i) {
+    const Node& x = ast.nodes[i];
+    if (x.kind == N::Unary) { double v = intLitValue(ast, x.kids[0]); return x.text == "-" ? -v : v; }
+    std::string t;
+    for (char c : x.text) if (c != '_') t += c;
+    if (t.size() > 1 && t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) return static_cast<double>(std::strtoull(t.c_str() + 2, nullptr, 16));
+    if (t.size() > 1 && t[0] == '0' && (t[1] == 'b' || t[1] == 'B')) return static_cast<double>(std::strtoull(t.c_str() + 2, nullptr, 2));
+    if (t.size() > 1 && t[0] == '0' && (t[1] == 'o' || t[1] == 'O')) return static_cast<double>(std::strtoull(t.c_str() + 2, nullptr, 8));
+    return std::strtod(t.c_str(), nullptr);
+  }
+  static bool litFits(const Ast& ast, std::uint32_t i, Num k) {
+    double v = intLitValue(ast, i);
+    switch (k) {
+      case Num::i8: return v >= -128 && v <= 127;
+      case Num::u8: return v >= 0 && v <= 255;
+      case Num::i16: return v >= -32768 && v <= 32767;
+      case Num::u16: return v >= 0 && v <= 65535;
+      case Num::i32: return v >= -2147483648.0 && v <= 2147483647.0;
+      case Num::u32: return v >= 0 && v <= 4294967295.0;
+      case Num::i64: case Num::isize: return v >= -9223372036854775808.0 && v < 9223372036854775808.0;
+      case Num::u64: case Num::usize: return v >= 0 && v < 18446744073709551616.0;
+      default: return true;
+    }
+  }
   static bool isNumLit(const Ast& ast, std::uint32_t i) {
     const Node& x = ast.nodes[i];
     return x.kind == N::Number || (x.kind == N::Unary && (x.text == "-" || x.text == "+") && isNumLit(ast, x.kids[0]));
@@ -309,6 +334,7 @@ struct Checker {
     declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
     declare(SymKind::Builtin, "__dynGetFast", func({tDyn, tDyn, tStr}, tDyn, 3), kNone, true, 0);  // Dyn property read in the runtime; 0 when not handled
     declare(SymKind::Builtin, "__dynAddFast", func({tDyn, tDyn}, tDyn, 2), kNone, true, 0);       // Dyn number + number in the runtime; 0 when not handled
+    declare(SymKind::Builtin, "__jsonOut", func({tDyn}, tStr, 1), kNone, true, 0);   // JSON.stringify of a Dyn tree in the runtime
     declare(SymKind::Builtin, "__jsonNative", func({tStr, tDyn}, tDyn, 2), kNone, true, 0);  // JSON.parse in the runtime, for the Dyn prelude
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(Num::f64), 1), kNone, true, 0);  // Number(string), for generated code
     for (const char* nm : {"Boolean", "JSON", "Array"}) {  // namespaces whose calls the checker rewrites
@@ -492,7 +518,7 @@ struct Checker {
 
   // Arithmetic result kind, ported from compiler/src/sema.ts `arith` (LNG-05), number type = f64.
   Num arith(const std::string& op, std::uint32_t le, Num lm, std::uint32_t re, Num rm) {
-    bool llit = isIntLit(a, le), rlit = isIntLit(a, re);
+    bool llit = isIntLit(a, le) && litFits(a, le, rm), rlit = isIntLit(a, re) && litFits(a, re, lm);   // a literal takes the kind of the other operand when it fits it (u32 * 4294967296 is a double, as in JavaScript)
     Num x = (llit && (isInt(rm) || isFx(rm))) ? rm : lm;
     Num y = (rlit && (isInt(lm) || isFx(lm))) ? lm : rm;
     if (op == "/" || op == "**") {

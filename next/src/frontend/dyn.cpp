@@ -491,6 +491,11 @@ function __logDyn(d: Dyn): string {
 
 // ---- JSON
 function __dynJson(d: Dyn): string {
+  const fast: string = __jsonOut(d);   // the runtime walks the tree; '' when it holds a typed object view
+  if (fast.length > 0) return fast;
+  return __dynJsonSlow(d);
+}
+function __dynJsonSlow(d: Dyn): string {
   if (d instanceof DynNum) return __jsonNum(d.v);
   if (d instanceof DynStr) return __jsonQuote(d.v);
   if (d instanceof DynBool) return d.v ? 'true' : 'false';

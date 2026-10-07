@@ -175,7 +175,7 @@
   /* appended rows (after the host ones, so no known id moves) */ \
   X(StrCodePointAt, "string.codePointAt", "si>i", 0) X(StrNormalize, "string.normalize", "sw>s", 0) X(StrLocaleCompare, "string.localeCompare", "ssw>i", 0) \
   X(StrChars, "string.__chars", "s>S", 0) X(FromCodePoint, "string.#fromCodePoint", "i>s", 2) /* ZN-091 */ \
-  X(StrAt, "string.at", "si>s", 0) X(ArrSetLength, "Array.__setLength", "ai>n", 0) /* `arr.length = n`: the checker rewrites the assignment into this call */ \
+  X(StrAt, "string.at", "si>s", 0) X(JsonOut, "string.#jsonOut", "x>s", 2) /* JSON text of a Dyn tree; "" when it holds a typed object view (the prelude then walks it) */ X(ArrSetLength, "Array.__setLength", "ai>n", 0) /* `arr.length = n`: the checker rewrites the assignment into this call */ \
   /* the event loop (ZN-082): wait for the next event for ms milliseconds (a real sleep), and whether the program runs in real time (ZINC_REALTIME) */ \
   X(HostLoopWait, "host.loopWait", "d>n", 2) X(HostLoopReal, "host.loopReal", ">i", 2) \
   X(HostLoopNow, "host.loopNow", ">d", 2) X(HostLoopEpoch, "host.loopEpoch", ">d", 2) /* milliseconds since the program started, and since 1970 */ \

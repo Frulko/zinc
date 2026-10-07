@@ -52,6 +52,68 @@ std::string toUtf8(const char16_t* p, std::size_t n) {
   return r;
 }
 
+
+// JSON text of a Dyn value, appended to `out`. False for what the native walker does not know (a typed object seen as a Dyn, a very deep tree).
+void jsonQuote(std::string& out, const StrObj* s) {
+  out += '"';
+  const char* d = s->data();
+  std::uint32_t start = 0;
+  for (std::uint32_t i = 0; i < s->len; ++i) {
+    unsigned char c = static_cast<unsigned char>(d[i]);
+    if (c >= 32 && c != '"' && c != '\\') continue;
+    out.append(d + start, i - start);
+    start = i + 1;
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      case '\b': out += "\\b"; break;
+      case '\f': out += "\\f"; break;
+      default: { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+    }
+  }
+  out.append(d + start, s->len - start);
+  out += '"';
+}
+bool jsonOut(Machine& m, Obj* o, std::string& out, int depth) {
+  if (depth > 1000) return false;
+  const ClassRT* c = o->cls;
+  if (c == m.dynNum) { double v = std::bit_cast<double>(o->fields()[0]); out += v - v == 0 ? numberToString(v) : "null"; return true; }
+  if (c == m.dynStr) { jsonQuote(out, reinterpret_cast<const StrObj*>(o->fields()[0])); return true; }
+  if (c == m.dynBool) { out += o->fields()[0] ? "true" : "false"; return true; }
+  if (c == m.dynNull || c == m.dynUndef) { out += "null"; return true; }
+  if (c == m.dynArr) {
+    const auto* arr = reinterpret_cast<const ArrObj*>(o->fields()[0]);
+    out += '[';
+    for (std::size_t i = 0; i < arr->v.size(); ++i) {
+      if (i) out += ',';
+      if (!jsonOut(m, reinterpret_cast<Obj*>(arr->v[i]), out, depth + 1)) return false;
+    }
+    out += ']';
+    return true;
+  }
+  if (c == m.dynObj) {
+    const auto* mo = reinterpret_cast<const MapObj*>(o->fields()[0]);
+    out += '{';
+    bool first = true;
+    for (std::size_t i = 0; i < mo->t.keys.size(); ++i) {
+      if (mo->t.dead[i]) continue;
+      Obj* v = reinterpret_cast<Obj*>(mo->t.vals[i]);
+      if (v->cls == m.dynUndef) continue;
+      if (!first) out += ',';
+      first = false;
+      jsonQuote(out, reinterpret_cast<const StrObj*>(mo->t.keys[i]));
+      out += ':';
+      if (!jsonOut(m, v, out, depth + 1)) return false;
+    }
+    out += '}';
+    return true;
+  }
+  return false;
+}
+
 // The substring covering UTF-16 units [from, to) of a string, both already clamped to [0, length].
 StrObj* subStr(Machine& m, const StrObj* s, std::int64_t from, std::int64_t to) {
   if (to <= from) return m.newStr("", 0);
@@ -450,7 +512,7 @@ struct JsonBuild {
   bool lit(const char* w, std::size_t n) { if (static_cast<std::size_t>(end - p) < n || std::memcmp(p, w, n) != 0) return false; p += n; return true; }
 
   Slot value(int depth) {
-    if (depth > 400) return 0;
+    if (depth > 1000) return 0;
     ws();
     if (p >= end) return 0;
     char c = *p;
@@ -884,6 +946,14 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::ParseInt: { StrObj* s = S(a[0]); NN(s); a[0] = std::bit_cast<Slot>(parseIntJs(s, I(a[1]))); return nullptr; }
+    case Rt::JsonOut: {  // JSON.stringify of a Dyn tree without the interpreter: numbers as ECMAScript prints them, strings escaped like JSON.stringify, undefined skipped in objects
+      Obj* root = reinterpret_cast<Obj*>(a[0]);
+      NN(root);
+      std::string out;
+      bool ok = m.resolveDyn() && m.dynUndef && m.dynNull && jsonOut(m, root, out, 0);
+      a[0] = P(m.newStr(ok ? out.data() : "", ok ? out.size() : 0));
+      return nullptr;
+    }
     case Rt::JsonParse: {
       StrObj* text = S(a[0]);
       NN(text);

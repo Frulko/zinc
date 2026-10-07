@@ -152,7 +152,7 @@ struct Machine {
   std::string error;
   std::string trace;
   // The classes of the Dyn prelude, found by name on first use (JSON.parse and the Dyn fast paths build and read them natively).
-  const ClassRT *dynNum = nullptr, *dynStr = nullptr, *dynBool = nullptr, *dynArr = nullptr, *dynObj = nullptr, *dynItems = nullptr, *dynMap = nullptr;
+  const ClassRT *dynUndef = nullptr, *dynNull = nullptr, *dynNum = nullptr, *dynStr = nullptr, *dynBool = nullptr, *dynArr = nullptr, *dynObj = nullptr, *dynItems = nullptr, *dynMap = nullptr;
   bool resolveDyn();
   std::vector<Obj*> destroyStack;
   Obj* thrown = nullptr;  // a compiled program: the exception being unwound (the interpreter keeps it in a register)

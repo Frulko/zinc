@@ -1716,6 +1716,7 @@ struct Lowering::FnLower {
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonOut") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::JsonOut));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__identity" || callee.text == "__classname")) {
         bool isId = callee.text == "__identity";
         return emit(IrOp::Rt, isId ? m.numT(NumK::i64) : m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(isId ? zn::Rt::ObjId : zn::Rt::ClassName));
