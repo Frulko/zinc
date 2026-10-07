@@ -209,7 +209,10 @@
   {
    "op": "instance.lock",
    "permission": "instance",
-   "params": {},
+   "params": {
+    "id": "string",
+    "argv": "string[]"
+   },
    "returns": "{first: boolean}",
    "sim": "{\"first\":true}"
   },
@@ -233,7 +236,11 @@
    "op": "autostart.set",
    "permission": "autostart",
    "params": {
-    "enabled": "boolean"
+    "id": "string",
+    "name?": "string",
+    "enabled": "boolean",
+    "hidden?": "boolean",
+    "args?": "string[]"
    },
    "returns": "{}",
    "sim": "{}"
@@ -241,7 +248,9 @@
   {
    "op": "autostart.get",
    "permission": "autostart",
-   "params": {},
+   "params": {
+    "id": "string"
+   },
    "returns": "{enabled: boolean}",
    "sim": "{\"enabled\":false}"
   },

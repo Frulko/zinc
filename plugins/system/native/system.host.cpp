@@ -9,6 +9,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/file.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 extern "C" void hal_set_close_handler(int (*)(void)) __attribute__((weak));   // the desktop HAL has them (runtime/include/hal_window.h); headless HALs do not
 extern "C" void hal_set_drop_handler(void (*)(const char*, int)) __attribute__((weak));
@@ -58,11 +68,39 @@ bool jsonString(const char* json, const char* key, char* out, size_t cap) {
   return true;
 }
 
+
+/** The strings of a flat JSON array `"key":[...]` in `json` (escapes \\ and \" undone), up to `max`; returns the count. */
+int jsonStrings(const char* json, const char* key, char out[][160], int max) {
+  char pat[64];
+  snprintf(pat, sizeof pat, "\"%s\":[", key);
+  const char* p = strstr(json, pat);
+  if (!p) return 0;
+  p += strlen(pat);
+  int n = 0;
+  while (*p && *p != ']' && n < max) {
+    while (*p == ',' || *p == ' ') p++;
+    if (*p != '"') break;
+    p++;
+    size_t k = 0;
+    for (; *p && *p != '"' && k + 1 < 160; p++) { if (*p == '\\' && p[1]) p++; out[n][k++] = *p; }
+    out[n++][k] = 0;
+    if (*p == '"') p++;
+  }
+  return n;
+}
+void runtimePath(char* out, size_t cap, const char* id, const char* ext) {
+  const char* dir = getenv("ZINC_SYSTEM_RUNTIME_DIR");
+  if (!dir || !*dir) dir = getenv("TMPDIR");
+  if (!dir || !*dir) dir = "/tmp";
+  snprintf(out, cap, "%s%szinc-%s.%s", dir, dir[strlen(dir) - 1] == '/' ? "" : "/", id, ext);
+}
+
 struct SimNote { char id[64], title[128], body[256]; };
 
 struct Sim : NativeSystem, zrt::Poller {
   char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
   int nanswers = 0, nextAnswer = 0;
+  int lockFd = -1, listenFd = -1;   // single instance: the lock file and the socket the second instance writes to
   char badge[64] = "";
   char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
   int nhotkeys = 0;
@@ -170,6 +208,9 @@ struct Sim : NativeSystem, zrt::Poller {
 #ifdef __APPLE__
       if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif
+
+      if (!strcmp(name, "instance.lock")) return lockInstance(args);
+      if (!strcmp(name, "autostart.set") || !strcmp(name, "autostart.get")) return autostart(name, args);
       if (!strcmp(name, "shortcut.register")) {
         char acc[64] = ""; jsonString(args, "accelerator", acc, sizeof acc);
         for (int i = 0; i < nhotkeys; i++) if (!strcmp(hotkeys[i], acc)) return reply("{\"status\":\"conflict\"}");
@@ -202,6 +243,123 @@ struct Sim : NativeSystem, zrt::Poller {
     if (!strcmp(name, "dialog.save")) { if (cancel) return reply("{\"path\":null}"); snprintf(buf, sizeof buf, "{\"path\":"); appendJson(buf, sizeof buf, a); strcat(buf, "}"); return reply(buf); }
     snprintf(buf, sizeof buf, "{\"button\":%d}", cancel ? -1 : atoi(a));   // dialog.message: the index of the button, -1 when dismissed
     return reply(buf);
+  }
+
+  /** instance.lock: the first process takes an flock on <id>.lock and listens on <id>.sock; a later one finds the lock held and hands its argv and cwd over the socket (a stale socket of a dead process is replaced). */
+  zrt::String lockInstance(const char* args) {
+    char id[96] = "", lock[300], sock[300];
+    jsonString(args, "id", id, sizeof id);
+    if (!id[0]) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"instance.lock needs the app id\"}}");
+    runtimePath(lock, sizeof lock, id, "lock");
+    runtimePath(sock, sizeof sock, id, "sock");
+    int fd = open(lock, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+    if (fd < 0) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"cannot open the lock file\"}}");
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0) {   // the first instance
+      lockFd = fd;
+      unlink(sock);   // a socket left by a dead process
+      int s = socket(AF_UNIX, SOCK_STREAM, 0);
+      sockaddr_un a = {};
+      a.sun_family = AF_UNIX;
+      snprintf(a.sun_path, sizeof a.sun_path, "%s", sock);
+      if (s >= 0 && bind(s, (sockaddr*)&a, sizeof a) == 0 && listen(s, 4) == 0) { fcntl(s, F_SETFL, O_NONBLOCK); fcntl(s, F_SETFD, FD_CLOEXEC); listenFd = s; }
+      return reply("{\"first\":true}");
+    }
+    close(fd);
+    // another instance holds the lock: tell it
+    char cwd[512] = "", argv[16][160];
+    if (!getcwd(cwd, sizeof cwd)) cwd[0] = 0;
+    int n = jsonStrings(args, "argv", argv, 16);
+    char msg[4096] = "{\"cwd\":";
+    appendJson(msg, sizeof msg, cwd);
+    strcat(msg, ",\"argv\":[");
+    for (int i = 0; i < n; i++) { if (i) strcat(msg, ","); appendJson(msg, sizeof msg, argv[i]); }
+    strcat(msg, "]}\n");
+    for (int attempt = 0; attempt < 20; attempt++) {   // the first may still be binding
+      int s = socket(AF_UNIX, SOCK_STREAM, 0);
+      sockaddr_un a = {};
+      a.sun_family = AF_UNIX;
+      snprintf(a.sun_path, sizeof a.sun_path, "%s", sock);
+      if (s >= 0 && connect(s, (sockaddr*)&a, sizeof a) == 0) { ssize_t w = write(s, msg, strlen(msg)); (void)w; close(s); return reply("{\"first\":false}"); }
+      if (s >= 0) close(s);
+      usleep(50000);
+    }
+    return reply("{\"first\":false}");   // the holder never answered: still not the first
+  }
+  /** Accepts second-instance messages: one JSON line each, delivered as the event second-instance [cwd, argv...]. Returns true while listening. */
+  bool serveInstance() {
+    if (listenFd < 0) return false;
+    for (;;) {
+      int c = accept(listenFd, nullptr, nullptr);
+      if (c < 0) break;
+      char buf[4096];
+      size_t got = 0;
+      for (int tries = 0; tries < 40 && got < sizeof buf - 1; tries++) {
+        ssize_t r = read(c, buf + got, sizeof buf - 1 - got);
+        if (r > 0) { got += (size_t)r; if (memchr(buf, '\n', got)) break; }
+        else if (r == 0) break;
+        else usleep(5000);
+      }
+      close(c);
+      buf[got] = 0;
+      char cwd[512] = "", argv[16][160];
+      jsonString(buf, "cwd", cwd, sizeof cwd);
+      int n = jsonStrings(buf, "argv", argv, 16);
+      char ev[4096] = "{\"type\":\"second-instance\",\"args\":[";
+      appendJson(ev, sizeof ev, cwd);
+      for (int i = 0; i < n; i++) { strcat(ev, ","); appendJson(ev, sizeof ev, argv[i]); }
+      strcat(ev, "]}");
+      deliver(ev);
+    }
+    return true;
+  }
+  /** autostart.set / .get: a LaunchAgent plist (macOS) or an XDG autostart .desktop (Linux) under $HOME, so a temporary HOME makes it testable. */
+  zrt::String autostart(const char* name, const char* args) {
+    char id[96] = "", title[96] = "", home[300];
+    jsonString(args, "id", id, sizeof id);
+    jsonString(args, "name", title, sizeof title);
+    const char* hm = getenv("HOME");
+    snprintf(home, sizeof home, "%s", hm && *hm ? hm : "/tmp");
+    char path[400], dir[400];
+#ifdef __APPLE__
+    snprintf(dir, sizeof dir, "%s/Library/LaunchAgents", home);
+    snprintf(path, sizeof path, "%s/%s.plist", dir, id);
+#else
+    snprintf(dir, sizeof dir, "%s/.config/autostart", home);
+    snprintf(path, sizeof path, "%s/%s.desktop", dir, id);
+#endif
+    if (!strcmp(name, "autostart.get")) { bool on = access(path, F_OK) == 0; return reply(on ? "{\"enabled\":true}" : "{\"enabled\":false}"); }
+    bool enabled = strstr(args, "\"enabled\":true") != nullptr, hidden = strstr(args, "\"hidden\":true") != nullptr;
+    if (!enabled) { unlink(path); return reply("{}"); }
+    char exe[1024] = "";
+#ifdef __APPLE__
+    uint32_t sz = sizeof exe;
+    if (_NSGetExecutablePath(exe, &sz) != 0) exe[0] = 0;
+#else
+    ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    exe[l > 0 ? l : 0] = 0;
+#endif
+    char extra[8][160];
+    int n = jsonStrings(args, "args", extra, 8);
+    mkdir(home, 0755);
+    char parent[400];
+    snprintf(parent, sizeof parent, "%s", dir);
+    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(parent, 0755); *q = '/'; }
+    mkdir(dir, 0755);
+    FILE* f = fopen(path, "w");
+    if (!f) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"cannot write the autostart entry\"}}");
+#ifdef __APPLE__
+    fprintf(f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>Label</key><string>%s</string>\n<key>ProgramArguments</key><array><string>%s</string>", id, exe);
+    for (int i = 0; i < n; i++) fprintf(f, "<string>%s</string>", extra[i]);
+    if (hidden) fprintf(f, "<string>--hidden</string>");
+    fprintf(f, "</array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n");
+#else
+    fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s", title[0] ? title : id, exe);
+    for (int i = 0; i < n; i++) fprintf(f, " %s", extra[i]);
+    if (hidden) fprintf(f, " --hidden");
+    fprintf(f, "\nX-GNOME-Autostart-enabled=true\n");
+#endif
+    fclose(f);
+    return reply("{}");
   }
   zrt::String reply(const char* json) { return zrt::String::from(json, (uint32_t)strlen(json)); }
   /** The simulator's notification centre: ZINC_SYSTEM_NOTIFICATION_PERMISSION=granted (default) | denied | default decides what show() may do; the same id replaces. */
@@ -289,6 +447,7 @@ struct Sim : NativeSystem, zrt::Poller {
     if (live) { servingAppKit = zn_sys_macos_pump() != 0; char ev[1200]; while (zn_sys_macos_poll(ev, sizeof ev)) deliver(ev); }
 #endif
     if (!scriptRead) readScript();
+    bool serving = serveInstance();
     ticks++;
     while (next < nscript && script[next].tick <= ticks) {
       const char* json = script[next++].json;
@@ -297,6 +456,7 @@ struct Sim : NativeSystem, zrt::Poller {
 #ifdef __APPLE__
     if (servingAppKit) return true;
 #endif
+    if (serving) return true;   // a first instance keeps listening for the second
     return next < nscript;   // the loop stays alive while events are due
   }
   void shutdown() override { cb = nullptr; if (logFile) { fclose(logFile); logFile = nullptr; } }

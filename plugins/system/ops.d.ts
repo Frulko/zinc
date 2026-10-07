@@ -21,11 +21,11 @@ export interface OpArgs {
   'window.state.restore': {  };
   'shortcut.register': { accelerator: string; key: string; ctrl: boolean; alt: boolean; shift: boolean; meta: boolean };
   'shortcut.unregister': { accelerator: string };
-  'instance.lock': {  };
+  'instance.lock': { id: string; argv: string[] };
   'deep-link.getCurrent': {  };
   'deep-link.register': { scheme: string };
-  'autostart.set': { enabled: boolean };
-  'autostart.get': {  };
+  'autostart.set': { id: string; name?: string; enabled: boolean; hidden?: boolean; args?: string[] };
+  'autostart.get': { id: string };
   'dock.setBadge': { text: string };
   'dock.bounce': { kind: 'informational' | 'critical' };
   'power.preventSleep': { reason?: string };

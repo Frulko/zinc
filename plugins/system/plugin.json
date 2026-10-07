@@ -29,6 +29,8 @@
     "zinc:system/tray": "tray.ts",
     "zinc:system/dialog": "dialog.ts",
     "zinc:system/window": "window.ts",
-    "zinc:system/shortcut": "shortcut.ts"
+    "zinc:system/shortcut": "shortcut.ts",
+    "zinc:system/instance": "instance.ts",
+    "zinc:system/autostart": "autostart.ts"
   }
 }
