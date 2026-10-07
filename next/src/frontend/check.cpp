@@ -2611,9 +2611,19 @@ struct Checker {
   }
 
   // An interface made only of data properties is a record: values of it come from object literals.
-  bool isRecordDecl(std::uint32_t iface) const {
+  // `interface Q extends P { z: T }` is a record too when every P is one (found by name in the list `peers`).
+  bool isRecordDecl(std::uint32_t iface, const std::vector<std::uint32_t>* peers = nullptr, int depth = 0) const {
     const Node& c = n(iface);
-    if (c.kids[0] != kNone || c.kids.size() < 2 || a.tparams.count(iface)) return false;
+    if (c.kids.size() < 2 || a.tparams.count(iface) || depth > 16) return false;
+    if (c.kids[0] != kNone) {
+      if (!peers) return false;
+      for (std::uint32_t r : n(c.kids[0]).kids) {
+        if (n(r).kind != N::TypeRef || !n(r).kids.empty()) return false;
+        bool found = false;
+        for (std::uint32_t p : *peers) if (n(p).kind == N::Interface && n(p).text == n(r).text && p != iface) { found = isRecordDecl(p, peers, depth + 1); break; }
+        if (!found) return false;
+      }
+    }
     for (std::size_t k = 1; k < c.kids.size(); ++k) if (n(c.kids[k]).kind != N::Field) return false;
     return true;
   }
@@ -3017,7 +3027,7 @@ struct Checker {
       } else if (out.syms[sy].kind == SymKind::Class && rn.kids.empty()) {
         o = ty(out.syms[sy].type).obj;
       } else { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
-      if (out.objs[o].isRecord || out.objs[o].isInterface != wantInterface) { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
+      if ((out.objs[o].isRecord && !(wantInterface && cn.kind == N::Interface)) || (!out.objs[o].isRecord && out.objs[o].isInterface != wantInterface)) { diag(kZInvalidHierarchy, refNode, "'" + std::string(rn.text) + "' is not " + (wantInterface ? "an interface" : "a class")); return kNoObj; }
       return o;
     };
     if (cn.kind == N::Class && cn.kids[0] != kNone) {
@@ -3028,7 +3038,7 @@ struct Checker {
         if (ps != kNone && out.syms[ps].decl != kNone && n(out.syms[ps].decl).file == cn.file && n(out.syms[ps].decl).start > cn.start) diag(kZCannotFindName, cn.kids[0], "class '" + out.objs[po].name + "' used before its declaration");
       }
     }
-    if (cn.kind == N::Interface && cn.kids[0] != kNone)
+    if (cn.kind == N::Interface && cn.kids[0] != kNone && !out.objs[oi].isRecord)
       for (std::uint32_t r : std::vector<std::uint32_t>(n(cn.kids[0]).kids)) { std::uint32_t io = resolve(r, true); if (io != kNoObj) out.objs[oi].ifaces.push_back(io); }
   }
 
@@ -3190,6 +3200,19 @@ struct Checker {
       for (std::uint32_t pi : out.objs[objIdx].ifaces)
         for (const Member& pm : out.objs[pi].members) out.objs[objIdx].members.push_back(pm);
     }
+    if (out.objs[objIdx].isRecord && c.kind == N::Interface && c.kids[0] != kNone) {  // a record carries the fields of the records it extends
+      for (std::uint32_t r : n(c.kids[0]).kids) {
+        std::uint32_t ps = lookup(n(r).text);
+        if (ps == kNone || out.syms[ps].kind != SymKind::Class) continue;
+        std::uint32_t po = ty(out.syms[ps].type).obj;
+        ensureBuilt(po);
+        for (const Member& pm : out.objs[po].members) {
+          Member copy = pm;
+          copy.owner = objIdx;
+          out.objs[objIdx].members.push_back(std::move(copy));
+        }
+      }
+    }
     for (std::uint32_t m : mems) {
       const Node& mn = n(m);
       if (a.tparams.count(m)) continue;  // a static generic method: a generic function of its own
@@ -3255,6 +3278,13 @@ struct Checker {
         for (std::uint32_t r : std::vector<std::uint32_t>(n(c.kids[1]).kids)) {
           TypeId it = annotation(r);
           if (bad(it)) continue;
+          if (ty(it).k == TK::Object && out.objs[ty(it).obj].isRecord) {  // an interface of fields: structural, the class declares each field with its type
+            for (const Member& im : out.objs[ty(it).obj].members) {
+              const Member* m = lookupMember(objIdx, im.name, false);
+              if (!m || m->method || m->isStatic || m->access != 0 || m->type != im.type) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[ty(it).obj].name + "'");
+            }
+            continue;
+          }
           if (ty(it).k != TK::Object || !out.objs[ty(it).obj].isInterface) { diag(kZInvalidHierarchy, r, "'implements' needs an interface"); continue; }
           std::uint32_t io = ty(it).obj;
           for (const Member& im : out.objs[io].members) {
@@ -3406,7 +3436,7 @@ struct Checker {
       if (a.tparams.count(s)) continue;
       ObjInfo info;
       info.name = std::string(n(s).text);
-      info.isRecord = n(s).kind == N::Interface && isRecordDecl(s);
+      info.isRecord = n(s).kind == N::Interface && isRecordDecl(s, &stmts);
       info.isClass = n(s).kind == N::Class || info.isRecord;
       info.isInterface = n(s).kind == N::Interface && !info.isRecord;
       info.isAbstract = (n(s).flags & frontend::kFlagAbstract) != 0;
