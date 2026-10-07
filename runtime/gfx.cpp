@@ -560,6 +560,22 @@ static void numbered(char* out, uint32_t cap, const char* path, int32_t n) {
   for (uint32_t i = dot; i < len && o + 1 < cap; i++) out[o++] = path[i];
   out[o] = 0;
 }
+/** ZINC_FRAMEHASH=all|last (ZN-125): "zinc: framehash <frame> <W>x<H> <fnv1a-64>" on stderr for every presented frame, or for the last one when the program ends.
+ *  The hash covers the rasterized frame (0x00RRGGBB, physical size, row by row), so it is the same on every display driver and on the null HAL. */
+static void frame_hash(int32_t n) {
+  uint32_t* px = grab();
+  if (!px) return;
+  uint64_t h = 1469598103934665603ull;
+  for (size_t i = 0, k = (size_t)pw * ph; i < k; i++)
+    for (int b = 0; b < 4; b++) { h ^= (px[i] >> (8 * b)) & 255; h *= 1099511628211ull; }
+  hal_free(px);
+  StrBuilder sb;
+  sb.cstr("zinc: framehash "); to_s(sb, n); sb.ch(' '); to_s(sb, pw); sb.ch('x'); to_s(sb, ph); sb.ch(' ');
+  for (int sh = 60; sh >= 0; sh -= 4) sb.ch("0123456789abcdef"[(h >> sh) & 15]);
+  sb.ch('\n');
+  hal_log_err(sb.buf, sb.len);
+}
+static void frame_hash_last() { frame_hash(frame_no); }
 /** After each presented frame: ZINC_SHOT_FRAMES=1,30,60 / ZINC_SHOT_EVERY=n (numbered files), or with ZINC_SHOT alone
  *  the last frame when the program ends. Display drivers keep their own ZINC_SHOT picture of the emulated device.
  *  zinc dev: F12 saves the frame to ZINC_SHOT_DIR (build/shots). */
@@ -575,6 +591,13 @@ static void after_present() {
     if (state == 2) { shot_path = p; if (!list && !every) at_finish(save_last); }
   }
   const int32_t n = frame_no + 1;  // frames are numbered from 1, like ZINC_FRAMES counts them
+  static int hashing = -1;  // ZINC_FRAMEHASH: -1 not read, 0 off, 1 every frame, 2 the last frame
+  if (hashing < 0) {
+    const char* e = hal_env("ZINC_FRAMEHASH");
+    hashing = !e || !*e || *e == '0' ? 0 : e[0] == 'l' ? 2 : 1;
+    if (hashing == 2) at_finish(frame_hash_last);
+  }
+  if (hashing == 1) frame_hash(n);
   if (state == 2 && (list || every)) {
     bool want = every > 0 && n % every == 0;
     for (const char* s = list; s && *s && !want;) {

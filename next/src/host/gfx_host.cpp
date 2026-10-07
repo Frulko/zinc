@@ -51,16 +51,16 @@ void call(int id, const HostArg* a, HostArg* r) {
   namespace g = zrt::gfx;
   auto u = [&](int k) { return static_cast<uint32_t>(a[k].i); };
   auto n = [&](int k) { return static_cast<int32_t>(a[k].i); };
+  static bool started = false;
+  if (!started) {   // the surface exists from the first graphics call: `const W = width()` at the top of a module sees the board's size, not the default
+    started = true;
+    static HalConfig cfg = {320, 240, "zinc", 1};
+    int w = 0, h = 0;
+    if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
+    zrt::start(cfg, 0, nullptr);
+  }
   switch (static_cast<Rt>(id)) {
     case Rt::HostGfxFrames: {
-      static HalConfig cfg = {320, 240, "zinc", 1};
-      static bool started = false;
-      if (!started) {
-        started = true;
-        int w = 0, h = 0;
-        if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
-        zrt::start(cfg, 0, nullptr);
-      }
       const char* f = getenv("ZINC_FRAMES");
       r->i = f ? atoi(f) : zn_hal_is_live() ? 0x7fffffff : 60;  // a window runs until it is closed
       break;
