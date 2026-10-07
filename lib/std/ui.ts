@@ -1526,6 +1526,7 @@ const pointerPolicy: string = env('ZINC_POINTER');
 function dragScrolls(): boolean {
   if (pointerPolicy === 'touch') return true;
   if (pointerPolicy === 'mouse') return touchSeen;
+  if (synthetic || env('ZINC_HEADLESS') !== '' || env('ZINC_DETERMINISTIC') !== '') return true;   // test hooks, headless and deterministic runs have no device to tell: the pointer is a finger
   const p = platform();
   return touchSeen || (p !== 'macos' && p !== 'linux');
 }

@@ -74,7 +74,7 @@ target_include_directories(zn_native PUBLIC include)
 find_package(Threads REQUIRED)
 target_link_libraries(zn_native PUBLIC Threads::Threads)
 
-add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp)
+add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp src/frontend/capabilities.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 target_link_libraries(zn_frontend PUBLIC zn_yyjson zn_native)
 
@@ -221,7 +221,7 @@ add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp)
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
 target_include_directories(zn_qjs PUBLIC include src)
 
-add_executable(zinc src/main.cpp)
+add_executable(zinc src/main.cpp src/test_cmd.cpp)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
   add_library(zn_native_fixture STATIC tests/native/fixture.c)   # also linked into the programs zinc build writes when they call the module

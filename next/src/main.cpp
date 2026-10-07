@@ -31,6 +31,7 @@
 #define HOSTLIBS
 #endif
 #include "frontend/profile.h"
+int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "dev/client.h"
@@ -198,6 +199,20 @@ int main(int argc, char** argv) {
     argc -= used; --k;
   }
   if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
+  if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
+    const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
+#if defined(__APPLE__)
+        "macos"
+#else
+        "linux"
+#endif
+    );
+    if (tp != gProfile) zn::frontend::applyProfile(*tp);
+    char* self = realpath(argv[0], nullptr);
+    int rc = runTestCommand(self ? self : argv[0], *tp, gRoot, argc > 2 ? argv[2] : "");
+    std::free(self);
+    return rc;
+  }
   if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::printf("zinc-next %s\n", kVersionText);
