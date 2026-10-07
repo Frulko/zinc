@@ -103,3 +103,10 @@ from the base constructor. `tests/t1/three_3d.sh`: conformance programs and four
 (`decoder h264 (videotoolbox)`), V4L2 M2M or software elsewhere, into runtime images. Without the libraries, or without a compiler, the player is the fake of `video.next.ts` (and deterministic runs use it:
 decoder threads make frame timing real-time, so the plugin is not marked `deterministic`). `tests/t1/video.sh` records which one ran: the first frame of `fractal.mp4` equals the prototype's build pixel for pixel
 (`tests/golden/host/video_first.png`, captured with it), a two-clip playlist goes 0,1,0 with no blank frame, and the bounce, looper and quad examples run.
+
+## gphoto2 (ZN-110)
+
+`plugins/gphoto2` builds from the system libgphoto2 and libturbojpeg (pkg-config; LGPL, dynamic) through the plugin pipeline; its `Promise<string>` members go through the thunk's promise support
+(the zrt promise settles into `promise_resolve` / `promise_reject`, driven by the plugin's worker and the poll turn). `ZINC_FAKE_CAMERA=1` is the CI path (no physical camera): `tests/t1/camera.sh` runs
+a session (detect, open, capture, download, live view frames) and the camera examples headless; it skips with a message when the libraries are missing. The plugin is `deterministic` in the sense
+that without the fake or a camera there is nothing to talk to (the examples print `cameras: 0`).

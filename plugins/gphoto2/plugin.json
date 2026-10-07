@@ -1,6 +1,7 @@
 {
   "name": "gphoto2",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:gphoto2",
   "entry": "index.ts",
   "description": "Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view",
