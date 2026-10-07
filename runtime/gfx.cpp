@@ -50,9 +50,19 @@ void sync_surface() {
 }
 
 namespace gfx {
+#ifdef ZRT_GROW_DRAW_CMDS
+bool grow_enabled = true;  // the Zinc Next engine builds the grow variant and switches growing on from zinc.json
+#endif
 using raster::Cmd;
 struct Buf {
+#ifdef ZRT_GROW_DRAW_CMDS
+  Cmd initial[ZRT_MAX_DRAW_CMDS];
+  Cmd* cmds = initial;
+  uint32_t capacity = ZRT_MAX_DRAW_CMDS;
+  ~Buf() { if (cmds != initial) hal_free(cmds); }
+#else
   Cmd cmds[ZRT_MAX_DRAW_CMDS];
+#endif
   char text[ZRT_TEXT_POOL];
   float pts[ZRT_POINT_POOL];
   uint32_t ncmd, ntext, npts;
@@ -181,6 +191,17 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, all);
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
   if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, all);
+}
+// the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
+static HalCmdList lists[4];
+static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
+  int32_t n = 0;
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 4) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  if (shown) add(frame_of(*shown));
+  if (rbox.ncmd) add(ovl_frame(rbox));
+  if (banner.ncmd) add(ovl_frame(banner));
+  if (vis.ncmd) add(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr});
+  return n;
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
 #ifndef ZRT_DAMAGE_RECTS
@@ -579,7 +600,7 @@ void present_overlay() {
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
-  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
+  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists};
   ovl_changed = false;
   present(&f);
 }
@@ -633,7 +654,7 @@ void end_frame() {
   if (kept && !first) {  // retained frame: no rasterization, no swap
     if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
-    HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage};
+    HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists};
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
@@ -654,7 +675,7 @@ void end_frame() {
   first = false;
   shown = &now;
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
   present(&f);
   if (prof_on) prof::end();
   after_present();
@@ -675,7 +696,21 @@ static void pool_full(int32_t which) {
 }
 static Cmd* push(uint8_t kind, uint32_t color, int32_t alpha) {
   Buf& b = bufs[cur];
+#ifdef ZRT_GROW_DRAW_CMDS
+  if (!grow_enabled && b.ncmd == ZRT_MAX_DRAW_CMDS) { pool_full(0); return nullptr; }  // a grow build with growing switched off (zinc.json growDrawCommands false): the pool is fixed
+  if (b.ncmd == b.capacity) {
+    if (b.capacity > 0x7fffffffU / 2 || (size_t)b.capacity > (size_t)-1 / sizeof(Cmd) / 2) panic("draw command capacity overflow");
+    uint32_t capacity = b.capacity * 2;
+    Cmd* cmds = (Cmd*)hal_alloc((size_t)capacity * sizeof(Cmd));
+    if (!cmds) panic("out of memory growing draw commands");  // never silently undercount a stress test
+    __builtin_memcpy(cmds, b.cmds, (size_t)b.ncmd * sizeof(Cmd));
+    if (b.cmds != b.initial) hal_free(b.cmds);
+    b.cmds = cmds; b.capacity = capacity;
+
+  }
+#else
   if (b.ncmd == ZRT_MAX_DRAW_CMDS) { pool_full(0); return nullptr; }  // ponytail: extra commands are dropped
+#endif
   Cmd* c = &b.cmds[b.ncmd++];
   __builtin_memset(c, 0, sizeof(Cmd));  // padding participates in the frame diff
   c->kind = kind; c->c1 = color & 0xFFFFFF;

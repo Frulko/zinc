@@ -15,6 +15,7 @@
 #include "frontend/modules.h"
 #include "frontend/parser.h"
 #include "frontend/plugin_manifest.h"
+#include "frontend/project.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
 #include "zn/host.h"
@@ -178,6 +179,44 @@ int main(int argc, char** argv) {
   }
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];
+    std::string projectDir;
+    zn::frontend::TargetOptions window;  // zinc.json: what concerns the host
+    {
+      namespace fs = std::filesystem;
+      std::string projFile = zn::frontend::findProjectFile(path);
+      zn::frontend::Project project;
+      bool have = false;
+      if (!projFile.empty()) {
+        std::ifstream in(projFile);
+        std::stringstream ss;
+        ss << in.rdbuf();
+        std::string err;
+        if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
+        else std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str());
+      }
+      std::error_code ec;
+      if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
+        std::string e = zn::frontend::entryOf(path, have && fs::path(projectDir) == fs::absolute(path).lexically_normal() ? &project : nullptr);
+        if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts or main.tsx)\n", path.c_str()); return 2; }
+        path = e;
+      }
+      if (have) {  // the profile of the target this machine runs: macos, linux, else the simulator's
+#if defined(__APPLE__)
+        const char* order[] = {"macos", "sim"};
+#else
+        const char* order[] = {"linux", "sim"};
+#endif
+        for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
+      }
+    }
+    if (window.width > 0 && window.height > 0) setenv("ZINC_SIZE", (std::to_string(window.width) + "x" + std::to_string(window.height)).c_str(), 0);
+    if (window.zoom > 0) setenv("ZINC_ZOOM", std::to_string(window.zoom).c_str(), 0);
+    if (!window.resize.empty()) setenv("ZINC_RESIZE", window.resize.c_str(), 0);
+    if (window.fullscreen) setenv("ZINC_FULLSCREEN", "1", 0);
+    if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
+#ifdef ZN_HOST_GFX
+    zn::host::setGrowDrawCommands(window.growDrawCommands);
+#endif
     zn::zbc::Module zm;
     if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
       std::ifstream in(path, std::ios::binary);
@@ -190,22 +229,24 @@ int main(int argc, char** argv) {
       err = zn::zbc::verify(zm);
       if (std::getenv("ZN_TIMING")) std::fprintf(stderr, "decode %.2f ms, verify %.2f ms\n", std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count());
       if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
-    } else if (int rc = compileToZbc(argv[2], zm)) return rc;
+    } else if (int rc = compileToZbc(path.c_str(), zm)) return rc;
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
+    std::string absPath = std::filesystem::absolute(path).string();
+    if (!projectDir.empty()) { std::error_code ec; std::filesystem::current_path(projectDir, ec); }  // the program's relative file names (media/...) are the project's
 #ifdef ZN_HOST_GFX
     {  // the program's arguments (after `--`) and its assets directory (beside the entry file or above it) for zinc:sys and zinc:assets
       std::vector<std::string> args;
       for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
       zn::host::setProgramArgs(args);
       namespace fs = std::filesystem;
-      fs::path dir = fs::absolute(argv[2]).parent_path();
+      fs::path dir = fs::path(absPath).parent_path();
       for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
     }
     if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them
       std::vector<std::uint8_t> blob;
       std::string err;
-      if (!bakeResources(argv[2], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
+      if (!bakeResources(absPath.c_str(), blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
     auto res = zn::vm::run(zm, out, trace);

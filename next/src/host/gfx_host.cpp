@@ -14,7 +14,7 @@ namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
 extern bool quit_requested;
-namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); }
+namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); extern bool grow_enabled; }
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
 
@@ -170,6 +170,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 namespace zn::host {
+void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 
 void installGfx() { hostGfx = call; installSys(); }
 
