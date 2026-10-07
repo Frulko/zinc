@@ -16,13 +16,13 @@ export class OrbitControls {
   enabled = true;
   readonly target = new Vector3();
   minDistance = 0;
-  maxDistance = Infinity;
+  maxDistance: number = Infinity;
   minZoom = 0;
-  maxZoom = Infinity;
+  maxZoom: number = Infinity;
   minPolarAngle = 0;
   maxPolarAngle = Math.PI;
   minAzimuthAngle = -Infinity;
-  maxAzimuthAngle = Infinity;
+  maxAzimuthAngle: number = Infinity;
   enableDamping = false;
   dampingFactor = 0.05;
   enableZoom = true;
@@ -130,8 +130,8 @@ export class OrbitControls {
       cam.updateProjectionMatrix();
     } else this.spherical.radius = MathUtils.clamp(this.spherical.radius * this.scale, this.minDistance, this.maxDistance);
     offset.setFromSpherical(this.spherical).applyQuaternion(quatInv);
-    cam.position.copy(this.target).add(offset);
-    cam.lookAt(this.target.x, this.target.y, this.target.z);
+    this.object.position.copy(this.target).add(offset);
+    this.object.lookAt(this.target.x, this.target.y, this.target.z);
     if (this.enableDamping) {
       this.delta.theta *= 1 - this.dampingFactor;
       this.delta.phi *= 1 - this.dampingFactor;

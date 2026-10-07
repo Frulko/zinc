@@ -635,6 +635,7 @@ struct Lowering {
           if (c.objs[obj].ctor != frontend::kNoType) for (frontend::TypeId p : c.types[c.objs[obj].ctor].params) ps.push_back(irType(p, s));
           std::uint32_t fi = addFunction(c.objs[obj].name + ".constructor", ps, m.voidT());
           ctorOfClass[cls] = fi;
+          nodeOfFunc[fi] = s;   // the class node: callFunction finds the base constructor's defaults through it
           jobs.push_back({fi, s, cls, true, s});
         }
       }
@@ -1572,8 +1573,15 @@ struct Lowering::FnLower {
       vs.push_back(exprTo(args[k], pt));
     }
     auto nf = L.nodeOfFunc.find(fn);  // omitted arguments take the parameter's default, evaluated here at the call
-    if (nf != L.nodeOfFunc.end() && (n(nf->second).kind == N::Function || n(nf->second).kind == N::Method)) {
-      const Node& fnn = n(nf->second);
+    std::uint32_t declNode = nf != L.nodeOfFunc.end() ? nf->second : kNil;
+    while (declNode != kNil && n(declNode).kind == N::Class) {   // a constructor made for a class that has none forwards to its base's: the defaults are the base constructor's
+      std::uint32_t par = c.objs[c.types[c.nodeType[declNode]].obj].parent;
+      auto pc = par != kNil ? L.ctorOfClass.find(L.classOfObj[par]) : L.ctorOfClass.end();
+      auto pn = pc != L.ctorOfClass.end() ? L.nodeOfFunc.find(pc->second) : L.nodeOfFunc.end();
+      declNode = pn != L.nodeOfFunc.end() ? pn->second : kNil;
+    }
+    if (declNode != kNil && (n(declNode).kind == N::Function || n(declNode).kind == N::Method)) {
+      const Node& fnn = n(declNode);
       for (std::size_t k = vs.size() - nrecv; k + 2 < fnn.kids.size() && vs.size() < cf.params.size(); ++k) {
         std::uint32_t d = n(fnn.kids[2 + k]).kids[1];
         if (d == kNil) break;
@@ -1742,7 +1750,7 @@ struct Lowering::FnLower {
         auto ni = static_cast<std::uint32_t>(std::stoul(std::string(callee.text.substr(9))));
         nsig::Sig sg;
         nsig::parse(a.natives[ni].sig.c_str(), sg);
-        auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'S' ? m.arrayT(m.strT()) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
+        auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'U' ? m.arrayT(m.numT(NumK::u32)) : l == 'S' ? m.arrayT(m.strT()) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
         std::vector<ValueId> vs;
         std::string all = sg.params + (sg.result == 'P' ? "cc" : "");
         for (std::size_t k = 0; k < all.size(); ++k) vs.push_back(all[k] == 'c' ? expr(x.kids[k + 1]) : exprTo(x.kids[k + 1], irType(all[k])));

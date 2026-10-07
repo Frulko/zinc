@@ -1,6 +1,7 @@
 {
   "name": "three",
   "kind": "module",
+  "deterministic": true,
   "module": "three",
   "entry": "index.ts",
   "modules": {

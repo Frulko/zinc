@@ -69,7 +69,7 @@ struct Gen {
     if (n(t).kind == N::TypeRef && n(t).kids.empty()) { auto al = aliases.find(std::string(n(t).text)); if (al != aliases.end()) return letter(al->second); }
     std::string s;
     for (char c : src(t)) if (!std::isspace(static_cast<unsigned char>(c))) s += c;
-    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"number[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
+    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"u32[]", 'U'}, {"f64[]", 'D'}, {"number[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
     auto it = k.find(s);
     return it == k.end() ? 0 : it->second;
   }
@@ -82,7 +82,7 @@ std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty
   const Node& x = a.nodes[ty];
   std::string s;
   for (std::size_t k = x.start; k < x.end; ++k) if (!std::isspace(static_cast<unsigned char>(text[k]))) s += text[k];
-  static const std::map<std::string, std::string> kLetters = {{"i32", "i"}, {"u32", "u"}, {"boolean", "b"}, {"f64", "d"}, {"number", "d"}, {"string", "s"}, {"u8[]", "B"}, {"i32[]", "I"}, {"f64[]", "D"}, {"number[]", "D"}, {"string[]", "S"}, {"void", "n"}};
+  static const std::map<std::string, std::string> kLetters = {{"i32", "i"}, {"u32", "u"}, {"boolean", "b"}, {"f64", "d"}, {"number", "d"}, {"string", "s"}, {"u8[]", "B"}, {"i32[]", "I"}, {"u32[]", "U"}, {"f64[]", "D"}, {"number[]", "D"}, {"string[]", "S"}, {"void", "n"}};
   auto it = kLetters.find(s);
   if (it != kLetters.end()) return it->second;
   if (dyn && (s == "unknown" || s == "unknown[]")) return "s";
@@ -143,7 +143,7 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
     const Node& m = pr.ast.nodes[pr.ast.nodes[iface].kids[k]];
     std::string mname(m.text);
     if (m.kind == N::Method) {
-      std::string ps, sig, tsig, targs;
+      std::string ps, sig, tsig, targs, tpre, tpost;
       bool tOk = true;
       char rl = g.letter(m.kids.empty() ? kNone : m.kids[0]);
       char promiseOf = 0;   // a Promise<T> result: the letter of T (n for void)
@@ -167,9 +167,13 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
           case 'b': ex = "a[" + idx + "].i != 0"; break;
           case 'd': ex = "a[" + idx + "].d"; break;
           case 's': ex = "zn::compat::str(a[" + idx + "])"; break;
-          case 'B': ex = "zn::compat::arr<uint8_t>(a[" + idx + "])"; break;
-          case 'I': ex = "zn::compat::arr<int32_t>(a[" + idx + "])"; break;
-          case 'D': ex = "zn::compat::arr<double>(a[" + idx + "])"; break;
+          case 'B': case 'I': case 'U': case 'D': {   // an array: the plugin may fill it (an out parameter); a change is copied back for the engine after the call
+            const char* et = l == 'B' ? "uint8_t" : l == 'I' ? "int32_t" : l == 'U' ? "uint32_t" : "double";
+            tpre += std::string("auto av") + idx + " = zn::compat::arr<" + et + ">(a[" + idx + "]);\n  ";
+            tpost += "zn::compat::back(H, cx, const_cast<ZnVal&>(a[" + idx + "]), av" + idx + ");\n  ";
+            ex = "av" + idx;
+            break;
+          }
           case 'S': ex = "zn::compat::arrStr(a[" + idx + "])"; break;
           default: break;
         }
@@ -206,15 +210,16 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
       if (rl == 'P') {   // a zrt::Promise: the export takes the engine's promise, and the zrt promise's settling completes it (the poll turns drain zrt's microtasks)
         std::string call = "zn_" + out.name + "->" + mname + "(" + targs + ")";
         std::string ok = promiseOf == 'n' ? "H->promise_resolve(id, \"n\", nullptr);" : promiseOf == 'd' ? "ZnVal v; v.d = pr.p->val; H->promise_resolve(id, \"d\", &v);" : promiseOf == 's' ? "ZnVal v; zn::compat::put(v, pr.p->val); H->promise_resolve(id, \"s\", &v);" : promiseOf == 'b' ? "ZnVal v; v.i = pr.p->val; H->promise_resolve(id, \"b\", &v);" : "ZnVal v; v.i = pr.p->val; H->promise_resolve(id, \"" + std::string(1, promiseOf) + "\", &v);";
-        tfuncs += "static int32_t t_" + mname + "(void*, ZnCtx* cx, const ZnVal* a, ZnVal* r) {\n  (void)a; (void)r;\n  auto pr = " + call + ";\n  uint64_t id = H->promise_take(cx);\n"
+        tfuncs += "static int32_t t_" + mname + "(void*, ZnCtx* cx, const ZnVal* a, ZnVal* r) {\n  (void)a; (void)r;\n  " + tpre + "auto pr = " + call + ";\n  " + tpost + "uint64_t id = H->promise_take(cx);\n"
                   "  pr.p->on_settle(zrt::Fn<void()>([pr, id]() {\n    if (pr.p->st == 1) { " + ok + " }\n    else { char m[256]; uint32_t n = pr.p->err.p ? (pr.p->err->message.bytes() < 255 ? pr.p->err->message.bytes() : 255) : 0; if (n) __builtin_memcpy(m, pr.p->err->message.ptr(), n); else { __builtin_memcpy(m, \"rejected\", 8); n = 8; } m[n] = 0; H->promise_reject(id, m); }\n  }));\n"
                   "  zrt::drain_microtasks();\n  return ZN_PENDING;\n}\n";
         texports += "  {\"" + mname + "\", \"" + tsig + ">P" + std::string(1, promiseOf) + "\", t_" + mname + ", 0},\n";
       } else if (rl == 0 || !tOk) { if (tfail.empty()) tfail = "member '" + mname + "' uses a type the thunk cannot carry yet (scalars, strings, arrays, callbacks returning void)"; }
       else {
         std::string call = "zn_" + out.name + "->" + mname + "(" + targs + ")";
-        std::string body = rl == 'n' ? call + ";" : (rl == 'd' ? "r->d = " + call + ";" : (rl == 's' || rl == 'B' || rl == 'I' || rl == 'D') ? "zn::compat::ret(H, cx, r, " + call + ");" : "r->i = " + call + ";");
-        tfuncs += "static int32_t t_" + mname + "(void*, ZnCtx* cx, const ZnVal* a, ZnVal* r) {\n  (void)a; (void)r;\n  " + body + "\n  return zn::compat::done(H, cx);\n}\n";
+        std::string store = rl == 'd' ? "r->d = rv;" : (rl == 's' || rl == 'B' || rl == 'I' || rl == 'D') ? "zn::compat::ret(H, cx, r, rv);" : "r->i = rv;";
+        std::string body = rl == 'n' ? call + ";\n  " + tpost : "auto rv = " + call + ";\n  " + tpost + store;
+        tfuncs += "static int32_t t_" + mname + "(void*, ZnCtx* cx, const ZnVal* a, ZnVal* r) {\n  (void)a; (void)r;\n  " + tpre + body + "\n  return zn::compat::done(H, cx);\n}\n";
         texports += "  {\"" + mname + "\", \"" + tsig + ">" + rl + "\", t_" + mname + ", 0},\n";
       }
       if (cOk) {

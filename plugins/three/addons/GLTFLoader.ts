@@ -184,7 +184,7 @@ class Builder {
   private node(n: i32, depth: i32): Object3D {
     const h = this.h, name = T.nodeName(h, n), mesh = T.nodeMesh(h, n);
     let obj: Object3D;
-    const prims = mesh >= 0 ? this.primitives(mesh) : [];
+    const prims: Primitive[] = mesh >= 0 ? this.primitives(mesh) : [];
     if (prims.length === 1) obj = this.meshObject(prims[0], name);
     else {
       obj = new Group();

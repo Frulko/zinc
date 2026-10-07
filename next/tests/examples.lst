@@ -1,6 +1,6 @@
 # Examples status (tools/examples-status): path | STATUS | reason | task. OK needs nothing else; a status other than OK needs the reason and the task that will fix it.
-3d/cubes/src/main.ts | COMPILE | plugins/3d sim: `??` on a number that cannot be null (render3d.sim.ts:32) | ZN-107
-3d/model/src/main.ts | COMPILE | plugins/3d sim: `??` on a number that cannot be null (render3d.sim.ts:32) | ZN-107
+3d/cubes/src/main.ts | OK |  | 
+3d/model/src/main.ts | OK |  | 
 boards/esp32-2432s022-hello/src/main.ts | OK |  | 
 boards/esp32-2432s022/src/main.tsx | OK |  | 
 boards/s3-matrix/dice/src/main.ts | OK |  | 
@@ -46,8 +46,8 @@ scripting/playground/src/main.tsx | OK |  |
 service/sensor-hub/src/main.ts | OK |  | 
 text/src/main-react.tsx | OK |  | 
 text/src/main-solid.tsx | OK |  | 
-three/cubes/main.ts | COMPILE | plugins/three is not mapped or built yet | ZN-107
-three/gltf-viewer/main.tsx | COMPILE | plugins/three is not mapped or built yet | ZN-107
+three/cubes/main.ts | OK |  | 
+three/gltf-viewer/main.tsx | OK |  | 
 ui/figma-storyboard/src/main.tsx | OK |  | 
 ui/forms/main.tsx | OK |  | 
 ui/gl-check/src/main.ts | OK |  | 

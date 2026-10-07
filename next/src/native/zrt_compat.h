@@ -29,6 +29,17 @@ inline zrt::Array<zrt::String> arrStr(const ZnVal& v) {
   return r;
 }
 
+// An array argument the plugin changed (an out parameter, or push_raw on the copy): the new contents go to a buffer of the call, and the argument's view points at it, so that the
+// engine writes them back into the program's array. Unchanged arrays cost one comparison.
+template <class T> void back(const ZnHostApi* h, ZnCtx* cx, ZnVal& v, const zrt::Array<T>& arr) {
+  uint32_t n = arr.a ? static_cast<uint32_t>(arr.length()) : 0;
+  if (n == v.v.n && (n == 0 || std::memcmp(arr.a->data, v.v.p, n * sizeof(T)) == 0)) return;
+  T* out = static_cast<T*>(h->ret_buf(cx, n * sizeof(T) + 1));
+  for (uint32_t i = 0; i < n; ++i) out[i] = arr.a->data[i];
+  v.v.p = out;
+  v.v.n = n;
+}
+
 inline void ret(const ZnHostApi* h, ZnCtx* cx, ZnVal* r, const zrt::String& s) { r->s = h->ret_str(cx, s.ptr(), s.bytes()); }
 template <class T> void ret(const ZnHostApi* h, ZnCtx* cx, ZnVal* r, const zrt::Array<T>& a) {
   int32_t n = a.a ? a.length() : 0;

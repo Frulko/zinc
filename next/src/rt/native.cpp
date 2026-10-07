@@ -57,7 +57,7 @@ std::deque<Work> gQueue;
 void setError(char* err, std::size_t n, const std::string& msg) { if (err && n) std::snprintf(err, n, "%s", msg.c_str()); }
 
 // ---- signatures
-bool paramLetter(char c) { return std::strchr("siubdfhBIDS", c) != nullptr; }
+bool paramLetter(char c) { return std::strchr("siubdfhBIDSU", c) != nullptr; }
 bool parseSig(const char*& p, bool callback, std::string& why);
 bool parseType(const char*& p, bool result, std::string& why) {
   char c = *p;

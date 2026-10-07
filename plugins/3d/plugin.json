@@ -1,6 +1,7 @@
 {
   "name": "3d",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:3d",
   "entry": "index.ts",
   "description": "Software 3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph, z-buffered rasterizer",

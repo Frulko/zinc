@@ -1,6 +1,6 @@
 #pragma once
 // The part of a native export's signature ("params>result", include/zn/native.h) that a program can call: scalars (i u b d), strings (s), arrays of u8 (B),
-// i32 (I), f64 (D), string arrays in (S), callbacks in (c(params>result), scalars, strings and arrays as parameters, a scalar or string result), and a promise
+// i32 (I), u32 (U), f64 (D), string arrays in (S), callbacks in (c(params>result), scalars, strings and arrays as parameters, a scalar or string result), and a promise
 // result (P<t>: the engine passes two more callbacks that settle it). ZN-097 and ZN-167.
 #include <cstring>
 #include <string>
@@ -8,7 +8,7 @@
 
 namespace zn::nsig {
 
-inline bool paramLetter(char c) { return c != 0 && std::strchr("siubdBIDS", c) != nullptr; }   // c: a callback, written c(...)
+inline bool paramLetter(char c) { return c != 0 && std::strchr("siubdBIDSU", c) != nullptr; }   // c: a callback, written c(...)
 inline bool resultLetter(char c) { return c != 0 && std::strchr("nsiubdBID", c) != nullptr; }
 inline bool cbParamLetter(char c) { return c != 0 && std::strchr("siubdBID", c) != nullptr; }
 inline bool cbResultLetter(char c) { return c != 0 && std::strchr("nsiubd", c) != nullptr; }

@@ -1039,6 +1039,7 @@ struct Loader {
       for (const std::string& w : warnings) std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), w.c_str());
       std::string mod = pm.module, entry = pm.entry;
       if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) plugins[mod] = (e.path() / entry).string();
+      if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
     }
   }
   void readPlugins(const std::string& fromFile) {
@@ -1141,6 +1142,13 @@ struct Loader {
     if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {  // a bare specifier: the `paths` of the nearest tsconfig.json
       std::uint32_t viaPaths = kNone;
       if (resolveByPaths(fromFile, node, spec, viaPaths)) return viaPaths;
+      readPlugins(prog.files[fromFile].path);
+      auto pl = plugins.find(spec);   // a plugin that provides a bare specifier (`three`, `three/addons/loaders/GLTFLoader.js`)
+      if (pl != plugins.end()) {
+        if (done.count(pl->second)) return done[pl->second];
+        std::string ptext;
+        if (read(pl->second, ptext)) return load(pl->second, std::move(ptext));
+      }
       diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no tsconfig.json paths entry maps it)");
       return kNone;
     }

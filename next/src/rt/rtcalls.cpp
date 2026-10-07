@@ -844,7 +844,7 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
           v.v.p = strViews.back().data();
           break;
         }
-        std::size_t w = ps[k] == 'B' ? 1 : 4;
+        std::size_t w = ps[k] == 'B' ? 1 : 4;   // B: bytes; I and U: 32-bit
         packed.emplace_back(arr->v.size() * w);
         for (std::size_t j = 0; j < arr->v.size(); ++j) {
           if (w == 1) packed.back()[j] = static_cast<std::uint8_t>(arr->v[j]);
@@ -854,6 +854,8 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
       }
     }
   }
+  const void* sent[12] = {};   // the views as they were sent: a module that changed an array points the view somewhere else
+  for (std::size_t k = 0; k < ps.size() && k < 12; ++k) sent[k] = args[k].v.p;
   std::uint64_t resolveH = 0, rejectH = 0;
   if (sg.result == 'P') {   // the two closures that settle the promise follow the parameters
     std::string pr = sg.promiseOf == 'n' ? ">n" : std::string(1, sg.promiseOf) + ">n";
@@ -865,6 +867,18 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
   ret.u = 0;
   std::int32_t st = zn_native_call(nt.module.c_str(), nt.name.c_str(), nt.sig.c_str(), args, &ret, err, sizeof err);
   for (std::uint64_t h : handles) cbUnref(h);   // the call's own reference; a module that kept a callback holds another
+  for (std::size_t k = 0; k < ps.size() && k < 12; ++k) {   // arrays the module filled or changed (out parameters): the program's array takes the new contents
+    char l = ps[k];
+    if ((l != 'B' && l != 'I' && l != 'U' && l != 'D') || args[k].v.p == sent[k]) continue;
+    ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]);
+    arr->v.clear();
+    for (std::uint32_t j = 0; j < args[k].v.n; ++j) {
+      if (l == 'D') arr->v.push_back(std::bit_cast<Slot>(static_cast<const double*>(args[k].v.p)[j]));
+      else if (l == 'B') arr->v.push_back(static_cast<const std::uint8_t*>(args[k].v.p)[j]);
+      else if (l == 'U') arr->v.push_back(static_cast<Slot>(static_cast<const std::uint32_t*>(args[k].v.p)[j]));
+      else arr->v.push_back(static_cast<Slot>(static_cast<std::int64_t>(static_cast<const std::int32_t*>(args[k].v.p)[j])));
+    }
+  }
   gScratch = savedScratch;
   if (sg.result == 'P') {
     if (st == ZN_PENDING) { gPromises[zn_native_last_promise()] = PromiseEntry{resolveH, rejectH, sg.promiseOf}; return nullptr; }

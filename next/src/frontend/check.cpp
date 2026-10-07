@@ -388,7 +388,7 @@ struct Checker {
     for (std::size_t ni = 0; ni < a.natives.size(); ++ni) {  // the exports of the native modules the program calls: __native_<n>
       nsig::Sig sg;
       if (!nsig::parse(a.natives[ni].sig.c_str(), sg)) continue;
-      auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'D' ? arrayOf(num(Num::f64)) : c == 'S' ? arrayOf(tStr) : tVoid; };
+      auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'U' ? arrayOf(num(Num::u32)) : c == 'D' ? arrayOf(num(Num::f64)) : c == 'S' ? arrayOf(tStr) : tVoid; };
       auto callback = [&](const std::string& inner) {
         std::string cp;
         char cr = 'n';

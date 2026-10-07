@@ -87,3 +87,12 @@ the board and LED examples under SDL's dummy video driver, and the remote displa
 `plugins/canvas2d/native/canvas2d.host.cpp` runs unchanged behind the thunk (the spec's `number[]` is an f64 array): it links against the host library's rasterizer, the single owner of `zrt::raster`,
 with `ZRT_POINT_POOL` from the plugin.json target defines. The plugin is `deterministic`, so golden runs use it instead of the Zinc stand-in. `src/res` decodes JPEG assets too (stb_image,
 PNG and JPEG only; no `@2x` variants for photographs): `tests/golden/res_jpeg`. `tests/t1/canvas.sh` runs the conformance program interpreted and compiled, and examples/canvas/sketch headless.
+
+## 3d and three (ZN-107)
+
+`plugins/3d` and `plugins/three` run on their prototype natives (software z-buffer on the shared rasterizer; cgltf-free glTF code of three.host.cpp) through the thunks: `u32[]` is an ABI letter (`U`),
+and an array a plugin fills or changes (the out parameters of `sceneNodes`, `primitive`, `readFile`) is copied back: the thunk compares the plugin's array with the view it got and, when different, hands
+the new contents to the engine through `ret_buf`, which writes them into the program's array. A bare specifier that a plugin manifest names (`module`, `modules`: `three`,
+`three/addons/loaders/GLTFLoader.js`) resolves to the plugin file. Compiler fix on the way: `new Derived(a, b)` where `Derived` has no constructor of its own now gets the omitted arguments' defaults
+from the base constructor. `tests/t1/three_3d.sh`: conformance programs and four example frames against engine goldens. D11's own scene graph stays the prototype's; cgltf and meshoptimizer are not needed
+(three.host.cpp parses glTF/GLB itself), so nothing new is vendored.
