@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A tiny MQTT 3.1.1 broker for tests/t0/mqtt.sh: CONNACK, SUBSCRIBE (+, # filters), PUBLISH QoS 0/1 fan-out, PINGREQ, DISCONNECT.
-Usage: mqtt_broker.py PORT; prints "ready" once it listens; exits when every client has disconnected."""
-import socket, sys, threading
+Usage: mqtt_broker.py PORT [CERT KEY] (with a certificate it speaks MQTT over TLS); prints "ready" once it listens; exits when every client has disconnected."""
+import socket, ssl, sys, threading
 
 def rd(c, n):
     b = b''
@@ -67,12 +67,19 @@ def serve(c):
             subs[:] = [x for x in subs if x[1] is not c]
         c.close()
 
+ctx = None
+if len(sys.argv) > 3:
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(sys.argv[2], sys.argv[3])
 s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(('127.0.0.1', int(sys.argv[1]))); s.listen(8); s.settimeout(30)
 print('ready', flush=True)
 ts = []
 try:
     while True:
-        c, _ = s.accept(); t = threading.Thread(target=serve, args=(c,), daemon=True); t.start(); ts.append(t)
+        c, _ = s.accept()
+        if ctx:
+            try: c = ctx.wrap_socket(c, server_side=True)
+            except (ssl.SSLError, OSError): continue
+        t = threading.Thread(target=serve, args=(c,), daemon=True); t.start(); ts.append(t)
         if len(ts) >= 2 and not any(t.is_alive() for t in ts): break
 except socket.timeout: pass

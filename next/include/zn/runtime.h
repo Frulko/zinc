@@ -189,7 +189,9 @@
   /* zinc:net over llhttp (ZN-087) */ \
   X(HostHttpFetch, "host.httpFetch", "ssssii>i", 2) X(HostHttpStatus, "host.httpStatus", "i>i", 2) X(HostHttpHead, "host.httpHead", "i>s", 2) \
   X(HostHttpBody, "host.httpBody", "i>s", 2) X(HostHttpUrl, "host.httpUrl", "i>s", 2) X(HostHttpFree, "host.httpFree", "i>n", 2) \
-  X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2) \
+  X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2) X(HostHttpServeTls, "host.httpServeTls", "iss>i", 2) X(HostMqttOpenTls, "host.mqttOpenTls", "sisi>i", 2) \
+  /* crypto.subtle on PSA (ZN-089): operation, four byte arrays, two numbers; the result as raw bytes */ \
+  X(HostCrypto, "host.crypto", "sBBBBii>s", 2) X(HostCryptoError, "host.cryptoError", ">s", 2) X(HostHttpError, "host.httpError", ">s", 2) \
   /* zinc:socket (ZN-088): sockets as handles; bytes travel as arrays (writes) and raw strings (events) */ \
   X(HostSockConnect, "host.sockConnect", "si>i", 2) X(HostSockConnectUnix, "host.sockConnectUnix", "s>i", 2) X(HostSockListen, "host.sockListen", "si>i", 2) \
   X(HostSockListenUnix, "host.sockListenUnix", "s>i", 2) X(HostSockUdp, "host.sockUdp", "si>i", 2) X(HostSockWrite, "host.sockWrite", "iB>i", 2) \

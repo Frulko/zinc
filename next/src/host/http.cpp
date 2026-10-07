@@ -12,9 +12,11 @@
 #include <memory>
 #include <vector>
 
+#include "tls.h"
 #include "zn/loop.h"
 
 namespace zn::http {
+std::string gError;
 namespace {
 
 const char* reasonOf(int s) {
@@ -59,22 +61,25 @@ struct Fetch {
   uint64_t timeoutMs = 0, startMs = 0;
   Msg msg;
   bool tooBig = false, finished = false, restart = false, released = false, tcpOpen = false, timerOpen = false;
+  bool secure = false, reqSent = false;
+  tls::Conn* tls = nullptr;
   int closing = 0;
 };
 std::vector<std::unique_ptr<Fetch>> gFetches;   // index = handle - 1
 Fetch* fetchAt(int h) { return h > 0 && static_cast<size_t>(h) <= gFetches.size() ? gFetches[static_cast<size_t>(h) - 1].get() : nullptr; }
 
 bool splitUrl(const std::string& u, Fetch* f, std::string* why) {
-  if (u.compare(0, 8, "https://") == 0) { *why = "https is not supported yet"; return false; }
-  if (u.compare(0, 7, "http://") != 0) { *why = "unsupported protocol"; return false; }
-  size_t hs = 7, pe = u.find_first_of("/?#", hs);
+  bool https = u.compare(0, 8, "https://") == 0;
+  if (!https && u.compare(0, 7, "http://") != 0) { *why = "unsupported protocol"; return false; }
+  f->secure = https;
+  size_t hs = https ? 8 : 7, pe = u.find_first_of("/?#", hs);
   std::string auth = u.substr(hs, pe == std::string::npos ? pe : pe - hs);
   f->path = pe == std::string::npos ? "/" : u.substr(pe);
   if (f->path[0] != '/') f->path = "/" + f->path;
   size_t hash = f->path.find('#');
   if (hash != std::string::npos) f->path.resize(hash);
   size_t colon = auth.rfind(':');
-  f->port = 80;
+  f->port = https ? 443 : 80;
   if (colon != std::string::npos) { f->port = std::atoi(auth.c_str() + colon + 1); auth.resize(colon); }
   f->host = auth;
   f->url = u;
@@ -96,6 +101,8 @@ void onFetchClosed(uv_handle_t* h) {
   maybeFree(f);
 }
 void closeTcp(Fetch* f) {
+  if (f->tls) { tls::destroy(f->tls); f->tls = nullptr; }
+  f->reqSent = false;
   if (f->tcpOpen) { f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->tcp), onFetchClosed); f->tcpOpen = false; }
 }
 void finish(Fetch* f, bool ok, const std::string& why) {
@@ -109,7 +116,7 @@ void finish(Fetch* f, bool ok, const std::string& why) {
 
 std::string resolveLocation(Fetch* f, const std::string& loc) {
   if (loc.compare(0, 7, "http://") == 0 || loc.compare(0, 8, "https://") == 0) return loc;
-  std::string origin = "http://" + f->host + (f->port == 80 ? "" : ":" + std::to_string(f->port));
+  std::string origin = std::string(f->secure ? "https://" : "http://") + f->host + (f->port == (f->secure ? 443 : 80) ? "" : ":" + std::to_string(f->port));
   if (loc[0] == '/') return origin + loc;
   size_t slash = f->path.rfind('/');
   return origin + f->path.substr(0, slash + 1) + loc;
@@ -150,14 +157,60 @@ void onComplete(Fetch* f) {
   finish(f, true, "");
 }
 
+void rawWrite(Fetch* f, const std::string& bytes) {
+  if (bytes.empty() || f->finished || !f->tcpOpen) return;
+  auto* w = new WriteReq{{}, bytes, false};
+  uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
+  if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&f->tcp), &b, 1, [](uv_write_t* r2, int) { delete reinterpret_cast<WriteReq*>(r2); }) != 0) delete w;
+}
+// Plain bytes of the response into llhttp.
+void parseBytes(Fetch* f, const char* data, size_t n) {
+  if (f->finished || f->restart) return;
+  llhttp_errno_t e = llhttp_execute(&f->parser, data, n);
+  if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + llhttp_get_error_reason(&f->parser));
+}
+void parseEof(Fetch* f) {
+  if (f->finished || f->restart) return;
+  llhttp_errno_t e = llhttp_finish(&f->parser);
+  if (!f->finished && !f->restart) finish(f, false, e == HPE_OK ? "fetch failed: empty response" : "fetch failed: ECONNRESET");
+}
+std::string buildRequest(Fetch* k) {
+  std::string req = k->method + " " + k->path + " HTTP/1.1\r\nHost: " + k->host + (k->port == (k->secure ? 443 : 80) ? "" : ":" + std::to_string(k->port)) + "\r\nConnection: close\r\nUser-Agent: zinc/0.1\r\n";
+  if (headerOf(k->headers, "accept") == "") req += "Accept: */*\r\n";
+  for (size_t i = 0; i < k->headers.size();) {
+    size_t e = k->headers.find('\n', i);
+    if (e == std::string::npos) e = k->headers.size();
+    req += k->headers.substr(i, e - i) + "\r\n";
+    i = e + 1;
+  }
+  if (!k->reqBody.empty() || k->method == "POST" || k->method == "PUT" || k->method == "PATCH") req += "Content-Length: " + std::to_string(k->reqBody.size()) + "\r\n";
+  return req + "\r\n" + k->reqBody;
+}
+// Moves what the TLS connection has to say to the socket, then takes what it can say to the program.
+void pumpTls(Fetch* f) {
+  if (!f->tls || f->finished || f->restart) return;
+  tls::State st = tls::step(f->tls);
+  rawWrite(f, tls::takeOutput(f->tls));
+  if (st == tls::State::Failed) { finish(f, false, "fetch failed: " + tls::error(f->tls)); return; }
+  if (st != tls::State::Ready) return;
+  if (!f->reqSent) { f->reqSent = true; tls::write(f->tls, buildRequest(f)); rawWrite(f, tls::takeOutput(f->tls)); }
+  std::string plain;
+  tls::State rs = tls::read(f->tls, plain);
+  rawWrite(f, tls::takeOutput(f->tls));
+  if (!plain.empty()) parseBytes(f, plain.data(), plain.size());
+  if (f->finished || f->restart) return;
+  if (rs == tls::State::Failed) finish(f, false, "fetch failed: " + tls::error(f->tls));
+  else if (rs == tls::State::Closed) parseEof(f);
+}
+
 void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* f = static_cast<Fetch*>(s->data);
   if (n > 0 && !f->finished && !f->restart) {
-    llhttp_errno_t e = llhttp_execute(&f->parser, buf->base, static_cast<size_t>(n));
-    if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + llhttp_get_error_reason(&f->parser));
+    if (f->tls) { tls::feed(f->tls, buf->base, static_cast<size_t>(n)); pumpTls(f); }
+    else parseBytes(f, buf->base, static_cast<size_t>(n));
   } else if (n < 0 && !f->finished && !f->restart) {
-    llhttp_errno_t e = llhttp_finish(&f->parser);
-    if (!f->finished && !f->restart) finish(f, false, e == HPE_OK ? "fetch failed: empty response" : "fetch failed: ECONNRESET");
+    if (f->tls) finish(f, false, f->reqSent ? "fetch failed: ECONNRESET" : "fetch failed: TLS handshake failed");   // closed without close_notify
+    else parseEof(f);
   }
   if (buf->base) std::free(buf->base);
 }
@@ -193,20 +246,14 @@ void startConnection(Fetch* f) {
     uint64_t used = uv_now(L()) - k->startMs;
     uv_timer_stop(&k->timer);
     uv_timer_start(&k->timer, [](uv_timer_t* t) { finish(static_cast<Fetch*>(t->data), false, "fetch failed: timeout"); }, k->timeoutMs > used ? k->timeoutMs - used : 1, 0);
-    std::string req = k->method + " " + k->path + " HTTP/1.1\r\nHost: " + k->host + (k->port == 80 ? "" : ":" + std::to_string(k->port)) + "\r\nConnection: close\r\nUser-Agent: zinc/0.1\r\n";
-    if (headerOf(k->headers, "accept") == "") req += "Accept: */*\r\n";
-    for (size_t i = 0; i < k->headers.size();) {
-      size_t e = k->headers.find('\n', i);
-      if (e == std::string::npos) e = k->headers.size();
-      req += k->headers.substr(i, e - i) + "\r\n";
-      i = e + 1;
-    }
-    if (!k->reqBody.empty() || k->method == "POST" || k->method == "PUT" || k->method == "PATCH") req += "Content-Length: " + std::to_string(k->reqBody.size()) + "\r\n";
-    req += "\r\n" + k->reqBody;
-    auto* w = new WriteReq{{}, req, false};
-    uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
-    if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&k->tcp), &b, 1, [](uv_write_t* r2, int) { delete reinterpret_cast<WriteReq*>(r2); }) != 0) delete w;
     uv_read_start(reinterpret_cast<uv_stream_t*>(&k->tcp), alloc, onFetchRead);
+    if (k->secure) {
+      std::string err;
+      k->tls = tls::openClient(k->host, err);
+      if (!k->tls) { finish(k, false, "fetch failed: " + err); return; }
+      pumpTls(k);
+    } else rawWrite(k, buildRequest(k));
+
   });
   if (rc != 0) finish(f, false, "fetch failed: ECONNREFUSED");
 }
@@ -225,15 +272,17 @@ struct SConn {
   std::string target;
   size_t seen = 0;
   bool complete = false, answered = false, closed = false;
+  tls::Conn* tls = nullptr;
   int closing = 0;
 };
+std::string gCertPem, gKeyPem;   // the certificate and key of an https server
 uv_tcp_t* gListener = nullptr;
 std::map<int, SConn*> gConns;
 int gNextConn = 1;
 
 void onSClosed(uv_handle_t* h) {
   auto* c = static_cast<SConn*>(h->data);
-  if (--c->closing == 0) delete c;
+  if (--c->closing == 0) { if (c->tls) tls::destroy(c->tls); delete c; }
 }
 void closeConn(SConn* c) {
   if (c->closed) return;
@@ -245,9 +294,15 @@ void closeConn(SConn* c) {
   uv_close(reinterpret_cast<uv_handle_t*>(&c->idle), onSClosed);
   uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onSClosed);
 }
-void writeAndClose(SConn* c, const std::string& data) {
+void writeAndClose(SConn* c, const std::string& dataIn) {
   if (c->closed || c->answered) return;
   c->answered = true;
+  std::string data = dataIn;
+  if (c->tls) {
+    if (!tls::write(c->tls, data)) { closeConn(c); return; }
+    tls::close(c->tls);
+    data = tls::takeOutput(c->tls);
+  }
   auto* w = new WriteReq{{}, data, true};
   w->req.data = c;
   uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
@@ -257,13 +312,29 @@ void quick(SConn* c, int status) {
   writeAndClose(c, std::string("HTTP/1.1 ") + std::to_string(status) + " " + reasonOf(status) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 }
 
+void parseRequest(SConn* c, const char* data, size_t n) {
+  if (c->closed || c->complete) return;
+  c->seen += n;
+  llhttp_errno_t e = llhttp_execute(&c->parser, data, n);
+  if (e != HPE_OK && e != HPE_PAUSED && !c->complete) quick(c, c->msg.body.size() > kBodyCap ? 413 : 400);
+  else if (!c->complete && c->msg.head.size() + c->msg.field.size() + c->msg.value.size() > kHeadCap) quick(c, 431);
+}
 void onSRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* c = static_cast<SConn*>(s->data);
   if (n > 0 && !c->closed && !c->complete) {
-    c->seen += static_cast<size_t>(n);
-    llhttp_errno_t e = llhttp_execute(&c->parser, buf->base, static_cast<size_t>(n));
-    if (e != HPE_OK && e != HPE_PAUSED && !c->complete) quick(c, c->msg.body.size() > kBodyCap ? 413 : 400);
-    else if (!c->complete && c->msg.head.size() + c->msg.field.size() + c->msg.value.size() > kHeadCap) quick(c, 431);
+    if (c->tls) {
+      tls::feed(c->tls, buf->base, static_cast<size_t>(n));
+      tls::State st = tls::step(c->tls);
+      std::string out = tls::takeOutput(c->tls);
+      if (!out.empty()) { auto* w = new WriteReq{{}, out, false}; uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size())); if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) delete w; }
+      if (st == tls::State::Failed) closeConn(c);
+      else if (st == tls::State::Ready) {
+        std::string plain;
+        tls::State rs = tls::read(c->tls, plain);
+        if (!plain.empty()) parseRequest(c, plain.data(), plain.size());
+        if (rs == tls::State::Failed) closeConn(c);
+      }
+    } else parseRequest(c, buf->base, static_cast<size_t>(n));
   } else if (n < 0) closeConn(c);
   if (buf->base) std::free(buf->base);
 }
@@ -282,6 +353,11 @@ void onConnection(uv_stream_t* srv, int status) {
   }
   c->id = gNextConn++;
   gConns[c->id] = c;
+  if (!gCertPem.empty()) {
+    std::string err;
+    c->tls = tls::openServer(gCertPem, gKeyPem, err);
+    if (!c->tls) { closeConn(c); return; }
+  }
   llhttp_settings_init(&c->settings);
   c->settings.on_url = [](llhttp_t* p, const char* at, size_t n) { static_cast<SConn*>(p->data)->target.append(at, n); return 0; };
   c->settings.on_header_field = [](llhttp_t* p, const char* at, size_t n) { static_cast<SConn*>(p->data)->msg.onField(at, n); return 0; };
@@ -333,8 +409,11 @@ std::string fetchBody(int h) { Fetch* f = fetchAt(h); return f ? f->msg.body : "
 std::string fetchUrl(int h) { Fetch* f = fetchAt(h); return f ? f->url : ""; }
 void fetchFree(int h) { Fetch* f = fetchAt(h); if (f) { f->released = true; maybeFree(f); } }
 
-bool serve(int port) {
+bool serve(int port, const std::string& certPem, const std::string& keyPem) {
   stop();
+  gCertPem = certPem;
+  gKeyPem = keyPem;
+  if (!certPem.empty()) { std::string err; tls::Conn* probe = tls::openServer(certPem, keyPem, err); if (!probe) { gError = err; return false; } tls::destroy(probe); }
   auto* l = new uv_tcp_t;
   uv_tcp_init(L(), l);
   sockaddr_in a;
@@ -347,6 +426,7 @@ bool serve(int port) {
   loop::addActive(1);
   return true;
 }
+const std::string& lastError() { return gError; }
 void stop() {
   if (!gListener) return;
   uv_close(reinterpret_cast<uv_handle_t*>(gListener), [](uv_handle_t* h) { delete reinterpret_cast<uv_tcp_t*>(h); });

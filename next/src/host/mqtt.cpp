@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "tls.h"
 #include "zn/loop.h"
 
 namespace zn::mqtt {
@@ -23,6 +24,8 @@ struct Client {
   int handle = 0;
   uint16_t nextId = 1;
   bool connected = false, dead = false;
+  tls::Conn* tls = nullptr;   // a TLS connection: bytes go through it once the handshake is done (`pending` waits)
+  std::string pending, hello;
 };
 std::vector<Client*> gClients;   // index = handle - 1; entries live until the process ends (handles are never reused)
 
@@ -42,16 +45,24 @@ std::string packet(uint8_t type, const std::string& body) {
 }
 
 struct WriteReq { uv_write_t req; std::string data; };
-void send(Client* c, const std::string& bytes) {
-  if (c->dead) return;
+void rawSend(Client* c, const std::string& bytes) {
+  if (c->dead || bytes.empty()) return;
   auto* w = new WriteReq{{}, bytes};
   uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
   if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) delete w;
+}
+void send(Client* c, const std::string& bytes) {
+  if (c->dead) return;
+  if (!c->tls) { rawSend(c, bytes); return; }
+  if (tls::step(c->tls) != tls::State::Ready) { c->pending += bytes; return; }
+  tls::write(c->tls, bytes);
+  rawSend(c, tls::takeOutput(c->tls));
 }
 
 void shut(Client* c) {   // closes both handles once
   if (c->dead) return;
   c->dead = true;
+  if (c->tls) { tls::destroy(c->tls); c->tls = nullptr; }
   uv_close(reinterpret_cast<uv_handle_t*>(&c->ping), onClosed);
   uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onClosed);
   loop::addActive(-1);
@@ -92,7 +103,7 @@ bool parse(Client* c) {
 
 }  // namespace
 
-int open(const std::string& host, int port, const std::string& clientId) {
+int open(const std::string& host, int port, const std::string& clientId, bool secure) {
   sockaddr_in a;
   if (!loop::resolveHost(host, port, &a)) return -1;
   auto* c = new Client();
@@ -115,15 +126,35 @@ int open(const std::string& host, int port, const std::string& clientId) {
                   [](uv_handle_t*, size_t n, uv_buf_t* b) { b->base = static_cast<char*>(std::malloc(n)); b->len = static_cast<unsigned>(b->base ? n : 0); },
                   [](uv_stream_t* s, ssize_t n, const uv_buf_t* b) {
                     auto* k = static_cast<Client*>(s->data);
-                    if (n > 0 && !k->dead) { k->in.append(b->base, static_cast<size_t>(n)); while (!k->dead && parse(k)) {} }
+                    if (n > 0 && !k->dead && k->tls) {
+                      tls::feed(k->tls, b->base, static_cast<size_t>(n));
+                      tls::State st = tls::step(k->tls);
+                      rawSend(k, tls::takeOutput(k->tls));
+                      if (st == tls::State::Failed) { fail(k, "mqtt: TLS handshake failed"); }
+                      else if (st == tls::State::Ready) {
+                        if (!k->pending.empty()) { std::string p; p.swap(k->pending); send(k, p); }
+                        std::string plain;
+                        tls::State rs = tls::read(k->tls, plain);
+                        rawSend(k, tls::takeOutput(k->tls));
+                        k->in += plain;
+                        while (!k->dead && parse(k)) {}
+                        if (rs != tls::State::Ready && !k->dead) fail(k, k->connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
+                      }
+                    } else if (n > 0 && !k->dead) { k->in.append(b->base, static_cast<size_t>(n)); while (!k->dead && parse(k)) {} }
                     if (b->base) std::free(b->base);
                     if (n < 0) fail(k, k->connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
                   });
     uv_timer_start(&k->ping, [](uv_timer_t* t) { send(static_cast<Client*>(t->data), std::string("\xC0\0", 2)); }, 30000, 30000);
     uv_unref(reinterpret_cast<uv_handle_t*>(&k->ping));
+    if (k->tls) { tls::step(k->tls); rawSend(k, tls::takeOutput(k->tls)); }   // the ClientHello
   });
   if (rc != 0) { fail(c, "mqtt: cannot connect"); return c->handle; }
-  send(c, hello);   // queued behind the connect
+  if (secure) {
+    std::string err;
+    c->tls = tls::openClient(host, err);
+    if (!c->tls) { fail(c, "mqtt: TLS failed to start"); return c->handle; }
+  }
+  send(c, hello);   // queued behind the connect (behind the handshake over TLS)
   return c->handle;
 }
 

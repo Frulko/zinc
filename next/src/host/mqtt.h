@@ -5,7 +5,8 @@
 namespace zn::mqtt {
 
 // Starts connecting; returns the client's handle (>= 1), or -1 when the address does not resolve.
-int open(const std::string& host, int port, const std::string& clientId);
+// secure: TLS with the certificate verified against the system roots (ZINC_CA_FILE).
+int open(const std::string& host, int port, const std::string& clientId, bool secure = false);
 // qos 0 or 1 (1 waits for nothing: the broker's PUBACK is read and dropped); no-ops once the client is closed or lost.
 void publish(int handle, const std::string& topic, const std::string& payload, bool retain, int qos);
 void subscribe(int handle, const std::string& filter);

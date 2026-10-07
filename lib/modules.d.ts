@@ -139,7 +139,7 @@ declare module 'zinc:net' {
   export interface Request { method: string; path: string; body: string; headers: Headers }
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
   /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. */
-  export function serve(port: i32, handler: (req: Request) => Reply): void;
+  export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): void;
   export function stop(): void;
 }
 
@@ -155,7 +155,8 @@ declare module 'zinc:osc' {
 declare module 'zinc:mqtt' {
   /** MQTT 3.1.1 client (QoS 0) over TCP. */
   export class MqttClient {
-    constructor(host: string, port: i32, clientId: string);
+    /** secure: MQTT over TLS, the broker's certificate verified against the system roots (Zinc Next). */
+    constructor(host: string, port: i32, clientId: string, secure?: boolean);
     connect(): Promise<void>;
     publish(topic: string, payload: string): void;
     subscribe(topic: string, cb: (topic: string, payload: string) => void): void;

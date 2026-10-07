@@ -443,9 +443,14 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
     __netCalls.push(new NetCall(__host_httpFetch(url, method, lines, body, timeout, max), resolve, reject));
   });
 }
-export function serve(port: i32, handler: (req: Request) => Reply): void {
+export interface TlsOptions { cert: string; key: string }
+/** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. */
+export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOptions): void {
   __netHook();
-  if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
+  if (tls !== undefined) {
+    const t = tls as TlsOptions;
+    if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
+  } else if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
   __netHandler = handler;
 }
 export function stop(): void { __host_httpStop(); __netHandler = null; }
@@ -534,7 +539,9 @@ export class MqttClient {
   subs: Sub[] = [];
   onConnect: (() => void) | null = null;
   onFail: ((e: Error) => void) | null = null;
-  constructor(host: string, port: i32, clientId: string) { this.host = host; this.port = port; this.clientId = clientId; }
+  secure: boolean;
+  /** secure: MQTT over TLS (port 8883 usually), the broker's certificate verified. */
+  constructor(host: string, port: i32, clientId: string, secure: boolean = false) { this.host = host; this.port = port; this.clientId = clientId; this.secure = secure; }
   connect(): Promise<void> {
     if (!__mqttHooked) {
       __mqttHooked = true;
@@ -555,7 +562,7 @@ export class MqttClient {
     return new Promise<void>((resolve, reject) => {
       this.onConnect = () => resolve();
       this.onFail = (e: Error) => reject(e);
-      this.handle = __host_mqttOpen(this.host, this.port, this.clientId);
+      this.handle = this.secure ? __host_mqttOpenTls(this.host, this.port, this.clientId, 1) : __host_mqttOpen(this.host, this.port, this.clientId);
       if (this.handle < 0) { reject(new Error('mqtt: cannot connect')); return; }
       __mqttClients.push(this);
     });
@@ -592,6 +599,17 @@ export function error(): string { return __host_sockError(); }
 export function onEvent(cb: (h: i32, kind: i32, data: string) => void): void { __addEvHandler(cb); }
 /** The raw bytes of the event being delivered, as a string that only utf8Encode (byte for byte) should read. */
 export function payload(): string { return __host_evPayload(); }
+)ZN";
+
+// zinc:__crypto: the PSA operations of src/host/crypto.cpp for crypto.subtle (lib/std/web.ts); bytes in and out as u8[].
+const char* kHostCryptoModule = R"ZN(
+import { utf8Encode } from 'zinc:sys';
+export function op(name: string, a: u8[], b: u8[], c: u8[], d: u8[], n: i32, m: i32): u8[] {
+  const r = __host_crypto(name, a, b, c, d, n, m);
+  const e = __host_cryptoError();
+  if (e.length > 0) throw new Error(e);
+  return utf8Encode(r);
+}
 )ZN";
 
 // zinc:gpio: the simulated board of runtime/mod/gpio.cpp (macos, linux, sim): 64 pins, edges with debounce delivered as microtasks, and ZINC_GPIO_SCRIPT="27:0@100,27:1@150"
@@ -786,6 +804,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:osc") return kOscModule;
   if (spec == "zinc:__sock") return kHostSockModule;
+  if (spec == "zinc:__crypto") return kHostCryptoModule;
   if (spec == "zinc:mqtt") return kMqttModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
@@ -918,7 +937,7 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
+      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
       auto hit = kStd.find(spec);
       readPlugins(prog.files[fromFile].path);
@@ -1924,6 +1943,7 @@ const char* builtinModuleSource(std::string_view spec) { return hostModuleSource
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
   if (spec == "zinc:web") return "web.ts";
+  if (spec == "zinc:subtle") return "subtle.ts";
   if (spec == "zinc:ui/solid") return "solid.ts";
   if (spec == "zinc:ui/react") return "react.ts";
   if (spec == "zinc:ui/kit") return "kit/index.ts";

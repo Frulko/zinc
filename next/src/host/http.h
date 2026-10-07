@@ -14,7 +14,9 @@ std::string fetchBody(int h);
 std::string fetchUrl(int h);    // after redirects
 void fetchFree(int h);
 
-bool serve(int port);           // false when the port cannot be bound; a second call replaces the first listener
+// false when the port cannot be bound (or the certificate is bad: lastError()); a second call replaces the first listener. A PEM certificate chain and key make it an https server.
+bool serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
+const std::string& lastError();
 void reply(int conn, int status, const std::string& headers, const std::string& body);
 void stop();
 

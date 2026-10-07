@@ -1,0 +1,18 @@
+ok   sha-1 
+ok   sha-256 
+ok   sha-384 
+ok   sha-512 
+ok   hmac-sha256 rfc4231-1 
+hmac verify true false
+ok   aes-128-cbc sp800-38a F.2.1 
+ok   aes-128-cbc decrypt 
+ok   aes-128-ctr sp800-38a F.5.1 
+ok   aes-128-gcm test case 4 
+ok   aes-128-gcm decrypt 
+ok   gcm tamper rejected OperationError
+ok   pbkdf2-sha256 rfc7914 
+ok   hkdf-sha256 rfc5869-1 
+ok   ecdh p-256 rfc5903 
+ecdsa 64 true false
+ecdh agree true 32
+aes key 32

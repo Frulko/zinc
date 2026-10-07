@@ -34,3 +34,18 @@ host in that path), and runs a program on the emulated ESP32 (QEMU downloaded). 
 
 Windows and Linux packages have not been built or run (no such machine here); the Linux script is written to mirror the macOS one. SDL3 is bundled from the Homebrew install and not yet vendored
 (`third_party/README.md`); a release build should link a pinned SDL3. The update manifest has no server yet and is not signed beyond the checksum of the download.
+
+## TLS and crypto: binary size (ZN-089)
+
+mbedTLS 4.0.0 with TF-PSA-Crypto (`next/third_party/mbedtls`, default configuration, TLS 1.2 and 1.3, X.509, PSA crypto) backs https in `zinc:net`, TLS in
+`zinc:mqtt`, an https `serve()` and `crypto.subtle`. Measured on macOS arm64, release flags of the default CMake build, same tree, `-DZN_TLS=OFF` against ON:
+
+| `zinc` binary | TLS off | TLS on | difference |
+|---|---|---|---|
+| as built | 4 414 136 B | 5 321 656 B | +907 520 B (+20.6 %) |
+| `strip -x` | 4 038 488 B | 4 793 488 B | +755 000 B (+18.7 %) |
+
+The library archive is 1.2 MB before the linker drops what is not used. `ZN_TLS=OFF` replaces the TLS and crypto entry points with stubs that fail with a message, so
+a profile without a network (or without need of it) keeps the smaller binary. Programs compiled ahead of time link the host library when they use any host module and
+get the same +750 KB until the host rows are split into separately linked parts (open item for ZN-136). The configuration is not trimmed yet: a stripped mbedTLS
+configuration (client and server, ECDHE and RSA verification, AES-GCM and ChaCha20-Poly1305, SHA-2) is expected to save a third of that.

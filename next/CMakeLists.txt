@@ -40,6 +40,18 @@ endforeach()
 add_library(zn_llhttp STATIC third_party/llhttp/src/api.c third_party/llhttp/src/http.c third_party/llhttp/src/llhttp.c)
 target_include_directories(zn_llhttp PUBLIC third_party/llhttp/include)
 
+# mbedTLS 4.0.0 with TF-PSA-Crypto (third_party/mbedtls): TLS 1.2/1.3 and the PSA crypto API (zinc:net https, zinc:mqtt over TLS, crypto.subtle). Our own build: no CMake of the library.
+option(ZN_TLS "link mbedTLS: https, TLS for zinc:mqtt, crypto.subtle (off: smaller binary, those report an error)" ON)
+file(GLOB ZN_MBEDTLS_SOURCES third_party/mbedtls/library/*.c third_party/mbedtls/tf-psa-crypto/core/*.c third_party/mbedtls/tf-psa-crypto/drivers/builtin/src/*.c)
+if(NOT ZN_TLS)
+  set(ZN_MBEDTLS_SOURCES third_party/mbedtls/library/version.c)   # an empty library keeps the target names
+endif()
+add_library(zn_mbedtls STATIC ${ZN_MBEDTLS_SOURCES})
+target_include_directories(zn_mbedtls PUBLIC third_party/mbedtls/include third_party/mbedtls/tf-psa-crypto/include third_party/mbedtls/tf-psa-crypto/drivers/builtin/include
+  PRIVATE third_party/mbedtls/library third_party/mbedtls/tf-psa-crypto/core third_party/mbedtls/tf-psa-crypto/drivers/builtin/src)
+set_target_properties(zn_mbedtls PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_mbedtls PRIVATE -w -O2)
+
 add_library(zn_uv STATIC ${ZN_UV_SOURCES})
 target_include_directories(zn_uv PUBLIC third_party/libuv/include PRIVATE third_party/libuv/src)
 target_compile_definitions(zn_uv PRIVATE _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
@@ -93,7 +105,7 @@ target_link_libraries(zn_aot PUBLIC zn_zbc)
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/../runtime)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_SOURCE_DIR}/../targets/common/hal_posix.cpp)
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
@@ -119,7 +131,10 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   else()
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
-  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp)
+  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls)
+  if(NOT ZN_TLS)
+    target_compile_definitions(zn_host_gfx PRIVATE ZN_NO_TLS)
+  endif()
   set_target_properties(zn_host_gfx PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
   target_include_directories(zn_host_gfx PUBLIC include PRIVATE ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include)
   target_compile_options(zn_host_gfx PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)

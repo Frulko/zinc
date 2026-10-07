@@ -1,0 +1,8 @@
+200 secure /a
+200 secure /b
+fetch failed: ERR_TLS_CERT_ALTNAME_INVALID
+fetch failed: ERR_TLS_CERT_ALTNAME_INVALID
+fetch failed: CERT_HAS_EXPIRED
+fetch failed: CERT_HAS_EXPIRED
+fetch failed: UNABLE_TO_VERIFY_LEAF_SIGNATURE
+fetch failed: UNABLE_TO_VERIFY_LEAF_SIGNATURE
