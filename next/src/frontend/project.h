@@ -20,6 +20,7 @@ struct Project {
   std::string dir;                  // the directory of the zinc.json
   std::string name;
   std::string entry;                // "entry", else "main" ("" when neither is set)
+  std::string profile;              // "profile": the target profile (esp32, ps1...) that sets `number`, the heap budget and typing; "" = the host's
   std::vector<std::string> requires_;
   std::map<std::string, TargetOptions> targets;
   std::vector<std::string> warnings;  // unknown keys, one message each

@@ -29,7 +29,9 @@ const char* numName(Num m) {
   return n[static_cast<int>(m)];
 }
 
+Num gNumber = Num::f64;   // what `number` means: the profile (esp32 f32, ps1 fx12, others f64)
 bool numFromName(std::string_view s, Num& out) {
+  if (s == "number") { out = gNumber; return true; }
   static const std::pair<const char*, Num> t[] = {{"number", Num::f64}, {"f64", Num::f64}, {"f32", Num::f32}, {"fx12", Num::fx12},
       {"fx16", Num::fx16}, {"i8", Num::i8}, {"i16", Num::i16}, {"i32", Num::i32}, {"i64", Num::i64}, {"u8", Num::u8},
       {"u16", Num::u16}, {"u32", Num::u32}, {"u64", Num::u64}, {"isize", Num::isize}, {"usize", Num::usize}};
@@ -127,6 +129,13 @@ struct Checker {
   bool generating = false;       // declaring generated code: its `any` is not the program's
   bool inPrelude = false;        // checking the prelude: `any` there is the class Dyn itself
   bool rawDyn() const { return inspectMode || inPrelude; }
+  /** The library (zinc:* modules, lib/std, plugins) is exempt from the strict profile: only the program's own files are held to it. */
+  bool libraryNode(std::uint32_t node) const {
+    if (node == kNone) return false;
+    std::uint32_t f = a.nodes[node].file;
+    for (const ModuleInfo& m : a.modules) if (m.file == f) return m.path.rfind("zinc:", 0) == 0 || m.path.find("/lib/std/") != std::string::npos || m.path.find("/plugins/") != std::string::npos;
+    return false;
+  }
   std::uint32_t dynObj = kNone;  // the ObjInfo of class Dyn, once the prelude has been checked
   std::uint32_t dynObjOf() { if (dynObj == kNone) { std::uint32_t s = lookup("Dyn"); if (s != kNone && out.syms[s].kind == SymKind::Class) dynObj = ty(out.syms[s].type).obj; } return dynObj; }
   bool isDynFamily(TypeId t) { if (t == kNoType || ty(t).k != TK::Object || dynObjOf() == kNone) return false; for (std::uint32_t o = ty(t).obj; o != kNoObj; o = out.objs[o].parent) if (o == dynObj) return true; return false; }
@@ -252,8 +261,24 @@ struct Checker {
     wrapNode(node, sym);
     return true;
   }
+  /** `number[]` under a profile whose `number` is not f64 meets the host calls, which take and return f64 arrays: a copy converts the elements (ZN-120). */
+  bool numArray(TypeId t, Num m) { return !bad(t) && ty(t).k == TK::Array && ty(ty(t).elem).k == TK::Num && ty(ty(t).elem).obj == 0 && ty(ty(t).elem).num == m; }
+  bool arrayConversion(TypeId from, TypeId to, std::uint32_t node) {
+    if (node == kNone || gNumber == Num::f64) return false;
+    for (Num m : {Num::f32, Num::fx12, Num::fx16}) {
+      bool up = numArray(from, m) && numArray(to, Num::f64), down = numArray(from, Num::f64) && numArray(to, m);
+      if (!up && !down) continue;
+      std::string a = inspectAliasName(from), b = inspectAliasName(to), e = down ? inspectAliasName(ty(to).elem) : "f64";
+      std::uint32_t sym = helper(std::string("arrconv,") + (up ? "u" : "d") + "," + std::to_string(from) + "," + std::to_string(to),
+          "function $F(a: " + a + "): " + b + " {\n  const r: " + b + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(a[i] as " + e + ");\n  return r;\n}\n", {from, to}, node);
+      wrapNode(node, sym);
+      return true;
+    }
+    return false;
+  }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
+    if (arrayConversion(from, to, node)) return true;
     if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 1 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
       const ObjInfo& po = out.objs[ty(to).obj];
       if (po.typeArgs.size() != 1) { diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'"); return false; }
@@ -334,12 +359,12 @@ struct Checker {
   void builtins() {
     push();
     auto mathFn = [&](const char* nm, int argc, ObjInfo& o) {
-      o.members.push_back({nm, func(std::vector<TypeId>(static_cast<std::size_t>(argc), num(Num::f64)), num(Num::f64), static_cast<std::uint32_t>(argc)), true, true});
+      o.members.push_back({nm, func(std::vector<TypeId>(static_cast<std::size_t>(argc), num(gNumber)), num(gNumber), static_cast<std::uint32_t>(argc)), true, true});
     };
     ObjInfo math;
     math.name = "Math";
-    math.members.push_back({"PI", num(Num::f64), true, false});
-    math.members.push_back({"E", num(Num::f64), true, false});
+    math.members.push_back({"PI", num(gNumber), true, false});
+    math.members.push_back({"E", num(gNumber), true, false});
     for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
@@ -359,19 +384,19 @@ struct Checker {
     declare(SymKind::Builtin, "String", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     ObjInfo numObj;
     numObj.name = "Number";
-    numObj.members.push_back({"isNaN", func({num(Num::f64)}, tBool, 1), true, true});
-    numObj.members.push_back({"isFinite", func({num(Num::f64)}, tBool, 1), true, true});
+    numObj.members.push_back({"isNaN", func({num(gNumber)}, tBool, 1), true, true});
+    numObj.members.push_back({"isFinite", func({num(gNumber)}, tBool, 1), true, true});
     out.objs.push_back(numObj);
     declare(SymKind::Builtin, "Number", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     declare(SymKind::Builtin, "__identity", func({tAny}, num(Num::i64), 1), kNone, true, 0);  // for generated code: the identity of a reference
     declare(SymKind::Builtin, "__classname", func({tAny}, tStr, 1), kNone, true, 0);       // the class name of an object, for [Function: name]
-    declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(Num::f64), 1), kNone, true, 0);
-    declare(SymKind::Builtin, "parseFloat", func({tStr}, num(Num::f64), 1), kNone, true, 0);
+    declare(SymKind::Builtin, "parseInt", func({tStr, num(Num::i32)}, num(gNumber), 1), kNone, true, 0);
+    declare(SymKind::Builtin, "parseFloat", func({tStr}, num(gNumber), 1), kNone, true, 0);
     declare(SymKind::Builtin, "__dynGetFast", func({tDyn, tDyn, tStr}, tDyn, 3), kNone, true, 0);  // Dyn property read in the runtime; 0 when not handled
     declare(SymKind::Builtin, "__dynAddFast", func({tDyn, tDyn}, tDyn, 2), kNone, true, 0);       // Dyn number + number in the runtime; 0 when not handled
     declare(SymKind::Builtin, "__jsonOut", func({tDyn}, tStr, 1), kNone, true, 0);   // JSON.stringify of a Dyn tree in the runtime
     declare(SymKind::Builtin, "__jsonNative", func({tStr, tDyn}, tDyn, 2), kNone, true, 0);  // JSON.parse in the runtime, for the Dyn prelude
-    declare(SymKind::Builtin, "__toNumber", func({tStr}, num(Num::f64), 1), kNone, true, 0);  // Number(string), for generated code
+    declare(SymKind::Builtin, "__toNumber", func({tStr}, num(gNumber), 1), kNone, true, 0);  // Number(string), for generated code
     for (const char* nm : {"Boolean", "JSON", "Array"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;
       o.name = nm;
@@ -407,8 +432,8 @@ struct Checker {
       hostNames.push_back("__native_" + std::to_string(ni));
       declare(SymKind::Builtin, hostNames.back(), func(ps, sg.result == 'P' ? tVoid : letter(sg.result), static_cast<unsigned>(ps.size())), kNone, true, 0);
     }
-    declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
-    declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);
+    declare(SymKind::Builtin, "NaN", num(gNumber), kNone, true, 0);
+    declare(SymKind::Builtin, "Infinity", num(gNumber), kNone, true, 0);
   }
 
   // ---- type annotations
@@ -424,7 +449,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
-        else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating) diag(kZDynInStrict, t, "`any`"); }
+        else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating && !libraryNode(t)) diag(kZDynInStrict, t, "`any`"); }
         else if (x.kids.empty() && x.text == "unknown" && lookup("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
         else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
@@ -457,7 +482,7 @@ struct Checker {
       case N::TypeArray: r = arrayOf(annotation(x.kids[0])); break;
       case N::TypeLit: {  // 'a' is a string, 1 a number, true a boolean (a property declared with one remembers the value, see TypeObject)
         char ch = x.text.empty() ? ' ' : x.text[0];
-        r = (ch == '\'' || ch == '"') ? tStr : (x.text == "true" || x.text == "false") ? tBool : num(Num::f64);
+        r = (ch == '\'' || ch == '"') ? tStr : (x.text == "true" || x.text == "false") ? tBool : num(gNumber);
         break;
       }
       case N::TypeObject: {  // { a: A; b?: B }: an anonymous record
@@ -1468,7 +1493,7 @@ struct Checker {
       }
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "parse" && args.size() == 1) {  // parse validates the text; its value needs Dyn
         if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
-        if (a.strict && !rawDyn()) diag(kZDynInStrict, i, "the result of JSON.parse is `any`");
+        if (a.strict && !rawDyn() && !libraryNode(i)) diag(kZDynInStrict, i, "the result of JSON.parse is `any`");
         return rewrite("__jsonParse(__H0)", {{args[0]}});
       }
       if (on == "Array" && isBuiltin(cn.kids[0], "Array") && m == "isArray" && args.size() == 1) {  // Array.isArray(x)
@@ -1715,7 +1740,7 @@ struct Checker {
   TypeId expr0(std::uint32_t i, TypeId expected) {
     const Node& x = n(i);
     switch (x.kind) {
-      case N::Number: return num(Num::f64);
+      case N::Number: return num(gNumber);
       case N::BigInt: diag(kZUnsupported, i, "bigint"); return tError;
       case N::String: return tStr;
       case N::Template:
@@ -2868,7 +2893,7 @@ struct Checker {
         std::string_view lit = n(ls).text;
         lit = lit.substr(1, lit.size() - 2);
         if (sy != kNone && trackable(sy) && isDyn(currentType(sy, &fs)) && eq == truthy) {
-          TypeId nt = lit == "number" ? num(Num::f64) : lit == "string" ? tStr : lit == "boolean" ? tBool : kNoType;
+          TypeId nt = lit == "number" ? num(gNumber) : lit == "string" ? tStr : lit == "boolean" ? tBool : kNoType;
           if (nt != kNoType) fs.push_back({sy, nt});
         }
         return;
@@ -3717,7 +3742,7 @@ struct Checker {
         if (dn.kids[1] == kNone) return tError;
         const Node* in = &n(dn.kids[1]);
         if (in->kind == N::Unary && in->text == "-" && n(in->kids[0]).kind == N::Number) in = &n(in->kids[0]);
-        if (in->kind == N::Number) return num(Num::f64);
+        if (in->kind == N::Number) return num(gNumber);
         if (in->kind == N::String) return tStr;
         if (in->kind == N::Literal && in->text != "null") return tBool;
         if (in->kind == N::Ident) return moduleConstType(in->text, depth + 1);
@@ -3780,7 +3805,7 @@ struct Checker {
         if (mn.kids[0] != kNone) t = annotation(mn.kids[0]);
         else if (mn.kids[1] != kNone) {
           const Node& in = n(mn.kids[1]);
-          t = in.kind == N::Number ? num(Num::f64) : in.kind == N::String ? tStr : (in.kind == N::Literal && in.text != "null") ? tBool : tError;
+          t = in.kind == N::Number ? num(gNumber) : in.kind == N::String ? tStr : (in.kind == N::Literal && in.text != "null") ? tBool : tError;
           if (t == tError && (in.kind == N::Call || in.kind == N::New || in.kind == N::Template || in.kind == N::Binary || in.kind == N::Unary || in.kind == N::Cond || in.kind == N::Member)) {
             // any other initializer: its type, when it can be told from here (names it uses are in scope; the class is not yet built)
             std::size_t before = out.diags.size();
@@ -4165,6 +4190,9 @@ bool widens(Num from, Num to) {
     default: return false;
   }
 }
+
+void setNumberAlias(Num m) { gNumber = m; }
+Num numberAlias() { return gNumber; }
 
 Checked check(Ast& ast) {
   Checker c(ast);

@@ -21,8 +21,13 @@
 #include "zn/value.h"
 
 namespace zn::rt {
+/** Caps what the program may allocate from now on (a target profile's heap, ZN-120): an excess stops the program with "out of memory (heap budget N bytes)". */
+void setHeapBudget(std::size_t bytes);
 
 using zn::Slot;
+
+extern bool gHeapBudgetOn;   // set by setHeapBudget: the live bytes of the program are counted against the budget
+void heapAccount(void* p, bool add);
 
 // Object memory: mimalloc, except in sanitizer builds (ZN_NO_MIMALLOC), where the plain allocator keeps ASan's checks.
 #ifdef ZN_NO_MIMALLOC
@@ -30,9 +35,9 @@ inline void* allocRaw(std::size_t n) { return std::malloc(n); }
 inline void* allocZero(std::size_t n) { return std::calloc(1, n); }
 inline void freeRaw(void* p) { std::free(p); }
 #else
-inline void* allocRaw(std::size_t n) { return mi_malloc(n); }
-inline void* allocZero(std::size_t n) { return mi_zalloc(n); }
-inline void freeRaw(void* p) { mi_free(p); }
+inline void* allocRaw(std::size_t n) { void* p = mi_malloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void* allocZero(std::size_t n) { void* p = mi_zalloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void freeRaw(void* p) { if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
 #endif
 
 // ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).

@@ -28,6 +28,10 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   std::string main;
   if (!strKey(root, "name", out.name, err) || !strKey(root, "entry", out.entry, err) || !strKey(root, "main", main, err)) return false;
   if (out.entry.empty()) out.entry = main;
+  if (yyjson_val* pr = yyjson_obj_get(root, "profile")) {
+    if (!yyjson_is_str(pr)) { err = "\"profile\" must be a string"; return false; }
+    out.profile = yyjson_get_str(pr);
+  }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {
     if (!yyjson_is_arr(r)) { err = "\"requires\" must be an array"; return false; }
     size_t i, n;
@@ -56,7 +60,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
       out.targets[yyjson_get_str(k)] = o;
     }
   }
-  static const char* known[] = {"name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "bench", "description"};
+  static const char* known[] = {"name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "bench", "description", "profile"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

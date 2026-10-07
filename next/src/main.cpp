@@ -30,6 +30,7 @@
 #else
 #define HOSTLIBS
 #endif
+#include "frontend/profile.h"
 #include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "dev/client.h"
@@ -109,6 +110,7 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   gPlugins.push_back(lib);
 }
 
+static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
@@ -182,6 +184,20 @@ int main(int argc, char** argv) {
 #endif
   for (int k = 1; k < argc; ++k)  // `--strict` anywhere on the command line selects the strict profile
     if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+  // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
+  for (int k = 1; k < argc; ++k) {
+    std::string name;
+    int used = 0;
+    if (!std::strcmp(argv[k], "--profile") && k + 1 < argc) { name = argv[k + 1]; used = 2; }
+    else if (!std::strncmp(argv[k], "--profile=", 10)) { name = argv[k] + 10; used = 1; }
+    if (!used) continue;
+    const zn::frontend::Profile* pr = zn::frontend::findProfile(name);
+    if (!pr) { std::string all; for (const std::string& n : zn::frontend::profileNames()) all += (all.empty() ? "" : ", ") + n; std::fprintf(stderr, "zinc: unknown profile '%s' (available: %s)\n", name.c_str(), all.c_str()); return 2; }
+    gProfile = pr;
+    for (int j = k; j + used < argc; ++j) argv[j] = argv[j + used];
+    argc -= used; --k;
+  }
+  if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
   if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
     std::printf("zinc-next %s\n", kVersionText);
@@ -263,6 +279,11 @@ int main(int argc, char** argv) {
         if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
         else std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str());
       }
+      if (have && !project.profile.empty() && !gProfile) {   // zinc.json "profile": the target's number, typing and heap on the host
+        gProfile = zn::frontend::findProfile(project.profile);
+        if (!gProfile) { std::fprintf(stderr, "zinc: %s: unknown profile '%s'\n", projFile.c_str(), project.profile.c_str()); return 2; }
+        zn::frontend::applyProfile(*gProfile);
+      }
       std::error_code ec;
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
         std::string e = zn::frontend::entryOf(path, have && fs::path(projectDir) == fs::absolute(path).lexically_normal() ? &project : nullptr);
@@ -319,6 +340,7 @@ int main(int argc, char** argv) {
       if (!bakeResources(absPath.c_str(), blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
+    if (gProfile) zn::rt::setHeapBudget(static_cast<std::size_t>(gProfile->heapBytes));   // the target's heap: an overflow stops the program like on the device
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
   }

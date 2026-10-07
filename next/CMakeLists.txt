@@ -74,7 +74,7 @@ target_include_directories(zn_native PUBLIC include)
 find_package(Threads REQUIRED)
 target_link_libraries(zn_native PUBLIC Threads::Threads)
 
-add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp)
+add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 target_link_libraries(zn_frontend PUBLIC zn_yyjson zn_native)
 

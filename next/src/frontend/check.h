@@ -107,6 +107,10 @@ struct Checked {
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.
+/** What `number` means for the next check(): f64 (default), f32 (esp32, ps2) or fx12 (ps1): the target profile (ZN-120). */
+void setNumberAlias(Num m);
+/** The current alias of `number` (what the lowering gives a literal that nothing constrains). */
+Num numberAlias();
 Checked check(Ast& ast);
 
 // Lossless implicit conversion between machine numeric kinds (also used by the IR lowering).

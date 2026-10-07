@@ -1082,6 +1082,14 @@ struct Lowering::FnLower {
     }
   }
 
+  /** `a ** b` is a double operation: other numeric types (the f32 and fx12 `number` of a profile, integers) convert in and out. */
+  ValueId arith(std::string_view o, TypeId rt, ValueId l, ValueId r) {
+    if (o == "**" && ty(rt).k == Type::K::Num && ty(rt).num != NumK::f64) {
+      TypeId d = m.numT(NumK::f64);
+      return coerce(emit(IrOp::Pow, d, {coerce(l, d), coerce(r, d)}), rt);
+    }
+    return emit(arithOp(o), rt, {l, r});
+  }
   IrOp arithOp(std::string_view op) {
     if (op == "+") return IrOp::Add;
     if (op == "-") return IrOp::Sub;
@@ -1250,7 +1258,7 @@ struct Lowering::FnLower {
       case N::Number: {
         bool isInt;
         double v = parseNumber(x.text, isInt);
-        TypeId t = (want != kNoValue && isNumTy(want)) ? want : m.numT(NumK::f64);
+        TypeId t = (want != kNoValue && isNumTy(want)) ? want : m.numT(static_cast<NumK>(frontend::numberAlias()));
         NumK nk = ty(t).num;
         if (isInt && (nk == NumK::i64 || nk == NumK::u64 || nk == NumK::isize || nk == NumK::usize)) {  // a 64-bit integer literal is exact (the double above loses everything past 2^53)
           std::string digits;
@@ -1284,7 +1292,7 @@ struct Lowering::FnLower {
       case N::Ident: {
         std::uint32_t s = c.nodeSym[i];
         if (s == kNil) return constNum(m.numT(NumK::f64), 0);
-        if (c.syms[s].kind == SymKind::Builtin) return constNum(m.numT(NumK::f64), x.text == "NaN" ? std::nan("") : HUGE_VAL);
+        if (c.syms[s].kind == SymKind::Builtin) return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "NaN" ? std::nan("") : HUGE_VAL);
         if (c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) {  // a function used as a value
           auto th = L.thunkOfSym.find(s);
           if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
@@ -1344,7 +1352,7 @@ struct Lowering::FnLower {
           return emit(IrOp::StrConcat, rt, {l, r});
         }
         ValueId l = exprTo(x.kids[0], rt), r = exprTo(x.kids[1], rt);
-        return emit(arithOp(o), rt, {l, r});
+        return arith(o, rt, l, r);
       }
       case N::Unary: {
         TypeId rt = natural(i);
@@ -1395,7 +1403,7 @@ struct Lowering::FnLower {
               opT = r;
             }
             ValueId r = exprTo(x.kids[1], opT);
-            nv = coerce(emit(arithOp(bop), opT, {coerce(old, opT), r}), lv.type);
+            nv = coerce(arith(bop, opT, coerce(old, opT), r), lv.type);
           }
         }
         store(lv, nv);
@@ -1446,7 +1454,7 @@ struct Lowering::FnLower {
         const Node& on = n(x.kids[0]);
         std::uint32_t os = on.kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
         if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
-          return constNum(m.numT(NumK::f64), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
+          return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
         }
         if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
           const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
