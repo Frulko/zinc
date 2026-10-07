@@ -389,6 +389,17 @@ Fix: Build for a target that has them, or pass --force to build anyway.
 import 'zinc:ffi';
 ```
 
+## Z5006: A system module needs a permission
+
+The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the permission "<feature>" (or "<feature>:<operation>"); a project without "permissions" can use none.
+
+Fix: Add the id to "permissions" in zinc.json.
+
+```ts
+import { isSupported } from 'zinc:system/tray';
+console.log(isSupported());
+```
+
 ## Z5010: A native member uses a type the native ABI cannot carry yet
 
 A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. Callbacks, promises, resources and other number kinds are not expressible yet.

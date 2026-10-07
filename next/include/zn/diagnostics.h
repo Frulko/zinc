@@ -119,6 +119,10 @@
     "A plugin's plugin.json \"requires\" lists the platform capabilities it needs (heap>=4M, fs, dynlib...); the profile in force must offer them.", \
     "Build for a target that has them, or pass --force to build anyway.",                                                                  \
     "// zinc-profile: rmpp\nimport 'zinc:ffi';")                                                                                          \
+  X(SystemPermission, "Z5006", "A system module needs a permission",                                                       \
+    "The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the "  \
+    "permission \"<feature>\" (or \"<feature>:<operation>\"); a project without \"permissions\" can use none.", "Add the id to \"permissions\" in zinc.json.",     \
+    "import { isSupported } from 'zinc:system/tray';\nconsole.log(isSupported());")                                                                 \
   X(NativeTypeNotExpressible, "Z5010", "A native member uses a type the native ABI cannot carry yet",                      \
     "A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. "  \
     "Callbacks, promises, resources and other number kinds are not expressible yet.", "Change the member to use one of those types.",        \

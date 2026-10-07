@@ -115,7 +115,25 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
+// The system permissions of the zinc.json that governs `path`, for the compile (an import of zinc:system/<feature> needs its id); a manifest rule that fails stops the command.
+static bool loadManifestPermissions(const char* path) {
+  static std::vector<std::string> granted;
+  granted.clear();
+  std::string pf = zn::frontend::findProjectFile(path);
+  if (!pf.empty()) {
+    std::ifstream in(pf);
+    std::stringstream ss; ss << in.rdbuf();
+    zn::frontend::Project p;
+    std::string err;
+    if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
+    else granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget());
+  }
+  zn::frontend::setSystemPermissions(&granted);
+  return true;
+}
+
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
+  if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
   prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std");
   auto diags = prog.diags;
@@ -312,7 +330,7 @@ int main(int argc, char** argv) {
         ss << in.rdbuf();
         std::string err;
         if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
-        else std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str());
+        else { std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str()); if (project.fatal) return 2; }
       }
       if (have && !project.profile.empty() && !gProfile) {   // zinc.json "profile": the target's number, typing and heap on the host
         gProfile = zn::frontend::findProfile(project.profile);

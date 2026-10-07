@@ -1,6 +1,7 @@
 #include "frontend/modules.h"
 #include "frontend/profile.h"
 #include "frontend/capabilities.h"
+#include "frontend/project.h"
 #include "frontend/jsx.h"
 #include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
@@ -1162,8 +1163,17 @@ struct Loader {
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
-                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
+                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:system", "system/index.ts"},
+                                                              {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
+                                                              {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
+                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}};
       auto hit = kStd.find(spec);
+      if (std::string feature = systemFeatureOf(spec); !feature.empty() && hit != kStd.end()) {   // a system module needs its permission in zinc.json (deny by default)
+        const std::vector<std::string>* granted = systemPermissions();
+        bool ok = false;
+        if (granted) for (const std::string& g : *granted) ok = ok || g == feature || g.rfind(feature + ":", 0) == 0;
+        if (!ok) { diag(kZSystemPermission, fromFile, node, "'" + spec + "' needs the permission \"" + feature + "\": add it to \"permissions\" in zinc.json"); return kNone; }
+      }
       readPlugins(prog.files[fromFile].path);
       auto pl = plugins.find(spec);
       if (pl != plugins.end()) {  // a plugin: its module source is Zinc, its native part comes from the sim file of its spec (see below)
