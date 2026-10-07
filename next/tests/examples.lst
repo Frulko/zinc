@@ -29,7 +29,7 @@ led/scroll-text/src/main.ts | OK |  |
 maps/explorer/src/main.tsx | RUNTIME | native module MapEngine is not linked | ZN-108
 maps/navigation/src/main.tsx | OK |  | 
 maps/svg-gallery/src/main.tsx | RUNTIME | native module SvgEngine is not linked | ZN-106
-modules-showcase/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
+modules-showcase/src/main.tsx | OK |  | 
 native-module/src/main.ts | OK |  | 
 pinball/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
@@ -43,7 +43,7 @@ robot-eyes/src/main.ts | OK |  |
 scripting/bench/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
 scripting/breakout-mods/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
 scripting/playground/src/main.tsx | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
-service/sensor-hub/src/main.ts | COMPILE | zinc:net serve is not exported yet | ZN-087
+service/sensor-hub/src/main.ts | OK |  | 
 text/src/main-react.tsx | OK |  | 
 text/src/main-solid.tsx | OK |  | 
 three/cubes/main.ts | COMPILE | plugins/three is not mapped or built yet | ZN-107

@@ -36,6 +36,10 @@ foreach(line IN LISTS ZN_UV_LINES)
     list(APPEND ZN_UV_SOURCES third_party/libuv/${line})
   endif()
 endforeach()
+# llhttp (third_party/llhttp): the HTTP/1.1 parser of zinc:net
+add_library(zn_llhttp STATIC third_party/llhttp/src/api.c third_party/llhttp/src/http.c third_party/llhttp/src/llhttp.c)
+target_include_directories(zn_llhttp PUBLIC third_party/llhttp/include)
+
 add_library(zn_uv STATIC ${ZN_UV_SOURCES})
 target_include_directories(zn_uv PUBLIC third_party/libuv/include PRIVATE third_party/libuv/src)
 target_compile_definitions(zn_uv PRIVATE _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
@@ -47,6 +51,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 find_package(Threads REQUIRED)
 target_link_libraries(zn_uv PUBLIC Threads::Threads)
+set_target_properties(zn_llhttp PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_llhttp PRIVATE -w -O2)
 set_target_properties(zn_uv PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_uv PRIVATE -fno-strict-aliasing -w -O2)
 
@@ -87,7 +93,7 @@ target_link_libraries(zn_aot PUBLIC zn_zbc)
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/../runtime)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_SOURCE_DIR}/../targets/common/hal_posix.cpp)
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
@@ -113,7 +119,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   else()
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
-  target_link_libraries(zn_host_gfx PUBLIC zn_uv)
+  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp)
   set_target_properties(zn_host_gfx PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
   target_include_directories(zn_host_gfx PUBLIC include PRIVATE ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include)
   target_compile_options(zn_host_gfx PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)

@@ -185,7 +185,11 @@
   /* zinc:osc (ZN-085) */ \
   X(HostOscListen, "host.oscListen", "i>i", 2) X(HostOscClose, "host.oscClose", ">n", 2) X(HostOscSend, "host.oscSend", "sis>i", 2) \
   /* zinc:mqtt (ZN-086) */ \
-  X(HostMqttOpen, "host.mqttOpen", "sis>i", 2) X(HostMqttPublish, "host.mqttPublish", "issii>n", 2) X(HostMqttSubscribe, "host.mqttSubscribe", "is>n", 2) X(HostMqttClose, "host.mqttClose", "i>n", 2)
+  X(HostMqttOpen, "host.mqttOpen", "sis>i", 2) X(HostMqttPublish, "host.mqttPublish", "issii>n", 2) X(HostMqttSubscribe, "host.mqttSubscribe", "is>n", 2) X(HostMqttClose, "host.mqttClose", "i>n", 2) \
+  /* zinc:net over llhttp (ZN-087) */ \
+  X(HostHttpFetch, "host.httpFetch", "ssssii>i", 2) X(HostHttpStatus, "host.httpStatus", "i>i", 2) X(HostHttpHead, "host.httpHead", "i>s", 2) \
+  X(HostHttpBody, "host.httpBody", "i>s", 2) X(HostHttpUrl, "host.httpUrl", "i>s", 2) X(HostHttpFree, "host.httpFree", "i>n", 2) \
+  X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2)
 
 namespace zn {
 

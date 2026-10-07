@@ -315,9 +315,9 @@ export function kill(handle: i32): void { __host_procKill(handle); }
 )ZN";
 
 const char* kNetModule = R"ZN(
-// zinc:net over the curl of the machine, run as a child process (zinc:process) and polled from a timer: fetch(url) resolves with the status and the body.
-// A transport failure resolves with status 0 (not ok) instead of rejecting. Only the parts of the Web API the examples use: Headers, method, body, headers, text().
-import * as proc from 'zinc:__proc';
+// zinc:net over llhttp and libuv (src/host/http.cpp): fetch with redirects, timeouts and size limits, and a small HTTP/1.1 server. Messages cross the
+// host as strings: header lines "name: value\n", a fetch finishes with a loop event (40 done, 41 failed), a request reaches the server as event 42.
+import { utf8Decode, utf8Encode } from 'zinc:sys';
 export class Headers {
   names: string[] = [];
   values: string[] = [];
@@ -328,11 +328,13 @@ export class Headers {
     this.names.push(k); this.values.push(value);
   }
   append(name: string, value: string): void { const k = name.toLowerCase(); for (let i: i32 = 0; i < this.names.length; i++) if (this.names[i] === k) { this.values[i] = this.values[i] + ', ' + value; return; } this.names.push(k); this.values.push(value); }
+  delete(name: string): void { const i = this.names.indexOf(name.toLowerCase()); if (i >= 0) { this.names.splice(i, 1); this.values.splice(i, 1); } }
   has(name: string): boolean { return this.names.indexOf(name.toLowerCase()) >= 0; }
   get(name: string): string { const i = this.names.indexOf(name.toLowerCase()); return i < 0 ? '' : this.values[i]; }
   keys(): string[] { const r: string[] = this.names.slice(); r.sort((a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)); return r; }
+  forEach(f: (value: string, name: string) => void): void { for (const k of this.keys()) f(this.get(k), k); }
 }
-export interface RequestInit { method?: string; body?: string; contentType?: string; headers?: Headers; timeoutMs?: i32 }
+export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32 }
 export class Response {
   status: i32;
   ok: boolean;
@@ -342,34 +344,111 @@ export class Response {
   body: string;
   constructor(status: i32, url: string, body: string) { this.status = status; this.ok = status >= 200 && status < 300; this.url = url; this.body = body; }
   text(): Promise<string> { return Promise.resolve(this.body); }
-}
-class Fetch {
-  handle: i32;
-  url: string;
-  out: string = '';
-  done: (v: Response) => void;
-  constructor(handle: i32, url: string, done: (v: Response) => void) { this.handle = handle; this.url = url; this.done = done; }
-  run(): void {
-    this.out += proc.read(this.handle);
-    const code = proc.status(this.handle);
-    if (code < 0) { setTimeout(() => { this.run(); }, 5); return; }
-    this.out += proc.read(this.handle);
-    const cut = this.out.lastIndexOf('\n');
-    const status = code === 0 && cut >= 0 ? parseInt(this.out.substring(cut + 1)) : 0;
-    this.done(new Response(status, this.url, code === 0 && cut >= 0 ? this.out.substring(0, cut) : ''));
+  bytes(): Promise<u8[]> { return Promise.resolve(utf8Encode(this.body)); }
+  json(): Promise<any> {
+    try { return Promise.resolve(JSON.parse(this.body)); } catch (e) { return Promise.reject(e); }
   }
 }
-function quote(s: string): string { return "'" + s.split("'").join("'\\''") + "'"; }
-export function fetch(url: string, init?: RequestInit): Promise<Response> {
-  return new Promise<Response>((resolve: (v: Response) => void) => {
-    const method = init !== undefined && init.method !== undefined ? init.method as string : 'GET';
-    let cmd = "curl -sS -L -m " + ((init !== undefined && init.timeoutMs !== undefined ? init.timeoutMs as i32 : 120000) / 1000) + " -X " + method + " -w '\\n%{http_code}'";
-    if (init !== undefined && init.body !== undefined) cmd += ' --data-binary ' + quote(init.body as string);
-    if (init !== undefined && init.contentType !== undefined) cmd += ' -H ' + quote('Content-Type: ' + (init.contentType as string));
-    if (init !== undefined && init.headers !== undefined) { const h = init.headers as Headers; for (let i: i32 = 0; i < h.names.length; i++) cmd += ' -H ' + quote(h.names[i] + ': ' + h.values[i]); }
-    new Fetch(proc.spawnLine(cmd + ' ' + quote(url) + ' 2>/dev/null'), url, resolve).run();
+export interface Request { method: string; path: string; body: string; headers: Headers }
+export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
+
+function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
+function __headerLines(h: Headers): string {
+  let s = '';
+  for (let i: i32 = 0; i < h.names.length; i++) {
+    const n = h.names[i];
+    const v = h.values[i];
+    if (n.length === 0 || n.indexOf(':') >= 0 || __ctl(n + v)) continue;
+    s += n + ': ' + v + '\n';
+  }
+  return s;
+}
+function __parseLines(text: string, into: Headers): void {
+  for (const line of text.split('\n')) {
+    const c = line.indexOf(':');
+    if (c > 0) into.append(line.slice(0, c), line.slice(c + 1).trim());
+  }
+}
+class NetCall {
+  handle: i32;
+  resolve: (v: Response) => void;
+  reject: (e: Error) => void;
+  constructor(handle: i32, resolve: (v: Response) => void, reject: (e: Error) => void) { this.handle = handle; this.resolve = resolve; this.reject = reject; }
+}
+const __netCalls: NetCall[] = [];
+let __netHooked: boolean = false;
+let __netHandler: ((req: Request) => Reply) | null = null;
+function __netHook(): void {
+  if (__netHooked) return;
+  __netHooked = true;
+  __addEvHandler((h: i32, kind: i32, data: string) => {
+    if (kind === 40 || kind === 41) {
+      for (let i: i32 = 0; i < __netCalls.length; i++) {
+        const c = __netCalls[i];
+        if (c.handle !== h) continue;
+        __netCalls.splice(i, 1);
+        if (kind === 41) { __host_httpFree(h); c.reject(new TypeError(data)); return; }
+        const head = __host_httpHead(h);
+        const nl = head.indexOf('\n');
+        const r = new Response(__host_httpStatus(h), __host_httpUrl(h), __host_httpBody(h));
+        r.statusText = head.slice(0, nl);
+        __parseLines(head.slice(nl + 1), r.headers);
+        __host_httpFree(h);
+        c.resolve(r);
+        return;
+      }
+    } else if (kind === 42) {
+      const i1 = data.indexOf('\u001e');
+      const i2 = data.indexOf('\u001e', i1 + 1);
+      const i3 = data.indexOf('\u001e', i2 + 1);
+      const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i3 + 1), headers: new Headers() };
+      __parseLines(data.slice(i2 + 1, i3), req.headers);
+      const f = __netHandler;
+      let status: i32 = 500;
+      let lines = 'Content-Type: text/plain; charset=utf-8\n';
+      let body = 'internal error';
+      if (f !== null) {
+        try {
+          const r = f(req);
+          status = r.status;
+          body = r.body;
+          lines = '';
+          if (r.headers !== undefined) lines = __headerLines(r.headers as Headers);
+          const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
+          lines += 'Content-Type: ' + ct + '\n';
+        } catch (e) { status = 500; body = 'internal error'; lines = 'Content-Type: text/plain; charset=utf-8\n'; }
+      }
+      __host_httpReply(h, status, lines, body);
+    }
   });
 }
+export function fetch(url: string, init?: RequestInit): Promise<Response> {
+  __netHook();
+  return new Promise<Response>((resolve: (v: Response) => void, reject: (e: Error) => void) => {
+    let method = 'GET';
+    let body = '';
+    let ct = '';
+    let timeout: i32 = 0;
+    let max: i32 = 0;
+    let lines = '';
+    if (init !== undefined) {
+      if (init.method !== undefined) method = init.method as string;
+      if (init.bodyBytes !== undefined) body = utf8Decode(init.bodyBytes as u8[]);
+      else if (init.body !== undefined) body = init.body as string;
+      if (init.contentType !== undefined && !__ctl(init.contentType as string)) lines += 'Content-Type: ' + (init.contentType as string) + '\n';
+      if (init.headers !== undefined) lines += __headerLines(init.headers as Headers);
+      if (init.timeoutMs !== undefined) timeout = init.timeoutMs as i32;
+      if (init.maxBytes !== undefined) max = init.maxBytes as i32;
+    }
+    __netCalls.push(new NetCall(__host_httpFetch(url, method, lines, body, timeout, max), resolve, reject));
+  });
+}
+export function serve(port: i32, handler: (req: Request) => Reply): void {
+  __netHook();
+  if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
+  __netHandler = handler;
+}
+export function stop(): void { __host_httpStop(); __netHandler = null; }
 )ZN";
 
 const char* kNativeModule = R"ZN(

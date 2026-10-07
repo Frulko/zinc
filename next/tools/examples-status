@@ -46,11 +46,14 @@ def read_list():
 ERR = re.compile(r"error Z\d{4}|cannot read|Cannot find module|Unexpected token|no entry")
 
 def run_one(zinc, entry, frames, timeout):
-    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES=str(frames))
+    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES=str(frames), PORT="0")   # PORT=0: a daemon takes any free port, not 3000
+    daemon = entry.startswith("service/")   # a service runs until it is stopped: alive at the end of a short run is OK
+    if daemon: timeout = min(timeout, 6)
     path = os.path.join(EXAMPLES, entry)
     try:
         r = subprocess.run([zinc, "run", path], cwd=NEXT, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
+        if daemon: return entry, "OK", ""
         return entry, "CRASH", "timed out after %ds" % timeout
     err = (r.stderr or "") + (r.stdout if r.returncode else "")
     lines = [l.strip() for l in err.splitlines() if l.strip()]

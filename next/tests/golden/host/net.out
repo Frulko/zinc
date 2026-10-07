@@ -1,3 +1,13 @@
-true 200 "hello net\n"
+true 200 OK "hello net\n" text/plain 10
 false 404
-false 0
+201 ping yes|POST text/x-ping
+[104,105]
+big 1048576
+chunked 1048579 end chunked
+redirect 200 http://127.0.0.1:18841/a.txt "hello net\n"
+{"a":[1,2]}
+500 internal error
+fetch failed: response too large
+fetch failed: ECONNREFUSED
+fetch failed: ENOTFOUND
+a 1, 2

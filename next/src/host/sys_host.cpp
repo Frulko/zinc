@@ -32,6 +32,7 @@
 #include "zn/hostsys.h"
 #include "zn/loop.h"
 #include "mqtt.h"
+#include "http.h"
 #include "zn/runtime.h"
 
 extern char** environ;
@@ -380,6 +381,15 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostMqttPublish: zn::mqtt::publish(n(0), s(1), s(2), n(3) != 0, n(4)); break;
     case Rt::HostMqttSubscribe: zn::mqtt::subscribe(n(0), s(1)); break;
     case Rt::HostMqttClose: zn::mqtt::close(n(0)); break;
+    case Rt::HostHttpFetch: r->i = zn::http::fetchOpen(s(0), s(1), s(2), s(3), n(4), n(5)); break;
+    case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
+    case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
+    case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;
+    case Rt::HostHttpUrl: ret(r, zn::http::fetchUrl(n(0))); break;
+    case Rt::HostHttpFree: zn::http::fetchFree(n(0)); break;
+    case Rt::HostHttpServe: r->i = zn::http::serve(n(0)) ? 1 : 0; break;
+    case Rt::HostHttpStop: zn::http::stop(); break;
+    case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostOscSend: r->i = zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
