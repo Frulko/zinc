@@ -817,6 +817,7 @@ static bool poll_all() {
   return active;
 }
 
+bool poll_pollers() { return poll_all(); }  // for the native-module adapter of the next engine (src/native/zrt_compat.h): its loop polls the plugins' Pollers
 // Runs due timers in JS order (due time, then creation), each followed by its microtasks; returns the due time of the
 // next pending timer, or -1 when there is none. ponytail: O(timers) scan per firing, fine for ZRT_TIMERS = 64.
 static double run_timers() {

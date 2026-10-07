@@ -10,6 +10,8 @@ struct NativeGen {
   std::string cppHeader;   // zinc_native_<name lower>.h
   std::string cHeader;     // zinc_native_<name lower>_abi.h, empty when a member is not expressible in the C ABI
   std::string cNote;       // why cHeader is empty
+  std::string thunk;       // zinc_native_<name lower>_thunk.cpp: a ZnModule over the NativeX of the header (src/native/zrt_compat.h), for the plugins' x.host.cpp
+  std::string thunkNote;   // why thunk is empty
 };
 
 // `specFile` is only used in the comment of the header. False with `err` when the text is not a native spec or uses a type the generator cannot write.

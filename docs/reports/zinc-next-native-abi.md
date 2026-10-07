@@ -25,3 +25,16 @@ Design source: `docs/reports/parity/03-plugins-targets.md` §4. Test: `next/test
 
 `zn_register_module`, `zn_native_find`, `zn_native_call`, `zn_native_set_sink` (resolve/reject/call/release into the interpreter), `zn_native_drain`
 (called by the loop), `zn_native_poll`, `zn_native_shutdown`. Wiring the registry into the loader and the manifest's native key is the next task.
+
+## Plugin native code (ZN-099, decision D3)
+
+The plugins' `x.host.cpp` are built unchanged: `zinc native-gen` writes `zinc_native_x.h` (the abstract `NativeX` over zrt types), `zinc native-gen --thunk` writes
+`zinc_native_x_thunk.cpp`, a `ZnModule` (`zn_module_X()`) whose exports convert `ZnVal` to `zrt::String`, `zrt::Array<T>` and `zrt::Fn` (a callback becomes a lambda
+that queues the call with `cb_post`) and call the virtual method; `poll` runs the plugin's `zrt::Poller`s (`zrt::poll_pollers`, added to runtime/zrt.cpp).
+The helpers are `src/native/zrt_compat.h`. One runtime owner: the host library links runtime/ already. CMake builds `zn_plugin_sqlite|process|socket`.
+`tests/native/plugins_test.cpp` drives them (sqlite queries with text and blobs, a child process with its stdout and exit as callbacks, a loopback listener and client);
+`tests/t1/native_plugins.sh` also runs `tests/conformance/sqlite.ts` linked with the sqlite plugin (`ZINC_NATIVE_LIBS=Sqlite=<lib>`, which the plugin loader of ZN-101 will replace).
+Not covered yet: a Zinc closure passed to a native export and Promise results (ZN-167), so process and socket run from the driver, not from programs.
+
+**Call overhead** (bench/native_call.ts, M-series macOS, `add(i32, i32)` of the C test module): 20 million calls take 1.21 s, 60 ns per call on the interpreter and
+on the AOT build alike (budget 100 ns). A string argument and result (`greet`) costs about 0.15 us more (one copy in, one out).

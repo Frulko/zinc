@@ -1,5 +1,6 @@
 #include "aot/aot.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
 #include <set>
@@ -197,6 +198,10 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
     }
     s += "\n};\n\n";
   }
+  std::vector<std::string> linkedNative;  // modules the program is linked with (ZINC_NATIVE_LIBS): the generated main registers them
+  for (const zn::zbc::Native& nt : mod.natives) if (nt.module != "Fixture" && std::find(linkedNative.begin(), linkedNative.end(), nt.module) == linkedNative.end()) linkedNative.push_back(nt.module);
+  std::string nativeDecls, nativeRegs;
+  for (const std::string& nm : linkedNative) { nativeDecls += "extern \"C\" const ZnModule* zn_module_" + nm + "(void);\n"; nativeRegs += "  { char e[256]; if (zn_register_module(zn_module_" + nm + "(), e, sizeof e) < 0) { std::fprintf(stderr, \"%s\\n\", e); return 2; } }\n"; }
   bool hasFixture = false;
   for (const zn::zbc::Native& nt : mod.natives) hasFixture = hasFixture || nt.module == "Fixture";
   s += "static int (*const kNatives[])(Machine&, Slot*) = {";
@@ -209,8 +214,8 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
        "  return st == 0;\n"
        "}\n\n"
        + std::string(usesHost(mod) ? "namespace zn::host { void installGfx(); bool installResources(const unsigned char*, unsigned long); }  // the graphics host (src/host), linked by zinc build\n" : "") +
-       std::string(hasFixture ? "#include \"zn/native.h\"\nextern \"C\" const ZnModule* fixture_module(void);  // the C test module of tests/native, linked by zinc build (ZN-097; plugin modules come with the loader)\n" : "") +
-       "int main() {\n" + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
+       std::string(hasFixture || !linkedNative.empty() ? "#include \"zn/native.h\"\n" + nativeDecls : "") + std::string(hasFixture ? "#include \"zn/native.h\"\nextern \"C\" const ZnModule* fixture_module(void);  // the C test module of tests/native, linked by zinc build (ZN-097; plugin modules come with the loader)\n" : "") +
+       "int main() {\n" + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
   return s;
 }
 

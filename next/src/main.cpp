@@ -404,9 +404,19 @@ int main(int argc, char** argv) {
       if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       return 0;
     }
+    std::string nativeLibs;  // ZINC_NATIVE_LIBS="Name=lib.a,...": the plugins' native code that the program is linked with (they need the host library: zrt)
+    if (const char* nl = std::getenv("ZINC_NATIVE_LIBS")) {
+      std::string all = nl;
+      for (std::size_t at = 0; at < all.size();) {
+        std::size_t comma = all.find(',', at), eq = all.find('=', at);
+        if (comma == std::string::npos) comma = all.size();
+        if (eq != std::string::npos && eq < comma) nativeLibs += " '" + all.substr(eq + 1, comma - eq - 1) + "'";
+        at = comma + 1;
+      }
+    }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
-                      (zn::aot::usesHost(zm) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
+                      (!nativeLibs.empty() ? nativeLibs : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
@@ -472,8 +482,8 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc >= 3 && !std::strcmp(argv[1], "native-gen")) {  // zinc native-gen [--c] <x.spec.ts> [outdir]: zinc_native_<x>.h (zrt types, for the plugins' x.host.cpp), or with --c the export table for include/zn/native.h
-    bool c = !std::strcmp(argv[2], "--c");
-    int first = c ? 3 : 2;
+    bool c = !std::strcmp(argv[2], "--c"), thunk = !std::strcmp(argv[2], "--thunk");
+    int first = c || thunk ? 3 : 2;
     if (argc <= first) { std::fprintf(stderr, "usage: zinc native-gen [--c] <x.spec.ts> [outdir]\n"); return 2; }
     std::ifstream in(argv[first]);
     if (!in) { std::fprintf(stderr, "zinc: cannot read %s\n", argv[first]); return 2; }
@@ -483,11 +493,12 @@ int main(int argc, char** argv) {
     if (!zn::frontend::generateNative(argv[first], text, g, err)) { std::fprintf(stderr, "%s: %s\n", argv[first], err.c_str()); return 1; }
     std::string lower = g.name;
     for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (thunk && g.thunk.empty()) { std::fprintf(stderr, "%s: no thunk: %s\n", argv[first], g.thunkNote.c_str()); return 1; }
     if (c && g.cHeader.empty()) { std::fprintf(stderr, "%s: no C header: %s\n", argv[first], g.cNote.c_str()); return 1; }
     std::string dir = argc > first + 1 ? argv[first + 1] : ".";
-    std::string file = dir + "/zinc_native_" + lower + (c ? "_abi.h" : ".h");
+    std::string file = dir + "/zinc_native_" + lower + (c ? "_abi.h" : thunk ? "_thunk.cpp" : ".h");
     std::ofstream o(file);
-    o << (c ? g.cHeader : g.cppHeader);
+    o << (c ? g.cHeader : thunk ? g.thunk : g.cppHeader);
     if (!o) { std::fprintf(stderr, "zinc: cannot write %s\n", file.c_str()); return 2; }
     std::printf("%s\n", file.c_str());
     return 0;
