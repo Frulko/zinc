@@ -108,6 +108,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
+      if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::input.quit) quitFlag = true;
       uint64_t t = hal_time_us();
       double fixed = hal_fixed_dt(), dt = fixed;

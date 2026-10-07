@@ -75,3 +75,13 @@ R3.6 of the rendering roadmap) is the lever, not a different raster path.
 
 Exact instruction counts per function (a counting interpreter), per-allocation sites, GPU and I/O, and energy on the Pi rig and the
 ESP32 (needs the power meter).
+
+## GL renderer against the software raster (ZN-116)
+
+`display-gl` with `ZINC_RENDERER=gl` replays the runtime's command lists on the GPU (the prototype's `gl_renderer.cpp`, GL 3.2 core on macOS through SDL, GLES2 on KMS); `cpu` is the software raster uploaded as a texture and stays the reference and the fallback (`auto` falls back to it when the context cannot be set up). Under this engine the driver needed one fix: the frame loop did not call the driver's `poll`, so `ZINC_FRAMES` and `ZINC_SHOT` of the driver never fired.
+
+Frames (`tests/t1/gl_renderer.sh`, GL frame box-averaged to the software size): `clock` 0.35 % of pixels over 24 (mae 0.24), `overlays` 1.0 % (1.6), `ui` 3.3 % (1.7), `shapes` 9.1 % (11.8: the GL renderer skips LINE and POLY until ZN-181). The differences are anti-aliasing edges: the GL frame is drawn at 6x resolution (3x window scale, retina).
+
+Frame time on `hero`, 300 deterministic frames, Apple GPU (this machine): software raster 4770 us of CPU per frame plus a 6.0 ms present pass; GL renderer 1078 us of CPU to submit a frame (1764 quads, 4 draw calls), 1955 us of GPU replay and 554 us present. The GL path takes 4.4x less CPU and finishes sooner; the swap (vsync) dominates both. 12158 LINE/POLY commands of the 300 frames are not drawn yet (ZN-181), so GL does slightly less work than the raster.
+
+Not done: Mesa llvmpipe under EGL surfaceless (Linux only; Docker runs are skipped by decision). The macOS GPU stands in for it; the same script runs on Linux where `display-gl` builds with EGL.

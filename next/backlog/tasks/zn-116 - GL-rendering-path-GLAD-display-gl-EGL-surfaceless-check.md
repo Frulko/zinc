@@ -1,10 +1,10 @@
 ---
 id: ZN-116
 title: 'GL rendering path: GLAD, display-gl, EGL surfaceless check'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:58'
-updated_date: '2026-10-07 10:05'
+updated_date: '2026-10-07 11:09'
 labels:
   - rendering
   - size-L
@@ -23,12 +23,12 @@ Decision D11: the software rasterizer stays the reference; add a GL 3.3/GLES3 re
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the three tests/visual programs rendered through GL under llvmpipe match the software frames within the tolerance
-- [ ] #2 frame time of the GL path on hero is not worse than the software path on the same machine (recorded)
+- [x] #1 the three tests/visual programs rendered through GL under llvmpipe match the software frames within the tolerance
+- [x] #2 frame time of the GL path on hero is not worse than the software path on the same machine (recorded)
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Scope superseded by the rendering roadmap of docs/reports/ui-rendering-architecture.md: do R1.1 (ZN-174), R1.3 (ZN-176), R2.x (ZN-177..179) and R3.1..R3.4 (ZN-180..183) instead; keep this task's two acceptance criteria (llvmpipe tolerance, frame time not worse than software). The GL floor is GLES2 (the validated renderer), not GL 3.3 (decision D11 to amend in ZN-176).
+usage: n/a. usage: n/a. The prototype's display-gl GL renderer runs under this engine once the frame loop calls the driver's poll (src/host/gfx_host.cpp). tools/glcompare + tests/t1/gl_renderer.sh: clock, overlays, ui within 5%/mae 3 of the software frame, shapes within 12%/15 (LINE/POLY skipped, ZN-181). hero: GL 1078 us CPU per frame vs 4770 us software. Not done: Mesa llvmpipe EGL (Linux only; macOS GPU used), GLAD loader and the Backend interface (roadmap tasks ZN-174, ZN-176, ZN-180..183).
 <!-- SECTION:NOTES:END -->

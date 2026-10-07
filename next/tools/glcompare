@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""glcompare GL.bmp SOFT.png [--tol N]: compares a frame of the GL display driver (24-bit BMP, any integer multiple of the software size) with the software frame.
+The GL frame is box-averaged down to the software size first. Prints the fraction of pixels whose largest channel difference exceeds N (default 24), the mean
+absolute error and the largest difference; exit 0 always (the caller applies its thresholds). Standard library only; PNG decoding is tools/pngdiff's."""
+import sys, struct, importlib.machinery, importlib.util, os
+l = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(os.path.dirname(os.path.abspath(__file__)), "pngdiff")); s = importlib.util.spec_from_loader("pngdiff", l)
+pd = importlib.util.module_from_spec(s); l.exec_module(pd)
+
+def bmp(p):
+    d = open(p, "rb").read(); off = struct.unpack("<I", d[10:14])[0]; w, h = struct.unpack("<ii", d[18:26]); bpp = struct.unpack("<H", d[28:30])[0] // 8
+    row = (w * bpp + 3) & ~3; out = bytearray(w * h * 3)
+    for y in range(h):
+        src = off + row * (h - 1 - y) if h > 0 else off + row * y   # bottom-up
+        for x in range(w):
+            b, g, r = d[src + x * bpp: src + x * bpp + 3]
+            o = (y * w + x) * 3; out[o] = r; out[o + 1] = g; out[o + 2] = b
+    return w, abs(h), bytes(out)
+
+def main(a):
+    tol = int(a[a.index("--tol") + 1]) if "--tol" in a else 24
+    gw, gh, g = bmp(a[0]); sw, sh, sbpp, sd = pd.dec(a[1])
+    if gw % sw or gh % sh or gw // sw != gh // sh: print("size mismatch: GL %dx%d, software %dx%d" % (gw, gh, sw, sh)); return 1
+    k = gw // sw; n = sw * sh; over = 0; tot = 0; mx = 0
+    for y in range(sh):
+        for x in range(sw):
+            acc = [0, 0, 0]
+            for j in range(k):
+                base = ((y * k + j) * gw + x * k) * 3
+                for i in range(k):
+                    o = base + i * 3; acc[0] += g[o]; acc[1] += g[o + 1]; acc[2] += g[o + 2]
+            kk = k * k; o = (y * sw + x) * sbpp
+            d = [abs(acc[c] // kk - sd[o + c]) for c in range(3)]
+            m = max(d); tot += sum(d); mx = max(mx, m); over += m > tol
+    print("scale %d, pixels over %d: %.3f%%, mae %.3f, max %d" % (k, tol, 100.0 * over / n, tot / (3.0 * n), mx))
+    return 0
+sys.exit(main(sys.argv[1:]))
