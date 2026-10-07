@@ -220,8 +220,8 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS: case GL_MAX_TEXTURE_IMAGE_UNITS: { GLint v = 0; glGetIntegerv(pname, &v); fixed(std::min<GLint>(v, 32)); break; }
     case GL_MAX_VIEWPORT_DIMS: ints(2); break;
     case GL_COMPRESSED_TEXTURE_FORMATS: r.kind = 'a'; break;
-    case GL_VERSION: r.kind = 's'; r.s = "WebGL 1.0 (Zinc)"; break;
-    case GL_SHADING_LANGUAGE_VERSION: r.kind = 's'; r.s = "WebGL GLSL ES 1.0 (Zinc)"; break;
+    case GL_VERSION: r.kind = 's'; r.s = version_ == 2 ? "WebGL 2.0 (Zinc)" : "WebGL 1.0 (Zinc)"; break;
+    case GL_SHADING_LANGUAGE_VERSION: r.kind = 's'; r.s = version_ == 2 ? "WebGL GLSL ES 3.00 (Zinc)" : "WebGL GLSL ES 1.0 (Zinc)"; break;
     case GL_VENDOR: r.kind = 's'; r.s = "WebKit"; break;
     case GL_RENDERER: r.kind = 's'; r.s = "WebKit WebGL"; break;
     case GL_ARRAY_BUFFER_BINDING: object(arrayBuffer_, 1); break;
@@ -231,6 +231,11 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_TEXTURE_BINDING_CUBE_MAP: object(texCube_[activeUnit_], 4); break;
     case GL_FRAMEBUFFER_BINDING: object(fbo_, 5); break;
     case GL_RENDERBUFFER_BINDING: object(rbo_, 7); break;
+    case GL_VERTEX_ARRAY_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(curVao_, 8); break;
+    case GL_MAX_DRAW_BUFFERS: case GL_MAX_COLOR_ATTACHMENTS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(4); break;
+    case GL_MAX_UNIFORM_BUFFER_BINDINGS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(24); break;
+    case GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else ints(1); break;
+    case GL_UNIFORM_BUFFER_BINDING: case GL_COPY_READ_BUFFER_BINDING: case GL_COPY_WRITE_BUFFER_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(otherBuffers_[pname == GL_UNIFORM_BUFFER_BINDING ? GL_UNIFORM_BUFFER : pname == GL_COPY_READ_BUFFER_BINDING ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER], 1); break;
     case 0x9240: case 0x9241: r.kind = pname == 0x9240 ? 'b' : 'b'; r.v.push_back(pname == 0x9241 ? 1 : 0); break;   // UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL (applied by the binding)
     case 0x9243: fixed(0x9244); break;                                                                                   // UNPACK_COLORSPACE_CONVERSION_WEBGL = BROWSER_DEFAULT_WEBGL
     default: r.ok = false; error(GL_INVALID_ENUM);
@@ -248,6 +253,8 @@ WebGL1::Param WebGL1::getVertexAttrib(std::uint32_t index, std::uint32_t pname) 
     case GL_VERTEX_ATTRIB_ARRAY_STRIDE: r.kind = 'i'; r.v.push_back(a.stride); break;
     case GL_VERTEX_ATTRIB_ARRAY_TYPE: r.kind = 'i'; r.v.push_back(a.type); break;
     case GL_VERTEX_ATTRIB_ARRAY_NORMALIZED: r.kind = 'b'; r.v.push_back(a.normalized); break;
+    case 0x88FE: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'i'; r.v.push_back(a.divisor); } break;   // VERTEX_ATTRIB_ARRAY_DIVISOR
+    case 0x88FD: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'b'; r.v.push_back(a.integer ? 1 : 0); } break;   // VERTEX_ATTRIB_ARRAY_INTEGER
     case GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING: r.kind = a.buffer ? 'o' : 'n'; r.object = a.buffer; r.objKind = 1; break;
     case GL_CURRENT_VERTEX_ATTRIB: { r.kind = 'a'; GLfloat v[4] = {}; glGetVertexAttribfv(index, pname, v); for (float x : v) r.v.push_back(x); break; }
     default: r.ok = false; error(GL_INVALID_ENUM);

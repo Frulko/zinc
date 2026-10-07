@@ -17,11 +17,12 @@ namespace zn::gl {
 namespace {
 
 struct Obj { int kind; Id id; UniformLoc loc; };   // kind: 1 buffer, 2 shader, 3 program, 4 texture, 5 framebuffer, 6 uniform location
-struct Gl { WebGL1 gl; int w = 0, h = 0; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
+struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0;
-JSValue gKindProto[8];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
-const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer"};
+JSValue gProto2;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
+JSValue gKindProto[9];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
+const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject"};
 
 void ctxFinalizer(JSRuntime* rt, JSValue v) {
   Gl* g = static_cast<Gl*>(JS_GetOpaque(v, gCtxClass));
@@ -476,9 +477,63 @@ const Fn kMethods[] = {
   F_(getFramebufferAttachmentParameter, 3),
 };
 
+// ---- WebGL 2.0 (ZN-203.05)
+#define NEED2 if (gl.version() != 2) return JS_ThrowTypeError(c, "not a WebGL 2 context")
+M(createVertexArray) { SELF NEED2; return wrapOnce(c, g, 8, gl.createVertexArray()); }
+M(deleteVertexArray) { SELF NEED(1); OBJ(o, 0, 8) gl.deleteVertexArray(o.id); return JS_UNDEFINED; }
+M(bindVertexArray) { SELF NEED(1); OBJ(o, 0, 8) gl.bindVertexArray(o.id); return JS_UNDEFINED; }
+M(isVertexArray) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->kind == 8 && gl.isVertexArray(o->id)); }
+M(vertexAttribDivisor) { SELF NEED(2); gl.vertexAttribDivisor(U(0), U(1)); return JS_UNDEFINED; }
+M(drawArraysInstanced) { SELF NEED(4); gl.drawArraysInstanced(U(0), I(1), I(2), I(3)); return JS_UNDEFINED; }
+M(drawElementsInstanced) { SELF NEED(5); gl.drawElementsInstanced(U(0), I(1), U(2), i64(c, argv[3]), I(4)); return JS_UNDEFINED; }
+M(drawRangeElements) { SELF NEED(6); gl.drawRangeElements(U(0), U(1), U(2), I(3), U(4), i64(c, argv[5])); return JS_UNDEFINED; }
+M(drawBuffers) {
+  SELF NEED(1);
+  std::vector<float> v;
+  std::uint32_t bufs[16];
+  JSValue lv = JS_GetPropertyStr(c, argv[0], "length");
+  std::uint32_t n = u32(c, lv);
+  JS_FreeValue(c, lv);
+  if (n > 16) n = 16;
+  for (std::uint32_t i = 0; i < n; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[0], i); bufs[i] = u32(c, e); JS_FreeValue(c, e); }
+  gl.drawBuffers(bufs, static_cast<int>(n));
+  return JS_UNDEFINED;
+}
+M(readBuffer) { SELF NEED(1); gl.readBuffer(U(0)); return JS_UNDEFINED; }
+M(bindBufferBase) { SELF NEED(3); OBJ(o, 2, 1) gl.bindBufferBase(U(0), U(1), o.id); return JS_UNDEFINED; }
+M(bindBufferRange) { SELF NEED(5); OBJ(o, 2, 1) gl.bindBufferRange(U(0), U(1), o.id, i64(c, argv[3]), i64(c, argv[4])); return JS_UNDEFINED; }
+M(getUniformBlockIndex) { SELF NEED(2); OBJ(p, 0, 3) return JS_NewUint32(c, gl.getUniformBlockIndex(p.id, str(c, argv[1]))); }
+M(uniformBlockBinding) { SELF NEED(3); OBJ(p, 0, 3) gl.uniformBlockBinding(p.id, U(1), U(2)); return JS_UNDEFINED; }
+M(getActiveUniformBlockParameter) { SELF NEED(3); OBJ(p, 0, 3) std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getActiveUniformBlockParameter(p.id, U(1), pn)); }
+M(getActiveUniformBlockName) { SELF NEED(2); OBJ(p, 0, 3) return JS_NewString(c, gl.getActiveUniformBlockName(p.id, U(1)).c_str()); }
+M(copyBufferSubData) { SELF NEED(5); gl.copyBufferSubData(U(0), U(1), i64(c, argv[2]), i64(c, argv[3]), i64(c, argv[4])); return JS_UNDEFINED; }
+M(getBufferSubData) {
+  SELF NEED(3);
+  std::uint8_t* p = nullptr; std::size_t n = 0;
+  if (!bytesOf(c, argv[2], p, n)) return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view");
+  gl.getBufferSubData(U(0), i64(c, argv[1]), p, n);
+  return JS_UNDEFINED;
+}
+M(uniform1ui) { SELF NEED(2); LOC std::uint32_t v[1] = {U(1)}; gl.uniformNui(l, 1, v, 1); return JS_UNDEFINED; }
+M(uniform2ui) { SELF NEED(3); LOC std::uint32_t v[2] = {U(1), U(2)}; gl.uniformNui(l, 2, v, 2); return JS_UNDEFINED; }
+M(uniform3ui) { SELF NEED(4); LOC std::uint32_t v[3] = {U(1), U(2), U(3)}; gl.uniformNui(l, 3, v, 3); return JS_UNDEFINED; }
+M(uniform4ui) { SELF NEED(5); LOC std::uint32_t v[4] = {U(1), U(2), U(3), U(4)}; gl.uniformNui(l, 4, v, 4); return JS_UNDEFINED; }
+M(vertexAttribIPointer) { SELF NEED(5); gl.vertexAttribIPointer(U(0), I(1), U(2), I(3), i64(c, argv[4])); return JS_UNDEFINED; }
+const Fn kMethods2[] = {
+  {"createVertexArray", js_createVertexArray, 0}, {"deleteVertexArray", js_deleteVertexArray, 1}, {"bindVertexArray", js_bindVertexArray, 1}, {"isVertexArray", js_isVertexArray, 1},
+  {"vertexAttribDivisor", js_vertexAttribDivisor, 2}, {"drawArraysInstanced", js_drawArraysInstanced, 4}, {"drawElementsInstanced", js_drawElementsInstanced, 5}, {"drawRangeElements", js_drawRangeElements, 6},
+  {"drawBuffers", js_drawBuffers, 1}, {"readBuffer", js_readBuffer, 1}, {"bindBufferBase", js_bindBufferBase, 3}, {"bindBufferRange", js_bindBufferRange, 5},
+  {"getUniformBlockIndex", js_getUniformBlockIndex, 2}, {"uniformBlockBinding", js_uniformBlockBinding, 3}, {"getActiveUniformBlockParameter", js_getActiveUniformBlockParameter, 3}, {"getActiveUniformBlockName", js_getActiveUniformBlockName, 2},
+  {"copyBufferSubData", js_copyBufferSubData, 5}, {"getBufferSubData", js_getBufferSubData, 3},
+  {"uniform1ui", js_uniform1ui, 2}, {"uniform2ui", js_uniform2ui, 3}, {"uniform3ui", js_uniform3ui, 4}, {"uniform4ui", js_uniform4ui, 5}, {"vertexAttribIPointer", js_vertexAttribIPointer, 5},
+};
+
 struct Const { const char* name; std::uint32_t value; };
 const Const kConsts[] = {
 #include "gl/webgl_consts.inc"
+};
+const Const kConsts2[] = {
+#include "gl/webgl2_consts.inc"
 };
 
 // __zincReadFile(path): the text of a local file or undefined; the conformance pages load their shaders and data through XMLHttpRequest, which the test shim maps to it
@@ -497,12 +552,13 @@ JSValue js_readFile(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
 
 JSValue js_illegalConstructor(JSContext* c, JSValueConst, int, JSValueConst*) { return JS_ThrowTypeError(c, "Illegal constructor"); }
 
-JSValue createContext(JSContext* c, int w, int h) {
+JSValue createContext(JSContext* c, int w, int h, int version = 1) {
   auto g = std::make_unique<Gl>();
   std::string err;
-  if (!g->gl.create(Api::Gl33, w, h, err) && !g->gl.create(Api::Gles2, w, h, err)) return JS_NULL;
-  g->w = w; g->h = h;
-  JSValue proto = JS_GetClassProto(c, static_cast<int>(gCtxClass));
+  if (version == 2) { if (!g->gl.create(Api::Gl33, w, h, err, 2) && !g->gl.create(Api::Gles3, w, h, err, 2)) return JS_NULL; }
+  else if (!g->gl.create(Api::Gl33, w, h, err) && !g->gl.create(Api::Gles2, w, h, err)) return JS_NULL;
+  g->w = w; g->h = h; g->version = version;
+  JSValue proto = version == 2 ? JS_DupValue(c, gProto2) : JS_GetClassProto(c, static_cast<int>(gCtxClass));
   JSValue o = JS_NewObjectProtoClass(c, proto, static_cast<int>(gCtxClass));
   JS_FreeValue(c, proto);
   JS_SetPropertyStr(c, o, "drawingBufferWidth", JS_NewInt32(c, w));
@@ -515,13 +571,14 @@ JSValue createContext(JSContext* c, int w, int h) {
 JSValue js_canvasGetContext(JSContext* c, JSValueConst t, int argc, JSValueConst* argv) {
   if (argc < 1) return JS_NULL;
   std::string type = str(c, argv[0]);
-  if (type != "webgl" && type != "experimental-webgl") return JS_NULL;
+  const bool v2 = type == "webgl2";
+  if (type != "webgl" && type != "experimental-webgl" && !v2) return JS_NULL;
   JSValue cached = JS_GetPropertyStr(c, t, "__gl");
-  if (!JS_IsUndefined(cached)) return cached;
+  if (!JS_IsUndefined(cached)) { Gl* have = static_cast<Gl*>(JS_GetOpaque(cached, gCtxClass)); if (have && (have->version == 2) == v2) return cached; JS_FreeValue(c, cached); return JS_NULL; }   // one kind of context per canvas
   JSValue wv = JS_GetPropertyStr(c, t, "width"), hv = JS_GetPropertyStr(c, t, "height");
   int w = i32(c, wv), h = i32(c, hv);
   JS_FreeValue(c, wv); JS_FreeValue(c, hv);
-  JSValue ctxv = createContext(c, w > 0 ? w : 300, h > 0 ? h : 150);
+  JSValue ctxv = createContext(c, w > 0 ? w : 300, h > 0 ? h : 150, v2 ? 2 : 1);
   if (!JS_IsNull(ctxv)) { JS_SetPropertyStr(c, ctxv, "canvas", JS_DupValue(c, t)); JS_SetPropertyStr(c, t, "__gl", JS_DupValue(c, ctxv)); }
   return ctxv;
 }
@@ -559,7 +616,12 @@ void install(JSContext* c) {
   };
   JSValue ctxCtor = ctor("WebGLRenderingContext", proto);
   for (const Const& k : kConsts) JS_SetPropertyStr(c, ctxCtor, k.name, JS_NewUint32(c, k.value));
-  for (int k = 1; k <= 7; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
+  for (int k = 1; k <= 8; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
+  gProto2 = JS_NewObjectProto(c, proto);   // WebGL2RenderingContext.prototype
+  for (const Fn& f : kMethods2) JS_SetPropertyStr(c, gProto2, f.name, JS_NewCFunction(c, f.fn, f.name, f.len));
+  for (const Const& k : kConsts2) JS_SetPropertyStr(c, gProto2, k.name, JS_NewUint32(c, k.value));
+  JSValue ctor2 = ctor("WebGL2RenderingContext", gProto2);
+  for (const Const& k : kConsts2) JS_SetPropertyStr(c, ctor2, k.name, JS_NewUint32(c, k.value));
   JS_SetPropertyStr(c, global0, "__zincReadFile", JS_NewCFunction(c, js_readFile, "__zincReadFile", 1));
   JS_FreeValue(c, global0);
   JSValue global = JS_GetGlobalObject(c);

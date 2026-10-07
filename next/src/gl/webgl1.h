@@ -18,7 +18,8 @@ struct UniformLoc { Id program = 0; int location = -1; std::uint32_t type = 0; i
 
 class WebGL1 {
  public:
-  bool create(Api api, int width, int height, std::string& error);
+  bool create(Api api, int width, int height, std::string& error, int version = 1);   // version 2: WebGL 2.0 (needs GL 3.3 core or GLES3)
+  int version() const { return version_; }
   const Offscreen& target() const { return gl_; }
 
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
@@ -64,6 +65,28 @@ class WebGL1 {
   void vertexAttribPointer(std::uint32_t index, int size, std::uint32_t type, bool normalized, int stride, std::int64_t offset);
   void drawArrays(std::uint32_t mode, int first, int count);
   void drawElements(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset);
+  struct Param;   // defined with the queries below
+  // ---- WebGL 2.0 (webgl2.cpp)
+  Id createVertexArray();
+  void deleteVertexArray(Id v);
+  void bindVertexArray(Id v);
+  bool isVertexArray(Id v) const { return vaos_.count(v) != 0 && vaos_.at(v).bound; }
+  void vertexAttribDivisor(std::uint32_t index, std::uint32_t divisor);
+  void drawArraysInstanced(std::uint32_t mode, int first, int count, int instances);
+  void drawElementsInstanced(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset, int instances);
+  void drawRangeElements(std::uint32_t mode, std::uint32_t start, std::uint32_t end, int count, std::uint32_t type, std::int64_t offset);
+  void drawBuffers(const std::uint32_t* bufs, int n);
+  void readBuffer(std::uint32_t src);
+  void bindBufferBase(std::uint32_t target, std::uint32_t index, Id b);
+  void bindBufferRange(std::uint32_t target, std::uint32_t index, Id b, std::int64_t offset, std::int64_t size);
+  std::uint32_t getUniformBlockIndex(Id p, const std::string& name);   // 0xFFFFFFFF: INVALID_INDEX
+  void uniformBlockBinding(Id p, std::uint32_t block, std::uint32_t binding);
+  Param getActiveUniformBlockParameter(Id p, std::uint32_t block, std::uint32_t pname);
+  std::string getActiveUniformBlockName(Id p, std::uint32_t block);
+  void copyBufferSubData(std::uint32_t readTarget, std::uint32_t writeTarget, std::int64_t readOffset, std::int64_t writeOffset, std::int64_t size);
+  void getBufferSubData(std::uint32_t target, std::int64_t srcOffset, void* dst, std::size_t dstBytes);
+  void uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count);
+  void vertexAttribIPointer(std::uint32_t index, int size, std::uint32_t type, int stride, std::int64_t offset);
   // textures
   Id createTexture();
   void deleteTexture(Id t);
@@ -155,11 +178,14 @@ class WebGL1 {
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0, target = 0; bool bound = false; };
   struct Fbo { std::uint32_t name = 0; Id color = 0; };
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
-  struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false; std::int64_t offset = 0; };
+  struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
+  struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
 
   void error(std::uint32_t code) { flags_ |= bit(code); }
   static unsigned bit(std::uint32_t code);
-  bool checkDrawState(std::int64_t firstIndex, std::int64_t indexCount);   // program, attributes in range, framebuffer complete
+  bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1);
+  bool bufferTargetOk(std::uint32_t t) const;
+  Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
 
   Offscreen gl_;
   std::uint32_t flags_ = 0;
@@ -169,6 +195,13 @@ class WebGL1 {
   std::map<Id, Tex> textures_;
   std::map<Id, Fbo> fbos_;
   std::map<Id, Rbo> rbos_;
+  std::map<Id, Vao> vaos_;
+  Vao defaultVao_;                       // the state of the VAO 0 while another VAO is bound
+  Id curVao_ = 0;
+  std::map<std::uint32_t, Id> otherBuffers_;   // WebGL 2 targets other than ARRAY / ELEMENT_ARRAY
+  struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; };
+  std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
+  int version_ = 1;
   Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, fbo_ = 0, rbo_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];

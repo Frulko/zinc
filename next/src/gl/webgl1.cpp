@@ -24,6 +24,11 @@ int typeSize(std::uint32_t t) {
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
 std::string translate(const std::string& src, std::uint32_t type, bool es) {
   if (es) return src;
+  {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
+    std::size_t at = src.find("#version");
+    if (at != std::string::npos && src.compare(at, 17, "#version 300 es\n") == 0) return "#version 330 core\n" + src.substr(at + 16);
+    if (at != std::string::npos && src.compare(at, 16, "#version 300 es") == 0) return "#version 330 core\n" + src.substr(at + 15);
+  }
   std::string body;
   std::string pre = "#version 330 core\n";
   std::size_t pos = 0;
@@ -98,7 +103,9 @@ namespace {
 
 unsigned WebGL1::bit(std::uint32_t code) { return 1u << (code - GL_INVALID_ENUM); }
 
-bool WebGL1::create(Api api, int width, int height, std::string& err) {
+bool WebGL1::create(Api api, int width, int height, std::string& err, int version) {
+  version_ = version;
+  if (version == 2 && api == Api::Gles2) { err = "WebGL 2 needs GL 3.3 core or GLES 3"; return false; }
   if (!gl_.create(api, width, height, false, err)) return false;
   GLint m = 0;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m);
@@ -156,27 +163,40 @@ void WebGL1::deleteBuffer(Id id) {
   if (arrayBuffer_ == id) arrayBuffer_ = 0;
   if (elementBuffer_ == id) elementBuffer_ = 0;
   for (Attrib& a : attribs_) if (a.buffer == id) a.buffer = 0;
+  for (auto& v : vaos_) { for (Attrib& a : v.second.attribs) if (a.buffer == id) a.buffer = 0; if (v.second.element == id) v.second.element = 0; }
+  for (Attrib& a : defaultVao_.attribs) if (a.buffer == id) a.buffer = 0;
+  if (defaultVao_.element == id) defaultVao_.element = 0;
+  for (auto& o : otherBuffers_) if (o.second == id) o.second = 0;
+  for (auto& o : indexed_) if (o.second.buffer == id) o.second.buffer = 0;
   buffers_.erase(it);
 }
 bool WebGL1::isBuffer(Id id) const { return buffers_.count(id) != 0; }
+bool WebGL1::bufferTargetOk(std::uint32_t t) const {
+  if (t == GL_ARRAY_BUFFER || t == GL_ELEMENT_ARRAY_BUFFER) return true;
+  return version_ == 2 && (t == GL_UNIFORM_BUFFER || t == GL_COPY_READ_BUFFER || t == GL_COPY_WRITE_BUFFER || t == GL_PIXEL_PACK_BUFFER || t == GL_PIXEL_UNPACK_BUFFER || t == GL_TRANSFORM_FEEDBACK_BUFFER);
+}
+Id& WebGL1::bufferSlot(std::uint32_t t) { return t == GL_ARRAY_BUFFER ? arrayBuffer_ : t == GL_ELEMENT_ARRAY_BUFFER ? elementBuffer_ : otherBuffers_[t]; }
 void WebGL1::bindBuffer(std::uint32_t target, Id id) {
-  if (target != GL_ARRAY_BUFFER && target != GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_ENUM);
+  if (!bufferTargetOk(target)) return error(GL_INVALID_ENUM);
   std::uint32_t name = 0;
   if (id) {
     auto it = buffers_.find(id);
     if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
-    if (it->second.target && it->second.target != target) return error(GL_INVALID_OPERATION);   // a buffer keeps the first target it was bound to
-    it->second.target = target;
+    // WebGL 1: a buffer keeps the first target it was bound to. WebGL 2: only the element-array / other split is kept.
+    const std::uint32_t pin = version_ == 2 ? (target == GL_ELEMENT_ARRAY_BUFFER ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER) : target;
+    if (it->second.target && it->second.target != pin) return error(GL_INVALID_OPERATION);
+    it->second.target = pin;
     name = it->second.name;
   }
-  (target == GL_ARRAY_BUFFER ? arrayBuffer_ : elementBuffer_) = id;
+  bufferSlot(target) = id;
   glBindBuffer(target, name);
 }
 void WebGL1::bufferData(std::uint32_t target, std::int64_t size, const void* data, std::uint32_t usage) {
-  if (target != GL_ARRAY_BUFFER && target != GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_ENUM);
-  if (usage != GL_STREAM_DRAW && usage != GL_STATIC_DRAW && usage != GL_DYNAMIC_DRAW) return error(GL_INVALID_ENUM);
+  if (!bufferTargetOk(target)) return error(GL_INVALID_ENUM);
+  const bool v2 = version_ == 2;
+  if (usage != GL_STREAM_DRAW && usage != GL_STATIC_DRAW && usage != GL_DYNAMIC_DRAW && !(v2 && (usage == GL_STREAM_READ || usage == GL_STREAM_COPY || usage == GL_STATIC_READ || usage == GL_STATIC_COPY || usage == GL_DYNAMIC_READ || usage == GL_DYNAMIC_COPY))) return error(GL_INVALID_ENUM);
   if (size < 0) return error(GL_INVALID_VALUE);
-  Id id = target == GL_ARRAY_BUFFER ? arrayBuffer_ : elementBuffer_;
+  Id id = bufferSlot(target);
   if (!id) return error(GL_INVALID_OPERATION);
   Buf& b = buffers_[id];
   b.size = size;
@@ -185,8 +205,8 @@ void WebGL1::bufferData(std::uint32_t target, std::int64_t size, const void* dat
   glBufferData(target, static_cast<GLsizeiptr>(size), b.shadow.empty() ? nullptr : b.shadow.data(), usage);
 }
 void WebGL1::bufferSubData(std::uint32_t target, std::int64_t offset, std::int64_t size, const void* data) {
-  if (target != GL_ARRAY_BUFFER && target != GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_ENUM);
-  Id id = target == GL_ARRAY_BUFFER ? arrayBuffer_ : elementBuffer_;
+  if (!bufferTargetOk(target)) return error(GL_INVALID_ENUM);
+  Id id = bufferSlot(target);
   if (!id) return error(GL_INVALID_OPERATION);
   Buf& b = buffers_[id];
   if (offset < 0 || size < 0 || offset + size > b.size) return error(GL_INVALID_VALUE);
@@ -347,7 +367,7 @@ void WebGL1::vertexAttribPointer(std::uint32_t i, int size, std::uint32_t type, 
   a.size = size; a.type = type; a.normalized = normalized; a.stride = stride; a.offset = offset;
   glVertexAttribPointer(i, size, type, normalized, stride, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)));
 }
-bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex) {
+bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances) {
   if (!program_) { error(GL_INVALID_OPERATION); return false; }
   if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
   const Program& pr = programs_[program_];
@@ -362,9 +382,10 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex) {
     const Attrib& a = attribs_[loc];
     auto b = buffers_.find(a.buffer);
     if (b == buffers_.end()) { error(GL_INVALID_OPERATION); return false; }   // no client-side arrays in WebGL
-    if (lastIndex < firstIndex) continue;
     int ts = typeSize(a.type), stride = a.stride ? a.stride : a.size * ts;
-    std::int64_t need = a.offset + stride * lastIndex + static_cast<std::int64_t>(a.size) * ts;
+    std::int64_t last = a.divisor ? (instances + a.divisor - 1) / a.divisor - 1 : lastIndex;   // per-instance attributes advance once per `divisor` instances
+    if (a.divisor ? instances <= 0 : lastIndex < firstIndex) continue;
+    std::int64_t need = a.offset + stride * last + static_cast<std::int64_t>(a.size) * ts;
     if (need > b->second.size) { error(GL_INVALID_OPERATION); return false; }
   }
   return true;

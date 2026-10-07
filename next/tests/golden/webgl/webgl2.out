@@ -1,0 +1,16 @@
+instanceof true true true
+version WebGL 2.0 (Zinc) | WebGL GLSL ES 3.00 (Zinc)
+constants 35345 32879 36067 32856
+isVertexArray true
+block 0 16 Tint
+draw error 0
+left 255 0 0 255
+right 255 0 0 255
+vao 0 attrib enabled false null
+vao attrib enabled true 1 true
+instances beyond the buffer is no error, per-instance attrib range: true
+drawBuffers on the canvas true
+bindBufferBase(bad target) true
+uniformBlockBinding(bad block) true
+vertexAttribDivisor(99) true
+copy 2 3 0 0 0
