@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""examples-status: run every example entry headless and say whether it is OK, a COMPILE error, a RUNTIME error or a CRASH.
+
+  tools/examples-status                 print the table (all entries)
+  tools/examples-status --check         compare with tests/examples.lst: fail on a regression or an unexpected pass (T1: tests/t1/examples_all.sh)
+  tools/examples-status --write-list    rewrite tests/examples.lst from the current results (reasons and tasks of the old list are kept)
+  options: --frames N (default 3), --jobs N (default 4), --timeout S (default 40), --zinc PATH, ENTRY... (paths under examples/ to run only those)
+
+An entry is the source file `zinc run` starts: the zinc.json "entry"/"main" of each project under examples/, else src/main.ts[x]; the entries named in
+tests/examples.lst count too. tests/examples.lst has one line per entry: `path | STATUS | reason | task`; a status other than OK needs a reason and the task
+that will fix it.
+"""
+import concurrent.futures, json, os, re, subprocess, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+NEXT = os.path.dirname(HERE)
+EXAMPLES = os.path.join(os.path.dirname(NEXT), "examples")
+LIST = os.path.join(NEXT, "tests", "examples.lst")
+
+def entries():
+    found = set()
+    for root, dirs, files in os.walk(EXAMPLES):
+        dirs[:] = [d for d in dirs if d not in ("build", "node_modules", ".git")]
+        if "zinc.json" in files:
+            try: cfg = json.load(open(os.path.join(root, "zinc.json")))
+            except Exception: cfg = {}
+            e = cfg.get("entry") or cfg.get("main")
+            cands = ([e] if e else []) + ["src/main.ts", "src/main.tsx", "main.ts", "main.tsx"]
+            for c in cands:
+                if os.path.isfile(os.path.join(root, c)): found.add(os.path.relpath(os.path.join(root, c), EXAMPLES)); break
+        elif os.path.basename(root) == "src" and any(f in files for f in ("main.ts", "main.tsx")) and not os.path.isfile(os.path.join(os.path.dirname(root), "zinc.json")):
+            found.add(os.path.relpath(os.path.join(root, "main.ts" if "main.ts" in files else "main.tsx"), EXAMPLES))
+    return found
+
+def read_list():
+    rows = {}
+    if os.path.exists(LIST):
+        for n, line in enumerate(open(LIST), 1):
+            line = line.split("#", 1)[0].strip() if line.lstrip().startswith("#") else line.rstrip("\n")
+            if not line.strip(): continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 2: continue
+            rows[parts[0]] = {"status": parts[1], "reason": parts[2] if len(parts) > 2 else "", "task": parts[3] if len(parts) > 3 else ""}
+    return rows
+
+ERR = re.compile(r"error Z\d{4}|cannot read|Cannot find module|Unexpected token|no entry")
+
+def run_one(zinc, entry, frames, timeout):
+    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES=str(frames))
+    path = os.path.join(EXAMPLES, entry)
+    try:
+        r = subprocess.run([zinc, "run", path], cwd=NEXT, env=env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return entry, "CRASH", "timed out after %ds" % timeout
+    err = (r.stderr or "") + (r.stdout if r.returncode else "")
+    lines = [l.strip() for l in err.splitlines() if l.strip()]
+    first = next((l for l in lines if ERR.search(l)), lines[0] if lines else "")
+    if r.returncode == 0: return entry, "OK", ""
+    if r.returncode < 0 or r.returncode >= 128: return entry, "CRASH", "signal %d: %s" % (abs(r.returncode) if r.returncode < 0 else r.returncode - 128, first[:140])
+    if ERR.search(err): return entry, "COMPILE", first[:160]
+    return entry, "RUNTIME", first[:160]
+
+def main(argv):
+    frames, jobs, timeout, zinc = 3, 4, 40, os.path.join(NEXT, "build", "zinc")
+    mode, only = "table", []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--check": mode = "check"
+        elif a == "--write-list": mode = "write"
+        elif a == "--frames": frames = int(argv[i + 1]); i += 1
+        elif a == "--jobs": jobs = int(argv[i + 1]); i += 1
+        elif a == "--timeout": timeout = int(argv[i + 1]); i += 1
+        elif a == "--zinc": zinc = argv[i + 1]; i += 1
+        elif a in ("-h", "--help"): print(__doc__); return 0
+        else: only.append(a)
+        i += 1
+    known = read_list()
+    todo = sorted(only) if only else sorted(entries() | set(known))
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
+        for entry, status, first in ex.map(lambda e: run_one(zinc, e, frames, timeout), todo):
+            results[entry] = (status, first)
+    counts = {}
+    for s, _ in results.values(): counts[s] = counts.get(s, 0) + 1
+    if mode == "table":
+        for e in todo: print("%-8s %-52s %s" % (results[e][0], e, results[e][1]))
+        print("\n" + ", ".join("%d %s" % (counts[s], s) for s in sorted(counts)) + " of %d entries" % len(todo))
+        return 0
+    if mode == "write":
+        out = ["# Examples status (tools/examples-status): path | STATUS | reason | task. OK needs nothing else; a status other than OK needs the reason and the task that will fix it."]
+        for e in todo:
+            old = known.get(e, {})
+            s, first = results[e]
+            reason = old.get("reason", "") if s != "OK" else ""
+            if s != "OK" and not reason: reason = first
+            out.append("%s | %s | %s | %s" % (e, s, reason, old.get("task", "?") if s != "OK" else ""))
+        open(LIST, "w").write("\n".join(out) + "\n")
+        print("wrote %s (%s)" % (LIST, ", ".join("%d %s" % (counts[s], s) for s in sorted(counts))))
+        return 0
+    # check
+    bad = 0
+    for e in todo:
+        s, first = results[e]
+        row = known.get(e)
+        if row is None: print("NEW      %s is not in tests/examples.lst (status %s): add it" % (e, s)); bad += 1; continue
+        if s == row["status"]: continue
+        if row["status"] == "OK": print("REGRESSED %s: was OK, now %s: %s" % (e, s, first)); bad += 1
+        elif s == "OK": print("UNEXPECTED PASS %s: listed %s (%s), now OK: promote it in tests/examples.lst" % (e, row["status"], row["reason"])); bad += 1
+        else: print("CHANGED  %s: listed %s, now %s: %s (update the list)" % (e, row["status"], s, first)); bad += 1
+    for e in sorted(set(known) - set(todo)) if not only else []: print("MISSING  %s is listed but no longer an example entry" % e); bad += 1
+    for e, row in known.items():
+        if row["status"] != "OK" and (not row["reason"] or row["task"] in ("", "?")): print("INCOMPLETE %s: a failing entry needs a reason and a task" % e); bad += 1
+    by_task = {}
+    for e in todo:
+        row = known.get(e)
+        if row and row["status"] != "OK": by_task.setdefault(row["task"], []).append((row["reason"], e))
+    if by_task:
+        print("\nentries still blocked, per task that will fix them (a task may unlock more once its other blockers are gone):")
+        for task, es in sorted(by_task.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            print("  %2d  %-8s %s" % (len(es), task, "; ".join(sorted({r for r, _ in es}))[:140]))
+    print("%d OK of %d entries" % (counts.get("OK", 0), len(todo)))
+    return 1 if bad else 0
+
+if __name__ == "__main__": sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,63 @@
+# Examples status (tools/examples-status): path | STATUS | reason | task. OK needs nothing else; a status other than OK needs the reason and the task that will fix it.
+3d/cubes/src/main.ts | COMPILE | plugins/3d sim: `??` on a number that cannot be null (render3d.sim.ts:32) | ZN-107
+3d/model/src/main.ts | COMPILE | plugins/3d sim: `??` on a number that cannot be null (render3d.sim.ts:32) | ZN-107
+boards/esp32-2432s022-hello/src/main.ts | OK |  | 
+boards/esp32-2432s022/src/main.tsx | OK |  | 
+boards/s3-matrix/dice/src/main.ts | OK |  | 
+boards/s3-matrix/level/src/main.ts | OK |  | 
+boards/s3-matrix/text-scroller/src/main.ts | OK |  | 
+boards/s3-matrix/tilt-sand/src/main.ts | OK |  | 
+boards/scrollphat/badge/src/main.ts | COMPILE | zinc:process has no `run` (ip.ts) | ZN-084
+boards/scrollphat/cpu-graph/src/main.ts | OK |  | 
+boards/scrollphat/snake/src/main.ts | OK |  | 
+bouncing-ball/src/main.ts | OK |  | 
+breakout/src/main.ts | OK |  | 
+camera/bench/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
+camera/cli/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
+camera/remote/src/main.tsx | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
+canvas/sketch/main.tsx | COMPILE | global isNaN missing (plugins/canvas2d/index.ts) | ZN-105
+chataigne/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
+flipctl/src/main.ts | OK |  | 
+hello/src/main.ts | OK |  | 
+hero/src/main.tsx | OK |  | 
+inferno-todo/src/main.tsx | COMPILE | class components in React JSX mode, record literal assignability | ZN-163
+iot-panel/src/main.tsx | COMPILE | zinc:gpio is not a module yet | ZN-081
+lang/src/main.ts | OK |  | 
+led/falling-cubes/src/main.ts | OK |  | 
+led/oled-clock/src/main.tsx | OK |  | 
+led/scroll-text/src/main.ts | OK |  | 
+maps/explorer/src/main.tsx | RUNTIME | native module MapEngine is not linked | ZN-108
+maps/navigation/src/main.tsx | OK |  | 
+maps/svg-gallery/src/main.tsx | RUNTIME | native module SvgEngine is not linked | ZN-106
+modules-showcase/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
+native-module/src/main.ts | COMPILE | zinc:telemetry is not a module yet | ZN-080
+pinball/src/main.ts | COMPILE | zinc:platform is not a module yet | ZN-080
+pocket-hero/main.tsx | OK |  | 
+process/cli/main.ts | CRASH | zinc:process members missing; the checker crashes (signal 11) | ZN-084
+process/shell/main.tsx | COMPILE | zinc:process has no Process class | ZN-084
+remarkable/dashboard/src/main.tsx | OK |  | 
+remarkable/notes/src/main.tsx | OK |  | 
+remote/viewer/main.tsx | OK |  | 
+robot-eyes-oled/src/main.ts | OK |  | 
+robot-eyes/src/main.ts | OK |  | 
+scripting/bench/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
+scripting/breakout-mods/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
+scripting/playground/src/main.tsx | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
+service/sensor-hub/src/main.ts | COMPILE | zinc:mqtt is not a module yet | ZN-086
+text/src/main-react.tsx | OK |  | 
+text/src/main-solid.tsx | OK |  | 
+three/cubes/main.ts | COMPILE | plugins/three is not mapped or built yet | ZN-107
+three/gltf-viewer/main.tsx | COMPILE | plugins/three is not mapped or built yet | ZN-107
+ui/figma-storyboard/src/main.tsx | OK |  | 
+ui/forms/main.tsx | OK |  | 
+ui/gl-check/src/main.ts | OK |  | 
+ui/keyboard/src/main.tsx | OK |  | 
+ui/kit-gallery/src/main.tsx | OK |  | 
+ui/lottie-gallery/src/main.tsx | OK |  | 
+video/bounce/src/main.ts | OK |  | 
+video/looper/src/main.ts | COMPILE | zinc:gpio is not a module yet | ZN-081
+video/mapper/src/main.ts | COMPILE | zinc:osc is not a module yet (plugins/mapping) | ZN-085
+video/quad/src/main.ts | OK |  | 
+webview/hybrid/main.tsx | OK |  | 
+zed-editor/sample/src/main.ts | OK |  | 
+zed-editor/src/main.tsx | COMPILE | zinc:process has no `run` or Process (tools.ts) | ZN-084
