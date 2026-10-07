@@ -16,6 +16,8 @@ struct CoreConfig {
   std::size_t maxDepth = 128;          // call frames
   std::size_t maxModule = 64 * 1024;   // bytes of an uploaded module
   std::function<std::size_t()> freeHeap;  // the device's free heap, for the ready and done lines (optional)
+  bool reportModules = false;          // say which host modules this device has in the ready line, so `zinc run` can refuse a program that needs another one before the upload
+  std::vector<std::string> modules;    // 'zinc:sys', 'zinc:gfx'... (a board's display, its sensors)
 };
 
 class Core {

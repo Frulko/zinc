@@ -25,10 +25,13 @@ struct Answer {
   std::size_t leaked = 0;
   std::size_t freeHeap = 0;
   std::string coreVersion;
+  bool modulesKnown = false;       // the core listed its host modules in the ready line
+  std::vector<std::string> modules;
 };
 
 // Waits for the core to answer a ping (up to `bootMs`), uploads `module` and waits for the end of the run (up to `runMs`).
 // Lines of the device that are not protocol (a boot log) go to `log` when it is not null.
-bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& answer, std::string& err, int bootMs, int runMs, std::string* log);
+// `needed`: the host modules the program imports; when the core lists its modules and one is missing, nothing is uploaded and `err` names it.
+bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& answer, std::string& err, int bootMs, int runMs, std::string* log, const std::vector<std::string>* needed = nullptr);
 
 }  // namespace zn::dev

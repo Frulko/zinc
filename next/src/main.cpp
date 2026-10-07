@@ -141,10 +141,25 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   return zn::res::bake(gSources, o, blob, err);
 }
 
+static std::vector<std::string> gHostImports;   // the host modules ('zinc:gfx', 'zinc:sys'...) the last program compiled imports, directly or through the standard modules
+static void scanHostImports(const zn::frontend::Program& prog) {
+  gHostImports.clear();
+  for (const auto& f : prog.files) {
+    const std::string& t = f.text;
+    for (std::size_t at = t.find("zinc:"); at != std::string::npos; at = t.find("zinc:", at + 1)) {
+      if (at == 0 || (t[at - 1] != '\'' && t[at - 1] != '"')) continue;
+      std::size_t e = at;
+      while (e < t.size() && (std::isalnum(static_cast<unsigned char>(t[e])) || t[e] == ':' || t[e] == '/' || t[e] == '_' || t[e] == '-')) ++e;
+      std::string spec = t.substr(at, e - at);
+      if (e < t.size() && t[e] == t[at - 1] && zn::frontend::builtinModuleSource(spec) && std::find(gHostImports.begin(), gHostImports.end(), spec) == gHostImports.end()) gHostImports.push_back(spec);
+    }
+  }
+}
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   zn::frontend::Program prog;
   zn::frontend::Checked checked;
   if (!loadChecked(path, prog, checked)) return 1;
+  scanHostImports(prog);
   gSources.clear();
   for (const auto& f : prog.files) gSources.push_back(f.text);
   std::vector<zn::frontend::Diag> diags;
@@ -380,6 +395,20 @@ int main(int argc, char** argv) {
     for (int k = 2; k + 1 < argc; k += 2) {
       if (!std::strcmp(argv[k], "--stack")) cfg.stackSlots = static_cast<std::size_t>(std::atoll(argv[k + 1]));
       else if (!std::strcmp(argv[k], "--depth")) cfg.maxDepth = static_cast<std::size_t>(std::atoll(argv[k + 1]));
+      else if (!std::strcmp(argv[k], "--modules")) {   // the host modules this simulated device provides: "zinc:sys,zinc:gfx" (or "-")
+        cfg.reportModules = true;
+        std::string m = argv[k + 1];
+        for (std::size_t from = 0; m != "-" && from <= m.size();) { std::size_t c = m.find(',', from); cfg.modules.push_back(m.substr(from, c == std::string::npos ? std::string::npos : c - from)); if (c == std::string::npos) break; from = c + 1; }
+      } else if (!std::strcmp(argv[k], "--board")) {   // a board preset (boards/<name>.json): what its display and sensors make available
+        std::string text, err2;
+        std::ifstream bf(gRoot + "/../boards/" + argv[k + 1] + ".json");
+        if (!bf) { std::fprintf(stderr, "zinc: unknown board '%s' (boards/*.json)\n", argv[k + 1]); return 2; }
+        std::stringstream bs; bs << bf.rdbuf(); text = bs.str();
+        cfg.reportModules = true;
+        cfg.modules = {"zinc:sys"};
+        if (text.find("\"display\"") != std::string::npos) cfg.modules.push_back("zinc:gfx");
+        if (text.find("\"imu-qmi8658\"") != std::string::npos) cfg.modules.push_back("zinc:imu");
+      }
     }
     zn::dev::Core core(cfg, [](const char* p, std::size_t n) { std::fwrite(p, 1, n, stdout); std::fflush(stdout); });
     core.announce();
@@ -422,7 +451,7 @@ int main(int argc, char** argv) {
     }
     zn::dev::Answer ans;
     std::string log;
-    bool ok = zn::dev::upload(link, bytes, ans, err, bootMs, runMs, &log);
+    bool ok = zn::dev::upload(link, bytes, ans, err, bootMs, runMs, &log, &gHostImports);
     zn::dev::closeLink(link);
     if (showLog) std::fputs(log.c_str(), stderr);
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }

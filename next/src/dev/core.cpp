@@ -12,7 +12,9 @@
 namespace zn::dev {
 
 void Core::announce() {
-  say(std::string(1, kMark) + "ZN ready " + kCoreVersion + " " + std::to_string(cfg_.freeHeap ? cfg_.freeHeap() : 0) + "\n");
+  std::string mods;
+  if (cfg_.reportModules) { for (const std::string& m : cfg_.modules) mods += (mods.empty() ? "" : ",") + m; mods = " " + (mods.empty() ? std::string("-") : mods); }
+  say(std::string(1, kMark) + "ZN ready " + kCoreVersion + " " + std::to_string(cfg_.freeHeap ? cfg_.freeHeap() : 0) + mods + "\n");
 }
 
 void Core::line(const std::string& l) { say(std::string(1, kMark) + "ZN " + l + "\n"); }

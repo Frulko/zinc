@@ -5,7 +5,8 @@
 //
 //   host -> device   0x1E "ZN ping" LF                          the device answers `ready`
 //                    0x1E "ZN load <length> <crc32 hex>" LF <length bytes of ZBC>
-//   device -> host   0x1E "ZN ready <core version> <free heap bytes>" LF
+//   device -> host   0x1E "ZN ready <core version> <free heap bytes> [<modules>]" LF    <modules>: the host modules this device provides, comma separated
+//                                                                (`zinc:sys,zinc:gfx`; `-` for none). A core that does not say has no list: nothing is checked before the upload.
 //                    0x1E "ZN err <message>" LF                 the module was not accepted (size, checksum, not valid ZBC)
 //                    0x1E "ZN out <length>" LF <length bytes>   what the program printed
 //                    0x1E "ZN done <status> <leaked objects> <free heap>" LF    status 0 ok, 1 runtime error (message in `out`), 101 uncaught exception

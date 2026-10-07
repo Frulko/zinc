@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "dev/client.h"
 
 #include <chrono>
@@ -136,7 +137,7 @@ std::string findSerialPort() {
   return "";
 }
 
-bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& a, std::string& err, int bootMs, int runMs, std::string* log) {
+bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& a, std::string& err, int bootMs, int runMs, std::string* log, const std::vector<std::string>* needed) {
   Reader rd{link, "", log};
   std::string l;
   // wait for the core: ping every half second while the device boots
@@ -149,10 +150,26 @@ bool upload(Link& link, const std::vector<std::uint8_t>& module, Answer& a, std:
       std::istringstream in(l);
       std::string zn, cmd;
       in >> zn >> cmd;
-      if (zn == "ZN" && cmd == "ready") { in >> a.coreVersion >> a.freeHeap; ready = true; break; }
+      if (zn == "ZN" && cmd == "ready") {
+        in >> a.coreVersion >> a.freeHeap;
+        std::string mods;
+        if (in >> mods) {
+          a.modulesKnown = true;
+          for (std::size_t from = 0; mods != "-" && from <= mods.size();) { std::size_t c = mods.find(',', from); a.modules.push_back(mods.substr(from, c == std::string::npos ? std::string::npos : c - from)); if (c == std::string::npos) break; from = c + 1; }
+        }
+        ready = true; break;
+      }
     }
   }
   if (!ready) { err = "the device does not answer (is the core firmware flashed? `zinc flash --target esp32`)"; return false; }
+  if (a.modulesKnown && needed) {   // before the bytes of the module leave: the device cannot run what needs a module it does not have
+    for (const std::string& n : *needed) {
+      if (std::find(a.modules.begin(), a.modules.end(), n) != a.modules.end()) continue;
+      std::string have; for (const std::string& m : a.modules) have += (have.empty() ? "" : ", ") + m;
+      err = "the program imports '" + n + "' but the device does not provide it (it has: " + (have.empty() ? "no host module" : have) + ")";
+      return false;
+    }
+  }
   std::string head = std::string(1, kMark) + "ZN load " + std::to_string(module.size()) + " " + hex32(crc32(module.data(), module.size())) + "\n";
   if (!writeAll(link.out, head.data(), head.size())) { err = "cannot write to the device"; return false; }
   for (std::size_t at = 0; at < module.size(); at += 256) {  // small chunks: the UART of a device has a small buffer
