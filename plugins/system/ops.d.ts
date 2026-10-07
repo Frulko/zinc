@@ -2,7 +2,7 @@
 export interface MenuItem { id?: string; label?: string; role?: string; accelerator?: string; enabled?: boolean; checked?: boolean; submenu?: MenuItem[]; type?: 'separator' }
 
 export interface OpArgs {
-  'notification.notify': { title: string; body?: string; id?: string; group?: string; actions?: {id: string; title: string}[]; silent?: boolean };
+  'notification.notify': { id: string; title: string; subtitle?: string; body?: string; icon?: string; sound?: boolean; group?: string; actions?: {id: string; title: string}[]; reply?: {placeholder?: string}; urgency?: string };
   'notification.cancel': { id: string };
   'notification.requestPermission': {  };
   'notification.delivered': {  };
@@ -34,13 +34,14 @@ export interface OpArgs {
   'clipboard.readRich': {  };
   'opener.open': { target: string };
   'window.confirmClose': {  };
+  'notification.backend': {  };
 }
 
 export interface OpResult {
-  'notification.notify': {id: string};
+  'notification.notify': {id: string; delivered: boolean; reason?: string};
   'notification.cancel': {};
-  'notification.requestPermission': {state: 'granted' | 'denied' | 'default'};
-  'notification.delivered': {ids: string[]};
+  'notification.requestPermission': {state: 'granted' | 'denied' | 'default' | 'unsupported'};
+  'notification.delivered': {items: {id: string; title: string; body: string}[]};
   'menu.setApp': {};
   'menu.update': {};
   'menu.popup': {id: string | null};
@@ -69,6 +70,7 @@ export interface OpResult {
   'clipboard.readRich': {text: string; html: string};
   'opener.open': {};
   'window.confirmClose': {};
+  'notification.backend': {backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'};
 }
 
 export type OpName = keyof OpArgs;

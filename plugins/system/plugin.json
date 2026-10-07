@@ -6,7 +6,21 @@
   "entry": "index.ts",
   "description": "Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)",
   "targets": {
-    "macos": {},
+    "macos": {
+      "sources": [
+        "native/system.macos.mm"
+      ],
+      "frameworks": [
+        "Foundation",
+        "UserNotifications"
+      ],
+      "flags": [
+        "-fobjc-arc"
+      ]
+    },
     "linux": {}
+  },
+  "modules": {
+    "zinc:system/notification": "notification.ts"
   }
 }

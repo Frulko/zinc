@@ -1,0 +1,22 @@
+[system] notification.requestPermission {}
+[system] notification.backend {}
+[system] notification.notify {"id":"build-42","title":"Build finished","subtitle":"zinc","body":"3 warnings","icon":"","group":"builds","actions":[{"id":"open","title":"Open"},{"id":"dismiss","title":"Dismiss"}],"reply":"Reply..."}
+[system] notification.notify {"id":"build-42","title":"Build finished again","subtitle":"","body":"replaces the first","icon":"","group":"","actions":[],"reply":""}
+[system] notification.notify {"id":"other","title":"Other","subtitle":"","body":"","icon":"","group":"","actions":[],"reply":""}
+[system] notification.delivered {}
+[system] notification.cancel {"id":"other"}
+[system] notification.delivered {}
+[system] event {"type":"notification-click","args":["build-42"]}
+[system] event {"type":"notification-action","args":["build-42","open"]}
+[system] event {"type":"notification-reply","args":["build-42","looks good"]}
+[system] event {"type":"notification-close","args":["build-42","user"]}
+[system] event {"type":"shortcut","args":["CmdOrCtrl+Q"]}
+permission granted backend sim
+delivered true ""
+delivered list ["build-42|Build finished again|replaces the first","other|Other|"]
+after cancel ["build-42|Build finished again|replaces the first"]
+clicked
+action open
+reply looks good
+closed user
+done CmdOrCtrl+Q

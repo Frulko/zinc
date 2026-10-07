@@ -13,6 +13,10 @@
 extern "C" void hal_set_close_handler(int (*)(void)) __attribute__((weak));   // the desktop HAL has them (runtime/include/hal_window.h); headless HALs do not
 extern "C" void hal_set_drop_handler(void (*)(const char*, int)) __attribute__((weak));
 
+#ifdef __APPLE__
+extern "C" int zn_sys_macos_call(const char* op, const char* args, char* out, int cap);   // native/system.macos.mm
+extern "C" int zn_sys_macos_poll(char* out, int cap);
+#endif
 namespace zrt { extern bool quit_requested; }   // the runtime's request to end the program (runtime/zrt.cpp)
 
 namespace {
@@ -35,14 +39,35 @@ void appendJson(char* dst, size_t cap, const char* v) {
   dst[n] = 0;
 }
 
+/** The string value of the top-level key `key` in a flat JSON object written by index.ts (escapes \\ \" \n handled); false when absent. */
+bool jsonString(const char* json, const char* key, char* out, size_t cap) {
+  char pat[64];
+  snprintf(pat, sizeof pat, "\"%s\":\"", key);
+  const char* p = strstr(json, pat);
+  if (!p) return false;
+  p += strlen(pat);
+  size_t n = 0;
+  for (; *p && *p != '"' && n + 1 < cap; p++) {
+    if (*p == '\\' && p[1]) { p++; out[n++] = *p == 'n' ? '\n' : *p; }
+    else out[n++] = *p;
+  }
+  out[n] = 0;
+  return true;
+}
+
+struct SimNote { char id[64], title[128], body[256]; };
+
 struct Sim : NativeSystem, zrt::Poller {
+  SimNote notes[32];
+  int nnotes = 0;
+  int nextNote = 1;
   char granted[MAXGRANT][48];
   int ngranted = 0;
   zrt::Fn<void(zrt::String)> cb;
   ScriptEvent script[MAXEV];
   int nscript = 0, next = 0;
   long ticks = 0;
-  bool toStdout = false, scriptRead = false;
+  bool toStdout = false, scriptRead = false, live = false;   // live: the real system answers (a desktop session, not a deterministic or headless run)
   FILE* logFile = nullptr;
 
   Sim() {
@@ -51,6 +76,9 @@ struct Sim : NativeSystem, zrt::Poller {
     if (l && !strcmp(l, "-")) toStdout = true;
     else if (l && *l) logFile = fopen(l, "w");
     else if (det && *det && *det != '0') toStdout = true;
+    const char* head = getenv("ZINC_HEADLESS");
+    const char* force = getenv("ZINC_SYSTEM");
+    live = !(det && *det && *det != '0') && !(head && *head && *head != '0') && !(force && !strcmp(force, "sim"));
     zrt::add_poller(this);
     if (hal_set_close_handler) hal_set_close_handler(&Sim::onClose);
     if (hal_set_drop_handler) hal_set_drop_handler(&Sim::onDrop);
@@ -102,7 +130,11 @@ struct Sim : NativeSystem, zrt::Poller {
     }
   }
   bool supports(zrt::String feature) override { return feature.bytes() > 0; }   // the simulator does every feature
+#ifdef __APPLE__
+  zrt::String backend() override { return live ? zrt::String::from("macos", 5) : zrt::String::from("sim", 3); }
+#else
   zrt::String backend() override { return zrt::String::from("sim", 3); }
+#endif
   zrt::String call(zrt::String op, zrt::String json) override {
     char name[96], args[2048];
     self() = this;
@@ -117,12 +149,58 @@ struct Sim : NativeSystem, zrt::Poller {
         return zrt::String::from(buf, (uint32_t)n);
       }
       log("[system] ", name, " ", args);
+#ifdef __APPLE__
+      if (live) { char big[3000]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
+#endif
+      if (!strncmp(name, "notification.", 13)) return notification(name, args);
       if (!strcmp(name, "window.confirmClose") && hal_set_close_handler) zrt::quit_requested = true;   // a real window: the veto of the close button ends here
       return zrt::String::from(o.sim, (uint32_t)strlen(o.sim));
     }
     log("[system] error unknown op ", name);
     int n = snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"unsupported\",\"message\":\"unknown op %s\"}}", name);
     return zrt::String::from(buf, (uint32_t)n);
+  }
+  zrt::String reply(const char* json) { return zrt::String::from(json, (uint32_t)strlen(json)); }
+  /** The simulator's notification centre: ZINC_SYSTEM_NOTIFICATION_PERMISSION=granted (default) | denied | default decides what show() may do; the same id replaces. */
+  zrt::String notification(const char* name, const char* args) {
+    const char* perm = getenv("ZINC_SYSTEM_NOTIFICATION_PERMISSION");
+    if (!perm || !*perm) perm = "granted";
+    char buf[3000], id[64] = "", title[128] = "", body[256] = "";
+    if (!strcmp(name, "notification.requestPermission")) { snprintf(buf, sizeof buf, "{\"state\":\"%s\"}", perm); return reply(buf); }
+    if (!strcmp(name, "notification.backend")) return reply("{\"backend\":\"sim\"}");
+    jsonString(args, "id", id, sizeof id);
+    if (!strcmp(name, "notification.notify")) {
+      jsonString(args, "title", title, sizeof title);
+      jsonString(args, "body", body, sizeof body);
+      if (!id[0]) snprintf(id, sizeof id, "n%d", nextNote++);
+      if (strcmp(perm, "granted")) {   // a denied or undecided permission never throws: delivered false and why
+        snprintf(buf, sizeof buf, "{\"id\":\"%s\",\"delivered\":false,\"reason\":\"%s\"}", id, !strcmp(perm, "denied") ? "permission denied" : "permission not requested");
+        return reply(buf);
+      }
+      int at = -1;
+      for (int i = 0; i < nnotes; i++) if (!strcmp(notes[i].id, id)) at = i;   // same id: the notification is replaced
+      if (at < 0 && nnotes < 32) at = nnotes++;
+      if (at >= 0) { snprintf(notes[at].id, sizeof notes[at].id, "%s", id); snprintf(notes[at].title, sizeof notes[at].title, "%s", title); snprintf(notes[at].body, sizeof notes[at].body, "%s", body); }
+      snprintf(buf, sizeof buf, "{\"id\":\"%s\",\"delivered\":true}", id);
+      return reply(buf);
+    }
+    if (!strcmp(name, "notification.cancel")) {
+      for (int i = 0; i < nnotes; i++) if (!strcmp(notes[i].id, id)) { for (int k = i; k + 1 < nnotes; k++) notes[k] = notes[k + 1]; nnotes--; break; }
+      return reply("{}");
+    }
+    if (!strcmp(name, "notification.delivered")) {
+      strcpy(buf, "{\"items\":[");
+      for (int i = 0; i < nnotes; i++) {
+        if (i) strcat(buf, ",");
+        strcat(buf, "{\"id\":"); appendJson(buf, sizeof buf, notes[i].id);
+        strcat(buf, ",\"title\":"); appendJson(buf, sizeof buf, notes[i].title);
+        strcat(buf, ",\"body\":"); appendJson(buf, sizeof buf, notes[i].body);
+        strcat(buf, "}");
+      }
+      strcat(buf, "]}");
+      return reply(buf);
+    }
+    return reply("{}");
   }
   void onEvent(zrt::Fn<void(zrt::String)> f) override { cb = f; }
 
@@ -162,6 +240,9 @@ struct Sim : NativeSystem, zrt::Poller {
     fclose(f);
   }
   bool poll() override {
+#ifdef __APPLE__
+    if (live) { char ev[1200]; while (zn_sys_macos_poll(ev, sizeof ev)) deliver(ev); }
+#endif
     if (!scriptRead) readScript();
     ticks++;
     while (next < nscript && script[next].tick <= ticks) {

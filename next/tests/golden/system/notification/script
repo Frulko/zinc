@@ -1,0 +1,5 @@
+2 notification-click build-42
+3 notification-action build-42 open
+4 notification-reply build-42 "looks good"
+5 notification-close build-42 user
+6 shortcut CmdOrCtrl+Q

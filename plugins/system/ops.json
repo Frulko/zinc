@@ -5,15 +5,19 @@
    "op": "notification.notify",
    "permission": "notification:notify",
    "params": {
+    "id": "string",
     "title": "string",
+    "subtitle?": "string",
     "body?": "string",
-    "id?": "string",
+    "icon?": "string",
+    "sound?": "boolean",
     "group?": "string",
     "actions?": "{id: string; title: string}[]",
-    "silent?": "boolean"
+    "reply?": "{placeholder?: string}",
+    "urgency?": "string"
    },
-   "returns": "{id: string}",
-   "sim": "{\"id\":\"n1\"}"
+   "returns": "{id: string; delivered: boolean; reason?: string}",
+   "sim": "{\"id\":\"\",\"delivered\":true}"
   },
   {
    "op": "notification.cancel",
@@ -28,15 +32,15 @@
    "op": "notification.requestPermission",
    "permission": "notification:permission",
    "params": {},
-   "returns": "{state: 'granted' | 'denied' | 'default'}",
+   "returns": "{state: 'granted' | 'denied' | 'default' | 'unsupported'}",
    "sim": "{\"state\":\"granted\"}"
   },
   {
    "op": "notification.delivered",
    "permission": "notification:notify",
    "params": {},
-   "returns": "{ids: string[]}",
-   "sim": "{\"ids\":[]}"
+   "returns": "{items: {id: string; title: string; body: string}[]}",
+   "sim": "{\"items\":[]}"
   },
   {
    "op": "menu.setApp",
@@ -297,6 +301,13 @@
    "params": {},
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "notification.backend",
+   "permission": "notification",
+   "params": {},
+   "returns": "{backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'}",
+   "sim": "{\"backend\":\"sim\"}"
   }
  ],
  "events": [

@@ -2,10 +2,10 @@
 #pragma once
 struct ZnSystemOp { const char* op; const char* permission; const char* sim; };
 static const ZnSystemOp kSystemOps[] = {
-  {"notification.notify", "notification:notify", "{\"id\":\"n1\"}"},
+  {"notification.notify", "notification:notify", "{\"id\":\"\",\"delivered\":true}"},
   {"notification.cancel", "notification:notify", "{}"},
   {"notification.requestPermission", "notification:permission", "{\"state\":\"granted\"}"},
-  {"notification.delivered", "notification:notify", "{\"ids\":[]}"},
+  {"notification.delivered", "notification:notify", "{\"items\":[]}"},
   {"menu.setApp", "menu", "{}"},
   {"menu.update", "menu", "{}"},
   {"menu.popup", "menu", "{\"id\":null}"},
@@ -34,5 +34,6 @@ static const ZnSystemOp kSystemOps[] = {
   {"clipboard.readRich", "clipboard:rich", "{\"text\":\"\",\"html\":\"\"}"},
   {"opener.open", "opener", "{}"},
   {"window.confirmClose", "window", "{}"},
+  {"notification.backend", "notification", "{\"backend\":\"sim\"}"},
 };
 static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer"};

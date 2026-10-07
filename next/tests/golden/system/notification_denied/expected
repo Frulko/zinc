@@ -1,0 +1,4 @@
+[system] notification.requestPermission {}
+[system] notification.notify {"id":"zn-1","title":"Hello","subtitle":"","body":"","icon":"","group":"","actions":[],"reply":""}
+permission denied
+delivered false permission denied
