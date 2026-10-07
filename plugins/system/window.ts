@@ -90,6 +90,8 @@ export function show(): void { call('window.show', {}); }
 export function focus(): void { call('window.focus', {}); }
 /** 'default' | 'hidden' (no title text) | 'overlay' (content under a transparent title bar, macOS) | 'none' (no frame). */
 export function setTitleBar(style: string): void { call('window.setTitleBar', { style: style }); }
+/** macOS: a blurred backdrop behind the window ('sidebar' | 'menu' | 'hud' | 'under-window'; '' removes it). Needs app.window.transparent: the key colour of the page (transparentColor, black by default) shows it. */
+export function setVibrancy(material: string): void { call('window.setVibrancy', { material: material }); }
 /** macOS: where the close, minimise and zoom buttons sit (AppKit moves them back on resize and fullscreen: they are reapplied). */
 export function setTrafficLights(x: number, y: number): void { call('window.setTrafficLights', { x: x, y: y }); }
 

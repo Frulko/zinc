@@ -20,19 +20,26 @@ static int zoom = 1;
 // ZINC_KIOSK override). fill: the logical surface follows the window (responsive layouts); letterbox: fixed surface, scaled.
 static bool fill = false, kiosk = false;
 // ZN-233: window properties from zinc.json app.window, the close veto and file drops (runtime/include/hal_window.h)
-static HalWindowConfig wcfg;
-static bool wcfg_set = false;
 static int (*close_handler)(void) = nullptr;
 static void (*drop_handler)(const char*, int) = nullptr;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
 extern "C" void hal_set_close_handler(int (*h)(void)) { close_handler = h; }
 extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler = h; }
 
+#ifdef __APPLE__
+extern "C" void hal_sdl_transparent_layers(void* nswindow);   // targets/macos/hal_cocoa.mm
+#endif
+static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
+static bool wcfg_set = false;
+static uint32_t* tbuf;         // transparent windows: the rows being uploaded with their alpha
+static size_t tbuf_n;
+
 static void alloc_surface() {
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
   SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
-  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
+  tex = SDL_CreateTexture(ren, wcfg_set && wcfg.transparent ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
+  if (wcfg_set && wcfg.transparent) SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
   SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
   fb = (uint32_t*)calloc((size_t)PW * PH, 4);
 }
@@ -134,6 +141,9 @@ void hal_init(const HalConfig* cfg) {
     SDL_DestroyProperties(props);
     if (!win || !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
     if (wcfg.min_w > 0 || wcfg.min_h > 0) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
+#ifdef __APPLE__
+    if (wcfg.transparent) hal_sdl_transparent_layers(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr));
+#endif
   }
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
@@ -432,8 +442,15 @@ void hal_present(const HalFrame* f) {
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
-    SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * PW, PW * 4);
+    if (wcfg_set && wcfg.transparent) {   // the key colour becomes alpha 0, everything else opaque
+      size_t n = (size_t)PW * (size_t)(f->y1 - f->y0);
+      if (tbuf_n < n) { free(tbuf); tbuf = (uint32_t*)malloc(n * 4); tbuf_n = n; }
+      const uint32_t key = wcfg.transparent_key & 0xFFFFFF, *src = fb + (size_t)f->y0 * PW;
+      for (size_t i = 0; i < n; i++) tbuf[i] = (src[i] & 0xFFFFFF) == key ? 0u : (src[i] | 0xFF000000u);
+      SDL_UpdateTexture(tex, &r, tbuf, PW * 4);
+    } else SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * PW, PW * 4);
   }
+  if (wcfg_set && wcfg.transparent) SDL_SetRenderDrawColor(ren, 0, 0, 0, 0);
   SDL_RenderClear(ren);
   SDL_RenderTexture(ren, tex, nullptr, nullptr);
   SDL_RenderPresent(ren);

@@ -1,0 +1,1 @@
+{"name":"vib","entry":"main.ts","permissions":["window"],"app":{"id":"dev.zinc.test.vibrancy","name":"Vibrancy Test","window":{"transparent":true,"transparentColor":"#000000","width":320,"height":200}},"targets":{"macos":{"width":320,"height":200}}}

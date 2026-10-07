@@ -503,11 +503,22 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
       if (none) m = (m & ~NSWindowStyleMaskTitled) | NSWindowStyleMaskBorderless; else m |= NSWindowStyleMaskTitled;
       w.styleMask = m;
     }
+    else if (!strcmp(op, "window.setVibrancy")) {   // an NSVisualEffectView behind SDL's view; the window must be transparent (app.window.transparent)
+      NSView* content = w.contentView;
+      static NSVisualEffectView* ev;
+      NSString* m = a[@"material"] ?: @"";
+      if (!m.length) { [ev removeFromSuperview]; ev = nil; }
+      else {
+        if (!ev) { ev = [[NSVisualEffectView alloc] initWithFrame:content.bounds]; ev.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; ev.blendingMode = NSVisualEffectBlendingModeBehindWindow; ev.state = NSVisualEffectStateActive; [content addSubview:ev positioned:NSWindowBelow relativeTo:nil]; }
+        ev.material = [m isEqualToString:@"sidebar"] ? NSVisualEffectMaterialSidebar : ([m isEqualToString:@"menu"] ? NSVisualEffectMaterialMenu : ([m isEqualToString:@"hud"] ? NSVisualEffectMaterialHUDWindow : NSVisualEffectMaterialUnderWindowBackground));
+        w.opaque = NO; w.backgroundColor = NSColor.clearColor;
+      }
+    }
     else if (!strcmp(op, "window.setTrafficLights")) { gTrafficLights = NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue]); [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidResizeNotification object:w]; }
     else if (!strcmp(op, "window.dump")) {
       NSButton* close = [w standardWindowButton:NSWindowCloseButton];
       NSButton* zoom = [w standardWindowButton:NSWindowZoomButton];
-      result = json(@{@"text": [NSString stringWithFormat:@"title %@\nopacity %.2f\ntitlebarTransparent %d\ntitleVisible %d\nfullSizeContent %d\ntitled %d\nalwaysOnTop %d\nclose %.0f,%.0f\nzoom %.0f,%.0f\nfullscreen %d\n", w.title, w.alphaValue, w.titlebarAppearsTransparent, w.titleVisibility == NSWindowTitleVisible, (w.styleMask & NSWindowStyleMaskFullSizeContentView) != 0, (w.styleMask & NSWindowStyleMaskTitled) != 0, w.level == NSFloatingWindowLevel, close.frame.origin.x, [close superview].frame.size.height - close.frame.origin.y - close.frame.size.height, zoom.frame.origin.x, [zoom superview].frame.size.height - zoom.frame.origin.y - zoom.frame.size.height, (w.styleMask & NSWindowStyleMaskFullScreen) != 0]});
+      result = json(@{@"text": [NSString stringWithFormat:@"title %@\nopacity %.2f\ntitlebarTransparent %d\ntitleVisible %d\nfullSizeContent %d\ntitled %d\nalwaysOnTop %d\nclose %.0f,%.0f\nzoom %.0f,%.0f\nfullscreen %d\nopaque %d\nwindowNumber %ld\nvibrancy %d\n", w.title, w.alphaValue, w.titlebarAppearsTransparent, w.titleVisibility == NSWindowTitleVisible, (w.styleMask & NSWindowStyleMaskFullSizeContentView) != 0, (w.styleMask & NSWindowStyleMaskTitled) != 0, w.level == NSFloatingWindowLevel, close.frame.origin.x, [close superview].frame.size.height - close.frame.origin.y - close.frame.size.height, zoom.frame.origin.x, [zoom superview].frame.size.height - zoom.frame.origin.y - zoom.frame.size.height, (w.styleMask & NSWindowStyleMaskFullScreen) != 0, w.isOpaque, (long)w.windowNumber, (int)[w.contentView.subviews.firstObject isKindOfClass:[NSVisualEffectView class]]]});
     }
     if (!result) result = @"{}";
   }

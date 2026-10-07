@@ -132,6 +132,7 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
   if (num("minHeight", n)) c.min_h = static_cast<int>(n);
   if (num("x", x) && num("y", y)) { c.has_position = 1; c.x = static_cast<int>(x); c.y = static_cast<int>(y); }
   bool b = false, frame = true;
+  if (yyjson_val* tc = yyjson_obj_get(w, "transparentColor"); tc && yyjson_is_str(tc)) c.transparent_key = static_cast<unsigned>(std::strtoul(yyjson_get_str(tc) + (yyjson_get_str(tc)[0] == '#' ? 1 : 0), nullptr, 16));   // "#rrggbb": the colour that is see-through
   if (flag("alwaysOnTop", b)) c.always_on_top = b;
   if (flag("transparent", b)) c.transparent = b;
   if (flag("resizable", b)) c.not_resizable = !b;

@@ -624,6 +624,15 @@
    "params": {},
    "returns": "{paths: string[]}",
    "sim": "{\"paths\":[]}"
+  },
+  {
+   "op": "window.setVibrancy",
+   "permission": "window",
+   "params": {
+    "material": "'' | 'sidebar' | 'menu' | 'hud' | 'under-window'"
+   },
+   "returns": "{}",
+   "sim": "{}"
   }
  ],
  "events": [

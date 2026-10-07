@@ -12,6 +12,7 @@ typedef struct HalWindowConfig {
   int always_on_top;            // 1: above the other windows
   int transparent;              // 1: the window background is transparent where the surface is
   int not_resizable;            // 1: fixed size
+  unsigned transparent_key;     // with `transparent`: the 0xRRGGBB colour that becomes see-through (default 0 = black); the rasterizer has no alpha channel, so a key colour stands for it
   char title[96];               // "" = the program's title
 } HalWindowConfig;
 /** Stores the configuration (copied) for the next window creation. */

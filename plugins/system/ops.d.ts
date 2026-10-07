@@ -71,6 +71,7 @@ export interface OpArgs {
   'clipboard.readImage': {  };
   'clipboard.writeFiles': { paths: string[] };
   'clipboard.readFiles': {  };
+  'window.setVibrancy': { material: '' | 'sidebar' | 'menu' | 'hud' | 'under-window' };
 }
 
 export interface OpResult {
@@ -143,6 +144,7 @@ export interface OpResult {
   'clipboard.readImage': {png: string};
   'clipboard.writeFiles': {};
   'clipboard.readFiles': {paths: string[]};
+  'window.setVibrancy': {};
 }
 
 export type OpName = keyof OpArgs;
