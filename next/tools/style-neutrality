@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""style-neutrality: a style change must not move any example pixel (ZN-277, docs/reports/ui-style-system.md ST-28).
+
+usage: tools/style-neutrality [--no-compare] [ENTRY...]
+1. the manifest of the prototype pixel goldens (tests/golden/examples/proto/manifest.json) is the one in HEAD: no row added, removed, loosened (tol, max_diff, skip) or given a new `known` difference;
+2. unless --no-compare: `tools/proto-capture compare [ENTRY...]` passes (this engine against the prototype's frames).
+Exit 1 on any change. Landing a deliberate re-baseline means committing the manifest on its own first, with the reason, and then this script passes again.
+"""
+import json, os, subprocess, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
+MAN = "next/tests/golden/examples/proto/manifest.json"
+args = sys.argv[1:]
+compare = "--no-compare" not in args
+entries = [a for a in args if not a.startswith("--")]
+
+def rows(text):
+    d = json.loads(text)
+    rs = d.get("entries", d) if isinstance(d, dict) else d
+    return {r["entry"]: r for r in rs} if isinstance(rs, list) else rs
+
+head = subprocess.run(["git", "show", "HEAD:" + MAN], cwd=ROOT, capture_output=True, text=True)
+if head.returncode != 0: sys.exit("style-neutrality: no manifest in HEAD: " + head.stderr.strip())
+old, new = rows(head.stdout), rows(open(os.path.join(ROOT, MAN)).read())
+bad = []
+for k in sorted(set(old) | set(new)):
+    if k not in new: bad.append("row removed: " + k)
+    elif k not in old: bad.append("row added: " + k)
+    elif old[k] != new[k]:
+        for f in sorted(set(old[k]) | set(new[k])):
+            if old[k].get(f) != new[k].get(f): bad.append("%s: %s changed (%r -> %r)" % (k, f, old[k].get(f), new[k].get(f)))
+for b in bad: print("MANIFEST", b)
+rc = 1 if bad else 0
+if compare:
+    r = subprocess.run([sys.executable, os.path.join(HERE, "proto-capture"), "compare"] + entries)
+    rc = rc or r.returncode
+print("style-neutrality:", "ok" if rc == 0 else "FAILED")
+sys.exit(rc)
