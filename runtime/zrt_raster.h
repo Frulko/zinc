@@ -74,6 +74,12 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 /** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */
 int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max);
+/** Compact record of a command of the previous frame (T0): content hash and damage bounds, 12 bytes. */
+struct CmdSig { uint32_t hash; int16_t x0, y0, x1, y1; };
+/** Fills `out[0 .. f.count)`. */
+void sign_frame(const Frame& f, int32_t w, int32_t h, CmdSig* out);
+/** Same damage as diff_rects(previous, now) (up to 32-bit hash collisions) with only the signatures of the previous frame. */
+int32_t diff_rects_sig(const CmdSig* before, uint32_t nbefore, const Frame& now, int32_t w, int32_t h, Rect* out, int32_t max);
 
 }  // namespace raster
 

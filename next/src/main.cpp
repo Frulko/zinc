@@ -602,6 +602,13 @@ int main(int argc, char** argv) {
     std::printf("bench %dx%d cmds=%d median_us=%.0f p99_us=%.0f hash=%016llx\n", rb.width, rb.height, rb.cmds, rb.medianUs, rb.p99Us, static_cast<unsigned long long>(rb.hash));
     return 0;
   }
+  if (argc == 6 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[4], "--damage")) {   // zinc capture --scene <before> --damage <now>: "damage <n> rects equal|DIFFERENT" (ZN-179)
+    int n = 0;
+    bool same = false;
+    if (!zn::host::damageCheck(argv[3], argv[5], n, same)) { std::fprintf(stderr, "zinc: cannot compare %s and %s\n", argv[3], argv[5]); return 1; }
+    std::printf("damage %d rects %s\n", n, same ? "equal" : "DIFFERENT");
+    return same ? 0 : 1;
+  }
   if (argc == 7 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "-o")) {  // zinc capture --scene <dump> <file> -o <png>: replay a ZINC_SCENE_DUMP through the software raster, with the fonts and images of <file> (ZN-170)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;

@@ -14,14 +14,39 @@
 
 namespace zn::host {
 
-bool benchScene(const char* scene, int runs, int threads, RenderBench& out) {
+namespace {
+struct Loaded { std::uint32_t head[8]; std::vector<zrt::raster::Cmd> cmds; std::vector<char> text; std::vector<float> pts; };
+bool load(const char* scene, Loaded& l) {
   std::ifstream f(scene, std::ios::binary);
-  std::uint32_t head[8];
-  if (!f.read(reinterpret_cast<char*>(head), sizeof head) || head[0] != 0x4e43535au || head[1] != 1 || head[4] != sizeof(zrt::raster::Cmd) || !head[2] || !head[3]) return false;
-  std::vector<zrt::raster::Cmd> cmds(head[5]);
-  std::vector<char> text(head[6] + 1);
-  std::vector<float> pts(head[7] + 1);
-  if (!f.read(reinterpret_cast<char*>(cmds.data()), static_cast<std::streamsize>(cmds.size() * sizeof(zrt::raster::Cmd))) || !f.read(text.data(), head[6]) || !f.read(reinterpret_cast<char*>(pts.data()), static_cast<std::streamsize>(head[7]) * 4)) return false;
+  std::uint32_t* head = l.head;
+  if (!f.read(reinterpret_cast<char*>(head), 32) || head[0] != 0x4e43535au || head[1] != 1 || head[4] != sizeof(zrt::raster::Cmd) || !head[2] || !head[3]) return false;
+  l.cmds.resize(head[5]); l.text.resize(head[6] + 1); l.pts.resize(head[7] + 1);
+  return f.read(reinterpret_cast<char*>(l.cmds.data()), static_cast<std::streamsize>(l.cmds.size() * sizeof(zrt::raster::Cmd))) && f.read(l.text.data(), head[6]) && f.read(reinterpret_cast<char*>(l.pts.data()), static_cast<std::streamsize>(head[7]) * 4);
+}
+}  // namespace
+
+bool damageCheck(const char* before, const char* now, int& rects, bool& same) {
+  Loaded a, b;
+  if (!load(before, a) || !load(now, b) || a.head[2] != b.head[2] || a.head[3] != b.head[3]) return false;
+  const int w = static_cast<int>(a.head[2]), h = static_cast<int>(a.head[3]);
+  const zrt::raster::Frame fa{a.cmds.data(), a.head[5], a.text.data(), a.pts.data()}, fb{b.cmds.data(), b.head[5], b.text.data(), b.pts.data()};
+  zrt::raster::Rect full[8], sig[8];
+  std::vector<zrt::raster::CmdSig> sigs(a.head[5] + 1);
+  zrt::raster::sign_frame(fa, w, h, sigs.data());
+  const int nf = zrt::raster::diff_rects(fa, fb, w, h, full, 8), ns = zrt::raster::diff_rects_sig(sigs.data(), a.head[5], fb, w, h, sig, 8);
+  rects = nf;
+  same = nf == ns;
+  for (int i = 0; same && i < nf; ++i) same = full[i].x0 == sig[i].x0 && full[i].y0 == sig[i].y0 && full[i].x1 == sig[i].x1 && full[i].y1 == sig[i].y1;
+  return true;
+}
+
+bool benchScene(const char* scene, int runs, int threads, RenderBench& out) {
+  Loaded l;
+  if (!load(scene, l)) return false;
+  std::uint32_t* head = l.head;
+  std::vector<zrt::raster::Cmd>& cmds = l.cmds;
+  std::vector<char>& text = l.text;
+  std::vector<float>& pts = l.pts;
   const int w = static_cast<int>(head[2]), h = static_cast<int>(head[3]);
   std::vector<std::uint32_t> px(static_cast<std::size_t>(w) * h);
   const zn::gfx::SceneList list{cmds.data(), head[5], text.data(), pts.data()};

@@ -579,41 +579,74 @@ Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
 
 static bool overlaps(Rect a, Rect b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }
 static int64_t area(Rect r) { return (int64_t)(r.x1 - r.x0) * (r.y1 - r.y0); }
+static Rect united(Rect a, Rect b) { grow(a, b); return a; }
+// The damage list (ZN-179): a rectangle joins an existing one when they overlap or when the union is smaller than the two apart (LVGL lv_refr.c join rule: area(union) < area(a) + area(b));
+// over budget the cheapest pair is merged, so the list never overflows and the frame is never redrawn whole just because there were many small changes.
+static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r) {
+  r = intersect(r, screen);
+  if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+  auto join_all = [&]() {
+    for (;;) {
+      int32_t hit = -1;
+      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r) || area(united(out[i], r)) < area(out[i]) + area(r)) { hit = i; break; }
+      if (hit < 0) return;
+      grow(r, out[hit]);
+      out[hit] = out[--n];
+    }
+  };
+  join_all();
+  if (n < max) { out[n++] = r; return; }
+  int32_t bi = 0; int64_t best = -1;
+  for (int32_t i = 0; i < n; i++) { int64_t cost = area(united(out[i], r)) - area(out[i]); if (best < 0 || cost < best) { best = cost; bi = i; } }
+  grow(r, out[bi]);
+  out[bi] = out[--n];
+  join_all();   // the grown rect may now overlap or join others
+  out[n++] = r;
+}
 int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max) {
   int32_t n = 0;
   const Rect screen{0, 0, w, h};
-  auto add = [&](Rect r) {
-    r = intersect(r, screen);
-    if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
-    // merge into an overlapping rect (cascading), else append; over budget, merge the cheapest pair
-    for (;;) {
-      int32_t hit = -1;
-      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r)) { hit = i; break; }
-      if (hit < 0) break;
-      grow(r, out[hit]);
-      out[hit] = out[--n];
-    }
-    if (n < max) { out[n++] = r; return; }
-    int32_t bi = 0; int64_t best = -1;
-    for (int32_t i = 0; i < n; i++) { Rect m = out[i]; grow(m, r); int64_t cost = area(m) - area(out[i]); if (best < 0 || cost < best) { best = cost; bi = i; } }
-    grow(r, out[bi]);
-    out[bi] = out[--n];
-    // the grown rect may now overlap others: re-add it
-    for (;;) {
-      int32_t hit = -1;
-      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r)) { hit = i; break; }
-      if (hit < 0) break;
-      grow(r, out[hit]);
-      out[hit] = out[--n];
-    }
-    out[n++] = r;
-  };
   uint32_t cnt = a.count > b.count ? a.count : b.count;
   for (uint32_t i = 0; i < cnt; i++) {
     bool ina = i < a.count, inb = i < b.count;
     if (ina && inb && same(a, a.cmds[i], b, b.cmds[i])) continue;
-    if (ina) add(cmd_bounds(a.cmds[i], w, h));
-    if (inb) add(cmd_bounds(b.cmds[i], w, h));
+    if (ina) damage_add(out, n, max, screen, cmd_bounds(a.cmds[i], w, h));
+    if (inb) damage_add(out, n, max, screen, cmd_bounds(b.cmds[i], w, h));
+  }
+  return n;
+}
+
+// Compact previous frame (T0, ZRT_COMPACT_PREV): 12 bytes per command instead of the 48-byte command plus its share of the pools.
+static uint32_t fnv(uint32_t h, const void* p, uint32_t n) { const uint8_t* b = (const uint8_t*)p; while (n--) { h ^= *b++; h *= 16777619u; } return h; }
+static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
+  uint32_t h = fnv(2166136261u, &c, (uint32_t)(sizeof(Cmd) - 2 * sizeof(uint32_t)));   // like same(): everything but the pool offsets, then the payload
+  h = fnv(h, &c.n, sizeof c.n);
+  if (c.kind == TEXT) h = fnv(h, f.text + c.off, c.n);
+  else if (c.kind == POLY || c.kind == LINE) {
+    const float* p = f.pts + c.off;
+    uint32_t len = 0;
+    for (uint32_t k = 0; k < c.n; k++) len += 1 + (uint32_t)p[len] * 2;
+    if (c.grad == 4) len += 8 + 3 * (uint32_t)p[len + 7];
+    h = fnv(h, p, len * (uint32_t)sizeof(float));
+  }
+  return h;
+}
+static int16_t i16(int32_t v) { return v < -32768 ? (int16_t)-32768 : v > 32767 ? (int16_t)32767 : (int16_t)v; }
+void sign_frame(const Frame& f, int32_t w, int32_t h, CmdSig* out) {
+  for (uint32_t i = 0; i < f.count; i++) {
+    Rect b = cmd_bounds(f.cmds[i], w, h);
+    out[i] = CmdSig{cmd_hash(f, f.cmds[i]), i16(b.x0), i16(b.y0), i16(b.x1), i16(b.y1)};
+  }
+}
+int32_t diff_rects_sig(const CmdSig* before, uint32_t nbefore, const Frame& now, int32_t w, int32_t h, Rect* out, int32_t max) {
+  int32_t n = 0;
+  const Rect screen{0, 0, w, h};
+  uint32_t cnt = nbefore > now.count ? nbefore : now.count;
+  for (uint32_t i = 0; i < cnt; i++) {
+    bool ina = i < nbefore, inb = i < now.count;
+    if (ina && inb && before[i].hash == cmd_hash(now, now.cmds[i])) continue;
+    if (ina) damage_add(out, n, max, screen, Rect{before[i].x0, before[i].y0, before[i].x1, before[i].y1});
+    if (inb) damage_add(out, n, max, screen, cmd_bounds(now.cmds[i], w, h));
   }
   return n;
 }
