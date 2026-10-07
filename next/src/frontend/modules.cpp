@@ -576,6 +576,13 @@ class SyntaxError extends Error { constructor(message: string) { super(message);
 
 // Math.random and Math.seed: the generator of the old runtime (xorshift32, default seed 0x2545F491), so seeded programs print the same numbers.
 // The checker rewrites the two calls into these functions; the prelude is added when a program mentions them.
+const char* kArrayFromPrelude = R"ZN(
+function __arrayFromLength<T>(n: number, f: (v: i32, i: i32) => T): T[] {
+  const r: T[] = [];
+  for (let i: i32 = 0; i < n; i++) r.push(f(0, i));
+  return r;
+}
+)ZN";
 const char* kRandomPrelude = R"ZN(
 let __rng: u32 = 0x2545F491;
 function __mathSeed(s: u32): void { __rng = s !== 0 ? s : 0x2545F491; }
@@ -838,6 +845,15 @@ class AwaitJobV extends Job {
 function __awaitV(p: PromiseV, k: (v: i32) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJobV(p, k, rej)); }
 
 // Generators run as continuations: `cont` is the rest of the body, `next` runs it until it yields a value or ends.
+function __genToArray<T>(g: Generator<T>): T[] {
+  const r: T[] = [];
+  while (g.step()) r.push(g.value[0]);
+  return r;
+}
+class IteratorResult<T> {
+  done: boolean = false;
+  value: T | null = null;
+}
 class Generator<T> {
   done: boolean = false;
   value: T[] = [];
@@ -850,13 +866,19 @@ class Generator<T> {
     this.onClose = [];
     for (const f of fs) f();
   }
-  next(): boolean {
+  next(): IteratorResult<T> {
+    const r = new IteratorResult<T>();
+    if (this.step()) r.value = this.value[0]; else r.done = true;
+    return r;
+  }
+  step(): boolean {
     this.value = [];
     while (!this.done && this.value.length === 0) {
       const c = this.cont;
       this.cont = () => { this.done = true; };
       c();
     }
+    if (this.done && this.value.length === 0) this.close();  // exhausted: the loops it was in let go of themselves
     return this.value.length > 0;
   }
 }
@@ -1141,6 +1163,11 @@ bool needsConsoleTime(const Ast& A) {
   return false;
 }
 
+bool needsArrayFrom(const Ast& A) {
+  for (const Node& x : A.nodes)
+    if (x.kind == N::Member && x.text == "from" && !x.kids.empty() && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "Array") return true;
+  return false;
+}
 bool needsRandom(const Ast& A) {
   for (const Node& x : A.nodes)
     if (x.kind == N::Member && (x.text == "random" || x.text == "seed") && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "Math") return true;
@@ -1219,11 +1246,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   bool json = p.diags.empty() && needsJson(p.ast);
   bool arena = p.diags.empty() && needsArena(p.ast);
   bool random = p.diags.empty() && needsRandom(p.ast);
+  bool arrayFrom = p.diags.empty() && needsArrayFrom(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || random || consoleX || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || random || arrayFrom || consoleX || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

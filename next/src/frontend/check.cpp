@@ -879,6 +879,42 @@ struct Checker {
     return r;
   }
   // m.forEach((value, key) => ...): a helper written in Zinc over the keys; the callback may take just the value
+  // arr.entries(), arr.keys(), arr.values(), map.entries(), set.entries(), set.keys(): the iterator of JavaScript is an array here (for-of, spread and Array.from take arrays).
+  // False when the receiver has the method natively (map.keys(), map.values(), set.values()) or is not one of these types.
+  bool iteratorMethod(std::uint32_t i, std::string_view m) {
+    std::uint32_t recvNode = n(n(i).kids[0]).kids[0];
+    TypeId rt = expr(recvNode);
+    if (bad(rt) || hasParam(rt)) return false;
+    TK k = ty(rt).k;
+    if (k != TK::Array && k != TK::Map && k != TK::Set) return false;
+    if ((k == TK::Map && m != "entries") || (k == TK::Set && m == "values")) return false;
+    TypeId K = k == TK::Map ? ty(rt).params[0] : num(Num::f64), V = ty(rt).elem;
+    std::string R, body;
+    std::vector<TypeId> aliases{rt};
+    auto arrOf = [&](TypeId e) { TypeId t = arrayOf(e); aliases.push_back(t); return std::make_pair(t, inspectAliasName(t)); };
+    TypeId result;
+    if (k == TK::Array) {
+      if (m == "entries") { TypeId tup = tupleOf({num(Num::f64), V}); aliases.push_back(tup); auto [t, nm] = arrOf(tup); result = t; R = nm; body = "  const r: " + R + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push([i, a[i]]);\n  return r;\n"; }
+      else if (m == "keys") { auto [t, nm] = arrOf(num(Num::f64)); result = t; R = nm; body = "  const r: " + R + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(i);\n  return r;\n"; }
+      else { result = rt; R = inspectAliasName(rt); body = "  return a.slice();\n"; }
+    } else if (k == TK::Map) {
+      TypeId tup = tupleOf({K, V}); aliases.push_back(tup);
+      auto [t, nm] = arrOf(tup); result = t; R = nm;
+      body = "  const ks = a.keys();\n  const vs = a.values();\n  const r: " + R + " = [];\n  for (let i: i32 = 0; i < ks.length; i++) r.push([ks[i], vs[i]]);\n  return r;\n";
+    } else {  // Set
+      if (m == "entries") { TypeId tup = tupleOf({V, V}); aliases.push_back(tup); auto [t, nm] = arrOf(tup); result = t; R = nm; body = "  const vs = a.values();\n  const r: " + R + " = [];\n  for (const v of vs) r.push([v, v]);\n  return r;\n"; }
+      else { auto [t, nm] = arrOf(V); result = t; R = nm; body = "  return a.values();\n"; }
+    }
+    aliases.push_back(result);
+    std::uint32_t sym = helper(std::string("iterm,") + std::string(m) + "," + std::to_string(rt), "function $F(a: " + inspectAliasName(rt) + "): " + R + " {\n" + body + "}\n", aliases, i);
+    std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+    out.nodeSym[id] = sym;
+    out.nodeType[id] = out.syms[sym].type;
+    a.nodes[i].kids = {id, recvNode};
+    rewritten.insert(i);
+    out.nodeType[i] = result;
+    return true;
+  }
   TypeId mapForEach(std::uint32_t i) {
     const std::vector<std::uint32_t> kids = n(i).kids;
     std::uint32_t recvNode = n(kids[0]).kids[0];
@@ -1318,6 +1354,13 @@ struct Checker {
     };
     while (!isNew && x.kids.size() > 1 && n(x.kids.back()).kind == N::Ident && n(x.kids.back()).text == "undefined" && lookup("undefined") == kNone && optionalArgMethod(n(x.kids[0]))) a.nodes[i].kids.pop_back();  // a trailing `undefined` is an omitted argument
     if (!isNew) { TypeId lc = libraryCall(i); if (lc != kNoType) return lc; }
+    if (!isNew && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "from" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "Array" && (lookup("Array") == kNone || out.syms[lookup("Array")].kind == SymKind::Builtin) && (x.kids.size() == 2 || x.kids.size() == 3)) {
+      // Array.from(iterable[, f]) is [...iterable][.map(f)]; Array.from({ length: n }, f) fills n elements with f(0, i)
+      std::uint32_t src = x.kids[1];
+      if (n(src).kind == N::ObjectLit && n(src).kids.size() == 1 && n(n(src).kids[0]).text == "length" && x.kids.size() == 3) {
+        if (replaceWith(i, "__arrayFromLength(__H0, __H1)", {{n(n(src).kids[0]).kids[0]}, {x.kids[2]}})) return expr0(i, myExpected);
+      } else if (x.kids.size() == 2 ? replaceWith(i, "[...__H0]", {{src}}) : replaceWith(i, "[...__H0].map(__H1)", {{src}, {x.kids[2]}})) return expr0(i, myExpected);
+    }
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
@@ -1427,6 +1470,8 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
+      } else if (cn.kind == N::Member && n(i).kids.size() == 1 && (cn.text == "entries" || cn.text == "keys" || cn.text == "values") && n(cn.kids[0]).kind != N::Super && iteratorMethod(i, cn.text)) {
+        return out.nodeType[i];
       } else if (cn.kind == N::Member && cn.text == "forEach" && n(cn.kids[0]).kind != N::Super && (ty(expr(cn.kids[0])).k == TK::Map || ty(out.nodeType[cn.kids[0]]).k == TK::Set)) {
         return mapForEach(i);
       } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
@@ -1608,7 +1653,15 @@ struct Checker {
           std::vector<std::uint32_t> run;
           auto flush = [&]() { if (!run.empty()) { holes.push_back({newNode(N::Array, {}, run, i)}); run.clear(); } };
           for (std::uint32_t e : std::vector<std::uint32_t>(x.kids)) {
-            if (n(e).kind == N::Spread) { flush(); holes.push_back({n(e).kids[0]}); } else run.push_back(e);
+            if (n(e).kind == N::Spread) {
+              std::uint32_t op = n(e).kids[0];
+              TypeId st = expr(op);  // the other iterables spread as the arrays their iterators are here
+              if (!bad(st) && ty(st).k == TK::Object && name(st).rfind("Generator<", 0) == 0) replaceWith(op, "__genToArray(__H0)", {{cloneNode(op, false)}});
+              else if (!bad(st) && ty(st).k == TK::Set) replaceWith(op, "__H0.values()", {{cloneNode(op, false)}});
+              else if (!bad(st) && ty(st).k == TK::Map) replaceWith(op, "__H0.entries()", {{cloneNode(op, false)}});
+              else if (!bad(st) && st == tStr) replaceWith(op, "__H0.split('')", {{cloneNode(op, false)}});
+              flush(); holes.push_back({op});
+            } else run.push_back(e);
           }
           flush();
           std::string text = holes.size() == 1 ? "__H0.slice()" : "__H0";
@@ -2283,10 +2336,16 @@ struct Checker {
           a.nodes[s].kids[1] = call;
           it = out.nodeType[call];
         }
+        if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) != 0 && lookupMember(ty(it).obj, "[Symbol.iterator]", false)) {  // an object with [Symbol.iterator](): iterate what it returns
+          std::uint32_t mem = newNode(N::Member, "[Symbol.iterator]", {x.kids[1]}, s);
+          std::uint32_t call = newNode(N::Call, {}, {mem}, s);
+          a.nodes[s].kids[1] = call;
+          it = expr(call);
+        }
         if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) == 0) {  // pull values lazily: while (g.next()) { const x = g.value[0]; ... }
           std::string g = "__g" + std::to_string(s);
           const Node& d0 = n(x.kids[0]);
-          auto r = snippet(a, "{ const " + g + " = __H0; while (" + g + ".next()) { " + std::string(x.text) + " " + std::string(d0.text) + " = " + g + ".value[0]; __H1; } " + g + ".close(); }", {{x.kids[1]}, {x.kids[2]}}, s);
+          auto r = snippet(a, "{ const " + g + " = __H0; while (" + g + ".step()) { " + std::string(x.text) + " " + std::string(d0.text) + " = " + g + ".value[0]; __H1; } " + g + ".close(); }", {{x.kids[1]}, {x.kids[2]}}, s);
           out.nodeType.resize(a.nodes.size(), kNoType);
           out.nodeSym.resize(a.nodes.size(), kNone);
           if (r.empty()) break;

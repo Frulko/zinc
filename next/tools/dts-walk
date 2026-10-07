@@ -69,6 +69,8 @@ def value(t):
     if t in ("number", "f64", "i32", "u32", "f32", "u8", "i64", "u64"): return "1"
     if t == "string": return '"a"'
     if t == "boolean": return "true"
+    if t.startswith("Iterable<") or t.startswith("ArrayLike<"): return "[1]"
+    if t.replace(" ", "") == "{length:number}": return "{ length: 2 }"
     if t == "Error": return "new Error('x')"
     if t == "void": return ""
     if t.startswith("Promise<"): return "Promise.resolve(1)"

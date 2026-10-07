@@ -1,0 +1,28 @@
+0 false
+true
+outer 0
+outer 1
+outer 2
+outer 3
+each 2
+each 4
+each 6
+range 1
+range 2
+range 3
+2
+3 2 4
+2 6 20
+a 1
+b 2
+key a
+key b
+val 1
+val 2
+set 5
+set 6
+2 2 2
+0 7
+1 8
+k 0
+k 1

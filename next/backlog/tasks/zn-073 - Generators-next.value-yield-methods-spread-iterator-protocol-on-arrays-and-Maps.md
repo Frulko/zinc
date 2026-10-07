@@ -3,9 +3,10 @@ id: ZN-073
 title: >-
   Generators: next().value, yield*, methods, spread, iterator protocol on arrays
   and Maps
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:50'
+updated_date: '2026-10-07 01:50'
 labels:
   - language
   - size-M
@@ -23,6 +24,12 @@ Type next() as IteratorResult<T, R>; add yield* delegation, generator methods (`
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures equal Node's output for each form
-- [ ] #2 audit 01 generator rows pass
+- [x] #1 fixtures equal Node's output for each form
+- [x] #2 audit 01 generator rows pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. next() returns IteratorResult<T> (step() is the internal boolean), yield* on generators (while step()), generator methods *name(), [Symbol.iterator]() for for-of, spread of generator/Set/Map/string, Array.from (iterable, mapper, {length}), entries/keys/values of Map, Set and Array as arrays; an exhausted generator releases its loops (no leak). Fixture equals Node. Limits: yield* of arrays, early exit of for-of does not run finally.
+<!-- SECTION:NOTES:END -->

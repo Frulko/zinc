@@ -336,8 +336,10 @@ struct Parser {
     if (inGenerator && isId("yield")) {
       std::uint32_t st = cur().start;
       ++i;
+      bool delegate = isP("*") && !newlineBefore();  // `yield* other()`: every value of the other generator
+      if (delegate) ++i;
       std::uint32_t e = (isP(";") || isP(")") || isP("}") || isP("]") || isP(",") || eof() || newlineBefore()) ? kNone : assignment();
-      return mk(N::Yield, st, prevEnd(), {}, {e});
+      return mk(N::Yield, st, prevEnd(), delegate ? "*" : "", {e});
     }
     std::uint32_t lhs = conditional();
     Op op = operatorAt();
@@ -791,7 +793,7 @@ struct Parser {
   }
 
   void memberName(std::string_view& name) {
-    if (isId("set") || isId("async") || isId("declare") || isP("*") || isP("[")) {
+    if (isId("set") || isId("async") || isId("declare") || isP("[")) {
       if (!(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) unsupported("setters, async and computed member names");
     }
     if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::PrivateName) unexpected();
@@ -839,11 +841,12 @@ struct Parser {
       }
       std::uint32_t fl = modifiers();
       std::string_view mname;
-      if (isP("[") && isId("Symbol", 1) && isP(".", 2) && isId("dispose", 3) && isP("]", 4)) {  // [Symbol.dispose]()
+      if (isP("[") && isId("Symbol", 1) && isP(".", 2) && (isId("dispose", 3) || isId("iterator", 3)) && isP("]", 4)) {  // [Symbol.dispose]() and [Symbol.iterator]()
         mname = s.substr(cur().start, at(4).end - cur().start);
         i += 5;
       } else {
       if (isId("async") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1) || isP("?", 1))) { ++i; fl |= kFlagAsync; }  // `async name(...)`
+      if (isP("*")) { ++i; fl |= kFlagGenerator; }  // `*name(...)`: a generator method
       if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
       if (isId("set") && at(1).kind == Tok::Ident && isP("(", 2)) {  // `set name(v: T) { ... }`: a method called __set_name; `obj.name = v` calls it
         ++i;
@@ -861,7 +864,7 @@ struct Parser {
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
         std::uint32_t body = kNone;
-        if (isP("{")) body = withFn((fl & kFlagAsync) != 0, false, [&] { return block(); });  // `await` is an operator in an async method's body
+        if (isP("{")) body = withFn((fl & kFlagAsync) != 0, (fl & kFlagGenerator) != 0, [&] { return block(); });  // `await` is an operator in an async method's body
         else if (fl & kFlagAbstract) semi();
         else fail(kZExpected, cur().start, "'{'");
         std::vector<std::uint32_t> mk_{ret, body};

@@ -239,6 +239,20 @@ struct Desugar {
   bool normalize0(Id s, Ids& R) {
     Node& x0 = n(s);
     N kind = x0.kind;
+    if (kind == N::ExprStmt && n(x0.kids[0]).kind == N::Yield && n(x0.kids[0]).text == "*") {  // yield* g;  =>  const t = g; while (t.step()) { yield t.value[0]; }
+      Id y = x0.kids[0];
+      Id e = n(y).kids[0];
+      std::string g = fresh("__ys");
+      Ids pre = sn("const " + g + " = __H0;", {{e}});
+      Ids val = sn(g + ".value[0];");
+      if (pre.empty() || val.empty()) return false;
+      a.nodes.push_back({N::Yield, n(y).start, n(y).end, "", {n(val[0]).kids[0]}, 0, n(y).file});
+      Id yn = static_cast<Id>(a.nodes.size() - 1);
+      Ids lp = sn("while (" + g + ".step()) { __H0; }", {{exprStmt(yn)}});
+      R = pre;
+      R.insert(R.end(), lp.begin(), lp.end());
+      return true;
+    }
     if (simpleForm(s)) return false;
     switch (kind) {
       case N::ExprStmt: case N::Return: case N::Throw: {
@@ -457,8 +471,9 @@ struct Desugar {
     for (Id i = 0; i < count; ++i) {
       N k = n(i).kind;
       if (k == N::Function) function(i);
-      else if ((k == N::Method || k == N::FuncExpr) && (n(i).flags & kFlagAsync) && !(n(i).flags & kFlagGenerator)) function(i);  // the same body rewrite (async methods, arrows and function expressions); `this` is captured by the arrow it makes
-      else if ((k == N::FuncExpr || k == N::Method) && (n(i).flags & (kFlagAsync | kFlagGenerator))) unsupported(i, k == N::Method ? "generator methods" : "generator expressions");
+      else if ((k == N::Method || k == N::FuncExpr) && (n(i).flags & kFlagAsync) && !(n(i).flags & kFlagGenerator)) function(i);
+      else if (k == N::Method && (n(i).flags & kFlagGenerator) && !(n(i).flags & kFlagAsync)) function(i);  // `*name()`: the generator rewrite of a function; `this` is captured by the arrows it makes  // the same body rewrite (async methods, arrows and function expressions); `this` is captured by the arrow it makes
+      else if ((k == N::FuncExpr || k == N::Method) && (n(i).flags & (kFlagAsync | kFlagGenerator))) unsupported(i, k == N::Method ? "async generator methods" : "generator expressions");
     }
   }
 };

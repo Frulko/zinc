@@ -110,6 +110,9 @@ interface Array<T> {
   shift(): T;
   unshift(v: T): i32;
   slice(start?: i32, end?: i32): T[];
+  entries(): [number, T][];
+  keys(): number[];
+  values(): T[];
   splice(start: i32, count?: i32): T[];
   indexOf(v: T, fromIndex?: i32): i32;
   lastIndexOf(v: T, fromIndex?: i32): i32;
@@ -135,7 +138,13 @@ interface Array<T> {
   [Symbol.iterator](): ArrayIterator<T>;
 }
 interface ReadonlyArray<T> { readonly length: i32; readonly [n: number]: T; }
-interface ArrayConstructor { isArray(v: unknown): v is any[]; }
+interface ArrayConstructor {
+  isArray(v: unknown): v is any[];
+  from<T>(it: Iterable<T> | ArrayLike<T>): T[];
+  from<T, U>(it: Iterable<T> | ArrayLike<T>, f: (v: T, i: number) => U): U[];
+  from<U>(o: { length: number }, f: (v: undefined, i: number) => U): U[];
+}
+interface ArrayLike<T> { readonly length: number; readonly [n: number]: T }
 declare var Array: ArrayConstructor;
 
 // ---- Map / Set (insertion ordered, LNG-19) ----
@@ -149,6 +158,7 @@ interface Map<K, V> {
   forEach(f: (v: V, k: K) => void): void;
   keys(): K[];
   values(): V[];
+  entries(): [K, V][];
   [Symbol.iterator](): MapIterator<[K, V]>;
 }
 interface MapConstructor { new <K, V>(): Map<K, V>; }
@@ -161,6 +171,8 @@ interface Set<T> {
   clear(): void;
   forEach(f: (v: T, k: T) => void): void;
   values(): T[];
+  keys(): T[];
+  entries(): [T, T][];
   [Symbol.iterator](): SetIterator<T>;
 }
 interface SetConstructor { new <T>(): Set<T>; }
