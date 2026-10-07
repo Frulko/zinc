@@ -895,7 +895,7 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
+      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
       auto hit = kStd.find(spec);
       readPlugins(prog.files[fromFile].path);
@@ -1895,6 +1895,7 @@ const char* builtinModuleSource(std::string_view spec) { return hostModuleSource
 
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
+  if (spec == "zinc:web") return "web.ts";
   if (spec == "zinc:ui/solid") return "solid.ts";
   if (spec == "zinc:ui/react") return "react.ts";
   if (spec == "zinc:ui/kit") return "kit/index.ts";

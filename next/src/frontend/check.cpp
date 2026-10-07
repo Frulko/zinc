@@ -221,8 +221,35 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && recordWidenable(from, to) && (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate)) return true;   // checked over type parameters, lowered per instance
+    if (node != kNone && recordWidenable(from, to)) {   // a record with more fields where a record with fewer is expected: a copy of the fields asked for
+      std::string body;
+      for (const Member& m : out.objs[ty(to).obj].members) {
+        const Member* fm = findMember(out.objs[ty(from).obj], m.name);
+        body += (body.empty() ? "" : ", ") + m.name + ": " + (fm ? "r." + m.name : std::string("null"));
+      }
+      std::uint32_t sym = helper("widen," + std::to_string(from) + "," + std::to_string(to), "function $F(r: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return { " + body + " };\n}\n", {from, to}, node);
+      wrapNode(node, sym);
+      return true;
+    }
     diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'");
     return false;
+  }
+  static const Member* findMember(const ObjInfo& o, const std::string& nm) {
+    for (const Member& m : o.members) if (m.name == nm && !m.method && !m.isStatic) return &m;
+    return nullptr;
+  }
+  // Every field of `to` is a field of `from` with the same type (or an optional one `from` lacks): both are records, so a copy is cheap and the sharing is not observable.
+  bool recordWidenable(TypeId from, TypeId to) const {
+    if (bad(from) || bad(to) || ty(from).k != TK::Object || ty(to).k != TK::Object) return false;
+    const ObjInfo &f = out.objs[ty(from).obj], &t = out.objs[ty(to).obj];
+    if (!(f.isRecord || f.isInterface) || !t.isRecord || t.members.empty()) return false;
+    for (const Member& m : t.members) {
+      if (m.method || m.isStatic) return false;
+      const Member* fm = findMember(f, m.name);
+      if (!fm ? !m.optional : fm->type != m.type) return false;
+    }
+    return true;
   }
 
   // ---- scopes
@@ -1851,11 +1878,11 @@ struct Checker {
         narrowing.resize(mark);
         if (bad(p)) return q;
         if (bad(q)) return p;
-        if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) return expected;  // both branches fit the type asked for (c ? 1 : 0 into an i32)
+        if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) { convertDyn(p, expected, x.kids[1]); convertDyn(q, expected, x.kids[2]); return expected; }  // both branches fit the type asked for (c ? 1 : 0 into an i32)
         if (q == tNull && p != tNull && !isDyn(p)) return unionOf({p, tNull});  // c ? x : null
         if (p == tNull && q != tNull && !isDyn(q)) return unionOf({q, tNull});
-        if (assignable(q, p, x.kids[2])) return p;
-        if (assignable(p, q, x.kids[1])) return q;
+        if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
+        if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) == 1) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
         require(q, p, x.kids[2]);  // conversions (a thunk, a promise that only rejects) or the error
         return p;
@@ -2711,8 +2738,10 @@ struct Checker {
       else { TypeId nn = withoutNull(cur); if (nn != kNoType && nn != cur) fs.push_back({sy, nn}); }
       return;
     }
-    if (c.text == "instanceof" && n(c.kids[0]).kind == N::Ident && out.nodeSym[c.kids[0]] != kNone && trackable(out.nodeSym[c.kids[0]]) && out.nodeSym[c.kids[1]] != kNone) {
-      std::uint32_t sy = out.nodeSym[c.kids[0]];
+    std::uint32_t subject = c.kids[0];   // a narrowed Dyn is the Ident under its conversion call
+    if (n(subject).kind == N::Call && n(subject).kids.size() == 2 && n(n(subject).kids[1]).kind == N::Ident) subject = n(subject).kids[1];
+    if (c.text == "instanceof" && n(subject).kind == N::Ident && out.nodeSym[subject] != kNone && trackable(out.nodeSym[subject]) && out.nodeSym[c.kids[1]] != kNone) {
+      std::uint32_t sy = out.nodeSym[subject];
       TypeId nt = narrowByInstanceOf(currentType(sy, &fs), out.syms[out.nodeSym[c.kids[1]]].type, truthy);
       if (nt != kNoType) fs.push_back({sy, nt});
     }

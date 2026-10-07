@@ -137,7 +137,14 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
                (fmtOk ? "(c: i64[], lvl: i32): string => " + inspectFmtName(t) + "(o, c, lvl)" : "(c: i64[], lvl: i32): string => '[Object]'") + ",\n    " +
                (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + ");\n";
       } else {
-        body = "  if (d instanceof DynRef && d.hasTag(" + std::to_string(t) + ")) return (d as DynRefT<" + A + ">).o;\n";
+        body = "  if (d instanceof DynRef && d.exact(" + std::to_string(t) + ")) return (d as DynRefT<" + A + ">).o;\n";
+        if (oi.isClass && !oi.isRecord && !oi.isTemplate)   // the view of an instance of a subclass is typed with that subclass
+          for (std::uint32_t so = 0; so < c.objs.size(); ++so) {
+            const ObjInfo& si = c.objs[so];
+            TypeId st = so != x.obj && si.isClass && !si.isRecord && !si.isTemplate && !si.isAbstract && isSubclass(c, so, x.obj) ? typeOfObject(c, so) : kNoType;
+            if (st != kNoType) deps.push_back({st, false});   // its alias must exist too
+            if (st != kNoType) body += "  if (d instanceof DynRef && d.exact(" + std::to_string(st) + ")) return (d as DynRefT<" + inspectAliasName(st) + ">).o;\n";
+          }
         if (oi.isRecord) {
           body += "  if (d instanceof DynObj || d instanceof DynRef) {\n    const r: " + A + " = { ";
           bool first = true;
@@ -208,6 +215,7 @@ abstract class DynRef extends Dyn {
   kind(): i32 { return 7; }
   toString(): string { return '[object Object]'; }
   hasTag(t: i32): boolean { return this.tags.indexOf(t) >= 0; }
+  exact(t: i32): boolean { return this.tags[0] === t; }
   abstract get(n: string): any;
   abstract set(n: string, v: any): void;
   abstract has(n: string): boolean;
