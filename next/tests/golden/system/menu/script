@@ -1,0 +1,4 @@
+1 dialog-answer b
+2 menu-click open app
+3 menu-click role:copy app
+4 shortcut x

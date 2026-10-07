@@ -12,6 +12,7 @@
       ],
       "frameworks": [
         "Foundation",
+        "AppKit",
         "UserNotifications"
       ],
       "flags": [
@@ -21,6 +22,7 @@
     "linux": {}
   },
   "modules": {
-    "zinc:system/notification": "notification.ts"
+    "zinc:system/notification": "notification.ts",
+    "zinc:system/menu": "menu.ts"
   }
 }

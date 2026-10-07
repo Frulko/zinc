@@ -35,6 +35,8 @@ export interface OpArgs {
   'opener.open': { target: string };
   'window.confirmClose': {  };
   'notification.backend': {  };
+  'menu.dump': {  };
+  'menu.perform': { path: string };
 }
 
 export interface OpResult {
@@ -71,6 +73,8 @@ export interface OpResult {
   'opener.open': {};
   'window.confirmClose': {};
   'notification.backend': {backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'};
+  'menu.dump': {text: string};
+  'menu.perform': {ok: boolean};
 }
 
 export type OpName = keyof OpArgs;

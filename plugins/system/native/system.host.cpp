@@ -58,6 +58,8 @@ bool jsonString(const char* json, const char* key, char* out, size_t cap) {
 struct SimNote { char id[64], title[128], body[256]; };
 
 struct Sim : NativeSystem, zrt::Poller {
+  char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
+  int nanswers = 0, nextAnswer = 0;
   SimNote notes[32];
   int nnotes = 0;
   int nextNote = 1;
@@ -106,11 +108,12 @@ struct Sim : NativeSystem, zrt::Poller {
     }
   }
   void log(const char* a, const char* b = "", const char* c = "", const char* d = "") {
-    char line[2600];
-    int n = snprintf(line, sizeof line, "%s%s%s%s\n", a, b, c, d);
-    if (n > (int)sizeof line - 1) n = (int)sizeof line - 1;
+    size_t cap = strlen(a) + strlen(b) + strlen(c) + strlen(d) + 2;
+    char* line = (char*)malloc(cap);
+    int n = snprintf(line, cap, "%s%s%s%s\n", a, b, c, d);
     if (toStdout) hal_log(line, (size_t)n);   // the runtime's own stdout, so the lines interleave with console.log in call order
     else if (logFile) { fwrite(line, 1, (size_t)n, logFile); fflush(logFile); }
+    free(line);
   }
   bool allowed(const char* perm) const {   // `window:state` is covered by `window:state` and by `window`; `tray` by `tray`
     size_t feat = strcspn(perm, ":");
@@ -136,10 +139,13 @@ struct Sim : NativeSystem, zrt::Poller {
   zrt::String backend() override { return zrt::String::from("sim", 3); }
 #endif
   zrt::String call(zrt::String op, zrt::String json) override {
-    char name[96], args[2048];
+    char name[96];
+    char* args = (char*)malloc(json.bytes() + 1);   // a menu template is long
+    struct Free { char* p; ~Free() { free(p); } } freeArgs{args};
     self() = this;
+    if (!scriptRead) readScript();   // the queued dialog answers must exist before the first dialog
     snprintf(name, sizeof name, "%.*s", (int)op.bytes(), op.ptr());
-    snprintf(args, sizeof args, "%.*s", (int)json.bytes(), json.ptr());
+    memcpy(args, json.ptr(), json.bytes()); args[json.bytes()] = 0;
     char buf[512];
     for (const ZnSystemOp& o : kSystemOps) {
       if (strcmp(name, o.op)) continue;
@@ -150,15 +156,26 @@ struct Sim : NativeSystem, zrt::Poller {
       }
       log("[system] ", name, " ", args);
 #ifdef __APPLE__
-      if (live) { char big[3000]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
+      if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
+      if (!strcmp(name, "menu.popup") || !strncmp(name, "dialog.", 7)) return answer(name);
       if (!strcmp(name, "window.confirmClose") && hal_set_close_handler) zrt::quit_requested = true;   // a real window: the veto of the close button ends here
       return zrt::String::from(o.sim, (uint32_t)strlen(o.sim));
     }
     log("[system] error unknown op ", name);
     int n = snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"unsupported\",\"message\":\"unknown op %s\"}}", name);
     return zrt::String::from(buf, (uint32_t)n);
+  }
+  zrt::String answer(const char* name) {
+    const char* a = nextAnswer < nanswers ? answers[nextAnswer++] : "cancel";
+    bool cancel = !strcmp(a, "cancel");
+    char buf[600];
+    if (!strcmp(name, "menu.popup")) { if (cancel) return reply("{\"id\":null}"); snprintf(buf, sizeof buf, "{\"id\":"); appendJson(buf, sizeof buf, a); strcat(buf, "}"); return reply(buf); }
+    if (!strcmp(name, "dialog.open")) { if (cancel) return reply("{\"paths\":null}"); snprintf(buf, sizeof buf, "{\"paths\":["); appendJson(buf, sizeof buf, a); strcat(buf, "]}"); return reply(buf); }
+    if (!strcmp(name, "dialog.save")) { if (cancel) return reply("{\"path\":null}"); snprintf(buf, sizeof buf, "{\"path\":"); appendJson(buf, sizeof buf, a); strcat(buf, "}"); return reply(buf); }
+    snprintf(buf, sizeof buf, "{\"button\":%d}", cancel ? 0 : atoi(a));   // dialog.message: the index of the button
+    return reply(buf);
   }
   zrt::String reply(const char* json) { return zrt::String::from(json, (uint32_t)strlen(json)); }
   /** The simulator's notification centre: ZINC_SYSTEM_NOTIFICATION_PERMISSION=granted (default) | denied | default decides what show() may do; the same id replaces. */
@@ -229,6 +246,7 @@ struct Sim : NativeSystem, zrt::Poller {
       bool known = false;
       for (const char* e : kSystemEvents) known = known || !strcmp(words[1], e);
       if (!known) { log("[system] error unknown event ", words[1]); continue; }
+      if (!strcmp(words[1], "dialog-answer")) { if (nanswers < 16) snprintf(answers[nanswers++], sizeof answers[0], "%s", nw > 2 ? words[2] : "cancel"); continue; }   // queued now, whatever its tick
       ScriptEvent& ev = script[nscript++];
       ev.tick = atol(words[0]);
       snprintf(ev.json, sizeof ev.json, "{\"type\":");

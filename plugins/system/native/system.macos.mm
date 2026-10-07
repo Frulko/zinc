@@ -2,6 +2,7 @@
 // `osascript` otherwise. A plain C interface for system.host.cpp, which cannot include Foundation next to zrt.h. Events come from the delegate on a system thread: they wait in a queue
 // that the host drains in poll().
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
 #include <string.h>
 
@@ -78,14 +79,155 @@ static NSString* osascript(NSDictionary* a) {
   return json(t.terminationStatus == 0 ? @{@"id": a[@"id"] ?: @"", @"delivered": @YES} : @{@"id": a[@"id"] ?: @"", @"delivered": @NO, @"reason": @"osascript failed"});
 }
 
+
+// ---------------------------------------------------------------- menus (ZN-236)
+static NSMutableDictionary<NSString*, NSMenuItem*>* gMenuItems;
+static NSString* gPicked;       // popup: the id that was chosen
+static BOOL gInPopup = NO;
+
+@interface ZnMenuTarget : NSObject
+- (void)znClicked:(NSMenuItem*)item;
+@end
+@implementation ZnMenuTarget
+- (void)znClicked:(NSMenuItem*)item {
+  NSString* ident = item.representedObject;
+  if (!ident) return;
+  if (gInPopup) gPicked = ident;
+  pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : @"app"]);
+}
+@end
+static ZnMenuTarget* menuTarget() { static ZnMenuTarget* t; static dispatch_once_t once; dispatch_once(&once, ^{ t = [ZnMenuTarget new]; gMenuItems = [NSMutableDictionary new]; }); return t; }
+
+static NSString* keyEquivalentOf(NSString* key) {   // the canonical key names of accelerator.ts
+  if (key.length == 1) return key.lowercaseString;
+  static NSDictionary* named = @{@"Space": @" ", @"Tab": @"\t", @"Enter": @"\r", @"Escape": @"\x1b", @"Backspace": @"\x08", @"Plus": @"+", @"Minus": @"-", @"Equal": @"=", @"Comma": @",", @"Period": @".", @"Slash": @"/", @"Backslash": @"\\",
+    @"Semicolon": @";", @"Quote": @"'", @"Backquote": @"`", @"BracketLeft": @"[", @"BracketRight": @"]"};
+  if (named[key]) return named[key];
+  unichar fn = 0;
+  if ([key isEqualToString:@"Up"]) fn = NSUpArrowFunctionKey; else if ([key isEqualToString:@"Down"]) fn = NSDownArrowFunctionKey; else if ([key isEqualToString:@"Left"]) fn = NSLeftArrowFunctionKey;
+  else if ([key isEqualToString:@"Right"]) fn = NSRightArrowFunctionKey; else if ([key isEqualToString:@"Home"]) fn = NSHomeFunctionKey; else if ([key isEqualToString:@"End"]) fn = NSEndFunctionKey;
+  else if ([key isEqualToString:@"PageUp"]) fn = NSPageUpFunctionKey; else if ([key isEqualToString:@"PageDown"]) fn = NSPageDownFunctionKey; else if ([key isEqualToString:@"Delete"]) fn = NSDeleteFunctionKey;
+  else if ([key isEqualToString:@"Insert"]) fn = NSInsertFunctionKey;
+  else if ([key hasPrefix:@"F"] && key.length >= 2) fn = (unichar)(NSF1FunctionKey + [[key substringFromIndex:1] intValue] - 1);
+  return fn ? [NSString stringWithCharacters:&fn length:1] : @"";
+}
+static SEL selectorOfRole(NSString* r) {
+  if ([r isEqualToString:@"about"]) return @selector(orderFrontStandardAboutPanel:);
+  if ([r isEqualToString:@"hide"]) return @selector(hide:);
+  if ([r isEqualToString:@"hideOthers"]) return @selector(hideOtherApplications:);
+  if ([r isEqualToString:@"unhide"]) return @selector(unhideAllApplications:);
+  if ([r isEqualToString:@"close"]) return @selector(performClose:);
+  if ([r isEqualToString:@"minimize"]) return @selector(performMiniaturize:);
+  if ([r isEqualToString:@"zoom"]) return @selector(performZoom:);
+  if ([r isEqualToString:@"front"]) return @selector(arrangeInFront:);
+  if ([r isEqualToString:@"togglefullscreen"]) return @selector(toggleFullScreen:);
+  return nullptr;
+}
+static NSMenu* buildMenu(NSArray* items, NSString* title) {
+  NSMenu* m = [[NSMenu alloc] initWithTitle:title ?: @""];
+  m.autoenablesItems = NO;
+  for (NSDictionary* d in items) {
+    if ([d[@"type"] isEqualToString:@"separator"]) { [m addItem:[NSMenuItem separatorItem]]; continue; }
+    NSMenuItem* it = [[NSMenuItem alloc] initWithTitle:d[@"label"] ?: @"" action:nil keyEquivalent:@""];
+    NSString* ident = d[@"id"];
+    if (d[@"submenu"]) it.submenu = buildMenu(d[@"submenu"], d[@"label"]);
+    else if ([d[@"native"] boolValue] && selectorOfRole(d[@"role"])) { it.action = selectorOfRole(d[@"role"]); it.target = nil; }   // the responder chain answers
+    else if ([d[@"role"] isEqualToString:@"services"]) { NSMenu* sm = [[NSMenu alloc] initWithTitle:@"Services"]; it.submenu = sm; [NSApp setServicesMenu:sm]; }
+    else { it.action = @selector(znClicked:); it.target = menuTarget(); }
+    if ([d[@"role"] isEqualToString:@"services"] && !it.submenu) { NSMenu* sm = [[NSMenu alloc] initWithTitle:@"Services"]; it.submenu = sm; [NSApp setServicesMenu:sm]; }
+    if ([d[@"native"] boolValue] && [d[@"role"] isEqualToString:@"services"]) { it.action = nil; }
+    if (ident.length) { it.representedObject = ident; gMenuItems[ident] = it; }
+    if (d[@"key"]) { it.keyEquivalent = keyEquivalentOf(d[@"key"]); it.keyEquivalentModifierMask = (NSEventModifierFlags)[d[@"mods"] unsignedLongValue]; }
+    if (d[@"enabled"] && ![d[@"enabled"] boolValue]) it.enabled = NO;
+    if ([d[@"visible"] isEqualToNumber:@NO]) it.hidden = YES;
+    if ([d[@"checked"] boolValue]) it.state = NSControlStateValueOn;
+    [m addItem:it];
+  }
+  return m;
+}
+static void dumpMenu(NSMenu* m, int depth, NSMutableString* out) {
+  for (NSMenuItem* it in m.itemArray) {
+    if (it.isSeparatorItem) { [out appendFormat:@"%*s----\n", depth * 2, ""]; continue; }
+    NSMutableString* line = [NSMutableString stringWithFormat:@"%*s%@", depth * 2, "", it.title];
+    if (it.keyEquivalent.length) {
+      NSEventModifierFlags f = it.keyEquivalentModifierMask;
+      NSMutableString* k = [NSMutableString new];
+      if (f & NSEventModifierFlagControl) [k appendString:@"Ctrl+"];
+      if (f & NSEventModifierFlagOption) [k appendString:@"Alt+"];
+      if (f & NSEventModifierFlagShift) [k appendString:@"Shift+"];
+      if (f & NSEventModifierFlagCommand) [k appendString:@"Cmd+"];
+      [k appendString:it.keyEquivalent.length == 1 && [it.keyEquivalent characterAtIndex:0] > 0x20 && [it.keyEquivalent characterAtIndex:0] < 0x7f ? it.keyEquivalent.uppercaseString : [NSString stringWithFormat:@"U+%04X", [it.keyEquivalent characterAtIndex:0]]];
+      [line appendFormat:@"  [%@]", k];
+    }
+    if (!it.enabled) [line appendString:@"  (disabled)"];
+    if (it.state == NSControlStateValueOn) [line appendString:@"  (checked)"];
+    if (it.hidden) [line appendString:@"  (hidden)"];
+    if (it.representedObject) [line appendFormat:@"  {%@}", it.representedObject];
+    else if (it.action && it.target == nil) [line appendFormat:@"  <%@>", NSStringFromSelector(it.action)];
+    [out appendFormat:@"%@\n", line];
+    if (it.submenu && it.submenu != NSApp.servicesMenu) dumpMenu(it.submenu, depth + 1, out);
+  }
+}
+static NSMenuItem* findByPath(NSMenu* m, NSArray<NSString*>* path, int i) {
+  for (NSMenuItem* it in m.itemArray) {
+    if (![it.title isEqualToString:path[i]]) continue;
+    if (i + 1 == (int)path.count) return it;
+    if (it.submenu) return findByPath(it.submenu, path, i + 1);
+  }
+  return nil;
+}
+
+static int menuCall(const char* op, NSDictionary* a, char* out, int cap) {
+  menuTarget();
+  [NSApplication sharedApplication];
+  NSString* result = nil;
+  if (!strcmp(op, "menu.setApp")) {
+    [gMenuItems removeAllObjects];
+    NSMenu* bar = buildMenu(a[@"template"], @"");   // the first entry is the application menu, macOS names it after the process
+    NSApp.mainMenu = bar;
+    result = @"{}";
+  } else if (!strcmp(op, "menu.update")) {
+    NSMenuItem* it = gMenuItems[a[@"id"] ?: @""];
+    NSDictionary* p = a[@"props"];
+    if (it && p[@"label"]) it.title = p[@"label"];
+    if (it && p[@"enabled"]) it.enabled = [p[@"enabled"] boolValue];
+    if (it && p[@"checked"]) it.state = [p[@"checked"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    result = @"{}";
+  } else if (!strcmp(op, "menu.popup")) {
+    NSMenu* m = buildMenu(a[@"template"], @"");
+    gPicked = nil; gInPopup = YES;
+    NSPoint p = NSMakePoint([a[@"x"] doubleValue], [NSScreen mainScreen].frame.size.height - [a[@"y"] doubleValue]);
+    [m popUpMenuPositioningItem:nil atLocation:p inView:nil];   // blocks while the menu is tracked
+    gInPopup = NO;
+    result = json(@{@"id": gPicked ?: [NSNull null]});
+  } else if (!strcmp(op, "menu.dump")) {
+    NSMutableString* text = [NSMutableString new];
+    if (NSApp.mainMenu) dumpMenu(NSApp.mainMenu, 0, text);
+    result = json(@{@"text": text});
+  } else if (!strcmp(op, "menu.perform")) {
+    NSArray* path = [(NSString*)a[@"path"] componentsSeparatedByString:@"/"];
+    NSMenuItem* it = NSApp.mainMenu ? findByPath(NSApp.mainMenu, path, 0) : nil;
+    BOOL did = NO;
+    if (it && it.menu && it.enabled) { [it.menu performActionForItemAtIndex:[it.menu indexOfItem:it]]; did = YES; }
+    result = json(@{@"ok": @(did)});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
 int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
   @autoreleasepool {
     ensureQueue();
-    if (strncmp(op, "notification.", 13) != 0) return 0;
     NSDictionary* a = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:args length:strlen(args)] options:0 error:nil] ?: @{};
+    if (!strncmp(op, "menu.", 5)) {
+      @try { return menuCall(op, a, out, cap); }
+      @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
+    }
+    if (strncmp(op, "notification.", 13) != 0) return 0;
     NSString* result = nil;
     BOOL native = bundled();
     if (!strcmp(op, "notification.backend")) result = json(@{@"backend": native ? @"native" : @"osascript"});

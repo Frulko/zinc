@@ -308,6 +308,22 @@
    "params": {},
    "returns": "{backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'}",
    "sim": "{\"backend\":\"sim\"}"
+  },
+  {
+   "op": "menu.dump",
+   "permission": "menu",
+   "params": {},
+   "returns": "{text: string}",
+   "sim": "{\"text\":\"\"}"
+  },
+  {
+   "op": "menu.perform",
+   "permission": "menu",
+   "params": {
+    "path": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":false}"
   }
  ],
  "events": [

@@ -1,0 +1,35 @@
+Notes
+  About Notes  {role:about}
+  ----
+  Services  {role:services}
+  ----
+  Hide Notes  [Cmd+H]  {role:hide}
+  Hide Others  [Alt+Cmd+H]  {role:hideOthers}
+  Show All  {role:unhide}
+  ----
+  Quit Notes  [Cmd+Q]  {role:quit}
+File
+  New  [Cmd+N]  {new}
+  Open...  [Cmd+O]  {open}
+  ----
+  Close  [Cmd+W]  {role:close}
+Edit
+  Undo  [Cmd+Z]  {role:undo}
+  Redo  [Shift+Cmd+Z]  {role:redo}
+  ----
+  Cut  [Cmd+X]  {role:cut}
+  Copy  [Cmd+C]  {role:copy}
+  Paste  [Cmd+V]  {role:paste}
+  Select All  [Cmd+A]  {role:selectAll}
+View
+  Enter Full Screen  [Ctrl+Cmd+F]  {role:togglefullscreen}
+Window
+  Minimize  [Cmd+M]  {role:minimize}
+  Zoom  {role:zoom}
+  ----
+  Bring All to Front  {role:front}
+
+{"ok":true}
+{"ok":true}
+open clicked from app
+copy role event

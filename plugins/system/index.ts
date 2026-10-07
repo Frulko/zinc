@@ -33,6 +33,14 @@ let closePrevented = false;
 /** Inside a 'window' close-requested handler: keeps the window open (close to tray). Without it the close goes ahead after the handlers. */
 export function preventClose(): void { closePrevented = true; }
 
+/** Like `call`, with the arguments already encoded as JSON text (the menu model is encoded by hand: roles expanded, ids and accelerators checked). */
+export function callRaw(op: string, json: string): unknown {
+  const r = JSON.parse(S.call(op, json));
+  const err = r.error;
+  if (err !== undefined) throw new SystemError(err.code, err.message);
+  return r;
+}
+
 const handlers: ((args: string[]) => void)[][] = [];
 const names: string[] = [];
 let listening = false;
