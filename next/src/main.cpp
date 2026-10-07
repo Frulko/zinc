@@ -19,6 +19,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "frontend/capabilities.h"
+#include "tc/bundle.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
 #include "zn/host.h"
@@ -239,12 +240,26 @@ extern "C" const ZnModule* zn_module_QuickJS(void);   // src/qjs/script_native.c
 extern "C" const ZnModule* fixture_module(void);
 #endif
 
+// The BundleSpec of a zinc.json `app` (icon made absolute against the project directory).
+static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std::string& projectDir) {
+  zn::tc::BundleSpec b;
+  b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
+  b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
+  if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
+  return b;
+}
+static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
+static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
+static zn::tc::BundleSpec gBundleSpec;
+
 int main(int argc, char** argv) {
+  for (int k = 0; k < argc; ++k) gOriginalArgs.push_back(argv[k]);
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
 #endif
   gRoot = zn::tc::sourceRoot(ZN_SOURCE_DIR);
+  if (std::getenv("ZINC_DEVAPP_SELFTEST") && std::getenv("ZINC_DEVAPP")) std::fprintf(stderr, "devapp: %s (bundle id of this process: %s)\n", std::getenv("ZINC_DEVAPP"), zn::tc::runningBundleId().c_str());   // ZN-234 selftest
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
@@ -282,6 +297,13 @@ int main(int argc, char** argv) {
     int rc = runTestCommand(self ? self : argv[0], *tp, gRoot, tdir, runner);
     std::free(self);
     return rc;
+  }
+  if (argc == 2 && !std::strcmp(argv[1], "devapp-id")) { std::puts(zn::tc::runningBundleId().c_str()); return 0; }   // the CFBundleIdentifier of this process ("" outside a bundle): the selftest of the dev bundle
+  for (int k = 1; k + 1 < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --bundle <file> -o <out>.app: the program inside a macOS bundle
+    if (std::strcmp(argv[k], "--bundle")) continue;
+    for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
+    --argc; --k;
+    gBundleOut = "?";
   }
   if (argc == 2 && !std::strcmp(argv[1], "--root")) { std::puts(gRoot.c_str()); return 0; }  // where the engine files are read from
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {
@@ -380,6 +402,25 @@ int main(int argc, char** argv) {
           }
         }
       }
+#ifdef __APPLE__
+      if (have && !project.app.id.empty() && !project.permissions.empty() && !std::getenv("ZINC_DEVAPP") && !std::getenv("ZINC_HEADLESS") && !std::getenv("ZINC_DETERMINISTIC")) {
+        // a program that uses the system modules runs from a dev bundle (own bundle id, name and icon): the process then behaves as the shipped app does (ZN-234)
+        std::string engine = zn::tc::executablePath(), app, berr;
+        bool refreshed = false;
+        auto t0 = std::chrono::steady_clock::now();
+        if (!engine.empty() && zn::tc::ensureDevBundle(bundleSpecOf(project, projectDir), engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
+          if (std::getenv("ZINC_DEVAPP_SELFTEST")) std::fprintf(stderr, "devapp: %s %s in %.1f ms\n", refreshed ? "refreshed" : "up to date", app.c_str(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+          setenv("ZINC_DEVAPP", app.c_str(), 1);
+          setenv("ZINC_ROOT", gRoot.c_str(), 0);
+          std::vector<char*> av;
+          for (std::string& a : gOriginalArgs) av.push_back(a.data());
+          av.push_back(nullptr);
+          std::string exe = app + "/Contents/MacOS/zinc";
+          execv(exe.c_str(), av.data());
+          std::fprintf(stderr, "zinc: cannot start the dev bundle %s: %s\n", app.c_str(), std::strerror(errno));
+        } else if (!berr.empty()) std::fprintf(stderr, "zinc: no dev bundle (%s); running without a bundle id\n", berr.c_str());
+      }
+#endif
       std::error_code ec;
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
         std::string e = zn::frontend::entryOf(path, have && fs::path(projectDir) == fs::absolute(path).lexically_normal() ? &project : nullptr);
@@ -620,6 +661,25 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
+    static std::string bundleExe;
+    if (!gBundleOut.empty()) {   // --bundle: <out> is the .app, the program is linked into it
+#ifdef __APPLE__
+      gBundleOut = argv[4];
+      std::string pf = zn::frontend::findProjectFile(argv[2]);
+      zn::frontend::Project proj;
+      std::string perr;
+      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), perr.c_str()); return 2; } }
+      if (proj.app.id.empty()) { std::fprintf(stderr, "zinc: --bundle needs \"app\": { \"id\": ... } in zinc.json\n"); return 2; }
+      gBundleSpec = bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
+      std::error_code mk;
+      std::filesystem::create_directories(std::filesystem::path(gBundleOut) / "Contents/MacOS", mk);
+      bundleExe = (std::filesystem::path(gBundleOut) / "Contents/MacOS" / gBundleSpec.exeName).string();
+      argv[4] = bundleExe.data();
+#else
+      std::fprintf(stderr, "zinc: build --bundle writes macOS bundles; the Linux AppDir is not written yet\n");
+      return 2;
+#endif
+    }
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     installDisplayDriver("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
@@ -663,6 +723,11 @@ int main(int argc, char** argv) {
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
+    if (!gBundleOut.empty()) {
+      std::string berr;
+      if (!zn::tc::writeBundle(gBundleSpec, bundleExe, gBundleOut, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
+      std::fprintf(stderr, "zinc: wrote %s (ad-hoc signed; to sign for distribution: codesign --force --options runtime --sign \"Developer ID Application: ...\" %s)\n", gBundleOut.c_str(), gBundleOut.c_str());
+    }
     return 0;
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=cpp")) {  // zinc --emit=cpp <file>: the C++ of the AOT build

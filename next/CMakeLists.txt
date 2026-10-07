@@ -189,9 +189,12 @@ add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)
 target_link_libraries(zn_dev PUBLIC zn_vm)
 
-add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp third_party/sha256/sha256.c)
+add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp third_party/sha256/sha256.c)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/sha256)
 target_link_libraries(zn_tc PUBLIC zn_frontend ${CMAKE_DL_LIBS})
+if(APPLE)
+  target_link_libraries(zn_tc PUBLIC "-framework CoreFoundation")   # the bundle id of the running process (src/tc/bundle.cpp)
+endif()
 if(ZN_SDL_LIB AND NOT ZN_SDL_INC)   # a prefix install does not name its include directory: it is beside the library
   get_filename_component(ZN_SDL_LIBDIR "${ZN_SDL_LIB}" DIRECTORY)
   if(EXISTS "${ZN_SDL_LIBDIR}/../include/SDL3/SDL.h")
