@@ -13,6 +13,8 @@ using Caps = std::map<std::string, std::string>;
 
 /** The hardware flags of the profile from `<engineRoot>/../targets/capabilities.json`, plus heap, numbers, fpu, width and height of the profile table. */
 Caps capsFor(const Profile& p, const std::string& engineRoot);
+/** The same from the file itself (a path to targets/capabilities.json). */
+Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson);
 /** One requirement: `touch`, `touch|pointer`, `!eink`, `heap>=256K`, `numbers=f64`. */
 bool satisfied(const std::string& req, const Caps& caps);
 /** "heap>=256K (esp32 has heap 160K)": a readable reason for each requirement that does not hold, joined by ", " (empty: compatible). */

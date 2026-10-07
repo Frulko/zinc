@@ -378,6 +378,17 @@ const o = { a: 1 };
 console.log('a' in o);
 ```
 
+## Z5005: A plugin needs a capability the target does not have
+
+A plugin's plugin.json "requires" lists the platform capabilities it needs (heap>=4M, fs, dynlib...); the profile in force must offer them.
+
+Fix: Build for a target that has them, or pass --force to build anyway.
+
+```ts
+// zinc-profile: rmpp
+import 'zinc:ffi';
+```
+
 ## Z5010: A native member uses a type the native ABI cannot carry yet
 
 A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. Callbacks, promises, resources and other number kinds are not expressible yet.

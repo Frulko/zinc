@@ -22,5 +22,10 @@ const Profile* findProfile(const std::string& name);
 std::vector<std::string> profileNames();
 /** Applies the number alias of `p` to the checker. */
 void applyProfile(const Profile& p);
+/** The profile applied last (null: the host's own, which meets every requirement). */
+const Profile* currentProfile();
+/** `--force`: requirements that do not hold are warnings. */
+void setForce(bool on);
+bool force();
 
 }  // namespace zn::frontend

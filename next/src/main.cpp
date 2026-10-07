@@ -18,6 +18,7 @@
 #include "frontend/parser.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
+#include "frontend/capabilities.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
 #include "zn/host.h"
@@ -183,8 +184,10 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
 #endif
-  for (int k = 1; k < argc; ++k)  // `--strict` anywhere on the command line selects the strict profile
-    if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+  for (int k = 1; k < argc; ++k) {  // `--strict` anywhere on the command line selects the strict profile; `--force` builds despite unmet `requires`
+    if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+    else if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+  }
   // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
   for (int k = 1; k < argc; ++k) {
     std::string name;
@@ -298,6 +301,17 @@ int main(int argc, char** argv) {
         gProfile = zn::frontend::findProfile(project.profile);
         if (!gProfile) { std::fprintf(stderr, "zinc: %s: unknown profile '%s'\n", projFile.c_str(), project.profile.c_str()); return 2; }
         zn::frontend::applyProfile(*gProfile);
+      }
+      if (have && !project.requires_.empty()) {   // zinc.json "requires" against the profile in force (ZN-123); the host's own profile meets what the machine has
+        const zn::frontend::Profile* rp = zn::frontend::currentProfile();
+        if (rp) {
+          std::string why = zn::frontend::explain(project.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/../targets/capabilities.json"), rp->name);
+          if (!why.empty()) {
+            std::string nm = project.name.empty() ? fs::path(projectDir).filename().string() : project.name;
+            if (!zn::frontend::force()) { std::fprintf(stderr, "zinc: %s cannot run on %s: it requires %s (zinc.json \"requires\"; --force builds anyway)\n", nm.c_str(), rp->name, why.c_str()); return 1; }
+            std::fprintf(stderr, "zinc: warning: %s requires %s; building anyway (--force)\n", nm.c_str(), why.c_str());
+          }
+        }
       }
       std::error_code ec;
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]

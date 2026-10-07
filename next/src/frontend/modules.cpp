@@ -1,5 +1,6 @@
 #include "frontend/modules.h"
 #include "frontend/profile.h"
+#include "frontend/capabilities.h"
 #include "frontend/jsx.h"
 #include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
@@ -1047,6 +1048,20 @@ struct Loader {
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
   std::map<std::string, std::string> plugins;  // 'zinc:lottie' -> plugins/lottie/index.ts (read from plugin.json files)
   std::set<std::string> pluginDirsRead;
+  std::map<std::string, std::pair<std::string, std::vector<std::string>>> pluginNeeds;   // entry path -> (plugin name, plugin.json "requires")
+  // Z5005: a plugin whose `requires` the profile in force does not meet is refused (a warning under --force).
+  bool pluginUsable(const std::string& entry, std::uint32_t fromFile, std::uint32_t node) {
+    auto it = pluginNeeds.find(entry);
+    const Profile* pr = currentProfile();
+    if (it == pluginNeeds.end() || it->second.second.empty() || !pr || stdRoot.empty()) return true;
+    Caps caps = capsFromFile(*pr, (std::filesystem::path(stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string());
+    std::string why = explain(it->second.second, caps, pr->name);
+    if (why.empty()) return true;
+    std::string msg = "plugin " + it->second.first + " requires " + why;
+    if (force()) { std::fprintf(stderr, "zinc: warning: %s; building anyway (--force)\n", msg.c_str()); return true; }
+    diag(kZPluginRequires, fromFile, node, msg + " (plugin.json \"requires\"; --force builds anyway)");
+    return false;
+  }
   // Reads the plugin.json files of `<root>/*/`: the engine's plugins/ next to lib/, and the plugins/ directory of the project that imports
   // (every directory above the importing file may hold one, like the old compiler's project plugins).
   void readPluginsIn(const std::string& dirIn) {
@@ -1064,7 +1079,7 @@ struct Loader {
       if (!parsePluginManifest(text, pm, err, warnings)) { std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), err.c_str()); continue; }
       for (const std::string& w : warnings) std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), w.c_str());
       std::string mod = pm.module, entry = pm.entry;
-      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) plugins[mod] = (e.path() / entry).lexically_normal().string();
+      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) { plugins[mod] = (e.path() / entry).lexically_normal().string(); pluginNeeds[plugins[mod]] = {pm.name, pm.requires_}; }
       if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).lexically_normal().string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
     }
   }
@@ -1153,6 +1168,7 @@ struct Loader {
       auto pl = plugins.find(spec);
       if (pl != plugins.end()) {  // a plugin: its module source is Zinc, its native part comes from the sim file of its spec (see below)
         if (done.count(pl->second)) return done[pl->second];
+        if (!pluginUsable(pl->second, fromFile, node)) return kNone;
         std::string text;
         if (read(pl->second, text)) return load(pl->second, std::move(text));
       }

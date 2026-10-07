@@ -39,9 +39,11 @@ std::string trim(const std::string& s) {
 
 }  // namespace
 
-Caps capsFor(const Profile& p, const std::string& engineRoot) {
+Caps capsFor(const Profile& p, const std::string& engineRoot) { return capsFromFile(p, engineRoot + "/../targets/capabilities.json"); }
+
+Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson) {
   Caps caps;
-  std::ifstream in(engineRoot + "/../targets/capabilities.json");
+  std::ifstream in(capabilitiesJson);
   std::stringstream ss;
   ss << in.rdbuf();
   std::string text = ss.str();

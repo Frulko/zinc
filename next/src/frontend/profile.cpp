@@ -25,6 +25,13 @@ std::vector<std::string> profileNames() {
   for (const Profile& p : kProfiles) out.push_back(p.name);
   return out;
 }
-void applyProfile(const Profile& p) { setNumberAlias(p.number); }
+namespace {
+const Profile* gCurrent = nullptr;
+bool gForce = false;
+}  // namespace
+void applyProfile(const Profile& p) { gCurrent = &p; setNumberAlias(p.number); }
+const Profile* currentProfile() { return gCurrent; }
+void setForce(bool on) { gForce = on; }
+bool force() { return gForce; }
 
 }  // namespace zn::frontend

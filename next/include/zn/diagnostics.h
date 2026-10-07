@@ -115,6 +115,10 @@
   X(InOperator, "Z9026", "The `in` operator is not supported on a typed value",                                       \
     "The properties of a typed object are fixed, so `\"a\" in o` is known when compiling.", "Use `Map.has(key)`, or compare to the field.", \
     "const o = { a: 1 };\nconsole.log('a' in o);")                                                                    \
+  X(PluginRequires, "Z5005", "A plugin needs a capability the target does not have",                                   \
+    "A plugin's plugin.json \"requires\" lists the platform capabilities it needs (heap>=4M, fs, dynlib...); the profile in force must offer them.", \
+    "Build for a target that has them, or pass --force to build anyway.",                                                                  \
+    "// zinc-profile: rmpp\nimport 'zinc:ffi';")                                                                                          \
   X(NativeTypeNotExpressible, "Z5010", "A native member uses a type the native ABI cannot carry yet",                      \
     "A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. "  \
     "Callbacks, promises, resources and other number kinds are not expressible yet.", "Change the member to use one of those types.",        \
