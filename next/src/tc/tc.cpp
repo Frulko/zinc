@@ -255,6 +255,33 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
 }
 
 
+bool ensureCrossLibs(const std::string& zig, const std::string& root, const std::string& target, std::string& dir, std::string& err) {
+  const Target* t = findTarget(target);
+  if (!t) { err = "unknown target '" + target + "' (zinc toolchain targets)"; return false; }
+  std::string name = t->name;
+  if (name.find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
+  dir = root + "/build/cross-" + name;
+  if (fs::exists(dir + "/libzn_host_gfx.a")) return true;
+  if (std::system("command -v cmake >/dev/null 2>&1") != 0) { err = "building the graphics host for " + name + " needs cmake (or the prebuilt libraries in " + dir + ")"; return false; }
+  std::error_code ec;
+  fs::create_directories(dir + "/wrap", ec);
+  for (const char* tool : {"cc", "c++", "ar", "ranlib"}) {   // CMake takes one program per compiler: wrappers that say which zig command and target
+    bool compiler = std::string(tool) == "cc" || std::string(tool) == "c++";
+    std::ofstream w(dir + "/wrap/" + tool);
+    w << "#!/bin/sh\nexec '" << zig << "' " << tool << (compiler ? std::string(" -target ") + t->zigTarget + (name == "armhf-linux" ? " -mcpu=arm1176jzf_s" : "") : std::string()) << " \"$@\"\n";
+    w.close();
+    fs::permissions(dir + "/wrap/" + tool, fs::perms::owner_all, ec);
+  }
+  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : name.rfind("armhf", 0) == 0 ? "arm" : "x86_64";
+  std::fprintf(stderr, "zinc: building the graphics host for %s (first time only)\n", name.c_str());
+  std::string cfg = "cmake -S " + quote(root) + " -B " + quote(dir) + " -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=" + arch + " -DCMAKE_C_COMPILER=" + quote(dir + "/wrap/cc") + " -DCMAKE_CXX_COMPILER=" + quote(dir + "/wrap/c++") +
+                    " -DCMAKE_AR=" + quote(dir + "/wrap/ar") + " -DCMAKE_RANLIB=" + quote(dir + "/wrap/ranlib") + " -DCMAKE_BUILD_TYPE=Release -DZN_SDL_VENDORED=OFF >" + quote(dir + "/configure.log") + " 2>&1";
+  if (!run(cfg, err, "cmake")) return false;
+  std::string build = "cmake --build " + quote(dir) + " --target zn_host_gfx zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls -j 8 >" + quote(dir + "/build.log") + " 2>&1";
+  if (!run(build, err, "cmake --build")) { fs::remove(dir + "/libzn_host_gfx.a", ec); return false; }
+  return fs::exists(dir + "/libzn_host_gfx.a");
+}
+
 std::string executablePath() {
 #ifdef __APPLE__
   char buf[4096];

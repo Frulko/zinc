@@ -30,6 +30,11 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
 // dlopen the shared library and register its module in the native registry (include/zn/native.h).
 bool loadPlugin(const PluginLib& lib, std::string& err);
 
+// Cross builds (zinc build --target aarch64-linux): while set, buildPlugin compiles with `zig c++ -target <zigTarget>` and produces only the static archive (no shared
+// library to dlopen); the cache entry is keyed by the target. System libraries (`pkg`) are not available that way: such a plugin is refused with a message.
+void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig);
+void clearCrossTarget();
+
 // "macos" or "linux": the plugin target of this machine.
 std::string pluginTarget();
 

@@ -518,8 +518,50 @@ int main(int argc, char** argv) {
     std::string zig, err;
     if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     fs::path cpp = fs::path(argv[6]).string() + ".cpp";
-    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
-    bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err);
+    std::vector<std::uint8_t> blob;
+    std::string libsDir;
+    const bool draws = zn::aot::usesHost(zm) || !gPlugins.empty();
+    std::vector<zn::tc::PluginLib> crossPlugins;
+    if (draws) {   // a program that draws: the graphics host cross-built for the target (headless null HAL), the fonts and images baked in, the surface size of the project for the target
+      if (!zn::tc::ensureCrossLibs(zig, gRoot, argv[3], libsDir, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!bakeResources(argv[4], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+      std::string pdir = zn::frontend::findProjectFile(argv[4]);
+      pdir = pdir.empty() ? "." : fs::path(pdir).parent_path().string();
+      auto sel = zn::frontend::selectDisplay(pdir, gRoot + "/..", "linux");
+      if (sel.width > 0 && sel.height > 0) gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height);
+      // the native code of the plugins the program calls, built again for the target (the desktop ones, dlopen'ed to compile, are for this machine)
+      std::vector<std::string> problems;
+      auto found = zn::frontend::discoverPlugins(gRoot + "/..", pdir, problems);
+      const zn::tc::Target* tg0 = zn::tc::findTarget(argv[3]);
+      zn::tc::setCrossTarget(tg0->name, tg0->zigTarget, zig);
+      for (const zn::tc::PluginLib& host : gPlugins) {
+        if (host.display) continue;   // a display driver is not cross-built: the program runs headless on the null HAL
+        const zn::frontend::FoundPlugin* hit = nullptr;
+        for (const auto& f : found) if (f.manifest.name == host.plugin) hit = &f;
+        zn::tc::PluginLib lib;
+        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, "linux", lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
+        crossPlugins.push_back(lib);
+      }
+      zn::tc::clearCrossTarget();
+    }
+    { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob);
+      if (draws && !gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
+      o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    bool ok;
+    if (draws) {
+      const zn::tc::Target* tg = zn::tc::findTarget(argv[3]);
+      std::string L = libsDir + "/", q = "'";
+      std::string cmd = q + zig + "' c++ -std=c++20 -target " + tg->zigTarget + (std::string(tg->name) == "armhf-linux" ? " -mcpu=arm1176jzf_s" : "") + " -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "'";
+      for (const zn::tc::PluginLib& pl : crossPlugins) {
+        cmd += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";   // the module registers from a static constructor
+        if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
+        for (const std::string& a : pl.linkArgs) cmd += " " + a;
+      }
+      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
+      ok = std::system(cmd.c_str()) == 0;
+      if (!ok) err = "the cross compiler failed: " + cmd;
+    } else ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err);
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     return 0;

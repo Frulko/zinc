@@ -73,8 +73,12 @@ bool haveCommand(const std::string& c) { std::string o; return capture("command 
 
 bool endsWith(const std::string& s, const char* e) { std::size_t n = std::strlen(e); return s.size() >= n && s.compare(s.size() - n, n, e) == 0; }
 
+struct Cross { std::string name, zigTarget, zig; bool on = false; } gCross;
+std::string crossArch() { return gCross.name == "armhf-linux" ? " -mcpu=arm1176jzf_s" : ""; }
+
 // The compilers: $CXX / $CC, else c++ / cc, else the pinned zig (downloaded on first use).
 bool compilers(std::string& cxx, std::string& cc, std::string& err) {
+  if (gCross.on) { cxx = q(gCross.zig) + " c++ -target " + gCross.zigTarget + crossArch(); cc = q(gCross.zig) + " cc -target " + gCross.zigTarget + crossArch(); return true; }
   const char* x = std::getenv("CXX");
   const char* c = std::getenv("CC");
   if (x && c) { cxx = x; cc = c; return true; }
@@ -85,6 +89,8 @@ bool compilers(std::string& cxx, std::string& cc, std::string& err) {
   cc = q(zig) + " cc";
   return true;
 }
+
+std::string arTool() { return gCross.on ? q(gCross.zig) + " ar" : std::string("ar"); }
 
 bool run(const std::string& cmd, std::string& err, const std::string& what) {
   std::string log = cmd + " 2>&1";
@@ -99,6 +105,9 @@ bool run(const std::string& cmd, std::string& err, const std::string& what) {
 }
 
 }  // namespace
+
+void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig) { gCross = Cross{name, zigTarget, zig, true}; }
+void clearCrossTarget() { gCross = Cross{}; }
 
 std::string pluginTarget() {
 #if defined(__APPLE__)
@@ -153,6 +162,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   if (!compilers(cxx, cc, err)) return false;
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
+  if (gCross.on && !ts.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " has no sysroot for yet"; return false; }
   for (const std::string& pkg : ts.pkg) {
     std::string o;
     if (!haveCommand("pkg-config") || !capture("pkg-config --exists " + q(pkg) + " && echo ok", o)) {
@@ -179,7 +189,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   for (const std::string& l : ts.linkFlags) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : q(rel(l)));
   out.linkArgs = libs;
   // flags: the runtime's own, the manifest's defines, the options as ZP_ defines
-  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
+  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
   for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
   std::string flags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
@@ -205,7 +215,8 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   for (const std::string& s : own) { std::string d = s.substr(0, s.find_last_of('/')); std::error_code e2; for (const auto& f : fs::directory_iterator(d, e2)) if (f.path().extension() == ".h") h.add(sha256File(f.path().string())); }   // the headers beside the sources
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
   h.add(target);
-  std::string cache = home() + "/cache/" + target + "/plugins";
+  if (gCross.on) h.add(gCross.zigTarget + crossArch());
+  std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
   std::string dir = cache + "/" + m.name + "-" + h.hex();
   std::string vdir = cache + "/" + m.name + "-vendor-" + vh.hex();
   bool dyn = true;
@@ -226,7 +237,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
       if (!run(cc + " " + cflagsC + " -c " + q(s) + " -o " + q(o), err, "the C compiler on " + s)) return false;
       objs += " " + q(o);
     }
-    if (!run("ar rcs " + q(out.vendor) + objs, err, "ar")) return false;
+    if (!run(arTool() + " rcs " + q(out.vendor) + objs, err, "ar")) return false;
     out.rebuilt = true;
   }
   // trust: the digest written after the build must still match the library (a tampered cache entry is refused, never loaded); an entry without one is rebuilt
@@ -268,9 +279,10 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     for (const std::string& l : libs) linkLibs += " " + l;
     std::string undefined = pluginTarget() == "macos" ? " -undefined dynamic_lookup" : "";   // zrt and the registry come from the zinc that loads it
     std::string vend = out.vendor.empty() ? "" : " " + q(out.vendor);
-    if (!run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
+    if (!gCross.on && !run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
     fs::remove(out.archive, ec);
-    if (!run("ar rcs " + q(out.archive) + list, err, "ar")) return false;
+    if (!run(arTool() + " rcs " + q(out.archive) + list, err, "ar")) return false;
+    if (gCross.on) { std::ofstream(out.shared) << "cross build: no shared library\n"; }   // a placeholder so the cache check below finds the entry
     { std::ofstream(digestFile) << sha256File(out.shared) << " " << sha256File(out.archive) << "\n"; }
     out.rebuilt = true;
   }

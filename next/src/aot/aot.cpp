@@ -214,7 +214,7 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
        "  if (st == 1) { error = \"panic: Uncaught \" + exceptionText(thrown); thrown = nullptr; return false; }\n"
        "  return st == 0;\n"
        "}\n\n"
-       + std::string(usesHost(mod) ? "namespace zn::host { void installGfx(); bool installResources(const unsigned char*, unsigned long); }  // the graphics host (src/host), linked by zinc build\n" : "") +
+       + std::string(usesHost(mod) ? "namespace zn::host { void installGfx(); bool installResources(const unsigned char*, decltype(sizeof 0)); }  // the graphics host (src/host), linked by zinc build\n" : "") +
        std::string(hasFixture || !linkedNative.empty() ? "#include \"zn/native.h\"\n" + nativeDecls : "") + std::string(hasFixture ? "#include \"zn/native.h\"\nextern \"C\" const ZnModule* fixture_module(void);  // the C test module of tests/native, linked by zinc build (ZN-097; plugin modules come with the loader)\n" : "") +
        "int main() {\n" + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
   return s;
