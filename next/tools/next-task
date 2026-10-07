@@ -61,9 +61,25 @@ def skipped(t):
             return "waits for " + d
     return None
 
+import json
+try:
+    groups = json.load(open(os.path.join(root, "..", "priority.json")))["groups"]
+except (OSError, ValueError, KeyError):
+    groups = []
+
+def group_of(t):
+    """Index of the first priority group (backlog/priority.json) the task belongs to; len(groups) when none."""
+    for i, g in enumerate(groups):
+        title = t.get("title", "")
+        if g.get("exclude_title") and re.search(g["exclude_title"], title):
+            continue
+        if t.get("milestone") in g.get("milestones", []) or any(l in t.get("labels", []) for l in g.get("labels", [])) or (g.get("title") and re.search(g["title"], title)):
+            return i
+    return len(groups)
+
 def startable():
     cands = [t for t in tasks.values() if status(t) in ("Ready", "Backlog") and skipped(t) is None]
-    return sorted(cands, key=ordinal)
+    return sorted(cands, key=lambda t: (group_of(t), ordinal(t)))
 
 args = sys.argv[1:]
 working = sorted([t for t in tasks.values() if status(t) == "In Progress"], key=ordinal)
