@@ -912,21 +912,25 @@ struct Checker {
       if (args.size() != 1) { diag(kZWrongArgCount, i, "expected 1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
       TypeId it = expr(args[0]);
       if (!bad(it) && !isNum(it)) { diag(kZNotAssignable, args[0], "'" + name(it) + "' to 'number'"); return tError; }
-      if (i != nullishLeft && i != logArg) { diag(kZUnsupported, i, "'at' outside '?" "?' and console.log (the result may be undefined)"); return tError; }
       bool prim = ty(E).k == TK::Num || E == tBool || E == tStr;
       std::string sig, body;
       TypeId result;
       if (prim) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
-        if (i != logArg) { diag(kZUnsupported, i, "'at' on arrays of numbers, booleans or strings outside console.log"); return tError; }
+        if (i != logArg) {
+          result = unionOf({E, tNull});
+          sig = "(a: " + inspectAliasName(at) + ", i: i32): " + inspectAliasName(result);
+          body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return null;\n  return a[k];\n";
+        } else {
         result = tStr;
         sig = "(a: " + inspectAliasName(at) + ", i: i32): string";
         body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return 'undefined';\n  return `${a[k]}`;\n";
+        }
       } else {
         result = unionOf({E, tNull});
         sig = "(a: " + inspectAliasName(at) + ", i: i32): " + inspectAliasName(result);
         body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return null;\n  return a[k];\n";
       }
-      std::uint32_t sym = helper("at," + std::to_string(at), "function $F" + sig + " {\n" + body + "}\n", {at, result}, i);
+      std::uint32_t sym = helper("at," + std::to_string(at) + (result == tStr ? ",text" : ""), "function $F" + sig + " {\n" + body + "}\n", {at, result}, i);
       std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
       out.nodeSym[id] = sym;
       out.nodeType[id] = out.syms[sym].type;
@@ -1043,11 +1047,10 @@ struct Checker {
         sig = "(a: " + A + ", f: " + F + "): i32";
         body = "  " + (m == "findIndex" ? fwd : bwd) + " if (" + call + ") return k;\n  return -1;\n";
       } else if (m == "find" || m == "findLast") {
-        if (i != nullishLeft && i != logArg) diag(kZUnsupported, i, "'" + m + "' outside '?" "?' and console.log (the result may be undefined)");
         bool prim = ty(E).k == TK::Num || E == tBool || E == tStr;
-        if (prim && i != logArg) { diag(kZUnsupported, i, "'" + m + "' on arrays of numbers, booleans or strings outside console.log"); return tError; }
-        if (prim) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
+        if (prim && i == logArg) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
           result = tStr;
+          key += ",text";
           sig = "(a: " + A + ", f: " + F + "): string";
           body = "  " + (m == "find" ? fwd : bwd) + " if (" + call + ") return `${a[k]}`;\n  return 'undefined';\n";
         } else {
@@ -1400,7 +1403,19 @@ struct Checker {
         TK vk = v == kNoType || bad(v) ? TK::Any : ty(v).k;
         bool refLike = v == tStr || vk == TK::Array || vk == TK::Map || vk == TK::Set || vk == TK::Object || vk == TK::Func;
         if (refLike) result = unionOf({v, tNull});        // a missing key reads as null
-        else if (i != asOperand) diag(kZUnsupported, i, "Map.get of numbers or booleans outside '?" "?', 'as T' and console.log (use has() to test for a key)");
+        else if (i != asOperand) {  // a number or boolean: `V | null` through a generated lookup (a scalar slot cannot hold null itself)
+          TypeId R = unionOf({v, tNull});
+          std::string M = inspectAliasName(rt), K = inspectAliasName(ty(rt).params[0]), V = inspectAliasName(v), RS = inspectAliasName(R);
+          std::uint32_t sym = helper("mapGetN," + std::to_string(rt), "function $F(m: " + M + ", k: " + K + "): " + RS + " {\n  if (m.has(k)) return m.get(k) as " + V + ";\n  return null;\n}\n", {rt, ty(rt).params[0], v, R}, i);
+          std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+          out.nodeSym[id] = sym;
+          out.nodeType[id] = out.syms[sym].type;
+          std::uint32_t recv = n(callee).kids[0], key = n(i).kids[1];
+          a.nodes[i].kids = {id, recv, key};
+          rewritten.insert(i);
+          out.nodeType[i] = R;
+          result = R;
+        }
       }
     }
     return result;
@@ -1559,6 +1574,7 @@ struct Checker {
           const char* call = op == "!" ? "!__dynTruthy(__H0)" : op == "-" ? "__dynNeg(__H0)" : "__dynPos(__H0)";
           if (replaceWith(i, call, {{x.kids[0]}})) return expr0(i, expected);
         }
+        if (op == "!" && !bad(t)) t = truthiness(x.kids[0], t);  // `!p` on a nullable: not present (or falsy)
         if (op != "typeof" && op != "void" && op != "delete") t = appOrDiag(t, x.kids[0]);
         if (bad(t)) return op == "!" ? tBool : tError;
         if (op == "!") { if (t != tBool) diag(kZNotAssignable, x.kids[0], "'" + name(t) + "' to 'boolean'"); return tBool; }
@@ -1847,11 +1863,26 @@ struct Checker {
   // `if (x)` on a value that may be null (an object, array, function or string): true when it is there (and not the empty string); written as
   // the comparison it stands for, which the narrowing already understands. Only for names and property paths (they are read twice).
   TypeId truthiness(std::uint32_t e, TypeId t) {
-    if (bad(t) || t == tBool || !pureCallee(e) || !hasNull(t)) return t;
+    if (bad(t) || t == tBool || !hasNull(t)) return t;
     TypeId inner = withoutNull(t);
     if (inner == kNoType || bad(inner)) return t;
     TK k = ty(inner).k;
     bool str = inner == tStr;
+    if (!pureCallee(e) && !(inner == tBool || k == TK::Num)) return t;
+    if (inner == tBool || k == TK::Num) {  // a nullable boolean or number: present and true, or present and not 0 or NaN (a generated test: the operand may be a call)
+      std::uint32_t sym = helper("truthy," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): boolean {\n  return " + (inner == tBool ? "v === true" : "v !== null && v !== 0 && v === v") + ";\n}\n", {t}, e);
+      std::uint32_t orig = static_cast<std::uint32_t>(a.nodes.size());  // the operand moves to a node of its own, the call takes its place
+      a.nodes.push_back(a.nodes[e]);
+      out.nodeType.push_back(out.nodeType[e]);
+      out.nodeSym.push_back(out.nodeSym[e]);
+      auto ta = a.targs.find(e);
+      if (ta != a.targs.end()) { auto v = ta->second; a.targs.erase(e); a.targs[orig] = std::move(v); }
+      std::uint32_t call = callGenerated(sym, {orig}, e);
+      a.nodes[e] = a.nodes[call];
+      rewritten.insert(e);
+      out.nodeType[e] = tBool;
+      return tBool;
+    }
     if (!(str || k == TK::Object || k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Func)) return t;
     std::vector<std::vector<std::uint32_t>> holes{{cloneNode(e, false)}};  // the node itself is replaced: its copies go into the comparison
     if (str) holes.push_back({cloneNode(e, false)});

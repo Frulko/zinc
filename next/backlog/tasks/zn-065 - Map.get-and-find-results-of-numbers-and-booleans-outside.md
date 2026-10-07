@@ -1,9 +1,10 @@
 ---
 id: ZN-065
 title: Map.get and find results of numbers and booleans outside ??
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:49'
+updated_date: '2026-10-07 00:26'
 labels:
   - language
   - size-S
@@ -20,6 +21,12 @@ Z0005 rejects `m.get(k)` of number/boolean outside `??`, `as T` and console.log,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures: get/find results compared, returned, stored in a `number | undefined` variable and narrowed by `if (v !== undefined)`
-- [ ] #2 examples/pinball/src/tools.ts, chataigne/src/link.ts and zed-editor tools compile past this check
+- [x] #1 fixtures: get/find results compared, returned, stored in a `number | undefined` variable and narrowed by `if (v !== undefined)`
+- [x] #2 examples/pinball/src/tools.ts, chataigne/src/link.ts and zed-editor tools compile past this check
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Map.get/find/at of scalars return V|null (D16), truthiness and ! of nullable number/boolean/refs through a generated test. The three example files no longer fail on Map.get/find; they still stop on zinc:osc and zinc:process members (other tasks).
+<!-- SECTION:NOTES:END -->

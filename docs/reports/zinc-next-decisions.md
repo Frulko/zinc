@@ -83,3 +83,4 @@ Made under `next/RULES.md` from the four parity audits in `docs/reports/parity/`
 | D14 | Fast-math AOT (ZN-042) | No fast-math: bit-identical rounding across engines is a product rule. nbody stays about 2.9x native; vectorization without FMA contraction is a separate optimisation task | Determinism over a benchmark | Owner asks |
 | D15 | Corpora and fuzzing | test262 subset, WPT URL/encoding data, wasm testsuite, JSONTestSuite as pinned data; libFuzzer with ASan/UBSan on the parser and the ZBC verifier | Reuse existing oracles | none |
 
+| D16 | Nullable scalars (ZN-065) | `T \| undefined` for number and boolean is the existing boxed `T \| null` representation (undefined reads as null). `Map.get` and `find`/`at` of scalars return it through generated lookups; truthiness of a nullable number or boolean uses a generated test | No new IR slot kind; reuses the Dyn-era box and its compare | Measured cost of the boxes on a hot path |
