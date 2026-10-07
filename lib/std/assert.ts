@@ -4,17 +4,17 @@
 export class AssertionError extends Error {
   constructor(message: string) { super(message); this.name = 'AssertionError'; }
 }
-export function fail(message: string = 'Failed'): never { throw new AssertionError(message); }
+export function fail(message: string = 'Failed'): void { throw new AssertionError(message); }
 export function ok(value: boolean, message: string = 'expected a true value'): void { if (!value) throw new AssertionError(message); }
 /** Strict equality (===). */
-export function equal<T>(actual: T, expected: T, message: string = ''): void {
+export function equal(actual: unknown, expected: unknown, message: string = ''): void {
   if (actual !== expected) throw new AssertionError(message.length > 0 ? message : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 }
-export function notEqual<T>(actual: T, expected: T, message: string = ''): void {
+export function notEqual(actual: unknown, expected: unknown, message: string = ''): void {
   if (actual === expected) throw new AssertionError(message.length > 0 ? message : `expected a value other than ${JSON.stringify(expected)}`);
 }
 /** Structural equality through JSON (fields of objects, elements of arrays, in order). */
-export function deepEqual<T>(actual: T, expected: T, message: string = ''): void {
+export function deepEqual(actual: unknown, expected: unknown, message: string = ''): void {
   const a = JSON.stringify(actual), e = JSON.stringify(expected);
   if (a !== e) throw new AssertionError(message.length > 0 ? message : `expected ${e}, got ${a}`);
 }

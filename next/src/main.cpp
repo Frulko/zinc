@@ -32,7 +32,7 @@
 #define HOSTLIBS
 #endif
 #include "frontend/profile.h"
-int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir);   // src/test_cmd.cpp
+int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "dev/client.h"
@@ -212,7 +212,9 @@ int main(int argc, char** argv) {
     );
     if (tp != gProfile) zn::frontend::applyProfile(*tp);
     char* self = realpath(argv[0], nullptr);
-    int rc = runTestCommand(self ? self : argv[0], *tp, gRoot, argc > 2 ? argv[2] : "");
+    std::string runner, tdir;
+    for (int k = 2; k < argc; ++k) { if (!std::strcmp(argv[k], "--runner") && k + 1 < argc) runner = argv[++k]; else tdir = argv[k]; }
+    int rc = runTestCommand(self ? self : argv[0], *tp, gRoot, tdir, runner);
     std::free(self);
     return rc;
   }
