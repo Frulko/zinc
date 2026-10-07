@@ -2,7 +2,7 @@
 // zinc:ui/react) helpers before it is parsed. Solid mode: dynamic expressions become fine-grained effects; React mode: a
 // component re-renders as a whole. The pass works on the token stream (the lexer tracks JSX nesting) and substitutes source
 // text, keeping line breaks so diagnostics keep their line numbers.
-// Not ported yet: the `style` attribute, <VirtualList>, class components in React mode, class-name and hook-rule checks.
+// Not ported yet: class components in React mode (ZN-163), the hook-rule checks.
 #include "frontend/jsx.h"
 
 #include <cctype>
