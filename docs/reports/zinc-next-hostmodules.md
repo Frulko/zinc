@@ -30,3 +30,13 @@ Run headless for three frames by `tests/t1/examples.sh` (exit 0): `hero`, `remar
 Class setters, `async` class methods, `arr.length = n`, `a ?? null`, `s.at(i)`, a UTC `Date` with the getters, callbacks returning a value where `() => void` is expected, optional callbacks (`(() => void) | null`), generic inference from the annotated
 parameters of a lambda (`each(() => [0, 1], (i: i32) => ...)`), `undefined` meaning null in the files that do not use Dyn (a program with a Dyn plugin can still use `lib/std`), `console.error|warn|info|debug` as `console.log`, the number sort without
 callbacks, and a fix: `padStart` on a string that needs no padding returned the receiver without a new reference (a use-after-release found by the dashboard).
+
+## zinc:events, zinc:platform, zinc:telemetry (ZN-080)
+
+All three are written in Zinc (`next/src/frontend/modules.cpp`, built-in module sources), so they exist on every target the engine runs on.
+
+| module | what it is | per target |
+|---|---|---|
+| `zinc:events` | `Emitter<T>` with `on`, `once`, `off`, `listenerCount`, `emit` (listeners added during an emit wait for the next one) | everywhere |
+| `zinc:platform` | constants of the run profile: `TARGET`, `PROFILE`, `HEAP_BYTES`, `NUMBERS`, `SCREEN_W/H` (`ZINC_SIZE`, else 320x240), `FPU`, and one boolean per capability of `targets/capabilities.json` (`TOUCH`, `POINTER`, `KEYBOARD`, `NET`, ...) | the profile is `macos` on macOS, `linux` elsewhere; the other targets read their own row when they build |
+| `zinc:telemetry` | JSON lines of `runtime/mod/telemetry.cpp` (`hello`, `metric`, `event`, `state_snapshot`) to `stdout` or `file:<path>`; `ZINC_TELEMETRY` selects the sink at start | `udp://` and the per-frame `perf_frame` and `log` messages need the host's own hooks (they come with the event loop task); snapshots are taken on telemetry calls at most every 100 ms |

@@ -1,0 +1,9 @@
+false
+{"type":"hello","ts":0,"seq":0,"payload":{"version":"0.1","platform":"macos","features":["perf","logs","state","metrics"]}}
+{"type":"metric","ts":0,"seq":1,"payload":{"kind":"counter","name":"hits","value":1}}
+{"type":"metric","ts":0,"seq":2,"payload":{"kind":"counter","name":"hits","value":2.5}}
+{"type":"metric","ts":0,"seq":3,"payload":{"kind":"gauge","name":"temp","value":21.25}}
+{"type":"metric","ts":0,"seq":4,"payload":{"kind":"gauge","name":"nan","value":null}}
+{"type":"event","ts":0,"seq":5,"payload":{"name":"boot","data":"say \"hi\"\n\tback\\slash\u0001"}}
+{"type":"metric","ts":0,"seq":6,"payload":{"kind":"counter","name":"after","value":3}}
+true

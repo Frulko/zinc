@@ -4,7 +4,10 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <map>
 #include <set>
 
@@ -15,6 +18,7 @@
 #include "frontend/parser.h"
 #include "frontend/snippet.h"
 #include "frontend/tsconfig.h"
+#include "yyjson.h"
 
 namespace zn::frontend {
 namespace {
@@ -341,7 +345,147 @@ export interface NativeResource {}
 export function requireNative<T>(name: string): T { throw new Error('the native module ' + name + ' is not linked into this engine'); }
 )ZN";
 
+// zinc:events: a typed event channel (lib/modules.d.ts). Listeners run in the order they were added; a listener removed during emit still runs for that emit.
+const char* kEventsModule = R"ZN(
+export class Emitter<T> {
+  private cbs: ((v: T) => void)[] = [];
+  private onceFlags: boolean[] = [];
+  constructor() {}
+  on(cb: (v: T) => void): void { this.cbs.push(cb); this.onceFlags.push(false); }
+  once(cb: (v: T) => void): void { this.cbs.push(cb); this.onceFlags.push(true); }
+  off(cb: (v: T) => void): void {
+    for (let i: i32 = 0; i < this.cbs.length; i++) if (this.cbs[i] === cb) { this.cbs.splice(i, 1); this.onceFlags.splice(i, 1); return; }
+  }
+  listenerCount(): i32 { return this.cbs.length; }
+  emit(v: T): void {
+    const list = this.cbs.slice();
+    const once = this.onceFlags.slice();
+    for (let i: i32 = 0; i < list.length; i++) {
+      if (once[i]) this.off(list[i]);
+      list[i](v);
+    }
+  }
+}
+)ZN";
+
+// zinc:telemetry: JSON lines in the format of runtime/mod/telemetry.cpp (hello, metric, event, state_snapshot) to stdout or a file; ZINC_TELEMETRY picks the sink at
+// startup. The udp:// sink and the per-frame perf and log messages come with the host's own telemetry (the old runtime hooked the frame loop and the log).
+std::string platformName();
+std::string telemetryModuleSource() {
+  return std::string(R"ZN(
+import { env } from 'zinc:sys';
+import { appendText } from 'zinc:fs';
+let __mode: i32 = -1;
+let __file: string = '';
+let __seq: i32 = 0;
+let __lastSnap: f64 = 0;
+class Exposed { name: string; get: () => number; constructor(name: string, get: () => number) { this.name = name; this.get = get; } }
+const __exposed: Exposed[] = [];
+function jsonStr(s: string): string {
+  let out = '"';
+  for (let i: i32 = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 34) out += '\\"';
+    else if (c === 92) out += '\\\\';
+    else if (c === 10) out += '\\n';
+    else if (c === 13) out += '\\r';
+    else if (c === 9) out += '\\t';
+    else if (c === 8) out += '\\b';
+    else if (c === 12) out += '\\f';
+    else if (c < 32) out += '\\u00' + '0123456789abcdef'.charAt(c >> 4) + '0123456789abcdef'.charAt(c & 15);
+    else out += s.charAt(i);
+  }
+  return out + '"';
+}
+function jsonNum(v: number): string { return v - v === 0 ? `${v}` : 'null'; }
+function line(s: string): void {
+  if (__mode === 2) console.log(s);
+  else if (__mode === 3) appendText(__file, s + '\n');
+}
+function head(type: string): string {
+  const seq = __seq;
+  __seq++;
+  return '{"type":"' + type + '","ts":' + jsonNum(performance.now()) + ',"seq":' + seq + ',"payload":';
+}
+function snapshot(): void {
+  if (__exposed.length === 0) return;
+  let b = head('state_snapshot') + '{"vars":{';
+  for (let i: i32 = 0; i < __exposed.length; i++) { if (i > 0) b += ','; b += jsonStr(__exposed[i].name) + ':' + jsonNum(__exposed[i].get()); }
+  line(b + '}}}');
+}
+function sample(): void {  // the old runtime sampled from the event loop at 10 Hz; here each telemetry call takes a due snapshot, so the timers of the program alone keep it alive
+  const t = performance.now();
+  if (t - __lastSnap >= 100) { __lastSnap = t; snapshot(); }
+}
+function open(target: string): void {
+  __mode = 0;
+  if (target === '') return;
+  if (target === 'stdout') __mode = 2;
+  else if (target.startsWith('file:')) { __file = target.slice(5); __mode = 3; }
+  if (__mode === 0) return;
+  line(head('hello') + '{"version":"0.1","platform":")ZN") + platformName() + R"ZN(","features":["perf","logs","state","metrics"]}}');
+}
+function ensure(): boolean { if (__mode < 0) open(env('ZINC_TELEMETRY')); return __mode > 0; }
+export function connect(target: string): void { if (__mode > 0) return; open(target); }
+export function enabled(): boolean { return ensure(); }
+function metric(kind: string, name: string, v: number): void {
+  if (!ensure()) return;
+  sample();
+  line(head('metric') + '{"kind":"' + kind + '","name":' + jsonStr(name) + ',"value":' + jsonNum(v) + '}}');
+}
+export function counter(name: string, delta: number): void { metric('counter', name, delta); }
+export function gauge(name: string, value: number): void { metric('gauge', name, value); }
+export function event(name: string, data: string): void {
+  if (!ensure()) return;
+  sample();
+  line(head('event') + '{"name":' + jsonStr(name) + ',"data":' + jsonStr(data) + '}}');
+}
+export function expose(name: string, get: () => number): void {
+  ensure();
+  if (__exposed.length < 64) __exposed.push(new Exposed(name, get));
+}
+)ZN";
+}
+
+// zinc:platform: the capabilities of the profile this engine runs as, constants like compiler/src/capabilities.ts platformModule (targets/capabilities.json).
+std::string platformName() {
+#if defined(__APPLE__)
+  return "macos";
+#else
+  return "linux";
+#endif
+}
+std::string platformModuleSource(const std::string& capsFile) {
+  std::string target = platformName(), text;
+  int w = 320, h = 240;
+  if (const char* sz = std::getenv("ZINC_SIZE")) { int a = 0, b = 0; if (std::sscanf(sz, "%dx%d", &a, &b) == 2 && a > 0 && b > 0) { w = a; h = b; } }
+  std::string src = "// Generated by zinc for this run (the capabilities of the target profile).\n";
+  src += "export const TARGET: string = \"" + target + "\";\nexport const PROFILE: string = \"" + target + "\";\n";
+  src += "export const HEAP_BYTES: i32 = 536870912;\nexport const NUMBERS: string = \"f64\";\n";
+  src += "export const SCREEN_W: i32 = " + std::to_string(w) + ";\nexport const SCREEN_H: i32 = " + std::to_string(h) + ";\nexport const FPU: boolean = true;\n";
+  std::ifstream in(capsFile);
+  std::stringstream ss;
+  ss << in.rdbuf();
+  text = ss.str();
+  yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(text.data()), text.size(), YYJSON_READ_NOFLAG, nullptr, nullptr);
+  if (doc) {
+    yyjson_val* t = yyjson_obj_get(yyjson_doc_get_root(doc), target.c_str());
+    size_t i, n;
+    yyjson_val *k, *v;
+    if (yyjson_is_obj(t)) yyjson_obj_foreach(t, i, n, k, v) {
+      std::string key = yyjson_get_str(k);
+      if (key == "heap" || key == "numbers" || key == "width" || key == "height" || key == "fpu") continue;
+      bool on = (yyjson_is_bool(v) && yyjson_get_bool(v)) || (yyjson_is_num(v) && yyjson_get_num(v) > 0) || (yyjson_is_str(v) && (std::string(yyjson_get_str(v)) == "plugin" || std::string(yyjson_get_str(v)) == "optional"));
+      for (char& c : key) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+      src += "export const " + key + ": boolean = " + (on ? "true" : "false") + ";\n";
+    }
+    yyjson_doc_free(doc);
+  }
+  return src;
+}
+
 const char* hostModuleSource(std::string_view spec) {
+  if (spec == "zinc:events") return kEventsModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
   if (spec == "zinc:fs") return kFsModule;
@@ -470,6 +614,8 @@ struct Loader {
     std::string spec(quoted.substr(1, quoted.size() - 2));
     if (spec.rfind("zinc:", 0) == 0) {
       if (done.count(spec)) return done[spec];
+      if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
+      if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};

@@ -30,8 +30,8 @@ maps/explorer/src/main.tsx | RUNTIME | native module MapEngine is not linked | Z
 maps/navigation/src/main.tsx | OK |  | 
 maps/svg-gallery/src/main.tsx | RUNTIME | native module SvgEngine is not linked | ZN-106
 modules-showcase/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
-native-module/src/main.ts | COMPILE | zinc:telemetry is not a module yet | ZN-080
-pinball/src/main.ts | COMPILE | zinc:platform is not a module yet | ZN-080
+native-module/src/main.ts | OK |  | 
+pinball/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
 process/cli/main.ts | CRASH | zinc:process members missing; the checker crashes (signal 11) | ZN-084
 process/shell/main.tsx | COMPILE | zinc:process has no Process class | ZN-084

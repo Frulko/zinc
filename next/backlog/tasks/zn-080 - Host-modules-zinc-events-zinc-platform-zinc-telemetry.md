@@ -1,9 +1,10 @@
 ---
 id: ZN-080
 title: 'Host modules: zinc:events, zinc:platform, zinc:telemetry'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:51'
+updated_date: '2026-10-07 02:46'
 labels:
   - host-modules
   - size-S
@@ -20,6 +21,12 @@ Pure Zinc where possible: zinc:events (Emitter, once, off, listenerCount) from l
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 T0 fixtures for each module; telemetry output equals the prototype's byte for byte for a scripted session
-- [ ] #2 examples/native-module and iot-panel pass the module-resolution step for these three
+- [x] #1 T0 fixtures for each module; telemetry output equals the prototype's byte for byte for a scripted session
+- [x] #2 examples/native-module and iot-panel pass the module-resolution step for these three
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. zinc:events, zinc:platform (from targets/capabilities.json), zinc:telemetry as built-in Zinc sources; the telemetry lines equal the old simulator's byte for byte except ts and the platform name (tests/golden/host/telemetry.expected); events fixture. native-module and pinball now run (promoted in tests/examples.lst); iot-panel resolves all three and stops on zinc:gpio. Limits: udp:// sink, perf_frame and log messages, 10 Hz sampler (done on telemetry calls).
+<!-- SECTION:NOTES:END -->

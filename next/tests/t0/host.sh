@@ -10,3 +10,6 @@ tools/pngdiff "$tmp/clock-20.png" corpus/ui/clock-20.png >/dev/null || { echo "f
 diff -q "$tmp/mod.out" tests/golden/host/modules.out >/dev/null || { echo "host modules output differs: $(head -c 200 "$tmp/mod.out")"; exit 1; }
 # zinc:process (ZN-050): a shell command, merged output, exit code.
 "$ZINC" run tests/golden/host/process.ts 2>&1 | diff -q - tests/golden/host/process.out >/dev/null || { echo "zinc:process output differs"; exit 1; }
+# zinc:events, zinc:platform and zinc:telemetry (ZN-080): written in Zinc; the telemetry lines equal the old runtime's (the expected file is the old simulator's output with ts zeroed and the platform renamed).
+env -u ZINC_SIZE "$ZINC" run tests/golden/host/events.ts 2>&1 | diff -q - tests/golden/host/events.out >/dev/null || { echo "zinc:events or zinc:platform output differs"; exit 1; }
+"$ZINC" run tests/golden/host/telemetry.ts 2>&1 | sed -E 's/"ts":[0-9.e+-]+/"ts":0/' | diff -q - tests/golden/host/telemetry.expected >/dev/null || { echo "zinc:telemetry lines differ from tests/golden/host/telemetry.expected"; exit 1; }

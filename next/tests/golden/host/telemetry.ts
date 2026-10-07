@@ -1,0 +1,11 @@
+import * as telemetry from 'zinc:telemetry';
+console.log(telemetry.enabled());
+telemetry.connect('stdout');
+telemetry.counter('hits', 1);
+telemetry.counter('hits', 2.5);
+telemetry.gauge('temp', 21.25);
+telemetry.gauge('nan', 0 / 0);
+telemetry.event('boot', 'say "hi"\n\tback\\slash\u0001');
+telemetry.expose('x', () => 5);
+telemetry.counter('after', 3);
+console.log(telemetry.enabled());

@@ -189,6 +189,9 @@ declare module 'zinc:events' {
   export class Emitter<T> {
     constructor();
     on(cb: (v: T) => void): void;
+    once(cb: (v: T) => void): void;
+    off(cb: (v: T) => void): void;
+    listenerCount(): i32;
     emit(v: T): void;
   }
 }
