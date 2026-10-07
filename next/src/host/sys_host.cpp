@@ -352,6 +352,27 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostLoopNow: r->d = zn::loop::nowMs(); break;
+    case Rt::HostProcSpawnEx: {
+      auto split = [](const std::string& joined) { std::vector<std::string> v; if (joined.empty()) return v; size_t at = 0; for (;;) { size_t k = joined.find('\x1f', at); v.push_back(joined.substr(at, k == std::string::npos ? std::string::npos : k - at)); if (k == std::string::npos) break; at = k + 1; } return v; };
+      std::vector<std::string> argv = split(s(1));
+      argv.insert(argv.begin(), s(0));
+      r->i = zn::loop::spawnProcess(argv, s(2), split(s(3)));
+      break;
+    }
+    case Rt::HostProcError: ret(r, zn::loop::lastError()); break;
+    case Rt::HostProcPid: r->i = zn::loop::pidOf(n(0)); break;
+    case Rt::HostProcWrite: r->i = zn::loop::writeStdin(n(0), s(1)) ? 1 : 0; break;
+    case Rt::HostProcCloseStdin: zn::loop::closeStdin(n(0)); break;
+    case Rt::HostProcSignal: zn::loop::signalProcess(n(0), n(1)); break;
+    case Rt::HostEvNext: {  // "handle \x1f kind \x1f data", or "" when no event is ready
+      zn::loop::Event e;
+      if (zn::loop::nextEvent(e)) ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); else ret(r, std::string());
+      break;
+    }
+    case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
+    case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
+    case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
+    case Rt::HostStdinRead: zn::loop::readStdin(); break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
     case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }

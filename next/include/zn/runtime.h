@@ -176,7 +176,12 @@
   X(StrAt, "string.at", "si>s", 0) X(ArrSetLength, "Array.__setLength", "ai>n", 0) /* `arr.length = n`: the checker rewrites the assignment into this call */ \
   /* the event loop (ZN-082): wait for the next event for ms milliseconds (a real sleep), and whether the program runs in real time (ZINC_REALTIME) */ \
   X(HostLoopWait, "host.loopWait", "d>n", 2) X(HostLoopReal, "host.loopReal", ">i", 2) \
-  X(HostLoopNow, "host.loopNow", ">d", 2) X(HostLoopEpoch, "host.loopEpoch", ">d", 2)  /* milliseconds since the program started, and since 1970 */
+  X(HostLoopNow, "host.loopNow", ">d", 2) X(HostLoopEpoch, "host.loopEpoch", ">d", 2) /* milliseconds since the program started, and since 1970 */ \
+  /* zinc:process and the program's own signals and stdin (ZN-084): argv/cwd/env spawn, stdin, signals, and the queue of events of the loop */ \
+  X(HostProcSpawnEx, "host.procSpawnEx", "ssss>i", 2) X(HostProcError, "host.procError", ">s", 2) X(HostProcPid, "host.procPid", "i>i", 2) \
+  X(HostProcWrite, "host.procWrite", "is>i", 2) X(HostProcCloseStdin, "host.procCloseStdin", "i>n", 2) X(HostProcSignal, "host.procSignal", "ii>n", 2) \
+  X(HostEvNext, "host.evNext", ">s", 2) X(HostEvActive, "host.evActive", ">i", 2) \
+  X(HostSigWatch, "host.sigWatch", "s>i", 2) X(HostSigSend, "host.sigSend", "is>i", 2) X(HostStdinRead, "host.stdinRead", ">n", 2)
 
 namespace zn {
 

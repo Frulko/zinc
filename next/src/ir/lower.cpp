@@ -1401,6 +1401,17 @@ struct Lowering::FnLower {
       }
       case N::Cond: {
         TypeId rt = natural(i);
+        if (ty(rt).k == Type::K::Void) {  // `c ? a() : b()` of two calls that return nothing: run one of them, no value joins
+          ValueId vc = exprTo(x.kids[0], m.boolT());
+          BlockId vt = newBlock(), ve = newBlock(), vj = newBlock();
+          condbr(vc, vt, ve);
+          sealed[vt] = sealed[ve] = 1;
+          cur = vt; expr(x.kids[1]); br(vj, {});
+          cur = ve; expr(x.kids[2]); br(vj, {});
+          seal(vj);
+          cur = vj;
+          return kNoValue;
+        }
         ValueId cond = exprTo(x.kids[0], m.boolT());
         BlockId tb = newBlock(), eb = newBlock(), join = newBlock();
         ValueId jp = newValue(rt);
@@ -2112,7 +2123,7 @@ struct Lowering::FnLower {
       for (ValueId& p : b.params) p = remap[p];
       for (Inst& i : b.insts) {
         for (ValueId& v : i.args) { if (v >= remap.size()) { std::fprintf(stderr, "internal error: instruction %s of @%s uses a missing value\n", opName(i.op), f.name.c_str()); std::abort(); } v = remap[v]; }
-        for (Edge& e : i.edges) for (ValueId& v : e.args) v = remap[v];
+        for (Edge& e : i.edges) for (ValueId& v : e.args) { if (v >= remap.size()) { std::fprintf(stderr, "internal error: a jump of @%s passes a missing value\n", f.name.c_str()); std::abort(); } v = remap[v]; }
         if (i.res != kNoValue) i.res = remap[i.res];
       }
     }

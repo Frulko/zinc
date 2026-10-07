@@ -57,6 +57,7 @@ function __gfxLoop(): void {
   for (let f: i32 = 0; f < n; f++) {
     const dt = __host_gfxPoll();
     __clock = __real ? __host_loopNow() : __clock + dt * 1000;  // a real run follows the clock of the host, a deterministic one the fixed step
+    __pollHost();
     __frameTimers();
     __host_gfxBegin();
     const cb = __frameCb;
@@ -167,8 +168,30 @@ export function allocations(): i32 { return 0; }
 export function randomBytes(n: i32): u8[] { const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_sysRandomByte() as u8); return r; }
 export function utf8Encode(s: string): u8[] { const r: u8[] = []; const n = __host_sysUtf8Len(s); for (let i: i32 = 0; i < n; i++) r.push(__host_sysUtf8Byte(s, i) as u8); return r; }
 export function utf8Decode(bytes: u8[]): string { return __host_sysUtf8Decode(bytes); }
-export function onSignal(signal: string, cb: () => void): void {}
-export function kill(pid: i32, signal: string): boolean { return false; }
+// Signals of the program itself arrive on the event loop (a handled signal does not terminate it); a watched signal does not keep the loop alive.
+const __sigNames: string[] = [];
+const __sigCbs: (() => void)[] = [];
+let __sysEv: boolean = false;
+const __stdinCbs: ((chunk: string) => void)[] = [];
+function __sysEvents(): void {
+  if (__sysEv) return;
+  __sysEv = true;
+  __addEvHandler((h: i32, kind: i32, data: string) => {
+    if (kind === 10) { for (let i: i32 = 0; i < __sigNames.length; i++) if (__sigNames[i] === data) __sigCbs[i](); }
+    else if (kind === 11) { for (const cb of __stdinCbs.slice()) cb(data); }
+    else if (kind === 12) { for (const cb of __stdinCbs.slice()) cb(''); }
+  });
+}
+export function onSignal(signal: string, cb: () => void): void {
+  if (__host_sigWatch(signal) === 0) throw new Error('sys.onSignal: unknown or uncatchable signal ' + signal);
+  __sysEvents();
+  __sigNames.push(signal);
+  __sigCbs.push(cb);
+}
+export function kill(pid: i32, signal: string): boolean {
+  if (__host_sigSend(pid, signal) === 0) throw new Error('sys.kill: unknown signal ' + signal);
+  return true;
+}
 export function pid(): i32 { return __host_sysPid(); }
 export function cwd(): string { return __host_sysCwd(); }
 export function chdir(dir: string): boolean { return __host_sysChdir(dir); }
@@ -178,7 +201,9 @@ export function envKeys(): string[] { const r: string[] = []; const n = __host_s
 export function isatty(fd: i32): boolean { return __host_sysIsatty(fd); }
 export function write(s: string): void { __host_sysWrite(s); }
 export function writeErr(s: string): void { __host_sysWriteErr(s); }
-export function onStdin(cb: (chunk: string) => void): void {}
+// waits up to `ms` for work from outside (a child's output, a signal, stdin) and delivers it: for a program that has to block until something finishes
+export function poll(ms: i32): void { __host_loopWait(ms); __pollHost(); }
+export function onStdin(cb: (chunk: string) => void): void { __sysEvents(); __stdinCbs.push(cb); __host_stdinRead(); }
 )ZN";
 
 const char* kFsModule = R"ZN(
@@ -273,9 +298,17 @@ export interface UserInfo { username: string; uid: i32; gid: i32; shell: string;
 export function userInfo(): UserInfo { return { username: __host_osUser(), uid: 0, gid: 0, shell: '', homedir: __host_osHomedir() }; }
 )ZN";
 
-const char* kProcessModule = R"ZN(
-// A child process runs a shell command line, its stdout and stderr merged; read it without blocking, poll for the exit code.
-export function spawn(commandLine: string): i32 { return __host_procSpawn(commandLine); }
+// zinc:__proc: the raw child-process calls under the stand-in of plugins/process (native/process.next.ts); programs import zinc:process (the plugin).
+const char* kHostProcModule = R"ZN(
+export function spawn(cmd: string, args: string, cwd: string, env: string): i32 { return __host_procSpawnEx(cmd, args, cwd, env); }
+export function error(): string { return __host_procError(); }
+export function pid(h: i32): i32 { return __host_procPid(h); }
+export function write(h: i32, data: string): boolean { return __host_procWrite(h, data) !== 0; }
+export function closeStdin(h: i32): void { __host_procCloseStdin(h); }
+export function signal(h: i32, sig: i32): void { __host_procSignal(h, sig); }
+export function onEvent(cb: (h: i32, kind: i32, data: string) => void): void { __addEvHandler(cb); }
+// a shell command line, stdout and stderr merged, polled (zinc:net runs curl this way)
+export function spawnLine(commandLine: string): i32 { return __host_procSpawn(commandLine); }
 export function read(handle: i32): string { return __host_procRead(handle); }
 export function status(handle: i32): i32 { return __host_procStatus(handle); }
 export function kill(handle: i32): void { __host_procKill(handle); }
@@ -284,7 +317,7 @@ export function kill(handle: i32): void { __host_procKill(handle); }
 const char* kNetModule = R"ZN(
 // zinc:net over the curl of the machine, run as a child process (zinc:process) and polled from a timer: fetch(url) resolves with the status and the body.
 // A transport failure resolves with status 0 (not ok) instead of rejecting. Only the parts of the Web API the examples use: Headers, method, body, headers, text().
-import * as proc from 'zinc:process';
+import * as proc from 'zinc:__proc';
 export class Headers {
   names: string[] = [];
   values: string[] = [];
@@ -334,7 +367,7 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
     if (init !== undefined && init.body !== undefined) cmd += ' --data-binary ' + quote(init.body as string);
     if (init !== undefined && init.contentType !== undefined) cmd += ' -H ' + quote('Content-Type: ' + (init.contentType as string));
     if (init !== undefined && init.headers !== undefined) { const h = init.headers as Headers; for (let i: i32 = 0; i < h.names.length; i++) cmd += ' -H ' + quote(h.names[i] + ': ' + h.values[i]); }
-    new Fetch(proc.spawn(cmd + ' ' + quote(url) + ' 2>/dev/null'), url, resolve).run();
+    new Fetch(proc.spawnLine(cmd + ' ' + quote(url) + ' 2>/dev/null'), url, resolve).run();
   });
 }
 )ZN";
@@ -564,7 +597,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:storage") return kStorageModule;
   if (spec == "zinc:assets") return kAssetsModule;
   if (spec == "zinc:os") return kOsModule;
-  if (spec == "zinc:process") return kProcessModule;
+  if (spec == "zinc:__proc") return kHostProcModule;
   if (spec == "zinc:net") return kNetModule;
   if (spec == "zinc:native") return kNativeModule;
   return nullptr;
@@ -1105,11 +1138,38 @@ function __frameTimers(): void {
     __drainJobs();
   }
 }
+// Work that happens outside the program (a child process, a signal, standard input) reaches it as events of the host's loop, one string each
+// ("handle", "kind" and "data" joined by U+001F); the handlers registered here (zinc:process, zinc:sys) pick the kinds they own.
+let __evHandlers: ((h: i32, kind: i32, data: string) => void)[] = [];
+function __addEvHandler(f: (h: i32, kind: i32, data: string) => void): void { __evHandlers.push(f); }
+function __pollHost(): boolean {
+  let any = false;
+  for (;;) {
+    const e = __host_evNext();
+    if (e.length === 0) break;
+    any = true;
+    const i1 = e.indexOf('\u001f');
+    const i2 = e.indexOf('\u001f', i1 + 1);
+    const h = parseInt(e.slice(0, i1));
+    const kind = parseInt(e.slice(i1 + 1, i2));
+    const data = e.slice(i2 + 1);
+    for (const f of __evHandlers) f(h, kind, data);
+    __drainJobs();
+  }
+  return any;
+}
 function __runLoop(): void {
   const hook = __frameHook;
   if (hook !== null) { hook(); return; }
   __drainJobs();
-  while (__timers.length > 0) {
+  for (;;) {
+    __pollHost();
+    const busy = __host_evActive() !== 0;  // a child still runs, a signal or stdin is being watched
+    if (__timers.length === 0) {
+      if (!busy) break;
+      __host_loopWait(5);
+      continue;
+    }
     let best: i32 = 0;
     for (let i: i32 = 1; i < __timers.length; i++) {
       const a = __timers[i];
@@ -1117,11 +1177,15 @@ function __runLoop(): void {
       if (a.ord < b.ord || (a.ord === b.ord && a.seq < b.seq)) best = i;
     }
     const t = __timers[best];
+    const now = __now();
+    if (t.at > now) {
+      if (busy) { __host_loopWait(t.at - now < 5 ? t.at - now : 5); continue; }  // outside work may finish before the timer: look again soon, the clock does not jump meanwhile
+      if (__real) __host_loopWait(t.at - now);  // a real run sleeps on the host's event loop until the timer is due
+      __clock = __real ? __now() : t.at;
+    }
     const rest: Timer[] = [];
     for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
     __timers = rest;
-    const now = __now();
-    if (t.at > now) { if (__real) __host_loopWait(t.at - now); __clock = __real ? __now() : t.at; }  // a real run sleeps on the host's event loop until the timer is due
     t.f();
     if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
       __timerSeq++;

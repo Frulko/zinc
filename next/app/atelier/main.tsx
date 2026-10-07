@@ -21,39 +21,36 @@ const [hot, setHot] = createSignal<Hot[]>([]);
 const [phases, setPhases] = createSignal<Phase[]>([]);
 const [status, setStatus] = createSignal<string>('ready');
 
-// The one background job (a run, a check, a profile): its output streams into the output tab, `onDone` receives all of it.
-let job: i32 = -1;
-let jobOut: string = '';
-let jobDone: ((out: string, code: i32) => void) | null = null;
-
 function q(s: string): string { return "'" + s.split("'").join("'\\''") + "'"; }
 function path(rel: string): string { return root + '/' + rel; }
 
+// The one background job (a run, a check, a profile): its output streams into the output tab, `onDone` receives all of it.
+let job: proc.Process | null = null;
+let jobOut: string = '';
+let jobDone: ((out: string, code: i32) => void) | null = null;
+
 function start(label: string, args: string, done: ((out: string, code: i32) => void) | null): void {
-  if (job >= 0) { setStatus('busy: ' + label + ' not started'); return; }
+  if (job !== null) { setStatus('busy: ' + label + ' not started'); return; }
   jobOut = '';
   jobDone = done;
   setOutput('$ zinc ' + args + '\n');
   setStatus(label + '…');
-  job = proc.spawn(q(zincBin) + ' ' + args);
+  const p = proc.spawn('/bin/sh', ['-c', 'exec 2>&1\n' + q(zincBin) + ' ' + args], {});
+  job = p;
+  p.onData((chunk: string, stderr: boolean) => { jobOut += chunk; setOutput(output() + chunk); });
+  p.onExit((code: i32) => {
+    job = null;
+    setStatus(code === 0 ? 'done' : 'exit ' + code);
+    const cb = jobDone;
+    jobDone = null;
+    if (cb !== null) cb(jobOut, code);
+  });
 }
 
 const syncJobs: boolean = sys.env('ZINC_ATELIER_SYNC') !== '';  // tests: a frame waits for the job to end, so a scripted run does not depend on timing
 
 function pump(): void {
-  if (job < 0) return;
-  if (syncJobs) while (proc.status(job) < 0) { const c = proc.read(job); if (c !== '') { jobOut += c; setOutput(output() + c); } }
-  const chunk = proc.read(job);
-  if (chunk !== '') { jobOut += chunk; setOutput(output() + chunk); }
-  const code = proc.status(job);
-  if (code < 0) return;
-  const rest = proc.read(job);
-  if (rest !== '') { jobOut += rest; setOutput(output() + rest); }
-  job = -1;
-  setStatus(code === 0 ? 'done' : 'exit ' + code);
-  const cb = jobDone;
-  jobDone = null;
-  if (cb !== null) cb(jobOut, code);
+  if (syncJobs) while (job !== null) sys.poll(5);
 }
 
 function openFile(rel: string): void {
@@ -103,7 +100,7 @@ function loadTrace(file: string): void {
   setTab('frames');
 }
 
-function stop(): void { if (job >= 0) proc.kill(job); }
+function stop(): void { const j = job; if (j !== null) j.kill(); }
 
 // The kit's props are read once; these rows and tabs use the host elements, whose class and text follow the signals.
 function Btn(p: { label: string; kind: string; onClick: () => void }): i32 {

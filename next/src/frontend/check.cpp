@@ -2163,12 +2163,14 @@ struct Checker {
       else out.nodeSym[d] = declare(SymKind::Var, x.text, vt, d, isConst, d);
       return out.nodeSym[d];
     };
+    bool synthNull = false;
     if (init == kNone && (ann == kNone || isConst)) diag(kZUnsupported, d, "declarations without an initializer");
     if (ann != kNone) {
       t = fw != forwardVars.end() ? fw->second.type : annotation(ann);
       if (init == kNone && !bad(t) && !isConst) {  // `let x: T;`: assigned before it is read (flow analysis is not done): start from the default of T
         TK k = ty(t).k;
-        const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : nullptr;
+        const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : (k == TK::Object || k == TK::Func) ? "null" : nullptr;
+        synthNull = !hasNull(t) && (k == TK::Object || k == TK::Func);  // `let p: Process;` assigned before it is read: starts as a null reference that is never read
         if (!text) diag(kZUnsupported, d, "a declaration without an initializer of type '" + name(t) + "'");
         else {
           auto st = snippet(a, std::string(text) + ";", {}, d);
@@ -2194,7 +2196,7 @@ struct Checker {
         require(expr(init, t), t, init);
         return;
       }
-      if (init != kNone) require(expr(init, t), t, init);
+      if (init != kNone) { TypeId vt0 = expr(init, t); if (!synthNull) require(vt0, t, init); }
     } else if (init != kNone) {
       TypeId self = n(init).kind == N::FuncExpr && mentionsIdent(n(init).kids[1], x.text) ? annotatedFuncType(init) : kNoType;
       if (self != kNoType) {  // a fully annotated lambda: its type is known before its body, so the body may use the variable

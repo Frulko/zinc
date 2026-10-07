@@ -1,3 +1,2 @@
-hi
-err
- 3
+"hi\ngot input\n" "err\n" 3 true false
+0 "bar\n/\n"

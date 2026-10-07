@@ -42,6 +42,8 @@ declare module 'zinc:sys' {
   /** Standard input in chunks (UTF-8 sequences never split); '' at end of input. Keeps the program alive until
    *  then. */
   export function onStdin(cb: (chunk: string) => void): void;
+  /** Waits up to `ms` milliseconds for work from outside (a child's output, a signal, stdin) and delivers it. Zinc Next. */
+  export function poll(ms: i32): void;
 }
 
 declare module 'zinc:fs' {

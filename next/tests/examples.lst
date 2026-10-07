@@ -7,7 +7,7 @@ boards/s3-matrix/dice/src/main.ts | OK |  |
 boards/s3-matrix/level/src/main.ts | OK |  | 
 boards/s3-matrix/text-scroller/src/main.ts | OK |  | 
 boards/s3-matrix/tilt-sand/src/main.ts | OK |  | 
-boards/scrollphat/badge/src/main.ts | COMPILE | zinc:process has no `run` (ip.ts) | ZN-084
+boards/scrollphat/badge/src/main.ts | OK |  | 
 boards/scrollphat/cpu-graph/src/main.ts | OK |  | 
 boards/scrollphat/snake/src/main.ts | OK |  | 
 bouncing-ball/src/main.ts | OK |  | 
@@ -33,8 +33,8 @@ modules-showcase/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
 native-module/src/main.ts | OK |  | 
 pinball/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
-process/cli/main.ts | CRASH | zinc:process members missing; the checker crashes (signal 11) | ZN-084
-process/shell/main.tsx | COMPILE | zinc:process has no Process class | ZN-084
+process/cli/main.ts | OK |  | 
+process/shell/main.tsx | OK |  | 
 remarkable/dashboard/src/main.tsx | OK |  | 
 remarkable/notes/src/main.tsx | OK |  | 
 remote/viewer/main.tsx | OK |  | 
@@ -60,4 +60,4 @@ video/mapper/src/main.ts | COMPILE | zinc:osc is not a module yet (plugins/mappi
 video/quad/src/main.ts | OK |  | 
 webview/hybrid/main.tsx | OK |  | 
 zed-editor/sample/src/main.ts | OK |  | 
-zed-editor/src/main.tsx | COMPILE | zinc:process has no `run` or Process (tools.ts) | ZN-084
+zed-editor/src/main.tsx | OK |  | 

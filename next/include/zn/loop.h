@@ -3,6 +3,7 @@
 // to happen. The timers and promises of a program are scheduled in Zinc (the prelude of src/frontend/modules.cpp); this is where the process
 // really sleeps, and where the completion of outside work (a child's output, its exit) is collected.
 #include <string>
+#include <vector>
 
 namespace zn::loop {
 
@@ -21,5 +22,27 @@ std::string read(int handle);
 int status(int handle);
 // SIGTERM to a child that still runs.
 void kill(int handle);
+
+// ---- the process API of zinc:process (plugins/process): argv without a shell, cwd and environment, stdin, separate output streams, events
+struct Event {
+  int handle = 0;      // the child (kinds 0 to 2), or 0
+  int kind = 0;        // 0 stdout chunk, 1 stderr chunk, 2 exit (data = the code, 128 + signal when killed), 10 signal (data = its name), 11 stdin chunk, 12 stdin end
+  std::string data;
+};
+// Starts argv[0] (looked up in PATH); cwd "" keeps the program's; env holds KEY=VALUE entries added to the environment. -1 on failure (lastError()).
+int spawnProcess(const std::vector<std::string>& argv, const std::string& cwd, const std::vector<std::string>& env);
+const std::string& lastError();
+int pidOf(int handle);
+bool writeStdin(int handle, const std::string& data);   // blocks until written; false when stdin is closed
+void closeStdin(int handle);
+void signalProcess(int handle, int signal);
+// The next event that is ready (the loop is pumped first); false when there is none.
+bool nextEvent(Event& out);
+// Children still running, signals watched and stdin being read: whether the program has work that is not a timer.
+bool active();
+// Signals and standard input of the program itself (zinc:sys): events of kind 10, 11 and 12.
+bool watchSignal(const std::string& name);              // false for an unknown or uncatchable name
+bool sendSignal(int pid, const std::string& name);      // false for an unknown name
+void readStdin();
 
 }  // namespace zn::loop
