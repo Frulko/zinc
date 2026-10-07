@@ -96,3 +96,10 @@ the new contents to the engine through `ret_buf`, which writes them into the pro
 `three/addons/loaders/GLTFLoader.js`) resolves to the plugin file. Compiler fix on the way: `new Derived(a, b)` where `Derived` has no constructor of its own now gets the omitted arguments' defaults
 from the base constructor. `tests/t1/three_3d.sh`: conformance programs and four example frames against engine goldens. D11's own scene graph stays the prototype's; cgltf and meshoptimizer are not needed
 (three.host.cpp parses glTF/GLB itself), so nothing new is vendored.
+
+## video (ZN-109)
+
+`plugins/video` builds from the system FFmpeg (`pkg-config` libavformat, libavcodec, libavutil, libswscale; LGPL, dynamic: the plugin library links them, `zinc` does not) and decodes with VideoToolbox on macOS
+(`decoder h264 (videotoolbox)`), V4L2 M2M or software elsewhere, into runtime images. Without the libraries, or without a compiler, the player is the fake of `video.next.ts` (and deterministic runs use it:
+decoder threads make frame timing real-time, so the plugin is not marked `deterministic`). `tests/t1/video.sh` records which one ran: the first frame of `fractal.mp4` equals the prototype's build pixel for pixel
+(`tests/golden/host/video_first.png`, captured with it), a two-clip playlist goes 0,1,0 with no blank frame, and the bounce, looper and quad examples run.
