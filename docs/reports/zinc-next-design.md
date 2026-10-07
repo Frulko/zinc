@@ -76,10 +76,14 @@ developer machine and an extra toolchain to ship. Later, the compiler can be rew
 ### 5.1 Front end
 
 - Parser for the subset only: classes, generics, unions, tuples, destructuring, closures, async/generators, JSX.
-- Checker: port the relevant parts of the typescript-go checker (relations, inference, control flow), as Bun did for its
-  own. Scope is bounded by the subset, so conditional and mapped types are out unless the corpus needs them.
-- Validation: run both this checker and `tsgo` on the corpus; any disagreement on an accepted program is a bug. `tsgo`
-  stays a development-time reference, never a runtime dependency.
+- Checker: our own bidirectional checker for the strict subset (local inference, classes, simple generics, unions,
+  tuples, basic narrowing). Port from the reference implementation (typescript-go today) only the subtle parts:
+  assignability of unions and generics, and control flow. Scope is bounded by the subset, so conditional and mapped
+  types are out unless the corpus needs them.
+- Validation: the *reference checker* is an oracle, one way only: **every program we accept, the oracle accepts**. We
+  may reject more (that is the point of a strict subset). The oracle is a development-time tool behind one command
+  (`next/tools/oracle`, `ZN_ORACLE` env var), never a runtime dependency, and replaceable: `tsgo` now, a C++ port of
+  tsgo or any other checker later, with no change to the tests.
 - Sources remain valid TypeScript, so editors and `tsserver` keep working (`zinc tsconfig`).
 - Diagnostics registry from the start: code, title, why, fix, example, one fixture per code, `zinc explain Zxxxx`
   (lesson from `perryts-comparison.md`, items 3 and 4).
@@ -128,6 +132,16 @@ the starting point.
 - Optional AOT path: `zig c++` hidden in the toolchain manager, with pinned sysroots, downloaded on demand and signed.
 - Docker only as an optional development and CI backend. ESP-IDF stays a managed SDK; PS1/PS2 and Apple targets off-Mac
   remain the known exceptions (`docker-free-studio.md`).
+
+### Callback parameter kinds (ZN-067)
+
+TypeScript has one `number`; Zinc has machine kinds. A function value of type `(i32, string) => void` is accepted where
+`(f64, string) => void` is expected (and the other way round) when the parameter lists have the same length and differ only in
+machine number kinds, and likewise for the result. The checker wraps the value in a generated function that converts each argument
+(`p0 as i32`) and the result between the kinds, so the callee sees exactly the kind it declares. Arguments are converted like an
+`as` cast (truncating, never trapping). Anything else (different arity, a string against a number, a class against another) stays a
+type error. Explicit type arguments (`id<i32[]>([1, 2])`) are applied before the arguments are checked, so a literal takes the
+element kind of `T`. A field initialised from a module-level const takes that const's type (annotated, or from its literal).
 
 ## 6. What is kept and what is left
 
@@ -182,7 +196,7 @@ checker port or the shared-header design proves harder than expected, the cost i
 
 | Risk | Mitigation |
 |---|---|
-| The checker port is the largest piece and the subset grows | Define the subset from the corpus, measure against `tsgo`, add features on demand |
+| The checker is the largest piece and the subset grows | Define the subset from the corpus, check "we accept ⊂ oracle accepts", add features on demand |
 | Divergence from the existing runtime layouts | Shared headers from M1; the existing runtime is linked, not rewritten |
 | AOT only proven on scalar code | M4 acceptance includes heap-heavy kernels (binarytrees, sort) |
 | Scope creep toward npm compatibility | Non-goal; revisit only with explicit evidence |

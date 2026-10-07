@@ -182,8 +182,36 @@ struct Checker {
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj);
     return false;
   }
+  // `(i32, string) => void` where `(f64, string) => void` is expected: TypeScript has one number type, so a callback may take any machine
+  // number kind. The value is wrapped in a function that converts the arguments (and the result) between the kinds.
+  bool thunkable(TypeId from, TypeId to) const {
+    if (bad(from) || bad(to) || ty(from).k != TK::Func || ty(to).k != TK::Func || hasParam(from) || hasParam(to)) return false;
+    const Type &f = ty(from), &t = ty(to);
+    if (f.params.size() != t.params.size() || f.variadic != t.variadic) return false;
+    bool differs = false;
+    auto kinds = [&](TypeId x, TypeId y) { if (x == y) return true; if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; } return false; };
+    for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k])) return false;
+    if (!(f.elem == t.elem || kinds(f.elem, t.elem))) return false;
+    return differs;
+  }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
+    if (node != kNone && thunkable(from, to)) {
+      const Type f = ty(from), t = ty(to);
+      std::string ps, call;
+      std::vector<TypeId> aliases{from, to};
+      for (std::size_t k = 0; k < t.params.size(); ++k) {
+        ps += (k ? ", p" : "p") + std::to_string(k) + ": " + inspectAliasName(t.params[k]);
+        call += (k ? ", p" : "p") + std::to_string(k) + (t.params[k] == f.params[k] ? "" : " as " + inspectAliasName(f.params[k]));
+        aliases.push_back(t.params[k]); aliases.push_back(f.params[k]);
+      }
+      std::string R = inspectAliasName(t.elem);
+      std::string body = t.elem == tVoid ? "f(" + call + ")" : f.elem == t.elem ? "f(" + call + ")" : "f(" + call + ") as " + R;
+      aliases.push_back(t.elem);
+      std::uint32_t sym = helper("thunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + R + " => " + body + ";\n}\n", aliases, node);
+      wrapNode(node, sym);
+      return true;
+    }
     diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'");
     return false;
   }
@@ -1354,6 +1382,7 @@ struct Checker {
       if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
+        if (!a.targs.count(i))  // with explicit type arguments the arguments are checked against the parameter types instead (an array literal takes the element kind of `T`)
         for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty())) expr(an);  // function expressions and empty array literals wait for the type arguments the others give
         preEvaluated = true;
         GenericDecl& g = generics[gs];
@@ -3281,6 +3310,31 @@ struct Checker {
 
   static std::uint8_t accessOf(std::uint32_t fl) { return (fl & frontend::kFlagPrivate) ? 2 : (fl & frontend::kFlagProtected) ? 1 : 0; }
 
+  // The type of the top-level `const name` (annotated, or initialised with a literal or another such const), tError when it cannot be told yet.
+  TypeId moduleConstType(std::string_view nm, int depth = 0) {
+    if (!topList || depth > 8) return tError;
+    for (std::uint32_t st : *topList) {
+      if (n(st).kind != N::VarDecl) continue;
+      for (std::uint32_t d : n(st).kids) {
+        const Node& dn = n(d);
+        if (dn.text != nm || (dn.kids.size() > 2 && dn.kids[2] != kNone)) continue;
+        if (dn.kids[0] != kNone) return annotation(dn.kids[0]);
+        if (dn.kids[1] == kNone) return tError;
+        const Node* in = &n(dn.kids[1]);
+        if (in->kind == N::Unary && in->text == "-" && n(in->kids[0]).kind == N::Number) in = &n(in->kids[0]);
+        if (in->kind == N::Number) return num(Num::f64);
+        if (in->kind == N::String) return tStr;
+        if (in->kind == N::Literal && in->text != "null") return tBool;
+        if (in->kind == N::Ident) return moduleConstType(in->text, depth + 1);
+        if (in->kind == N::New && n(in->kids[0]).kind == N::Ident && !a.targs.count(dn.kids[1])) {  // `const BLACK = new CssColor(0, 255)`
+          std::uint32_t cs = lookup(n(in->kids[0]).text);
+          if (cs != kNone && out.syms[cs].kind == SymKind::Class) return out.syms[cs].type;
+        }
+        return tError;
+      }
+    }
+    return tError;
+  }
   void classMembers(std::uint32_t cls, std::uint32_t objIdx) {
     const Node& c = n(cls);
     bool isIface = c.kind == N::Interface && !out.objs[objIdx].isRecord;
@@ -3339,6 +3393,7 @@ struct Checker {
             if (out.diags.size() > before) out.diags.resize(before);
             if (!bad(it) && it != tNull && it != tVoid) t = it;
           }
+          if (t == tError && in.kind == N::Ident) t = moduleConstType(in.text);  // `private fill = BLACK`: the type of a module-level const, found in the list of top statements
           if (t == tError) diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         } else diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         out.nodeType[m] = t;

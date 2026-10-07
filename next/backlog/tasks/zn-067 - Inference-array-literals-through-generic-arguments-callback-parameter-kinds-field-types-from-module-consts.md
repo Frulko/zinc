@@ -3,9 +3,10 @@ id: ZN-067
 title: >-
   Inference: array literals through generic arguments, callback parameter kinds,
   field types from module consts
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:49'
+updated_date: '2026-10-07 00:44'
 labels:
   - language
   - checker
@@ -23,6 +24,12 @@ Audit 02 RC10/RC11/RC13: `createSignal<i32[]>([1, 2])` and `id<i32[]>([...])` ty
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures for each of the three; examples/zed-editor, esp32-2432s022, remote/viewer, webview/hybrid and canvas/sketch pass this step
-- [ ] #2 documented rule for callback parameter kinds in docs/reports/zinc-next-design.md
+- [x] #1 fixtures for each of the three; examples/zed-editor, esp32-2432s022, remote/viewer, webview/hybrid and canvas/sketch pass this step
+- [x] #2 documented rule for callback parameter kinds in docs/reports/zinc-next-design.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Explicit type arguments type array literals; callbacks may differ in machine number kinds through a generated converting thunk (rule in zinc-next-design.md section 5); a field takes the type of a module const (annotated, literal, alias or new Class). The five examples get past these three errors; they stop on other tasks (isNaN, Promise statics, zinc:process members).
+<!-- SECTION:NOTES:END -->
