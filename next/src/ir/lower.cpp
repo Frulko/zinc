@@ -1794,8 +1794,15 @@ struct Lowering::FnLower {
           if (full != builtinName(static_cast<Builtin>(b))) continue;
           std::vector<ValueId> vs;
           bool log = static_cast<Builtin>(b) == Builtin::ConsoleLog || static_cast<Builtin>(b) == Builtin::ConsoleError;
+          if ((full == "Math.sqrt" || full == "Math.sin" || full == "Math.cos") && x.kids.size() == 2) {   // fixed point: the integer sqrt and the sine table of the prototype, not the double
+            TypeId at = L.irType(c.nodeType[x.kids[1]]);
+            if (ty(at).k == Type::K::Num && (ty(at).num == NumK::fx12 || ty(at).num == NumK::fx16)) return builtin(static_cast<Builtin>(b), {exprTo(x.kids[1], at)}, at);
+          }
           for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(log ? expr(x.kids[k]) : exprTo(x.kids[k], m.numT(NumK::f64)));
-          return builtin(static_cast<Builtin>(b), std::move(vs), log ? m.voidT() : m.numT(NumK::f64));
+          ValueId br = builtin(static_cast<Builtin>(b), std::move(vs), log ? m.voidT() : m.numT(NumK::f64));
+          if (log) return br;
+          TypeId nt = natural(i);   // Math.* returns the profile's `number`
+          return ty(nt).k == Type::K::Num ? coerce(br, nt) : br;
         }
       } else if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticMethod(args)
         const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, callee.text, true);

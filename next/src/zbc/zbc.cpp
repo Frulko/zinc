@@ -67,7 +67,7 @@ bool aIsReg(Op op) {
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
   if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt || op == Op::CallNative;
-  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::LogStr || op == Op::Retain || op == Op::Release || op == Op::SetField || op == Op::ArrSet;
+  return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogFx12 || op == Op::LogFx16 || op == Op::LogBool || op == Op::LogStr || op == Op::Retain || op == Op::Release || op == Op::SetField || op == Op::ArrSet;
 }
 bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
 bool cIsReg(Op op) { const OpInfo& i = opInfo(op); return i.fmt == Fmt::ABC && i.inC != RC::None; }
@@ -274,6 +274,7 @@ struct Verifier {
       case Op::LogI: case Op::LogU: case Op::LogBool: return needCls(aOf(w), Cls::I, "operand");
       case Op::LogF64: return needCls(aOf(w), Cls::D, "operand");
       case Op::LogF32: return needCls(aOf(w), Cls::S, "operand");
+      case Op::LogFx12: case Op::LogFx16: return needCls(aOf(w), Cls::I, "operand");
       case Op::Ret:
         if (f.ret.cls == Cls::None) return fail(pc, "ret with a value in a void function");
         return needType(aOf(w), f.ret, "return value");
@@ -550,7 +551,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 5;  // 5: the natives table after the functions, and CallNative
+constexpr std::uint32_t kVersion = 6;  // 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
 
 struct Writer {
   std::vector<std::uint8_t> b;

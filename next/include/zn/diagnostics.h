@@ -123,6 +123,10 @@
     "requireNative<Spec>('Name') needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the "  \
     "export and signature the Spec describes.", "Link the module, add a stand-in, or fix the Spec to match the module.",                      \
     "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(): void }\nconst n = requireNative<Spec>('Nowhere');") \
+  X(FixedUnrepresentable, "Z4001", "The value cannot be represented in fixed point",                                      \
+    "Under a fixed-point profile (`--profile ps1`, or `// zinc-profile: ps1`) `number` is Q20.12: no Infinity and no NaN, so Math.min() and Math.max() "\
+    "with no argument (which are Infinity and -Infinity) have no value.", "Give the call at least one argument.",                                \
+    "// zinc-profile: ps1\nconsole.log(Math.max());")                                                                                              \
   X(DynInStrict, "Z1006", "`any` is not allowed in a strict profile",                                                  \
     "A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value "\
     "statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.",         \

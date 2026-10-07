@@ -402,6 +402,17 @@ interface Spec extends NativeModule { f(): void }
 const n = requireNative<Spec>('Nowhere');
 ```
 
+## Z4001: The value cannot be represented in fixed point
+
+Under a fixed-point profile (`--profile ps1`, or `// zinc-profile: ps1`) `number` is Q20.12: no Infinity and no NaN, so Math.min() and Math.max() with no argument (which are Infinity and -Infinity) have no value.
+
+Fix: Give the call at least one argument.
+
+```ts
+// zinc-profile: ps1
+console.log(Math.max());
+```
+
 ## Z1006: `any` is not allowed in a strict profile
 
 A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.

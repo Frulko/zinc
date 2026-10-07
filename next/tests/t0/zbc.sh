@@ -16,8 +16,9 @@ for k in inherit interfaces devirt statics param_props abstract many_props gener
   "$ZINC" --emit=zbc tests/golden/run/$k.ts 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "zbc golden differs: $k"; fail=1; }
   "$ZINC" --emit=zbc-bin tests/golden/run/$k.ts "$tmp/$k.zbc" && "$ZINC" zbc --dump "$tmp/$k.zbc" 2>&1 | diff -q - tests/golden/zbc/$k.zbc.txt >/dev/null || { echo "binary round trip differs: $k"; fail=1; }
 done
-printf 'const a: fx12 = 1.5;\nconsole.log(a);\n' > "$tmp/fx.ts"
-"$ZINC" --emit=zbc "$tmp/fx.ts" >/dev/null 2>"$tmp/err" && { echo "fixed-point numbers should be reported as unsupported"; fail=1; }
-grep -q "not supported yet" "$tmp/err" || { echo "missing unsupported message for fx12"; fail=1; }
+# fixed point (ZN-121): fx12 lowers to ZBC and runs with the prototype's rounding (Q20.12: 1/3 is 0.333251953125)
+printf '// zinc-profile: ps1\nconst a = 1.5;\nconst b = 1 / 3;\nconsole.log(a, b, b * 3, a / b);\n' > "$tmp/fx.ts"
+"$ZINC" --emit=zbc-bin "$tmp/fx.ts" "$tmp/fx.zbc" >/dev/null 2>&1 && "$ZINC" zbc --dump "$tmp/fx.zbc" 2>&1 | grep -q "MulFx12" || { echo "fx12 does not lower to the fixed-point ops"; fail=1; }
+[ "$("$ZINC" run "$tmp/fx.ts" 2>&1)" = "1.5 0.333251953125 0.999755859375 4.5009765625" ] || { echo "fx12 arithmetic differs from the prototype's Fx<12>"; fail=1; }
 "$(dirname "$ZINC")/zbc_test" || fail=1
 exit $fail

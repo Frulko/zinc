@@ -1,6 +1,7 @@
 // IR -> ZBC: reverse-postorder layout, liveness, linear-scan register allocation with block-parameter coalescing and
 // call windows (a call's arguments sit in consecutive registers from a base above every live register; the callee's frame
 // starts there and its result lands in the base register), then typed instruction selection and parallel moves on edges.
+#include "zn/ops.h"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -16,9 +17,9 @@ using ir::ValueId;
 using NumK = frontend::Num;
 constexpr std::uint32_t kNoReg = 0xFFFFFFFFu;
 
-bool isSigned(NumK n) { return n == NumK::i8 || n == NumK::i16 || n == NumK::i32 || n == NumK::i64 || n == NumK::isize; }
-bool isFloatK(NumK n) { return n == NumK::f64 || n == NumK::f32; }
 bool isFxK(NumK n) { return n == NumK::fx12 || n == NumK::fx16; }
+bool isSigned(NumK n) { return n == NumK::i8 || n == NumK::i16 || n == NumK::i32 || n == NumK::i64 || n == NumK::isize || isFxK(n); }   // fixed point is a signed int32 raw
+bool isFloatK(NumK n) { return n == NumK::f64 || n == NumK::f32; }
 
 std::int64_t canon(NumK n, std::int64_t v) {
   switch (n) {
@@ -132,7 +133,6 @@ struct FnEmitter {
       switch (t.k) {
         case ir::Type::K::Bool: cls[v] = Cls::I; break;
         case ir::Type::K::Num:
-          if (isFxK(t.num)) return fail("fixed-point kinds are not supported yet");
           cls[v] = t.num == NumK::f64 ? Cls::D : t.num == NumK::f32 ? Cls::S : Cls::I;
           break;
         case ir::Type::K::Ref: case ir::Type::K::Str: case ir::Type::K::Array: case ir::Type::K::Map: case ir::Type::K::Set: cls[v] = Cls::R; (void)vtOf(f.valueTypes[v]); break;  // also adds the builtin class
@@ -142,12 +142,7 @@ struct FnEmitter {
     zf.params.clear();
     for (ValueId p : f.params) zf.params.push_back(vtOf(f.valueTypes[p]));
     const ir::Type& rt = ty(f.ret);
-    if (rt.k == ir::Type::K::Num && isFxK(rt.num)) return fail("unsupported return type");
     zf.ret = vtOf(f.ret);
-    for (const ir::Block& b : f.blocks)
-      for (const ir::Inst& i : b.insts) {
-        if (i.op == IrOp::ToStr && isFxK(ty(f.valueTypes[i.args[0]]).num)) return fail("fixed-point kinds are not supported yet");
-      }
     return true;
   }
 
@@ -190,7 +185,7 @@ struct FnEmitter {
       const ir::Inst* d = defOf[v];
       if (!d || d->op != IrOp::Const || uses[v] != 1) return false;
       const ir::Type& t = ty(d->ty);
-      if (t.k != ir::Type::K::Num || isFloatK(t.num)) return false;
+      if (t.k != ir::Type::K::Num || isFloatK(t.num) || isFxK(t.num)) return false;   // a fixed-point constant lives in fimm: no immediate form
       std::int64_t c = canon(t.num, d->imm);
       if (c < -128 || c > 127) return false;
       out = static_cast<int>(c);
@@ -452,6 +447,12 @@ struct FnEmitter {
 
   void loadConst(std::uint32_t r, const ir::Inst& i) {
     const ir::Type& t = ty(i.ty);
+    if (t.k == ir::Type::K::Num && isFxK(t.num)) {   // the IR keeps a fixed-point constant as the double it was written as; the register holds the raw int32
+      std::int64_t v = zn::ops::fxFromD(i.fimm, t.num == NumK::fx12 ? 12 : 16);
+      if (v >= -32768 && v <= 32767) { put(encAD(Op::LoadI, r, static_cast<unsigned>(v) & 0xFFFFu)); return; }
+      put(encAD(Op::LoadK, r, addConst(Cls::I, static_cast<std::uint64_t>(v))));
+      return;
+    }
     if (t.k == ir::Type::K::Bool || (t.k == ir::Type::K::Num && !isFloatK(t.num))) {
       std::int64_t v = t.k == ir::Type::K::Bool ? (i.imm ? 1 : 0) : canon(t.num, i.imm);
       if (v >= -32768 && v <= 32767) { put(encAD(Op::LoadI, r, static_cast<unsigned>(v) & 0xFFFFu)); return; }
@@ -465,6 +466,35 @@ struct FnEmitter {
   }
 
   bool emitConv(std::uint32_t d, std::uint32_t s, NumK from, NumK to) {
+    if (isFxK(from) || isFxK(to)) {   // fixed point converts like the prototype's Fx<F>: through the double for floats and 64-bit ints, shifts for 32-bit ints, the other fixed point through the double
+      auto toF64 = [&](NumK k, std::uint32_t dd, std::uint32_t ss) {
+        if (k == NumK::fx12) put(encABC(Op::Fx12ToF64, dd, ss));
+        else if (k == NumK::fx16) put(encABC(Op::Fx16ToF64, dd, ss));
+        else if (k == NumK::f32) put(encABC(Op::F32ToF64, dd, ss));
+        else if (k == NumK::f64) mv(dd, ss);
+        else put(encABC(isSigned(k) ? Op::I64ToF64 : Op::U64ToF64, dd, ss));
+      };
+      if (isFxK(from) && isFxK(to)) { if (from == to) mv(d, s); else put(encABC(from == NumK::fx12 ? Op::Fx12ToFx16 : Op::Fx16ToFx12, d, s)); return true; }
+      if (isFxK(to)) {
+        bool small = !isFloatK(from) && from != NumK::i64 && from != NumK::u64 && from != NumK::isize && from != NumK::usize;   // 32-bit ints and below
+        if (small) { put(encABC(to == NumK::fx12 ? Op::I32ToFx12 : Op::I32ToFx16, d, s)); return true; }
+        toF64(from, d, s);
+        put(encABC(to == NumK::fx12 ? Op::F64ToFx12 : Op::F64ToFx16, d, d));
+        return true;
+      }
+      bool small = !isFloatK(to) && to != NumK::i64 && to != NumK::u64 && to != NumK::isize && to != NumK::usize;
+      if (small) {
+        put(encABC(from == NumK::fx12 ? Op::Fx12ToI32 : Op::Fx16ToI32, d, s));
+        Op nop;
+        if (narrowOp(to, nop)) put(encABC(nop, d, d));
+        return true;
+      }
+      toF64(from, d, s);
+      if (to == NumK::f64) return true;
+      if (to == NumK::f32) { put(encABC(Op::F64ToF32, d, d)); return true; }
+      put(encABC(isSigned(to) ? Op::F64ToI64 : Op::F64ToU64, d, d));
+      return true;
+    }
     bool fi = !isFloatK(from), ti = !isFloatK(to);
     if (fi && ti) {
       Op op;
@@ -537,6 +567,11 @@ struct FnEmitter {
         if (kform[i.res].on) {
           put(encABC(Op::AddI32K, d, R(kform[i.res].other), static_cast<unsigned>(kform[i.res].imm) & 0xFFu));
           Op nop; if (narrowOp(n, nop)) put(encABC(nop, d, d));
+          return true;
+        }
+        if (isFxK(n) && (i.op == IrOp::Mul || i.op == IrOp::Div)) {   // (a * b) >> F and (a << F) / b on int64
+          bool f12 = n == NumK::fx12;
+          put(encABC(i.op == IrOp::Mul ? (f12 ? Op::MulFx12 : Op::MulFx16) : (f12 ? Op::DivFx12 : Op::DivFx16), d, R(i.args[0]), R(i.args[1])));
           return true;
         }
         int idx = i.op == IrOp::Add ? 0 : i.op == IrOp::Sub ? 1 : i.op == IrOp::Mul ? 2 : i.op == IrOp::Div ? 3 : 4;
@@ -643,8 +678,9 @@ struct FnEmitter {
         const ir::Type& at = ty(f.valueTypes[i.args[0]]);
         std::uint32_t base = callBase[pos];
         parallelMoves({{base, R(i.args[0])}});
-        zn::Rt id = at.k == ir::Type::K::Bool ? zn::Rt::BoolToStr : at.num == NumK::f64 || at.num == NumK::f32 ? zn::Rt::NumToStrD : isSigned(at.num) ? zn::Rt::NumToStrI : zn::Rt::NumToStrU;
+        zn::Rt id = at.k == ir::Type::K::Bool ? zn::Rt::BoolToStr : at.num == NumK::f64 || at.num == NumK::f32 || isFxK(at.num) ? zn::Rt::NumToStrD : isSigned(at.num) ? zn::Rt::NumToStrI : zn::Rt::NumToStrU;
         if (at.k == ir::Type::K::Num && at.num == NumK::f32) put(encABC(Op::F32ToF64, base, base));
+        if (at.k == ir::Type::K::Num && isFxK(at.num)) put(encABC(at.num == NumK::fx12 ? Op::Fx12ToF64 : Op::Fx16ToF64, base, base));
         put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
         return true;
       }
@@ -675,10 +711,16 @@ struct FnEmitter {
             const ir::Type& t = ty(f.valueTypes[i.args[a]]);
             if (t.k != ir::Type::K::Bool && t.k != ir::Type::K::Num && t.k != ir::Type::K::Str) return fail("console.log of this type has no bytecode yet");
             if (t.k == ir::Type::K::Str) { put(encABC(Op::LogStr, R(i.args[a]))); continue; }
-            Op op = t.k == ir::Type::K::Bool ? Op::LogBool : t.num == NumK::f64 ? Op::LogF64 : t.num == NumK::f32 ? Op::LogF32 : isSigned(t.num) ? Op::LogI : Op::LogU;
+            Op op = t.k == ir::Type::K::Bool ? Op::LogBool : t.num == NumK::f64 ? Op::LogF64 : t.num == NumK::f32 ? Op::LogF32 : t.num == NumK::fx12 ? Op::LogFx12 : t.num == NumK::fx16 ? Op::LogFx16 : isSigned(t.num) ? Op::LogI : Op::LogU;
             put(encABC(op, R(i.args[a])));
           }
           put(encABC(err ? Op::LogEndErr : Op::LogEnd, 0));
+          return true;
+        }
+        if ((bi == ir::Builtin::MathSqrt || bi == ir::Builtin::MathSin || bi == ir::Builtin::MathCos) && i.args.size() == 1 && ty(f.valueTypes[i.args[0]]).k == ir::Type::K::Num && isFxK(numOf(i.args[0]))) {
+          bool f12 = numOf(i.args[0]) == NumK::fx12;
+          Op fop = bi == ir::Builtin::MathSqrt ? (f12 ? Op::SqrtFx12 : Op::SqrtFx16) : bi == ir::Builtin::MathSin ? (f12 ? Op::SinFx12 : Op::SinFx16) : (f12 ? Op::CosFx12 : Op::CosFx16);
+          put(encABC(fop, d, R(i.args[0])));
           return true;
         }
         Op op;

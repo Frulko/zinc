@@ -246,7 +246,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     // ---- zinc:fs
     case Rt::HostFsFailed: { r->i = gFailed; gFailed = false; break; }
     case Rt::HostFsError: ret(r, gError); break;
-    case Rt::HostFsReadText: { std::vector<unsigned char> b; if (readAll(s(0), b, "open")) ret(r, std::string(b.begin(), b.end())); else ret(r, ""); break; }
+    case Rt::HostFsReadText: { std::vector<unsigned char> b; if (readAll(s(0), b, "cannot open")) ret(r, std::string(b.begin(), b.end())); else ret(r, ""); break; }
     case Rt::HostFsWriteText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, false, "open"); break;
     case Rt::HostFsAppendText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, true, "open"); break;
     case Rt::HostFsExists: { struct stat st; r->i = stat(s(0).c_str(), &st) == 0; break; }

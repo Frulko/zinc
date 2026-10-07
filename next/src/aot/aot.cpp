@@ -108,7 +108,7 @@ struct FnEmitter {
       unsigned A = aOf(w), B = bOf(w), C = cOf(w), D = dOf(w);
       auto P = static_cast<std::uint32_t>(pc);
       if (arith.count(nm)) line(r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + (o.binary ? r(C) : std::string("0")) + ");");
-      else if (divs.count(nm)) line("if (!zn::ops::" + nm + "Defined(" + r(B) + ", " + r(C) + ")) " + trap("\"division by zero\"") + " " + r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + r(C) + ");");
+      else if (divs.count(nm)) line("if (!zn::ops::" + nm + "Defined(" + r(B) + ", " + r(C) + ")) " + trap("zn::ops::" + nm + "Message()") + " " + r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + r(C) + ");");
       else if (nm == "Nop") {}
       else if (nm == "Trap") line(trap("\"trap: unreachable code executed\""));
       else if (nm == "Move") line(r(A) + " = " + r(B) + ";");
@@ -149,6 +149,7 @@ struct FnEmitter {
       else if (nm == "LogU") line("*m.out += std::to_string(" + r(A) + ");");
       else if (nm == "LogF64") line("op::logF64(m, " + r(A) + ");");
       else if (nm == "LogF32") line("*m.out += numberToString(static_cast<double>(zn::ops::asF(" + r(A) + ")));");
+      else if (nm == "LogFx12" || nm == "LogFx16") line("*m.out += numberToString(zn::ops::fxToD(" + r(A) + ", " + (nm == "LogFx12" ? "12" : "16") + "));");
       else if (nm == "LogBool") line("*m.out += " + r(A) + " ? \"true\" : \"false\";");
       else if (nm == "LogSep") line("*m.out += ' ';");
       else if (nm == "LogEnd") line("*m.out += '\\n';");

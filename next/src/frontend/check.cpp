@@ -130,6 +130,13 @@ struct Checker {
   bool inPrelude = false;        // checking the prelude: `any` there is the class Dyn itself
   bool rawDyn() const { return inspectMode || inPrelude; }
   /** The library (zinc:* modules, lib/std, plugins) is exempt from the strict profile: only the program's own files are held to it. */
+  /** The engine's own modules (<prelude>, zinc:*) keep `number` = f64 under a fixed-point or f32 profile: Date, JSON and the frame loop count milliseconds, which Q20.12 cannot hold. */
+  bool builtinModuleNode(std::uint32_t node) const {
+    if (node == kNone) return false;
+    std::uint32_t f = a.nodes[node].file;
+    for (const ModuleInfo& m : a.modules) if (m.file == f) return m.path.rfind("zinc:", 0) == 0 || m.path.find("/lib/std/web.ts") != std::string::npos || m.path.find("/lib/std/fetch.ts") != std::string::npos;
+    return !a.modules.empty();   // a file that is no module: the <prelude> (Error, Date, Random, JSON...)
+  }
   bool libraryNode(std::uint32_t node) const {
     if (node == kNone) return false;
     std::uint32_t f = a.nodes[node].file;
@@ -443,7 +450,7 @@ struct Checker {
     switch (x.kind) {
       case N::TypeRef: {
         Num m;
-        if (x.kids.empty() && numFromName(x.text, m)) r = num(m);
+        if (x.kids.empty() && numFromName(x.text, m)) r = num(false && m == gNumber && x.text == "number" && builtinModuleNode(t) ? Num::f64 : m);   // the library (Date, JSON, the Error classes) keeps `number` = f64 under any profile
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
         else if (x.kids.empty() && x.text == "never" && lookup("never") == kNone) r = tNull;  // no value has it: a position of type never holds null (T = never as a default says "unused")
         else if (x.kids.empty() && x.text == "string") r = tStr;
@@ -594,6 +601,7 @@ struct Checker {
       if (out.diags.empty()) diag(kZCannotInfer, i, "the type of this expression");
       t = tError;
     }
+    if (gNumber != Num::f64 && t == num(gNumber) && n(i).kind == N::Number && builtinModuleNode(i)) t = num(Num::f64);   // the engine's own modules write plain f64 constants (4294967296, 86400000): they would overflow Q20.12   // idem for what the library's own expressions produce (literals, Math results, NaN)
     out.nodeType[i] = t;
     return t;
   }
@@ -1506,7 +1514,10 @@ struct Checker {
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && args.size() != 2) {
         std::string nm(m);
-        if (args.empty()) return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});
+        if (args.empty()) {
+          if (isFx(gNumber)) { diag(kZFixedUnrepresentable, i, "Math." + nm + "() is " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
+          return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});
+        }
         if (args.size() == 1) return rewrite("Math." + nm + "(__H0, __H0)", {{args[0]}});
         std::string text = "__H0";
         std::vector<std::vector<std::uint32_t>> holes{{args[0]}};

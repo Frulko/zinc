@@ -89,7 +89,7 @@ L_LoadK: r[A] = fn->consts[dOf(w)].bits; NEXT();
 #define X(name, expr) L_##name: r[A] = zn::ops::name(r[B], r[C]); NEXT();
   ZN_ARITH_OPS(X)
 #undef X
-#define X(name, zero, expr) L_##name: { if (!zn::ops::name##Defined(r[B], r[C])) TRAP("division by zero"); r[A] = zn::ops::name(r[B], r[C]); NEXT(); }
+#define X(name, zero, expr) L_##name: { if (!zn::ops::name##Defined(r[B], r[C])) TRAP(zn::ops::name##Message()); r[A] = zn::ops::name(r[B], r[C]); NEXT(); }
   ZN_DIV_OPS(X)
 #undef X
 
@@ -192,6 +192,8 @@ L_LogI: *out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();
 L_LogU: *out += std::to_string(r[A]); NEXT();
 L_LogF64: op::logF64(*this, r[A]); NEXT();
 L_LogF32: *out += numberToString(static_cast<double>(asF(r[A]))); NEXT();
+L_LogFx12: *out += numberToString(zn::ops::fxToD(r[A], 12)); NEXT();
+L_LogFx16: *out += numberToString(zn::ops::fxToD(r[A], 16)); NEXT();
 L_LogBool: *out += r[A] ? "true" : "false"; NEXT();
 L_LogSep: *out += ' '; NEXT();
 L_LogEnd: *out += '\n'; NEXT();

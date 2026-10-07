@@ -1,4 +1,5 @@
 #include "frontend/modules.h"
+#include "frontend/profile.h"
 #include "frontend/jsx.h"
 #include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
@@ -2647,6 +2648,14 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   std::string text;
   if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
+  {   // `// zinc-profile: ps1` in the first lines: the target profile of this program (the `number` it means), as `--profile` does
+    std::size_t at = text.substr(0, 400).find("zinc-profile: ");
+    if (at != std::string::npos) {
+      std::size_t b = at + 14, e = b;
+      while (e < text.size() && (std::isalnum(static_cast<unsigned char>(text[e])) || text[e] == '_')) ++e;
+      if (const Profile* pr = findProfile(text.substr(b, e - b))) { applyProfile(*pr); if (pr->strict) p.ast.strict = true; }
+    }
+  }
   Loader L(p, read);
   L.stdRoot = stdRoot;
   L.load(entry, std::move(text));

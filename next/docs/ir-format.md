@@ -46,7 +46,7 @@ inst      = [ "%" N ":" type "=" ] op operands
   `ir-v1-fib.ir`) and `tests/t0/irformat.sh` checks each is read or refused as written here. Adding op names, builtins or runtime rows at the end of their tables does not change
   the version; removing or renaming one does.
 
-## ZBC binary, version 5
+## ZBC binary, version 6
 
 Little endian. `"ZBC2"` (magic), `u32 version`, then the tables, each a `u32` count and the entries:
 
@@ -66,7 +66,7 @@ Instruction words are one 32-bit word each (`include/zn/bytecode.h`); the opcode
 ### Version rules
 
 - The version rises with any change to the layout above, to an opcode's meaning or number, or to the order of the runtime table (a call is encoded by its row number: new rows go at the very end, after the host rows, so no known id moves; a file that uses a row an older core lacks needs the newer core: `arrSortAsc` and `arrSortDesc` are such rows, which the optimizer writes for `sort((a, b) => a - b)` on an f64[]).
-- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 5: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
+- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 6: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
 - No migration: a ZBC file is a build product (the device core and `zinc run` are always built from the same release as the files they load). The firmware image and the host tools are released together;
-  `tests/compat/fib-v5.zbc` is the version 5 reference file; `tests/compat/fib-v4.zbc` (no natives table) must be refused as older. `tests/t0/irformat.sh` checks both and that other versions are refused with these messages.
+  `tests/compat/fib-v6.zbc` is the version 6 reference file (6 added the fixed-point ops MulFx12.., ZN-121); `tests/compat/fib-v5.zbc` (no fixed-point ops) and `tests/compat/fib-v4.zbc` (no natives table) must be refused as older. `tests/t0/irformat.sh` checks both and that other versions are refused with these messages.
 - A truncated or corrupted file is rejected by `decode` and `verify` (`zinc zbc --check`), never trusted.

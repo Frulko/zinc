@@ -61,7 +61,14 @@
   X(CbrtF64, ABC, D, _, D) X(Log2F64, ABC, D, _, D) X(Log10F64, ABC, D, _, D) X(Log1pF64, ABC, D, _, D) X(Expm1F64, ABC, D, _, D) X(AsinF64, ABC, D, _, D) X(AcosF64, ABC, D, _, D) X(SinhF64, ABC, D, _, D) X(CoshF64, ABC, D, _, D) X(TanhF64, ABC, D, _, D) X(HypotF64, ABC, D, D, D) X(SignF64, ABC, D, _, D) X(FroundF64, ABC, D, _, D) X(Clz32F64, ABC, D, _, D) \
   /* console.error and warn: the line written between these two goes to the standard error stream */ X(LogBegErr, OP, _, _, _) X(LogEndErr, OP, _, _, _)                                                          \
   /* CallNative A,native: an export of a native module (ZBC version 5): arguments in r[A..], result in r[A], a call window like Rt */ \
-  X(CallNative, AD, _, _, M)
+  X(CallNative, AD, _, _, M)                                                                                    \
+  /* fixed point fx12 / fx16 (ZBC version 6): values are int32 raw in an I register */ \
+  X(MulFx12, ABC, I, I, I) X(MulFx16, ABC, I, I, I) X(DivFx12, ABC, I, I, I) X(DivFx16, ABC, I, I, I) \
+  X(F64ToFx12, ABC, D, _, I) X(F64ToFx16, ABC, D, _, I) X(Fx12ToF64, ABC, I, _, D) X(Fx16ToF64, ABC, I, _, D) \
+  X(I32ToFx12, ABC, I, _, I) X(I32ToFx16, ABC, I, _, I) X(Fx12ToI32, ABC, I, _, I) X(Fx16ToI32, ABC, I, _, I) \
+  X(Fx12ToFx16, ABC, I, _, I) X(Fx16ToFx12, ABC, I, _, I) \
+  X(SqrtFx12, ABC, I, _, I) X(SqrtFx16, ABC, I, _, I) X(SinFx12, ABC, I, _, I) X(SinFx16, ABC, I, _, I) X(CosFx12, ABC, I, _, I) X(CosFx16, ABC, I, _, I) \
+  X(LogFx12, ABC, _, _, _) X(LogFx16, ABC, _, _, _)
 
 namespace zn {
 

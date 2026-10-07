@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <bit>
 
+#include "zn/fxtab.h"
 #include "zn/value.h"
 
 namespace zn::ops {
@@ -36,6 +37,35 @@ inline double jsRound(double x) {  // round half toward +infinity
 }
 inline double jsMin(double a, double b) { return (a != a || b != b) ? NAN : a == b ? (std::signbit(a) ? a : b) : (a < b ? a : b); }  // min(0, -0) is -0
 inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a == b ? (std::signbit(a) ? b : a) : (a > b ? a : b); }  // max(-0, 0) is 0
+
+// ---- fixed point Q(32-F).F, bit-identical with the prototype's Fx<F> (runtime/zrt_ext.h): raw int32 in the low 32 bits of a slot, sign-extended like an i32.
+inline std::int32_t fxRaw(Slot x) { return static_cast<std::int32_t>(static_cast<std::uint32_t>(x)); }
+inline std::int32_t fxFromD(double d, int F) {   // floor(d * ONE + 0.5), then the C++ conversion of the prototype's cvt<int32_t>: NaN and infinities are 0, the rest wraps modulo 2^32
+  double t = std::floor(d * static_cast<double>(std::int64_t{1} << F) + 0.5);
+  if (!(t - t == 0)) return 0;
+  double m = std::fmod(std::trunc(t), 4294967296.0);
+  if (m < 0) m += 4294967296.0;
+  return static_cast<std::int32_t>(static_cast<std::uint32_t>(m));
+}
+inline double fxToD(Slot x, int F) { return static_cast<double>(fxRaw(x)) / static_cast<double>(std::int64_t{1} << F); }
+inline std::int32_t fxToI(Slot x, int F) {   // truncation toward zero
+  std::int32_t v = fxRaw(x);
+  return (v + ((v >> 31) & ((std::int32_t{1} << F) - 1))) >> F;
+}
+inline std::int32_t fxSqrt(Slot x, int F) {
+  std::int32_t a = fxRaw(x);
+  if (a <= 0) return 0;
+  std::uint64_t n = static_cast<std::uint64_t>(a) << F, r = 0, bit = std::uint64_t{1} << 62;
+  while (bit > n) bit >>= 2;
+  while (bit) { if (n >= r + bit) { n -= r + bit; r = (r >> 1) + bit; } else r >>= 1; bit >>= 2; }
+  return static_cast<std::int32_t>(r);
+}
+inline std::int32_t fxSin(Slot x, int F, int quarter) {   // quarter 0 sin, 1 cos (a quarter turn is 1024 steps)
+  std::int32_t i = (static_cast<std::int32_t>((static_cast<std::int64_t>(fxRaw(x)) * kFxIdxK) >> (F + 16)) + quarter * 1024) & 4095;
+  std::int32_t s = kFxSin[i];
+  return F >= 16 ? static_cast<std::int32_t>(static_cast<std::uint32_t>(s) << (F - 16)) : s >> (16 - F);
+}
+inline Slot fxSlot(std::int32_t v) { return sx32(v); }
 
 // X(Name, expression over the operand slots x and y): the register operations that cannot fail.
 #define ZN_ARITH_OPS(X) \
@@ -138,7 +168,17 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
   X(TanhF64, fromD(std::tanh(asD(x)))) \
   X(SignF64, fromD(asD(x) > 0 ? 1.0 : asD(x) < 0 ? -1.0 : asD(x))) \
   X(FroundF64, fromD(static_cast<double>(static_cast<float>(asD(x))))) \
-  X(Clz32F64, fromD(std::countl_zero(static_cast<std::uint32_t>(static_cast<std::int64_t>(asD(x))))))
+  X(Clz32F64, fromD(std::countl_zero(static_cast<std::uint32_t>(static_cast<std::int64_t>(asD(x)))))) \
+  /* fixed point (ZBC version 6): Mul (int64 product >> F); conversions, sqrt, sin, cos in their own op per F */ \
+  X(MulFx12, fxSlot(static_cast<std::int32_t>((static_cast<std::int64_t>(fxRaw(x)) * fxRaw(y)) >> 12))) \
+  X(MulFx16, fxSlot(static_cast<std::int32_t>((static_cast<std::int64_t>(fxRaw(x)) * fxRaw(y)) >> 16))) \
+  X(F64ToFx12, fxSlot(fxFromD(asD(x), 12))) X(F64ToFx16, fxSlot(fxFromD(asD(x), 16))) \
+  X(Fx12ToF64, fromD(fxToD(x, 12))) X(Fx16ToF64, fromD(fxToD(x, 16))) \
+  X(I32ToFx12, fxSlot(static_cast<std::int32_t>(static_cast<std::uint32_t>(x) << 12))) X(I32ToFx16, fxSlot(static_cast<std::int32_t>(static_cast<std::uint32_t>(x) << 16))) \
+  X(Fx12ToI32, sx32(fxToI(x, 12))) X(Fx16ToI32, sx32(fxToI(x, 16))) \
+  X(Fx12ToFx16, fxSlot(fxFromD(fxToD(x, 12), 16))) X(Fx16ToFx12, fxSlot(fxFromD(fxToD(x, 16), 12))) \
+  X(SqrtFx12, fxSlot(fxSqrt(x, 12))) X(SqrtFx16, fxSlot(fxSqrt(x, 16))) \
+  X(SinFx12, fxSlot(fxSin(x, 12, 0))) X(SinFx16, fxSlot(fxSin(x, 16, 0))) X(CosFx12, fxSlot(fxSin(x, 12, 1))) X(CosFx16, fxSlot(fxSin(x, 16, 1)))
 
 // X(Name, condition that the operation is defined, expression): division and remainder trap when the condition fails.
 #define ZN_DIV_OPS(X) \
@@ -149,12 +189,16 @@ inline double jsMax(double a, double b) { return (a != a || b != b) ? NAN : a ==
   X(DivI64, y != 0, (static_cast<std::int64_t>(x) == INT64_MIN && static_cast<std::int64_t>(y) == -1) ? x : sx(static_cast<std::int64_t>(x) / static_cast<std::int64_t>(y))) \
   X(RemI64, y != 0, (static_cast<std::int64_t>(y) == -1) ? Slot{0} : sx(static_cast<std::int64_t>(x) % static_cast<std::int64_t>(y))) \
   X(DivU64, y != 0, x / y) \
-  X(RemU64, y != 0, x % y)
+  X(RemU64, y != 0, x % y) \
+  X(DivFx12, fxRaw(y) != 0, fxSlot(static_cast<std::int32_t>((static_cast<std::int64_t>(fxRaw(x)) * 4096) / fxRaw(y)))) \
+  X(DivFx16, fxRaw(y) != 0, fxSlot(static_cast<std::int32_t>((static_cast<std::int64_t>(fxRaw(x)) * 65536) / fxRaw(y))))
 
 #define X(name, expr) inline Slot name([[maybe_unused]] Slot x, [[maybe_unused]] Slot y) { return expr; }
 ZN_ARITH_OPS(X)
 #undef X
-#define X(name, zero, expr) inline bool name##Defined([[maybe_unused]] Slot x, [[maybe_unused]] Slot y) { return zero; } inline Slot name(Slot x, Slot y) { return expr; }
+// the trap text: fixed-point division says so, like the prototype's runtime (an uncaught `panic:`, exit 101)
+inline const char* divMessageOf(const char* n) { return n[0] == 'D' && n[3] == 'F' && n[4] == 'x' ? "panic: fixed-point division by zero" : "division by zero"; }
+#define X(name, zero, expr) inline bool name##Defined([[maybe_unused]] Slot x, [[maybe_unused]] Slot y) { return zero; } inline Slot name(Slot x, Slot y) { return expr; } inline const char* name##Message() { return divMessageOf(#name); }
 ZN_DIV_OPS(X)
 #undef X
 
