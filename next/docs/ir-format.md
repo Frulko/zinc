@@ -5,7 +5,7 @@ Two formats are specified here. Both carry a version; a reader refuses a version
 | Format | Written by | Read by | Version | Where |
 |---|---|---|---|---|
 | IR text | `zinc --emit=ir`, `--emit=ir-rc` (`ir::dump`) | `zinc ir --check` (`ir::parse`) | **1** (`ir::kTextVersion`) | `src/ir/ir.cpp`, `src/ir/parse.cpp` |
-| ZBC binary | `zinc --emit=zbc-bin`, `zinc build` | `zinc run file.zbc`, `zinc zbc --check`, the device core | **4** (`kVersion`, magic `ZBC2`) | `src/zbc/zbc.cpp` |
+| ZBC binary | `zinc --emit=zbc-bin`, `zinc build` | `zinc run file.zbc`, `zinc zbc --check`, the device core | **5** (`kVersion`, magic `ZBC2`) | `src/zbc/zbc.cpp` |
 
 ## IR text, version 1
 
@@ -19,6 +19,7 @@ class     = ( "class" | "abstract class" | "interface" ) name [ ":" name ] [ "im
             [ "{" [ name ":" type { "," name ":" type } ] "}" ]  NL      (an interface has no field list)
             { "  sel ." sname [ "->" "@" name ] NL }                    (the class's selectors, in order; "-> @f" is its vtable entry)
 global    = "global @@" name ":" type NL
+native    = "native" quoted quoted quoted NL   (module, export, signature: the targets of `callnative #n(%args)`)
 function  = "func @" name "(" [ param { "," param } ] ")" "->" type "{" NL { block } "}" NL
 param     = "%" N ":" type
 block     = "bb" N [ "(" param { "," param } ")" ] ":" NL { "  " inst NL }      (bb0 has no list: its parameters are the function's)
@@ -45,7 +46,7 @@ inst      = [ "%" N ":" type "=" ] op operands
   `ir-v1-fib.ir`) and `tests/t0/irformat.sh` checks each is read or refused as written here. Adding op names, builtins or runtime rows at the end of their tables does not change
   the version; removing or renaming one does.
 
-## ZBC binary, version 4
+## ZBC binary, version 5
 
 Little endian. `"ZBC2"` (magic), `u32 version`, then the tables, each a `u32` count and the entries:
 
@@ -57,13 +58,15 @@ Little endian. `"ZBC2"` (magic), `u32 version`, then the tables, each a `u32` co
 | globals | `vtype` |
 | functions | `str name`, `u8 nparams`, `vtype` each, `vtype ret`, `u16 nregs`, `u32 ncode` + `u32` words, `u32 nconsts` + (`u8 class`, `u64 bits`), `u32 nhandlers` + (`u32 at`, `u32 target`, `u16 class`, `u8 reg`) |
 
+| natives (after the functions) | `str module`, `str name`, `str sig` (`params>result`, include/zn/native_sig.h): the loader finds the export in the registry (include/zn/native.h) and refuses a program whose signature differs; `CallNative A,n` calls entry n with the arguments in r[A..] and the result in r[A] |
+
 `str` is `u32 length` and the bytes; `u32s` is `u32 count` and the values; `vtype` is `u8 class` (0 none, 1 integer, 2 f32, 3 f64, 4 reference) and, for a reference, `u16 class id`.
 Instruction words are one 32-bit word each (`include/zn/bytecode.h`); the opcode numbers (`include/zn/opcodes.h`) and the runtime call ids (the row order of `include/zn/runtime.h`) are part of the format.
 
 ### Version rules
 
 - The version rises with any change to the layout above, to an opcode's meaning or number, or to the order of the runtime table (a call is encoded by its row number: new rows go at the very end, after the host rows, so no known id moves; a file that uses a row an older core lacks needs the newer core: `arrSortAsc` and `arrSortDesc` are such rows, which the optimizer writes for `sort((a, b) => a - b)` on an f64[]).
-- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 4: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
+- A reader loads exactly its own version. An older file is refused with "ZBC version N is older than the supported version 5: rebuild the program with this zinc"; a newer one with "... is newer ...: update zinc".
 - No migration: a ZBC file is a build product (the device core and `zinc run` are always built from the same release as the files they load). The firmware image and the host tools are released together;
-  `tests/compat/fib-v4.zbc` is the version 4 reference file and `tests/t0/irformat.sh` checks it loads and that other versions are refused with these messages.
+  `tests/compat/fib-v5.zbc` is the version 5 reference file; `tests/compat/fib-v4.zbc` (no natives table) must be refused as older. `tests/t0/irformat.sh` checks both and that other versions are refused with these messages.
 - A truncated or corrupted file is rejected by `decode` and `verify` (`zinc zbc --check`), never trusted.

@@ -142,6 +142,7 @@ struct FnEmitter {
       else if (nm == "ArrLen") line(checked("op::arrLen(r, " + std::to_string(A) + ", " + std::to_string(B) + ")"));
       else if (nm == "ArrPush") line(checked("op::arrPush(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
       else if (nm == "Rt") line("{ const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), r + " + std::to_string(A) + ", r + " + std::to_string(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; --m.depth; return 2; } }");
+      else if (nm == "CallNative") line("{ const char* e = nativeCall(m, " + std::to_string(D) + ", r + " + std::to_string(A) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; --m.depth; return 2; } }");
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));
       else if (nm == "LogI") line("*m.out += std::to_string(static_cast<std::int64_t>(" + r(A) + "));");
       else if (nm == "LogU") line("*m.out += std::to_string(" + r(A) + ");");
@@ -196,6 +197,8 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
     }
     s += "\n};\n\n";
   }
+  bool hasFixture = false;
+  for (const zn::zbc::Native& nt : mod.natives) hasFixture = hasFixture || nt.module == "Fixture";
   s += "static int (*const kNatives[])(Machine&, Slot*) = {";
   for (std::size_t i = 0; i < mod.functions.size(); ++i) s += (i ? ", f" : "f") + std::to_string(i);
   s += "};\n\n";
@@ -206,7 +209,8 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
        "  return st == 0;\n"
        "}\n\n"
        + std::string(usesHost(mod) ? "namespace zn::host { void installGfx(); bool installResources(const unsigned char*, unsigned long); }  // the graphics host (src/host), linked by zinc build\n" : "") +
-       "int main() {\n" + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
+       std::string(hasFixture ? "#include \"zn/native.h\"\nextern \"C\" const ZnModule* fixture_module(void);  // the C test module of tests/native, linked by zinc build (ZN-097; plugin modules come with the loader)\n" : "") +
+       "int main() {\n" + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
   return s;
 }
 

@@ -156,7 +156,7 @@ struct FnEmitter {
   bool isWindow(const ir::Inst& i) const {
     switch (i.op) {
       case IrOp::Builtin: return i.sym == static_cast<std::uint32_t>(ir::Builtin::NumToFixed);
-      case IrOp::Call: case IrOp::CallVirt: case IrOp::Rt: case IrOp::StrConcat: case IrOp::ToStr: case IrOp::StrLen: case IrOp::ArrPop: return true;
+      case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::Rt: case IrOp::StrConcat: case IrOp::ToStr: case IrOp::StrLen: case IrOp::ArrPop: return true;
       case IrOp::Eq: case IrOp::Ne: case IrOp::Lt: case IrOp::Le: case IrOp::Gt: case IrOp::Ge: return ty(f.valueTypes[i.args[0]]).k == ir::Type::K::Str;
       default: return false;
     }
@@ -627,6 +627,14 @@ struct FnEmitter {
         put(encAD(Op::CallVirt, base, i.sym));
         return true;
       }
+      case IrOp::CallNative: {
+        std::uint32_t base = callBase[pos];
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> mvs;
+        for (std::size_t a = 0; a < i.args.size(); ++a) mvs.push_back({base + static_cast<std::uint32_t>(a), reg[i.args[a]]});
+        parallelMoves(mvs);
+        put(encAD(Op::CallNative, base, i.sym));
+        return true;
+      }
       case IrOp::Rt: return rtOp(i, pos, static_cast<zn::Rt>(i.sym));
       case IrOp::StrConcat: return rtOp(i, pos, zn::Rt::StrConcat);
       case IrOp::StrLen: return rtOp(i, pos, zn::Rt::StrLength);
@@ -806,6 +814,7 @@ struct FnEmitter {
 EmitResult emit(const ir::Module& m) {
   EmitResult r;
   r.module.strings = m.strings;
+  for (const ir::Native& n : m.natives) r.module.natives.push_back({n.module, n.name, n.sig});
   TypeTable tt{m, r.module};
   for (const ir::Class& c : m.classes) {  // the IR's classes first: their indices are the IR's
     ClassInfo info;

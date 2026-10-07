@@ -1,3 +1,4 @@
+#include "zn/native.h"
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -106,7 +107,14 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   return 1;
 }
 
+#ifdef ZN_NATIVE_FIXTURE
+extern "C" const ZnModule* fixture_module(void);
+#endif
+
 int main(int argc, char** argv) {
+#ifdef ZN_NATIVE_FIXTURE
+  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
+#endif
   gRoot = zn::tc::sourceRoot(ZN_SOURCE_DIR);
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
@@ -396,7 +404,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
-                      (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) +   // libunicode: the string runtime needs it
+                      (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                       (zn::aot::usesHost(zm) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);

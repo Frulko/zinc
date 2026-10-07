@@ -79,7 +79,7 @@ struct Rc {
       for (ValueId p : b.params) if (refLike(m, f.valueTypes[p])) return false;
       for (const Inst& i : b.insts) {
         switch (i.op) {
-          case IrOp::Call: case IrOp::CallVirt: case IrOp::Rt: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return false;
+          case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::Rt: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return false;
           case IrOp::SetField: if (refLike(m, f.valueTypes[i.args[1]])) return false; break;
           case IrOp::ArrSet: case IrOp::ArrPush: if (refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]])) return false; break;
           default: break;

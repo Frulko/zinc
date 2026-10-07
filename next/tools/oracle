@@ -10,4 +10,4 @@ if [ "$1" = "--available" ]; then  # exit 0 when the reference checker can run h
   "$root/node_modules/.bin/tsc" --version >/dev/null 2>&1; exit $?
 fi
 if [ -n "$ZN_ORACLE" ]; then exec $ZN_ORACLE "$@"; fi
-exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --noLib --useUnknownInCatchVariables false --target ES2022 --module ESNext --moduleResolution Bundler --types "" "$root/lib/zinc.d.ts" "$@"
+exec "$root/node_modules/.bin/tsc" --noEmit --strict --skipLibCheck --noLib --useUnknownInCatchVariables false --target ES2022 --module ESNext --moduleResolution Bundler --types "" "$root/lib/zinc.d.ts" "$root/lib/modules.d.ts" "$@"

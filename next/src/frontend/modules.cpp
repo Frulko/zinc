@@ -19,6 +19,8 @@
 #include "frontend/snippet.h"
 #include "frontend/tsconfig.h"
 #include "yyjson.h"
+#include "zn/native.h"
+#include "zn/native_sig.h"
 
 namespace zn::frontend {
 namespace {
@@ -846,6 +848,102 @@ bool isWebFile(const std::string& path) {
   for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }
   return false;
 }
+// requireNative<Spec>('Name') (zinc:native): the Spec interface of the same file lists the members of a native module. Each member becomes a call of
+// __native_<n> (the checker declares it from Ast::natives, the lowering emits CallNative) inside a generated class that implements the Spec; the call is
+// replaced by `new` of that class. The registry must hold the module (Z5011), and every member must be expressible in the ABI (Z5010).
+std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags, std::uint32_t file, std::vector<NativeDecl>& natives) {
+  static const std::string kKey = "requireNative<";
+  std::string out;
+  std::string classes;
+  std::size_t from = 0;
+  int made = 0;
+  ParseResult pr;
+  bool parsed = false;
+  for (;;) {
+    std::size_t at = text.find(kKey, from);
+    if (at == std::string::npos) break;
+    std::size_t p = at + kKey.size();
+    std::size_t q = p;
+    while (q < text.size() && (std::isalnum(static_cast<unsigned char>(text[q])) || text[q] == '_' || text[q] == '$')) ++q;
+    std::string spec = text.substr(p, q - p);
+    std::size_t r = q;
+    bool shape = !spec.empty() && text.compare(r, 2, ">(") == 0;
+    if (shape) { r += 2; while (r < text.size() && text[r] == ' ') ++r; shape = r < text.size() && (text[r] == '\'' || text[r] == '"'); }
+    std::size_t nameEnd = shape ? text.find(text[r], r + 1) : std::string::npos;
+    shape = shape && nameEnd != std::string::npos && nameEnd + 1 < text.size() && text[nameEnd + 1] == ')';
+    if (at > 0 && (std::isalnum(static_cast<unsigned char>(text[at - 1])) || text[at - 1] == '_')) shape = false;
+    if (!shape) { out += text.substr(from, p - from); from = p; continue; }
+    std::string module = text.substr(r + 1, nameEnd - r - 1);
+    std::size_t end = nameEnd + 2;
+    auto pos = static_cast<std::uint32_t>(at);
+    if (!parsed) { pr = parse(text); parsed = true; }
+    auto bad = [&](const char* code, std::string detail) { diags.push_back({code, pos, std::move(detail), file}); out += text.substr(from, end - from); from = end; };
+    if (pr.ast.root == kNone || !pr.diags.empty()) { out += text.substr(from, end - from); from = end; continue; }  // the parse errors are reported anyway
+    std::string cls = "__Native" + std::to_string(made) + "_" + module;
+    for (char& ch : cls) if (!std::isalnum(static_cast<unsigned char>(ch)) && ch != '_') ch = '_';
+    std::string body;
+    std::vector<NativeDecl> found;
+    bool ok = false, listed = false;
+    auto tyLetter = [&](std::uint32_t ty) -> char {
+      if (ty == kNone) return 'n';
+      std::string s;
+      for (std::size_t k = pr.ast.nodes[ty].start; k < pr.ast.nodes[ty].end; ++k) if (!std::isspace(static_cast<unsigned char>(text[k]))) s += text[k];
+      static const std::map<std::string, char> kLetters = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"void", 'n'}};
+      auto it = kLetters.find(s);
+      return it == kLetters.end() ? 0 : it->second;
+    };
+    for (std::uint32_t st : pr.ast.nodes[pr.ast.root].kids) {
+      std::uint32_t d = st;
+      if (pr.ast.nodes[d].kind == N::Export && !pr.ast.nodes[d].kids.empty()) d = pr.ast.nodes[d].kids[0];
+      if (pr.ast.nodes[d].kind != N::Interface || pr.ast.nodes[d].text != spec) continue;
+      listed = true;
+      ok = true;
+      for (std::size_t k = 1; k < pr.ast.nodes[d].kids.size() && ok; ++k) {
+        const Node& mem = pr.ast.nodes[pr.ast.nodes[d].kids[k]];
+        std::string mname(mem.text);
+        if (mem.kind != N::Method) { bad(kZNativeTypeNotExpressible, "'" + mname + "' is not a method"); ok = false; break; }
+        std::string sig, params, args;
+        for (std::size_t j = 2; j < mem.kids.size(); ++j) {
+          std::uint32_t ty = pr.ast.nodes[mem.kids[j]].kids.empty() ? kNone : pr.ast.nodes[mem.kids[j]].kids[0];
+          char l = ty == kNone ? 0 : tyLetter(ty);
+          if (!l || l == 'n') { bad(kZNativeTypeNotExpressible, "parameter " + std::to_string(j - 1) + " of '" + mname + "'"); ok = false; break; }
+          sig += l;
+          std::string tyText = text.substr(pr.ast.nodes[ty].start, pr.ast.nodes[ty].end - pr.ast.nodes[ty].start);
+          params += (j > 2 ? ", " : "") + std::string("__p") + std::to_string(j - 2) + ": " + tyText;
+          args += (j > 2 ? ", " : "") + std::string("__p") + std::to_string(j - 2);
+        }
+        if (!ok) break;
+        std::uint32_t rty = mem.kids.empty() ? kNone : mem.kids[0];
+        char rl = tyLetter(rty);
+        if (!rl) { bad(kZNativeTypeNotExpressible, "the result of '" + mname + "'"); ok = false; break; }
+        sig += std::string(">") + rl;
+        std::string rtext = rty == kNone ? "void" : text.substr(pr.ast.nodes[rty].start, pr.ast.nodes[rty].end - pr.ast.nodes[rty].start);
+        found.push_back({module, mname, sig});
+        std::string call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + ")";
+        body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == 'n' ? "" : "return ") + call + "; }\n";
+      }
+      break;
+    }
+    if (!listed) { bad(kZNativeTypeNotExpressible, "'" + spec + "' is not an interface of this file"); continue; }
+    if (!ok) continue;
+    if (!zn_native_has_module(module.c_str())) { bad(kZNativeNotLinked, "'" + module + "'"); continue; }
+    for (const NativeDecl& n : found) {
+      const ZnExport* e = zn_native_find(module.c_str(), n.name.c_str());
+      if (!e) { bad(kZNativeNotLinked, "'" + module + "' has no export '" + n.name + "'"); ok = false; break; }
+      if (n.sig != e->sig) { bad(kZNativeNotLinked, "'" + module + "." + n.name + "': the Spec says '" + n.sig + "', the module has '" + e->sig + "'"); ok = false; break; }
+    }
+    if (!ok) continue;
+    for (NativeDecl& n : found) natives.push_back(std::move(n));
+    for (char& ch : body) if (ch == '\n') ch = ' ';  // on the first line, so no later line moves, and before the call: a class is not hoisted
+    classes += "class " + cls + " implements " + spec + " { " + body + "} ";
+    out += text.substr(from, at - from) + "new " + cls + "()";
+    from = end;
+    ++made;
+  }
+  out += text.substr(from);
+  return classes + out;
+}
+
 std::string webGlobalImports(const Ast& A) {
   std::set<std::string_view> declared;
   for (std::uint32_t st : A.nodes[A.root].kids) {
@@ -1081,6 +1179,7 @@ struct Loader {
   std::uint32_t load(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
+    if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();

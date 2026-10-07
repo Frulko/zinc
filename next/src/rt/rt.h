@@ -215,6 +215,8 @@ struct Machine {
 // Runs one runtime call: arguments in a[0..], result in a[0]; `scratch` is free stack for callbacks. Returns null, or the
 // error message.
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch);
+// CallNative: export `idx` of the module's natives table, the arguments in a[0..] and the result in a[0]; an error message, or null.
+const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a);
 
 // The outcome of running a module.
 struct Result {

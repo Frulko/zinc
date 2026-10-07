@@ -56,6 +56,7 @@ enum class IrOp : std::uint8_t {
   ArrGet, ArrSet, ArrLen, ArrPush, ArrPop,
   StrConcat, ToStr, StrLen,
   Retain, Release,                                          // one more / one less reference to a string, array, Map, Set or object (immortal and null values ignore them); inserted by insertRc
+  CallNative,                                               // sym = index in Module::natives; the arguments are borrowed, the result (string or array) is a new reference
   Rt,                                                       // sym = zn::Rt (zn/runtime.h): string, array, Map and Set operations; args[0] is the receiver
   Br, CondBr, Ret, Throw, Unreachable,                      // terminators
 };
@@ -118,12 +119,15 @@ struct Class {
 };
 struct Global { std::string name; TypeId type; };
 
+struct Native { std::string module, name, sig; };  // an export of a native module the program calls (include/zn/native_sig.h)
+
 struct Module {
   std::vector<Type> types;
   std::vector<Class> classes;
   std::vector<Selector> selectors;
   std::vector<Global> globals;
   std::vector<std::string> strings;
+  std::vector<Native> natives;
   std::vector<Function> functions;  // functions[0] is @main, the top-level code
 
   TypeId intern(const Type& t);

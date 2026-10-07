@@ -220,6 +220,8 @@ std::int32_t zn_register_module(const ZnModule* module, char* err, std::size_t e
   return 0;
 }
 
+int32_t zn_native_has_module(const char* module) { return find(module) != nullptr; }
+
 const ZnExport* zn_native_find(const char* module, const char* name) {
   Mod* m = find(module);
   if (!m) return nullptr;

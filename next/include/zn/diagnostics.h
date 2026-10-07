@@ -115,6 +115,14 @@
   X(InOperator, "Z9026", "The `in` operator is not supported on a typed value",                                       \
     "The properties of a typed object are fixed, so `\"a\" in o` is known when compiling.", "Use `Map.has(key)`, or compare to the field.", \
     "const o = { a: 1 };\nconsole.log('a' in o);")                                                                    \
+  X(NativeTypeNotExpressible, "Z5010", "A native member uses a type the native ABI cannot carry yet",                      \
+    "A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. "  \
+    "Callbacks, promises, resources and other number kinds are not expressible yet.", "Change the member to use one of those types.",        \
+    "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(m: Map<string, i32>): void }\nconst n = requireNative<Spec>('Fixture');") \
+  X(NativeNotLinked, "Z5011", "The native module is not linked into this engine",                                      \
+    "requireNative<Spec>('Name') needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the "  \
+    "export and signature the Spec describes.", "Link the module, add a stand-in, or fix the Spec to match the module.",                      \
+    "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(): void }\nconst n = requireNative<Spec>('Nowhere');") \
   X(DynInStrict, "Z1006", "`any` is not allowed in a strict profile",                                                  \
     "A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value "\
     "statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.",         \

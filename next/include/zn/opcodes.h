@@ -13,6 +13,7 @@
 // Strings, arrays, Map and Set are objects of builtin classes: LoadStr A,string | New A,class (an empty array, Map or Set) |
 // ArrGet A,B,C (A = B[C]) | ArrSet A,B,C (A[B] = C) | ArrLen A,B | ArrPush A,B,C (B.push(C), A = new length) | LogStr A |
 // Retain A / Release A (one more / one less reference to the object, string, array, Map or Set in r[A]; null and immortal values are ignored) |
+// CallNative A,n (export n of the natives table; the signature in the table says the classes of the window).
 // Rt A,id (the runtime call `id` of zn/runtime.h: arguments in r[A..], result in r[A], a call window like Call).
 #include <cstdint>
 
@@ -58,7 +59,9 @@
   X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)                                                                 \
   /* appended after the first release: Math functions beyond the original set (ids of the opcodes above are unchanged) */ \
   X(CbrtF64, ABC, D, _, D) X(Log2F64, ABC, D, _, D) X(Log10F64, ABC, D, _, D) X(Log1pF64, ABC, D, _, D) X(Expm1F64, ABC, D, _, D) X(AsinF64, ABC, D, _, D) X(AcosF64, ABC, D, _, D) X(SinhF64, ABC, D, _, D) X(CoshF64, ABC, D, _, D) X(TanhF64, ABC, D, _, D) X(HypotF64, ABC, D, D, D) X(SignF64, ABC, D, _, D) X(FroundF64, ABC, D, _, D) X(Clz32F64, ABC, D, _, D) \
-  /* console.error and warn: the line written between these two goes to the standard error stream */ X(LogBegErr, OP, _, _, _) X(LogEndErr, OP, _, _, _)
+  /* console.error and warn: the line written between these two goes to the standard error stream */ X(LogBegErr, OP, _, _, _) X(LogEndErr, OP, _, _, _)                                                          \
+  /* CallNative A,native: an export of a native module (ZBC version 5): arguments in r[A..], result in r[A], a call window like Rt */ \
+  X(CallNative, AD, _, _, M)
 
 namespace zn {
 

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "zn/native_sig.h"
 #include "zn/runtime.h"
 
 namespace zn::zbc {
@@ -65,7 +66,7 @@ bool aIsReg(Op op) {
   const OpInfo& i = opInfo(op);
   if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
-  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt;
+  if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt || op == Op::CallNative;
   return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogBool || op == Op::LogStr || op == Op::Retain || op == Op::Release || op == Op::SetField || op == Op::ArrSet;
 }
 bool bIsReg(Op op) { const OpInfo& i = opInfo(op); return (i.fmt == Fmt::ABC && i.inB != RC::None) || i.fmt == Fmt::ABK || i.fmt == Fmt::AB2; }
@@ -192,6 +193,7 @@ struct Verifier {
             case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
             case Op::LoadStr: if (d >= m.strings.size()) return fail(pc, "string index out of range"); break;
             case Op::Rt: if (d >= static_cast<unsigned>(Rt::Count)) return fail(pc, "unknown runtime call"); break;
+            case Op::CallNative: if (d >= m.natives.size()) return fail(pc, "unknown native export"); break;
             case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: if (d >= m.classes.size()) return fail(pc, "unknown class"); break;
             case Op::CallVirt: if (d >= m.selectors.size()) return fail(pc, "unknown selector"); break;
             default: break;
@@ -354,6 +356,46 @@ struct Verifier {
         s[aOf(w)] = 1;
         return true;
       }
+      case Op::CallNative: {
+        const Native& nt = m.natives[dOf(w)];
+        std::string ps;
+        char rl = 0;
+        if (!nsig::parse(nt.sig.c_str(), ps, rl)) return fail(pc, "native " + nt.module + "." + nt.name + " has a signature that is not callable");
+        unsigned base = aOf(w);
+        if (base + std::max<std::size_t>(ps.size(), 1u) > f.nregs) return fail(pc, "call window of " + nt.name + " does not fit in the frame");
+        if ((ps + rl).find('s') != std::string::npos && strCls == kNoCls) return fail(pc, "native call with strings in a module without a string class");
+        VType strT{Cls::R, static_cast<std::uint16_t>(strCls)};
+        for (unsigned k = 0; k < ps.size(); ++k) {
+          char l = ps[k];
+          unsigned reg = base + k;
+          bool ok = true;
+          switch (l) {
+            case 's': ok = needType(reg, strT, "argument"); break;
+            case 'i': case 'u': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
+            case 'd': ok = needCls(reg, Cls::D, "argument"); break;
+            default: {  // B, I, D: an array of integers or of f64
+              ok = needRef(reg, "argument");
+              if (!ok) break;
+              const ClassInfo& ac = m.classes[s[reg] - 4];
+              if (ac.kind != CKind::Array || ac.elem.cls != (l == 'D' ? Cls::D : Cls::I)) ok = fail(pc, "r" + std::to_string(reg) + " holds " + ac.name + ", which does not fit native argument " + std::string(1, l));
+            }
+          }
+          if (!ok) return false;
+        }
+        for (std::size_t r = base; r < s.size(); ++r) s[r] = 0;
+        switch (rl) {
+          case 'n': return true;
+          case 's': s[base] = static_cast<St>(4 + strCls); return true;
+          case 'i': case 'u': case 'b': s[base] = 1; return true;
+          case 'd': s[base] = 3; return true;
+          default: {
+            std::uint32_t rc2 = findColl(CKind::Array, VType{rl == 'D' ? Cls::D : Cls::I, 0});
+            if (rc2 == kNoCls) return fail(pc, "no array class for the result of " + nt.name);
+            s[base] = static_cast<St>(4 + rc2);
+            return true;
+          }
+        }
+      }
       case Op::Rt: {
         const RtInfo& ri = rtInfo(static_cast<Rt>(dOf(w)));
         unsigned base = aOf(w), np = rtParamCount(ri);
@@ -497,7 +539,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 4;
+constexpr std::uint32_t kVersion = 5;  // 5: the natives table after the functions, and CallNative
 
 struct Writer {
   std::vector<std::uint8_t> b;
@@ -606,6 +648,8 @@ std::vector<std::uint8_t> encode(const Module& m) {
     w.u32(static_cast<std::uint32_t>(f.handlers.size()));
     for (const Handler& h : f.handlers) { w.u32(h.at); w.u32(h.target); w.u16(h.cls); w.u8(h.reg); }
   }
+  w.u32(static_cast<std::uint32_t>(m.natives.size()));
+  for (const Native& n : m.natives) { w.str(n.module); w.str(n.name); w.str(n.sig); }
   return w.b;
 }
 
@@ -683,8 +727,15 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (r.bad) return fail("truncated file");
     out.functions.push_back(std::move(f));
   }
+  std::uint32_t nn = r.u32();
+  if (nn > kMaxFunctions || !r.has(static_cast<std::size_t>(nn) * 12)) return fail("truncated file (natives)");
+  for (std::uint32_t i = 0; i < nn; ++i) {
+    Native n;
+    if (!r.str(n.module) || !r.str(n.name) || !r.str(n.sig)) return fail("truncated file (natives)");
+    out.natives.push_back(std::move(n));
+  }
   if (r.bad) return fail("truncated file");
-  if (r.p != bytes.size()) return fail("trailing bytes after the last function");
+  if (r.p != bytes.size()) return fail("trailing bytes after the last native");
   return true;
 }
 
@@ -731,6 +782,7 @@ std::string disassemble(const Module& m) {
           case Op::Call: ops = r(aOf(w)) + ", @" + (dOf(w) < m.functions.size() ? m.functions[dOf(w)].name : "?"); break;
           case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: ops = r(aOf(w)) + ", " + clsN(dOf(w)); break;
           case Op::LoadStr: ops = r(aOf(w)) + ", " + (dOf(w) < m.strings.size() ? "\"" + m.strings[dOf(w)] + "\"" : std::string("?")); break;
+          case Op::CallNative: ops = r(aOf(w)) + ", " + (dOf(w) < m.natives.size() ? m.natives[dOf(w)].module + "." + m.natives[dOf(w)].name : std::string("?")); break;
           case Op::Rt: ops = r(aOf(w)) + ", " + (dOf(w) < static_cast<unsigned>(Rt::Count) ? rtInfo(static_cast<Rt>(dOf(w))).name : "?"); break;
           case Op::CallVirt: ops = r(aOf(w)) + ", ." + (dOf(w) < m.selectors.size() ? m.selectors[dOf(w)].name : "?"); break;
           default: ops = r(aOf(w)) + ", g" + std::to_string(dOf(w)); break;

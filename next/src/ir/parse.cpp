@@ -184,6 +184,7 @@ struct Parser {
         args(c, i, true);
         return i;
       }
+      case IrOp::CallNative: c.need('#'); i.sym = static_cast<std::uint32_t>(c.integer()); args(c, i, true); return i;
       case IrOp::Rt: {
         c.ws();
         std::size_t b = c.p;
@@ -279,6 +280,12 @@ struct Parser {
           if (!c.eat(')')) { do sel.params.push_back(type(c)); while (c.eat(',')); c.need(')'); }
           c.needStr("->");
           sel.ret = type(c);
+        } else if (c.eatWord("native")) {
+          Native n;
+          n.module = c.quoted();
+          n.name = c.quoted();
+          n.sig = c.quoted();
+          m.natives.push_back(std::move(n));
         } else if (c.eatWord("global")) {
           Global g;
           c.needStr("@@");

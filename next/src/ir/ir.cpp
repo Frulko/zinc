@@ -1,5 +1,7 @@
 #include "ir/ir.h"
 
+#include "zn/native_sig.h"
+
 #include <cctype>
 #include <cstdio>
 
@@ -27,7 +29,7 @@ int builtinArity(Builtin b) {
 const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
       "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "instof", "call", "callvirt", "builtin", "new", "getfield", "setfield",
-      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "retain", "release", "rt",
+      "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "retain", "release", "callnative", "rt",
       "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
 }
@@ -52,6 +54,7 @@ std::uint8_t effects(const Module& m, const Inst& i) {
   auto isInt = [&](TypeId t) { const Type& x = m.types[t]; return x.k == Type::K::Num && x.num != Num::f64 && x.num != Num::f32 && x.num != Num::fx12 && x.num != Num::fx16; };
   switch (i.op) {
     case IrOp::Call: case IrOp::CallVirt: case IrOp::Builtin: return kReads | kWrites | kThrows;
+    case IrOp::CallNative: return kReads | kWrites | kThrows | kAllocs;
     case IrOp::Rt: return kReads | kWrites | kThrows | kAllocs;
     case IrOp::Retain: case IrOp::Release: return kWrites;
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
@@ -153,12 +156,13 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + nameText(m.globals[i.sym].name); break;
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
     case IrOp::Rt: s += std::string(" ") + rtInfo(static_cast<zn::Rt>(i.sym)).name; break;
+    case IrOp::CallNative: s += " #" + std::to_string(i.sym); break;
     default: break;
   }
   if (i.op == IrOp::Br) return s + " " + edgeText(i.edges[0]);
   if (i.op == IrOp::CondBr) return s + " " + v(i.args[0]) + ", " + edgeText(i.edges[0]) + ", " + edgeText(i.edges[1]);
   if (!i.args.empty()) {
-    bool call = i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin || i.op == IrOp::Rt;
+    bool call = i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin || i.op == IrOp::Rt || i.op == IrOp::CallNative;
     s += call ? "(" : " ";
     for (std::size_t k = 0; k < i.args.size(); ++k) s += (k ? ", " : "") + v(i.args[k]);
     if (call) s += ")";
@@ -196,6 +200,7 @@ std::string dump(const Module& m) {
     }
   }
   for (const Global& g : m.globals) out += "global @@" + nameText(g.name) + ": " + typeName(m, g.type) + "\n";
+  for (const Native& n : m.natives) out += "native \"" + n.module + "\" \"" + n.name + "\" \"" + n.sig + "\"\n";
   for (const Function& f : m.functions) {
     out += "func @" + nameText(f.name) + "(";
     for (std::size_t i = 0; i < f.params.size(); ++i) out += (i ? ", " : "") + v(f.params[i]) + ": " + typeName(m, f.valueTypes[f.params[i]]);
@@ -431,6 +436,20 @@ struct Verifier {
         if (!arity(1)) return false;
         Type::K k = m.types[tyOf(i.args[0])].k;
         if (k != Type::K::Ref && k != Type::K::Str && k != Type::K::Array && k != Type::K::Map && k != Type::K::Set) return fail(b, ii, "retain or release of a value that is not a reference");
+        break;
+      }
+      case IrOp::CallNative: {
+        if (i.sym >= m.natives.size()) return fail(b, ii, "unknown native export");
+        std::string ps;
+        char rl = 0;
+        if (!nsig::parse(m.natives[i.sym].sig.c_str(), ps, rl)) return fail(b, ii, "native signature '" + m.natives[i.sym].sig + "' is not callable");
+        if (!arity(ps.size())) return false;
+        for (std::size_t k = 0; k < ps.size(); ++k) {
+          const Type& at = m.types[tyOf(i.args[k])];
+          char l = ps[k];
+          bool ok = l == 's' ? at.k == Type::K::Str : l == 'b' ? at.k == Type::K::Bool : (l == 'i' || l == 'u' || l == 'd') ? at.k == Type::K::Num : at.k == Type::K::Array;
+          if (!ok) return fail(b, ii, "native argument " + std::to_string(k) + " does not match the signature");
+        }
         break;
       }
       case IrOp::Rt: {

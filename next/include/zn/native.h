@@ -101,6 +101,7 @@ typedef struct ZnHostApi {
 int32_t zn_register_module(const ZnModule* module, char* err, size_t errsize);
 /* The export `name` of a registered module, or null. */
 const ZnExport* zn_native_find(const char* module, const char* name);
+int32_t zn_native_has_module(const char* module);   /* 1 when a module of that name is registered */
 /* A call as the interpreter makes it: finds the export, checks that its signature equals `sig` (null: skip the check) and runs it. Returns the export's status
  * (ZN_OK, ZN_PENDING, an error: the message is in err) or a negative one when nothing was called (-1 unknown module or export, -2 signature mismatch). */
 int32_t zn_native_call(const char* module, const char* name, const char* sig, const ZnVal* args, ZnVal* ret, char* err, size_t errsize);

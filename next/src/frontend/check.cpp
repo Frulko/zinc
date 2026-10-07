@@ -352,6 +352,15 @@ struct Checker {
       hostNames.push_back("__host_" + std::string(rtMember(r)));  // symbols keep a view of their name
       declare(SymKind::Builtin, hostNames.back(), func(ps, rtLetter(rtRet(r), kNoType), rtParamCount(r)), kNone, true, 0);
     }
+    for (std::size_t ni = 0; ni < a.natives.size(); ++ni) {  // the exports of the native modules the program calls: __native_<n>
+      const std::string& sg = a.natives[ni].sig;
+      std::size_t gt = sg.find('>');
+      auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'D' ? arrayOf(num(Num::f64)) : tVoid; };
+      std::vector<TypeId> ps;
+      for (std::size_t k = 0; k < gt; ++k) ps.push_back(letter(sg[k]));
+      hostNames.push_back("__native_" + std::to_string(ni));
+      declare(SymKind::Builtin, hostNames.back(), func(ps, letter(sg[gt + 1]), static_cast<unsigned>(gt)), kNone, true, 0);
+    }
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
     declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);
   }

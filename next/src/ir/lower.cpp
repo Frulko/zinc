@@ -1737,6 +1737,15 @@ struct Lowering::FnLower {
           return emit(IrOp::Rt, rtIrType(rtRet(r), frontend::kNoType), std::move(vs), 0, 0, static_cast<std::uint32_t>(r.id));
         }
       }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__native_", 0) == 0) {  // an export of a native module (requireNative<Spec>)
+        auto ni = static_cast<std::uint32_t>(std::stoul(std::string(callee.text.substr(9))));
+        const std::string& sg = a.natives[ni].sig;
+        std::size_t gt = sg.find('>');
+        auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
+        std::vector<ValueId> vs;
+        for (std::size_t k = 0; k < gt; ++k) vs.push_back(exprTo(x.kids[k + 1], irType(sg[k])));
+        return emit(IrOp::CallNative, irType(sg[gt + 1]), std::move(vs), 0, 0, ni);
+      }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__toNumber")
         return emit(IrOp::Rt, m.numT(NumK::f64), {exprTo(x.kids[1], m.strT())}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ToNumber));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "parseInt" || callee.text == "parseFloat")) {
@@ -2211,6 +2220,7 @@ void Lowering::lowerAll() {
 
 LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view) {
   Lowering l(ast, checked);
+  for (const frontend::NativeDecl& n : ast.natives) l.m.natives.push_back({n.module, n.name, n.sig});
   l.run();
   return {std::move(l.m), std::move(l.diags)};
 }

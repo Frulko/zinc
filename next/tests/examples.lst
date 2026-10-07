@@ -26,9 +26,9 @@ lang/src/main.ts | OK |  |
 led/falling-cubes/src/main.ts | OK |  | 
 led/oled-clock/src/main.tsx | OK |  | 
 led/scroll-text/src/main.ts | OK |  | 
-maps/explorer/src/main.tsx | RUNTIME | native module MapEngine is not linked | ZN-108
+maps/explorer/src/main.tsx | COMPILE | Z5011: native module MapEngine is not linked | ZN-108
 maps/navigation/src/main.tsx | OK |  | 
-maps/svg-gallery/src/main.tsx | RUNTIME | native module SvgEngine is not linked | ZN-106
+maps/svg-gallery/src/main.tsx | COMPILE | Z5011: native module SvgEngine is not linked | ZN-106
 modules-showcase/src/main.tsx | OK |  | 
 native-module/src/main.ts | OK |  | 
 pinball/src/main.ts | OK |  | 

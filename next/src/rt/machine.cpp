@@ -1,6 +1,7 @@
 // The machine the engines share: loading a module into classes and functions, allocation, reference counting and
 // destruction order, comparator and exception callbacks. The interpreter (vm) and the compiled programs (aot) both link it.
 #include "rt/rt.h"
+#include "zn/native.h"
 
 #include <bit>
 #include <charconv>
@@ -171,6 +172,12 @@ Machine::~Machine() {
 
 bool Machine::load(const zbc::Module& m, std::string& err) {
   mod = &m;
+  for (const zbc::Native& nt : m.natives) {   // the registry must hold every export the program calls, with the signature it expects
+    if (!zn_native_has_module(nt.module.c_str())) { err = "the native module '" + nt.module + "' is not linked into this engine"; return false; }
+    const ZnExport* e = zn_native_find(nt.module.c_str(), nt.name.c_str());
+    if (!e) { err = "the native module '" + nt.module + "' has no export '" + nt.name + "'"; return false; }
+    if (nt.sig != e->sig) { err = "native " + nt.module + "." + nt.name + ": the program expects the signature '" + nt.sig + "', the module has '" + e->sig + "'"; return false; }
+  }
   funcs.resize(m.functions.size());
   codeLen.resize(funcs.size());
   for (std::size_t i = 0; i < funcs.size(); ++i) codeLen[i] = m.functions[i].code.size();

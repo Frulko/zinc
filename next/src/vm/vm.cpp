@@ -182,6 +182,11 @@ L_Rt: {
   if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; if (__builtin_expect(trapTrace, 0)) error += " (in @" + mod->functions[static_cast<std::size_t>(fn - funcs.data())].name + " at word " + std::to_string(pc - code - 1) + ", runtime call " + zn::rtInfo(static_cast<Rt>(dOf(w))).name + ")"; return false; }
   NEXT();
 }
+L_CallNative: {
+  const char* e = nativeCall(*this, dOf(w), r + A);
+  if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; return false; }
+  NEXT();
+}
 L_LogStr: { if (const char* e = op::logStr(*this, r[A])) TRAP(e); NEXT(); }
 L_LogI: *out += std::to_string(static_cast<std::int64_t>(r[A])); NEXT();
 L_LogU: *out += std::to_string(r[A]); NEXT();

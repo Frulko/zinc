@@ -74,12 +74,15 @@ struct Function {
   std::vector<Handler> handlers;
 };
 
+struct Native { std::string module, name, sig; };  // an export of a native module: the loader finds it in the registry and compares the signature
+
 struct Module {
   std::vector<std::string> strings;  // LoadStr operands
   std::vector<VType> globals;
   std::vector<ClassInfo> classes;
   std::vector<SelInfo> selectors;
   std::vector<Function> functions;  // functions[0] is main
+  std::vector<Native> natives;      // the targets of CallNative
 };
 
 // Emits ZBC. Constructs without bytecode yet (exceptions, fixed-point numbers) are

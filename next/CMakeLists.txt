@@ -68,9 +68,15 @@ target_compile_options(zn_llhttp PRIVATE -w -O2)
 set_target_properties(zn_uv PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_uv PRIVATE -fno-strict-aliasing -w -O2)
 
+# The native-module ABI (ZN-096): the registry, which the frontend (Z5011), the runtime (CallNative) and the tests use
+add_library(zn_native STATIC src/rt/native.cpp)
+target_include_directories(zn_native PUBLIC include)
+find_package(Threads REQUIRED)
+target_link_libraries(zn_native PUBLIC Threads::Threads)
+
 add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
-target_link_libraries(zn_frontend PUBLIC zn_yyjson)
+target_link_libraries(zn_frontend PUBLIC zn_yyjson zn_native)
 
 add_library(zn_ir STATIC src/ir/ir.cpp src/ir/parse.cpp src/ir/lower.cpp src/ir/rc.cpp src/ir/opt.cpp)
 target_link_libraries(zn_ir PUBLIC zn_frontend)
@@ -172,6 +178,14 @@ target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
 target_include_directories(zn_qjs PUBLIC include src)
 
 add_executable(zinc src/main.cpp)
+option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
+if(ZN_NATIVE_FIXTURE)
+  add_library(zn_native_fixture STATIC tests/native/fixture.c)   # also linked into the programs zinc build writes when they call the module
+  target_compile_options(zn_native_fixture PRIVATE -std=c99 -Wall -Wextra -Werror -pedantic)
+  target_include_directories(zn_native_fixture PUBLIC include)
+  target_link_libraries(zinc PRIVATE zn_native_fixture)
+  target_compile_definitions(zinc PRIVATE ZN_NATIVE_FIXTURE)
+endif()
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_link_libraries(zinc PRIVATE zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
@@ -191,10 +205,7 @@ target_include_directories(ops_test PRIVATE include)
 add_executable(zbc_test tests/unit/zbc_test.cpp)
 target_link_libraries(zbc_test PRIVATE zn_zbc)
 
-# The native-module ABI (ZN-096): the registry and a test with a module written in C99
-add_library(zn_native STATIC src/rt/native.cpp)
-target_include_directories(zn_native PUBLIC include)
-find_package(Threads REQUIRED)
+# A test with a module written in C99
 add_executable(native_test tests/native/native_test.cpp tests/native/fixture.c)
 set_source_files_properties(tests/native/fixture.c PROPERTIES COMPILE_OPTIONS "-std=c99;-Wall;-Wextra;-Werror;-pedantic")
-target_link_libraries(native_test PRIVATE zn_native Threads::Threads)
+target_link_libraries(native_test PRIVATE zn_native)

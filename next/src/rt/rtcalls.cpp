@@ -6,10 +6,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 
 #include "rt/rt.h"
 #include "rt/unicode.h"
 #include "zn/host.h"
+#include "zn/native.h"
+#include "zn/native_sig.h"
 
 namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; }
 
@@ -633,6 +636,70 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
     case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
     case 's': { StrObj* so = m.newStr(static_cast<const char*>(res.p), res.n); a[0] = P(so); break; }
     default: break;
+  }
+  return nullptr;
+}
+
+// ---- native modules (include/zn/native.h): the arguments are decoded by the signature of the table entry, the export is called through the registry
+const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
+  const zbc::Native& nt = m.mod->natives[idx];
+  std::string ps;
+  char rl = 'n';
+  nsig::parse(nt.sig.c_str(), ps, rl);   // the verifier checked the signature
+  ZnVal args[12], ret;
+  std::deque<std::vector<std::uint8_t>> packed;   // u8 and i32 arrays are packed for the call
+  for (std::size_t k = 0; k < ps.size() && k < 12; ++k) {
+    ZnVal& v = args[k];
+    switch (ps[k]) {
+      case 'd': v.d = std::bit_cast<double>(a[k]); break;
+      case 'i': v.i = static_cast<std::int32_t>(a[k]); break;
+      case 'u': v.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
+      case 'b': v.i = a[k] != 0; break;
+      case 's': { StrObj* s = S(a[k]); if (!s) return kNull; v.s.p = s->data(); v.s.n = s->len; break; }
+      default: {
+        ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]);
+        if (!arr) return kNull;
+        v.v.n = static_cast<std::uint32_t>(arr->v.size());
+        if (ps[k] == 'D') { v.v.p = arr->v.data(); break; }   // a slot holds the bits of the double
+        std::size_t w = ps[k] == 'B' ? 1 : 4;
+        packed.emplace_back(arr->v.size() * w);
+        for (std::size_t j = 0; j < arr->v.size(); ++j) {
+          if (w == 1) packed.back()[j] = static_cast<std::uint8_t>(arr->v[j]);
+          else { auto x = static_cast<std::int32_t>(arr->v[j]); std::memcpy(packed.back().data() + j * 4, &x, 4); }
+        }
+        v.v.p = packed.back().data();
+      }
+    }
+  }
+  char err[256] = "";
+  ret.u = 0;
+  std::int32_t st = zn_native_call(nt.module.c_str(), nt.name.c_str(), nt.sig.c_str(), args, &ret, err, sizeof err);
+  if (st != ZN_OK) {
+    m.error = "native " + nt.module + "." + nt.name + (st == ZN_PENDING ? ": a promise result is not supported yet" : ": " + std::string(err));
+    return m.error.c_str();
+  }
+  switch (rl) {
+    case 'd': a[0] = std::bit_cast<Slot>(ret.d); break;
+    case 'i': a[0] = static_cast<Slot>(static_cast<std::int64_t>(static_cast<std::int32_t>(ret.i))); break;
+    case 'u': a[0] = static_cast<Slot>(static_cast<std::uint32_t>(ret.i)); break;
+    case 'b': a[0] = ret.i != 0; break;
+    case 's': a[0] = P(m.newStr(ret.s.p, ret.s.n)); break;
+    case 'n': break;
+    default: {
+      const ClassRT* cls = nullptr;
+      for (std::size_t c = 0; c < m.mod->classes.size() && !cls; ++c) {
+        const zbc::ClassInfo& ci = m.mod->classes[c];
+        if (ci.kind == zbc::CKind::Array && ci.elem.cls == (rl == 'D' ? zbc::Cls::D : zbc::Cls::I)) cls = &m.classes[c];
+      }
+      if (!cls) return "native: no array class for the result";
+      ArrObj* arr = m.newArr(cls);
+      for (std::uint32_t j = 0; j < ret.v.n; ++j) {
+        if (rl == 'D') arr->v.push_back(std::bit_cast<Slot>(static_cast<const double*>(ret.v.p)[j]));
+        else if (rl == 'B') arr->v.push_back(static_cast<const std::uint8_t*>(ret.v.p)[j]);
+        else arr->v.push_back(static_cast<Slot>(static_cast<std::int64_t>(static_cast<const std::int32_t*>(ret.v.p)[j])));
+      }
+      a[0] = reinterpret_cast<Slot>(arr);
+    }
   }
   return nullptr;
 }
