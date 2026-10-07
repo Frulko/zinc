@@ -1497,6 +1497,10 @@ struct Checker {
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
         if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }  // a forward variable is only visible to other functions
         out.nodeSym[i] = s;
+        if (out.syms[s].kind == SymKind::Func) {  // a function whose return type is still to be found
+          if (inferring.count(s)) { diag(kZCannotInfer, i, "return type of '" + std::string(x.text) + "' (it needs itself: annotate it)"); return tError; }
+          resolvePending(s);
+        }
         if (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
         if (out.syms[s].kind == SymKind::Enum) { diag(kZNotAllowedHere, i, "enum '" + std::string(x.text) + "' used as a value"); return tError; }
@@ -2280,7 +2284,9 @@ struct Checker {
         if (curRet == kInferRet) {  // a lambda without a return type: the first return decides, the others must fit
           if (x.kids[0] == kNone) { if (inferredRet == kNoType) inferredRet = tVoid; break; }
           TypeId rt = expr(x.kids[0]);
-          if (inferredRet == kNoType) inferredRet = rt; else require(rt, inferredRet, x.kids[0]);
+          if (inferredRet == kNoType) inferredRet = rt;
+          else if (!bad(rt) && !bad(inferredRet) && !assignable(rt, inferredRet, x.kids[0]) && (rt == tNull || inferredRet == tNull || (ty(rt).k == TK::Object && ty(inferredRet).k == TK::Object) || ty(inferredRet).k == TK::Union)) inferredRet = unionOf({inferredRet, rt});  // null and an object, or several objects: their union
+          else require(rt, inferredRet, x.kids[0]);
           break;
         }
         if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any) diag(kZNotAssignable, s, "'void' to '" + name(curRet) + "'"); break; }
@@ -2369,12 +2375,39 @@ struct Checker {
     if (!isCtor) {
       if (f.kids[0] != kNone) ret = annotation(f.kids[0]);
       else if (f.kids[1] == kNone) { diag(kZCannotInfer, fid, "return type of '" + std::string(f.text) + "'"); ret = tError; }
-      else if (hasValueReturn(a, f.kids[1])) { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; }
+      else if (hasValueReturn(a, f.kids[1])) { if (inferReturns) sigNeedsInfer = true; else { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; } }
     }
     return func(std::move(ps), ret, minArgs);
   }
+  // Functions without a return annotation: the type comes from their returns, found by checking the body when the type is first needed
+  // (a call, a reference) or at the end of the list; a function that needs its own type to find its type must be annotated.
+  bool inferReturns = false, sigNeedsInfer = false;
+  std::set<std::uint32_t> inferring;
+  // The result of the inference for symbol s (kNoType when it was not pending); tError when the function needs itself.
+  TypeId resolvePending(std::uint32_t s) {
+    auto it = pendingFns.find(s);
+    if (it == pendingFns.end()) return kNoType;
+    PendingFn pf = std::move(it->second);
+    pendingFns.erase(it);
+    inferring.insert(s);
+    Ctx saved = saveCtx();
+    restoreCtx(pf.ctx);
+    TypeId savedInferred = inferredRet;
+    inferredRet = kNoType;
+    TypeId sigNow = out.syms[s].type;
+    checkBody(pf.node, sigNow, pf.params, false, true);
+    TypeId ret = inferredRet != kNoType ? inferredRet : tVoid;
+    inferredRet = savedInferred;
+    restoreCtx(saved);
+    inferring.erase(s);
+    if (ret == tNull) ret = tError;
+    TypeId sig = func(pf.paramTypes, ret, pf.minArgs);
+    out.syms[s].type = sig;
+    out.nodeType[pf.node] = sig;
+    return sig;
+  }
 
-  void checkBody(std::uint32_t fn, TypeId sig, const std::vector<std::uint32_t>& params, bool isCtor) {
+  void checkBody(std::uint32_t fn, TypeId sig, const std::vector<std::uint32_t>& params, bool isCtor, bool infer = false) {
     const Node& f = n(fn);
     if (f.kids[1] == kNone) return;
     Type ft = ty(sig);
@@ -2382,7 +2415,7 @@ struct Checker {
     auto savedNarrowing = std::move(narrowing);
     narrowing.clear();
     TypeId savedRet = curRet; int savedLoops = loops; bool savedImmediate = immediate;
-    curRet = isCtor ? tVoid : ft.elem; loops = 0; immediate = false;
+    curRet = isCtor ? tVoid : infer ? kInferRet : ft.elem; loops = 0; immediate = false;
     push();
     for (std::size_t k = 0; k < params.size(); ++k) {
       const Node& p = n(params[k]);
@@ -2392,7 +2425,7 @@ struct Checker {
     }
     stmtList(n(f.kids[1]).kids);
     pop();
-    if (!isCtor && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
+    if (!isCtor && !infer && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
     narrowing = std::move(savedNarrowing);
     fnStack.pop_back();
@@ -2970,6 +3003,8 @@ struct Checker {
     std::vector<std::pair<std::uint32_t, TypeId>> narrowing;
     std::vector<std::uint32_t> fnStack;
   };
+  struct PendingFn { std::uint32_t node; std::vector<std::uint32_t> params; std::vector<TypeId> paramTypes; std::uint32_t minArgs; Ctx ctx; };
+  std::map<std::uint32_t, PendingFn> pendingFns;  // functions whose return type is still to be found, by symbol
   Ctx saveCtx() const { return {scopes, curRet, curClass, curCtor, curStatic, immediate, pendingExempt, loops, ctorStmts, ctorPending, narrowing, fnStack}; }
   void restoreCtx(const Ctx& c) {
     scopes = c.scopes; curRet = c.curRet; curClass = c.curClass; curCtor = c.curCtor; curStatic = c.curStatic; immediate = c.immediate;
@@ -3613,7 +3648,10 @@ struct Checker {
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Function || a.tparams.count(s)) continue;
       std::vector<std::uint32_t> ps;
+      inferReturns = true; sigNeedsInfer = false;
       TypeId sig = signature(s, 2, false, ps);
+      inferReturns = false;
+      bool needInfer = sigNeedsInfer;
       out.nodeType[s] = sig;
       out.nodeSym[s] = declare(SymKind::Func, n(s).text, sig, s, true, s);
       if (isNestedFunction(s)) {  // a nested function: another function may use it (and it may use the variables around it), so it is captured like a variable
@@ -3621,6 +3659,12 @@ struct Checker {
         out.syms[out.nodeSym[s]].reassigned = true;  // its closure is stored after the closures that call it exist: a shared cell
       }
       if (n(s).kids[1] == kNone) { diag(kZUnsupported, s, "function declarations without a body"); continue; }
+      if (needInfer) {
+        std::uint32_t fsym = out.nodeSym[s];
+        pendingFns[fsym] = {s, ps, ty(sig).params, ty(sig).minArgs, saveCtx()};
+        defer->push_back([this, fsym]() { resolvePending(fsym); });
+        continue;
+      }
       defer->push_back([this, s, sig, ps]() { checkBody(s, sig, ps, false); });
     }
     for (std::uint32_t as : aliasSyms) if (out.syms[as].kind == SymKind::TypeAlias) resolveAlias(as);  // report errors even in unused aliases

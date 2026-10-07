@@ -1,9 +1,10 @@
 ---
 id: ZN-068
 title: Return type inference for functions without annotation
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:49'
+updated_date: '2026-10-07 00:52'
 labels:
   - language
   - checker
@@ -22,6 +23,12 @@ Z0109 appears for functions with no return annotation, including returned object
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures: plain, recursive with annotation, returning object literals, returning closures, returning mixed null/object
-- [ ] #2 examples/pocket-hero passes this step
+- [x] #1 fixtures: plain, recursive with annotation, returning object literals, returning closures, returning mixed null/object
+- [x] #2 examples/pocket-hero passes this step
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Function declarations without a return annotation get their type from their returns, found lazily (first reference or end of the list); returns widen to a union for null/objects; a function needing itself must be annotated (Z0109). pocket-hero no longer reports return types; it stops on package imports (other task). Z0109 registry text and example changed.
+<!-- SECTION:NOTES:END -->

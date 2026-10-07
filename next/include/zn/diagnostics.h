@@ -46,8 +46,8 @@
     "A const binding or read-only member cannot be reassigned.", "Declare it with let, or do not assign.",            \
     "const a = 1;\na = 2;")                                                                                            \
   X(CannotInfer, "Z0109", "Cannot infer a type",                                                                       \
-    "Parameters, class fields and non-void function results need an annotation, and a declaration needs an "         \
-    "initializer, when the type cannot be inferred.", "Add a type annotation.", "function f(a: i32) {\n  return a;\n}") \
+    "Parameters and class fields need an annotation, a declaration needs an initializer, and a function that calls "  \
+    "itself needs a return type, when the type cannot be inferred.", "Add a type annotation.", "function f(a) {\n  return 1;\n}") \
   X(MissingReturn, "Z0110", "Not all code paths return a value",                                                       \
     "A function with a non-void return type must return on every path.", "Add a final return.",                      \
     "function f(a: i32): i32 {\n  if (a > 0) return 1;\n}")                                                           \

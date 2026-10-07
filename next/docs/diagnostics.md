@@ -140,13 +140,13 @@ a = 2;
 
 ## Z0109: Cannot infer a type
 
-Parameters, class fields and non-void function results need an annotation, and a declaration needs an initializer, when the type cannot be inferred.
+Parameters and class fields need an annotation, a declaration needs an initializer, and a function that calls itself needs a return type, when the type cannot be inferred.
 
 Fix: Add a type annotation.
 
 ```ts
-function f(a: i32) {
-  return a;
+function f(a) {
+  return 1;
 }
 ```
 
