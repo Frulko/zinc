@@ -74,7 +74,7 @@ def group_of(t):
         if g.get("exclude_title") and re.search(g["exclude_title"], title):
             continue
         if t.get("milestone") in g.get("milestones", []) or any(l in t.get("labels", []) for l in g.get("labels", [])) or (g.get("title") and re.search(g["title"], title)):
-            return i
+            return 1000 + i if g.get("last") else i   # a "last" group sorts after the tasks no group claims
     return len(groups)
 
 def startable():
