@@ -34,6 +34,8 @@ export interface KeyboardProps {
   accentClass?: string;
   /** Preview bubble above the pressed key (default true). */
   preview?: boolean;
+  /** A retract handle above the keys, on every layout (letters, digit pads, phone, email...): default true. Tapping it hides the keyboard. */
+  retractable?: boolean;
 }
 
 class Key {
@@ -238,6 +240,10 @@ export function Keyboard(props: KeyboardProps): i32 {
 
   return <View ref={root} keepFocus class={`flex-col p-2 bg-${theme().muted} border-t border-${theme().border} ${props.class ?? ''}`}
     style={{ gap: gap, hidden: always ? 0 : 1 }}>
+    <View class="flex-row justify-center" style={{ hidden: (props.retractable ?? true) ? 0 : 1, height: (props.retractable ?? true) ? 20 : 0 }}>
+      <View class={`flex-row items-center justify-center rounded-full px-6 bg-${theme().secondaryPressed} text-${theme().mutedForeground}`} style={{ height: 18 }}
+        onPointerUp={(e: ui.PointerEvent) => { ui.focusNode(-1); emit('Hide'); }}><Text class="text-xs">⌄</Text></View>
+    </View>
     {rows().map((r: Row) => <View class="flex-row justify-center" style={{ gap: gap }}>
       {r.keys.map((k: Key) => <KeyView k={k} />)}
     </View>)}
