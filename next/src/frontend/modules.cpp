@@ -14,6 +14,7 @@
 #include "frontend/inspect.h"
 #include "frontend/parser.h"
 #include "frontend/snippet.h"
+#include "frontend/tsconfig.h"
 
 namespace zn::frontend {
 namespace {
@@ -402,6 +403,64 @@ struct Loader {
 
   Loader(Program& p, const ReadFile& r) : prog(p), read(r) {}
 
+  // ---- tsconfig.json paths: `inferno`, `@pocketjs/framework/solid`, `three` and the like
+  struct TsEntry { bool found = false; std::string dir; TsConfig cfg; };
+  std::map<std::string, TsEntry> tsconfigs;  // by directory searched from
+  const TsEntry& tsconfigFor(const std::string& dir) {
+    auto it = tsconfigs.find(dir);
+    if (it != tsconfigs.end()) return it->second;
+    TsEntry e;
+    for (std::string d = dir;;) {
+      std::string text;
+      if (read(d.empty() ? "tsconfig.json" : d + "/tsconfig.json", text)) {
+        std::string err;
+        if (parseTsConfig(text, e.cfg, err)) { e.found = true; e.dir = d; }
+        else std::fprintf(stderr, "zinc: %s/tsconfig.json: %s\n", d.c_str(), err.c_str());
+        break;
+      }
+      std::size_t slash = d.find_last_of('/');
+      if (d.empty() || slash == std::string::npos) { if (!d.empty()) { d.clear(); continue; } break; }
+      d = d.substr(0, slash);
+    }
+    return tsconfigs[dir] = std::move(e);
+  }
+  // Loads the file a path candidate names (as written or with an extension or /index); kNone when no such file.
+  std::uint32_t loadCandidate(const std::string& base, bool& found) {
+    found = true;
+    std::string text;
+    std::string stem = base;
+    for (const char* js : {".js", ".mjs"}) if (stem.size() > std::strlen(js) && stem.compare(stem.size() - std::strlen(js), std::strlen(js), js) == 0) { stem.resize(stem.size() - std::strlen(js)); break; }
+    for (const std::string& cand : {base, base + ".ts", base + ".tsx", base + "/index.ts", base + "/index.tsx", base + ".js", base + ".mjs", stem + ".ts", stem + ".tsx"}) {
+      if (done.count(cand)) return done[cand];
+      if (visiting.count(cand)) return kNone;
+      if (read(cand, text)) return load(cand, std::move(text));
+    }
+    found = false;
+    return kNone;
+  }
+  // True when a `paths` entry matches `spec` (the module, or kNone after a diagnostic, goes to `result`).
+  bool resolveByPaths(std::uint32_t fromFile, std::uint32_t node, const std::string& spec, std::uint32_t& result) {
+    std::string fromDir = dirOf(prog.files[fromFile].path);
+    const TsEntry& ts = tsconfigFor(fromDir);
+    if (!ts.found) return false;
+    std::string matched;
+    std::vector<std::string> targets = mapSpecifier(ts.cfg, spec, matched);
+    if (targets.empty()) return false;
+    std::string root = ts.dir;
+    if (!ts.cfg.baseUrl.empty()) root = normalize(root + (root.empty() ? "" : "/") + ts.cfg.baseUrl);
+    std::string tried;
+    for (const std::string& t : targets) {
+      std::string path = normalize(root + (root.empty() ? "" : "/") + t);
+      bool found;
+      std::uint32_t m = loadCandidate(path, found);
+      if (found) { result = m; return true; }
+      tried += (tried.empty() ? "" : ", ") + path;
+    }
+    diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (tsconfig.json paths '" + matched + "' -> " + tried + ": no such file)");
+    result = kNone;
+    return true;
+  }
+
   void diag(const char* code, std::uint32_t file, std::uint32_t node, std::string detail) {
     prog.diags.push_back({code, node == kNone ? 0 : prog.ast.nodes[node].start, std::move(detail), file});
   }
@@ -431,7 +490,12 @@ struct Loader {
       diag(kZModuleNotFound, fromFile, node, "'" + spec + "'");
       return kNone;
     }
-    if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) { diag(kZUnsupported, fromFile, node, "package imports ('" + spec + "')"); return kNone; }
+    if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {  // a bare specifier: the `paths` of the nearest tsconfig.json
+      std::uint32_t viaPaths = kNone;
+      if (resolveByPaths(fromFile, node, spec, viaPaths)) return viaPaths;
+      diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no tsconfig.json paths entry maps it)");
+      return kNone;
+    }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
     std::string text;
     // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API

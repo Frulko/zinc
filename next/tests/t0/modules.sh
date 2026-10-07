@@ -12,6 +12,6 @@ check() {  # file, expected "Zxxxx file:line:col" first diagnostic
   [ "$got" = "$2" ] || { echo "$1: got '$got', want '$2'"; fail=1; }
 }
 check cycle_a.ts "Z0005 cycle_b.ts:1:1"
-check package.ts "Z0005 package.ts:1:1"
+check package.ts "Z0119 package.ts:1:1"  # a bare specifier no tsconfig.json paths entry maps (ZN-076)
 check no_member.ts "Z0101 no_member.ts:1:10"
 exit $fail
