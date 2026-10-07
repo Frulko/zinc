@@ -56,6 +56,7 @@ static bool readFile(const std::string& path, std::string& out) {
 // Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
 static std::vector<zn::tc::PluginLib> gPlugins;  // the native plugins built and loaded for this program, for the link line of zinc build
 static std::string gProjectDir = ".";
+static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 
 // A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
 static void installNativeProvider(const char* entry) {
@@ -83,6 +84,29 @@ static void installNativeProvider(const char* entry) {
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     return p && p->manifest.deterministic;
   };
+}
+
+// A display driver (zinc.json `display`, the board's, or ZINC_DISPLAY): build its plugin into the cache and load it, so that it registers with the HAL (ZN-104). Not in a headless or
+// deterministic run (golden tests, captures) unless the driver was asked for with ZINC_DISPLAY. A driver that cannot be built is reported and the host window keeps the screen.
+static void installDisplayDriver(const std::string& projectDir, const char* entry) {
+  namespace fs = std::filesystem;
+  auto set = [](const char* n) { const char* v = std::getenv(n); return v && *v && *v != '0'; };
+  bool headless = set("ZINC_HEADLESS") || set("ZINC_DETERMINISTIC") || std::getenv("ZINC_RECORD") || std::getenv("ZINC_REPLAY");
+  std::string dir = projectDir;
+  if (dir.empty()) { std::string pf = zn::frontend::findProjectFile(entry); if (!pf.empty()) dir = fs::path(pf).parent_path().string(); }
+  if (dir.empty()) dir = ".";
+  auto sel = zn::frontend::selectDisplay(dir, gRoot + "/..", zn::tc::pluginTarget());
+  if (sel.width > 0 && sel.height > 0) { gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height); setenv("ZINC_SIZE", gBakedSize.c_str(), 0); }
+  if (sel.driver.empty() || (headless && !set("ZINC_DISPLAY"))) return;
+  std::vector<std::string> problems;
+  auto found = zn::frontend::discoverPlugins(gRoot + "/..", dir, problems);
+  const zn::frontend::FoundPlugin* hit = nullptr;
+  for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
+  if (!hit) { std::fprintf(stderr, "zinc: display driver '%s' not found (zinc plugins lists them)\n", sel.driver.c_str()); return; }
+  zn::tc::PluginLib lib;
+  std::string err;
+  if (!zn::tc::buildPlugin(*hit, gRoot, dir, zn::tc::pluginTarget(), lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
+  gPlugins.push_back(lib);
 }
 
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
@@ -254,6 +278,7 @@ int main(int argc, char** argv) {
         for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
       }
     }
+    installDisplayDriver(projectDir, path.c_str());
     if (window.width > 0 && window.height > 0) setenv("ZINC_SIZE", (std::to_string(window.width) + "x" + std::to_string(window.height)).c_str(), 0);
     if (window.zoom > 0) setenv("ZINC_ZOOM", std::to_string(window.zoom).c_str(), 0);
     if (!window.resize.empty()) setenv("ZINC_RESIZE", window.resize.c_str(), 0);
@@ -420,6 +445,7 @@ int main(int argc, char** argv) {
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
+    installDisplayDriver("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
     namespace fs = std::filesystem;
     fs::path libs = fs::absolute(argv[0]).parent_path(), cpp = fs::path(argv[4]).string() + ".cpp";
     std::vector<std::uint8_t> blob;
@@ -427,7 +453,7 @@ int main(int argc, char** argv) {
       std::string err;
       if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
     }
-    { std::ofstream o(cpp); o << zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob); if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob); if (!gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     const char* cxx = std::getenv("CXX");
     bool haveLibs = fs::exists(libs / "libzn_rt.a");
     bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
@@ -444,7 +470,14 @@ int main(int argc, char** argv) {
     for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
     std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
     for (const zn::tc::PluginLib& pl : gPlugins) {
-      nativeLibs += " '" + pl.archive + "'" + (pl.vendor.empty() ? "" : " '" + pl.vendor + "'");
+      if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
+#ifdef __APPLE__
+        nativeLibs += " -Wl,-force_load,'" + pl.archive + "'";
+#else
+        nativeLibs += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";
+#endif
+      } else nativeLibs += " '" + pl.archive + "'";
+      if (!pl.vendor.empty()) nativeLibs += " '" + pl.vendor + "'";
       for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
     }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +

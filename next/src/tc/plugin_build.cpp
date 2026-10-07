@@ -130,22 +130,24 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   bool known = false;
   for (const std::string& t : m.targets) known = known || t == target;
   if (!known) { err = "plugin '" + m.name + "' is not available on target '" + target + "'"; return false; }
-  // the spec, its generated header and thunk
+  bool display = m.kind == "display";   // a display driver (plugins/display-*): its sources only, no spec and no thunk
+  out.display = display;
   fs::path nativeDir = fs::path(p.dir) / "native";
-  std::string specPath, specText, base;
+  std::string specPath, specText, base, impl;
   std::error_code ec;
+  frontend::NativeGen gen;
+  if (!display) {
   for (const auto& e : fs::directory_iterator(nativeDir, ec)) if (endsWith(e.path().string(), ".spec.ts")) { specPath = e.path().string(); base = e.path().filename().string(); base.resize(base.size() - 8); }
   if (specPath.empty() || !readAll(specPath, specText)) { err = "plugin '" + m.name + "' has no native/*.spec.ts"; return false; }
-  frontend::NativeGen gen;
   if (!frontend::generateNative(specPath, specText, gen, err)) return false;
   if (gen.thunk.empty()) { err = "plugin '" + m.name + "': no thunk can be written for its spec: " + gen.thunkNote; return false; }
   out.module = gen.name;
   // the implementation: the manifest's, else <x>.<target>.cpp, else <x>.host.cpp
-  std::string impl;
   auto it = m.nativeImpl.find(target);
   if (it != m.nativeImpl.end()) impl = (fs::path(p.dir) / it->second).string();
   else for (std::string cand : {base + "." + target + ".cpp", base + ".host.cpp"}) if (impl.empty() && fs::exists(nativeDir / cand)) impl = (nativeDir / cand).string();
   if (impl.empty()) { err = "plugin '" + m.name + "' has no native source for target '" + target + "' (expected native/" + base + ".host.cpp)"; return false; }
+  }
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   std::string cxx, cc;
   if (!compilers(cxx, cc, err)) return false;
@@ -182,7 +184,8 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   std::string root = fs::path(engineRoot).string();
   std::string runtime = root + "/../runtime";
   // sources of the manifest: .c files are vendored libraries, the rest are compiled with the plugin
-  std::vector<std::string> own{impl}, vendored;
+  std::vector<std::string> own, vendored;
+  if (!display) own.push_back(impl);
   for (const std::string& s : ts.sources) (endsWith(s, ".c") ? vendored : own).push_back((fs::path(p.dir) / s).string());
   // cache keys
   Hash h, vh;
@@ -190,8 +193,10 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   h.add(flags); vh.add(flags);
   h.add(cxx); vh.add(cc);
   h.add(gen.cppHeader); h.add(gen.thunk);
+  h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(s); h.add(t); }
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h"}) h.add(sha256File(hp));
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
+  for (const std::string& s : own) { std::string d = s.substr(0, s.find_last_of('/')); std::error_code e2; for (const auto& f : fs::directory_iterator(d, e2)) if (f.path().extension() == ".h") h.add(sha256File(f.path().string())); }   // the headers beside the sources
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
   h.add(target);
   std::string cache = home() + "/cache/" + target + "/plugins";
@@ -223,10 +228,16 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     fs::create_directories(gdir, ec);
     std::string lower = gen.name;
     for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    { std::ofstream(gdir + "/zinc_native_" + lower + ".h") << gen.cppHeader; }
     std::string thunk = gdir + "/zinc_native_" + lower + "_thunk.cpp";
-    { std::ofstream(thunk) << gen.thunk; }
-    std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir);
+    if (!display) {
+      { std::ofstream(gdir + "/zinc_native_" + lower + ".h") << gen.cppHeader; }
+      { std::ofstream(thunk) << gen.thunk; }
+    }
+    std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
+#ifdef ZN_SDL_INCLUDE
+      + (display && pluginTarget() == "macos" ? " -I" + q(ZN_SDL_INCLUDE) : std::string())   // the emulator windows of the display drivers use SDL3 (the host's)
+#endif
+      ;
     std::vector<std::string> objs;
     int k = 0;
     for (const std::string& s : own) {
@@ -234,7 +245,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
       if (!run(cxx + " " + flags + defs + inc + " -c " + q(s) + " -o " + q(o), err, "the C++ compiler on " + fs::path(s).filename().string())) return false;
       objs.push_back(o);
     }
-    { std::string o = dir + "/thunk.o"; if (!run(cxx + " " + flags + defs + inc + " -c " + q(thunk) + " -o " + q(o), err, "the C++ compiler on the thunk of " + m.name)) return false; objs.push_back(o); }
+    if (!display) { std::string o = dir + "/thunk.o"; if (!run(cxx + " " + flags + defs + inc + " -c " + q(thunk) + " -o " + q(o), err, "the C++ compiler on the thunk of " + m.name)) return false; objs.push_back(o); }
     std::string list;
     for (const std::string& o : objs) list += " " + q(o);
     std::string linkLibs;
@@ -253,6 +264,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
 bool loadPlugin(const PluginLib& lib, std::string& err) {
   void* h = dlopen(lib.shared.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!h) { err = std::string("cannot load ") + lib.shared + ": " + dlerror(); return false; }
+  if (lib.display) return true;   // its static constructor has registered it with the HAL
   using Open = const ZnModule* (*)();
   auto open = reinterpret_cast<Open>(dlsym(h, ("zn_module_" + lib.module).c_str()));
   if (!open) { err = "plugin '" + lib.plugin + "' does not export zn_module_" + lib.module; return false; }

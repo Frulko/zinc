@@ -284,6 +284,38 @@ std::vector<PluginOption> pluginOptions(const FoundPlugin& p, const std::string&
   return opts;
 }
 
+DisplaySelection selectDisplay(const std::string& projectDir, const std::string& engineRoot, const std::string& target) {
+  DisplaySelection sel;
+  JsonFile zj, board;
+  zj.open(projectDir + "/zinc.json");
+  yyjson_val* j = zj.root();
+  yyjson_val* bv = nullptr;
+  if (yyjson_val* b = member(j, "board"); b && yyjson_is_str(b) && board.open(engineRoot + "/boards/" + yyjson_get_str(b) + ".json")) bv = board.root();
+  auto num = [&](const char* key) {   // the board's `all`, the board's target, the project's target: later wins
+    int v = 0;
+    for (yyjson_val* l : {member(bv, "all", key), member(member(bv, "targets"), target.c_str(), key), member(member(j, "targets"), target.c_str(), key)})
+      if (l && yyjson_is_num(l)) v = static_cast<int>(yyjson_get_num(l));
+    return v;
+  };
+  sel.width = num("width");
+  sel.height = num("height");
+  if (const char* e = std::getenv("ZINC_DISPLAY"); e && *e) { sel.driver = e; return sel; }
+  yyjson_val* eff = nullptr;
+  std::string driver;
+  for (yyjson_val* l : {member(bv, "all", "display"), member(member(bv, "targets"), target.c_str(), "display"), member(member(j, "targets"), target.c_str(), "display")}) {
+    if (!l) continue;
+    eff = l;
+    if (yyjson_is_str(l)) driver = yyjson_get_str(l);
+    else if (yyjson_is_obj(l)) if (yyjson_val* d = yyjson_obj_get(l, "driver"); d && yyjson_is_str(d)) driver = yyjson_get_str(d);
+  }
+  if (!eff) if (yyjson_val* top = member(j, "display")) {
+    if (yyjson_is_str(top)) driver = yyjson_get_str(top);
+    else if (yyjson_is_obj(top)) if (yyjson_val* d = yyjson_obj_get(top, "driver"); d && yyjson_is_str(d)) driver = yyjson_get_str(d);
+  }
+  sel.driver = driver;
+  return sel;
+}
+
 std::vector<std::string> pluginDefines(const FoundPlugin& p, const std::string& projectDir, const std::string& engineRoot, const std::string& target) {
   auto id = [](const std::string& s) { std::string r; for (char c : s) r += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : '_'; return r; };
   std::vector<std::string> out;

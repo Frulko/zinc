@@ -18,6 +18,8 @@ namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); exter
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
 
+namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
+
 namespace {
 
 using zn::host::HostArg;
@@ -162,7 +164,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxEscapeDefault: g::escapeDefault(); break;
     case Rt::HostGfxProfiling: r->i = g::profiling() ? 1 : 0; break;
     case Rt::HostGfxProfMark: g::profMark(n(0)); break;
-    case Rt::HostGfxFinish: zrt::finish_run(); break;  // the profile summary, the trace file and the last-frame capture
+    case Rt::HostGfxFinish:
+      zrt::finish_run();
+      if (zrt::display_driver && hal_display && hal_display->shutdown) { zrt::display_driver = false; hal_display->shutdown(); }   // a display driver closes its device or window (and writes ZINC_SHOT)
+      break;  // the profile summary, the trace file and the last-frame capture
     default: break;
   }
 }

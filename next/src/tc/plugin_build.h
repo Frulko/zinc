@@ -15,6 +15,7 @@ struct PluginLib {
   std::string shared;                  // plugin.dylib / plugin.so: dlopen
   std::string archive, vendor;         // static archives of the plugin's objects and of its vendored C libraries (vendor empty when it has none)
   std::vector<std::string> linkArgs;   // -l, -framework, pkg-config --libs and linkFlags for a program that links the archives
+  bool display = false;                // a display driver (kind "display"): no native module, its static constructor registers it with the HAL; AOT links it whole
   bool rebuilt = false;                // false when the cache already held it
   double seconds = 0;
 };

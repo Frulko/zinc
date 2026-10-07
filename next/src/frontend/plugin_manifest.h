@@ -57,6 +57,11 @@ std::string listPlugins(const std::vector<FoundPlugin>& plugins);
 // The options of a plugin for a target, merged like the prototype's `optionsOf`: plugin.json defaults, then zinc.json `plugins.<name>`, then `targets.<target>.plugins.<name>`
 // (a `board` of zinc.json supplies defaults of its own), and for a display plugin the options of the project's `display` object.
 std::vector<PluginOption> pluginOptions(const FoundPlugin& p, const std::string& projectDir, const std::string& engineRoot, const std::string& target);
+// The display of a project for a target (ZN-104): the driver named by ZINC_DISPLAY, else by `targets.<target>.display`, else by `display` of zinc.json (a name, or { driver, ... }),
+// with the board file (`board`) supplying defaults; and the program surface the board says (`width`, `height`, 0 when none). Empty driver: the host window.
+struct DisplaySelection { std::string driver; int width = 0, height = 0; };
+DisplaySelection selectDisplay(const std::string& projectDir, const std::string& engineRoot, const std::string& target);
+
 // ZP_<PLUGIN>_<KEY>=<value> for each option, then ZP_<PLUGIN>=1.
 std::vector<std::string> pluginDefines(const FoundPlugin& p, const std::string& projectDir, const std::string& engineRoot, const std::string& target);
 

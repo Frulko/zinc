@@ -71,3 +71,13 @@ Verified on the native plugins: `wasm.ts` and `socket.ts` conformance programs a
 `Error` in the script through `cb_error`) and a callback type that mentions `unknown` gets an adapter. Functions of the script cross as `{"__zn_fn": n}`. Entries arm the time limit and pump the promise jobs;
 memory and stack limits are QuickJS's own; `interrupt` stops a running script. The plugin is `deterministic` (wall-clock limits only). `tests/t1/script.sh` runs script_basic.ts and script_async.ts interpreted and compiled.
 An AOT function that only calls natives is not a leaf: its registers cannot be C++ locals (the callbacks run in the frame above them).
+
+## Display drivers (ZN-104)
+
+`zinc.json` `display` (a name or `{ driver, ...options }`, per target), the board file's (`boards/<id>.json`, `all` / `targets.<t>`: also the surface `width` and `height`) and `ZINC_DISPLAY` pick a display
+plugin (`kind: "display"`); `zinc run` and `zinc build` build its sources (`targets.<t>.sources`, the options as `ZP_DISPLAY_<X>_*` defines) into the plugin cache and load it: the shared library's
+static constructor registers its `HalDisplay` with the runtime (`runtime/include/hal.h`), `zinc build` links the archive whole (`-force_load` / `--whole-archive`) and bakes the board's `ZINC_SIZE` into the
+program's `main`. A headless or deterministic run (ZINC_HEADLESS, ZINC_DETERMINISTIC) keeps the host window unless `ZINC_DISPLAY` is set. The macOS emulator windows use the host's SDL3 (include directory
+from the CMake build); `zinc:gfx`'s finish now calls the driver's `shutdown` (it writes `ZINC_SHOT` and closes the window or the device). `tests/t1/display_drivers.sh` runs ws2812, ssd1306 and scrollphat on
+the board and LED examples under SDL's dummy video driver, and the remote display against a `zinc:remote` viewer on loopback: the viewer's frame equals the server's own render pixel for pixel.
+`zinc native-gen --thunk` now carries `Promise<T>` members of zrt specs (the zrt promise settles into `promise_resolve` / `promise_reject`; the poll turn drains zrt's microtasks), which `remote-view` and `gphoto2` need.

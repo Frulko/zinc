@@ -146,6 +146,11 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
       std::string ps, sig, tsig, targs;
       bool tOk = true;
       char rl = g.letter(m.kids.empty() ? kNone : m.kids[0]);
+      char promiseOf = 0;   // a Promise<T> result: the letter of T (n for void)
+      if (!m.kids.empty() && m.kids[0] != kNone && pr.ast.nodes[m.kids[0]].kind == N::TypeRef && pr.ast.nodes[m.kids[0]].text == "Promise" && pr.ast.nodes[m.kids[0]].kids.size() == 1) {
+        promiseOf = g.letter(pr.ast.nodes[m.kids[0]].kids[0]);
+        if (promiseOf && std::strchr("nsiubd", promiseOf)) rl = 'P'; else promiseOf = 0;
+      }
       bool cOk = rl != 0;
       for (std::size_t j = 2; j < m.kids.size(); ++j) {
         const Node& p = pr.ast.nodes[m.kids[j]];
@@ -198,7 +203,14 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
       std::string r = g.cpp(m.kids.empty() ? kNone : m.kids[0]);
       if (r.empty()) { err = "member '" + mname + "': " + g.err; return false; }
       h += "  virtual " + r + " " + mname + "(" + ps + ") = 0;\n";
-      if (rl == 0 || !tOk) { if (tfail.empty()) tfail = "member '" + mname + "' uses a type the thunk cannot carry yet (scalars, strings, arrays, callbacks returning void)"; }
+      if (rl == 'P') {   // a zrt::Promise: the export takes the engine's promise, and the zrt promise's settling completes it (the poll turns drain zrt's microtasks)
+        std::string call = "zn_" + out.name + "->" + mname + "(" + targs + ")";
+        std::string ok = promiseOf == 'n' ? "H->promise_resolve(id, \"n\", nullptr);" : promiseOf == 'd' ? "ZnVal v; v.d = pr.p->val; H->promise_resolve(id, \"d\", &v);" : promiseOf == 's' ? "ZnVal v; zn::compat::put(v, pr.p->val); H->promise_resolve(id, \"s\", &v);" : promiseOf == 'b' ? "ZnVal v; v.i = pr.p->val; H->promise_resolve(id, \"b\", &v);" : "ZnVal v; v.i = pr.p->val; H->promise_resolve(id, \"" + std::string(1, promiseOf) + "\", &v);";
+        tfuncs += "static int32_t t_" + mname + "(void*, ZnCtx* cx, const ZnVal* a, ZnVal* r) {\n  (void)a; (void)r;\n  auto pr = " + call + ";\n  uint64_t id = H->promise_take(cx);\n"
+                  "  pr.p->on_settle(zrt::Fn<void()>([pr, id]() {\n    if (pr.p->st == 1) { " + ok + " }\n    else { char m[256]; uint32_t n = pr.p->err.p ? (pr.p->err->message.bytes() < 255 ? pr.p->err->message.bytes() : 255) : 0; if (n) __builtin_memcpy(m, pr.p->err->message.ptr(), n); else { __builtin_memcpy(m, \"rejected\", 8); n = 8; } m[n] = 0; H->promise_reject(id, m); }\n  }));\n"
+                  "  zrt::drain_microtasks();\n  return ZN_PENDING;\n}\n";
+        texports += "  {\"" + mname + "\", \"" + tsig + ">P" + std::string(1, promiseOf) + "\", t_" + mname + ", 0},\n";
+      } else if (rl == 0 || !tOk) { if (tfail.empty()) tfail = "member '" + mname + "' uses a type the thunk cannot carry yet (scalars, strings, arrays, callbacks returning void)"; }
       else {
         std::string call = "zn_" + out.name + "->" + mname + "(" + targs + ")";
         std::string body = rl == 'n' ? call + ";" : (rl == 'd' ? "r->d = " + call + ";" : (rl == 's' || rl == 'B' || rl == 'I' || rl == 'D') ? "zn::compat::ret(H, cx, r, " + call + ");" : "r->i = " + call + ";");
