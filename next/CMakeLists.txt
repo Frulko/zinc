@@ -190,3 +190,11 @@ target_include_directories(ops_test PRIVATE include)
 
 add_executable(zbc_test tests/unit/zbc_test.cpp)
 target_link_libraries(zbc_test PRIVATE zn_zbc)
+
+# The native-module ABI (ZN-096): the registry and a test with a module written in C99
+add_library(zn_native STATIC src/rt/native.cpp)
+target_include_directories(zn_native PUBLIC include)
+find_package(Threads REQUIRED)
+add_executable(native_test tests/native/native_test.cpp tests/native/fixture.c)
+set_source_files_properties(tests/native/fixture.c PROPERTIES COMPILE_OPTIONS "-std=c99;-Wall;-Wextra;-Werror;-pedantic")
+target_link_libraries(native_test PRIVATE zn_native Threads::Threads)
