@@ -1024,7 +1024,7 @@ function clearInterval(id: i32): void { clearTimeout(id); }
 class Date {
   t: f64;
   constructor(ms: number = Date.now()) { this.t = ms; }
-  static now(): f64 { return Math.floor(__epoch + __now()); }
+  static now(): f64 { return __real ? Math.floor(__epoch + __now()) : __clock; }  // deterministic runs keep the virtual (fractional) clock the goldens froze
   getTime(): f64 { return this.t; }
   valueOf(): f64 { return this.t; }
   private days(): f64 { return Math.floor(this.t / 86400000); }
