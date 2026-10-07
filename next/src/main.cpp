@@ -545,12 +545,20 @@ int main(int argc, char** argv) {
     std::printf("downloaded and verified: %s\nopen it to install (the macOS app: drag it over the old one; Linux: unpack over the old directory)\n", path.c_str());
     return 0;
   }
-  if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [dir]: the plugins found (the engine's plugins/ by default), one per line, and the manifests that do not load
+  if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
     std::vector<std::string> problems;
-    std::string dir = argc >= 3 ? argv[2] : gRoot + "/../plugins";
-    std::fputs(zn::frontend::describePlugins(dir, problems).c_str(), stdout);
+    std::string project = argc >= 3 && std::strncmp(argv[2], "--", 2) ? argv[2] : ".";
+    std::string root = gRoot + "/..";
+    auto found = zn::frontend::discoverPlugins(root, project, problems);
+    int rc = problems.empty() ? 0 : 1;
+    if (argc >= 5 && !std::strcmp(argv[argc - (argc >= 6 ? 3 : 2)], "--defines")) {
+      std::string name = argv[argc - (argc >= 6 ? 2 : 1)], target = argc >= 6 ? argv[argc - 1] : "macos";
+      bool hit = false;
+      for (const auto& f : found) if (f.manifest.name == name) { hit = true; for (const std::string& d : zn::frontend::pluginDefines(f, project, root, target)) std::printf("%s\n", d.c_str()); }
+      if (!hit) { std::fprintf(stderr, "zinc: no plugin named '%s'\n", name.c_str()); rc = 1; }
+    } else std::fputs(zn::frontend::listPlugins(found).c_str(), stdout);
     for (const std::string& p : problems) std::fprintf(stderr, "zinc: %s\n", p.c_str());
-    return problems.empty() ? 0 : 1;
+    return rc;
   }
   if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text
     std::string text, err;

@@ -1,0 +1,33 @@
+plugin (import / display)  targets                             description
+  zinc:3d                  macos,linux,rpi1,esp32,wasm        Software 3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph, z-buffered rasterizer
+  zinc:canvas              macos,linux,rpi1,rmpp,wasm,esp32   HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer
+  zinc:device              esp32,macos,linux                  Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics
+  zinc:devtools            macos,linux,rpi1                   UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it
+  display: fbdev           linux,rpi1                         Linux framebuffer (/dev/fb0, 16/24/32 bpp) with evdev keyboard, mouse and multitouch
+  display: gl              macos,rpi1,linux                   GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES2 on Raspberry Pi and Linux; UI as an overlay
+  display: remote          macos,linux,rpi1                   Headless: streams frames over TCP (damage + RLE) to zinc:remote viewers, takes their input, LAN beacon
+  display: rmpp            rmpp,macos,linux                   reMarkable Paper Pro: e-ink refresh policy, Marker pen + touch (emulated e-ink look on desktop)
+  display: scrollphat      rpi1,linux,macos                   Pimoroni Scroll pHAT 11x5 white LEDs, IS31FL3730 over I2C (Raspberry Pi, macOS emulator)
+  display: ssd1306         esp32,rpi1,linux,macos             SSD1306 I2C OLED 128x64/128x32, 1-bit with dithering (ESP32, Raspberry Pi, macOS emulator)
+  display: st7789          esp32,macos                        ST7789/ILI9341 LCD over SPI or 8-bit i80 with damage-only band rendering, PWM backlight, CST820 touch (ESP32; macOS uses the normal window)
+  display: ws2812          esp32,rpi1,linux,macos             WS2812/NeoPixel LED matrix (ESP32 RMT, Raspberry Pi SPI, macOS emulator)
+  zinc:ffi                 macos,linux                        Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures, C memory helpers (no libffi)
+  zinc:gestures            macos,linux,rpi1,wasm,esp32,ps2    Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch
+  zinc:gphoto2             macos,linux,rpi1                   Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view
+  zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)
+  zinc:ink                 macos,linux,rpi1,wasm,rmpp         Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export
+  zinc:lottie              macos,linux,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
+  zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
+  zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl
+  zinc:pixelfont           macos,linux,rpi1,esp32,wasm,ps2    5x7 and 3x5 bitmap fonts for LED matrices and tiny screens
+  zinc:process             macos,linux,rpi1                   Child processes: spawn with args/cwd/env, streamed stdout/stderr, stdin, kill, exit code (posix_spawn)
+  zinc:remarkable          rmpp,macos,linux                   reMarkable status toolbar: local clock, battery and app-owned exit; desktop preview supported
+  zinc:remote              macos,linux,rpi1                   Viewer for display-remote apps: live screen as a runtime image, input forwarding, LAN discovery
+  zinc:script              macos,linux,rpi1,rmpp,sim          Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises
+  zinc:socket              macos,linux,rpi1,rmpp              TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
+  zinc:sqlite              macos,linux,rpi1,rmpp              SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
+  zinc:svg                 macos,linux,rpi1,wasm              Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
+  three                    macos,linux,rpi1,wasm              three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls
+  zinc:video               macos,linux,rpi1                   Video playback (FFmpeg, VideoToolbox / V4L2 M2M decode), gapless playlists as runtime images
+  zinc:wasm                macos,linux,rpi1,rmpp              WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals
+  zinc:webview             macos                              Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)
