@@ -189,7 +189,14 @@
   /* zinc:net over llhttp (ZN-087) */ \
   X(HostHttpFetch, "host.httpFetch", "ssssii>i", 2) X(HostHttpStatus, "host.httpStatus", "i>i", 2) X(HostHttpHead, "host.httpHead", "i>s", 2) \
   X(HostHttpBody, "host.httpBody", "i>s", 2) X(HostHttpUrl, "host.httpUrl", "i>s", 2) X(HostHttpFree, "host.httpFree", "i>n", 2) \
-  X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2)
+  X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2) \
+  /* zinc:socket (ZN-088): sockets as handles; bytes travel as arrays (writes) and raw strings (events) */ \
+  X(HostSockConnect, "host.sockConnect", "si>i", 2) X(HostSockConnectUnix, "host.sockConnectUnix", "s>i", 2) X(HostSockListen, "host.sockListen", "si>i", 2) \
+  X(HostSockListenUnix, "host.sockListenUnix", "s>i", 2) X(HostSockUdp, "host.sockUdp", "si>i", 2) X(HostSockWrite, "host.sockWrite", "iB>i", 2) \
+  X(HostSockWriteText, "host.sockWriteText", "is>i", 2) X(HostSockSendTo, "host.sockSendTo", "isiB>i", 2) X(HostSockEnd, "host.sockEnd", "i>n", 2) \
+  X(HostSockClose, "host.sockClose", "i>n", 2) X(HostSockLocalPort, "host.sockLocalPort", "i>i", 2) X(HostSockRemoteAddr, "host.sockRemoteAddr", "i>s", 2) \
+  X(HostSockRemotePort, "host.sockRemotePort", "i>i", 2) X(HostSockLookup, "host.sockLookup", "s>i", 2) X(HostSockError, "host.sockError", ">s", 2) \
+  X(HostEvPayload, "host.evPayload", ">s", 2) X(HostSysBytesToString, "host.sysBytesToString", "B>s", 2) /* raw bytes into a string, no UTF-8 repair */
 
 namespace zn {
 

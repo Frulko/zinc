@@ -1,0 +1,5 @@
+HTTP/1.1 101 Switching Protocols true
+pong [ 138, 2, 7, 8 ]
+pong [ 138, 1, 9 ]
+close [ 136, 2, 3, 233 ]
+[ 'server got hello', 'server closed 1001 true' ]

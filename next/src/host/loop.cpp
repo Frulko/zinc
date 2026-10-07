@@ -287,7 +287,7 @@ int gExtra = 0;
 }  // namespace
 
 void* uvLoop() { return loop(); }
-void pushEvent(int handle, int kind, std::string data) { gEvents.push_back({handle, kind, std::move(data)}); }
+void pushEvent(int handle, int kind, std::string data, std::string payload) { gEvents.push_back({handle, kind, std::move(data), std::move(payload)}); }
 void addActive(int delta) { gExtra += delta; }
 bool resolveHost(const std::string& host, int port, void* out) {
   auto* a4 = static_cast<sockaddr_in*>(out);

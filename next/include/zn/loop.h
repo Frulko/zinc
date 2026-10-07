@@ -28,6 +28,7 @@ struct Event {
   int handle = 0;      // the child (kinds 0 to 2), or 0
   int kind = 0;        // 0 stdout chunk, 1 stderr chunk, 2 exit (data = the code, 128 + signal when killed), 10 signal (data = its name), 11 stdin chunk, 12 stdin end
   std::string data;
+  std::string payload;   // raw bytes that string operations of the program would not keep intact (zinc:socket): read with evPayload right after the event
 };
 // Starts argv[0] (looked up in PATH); cwd "" keeps the program's; env holds KEY=VALUE entries added to the environment. -1 on failure (lastError()).
 int spawnProcess(const std::vector<std::string>& argv, const std::string& cwd, const std::vector<std::string>& env);
@@ -54,7 +55,7 @@ bool oscSend(const std::string& host, int port, const std::string& packed);
 // For the host modules built on the loop (src/host/mqtt.cpp): the libuv loop (a uv_loop_t*), a queued event, handles that keep the program
 // alive, and a name or dotted address into an IPv4 sockaddr_in (written to `out`, which must hold one).
 void* uvLoop();
-void pushEvent(int handle, int kind, std::string data);
+void pushEvent(int handle, int kind, std::string data, std::string payload = std::string());
 void addActive(int delta);
 bool resolveHost(const std::string& host, int port, void* out);
 

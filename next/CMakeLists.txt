@@ -93,7 +93,7 @@ target_link_libraries(zn_aot PUBLIC zn_zbc)
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/../runtime)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_SOURCE_DIR}/../targets/common/hal_posix.cpp)
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time

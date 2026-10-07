@@ -572,6 +572,28 @@ export class MqttClient {
 }
 )ZN";
 
+// zinc:__sock: the raw socket rows (src/host/sock.cpp) for plugins/socket/native/socket.next.ts; events arrive through onEvent (kinds 50 to 57).
+const char* kHostSockModule = R"ZN(
+export function connect(host: string, port: i32): i32 { return __host_sockConnect(host, port); }
+export function connectUnix(path: string): i32 { return __host_sockConnectUnix(path); }
+export function listen(host: string, port: i32): i32 { return __host_sockListen(host, port); }
+export function listenUnix(path: string): i32 { return __host_sockListenUnix(path); }
+export function udp(host: string, port: i32): i32 { return __host_sockUdp(host, port); }
+export function write(h: i32, data: u8[]): boolean { return __host_sockWrite(h, data) !== 0; }
+export function writeText(h: i32, data: string): boolean { return __host_sockWriteText(h, data) !== 0; }
+export function sendTo(h: i32, host: string, port: i32, data: u8[]): boolean { return __host_sockSendTo(h, host, port, data) !== 0; }
+export function end(h: i32): void { __host_sockEnd(h); }
+export function close(h: i32): void { __host_sockClose(h); }
+export function localPort(h: i32): i32 { return __host_sockLocalPort(h); }
+export function remoteAddress(h: i32): string { return __host_sockRemoteAddr(h); }
+export function remotePort(h: i32): i32 { return __host_sockRemotePort(h); }
+export function lookup(host: string): i32 { return __host_sockLookup(host); }
+export function error(): string { return __host_sockError(); }
+export function onEvent(cb: (h: i32, kind: i32, data: string) => void): void { __addEvHandler(cb); }
+/** The raw bytes of the event being delivered, as a string that only utf8Encode (byte for byte) should read. */
+export function payload(): string { return __host_evPayload(); }
+)ZN";
+
 // zinc:gpio: the simulated board of runtime/mod/gpio.cpp (macos, linux, sim): 64 pins, edges with debounce delivered as microtasks, and ZINC_GPIO_SCRIPT="27:0@100,27:1@150"
 // (pin:value@milliseconds) driving inputs after the program starts. The Linux libgpiod backend is a plugin of the target.
 const char* kGpioModule = R"ZN(
@@ -763,6 +785,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:events") return kEventsModule;
   if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:osc") return kOscModule;
+  if (spec == "zinc:__sock") return kHostSockModule;
   if (spec == "zinc:mqtt") return kMqttModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
@@ -1352,7 +1375,12 @@ function __runLoop(): void {
     const t = __timers[best];
     const now = __now();
     if (t.at > now) {
-      if (busy) { __host_loopWait(t.at - now < 5 ? t.at - now : 5); continue; }  // outside work may finish before the timer: look again soon, the clock does not jump meanwhile
+      if (busy) {  // outside work may finish before the timer: look again soon (a virtual clock moves on by what was waited, or a timer behind open sockets never fires)
+        const w = t.at - now < 5 ? t.at - now : 5;
+        __host_loopWait(w);
+        if (!__real) __clock = __clock + w;
+        continue;
+      }
       if (__real) __host_loopWait(t.at - now);  // a real run sleeps on the host's event loop until the timer is due
       __clock = __real ? __now() : t.at;
     }

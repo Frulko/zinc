@@ -33,6 +33,7 @@
 #include "zn/loop.h"
 #include "mqtt.h"
 #include "http.h"
+#include "sock.h"
 #include "zn/runtime.h"
 
 extern char** environ;
@@ -51,6 +52,7 @@ std::vector<int> gKinds;           // listing entries: 1 file, 2 directory, 4 sy
 std::vector<unsigned char> gBytes; // the file or asset loaded last
 struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; } gStat;
 
+std::string gPayload;   // the payload of the event evNext returned last
 void ret(HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
 
@@ -144,6 +146,14 @@ void listAssets(const std::string& dir, const std::string& pre, std::vector<std:
     if (stat((dir + "/" + n).c_str(), &st) != 0) continue;
     if (S_ISDIR(st.st_mode)) listAssets(dir + "/" + n, pre + n + "/", out); else out.push_back(pre + n);
   }
+}
+
+// An array of bytes (one slot each) as a string, unchanged.
+std::string rawBytes(const HostArg& v) {
+  std::string out;
+  const auto* p = static_cast<const std::uint64_t*>(v.p);
+  for (size_t i = 0; i < v.n; ++i) out += static_cast<char>(p[i] & 0xFF);
+  return out;
 }
 
 std::string utf8Decode(const std::uint64_t* p, size_t n) {  // each invalid sequence becomes U+FFFD, like TextDecoder
@@ -368,9 +378,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostProcSignal: zn::loop::signalProcess(n(0), n(1)); break;
     case Rt::HostEvNext: {  // "handle \x1f kind \x1f data", or "" when no event is ready
       zn::loop::Event e;
-      if (zn::loop::nextEvent(e)) ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); else ret(r, std::string());
+      if (zn::loop::nextEvent(e)) { gPayload = std::move(e.payload); ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); } else ret(r, std::string());
       break;
     }
+    case Rt::HostEvPayload: ret(r, gPayload); break;
     case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
     case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
@@ -390,6 +401,22 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpServe: r->i = zn::http::serve(n(0)) ? 1 : 0; break;
     case Rt::HostHttpStop: zn::http::stop(); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
+    case Rt::HostSockConnect: r->i = zn::sock::connectTcp(s(0), n(1)); break;
+    case Rt::HostSockConnectUnix: r->i = zn::sock::connectUnix(s(0)); break;
+    case Rt::HostSockListen: r->i = zn::sock::listenTcp(s(0), n(1)); break;
+    case Rt::HostSockListenUnix: r->i = zn::sock::listenUnix(s(0)); break;
+    case Rt::HostSockUdp: r->i = zn::sock::udp(s(0), n(1)); break;
+    case Rt::HostSockWrite: r->i = zn::sock::write(n(0), rawBytes(a[1])) ? 1 : 0; break;
+    case Rt::HostSockWriteText: r->i = zn::sock::write(n(0), s(1)) ? 1 : 0; break;
+    case Rt::HostSockSendTo: r->i = zn::sock::sendTo(n(0), s(1), n(2), rawBytes(a[3])) ? 1 : 0; break;
+    case Rt::HostSockEnd: zn::sock::end(n(0)); break;
+    case Rt::HostSockClose: zn::sock::close(n(0)); break;
+    case Rt::HostSockLocalPort: r->i = zn::sock::localPort(n(0)); break;
+    case Rt::HostSockRemoteAddr: ret(r, zn::sock::remoteAddress(n(0))); break;
+    case Rt::HostSockRemotePort: r->i = zn::sock::remotePort(n(0)); break;
+    case Rt::HostSockLookup: r->i = zn::sock::lookup(s(0)); break;
+    case Rt::HostSockError: ret(r, zn::sock::error()); break;
+    case Rt::HostSysBytesToString: ret(r, rawBytes(a[0])); break;
     case Rt::HostOscSend: r->i = zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
