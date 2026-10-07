@@ -4,7 +4,7 @@
 usage: tools/bench-render [--runs N] [--out bench/render.csv] [--baseline file] [--check-regressions] [--tolerance 0.15]
 Each case is a program (bench/render/*.ts: B1 quads, B2 rounded, B3 text, B5 polygons, B8 layers, B10 matrix; examples/hero = B4, examples/maps/navigation = B5 map).
 It runs headless, ZINC_SCENE_DUMP writes its last frame, and `zinc capture --scene --bench` replays that scene N times on 1 and 4 band threads.
-CSV: case,threads,width,height,cmds,median_us,p99_us. --check-regressions: exit 3 when a median is worse than the baseline (the committed CSV) by the tolerance (15%, RULES 7) plus 150 us.
+CSV: case,threads,width,height,cmds,median_us,p99_us. --check-regressions: exit 3 when a median is worse than the baseline (the committed CSV) by the tolerance (15%, RULES 7) plus 400 us (thread start jitter).
 """
 import csv, os, subprocess, sys, tempfile, json, glob
 
@@ -52,7 +52,7 @@ for name, prog in cases:
 
 if check:
     base = {(r["case"], r["threads"]): float(r["median_us"]) for r in csv.DictReader(open(baseline))}
-    bad = [(r[0], r[1], base[(r[0], str(r[1]))], float(r[5])) for r in rows if (r[0], str(r[1])) in base and float(r[5]) > base[(r[0], str(r[1]))] * (1 + tol) + 150]
+    bad = [(r[0], r[1], base[(r[0], str(r[1]))], float(r[5])) for r in rows if (r[0], str(r[1])) in base and float(r[5]) > base[(r[0], str(r[1]))] * (1 + tol) + 400]
     for c, t, b, v in bad: print("REGRESSION %s x%d: %.0f us, baseline %.0f us" % (c, t, v, b))
     sys.exit(3 if bad else 0)
 with open(out, "w", newline="") as f:

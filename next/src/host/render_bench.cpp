@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "zn/host.h"
+#include "zn/scene.h"
 #include "zrt_raster.h"
 
 namespace zn::host {
@@ -23,15 +24,11 @@ bool benchScene(const char* scene, int runs, int threads, RenderBench& out) {
   if (!f.read(reinterpret_cast<char*>(cmds.data()), static_cast<std::streamsize>(cmds.size() * sizeof(zrt::raster::Cmd))) || !f.read(text.data(), head[6]) || !f.read(reinterpret_cast<char*>(pts.data()), static_cast<std::streamsize>(head[7]) * 4)) return false;
   const int w = static_cast<int>(head[2]), h = static_cast<int>(head[3]);
   std::vector<std::uint32_t> px(static_cast<std::size_t>(w) * h);
-  const zrt::raster::Frame frame{cmds.data(), head[5], text.data(), pts.data()};
-  threads = std::max(1, std::min(threads, h));
+  const zn::gfx::SceneList list{cmds.data(), head[5], text.data(), pts.data()};
+  auto backend = zn::gfx::makeSoftwareBackend(px.data(), w, h, threads);
   auto once = [&] {
     std::fill(px.begin(), px.end(), 0u);
-    auto band = [&](int y0, int y1) { zrt::raster::render(frame, px.data() + static_cast<std::size_t>(y0) * w, w, y0, y1, zrt::raster::Rect{0, y0, w, y1}); };
-    if (threads == 1) { band(0, h); return; }
-    std::vector<std::thread> pool;   // ponytail: a thread per band per frame (the HAL keeps workers); spawn cost is ~20 us per thread
-    for (int t = 0; t < threads; ++t) pool.emplace_back(band, h * t / threads, h * (t + 1) / threads);
-    for (auto& t : pool) t.join();
+    backend->draw(&list, 1, zn::gfx::RectI{0, 0, w, h});
   };
   once();   // warm-up: glyph caches, runtime fonts
   std::vector<double> us;
@@ -41,7 +38,9 @@ bool benchScene(const char* scene, int runs, int threads, RenderBench& out) {
     us.push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count());
   }
   std::sort(us.begin(), us.end());
-  out = RenderBench{w, h, static_cast<int>(head[5]), us[us.size() / 2], us[us.size() * 99 / 100]};
+  std::uint64_t hash = 1469598103934665603ull;
+  for (std::uint32_t v : px) for (int b = 0; b < 4; ++b) { hash ^= (v >> (8 * b)) & 255; hash *= 1099511628211ull; }
+  out = RenderBench{w, h, static_cast<int>(head[5]), us[us.size() / 2], us[us.size() * 99 / 100], hash};
   return true;
 }
 

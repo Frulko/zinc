@@ -576,7 +576,7 @@ int main(int argc, char** argv) {
     if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     zn::host::RenderBench rb;
     if (!zn::host::benchScene(argv[3], std::atoi(argv[6]), std::atoi(argv[7]), rb)) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
-    std::printf("bench %dx%d cmds=%d median_us=%.0f p99_us=%.0f\n", rb.width, rb.height, rb.cmds, rb.medianUs, rb.p99Us);
+    std::printf("bench %dx%d cmds=%d median_us=%.0f p99_us=%.0f hash=%016llx\n", rb.width, rb.height, rb.cmds, rb.medianUs, rb.p99Us, static_cast<unsigned long long>(rb.hash));
     return 0;
   }
   if (argc == 7 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "-o")) {  // zinc capture --scene <dump> <file> -o <png>: replay a ZINC_SCENE_DUMP through the software raster, with the fonts and images of <file> (ZN-170)
