@@ -1,0 +1,2 @@
+CesiumMilkTruck.glb meshes=5 triangles=2856 drawn=3624 vertices=4823 bbox=-1.396,-0.069,-2.431..1.396,2.584,2.438
+BoxTextured.gltf meshes=1 triangles=12 drawn=12 vertices=24 bbox=-0.500,-0.500,-0.500..0.500,0.500,0.500

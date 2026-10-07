@@ -1048,9 +1048,10 @@ struct Loader {
   std::set<std::string> pluginDirsRead;
   // Reads the plugin.json files of `<root>/*/`: the engine's plugins/ next to lib/, and the plugins/ directory of the project that imports
   // (every directory above the importing file may hold one, like the old compiler's project plugins).
-  void readPluginsIn(const std::string& dir) {
-    if (!pluginDirsRead.insert(dir).second) return;
+  void readPluginsIn(const std::string& dirIn) {
     namespace fs = std::filesystem;
+    const std::string dir = fs::path(dirIn).lexically_normal().string();   // "next/../plugins" and "plugins" are one directory, so one module identity
+    if (!pluginDirsRead.insert(dir).second) return;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
       std::string text;
@@ -1062,8 +1063,8 @@ struct Loader {
       if (!parsePluginManifest(text, pm, err, warnings)) { std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), err.c_str()); continue; }
       for (const std::string& w : warnings) std::fprintf(stderr, "zinc: %s: %s\n", manifest.c_str(), w.c_str());
       std::string mod = pm.module, entry = pm.entry;
-      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) plugins[mod] = (e.path() / entry).string();
-      if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
+      if (!mod.empty() && pm.kind == "module" && !plugins.count(mod)) plugins[mod] = (e.path() / entry).lexically_normal().string();
+      if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).lexically_normal().string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
     }
   }
   void readPlugins(const std::string& fromFile) {
