@@ -7,6 +7,9 @@
 #import <objc/runtime.h>
 #include <unistd.h>
 #import <Carbon/Carbon.h>
+#import <IOKit/pwr_mgt/IOPMLib.h>
+#import <IOKit/ps/IOPowerSources.h>
+#import <IOKit/ps/IOPSKeys.h>
 #include <string.h>
 
 static NSString* const kNone = nil;
@@ -615,6 +618,97 @@ static int linkCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- power, idle, appearance, clipboard (ZN-244)
+static void postPower(NSString* e) { pushEvent(@"power", @[e]); }
+static void installPowerObservers() {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSNotificationCenter* ws = [NSWorkspace sharedWorkspace].notificationCenter;
+    [ws addObserverForName:NSWorkspaceWillSleepNotification object:nil queue:nil usingBlock:^(NSNotification*) { postPower(@"suspend"); }];
+    [ws addObserverForName:NSWorkspaceDidWakeNotification object:nil queue:nil usingBlock:^(NSNotification*) { postPower(@"resume"); }];
+    NSDistributedNotificationCenter* dc = [NSDistributedNotificationCenter defaultCenter];
+    [dc addObserverForName:@"com.apple.screenIsLocked" object:nil queue:nil usingBlock:^(NSNotification*) { postPower(@"lock"); }];
+    [dc addObserverForName:@"com.apple.screenIsUnlocked" object:nil queue:nil usingBlock:^(NSNotification*) { postPower(@"unlock"); }];
+    [dc addObserverForName:@"AppleInterfaceThemeChangedNotification" object:nil queue:nil usingBlock:^(NSNotification*) {
+      NSString* mode = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"] ? @"dark" : @"light";
+      pushEvent(@"appearance", @[mode]);
+    }];
+  });
+}
+static BOOL isDarkNow() { return [[[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"] isEqualToString:@"Dark"]; }
+static NSMutableDictionary<NSNumber*, NSNumber*>* gAssertions;
+static int powerCall(const char* op, NSDictionary* a, char* out, int cap) {
+  NSString* result = nil;
+  installPowerObservers();
+  if (!strcmp(op, "power.battery")) {
+    CFTypeRef info = IOPSCopyPowerSourcesInfo();
+    NSArray* list = info ? CFBridgingRelease(IOPSCopyPowerSourcesList(info)) : nil;
+    NSDictionary* found = nil;
+    for (id src in list) { NSDictionary* d = CFBridgingRelease(CFRetain(IOPSGetPowerSourceDescription(info, (__bridge CFTypeRef)src))); if ([d[@kIOPSTypeKey] isEqual:@kIOPSInternalBatteryType]) found = d; }
+    if (info) CFRelease(info);
+    if (!found) result = json(@{@"present": @NO, @"percent": @100, @"charging": @YES});
+    else {
+      double cur = [found[@kIOPSCurrentCapacityKey] doubleValue], max = [found[@kIOPSMaxCapacityKey] doubleValue];
+      result = json(@{@"present": @YES, @"percent": @(max > 0 ? (int)(cur * 100 / max + 0.5) : 0), @"charging": @([found[@kIOPSIsChargingKey] boolValue] || [found[@kIOPSPowerSourceStateKey] isEqual:@kIOPSACPowerValue])});
+    }
+  } else if (!strcmp(op, "power.idleSeconds")) result = json(@{@"seconds": @((int)CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateCombinedSessionState, kCGAnyInputEventType))});
+  else if (!strcmp(op, "power.appearance")) result = json(@{@"dark": @(isDarkNow())});
+  else if (!strcmp(op, "power.preventSleep")) {
+    IOPMAssertionID id = 0;
+    CFStringRef type = [a[@"kind"] isEqualToString:@"display"] ? kIOPMAssertionTypePreventUserIdleDisplaySleep : kIOPMAssertionTypePreventUserIdleSystemSleep;
+    IOReturn r = IOPMAssertionCreateWithName(type, kIOPMAssertionLevelOn, (__bridge CFStringRef)([a[@"reason"] length] ? a[@"reason"] : @"zinc"), &id);
+    if (r != kIOReturnSuccess) result = @"{\"error\":{\"code\":\"failed\",\"message\":\"IOPMAssertionCreateWithName failed\"}}";
+    else { if (!gAssertions) gAssertions = [NSMutableDictionary new]; gAssertions[@(id)] = @(id); result = json(@{@"token": @(id)}); }
+  } else if (!strcmp(op, "power.release")) {
+    NSNumber* t = a[@"token"];
+    if (t && gAssertions[t]) { IOPMAssertionRelease((IOPMAssertionID)t.unsignedIntValue); [gAssertions removeObjectForKey:t]; }
+    result = @"{}";
+  } else if (!strcmp(op, "power.simulate")) {   // selftest: the notification the system would post, through the same observers
+    NSString* e = a[@"event"] ?: @"";
+    NSNotificationCenter* ws = [NSWorkspace sharedWorkspace].notificationCenter;
+    if ([e isEqualToString:@"suspend"]) [ws postNotificationName:NSWorkspaceWillSleepNotification object:nil];
+    else if ([e isEqualToString:@"resume"]) [ws postNotificationName:NSWorkspaceDidWakeNotification object:nil];
+    else if ([e isEqualToString:@"lock"] || [e isEqualToString:@"unlock"]) postPower(e);   // the distributed lock notifications are not delivered back to the posting process
+    result = @"{\"ok\":true}";
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+static int clipboardCall(const char* op, NSDictionary* a, char* out, int cap) {
+  NSPasteboard* pb = [NSPasteboard generalPasteboard];
+  NSString* result = nil;
+  if (!strcmp(op, "clipboard.writeRich")) {
+    [pb clearContents];
+    [pb setString:a[@"text"] ?: @"" forType:NSPasteboardTypeString];
+    if ([a[@"html"] length]) [pb setString:a[@"html"] forType:NSPasteboardTypeHTML];
+    result = @"{}";
+  } else if (!strcmp(op, "clipboard.readRich")) result = json(@{@"text": [pb stringForType:NSPasteboardTypeString] ?: @"", @"html": [pb stringForType:NSPasteboardTypeHTML] ?: @""});
+  else if (!strcmp(op, "clipboard.writeImage")) {
+    NSData* png = [[NSData alloc] initWithBase64EncodedString:a[@"png"] ?: @"" options:0];
+    [pb clearContents];
+    if (png) [pb setData:png forType:NSPasteboardTypePNG];
+    result = @"{}";
+  } else if (!strcmp(op, "clipboard.readImage")) {
+    NSData* png = [pb dataForType:NSPasteboardTypePNG];
+    if (!png) { NSData* tiff = [pb dataForType:NSPasteboardTypeTIFF]; if (tiff) png = [[[NSBitmapImageRep alloc] initWithData:tiff] representationUsingType:NSBitmapImageFileTypePNG properties:@{}]; }
+    result = json(@{@"png": png ? [png base64EncodedStringWithOptions:0] : @""});
+  } else if (!strcmp(op, "clipboard.writeFiles")) {
+    NSMutableArray* urls = [NSMutableArray new];
+    for (NSString* p in a[@"paths"]) [urls addObject:[NSURL fileURLWithPath:p]];
+    [pb clearContents];
+    [pb writeObjects:urls];
+    result = @"{}";
+  } else if (!strcmp(op, "clipboard.readFiles")) {
+    NSMutableArray* paths = [NSMutableArray new];
+    for (NSURL* u in [pb readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}] ?: @[]) [paths addObject:u.path];
+    result = json(@{@"paths": paths});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -626,6 +720,8 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
     }
+    if (!strncmp(op, "power.", 6)) { @try { return powerCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
+    if (!strncmp(op, "clipboard.", 10)) { @try { return clipboardCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "shortcut.", 9)) return shortcutCall(op, a, out, cap);
     if (!strcmp(op, "deep-link.getCurrent") || !strcmp(op, "opener.open") || !strcmp(op, "opener.reveal")) { @try { return linkCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "window.", 7) && strcmp(op, "window.confirmClose")) {

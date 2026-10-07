@@ -279,6 +279,7 @@
    "op": "power.preventSleep",
    "permission": "power",
    "params": {
+    "kind": "'display' | 'system'",
     "reason?": "string"
    },
    "returns": "{token: number}",
@@ -561,6 +562,68 @@
    "params": {},
    "returns": "{text: string}",
    "sim": "{\"text\":\"\"}"
+  },
+  {
+   "op": "power.battery",
+   "permission": "power",
+   "params": {},
+   "returns": "{present: boolean; percent: number; charging: boolean}",
+   "sim": "{\"present\":false,\"percent\":100,\"charging\":true}"
+  },
+  {
+   "op": "power.idleSeconds",
+   "permission": "power",
+   "params": {},
+   "returns": "{seconds: number}",
+   "sim": "{\"seconds\":0}"
+  },
+  {
+   "op": "power.appearance",
+   "permission": "power",
+   "params": {},
+   "returns": "{dark: boolean}",
+   "sim": "{\"dark\":false}"
+  },
+  {
+   "op": "power.simulate",
+   "permission": "power",
+   "params": {
+    "event": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":false}"
+  },
+  {
+   "op": "clipboard.writeImage",
+   "permission": "clipboard:rich",
+   "params": {
+    "png": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "clipboard.readImage",
+   "permission": "clipboard:rich",
+   "params": {},
+   "returns": "{png: string}",
+   "sim": "{\"png\":\"\"}"
+  },
+  {
+   "op": "clipboard.writeFiles",
+   "permission": "clipboard:rich",
+   "params": {
+    "paths": "string[]"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "clipboard.readFiles",
+   "permission": "clipboard:rich",
+   "params": {},
+   "returns": "{paths: string[]}",
+   "sim": "{\"paths\":[]}"
   }
  ],
  "events": [

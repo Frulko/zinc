@@ -363,7 +363,7 @@ if(TARGET zn_host_gfx)
   if(APPLE)   # the macOS backend (notifications, menus, dock, tray) is part of the plugin library the tests link
     target_sources(zn_plugin_system PRIVATE ${ZN_PLUGIN_DIR}/system/native/system.macos.mm)
     set_source_files_properties(${ZN_PLUGIN_DIR}/system/native/system.macos.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc;-w")
-    target_link_libraries(zn_plugin_system PUBLIC "-framework Foundation" "-framework AppKit" "-framework UserNotifications" "-framework Carbon")
+    target_link_libraries(zn_plugin_system PUBLIC "-framework Foundation" "-framework AppKit" "-framework UserNotifications" "-framework Carbon" "-framework IOKit")
   endif()
   add_executable(native_plugins_test tests/native/plugins_test.cpp)
   set_target_properties(native_plugins_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)

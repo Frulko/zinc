@@ -14,7 +14,8 @@
         "Foundation",
         "AppKit",
         "UserNotifications",
-        "Carbon"
+        "Carbon",
+        "IOKit"
       ],
       "flags": [
         "-fobjc-arc"
@@ -33,6 +34,8 @@
     "zinc:system/instance": "instance.ts",
     "zinc:system/autostart": "autostart.ts",
     "zinc:system/deeplink": "deeplink.ts",
-    "zinc:system/opener": "opener.ts"
+    "zinc:system/opener": "opener.ts",
+    "zinc:system/power": "power.ts",
+    "zinc:system/clipboard": "clipboard.ts"
   }
 }

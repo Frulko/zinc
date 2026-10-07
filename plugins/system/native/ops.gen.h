@@ -63,5 +63,13 @@ static const ZnSystemOp kSystemOps[] = {
   {"shortcut.fire", "shortcut", "{\"ok\":false}"},
   {"opener.reveal", "opener", "{}"},
   {"opener.last", "opener", "{\"text\":\"\"}"},
+  {"power.battery", "power", "{\"present\":false,\"percent\":100,\"charging\":true}"},
+  {"power.idleSeconds", "power", "{\"seconds\":0}"},
+  {"power.appearance", "power", "{\"dark\":false}"},
+  {"power.simulate", "power", "{\"ok\":false}"},
+  {"clipboard.writeImage", "clipboard:rich", "{}"},
+  {"clipboard.readImage", "clipboard:rich", "{\"png\":\"\"}"},
+  {"clipboard.writeFiles", "clipboard:rich", "{}"},
+  {"clipboard.readFiles", "clipboard:rich", "{\"paths\":[]}"},
 };
 static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file"};

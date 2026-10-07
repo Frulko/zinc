@@ -28,7 +28,7 @@ export interface OpArgs {
   'autostart.get': { id: string };
   'dock.setBadge': { text: string };
   'dock.bounce': { kind: 'informational' | 'critical' };
-  'power.preventSleep': { reason?: string };
+  'power.preventSleep': { kind: 'display' | 'system'; reason?: string };
   'power.release': { token: number };
   'clipboard.writeRich': { text: string; html?: string };
   'clipboard.readRich': {  };
@@ -63,6 +63,14 @@ export interface OpArgs {
   'shortcut.fire': { accelerator: string };
   'opener.reveal': { path: string };
   'opener.last': {  };
+  'power.battery': {  };
+  'power.idleSeconds': {  };
+  'power.appearance': {  };
+  'power.simulate': { event: string };
+  'clipboard.writeImage': { png: string };
+  'clipboard.readImage': {  };
+  'clipboard.writeFiles': { paths: string[] };
+  'clipboard.readFiles': {  };
 }
 
 export interface OpResult {
@@ -127,6 +135,14 @@ export interface OpResult {
   'shortcut.fire': {ok: boolean};
   'opener.reveal': {};
   'opener.last': {text: string};
+  'power.battery': {present: boolean; percent: number; charging: boolean};
+  'power.idleSeconds': {seconds: number};
+  'power.appearance': {dark: boolean};
+  'power.simulate': {ok: boolean};
+  'clipboard.writeImage': {};
+  'clipboard.readImage': {png: string};
+  'clipboard.writeFiles': {};
+  'clipboard.readFiles': {paths: string[]};
 }
 
 export type OpName = keyof OpArgs;

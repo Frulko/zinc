@@ -1,0 +1,9 @@
+battery valid present X
+idle seconds ok true
+dark is a boolean true
+html true
+image true
+files ["/tmp","/usr"]
+events ["suspend","resume","lock","unlock"]
+assertion token true
+PMSET token

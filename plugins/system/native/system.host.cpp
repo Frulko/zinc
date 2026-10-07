@@ -104,6 +104,8 @@ struct Sim : NativeSystem, zrt::Poller {
   int nopenerAllow = -1;       // -1: no scope given (everything the permission allows)
   char lastOpen[400] = "";
   int lockFd = -1, listenFd = -1;   // single instance: the lock file and the socket the second instance writes to
+  int sleepTokens = 0;
+  char clipText[256] = "", clipHtml[512] = "", clipPng[1024] = "", clipFiles[512] = "[]";   // the simulator's pasteboard
   char badge[64] = "";
   char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
   int nhotkeys = 0;
@@ -229,6 +231,13 @@ struct Sim : NativeSystem, zrt::Poller {
         for (int i = 0; i < nhotkeys; i++) if (!strcmp(hotkeys[i], acc)) { for (int k = i; k + 1 < nhotkeys; k++) memcpy(hotkeys[k], hotkeys[k + 1], sizeof hotkeys[0]); nhotkeys--; break; }
         return reply("{}");
       }
+      if (!strcmp(name, "power.preventSleep")) { char b[64]; snprintf(b, sizeof b, "{\"token\":%d}", ++sleepTokens); return reply(b); }
+      if (!strcmp(name, "clipboard.writeRich")) { clipText[0] = clipHtml[0] = 0; jsonString(args, "text", clipText, sizeof clipText); jsonString(args, "html", clipHtml, sizeof clipHtml); return reply("{}"); }
+      if (!strcmp(name, "clipboard.readRich")) { char b[900] = "{\"text\":"; appendJson(b, sizeof b, clipText); strcat(b, ",\"html\":"); appendJson(b, sizeof b, clipHtml); strcat(b, "}"); return reply(b); }
+      if (!strcmp(name, "clipboard.writeImage")) { clipPng[0] = 0; jsonString(args, "png", clipPng, sizeof clipPng); return reply("{}"); }
+      if (!strcmp(name, "clipboard.readImage")) { char b[1100] = "{\"png\":"; appendJson(b, sizeof b, clipPng); strcat(b, "}"); return reply(b); }
+      if (!strcmp(name, "clipboard.writeFiles")) { const char* p = strstr(args, "\"paths\":"); snprintf(clipFiles, sizeof clipFiles, "%s", p ? p + 8 : "[]"); size_t n = strlen(clipFiles); if (n && clipFiles[n - 1] == '}') clipFiles[n - 1] = 0; return reply("{}"); }
+      if (!strcmp(name, "clipboard.readFiles")) { char b[600]; snprintf(b, sizeof b, "{\"paths\":%s}", clipFiles); return reply(b); }
       if (!strcmp(name, "dock.setBadge")) { badge[0] = 0; jsonString(args, "text", badge, sizeof badge); return reply("{}"); }
       if (!strcmp(name, "dock.getBadge")) { char b[160] = "{\"text\":"; appendJson(b, sizeof b, badge); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
