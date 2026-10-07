@@ -470,9 +470,16 @@ struct Checker {
   }
 
   // ---- expressions
+  bool hasLambda(std::uint32_t i) const {
+    if (i == kNone) return false;
+    if (n(i).kind == N::FuncExpr) return true;
+    for (std::uint32_t k : n(i).kids) if (hasLambda(k)) return true;
+    return false;
+  }
   std::set<std::uint32_t> rewritten;  // calls already turned into calls of generated functions: checking them again gives the same type
   TypeId expr(std::uint32_t i, TypeId expected = kNoType) {
     if (rewritten.count(i)) return out.nodeType[i];
+    if ((n(i).kind == N::Call || n(i).kind == N::New) && out.nodeType[i] != kNoType && out.nodeType[i] != tError && hasLambda(i)) return out.nodeType[i];   // checked already (a generic call evaluates its arguments to infer type arguments): a second check would declare the lambda's variables again and leave the rewritten calls inside pointing at the old ones
     TypeId t = expr0(i, expected);
     if (t == kNoType) {  // a symbol whose declaration failed has no type: the error was reported there; if none was, say so rather than crash
       if (out.diags.empty()) diag(kZCannotInfer, i, "the type of this expression");
@@ -1582,6 +1589,11 @@ struct Checker {
           TypeId pt = expr(k);
           if (!bad(pt) && ty(pt).k == TK::Func) diag(kZNotAssignable, k, "'" + name(pt) + "' to 'string' (call the function)");
           if (pt == tNull && n(k).kind == N::Literal) { a.nodes[k].kind = N::String; a.nodes[k].text = (n(k).flags & kFlagUndefined) ? "'undefined'" : "'null'"; out.nodeType[k] = tStr; continue; }  // ${null}, ${undefined}
+          if (!bad(pt) && ty(pt).k == TK::Array && (ty(ty(pt).elem).k == TK::Num || ty(pt).elem == tBool || ty(pt).elem == tStr)) {  // `${[1, 2]}` is the array joined with commas
+            std::uint32_t h = helper("fmtArray:" + std::to_string(pt), "function $F(v: " + inspectAliasName(pt) + "): string { return v.join(','); }", {pt}, k);
+            a.nodes[i].kids[ki] = callGenerated(h, {k}, k);
+            continue;
+          }
           if (!bad(pt) && ty(pt).k == TK::Union && hasNull(pt)) {  // `${x}` of a nullable number or boolean prints null or the value
             TypeId base = withoutNull(pt);
             if (base != kNoType && (ty(base).k == TK::Num || base == tBool || base == tStr)) {
@@ -2551,6 +2563,7 @@ struct Checker {
     const Node& f = n(fn);
     if (f.kids[1] == kNone) return;
     Type ft = ty(sig);
+    out.captures.erase(fn);
     fnStack.push_back(fn);
     auto savedNarrowing = std::move(narrowing);
     narrowing.clear();
@@ -2611,7 +2624,7 @@ struct Checker {
   // The key of a path node, or "" when it is not one. `roots` collects the locals the path depends on.
   std::string pathKey(std::uint32_t node, std::vector<std::uint32_t>* roots = nullptr) const {
     const Node& x = n(node);
-    if (x.kind == N::This) return "this";
+    if (x.kind == N::This) return "this@" + std::to_string(curClass);   // per class: `this.owner` of two classes are two paths of two types
     if (x.kind == N::Ident) {
       std::uint32_t sy = identSym(node);
       if (sy == kNone || !trackable(sy)) return "";
@@ -2923,6 +2936,7 @@ struct Checker {
       out.syms[sy].isGlobal = false;  // declared while a top-level declaration is checked: still a captured variable, not a global
       out.selfSym[i] = sy;
     }
+    out.captures.erase(i);   // a lambda checked again (an argument tried against another expected type) declares new symbols: the old list names dead ones
     fnStack.push_back(i);
     push();
     for (std::size_t k = 0; k < np; ++k) {
