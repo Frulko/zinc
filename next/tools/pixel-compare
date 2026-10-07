@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""pixel-compare A.png B.png --scene dump.scn [--tolerance file.json] [--report diff.png]   (ZN-172, docs/reports/ui-rendering-architecture.md 6.2)
+
+Compares two renderings of one scene (a ZINC_SCENE_DUMP file) by pixel class. The classes come from the scene, not from the pixels:
+  edge     1 px dilation of the bounds edge of every primitive, the corner squares of rounded ones, the whole box of shadows (anti-aliasing differs here)
+  text     the bounds of text commands (glyph coverage)
+  interior everything else (colour and position must be right)
+Metrics per class: max_abs, p99_abs, share_gt8 (share of the class's pixels with a channel difference above 8). Tolerances are a JSON file next to the golden
+(never a global), keys: interior_max, edge_max, text_max, share_gt8 (all optional; defaults 2, 24, 3, 0.01). Exit 1 when a class is over its tolerance.
+"""
+import sys, os, json, struct, importlib.machinery, importlib.util
+
+def load(name):
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+    spec = importlib.util.spec_from_loader(name, importlib.machinery.SourceFileLoader(name, p))
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+
+CMD = struct.Struct("<BBBBi4f2f2I2I")   # kind alpha grad pad res | x y w h | r s | c1 c2 | off n  (runtime/zrt_raster.h)
+RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY = 1, 2, 3, 4, 5, 6, 7
+DEFAULTS = {"interior_max": 2, "edge_max": 24, "text_max": 3, "share_gt8": 0.01}
+
+def read_scene(path):
+    d = open(path, "rb").read()
+    magic, ver, w, h, csize, n, ntext, npts = struct.unpack_from("<8I", d, 0)
+    assert magic == 0x4e43535a and ver == 1 and csize == CMD.size, "not a scene dump"
+    return w, h, [CMD.unpack_from(d, 32 + i * csize) for i in range(n)]
+
+def classes(w, h, cmds):
+    """-> bytearray per pixel: 0 interior, 1 edge, 2 text (edge wins over text, text over interior)"""
+    cls = bytearray(w * h)
+    def fill(x0, y0, x1, y1, v, keep_edge=True):
+        x0, y0, x1, y1 = max(0, int(x0)), max(0, int(y0)), min(w, int(x1)), min(h, int(y1))
+        for y in range(y0, y1):
+            row = y * w
+            if keep_edge:
+                for x in range(x0, x1):
+                    if cls[row + x] != 1: cls[row + x] = v
+            else: cls[row + x0:row + x1] = bytes([v]) * max(0, x1 - x0)
+    for (kind, alpha, grad, pad, res, x, y, cw, ch, r, s, c1, c2, off, n) in cmds:
+        if kind == LINE:
+            x0, y0, x1, y1 = min(x, cw), min(y, ch), max(x, cw), max(y, ch); pw = s / 2 + 2
+            fill(x0 - pw, y0 - pw, x1 + pw, y1 + pw, 1, False)
+        elif kind == SHADOW: fill(x - s - 2, y - s - 2, x + cw + s + 2, y + ch + s + 2, 1, False)
+        elif kind == TEXT and cw > 0: fill(x, y, x + cw, y + ch, 2)
+        elif kind in (RECT, BORDER, IMAGE, POLY) and cw > 0 and ch > 0:
+            fill(x - 1, y - 1, x + cw + 1, y, 1, False); fill(x - 1, y + ch, x + cw + 1, y + ch + 1, 1, False)   # 1 px ring: the top and bottom rows ...
+            fill(x - 1, y, x, y + ch, 1, False); fill(x + cw, y, x + cw + 1, y + ch, 1, False)               # ... and the sides
+            fill(x, y, x + 1, y + ch, 1, False); fill(x + cw - 1, y, x + cw, y + ch, 1, False)
+            fill(x, y, x + cw, y + 1, 1, False); fill(x, y + ch - 1, x + cw, y + ch, 1, False)
+            if r > 0:
+                for cx, cy in ((x, y), (x + cw - r - 1, y), (x, y + ch - r - 1), (x + cw - r - 1, y + ch - r - 1)):
+                    fill(cx, cy, cx + r + 1, cy + r + 1, 1, False)
+            if kind == BORDER and s > 0:   # the stroke's inner edge anti-aliases too
+                fill(x, y, x + cw, y + s + 1, 1, False); fill(x, y + ch - s - 1, x + cw, y + ch, 1, False)
+                fill(x, y, x + s + 1, y + ch, 1, False); fill(x + cw - s - 1, y, x + cw, y + ch, 1, False)
+    return cls
+
+def metrics(a, b, cls):
+    """-> {class name: {max_abs, p99_abs, share_gt8, pixels}} (a, b: (w, h, bpp, bytes) as pngdiff.dec returns)"""
+    w, h, ba, da = a; bb, db = b[2], b[3]
+    diffs = ([], [], [])
+    counts = [0, 0, 0]
+    for c in cls: counts[c] += 1
+    for y in range(h):
+        ra, rb = da[y * w * ba:(y + 1) * w * ba], db[y * w * bb:(y + 1) * w * bb]
+        if ra == rb: continue
+        for x in range(w):
+            pa, pb = ra[x * ba:x * ba + 3], rb[x * bb:x * bb + 3]
+            if pa != pb: diffs[cls[y * w + x]].append(max(abs(pa[0] - pb[0]), abs(pa[1] - pb[1]), abs(pa[2] - pb[2])))
+    out = {}
+    for i, name in enumerate(("interior", "edge", "text")):
+        d = sorted(diffs[i]); n = counts[i]
+        z = n - len(d)   # the class pixels that did not differ count as zeros in the percentile
+        k = int(n * 0.99 + 0.999999) - 1 - z
+        out[name] = {"max_abs": d[-1] if d else 0, "p99_abs": d[k] if d and k >= 0 else 0,
+                     "share_gt8": (sum(1 for v in d if v > 8) / n) if n else 0.0, "pixels": n}
+    return out
+
+def verdict(m, tol):
+    t = dict(DEFAULTS, **tol); bad = []
+    for name, key in (("interior", "interior_max"), ("edge", "edge_max"), ("text", "text_max")):
+        if m[name]["max_abs"] > t[key]: bad.append("%s max_abs %d > %d" % (name, m[name]["max_abs"], t[key]))
+        if m[name]["share_gt8"] > t["share_gt8"]: bad.append("%s share_gt8 %.4f > %.4f" % (name, m[name]["share_gt8"], t["share_gt8"]))
+    return bad
+
+def main(argv):
+    pos, scene, tolf = [], None, None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--scene": scene = argv[i + 1]; i += 2
+        elif argv[i] == "--tolerance": tolf = argv[i + 1]; i += 2
+        else: pos.append(argv[i]); i += 1
+    if len(pos) != 2 or not scene: print(__doc__); return 2
+    pd = load("pngdiff")
+    a, b = pd.dec(pos[0]), pd.dec(pos[1])
+    if a[:2] != b[:2]: print("size differs", a[:2], b[:2]); return 1
+    w, h, cmds = read_scene(scene)
+    tol = json.load(open(tolf)) if tolf else {}
+    m = metrics(a, b, classes(w, h, cmds))
+    for name, v in m.items(): print("%-8s pixels=%-8d max_abs=%-3d p99_abs=%-3d share_gt8=%.4f" % (name, v["pixels"], v["max_abs"], v["p99_abs"], v["share_gt8"]))
+    bad = verdict(m, tol)
+    for x in bad: print("FAIL", x)
+    return 1 if bad else 0
+
+if __name__ == "__main__": sys.exit(main(sys.argv[1:]))
