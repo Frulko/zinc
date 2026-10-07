@@ -831,6 +831,48 @@ void collectBound(const Ast& A, std::uint32_t pat, std::vector<std::string_view>
   }
 }
 
+
+// Web platform globals (docs/guide/09-web-apis.md): a source that uses one of these names without declaring or importing it gets the import appended, so `new URL(s)` works as on
+// the Web and a program that never names one does not link the module. The text is appended (positions do not move) and the file is parsed again.
+const std::pair<const char*, const char*> kWebGlobals[] = {
+    {"URL", "zinc:web"}, {"URLSearchParams", "zinc:web"}, {"TextEncoder", "zinc:web"}, {"TextDecoder", "zinc:web"}, {"atob", "zinc:web"}, {"btoa", "zinc:web"},
+    {"Event", "zinc:web"}, {"EventTarget", "zinc:web"}, {"CustomEvent", "zinc:web"}, {"ErrorEvent", "zinc:web"}, {"MessageEvent", "zinc:web"}, {"PromiseRejectionEvent", "zinc:web"},
+    {"MessageChannel", "zinc:web"}, {"MessagePort", "zinc:web"}, {"AbortController", "zinc:web"}, {"AbortSignal", "zinc:web"}, {"DOMException", "zinc:web"},
+    {"crypto", "zinc:web"}, {"Crypto", "zinc:web"}, {"SubtleCrypto", "zinc:web"}, {"CryptoKey", "zinc:web"}, {"Blob", "zinc:web"}, {"File", "zinc:web"}, {"FormData", "zinc:web"},
+    {"reportError", "zinc:web"}, {"navigator", "zinc:web"}, {"structuredClone", "zinc:web"}, {"encodeURIComponent", "zinc:web"}, {"decodeURIComponent", "zinc:web"},
+    {"encodeURI", "zinc:web"}, {"decodeURI", "zinc:web"},
+    {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
+bool isWebFile(const std::string& path) {
+  for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }
+  return false;
+}
+std::string webGlobalImports(const Ast& A) {
+  std::set<std::string_view> declared;
+  for (std::uint32_t st : A.nodes[A.root].kids) {
+    const Node* x = &A.nodes[st];
+    if (x->kind == N::Export && !x->kids.empty()) x = &A.nodes[x->kids[0]];
+    switch (x->kind) {
+      case N::Import: for (std::uint32_t sp : x->kids) { if (!A.nodes[sp].kids.empty()) declared.insert(A.nodes[A.nodes[sp].kids[0]].text); } break;
+      case N::VarDecl: for (std::uint32_t d : x->kids) { if (!A.nodes[d].text.empty()) declared.insert(A.nodes[d].text); else { std::vector<std::string_view> names; collectBound(A, A.nodes[d].kids.size() > 2 ? A.nodes[d].kids[2] : kNone, names); for (auto nm : names) declared.insert(nm); } } break;
+      case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: declared.insert(x->text); break;
+      default: break;
+    }
+  }
+  std::map<std::string, std::set<std::string>> used;   // module -> names
+  for (const Node& n : A.nodes) {
+    if (n.kind != N::Ident && n.kind != N::TypeRef) continue;
+    for (const auto& [name, mod] : kWebGlobals) if (n.text == name && !declared.count(n.text)) used[mod].insert(name);
+  }
+  std::string out;
+  for (const auto& [mod, names] : used) {
+    out += "\nimport { ";
+    bool first = true;
+    for (const std::string& nm : names) { out += (first ? "" : ", ") + nm; first = false; }
+    out += std::string(" } from '") + mod + "';";
+  }
+  return out.empty() ? out : out + "\n";
+}
+
 struct Loader {
   Program& prog;
   const ReadFile& read;
@@ -937,7 +979,7 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
+      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}};
       auto hit = kStd.find(spec);
       readPlugins(prog.files[fromFile].path);
@@ -1053,6 +1095,10 @@ struct Loader {
     prog.files.push_back({path, std::move(text)});
     visiting[path] = true;
     ParseResult pr = parse(prog.files[fi].text);
+    if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path)) {
+      std::string add = webGlobalImports(pr.ast);
+      if (!add.empty()) { prog.files[fi].text += add; pr = parse(prog.files[fi].text); }
+    }
     for (Diag& d : pr.diags) { d.file = fi; prog.diags.push_back(d); }
     std::uint32_t result = kNone;
     if (pr.ast.root != kNone && pr.diags.empty()) {
@@ -2430,9 +2476,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
       else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) { x.text = "null"; x.flags |= kFlagUndefined; }
     }
   }
-  if (p.diags.empty())  // console.error, warn, info and debug print like console.log (to the standard output: the engine has one text stream)
+  if (p.diags.empty())  // console.warn and trace are console.error (standard error), info and debug are console.log
     for (Node& x : p.ast.nodes)
-      if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "error" || x.text == "warn" || x.text == "info" || x.text == "debug" || x.text == "trace")) x.text = "log";
+      if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "console" && (x.text == "warn" || x.text == "info" || x.text == "debug" || x.text == "trace")) x.text = x.text == "info" || x.text == "debug" ? "log" : "error";
   if (p.diags.empty())  // import.meta.url, dirname and filename: the module's own path as a string
     for (Node& x : p.ast.nodes) {
       if (x.kind != N::Ident || x.text.size() < 7 || x.text.substr(0, 7) != "__meta_") continue;
@@ -2510,6 +2556,7 @@ const char* builtinModuleSource(std::string_view spec) { return hostModuleSource
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
   if (spec == "zinc:web") return "web.ts";
+  if (spec == "zinc:web/fetch") return "fetch.ts";
   if (spec == "zinc:subtle") return "subtle.ts";
   if (spec == "zinc:ui/solid") return "solid.ts";
   if (spec == "zinc:ui/react") return "react.ts";

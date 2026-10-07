@@ -17,6 +17,14 @@
 
 namespace zn::rt {
 
+void Machine::flushErrLine() {
+  std::string line = out->substr(errMark) + '\n';
+  std::fwrite(out->data(), 1, errMark, stdout);
+  std::fflush(stdout);
+  out->clear();
+  std::fwrite(line.data(), 1, line.size(), stderr);
+}
+
 std::string numberToString(double v) {
   if (v != v) return "NaN";
   if (v == 0) return "0";

@@ -57,7 +57,8 @@
   X(LogI, ABC, _, _, _) X(LogU, ABC, _, _, _) X(LogF64, ABC, _, _, _) X(LogF32, ABC, _, _, _) X(LogBool, ABC, _, _, _) \
   X(LogSep, OP, _, _, _) X(LogEnd, OP, _, _, _)                                                                 \
   /* appended after the first release: Math functions beyond the original set (ids of the opcodes above are unchanged) */ \
-  X(CbrtF64, ABC, D, _, D) X(Log2F64, ABC, D, _, D) X(Log10F64, ABC, D, _, D) X(Log1pF64, ABC, D, _, D) X(Expm1F64, ABC, D, _, D) X(AsinF64, ABC, D, _, D) X(AcosF64, ABC, D, _, D) X(SinhF64, ABC, D, _, D) X(CoshF64, ABC, D, _, D) X(TanhF64, ABC, D, _, D) X(HypotF64, ABC, D, D, D) X(SignF64, ABC, D, _, D) X(FroundF64, ABC, D, _, D) X(Clz32F64, ABC, D, _, D)
+  X(CbrtF64, ABC, D, _, D) X(Log2F64, ABC, D, _, D) X(Log10F64, ABC, D, _, D) X(Log1pF64, ABC, D, _, D) X(Expm1F64, ABC, D, _, D) X(AsinF64, ABC, D, _, D) X(AcosF64, ABC, D, _, D) X(SinhF64, ABC, D, _, D) X(CoshF64, ABC, D, _, D) X(TanhF64, ABC, D, _, D) X(HypotF64, ABC, D, D, D) X(SignF64, ABC, D, _, D) X(FroundF64, ABC, D, _, D) X(Clz32F64, ABC, D, _, D) \
+  /* console.error and warn: the line written between these two goes to the standard error stream */ X(LogBegErr, OP, _, _, _) X(LogEndErr, OP, _, _, _)
 
 namespace zn {
 

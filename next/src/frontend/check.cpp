@@ -315,6 +315,7 @@ struct Checker {
     ObjInfo con;
     con.name = "console";
     con.members.push_back({"log", func({tAny}, tVoid, 0, true), true, true});
+    con.members.push_back({"error", func({tAny}, tVoid, 0, true), true, true});
     out.objs.push_back(con);
     declare(SymKind::Builtin, "console", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     ObjInfo str;
@@ -918,15 +919,21 @@ struct Checker {
     rewritten.insert(node);
   }
   // A value that meets a Dyn (or a Dyn that meets a typed target) at `node`: wrap it in the conversion.
+  bool hasDynMember(TypeId t) {
+    if (ty(t).k != TK::Union) return false;
+    for (TypeId m : ty(t).params) if (isDyn(m)) return true;
+    return false;
+  }
   void convertDyn(TypeId from, TypeId to, std::uint32_t node) {
-    if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;  // (tAny, console.log's anything, takes a Dyn as it is)
+    if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;
+    if (hasDynMember(to) && !isDyn(from) && from != tNull && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
       if (from == tNull) { a.nodes[node].kind = N::Ident; a.nodes[node].text = "__null"; a.nodes[node].kids.clear(); out.nodeSym[node] = lookup("__null"); out.nodeType[node] = tDyn; return; }
       if (!dynConvertible(out, from) || hasParam(from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
       if (n(node).kind == N::FuncExpr) { diag(kZUnsupported, node, "a function as an `any` value"); return; }
       wrapNode(node, dynSym(from, true, node));
       out.nodeType[node] = tDyn;
-    } else if (isDyn(from) && !isDyn(to) && !isDynFamily(to)) {
+    } else if (isDyn(from) && !isDyn(to) && !isDynFamily(to) && !hasDynMember(to)) {   // (an `unknown | null` already holds a Dyn: nothing to convert)
       if (!dynConvertible(out, to) || hasParam(to)) { diag(kZUnsupported, node, "conversion of Dyn to '" + name(to) + "'"); return; }
       wrapNode(node, dynSym(to, false, node));
       out.nodeType[node] = to;
@@ -1613,10 +1620,10 @@ struct Checker {
       std::uint32_t arg = x.kids[k + 1];
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
-      if (!isNew && n(callee).kind == N::Member && n(callee).text == "log") logArg = arg;
+      if (!isNew && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error")) logArg = arg;
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
-      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && at == tNull && replaceWith(arg, ((n(arg).flags & kFlagUndefined) || (n(arg).kind == N::Ident && out.nodeSym[arg] != kNone && ty(out.syms[out.nodeSym[arg]].type).undef)) ? "'undefined'" : "'null'", {})) at = expr(arg);  // a value known to be null (or undefined)
-      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
+      if (!isNew && !preEvaluated && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error") && at == tNull && replaceWith(arg, ((n(arg).flags & kFlagUndefined) || (n(arg).kind == N::Ident && out.nodeSym[arg] != kNone && ty(out.syms[out.nodeSym[arg]].type).undef)) ? "'undefined'" : "'null'", {})) at = expr(arg);  // a value known to be null (or undefined)
+      if (!isNew && !preEvaluated && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error") && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
         std::uint32_t call = callGenerated(inspectLog(at, arg), {arg}, arg);
         a.nodes[i].kids[k + 1] = call;
@@ -3513,6 +3520,13 @@ struct Checker {
       resolveHeritage(clone, oi);
       ensureBuilt(out.objs[oi].parent);
       for (std::uint32_t pi : out.objs[oi].ifaces) ensureBuilt(pi);
+      if (n(clone).kind == N::Interface) {   // a generic interface of data properties (over records) is a record too: `{ detail: 'x' }` makes a CustomEventInit<string>
+        bool rec = out.objs[oi].isInterface;
+        for (std::size_t k = 1; k < n(clone).kids.size() && rec; ++k) if (n(n(clone).kids[k]).kind != N::Field) rec = false;
+        for (std::uint32_t pi : out.objs[oi].ifaces) if (!out.objs[pi].isRecord) rec = false;
+        out.objs[oi].isRecord = rec;
+        if (rec) { out.objs[oi].isClass = true; out.objs[oi].isInterface = false; }
+      }
       classMembers(clone, oi);
       if (!anyParam(args)) out.instances.push_back(clone);
     });

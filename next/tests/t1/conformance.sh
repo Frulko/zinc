@@ -16,4 +16,7 @@ for b in tour errors async array_search string_number_edges conversions clock li
 done
 "$ZINC" run ../examples/lang/src/main.ts 2>&1 | diff -q - tests/golden/lang/lang.out >/dev/null || { echo "examples/lang output differs from its golden"; fail=1; }
 "$ZINC" run ../tests/conformance/sys_process.ts </dev/null 2>&1 | diff -q - ../tests/conformance/sys_process.out >/dev/null || { echo "sys_process output differs from the old simulator (ZN-084)"; fail=1; }
+for b in web fetch_web; do   # the Web platform globals (ZN-095): stdout of the old simulator
+  "$ZINC" run ../tests/conformance/$b.ts 2>/dev/null | diff -q - ../tests/conformance/$b.out >/dev/null || { echo "$b output differs from the old simulator (ZN-095)"; fail=1; }
+done
 exit $fail

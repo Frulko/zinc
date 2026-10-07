@@ -150,6 +150,8 @@ struct FnEmitter {
       else if (nm == "LogBool") line("*m.out += " + r(A) + " ? \"true\" : \"false\";");
       else if (nm == "LogSep") line("*m.out += ' ';");
       else if (nm == "LogEnd") line("*m.out += '\\n';");
+      else if (nm == "LogBegErr") line("m.errMark = m.out->size();");
+      else if (nm == "LogEndErr") line("m.flushErrLine();");
       else line("#error \"AOT: no translation for " + nm + "\"");
     }
     if (!leaf) line("--m.depth;");

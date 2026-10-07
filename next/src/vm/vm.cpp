@@ -190,6 +190,8 @@ L_LogF32: *out += numberToString(static_cast<double>(asF(r[A]))); NEXT();
 L_LogBool: *out += r[A] ? "true" : "false"; NEXT();
 L_LogSep: *out += ' '; NEXT();
 L_LogEnd: *out += '\n'; NEXT();
+L_LogBegErr: errMark = out->size(); NEXT();
+L_LogEndErr: flushErrLine(); NEXT();
 #undef NEXT
 #undef A
 #undef B

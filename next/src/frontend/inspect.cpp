@@ -150,6 +150,11 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     case TK::Object: {
       const ObjInfo& oi = c.objs[x.obj];
       if (oi.name == "Dyn") { body = "  return __dynJson(v);\n"; break; }
+      if (const Member* tj = lookupMember(c, x.obj, "toJSON", false); tj && tj->method && c.types[tj->type].params.empty()) {   // like JSON.stringify: toJSON() decides (a string, or null)
+        const Type& rt = c.types[c.types[tj->type].elem];
+        if (rt.k == TK::Str) { body = "  return __jsonQuote(v.toJSON());\n"; break; }
+        if (rt.k == TK::Union && rt.params.size() == 2) { body = "  const j = v.toJSON();\n  return j === null ? 'null' : __jsonQuote(j);\n"; break; }
+      }
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       if (oi.isTuple) {

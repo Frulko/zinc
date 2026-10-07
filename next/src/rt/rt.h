@@ -149,6 +149,8 @@ struct Machine {
   std::vector<Obj*> allocated;      // every live object, so the leftovers can be counted and freed at exit
   bool traceFree = false;           // print the class of each object as it is destroyed (debugging, destruction order tests)
   std::string* out = nullptr;
+  std::size_t errMark = 0;   // where the line of a console.error began in `out`
+  void flushErrLine();       // ends it: what `out` held before goes to the standard output, the line to the standard error
   std::string error;
   std::string trace;
   // The classes of the Dyn prelude, found by name on first use (JSON.parse and the Dyn fast paths build and read them natively).

@@ -53,7 +53,7 @@ bool convertibleRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
       fieldsOfObj(c, x.obj, fs);
       for (const Member* m : fs) {
         if (c.types[m->type].k == TK::Func) continue;  // functions are not part of the view
-        if (m->access == 0 && !convertibleRec(c, m->type, seen)) return false;
+        // a public field the view cannot show (a Map, a function) is left out of it
       }
       return true;
     }
@@ -125,7 +125,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
         std::string get = "(n: string): any => {\n    switch (n) {\n", set = "(n: string, w: any): void => {\n    switch (n) {\n", has = "(n: string): boolean => false";
         std::string hasExpr;
         for (const Member* m : fs) {
-          if (m->access != 0 || c.types[m->type].k == TK::Func || !isIdentName(m->name)) continue;
+          if (m->access != 0 || c.types[m->type].k == TK::Func || !isIdentName(m->name) || !dynConvertible(c, m->type)) continue;
           get += "      case '" + m->name + "': return " + toExpr(m->type, "v." + m->name) + ";\n";
           if (!m->readonly) set += "      case '" + m->name + "': v." + m->name + " = " + fromExpr(m->type, "w") + "; break;\n";
           hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m->name + "'";

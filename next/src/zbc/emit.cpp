@@ -659,7 +659,9 @@ struct FnEmitter {
       case IrOp::Builtin: {
         auto bi = static_cast<ir::Builtin>(i.sym);
         if (bi == ir::Builtin::NumToFixed) return rtOp(i, pos, zn::Rt::NumToFixed);
-        if (bi == ir::Builtin::ConsoleLog) {
+        if (bi == ir::Builtin::ConsoleLog || bi == ir::Builtin::ConsoleError) {
+          bool err = bi == ir::Builtin::ConsoleError;
+          if (err) put(encABC(Op::LogBegErr, 0));
           for (std::size_t a = 0; a < i.args.size(); ++a) {
             if (a) put(encABC(Op::LogSep, 0));
             const ir::Type& t = ty(f.valueTypes[i.args[a]]);
@@ -668,7 +670,7 @@ struct FnEmitter {
             Op op = t.k == ir::Type::K::Bool ? Op::LogBool : t.num == NumK::f64 ? Op::LogF64 : t.num == NumK::f32 ? Op::LogF32 : isSigned(t.num) ? Op::LogI : Op::LogU;
             put(encABC(op, R(i.args[a])));
           }
-          put(encABC(Op::LogEnd, 0));
+          put(encABC(err ? Op::LogEndErr : Op::LogEnd, 0));
           return true;
         }
         Op op;

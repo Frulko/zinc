@@ -1766,7 +1766,7 @@ struct Lowering::FnLower {
         for (std::uint32_t b = 0; b < static_cast<std::uint32_t>(Builtin::Count); ++b) {
           if (full != builtinName(static_cast<Builtin>(b))) continue;
           std::vector<ValueId> vs;
-          bool log = static_cast<Builtin>(b) == Builtin::ConsoleLog;
+          bool log = static_cast<Builtin>(b) == Builtin::ConsoleLog || static_cast<Builtin>(b) == Builtin::ConsoleError;
           for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(log ? expr(x.kids[k]) : exprTo(x.kids[k], m.numT(NumK::f64)));
           return builtin(static_cast<Builtin>(b), std::move(vs), log ? m.voidT() : m.numT(NumK::f64));
         }
