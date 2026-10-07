@@ -38,6 +38,20 @@ renderer.setAnimationLoop((time: number) => {
 });
 ```
 
+## Positioning: this is the software subset, real three.js is the other path
+
+Two ways to run three.js code exist, on purpose (decisions D28 to D30 of `docs/reports/zinc-next-decisions.md`, roadmap R8):
+
+| | `three` (this plugin) | real three.js on `zinc:webgl` (roadmap R8.1 to R8.3) |
+| --- | --- | --- |
+| Code | Zinc subset of the API, in-tree | the unmodified npm package on `zinc:script` (QuickJS) |
+| Renderer | software `zinc:3d`, no GPU, no JS engine | WebGL1 on GLES2 (Pi 3, tier T2) up to WebGL2 on GLES3 / desktop (T3, T4) |
+| Tiers | T0 to T4, the only option without a GPU or a JS engine (ESP32 excluded by heap, Pi 1 works) | T2 and above, needs a GL driver and the script engine |
+| API coverage | the list under "Supported API", deviations below | whatever the WebGL conformance suites let through: full WebGL, not a subset |
+| Output | frozen goldens of ZN-107 (unchanged) | SSIM against Chrome |
+
+Rules: the subset keeps working and keeps its goldens; it is never extended to chase three.js features, which come from the real package instead. A program written for the subset runs on the real package by changing nothing but the import (the subset's `GLTFLoader`, `OrbitControls` and `window` shim map to the package's addons). Both draw into a runtime image today and into a shared `Mesh` / `Surface` scene primitive once the scene IR has them (R8.3), so UI layouts embed either one the same way.
+
 ## Examples
 
 ```sh
