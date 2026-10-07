@@ -3,6 +3,7 @@ Program
     TypeParams
       TypeParam T
         _
+        _
     TypeRef T
     Block
       Return
@@ -13,6 +14,7 @@ Program
   Function pick
     TypeParams
       TypeParam T
+        _
         _
     TypeRef T
     Block
@@ -33,6 +35,7 @@ Program
   Class Box
     TypeParams
       TypeParam T
+        _
         _
     _
     _
@@ -71,7 +74,9 @@ Program
     TypeParams
       TypeParam A
         _
+        _
       TypeParam B
+        _
         _
     _
     _
@@ -118,6 +123,7 @@ Program
   Interface Getter
     TypeParams
       TypeParam T
+        _
         _
     _
     Method get

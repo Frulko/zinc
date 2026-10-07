@@ -1024,7 +1024,7 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
 // Arenas hold per-frame memory in the AOT runtime; here an arena is a scope marker that releases nothing.
 const char* kArenaPrelude = R"ZN(
 class Arena {
-  static frame(size: i32): Arena { return new Arena(); }
+  static frame(size: i32 = 0): Arena { return new Arena(); }
   [Symbol.dispose](): void {}
 }
 )ZN";

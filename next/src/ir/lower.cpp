@@ -889,6 +889,7 @@ struct Lowering::FnLower {
     return readVar(s, cur);
   }
   ValueId readSym(std::uint32_t s) {
+    if (!paramSubst.empty()) { auto ps = paramSubst.find(s); if (ps != paramSubst.end()) return ps->second; }
     if (lam && c.syms[s].kind == SymKind::Func && c.syms[s].decl == lam->node) return f.params[0];  // a nested function used inside itself: its own closure object
     if (L.global[s]) return emit(IrOp::GetGlobal, L.irType(c.syms[s].type), {}, 0, 0, L.globalIndex[s]);
     if (L.isCell(s)) return emit(IrOp::GetField, L.irType(c.syms[s].type), {storageOf(s)}, 0, 0, 0);
@@ -1547,12 +1548,7 @@ struct Lowering::FnLower {
   }
 
   // ---- calls
-  bool usesParam(std::uint32_t node) {
-    if (node == kNil) return false;
-    if (n(node).kind == N::Ident && c.nodeSym[node] != kNil && c.syms[c.nodeSym[node]].kind == SymKind::Param) return true;
-    for (std::uint32_t k : n(node).kids) if (usesParam(k)) return true;
-    return false;
-  }
+  std::unordered_map<std::uint32_t, ValueId> paramSubst;  // callee parameter symbol -> the argument value, while a default is evaluated
 
   ValueId callFunction(std::uint32_t fn, std::vector<ValueId> recv, const std::vector<std::uint32_t>& args, std::size_t firstArg) {
     const Function& cf = m.functions[fn];
@@ -1569,7 +1565,14 @@ struct Lowering::FnLower {
       for (std::size_t k = vs.size() - nrecv; k + 2 < fnn.kids.size() && vs.size() < cf.params.size(); ++k) {
         std::uint32_t d = n(fnn.kids[2 + k]).kids[1];
         if (d == kNil) break;
-        vs.push_back(exprTo(d, cf.valueTypes[cf.params[vs.size()]]));
+        std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;  // a default may read the parameters before it: they stand for the arguments of this call
+        for (std::size_t j = 0; j < k; ++j) {
+          std::uint32_t ps = c.nodeSym[fnn.kids[2 + j]];
+          if (ps != kNil && nrecv + j < vs.size()) paramSubst[ps] = vs[nrecv + j];
+        }
+        ValueId dv = exprTo(d, cf.valueTypes[cf.params[vs.size()]]);
+        paramSubst = std::move(saved);
+        vs.push_back(dv);
       }
     }
     return emit(IrOp::Call, cf.ret, std::move(vs), 0, 0, fn);
@@ -1690,7 +1693,7 @@ struct Lowering::FnLower {
       ValueId fv = coerce(expr(x.kids[0]), L.irType(ftype));
       const Selector& sg = m.selectors[L.selectorFor("call", ftype)];
       std::vector<ValueId> vs{fv};
-      for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(exprTo(x.kids[k + 1], sg.params[k]));
+      for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(k + 1 < x.kids.size() ? exprTo(x.kids[k + 1], sg.params[k]) : nullConst(sg.params[k]));  // an optional parameter left out is null
       return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, L.selectorFor("call", ftype));
     }
     if (callee.kind == N::Super) {  // super(args): the base class constructor, if it has a function
@@ -1800,7 +1803,7 @@ struct Lowering::FnLower {
           std::uint32_t sel = L.selectorFor(std::string(callee.text), c.nodeType[x.kids[0]]);
           const Selector& sg = m.selectors[sel];
           std::vector<ValueId> vs{recv};
-          for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(exprTo(x.kids[k + 1], sg.params[k]));
+          for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(k + 1 < x.kids.size() ? exprTo(x.kids[k + 1], sg.params[k]) : nullConst(sg.params[k]));  // an optional parameter left out is null
           return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, sel);
         }
       }
@@ -2139,7 +2142,6 @@ struct Lowering::FnLower {
         if (n(p).kids.size() > 2 && n(p).kids[2] != kNil) { bindPattern(n(p).kids[2], f.params[first + k], true); continue; }
         std::uint32_t ps = c.nodeSym[p];
         if (ps != kNil && !L.global[ps]) declSym(ps, f.params[first + k]);
-        if (n(p).kids[1] != kNil && usesParam(n(p).kids[1])) L.unsupported(p, "a default value that reads another parameter");
       }
     }
     const std::vector<std::uint32_t>* body = nullptr;

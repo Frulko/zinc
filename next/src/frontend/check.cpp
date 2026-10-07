@@ -300,6 +300,7 @@ struct Checker {
         Num m;
         if (x.kids.empty() && numFromName(x.text, m)) r = num(m);
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
+        else if (x.kids.empty() && x.text == "never" && lookup("never") == kNone) r = tNull;  // no value has it: a position of type never holds null (T = never as a default says "unused")
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
@@ -316,6 +317,7 @@ struct Checker {
           else if (out.syms[s].kind == SymKind::GenericAlias) {
             std::vector<TypeId> args;
             for (std::uint32_t k : x.kids) args.push_back(annotation(k));
+            if (args.size() < generics[s].tp.size()) fillTypeDefaults(generics[s], args);
             if (args.size() == generics[s].tp.size()) r = instantiateAlias(s, args, t);
             else diag(kZCannotInfer, t, "'" + std::string(x.text) + "' needs " + std::to_string(generics[s].tp.size()) + " type argument(s)");
           }
@@ -323,6 +325,7 @@ struct Checker {
           else if (out.syms[s].kind == SymKind::GenericClass) {
             std::vector<TypeId> args;
             for (std::uint32_t k : x.kids) args.push_back(annotation(k));
+            if (args.size() < generics[s].tp.size()) fillTypeDefaults(generics[s], args);
             std::uint32_t inst = args.size() == generics[s].tp.size() ? instantiateClass(s, args, t) : kNone;
             if (inst != kNone) r = out.syms[inst].type;
             else if (args.size() != generics[s].tp.size()) diag(kZCannotInfer, t, "'" + std::string(x.text) + "' needs " + std::to_string(generics[s].tp.size()) + " type argument(s)");
@@ -361,7 +364,9 @@ struct Checker {
           else ps.push_back(annotation(n(pn).kids[0]));
         }
         TypeId rt = annotation(x.kids[0]);
-        r = func(ps, rt, static_cast<std::uint32_t>(ps.size()));
+        std::size_t required = 0;  // the parameters up to the last one that is not optional
+        for (std::size_t k = 1; k < x.kids.size(); ++k) if (!(n(x.kids[k]).flags & frontend::kFlagOptional)) required = k;
+        r = func(ps, rt, static_cast<std::uint32_t>(required));
         break;
       }
       case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms);
@@ -580,6 +585,7 @@ struct Checker {
     if ((op == "&&" || op == "||") && (n(le).kind == N::String || n(le).kind == N::Number || n(le).kind == N::Template)) { diag(kZBadOperand, le, "the left operand of '" + op + "' is a literal, always truthy or always falsy"); return tError; }
     if ((op == "&&" || op == "||") && l != tBool && (l == tStr || isNum(l))) return require(r, l, re) ? l : tError;  // `a || b` yields a value: the first truthy operand
     if (op == "&&" || op == "||") return (l == tBool && r == tBool) ? tBool : (diag(kZNotAssignable, l == tBool ? re : le, "'" + name(l == tBool ? r : l) + "' to 'boolean'"), tBool);
+    if ((op == "===" || op == "!==" || op == "==" || op == "!=") && l == tNull && r == tNull && pureCallee(le) && replaceWith(i, (op == "===" || op == "==") ? "true" : "false", {})) return expr0(i, expected0);  // null against null (a position of type never)
     if (op == "==" || op == "!=" || op == "===" || op == "!==") return comparable(l, r) ? tBool : (fail(), tBool);
     if (op == "<" || op == ">" || op == "<=" || op == ">=") return ((isNum(l) && isNum(r)) || (l == tStr && r == tStr)) ? tBool : (fail(), tBool);
     if (op == "+" && (l == tStr || r == tStr)) return (stringifiable(l) && stringifiable(r)) ? tStr : fail();
@@ -1322,6 +1328,7 @@ struct Checker {
       if (s != kNone && out.syms[s].kind == SymKind::GenericClass && a.targs.count(i)) {  // explicit type arguments: the arguments are checked against the parameter types
         std::vector<TypeId> targs;
         for (std::uint32_t t : std::vector<std::uint32_t>(a.targs[i])) targs.push_back(annotation(t));
+        if (targs.size() < generics[s].tp.size()) fillTypeDefaults(generics[s], targs);
         if (targs.size() != generics[s].tp.size()) { diag(kZWrongArgCount, i, "expected " + std::to_string(generics[s].tp.size()) + " type argument(s), got " + std::to_string(targs.size())); for (std::uint32_t an : argNodes) expr(an); return tError; }
         std::uint32_t inst = instantiateClass(s, targs, callee);
         if (inst == kNone) { for (std::uint32_t an : argNodes) expr(an); return tError; }
@@ -2689,6 +2696,36 @@ struct Checker {
     }
     bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
     if (haveExpected) et = ty(expected);
+    // Defaults on lambda parameters: the parameter takes `T | null` (an argument left out is null) and the body starts by replacing null with the default
+    std::size_t lambdaMin = static_cast<std::size_t>(-1);
+    {
+      std::vector<std::uint32_t> prologue;
+      std::size_t required = 0;
+      for (std::size_t k = 2; k < n(i).kids.size(); ++k) {
+        std::uint32_t p = n(i).kids[k];
+        std::uint32_t d = n(p).kids[1];
+        if (d == kNone) { required = k - 1; continue; }
+        bool nullDefault = n(d).kind == N::Literal && n(d).text == "null";  // `x?: T`: the parser already made it `T | null`
+        if (!nullDefault) {
+          std::uint32_t ann = n(p).kids[0];
+          if (ann == kNone) { diag(kZCannotInfer, p, "parameter '" + std::string(n(p).text) + "' of a function expression"); continue; }
+          std::uint32_t nul = newNode(N::TypeRef, "null", {}, p);
+          a.nodes[p].kids[0] = newNode(N::TypeUnion, {}, {ann, nul}, p);
+          std::string nm(n(p).text);
+          std::vector<std::uint32_t> st = snippet(a, "if (" + nm + " === null) { " + nm + " = __H0; }", {{d}}, p);
+          out.nodeType.resize(a.nodes.size(), kNoType);
+          out.nodeSym.resize(a.nodes.size(), kNone);
+          if (!st.empty()) prologue.push_back(st[0]);
+        }
+        a.nodes[p].kids[1] = kNone;
+      }
+      if (required < n(i).kids.size() - 2) lambdaMin = required;  // some parameter is optional (padding for callbacks comes after it and stays required)
+      else lambdaMin = static_cast<std::size_t>(-1);
+      if (!prologue.empty()) {
+        auto& body = a.nodes[n(i).kids[1]].kids;
+        body.insert(body.begin(), prologue.begin(), prologue.end());
+      }
+    }
     // `() => expr` where a function returning nothing is expected: the value is dropped, as in TypeScript
     if (haveExpected && et.elem == tVoid && n(i).kids[0] == kNone && n(n(i).kids[1]).kids.size() == 1 && n(n(n(i).kids[1]).kids[0]).kind == N::Return && !n(n(n(i).kids[1]).kids[0]).kids.empty() && n(n(n(i).kids[1]).kids[0]).kids[0] != kNone)
       a.nodes[n(n(i).kids[1]).kids[0]].kind = N::ExprStmt;
@@ -2761,7 +2798,7 @@ struct Checker {
     if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
     curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
     narrowing = std::move(savedNarrowing);
-    TypeId ft = func(ps, ret, static_cast<std::uint32_t>(np));
+    TypeId ft = func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)));
     out.nodeType[i] = ft;
     return ft;
   }
@@ -3178,6 +3215,7 @@ struct Checker {
       if (out.syms[sy].kind == SymKind::GenericClass) {
         std::vector<TypeId> args;
         for (std::uint32_t k : rn.kids) args.push_back(annotation(k));
+        if (args.size() < generics[sy].tp.size()) fillTypeDefaults(generics[sy], args);
         if (args.size() != generics[sy].tp.size()) { diag(kZCannotInfer, refNode, "'" + std::string(rn.text) + "' needs " + std::to_string(generics[sy].tp.size()) + " type argument(s)"); return kNoObj; }
         std::uint32_t inst = instantiateClass(sy, args, refNode);
         if (inst == kNone) return kNoObj;
@@ -3200,6 +3238,15 @@ struct Checker {
       for (std::uint32_t r : std::vector<std::uint32_t>(n(cn.kids[0]).kids)) { std::uint32_t io = resolve(r, true); if (io != kNoObj) out.objs[oi].ifaces.push_back(io); }
   }
 
+  // Type arguments left out take the defaults of the declaration (`class Box<T = number>`); false when one has none.
+  bool fillTypeDefaults(const GenericDecl& g, std::vector<TypeId>& args) {
+    for (std::size_t k = args.size(); k < g.tp.size(); ++k) {
+      const Node& tpn = n(g.tp[k]);
+      if (tpn.kids.size() < 2 || tpn.kids[1] == kNone) return false;
+      args.push_back(annotation(tpn.kids[1]));
+    }
+    return true;
+  }
   // The class symbol of generic class or interface `gsym` for these type arguments (kNone on failure).
   std::uint32_t instantiateClass(std::uint32_t gsym, const std::vector<TypeId>& args, std::uint32_t at) {
     GenericDecl& g = generics[gsym];
@@ -3298,6 +3345,7 @@ struct Checker {
     if (ex != a.targs.end()) {
       std::vector<TypeId> args;
       for (std::uint32_t t : std::vector<std::uint32_t>(ex->second)) args.push_back(annotation(t));
+      if (args.size() < g.tp.size()) fillTypeDefaults(g, args);
       if (args.size() != g.tp.size()) { diag(kZWrongArgCount, callNode, "expected " + std::to_string(g.tp.size()) + " type argument(s), got " + std::to_string(args.size())); return {}; }
       const Type fe = ty(templateFunc);
       for (std::size_t k = 0; k < argNodes.size() && k < fe.params.size(); ++k)
@@ -3332,7 +3380,8 @@ struct Checker {
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
     }
     for (std::size_t i = 0; i < bound.size(); ++i)
-      if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }
+      if (bound[i] == kNoType && n(g.tp[i]).kids.size() > 1 && n(g.tp[i]).kids[1] != kNone) bound[i] = annotation(n(g.tp[i]).kids[1]);  // not inferred: the default
+      else if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }
     return bound;
   }
 
