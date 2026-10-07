@@ -1510,21 +1510,90 @@ function clearTimeout(id: i32): void {
 function clearInterval(id: i32): void { clearTimeout(id); }
 // Deterministic time: the clock only moves when the event loop jumps to the next timer.
 // Dates are UTC (the engine has no time zones): the same fields a program reads on every host.
+// Date (ZN-093): a time value in milliseconds since 1970 (UTC), civil arithmetic after Howard Hinnant, the host's time zone through __host_tzOffset (UTC under ZINC_DETERMINISTIC unless TZ is set).
+const __dMonths: string[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const __dDays: string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function __dPad(n: f64, w: i32): string { let r = `${n}`; while (r.length < w) r = '0' + r; return r; }
+function __dDaysFromCivil(y0: f64, m: f64, d: f64): f64 {   // m is 1..12
+  const y = m <= 2 ? y0 - 1 : y0;
+  const era = Math.floor(y / 400);
+  const yoe = y - era * 400;
+  const doy = Math.floor((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+function __dMakeDay(year: f64, month: f64, date: f64): f64 {
+  if (!(year - year === 0) || !(month - month === 0) || !(date - date === 0)) return NaN;
+  const y = Math.trunc(year) + Math.floor(Math.trunc(month) / 12);
+  let mn = Math.trunc(month) % 12;
+  if (mn < 0) mn += 12;
+  if (Math.abs(y) > 400000) return NaN;
+  return __dDaysFromCivil(y, mn + 1, 1) + Math.trunc(date) - 1;
+}
+function __dMakeTime(h: f64, mi: f64, sec: f64, ms: f64): f64 {
+  if (!(h - h === 0) || !(mi - mi === 0) || !(sec - sec === 0) || !(ms - ms === 0)) return NaN;
+  return Math.trunc(h) * 3600000 + Math.trunc(mi) * 60000 + Math.trunc(sec) * 1000 + Math.trunc(ms);
+}
+function __dClip(t: f64): f64 { return t - t === 0 && Math.abs(t) <= 8.64e15 ? Math.trunc(t) + 0 : NaN; }
+// The offset of the local zone in minutes (positive west of UTC) at a UTC time, and for a local time.
+function __dTzAt(t: f64): f64 { return t - t === 0 ? __host_tzOffset(t) : 0; }
+function __dLocalToUtc(t: f64): f64 {   // an ambiguous local time (the clock went back) is the earlier instant, one in a gap is read with the offset from before it
+  if (!(t - t === 0)) return NaN;
+  const oa = __dTzAt(t - 86400000);
+  const ob = __dTzAt(t + 86400000);
+  const c1 = t + oa * 60000;
+  if (__dTzAt(c1) === oa) return c1;
+  const c2 = t + ob * 60000;
+  return __dTzAt(c2) === ob ? c2 : c1;
+}
+function __dZoneName(abbr: string, offMin: f64): string {
+  if (abbr === 'UTC') return 'Coordinated Universal Time';
+  if (abbr === 'EST') return 'Eastern Standard Time'; if (abbr === 'EDT') return 'Eastern Daylight Time';
+  if (abbr === 'CST') return 'Central Standard Time'; if (abbr === 'CDT') return 'Central Daylight Time';
+  if (abbr === 'MST') return 'Mountain Standard Time'; if (abbr === 'MDT') return 'Mountain Daylight Time';
+  if (abbr === 'PST') return 'Pacific Standard Time'; if (abbr === 'PDT') return 'Pacific Daylight Time';
+  if (abbr === 'AKST') return 'Alaska Standard Time'; if (abbr === 'AKDT') return 'Alaska Daylight Time';
+  if (abbr === 'HST') return 'Hawaii-Aleutian Standard Time';
+  if (abbr === 'GMT') return 'Greenwich Mean Time'; if (abbr === 'BST') return 'British Summer Time'; if (abbr === 'IST' && offMin === -330) return 'India Standard Time';
+  if (abbr === 'CET') return 'Central European Standard Time'; if (abbr === 'CEST') return 'Central European Summer Time';
+  if (abbr === 'EET') return 'Eastern European Standard Time'; if (abbr === 'EEST') return 'Eastern European Summer Time';
+  if (abbr === 'WET') return 'Western European Standard Time'; if (abbr === 'WEST') return 'Western European Summer Time';
+  if (abbr === 'MSK') return 'Moscow Standard Time'; if (abbr === 'JST') return 'Japan Standard Time'; if (abbr === 'KST') return 'Korean Standard Time';
+  if (abbr === 'AEST') return 'Australian Eastern Standard Time'; if (abbr === 'AEDT') return 'Australian Eastern Daylight Time';
+  if (abbr === 'ACST') return 'Australian Central Standard Time'; if (abbr === 'AWST') return 'Australian Western Standard Time';
+  if (abbr === 'NZST') return 'New Zealand Standard Time'; if (abbr === 'NZDT') return 'New Zealand Daylight Time';
+  return abbr;
+}
 class Date {
   t: f64;
-  constructor(ms: number = Date.now()) { this.t = ms; }
+  constructor(ms: number = Date.now(), month: number = NaN, day: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, millis: number = 0) {
+    let y = ms;
+    if (month - month === 0 && y - y === 0 && Math.trunc(y) >= 0 && Math.trunc(y) <= 99) y = 1900 + Math.trunc(y);   // new Date(year, month, ...): 0 to 99 is 1900 to 1999
+    this.t = month - month === 0 || month === Infinity || month === -Infinity ? __dClip(__dLocalToUtc(__dMakeDay(y, month, day) * 86400000 + __dMakeTime(hours, minutes, seconds, millis))) : __dClip(ms);
+  }
   static now(): f64 { return __real ? Math.floor(__epoch + __now()) : __clock; }  // deterministic runs keep the virtual (fractional) clock the goldens froze
+  static UTC(year: number, month: number = 0, day: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, millis: number = 0): f64 {
+    let y = year;
+    if (y - y === 0 && Math.trunc(y) >= 0 && Math.trunc(y) <= 99) y = 1900 + Math.trunc(y);
+    return __dClip(__dMakeDay(y, month, day) * 86400000 + __dMakeTime(hours, minutes, seconds, millis));
+  }
+  static parse(s: string): f64 { return __dParse(s); }
   getTime(): f64 { return this.t; }
   valueOf(): f64 { return this.t; }
-  private days(): f64 { return Math.floor(this.t / 86400000); }
-  private msOfDay(): f64 { return this.t - this.days() * 86400000; }
-  getHours(): f64 { return Math.floor(this.msOfDay() / 3600000); }
-  getMinutes(): f64 { return Math.floor(this.msOfDay() / 60000) % 60; }
-  getSeconds(): f64 { return Math.floor(this.msOfDay() / 1000) % 60; }
-  getMilliseconds(): f64 { return this.msOfDay() % 1000; }
-  getDay(): f64 { const d = (this.days() + 4) % 7; return d < 0 ? d + 7 : d; }
-  private civil(which: i32): f64 {  // Howard Hinnant's days-to-civil: 0 year, 1 month (0 based), 2 day of the month
-    const z = this.days() + 719468;
+  setTime(v: number): f64 { this.t = __dClip(v); return this.t; }
+  getTimezoneOffset(): f64 { return this.t - this.t === 0 ? Math.round(__dTzAt(this.t)) : NaN; }   // whole minutes, like V8 (an LMT offset has seconds)
+  // fields: 0 year, 1 month (0 based), 2 day of the month, 3 weekday, 4 hours, 5 minutes, 6 seconds, 7 milliseconds; of the UTC time or the local one
+  field(k: i32, local: boolean): f64 {
+    if (!(this.t - this.t === 0)) return NaN;
+    const lt = local ? this.t - __dTzAt(this.t) * 60000 : this.t;
+    const days = Math.floor(lt / 86400000);
+    const ms = lt - days * 86400000;
+    if (k === 3) { const d = (days + 4) % 7; return d < 0 ? d + 7 : d; }
+    if (k === 4) return Math.floor(ms / 3600000);
+    if (k === 5) return Math.floor(ms / 60000) % 60;
+    if (k === 6) return Math.floor(ms / 1000) % 60;
+    if (k === 7) return ms % 1000;
+    const z = days + 719468;   // Hinnant's days-to-civil
     const era = Math.floor(z / 146097);
     const doe = z - era * 146097;
     const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
@@ -1532,19 +1601,265 @@ class Date {
     const mp = Math.floor((5 * doy + 2) / 153);
     const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
     const m = mp < 10 ? mp + 3 : mp - 9;
-    if (which === 0) return yoe + era * 400 + (m <= 2 ? 1 : 0);
-    return which === 1 ? m - 1 : d;
+    if (k === 0) return yoe + era * 400 + (m <= 2 ? 1 : 0);
+    return k === 1 ? m - 1 : d;
   }
-  getFullYear(): f64 { return this.civil(0); }
-  getMonth(): f64 { return this.civil(1); }
-  getDate(): f64 { return this.civil(2); }
-  getUTCHours(): f64 { return this.getHours(); }
-  getUTCMinutes(): f64 { return this.getMinutes(); }
-  getUTCSeconds(): f64 { return this.getSeconds(); }
-  getUTCDay(): f64 { return this.getDay(); }
-  getUTCFullYear(): f64 { return this.getFullYear(); }
-  getUTCMonth(): f64 { return this.getMonth(); }
-  getUTCDate(): f64 { return this.getDate(); }
+  getFullYear(): f64 { return this.field(0, true); }
+  getMonth(): f64 { return this.field(1, true); }
+  getDate(): f64 { return this.field(2, true); }
+  getDay(): f64 { return this.field(3, true); }
+  getHours(): f64 { return this.field(4, true); }
+  getMinutes(): f64 { return this.field(5, true); }
+  getSeconds(): f64 { return this.field(6, true); }
+  getMilliseconds(): f64 { return this.field(7, true); }
+  getUTCFullYear(): f64 { return this.field(0, false); }
+  getUTCMonth(): f64 { return this.field(1, false); }
+  getUTCDate(): f64 { return this.field(2, false); }
+  getUTCDay(): f64 { return this.field(3, false); }
+  getUTCHours(): f64 { return this.field(4, false); }
+  getUTCMinutes(): f64 { return this.field(5, false); }
+  getUTCSeconds(): f64 { return this.field(6, false); }
+  getUTCMilliseconds(): f64 { return this.field(7, false); }
+  // Replaces some fields (-1: keep) of the local or UTC time and sets the new time value.
+  private set(local: boolean, y: f64, mo: f64, d: f64, h: f64, mi: f64, sec: f64, ms: f64): f64 {
+    let base = this.t;
+    if (!(base - base === 0)) { if (y === y && y !== -1e300) base = 0; else return NaN; }   // setFullYear of an invalid date starts from +0
+    const nan = !(this.t - this.t === 0);
+    const tmp = new Date(base);
+    const yy = y === -1e300 ? tmp.field(0, local) : y;
+    const mm = mo === -1e300 ? (nan ? 0 : tmp.field(1, local)) : mo;
+    const dd = d === -1e300 ? (nan ? 1 : tmp.field(2, local)) : d;
+    const hh = h === -1e300 ? (nan ? 0 : tmp.field(4, local)) : h;
+    const ii = mi === -1e300 ? (nan ? 0 : tmp.field(5, local)) : mi;
+    const ss = sec === -1e300 ? (nan ? 0 : tmp.field(6, local)) : sec;
+    const mss = ms === -1e300 ? (nan ? 0 : tmp.field(7, local)) : ms;
+    const v = __dMakeDay(yy, mm, dd) * 86400000 + __dMakeTime(hh, ii, ss, mss);
+    this.t = __dClip(local ? __dLocalToUtc(v) : v);
+    return this.t;
+  }
+  setFullYear(y: number, month: number = -1e300, day: number = -1e300): f64 { return this.set(true, y, month, day, -1e300, -1e300, -1e300, -1e300); }
+  setMonth(month: number, day: number = -1e300): f64 { return this.set(true, -1e300, month, day, -1e300, -1e300, -1e300, -1e300); }
+  setDate(day: number): f64 { return this.set(true, -1e300, -1e300, day, -1e300, -1e300, -1e300, -1e300); }
+  setHours(h: number, mi: number = -1e300, sec: number = -1e300, ms: number = -1e300): f64 { return this.set(true, -1e300, -1e300, -1e300, h, mi, sec, ms); }
+  setMinutes(mi: number, sec: number = -1e300, ms: number = -1e300): f64 { return this.set(true, -1e300, -1e300, -1e300, -1e300, mi, sec, ms); }
+  setSeconds(sec: number, ms: number = -1e300): f64 { return this.set(true, -1e300, -1e300, -1e300, -1e300, -1e300, sec, ms); }
+  setMilliseconds(ms: number): f64 { return this.set(true, -1e300, -1e300, -1e300, -1e300, -1e300, -1e300, ms); }
+  setUTCFullYear(y: number, month: number = -1e300, day: number = -1e300): f64 { return this.set(false, y, month, day, -1e300, -1e300, -1e300, -1e300); }
+  setUTCMonth(month: number, day: number = -1e300): f64 { return this.set(false, -1e300, month, day, -1e300, -1e300, -1e300, -1e300); }
+  setUTCDate(day: number): f64 { return this.set(false, -1e300, -1e300, day, -1e300, -1e300, -1e300, -1e300); }
+  setUTCHours(h: number, mi: number = -1e300, sec: number = -1e300, ms: number = -1e300): f64 { return this.set(false, -1e300, -1e300, -1e300, h, mi, sec, ms); }
+  setUTCMinutes(mi: number, sec: number = -1e300, ms: number = -1e300): f64 { return this.set(false, -1e300, -1e300, -1e300, -1e300, mi, sec, ms); }
+  setUTCSeconds(sec: number, ms: number = -1e300): f64 { return this.set(false, -1e300, -1e300, -1e300, -1e300, -1e300, sec, ms); }
+  setUTCMilliseconds(ms: number): f64 { return this.set(false, -1e300, -1e300, -1e300, -1e300, -1e300, -1e300, ms); }
+  toISOString(): string {
+    if (!(this.t - this.t === 0)) throw new RangeError('Invalid time value');
+    const y = this.field(0, false);
+    const ys = y >= 0 && y <= 9999 ? __dPad(y, 4) : (y < 0 ? '-' : '+') + __dPad(Math.abs(y), 6);
+    return ys + '-' + __dPad(this.field(1, false) + 1, 2) + '-' + __dPad(this.field(2, false), 2) + 'T' + __dPad(this.field(4, false), 2) + ':' + __dPad(this.field(5, false), 2) + ':' + __dPad(this.field(6, false), 2) + '.' + __dPad(this.field(7, false), 3) + 'Z';
+  }
+  toJSON(): string | null { return this.t - this.t === 0 ? this.toISOString() : null; }
+  private yearText(): string { const y = this.field(0, true); return y < 0 ? '-' + __dPad(-y, 6) : __dPad(y, 4); }
+  toDateString(): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    return __dDays[this.field(3, true)] + ' ' + __dMonths[this.field(1, true)] + ' ' + __dPad(this.field(2, true), 2) + ' ' + this.yearText();
+  }
+  toTimeString(): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    const off = __dTzAt(this.t);
+    const abs = Math.abs(off);
+    return __dPad(this.field(4, true), 2) + ':' + __dPad(this.field(5, true), 2) + ':' + __dPad(this.field(6, true), 2) + ' GMT' + (off > 0 ? '-' : '+') + __dPad(Math.floor(abs / 60), 2) + __dPad(abs % 60, 2) + ' (' + __dZoneName(__host_tzName(this.t), off) + ')';
+  }
+  toString(): string { return this.t - this.t === 0 ? this.toDateString() + ' ' + this.toTimeString() : 'Invalid Date'; }
+  toUTCString(): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    const y = this.field(0, false);
+    return __dDays[this.field(3, false)] + ', ' + __dPad(this.field(2, false), 2) + ' ' + __dMonths[this.field(1, false)] + ' ' + (y < 0 ? '-' + __dPad(-y, 6) : __dPad(y, 4)) + ' ' + __dPad(this.field(4, false), 2) + ':' + __dPad(this.field(5, false), 2) + ':' + __dPad(this.field(6, false), 2) + ' GMT';
+  }
+  toGMTString(): string { return this.toUTCString(); }
+  // en-US: M/D/YYYY, h:mm:ss AM. `timeZone` of the options: 'UTC' or an IANA name; the locale argument is accepted and ignored.
+  toLocaleDateString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    const z = options.timeZone === null ? '' : options.timeZone as string;
+    const utc = z === 'UTC' || z === 'GMT';
+    const off = z.length > 0 && !utc ? __host_tzOffsetIn(z, this.t) : 0;
+    const d = new Date(this.t - (z.length > 0 ? (utc ? 0 : off) : __dTzAt(this.t)) * 60000);
+    return `${d.field(1, false) + 1}/${d.field(2, false)}/${d.field(0, false)}`;
+  }
+  toLocaleTimeString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    const z = options.timeZone === null ? '' : options.timeZone as string;
+    const utc = z === 'UTC' || z === 'GMT';
+    const off = z.length > 0 && !utc ? __host_tzOffsetIn(z, this.t) : 0;
+    const d = new Date(this.t - (z.length > 0 ? (utc ? 0 : off) : __dTzAt(this.t)) * 60000);
+    const h = d.field(4, false);
+    return `${h % 12 === 0 ? 12 : h % 12}:${__dPad(d.field(5, false), 2)}:${__dPad(d.field(6, false), 2)} ${h < 12 ? 'AM' : 'PM'}`;
+  }
+  toLocaleString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
+    if (!(this.t - this.t === 0)) return 'Invalid Date';
+    return this.toLocaleDateString(locale, options) + ', ' + this.toLocaleTimeString(locale, options);
+  }
+}
+interface DateFormatOptions { timeZone?: string }
+// Date.parse: the ISO 8601 profile of ECMAScript (a date alone is UTC, a date with a time and no offset is local) and a tolerant reader of the formats engines accept besides
+// (RFC 2822 `Tue, 15 Nov 1994 08:12:31 GMT`, `Jan 15, 2020 10:00:00`, `15 January 2020`, `1/15/2020`, `2020/01/15`, what toString prints).
+function __dDigits(s: string, i: i32, n: i32): f64 {
+  if (i + n > s.length) return -1;
+  let v: f64 = 0;
+  for (let k: i32 = 0; k < n; k++) { const c = s.charCodeAt(i + k); if (c < 48 || c > 57) return -1; v = v * 10 + (c - 48); }
+  return v;
+}
+function __dParseIso(s: string): f64 {
+  let i: i32 = 0;
+  let sign: f64 = 1;
+  let year: f64;
+  if (s.charAt(0) === '+' || s.charAt(0) === '-') { sign = s.charAt(0) === '-' ? -1 : 1; year = __dDigits(s, 1, 6); i = 7; if (year < 0 || (sign < 0 && year === 0)) return NaN; year *= sign; }
+  else { year = __dDigits(s, 0, 4); i = 4; if (year < 0) return NaN; }
+  let month: f64 = 1, day: f64 = 1, h: f64 = 0, mi: f64 = 0, sec: f64 = 0, ms: f64 = 0;
+  let hasTime = false;
+  let offset: f64 = NaN;
+  if (i < s.length && s.charAt(i) === '-') {
+    month = __dDigits(s, i + 1, 2); if (month < 0) return NaN; i += 3;
+    if (i < s.length && s.charAt(i) === '-') { day = __dDigits(s, i + 1, 2); if (day < 0) return NaN; i += 3; }
+  }
+  if (i < s.length && (s.charAt(i) === 'T' || s.charAt(i) === 't' || s.charAt(i) === ' ')) {
+    hasTime = true;
+    h = __dDigits(s, i + 1, 2);
+    if (h < 0 || s.charAt(i + 3) !== ':') return NaN;
+    mi = __dDigits(s, i + 4, 2); if (mi < 0) return NaN; i += 6;
+    if (i < s.length && s.charAt(i) === ':') {
+      sec = __dDigits(s, i + 1, 2); if (sec < 0) return NaN; i += 3;
+      if (i < s.length && (s.charAt(i) === '.' || s.charAt(i) === ',')) {
+        i++;
+        let scale: f64 = 100;
+        let any = false;
+        while (i < s.length && s.charCodeAt(i) >= 48 && s.charCodeAt(i) <= 57) { ms += (s.charCodeAt(i) - 48) * scale; scale /= 10; i++; any = true; }
+        if (!any) return NaN;
+        ms = Math.floor(ms);
+      }
+    }
+    if (i < s.length && (s.charAt(i) === 'Z' || s.charAt(i) === 'z')) { offset = 0; i++; }
+    else if (i < s.length && (s.charAt(i) === '+' || s.charAt(i) === '-')) {
+      const sg: f64 = s.charAt(i) === '-' ? -1 : 1;
+      const oh = __dDigits(s, i + 1, 2);
+      if (oh < 0) return NaN;
+      i += 3;
+      let om: f64 = 0;
+      if (i < s.length && s.charAt(i) === ':') { om = __dDigits(s, i + 1, 2); i += 3; } else if (i < s.length) { om = __dDigits(s, i, 2); i += 2; }
+      if (om < 0) return NaN;
+      offset = sg * (oh * 60 + om);
+    }
+  }
+  if (i !== s.length) return NaN;
+  if (month < 1 || month > 12 || day < 1 || day > 31 || h > 24 || mi > 59 || sec > 59 || (h === 24 && (mi > 0 || sec > 0 || ms > 0))) return NaN;
+  const t = __dMakeDay(year, month - 1, day) * 86400000 + __dMakeTime(h, mi, sec, ms);
+  if (!hasTime) return __dClip(t);
+  if (offset - offset === 0) return __dClip(t - offset * 60000);
+  return __dClip(__dLocalToUtc(t));
+}
+function __dZoneOffset(w: string): f64 {   // minutes east of UTC, NaN when w is no zone name
+  if (w === 'z' || w === 'gmt' || w === 'utc' || w === 'ut') return 0;
+  if (w === 'est') return -300; if (w === 'edt') return -240; if (w === 'cst') return -360; if (w === 'cdt') return -300;
+  if (w === 'mst') return -420; if (w === 'mdt') return -360; if (w === 'pst') return -480; if (w === 'pdt') return -420;
+  return NaN;
+}
+function __dParse(input: string): f64 {
+  const s = input.trim();
+  if (s.length === 0) return NaN;
+  const c0 = s.charCodeAt(0);
+  if (((c0 >= 48 && c0 <= 57) || c0 === 43 || c0 === 45) && s.length >= 4) { const iso = __dParseIso(s); if (iso - iso === 0) return iso; if (s.length >= 4 && __dDigits(s, 0, 4) >= 0 && (s.length === 4 || s.charAt(4) === '-') && s.indexOf('/') < 0) return NaN; }
+  let year: f64 = NaN, month: f64 = NaN, day: f64 = NaN;
+  let h: f64 = 0, mi: f64 = 0, sec: f64 = 0, ms: f64 = 0;
+  let offset: f64 = NaN;
+  let pm = 0;
+  const nums: f64[] = [];
+  let i: i32 = 0;
+  while (i < s.length) {
+    const c = s.charCodeAt(i);
+    if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+      let j = i;
+      while (j < s.length && ((s.charCodeAt(j) >= 65 && s.charCodeAt(j) <= 90) || (s.charCodeAt(j) >= 97 && s.charCodeAt(j) <= 122))) j++;
+      const w = s.slice(i, j).toLowerCase();
+      i = j;
+      if (w === 'am') pm = 1; else if (w === 'pm') pm = 2;
+      else if (w === 't') continue;
+      else {
+        const z = __dZoneOffset(w);
+        if (z - z === 0) { offset = z; continue; }
+        let mn = -1;
+        for (let k: i32 = 0; k < 12; k++) if (w.length >= 3 && w.slice(0, 3) === __dMonths[k].toLowerCase()) mn = k;
+        if (mn >= 0) { month = mn; continue; }
+        let wd = false;
+        for (let k: i32 = 0; k < 7; k++) if (w.length >= 3 && w.slice(0, 3) === __dDays[k].toLowerCase()) wd = true;
+        if (!wd) return NaN;
+      }
+    } else if (c >= 48 && c <= 57) {
+      let j = i;
+      while (j < s.length && s.charCodeAt(j) >= 48 && s.charCodeAt(j) <= 57) j++;
+      const v = parseFloat(s.slice(i, j));
+      if (j < s.length && s.charAt(j) === ':') {   // h:mm[:ss[.fff]]
+        h = v;
+        const m2 = __dDigits(s, j + 1, 2);
+        if (m2 < 0) return NaN;
+        mi = m2; j += 3;
+        if (j < s.length && s.charAt(j) === ':') {
+          const s2 = __dDigits(s, j + 1, 2);
+          if (s2 < 0) return NaN;
+          sec = s2; j += 3;
+          if (j < s.length && s.charAt(j) === '.') { j++; let scale: f64 = 100; while (j < s.length && s.charCodeAt(j) >= 48 && s.charCodeAt(j) <= 57) { ms += (s.charCodeAt(j) - 48) * scale; scale /= 10; j++; } ms = Math.floor(ms); }
+        }
+      } else nums.push(v);
+      i = j;
+    } else if ((c === 43 || c === 45) && (offset - offset === 0 || h !== 0 || mi !== 0) && i + 1 < s.length && s.charCodeAt(i + 1) >= 48 && s.charCodeAt(i + 1) <= 57 && (h !== 0 || mi !== 0 || sec !== 0 || offset === 0)) {   // +hhmm, +hh:mm after a time or GMT
+      const sg: f64 = c === 45 ? -1 : 1;
+      let j = i + 1;
+      while (j < s.length && s.charCodeAt(j) >= 48 && s.charCodeAt(j) <= 57) j++;
+      let digits = s.slice(i + 1, j);
+      let oh: f64, om: f64 = 0;
+      if (j < s.length && s.charAt(j) === ':') { oh = parseFloat(digits); om = __dDigits(s, j + 1, 2); j += 3; }
+      else if (digits.length <= 2) oh = parseFloat(digits);
+      else { oh = parseFloat(digits.slice(0, digits.length - 2)); om = parseFloat(digits.slice(digits.length - 2)); }
+      offset = sg * (oh * 60 + om);
+      i = j;
+    } else if (c === 40) {   // (comment)
+      const close = s.indexOf(')', i);
+      i = close < 0 ? s.length : close + 1;
+    } else if (c === 47) {   // a slash: the numbers around it are m/d/y or y/m/d
+      i++;
+      const k = nums.length;
+      if (k === 0) return NaN;
+      let j = i;
+      const parts: f64[] = [nums[k - 1]];
+      while (true) {
+        let e = j;
+        while (e < s.length && s.charCodeAt(e) >= 48 && s.charCodeAt(e) <= 57) e++;
+        if (e === j) return NaN;
+        parts.push(parseFloat(s.slice(j, e)));
+        j = e;
+        if (j < s.length && s.charAt(j) === '/') { j++; continue; }
+        break;
+      }
+      nums.pop();
+      if (parts.length === 3) { if (parts[0] > 31) { year = parts[0]; month = parts[1] - 1; day = parts[2]; } else { month = parts[0] - 1; day = parts[1]; year = parts[2]; } }
+      else if (parts.length === 2) { month = parts[0] - 1; day = parts[1]; }
+      else return NaN;
+      i = j;
+    } else i++;   // spaces, commas, dots, dashes between date parts
+  }
+  // loose numbers: with a month name the day and the year; a leading year (> 31) first
+  for (const v of nums) {
+    if (day - day !== 0 && v >= 1 && v <= 31 && !(year - year !== 0 && v > 31)) day = v;
+    else if (year - year !== 0) year = v;
+    else if (day - day !== 0) day = v;
+    else return NaN;
+  }
+  if (year - year !== 0 || month - month !== 0) return NaN;
+  if (day - day !== 0) day = 1;
+  if (year >= 0 && year < 50) year += 2000; else if (year >= 50 && year < 100) year += 1900;
+  if (pm === 2 && h < 12) h += 12; else if (pm === 1 && h === 12) h = 0;
+  if (month < 0 || month > 11 || day < 1 || day > 31 || h > 24 || mi > 59 || sec > 59) return NaN;
+  const t = __dMakeDay(year, month, day) * 86400000 + __dMakeTime(h, mi, sec, ms);
+  if (offset - offset === 0) return __dClip(t - offset * 60000);
+  return __dClip(__dLocalToUtc(t));
 }
 class Performance {
   timeOrigin: f64 = __epoch;

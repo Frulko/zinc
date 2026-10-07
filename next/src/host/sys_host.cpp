@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <cmath>
 #include <fstream>
 #include <map>
 #include <random>
@@ -149,6 +151,22 @@ void listAssets(const std::string& dir, const std::string& pre, std::vector<std:
     if (stat((dir + "/" + n).c_str(), &st) != 0) continue;
     if (S_ISDIR(st.st_mode)) listAssets(dir + "/" + n, pre + n + "/", out); else out.push_back(pre + n);
   }
+}
+
+// The offset of a time zone from UTC in minutes, positive west of it like Date.getTimezoneOffset, at a UTC time in milliseconds, and the zone's abbreviation. The zone is the
+// IANA name `zone`, or the host's (TZ, else the system's); a deterministic run (ZINC_DETERMINISTIC) is UTC unless TZ is set.
+double tzOffsetMinutes(double ms, const char* zone, std::string* abbr) {
+  if (!zone && std::getenv("ZINC_DETERMINISTIC") && !std::getenv("TZ")) { if (abbr) *abbr = "UTC"; return 0; }
+  std::string saved;
+  bool had = false;
+  if (zone) { if (const char* old = std::getenv("TZ")) { saved = old; had = true; } setenv("TZ", zone, 1); tzset(); }
+  std::time_t t = static_cast<std::time_t>(std::floor(ms / 1000.0));
+  struct tm tmv;
+  double off = 0;
+  if (localtime_r(&t, &tmv)) { off = -static_cast<double>(tmv.tm_gmtoff) / 60.0; if (abbr) *abbr = tmv.tm_zone ? tmv.tm_zone : "UTC"; }
+  else if (abbr) *abbr = "UTC";
+  if (zone) { if (had) setenv("TZ", saved.c_str(), 1); else unsetenv("TZ"); tzset(); }
+  return off == 0 ? 0 : off;
 }
 
 // An array of bytes (one slot each) as a string, unchanged.
@@ -403,6 +421,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostReCapture: r->i = zn::re::capture(n(0)); break;
     case Rt::HostReInfo: r->i = n(1) == 0 ? zn::re::captureCount(n(0)) : 0; break;
     case Rt::HostReName: ret(r, zn::re::groupName(n(0), n(1))); break;
+    case Rt::HostTzOffset: r->d = tzOffsetMinutes(a[0].d, nullptr, nullptr); break;
+    case Rt::HostTzName: { std::string ab; tzOffsetMinutes(a[0].d, nullptr, &ab); ret(r, ab); break; }
+    case Rt::HostTzOffsetIn: r->d = tzOffsetMinutes(a[1].d, s(0).c_str(), nullptr); break;
     case Rt::HostMqttPublish: zn::mqtt::publish(n(0), s(1), s(2), n(3) != 0, n(4)); break;
     case Rt::HostMqttSubscribe: zn::mqtt::subscribe(n(0), s(1)); break;
     case Rt::HostMqttClose: zn::mqtt::close(n(0)); break;

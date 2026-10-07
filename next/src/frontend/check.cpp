@@ -628,6 +628,15 @@ struct Checker {
       if (!bad(r)) r = truthiness(re, r);
       narrowing.resize(mark);
     } else r = expr(re);
+    if ((op == "<" || op == ">" || op == "<=" || op == ">=" || op == "-" || op == "*" || op == "/" || op == "%") && !bad(l) && !bad(r)) {   // an object with valueOf(): number (a Date) counts as that number, as in JavaScript
+      auto valueOfObj = [&](TypeId t) {
+        if (ty(t).k != TK::Object) return false;
+        const Member* vm = lookupMember(ty(t).obj, "valueOf", false);
+        return vm && vm->method && ty(vm->type).params.empty() && ty(ty(vm->type).elem).k == TK::Num;
+      };
+      bool lo = valueOfObj(l), ro = valueOfObj(r);
+      if ((lo || ro) && replaceWith(i, std::string(lo ? "__H0.valueOf()" : "__H0") + " " + op + " " + (ro ? "__H1.valueOf()" : "__H1"), {{le}, {re}})) return expr0(i, kNoType);
+    }
     if (!rawDyn() && (isDyn(l) || isDyn(r)) && !bad(l) && !bad(r)) {  // an operand is any or unknown: the operation is a call of the Dyn helper
       auto isLit = [&](std::uint32_t k, const char* text) { return n(k).kind == N::Literal && n(k).text == text; };
       auto isUndef = [&](std::uint32_t k) { return n(k).kind == N::Ident && n(k).text == "__undef"; };
@@ -1441,6 +1450,11 @@ struct Checker {
     if (!isNew && (x.flags & kFlagOptional) && !n(i).kids.empty()) {
       TypeId r;
       if (optionalCall(i, kNoType, r)) return r;
+    }
+    if (isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "Date" && lookup("Date") != kNone && out.syms[lookup("Date")].kind == SymKind::Class) {   // new Date(string) and new Date(date)
+      TypeId at = expr(x.kids[1]);
+      if (at == tStr) { if (replaceWith(i, "new Date(Date.parse(__H0))", {{x.kids[1]}})) return expr0(i, myExpected); }
+      else if (!bad(at) && ty(at).k == TK::Object && out.objs[ty(at).obj].name == "Date") { if (replaceWith(i, "new Date(__H0.getTime())", {{x.kids[1]}})) return expr0(i, myExpected); }
     }
     auto optionalArgMethod = [&](const Node& cal) {  // the library methods whose trailing arguments may be written `undefined`
       if (cal.kind != N::Member) return false;

@@ -294,14 +294,27 @@ declare function pooled(n: i32): (target: Function, ctx: ClassDecoratorContext) 
 /** LNG-10: value class (copied, no header). */
 declare function value(target: Function, ctx: ClassDecoratorContext): void;
 declare var console: Console;
+interface DateFormatOptions { timeZone?: string }
+/** Zinc Next: a time value in UTC milliseconds; the local zone is the host's (UTC in a deterministic run unless TZ is set). The locale argument of toLocale*String is ignored (en-US). */
 interface Date {
-  getTime(): number; valueOf(): number;
+  getTime(): number; valueOf(): number; setTime(v: number): number;
+  getTimezoneOffset(): number;
   getFullYear(): number; getMonth(): number; getDate(): number; getDay(): number;
   getHours(): number; getMinutes(): number; getSeconds(): number; getMilliseconds(): number;
   getUTCFullYear(): number; getUTCMonth(): number; getUTCDate(): number; getUTCDay(): number;
-  getUTCHours(): number; getUTCMinutes(): number; getUTCSeconds(): number;
+  getUTCHours(): number; getUTCMinutes(): number; getUTCSeconds(): number; getUTCMilliseconds(): number;
+  setFullYear(y: number, month?: number, day?: number): number; setMonth(month: number, day?: number): number; setDate(day: number): number;
+  setHours(h: number, m?: number, s?: number, ms?: number): number; setMinutes(m: number, s?: number, ms?: number): number; setSeconds(s: number, ms?: number): number; setMilliseconds(ms: number): number;
+  setUTCFullYear(y: number, month?: number, day?: number): number; setUTCMonth(month: number, day?: number): number; setUTCDate(day: number): number;
+  setUTCHours(h: number, m?: number, s?: number, ms?: number): number; setUTCMinutes(m: number, s?: number, ms?: number): number; setUTCSeconds(s: number, ms?: number): number; setUTCMilliseconds(ms: number): number;
+  toISOString(): string; toJSON(): string | null; toString(): string; toDateString(): string; toTimeString(): string; toUTCString(): string; toGMTString(): string;
+  toLocaleString(locale?: string, options?: DateFormatOptions): string; toLocaleDateString(locale?: string, options?: DateFormatOptions): string; toLocaleTimeString(locale?: string, options?: DateFormatOptions): string;
 }
-interface DateConstructor { new (ms?: number): Date; now(): number; }
+interface DateConstructor {
+  new (): Date; new (ms: number): Date; new (value: string): Date; new (value: Date): Date;
+  new (year: number, month: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): Date;
+  now(): number; parse(s: string): number; UTC(year: number, month?: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
+}
 declare var Date: DateConstructor;
 interface Performance { now(): number; }
 declare var performance: Performance;
