@@ -9,7 +9,7 @@ labels:
   - input
   - core
 dependencies: []
-ordinal: 110000
+ordinal: 100
 ---
 
 ## Description
