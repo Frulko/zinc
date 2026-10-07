@@ -11,6 +11,7 @@ import {
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
+import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
@@ -1517,6 +1518,17 @@ function spacesAt(s: string, a: i32): i32 {
 export function repaint(): void { paintDirty = true; }
 
 // ---------------------------------------------------------------- scrolling input
+// Drag-to-scroll belongs to fingers and pens: a mouse scrolls with the wheel, the trackpad and the scrollbar (a click-drag selects or drags).
+// Touch screens that reach us as a mouse (Pi evdev, ESP32 and e-ink panels) keep it: only the desktop platforms (macos, linux) wait until a
+// real touch has been seen. ZINC_POINTER=mouse | touch forces the policy (tests, kiosks with a touch panel on a desktop OS).
+let touchSeen = false;
+const pointerPolicy: string = env('ZINC_POINTER');
+function dragScrolls(): boolean {
+  if (pointerPolicy === 'touch') return true;
+  if (pointerPolicy === 'mouse') return touchSeen;
+  const p = platform();
+  return touchSeen || (p !== 'macos' && p !== 'linux');
+}
 let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
 let focusShown: i32 = -1;
 const scrollers: i32[] = [];   // containers whose offset is animating (wheel easing, inertia, rubber band)
@@ -1854,7 +1866,7 @@ function pressAt(px: number, py: number, button: i32): void {
       else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);
     }
   }
-  dragScroller = selecting >= 0 || keepsGrab(capture) ? -1 : scrollerTop(px, py, 3);
+  dragScroller = selecting >= 0 || keepsGrab(capture) || !dragScrolls() ? -1 : scrollerTop(px, py, 3);
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
   if (dragScroller >= 0) { catchScroll(dragScroller); wakeScroll(dragScroller); }   // a press stops the inertia
   if (button === 0) gestureBegin(t, px, py);
@@ -2025,6 +2037,7 @@ function inputFrame(): void {
   const nb = buttonEventCount();
   for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
   pointerSample(px, py, 0, nb > 0 ? (held & 1) !== 0 : pointerDown());
+  if (touchCount() > 0) touchSeen = true;
   if (touchCount() > 1 || halFingers.length > 0) halTouches();
   const nk = keyCount();
   dropText = false;
@@ -2403,7 +2416,7 @@ function halTouches(): void {
 /** Test hook: finger `id` at (x, y), phase 0 down, 1 move, 2 up. The first finger down drives the pointer (taps,
  *  scrolling, drags); the next ones pinch. Deterministic multi-finger tests, like pointerAt. */
 export function touchAt(id: i32, x: number, y: number, phase: i32): void {
-  synthetic = true;
+  synthetic = true; touchSeen = true;
   if (layoutDirty) layout();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   if (id === primaryId || (primaryId < 0 && phase === 0 && fIds.indexOf(id) < 0)) {
