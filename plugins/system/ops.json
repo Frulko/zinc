@@ -187,10 +187,15 @@
    "op": "shortcut.register",
    "permission": "shortcut",
    "params": {
-    "accelerator": "string"
+    "accelerator": "string",
+    "key": "string",
+    "ctrl": "boolean",
+    "alt": "boolean",
+    "shift": "boolean",
+    "meta": "boolean"
    },
-   "returns": "{ok: boolean}",
-   "sim": "{\"ok\":true}"
+   "returns": "{status: 'ok' | 'conflict' | 'unsupported' | 'denied'}",
+   "sim": "{\"status\":\"ok\"}"
   },
   {
    "op": "shortcut.unregister",
@@ -519,6 +524,15 @@
    "params": {},
    "returns": "{text: string}",
    "sim": "{\"text\":\"\"}"
+  },
+  {
+   "op": "shortcut.fire",
+   "permission": "shortcut",
+   "params": {
+    "accelerator": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":false}"
   }
  ],
  "events": [

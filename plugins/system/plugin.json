@@ -13,7 +13,8 @@
       "frameworks": [
         "Foundation",
         "AppKit",
-        "UserNotifications"
+        "UserNotifications",
+        "Carbon"
       ],
       "flags": [
         "-fobjc-arc"
@@ -27,6 +28,7 @@
     "zinc:system/dock": "dock.ts",
     "zinc:system/tray": "tray.ts",
     "zinc:system/dialog": "dialog.ts",
-    "zinc:system/window": "window.ts"
+    "zinc:system/window": "window.ts",
+    "zinc:system/shortcut": "shortcut.ts"
   }
 }

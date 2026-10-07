@@ -5,6 +5,7 @@
 #import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <objc/runtime.h>
+#import <Carbon/Carbon.h>
 #include <string.h>
 
 static NSString* const kNone = nil;
@@ -510,6 +511,58 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- global shortcuts (ZN-241): Carbon RegisterEventHotKey, no Accessibility permission
+static NSMutableDictionary<NSNumber*, NSString*>* gHotkeyNames;   // hotkey id -> canonical accelerator
+static NSMutableDictionary<NSString*, NSValue*>* gHotkeyRefs;
+static EventHandlerRef gHotkeyHandler;
+static OSStatus hotkeyPressed(EventHandlerCallRef, EventRef ev, void*) {
+  EventHotKeyID hid;
+  GetEventParameter(ev, kEventParamDirectObject, typeEventHotKeyID, nullptr, sizeof hid, nullptr, &hid);
+  NSString* acc = gHotkeyNames[@(hid.id)];
+  if (acc) pushEvent(@"shortcut", @[acc]);
+  return noErr;
+}
+static int keyCodeOf(NSString* key) {   // the ANSI virtual key codes (HIToolbox Events.h)
+  static NSDictionary* map = @{@"A": @0, @"S": @1, @"D": @2, @"F": @3, @"H": @4, @"G": @5, @"Z": @6, @"X": @7, @"C": @8, @"V": @9, @"B": @11, @"Q": @12, @"W": @13, @"E": @14, @"R": @15, @"Y": @16, @"T": @17,
+    @"1": @18, @"2": @19, @"3": @20, @"4": @21, @"6": @22, @"5": @23, @"Equal": @24, @"9": @25, @"7": @26, @"Minus": @27, @"8": @28, @"0": @29, @"BracketRight": @30, @"O": @31, @"U": @32, @"BracketLeft": @33, @"I": @34, @"P": @35,
+    @"Enter": @36, @"L": @37, @"J": @38, @"Quote": @39, @"K": @40, @"Semicolon": @41, @"Backslash": @42, @"Comma": @43, @"Slash": @44, @"N": @45, @"M": @46, @"Period": @47, @"Tab": @48, @"Space": @49, @"Backquote": @50,
+    @"Backspace": @51, @"Escape": @53, @"Delete": @117, @"Home": @115, @"End": @119, @"PageUp": @116, @"PageDown": @121, @"Left": @123, @"Right": @124, @"Down": @125, @"Up": @126,
+    @"F1": @122, @"F2": @120, @"F3": @99, @"F4": @118, @"F5": @96, @"F6": @97, @"F7": @98, @"F8": @100, @"F9": @101, @"F10": @109, @"F11": @103, @"F12": @111, @"F13": @105, @"F14": @107, @"F15": @113, @"F16": @106, @"F17": @64, @"F18": @79, @"F19": @80, @"F20": @90};
+  NSNumber* n = map[key];
+  return n ? n.intValue : -1;
+}
+static int shortcutCall(const char* op, NSDictionary* a, char* out, int cap) {
+  NSString* result = nil;
+  if (!gHotkeyNames) { gHotkeyNames = [NSMutableDictionary new]; gHotkeyRefs = [NSMutableDictionary new]; }
+  NSString* acc = a[@"accelerator"] ?: @"";
+  if (!strcmp(op, "shortcut.register")) {
+    int code = keyCodeOf(a[@"key"] ?: @"");
+    if (code < 0) result = @"{\"status\":\"unsupported\"}";
+    else if (gHotkeyRefs[acc]) result = @"{\"status\":\"conflict\"}";
+    else {
+      if (!gHotkeyHandler) { EventTypeSpec spec = {kEventClassKeyboard, kEventHotKeyPressed}; InstallApplicationEventHandler(&hotkeyPressed, 1, &spec, nullptr, &gHotkeyHandler); }
+      UInt32 mods = ([a[@"meta"] boolValue] ? cmdKey : 0) | ([a[@"shift"] boolValue] ? shiftKey : 0) | ([a[@"alt"] boolValue] ? optionKey : 0) | ([a[@"ctrl"] boolValue] ? controlKey : 0);
+      static UInt32 nextId = 1;
+      EventHotKeyID hid = {'znsc', nextId++};
+      EventHotKeyRef ref = nullptr;
+      OSStatus st = RegisterEventHotKey((UInt32)code, mods, hid, GetApplicationEventTarget(), 0, &ref);
+      if (st == noErr) { gHotkeyNames[@(hid.id)] = acc; gHotkeyRefs[acc] = [NSValue valueWithPointer:ref]; result = @"{\"status\":\"ok\"}"; }
+      else result = st == eventHotKeyExistsErr ? @"{\"status\":\"conflict\"}" : @"{\"status\":\"denied\"}";
+    }
+  } else if (!strcmp(op, "shortcut.unregister")) {
+    NSValue* v = gHotkeyRefs[acc];
+    if (v) { UnregisterEventHotKey((EventHotKeyRef)v.pointerValue); [gHotkeyRefs removeObjectForKey:acc]; for (NSNumber* k in [gHotkeyNames allKeysForObject:acc]) [gHotkeyNames removeObjectForKey:k]; }
+    result = @"{}";
+  } else if (!strcmp(op, "shortcut.fire")) {   // selftest: the same path a hotkey press takes after the OS delivered it (posting a real key press needs Accessibility permission)
+    BOOL known = gHotkeyRefs[acc] != nil;
+    if (known) pushEvent(@"shortcut", @[acc]);
+    result = json(@{@"ok": @(known)});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -521,6 +574,7 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
     }
+    if (!strncmp(op, "shortcut.", 9)) return shortcutCall(op, a, out, cap);
     if (!strncmp(op, "window.", 7) && strcmp(op, "window.confirmClose")) {
       @try { return windowCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }

@@ -1,0 +1,6 @@
+register ok
+conflict conflict
+fire {"ok":true}
+hotkey callback
+unregister true
+fire after unregister {"ok":false}

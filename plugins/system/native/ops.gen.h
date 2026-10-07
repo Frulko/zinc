@@ -19,7 +19,7 @@ static const ZnSystemOp kSystemOps[] = {
   {"window.setOptions", "window", "{}"},
   {"window.state.save", "window:state", "{}"},
   {"window.state.restore", "window:state", "{\"restored\":false}"},
-  {"shortcut.register", "shortcut", "{\"ok\":true}"},
+  {"shortcut.register", "shortcut", "{\"status\":\"ok\"}"},
   {"shortcut.unregister", "shortcut", "{}"},
   {"instance.lock", "instance", "{\"first\":true}"},
   {"deep-link.getCurrent", "deep-link", "{\"urls\":[]}"},
@@ -60,5 +60,6 @@ static const ZnSystemOp kSystemOps[] = {
   {"window.state", "window", "{\"x\":0,\"y\":0,\"w\":0,\"h\":0,\"maximized\":false,\"fullscreen\":false,\"displays\":[{\"x\":0,\"y\":0,\"w\":1920,\"h\":1080}]}"},
   {"window.dataDir", "window", "{\"path\":\"/tmp/zinc-system-data\"}"},
   {"window.dump", "window", "{\"text\":\"\"}"},
+  {"shortcut.fire", "shortcut", "{\"ok\":false}"},
 };
 static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double"};

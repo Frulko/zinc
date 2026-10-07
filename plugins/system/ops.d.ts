@@ -19,7 +19,7 @@ export interface OpArgs {
   'window.setOptions': { alwaysOnTop?: boolean; transparent?: boolean; decorations?: boolean; resizable?: boolean; minSize?: [number, number]; maxSize?: [number, number] };
   'window.state.save': {  };
   'window.state.restore': {  };
-  'shortcut.register': { accelerator: string };
+  'shortcut.register': { accelerator: string; key: string; ctrl: boolean; alt: boolean; shift: boolean; meta: boolean };
   'shortcut.unregister': { accelerator: string };
   'instance.lock': {  };
   'deep-link.getCurrent': {  };
@@ -60,6 +60,7 @@ export interface OpArgs {
   'window.state': {  };
   'window.dataDir': {  };
   'window.dump': {  };
+  'shortcut.fire': { accelerator: string };
 }
 
 export interface OpResult {
@@ -80,7 +81,7 @@ export interface OpResult {
   'window.setOptions': {};
   'window.state.save': {};
   'window.state.restore': {restored: boolean};
-  'shortcut.register': {ok: boolean};
+  'shortcut.register': {status: 'ok' | 'conflict' | 'unsupported' | 'denied'};
   'shortcut.unregister': {};
   'instance.lock': {first: boolean};
   'deep-link.getCurrent': {urls: string[]};
@@ -121,6 +122,7 @@ export interface OpResult {
   'window.state': {x: number; y: number; w: number; h: number; maximized: boolean; fullscreen: boolean; displays: {x: number; y: number; w: number; h: number}[]};
   'window.dataDir': {path: string};
   'window.dump': {text: string};
+  'shortcut.fire': {ok: boolean};
 }
 
 export type OpName = keyof OpArgs;

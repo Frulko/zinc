@@ -1,0 +1,12 @@
+[system] shortcut.register {"accelerator":"Shift+Cmd+Space","key":"Space","ctrl":false,"alt":false,"shift":true,"meta":true}
+[system] shortcut.register {"accelerator":"Shift+Cmd+Space","key":"Space","ctrl":false,"alt":false,"shift":true,"meta":true}
+[system] shortcut.unregister {"accelerator":"Shift+Cmd+Space"}
+[system] shortcut.register {"accelerator":"Shift+Cmd+Space","key":"Space","ctrl":false,"alt":false,"shift":true,"meta":true}
+[system] event {"type":"shortcut","args":["Shift+Cmd+Space"]}
+[system] event {"type":"power","args":["resume"]}
+register ok
+same again conflict
+invalid invalid
+unregister true false
+register after unregister ok
+second fired

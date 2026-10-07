@@ -64,6 +64,8 @@ struct Sim : NativeSystem, zrt::Poller {
   char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
   int nanswers = 0, nextAnswer = 0;
   char badge[64] = "";
+  char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
+  int nhotkeys = 0;
   SimNote notes[32];
   int nnotes = 0;
   int nextNote = 1;
@@ -168,6 +170,17 @@ struct Sim : NativeSystem, zrt::Poller {
 #ifdef __APPLE__
       if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif
+      if (!strcmp(name, "shortcut.register")) {
+        char acc[64] = ""; jsonString(args, "accelerator", acc, sizeof acc);
+        for (int i = 0; i < nhotkeys; i++) if (!strcmp(hotkeys[i], acc)) return reply("{\"status\":\"conflict\"}");
+        if (nhotkeys < 16) snprintf(hotkeys[nhotkeys++], sizeof hotkeys[0], "%s", acc);
+        return reply("{\"status\":\"ok\"}");
+      }
+      if (!strcmp(name, "shortcut.unregister")) {
+        char acc[64] = ""; jsonString(args, "accelerator", acc, sizeof acc);
+        for (int i = 0; i < nhotkeys; i++) if (!strcmp(hotkeys[i], acc)) { for (int k = i; k + 1 < nhotkeys; k++) memcpy(hotkeys[k], hotkeys[k + 1], sizeof hotkeys[0]); nhotkeys--; break; }
+        return reply("{}");
+      }
       if (!strcmp(name, "dock.setBadge")) { badge[0] = 0; jsonString(args, "text", badge, sizeof badge); return reply("{}"); }
       if (!strcmp(name, "dock.getBadge")) { char b[160] = "{\"text\":"; appendJson(b, sizeof b, badge); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
