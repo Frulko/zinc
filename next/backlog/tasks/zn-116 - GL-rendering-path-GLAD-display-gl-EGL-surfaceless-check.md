@@ -4,7 +4,7 @@ title: 'GL rendering path: GLAD, display-gl, EGL surfaceless check'
 status: Done
 assignee: []
 created_date: '2026-10-06 22:58'
-updated_date: '2026-10-07 11:09'
+updated_date: '2026-10-07 19:53'
 labels:
   - rendering
   - size-L
@@ -31,4 +31,6 @@ Decision D11: the software rasterizer stays the reference; add a GL 3.3/GLES3 re
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. usage: n/a. The prototype's display-gl GL renderer runs under this engine once the frame loop calls the driver's poll (src/host/gfx_host.cpp). tools/glcompare + tests/t1/gl_renderer.sh: clock, overlays, ui within 5%/mae 3 of the software frame, shapes within 12%/15 (LINE/POLY skipped, ZN-181). hero: GL 1078 us CPU per frame vs 4770 us software. Not done: Mesa llvmpipe EGL (Linux only; macOS GPU used), GLAD loader and the Backend interface (roadmap tasks ZN-174, ZN-176, ZN-180..183).
+
+Amended by D29 (ZN-176): "GL 3.3/GLES3 via GLAD" does not set the floor. The floor is GLES2 / GLSL ES 1.00 (T2, Pi 1/2/3, WebGL1); GLES3 and desktop GL 3.3 core are paths of the same code (one GLSL source with ES2/ES3/GL33 prelude macros).
 <!-- SECTION:NOTES:END -->
