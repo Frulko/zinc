@@ -27,6 +27,7 @@ struct Type {
   std::vector<TypeId> params;   // Func: parameters; Union: members, sorted and without duplicates; Map: the key type
   std::uint32_t minArgs = 0;    // Func
   bool variadic = false;        // Func (builtin console.log)
+  bool undef = false;           // Union with null: the absent value is `undefined` (prints so); same representation as the `null` flavour
   std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams; Num: 1 + index into Checked::enumNames for an enum type
 };
 

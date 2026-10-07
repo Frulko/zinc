@@ -1,9 +1,10 @@
 ---
 id: ZN-074
 title: undefined distinct from null
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:50'
+updated_date: '2026-10-07 02:05'
 labels:
   - language
   - runtime
@@ -22,6 +23,12 @@ Today `undefined` is null in files that do not use Dyn, so typeof, console.log, 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fixtures equal Node's output for typeof/console.log/templates/JSON of undefined and null in optional fields, parameters and Map.get
-- [ ] #2 no regression above 3% on bench-m4
+- [x] #1 fixtures equal Node's output for typeof/console.log/templates/JSON of undefined and null in optional fields, parameters and Map.get
+- [x] #2 no regression above 3% on bench-m4
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. D18: same representation, the distinction is the static flavour of the union (Type.undef); printing, templates, typeof, String(), JSON omit follow it. bench-m4 vs the committed numbers: every kernel within +-3% except noise (interp fannkuch -4.8%, binarytrees -5.3% faster); the exit code 1 of --check-regressions is the two existing LOSS rows (jsonout, dynsum vs QuickJS), unchanged.
+<!-- SECTION:NOTES:END -->

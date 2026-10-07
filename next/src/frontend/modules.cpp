@@ -1216,8 +1216,8 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     }
     for (Node& x : p.ast.nodes) {
       if (dynFiles.count(x.file)) continue;
-      if (x.kind == N::Ident && x.text == "undefined" && x.kids.empty()) { x.kind = N::Literal; x.text = "null"; }
-      else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) x.text = "null";
+      if (x.kind == N::Ident && x.text == "undefined" && x.kids.empty()) { x.kind = N::Literal; x.text = "null"; x.flags |= kFlagUndefined; }
+      else if (x.kind == N::TypeRef && x.text == "undefined" && x.kids.empty()) { x.text = "null"; x.flags |= kFlagUndefined; }
     }
   }
   if (p.diags.empty())  // console.error, warn, info and debug print like console.log (to the standard output: the engine has one text stream)

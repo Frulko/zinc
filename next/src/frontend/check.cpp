@@ -105,7 +105,7 @@ struct Checker {
   TypeId intern(const Type& t) {
     for (TypeId i = 0; i < out.types.size(); ++i) {
       const Type& u = out.types[i];
-      if (u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.obj == t.obj) return i;
+      if (u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.undef == t.undef && u.obj == t.obj) return i;
     }
     out.types.push_back(t);
     return static_cast<TypeId>(out.types.size() - 1);
@@ -378,7 +378,11 @@ struct Checker {
         r = func(ps, rt, static_cast<std::uint32_t>(required));
         break;
       }
-      case N::TypeUnion: { std::vector<TypeId> ms; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) ms.push_back(annotation(k)); r = unionOf(ms);
+      case N::TypeUnion: {
+        std::vector<TypeId> ms;
+        bool undef = false;
+        for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) { ms.push_back(annotation(k)); undef = undef || (n(k).kind == N::TypeRef && (n(k).flags & frontend::kFlagUndefined)); }
+        r = unionOf(ms, undef);
         break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       default: diag(kZUnsupported, t, "this type syntax"); break;
@@ -744,7 +748,7 @@ struct Checker {
     bool strMember = false;  // `string | null` at the top level prints the string itself, like a string
     if (ty(t).k == TK::Union) for (TypeId m : ty(t).params) if (ty(m).k == TK::Str) strMember = true;
     if (isDyn(t)) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return __logDyn(v);\n}\n";
-    else if (strMember) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return v === null ? 'null' : v;\n}\n";
+    else if (strMember) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return v === null ? '" + std::string(ty(t).undef ? "undefined" : "null") + "' : v;\n}\n";
     else text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
     addAliases(closure);
     for (TypeId u : closure) fmtDeclared.insert(u);
@@ -971,7 +975,7 @@ struct Checker {
         bool refLike = E == tStr || ek == TK::Array || ek == TK::Map || ek == TK::Set || ek == TK::Object || ek == TK::Func;
         result = E;  // an empty array gives null (the default of the element type for numbers and booleans): like the library code written for TypeScript without strict nulls, the type stays E
         std::string R = Es;
-        if (refLike) { TypeId nullable = unionOf({E, tNull}); aliases.push_back(nullable); R = inspectAliasName(nullable); }  // the helper may return null; the representation of a nullable reference is the reference
+        if (refLike) { TypeId nullable = unionOf({E, tNull}, true); aliases.push_back(nullable); R = inspectAliasName(nullable); }  // the helper may return null; the representation of a nullable reference is the reference
         std::string none = refLike ? "null" : E == tBool ? "false" : "0";
         sig = "(a: " + A + "): " + R;
         body = "  if (a.length === 0) return " + none + ";\n  const f = a[0];\n  for (let k: i32 = 1; k < a.length; k++) a[k - 1] = a[k];\n  a.pop();\n  return f;\n";
@@ -1007,7 +1011,7 @@ struct Checker {
       TypeId result;
       if (prim) {  // a nullable number does not exist yet: in console.log the result is its text, 'undefined' when missing
         if (i != logArg) {
-          result = unionOf({E, tNull});
+          result = unionOf({E, tNull}, true);
           sig = "(a: " + inspectAliasName(at) + ", i: i32): " + inspectAliasName(result);
           body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return null;\n  return a[k];\n";
         } else {
@@ -1016,7 +1020,7 @@ struct Checker {
         body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return 'undefined';\n  return `${a[k]}`;\n";
         }
       } else {
-        result = unionOf({E, tNull});
+        result = unionOf({E, tNull}, true);
         sig = "(a: " + inspectAliasName(at) + ", i: i32): " + inspectAliasName(result);
         body = "  const k: i32 = i < 0 ? a.length + i : i;\n  if (k < 0 || k >= a.length) return null;\n  return a[k];\n";
       }
@@ -1144,7 +1148,7 @@ struct Checker {
           sig = "(a: " + A + ", f: " + F + "): string";
           body = "  " + (m == "find" ? fwd : bwd) + " if (" + call + ") return `${a[k]}`;\n  return 'undefined';\n";
         } else {
-          result = unionOf({E, tNull});
+          result = unionOf({E, tNull}, true);
           aliases.push_back(result);
           sig = "(a: " + A + ", f: " + F + "): " + inspectAliasName(result);
           body = "  " + (m == "find" ? fwd : bwd) + " if (" + call + ") return a[k];\n  return null;\n";
@@ -1238,6 +1242,8 @@ struct Checker {
         if (str) return rewrite("__H0", {{args[0]}});
         if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
         if (arr) return rewrite("__H0.join(',')", {{args[0]}});
+        if (at == tNull) return rewrite((n(args[0]).flags & kFlagUndefined) ? "'undefined'" : "'null'", {});
+        if (t.k == TK::Union && hasNull(at)) return rewrite("`${__H0}`", {{args[0]}});  // a nullable number, boolean or string: its text, or null / undefined
       } else if (nm == "Number") {
         if (str) return rewrite("__toNumber(__H0)", {{args[0]}});
         if (num_) return rewrite("__H0", {{args[0]}});
@@ -1485,7 +1491,7 @@ struct Checker {
       }
       ft = ct;
       result = ty(ft).elem;
-      if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = unionOf({result, tNull});  // a?.f(): the result, or null
+      if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = unionOf({result, tNull}, true);  // a?.f(): the result, or undefined
     }
     const Type f = ty(ft);  // copy: expr() below may grow `types`
     std::size_t argc = x.kids.size() - 1;
@@ -1498,7 +1504,7 @@ struct Checker {
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       if (!isNew && n(callee).kind == N::Member && n(callee).text == "log") logArg = arg;
       TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
-      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && at == tNull && replaceWith(arg, "'null'", {})) at = expr(arg);  // a value known to be null
+      if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && at == tNull && replaceWith(arg, ((n(arg).flags & kFlagUndefined) || (n(arg).kind == N::Ident && out.nodeSym[arg] != kNone && ty(out.syms[out.nodeSym[arg]].type).undef)) ? "'undefined'" : "'null'", {})) at = expr(arg);  // a value known to be null (or undefined)
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && n(callee).text == "log" && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
         std::uint32_t call = callGenerated(inspectLog(at, arg), {arg}, arg);
@@ -1509,13 +1515,13 @@ struct Checker {
     }
     if (!isNew && n(callee).kind == N::Member && n(callee).text == "get" && i != nullishLeft) {  // Map.get has no `undefined` to test: it is only usable under `??`
       TypeId rt = out.nodeType[n(callee).kids[0]];
-      if (rt != kNoType && ty(rt).k == TK::Map && i != logArg) {
+      if (rt != kNoType && ty(rt).k == TK::Map) {
         TypeId v = result;
         TK vk = v == kNoType || bad(v) ? TK::Any : ty(v).k;
         bool refLike = v == tStr || vk == TK::Array || vk == TK::Map || vk == TK::Set || vk == TK::Object || vk == TK::Func;
-        if (refLike) result = unionOf({v, tNull});        // a missing key reads as null
+        if (refLike) result = unionOf({v, tNull}, true);        // a missing key reads as undefined
         else if (i != asOperand) {  // a number or boolean: `V | null` through a generated lookup (a scalar slot cannot hold null itself)
-          TypeId R = unionOf({v, tNull});
+          TypeId R = unionOf({v, tNull}, true);
           std::string M = inspectAliasName(rt), K = inspectAliasName(ty(rt).params[0]), V = inspectAliasName(v), RS = inspectAliasName(R);
           std::uint32_t sym = helper("mapGetN," + std::to_string(rt), "function $F(m: " + M + ", k: " + K + "): " + RS + " {\n  if (m.has(k)) return m.get(k) as " + V + ";\n  return null;\n}\n", {rt, ty(rt).params[0], v, R}, i);
           std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
@@ -1544,10 +1550,11 @@ struct Checker {
           std::uint32_t k = n(i).kids[ki];
           TypeId pt = expr(k);
           if (!bad(pt) && ty(pt).k == TK::Func) diag(kZNotAssignable, k, "'" + name(pt) + "' to 'string' (call the function)");
+          if (pt == tNull && n(k).kind == N::Literal) { a.nodes[k].kind = N::String; a.nodes[k].text = (n(k).flags & kFlagUndefined) ? "'undefined'" : "'null'"; out.nodeType[k] = tStr; continue; }  // ${null}, ${undefined}
           if (!bad(pt) && ty(pt).k == TK::Union && hasNull(pt)) {  // `${x}` of a nullable number or boolean prints null or the value
             TypeId base = withoutNull(pt);
-            if (base != kNoType && (ty(base).k == TK::Num || base == tBool)) {
-              std::uint32_t h = helper("fmtNullable:" + std::to_string(pt), "function $F(v: " + inspectAliasName(pt) + "): string { return v === null ? 'null' : '' + v; }", {pt}, k);
+            if (base != kNoType && (ty(base).k == TK::Num || base == tBool || base == tStr)) {
+              std::uint32_t h = helper("fmtNullable:" + std::to_string(pt), "function $F(v: " + inspectAliasName(pt) + "): string { return v === null ? '" + std::string(ty(pt).undef ? "undefined" : "null") + "' : '' + v; }", {pt}, k);
               a.nodes[i].kids[ki] = callGenerated(h, {k}, k);
             }
           }
@@ -1706,6 +1713,17 @@ struct Checker {
           if (rawDyn()) return tStr;
           std::string lit;
           if (isDyn(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
+          if (ty(t).k == TK::Union && hasNull(t)) {  // T | null: undefined or null when absent, else the typeof of the rest (a generated test: the operand may be a call)
+            TypeId inner = withoutNull(t);
+            std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : "'object'";
+            std::uint32_t sym = helper("typeofN," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): string {\n  return v === null ? " + std::string(ty(t).undef ? "'undefined'" : "'object'") + " : " + it + ";\n}\n", {t}, i);
+            wrapNode(x.kids[0], sym);
+            std::uint32_t callNode = x.kids[0];
+            a.nodes[i] = a.nodes[callNode];
+            out.nodeType[i] = tStr;
+            rewritten.insert(i);
+            return tStr;
+          }
           if (t == tStr) lit = "'string'"; else if (isNum(t)) lit = "'number'"; else if (t == tBool) lit = "'boolean'"; else if (ty(t).k == TK::Func) lit = "'function'"; else if (t == tVoid) lit = "'undefined'"; else lit = "'object'";
           if (replaceWith(i, lit, {})) return expr0(i, expected);
           return tStr;
@@ -1912,7 +1930,7 @@ struct Checker {
         if (!m) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         TypeId mt = m->getter ? ty(m->type).elem : m->type;
-        if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull});  // a?.b is b, or null
+        if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull}, true);  // a?.b is b, or undefined
         if (!m->getter && !m->method && ty(mt).k == TK::Union && !pendingExempt) {
           std::uint32_t ps = pathSymFor2(i, mt);
           if (ps != kNone) return currentType(ps);  // narrowed by an earlier test of this property
@@ -2152,7 +2170,10 @@ struct Checker {
           auto st = snippet(a, std::string(text) + ";", {}, d);
           out.nodeType.resize(a.nodes.size(), kNoType);
           out.nodeSym.resize(a.nodes.size(), kNone);
-          if (!st.empty() && n(st[0]).kind == N::ExprStmt) { a.nodes[d].kids[1] = n(st[0]).kids[0]; init = a.nodes[d].kids[1]; }
+          if (!st.empty() && n(st[0]).kind == N::ExprStmt) {
+            a.nodes[d].kids[1] = n(st[0]).kids[0]; init = a.nodes[d].kids[1];
+            if (ty(t).k == TK::Union && ty(t).undef && n(init).kind == N::Literal) a.nodes[init].flags |= kFlagUndefined;  // `let v: T | undefined;` starts undefined
+          }
         }
       }
       if (init != kNone && !bad(t) && ty(t).k == TK::Func && n(init).kind == N::FuncExpr) {  // `const f: T = () => { f() }`: the function sees its own name
@@ -2518,16 +2539,21 @@ struct Checker {
   }
 
   // ---- unions: members flattened, deduplicated and sorted so equal unions share one type id
-  TypeId unionOf(std::vector<TypeId> ms) {
+  // `undef`: the absent value of this union is `undefined` (an optional field, a Map.get, a `T | undefined` annotation). It is the same representation as
+  // null, only printed differently; a union that mixes a plain null in is a null one.
+  TypeId unionOf(std::vector<TypeId> ms, bool undef = false) {
     std::vector<TypeId> flat;
+    bool anyUndef = undef, plainNull = false;
     for (TypeId m : ms) {
       if (bad(m)) return tError;
-      if (ty(m).k == TK::Union) for (TypeId k : ty(m).params) flat.push_back(k); else flat.push_back(m);
+      if (ty(m).k == TK::Union) { anyUndef = anyUndef || ty(m).undef; for (TypeId k : ty(m).params) flat.push_back(k); }
+      else { if (m == tNull) plainNull = true; flat.push_back(m); }
     }
     std::sort(flat.begin(), flat.end());
     flat.erase(std::unique(flat.begin(), flat.end()), flat.end());
     if (flat.size() == 1) return flat[0];
     Type t; t.k = TK::Union; t.params = std::move(flat);
+    t.undef = anyUndef && !(plainNull && !undef) && std::find(t.params.begin(), t.params.end(), tNull) != t.params.end();
     return intern(t);
   }
   bool hasNull(TypeId t) const { if (t == tNull) return true; if (ty(t).k != TK::Union) return false; for (TypeId m : ty(t).params) if (m == tNull) return true; return false; }

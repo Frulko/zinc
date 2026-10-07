@@ -167,7 +167,11 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         if (oi.isInterface || oi.isAbstract) { body += "  return '{}';\n"; break; }
       }
       body += "  const out: string[] = [];\n";
-      for (const Member* m : fs) if (c.types[m->type].k != TK::Func) body += "  out.push('\"" + m->name + "\":' + " + call(m->type, "v." + m->name) + ");\n";
+      for (const Member* m : fs) {
+        if (c.types[m->type].k == TK::Func) continue;
+        bool omit = c.types[m->type].k == TK::Union && c.types[m->type].undef;  // an undefined field is left out of the text
+        body += std::string("  ") + (omit ? "if (v." + m->name + " !== null) " : "") + "out.push('\"" + m->name + "\":' + " + call(m->type, "v." + m->name) + ");\n";
+      }
       body += "  return '{' + out.join(',') + '}';\n";
       break;
     }
@@ -248,7 +252,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
       std::vector<TypeId> members;
       bool hasNull = false;
       for (TypeId m : x.params) { if (m == 5) hasNull = true; else members.push_back(m); }
-      if (hasNull) body = "  if (v === null) return 'null';\n";
+      if (hasNull) body = std::string("  if (v === null) return '") + (x.undef ? "undefined" : "null") + "';\n";
       if (members.size() == 1) { body += "  return " + call(members[0], "v", "lvl") + ";\n"; break; }
       for (std::size_t k = 0; k < members.size(); ++k) {  // the dynamic class decides
         if (k + 1 == members.size()) { body += "  return " + call(members[k], "v", "lvl") + ";\n"; break; }

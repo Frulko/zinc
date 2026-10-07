@@ -170,6 +170,7 @@ struct Parser {
     }
     if (optional && ty != kNone) {  // `x?: T` is `x: T | null = null`
       std::uint32_t nul = mk(N::TypeRef, startOf(ty), prevEnd(), "null");
+      r.ast.nodes[nul].flags |= kFlagUndefined;  // `x?: T` is `T | undefined`
       ty = mk(N::TypeUnion, startOf(ty), prevEnd(), {}, {ty, nul});  // spans the written type, so a type stripper finds its colon
       if (!inType && def == kNone) def = mk(N::Literal, st, prevEnd(), "null");
     }
@@ -273,6 +274,7 @@ struct Parser {
         ft = type();
         if (opt) {
           std::uint32_t nul = mk(N::TypeRef, startOf(ft), endOf(ft), "null", {});
+          r.ast.nodes[nul].flags |= kFlagUndefined;  // `b?: U` is `U | undefined`
           ft = mk(N::TypeUnion, startOf(ft), endOf(ft), {}, {ft, nul});
           fl |= kFlagOptional;
         }
@@ -929,6 +931,7 @@ struct Parser {
         if (eatP(":")) ty = type();
         if (optional && ty != kNone) {
           std::uint32_t nul = mk(N::TypeRef, startOf(ty), endOf(ty), "null", {});
+          r.ast.nodes[nul].flags |= kFlagUndefined;
           ty = mk(N::TypeUnion, startOf(ty), endOf(ty), {}, {ty, nul});
           fl |= kFlagOptional;
         }
