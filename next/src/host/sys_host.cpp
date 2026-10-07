@@ -35,6 +35,7 @@
 #include "http.h"
 #include "sock.h"
 #include "crypto.h"
+#include "regexp.h"
 #include "zn/runtime.h"
 
 extern char** environ;
@@ -394,6 +395,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostMqttOpenTls: r->i = zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
     case Rt::HostCrypto: { std::string e; std::string o = zn::crypto::run(s(0), rawBytes(a[1]), rawBytes(a[2]), rawBytes(a[3]), rawBytes(a[4]), n(5), n(6), e); gCryptoError = e; ret(r, o); break; }
     case Rt::HostCryptoError: ret(r, gCryptoError); break;
+    case Rt::HostReCompile: r->i = zn::re::compile(s(0), s(1)); break;
+    case Rt::HostReError: ret(r, zn::re::error()); break;
+    case Rt::HostReExec: r->i = zn::re::exec(n(0), static_cast<const char*>(a[1].p), a[1].n, n(2)); break;
+    case Rt::HostReExecAll: r->i = zn::re::execAll(n(0), static_cast<const char*>(a[1].p), a[1].n, n(2)); break;
+    case Rt::HostReAll: r->i = zn::re::allCapture(n(0)); break;
+    case Rt::HostReCapture: r->i = zn::re::capture(n(0)); break;
+    case Rt::HostReInfo: r->i = n(1) == 0 ? zn::re::captureCount(n(0)) : 0; break;
+    case Rt::HostReName: ret(r, zn::re::groupName(n(0), n(1))); break;
     case Rt::HostMqttPublish: zn::mqtt::publish(n(0), s(1), s(2), n(3) != 0, n(4)); break;
     case Rt::HostMqttSubscribe: zn::mqtt::subscribe(n(0), s(1)); break;
     case Rt::HostMqttClose: zn::mqtt::close(n(0)); break;

@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Runs a test262 subset on the QuickJS engine of the zinc binary (zinc run FILE --engine quickjs): libregexp and libunicode are the code both engines use for regular
+expressions, so this checks the build of that code and the host glue around QuickJS.
+
+  tools/test262 [--zinc PATH] [--jobs N] [--list FILE] [--write-list FILE] [--filter SUBSTR] [DATA]
+
+DATA is the directory of the pinned subset (default: tests/data/test262-regexp.tar.xz unpacked to a temp dir). A test passes when the process exits 0 (an async test must
+print Test262:AsyncTestComplete; a negative test must fail with its error type). --list names the tests that are known to fail with the reason of each one (`path | reason`):
+a test that fails and is not listed, or one that passes and is, is an error. --write-list rewrites the file from the current results (reasons of old lines are kept)."""
+import os, re, subprocess, sys, tarfile, tempfile, concurrent.futures as cf
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+NEXT = os.path.dirname(HERE)
+
+def front(text):
+    m = re.search(r"/\*---(.*?)---\*/", text, re.S)
+    meta = {"includes": [], "flags": [], "negative": None}
+    if not m: return meta
+    y = m.group(1)
+    inc = re.search(r"^includes:\s*\[(.*?)\]", y, re.M)
+    if inc: meta["includes"] = [x.strip() for x in inc.group(1).split(",") if x.strip()]
+    else:
+        blk = re.search(r"^includes:\s*\n((?:\s+-\s*.*\n)+)", y, re.M)
+        if blk: meta["includes"] = [re.sub(r"^\s+-\s*", "", l).strip() for l in blk.group(1).splitlines()]
+    fl = re.search(r"^flags:\s*\[(.*?)\]", y, re.M)
+    if fl: meta["flags"] = [x.strip() for x in fl.group(1).split(",") if x.strip()]
+    neg = re.search(r"^negative:\s*\n\s+phase:\s*(\w+)\s*\n\s+type:\s*(\w+)", y, re.M)
+    if neg: meta["negative"] = (neg.group(1), neg.group(2))
+    return meta
+
+def run_one(zinc, root, rel, timeout):
+    path = os.path.join(root, rel)
+    text = open(path, encoding="utf-8", errors="surrogateescape").read()
+    meta = front(text)
+    if "module" in meta["flags"]: return rel, "skip", "module test"
+    harness = os.path.join(root, "harness")
+    parts = []
+    if "raw" not in meta["flags"]:
+        incs = ["assert.js", "sta.js"] + (["doneprintHandle.js"] if "async" in meta["flags"] else []) + meta["includes"]
+        for inc in incs:
+            parts.append(open(os.path.join(harness, inc), encoding="utf-8", errors="surrogateescape").read())
+    body = "\n".join(parts) + "\n" + text
+    if "onlyStrict" in meta["flags"]: body = '"use strict";\n' + body
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8", errors="surrogateescape") as f:
+        f.write(body); tmp = f.name
+    try:
+        r = subprocess.run([zinc, "run", tmp, "--engine", "quickjs"], capture_output=True, text=True, timeout=timeout)
+        out = (r.stdout or "") + (r.stderr or "")
+        if meta["negative"]:
+            ok = r.returncode != 0 and meta["negative"][1] in out
+            return rel, "pass" if ok else "fail", "" if ok else "expected %s: %s" % (meta["negative"][1], out.strip().splitlines()[0][:100] if out.strip() else "ran fine")
+        if "async" in meta["flags"]:
+            ok = "Test262:AsyncTestComplete" in out
+        else:
+            ok = r.returncode == 0
+        if ok: return rel, "pass", ""
+        first = next((l for l in out.splitlines() if l.strip()), "no output")
+        return rel, "fail", first[:140]
+    except subprocess.TimeoutExpired:
+        return rel, "fail", "timed out"
+    finally:
+        os.unlink(tmp)
+
+def main(argv):
+    zinc = os.path.join(NEXT, "build", "zinc"); jobs = 8; lst = None; write = None; filt = ""; data = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--zinc": zinc = argv[i + 1]; i += 1
+        elif a == "--jobs": jobs = int(argv[i + 1]); i += 1
+        elif a == "--list": lst = argv[i + 1]; i += 1
+        elif a == "--write-list": write = argv[i + 1]; i += 1
+        elif a == "--filter": filt = argv[i + 1]; i += 1
+        else: data = a
+        i += 1
+    tmpdir = None
+    if data is None:
+        tmpdir = tempfile.mkdtemp()
+        with tarfile.open(os.path.join(NEXT, "tests", "data", "test262-regexp.tar.xz")) as t: t.extractall(tmpdir)
+        data = tmpdir
+    tests = []
+    for dp, _, fs in os.walk(os.path.join(data, "test")):
+        for f in fs:
+            if f.endswith(".js") and "_FIXTURE" not in f and not f.startswith("._"): tests.append(os.path.relpath(os.path.join(dp, f), data))
+    tests = sorted(t for t in tests if filt in t)
+    results = {}
+    with cf.ThreadPoolExecutor(jobs) as ex:
+        for rel, st, why in ex.map(lambda t: run_one(zinc, data, t, 30), tests): results[rel] = (st, why)
+    known = {}
+    if lst and os.path.exists(lst):
+        for l in open(lst, encoding="utf-8"):
+            if "|" in l and not l.startswith("#"):
+                p, r = l.split("|", 1); known[p.strip()] = r.strip()
+    passed = sum(1 for v in results.values() if v[0] == "pass"); skipped = sum(1 for v in results.values() if v[0] == "skip")
+    failed = {k: v[1] for k, v in results.items() if v[0] == "fail"}
+    print("%d tests: %d pass, %d fail, %d skipped" % (len(results), passed, len(failed), skipped))
+    if write:
+        with open(write, "w", encoding="utf-8") as f:
+            f.write("# test262 subset failing on the QuickJS-ng build: path | reason (tools/test262 --write-list; a reason in brackets was written by hand and is kept)\n")
+            for k in sorted(failed): f.write("%s | %s\n" % (k, known.get(k, failed[k])))
+        return 0
+    bad = [k for k in failed if k not in known] + [k + " (listed, but passes)" for k in known if k in results and results[k][0] == "pass"]
+    for k in bad[:40]: print("UNEXPECTED", k, failed.get(k, ""))
+    return 1 if bad else 0
+
+if __name__ == "__main__": sys.exit(main(sys.argv[1:]))

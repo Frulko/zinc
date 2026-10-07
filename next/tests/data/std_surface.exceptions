@@ -1,3 +1,9 @@
 # Members of lib/zinc.d.ts that the engine does not provide yet, with the reason. tools/dts-walk skips them.
 Console.table needs the object formatter of the dyn prelude for rows and columns; tracked with the Node console parity items
 Promise.catch the declaration is an overload pair, the probe picks the wrong signature (Promise.catch itself works)
+String.replaceAll the probe has no RegExp in its program, so the regular expression prelude is absent; covered by tests/golden/run/regexp_corpus.ts
+String.split the probe has no RegExp in its program, so the regular expression prelude is absent; covered by tests/golden/run/regexp_corpus.ts
+String.match the probe has no RegExp in its program, so the regular expression prelude is absent; covered by tests/golden/run/regexp_corpus.ts
+String.matchAll the probe has no RegExp in its program, so the regular expression prelude is absent; covered by tests/golden/run/regexp_corpus.ts
+String.search the probe has no RegExp in its program, so the regular expression prelude is absent; covered by tests/golden/run/regexp_corpus.ts
+String.replace the declaration is an overload pair (string or RegExp), the probe picks the wrong signature; covered by tests/golden/run/regexp_corpus.ts

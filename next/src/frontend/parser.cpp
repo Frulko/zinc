@@ -564,6 +564,7 @@ struct Parser {
       case Tok::Number: ++i; return mk(N::Number, st, prevEnd(), txt(t[i - 1]));
       case Tok::BigInt: ++i; return mk(N::BigInt, st, prevEnd(), txt(t[i - 1]));
       case Tok::String: ++i; return mk(N::String, st, prevEnd(), txt(t[i - 1]));
+      case Tok::Regex: ++i; return mk(N::Regex, st, prevEnd(), txt(t[i - 1]));
       case Tok::Ident:
         if (isId("async") && !newlineAt(1)) {
           if (at(1).kind == Tok::Keyword && txt(at(1)) == "function") {  // async function (...) { ... }
@@ -1328,7 +1329,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull", "Regex"};
   return names[static_cast<int>(k)];
 }
 

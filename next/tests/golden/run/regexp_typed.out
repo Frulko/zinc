@@ -1,0 +1,9 @@
+3 20 [ '2026-10', '2026', '10', '' ] [ true, true, true, false ] 2026 10 true 2026 3
+true [ '2026-10-07', '2026', '10', '07' ]
+2 [ '1' ] 2
+y-x/x-y
+g 0 true 2 true 4 false 0 /a(b)?/g
+TypeError replaceAll must be called with a global RegExp
+SyntaxError
+RangeError
+false true true

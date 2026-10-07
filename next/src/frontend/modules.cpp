@@ -1182,6 +1182,247 @@ function __mathRandom(): f64 {
 
 // console.count, countReset, assert, time, timeEnd and timeLog: the checker-visible calls are rewritten to these functions (modules.cpp, below).
 // Like console.error they print to the one text stream; the timers read the engine clock, so they need the async prelude.
+// Regular expressions (ZN-090): libregexp of QuickJS-ng through host rows (src/host/regexp.cpp). Indices are UTF-16 code units like the strings of Zinc. Deviations
+// from JavaScript (typed): exec returns a string[] with '' for a group that did not take part, the extra properties of the result are on RegExpMatch (RegExp.match),
+// matchAll returns an array, and a replace callback gets the match and the groups only (no offset and subject).
+const char* kRegExpPrelude = R"ZN(
+class RegExpMatch {
+  index: i32 = 0;
+  input: string = '';
+  captures: string[] = [];
+  present: boolean[] = [];
+  groups: Map<string, string> = new Map<string, string>();
+  get(i: i32): string { return i >= 0 && i < this.captures.length ? this.captures[i] : ''; }
+  group(name: string): string { const v = this.groups.get(name); return v === null ? '' : v; }
+}
+class RegExp {
+  source: string;
+  flags: string;
+  lastIndex: i32 = 0;
+  global: boolean = false;
+  ignoreCase: boolean = false;
+  multiline: boolean = false;
+  dotAll: boolean = false;
+  unicode: boolean = false;
+  unicodeSets: boolean = false;
+  sticky: boolean = false;
+  hasIndices: boolean = false;
+  handle: i32 = -1;
+  groupCount: i32 = 0;
+  names: string[] = [];
+  constructor(pattern: string, flags: string = '') {
+    const order = 'dgimsuvy';
+    let canon = '';
+    for (let i: i32 = 0; i < order.length; i++) if (flags.indexOf(order.charAt(i)) >= 0) canon += order.charAt(i);
+    let ok = canon.length === flags.length;
+    for (let i: i32 = 0; i < flags.length; i++) if (flags.indexOf(flags.charAt(i)) !== flags.lastIndexOf(flags.charAt(i)) || order.indexOf(flags.charAt(i)) < 0) ok = false;
+    if (flags.indexOf('u') >= 0 && flags.indexOf('v') >= 0) ok = false;
+    if (!ok) throw new SyntaxError("Invalid flags supplied to RegExp constructor '" + flags + "'");
+    this.source = pattern;
+    this.flags = canon;
+    this.hasIndices = canon.indexOf('d') >= 0;
+    this.global = canon.indexOf('g') >= 0;
+    this.ignoreCase = canon.indexOf('i') >= 0;
+    this.multiline = canon.indexOf('m') >= 0;
+    this.dotAll = canon.indexOf('s') >= 0;
+    this.unicode = canon.indexOf('u') >= 0;
+    this.unicodeSets = canon.indexOf('v') >= 0;
+    this.sticky = canon.indexOf('y') >= 0;
+    const h = __host_reCompile(pattern, canon);
+    if (h < 0) throw new SyntaxError('Invalid regular expression: /' + pattern + '/' + canon + ': ' + __host_reError());
+    this.handle = h;
+    this.groupCount = __host_reInfo(h, 0) - 1;
+    for (let i: i32 = 0; i <= this.groupCount; i++) this.names.push(i === 0 ? '' : __host_reName(h, i));
+  }
+  // Runs from lastIndex (global and sticky) or from 0; the capture positions stay in the host until the next run.
+  run(s: string): boolean {
+    let from: i32 = 0;
+    const keep = this.global || this.sticky;
+    if (keep) {
+      from = this.lastIndex;
+      if (from > s.length) { this.lastIndex = 0; return false; }
+    }
+    const rc = __host_reExec(this.handle, s, from);
+    if (rc < 0) throw new RangeError(__host_reError());
+    if (rc === 0) { if (keep) this.lastIndex = 0; return false; }
+    if (keep) this.lastIndex = __host_reCapture(1);
+    return true;
+  }
+  // A search that ignores lastIndex and the global flag.
+  find(s: string, from: i32): boolean {
+    if (from > s.length) return false;
+    const rc = __host_reExec(this.handle, s, from);
+    if (rc < 0) throw new RangeError(__host_reError());
+    return rc === 1;
+  }
+  test(s: string): boolean { return this.run(s); }
+  // The captured texts of the last run ('' for a group that did not take part).
+  taken(s: string): string[] {
+    const r: string[] = [];
+    for (let i: i32 = 0; i <= this.groupCount; i++) {
+      const a = __host_reCapture(2 * i);
+      r.push(a < 0 ? '' : s.slice(a, __host_reCapture(2 * i + 1)));
+    }
+    return r;
+  }
+  exec(s: string): string[] | null { return this.run(s) ? this.taken(s) : null; }
+  match(s: string): RegExpMatch | null {
+    if (!this.run(s)) return null;
+    const m = new RegExpMatch();
+    m.index = __host_reCapture(0);
+    m.input = s;
+    for (let i: i32 = 0; i <= this.groupCount; i++) {
+      const a = __host_reCapture(2 * i);
+      m.present.push(a >= 0);
+      m.captures.push(a < 0 ? '' : s.slice(a, __host_reCapture(2 * i + 1)));
+      if (i > 0 && this.names[i].length > 0) m.groups.set(this.names[i], a < 0 ? '' : m.captures[i]);
+    }
+    return m;
+  }
+  step(s: string, i: i32): i32 {  // AdvanceStringIndex
+    if (this.unicode || this.unicodeSets) {
+      const c = s.charCodeAt(i);
+      if (c >= 0xD800 && c < 0xDC00 && i + 1 < s.length) { const d = s.charCodeAt(i + 1); if (d >= 0xDC00 && d < 0xE000) return i + 2; }
+    }
+    return i + 1;
+  }
+  toString(): string { return '/' + this.source + '/' + this.flags; }
+}
+function __reLit(pattern: string, flags: string): RegExp { return new RegExp(pattern, flags); }
+// Every match from `from` as positions: for match m the 2 * (groups + 1) numbers from m * w (-1 for a group that did not take part).
+function __reAll(re: RegExp, s: string, from: i32): i32[] {
+  const cnt = __host_reExecAll(re.handle, s, from);
+  if (cnt < 0) throw new RangeError(__host_reError());
+  const r: i32[] = [];
+  const total = cnt * 2 * (re.groupCount + 1);
+  for (let k: i32 = 0; k < total; k++) r.push(__host_reAll(k));
+  return r;
+}
+function __reGroup(s: string, pos: i32[], base: i32, g: i32): string {
+  const a = pos[base + 2 * g];
+  return a < 0 ? '' : s.slice(a, pos[base + 2 * g + 1]);
+}
+// `$1`, `$&`, `` $` ``, `$'`, `$<name>` and `$$` of a replacement template, for the match of `pos` at `base`.
+function __reExpand(tpl: string, s: string, re: RegExp, pos: i32[], base: i32): string {
+  if (tpl.indexOf('$') < 0) return tpl;
+  const a0 = pos[base];
+  const b0 = pos[base + 1];
+  let out = '';
+  let i: i32 = 0;
+  while (i < tpl.length) {
+    const c = tpl.charAt(i);
+    if (c !== '$' || i + 1 >= tpl.length) { out += c; i++; continue; }
+    const d = tpl.charAt(i + 1);
+    if (d === '$') { out += '$'; i += 2; }
+    else if (d === '&') { out += s.slice(a0, b0); i += 2; }
+    else if (d === '`') { out += s.slice(0, a0); i += 2; }
+    else if (d === "'") { out += s.slice(b0); i += 2; }
+    else if (d >= '0' && d <= '9') {
+      let n: i32 = d.charCodeAt(0) - 48;
+      let len: i32 = 2;
+      if (i + 2 < tpl.length) {
+        const e = tpl.charAt(i + 2);
+        if (e >= '0' && e <= '9' && n * 10 + (e.charCodeAt(0) - 48) <= re.groupCount) { n = n * 10 + (e.charCodeAt(0) - 48); len = 3; }
+      }
+      if (n >= 1 && n <= re.groupCount) { out += __reGroup(s, pos, base, n); i += len; }
+      else { out += '$'; i++; }
+    } else if (d === '<' && re.names.length > 1) {
+      const close = tpl.indexOf('>', i + 2);
+      if (close < 0) { out += '$'; i++; continue; }
+      const k = re.names.indexOf(tpl.slice(i + 2, close));
+      if (k > 0) out += __reGroup(s, pos, base, k);
+      i = close + 1;
+    } else { out += '$'; i++; }
+  }
+  return out;
+}
+// The matches a replace works on: all of them for a global regexp (lastIndex goes back to 0), else the first from lastIndex (sticky) or 0.
+function __reMatches(s: string, re: RegExp): i32[] {
+  if (re.global) { re.lastIndex = 0; return __reAll(re, s, 0); }
+  if (!re.run(s)) return [];
+  const r: i32[] = [];
+  for (let k: i32 = 0; k < 2 * (re.groupCount + 1); k++) r.push(__host_reCapture(k));
+  return r;
+}
+function __reReplace(s: string, re: RegExp, repl: string, all: boolean): string {
+  if (all && !re.global) throw new TypeError('replaceAll must be called with a global RegExp');
+  const pos = __reMatches(s, re);
+  const w = 2 * (re.groupCount + 1);
+  const out: string[] = [];
+  let last: i32 = 0;
+  for (let base: i32 = 0; base < pos.length; base += w) {
+    out.push(s.slice(last, pos[base]));
+    out.push(__reExpand(repl, s, re, pos, base));
+    last = pos[base + 1];
+  }
+  out.push(s.slice(last));
+  return out.join('');
+}
+function __reReplaceFn(s: string, re: RegExp, fn: (m: string, g1: string, g2: string, g3: string, g4: string, g5: string, g6: string, g7: string, g8: string, g9: string) => string, all: boolean): string {
+  if (all && !re.global) throw new TypeError('replaceAll must be called with a global RegExp');
+  const pos = __reMatches(s, re);
+  const w = 2 * (re.groupCount + 1);
+  const out: string[] = [];
+  let last: i32 = 0;
+  for (let base: i32 = 0; base < pos.length; base += w) {
+    out.push(s.slice(last, pos[base]));
+    out.push(fn(__reGroup(s, pos, base, 0), re.groupCount >= 1 ? __reGroup(s, pos, base, 1) : '', re.groupCount >= 2 ? __reGroup(s, pos, base, 2) : '', re.groupCount >= 3 ? __reGroup(s, pos, base, 3) : '',
+      re.groupCount >= 4 ? __reGroup(s, pos, base, 4) : '', re.groupCount >= 5 ? __reGroup(s, pos, base, 5) : '', re.groupCount >= 6 ? __reGroup(s, pos, base, 6) : '',
+      re.groupCount >= 7 ? __reGroup(s, pos, base, 7) : '', re.groupCount >= 8 ? __reGroup(s, pos, base, 8) : '', re.groupCount >= 9 ? __reGroup(s, pos, base, 9) : ''));
+    last = pos[base + 1];
+  }
+  out.push(s.slice(last));
+  return out.join('');
+}
+function __reMatch(s: string, re: RegExp): string[] | null {
+  if (!re.global) return re.exec(s);
+  re.lastIndex = 0;
+  const pos = __reAll(re, s, 0);
+  if (pos.length === 0) return null;
+  const w = 2 * (re.groupCount + 1);
+  const r: string[] = [];
+  for (let base: i32 = 0; base < pos.length; base += w) r.push(s.slice(pos[base], pos[base + 1]));
+  return r;
+}
+function __reMatchAll(s: string, re: RegExp): string[][] {
+  if (!re.global) throw new TypeError('String.prototype.matchAll called with a non-global RegExp argument');
+  const pos = __reAll(re, s, re.lastIndex);
+  const w = 2 * (re.groupCount + 1);
+  const r: string[][] = [];
+  for (let base: i32 = 0; base < pos.length; base += w) {
+    const m: string[] = [];
+    for (let g: i32 = 0; g <= re.groupCount; g++) m.push(__reGroup(s, pos, base, g));
+    r.push(m);
+  }
+  return r;
+}
+function __reSearch(s: string, re: RegExp): i32 { return re.find(s, 0) ? __host_reCapture(0) : -1; }
+function __reSplit(s: string, re: RegExp, limit: i32): string[] {
+  const r: string[] = [];
+  if (limit === 0) return r;
+  const size = s.length;
+  if (size === 0) { if (!re.find(s, 0)) r.push(s); return r; }
+  const pos = __reAll(re, s, 0);
+  const w = 2 * (re.groupCount + 1);
+  let p: i32 = 0;
+  for (let base: i32 = 0; base < pos.length; base += w) {
+    const a = pos[base];
+    const e = pos[base + 1];
+    if (a >= size) break;
+    if (e === p) continue;   // an empty match where the last piece ended
+    r.push(s.slice(p, a));
+    if (limit >= 0 && r.length >= limit) return r;
+    for (let g: i32 = 1; g <= re.groupCount; g++) {
+      r.push(__reGroup(s, pos, base, g));
+      if (limit >= 0 && r.length >= limit) return r;
+    }
+    p = e;
+  }
+  r.push(s.slice(p));
+  return r;
+}
+)ZN";
+
 const char* kConsolePrelude = R"ZN(
 let __cLabels: string[] = [];
 let __cCounts: i32[] = [];
@@ -1818,6 +2059,16 @@ bool needsRandom(const Ast& A) {
   return false;
 }
 
+// Regular expressions: a literal, `RegExp`, or the String methods that take one (a string argument becomes a RegExp too).
+bool needsRegExp(const Ast& A) {
+  for (const Node& x : A.nodes) {
+    if (x.kind == N::Regex) return true;
+    if (x.kind == N::Ident && x.text == "RegExp") return true;
+    if (x.kind == N::Member && (x.text == "match" || x.text == "matchAll" || x.text == "search")) return true;
+  }
+  return false;
+}
+
 bool needsArena(const Ast& A) {
   for (const Node& x : A.nodes) if (x.kind == N::Ident && x.text == "Arena") return true;
   return false;
@@ -1891,11 +2142,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   bool arena = p.diags.empty() && needsArena(p.ast);
   bool random = p.diags.empty() && needsRandom(p.ast);
   bool arrayFrom = p.diags.empty() && needsArrayFrom(p.ast);
+  bool regexp = p.diags.empty() && needsRegExp(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || random || arrayFrom || consoleX || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "")});
+    p.files.push_back({"<prelude>", std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "")});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());

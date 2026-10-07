@@ -191,6 +191,8 @@
   X(HostHttpBody, "host.httpBody", "i>s", 2) X(HostHttpUrl, "host.httpUrl", "i>s", 2) X(HostHttpFree, "host.httpFree", "i>n", 2) \
   X(HostHttpServe, "host.httpServe", "i>i", 2) X(HostHttpStop, "host.httpStop", ">n", 2) X(HostHttpReply, "host.httpReply", "iiss>n", 2) X(HostHttpServeTls, "host.httpServeTls", "iss>i", 2) X(HostMqttOpenTls, "host.mqttOpenTls", "sisi>i", 2) \
   /* crypto.subtle on PSA (ZN-089): operation, four byte arrays, two numbers; the result as raw bytes */ \
+  X(HostReCompile, "host.reCompile", "ss>i", 2) X(HostReError, "host.reError", ">s", 2) X(HostReExec, "host.reExec", "isi>i", 2) X(HostReCapture, "host.reCapture", "i>i", 2) X(HostReExecAll, "host.reExecAll", "isi>i", 2) X(HostReAll, "host.reAll", "i>i", 2) \
+  X(HostReInfo, "host.reInfo", "ii>i", 2) X(HostReName, "host.reName", "ii>s", 2) /* regular expressions (ZN-090) */ \
   X(HostCrypto, "host.crypto", "sBBBBii>s", 2) X(HostCryptoError, "host.cryptoError", ">s", 2) X(HostHttpError, "host.httpError", ">s", 2) \
   /* zinc:socket (ZN-088): sockets as handles; bytes travel as arrays (writes) and raw strings (events) */ \
   X(HostSockConnect, "host.sockConnect", "si>i", 2) X(HostSockConnectUnix, "host.sockConnectUnix", "s>i", 2) X(HostSockListen, "host.sockListen", "si>i", 2) \

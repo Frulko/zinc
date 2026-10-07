@@ -1,0 +1,38 @@
+digits ["12-34","12","34"]
+no match null
+anchors [true,false,true,false]
+dot [false,true,true]
+classes ["BEEF42"]
+quant [["aaa"],["a"],["aaab"],["ababc","ab"]]
+alternation ["dog"]
+backref [["ll","l"],["\"hi\"","\""]]
+lookahead [["a"],["a"],3]
+lookbehind [["42"],["17"]]
+case [false,true,true]
+unicode [true,true,false,["héllo"],["D"]]
+word ["foo"]
+groups ["b","","b"]
+nested ["abab","ab","a","b"]
+escape [["."],["]"],["/"],["\t"]]
+replace first "baa"
+replace global "bbb"
+replace $ ["a[b]c","a[b]c","a[a]c","a[c]c","a[$]c","a$2c","abc","a<b>c"]
+replace fn "a(1)b(2)"
+replace fn groups "02.01.2020"
+replace empty ["-a-b-c-",".a.b.c.",".😀.",5]
+replaceAll ["a/b/c","a-b-c"]
+trim ["a b","a b c"]
+camel "fooBarBaz"
+split [["a","b","c"],["a","b","c"],["a","1","b","2","c"],["a","b"],[""],[],["a","c"],["abc"],["a","b","c"]]
+split limit [[],["a"],["a",",","b"]]
+match [["x","x","x"],null,null,["1","2"]]
+matchAll [["1","1",""],["22","2","2"],["333","3","33"]]
+search [2,-1,1]
+lastIndex global [1,2,4]
+sticky [true,2,false,0]
+lastIndex beyond [false,0]
+flags ["gimsuy","gy",true,true,true,true,true,true,true]
+toString ["/a+b/gi","/x/m"]
+constructor true
+bad pattern "SyntaxError"
+bad flags "SyntaxError"

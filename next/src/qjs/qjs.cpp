@@ -9,6 +9,10 @@
 #include <vector>
 
 extern "C" {
+void zn_lre_delegate(void* (*)(void*, void*, size_t), int (*)(void*), bool (*)(void*, size_t));   // src/host/lre_host.c
+void* qjs_lre_realloc(void*, void*, size_t);                                                       // quickjs.c, renamed (CMakeLists.txt)
+int qjs_lre_check_timeout(void*);
+bool qjs_lre_check_stack_overflow(void*, size_t);
 #include "../../third_party/quickjs-ng/quickjs.h"
 }
 
@@ -281,6 +285,7 @@ bool timerLoop(Engine& e) {
 int run(const Options& o) {
   Engine e;
   e.stdRoot = o.stdRoot;
+  zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
   e.rt = JS_NewRuntime();
   e.ctx = JS_NewContext(e.rt);
   JS_SetMemoryLimit(e.rt, 0);

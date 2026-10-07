@@ -15,7 +15,20 @@ interface CallableFunction extends Function {
 }
 interface NewableFunction extends Function {}
 interface IArguments {}
-interface RegExp {}
+/** Zinc Next: the result of RegExp.match with what a JavaScript exec array carries as properties. */
+interface RegExpMatch { index: i32; input: string; captures: string[]; present: boolean[]; groups: Map<string, string>; get(i: i32): string; group(name: string): string }
+/** Zinc Next (libregexp of QuickJS-ng): indices are UTF-16 code units; exec gives '' for a group that did not take part. */
+interface RegExp {
+  readonly source: string; readonly flags: string; lastIndex: i32;
+  readonly global: boolean; readonly ignoreCase: boolean; readonly multiline: boolean; readonly dotAll: boolean;
+  readonly unicode: boolean; readonly unicodeSets: boolean; readonly sticky: boolean; readonly hasIndices: boolean;
+  test(s: string): boolean;
+  exec(s: string): string[] | null;
+  match(s: string): RegExpMatch | null;
+  toString(): string;
+}
+interface RegExpConstructor { new (pattern: string, flags?: string): RegExp }
+declare var RegExp: RegExpConstructor;
 interface Boolean {}
 interface Symbol {}
 interface SymbolConstructor { readonly iterator: unique symbol; readonly dispose: unique symbol; }
@@ -93,6 +106,13 @@ interface String {
   toLowerCase(): string;
   replace(a: string, b: string): string;
   replaceAll(a: string, b: string): string;
+  /** A replace callback gets the match and the groups (no offset and subject). */
+  replace(re: RegExp, b: string | ((match: string, ...groups: string[]) => string)): string;
+  replaceAll(re: RegExp, b: string | ((match: string, ...groups: string[]) => string)): string;
+  split(re: RegExp, limit?: i32): string[];
+  match(re: RegExp | string): string[] | null;
+  matchAll(re: RegExp): string[][];
+  search(re: RegExp | string): i32;
   [Symbol.iterator](): StringIterator<string>;
 }
 interface StringConstructor {

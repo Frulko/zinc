@@ -105,7 +105,7 @@ target_link_libraries(zn_aot PUBLIC zn_zbc)
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/../runtime)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/gfx_host.cpp src/host/resources.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_SOURCE_DIR}/../targets/common/hal_posix.cpp)
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
@@ -131,7 +131,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   else()
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
-  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls)
+  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp)
   if(NOT ZN_TLS)
     target_compile_definitions(zn_host_gfx PRIVATE ZN_NO_TLS)
   endif()
@@ -156,11 +156,17 @@ add_library(zn_prof STATIC src/prof/prof.cpp)
 target_link_libraries(zn_prof PUBLIC zn_vm)
 
 # QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.
-add_library(zn_quickjs STATIC third_party/quickjs-ng/quickjs-amalgam.c)
+# libregexp and libunicode are their own library (the regular expressions of Zinc programs link only these); QuickJS-ng links the same copy.
+add_library(zn_regexp STATIC third_party/quickjs-ng/libregexp.c third_party/quickjs-ng/libunicode.c src/host/lre_host.c)
+target_include_directories(zn_regexp PUBLIC third_party/quickjs-ng)
+set_target_properties(zn_regexp PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_regexp PRIVATE -w -O2)
+add_library(zn_quickjs STATIC third_party/quickjs-ng/quickjs.c third_party/quickjs-ng/dtoa.c)
 target_include_directories(zn_quickjs PUBLIC third_party/quickjs-ng)
-target_compile_definitions(zn_quickjs PRIVATE QUICKJS_NG_BUILD)
+target_compile_definitions(zn_quickjs PRIVATE QUICKJS_NG_BUILD lre_check_stack_overflow=qjs_lre_check_stack_overflow lre_check_timeout=qjs_lre_check_timeout lre_realloc=qjs_lre_realloc)   # src/host/lre_host.c is the one definition
 set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_quickjs PRIVATE -w -O2)
+target_link_libraries(zn_quickjs PUBLIC zn_regexp)
 add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp)
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
 target_include_directories(zn_qjs PUBLIC include src)

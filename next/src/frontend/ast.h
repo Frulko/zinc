@@ -93,6 +93,7 @@ enum class N : std::uint8_t {
   Yield,          // [expression|none]
   TypeObject,     // `{ a: T; b?: U }`  [Field...] (a Field is [type, none]; flags: kFlagOptional)
   NonNull,        // [expression]   (`e!`: the non-null type of e, a null reference traps)
+  Regex,          // /source/flags (text includes the slashes and the flags): the checker turns it into a call of the prelude's __reLit
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.

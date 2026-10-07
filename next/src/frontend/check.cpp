@@ -1264,6 +1264,30 @@ struct Checker {
       if (!replaceWith(i, text, holes)) { diag(kZUnsupported, i, "internal error: library rewrite did not parse"); return tError; }
       return expr0(i, kNoType);
     };
+    if (cn.kind == N::Member && !args.empty() && (cn.text == "replace" || cn.text == "replaceAll" || cn.text == "split" || cn.text == "match" || cn.text == "matchAll" || cn.text == "search") && lookup("RegExp") != kNone && n(cn.kids[0]).kind != N::Super) {
+      TypeId rt = expr(cn.kids[0]);
+      if (!bad(rt) && rt == tStr) {   // a string receiver: a RegExp argument (or, for match, matchAll and search, a string made into one) goes to the prelude
+        TypeId at = expr(args[0]);
+        bool isRe = !bad(at) && ty(at).k == TK::Object && out.objs[ty(at).obj].name == "RegExp";
+        bool isStr = at == tStr;
+        std::string m(cn.text);
+        std::uint32_t recv = cn.kids[0];
+        if (isRe && (m == "replace" || m == "replaceAll") && args.size() == 2) {
+          std::uint32_t rf = lookup("__reReplaceFn");
+          TypeId want = n(args[1]).kind == N::FuncExpr && rf != kNone && ty(out.syms[rf].type).k == TK::Func && ty(out.syms[rf].type).params.size() >= 3 ? ty(out.syms[rf].type).params[2] : kNoType;   // the callback of the prelude: its parameters are strings
+          TypeId bt = expr(args[1], want);
+          bool all = m == "replaceAll";
+          if (bt == tStr) return rewrite(std::string("__reReplace(__H0, __H1, __H2, ") + (all ? "true" : "false") + ")", {{recv}, {args[0]}, {args[1]}});
+          if (!bad(bt) && ty(bt).k == TK::Func) return rewrite(std::string("__reReplaceFn(__H0, __H1, __H2, ") + (all ? "true" : "false") + ")", {{recv}, {args[0]}, {args[1]}});
+        } else if (isRe && m == "split" && args.size() <= 2) {
+          if (args.size() == 1) return rewrite("__reSplit(__H0, __H1, -1)", {{recv}, {args[0]}});
+          return rewrite("__reSplit(__H0, __H1, __H2)", {{recv}, {args[0]}, {args[1]}});
+        } else if ((isRe || isStr) && args.size() == 1 && (m == "match" || m == "matchAll" || m == "search")) {
+          std::string fn = m == "match" ? "__reMatch" : m == "matchAll" ? "__reMatchAll" : "__reSearch";
+          return rewrite(fn + (isRe ? "(__H0, __H1)" : m == "matchAll" ? "(__H0, new RegExp(__H1, 'g'))" : "(__H0, new RegExp(__H1))"), {{recv}, {args[0]}});
+        }
+      }
+    }
     if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
       if (args.size() > 1) { diag(kZWrongArgCount, i, "expected 0-1, got " + std::to_string(args.size())); for (std::uint32_t arg : args) expr(arg); return tError; }
       std::string nm(cn.text);
@@ -1603,6 +1627,14 @@ struct Checker {
           }
         }
         return tStr;
+      case N::Regex: {   // /source/flags: a RegExp made by the prelude (the host caches the compiled pattern)
+        std::string_view t = x.text;
+        size_t slash = t.rfind('/');
+        if (lookup("RegExp") == kNone || slash == 0 || slash == std::string_view::npos) { diag(kZUnsupported, i, "regular expression literal"); return tError; }
+        auto quote = [](std::string_view v) { std::string q = "'"; for (char c : v) { if (c == '\\' || c == '\'') q += '\\'; q += c; } return q + "'"; };
+        if (!replaceWith(i, "__reLit(" + quote(t.substr(1, slash - 1)) + ", " + quote(t.substr(slash + 1)) + ")", {})) { diag(kZUnsupported, i, "regular expression literal"); return tError; }
+        return expr0(i, kNoType);
+      }
       case N::Literal: return x.text == "null" ? tNull : tBool;
       case N::This:
         if (curClass == kNone || curStatic) { diag(kZNotAllowedHere, i, "'this'"); return tError; }
