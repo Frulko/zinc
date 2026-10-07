@@ -240,14 +240,14 @@ struct Checker {
     return nullptr;
   }
   // Every field of `to` is a field of `from` with the same type (or an optional one `from` lacks): both are records, so a copy is cheap and the sharing is not observable.
-  bool recordWidenable(TypeId from, TypeId to) const {
+  bool recordWidenable(TypeId from, TypeId to) {
     if (bad(from) || bad(to) || ty(from).k != TK::Object || ty(to).k != TK::Object) return false;
     const ObjInfo &f = out.objs[ty(from).obj], &t = out.objs[ty(to).obj];
     if (!(f.isRecord || f.isInterface) || !t.isRecord || t.members.empty()) return false;
     for (const Member& m : t.members) {
       if (m.method || m.isStatic) return false;
       const Member* fm = findMember(f, m.name);
-      if (!fm ? !m.optional : fm->type != m.type) return false;
+      if (!fm ? !m.optional : !(fm->type == m.type || assignable(fm->type, m.type, kNone))) return false;
     }
     return true;
   }

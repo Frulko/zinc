@@ -17,3 +17,9 @@ console.log(name(new File()), name(new Blob()), name(5));
 
 function pick(r: unknown): unknown { return r === undefined ? new File() : r; }
 console.log(pick(undefined) instanceof File, pick(7) instanceof File);
+
+// a record held in a variable where a record with optional fields is expected (the literal's number becomes the field's kind)
+interface Opts { name: string; level?: i32; tag?: string }
+function describe(o: Opts): string { return o.name + ':' + (o.level ?? -1) + ':' + (o.tag ?? '-'); }
+const held = { name: 'a', level: 3 };
+console.log(describe(held), describe({ name: 'b' }));
