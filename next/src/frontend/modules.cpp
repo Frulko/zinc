@@ -848,14 +848,12 @@ bool isWebFile(const std::string& path) {
   for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }
   return false;
 }
-// ZINC_NATIVE_LIBS="Name=path/libx.a,...": native modules that the program is linked with (ZN-099; the plugin loader of ZN-101 replaces it). The compiler takes
-// them as registered (the loader checks the registry when the program starts), and a native spec is used instead of its stand-in.
-bool linkedByEnv(const std::string& name) {
-  const char* e = std::getenv("ZINC_NATIVE_LIBS");
-  if (!e) return false;
-  std::string s = std::string(",") + e + ",";
-  return s.find("," + name + "=") != std::string::npos;
+bool nativeProvided(const std::string& name, std::string& err) {
+  if (name.empty()) return false;
+  if (zn_native_has_module(name.c_str())) return true;
+  return gNativeProvider && gNativeProvider(name, err);
 }
+bool nativeWins() { const char* m = std::getenv("ZINC_NATIVE"); return m && std::string(m) == "real"; }
 std::string requireNativeName(const std::string& text) {  // the 'Name' of requireNative<Spec>('Name'), or ""
   std::size_t at = text.find("requireNative<");
   if (at == std::string::npos) return "";
@@ -942,10 +940,9 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
     }
     if (!listed) { bad(kZNativeTypeNotExpressible, "'" + spec + "' is not an interface of this file"); continue; }
     if (!ok) continue;
-    bool byEnv = linkedByEnv(module);
-    if (!byEnv && !zn_native_has_module(module.c_str())) { bad(kZNativeNotLinked, "'" + module + "'"); continue; }
+    std::string why;
+    if (!nativeProvided(module, why)) { bad(kZNativeNotLinked, "'" + module + "'" + (why.empty() ? "" : ": " + why)); continue; }
     for (const NativeDecl& n : found) {
-      if (byEnv) break;
       const ZnExport* e = zn_native_find(module.c_str(), n.name.c_str());
       if (!e) { bad(kZNativeNotLinked, "'" + module + "' has no export '" + n.name + "'"); ok = false; break; }
       if (n.sig != e->sig) { bad(kZNativeNotLinked, "'" + module + "." + n.name + "': the Spec says '" + n.sig + "', the module has '" + e->sig + "'"); ok = false; break; }
@@ -1127,7 +1124,9 @@ struct Loader {
     if (base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {
       // x.next.ts, written for this engine, wins over the x.sim.ts that the old simulator ran (which may use TypeScript the Zinc subset does not have)
       std::string specText0;
-      bool native = read(base + ".ts", specText0) && linkedByEnv(requireNativeName(specText0));  // linked native code wins over a stand-in
+      std::string whyNot;
+      bool native = nativeWins() && read(base + ".ts", specText0);  // ZINC_NATIVE=real: native code wins over a stand-in
+      if (native && !nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
       for (const char* suffix : {".next.ts", ".sim.ts"}) {
         if (native) break;
         std::string simPath = base.substr(0, base.size() - 5) + suffix;
@@ -2686,5 +2685,7 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:assert") return "assert.ts";
   return "";
 }
+
+std::function<bool(const std::string&, std::string&)> gNativeProvider;
 
 }  // namespace zn::frontend

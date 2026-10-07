@@ -30,6 +30,7 @@
 #else
 #define HOSTLIBS
 #endif
+#include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "dev/client.h"
 #include "dev/core.h"
@@ -53,9 +54,33 @@ static bool readFile(const std::string& path, std::string& out) {
 }
 
 // Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
+static std::vector<zn::tc::PluginLib> gPlugins;  // the native plugins built and loaded for this program, for the link line of zinc build
+static std::string gProjectDir = ".";
+
+// A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
+static void installNativeProvider(const char* entry) {
+  namespace fs = std::filesystem;
+  std::string pf = zn::frontend::findProjectFile(entry);
+  gProjectDir = pf.empty() ? fs::absolute(entry).parent_path().string() : fs::path(pf).parent_path().string();
+  zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
+    std::vector<std::string> problems;
+    std::string root = gRoot + "/..";
+    static std::vector<zn::frontend::FoundPlugin> found;
+    found = zn::frontend::discoverPlugins(root, gProjectDir, problems);
+    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+    if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
+    zn::tc::PluginLib lib;
+    if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
+    if (!zn::tc::loadPlugin(lib, err)) return false;
+    gPlugins.push_back(lib);
+    return true;
+  };
+}
+
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
+  installNativeProvider(path);
   prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std");
   auto diags = prog.diags;
   if (diags.empty()) {
@@ -176,6 +201,7 @@ int main(int argc, char** argv) {
       std::vector<std::uint8_t> blob;
       std::string err;
       {  // the fonts and images the program names: the texts of its files (the Zinc loader follows the imports, a program that does not parse as Zinc bakes from its own text)
+        installNativeProvider(argv[2]);
         zn::frontend::Program prog = zn::frontend::loadProgram(argv[2], readFile, false, qo.stdRoot);
         gSources.clear();
         for (const auto& f : prog.files) gSources.push_back(f.text);
@@ -404,15 +430,10 @@ int main(int argc, char** argv) {
       if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       return 0;
     }
-    std::string nativeLibs;  // ZINC_NATIVE_LIBS="Name=lib.a,...": the plugins' native code that the program is linked with (they need the host library: zrt)
-    if (const char* nl = std::getenv("ZINC_NATIVE_LIBS")) {
-      std::string all = nl;
-      for (std::size_t at = 0; at < all.size();) {
-        std::size_t comma = all.find(',', at), eq = all.find('=', at);
-        if (comma == std::string::npos) comma = all.size();
-        if (eq != std::string::npos && eq < comma) nativeLibs += " '" + all.substr(eq + 1, comma - eq - 1) + "'";
-        at = comma + 1;
-      }
+    std::string nativeLibs;  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+    for (const zn::tc::PluginLib& pl : gPlugins) {
+      nativeLibs += " '" + pl.archive + "'" + (pl.vendor.empty() ? "" : " '" + pl.vendor + "'");
+      for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
     }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
@@ -559,6 +580,19 @@ int main(int argc, char** argv) {
     } else std::fputs(zn::frontend::listPlugins(found).c_str(), stdout);
     for (const std::string& p : problems) std::fprintf(stderr, "zinc: %s\n", p.c_str());
     return rc;
+  }
+  if (argc >= 3 && !std::strcmp(argv[1], "plugin-build")) {  // zinc plugin-build <plugin> [project-dir]: compile the plugin's native code into the cache (or find it there) and say where it is
+    std::string project = argc >= 4 ? argv[3] : ".";
+    std::vector<std::string> problems;
+    auto found = zn::frontend::discoverPlugins(gRoot + "/..", project, problems);
+    const zn::frontend::FoundPlugin* hit = nullptr;
+    for (const auto& f : found) if (f.manifest.name == argv[2]) hit = &f;
+    if (!hit) { std::fprintf(stderr, "zinc: no plugin named '%s' (zinc plugins lists them)\n", argv[2]); return 1; }
+    zn::tc::PluginLib lib;
+    std::string err;
+    if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text
     std::string text, err;

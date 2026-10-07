@@ -38,3 +38,15 @@ Not covered yet: a Zinc closure passed to a native export and Promise results (Z
 
 **Call overhead** (bench/native_call.ts, M-series macOS, `add(i32, i32)` of the C test module): 20 million calls take 1.21 s, 60 ns per call on the interpreter and
 on the AOT build alike (budget 100 ns). A string argument and result (`greet`) costs about 0.15 us more (one copy in, one out).
+
+## Building and loading plugin code (ZN-101, decisions D2 and D21)
+
+`zinc plugin-build <plugin> [project]` (and the first use of a native module by a program) compiles the plugin's native sources into
+`~/.zinc/cache/<target>/plugins/<name>-<hash>/`: its `x.host.cpp` (or `x.<target>.cpp`, or `native.impl` of the manifest), the thunk of `zinc native-gen --thunk`, the other C++
+sources of the manifest, as `plugin.dylib|so` (for `dlopen`) and `plugin.a` (for AOT). The `.c` sources of the manifest (vendored libraries such as sqlite3.c) go into
+`<name>-vendor-<hash>/vendor.a`, keyed by their content and the defines only, so an edit of the plugin does not rebuild them: sqlite's amalgamation takes 14 s once, an edit of
+`sqlite.host.cpp` rebuilds in 0.3 s. The hash covers the sources, the generated header and thunk, the defines (`defines` of the target, `ZP_*` options), the flags, the compiler and the ABI headers.
+System libraries come from `pkg-config` (`pkg`), `libs`, `frameworks` and `linkFlags`; a missing one stops the build with "needs the system library 'x': install the package <packages of the manifest>".
+The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdynamic`: a dlopened plugin finds zrt and the registry in it. The interpreter registers the module after `dlopen`;
+`zinc build` links `plugin.a`, `vendor.a` and the libraries into the program, whose generated `main` registers `zn_module_<Name>` (no `dlopen`). `ZINC_NATIVE=real` prefers native code to a stand-in.
+Cross targets (`zinc build --target`) do not build plugin code yet; the cache layout already keys by target.

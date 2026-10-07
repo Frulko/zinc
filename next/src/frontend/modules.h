@@ -28,6 +28,12 @@ using ReadFile = std::function<bool(const std::string& path, std::string& out)>;
 
 // `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.
 // `stdRoot` is the directory of the standard modules written in Zinc (lib/std): 'zinc:ui' and the like resolve to files there.
+// Native modules that are not registered yet (ZN-101): the provider builds and loads the plugin that has the module and says whether it is registered now (else `err` says
+// why not: a missing library, a compiler error). Set by the command line; null in a frontend used alone.
+extern std::function<bool(const std::string& module, std::string& err)> gNativeProvider;
+// ZINC_NATIVE: "real" (native code wins over a stand-in x.next.ts / x.sim.ts), "sim" (a stand-in wins, today's default when there is one), "auto" (the default: a stand-in when
+// there is one, else native code).
+
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "");
 
 // The source (Zinc, over the __host_* calls) of a module the host provides ('zinc:gfx', 'zinc:sys', 'zinc:fs'...); null for any other spec.

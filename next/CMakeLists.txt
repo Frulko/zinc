@@ -154,8 +154,9 @@ add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)
 target_link_libraries(zn_dev PUBLIC zn_vm)
 
-add_library(zn_tc STATIC src/tc/tc.cpp third_party/sha256/sha256.c)
+add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp third_party/sha256/sha256.c)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/sha256)
+target_link_libraries(zn_tc PUBLIC zn_frontend ${CMAKE_DL_LIBS})
 set_source_files_properties(third_party/sha256/sha256.c PROPERTIES COMPILE_OPTIONS "-w")
 
 add_library(zn_prof STATIC src/prof/prof.cpp)
@@ -187,6 +188,7 @@ if(ZN_NATIVE_FIXTURE)
   target_compile_definitions(zinc PRIVATE ZN_NATIVE_FIXTURE)
 endif()
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
 target_link_libraries(zinc PRIVATE zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
