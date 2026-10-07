@@ -26,7 +26,7 @@
 #include "zn/hostsys.h"
 #include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
-#define HOSTLIBS + std::string(" '") + ZN_HOST_LIBS + "'"   // the window library the host links
+#define HOSTLIBS + std::string(" ") + ZN_HOST_LIBS   // the window library the host links
 #else
 #define HOSTLIBS
 #endif

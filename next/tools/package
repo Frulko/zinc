@@ -41,6 +41,8 @@ def payload(share):
     copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
     mi = os.path.join(NEXT, "third_party", "mimalloc")
     copy_tree(mi, os.path.join(nx, "third_party", "mimalloc"), lambda r: r.startswith(('src', 'include', 'LICENSE')))
+    qj = os.path.join(NEXT, "third_party", "quickjs-ng")
+    copy_tree(qj, os.path.join(nx, "third_party", "quickjs-ng"), lambda r: r in ("libunicode.c", "libunicode.h", "libunicode-table.h", "cutils.h"))   # Unicode strings of the runtime (cross builds)
     copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))

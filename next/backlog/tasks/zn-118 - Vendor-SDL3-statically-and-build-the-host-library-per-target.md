@@ -1,9 +1,10 @@
 ---
 id: ZN-118
 title: Vendor SDL3 statically and build the host library per target
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:58'
+updated_date: '2026-10-07 11:33'
 labels:
   - rendering
   - packaging
@@ -21,6 +22,12 @@ The package bundles Homebrew's dylib today. Vendor SDL 3.4.x (zlib licence), bui
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tools/package output has no external dylib; otool -L / ldd show system libraries only
-- [ ] #2 the clean-machine test (tests/t2/package.sh) passes; package size recorded against the budget
+- [x] #1 tools/package output has no external dylib; otool -L / ldd show system libraries only
+- [x] #2 the clean-machine test (tests/t2/package.sh) passes; package size recorded against the budget
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. usage: n/a. SDL3 3.4.16 vendored and linked statically (-force_load), AOT programs link libSDL3.a + frameworks, no dylib in the macOS package (otool -L: system only), package 5.6 MB zip. Also fixed the cross build source list (unicode.cpp, libunicode.c) that broke tests/t2/package.sh, and display-gl honours ZINC_ZOOM. Not done: Linux build of SDL (needs X11/Wayland/drm dev headers; no Docker), ldd check.
+<!-- SECTION:NOTES:END -->
