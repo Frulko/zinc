@@ -2,4 +2,4 @@
 [system] denied menu.setApp
 tray created
 menu menu.setApp needs the permission menu (zinc.json "permissions")
-false
+true

@@ -82,6 +82,18 @@ static NSString* osascript(NSDictionary* a) {
 
 
 // ---------------------------------------------------------------- menus (ZN-236)
+/** NSApplication up and running enough for menus, the dock and status items to appear: a policy (Accessory for a tray-only bundle, Regular otherwise) and finishLaunching, once. */
+static void ensureApp() {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    [NSApplication sharedApplication];
+    BOOL uiElement = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"LSUIElement"] boolValue];
+    if (NSApp.activationPolicy == NSApplicationActivationPolicyProhibited || uiElement) [NSApp setActivationPolicy:uiElement ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
+    [NSApp finishLaunching];
+  });
+}
+static int gPumps = 0;
+static NSMutableDictionary<NSString*, NSString*>* gDeclared;   // id -> the accelerator the program declared (AppKit rewrites the keys of some items itself)
 static NSMutableDictionary<NSString*, NSMenuItem*>* gMenuItems;
 static NSString* gPicked;       // popup: the id that was chosen
 static BOOL gInPopup = NO;
@@ -95,7 +107,7 @@ static NSMenu* gDockMenu;       // the dock menu (ZN-237)
   NSString* ident = item.representedObject;
   if (!ident) return;
   if (gInPopup) gPicked = ident;
-  pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : (item.tag == 1 ? @"dock" : @"app")]);
+  pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : (item.tag == 1 ? @"dock" : (item.tag == 2 ? @"tray" : @"app"))]);
 }
 @end
 static ZnMenuTarget* menuTarget() { static ZnMenuTarget* t; static dispatch_once_t once; dispatch_once(&once, ^{ t = [ZnMenuTarget new]; gMenuItems = [NSMutableDictionary new]; }); return t; }
@@ -139,7 +151,8 @@ static NSMenu* buildMenu(NSArray* items, NSString* title, NSInteger tag = 0) {
     else { it.action = @selector(znClicked:); it.target = menuTarget(); }
     if ([d[@"role"] isEqualToString:@"services"] && !it.submenu) { NSMenu* sm = [[NSMenu alloc] initWithTitle:@"Services"]; it.submenu = sm; [NSApp setServicesMenu:sm]; }
     if ([d[@"native"] boolValue] && [d[@"role"] isEqualToString:@"services"]) { it.action = nil; }
-    if (ident.length) { it.representedObject = ident; gMenuItems[ident] = it; }
+    it.representedObject = ident ?: @"";
+    if (ident.length) { gMenuItems[ident] = it; if (!gDeclared) gDeclared = [NSMutableDictionary new]; if (d[@"accelerator"]) gDeclared[ident] = d[@"accelerator"]; else [gDeclared removeObjectForKey:ident]; }
     if (d[@"key"]) { it.keyEquivalent = keyEquivalentOf(d[@"key"]); it.keyEquivalentModifierMask = (NSEventModifierFlags)[d[@"mods"] unsignedLongValue]; }
     if (d[@"enabled"] && ![d[@"enabled"] boolValue]) it.enabled = NO;
     if ([d[@"visible"] isEqualToNumber:@NO]) it.hidden = YES;
@@ -149,23 +162,38 @@ static NSMenu* buildMenu(NSArray* items, NSString* title, NSInteger tag = 0) {
   return m;
 }
 static void dumpMenu(NSMenu* m, int depth, NSMutableString* out) {
-  for (NSMenuItem* it in m.itemArray) {
+  NSArray<NSMenuItem*>* all = m.itemArray;
+  // macOS appends its own entries to a menu titled Edit (Start Dictation, Emoji & Symbols, AutoFill): the dump is what the app declared, so it stops at the first leaf nobody gave an id
+  NSMutableArray<NSMenuItem*>* ours = [NSMutableArray new];
+  NSMutableSet<NSString*>* seen = [NSMutableSet new];
+  for (NSMenuItem* x in all) {
+    if (x.isSeparatorItem) { if (ours.count && !ours.lastObject.isSeparatorItem) [ours addObject:x]; continue; }
+    if (!x.representedObject) continue;   // added by the system (Start Dictation, AutoFill...)
+    NSString* ident = x.representedObject;
+    if (ident.length) { if ([seen containsObject:ident]) continue; [seen addObject:ident]; }   // the system may add a copy of an item it treats specially (Enter Full Screen)
+    [ours addObject:ident.length && gMenuItems[ident] ? gMenuItems[ident] : x];
+  }
+  while (ours.count && ours.lastObject.isSeparatorItem) [ours removeLastObject];
+  NSUInteger count = ours.count;
+  for (NSUInteger idx = 0; idx < count; idx++) {
+    NSMenuItem* it = ours[idx];
     if (it.isSeparatorItem) { [out appendFormat:@"%*s----\n", depth * 2, ""]; continue; }
     NSMutableString* line = [NSMutableString stringWithFormat:@"%*s%@", depth * 2, "", it.title];
-    if (it.keyEquivalent.length) {
+    NSString* declared = [it.representedObject length] ? gDeclared[it.representedObject] : nil;
+    if (declared) [line appendFormat:@"  [%@]", declared];
+    else if (it.keyEquivalent.length && ![it.representedObject length]) {   // an item without an id: read the key from the menu
       NSEventModifierFlags f = it.keyEquivalentModifierMask;
       NSMutableString* k = [NSMutableString new];
       if (f & NSEventModifierFlagControl) [k appendString:@"Ctrl+"];
       if (f & NSEventModifierFlagOption) [k appendString:@"Alt+"];
       if (f & NSEventModifierFlagShift) [k appendString:@"Shift+"];
       if (f & NSEventModifierFlagCommand) [k appendString:@"Cmd+"];
-      [k appendString:it.keyEquivalent.length == 1 && [it.keyEquivalent characterAtIndex:0] > 0x20 && [it.keyEquivalent characterAtIndex:0] < 0x7f ? it.keyEquivalent.uppercaseString : [NSString stringWithFormat:@"U+%04X", [it.keyEquivalent characterAtIndex:0]]];
+      [k appendString:it.keyEquivalent.uppercaseString];
       [line appendFormat:@"  [%@]", k];
     }
     if (!it.enabled) [line appendString:@"  (disabled)"];
     if (it.state == NSControlStateValueOn) [line appendString:@"  (checked)"];
-    if (it.hidden) [line appendString:@"  (hidden)"];
-    if (it.representedObject) [line appendFormat:@"  {%@}", it.representedObject];
+    if ([it.representedObject length]) [line appendFormat:@"  {%@}", it.representedObject];
     else if (it.action && it.target == nil) [line appendFormat:@"  <%@>", NSStringFromSelector(it.action)];
     [out appendFormat:@"%@\n", line];
     if (it.submenu && it.submenu != NSApp.servicesMenu) dumpMenu(it.submenu, depth + 1, out);
@@ -182,7 +210,7 @@ static NSMenuItem* findByPath(NSMenu* m, NSArray<NSString*>* path, int i) {
 
 static int menuCall(const char* op, NSDictionary* a, char* out, int cap) {
   menuTarget();
-  [NSApplication sharedApplication];
+  ensureApp();
   NSString* result = nil;
   if (!strcmp(op, "menu.setApp")) {
     [gMenuItems removeAllObjects];
@@ -241,7 +269,7 @@ static NSMenu* dockMenuIMP(id, SEL, NSApplication*) { return gDockMenu; }
 static ZnAppDelegate* gOwnDelegate;
 
 static int dockCall(const char* op, NSDictionary* a, char* out, int cap) {
-  [NSApplication sharedApplication];
+  ensureApp();
   NSString* result = nil;
   if (!strcmp(op, "dock.setBadge")) { NSApp.dockTile.badgeLabel = [a[@"text"] length] ? a[@"text"] : nil; result = @"{}"; }
   else if (!strcmp(op, "dock.getBadge")) result = json(@{@"text": NSApp.dockTile.badgeLabel ?: @""});
@@ -264,6 +292,87 @@ static int dockCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- tray (ZN-238): NSStatusItem
+static NSMutableDictionary<NSString*, NSStatusItem*>* gTrays;
+static NSMutableDictionary<NSString*, NSNumber*>* gTrayMenuOnLeft;
+static NSMutableDictionary<NSString*, NSNumber*>* gTrayTemplate;
+
+static NSImage* trayImage(NSString* path, BOOL template_) {
+  NSImage* img = path.length ? [[NSImage alloc] initWithContentsOfFile:path] : nil;
+  if (!img) {   // no icon (or unreadable): a plain dot, so the item is visible and the template path is still exercised
+    img = [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO drawingHandler:^BOOL(NSRect r) { [[NSColor blackColor] set]; [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(r, 4, 4)] fill]; return YES; }];
+  }
+  if (img.size.height > 22) { NSSize s = img.size; img.size = NSMakeSize(s.width * 18.0 / s.height, 18); }   // the menu bar is 22 pt high
+  [img setTemplate:(template_ || [path hasSuffix:@"Template.png"])];
+  return img;
+}
+
+@interface ZnTrayTarget : NSObject
+- (void)znTrayClicked:(NSStatusBarButton*)button;
+@end
+@implementation ZnTrayTarget
+- (void)znTrayClicked:(NSStatusBarButton*)button {
+  NSString* ident = nil;
+  for (NSString* k in gTrays) if (gTrays[k].button == button) ident = k;
+  if (!ident) return;
+  NSEvent* e = NSApp.currentEvent;
+  BOOL right = e && (e.type == NSEventTypeRightMouseUp || e.type == NSEventTypeRightMouseDown);
+  BOOL dbl = e && e.clickCount >= 2;
+  NSStatusItem* item = gTrays[ident];
+  if (right && item.menu == nil && ![gTrayMenuOnLeft[ident] boolValue]) { /* a right click opens the menu below */ }
+  pushEvent(@"tray-click", @[right ? @"right" : @"left", dbl ? @"1" : @"0", ident]);
+}
+@end
+static ZnTrayTarget* trayTarget() { static ZnTrayTarget* t; static dispatch_once_t once; dispatch_once(&once, ^{ t = [ZnTrayTarget new]; gTrays = [NSMutableDictionary new]; gTrayMenuOnLeft = [NSMutableDictionary new]; gTrayTemplate = [NSMutableDictionary new]; }); return t; }
+
+static void applyTray(NSString* ident, NSDictionary* a) {
+  NSStatusItem* item = gTrays[ident];
+  if (!item) { item = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength]; gTrays[ident] = item; item.button.target = trayTarget(); item.button.action = @selector(znTrayClicked:); [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp]; }
+  if (a[@"template"]) gTrayTemplate[ident] = a[@"template"];
+  if (a[@"icon"] || !item.button.image) item.button.image = trayImage(a[@"icon"] ?: @"", gTrayTemplate[ident] ? [gTrayTemplate[ident] boolValue] : YES);
+  if (a[@"title"]) item.button.title = a[@"title"];
+  if (a[@"tooltip"]) item.button.toolTip = a[@"tooltip"];
+  if (a[@"menuOnLeftClick"]) gTrayMenuOnLeft[ident] = a[@"menuOnLeftClick"];
+  if (a[@"menu"]) {
+    NSMenu* m = buildMenu(a[@"menu"], @"", 2);   // tag 2: items report source 'tray'
+    item.menu = [gTrayMenuOnLeft[ident] boolValue] || !gTrayMenuOnLeft[ident] ? m : nil;   // a menu set on the item opens on the left click; otherwise it would swallow the click event
+    objc_setAssociatedObject(item, "znMenu", m, OBJC_ASSOCIATION_RETAIN);
+  }
+}
+
+static int trayCall(const char* op, NSDictionary* a, char* out, int cap) {
+  ensureApp();
+  trayTarget();
+  NSString* result = nil;
+  NSString* ident = a[@"id"] ?: @"";
+  if (!strcmp(op, "tray.available")) result = @"{\"available\":true}";
+  else if (!strcmp(op, "tray.create")) { applyTray(ident, a); result = @"{}"; }
+  else if (!strcmp(op, "tray.update")) { NSDictionary* p = a[@"props"]; if (gTrays[ident] && p) applyTray(ident, p); result = @"{}"; }
+  else if (!strcmp(op, "tray.remove")) { NSStatusItem* it = gTrays[ident]; if (it) { [[NSStatusBar systemStatusBar] removeStatusItem:it]; [gTrays removeObjectForKey:ident]; } result = @"{}"; }
+  else if (!strcmp(op, "tray.click")) {
+    NSStatusItem* it = gTrays[ident];
+    if (it) {
+      if ([a[@"button"] isEqualToString:@"right"]) { pushEvent(@"tray-click", @[@"right", @"0", ident]); }
+      else [it.button performClick:nil];
+    }
+    result = json(@{@"ok": @(it != nil)});
+  } else if (!strcmp(op, "tray.dump")) {
+    NSMutableArray* list = [NSMutableArray new];
+    for (NSString* k in [gTrays.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+      NSStatusItem* it = gTrays[k];
+      NSMenu* m = it.menu ?: objc_getAssociatedObject(it, "znMenu");
+      NSMutableString* text = [NSMutableString new];
+      if (m) dumpMenu(m, 0, text);
+      NSSize sz = it.button.image.size;
+      [list addObject:@{@"id": k, @"template": @([it.button.image isTemplate]), @"width": @(sz.width), @"height": @(sz.height), @"title": it.button.title ?: @"", @"tooltip": it.button.toolTip ?: @"", @"menu": text, @"x": @(it.button.window.frame.origin.x), @"y": @(it.button.window.frame.origin.y), @"w": @(it.button.window.frame.size.width), @"h": @(it.button.window.frame.size.height), @"visible": @(it.isVisible), @"pumps": @(gPumps)}];
+    }
+    result = json(@{@"trays": list});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -274,6 +383,10 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     if (!strncmp(op, "menu.", 5)) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
+    }
+    if (!strncmp(op, "tray.", 5)) {
+      @try { return trayCall(op, a, out, cap); }
+      @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
     }
     if (!strncmp(op, "dock.", 5)) {
       @try { return dockCall(op, a, out, cap); }
@@ -339,6 +452,22 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     if (!result) return 0;
     snprintf(out, (size_t)cap, "%s", result.UTF8String);
     return 1;
+  }
+}
+
+/** A program without a window of its own (a tray-only app, a console program with a menu) has nobody serving AppKit's event queue: status items, menus and the dock would stay frozen.
+ *  Called each loop turn; does nothing when a window exists (SDL pumps then). */
+int zn_sys_macos_pump(void) {
+  @autoreleasepool {
+    gPumps++;
+    if (!gTrays || (gTrays.count == 0 && !gDockMenu && !NSApp.mainMenu)) return 0;
+    for (NSWindow* w in NSApp.windows) if (w.level == NSNormalWindowLevel) return 0;   // an app window exists: its own loop (SDL) serves AppKit; status item windows do not count
+    for (int i = 0; i < 50; i++) {
+      NSEvent* e = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:(i == 0 ? [NSDate dateWithTimeIntervalSinceNow:0.004] : nil) inMode:NSDefaultRunLoopMode dequeue:YES];   // the first call waits a moment: the run loop sources that place the status item need to run
+      if (!e) break;
+      [NSApp sendEvent:e];
+    }
+    return 1;   // the loop must keep turning: AppKit needs its events served between timers
   }
 }
 

@@ -16,6 +16,7 @@ extern "C" void hal_set_drop_handler(void (*)(const char*, int)) __attribute__((
 #ifdef __APPLE__
 extern "C" int zn_sys_macos_call(const char* op, const char* args, char* out, int cap);   // native/system.macos.mm
 extern "C" int zn_sys_macos_poll(char* out, int cap);
+extern "C" int zn_sys_macos_pump(void);
 #endif
 namespace zrt { extern bool quit_requested; }   // the runtime's request to end the program (runtime/zrt.cpp)
 
@@ -262,7 +263,8 @@ struct Sim : NativeSystem, zrt::Poller {
   }
   bool poll() override {
 #ifdef __APPLE__
-    if (live) { char ev[1200]; while (zn_sys_macos_poll(ev, sizeof ev)) deliver(ev); }
+    bool servingAppKit = false;
+    if (live) { servingAppKit = zn_sys_macos_pump() != 0; char ev[1200]; while (zn_sys_macos_poll(ev, sizeof ev)) deliver(ev); }
 #endif
     if (!scriptRead) readScript();
     ticks++;
@@ -270,6 +272,9 @@ struct Sim : NativeSystem, zrt::Poller {
       const char* json = script[next++].json;
       deliver(json);
     }
+#ifdef __APPLE__
+    if (servingAppKit) return true;
+#endif
     return next < nscript;   // the loop stays alive while events are due
   }
   void shutdown() override { cb = nullptr; if (logFile) { fclose(logFile); logFile = nullptr; } }

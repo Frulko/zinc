@@ -40,5 +40,8 @@ static const ZnSystemOp kSystemOps[] = {
   {"dock.getBadge", "dock", "{\"text\":\"\"}"},
   {"dock.setMenu", "dock", "{}"},
   {"dock.setProgress", "dock", "{}"},
+  {"tray.dump", "tray", "{\"trays\":[]}"},
+  {"tray.click", "tray", "{\"ok\":false}"},
+  {"tray.available", "tray", "{\"available\":true}"},
 };
-static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer"};
+static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double"};

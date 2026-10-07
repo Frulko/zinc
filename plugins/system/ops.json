@@ -78,9 +78,11 @@
    "params": {
     "id": "string",
     "icon?": "string",
+    "template?": "boolean",
     "tooltip?": "string",
+    "title?": "string",
     "menu?": "MenuItem[]",
-    "template?": "boolean"
+    "menuOnLeftClick?": "boolean"
    },
    "returns": "{}",
    "sim": "{}"
@@ -90,7 +92,7 @@
    "permission": "tray",
    "params": {
     "id": "string",
-    "props": "object"
+    "props": "{icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean}"
    },
    "returns": "{}",
    "sim": "{}"
@@ -349,6 +351,30 @@
    },
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "tray.dump",
+   "permission": "tray",
+   "params": {},
+   "returns": "{trays: {id: string; template: boolean; width: number; height: number; title: string; tooltip: string; menu: string}[]}",
+   "sim": "{\"trays\":[]}"
+  },
+  {
+   "op": "tray.click",
+   "permission": "tray",
+   "params": {
+    "id": "string",
+    "button?": "'left' | 'right'"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":false}"
+  },
+  {
+   "op": "tray.available",
+   "permission": "tray",
+   "params": {},
+   "returns": "{available: boolean}",
+   "sim": "{\"available\":true}"
   }
  ],
  "events": [
@@ -365,6 +391,8 @@
   "power",
   "appearance",
   "window",
-  "dialog-answer"
+  "dialog-answer",
+  "tray-menu-click",
+  "tray-double"
  ]
 }

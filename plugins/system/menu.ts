@@ -2,6 +2,7 @@
 // side only ever sends ids back. Roles expand here (labels, accelerators), so the simulator, the macOS menu bar and the UI kit's menu bar all show the same menus.
 import { callRaw, on, supports } from 'zinc:system';
 import { APP } from 'zinc:system/app';
+import { GRANTED } from 'zinc:system/permissions';
 import { parseAccelerator, formatAccelerator, macModifiers } from './accelerator';
 import { roleInfo, menuRoles, menuTitle, isNativeRole } from './menu-roles';
 
@@ -105,6 +106,11 @@ function wire(): void {
     const source = a.length > 1 ? a[1] : 'app';
     for (const cb of cbs[i]) cb(source);
   });
+  on('tray-menu-click', (a: string[]) => {   // a choice in a tray menu: the same handlers, source 'tray'
+    const i = ids.indexOf(a[0]);
+    if (i < 0) return;
+    for (const cb of cbs[i]) cb('tray');
+  });
 }
 /** Runs `cb` when the item `id` is chosen (from the menu bar, a context menu, the tray or the dock: `source`). Role items report 'role:<name>'. */
 export function onClick(id: string, cb: (source: string) => void): void {
@@ -137,4 +143,4 @@ export async function popup(items: Item[], x: number, y: number): Promise<string
 }
 
 // an app that imports this module and sets no menu of its own gets the standard one, with the name from zinc.json: applied once the program's own setup has run
-setTimeout(() => { if (!hasApp) defaultMenu(); }, 0);
+setTimeout(() => { if (!hasApp && ((',' + GRANTED + ',').indexOf(',menu,') >= 0 || GRANTED.indexOf('menu:') >= 0)) defaultMenu(); }, 0);   // no menu permission (the module was pulled in by tray or dock): no menu

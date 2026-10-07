@@ -9,8 +9,8 @@ export interface OpArgs {
   'menu.setApp': { template: MenuItem[] };
   'menu.update': { id: string; props: object };
   'menu.popup': { template: MenuItem[]; x?: number; y?: number };
-  'tray.create': { id: string; icon?: string; tooltip?: string; menu?: MenuItem[]; template?: boolean };
-  'tray.update': { id: string; props: object };
+  'tray.create': { id: string; icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean };
+  'tray.update': { id: string; props: {icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean} };
   'tray.remove': { id: string };
   'dialog.open': { title?: string; filters?: {name: string; extensions: string[]}[]; multiple?: boolean; directory?: boolean };
   'dialog.save': { title?: string; defaultPath?: string; filters?: {name: string; extensions: string[]}[] };
@@ -40,6 +40,9 @@ export interface OpArgs {
   'dock.getBadge': {  };
   'dock.setMenu': { template: MenuItem[] };
   'dock.setProgress': { value: number };
+  'tray.dump': {  };
+  'tray.click': { id: string; button?: 'left' | 'right' };
+  'tray.available': {  };
 }
 
 export interface OpResult {
@@ -81,10 +84,13 @@ export interface OpResult {
   'dock.getBadge': {text: string};
   'dock.setMenu': {};
   'dock.setProgress': {};
+  'tray.dump': {trays: {id: string; template: boolean; width: number; height: number; title: string; tooltip: string; menu: string}[]};
+  'tray.click': {ok: boolean};
+  'tray.available': {available: boolean};
 }
 
 export type OpName = keyof OpArgs;
-export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer';
+export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double';
 
 /** The permission id an op needs. */
 export const PERMISSION_OF: { [op in OpName]: string };
