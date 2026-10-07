@@ -56,6 +56,21 @@ not offer one, `energy_mj` is null and `energy_note` says why. On the Pi rig a p
 every median time and peak RSS with the numbers committed at `HEAD` (or `--baseline file`): more than 15 percent worse (`--tolerance`)
 is listed under "Regressions" in the report, and `--check-regressions` makes the exit code 3.
 
+## Map pan and zoom (ZN-108)
+
+`examples/maps/explorer` (Paris, offline vector tiles), headless and deterministic (`ZINC_PROFILE=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1`), 960x600, M-series macOS, work time per frame:
+
+| run | frames | work p50 | p99 | max |
+|---|---|---|---|---|
+| prototype (`node compiler/bin/zinc.mjs run`, same `map.host.cpp`) | 90, no input | 0.17 ms | 1.59 ms | 132.4 ms (first frame: tile decode and style) |
+| this engine | 90, no input | 0.14 ms | 1.72 ms | 125.6 ms |
+| this engine, scripted drag then wheel zoom (`ZINC_INPUT`) | 90 | 0.12 ms | 93 ms | 128 ms |
+
+The idle numbers equal the prototype's (the native code is the same file). While panning or zooming, every frame that needs a tile it does not have decodes it and
+restyles it in `paint` (about 90 ms each, 1 to 3 frames per gesture); the prototype's headless HAL has no scripted input, so no pan figure exists for it, and the
+decoder and the style evaluator are the prototype's. The cost is a decoding cost, not an engine one: a tile cache with a prefetch ring (or decoding off the render thread,
+R3.6 of the rendering roadmap) is the lever, not a different raster path.
+
 ## Not covered yet
 
 Exact instruction counts per function (a counting interpreter), per-allocation sites, GPU and I/O, and energy on the Pi rig and the

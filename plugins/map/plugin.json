@@ -1,6 +1,7 @@
 {
   "name": "map",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:map",
   "entry": "index.ts",
   "description": "Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels",
