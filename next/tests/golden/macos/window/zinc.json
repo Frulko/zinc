@@ -1,0 +1,1 @@
+{"name":"win","entry":"main.ts","permissions":["window"],"app":{"id":"dev.zinc.test.window","name":"Window Test","window":{"width":400,"height":300}},"targets":{"macos":{"width":400,"height":300}}}

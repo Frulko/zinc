@@ -26,6 +26,7 @@
     "zinc:system/menu": "menu.ts",
     "zinc:system/dock": "dock.ts",
     "zinc:system/tray": "tray.ts",
-    "zinc:system/dialog": "dialog.ts"
+    "zinc:system/dialog": "dialog.ts",
+    "zinc:system/window": "window.ts"
   }
 }

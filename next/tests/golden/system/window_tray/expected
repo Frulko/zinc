@@ -1,0 +1,11 @@
+[system] tray.create {"id":"main","icon":"","template":true,"tooltip":"Window tray","title":"","menuOnLeftClick":true}
+[system] window.setTitle {"title":"Demo"}
+[system] window.state {}
+[system] event {"type":"window","args":["close-requested"]}
+[system] window.hide {}
+[system] event {"type":"tray-click","args":["left"]}
+[system] window.show {}
+[system] event {"type":"shortcut","args":["q"]}
+state {"x":0,"y":0,"w":0,"h":0,"maximized":false,"fullscreen":false}
+close requested: hiding instead
+tray click left

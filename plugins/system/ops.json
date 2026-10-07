@@ -380,6 +380,145 @@
    "params": {},
    "returns": "{available: boolean}",
    "sim": "{\"available\":true}"
+  },
+  {
+   "op": "window.setSize",
+   "permission": "window",
+   "params": {
+    "w": "number",
+    "h": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setPosition",
+   "permission": "window",
+   "params": {
+    "x": "number",
+    "y": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.center",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setAlwaysOnTop",
+   "permission": "window",
+   "params": {
+    "on": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setOpacity",
+   "permission": "window",
+   "params": {
+    "value": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setMinSize",
+   "permission": "window",
+   "params": {
+    "w": "number",
+    "h": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setFullscreen",
+   "permission": "window",
+   "params": {
+    "on": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.maximize",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.minimize",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.hide",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.show",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.focus",
+   "permission": "window",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setTitleBar",
+   "permission": "window",
+   "params": {
+    "style": "'default' | 'hidden' | 'overlay' | 'none'"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setTrafficLights",
+   "permission": "window",
+   "params": {
+    "x": "number",
+    "y": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.state",
+   "permission": "window",
+   "params": {},
+   "returns": "{x: number; y: number; w: number; h: number; maximized: boolean; fullscreen: boolean; displays: {x: number; y: number; w: number; h: number}[]}",
+   "sim": "{\"x\":0,\"y\":0,\"w\":0,\"h\":0,\"maximized\":false,\"fullscreen\":false,\"displays\":[{\"x\":0,\"y\":0,\"w\":1920,\"h\":1080}]}"
+  },
+  {
+   "op": "window.dataDir",
+   "permission": "window",
+   "params": {},
+   "returns": "{path: string}",
+   "sim": "{\"path\":\"/tmp/zinc-system-data\"}"
+  },
+  {
+   "op": "window.dump",
+   "permission": "window",
+   "params": {},
+   "returns": "{text: string}",
+   "sim": "{\"text\":\"\"}"
   }
  ],
  "events": [

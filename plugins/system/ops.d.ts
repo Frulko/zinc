@@ -43,6 +43,23 @@ export interface OpArgs {
   'tray.dump': {  };
   'tray.click': { id: string; button?: 'left' | 'right' };
   'tray.available': {  };
+  'window.setSize': { w: number; h: number };
+  'window.setPosition': { x: number; y: number };
+  'window.center': {  };
+  'window.setAlwaysOnTop': { on: boolean };
+  'window.setOpacity': { value: number };
+  'window.setMinSize': { w: number; h: number };
+  'window.setFullscreen': { on: boolean };
+  'window.maximize': {  };
+  'window.minimize': {  };
+  'window.hide': {  };
+  'window.show': {  };
+  'window.focus': {  };
+  'window.setTitleBar': { style: 'default' | 'hidden' | 'overlay' | 'none' };
+  'window.setTrafficLights': { x: number; y: number };
+  'window.state': {  };
+  'window.dataDir': {  };
+  'window.dump': {  };
 }
 
 export interface OpResult {
@@ -87,6 +104,23 @@ export interface OpResult {
   'tray.dump': {trays: {id: string; template: boolean; width: number; height: number; title: string; tooltip: string; menu: string}[]};
   'tray.click': {ok: boolean};
   'tray.available': {available: boolean};
+  'window.setSize': {};
+  'window.setPosition': {};
+  'window.center': {};
+  'window.setAlwaysOnTop': {};
+  'window.setOpacity': {};
+  'window.setMinSize': {};
+  'window.setFullscreen': {};
+  'window.maximize': {};
+  'window.minimize': {};
+  'window.hide': {};
+  'window.show': {};
+  'window.focus': {};
+  'window.setTitleBar': {};
+  'window.setTrafficLights': {};
+  'window.state': {x: number; y: number; w: number; h: number; maximized: boolean; fullscreen: boolean; displays: {x: number; y: number; w: number; h: number}[]};
+  'window.dataDir': {path: string};
+  'window.dump': {text: string};
 }
 
 export type OpName = keyof OpArgs;

@@ -1,0 +1,27 @@
+after setup and a resize:
+title Window selftest
+opacity 0.90
+titlebarTransparent 1
+titleVisible 0
+fullSizeContent 1
+titled 1
+alwaysOnTop 1
+close 20,22
+zoom 60,22
+fullscreen 0
+
+state size 500 400 fullscreen false
+after another resize:
+title Window selftest
+opacity 0.90
+titlebarTransparent 1
+titleVisible 0
+fullSizeContent 1
+titled 1
+alwaysOnTop 1
+close 20,22
+zoom 60,22
+fullscreen 0
+
+in fullscreen: close 20,22 | fullscreen 1
+after leaving fullscreen: close 20,22 | fullscreen 0

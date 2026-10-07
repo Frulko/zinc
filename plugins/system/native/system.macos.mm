@@ -425,6 +425,91 @@ static int dialogCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- window (ZN-240): the NSWindow SDL created
+static NSWindow* appWindow() {
+  for (NSWindow* w in NSApp.windows) if (w.level == NSNormalWindowLevel || w.level == NSFloatingWindowLevel) if (w.canBecomeMainWindow || w.styleMask & NSWindowStyleMaskTitled) return w;
+  return nil;
+}
+static NSPoint gTrafficLights = NSMakePoint(-1, -1);
+@interface ZnWindowWatcher : NSObject
+@end
+@implementation ZnWindowWatcher
+- (void)changed:(NSNotification*)n {
+  NSWindow* w = n.object;
+  if (gTrafficLights.x >= 0) {
+    NSView* bar = [w standardWindowButton:NSWindowCloseButton].superview;
+    NSArray<NSNumber*>* kinds = @[@(NSWindowCloseButton), @(NSWindowMiniaturizeButton), @(NSWindowZoomButton)];
+    CGFloat x = gTrafficLights.x;
+    for (NSNumber* k in kinds) {
+      NSButton* b = [w standardWindowButton:(NSWindowButton)k.integerValue];
+      NSRect f = b.frame; f.origin.x = x; f.origin.y = bar.frame.size.height - gTrafficLights.y - f.size.height; b.frame = f; x += f.size.width + 6;
+    }
+  }
+  NSString* what = [n.name isEqualToString:NSWindowDidMoveNotification] ? @"moved" : ([n.name isEqualToString:NSWindowDidResizeNotification] ? @"resized" : @"fullscreen");
+  NSRect fr = w.frame;
+  if ([what isEqualToString:@"fullscreen"]) pushEvent(@"window", @[what, [w styleMask] & NSWindowStyleMaskFullScreen ? @"on" : @"off"]);
+  else pushEvent(@"window", @[what, [NSString stringWithFormat:@"%d", (int)(what.length == 5 ? fr.origin.x : fr.size.width)], [NSString stringWithFormat:@"%d", (int)(what.length == 5 ? fr.origin.y : fr.size.height)]]);
+}
+@end
+static void watchWindow(NSWindow* w) {
+  static ZnWindowWatcher* wt; static NSWindow* watched;
+  if (watched == w) return;
+  watched = w;
+  if (!wt) wt = [ZnWindowWatcher new];
+  for (NSNotificationName n in @[NSWindowDidMoveNotification, NSWindowDidResizeNotification, NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification])
+    [[NSNotificationCenter defaultCenter] addObserver:wt selector:@selector(changed:) name:n object:w];
+}
+static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
+  ensureApp();
+  NSString* result = nil;
+  NSWindow* w = appWindow();
+  if (!strcmp(op, "window.dataDir")) {
+    NSString* dir = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject stringByAppendingPathComponent:[[NSBundle mainBundle] bundleIdentifier] ?: @"zinc"];
+    result = json(@{@"path": dir});
+  } else if (!strcmp(op, "window.state")) {
+    NSMutableArray* displays = [NSMutableArray new];
+    for (NSScreen* sc in NSScreen.screens) { NSRect f = sc.frame; [displays addObject:@{@"x": @(f.origin.x), @"y": @(f.origin.y), @"w": @(f.size.width), @"h": @(f.size.height)}]; }
+    NSRect f = w ? w.frame : NSZeroRect;
+    result = json(@{@"x": @(f.origin.x), @"y": @(f.origin.y), @"w": @(f.size.width), @"h": @(f.size.height), @"maximized": @(w && w.isZoomed), @"fullscreen": @(w && (w.styleMask & NSWindowStyleMaskFullScreen) != 0), @"displays": displays});
+  } else if (!w) result = @"{\"error\":{\"code\":\"failed\",\"message\":\"the program has no window\"}}";
+  else {
+    watchWindow(w);
+    if (!strcmp(op, "window.setTitle")) w.title = a[@"title"] ?: @"";
+    else if (!strcmp(op, "window.setSize")) { NSRect f = w.frame; f.size = NSMakeSize([a[@"w"] doubleValue], [a[@"h"] doubleValue]); [w setFrame:f display:YES]; }
+    else if (!strcmp(op, "window.setPosition")) [w setFrameOrigin:NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue])];
+    else if (!strcmp(op, "window.center")) [w center];
+    else if (!strcmp(op, "window.setAlwaysOnTop")) w.level = [a[@"on"] boolValue] ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    else if (!strcmp(op, "window.setOpacity")) w.alphaValue = [a[@"value"] doubleValue];
+    else if (!strcmp(op, "window.setMinSize")) w.minSize = NSMakeSize([a[@"w"] doubleValue], [a[@"h"] doubleValue]);
+    else if (!strcmp(op, "window.setFullscreen")) { BOOL now = (w.styleMask & NSWindowStyleMaskFullScreen) != 0; if (now != [a[@"on"] boolValue]) [w toggleFullScreen:nil]; }
+    else if (!strcmp(op, "window.maximize")) { if (!w.isZoomed) [w zoom:nil]; }
+    else if (!strcmp(op, "window.minimize")) [w miniaturize:nil];
+    else if (!strcmp(op, "window.hide")) [w orderOut:nil];
+    else if (!strcmp(op, "window.show")) { [w makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }
+    else if (!strcmp(op, "window.focus")) { [w makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }
+    else if (!strcmp(op, "window.setTitleBar")) {
+      NSString* st = a[@"style"];
+      BOOL none = [st isEqualToString:@"none"], overlay = [st isEqualToString:@"overlay"], hidden = [st isEqualToString:@"hidden"];
+      w.titlebarAppearsTransparent = overlay || hidden;
+      w.titleVisibility = (hidden || overlay) ? NSWindowTitleHidden : NSWindowTitleVisible;
+      NSWindowStyleMask m = w.styleMask;
+      if (overlay) m |= NSWindowStyleMaskFullSizeContentView; else m &= ~NSWindowStyleMaskFullSizeContentView;
+      if (none) m = (m & ~NSWindowStyleMaskTitled) | NSWindowStyleMaskBorderless; else m |= NSWindowStyleMaskTitled;
+      w.styleMask = m;
+    }
+    else if (!strcmp(op, "window.setTrafficLights")) { gTrafficLights = NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue]); [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidResizeNotification object:w]; }
+    else if (!strcmp(op, "window.dump")) {
+      NSButton* close = [w standardWindowButton:NSWindowCloseButton];
+      NSButton* zoom = [w standardWindowButton:NSWindowZoomButton];
+      result = json(@{@"text": [NSString stringWithFormat:@"title %@\nopacity %.2f\ntitlebarTransparent %d\ntitleVisible %d\nfullSizeContent %d\ntitled %d\nalwaysOnTop %d\nclose %.0f,%.0f\nzoom %.0f,%.0f\nfullscreen %d\n", w.title, w.alphaValue, w.titlebarAppearsTransparent, w.titleVisibility == NSWindowTitleVisible, (w.styleMask & NSWindowStyleMaskFullSizeContentView) != 0, (w.styleMask & NSWindowStyleMaskTitled) != 0, w.level == NSFloatingWindowLevel, close.frame.origin.x, [close superview].frame.size.height - close.frame.origin.y - close.frame.size.height, zoom.frame.origin.x, [zoom superview].frame.size.height - zoom.frame.origin.y - zoom.frame.size.height, (w.styleMask & NSWindowStyleMaskFullScreen) != 0]});
+    }
+    if (!result) result = @"{}";
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -435,6 +520,10 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     if (!strncmp(op, "menu.", 5)) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
+    }
+    if (!strncmp(op, "window.", 7) && strcmp(op, "window.confirmClose")) {
+      @try { return windowCall(op, a, out, cap); }
+      @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
     }
     if (!strncmp(op, "dialog.", 7)) {
       @try { return dialogCall(op, a, out, cap); }
