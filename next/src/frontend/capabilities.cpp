@@ -18,6 +18,19 @@ bool available(const std::string& v) {
   return end && *end == 0 && d > 0;
 }
 
+// gpu and tier are ladders, not numbers: `requires gpu>=gles3`, `tier>=T2` (docs/reports/ui-rendering-architecture.md 4.13). -1: not a ladder value.
+int ladder(const std::string& name, const std::string& v) {
+  if (name == "tier") return v.size() == 2 && v[0] == 'T' && v[1] >= '0' && v[1] <= '4' ? v[1] - '0' : -1;
+  if (name != "gpu") return -1;
+  if (v == "none" || v == "false" || v.empty()) return 0;
+  if (v == "gles2" || v == "webgl1") return 1;
+  if (v == "gles3" || v == "webgl2") return 2;
+  if (v == "metal" || v == "vulkan" || v == "d3d") return 3;
+  return -1;
+}
+
+bool availableNamed(const std::string& name, const std::string& v) { return name == "gpu" ? ladder(name, v) > 0 : available(v); }
+
 double bytes(const std::string& v) {
   std::size_t i = 0;
   while (i < v.size() && (std::isdigit(static_cast<unsigned char>(v[i])) || v[i] == '.')) ++i;
@@ -79,7 +92,7 @@ bool satisfied(const std::string& reqIn, const Caps& caps) {
     }
   }
   auto get = [&](const std::string& k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
-  if (!r.empty() && r[0] == '!') return !available(get(r.substr(1)));
+  if (!r.empty() && r[0] == '!') return !availableNamed(r.substr(1), get(r.substr(1)));
   std::size_t i = 0;
   while (i < r.size() && (std::isalnum(static_cast<unsigned char>(r[i])) || r[i] == '_')) ++i;
   std::string name = r.substr(0, i);
@@ -90,8 +103,9 @@ bool satisfied(const std::string& reqIn, const Caps& caps) {
     op += r[j++];
     if (j < r.size() && r[j] == '=') op += r[j++];
   }
-  if (op.empty()) return available(get(r));
+  if (op.empty()) return availableNamed(r, get(r));
   std::string want = trim(r.substr(j)), have = get(name);
+  if (int h = ladder(name, have), w = ladder(name, want); h >= 0 && w >= 0 && op != "=") return op == ">=" ? h >= w : op == "<=" ? h <= w : op == ">" ? h > w : h < w;
   char* end = nullptr;
   double hv = std::strtod(have.c_str(), &end);
   if (!have.empty() && end && *end == 0) {

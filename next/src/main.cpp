@@ -1,6 +1,7 @@
 #include "zn/native.h"
 #include <chrono>
 #include <cstdio>
+#include <dlfcn.h>
 #include <cstdlib>
 #include <filesystem>
 #include <cstring>
@@ -284,6 +285,28 @@ int main(int argc, char** argv) {
     argc -= used; --k;
   }
   if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
+  if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: what this machine offers the renderer (ZN-175): profile, gpu, tier
+    const zn::frontend::Profile* hp = gProfile ? gProfile : zn::frontend::findProfile(
+#if defined(__APPLE__)
+        "macos"
+#else
+        "linux"
+#endif
+    );
+    zn::frontend::Caps caps = zn::frontend::capsFor(*hp, gRoot);
+    std::string gpu = caps["gpu"], tier = caps["tier"], note;
+#if !defined(__APPLE__)
+    if (!gProfile) {   // probe: no EGL/GLES library means the software raster draws
+      void* egl = dlopen("libEGL.so.1", RTLD_LAZY);
+      if (egl) dlclose(egl);
+      void* gles = dlopen("libGLESv2.so.2", RTLD_LAZY);
+      if (gles) dlclose(gles);
+      if (!egl || !gles) { gpu = "none"; tier = "T0"; note = " (libEGL/libGLESv2 not found: software raster)"; }
+    }
+#endif
+    std::printf("profile %s\ngpu %s%s\ntier %s\nrenderer %s\n", hp->name, gpu.c_str(), note.c_str(), tier.c_str(), gpu == "none" ? "cpu" : "auto");
+    return 0;
+  }
   if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
 #if defined(__APPLE__)

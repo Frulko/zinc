@@ -35,20 +35,30 @@ function bytes(v: string): number {
   if (!m) return Number(v);
   return Number(m[1]) * ({ '': 1, K: 1024, M: 1 << 20, G: 1 << 30 } as Record<string, number>)[m[2].toUpperCase()];
 }
+/** gpu and tier are ladders (`requires gpu>=gles3`, `tier>=T2`); -1: not a ladder value. Same rules as next/src/frontend/capabilities.cpp. */
+function ladder(name: string, v: unknown): number {
+  const s = String(v);
+  if (name === 'tier') return /^T[0-4]$/.test(s) ? Number(s[1]) : -1;
+  if (name !== 'gpu') return -1;
+  return ['none', 'false', 'undefined', ''].includes(s) ? 0 : ['gles2', 'webgl1'].includes(s) ? 1 : ['gles3', 'webgl2'].includes(s) ? 2 : ['metal', 'vulkan', 'd3d'].includes(s) ? 3 : -1;
+}
+function availableNamed(name: string, v: boolean | string | number | undefined): boolean { return name === 'gpu' ? ladder(name, v) > 0 : available(v); }
 function available(v: boolean | string | number | undefined): boolean { return v === true || v === 'plugin' || v === 'optional' || (typeof v === 'number' && v > 0); }
 
 /** One requirement against the capabilities. */
 export function satisfied(req: string, caps: Caps): boolean {
   const r = req.trim();
   if (r.includes('|')) return r.split('|').some(x => satisfied(x, caps));
-  if (r.startsWith('!')) return !available(caps[r.slice(1)]);
+  if (r.startsWith('!')) return !availableNamed(r.slice(1), caps[r.slice(1)]);
   const m = /^(\w+)\s*(>=|<=|>|<|=)\s*(.+)$/.exec(r);
-  if (!m) return available(caps[r]);
+  if (!m) return availableNamed(r, caps[r]);
   const have = caps[m[1]];
   if (typeof have === 'number') {
     const want = bytes(m[3]);
     return m[2] === '>=' ? have >= want : m[2] === '<=' ? have <= want : m[2] === '>' ? have > want : m[2] === '<' ? have < want : have === want;
   }
+  const h = ladder(m[1], have), w = ladder(m[1], m[3]);
+  if (h >= 0 && w >= 0 && m[2] !== '=') return m[2] === '>=' ? h >= w : m[2] === '<=' ? h <= w : m[2] === '>' ? h > w : h < w;
   return String(have) === m[3];
 }
 /** The requirements that do not hold (empty: compatible). */

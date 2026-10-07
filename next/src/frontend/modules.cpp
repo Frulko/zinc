@@ -820,6 +820,12 @@ std::string platformModuleSource(const std::string& capsFile) {
     if (yyjson_is_obj(t)) yyjson_obj_foreach(t, i, n, k, v) {
       std::string key = yyjson_get_str(k);
       if (key == "heap" || key == "numbers" || key == "width" || key == "height" || key == "fpu") continue;
+      if (key == "gpu" || key == "tier") {   // ladders: GPU stays a boolean, GPU_API and TIER say how much (ZN-175)
+        std::string val = yyjson_is_str(v) ? yyjson_get_str(v) : "none";
+        if (key == "gpu") src += std::string("export const GPU: boolean = ") + (val != "none" && val != "false" ? "true" : "false") + ";\nexport const GPU_API: string = \"" + val + "\";\n";
+        else src += "export const TIER: i32 = " + std::string(val.size() == 2 ? val.substr(1) : "0") + ";\n";
+        continue;
+      }
       bool on = (yyjson_is_bool(v) && yyjson_get_bool(v)) || (yyjson_is_num(v) && yyjson_get_num(v) > 0) || (yyjson_is_str(v) && (std::string(yyjson_get_str(v)) == "plugin" || std::string(yyjson_get_str(v)) == "optional"));
       for (char& c : key) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
       src += "export const " + key + ": boolean = " + (on ? "true" : "false") + ";\n";

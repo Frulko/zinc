@@ -13,5 +13,13 @@ out=$("$ZINC" run "$tmp/ffi.ts" 2>&1)
 case "$out" in *"error Z5005"*"plugin ffi requires dynlib"*) ;; *) echo "ffi on rmpp: $out"; fail=1 ;; esac
 out=$("$ZINC" run "$tmp/sq.ts" --force 2>&1)
 case "$out" in *"warning: plugin sqlite requires heap>=4M"*"building anyway (--force)"*) ;; *) echo "--force: $out"; fail=1 ;; esac
+# gpu and tier are ladders (ZN-175): gpu>=gles3 fails cleanly on esp32 and rpi1 (gles2), holds on linux and macos; zinc doctor prints the tier
+mkdir -p "$tmp/gpu"; echo 'console.log("ok")' > "$tmp/gpu/main.ts"; echo '{"name":"g","entry":"main.ts","requires":["gpu>=gles3","tier>=T2"]}' > "$tmp/gpu/zinc.json"
+for pr in esp32 rpi1; do
+  out=$("$ZINC" run "$tmp/gpu" --profile $pr 2>&1); code=$?
+  case "$out" in *"requires gpu>=gles3"*) [ $code -ne 0 ] || { echo "gpu>=gles3 on $pr exits 0"; fail=1; } ;; *) echo "gpu>=gles3 on $pr: $out"; fail=1 ;; esac
+done
+for pr in linux macos; do [ "$(ZINC_HEADLESS=1 "$ZINC" run "$tmp/gpu" --profile $pr 2>&1)" = ok ] || { echo "gpu>=gles3 must hold on $pr"; fail=1; }; done
+"$ZINC" doctor | grep -q '^tier T[0-4]$' || { echo "zinc doctor prints no tier"; fail=1; }
 [ $fail -eq 0 ] && echo "requires: ok"
 exit $fail
