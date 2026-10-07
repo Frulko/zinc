@@ -1,5 +1,5 @@
 #!/bin/sh
-# JPEG assets (ZN-105): a .jpg in the assets directory is decoded (stb_image, PNG and JPEG only) and baked like a PNG.
+# JPEG assets (ZN-105): a .jpg in the assets directory is decoded (stb_image: PNG, JPEG, BMP, GIF) and baked like a PNG.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$ZINC" bake tests/golden/res_jpeg/main.ts -o "$tmp/blob.bin" || { echo "zinc bake failed on a JPEG"; exit 1; }

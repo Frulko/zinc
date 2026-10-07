@@ -447,9 +447,12 @@ static uint32_t crc32(uint32_t c, const uint8_t* p, size_t n) {
   return ~c;
 }
 static uint8_t* put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)(v >> 24); p[1] = (uint8_t)(v >> 16); p[2] = (uint8_t)(v >> 8); p[3] = (uint8_t)v; return p + 4; }
+/** Set by a host that has a real encoder (Zinc Next: stb_image_write, deflate): returns a PNG made with `alloc`, or null to fall back to the stored encoder below. */
+uint8_t* (*png_encoder)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) = nullptr;
 /** 8-bit RGB PNG with zlib "stored" blocks. ponytail: no compression (~3 bytes per pixel, no dependencies);
  *  zinc capture and zinc test --pixels recompress with Node's zlib. */
 static uint8_t* encode_png(const uint32_t* px, int32_t w, int32_t h, size_t* out_n) {
+  if (png_encoder) if (uint8_t* c = png_encoder(px, w, h, out_n, hal_alloc)) return c;
   size_t row = (size_t)w * 3 + 1, raw = row * (size_t)h, blocks = (raw + 65534) / 65535;
   uint8_t* o = (uint8_t*)hal_alloc(8 + 25 + 12 + 2 + raw + blocks * 5 + 4 + 12);
   if (!o) return nullptr;

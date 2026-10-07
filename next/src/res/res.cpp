@@ -1,15 +1,14 @@
 // Port of compiler/src/resources.ts (TrueType parser, 4x4 supersampling rasterizer, font baking, PNG and SVG images, program scan).
 // The arithmetic follows the original expression by expression (doubles, JavaScript's Math.round and sort stability) so the bitmaps are identical.
 #define STB_IMAGE_IMPLEMENTATION
-#define STBI_NO_BMP
 #define STBI_NO_PSD
 #define STBI_NO_TGA
-#define STBI_NO_GIF
 #define STBI_NO_HDR
 #define STBI_NO_PIC
 #define STBI_NO_PNM
 #define STBI_NO_STDIO
 #include "res/res.h"
+#include "res/codec.h"
 
 #include <algorithm>
 #include <cmath>
@@ -641,5 +640,15 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   }
   return true;
 }
+
+bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba) {
+  int n = 0;
+  unsigned char* p = stbi_load_from_memory(data, static_cast<int>(size), &w, &h, &n, 4);
+  if (!p) return false;
+  rgba.assign(p, p + static_cast<size_t>(w) * h * 4);
+  stbi_image_free(p);
+  return true;
+}
+
 
 }  // namespace zn::res

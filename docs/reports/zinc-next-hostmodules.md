@@ -58,3 +58,7 @@ Rule (D21): with `ZINC_NATIVE=auto` a `.next.ts` stand-in beside the spec wins, 
 ## Trust in native plugin code (ZN-112)
 
 The build writes `plugin.sha256` (digests of the shared library and the archive) beside them in the cache. Every later `plugin-build`, run or build re-hashes both; a mismatch is refused with a message naming the directory and nothing is `dlopen`ed (`tests/t0/plugin_trust.sh`). An entry without a digest is rebuilt. The cache directory name already covers sources, headers, flags and compiler. Not done: a program-level manifest of library hashes and `--allow-native` (the cache is the only source of native code today; a program cannot name a library path).
+
+## Image codecs (ZN-115)
+
+Decoding: stb_image on PNG, JPEG, BMP and GIF (first frame), for baked assets and `decodeRgba` (`src/res/codec.h`). Encoding: `src/res/codec.cpp` on stb_image_write (PNG with deflate level 9, JPEG, BMP). `ZINC_SHOT`, `zinc capture` and `gfx.capture` write the compressed PNG through the hook `zrt::gfx::png_encoder` (the runtime keeps its dependency-free stored-block encoder as the fallback for targets without the codec). A 1100x700 frame of `hero` is 82 KB instead of 2.3 MB with identical pixels (`tools/pngdiff`). Fixtures and the generator: `tests/data/images/`, test `tests/native/codec_test.cpp`. WebP and libjpeg-turbo are not done (ZN-226).

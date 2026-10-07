@@ -14,10 +14,12 @@ namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
 extern bool quit_requested;
-namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); extern bool grow_enabled; }
+namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); extern bool grow_enabled;
+  extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
 
+namespace zn::res { uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, void* (*alloc)(size_t)); }   // src/res/codec.cpp (no <vector> here: zrt.h clashes with it)
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
 
 namespace {
@@ -177,6 +179,17 @@ void call(int id, const HostArg* a, HostArg* r) {
 namespace zn::host {
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 
-void installGfx() { hostGfx = call; installSys(); }
+// screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)
+uint8_t* encodePngHook(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {
+  size_t count = static_cast<size_t>(w) * static_cast<size_t>(h);
+  uint8_t* rgb = static_cast<uint8_t*>(malloc(count * 3));
+  if (!rgb) return nullptr;
+  for (size_t i = 0; i < count; i++) { rgb[i * 3] = static_cast<uint8_t>(px[i] >> 16); rgb[i * 3 + 1] = static_cast<uint8_t>(px[i] >> 8); rgb[i * 3 + 2] = static_cast<uint8_t>(px[i]); }
+  uint8_t* out = zn::res::encodePngAlloc(rgb, w, h, 3, n, alloc);
+  free(rgb);
+  return out;
+}
+
+void installGfx() { zrt::gfx::png_encoder = encodePngHook; hostGfx = call; installSys(); }
 
 }  // namespace zn::host
