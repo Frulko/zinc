@@ -1,5 +1,6 @@
 #include "frontend/modules.h"
 #include "frontend/jsx.h"
+#include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
 
 #include <cstdio>
@@ -897,14 +898,6 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
     std::string body;
     std::vector<NativeDecl> found;
     bool ok = false, listed = false;
-    auto tyLetter = [&](std::uint32_t ty) -> char {
-      if (ty == kNone) return 'n';
-      std::string s;
-      for (std::size_t k = pr.ast.nodes[ty].start; k < pr.ast.nodes[ty].end; ++k) if (!std::isspace(static_cast<unsigned char>(text[k]))) s += text[k];
-      static const std::map<std::string, char> kLetters = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
-      auto it = kLetters.find(s);
-      return it == kLetters.end() ? 0 : it->second;
-    };
     for (std::uint32_t st : pr.ast.nodes[pr.ast.root].kids) {
       std::uint32_t d = st;
       if (pr.ast.nodes[d].kind == N::Export && !pr.ast.nodes[d].kids.empty()) d = pr.ast.nodes[d].kids[0];
@@ -915,11 +908,11 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         const Node& mem = pr.ast.nodes[pr.ast.nodes[d].kids[k]];
         std::string mname(mem.text);
         if (mem.kind != N::Method) { bad(kZNativeTypeNotExpressible, "'" + mname + "' is not a method"); ok = false; break; }
-        std::string sig, params, args;
+        std::string sig, params, args, wrapArgs;
         for (std::size_t j = 2; j < mem.kids.size(); ++j) {
           std::uint32_t ty = pr.ast.nodes[mem.kids[j]].kids.empty() ? kNone : pr.ast.nodes[mem.kids[j]].kids[0];
-          char l = ty == kNone ? 0 : tyLetter(ty);
-          if (!l || l == 'n') { bad(kZNativeTypeNotExpressible, "parameter " + std::to_string(j - 1) + " of '" + mname + "'"); ok = false; break; }
+          std::string l = ty == kNone ? "" : nativeLetter(pr.ast, text, ty, false);
+          if (l.empty() || l == "n") { bad(kZNativeTypeNotExpressible, "parameter " + std::to_string(j - 1) + " of '" + mname + "'"); ok = false; break; }
           sig += l;
           std::string tyText = text.substr(pr.ast.nodes[ty].start, pr.ast.nodes[ty].end - pr.ast.nodes[ty].start);
           params += (j > 2 ? ", " : "") + std::string("__p") + std::to_string(j - 2) + ": " + tyText;
@@ -927,13 +920,18 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         }
         if (!ok) break;
         std::uint32_t rty = mem.kids.empty() ? kNone : mem.kids[0];
-        char rl = tyLetter(rty);
-        if (!rl) { bad(kZNativeTypeNotExpressible, "the result of '" + mname + "'"); ok = false; break; }
-        sig += std::string(">") + rl;
+        std::string rl = nativeLetter(pr.ast, text, rty, true);
+        if (rl.empty()) { bad(kZNativeTypeNotExpressible, "the result of '" + mname + "'"); ok = false; break; }
+        sig += ">" + rl;
         std::string rtext = rty == kNone ? "void" : text.substr(pr.ast.nodes[rty].start, pr.ast.nodes[rty].end - pr.ast.nodes[rty].start);
         found.push_back({module, mname, sig});
         std::string call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + ")";
-        body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == 'n' ? "" : "return ") + call + "; }\n";
+        if (rl[0] == 'P') {   // a promise: the native call gets the two closures that settle it, and the method wraps it in a Promise
+          std::string inner = text.substr(pr.ast.nodes[pr.ast.nodes[rty].kids[0]].start, pr.ast.nodes[pr.ast.nodes[rty].kids[0]].end - pr.ast.nodes[pr.ast.nodes[rty].kids[0]].start);
+          bool none = rl == "Pn";
+          call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + (args.empty() ? "" : ", ") + (none ? "() => { __res(); }" : "(__v: " + inner + ") => { __res(__v); }") + ", (__m: string) => { __rej(new Error(__m)); })";
+          body += "  " + mname + "(" + params + "): " + rtext + " { return new " + rtext + "((__res, __rej) => { " + call + "; }); }\n";
+        } else body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
       }
       break;
     }
@@ -2098,6 +2096,8 @@ function __pollHost(): boolean {
     for (const f of __evHandlers) f(h, kind, data);
     __drainJobs();
   }
+  __host_nativePoll(1);
+  __drainJobs();
   return any;
 }
 function __runLoop(): void {
@@ -2106,7 +2106,7 @@ function __runLoop(): void {
   __drainJobs();
   for (;;) {
     __pollHost();
-    const busy = __host_evActive() !== 0;  // a child still runs, a signal or stdin is being watched
+    const busy = __host_evActive() !== 0 || __host_nativePoll(0) !== 0;  // a child still runs, a signal or stdin is being watched, a native module waits
     if (__timers.length === 0) {
       if (!busy) break;
       __host_loopWait(5);

@@ -117,6 +117,7 @@ typedef struct ZnSink {
   void (*reject)(void* user, uint64_t promise, const char* message);
   int32_t (*call)(void* user, uint64_t cb, const ZnVal* args, uint32_t nargs, ZnVal* ret);   /* runs a callback */
   void (*release)(void* user, uint64_t cb);                                                 /* the last native reference to a callback ended */
+  void (*hold)(void* user, uint64_t cb);                                                    /* a native module took its first reference to a callback (cb_retain) */
 } ZnSink;
 void zn_native_set_sink(const ZnSink* sink);
 /* Runs the queued posts and completions (the loop calls this each turn); returns how many ran. */

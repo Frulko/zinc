@@ -183,7 +183,7 @@ L_Rt: {
   NEXT();
 }
 L_CallNative: {
-  const char* e = nativeCall(*this, dOf(w), r + A);
+  const char* e = nativeCall(*this, dOf(w), r + A, r + fn->nregs);
   if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; return false; }
   NEXT();
 }

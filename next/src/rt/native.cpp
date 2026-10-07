@@ -129,7 +129,7 @@ void apiResRelease(std::uint64_t h) {
   if (!r) return;
   if (--r->rc == 0) finalizeRes(*r, static_cast<std::uint32_t>(r - gRes.data()));
 }
-std::uint64_t apiCbRetain(std::uint64_t cb) { ++gCbRefs[cb]; return cb; }
+std::uint64_t apiCbRetain(std::uint64_t cb) { if (++gCbRefs[cb] == 1 && gSink.hold) gSink.hold(gSink.user, cb); return cb; }
 void apiCbRelease(std::uint64_t cb) {
   auto it = gCbRefs.find(cb);
   if (it == gCbRefs.end()) return;

@@ -49,12 +49,27 @@ static int32_t f_set_callback(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {
   gCallback = H->cb_retain(a[0].h);
   return ZN_OK;
 }
+static int32_t f_call_sum(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {   /* a callback that returns a value, asked for twice during the call */
+  ZnVal arg[2], res;
+  double total = 0;
+  (void)self; (void)cx;
+  arg[0].i = 3; arg[1].d = 1.5;
+  if (H->cb_call(a[0].h, arg, 2, &res) != 0) { H->set_error(cx, "the callback failed"); return ZN_ERROR; }
+  total += res.d;
+  arg[0].i = 4; arg[1].d = 2.5;
+  if (H->cb_call(a[0].h, arg, 2, &res) != 0) { H->set_error(cx, "the callback failed"); return ZN_ERROR; }
+  total += res.d;
+  r->d = total;
+  return ZN_OK;
+}
 static int32_t f_fire(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {
-  ZnVal arg;
+  ZnVal arg[2];
   (void)self; (void)cx; (void)r;
   if (!gCallback) { H->set_error(cx, "no callback set"); return ZN_ERROR; }
-  arg.i = a[0].i * 2;
-  return H->cb_call(gCallback, &arg, 1, NULL);
+  arg[0].i = a[0].i * 2;
+  arg[1].s.p = "fire";
+  arg[1].s.n = 4;
+  return H->cb_call(gCallback, arg, 2, NULL);
 }
 
 typedef struct { uint64_t promise; int value; int fail; } Later;
@@ -123,7 +138,7 @@ static int32_t f_fail(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) { (void)s
 
 static const ZnExport kExports[] = {
   {"add", "ii>i", f_add, ZN_PURE_SCALAR}, {"scale", "dd>d", f_scale, ZN_PURE_SCALAR}, {"greet", "s>s", f_greet, 0}, {"sum", "B>i", f_sum, 0}, {"reverse", "B>B", f_reverse, 0},
-  {"setCallback", "c(i>n)>n", f_set_callback, 0}, {"fire", "i>n", f_fire, 0}, {"later", "i>Pi", f_later, 0}, {"laterFail", ">Pi", f_later_fail, 0},
+  {"setCallback", "c(is>n)>n", f_set_callback, 0}, {"fire", "i>n", f_fire, 0}, {"callSum", "c(id>d)>d", f_call_sum, 0}, {"later", "i>Pi", f_later, 0}, {"laterFail", ">Pi", f_later_fail, 0},
   {"postFromThread", ">n", f_post_from_thread, 0}, {"open", "i>R0", f_open, 0}, {"get", "R0>i", f_get, 0}, {"close", "R0>n", f_close, 0}, {"finalized", ">i", f_finalized, 0},
   {"fail", ">n", f_fail, 0}};
 static const ZnKind kKinds[] = {{0, "Box", box_finalize}};

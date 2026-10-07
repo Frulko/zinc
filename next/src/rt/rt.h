@@ -216,7 +216,9 @@ struct Machine {
 // error message.
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch);
 // CallNative: export `idx` of the module's natives table, the arguments in a[0..] and the result in a[0]; an error message, or null.
-const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a);
+const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch);
+// The loop's turn for the native modules (Rt::HostNativePoll): their pollers and the queued callbacks and completions; 1 while native work is pending.
+std::int32_t nativePoll(Machine& m, Slot* scratch, bool run);
 
 // The outcome of running a module.
 struct Result {

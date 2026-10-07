@@ -640,15 +640,163 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
   return nullptr;
 }
 
-// ---- native modules (include/zn/native.h): the arguments are decoded by the signature of the table entry, the export is called through the registry
-const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
+// ---- native modules (include/zn/native.h): the arguments are decoded by the signature of the table entry, the export is called through the registry.
+// A Zinc closure passed to a native export gets a handle (ZnVal.h); the registry's sink runs it on the engine's thread when the module calls it (at once: cb_call, or from
+// the loop: cb_post), and a promise result is two such closures that the sink calls when the module settles the promise.
+namespace {
+
+struct CbEntry {
+  Obj* fn = nullptr;
+  const Func* call = nullptr;
+  std::string params;    // the callback's parameter letters
+  char result = 'n';
+  int rc = 1;            // the call's own reference, plus one while the module holds it
+};
+struct PromiseEntry { std::uint64_t resolve, reject; char of; };
+
+std::unordered_map<std::uint64_t, CbEntry> gCbs;
+std::unordered_map<std::uint64_t, PromiseEntry> gPromises;
+std::uint64_t gCbNext = 1;
+Machine* gMachine = nullptr;
+Slot* gScratch = nullptr;   // the frame above the running call: where a callback's own frame goes
+
+void cbUnref(std::uint64_t h) {
+  auto it = gCbs.find(h);
+  if (it == gCbs.end()) return;
+  if (--it->second.rc == 0) { Obj* fn = it->second.fn; gCbs.erase(it); if (gMachine) gMachine->release(fn); }
+}
+
+const ClassRT* arrayClassFor(Machine& m, char letter) {   // the array class whose elements are integers (B, I) or f64 (D)
+  for (std::size_t c = 0; c < m.mod->classes.size(); ++c) {
+    const zbc::ClassInfo& ci = m.mod->classes[c];
+    if (ci.kind == zbc::CKind::Array && ci.elem.cls == (letter == 'D' ? zbc::Cls::D : zbc::Cls::I)) return &m.classes[c];
+  }
+  return nullptr;
+}
+
+bool toSlot(Machine& m, char letter, const ZnVal& v, Slot& out) {
+  switch (letter) {
+    case 'i': out = static_cast<Slot>(static_cast<std::int64_t>(static_cast<std::int32_t>(v.i))); return true;
+    case 'u': out = static_cast<Slot>(static_cast<std::uint32_t>(v.i)); return true;
+    case 'b': out = v.i != 0; return true;
+    case 'd': out = std::bit_cast<Slot>(v.d); return true;
+    case 's': out = reinterpret_cast<Slot>(m.newStr(v.s.p, v.s.n)); return true;
+    default: {
+      const ClassRT* cls = arrayClassFor(m, letter);
+      if (!cls) return false;
+      ArrObj* arr = m.newArr(cls);
+      for (std::uint32_t j = 0; j < v.v.n; ++j) {
+        if (letter == 'D') arr->v.push_back(std::bit_cast<Slot>(static_cast<const double*>(v.v.p)[j]));
+        else if (letter == 'B') arr->v.push_back(static_cast<const std::uint8_t*>(v.v.p)[j]);
+        else arr->v.push_back(static_cast<Slot>(static_cast<std::int64_t>(static_cast<const std::int32_t*>(v.v.p)[j])));
+      }
+      out = reinterpret_cast<Slot>(arr);
+      return true;
+    }
+  }
+}
+
+// Runs closure `h` with the arguments of the module; false when it traps (the message is in the machine's error).
+std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t n, ZnVal* ret) {
+  auto it = gCbs.find(h);
+  if (it == gCbs.end() || !gMachine || !gScratch) return -1;
+  CbEntry e = it->second;   // a copy: the table may change while the closure runs
+  Machine& m = *gMachine;
+  m.retain(e.fn);
+  Slot* frame = gScratch;
+  frame[0] = reinterpret_cast<Slot>(e.fn);
+  for (std::uint32_t k = 0; k < n && k < e.params.size(); ++k) if (!toSlot(m, e.params[k], args[k], frame[1 + k])) return -1;
+  Slot* saved = gScratch;
+  gScratch = frame + 1 + e.params.size() + 8;   // a nested call (the closure calls a native that calls back) starts above this frame
+  bool ok = m.exec(e.call, frame);
+  gScratch = saved;
+  if (!ok) return -1;
+  if (ret) {
+    switch (e.result) {
+      case 'd': ret->d = std::bit_cast<double>(frame[0]); break;
+      case 'i': ret->i = static_cast<std::int32_t>(frame[0]); break;
+      case 'u': ret->i = static_cast<std::uint32_t>(frame[0]); break;
+      case 'b': ret->i = frame[0] != 0; break;
+      case 's': { StrObj* s = S(frame[0]); static std::string keep; keep.assign(s ? s->data() : "", s ? s->len : 0); ret->s.p = keep.data(); ret->s.n = static_cast<std::uint32_t>(keep.size()); m.releaseSlot(frame[0]); break; }
+      default: break;
+    }
+  }
+  return 0;
+}
+
+void sinkHold(void*, std::uint64_t h) { auto it = gCbs.find(h); if (it != gCbs.end()) ++it->second.rc; }
+void sinkRelease(void*, std::uint64_t h) { cbUnref(h); }
+
+void settle(std::uint64_t promise, bool ok, const ZnVal* v, const char* message) {
+  auto it = gPromises.find(promise);
+  if (it == gPromises.end()) return;
+  PromiseEntry pe = it->second;
+  gPromises.erase(it);
+  ZnVal arg{};
+  if (ok) {
+    if (pe.of != 'n' && v) runClosure(nullptr, pe.resolve, v, 1, nullptr);
+    else runClosure(nullptr, pe.resolve, &arg, 0, nullptr);
+  } else {
+    arg.s.p = message ? message : "";
+    arg.s.n = static_cast<std::uint32_t>(std::strlen(arg.s.p));
+    runClosure(nullptr, pe.reject, &arg, 1, nullptr);
+  }
+  cbUnref(pe.resolve);
+  cbUnref(pe.reject);
+}
+void sinkResolve(void*, std::uint64_t p, const ZnVal* v) { settle(p, true, v, nullptr); }
+void sinkReject(void*, std::uint64_t p, const char* msg) { settle(p, false, nullptr, msg); }
+
+void installSink(Machine& m) {
+  if (gMachine == &m) return;
+  gMachine = &m;
+  ZnSink sink{&m, sinkResolve, sinkReject, runClosure, sinkRelease, sinkHold};
+  zn_native_set_sink(&sink);
+}
+
+// Registers closure `fn` and returns its handle (0 when the closure has no call(...) of the right shape).
+std::uint64_t cbRegister(Machine& m, Obj* fn, const std::string& inner) {
+  nsig::Sig dummy;
+  std::string params;
+  char result;
+  if (!fn || !nsig::parseCallback(inner, params, result)) return 0;
+  const ClassRT& c = *fn->cls;
+  const Func* call = nullptr;
+  for (std::uint32_t sel : m.mod->classes[c.id].selectors)
+    if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == params.size() && sel < c.vtable.size() && c.vtable[sel]) call = c.vtable[sel];
+  if (!call) return 0;
+  m.retain(fn);
+  std::uint64_t h = gCbNext++;
+  gCbs[h] = CbEntry{fn, call, params, result, 1};
+  return h;
+}
+
+}  // namespace
+
+std::int32_t nativeActive() { return zn_native_pending(); }
+
+// The loop's turn for the native modules: their pollers, the queued posts and completions (the callbacks run here); whether native work is still pending.
+std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
+  installSink(m);
+  gScratch = scratch;
+  if (run) { zn_native_poll(0); zn_native_drain(); }
+  return zn_native_pending() > 0 || !gPromises.empty() ? 1 : 0;
+}
+
+const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
   const zbc::Native& nt = m.mod->natives[idx];
-  std::string ps;
-  char rl = 'n';
-  nsig::parse(nt.sig.c_str(), ps, rl);   // the verifier checked the signature
-  ZnVal args[12], ret;
+  nsig::Sig sg;
+  nsig::parse(nt.sig.c_str(), sg);   // the verifier checked the signature
+  installSink(m);
+  Slot* savedScratch = gScratch;
+  gScratch = scratch;
+  const std::string& ps = sg.params;
+  ZnVal args[16], ret;
   std::deque<std::vector<std::uint8_t>> packed;   // u8 and i32 arrays are packed for the call
   std::deque<std::vector<ZnStr>> strViews;        // string[] arguments
+  std::vector<std::uint64_t> handles;             // the closures of this call: its own reference ends when it returns
+  std::size_t cbi = 0;
+  auto fail = [&](const char* msg) { for (std::uint64_t h : handles) cbUnref(h); gScratch = savedScratch; return msg; };
   for (std::size_t k = 0; k < ps.size() && k < 12; ++k) {
     ZnVal& v = args[k];
     switch (ps[k]) {
@@ -656,10 +804,17 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
       case 'i': v.i = static_cast<std::int32_t>(a[k]); break;
       case 'u': v.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
       case 'b': v.i = a[k] != 0; break;
-      case 's': { StrObj* s = S(a[k]); if (!s) return kNull; v.s.p = s->data(); v.s.n = s->len; break; }
+      case 's': { StrObj* s = S(a[k]); if (!s) return fail(kNull); v.s.p = s->data(); v.s.n = s->len; break; }
+      case 'c': {
+        std::uint64_t h = cbRegister(m, reinterpret_cast<Obj*>(a[k]), sg.cbs[cbi++]);
+        if (!h) return fail("native: a callback does not have the shape of the signature");
+        handles.push_back(h);
+        v.h = h;
+        break;
+      }
       default: {
         ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]);
-        if (!arr) return kNull;
+        if (!arr) return fail(kNull);
         v.v.n = static_cast<std::uint32_t>(arr->v.size());
         if (ps[k] == 'D') { v.v.p = arr->v.data(); break; }   // a slot holds the bits of the double
         if (ps[k] == 'S') {   // string[]: a view of ZnStr
@@ -678,14 +833,29 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
       }
     }
   }
+  std::uint64_t resolveH = 0, rejectH = 0;
+  if (sg.result == 'P') {   // the two closures that settle the promise follow the parameters
+    std::string pr = sg.promiseOf == 'n' ? ">n" : std::string(1, sg.promiseOf) + ">n";
+    resolveH = cbRegister(m, reinterpret_cast<Obj*>(a[ps.size()]), pr);
+    rejectH = cbRegister(m, reinterpret_cast<Obj*>(a[ps.size() + 1]), "s>n");
+    if (!resolveH || !rejectH) { if (resolveH) cbUnref(resolveH); if (rejectH) cbUnref(rejectH); return fail("native: the promise callbacks do not have the shape of the signature"); }
+  }
   char err[256] = "";
   ret.u = 0;
   std::int32_t st = zn_native_call(nt.module.c_str(), nt.name.c_str(), nt.sig.c_str(), args, &ret, err, sizeof err);
+  for (std::uint64_t h : handles) cbUnref(h);   // the call's own reference; a module that kept a callback holds another
+  gScratch = savedScratch;
+  if (sg.result == 'P') {
+    if (st == ZN_PENDING) { gPromises[zn_native_last_promise()] = PromiseEntry{resolveH, rejectH, sg.promiseOf}; return nullptr; }
+    cbUnref(resolveH);
+    cbUnref(rejectH);
+    if (st == ZN_OK) return "native: an export with a promise result did not take its promise";
+  }
   if (st != ZN_OK) {
-    m.error = "native " + nt.module + "." + nt.name + (st == ZN_PENDING ? ": a promise result is not supported yet" : ": " + std::string(err));
+    m.error = "native " + nt.module + "." + nt.name + (st == ZN_PENDING ? ": a promise result needs a signature that says so" : ": " + std::string(err));
     return m.error.c_str();
   }
-  switch (rl) {
+  switch (sg.result) {
     case 'd': a[0] = std::bit_cast<Slot>(ret.d); break;
     case 'i': a[0] = static_cast<Slot>(static_cast<std::int64_t>(static_cast<std::int32_t>(ret.i))); break;
     case 'u': a[0] = static_cast<Slot>(static_cast<std::uint32_t>(ret.i)); break;
@@ -693,25 +863,16 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
     case 's': a[0] = P(m.newStr(ret.s.p, ret.s.n)); break;
     case 'n': break;
     default: {
-      const ClassRT* cls = nullptr;
-      for (std::size_t c = 0; c < m.mod->classes.size() && !cls; ++c) {
-        const zbc::ClassInfo& ci = m.mod->classes[c];
-        if (ci.kind == zbc::CKind::Array && ci.elem.cls == (rl == 'D' ? zbc::Cls::D : zbc::Cls::I)) cls = &m.classes[c];
-      }
-      if (!cls) return "native: no array class for the result";
-      ArrObj* arr = m.newArr(cls);
-      for (std::uint32_t j = 0; j < ret.v.n; ++j) {
-        if (rl == 'D') arr->v.push_back(std::bit_cast<Slot>(static_cast<const double*>(ret.v.p)[j]));
-        else if (rl == 'B') arr->v.push_back(static_cast<const std::uint8_t*>(ret.v.p)[j]);
-        else arr->v.push_back(static_cast<Slot>(static_cast<std::int64_t>(static_cast<const std::int32_t*>(ret.v.p)[j])));
-      }
-      a[0] = reinterpret_cast<Slot>(arr);
+      Slot out;
+      if (!toSlot(m, sg.result, ret, out)) return "native: no array class for the result";
+      a[0] = out;
     }
   }
   return nullptr;
 }
 
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
+  if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
 #define NN(x) do { if (!(x)) return kNull; } while (0)
   if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a);
   switch (id) {

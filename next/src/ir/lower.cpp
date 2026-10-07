@@ -12,6 +12,7 @@
 
 #include "frontend/check.h"
 #include "ir/ir.h"
+#include "zn/native_sig.h"
 
 namespace zn::ir {
 namespace {
@@ -1739,12 +1740,13 @@ struct Lowering::FnLower {
       }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__native_", 0) == 0) {  // an export of a native module (requireNative<Spec>)
         auto ni = static_cast<std::uint32_t>(std::stoul(std::string(callee.text.substr(9))));
-        const std::string& sg = a.natives[ni].sig;
-        std::size_t gt = sg.find('>');
+        nsig::Sig sg;
+        nsig::parse(a.natives[ni].sig.c_str(), sg);
         auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'S' ? m.arrayT(m.strT()) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
         std::vector<ValueId> vs;
-        for (std::size_t k = 0; k < gt; ++k) vs.push_back(exprTo(x.kids[k + 1], irType(sg[k])));
-        return emit(IrOp::CallNative, irType(sg[gt + 1]), std::move(vs), 0, 0, ni);
+        std::string all = sg.params + (sg.result == 'P' ? "cc" : "");
+        for (std::size_t k = 0; k < all.size(); ++k) vs.push_back(all[k] == 'c' ? expr(x.kids[k + 1]) : exprTo(x.kids[k + 1], irType(all[k])));
+        return emit(IrOp::CallNative, sg.result == 'P' ? m.voidT() : irType(sg.result), std::move(vs), 0, 0, ni);
       }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__toNumber")
         return emit(IrOp::Rt, m.numT(NumK::f64), {exprTo(x.kids[1], m.strT())}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ToNumber));

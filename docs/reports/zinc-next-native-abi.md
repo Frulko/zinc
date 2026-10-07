@@ -50,3 +50,16 @@ System libraries come from `pkg-config` (`pkg`), `libs`, `frameworks` and `linkF
 The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdynamic`: a dlopened plugin finds zrt and the registry in it. The interpreter registers the module after `dlopen`;
 `zinc build` links `plugin.a`, `vendor.a` and the libraries into the program, whose generated `main` registers `zn_module_<Name>` (no `dlopen`). `ZINC_NATIVE=real` prefers native code to a stand-in.
 Cross targets (`zinc build --target`) do not build plugin code yet; the cache layout already keys by target.
+
+## Callbacks and promises (ZN-167)
+
+A Zinc closure passed to a native export becomes a callback handle (`ZnVal.h`, signature `c(<params>><result>)`: scalars, strings and arrays in, a scalar or string result). The engine keeps the closure
+alive for the call and for as long as the module holds the handle (`cb_retain` / `cb_release`; the registry tells the engine with `ZnSink.hold` and `release`). The module runs it at once with
+`cb_call` (a value comes back, on the engine's thread, during the export) or later from any thread with `cb_post` (the loop runs it: the prelude's `__runLoop` calls the new row `host.nativePoll`
+every turn, which runs the modules' `poll`, the queued calls and the promise completions, and keeps the program alive while native work is pending). A callback runs in the frame above the
+running call, so it can call natives itself.
+A promise result `P<t>` is two more callbacks that the generated wrapper passes: `m(...): Promise<T>` becomes `new Promise<T>((res, rej) => __native_n(..., v => res(v), msg => rej(new Error(msg))))`; the
+export returns `ZN_PENDING` after `promise_take`, and `promise_resolve` / `promise_reject` from any thread settle it on the loop. `zinc native-gen --thunk` writes `zrt::Fn` lambdas for callbacks (`cb_post`
+for a void result, `cb_call` otherwise) and keeps the loop alive while a plugin `Poller` is active. Not covered: `zrt::Promise<T>` members in thunks (gphoto2) and string results of callbacks beyond
+the call. An error raised inside a callback ends the program like any runtime error.
+Verified on the native plugins: `wasm.ts` and `socket.ts` conformance programs and a `zinc:process` spawn print their frozen output; `tests/golden/run/native_callbacks.ts` covers the C test module in the interpreter and AOT.

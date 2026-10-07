@@ -143,7 +143,7 @@ struct FnEmitter {
       else if (nm == "ArrLen") line(checked("op::arrLen(r, " + std::to_string(A) + ", " + std::to_string(B) + ")"));
       else if (nm == "ArrPush") line(checked("op::arrPush(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
       else if (nm == "Rt") line("{ const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), r + " + std::to_string(A) + ", r + " + std::to_string(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; --m.depth; return 2; } }");
-      else if (nm == "CallNative") line("{ const char* e = nativeCall(m, " + std::to_string(D) + ", r + " + std::to_string(A) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; --m.depth; return 2; } }");
+      else if (nm == "CallNative") line("{ const char* e = nativeCall(m, " + std::to_string(D) + ", r + " + std::to_string(A) + ", r + " + std::to_string(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; --m.depth; return 2; } }");
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));
       else if (nm == "LogI") line("*m.out += std::to_string(static_cast<std::int64_t>(" + r(A) + "));");
       else if (nm == "LogU") line("*m.out += std::to_string(" + r(A) + ");");

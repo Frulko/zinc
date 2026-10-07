@@ -440,14 +440,14 @@ struct Verifier {
       }
       case IrOp::CallNative: {
         if (i.sym >= m.natives.size()) return fail(b, ii, "unknown native export");
-        std::string ps;
-        char rl = 0;
-        if (!nsig::parse(m.natives[i.sym].sig.c_str(), ps, rl)) return fail(b, ii, "native signature '" + m.natives[i.sym].sig + "' is not callable");
-        if (!arity(ps.size())) return false;
+        nsig::Sig sg;
+        if (!nsig::parse(m.natives[i.sym].sig.c_str(), sg)) return fail(b, ii, "native signature '" + m.natives[i.sym].sig + "' is not callable");
+        if (!arity(sg.arity())) return false;
+        std::string ps = sg.params + (sg.result == 'P' ? "cc" : "");
         for (std::size_t k = 0; k < ps.size(); ++k) {
           const Type& at = m.types[tyOf(i.args[k])];
           char l = ps[k];
-          bool ok = l == 's' ? at.k == Type::K::Str : l == 'b' ? at.k == Type::K::Bool : (l == 'i' || l == 'u' || l == 'd') ? at.k == Type::K::Num : at.k == Type::K::Array;
+          bool ok = l == 's' ? at.k == Type::K::Str : l == 'b' ? at.k == Type::K::Bool : (l == 'i' || l == 'u' || l == 'd') ? at.k == Type::K::Num : l == 'c' ? at.k == Type::K::Ref : at.k == Type::K::Array;
           if (!ok) return fail(b, ii, "native argument " + std::to_string(k) + " does not match the signature");
         }
         break;

@@ -8,7 +8,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for f in tests/golden/run/*.ts; do
   b=$(basename "$f" .ts)
   [ -f "tests/golden/run/$b.out" ] || continue
-  case "$b" in inspect_cycles|u64_literals|arena_frame|regexp_corpus|regexp_typed|unicode_strings|collation_fuzz|date_full|literal_kind_fit|native_call) continue ;; esac  # no <ref> markers; JavaScript numbers are doubles, so 64-bit integer literals differ
+  case "$b" in inspect_cycles|u64_literals|arena_frame|regexp_corpus|regexp_typed|unicode_strings|collation_fuzz|date_full|literal_kind_fit|native_call|native_callbacks) continue ;; esac  # no <ref> markers; JavaScript numbers are doubles, so 64-bit integer literals differ
   "$ZINC" run "$f" --engine quickjs 2>/dev/null | cmp -s - "tests/golden/run/$b.out" || { echo "$b differs on quickjs"; fail=1; }
 done
 for b in array_search async conversions dyn_literals errors generic_static literal_errors literal_member_arrays pinball_physics regressions regressions2 shapes string_number_edges; do

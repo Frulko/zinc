@@ -1,4 +1,5 @@
 #include "frontend/check.h"
+#include "zn/native_sig.h"
 
 #include <algorithm>
 #include <functional>
@@ -353,13 +354,26 @@ struct Checker {
       declare(SymKind::Builtin, hostNames.back(), func(ps, rtLetter(rtRet(r), kNoType), rtParamCount(r)), kNone, true, 0);
     }
     for (std::size_t ni = 0; ni < a.natives.size(); ++ni) {  // the exports of the native modules the program calls: __native_<n>
-      const std::string& sg = a.natives[ni].sig;
-      std::size_t gt = sg.find('>');
+      nsig::Sig sg;
+      if (!nsig::parse(a.natives[ni].sig.c_str(), sg)) continue;
       auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'D' ? arrayOf(num(Num::f64)) : c == 'S' ? arrayOf(tStr) : tVoid; };
+      auto callback = [&](const std::string& inner) {
+        std::string cp;
+        char cr = 'n';
+        nsig::parseCallback(inner, cp, cr);
+        std::vector<TypeId> cps;
+        for (char c : cp) cps.push_back(letter(c));
+        return func(cps, letter(cr), static_cast<unsigned>(cp.size()));
+      };
       std::vector<TypeId> ps;
-      for (std::size_t k = 0; k < gt; ++k) ps.push_back(letter(sg[k]));
+      std::size_t cbi = 0;
+      for (char c : sg.params) ps.push_back(c == 'c' ? callback(sg.cbs[cbi++]) : letter(c));
+      if (sg.result == 'P') {   // the closures that settle the promise: resolve(value) and reject(message)
+        ps.push_back(sg.promiseOf == 'n' ? func({}, tVoid, 0) : func({letter(sg.promiseOf)}, tVoid, 1));
+        ps.push_back(func({tStr}, tVoid, 1));
+      }
       hostNames.push_back("__native_" + std::to_string(ni));
-      declare(SymKind::Builtin, hostNames.back(), func(ps, letter(sg[gt + 1]), static_cast<unsigned>(gt)), kNone, true, 0);
+      declare(SymKind::Builtin, hostNames.back(), func(ps, sg.result == 'P' ? tVoid : letter(sg.result), static_cast<unsigned>(ps.size())), kNone, true, 0);
     }
     declare(SymKind::Builtin, "NaN", num(Num::f64), kNone, true, 0);
     declare(SymKind::Builtin, "Infinity", num(Num::f64), kNone, true, 0);

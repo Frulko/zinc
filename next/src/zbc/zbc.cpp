@@ -358,9 +358,10 @@ struct Verifier {
       }
       case Op::CallNative: {
         const Native& nt = m.natives[dOf(w)];
-        std::string ps;
-        char rl = 0;
-        if (!nsig::parse(nt.sig.c_str(), ps, rl)) return fail(pc, "native " + nt.module + "." + nt.name + " has a signature that is not callable");
+        nsig::Sig sg;
+        if (!nsig::parse(nt.sig.c_str(), sg)) return fail(pc, "native " + nt.module + "." + nt.name + " has a signature that is not callable");
+        std::string ps = sg.params + (sg.result == 'P' ? "cc" : "");   // a promise result: two more callbacks, resolve and reject
+        char rl = sg.result == 'P' ? 'n' : sg.result;
         unsigned base = aOf(w);
         if (base + std::max<std::size_t>(ps.size(), 1u) > f.nregs) return fail(pc, "call window of " + nt.name + " does not fit in the frame");
         if ((ps + rl).find('s') != std::string::npos && strCls == kNoCls) return fail(pc, "native call with strings in a module without a string class");
@@ -373,6 +374,15 @@ struct Verifier {
             case 's': ok = needType(reg, strT, "argument"); break;
             case 'i': case 'u': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
             case 'd': ok = needCls(reg, Cls::D, "argument"); break;
+            case 'c': {   // a closure: an object whose class has call(...) with the callback's parameters
+              ok = needRef(reg, "callback");
+              if (!ok) break;
+              const ClassInfo& cc = m.classes[s[reg] - 4];
+              bool found = false;
+              for (std::uint32_t sel : cc.selectors) if (m.selectors[sel].name == "call") found = true;
+              if (!found) ok = fail(pc, "r" + std::to_string(reg) + " holds " + cc.name + ", which is not callable");
+              break;
+            }
             default: {  // B, I, D: an array of integers or of f64
               ok = needRef(reg, "argument");
               if (!ok) break;

@@ -83,7 +83,7 @@ int main() {
   std::int64_t got = 0;
   E.callbacks[42] = [&](const ZnVal* v, std::uint32_t) { got = v[0].i; };
   a[0].h = 42;
-  CHECK(zn_native_call("Fixture", "setCallback", "c(i>n)>n", a, &r, err, sizeof err) == ZN_OK);
+  CHECK(zn_native_call("Fixture", "setCallback", "c(is>n)>n", a, &r, err, sizeof err) == ZN_OK);
   a[0].i = 21;
   CHECK(zn_native_call("Fixture", "fire", "i>n", a, &r, err, sizeof err) == ZN_OK && got == 42);
 
