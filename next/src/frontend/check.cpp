@@ -135,7 +135,7 @@ struct Checker {
     if (node == kNone) return false;
     std::uint32_t f = a.nodes[node].file;
     for (const ModuleInfo& m : a.modules) if (m.file == f) return m.path.rfind("zinc:", 0) == 0 || m.path.find("/lib/std/web.ts") != std::string::npos || m.path.find("/lib/std/fetch.ts") != std::string::npos;
-    return !a.modules.empty();   // a file that is no module: the <prelude> (Error, Date, Random, JSON...)
+    return a.modules.empty() ? f != 0 : true;   // a file that is no module: the <prelude> (Error, Date, Random, JSON...); a program of one file has no module list, its own file is the root's
   }
   bool libraryNode(std::uint32_t node) const {
     if (node == kNone) return false;

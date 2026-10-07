@@ -92,6 +92,7 @@ struct Function {
   TypeId ret = 0;
   std::vector<Block> blocks;     // blocks[0] is the entry
   std::vector<TypeId> valueTypes;
+  bool library = false;          // code of the engine's own modules (<prelude>, zinc:*): exempt from the fixed-point check, it counts in f64
 };
 
 struct Field { std::string name; TypeId type; };
@@ -129,6 +130,7 @@ struct Module {
   std::vector<std::string> strings;
   std::vector<Native> natives;
   std::vector<Function> functions;  // functions[0] is @main, the top-level code
+  bool fixedPoint = false;          // compiled for a fixed-point profile: verify() refuses f64 arithmetic and comparisons in the program's own functions (ZN-121)
 
   TypeId intern(const Type& t);
   TypeId voidT() { return intern({Type::K::Void, frontend::Num::f64, 0}); }

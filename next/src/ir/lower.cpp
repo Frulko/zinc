@@ -2235,9 +2235,19 @@ struct Lowering::FnLower {
 };
 
 void Lowering::lowerAll() {
+  m.fixedPoint = (frontend::numberAlias() == NumK::fx12 || frontend::numberAlias() == NumK::fx16) && std::getenv("ZINC_VERIFY_FIXED") != nullptr;   // opt-in audit (tests/t1/fixed_verify.sh): some programs legitimately count in f64 (Date, Number.isNaN, native doubles)
+  auto libraryNode = [&](std::uint32_t node) {   // the same notion as the checker's builtinModuleNode
+    if (node == kNil) return false;
+    std::uint32_t file = a.nodes[node].file;
+    if (a.modules.empty()) return file != 0;   // a program of one file: only the <prelude> is another file
+    for (const frontend::ModuleInfo& mi : a.modules)
+      if (mi.file == file) return mi.path.rfind("zinc:", 0) == 0 || mi.path.find("/lib/std/web.ts") != std::string::npos || mi.path.find("/lib/std/fetch.ts") != std::string::npos;
+    return true;   // no module: the <prelude>
+  };
   for (const Job& j : jobs) {
     FnLower fl(*this, j);
     fl.run();
+    m.functions[j.fn].library = libraryNode(j.node) || m.functions[j.fn].name.rfind("__", 0) == 0;   // the checker's generated helpers (__group, __jsonNum...) are named __*
   }
 }
 

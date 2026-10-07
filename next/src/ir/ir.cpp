@@ -560,6 +560,36 @@ std::string verify(const Module& m) {
   for (const Function& f : m.functions) {
     Verifier v(m, f);
     if (!v.run()) return v.err;
+    if (m.fixedPoint && !f.library && f.name != "main") {   // @main also holds the library modules' initialisers (they count in f64)   // fixed point: the program's own `number` arithmetic is integer ops. f64 stays where a value comes from outside (a call, a field, an element, a
+      // parameter: Date.now(), a native module's double, an explicit f64) and in conversions and math; an f64 operation on values that only conversions and constants produced is
+      // `number` arithmetic that escaped the lowering.
+      std::vector<char> outside(f.valueTypes.size(), 0);
+      for (ValueId p : f.params) outside[p] = 1;
+      for (const Block& b : f.blocks) {
+        for (ValueId p : b.params) outside[p] = 1;
+        for (const Inst& i : b.insts) {
+          if (i.res == kNoValue) continue;
+          switch (i.op) {
+            case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::Rt: case IrOp::GetField: case IrOp::ArrGet: case IrOp::ArrPop: case IrOp::GetGlobal: outside[i.res] = 1; break;
+            case IrOp::Add: case IrOp::Sub: case IrOp::Mul: case IrOp::Div: case IrOp::Rem: case IrOp::Neg:
+              for (ValueId a : i.args) if (outside[a]) outside[i.res] = 1;
+              break;
+            default: break;
+          }
+        }
+      }
+      for (const Block& b : f.blocks)
+        for (const Inst& i : b.insts) {
+          bool arith = i.op == IrOp::Add || i.op == IrOp::Sub || i.op == IrOp::Mul || i.op == IrOp::Div || i.op == IrOp::Rem || i.op == IrOp::Neg || i.op == IrOp::Eq || i.op == IrOp::Ne ||
+                       i.op == IrOp::Lt || i.op == IrOp::Le || i.op == IrOp::Gt || i.op == IrOp::Ge;
+          if (!arith || i.args.empty()) continue;
+          const Type& t = m.types[f.valueTypes[i.args[0]]];
+          if (t.k != Type::K::Num || t.num != frontend::Num::f64) continue;
+          bool any = false;
+          for (ValueId a : i.args) any = any || outside[a];
+          if (!any) return "@" + f.name + ": " + opName(i.op) + " on f64 in a fixed-point profile";
+        }
+    }
   }
   return "";
 }
