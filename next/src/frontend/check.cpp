@@ -221,6 +221,37 @@ struct Checker {
     if (!(f.elem == t.elem || kinds(f.elem, t.elem))) return false;
     return differs;
   }
+  // `DynFunction` (the alias of the Dyn prelude): a typed function passed where it is expected, e.g. `(r: i32, name: string) => void`, gets an adapter that converts each
+  // argument JavaScript-style (ToNumber then the machine type, String(x), truthiness; `unknown` as it is; a missing argument is undefined) and boxes the result.
+  bool isDynFunction(TypeId t) {
+    std::uint32_t al = lookup("DynFunction");
+    return al != kNone && out.syms[al].kind == SymKind::TypeAlias && out.syms[al].type == t;
+  }
+  bool dynFunctionAdapter(TypeId from, TypeId to, std::uint32_t node) {
+    if (!isDynFunction(to)) return false;
+    if (bad(from) || ty(from).k != TK::Func || hasParam(from)) return false;
+    const Type f = ty(from);
+    std::string call;
+    std::vector<TypeId> aliases{from};
+    for (std::size_t k = 0; k < f.params.size(); ++k) {
+      TypeId p = f.params[k];
+      std::string arg = "__dynArg(args, " + std::to_string(k) + ")", conv;
+      if (isDyn(p)) conv = arg;
+      else if (ty(p).k == TK::Num && ty(p).obj == 0) conv = p == num(Num::f64) ? "__dynNumber(" + arg + ")" : "(__dynNumber(" + arg + ") as " + inspectAliasName(p) + ")";
+      else if (p == tBool) conv = "__dynTruthy(" + arg + ")";
+      else if (p == tStr) conv = "__dynString(" + arg + ")";
+      else { diag(kZNotAssignable, node, "a function passed as DynFunction takes number, string, boolean or unknown parameters (parameter " + std::to_string(k + 1) + " is '" + name(p) + "')"); return true; }
+      call += (k ? ", " : "") + conv;
+      aliases.push_back(p);
+    }
+    TypeId r = f.elem;
+    if (r != tVoid && !isDyn(r) && !(ty(r).k == TK::Num && ty(r).obj == 0) && r != tBool && r != tStr) { diag(kZNotAssignable, node, "a function passed as DynFunction returns number, string, boolean, unknown or nothing"); return true; }
+    aliases.push_back(r);
+    std::string body = r == tVoid ? "f(" + call + ");\n    return __undef;" : "return f(" + call + ");";
+    std::uint32_t sym = helper("dynfn," + std::to_string(from), "function $F(f: " + inspectAliasName(from) + "): DynFunction {\n  return (args: unknown[]): unknown => {\n    " + body + "\n  };\n}\n", aliases, node);
+    wrapNode(node, sym);
+    return true;
+  }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
     if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 1 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
@@ -248,6 +279,7 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && dynFunctionAdapter(from, to, node)) return true;
     if (node != kNone && recordWidenable(from, to) && (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate)) return true;   // checked over type parameters, lowered per instance
     if (node != kNone && recordWidenable(from, to)) {   // a record with more fields where a record with fewer is expected: a copy of the fields asked for
       std::string body;
@@ -2959,7 +2991,7 @@ struct Checker {
       for (TypeId m : ty(expected).params) { if (m == tNull) continue; if (only != kNoType || ty(m).k != TK::Func) { only = kNoType; break; } only = m; }
       if (only != kNoType) expected = only;
     }
-    bool haveExpected = expected != kNoType && ty(expected).k == TK::Func;
+    bool haveExpected = expected != kNoType && ty(expected).k == TK::Func && !isDynFunction(expected);   // a lambda for a DynFunction has its own type: the adapter converts
     if (haveExpected) et = ty(expected);
     // Defaults on lambda parameters: the parameter takes `T | null` (an argument left out is null) and the body starts by replacing null with the default
     std::size_t lambdaMin = static_cast<std::size_t>(-1);

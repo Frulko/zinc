@@ -234,6 +234,12 @@ class DynRefT<T> extends DynRef {
   identity(): i64 { return __identity(this.o); }
 }
 
+// DynFunction (zinc:script host functions): any function, called with an array of dynamic arguments. A typed function passed where one is expected gets an
+// adapter from the checker (check.cpp, dynFunctionAdapter): each argument converted JavaScript-style, the result boxed.
+type DynFunction = (args: unknown[]) => unknown;
+function __dynArg(a: unknown[], i: i32): unknown { return i < a.length ? a[i] : __undef; }
+function __dynString(d: Dyn): string { return d instanceof DynStr ? d.v : d.toString(); }
+
 const __undef: any = new DynUndef();
 const __null: any = new DynNull();
 
