@@ -71,3 +71,14 @@ export function on(type: string, handler: (args: string[]) => void): void {
 
 /** Ends the program with `code`. */
 export function quit(code: i32 = 0): void { sys.exit(code); }
+
+/** The live state of what the program has set up (application menu, tray items, dock badge, window), as JSON text: the selftest of the real backends (tests/t2/desktop.sh). Parts the program
+ *  has no permission for are left out. */
+export function selftest(): string {
+  const parts: string[] = [];
+  const grab = (name: string, op: string, field: string): void => {
+    try { const r = call(op, {}) as { text?: string }; parts.push('"' + name + '":' + JSON.stringify(r)); } catch (e) { /* not permitted or not set up */ }
+  };
+  grab('menu', 'menu.dump', 'text'); grab('tray', 'tray.dump', 'trays'); grab('dock', 'dock.getBadge', 'text'); grab('window', 'window.dump', 'text');
+  return '{' + parts.join(',') + '}';
+}

@@ -13,7 +13,7 @@ cp ../docs/img/breakout-demo.png "$tmp/app/icon.png"
 cd "$tmp/app" || exit 2
 out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
 case "$out" in *"refreshed"*"bundle id of this process: dev.zinc.test.bundle"*) ;; *) echo "dev bundle: $out"; fail=1 ;; esac
-case "$out" in *"sim"*) ;; *) echo "the program did not run in the bundle: $out"; fail=1 ;; esac
+case "$out" in *"macos"*) ;; *) echo "the program did not run in the bundle: $out"; fail=1 ;; esac
 codesign -v "$ZINC_HOME/cache/macos/devapp/dev.zinc.test.bundle.app" 2>/dev/null || { echo "dev bundle signature is not valid"; fail=1; }
 out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
 ms=$(printf '%s\n' "$out" | sed -n 's/.*up to date .* in \([0-9.]*\) ms.*/\1/p' | head -1)

@@ -1,0 +1,6 @@
+[system] menu.setApp {"template":[{"label":"ST","menuRole":"appMenu","submenu":[{"label":"About ST","id":"role:about","type":"normal","role":"about","native":true},{"type":"separator"},{"label":"Services","id":"role:services","type":"normal","role":"services","native":true},{"type":"separator"},{"label":"Hide ST","id":"role:hide","type":"normal","role":"hide","native":true,"accelerator":"Cmd+H","key":"H","mods":1048576},{"label":"Hide Others","id":"role:hideOthers","type":"normal","role":"hideOthers","native":true,"accelerator":"Alt+Cmd+H","key":"H","mods":1572864},{"label":"Show All","id":"role:unhide","type":"normal","role":"unhide","native":true},{"type":"separator"},{"label":"Quit ST","id":"role:quit","type":"normal","role":"quit","native":false,"accelerator":"Cmd+Q","key":"Q","mods":1048576}]}]}
+[system] menu.dump {}
+[system] denied tray.dump
+[system] denied dock.getBadge
+[system] denied window.dump
+{"menu":{"text":""}}
