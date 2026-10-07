@@ -432,6 +432,67 @@ export function listen(port: i32, cb: (m: OscMessage) => void): void {
 export function close(): void { __host_oscClose(); __oscCb = null; }
 )ZN";
 
+// zinc:mqtt: MQTT 3.1.1 client (src/host/mqtt.cpp); connection results and messages arrive as loop events (kinds 30 to 32), topic filters match here.
+const char* kMqttModule = R"ZN(
+class Sub { filter: string = ''; cb: ((topic: string, payload: string) => void) | null = null; }
+function __mqttMatch(filter: string, topic: string): boolean {
+  const f = filter.split('/');
+  const t = topic.split('/');
+  for (let i: i32 = 0; i < f.length; i++) {
+    if (f[i] === '#') return true;
+    if (i >= t.length) return false;
+    if (f[i] !== '+' && f[i] !== t[i]) return false;
+  }
+  return f.length === t.length;
+}
+const __mqttClients: MqttClient[] = [];
+let __mqttHooked: boolean = false;
+export class MqttClient {
+  host: string;
+  port: i32;
+  clientId: string;
+  handle: i32 = 0;
+  subs: Sub[] = [];
+  onConnect: (() => void) | null = null;
+  onFail: ((e: Error) => void) | null = null;
+  constructor(host: string, port: i32, clientId: string) { this.host = host; this.port = port; this.clientId = clientId; }
+  connect(): Promise<void> {
+    if (!__mqttHooked) {
+      __mqttHooked = true;
+      __addEvHandler((h: i32, kind: i32, data: string) => {
+        if (kind < 30 || kind > 32) return;
+        for (const c of __mqttClients) {
+          if (c.handle !== h) continue;
+          if (kind === 31) {
+            const i = data.indexOf('\u001e');
+            const topic = data.slice(0, i);
+            const payload = data.slice(i + 1);
+            for (const s of c.subs.slice()) { const cb = s.cb; if (cb !== null && __mqttMatch(s.filter, topic)) cb(topic, payload); }
+          } else if (data.length === 0) { const f = c.onConnect; if (f !== null) f(); }
+          else { const f = c.onFail; if (f !== null) f(new Error(data)); }
+        }
+      });
+    }
+    return new Promise<void>((resolve, reject) => {
+      this.onConnect = () => resolve();
+      this.onFail = (e: Error) => reject(e);
+      this.handle = __host_mqttOpen(this.host, this.port, this.clientId);
+      if (this.handle < 0) { reject(new Error('mqtt: cannot connect')); return; }
+      __mqttClients.push(this);
+    });
+  }
+  publish(topic: string, payload: string, retain?: boolean, qos?: i32): void { __host_mqttPublish(this.handle, topic, payload, retain === true ? 1 : 0, qos === undefined ? 0 : qos); }
+  subscribe(topic: string, cb: (topic: string, payload: string) => void): void {
+    const s = new Sub();
+    s.filter = topic;
+    s.cb = cb;
+    this.subs.push(s);
+    __host_mqttSubscribe(this.handle, topic);
+  }
+  close(): void { __host_mqttClose(this.handle); for (const s of this.subs) s.cb = null; }
+}
+)ZN";
+
 // zinc:gpio: the simulated board of runtime/mod/gpio.cpp (macos, linux, sim): 64 pins, edges with debounce delivered as microtasks, and ZINC_GPIO_SCRIPT="27:0@100,27:1@150"
 // (pin:value@milliseconds) driving inputs after the program starts. The Linux libgpiod backend is a plugin of the target.
 const char* kGpioModule = R"ZN(
@@ -623,6 +684,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:events") return kEventsModule;
   if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:osc") return kOscModule;
+  if (spec == "zinc:mqtt") return kMqttModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
   if (spec == "zinc:fs") return kFsModule;

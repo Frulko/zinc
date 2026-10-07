@@ -183,7 +183,9 @@
   X(HostEvNext, "host.evNext", ">s", 2) X(HostEvActive, "host.evActive", ">i", 2) \
   X(HostSigWatch, "host.sigWatch", "s>i", 2) X(HostSigSend, "host.sigSend", "is>i", 2) X(HostStdinRead, "host.stdinRead", ">n", 2) \
   /* zinc:osc (ZN-085) */ \
-  X(HostOscListen, "host.oscListen", "i>i", 2) X(HostOscClose, "host.oscClose", ">n", 2) X(HostOscSend, "host.oscSend", "sis>i", 2)
+  X(HostOscListen, "host.oscListen", "i>i", 2) X(HostOscClose, "host.oscClose", ">n", 2) X(HostOscSend, "host.oscSend", "sis>i", 2) \
+  /* zinc:mqtt (ZN-086) */ \
+  X(HostMqttOpen, "host.mqttOpen", "sis>i", 2) X(HostMqttPublish, "host.mqttPublish", "issii>n", 2) X(HostMqttSubscribe, "host.mqttSubscribe", "is>n", 2) X(HostMqttClose, "host.mqttClose", "i>n", 2)
 
 namespace zn {
 

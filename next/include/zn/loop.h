@@ -44,9 +44,18 @@ bool active();
 bool watchSignal(const std::string& name);              // false for an unknown or uncatchable name
 bool sendSignal(int pid, const std::string& name);      // false for an unknown name
 void readStdin();
+// zinc:mqtt (src/host/mqtt.cpp): events of kind 30 (connected, data "" or the error), 31 (message: topic \x1e payload) and 32 (connection lost, data = why).
 // zinc:osc over UDP (src/host/osc.cpp): packed messages (see osc.h) arrive as events of kind 20; a listening socket keeps the loop alive.
 bool oscListen(int port);
 void oscClose();
 bool oscSend(const std::string& host, int port, const std::string& packed);
+
+
+// For the host modules built on the loop (src/host/mqtt.cpp): the libuv loop (a uv_loop_t*), a queued event, handles that keep the program
+// alive, and a name or dotted address into an IPv4 sockaddr_in (written to `out`, which must hold one).
+void* uvLoop();
+void pushEvent(int handle, int kind, std::string data);
+void addActive(int delta);
+bool resolveHost(const std::string& host, int port, void* out);
 
 }  // namespace zn::loop

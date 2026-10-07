@@ -43,7 +43,7 @@ robot-eyes/src/main.ts | OK |  |
 scripting/bench/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
 scripting/breakout-mods/src/main.ts | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
 scripting/playground/src/main.tsx | COMPILE | regex literals in plugins/script quickjs.sim.ts | ZN-090
-service/sensor-hub/src/main.ts | COMPILE | zinc:mqtt is not a module yet | ZN-086
+service/sensor-hub/src/main.ts | COMPILE | zinc:net serve is not exported yet | ZN-087
 text/src/main-react.tsx | OK |  | 
 text/src/main-solid.tsx | OK |  | 
 three/cubes/main.ts | COMPILE | plugins/three is not mapped or built yet | ZN-107

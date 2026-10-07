@@ -283,21 +283,25 @@ void onOscRecv(uv_udp_t*, ssize_t n, const uv_buf_t* buf, const sockaddr* from, 
   if (n <= 0 || !from) return;
   for (std::string& m : osc::decode(reinterpret_cast<const uint8_t*>(buf->base), static_cast<size_t>(n))) gEvents.push_back({0, 20, std::move(m)});
 }
-bool resolve(const std::string& host, int port, sockaddr_storage* out) {
-  auto* a4 = reinterpret_cast<sockaddr_in*>(out);
+int gExtra = 0;
+}  // namespace
+
+void* uvLoop() { return loop(); }
+void pushEvent(int handle, int kind, std::string data) { gEvents.push_back({handle, kind, std::move(data)}); }
+void addActive(int delta) { gExtra += delta; }
+bool resolveHost(const std::string& host, int port, void* out) {
+  auto* a4 = static_cast<sockaddr_in*>(out);
   if (uv_ip4_addr(host.c_str(), port, a4) == 0) return true;
   uv_getaddrinfo_t req;
   addrinfo hints{};
   hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_socktype = SOCK_STREAM;
   if (uv_getaddrinfo(loop(), &req, nullptr, host.c_str(), nullptr, &hints) != 0 || !req.addrinfo) return false;
   *a4 = *reinterpret_cast<sockaddr_in*>(req.addrinfo->ai_addr);
   a4->sin_port = htons(static_cast<uint16_t>(port));
   uv_freeaddrinfo(req.addrinfo);
   return true;
 }
-}  // namespace
-
 bool oscListen(int port) {
   oscClose();
   auto* h = new uv_udp_t;
@@ -321,15 +325,15 @@ void oscClose() {
 }
 bool oscSend(const std::string& host, int port, const std::string& packed) {
   if (!gOscTxOpen) { uv_udp_init(loop(), &gOscTx); gOscTxOpen = true; uv_unref(reinterpret_cast<uv_handle_t*>(&gOscTx)); }
-  sockaddr_storage a;
-  if (!resolve(host, port, &a)) return false;
+  sockaddr_in a;
+  if (!resolveHost(host, port, &a)) return false;
   std::string data = osc::encode(packed);
   uv_buf_t b = uv_buf_init(data.data(), static_cast<unsigned>(data.size()));
   return uv_udp_try_send(&gOscTx, &b, 1, reinterpret_cast<sockaddr*>(&a)) >= 0;
 }
 bool active() {
   for (const auto& p : gProcs) if (p->procOpen || p->outOpen || p->errOpen || (p->exited && !p->reported)) return true;
-  return gWatched > 0 || gStdin || gOscRxOpen || !gEvents.empty();
+  return gWatched > 0 || gStdin || gOscRxOpen || gExtra > 0 || !gEvents.empty();
 }
 bool watchSignal(const std::string& name) {
   const SigName* s = sigByName(name);
