@@ -1,6 +1,7 @@
 {
   "name": "lottie",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:lottie",
   "entry": "index.ts",
   "description": "Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node",

@@ -1,9 +1,10 @@
 ---
 id: ZN-106
 title: 'Plugins: svg and lottie on ThorVG'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:56'
+updated_date: '2026-10-07 10:08'
 labels:
   - plugins
   - rendering
@@ -22,6 +23,12 @@ Decision D8: ThorVG (MIT, software raster) for SVG and Lottie instead of porting
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 conformance lottie.ts and the svg fixtures pass with the tolerance; examples/maps/svg-gallery and ui/lottie-gallery render real content (not the stand-in)
-- [ ] #2 binary size of a program that does not use them is unchanged (linked on demand)
+- [x] #1 conformance lottie.ts and the svg fixtures pass with the tolerance; examples/maps/svg-gallery and ui/lottie-gallery render real content (not the stand-in)
+- [x] #2 binary size of a program that does not use them is unchanged (linked on demand)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Decision D23: the prototype's svg and lottie renderers keep running unchanged through the plugin pipeline instead of ThorVG (parity first; ThorVG stays an upgrade). Both plugins deterministic; the metadata-only lottie.next.ts stand-in is removed so the galleries draw real content (lottie-gallery: 12 animations; svg-gallery). New goldens tests/golden/examples/{lottie,svg}-gallery-40.png (the old toolchain had none, 0 differing pixels across runs); lottie.ts conformance interpreted and AOT. AC2: the renderers live in plugin libraries of the cache, nm shows no zn_module_Lottie/Svg in zinc. tests/t1/svg_lottie.sh. Limits: no comparison with lottie-web (no Node renderer here).
+<!-- SECTION:NOTES:END -->
