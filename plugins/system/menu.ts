@@ -144,3 +144,50 @@ export async function popup(items: Item[], x: number, y: number): Promise<string
 
 // an app that imports this module and sets no menu of its own gets the standard one, with the name from zinc.json: applied once the program's own setup has run
 setTimeout(() => { if (!hasApp && ((',' + GRANTED + ',').indexOf(',menu,') >= 0 || GRANTED.indexOf('menu:') >= 0)) defaultMenu(); }, 0);   // no menu permission (the module was pulled in by tray or dock): no menu
+
+/** One entry of the kit's MenuBar (lib/std/kit/menubar.tsx): the same template, drawn by the kit when `native` is false. */
+export class KitEntry {
+  id: string = '';
+  label: string = '';
+  accelerator: string = '';
+  checked: boolean = false;
+  disabled: boolean = false;
+  separator: boolean = false;
+  submenu: KitEntry[] = [];
+}
+/** 'CmdOrCtrl+Shift+S' -> 'mod-shift-s' (the kit's key strokes). */
+function kitStroke(accel: string): string {
+  const a = parseAccelerator(accel, true);
+  if (!a.ok) return '';
+  let s = '';
+  if (a.ctrl) s += 'ctrl-';
+  if (a.alt) s += 'alt-';
+  if (a.shift) s += 'shift-';
+  if (a.meta) s += 'mod-';
+  return s + a.key.toLowerCase();
+}
+/** The template as kit entries (roles expanded to their labels and accelerators): `<MenuBar items={menu.toKit(template)} native={menu.native} />`. */
+export function toKit(items: Item[]): KitEntry[] {
+  const app = appName();
+  const out: KitEntry[] = [];
+  for (const it of items) {
+    const k = new KitEntry();
+    if (it.type === 'separator') { k.separator = true; out.push(k); continue; }
+    let label = it.label, accel = it.accelerator;
+    if (it.role.length > 0 && menuRoles(it.role).length > 0) {   // a standard menu: its title and items
+      k.label = it.label.length > 0 ? it.label : menuTitle(it.role, app);
+      const roles = menuRoles(it.role);
+      for (const r of roles) { if (r.length === 0) { const sep = new KitEntry(); sep.separator = true; k.submenu.push(sep); } else { const x = roleInfo(r, app)!; const e = new KitEntry(); e.id = 'role:' + r; e.label = x.label; e.accelerator = x.accelerator.length > 0 ? kitStroke(x.accelerator) : ''; k.submenu.push(e); } }
+      out.push(k);
+      continue;
+    }
+    if (it.role.length > 0) { const info = roleInfo(it.role, app); if (info !== null) { if (label.length === 0) label = info.label; if (accel.length === 0) accel = info.accelerator; } }
+    k.id = it.id.length > 0 ? it.id : (it.role.length > 0 ? 'role:' + it.role : '');
+    k.label = label;
+    k.accelerator = accel.length > 0 ? kitStroke(accel) : '';
+    k.checked = it.checked; k.disabled = !it.enabled;
+    if (it.hasSubmenu) k.submenu = toKit(it.submenu);
+    out.push(k);
+  }
+  return out;
+}

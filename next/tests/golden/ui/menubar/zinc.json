@@ -1,0 +1,1 @@
+{"name":"menubar","entry":"main.tsx","permissions":["menu"],"app":{"id":"com.example.mb","name":"Notes"},"targets":{"macos":{"width":480,"height":280},"sim":{"width":480,"height":280},"linux":{"width":480,"height":280}}}
