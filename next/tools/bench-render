@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Render benchmark corpus on the software raster (ZN-171, docs/reports/ui-rendering-architecture.md 6.1).
+
+usage: tools/bench-render [--runs N] [--out bench/render.csv] [--baseline file] [--check-regressions] [--tolerance 0.15]
+Each case is a program (bench/render/*.ts: B1 quads, B2 rounded, B3 text, B5 polygons, B8 layers, B10 matrix; examples/hero = B4, examples/maps/navigation = B5 map).
+It runs headless, ZINC_SCENE_DUMP writes its last frame, and `zinc capture --scene --bench` replays that scene N times on 1 and 4 band threads.
+CSV: case,threads,width,height,cmds,median_us,p99_us. --check-regressions: exit 3 when a median is worse than the baseline (the committed CSV) by the tolerance (15%, RULES 7) plus 150 us.
+"""
+import csv, os, subprocess, sys, tempfile, json, glob
+
+args = sys.argv[1:]
+runs, out, baseline, check, tol = 40, "bench/render.csv", None, False, 0.15
+while args:
+    a = args.pop(0)
+    if a == "--runs": runs = int(args.pop(0))
+    elif a == "--out": out = args.pop(0)
+    elif a == "--baseline": baseline = args.pop(0)
+    elif a == "--check-regressions": check = True
+    elif a == "--tolerance": tol = float(args.pop(0))
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(root)
+zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
+tmp = tempfile.mkdtemp()
+baseline = baseline or out
+
+cases = [(os.path.basename(p)[:-3], p) for p in sorted(glob.glob("bench/render/*.ts"))]
+cases += [("b4-hero", "../examples/hero/src/main.tsx"), ("b5-nav", "../examples/maps/navigation/src/main.tsx")]
+
+def sh(cmd, env=None):
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if r.returncode != 0: sys.exit("bench-render: %s failed: %s" % (" ".join(cmd), (r.stdout + r.stderr)[-400:]))
+    return r.stdout
+
+rows = []
+for name, prog in cases:
+    entry = prog
+    if prog.startswith("bench/"):   # a project with a big surface and a growing command list
+        d = os.path.join(tmp, name); os.makedirs(d)
+        entry = os.path.join(d, "main.ts")
+        os.symlink(os.path.abspath(prog), entry)
+        t = {"width": 1000, "height": 640, "growDrawCommands": True}
+        json.dump({"name": name, "entry": "main.ts", "targets": {"macos": t, "linux": t}}, open(os.path.join(d, "zinc.json"), "w"))
+    scn = os.path.join(tmp, name + ".scn")
+    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES="12", ZINC_SCENE_DUMP=scn)
+    sh([zinc, "run", os.path.dirname(entry) if prog.startswith("bench/") else entry], env)
+    for threads in (1, 4):
+        line = sh([zinc, "capture", "--scene", scn, entry, "--bench", str(runs), str(threads)]).split()
+        kv = dict(x.split("=") for x in line[2:])
+        w, h = line[1].split("x")
+        rows.append([name, threads, w, h, kv["cmds"], kv["median_us"], kv["p99_us"]])
+        print("%-12s x%d %5sx%-4s cmds=%-6s median %8s us  p99 %8s us" % (name, threads, w, h, kv["cmds"], kv["median_us"], kv["p99_us"]))
+
+if check:
+    base = {(r["case"], r["threads"]): float(r["median_us"]) for r in csv.DictReader(open(baseline))}
+    bad = [(r[0], r[1], base[(r[0], str(r[1]))], float(r[5])) for r in rows if (r[0], str(r[1])) in base and float(r[5]) > base[(r[0], str(r[1]))] * (1 + tol) + 150]
+    for c, t, b, v in bad: print("REGRESSION %s x%d: %.0f us, baseline %.0f us" % (c, t, v, b))
+    sys.exit(3 if bad else 0)
+with open(out, "w", newline="") as f:
+    w = csv.writer(f); w.writerow(["case", "threads", "width", "height", "cmds", "median_us", "p99_us"]); w.writerows(rows)

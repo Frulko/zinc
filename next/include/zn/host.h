@@ -27,5 +27,7 @@ void installSys();    // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
+struct RenderBench { int width, height, cmds; double medianUs, p99Us; };
+bool benchScene(const char* scene, int runs, int threads, RenderBench& out);   // ZN-171: replay a scene dump `runs` times on `threads` band threads (src/host/render_bench.cpp)
 
 }  // namespace zn::host
