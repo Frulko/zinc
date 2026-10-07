@@ -14,6 +14,7 @@
 #include "frontend/diagnostics.h"
 #include "frontend/lexer.h"
 #include "frontend/modules.h"
+#include "frontend/native_gen.h"
 #include "frontend/parser.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
@@ -468,6 +469,27 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[2], "--dump")) { std::fputs(zn::frontend::dump(res.ast).c_str(), stdout); return 0; }
     std::string err = zn::frontend::validate(res.ast);
     if (!err.empty()) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
+    return 0;
+  }
+  if (argc >= 3 && !std::strcmp(argv[1], "native-gen")) {  // zinc native-gen [--c] <x.spec.ts> [outdir]: zinc_native_<x>.h (zrt types, for the plugins' x.host.cpp), or with --c the export table for include/zn/native.h
+    bool c = !std::strcmp(argv[2], "--c");
+    int first = c ? 3 : 2;
+    if (argc <= first) { std::fprintf(stderr, "usage: zinc native-gen [--c] <x.spec.ts> [outdir]\n"); return 2; }
+    std::ifstream in(argv[first]);
+    if (!in) { std::fprintf(stderr, "zinc: cannot read %s\n", argv[first]); return 2; }
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    zn::frontend::NativeGen g;
+    std::string err;
+    if (!zn::frontend::generateNative(argv[first], text, g, err)) { std::fprintf(stderr, "%s: %s\n", argv[first], err.c_str()); return 1; }
+    std::string lower = g.name;
+    for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (c && g.cHeader.empty()) { std::fprintf(stderr, "%s: no C header: %s\n", argv[first], g.cNote.c_str()); return 1; }
+    std::string dir = argc > first + 1 ? argv[first + 1] : ".";
+    std::string file = dir + "/zinc_native_" + lower + (c ? "_abi.h" : ".h");
+    std::ofstream o(file);
+    o << (c ? g.cHeader : g.cppHeader);
+    if (!o) { std::fprintf(stderr, "zinc: cannot write %s\n", file.c_str()); return 2; }
+    std::printf("%s\n", file.c_str());
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file>: the diagnostics as LSP-shaped JSON on stdout (what the prototype prints), exit 1 when there are errors
