@@ -25,6 +25,7 @@ class Offscreen {
   bool hasExtension(const char* name) const;
   /** RGBA8 pixels of the framebuffer, bottom row first like glReadPixels. */
   std::vector<std::uint8_t> read() const;
+  std::uint32_t framebuffer() const { return fbo_; }   // the offscreen framebuffer: what WebGL calls the default framebuffer
   int width() const { return w_; }
   int height() const { return h_; }
 
