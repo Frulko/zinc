@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""proto-capture: pixel goldens of the prototype, and the comparison of this engine with them (ZN-113).
+
+  tools/proto-capture --init                 write tests/golden/examples/proto/manifest.json from the OK entries of tests/examples.lst (existing rows are kept)
+  tools/proto-capture capture [ENTRY...]     render the entries with the prototype (node compiler/bin/zinc.mjs run, deterministic, ZINC_SCALE=1) into tests/golden/examples/proto/
+  tools/proto-capture compare [ENTRY...]     render them with this engine and compare with the goldens (tools/pngdiff rules); exit 1 on a difference above the tolerance
+  options: --write-known (compare: record the current differences as "known" rows: they may not grow, and the row says why), --jobs N (default 3), --zinc PATH (this engine), --out DIR (compare: where frames and diff images go; default a temp dir)
+
+The manifest rows: {"entry": "hero/src/main.tsx", "frames": [30], "tol": 0, "max_diff": 0, "env": {}, "skip": "reason"}. A row with "skip" is neither captured nor compared.
+`tol` is the per-channel tolerance and `max_diff` the number of pixels allowed above it (policy: TESTING.md, "Pixel goldens").
+Goldens are re-compressed PNGs named <entry with / as ->-<frame>.png; the prototype's builds stay in each example's build/ (git-ignored).
+"""
+import concurrent.futures, json, os, subprocess, sys, tempfile, zlib, struct, importlib.machinery, importlib.util
+
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
+EX = os.path.join(ROOT, "examples"); DIR = os.path.join(NEXT, "tests", "golden", "examples", "proto"); MAN = os.path.join(DIR, "manifest.json")
+loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader)
+pd = importlib.util.module_from_spec(spec)
+loader.exec_module(pd)
+
+WRITE_KNOWN = False
+def name(entry): return entry.replace("/", "-").rsplit(".", 1)[0]
+def project(entry):
+    d = os.path.dirname(os.path.join(EX, entry))
+    while d != EX and not os.path.isfile(os.path.join(d, "zinc.json")): d = os.path.dirname(d)
+    return d if d != EX else os.path.dirname(os.path.join(EX, entry))
+def env_for(row, shot, frames):
+    e = dict(os.environ, ZINC_SCALE="1", ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", PORT="0", ZINC_FRAMES=str(max(frames)), ZINC_SHOT=shot, ZINC_SHOT_FRAMES=",".join(map(str, frames)))
+    e.update(row.get("env", {})); return e
+def recompress(src, dst):
+    w, h, bpp, d = pd.dec(src); rgb = b"".join(d[i*bpp:i*bpp+3] for i in range(w*h)) if bpp == 4 else d
+    def chunk(t, b): return struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xffffffff)
+    raw = b"".join(b"\0" + rgb[y*w*3:(y+1)*w*3] for y in range(h))
+    open(dst, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+def load(): return json.load(open(MAN)) if os.path.exists(MAN) else []
+def init():
+    rows = {r["entry"]: r for r in load()}
+    for line in open(os.path.join(NEXT, "tests", "examples.lst")):
+        p = [x.strip() for x in line.split("|")]
+        if len(p) > 1 and not line.startswith("#") and p[1] == "OK" and p[0] not in rows:
+            rows[p[0]] = {"entry": p[0], "frames": [30], "tol": 0, "max_diff": 0}
+            if p[0].startswith("service/"): rows[p[0]]["skip"] = "a daemon, no frames"
+    os.makedirs(DIR, exist_ok=True)
+    json.dump(sorted(rows.values(), key=lambda r: r["entry"]), open(MAN, "w"), indent=1); open(MAN, "a").write("\n")
+    print(len(rows), "rows in", MAN)
+
+def capture_one(row):
+    e = row["entry"]; tmp = tempfile.mkdtemp(); shot = os.path.join(tmp, "s.png")
+    r = subprocess.run(["node", os.path.join(ROOT, "compiler/bin/zinc.mjs"), "run", project(e)], cwd=ROOT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=600)
+    got = []
+    for f in row["frames"]:
+        s = os.path.join(tmp, "s-%d.png" % f)
+        if os.path.exists(s): recompress(s, os.path.join(DIR, "%s-%d.png" % (name(e), f))); got.append(f)
+    return e, got == row["frames"], (r.stderr or r.stdout).strip().splitlines()[-1:] if got != row["frames"] else ""
+
+def compare_one(row, zinc, out):
+    e = row["entry"]; shot = os.path.join(out, name(e) + ".png"); res = []; over_seen = 0
+    try: subprocess.run([zinc, "run", os.path.join(EX, e)], cwd=NEXT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired: return e, False, "timed out"
+    for f in row["frames"]:
+        mine = os.path.join(out, "%s-%d.png" % (name(e), f)); gold = os.path.join(DIR, "%s-%d.png" % (name(e), f))
+        if not os.path.exists(gold): res.append("no golden for frame %d" % f); continue
+        if not os.path.exists(mine): res.append("frame %d not rendered" % f); continue
+        a, b = pd.dec(gold), pd.dec(mine)
+        if a[:2] != b[:2]: res.append("frame %d: size %s, expected %s" % (f, b[:2], a[:2])); continue
+        over, mx, mae, psnr, mask = pd.compare(a, b, row.get("tol", 0)); over_seen = max(over_seen, over)
+        allowed = max(row.get("max_diff", 0), row.get("known", {}).get("over", 0))   # a known difference may not grow
+        if over > allowed:
+            rep = os.path.join(out, "%s-%d-diff.png" % (name(e), f)); w, h, ba, da = a; o = bytearray(w*h*3)
+            for k in range(w*h): o[k*3:k*3+3] = b"\xff\0\0" if mask[k] else bytes(c // 3 + 80 for c in da[k*ba:k*ba+3])
+            pd.write_rgb(rep, w, h, bytes(o)); res.append("frame %d: %d pixels differ above %d (max %d, mae %.3f), diff image %s" % (f, over, row.get("tol", 0), mx, mae, rep))
+    if WRITE_KNOWN and over_seen: row["known"] = {"over": over_seen, "reason": "differs from the prototype (ZN-224)"}
+    return e, not res, "; ".join(res)
+
+def main(argv):
+    global WRITE_KNOWN
+    jobs = 3; zinc = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc")); out = None; pos = []; i = 0
+    while i < len(argv):
+        if argv[i] == "--jobs": jobs = int(argv[i+1]); i += 2
+        elif argv[i] == "--zinc": zinc = argv[i+1]; i += 2
+        elif argv[i] == "--write-known": WRITE_KNOWN = True; i += 1
+        elif argv[i] == "--out": out = argv[i+1]; i += 2
+        else: pos.append(argv[i]); i += 1
+    if not pos: print(__doc__); return 2
+    if pos[0] == "--init": init(); return 0
+    mode, only = pos[0], pos[1:]
+    allrows = load()
+    rows = [r for r in allrows if not r.get("skip") and (not only or r["entry"] in only)]
+    os.makedirs(DIR, exist_ok=True); out = out or tempfile.mkdtemp(prefix="pixels-"); os.makedirs(out, exist_ok=True)
+    bad = 0
+    with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
+        fut = [ex.submit(capture_one, r) if mode == "capture" else ex.submit(compare_one, r, zinc, out) for r in rows]
+        for f in concurrent.futures.as_completed(fut):
+            e, ok, msg = f.result(); bad += not ok
+            print(("ok   " if ok else "FAIL ") + e + ("  " + str(msg) if msg else ""), flush=True)
+    if WRITE_KNOWN: json.dump(allrows, open(MAN, "w"), indent=1); open(MAN, "a").write("\n")
+    print("%d of %d entries %s" % (len(rows) - bad, len(rows), "captured" if mode == "capture" else "match"))
+    return 1 if bad else 0
+
+sys.exit(main(sys.argv[1:]))

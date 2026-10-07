@@ -1,0 +1,564 @@
+[
+ {
+  "entry": "3d/cubes/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "3d/model/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "boards/esp32-2432s022-hello/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "boards/esp32-2432s022/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 361,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "boards/s3-matrix/dice/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/s3-matrix/level/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/s3-matrix/text-scroller/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/s3-matrix/tilt-sand/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/scrollphat/badge/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/scrollphat/cpu-graph/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "boards/scrollphat/snake/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "bouncing-ball/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "breakout/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "camera/bench/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "camera/cli/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "camera/remote/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 1811,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "canvas/sketch/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "chataigne/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "flipctl/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "hello/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "hero/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "iot-panel/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "lang/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "led/falling-cubes/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "led/oled-clock/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "led/scroll-text/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "maps/explorer/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "maps/navigation/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "maps/svg-gallery/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "modules-showcase/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "native-module/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "pinball/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 574688,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "pocket-hero/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 292,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "process/cli/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "process/shell/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 700,
+   "reason": "differs from the prototype (ZN-223); varies between runs"
+  }
+ },
+ {
+  "entry": "remarkable/dashboard/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 2226,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "remarkable/notes/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 2387,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "remote/viewer/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "robot-eyes-oled/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "robot-eyes/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "scripting/bench/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "scripting/breakout-mods/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "scripting/playground/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "service/sensor-hub/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "a daemon, no frames"
+ },
+ {
+  "entry": "text/src/main-react.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 76,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "text/src/main-solid.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "three/cubes/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 366758,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "three/gltf-viewer/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/figma-storyboard/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/forms/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/gl-check/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/keyboard/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/kit-gallery/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "ui/lottie-gallery/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
+  "entry": "video/bounce/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 64031,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "video/looper/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 5849,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "video/mapper/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "video/quad/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 16113,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "webview/hybrid/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "known": {
+   "over": 7679,
+   "reason": "differs from the prototype (ZN-223)"
+  }
+ },
+ {
+  "entry": "zed-editor/sample/src/main.ts",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "skip": "the prototype renders no frame (console or LED-matrix program, or it needs a device)"
+ },
+ {
+  "entry": "zed-editor/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ }
+]
