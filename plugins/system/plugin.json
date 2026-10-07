@@ -1,0 +1,12 @@
+{
+  "name": "system",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:system",
+  "entry": "index.ts",
+  "description": "Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)",
+  "targets": {
+    "macos": {},
+    "linux": {}
+  }
+}

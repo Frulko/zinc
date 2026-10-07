@@ -14,6 +14,7 @@ extern "C" {
 const ZnModule* zn_module_Sqlite(void);
 const ZnModule* zn_module_Process(void);
 const ZnModule* zn_module_Socket(void);
+const ZnModule* zn_module_System(void);
 }
 
 static int gFailed = 0;
@@ -50,6 +51,7 @@ int main() {
   CHECK(zn_register_module(zn_module_Sqlite(), err, sizeof err) == 0);
   CHECK(zn_register_module(zn_module_Process(), err, sizeof err) == 0);
   CHECK(zn_register_module(zn_module_Socket(), err, sizeof err) == 0);
+  CHECK(zn_register_module(zn_module_System(), err, sizeof err) == 0);
 
   // ---- sqlite: the amalgamation behind handles, strings and byte arrays
   ZnVal a[4];
@@ -121,4 +123,17 @@ int main() {
   zn_native_shutdown();
   std::printf(gFailed ? "native plugins: %d failure(s)\n" : "native plugins: all checks passed\n", gFailed);
   return gFailed ? 1 : 0;
+  // ---- system: the permission gate is native (ZN-232): an op whose permission was not compiled in is refused, whatever the TS side does
+  a[0] = S("notification"); CHECK(call("System", "setPermissions", a) == ZN_OK);
+  a[0] = S("notification.notify"); a[1] = S("{\"title\":\"x\"}");
+  CHECK(call("System", "call", a) == ZN_OK && str(gRet) == "{\"id\":\"n1\"}");
+  a[0] = S("tray.create"); a[1] = S("{\"id\":\"t\"}");
+  CHECK(call("System", "call", a) == ZN_OK && str(gRet).find("\"code\":\"denied\"") != std::string::npos && str(gRet).find("tray") != std::string::npos);
+  a[0] = S("window:state"); CHECK(call("System", "setPermissions", a) == ZN_OK);   // an id with an operation covers only that operation
+  a[0] = S("window.state.save"); a[1] = S("{}"); CHECK(call("System", "call", a) == ZN_OK && str(gRet) == "{}");
+  a[0] = S("window.setTitle"); a[1] = S("{\"title\":\"t\"}"); CHECK(call("System", "call", a) == ZN_OK && str(gRet).find("denied") != std::string::npos);
+  a[0] = S("window"); CHECK(call("System", "setPermissions", a) == ZN_OK);   // the feature covers every operation of it
+  a[0] = S("window.setTitle"); CHECK(call("System", "call", a) == ZN_OK && str(gRet) == "{}");
+  a[0] = S("nope.op"); a[1] = S("{}"); CHECK(call("System", "call", a) == ZN_OK && str(gRet).find("unsupported") != std::string::npos);
+
 }

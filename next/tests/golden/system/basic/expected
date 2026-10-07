@@ -1,0 +1,6 @@
+[system] notification.notify {"title":"Build done","body":"ok"}
+[system] event {"type":"menu-click","args":["open"]}
+[system] event {"type":"tray-click","args":["left"]}
+sim true
+menu open
+tray left

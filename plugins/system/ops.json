@@ -1,0 +1,311 @@
+{
+ "comment": "The operations of zinc:system. One row per op: its permission id (`feature` or `feature:operation`, zinc.json \"permissions\") and the shape of its arguments and result. tools/system-ops generates ops.d.ts and native/ops.gen.h from this file; tests/t0/system_ops.sh fails when they drift.",
+ "ops": [
+  {
+   "op": "notification.notify",
+   "permission": "notification:notify",
+   "params": {
+    "title": "string",
+    "body?": "string",
+    "id?": "string",
+    "group?": "string",
+    "actions?": "{id: string; title: string}[]",
+    "silent?": "boolean"
+   },
+   "returns": "{id: string}",
+   "sim": "{\"id\":\"n1\"}"
+  },
+  {
+   "op": "notification.cancel",
+   "permission": "notification:notify",
+   "params": {
+    "id": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "notification.requestPermission",
+   "permission": "notification:permission",
+   "params": {},
+   "returns": "{state: 'granted' | 'denied' | 'default'}",
+   "sim": "{\"state\":\"granted\"}"
+  },
+  {
+   "op": "notification.delivered",
+   "permission": "notification:notify",
+   "params": {},
+   "returns": "{ids: string[]}",
+   "sim": "{\"ids\":[]}"
+  },
+  {
+   "op": "menu.setApp",
+   "permission": "menu",
+   "params": {
+    "template": "MenuItem[]"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "menu.update",
+   "permission": "menu",
+   "params": {
+    "id": "string",
+    "props": "object"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "menu.popup",
+   "permission": "menu",
+   "params": {
+    "template": "MenuItem[]",
+    "x?": "number",
+    "y?": "number"
+   },
+   "returns": "{id: string | null}",
+   "sim": "{\"id\":null}"
+  },
+  {
+   "op": "tray.create",
+   "permission": "tray",
+   "params": {
+    "id": "string",
+    "icon?": "string",
+    "tooltip?": "string",
+    "menu?": "MenuItem[]",
+    "template?": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "tray.update",
+   "permission": "tray",
+   "params": {
+    "id": "string",
+    "props": "object"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "tray.remove",
+   "permission": "tray",
+   "params": {
+    "id": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "dialog.open",
+   "permission": "dialog",
+   "params": {
+    "title?": "string",
+    "filters?": "{name: string; extensions: string[]}[]",
+    "multiple?": "boolean",
+    "directory?": "boolean"
+   },
+   "returns": "{paths: string[] | null}",
+   "sim": "{\"paths\":null}"
+  },
+  {
+   "op": "dialog.save",
+   "permission": "dialog",
+   "params": {
+    "title?": "string",
+    "defaultPath?": "string",
+    "filters?": "{name: string; extensions: string[]}[]"
+   },
+   "returns": "{path: string | null}",
+   "sim": "{\"path\":null}"
+  },
+  {
+   "op": "dialog.message",
+   "permission": "dialog",
+   "params": {
+    "title?": "string",
+    "message": "string",
+    "buttons?": "string[]",
+    "kind?": "'info' | 'warning' | 'error'"
+   },
+   "returns": "{button: number}",
+   "sim": "{\"button\":0}"
+  },
+  {
+   "op": "window.setTitle",
+   "permission": "window",
+   "params": {
+    "title": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setOptions",
+   "permission": "window",
+   "params": {
+    "alwaysOnTop?": "boolean",
+    "transparent?": "boolean",
+    "decorations?": "boolean",
+    "resizable?": "boolean",
+    "minSize?": "[number, number]",
+    "maxSize?": "[number, number]"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.state.save",
+   "permission": "window:state",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.state.restore",
+   "permission": "window:state",
+   "params": {},
+   "returns": "{restored: boolean}",
+   "sim": "{\"restored\":false}"
+  },
+  {
+   "op": "shortcut.register",
+   "permission": "shortcut",
+   "params": {
+    "accelerator": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":true}"
+  },
+  {
+   "op": "shortcut.unregister",
+   "permission": "shortcut",
+   "params": {
+    "accelerator": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "instance.lock",
+   "permission": "instance",
+   "params": {},
+   "returns": "{first: boolean}",
+   "sim": "{\"first\":true}"
+  },
+  {
+   "op": "deep-link.getCurrent",
+   "permission": "deep-link",
+   "params": {},
+   "returns": "{urls: string[]}",
+   "sim": "{\"urls\":[]}"
+  },
+  {
+   "op": "deep-link.register",
+   "permission": "deep-link",
+   "params": {
+    "scheme": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":true}"
+  },
+  {
+   "op": "autostart.set",
+   "permission": "autostart",
+   "params": {
+    "enabled": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "autostart.get",
+   "permission": "autostart",
+   "params": {},
+   "returns": "{enabled: boolean}",
+   "sim": "{\"enabled\":false}"
+  },
+  {
+   "op": "dock.setBadge",
+   "permission": "dock",
+   "params": {
+    "text": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "dock.bounce",
+   "permission": "dock",
+   "params": {
+    "critical?": "boolean"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "power.preventSleep",
+   "permission": "power",
+   "params": {
+    "reason?": "string"
+   },
+   "returns": "{token: number}",
+   "sim": "{\"token\":1}"
+  },
+  {
+   "op": "power.release",
+   "permission": "power",
+   "params": {
+    "token": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "clipboard.writeRich",
+   "permission": "clipboard:rich",
+   "params": {
+    "text": "string",
+    "html?": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "clipboard.readRich",
+   "permission": "clipboard:rich",
+   "params": {},
+   "returns": "{text: string; html: string}",
+   "sim": "{\"text\":\"\",\"html\":\"\"}"
+  },
+  {
+   "op": "opener.open",
+   "permission": "opener",
+   "params": {
+    "target": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  }
+ ],
+ "events": [
+  "menu-click",
+  "tray-click",
+  "notification-click",
+  "notification-action",
+  "notification-reply",
+  "notification-close",
+  "shortcut",
+  "drop",
+  "open-url",
+  "second-instance",
+  "power",
+  "appearance",
+  "window",
+  "dialog-answer"
+ ]
+}
