@@ -45,3 +45,8 @@ struct input_absinfo { int32_t value, minimum, maximum, fuzz, flat, resolution; 
 #define EVIOCGBIT(ev, len) (0x80000000u | ((unsigned)(len) << 16) | ('E' << 8) | (0x20 + (ev)))
 #define EVIOCGABS(abs) (0x80000000u | (sizeof(input_absinfo) << 16) | ('E' << 8) | (0x40 + (abs)))
 #define EVIOCGRAB 0x40044590
+#define ABS_PRESSURE 0x18
+#define ABS_TILT_X 0x1a
+#define ABS_TILT_Y 0x1b
+#define BTN_TOOL_PEN 0x140
+#define BTN_TOOL_RUBBER 0x141
