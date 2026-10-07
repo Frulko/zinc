@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-06 22:57'
+updated_date: '2026-10-07 10:05'
 labels:
   - examples
   - tests
@@ -28,3 +29,9 @@ The requirement is pixel parity with the prototype, but only 3 example goldens e
 - [ ] #2 tests/t2/examples_pixels.sh compares the new engine's frames to them; a failing entry prints the differing pixel count and writes the diff image
 - [ ] #3 the policy for tolerances is in docs/reports/zinc-next-testing-notes (TESTING.md section added)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+The comparator with edge masks and tolerance files is split out as R0.3 (ZN-172) in docs/reports/ui-rendering-architecture.md; do that first.
+<!-- SECTION:NOTES:END -->
