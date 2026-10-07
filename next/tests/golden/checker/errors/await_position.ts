@@ -1,5 +1,5 @@
 async function one(): Promise<i32> { return 1; }
-async function f(): Promise<i32> {
-  return 1 + (await one());
+async function f(c: boolean): Promise<i32> {
+  return c ? await one() : 0;
 }
-f();
+f(true);

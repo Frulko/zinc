@@ -1,5 +1,6 @@
 #include "frontend/desugar.h"
 
+#include <deque>
 #include <string>
 
 #include "frontend/snippet.h"
@@ -127,7 +128,183 @@ struct Desugar {
     out.insert(out.end(), r.begin(), r.end());
   }
 
+  // ---- awaits inside expressions: hoisted, in evaluation order, into temporaries so every statement left has one of the supported shapes
+  static std::deque<std::string>& nameStore() { static std::deque<std::string> v; return v; }  // the text of generated identifiers: nodes view it, so it outlives the pass
+  Id mkIdent(const std::string& nm, Id at) {
+    nameStore().push_back(nm);
+    a.nodes.push_back({N::Ident, n(at).start, n(at).end, nameStore().back(), {}, 0, n(at).file});
+    return static_cast<Id>(a.nodes.size() - 1);
+  }
+  bool trivialOperand(Id i) const {  // evaluating it earlier or later is not observable
+    switch (a.nodes[i].kind) {
+      case N::Ident: case N::This: case N::Number: case N::String: case N::Literal: case N::FuncExpr: case N::TypeRef: return true;
+      default: return false;
+    }
+  }
+  bool hoistableKind(Id i) const {
+    switch (a.nodes[i].kind) {
+      case N::Call: case N::New: case N::Member: case N::Index: case N::Binary: case N::Unary: case N::Cond: case N::Array: case N::ObjectLit: case N::Template: case N::As: case N::NonNull: return true;
+      default: return false;
+    }
+  }
+  Id hoist(Id e, Ids& pre) {  // `const t = e;` before the statement
+    std::string t = fresh("__v");
+    Ids st = sn("const " + t + " = __H0;", {{e}});
+    pre.insert(pre.end(), st.begin(), st.end());
+    return mkIdent(t, e);
+  }
+  // The expression with its awaits replaced by temporaries; the statements that compute them are appended to `pre`.
+  Id lin(Id i, Ids& pre) {
+    if (!susp(i)) return i;
+    N kind = n(i).kind;
+    if (kind == N::Await) {
+      Id e = lin(n(i).kids[0], pre);
+      std::string t = fresh("__v");
+      a.nodes.push_back({N::Await, n(i).start, n(i).end, "", {e}, 0, n(i).file});  // built by hand: the snippet parser reads `await` only inside an async function
+      Id aw = static_cast<Id>(a.nodes.size() - 1);
+      Ids st = sn("const " + t + " = __H0;", {{aw}});
+      pre.insert(pre.end(), st.begin(), st.end());
+      nameStore().push_back(t);
+      n(i).kind = N::Ident; n(i).text = nameStore().back(); n(i).kids.clear();
+      return i;
+    }
+    if (kind == N::Yield) { unsupported(i, "'yield' used as a value"); return i; }
+    if (kind == N::Binary && (n(i).text == "&&" || n(i).text == "||" || n(i).text == "??")) {
+      Id l = lin(n(i).kids[0], pre);
+      if (!susp(n(i).kids[1])) { n(i).kids[0] = l; return i; }
+      std::string t = fresh("__v"), op(n(i).text);  // the right operand runs only when the left one lets it: `let t = l; if (t) { ...; t = r; }`
+      Ids decl = sn("let " + t + " = __H0;", {{l}});
+      Ids rpre;
+      Id r = lin(n(i).kids[1], rpre);
+      Ids set = sn(t + " = __H0;", {{r}});
+      rpre.insert(rpre.end(), set.begin(), set.end());
+      std::string test = op == "&&" ? t : op == "||" ? "!" + t : t + " === null";
+      Ids ifs = sn("if (" + test + ") { __H0; }", {rpre});
+      pre.insert(pre.end(), decl.begin(), decl.end());
+      pre.insert(pre.end(), ifs.begin(), ifs.end());
+      return mkIdent(t, i);
+    }
+    if (kind == N::Cond) {
+      if (susp(n(i).kids[1]) || susp(n(i).kids[2])) { unsupported(i, "'await' in a branch of '?:' (use if/else)"); return i; }
+      Id c0 = lin(n(i).kids[0], pre);
+      n(i).kids[0] = c0;
+      return i;
+    }
+    std::vector<Id> ks = n(i).kids;
+    int last = -1;
+    for (std::size_t k = 0; k < ks.size(); ++k) if (ks[k] != kNone && susp(ks[k])) last = static_cast<int>(k);
+    for (int k = 0; k <= last; ++k) {
+      Id ko = ks[static_cast<std::size_t>(k)];
+      if (ko == kNone) continue;
+      Id r = lin(ko, pre);
+      if (k < last && !trivialOperand(r) && hoistableKind(r) && !(kind == N::Call && k == 0)) r = hoist(r, pre);
+      else if (k < last && kind == N::Call && k == 0 && n(r).kind == N::Member && !trivialOperand(n(r).kids[0]) && hoistableKind(n(r).kids[0])) n(r).kids[0] = hoist(n(r).kids[0], pre);  // obj.m(...): obj is evaluated first
+      n(i).kids[static_cast<std::size_t>(k)] = r;
+    }
+    return i;
+  }
+  // The statement has the shape T handles directly: `await e;`, `yield e;`, `x = await e;`, `const x = await e;`, `return await e;` with e free of awaits.
+  bool simpleForm(Id s) {
+    const Node& x = n(s);
+    if (x.kind == N::ExprStmt) {
+      const Node& in = n(x.kids[0]);
+      if (in.kind == N::Await || in.kind == N::Yield) return !susp(in.kids[0]);
+      return in.kind == N::Assign && n(in.kids[1]).kind == N::Await && !susp(in.kids[0]) && !susp(n(in.kids[1]).kids[0]);
+    }
+    if (x.kind == N::VarDecl) {
+      if (x.kids.size() != 1) return false;
+      const Node& d = n(x.kids[0]);
+      return d.kids.size() >= 2 && (d.kids.size() < 3 || d.kids[2] == kNone) && d.kids[1] != kNone && n(d.kids[1]).kind == N::Await && !susp(n(d.kids[1]).kids[0]) && x.text != "var" && x.text != "using";
+    }
+    if (x.kind == N::Return) return x.kids[0] != kNone && n(x.kids[0]).kind == N::Await && !susp(n(x.kids[0]).kids[0]);
+    return false;
+  }
+  // Rewrites a statement whose awaits sit in expressions into statements of the supported shapes (appended to `R`); false when there is nothing to do.
+  bool normalize(Id s, Ids& R) {
+    std::size_t before = diags.size();
+    bool done = normalize0(s, R);
+    if (diags.size() > before) { R.clear(); return false; }  // something is unsupported: leave the statement as it is (T reports it)
+    return done;
+  }
+  bool normalize0(Id s, Ids& R) {
+    Node& x0 = n(s);
+    N kind = x0.kind;
+    if (simpleForm(s)) return false;
+    switch (kind) {
+      case N::ExprStmt: case N::Return: case N::Throw: {
+        Id e = n(s).kids[0];
+        if (e == kNone || !susp(e)) return false;
+        Ids pre;
+        Id e2 = lin(e, pre);
+        R = pre;
+        bool bareTemp = kind == N::ExprStmt && n(e2).kind == N::Ident && n(e2).text.substr(0, 4) == "__v" && e2 == e;  // `await f(await g());`: nothing is left to evaluate
+        if (!bareTemp) { n(s).kids[0] = e2; R.push_back(s); }
+        return true;
+      }
+      case N::VarDecl: {
+        bool any = false;
+        for (Id d : n(s).kids) if (n(d).kids.size() >= 2 && susp(n(d).kids[1])) any = true;
+        if (!any) return false;
+        std::vector<Id> ds = n(s).kids;
+        for (Id d : ds) {
+          Ids pre;
+          if (n(d).kids.size() >= 2 && n(d).kids[1] != kNone) n(d).kids[1] = lin(n(d).kids[1], pre);
+          R.insert(R.end(), pre.begin(), pre.end());
+          a.nodes.push_back(n(s));
+          Id one = static_cast<Id>(a.nodes.size() - 1);
+          n(one).kids = {d};
+          R.push_back(one);
+        }
+        return true;
+      }
+      case N::If: case N::Switch: case N::ForOf: case N::ForIn: {
+        std::size_t hk = kind == N::ForOf || kind == N::ForIn ? 1 : 0;
+        Id h = n(s).kids[hk];
+        if (h == kNone || !susp(h)) return false;
+        Ids pre;
+        n(s).kids[hk] = lin(h, pre);
+        R = pre;
+        R.push_back(s);
+        return true;
+      }
+      case N::While: {  // while (await c) body  =>  while (true) { pre; if (!c') break; body }
+        Id cnd = n(s).kids[0];
+        if (!susp(cnd)) return false;
+        Ids pre;
+        Id c2 = lin(cnd, pre);
+        Ids r = sn("while (true) { __H0; if (!(__H1)) { break; } __H2; }", {pre, {c2}, list(n(s).kids[1])});
+        if (r.empty()) return false;
+        R = r;
+        return true;
+      }
+      case N::For: {
+        if (susp(n(s).kids[2])) { unsupported(s, "'await' in the update of a 'for' loop"); return false; }
+        Id cnd = n(s).kids[1];
+        if (cnd == kNone || !susp(cnd)) return false;
+        Ids pre;
+        Id c2 = lin(cnd, pre);
+        Ids blk = sn("{ __H0; if (!(__H1)) { break; } __H2; }", {pre, {c2}, list(n(s).kids[3])});
+        if (blk.empty()) return false;
+        n(s).kids[1] = kNone;
+        n(s).kids[3] = blk[0];
+        R = {s};
+        return true;
+      }
+      default: return false;
+    }
+  }
+
   void T(Id s, const Ids& rest, const Ctx& c, const std::string& tail, Ids& out) {
+    {
+      Ids R;
+      if (normalize(s, R)) {
+        Ids all = R;
+        all.insert(all.end(), rest.begin(), rest.end());
+        Ids r = S(all, c, tail);
+        out.insert(out.end(), r.begin(), r.end());
+        return;
+      }
+    }
     Node& x = n(s);
     auto add = [&](const Ids& v) { out.insert(out.end(), v.begin(), v.end()); };
     enum Form { Other, Plain, Decl, Assign, Ret, Yield } form = Other;
