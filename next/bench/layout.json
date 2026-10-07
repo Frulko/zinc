@@ -1,0 +1,32 @@
+{
+ "yoga": {
+  "engine": "yoga-3.2.1",
+  "nodes": 175,
+  "runs": 1000,
+  "full_us": 276.101,
+  "one_leaf_us": 20.343,
+  "clean_us": 0.0404
+ },
+ "classic_interp": {
+  "engine": "classic",
+  "nodes": 175,
+  "runs": 200,
+  "full_us": 266.6,
+  "one_leaf_us": 266.9,
+  "clean_us": 266.6
+ },
+ "classic_aot": {
+  "engine": "classic",
+  "nodes": 175,
+  "runs": 200,
+  "full_us": 162,
+  "one_leaf_us": 159.7,
+  "clean_us": 162
+ },
+ "size_bytes": {
+  "armv6": 69696,
+  "aarch64": 81968,
+  "wasm32": 74507
+ },
+ "machine": "arm64"
+}
