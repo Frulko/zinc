@@ -462,6 +462,26 @@ int main(int argc, char** argv) {
     if (!err.empty()) { std::fprintf(stderr, "%s: %s\n", argv[3], err.c_str()); return 1; }
     return 0;
   }
+  if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file>: the diagnostics as LSP-shaped JSON on stdout (what the prototype prints), exit 1 when there are errors
+    zn::frontend::Program prog = zn::frontend::loadProgram(argv[3], readFile, gStrict, gRoot + "/../lib/std");
+    std::vector<zn::frontend::Diag> diags = prog.diags;
+    if (diags.empty()) { zn::frontend::Checked checked = zn::frontend::check(prog.ast); diags = checked.diags; }
+    auto quote = [](const std::string& t) { std::string q = "\""; for (char c : t) { if (c == '"' || c == '\\') { q += '\\'; q += c; } else if (c == '\n') q += "\\n"; else if (static_cast<unsigned char>(c) < 32) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); q += b; } else q += c; } return q + "\""; };
+    std::string out = "[";
+    for (std::size_t k = 0; k < diags.size(); ++k) {
+      const zn::frontend::Diag& d = diags[k];
+      std::string line = zn::frontend::formatDiag(prog, d);   // file:line:col: error Zxxxx: message
+      std::size_t a = line.find(':'), b = line.find(':', a + 1), c = line.find(':', b + 1);
+      std::string file = line.substr(0, a);
+      int ln = std::atoi(line.c_str() + a + 1), col = std::atoi(line.c_str() + b + 1);
+      std::size_t m = line.find(": error ", c);
+      std::string message = m == std::string::npos ? line.substr(c + 1) : line.substr(line.find(": ", m + 8) + 2);
+      out += std::string(k ? ",\n" : "\n") + "  {\"uri\": " + quote(file) + ", \"range\": {\"start\": {\"line\": " + std::to_string(ln - 1) + ", \"character\": " + std::to_string(col - 1) + "}}, \"code\": " + quote(d.code) + ", \"severity\": 1, \"message\": " + quote(message) + "}";
+    }
+    out += diags.empty() ? "]\n" : "\n]\n";
+    std::fputs(out.c_str(), stdout);
+    return diags.empty() ? 0 : 1;
+  }
   if (argc == 4 && !std::strcmp(argv[1], "check")) {  // zinc check --check|--types <file>: parse, then check
     zn::frontend::Program prog;
     zn::frontend::Checked checked;

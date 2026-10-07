@@ -160,5 +160,16 @@ using zn::kZBadLiteral;
 using zn::kZExpected;
 using zn::kZUnexpectedToken;
 using zn::kZUnsupported;
+using zn::kZVarForbidden;
+using zn::kZArgumentsForbidden;
+using zn::kZEvalForbidden;
+using zn::kZWithForbidden;
+using zn::kZDeleteForbidden;
+using zn::kZDynamicImport;
+using zn::kZPrototypeMutation;
+using zn::kZHoleyArray;
+using zn::kZGlobalThisForbidden;
+using zn::kZLabeledStatement;
+using zn::kZInOperator;
 
 }  // namespace zn::frontend

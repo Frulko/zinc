@@ -1,0 +1,1 @@
+const m = import("./other");

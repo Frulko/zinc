@@ -618,6 +618,7 @@ struct Parser {
           i += 5;
           return mk(N::Ident, st, prevEnd(), prop == "url" ? "__meta_url" : prop == "dirname" ? "__meta_dirname" : "__meta_filename");
         }
+        if (isKw("import") && isP("(", 1)) fail(kZDynamicImport, st, "");
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }
         if (isKw("super")) { ++i; return mk(N::Super, st, prevEnd()); }
         if (isKw("true") || isKw("false") || isKw("null")) { ++i; return mk(N::Literal, st, prevEnd(), txt(t[i - 1])); }
@@ -636,6 +637,7 @@ struct Parser {
           ++i;
           std::vector<std::uint32_t> es;
           while (!isP("]")) {
+            if (isP(",")) fail(kZHoleyArray, cur().start, "");
             if (isP("...")) {
               std::uint32_t ss = cur().start; ++i;
               std::uint32_t e = assignment();
@@ -1218,6 +1220,8 @@ struct Parser {
     std::uint32_t st = cur().start;
     if (isKw("import") && !(isP("(", 1) || isP(".", 1))) { if (!top) unsupported("imports below the top level"); return importDecl(); }
     if (isKw("export")) { if (!top) unsupported("exports below the top level"); return exportDecl(); }
+    if (isKw("with")) fail(kZWithForbidden, cur().start, "");
+    if (cur().kind == Tok::Ident && isP(":", 1)) fail(kZLabeledStatement, cur().start, "");   // `label:`
     if (isP("{")) return block();
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
     if (isId("declare") && !newlineAt(1) && (at(1).kind == Tok::Keyword || at(1).kind == Tok::Ident) && !isP("=", 1)) {  // `declare const x: T`: ambient, ignored

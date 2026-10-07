@@ -82,6 +82,39 @@
   X(ModuleNotFound, "Z0119", "Cannot find module",                                                                     \
     "An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are "  \
     "tried.", "Fix the path or create the file.", "import { x } from './missing';")                                      \
+  X(VarForbidden, "Z1001", "`var` is not supported",                                                                   \
+    "`var` hoists and has function scope, which a typed engine cannot give a static meaning to.",                       \
+    "Use `let` (reassigned) or `const`.", "var x = 1;\nconsole.log(x);")                                               \
+  X(ArgumentsForbidden, "Z1002", "`arguments` is not supported",                                                       \
+    "The `arguments` object is an untyped list of every argument.", "Use explicit parameters, or a rest parameter.",   \
+    "function f(): number { return arguments.length; }")                                                              \
+  X(EvalForbidden, "Z1003", "`eval` is not supported",                                                                 \
+    "A program is compiled ahead of time: there is no engine to run text at run time.", "Parse the data (JSON.parse) or call a function.", \
+    "eval('1 + 1');")                                                                                                 \
+  X(WithForbidden, "Z1005", "`with` is not supported",                                                                 \
+    "`with` changes name resolution at run time.", "Name the object: `o.x` instead of `with (o) { x }`.",             \
+    "with ({}) { }")                                                                                                  \
+  X(DeleteForbidden, "Z1007", "`delete` is not supported",                                                             \
+    "A typed object has a fixed list of fields: a field cannot be removed.", "Use a Map (`map.delete(key)`), or set the field to null.", \
+    "const o = { a: 1 };\ndelete o.a;")                                                                               \
+  X(DynamicImport, "Z1009", "Dynamic `import()` is not supported",                                                    \
+    "Every module of a program is known when it is compiled.", "Use a static `import` at the top of the file.",        \
+    "import('./x').then(() => {});")                                                                                  \
+  X(PrototypeMutation, "Z1010", "Prototype mutation is not supported",                                                \
+    "Classes have a fixed shape; `prototype` and `__proto__` cannot be written or read.", "Declare a method in the class, or extend it.", \
+    "class A { }\nA.prototype.x = 1;")                                                                                \
+  X(HoleyArray, "Z1011", "Arrays with holes are not supported",                                                       \
+    "An array is a contiguous list: `[1, , 2]` would need a value that is not there.", "Write the value, `null`, or `undefined`.", \
+    "const a = [1, , 2];")                                                                                            \
+  X(GlobalThisForbidden, "Z1015", "`globalThis` is not supported",                                                    \
+    "There is no global object whose properties can be added or read by name.", "Import what you need, or keep it in a module.", \
+    "console.log(globalThis);")                                                                                       \
+  X(LabeledStatement, "Z9011", "Labeled statements are not supported yet",                                            \
+    "`break label` and `continue label` are not implemented yet.", "Use a flag, or move the inner loop into a function.", \
+    "outer: for (let i = 0; i < 2; i++) { }")                                                                         \
+  X(InOperator, "Z9026", "The `in` operator is not supported on a typed value",                                       \
+    "The properties of a typed object are fixed, so `\"a\" in o` is known when compiling.", "Use `Map.has(key)`, or compare to the field.", \
+    "const o = { a: 1 };\nconsole.log('a' in o);")                                                                    \
   X(DynInStrict, "Z1006", "`any` is not allowed in a strict profile",                                                  \
     "A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value "\
     "statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.",         \

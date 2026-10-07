@@ -264,6 +264,120 @@ Fix: Fix the path or create the file.
 import { x } from './missing';
 ```
 
+## Z1001: `var` is not supported
+
+`var` hoists and has function scope, which a typed engine cannot give a static meaning to.
+
+Fix: Use `let` (reassigned) or `const`.
+
+```ts
+var x = 1;
+console.log(x);
+```
+
+## Z1002: `arguments` is not supported
+
+The `arguments` object is an untyped list of every argument.
+
+Fix: Use explicit parameters, or a rest parameter.
+
+```ts
+function f(): number { return arguments.length; }
+```
+
+## Z1003: `eval` is not supported
+
+A program is compiled ahead of time: there is no engine to run text at run time.
+
+Fix: Parse the data (JSON.parse) or call a function.
+
+```ts
+eval('1 + 1');
+```
+
+## Z1005: `with` is not supported
+
+`with` changes name resolution at run time.
+
+Fix: Name the object: `o.x` instead of `with (o) { x }`.
+
+```ts
+with ({}) { }
+```
+
+## Z1007: `delete` is not supported
+
+A typed object has a fixed list of fields: a field cannot be removed.
+
+Fix: Use a Map (`map.delete(key)`), or set the field to null.
+
+```ts
+const o = { a: 1 };
+delete o.a;
+```
+
+## Z1009: Dynamic `import()` is not supported
+
+Every module of a program is known when it is compiled.
+
+Fix: Use a static `import` at the top of the file.
+
+```ts
+import('./x').then(() => {});
+```
+
+## Z1010: Prototype mutation is not supported
+
+Classes have a fixed shape; `prototype` and `__proto__` cannot be written or read.
+
+Fix: Declare a method in the class, or extend it.
+
+```ts
+class A { }
+A.prototype.x = 1;
+```
+
+## Z1011: Arrays with holes are not supported
+
+An array is a contiguous list: `[1, , 2]` would need a value that is not there.
+
+Fix: Write the value, `null`, or `undefined`.
+
+```ts
+const a = [1, , 2];
+```
+
+## Z1015: `globalThis` is not supported
+
+There is no global object whose properties can be added or read by name.
+
+Fix: Import what you need, or keep it in a module.
+
+```ts
+console.log(globalThis);
+```
+
+## Z9011: Labeled statements are not supported yet
+
+`break label` and `continue label` are not implemented yet.
+
+Fix: Use a flag, or move the inner loop into a function.
+
+```ts
+outer: for (let i = 0; i < 2; i++) { }
+```
+
+## Z9026: The `in` operator is not supported on a typed value
+
+The properties of a typed object are fixed, so `"a" in o` is known when compiling.
+
+Fix: Use `Map.has(key)`, or compare to the field.
+
+```ts
+const o = { a: 1 };
+console.log('a' in o);
+```
+
 ## Z1006: `any` is not allowed in a strict profile
 
 A strict profile (the line `// zinc-profile: strict` at the top of the entry file, or `--strict`) keeps every value statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.

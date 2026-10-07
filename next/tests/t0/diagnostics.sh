@@ -11,5 +11,9 @@ for code in $("$ZINC" explain --codes); do
   [ "$got" = "$code" ] || { echo "example of $code reports '$got'"; fail=1; }
 done
 "$ZINC" explain --markdown | diff -q - docs/diagnostics.md >/dev/null || { echo "docs/diagnostics.md is stale: run zinc explain --markdown > docs/diagnostics.md"; fail=1; }
+# zinc check --json: LSP-shaped diagnostics (uri, range.start 0-based, code, severity 1, message), exit 1 with errors and [] without
+json=$("$ZINC" check --json tests/golden/checker/errors/forbidden_var.ts 2>/dev/null); rc=$?
+[ $rc -eq 1 ] && printf '%s' "$json" | grep -q '"code": "Z1001"' && printf '%s' "$json" | grep -q '"line": 1, "character": 0' || { echo "check --json output is wrong: $json"; fail=1; }
+[ "$("$ZINC" check --json tests/golden/checker/ok/$(ls tests/golden/checker/ok | head -1) 2>/dev/null)" = "[]" ] || { echo "check --json of a good file is not []"; fail=1; }
 "$ZINC" explain Z9999 >/dev/null 2>&1 && { echo "unknown code accepted"; fail=1; }
 exit $fail

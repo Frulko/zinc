@@ -97,6 +97,7 @@ struct Checker {
 
   // ---- diagnostics
   void diag(const char* code, std::uint32_t node, std::string detail = "") {
+    for (const Diag& d : out.diags) if (d.code == code && d.pos == a.nodes[node].start && d.file == a.nodes[node].file) return;   // one error per cause
     out.diags.push_back({code, a.nodes[node].start, std::move(detail), a.nodes[node].file});
   }
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
@@ -565,7 +566,7 @@ struct Checker {
     if (op == "in") {
       TypeId rt0 = expr(re);
       if (!rawDyn() && isDyn(rt0) && replaceWith(i, "__dynIn(__H0, __H1)", {{le}, {re}})) return expr0(i, expected0);
-      diag(kZUnsupported, i, "operator 'in' on a value that is not an `any`");
+      diag(kZInOperator, i, "");
       return tError;
     }
     if ((op == "===" || op == "!==" || op == "==" || op == "!=") && !rawDyn() && lookup("__undef") != kNone) {  // in a file with Dyn values `undefined` is one: against a plain nullable it is just null
@@ -1274,6 +1275,13 @@ struct Checker {
   }
 
   // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
+  // An unknown name: `arguments`, `eval` and `globalThis` have codes of their own (what the prototype forbids), anything else is just not declared.
+  void unknownName(std::uint32_t at, std::string_view name) {
+    if (name == "arguments") diag(kZArgumentsForbidden, at, "");
+    else if (name == "eval") diag(kZEvalForbidden, at, "");
+    else if (name == "globalThis") diag(kZGlobalThisForbidden, at, "");
+    else diag(kZCannotFindName, at, "'" + std::string(name) + "'");
+  }
   bool replaceWith(std::uint32_t i, const std::string& text, const std::vector<std::vector<std::uint32_t>>& holes) {
     if (text == "__H0") { a.nodes[i] = a.nodes[holes[0][0]]; return true; }  // the argument itself (a lone hole would read as a statement hole)
     auto r = snippet(a, text + ";", holes, i);
@@ -1515,7 +1523,7 @@ struct Checker {
       }
       if (c.kind == N::Ident && s == kNone && (c.text == "Map" || c.text == "Set")) return newCollection(i, c, argNodes);
       if (s == kNone || out.syms[s].kind != SymKind::Class) {
-        if (c.kind == N::Ident && s == kNone) diag(kZCannotFindName, callee, "'" + std::string(c.text) + "'");
+        if (c.kind == N::Ident && s == kNone) unknownName(callee, c.text);
         else diag(kZNotCallable, callee, "only classes can be used with new");
         for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]);
         return tError;
@@ -1689,7 +1697,7 @@ struct Checker {
       case N::Ident: {
         std::uint32_t s = lookup(x.text);
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
-        if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }  // a forward variable is only visible to other functions
+        if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { unknownName(i, x.text); return tError; }  // a forward variable is only visible to other functions
         out.nodeSym[i] = s;
         if (out.syms[s].kind == SymKind::Func) {  // a function whose return type is still to be found
           if (inferring.count(s)) { diag(kZCannotInfer, i, "return type of '" + std::string(x.text) + "' (it needs itself: annotate it)"); return tError; }
@@ -1845,7 +1853,7 @@ struct Checker {
           return tStr;
         }
         if (op == "void") return tVoid;
-        if (op == "delete") { diag(kZUnsupported, i, "'delete'"); return tError; }
+        if (op == "delete") { diag(kZDeleteForbidden, i, ""); return tError; }
         if ((op == "+" || op == "-") && (t == tStr || t == tBool)) {  // string and boolean operands convert like Number(x)
           std::string conv = t == tStr ? "__toNumber(__H0)" : "(__H0 ? 1 : 0)";
           if (replaceWith(i, op == "-" ? "-" + conv : conv, {{x.kids[0]}})) return expr0(i, expected);
@@ -2005,7 +2013,7 @@ struct Checker {
             out.nodeSym[x.kids[0]] = cs;
             if (usedBeforeDeclaration(cs, x.kids[0])) diag(kZCannotFindName, x.kids[0], "class '" + std::string(on.text) + "' used before its declaration");
             const Member* m = lookupMember(ty(out.syms[cs].type).obj, x.text, true);
-            if (!m) { diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
+            if (!m) { if (x.text == "prototype") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
             if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
             return m->type;
           }
@@ -2043,7 +2051,7 @@ struct Checker {
         Member scratch;
         const Member* m = findMember(ot, x.text);
         if (!m && primMember(ot, x.text, scratch)) m = &scratch;
-        if (!m) { diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
+        if (!m) { if (x.text == "prototype" || x.text == "__proto__") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "'" + std::string(x.text) + "' on '" + name(ot) + "'"); return tError; }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         TypeId mt = m->getter ? ty(m->type).elem : m->type;
         if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull}, true);  // a?.b is b, or undefined
@@ -2352,6 +2360,7 @@ struct Checker {
       case N::Empty: break;
       case N::Block: push(); stmtList(x.kids); pop(); break;  // what the block learned about outer variables holds after it, as in TypeScript's flow analysis
       case N::VarDecl:
+        if (x.text == "var" && !inPrelude && !generating) diag(kZVarForbidden, s, "");
         declAsGlobal = top;
         for (std::uint32_t d : x.kids) {
           varDecl(d, x.text == "const" || x.text == "using");
@@ -3689,7 +3698,7 @@ struct Checker {
       if (isIface && isCtor) { diag(kZUnsupported, m, "constructors in interfaces"); continue; }
       if ((fl & frontend::kFlagAbstract) && !isIface && !(out.objs[objIdx].isAbstract)) diag(kZAbstractViolation, m, "abstract member '" + std::string(mn.text) + "' in a concrete class");
       Member mem;
-      mem.name = std::string(mn.text); mem.owner = objIdx; mem.access = accessOf(fl); mem.isStatic = (fl & frontend::kFlagStatic) != 0;
+      mem.name = std::string(mn.text); mem.owner = objIdx; mem.access = !mn.text.empty() && mn.text[0] == '#' ? 2 : accessOf(fl); mem.isStatic = (fl & frontend::kFlagStatic) != 0;
       if (mn.kind == N::Field && isIface) {  // an interface property reads like a getter; classes satisfy it with a field or a getter
         TypeId t = mn.kids[0] != kNone ? annotation(mn.kids[0]) : tError;
         out.nodeType[m] = t;
