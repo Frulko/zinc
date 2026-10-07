@@ -11,7 +11,7 @@ plugin (import / display)  targets                             description
   display: ssd1306         esp32,rpi1,linux,macos             SSD1306 I2C OLED 128x64/128x32, 1-bit with dithering (ESP32, Raspberry Pi, macOS emulator)
   display: st7789          esp32,macos                        ST7789/ILI9341 LCD over SPI or 8-bit i80 with damage-only band rendering, PWM backlight, CST820 touch (ESP32; macOS uses the normal window)
   display: ws2812          esp32,rpi1,linux,macos             WS2812/NeoPixel LED matrix (ESP32 RMT, Raspberry Pi SPI, macOS emulator)
-  zinc:ffi                 macos,linux                        Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures, C memory helpers (no libffi)
+  zinc:ffi                 macos,linux                        Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures through libffi, C memory helpers
   zinc:gestures            macos,linux,rpi1,wasm,esp32,ps2    Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch
   zinc:gphoto2             macos,linux,rpi1                   Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view
   zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)

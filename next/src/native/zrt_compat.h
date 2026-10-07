@@ -21,6 +21,14 @@ template <class T> zrt::Array<T> arr(const ZnVal& v) {
   return r;
 }
 
+// A string[] argument: the strings are copied out of the view of ZnStr.
+inline zrt::Array<zrt::String> arrStr(const ZnVal& v) {
+  zrt::Array<zrt::String> r = zrt::Array<zrt::String>::with_cap(static_cast<int32_t>(v.v.n));
+  const ZnStr* p = static_cast<const ZnStr*>(v.v.p);
+  for (uint32_t i = 0; i < v.v.n; ++i) r.push_raw(zrt::String::from(p[i].p, p[i].n));
+  return r;
+}
+
 inline void ret(const ZnHostApi* h, ZnCtx* cx, ZnVal* r, const zrt::String& s) { r->s = h->ret_str(cx, s.ptr(), s.bytes()); }
 template <class T> void ret(const ZnHostApi* h, ZnCtx* cx, ZnVal* r, const zrt::Array<T>& a) {
   int32_t n = a.a ? a.length() : 0;

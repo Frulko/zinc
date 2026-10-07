@@ -1741,7 +1741,7 @@ struct Lowering::FnLower {
         auto ni = static_cast<std::uint32_t>(std::stoul(std::string(callee.text.substr(9))));
         const std::string& sg = a.natives[ni].sig;
         std::size_t gt = sg.find('>');
-        auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
+        auto irType = [&](char l) { return l == 'I' ? m.arrayT(m.numT(NumK::i32)) : l == 'S' ? m.arrayT(m.strT()) : l == 'n' ? m.voidT() : rtIrType(l, frontend::kNoType); };
         std::vector<ValueId> vs;
         for (std::size_t k = 0; k < gt; ++k) vs.push_back(exprTo(x.kids[k + 1], irType(sg[k])));
         return emit(IrOp::CallNative, irType(sg[gt + 1]), std::move(vs), 0, 0, ni);

@@ -68,7 +68,7 @@ struct Gen {
     if (n(t).kind == N::TypeRef && n(t).kids.empty()) { auto al = aliases.find(std::string(n(t).text)); if (al != aliases.end()) return letter(al->second); }
     std::string s;
     for (char c : src(t)) if (!std::isspace(static_cast<unsigned char>(c))) s += c;
-    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"void", 'n'}};
+    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
     auto it = k.find(s);
     return it == k.end() ? 0 : it->second;
   }
@@ -135,6 +135,7 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
           case 'B': ex = "zn::compat::arr<uint8_t>(a[" + idx + "])"; break;
           case 'I': ex = "zn::compat::arr<int32_t>(a[" + idx + "])"; break;
           case 'D': ex = "zn::compat::arr<double>(a[" + idx + "])"; break;
+          case 'S': ex = "zn::compat::arrStr(a[" + idx + "])"; break;
           default: break;
         }
         if (ex.empty() && pt && pt->kind == N::TypeFunc && g.letter(pt->kids[0]) == 'n') {  // a callback returning void: queued on the engine's thread

@@ -648,6 +648,7 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
   nsig::parse(nt.sig.c_str(), ps, rl);   // the verifier checked the signature
   ZnVal args[12], ret;
   std::deque<std::vector<std::uint8_t>> packed;   // u8 and i32 arrays are packed for the call
+  std::deque<std::vector<ZnStr>> strViews;        // string[] arguments
   for (std::size_t k = 0; k < ps.size() && k < 12; ++k) {
     ZnVal& v = args[k];
     switch (ps[k]) {
@@ -661,6 +662,12 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a) {
         if (!arr) return kNull;
         v.v.n = static_cast<std::uint32_t>(arr->v.size());
         if (ps[k] == 'D') { v.v.p = arr->v.data(); break; }   // a slot holds the bits of the double
+        if (ps[k] == 'S') {   // string[]: a view of ZnStr
+          strViews.emplace_back();
+          for (Slot sl : arr->v) { StrObj* so = S(sl); strViews.back().push_back(ZnStr{so ? so->data() : "", so ? so->len : 0}); }
+          v.v.p = strViews.back().data();
+          break;
+        }
         std::size_t w = ps[k] == 'B' ? 1 : 4;
         packed.emplace_back(arr->v.size() * w);
         for (std::size_t j = 0; j < arr->v.size(); ++j) {

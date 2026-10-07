@@ -843,7 +843,7 @@ const std::pair<const char*, const char*> kWebGlobals[] = {
     {"crypto", "zinc:web"}, {"Crypto", "zinc:web"}, {"SubtleCrypto", "zinc:web"}, {"CryptoKey", "zinc:web"}, {"Blob", "zinc:web"}, {"File", "zinc:web"}, {"FormData", "zinc:web"},
     {"reportError", "zinc:web"}, {"navigator", "zinc:web"}, {"structuredClone", "zinc:web"}, {"encodeURIComponent", "zinc:web"}, {"decodeURIComponent", "zinc:web"},
     {"encodeURI", "zinc:web"}, {"decodeURI", "zinc:web"},
-    {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
+    {"WebAssembly", "zinc:wasm"}, {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
 bool isWebFile(const std::string& path) {
   for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }
   return false;
@@ -853,7 +853,6 @@ bool nativeProvided(const std::string& name, std::string& err) {
   if (zn_native_has_module(name.c_str())) return true;
   return gNativeProvider && gNativeProvider(name, err);
 }
-bool nativeWins() { const char* m = std::getenv("ZINC_NATIVE"); return m && std::string(m) == "real"; }
 std::string requireNativeName(const std::string& text) {  // the 'Name' of requireNative<Spec>('Name'), or ""
   std::size_t at = text.find("requireNative<");
   if (at == std::string::npos) return "";
@@ -902,7 +901,7 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
       if (ty == kNone) return 'n';
       std::string s;
       for (std::size_t k = pr.ast.nodes[ty].start; k < pr.ast.nodes[ty].end; ++k) if (!std::isspace(static_cast<unsigned char>(text[k]))) s += text[k];
-      static const std::map<std::string, char> kLetters = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"void", 'n'}};
+      static const std::map<std::string, char> kLetters = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
       auto it = kLetters.find(s);
       return it == kLetters.end() ? 0 : it->second;
     };
@@ -1122,14 +1121,21 @@ struct Loader {
     // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API
     // that the old simulator ran, takes its place (deterministic and headless)
     if (base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {
-      // x.next.ts, written for this engine, wins over the x.sim.ts that the old simulator ran (which may use TypeScript the Zinc subset does not have)
+      // ZINC_NATIVE (decision D21): x.next.ts, written for this engine, wins in "auto" (the default); the x.sim.ts that the old simulator ran (it may use TypeScript the Zinc subset
+      // does not have) yields to the plugin's native code when that can be built and loaded; "real" always takes the native code and reports why it cannot, "sim" never builds it
       std::string specText0;
       std::string whyNot;
-      bool native = nativeWins() && read(base + ".ts", specText0);  // ZINC_NATIVE=real: native code wins over a stand-in
-      if (native && !nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
+      const char* modeEnv = std::getenv("ZINC_NATIVE");
+      std::string mode = modeEnv ? modeEnv : "auto";
+      bool haveSpec = read(base + ".ts", specText0);
       for (const char* suffix : {".next.ts", ".sim.ts"}) {
-        if (native) break;
         std::string simPath = base.substr(0, base.size() - 5) + suffix;
+        bool isSim = std::string(suffix) == ".sim.ts";
+        if (haveSpec && mode == "real" && !requireNativeName(specText0).empty()) {
+          if (!nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
+          break;
+        }
+        if (isSim && haveSpec && mode == "auto" && read(simPath, text) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
         if (done.count(simPath)) return done[simPath];
         if (read(simPath, text)) {
           std::string specText;

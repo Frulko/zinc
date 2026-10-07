@@ -377,7 +377,8 @@ struct Verifier {
               ok = needRef(reg, "argument");
               if (!ok) break;
               const ClassInfo& ac = m.classes[s[reg] - 4];
-              if (ac.kind != CKind::Array || ac.elem.cls != (l == 'D' ? Cls::D : Cls::I)) ok = fail(pc, "r" + std::to_string(reg) + " holds " + ac.name + ", which does not fit native argument " + std::string(1, l));
+              bool strArr = l == 'S' && ac.kind == CKind::Array && ac.elem.cls == Cls::R && ac.elem.ref == strCls;
+              if (!strArr && (ac.kind != CKind::Array || l == 'S' || ac.elem.cls != (l == 'D' ? Cls::D : Cls::I))) ok = fail(pc, "r" + std::to_string(reg) + " holds " + ac.name + ", which does not fit native argument " + std::string(1, l));
             }
           }
           if (!ok) return false;

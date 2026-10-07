@@ -1,12 +1,15 @@
-// zinc:ffi for macos and linux on x86-64 and arm64: dlopen / dlsym, and calls without libffi.
-// Integer-class arguments (integers, pointers) and floating-point arguments travel in separate register files on both
-// System V x86-64 (rdi.. / xmm0..) and AAPCS64 (x0.. / d0..), whatever their order in the C prototype. So a
-// function taking up to 6 integer-class and 8 double arguments can be called through one prototype,
-// R f(i64 x6, double x8), and the unused registers are ignored by the callee.
-// ponytail: no variadic functions (printf: Apple arm64 puts variadics on the stack), no struct by value, no f32
-// arguments (a float is read from the low half of the register), no callbacks; libffi when those are needed.
+// zinc:ffi for macos and linux: dlopen / dlsym, and calls through libffi (the system's: the macOS SDK, libffi-dev elsewhere).
+// The Spec passes the integer-class arguments (integers, pointers, strings) and the floating-point ones as two lists, so the call is
+// prepared as R f(i64 x n, double x m): the order that both System V and AAPCS64 use for their register files, and libffi handles the
+// stack and the calling convention of the machine (the 32-bit Pi included, where the hand-rolled call of the first version did not reach).
+// ponytail: no variadic functions, no struct by value, no f32 arguments (the Spec has none), no callbacks.
 #include "zinc_native_ffi.h"
 #include <dlfcn.h>
+#if __has_include(<ffi.h>)
+#include <ffi.h>
+#else
+#include <ffi/ffi.h>   // the macOS SDK keeps it in a directory
+#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,10 +21,6 @@ static char err_msg[512];
 static zrt::String last_text;
 static zrt::String str(const char* s) { return zrt::String::from(s, (uint32_t)strlen(s)); }
 struct CStr { zrt::StrBuilder sb; CStr(const zrt::String& s) { zrt::to_s(sb, s); sb.ch('\0'); } const char* c() const { return sb.buf; } };
-
-typedef int64_t (*IntFn)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, double, double, double, double, double, double, double, double);
-typedef double (*DblFn)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, double, double, double, double, double, double, double, double);
-typedef float (*FltFn)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, double, double, double, double, double, double, double, double);
 
 struct HostFfi : NativeFfi {
   int32_t open(zrt::String path) override {
@@ -59,11 +58,25 @@ struct HostFfi : NativeFfi {
     }
     for (int32_t i = 0; i < floats.length() && i < 8; i++) D[i] = floats.get(i);
     void* f = (void*)(uintptr_t)fn;
+    int ni = ints.length() > 6 ? 6 : ints.length(), nf = floats.length() > 8 ? 8 : floats.length();
+    for (int32_t k = 0; k < strs.length() && k < 6; k++) { int32_t at = strAt.get(k); if (at >= ni && at < 6) ni = at + 1; }   // a string argument beyond the integers
+    ffi_type* types[14];
+    void* values[14];
+    int64_t iv[6];
+    double dv[8];
+    for (int i = 0; i < ni; i++) { types[i] = &ffi_type_sint64; iv[i] = I[i]; values[i] = &iv[i]; }
+    for (int i = 0; i < nf; i++) { types[ni + i] = &ffi_type_double; dv[i] = D[i]; values[ni + i] = &dv[i]; }
+    ffi_type* rt = ret == 4 ? &ffi_type_double : ret == 7 ? &ffi_type_float : ret == 0 ? &ffi_type_void : &ffi_type_sint64;
+    ffi_cif cif;
     double r = 0;
-    if (ret == 4) r = ((DblFn)f)(I[0], I[1], I[2], I[3], I[4], I[5], D[0], D[1], D[2], D[3], D[4], D[5], D[6], D[7]);
-    else if (ret == 7) r = (double)((FltFn)f)(I[0], I[1], I[2], I[3], I[4], I[5], D[0], D[1], D[2], D[3], D[4], D[5], D[6], D[7]);
+    if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)(ni + nf), rt, types) != FFI_OK) { strcpy(err_msg, "ffi_prep_cif failed"); for (char* o : owned) ::free(o); return 0; }
+    union { int64_t i; double d; float f; } res;
+    res.i = 0;
+    ffi_call(&cif, FFI_FN(f), &res, values);
+    if (ret == 4) r = res.d;
+    else if (ret == 7) r = (double)res.f;
     else {
-      int64_t v = ((IntFn)f)(I[0], I[1], I[2], I[3], I[4], I[5], D[0], D[1], D[2], D[3], D[4], D[5], D[6], D[7]);
+      int64_t v = res.i;
       if (ret == 1) r = (double)(int32_t)v;
       else if (ret == 2) r = (double)(uint32_t)v;
       else if (ret == 3) r = (double)v;

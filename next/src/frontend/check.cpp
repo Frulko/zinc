@@ -355,7 +355,7 @@ struct Checker {
     for (std::size_t ni = 0; ni < a.natives.size(); ++ni) {  // the exports of the native modules the program calls: __native_<n>
       const std::string& sg = a.natives[ni].sig;
       std::size_t gt = sg.find('>');
-      auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'D' ? arrayOf(num(Num::f64)) : tVoid; };
+      auto letter = [&](char c) { return c == 's' ? tStr : c == 'i' ? num(Num::i32) : c == 'u' ? num(Num::u32) : c == 'b' ? tBool : c == 'd' ? num(Num::f64) : c == 'B' ? arrayOf(num(Num::u8)) : c == 'I' ? arrayOf(num(Num::i32)) : c == 'D' ? arrayOf(num(Num::f64)) : c == 'S' ? arrayOf(tStr) : tVoid; };
       std::vector<TypeId> ps;
       for (std::size_t k = 0; k < gt; ++k) ps.push_back(letter(sg[k]));
       hostNames.push_back("__native_" + std::to_string(ni));
