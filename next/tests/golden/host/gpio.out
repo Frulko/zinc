@@ -1,0 +1,7 @@
+led 1
+button 1
+rise 22 1
+edge 27 0
+edge 27 1
+edge 27 0
+done 0

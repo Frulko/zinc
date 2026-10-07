@@ -1,9 +1,10 @@
 ---
 id: ZN-081
 title: 'zinc:gpio with the simulated pins of the prototype'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:52'
+updated_date: '2026-10-07 02:53'
 labels:
   - host-modules
   - simulator
@@ -21,6 +22,12 @@ Port runtime/mod/gpio.cpp (pins, modes, pull, read/write, interrupts, PWM, ZINC_
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripted pin test: a ZINC_GPIO_SCRIPT drives an input and a program sees the edges; outputs are logged identically to the prototype
-- [ ] #2 examples/iot-panel and video/looper pass the module step
+- [x] #1 scripted pin test: a ZINC_GPIO_SCRIPT drives an input and a program sees the edges; outputs are logged identically to the prototype
+- [x] #2 examples/iot-panel and video/looper pass the module step
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. zinc:gpio as a built-in Zinc source (pins, modes, pull, edges with debounce as microtasks, ZINC_GPIO_SCRIPT timers); the fixture's output equals the old simulator's. iot-panel now stops on zinc:osc, video/looper passes the gpio step; the global isNaN/isFinite (number arguments) also landed, which promoted canvas/sketch and video/looper in tests/examples.lst. PWM and the libgpiod backend are not part of the simulated board.
+<!-- SECTION:NOTES:END -->

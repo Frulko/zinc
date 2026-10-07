@@ -13,3 +13,5 @@ diff -q "$tmp/mod.out" tests/golden/host/modules.out >/dev/null || { echo "host 
 # zinc:events, zinc:platform and zinc:telemetry (ZN-080): written in Zinc; the telemetry lines equal the old runtime's (the expected file is the old simulator's output with ts zeroed and the platform renamed).
 env -u ZINC_SIZE "$ZINC" run tests/golden/host/events.ts 2>&1 | diff -q - tests/golden/host/events.out >/dev/null || { echo "zinc:events or zinc:platform output differs"; exit 1; }
 "$ZINC" run tests/golden/host/telemetry.ts 2>&1 | sed -E 's/"ts":[0-9.e+-]+/"ts":0/' | diff -q - tests/golden/host/telemetry.expected >/dev/null || { echo "zinc:telemetry lines differ from tests/golden/host/telemetry.expected"; exit 1; }
+# zinc:gpio (ZN-081): the simulated pins and a ZINC_GPIO_SCRIPT; the output is the old simulator's.
+ZINC_GPIO_SCRIPT="27:0@100,27:1@150,27:0@200" "$ZINC" run tests/golden/host/gpio.ts 2>&1 | diff -q - tests/golden/host/gpio.out >/dev/null || { echo "zinc:gpio output differs"; exit 1; }

@@ -1,0 +1,13 @@
+import { setup, write, read, watch, simulate, PinEdge } from 'zinc:gpio';
+setup(17, 'out', 'none');
+write(17, 1);
+console.log('led', read(17));
+setup(27, 'in', 'up');
+console.log('button', read(27));
+watch(27, 'both', 0, (e: PinEdge) => { console.log('edge', e.pin, e.value); });
+watch(22, 'rising', 50, (e: PinEdge) => { console.log('rise', e.pin, e.value); });
+setup(22, 'in', 'none');
+simulate(22, 1);
+simulate(22, 0);
+simulate(22, 1);
+setTimeout(() => { console.log('done', read(27)); }, 300);

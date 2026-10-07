@@ -1266,6 +1266,10 @@ struct Checker {
       diag(kZUnsupported, i, nm + "() of '" + name(at) + "'");
       return tError;
     }
+    if (cn.kind == N::Ident && (cn.text == "isNaN" || cn.text == "isFinite") && args.size() == 1 && lookup(cn.text) == kNone) {  // the globals: for a number they are Number.isNaN and Number.isFinite
+      TypeId at = expr(args[0]);
+      if (!bad(at) && isNum(at)) return rewrite(cn.text == "isNaN" ? "Number.isNaN(__H0)" : "Number.isFinite(__H0)", {{args[0]}});
+    }
     if (cn.kind == N::Member && n(cn.kids[0]).kind == N::Ident) {
       std::string_view on = n(cn.kids[0]).text, m = cn.text;
       if (on == "Number" && isBuiltin(cn.kids[0], "Number")) {

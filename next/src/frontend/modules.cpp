@@ -368,6 +368,77 @@ export class Emitter<T> {
 }
 )ZN";
 
+// zinc:gpio: the simulated board of runtime/mod/gpio.cpp (macos, linux, sim): 64 pins, edges with debounce delivered as microtasks, and ZINC_GPIO_SCRIPT="27:0@100,27:1@150"
+// (pin:value@milliseconds) driving inputs after the program starts. The Linux libgpiod backend is a plugin of the target.
+const char* kGpioModule = R"ZN(
+import { env } from 'zinc:sys';
+export class PinEdge { pin: u8 = 0; value: u8 = 0; timestampMs: f64 = 0; }
+class Pin {
+  out: boolean = false;
+  value: u8 = 0;
+  edge: i32 = 2;  // 0 rising, 1 falling, 2 both
+  debounce: i32 = 0;
+  last: f64 = -1e9;
+  cb: ((e: PinEdge) => void) | null = null;
+}
+const pins: Pin[] = [];
+let inited: boolean = false;
+function pinOf(n: u8): Pin { return pins[n & 63]; }
+function deliver(pin: u8, value: u8): void {
+  const p = pinOf(pin);
+  const old = p.value;
+  p.value = value;
+  const cb = p.cb;
+  if (cb === null || old === value) return;
+  const rising = value > old;
+  if (p.edge === 0 && !rising) return;
+  if (p.edge === 1 && rising) return;
+  const t = performance.now();
+  if (t - p.last < p.debounce) return;
+  p.last = t;
+  const e = new PinEdge();
+  e.pin = pin;
+  e.value = value;
+  e.timestampMs = t;
+  const f: (e: PinEdge) => void = cb;
+  queueMicrotask(() => { f(e); });
+}
+function init(): void {
+  if (inited) return;
+  inited = true;
+  for (let i: i32 = 0; i < 64; i++) pins.push(new Pin());
+  const script = env('ZINC_GPIO_SCRIPT');
+  const steps = script.split(',');
+  for (let k: i32 = 0; k < steps.length && k < 64; k++) {
+    const s = steps[k];
+    const colon = s.indexOf(':');
+    if (colon < 0) break;
+    const at = s.indexOf('@');
+    const pin = parseInt(s.slice(0, colon)) as u8;
+    const value = parseInt(at < 0 ? s.slice(colon + 1) : s.slice(colon + 1, at)) as u8;
+    const ms = at < 0 ? 0 : parseFloat(s.slice(at + 1));
+    setTimeout(() => { deliver(pin, value); }, ms);
+  }
+}
+export function setup(pin: u8, mode: string, pull: string): void {
+  init();
+  const p = pinOf(pin);
+  p.out = mode.length > 0 && mode.charAt(0) === 'o';
+  p.value = (!p.out && pull.length > 0 && pull.charAt(0) === 'u') ? 1 : 0;
+}
+export function write(pin: u8, value: u8): void { init(); pinOf(pin).value = value !== 0 ? 1 : 0; }
+export function read(pin: u8): u8 { init(); return pinOf(pin).value; }
+export function watch(pin: u8, edge: string, debounceMs: u16, cb: (e: PinEdge) => void): void {
+  init();
+  const p = pinOf(pin);
+  p.edge = edge.length > 0 && edge.charAt(0) === 'r' ? 0 : edge.length > 0 && edge.charAt(0) === 'f' ? 1 : 2;
+  p.debounce = debounceMs;
+  p.cb = cb;
+  p.last = -1e9;
+}
+export function simulate(pin: u8, value: u8): void { init(); deliver(pin, value !== 0 ? 1 : 0); }
+)ZN";
+
 // zinc:telemetry: JSON lines in the format of runtime/mod/telemetry.cpp (hello, metric, event, state_snapshot) to stdout or a file; ZINC_TELEMETRY picks the sink at
 // startup. The udp:// sink and the per-frame perf and log messages come with the host's own telemetry (the old runtime hooked the frame loop and the log).
 std::string platformName();
@@ -486,6 +557,7 @@ std::string platformModuleSource(const std::string& capsFile) {
 
 const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:events") return kEventsModule;
+  if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
   if (spec == "zinc:fs") return kFsModule;

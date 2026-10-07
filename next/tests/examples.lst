@@ -15,7 +15,7 @@ breakout/src/main.ts | OK |  |
 camera/bench/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
 camera/cli/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
 camera/remote/src/main.tsx | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
-canvas/sketch/main.tsx | COMPILE | global isNaN missing (plugins/canvas2d/index.ts) | ZN-105
+canvas/sketch/main.tsx | OK |  | 
 chataigne/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
 flipctl/src/main.ts | OK |  | 
 hello/src/main.ts | OK |  | 
@@ -55,7 +55,7 @@ ui/keyboard/src/main.tsx | OK |  |
 ui/kit-gallery/src/main.tsx | OK |  | 
 ui/lottie-gallery/src/main.tsx | OK |  | 
 video/bounce/src/main.ts | OK |  | 
-video/looper/src/main.ts | COMPILE | zinc:gpio is not a module yet | ZN-081
+video/looper/src/main.ts | OK |  | 
 video/mapper/src/main.ts | COMPILE | zinc:osc is not a module yet (plugins/mapping) | ZN-085
 video/quad/src/main.ts | OK |  | 
 webview/hybrid/main.tsx | OK |  | 
