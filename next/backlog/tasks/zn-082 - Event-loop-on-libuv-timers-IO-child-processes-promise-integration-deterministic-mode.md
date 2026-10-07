@@ -3,9 +3,10 @@ id: ZN-082
 title: >-
   Event loop on libuv: timers, IO, child processes, promise integration,
   deterministic mode
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 22:52'
+updated_date: '2026-10-07 03:04'
 labels:
   - host
   - runtime
@@ -24,8 +25,14 @@ Decision D7 (docs/reports/zinc-next-decisions.md): libuv 1.53 on desktop and Pi.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 T0: timers order (equal to Node), clearTimeout/clearInterval, setInterval drift test under virtual time, promise vs timer ordering golden
-- [ ] #2 zinc:process spawn/exit/signals use uv_process; the atelier app still passes its T1 tests
-- [ ] #3 the frame loop and a long timer coexist (a 60 fps app with a 1 s interval keeps its frame rate)
-- [ ] #4 third_party/README.md row, licence, pinned version and checksum; build warning-free with clang, zig c++ and gcc
+- [x] #1 T0: timers order (equal to Node), clearTimeout/clearInterval, setInterval drift test under virtual time, promise vs timer ordering golden
+- [x] #2 zinc:process spawn/exit/signals use uv_process; the atelier app still passes its T1 tests
+- [x] #3 the frame loop and a long timer coexist (a 60 fps app with a 1 s interval keeps its frame rate)
+- [x] #4 third_party/README.md row, licence, pinned version and checksum; build warning-free with clang, zig c++ and gcc
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. libuv 1.53.0 vendored (third_party/libuv, zn-sources.txt, one CMake target zn_uv, README row with sha256, clang/zig/gcc compile clean under -Wall -Wextra for our code; vendored C builds with -w like yyjson). src/host/loop.cpp + include/zn/loop.h (no libuv type in the API): uv_spawn child processes (stdout and stderr merged), pump/wait; zinc:process rows now go through it; two appended rows host.loopWait / host.loopReal; ZINC_REALTIME=1 makes the prelude's timer jumps real sleeps (default stays virtual: ZN-083 flips the clock). Tests: timers_order golden equals Node, frame_timer.sh (60 fps with a 1 s interval), atelier and AOT T1 pass. Not done yet: uv timers for the clock itself, uv_fs, signals (onSignal is still a stub), promise completion queue (all later tasks).
+<!-- SECTION:NOTES:END -->

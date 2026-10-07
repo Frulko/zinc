@@ -1063,6 +1063,7 @@ function __drainJobs(): void {
   __jobHead = 0;
   __checkRejections();
 }
+const __real: boolean = __host_loopReal() !== 0;
 let __frameHook: (() => void) | null = null;
 // One frame of a program with a frame loop (zinc:gfx): the timers due at the new clock fire in order of time then creation,
 // as in the old runtime; an interval is re-armed before it runs, so it can cancel itself.
@@ -1099,7 +1100,7 @@ function __runLoop(): void {
     const rest: Timer[] = [];
     for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
     __timers = rest;
-    if (t.at > __clock) __clock = t.at;
+    if (t.at > __clock) { if (__real) __host_loopWait(t.at - __clock); __clock = t.at; }  // ZINC_REALTIME: the wait is a real sleep on the host's event loop
     t.f();
     if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
       __timerSeq++;

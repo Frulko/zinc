@@ -173,7 +173,9 @@
   /* internal rows after the host ones, so no id that a ZBC file or a firmware knows moves: what the optimizer rewrites a call into (not members of any type): a stable sort of an f64[] whose comparator was (a, b) => a - b or (a, b) => b - a, without callbacks */ \
   X(ArrSortAsc, "internal.arrSortAsc", "a>a", 0) X(ArrSortDesc, "internal.arrSortDesc", "a>a", 0) \
   /* appended rows (after the host ones, so no known id moves) */ \
-  X(StrAt, "string.at", "si>s", 0) X(ArrSetLength, "Array.__setLength", "ai>n", 0)  /* `arr.length = n`: the checker rewrites the assignment into this call */
+  X(StrAt, "string.at", "si>s", 0) X(ArrSetLength, "Array.__setLength", "ai>n", 0) /* `arr.length = n`: the checker rewrites the assignment into this call */ \
+  /* the event loop (ZN-082): wait for the next event for ms milliseconds (a real sleep), and whether the program runs in real time (ZINC_REALTIME) */ \
+  X(HostLoopWait, "host.loopWait", "d>n", 2) X(HostLoopReal, "host.loopReal", ">i", 2)
 
 namespace zn {
 
@@ -198,7 +200,7 @@ inline constexpr RtInfo kRtInfo[] = {
 };
 
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
-inline constexpr bool isSysRow(Rt r) { return r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage); }
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || r >= Rt::HostLoopWait; }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }

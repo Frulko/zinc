@@ -576,7 +576,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
 
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
 #define NN(x) do { if (!(x)) return kNull; } while (0)
-  if (id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) return hostRt(m, id, a);
+  if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a);
   switch (id) {
     // ---- internal string operations
     case Rt::StrConcat: case Rt::StrConcatM: {

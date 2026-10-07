@@ -30,6 +30,7 @@
 
 #include "zn/host.h"
 #include "zn/hostsys.h"
+#include "zn/loop.h"
 #include "zn/runtime.h"
 
 extern char** environ;
@@ -168,48 +169,11 @@ std::string utf8Decode(const std::uint64_t* p, size_t n) {  // each invalid sequ
 }
 
 // child processes: `sh -c line` with stdout and stderr on one non-blocking pipe; a handle is an index (never reused) into a small table
-struct Proc { pid_t pid = 0; int fd = -1; int code = -1; bool done = false; };
-std::vector<Proc> gProcs;
-int procSpawn(const std::string& line) {
-  int p[2];
-  if (pipe(p) != 0) return -1;
-  pid_t pid = fork();
-  if (pid < 0) { close(p[0]); close(p[1]); return -1; }
-  if (pid == 0) {
-    dup2(p[1], 1); dup2(p[1], 2); close(p[0]); close(p[1]);
-    execl("/bin/sh", "sh", "-c", line.c_str(), static_cast<char*>(nullptr));
-    _exit(127);
-  }
-  close(p[1]);
-  fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK);
-  gProcs.push_back({pid, p[0], -1, false});
-  return static_cast<int>(gProcs.size()) - 1;
-}
-Proc* procAt(int h) { return h >= 0 && static_cast<size_t>(h) < gProcs.size() ? &gProcs[static_cast<size_t>(h)] : nullptr; }
-std::string procRead(int h) {
-  Proc* p = procAt(h);
-  std::string out;
-  if (!p || p->fd < 0) return out;
-  char buf[4096];
-  for (;;) {
-    ssize_t k = read(p->fd, buf, sizeof buf);
-    if (k > 0) { out.append(buf, static_cast<size_t>(k)); continue; }
-    if (k == 0) { close(p->fd); p->fd = -1; }  // end of file: the child closed its output
-    break;
-  }
-  return out;
-}
-int procStatus(int h) {
-  Proc* p = procAt(h);
-  if (!p) return 127;
-  if (!p->done) {
-    int st = 0;
-    pid_t w = waitpid(p->pid, &st, WNOHANG);
-    if (w == p->pid) { p->done = true; p->code = WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st); }
-  }
-  return p->done ? p->code : -1;
-}
-void procKill(int h) { Proc* p = procAt(h); if (p && !p->done) kill(p->pid, SIGTERM); }
+// Child processes run on the libuv loop (zn/loop.h).
+int procSpawn(const std::string& line) { return zn::loop::spawn(line); }
+std::string procRead(int h) { return zn::loop::read(h); }
+int procStatus(int h) { return zn::loop::status(h); }
+void procKill(int h) { zn::loop::kill(h); }
 
 void call(int id, const HostArg* a, HostArg* r) {
   auto s = [&](int k) { return str(a[k]); };
@@ -381,6 +345,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostProcRead: ret(r, procRead(n(0))); break;
     case Rt::HostProcStatus: r->i = procStatus(n(0)); break;
     case Rt::HostProcKill: procKill(n(0)); break;
+    case Rt::HostLoopWait: zn::loop::wait(a[0].d); break;
+    case Rt::HostLoopReal: { const char* v = getenv("ZINC_REALTIME"); r->i = v && *v && *v != '0' ? 1 : 0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
     case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }
     default: break;

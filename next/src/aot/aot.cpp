@@ -164,7 +164,7 @@ struct FnEmitter {
 bool usesHost(const zbc::Module& mod) {
   for (const zbc::Function& fn : mod.functions)
     for (std::size_t pc = 0; pc < fn.code.size(); pc += (kOps[opOf(fn.code[pc])].fmt == Fmt::AB2 || kOps[opOf(fn.code[pc])].fmt == Fmt::AK2) ? 2 : 1)
-      if (std::string(kOps[opOf(fn.code[pc])].name) == "Rt" && dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && dOf(fn.code[pc]) <= static_cast<unsigned>(zn::Rt::HostHostLast)) return true;
+      if (std::string(kOps[opOf(fn.code[pc])].name) == "Rt" && ((dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && dOf(fn.code[pc]) <= static_cast<unsigned>(zn::Rt::HostHostLast)) || dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostLoopWait))) return true;
   return false;
 }
 
