@@ -13,6 +13,7 @@
 #include "frontend/dyn.h"
 #include "frontend/inspect.h"
 #include "frontend/parser.h"
+#include "frontend/snippet.h"
 
 namespace zn::frontend {
 namespace {
@@ -440,7 +441,11 @@ struct Loader {
       for (const char* suffix : {".next.ts", ".sim.ts"}) {
         std::string simPath = base.substr(0, base.size() - 5) + suffix;
         if (done.count(simPath)) return done[simPath];
-        if (read(simPath, text)) return load(simPath, std::move(text));
+        if (read(simPath, text)) {
+          std::string specText;
+          if (read(base + ".ts", specText)) specOf[simPath] = std::move(specText);  // the Spec the sim implements: the calls are checked against it
+          return load(simPath, std::move(text));
+        }
       }
     }
     for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
@@ -453,6 +458,54 @@ struct Loader {
     return kNone;
   }
 
+  std::map<std::string, std::string> specOf;  // sim path -> the text of its native/x.spec.ts
+  // The sim of a native module implements the methods of its Spec, possibly with fewer parameters (TypeScript lets a function drop trailing ones);
+  // its calls from the plugin are written against the Spec. The default-exported object's functions get the parameters they leave out, unused.
+  void padToSpec(Ast& A, std::uint32_t root, const std::string& specText) {
+    ParseResult sp = parse(specText);
+    if (sp.ast.root == kNone || !sp.diags.empty()) return;
+    std::map<std::string, std::vector<std::string>> methods;  // name -> parameter types, as written
+    for (std::uint32_t st : sp.ast.nodes[sp.ast.root].kids) {
+      std::uint32_t d = st;
+      if (sp.ast.nodes[d].kind == N::Export && !sp.ast.nodes[d].kids.empty()) d = sp.ast.nodes[d].kids[0];
+      if (sp.ast.nodes[d].kind != N::Interface || sp.ast.nodes[d].text != "Spec") continue;
+      for (std::size_t k = 1; k < sp.ast.nodes[d].kids.size(); ++k) {
+        const Node& m = sp.ast.nodes[sp.ast.nodes[d].kids[k]];
+        if (m.kind != N::Method) continue;
+        std::vector<std::string> ps;
+        for (std::size_t j = 2; j < m.kids.size(); ++j) {
+          std::uint32_t ty = sp.ast.nodes[m.kids[j]].kids[0];
+          if (ty == kNone) { ps.clear(); break; }
+          ps.push_back(std::string(specText.substr(sp.ast.nodes[ty].start, sp.ast.nodes[ty].end - sp.ast.nodes[ty].start)));
+        }
+        methods[std::string(m.text)] = std::move(ps);
+      }
+    }
+    for (std::uint32_t st : std::vector<std::uint32_t>(A.nodes[root].kids)) {
+      if (A.nodes[st].kind != N::Export || !(A.nodes[st].flags & kFlagDefault) || A.nodes[st].kids.empty()) continue;
+      const Node& vd = A.nodes[A.nodes[st].kids[0]];
+      if (vd.kind != N::VarDecl || vd.kids.empty() || A.nodes[vd.kids[0]].kids.size() < 2) continue;
+      std::uint32_t lit = A.nodes[vd.kids[0]].kids[1];
+      if (lit == kNone || A.nodes[lit].kind != N::ObjectLit) continue;
+      for (std::uint32_t pr : std::vector<std::uint32_t>(A.nodes[lit].kids)) {
+        const Node& prop = A.nodes[pr];
+        if (prop.kind != N::Prop || prop.kids.empty()) continue;
+        std::uint32_t fe = prop.kids[0];
+        auto it = methods.find(std::string(prop.text));
+        if (it == methods.end() || A.nodes[fe].kind != N::FuncExpr) continue;
+        std::size_t have = A.nodes[fe].kids.size() - 2;
+        for (std::size_t j = have; j < it->second.size(); ++j) {
+          static std::deque<std::string> sources;  // the nodes view the text of the snippet: it must outlive them
+          sources.push_back("(__u" + std::to_string(j) + ": " + it->second[j] + ") => 0;");
+          std::vector<std::uint32_t> r = snippet(A, sources.back(), {}, fe);
+          if (r.empty() || A.nodes[r[0]].kind != N::ExprStmt) break;
+          std::uint32_t lam = A.nodes[r[0]].kids[0];
+          if (A.nodes[lam].kind != N::FuncExpr || A.nodes[lam].kids.size() < 3) break;
+          A.nodes[fe].kids.push_back(A.nodes[lam].kids[2]);
+        }
+      }
+    }
+  }
   std::uint32_t load(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
@@ -480,6 +533,7 @@ struct Loader {
       }
       for (auto& [k, v] : pr.ast.tparams) { auto& d = A.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       for (auto& [k, v] : pr.ast.targs) { auto& d = A.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
+      if (auto sp = specOf.find(path); sp != specOf.end()) padToSpec(A, pr.ast.root + off, sp->second);
       ModuleInfo mod;
       std::vector<std::pair<std::string, std::uint32_t>> namespaces;  // `import * as ns` of this module: alias, module
       mod.path = path;
