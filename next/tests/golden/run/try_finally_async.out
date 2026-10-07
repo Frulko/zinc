@@ -1,0 +1,26 @@
+try
+gen 1
+gen 2
+gen cleanup
+gen 3
+after
+fin1
+fin1b
+next
+fin2
+b 5
+inner fin
+caught boom
+outer fin
+catch d
+fin d
+d 7
+f got from finally
+loop fin 0
+loop fin 1
+loop fin 2
+loop fin 3
+g 2
+h inner
+h outer
+h 1

@@ -17,6 +17,7 @@ using Holes = std::vector<Ids>;
 struct Ctx {
   std::string rej;         // function taking the Error; empty: let it propagate
   std::string brk, cont;   // code for `break` / `continue` of a loop that was turned into lambdas; empty: none
+  std::vector<std::string> fins;  // the `finally` lambdas around this code, outermost first: a `return` runs them (innermost first) before it returns
 };
 
 struct Desugar {
@@ -66,6 +67,15 @@ struct Desugar {
       case N::Return: {
         std::string t;
         Holes h;
+        if (!c.fins.empty()) {  // inside try...finally: the value is computed, the finally blocks run, then the function ends
+          std::string done = gen ? "__g.done = true;" : vp ? "__p.resolveWith();" : x.kids[0] == kNone ? "__p.resolveWith();" : "__p.resolveWith(__rv);";
+          std::string chain = done;
+          for (const std::string& f : c.fins) chain = f + "((): void => { " + chain + " });";  // outermost wraps last, so the innermost runs first
+          if (gen && x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
+          bool value = x.kids[0] != kNone && !gen;
+          Ids r = sn(std::string("{ ") + (value ? (vp ? "__H0; " : "const __rv = __H0; ") : "") + chain + " return; }", value ? Holes{{vp ? exprStmt(x.kids[0]) : x.kids[0]}} : Holes{});
+          return r.empty() ? s : r[0];
+        }
         if (gen) {
           if (x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
           t = "{ __g.done = true; return; }";
@@ -367,12 +377,27 @@ struct Desugar {
         return;
       }
       case N::Try: {
-        if (x.kids[3] != kNone) { unsupported(s, "'try' with 'finally' around await or yield"); return; }
         std::string h = fresh("__h"), ev = x.kids[1] != kNone ? std::string(n(x.kids[1]).text) : fresh("__ce");
-        add(sn("const " + h + " = (" + ev + ": Error): void => { " + wrap(c, "__H0;") + " };", {S(list(x.kids[2]), c, kt)}));
-        Ctx bc = c;
-        bc.rej = h;
-        add(sn("try { __H0; } catch (__ex) { " + h + "(__ex); }", {S(list(x.kids[0]), bc, kt)}));
+        Ctx oc = c;       // what the try body and the catch block run under
+        std::string kt2 = kt;
+        if (x.kids[3] != kNone) {  // finally: a lambda taking the continuation; every way out of the try runs it first
+          std::string F = fresh("__fin"), nx = fresh("__nx"), rf = fresh("__rf");
+          add(sn("const " + F + " = (" + nx + ": () => void): void => { " + wrap(c, "__H0;") + " };", {S(list(x.kids[3]), c, nx + "(); return;")}));
+          std::string again = c.rej.empty() ? "throw __fe;" : c.rej + "(__fe);";
+          add(sn("const " + rf + " = (__fe: Error): void => { " + F + "((): void => { " + again + " }); };"));
+          kt2 = F + "((): void => { " + kt + " }); return;";
+          oc.rej = rf;
+          oc.fins.push_back(F);
+          if (!c.brk.empty()) oc.brk = F + "((): void => { " + c.brk + " }); return;";
+          if (!c.cont.empty()) oc.cont = F + "((): void => { " + c.cont + " }); return;";
+        }
+        Ctx bc = oc;
+        if (x.kids[2] != kNone) {
+          add(sn("const " + h + " = (" + ev + ": Error): void => { " + wrap(oc, "__H0;") + " };", {S(list(x.kids[2]), oc, kt2)}));
+          bc.rej = h;
+        } else if (x.kids[3] == kNone) { unsupported(s, "'try' without catch or finally"); return; }
+        std::string handler = bc.rej;
+        add(sn("try { __H0; } catch (__ex) { " + handler + "(__ex); }", {S(list(x.kids[0]), bc, kt2)}));
         return;
       }
       default: unsupported(s, "'await' or 'yield' in this statement"); return;
