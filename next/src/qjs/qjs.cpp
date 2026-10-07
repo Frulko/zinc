@@ -1,4 +1,5 @@
 #include "qjs/qjs.h"
+#include "zn/js_ext.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -292,6 +293,7 @@ int run(const Options& o) {
   JS_SetMaxStackSize(e.rt, 8u << 20);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
   installHost(e.ctx);
+  zn::qjs::runContextHooks(e.ctx);   // native classes of other modules (WebGL), ZN-203.03
   JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
   if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
   JS_FreeValue(e.ctx, pre);

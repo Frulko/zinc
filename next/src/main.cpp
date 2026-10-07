@@ -20,6 +20,9 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "frontend/capabilities.h"
+#ifdef ZN_WEBGL
+#include "gl/webgl_js.h"
+#endif
 #include "tc/bundle.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
@@ -367,6 +370,9 @@ int main(int argc, char** argv) {
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
+#ifdef ZN_WEBGL
+  zn::gl::installWebGLBindings();   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03)
+#endif
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
     zn::qjs::Options qo;
