@@ -1,7 +1,13 @@
 // Port of compiler/src/resources.ts (TrueType parser, 4x4 supersampling rasterizer, font baking, PNG and SVG images, program scan).
 // The arithmetic follows the original expression by expression (doubles, JavaScript's Math.round and sort stability) so the bitmaps are identical.
 #define STB_IMAGE_IMPLEMENTATION
-#define STBI_ONLY_PNG
+#define STBI_NO_BMP
+#define STBI_NO_PSD
+#define STBI_NO_TGA
+#define STBI_NO_GIF
+#define STBI_NO_HDR
+#define STBI_NO_PIC
+#define STBI_NO_PNM
 #define STBI_NO_STDIO
 #include "res/res.h"
 
@@ -279,7 +285,7 @@ BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::v
 bool decodePng(const std::vector<std::uint8_t>& buf, BakedImage& im, std::string& err) {
   int w = 0, h = 0, n = 0;
   unsigned char* px = stbi_load_from_memory(buf.data(), static_cast<int>(buf.size()), &w, &h, &n, 4);
-  if (!px) { err = std::string("png: ") + stbi_failure_reason(); return false; }
+  if (!px) { err = std::string("image: ") + stbi_failure_reason(); return false; }
   im.w = w; im.h = h;
   im.rgba.assign(px, px + static_cast<std::size_t>(w) * h * 4);
   stbi_image_free(px);
@@ -582,6 +588,11 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
           im.name = rel; im.scale = 1;
           images.push_back(std::move(im));
         }
+      } else if (ext == ".jpg" || ext == ".jpeg") {   // a photograph: decoded like a PNG, no @2x variants
+        std::vector<std::uint8_t> b; BakedImage im;
+        if (!readFile(p.string(), b) || !decodePng(b, im, err)) { if (err.empty()) err = "cannot read " + p.string(); return false; }
+        im.name = rel; im.scale = 1;
+        images.push_back(std::move(im));
       } else if (ext == ".svg") {
         std::vector<std::uint8_t> b;
         if (!readFile(p.string(), b)) { err = "cannot read " + p.string(); return false; }

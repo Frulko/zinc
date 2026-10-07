@@ -69,7 +69,7 @@ struct Gen {
     if (n(t).kind == N::TypeRef && n(t).kids.empty()) { auto al = aliases.find(std::string(n(t).text)); if (al != aliases.end()) return letter(al->second); }
     std::string s;
     for (char c : src(t)) if (!std::isspace(static_cast<unsigned char>(c))) s += c;
-    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
+    static const std::map<std::string, char> k = {{"i32", 'i'}, {"u32", 'u'}, {"boolean", 'b'}, {"f64", 'd'}, {"number", 'd'}, {"string", 's'}, {"u8[]", 'B'}, {"i32[]", 'I'}, {"f64[]", 'D'}, {"number[]", 'D'}, {"string[]", 'S'}, {"void", 'n'}};
     auto it = k.find(s);
     return it == k.end() ? 0 : it->second;
   }
@@ -82,7 +82,7 @@ std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty
   const Node& x = a.nodes[ty];
   std::string s;
   for (std::size_t k = x.start; k < x.end; ++k) if (!std::isspace(static_cast<unsigned char>(text[k]))) s += text[k];
-  static const std::map<std::string, std::string> kLetters = {{"i32", "i"}, {"u32", "u"}, {"boolean", "b"}, {"f64", "d"}, {"number", "d"}, {"string", "s"}, {"u8[]", "B"}, {"i32[]", "I"}, {"f64[]", "D"}, {"string[]", "S"}, {"void", "n"}};
+  static const std::map<std::string, std::string> kLetters = {{"i32", "i"}, {"u32", "u"}, {"boolean", "b"}, {"f64", "d"}, {"number", "d"}, {"string", "s"}, {"u8[]", "B"}, {"i32[]", "I"}, {"f64[]", "D"}, {"number[]", "D"}, {"string[]", "S"}, {"void", "n"}};
   auto it = kLetters.find(s);
   if (it != kLetters.end()) return it->second;
   if (dyn && (s == "unknown" || s == "unknown[]")) return "s";

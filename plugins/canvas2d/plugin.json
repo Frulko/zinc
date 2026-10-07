@@ -1,6 +1,7 @@
 {
   "name": "canvas2d",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:canvas",
   "entry": "index.ts",
   "description": "HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer",

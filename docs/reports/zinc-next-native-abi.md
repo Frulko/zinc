@@ -81,3 +81,9 @@ program's `main`. A headless or deterministic run (ZINC_HEADLESS, ZINC_DETERMINI
 from the CMake build); `zinc:gfx`'s finish now calls the driver's `shutdown` (it writes `ZINC_SHOT` and closes the window or the device). `tests/t1/display_drivers.sh` runs ws2812, ssd1306 and scrollphat on
 the board and LED examples under SDL's dummy video driver, and the remote display against a `zinc:remote` viewer on loopback: the viewer's frame equals the server's own render pixel for pixel.
 `zinc native-gen --thunk` now carries `Promise<T>` members of zrt specs (the zrt promise settles into `promise_resolve` / `promise_reject`; the poll turn drains zrt's microtasks), which `remote-view` and `gphoto2` need.
+
+## canvas2d and JPEG assets (ZN-105)
+
+`plugins/canvas2d/native/canvas2d.host.cpp` runs unchanged behind the thunk (the spec's `number[]` is an f64 array): it links against the host library's rasterizer, the single owner of `zrt::raster`,
+with `ZRT_POINT_POOL` from the plugin.json target defines. The plugin is `deterministic`, so golden runs use it instead of the Zinc stand-in. `src/res` decodes JPEG assets too (stb_image,
+PNG and JPEG only; no `@2x` variants for photographs): `tests/golden/res_jpeg`. `tests/t1/canvas.sh` runs the conformance program interpreted and compiled, and examples/canvas/sketch headless.
