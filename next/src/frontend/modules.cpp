@@ -862,6 +862,31 @@ std::string requireNativeName(const std::string& text) {  // the 'Name' of requi
   return qb == std::string::npos ? "" : text.substr(qa + 1, qb - qa - 1);
 }
 
+// How a parameter of a spec member reaches the native call (ZN-103): `unknown` and `unknown[]` as JSON text, a DynFunction as a callback of JSON text, and a callback type that
+// mentions `unknown` through an adapter; anything else as it is.
+std::string dynArgument(const Ast& a, const std::string& text, std::uint32_t ty, const std::string& tyText, const std::string& pn) {
+  std::string t;
+  for (char c : tyText) if (!std::isspace(static_cast<unsigned char>(c))) t += c;
+  if (t == "unknown" || t == "unknown[]") return "__nativeJson(" + pn + ")";
+  if (t == "DynFunction") return "(__a: string): string => { return __nativeJson(" + pn + "(__nativeArgs(__a))); }";
+  const Node& x = a.nodes[ty];
+  if (x.kind != N::TypeFunc || tyText.find("unknown") == std::string::npos) return pn;
+  std::string ps, call;
+  for (std::size_t k = 1; k < x.kids.size(); ++k) {
+    const Node& pm = a.nodes[x.kids[k]];
+    if (pm.kids.empty()) return pn;
+    std::string pt = text.substr(a.nodes[pm.kids[0]].start, a.nodes[pm.kids[0]].end - a.nodes[pm.kids[0]].start), q;
+    for (char c : pt) if (!std::isspace(static_cast<unsigned char>(c))) q += c;
+    std::string an = "__a" + std::to_string(k - 1);
+    ps += (k > 1 ? ", " : "") + an + ": " + (q == "unknown" || q == "unknown[]" ? "string" : pt);
+    call += (k > 1 ? ", " : "") + (q == "unknown" ? "__nativeValue(" + an + ")" : q == "unknown[]" ? "__nativeArgs(" + an + ")" : an);
+  }
+  std::string rt = x.kids[0] == kNone ? "void" : text.substr(a.nodes[x.kids[0]].start, a.nodes[x.kids[0]].end - a.nodes[x.kids[0]].start), rq;
+  for (char c : rt) if (!std::isspace(static_cast<unsigned char>(c))) rq += c;
+  if (rq == "unknown") return "(" + ps + "): string => { return __nativeJson(" + pn + "(" + call + ")); }";
+  return "(" + ps + "): " + rt + " => { " + (rq == "void" ? "" : "return ") + pn + "(" + call + "); }";
+}
+
 // requireNative<Spec>('Name') (zinc:native): the Spec interface of the same file lists the members of a native module. Each member becomes a call of
 // __native_<n> (the checker declares it from Ast::natives, the lowering emits CallNative) inside a generated class that implements the Spec; the call is
 // replaced by `new` of that class. The registry must hold the module (Z5011), and every member must be expressible in the ABI (Z5010).
@@ -911,16 +936,17 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         std::string sig, params, args, wrapArgs;
         for (std::size_t j = 2; j < mem.kids.size(); ++j) {
           std::uint32_t ty = pr.ast.nodes[mem.kids[j]].kids.empty() ? kNone : pr.ast.nodes[mem.kids[j]].kids[0];
-          std::string l = ty == kNone ? "" : nativeLetter(pr.ast, text, ty, false);
+          std::string l = ty == kNone ? "" : nativeLetter(pr.ast, text, ty, false, true);
           if (l.empty() || l == "n") { bad(kZNativeTypeNotExpressible, "parameter " + std::to_string(j - 1) + " of '" + mname + "'"); ok = false; break; }
           sig += l;
           std::string tyText = text.substr(pr.ast.nodes[ty].start, pr.ast.nodes[ty].end - pr.ast.nodes[ty].start);
-          params += (j > 2 ? ", " : "") + std::string("__p") + std::to_string(j - 2) + ": " + tyText;
-          args += (j > 2 ? ", " : "") + std::string("__p") + std::to_string(j - 2);
+          std::string pn = "__p" + std::to_string(j - 2);
+          params += (j > 2 ? ", " : "") + pn + ": " + tyText;
+          args += (j > 2 ? ", " : "") + dynArgument(pr.ast, text, ty, tyText, pn);
         }
         if (!ok) break;
         std::uint32_t rty = mem.kids.empty() ? kNone : mem.kids[0];
-        std::string rl = nativeLetter(pr.ast, text, rty, true);
+        std::string rl = nativeLetter(pr.ast, text, rty, true, true);
         if (rl.empty()) { bad(kZNativeTypeNotExpressible, "the result of '" + mname + "'"); ok = false; break; }
         sig += ">" + rl;
         std::string rtext = rty == kNone ? "void" : text.substr(pr.ast.nodes[rty].start, pr.ast.nodes[rty].end - pr.ast.nodes[rty].start);
@@ -931,7 +957,11 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
           bool none = rl == "Pn";
           call = "__native_" + std::to_string(natives.size() + found.size() - 1) + "(" + args + (args.empty() ? "" : ", ") + (none ? "() => { __res(); }" : "(__v: " + inner + ") => { __res(__v); }") + ", (__m: string) => { __rej(new Error(__m)); })";
           body += "  " + mname + "(" + params + "): " + rtext + " { return new " + rtext + "((__res, __rej) => { " + call + "; }); }\n";
-        } else body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
+        } else {
+          bool dynResult = rl == "s" && rtext.find("unknown") != std::string::npos;
+          if (dynResult) call = "__nativeValue(" + call + ")";
+          body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
+        }
       }
       break;
     }

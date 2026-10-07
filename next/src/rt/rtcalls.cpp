@@ -657,6 +657,8 @@ struct PromiseEntry { std::uint64_t resolve, reject; char of; };
 std::unordered_map<std::uint64_t, CbEntry> gCbs;
 std::unordered_map<std::uint64_t, PromiseEntry> gPromises;
 std::uint64_t gCbNext = 1;
+std::string gCbError;   // the message of the last closure that threw
+const char* cbError(void*) { return gCbError.c_str(); }
 Machine* gMachine = nullptr;
 Slot* gScratch = nullptr;   // the frame above the running call: where a callback's own frame goes
 
@@ -708,9 +710,17 @@ std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t
   for (std::uint32_t k = 0; k < n && k < e.params.size(); ++k) if (!toSlot(m, e.params[k], args[k], frame[1 + k])) return -1;
   Slot* saved = gScratch;
   gScratch = frame + 1 + e.params.size() + 8;   // a nested call (the closure calls a native that calls back) starts above this frame
+  std::size_t depth = m.depth;
   bool ok = m.exec(e.call, frame);
   gScratch = saved;
-  if (!ok) return -1;
+  if (!ok) {   // the closure threw: its message goes to the module, which may turn it into an error of its own; the machine carries on
+    std::string msg = m.error;
+    if (msg.rfind("panic: ", 0) == 0) msg = msg.substr(7);
+    gCbError = msg;
+    m.error.clear();
+    m.depth = depth;
+    return -1;
+  }
   if (ret) {
     switch (e.result) {
       case 'd': ret->d = std::bit_cast<double>(frame[0]); break;
@@ -750,7 +760,7 @@ void sinkReject(void*, std::uint64_t p, const char* msg) { settle(p, false, null
 void installSink(Machine& m) {
   if (gMachine == &m) return;
   gMachine = &m;
-  ZnSink sink{&m, sinkResolve, sinkReject, runClosure, sinkRelease, sinkHold};
+  ZnSink sink{&m, sinkResolve, sinkReject, runClosure, sinkRelease, cbError, sinkHold};
   zn_native_set_sink(&sink);
 }
 

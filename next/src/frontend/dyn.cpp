@@ -238,6 +238,23 @@ class DynRefT<T> extends DynRef {
 // adapter from the checker (check.cpp, dynFunctionAdapter): each argument converted JavaScript-style, the result boxed.
 type DynFunction = (args: unknown[]) => unknown;
 function __dynArg(a: unknown[], i: i32): unknown { return i < a.length ? a[i] : __undef; }
+// The carriers of `unknown` through a native call (lowerRequireNative): JSON text in and out; undefined is the empty text.
+function __nativeJson(v: unknown): string {
+  const d: any = v;
+  if (d instanceof DynUndef) return '';
+  return JSON.stringify(v);
+}
+function __nativeValue(s: string): unknown {
+  if (s.length === 0) return __undef;
+  const d: any = JSON.parse(s);
+  return d;
+}
+function __nativeArgs(s: string): unknown[] {
+  const r: unknown[] = [];
+  const d: any = JSON.parse(s);
+  if (d instanceof DynArr) for (let i: i32 = 0; i < d.items.length; i++) r.push(d.items[i]);
+  return r;
+}
 function __dynString(d: Dyn): string { return d instanceof DynStr ? d.v : d.toString(); }
 
 const __undef: any = new DynUndef();

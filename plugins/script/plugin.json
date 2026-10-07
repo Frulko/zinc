@@ -1,6 +1,7 @@
 {
   "name": "script",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:script",
   "entry": "index.ts",
   "description": "Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises",

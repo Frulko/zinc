@@ -179,9 +179,10 @@ void apiPromiseReject(std::uint64_t promise, const char* message) {
 void apiLoopRef() { ++gPending; }
 void apiLoopUnref() { --gPending; }
 double apiNow() { return 0; }
+const char* apiCbError() { return gSink.error ? gSink.error(gSink.user) : ""; }
 
 ZnHostApi gApi = {sizeof(ZnHostApi), apiSetError, apiRetStr, apiRetBuf, apiResNew, apiResGet, apiResRetain, apiResRelease, apiCbRetain, apiCbRelease, apiCbCall, apiCbPost,
-                  apiPromiseTake, apiPromiseResolve, apiPromiseReject, apiLoopRef, apiLoopUnref, apiNow};
+                  apiPromiseTake, apiPromiseResolve, apiPromiseReject, apiLoopRef, apiLoopUnref, apiNow, apiCbError};
 
 Mod* find(const char* name) { for (auto& m : gMods) if (m->name == name) return m.get(); return nullptr; }
 

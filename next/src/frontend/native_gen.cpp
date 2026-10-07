@@ -77,7 +77,7 @@ struct Gen {
 
 }  // namespace
 
-std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty, bool result) {
+std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty, bool result, bool dyn) {
   if (ty == kNone) return "n";
   const Node& x = a.nodes[ty];
   std::string s;
@@ -85,20 +85,22 @@ std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty
   static const std::map<std::string, std::string> kLetters = {{"i32", "i"}, {"u32", "u"}, {"boolean", "b"}, {"f64", "d"}, {"number", "d"}, {"string", "s"}, {"u8[]", "B"}, {"i32[]", "I"}, {"f64[]", "D"}, {"string[]", "S"}, {"void", "n"}};
   auto it = kLetters.find(s);
   if (it != kLetters.end()) return it->second;
+  if (dyn && (s == "unknown" || s == "unknown[]")) return "s";
+  if (dyn && s == "DynFunction" && !result) return "c(s>s)";
   if (x.kind == N::TypeFunc) {
     std::string params;
     for (std::size_t k = 1; k < x.kids.size(); ++k) {
       const Node& p = a.nodes[x.kids[k]];
-      std::string l = p.kids.empty() ? "" : nativeLetter(a, text, p.kids[0], false);
+      std::string l = p.kids.empty() ? "" : nativeLetter(a, text, p.kids[0], false, dyn);
       if (l.size() != 1 || l == "n" || l == "S" || !std::strchr("siubdBID", l[0])) return "";
       params += l;
     }
-    std::string r = nativeLetter(a, text, x.kids[0], false);
+    std::string r = nativeLetter(a, text, x.kids[0], false, dyn);
     if (r.size() != 1 || !std::strchr("nsiubd", r[0])) return "";
     return "c(" + params + ">" + r + ")";
   }
   if (result && x.kind == N::TypeRef && x.text == "Promise" && x.kids.size() == 1) {
-    std::string l = nativeLetter(a, text, x.kids[0], false);
+    std::string l = nativeLetter(a, text, x.kids[0], false, dyn);
     return l.size() == 1 && l != "S" ? "P" + l : "";
   }
   return "";

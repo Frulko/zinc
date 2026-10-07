@@ -40,9 +40,9 @@ remarkable/notes/src/main.tsx | OK |  |
 remote/viewer/main.tsx | OK |  | 
 robot-eyes-oled/src/main.ts | OK |  | 
 robot-eyes/src/main.ts | OK |  | 
-scripting/bench/src/main.ts | COMPILE | plugins/script quickjs.sim.ts needs node:vm: a stand-in over the engine QuickJS | ZN-103
-scripting/breakout-mods/src/main.ts | COMPILE | plugins/script quickjs.sim.ts needs node:vm: a stand-in over the engine QuickJS | ZN-103
-scripting/playground/src/main.tsx | COMPILE | plugins/script quickjs.sim.ts needs node:vm: a stand-in over the engine QuickJS | ZN-103
+scripting/bench/src/main.ts | OK |  | 
+scripting/breakout-mods/src/main.ts | OK |  | 
+scripting/playground/src/main.tsx | OK |  | 
 service/sensor-hub/src/main.ts | OK |  | 
 text/src/main-react.tsx | OK |  | 
 text/src/main-solid.tsx | OK |  | 

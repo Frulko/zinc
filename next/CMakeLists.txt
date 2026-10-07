@@ -174,6 +174,11 @@ target_compile_definitions(zn_quickjs PRIVATE QUICKJS_NG_BUILD lre_check_stack_o
 set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_quickjs PRIVATE -w -O2)
 target_link_libraries(zn_quickjs PUBLIC zn_regexp)
+# zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
+add_library(zn_script STATIC src/qjs/script_native.cpp)
+target_link_libraries(zn_script PUBLIC zn_quickjs zn_native)
+target_include_directories(zn_script PUBLIC include)
+
 add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp)
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
 target_include_directories(zn_qjs PUBLIC include src)
@@ -189,7 +194,7 @@ if(ZN_NATIVE_FIXTURE)
 endif()
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
-target_link_libraries(zinc PRIVATE zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
   if(ZN_SDL_LIB)

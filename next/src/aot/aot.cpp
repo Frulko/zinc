@@ -91,7 +91,7 @@ struct FnEmitter {
   void emit() {
     collectLabels();
     leaf = true;
-    for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt") leaf = false; }
+    for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt" || n == "CallNative") leaf = false; }
     out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf ? "win" : "r") + ") {\n";
     if (leaf) {  // the registers are C++ locals so the compiler keeps them in machine registers; arguments come in, the result goes out through the window
       line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");

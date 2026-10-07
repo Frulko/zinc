@@ -141,11 +141,13 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   return 1;
 }
 
+extern "C" const ZnModule* zn_module_QuickJS(void);   // src/qjs/script_native.cpp: zinc:script on the engine's QuickJS-ng
 #ifdef ZN_NATIVE_FIXTURE
 extern "C" const ZnModule* fixture_module(void);
 #endif
 
 int main(int argc, char** argv) {
+  { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
 #endif
@@ -438,7 +440,9 @@ int main(int argc, char** argv) {
       if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       return 0;
     }
-    std::string nativeLibs;  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+    bool usesScript = false;
+    for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
+    std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
     for (const zn::tc::PluginLib& pl : gPlugins) {
       nativeLibs += " '" + pl.archive + "'" + (pl.vendor.empty() ? "" : " '" + pl.vendor + "'");
       for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;

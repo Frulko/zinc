@@ -63,3 +63,11 @@ export returns `ZN_PENDING` after `promise_take`, and `promise_resolve` / `promi
 for a void result, `cb_call` otherwise) and keeps the loop alive while a plugin `Poller` is active. Not covered: `zrt::Promise<T>` members in thunks (gphoto2) and string results of callbacks beyond
 the call. An error raised inside a callback ends the program like any runtime error.
 Verified on the native plugins: `wasm.ts` and `socket.ts` conformance programs and a `zinc:process` spawn print their frozen output; `tests/golden/run/native_callbacks.ts` covers the C test module in the interpreter and AOT.
+
+## zinc:script (ZN-103)
+
+`src/qjs/script_native.cpp` is a Tier-B module (C ABI, no zrt) that `zinc` registers at start; plugins/script/index.ts is unchanged. The spec's `unknown` values travel as JSON: the generated wrapper of
+`requireNative` converts with `__nativeJson` (undefined is the empty text), `__nativeValue` and `__nativeArgs`, a `DynFunction` becomes `c(s>s)` (JSON array in, JSON out, a Zinc `throw` becomes an
+`Error` in the script through `cb_error`) and a callback type that mentions `unknown` gets an adapter. Functions of the script cross as `{"__zn_fn": n}`. Entries arm the time limit and pump the promise jobs;
+memory and stack limits are QuickJS's own; `interrupt` stops a running script. The plugin is `deterministic` (wall-clock limits only). `tests/t1/script.sh` runs script_basic.ts and script_async.ts interpreted and compiled.
+An AOT function that only calls natives is not a leaf: its registers cannot be C++ locals (the callbacks run in the frame above them).
