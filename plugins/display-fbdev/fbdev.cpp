@@ -67,8 +67,19 @@ static float wheel;
 static int slot;
 static struct { int id; float x, y; } slots[HAL_MAX_TOUCH];
 
+// ZINC_FBDEV_SIM=<file> (ZN-129): the framebuffer is a plain file with a fixed screeninfo, so the format conversion and the letterbox run anywhere, on a Mac too.
+//   ZINC_FBDEV_SIM_FORMAT=<w>x<h>x<bpp> (default 640x480x32; 16 = RGB565, 24 = RGB888 in BGR byte order, 32 = XRGB8888 with alpha 0xFF)
+//   ZINC_FBDEV_SIM_INPUT=<file>: raw `struct input_event` records played back one SYN_REPORT per poll as a multitouch screen the size of the framebuffer.
+static const char* sim_fb = getenv("ZINC_FBDEV_SIM");
+static const char* sim_input = getenv("ZINC_FBDEV_SIM_INPUT");
 static bool bit(const unsigned long* b, int n) { return b[n / (8 * sizeof(long))] >> (n % (8 * sizeof(long))) & 1; }
 static void open_inputs() {
+  if (sim_fb) {   // the scripted screen: no ioctl on a plain file
+    if (sim_input) { int f = open(sim_input, O_RDONLY | O_CLOEXEC); if (f >= 0) devs[ndev++] = Dev{f, 0, fw - 1, 0, fh - 1, true, true}; }
+    for (auto& s : slots) s.id = -1;
+    px = W / 2.0f; py = H / 2.0f;
+    return;
+  }
   for (int i = 0; i < 32 && ndev < 16; i++) {
     char path[32];
     snprintf(path, sizeof path, "/dev/input/event%d", i);
@@ -119,9 +130,11 @@ static void to_surface(const Dev& d, int32_t vx, int32_t vy, float* sx, float* s
 static void read_dev(Dev& d) {
   input_event e[64];
   ssize_t n;
-  while ((n = read(d.fd, e, sizeof e)) > 0) {
+  bool frameDone = false;
+  while (!frameDone && (n = read(d.fd, e, sim_fb ? sizeof(input_event) : sizeof e)) > 0) {   // a script: one frame of events (up to SYN_REPORT) per poll
     for (int i = 0; i < (int)(n / sizeof(input_event)); i++) {
       const input_event& v = e[i];
+      if (v.type == EV_SYN && v.code == SYN_REPORT) frameDone = true;
       if (v.type == EV_KEY) {
         if (v.code == KEY_ESC && v.value == 1) quit_key = true;
         else if (v.code == BTN_LEFT) mouse_down = v.value != 0;
@@ -149,11 +162,26 @@ static void read_dev(Dev& d) {
 static void on_signal(int) { sig_quit = 1; }
 
 static int fb_init(const HalConfig* cfg) {
+  fb_var_screeninfo var; fb_fix_screeninfo fix;
+  if (sim_fb) {
+    int sw = 640, sh = 480, sb = 32;
+    if (const char* f = getenv("ZINC_FBDEV_SIM_FORMAT")) sscanf(f, "%dx%dx%d", &sw, &sh, &sb);
+    if (sb != 16 && sb != 24 && sb != 32) return 0;
+    fd = open(sim_fb, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd < 0) return 0;
+    memset(&var, 0, sizeof var); memset(&fix, 0, sizeof fix);
+    var.xres = sw; var.yres = sh; var.bits_per_pixel = sb;
+    if (sb == 16) { var.red = {11, 5, 0}; var.green = {5, 6, 0}; var.blue = {0, 5, 0}; }
+    else { var.red = {16, 8, 0}; var.green = {8, 8, 0}; var.blue = {0, 8, 0}; if (sb == 32) var.transp = {24, 8, 0}; }
+    fix.line_length = sw * sb / 8 + 32;   // padded: the pitch is not the width
+    fix.smem_len = (size_t)fix.line_length * sh;
+    if (ftruncate(fd, fix.smem_len) < 0) { close(fd); fd = -1; return 0; }
+  } else {
   fd = open(ZP_DISPLAY_FBDEV_DEVICE, O_RDWR | O_CLOEXEC);
   if (fd < 0) return 0;
-  fb_var_screeninfo var; fb_fix_screeninfo fix;
   if (ioctl(fd, FBIOGET_VSCREENINFO, &var) < 0 || ioctl(fd, FBIOGET_FSCREENINFO, &fix) < 0 || (var.bits_per_pixel != 16 && var.bits_per_pixel != 24 && var.bits_per_pixel != 32)) {
     close(fd); fd = -1; return 0;
+  }
   }
   fw = var.xres; fh = var.yres; bpp = var.bits_per_pixel; pitch = fix.line_length; fblen = fix.smem_len;
   fbmem = (uint8_t*)mmap(nullptr, fblen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -174,7 +202,7 @@ static int fb_init(const HalConfig* cfg) {
   }
   for (int y = 0; y < fh; y++) memset(fbmem + (size_t)y * pitch, 0, (size_t)fw * (bpp / 8));
   // console in graphics mode: no text cursor or kernel messages over the picture (needs a VT; ignored otherwise)
-  tty = open("/dev/tty0", O_RDWR | O_CLOEXEC);
+  tty = sim_fb ? -1 : open("/dev/tty0", O_RDWR | O_CLOEXEC);
   if (tty >= 0 && ioctl(tty, KDSETMODE, KD_GRAPHICS) < 0) { close(tty); tty = -1; }
   signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
   if (ZP_DISPLAY_FBDEV_INPUT) open_inputs();
@@ -185,7 +213,7 @@ static int fb_init(const HalConfig* cfg) {
 static void fb_present(const HalFrame* f) {
   if (f->y1 > f->y0 && f->x1 > f->x0) f->render(surf + (size_t)f->y0 * W, f->y0, f->y1);
   // pacing: the null HAL has no vsync; wait for the display's, or sleep to the configured rate
-  if (vsync) { int z = 0; if (ioctl(fd, FBIO_WAITFORVSYNC, &z) < 0) vsync = false; }
+  if (vsync) { int z = 0; if (sim_fb || ioctl(fd, FBIO_WAITFORVSYNC, &z) < 0) vsync = false; }
   if (!vsync) {
     uint64_t period = 1000000u / ZP_DISPLAY_FBDEV_FPS, t = now_us();
     if (last_us && t - last_us < period) usleep((useconds_t)(period - (t - last_us)));
