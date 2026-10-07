@@ -175,7 +175,8 @@
   /* appended rows (after the host ones, so no known id moves) */ \
   X(StrAt, "string.at", "si>s", 0) X(ArrSetLength, "Array.__setLength", "ai>n", 0) /* `arr.length = n`: the checker rewrites the assignment into this call */ \
   /* the event loop (ZN-082): wait for the next event for ms milliseconds (a real sleep), and whether the program runs in real time (ZINC_REALTIME) */ \
-  X(HostLoopWait, "host.loopWait", "d>n", 2) X(HostLoopReal, "host.loopReal", ">i", 2)
+  X(HostLoopWait, "host.loopWait", "d>n", 2) X(HostLoopReal, "host.loopReal", ">i", 2) \
+  X(HostLoopNow, "host.loopNow", ">d", 2) X(HostLoopEpoch, "host.loopEpoch", ">d", 2)  /* milliseconds since the program started, and since 1970 */
 
 namespace zn {
 

@@ -346,7 +346,13 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostProcStatus: r->i = procStatus(n(0)); break;
     case Rt::HostProcKill: procKill(n(0)); break;
     case Rt::HostLoopWait: zn::loop::wait(a[0].d); break;
-    case Rt::HostLoopReal: { const char* v = getenv("ZINC_REALTIME"); r->i = v && *v && *v != '0' ? 1 : 0; break; }
+    case Rt::HostLoopReal: {  // real time unless the run is deterministic (ZINC_DETERMINISTIC, recording, replay); ZINC_REALTIME forces it
+      auto set = [](const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; };
+      r->i = set("ZINC_REALTIME") || !(set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY")) ? 1 : 0;
+      break;
+    }
+    case Rt::HostLoopNow: r->d = zn::loop::nowMs(); break;
+    case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
     case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }
     default: break;

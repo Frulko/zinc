@@ -14,6 +14,7 @@ while [ $# -gt 0 ]; do
 done
 case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
 export ZINC=${ZINC:-$root/build/zinc}
+export ZINC_DETERMINISTIC=1   # the goldens read the virtual clock; tests/t0/clock_real.sh checks both clocks itself
 mkdir -p "$root/.logs"
 log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
 : > "$log"

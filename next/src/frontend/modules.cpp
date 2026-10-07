@@ -56,7 +56,7 @@ function __gfxLoop(): void {
   const n = __host_gfxFrames();
   for (let f: i32 = 0; f < n; f++) {
     const dt = __host_gfxPoll();
-    __clock += dt * 1000;
+    __clock = __real ? __host_loopNow() : __clock + dt * 1000;  // a real run follows the clock of the host, a deterministic one the fixed step
     __frameTimers();
     __host_gfxBegin();
     const cb = __frameCb;
@@ -1000,10 +1000,16 @@ function __enqueue(j: Job): void { __jobs.push(j); }
 function queueMicrotask(f: () => void): void { __jobs.push(new FnJob(f)); }
 let __cancelled: i32[] = [];
 let __ids: i32 = 0;
+// The clock: milliseconds since the program started. A real run reads the host's; a deterministic run (ZINC_DETERMINISTIC, goldens) only moves it when the
+// event loop jumps to the next timer or a frame passes, so every run reads the same values.
+const __real: boolean = __host_loopReal() !== 0;
+const __epoch: f64 = __real ? __host_loopEpoch() : 0;
+function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
   __timerSeq++;
   __ids++;
-  __timers.push(new Timer(__clock + (ms > 0 ? ms : 0), __clock + (ms >= 1 ? ms : 1), __timerSeq, __ids, every, f));
+  const now = __now();
+  __timers.push(new Timer(now + (ms > 0 ? ms : 0), now + (ms >= 1 ? ms : 1), __timerSeq, __ids, every, f));
   return __ids;
 }
 function setTimeout(f: () => void, ms: f64): i32 { return __addTimer(f, ms, 0); }
@@ -1017,8 +1023,8 @@ function clearInterval(id: i32): void { clearTimeout(id); }
 // Dates are UTC (the engine has no time zones): the same fields a program reads on every host.
 class Date {
   t: f64;
-  constructor(ms: number = __clock) { this.t = ms; }
-  static now(): f64 { return __clock; }
+  constructor(ms: number = Date.now()) { this.t = ms; }
+  static now(): f64 { return Math.floor(__epoch + __now()); }
   getTime(): f64 { return this.t; }
   valueOf(): f64 { return this.t; }
   private days(): f64 { return Math.floor(this.t / 86400000); }
@@ -1051,7 +1057,22 @@ class Date {
   getUTCMonth(): f64 { return this.getMonth(); }
   getUTCDate(): f64 { return this.getDate(); }
 }
-class Performance { now(): f64 { return __clock; } }
+class Performance {
+  timeOrigin: f64 = __epoch;
+  markNames: string[] = [];
+  markTimes: f64[] = [];
+  now(): f64 { return __now(); }
+  mark(name: string): f64 { const t = __now(); this.markNames.push(name); this.markTimes.push(t); return t; }
+  // the time between two marks (the end defaults to now): the duration of the measure, 0 when a mark is unknown
+  measure(name: string, startMark: string = '', endMark: string = ''): f64 {
+    let a: f64 = 0, b: f64 = __now();
+    for (let i: i32 = 0; i < this.markNames.length; i++) {
+      if (this.markNames[i] === startMark) a = this.markTimes[i];
+      if (this.markNames[i] === endMark) b = this.markTimes[i];
+    }
+    return b - a;
+  }
+}
 const performance = new Performance();
 function __drainJobs(): void {
   while (__jobHead < __jobs.length) {
@@ -1063,7 +1084,6 @@ function __drainJobs(): void {
   __jobHead = 0;
   __checkRejections();
 }
-const __real: boolean = __host_loopReal() !== 0;
 let __frameHook: (() => void) | null = null;
 // One frame of a program with a frame loop (zinc:gfx): the timers due at the new clock fire in order of time then creation,
 // as in the old runtime; an interval is re-armed before it runs, so it can cancel itself.
@@ -1076,7 +1096,7 @@ function __frameTimers(): void {
       if (a.at < b.at || (a.at === b.at && a.id < b.id)) best = i;
     }
     const t = __timers[best];
-    if (t.at > __clock) return;
+    if (t.at > __now()) return;
     const rest: Timer[] = [];
     for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
     __timers = rest;
@@ -1100,7 +1120,8 @@ function __runLoop(): void {
     const rest: Timer[] = [];
     for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
     __timers = rest;
-    if (t.at > __clock) { if (__real) __host_loopWait(t.at - __clock); __clock = t.at; }  // ZINC_REALTIME: the wait is a real sleep on the host's event loop
+    const now = __now();
+    if (t.at > now) { if (__real) __host_loopWait(t.at - now); __clock = __real ? __now() : t.at; }  // a real run sleeps on the host's event loop until the timer is due
     t.f();
     if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
       __timerSeq++;
