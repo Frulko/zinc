@@ -381,6 +381,14 @@ class NetCall {
 const __netCalls: NetCall[] = [];
 let __netHooked: boolean = false;
 let __netHandler: ((req: Request) => Reply) | null = null;
+let __netAsyncHandler: ((req: Request) => Promise<Reply>) | null = null;
+function __sendReply(h: i32, r: Reply): void {
+  let lines = '';
+  if (r.headers !== undefined) lines = __headerLines(r.headers as Headers);
+  const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
+  lines += 'Content-Type: ' + ct + '\n';
+  __host_httpReply(h, r.status, lines, r.body);
+}
 function __netHook(): void {
   if (__netHooked) return;
   __netHooked = true;
@@ -407,6 +415,13 @@ function __netHook(): void {
       const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i3 + 1), headers: new Headers() };
       __parseLines(data.slice(i2 + 1, i3), req.headers);
       const f = __netHandler;
+      const af = __netAsyncHandler;
+      if (af !== null) {   // serveAsync: the reply goes out when the promise settles
+        try {
+          af(req).then((r: Reply) => { __sendReply(h, r); }).catch((e: Error) => { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); });
+        } catch (e) { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); }
+        return;
+      }
       let status: i32 = 500;
       let lines = 'Content-Type: text/plain; charset=utf-8\n';
       let body = 'internal error';
@@ -456,7 +471,16 @@ export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOpti
   } else if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
   __netHandler = handler;
 }
-export function stop(): void { __host_httpStop(); __netHandler = null; }
+/** Like serve, for a handler that answers later: the reply is sent when the promise resolves (a rejection is a 500). */
+export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: TlsOptions): void {
+  __netHook();
+  if (tls !== undefined) {
+    const t = tls as TlsOptions;
+    if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
+  } else if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
+  __netAsyncHandler = handler;
+}
+export function stop(): void { __host_httpStop(); __netHandler = null; __netAsyncHandler = null; }
 )ZN";
 
 const char* kNativeModule = R"ZN(

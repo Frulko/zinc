@@ -244,6 +244,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     }
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
+      + (!display && fs::exists(root + "/../plugins/display-gl/zgl.h") ? " -I" + q(root + "/../plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
       + (display && pluginTarget() == "macos" ? " -I" + q(ZN_SDL_INCLUDE) : std::string())   // the emulator windows of the display drivers use SDL3 (the host's)
 #endif
       ;
@@ -272,7 +273,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
 }
 
 bool loadPlugin(const PluginLib& lib, std::string& err) {
-  void* h = dlopen(lib.shared.c_str(), RTLD_NOW | RTLD_LOCAL);
+  void* h = dlopen(lib.shared.c_str(), RTLD_NOW | (lib.display ? RTLD_GLOBAL : RTLD_LOCAL));   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
   if (!h) { err = std::string("cannot load ") + lib.shared + ": " + dlerror(); return false; }
   if (lib.display) return true;   // its static constructor has registered it with the HAL
   using Open = const ZnModule* (*)();
