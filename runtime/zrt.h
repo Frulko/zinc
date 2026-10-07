@@ -814,6 +814,7 @@ bool capture(const String& path);
 uint8_t* capture_png(size_t* n, int32_t maxw = 0, int32_t maxh = 0);  // the frame on screen as PNG bytes (hal_free them),
                                                                    // shrunk to fit maxw x maxh; DevTools screenshots
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
+bool scene_replay(const char* scene, const char* out);  // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png/bmp with the installed fonts and images
 void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
 String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
 double wheelX();

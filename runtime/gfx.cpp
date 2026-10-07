@@ -383,6 +383,7 @@ static void begin() {
   if (!read) {
     read = true;
     const char* e = hal_env("ZINC_PROFILE");
+    if (const char* rs = hal_env("ZINC_RENDER_STATS")) if (*rs && *rs != '0') e = rs;   // ZN-170: one switch for the phase timings, the counters of the last frame (render_stats) and the GL stats
     const char* t = hal_env("ZINC_TRACE");
     if ((e && *e && *e != '0') || (t && *t)) enable();
     if (st && e && *e && *e != '0') { st->summary = true; at_finish(summary); }
@@ -526,18 +527,59 @@ uint8_t* capture_png(size_t* n, int32_t maxw, int32_t maxh) {
   return png;
 }
 /** Saves the frame on screen: BMP when the path ends in .bmp, PNG otherwise. */
-static bool save(const char* path) {
+static bool write_image(const char* path, uint32_t* px, int32_t w, int32_t h) {
   uint32_t n = 0;
   while (path[n]) n++;
   bool bmp = n > 4 && path[n - 4] == '.' && (path[n - 3] | 32) == 'b' && (path[n - 2] | 32) == 'm' && (path[n - 1] | 32) == 'p';
-  uint32_t* px = grab();
   size_t len = 0;
-  uint8_t* data = !px ? nullptr : bmp ? encode_bmp(px, pw, ph, &len) : encode_png(px, pw, ph, &len);
-  if (px) hal_free(px);
+  uint8_t* data = !px ? nullptr : bmp ? encode_bmp(px, w, h, &len) : encode_png(px, w, h, &len);
   void* f = data ? zrt_host_open(path, "wb") : nullptr;
   bool ok = f && zrt_host_io(f, data, len, 1) == len;
   if (f) zrt_host_close(f);
   if (data) hal_free(data);
+  return ok;
+}
+
+static bool save(const char* path) {
+  uint32_t* px = grab();
+  bool ok = write_image(path, px, pw, ph);
+  if (px) hal_free(px);
+  return ok;
+}
+// ---------- scene dump (ZN-170): ZINC_SCENE_DUMP=path writes (frames chosen like ZINC_SHOT_FRAMES / ZINC_SHOT_EVERY, numbered; else the last one) the program's command list and pools; `zinc capture --scene` replays it ----------
+// File: "ZSCN", then u32 little-endian: version 1, width, height, sizeof(Cmd), ncmd, ntext, npts; then the Cmd array, the text pool, the point pool.
+static bool scene_write(const char* path, const Buf& b) {
+  if (!shown) return false;
+  uint32_t head[8] = {0x4e43535au, 1, (uint32_t)pw, (uint32_t)ph, (uint32_t)sizeof(Cmd), b.ncmd, b.ntext, b.npts};
+  void* f = zrt_host_open(path, "wb");
+  if (!f) return false;
+  bool ok = zrt_host_io(f, head, sizeof head, 1) == sizeof head;
+  ok = ok && zrt_host_io(f, (void*)b.cmds, b.ncmd * sizeof(Cmd), 1) == b.ncmd * sizeof(Cmd);
+  ok = ok && zrt_host_io(f, (void*)b.text, b.ntext, 1) == b.ntext;
+  ok = ok && zrt_host_io(f, (void*)b.pts, b.npts * 4, 1) == b.npts * 4;
+  zrt_host_close(f);
+  return ok;
+}
+/** Rasterizes a dump with the fonts and images installed now into `out` (png or bmp); false when the file is not a scene. */
+bool scene_replay(const char* path, const char* out) {
+  void* f = zrt_host_open(path, "rb");
+  if (!f) return false;
+  uint32_t head[8];
+  bool ok = zrt_host_io(f, head, sizeof head, 0) == sizeof head && head[0] == 0x4e43535au && head[1] == 1 && head[4] == sizeof(Cmd) && head[2] && head[3] && head[2] < 16384 && head[3] < 16384;
+  Cmd* cmds = nullptr; char* text = nullptr; float* pts = nullptr; uint32_t* px = nullptr;
+  if (ok) {
+    cmds = (Cmd*)hal_alloc((size_t)head[5] * sizeof(Cmd) + 1); text = (char*)hal_alloc(head[6] + 1); pts = (float*)hal_alloc((size_t)head[7] * 4 + 4);
+    px = (uint32_t*)hal_alloc((size_t)head[2] * head[3] * 4);
+    ok = cmds && text && pts && px && zrt_host_io(f, cmds, head[5] * sizeof(Cmd), 0) == head[5] * sizeof(Cmd) && zrt_host_io(f, text, head[6], 0) == head[6] && zrt_host_io(f, pts, (size_t)head[7] * 4, 0) == (size_t)head[7] * 4;
+  }
+  zrt_host_close(f);
+  if (ok) {
+    int32_t w = (int32_t)head[2], h = (int32_t)head[3];
+    for (size_t i = 0, k = (size_t)w * h; i < k; i++) px[i] = 0;
+    raster::render(raster::Frame{cmds, head[5], text, pts}, px, w, 0, h, raster::Rect{0, 0, w, h});
+    ok = write_image(out, px, w, h);
+  }
+  hal_free(cmds); hal_free(text); hal_free(pts); hal_free(px);
   return ok;
 }
 bool capture(const String& path) {
@@ -576,6 +618,24 @@ static void frame_hash(int32_t n) {
   hal_log_err(sb.buf, sb.len);
 }
 static void frame_hash_last() { frame_hash(frame_no); }
+static bool scene_write(const char* path, const Buf& b);
+static const char* scene_path = nullptr;
+static void scene_last() { if (shown) scene_write(scene_path, *shown); }
+/** ZINC_RENDER_STATS: "zinc stats: cmds=N rect=.. text=.. scene_bytes=B text_bytes=.. point_floats=.." for the last frame (the 5.3 counters that exist today). */
+static void render_stats() {
+  if (!shown) return;
+  static const char* const K[] = {"clear", "rect", "border", "shadow", "line", "text", "image", "poly", "clip", "unclip"};
+  uint32_t by[10] = {0};
+  for (uint32_t i = 0; i < shown->ncmd; i++) if (shown->cmds[i].kind < 10) by[shown->cmds[i].kind]++;
+  StrBuilder sb;
+  sb.cstr("zinc stats: frames="); to_s(sb, frame_no); sb.cstr(" size="); to_s(sb, pw); sb.ch('x'); to_s(sb, ph);
+  sb.cstr(" cmds="); to_s(sb, (int32_t)shown->ncmd);
+  for (int k = 0; k < 10; k++) if (by[k]) { sb.ch(' '); sb.cstr(K[k]); sb.ch('='); to_s(sb, (int32_t)by[k]); }
+  sb.cstr(" scene_bytes="); to_s(sb, (int32_t)(shown->ncmd * sizeof(Cmd) + shown->ntext + shown->npts * 4));
+  sb.cstr(" text_bytes="); to_s(sb, (int32_t)shown->ntext); sb.cstr(" point_floats="); to_s(sb, (int32_t)shown->npts);
+  sb.ch('\n');
+  hal_log_err(sb.buf, sb.len);
+}
 /** After each presented frame: ZINC_SHOT_FRAMES=1,30,60 / ZINC_SHOT_EVERY=n (numbered files), or with ZINC_SHOT alone
  *  the last frame when the program ends. Display drivers keep their own ZINC_SHOT picture of the emulated device.
  *  zinc dev: F12 saves the frame to ZINC_SHOT_DIR (build/shots). */
@@ -598,6 +658,28 @@ static void after_present() {
     if (hashing == 2) at_finish(frame_hash_last);
   }
   if (hashing == 1) frame_hash(n);
+  static int dumping = -1;  // ZINC_SCENE_DUMP: -1 not read, 0 off, 1 selected frames, 2 the last frame
+  if (dumping < 0) {
+    scene_path = hal_env("ZINC_SCENE_DUMP");
+    dumping = !scene_path || !*scene_path ? 0 : hal_env("ZINC_SHOT_FRAMES") || hal_env("ZINC_SHOT_EVERY") ? 1 : 2;
+    if (dumping == 2) at_finish(scene_last);
+  }
+  static bool stats_read = false;
+  if (!stats_read) { stats_read = true; const char* rs = hal_env("ZINC_RENDER_STATS"); if (rs && *rs && *rs != '0') at_finish(render_stats); }
+  if (dumping == 1 && shown) {
+    const char* fl = hal_env("ZINC_SHOT_FRAMES");
+    int32_t ev = 0;
+    for (const char* e = hal_env("ZINC_SHOT_EVERY"); e && *e >= '0' && *e <= '9'; e++) ev = ev * 10 + (*e - '0');
+    bool w = ev > 0 && n % ev == 0;
+    for (const char* q = fl; q && *q && !w;) {
+      int32_t v = 0;
+      while (*q >= '0' && *q <= '9') v = v * 10 + (*q++ - '0');
+      w = v == n;
+      while (*q && (*q < '0' || *q > '9')) q++;
+    }
+    char out[1024];
+    if (w) { numbered(out, sizeof out, scene_path, n); scene_write(out, *shown); }
+  }
   if (state == 2 && (list || every)) {
     bool want = every > 0 && n % every == 0;
     for (const char* s = list; s && *s && !want;) {

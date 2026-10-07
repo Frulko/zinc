@@ -26,5 +26,6 @@ void installGfx();    // the graphics host and the system modules (installSys) t
 void installSys();    // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (src/host/sys_host.cpp)
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
+bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
 
 }  // namespace zn::host

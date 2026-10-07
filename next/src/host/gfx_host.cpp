@@ -178,6 +178,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 namespace zn::host {
+bool replayScene(const char* scene, const char* out) { return zrt::gfx::scene_replay(scene, out); }
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 
 // screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)

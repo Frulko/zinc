@@ -22,7 +22,6 @@ static bool fill = false, kiosk = false;
 // ZN-233: window properties from zinc.json app.window, the close veto and file drops (runtime/include/hal_window.h)
 static int (*close_handler)(void) = nullptr;
 static void (*drop_handler)(const char*, int) = nullptr;
-extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
 extern "C" void hal_set_close_handler(int (*h)(void)) { close_handler = h; }
 extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler = h; }
 
@@ -31,6 +30,7 @@ extern "C" void hal_sdl_transparent_layers(void* nswindow);   // targets/macos/h
 #endif
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;
+extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
 static uint32_t* tbuf;         // transparent windows: the rows being uploaded with their alpha
 static size_t tbuf_n;
 

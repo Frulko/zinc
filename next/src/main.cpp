@@ -568,6 +568,15 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "zinc: flashing the core to %s\n", port.c_str());
     return std::system(cmd.c_str()) == 0 ? 0 : 1;
   }
+  if (argc == 7 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "-o")) {  // zinc capture --scene <dump> <file> -o <png>: replay a ZINC_SCENE_DUMP through the software raster, with the fonts and images of <file> (ZN-170)
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[4], zm)) return rc;
+    std::vector<std::uint8_t> blob;
+    std::string err;
+    if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!zn::host::replayScene(argv[3], argv[6])) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
+    return 0;
+  }
   if (argc == 5 && !std::strcmp(argv[1], "bake") && !std::strcmp(argv[3], "-o")) {  // zinc bake <file> -o <blob>: the baked fonts and images of a program (for inspection and tests)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
