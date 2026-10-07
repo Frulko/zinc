@@ -523,12 +523,14 @@ struct Parser {
   std::uint32_t functionExpr(std::uint32_t st, bool async) {
     ++i;
     bool gen = eatP("*");
-    if (cur().kind == Tok::Ident) ++i;
+    std::string_view fname;
+    if (cur().kind == Tok::Ident) { fname = txt(); ++i; }  // a named function expression: the name is bound inside its own body
     auto ps = params(false);
     std::uint32_t ret = kNone;
     if (eatP(":")) ret = type();
     std::uint32_t body = withFn(async, gen, [&] { return block(); });
     std::uint32_t id = funcExpr(st, std::move(ps), ret, body, false);
+    r.ast.nodes[id].text = fname;
     r.ast.nodes[id].flags |= (async ? kFlagAsync : 0) | (gen ? kFlagGenerator : 0);
     return id;
   }

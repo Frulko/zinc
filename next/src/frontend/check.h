@@ -71,6 +71,7 @@ struct Symbol {
   bool isConst;
   std::uint32_t ownerFn = 0xFFFFFFFFu;  // function or lambda node that declares a variable (none: top-level code)
   bool isGlobal = false;                // a variable declared directly at the top level: reached through a global, never captured
+  bool forward = false;                 // declared ahead of its statement (a top-level variable of known type): functions may use it, the code before it may not
   bool captured = false;                // referenced from a lambda or nested function other than its owner
   bool reassigned = false;              // assigned after its declaration: a captured one then lives in a shared cell
 };
@@ -96,6 +97,7 @@ struct Checked {
   // name a function without calling it.
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> captures;
   std::vector<std::uint32_t> lambdaUsesThis;
+  std::unordered_map<std::uint32_t, std::uint32_t> selfSym;  // named function expression -> the variable that holds its own closure inside its body
   std::vector<std::uint32_t> funcValueUses;
   std::unordered_map<std::uint32_t, std::string> lambdaNames;  // the name a function expression takes from `const f = ...`, `f = ...`, `{ f: ... }` or a field initialiser
   // Numeric enums: members and values per enum symbol; the enum's type is i32.

@@ -654,6 +654,7 @@ struct Lowering {
         std::int64_t cur = fn;
         if (x.kind == N::Function || x.kind == N::Method || x.kind == N::FuncExpr) { auto it = funcOfNode.find(i); if (it != funcOfNode.end()) cur = it->second; }
         if (x.kind == N::Interface) return;
+        if (pass == 0 && x.kind == N::FuncExpr) { auto sit = c.selfSym.find(i); if (sit != c.selfSym.end()) ownerFn[sit->second] = fn; }  // a named function expression's own variable belongs to the enclosing function
         if (x.kind == N::Class) {  // instance field initializers run in the constructor, static ones where the class is declared
           std::uint32_t cls = classOfObj[c.types[c.nodeType[i]].obj];
           auto it = ctorOfClass.find(cls);
@@ -1413,6 +1414,8 @@ struct Lowering::FnLower {
       }
       case N::Function: case N::FuncExpr: {  // a closure: an object holding the captured variables
         const Lowering::LambdaInfo& li = L.lambdas.at(i);
+        auto selfIt = c.selfSym.find(i);  // a named function expression that uses its name: the cell exists before the closure and holds it afterwards
+        if (selfIt != c.selfSym.end()) { TypeId ct = L.irType(c.syms[selfIt->second].type, i); declSym(selfIt->second, emit(IrOp::Const, ct, {}, ty(ct).builtinRef() ? ir::kNullConst : 0)); }
         ValueId o = emit(IrOp::New, m.refT(li.cls), {}, 0, 0, li.cls);
         for (std::size_t k = 0; k < li.caps.size(); ++k) {
           std::uint32_t sym = li.caps[k];
@@ -1420,6 +1423,7 @@ struct Lowering::FnLower {
           emit(IrOp::SetField, m.voidT(), {o, coerce(v, m.classes[li.cls].fields[k].type)}, 0, 0, static_cast<std::uint32_t>(k));
         }
         if (li.thisField >= 0) emit(IrOp::SetField, m.voidT(), {o, coerce(readVar(thisVar, cur), m.classes[li.cls].fields[static_cast<std::size_t>(li.thisField)].type)}, 0, 0, static_cast<std::uint32_t>(li.thisField));
+        if (selfIt != c.selfSym.end()) writeSym(selfIt->second, o);
         return o;
       }
       case N::Call: return call(i, x);
@@ -1862,6 +1866,11 @@ struct Lowering::FnLower {
     }
     std::uint32_t s = c.nodeSym[d];
     TypeId t = L.irType(c.syms[s].type, d);
+    if (L.isCell(s) && n(x.kids[1]).kind == N::FuncExpr) {  // a closure that uses its own variable: the cell exists before the closure is made
+      declSym(s, emit(IrOp::Const, t, {}, ty(t).builtinRef() ? ir::kNullConst : 0));
+      writeSym(s, exprTo(x.kids[1], t));
+      return;
+    }
     ValueId v = exprTo(x.kids[1], t);
     declSym(s, v);
   }

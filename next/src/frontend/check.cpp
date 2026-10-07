@@ -50,6 +50,31 @@ struct Checker {
   std::vector<std::uint32_t> fnStack;  // enclosing function, method and lambda nodes, innermost last
   std::uint32_t calleeNode = kNone;    // the callee being evaluated, so a bare function name can be told from a call
   bool atTop = false, declAsGlobal = false;
+  struct Forward { std::uint32_t sym; TypeId type; };
+  std::unordered_map<std::uint32_t, Forward> forwardVars;  // top-level declarators with a type annotation, declared before the statements run through
+  std::string_view selfName;                    // the variable whose initializer is being checked, when a lambda in it mentions it
+  std::size_t selfDepth = 0;                    // fnStack depth of that initializer
+  std::vector<std::pair<std::uint32_t, TypeId>> selfDeferred;  // lambdas whose body waits for the variable (node, expected type)
+  bool mentionsInFunction(std::uint32_t i, std::string_view nm, bool inFn = false) const {
+    const Node& x = n(i);
+    if (x.kind == N::Ident && inFn && x.text == nm) return true;
+    bool f = inFn || x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
+    for (std::uint32_t k : x.kids) if (k != kNone && mentionsInFunction(k, nm, f)) return true;
+    return false;
+  }
+  bool mentionsIdent(std::uint32_t i, std::string_view nm) const {
+    const Node& x = n(i);
+    if (x.kind == N::Ident && x.text == nm) return true;
+    for (std::uint32_t k : x.kids) if (k != kNone && mentionsIdent(k, nm)) return true;
+    return false;
+  }
+  bool mentionsInLambda(std::uint32_t i, std::string_view nm, bool inLambda = false) const {
+    const Node& x = n(i);
+    if (x.kind == N::Ident && inLambda && x.text == nm) return true;
+    bool lam = inLambda || x.kind == N::FuncExpr;
+    for (std::uint32_t k : x.kids) if (k != kNone && mentionsInLambda(k, nm, lam)) return true;
+    return false;
+  }
   bool inspectMode = false;           // checking a generated console.log formatter
   std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
   std::uint32_t exprStmtOf = kNone;   // the expression of the expression statement being checked
@@ -1414,7 +1439,7 @@ struct Checker {
       case N::Ident: {
         std::uint32_t s = lookup(x.text);
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
-        if (s == kNone) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }
+        if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { diag(kZCannotFindName, i, "'" + std::string(x.text) + "'"); return tError; }  // a forward variable is only visible to other functions
         out.nodeSym[i] = s;
         if (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) { diag(kZNotAllowedHere, i, "class '" + std::string(x.text) + "' used as a value"); return tError; }
         if (out.syms[s].kind == SymKind::GenericFunc) { diag(kZNotAllowedHere, i, "generic function '" + std::string(x.text) + "' must be called"); return tError; }
@@ -1914,6 +1939,22 @@ struct Checker {
     }
   }
 
+  // The type of a lambda whose parameters and return type are all annotated, else kNoType.
+  TypeId annotatedFuncType(std::uint32_t fe) {
+    const Node& f = n(fe);
+    if (f.kids[0] == kNone || (f.flags & (kFlagAsync | kFlagGenerator))) return kNoType;
+    std::vector<TypeId> ps;
+    for (std::size_t k = 2; k < f.kids.size(); ++k) {
+      const Node& p = n(f.kids[k]);
+      if (p.kids[0] == kNone || p.kids[1] != kNone || (p.kids.size() > 2 && p.kids[2] != kNone)) return kNoType;
+      TypeId t = annotation(p.kids[0]);
+      if (bad(t)) return kNoType;
+      ps.push_back(t);
+    }
+    TypeId ret = annotation(f.kids[0]);
+    if (bad(ret)) return kNoType;
+    return func(ps, ret, static_cast<std::uint32_t>(ps.size()));
+  }
   void varDecl(std::uint32_t d, bool isConst) {
     const Node& x = n(d);
     std::uint32_t ann = x.kids[0], init = x.kids[1];
@@ -1929,9 +1970,15 @@ struct Checker {
       return;
     }
     TypeId t = tError;
+    auto fw = forwardVars.find(d);
+    auto bindVar = [&](TypeId vt) {  // the symbol of this declarator: the one declared ahead, or a new one
+      if (fw != forwardVars.end()) { out.nodeSym[d] = fw->second.sym; out.syms[fw->second.sym].forward = false; out.syms[fw->second.sym].type = vt; }
+      else out.nodeSym[d] = declare(SymKind::Var, x.text, vt, d, isConst, d);
+      return out.nodeSym[d];
+    };
     if (init == kNone && (ann == kNone || isConst)) diag(kZUnsupported, d, "declarations without an initializer");
     if (ann != kNone) {
-      t = annotation(ann);
+      t = fw != forwardVars.end() ? fw->second.type : annotation(ann);
       if (init == kNone && !bad(t) && !isConst) {  // `let x: T;`: assigned before it is read (flow analysis is not done): start from the default of T
         TK k = ty(t).k;
         const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : nullptr;
@@ -1943,13 +1990,50 @@ struct Checker {
           if (!st.empty() && n(st[0]).kind == N::ExprStmt) { a.nodes[d].kids[1] = n(st[0]).kids[0]; init = a.nodes[d].kids[1]; }
         }
       }
+      if (init != kNone && !bad(t) && ty(t).k == TK::Func && n(init).kind == N::FuncExpr) {  // `const f: T = () => { f() }`: the function sees its own name
+        out.nodeType[d] = t;
+        bindVar(t);
+        out.syms[out.nodeSym[d]].reassigned = true;  // its closure is stored after it is created: a captured one lives in a shared cell
+        require(expr(init, t), t, init);
+        return;
+      }
+      if (init != kNone && !bad(t) && mentionsInLambda(init, x.text)) {  // `const id: T = f(() => { use(id) })`: the closure runs after the declaration
+        out.nodeType[d] = t;
+        bindVar(t);
+        out.syms[out.nodeSym[d]].reassigned = true;
+        require(expr(init, t), t, init);
+        return;
+      }
       if (init != kNone) require(expr(init, t), t, init);
     } else if (init != kNone) {
+      TypeId self = n(init).kind == N::FuncExpr && mentionsIdent(n(init).kids[1], x.text) ? annotatedFuncType(init) : kNoType;
+      if (self != kNoType) {  // a fully annotated lambda: its type is known before its body, so the body may use the variable
+        out.nodeType[d] = self;
+        bindVar(self);
+        out.syms[out.nodeSym[d]].reassigned = true;
+        expr(init, self);
+        return;
+      }
+      bool selfRef = mentionsInLambda(init, x.text);  // `const id = f(() => { use(id) })`: the lambdas wait until the variable has its type
+      std::string_view savedName = selfName;
+      std::size_t savedDepth = selfDepth;
+      auto savedDeferred = std::move(selfDeferred);
+      selfDeferred.clear();
+      if (selfRef) { selfName = x.text; selfDepth = fnStack.size(); }
       t = expr(init);
+      std::vector<std::pair<std::uint32_t, TypeId>> waiting = std::move(selfDeferred);
+      selfName = savedName; selfDepth = savedDepth; selfDeferred = std::move(savedDeferred);
       if (t == tNull || t == tVoid) { diag(kZCannotInfer, d, "'" + std::string(x.text) + "'"); t = tError; }
+      out.nodeType[d] = t;
+      bindVar(t);
+      if (!waiting.empty()) {
+        out.syms[out.nodeSym[d]].reassigned = true;
+        for (auto& [fe, ex] : waiting) funcExpr(fe, ex);
+      }
+      return;
     }
     out.nodeType[d] = t;
-    out.nodeSym[d] = declare(SymKind::Var, x.text, t, d, isConst, d);
+    bindVar(t);
     if (ann != kNone && init != kNone && ty(t).k == TK::Union) {
       TypeId vt = out.nodeType[init];
       if (vt != kNoType && !bad(vt) && vt != tNull && assignable(vt, t, kNone)) narrowing.push_back({out.nodeSym[d], vt});  // not to null: a later branch may store a value, and the join forgets nothing
@@ -2490,6 +2574,22 @@ struct Checker {
     inferredRet = kNoType;
     loops = 0;
     immediate = false;
+    if (!selfName.empty() && fnStack.size() == selfDepth && ret != kNoType && mentionsInLambda(i, selfName, true)) {  // the body uses the variable being declared: check it once the variable exists
+      selfDeferred.push_back({i, expected});
+      curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
+      narrowing = std::move(savedNarrowing);
+      TypeId ft = func(ps, ret, static_cast<std::uint32_t>(np));
+      out.nodeType[i] = ft;
+      return ft;
+    }
+    bool named = !x.text.empty() && !(x.flags & kFlagArrow) && ret != kNoType && mentionsIdent(x.kids[1], x.text);
+    if (named) {  // a named function expression: its name is a variable of the enclosing scope holding its own closure (a shared cell)
+      push();
+      std::uint32_t sy = declare(SymKind::Var, x.text, func(ps, ret, static_cast<std::uint32_t>(np)), i, true, i);
+      out.syms[sy].reassigned = true;
+      out.syms[sy].isGlobal = false;  // declared while a top-level declaration is checked: still a captured variable, not a global
+      out.selfSym[i] = sy;
+    }
     fnStack.push_back(i);
     push();
     for (std::size_t k = 0; k < np; ++k) {
@@ -2500,6 +2600,7 @@ struct Checker {
     stmtList(n(x.kids[1]).kids);
     pop();
     fnStack.pop_back();
+    if (named) pop();
     if (ret == kNoType) ret = inferredRet != kNoType ? inferredRet : tVoid;
     if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
     curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
@@ -3350,6 +3451,25 @@ struct Checker {
       if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
     bool rootList = &stmts == topList;
+    if (rootList)  // top-level variables of known type are visible to functions declared above them (they are globals)
+      for (std::size_t si = 0; si < stmts.size(); ++si) {
+        std::uint32_t s = stmts[si];
+        if (n(s).kind != N::VarDecl || n(s).text == "using") continue;
+        for (std::uint32_t d : n(s).kids) {
+          const Node& dn = n(d);
+          if ((dn.kids.size() > 2 && dn.kids[2] != kNone) || dn.kids[0] == kNone || dn.kids[1] == kNone || scopes.back()->count(dn.text)) continue;
+          bool earlyUse = false;  // only a name that a statement above the declaration mentions inside a function needs to be declared ahead
+          for (std::size_t pj = 0; pj < si && !earlyUse; ++pj) earlyUse = mentionsInFunction(stmts[pj], dn.text);
+          if (!earlyUse) continue;
+          TypeId vt = annotation(dn.kids[0]);
+          if (bad(vt)) continue;
+          declAsGlobal = true;
+          std::uint32_t sy = declare(SymKind::Var, dn.text, vt, d, n(s).text == "const", d);
+          declAsGlobal = false;
+          out.syms[sy].forward = true;
+          forwardVars[d] = {sy, vt};
+        }
+      }
     for (std::size_t si = 0; si < stmts.size(); ++si) {
       std::uint32_t s = stmts[si];
       if (n(s).kind == N::VarDecl && n(s).text == "using") for (std::size_t r = si + 1; r < stmts.size(); ++r) markCells(stmts[r]);
