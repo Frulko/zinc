@@ -7,6 +7,8 @@ export interface Spec extends NativeModule {
   setPermissions(csv: string): void;
   /** The `app` object of zinc.json as JSON text (id, name, window...): the backend logs the window request it was created with. */
   setApp(json: string): void;
+  /** `scopes` of zinc.json as JSON text: {"fs": "user-picked"} limits the file system to what the user picked in a dialog. */
+  setScopes(json: string): void;
   /** Whether this backend can do `feature` (notification, tray, ...). */
   supports(feature: string): boolean;
   /** Runs `op` with a JSON object of arguments; returns JSON: the result, or {"error":{"code":"denied"|"unsupported"|"failed","message":"..."}}. */

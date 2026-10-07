@@ -18,6 +18,8 @@ extern "C" int zn_sys_macos_call(const char* op, const char* args, char* out, in
 extern "C" int zn_sys_macos_poll(char* out, int cap);
 extern "C" int zn_sys_macos_pump(void);
 #endif
+extern "C" void zn_host_fs_scope(int) __attribute__((weak));    // src/host/sys_host.cpp: the fs scope
+extern "C" void zn_host_fs_grant(const char*) __attribute__((weak));
 namespace zrt { extern bool quit_requested; }   // the runtime's request to end the program (runtime/zrt.cpp)
 
 namespace {
@@ -94,6 +96,12 @@ struct Sim : NativeSystem, zrt::Poller {
     log("[system] event ", json);
     zrt::Fn<void(zrt::String)> f = cb;
     if (f) f(zrt::String::from(json, (uint32_t)strlen(json)));
+  }
+  void setScopes(zrt::String json) override {
+    char* t = (char*)malloc(json.bytes() + 1);
+    memcpy(t, json.ptr(), json.bytes()); t[json.bytes()] = 0;
+    if (strstr(t, "\"fs\":\"user-picked\"") && zn_host_fs_scope) zn_host_fs_scope(1);   // the picked paths are granted as the dialogs answer
+    free(t);
   }
   void setApp(zrt::String json) override {
     const char* p = json.ptr();
@@ -176,9 +184,10 @@ struct Sim : NativeSystem, zrt::Poller {
     bool cancel = !strcmp(a, "cancel");
     char buf[600];
     if (!strcmp(name, "menu.popup")) { if (cancel) return reply("{\"id\":null}"); snprintf(buf, sizeof buf, "{\"id\":"); appendJson(buf, sizeof buf, a); strcat(buf, "}"); return reply(buf); }
+    if (!cancel && zn_host_fs_grant && (!strcmp(name, "dialog.open") || !strcmp(name, "dialog.save"))) zn_host_fs_grant(a);   // a picked path joins the fs scope
     if (!strcmp(name, "dialog.open")) { if (cancel) return reply("{\"paths\":null}"); snprintf(buf, sizeof buf, "{\"paths\":["); appendJson(buf, sizeof buf, a); strcat(buf, "]}"); return reply(buf); }
     if (!strcmp(name, "dialog.save")) { if (cancel) return reply("{\"path\":null}"); snprintf(buf, sizeof buf, "{\"path\":"); appendJson(buf, sizeof buf, a); strcat(buf, "}"); return reply(buf); }
-    snprintf(buf, sizeof buf, "{\"button\":%d}", cancel ? 0 : atoi(a));   // dialog.message: the index of the button
+    snprintf(buf, sizeof buf, "{\"button\":%d}", cancel ? -1 : atoi(a));   // dialog.message: the index of the button, -1 when dismissed
     return reply(buf);
   }
   zrt::String reply(const char* json) { return zrt::String::from(json, (uint32_t)strlen(json)); }

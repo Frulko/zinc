@@ -111,9 +111,11 @@
    "permission": "dialog",
    "params": {
     "title?": "string",
+    "defaultPath?": "string",
     "filters?": "{name: string; extensions: string[]}[]",
     "multiple?": "boolean",
-    "directory?": "boolean"
+    "directory?": "boolean",
+    "abortMs?": "number"
    },
    "returns": "{paths: string[] | null}",
    "sim": "{\"paths\":null}"
@@ -124,7 +126,8 @@
    "params": {
     "title?": "string",
     "defaultPath?": "string",
-    "filters?": "{name: string; extensions: string[]}[]"
+    "filters?": "{name: string; extensions: string[]}[]",
+    "abortMs?": "number"
    },
    "returns": "{path: string | null}",
    "sim": "{\"path\":null}"
@@ -135,8 +138,10 @@
    "params": {
     "title?": "string",
     "message": "string",
+    "detail?": "string",
     "buttons?": "string[]",
-    "kind?": "'info' | 'warning' | 'error'"
+    "kind?": "'info' | 'warning' | 'error'",
+    "abortMs?": "number"
    },
    "returns": "{button: number}",
    "sim": "{\"button\":0}"

@@ -47,6 +47,8 @@ std::vector<std::string> permissionsFor(const Project& p, const std::string& tar
 const std::vector<std::string>& systemFeatures();
 // The `app` object of the project being compiled as JSON text ("" when there is none): baked as the constant of the synthetic module zinc:system/app.
 void setSystemAppJson(const std::string& json);
+void setSystemScopesJson(const std::string& json);   // zinc.json "scopes" as JSON text
+const std::string& systemScopesJson();
 const std::string& systemAppJson();
 // The permissions of the project being compiled (null: none declared); `zinc:system/<feature>` is refused without its permission (Z5006).
 void setSystemPermissions(const std::vector<std::string>* granted);

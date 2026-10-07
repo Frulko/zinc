@@ -1,0 +1,11 @@
+[system] dialog.open {"title":"Open","defaultPath":"","multiple":false,"directory":false,"filters":[{"name":"Text","extensions":["txt"]}],"abortMs":0}
+[system] dialog.save {"title":"","defaultPath":"","filters":[],"abortMs":0}
+[system] dialog.message {"title":"","message":"Quit without saving?","detail":"","kind":"info","buttons":["Quit","Cancel"],"abortMs":0}
+[system] dialog.message {"title":"","message":"Sure?","detail":"","kind":"info","buttons":["OK","Cancel"],"abortMs":0}
+read before picking: refused
+picked ["picked.txt"]
+read picked file: "picked file\n"
+read other: refused
+save with no answer null
+message button -1
+confirm false

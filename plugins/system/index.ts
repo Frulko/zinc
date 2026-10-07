@@ -3,11 +3,12 @@
 // permission it needs, the native side refuses an op whose permission was not compiled in.
 import S from './native/system.spec';
 import { GRANTED } from 'zinc:system/permissions';
-import { APP } from 'zinc:system/app';
+import { APP, SCOPES } from 'zinc:system/app';
 import * as sys from 'zinc:sys';
 
 S.setPermissions(GRANTED);
 S.setApp(APP);
+S.setScopes(SCOPES);
 
 export class SystemError extends Error {
   code: string;

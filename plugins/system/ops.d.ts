@@ -12,9 +12,9 @@ export interface OpArgs {
   'tray.create': { id: string; icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean };
   'tray.update': { id: string; props: {icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean} };
   'tray.remove': { id: string };
-  'dialog.open': { title?: string; filters?: {name: string; extensions: string[]}[]; multiple?: boolean; directory?: boolean };
-  'dialog.save': { title?: string; defaultPath?: string; filters?: {name: string; extensions: string[]}[] };
-  'dialog.message': { title?: string; message: string; buttons?: string[]; kind?: 'info' | 'warning' | 'error' };
+  'dialog.open': { title?: string; defaultPath?: string; filters?: {name: string; extensions: string[]}[]; multiple?: boolean; directory?: boolean; abortMs?: number };
+  'dialog.save': { title?: string; defaultPath?: string; filters?: {name: string; extensions: string[]}[]; abortMs?: number };
+  'dialog.message': { title?: string; message: string; detail?: string; buttons?: string[]; kind?: 'info' | 'warning' | 'error'; abortMs?: number };
   'window.setTitle': { title: string };
   'window.setOptions': { alwaysOnTop?: boolean; transparent?: boolean; decorations?: boolean; resizable?: boolean; minSize?: [number, number]; maxSize?: [number, number] };
   'window.state.save': {  };

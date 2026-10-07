@@ -70,7 +70,24 @@ const char* codeOf(int e) {
 }
 void fail(const char* op, const std::string& path, int e = errno) { gFailed = true; gError = std::string(codeOf(e)) + ": " + op + " " + path; }
 
+// The fs scope (ZN-239, zinc.json "scopes": {"fs": "user-picked"}): once on, only files the user picked in a dialog (and what is under a picked directory) can be read, written or listed.
+bool gScopeOn = false;
+std::vector<std::string> gGrants;
+std::string absPath(const std::string& p) { char b[4096]; if (realpath(p.c_str(), b)) return b; char cwd[4096]; return (p.rfind("/", 0) == 0 || !getcwd(cwd, sizeof cwd)) ? p : std::string(cwd) + "/" + p; }
+bool scopeAllows(const std::string& path) {
+  if (!gScopeOn) return true;
+  std::string a = absPath(path);
+  for (const std::string& g : gGrants) if (a == g || (a.size() > g.size() && a.compare(0, g.size(), g) == 0 && a[g.size()] == '/')) return true;
+  return false;
+}
+bool denyByScope(const char* op, const std::string& path) {
+  if (scopeAllows(path)) return false;
+  gFailed = true; gError = std::string("EACCES: ") + op + " " + path + " (outside the fs scope: only files picked in a dialog)";
+  return true;
+}
+
 bool readAll(const std::string& path, std::vector<unsigned char>& out, const char* op) {
+  if (denyByScope(op, path)) return false;
   std::ifstream in(path, std::ios::binary);
   struct stat st;
   if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) { fail(op, path, EISDIR); return false; }
@@ -80,6 +97,7 @@ bool readAll(const std::string& path, std::vector<unsigned char>& out, const cha
 }
 
 bool writeAll(const std::string& path, const char* p, size_t n, bool append, const char* op) {
+  if (denyByScope(op, path)) return false;
   std::ofstream out(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc));
   if (!out) { fail(op, path); return false; }
   out.write(p, static_cast<std::streamsize>(n));
@@ -273,13 +291,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsListName: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostFsListKind: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gKinds.size() ? gKinds[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsRemove: {
+      if (denyByScope("remove", s(0))) break;
       std::string p = s(0);
       struct stat st;
       if (lstat(p.c_str(), &st) != 0) { r->i = 0; break; }
       r->i = a[1].i ? removeTree(p) : (S_ISDIR(st.st_mode) ? rmdir(p.c_str()) == 0 : unlink(p.c_str()) == 0);
       break;
     }
-    case Rt::HostFsMkdir: r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
+    case Rt::HostFsMkdir: if (denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
     case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
     case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsWriteBytes: {
@@ -466,5 +485,9 @@ void call(int id, const HostArg* a, HostArg* r) {
 
 void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; }
 void installSys() { hostSys = call; }
+
+// Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
+extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
+extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(path)); }
 
 }  // namespace zn::host

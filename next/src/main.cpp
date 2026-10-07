@@ -150,7 +150,7 @@ static bool gStrict = false;  // --strict (a file-local switch of the command li
 static bool loadManifestPermissions(const char* path) {
   static std::vector<std::string> granted;
   granted.clear();
-  std::string appJson;
+  std::string appJson, scopesJson;
   std::string pf = zn::frontend::findProjectFile(path);
   if (!pf.empty()) {
     std::ifstream in(pf);
@@ -158,10 +158,11 @@ static bool loadManifestPermissions(const char* path) {
     zn::frontend::Project p;
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; }
+    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
   }
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
+  zn::frontend::setSystemScopesJson(scopesJson);
   return true;
 }
 

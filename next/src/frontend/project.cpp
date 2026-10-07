@@ -53,6 +53,9 @@ const std::vector<std::string>& systemFeatures() {
   return f;
 }
 void setSystemAppJson(const std::string& json) { gAppJson = json; }
+std::string gScopesJson;
+void setSystemScopesJson(const std::string& json) { gScopesJson = json; }
+const std::string& systemScopesJson() { return gScopesJson; }
 const std::string& systemAppJson() { return gAppJson; }
 void setSystemPermissions(const std::vector<std::string>* granted) { gGranted = granted; }
 const std::vector<std::string>* systemPermissions() { return gGranted; }

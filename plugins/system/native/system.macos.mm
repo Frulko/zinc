@@ -373,6 +373,58 @@ static int trayCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- dialogs (ZN-239): NSOpenPanel, NSSavePanel, NSAlert, modal (the frames of the app wait while a dialog is open)
+extern "C" void zn_host_fs_grant(const char*) __attribute__((weak));   // src/host/sys_host.cpp: a picked path joins the fs scope
+
+static void armAbort(NSDictionary* a) {   // test hook: end the modal session by itself, so a selftest can open a dialog without a person
+  double ms = [a[@"abortMs"] doubleValue];
+  if (ms > 0) [NSApp performSelector:@selector(abortModal) withObject:nil afterDelay:ms / 1000.0 inModes:@[NSModalPanelRunLoopMode]];
+}
+static void applyFilters(NSSavePanel* panel, NSArray* filters) {
+  NSMutableArray* exts = [NSMutableArray new];
+  for (NSDictionary* f in filters) for (NSString* e in f[@"extensions"]) [exts addObject:e];
+  if (exts.count) panel.allowedFileTypes = exts;
+}
+static int dialogCall(const char* op, NSDictionary* a, char* out, int cap) {
+  ensureApp();
+  NSString* result = nil;
+  [NSApp activateIgnoringOtherApps:YES];
+  if (!strcmp(op, "dialog.open")) {
+    NSOpenPanel* p = [NSOpenPanel openPanel];
+    p.canChooseFiles = ![a[@"directory"] boolValue]; p.canChooseDirectories = [a[@"directory"] boolValue]; p.allowsMultipleSelection = [a[@"multiple"] boolValue];
+    if ([a[@"title"] length]) p.title = a[@"title"];
+    if ([a[@"defaultPath"] length]) p.directoryURL = [NSURL fileURLWithPath:a[@"defaultPath"]];
+    applyFilters(p, a[@"filters"]);
+    armAbort(a);
+    NSModalResponse r = [p runModal];
+    NSMutableArray* paths = [NSMutableArray new];
+    if (r == NSModalResponseOK) for (NSURL* u in p.URLs) { [paths addObject:u.path]; if (zn_host_fs_grant) zn_host_fs_grant(u.path.UTF8String); }
+    result = json(@{@"paths": paths.count ? (id)paths : (id)[NSNull null]});
+  } else if (!strcmp(op, "dialog.save")) {
+    NSSavePanel* p = [NSSavePanel savePanel];
+    if ([a[@"title"] length]) p.title = a[@"title"];
+    if ([a[@"defaultPath"] length]) { p.directoryURL = [NSURL fileURLWithPath:[a[@"defaultPath"] stringByDeletingLastPathComponent]]; p.nameFieldStringValue = [a[@"defaultPath"] lastPathComponent]; }
+    applyFilters(p, a[@"filters"]);
+    armAbort(a);
+    NSModalResponse r = [p runModal];
+    if (r == NSModalResponseOK && p.URL) { if (zn_host_fs_grant) zn_host_fs_grant(p.URL.path.UTF8String); result = json(@{@"path": p.URL.path}); }
+    else result = @"{\"path\":null}";
+  } else if (!strcmp(op, "dialog.message")) {
+    NSAlert* al = [NSAlert new];
+    NSString* kind = a[@"kind"];
+    al.alertStyle = [kind isEqualToString:@"error"] ? NSAlertStyleCritical : ([kind isEqualToString:@"warning"] ? NSAlertStyleWarning : NSAlertStyleInformational);
+    al.messageText = [a[@"title"] length] ? a[@"title"] : a[@"message"];
+    al.informativeText = [a[@"title"] length] ? (a[@"message"] ?: @"") : (a[@"detail"] ?: @"");
+    for (NSString* b in a[@"buttons"] ?: @[@"OK"]) [al addButtonWithTitle:b];
+    armAbort(a);
+    NSModalResponse r = [al runModal];
+    result = json(@{@"button": @(r >= NSAlertFirstButtonReturn ? (int)(r - NSAlertFirstButtonReturn) : -1)});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -383,6 +435,10 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     if (!strncmp(op, "menu.", 5)) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
+    }
+    if (!strncmp(op, "dialog.", 7)) {
+      @try { return dialogCall(op, a, out, cap); }
+      @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
     }
     if (!strncmp(op, "tray.", 5)) {
       @try { return trayCall(op, a, out, cap); }

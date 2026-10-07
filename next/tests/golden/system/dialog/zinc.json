@@ -1,0 +1,1 @@
+{"name":"dialog","entry":"main.ts","permissions":["dialog"],"scopes":{"fs":"user-picked"}}
