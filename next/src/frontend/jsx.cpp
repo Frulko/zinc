@@ -6,6 +6,9 @@
 #include "frontend/jsx.h"
 
 #include <cctype>
+#include <charconv>
+#include <cmath>
+#include <stdexcept>
 #include <map>
 #include <memory>
 #include <regex>
@@ -101,6 +104,127 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
     {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
     {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}}};
+
+// compiler/src/ui-style.ts styleEntry: one CSS-like property with a literal value becomes numeric style operations (the colours as `@key:hex` operations the
+// UI library registers). Errors are thrown as std::runtime_error with the prototype's wording.
+struct StyleOp { std::string key; double value; };
+struct StyleVal { bool isNum = false; double num = 0; std::string str; };
+std::string styleName(std::string name) {
+  for (std::size_t k = 0; k + 1 < name.size(); ++k)
+    if (name[k] == '-' && std::islower(static_cast<unsigned char>(name[k + 1]))) { name.erase(k, 1); name[k] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[k]))); }
+  return name;
+}
+std::vector<std::string> numericStyleKeys(const std::string& raw) {
+  std::string name = styleName(raw);
+  auto al = kStyleAliases.find(name);
+  if (al != kStyleAliases.end()) return al->second;
+  if (kStyleNumeric.count(name)) return {name};
+  throw std::runtime_error("style '" + name + "' needs a supported literal value (or is unsupported)");
+}
+std::string lowerCase(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
+std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
+  name = styleName(name);
+  if (name == "border") {
+    if (!value.isNum && value.str == "none") return {{"borderWidth", 0}};
+    std::smatch m;
+    static const std::regex solid(R"(^(\S+)\s+solid\s+(.+)$)");
+    if (value.isNum || !std::regex_match(value.str, m, solid)) throw std::runtime_error("border expects <width> solid <color>");
+    std::vector<StyleOp> a = styleEntry("borderWidth", StyleVal{false, 0, m[1].str()}), b = styleEntry("borderColor", StyleVal{false, 0, m[2].str()});
+    a.insert(a.end(), b.begin(), b.end());
+    return a;
+  }
+  if (name == "background") name = "backgroundColor";
+  auto en = kStyleEnums.find(name);
+  if (en != kStyleEnums.end()) {
+    std::string key = value.isNum ? [&] { char b[40]; std::snprintf(b, sizeof b, "%g", value.num); return std::string(b); }() : value.str;
+    auto ev = en->second.find(key);
+    if (ev == en->second.end()) throw std::runtime_error("unsupported " + name + ": " + key);
+    return {{name == "display" ? "hidden" : name, static_cast<double>(ev->second)}};
+  }
+  if (name == "fontFamily") {
+    static const std::regex ok(R"(^[A-Za-z0-9_.-]+$)");
+    if (value.isNum || !std::regex_match(value.str, ok)) throw std::runtime_error("fontFamily needs a font asset name");
+    static const std::regex sans(R"(^(sans-serif|system-ui|Inter)$)", std::regex::icase), mono(R"(^(monospace)$)", std::regex::icase);
+    std::string family = std::regex_match(value.str, sans) ? "sans" : std::regex_match(value.str, mono) ? "mono" : value.str;
+    return {{"@font-" + (family == "sans" || family == "mono" ? family : "[" + family + "]"), 0}};
+  }
+  std::vector<std::string> keys = numericStyleKeys(name);
+  bool colorKey = keys[0].size() >= 5 && keys[0].compare(keys[0].size() - 5, 5, "Color") == 0 ? true : keys[0] == "color";
+  if (value.isNum) {
+    double v = value.num;
+    if (!std::isfinite(v) || std::fabs(v) > (colorKey ? 0xffffff : 1000000)) throw std::runtime_error(name + " is out of range");
+    if (colorKey && (v != std::floor(v) || v < -1)) throw std::runtime_error(name + " needs an integer RGB color");
+    if (name == "fontSize" && (v < 1 || v > 256)) throw std::runtime_error("fontSize must be 1..256");
+    if (name == "opacity" && (v < 0 || v > 1)) throw std::runtime_error("opacity must be 0..1");
+    std::vector<StyleOp> ops;
+    for (const std::string& k : keys) ops.push_back({k, v});
+    if (keys[0] == "backgroundColor") ops.push_back({"backgroundAlpha", 255});
+    return ops;
+  }
+  const std::string& sv = value.str;
+  if (colorKey) {
+    if (sv == "transparent") {
+      if (keys[0] != "backgroundColor") throw std::runtime_error("transparent " + name + " is unsupported");
+      return {{"backgroundColor", -1}, {"backgroundAlpha", 0}};
+    }
+    std::string text = sv;
+    static const std::regex rgb(R"(^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$)");
+    std::smatch m;
+    if (std::regex_match(sv, m, rgb)) {
+      int c[3] = {std::stoi(m[1].str()), std::stoi(m[2].str()), std::stoi(m[3].str())};
+      double alpha = m[4].matched ? std::stod(m[4].str()) : 1;
+      if (c[0] > 255 || c[1] > 255 || c[2] > 255 || alpha < 0 || alpha > 1) throw std::runtime_error("invalid rgb/rgba color");
+      char b[16];
+      std::snprintf(b, sizeof b, "#%02x%02x%02x", c[0], c[1], c[2]);
+      text = b;
+      if (alpha != 1) { std::snprintf(b, sizeof b, "%02x", static_cast<int>(std::lround(alpha * 255))); text += b; }
+    }
+    static const std::map<std::string, std::string> colors = {{"black", "000000"}, {"white", "ffffff"}, {"red", "ff0000"}, {"green", "008000"}, {"blue", "0000ff"}, {"gray", "808080"}, {"grey", "808080"}, {"orange", "ffa500"}, {"yellow", "ffff00"}};
+    auto cn = colors.find(lowerCase(text));
+    std::string hex = cn != colors.end() ? cn->second : (!text.empty() && text[0] == '#' ? text.substr(1) : text);
+    static const std::regex shortHex(R"(^[\da-fA-F]{3,4}$)"), longHex(R"(^[\da-fA-F]{6}([\da-fA-F]{2})?$)");
+    if (std::regex_match(hex, shortHex)) { std::string w; for (char c : hex) { w += c; w += c; } hex = w; }
+    if (!std::regex_match(hex, longHex)) throw std::runtime_error("unsupported color '" + sv + "' (use a name or #RGB/#RRGGBB/#RRGGBBAA)");
+    if (hex.size() == 8 && keys[0] != "backgroundColor") throw std::runtime_error("alpha is only supported on backgroundColor");
+    std::vector<StyleOp> ops{{keys[0], static_cast<double>(std::stol(hex.substr(0, 6), nullptr, 16))}};
+    if (keys[0] == "backgroundColor") ops.push_back({"backgroundAlpha", hex.size() == 8 ? static_cast<double>(std::stol(hex.substr(6), nullptr, 16)) : 255.0});
+    return ops;
+  }
+  if ((name == "width" || name == "height") && sv == "auto") return {{name, -1}};
+  static const std::regex pct(R"(^\d+(\.\d+)?%$)");
+  if ((name == "width" || name == "height") && std::regex_match(sv, pct)) {
+    double percent = std::stod(sv);
+    if (percent > 1000000) throw std::runtime_error("percentage out of range");
+    if (percent == 0) return {{name, 0}};
+    return {{name + "Percent", percent / 100}};
+  }
+  static const std::regex len(R"(^-?(?:\d+\.?\d*|\.\d+)(px|rem|em)?$)");
+  if (std::regex_match(sv, len)) {
+    double n = std::stod(sv);
+    if (sv.size() >= 2 && (sv.compare(sv.size() - 2, 2, "em") == 0)) n *= 16;
+    StyleVal nv; nv.isNum = true; nv.num = n;
+    return styleEntry(name, nv);
+  }
+  if (name == "padding" || name == "margin") {
+    std::vector<std::string> parts;
+    std::size_t at = 0;
+    while (at < sv.size()) {
+      while (at < sv.size() && std::isspace(static_cast<unsigned char>(sv[at]))) ++at;
+      std::size_t e = at;
+      while (e < sv.size() && !std::isspace(static_cast<unsigned char>(sv[e]))) ++e;
+      if (e > at) parts.push_back(sv.substr(at, e - at));
+      at = e;
+    }
+    if (parts.size() > 1 && parts.size() <= 4) {
+      std::string t = parts[0], r = parts.size() > 1 ? parts[1] : t, b = parts.size() > 2 ? parts[2] : t, l = parts.size() > 3 ? parts[3] : r;
+      std::string four[4] = {t, r, b, l};
+      std::vector<StyleOp> ops;
+      for (std::size_t i = 0; i < keys.size(); ++i) { auto sub = styleEntry(keys[i], StyleVal{false, 0, four[i]}); ops.insert(ops.end(), sub.begin(), sub.end()); }
+      return ops;
+    }
+  }
+  throw std::runtime_error("unsupported " + name + ": '" + sv + "'");
+}
 
 std::string quote(const std::string& s) {
   std::string r = "\"";
@@ -355,6 +479,25 @@ struct Lowering {
     }
     return "[" + styleExpr(a, b) + "]";
   }
+  // a style expression made only of literals is evaluated once, at the top of the module
+  bool constantStyle(std::size_t a, std::size_t b) {
+    if (b == a + 1) return t[a].kind == Tok::Number || t[a].kind == Tok::String || t[a].kind == Tok::TemplateNoSub || isK(a, "null") || isK(a, "false");
+    if (b == a + 2) return isP(a, "-") && t[a + 1].kind == Tok::Number;
+    bool obj = isP(a, "{") && match(a) == b - 1, arr = isP(a, "[") && match(a) == b - 1;
+    if (!obj && !arr) return false;
+    std::vector<std::pair<std::size_t, std::size_t>> parts;
+    std::size_t from = a + 1;
+    scan(a + 1, b - 1, [&](std::size_t i, const std::string& x) { if (x == ",") { parts.push_back({from, i}); from = i + 1; } });
+    if (from < b - 1) parts.push_back({from, b - 1});
+    for (auto [x, y] : parts) {
+      if (x >= y) continue;
+      if (obj) {
+        if (!(t[x].kind == Tok::Ident || t[x].kind == Tok::String) || !isP(x + 1, ":") || !constantStyle(x + 2, y)) return false;
+      } else if (!constantStyle(x, y)) return false;
+    }
+    return true;
+  }
+  std::vector<std::string> staticStyles;
   std::string styleExpr(std::size_t a, std::size_t b) {
     strip(a, b);
     if (b == a + 1 && (isK(a, "null") || isK(a, "false") || (t[a].kind == Tok::Ident && tx(a) == "undefined"))) return "new __ZStyle([], [])";
@@ -370,52 +513,54 @@ struct Lowering {
     if (isP(a, "{") && match(a) == b - 1) return styleObject(a + 1, b - 1);
     return rw(a, b);
   }
+  // the JavaScript text of a number (shortest form that reads back)
+  static std::string jsNumber(double v) {
+    char buf[40];
+    auto r = std::to_chars(buf, buf + sizeof buf, v);
+    return std::string(buf, r.ptr);
+  }
   std::string styleObject(std::size_t a, std::size_t b) {
-    std::vector<std::string> keys, values;
+    std::vector<std::string> keys, values, resources;
     std::size_t from = a;
     std::vector<std::pair<std::size_t, std::size_t>> props;
     scan(a, b, [&](std::size_t i, const std::string& x) { if (x == ",") { props.push_back({from, i}); from = i + 1; } });
     if (from < b) props.push_back({from, b});
     for (auto [x, y] : props) {
       if (x >= y) continue;
-      if (!(t[x].kind == Tok::Ident || t[x].kind == Tok::String)) fail(x, "style objects use named properties; compose with style={[base, override]}");
+      if (!(t[x].kind == Tok::Ident || t[x].kind == Tok::String) || isP(x, "...")) fail(x, "style objects use named properties; compose with style={[base, override]}");
       std::string key = tx(x);
       if (t[x].kind == Tok::String) key = key.substr(1, key.size() - 2);
       std::size_t vb = x + 1, ve = y;
-      std::string raw;
       if (isP(x + 1, ":")) vb = x + 2; else { vb = x; ve = x + 1; }  // shorthand `{ gap }`
-      raw = rw(vb, ve);
-      for (std::size_t k = 0; k < key.size(); ++k)  // font-size -> fontSize
-        if (key[k] == '-' && k + 1 < key.size()) { key.erase(k, 1); key[k] = static_cast<char>(std::toupper(static_cast<unsigned char>(key[k]))); }
-      auto dynamicKeys = [&](const std::string& val) {
-        auto al = kStyleAliases.find(key);
-        std::vector<std::string> ks = al != kStyleAliases.end() ? al->second : kStyleNumeric.count(key) ? std::vector<std::string>{key} : std::vector<std::string>{};
-        if (ks.empty()) fail(x, "style '" + key + "' needs a supported literal value (or is unsupported)");
-        for (const std::string& k : ks) {
-          keys.push_back(quote(k)); values.push_back(val);
-          if (k == "backgroundColor") { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }
+      // a literal value (string, number, negative number, hex) becomes numeric operations here; anything else is read when the style is applied
+      bool literal = false;
+      StyleVal lv;
+      if (ve == vb + 1 && (t[vb].kind == Tok::String || t[vb].kind == Tok::TemplateNoSub)) { literal = true; lv.str = tx(vb).substr(1, tx(vb).size() - 2); }
+      else if (ve == vb + 1 && t[vb].kind == Tok::Number) { literal = true; lv.isNum = true; lv.num = std::strtod(tx(vb).c_str(), nullptr); if (tx(vb).size() > 1 && (tx(vb)[1] == 'x' || tx(vb)[1] == 'X')) lv.num = static_cast<double>(std::strtoull(tx(vb).c_str() + 2, nullptr, 16)); }
+      else if (ve == vb + 2 && isP(vb, "-") && t[vb + 1].kind == Tok::Number) { literal = true; lv.isNum = true; lv.num = -std::strtod(tx(vb + 1).c_str(), nullptr); }
+      try {
+        if (literal) {
+          std::string sk = styleName(key);
+          for (const StyleOp& op : styleEntry(key, lv)) {
+            if (sk == "fontSize" && op.key == "fontSize") resources.push_back("font-size: " + std::to_string(static_cast<long>(std::lround(op.value))) + "px");
+            bool color = op.key == "backgroundColor" || op.key == "color" || op.key == "borderColor";
+            if (color) { char hx[24]; long long cv = static_cast<long long>(op.value); std::snprintf(hx, sizeof hx, "%llx", static_cast<unsigned long long>(cv < 0 ? -cv : cv)); keys.push_back(quote("@" + op.key + ":" + (cv < 0 ? "-" : "") + std::string(hx))); values.push_back("0"); }
+            else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); }
+          }
+        } else {
+          std::string raw = rw(vb, ve);
+          for (const std::string& k : numericStyleKeys(key)) {
+            keys.push_back(quote(k)); values.push_back("(" + raw + ")");
+            if (k == "backgroundColor") { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }
+          }
         }
-      };
-      if (ve == vb + 1 && t[vb].kind == Tok::String) {  // 'row', '#fff', '12px'
-        std::string sv = tx(vb);
-        sv = sv.substr(1, sv.size() - 2);
-        auto en = kStyleEnums.find(key);
-        if (en != kStyleEnums.end()) {
-          auto ev = en->second.find(sv);
-          if (ev == en->second.end()) fail(vb, "unsupported " + key + ": " + sv);
-          keys.push_back(quote(key == "display" ? "hidden" : key)); values.push_back(num(ev->second));
-        } else if (!sv.empty() && sv[0] == '#' && (sv.size() == 7 || sv.size() == 4)) {
-          std::string hex = sv.substr(1);
-          if (hex.size() == 3) hex = std::string{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]};
-          dynamicKeys(std::to_string(std::stol(hex, nullptr, 16)));
-        } else if (!sv.empty() && sv.find_first_not_of("0123456789.") == std::string::npos) dynamicKeys(sv);
-        else if (sv.size() > 2 && sv.compare(sv.size() - 2, 2, "px") == 0 && sv.substr(0, sv.size() - 2).find_first_not_of("0123456789.") == std::string::npos) dynamicKeys(sv.substr(0, sv.size() - 2));
-        else fail(vb, "unsupported " + key + ": '" + sv + "'");
-      } else dynamicKeys("(" + raw + ")");
+      } catch (const std::runtime_error& e) { fail(vb < t.size() ? vb : x, e.what()); }
     }
     std::string ks, vs;
     for (std::size_t k = 0; k < keys.size(); ++k) { ks += (k ? ", " : "") + keys[k]; vs += (k ? ", " : "") + values[k]; }
-    return "new __ZStyle([" + ks + "], [" + vs + "])";
+    std::string rs;
+    for (std::size_t k = 0; k < resources.size(); ++k) rs += (k ? "; " : "") + resources[k];
+    return "new __ZStyle([" + ks + "], [" + vs + "])" + (rs.empty() ? "" : " /* " + rs + " */");
   }
 
   std::string element(const Elem& e, std::vector<std::string>& out) {
@@ -458,6 +603,7 @@ struct Lowering {
       else if (name == "style") {
         if (a.kind != 2) fail(a.tok, "style expects an object, a StyleSheet entry or an array of styles");
         std::string layers = styleLayers(a.eb, a.ee);
+        if (constantStyle(a.eb, a.ee)) { std::string id = "__zsheet" + std::to_string(staticStyles.size()); staticStyles.push_back("const " + id + " = " + layers + ";"); layers = id; }
         push(react ? "_styles(" + v + ", " + layers + ");" : "_dynStyles(" + v + ", () => " + layers + ");");
       }
       else if (name == "src") push(lit ? "_img(" + v + ", " + quote(a.lit) + ");" : react ? "_img(" + v + ", " + expr + ");" : "_dynImg(" + v + ", () => (" + expr + "));");
@@ -566,7 +712,20 @@ struct Lowering {
       }
       return lower(*c->el);
     };
-    if (tag == "VirtualList") fail(e.begin, "<VirtualList> is not supported yet");
+    if (tag == "VirtualList") {  // <VirtualList count={n} itemHeight={h} class="...">{(i) => <row/>}</VirtualList>
+      const Attr* count = find("count");
+      const Attr* ih = find("itemHeight");
+      const Child* c = kids.size() == 1 ? kids[0] : nullptr;
+      if (!count || !ih || !c || c->kind != 1 || c->ee <= c->eb) fail(e.begin, "<VirtualList> needs count, itemHeight and a function child: {(i) => <...>}");
+      out.push_back("const " + v + ": i32 = _el(4);");
+      const Attr* cls = find("class");
+      if (!cls) cls = find("className");
+      if (cls && cls->kind == 1) out.push_back("_class(" + v + ", " + quote(cls->lit) + ");");
+      else if (cls) out.push_back(react ? "_class(" + v + ", " + valueOf(*cls) + ");" : "_dynClass(" + v + ", () => (" + valueOf(*cls) + "));");
+      out.push_back(react ? "_virtual(" + v + ", " + valueOf(*count) + ", " + valueOf(*ih) + ", " + rw(c->eb, c->ee) + ");"
+                          : "_virtual(" + v + ", () => (" + valueOf(*count) + "), " + valueOf(*ih) + ", " + rw(c->eb, c->ee) + ");");
+      return v;
+    }
     out.push_back("const " + v + ": i32 = _el(6);");
     if (tag == "Show" && !react) {
       const Attr* when = find("when");
@@ -610,6 +769,80 @@ struct Lowering {
 };
 
 }  // namespace
+
+// StyleSheet.create({ name: { ...css } }) becomes ({ name: new __ZStyle(...) }) in .ts and .tsx alike (compiler/src/styles.ts lowerStyleSheets).
+std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx) {
+  if (src.find("StyleSheet") == std::string_view::npos) return std::string(src);
+  Lowering L;
+  L.s = src;
+  L.t = lex(src, tsx);
+  try {
+    std::set<std::string> names;  // the local names of StyleSheet imported from zinc:ui (`ui.StyleSheet` for a namespace import)
+    for (std::size_t i = 0; i < L.t.size(); ++i) {
+      if (!L.isK(i, "import")) continue;
+      std::size_t k = i + 1;
+      std::vector<std::string> found;
+      bool ns = false;
+      std::string nsName;
+      while (k < L.t.size() && L.t[k].kind != Tok::String) {
+        if (L.isP(k, "*") && L.t[k + 1].kind == Tok::Ident && L.tx(k + 1) == "as") { ns = true; nsName = L.tx(k + 2); }
+        if (L.t[k].kind == Tok::Ident && L.tx(k) == "StyleSheet") found.push_back(L.t[k + 1].kind == Tok::Ident && L.tx(k + 1) == "as" ? L.tx(k + 2) : "StyleSheet");
+        ++k;
+      }
+      if (k < L.t.size() && L.t[k].kind == Tok::String && L.tx(k) == "'zinc:ui'") {
+        for (auto& f : found) names.insert(f);
+        if (ns) names.insert(nsName + ".StyleSheet");
+      } else if (k < L.t.size() && L.t[k].kind == Tok::String && L.tx(k) == "\"zinc:ui\"") {
+        for (auto& f : found) names.insert(f);
+        if (ns) names.insert(nsName + ".StyleSheet");
+      }
+    }
+    if (names.empty()) return std::string(src);
+    std::string out;
+    std::size_t pos = 0;
+    bool any = false;
+    for (std::size_t i = 0; i + 3 < L.t.size(); ++i) {
+      // <name>.create( { ... } )
+      std::size_t k = i;
+      std::string nm = L.tx(k);
+      if (L.t[k].kind != Tok::Ident) continue;
+      if (L.isP(k + 1, ".") && L.t[k + 2].kind == Tok::Ident && names.count(nm + "." + L.tx(k + 2)) && L.isP(k + 3, ".")) { nm += "." + L.tx(k + 2); k += 2; }
+      if (!names.count(nm) || !L.isP(k + 1, ".") || L.tx(k + 2) != "create" || !L.isP(k + 3, "(")) continue;
+      std::size_t open = k + 3, close = L.match(open);
+      if (!L.isP(open + 1, "{") || L.match(open + 1) != close - 1) L.fail(open, "StyleSheet.create expects an object of named style objects");
+      std::size_t ob = open + 1, oe = close - 1;
+      std::vector<std::pair<std::size_t, std::size_t>> props;
+      std::size_t from = ob + 1;
+      L.scan(ob + 1, oe, [&](std::size_t j, const std::string& x) { if (x == ",") { props.push_back({from, j}); from = j + 1; } });
+      if (from < oe) props.push_back({from, oe});
+      std::string fields;
+      for (auto [x, y] : props) {
+        if (x >= y) continue;
+        if (!(L.t[x].kind == Tok::Ident || L.t[x].kind == Tok::String) || !L.isP(x + 1, ":")) L.fail(x, "StyleSheet.create expects named styles");
+        std::string name = L.tx(x);
+        if (L.t[x].kind == Tok::String) name = name.substr(1, name.size() - 2);
+        fields += (fields.empty() ? "" : ", ") + name + ": " + L.styleExpr(x + 2, y);
+      }
+      std::string code = "({ " + fields + " })";
+      std::size_t startOff = L.t[i].start, endOff = L.t[close].end;
+      int want = 0, have = 0;
+      for (std::size_t q = startOff; q < endOff; ++q) want += src[q] == '\n';
+      for (char c : code) have += c == '\n';
+      out += std::string(src.substr(pos, startOff - pos)) + code + std::string(want > have ? want - have : 0, '\n');
+      pos = endOff;
+      i = close;
+      any = true;
+    }
+    if (!any) return std::string(src);
+    out += std::string(src.substr(pos));
+    std::string hoisted;
+    for (const std::string& st : L.staticStyles) hoisted += st + " ";
+    return "import { Style as __ZStyle } from 'zinc:ui'; " + hoisted + out;
+  } catch (const Failure& f) {
+    diags.push_back({"Z0005", f.pos, "StyleSheet: " + f.msg, file});
+    return std::string(src);
+  }
+}
 
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file) {
   std::size_t lt = src.find('<');
@@ -658,10 +891,11 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
       i = e->end - 1;
     }
     out += std::string(src.substr(pos));
+    { std::string hoisted; for (const std::string& st : L.staticStyles) hoisted += st + " "; out = hoisted + out; }
     const char* input = "_styles, _ptr, _key, _onText, _str, _hl, _ctx";
     std::string helpers = L.react ? std::string("_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ") + input
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
-    std::string styleImport = out.find("new __ZStyle(") != std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
+    std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out;
   } catch (const Failure& f) {
     diags.push_back({"Z0005", f.pos, "JSX: " + f.msg, file});

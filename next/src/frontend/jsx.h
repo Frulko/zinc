@@ -13,4 +13,7 @@ namespace zn::frontend {
 // source unchanged when it has no JSX. Problems (unsupported attributes, malformed tags) are added to `diags` as Z0005.
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file);
 
+// StyleSheet.create({...}) of a .ts or .tsx source (StyleSheet imported from zinc:ui): the CSS-like objects become style operations. The source unchanged when there is none.
+std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx);
+
 }  // namespace zn::frontend

@@ -572,6 +572,8 @@ struct Loader {
   }
   std::uint32_t load(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
+    bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
+    if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
       text = lowerJsx(text, prog.diags, fi);

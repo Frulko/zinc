@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 for e in hero/src/main.tsx remarkable/dashboard/src/main.tsx remarkable/notes/src/main.tsx maps/navigation/src/main.tsx bouncing-ball/src/main.ts breakout/src/main.ts flipctl/src/main.ts hello/src/main.ts lang/src/main.ts \
-         ui/kit-gallery/src/main.tsx ui/keyboard/src/main.tsx ui/lottie-gallery/src/main.tsx led/falling-cubes/src/main.ts led/oled-clock/src/main.tsx robot-eyes/src/main.ts robot-eyes-oled/src/main.ts zed-editor/sample/src/main.ts; do
+         ui/figma-storyboard/src/main.tsx ui/kit-gallery/src/main.tsx ui/keyboard/src/main.tsx ui/lottie-gallery/src/main.tsx led/falling-cubes/src/main.ts led/oled-clock/src/main.tsx robot-eyes/src/main.ts robot-eyes-oled/src/main.ts zed-editor/sample/src/main.ts; do
   f="../examples/$e"
   [ -e "$f" ] || { echo "missing example $e"; fail=1; continue; }
   out=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 timeout 60 "$ZINC" run "$f" 2>&1 >/dev/null); rc=$?
