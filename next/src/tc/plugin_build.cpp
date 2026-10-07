@@ -223,6 +223,15 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     if (!run("ar rcs " + q(out.vendor) + objs, err, "ar")) return false;
     out.rebuilt = true;
   }
+  // trust: the digest written after the build must still match the library (a tampered cache entry is refused, never loaded); an entry without one is rebuilt
+  std::string digestFile = dir + "/plugin.sha256", recorded;
+  if (fs::exists(out.shared) && readAll(digestFile, recorded)) {
+    while (!recorded.empty() && (recorded.back() == '\n' || recorded.back() == ' ')) recorded.pop_back();
+    if (recorded != sha256File(out.shared) + " " + sha256File(out.archive)) {
+      err = "the native library of plugin '" + m.name + "' in " + dir + " does not match its recorded digest: refused (delete the directory to rebuild it)";
+      return false;
+    }
+  } else { fs::remove(out.shared, ec); }
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) {
     std::string gdir = dir + "/gen";
     fs::create_directories(gdir, ec);
@@ -255,6 +264,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     if (!run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
     fs::remove(out.archive, ec);
     if (!run("ar rcs " + q(out.archive) + list, err, "ar")) return false;
+    { std::ofstream(digestFile) << sha256File(out.shared) << " " << sha256File(out.archive) << "\n"; }
     out.rebuilt = true;
   }
   out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();

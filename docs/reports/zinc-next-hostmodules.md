@@ -40,3 +40,21 @@ All three are written in Zinc (`next/src/frontend/modules.cpp`, built-in module 
 | `zinc:events` | `Emitter<T>` with `on`, `once`, `off`, `listenerCount`, `emit` (listeners added during an emit wait for the next one) | everywhere |
 | `zinc:platform` | constants of the run profile: `TARGET`, `PROFILE`, `HEAP_BYTES`, `NUMBERS`, `SCREEN_W/H` (`ZINC_SIZE`, else 320x240), `FPU`, and one boolean per capability of `targets/capabilities.json` (`TOUCH`, `POINTER`, `KEYBOARD`, `NET`, ...) | the profile is `macos` on macOS, `linux` elsewhere; the other targets read their own row when they build |
 | `zinc:telemetry` | JSON lines of `runtime/mod/telemetry.cpp` (`hello`, `metric`, `event`, `state_snapshot`) to `stdout` or `file:<path>`; `ZINC_TELEMETRY` selects the sink at start | `udp://` and the per-frame `perf_frame` and `log` messages need the host's own hooks (they come with the event loop task); snapshots are taken on telemetry calls at most every 100 ms |
+
+## Plugin defaults: native code or stand-in (ZN-112)
+
+Rule (D21): with `ZINC_NATIVE=auto` a `.next.ts` stand-in beside the spec wins, except in deterministic runs (`ZINC_DETERMINISTIC`, tests, `examples-status`), where native code is used only when the manifest says `"deterministic": true`. `.sim.ts` files yield to native code. `real` forces native, `sim` forces the stand-in.
+
+| Plugin | Default | Why |
+|---|---|---|
+| sqlite, wasm, ffi, script, canvas2d, svg, lottie, 3d, three, map, gphoto2 | native (deterministic) | no stand-in; output is a pure function of the input, so goldens are stable (gphoto2 uses its fake camera) |
+| process, socket | `.next.ts` stand-in interactively, native in deterministic runs | the stand-in has no libuv dependency and runs on profiles without it (ESP32); native is verified by `tests/t1/native_plugins.sh` |
+| devtools | `cdp.next.ts` stand-in | CDP server on the engine's own sockets; the C++ host (`cdp.host.cpp`) is the Linux/rpi1 path |
+| video | `video.next.ts` stand-in | decoding is not deterministic across machines; native is opt-in with `ZINC_NATIVE=real` |
+| webview | `webview.sim.ts` headless fallback; WKWebView on macOS only | CI has no window system |
+| display-* , remote-view | native driver, selected by `ZINC_DISPLAY` / board | hardware drivers run against their emulators |
+| device, gestures, imu-qmi8658, ink, mapping, pixelfont, remarkable | Zinc sources only | no native code |
+
+## Trust in native plugin code (ZN-112)
+
+The build writes `plugin.sha256` (digests of the shared library and the archive) beside them in the cache. Every later `plugin-build`, run or build re-hashes both; a mismatch is refused with a message naming the directory and nothing is `dlopen`ed (`tests/t0/plugin_trust.sh`). An entry without a digest is rebuilt. The cache directory name already covers sources, headers, flags and compiler. Not done: a program-level manifest of library hashes and `--allow-native` (the cache is the only source of native code today; a program cannot name a library path).
