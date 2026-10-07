@@ -196,6 +196,15 @@ struct Checker {
   }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
+    if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 1 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
+      const ObjInfo& po = out.objs[ty(to).obj];
+      if (po.typeArgs.size() != 1) { diag(kZNotAssignable, node, "'" + name(from) + "' to '" + name(to) + "'"); return false; }
+      TypeId elemT = po.typeArgs[0];
+      std::string X = inspectAliasName(to), T = inspectAliasName(elemT);
+      std::uint32_t sym = helper("neverPromise," + std::to_string(to), "function $F(p: NeverPromise): " + X + " {\n  const r = __newPromise<" + T + ">();\n  p.handled = true;\n  const e = p.error;\n  if (e !== null) r.rejectWith(e);\n  return r;\n}\n", {from, to, elemT}, node);
+      wrapNode(node, sym);
+      return true;
+    }
     if (node != kNone && thunkable(from, to)) {
       const Type f = ty(from), t = ty(to);
       std::string ps, call;
@@ -1294,7 +1303,10 @@ struct Checker {
     result = expr0(i, expected);
     return true;
   }
+  TypeId callExpected = kNoType, genericExpected = kNoType;  // the type the call's value is wanted as, for type arguments the arguments do not give
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
+    TypeId myExpected = callExpected;
+    callExpected = kNoType;
     if (!isNew && (x.flags & kFlagOptional) && !n(i).kids.empty()) {
       TypeId r;
       if (optionalCall(i, kNoType, r)) return r;
@@ -1387,8 +1399,13 @@ struct Checker {
       }
       const Node& cn = n(callee);
       if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
+      if (cn.kind == N::Ident && cn.text == "__rejectedP" && !a.targs.count(i) && (myExpected == kNoType || bad(myExpected) || promiseKind(myExpected) != 1)) a.nodes[callee].text = "__rejectedN";  // Promise.reject(e) with no type to give it: a promise that only rejects, which fits any Promise<T>
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
+        if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i)) {  // Promise.resolve(p) is p itself
+          TypeId at0 = expr(argNodes[0]);
+          if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
+        }
         if (!a.targs.count(i))  // with explicit type arguments the arguments are checked against the parameter types instead (an array literal takes the element kind of `T`)
         for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty())) expr(an);  // function expressions and empty array literals wait for the type arguments the others give
         preEvaluated = true;
@@ -1396,7 +1413,9 @@ struct Checker {
         ensureSelf(g);
         std::uint32_t ts = instantiateFunc(gs, g.selfParams, callee);
         if (ts == kNone) return tError;
+        genericExpected = myExpected;
         std::vector<TypeId> targs = typeArgsFor(gs, i, argNodes, out.syms[ts].type);
+        genericExpected = kNoType;
         if (targs.empty()) return tError;
         if ((cn.text == "__then" || cn.text == "__thenFromV") && targs.back() == tVoid) {  // the callback returns nothing: the helpers of a Promise<void> result
           targs.pop_back();
@@ -1762,10 +1781,11 @@ struct Checker {
         if (p == tNull && q != tNull && !isDyn(q)) return unionOf({q, tNull});
         if (assignable(q, p, x.kids[2])) return p;
         if (assignable(p, q, x.kids[1])) return q;
-        diag(kZNotAssignable, x.kids[2], "'" + name(q) + "' to '" + name(p) + "'");
+        if (name(p) == "NeverPromise" && promiseKind(q) == 1) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
+        require(q, p, x.kids[2]);  // conversions (a thunk, a promise that only rejects) or the error
         return p;
       }
-      case N::Call: return callExpr(i, x, false);
+      case N::Call: callExpected = expected; return callExpr(i, x, false);
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
         const bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
@@ -3378,6 +3398,12 @@ struct Checker {
       }
       TypeId lt = expr(argNodes[k], want);
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
+    }
+    if (genericExpected != kNoType && !bad(genericExpected) && std::find(bound.begin(), bound.end(), kNoType) != bound.end()) {  // `return Promise.reject(e)` in a function returning Promise<number>: the wanted type gives T
+      std::vector<TypeId> b2 = bound;
+      std::size_t before = out.diags.size();
+      if (unify(g, f.elem, genericExpected, b2, callNode)) for (std::size_t k = 0; k < bound.size(); ++k) if (bound[k] == kNoType) bound[k] = b2[k];
+      if (out.diags.size() > before) out.diags.resize(before);
     }
     for (std::size_t i = 0; i < bound.size(); ++i)
       if (bound[i] == kNoType && n(g.tp[i]).kids.size() > 1 && n(g.tp[i]).kids[1] != kNone) bound[i] = annotation(n(g.tp[i]).kids[1]);  // not inferred: the default

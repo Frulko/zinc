@@ -222,7 +222,13 @@ interface PromiseConstructor {
   resolve(): Promise<void>;
   reject<T = never>(e: Error): Promise<T>;
   all<T>(ps: Promise<T>[]): Promise<T[]>;
+  allSettled<T>(ps: Promise<T>[]): Promise<PromiseSettledResult<T>[]>;
+  race<T>(ps: Promise<T>[]): Promise<T>;
+  any<T>(ps: Promise<T>[]): Promise<T>;
+  withResolvers<T>(): PromiseWithResolvers<T>;
 }
+interface PromiseSettledResult<T> { status: string; value: T | null; reason: Error | null }
+interface PromiseWithResolvers<T> { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: Error) => void }
 declare var Promise: PromiseConstructor;
 interface Generator<T = unknown, R = any, N = any> extends IteratorObject<T, R, N> {
   /** @throws */

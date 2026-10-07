@@ -446,6 +446,11 @@ struct Desugar {
       } else if (x.kind == N::Call && n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "Promise") {
         Node& m = n(x.kids[0]);
         if (m.text == "all") { m.kind = N::Ident; m.text = "__all"; m.kids.clear(); }
+        else if (m.text == "reject") { m.kind = N::Ident; m.text = "__rejectedP"; m.kids.clear(); }
+        else if (m.text == "race") { m.kind = N::Ident; m.text = "__race"; m.kids.clear(); }
+        else if (m.text == "any") { m.kind = N::Ident; m.text = "__any"; m.kids.clear(); }
+        else if (m.text == "allSettled") { m.kind = N::Ident; m.text = "__allSettled"; m.kids.clear(); }
+        else if (m.text == "withResolvers") { m.kind = N::Ident; m.text = "__withResolvers"; m.kids.clear(); }
         else if (m.text == "resolve") { m.kind = N::Ident; m.text = x.kids.size() == 1 ? "__resolvedV" : "__resolved"; m.kids.clear(); }
       }
     }

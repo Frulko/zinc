@@ -643,7 +643,7 @@ class FnJob extends Job {
   run(): void { this.f(); }
 }
 class Timer {
-  constructor(public at: f64, public seq: i32, public id: i32, public every: f64, public f: () => void) {}
+  constructor(public at: f64, public ord: f64, public seq: i32, public id: i32, public every: f64, public f: () => void) {}  // at: when the virtual clock reads it; ord: the order among timers (Node counts a delay of 0 as 1)
 }
 let __jobs: Job[] = [];
 let __jobHead: i32 = 0;
@@ -658,7 +658,7 @@ let __ids: i32 = 0;
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
   __timerSeq++;
   __ids++;
-  __timers.push(new Timer(__clock + (ms > 0 ? ms : 0), __timerSeq, __ids, every, f));
+  __timers.push(new Timer(__clock + (ms > 0 ? ms : 0), __clock + (ms >= 1 ? ms : 1), __timerSeq, __ids, every, f));
   return __ids;
 }
 function setTimeout(f: () => void, ms: f64): i32 { return __addTimer(f, ms, 0); }
@@ -734,7 +734,7 @@ function __frameTimers(): void {
     const rest: Timer[] = [];
     for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
     __timers = rest;
-    if (t.every > 0) { __timerSeq++; __timers.push(new Timer(t.at + t.every, __timerSeq, t.id, t.every, t.f)); }
+    if (t.every > 0) { __timerSeq++; __timers.push(new Timer(t.at + t.every, t.ord + t.every, __timerSeq, t.id, t.every, t.f)); }
     t.f();
     __drainJobs();
   }
@@ -748,7 +748,7 @@ function __runLoop(): void {
     for (let i: i32 = 1; i < __timers.length; i++) {
       const a = __timers[i];
       const b = __timers[best];
-      if (a.at < b.at || (a.at === b.at && a.seq < b.seq)) best = i;
+      if (a.ord < b.ord || (a.ord === b.ord && a.seq < b.seq)) best = i;
     }
     const t = __timers[best];
     const rest: Timer[] = [];
@@ -758,7 +758,7 @@ function __runLoop(): void {
     t.f();
     if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
       __timerSeq++;
-      __timers.push(new Timer(t.at + t.every, __timerSeq, t.id, t.every, t.f));
+      __timers.push(new Timer(t.at + t.every, t.ord + t.every, __timerSeq, t.id, t.every, t.f));
     }
     __drainJobs();
   }
@@ -797,9 +797,9 @@ class PromiseBase {
 }
 class Promise<T> extends PromiseBase {
   value: T[] = [];
-  constructor(executor: (resolve: (value: T) => void) => void) {
+  constructor(executor: (resolve: (value: T) => void, reject: (e: Error) => void) => void) {
     super();
-    executor((v: T) => { this.resolveWith(v); });
+    executor((v: T) => { this.resolveWith(v); }, (e: Error) => { this.rejectWith(e); });
   }
   resolveWith(v: T): void {
     if (this.state !== 0) return;
@@ -810,9 +810,9 @@ class Promise<T> extends PromiseBase {
 }
 
 class PromiseV extends PromiseBase {
-  constructor(executor: (resolve: () => void) => void) {
+  constructor(executor: (resolve: () => void, reject: (e: Error) => void) => void) {
     super();
-    executor(() => { this.resolveWith(); });
+    executor(() => { this.resolveWith(); }, (e: Error) => { this.rejectWith(e); });
   }
   resolveWith(): void {
     if (this.state !== 0) return;
@@ -1019,6 +1019,95 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
   for (const p of ps) p.subscribe(new AllJob<T>(p, st));
   return st.result;
 }
+
+// reject, race, any, allSettled, withResolvers
+function __rejectedP<T>(e: Error): Promise<T> {
+  const p = __newPromise<T>();
+  p.rejectWith(e);
+  return p;
+}
+class RaceJob<T> extends Job {
+  constructor(public p: Promise<T>, public r: Promise<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value[0]);
+  }
+}
+function __race<T>(ps: Promise<T>[]): Promise<T> {
+  const r = __newPromise<T>();
+  for (const p of ps) p.subscribe(new RaceJob<T>(p, r));
+  return r;
+}
+class AnyState<T> {
+  left: i32 = 0;
+  result: Promise<T> = __newPromise<T>();
+}
+class AnyJob<T> extends Job {
+  constructor(public p: Promise<T>, public st: AnyState<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) { this.st.result.resolveWith(this.p.value[0]); return; }
+    this.st.left--;
+    if (this.st.left === 0) this.st.result.rejectWith(new Error('All promises were rejected'));
+  }
+}
+function __any<T>(ps: Promise<T>[]): Promise<T> {
+  const st = new AnyState<T>();
+  st.left = ps.length;
+  if (ps.length === 0) st.result.rejectWith(new Error('All promises were rejected'));
+  for (const p of ps) p.subscribe(new AnyJob<T>(p, st));
+  return st.result;
+}
+class Settled<T> {
+  status: string = '';
+  value: T | null = null;
+  reason: Error | null = null;
+}
+class SettledState<T> {
+  left: i32 = 0;
+  items: Promise<T>[] = [];
+  result: Promise<Settled<T>[]> = __newPromise<Settled<T>[]>();
+}
+class SettledJob<T> extends Job {
+  constructor(public st: SettledState<T>) { super(); }
+  run(): void {
+    this.st.left--;
+    if (this.st.left !== 0) return;
+    const out: Settled<T>[] = [];
+    for (const q of this.st.items) {
+      const s = new Settled<T>();
+      const err = q.error;
+      if (err !== null) { s.status = 'rejected'; s.reason = err; } else { s.status = 'fulfilled'; s.value = q.value[0]; }
+      out.push(s);
+    }
+    this.st.result.resolveWith(out);
+  }
+}
+function __allSettled<T>(ps: Promise<T>[]): Promise<Settled<T>[]> {
+  const st = new SettledState<T>();
+  st.items = ps;
+  st.left = ps.length;
+  if (ps.length === 0) { st.result.resolveWith([]); return st.result; }
+  for (const p of ps) p.subscribe(new SettledJob<T>(st));
+  return st.result;
+}
+class Resolvers<T> {
+  promise: Promise<T>;
+  resolve: (v: T) => void;
+  reject: (e: Error) => void;
+  constructor(p: Promise<T>) {
+    this.promise = p;
+    this.resolve = (v: T): void => { p.resolveWith(v); };
+    this.reject = (e: Error): void => { p.rejectWith(e); };
+  }
+}
+class NeverPromise extends PromiseBase { }
+function __rejectedN(e: Error): NeverPromise {
+  const p = new NeverPromise();
+  p.rejectWith(e);
+  return p;
+}
+function __withResolvers<T = never>(): Resolvers<T> { return new Resolvers<T>(__newPromise<T>()); }
 )ZN";
 
 // Arenas hold per-frame memory in the AOT runtime; here an arena is a scope marker that releases nothing.

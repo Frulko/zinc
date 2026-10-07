@@ -1,0 +1,16 @@
+true
+sync
+bad 1
+typed
+w 9
+p rej
+micro
+then 2
+x closed
+all 2 3
+2 fulfilled rejected x
+race 1
+any 3
+any failed
+q 5
+timer

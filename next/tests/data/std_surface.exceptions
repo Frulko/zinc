@@ -1,4 +1,3 @@
 # Members of lib/zinc.d.ts that the engine does not provide yet, with the reason. tools/dts-walk skips them.
 Console.table needs the object formatter of the dyn prelude for rows and columns; tracked with the Node console parity items
 Promise.catch the declaration is an overload pair, the probe picks the wrong signature (Promise.catch itself works)
-PromiseConstructor.reject Promise as a value arrives with the Promise statics (L-promise, ZN-070 area)

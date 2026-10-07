@@ -132,18 +132,18 @@ const char* kPrelude = R"JS(
   g.__clock = () => clock;
   Date.now = () => clock;
   for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine
-  g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
-  g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };
+  g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
+  g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, ord: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };
   g.clearTimeout = g.clearInterval = id => { timers = timers.filter(t => t.id !== id); };
   g.queueMicrotask = f => { Promise.resolve().then(f); };
-  function earliest() { let b = -1; for (let i = 0; i < timers.length; i++) if (b < 0 || timers[i].at < timers[b].at || (timers[i].at === timers[b].at && timers[i].seq < timers[b].seq)) b = i; return b; }
+  function earliest() { let b = -1; for (let i = 0; i < timers.length; i++) if (b < 0 || timers[i].ord < timers[b].ord || (timers[i].ord === timers[b].ord && timers[i].seq < timers[b].seq)) b = i; return b; }
   // fire the timers that are due at `now` (a frame loop); returns after each so the host can run the promise jobs
   g.__dueTimer = now => {
     const b = earliest();
     if (b < 0 || timers[b].at > now) return null;
     const t = timers[b];
     timers.splice(b, 1);
-    if (t.every > 0) timers.push({ at: t.at + t.every, seq: seq++, id: t.id, every: t.every, f: t.f });
+    if (t.every > 0) timers.push({ at: t.at + t.every, ord: t.ord + t.every, seq: seq++, id: t.id, every: t.every, f: t.f });
     return t.f;
   };
   // jump to the next timer (no frame loop): returns its callback or null when none is left
@@ -153,7 +153,7 @@ const char* kPrelude = R"JS(
     const t = timers[b];
     timers.splice(b, 1);
     if (t.at > clock) clock = t.at;
-    if (t.every > 0) timers.push({ at: t.at + t.every, seq: seq++, id: t.id, every: t.every, f: t.f });
+    if (t.every > 0) timers.push({ at: t.at + t.every, ord: t.ord + t.every, seq: seq++, id: t.id, every: t.every, f: t.f });
     return t.f;
   };
   g.__setClock = ms => { clock = ms; };
