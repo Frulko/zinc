@@ -373,6 +373,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
     case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
     case Rt::HostStdinRead: zn::loop::readStdin(); break;
+    case Rt::HostOscListen: r->i = zn::loop::oscListen(n(0)) ? 1 : 0; break;
+    case Rt::HostOscClose: zn::loop::oscClose(); break;
+    case Rt::HostOscSend: r->i = zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
     case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }

@@ -181,7 +181,9 @@
   X(HostProcSpawnEx, "host.procSpawnEx", "ssss>i", 2) X(HostProcError, "host.procError", ">s", 2) X(HostProcPid, "host.procPid", "i>i", 2) \
   X(HostProcWrite, "host.procWrite", "is>i", 2) X(HostProcCloseStdin, "host.procCloseStdin", "i>n", 2) X(HostProcSignal, "host.procSignal", "ii>n", 2) \
   X(HostEvNext, "host.evNext", ">s", 2) X(HostEvActive, "host.evActive", ">i", 2) \
-  X(HostSigWatch, "host.sigWatch", "s>i", 2) X(HostSigSend, "host.sigSend", "is>i", 2) X(HostStdinRead, "host.stdinRead", ">n", 2)
+  X(HostSigWatch, "host.sigWatch", "s>i", 2) X(HostSigSend, "host.sigSend", "is>i", 2) X(HostStdinRead, "host.stdinRead", ">n", 2) \
+  /* zinc:osc (ZN-085) */ \
+  X(HostOscListen, "host.oscListen", "i>i", 2) X(HostOscClose, "host.oscClose", ">n", 2) X(HostOscSend, "host.oscSend", "sis>i", 2)
 
 namespace zn {
 

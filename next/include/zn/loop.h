@@ -44,5 +44,9 @@ bool active();
 bool watchSignal(const std::string& name);              // false for an unknown or uncatchable name
 bool sendSignal(int pid, const std::string& name);      // false for an unknown name
 void readStdin();
+// zinc:osc over UDP (src/host/osc.cpp): packed messages (see osc.h) arrive as events of kind 20; a listening socket keeps the loop alive.
+bool oscListen(int port);
+void oscClose();
+bool oscSend(const std::string& host, int port, const std::string& packed);
 
 }  // namespace zn::loop

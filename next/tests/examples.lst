@@ -16,12 +16,12 @@ camera/bench/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (g
 camera/cli/src/main.ts | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
 camera/remote/src/main.tsx | COMPILE | plugins/gphoto2 sim: empty array literal (gphoto2.sim.ts:32) | ZN-110
 canvas/sketch/main.tsx | OK |  | 
-chataigne/src/main.tsx | COMPILE | zinc:osc is not a module yet | ZN-085
+chataigne/src/main.tsx | OK |  | 
 flipctl/src/main.ts | OK |  | 
 hello/src/main.ts | OK |  | 
 hero/src/main.tsx | OK |  | 
 inferno-todo/src/main.tsx | COMPILE | class components in React JSX mode, record literal assignability | ZN-163
-iot-panel/src/main.tsx | COMPILE | zinc:gpio is not a module yet | ZN-081
+iot-panel/src/main.tsx | OK |  | 
 lang/src/main.ts | OK |  | 
 led/falling-cubes/src/main.ts | OK |  | 
 led/oled-clock/src/main.tsx | OK |  | 
@@ -56,7 +56,7 @@ ui/kit-gallery/src/main.tsx | OK |  |
 ui/lottie-gallery/src/main.tsx | OK |  | 
 video/bounce/src/main.ts | OK |  | 
 video/looper/src/main.ts | OK |  | 
-video/mapper/src/main.ts | COMPILE | zinc:osc is not a module yet (plugins/mapping) | ZN-085
+video/mapper/src/main.ts | OK |  | 
 video/quad/src/main.ts | OK |  | 
 webview/hybrid/main.tsx | OK |  | 
 zed-editor/sample/src/main.ts | OK |  | 

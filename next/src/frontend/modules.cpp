@@ -401,6 +401,37 @@ export class Emitter<T> {
 }
 )ZN";
 
+// zinc:osc: OSC 1.0 over UDP (src/host/osc.cpp). Messages cross the host as one packed string: address, then "n:<number>" / "s:<text>" items joined by \x1e.
+const char* kOscModule = R"ZN(
+export interface OscMessage { address: string; numbers: f64[]; strings: string[] }
+let __oscCb: ((m: OscMessage) => void) | null = null;
+let __oscHooked: boolean = false;
+export function send(host: string, port: i32, address: string, numbers: f64[], strings?: string[]): void {
+  let packed = address;
+  for (const v of numbers) packed += '\u001en:' + v;
+  if (strings !== undefined) for (const s of strings) packed += '\u001es:' + s;
+  __host_oscSend(host, port, packed);
+}
+export function listen(port: i32, cb: (m: OscMessage) => void): void {
+  if (__host_oscListen(port) === 0) throw new Error('osc: cannot bind port');
+  __oscCb = cb;
+  if (__oscHooked) return;
+  __oscHooked = true;
+  __addEvHandler((h: i32, kind: i32, data: string) => {
+    const f = __oscCb;
+    if (kind !== 20 || f === null) return;
+    const parts = data.split('\u001e');
+    const m: OscMessage = { address: parts[0], numbers: [], strings: [] };
+    for (let i: i32 = 1; i < parts.length; i++) {
+      if (parts[i].startsWith('n:')) m.numbers.push(parseFloat(parts[i].slice(2)));
+      else m.strings.push(parts[i].slice(2));
+    }
+    f(m);
+  });
+}
+export function close(): void { __host_oscClose(); __oscCb = null; }
+)ZN";
+
 // zinc:gpio: the simulated board of runtime/mod/gpio.cpp (macos, linux, sim): 64 pins, edges with debounce delivered as microtasks, and ZINC_GPIO_SCRIPT="27:0@100,27:1@150"
 // (pin:value@milliseconds) driving inputs after the program starts. The Linux libgpiod backend is a plugin of the target.
 const char* kGpioModule = R"ZN(
@@ -591,6 +622,7 @@ std::string platformModuleSource(const std::string& capsFile) {
 const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:events") return kEventsModule;
   if (spec == "zinc:gpio") return kGpioModule;
+  if (spec == "zinc:osc") return kOscModule;
   if (spec == "zinc:gfx") return kGfxModule;
   if (spec == "zinc:sys") return kSysModule;
   if (spec == "zinc:fs") return kFsModule;

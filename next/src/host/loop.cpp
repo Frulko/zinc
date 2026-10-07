@@ -1,5 +1,6 @@
 // The event loop of the host on libuv (ZN-082), see include/zn/loop.h.
 #include "zn/loop.h"
+#include "osc.h"
 
 #include <uv.h>
 
@@ -266,9 +267,69 @@ bool nextEvent(Event& out) {
   gEvents.pop_front();
   return true;
 }
+
+// ---- zinc:osc (ZN-085): OSC over UDP; a received datagram becomes events of kind 20 (one packed message each)
+namespace {
+uv_udp_t* gOscRx = nullptr;   // one per listen: a closing handle may not be reused
+uv_udp_t gOscTx;
+bool gOscRxOpen = false, gOscTxOpen = false;
+void onOscClosed(uv_handle_t* h) { delete reinterpret_cast<uv_udp_t*>(h); }
+void onOscAlloc(uv_handle_t*, size_t, uv_buf_t* buf) {
+  static char mem[65536];
+  buf->base = mem;
+  buf->len = sizeof mem;
+}
+void onOscRecv(uv_udp_t*, ssize_t n, const uv_buf_t* buf, const sockaddr* from, unsigned) {
+  if (n <= 0 || !from) return;
+  for (std::string& m : osc::decode(reinterpret_cast<const uint8_t*>(buf->base), static_cast<size_t>(n))) gEvents.push_back({0, 20, std::move(m)});
+}
+bool resolve(const std::string& host, int port, sockaddr_storage* out) {
+  auto* a4 = reinterpret_cast<sockaddr_in*>(out);
+  if (uv_ip4_addr(host.c_str(), port, a4) == 0) return true;
+  uv_getaddrinfo_t req;
+  addrinfo hints{};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  if (uv_getaddrinfo(loop(), &req, nullptr, host.c_str(), nullptr, &hints) != 0 || !req.addrinfo) return false;
+  *a4 = *reinterpret_cast<sockaddr_in*>(req.addrinfo->ai_addr);
+  a4->sin_port = htons(static_cast<uint16_t>(port));
+  uv_freeaddrinfo(req.addrinfo);
+  return true;
+}
+}  // namespace
+
+bool oscListen(int port) {
+  oscClose();
+  auto* h = new uv_udp_t;
+  uv_udp_init(loop(), h);
+  sockaddr_in a;
+  uv_ip4_addr("0.0.0.0", port, &a);
+  if (uv_udp_bind(h, reinterpret_cast<sockaddr*>(&a), UV_UDP_REUSEADDR) != 0 || uv_udp_recv_start(h, onOscAlloc, onOscRecv) != 0) {
+    uv_close(reinterpret_cast<uv_handle_t*>(h), onOscClosed);
+    return false;
+  }
+  gOscRx = h;
+  gOscRxOpen = true;
+  return true;
+}
+void oscClose() {
+  if (!gOscRxOpen) return;
+  gOscRxOpen = false;
+  uv_udp_recv_stop(gOscRx);
+  uv_close(reinterpret_cast<uv_handle_t*>(gOscRx), onOscClosed);
+  gOscRx = nullptr;
+}
+bool oscSend(const std::string& host, int port, const std::string& packed) {
+  if (!gOscTxOpen) { uv_udp_init(loop(), &gOscTx); gOscTxOpen = true; uv_unref(reinterpret_cast<uv_handle_t*>(&gOscTx)); }
+  sockaddr_storage a;
+  if (!resolve(host, port, &a)) return false;
+  std::string data = osc::encode(packed);
+  uv_buf_t b = uv_buf_init(data.data(), static_cast<unsigned>(data.size()));
+  return uv_udp_try_send(&gOscTx, &b, 1, reinterpret_cast<sockaddr*>(&a)) >= 0;
+}
 bool active() {
   for (const auto& p : gProcs) if (p->procOpen || p->outOpen || p->errOpen || (p->exited && !p->reported)) return true;
-  return gWatched > 0 || gStdin || !gEvents.empty();
+  return gWatched > 0 || gStdin || gOscRxOpen || !gEvents.empty();
 }
 bool watchSignal(const std::string& name) {
   const SigName* s = sigByName(name);
