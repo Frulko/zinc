@@ -168,16 +168,22 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     if (!c.empty()) cflags.push_back(c);
     if (!l.empty()) libs.push_back(l);
   }
+  // a path in `flags`, `libs` or `linkFlags` that starts with ./ or ../ (or follows -I / -L) is relative to the plugin, not to wherever zinc runs
+  auto rel = [&](const std::string& t) {
+    size_t at = t.rfind("-I", 0) == 0 || t.rfind("-L", 0) == 0 ? 2 : 0;
+    if (t.compare(at, 2, "./") != 0 && t.compare(at, 3, "../") != 0) return t;
+    return t.substr(0, at) + (fs::path(p.dir) / t.substr(at)).lexically_normal().string();
+  };
   for (const std::string& f : ts.frameworks) { libs.push_back("-framework " + f); }
-  for (const std::string& l : ts.libs) libs.push_back(l.rfind("-", 0) == 0 ? l : "-l" + l);
-  for (const std::string& l : ts.linkFlags) libs.push_back(l);
+  for (const std::string& l : ts.libs) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : l.rfind(".", 0) == 0 ? q(rel(l)) : "-l" + l);
+  for (const std::string& l : ts.linkFlags) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : q(rel(l)));
   out.linkArgs = libs;
   // flags: the runtime's own, the manifest's defines, the options as ZP_ defines
   std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
   for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
   std::string flags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
-  for (const std::string& f : ts.flags) flags += " " + f;
+  for (const std::string& f : ts.flags) flags += " " + rel(f);
   for (const std::string& c : cflags) flags += " " + c;
   std::string defs;
   for (const std::string& d : defines) defs += " -D" + q(d);
