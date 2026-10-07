@@ -246,7 +246,7 @@
    "op": "dock.bounce",
    "permission": "dock",
    "params": {
-    "critical?": "boolean"
+    "kind": "'informational' | 'critical'"
    },
    "returns": "{}",
    "sim": "{}"
@@ -324,6 +324,31 @@
    },
    "returns": "{ok: boolean}",
    "sim": "{\"ok\":false}"
+  },
+  {
+   "op": "dock.getBadge",
+   "permission": "dock",
+   "params": {},
+   "returns": "{text: string}",
+   "sim": "{\"text\":\"\"}"
+  },
+  {
+   "op": "dock.setMenu",
+   "permission": "dock",
+   "params": {
+    "template": "MenuItem[]"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "dock.setProgress",
+   "permission": "dock",
+   "params": {
+    "value": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
   }
  ],
  "events": [

@@ -83,6 +83,8 @@ function encode(it: Item, app: string): string {
   }
   return json + '}';
 }
+/** The JSON of a menu template (roles expanded): what the dock menu and the tray menu send too. */
+export function encodeItems(items: Item[]): string { return encodeAll(items); }
 function encodeAll(items: Item[]): string {
   const app = appName();
   let json = '[';

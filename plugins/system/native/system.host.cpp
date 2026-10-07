@@ -60,6 +60,7 @@ struct SimNote { char id[64], title[128], body[256]; };
 struct Sim : NativeSystem, zrt::Poller {
   char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
   int nanswers = 0, nextAnswer = 0;
+  char badge[64] = "";
   SimNote notes[32];
   int nnotes = 0;
   int nextNote = 1;
@@ -158,6 +159,8 @@ struct Sim : NativeSystem, zrt::Poller {
 #ifdef __APPLE__
       if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif
+      if (!strcmp(name, "dock.setBadge")) { badge[0] = 0; jsonString(args, "text", badge, sizeof badge); return reply("{}"); }
+      if (!strcmp(name, "dock.getBadge")) { char b[160] = "{\"text\":"; appendJson(b, sizeof b, badge); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "notification.", 13)) return notification(name, args);
       if (!strcmp(name, "menu.popup") || !strncmp(name, "dialog.", 7)) return answer(name);
       if (!strcmp(name, "window.confirmClose") && hal_set_close_handler) zrt::quit_requested = true;   // a real window: the veto of the close button ends here

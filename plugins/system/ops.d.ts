@@ -27,7 +27,7 @@ export interface OpArgs {
   'autostart.set': { enabled: boolean };
   'autostart.get': {  };
   'dock.setBadge': { text: string };
-  'dock.bounce': { critical?: boolean };
+  'dock.bounce': { kind: 'informational' | 'critical' };
   'power.preventSleep': { reason?: string };
   'power.release': { token: number };
   'clipboard.writeRich': { text: string; html?: string };
@@ -37,6 +37,9 @@ export interface OpArgs {
   'notification.backend': {  };
   'menu.dump': {  };
   'menu.perform': { path: string };
+  'dock.getBadge': {  };
+  'dock.setMenu': { template: MenuItem[] };
+  'dock.setProgress': { value: number };
 }
 
 export interface OpResult {
@@ -75,6 +78,9 @@ export interface OpResult {
   'notification.backend': {backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'};
   'menu.dump': {text: string};
   'menu.perform': {ok: boolean};
+  'dock.getBadge': {text: string};
+  'dock.setMenu': {};
+  'dock.setProgress': {};
 }
 
 export type OpName = keyof OpArgs;

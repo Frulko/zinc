@@ -23,6 +23,7 @@
   },
   "modules": {
     "zinc:system/notification": "notification.ts",
-    "zinc:system/menu": "menu.ts"
+    "zinc:system/menu": "menu.ts",
+    "zinc:system/dock": "dock.ts"
   }
 }

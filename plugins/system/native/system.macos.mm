@@ -4,6 +4,7 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
+#import <objc/runtime.h>
 #include <string.h>
 
 static NSString* const kNone = nil;
@@ -84,6 +85,7 @@ static NSString* osascript(NSDictionary* a) {
 static NSMutableDictionary<NSString*, NSMenuItem*>* gMenuItems;
 static NSString* gPicked;       // popup: the id that was chosen
 static BOOL gInPopup = NO;
+static NSMenu* gDockMenu;       // the dock menu (ZN-237)
 
 @interface ZnMenuTarget : NSObject
 - (void)znClicked:(NSMenuItem*)item;
@@ -93,7 +95,7 @@ static BOOL gInPopup = NO;
   NSString* ident = item.representedObject;
   if (!ident) return;
   if (gInPopup) gPicked = ident;
-  pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : @"app"]);
+  pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : (item.tag == 1 ? @"dock" : @"app")]);
 }
 @end
 static ZnMenuTarget* menuTarget() { static ZnMenuTarget* t; static dispatch_once_t once; dispatch_once(&once, ^{ t = [ZnMenuTarget new]; gMenuItems = [NSMutableDictionary new]; }); return t; }
@@ -123,14 +125,15 @@ static SEL selectorOfRole(NSString* r) {
   if ([r isEqualToString:@"togglefullscreen"]) return @selector(toggleFullScreen:);
   return nullptr;
 }
-static NSMenu* buildMenu(NSArray* items, NSString* title) {
+static NSMenu* buildMenu(NSArray* items, NSString* title, NSInteger tag = 0) {
   NSMenu* m = [[NSMenu alloc] initWithTitle:title ?: @""];
   m.autoenablesItems = NO;
   for (NSDictionary* d in items) {
     if ([d[@"type"] isEqualToString:@"separator"]) { [m addItem:[NSMenuItem separatorItem]]; continue; }
     NSMenuItem* it = [[NSMenuItem alloc] initWithTitle:d[@"label"] ?: @"" action:nil keyEquivalent:@""];
     NSString* ident = d[@"id"];
-    if (d[@"submenu"]) it.submenu = buildMenu(d[@"submenu"], d[@"label"]);
+    it.tag = tag;
+    if (d[@"submenu"]) it.submenu = buildMenu(d[@"submenu"], d[@"label"], tag);
     else if ([d[@"native"] boolValue] && selectorOfRole(d[@"role"])) { it.action = selectorOfRole(d[@"role"]); it.target = nil; }   // the responder chain answers
     else if ([d[@"role"] isEqualToString:@"services"]) { NSMenu* sm = [[NSMenu alloc] initWithTitle:@"Services"]; it.submenu = sm; [NSApp setServicesMenu:sm]; }
     else { it.action = @selector(znClicked:); it.target = menuTarget(); }
@@ -206,10 +209,55 @@ static int menuCall(const char* op, NSDictionary* a, char* out, int cap) {
     result = json(@{@"text": text});
   } else if (!strcmp(op, "menu.perform")) {
     NSArray* path = [(NSString*)a[@"path"] componentsSeparatedByString:@"/"];
-    NSMenuItem* it = NSApp.mainMenu ? findByPath(NSApp.mainMenu, path, 0) : nil;
+    NSMenu* root = [a[@"dock"] boolValue] ? gDockMenu : NSApp.mainMenu;   // dock: true performs an item of the dock menu
+    NSMenuItem* it = root ? findByPath(root, path, 0) : nil;
     BOOL did = NO;
     if (it && it.menu && it.enabled) { [it.menu performActionForItemAtIndex:[it.menu indexOfItem:it]]; did = YES; }
     result = json(@{@"ok": @(did)});
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
+// ---------------------------------------------------------------- dock (ZN-237)
+static NSMenu* dockMenuIMP(id, SEL, NSApplication*) { return gDockMenu; }
+@interface ZnDockView : NSView { @public double progress; }
+@end
+@implementation ZnDockView
+- (void)drawRect:(NSRect)r {
+  [NSApp.applicationIconImage drawInRect:self.bounds];
+  if (progress < 0) return;
+  NSRect bar = NSMakeRect(self.bounds.size.width * 0.1, self.bounds.size.height * 0.08, self.bounds.size.width * 0.8, self.bounds.size.height * 0.08);
+  [[NSColor colorWithWhite:0 alpha:0.5] set]; [[NSBezierPath bezierPathWithRoundedRect:bar xRadius:4 yRadius:4] fill];
+  NSRect fill = bar; fill.size.width *= (CGFloat)progress;
+  [[NSColor systemBlueColor] set]; [[NSBezierPath bezierPathWithRoundedRect:fill xRadius:4 yRadius:4] fill];
+}
+@end
+@interface ZnAppDelegate : NSObject <NSApplicationDelegate>
+@end
+@implementation ZnAppDelegate
+@end
+static ZnAppDelegate* gOwnDelegate;
+
+static int dockCall(const char* op, NSDictionary* a, char* out, int cap) {
+  [NSApplication sharedApplication];
+  NSString* result = nil;
+  if (!strcmp(op, "dock.setBadge")) { NSApp.dockTile.badgeLabel = [a[@"text"] length] ? a[@"text"] : nil; result = @"{}"; }
+  else if (!strcmp(op, "dock.getBadge")) result = json(@{@"text": NSApp.dockTile.badgeLabel ?: @""});
+  else if (!strcmp(op, "dock.bounce")) { [NSApp requestUserAttention:[a[@"kind"] isEqualToString:@"critical"] ? NSCriticalRequest : NSInformationalRequest]; result = @"{}"; }
+  else if (!strcmp(op, "dock.setProgress")) {
+    double v = [a[@"value"] doubleValue];
+    if (v < 0) NSApp.dockTile.contentView = nil;
+    else { ZnDockView* view = [[ZnDockView alloc] initWithFrame:NSMakeRect(0, 0, 128, 128)]; view->progress = v > 1 ? 1 : v; NSApp.dockTile.contentView = view; }
+    [NSApp.dockTile display];
+    result = @"{}";
+  } else if (!strcmp(op, "dock.setMenu")) {
+    gDockMenu = buildMenu(a[@"template"], @"", 1);
+    id del = NSApp.delegate;
+    if (!del) { gOwnDelegate = [ZnAppDelegate new]; NSApp.delegate = gOwnDelegate; del = gOwnDelegate; }
+    if (![del respondsToSelector:@selector(applicationDockMenu:)]) class_addMethod([del class], @selector(applicationDockMenu:), (IMP)dockMenuIMP, "@@:@");   // SDL owns the delegate: the method is added to its class
+    result = @"{}";
   }
   if (!result) return 0;
   snprintf(out, (size_t)cap, "%s", result.UTF8String);
@@ -226,6 +274,10 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     if (!strncmp(op, "menu.", 5)) {
       @try { return menuCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
+    }
+    if (!strncmp(op, "dock.", 5)) {
+      @try { return dockCall(op, a, out, cap); }
+      @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
     }
     if (strncmp(op, "notification.", 13) != 0) return 0;
     NSString* result = nil;

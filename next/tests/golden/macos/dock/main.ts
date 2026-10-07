@@ -1,0 +1,14 @@
+import * as system from 'zinc:system';
+import * as menu from 'zinc:system/menu';
+import * as dock from 'zinc:system/dock';
+menu.setApp([menu.role('appMenu')]);
+dock.setBadge('7');
+console.log('badge readback', JSON.stringify(dock.getBadge()));
+dock.setProgress(0.4);
+dock.setMenu([menu.item('new-window', 'New Window'), menu.separator(), menu.item('quit-all', 'Quit All')]);
+dock.onClick('new-window', (source: string) => console.log('dock item fired from', source));
+console.log(JSON.stringify(system.call('menu.perform', { path: 'New Window', dock: true })));
+dock.setProgress(-1);
+dock.setBadge('');
+console.log('badge cleared', JSON.stringify(dock.getBadge()));
+setTimeout(() => system.quit(0), 300);

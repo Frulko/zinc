@@ -1,0 +1,1 @@
+{"name":"dock","entry":"main.ts","permissions":["dock","menu"],"app":{"id":"com.example.dock","name":"Dock"}}
