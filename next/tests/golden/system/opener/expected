@@ -1,0 +1,17 @@
+[system] opener.open {"target":"https://example.com/docs"}
+[system] opener.open {"target":"mailto:dev@example.com"}
+[system] opener.open {"target":"file:///etc/passwd"}
+[system] denied opener.open file:///etc/passwd
+[system] opener.open {"target":"http://example.com"}
+[system] denied opener.open http://example.com
+[system] opener.reveal {"path":"/tmp"}
+[system] opener.last {}
+[system] deep-link.getCurrent {}
+[system] event {"type":"open-url","args":["notes://doc/1"]}
+[system] event {"type":"open-file","args":["/tmp/a.md"]}
+file url: file:///etc/passwd is outside scopes.opener.allow
+http url: http://example.com is outside scopes.opener.allow
+last {"text":"reveal /tmp"}
+current []
+open-url notes://doc/1
+open-file /tmp/a.md

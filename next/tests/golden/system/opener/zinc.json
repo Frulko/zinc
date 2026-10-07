@@ -1,0 +1,1 @@
+{"name":"op","entry":"main.ts","permissions":["opener","deep-link"],"scopes":{"opener":{"allow":["https://*","mailto:"]}}}

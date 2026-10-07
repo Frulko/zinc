@@ -5,6 +5,7 @@
 #import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <objc/runtime.h>
+#include <unistd.h>
 #import <Carbon/Carbon.h>
 #include <string.h>
 
@@ -94,6 +95,7 @@ static void ensureApp() {
   });
 }
 static int gPumps = 0;
+static NSMutableArray<NSString*>* gStartUrls;   // URLs received since the process started: what deeplink.current() reports
 static NSMutableDictionary<NSString*, NSString*>* gDeclared;   // id -> the accelerator the program declared (AppKit rewrites the keys of some items itself)
 static NSMutableDictionary<NSString*, NSMenuItem*>* gMenuItems;
 static NSString* gPicked;       // popup: the id that was chosen
@@ -563,6 +565,56 @@ static int shortcutCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+// ---------------------------------------------------------------- deep links, file open, opener (ZN-243)
+
+@interface ZnUrlHandler : NSObject
+- (void)handleURL:(NSAppleEventDescriptor*)e withReply:(NSAppleEventDescriptor*)r;
+@end
+@implementation ZnUrlHandler
+- (void)handleURL:(NSAppleEventDescriptor*)e withReply:(NSAppleEventDescriptor*)r {
+  NSString* url = [[e paramDescriptorForKeyword:keyDirectObject] stringValue];
+  if (!url) return;
+  [gStartUrls addObject:url];
+  pushEvent(@"open-url", @[url]);
+}
+@end
+static void installUrlHandler() {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    gStartUrls = [NSMutableArray new];
+    static ZnUrlHandler* h; h = [ZnUrlHandler new];
+    [[NSAppleEventManager sharedAppleEventManager] setEventHandler:h andSelector:@selector(handleURL:withReply:) forEventClass:kInternetEventClass andEventID:kAEGetURL];   // before the first event is served: a cold start delivers it right after launch
+  });
+}
+static void openFilesIMP(id, SEL, NSApplication*, NSArray<NSString*>* files) { pushEvent(@"open-file", files); }
+static int linkCall(const char* op, NSDictionary* a, char* out, int cap) {
+  ensureApp();
+  installUrlHandler();
+  NSString* result = nil;
+  if (!strcmp(op, "deep-link.getCurrent")) {
+    static BOOL waited;
+    if (!waited) {   // a cold start (launched by launchd, not from a terminal) delivers the URL right after launch: serve AppKit's queue for a moment so current() already has it
+      waited = YES;
+      NSDate* until = [NSDate dateWithTimeIntervalSinceNow:getppid() == 1 ? 2.0 : 0.0];
+      while (gStartUrls.count == 0 && [until timeIntervalSinceNow] > 0) { NSEvent* e = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate dateWithTimeIntervalSinceNow:0.05] inMode:NSDefaultRunLoopMode dequeue:YES]; if (e) [NSApp sendEvent:e]; }
+    }
+    result = json(@{@"urls": gStartUrls});
+  }
+  else if (!strcmp(op, "opener.open")) {
+    NSString* t = a[@"target"] ?: @"";
+    NSURL* u = [t containsString:@"://"] || [t hasPrefix:@"mailto:"] ? [NSURL URLWithString:t] : [NSURL fileURLWithPath:t];
+    BOOL ok = u && [[NSWorkspace sharedWorkspace] openURL:u];
+    result = ok ? @"{}" : @"{\"error\":{\"code\":\"failed\",\"message\":\"the system could not open it\"}}";
+  } else if (!strcmp(op, "opener.reveal")) {
+    NSString* p = a[@"path"] ?: @"";
+    if ([[NSFileManager defaultManager] fileExistsAtPath:p]) [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:p]]];
+    result = @"{}";
+  }
+  if (!result) return 0;
+  snprintf(out, (size_t)cap, "%s", result.UTF8String);
+  return 1;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -575,6 +627,7 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }   // AppKit raises on a malformed menu: an error, not a crash
     }
     if (!strncmp(op, "shortcut.", 9)) return shortcutCall(op, a, out, cap);
+    if (!strcmp(op, "deep-link.getCurrent") || !strcmp(op, "opener.open") || !strcmp(op, "opener.reveal")) { @try { return linkCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "window.", 7) && strcmp(op, "window.confirmClose")) {
       @try { return windowCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
@@ -659,7 +712,7 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
 int zn_sys_macos_pump(void) {
   @autoreleasepool {
     gPumps++;
-    if (!gTrays || (gTrays.count == 0 && !gDockMenu && !NSApp.mainMenu)) return 0;
+    if ((!gTrays || gTrays.count == 0) && !gDockMenu && !gStartUrls && !(NSApp && NSApp.mainMenu)) return 0;
     for (NSWindow* w in NSApp.windows) if (w.level == NSNormalWindowLevel) return 0;   // an app window exists: its own loop (SDL) serves AppKit; status item windows do not count
     for (int i = 0; i < 50; i++) {
       NSEvent* e = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:(i == 0 ? [NSDate dateWithTimeIntervalSinceNow:0.004] : nil) inMode:NSDefaultRunLoopMode dequeue:YES];   // the first call waits a moment: the run loop sources that place the status item need to run

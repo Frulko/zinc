@@ -100,6 +100,9 @@ struct SimNote { char id[64], title[128], body[256]; };
 struct Sim : NativeSystem, zrt::Poller {
   char answers[16][256];   // queued answers for popups and dialogs (script events dialog-answer; a dialog with no answer is cancelled, never blocks)
   int nanswers = 0, nextAnswer = 0;
+  char openerAllow[16][160];   // zinc.json scopes.opener.allow: prefixes, `*` matches anything after
+  int nopenerAllow = -1;       // -1: no scope given (everything the permission allows)
+  char lastOpen[400] = "";
   int lockFd = -1, listenFd = -1;   // single instance: the lock file and the socket the second instance writes to
   char badge[64] = "";
   char hotkeys[16][64];   // accelerators registered in the simulator: a second registration of the same one is a conflict
@@ -140,7 +143,8 @@ struct Sim : NativeSystem, zrt::Poller {
   void setScopes(zrt::String json) override {
     char* t = (char*)malloc(json.bytes() + 1);
     memcpy(t, json.ptr(), json.bytes()); t[json.bytes()] = 0;
-    if (strstr(t, "\"fs\":\"user-picked\"") && zn_host_fs_scope) zn_host_fs_scope(1);   // the picked paths are granted as the dialogs answer
+    if (strstr(t, "\"fs\":\"user-picked\"") && zn_host_fs_scope) zn_host_fs_scope(1);
+    if (strstr(t, "\"opener\"")) nopenerAllow = jsonStrings(strstr(t, "\"opener\""), "allow", openerAllow, 16);   // the picked paths are granted as the dialogs answer
     free(t);
   }
   void setApp(zrt::String json) override {
@@ -209,6 +213,9 @@ struct Sim : NativeSystem, zrt::Poller {
       if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif
 
+      if (!strcmp(name, "opener.last")) { char b[500] = "{\"text\":"; appendJson(b, sizeof b, lastOpen); strcat(b, "}"); return reply(b); }
+      if (!strncmp(name, "opener.", 7)) { zrt::String r = opener(name, args); if (strstr(r.ptr(), "\"error\"")) return r; }   // the scope check runs first, in the simulator and live alike
+      if (!strcmp(name, "deep-link.register")) return registerScheme(args);
       if (!strcmp(name, "instance.lock")) return lockInstance(args);
       if (!strcmp(name, "autostart.set") || !strcmp(name, "autostart.get")) return autostart(name, args);
       if (!strcmp(name, "shortcut.register")) {
@@ -360,6 +367,60 @@ struct Sim : NativeSystem, zrt::Poller {
 #endif
     fclose(f);
     return reply("{}");
+  }
+
+  bool openerAllows(const char* target) const {
+    if (nopenerAllow < 0) return true;
+    for (int i = 0; i < nopenerAllow; i++) {
+      const char* pat = openerAllow[i];
+      size_t n = strlen(pat);
+      if (n && pat[n - 1] == '*') { if (!strncmp(target, pat, n - 1)) return true; }
+      else if (!strncmp(target, pat, n)) return true;   // `mailto:` allows every mailto address
+    }
+    return false;
+  }
+  zrt::String opener(const char* name, const char* args) {
+    char target[400] = "";
+    jsonString(args, !strcmp(name, "opener.reveal") ? "path" : "target", target, sizeof target);
+    if (!strcmp(name, "opener.open") && !openerAllows(target)) {
+      char buf[600];
+      snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"denied\",\"message\":\"%s is outside scopes.opener.allow\"}}", target);
+      log("[system] denied opener.open ", target);
+      return reply(buf);
+    }
+    snprintf(lastOpen, sizeof lastOpen, "%s %s", !strcmp(name, "opener.reveal") ? "reveal" : "open", target);
+    return reply("{}");
+  }
+
+  /** deep-link.register: a .desktop entry with the scheme as its MimeType and xdg-mime default (Linux, XDG_DATA_HOME or ~/.local/share); macOS takes schemes from the bundle's Info.plist. */
+  zrt::String registerScheme(const char* args) {
+#ifdef __APPLE__
+    (void)args;
+    return reply("{\"ok\":false,\"reason\":\"schemes come from app.urlSchemes of a bundled app\"}");
+#else
+    char scheme[64] = "", id[96] = "", title[96] = "", dir[400], path[480], exe[1024] = "";
+    jsonString(args, "scheme", scheme, sizeof scheme); jsonString(args, "id", id, sizeof id); jsonString(args, "name", title, sizeof title);
+    if (!scheme[0] || !id[0]) return reply("{\"ok\":false,\"reason\":\"needs a scheme and the app id\"}");
+    const char* xdg = getenv("XDG_DATA_HOME");
+    if (xdg && *xdg) snprintf(dir, sizeof dir, "%s/applications", xdg);
+    else snprintf(dir, sizeof dir, "%s/.local/share/applications", getenv("HOME") ? getenv("HOME") : "/tmp");
+    char parent[400];
+    snprintf(parent, sizeof parent, "%s", dir);
+    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(parent, 0755); *q = '/'; }
+    mkdir(dir, 0755);
+    snprintf(path, sizeof path, "%s/%s.desktop", dir, id);
+    ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    exe[l > 0 ? l : 0] = 0;
+    FILE* f = fopen(path, "w");
+    if (!f) return reply("{\"ok\":false,\"reason\":\"cannot write the desktop entry\"}");
+    fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s %%u\nMimeType=x-scheme-handler/%s;\nNoDisplay=true\n", title[0] ? title : id, exe, scheme);
+    fclose(f);
+    char cmd[700];
+    snprintf(cmd, sizeof cmd, "xdg-mime default '%s.desktop' 'x-scheme-handler/%s' >/dev/null 2>&1", id, scheme);   // id and scheme come from zinc.json and the program's own call
+    int rc = system(cmd);
+    (void)rc;
+    return reply("{\"ok\":true}");
+#endif
   }
   zrt::String reply(const char* json) { return zrt::String::from(json, (uint32_t)strlen(json)); }
   /** The simulator's notification centre: ZINC_SYSTEM_NOTIFICATION_PERMISSION=granted (default) | denied | default decides what show() may do; the same id replaces. */

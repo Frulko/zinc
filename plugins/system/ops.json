@@ -227,9 +227,12 @@
    "op": "deep-link.register",
    "permission": "deep-link",
    "params": {
-    "scheme": "string"
+    "scheme": "string",
+    "id": "string",
+    "name?": "string",
+    "exec?": "string"
    },
-   "returns": "{ok: boolean}",
+   "returns": "{ok: boolean; reason?: string}",
    "sim": "{\"ok\":true}"
   },
   {
@@ -542,6 +545,22 @@
    },
    "returns": "{ok: boolean}",
    "sim": "{\"ok\":false}"
+  },
+  {
+   "op": "opener.reveal",
+   "permission": "opener",
+   "params": {
+    "path": "string"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "opener.last",
+   "permission": "opener",
+   "params": {},
+   "returns": "{text: string}",
+   "sim": "{\"text\":\"\"}"
   }
  ],
  "events": [
@@ -560,6 +579,7 @@
   "window",
   "dialog-answer",
   "tray-menu-click",
-  "tray-double"
+  "tray-double",
+  "open-file"
  ]
 }

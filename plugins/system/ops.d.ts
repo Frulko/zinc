@@ -23,7 +23,7 @@ export interface OpArgs {
   'shortcut.unregister': { accelerator: string };
   'instance.lock': { id: string; argv: string[] };
   'deep-link.getCurrent': {  };
-  'deep-link.register': { scheme: string };
+  'deep-link.register': { scheme: string; id: string; name?: string; exec?: string };
   'autostart.set': { id: string; name?: string; enabled: boolean; hidden?: boolean; args?: string[] };
   'autostart.get': { id: string };
   'dock.setBadge': { text: string };
@@ -61,6 +61,8 @@ export interface OpArgs {
   'window.dataDir': {  };
   'window.dump': {  };
   'shortcut.fire': { accelerator: string };
+  'opener.reveal': { path: string };
+  'opener.last': {  };
 }
 
 export interface OpResult {
@@ -85,7 +87,7 @@ export interface OpResult {
   'shortcut.unregister': {};
   'instance.lock': {first: boolean};
   'deep-link.getCurrent': {urls: string[]};
-  'deep-link.register': {ok: boolean};
+  'deep-link.register': {ok: boolean; reason?: string};
   'autostart.set': {};
   'autostart.get': {enabled: boolean};
   'dock.setBadge': {};
@@ -123,10 +125,12 @@ export interface OpResult {
   'window.dataDir': {path: string};
   'window.dump': {text: string};
   'shortcut.fire': {ok: boolean};
+  'opener.reveal': {};
+  'opener.last': {text: string};
 }
 
 export type OpName = keyof OpArgs;
-export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double';
+export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double' | 'open-file';
 
 /** The permission id an op needs. */
 export const PERMISSION_OF: { [op in OpName]: string };

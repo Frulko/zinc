@@ -61,5 +61,7 @@ static const ZnSystemOp kSystemOps[] = {
   {"window.dataDir", "window", "{\"path\":\"/tmp/zinc-system-data\"}"},
   {"window.dump", "window", "{\"text\":\"\"}"},
   {"shortcut.fire", "shortcut", "{\"ok\":false}"},
+  {"opener.reveal", "opener", "{}"},
+  {"opener.last", "opener", "{\"text\":\"\"}"},
 };
-static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double"};
+static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file"};

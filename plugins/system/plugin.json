@@ -31,6 +31,8 @@
     "zinc:system/window": "window.ts",
     "zinc:system/shortcut": "shortcut.ts",
     "zinc:system/instance": "instance.ts",
-    "zinc:system/autostart": "autostart.ts"
+    "zinc:system/autostart": "autostart.ts",
+    "zinc:system/deeplink": "deeplink.ts",
+    "zinc:system/opener": "opener.ts"
   }
 }
