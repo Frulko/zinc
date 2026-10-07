@@ -9,6 +9,12 @@ for n in tour clock array_search async string_number_edges conversions literal_m
   [ -f ../tests/conformance/$n.f32.out ] || continue
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile esp32 ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile esp32 does not print $n.f32.out"; fail=1; }
 done
+# fixed point (ZN-121.01): the whole fx12 corpus type-checks under --profile ps1 (what it prints is ZN-121.02)
+for f in ../tests/conformance/*.fx12.out; do
+  n=$(basename "$f" .fx12.out)
+  [ -f ../tests/conformance/$n.ts ] || continue
+  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile ps1 ../tests/conformance/$n.ts 2>&1 | grep -q "error Z" && { echo "$n: --profile ps1 does not type-check"; fail=1; }
+done
 cat > "$tmp/oom.ts" <<'T'
 const keep: number[][] = [];
 for (let i = 0; i < 100000; i++) { const a: number[] = []; for (let j = 0; j < 100; j++) a.push(j); keep.push(a); }

@@ -4175,6 +4175,12 @@ bool objAssignable(const Checked& c, std::uint32_t a, std::uint32_t b) {
 // Lossless implicit conversions between machine kinds.
 bool widens(Num from, Num to) {
   if (from == to) return true;
+  // Under a fixed-point profile the host boundary and the library (f64 code: Date, JSON, the Error classes) meet `number` code: like the prototype's Fx<F> (implicit from double, int
+  // and the other fixed-point), numbers convert both ways between fx12/fx16, f64, f32 and the integers (ZN-121).
+  if (isFx(gNumber) && (isFx(from) || isFx(to))) {
+    auto num = [](Num m) { return m == Num::f64 || m == Num::f32 || isFx(m) || m <= Num::usize; };
+    if (num(from) && num(to)) return true;
+  }
   auto in = [&](std::initializer_list<Num> l) { for (Num x : l) if (x == from) return true; return false; };
   switch (to) {
     case Num::f64: return in({Num::f32, Num::i8, Num::i16, Num::i32, Num::u8, Num::u16, Num::u32});
