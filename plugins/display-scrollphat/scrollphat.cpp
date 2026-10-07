@@ -2,7 +2,7 @@
 // IS31FL3730 matrix driver at I2C address 0x60. The shared rasterizer renders the frame; each pixel's luminance is
 // thresholded to on/off (the chip has one global PWM brightness, no per-LED levels) and the 11 column bytes are sent
 // only when they differ from what the chip shows.
-//   rpi1/linux: /dev/i2c-1 (i2c-dev);  macos: emulator window with white LED dots (display-ws2812/emu_sdl.h).
+//   rpi1/linux: /dev/i2c-1 (i2c-dev, through hw.h);  macos: emulator window with white LED dots (display-ws2812/emu_sdl.h).
 // Registers (IS31FL3730 datasheet; Pimoroni's scroll-phat library IS31FL3730.py does the same):
 //   0x00 configuration: 0x03 = matrix 1 only, 5x11 mode, audio off, running
 //   0x01..0x0B matrix 1 data: one byte per column, bit y = row y
@@ -41,29 +41,19 @@ static void dev_show() {
   emu::frame();
 }
 static void dev_close() { emu::close(); }
-#elif defined(__linux__) && !defined(SCROLLPHAT_STUB)
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <linux/i2c-dev.h>
-static int fd = -1;
-static bool dev_open() {
-  fd = open(OPT(I2C), O_RDWR);
-  return fd >= 0 && ioctl(fd, I2C_SLAVE, OPT(ADDRESS)) >= 0;
-}
-static bool dev_write(const uint8_t* p, int n) { return fd >= 0 && write(fd, p, n) == n; }
+#else
+#include "hw.h"   // i2c-dev on rpi1/linux, a chip model in the simulator (ZN-126)
+static zn_i2c* bus;
+static bool dev_open() { bus = zn_i2c_open(OPT(I2C), OPT(ADDRESS), -1, -1, 400000); return bus != nullptr; }
+static bool dev_write(const uint8_t* p, int n) { return zn_i2c_write(bus, p, n); }
 static void dev_show() {}
 static void dev_close() {
-  if (fd < 0) return;
+  if (!bus) return;
   const uint8_t off[] = {0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF};  // blank the LEDs when the program ends
   dev_write(off, sizeof off);
-  close(fd);
+  zn_i2c_close(bus);
+  bus = nullptr;
 }
-#else
-static bool dev_open() { return false; }
-static bool dev_write(const uint8_t*, int) { return false; }
-static void dev_show() {}
-static void dev_close() {}
 #endif
 
 /** Rendered pixel (x, y) of the 11x5 panel -> on/off, with the 180 degree rotation option. */

@@ -20,23 +20,7 @@ static int frames;
 static uint32_t fnv(const uint8_t* p, int n) { uint32_t h = 2166136261u; while (n--) { h ^= *p++; h *= 16777619u; } return h; }
 
 // ---------- device back ends ----------
-#if defined(ESP_PLATFORM)
-#include "driver/i2c_master.h"
-static i2c_master_dev_handle_t dev;
-static bool dev_open() {
-  i2c_master_bus_config_t bc = {};
-  bc.i2c_port = -1; bc.sda_io_num = (gpio_num_t)OPT(SDA); bc.scl_io_num = (gpio_num_t)OPT(SCL);
-  bc.clk_source = I2C_CLK_SRC_DEFAULT; bc.glitch_ignore_cnt = 7; bc.flags.enable_internal_pullup = 1;
-  i2c_master_bus_handle_t bus;
-  if (i2c_new_master_bus(&bc, &bus) != ESP_OK || i2c_master_probe(bus, OPT(ADDRESS), 50) != ESP_OK) return false;
-  i2c_device_config_t dc = {};
-  dc.dev_addr_length = I2C_ADDR_BIT_LEN_7; dc.device_address = OPT(ADDRESS); dc.scl_speed_hz = OPT(FREQ);
-  return i2c_master_bus_add_device(bus, &dc, &dev) == ESP_OK;
-}
-static bool dev_write(const uint8_t* p, int n) { return dev && i2c_master_transmit(dev, p, n, 100) == ESP_OK; }
-static void dev_show() {}
-static void dev_close() {}
-#elif defined(__APPLE__)
+#if defined(__APPLE__) && !defined(SSD1306_STUB)
 #include "../display-ws2812/emu_sdl.h"
 static uint32_t* colors;
 static bool dev_open() { colors = (uint32_t*)calloc((size_t)W * H, 4); return emu::open("ssd1306 oled", W, H, OPT(SCALE), false); }
@@ -48,24 +32,13 @@ static void dev_show() {
   emu::frame();
 }
 static void dev_close() { emu::close(); }
-#elif defined(__linux__)
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <linux/i2c-dev.h>
-static int fd = -1;
-static bool dev_open() {
-  fd = open(OPT(I2C), O_RDWR);
-  return fd >= 0 && ioctl(fd, I2C_SLAVE, OPT(ADDRESS)) >= 0;
-}
-static bool dev_write(const uint8_t* p, int n) { return fd >= 0 && write(fd, p, n) == n; }
-static void dev_show() {}
-static void dev_close() { if (fd >= 0) close(fd); }
 #else
-static bool dev_open() { return false; }
-static bool dev_write(const uint8_t*, int) { return false; }
+#include "hw.h"   // esp32 i2c_master, linux i2c-dev, simulator chip model (ZN-126)
+static zn_i2c* bus;
+static bool dev_open() { bus = zn_i2c_open(OPT(I2C), OPT(ADDRESS), OPT(SDA), OPT(SCL), OPT(FREQ)); return bus != nullptr; }
+static bool dev_write(const uint8_t* p, int n) { return zn_i2c_write(bus, p, n); }
 static void dev_show() {}
-static void dev_close() {}
+static void dev_close() { zn_i2c_close(bus); bus = nullptr; }
 #endif
 
 static bool cmds(const uint8_t* c, int n) {  // control byte 0x00: command stream
@@ -101,12 +74,16 @@ static void convert_page(int p) {
   }
 }
 
+static uint8_t fresh = 0xFF;  // bit p: page p was never sent, so its columns are not compared with `shown` (an all-lit column is 0xFF, the placeholder)
 static bool send_page(int p) {
   const uint8_t *a = next + p * W, *b = shown + p * W;
   int x0 = 0, x1 = W - 1;
-  while (x0 < W && a[x0] == b[x0]) x0++;
-  if (x0 == W) return true;
-  while (a[x1] == b[x1]) x1--;
+  if (!(fresh >> p & 1)) {
+    while (x0 < W && a[x0] == b[x0]) x0++;
+    if (x0 == W) return true;
+    while (a[x1] == b[x1]) x1--;
+  }
+  fresh &= ~(1 << p);
   uint8_t win[6] = {0x21, (uint8_t)x0, (uint8_t)x1, 0x22, (uint8_t)p, (uint8_t)p};  // column and page window
   static uint8_t data[1 + 128];
   data[0] = 0x40;  // control byte 0x40: data stream

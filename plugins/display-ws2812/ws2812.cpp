@@ -71,37 +71,28 @@ static bool dev_open() { return emu::open("ws2812 matrix", W, H, OPT(SCALE), tru
 static void dev_push(const uint8_t*, int) { emu::show(fb, 0x161616); emu::frame(); }
 static void dev_idle() { emu::frame(); }  // vsync paces the loop
 static void dev_close() { emu::close(); }
-#elif defined(__linux__) && !defined(WS2812_STUB)
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
-static int spi = -1;
+#else
+#include "hw.h"   // linux spidev, or a chip model in the simulator (ZN-126)
+static zn_spi* spi;
 static uint8_t* bits;  // 9 SPI bytes per LED + reset gap
 static bool dev_open() {
-  spi = open(OPT(SPIDEV), O_WRONLY);
-  uint32_t hz = 2400000; uint8_t mode = 0;
-  if (spi < 0 || ioctl(spi, SPI_IOC_WR_MODE, &mode) < 0 || ioctl(spi, SPI_IOC_WR_MAX_SPEED_HZ, &hz) < 0) return false;
+  spi = zn_spi_open(OPT(SPIDEV), 2400000, 0);
+  if (!spi) return false;
   bits = (uint8_t*)calloc((size_t)N * 9 + 96, 1);
   return true;
 }
 static void dev_push(const uint8_t* p, int n) {
-  if (spi < 0) return;
+  if (!spi) return;
   uint8_t* o = bits;
   for (int i = 0; i < n; i++) {  // each data bit -> 1x0 pattern (0 = 100, 1 = 110), 24 SPI bits per byte
     uint32_t v = 0;
     for (int b = 7; b >= 0; b--) v = v << 3 | ((p[i] >> b) & 1 ? 6u : 4u);
     *o++ = v >> 16; *o++ = v >> 8; *o++ = v;
   }
-  if (write(spi, bits, (size_t)n * 3 + 96) < 0) perror("ws2812: spi write");  // trailing zeros = reset latch
+  if (!zn_spi_write(spi, bits, n * 3 + 96)) perror("ws2812: spi write");  // trailing zeros = reset latch
 }
 static void dev_idle() {}
-static void dev_close() { if (spi >= 0) close(spi); }
-#else
-static bool dev_open() { return false; }
-static void dev_push(const uint8_t*, int) {}
-static void dev_idle() {}
-static void dev_close() {}
+static void dev_close() { zn_spi_close(spi); spi = nullptr; }
 #endif
 
 static int init(const HalConfig* cfg) {

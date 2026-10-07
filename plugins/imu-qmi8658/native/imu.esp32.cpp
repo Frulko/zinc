@@ -9,7 +9,7 @@
 // right / screen down / out of the screen, e.g. "-y". The board preset sets them; check them on the real board.
 #include "zinc_native_imu.h"
 #include <stdio.h>
-#include "driver/i2c_master.h"
+#include "hw.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -18,12 +18,12 @@ static const float ACCEL_LSB = 8192.f;  // per g at ±4 g
 static const float GYRO_LSB = 64.f;     // per dps at ±512 dps
 
 struct EspImu : NativeImu {
-  i2c_master_dev_handle_t dev = nullptr;
+  zn_i2c* dev = nullptr;
   float v[7] = {0, 0, 1, 0, 0, 0, 25};
   int axis[3], sign[3];
 
-  bool wr(uint8_t reg, uint8_t val) { uint8_t b[2] = {reg, val}; return i2c_master_transmit(dev, b, 2, 50) == ESP_OK; }
-  bool rd(uint8_t reg, uint8_t* out, size_t n) { return i2c_master_transmit_receive(dev, &reg, 1, out, n, 50) == ESP_OK; }
+  bool wr(uint8_t reg, uint8_t val) { uint8_t b[2] = {reg, val}; return zn_i2c_write(dev, b, 2); }
+  bool rd(uint8_t reg, uint8_t* out, size_t n) { return zn_i2c_read_reg(dev, reg, out, (int)n); }
   static void map(const char* s, int& axis, int& sign) {  // "+x", "-y", "z"
     sign = *s == '-' ? -1 : 1;
     if (*s == '-' || *s == '+') s++;
@@ -32,15 +32,8 @@ struct EspImu : NativeImu {
 
   bool open() override {
     map(OPT(X), axis[0], sign[0]); map(OPT(Y), axis[1], sign[1]); map(OPT(Z), axis[2], sign[2]);
-    i2c_master_bus_config_t bc = {};
-    bc.i2c_port = -1; bc.sda_io_num = (gpio_num_t)OPT(SDA); bc.scl_io_num = (gpio_num_t)OPT(SCL);
-    bc.clk_source = I2C_CLK_SRC_DEFAULT; bc.glitch_ignore_cnt = 7; bc.flags.enable_internal_pullup = 1;
-    i2c_master_bus_handle_t bus;
-    if (i2c_new_master_bus(&bc, &bus) != ESP_OK) return false;
-    if (i2c_master_probe(bus, OPT(ADDRESS), 50) != ESP_OK) { printf("imu: no QMI8658 at 0x%02x (SDA %d, SCL %d)\n", OPT(ADDRESS), OPT(SDA), OPT(SCL)); return false; }
-    i2c_device_config_t dc = {};
-    dc.dev_addr_length = I2C_ADDR_BIT_LEN_7; dc.device_address = OPT(ADDRESS); dc.scl_speed_hz = OPT(FREQ);
-    if (i2c_master_bus_add_device(bus, &dc, &dev) != ESP_OK) return false;
+    dev = zn_i2c_open("", OPT(ADDRESS), OPT(SDA), OPT(SCL), OPT(FREQ));
+    if (!dev) { printf("imu: no QMI8658 at 0x%02x (SDA %d, SCL %d)\n", OPT(ADDRESS), OPT(SDA), OPT(SCL)); return false; }
     uint8_t id = 0;
     if (!rd(0x00, &id, 1) || id != 0x05) { printf("imu: WHO_AM_I 0x%02x, expected 0x05 (QMI8658)\n", id); dev = nullptr; return false; }
     wr(0x60, 0xB0);                        // soft reset

@@ -24,7 +24,7 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-#include "driver/i2c_master.h"
+#include "hw.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -83,20 +83,13 @@ static bool open_i80() {
 }
 
 // ---- CST820 / CST816 touch (I2C, 7-bit address 0x15): 0x02 finger count, 0x03..0x06 X high/low, Y high/low (12 bits).
-static i2c_master_dev_handle_t tp;
+static zn_i2c* tp;
 static float tx, ty;          // last touch point, kept after release so the pointer-up lands where the finger left
 static bool open_touch() {
-  i2c_master_bus_config_t bc = {};
-  bc.i2c_port = -1; bc.sda_io_num = (gpio_num_t)OPT(TSDA); bc.scl_io_num = (gpio_num_t)OPT(TSCL);
-  bc.clk_source = I2C_CLK_SRC_DEFAULT; bc.glitch_ignore_cnt = 7; bc.flags.enable_internal_pullup = 1;
-  i2c_master_bus_handle_t bus;
-  if (i2c_new_master_bus(&bc, &bus) != ESP_OK) return false;
-  if (i2c_master_probe(bus, OPT(TADDRESS), 50) != ESP_OK) { printf("st7789: no touch controller at 0x%02x (SDA %d, SCL %d)\n", OPT(TADDRESS), OPT(TSDA), OPT(TSCL)); return false; }
-  i2c_device_config_t dc = {};
-  dc.dev_addr_length = I2C_ADDR_BIT_LEN_7; dc.device_address = OPT(TADDRESS); dc.scl_speed_hz = 400000;
-  if (i2c_master_bus_add_device(bus, &dc, &tp) != ESP_OK) return false;
+  tp = zn_i2c_open("", OPT(TADDRESS), OPT(TSDA), OPT(TSCL), 400000);
+  if (!tp) { printf("st7789: no touch controller at 0x%02x (SDA %d, SCL %d)\n", OPT(TADDRESS), OPT(TSDA), OPT(TSCL)); return false; }
   const uint8_t no_sleep[2] = {0xFE, 0xFF};  // keep answering on I2C (the chip naps after 2 s idle otherwise)
-  i2c_master_transmit(tp, no_sleep, 2, 50);
+  zn_i2c_write(tp, no_sleep, 2);
   return true;
 }
 
@@ -250,7 +243,7 @@ static void poll(HalInput* in) {
   if (!OPT(DEBUG) || OPT(DEBUG) == 3) in->quit = 0;  // the ESP32 HAL's QEMU frame budget
   if (!tp) return;
   uint8_t reg = 0x02, b[5];
-  if (i2c_master_transmit_receive(tp, &reg, 1, b, sizeof b, 20) != ESP_OK) return;
+  if (!zn_i2c_read_reg(tp, reg, b, sizeof b)) return;
   bool down = (b[0] & 0x0F) != 0;
   if (!down) tdbg_down = false;
   if (down) {
