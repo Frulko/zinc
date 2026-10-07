@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "rt/rt.h"
+#include "rt/unicode.h"
 #include "zn/host.h"
 
 namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; }
@@ -671,15 +672,78 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = P(i < 0 || i >= s->u16len ? m.newStr("", 0) : subStr(m, s, i, i + 1));
       return nullptr;
     }
-    case Rt::StrToUpperCase: case Rt::StrToLowerCase: {  // ASCII letters only
+    case Rt::StrToUpperCase: case Rt::StrToLowerCase: {  // ASCII strings by a byte loop, the rest through libunicode (special casing: ß, İ, a final sigma)
       StrObj* s = S(a[0]);
       NN(s);
-      std::string r(s->data(), s->len);
-      for (char& c : r) {
-        if (id == Rt::StrToUpperCase) { if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 32); }
-        else if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
+      std::string r;
+      if (s->ascii) {
+        r.assign(s->data(), s->len);
+        for (char& c : r) {
+          if (id == Rt::StrToUpperCase) { if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 32); }
+          else if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
+        }
+      } else {
+        std::u16string u = id == Rt::StrToUpperCase ? zn::uni::upper(toU16(s)) : zn::uni::lower(toU16(s));
+        r = toUtf8(u.data(), u.size());
       }
       a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+    case Rt::StrCodePointAt: {  // -1 where JavaScript has undefined
+      StrObj* s = S(a[0]);
+      NN(s);
+      std::int64_t i = I(a[1]);
+      if (i < 0 || i >= s->u16len) { a[0] = static_cast<Slot>(-1); return nullptr; }
+      if (s->ascii) { a[0] = static_cast<std::uint8_t>(s->data()[i]); return nullptr; }
+      std::u16string u = toU16(s);
+      std::uint32_t c = u[static_cast<std::size_t>(i)];
+      if (c >= 0xD800 && c < 0xDC00 && static_cast<std::size_t>(i) + 1 < u.size() && u[static_cast<std::size_t>(i) + 1] >= 0xDC00 && u[static_cast<std::size_t>(i) + 1] < 0xE000) c = 0x10000 + ((c - 0xD800) << 10) + (u[static_cast<std::size_t>(i) + 1] - 0xDC00u);
+      a[0] = c;
+      return nullptr;
+    }
+    case Rt::FromCodePoint: {
+      std::int64_t c = I(a[0]);
+      if (c < 0 || c > 0x10FFFF) return "RangeError: Invalid code point";
+      std::u16string u;
+      if (c >= 0x10000) { std::uint32_t d = static_cast<std::uint32_t>(c) - 0x10000; u += static_cast<char16_t>(0xD800 + (d >> 10)); u += static_cast<char16_t>(0xDC00 + (d & 0x3FF)); }
+      else u += static_cast<char16_t>(c);
+      std::string r = toUtf8(u.data(), u.size());
+      a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+    case Rt::StrNormalize: {
+      StrObj *s = S(a[0]), *f = S(a[1]);
+      NN(s && f);
+      std::string form(f->data(), f->len);
+      int k = form == " " || form == "NFC" ? 0 : form == "NFD" ? 1 : form == "NFKC" ? 2 : form == "NFKD" ? 3 : -1;
+      if (k < 0) return "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.";
+      if (s->ascii) { a[0] = P(s); return nullptr; }
+      std::u16string u = zn::uni::normalize(toU16(s), k);
+      std::string r = toUtf8(u.data(), u.size());
+      a[0] = P(m.newStr(r.data(), r.size()));
+      return nullptr;
+    }
+    case Rt::StrLocaleCompare: {  // the root collation (the locale argument is ignored)
+      StrObj *s = S(a[0]), *t = S(a[1]);
+      NN(s && t);
+      a[0] = static_cast<Slot>(static_cast<std::int64_t>(zn::uni::collate(toU16(s), toU16(t))));
+      return nullptr;
+    }
+    case Rt::StrChars: {  // the code points of a string, one string each (for-of, spread, Array.from)
+      StrObj* s = S(a[0]);
+      NN(s);
+      ArrObj* r = m.newArr(m.strArray);
+      if (s->ascii) { for (std::uint32_t i = 0; i < s->len; ++i) r->v.push_back(P(m.newStr(s->data() + i, 1))); }
+      else {
+        std::u16string u = toU16(s);
+        for (std::size_t i = 0; i < u.size();) {
+          std::size_t n = u[i] >= 0xD800 && u[i] < 0xDC00 && i + 1 < u.size() && u[i + 1] >= 0xDC00 && u[i + 1] < 0xE000 ? 2 : 1;
+          std::string c = toUtf8(u.data() + i, n);
+          r->v.push_back(P(m.newStr(c.data(), c.size())));
+          i += n;
+        }
+      }
+      a[0] = P(r);
       return nullptr;
     }
     case Rt::StrSplit: {

@@ -294,6 +294,7 @@ struct Checker {
     ObjInfo str;
     str.name = "String";
     str.members.push_back({"fromCharCode", func({num(Num::i32)}, tStr, 1), true, true});
+    str.members.push_back({"fromCodePoint", func({num(Num::i32)}, tStr, 1), true, true});
     out.objs.push_back(str);
     declare(SymKind::Builtin, "String", objType(static_cast<std::uint32_t>(out.objs.size() - 1)), kNone, true, 0);
     ObjInfo numObj;
@@ -1741,7 +1742,7 @@ struct Checker {
               if (!bad(st) && ty(st).k == TK::Object && name(st).rfind("Generator<", 0) == 0) replaceWith(op, "__genToArray(__H0)", {{cloneNode(op, false)}});
               else if (!bad(st) && ty(st).k == TK::Set) replaceWith(op, "__H0.values()", {{cloneNode(op, false)}});
               else if (!bad(st) && ty(st).k == TK::Map) replaceWith(op, "__H0.entries()", {{cloneNode(op, false)}});
-              else if (!bad(st) && st == tStr) replaceWith(op, "__H0.split('')", {{cloneNode(op, false)}});
+              else if (!bad(st) && st == tStr) replaceWith(op, "__H0.__chars()", {{cloneNode(op, false)}});
               flush(); holes.push_back({op});
             } else run.push_back(e);
           }
@@ -2428,7 +2429,7 @@ struct Checker {
           TypeId arr = itt.k == TK::Map ? arrayOf(tupleOf({itt.params[0], itt.elem})) : itt.k == TK::Set ? arrayOf(itt.elem) : arrayOf(tStr);
           std::string text = "function $F(m: " + inspectAliasName(it) + "): " + inspectAliasName(arr) + " {\n";
           if (itt.k == TK::Map) text += "  const ks = m.keys();\n  const vs = m.values();\n  const r: " + inspectAliasName(arr) + " = [];\n  for (let i: i32 = 0; i < ks.length; i++) r.push([ks[i], vs[i]]);\n  return r;\n";
-          else text += itt.k == TK::Set ? "  return m.values();\n" : "  return m.split('');\n";
+          else text += itt.k == TK::Set ? "  return m.values();\n" : "  return m.__chars();\n";
           text += "}\n";
           std::uint32_t call = callGenerated(helper("iter" + std::to_string(it), text, {it, arr}, s), {x.kids[1]}, s);
           a.nodes[s].kids[1] = call;

@@ -102,8 +102,15 @@ interface String {
   padStart(n: i32, fill?: string): string;
   padEnd(n: i32, fill?: string): string;
   repeat(n: i32): string;
+  /** Full case mapping with the special casing (ß -> SS, a final sigma, İ). */
   toUpperCase(): string;
   toLowerCase(): string;
+  /** The code point at a UTF-16 index; -1 past the end (JavaScript: undefined). */
+  codePointAt(i: i32): i32;
+  /** form: 'NFC' (default), 'NFD', 'NFKC' or 'NFKD'; anything else traps with a RangeError. */
+  normalize(form?: string): string;
+  /** The root collation of Unicode (ICU's order for Latin text); the locale argument is ignored. */
+  localeCompare(that: string, locales?: string): i32;
   replace(a: string, b: string): string;
   replaceAll(a: string, b: string): string;
   /** A replace callback gets the match and the groups (no offset and subject). */
@@ -119,6 +126,8 @@ interface StringConstructor {
   /** ToString, like a template literal. */
   (value?: unknown): string;
   fromCharCode(c: i32): string;
+  /** One code point (more than one argument is not supported yet); a value past U+10FFFF traps with a RangeError. */
+  fromCodePoint(c: i32): string;
 }
 declare var String: StringConstructor;
 

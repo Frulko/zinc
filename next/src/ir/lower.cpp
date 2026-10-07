@@ -1754,6 +1754,7 @@ struct Lowering::FnLower {
       } else if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
         std::string full = std::string(on.text) + "." + std::string(callee.text);
         if (full == "String.fromCharCode") return emit(IrOp::Rt, m.strT(), {exprTo(x.kids[1], m.numT(NumK::i32))}, 0, 0, static_cast<std::uint32_t>(zn::Rt::FromCharCode));
+        if (full == "String.fromCodePoint") return emit(IrOp::Rt, m.strT(), {exprTo(x.kids[1], m.numT(NumK::i32))}, 0, 0, static_cast<std::uint32_t>(zn::Rt::FromCodePoint));
         if (full == "Number.isNaN" || full == "Number.isFinite") {
           TypeId f64 = m.numT(NumK::f64);
           ValueId v = exprTo(x.kids[1], f64);

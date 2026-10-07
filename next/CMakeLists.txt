@@ -86,8 +86,8 @@ target_compile_definitions(zn_mimalloc PRIVATE MI_STATIC_LIB)
 set_target_properties(zn_mimalloc PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_mimalloc PRIVATE -w -O2)
 
-add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp)
-target_link_libraries(zn_rt PUBLIC zn_zbc zn_mimalloc)
+add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp)
+target_link_libraries(zn_rt PUBLIC zn_zbc zn_mimalloc zn_regexp)   # libunicode: case mapping, normalization, collation
 if(ZN_SANITIZE)
   target_compile_definitions(zn_rt PUBLIC ZN_NO_MIMALLOC)   # keep ASan's own allocator checks
 else()

@@ -1,0 +1,24 @@
+// Strings: the ASCII paths (case mapping, for-of over characters, localeCompare of short words) and the Unicode ones (ZN-091). Each part is timed with Date.now under ZINC_REALTIME=1.
+const ascii = 'The quick brown fox jumps over the lazy dog. '.repeat(2000);
+const uni = 'Zażółć gęślą jaźń — 日本語 😀 Ünïcödé straße. '.repeat(500);
+let t = Date.now();
+let n = 0;
+for (let i = 0; i < 200; i++) n += ascii.toUpperCase().length + ascii.toLowerCase().length;
+console.log('ascii case', n, Date.now() - t, 'ms');
+t = Date.now();
+n = 0;
+for (let i = 0; i < 20; i++) for (const c of ascii) if (c === 'o') n++;
+console.log('ascii for-of', n, Date.now() - t, 'ms');
+t = Date.now();
+n = 0;
+for (let i = 0; i < 50; i++) n += uni.toUpperCase().length + uni.toLowerCase().length + uni.normalize('NFD').length;
+console.log('unicode case+nfd', n, Date.now() - t, 'ms');
+t = Date.now();
+n = 0;
+for (let i = 0; i < 5; i++) for (const c of uni) if (c === '😀') n++;
+console.log('unicode for-of', n, Date.now() - t, 'ms');
+const words = ['banana', 'Apple', 'cherry', 'éclair', 'Zebra', 'résumé', 'apple', 'ß'];
+t = Date.now();
+n = 0;
+for (let i = 0; i < 100000; i++) n += words[i % 8].localeCompare(words[(i * 3 + 1) % 8]);
+console.log('localeCompare', n, Date.now() - t, 'ms');
