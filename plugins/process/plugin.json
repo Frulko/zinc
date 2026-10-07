@@ -1,6 +1,7 @@
 {
   "name": "process",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:process",
   "entry": "index.ts",
   "description": "Child processes: spawn with args/cwd/env, streamed stdout/stderr, stdin, kill, exit code (posix_spawn)",

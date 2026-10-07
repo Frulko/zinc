@@ -773,7 +773,18 @@ std::uint64_t cbRegister(Machine& m, Obj* fn, const std::string& inner) {
 
 }  // namespace
 
-std::int32_t nativeActive() { return zn_native_pending(); }
+void nativeEnd(Machine& m) {
+  if (gMachine != &m) return;
+  for (auto& kv : gPromises) { cbUnref(kv.second.resolve); cbUnref(kv.second.reject); }
+  gPromises.clear();
+  zn_native_drop_callbacks();
+  std::vector<std::uint64_t> rest;
+  for (auto& kv : gCbs) rest.push_back(kv.first);
+  for (std::uint64_t h : rest) { auto it = gCbs.find(h); if (it != gCbs.end()) { it->second.rc = 1; cbUnref(h); } }
+  gMachine = nullptr;
+  gScratch = nullptr;
+  zn_native_set_sink(nullptr);
+}
 
 // The loop's turn for the native modules: their pollers, the queued posts and completions (the callbacks run here); whether native work is still pending.
 std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {

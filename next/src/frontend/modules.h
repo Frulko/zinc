@@ -34,6 +34,10 @@ extern std::function<bool(const std::string& module, std::string& err)> gNativeP
 // ZINC_NATIVE: "real" (native code wins over a stand-in x.next.ts / x.sim.ts), "sim" (a stand-in wins, today's default when there is one), "auto" (the default: a stand-in when
 // there is one, else native code).
 
+// Whether the plugin's native code should win over its x.sim.ts stand-in in "auto" mode: not in a deterministic run (ZINC_DETERMINISTIC: golden tests, headless captures) unless the
+// manifest says `"deterministic": true` (no clock, no network, no machine state).
+extern std::function<bool(const std::string& module)> gNativePreferred;
+
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "");
 
 // The source (Zinc, over the __host_* calls) of a module the host provides ('zinc:gfx', 'zinc:sys', 'zinc:fs'...); null for any other spec.

@@ -120,6 +120,8 @@ typedef struct ZnSink {
   void (*hold)(void* user, uint64_t cb);                                                    /* a native module took its first reference to a callback (cb_retain) */
 } ZnSink;
 void zn_native_set_sink(const ZnSink* sink);
+/* The program ended: every callback a module still held is released (the modules stay registered; a module that keeps a handle across runs must ask for a new one). */
+void zn_native_drop_callbacks(void);
 /* Runs the queued posts and completions (the loop calls this each turn); returns how many ran. */
 uint32_t zn_native_drain(void);
 /* Operations pending (loop_ref minus loop_unref) and queued work: whether the program must stay alive. */

@@ -1,6 +1,7 @@
 {
   "name": "wasm",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:wasm",
   "entry": "index.ts",
   "description": "WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals",

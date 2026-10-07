@@ -1,6 +1,7 @@
 {
   "name": "socket",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:socket",
   "entry": "index.ts",
   "description": "TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)",

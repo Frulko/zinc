@@ -1,6 +1,7 @@
 {
   "name": "ffi",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:ffi",
   "entry": "index.ts",
   "description": "Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures through libffi, C memory helpers",

@@ -1133,7 +1133,7 @@ struct Loader {
           if (!nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
           break;
         }
-        if (isSim && haveSpec && mode == "auto" && read(simPath, text) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
+        if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
         if (done.count(simPath)) return done[simPath];
         if (read(simPath, text)) {
           std::string specText;
@@ -2693,5 +2693,6 @@ std::string_view stdModuleFile(std::string_view spec) {
 }
 
 std::function<bool(const std::string&, std::string&)> gNativeProvider;
+std::function<bool(const std::string&)> gNativePreferred;
 
 }  // namespace zn::frontend

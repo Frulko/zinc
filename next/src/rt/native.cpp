@@ -245,6 +245,12 @@ std::int32_t zn_native_call(const char* module, const char* name, const char* si
 
 std::uint64_t zn_native_last_promise(void) { return gLast.promise; }
 
+void zn_native_drop_callbacks(void) {
+  std::map<std::uint64_t, int> held;
+  held.swap(gCbRefs);
+  for (auto& kv : held) if (gSink.release) gSink.release(gSink.user, kv.first);
+}
+
 void zn_native_set_sink(const ZnSink* sink) { gSink = sink ? *sink : ZnSink{}; }
 
 std::uint32_t zn_native_drain(void) {

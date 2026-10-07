@@ -22,8 +22,9 @@ Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree,
   std::string err;
   if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
   if (setup) setup(m, setupData);
-  if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; }
+  if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; nativeEnd(m); }
   else {
+    nativeEnd(m);
     for (std::size_t g = m.globals.size(); g-- > 0;) if (m.globalRef[g]) { Slot v = m.globals[g]; m.globals[g] = 0; m.releaseSlot(v); }  // statics die in reverse order of definition
     for (const Obj* o : m.allocated) if (o->rc != kImmortal) ++res.leaked;
   }

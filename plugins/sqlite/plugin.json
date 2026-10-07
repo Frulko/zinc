@@ -1,6 +1,7 @@
 {
   "name": "sqlite",
   "kind": "module",
+  "deterministic": true,
   "module": "zinc:sqlite",
   "entry": "index.ts",
   "description": "SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions",
