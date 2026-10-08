@@ -1,0 +1,10 @@
+grant at 60,50
+dragged: x 110
+release dx 90 dy 30 vx 0.900 vy 0.300
+frame 12: x 145
+frame 20: x 186
+decay done true at x 179
+frame 40: x 199
+header 1.00
+scrolled 40: header 0.50
+scrolled 120: header 0.00

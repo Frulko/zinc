@@ -629,6 +629,70 @@ export function onPointer(h: i32, kind: i32, f: (e: PointerEvent) => void): void
   else if (kind === PTAP) s.tap = f; else if (kind === PLONG) s.long = f; else if (kind === PDRAG) s.drag = f;
   else if (kind === PPINCH) s.pinch = f; else s.cancel = f;
 }
+// ---- React Native's responder shapes (ZN-366): PanResponder over onDrag, onScroll, and the events Animated.event maps.
+export class ContentOffset { x: number = 0; y: number = 0; }
+export class NativeEvent { contentOffset: ContentOffset = new ContentOffset(); locationX: number = 0; locationY: number = 0; pageX: number = 0; pageY: number = 0; timestamp: number = 0; }
+export class ResponderEvent { nativeEvent: NativeEvent = new NativeEvent(); }
+/** React Native's gestureState: dx / dy since the press, vx / vy in px per ms, moveX / moveY the latest position, x0 / y0 where the gesture began. */
+export class GestureState { stateID: i32 = 0; moveX: number = 0; moveY: number = 0; x0: number = 0; y0: number = 0; dx: number = 0; dy: number = 0; vx: number = 0; vy: number = 0; numberActiveTouches: i32 = 0; }
+export type ResponderHandler = (e: ResponderEvent, g: GestureState) => void;
+export type ResponderTest = (e: ResponderEvent, g: GestureState) => boolean;
+export type PanResponderConfig = {
+  onStartShouldSetPanResponder?: ResponderTest; onMoveShouldSetPanResponder?: ResponderTest;
+  onPanResponderGrant?: ResponderHandler; onPanResponderMove?: ResponderHandler; onPanResponderRelease?: ResponderHandler; onPanResponderTerminate?: ResponderHandler;
+};
+let panIds: i32 = 0;
+/** What `{...pan.panHandlers}` puts on a node: one onDrag handler that speaks PanResponder. */
+export class PanHandlers {
+  c: PanResponderConfig;
+  g: GestureState = new GestureState();
+  e: ResponderEvent = new ResponderEvent();
+  on: boolean = false; lastT: number = 0; lastX: number = 0; lastY: number = 0;
+  constructor(c: PanResponderConfig) { this.c = c; }
+  /** The pan takes the press on the first move when onStartShouldSetPanResponder is given, else past the drag threshold (8 px).
+   *  ponytail: the should-set callbacks are asked once, when the drag takes the pointer, not on every move. */
+  attach(h: i32): void {
+    if (this.c.onStartShouldSetPanResponder !== undefined) handlers(h).dragThreshold = 0;
+    onPointer(h, PDRAG, (p: PointerEvent): void => this.drag(p));
+  }
+  drag(p: PointerEvent): void {
+    const g = this.g, ne = this.e.nativeEvent, t = clock;
+    ne.locationX = p.x; ne.locationY = p.y; ne.pageX = p.gx; ne.pageY = p.gy; ne.timestamp = t;
+    if (p.phase === 0) {
+      g.stateID = ++panIds; g.x0 = p.gx - p.dx; g.y0 = p.gy - p.dy; g.vx = 0; g.vy = 0; g.numberActiveTouches = 1;
+      g.dx = p.dx; g.dy = p.dy; g.moveX = p.gx; g.moveY = p.gy;
+      const a = this.c.onStartShouldSetPanResponder, b = this.c.onMoveShouldSetPanResponder;
+      this.on = (a !== undefined && a(this.e, g)) || (b !== undefined && b(this.e, g));
+      this.lastT = t; this.lastX = p.gx; this.lastY = p.gy;
+      if (this.on) { const f = this.c.onPanResponderGrant; if (f !== undefined) f(this.e, g); }
+      return;
+    }
+    if (!this.on) return;
+    if (p.phase === 1 && t > this.lastT) { g.vx = (p.gx - this.lastX) / (t - this.lastT); g.vy = (p.gy - this.lastY) / (t - this.lastT); this.lastT = t; this.lastX = p.gx; this.lastY = p.gy; }
+    g.dx = p.dx; g.dy = p.dy; g.moveX = p.gx; g.moveY = p.gy;
+    const f = p.phase === 1 ? this.c.onPanResponderMove : p.phase === 2 ? this.c.onPanResponderRelease : this.c.onPanResponderTerminate;
+    if (p.phase >= 2) { this.on = false; g.numberActiveTouches = 0; }
+    if (f !== undefined) f(this.e, g);
+  }
+}
+export class PanResponderInstance { panHandlers: PanHandlers; constructor(c: PanResponderConfig) { this.panHandlers = new PanHandlers(c); } }
+export class PanResponder { static create(c: PanResponderConfig): PanResponderInstance { return new PanResponderInstance(c); } }
+
+const scrollWatch: i32[] = [], scrollFns: ResponderHandler[] = [], scrollSeen: number[] = [];
+const noGesture = new GestureState();
+/** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. */
+export function onScroll(h: i32, f: ResponderHandler): void { scrollWatch.push(h); scrollFns.push(f); scrollSeen.push(node(h).sx); scrollSeen.push(node(h).sy); }
+function fireScrolls(): void {
+  for (let i = 0; i < scrollWatch.length; i++) {
+    const n = nodes[scrollWatch[i]];
+    if (!n.alive || (n.sx === scrollSeen[2 * i] && n.sy === scrollSeen[2 * i + 1])) continue;
+    scrollSeen[2 * i] = n.sx; scrollSeen[2 * i + 1] = n.sy;
+    const e = new ResponderEvent();
+    e.nativeEvent.contentOffset.x = n.sx; e.nativeEvent.contentOffset.y = n.sy; e.nativeEvent.timestamp = clock;
+    scrollFns[i](e, noGesture);
+  }
+}
+
 /** Key handler of a node, called while it (or a descendant) has the focus. */
 export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void { handlers(h).key = f; }
 const keyHandlers: ((e: KeyEvent) => void)[] = [];
@@ -3948,6 +4012,7 @@ export function frame(dt: number, background: i32): void {
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   stepScroll(dt);
+  if (scrollWatch.length > 0) fireScrolls();
   stepEdits(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }

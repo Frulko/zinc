@@ -4,7 +4,7 @@
 //   zinc run examples/rn-showcase
 import { createSignal, createNodeRef, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { StyleSheet } from 'zinc:ui';
+import { StyleSheet, PanResponder } from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
 import { t, setDark, isDark } from './theme';
@@ -34,6 +34,15 @@ function springTo(v: A.Value, to: number): void { A.spring(v, { toValue: to, bou
 function openSheet(): void { A.spring(sheetAt, { toValue: 1, bounciness: 4, speed: 14 }).start(); }
 function closeSheet(): void { A.timing(sheetAt, { toValue: 0, duration: 220, easing: A.Easing.out(A.Easing.cubic) }).start(); }
 const scroller = createNodeRef();
+// the sheet follows the finger pulling it down (ZN-366): released past 100 px or flung, it closes; otherwise it springs back
+let sheetFrom = 1;
+const sheetPan = PanResponder.create({
+  onMoveShouldSetPanResponder: (e: ui.ResponderEvent, g: ui.GestureState): boolean => g.dy > Math.abs(g.dx),
+  onPanResponderGrant: (e: ui.ResponderEvent, g: ui.GestureState): void => { sheetAt.stopAnimation(); sheetFrom = sheetAt.get(); },
+  onPanResponderMove: (e: ui.ResponderEvent, g: ui.GestureState): void => sheetAt.setValue(Math.max(0, Math.min(1, sheetFrom - g.dy / 320))),
+  onPanResponderRelease: (e: ui.ResponderEvent, g: ui.GestureState): void => { if (g.dy > 100 || g.vy > 0.5) closeSheet(); else openSheet(); },
+  onPanResponderTerminate: (e: ui.ResponderEvent, g: ui.GestureState): void => openSheet(),
+});
 
 function Tab(p: { label: string; id: i32; icon: string }): i32 {
   const on = (): boolean => screen() === p.id || (p.id === DISCOVER && screen() === DETAIL);
@@ -56,13 +65,13 @@ function App(): i32 {
       <Tab label="Stats" id={STATS} icon="chart-column" />
       <Tab label="Settings" id={SETTINGS} icon="settings" />
     </view>
-    <Sheet at={() => sheetAt.get()} close={closeSheet} choose={(s: string) => { setTextSize(s); closeSheet(); }} current={textSize} />
+    <Sheet at={() => sheetAt.get()} pan={sheetPan.panHandlers} close={closeSheet} choose={(s: string) => { setTextSize(s); closeSheet(); }} current={textSize} />
   </view>;
 }
 
 
 // test hooks: start on a given screen and scheme, with the sheet open
-const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME'), scrollTo = env('SHOWCASE_SCROLL');
+const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME'), scrollTo = env('SHOWCASE_SCROLL'), drag = env('SHOWCASE_DRAG');
 let frames = 0;
 if (scheme === 'dark') { setDark(true); darkPos.setValue(1); }
 if (start === 'detail') { setStory(STORIES[2]); setScreen(DETAIL); }
@@ -72,4 +81,6 @@ if (start === 'sheet') sheetAt.setValue(1);
 
 render(App, 0xF6F3EE, (dt: number) => {
   if (++frames === 2 && scrollTo !== '') ui.scrollTo(scroller.node, 0, parseFloat(scrollTo));   // SHOWCASE_SCROLL=400: the content scrolled (screenshots)
+  if (drag !== '' && frames >= 3 && frames <= 9) ui.pointerAt(210, 640 + parseFloat(drag) * (frames - 3) / 6, frames < 9);   // SHOWCASE_DRAG=200: pull the sheet down
+  if (drag !== '' && (frames === 8 || frames === 40)) console.log(`frame ${frames}: sheet ${sheetAt.get().toFixed(2)}`);
 });   // switches, the sheet and the scheme move with zinc:ui/animated (springs and timing): nothing to step here

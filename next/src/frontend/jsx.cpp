@@ -360,7 +360,13 @@ struct Lowering {
       for (;;) {
         if (isP(i, "/>")) { e->selfClosing = true; ++i; e->end = i; return e; }
         if (isP(i, ">")) { ++i; break; }
-        if (isP(i, "{")) fail(i, "spread attributes are not supported");
+        if (isP(i, "{")) {   // {...pan.panHandlers} (ZN-366): a PanHandlers object attaches itself; other spreads fail to type-check
+          if (!isP(i + 1, "...")) fail(i, "unexpected token in a JSX tag");
+          Attr a; a.name = "..."; a.tok = i; a.kind = 2; a.eb = i + 2; a.ee = match(i);
+          i = a.ee + 1;
+          e->attrs.push_back(a);
+          continue;
+        }
         if (t[i].kind != Tok::Ident) fail(i, "unexpected token in a JSX tag");
         Attr a;
         a.name = tx(i); a.tok = i; ++i;
@@ -692,6 +698,8 @@ struct Lowering {
         }
         else push(react ? "_class(" + v + ", " + expr + ");" : "_dynClass(" + v + ", () => (" + expr + "));");
       } else if (name == "onClick" || name == "onPress") push("_on(" + v + ", " + expr + ");");
+      else if (name == "...") push("_spread(" + v + ", " + expr + ");");
+      else if (name == "onScroll") push("_scroll(" + v + ", " + expr + ");");
       else if (name == "style") {
         if (a.kind != 2) fail(a.tok, "style expects an object, a StyleSheet entry or an array of styles");
         std::string layers = styleLayers(a.eb, a.ee);
@@ -800,7 +808,7 @@ struct Lowering {
     const std::string& tag = e.tag;
     std::string v = "__n" + std::to_string(counter++);
     std::vector<std::pair<std::string, const Attr*>> attrs;
-    for (const Attr& a : e.attrs) attrs.push_back({a.name, &a});
+    for (const Attr& a : e.attrs) { if (a.name == "...") fail(a.tok, "spread attributes work on host elements only ({...pan.panHandlers})"); attrs.push_back({a.name, &a}); }
     auto find = [&](const char* n) -> const Attr* { for (auto& p : attrs) if (p.first == n) return p.second; return nullptr; };
     std::vector<const Child*> kids;
     for (const Child& c : e.kids) if (!(c.kind == 0 && trim(c.text).empty())) kids.push_back(&c);
@@ -999,6 +1007,8 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     const char* input = "_styles, _ptr, _key, _onText, _str, _hl, _ctx";
     std::string helpers = L.react ? std::string("_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ") + input
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
+    if (out.find("_spread(") != std::string::npos) helpers += ", _spread";   // only when used: not every JSX library has them
+    if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out;
   } catch (const Failure& f) {

@@ -3,6 +3,7 @@ import { styles, Switch } from '../parts';
 import { t, isDark } from '../theme';
 import { Icon } from 'zinc:icons';
 import * as A from 'zinc:ui/animated';
+import * as ui from 'zinc:ui';
 
 export class Toggle {
   label: string; on: boolean; pos: A.Value;   // pos: the knob, 0..1, sprung by Animated when the switch flips
@@ -51,11 +52,11 @@ export function Settings(toggles: Toggle[], pos: (i: i32) => number, flip: (i: i
 }
 
 /** The bottom sheet: a backdrop and a panel; `at` is 0 (hidden) .. 1 (open), eased by the app. */
-export function Sheet(p: { at: () => number; close: () => void; choose: (s: string) => void; current: () => string }): i32 {
+export function Sheet(p: { at: () => number; pan: ui.PanHandlers; close: () => void; choose: (s: string) => void; current: () => string }): i32 {
   const at = p.at, current = p.current, choose = p.choose;
   return <view style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, at() < 0.01 && styles.hidden]}>
     <view style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 0x000000, opacity: at() * 0.45 }} onClick={p.close} />
-    <view style={{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'column', gap: 6, padding: 20, paddingBottom: 34, borderRadius: 26, backgroundColor: t().surface, translateY: (1 - at()) * 320 }}>
+    <view style={{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'column', gap: 6, padding: 20, paddingBottom: 34, borderRadius: 26, backgroundColor: t().surface, translateY: (1 - at()) * 320 }} {...p.pan}>
       <view style={{ alignItems: 'center' }}><view style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: t().line }} /></view>
       <text style={[styles.title, { color: t().ink }]}>Text size</text>
       <Option name="Compact" current={current} choose={choose} />

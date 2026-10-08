@@ -4,7 +4,7 @@
 // (`style={{ opacity: fade.get() }}`), the node updates when the value moves. Animations advance on the engine clock (zinc:ui now(), deterministic in
 // tests). useNativeDriver is accepted; running off the program's code per frame is ZN-364.02.
 import { createSignal } from 'zinc:ui/solid';
-import { now, addStepper, removeStepper } from 'zinc:ui';
+import { now, addStepper, removeStepper, ResponderEvent, GestureState, ResponderHandler } from 'zinc:ui';
 
 // ---------------------------------------------------------------- nodes
 /** Anything that has a numeric value: a Value, an interpolation, an arithmetic node. */
@@ -51,6 +51,7 @@ export class ValueXY {
   setValue(x: number, y: number): void { this.x.setValue(x); this.y.setValue(y); }
   setOffset(x: number, y: number): void { this.x.setOffset(x); this.y.setOffset(y); }
   flattenOffset(): void { this.x.flattenOffset(); this.y.flattenOffset(); }
+  extractOffset(): void { this.x.extractOffset(); this.y.extractOffset(); }
   stopAnimation(): void { this.x.stopAnimation(); this.y.stopAnimation(); }
 }
 
@@ -397,3 +398,29 @@ export function stagger(ms: number, list: CompositeAnimation[]): CompositeAnimat
 }
 /** iterations -1: forever. */
 export function loop(a: CompositeAnimation, iterations: i32 = -1, resetBeforeIteration: boolean = true): CompositeAnimation { return new Loop(a, iterations, resetBeforeIteration); }
+
+// ---------------------------------------------------------------- Animated.event (ZN-366): an event or a gesture written into values
+export type OffsetMapping = { x?: Value; y?: Value };
+export type NativeMapping = { contentOffset?: OffsetMapping; locationX?: Value; locationY?: Value; pageX?: Value; pageY?: Value };
+/** One argument of the handler: entry 0 maps the event (`{ nativeEvent: ... }`), entry 1 the gestureState (`{ dx, dy, vx, vy, moveX, moveY }`); null skips. */
+export type EventMapping = { nativeEvent?: NativeMapping; dx?: Value; dy?: Value; vx?: Value; vy?: Value; moveX?: Value; moveY?: Value };
+export type EventConfig = { useNativeDriver?: boolean; listener?: ResponderHandler };
+function put(v: Value | undefined, x: number): void { if (v !== undefined) (v as Value).setValue(x); }
+/** A handler for onScroll or a PanResponder callback that sets the mapped values, then calls config.listener. useNativeDriver is accepted (ZN-364.01). */
+export function event(mapping: (EventMapping | null)[], config: EventConfig | null = null): ResponderHandler {
+  return (e: ResponderEvent, g: GestureState): void => {
+    if (mapping.length > 0 && mapping[0] !== null) {
+      const n = (mapping[0] as EventMapping).nativeEvent;
+      if (n !== undefined) {
+        const ne = e.nativeEvent, o = n.contentOffset;
+        if (o !== undefined) { put(o.x, ne.contentOffset.x); put(o.y, ne.contentOffset.y); }
+        put(n.locationX, ne.locationX); put(n.locationY, ne.locationY); put(n.pageX, ne.pageX); put(n.pageY, ne.pageY);
+      }
+    }
+    if (mapping.length > 1 && mapping[1] !== null) {
+      const m = mapping[1] as EventMapping;
+      put(m.dx, g.dx); put(m.dy, g.dy); put(m.vx, g.vx); put(m.vy, g.vy); put(m.moveX, g.moveX); put(m.moveY, g.moveY);
+    }
+    if (config !== null) { const l = (config as EventConfig).listener; if (l !== undefined) l(e, g); }
+  };
+}

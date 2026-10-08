@@ -313,6 +313,29 @@ A.spring(fade, { toValue: 1, bounciness: 6 }).start();
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
 `useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
 
+## Gestures: PanResponder and Animated.event
+
+`PanResponder.create({ onStartShouldSetPanResponder, onMoveShouldSetPanResponder, onPanResponderGrant, onPanResponderMove, onPanResponderRelease,
+onPanResponderTerminate })` (from `zinc:ui`) is React Native's, put on a host element with `{...pan.panHandlers}` (the only spread attribute). It rides
+on `onDrag`: with `onStartShouldSetPanResponder` it takes the pointer on the first move, otherwise past the 8 px drag threshold, and the should-set
+callbacks are asked once, at that moment. The handlers get `(e, gestureState)`: `e.nativeEvent` has `locationX/Y`, `pageX/Y`, `timestamp`;
+`gestureState` has `dx`, `dy` (since the press), `vx`, `vy` (px per ms, from the last move), `moveX/Y`, `x0/y0`, `stateID`, `numberActiveTouches`.
+A scroll view's `onScroll` gets `e.nativeEvent.contentOffset` once per frame in which the offset moved.
+
+`Animated.event(mapping, { listener })` returns such a handler: entry 0 of the mapping maps the event
+(`[{ nativeEvent: { contentOffset: { y: scrollY } } }]`), entry 1 the gesture state (`[null, { dx: pan.x, dy: pan.y }]`).
+
+```tsx
+const pan = new A.ValueXY();
+const responder = PanResponder.create({
+  onStartShouldSetPanResponder: (e: ui.ResponderEvent, g: ui.GestureState): boolean => true,
+  onPanResponderGrant: (e: ui.ResponderEvent, g: ui.GestureState): void => pan.extractOffset(),
+  onPanResponderMove: A.event([null, { dx: pan.x, dy: pan.y }]),
+  onPanResponderRelease: (e: ui.ResponderEvent, g: ui.GestureState): void => { pan.flattenOffset(); A.decay(pan.x, { velocity: g.vx }).start(); },
+});
+<view {...responder.panHandlers} style={{ transform: [{ translateX: pan.x.get() }, { translateY: pan.y.get() }] }} />
+```
+
 ## LayoutAnimation
 
 `LayoutAnimation` (from `zinc:ui`) is React Native's: `LayoutAnimation.configureNext(config, onEnd)` before a state change animates the layout that
