@@ -21,9 +21,10 @@ DIRS2 = ["attribs", "buffers", "context", "misc", "programs", "query", "reading"
 class Page(html.parser.HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.scripts = []; self.elements = []; self._cur = None; self._text = []; self.title = ""
+        self.scripts = []; self.elements = []; self._cur = None; self._text = []; self.title = ""; self.body_onload = ""
     def handle_starttag(self, tag, attrs):
         a = dict((k, v if v is not None else "") for k, v in attrs)
+        if tag == "body" and a.get("onload"): self.body_onload = a["onload"]
         if tag == "script":
             t = a.get("type", "").lower()
             self._cur = {"src": a.get("src"), "type": t, "id": a.get("id"), "attrs": a, "text": ""}
@@ -66,6 +67,7 @@ def run_page(rel, timeout):
         else: code = s["text"]
         code = sloppy(code)
         parts.append("try { (0, eval)(%s); } catch (e) { console.log('@E', String(e && e.message || e), '|', String(e && e.stack || '').split('\\n').slice(0, 2).join(' | ')); }" % json.dumps(code))
+    if p.body_onload: parts.append("globalThis.__bodyOnload = %s;" % json.dumps(p.body_onload))   # <body onload="init()">
     parts.append("__fireLoad();")
     with tempfile.TemporaryDirectory() as d:
         b = os.path.join(d, "bundle.js"); open(b, "w").write("\n".join(parts))
@@ -89,6 +91,25 @@ def run_page(rel, timeout):
     if not ok and not reason: reason = "no PASS" if passes == 0 else "did not finish"
     return rel, ok, passes, fails, reason
 
+NEWDIRS = ["extensions", "glsl", "textures"]; NEWDIRS2 = ["extensions", "glsl3", "textures"]   # the lists of these honour --min-version / --max-version (the suite is 1.0.4 / 2.0.1) and nested 00_test_list.txt; the older dirs above skip every line that has a flag (pages not run)
+def vtuple(v): return tuple(int(x) for x in v.split("."))
+def walk(root, d, ver):
+    out = []; lst = os.path.join(root, d, "00_test_list.txt")
+    if not os.path.isfile(lst): return out
+    for line in read(lst).splitlines():
+        t = line.strip().split("#")[0].split()
+        if not t: continue
+        lo = hi = None; i = 0
+        while i < len(t) - 1:
+            if t[i] == "--min-version": lo = vtuple(t[i + 1])
+            elif t[i] == "--max-version": hi = vtuple(t[i + 1])
+            i += 2 if t[i] in ("--min-version", "--max-version") else 1
+        if (lo and lo > ver) or (hi and hi < ver): continue
+        f = t[-1]
+        if f.endswith("00_test_list.txt"): out += walk(root, os.path.normpath(os.path.join(d, os.path.dirname(f))), ver)
+        elif f.endswith(".html") and os.path.isfile(os.path.join(root, d, f)): out.append(os.path.normpath(os.path.join(d, f)))
+    return out
+
 def pages(args):
     if args: return args
     out = []
@@ -105,6 +126,8 @@ def pages(args):
             line = line.strip().split("#")[0].strip()
             if not line or line.startswith("--") or not line.endswith(".html"): continue
             if os.path.isfile(os.path.join(SUITE, "conformance2", d, line)): out.append("conformance2/" + d + "/" + line)
+    for d in NEWDIRS: out += walk(os.path.join(SUITE, "conformance"), d, (1, 0, 4))
+    for d in NEWDIRS2: out += ["conformance2/" + p for p in walk(os.path.join(SUITE, "conformance2"), d, (2, 0, 1))]
     return out
 
 def main(argv):
