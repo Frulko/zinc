@@ -242,6 +242,12 @@ set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_C
 target_compile_options(zn_quickjs PRIVATE -w -O2)
 target_link_libraries(zn_quickjs PUBLIC zn_regexp)
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
+add_library(zn_sim STATIC src/sim/sim.cpp)   # the simulator core (ZN-292): scheduler, netlist, trace
+set_target_properties(zn_sim PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_include_directories(zn_sim PUBLIC include src)
+add_executable(sim_test tests/native/sim_test.cpp)
+set_target_properties(sim_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(sim_test PRIVATE zn_sim)
 add_library(zn_qjs_ext STATIC src/qjs/ext.cpp)   # the context hooks (WebGL for trusted programs and for zinc:script when zinc.json asks)
 target_link_libraries(zn_qjs_ext PUBLIC zn_quickjs)
 target_include_directories(zn_qjs_ext PUBLIC include src)

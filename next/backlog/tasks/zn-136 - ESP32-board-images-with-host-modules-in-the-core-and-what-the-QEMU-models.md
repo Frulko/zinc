@@ -1,7 +1,7 @@
 ---
 id: ZN-136
 title: 'ESP32 board images with host modules in the core, and what the QEMU models'
-status: Backlog
+status: Review
 assignee: []
 created_date: '2026-10-06 23:01'
 updated_date: '2026-10-08 08:28'
