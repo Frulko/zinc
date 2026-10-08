@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight,
+  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -164,6 +164,7 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
+  surface: boolean = false;            // img is a runtime image this node owns (createSurface)
   role: string = ''; label: string = ''; ariaHidden: boolean = false;   // accessibility metadata (ZN-276)
   ov: StateOverlay | null = null;   // paint-only styles of hover: focus: active: disabled: (ZN-273)
   id: i32 = -1; media: i32 = 0; container: boolean = false; cqW: number = -1;   // media bits: 2 pointer, 4 container query, 8 env(); container: `@container`; cqW: the container width the styles were computed for
@@ -328,6 +329,7 @@ function release(h: i32): void {
   if (!n.alive) return;
   for (const c of n.children) release(c);
   if (n.tag === CANVAS && !n.lazy) canvases--;
+  if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
   if (componentNames.size > 0) componentNames.delete(h);
   n.alive = false;
@@ -438,6 +440,16 @@ function syncVirtual(h: i32, n: UiNode): void {
   v.first = first; v.last = last;
   layoutDirty = true;
 }
+/** A node that shows a runtime image the program fills (a WebGL canvas through `gl.zincPresent(surfaceImage(h))`, video frames...): w x h pixels, laid out and painted like an image, so it scrolls and clips with its page. */
+export function createSurface(w: i32, h: i32): i32 {
+  const n = createNode(IMAGE);
+  nodes[n].img = createImage(w, h);
+  nodes[n].surface = true;
+  layoutDirty = true;
+  return n;
+}
+/** The runtime image behind a surface node (-1 when it could not be created). */
+export function surfaceImage(h: i32): i32 { return node(h).img; }
 export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on; }
 export function setImage(h: i32, name: string): void { node(h).img = image(name); layoutDirty = true; }
 

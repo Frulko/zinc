@@ -219,6 +219,16 @@ M(createFramebuffer) { SELF return wrapOnce(c, g, 5, gl.createFramebuffer()); }
 M(bindFramebuffer) { SELF NEED(2); OBJ(o, 1, 5) gl.bindFramebuffer(U(0), o.id); return JS_UNDEFINED; }
 M(framebufferTexture2D) { SELF NEED(5); OBJ(tex, 3, 4) gl.framebufferTexture2D(U(0), U(1), U(2), tex.id, I(4)); return JS_UNDEFINED; }
 M(checkFramebufferStatus) { SELF NEED(1); return JS_NewUint32(c, gl.checkFramebufferStatus(U(0))); }
+// gl.zincPresent(image): the drawing buffer's pixels (rows flipped, no alpha) go to a zinc:gfx runtime image, so a zinc:ui Surface node shows the canvas (ZN-205). Zinc's own extension, not WebGL.
+PresentHook gPresent = nullptr;
+M(zincPresent) {
+  SELF NEED(1);
+  if (!gPresent) return JS_ThrowTypeError(c, "zincPresent: this program has no UI surface");
+  const int w = g->w, h = g->h;
+  std::vector<std::uint8_t> px(static_cast<std::size_t>(w) * h * 4);
+  gl.readPixels(0, 0, w, h, 0x1908, 0x1401, px.data(), px.size());
+  return JS_NewBool(c, gPresent(I(0), px.data(), w, h));
+}
 M(readPixels) {
   SELF NEED(7);
   std::uint8_t* p = nullptr;
@@ -423,7 +433,7 @@ const Fn kMethods[] = {
   F_(getAttribLocation, 2), F_(getUniformLocation, 2), F_(uniform1f, 2), F_(uniform2f, 3), F_(uniform4f, 5), F_(uniform1i, 2), F_(uniformMatrix4fv, 3),
   F_(enableVertexAttribArray, 1), F_(disableVertexAttribArray, 1), F_(vertexAttribPointer, 6), F_(drawArrays, 3), F_(drawElements, 4),
   F_(createTexture, 0), F_(deleteTexture, 1), F_(bindTexture, 2), F_(activeTexture, 1), F_(texParameteri, 3), F_(texImage2D, 9),
-  F_(createFramebuffer, 0), F_(bindFramebuffer, 2), F_(framebufferTexture2D, 5), F_(checkFramebufferStatus, 1), F_(readPixels, 7),
+  F_(createFramebuffer, 0), F_(bindFramebuffer, 2), F_(framebufferTexture2D, 5), F_(checkFramebufferStatus, 1), F_(readPixels, 7), F_(zincPresent, 1),
   F_(getContextAttributes, 0), F_(getExtension, 1), F_(isContextLost, 0),
   F_(blendColor, 4),
   F_(blendEquation, 1),
@@ -899,6 +909,7 @@ void install(JSContext* c) {
 
 }  // namespace
 
+void setPresentHook(PresentHook h) { gPresent = h; }
 void installWebGLBindings() { zn::qjs::addContextHook(install); }
 
 }  // namespace zn::gl

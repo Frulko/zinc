@@ -335,6 +335,21 @@ styles and engine animations for long-running motion. CSS strings are normalized
 
 [Figma UI documents](figma-ui.md) use these same style properties and generate this same TSX API.
 
+## Surfaces: a canvas inside a page
+
+`ui.createSurface(w, h)` makes a node that shows a runtime image the program fills (a WebGL canvas, video frames). It is laid out and painted like an `<image>`, so it scrolls and clips with its page; `ui.surfaceImage(node)` is the image handle to fill.
+
+With `"webgl": true` in `zinc.json`, `zinc:script` contexts get `document.createElement('canvas').getContext('webgl' | 'webgl2')`, and `gl.zincPresent(image)` copies the drawing buffer into the surface (rows flipped, no alpha):
+
+```ts
+const vm = new Script({ engine: 'quickjs' });
+vm.eval(source);                                   // creates a canvas and a draw(image) function
+const view = ui.createSurface(256, 256);
+vm.call('draw', [ui.surfaceImage(view)]);          // every frame, or when the scene changes
+```
+
+`tests/golden/webgl-surface` is the working example.
+
 ## Style reference
 
 <!-- ui-docs:begin -->

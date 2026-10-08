@@ -1,0 +1,1 @@
+{ "name": "webgl-surface", "entry": "src/main.tsx", "webgl": true }

@@ -50,6 +50,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #ifdef ZN_HOST_GFX
 #include "res/codec.h"
+namespace zrt::raster { bool image_size(int32_t id, int32_t* w, int32_t* h); void dyn_resize(int32_t id, int32_t w, int32_t h); uint32_t* dyn_pixels(int32_t id); void dyn_update(int32_t id, const uint32_t* px, int32_t stride); }   // gl.zincPresent (ZN-205)
 namespace zrt::gfx { extern uint8_t* (*encode_webp_hook)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)); }
 // ZINC_SHOT=*.webp and `zinc capture --format webp`: lossless WebP (ZN-226)
 static uint8_t* webpShot(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {
@@ -417,6 +418,21 @@ int main(int argc, char** argv) {
   zrt::gfx::encode_webp_hook = webpShot;
 #endif
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
+#ifdef ZN_HOST_GFX
+  zn::gl::setPresentHook([](int image, const unsigned char* rgba, int w, int h) -> bool {   // gl.zincPresent: RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
+    int32_t iw = 0, ih = 0;
+    if (!zrt::raster::image_size(image, &iw, &ih)) return false;
+    if (iw != w || ih != h) zrt::raster::dyn_resize(image, w, h);
+    uint32_t* dst = zrt::raster::dyn_pixels(image);
+    if (!dst) return false;
+    for (int y = 0; y < h; ++y) {
+      const unsigned char* src = rgba + static_cast<size_t>(h - 1 - y) * w * 4;
+      for (int x = 0; x < w; ++x, src += 4) dst[static_cast<size_t>(y) * w + x] = (uint32_t(src[0]) << 16) | (uint32_t(src[1]) << 8) | src[2];
+    }
+    zrt::raster::dyn_update(image, nullptr, 0);
+    return true;
+  });
+#endif
   zn::gl::installWebGLBindings();   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03)
 #endif
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
@@ -507,6 +523,7 @@ int main(int argc, char** argv) {
       }
       if (have) {
         shapedText = project.text == "shaped";
+        if (project.webgl) setenv("ZINC_WEBGL", "1", 0);   // zinc.json "webgl" (ZN-205)
         if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
         // the profile of the target this machine runs: macos, linux, else the simulator's
 #if defined(__APPLE__)

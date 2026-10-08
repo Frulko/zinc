@@ -242,12 +242,15 @@ set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_C
 target_compile_options(zn_quickjs PRIVATE -w -O2)
 target_link_libraries(zn_quickjs PUBLIC zn_regexp)
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
+add_library(zn_qjs_ext STATIC src/qjs/ext.cpp)   # the context hooks (WebGL for trusted programs and for zinc:script when zinc.json asks)
+target_link_libraries(zn_qjs_ext PUBLIC zn_quickjs)
+target_include_directories(zn_qjs_ext PUBLIC include src)
 add_library(zn_script STATIC src/qjs/script_native.cpp)
-target_link_libraries(zn_script PUBLIC zn_quickjs zn_native)
+target_link_libraries(zn_script PUBLIC zn_quickjs zn_native zn_qjs_ext)
 target_include_directories(zn_script PUBLIC include)
 
-add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp src/qjs/ext.cpp)
-target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
+add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp)
+target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend zn_qjs_ext)
 target_include_directories(zn_qjs PUBLIC include src)
 
 add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/lsp/lsp.cpp)

@@ -3,6 +3,8 @@
 // that has the standard built-ins only. Every host -> script entry (eval, call, set/get, settling a promise) is an Entry: the outermost one arms the deadline and runs the
 // pending promise jobs before it returns. Values cross as JSON text (the Zinc wrapper of the spec converts `unknown` with __nativeJson / __nativeValue); a function of the script
 // becomes the object {"__zn_fn": n}, n a handle into the Vm's reference table, and comes back as the function when it is sent in again.
+#include "zn/js_ext.h"
+#include <cstdlib>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -425,7 +427,6 @@ void freeVm(Vm* vm) {
 // ---------------------------------------------------------------- exports
 using Args = const ZnVal*;
 std::string str(const ZnVal& v) { return std::string(v.s.p, v.s.n); }
-int32_t ok(ZnVal* r, bool b) { r->i = b ? 1 : 0; return ZN_OK; }
 int32_t giveStr(ZnCtx* cx, ZnVal* r, const std::string& s) { r->s = H->ret_str(cx, s.data(), static_cast<uint32_t>(s.size())); return ZN_OK; }
 
 int32_t qCreate(void*, ZnCtx*, Args a, ZnVal* r) {
@@ -439,6 +440,7 @@ int32_t qCreate(void*, ZnCtx*, Args a, ZnVal* r) {
   if (a[2].d > 0) JS_SetMaxStackSize(rt, static_cast<size_t>(a[2].d));
   JSContext* ctx = JS_NewContext(rt);
   if (!ctx) { JS_FreeRuntime(rt); return ZN_OK; }
+  if (const char* wg = std::getenv("ZINC_WEBGL"); wg && *wg && *wg != '0') zn::qjs::runContextHooks(ctx);   // zinc.json "webgl": true: document.createElement('canvas').getContext('webgl') in scripts (ZN-205)
   Vm* vm = new Vm();
   vm->h = h; vm->rt = rt; vm->ctx = ctx; vm->limitMs = a[1].d; vm->memLimit = a[0].d;
   JS_SetContextOpaque(ctx, vm);
