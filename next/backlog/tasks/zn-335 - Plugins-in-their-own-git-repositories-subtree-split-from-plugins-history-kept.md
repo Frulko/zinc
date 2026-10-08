@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-08 14:42'
 labels:
   - distribution
   - ci
@@ -28,3 +29,9 @@ Owner, 2026-10-08: each plugin can live in its own repository and build on its o
 - [ ] #2 a split repository builds alone with the reusable workflow of D-plugin-ci (no path into the engine repo)
 - [ ] #3 plugins.lock records name, repository, commit and source hash for every plugin a release ships
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+D37 (owner, 2026-10-08): the split repositories are mirrors in the GitHub organization zinc-engine (plugin-<name>), pushed from the monorepo; a plugin leaves the monorepo for good only after the ABI freeze (ZN-353). Organization setup: ZN-352; community starter: ZN-354.
+<!-- SECTION:NOTES:END -->
