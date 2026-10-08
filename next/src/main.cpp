@@ -278,6 +278,15 @@ static zn::tc::BundleSpec gBundleSpec;
 
 int main(int argc, char** argv) {
   for (int k = 0; k < argc; ++k) gOriginalArgs.push_back(argv[k]);
+  for (int k = 1; k + 1 < argc; ++k)   // --clock virtual|real (ZN-293): the program's time source, whatever the command; `--` ends the options
+    if (!std::strcmp(argv[k], "--")) break;
+    else if (!std::strcmp(argv[k], "--clock")) {
+      if (std::strcmp(argv[k + 1], "virtual") && std::strcmp(argv[k + 1], "real")) { std::fprintf(stderr, "zinc: --clock is virtual or real\n"); return 2; }
+      setenv("ZINC_CLOCK", argv[k + 1], 1);
+      for (int j = k; j + 2 < argc + 1; ++j) argv[j] = argv[j + 2];
+      argc -= 2;
+      break;
+    }
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call

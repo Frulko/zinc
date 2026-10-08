@@ -414,6 +414,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostLoopWait: zn::loop::wait(a[0].d); break;
     case Rt::HostLoopReal: {  // real time unless the run is deterministic (ZINC_DETERMINISTIC, recording, replay); ZINC_REALTIME forces it
       auto set = [](const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; };
+      const char* clock = getenv("ZINC_CLOCK");   // --clock virtual | real (ZN-293): virtual means timers and sleeps advance a virtual clock and nothing waits
+      if (clock && !strcmp(clock, "virtual")) { r->i = 0; break; }
+      if (clock && !strcmp(clock, "real")) { r->i = 1; break; }
       r->i = set("ZINC_REALTIME") || !(set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY")) ? 1 : 0;
       break;
     }
