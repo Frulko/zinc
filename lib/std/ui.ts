@@ -173,6 +173,7 @@ export class UiNode {
   shadowLevel: i32 = 0;
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
+  snap: i32 = 0; snapProx: boolean = false; snapAlign: i32 = 0; spt: number = 0; spb: number = 0; spl: number = 0; spr: number = 0;   // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
@@ -784,6 +785,26 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   const css = CSS.get(tok);
   if (css !== undefined) { for (const t of css.split(' ')) if (t.length > 0) applyToken(n, t, ''); return true; }
+  if (tok === 'snap-none') { n.snap = 0; return true; }
+  if (tok === 'snap-y') { n.snap = n.snap | 1; return true; }
+  if (tok === 'snap-x') { n.snap = n.snap | 2; return true; }
+  if (tok === 'snap-both') { n.snap = 3; return true; }
+  if (tok === 'snap-mandatory') { n.snapProx = false; return true; }
+  if (tok === 'snap-proximity') { n.snapProx = true; return true; }
+  if (tok === 'snap-start') { n.snapAlign = 1; return true; }
+  if (tok === 'snap-center') { n.snapAlign = 2; return true; }
+  if (tok === 'snap-end') { n.snapAlign = 3; return true; }
+  if (tok === 'snap-align-none') { n.snapAlign = 0; return true; }
+  if (tok.startsWith('scroll-p')) {   // scroll-p-4, scroll-pt-2, scroll-px-3...
+    const d = tok.indexOf('-', 8);
+    const w = tok.slice(8, d < 0 ? 8 : d), v = d < 0 ? NaN : num(tok.slice(d + 1));
+    if (v !== v || (w !== '' && w !== 't' && w !== 'b' && w !== 'l' && w !== 'r' && w !== 'x' && w !== 'y')) return false;
+    if (w === '' || w === 't' || w === 'y') n.spt = v;
+    if (w === '' || w === 'b' || w === 'y') n.spb = v;
+    if (w === '' || w === 'l' || w === 'x') n.spl = v;
+    if (w === '' || w === 'r' || w === 'x') n.spr = v;
+    return true;
+  }
   if (tok === 'relative') { n.rel = true; n.sticky = false; return true; }
   if (tok === 'static') { n.rel = false; n.sticky = false; return true; }
   if (tok === 'sticky') { n.sticky = true; n.rel = false; return true; }
@@ -1010,7 +1031,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
@@ -2192,6 +2213,36 @@ function catchScroll(h: i32): void {
   const n = node(h);
   for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL)) { a.mode = IDLE; a.v = 0; }
 }
+// ---- scroll snap: the snap points are the offsets that put a child with snap-start / snap-center / snap-end at the start, centre or end of the scroll container's padded viewport
+const snapPts: number[] = [];
+function collectSnap(n: UiNode, sc: UiNode, yAxis: boolean): void {
+  for (const h of n.children) {
+    const c = node(h);
+    if (c.hidden) continue;
+    if (c.snapAlign !== 0) {
+      const pos = yAxis ? c.y - sc.y : c.x - sc.x, size = yAxis ? c.lh : c.lw, view = yAxis ? sc.lh : sc.lw;
+      const ps = yAxis ? sc.spt : sc.spl, pe = yAxis ? sc.spb : sc.spr;
+      snapPts.push(c.snapAlign === 1 ? pos - ps : c.snapAlign === 2 ? pos + size / 2 - view / 2 : pos + size - view + pe);
+    }
+    collectSnap(c, sc, yAxis);
+  }
+}
+/** The snap offset for `v`: with dir 0 the nearest; otherwise the nearest one beyond `v` in direction dir (a wheel notch moves to the next point). `v` itself when there is none. */
+function snapTo(sc: UiNode, yAxis: boolean, v: number, dir: number): number {
+  snapPts.length = 0;
+  collectSnap(sc, sc, yAxis);
+  const mx = yAxis ? maxScrollY(sc) : maxScrollX(sc);
+  let best = v, bd = 1e9;
+  for (let i = 0; i < snapPts.length; i++) {
+    const q = Math.max(0, Math.min(mx, snapPts[i])), d = q - v;
+    if (dir > 0 && d <= 0.5) continue;
+    if (dir < 0 && d >= -0.5) continue;
+    const ad = Math.abs(d);
+    if (ad < bd) { bd = ad; best = q; }
+  }
+  if (sc.snapProx && bd > 32) return v;
+  return best;
+}
 function stepScroll(dt: number): void {
   for (let i = scrollers.length - 1; i >= 0; i--) {
     const h = scrollers[i], n = node(h);
@@ -2201,12 +2252,20 @@ function stepScroll(dt: number): void {
       const a = n.ay as ScrollAxis, my = maxScrollY(n);
       if (a.mode === IDLE && (a.pos < 0 || a.pos > my)) a.mode = BOUNCE;   // content shrank, or a press ended an overscroll
       if (stepAxis(a, my, dt)) moving = true;
+      else if ((n.snap & 1) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= my) {   // the scroll stopped between snap points: settle on the nearest
+        const t = snapTo(n, true, a.pos, 0);
+        if (Math.abs(t - a.pos) > 0.5) { a.target = t; a.mode = WHEEL; moving = true; }
+      }
       n.sy = a.pos;
     }
     if (n.ax !== null) {
       const a = n.ax as ScrollAxis, mx = maxScrollX(n);
       if (a.mode === IDLE && (a.pos < 0 || a.pos > mx)) a.mode = BOUNCE;
       if (stepAxis(a, mx, dt)) moving = true;
+      else if ((n.snap & 2) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= mx) {
+        const t = snapTo(n, false, a.pos, 0);
+        if (Math.abs(t - a.pos) > 0.5) { a.target = t; a.mode = WHEEL; moving = true; }
+      }
       n.sx = a.pos;
     }
     n.scrolledAt = clock;
@@ -2250,7 +2309,6 @@ function editScrolls(n: UiNode, e: Edit): boolean {
   ensureRows(n, e);
   return e.multi && e.rs.length * lineHeightOf(n) > n.lh - n.pt - n.pb;
 }
-/** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
 /** position: sticky; top-N: how far the box is held down from its place while its scroll container is scrolled past it (kept inside its parent). */
 function stickyDy(n: UiNode): number {
   if (!n.sticky || n.top === UNSET) return 0;
@@ -2279,6 +2337,7 @@ function zSorted(n: UiNode): i32[] | null {
   }
   return out;
 }
+/** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
 function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number, mode: i32): i32 {
   const n = node(h);
   if (n.hidden || n.invisible || n.noPointer || (n.layer && h !== layerPass)) return -1;
@@ -2493,10 +2552,12 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
   if (wy !== 0 && (n.scroll & 1) !== 0) {
     const a = axisY(n), base = a.mode === WHEEL ? a.target : a.pos;
     a.target = Math.max(0, Math.min(maxScrollY(n), base - wy * NOTCH_PX)); a.mode = WHEEL;
+    if ((n.snap & 1) !== 0) a.target = snapTo(n, true, base, -wy > 0 ? 1 : -1);   // a notch moves to the next snap point
   }
   if (wx !== 0 && (n.scroll & 2) !== 0) {
     const a = axisX(n), base = a.mode === WHEEL ? a.target : a.pos;
     a.target = Math.max(0, Math.min(maxScrollX(n), base + wx * NOTCH_PX)); a.mode = WHEEL;
+    if ((n.snap & 2) !== 0) a.target = snapTo(n, false, base, wx > 0 ? 1 : -1);
   }
   n.scrolledAt = clock; paintDirty = true;
   wakeScroll(sc);

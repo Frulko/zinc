@@ -1,118 +1,133 @@
-p-4 true 16 16 16 16 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-px-2 true 0 8 0 8 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-pt-1 true 4 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-m-2 true 0 0 0 0 8 8 8 8 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mx-3 true 0 0 0 0 0 12 0 12 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mt-1 true 0 0 0 0 4 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-ml-6 true 0 0 0 0 0 0 0 24 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--mt-2 true 0 0 0 0 -8 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--m-4 true 0 0 0 0 -16 -16 -16 -16 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--mx-1 true 0 0 0 0 0 -4 0 -4 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--ml-px true 0 0 0 0 0 0 0 -1 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mx-auto true 0 0 0 0 0 0 0 0 3 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-ml-auto true 0 0 0 0 0 0 0 0 1 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mr-auto true 0 0 0 0 0 0 0 0 2 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mt-auto true 0 0 0 0 0 0 0 0 4 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-m-auto true 0 0 0 0 0 0 0 0 15 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-my-auto true 0 0 0 0 0 0 0 0 12 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-gap-2 true 0 0 0 0 0 0 0 0 0 8 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-gap-x-4 true 0 0 0 0 0 0 0 0 0 0 16 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-gap-y-2 true 0 0 0 0 0 0 0 0 0 0 -1 8 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-gap-[10px] true 0 0 0 0 0 0 0 0 0 10 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 0 0 0 0 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-4 true 0 0 0 0 0 0 0 0 0 0 -1 -1 16 16 16 16 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-x-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 8 -100000 8 -100000 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-y-1 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 4 -100000 4 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-[8px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 8 8 8 8 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-top-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 8 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-left-3 true 0 0 0 0 0 0 0 0 0 0 -1 -1 12 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-right-1 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 4 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-bottom-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 0 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-4 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 16 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-8 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 32 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-1/2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0.5 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-1/3 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0.3333333333333333 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-[50%] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0.5 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-[25%] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0.25 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-[2rem] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-[1.5rem] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 24 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-[100px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 100 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-[10vh] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 24 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-[10vw] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-flex-row true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-flex-wrap true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-items-center true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-justify-between true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-grow true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 1 -1 -1 0 0 -1 -1 false 0 false false false false
-hidden true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-absolute true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-rounded-lg true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-border true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-opacity-50 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-bg-white true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-text-lg true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-min-w-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 0 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-max-w-md true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 448 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-max-w-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-max-h-[300px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 300 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-min-h-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 240 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-aspect-video true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1.7777777777777777 0 -1 -1 0 0 -1 -1 false 0 false false false false
-aspect-square true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1 0 -1 -1 0 0 -1 -1 false 0 false false false false
-aspect-[4/3] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1.3333333333333333 0 -1 -1 0 0 -1 -1 false 0 false false false false
-aspect-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 320 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-h-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 240 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-size-8 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 32 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-max-w-bogus false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-aspect-foo false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-min-x-4 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-grow-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 2 -1 -1 0 0 -1 -1 false 0 false false false false
-grow-[0.5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0.5 -1 -1 0 0 -1 -1 false 0 false false false false
-shrink true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 1 -1 0 0 -1 -1 false 0 false false false false
-shrink-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0 -1 0 0 -1 -1 false 0 false false false false
-shrink-[0.5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0.5 -1 0 0 -1 -1 false 0 false false false false
-flex-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0 -1 0 0 -1 -1 false 0 false false false false
-flex-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 1 1 -1 0 0 -1 -1 false 0 false false false false
-basis-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 0 0 0 -1 -1 false 0 false false false false
-basis-32 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 128 0 0 -1 -1 false 0 false false false false
-basis-1/2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0.5 0 -1 -1 false 0 false false false false
-basis-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 1 0 -1 -1 false 0 false false false false
-basis-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-order-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 2 -1 -1 false 0 false false false false
-order-first true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 -9999 -1 -1 false 0 false false false false
-order-last true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 9999 -1 -1 false 0 false false false false
-self-end true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 2 -1 false 0 false false false false
-self-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-content-between true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 4 false 0 false false false false
-content-evenly true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 6 false 0 false false false false
-flex-row-reverse true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 true 0 false false false false
-flex-col-reverse true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 true 0 false false false false
-grow-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-self-top false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-order-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-content-foo false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-shrink-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-z-10 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 10 false false false false
--z-10 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false -10 false false false false
-z-[5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 5 false false false false
-z-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-z-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-relative true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false true false
-sticky true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false true
-static true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-invisible true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 true false false false
-visible true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-pointer-events-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false true false false
-pointer-events-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-pointer-events-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-bogus false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--bogus-3 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--mx-auto false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-gap-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-mx- false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-w-[ false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-inset-q-3 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-foo:bar false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
--w-4 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
-m-xyz false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false
+p-4 true 16 16 16 16 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+px-2 true 0 8 0 8 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+pt-1 true 4 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+m-2 true 0 0 0 0 8 8 8 8 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mx-3 true 0 0 0 0 0 12 0 12 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mt-1 true 0 0 0 0 4 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+ml-6 true 0 0 0 0 0 0 0 24 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-mt-2 true 0 0 0 0 -8 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-m-4 true 0 0 0 0 -16 -16 -16 -16 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-mx-1 true 0 0 0 0 0 -4 0 -4 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-ml-px true 0 0 0 0 0 0 0 -1 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mx-auto true 0 0 0 0 0 0 0 0 3 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+ml-auto true 0 0 0 0 0 0 0 0 1 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mr-auto true 0 0 0 0 0 0 0 0 2 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mt-auto true 0 0 0 0 0 0 0 0 4 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+m-auto true 0 0 0 0 0 0 0 0 15 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+my-auto true 0 0 0 0 0 0 0 0 12 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+gap-2 true 0 0 0 0 0 0 0 0 0 8 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+gap-x-4 true 0 0 0 0 0 0 0 0 0 0 16 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+gap-y-2 true 0 0 0 0 0 0 0 0 0 0 -1 8 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+gap-[10px] true 0 0 0 0 0 0 0 0 0 10 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 0 0 0 0 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-4 true 0 0 0 0 0 0 0 0 0 0 -1 -1 16 16 16 16 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-x-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 8 -100000 8 -100000 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-y-1 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 4 -100000 4 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-[8px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 8 8 8 8 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+top-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 8 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+left-3 true 0 0 0 0 0 0 0 0 0 0 -1 -1 12 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+right-1 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 4 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+bottom-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 0 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-4 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 16 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-8 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 32 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-1/2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0.5 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-1/3 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0.3333333333333333 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-[50%] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0.5 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-[25%] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0.25 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-[2rem] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-[1.5rem] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 24 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-[100px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 100 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-[10vh] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 24 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-[10vw] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+flex-row true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+flex-wrap true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+items-center true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+justify-between true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+grow true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 1 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+hidden true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+absolute true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 true -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+rounded-lg true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+border true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+opacity-50 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+bg-white true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+text-lg true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+min-w-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 0 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+max-w-md true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 448 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+max-w-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+max-h-[300px] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 300 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+min-h-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 240 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+aspect-video true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1.7777777777777777 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+aspect-square true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+aspect-[4/3] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 1.3333333333333333 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+aspect-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 320 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+h-screen true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 240 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+size-8 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false 32 32 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+max-w-bogus false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+aspect-foo false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+min-x-4 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+grow-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 2 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+grow-[0.5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0.5 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+shrink true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+shrink-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+shrink-[0.5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0.5 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+flex-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 0 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+flex-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 1 1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+basis-0 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 0 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+basis-32 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 128 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+basis-1/2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0.5 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+basis-full true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 1 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+basis-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+order-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 2 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+order-first true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 -9999 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+order-last true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 9999 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+self-end true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 2 -1 false 0 false false false false 0 false 0 0 0 0 0
+self-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+content-between true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 4 false 0 false false false false 0 false 0 0 0 0 0
+content-evenly true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 6 false 0 false false false false 0 false 0 0 0 0 0
+flex-row-reverse true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 true 0 false false false false 0 false 0 0 0 0 0
+flex-col-reverse true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 true 0 false false false false 0 false 0 0 0 0 0
+grow-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+self-top false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+order-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+content-foo false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+shrink-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+z-10 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 10 false false false false 0 false 0 0 0 0 0
+-z-10 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false -10 false false false false 0 false 0 0 0 0 0
+z-[5] true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 5 false false false false 0 false 0 0 0 0 0
+z-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+z-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+relative true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false true false 0 false 0 0 0 0 0
+sticky true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false true 0 false 0 0 0 0 0
+static true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+invisible true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 true false false false 0 false 0 0 0 0 0
+visible true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+pointer-events-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false true false false 0 false 0 0 0 0 0
+pointer-events-auto true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+pointer-events-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+snap-y true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 1 false 0 0 0 0 0
+snap-x true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 2 false 0 0 0 0 0
+snap-both true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 3 false 0 0 0 0 0
+snap-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+snap-mandatory true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+snap-proximity true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 true 0 0 0 0 0
+snap-start true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 1 0 0 0 0
+snap-center true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 2 0 0 0 0
+snap-end true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 3 0 0 0 0
+snap-align-none true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+scroll-p-4 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 16 16 16 16
+scroll-pt-2 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 8 0 0 0
+scroll-px-3 true 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 12 12
+scroll-pz-1 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+snap-foo false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+bogus false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-bogus-3 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-mx-auto false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+gap-x false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+mx- false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+w-[ false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+inset-q-3 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+foo:bar false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+-w-4 false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
+m-xyz false 0 0 0 0 0 0 0 0 0 0 -1 -1 -100000 -100000 -100000 -100000 false -1 -1 0 0 -1 -1 -1 -1 0 0 -1 -1 0 0 -1 -1 false 0 false false false false 0 false 0 0 0 0 0
