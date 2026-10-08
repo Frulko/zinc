@@ -133,6 +133,69 @@ export class StyleSheet {
 const NO_LINES: string[] = [];
 const NO_LINEW: number[] = [];
 const NO_IDS: i32[] = [];
+const NO_SHEETS: Style[] = [];
+export class RingX {
+  ringW: i32 = 0;
+  ringC: i32 = -1;
+  ringO: i32 = 0;
+  outW: i32 = 0;
+  outC: i32 = -1;
+  outO: i32 = 0;
+  outNone: boolean = false;
+  fRingW: i32 = -1;
+  fRingC: i32 = -1;
+  fRingO: i32 = 0;
+  fOutW: i32 = -1;
+  fOutC: i32 = -1;
+  fOutO: i32 = 0;
+  fVisible: boolean = false;
+}
+const DEF_RINGX = new RingX();
+export class BorderX {
+  borderStyle: i32 = 0;
+  bcT: i32 = -1;
+  bcR: i32 = -1;
+  bcB: i32 = -1;
+  bcL: i32 = -1;
+  crTL: number = -1;
+  crTR: number = -1;
+  crBR: number = -1;
+  crBL: number = -1;
+  bT: number = -1;
+  bR: number = -1;
+  bB: number = -1;
+  bL: number = -1;
+}
+const DEF_BORDERX = new BorderX();
+export class SnapX {
+  snap: i32 = 0;
+  snapProx: boolean = false;
+  snapAlign: i32 = 0;
+  spt: number = 0;
+  spb: number = 0;
+  spl: number = 0;
+  spr: number = 0;
+}
+const DEF_SNAPX = new SnapX();
+export class InterX {
+  focusBg: i32 = -1;
+  activeBg: i32 = -1;
+  focusFg: i32 = -1;
+  activeFg: i32 = -1;
+  hoverBg: i32 = -1;
+  hoverFg: i32 = -1;
+  hoverBorder: i32 = -1;
+  focusBorder: i32 = -1;
+  withinBg: i32 = -1;
+  withinFg: i32 = -1;
+  withinBorder: i32 = -1;
+  transMs: number = 0;
+  curBg: i32 = -1;
+  fromBg: i32 = -1;
+  transStart: number = 0;
+}
+const DEF_INTERX = new InterX();
+
 export class UiNode {
   tag: i32;
   parent: i32 = -1;
@@ -166,7 +229,7 @@ export class UiNode {
   virt: Virtual | null = null;
   group: boolean = false;              // `group`: group-hover: group-focus: group-active: classes of its descendants follow it
   peer: boolean = false;               // `peer`: peer-hover: peer-focus: peer-active: classes of the siblings after it follow it
-  attrK: string[] = []; attrV: string[] = [];   // aria-* and data-* attributes (setAttr): aria-checked: and data-[state=open]: variants read them
+  attrK: string[] = NO_LINES; attrV: string[] = NO_LINES;   // aria-* and data-* attributes (setAttr): aria-checked: and data-[state=open]: variants read them
   selectable: boolean = false;         // select-text: the pointer selects its text (ZN-270)
   surface: boolean = false;            // img is a runtime image this node owns (createSurface)
   role: string = ''; label: string = ''; ariaHidden: boolean = false;   // accessibility metadata (ZN-276)
@@ -177,12 +240,12 @@ export class UiNode {
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
   borderW: number = 0; borderColor: i32 = 0xe5e7eb; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
-  bT: number = -1; bR: number = -1; bB: number = -1; bL: number = -1;  // border-t/r/b/l widths, -1 = borderW
+   // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
-  borderStyle: i32 = 0; bcT: i32 = -1; bcR: i32 = -1; bcB: i32 = -1; bcL: i32 = -1; crTL: number = -1; crTR: number = -1; crBR: number = -1; crBL: number = -1;   // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
-  snap: i32 = 0; snapProx: boolean = false; snapAlign: i32 = 0; spt: number = 0; spb: number = 0; spl: number = 0; spr: number = 0;   // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
+    // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
+    // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
@@ -192,27 +255,85 @@ export class UiNode {
   family: string = 'sans';
   lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
   img: i32 = -1;
-  focusBg: i32 = -1; activeBg: i32 = -1; focusFg: i32 = -1; activeFg: i32 = -1;
-  transMs: number = 0; curBg: i32 = -1; fromBg: i32 = -1; transStart: number = 0;
+  
+  
   focusable: boolean = false;
   styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW; styleIds: i32[] = NO_IDS;   // shared empties until the first style number
-  sheets: Style[] = []; sheetKeys: string[] = []; sheetVals: number[] = []; sheetIds: i32[] = [];
+  sheets: Style[] = NO_SHEETS; sheetKeys: string[] = NO_LINES; sheetVals: number[] = NO_LINEW; sheetIds: i32[] = NO_IDS;   // shared empties until the first style sheet (they are replaced, never changed in place when empty)
   cls: string = '\u0000';
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
   onDraw: ((x: i32, y: i32, w: i32, h: i32) => void) | null = null;
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
-  hoverBg: i32 = -1; hoverFg: i32 = -1; hoverBorder: i32 = -1; focusBorder: i32 = -1;
-  ringW: i32 = 0; ringC: i32 = -1; ringO: i32 = 0; outW: i32 = 0; outC: i32 = -1; outO: i32 = 0; outNone: boolean = false;   // ring-* / outline-* (ZN-258)
-  fRingW: i32 = -1; fRingC: i32 = -1; fRingO: i32 = 0; fOutW: i32 = -1; fOutC: i32 = -1; fOutO: i32 = 0; fVisible: boolean = false;   // the focus: / focus-visible: set
+  
+    // ring-* / outline-* (ZN-258)
+    // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
   hs: Handlers | null = null;
   ed: Edit | null = null;
   layer: boolean = false;              // ui.openLayer: laid out, painted and hit-tested apart from its parent
-  withinBg: i32 = -1; withinFg: i32 = -1; withinBorder: i32 = -1;   // focus-within: colors
+    // focus-within: colors
+  rg: RingX = DEF_RINGX;   // cold fields in a record shared by every node that has none of them (copy on write: ownRg())
+  bd: BorderX = DEF_BORDERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownBd())
+  sn: SnapX = DEF_SNAPX;   // cold fields in a record shared by every node that has none of them (copy on write: ownSn())
+  it: InterX = DEF_INTERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownIt())
   constructor(tag: i32) { this.tag = tag; }
+  // read access under the old names (ui.inspectNode users and tests); the program writes through ownRg() and the like
+  get ringW(): i32 { return this.rg.ringW; }
+  get ringC(): i32 { return this.rg.ringC; }
+  get ringO(): i32 { return this.rg.ringO; }
+  get outW(): i32 { return this.rg.outW; }
+  get outC(): i32 { return this.rg.outC; }
+  get outO(): i32 { return this.rg.outO; }
+  get outNone(): boolean { return this.rg.outNone; }
+  get fRingW(): i32 { return this.rg.fRingW; }
+  get fRingC(): i32 { return this.rg.fRingC; }
+  get fRingO(): i32 { return this.rg.fRingO; }
+  get fOutW(): i32 { return this.rg.fOutW; }
+  get fOutC(): i32 { return this.rg.fOutC; }
+  get fOutO(): i32 { return this.rg.fOutO; }
+  get fVisible(): boolean { return this.rg.fVisible; }
+  get borderStyle(): i32 { return this.bd.borderStyle; }
+  get bcT(): i32 { return this.bd.bcT; }
+  get bcR(): i32 { return this.bd.bcR; }
+  get bcB(): i32 { return this.bd.bcB; }
+  get bcL(): i32 { return this.bd.bcL; }
+  get crTL(): number { return this.bd.crTL; }
+  get crTR(): number { return this.bd.crTR; }
+  get crBR(): number { return this.bd.crBR; }
+  get crBL(): number { return this.bd.crBL; }
+  get bT(): number { return this.bd.bT; }
+  get bR(): number { return this.bd.bR; }
+  get bB(): number { return this.bd.bB; }
+  get bL(): number { return this.bd.bL; }
+  get snap(): i32 { return this.sn.snap; }
+  get snapProx(): boolean { return this.sn.snapProx; }
+  get snapAlign(): i32 { return this.sn.snapAlign; }
+  get spt(): number { return this.sn.spt; }
+  get spb(): number { return this.sn.spb; }
+  get spl(): number { return this.sn.spl; }
+  get spr(): number { return this.sn.spr; }
+  get focusBg(): i32 { return this.it.focusBg; }
+  get activeBg(): i32 { return this.it.activeBg; }
+  get focusFg(): i32 { return this.it.focusFg; }
+  get activeFg(): i32 { return this.it.activeFg; }
+  get hoverBg(): i32 { return this.it.hoverBg; }
+  get hoverFg(): i32 { return this.it.hoverFg; }
+  get hoverBorder(): i32 { return this.it.hoverBorder; }
+  get focusBorder(): i32 { return this.it.focusBorder; }
+  get withinBg(): i32 { return this.it.withinBg; }
+  get withinFg(): i32 { return this.it.withinFg; }
+  get withinBorder(): i32 { return this.it.withinBorder; }
+  get transMs(): number { return this.it.transMs; }
+  get curBg(): i32 { return this.it.curBg; }
+  get fromBg(): i32 { return this.it.fromBg; }
+  get transStart(): number { return this.it.transStart; }
+  ownRg(): RingX { if (this.rg === DEF_RINGX) this.rg = new RingX(); return this.rg; }
+  ownBd(): BorderX { if (this.bd === DEF_BORDERX) this.bd = new BorderX(); return this.bd; }
+  ownSn(): SnapX { if (this.sn === DEF_SNAPX) this.sn = new SnapX(); return this.sn; }
+  ownIt(): InterX { if (this.it === DEF_INTERX) this.it = new InterX(); return this.it; }
 }
 
 /** The paint-only properties a state can change (hover:, focus:, active:, disabled:): one record per state plus the values to go back to. mask bits: 1 opacity, 2 tx, 4 ty, 16 shadow, 32 bg, 64 fg, 128 border colour, 256 radius. */
@@ -681,10 +802,10 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_LINE_HEIGHT) n.leading = iv;
   else if (id === P_LETTER_SPACING) { n.letterSpace = v; n.tracking = v / (n.size > 0 ? n.size : 16); }
   else if (id === P_BORDER_WIDTH) n.borderW = v;
-  else if (id === P_BORDER_TOP_WIDTH) n.bT = v;
-  else if (id === P_BORDER_RIGHT_WIDTH) n.bR = v;
-  else if (id === P_BORDER_BOTTOM_WIDTH) n.bB = v;
-  else if (id === P_BORDER_LEFT_WIDTH) n.bL = v;
+  else if (id === P_BORDER_TOP_WIDTH) n.ownBd().bT = v;
+  else if (id === P_BORDER_RIGHT_WIDTH) n.ownBd().bR = v;
+  else if (id === P_BORDER_BOTTOM_WIDTH) n.ownBd().bB = v;
+  else if (id === P_BORDER_LEFT_WIDTH) n.ownBd().bL = v;
   else if (id === P_PADDING_TOP) n.pt = iv; else if (id === P_PADDING_RIGHT) n.pr = iv;
   else if (id === P_PADDING_BOTTOM) n.pb = iv; else if (id === P_PADDING_LEFT) n.pl = iv;
   else if (id === P_MARGIN_TOP) n.mt = iv; else if (id === P_MARGIN_RIGHT) n.mr = iv;
@@ -844,18 +965,18 @@ function ringToken(n: UiNode, tok: string, mode: i32): boolean {
   const ring = tok === 'ring' || tok.startsWith('ring-'), out = tok === 'outline' || tok.startsWith('outline-');
   if (!ring && !out) return false;
   const pre = ring ? 4 : 7;
-  if (mode > 0) n.fVisible = mode === 2;
-  if (tok === 'outline-none' || tok === 'outline-0') { if (mode === 0) n.outNone = true; else n.fOutW = 0; return true; }
+  if (mode > 0) n.ownRg().fVisible = mode === 2;
+  if (tok === 'outline-none' || tok === 'outline-0') { if (mode === 0) n.ownRg().outNone = true; else n.ownRg().fOutW = 0; return true; }
   let w = -1, off = -1, c = -2;
   if (tok.length === pre) w = ring ? 3 : 1;
   else if (tok.startsWith(tok.slice(0, pre + 1) + 'offset-')) off = ringStep(tok, pre + 8);
   else { w = ringStep(tok, pre + 1); if (w < 0) c = colorOf(tok.slice(pre + 1)); }
   if (w < 0 && off < 0 && c === -2) return false;
   if (mode === 0) {
-    if (ring) { if (w >= 0) n.ringW = w; else if (off >= 0) n.ringO = off; else n.ringC = c; }
-    else { if (w >= 0) n.outW = w; else if (off >= 0) n.outO = off; else n.outC = c; }
-  } else if (ring) { if (w >= 0) n.fRingW = w; else if (off >= 0) n.fRingO = off; else n.fRingC = c; }
-  else { if (w >= 0) n.fOutW = w; else if (off >= 0) n.fOutO = off; else n.fOutC = c; }
+    if (ring) { if (w >= 0) n.ownRg().ringW = w; else if (off >= 0) n.ownRg().ringO = off; else n.ownRg().ringC = c; }
+    else { if (w >= 0) n.ownRg().outW = w; else if (off >= 0) n.ownRg().outO = off; else n.ownRg().outC = c; }
+  } else if (ring) { if (w >= 0) n.ownRg().fRingW = w; else if (off >= 0) n.ownRg().fRingO = off; else n.ownRg().fRingC = c; }
+  else { if (w >= 0) n.ownRg().fOutW = w; else if (off >= 0) n.ownRg().fOutO = off; else n.ownRg().fOutC = c; }
   return true;
 }
 // ---- accessibility (ZN-276)
@@ -996,7 +1117,7 @@ function attrOf(n: UiNode, k: string): string { const i = n.attrK.indexOf(k); re
 /** Sets an aria-* or data-* attribute (aria-checked = "true", data-state = "open"): variants such as aria-checked: and data-[state=open]: follow it, paint only. */
 export function setAttr(h: i32, name: string, value: string): void {
   const n = node(h), i = n.attrK.indexOf(name);
-  if (i < 0) { n.attrK.push(name); n.attrV.push(value); } else if (n.attrV[i] === value) return; else n.attrV[i] = value;
+  if (i < 0) { if (n.attrK === NO_LINES) { n.attrK = []; n.attrV = []; } n.attrK.push(name); n.attrV.push(value); } else if (n.attrV[i] === value) return; else n.attrV[i] = value;
   paintDirty = true;
 }
 /** hover: focus: active: disabled: tokens of one node: only paint-only properties, copied from a scratch node that took the token. */
@@ -1020,7 +1141,7 @@ function stateToken(n: UiNode, variant: string, tok: string): boolean {
   else if (tok.startsWith('bg-') && t.grad === 0) m = 32;
   else if (tok.startsWith('text-') && t.size === d.size && t.leading === d.leading && t.fg !== d.fg) m = 64;
   else if (tok.startsWith('border-') && t.borderW === d.borderW && t.borderColor !== d.borderColor) m = 128;
-  else if (tok.startsWith('rounded') && t.crTL < 0 && t.crTR < 0 && t.crBR < 0 && t.crBL < 0) m = 256;
+  else if (tok.startsWith('rounded') && t.bd.crTL < 0 && t.bd.crTR < 0 && t.bd.crBR < 0 && t.bd.crBL < 0) m = 256;
   if (m === 0) return false;
   let ov = n.ov;
   if (ov === null) { ov = new StateOverlay(); n.ov = ov; if (n.id >= 0 && statefuls.indexOf(n.id) < 0) statefuls.push(n.id); }
@@ -1137,11 +1258,11 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const c = isBg ? colorOf(tok.slice(3)) : isBorder ? colorOf(tok.slice(7)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
     if (variant !== 'selection' && variant !== 'within' && (c === -2 || variant === 'disabled' || variant.startsWith('group-') || variant.startsWith('peer-') || variant.startsWith('attr:') || (variant === 'active' && isBorder) || (c >= 0 && alphaOf(isBg ? tok.slice(3) : isBorder ? tok.slice(7) : tok.slice(5)) !== 255))) return stateToken(n, variant, tok);
     if (c === -2) return false;
-    if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
-    else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
+    if (variant === 'focus') { if (isBg) n.ownIt().focusBg = c; else if (isBorder) n.ownIt().focusBorder = c; else n.ownIt().focusFg = c; }
+    else if (variant === 'hover') { if (isBg) n.ownIt().hoverBg = c; else if (isBorder) n.ownIt().hoverBorder = c; else n.ownIt().hoverFg = c; }
     else if (variant === 'selection') { if (isBg) n.selBg = c; else return false; }
-    else if (variant === 'within') { if (isBg) n.withinBg = c; else if (isBorder) n.withinBorder = c; else n.withinFg = c; }
-    else { if (isBg) n.activeBg = c; else if (isBorder) return false; else n.activeFg = c; }
+    else if (variant === 'within') { if (isBg) n.ownIt().withinBg = c; else if (isBorder) n.ownIt().withinBorder = c; else n.ownIt().withinFg = c; }
+    else { if (isBg) n.ownIt().activeBg = c; else if (isBorder) return false; else n.ownIt().activeFg = c; }
     return true;
   }
   if (tok.startsWith('cursor-')) {
@@ -1152,24 +1273,24 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   const css = CSS.get(tok);
   if (css !== undefined) { for (const t of css.split(' ')) if (t.length > 0) applyToken(n, t, ''); return true; }
-  if (tok === 'snap-none') { n.snap = 0; return true; }
-  if (tok === 'snap-y') { n.snap = n.snap | 1; return true; }
-  if (tok === 'snap-x') { n.snap = n.snap | 2; return true; }
-  if (tok === 'snap-both') { n.snap = 3; return true; }
-  if (tok === 'snap-mandatory') { n.snapProx = false; return true; }
-  if (tok === 'snap-proximity') { n.snapProx = true; return true; }
-  if (tok === 'snap-start') { n.snapAlign = 1; return true; }
-  if (tok === 'snap-center') { n.snapAlign = 2; return true; }
-  if (tok === 'snap-end') { n.snapAlign = 3; return true; }
-  if (tok === 'snap-align-none') { n.snapAlign = 0; return true; }
+  if (tok === 'snap-none') { n.ownSn().snap = 0; return true; }
+  if (tok === 'snap-y') { n.ownSn().snap = n.sn.snap | 1; return true; }
+  if (tok === 'snap-x') { n.ownSn().snap = n.sn.snap | 2; return true; }
+  if (tok === 'snap-both') { n.ownSn().snap = 3; return true; }
+  if (tok === 'snap-mandatory') { n.ownSn().snapProx = false; return true; }
+  if (tok === 'snap-proximity') { n.ownSn().snapProx = true; return true; }
+  if (tok === 'snap-start') { n.ownSn().snapAlign = 1; return true; }
+  if (tok === 'snap-center') { n.ownSn().snapAlign = 2; return true; }
+  if (tok === 'snap-end') { n.ownSn().snapAlign = 3; return true; }
+  if (tok === 'snap-align-none') { n.ownSn().snapAlign = 0; return true; }
   if (tok.startsWith('scroll-p')) {   // scroll-p-4, scroll-pt-2, scroll-px-3...
     const d = tok.indexOf('-', 8);
     const w = tok.slice(8, d < 0 ? 8 : d), v = d < 0 ? NaN : num(tok.slice(d + 1));
     if (v !== v || (w !== '' && w !== 't' && w !== 'b' && w !== 'l' && w !== 'r' && w !== 'x' && w !== 'y')) return false;
-    if (w === '' || w === 't' || w === 'y') n.spt = v;
-    if (w === '' || w === 'b' || w === 'y') n.spb = v;
-    if (w === '' || w === 'l' || w === 'x') n.spl = v;
-    if (w === '' || w === 'r' || w === 'x') n.spr = v;
+    if (w === '' || w === 't' || w === 'y') n.ownSn().spt = v;
+    if (w === '' || w === 'b' || w === 'y') n.ownSn().spb = v;
+    if (w === '' || w === 'l' || w === 'x') n.ownSn().spl = v;
+    if (w === '' || w === 'r' || w === 'x') n.ownSn().spr = v;
     return true;
   }
   if (tok === 'relative') { n.rel = true; n.sticky = false; return true; }
@@ -1320,8 +1441,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'tracking-wide') { n.tracking = 0.025; return true; }
   if (tok === 'tracking-wider') { n.tracking = 0.05; return true; }
   if (tok === 'tracking-widest') { n.tracking = 0.1; return true; }
-  if (tok === 'transition-colors' || tok === 'transition-all') { if (n.transMs === 0) n.transMs = 150; return true; }
-  if (tok.startsWith('duration-')) { n.transMs = parseFloat(tok.slice(9)); return true; }
+  if (tok === 'transition-colors' || tok === 'transition-all') { if (n.it.transMs === 0) n.ownIt().transMs = 150; return true; }
+  if (tok.startsWith('duration-')) { n.ownIt().transMs = parseFloat(tok.slice(9)); return true; }
   if (tok === 'shadow-none') { n.shadowLevel = 0; return true; }
   if (tok === 'shadow-sm') { n.shadowLevel = 1; return true; }
   if (tok === 'shadow') { n.shadowLevel = 2; return true; }
@@ -1336,10 +1457,10 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const i = RADII.indexOf(rest);
     const rv = i >= 0 ? RADIUS_PX[i] : rest === '' ? RADIUS_PX[2] : num(rest);
     if (rv !== rv) return false;
-    if (sd === 't' || sd === 'tl' || sd === 'l') n.crTL = rv;
-    if (sd === 't' || sd === 'tr' || sd === 'r') n.crTR = rv;
-    if (sd === 'b' || sd === 'br' || sd === 'r') n.crBR = rv;
-    if (sd === 'b' || sd === 'bl' || sd === 'l') n.crBL = rv;
+    if (sd === 't' || sd === 'tl' || sd === 'l') n.ownBd().crTL = rv;
+    if (sd === 't' || sd === 'tr' || sd === 'r') n.ownBd().crTR = rv;
+    if (sd === 'b' || sd === 'br' || sd === 'r') n.ownBd().crBR = rv;
+    if (sd === 'b' || sd === 'bl' || sd === 'l') n.ownBd().crBL = rv;
     return true;
   }
   if (tok === 'rounded' || tok.startsWith('rounded-')) {
@@ -1361,32 +1482,32 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('via-')) return true;
   if (tok.startsWith('to-')) { n.gradTo = colorOf(tok.slice(3)); return n.gradTo !== -2; }
   if (tok.startsWith('bg-')) { const c = colorOf(tok.slice(3)); if (c === -2) return false; n.bg = c; n.bgAlpha = alphaOf(tok.slice(3)); return true; }
-  if (tok === 'border-solid') { n.borderStyle = 0; return true; }
-  if (tok === 'border-dashed') { n.borderStyle = 1; return true; }
-  if (tok === 'border-dotted') { n.borderStyle = 2; return true; }
+  if (tok === 'border-solid') { n.ownBd().borderStyle = 0; return true; }
+  if (tok === 'border-dashed') { n.ownBd().borderStyle = 1; return true; }
+  if (tok === 'border-dotted') { n.ownBd().borderStyle = 2; return true; }
   if (tok.startsWith('border-') && tok.length > 9 && tok.slice(8, 9) === '-' && 'trblxy'.indexOf(tok.slice(7, 8)) >= 0 && colorOf(tok.slice(9)) !== -2) {   // border-t-red-500: the colour of one side
     const sd = tok.slice(7, 8), c = colorOf(tok.slice(9));
-    if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1;
-    if (sd === 't' || sd === 'y') n.bcT = c;
-    if (sd === 'b' || sd === 'y') n.bcB = c;
-    if (sd === 'l' || sd === 'x') n.bcL = c;
-    if (sd === 'r' || sd === 'x') n.bcR = c;
+    if (n.borderW === 0 && n.bd.bT < 0 && n.bd.bR < 0 && n.bd.bB < 0 && n.bd.bL < 0) n.borderW = -1;
+    if (sd === 't' || sd === 'y') n.ownBd().bcT = c;
+    if (sd === 'b' || sd === 'y') n.ownBd().bcB = c;
+    if (sd === 'l' || sd === 'x') n.ownBd().bcL = c;
+    if (sd === 'r' || sd === 'x') n.ownBd().bcR = c;
     return true;
   }
   if (tok.startsWith('border-') && (tok.length === 8 || tok.slice(8, 9) === '-') && 'trblxy'.indexOf(tok.slice(7, 8)) >= 0) {
     const sd = tok.slice(7, 8), bw = tok.length === 8 ? 1 : borderPx(tok.slice(9));
     if (bw !== bw) return false;
     if (n.borderW < 0) n.borderW = 0;  // a color token alone no longer implies all four sides
-    if (sd === 't' || sd === 'y') n.bT = bw;
-    if (sd === 'b' || sd === 'y') n.bB = bw;
-    if (sd === 'l' || sd === 'x') n.bL = bw;
-    if (sd === 'r' || sd === 'x') n.bR = bw;
+    if (sd === 't' || sd === 'y') n.ownBd().bT = bw;
+    if (sd === 'b' || sd === 'y') n.ownBd().bB = bw;
+    if (sd === 'l' || sd === 'x') n.ownBd().bL = bw;
+    if (sd === 'r' || sd === 'x') n.ownBd().bR = bw;
     return true;
   }
   if (tok.startsWith('border-')) {
     const k = tok.slice(7);
     const c = colorOf(k);
-    if (c !== -2) { n.borderColor = c; n.borderAlpha = alphaOf(k); if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1; return true; }  // -1: 1px unless a side is set
+    if (c !== -2) { n.borderColor = c; n.borderAlpha = alphaOf(k); if (n.borderW === 0 && n.bd.bT < 0 && n.bd.bR < 0 && n.bd.bB < 0 && n.bd.bL < 0) n.borderW = -1; return true; }  // -1: 1px unless a side is set
     n.borderW = borderPx(k);
     return true;
   }
@@ -1490,13 +1611,12 @@ function resetStyle(n: UiNode): void {
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
-  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
+  n.tx = 0; n.ty = 0; n.k = 1; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
-  n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
-  n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
-  n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
-  n.ringW = 0; n.ringC = -1; n.ringO = 0; n.outW = 0; n.outC = -1; n.outO = 0; n.outNone = false; n.fRingW = -1; n.fRingC = -1; n.fRingO = 0; n.fOutW = -1; n.fOutC = -1; n.fOutO = 0; n.fVisible = false;
+  n.cursor = -1;
+  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
+  if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; }   // curBg, fromBg and transStart stay: a transition goes on across a class change
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
@@ -2054,21 +2174,22 @@ function mix(a: i32, b: i32, t: number): i32 {
 }
 let animating = false;
 function targetBg(h: i32, n: UiNode): i32 {
-  if (pressed === h && n.activeBg >= 0) return n.activeBg;
-  if (focus === h && n.focusBg >= 0) return n.focusBg;
-  if (n.withinBg >= 0 && focus >= 0 && isAncestor(h, focus)) return n.withinBg;
-  if (n.hovered && n.hoverBg >= 0) return n.hoverBg;
+  if (pressed === h && n.it.activeBg >= 0) return n.it.activeBg;
+  if (focus === h && n.it.focusBg >= 0) return n.it.focusBg;
+  if (n.it.withinBg >= 0 && focus >= 0 && isAncestor(h, focus)) return n.it.withinBg;
+  if (n.hovered && n.it.hoverBg >= 0) return n.it.hoverBg;
   return n.bg;
 }
 /** transition-colors: the background eases toward its state color. */
 function effectiveBg(h: i32, n: UiNode): i32 {
   const target = targetBg(h, n);
-  if (n.transMs <= 0 || n.curBg === -1) { n.curBg = target; n.fromBg = target; return target; }
-  if (target !== n.curBg) { n.fromBg = mix(n.fromBg, n.curBg, 1); n.curBg = target; n.transStart = clock; }
-  const t = (clock - n.transStart) / n.transMs;
-  if (t >= 1 || n.fromBg === target) { n.fromBg = target; return target; }
+  if (n.it === DEF_INTERX) return target;   // never had a transition or a state colour: nothing to remember
+  if (n.it.transMs <= 0 || n.it.curBg === -1) { n.it.curBg = target; n.it.fromBg = target; return target; }
+  if (target !== n.it.curBg) { n.it.fromBg = mix(n.it.fromBg, n.it.curBg, 1); n.it.curBg = target; n.it.transStart = clock; }
+  const t = (clock - n.it.transStart) / n.it.transMs;
+  if (t >= 1 || n.it.fromBg === target) { n.it.fromBg = target; return target; }
   animating = true;
-  return mix(n.fromBg, target, t);
+  return mix(n.it.fromBg, target, t);
 }
 const SHADOW_Y: number[] = [0, 1, 1, 4, 10, 20], SHADOW_BLUR: number[] = [0, 2, 3, 6, 15, 25];
 const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
@@ -2097,40 +2218,40 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else {
       const bg = effectiveBg(h, n);
-      if (bg >= 0) { if (n.crTL >= 0 || n.crTR >= 0 || n.crBR >= 0 || n.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.crTL, r, kk, w, hh), cornerR(n.crTR, r, kk, w, hh), cornerR(n.crBR, r, kk, w, hh), cornerR(n.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
+      if (bg >= 0) { if (n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
     }
     const focused = h === focus;
-    let bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.withinBorder : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
+    let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
     const bai: i32 = n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);
     if (bc === -3) bc = textFg(h);   // border-current
-    if (n.borderStyle !== 0 || n.bcT >= 0 || n.bcR >= 0 || n.bcB >= 0 || n.bcL >= 0 || n.crTL >= 0 || n.crTR >= 0 || n.crBR >= 0 || n.crBL >= 0) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw);
-    else if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
+    if (n.bd.borderStyle !== 0 || n.bd.bcT >= 0 || n.bd.bcR >= 0 || n.bd.bcB >= 0 || n.bd.bcL >= 0 || n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw);
+    else if (n.bd.bT >= 0 || n.bd.bR >= 0 || n.bd.bB >= 0 || n.bd.bL >= 0) {
       // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
-      const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+      const t = (n.bd.bT >= 0 ? n.bd.bT : bw) * kk, rr = (n.bd.bR >= 0 ? n.bd.bR : bw) * kk, b = (n.bd.bB >= 0 ? n.bd.bB : bw) * kk, l = (n.bd.bL >= 0 ? n.bd.bL : bw) * kk;
       if (t > 0) rrect(x, y, w, t, 0, bc, bai);
       if (b > 0) rrect(x, y + hh - b, w, b, 0, bc, bai);
       if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, bai);
       if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, bai);
     } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, bai);
-    let rw = n.ringW, rc = n.ringC, ro = n.ringO, ow = n.outW, oc = n.outC, oo = n.outO;
-    if (focused && n.fRingW + n.fOutW > -2 && (!n.fVisible || keyboardFocus || n.ed !== null)) {
-      if (n.fRingW >= 0) { rw = n.fRingW; ro = n.fRingO; } if (n.fRingC !== -1) rc = n.fRingC;
-      if (n.fOutW >= 0) { ow = n.fOutW; oo = n.fOutO; } if (n.fOutC !== -1) oc = n.fOutC;
+    let rw = n.rg.ringW, rc = n.rg.ringC, ro = n.rg.ringO, ow = n.rg.outW, oc = n.rg.outC, oo = n.rg.outO;
+    if (focused && n.rg.fRingW + n.rg.fOutW > -2 && (!n.rg.fVisible || keyboardFocus || n.ed !== null)) {
+      if (n.rg.fRingW >= 0) { rw = n.rg.fRingW; ro = n.rg.fRingO; } if (n.rg.fRingC !== -1) rc = n.rg.fRingC;
+      if (n.rg.fOutW >= 0) { ow = n.rg.fOutW; oo = n.rg.fOutO; } if (n.rg.fOutC !== -1) oc = n.rg.fOutC;
     }
     if (ow > 0) border(x - (oo + ow) * kk, y - (oo + ow) * kk, w + 2 * (oo + ow) * kk, hh + 2 * (oo + ow) * kk, r + (oo + ow) * kk, ow * kk, oc >= 0 ? oc : 0x000000, ai);
     if (rw > 0) border(x - (ro + rw) * kk, y - (ro + rw) * kk, w + 2 * (ro + rw) * kk, hh + 2 * (ro + rw) * kk, r + (ro + rw) * kk, rw * kk, rc >= 0 ? rc : 0x3b82f6, ai);
-    if (focused && rw + ow === 0 && !n.outNone && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
+    if (focused && rw + ow === 0 && !n.rg.outNone && n.it.focusBg < 0 && n.it.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
     if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
       let fg = textFg(h);
       let p = n.parent;
-      while (p >= 0 && nodes[p].activeFg < 0 && nodes[p].focusFg < 0 && nodes[p].hoverFg < 0 && nodes[p].withinFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
-      if (p >= 0 && pressed === p && nodes[p].activeFg >= 0) fg = nodes[p].activeFg;
-      else if (p >= 0 && focus === p && nodes[p].focusFg >= 0) fg = nodes[p].focusFg;
-      else if (p >= 0 && nodes[p].withinFg >= 0 && focus >= 0 && isAncestor(p, focus)) fg = nodes[p].withinFg;
-      else if (p >= 0 && nodes[p].hovered && nodes[p].hoverFg >= 0) fg = nodes[p].hoverFg;
+      while (p >= 0 && nodes[p].it.activeFg < 0 && nodes[p].it.focusFg < 0 && nodes[p].it.hoverFg < 0 && nodes[p].it.withinFg < 0 && nodes[p].tag !== VIEW && nodes[p].tag !== BUTTON) p = nodes[p].parent;
+      if (p >= 0 && pressed === p && nodes[p].it.activeFg >= 0) fg = nodes[p].it.activeFg;
+      else if (p >= 0 && focus === p && nodes[p].it.focusFg >= 0) fg = nodes[p].it.focusFg;
+      else if (p >= 0 && nodes[p].it.withinFg >= 0 && focus >= 0 && isAncestor(p, focus)) fg = nodes[p].it.withinFg;
+      else if (p >= 0 && nodes[p].hovered && nodes[p].it.hoverFg >= 0) fg = nodes[p].it.hoverFg;
       const top = Math.round((lh - n.size * 1.21) / 2);
       const f = fontAtScale(n, kk);
       const fa = textFgAlpha(h);
@@ -2160,7 +2281,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     if (n.overflow) {
       // children stay inside the border and its rounded corners, like CSS overflow: hidden (the padding box)
       const bw = n.borderW < 0 ? 1 : n.borderW;
-      const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+      const t = (n.bd.bT >= 0 ? n.bd.bT : bw) * kk, rr = (n.bd.bR >= 0 ? n.bd.bR : bw) * kk, b = (n.bd.bB >= 0 ? n.bd.bB : bw) * kk, l = (n.bd.bL >= 0 ? n.bd.bL : bw) * kk;
       clip(x + l, y + t, w - l - rr, hh - t - b, Math.max(0, r - Math.max(Math.max(t, b), Math.max(l, rr))));
     }
   }
@@ -2214,9 +2335,9 @@ function strokeStyled(pts: number[], bw: number, color: i32, alpha: i32, style: 
   if (on && cur.length >= 4) stroke(cur, bw, color, alpha, false);
 }
 function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, kk: number, r: number, bc: i32, bai: i32, bw: number): void {
-  const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+  const t = (n.bd.bT >= 0 ? n.bd.bT : bw) * kk, rr = (n.bd.bR >= 0 ? n.bd.bR : bw) * kk, b = (n.bd.bB >= 0 ? n.bd.bB : bw) * kk, l = (n.bd.bL >= 0 ? n.bd.bL : bw) * kk;
   if (t <= 0 && rr <= 0 && b <= 0 && l <= 0) return;
-  const rtl = cornerR(n.crTL, r, kk, w, hh), rtr = cornerR(n.crTR, r, kk, w, hh), rbr = cornerR(n.crBR, r, kk, w, hh), rbl = cornerR(n.crBL, r, kk, w, hh);
+  const rtl = cornerR(n.bd.crTL, r, kk, w, hh), rtr = cornerR(n.bd.crTR, r, kk, w, hh), rbr = cornerR(n.bd.crBR, r, kk, w, hh), rbl = cornerR(n.bd.crBL, r, kk, w, hh);
   // the centre line of the border: the box inset by half of each side's width, the radii reduced by the same
   const x0 = x + l / 2, y0 = y + t / 2, x1 = x + w - rr / 2, y1 = y + hh - b / 2;
   const ctl = Math.max(0, rtl - Math.max(l, t) / 2), ctr = Math.max(0, rtr - Math.max(rr, t) / 2), cbr = Math.max(0, rbr - Math.max(rr, b) / 2), cbl = Math.max(0, rbl - Math.max(l, b) / 2);
@@ -2231,9 +2352,9 @@ function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, 
   if (cbl > 0) arcPoints(s2, x0 + cbl, y1 - cbl, cbl, 0.5 * P, 0.75 * P); else pt(s2, x0, y1);
   if (cbl > 0) arcPoints(s3, x0 + cbl, y1 - cbl, cbl, 0.75 * P, P); else pt(s3, x0, y1);
   if (ctl > 0) arcPoints(s3, x0 + ctl, y0 + ctl, ctl, P, 1.25 * P); else pt(s3, x0, y0);
-  const cols: i32[] = [n.bcT >= 0 ? n.bcT : bc, n.bcR >= 0 ? n.bcR : bc, n.bcB >= 0 ? n.bcB : bc, n.bcL >= 0 ? n.bcL : bc];
+  const cols: i32[] = [n.bd.bcT >= 0 ? n.bd.bcT : bc, n.bd.bcR >= 0 ? n.bd.bcR : bc, n.bd.bcB >= 0 ? n.bd.bcB : bc, n.bd.bcL >= 0 ? n.bd.bcL : bc];
   const wd: number[] = [t, rr, b, l];
-  for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, n.borderStyle);
+  for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, n.bd.borderStyle);
 }
 function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number): void {
   // thin overlay bars, shown while scrolling and fading out after ~1 s
@@ -2877,10 +2998,10 @@ function collectSnap(n: UiNode, sc: UiNode, yAxis: boolean): void {
   for (const h of n.children) {
     const c = node(h);
     if (c.hidden) continue;
-    if (c.snapAlign !== 0) {
+    if (c.sn.snapAlign !== 0) {
       const pos = yAxis ? c.y - sc.y : c.x - sc.x, size = yAxis ? c.lh : c.lw, view = yAxis ? sc.lh : sc.lw;
-      const ps = yAxis ? sc.spt : sc.spl, pe = yAxis ? sc.spb : sc.spr;
-      snapPts.push(c.snapAlign === 1 ? pos - ps : c.snapAlign === 2 ? pos + size / 2 - view / 2 : pos + size - view + pe);
+      const ps = yAxis ? sc.sn.spt : sc.sn.spl, pe = yAxis ? sc.sn.spb : sc.sn.spr;
+      snapPts.push(c.sn.snapAlign === 1 ? pos - ps : c.sn.snapAlign === 2 ? pos + size / 2 - view / 2 : pos + size - view + pe);
     }
     collectSnap(c, sc, yAxis);
   }
@@ -2898,7 +3019,7 @@ function snapTo(sc: UiNode, yAxis: boolean, v: number, dir: number): number {
     const ad = Math.abs(d);
     if (ad < bd) { bd = ad; best = q; }
   }
-  if (sc.snapProx && bd > 32) return v;
+  if (sc.sn.snapProx && bd > 32) return v;
   return best;
 }
 function stepScroll(dt: number): void {
@@ -2910,7 +3031,7 @@ function stepScroll(dt: number): void {
       const a = n.ay as ScrollAxis, my = maxScrollY(n);
       if (a.mode === IDLE && (a.pos < 0 || a.pos > my)) a.mode = BOUNCE;   // content shrank, or a press ended an overscroll
       if (stepAxis(a, my, dt)) moving = true;
-      else if ((n.snap & 1) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= my) {   // the scroll stopped between snap points: settle on the nearest
+      else if ((n.sn.snap & 1) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= my) {   // the scroll stopped between snap points: settle on the nearest
         const t = snapTo(n, true, a.pos, 0);
         if (Math.abs(t - a.pos) > 0.5) { a.target = t; a.mode = WHEEL; moving = true; }
       }
@@ -2920,7 +3041,7 @@ function stepScroll(dt: number): void {
       const a = n.ax as ScrollAxis, mx = maxScrollX(n);
       if (a.mode === IDLE && (a.pos < 0 || a.pos > mx)) a.mode = BOUNCE;
       if (stepAxis(a, mx, dt)) moving = true;
-      else if ((n.snap & 2) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= mx) {
+      else if ((n.sn.snap & 2) !== 0 && a.mode === IDLE && a.pos >= 0 && a.pos <= mx) {
         const t = snapTo(n, false, a.pos, 0);
         if (Math.abs(t - a.pos) > 0.5) { a.target = t; a.mode = WHEEL; moving = true; }
       }
@@ -3253,12 +3374,12 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
   if (wy !== 0 && (n.scroll & 1) !== 0) {
     const a = axisY(n), base = a.mode === WHEEL ? a.target : a.pos;
     a.target = Math.max(0, Math.min(maxScrollY(n), base - wy * NOTCH_PX)); a.mode = WHEEL;
-    if ((n.snap & 1) !== 0) a.target = snapTo(n, true, base, -wy > 0 ? 1 : -1);   // a notch moves to the next snap point
+    if ((n.sn.snap & 1) !== 0) a.target = snapTo(n, true, base, -wy > 0 ? 1 : -1);   // a notch moves to the next snap point
   }
   if (wx !== 0 && (n.scroll & 2) !== 0) {
     const a = axisX(n), base = a.mode === WHEEL ? a.target : a.pos;
     a.target = Math.max(0, Math.min(maxScrollX(n), base + wx * NOTCH_PX)); a.mode = WHEEL;
-    if ((n.snap & 2) !== 0) a.target = snapTo(n, false, base, wx > 0 ? 1 : -1);
+    if ((n.sn.snap & 2) !== 0) a.target = snapTo(n, false, base, wx > 0 ? 1 : -1);
   }
   n.scrolledAt = clock; paintDirty = true;
   wakeScroll(sc);
@@ -3292,7 +3413,7 @@ function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i3
   directScroll(padScroller, -dx, -dy);
   if (phase === 2) { releaseScroll(padScroller); padScroller = -1; }
 }
-function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0 || n.ov !== null; }
+function hasHoverStyle(n: UiNode): boolean { return n.it.hoverBg >= 0 || n.it.hoverFg >= 0 || n.it.hoverBorder >= 0 || n.ov !== null; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
 function updateHover(): void {
   hoverDirty = false;
