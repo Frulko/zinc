@@ -164,6 +164,7 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
+  id: i32 = -1; media: i32 = 0; container: boolean = false; cqW: number = -1;   // media bits: 2 pointer, 4 container query, 8 env(); container: `@container`; cqW: the container width the styles were computed for
   responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
@@ -248,7 +249,8 @@ export function createNode(tag: i32): i32 {
   defaults(n);
   if (tag === INPUT || tag === TEXTAREA) n.ed = new Edit(tag === TEXTAREA);
   if (tag === CANVAS) canvases++;
-  if (free.length > 0) { const h = free.pop(); nodes[h] = n; return h; }
+  if (free.length > 0) { const h = free.pop(); n.id = h; nodes[h] = n; return h; }
+  n.id = nodes.length;
   nodes.push(n);
   return nodes.length - 1;
 }
@@ -657,6 +659,7 @@ function num(s: string): number {
 }
 /** The inside of `[...]`: pixels, rem (16 px), vh / vw (of the surface now); a % is handled by the width and height tokens. */
 function arbitrary(v: string): number {
+  if (v.startsWith('env(')) { envUsed = true; return envValue(v.slice(4, v.length - 1)); }
   if (v.endsWith('rem')) return parseFloat(v.slice(0, v.length - 3)) * 16;
   if (v.endsWith('vh')) return parseFloat(v.slice(0, v.length - 2)) * height() / 100;
   if (v.endsWith('vw')) return parseFloat(v.slice(0, v.length - 2)) * width() / 100;
@@ -779,8 +782,77 @@ function ringToken(n: UiNode, tok: string, mode: i32): boolean {
   else { if (w >= 0) n.fOutW = w; else if (off >= 0) n.fOutO = off; else n.fOutC = c; }
   return true;
 }
+// ---- media and container queries, env() lengths (ZN-272)
+let envUsed = false, coarse = false, cqAny = false, inSettle = false, settlePasses: i32 = 0;
+let kbInset: number = 0, safeT: number = 0, safeR: number = 0, safeB: number = 0, safeL: number = 0;
+function envValue(name: string): number {
+  return name === 'keyboard-inset' ? kbInset : name === 'safe-area-inset-top' ? safeT : name === 'safe-area-inset-right' ? safeR : name === 'safe-area-inset-bottom' ? safeB : name === 'safe-area-inset-left' ? safeL : 0;
+}
+function restyleMedia(mask: i32): void {
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && (nodes[i].media & mask) !== 0) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+}
+/** The room an on-screen keyboard takes at the bottom of the surface, readable in classes as `pb-[env(keyboard-inset)]`. */
+export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); }
+export function keyboardInset(): number { return kbInset; }
+/** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
+export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
+function setCoarse(c: boolean): void { if (c === coarse) return; coarse = c; restyleMedia(2); }
+/** Layout passes the last container-query settling needed (1: nothing changed). */
+export function layoutPasses(): i32 { return settlePasses; }
+function containerOf(h: i32): i32 { for (let p = nodes[h].parent; p >= 0; p = nodes[p].parent) if (nodes[p].container) return p; return -1; }
+const CQ_PX: i32[] = [384, 448, 512, 576];
+/** The value of one query prefix (`max-md`, `landscape`, `pointer-coarse`, `@md`...): 1 true, 0 false, -1 not a query. Sets the node's dependency bits. */
+function queryOf(n: UiNode, q: string): i32 {
+  if (q === 'landscape') { n.responsive = true; return width() >= height() ? 1 : 0; }
+  if (q === 'portrait') { n.responsive = true; return width() < height() ? 1 : 0; }
+  if (q === 'pointer-coarse' || q === 'hover-none') { n.media = n.media | 2; return coarse ? 1 : 0; }
+  if (q === 'pointer-fine') { n.media = n.media | 2; return coarse ? 0 : 1; }
+  if (q.startsWith('max-') || q.startsWith('min-')) {
+    const max = q.startsWith('max-'), r = q.slice(4);
+    let px: i32 = -1;
+    if (r.startsWith('[') && r.endsWith(']')) px = Math.round(arbitrary(r.slice(1, r.length - 1)));
+    else { const i = BREAKPOINTS.indexOf(r + ':'); if (i >= 0) px = BREAKPOINT_PX[i]; }
+    if (px < 0) return -1;
+    n.responsive = true;
+    return max ? (width() < px ? 1 : 0) : (width() >= px ? 1 : 0);
+  }
+  if (q.startsWith('@')) {
+    const r = q.slice(1);
+    let px: i32 = -1;
+    if (r.startsWith('[') && r.endsWith(']')) px = Math.round(arbitrary(r.slice(1, r.length - 1)));
+    else { const i = ['sm', 'md', 'lg', 'xl'].indexOf(r); if (i >= 0) px = CQ_PX[i]; }
+    if (px < 0) return -1;
+    n.media = n.media | 4; cqAny = true;
+    const c = containerOf(n.id);
+    n.cqW = c >= 0 ? nodes[c].lw : 0;
+    return c >= 0 && nodes[c].lw >= px ? 1 : 0;
+  }
+  return -1;
+}
+/** After a layout: nodes with `@md:` classes whose container changed width are restyled and laid out again (at most 2 extra passes). */
+function settleContainers(): void {
+  inSettle = true; settlePasses = 1;
+  for (let pass = 0; pass < 2; pass++) {
+    let changed = false;
+    for (let i = 0; i < nodes.length; i++) {
+      const m = nodes[i];
+      if (!m.alive || (m.media & 4) === 0) continue;
+      const c = containerOf(i), w = c >= 0 ? nodes[c].lw : 0;
+      if (w !== m.cqW) { const cl = m.cls; m.cls = '\u0000'; setClass(i, cl); changed = true; }
+    }
+    if (!changed) break;
+    layout(); settlePasses++;
+  }
+  inSettle = false;
+}
 const FONT_WEIGHT_TOKENS: string[] = ['font-thin', 'font-extralight', 'font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-extrabold', 'font-black'];
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
+  const qc = tok.indexOf(':');
+  if (qc > 0 && !tok.startsWith('hover:') && !tok.startsWith('focus')) {
+    const qv = queryOf(n, tok.slice(0, qc));
+    if (qv >= 0) return qv === 1 ? applyToken(n, tok.slice(qc + 1), variant) : applyToken(new UiNode(n.tag), tok.slice(qc + 1), variant);
+  }
+  if (tok === '@container') { n.container = true; return true; }
   // responsive (mobile first): md:flex-row applies from 768 px wide; re-evaluated when the window is resized
   for (let i = 0; i < BREAKPOINTS.length; i++) if (tok.startsWith(BREAKPOINTS[i])) {
     n.responsive = true;
@@ -1135,6 +1207,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   return false;
 }
 function resetStyle(n: UiNode): void {
+  n.media = 0; n.container = false;
   const fresh = new UiNode(n.tag);
   defaults(fresh);
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false;
@@ -1170,7 +1243,9 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
 }
 function rebuildStyle(n: UiNode): void {
   resetStyle(n);
+  envUsed = false;
   for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
+  if (envUsed) n.media = n.media | 8;
   for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
   for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
@@ -1621,6 +1696,7 @@ export function layout(): void {
   layoutDirty = false;
   paintDirty = true;
   hoverDirty = true;
+  if (cqAny && !inSettle) settleContainers();
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
@@ -2960,7 +3036,7 @@ function inputFrame(): void {
   const nb = buttonEventCount();
   for (let i = 0; i < nb; i++) pointerSample(buttonEventX(i), buttonEventY(i), buttonEventButton(i), buttonEventDown(i));
   pointerSample(px, py, 0, nb > 0 ? (held & 1) !== 0 : pointerDown());
-  if (touchCount() > 0) touchSeen = true;
+  if (touchCount() > 0) { touchSeen = true; setCoarse(true); }
   if (touchCount() > 1 || halFingers.length > 0) halTouches();
   const nk = keyCount();
   dropText = false;
@@ -3127,7 +3203,7 @@ export function tick(ms: number): void { clock += ms; stepAnims(); if (grabber =
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.
 /** Pointer at (x, y) with `button` (0 left, 1 middle, 2 right) held or not: moves, presses, releases, drags. */
 export function pointerAt(x: number, y: number, down: boolean, button: i32 = 0, mods: i32 = 0): void {
-  synthetic = true;
+  synthetic = true; setCoarse(false);
   curMods = mods;
   if (layoutDirty) layout();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
@@ -3340,7 +3416,7 @@ function halTouches(): void {
 /** Test hook: finger `id` at (x, y), phase 0 down, 1 move, 2 up. The first finger down drives the pointer (taps,
  *  scrolling, drags); the next ones pinch. Deterministic multi-finger tests, like pointerAt. */
 export function touchAt(id: i32, x: number, y: number, phase: i32): void {
-  synthetic = true; touchSeen = true;
+  synthetic = true; touchSeen = true; setCoarse(true);
   if (layoutDirty) layout();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   if (id === primaryId || (primaryId < 0 && phase === 0 && fIds.indexOf(id) < 0)) {

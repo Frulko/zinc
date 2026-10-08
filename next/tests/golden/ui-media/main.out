@@ -1,0 +1,7 @@
+start probe w16 h32 gap20 pb0 inner w8 h36 passes 2
+mouse probe w16 h32 gap20 pb0 inner w8 h36 passes 2
+touch probe w32 h16 gap20 pb0 inner w8 h36 passes 1
+mouse again probe w16 h32 gap20 pb0 inner w8 h36 passes 1
+keyboard 120 probe w16 h32 gap20 pb120 inner w8 h36 passes 1
+container 500 probe w16 h32 gap20 pb120 inner w48 h36 passes 2
+container 100 probe w16 h32 gap20 pb120 inner w8 h-1 passes 2
