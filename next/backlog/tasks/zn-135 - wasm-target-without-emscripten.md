@@ -1,10 +1,10 @@
 ---
 id: ZN-135
 title: wasm target without emscripten
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 23:01'
-updated_date: '2026-10-08 08:27'
+updated_date: '2026-10-08 08:45'
 labels:
   - targets
   - size-L

@@ -1,10 +1,10 @@
 ---
 id: ZN-148
 title: Benchmark regression gate in CI
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 23:03'
-updated_date: '2026-10-08 07:58'
+updated_date: '2026-10-08 08:45'
 labels:
   - performance
   - tests

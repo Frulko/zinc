@@ -1,10 +1,10 @@
 ---
 id: ZN-225
 title: 'Font fallback chain, system fonts and colour emoji'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 10:55'
-updated_date: '2026-10-08 02:46'
+updated_date: '2026-10-08 08:45'
 labels:
   - render
   - text

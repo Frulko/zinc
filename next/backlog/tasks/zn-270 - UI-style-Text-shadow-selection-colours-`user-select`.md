@@ -1,7 +1,7 @@
 ---
 id: ZN-270
 title: 'UI style: Text shadow, selection colours, `user-select`'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 12:57'
 updated_date: '2026-10-08 08:45'

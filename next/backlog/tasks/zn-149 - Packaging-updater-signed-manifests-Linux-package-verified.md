@@ -1,10 +1,10 @@
 ---
 id: ZN-149
 title: 'Packaging: updater, signed manifests, Linux package verified'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 23:03'
-updated_date: '2026-10-08 08:00'
+updated_date: '2026-10-08 08:45'
 labels:
   - packaging
   - size-M

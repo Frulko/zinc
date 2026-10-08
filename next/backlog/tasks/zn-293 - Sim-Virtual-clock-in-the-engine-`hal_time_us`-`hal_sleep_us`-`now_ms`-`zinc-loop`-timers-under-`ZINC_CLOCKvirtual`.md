@@ -3,10 +3,10 @@ id: ZN-293
 title: >-
   Sim: Virtual clock in the engine: `hal_time_us`, `hal_sleep_us`, `now_ms`,
   `zinc:loop` timers under `ZINC_CLOCK=virtual`
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 13:13'
-updated_date: '2026-10-08 08:33'
+updated_date: '2026-10-08 08:45'
 labels:
   - simulator
   - arduino

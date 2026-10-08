@@ -3,10 +3,10 @@ id: ZN-294
 title: >-
   Sim: `board.json` parser and writer (diagram.json superset), part registry
   with `wokwi-*` aliases
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 13:13'
-updated_date: '2026-10-08 08:34'
+updated_date: '2026-10-08 08:45'
 labels:
   - simulator
   - arduino

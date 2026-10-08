@@ -3,10 +3,10 @@ id: ZN-292
 title: >-
   Sim: `include/zn/sim.h` and sim core: virtual clock, scheduler, netlist, trace
   (`src/sim`)
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 13:13'
-updated_date: '2026-10-08 08:30'
+updated_date: '2026-10-08 08:45'
 labels:
   - simulator
   - arduino

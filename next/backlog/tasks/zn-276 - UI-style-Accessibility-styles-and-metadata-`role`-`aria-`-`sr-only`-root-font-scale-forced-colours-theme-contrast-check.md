@@ -3,10 +3,10 @@ id: ZN-276
 title: >-
   UI style: Accessibility styles and metadata: `role`, `aria-*`, `sr-only`, root
   font scale, forced-colours theme, contrast check
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 12:58'
-updated_date: '2026-10-08 07:37'
+updated_date: '2026-10-08 08:45'
 labels:
   - ui
   - style
