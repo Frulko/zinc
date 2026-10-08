@@ -1,0 +1,1 @@
+{ "name": "webgl-cube", "entry": "src/main.tsx", "assets": "assets", "webgl": true }
