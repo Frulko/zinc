@@ -2114,14 +2114,18 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   }
   pDepth--;
 }
+/** The layout engine (ZN-282, docs/reports/layout-engines.md §5): `classic` is the measure and place passes above; a host engine (`rn`, Yoga, next/src/host/layout.h) comes in here with ZN-286. */
+function calculate(r: UiNode, w: number, h: number): void {
+  measure(r, w, h);
+  place(r, 0, 0, w, h);
+}
 export function layout(): void {
   if (root < 0) return;
   layoutRuns++;
   // the root always fills the surface (which follows the window in fill mode)
   const r = node(root);
   r.w = width(); r.h = height();
-  measure(r, width(), height());
-  place(r, 0, 0, width(), height());
+  calculate(r, width(), height());
   if (layers.length > 0) layoutLayers();
   if (anchors.length > 0) applyAnchors();
   layoutDirty = false;

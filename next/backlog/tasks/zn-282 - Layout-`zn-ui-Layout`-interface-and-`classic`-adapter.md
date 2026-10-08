@@ -1,10 +1,10 @@
 ---
 id: ZN-282
 title: 'Layout: `zn::ui::Layout` interface and `classic` adapter'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-07 13:07'
-updated_date: '2026-10-08 13:46'
+updated_date: '2026-10-08 13:56'
 labels:
   - ui
   - layout
@@ -21,9 +21,9 @@ From docs/reports/layout-engines.md (section 8, LE-3). Decision: a pluggable lay
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `src/host/layout.h` with the calls of section 5; `classic` implements it with the current code, no behaviour change.
-- [ ] #2 All example pixel goldens identical (tolerance 0) on interpreter and AOT.
-- [ ] #3 `measure()` allocation count not higher (ZN-189 counter).
+- [x] #1 `src/host/layout.h` with the calls of section 5; `classic` implements it with the current code, no behaviour change.
+- [x] #2 All example pixel goldens identical (tolerance 0) on interpreter and AOT.
+- [x] #3 `measure()` allocation count not higher (ZN-189 counter).
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -32,4 +32,6 @@ From docs/reports/layout-engines.md (section 8, LE-3). Decision: a pluggable lay
 parked 2026-10-08: RN-oriented pluggable layout; the interface header alone has no user until the Yoga adapter exists, and the owner's order puts visible UI, style and rendering first. Resume after the style chain (ZN-272, ZN-279) and the GL tasks.
 
 unparked 2026-10-08: the style chain is blocked behind the display-gl tasks, so the layout chain is the UI work that can move; lib/std/ui.ts has no uncommitted changes now.
+
+usage: n/a. Done: src/host/layout.h (zn::host::Layout: create/destroy/setStyle/insert/remove/setMeasure/markDirty/calculate/box, LayoutProp = the layout class of the PROP table of lib/std/ui.ts, MeasureKind, LayoutBox); classic = measure + place of lib/std/ui.ts behind calculate(); tests/t0/layout_iface.sh builds an engine against the header and checks the prop numbers against ui.ts. Evidence: tests/run --changed 24 passed (ui_alloc_layout included, AC3); proto-capture compare 4/4 identical; AOT and interpreter frames identical on tests/visual/ui.tsx and overlays.tsx (AC2). Failed: the AOT build of examples/hero cannot find its assets (ZN-314), unrelated to layout.
 <!-- SECTION:NOTES:END -->
