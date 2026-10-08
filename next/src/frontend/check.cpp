@@ -2072,6 +2072,14 @@ struct Checker {
         if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) { convertDyn(p, expected, x.kids[1]); convertDyn(q, expected, x.kids[2]); return expected; }  // both branches fit the type asked for (c ? 1 : 0 into an i32)
         if (q == tNull && p != tNull && !isDyn(p)) return unionOf({p, tNull});  // c ? x : null
         if (p == tNull && q != tNull && !isDyn(q)) return unionOf({q, tNull});
+        {   // `c ? { id, text } : todo`: the shape of an object literal and a declared type that is mutually assignable with it join to the declared type (T[] stays T[], not a record array)
+          auto anon = [&](TypeId t) { const std::string nm = name(t); return !nm.empty() && nm[0] == '{'; };
+          if (ty(p).k == TK::Object && ty(q).k == TK::Object && anon(p) != anon(q)) {
+            const bool pAnon = anon(p);
+            const TypeId named = pAnon ? q : p, shape = pAnon ? p : q;
+            if (require(shape, named, pAnon ? x.kids[1] : x.kids[2])) return named;   // the literal is converted to the declared type (an error says what is missing)
+          }
+        }
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) == 1) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type

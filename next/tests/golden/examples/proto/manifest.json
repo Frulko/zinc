@@ -186,6 +186,14 @@
   "max_diff": 0
  },
  {
+  "entry": "inferno-todo/src/main.tsx",
+  "frames": [
+   30
+  ],
+  "tol": 0,
+  "max_diff": 0
+ },
+ {
   "entry": "iot-panel/src/main.tsx",
   "frames": [
    30

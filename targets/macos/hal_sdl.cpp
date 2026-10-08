@@ -26,7 +26,7 @@ extern "C" void hal_set_close_handler(int (*h)(void)) { close_handler = h; }
 extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler = h; }
 
 #ifdef __APPLE__
-extern "C" void hal_sdl_transparent_layers(void* nswindow);   // targets/macos/hal_cocoa.mm
+extern "C" __attribute__((weak)) void hal_sdl_transparent_layers(void*) {}   // the real one is targets/macos/hal_cocoa.mm; this weak no-op keeps the prototype's CMake build (which does not link it) working
 #endif
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;

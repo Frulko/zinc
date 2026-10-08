@@ -1,9 +1,10 @@
 ---
 id: ZN-163
 title: Class components in React JSX mode and record literal assignability
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-07 02:24'
+updated_date: '2026-10-08 01:28'
 labels:
   - language
   - size-M
@@ -21,6 +22,12 @@ examples/inferno-todo needs two things ZN-077 left: JSX class components in Reac
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 examples/inferno-todo runs 3 headless frames and exits 0 (added to tests/t1/examples.sh)
-- [ ] #2 a fixture covers a class component with props, state and a re-render in React mode
+- [x] #1 examples/inferno-todo runs 3 headless frames and exits 0 (added to tests/t1/examples.sh)
+- [x] #2 a fixture covers a class component with props, state and a re-render in React mode
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. Class components in the React model: jsx.cpp lowers <Tag/> to _cc(v, () => new Tag({props}), 'Tag', key) for classes declared in the file or in a relatively imported file (modules.cpp classTagsOf); a conditional whose branches are an object-literal shape and a declared interface joins to the declared type (check.cpp), so todos.map(t => c ? {…} : t) is Todo[]. examples/inferno-todo compiles and runs; tests/t0/react_class.sh + tests/golden/react (props, state, setState, re-render).
+<!-- SECTION:NOTES:END -->

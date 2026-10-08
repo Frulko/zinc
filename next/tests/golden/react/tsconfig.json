@@ -1,0 +1,3 @@
+{
+  "compilerOptions": { "paths": { "inferno": ["../../../../lib/compat/inferno.ts"] } }
+}

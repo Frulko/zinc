@@ -20,7 +20,7 @@ chataigne/src/main.tsx | OK |  |
 flipctl/src/main.ts | OK |  | 
 hello/src/main.ts | OK |  | 
 hero/src/main.tsx | OK |  | 
-inferno-todo/src/main.tsx | COMPILE | class components in React JSX mode, record literal assignability | ZN-163
+inferno-todo/src/main.tsx | OK |  | 
 iot-panel/src/main.tsx | OK |  | 
 lang/src/main.ts | OK |  | 
 led/falling-cubes/src/main.ts | OK |  | 
@@ -44,6 +44,7 @@ scripting/bench/src/main.ts | OK |  |
 scripting/breakout-mods/src/main.ts | OK |  | 
 scripting/playground/src/main.tsx | OK |  | 
 service/sensor-hub/src/main.ts | OK |  | 
+system/desktop/main.tsx | OK |  | 
 text/src/main-react.tsx | OK |  | 
 text/src/main-solid.tsx | OK |  | 
 three/cubes/main.ts | OK |  | 

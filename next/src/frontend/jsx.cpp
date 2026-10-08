@@ -270,6 +270,7 @@ struct Lowering {
   std::string_view s;
   std::vector<Token> t;
   bool react = false;
+  std::set<std::string> classTags;   // names that are class components (ZN-163)
   int counter = 0;
   std::map<std::string, std::string> imported;
   std::string lib;
@@ -762,7 +763,8 @@ struct Lowering {
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
       std::string call = tag + "(" + (props.empty() ? "" : "{ " + args + " }") + ")";
       std::string keyArg = key ? "'' + (" + valueOf(*key) + ")" : "''";
-      out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : "_append(" + v + ", " + call + ");");
+      if (react && classTags.count(tag)) out.push_back("_cc(" + v + ", () => new " + tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + "), " + quote(tag) + ", " + keyArg + ");");   // a class component (Inferno, React classes): an instance per mount
+      else out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : "_append(" + v + ", " + call + ");");
     }
     return v;
   }
@@ -844,7 +846,7 @@ std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std
   }
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file) {
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -853,6 +855,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   Lowering L;
   L.s = src;
   L.t = lex(src, true);
+  if (classTags) L.classTags = *classTags;
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
     for (std::size_t i = 0; i < L.t.size(); ++i) {

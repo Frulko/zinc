@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <regex>
 #include <set>
 
 #include "frontend/desugar.h"
@@ -1312,6 +1313,47 @@ struct Loader {
       }
     }
   }
+  // Components written as classes (Inferno, React classes): declared in this file, or in a file this one imports with a relative path (ZN-163)
+  std::set<std::string> classTagsOf(const std::string& path, const std::string& text) {
+    std::set<std::string> tags;
+    auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
+    auto classes = [&](const std::string& t) {
+      std::set<std::string> found;
+      for (std::size_t p = t.find("class "); p != std::string::npos; p = t.find("class ", p + 1)) {
+        if (p > 0 && (isId(t[p - 1]) || t[p - 1] == '.')) continue;
+        std::size_t a = p + 6;
+        while (a < t.size() && std::isspace(static_cast<unsigned char>(t[a]))) ++a;
+        std::size_t b = a;
+        while (b < t.size() && isId(t[b])) ++b;
+        if (b > a) found.insert(t.substr(a, b - a));
+      }
+      return found;
+    };
+    for (const std::string& c : classes(text)) tags.insert(c);
+    static const std::regex imp("import\\s+([^;'\"]*?)\\s+from\\s+['\"](\\.[^'\"]*)['\"]");
+    for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
+      std::string names = (*it)[1], spec = (*it)[2], other;
+      const std::string dir = dirOf(path);
+      const std::string base = normalize(dir + (dir.empty() ? "" : "/") + spec);
+      for (const char* ext : {".tsx", ".ts", "/index.tsx", "/index.ts"}) if (read(base + ext, other)) break; else other.clear();
+      if (other.empty()) continue;
+      const std::set<std::string> declared = classes(other);
+      // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
+      std::string cleaned;
+      for (char c : names) cleaned += (c == '{' || c == '}') ? ',' : c;
+      std::stringstream ss(cleaned);
+      std::string part;
+      while (std::getline(ss, part, ',')) {
+        std::stringstream ps(part);
+        std::string a, as, b;
+        ps >> a >> as >> b;
+        if (a.empty()) continue;
+        const std::string imported = a, local = (as == "as" && !b.empty()) ? b : a;
+        if (declared.count(imported)) tags.insert(local);
+      }
+    }
+    return tags;
+  }
   std::uint32_t load(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
@@ -1319,7 +1361,8 @@ struct Loader {
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
-      text = lowerJsx(text, prog.diags, fi);
+      const std::set<std::string> classTags = classTagsOf(path, text);
+      text = lowerJsx(text, prog.diags, fi, &classTags);
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
       if (prog.diags.size() > before) {  // the JSX did not lower: no point parsing it as it is
         prog.files.push_back({path, std::move(text)});
