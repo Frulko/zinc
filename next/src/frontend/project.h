@@ -36,6 +36,8 @@ struct Project {
   bool webgl = false;               // "webgl": true lets zinc:script contexts create WebGL canvases (ZN-205), passed as ZINC_WEBGL
   std::string scheme;               // "scheme": "light" | "dark" | "auto": the initial colour scheme of zinc:ui (ZN-271), passed as ZINC_SCHEME
   std::string text;                 // "text": "shaped" lays out zinc:gfx / zinc:ui text with HarfBuzz and SheenBidi (ZN-224); "" or "simple": the codepoint tables
+  std::string uiLayout;             // "ui": {"layout": "classic" | "rn" | "auto"} (ZN-285); "" = not set; "preset": "react-native" sets "rn"
+  std::string uiPreset;             // "ui": {"preset"}: "react-native" or ""
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
@@ -59,6 +61,13 @@ void setSystemPermissions(const std::vector<std::string>* granted);
 const std::vector<std::string>* systemPermissions();
 // The feature whose permission an import of `spec` needs ("zinc:system/tray" -> "tray"), or "" for any other spec (and for zinc:system itself).
 std::string systemFeatureOf(const std::string& spec);
+
+// The layout engine of zinc:ui for `target` (ZN-285, docs/reports/layout-engines.md §5): "classic" or "rn". "auto" and no setting follow the target's
+// `ui.layout` in targets/capabilities.json; "rn" where the target's `ui.rn` is false fails with `err` naming the reason (`ui.why`).
+bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>& caps, const std::string& target, std::string& layout, std::string& err);
+// The layout engine of the program being compiled, exported by zinc:platform as UI_LAYOUT ("classic" when nothing set it).
+void setUiLayout(const std::string& layout);
+const std::string& uiLayout();
 
 // Parses the manifest text. False with `err` set when it is not a JSON object or a typed key has the wrong type.
 bool parseProject(const std::string& text, Project& out, std::string& err);

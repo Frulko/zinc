@@ -66,8 +66,13 @@ Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson) {
       yyjson_val* key;
       while ((key = yyjson_obj_iter_next(&it))) {
         yyjson_val* v = yyjson_obj_iter_get_val(key);
-        std::string value = yyjson_is_bool(v) ? (yyjson_get_bool(v) ? "true" : "false") : yyjson_is_str(v) ? yyjson_get_str(v) : yyjson_is_num(v) ? std::to_string(yyjson_get_num(v)) : "";
-        caps[yyjson_get_str(key)] = value;
+        auto text = [](yyjson_val* x) { return std::string(yyjson_is_bool(x) ? (yyjson_get_bool(x) ? "true" : "false") : yyjson_is_str(x) ? yyjson_get_str(x) : yyjson_is_num(x) ? std::to_string(yyjson_get_num(x)) : ""); };
+        if (yyjson_is_obj(v)) {   // a group ("ui": {"layout": ...}) reads as "ui.layout"
+          yyjson_obj_iter in = yyjson_obj_iter_with(v);
+          while (yyjson_val* k2 = yyjson_obj_iter_next(&in)) caps[std::string(yyjson_get_str(key)) + "." + yyjson_get_str(k2)] = text(yyjson_obj_iter_get_val(k2));
+          continue;
+        }
+        caps[yyjson_get_str(key)] = text(v);
       }
     }
     yyjson_doc_free(doc);

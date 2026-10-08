@@ -124,6 +124,8 @@ Implemented in `next/src/host/layout_yoga.cpp` (ZN-283): `setStyle` takes the PR
 | esp32 | classic | no (RAM), diagnostic |
 | ps1 | classic | no (soft float, 256 KiB heap) |
 
+Implemented in ZN-285: `"ui": {"layout", "preset"}` in zinc.json, the `ui` group of `targets/capabilities.json` (`layout` for `auto`, `rn` allowed or not, `why`), resolved at compile time for the profile or the `--target`; programs read the result as `UI_LAYOUT` of `zinc:platform`. `tests/t0/ui_layout_option.sh`.
+
 An RN app on a tiny target uses `classic`: the RN-only styles it relies on (flex 1 equal shares, shrink, aspectRatio, alignContent) must then be handled by LE-9, or the app is not a candidate for that target. This is stated in the docs, not hidden.
 
 ## 6. Scores (RULES section 4: fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1; maximum 70)

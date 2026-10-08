@@ -26,6 +26,8 @@ modules and tests declare what they need.
 - **`dynlib`**: loading shared libraries at run time with `dlopen`. It is used by `zinc:ffi`, and it is off for static
   binaries (rmpp) and for 32-bit ARM (rpi1). The sim emulates a few libc functions for it.
 
+The `ui` group of each profile holds build settings of `zinc:ui` rather than hardware flags: `layout` (the engine `"ui": {"layout": "auto"}` picks), `rn` (whether the Yoga engine may be built for the profile) and `why` (the reason when it may not: esp32, ps1). They are read as `ui.layout`, `ui.rn`, `ui.why` and are not `zinc:platform` constants; `UI_LAYOUT` gives the result (ZN-285).
+
 ## Requirements
 
 A requirement is a string, and all of them must hold:

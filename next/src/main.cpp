@@ -176,13 +176,14 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
 #endif
 
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
+static std::string gBuildTarget;   // the machine a `run --target` / `build --target` compiles for (its ui.layout rules, ZN-285); "" = the profile or this host
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 
 // The system permissions of the zinc.json that governs `path`, for the compile (an import of zinc:system/<feature> needs its id); a manifest rule that fails stops the command.
 static bool loadManifestPermissions(const char* path) {
   static std::vector<std::string> granted;
   granted.clear();
-  std::string appJson, scopesJson;
+  std::string appJson, scopesJson, uiLayout = "classic";
   std::string pf = zn::frontend::findProjectFile(path);
   if (!pf.empty()) {
     std::ifstream in(pf);
@@ -190,8 +191,18 @@ static bool loadManifestPermissions(const char* path) {
     zn::frontend::Project p;
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
+    else {
+      granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes;
+      // the layout engine (ZN-285): zinc.json "ui" against the rules of the machine compiled for
+      const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
+      std::string layout = "classic", lerr;
+      zn::frontend::Caps caps;
+      if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/../targets/capabilities.json");
+      if (!zn::frontend::resolveUiLayout(p, caps, target, layout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), lerr.c_str()); return false; }
+      uiLayout = layout;
+    }
   }
+  zn::frontend::setUiLayout(uiLayout);
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
   zn::frontend::setSystemScopesJson(scopesJson);
@@ -718,6 +729,7 @@ int main(int argc, char** argv) {
     if (target != "esp32") { std::fprintf(stderr, "zinc: --target %s runs through `zinc build --target`; `run` supports esp32\n", target.c_str()); return 2; }
     zn::zbc::Module zm;
     gDeviceCore = true;
+    gBuildTarget = target;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::vector<std::uint8_t> bytes = zn::zbc::encode(zm);
     zn::dev::Link link;
@@ -823,6 +835,7 @@ int main(int argc, char** argv) {
     namespace fs = std::filesystem;
     const zn::tc::Target* target = zn::tc::findTarget(argv[3]);
     if (!target) { std::fprintf(stderr, "unknown target '%s' (zinc toolchain targets)\n", argv[3]); return 2; }
+    gBuildTarget = std::string(argv[3]) == "rpi" ? "rpi1" : argv[3];
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::string zig, err;

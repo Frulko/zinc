@@ -55,6 +55,20 @@ const std::vector<std::string>& systemFeatures() {
 void setSystemAppJson(const std::string& json) { gAppJson = json; }
 std::string gScopesJson;
 void setSystemScopesJson(const std::string& json) { gScopesJson = json; }
+namespace { std::string gUiLayout = "classic"; }
+void setUiLayout(const std::string& layout) { gUiLayout = layout.empty() ? "classic" : layout; }
+const std::string& uiLayout() { return gUiLayout; }
+bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>& caps, const std::string& target, std::string& layout, std::string& err) {
+  auto cap = [&](const char* k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
+  layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" ? "rn" : "auto") : p.uiLayout;
+  if (layout == "auto") layout = cap("ui.layout").empty() ? "classic" : cap("ui.layout");
+  if (layout == "rn" && cap("ui.rn") == "false") {
+    const std::string why = cap("ui.why");
+    err = "the rn layout (Yoga) is not available on " + target + (why.empty() ? "" : ": " + why) + "; use \"ui\": {\"layout\": \"classic\"} or \"auto\"";
+    return false;
+  }
+  return true;
+}
 const std::string& systemScopesJson() { return gScopesJson; }
 const std::string& systemAppJson() { return gAppJson; }
 void setSystemPermissions(const std::vector<std::string>* granted) { gGranted = granted; }
@@ -96,6 +110,17 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   if (yyjson_val* x = yyjson_obj_get(root, "text"); x && yyjson_is_str(x)) {
     out.text = yyjson_get_str(x);
     if (out.text != "shaped" && out.text != "simple") out.warnings.push_back("\"text\" must be \"shaped\" or \"simple\"");
+  }
+  if (yyjson_val* u = yyjson_obj_get(root, "ui")) {   // ZN-285
+    if (!yyjson_is_obj(u)) { err = "\"ui\" must be an object"; out.fatal = true; return false; }
+    if (yyjson_val* l = yyjson_obj_get(u, "layout")) {
+      out.uiLayout = yyjson_is_str(l) ? yyjson_get_str(l) : "";
+      if (out.uiLayout != "classic" && out.uiLayout != "rn" && out.uiLayout != "auto") { err = "\"ui.layout\" must be \"classic\", \"rn\" or \"auto\""; out.fatal = true; return false; }
+    }
+    if (yyjson_val* pr = yyjson_obj_get(u, "preset")) {
+      out.uiPreset = yyjson_is_str(pr) ? yyjson_get_str(pr) : "";
+      if (out.uiPreset != "react-native") { err = "\"ui.preset\" must be \"react-native\""; out.fatal = true; return false; }
+    }
   }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {
     if (!yyjson_is_arr(r)) { err = "\"requires\" must be an array"; return false; }
@@ -169,7 +194,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "keyboard", "bench", "description", "profile"};
+  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "keyboard", "bench", "description", "profile", "ui"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

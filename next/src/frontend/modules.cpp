@@ -850,6 +850,7 @@ std::string platformModuleSource(const std::string& capsFile) {
   src += "export const TARGET: string = \"" + target + "\";\nexport const PROFILE: string = \"" + target + "\";\n";
   src += "export const HEAP_BYTES: i32 = 536870912;\nexport const NUMBERS: string = \"f64\";\n";
   src += "export const SCREEN_W: i32 = " + std::to_string(w) + ";\nexport const SCREEN_H: i32 = " + std::to_string(h) + ";\nexport const FPU: boolean = true;\n";
+  src += "export const UI_LAYOUT: string = \"" + uiLayout() + "\";\n";   // the layout engine zinc.json and the target chose (ZN-285)
   std::ifstream in(capsFile);
   std::stringstream ss;
   ss << in.rdbuf();
@@ -861,7 +862,7 @@ std::string platformModuleSource(const std::string& capsFile) {
     yyjson_val *k, *v;
     if (yyjson_is_obj(t)) yyjson_obj_foreach(t, i, n, k, v) {
       std::string key = yyjson_get_str(k);
-      if (key == "heap" || key == "numbers" || key == "width" || key == "height" || key == "fpu") continue;
+      if (key == "heap" || key == "numbers" || key == "width" || key == "height" || key == "fpu" || yyjson_is_obj(v)) continue;   // (groups such as "ui" are build settings)
       if (key == "gpu" || key == "tier") {   // ladders: GPU stays a boolean, GPU_API and TIER say how much (ZN-175)
         std::string val = yyjson_is_str(v) ? yyjson_get_str(v) : "none";
         if (key == "gpu") src += std::string("export const GPU: boolean = ") + (val != "none" && val != "false" ? "true" : "false") + ";\nexport const GPU_API: string = \"" + val + "\";\n";
