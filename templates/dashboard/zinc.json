@@ -1,0 +1,7 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "icons": ["activity", "cpu", "memory-stick", "gauge", "triangle-alert", "pause", "play"],
+  "targets": { "macos": { "width": 1100, "height": 720 }, "linux": { "width": 1100, "height": 720 } }
+}

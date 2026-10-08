@@ -1,0 +1,8 @@
+{
+  "name": "dashboard",
+  "description": "A live dashboard: stat cards, a line and a bar chart, alerts, fed by a mock data source you replace with yours (zinc:ui/nuxt).",
+  "tags": ["ui", "charts", "data"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.tsx",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}
