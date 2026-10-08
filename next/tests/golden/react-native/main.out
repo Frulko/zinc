@@ -1,0 +1,11 @@
+Platform.OS macos select mac ratio 1 round 10
+colors 81b0ff ffffff -1
+window 360x400 status dark-content
+tap: in out press
+long: in long out
+disabled: []
+opacity while pressed 0.50
+opacity after 1.00
+underlay while pressed ff5a36
+underlay after 0f766e
+after: opacity press highlight press plain press switch true switch false presses 1 rendered 360x400 dark

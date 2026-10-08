@@ -1866,7 +1866,7 @@ export function textFont(h: i32): i32 { if (layoutDirty) layout(); return node(h
 export function textFg(h: i32): i32 {
   let q = h;
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
-  return q >= 0 ? nodes[q].fg : 0xffffff;
+  return q >= 0 ? nodes[q].fg : RN ? 0x000000 : 0xffffff;   // React Native's text is black by default (ZN-367.01)
 }
 /** Text inherits size and weight from its parent text node. */
 function inheritText(n: UiNode): void {

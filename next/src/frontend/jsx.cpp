@@ -672,7 +672,8 @@ struct Lowering {
     bool upper = std::isupper(static_cast<unsigned char>(tag[0]));
     if (upper) {
       auto it = imported.find(tag);
-      bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0);
+      bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0) ||
+                        it->second == "zinc:react-native";   // View, Text, Image, ScrollView of zinc:react-native are the host elements (ZN-367)
       if (!(kTags.count(tag) && hostImport)) return component(e, out);
     }
     auto tagIt = kTags.find(tag);
@@ -850,7 +851,14 @@ struct Lowering {
     } else {
       std::vector<std::string> props;
       const Attr* key = find("key");
-      for (auto& p : attrs) if (p.first != "key") props.push_back(p.first + ": " + valueOf(*p.second));
+      auto imp = imported.find(tag);
+      const bool rn = imp != imported.end() && imp->second == "zinc:react-native";   // its style props are one flattened Style, as React Native composes them
+      auto styleProp = [](const std::string& n) { return n == "style" || (n.size() > 5 && n.compare(n.size() - 5, 5, "Style") == 0); };
+      for (auto& p : attrs) {
+        if (p.first == "key") continue;
+        if (rn && p.second->kind == 2 && styleProp(p.first)) props.push_back(p.first + ": _flat(" + styleLayers(p.second->eb, p.second->ee) + ")");
+        else props.push_back(p.first + ": " + valueOf(*p.second));
+      }
       auto nodeValued = [&](const Child* k) {
         if (k->kind != 1 || k->ee <= k->eb) return true;
         if (jsxStart(k->eb) && parseElem(k->eb)->end == k->ee) return true;
@@ -900,10 +908,10 @@ std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std
         if (L.t[k].kind == Tok::Ident && L.tx(k) == "StyleSheet") found.push_back(L.t[k + 1].kind == Tok::Ident && L.tx(k + 1) == "as" ? L.tx(k + 2) : "StyleSheet");
         ++k;
       }
-      if (k < L.t.size() && L.t[k].kind == Tok::String && L.tx(k) == "'zinc:ui'") {
+      if (k < L.t.size() && L.t[k].kind == Tok::String && (L.tx(k) == "'zinc:ui'" || L.tx(k) == "'zinc:react-native'")) {
         for (auto& f : found) names.insert(f);
         if (ns) names.insert(nsName + ".StyleSheet");
-      } else if (k < L.t.size() && L.t[k].kind == Tok::String && L.tx(k) == "\"zinc:ui\"") {
+      } else if (k < L.t.size() && L.t[k].kind == Tok::String && (L.tx(k) == "\"zinc:ui\"" || L.tx(k) == "\"zinc:react-native\"")) {
         for (auto& f : found) names.insert(f);
         if (ns) names.insert(nsName + ".StyleSheet");
       }
@@ -1009,6 +1017,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
     if (out.find("_spread(") != std::string::npos) helpers += ", _spread";   // only when used: not every JSX library has them
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
+    if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out;
   } catch (const Failure& f) {
