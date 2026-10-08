@@ -484,7 +484,12 @@ function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
   for (const c of n.children) release(c);
-  if (n.rn !== null) { LY.destroy(h); n.rn = null; }
+  if (n.rn !== null) {
+    LY.destroy(h); n.rn = null;
+    // the parent's cached child list names this handle, and handles are recycled: a new node with the same handle would look already inserted (ZN-289)
+    const p = n.parent;
+    if (p >= 0 && p < nodes.length && nodes[p].rn !== null) (nodes[p].rn as RnRec).kids = [];
+  }
   if (n.tag === CANVAS && !n.lazy) canvases--;
   if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
@@ -974,7 +979,7 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_RIGHT) n.right = iv; else if (id === P_BOTTOM) n.bottom = iv;
   else if (id === P_SHRINK) n.shrink = v;   // object styles of React Native (ZN-358)
   else if (id === P_BASIS) { n.basis = iv; n.basisFrac = 0; }
-  else if (id === P_BASIS_PERCENT) { n.basis = -1; n.basisFrac = v; }
+  else if (id === P_BASIS_PERCENT) { n.basis = v === 0 ? 0 : -1; n.basisFrac = v; }   // 0% is a basis of 0, not auto (ZN-289)
   else if (id === P_ALIGN_SELF) n.selfAlign = iv;
   else if (id === P_ALIGN_CONTENT) n.alignContent = iv;
   else if (id === P_MIN_WIDTH) n.minW = iv; else if (id === P_MAX_WIDTH) n.maxW = iv;   // (ZN-359; -1: none)
