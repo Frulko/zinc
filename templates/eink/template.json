@@ -1,0 +1,8 @@
+{
+  "name": "eink",
+  "description": "A reMarkable Paper Pro notebook: a to-do list you tick with the pen and a sketch page in ink, laid out for e-paper (black and white, large targets, no animation), saved between runs.",
+  "tags": ["e-paper", "remarkable", "ink", "ui"],
+  "targets": ["rmpp", "macos", "linux"],
+  "entry": "src/main.tsx",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

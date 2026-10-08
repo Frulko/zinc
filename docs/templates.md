@@ -44,6 +44,7 @@ compares the graphical ones with a recorded frame.
 | 3d | a three.js scene (lights, floor, a spinning ring, orbiting satellites) with OrbitControls; motion as plain functions, tested | macos, linux, rpi |
 | service | an HTTP JSON API (items, health) with tests without the network and over HTTP, and a hardened systemd unit `deploy/{{id}}.service` (zinc:net) | linux, rpi, macos |
 | iot-board | an ESP32-S3 device: a QMI8658 motion sensor and a 128x64 SSD1306 OLED (a bubble level, shake to calibrate), its `board.json` and a `zinc sim` scenario; the sensor is emulated on the desktop | esp32, macos, sim, rpi1 |
+| eink | a reMarkable Paper Pro notebook laid out for e-paper: a to-do list ticked with the pen and a sketch page in ink (zinc:ink), saved with zinc:storage | rmpp, macos, linux |
 | cli | a command-line program (zinc:sys) | macos, linux, rpi |
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |

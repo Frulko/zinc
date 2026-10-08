@@ -1,0 +1,10 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 810, "height": 1080 },
+    "linux": { "width": 810, "height": 1080 },
+    "rmpp": { "display": "rmpp" }
+  }
+}
