@@ -6,6 +6,7 @@
     {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "jsx_style"]},
     {"paths": ["../examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
     {"paths": ["../lib/std/react-native.tsx"], "tests": ["react_native"]},
+    {"paths": ["../lib/std/nuxt/", "tests/golden/nuxt-theme/"], "tests": ["nuxt_theme"]},
     {"paths": ["../lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "rn_showcase", "pan_responder"]},
     {"paths": ["../lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
     {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/frontend/capabilities.cpp", "../targets/capabilities.json"], "tests": ["ui_layout_option", "requires"]},
