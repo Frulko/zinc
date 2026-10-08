@@ -3178,7 +3178,9 @@ struct Checker {
   // ---- anonymous records: one class per distinct list of (name, type)
   std::map<std::pair<std::vector<std::pair<std::string, TypeId>>, std::vector<std::string>>, std::uint32_t> recordObjs;
   TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape, const std::vector<std::string>& lits = {}) {
-    auto rkey = std::make_pair(shape, lits);
+    bool anyLit = false;
+    for (const std::string& l : lits) anyLit = anyLit || !l.empty();
+    auto rkey = std::make_pair(shape, anyLit ? lits : std::vector<std::string>{});   // no literal or optional member: the same record whoever asks (an annotation lists one empty slot per member)
     auto it = recordObjs.find(rkey);
     if (it != recordObjs.end()) return objType(it->second);
     ObjInfo info;
@@ -3418,7 +3420,12 @@ struct Checker {
       case TK::Array: case TK::Set: return hasParam(x.elem);
       case TK::Map: return hasParam(x.elem) || hasParam(x.params[0]);
       case TK::Func: { if (hasParam(x.elem)) return true; for (TypeId p : x.params) if (hasParam(p)) return true; return false; }
-      case TK::Object: { for (TypeId p : out.objs[x.obj].typeArgs) if (hasParam(p)) return true; return false; }
+      case TK::Object: {
+        const ObjInfo& o = out.objs[x.obj];
+        if (o.isTemplate && (o.isRecord || o.isTuple)) return true;   // an anonymous record or tuple over a type parameter (`{ data: T[] }`)
+        for (TypeId p : o.typeArgs) if (hasParam(p)) return true;
+        return false;
+      }
       default: return false;
     }
   }
