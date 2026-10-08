@@ -29,7 +29,7 @@
       "name": "deferred: cross builds and simulators (owner, 2026-10-07: at the end)",
       "last": true,
       "milestones": [
-        "m-12",
+        "m-11",
         "m-18"
       ],
       "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target"

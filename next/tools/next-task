@@ -69,6 +69,9 @@ except (OSError, ValueError, KeyError):
 
 def group_of(t):
     """Index of the first priority group (backlog/priority.json) the task belongs to; len(groups) when none."""
+    for i, g in enumerate(groups):   # a "last" group claims by its title regex first: what the owner asked to leave for the end stays there whatever its milestone
+        if g.get("last") and g.get("title") and re.search(g["title"], t.get("title", "")):
+            return 1000 + i
     for i, g in enumerate(groups):
         title = t.get("title", "")
         if g.get("exclude_title") and re.search(g["exclude_title"], title):
