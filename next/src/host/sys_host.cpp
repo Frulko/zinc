@@ -19,6 +19,10 @@
 #include <ctime>
 #include <cmath>
 #include <fstream>
+#include <array>
+#include <net/if.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <map>
 #include <random>
 #include <sstream>
@@ -28,6 +32,9 @@
 #ifdef __APPLE__
 #include <mach/mach.h>
 #include <sys/sysctl.h>
+#include <net/if_dl.h>
+#else
+#include <linux/if_packet.h>
 #endif
 
 #include "zn/host.h"
@@ -52,6 +59,7 @@ std::string gOut;           // the string a call returns
 std::string gError;         // the last failure: "CODE: op path"
 bool gFailed = false;
 std::vector<std::string> gNames;   // directory listing / environment keys / storage keys / asset names
+std::vector<std::array<std::string, 6>> gNets;   // os.networkInterfaces(): name, address, netmask, family, mac, internal
 std::vector<int> gKinds;           // listing entries: 1 file, 2 directory, 4 symlink
 std::vector<unsigned char> gBytes; // the file or asset loaded last
 struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; } gStat;
@@ -299,7 +307,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostFsMkdir: if (denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
-    case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
+    case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "cannot open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
     case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsWriteBytes: {
       std::string data;
@@ -315,17 +323,20 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (rc != 0) { fail("stat", p); r->i = 0; break; }
 #ifdef __APPLE__
       gStat = {static_cast<double>(st.st_size), st.st_mtimespec.tv_sec * 1e3 + st.st_mtimespec.tv_nsec / 1e6, st.st_atimespec.tv_sec * 1e3 + st.st_atimespec.tv_nsec / 1e6,
-               st.st_ctimespec.tv_sec * 1e3 + st.st_ctimespec.tv_nsec / 1e6, static_cast<int>(st.st_mode), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
+               st.st_ctimespec.tv_sec * 1e3 + st.st_ctimespec.tv_nsec / 1e6, static_cast<int>(st.st_mode & 07777), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
 #else
       gStat = {static_cast<double>(st.st_size), st.st_mtim.tv_sec * 1e3 + st.st_mtim.tv_nsec / 1e6, st.st_atim.tv_sec * 1e3 + st.st_atim.tv_nsec / 1e6,
-               st.st_ctim.tv_sec * 1e3 + st.st_ctim.tv_nsec / 1e6, static_cast<int>(st.st_mode), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
+               st.st_ctim.tv_sec * 1e3 + st.st_ctim.tv_nsec / 1e6, static_cast<int>(st.st_mode & 07777), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
 #endif
       r->i = 1;
       break;
     }
     case Rt::HostFsStatD: r->d = n(0) == 0 ? gStat.size : n(0) == 1 ? gStat.mtime : n(0) == 2 ? gStat.atime : gStat.ctime; break;
     case Rt::HostFsStatI: r->i = n(0) == 0 ? gStat.mode : n(0) == 1 ? gStat.file : n(0) == 2 ? gStat.dir : gStat.link; break;
-    case Rt::HostFsRename: if (rename(s(0).c_str(), s(1).c_str()) != 0) fail("rename", s(0) + " -> " + s(1)); break;
+    case Rt::HostFsRename: if (rename(s(0).c_str(), s(1).c_str()) != 0) fail("rename", s(0)); break;
+    case Rt::HostFsSymlink: if (symlink(s(0).c_str(), s(1).c_str()) != 0) fail("symlink", s(0) + " -> " + s(1)); break;
+    case Rt::HostFsReadlink: { char b[4096]; ssize_t k = readlink(s(0).c_str(), b, sizeof b - 1); if (k >= 0) { b[k] = 0; ret(r, b); } else { fail("readlink", s(0)); ret(r, ""); } break; }
+    case Rt::HostFsChmod: if (chmod(s(0).c_str(), static_cast<mode_t>(n(1))) != 0) fail("chmod", s(0)); break;
     case Rt::HostFsCopyFile: { std::vector<unsigned char> b; if (readAll(s(0), b, "copyfile")) writeAll(s(1), reinterpret_cast<const char*>(b.data()), b.size(), false, "copyfile"); break; }
     case Rt::HostFsRealpath: { char b[4096]; if (realpath(s(0).c_str(), b)) ret(r, b); else { fail("realpath", s(0)); ret(r, ""); } break; }
     case Rt::HostFsTmpdir: ret(r, tmpdirPath()); break;
@@ -475,6 +486,49 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysBytesToString: ret(r, rawBytes(a[0])); break;
     case Rt::HostOscSend: r->i = zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
+    case Rt::HostOsCpuModel: {
+      std::string model;
+#if defined(__APPLE__)
+      char b[256]; size_t len = sizeof b;
+      if (sysctlbyname("machdep.cpu.brand_string", b, &len, nullptr, 0) == 0) model = b;
+#else
+      std::ifstream in("/proc/cpuinfo"); std::string line;
+      while (model.empty() && std::getline(in, line)) if (line.rfind("model name", 0) == 0 && line.find(':') != std::string::npos) model = line.substr(line.find(':') + 2);
+#endif
+      ret(r, model.empty() ? "cpu" : model);
+      break;
+    }
+    case Rt::HostOsNetList: {
+      gNets.clear();
+      struct ifaddrs* all = nullptr;
+      if (getifaddrs(&all) == 0) {
+        std::map<std::string, std::string> macs;
+        for (struct ifaddrs* a = all; a; a = a->ifa_next) {
+          if (!a->ifa_addr) continue;
+#if defined(__APPLE__)
+          if (a->ifa_addr->sa_family == AF_LINK) { auto* d = reinterpret_cast<struct sockaddr_dl*>(a->ifa_addr); const unsigned char* m = reinterpret_cast<const unsigned char*>(LLADDR(d)); char b[24]; if (d->sdl_alen == 6) { std::snprintf(b, sizeof b, "%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]); macs[a->ifa_name] = b; } }
+#else
+          if (a->ifa_addr->sa_family == AF_PACKET) { auto* d = reinterpret_cast<struct sockaddr_ll*>(a->ifa_addr); char b[24]; std::snprintf(b, sizeof b, "%02x:%02x:%02x:%02x:%02x:%02x", d->sll_addr[0], d->sll_addr[1], d->sll_addr[2], d->sll_addr[3], d->sll_addr[4], d->sll_addr[5]); macs[a->ifa_name] = b; }
+#endif
+        }
+        for (struct ifaddrs* a = all; a; a = a->ifa_next) {
+          if (!a->ifa_addr || (a->ifa_addr->sa_family != AF_INET && a->ifa_addr->sa_family != AF_INET6)) continue;
+          char addr[INET6_ADDRSTRLEN] = "", mask[INET6_ADDRSTRLEN] = "";
+          bool v4 = a->ifa_addr->sa_family == AF_INET;
+          inet_ntop(a->ifa_addr->sa_family, v4 ? static_cast<void*>(&reinterpret_cast<struct sockaddr_in*>(a->ifa_addr)->sin_addr) : static_cast<void*>(&reinterpret_cast<struct sockaddr_in6*>(a->ifa_addr)->sin6_addr), addr, sizeof addr);
+          if (a->ifa_netmask) inet_ntop(a->ifa_addr->sa_family, v4 ? static_cast<void*>(&reinterpret_cast<struct sockaddr_in*>(a->ifa_netmask)->sin_addr) : static_cast<void*>(&reinterpret_cast<struct sockaddr_in6*>(a->ifa_netmask)->sin6_addr), mask, sizeof mask);
+          auto m = macs.find(a->ifa_name);
+          gNets.push_back({a->ifa_name, addr, mask, v4 ? "IPv4" : "IPv6", m != macs.end() ? m->second : "00:00:00:00:00:00", (a->ifa_flags & IFF_LOOPBACK) ? "1" : "0"});
+        }
+        freeifaddrs(all);
+      }
+      r->i = static_cast<std::int64_t>(gNets.size());
+      break;
+    }
+    case Rt::HostOsNetField: { size_t i = static_cast<size_t>(n(0)); const auto& e = i < gNets.size() ? gNets[i] : std::array<std::string, 6>{}; int f = n(1); ret(r, f >= 0 && f < 6 ? e[f] : ""); break; }
+    case Rt::HostOsUid: r->i = static_cast<std::int64_t>(getuid()); break;
+    case Rt::HostOsGid: r->i = static_cast<std::int64_t>(getgid()); break;
+    case Rt::HostOsShell: { passwd* pw = getpwuid(getuid()); ret(r, pw && pw->pw_shell ? pw->pw_shell : ""); break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
     case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }
     default: break;

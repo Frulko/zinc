@@ -257,11 +257,45 @@ export function copyFile(from: string, to: string): void { __host_fsCopyFile(fro
 export function realpath(path: string): string { const s = __host_fsRealpath(path); check(); return s; }
 export function mkdtemp(prefix: string): string { const s = __host_fsMkdtemp(prefix); check(); return s; }
 export function tmpdir(): string { return __host_fsTmpdir(); }
-export function symlink(target: string, path: string): void { throw new Error('ENOSYS: symlink is not supported by this engine yet'); }
-export function readlink(path: string): string { throw new Error('ENOSYS: readlink is not supported by this engine yet'); }
-export function chmod(path: string, mode: i32): void { throw new Error('ENOSYS: chmod is not supported by this engine yet'); }
-export function watch(path: string, cb: (event: string, name: string) => void): i32 { throw new Error('ENOSYS: fs.watch is not supported by this engine yet'); }
-export function unwatch(id: i32): void {}
+export function symlink(target: string, path: string): void { __host_fsSymlink(target, path); check(); }
+export function readlink(path: string): string { const s = __host_fsReadlink(path); check(); return s; }
+export function chmod(path: string, mode: i32): void { __host_fsChmod(path, mode); check(); }
+// fs.watch: the entries of the directory (or the file) are compared every 10 ms; a new or a removed name is a 'rename' (added names first, like a move seen by the system), a changed size or time a 'change'.
+interface __WatchState { id: i32; path: string; snap: Map<string, string>; timer: i32; cb: (event: string, name: string) => void }
+const __watches: __WatchState[] = [];
+let __watchSeq: i32 = 0;
+function __watchSnap(path: string): Map<string, string> {
+  const m = new Map<string, string>();
+  if (!__host_fsExists(path)) return m;
+  try {
+    const s = lstat(path);
+    if (!s.isDirectory) { m.set(path.slice(path.lastIndexOf('/') + 1), `${s.size}:${s.mtimeMs}`); return m; }
+    for (const e of readDir(path)) {
+      try { const t = lstat(path + '/' + e.name); m.set(e.name, `${t.size}:${t.mtimeMs}`); } catch (x) {}
+    }
+  } catch (x) {}
+  return m;
+}
+function __watchTick(w: __WatchState): void {
+  const now = __watchSnap(w.path);
+  const old = w.snap;
+  w.snap = now;
+  for (const [name, sig] of now) {
+    if (!old.has(name)) w.cb('rename', name);
+    else if (old.get(name) !== sig) w.cb('change', name);
+  }
+  for (const [name, sig] of old) if (!now.has(name)) w.cb('rename', name);
+}
+export function watch(path: string, cb: (event: string, name: string) => void): i32 {
+  if (!__host_fsExists(path)) { __host_fsStat(path, true); check(); }
+  const w: __WatchState = { id: ++__watchSeq, path: path, snap: __watchSnap(path), timer: 0, cb: cb };
+  w.timer = setInterval(() => { __watchTick(w); }, 10);
+  __watches.push(w);
+  return w.id;
+}
+export function unwatch(id: i32): void {
+  for (let i: i32 = 0; i < __watches.length; i++) if (__watches[i].id === id) { clearInterval(__watches[i].timer); __watches.splice(i, 1); return; }
+}
 )ZN";
 
 const char* kStorageModule = R"ZN(
@@ -297,12 +331,17 @@ export function loadavg(): f64[] { return [__host_osLoad(0), __host_osLoad(1), _
 export function totalmem(): f64 { return __host_osTotalmem(); }
 export function freemem(): f64 { return __host_osFreemem(); }
 export interface CpuInfo { model: string; speed: f64 }
-export function cpus(): CpuInfo[] { const r: CpuInfo[] = []; const n = __host_osCpus(); for (let i: i32 = 0; i < n; i++) r.push({ model: '', speed: 0 }); return r; }
+export function cpus(): CpuInfo[] { const r: CpuInfo[] = []; const n = __host_osCpus(); for (let i: i32 = 0; i < n; i++) r.push({ model: __host_osCpuModel(), speed: 0 }); return r; }
 export function availableParallelism(): i32 { return __host_osCpus(); }
 export interface NetworkInterface { name: string; address: string; netmask: string; family: string; mac: string; internal: boolean }
-export function networkInterfaces(): NetworkInterface[] { return []; }
+export function networkInterfaces(): NetworkInterface[] {
+  const r: NetworkInterface[] = [];
+  const n = __host_osNetList();
+  for (let i: i32 = 0; i < n; i++) r.push({ name: __host_osNetField(i, 0), address: __host_osNetField(i, 1), netmask: __host_osNetField(i, 2), family: __host_osNetField(i, 3), mac: __host_osNetField(i, 4), internal: __host_osNetField(i, 5) === '1' });
+  return r;
+}
 export interface UserInfo { username: string; uid: i32; gid: i32; shell: string; homedir: string }
-export function userInfo(): UserInfo { return { username: __host_osUser(), uid: 0, gid: 0, shell: '', homedir: __host_osHomedir() }; }
+export function userInfo(): UserInfo { return { username: __host_osUser(), uid: __host_osUid(), gid: __host_osGid(), shell: __host_osShell(), homedir: __host_osHomedir() }; }
 )ZN";
 
 // zinc:__proc: the raw child-process calls under the stand-in of plugins/process (native/process.next.ts); programs import zinc:process (the plugin).
@@ -1062,6 +1101,7 @@ struct Loader {
   std::map<std::string, std::uint32_t> done;   // path -> module index
   std::map<std::string, bool> visiting;
   std::vector<std::uint32_t> flat;             // the program's statements in module order
+  std::map<std::string, std::string> dirSpelling;   // canonical directory -> the first spelling that reached it
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
   std::map<std::string, std::string> plugins;  // 'zinc:lottie' -> plugins/lottie/index.ts (read from plugin.json files)
   std::set<std::string> pluginDirsRead;
@@ -1233,10 +1273,29 @@ struct Loader {
         std::string ptext;
         if (read(pl->second, ptext)) return load(pl->second, std::move(ptext));
       }
+      // the compat packages the prototype maps on its own (compiler/src/frontend.ts STD_MODULES), for a project without a tsconfig.json paths entry (react and solid-js stay errors without one, tests/t0/modules.sh)
+      static const std::map<std::string, std::string> kCompat = {{"inferno", "../compat/inferno.ts"},
+        {"@pocketjs/framework/solid/components", "../compat/pocketjs/components.ts"}, {"@pocketjs/framework/solid/lifecycle", "../compat/pocketjs/lifecycle.ts"},
+        {"@pocketjs/framework/animation", "../compat/pocketjs/animation.ts"}, {"@pocketjs/framework/solid/std", "../compat/pocketjs/std.ts"},
+        {"@pocketjs/framework/solid", "../compat/pocketjs/mount.ts"}, {"@pocketjs/framework/clock", "../compat/pocketjs/clock.ts"}};
+      if (auto cm = kCompat.find(spec); cm != kCompat.end() && !stdRoot.empty()) {
+        std::string path = normalize(stdRoot + "/" + cm->second), ctext;
+        if (done.count(path)) return done[path];
+        if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
+        if (read(path, ctext)) return load(path, std::move(ctext));
+      }
       diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no tsconfig.json paths entry maps it)");
       return kNone;
     }
     std::string base = normalize(dirOf(prog.files[fromFile].path) + (dirOf(prog.files[fromFile].path).empty() ? "" : "/") + spec);
+    {   // a directory reached through a symlink is the directory it points to: one module identity (the first spelling seen wins)
+      std::size_t sl = base.rfind('/');
+      if (sl != std::string::npos) {
+        std::error_code ec;
+        std::string d = base.substr(0, sl), c = std::filesystem::weakly_canonical(d, ec).string();
+        if (!ec) { auto it = dirSpelling.emplace(c, d).first; base = it->second + base.substr(sl); }
+      }
+    }
     std::string text;
     // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API
     // that the old simulator ran, takes its place (deterministic and headless)
@@ -1363,7 +1422,21 @@ struct Loader {
     }
     return tags;
   }
+  // A file reached by two spellings of its path (`lib/std/solid.ts` through a tsconfig `paths` entry, `next/../lib/std/solid.ts` through the std root) is one module:
+  // two instances would each have their own state (a Solid signal read in one and tracked in the other never updates).
+  std::map<std::string, std::uint32_t> byCanonical;
   std::uint32_t load(const std::string& path, std::string text) {
+    std::error_code ec;
+    std::string ck = std::filesystem::weakly_canonical(path, ec).string();
+    if (!ec && !ck.empty()) {
+      if (auto it = byCanonical.find(ck); it != byCanonical.end()) { done[path] = it->second; return it->second; }
+      std::uint32_t r = loadFile(path, std::move(text));
+      byCanonical[ck] = r;
+      return r;
+    }
+    return loadFile(path, std::move(text));
+  }
+  std::uint32_t loadFile(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
     if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);

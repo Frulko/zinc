@@ -205,7 +205,10 @@
   X(HostSockRemotePort, "host.sockRemotePort", "i>i", 2) X(HostSockLookup, "host.sockLookup", "s>i", 2) X(HostSockError, "host.sockError", ">s", 2) \
   X(HostEvPayload, "host.evPayload", ">s", 2) X(HostSysBytesToString, "host.sysBytesToString", "B>s", 2) /* raw bytes into a string, no UTF-8 repair */ \
   /* the loop's turn for the native modules (ZN-167): their pollers, queued callbacks and promise completions run; argument 1 polls, 0 only asks; 1 while native work is pending */ \
-  X(HostNativePoll, "host.nativePoll", "i>i", 2)
+  X(HostNativePoll, "host.nativePoll", "i>i", 2) \
+  X(HostFsSymlink, "host.fsSymlink", "ss>n", 2) X(HostFsReadlink, "host.fsReadlink", "s>s", 2) X(HostFsChmod, "host.fsChmod", "si>n", 2) \
+  X(HostOsUid, "host.osUid", ">i", 2) X(HostOsGid, "host.osGid", ">i", 2) X(HostOsShell, "host.osShell", ">s", 2) X(HostOsCpuModel, "host.osCpuModel", ">s", 2) \
+  X(HostOsNetList, "host.osNetList", ">i", 2) X(HostOsNetField, "host.osNetField", "ii>s", 2)
 
 namespace zn {
 
