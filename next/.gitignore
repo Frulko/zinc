@@ -1,4 +1,6 @@
 build*/
+# SDL's own sources, not a build directory: the CI configure fails without them
+!third_party/SDL3/include/build_config/
 .logs/
 .paused
 build-wasm/
