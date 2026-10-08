@@ -2,7 +2,8 @@
 // ("ui": {"layout": "rn"} in zinc.json), with its own visual language in a light and a dark scheme. Four screens and a bottom sheet; switches and the sheet
 // ease every frame. SHOWCASE_SCREEN=discover|detail|stats|settings|sheet and SHOWCASE_SCHEME=light|dark open a given state (screenshots and goldens).
 //   zinc run examples/rn-showcase
-import { createSignal, Show } from 'zinc:ui/solid';
+import { createSignal, createNodeRef, Show } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
 import { StyleSheet } from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
@@ -28,6 +29,7 @@ const [textSize, setTextSize] = createSignal<string>('Comfortable');
 const toggles: Toggle[] = [new Toggle('Download for offline', true), new Toggle('Daily digest', false), new Toggle('Autoplay audio', true)];
 const [tick, setTick] = createSignal<i32>(0);   // bumped when a knob moved: the switches read their positions through it
 const [darkPos, setDarkPos] = createSignal<number>(0);
+const scroller = createNodeRef();
 
 function Tab(p: { label: string; id: i32 }): i32 {
   const on = (): boolean => screen() === p.id || (p.id === DISCOVER && screen() === DETAIL);
@@ -39,7 +41,7 @@ function Tab(p: { label: string; id: i32 }): i32 {
 
 function App(): i32 {
   return <view style={{ flexDirection: 'column', width: '100%', height: '100%', backgroundColor: t().bg }}>
-    <view style={{ flexDirection: 'column', flexGrow: 1, overflow: 'scroll', paddingBottom: 100 }}>
+    <view ref={scroller} style={{ flexDirection: 'column', flex: 1, overflow: 'scroll', paddingBottom: 100 }}>
       <Show when={screen() === DISCOVER}>{Discover((s: Story) => { setStory(s); setScreen(DETAIL); })}</Show>
       <Show when={screen() === DETAIL}>{Detail(story, () => setScreen(DISCOVER))}</Show>
       <Show when={screen() === STATS}>{Stats()}</Show>
@@ -58,7 +60,8 @@ function App(): i32 {
 function ease(v: number, to: number, dt: number): number { const k = Math.min(1, dt * 14); const n = v + (to - v) * k; return Math.abs(to - n) < 0.002 ? to : n; }
 
 // test hooks: start on a given screen and scheme, with the sheet open
-const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME');
+const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME'), scrollTo = env('SHOWCASE_SCROLL');
+let frames = 0;
 if (scheme === 'dark') { setDark(true); setDarkPos(1); }
 if (start === 'detail') { setStory(STORIES[2]); setScreen(DETAIL); }
 if (start === 'stats') setScreen(STATS);
@@ -66,6 +69,7 @@ if (start === 'settings' || start === 'sheet') setScreen(SETTINGS);
 if (start === 'sheet') { setSheetTarget(1); setSheetAt(1); }
 
 render(App, 0xF6F3EE, (dt: number) => {
+  if (++frames === 2 && scrollTo !== '') ui.scrollTo(scroller.node, 0, parseFloat(scrollTo));   // SHOWCASE_SCROLL=400: the content scrolled (screenshots)
   let moved = false;
   for (const g of toggles) { const p = ease(g.pos, g.on ? 1 : 0, dt); if (p !== g.pos) { g.pos = p; moved = true; } }
   if (moved) setTick(tick() + 1);

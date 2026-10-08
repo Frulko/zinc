@@ -8,3 +8,4 @@ detail dark d8d7f3118e226c52
 stats dark 1954f503b8731cd2
 settings dark 6f13863d88e1f74f
 sheet dark e19a80cd254660ae
+discover light a67c34204f22e364 600

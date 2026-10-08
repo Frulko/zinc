@@ -7,6 +7,7 @@ coral accent, tight large titles, generous radii) in a light and a dark scheme: 
 ```sh
 zinc run examples/rn-showcase
 SHOWCASE_SCREEN=stats SHOWCASE_SCHEME=dark zinc run examples/rn-showcase   # open a given state
+SHOWCASE_SCROLL=600 zinc run examples/rn-showcase                          # the feed scrolled
 ```
 
 | Discover | Detail | Stats | Sheet | Discover, dark | Settings, dark |
@@ -15,7 +16,8 @@ SHOWCASE_SCREEN=stats SHOWCASE_SCHEME=dark zinc run examples/rn-showcase   # ope
 
 Screens: a feed of cards with generative covers (`src/art.ts`, drawn on canvases, no image files) and category chips;
 a detail page with a hero header; a stats page with a chart, KPI tiles in a wrapping grid and progress bars; settings
-with grouped lists, switches whose knobs slide and a bottom sheet with a backdrop. Switches, the sheet and the scheme
+with grouped lists, switches whose knobs slide and a bottom sheet with a backdrop. The content is a `flex: 1` scroll
+view (React Native's shorthand: it shrinks to the space left above the tab bar and scrolls its content). Switches, the sheet and the scheme
 ease every frame from the app's tick (`render(App, bg, onTick)`).
 
 ## React Native style properties used
@@ -30,12 +32,13 @@ percentages), `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop`, `
 
 | Missing | Worked around here by | Task |
 |---|---|---|
-| `flex` shorthand (basis 0), `flexShrink`, `flexBasis`, `alignSelf`, `alignContent` | `flexGrow` only | ZN-358 |
+| `flex` shorthand (basis 0), `flexShrink`, `flexBasis`, `alignSelf`, `alignContent` | done in ZN-358 (the scroll view needed `flex: 1`) | ZN-358 |
 | `minWidth`/`maxWidth`/`minHeight`/`maxHeight`, `aspectRatio`, dynamic percent sizes | two `flexGrow` views for the progress bars | ZN-359 |
 | `shadowColor`/`shadowOffset`/`shadowOpacity`/`shadowRadius`, `elevation` | flat cards on a contrasting background | ZN-360 |
 | `transform: [{ rotate }, { scale }, ...]` | `translateX`/`translateY` keys | ZN-361 |
 | dynamic enum values (`fontWeight: on ? 700 : 400`, `display`) | conditional named styles (`on() && styles.bold`) | ZN-362 |
 | `borderStyle`, per-corner radii, per-side border colours | not used | ZN-363 |
+| an icon set (`<Icon name="heart" />`) | text and dots | ZN-374 |
 
 The test `next/tests/t1/rn_showcase.sh` checks that no source uses a class string or the kit, and that the five
 states render to their recorded frame hashes in both schemes.
