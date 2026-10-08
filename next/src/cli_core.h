@@ -31,4 +31,10 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
 /** `zinc infer <entry|dir>`: the places where gradual typing could not infer a type (Z0109), by file and line. */
 int infer(const std::vector<std::string>& args);
 
+/** `zinc dev [entry|dir] [--no-devtools] [-- args]`: runs the program, watches the project, and on every save checks it and restarts it (the new version on screen in ~0.2 s with the interpreter).
+ *  A compile error stops the program and puts a red-box program on the screen with the diagnostics; the next good save replaces it. UI programs get the Chrome DevTools inspector (port 9229). */
+int dev(const std::vector<std::string>& args);
+/** `zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]`: telemetry JSON lines (zinc:telemetry) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through. */
+int monitor(const std::vector<std::string>& args);
+
 }  // namespace zn::cli

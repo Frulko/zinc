@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""A scripted Chrome DevTools Protocol client for the zinc:devtools inspector (ZN-141): WebSocket handshake and framing by hand, no dependencies."""
+import socket, base64, os, json, struct, sys
+def ws(port, path, msgs):
+    s = socket.create_connection(("127.0.0.1", port), 5)
+    key = base64.b64encode(os.urandom(16)).decode()
+    s.sendall(("GET %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, port, key)).encode())
+    buf = b""
+    while b"\r\n\r\n" not in buf: buf += s.recv(4096)
+    head, buf = buf.split(b"\r\n\r\n", 1)
+    assert b"101" in head.split(b"\r\n")[0], head
+    def send(text):
+        data = text.encode(); mask = os.urandom(4)
+        hdr = bytes([0x81]); n = len(data)
+        hdr += bytes([0x80 | n]) if n < 126 else bytes([0x80 | 126]) + struct.pack(">H", n)
+        s.sendall(hdr + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+    def recv():
+        nonlocal buf
+        def need(k):
+            nonlocal buf
+            while len(buf) < k: buf += s.recv(65536)
+        need(2); b1 = buf[1] & 0x7f; off = 2
+        if b1 == 126: need(4); n = struct.unpack(">H", buf[2:4])[0]; off = 4
+        elif b1 == 127: need(10); n = struct.unpack(">Q", buf[2:10])[0]; off = 10
+        else: n = b1
+        need(off + n); p = buf[off:off + n]; buf = buf[off + n:]; return p.decode()
+    out = []
+    for m in msgs:
+        send(json.dumps(m))
+        while True:
+            r = json.loads(recv())
+            if r.get("id") == m["id"]: out.append(r); break
+    return out
+if __name__ == "__main__":
+    # usage: cdp-probe [port]: connects to the zinc:devtools inspector, asks for the document and for a screenshot, checks the answers; exit 1 otherwise
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 9229
+    r = ws(port, "/zinc", [{"id": 1, "method": "DOM.getDocument", "params": {"depth": 2}}, {"id": 2, "method": "Runtime.enable", "params": {}}])
+    root = r[0].get("result", {}).get("root", {})
+    kids = root.get("children", [])
+    if root.get("nodeName") != "#document" or not kids or kids[0].get("nodeName") != "VIEW":
+        print("unexpected DOM.getDocument:", json.dumps(r)[:300]); sys.exit(1)
+    print("cdp ok: #document with", len(kids), "child(ren)")

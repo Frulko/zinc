@@ -295,6 +295,8 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "init")) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && !std::strcmp(argv[2], "--scene"))) return zn::cli::capture(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);

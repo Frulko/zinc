@@ -8,10 +8,21 @@
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <arpa/inet.h>
+#include <csignal>
+#include <chrono>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <termios.h>
+#include <thread>
 #include <unistd.h>
 
 #include "frontend/project.h"
+#include "yyjson.h"
 #include "tc/tc.h"
 
 namespace fs = std::filesystem;
@@ -43,6 +54,8 @@ const Command kCommands[] = {
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
+  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229). The program restarts from its entry: state is not kept."},
+  {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
 };
 
@@ -438,6 +451,234 @@ int infer(const std::vector<std::string>& args) {
   std::error_code ec;
   fs::remove(tmp, ec);
   std::printf("%d site(s) where a type could not be inferred%s\n", sites, other ? " (other errors exist: zinc check lists them)" : "");
+  return 0;
+}
+
+// ---- zinc dev (ZN-141)
+namespace {
+
+volatile std::sig_atomic_t gStop = 0;
+void onSignal(int) { gStop = 1; }
+using Clock = std::chrono::steady_clock;
+long msSince(Clock::time_point t) { return static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t).count()); }
+
+pid_t spawnSelf(const std::vector<std::string>& args, const std::vector<std::pair<std::string, std::string>>& env, const std::string& cwd) {
+  pid_t pid = fork();
+  if (pid != 0) return pid;
+  setpgid(0, 0);
+  for (const auto& kv : env) setenv(kv.first.c_str(), kv.second.c_str(), 1);
+  if (!cwd.empty() && chdir(cwd.c_str()) != 0) _exit(127);
+  std::vector<std::string> a = args;
+  std::vector<char*> av;
+  for (std::string& x : a) av.push_back(x.data());
+  av.push_back(nullptr);
+  execv(av[0], av.data());
+  _exit(127);
+}
+void killChild(pid_t& pid) {
+  if (pid <= 0) return;
+  kill(-pid, SIGTERM);
+  for (int i = 0; i < 25; ++i) { int st; if (waitpid(pid, &st, WNOHANG) == pid) { pid = 0; return; } usleep(10000); }
+  kill(-pid, SIGKILL);
+  int st; waitpid(pid, &st, 0);
+  pid = 0;
+}
+
+using Stamps = std::map<std::string, std::pair<long long, long long>>;   // path -> (mtime ns, size)
+Stamps snapshot(const fs::path& dir) {
+  Stamps s;
+  std::error_code ec;
+  for (fs::recursive_directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
+    if (ec) break;
+    const std::string name = it->path().filename().string();
+    if (it->is_directory(ec)) { if (name == "build" || name == "dist" || name == "node_modules" || name == ".git" || name == "shots") it.disable_recursion_pending(); continue; }
+    struct stat st;
+    if (stat(it->path().c_str(), &st) != 0) continue;
+#if defined(__APPLE__)
+    const long long mt = static_cast<long long>(st.st_mtimespec.tv_sec) * 1000000000LL + st.st_mtimespec.tv_nsec;
+#else
+    const long long mt = static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec;
+#endif
+    s[it->path().string()] = {mt, static_cast<long long>(st.st_size)};
+  }
+  return s;
+}
+bool projectUsesUi(const fs::path& dir) {
+  std::error_code ec;
+  for (fs::recursive_directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
+    if (ec) break;
+    const std::string name = it->path().filename().string();
+    if (it->is_directory(ec)) { if (name == "build" || name == "dist" || name == "node_modules" || name == ".git") it.disable_recursion_pending(); continue; }
+    const std::string ext = it->path().extension().string();
+    if (ext != ".ts" && ext != ".tsx") continue;
+    std::ifstream f(it->path());
+    std::stringstream ss; ss << f.rdbuf();
+    if (ss.str().find("zinc:ui") != std::string::npos) return true;
+  }
+  return false;
+}
+std::string readAll(const fs::path& p) { std::ifstream f(p); std::stringstream ss; ss << f.rdbuf(); return ss.str(); }
+
+std::string redBoxSource(const std::vector<std::string>& lines) {
+  std::string arr = "[";
+  for (std::size_t i = 0; i < lines.size() && i < 16; ++i) arr += (i ? "," : "") + jsonString(lines[i].substr(0, 90));
+  arr += "]";
+  return "import { onFrame, clear, rect, text, width } from 'zinc:gfx';\n// zinc dev: the red box of a compile error; the next save that compiles replaces it\nconst lines: string[] = " + arr + ";\n"
+         "onFrame((dt: number) => {\n  clear(0x3b0a0a);\n  rect(0, 0, width(), 22, 0xdc2626);\n  text(6, 7, 'ZINC  COMPILE ERROR', 0xffffff, 1);\n  for (let i = 0; i < lines.length; i++) text(6, 32 + i * 12, lines[i], 0xfecaca, 1);\n});\n";
+}
+
+}  // namespace
+
+int dev(const std::vector<std::string>& args) {
+  std::vector<std::string> own, rest;
+  bool noTools = false;
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "--") { rest.assign(args.begin() + i, args.end()); break; }
+    if (args[i] == "--no-devtools") noTools = true; else own.push_back(args[i]);
+  }
+  Opts o = parseOpts(own, {}, {});
+  if (o.bad) { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] [--no-devtools] [-- args]\n", o.badArg.c_str()); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  const fs::path devDir = fs::path(p.dir) / "build" / ".zinc-dev";
+  std::error_code ec;
+  fs::create_directories(devDir, ec);
+  std::string runEntry = p.entry;
+  const bool tools = !noTools && projectUsesUi(p.dir);
+  if (tools) {   // the inspector: the same program with `import 'zinc:devtools'` in front
+    runEntry = (devDir / "main.ts").string();
+    writeFile(runEntry, "import 'zinc:devtools';\nimport " + jsonString(fs::relative(p.entry, devDir, ec).string()) + ";\n");
+  }
+  std::signal(SIGINT, onSignal);
+  std::signal(SIGTERM, onSignal);
+  const std::string exe = self();
+  std::vector<std::pair<std::string, std::string>> env = {{"ZINC_SHOT_DIR", (fs::path(p.dir) / "build" / "shots").string()}, {"ZINC_DEV", "1"}};
+  fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
+  pid_t child = 0;
+  int version = 0;
+  auto startProgram = [&](long sinceSave, bool redbox, const std::vector<std::string>& msg) {
+    killChild(child);
+    std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
+    if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
+    if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
+    child = spawnSelf(cmd, env, p.dir);
+    if (!redbox) ++version;
+    if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
+    else std::fprintf(stderr, "zinc dev: v%d started%s (%ld ms after the save)%s\n", version, tools ? " with the inspector on port 9229" : "", sinceSave, "");
+    std::fflush(stderr);
+  };
+  Stamps seen = snapshot(p.dir);
+  startProgram(0, false, {});
+  while (!gStop) {
+    usleep(40000);
+    int st;
+    if (child > 0 && waitpid(child, &st, WNOHANG) == child) { std::fprintf(stderr, "zinc dev: program exited (%d), waiting for changes...\n", WIFEXITED(st) ? WEXITSTATUS(st) : -1); child = 0; }
+    Stamps now = snapshot(p.dir);
+    if (now == seen) continue;
+    const auto t0 = Clock::now();
+    usleep(30000);   // an editor writes a file in several steps: take the settled state
+    now = snapshot(p.dir);
+    seen = now;
+    const fs::path out = devDir / "check.txt";
+    const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
+    const int rc = status(std::system(cmd.c_str()));
+    if (rc != 0) {
+      std::vector<std::string> lines;
+      std::istringstream is(readAll(out));
+      std::string line;
+      while (std::getline(is, line)) if (!line.empty()) lines.push_back(line);
+      std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "check failed" : lines[0].c_str());
+      startProgram(msSince(t0), true, lines);
+    } else startProgram(msSince(t0), false, {});
+  }
+  killChild(child);
+  return 0;
+}
+
+// ---- zinc monitor
+namespace {
+
+void printTelemetry(const std::string& line) {
+  yyjson_doc* doc = yyjson_read(line.c_str(), line.size(), 0);
+  yyjson_val* root = doc ? yyjson_doc_get_root(doc) : nullptr;
+  yyjson_val* type = root && yyjson_is_obj(root) ? yyjson_obj_get(root, "type") : nullptr;
+  if (!type || !yyjson_is_str(type)) { std::printf("%s\n", line.c_str()); if (doc) yyjson_doc_free(doc); return; }
+  const std::string t = yyjson_get_str(type);
+  yyjson_val* pl = yyjson_obj_get(root, "payload");
+  yyjson_val* ts = yyjson_obj_get(root, "ts");
+  char head[48];
+  std::snprintf(head, sizeof head, "%9.3f s  ", ts && yyjson_is_num(ts) ? yyjson_get_num(ts) / 1000.0 : 0.0);
+  auto str = [&](yyjson_val* v, const char* k) { yyjson_val* x = v ? yyjson_obj_get(v, k) : nullptr; return x && yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
+  auto num = [&](yyjson_val* v, const char* k) { yyjson_val* x = v ? yyjson_obj_get(v, k) : nullptr; char b[40]; if (!x) return std::string(); if (yyjson_is_int(x)) std::snprintf(b, sizeof b, "%lld", static_cast<long long>(yyjson_get_sint(x))); else if (yyjson_is_num(x)) std::snprintf(b, sizeof b, "%g", yyjson_get_num(x)); else return std::string("null"); return std::string(b); };
+  if (t == "hello") std::printf("%shello  platform %s\n", head, str(pl, "platform").c_str());
+  else if (t == "metric") std::printf("%s%-7s %s = %s\n", head, str(pl, "kind").c_str(), str(pl, "name").c_str(), num(pl, "value").c_str());
+  else if (t == "event") std::printf("%sevent   %s  %s\n", head, str(pl, "name").c_str(), str(pl, "data").c_str());
+  else if (t == "state_snapshot") {
+    std::string vars;
+    yyjson_val* v = pl ? yyjson_obj_get(pl, "vars") : nullptr;
+    size_t i, n; yyjson_val *k, *x;
+    if (v && yyjson_is_obj(v)) yyjson_obj_foreach(v, i, n, k, x) vars += std::string(vars.empty() ? "" : "  ") + yyjson_get_str(k) + "=" + (yyjson_is_num(x) ? num(v, yyjson_get_str(k)) : "?");
+    std::printf("%sstate   %s\n", head, vars.c_str());
+  } else std::printf("%s%s\n", head, line.c_str());
+  yyjson_doc_free(doc);
+}
+
+}  // namespace
+
+int monitor(const std::vector<std::string>& args) {
+  std::string file, port, udp, baud = "115200";
+  for (std::size_t i = 2; i < args.size(); ++i) {
+    if (args[i] == "--port" && i + 1 < args.size()) port = args[++i];
+    else if (args[i] == "--baud" && i + 1 < args.size()) baud = args[++i];
+    else if (args[i] == "--udp" && i + 1 < args.size()) udp = args[++i];
+    else if (args[i].rfind("-", 0) != 0) file = args[i];
+    else { std::fprintf(stderr, "zinc monitor: unknown option %s\nusage: zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]\n", args[i].c_str()); return 2; }
+  }
+  std::signal(SIGINT, onSignal);
+  int fd = 0;
+  if (!udp.empty()) {
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in a{};
+    a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_ANY); a.sin_port = htons(static_cast<uint16_t>(std::atoi(udp.c_str())));
+    if (fd < 0 || bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0) { std::fprintf(stderr, "zinc monitor: cannot listen on UDP %s\n", udp.c_str()); return 1; }
+  } else if (!port.empty() || !file.empty()) {
+    const std::string path = port.empty() ? file : port;
+    fd = open(path.c_str(), O_RDONLY | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) { std::fprintf(stderr, "zinc monitor: cannot open %s\n", path.c_str()); return 1; }
+    if (!port.empty()) {
+      termios tio{};
+      tcgetattr(fd, &tio);
+      cfmakeraw(&tio);
+      const int b = std::atoi(baud.c_str());
+      speed_t sp = b == 9600 ? B9600 : b == 19200 ? B19200 : b == 38400 ? B38400 : b == 57600 ? B57600 : b == 230400 ? B230400 : B115200;
+      cfsetspeed(&tio, sp);
+      tio.c_cflag |= CLOCAL | CREAD;
+      tcsetattr(fd, TCSANOW, &tio);
+    }
+  }
+  std::string buf;
+  char chunk[4096];
+  bool regular = false;
+  { struct stat st; regular = fstat(fd, &st) == 0 && S_ISREG(st.st_mode); }
+  while (!gStop) {
+    pollfd pfd{fd, POLLIN, 0};
+    int n = regular ? 1 : poll(&pfd, 1, 200);
+    if (n < 0) { if (errno == EINTR) continue; break; }
+    if (n == 0) continue;
+    ssize_t r = read(fd, chunk, sizeof chunk);
+    if (r == 0) { if (regular || file.empty()) { if (regular) break; if (!port.empty()) { usleep(100000); continue; } break; } }
+    if (r < 0) { if (errno == EAGAIN || errno == EINTR) { usleep(20000); continue; } break; }
+    buf.append(chunk, static_cast<std::size_t>(r));
+    std::size_t nl;
+    while ((nl = buf.find('\n')) != std::string::npos) {
+      std::string line = buf.substr(0, nl);
+      buf.erase(0, nl + 1);
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (!line.empty()) printTelemetry(line);
+    }
+    std::fflush(stdout);
+  }
+  if (!buf.empty()) printTelemetry(buf);
   return 0;
 }
 
