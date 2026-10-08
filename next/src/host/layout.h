@@ -3,16 +3,24 @@
 // of them where it computes the layout (`calculate` there); the runtime calls that reach a host engine are added with the Yoga wrapper.
 #pragma once
 #include <cstdint>
+#include <memory>
 
 namespace zn::host {
 
-/** The layout properties a host engine is given: the layout class of the PROP table of lib/std/ui.ts, with the same numbers (tests/t0/layout_iface.sh checks them). */
+/** The layout properties a host engine is given. Below 1000: the layout class of the PROP table of lib/std/ui.ts, with the same numbers (tests/t0/layout_iface.sh
+ *  checks them); from 1000: the other layout fields of a UiNode, which have no PROP number yet. Values are those of the UiNode fields:
+ *  sizes, insets, paddings, margins and gaps in pixels (Width/Height -1: auto; insets -100000: unset); *Percent a fraction 0..1; FlexDirection, FlexWrap, Reverse,
+ *  Position (absolute), Hidden, FullWidth/FullHeight and Contents 0 or 1; JustifyContent 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly; AlignItems and
+ *  AlignSelf 0 start, 1 center, 2 end, 3 stretch (AlignSelf -1: auto); AlignContent 0 start, 1 center, 2 end, 3 stretch, 4 between, 5 around, 6 evenly (-1: the
+ *  default); Overflow 0 visible, 1 hidden, 2 scroll; Shrink -1: the engine's default; min/max -1: none; AspectRatio width / height, 0: none. */
 enum class LayoutProp : std::int32_t {
   Width = 17, Height = 18, WidthPercent = 19, HeightPercent = 20,
   FlexDirection = 21, FlexWrap = 22, JustifyContent = 23, AlignItems = 24, Position = 25, Overflow = 26,
   PaddingTop = 36, PaddingRight = 37, PaddingBottom = 38, PaddingLeft = 39,
   MarginTop = 40, MarginRight = 41, MarginBottom = 42, MarginLeft = 43,
   Grow = 44, Gap = 45, Padding = 46, Hidden = 48, Top = 51, Left = 52, Right = 53, Bottom = 54,
+  FullWidth = 1000, FullHeight, MinWidth, MaxWidth, MinHeight, MaxHeight, AspectRatio, Basis, BasisPercent, Shrink, AlignSelf, AlignContent, Reverse,
+  GapX, GapY, Contents,
 };
 
 /** What sizes a leaf: its text (measured natively from the text and font ids, no call back into the program), its image, or the default of a text field. */
@@ -36,5 +44,8 @@ class Layout {
   virtual void calculate(std::int32_t root, float width, float height) = 0;
   virtual LayoutBox box(std::int32_t node) const = 0;
 };
+
+/** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch), React Native's own otherwise. */
+std::unique_ptr<Layout> makeYogaLayout(bool webDefaults = true);
 
 }  // namespace zn::host

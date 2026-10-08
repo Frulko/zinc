@@ -102,6 +102,8 @@ box(node) -> {x, y, w, h}        // relative to parent, already rounded
 | `lx` side record (min/max, basis, shrink, order, alignSelf, aspectRatio) | the same Yoga properties; `order` stays in Zinc (stable sort of children before `insert`) |
 | TEXT, IMAGE, `ed` (text field) | measure function (below) |
 
+Implemented in `next/src/host/layout_yoga.cpp` (ZN-283): `setStyle` takes the PROP numbers of `lib/std/ui.ts` for the layout class and numbers from 1000 for the side-record fields that have none yet (`zn::host::LayoutProp` documents the value encodings); `tests/t0/layout_yoga.sh` checks one case per row, the rounding, and the heap after 1000 create/destroy cycles. The measure callbacks are ZN-284.
+
 **Text.** The measure callback is C++: it reads `(text_id, font_id, size, tracking)` from the wrapper's node record and calls the runtime's `text_advance`/`textWidth` and the existing wrap routine (the same code as `wrapText`; later the HarfBuzz tier of ZN-114 through `TextLayout`). It returns `{width, lines * lineHeight}`. No callback into the VM, so it works in the interpreter, the AOT and QuickJS modes. After `calculate`, `ui.ts` re-runs `wrapText` for each text node with its final width (pure, cached by `(text, font, width)`) to fill `lines[]`/`lineW[]` for the painter; this also makes `rn` and `classic` agree on the lines of a given box.
 
 **Images and fields.** Image measure = intrinsic size and `aspectRatio` from the image; text fields use the 200 px default of `classic` unless the style gives a width.
