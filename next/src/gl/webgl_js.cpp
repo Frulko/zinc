@@ -21,7 +21,7 @@ struct Obj { int kind; Id id; UniformLoc loc; const Gl* owner; };   // kind: 1 b
 struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0;
-JSValue gProto2, gPrecisionProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
+JSValue gProto2, gPrecisionProto, gActiveProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
 JSValue gKindProto[13];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
 const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject", "WebGLSampler", "WebGLQuery", "WebGLSync", "WebGLTransformFeedback"};
 
@@ -353,7 +353,7 @@ M(detachShader) { SELF NEED(2); OBJR(p, 0, 3) OBJR(s, 1, 2) gl.detachShader(p.id
 M(validateProgram) { SELF NEED(1); OBJR(p, 0, 3) gl.validateProgram(p.id); return JS_UNDEFINED; }
 JSValue activeInfo(JSContext* c, const WebGL1::Active& a) {
   if (!a.ok) return JS_NULL;
-  JSValue o = JS_NewObject(c);
+  JSValue o = JS_NewObjectProto(c, gActiveProto);
   JS_SetPropertyStr(c, o, "name", JS_NewString(c, a.name.c_str()));
   JS_SetPropertyStr(c, o, "size", JS_NewInt32(c, a.size));
   JS_SetPropertyStr(c, o, "type", JS_NewUint32(c, a.type));
@@ -943,6 +943,8 @@ void install(JSContext* c) {
   for (int k = 1; k <= 12; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
   gPrecisionProto = JS_NewObject(c);
   ctor("WebGLShaderPrecisionFormat", gPrecisionProto);
+  gActiveProto = JS_NewObject(c);
+  ctor("WebGLActiveInfo", gActiveProto);
   gProto2 = JS_NewObjectProto(c, proto);   // WebGL2RenderingContext.prototype
   for (const Fn& f : kMethods2) JS_SetPropertyStr(c, gProto2, f.name, JS_NewCFunction(c, f.fn, f.name, f.len));
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, gProto2, k.name, JS_NewUint32(c, k.value));

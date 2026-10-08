@@ -26,6 +26,7 @@ conformance2/context/context-type-test-2.html
 conformance2/context/methods-2.html
 conformance2/misc/expando-loss-2.html
 conformance2/misc/getextension-while-pbo-bound-stability.html
+conformance2/misc/instanceof-test.html
 conformance2/misc/object-deletion-behaviour-2.html
 conformance2/programs/active-built-in-attribs.html
 conformance2/programs/gl-get-frag-data-location.html

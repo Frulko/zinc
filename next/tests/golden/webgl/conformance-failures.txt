@@ -1,6 +1,5 @@
 conformance2/attribs/gl-vertex-attrib.html	@E not a function |     at getDrng (<input>:1110:37) |     at <eval> (<input>:14:12)
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
-conformance2/misc/instanceof-test.html	gl.getActiveAttrib(program, 0) instanceof WebGLActiveInfo should be true. Threw exception ReferenceError: WebGLActiveInfo is not define
 conformance2/misc/uninitialized-test-2.html	timeout
 conformance2/misc/views-with-offsets.html	Does not support texImage2D with offsets into views.
 conformance2/query/occlusion-query.html	Query's result became available too early
