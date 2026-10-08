@@ -3671,6 +3671,12 @@ struct Checker {
       const ObjInfo &po = out.objs[pt.obj], &ao = out.objs[at.obj];
       if (po.genericSym != kNoObj && po.genericSym == ao.genericSym && po.typeArgs.size() == ao.typeArgs.size()) {
         for (std::size_t i = 0; i < po.typeArgs.size(); ++i) if (!unify(g, po.typeArgs[i], ao.typeArgs[i], bound, argNode)) return false;
+      } else if (pt.obj != at.obj) {   // a record of the template (a generic component's props) against an object literal: field by field, by name
+        for (const Member& pm : po.members) {
+          if (pm.isStatic || pm.method) continue;
+          for (const Member& am : ao.members)
+            if (!am.isStatic && am.name == pm.name) { if (!unify(g, pm.type, am.type, bound, argNode)) return false; break; }
+        }
       }
     }
     return true;
