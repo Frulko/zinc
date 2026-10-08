@@ -95,7 +95,7 @@ struct Rc {
     for (const Block& b : f.blocks) {
       for (ValueId p : b.params) tracked[p] = refLike(m, f.valueTypes[p]);
       for (const Inst& i : b.insts)
-        if (i.res != kNoValue && i.op != IrOp::Const) tracked[i.res] = refLike(m, f.valueTypes[i.res]) && !(lent && resultBorrowed(i));
+        if (i.res != kNoValue && i.op != IrOp::Const) tracked[i.res] = refLike(m, f.valueTypes[i.res]) && !(lent && resultBorrowed(i) && i.op != IrOp::RefCast);   // a cast may lend an owned local that is released at its last use
     }
   }
 

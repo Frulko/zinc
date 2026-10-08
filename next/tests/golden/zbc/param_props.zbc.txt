@@ -7,39 +7,45 @@ func @main() -> void nregs=5
    0  New      r0, Q
    1  LoadI    r1, 10
    2  Move     r2, r0
-   3  AddI32K  r3, r1, 1
-   4  AddI32K  r4, r1, 2
-   5  SetField r2, r1, .0
-   6  SetField r2, r3, .1
-   7  SetField r2, r4, .2
-   8  LoadI    r1, 7
-   9  SetField r0, r1, .3
-  10  Move     r1, r0
-  11  GetField r2, r1, .0
-  12  GetField r3, r1, .1
-  13  AddI32   r2, r2, r3
-  14  GetField r1, r1, .2
-  15  AddI32   r1, r2, r1
-  16  Move     r2, r0
-  17  GetField r3, r2, .0
-  18  GetField r4, r2, .1
-  19  AddI32   r3, r3, r4
-  20  GetField r2, r2, .2
-  21  AddI32   r2, r3, r2
-  22  GetField r3, r0, .3
-  23  AddI32   r2, r2, r3
-  24  GetField r3, r0, .0
-  25  GetField r4, r0, .2
-  26  Release  r0
-  27  LogI     r1
-  28  LogSep   
-  29  LogI     r2
-  30  LogSep   
-  31  LogI     r3
-  32  LogSep   
-  33  LogI     r4
-  34  LogEnd   
-  35  RetV     
+   3  Retain   r2
+   4  AddI32K  r3, r1, 1
+   5  AddI32K  r4, r1, 2
+   6  SetField r2, r1, .0
+   7  SetField r2, r3, .1
+   8  SetField r2, r4, .2
+   9  Release  r2
+  10  LoadI    r1, 7
+  11  SetField r0, r1, .3
+  12  Move     r1, r0
+  13  Retain   r1
+  14  GetField r2, r1, .0
+  15  GetField r3, r1, .1
+  16  AddI32   r2, r2, r3
+  17  GetField r3, r1, .2
+  18  Release  r1
+  19  AddI32   r1, r2, r3
+  20  Move     r2, r0
+  21  Retain   r2
+  22  GetField r3, r2, .0
+  23  GetField r4, r2, .1
+  24  AddI32   r3, r3, r4
+  25  GetField r4, r2, .2
+  26  Release  r2
+  27  AddI32   r2, r3, r4
+  28  GetField r3, r0, .3
+  29  AddI32   r2, r2, r3
+  30  GetField r3, r0, .0
+  31  GetField r4, r0, .2
+  32  Release  r0
+  33  LogI     r1
+  34  LogSep   
+  35  LogI     r2
+  36  LogSep   
+  37  LogI     r3
+  38  LogSep   
+  39  LogI     r4
+  40  LogEnd   
+  41  RetV     
 func @P.constructor(ref P, i, i, i) -> void nregs=4
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1
