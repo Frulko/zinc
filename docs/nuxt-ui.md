@@ -61,7 +61,7 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 | NavigationMenu (done) | horizontal, vertical, collapsed; highlight | ZN-357.04 | the horizontal viewport animation is simplified to a popover |
 | Dashboard layout (done) | DashboardGroup, DashboardSidebar (collapsible, resizable), DashboardPanel, DashboardNavbar, toolbar | ZN-357.04 | sizes kept per app (zinc:ui storage); below 1024 px the sidebar is a Slideover |
 
-The gallery of every component and the dashboard app are `examples/nuxt-ui` (ZN-357.05); the components marked done are in its gallery now.
+The dashboard app and the gallery of every component are `examples/nuxt-ui` (ZN-357.05, screenshots in its README).
 Nuxt's inset ring is a 1 px border (borders take no layout space in zinc:ui, so the boxes keep Nuxt's sizes); the kit has its own JSX helpers
 (`lib/std/nuxt/host.ts`: zinc:ui/kit's, with roles and labels).
 

@@ -1,9 +1,15 @@
-gallery light - c7ac01ae1b18207d
-gallery dark - f0d09fdfe6b9ea85
-modal light modal f2beb830aaf2b16e
-slideover light slideover 716aa285c1de537a
-menu light menu 27887fce5bec11d8
-toast light toast 13f3577ce9043e37
-modal dark modal 7a0a6693e72bb0b8
-navigation light - 15f90cc55adad218
-navigation dark - d300400dc105ef6b
+gallery light - gallery - bc59060786fadeb5
+gallery dark - gallery - 1bedafbed88489f1
+modal light modal gallery - 816870b92b3e8ae1
+slideover light slideover gallery - 94b8321827c2b2fe
+menu light menu gallery - de81876d775e5dc0
+toast light toast gallery - a35dac8129a6dacf
+modal dark modal gallery - 63fae96e8ea92192
+navigation light - navigation - 15f90cc55adad218
+navigation dark - navigation - d300400dc105ef6b
+home light - - Home 46cb080924bc691f
+inbox light - - Inbox 8a5e8c0fd529b51d
+customers light - - Customers c0ce0ac62129da4b
+settings light - - Settings 7ea96e0e661f8afc
+home dark - - Home c494314f8a82f902
+customers dark - - Customers 556e430cc1c68521

@@ -1,0 +1,8 @@
+start Home
+section Customers rows 6
+filter "gr" rows 2
+modal true
+created: customers 7 modal false toasts 1
+scheme dark
+sidebar collapsed true
+section Settings

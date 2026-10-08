@@ -1,10 +1,10 @@
 ---
 id: ZN-357
 title: 'Showcase: a Nuxt UI-style kit and demo (ui.nuxt.com)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-08 15:02'
-updated_date: '2026-10-08 18:45'
+updated_date: '2026-10-08 21:40'
 labels:
   - ui
   - examples
@@ -28,13 +28,13 @@ Owner, 2026-10-08: a demo built on a component set that follows Nuxt UI (https:/
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 examples/nuxt-ui runs headless with goldens of its screens in light and dark
-- [ ] #2 each listed component has a gallery entry with its variants and sizes
-- [ ] #3 a page in docs/ maps Nuxt UI props and tokens to the zinc kit, with the gaps as tasks
+- [x] #1 examples/nuxt-ui runs headless with goldens of its screens in light and dark
+- [x] #2 each listed component has a gallery entry with its variants and sizes
+- [x] #3 a page in docs/ maps Nuxt UI props and tokens to the zinc kit, with the gaps as tasks
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Split into ZN-357.01..05 (2026-10-08). Kit location decided in D38 (docs/reports/zinc-next-decisions.md): std module zinc:ui/nuxt in lib/std/nuxt/, both UI models; examples/nuxt-ui is its gallery and dashboard app.
+Done through ZN-357.01..05: zinc:ui/nuxt (tokens, 10 controls, 5 overlays, navigation and data, dashboard layout), docs/nuxt-ui.md, examples/nuxt-ui dashboard app and gallery in light and dark (D38). Gaps: ZN-377 (RTL), ZN-378 (OKLab tints), ZN-379 (Public Sans), ZN-275 (enter / exit animations).
 <!-- SECTION:NOTES:END -->
