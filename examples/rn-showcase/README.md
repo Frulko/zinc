@@ -33,7 +33,7 @@ percentages), `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop`, `
 | Missing | Worked around here by | Task |
 |---|---|---|
 | `flex` shorthand (basis 0), `flexShrink`, `flexBasis`, `alignSelf`, `alignContent` | done in ZN-358 (the scroll view needed `flex: 1`) | ZN-358 |
-| `minWidth`/`maxWidth`/`minHeight`/`maxHeight`, `aspectRatio`, dynamic percent sizes | two `flexGrow` views for the progress bars | ZN-359 |
+| `minWidth`/`maxWidth`/`minHeight`/`maxHeight`, `aspectRatio`, dynamic percent sizes | done in ZN-359 (the progress bars use `width: pct(v)`) | ZN-359 |
 | `shadowColor`/`shadowOffset`/`shadowOpacity`/`shadowRadius`, `elevation` | flat cards on a contrasting background | ZN-360 |
 | `transform: [{ rotate }, { scale }, ...]` | `translateX`/`translateY` keys | ZN-361 |
 | dynamic enum values (`fontWeight: on ? 700 : 400`, `display`) | conditional named styles (`on() && styles.bold`) | ZN-362 |

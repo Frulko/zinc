@@ -111,6 +111,8 @@ export class Edit {
   constructor(multi: boolean) { this.multi = multi; }
 }
 
+/** A percentage for a style size decided at run time: `style={{ width: pct(done() * 100) }}` (the compiler lowers it to the percent of the container). */
+export function pct(n: number): number { return n / 100; }
 /** Compiler-normalized immutable style. Keep shared styles outside render functions. */
 export class Style {
   keys: string[]; values: number[]; ids: i32[];   // ids: propId of each key, found once here
@@ -704,6 +706,11 @@ const P_BASIS: i32 = 56;
 const P_BASIS_PERCENT: i32 = 57;
 const P_ALIGN_SELF: i32 = 58;
 const P_ALIGN_CONTENT: i32 = 59;
+const P_MIN_WIDTH: i32 = 60;
+const P_MAX_WIDTH: i32 = 61;
+const P_MIN_HEIGHT: i32 = 62;
+const P_MAX_HEIGHT: i32 = 63;
+const P_ASPECT: i32 = 64;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -766,6 +773,7 @@ function propInit(): void {
   PROP.set('shrink', P_SHRINK); PROP.set('flexShrink', P_SHRINK);
   PROP.set('basis', P_BASIS); PROP.set('flexBasis', P_BASIS); PROP.set('basisPercent', P_BASIS_PERCENT);
   PROP.set('alignSelf', P_ALIGN_SELF); PROP.set('alignContent', P_ALIGN_CONTENT);
+  PROP.set('minWidth', P_MIN_WIDTH); PROP.set('maxWidth', P_MAX_WIDTH); PROP.set('minHeight', P_MIN_HEIGHT); PROP.set('maxHeight', P_MAX_HEIGHT); PROP.set('aspectRatio', P_ASPECT);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -837,6 +845,9 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_BASIS_PERCENT) { n.basis = -1; n.basisFrac = v; }
   else if (id === P_ALIGN_SELF) n.selfAlign = iv;
   else if (id === P_ALIGN_CONTENT) n.alignContent = iv;
+  else if (id === P_MIN_WIDTH) n.minW = iv; else if (id === P_MAX_WIDTH) n.maxW = iv;   // (ZN-359; -1: none)
+  else if (id === P_MIN_HEIGHT) n.minH = iv; else if (id === P_MAX_HEIGHT) n.maxH = iv;
+  else if (id === P_ASPECT) n.aspect = v;
   layoutDirty = true;
 }
 

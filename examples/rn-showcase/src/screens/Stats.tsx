@@ -1,6 +1,7 @@
 // Stats: a chart card drawn on a canvas, four KPI tiles in a wrapping grid, and goals as progress bars made of views.
 import { For } from 'zinc:ui/solid';
 import { styles } from '../parts';
+import { pct } from 'zinc:ui';
 import { t } from '../theme';
 import { chart } from '../art';
 
@@ -20,9 +21,8 @@ function Goal(p: { label: string; done: number; color: () => i32 }): i32 {
       <text style={[styles.small, { color: t().ink }]}>{p.label}</text>
       <text style={[styles.small, { color: t().muted }]}>{`${Math.round(p.done * 100)}%`}</text>
     </view>
-    <view style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', backgroundColor: t().raised }}>
-      <view style={{ flexGrow: p.done, height: 10, borderRadius: 5, backgroundColor: p.color() }} />
-      <view style={{ flexGrow: 1 - p.done, height: 10 }} />
+    <view style={{ height: 10, borderRadius: 5, backgroundColor: t().raised }}>
+      <view style={{ width: pct(p.done * 100), height: 10, borderRadius: 5, backgroundColor: p.color() }} />
     </view>
   </view>;
 }

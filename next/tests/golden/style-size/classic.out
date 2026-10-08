@@ -1,0 +1,6 @@
+layout classic
+minWidth 80 over width 20: 80x10, maxWidth 120 over 250: 120x10
+minHeight 30 over 5: 40x30, maxHeight 25 over 90: 40x25
+aspectRatio 16/9 at 120: 120x68, aspectRatio 2 at 100: 100x50
+dynamic max 60 / min 15: 60x15, pct(25) of 200: 50x8
+after the change, max 140 / min 35: 140x35, pct(80): 160x8

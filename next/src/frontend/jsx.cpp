@@ -120,7 +120,7 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
     {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}, {"flexShrink", {"shrink"}}, {"flexBasis", {"basis"}}};
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
-    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy"};
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -228,6 +228,12 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     return ops;
   }
   if ((name == "width" || name == "height") && sv == "auto") return {{name, -1}};
+  if ((name == "minWidth" || name == "maxWidth" || name == "minHeight" || name == "maxHeight") && (sv == "auto" || sv == "none")) return {{name, -1}};
+  if (name == "aspectRatio") {   // "16/9" or "1.5" (React Native takes both)
+    static const std::regex ratio(R"(^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$)");
+    std::smatch rm;
+    if (std::regex_match(sv, rm, ratio) && std::stod(rm[2].str()) > 0) return {{"aspectRatio", std::stod(rm[1].str()) / std::stod(rm[2].str())}};
+  }
   static const std::regex pct(R"(^\d+(\.\d+)?%$)");
   if ((name == "width" || name == "height") && std::regex_match(sv, pct)) {
     double percent = std::stod(sv);
@@ -587,7 +593,12 @@ struct Lowering {
           }
         } else {
           std::string raw = rw(vb, ve);
-          for (const std::string& k : numericStyleKeys(key)) {
+          std::string dk = key;
+          if ((styleName(key) == "width" || styleName(key) == "height") && ve > vb + 2 && t[vb].kind == Tok::Ident && tx(vb) == "pct" && isP(vb + 1, "(") && isP(ve - 1, ")")) {
+            dk = styleName(key) + "Percent";   // width: pct(v()): a percent decided at run time (ZN-359)
+            raw = "(" + rw(vb + 2, ve - 1) + ") / 100";
+          }
+          for (const std::string& k : numericStyleKeys(dk)) {
             keys.push_back(quote(k)); values.push_back("(" + raw + ")");
             if (k == "backgroundColor") { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }
           }
