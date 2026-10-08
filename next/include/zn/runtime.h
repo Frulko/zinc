@@ -209,7 +209,8 @@
   X(HostFsSymlink, "host.fsSymlink", "ss>n", 2) X(HostFsReadlink, "host.fsReadlink", "s>s", 2) X(HostFsChmod, "host.fsChmod", "si>n", 2) \
   X(HostOsUid, "host.osUid", ">i", 2) X(HostOsGid, "host.osGid", ">i", 2) X(HostOsShell, "host.osShell", ">s", 2) X(HostOsCpuModel, "host.osCpuModel", ">s", 2) \
   X(HostOsNetList, "host.osNetList", ">i", 2) X(HostOsNetField, "host.osNetField", "ii>s", 2) \
-  X(HostSysAllocations, "host.sysAllocations", ">d", 2) X(HostSysLiveBlocks, "host.sysLiveBlocks", ">d", 2) /* the runtime allocator's counters (ZN-192) */
+  X(HostSysAllocations, "host.sysAllocations", ">d", 2) X(HostSysLiveBlocks, "host.sysLiveBlocks", ">d", 2) /* the runtime allocator's counters (ZN-192) */ \
+  X(HostEvReady, "host.evReady", ">b", 2)
 
 namespace zn {
 

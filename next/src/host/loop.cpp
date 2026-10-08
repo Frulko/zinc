@@ -260,6 +260,7 @@ void closeStdin(int h) {
   if (p && p->inOpen) { p->inOpen = false; uv_close(reinterpret_cast<uv_handle_t*>(&p->in), onClose); }
 }
 void signalProcess(int h, int signal) { Proc* p = procAt(h); if (p && p->procOpen) uv_process_kill(&p->proc, signal); }
+bool eventReady() { pump(); return !gEvents.empty(); }
 bool nextEvent(Event& out) {
   pump();
   if (gEvents.empty()) return false;

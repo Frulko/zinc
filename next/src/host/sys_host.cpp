@@ -435,6 +435,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (zn::loop::nextEvent(e)) { gPayload = std::move(e.payload); ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); } else ret(r, std::string());
       break;
     }
+    case Rt::HostEvReady: r->i = zn::loop::eventReady() ? 1 : 0; break;
     case Rt::HostEvPayload: ret(r, gPayload); break;
     case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;

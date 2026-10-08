@@ -39,6 +39,7 @@ void closeStdin(int handle);
 void signalProcess(int handle, int signal);
 // The next event that is ready (the loop is pumped first); false when there is none.
 bool nextEvent(Event& out);
+bool eventReady();   // pumps the loop; true when nextEvent would return one (the frame loop asks first: an idle frame allocates nothing)
 // Children still running, signals watched and stdin being read: whether the program has work that is not a timer.
 bool active();
 // Signals and standard input of the program itself (zinc:sys): events of kind 10, 11 and 12.

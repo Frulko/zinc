@@ -2294,8 +2294,7 @@ function __drainJobs(): void {
     __jobHead++;
     j.run();
   }
-  __jobs = [];
-  __jobHead = 0;
+  if (__jobs.length > 0) { __jobs = []; __jobHead = 0; }   // an idle frame allocates nothing (ZN-192)
   __checkRejections();
 }
 let __frameHook: (() => void) | null = null;
@@ -2325,7 +2324,7 @@ let __evHandlers: ((h: i32, kind: i32, data: string) => void)[] = [];
 function __addEvHandler(f: (h: i32, kind: i32, data: string) => void): void { __evHandlers.push(f); }
 function __pollHost(): boolean {
   let any = false;
-  for (;;) {
+  while (__host_evReady()) {
     const e = __host_evNext();
     if (e.length === 0) break;
     any = true;
@@ -2386,6 +2385,7 @@ function __runLoop(): void {
 // A promise rejected with nobody waiting for it when the microtasks have drained is an uncaught error, as in Node (exit code 101 and the message).
 let __rejected: PromiseBase[] = [];
 function __checkRejections(): void {
+  if (__rejected.length === 0) return;
   const list = __rejected;
   __rejected = [];
   for (const p of list) {

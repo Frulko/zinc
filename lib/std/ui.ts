@@ -2242,7 +2242,11 @@ function rowOf(e: Edit, off: i32): i32 {
   for (let r = 0; r < e.rs.length; r++) if (off < e.re[r] || (off === e.re[r] && (r + 1 >= e.rs.length || e.rs[r + 1] !== off))) return r;
   return e.rs.length - 1;
 }
-function xIn(n: UiNode, e: Edit, row: i32, off: i32): number { return textWidth(n.fontId, shown(e).slice(e.rs[row], off), 0); }
+function xIn(n: UiNode, e: Edit, row: i32, off: i32): number { return textWidth(n.fontId, sub(shown(e), e.rs[row], off), 0); }
+/** The x of offset `off` in visual row r of a field painted from `chunk` (the visible text starting at c0): a function, not a closure, so a paint allocates nothing. */
+function xrOf(n: UiNode, chunk: string, e: Edit, c0: i32, r: i32, off: i32): number { return textWidth(n.fontId, sub(chunk, e.rs[r] - c0, off - c0), 0); }
+/** s.slice(a, b), or s itself when that is the whole string: painting a one-line field allocates nothing (ZN-192). */
+function sub(s: string, a: i32, b: i32): string { return b <= a ? '' : a === 0 && b === s.length ? s : s.slice(a, b); }
 function rowEnd(e: Edit, r: i32): i32 { return r + 1 < e.rs.length && e.rs[r + 1] === e.re[r] && e.re[r] > e.rs[r] ? e.re[r] - 1 : e.re[r]; }
 function offAtX(n: UiNode, e: Edit, r: i32, x: number): i32 {
   const row = shown(e).slice(e.rs[r], e.re[r]);
@@ -2287,8 +2291,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   // the visible rows (and a margin) as one string: rows are sliced from it, since indexing the whole value of a
   // non-ASCII text costs O(offset) per call (UTF-8 storage)
   const c0: i32 = e.rs[imax(0, first - 20)], c1: i32 = e.re[imin(e.rs.length - 1, last + 20)];
-  const chunk = s.slice(c0, c1);
-  const xr = (r: i32, off: i32): number => textWidth(n.fontId, chunk.slice(e.rs[r] - c0, off - c0), 0);
+  const chunk = sub(s, c0, c1);
   if (g > 0) {
     // line numbers: the first row of each logical line (brighter on a line with a MARK_LINE, a dot for MARK_GUTTER)
     clip(x, y + n.pt * k, cl * k, ch * k);
@@ -2316,13 +2319,13 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   for (let r = first; r <= last; r++) {
     const a = e.rs[r], b = e.re[r];
     const rx = x + (cl - e.sx) * k, ry = y + (top + r * lh - e.sy) * k;
-    const line = chunk.slice(a - c0, b - c0);
+    const line = sub(chunk, a - c0, b - c0);
     // decorations under the text: line backgrounds, indent guides, range fills and boxes
     for (let i = 0; i + 3 < mk.length; i += 4) {
       const ma = mk[i], mb = mk[i + 1], kind = mk[i + 3];
       if (ma > b || mb < a || kind === MARK_SQUIGGLE || kind === MARK_GUTTER) continue;
       if (kind === MARK_LINE) { rrect(x + cl * k, ry, cw * k, lh * k, 0, mk[i + 2], ai); continue; }
-      const x0 = xr(r, imax(ma, a)), x1 = xr(r, imin(mb, b));
+      const x0 = xrOf(n, chunk, e, c0, r, imax(ma, a)), x1 = xrOf(n, chunk, e, c0, r, imin(mb, b));
       if (x1 <= x0) continue;
       if (kind === MARK_BOX) border(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 2 * k, k, mk[i + 2], ai);
       else rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 2 * k, mk[i + 2], kind === MARK_STRONG ? 150 : 70);
@@ -2333,8 +2336,8 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       for (let c: i32 = 0; c < ind; c += 2) rrect(rx + c / 2 * indentW * k, ry, k, lh * k, 0, guide, ai);
     }
     if (s1 > s0 && s0 <= b && s1 >= a) {
-      const x0 = xr(r, imax(s0, a));
-      let x1 = xr(r, imin(s1, b));
+      const x0 = xrOf(n, chunk, e, c0, r, imax(s0, a));
+      let x1 = xrOf(n, chunk, e, c0, r, imin(s1, b));
       if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
       if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, selColor, selAlpha);
     }
@@ -2342,7 +2345,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
     // squiggles (diagnostics) under the glyphs' baseline
     for (let i = 0; i + 3 < mk.length; i += 4) {
       if (mk[i + 3] !== MARK_SQUIGGLE || mk[i] > b || mk[i + 1] < a) continue;
-      const x0 = xr(r, imax(mk[i], a)), x1 = Math.max(xr(r, imin(mk[i + 1], b)), x0 + 6);
+      const x0 = xrOf(n, chunk, e, c0, r, imax(mk[i], a)), x1 = Math.max(xrOf(n, chunk, e, c0, r, imin(mk[i + 1], b)), x0 + 6);
       const pts: number[] = [];
       for (let px = x0; px <= x1 + 0.01; px += 2) { pts.push(rx + px * k); pts.push(ry + (lh - 2.5 + (Math.round(px / 2) % 2 === 0 ? -1 : 1)) * k); }
       if (pts.length >= 4) stroke(pts, k, mk[i + 2], ai, false);
@@ -2970,7 +2973,8 @@ let ptrX: number = -1, ptrY: number = -1;
 let held: i32 = 0;                            // buttons held, DOM `buttons` bits: 1 left, 2 right, 4 middle
 let curMods: i32 = 0;
 let clicks: i32 = 0, lastBtn: i32 = -1, lastDownAt: number = -100000, lastDownX: number = 0, lastDownY: number = 0;
-let hoverPath: i32[] = [];
+const hoverA: i32[] = [], hoverB: i32[] = [];
+let hoverPath: i32[] = hoverA;
 let hoverDirty = true;
 let cursorShown: i32 = -1;
 let textOn: i32 = -1;       // field that has the text input (IME) on
@@ -3187,9 +3191,10 @@ function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg 
 function updateHover(): void {
   hoverDirty = false;
   const t = ptrX >= 0 ? hit(ptrX, ptrY, HIT_NODE) : -1;
-  const path: i32[] = [];
-  for (let p = t; p >= 0; p = nodes[p].parent) path.push(p);
   const old = hoverPath;
+  const path = old === hoverA ? hoverB : hoverA;   // two arrays swap: no allocation per call (ZN-192)
+  while (path.length > 0) path.pop();
+  for (let p = t; p >= 0; p = nodes[p].parent) path.push(p);
   hoverPath = path;
   for (const h of old) if (path.indexOf(h) < 0 && nodes[h].alive) {
     const n = nodes[h];
