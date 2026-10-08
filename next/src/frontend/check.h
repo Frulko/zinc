@@ -101,6 +101,7 @@ struct Checked {
   std::vector<std::uint32_t> lambdaUsesThis;
   std::unordered_map<std::uint32_t, std::uint32_t> selfSym;  // named function expression -> the variable that holds its own closure inside its body
   std::vector<std::uint32_t> funcValueUses;
+  std::vector<std::uint32_t> staticMethodValueUses;   // `Class.staticMethod` read as a value (not called): the lowering gives it a thunk like a function
   std::unordered_map<std::uint32_t, std::string> lambdaNames;  // the name a function expression takes from `const f = ...`, `f = ...`, `{ f: ... }` or a field initialiser
   // Numeric enums: members and values per enum symbol; the enum's type is i32.
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::string, std::int64_t>>> enumMembers;

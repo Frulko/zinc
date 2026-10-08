@@ -56,7 +56,12 @@ St joinSt(const Module& m, St a, St b) {
   if (isSub(m, cb, ca)) return a;
   for (std::uint32_t p = m.classes[ca].parent, k = 0; p != kNoCls && p < m.classes.size() && k < 1000; p = m.classes[p].parent, ++k)
     if (isSub(m, cb, p)) return static_cast<St>(4 + p);
-  return 0;
+  // no common class: the most specific interface both implement (two functions met at a join are both their function type)
+  std::uint32_t best = kNoCls;
+  if (ca < m.classes.size())
+    for (std::uint32_t s : m.classes[ca].supers)
+      if (s != ca && isSub(m, cb, s) && (best == kNoCls || isSub(m, s, best))) best = s;
+  return best == kNoCls ? St(0) : static_cast<St>(4 + best);
 }
 
 Cls rcToCls(RC r) { return r == RC::I ? Cls::I : r == RC::S ? Cls::S : r == RC::D ? Cls::D : Cls::None; }

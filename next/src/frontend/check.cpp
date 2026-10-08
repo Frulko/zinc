@@ -2133,6 +2133,7 @@ struct Checker {
             const Member* m = lookupMember(ty(out.syms[cs].type).obj, x.text, true);
             if (!m) { if (x.text == "prototype") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
             if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
+            if (m->method && i != calleeNode) out.staticMethodValueUses.push_back(i);   // Easing.inOut(Easing.ease): a static method passed as a function
             return m->type;
           }
         }

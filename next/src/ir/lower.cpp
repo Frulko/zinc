@@ -408,6 +408,7 @@ struct Lowering {
   }
   std::unordered_map<frontend::TypeId, std::uint32_t> fnClassOfType;              // function type -> IR interface
   std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkOfSym;  // function symbol -> {class, function}
+  std::unordered_map<std::string, std::pair<std::uint32_t, std::uint32_t>> thunkOfStatic;  // "obj:name" of a static method used as a value -> {class, function}
   std::unordered_map<TypeId, std::uint32_t> cellOfType;
   bool isCell(std::uint32_t s) const { return c.syms[s].captured && c.syms[s].reassigned && !c.syms[s].isGlobal; }
 
@@ -501,6 +502,33 @@ struct Lowering {
   }
 
   // A function used as a value gets a class whose `call` forwards to it.
+  std::pair<std::uint32_t, std::uint32_t> makeThunk(const std::string& name, frontend::TypeId ftype, std::uint32_t target) {
+    Class cl;
+    cl.name = "fnref " + name;
+    cl.implements = {fnClassOf(ftype)};
+    cl.selectors = {selectorFor("call", ftype)};
+    m.classes.push_back(std::move(cl));
+    auto cls = static_cast<std::uint32_t>(m.classes.size() - 1);
+    const Function& tf = m.functions[target];
+    std::vector<TypeId> ps{m.refT(cls)};
+    for (ValueId pv : tf.params) ps.push_back(tf.valueTypes[pv]);
+    const TypeId ret = tf.ret;
+    std::uint32_t fi = addFunction(m.classes[cls].name + "$call", ps, ret);
+    Function& f = m.functions[fi];
+    f.blocks.emplace_back();
+    f.blocks[0].params = f.params;
+    Inst call;
+    call.op = IrOp::Call; call.sym = target; call.ty = ret;
+    for (std::size_t k = 1; k < f.params.size(); ++k) call.args.push_back(f.params[k]);
+    if (m.types[ret].k != Type::K::Void) { f.valueTypes.push_back(ret); call.res = static_cast<ValueId>(f.valueTypes.size() - 1); }
+    ValueId rv = call.res;
+    f.blocks[0].insts.push_back(std::move(call));
+    Inst rt;
+    rt.op = IrOp::Ret; rt.ty = m.voidT();
+    if (rv != kNoValue) rt.args = {rv};
+    f.blocks[0].insts.push_back(std::move(rt));
+    return {cls, fi};
+  }
   void buildThunks() {
     for (std::uint32_t node : c.funcValueUses) {
       std::uint32_t sym = c.nodeSym[node];
@@ -509,30 +537,20 @@ struct Lowering {
       if (target == funcOfNode.end()) continue;
       frontend::TypeId ftype = c.nodeType[node];
       if (typeHasParam(ftype)) continue;
-      Class cl;
-      cl.name = "fnref " + std::string(c.syms[sym].name);
-      cl.implements = {fnClassOf(ftype)};
-      cl.selectors = {selectorFor("call", ftype)};
-      m.classes.push_back(std::move(cl));
-      auto cls = static_cast<std::uint32_t>(m.classes.size() - 1);
-      const Function& tf = m.functions[target->second];
-      std::vector<TypeId> ps{m.refT(cls)};
-      for (ValueId pv : tf.params) ps.push_back(tf.valueTypes[pv]);
-      std::uint32_t fi = addFunction(m.classes[cls].name + "$call", ps, tf.ret);
-      Function& f = m.functions[fi];
-      f.blocks.emplace_back();
-      f.blocks[0].params = f.params;
-      Inst call;
-      call.op = IrOp::Call; call.sym = target->second; call.ty = tf.ret;
-      for (std::size_t k = 1; k < f.params.size(); ++k) call.args.push_back(f.params[k]);
-      if (m.types[tf.ret].k != Type::K::Void) { f.valueTypes.push_back(tf.ret); call.res = static_cast<ValueId>(f.valueTypes.size() - 1); }
-      ValueId rv = call.res;
-      f.blocks[0].insts.push_back(std::move(call));
-      Inst ret;
-      ret.op = IrOp::Ret; ret.ty = m.voidT();
-      if (rv != kNoValue) ret.args = {rv};
-      f.blocks[0].insts.push_back(std::move(ret));
-      thunkOfSym[sym] = {cls, fi};
+      thunkOfSym[sym] = makeThunk(std::string(c.syms[sym].name), ftype, target->second);
+    }
+    for (std::uint32_t node : c.staticMethodValueUses) {   // Class.staticMethod as a value
+      const frontend::Node& x = a.nodes[node];
+      std::uint32_t os = c.nodeSym[x.kids[0]];
+      if (os == kNil) continue;
+      const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
+      if (!sm) continue;
+      const std::string key = mkey(sm->owner, x.text);
+      auto target = staticFn.find(key);
+      if (target == staticFn.end() || thunkOfStatic.count(key)) continue;
+      frontend::TypeId ftype = c.nodeType[node];
+      if (typeHasParam(ftype)) continue;
+      thunkOfStatic[key] = makeThunk(key, ftype, target->second);
     }
   }
 
@@ -545,6 +563,7 @@ struct Lowering {
     };
     for (auto& [node, li] : lambdas) finish(li.cls, li.fn);
     for (auto& [sym, th] : thunkOfSym) finish(th.first, th.second);
+    for (auto& [key, th] : thunkOfStatic) finish(th.first, th.second);
   }
 
   // ---- module structure
@@ -1296,7 +1315,7 @@ struct Lowering::FnLower {
         if (c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) {  // a function used as a value
           auto th = L.thunkOfSym.find(s);
           if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
-          return emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first);
+          return coerce(emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first), natural(i));   // typed as the function type, so two functions meet at a join
         }
         ValueId v = readSym(s);
         if (c.nodeType[i] != frontend::kNoType && c.types[c.nodeType[i]].k == frontend::TK::Object) return coerce(v, natural(i));  // a variable narrowed by instanceof
@@ -1458,6 +1477,11 @@ struct Lowering::FnLower {
         }
         if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
           const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
+          if (sm->method) {   // Class.staticMethod as a value: its thunk
+            auto th = L.thunkOfStatic.find(Lowering::mkey(sm->owner, x.text));
+            if (th == L.thunkOfStatic.end()) { unsupported(i, "this static method used as a value"); return constBool(false); }
+            return coerce(emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first), natural(i));
+          }
           return emit(IrOp::GetGlobal, natural(i), {}, 0, 0, L.staticGlobal[Lowering::mkey(sm->owner, x.text)]);
         }
         if (os != kNil && c.syms[os].kind == SymKind::Enum) {  // Enum.Member: a constant
