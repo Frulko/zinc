@@ -1995,7 +1995,13 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   if (n.rel) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
-  if (n.tag === TEXT) return;
+  if (n.tag === TEXT) {
+    // measured at the width offered before grow and stretch were shared out: when it ends wider than the width it was wrapped at and has several lines, its lines
+    // are wrapped again to use that width (ZN-287). A box narrower than the lines keeps them: its height was decided by them (re-wrapping would overflow it).
+    const k = n.wk;
+    if (k !== null && n.lines.length > 1 && vw - n.pl - n.pr > (k as WrapKey).avail + 0.5) wrapText(n, vw);
+    return;
+  }
   // scroll containers lay their content out at its natural size; the viewport only clips and offsets it
   const w = (n.scroll & 2) !== 0 ? Math.max(vw, n.contentW) : vw, h = (n.scroll & 1) !== 0 ? Math.max(vh, n.contentH) : vh;
   if (n.scroll !== 0) clampScroll(n);
