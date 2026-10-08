@@ -1,0 +1,10 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 960, "height": 600 },
+    "linux": { "width": 960, "height": 600 },
+    "rpi1": { "width": 640, "height": 400, "plugins": { "3d": { "scale": 2 } } }
+  }
+}

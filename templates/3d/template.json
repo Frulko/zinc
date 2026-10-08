@@ -1,0 +1,8 @@
+{
+  "name": "3d",
+  "description": "A three.js scene: lights, a floor, a spinning ring and orbiting satellites; drag to orbit, wheel to zoom (OrbitControls).",
+  "tags": ["3d", "three", "webgl"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}
