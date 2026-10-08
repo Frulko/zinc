@@ -18,6 +18,7 @@ const toks = [
   'whitespace-nowrap', 'whitespace-pre', 'whitespace-pre-wrap', 'whitespace-normal', 'whitespace-foo', 'break-words', 'break-all', 'break-normal', 'truncate', 'text-ellipsis', 'text-clip', 'line-clamp-3', 'line-clamp-none', 'line-clamp-0', 'line-clamp-x', 'text-balance', 'text-justify', 'text-wrap', 'text-nowrap',
   'text-shadow', 'text-shadow-sm', 'text-shadow-md', 'text-shadow-lg', 'text-shadow-none', 'text-shadow-red-500', 'text-shadow-x', 'selection:bg-red-500', 'selection:text-white', 'selection:border-red-500',
   'landscape:flex-row', 'portrait:p-2', 'pointer-coarse:p-4', 'pointer-fine:p-1', 'hover-none:p-3', 'max-md:hidden', 'max-[600px]:p-2', 'min-[600px]:p-2', '@md:p-4', '@[300px]:p-2', '@container', 'pb-[env(keyboard-inset)]', 'pt-[env(safe-area-inset-top)]', 'max-foo:p-2', 'pointer-x:p-2', '@xx:p-2',
+  'dark:bg-zinc-900', 'light:p-2', 'dark:text-white', 'dark:', 'darkx:p-2',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

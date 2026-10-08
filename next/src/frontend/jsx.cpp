@@ -60,7 +60,7 @@ bool validClass(const std::string& c) {
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\[env\([a-z-]+\)\]|\d+/\d+|px))";
-  static const std::string color = R"(([a-z]+-\d+|white|black|transparent|current|\[#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]|\[(rgb|rgba|hsl|hsla)\([0-9., %]+\)\])(/\d+)?)";
+  static const std::string color = R"(([a-z]+-\d+|white|black|transparent|current|\[#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]|\[(rgb|rgba|hsl|hsla)\([0-9., %]+\)\]|\[var\(--[a-z0-9-]+\)\])(/\d+)?)";
   static const std::vector<std::regex> rules = {
       std::regex(R"(^font-\[[A-Za-z0-9_.,-]+\]$)"),
       std::regex(R"(^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$)"),
@@ -82,7 +82,7 @@ bool validClass(const std::string& c) {
       std::regex(R"(^line-clamp-[1-9]\d*$)"),
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
-  static const std::regex variant(R"(^(focus|focus-visible|selection|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex variant(R"(^(focus|focus-visible|selection|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
   static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;

@@ -6,6 +6,7 @@
 //   - React model: the new theme applies on the next render.
 // App code can use the same tokens for its own nodes: `<View class={`bg-${theme().muted}`}>`.
 import { createSignal } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
 
 export interface Theme {
   name: string;
@@ -68,11 +69,23 @@ export const DARK: Theme = {
   warningSoft: 'amber-950', warningSoftForeground: 'amber-300',
 };
 
-const [current, setCurrent] = createSignal<Theme>(LIGHT);
+// ---- colour schemes (ZN-271): the kit's classes use `[var(--role)]` colours that follow ui.setScheme, so switching to DARK restyles
+// only the flagged nodes: no signal changes, no component re-renders. A custom Theme (any other object) still goes through the signal.
+const KEYS: string[] = ['background', 'foreground', 'card', 'muted', 'mutedForeground', 'border', 'input', 'primary', 'primaryForeground', 'primaryFocus', 'primaryPressed', 'secondary', 'secondaryForeground', 'secondaryPressed', 'subtle', 'accent', 'accentForeground', 'accentSoft', 'accentSoftForeground', 'destructive', 'destructiveForeground', 'destructivePressed', 'destructiveSoft', 'destructiveSoftForeground', 'success', 'successSoft', 'successSoftForeground', 'warningSoft', 'warningSoftForeground'];
+function valuesOf(t: Theme): string[] { return [t.background, t.foreground, t.card, t.muted, t.mutedForeground, t.border, t.input, t.primary, t.primaryForeground, t.primaryFocus, t.primaryPressed, t.secondary, t.secondaryForeground, t.secondaryPressed, t.subtle, t.accent, t.accentForeground, t.accentSoft, t.accentSoftForeground, t.destructive, t.destructiveForeground, t.destructivePressed, t.destructiveSoft, t.destructiveSoftForeground, t.success, t.successSoft, t.successSoftForeground, t.warningSoft, t.warningSoftForeground]; }
+function colorsOf(t: Theme): i32[] { return valuesOf(t).map((n: string): i32 => ui.tailwindColor(n)); }
+ui.defineScheme('light', KEYS, colorsOf(LIGHT));
+ui.defineScheme('dark', KEYS, colorsOf(DARK));
+/** LIGHT and DARK as variable references: what theme() returns for the two built-in themes. */
+const VARS: Theme = { name: 'vars', background: '[var(--background)]', foreground: '[var(--foreground)]', card: '[var(--card)]', muted: '[var(--muted)]', mutedForeground: '[var(--mutedForeground)]', border: '[var(--border)]', input: '[var(--input)]', primary: '[var(--primary)]', primaryForeground: '[var(--primaryForeground)]', primaryFocus: '[var(--primaryFocus)]', primaryPressed: '[var(--primaryPressed)]', secondary: '[var(--secondary)]', secondaryForeground: '[var(--secondaryForeground)]', secondaryPressed: '[var(--secondaryPressed)]', subtle: '[var(--subtle)]', accent: '[var(--accent)]', accentForeground: '[var(--accentForeground)]', accentSoft: '[var(--accentSoft)]', accentSoftForeground: '[var(--accentSoftForeground)]', destructive: '[var(--destructive)]', destructiveForeground: '[var(--destructiveForeground)]', destructivePressed: '[var(--destructivePressed)]', destructiveSoft: '[var(--destructiveSoft)]', destructiveSoftForeground: '[var(--destructiveSoftForeground)]', success: '[var(--success)]', successSoft: '[var(--successSoft)]', successSoftForeground: '[var(--successSoftForeground)]', warningSoft: '[var(--warningSoft)]', warningSoftForeground: '[var(--warningSoftForeground)]' };
+
+const [current, setCurrent] = createSignal<Theme>(VARS);
 
 /** The current theme (a tracked read under Solid). */
 export function theme(): Theme { return current(); }
 
-/** Switches every kit component to another theme. */
-export function setTheme(t: Theme): void { setCurrent(t); }
-
+/** Switches every kit component to another theme: LIGHT and DARK switch the colour scheme only, any other theme goes through the signal. */
+export function setTheme(t: Theme): void {
+  if (t === LIGHT || t === DARK) { ui.setScheme(t.name); setCurrent(VARS); }
+  else setCurrent(t);
+}

@@ -1,0 +1,3 @@
+scheme light flagged true renders 1
+scheme dark restyled equals flagged true renders 1
+scheme light renders 1

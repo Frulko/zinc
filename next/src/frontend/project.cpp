@@ -90,6 +90,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (!yyjson_is_str(pr)) { err = "\"profile\" must be a string"; return false; }
     out.profile = yyjson_get_str(pr);
   }
+  if (yyjson_val* x = yyjson_obj_get(root, "scheme"); x && yyjson_is_str(x)) out.scheme = yyjson_get_str(x);
   if (yyjson_val* x = yyjson_obj_get(root, "text"); x && yyjson_is_str(x)) {
     out.text = yyjson_get_str(x);
     if (out.text != "shaped" && out.text != "simple") out.warnings.push_back("\"text\" must be \"shaped\" or \"simple\"");
@@ -166,7 +167,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "bench", "description", "profile"};
+  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "bench", "description", "profile"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

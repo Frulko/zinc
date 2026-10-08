@@ -507,6 +507,7 @@ int main(int argc, char** argv) {
       }
       if (have) {
         shapedText = project.text == "shaped";
+        if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
         // the profile of the target this machine runs: macos, linux, else the simulator's
 #if defined(__APPLE__)
         const char* order[] = {"macos", "sim"};

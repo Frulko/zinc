@@ -734,6 +734,7 @@ function alphaPart(v: string): i32 { const a = parseFloat(v); return a !== a ? 2
 /** -2 when `v` (the inside of the brackets) is not a CSS colour; sets cssAlpha. */
 function cssColor(v: string): i32 {
   cssAlpha = 255;
+  if (v.startsWith('var(--') && v.endsWith(')')) { varUsed = true; return schemeVar(v.slice(6, v.length - 1)); }
   if (v.startsWith('#')) {
     let hex = v.slice(1);
     if (hex.length === 3 || hex.length === 4) { let e = ''; for (let i = 0; i < hex.length; i++) e += hex.charAt(i) + hex.charAt(i); hex = e; }   // #f80 is #ff8800, #f808 is #ff880088
@@ -827,14 +828,47 @@ function ringToken(n: UiNode, tok: string, mode: i32): boolean {
   return true;
 }
 // ---- media and container queries, env() lengths (ZN-272)
-let envUsed = false, coarse = false, cqAny = false, inSettle = false, settlePasses: i32 = 0;
+let envUsed = false, varUsed = false, coarse = false, cqAny = false, inSettle = false, settlePasses: i32 = 0;
 let kbInset: number = 0, safeT: number = 0, safeR: number = 0, safeB: number = 0, safeL: number = 0;
 function envValue(name: string): number {
   return name === 'keyboard-inset' ? kbInset : name === 'safe-area-inset-top' ? safeT : name === 'safe-area-inset-right' ? safeR : name === 'safe-area-inset-bottom' ? safeB : name === 'safe-area-inset-left' ? safeL : 0;
 }
-function restyleMedia(mask: i32): void {
-  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && (nodes[i].media & mask) !== 0) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+function restyleMedia(mask: i32): i32 {
+  let k = 0;
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && (nodes[i].media & mask) !== 0) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); k++; }
+  return k;
 }
+// Colour schemes (ZN-271): `bg-[var(--card)]` and `dark:` classes follow the scheme; switching restyles the flagged nodes only, no component re-renders.
+const schemeNames: string[] = [], varNames: string[] = [], schemeVals: i32[][] = [];
+let schemeMode = env('ZINC_SCHEME') === '' ? 'light' : env('ZINC_SCHEME'), systemScheme = 'light', schemeCount: i32 = 0;
+let scheme = schemeMode === 'auto' ? 'light' : schemeMode;
+function schemeVar(name: string): i32 {
+  const v = varNames.indexOf(name), s = schemeNames.indexOf(scheme);
+  return v < 0 || s < 0 ? -2 : schemeVals[s][v];
+}
+/** Defines the variables of one scheme: names ('card'), colours (0xRRGGBB, -1 transparent). Several calls with the same names add schemes. */
+export function defineScheme(name: string, names: string[], colors: i32[]): void {
+  let s = schemeNames.indexOf(name);
+  if (s < 0) { s = schemeNames.length; schemeNames.push(name); schemeVals.push([]); }
+  for (let i = 0; i < names.length; i++) {
+    let v = varNames.indexOf(names[i]);
+    if (v < 0) { v = varNames.length; varNames.push(names[i]); }
+    while (schemeVals[s].length <= v) schemeVals[s].push(-2);
+    schemeVals[s][v] = colors[i];
+  }
+}
+function applyScheme(name: string): void {
+  if (name === scheme) return;
+  scheme = name;
+  schemeCount = restyleMedia(16);
+}
+/** Switches the colour scheme ('light', 'dark', or 'auto' to follow the system's). zinc.json: "scheme". */
+export function setScheme(name: string): void { schemeMode = name; applyScheme(name === 'auto' ? systemScheme : name); }
+export function currentScheme(): string { return scheme; }
+/** The nodes the last scheme switch restyled. */
+export function schemeRestyled(): i32 { return schemeCount; }
+/** Called by the host when the operating system's preference changes. */
+export function setSystemScheme(name: string): void { systemScheme = name; if (schemeMode === 'auto') applyScheme(name); }
 /** The room an on-screen keyboard takes at the bottom of the surface, readable in classes as `pb-[env(keyboard-inset)]`. */
 export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); }
 export function keyboardInset(): number { return kbInset; }
@@ -843,10 +877,11 @@ export function setSafeArea(t: number, r: number, b: number, l: number): void { 
 function setCoarse(c: boolean): void { if (c === coarse) return; coarse = c; restyleMedia(2); }
 /** Layout passes the last container-query settling needed (1: nothing changed). */
 export function layoutPasses(): i32 { return settlePasses; }
-function containerOf(h: i32): i32 { for (let p = nodes[h].parent; p >= 0; p = nodes[p].parent) if (nodes[p].container) return p; return -1; }
+function containerOf(h: i32): i32 { if (h < 0) return -1; for (let p = nodes[h].parent; p >= 0; p = nodes[p].parent) if (nodes[p].container) return p; return -1; }
 const CQ_PX: i32[] = [384, 448, 512, 576];
 /** The value of one query prefix (`max-md`, `landscape`, `pointer-coarse`, `@md`...): 1 true, 0 false, -1 not a query. Sets the node's dependency bits. */
 function queryOf(n: UiNode, q: string): i32 {
+  if (q === 'dark' || q === 'light') { n.media = n.media | 16; return scheme === q ? 1 : 0; }
   if (q === 'landscape') { n.responsive = true; return width() >= height() ? 1 : 0; }
   if (q === 'portrait') { n.responsive = true; return width() < height() ? 1 : 0; }
   if (q === 'pointer-coarse' || q === 'hover-none') { n.media = n.media | 2; return coarse ? 1 : 0; }
@@ -1171,7 +1206,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const k = tok.slice(5);
     const i = TEXT_PX.indexOf(k);
     if (i >= 0) { n.size = TEXT_SIZE[i]; n.leading = TEXT_LEAD[i]; return true; }
-    if (k.startsWith('[') && !k.startsWith('[#') && !k.startsWith('[rgb') && !k.startsWith('[hsl')) { n.size = Math.round(num(k)); n.leading = 0; return true; }
+    if (k.startsWith('[') && !k.startsWith('[#') && !k.startsWith('[rgb') && !k.startsWith('[hsl') && !k.startsWith('[var(')) { n.size = Math.round(num(k)); n.leading = 0; return true; }
     const c = colorOf(k);
     if (c === -2) return false;
     if (c !== -3) { n.fg = c; n.fgAlpha = alphaOf(k); }   // text-current: the colour it already has
@@ -1287,9 +1322,10 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
 }
 function rebuildStyle(n: UiNode): void {
   resetStyle(n);
-  envUsed = false;
+  envUsed = false; varUsed = false;
   for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
   if (envUsed) n.media = n.media | 8;
+  if (varUsed) n.media = n.media | 16;
   for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
   for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
