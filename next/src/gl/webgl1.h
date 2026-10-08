@@ -185,6 +185,14 @@ class WebGL1 {
   void texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
   void texParameteri(std::uint32_t target, std::uint32_t pname, int value);
   void texParameterf(std::uint32_t target, std::uint32_t pname, float value);
+  // compressed textures (S3TC, S3TC sRGB, RGTC: webgl_ext.h); the data is checked against the block size of the format
+  void compressedTexImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, const void* data, std::size_t bytes, std::int64_t pbo = -1);   // pbo >= 0: the data is at that offset of the PIXEL_UNPACK_BUFFER (bytes is its size)
+  void compressedTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, const void* data, std::size_t bytes, std::int64_t pbo = -1);
+  void compressedTexImage3D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int depth, int border, const void* data, std::size_t bytes, std::int64_t pbo = -1);
+  void compressedTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int width, int height, int depth, std::uint32_t format, const void* data, std::size_t bytes, std::int64_t pbo = -1);
+  bool unpackBufferFits(std::int64_t offset, std::size_t bytes);
+  bool packOrUnpackBufferBound() { auto it = otherBuffers_.find(0x88EC); return it != otherBuffers_.end() && it->second != 0; }   // PIXEL_UNPACK_BUFFER   // a PIXEL_UNPACK_BUFFER is bound and holds [offset, offset + bytes)
+  std::vector<std::uint32_t> compressedFormats() const;   // COMPRESSED_TEXTURE_FORMATS
   // framebuffers and renderbuffers
   Id createFramebuffer();
   void bindFramebuffer(std::uint32_t target, Id f);
@@ -201,6 +209,15 @@ class WebGL1 {
   void framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachment, std::uint32_t rbtarget, Id rb);
   void deleteFramebuffer(Id f);
   // more state (pass-through with the spec's enum and range checks)
+  // OES_draw_buffers_indexed
+  void enablei(std::uint32_t cap, std::uint32_t index);
+  void disablei(std::uint32_t cap, std::uint32_t index);
+  bool isEnabledi(std::uint32_t cap, std::uint32_t index);
+  void blendEquationi(std::uint32_t buf, std::uint32_t mode);
+  void blendEquationSeparatei(std::uint32_t buf, std::uint32_t rgb, std::uint32_t a);
+  void blendFunci(std::uint32_t buf, std::uint32_t s, std::uint32_t d);
+  void blendFuncSeparatei(std::uint32_t buf, std::uint32_t srgb, std::uint32_t drgb, std::uint32_t sa, std::uint32_t da);
+  void colorMaski(std::uint32_t buf, bool r, bool g, bool b, bool a);
   void blendColor(float r, float g, float b, float a);
   void blendEquation(std::uint32_t mode);
   void blendEquationSeparate(std::uint32_t rgb, std::uint32_t a);
@@ -271,7 +288,7 @@ class WebGL1 {
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
   struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
-  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t minF = 0x2702, magF = 0x2601, wrapS = 0x2901, wrapT = 0x2901; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
+  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t cfmt = 0; /* the compressed format of level 0, 0: not compressed */ std::uint32_t minF = 0x2702, magF = 0x2601, wrapS = 0x2901, wrapT = 0x2901; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
   struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
@@ -330,6 +347,8 @@ class WebGL1 {
   bool v1Format(std::uint32_t format) const;
   bool floatRenderable(int bits, int channels) const;
   bool readFormat(int& comps, char& cls);
+  bool blendFuncChecked(std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da);
+  bool compressedBytes(std::uint32_t fmt, int w, int h, std::size_t& bytes) const;
   int copyClash(std::uint32_t target, int level, std::uint32_t destName);
   void copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h);
   bool renderbufferFormatAllowed(std::uint32_t fmt) const;

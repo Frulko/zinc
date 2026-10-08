@@ -38,9 +38,23 @@ void WebGL1::blendColor(float r, float g, float b, float a) { glBlendColor(r, g,
 void WebGL1::blendEquation(std::uint32_t m) { if (!blendMode(m, version_ == 2 || extOn(Ext::BlendMinmax))) return error(GL_INVALID_ENUM); glBlendEquation(m); }
 void WebGL1::blendEquationSeparate(std::uint32_t rgb, std::uint32_t a) { if (!blendMode(rgb, version_ == 2 || extOn(Ext::BlendMinmax)) || !blendMode(a, version_ == 2 || extOn(Ext::BlendMinmax))) return error(GL_INVALID_ENUM); glBlendEquationSeparate(rgb, a); }
 void WebGL1::blendFunc(std::uint32_t s, std::uint32_t d) { blendFuncSeparate(s, d, s, d); }
+// the factor checks shared by blendFuncSeparate and its indexed form: true when the call may go on
+bool WebGL1::blendFuncChecked(std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da) {
+  if (!blendFactor(sr) || !blendFactor(dr) || !blendFactor(sa) || !blendFactor(da) || dr == GL_SRC_ALPHA_SATURATE || da == GL_SRC_ALPHA_SATURATE) { error(GL_INVALID_ENUM); return false; }   // (SRC_ALPHA_SATURATE is for the source factor only)
+  if ((constColor(sr) && constAlpha(dr)) || (constAlpha(sr) && constColor(dr)) || (constColor(sa) && constAlpha(da)) || (constAlpha(sa) && constColor(da))) { error(GL_INVALID_OPERATION); return false; }   // WebGL: both kinds of constant at once
+  return true;
+}
+// OES_draw_buffers_indexed: the blend state and the colour mask of one draw buffer
+void WebGL1::enablei(std::uint32_t cap, std::uint32_t i) { if (cap != GL_BLEND) return error(GL_INVALID_ENUM); if (i >= 4) return error(GL_INVALID_VALUE); glEnablei(cap, i); }
+void WebGL1::disablei(std::uint32_t cap, std::uint32_t i) { if (cap != GL_BLEND) return error(GL_INVALID_ENUM); if (i >= 4) return error(GL_INVALID_VALUE); glDisablei(cap, i); }
+bool WebGL1::isEnabledi(std::uint32_t cap, std::uint32_t i) { if (cap != GL_BLEND) { error(GL_INVALID_ENUM); return false; } if (i >= 4) { error(GL_INVALID_VALUE); return false; } return glIsEnabledi(cap, i) != 0; }
+void WebGL1::blendEquationi(std::uint32_t buf, std::uint32_t m) { if (buf >= 4) return error(GL_INVALID_VALUE); if (!blendMode(m, true)) return error(GL_INVALID_ENUM); glBlendEquationi(buf, m); }
+void WebGL1::blendEquationSeparatei(std::uint32_t buf, std::uint32_t rgb, std::uint32_t a) { if (buf >= 4) return error(GL_INVALID_VALUE); if (!blendMode(rgb, true) || !blendMode(a, true)) return error(GL_INVALID_ENUM); glBlendEquationSeparatei(buf, rgb, a); }
+void WebGL1::blendFunci(std::uint32_t buf, std::uint32_t s, std::uint32_t d) { blendFuncSeparatei(buf, s, d, s, d); }
+void WebGL1::blendFuncSeparatei(std::uint32_t buf, std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da) { if (buf >= 4) return error(GL_INVALID_VALUE); if (!blendFuncChecked(sr, dr, sa, da)) return; glBlendFuncSeparatei(buf, sr, dr, sa, da); }
+void WebGL1::colorMaski(std::uint32_t buf, bool r, bool g, bool b, bool a) { if (buf >= 4) return error(GL_INVALID_VALUE); glColorMaski(buf, r, g, b, a); }
 void WebGL1::blendFuncSeparate(std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da) {
-  if (!blendFactor(sr) || !blendFactor(dr) || !blendFactor(sa) || !blendFactor(da) || dr == GL_SRC_ALPHA_SATURATE || da == GL_SRC_ALPHA_SATURATE) return error(GL_INVALID_ENUM);   // (SRC_ALPHA_SATURATE is for the source factor only)
-  if ((constColor(sr) && constAlpha(dr)) || (constAlpha(sr) && constColor(dr)) || (constColor(sa) && constAlpha(da)) || (constAlpha(sa) && constColor(da))) return error(GL_INVALID_OPERATION);   // WebGL: both kinds of constant at once
+  if (!blendFuncChecked(sr, dr, sa, da)) return;
   glBlendFuncSeparate(sr, dr, sa, da);
 }
 void WebGL1::clearDepth(float d) { glClearDepth(d); }
@@ -333,7 +347,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_MAX_VARYING_VECTORS: fixed(15); break;
     case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS: case GL_MAX_TEXTURE_IMAGE_UNITS: { GLint v = 0; glGetIntegerv(pname, &v); fixed(std::min<GLint>(v, 32)); break; }
     case GL_MAX_VIEWPORT_DIMS: ints(2); break;
-    case GL_COMPRESSED_TEXTURE_FORMATS: r.kind = 'a'; break;
+    case GL_COMPRESSED_TEXTURE_FORMATS: r.kind = 'a'; for (std::uint32_t f : compressedFormats()) r.v.push_back(f); break;
     case GL_VERSION: r.kind = 's'; r.s = version_ == 2 ? "WebGL 2.0 (Zinc)" : "WebGL 1.0 (Zinc)"; break;
     case GL_SHADING_LANGUAGE_VERSION: r.kind = 's'; r.s = version_ == 2 ? "WebGL GLSL ES 3.00 (Zinc)" : "WebGL GLSL ES 1.0 (Zinc)"; break;
     case GL_VENDOR: r.kind = 's'; r.s = "WebKit"; break;
@@ -567,6 +581,7 @@ void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, 
   if (!id) return error(GL_INVALID_OPERATION);
   if (!data) return error(GL_INVALID_VALUE);
   const Tex& t = textures_[id];
+  if (t.cfmt) return error(GL_INVALID_OPERATION);   // a compressed texture is updated with compressedTexSubImage2D
   if (level == 0 && (xoff + width > t.w || yoff + height > t.h)) return error(GL_INVALID_VALUE);
   if (t.format && t.format != format) return error(GL_INVALID_OPERATION);   // the format of the level must match
   std::size_t row = (static_cast<std::size_t>(width) * bpp + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
@@ -665,7 +680,7 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   else glCopyTexImage2D(target, level, ifmt, x, y, w, h, 0);
   Tex& t = textures_[id];
   if (level == 0) {
-    t.w = w; t.h = h; t.format = fmt; t.type = 0; t.f32 = t.f16 = false;
+    t.w = w; t.h = h; t.format = fmt; t.type = 0; t.f32 = t.f16 = false; t.cfmt = 0;
     t.swz = fmt == GL_ALPHA ? 5 : fmt == GL_LUMINANCE ? 2 : fmt == GL_LUMINANCE_ALPHA ? 6 : 0;
     if (!gl_.info().es) refreshSampling(id);
   }
@@ -678,7 +693,7 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   if (!id) return error(GL_INVALID_OPERATION);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   const Tex& t = textures_[id];
-  if (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt) return error(GL_INVALID_OPERATION);
+  if (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.cfmt) return error(GL_INVALID_OPERATION);
   int srcComps = 4, dstComps = 4; char srcCls = 'f', dstCls = 'f';
   if (t.format && !texFormatInfo(t.format, dstComps, dstCls)) { dstComps = 4; dstCls = 'f'; }   // (a WebGL 2 texture keeps its base format: RED, RG ... map to their counts below)
   if (t.format == 0x1903) dstComps = 1; else if (t.format == 0x8227) dstComps = 2;
@@ -695,7 +710,7 @@ void WebGL1::generateMipmap(std::uint32_t target) {
   const Tex& t = textures_[id];
   if (target == GL_TEXTURE_2D && (t.w == 0 || t.h == 0)) return error(GL_INVALID_OPERATION);   // level 0 must be defined
   if (version_ != 2 && (((t.w & (t.w - 1)) != 0) || ((t.h & (t.h - 1)) != 0))) return error(GL_INVALID_OPERATION);   // WebGL 1: no mipmaps for a non-power-of-two texture
-  if (version_ != 2 && (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.format == kSrgbExt || t.format == kSrgbAlphaExt)) return error(GL_INVALID_OPERATION);   // depth and sRGB (EXT_sRGB) textures have no mipmaps
+  if (t.cfmt || (version_ != 2 && (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.format == kSrgbExt || t.format == kSrgbAlphaExt))) return error(GL_INVALID_OPERATION);   // depth and sRGB (EXT_sRGB) textures have no mipmaps
   glGenerateMipmap(target);
 }
 
@@ -770,6 +785,13 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
 }
 WebGL1::Param WebGL1::getIndexedParameter(std::uint32_t target, std::uint32_t index) {
   Param r;
+  if (extOn(Ext::DrawBuffersIndexed) && (target == GL_BLEND_EQUATION_RGB || target == GL_BLEND_EQUATION_ALPHA || target == GL_BLEND_SRC_RGB || target == GL_BLEND_SRC_ALPHA || target == GL_BLEND_DST_RGB || target == GL_BLEND_DST_ALPHA || target == GL_COLOR_WRITEMASK)) {
+    if (index >= 4) { error(GL_INVALID_VALUE); return r; }
+    r.ok = true;
+    if (target == GL_COLOR_WRITEMASK) { GLboolean v[4] = {}; glGetBooleani_v(target, index, v); r.kind = 'B'; for (GLboolean x : v) r.v.push_back(x ? 1 : 0); }
+    else { GLint v = 0; glGetIntegeri_v(target, index, &v); r.kind = 'i'; r.v.push_back(v); }
+    return r;
+  }
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER_BINDING && target != GL_UNIFORM_BUFFER_START && target != GL_UNIFORM_BUFFER_SIZE && target != GL_TRANSFORM_FEEDBACK_BUFFER_BINDING && target != GL_TRANSFORM_FEEDBACK_BUFFER_START && target != GL_TRANSFORM_FEEDBACK_BUFFER_SIZE)) { error(GL_INVALID_ENUM); return r; }
   if (index >= 24) { error(GL_INVALID_VALUE); return r; }
   const bool uniform = target == GL_UNIFORM_BUFFER_BINDING || target == GL_UNIFORM_BUFFER_START || target == GL_UNIFORM_BUFFER_SIZE;

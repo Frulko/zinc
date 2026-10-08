@@ -32,6 +32,7 @@ conformance2/extensions/ext-disjoint-timer-query-webgl2.html
 conformance2/extensions/ext-render-snorm.html
 conformance2/extensions/ext-texture-filter-anisotropic.html
 conformance2/extensions/ext-texture-norm16.html
+conformance2/extensions/oes-draw-buffers-indexed.html
 conformance2/extensions/oes-sample-variables.html
 conformance2/extensions/oes-shader-multisample-interpolation.html
 conformance2/extensions/ovr_multiview2.html
@@ -45,6 +46,7 @@ conformance2/extensions/ovr_multiview2_timer_query.html
 conformance2/extensions/ovr_multiview2_transform_feedback.html
 conformance2/extensions/promoted-extensions-in-shaders.html
 conformance2/extensions/promoted-extensions.html
+conformance2/extensions/required-extensions.html
 conformance2/extensions/webgl-clip-cull-distance.html
 conformance2/extensions/webgl-multi-draw-instanced-base-vertex-base-instance.html
 conformance2/extensions/webgl-provoking-vertex.html
@@ -261,6 +263,7 @@ extensions/oes-vertex-array-object.html
 extensions/s3tc-and-rgtc.html
 extensions/webgl-blend-func-extended.html
 extensions/webgl-compressed-texture-astc.html
+extensions/webgl-compressed-texture-etc.html
 extensions/webgl-compressed-texture-etc1.html
 extensions/webgl-compressed-texture-pvrtc.html
 extensions/webgl-compressed-texture-s3tc-srgb.html

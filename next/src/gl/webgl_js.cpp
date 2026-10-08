@@ -974,11 +974,43 @@ M(vertexAttribI4uiv) {
   return JS_UNDEFINED;
 }
 M(invalidateSubFramebuffer) { SELF NEED2; NEED(6); if (I(4) < 0 || I(5) < 0) { gl.raise(0x0501); return JS_UNDEFINED; } return js_invalidateFramebuffer(c, t, 2, argv); }
-// no compressed formats without an extension: every format is an enum the context does not know
-M(compressedTexImage2D) { SELF NEED(7); gl.raise(0x0500); return JS_UNDEFINED; }   // (WebGL 1 has these in the core API: no compressed format exists until an extension brings one)
-M(compressedTexSubImage2D) { SELF NEED(8); gl.raise(0x0500); return JS_UNDEFINED; }
-M(compressedTexImage3D) { SELF NEED2; NEED(8); gl.raise(0x0500); return JS_UNDEFINED; }
-M(compressedTexSubImage3D) { SELF NEED2; NEED(10); gl.raise(0x0500); return JS_UNDEFINED; }
+// (WebGL 1 has these in the core API: no compressed format exists until an extension brings one). WebGL 2 adds srcOffset and srcLength (in elements) after the view.
+M(compressedTexImage2D) {
+  SELF NEED(7);
+  std::uint8_t* p = nullptr; std::size_t n = 0, el = 1;
+  if (gl.version() == 2 && argc >= 8 && !JS_IsObject(argv[6])) { gl.compressedTexImage2D(U(0), I(1), U(2), I(3), I(4), I(5), nullptr, static_cast<std::size_t>(U(6)), i64(c, argv[7])); return JS_UNDEFINED; }   // imageSize, offset into the PIXEL_UNPACK_BUFFER
+  if (!bytesOf(c, argv[6], p, n, &el)) return JS_ThrowTypeError(c, "compressedTexImage2D: data must be an ArrayBuffer view");
+  if (gl.version() == 2) { int r = viewSlice(c, gl, argc, argv, 6, p, n); if (r == 2) return JS_UNDEFINED; }
+  gl.compressedTexImage2D(U(0), I(1), U(2), I(3), I(4), I(5), p, n);
+  return JS_UNDEFINED;
+}
+M(compressedTexSubImage2D) {
+  SELF NEED(8);
+  std::uint8_t* p = nullptr; std::size_t n = 0, el = 1;
+  if (gl.version() == 2 && argc >= 9 && !JS_IsObject(argv[7])) { gl.compressedTexSubImage2D(U(0), I(1), I(2), I(3), I(4), I(5), U(6), nullptr, static_cast<std::size_t>(U(7)), i64(c, argv[8])); return JS_UNDEFINED; }
+  if (!bytesOf(c, argv[7], p, n, &el)) return JS_ThrowTypeError(c, "compressedTexSubImage2D: data must be an ArrayBuffer view");
+  if (gl.version() == 2) { int r = viewSlice(c, gl, argc, argv, 7, p, n); if (r == 2) return JS_UNDEFINED; }
+  gl.compressedTexSubImage2D(U(0), I(1), I(2), I(3), I(4), I(5), U(6), p, n);
+  return JS_UNDEFINED;
+}
+M(compressedTexImage3D) {
+  SELF NEED2; NEED(8);
+  std::uint8_t* p = nullptr; std::size_t n = 0, el = 1;
+  if (argc >= 9 && !JS_IsObject(argv[7])) { gl.compressedTexImage3D(U(0), I(1), U(2), I(3), I(4), I(5), I(6), nullptr, static_cast<std::size_t>(U(7)), i64(c, argv[8])); return JS_UNDEFINED; }
+  if (!bytesOf(c, argv[7], p, n, &el)) return JS_ThrowTypeError(c, "compressedTexImage3D: data must be an ArrayBuffer view");
+  if (viewSlice(c, gl, argc, argv, 7, p, n) == 2) return JS_UNDEFINED;
+  gl.compressedTexImage3D(U(0), I(1), U(2), I(3), I(4), I(5), I(6), p, n);
+  return JS_UNDEFINED;
+}
+M(compressedTexSubImage3D) {
+  SELF NEED2; NEED(10);
+  std::uint8_t* p = nullptr; std::size_t n = 0, el = 1;
+  if (argc >= 11 && !JS_IsObject(argv[9])) { gl.compressedTexSubImage3D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), U(8), nullptr, static_cast<std::size_t>(U(9)), i64(c, argv[10])); return JS_UNDEFINED; }
+  if (!bytesOf(c, argv[9], p, n, &el)) return JS_ThrowTypeError(c, "compressedTexSubImage3D: data must be an ArrayBuffer view");
+  if (viewSlice(c, gl, argc, argv, 9, p, n) == 2) return JS_UNDEFINED;
+  gl.compressedTexSubImage3D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), U(8), p, n);
+  return JS_UNDEFINED;
+}
 
 const Fn kMethods2[] = {
   {"createVertexArray", js_createVertexArray, 0}, {"deleteVertexArray", js_deleteVertexArray, 1}, {"bindVertexArray", js_bindVertexArray, 1}, {"isVertexArray", js_isVertexArray, 1},
@@ -1068,7 +1100,17 @@ const ExtConst kExtConsts[] = {
   {Ext::ColorBufHalf, "RGBA16F_EXT", 0x881A}, {Ext::ColorBufHalf, "RGB16F_EXT", 0x881B}, {Ext::ColorBufHalf, "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT", 0x8211}, {Ext::ColorBufHalf, "UNSIGNED_NORMALIZED_EXT", 0x8C17},
   {Ext::ColorBufFloatWebgl, "RGBA32F_EXT", 0x8814}, {Ext::ColorBufFloatWebgl, "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT", 0x8211}, {Ext::ColorBufFloatWebgl, "UNSIGNED_NORMALIZED_EXT", 0x8C17},
   {Ext::S3tc, "COMPRESSED_RGB_S3TC_DXT1_EXT", 0x83F0}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT1_EXT", 0x83F1}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT3_EXT", 0x83F2}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT5_EXT", 0x83F3},
+  {Ext::S3tcSrgb, "COMPRESSED_SRGB_S3TC_DXT1_EXT", 0x8C4C}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT", 0x8C4D}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT", 0x8C4E}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT", 0x8C4F},
+  {Ext::Rgtc, "COMPRESSED_RED_RGTC1_EXT", 0x8DBB}, {Ext::Rgtc, "COMPRESSED_SIGNED_RED_RGTC1_EXT", 0x8DBC}, {Ext::Rgtc, "COMPRESSED_RED_GREEN_RGTC2_EXT", 0x8DBD}, {Ext::Rgtc, "COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT", 0x8DBE},
 };
+M(enableiOES) { SELF NEED(2); gl.enablei(U(0), U(1)); return JS_UNDEFINED; }
+M(disableiOES) { SELF NEED(2); gl.disablei(U(0), U(1)); return JS_UNDEFINED; }
+M(isEnablediOES) { SELF NEED(2); return JS_NewBool(c, gl.isEnabledi(U(0), U(1))); }
+M(blendEquationiOES) { SELF NEED(2); gl.blendEquationi(U(0), U(1)); return JS_UNDEFINED; }
+M(blendEquationSeparateiOES) { SELF NEED(3); gl.blendEquationSeparatei(U(0), U(1), U(2)); return JS_UNDEFINED; }
+M(blendFunciOES) { SELF NEED(3); gl.blendFunci(U(0), U(1), U(2)); return JS_UNDEFINED; }
+M(blendFuncSeparateiOES) { SELF NEED(5); gl.blendFuncSeparatei(U(0), U(1), U(2), U(3), U(4)); return JS_UNDEFINED; }
+M(colorMaskiOES) { SELF NEED(5); gl.colorMaski(U(0), JS_ToBool(c, argv[1]) != 0, JS_ToBool(c, argv[2]) != 0, JS_ToBool(c, argv[3]) != 0, JS_ToBool(c, argv[4]) != 0); return JS_UNDEFINED; }
 M(loseContext);
 M(restoreContext);
 struct ExtFn { Ext ext; Fn fn; };
@@ -1076,6 +1118,9 @@ const ExtFn kExtFns[] = {
   {Ext::Vao, {"createVertexArrayOES", js_createVertexArray, 0}}, {Ext::Vao, {"deleteVertexArrayOES", js_deleteVertexArray, 1}}, {Ext::Vao, {"isVertexArrayOES", js_isVertexArray, 1}}, {Ext::Vao, {"bindVertexArrayOES", js_bindVertexArray, 1}},
   {Ext::InstancedArrays, {"drawArraysInstancedANGLE", js_drawArraysInstanced, 4}}, {Ext::InstancedArrays, {"drawElementsInstancedANGLE", js_drawElementsInstanced, 5}}, {Ext::InstancedArrays, {"vertexAttribDivisorANGLE", js_vertexAttribDivisor, 2}},
   {Ext::DrawBuffers, {"drawBuffersWEBGL", js_drawBuffers, 1}},
+  {Ext::DrawBuffersIndexed, {"enableiOES", js_enableiOES, 2}}, {Ext::DrawBuffersIndexed, {"disableiOES", js_disableiOES, 2}}, {Ext::DrawBuffersIndexed, {"isEnablediOES", js_isEnablediOES, 2}},
+  {Ext::DrawBuffersIndexed, {"blendEquationiOES", js_blendEquationiOES, 2}}, {Ext::DrawBuffersIndexed, {"blendEquationSeparateiOES", js_blendEquationSeparateiOES, 3}}, {Ext::DrawBuffersIndexed, {"blendFunciOES", js_blendFunciOES, 3}},
+  {Ext::DrawBuffersIndexed, {"blendFuncSeparateiOES", js_blendFuncSeparateiOES, 5}}, {Ext::DrawBuffersIndexed, {"colorMaskiOES", js_colorMaskiOES, 5}},
   {Ext::LoseContext, {"loseContext", js_loseContext, 0}}, {Ext::LoseContext, {"restoreContext", js_restoreContext, 0}},
 };
 

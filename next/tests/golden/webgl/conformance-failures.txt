@@ -1,8 +1,6 @@
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
 conformance2/extensions/nv-shader-noperspective-interpolation.html	Noperspective interpolation qualifier allowed without #extension pragma
-conformance2/extensions/oes-draw-buffers-indexed.html	ext.enableiOES(gl.BLEND, -1) threw exception TypeError: not a function
-conformance2/extensions/required-extensions.html	((has_s3tc && has_s3tc_srgb && has_rgtc) || has_etc) should be true. Was false.
-conformance2/extensions/webgl-blend-func-extended.html	@E not a function |     at runTestNoExtension (<input>:62:46) |     at runTest (<input>:528:5)
+conformance2/extensions/webgl-blend-func-extended.html	Secondary fragment output allowed without #extension pragma
 conformance2/glsl3/array-in-complex-expression.html	should be green at (0, 0) expected: 0,255,0,255 was 0,0,0,255
 conformance2/glsl3/array-length-side-effects.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/glsl3/forbidden-operators.html	[unexpected link status] (expected: false) Using ternary operators with arrays is not allowed
@@ -20,7 +18,7 @@ conformance2/glsl3/switch-case.html	exit -11:
 conformance2/glsl3/texture-offset-out-of-range.html	[unexpected link status] (expected: false) Texture offset below minimum valid value should not compile
 conformance2/glsl3/tricky-loop-conditions.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/glsl3/uniform-block-layouts.html	[unexpected link status] (expected: undefined) Packed uniform buffers are disallowed
-conformance2/glsl3/uninitialized-local-global-variables.html	should be 0,0,0,0 at (1, 0) expected: 0,0,0,0 was 255,0,255,0
+conformance2/glsl3/uninitialized-local-global-variables.html	should be 0,0,0,0 at (2, 0) expected: 0,0,0,0 was 29,0,0,29
 conformance2/glsl3/valid-invariant.html	[unexpected link status] (expected: true) vertex shader with invariant varying and fragment shader with variant varying must succeed
 conformance2/glsl3/vector-dynamic-indexing.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/misc/uninitialized-test-2.html	timeout
@@ -53,8 +51,7 @@ extensions/oes-texture-float-with-video.html	video.canPlayType required method m
 extensions/oes-texture-half-float-with-canvas.html	font missing
 extensions/oes-texture-half-float-with-image.html	@E image decoding is not available (../../resources/red-green.png)
 extensions/oes-texture-half-float-with-video.html	video.canPlayType required method missing
-extensions/webgl-compressed-texture-etc.html	gl.compressedTexImage2D(gl.TEXTURE_2D, 0, validFormats.COMPRESSED_R11_EAC, 4, 4, 0, null) should throw an exception. Was undefined.
-glsl/bugs/assign-to-swizzled-twice-in-function.html	should be green at (1, 0) expected: 0,255,0,255 was 255,255,255,255
+glsl/bugs/assign-to-swizzled-twice-in-function.html	should be green at (1, 0) expected: 0,255,0,255 was 255,255,0,255
 glsl/bugs/character-set.html	[unexpected fragment shader compile status] (expected: true) Out-of-charset string '"' in ifdef-out MUST compile.
 glsl/bugs/essl3-shaders-with-webgl1.html	[unexpected link status] (expected: false) OpenGL ES 3 shading language vertex shader with an in variable should not be accepted by Web
 glsl/bugs/in-parameter-passed-as-inout-argument-and-global.html	should be green at (0, 0) expected: 0,255,0,255 was 0,0,0,255

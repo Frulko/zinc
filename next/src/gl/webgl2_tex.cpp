@@ -73,6 +73,27 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   if (!id) { error(GL_INVALID_OPERATION); return false; }
   Tex& t = textures_[id];
   if (storage) {
+    std::size_t unused = 0;
+    if (compressedBytes(ifmt, 1, 1, unused)) {   // a compressed format: every level allocated as blocks of zeros
+      if (target == GL_TEXTURE_3D || t.immutable) { error(GL_INVALID_OPERATION); return false; }   // (3D textures take none of these formats)
+      const int levels = level;
+      if (levels < 1 || w < 1 || h < 1 || d < 1 || w > maxTexSize_ || h > maxTexSize_ || d > 2048) { error(GL_INVALID_VALUE); return false; }
+      if (levels > levelsFor(w, h, 1)) { error(GL_INVALID_OPERATION); return false; }
+      int lw = w, lh = h;
+      for (int l = 0; l < levels; ++l) {
+        std::size_t bytes = 0;
+        compressedBytes(ifmt, lw, lh, bytes);
+        if (target == GL_TEXTURE_2D_ARRAY) bytes *= static_cast<std::size_t>(d);
+        const std::vector<std::uint8_t> zeros(bytes, 0);
+        if (target == GL_TEXTURE_2D_ARRAY) glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, l, ifmt, lw, lh, d, 0, static_cast<GLsizei>(bytes), zeros.data());
+        else if (bindTarget == GL_TEXTURE_CUBE_MAP) for (int f = 0; f < 6; ++f) glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, l, ifmt, lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
+        else glCompressedTexImage2D(bindTarget, l, ifmt, lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
+        lw = std::max(1, lw / 2); lh = std::max(1, lh / 2);
+      }
+      glTexParameteri(bindTarget, GL_TEXTURE_MAX_LEVEL, levels - 1);
+      t.immutable = true; t.levels = levels; t.w = w; t.h = h; t.d = target == GL_TEXTURE_2D_ARRAY ? d : 1; t.format = 0; t.cfmt = ifmt; t.f32 = t.f16 = false; t.swz = 0;
+      return true;
+    }
     if (!sizedFormat(ifmt)) { error(GL_INVALID_ENUM); return false; }
     if (t.immutable) { error(GL_INVALID_OPERATION); return false; }
     int levels = level;   // for storage, `level` carries the level count
@@ -95,6 +116,7 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     return true;
   }
   if (t.immutable && !sub) { error(GL_INVALID_OPERATION); return false; }   // storage fixed the sizes
+  if (t.cfmt && sub) { error(GL_INVALID_OPERATION); return false; }   // a compressed texture is updated with compressedTexSubImage*
   int bpp = 0;
   const bool legacy = !sub && isUnsizedLegacy(ifmt) && ifmt == format;   // unsized RGBA on a 3D or array texture too: three.js does it for its placeholders and browsers accept it
   if (!legacy) {
@@ -140,7 +162,7 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   else glTexImage2D(target, level, static_cast<GLint>(ifmt), w, h, 0, format, type, data);
   if (!zeros.empty()) { for (int i = 0; i < 5; ++i) glPixelStorei(psName[i], ps[i]); glPixelStorei(GL_UNPACK_ALIGNMENT, align); }
   if (level == 0) {
-    t.w = w; t.h = h; t.d = d; t.format = format;
+    t.w = w; t.h = h; t.d = d; t.format = format; t.cfmt = 0;
     t.f32 = ifmt == GL_R32F || ifmt == GL_RG32F || ifmt == GL_RGB32F || ifmt == GL_RGBA32F || (isUnsizedLegacy(ifmt) && type == GL_FLOAT);   // not filterable without OES_texture_float_linear
     t.f16 = false; t.swz = 0;
     refreshSampling(id);
@@ -627,6 +649,120 @@ std::vector<int> WebGL1::getInternalformatParameter(std::uint32_t target, std::u
   if (integer) return out;   // integer formats are not multisample renderable in ES 3.0
   for (int s : {8, 4, 2, 1}) if (s <= max) out.push_back(s);
   return out;
+}
+
+
+bool WebGL1::unpackBufferFits(std::int64_t offset, std::size_t bytes) {
+  auto it = otherBuffers_.find(GL_PIXEL_UNPACK_BUFFER);
+  if (it == otherBuffers_.end() || !it->second) return false;
+  const Buf& b = buffers_[it->second];
+  return offset >= 0 && offset + static_cast<std::int64_t>(bytes) <= b.size;
+}
+// ---- compressed textures: the block formats of WEBGL_compressed_texture_s3tc, _s3tc_srgb and EXT_texture_compression_rgtc (all 4 x 4 blocks)
+namespace {
+struct CFmt { std::uint32_t fmt; int bytes; Ext ext; };
+constexpr CFmt kCompressed[] = {
+  {0x83F0, 8, Ext::S3tc}, {0x83F1, 8, Ext::S3tc}, {0x83F2, 16, Ext::S3tc}, {0x83F3, 16, Ext::S3tc},
+  {0x8C4C, 8, Ext::S3tcSrgb}, {0x8C4D, 8, Ext::S3tcSrgb}, {0x8C4E, 16, Ext::S3tcSrgb}, {0x8C4F, 16, Ext::S3tcSrgb},
+  {0x8DBB, 8, Ext::Rgtc}, {0x8DBC, 8, Ext::Rgtc}, {0x8DBD, 16, Ext::Rgtc}, {0x8DBE, 16, Ext::Rgtc},
+};
+std::size_t blocksBytes(int w, int h, int blockBytes) { return static_cast<std::size_t>((w + 3) / 4) * static_cast<std::size_t>((h + 3) / 4) * static_cast<std::size_t>(blockBytes); }
+}  // namespace
+std::vector<std::uint32_t> WebGL1::compressedFormats() const {
+  std::vector<std::uint32_t> v;
+  for (const CFmt& f : kCompressed) if (extOn(f.ext)) v.push_back(f.fmt);
+  return v;
+}
+bool WebGL1::compressedBytes(std::uint32_t fmt, int w, int h, std::size_t& bytes) const {
+  for (const CFmt& f : kCompressed) if (f.fmt == fmt && extOn(f.ext)) { bytes = blocksBytes(w, h, f.bytes); return true; }
+  return false;
+}
+void WebGL1::compressedTexImage2D(std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int border, const void* data, std::size_t bytes, std::int64_t pbo) {
+  ++fbGen_;
+  const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
+  std::size_t want = 0;
+  if (!compressedBytes(ifmt, w < 0 ? 0 : w, h < 0 ? 0 : h, want)) return error(GL_INVALID_ENUM);   // not a format the page enabled
+  if (level < 0 || level > 30 || w < 0 || h < 0 || border != 0 || w > (maxTexSize_ >> level) || h > (maxTexSize_ >> level)) return error(GL_INVALID_VALUE);
+  const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
+  if (!id) return error(GL_INVALID_OPERATION);
+  Tex& t = textures_[id];
+  if (t.immutable) return error(GL_INVALID_OPERATION);
+  if (bytes != want) return error(GL_INVALID_VALUE);   // the data is exactly the blocks of the image
+  if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
+  else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);   // a bound unpack buffer wants an offset
+  // 4 x 4 blocks: a level is allowed when the base level it implies (the size shifted up by the level) is a multiple of 4; a WebGL 1 level above the base is also a power of two
+  if (version_ != 2 && level > 0 && (((w & (w - 1)) != 0) || ((h & (h - 1)) != 0))) return error(GL_INVALID_VALUE);
+  if (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0) return error(GL_INVALID_OPERATION);
+  glCompressedTexImage2D(target, level, ifmt, w, h, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
+  if (level == 0) { t.w = w; t.h = h; t.format = 0; t.type = 0; t.cfmt = ifmt; t.f32 = t.f16 = false; t.swz = 0; refreshSampling(id); }
+}
+void WebGL1::compressedTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int w, int h, std::uint32_t fmt, const void* data, std::size_t bytes, std::int64_t pbo) {
+  const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
+  std::size_t want = 0;
+  if (!compressedBytes(fmt, w < 0 ? 0 : w, h < 0 ? 0 : h, want)) return error(GL_INVALID_ENUM);
+  if (level < 0 || level > 30 || w < 0 || h < 0 || xoff < 0 || yoff < 0) return error(GL_INVALID_VALUE);
+  const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
+  if (!id) return error(GL_INVALID_OPERATION);
+  const Tex& t = textures_[id];
+  GLint lw = 0, lh = 0, lf = 0;
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &lw);
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &lh);
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_INTERNAL_FORMAT, &lf);
+  while (glGetError() != GL_NO_ERROR) {}
+  if (t.cfmt != fmt || lw == 0) return error(GL_INVALID_OPERATION);   // another format, or no such level
+  if (bytes != want) return error(GL_INVALID_VALUE);
+  if (xoff + w > lw || yoff + h > lh) return error(GL_INVALID_VALUE);
+  if (xoff % 4 || yoff % 4 || (w % 4 && xoff + w != lw) || (h % 4 && yoff + h != lh)) return error(GL_INVALID_OPERATION);   // whole blocks, or up to the edge of the level
+  if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
+  else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);
+  if (w == 0 || h == 0) return;
+  glCompressedTexSubImage2D(target, level, xoff, yoff, w, h, fmt, static_cast<GLsizei>(bytes), data);
+}
+
+// 2D array textures of the block formats (WebGL 2); 3D textures take none of them
+void WebGL1::compressedTexImage3D(std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, int border, const void* data, std::size_t bytes, std::int64_t pbo) {
+  ++fbGen_;
+  if (version_ != 2) return error(GL_INVALID_OPERATION);
+  if (target != GL_TEXTURE_2D_ARRAY && target != GL_TEXTURE_3D) return error(GL_INVALID_ENUM);
+  std::size_t want = 0;
+  if (!compressedBytes(ifmt, w < 0 ? 0 : w, h < 0 ? 0 : h, want)) return error(GL_INVALID_ENUM);
+  if (target == GL_TEXTURE_3D) return error(GL_INVALID_OPERATION);
+  if (level < 0 || level > 30 || w < 0 || h < 0 || d < 0 || border != 0 || w > (maxTexSize_ >> level) || h > (maxTexSize_ >> level) || d > 2048) return error(GL_INVALID_VALUE);
+  const Id id = texArr_[activeUnit_];
+  if (!id) return error(GL_INVALID_OPERATION);
+  Tex& t = textures_[id];
+  if (t.immutable) return error(GL_INVALID_OPERATION);
+  if (bytes != want * static_cast<std::size_t>(d)) return error(GL_INVALID_VALUE);
+  if (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0) return error(GL_INVALID_OPERATION);
+  if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
+  else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);
+  glCompressedTexImage3D(target, level, ifmt, w, h, d, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
+  if (level == 0) { t.w = w; t.h = h; t.d = d; t.format = 0; t.cfmt = ifmt; t.f32 = t.f16 = false; t.swz = 0; }
+}
+void WebGL1::compressedTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int w, int h, int d, std::uint32_t fmt, const void* data, std::size_t bytes, std::int64_t pbo) {
+  if (version_ != 2) return error(GL_INVALID_OPERATION);
+  if (target != GL_TEXTURE_2D_ARRAY && target != GL_TEXTURE_3D) return error(GL_INVALID_ENUM);
+  std::size_t want = 0;
+  if (!compressedBytes(fmt, w < 0 ? 0 : w, h < 0 ? 0 : h, want)) return error(GL_INVALID_ENUM);
+  if (target == GL_TEXTURE_3D) return error(GL_INVALID_OPERATION);
+  if (level < 0 || level > 30 || w < 0 || h < 0 || d < 0 || xoff < 0 || yoff < 0 || zoff < 0) return error(GL_INVALID_VALUE);
+  const Id id = texArr_[activeUnit_];
+  if (!id) return error(GL_INVALID_OPERATION);
+  GLint lw = 0, lh = 0, ld = 0;
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &lw);
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &lh);
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_DEPTH, &ld);
+  while (glGetError() != GL_NO_ERROR) {}
+  if (textures_[id].cfmt != fmt || lw == 0) return error(GL_INVALID_OPERATION);
+  if (bytes != want * static_cast<std::size_t>(d)) return error(GL_INVALID_VALUE);
+  if (xoff + w > lw || yoff + h > lh || zoff + d > ld) return error(GL_INVALID_VALUE);
+  if (xoff % 4 || yoff % 4 || (w % 4 && xoff + w != lw) || (h % 4 && yoff + h != lh)) return error(GL_INVALID_OPERATION);
+  if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
+  else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);
+  if (w == 0 || h == 0 || d == 0) return;
+  glCompressedTexSubImage3D(target, level, xoff, yoff, zoff, w, h, d, fmt, static_cast<GLsizei>(bytes), data);
 }
 
 }  // namespace zn::gl

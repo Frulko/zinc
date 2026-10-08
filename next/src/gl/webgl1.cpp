@@ -383,7 +383,17 @@ bool WebGL1::probe(const char* spec) const {
       if (tok.empty()) continue;
       if (tok == "-") ok = false;
       else if (tok == "core") {}
-      else if ((tok[0] == 'V' || tok[0] == 'E') && std::isdigit(static_cast<unsigned char>(tok[1]))) {
+      else if (tok == "try_s3tc_srgb") {   // one 4 x 4 block of COMPRESSED_SRGB_S3TC_DXT1_EXT
+        GLuint t = 0;
+        while (glGetError() != GL_NO_ERROR) {}
+        glGenTextures(1, &t);
+        glBindTexture(GL_TEXTURE_2D, t);
+        const std::uint8_t block[8] = {};
+        glCompressedTexImage2D(GL_TEXTURE_2D, 0, 0x8C4C, 4, 4, 0, 8, block);
+        ok = ok && glGetError() == GL_NO_ERROR;
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &t);
+      } else if ((tok[0] == 'V' || tok[0] == 'E') && std::isdigit(static_cast<unsigned char>(tok[1]))) {
         const int major = tok[1] - '0', minor = tok[3] - '0';
         ok = ok && gl_.info().es == (tok[0] == 'E') && (gl_.info().major > major || (gl_.info().major == major && gl_.info().minor >= minor));
       } else ok = ok && gl_.hasExtension(tok.c_str());
@@ -423,11 +433,13 @@ void WebGL1::compositeClear() {
   GLint draw = 0, read = 0;
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
-  GLboolean cm[4], dm;
+  GLboolean cm[4], dm, cmi[4][4] = {};
   GLint sm, cs;
   GLfloat cc[4], cd;
   const GLboolean sc = glIsEnabled(GL_SCISSOR_TEST);
-  glGetBooleanv(GL_COLOR_WRITEMASK, cm); glGetBooleanv(GL_DEPTH_WRITEMASK, &dm); glGetIntegerv(GL_STENCIL_WRITEMASK, &sm);
+  glGetBooleanv(GL_COLOR_WRITEMASK, cm);
+  glGetBooleanv(GL_DEPTH_WRITEMASK, &dm); glGetIntegerv(GL_STENCIL_WRITEMASK, &sm);
+  if (extOn(Ext::DrawBuffersIndexed)) for (GLuint i = 0; i < 4; ++i) glGetBooleani_v(GL_COLOR_WRITEMASK, i, cmi[i]);   // one mask per draw buffer
   glGetFloatv(GL_COLOR_CLEAR_VALUE, cc); glGetFloatv(GL_DEPTH_CLEAR_VALUE, &cd); glGetIntegerv(GL_STENCIL_CLEAR_VALUE, &cs);
   glBindFramebuffer(GL_FRAMEBUFFER, gl_.framebuffer());
   glDisable(GL_SCISSOR_TEST);
@@ -438,6 +450,7 @@ void WebGL1::compositeClear() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
   glDrawBuffers(1, &kept);
   glColorMask(cm[0], cm[1], cm[2], cm[3]); glDepthMask(dm); glStencilMask(static_cast<GLuint>(sm));
+  if (extOn(Ext::DrawBuffersIndexed)) for (GLuint i = 0; i < 4; ++i) glColorMaski(i, cmi[i][0], cmi[i][1], cmi[i][2], cmi[i][3]);
   glClearColor(cc[0], cc[1], cc[2], cc[3]); glClearDepth(cd); glClearStencil(cs);
   if (sc) glEnable(GL_SCISSOR_TEST);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(draw));
@@ -834,7 +847,9 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
   if ((version_ == 2 || extOn(Ext::DrawBuffers)) && !glIsEnabled(GL_RASTERIZER_DISCARD)) {   // every enabled draw buffer needs an output of its class, unless nothing can be written
     GLboolean cm[4] = {};
     glGetBooleanv(GL_COLOR_WRITEMASK, cm);
-    if (cm[0] || cm[1] || cm[2] || cm[3]) for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) {
+      if (extOn(Ext::DrawBuffersIndexed)) glGetBooleani_v(GL_COLOR_WRITEMASK, static_cast<GLuint>(i), cm);   // each draw buffer has its own mask
+      if (!(cm[0] || cm[1] || cm[2] || cm[3])) continue;
       if (!drawBufferOn(i)) continue;
       const char k = attachmentKind(i);
       if (k && pr.fragOut[i] != k) { error(GL_INVALID_OPERATION); return false; }
@@ -958,7 +973,7 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   Tex& t = textures_[id];
   if (level == 0) {
     t.w = width; t.h = height; t.format = format; t.type = type;
-    t.swz = f.swizzle; t.f32 = type == GL_FLOAT; t.f16 = type == kHalfFloatOes;
+    t.swz = f.swizzle; t.f32 = type == GL_FLOAT; t.f16 = type == kHalfFloatOes; t.cfmt = 0;
     refreshSampling(id);   // (the legacy formats do not exist in core: one or two channels plus a swizzle give the same sampling)
   }
 }

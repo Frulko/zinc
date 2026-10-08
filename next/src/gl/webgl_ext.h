@@ -8,11 +8,11 @@ namespace zn::gl {
 
 enum class Ext : int {
   StdDerivatives, Vao, InstancedArrays, IndexUint, TexFloat, TexFloatLinear, TexHalf, TexHalfLinear, DepthTexture, Aniso, LoseContext, DebugRenderer, BlendMinmax, FragDepth,
-  ShaderTexLod, DrawBuffers, FboRenderMipmap, Srgb, ColorBufHalf, ColorBufFloatWebgl, FloatBlend, ColorBufFloat, S3tc, DrawBuffersIndexed, Count
+  ShaderTexLod, DrawBuffers, FboRenderMipmap, Srgb, ColorBufHalf, ColorBufFloatWebgl, FloatBlend, ColorBufFloat, S3tc, DrawBuffersIndexed, S3tcSrgb, Rgtc, Count
 };
 
 /** What the driver must offer, per API, as a string: "core" (always there), "-" (never), else alternatives separated by '|', each a list of tokens separated by spaces that must all hold:
- *  "GL_xxx" an extension string, "V4.0" a desktop GL version or "E3.0" an OpenGL ES version (at least). The WebGL version bits: 1 = WebGL 1, 2 = WebGL 2. */
+ *  "GL_xxx" an extension string, "V4.0" a desktop GL version or "E3.0" an OpenGL ES version (at least), "try_xxx" a capability the driver proves by doing it (macOS offers the sRGB S3TC formats without the extension string). The WebGL version bits: 1 = WebGL 1, 2 = WebGL 2. */
 struct ExtDef {
   Ext id;
   const char* name;      // the WebGL name: getExtension("OES_vertex_array_object")
@@ -46,8 +46,10 @@ inline constexpr ExtDef kExtensions[] = {
   {Ext::ColorBufFloatWebgl, "WEBGL_color_buffer_float", 1, "core", "GL_EXT_color_buffer_float|GL_CHROMIUM_color_buffer_float_rgba", "core", nullptr},
   {Ext::FloatBlend, "EXT_float_blend", 3, "core", "GL_EXT_float_blend", "GL_EXT_float_blend", nullptr},
   {Ext::ColorBufFloat, "EXT_color_buffer_float", 2, "core", "-", "GL_EXT_color_buffer_float", nullptr},
-  {Ext::S3tc, "WEBGL_compressed_texture_s3tc", 3, "-", "-", "-", nullptr},   // "GL_EXT_texture_compression_s3tc" on all three once compressedTexImage2D exists
+  {Ext::S3tc, "WEBGL_compressed_texture_s3tc", 3, "GL_EXT_texture_compression_s3tc", "GL_EXT_texture_compression_s3tc", "GL_EXT_texture_compression_s3tc", nullptr},
   {Ext::DrawBuffersIndexed, "OES_draw_buffers_indexed", 2, "V4.0", "-", "GL_OES_draw_buffers_indexed|GL_EXT_draw_buffers_indexed", nullptr},
+  {Ext::S3tcSrgb, "WEBGL_compressed_texture_s3tc_srgb", 3, "GL_EXT_texture_sRGB GL_EXT_texture_compression_s3tc|try_s3tc_srgb", "GL_EXT_texture_compression_s3tc_srgb", "GL_EXT_texture_compression_s3tc_srgb", nullptr},
+  {Ext::Rgtc, "EXT_texture_compression_rgtc", 3, "core", "GL_EXT_texture_compression_rgtc", "GL_EXT_texture_compression_rgtc", nullptr},
 };
 inline constexpr int kExtCount = static_cast<int>(Ext::Count);
 static_assert(sizeof(kExtensions) / sizeof(kExtensions[0]) == static_cast<std::size_t>(Ext::Count), "one row per extension, in enum order");
