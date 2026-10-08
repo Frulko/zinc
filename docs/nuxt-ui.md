@@ -38,16 +38,16 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 
 | Nuxt UI | Variants and sizes | Task | Notes |
 |---|---|---|---|
-| Button | solid, outline, soft, subtle, ghost, link; xs..xl; color alias or neutral | ZN-357.02 | link mode (router `to`) becomes `onPress`; `loadingAuto` awaits the handler's promise |
-| Badge | solid, outline, soft, subtle; xs..xl | ZN-357.02 | |
-| Avatar | 3xs..3xl; image, text (initials), icon; chip | ZN-357.02 | AvatarGroup with the overlap |
-| Card | outline, soft, subtle, solid; header, body, footer | ZN-357.02 | |
-| Input | outline, soft, subtle, ghost, none; xs..xl; leading / trailing icon | ZN-357.02 | 16 px text below 768 px (Nuxt UI's responsive size) |
-| Textarea | as Input; `rows`, `autoresize`, `maxrows` | ZN-357.02 | autoresize from the field's line count |
-| Select | as Input; items, placeholder | ZN-357.02 (field), ZN-357.03 (popup) | the popup on zinc:ui's anchored floats (flip and margin); typeahead |
-| Checkbox | xs..xl; indeterminate; label, description | ZN-357.02 | |
-| Switch | xs..xl (md 36 x 20, thumb 16); loading | ZN-357.02 | thumb animation 200 ms |
-| RadioGroup | list, card, table variants; xs..xl; orientation | ZN-357.02 | arrow keys move the choice |
+| Button (done) | solid, outline, soft, subtle, ghost, link; xs..xl; color alias or neutral | ZN-357.02 | link mode (router `to`) becomes `onPress`; `loadingAuto` awaits the handler's promise |
+| Badge (done) | solid, outline, soft, subtle; xs..xl | ZN-357.02 | |
+| Avatar (done) | 3xs..3xl; image, text (initials), icon; chip | ZN-357.02 | AvatarGroup with the overlap |
+| Card (done) | outline, soft, subtle, solid; header, body, footer | ZN-357.02 | |
+| Input (done) | outline, soft, subtle, ghost, none; xs..xl; leading / trailing icon | ZN-357.02 | 16 px text below 768 px (Nuxt UI's responsive size) |
+| Textarea (done) | as Input; `rows`, `autoresize`, `maxrows` | ZN-357.02 | autoresize from the field's line count |
+| Select (trigger and list done) | as Input; items, placeholder | ZN-357.02 (field), ZN-357.03 (popup) | the popup on zinc:ui's anchored floats (flip and margin); typeahead |
+| Checkbox (done) | xs..xl; indeterminate; label, description | ZN-357.02 | |
+| Switch (done) | xs..xl (md 36 x 20, thumb 16); loading | ZN-357.02 | thumb animation 200 ms |
+| RadioGroup (done) | list, card, table variants; xs..xl; orientation | ZN-357.02 | arrow keys move the choice |
 | Tabs | pill, link; xs..xl; horizontal / vertical | ZN-357.04 | the indicator measured from the trigger boxes (screenBox) |
 | Accordion | single / multiple, collapsible | ZN-357.04 | height animation to the content's measured height |
 | Modal | fullscreen, dismissible, overlay | ZN-357.03 | zinc:ui layers for the portal; focus kept inside; Escape and outside click |
@@ -61,7 +61,9 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 | NavigationMenu | horizontal, vertical, collapsed; highlight | ZN-357.04 | the horizontal viewport animation is simplified to a popover |
 | Dashboard layout | DashboardGroup, DashboardSidebar (collapsible, resizable), DashboardPanel, DashboardNavbar, toolbar | ZN-357.04 | sizes kept per app (zinc:ui storage); below 1024 px the sidebar is a Slideover |
 
-The gallery of every component and the dashboard app are `examples/nuxt-ui` (ZN-357.05).
+The gallery of every component and the dashboard app are `examples/nuxt-ui` (ZN-357.05); the components marked done are in its gallery now.
+Nuxt's inset ring is a 1 px border (borders take no layout space in zinc:ui, so the boxes keep Nuxt's sizes); the kit has its own JSX helpers
+(`lib/std/nuxt/host.ts`: zinc:ui/kit's, with roles and labels).
 
 ## What does not map, and the tasks
 

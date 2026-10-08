@@ -729,7 +729,7 @@ struct Lowering {
     bool upper = std::isupper(static_cast<unsigned char>(tag[0]));
     if (upper) {
       auto it = imported.find(tag);
-      bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0) ||
+      bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||   // the kits' Button, Input... are components
                         (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
       if (!(kTags.count(tag) && hostImport)) return component(e, out);
     }
