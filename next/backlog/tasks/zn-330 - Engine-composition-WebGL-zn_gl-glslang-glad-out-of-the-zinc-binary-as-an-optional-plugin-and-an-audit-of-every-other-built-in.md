@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:21'
+updated_date: '2026-10-08 14:22'
 labels:
   - architecture
   - webgl
@@ -25,3 +26,9 @@ Owner, 2026-10-08: glslang must not be in the engine; everything optional, the e
 - [ ] #2 a WebGL program (tests/t1/webgl_js, three, webgl_gizmo) loads WebGL as a plugin and passes as before; the conformance pass list holds
 - [ ] #3 docs/reports/zinc-next-decisions.md: a decision record listing each built-in with its verdict (core, optional build flag, plugin) and the size and build time saved
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner, 2026-10-08, same principle for SDL3: a program without UI must not carry it. Today SDL3 (vendored, static) comes with the graphics host zn_host_gfx (option ZN_HOST_GFX, ON by default), all or nothing: the window, the headless HAL and zinc:gfx together. Target: SDL3 is the window/input display backend, loaded as a plugin like the other display-* drivers; zinc:gfx and the headless HAL stay without it. Also check that the AOT output (zinc build) links SDL3 only when the program opens a window.
+<!-- SECTION:NOTES:END -->
