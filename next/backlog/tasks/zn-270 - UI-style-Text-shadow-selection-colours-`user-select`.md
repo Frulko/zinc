@@ -4,7 +4,7 @@ title: 'UI style: Text shadow, selection colours, `user-select`'
 status: Review
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 08:39'
+updated_date: '2026-10-08 08:45'
 labels:
   - ui
   - style
@@ -26,11 +26,11 @@ From docs/reports/ui-style-system.md (section 6, ST-21). The audit and the desig
 <!-- AC:BEGIN -->
 - [x] #1 Offset shadow golden (two runs).
 - [x] #2 `selection:bg-*` colours the field selection and a selectable static text (pointer test).
-- [ ] #3 T0 budget guard drops the shadow below 32 free commands.
+- [x] #3 T0 budget guard drops the shadow below 32 free commands.
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. Static text selection done: select-text / select-none tokens, a drag over a selectable Text selects by character (highlight selection:bg-* or the blue default), Cmd/Ctrl+C copies the selected text (lines of a wrapped paragraph joined by a space), a press elsewhere or a text change clears it; tests/golden/ui-select (pointer + clipboard) and the screenshot checked. Still open: AC3 (a free-command API for the shadow budget guard); select-all on click, double-click word selection.
++ AC3: command counts are asserted (tests/golden/ui-cmds, t1 ui_cmds) through the new zinc:gfx commandCount()/commandsFree() and ui.lastFrameCommands(): a ring is one border, an outline one more, underline and line-through one rrect each, a text shadow one more text run, and below 32 free commands the shadow is dropped.
 <!-- SECTION:NOTES:END -->

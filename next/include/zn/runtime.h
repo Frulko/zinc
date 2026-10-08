@@ -210,7 +210,8 @@
   X(HostOsUid, "host.osUid", ">i", 2) X(HostOsGid, "host.osGid", ">i", 2) X(HostOsShell, "host.osShell", ">s", 2) X(HostOsCpuModel, "host.osCpuModel", ">s", 2) \
   X(HostOsNetList, "host.osNetList", ">i", 2) X(HostOsNetField, "host.osNetField", "ii>s", 2) \
   X(HostSysAllocations, "host.sysAllocations", ">d", 2) X(HostSysLiveBlocks, "host.sysLiveBlocks", ">d", 2) /* the runtime allocator's counters (ZN-192) */ \
-  X(HostEvReady, "host.evReady", ">b", 2)
+  X(HostEvReady, "host.evReady", ">b", 2) \
+  X(HostGfxCommands, "host.gfxCommands", ">i", 2) X(HostGfxCommandsFree, "host.gfxCommandsFree", ">i", 2)
 
 namespace zn {
 
@@ -235,7 +236,7 @@ inline constexpr RtInfo kRtInfo[] = {
 };
 
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
-inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || r >= Rt::HostLoopWait; }
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }

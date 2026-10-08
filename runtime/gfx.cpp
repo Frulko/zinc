@@ -415,6 +415,15 @@ static void end() {
 }
 }  // namespace prof
 bool profiling() { return prof::active(); }
+// Draw commands recorded so far in this frame, and how many more the buffer takes (a frame that is out of them drops the rest): zinc:gfx commandCount / commandsFree (ZN-192, ZN-258)
+int32_t commandCount() { return (int32_t)bufs[cur].ncmd; }
+int32_t commandsFree() {
+#ifdef ZRT_GROW_DRAW_CMDS
+  return (int32_t)(bufs[cur].capacity - bufs[cur].ncmd);
+#else
+  return (int32_t)(ZRT_MAX_DRAW_CMDS - bufs[cur].ncmd);
+#endif
+}
 void profMark(int32_t phase) { if (prof::active() && phase >= 0 && phase < prof::N) prof::mark(phase); }
 /** plugins/devtools Tracing.start (true: returns '') / Tracing.end (false: returns the trace events). */
 String trace(bool on) {

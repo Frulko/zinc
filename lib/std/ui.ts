@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage,
+  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -2085,7 +2085,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
           if (b0 > a0) { const x0 = textWidth(f, n.lines[i].slice(0, a0 - ls), trackPx(n)), x1 = textWidth(f, n.lines[i].slice(0, b0 - ls), trackPx(n)); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
         }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
-        if (n.tsAlpha > 0) drawLine(n, f, tx + n.tsX * kk, ty + n.tsY * kk, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, kk);
+        if (n.tsAlpha > 0 && commandsFree() > 32) drawLine(n, f, tx + n.tsX * kk, ty + n.tsY * kk, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, kk);
         drawLine(n, f, tx, ty, n.lines[i], fg, tai, jx, kk);
         if (n.deco !== 0) {
           const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
@@ -3387,6 +3387,7 @@ export function frame(dt: number, background: i32): void {
   if (background >= 0) clear(background);
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
+  lastCommands = commandCount();
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
     boxOf(highlight);  // on the surface: through scroll offsets, transforms and layers
@@ -3458,6 +3459,9 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
   out.push(`${'  '.repeat(depth)}${TAG_NAMES[n.tag]} ${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}${n.tag === TEXT ? ' "' + n.lines.join('|') + '"' : ''}${n.ed !== null ? ' "' + (n.ed as Edit).value.replaceAll('\n', '\\n') + '"' : ''}`);
   for (const c of n.children) dumpNode(c, depth + 1, out);
 }
+/** Draw commands the last painted frame recorded (tests assert what a style costs: a ring is one border). */
+let lastCommands: i32 = 0;
+export function lastFrameCommands(): i32 { return lastCommands; }
 export function setRoot(h: i32): void {
   root = h;
   layoutDirty = true;

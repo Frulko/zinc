@@ -1,0 +1,7 @@
+base 0
+ring-2 ring-indigo-500 1
+ring-2 ring-indigo-500 outline-2 outline-red-500 2
+underline 1
+underline line-through 2
+text-shadow-md 1
+below 32 free commands the shadow is dropped true

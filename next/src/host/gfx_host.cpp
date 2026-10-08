@@ -166,6 +166,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxSetCursor: g::setCursor(n(0)); break;
     case Rt::HostGfxEscapeDefault: g::escapeDefault(); break;
     case Rt::HostGfxProfiling: r->i = g::profiling() ? 1 : 0; break;
+    case Rt::HostGfxCommands: r->i = g::commandCount(); break;
+    case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: g::profMark(n(0)); break;
     case Rt::HostGfxFinish:
       zrt::finish_run();

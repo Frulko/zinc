@@ -157,6 +157,8 @@ export function scrollPhase(): i32 { return __host_gfxScrollPhase(); }
 export function escapeByApp(on: boolean): void { __host_gfxEscapeByApp(on); }
 export function escapeDefault(): void { __host_gfxEscapeDefault(); }
 export function profiling(): boolean { return __host_gfxProfiling(); }
+export function commandCount(): i32 { return __host_gfxCommands(); }
+export function commandsFree(): i32 { return __host_gfxCommandsFree(); }
 export function profMark(phase: i32): void { __host_gfxProfMark(phase); }
 export function quit(): void { __host_gfxQuit(); }
 export function capture(path: string): boolean { return __host_gfxCapture(path); }

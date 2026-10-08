@@ -4,7 +4,7 @@ title: 'UI style: Outline, ring, `focus-visible`, customisable focus ring'
 status: Review
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 06:28'
+updated_date: '2026-10-08 08:45'
 labels:
   - ui
   - style
@@ -26,11 +26,11 @@ From docs/reports/ui-style-system.md (section 6, ST-09). The audit and the desig
 <!-- AC:BEGIN -->
 - [x] #1 Default focus ring frame unchanged (hero golden).
 - [x] #2 `ring-2 ring-indigo-500 ring-offset-2` golden; `focus-visible:` shows after keyboard, not after a mouse press (pointer-type test from ZN-228).
-- [ ] #3 Ring is one `border()` command (command-count assertion).
+- [x] #3 Ring is one `border()` command (command-count assertion).
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. ring-N/ring-colour/ring-offset-N, outline-N/none/colour/offset, focus:/focus-visible: variants; keyboardFocus flag (Tab/keyDown set it, a press clears it); default yellow ring unchanged (canary 4/4). AC3 (command-count assertion) left open: no command counter exposed to scripts; code draws each ring with one border(). Gaps: ring offset colour is not painted, ring-inset.
++ AC3: command counts are asserted (tests/golden/ui-cmds, t1 ui_cmds) through the new zinc:gfx commandCount()/commandsFree() and ui.lastFrameCommands(): a ring is one border, an outline one more, underline and line-through one rrect each, a text shadow one more text run, and below 32 free commands the shadow is dropped.
 <!-- SECTION:NOTES:END -->

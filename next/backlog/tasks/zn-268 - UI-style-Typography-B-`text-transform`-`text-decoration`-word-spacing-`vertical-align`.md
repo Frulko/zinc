@@ -6,7 +6,7 @@ title: >-
 status: Review
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 07:01'
+updated_date: '2026-10-08 08:45'
 labels:
   - ui
   - style
@@ -26,12 +26,12 @@ From docs/reports/ui-style-system.md (section 6, ST-19). The audit and the desig
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Goldens for underline, line-through, uppercase, word spacing.
-- [ ] #2 Decoration is `rrect` commands only (command-count test).
+- [x] #2 Decoration is `rrect` commands only (command-count test).
 - [ ] #3 Non-Latin-1 uppercase works on desktop profiles via ZN-165 tables, ignored with a log line on esp32.
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. uppercase/lowercase/capitalize/normal-case, underline/line-through/overline/no-underline, word-N/word-[Npx] spacing (measured and drawn per word), align-super/sub; the bake adds the other case of non-ASCII letters when a case class is used. Golden: ui-style/text-deco; token rows; canary 4/4. Open: AC2 command-count assertion (no counter; decoration is rrect calls only), AC3 esp32 log line (no profile hook in ui.ts), style-object keys, true inline vertical-align.
++ AC2: command counts are asserted (tests/golden/ui-cmds, t1 ui_cmds) through the new zinc:gfx commandCount()/commandsFree() and ui.lastFrameCommands(): a ring is one border, an outline one more, underline and line-through one rrect each, a text shadow one more text run, and below 32 free commands the shadow is dropped.
 <!-- SECTION:NOTES:END -->
