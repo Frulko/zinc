@@ -16,6 +16,7 @@ const toks = [
   'italic', 'not-italic', 'font-thin', 'font-light', 'font-medium', 'font-black', 'font-[Inter,Roboto-Mono]', 'font-heavy',
   'uppercase', 'lowercase', 'capitalize', 'normal-case', 'underline', 'line-through', 'overline', 'no-underline', 'align-super', 'align-sub', 'align-baseline', 'word-4', 'word-[3px]', '-word-1', 'word-x', 'word-', 'align-top',
   'whitespace-nowrap', 'whitespace-pre', 'whitespace-pre-wrap', 'whitespace-normal', 'whitespace-foo', 'break-words', 'break-all', 'break-normal', 'truncate', 'text-ellipsis', 'text-clip', 'line-clamp-3', 'line-clamp-none', 'line-clamp-0', 'line-clamp-x', 'text-balance', 'text-justify', 'text-wrap', 'text-nowrap',
+  'text-shadow', 'text-shadow-sm', 'text-shadow-md', 'text-shadow-lg', 'text-shadow-none', 'text-shadow-red-500', 'text-shadow-x', 'selection:bg-red-500', 'selection:text-white', 'selection:border-red-500',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

@@ -178,7 +178,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
+  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
    tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -787,6 +787,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const rest = tok.slice(BREAKPOINTS[i].length);
     return width() >= BREAKPOINT_PX[i] ? applyToken(n, rest, variant) : applyToken(new UiNode(n.tag), rest, variant);
   }
+  if (tok.startsWith('selection:')) return applyToken(n, tok.slice(10), 'selection');
   if (tok.startsWith('focus-within:')) return applyToken(n, tok.slice(13), 'within');
   if (tok.startsWith('focus-visible:')) return ringToken(n, tok.slice(14), 2);
   if (tok.startsWith('focus:') && ringToken(n, tok.slice(6), 1)) return true;
@@ -801,6 +802,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (c === -2) return false;
     if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
     else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
+    else if (variant === 'selection') { if (isBg) n.selBg = c; else return false; }
     else if (variant === 'within') { if (isBg) n.withinBg = c; else if (isBorder) n.withinBorder = c; else n.withinFg = c; }
     else { if (isBg) n.activeBg = c; else if (isBorder) return false; else n.activeFg = c; }
     return true;
@@ -917,6 +919,17 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   const fw = FONT_WEIGHT_TOKENS.indexOf(tok);
   if (fw >= 0) { n.weight = (fw + 1) * 100; n.bold = fw >= 5; return true; }
   if (tok === 'italic') { n.italic = true; return true; }
+  if (tok === 'text-shadow-none') { n.tsAlpha = 0; return true; }
+  if (tok === 'text-shadow-sm') { n.tsX = 0; n.tsY = 1; n.tsAlpha = 115; return true; }
+  if (tok === 'text-shadow') { n.tsX = 1; n.tsY = 1; n.tsAlpha = 110; return true; }
+  if (tok === 'text-shadow-md') { n.tsX = 1; n.tsY = 2; n.tsAlpha = 110; return true; }
+  if (tok === 'text-shadow-lg') { n.tsX = 2; n.tsY = 4; n.tsAlpha = 100; return true; }
+  if (tok.startsWith('text-shadow-')) {   // text-shadow-red-500: the colour (a shadow is set when none is yet)
+    const c = colorOf(tok.slice(12));
+    if (c === -2) return false;
+    n.tsColor = c; if (n.tsAlpha === 0) { n.tsX = 1; n.tsY = 1; n.tsAlpha = 110; }
+    return true;
+  }
   if (tok === 'whitespace-normal' || tok === 'text-wrap') { n.ws = 0; return true; }
   if (tok === 'whitespace-nowrap' || tok === 'text-nowrap') { n.ws = 1; return true; }
   if (tok === 'whitespace-pre') { n.ws = 2; return true; }
@@ -1130,7 +1143,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -1229,7 +1242,7 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
@@ -1342,6 +1355,13 @@ function wrapText(n: UiNode, maxW: number): void {
     }
   }
   for (const l of lines) { n.lines.push(l); n.lineW.push(lineWidth(n, f, l, tr)); }
+}
+/** One text line, with word spacing and justification (the free width of the line goes to the spaces). */
+function drawLine(n: UiNode, f: i32, tx: number, ty: number, line: string, fg: i32, alpha: i32, jx: number, kk: number): void {
+  if (n.wordSp === 0 && jx === 0) { drawText(f, tx, ty, line, fg, alpha, trackPx(n)); return; }
+  let cx = tx;
+  const sp = textWidth(f, ' ', trackPx(n)) + (n.wordSp + jx) * kk;
+  for (const word of line.split(' ')) { if (word.length > 0) drawText(f, cx, ty, word, fg, alpha, trackPx(n)); cx += textWidth(f, word, trackPx(n)) + sp; }
 }
 /** The size a node ends with: its width and height inside min/max, and aspect-ratio filling the side that is not set. */
 let csW: number = 0, csH: number = 0;
@@ -1755,12 +1775,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
         const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
-        if (n.wordSp === 0 && jx === 0) drawText(f, tx, ty, n.lines[i], fg, tai, trackPx(n));
-        else {
-          let cx = tx;
-          const sp = textWidth(f, ' ', trackPx(n)) + (n.wordSp + jx) * kk;
-          for (const word of n.lines[i].split(' ')) { if (word.length > 0) drawText(f, cx, ty, word, fg, tai, trackPx(n)); cx += textWidth(f, word, trackPx(n)) + sp; }
-        }
+        if (n.tsAlpha > 0) drawLine(n, f, tx + n.tsX * kk, ty + n.tsY * kk, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, kk);
+        drawLine(n, f, tx, ty, n.lines[i], fg, tai, jx, kk);
         if (n.deco !== 0) {
           const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
           if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
@@ -1993,7 +2009,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   }
   clip(x + cl * k, y + n.pt * k, cw * k, ch * k);
   const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
-  const selColor = editColor(e, 3, focused ? SEL_FOCUSED : SEL_BLURRED), selAlpha: i32 = focused ? 110 : 70;
+  const selColor = n.selBg >= 0 ? n.selBg : editColor(e, 3, focused ? SEL_FOCUSED : SEL_BLURRED), selAlpha: i32 = focused ? 110 : 70;
   const guide = editColor(e, 5, -1), indentW = guide >= 0 ? textWidth(n.fontId, '  ', 0) : 0;
   for (let r = first; r <= last; r++) {
     const a = e.rs[r], b = e.re[r];
