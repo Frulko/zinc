@@ -60,7 +60,7 @@ bool validClass(const std::string& c) {
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\d+/\d+|px))";
-  static const std::string color = R"(([a-z]+-\d+|white|black|transparent|\[#[0-9a-fA-F]{3,8}\])(/\d+)?)";
+  static const std::string color = R"(([a-z]+-\d+|white|black|transparent|current|\[#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]|\[(rgb|rgba|hsl|hsla)\([0-9., %]+\)\])(/\d+)?)";
   static const std::vector<std::regex> rules = {
       std::regex(R"(^font-\[[A-Za-z0-9_.-]+\]$)"),
       std::regex(R"(^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$)"),
@@ -81,7 +81,7 @@ bool validClass(const std::string& c) {
   for (const std::regex& r : rules) if (std::regex_match(c, r)) return true;
   if (std::regex_match(c, m, colored)) {
     std::string col = m[2].str();
-    if (col[0] == '[' || col == "white" || col == "black" || col == "transparent") return true;
+    if (col[0] == '[' || col == "white" || col == "black" || col == "transparent" || col == "current") return true;
     std::size_t dash = col.find('-');
     if (dash == std::string::npos || !families.count(col.substr(0, dash))) return false;
     std::string shade = col.substr(dash + 1);

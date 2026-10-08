@@ -166,7 +166,7 @@ export class UiNode {
   bg: i32 = -1; bgAlpha: i32 = 255;
   grad: i32 = 0; gradFrom: i32 = -1; gradTo: i32 = -1;   // 1 to-b, 2 to-r, 3 to-t, 4 to-l
   radius: number = 0;
-  borderW: number = 0; borderColor: i32 = 0xe5e7eb;
+  borderW: number = 0; borderColor: i32 = 0xe5e7eb; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
   bT: number = -1; bR: number = -1; bB: number = -1; bL: number = -1;  // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
   opacity: number = 1;
@@ -658,17 +658,72 @@ function arbitrary(v: string): number {
 function borderPx(s: string): number { return s.startsWith('[') ? num(s) : num(s) / 4; }
 /** A Tailwind colour name ('indigo-500', 'white', '[#ff8800]') as 0xRRGGBB, or -1 if unknown (canvas drawing in theme colours). */
 export function tailwindColor(name: string): i32 { const c = colorOf(name); return c < 0 ? -1 : c; }
+/** CSS colours inside [...]: #rgb #rrggbb #rrggbbaa, rgb(r,g,b), rgba(r,g,b,a), hsl(h,s%,l%), hsla(h,s%,l%,a). Integer arithmetic only (no 24-bit value ever sits in a `number`, which overflows on fixed-point profiles). */
+let cssAlpha: i32 = 255;
+function hslToRgb(h0: i32, s: i32, l: i32): i32 {
+  const h: i32 = ((h0 % 360) + 360) % 360;
+  const c: i32 = Math.floor((100 - Math.abs(2 * l - 100)) * s / 100);   // chroma, 0..100
+  const t: i32 = h % 120;
+  const x: i32 = Math.floor(c * (60 - Math.abs(t - 60)) / 60);
+  const m: i32 = l - Math.floor(c / 2);
+  let r: i32 = 0, g: i32 = 0, b: i32 = 0;
+  const sector: i32 = Math.floor(h / 60);
+  if (sector === 0) { r = c; g = x; } else if (sector === 1) { r = x; g = c; } else if (sector === 2) { g = c; b = x; }
+  else if (sector === 3) { g = x; b = c; } else if (sector === 4) { r = x; b = c; } else { r = c; b = x; }
+  const R: i32 = Math.round((r + m) * 255 / 100), G: i32 = Math.round((g + m) * 255 / 100), B: i32 = Math.round((b + m) * 255 / 100);
+  return (R << 16) | (G << 8) | B;
+}
+function cssParts(inner: string): string[] { return inner.replaceAll(' ', '').replaceAll('%', '').split(','); }
+function byteOf(v: string): i32 { const x: i32 = Math.round(parseFloat(v)); return x < 0 ? 0 : x > 255 ? 255 : x; }
+function alphaPart(v: string): i32 { const a = parseFloat(v); return a !== a ? 255 : Math.round(a <= 1 ? a * 255 : a * 2.55); }
+/** -2 when `v` (the inside of the brackets) is not a CSS colour; sets cssAlpha. */
+function cssColor(v: string): i32 {
+  cssAlpha = 255;
+  if (v.startsWith('#')) {
+    let hex = v.slice(1);
+    if (hex.length === 3 || hex.length === 4) { let e = ''; for (let i = 0; i < hex.length; i++) e += hex.charAt(i) + hex.charAt(i); hex = e; }   // #f80 is #ff8800, #f808 is #ff880088
+    if (hex.length !== 6 && hex.length !== 8) return -2;
+    const c = parseHex(hex.slice(0, 6));
+    if (c < 0) return -2;
+    if (hex.length === 8) { const al = parseHex(hex.slice(6)); if (al < 0) return -2; cssAlpha = al; }
+    return c;
+  }
+  const open = v.indexOf('('), close = v.lastIndexOf(')');
+  if (open < 0 || close !== v.length - 1) return -2;
+  const fn = v.slice(0, open), p = cssParts(v.slice(open + 1, close));
+  if (fn === 'rgb' || fn === 'rgba') {
+    if (p.length < 3) return -2;
+    if (p.length > 3) cssAlpha = alphaPart(p[3]);
+    return (byteOf(p[0]) << 16) | (byteOf(p[1]) << 8) | byteOf(p[2]);
+  }
+  if (fn === 'hsl' || fn === 'hsla') {
+    if (p.length < 3) return -2;
+    if (p.length > 3) cssAlpha = alphaPart(p[3]);
+    const s: i32 = Math.round(parseFloat(p[1])), l: i32 = Math.round(parseFloat(p[2]));
+    return hslToRgb(Math.round(parseFloat(p[0])), s < 0 ? 0 : s > 100 ? 100 : s, l < 0 ? 0 : l > 100 ? 100 : l);
+  }
+  return -2;
+}
 function colorOf(s: string): i32 {
   initColors();
-  const slash = s.indexOf('/');
-  const base = slash > 0 ? s.slice(0, slash) : s;
-  if (base.startsWith('[#')) { const v = parseHex(base.slice(2, base.length - 1)); return v < 0 ? -2 : v; }
+  const slash = s.lastIndexOf('/');
+  const base = slash > 0 && !s.startsWith('[') ? s.slice(0, slash) : slash > 0 && s.charAt(slash - 1) === ']' ? s.slice(0, slash) : s;
+  if (base.startsWith('[')) return cssColor(base.slice(1, base.length - 1));
   if (base === 'transparent') return -1;
+  if (base === 'current') return -3;
   return COLORS.get(base) ?? -2;
 }
+/** 0..100 percent to 0..255 with integers only (the same on every number profile). 50 and 90 give one less than the exact rounding: what Math.round(p * 2.55) always gave on f64, kept so every frame stays identical. */
+function percentAlpha(p: i32): i32 {
+  const a: i32 = Math.floor((p * 255 + 50) / 100);
+  return p === 50 || p === 90 ? a - 1 : a;
+}
+/** The alpha of a colour token: `/50` (percent), or the alpha of a #rrggbbaa / rgba() / hsla() value. */
 function alphaOf(s: string): i32 {
-  const slash = s.indexOf('/');
-  return slash > 0 ? Math.round(parseFloat(s.slice(slash + 1)) * 2.55) : 255;
+  const slash = s.lastIndexOf('/');
+  if (slash > 0 && (!s.startsWith('[') || s.charAt(slash - 1) === ']')) return percentAlpha(Math.round(parseFloat(s.slice(slash + 1))));
+  if (s.startsWith('[')) { cssColor(s.slice(1, s.length - 1)); return cssAlpha; }
+  return 255;
 }
 const TEXT_PX: string[] = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl'];
 const TEXT_SIZE: i32[] = [12, 14, 16, 18, 20, 24, 30, 36, 48, 60];
@@ -797,7 +852,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('border-')) {
     const k = tok.slice(7);
     const c = colorOf(k);
-    if (c !== -2) { n.borderColor = c; if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1; return true; }  // -1: 1px unless a side is set
+    if (c !== -2) { n.borderColor = c; n.borderAlpha = alphaOf(k); if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1; return true; }  // -1: 1px unless a side is set
     n.borderW = borderPx(k);
     return true;
   }
@@ -806,10 +861,10 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const k = tok.slice(5);
     const i = TEXT_PX.indexOf(k);
     if (i >= 0) { n.size = TEXT_SIZE[i]; n.leading = TEXT_LEAD[i]; return true; }
-    if (k.startsWith('[') && !k.startsWith('[#')) { n.size = Math.round(num(k)); n.leading = 0; return true; }
+    if (k.startsWith('[') && !k.startsWith('[#') && !k.startsWith('[rgb') && !k.startsWith('[hsl')) { n.size = Math.round(num(k)); n.leading = 0; return true; }
     const c = colorOf(k);
     if (c === -2) return false;
-    n.fg = c;
+    if (c !== -3) { n.fg = c; n.fgAlpha = alphaOf(k); }   // text-current: the colour it already has
     return true;
   }
   if (tok.startsWith('leading-')) { n.leading = Math.round(num(tok.slice(8))); return true; }
@@ -868,7 +923,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.borderColor = fresh.borderColor;
+  n.tx = 0; n.ty = 0; n.k = 1; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
@@ -952,6 +1007,11 @@ function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
   }
 }
 /** Text color: the node's own, else the nearest ancestor's (any element), like CSS `color`. */
+export function textFgAlpha(h: i32): i32 {
+  let q = h;
+  while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
+  return q >= 0 ? nodes[q].fgAlpha : 255;
+}
 export function textFg(h: i32): i32 {
   let q = h;
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
@@ -1265,16 +1325,18 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       if (bg >= 0) rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a));
     }
     const focused = h === focus;
-    const bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.withinBorder : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
+    let bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.withinBorder : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
+    const bai: i32 = n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);
+    if (bc === -3) bc = textFg(h);   // border-current
     if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
       // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
       const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
-      if (t > 0) rrect(x, y, w, t, 0, bc, ai);
-      if (b > 0) rrect(x, y + hh - b, w, b, 0, bc, ai);
-      if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, ai);
-      if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, ai);
-    } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, ai);
+      if (t > 0) rrect(x, y, w, t, 0, bc, bai);
+      if (b > 0) rrect(x, y + hh - b, w, b, 0, bc, bai);
+      if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, bai);
+      if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, bai);
+    } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, bai);
     if (focused && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
     if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
     if (n.tag === TEXT && n.text.length > 0) {
@@ -1288,10 +1350,12 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       else if (p >= 0 && nodes[p].hovered && nodes[p].hoverFg >= 0) fg = nodes[p].hoverFg;
       const top = Math.round((lh - n.size * 1.21) / 2);
       const f = fontAtScale(n, kk);
+      const fa = textFgAlpha(h);
+      const tai: i32 = fa === 255 ? ai : Math.round(ai * fa / 255);
       for (let i = 0; i < n.lines.length; i++) {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
-        drawText(f, x + (n.pl + off) * kk, y + (n.pt + i * lh + top) * kk, n.lines[i], fg, ai, trackPx(n));
+        drawText(f, x + (n.pl + off) * kk, y + (n.pt + i * lh + top) * kk, n.lines[i], fg, tai, trackPx(n));
       }
     }
     if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);

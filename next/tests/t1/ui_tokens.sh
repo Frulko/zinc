@@ -12,4 +12,7 @@ for t in $(awk '$2 == "false" && $1 !~ /:/ {print $1}' tests/golden/ui-tokens/ma
   printf "import { render } from 'zinc:ui/react';\nfunction S(): i32 { return <View class=\"%s\" />; }\nrender(S, 0xffffff, null);\n" "$t" > "$tmp/r.tsx"
   "$ZINC" check "$tmp/r.tsx" 2>&1 | grep -q "unknown class" || { echo "the JSX check accepts '$t', the runtime refuses it"; fail=1; }
 done
+# colour tokens (ZN-259): the same 35 strings, the same values on the f32 build and on the fixed-point profile of the PS1 (no 24-bit colour in a `number`)
+ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=320x240 "$ZINC" run tests/golden/ui-colors/main.tsx 2>&1 | diff -q - tests/golden/ui-colors/main.out >/dev/null || { echo "colour tokens differ from tests/golden/ui-colors/main.out"; fail=1; }
+ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=320x240 "$ZINC" run --profile ps1 tests/golden/ui-colors/main.tsx 2>&1 | diff -q - tests/golden/ui-colors/main.out >/dev/null || { echo "colour tokens differ under --profile ps1"; fail=1; }
 exit $fail
