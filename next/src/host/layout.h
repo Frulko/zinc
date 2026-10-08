@@ -4,6 +4,11 @@
 #pragma once
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "host/text_wrap.h"
 
 namespace zn::host {
 
@@ -23,9 +28,6 @@ enum class LayoutProp : std::int32_t {
   GapX, GapY, Contents,
 };
 
-/** What sizes a leaf: its text (measured natively from the text and font ids, no call back into the program), its image, or the default of a text field. */
-enum class MeasureKind : std::int32_t { None, Text, Image, Field };
-
 /** A node's box after `calculate`, relative to its parent and already rounded to pixels. */
 struct LayoutBox { float x = 0, y = 0, w = 0, h = 0; };
 
@@ -38,14 +40,23 @@ class Layout {
   virtual void setStyle(std::int32_t node, LayoutProp prop, float value) = 0;
   virtual void insert(std::int32_t parent, std::int32_t child, std::int32_t index) = 0;
   virtual void remove(std::int32_t parent, std::int32_t child) = 0;
-  virtual void setMeasure(std::int32_t node, MeasureKind kind, std::int32_t textId, std::int32_t fontId, std::int32_t sizeX64, float tracking) = 0;
+  // What sizes a leaf, measured natively (no call back into the program): its text (already transformed), the intrinsic size of its image, or a text field
+  // (200 px wide unless full width, `rows` lines high). clearMeasure: a plain box again.
+  virtual void setText(std::int32_t node, std::string_view text, const WrapStyle& style, float lineHeight) = 0;
+  virtual void setImage(std::int32_t node, float width, float height) = 0;
+  virtual void setField(std::int32_t node, std::int32_t rows, float lineHeight, bool fullWidth) = 0;
+  virtual void clearMeasure(std::int32_t node) = 0;
   /** A property or the text of the node changed; the engine invalidates it and its ancestors. */
   virtual void markDirty(std::int32_t node) = 0;
   virtual void calculate(std::int32_t root, float width, float height) = 0;
   virtual LayoutBox box(std::int32_t node) const = 0;
+  /** The lines of a text node after `calculate`, wrapped at its final width, and their widths; null for other nodes. */
+  virtual const std::vector<std::string>* lines(std::int32_t node) const = 0;
+  virtual const std::vector<double>* lineWidths(std::int32_t node) const = 0;
 };
 
-/** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch), React Native's own otherwise. */
-std::unique_ptr<Layout> makeYogaLayout(bool webDefaults = true);
+/** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine, measuring text with `metric`. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch),
+ *  React Native's own otherwise. */
+std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults = true);
 
 }  // namespace zn::host

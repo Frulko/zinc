@@ -3,7 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style", "ui_font", "ui_textlayout", "ui_alloc_text", "ui_alloc_layout", "ui_sides", "ui_media", "ui_docs", "ui_virtual", "ui_theme", "ui_state", "ui_a11y", "ui_alloc", "ui_select", "ui_kbd_inset", "ui_kbd_reveal", "ui_kbd_mode", "ui_kit_sections", "ui_cmds", "webgl_surface", "layout_iface"], "canary": true},
-    {"paths": ["src/host/layout.h", "src/host/layout_yoga.cpp", "third_party/yoga/", "tests/native/layout_yoga_test.cpp"], "tests": ["layout_iface", "layout_yoga"]},
+    {"paths": ["src/host/layout.h", "src/host/layout_yoga.cpp", "src/host/text_wrap.h", "src/host/text_wrap.cpp", "third_party/yoga/", "tests/native/layout_yoga_test.cpp"], "tests": ["layout_iface", "layout_yoga"]},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["lib/std/kit/theme.ts", "lib/std/palette.ts", "tools/contrast-check"], "tests": ["contrast", "ui_theme"]},
     {"paths": ["tests/golden/ui-tokens/"], "tests": ["ui_tokens", "ui_docs"]},

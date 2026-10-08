@@ -1,8 +1,11 @@
 // The `rn` layout engine (ZN-283): every UiNode layout field of docs/reports/layout-engines.md §5 reaches Yoga (one check per row of the table), boxes are
-// parent-relative and rounded, and 1000 create/destroy cycles leave the heap as they found it. Text, image and field measure: ZN-284.
+// parent-relative and rounded, and 1000 create/destroy cycles leave the heap as they found it. Leaves (ZN-284): the line breaking of text_wrap.cpp against
+// hand-computed lines, and text, image and field measure with a fixed 10 px advance.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
+#include <vector>
 
 #include "host/layout.h"
 
@@ -24,6 +27,15 @@ static std::size_t heapInUse() { return 0; }
 #endif
 
 using zn::host::Layout;
+using zn::host::WrapStyle;
+
+/** A monospace font: 10 px a character (a code point), plus the tracking after each. */
+static double mono(void*, std::int32_t, std::string_view s, double tracking) {
+  double n = 0;
+  for (unsigned char c : s) n += (c & 0xC0) != 0x80;
+  return n * (10 + tracking);
+}
+static const zn::host::TextMetric kMono{mono, nullptr};
 using zn::host::LayoutProp;
 using P = LayoutProp;
 
@@ -32,7 +44,7 @@ static int failures = 0;
 
 /** A root of w x h (handle 0) with `n` children (handles 1..n) of cw x ch; `row`: a row. */
 static std::unique_ptr<Layout> tree(float w, float h, int n, float cw, float ch, bool row) {
-  auto l = zn::host::makeYogaLayout();
+  auto l = zn::host::makeYogaLayout(kMono);
   l->create(0);
   l->setStyle(0, P::Width, w);
   l->setStyle(0, P::Height, h);
@@ -194,7 +206,7 @@ static void scrollHiddenContents() {
   CHECK(x(*c, 2) == 40 && x(*c, 3) == 70);
 }
 static void roundedRelativeBoxes() {
-  auto l = zn::host::makeYogaLayout();
+  auto l = zn::host::makeYogaLayout(kMono);
   l->create(0); l->setStyle(0, P::Width, 100); l->setStyle(0, P::Height, 10); l->setStyle(0, P::FlexDirection, 1); l->setStyle(0, P::Padding, 0.4f);
   float sum = 0;
   for (int i = 1; i <= 3; i++) { l->create(i); l->setStyle(i, P::WidthPercent, 1.f / 3); l->setStyle(i, P::Height, 5.6f); l->insert(0, i, i - 1); }
@@ -209,11 +221,12 @@ static void roundedRelativeBoxes() {
 }
 static void cycles() {
   auto churn = [] {
-    auto l = zn::host::makeYogaLayout();
+    auto l = zn::host::makeYogaLayout(kMono);
     for (int k = 0; k < 1000; k++) {
       l->create(0); l->setStyle(0, P::Width, 300); l->setStyle(0, P::FlexDirection, k & 1);
       for (int i = 1; i <= 8; i++) { l->create(i); l->setStyle(i, P::Grow, i); l->insert(i < 5 ? 0 : i - 4, i, 0); }
-      l->setMeasure(3, zn::host::MeasureKind::Text, 1, 2, 64 * 14, 0);
+      l->setText(8, "a few words to wrap", WrapStyle{0, 14}, 20);
+      l->setText(3, "a parent: refused", WrapStyle{0, 14}, 20);   // (node 3 has a child)
       l->calculate(0, 300, 200);
       for (int i = (k & 1) ? 0 : 8; (k & 1) ? i <= 8 : i >= 0; i += (k & 1) ? 1 : -1) l->destroy(i);   // parents first, then children first
     }
@@ -226,7 +239,76 @@ static void cycles() {
   CHECK(after == before);
 }
 
+static std::vector<std::string> wrap(const char* text, double avail, WrapStyle st = WrapStyle{0, 14}) {
+  std::vector<std::string> lines;
+  std::vector<double> widths;
+  zn::host::wrapLines(kMono, st, text, avail, lines, widths);
+  return lines;
+}
+using L = std::vector<std::string>;
+static void wrapping() {   // the cases of wrapText, worked out by hand with 10 px characters
+  CHECK(wrap("aaaa bbbb cccc dddd", 100) == (L{"aaaa bbbb", "cccc dddd"}));
+  CHECK(wrap("aaaa bbbb", 10) == (L{"aaaa bbbb"}));   // no narrower than the font size: one line
+  CHECK(wrap("x y", INFINITY) == (L{"x y"}));
+  WrapStyle s{0, 14};
+  s.wordBreak = 1;
+  CHECK(wrap("abcdefghijkl xy", 50, s) == (L{"abcde", "fghij", "kl xy"}));
+  s.wordBreak = 2;
+  CHECK(wrap("abc def", 30, s) == (L{"abc", " de", "f"}));
+  s = WrapStyle{0, 14}; s.clamp = 2;
+  CHECK(wrap("aaaa bbbb cccc dddd eeee", 95, s) == (L{"aaaa bbbb", "cccc ddd\u2026"}));
+  s = WrapStyle{0, 14}; s.whiteSpace = 1; s.ellipsis = true;
+  CHECK(wrap("aaaa bbbb cccc", 75, s) == (L{"aaaa b\u2026"}));
+  s = WrapStyle{0, 14}; s.whiteSpace = 2;
+  CHECK(wrap("ab\ncd ef", 20, s) == (L{"ab", "cd ef"}));
+  s.whiteSpace = 3;
+  CHECK(wrap("ab\ncd ef", 30, s) == (L{"ab", "cd", "ef"}));
+  s = WrapStyle{0, 14}; s.balance = true;
+  CHECK(wrap("aa bb cc dd ee", 120) == (L{"aa bb cc dd", "ee"}) && wrap("aa bb cc dd ee", 120, s) == (L{"aa bb cc", "dd ee"}));
+  s = WrapStyle{0, 14}; s.wordSpacing = 5;
+  std::vector<std::string> lines; std::vector<double> widths;
+  zn::host::wrapLines(kMono, s, "ab cd", 100, lines, widths);
+  CHECK(widths.size() == 1 && widths[0] == 55);
+  s = WrapStyle{0, 14}; s.tracking = 2;
+  zn::host::wrapLines(kMono, s, "abc", 100, lines, widths);
+  CHECK(widths[0] == 36);
+}
+static void textAtFinalWidth() {   // the owner's case: a flex: 1 text in a flex: 1 row in a flex: 1 column wraps at the width it ends with
+  auto l = zn::host::makeYogaLayout(kMono);
+  l->create(0); l->setStyle(0, P::Width, 100); l->setStyle(0, P::Height, 200);
+  l->create(1); l->setStyle(1, P::Grow, 1); l->setStyle(1, P::Shrink, 1); l->setStyle(1, P::Basis, 0); l->insert(0, 1, 0);
+  l->create(2); l->setStyle(2, P::FlexDirection, 1); l->setStyle(2, P::AlignItems, 0); l->setStyle(2, P::Grow, 1); l->setStyle(2, P::Shrink, 1); l->setStyle(2, P::Basis, 0); l->insert(1, 2, 0);
+  l->create(3); l->setStyle(3, P::Grow, 1); l->setStyle(3, P::Shrink, 1); l->setStyle(3, P::Basis, 0); l->setStyle(3, P::PaddingLeft, 5); l->setStyle(3, P::PaddingRight, 5); l->insert(2, 3, 0);
+  l->setText(3, "aaaa bbbb cccc dddd", WrapStyle{0, 14}, 20);
+  l->calculate(0, 100, 200);
+  CHECK(l->box(3).w == 100 && l->box(3).h == 40);
+  CHECK(l->lines(3) && *l->lines(3) == (L{"aaaa bbbb", "cccc dddd"}));
+  l->setStyle(0, P::Width, 60);   // narrower: four lines of 40 px in 50 px of content
+  l->calculate(0, 60, 200);
+  CHECK(l->box(3).h == 80 && l->lines(3)->size() == 4);
+  l->setText(3, "aaaa", WrapStyle{0, 14}, 20);
+  l->calculate(0, 60, 200);
+  CHECK(l->box(3).h == 20 && *l->lines(3) == (L{"aaaa"}));
+  CHECK(!l->lines(2));
+}
+static void imageAndField() {
+  auto l = tree(300, 300, 3, -1, -1, false);
+  l->setStyle(0, P::AlignItems, 0);
+  l->setImage(1, 40, 20);
+  l->setField(2, 3, 20, false);
+  l->setImage(3, 40, 20);
+  l->setStyle(3, P::Width, 100);
+  l->calculate(0, 300, 300);
+  CHECK(l->box(1).w == 40 && l->box(1).h == 20);    // intrinsic size
+  CHECK(l->box(2).w == 200 && l->box(2).h == 60);   // a 3-row field
+  CHECK(l->box(3).w == 100 && l->box(3).h == 50);   // the width set, the aspect ratio kept
+  l->clearMeasure(1);
+  l->calculate(0, 300, 300);
+  CHECK(l->box(1).w == 0 && l->box(1).h == 0);
+}
+
 int main() {
+  wrapping(); textAtFinalWidth(); imageAndField();
   rowAndWrap(); justify(); align(); growAndFull(); spacing(); sizes(); flexSide(); insets(); scrollHiddenContents(); roundedRelativeBoxes(); cycles();
   if (failures) return 1;
   std::puts("layout yoga ok");

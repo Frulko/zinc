@@ -1,5 +1,7 @@
 // The `rn` layout engine (ZN-283, docs/reports/layout-engines.md §5): Yoga 3.2.1 behind zn::host::Layout. One YGNode per UI node handle, kept in a table indexed
-// by the handle; the UI node itself gets no field. Boxes come back parent-relative and rounded by Yoga (point scale factor 1).
+// by the handle; the UI node itself gets no field. Boxes come back parent-relative and rounded by Yoga (point scale factor 1). Leaves (text, image, text field)
+// are measured here with the port of wrapText (text_wrap.cpp), never by calling back into the program (ZN-284).
+#include <cmath>
 #include <vector>
 
 #include <yoga/Yoga.h>
@@ -13,7 +15,7 @@ constexpr float kUnsetInset = -100000;   // UNSET of lib/std/ui.ts
 
 class YogaLayout final : public Layout {
  public:
-  explicit YogaLayout(bool webDefaults) : config_(YGConfigNew()) {
+  YogaLayout(TextMetric metric, bool webDefaults) : metric_(metric), config_(YGConfigNew()) {
     YGConfigSetPointScaleFactor(config_, 1);
     YGConfigSetUseWebDefaults(config_, webDefaults);
   }
@@ -35,7 +37,7 @@ class YogaLayout final : public Layout {
   }
   void insert(std::int32_t parent, std::int32_t child, std::int32_t index) override {
     Rec *p = rec(parent), *c = rec(child);
-    if (!p || !c) return;
+    if (!p || !c || p->leaf) return;   // a measured leaf has no children in Yoga (the spans of a text are measured with it)
     if (YGNodeRef owner = YGNodeGetOwner(c->node)) YGNodeRemoveChild(owner, c->node);
     const std::size_t count = YGNodeGetChildCount(p->node);
     YGNodeInsertChild(p->node, c->node, index < 0 || static_cast<std::size_t>(index) > count ? count : static_cast<std::size_t>(index));
@@ -44,15 +46,52 @@ class YogaLayout final : public Layout {
     Rec *p = rec(parent), *c = rec(child);
     if (p && c) YGNodeRemoveChild(p->node, c->node);
   }
-  void setMeasure(std::int32_t h, MeasureKind kind, std::int32_t textId, std::int32_t fontId, std::int32_t sizeX64, float tracking) override {
-    if (Rec* r = rec(h)) r->measure = {kind, textId, fontId, sizeX64, tracking};   // (the measure callbacks that read it: ZN-284)
+  void setText(std::int32_t h, std::string_view text, const WrapStyle& style, float lineHeight) override {
+    Leaf* f = leaf(h, Leaf::Text);
+    if (!f) return;
+    const bool same = f->text == text && f->lineHeight == lineHeight && sameStyle(f->style, style);
+    f->text.assign(text);
+    f->style = style;
+    f->lineHeight = lineHeight;
+    if (!same) { f->wrappedAt = -1; YGNodeMarkDirty(rec(h)->node); }
   }
+  void setImage(std::int32_t h, float width, float height) override {
+    Leaf* f = leaf(h, Leaf::Image);
+    if (!f || (f->imageW == width && f->imageH == height)) return;
+    f->imageW = width; f->imageH = height;
+    YGNodeMarkDirty(rec(h)->node);
+  }
+  void setField(std::int32_t h, std::int32_t rows, float lineHeight, bool fullWidth) override {
+    Leaf* f = leaf(h, Leaf::Field);
+    if (!f || (f->rows == rows && f->lineHeight == lineHeight && f->fullWidth == fullWidth)) return;
+    f->rows = rows; f->lineHeight = lineHeight; f->fullWidth = fullWidth;
+    YGNodeMarkDirty(rec(h)->node);
+  }
+  void clearMeasure(std::int32_t h) override {
+    Rec* r = rec(h);
+    if (!r || !r->leaf) return;
+    YGNodeMarkDirty(r->node);   // (only a node with a measure function can be marked)
+    YGNodeSetMeasureFunc(r->node, nullptr);
+    YGNodeSetContext(r->node, nullptr);
+    r->leaf.reset();
+  }
+  const std::vector<std::string>* lines(std::int32_t h) const override { const Rec* r = rec(h); return r && r->leaf && r->leaf->kind == Leaf::Text ? &r->leaf->lines : nullptr; }
+  const std::vector<double>* lineWidths(std::int32_t h) const override { const Rec* r = rec(h); return r && r->leaf && r->leaf->kind == Leaf::Text ? &r->leaf->widths : nullptr; }
   void markDirty(std::int32_t h) override {
     Rec* r = rec(h);
     if (r && YGNodeHasMeasureFunc(r->node)) YGNodeMarkDirty(r->node);   // Yoga dirties ancestors itself; a node without a measure function is dirtied by its style setters
   }
   void calculate(std::int32_t root, float width, float height) override {
-    if (Rec* r = rec(root)) YGNodeCalculateLayout(r->node, width, height, YGDirectionLTR);
+    Rec* r = rec(root);
+    if (!r) return;
+    YGNodeCalculateLayout(r->node, width, height, YGDirectionLTR);
+    // the lines the painter draws: wrapped again at the final content width when the last measure ran at another one (a flex item is measured
+    // before it grows or shrinks); ponytail: a pass over every text leaf, per subtree if layouts of several roots share an engine
+    for (Rec& t : nodes_) {
+      if (!t.leaf || t.leaf->kind != Leaf::Text) continue;
+      const double avail = YGNodeLayoutGetWidth(t.node) - YGNodeLayoutGetPadding(t.node, YGEdgeLeft) - YGNodeLayoutGetPadding(t.node, YGEdgeRight);
+      if (t.leaf->wrappedAt != avail) wrap(*t.leaf, avail);
+    }
   }
   LayoutBox box(std::int32_t h) const override {
     const Rec* r = rec(h);
@@ -119,8 +158,60 @@ class YogaLayout final : public Layout {
   }
 
  private:
-  struct Measure { MeasureKind kind = MeasureKind::None; std::int32_t textId = 0, fontId = 0, sizeX64 = 0; float tracking = 0; };
-  struct Rec { YGNodeRef node = nullptr; bool row = false, reverse = false, hidden = false, contents = false; Measure measure; };
+  struct Leaf {   // a measured node; its address is the YGNode's context, so it lives on the heap (the node table grows)
+    enum Kind { Text, Image, Field } kind = Text;
+    const YogaLayout* engine = nullptr;
+    std::string text;
+    WrapStyle style;
+    float lineHeight = 0, imageW = 0, imageH = 0;
+    std::int32_t rows = 1;
+    bool fullWidth = false;
+    double wrappedAt = -1;   // the width `lines` were wrapped at
+    std::vector<std::string> lines;
+    std::vector<double> widths;
+  };
+  struct Rec { YGNodeRef node = nullptr; bool row = false, reverse = false, hidden = false, contents = false; std::unique_ptr<Leaf> leaf; };
+
+  Leaf* leaf(std::int32_t h, Leaf::Kind kind) {
+    Rec* r = rec(h);
+    if (!r || YGNodeGetChildCount(r->node) > 0) return nullptr;   // Yoga refuses a measure function on a node with children
+    if (!r->leaf || r->leaf->kind != kind) {
+      r->leaf = std::make_unique<Leaf>();
+      r->leaf->kind = kind;
+      r->leaf->engine = this;
+      YGNodeSetContext(r->node, r->leaf.get());
+      YGNodeSetMeasureFunc(r->node, &YogaLayout::measure);
+    }
+    return r->leaf.get();
+  }
+  static bool sameStyle(const WrapStyle& a, const WrapStyle& b) {
+    return a.font == b.font && a.size == b.size && a.tracking == b.tracking && a.wordSpacing == b.wordSpacing && a.whiteSpace == b.whiteSpace && a.wordBreak == b.wordBreak &&
+           a.clamp == b.clamp && a.ellipsis == b.ellipsis && a.balance == b.balance;
+  }
+  void wrap(Leaf& f, double avail) const {
+    wrapLines(metric_, f.style, f.text, avail, f.lines, f.widths);
+    f.wrappedAt = avail;
+  }
+  /** Yoga asks a leaf its size under the constraints: `width` is the content width (the padding is Yoga's), exact, at most, or none. */
+  static YGSize measure(YGNodeConstRef node, float width, YGMeasureMode wm, float height, YGMeasureMode hm) {
+    Leaf& f = *static_cast<Leaf*>(YGNodeGetContext(node));
+    const bool wExact = wm == YGMeasureModeExactly, hExact = hm == YGMeasureModeExactly;
+    if (f.kind == Leaf::Text) {   // as measure() of ui.ts: the widest line, rounded up, and one line height per line
+      const double avail = wm == YGMeasureModeUndefined ? INFINITY : width;
+      if (f.wrappedAt != avail) f.engine->wrap(f, avail);
+      double widest = 0;
+      for (double w : f.widths) widest = std::max(widest, w);
+      return {wExact ? width : static_cast<float>(std::ceil(widest)), hExact ? height : f.lineHeight * static_cast<float>(f.lines.size())};
+    }
+    if (f.kind == Leaf::Image) {   // the intrinsic size, the aspect ratio kept when one side is set
+      float w = f.imageW, h = f.imageH;
+      if (wExact && hExact) { w = width; h = height; }
+      else if (wExact) { w = width; h = f.imageW > 0 ? std::round(width * f.imageH / f.imageW) : f.imageH; }
+      else if (hExact) { h = height; w = f.imageH > 0 ? std::round(height * f.imageW / f.imageH) : f.imageW; }
+      return {w, h};
+    }
+    return {wExact ? width : f.fullWidth ? 0.f : 200.f, hExact ? height : f.lineHeight * static_cast<float>(f.rows)};   // a text field
+  }
 
   Rec* rec(std::int32_t h) { return h >= 0 && static_cast<std::size_t>(h) < nodes_.size() && nodes_[static_cast<std::size_t>(h)].node ? &nodes_[static_cast<std::size_t>(h)] : nullptr; }
   const Rec* rec(std::int32_t h) const { return const_cast<YogaLayout*>(this)->rec(h); }
@@ -132,12 +223,13 @@ class YogaLayout final : public Layout {
   }
   static void display(const Rec& r) { YGNodeStyleSetDisplay(r.node, r.hidden ? YGDisplayNone : r.contents ? YGDisplayContents : YGDisplayFlex); }
 
+  TextMetric metric_;
   YGConfigRef config_;
   std::vector<Rec> nodes_;
 };
 
 }  // namespace
 
-std::unique_ptr<Layout> makeYogaLayout(bool webDefaults) { return std::make_unique<YogaLayout>(webDefaults); }
+std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults) { return std::make_unique<YogaLayout>(metric, webDefaults); }
 
 }  // namespace zn::host
