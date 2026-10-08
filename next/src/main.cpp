@@ -431,9 +431,24 @@ int main(int argc, char** argv) {
   zn::gl::setPresentHook([](int image, const unsigned char* rgba, int w, int h) -> bool {   // gl.zincPresent: RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
     int32_t iw = 0, ih = 0;
     if (!zrt::raster::image_size(image, &iw, &ih)) return false;
-    if (iw != w || ih != h) zrt::raster::dyn_resize(image, w, h);
+    const int ss = (iw > 0 && ih > 0 && w % iw == 0 && h % ih == 0 && w / iw == h / ih && w / iw > 1 && w / iw <= 4) ? w / iw : 1;   // a canvas that is a whole multiple of the image: supersampling, averaged down (anti-aliasing for contexts without MSAA)
+    if (ss == 1 && (iw != w || ih != h)) zrt::raster::dyn_resize(image, w, h);
     uint32_t* dst = zrt::raster::dyn_pixels(image);
     if (!dst) return false;
+    if (ss > 1) {
+      for (int y = 0; y < ih; ++y)
+        for (int x = 0; x < iw; ++x) {
+          unsigned r = 0, g = 0, b = 0;
+          for (int sy = 0; sy < ss; ++sy) {
+            const unsigned char* src = rgba + static_cast<size_t>(h - 1 - (y * ss + sy)) * w * 4 + static_cast<size_t>(x) * ss * 4;
+            for (int sx = 0; sx < ss; ++sx, src += 4) { r += src[0]; g += src[1]; b += src[2]; }
+          }
+          const unsigned n = static_cast<unsigned>(ss * ss);
+          dst[static_cast<size_t>(y) * iw + x] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
+        }
+      zrt::raster::dyn_update(image, nullptr, 0);
+      return true;
+    }
     for (int y = 0; y < h; ++y) {
       const unsigned char* src = rgba + static_cast<size_t>(h - 1 - y) * w * 4;
       for (int x = 0; x < w; ++x, src += 4) dst[static_cast<size_t>(y) * w + x] = (uint32_t(src[0]) << 16) | (uint32_t(src[1]) << 8) | src[2];

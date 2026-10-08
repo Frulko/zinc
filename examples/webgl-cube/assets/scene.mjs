@@ -9,32 +9,33 @@ const listeners = new Map();
 const docListeners = new Map();
 function on(map) { return (type, fn) => { if (!map.has(type)) map.set(type, []); map.get(type).push(fn); }; }
 function off(map) { return (type, fn) => { const l = map.get(type); if (l) map.set(type, l.filter((f) => f !== fn)); }; }
-const W = 360, H = 240, K = globalThis.__scale || 1;   // the canvas is W x H points, K pixels per point (2 on a Retina screen): the drawing buffer has the physical size, so nothing is scaled up
+const W = 360, H = 240, K = globalThis.__scale || 1, SS = 2;   // SS: supersampling, the canvas is SS times the screen resolution and zincPresent averages it down (anti-aliasing)
+const CK = K * SS;   // the canvas is W x H points, K pixels per point (2 on a Retina screen): the drawing buffer has the physical size, so nothing is scaled up
 const canvas = document.createElement('canvas');
-canvas.width = W * K; canvas.height = H * K;
+canvas.width = W * CK; canvas.height = H * CK;
 canvas.style = {};
 canvas.addEventListener = on(listeners); canvas.removeEventListener = off(listeners);
 canvas.ownerDocument = { addEventListener: on(docListeners), removeEventListener: off(docListeners) };
 canvas.getRootNode = () => canvas.ownerDocument;
 canvas.setPointerCapture = () => {}; canvas.releasePointerCapture = () => {}; canvas.hasPointerCapture = () => true;
-canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: W * K, bottom: H * K, width: W * K, height: H * K, x: 0, y: 0 });
-canvas.clientWidth = W * K; canvas.clientHeight = H * K;
+canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: W * CK, bottom: H * CK, width: W * CK, height: H * CK, x: 0, y: 0 });
+canvas.clientWidth = W * CK; canvas.clientHeight = H * CK;
 globalThis.window = globalThis; globalThis.self = globalThis;
 globalThis.navigator = { userAgent: 'zinc' };
 
 function dispatch(type, x, y, button, buttons) {
-  x *= K; y *= K;   // points to drawing-buffer pixels
+  x *= CK; y *= CK;   // points to drawing-buffer pixels
   const ev = { type, clientX: x, clientY: y, pageX: x, pageY: y, offsetX: x, offsetY: y, button, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true,
     ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, target: canvas, currentTarget: canvas, preventDefault() {}, stopPropagation() {}, deltaY: 0, deltaMode: 0 };
   for (const f of listeners.get(type) || []) f(ev);
   for (const f of docListeners.get(type) || []) f(ev);
 }
 export function pointer(type, x, y, button, buttons) { dispatch(type, x, y, button, buttons); }
-export function wheel(dy) { for (const f of listeners.get('wheel') || []) f({ type: 'wheel', deltaY: dy, deltaMode: 0, clientX: W * K / 2, clientY: H * K / 2, ctrlKey: false, preventDefault() {}, stopPropagation() {} }); }
+export function wheel(dy) { for (const f of listeners.get('wheel') || []) f({ type: 'wheel', deltaY: dy, deltaMode: 0, clientX: W * CK / 2, clientY: H * CK / 2, ctrlKey: false, preventDefault() {}, stopPropagation() {} }); }
 
 // ---- the scene
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.setSize(W * K, H * K, false);
+renderer.setSize(W * CK, H * CK, false);
 renderer.shadowMap.enabled = true;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
