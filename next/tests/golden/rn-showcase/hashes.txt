@@ -1,0 +1,10 @@
+discover light bccb1c77fa9fcf10
+detail light 84f754a11f2d8729
+stats light 55dc8aa848b39673
+settings light 54732cc94befe112
+sheet light 35bed5bccb341b2a
+discover dark f205b24540ea50bc
+detail dark d8d7f3118e226c52
+stats dark 1954f503b8731cd2
+settings dark 6f13863d88e1f74f
+sheet dark e19a80cd254660ae

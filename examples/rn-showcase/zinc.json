@@ -1,0 +1,11 @@
+{
+  "name": "rn-showcase",
+  "entry": "src/main.tsx",
+  "ui": { "layout": "rn" },
+  "targets": {
+    "macos": { "width": 420, "height": 860, "resize": "fill" },
+    "linux": { "width": 420, "height": 860 },
+    "sim": { "width": 420, "height": 860 },
+    "wasm": { "width": 420, "height": 860 }
+  }
+}
