@@ -142,7 +142,8 @@ export class UiNode {
   row: boolean = false; wrap: boolean = false;
   justify: i32 = 0;   // 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly
   align: i32 = 3;     // 0 start, 1 center, 2 end, 3 stretch
-  grow: i32 = 0;
+  grow: number = 0;   // flex-grow, fractional
+  shrink: number = -1; basis: number = -1; basisFrac: number = 0; order: i32 = 0; selfAlign: i32 = -1; alignContent: i32 = -1; reverse: boolean = false;   // flex-shrink (-1: legacy, never shrinks), flex-basis, order, align-self (-1: auto), align-content (-1: start), row-reverse / col-reverse
   pt: i32 = 0; pr: i32 = 0; pb: i32 = 0; pl: i32 = 0;
   mt: i32 = 0; mr: i32 = 0; mb: i32 = 0; ml: i32 = 0;
   gap: i32 = 0; gapX: i32 = -1; gapY: i32 = -1;   // gap-x (between columns) and gap-y (between rows) override `gap` when set
@@ -605,7 +606,7 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_PADDING_BOTTOM) n.pb = iv; else if (id === P_PADDING_LEFT) n.pl = iv;
   else if (id === P_MARGIN_TOP) n.mt = iv; else if (id === P_MARGIN_RIGHT) n.mr = iv;
   else if (id === P_MARGIN_BOTTOM) n.mb = iv; else if (id === P_MARGIN_LEFT) n.ml = iv;
-  else if (id === P_GROW) n.grow = iv; else if (id === P_GAP) n.gap = iv;
+  else if (id === P_GROW) n.grow = v; else if (id === P_GAP) n.gap = iv;
   else if (id === P_PADDING) { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
   else if (id === P_SCALE) n.size = 8 * iv;
   else if (id === P_FONT_SIZE) { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
@@ -794,6 +795,48 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'overflow-x-auto' || tok === 'overflow-x-scroll') { n.overflow = true; n.scroll = n.scroll | 2; return true; }
   if (tok === 'grow' || tok === 'flex-1') { n.grow = 1; return true; }
   if (tok === 'grow-0') { n.grow = 0; return true; }
+  if (tok.startsWith('grow-') || tok.startsWith('shrink')) {   // grow-2, grow-[0.5], shrink, shrink-0, shrink-[0.5]
+    const isGrow = tok.startsWith('grow-'), rest = isGrow ? tok.slice(5) : tok.slice(7);
+    if (!isGrow && tok !== 'shrink' && tok.slice(6, 7) !== '-') return false;
+    const v: number = !isGrow && tok === 'shrink' ? 1 : rest.startsWith('[') ? parseFloat(rest.slice(1, rest.length - 1)) : parseFloat(rest);
+    if (v !== v || v < 0) return false;
+    if (isGrow) n.grow = v; else n.shrink = v;
+    return true;
+  }
+  if (tok === 'flex-none') { n.grow = 0; n.shrink = 0; n.basis = -1; n.basisFrac = 0; return true; }
+  if (tok === 'flex-auto') { n.grow = 1; n.shrink = 1; n.basis = -1; n.basisFrac = 0; return true; }
+  if (tok === 'flex-initial') { n.grow = 0; n.shrink = 1; n.basis = -1; n.basisFrac = 0; return true; }
+  if (tok === 'flex-row-reverse') { n.row = true; n.reverse = true; return true; }
+  if (tok === 'flex-col-reverse') { n.row = false; n.reverse = true; return true; }
+  if (tok.startsWith('basis-')) {   // basis-0, basis-32, basis-1/2, basis-full, basis-auto, basis-[120px]
+    const k = tok.slice(6);
+    if (k === 'auto') { n.basis = -1; n.basisFrac = 0; return true; }
+    if (k === 'full') { n.basis = -1; n.basisFrac = 1; return true; }
+    if (k.indexOf('/') > 0) { const f = num(k); if (f !== f) return false; n.basis = -1; n.basisFrac = f; return true; }
+    const v = num(k);
+    if (v !== v) return false;
+    n.basis = Math.round(v); n.basisFrac = 0;
+    return true;
+  }
+  if (tok.startsWith('order-')) {
+    const k = tok.slice(6);
+    const ov = k === 'first' ? -9999 : k === 'last' ? 9999 : k === 'none' ? 0 : parseFloat(k);
+    if (ov !== ov) return false;
+    n.order = Math.round(ov);
+    return true;
+  }
+  if (tok.startsWith('self-')) {
+    const k = tok.slice(5);
+    const i = ['start', 'center', 'end', 'stretch'].indexOf(k);
+    if (k === 'auto') n.selfAlign = -1; else if (i >= 0) n.selfAlign = i; else return false;
+    return true;
+  }
+  if (tok.startsWith('content-')) {
+    const i = ['start', 'center', 'end', 'stretch', 'between', 'around', 'evenly'].indexOf(tok.slice(8));
+    if (i < 0) return false;
+    n.alignContent = i;
+    return true;
+  }
   if (tok === 'w-full') { n.fullW = true; return true; }
   if (tok === 'h-full') { n.fullH = true; return true; }
   if (tok.startsWith('inset-')) {   // inset-0, inset-4, inset-x-2, inset-y-0, inset-[10px]: an absolute box
@@ -946,7 +989,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
 function resetStyle(n: UiNode): void {
   const fresh = new UiNode(n.tag);
   defaults(fresh);
-  n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0;
+  n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false;
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
@@ -1089,6 +1132,24 @@ function constrainSize(c: UiNode, w: number, h: number): void {
   if (c.minH >= 0 && h < c.minH) h = c.minH;
   csW = w; csH = h;
 }
+/** `order`: a stable sort of the children of one container (only when some child has an order). */
+function orderKids(kids: UiNode[]): void {
+  let any = false;
+  for (const c of kids) if (c.order !== 0) { any = true; break; }
+  if (!any) return;
+  for (let i = 1; i < kids.length; i++) {
+    const c = kids[i];
+    let j = i - 1;
+    while (j >= 0 && kids[j].order > c.order) { kids[j + 1] = kids[j]; j--; }
+    kids[j + 1] = c;
+  }
+}
+/** flex-basis replaces the measured main size of a child (px, or a fraction of the container's main size). */
+function applyBasis(c: UiNode, row: boolean, mainAvail: number): void {
+  if (c.basis < 0 && c.basisFrac <= 0) return;
+  const b: number = c.basis >= 0 ? c.basis : Math.round(mainAvail * c.basisFrac);
+  if (row) c.lw = b; else c.lh = b;
+}
 function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
 function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
@@ -1118,8 +1179,10 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   } else {
     const kids: UiNode[] = [];
     flat(n, kids, false);
+    orderKids(kids);
     const inner: number = (ownW >= 0 ? ownW : maxW) - n.pl - n.pr;
     const innerH: number = (n.scroll & 1) !== 0 ? 1000000 : (ownH >= 0 ? ownH : maxH) - n.pt - n.pb;
+    const mainAvail: number = n.row ? inner : innerH;
     let main: number = 0, cross: number = 0, lineMain: number = 0, lineCross: number = 0;
     let count: i32 = 0;
     const gm = gapMain(n), gc = gapCross(n);
@@ -1131,6 +1194,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
       let cnt: i32 = 0;
       for (const c of kids) {
         measure(c, inner, innerH);
+        applyBasis(c, true, mainAvail);
         growUsed += outerW(c) + (cnt > 0 ? gm : 0); cnt++;
         growSum += c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
       }
@@ -1138,6 +1202,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     const growFree: number = growSum > 0 ? Math.max(0, inner - growUsed) : 0;
     for (const c of kids) {
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
+      applyBasis(c, n.row, mainAvail);
       if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
         const g: number = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
         const fw: number = n.row ? c.lw + (growSum > 0 ? growFree * g / growSum : 0) : (c.w < 0 && c.wFrac === 0 && (n.align === 3 || c.fullW) ? inner - c.ml - c.mr : c.lw);
@@ -1145,7 +1210,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
         c.lh = csH;
       }
       const cm = n.row ? outerW(c) : outerH(c), cc = n.row ? outerH(c) : outerW(c);
-      if (n.row && n.wrap && count > 0 && lineMain + gm + cm > inner) {
+      if (n.wrap && count > 0 && lineMain + gm + cm > mainAvail) {
         if (lineMain > main) main = lineMain;
         cross += lineCross + gc;
         lineMain = 0;
@@ -1183,31 +1248,68 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   if (n.scroll !== 0) clampScroll(n);
   const kids: UiNode[] = [];
   flat(n, kids, false);
+  orderKids(kids);
+  if (n.reverse) kids.reverse();   // row-reverse / col-reverse: the main axis runs the other way; start and end swap below
   const iw = w - n.pl - n.pr, ih = h - n.pt - n.pb;
   const innerMain = n.row ? iw : ih, innerCross = n.row ? ih : iw;
   const gm = gapMain(n), gc = gapCross(n);
+  const jm: i32 = n.reverse ? (n.justify === 0 ? 2 : n.justify === 2 ? 0 : n.justify) : n.justify;
+  // align-content: the free space across the lines of a wrapped container (start when unset, the old behaviour)
+  let acStart: number = 0, acBetween: number = 0, acStretch: number = 0;
+  if (n.wrap && n.alignContent >= 0) {
+    const lc: number[] = [];
+    let s0: i32 = 0;
+    while (s0 < kids.length) {
+      let e0: i32 = s0, u0: number = 0, c0: number = 0;
+      while (e0 < kids.length) {
+        const cm0 = n.row ? outerW(kids[e0]) : outerH(kids[e0]);
+        if (e0 > s0 && u0 + gm + cm0 > innerMain) break;
+        u0 += (e0 > s0 ? gm : 0) + cm0;
+        const cc0 = n.row ? outerH(kids[e0]) : outerW(kids[e0]);
+        if (cc0 > c0) c0 = cc0;
+        e0++;
+      }
+      lc.push(c0);
+      s0 = e0;
+    }
+    let total: number = gc * (lc.length - 1);
+    for (const v of lc) total += v;
+    const freeC = innerCross - total;
+    if (freeC > 0 && lc.length > 0) {
+      const ac = n.alignContent;
+      if (ac === 1) acStart = freeC / 2; else if (ac === 2) acStart = freeC;
+      else if (ac === 3) acStretch = freeC / lc.length;
+      else if (ac === 4 && lc.length > 1) acBetween = freeC / (lc.length - 1);
+      else if (ac === 5) { acBetween = freeC / lc.length; acStart = acBetween / 2; }
+      else if (ac === 6) { acBetween = freeC / (lc.length + 1); acStart = acBetween; }
+    }
+  }
   let start: i32 = 0;
-  let crossPos: number = 0;
+  let crossPos: number = acStart;
   while (start < kids.length) {
     let end: i32 = start;
     let used: number = 0;
     while (end < kids.length) {
       const cm = n.row ? outerW(kids[end]) : outerH(kids[end]);
-      if (n.row && n.wrap && end > start && used + gm + cm > innerMain) break;
+      if (n.wrap && end > start && used + gm + cm > innerMain) break;
       used += (end > start ? gm : 0) + cm;
       end++;
     }
     let lineCross: number = 0;
-    let grows: i32 = 0;
+    let grows: number = 0;
     for (let i = start; i < end; i++) {
       const c = kids[i];
       const cc = n.row ? outerH(c) : outerW(c);
       if (cc > lineCross) lineCross = cc;
       grows += c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
     }
-    if (!n.wrap || !n.row) lineCross = innerCross;
+    if (!n.wrap) lineCross = innerCross;
+    lineCross += acStretch;
     const free = innerMain - used;
     const count = end - start;
+    // flex-shrink (opt-in: a child without it never shrinks): the overflow is taken from the children that have it, weighted by shrink x size
+    let shrinkTotal: number = 0;
+    if (free < 0) for (let i = start; i < end; i++) { const c = kids[i]; if (c.shrink > 0) shrinkTotal += c.shrink * (n.row ? c.lw : c.lh); }
     let pos: number = 0, between: number = gm;
     // auto margins on the main axis take the free space of the line (they win over justify-content, like CSS)
     let autos: i32 = 0;
@@ -1215,21 +1317,23 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     const autoShare: number = autos > 0 ? free / autos : 0;
     if (autos > 0) {}
     else if (grows === 0 && free > 0) {
-      if (n.justify === 1) pos = Math.floor(free / 2);
-      else if (n.justify === 2) pos = free;
-      else if (n.justify === 3 && count > 1) between = gm + free / (count - 1);
-      else if (n.justify === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
-      else if (n.justify === 5) { between = gm + free / (count + 1); pos = between - gm; }
+      if (jm === 1) pos = Math.floor(free / 2);
+      else if (jm === 2) pos = free;
+      else if (jm === 3 && count > 1) between = gm + free / (count - 1);
+      else if (jm === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
+      else if (jm === 5) { between = gm + free / (count + 1); pos = between - gm; }
     }
     for (let i = start; i < end; i++) {
       const c = kids[i];
       let cm: number = n.row ? c.lw : c.lh;
       const g = c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
       if (grows > 0 && free > 0 && g > 0) cm += Math.floor(free * g / grows);
+      else if (free < 0 && shrinkTotal > 0 && c.shrink > 0) cm = Math.max(0, cm + Math.floor(free * c.shrink * cm / shrinkTotal));
       let cc: number = n.row ? c.lh : c.lw;
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
       let off: number = 0;
-      const stretch = (n.align === 3 && (n.row ? c.h < 0 : c.w < 0)) || (n.row ? c.fullH : c.fullW);
+      const al: i32 = c.selfAlign >= 0 ? c.selfAlign : n.align;   // align-self
+      const stretch = (al === 3 && (n.row ? c.h < 0 : c.w < 0)) || (n.row ? c.fullH : c.fullW);
       const am = c.mAuto;
       const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
       const fullCross = n.row ? c.fullH : c.fullW;   // w-full / h-full fill the line even with auto margins; an implicit stretch gives way to them
@@ -1239,15 +1343,15 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
         cm = n.row ? csW : csH; cc = n.row ? csH : csW;
       }
       if (autoCrossStart || autoCrossEnd) off = autoCrossStart && autoCrossEnd ? Math.floor((lineCross - cc - marginCross) / 2) : autoCrossStart ? lineCross - cc - marginCross : 0;   // an auto cross margin beats align-items
-      else if (!stretch && n.align === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
-      else if (!stretch && n.align === 2) off = lineCross - cc - marginCross;
+      else if (!stretch && al === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
+      else if (!stretch && al === 2) off = lineCross - cc - marginCross;
       const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
       if (n.row) place(c, Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);
       else place(c, Math.round(x + n.pl + crossPos + off + c.ml), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
       pos += lead + cm + trail + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
     }
-    crossPos += lineCross + gc;
+    crossPos += lineCross + gc + acBetween;
     start = end;
   }
   const abs: UiNode[] = [];

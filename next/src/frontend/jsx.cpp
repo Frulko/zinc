@@ -56,7 +56,7 @@ struct Failure { std::uint32_t pos; std::string msg; };
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
 bool validClass(const std::string& c) {
   static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
-      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal",
+      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\d+/\d+|px))";
@@ -68,6 +68,8 @@ bool validClass(const std::string& c) {
       std::regex("^-(m|mx|my|mt|mr|mb|ml)-" + num + "$"),                       // negative margins
       std::regex(R"(^(m|mx|my|mt|mr|mb|ml)-auto$)"),
       std::regex("^(min|max)-(w|h)-(" + num + R"(|xs|sm|md|lg|xl|[2-7]xl|full|none|screen)$)"),   // size limits
+      std::regex(R"(^(grow|shrink)(-\d+(\.\d+)?|-\[\d+(\.\d+)?\])?$)"), std::regex(R"(^self-(auto|start|center|end|stretch)$)"), std::regex(R"(^order-(first|last|none|\d+)$)"),
+      std::regex(R"(^content-(start|center|end|stretch|between|around|evenly)$)"), std::regex("^basis-(" + num + R"(|auto|full)$)"),
       std::regex(R"(^aspect-(auto|square|video|\[\d+(\.\d+)?/\d+(\.\d+)?\])$)"), std::regex("^size-" + num + "$"),                              // auto margins
       std::regex(R"(^(items|justify)-(start|center|end|stretch|between|around|evenly)$)"),
       std::regex(R"(^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$)"),
