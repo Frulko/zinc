@@ -45,3 +45,18 @@ jobs:
         with:
           name: package-${{ matrix.name }}
           path: next/dist/*
+  bench-gate:
+    # ZN-148: a slower interpreter or AOT build than the committed numbers (relative to QuickJS of the same run) fails the job
+    name: bench-gate
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install cmake quickjs node || true
+      - name: Build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+      - name: Gate
+        run: tools/bench-gate

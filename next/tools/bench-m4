@@ -15,6 +15,7 @@ import zn_resmon
 args = sys.argv[1:]
 runs, out, md = 11, "bench/m4.json", "../docs/reports/zinc-next-m4-benchmarks.md"
 baseline, check, tolerance = None, False, 0.15
+only, inject, relative, startup_on = None, 1.0, False, True
 while args:
     a = args.pop(0)
     if a == "--runs": runs = int(args.pop(0))
@@ -23,10 +24,15 @@ while args:
     elif a == "--baseline": baseline = args.pop(0)      # a bench json to compare with (default: the one committed at HEAD)
     elif a == "--check-regressions": check = True       # exit 3 when a time or peak RSS is more than `tolerance` worse than the baseline
     elif a == "--tolerance": tolerance = float(args.pop(0))
+    elif a == "--kernels": only = args.pop(0).split(",")   # a subset (the CI gate)
+    elif a == "--inject-slowdown": inject = float(args.pop(0))   # multiplies the interpreter and AOT times: the test that the gate fails on a 20% slowdown
+    elif a == "--relative": relative = True              # compare each engine's time with QuickJS's of the same run, so the baseline of another machine still means something
+    elif a == "--no-startup": startup_on = False
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(root)
 zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
 kernels = ["fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux", "binarytrees", "sort", "mapset", "strings", "jsonout", "dynsum"]
+if only: kernels = [k for k in kernels if k in only]
 numeric = {"fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux"}
 aot_native = {"fib", "nbody", "binarytrees", "sort"}
 no_slower = {"strings", "jsonout", "dynsum"}
@@ -63,6 +69,8 @@ for k in kernels:
         "quickjs": median_of(f"qjs {js}", expect),
         "native": median_of(nat, expect) if os.path.exists(nat) else None,
     }
+    for e in ("interp", "aot"):
+        if inject != 1.0 and cell.get(e): cell[e]["median_s"] *= inject
     results[k] = cell
     for e, v in cell.items():
         if v is None and not (e == "native" and not os.path.exists(nat)): failures.append(f"{k}: {e} did not run or printed a different output")
@@ -92,6 +100,12 @@ if old:
         for e, v in cell.items():
             o = (old.get("results", {}).get(k) or {}).get(e)
             if not v or not o: continue
+            if relative:   # time against QuickJS of the same run: hardware cancels
+                q, oq = cell.get("quickjs"), (old.get("results", {}).get(k) or {}).get("quickjs")
+                if e != "quickjs" and q and oq and o.get("median_s") and v.get("median_s") and q.get("median_s") and oq.get("median_s"):
+                    r_new, r_old = v["median_s"] / q["median_s"], o["median_s"] / oq["median_s"]
+                    if r_new > r_old * (1 + tolerance): regressions.append(f"{k} {e} time / QuickJS: {r_old:.3f} -> {r_new:.3f} (+{(r_new / r_old - 1) * 100:.0f}%)")
+                continue
             for key, label in (("median_s", "time"), ("peak_rss_mb", "peak RSS")):
                 if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance):
                     regressions.append(f"{k} {e} {label}: {o[key]:.3f} -> {v[key]:.3f} (+{(v[key] / o[key] - 1) * 100:.0f}%)")
@@ -100,7 +114,7 @@ if old:
 startup = {}
 one = os.path.join(tmp, "one.ts"); open(one, "w").write("console.log(1);\n")
 empty_c = os.path.join(tmp, "empty.c"); open(empty_c, "w").write("int main(void) { return 0; }\n")
-if run(f"cc -O2 {empty_c} -o {tmp}/empty_c").returncode == 0 and run(f"{zinc} build {one} -o {tmp}/one_aot").returncode == 0:
+if startup_on and run(f"cc -O2 {empty_c} -o {tmp}/empty_c").returncode == 0 and run(f"{zinc} build {one} -o {tmp}/one_aot").returncode == 0:
     def launches(cmd, n=200):
         ts = []
         for _ in range(n):
@@ -126,6 +140,6 @@ for k in kernels:
     lines.append(f"| {k} | {g('interp', 'peak_rss_mb')} | {g('aot', 'peak_rss_mb')} | {g('interp', 'user_s')} | {g('aot', 'user_s')} |")
 if regressions: lines += ["", f"## Regressions against the previous numbers (more than {tolerance * 100:.0f}% worse)", ""] + [f"- {r}" for r in regressions]
 if failures: lines += ["", "## Failed runs", ""] + [f"- {f}" for f in failures]
-open(md, "w").write("\n".join(lines) + "\n")
+if md != "none": open(md, "w").write("\n".join(lines) + "\n")
 print("\n".join(lines))
 sys.exit(3 if check and regressions else 0 if all(v["pass"] for v in verdicts) and not failures else 1)
