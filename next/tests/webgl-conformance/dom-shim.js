@@ -12,7 +12,7 @@
   const pagePath = g.__pagePath || '/test.html';   // conformance2 pages are told from conformance ones by this path
   g.location = { href: 'file://' + pagePath, pathname: pagePath, search: '', hash: '', protocol: 'file:', host: '', hostname: '', toString() { return this.href; } };
   g.navigator = { userAgent: 'zinc-quickjs', platform: 'zinc', appVersion: 'zinc', language: 'en' };
-  if (typeof g.URL === 'undefined') g.URL = class URL { constructor(s) { this.href = String(s); this.searchParams = { get() { return null; }, has() { return false; } }; this.search = ''; } };
+  if (typeof g.URL === 'undefined') g.URL = class URL { constructor(s) { this.href = String(s); this.searchParams = { get() { return null; }, has() { return false; }, set() {} }; this.search = ''; } };
   if (typeof g.URLSearchParams === 'undefined') g.URLSearchParams = class URLSearchParams { get() { return null; } has() { return false; } getAll() { return []; } toString() { return ''; } };
   if (typeof g.requestAnimationFrame === 'undefined') g.requestAnimationFrame = (f) => setTimeout(() => f(Date.now()), 16);
   g.cancelAnimationFrame = (id) => clearTimeout(id);

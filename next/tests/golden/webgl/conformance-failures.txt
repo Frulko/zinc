@@ -1,10 +1,5 @@
-conformance2/attribs/gl-vertex-attrib.html	@E not a function |     at getDrng (<input>:1110:37) |     at <eval> (<input>:14:12)
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
 conformance2/misc/uninitialized-test-2.html	timeout
-conformance2/misc/views-with-offsets.html	Does not support texImage2D with offsets into views.
-conformance2/reading/read-pixels-from-fbo-test.html	getError expected: NO_ERROR. Was INVALID_ENUM : readPixels should generate no error
-conformance2/reading/read-pixels-into-pixel-pack-buffer.html	@E readPixels: pixels must be an ArrayBuffer view |     at readPixels (native) |     at validatePixelPackBufferAndParameters (<input>:73:40)
-conformance2/reading/read-pixels-pack-parameters.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : buffer too small
 conformance2/rendering/blitframebuffer-filter-srgb.html	pixel at [0, 0] should be (110,110,110,255), but the actual color is (40,40,40,255)
 conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
 context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
@@ -12,4 +7,3 @@ context/context-lost-restored.html	no PASS
 context/context-lost.html	no PASS
 context/premultiplyalpha-test.html	@E not a function |     at doNextTest (<input>:206:39) |     at <eval> (<input>:123:1)
 misc/uninitialized-test.html	@E canvas is not defined |     at <eval> (<input>:227:46) |     at eval (native)
-rendering/multisample-corruption.html	Canvas should be red

@@ -21,6 +21,7 @@ struct Obj { int kind; Id id; UniformLoc loc; const Gl* owner; };   // kind: 1 b
 struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; bool boundaryScheduled = false; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0;
+Gl* gCurrent = nullptr;   // the context whose driver context is current
 JSValue gProto2, gPrecisionProto, gActiveProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
 JSValue gKindProto[13];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
 const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject", "WebGLSampler", "WebGLQuery", "WebGLSync", "WebGLTransformFeedback"};
@@ -29,11 +30,12 @@ void ctxFinalizer(JSRuntime* rt, JSValue v) {
   Gl* g = static_cast<Gl*>(JS_GetOpaque(v, gCtxClass));
   if (g) for (auto& w : g->wrappers) JS_FreeValueRT(rt, w.second);
   delete g;
+  gCurrent = nullptr;   // destroying a driver context leaves none current
 }
 void objFinalizer(JSRuntime*, JSValue v) { delete static_cast<Obj*>(JS_GetOpaque(v, gObjClass)); }
 
 Gl* self(JSContext* c, JSValueConst t) { return static_cast<Gl*>(JS_GetOpaque2(c, t, gCtxClass)); }
-#define SELF Gl* g = self(c, t); if (!g) return JS_EXCEPTION; WebGL1& gl = g->gl; (void)gl; (void)argc; (void)argv;
+#define SELF Gl* g = self(c, t); if (!g) return JS_EXCEPTION; if (gCurrent != g) { g->gl.makeCurrent(); gCurrent = g; } WebGL1& gl = g->gl; (void)gl; (void)argc; (void)argv;
 
 JSValue wrap(JSContext* c, const Gl* owner, int kind, Id id, UniformLoc loc = {}) {
   JSValue o = JS_NewObjectProtoClass(c, gKindProto[kind], static_cast<int>(gObjClass));
@@ -96,6 +98,16 @@ bool bytesOf(JSContext* c, JSValueConst v, std::uint8_t*& p, std::size_t& n, std
   p = base + off;
   n = len;
   if (elem && bpe) *elem = bpe;
+  return true;
+}
+// WebGL 2's srcOffset after a texture view (in elements): false after raising the error (negative: INVALID_VALUE, past the end: INVALID_OPERATION)
+bool viewOffset(JSContext* c, WebGL1& gl, int argc, JSValueConst* argv, int idx, std::size_t el, std::uint8_t*& p, std::size_t& n) {
+  if (argc <= idx || gl.version() != 2 || JS_IsUndefined(argv[idx])) return true;
+  const std::int64_t off = i64(c, argv[idx]);
+  if (off < 0) { gl.raise(0x0501); return false; }
+  const std::size_t bytes = static_cast<std::size_t>(off) * el;
+  if (bytes > n) { gl.raise(0x0502); return false; }
+  p += bytes; n -= bytes;
   return true;
 }
 // the WebGL 2 tail (srcOffset, length) of a view argument, both counted in elements: 0 not a buffer, 1 ok, 2 INVALID_VALUE raised
@@ -232,7 +244,7 @@ M(texImage2D) {
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
   if (JS_IsNull(argv[8]) || JS_IsUndefined(argv[8])) gl.texImage2D(U(0), I(1), U(2), I(3), I(4), I(5), U(6), U(7), nullptr, 0);
-  else if (bytesOf(c, argv[8], p, n)) gl.texImage2D(U(0), I(1), U(2), I(3), I(4), I(5), U(6), U(7), p, n);
+  else if (std::size_t el = 1; bytesOf(c, argv[8], p, n, &el)) { if (viewOffset(c, gl, argc, argv, 9, el, p, n)) gl.texImage2D(U(0), I(1), U(2), I(3), I(4), I(5), U(6), U(7), p, n); }
   else return JS_ThrowTypeError(c, "texImage2D: pixels must be null or an ArrayBuffer view");
   return JS_UNDEFINED;
 }
@@ -246,23 +258,43 @@ PresentHook gPresent = nullptr;
 M(zincPresent) {
   SELF NEED(1);
   if (!gPresent) return JS_ThrowTypeError(c, "zincPresent: this program has no UI surface");
-  const int w = g->w, h = g->h;
-  std::vector<std::uint8_t> px(static_cast<std::size_t>(w) * h * 4);
-  gl.readPixels(0, 0, w, h, 0x1908, 0x1401, px.data(), px.size());
+  const int w = gl.target().width(), h = gl.target().height();
+  std::vector<std::uint8_t> px = gl.target().read();   // the driver call straight, so the script's pack state and error flags stay untouched
   return JS_NewBool(c, gPresent(I(0), px.data(), w, h));
+}
+// the typed array a readPixels type wants (WebGL 2 lists them all; WebGL 1 only checks UNSIGNED_BYTE)
+bool viewMatchesType(JSContext* c, JSValueConst v, std::uint32_t type, bool v2) {
+  JSValue ctor = JS_GetPropertyStr(c, v, "constructor");
+  JSValue nm = JS_IsObject(ctor) ? JS_GetPropertyStr(c, ctor, "name") : JS_UNDEFINED;
+  const std::string cn = JS_IsString(nm) ? str(c, nm) : "";
+  JS_FreeValue(c, nm); JS_FreeValue(c, ctor);
+  switch (type) {
+    case 0x1401: return cn == "Uint8Array" || cn == "Uint8ClampedArray";
+    case 0x1400: return !v2 || cn == "Int8Array";
+    case 0x1402: return !v2 || cn == "Int16Array";
+    case 0x1403: case 0x8363: case 0x8033: case 0x8034: case 0x140B: return !v2 || cn == "Uint16Array";
+    case 0x1404: return !v2 || cn == "Int32Array";
+    case 0x1405: case 0x8368: case 0x8C3B: case 0x8C3E: return !v2 || cn == "Uint32Array";
+    case 0x1406: return !v2 || cn == "Float32Array";
+  }
+  return true;
 }
 M(readPixels) {
   SELF NEED(7);
+  const bool v2 = gl.version() == 2;
+  if (v2 && !JS_IsNull(argv[6]) && !JS_IsObject(argv[6])) {   // readPixels(..., offset) into a PIXEL_PACK_BUFFER
+    gl.readPixelsToBuffer(I(0), I(1), I(2), I(3), U(4), U(5), i64(c, argv[6]));
+    return JS_UNDEFINED;
+  }
   std::uint8_t* p = nullptr;
-  std::size_t n = 0;
+  std::size_t n = 0, el = 1;
   if (JS_IsNull(argv[6])) { gl.raise(0x0501); return JS_UNDEFINED; }
-  if (!bytesOf(c, argv[6], p, n)) return JS_ThrowTypeError(c, "readPixels: pixels must be an ArrayBuffer view");
-  if (U(5) == 0x1401) {   // UNSIGNED_BYTE needs a Uint8Array (or its clamped sibling)
-    JSValue ctor = JS_GetPropertyStr(c, argv[6], "constructor");
-    JSValue nm = JS_IsObject(ctor) ? JS_GetPropertyStr(c, ctor, "name") : JS_UNDEFINED;
-    std::string cn = JS_IsString(nm) ? str(c, nm) : "";
-    JS_FreeValue(c, nm); JS_FreeValue(c, ctor);
-    if (cn != "Uint8Array" && cn != "Uint8ClampedArray") { gl.raise(0x0502); return JS_UNDEFINED; }
+  if (!bytesOf(c, argv[6], p, n, &el)) return JS_ThrowTypeError(c, "readPixels: pixels must be an ArrayBuffer view");
+  if (!viewMatchesType(c, argv[6], U(5), v2)) { gl.raise(0x0502); return JS_UNDEFINED; }
+  if (v2 && argc > 7) {   // dstOffset, in elements
+    const std::int64_t off = i64(c, argv[7]), total = static_cast<std::int64_t>(n / el);
+    if (off < 0 || off > total) { gl.raise(0x0501); return JS_UNDEFINED; }
+    p += off * static_cast<std::int64_t>(el); n -= static_cast<std::size_t>(off) * el;
   }
   gl.readPixels(I(0), I(1), I(2), I(3), U(4), U(5), p, n);
   return JS_UNDEFINED;
@@ -305,6 +337,7 @@ JSValue paramToJs(JSContext* c, Gl* g, std::uint32_t pname, const WebGL1::Param&
     case 'n': return JS_NULL;
     case 'B': { JSValue arr = JS_NewArray(c); for (std::size_t i = 0; i < p.v.size(); ++i) JS_SetPropertyUint32(c, arr, static_cast<std::uint32_t>(i), JS_NewBool(c, p.v[i] != 0)); return arr; }
     case 'U': return typed(c, "Uint32Array", p.v);
+    case 'I': return typed(c, "Int32Array", p.v);
     case 'o': return wrapOnce(c, g, p.objKind, p.object);
     case 'a': {
       switch (pname) {
@@ -430,7 +463,7 @@ M(uniformMatrix3fv) { SELF return uniformMat(c, g, 3, argc, argv); }
 JSValue attribF(JSContext* c, Gl* g, int n, bool vec, int argc, JSValueConst* argv) {
   if (argc < 1 + (vec ? 1 : n)) return JS_ThrowTypeError(c, "not enough arguments");
   float v[4] = {0, 0, 0, 1};
-  if (vec) { std::vector<float> a; if (!floatsOf(c, argv[1], a) || static_cast<int>(a.size()) < n) return JS_ThrowTypeError(c, "value must be a Float32Array or an array"); for (int i = 0; i < n; ++i) v[i] = a[i]; }
+  if (vec) { std::vector<float> a; if (!floatsOf(c, argv[1], a)) return JS_ThrowTypeError(c, "value must be a Float32Array or an array"); if (static_cast<int>(a.size()) < n) { g->gl.raise(0x0501); return JS_UNDEFINED; } for (int i = 0; i < n; ++i) v[i] = a[i]; }
   else for (int i = 0; i < n; ++i) v[i] = static_cast<float>(num(c, argv[1 + i]));
   g->gl.vertexAttribNf(u32(c, argv[0]), n, v);
   return JS_UNDEFINED;
@@ -440,7 +473,9 @@ ATTR_F(1) ATTR_F(2) ATTR_F(3) ATTR_F(4)
 M(texSubImage2D) {
   SELF NEED(9);
   std::uint8_t* p = nullptr; std::size_t n = 0;
-  if (!bytesOf(c, argv[8], p, n)) return JS_ThrowTypeError(c, "texSubImage2D: pixels must be an ArrayBuffer view");
+  std::size_t el = 1;
+  if (!bytesOf(c, argv[8], p, n, &el)) return JS_ThrowTypeError(c, "texSubImage2D: pixels must be an ArrayBuffer view");
+  if (!viewOffset(c, gl, argc, argv, 9, el, p, n)) return JS_UNDEFINED;
   gl.texSubImage2D(U(0), I(1), I(2), I(3), I(4), I(5), U(6), U(7), p, n);
   return JS_UNDEFINED;
 }
@@ -590,25 +625,29 @@ M(uniform4ui) { SELF NEED(5); LOC std::uint32_t v[4] = {U(1), U(2), U(3), U(4)};
 M(vertexAttribIPointer) { SELF NEED(5); gl.vertexAttribIPointer(U(0), I(1), U(2), I(3), i64(c, argv[4])); return JS_UNDEFINED; }
 
 // ---- WebGL 2.0 textures, samplers, queries, sync, transform feedback (ZN-203.07)
-JSValue dataArg(JSContext* c, JSValueConst v, const void*& p, std::size_t& n, bool& nul) {
+JSValue dataArg(JSContext* c, JSValueConst v, const void*& p, std::size_t& n, bool& nul, std::size_t* elem = nullptr) {
   p = nullptr; n = 0; nul = JS_IsNull(v) || JS_IsUndefined(v);
   if (nul) return JS_UNDEFINED;
   std::uint8_t* b = nullptr;
-  if (!bytesOf(c, v, b, n)) return JS_ThrowTypeError(c, "pixels must be null or an ArrayBuffer view");
+  if (!bytesOf(c, v, b, n, elem)) return JS_ThrowTypeError(c, "pixels must be null or an ArrayBuffer view");
   p = b;
   return JS_UNDEFINED;
 }
 M(texImage3D) {
   SELF NEED2; NEED(10);
   const void* p; std::size_t n; bool nul;
-  JSValue e = dataArg(c, argv[9], p, n, nul); if (JS_IsException(e)) return e;
+  std::size_t el = 1;
+  JSValue e = dataArg(c, argv[9], p, n, nul, &el); if (JS_IsException(e)) return e;
+  { std::uint8_t* q = const_cast<std::uint8_t*>(static_cast<const std::uint8_t*>(p)); if (!viewOffset(c, gl, argc, argv, 10, el, q, n)) return JS_UNDEFINED; p = q; }
   gl.texImage3D(U(0), I(1), U(2), I(3), I(4), I(5), I(6), U(7), U(8), p, n);
   return JS_UNDEFINED;
 }
 M(texSubImage3D) {
   SELF NEED2; NEED(11);
   const void* p; std::size_t n; bool nul;
-  JSValue e = dataArg(c, argv[10], p, n, nul); if (JS_IsException(e)) return e;
+  std::size_t el = 1;
+  JSValue e = dataArg(c, argv[10], p, n, nul, &el); if (JS_IsException(e)) return e;
+  { std::uint8_t* q = const_cast<std::uint8_t*>(static_cast<const std::uint8_t*>(p)); if (!viewOffset(c, gl, argc, argv, 11, el, q, n)) return JS_UNDEFINED; p = q; }
   gl.texSubImage3D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), U(8), U(9), p, n);
   return JS_UNDEFINED;
 }
@@ -748,16 +787,20 @@ M(vertexAttribI4i) { SELF NEED2; NEED(5); int v[4] = {I(1), I(2), I(3), I(4)}; g
 M(vertexAttribI4ui) { SELF NEED2; NEED(5); std::uint32_t v[4] = {U(1), U(2), U(3), U(4)}; gl.vertexAttribINui(U(0), v); return JS_UNDEFINED; }
 M(vertexAttribI4iv) {
   SELF NEED2; NEED(2); std::uint8_t* p = nullptr; std::size_t nb = 0; int v[4] = {0, 0, 0, 1};
-  if (bytesOf(c, argv[1], p, nb) && nb >= 16) std::memcpy(v, p, 16);
-  else if (JS_IsArray(argv[1])) { for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = i32(c, e); JS_FreeValue(c, e); } }
+  if (bytesOf(c, argv[1], p, nb)) { if (nb < 16) { gl.raise(0x0501); return JS_UNDEFINED; } std::memcpy(v, p, 16); }
+  else if (JS_IsArray(argv[1])) {
+    JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); const std::uint32_t len = u32(c, lv); JS_FreeValue(c, lv);
+    if (len < 4) { gl.raise(0x0501); return JS_UNDEFINED; } for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = i32(c, e); JS_FreeValue(c, e); } }
   else return JS_ThrowTypeError(c, "value must be an Int32Array or an array of 4");
   gl.vertexAttribINi(U(0), v);
   return JS_UNDEFINED;
 }
 M(vertexAttribI4uiv) {
   SELF NEED2; NEED(2); std::uint8_t* p = nullptr; std::size_t nb = 0; std::uint32_t v[4] = {0, 0, 0, 1};
-  if (bytesOf(c, argv[1], p, nb) && nb >= 16) std::memcpy(v, p, 16);
-  else if (JS_IsArray(argv[1])) { for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = u32(c, e); JS_FreeValue(c, e); } }
+  if (bytesOf(c, argv[1], p, nb)) { if (nb < 16) { gl.raise(0x0501); return JS_UNDEFINED; } std::memcpy(v, p, 16); }
+  else if (JS_IsArray(argv[1])) {
+    JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); const std::uint32_t len = u32(c, lv); JS_FreeValue(c, lv);
+    if (len < 4) { gl.raise(0x0501); return JS_UNDEFINED; } for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = u32(c, e); JS_FreeValue(c, e); } }
   else return JS_ThrowTypeError(c, "value must be a Uint32Array or an array of 4");
   gl.vertexAttribINui(U(0), v);
   return JS_UNDEFINED;
@@ -877,6 +920,7 @@ JSValue createContext(JSContext* c, int w, int h, int version = 1, JSValueConst 
     flag("alpha", g->alpha); flag("depth", g->depth); flag("stencil", g->stencil); flag("premultipliedAlpha", g->premultipliedAlpha); flag("preserveDrawingBuffer", g->preserveDrawingBuffer);
   }
   g->gl.setAttributes(g->depth, g->stencil);
+  gCurrent = g.get();   // creating it made its driver context current
   JSValue proto = version == 2 ? JS_DupValue(c, gProto2) : JS_GetClassProto(c, static_cast<int>(gCtxClass));
   JSValue o = JS_NewObjectProtoClass(c, proto, static_cast<int>(gCtxClass));
   JS_FreeValue(c, proto);

@@ -309,6 +309,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     }
     case GL_MAX_TEXTURE_SIZE: fixed(maxTexSize_); break;
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE: case GL_MAX_RENDERBUFFER_SIZE: ints(1); break;
+    case 0x8B9B: case 0x8B9A: { std::uint32_t f, t; implementationReadFormat(f, t); fixed(pname == 0x8B9B ? f : t); break; }   // IMPLEMENTATION_COLOR_READ_FORMAT, _TYPE
     case GL_MAX_VERTEX_ATTRIBS: fixed(kMaxVertexAttribs); break;
     case GL_MAX_VERTEX_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
     case GL_MAX_FRAGMENT_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
@@ -398,7 +399,14 @@ WebGL1::Param WebGL1::getVertexAttrib(std::uint32_t index, std::uint32_t pname) 
     case 0x88FE: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'i'; r.v.push_back(a.divisor); } break;   // VERTEX_ATTRIB_ARRAY_DIVISOR
     case 0x88FD: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'b'; r.v.push_back(a.integer ? 1 : 0); } break;   // VERTEX_ATTRIB_ARRAY_INTEGER
     case GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING: r.kind = a.buffer ? 'o' : 'n'; r.object = a.buffer; r.objKind = 1; break;
-    case GL_CURRENT_VERTEX_ATTRIB: { r.kind = 'a'; GLfloat v[4] = {}; glGetVertexAttribfv(index, pname, v); for (float x : v) r.v.push_back(x); break; }
+    case GL_CURRENT_VERTEX_ATTRIB:
+      if (genericType_[index] != GL_FLOAT) {   // set with vertexAttribI4*: integers
+        r.kind = genericType_[index] == GL_INT ? 'I' : 'U';
+        if (r.kind == 'I') { GLint v[4] = {}; glGetVertexAttribIiv(index, pname, v); for (int x : v) r.v.push_back(x); }
+        else { GLuint v[4] = {}; glGetVertexAttribIuiv(index, pname, v); for (unsigned x : v) r.v.push_back(x); }
+        break;
+      }
+      { r.kind = 'a'; GLfloat v[4] = {}; glGetVertexAttribfv(index, pname, v); for (float x : v) r.v.push_back(x); break; }
     default: r.ok = false; error(GL_INVALID_ENUM);
   }
   return r;

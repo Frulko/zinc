@@ -225,9 +225,23 @@ void WebGL1::clear(std::uint32_t mask) {
 void WebGL1::pixelStorei(std::uint32_t pname, int value) {
   if (pname == GL_UNPACK_ALIGNMENT || pname == GL_PACK_ALIGNMENT) {
     if (value != 1 && value != 2 && value != 4 && value != 8) return error(GL_INVALID_VALUE);
-    if (pname == GL_UNPACK_ALIGNMENT) unpackAlignment_ = value;
+    if (pname == GL_UNPACK_ALIGNMENT) unpackAlignment_ = value; else packAlignment_ = value;
     glPixelStorei(pname, value);
     return;
+  }
+  if (version_ == 2) {   // row length and skips
+    int* slot = nullptr;
+    switch (pname) {
+      case GL_PACK_ROW_LENGTH: slot = &packRowLength_; break;
+      case GL_PACK_SKIP_PIXELS: slot = &packSkipPixels_; break;
+      case GL_PACK_SKIP_ROWS: slot = &packSkipRows_; break;
+      case GL_UNPACK_ROW_LENGTH: slot = &unpackRowLength_; break;
+      case GL_UNPACK_IMAGE_HEIGHT: slot = &unpackImageHeight_; break;
+      case GL_UNPACK_SKIP_PIXELS: slot = &unpackSkipPixels_; break;
+      case GL_UNPACK_SKIP_ROWS: slot = &unpackSkipRows_; break;
+      case GL_UNPACK_SKIP_IMAGES: slot = &unpackSkipImages_; break;
+    }
+    if (slot) { if (value < 0) return error(GL_INVALID_VALUE); *slot = value; glPixelStorei(pname, value); return; }
   }
   if (pname == 0x9240) { unpackFlipY_ = value != 0; return; }          // UNPACK_FLIP_Y_WEBGL, PREMULTIPLY_ALPHA, COLORSPACE_CONVERSION: kept here, applied by the binding on image sources
   if (pname == 0x9241) { unpackPremultiply_ = value != 0; return; }
@@ -775,7 +789,65 @@ std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   }
   return status;
 }
+// the pair IMPLEMENTATION_COLOR_READ_* reports for the read buffer: what a framebuffer of that component class reads without conversion
+void WebGL1::implementationReadFormat(std::uint32_t& format, std::uint32_t& type) {
+  format = GL_RGBA; type = GL_UNSIGNED_BYTE;
+  if (version_ != 2 || !fboRead_) return;
+  const GLenum att = fbos_[fboRead_].readBuffer;
+  GLint t = GL_NONE, comp = 0, red = 0, alpha = 0;
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t);
+  if (t != GL_NONE) {
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &red);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE, &alpha);
+  }
+  while (glGetError() != GL_NO_ERROR) {}
+  if (comp == GL_FLOAT) type = GL_FLOAT;
+  else if (comp == GL_INT) { format = GL_RGBA_INTEGER; type = GL_INT; }
+  else if (comp == GL_UNSIGNED_INT) { format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; }
+  else if (red == 10 && alpha == 2) type = GL_UNSIGNED_INT_2_10_10_10_REV;
+}
+// WebGL 2: format and type must exist (INVALID_ENUM), the pair must be one the read buffer offers (INVALID_OPERATION), the pack state must be consistent, and the destination big enough
+bool WebGL1::readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed) {
+  int comps = 0;
+  switch (format) {
+    case GL_ALPHA: case GL_RED: case GL_RED_INTEGER: comps = 1; break;
+    case GL_RG: case GL_RG_INTEGER: comps = 2; break;
+    case GL_RGB: case GL_RGB_INTEGER: comps = 3; break;
+    case GL_RGBA: case GL_RGBA_INTEGER: comps = 4; break;
+    default: error(GL_INVALID_ENUM); return false;
+  }
+  int tsize = 0; bool packed = false;
+  switch (type) {
+    case GL_UNSIGNED_BYTE: case GL_BYTE: tsize = 1; break;
+    case GL_UNSIGNED_SHORT: case GL_SHORT: case GL_HALF_FLOAT: tsize = 2; break;
+    case GL_UNSIGNED_INT: case GL_INT: case GL_FLOAT: tsize = 4; break;
+    case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: tsize = 2; packed = true; break;
+    case GL_UNSIGNED_INT_2_10_10_10_REV: case GL_UNSIGNED_INT_10F_11F_11F_REV: case GL_UNSIGNED_INT_5_9_9_9_REV: tsize = 4; packed = true; break;
+    default: error(GL_INVALID_ENUM); return false;
+  }
+  std::uint32_t implF, implT;
+  implementationReadFormat(implF, implT);
+  const bool fixedOk = format == GL_RGBA && (type == GL_UNSIGNED_BYTE || (type == GL_UNSIGNED_INT_2_10_10_10_REV && implT == GL_UNSIGNED_INT_2_10_10_10_REV)) && implT != GL_FLOAT && implT != GL_INT && implT != GL_UNSIGNED_INT;
+  if (!(fixedOk || (format == implF && type == implT))) { error(GL_INVALID_OPERATION); return false; }
+  if (w < 0 || h < 0) { error(GL_INVALID_VALUE); return false; }
+  if (packSkipPixels_ + w > (packRowLength_ > 0 ? packRowLength_ : w)) { error(GL_INVALID_OPERATION); return false; }
+  const std::int64_t bpp = packed ? tsize : static_cast<std::int64_t>(comps) * tsize;
+  const std::int64_t rowPixels = packRowLength_ > 0 ? packRowLength_ : w;
+  const std::int64_t rowBytes = (rowPixels * bpp + packAlignment_ - 1) / packAlignment_ * packAlignment_;
+  needed = static_cast<std::size_t>(packSkipRows_ * rowBytes + packSkipPixels_ * bpp + (w > 0 && h > 0 ? rowBytes * (h - 1) + w * bpp : 0));
+  return true;
+}
 void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
+  if (version_ == 2) {
+    std::size_t need = 0;
+    if (packBufferBound()) return error(GL_INVALID_OPERATION);   // a pack buffer wants an offset, not a view
+    if (!readCheck(w, h, format, type, need)) return;
+    if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+    if (outBytes < need) return error(GL_INVALID_OPERATION);
+    glReadPixels(x, y, w, h, format, type, out);
+    return;
+  }
   if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
   switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
   if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
@@ -783,6 +855,16 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if (outBytes < static_cast<std::size_t>(w) * h * 4) return error(GL_INVALID_OPERATION);
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, out);
+}
+void WebGL1::readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, std::int64_t offset) {
+  if (version_ != 2 || !packBufferBound()) return error(GL_INVALID_OPERATION);
+  if (offset < 0) return error(GL_INVALID_VALUE);
+  std::size_t need = 0;
+  if (!readCheck(w, h, format, type, need)) return;
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  const Buf& b = buffers_[otherBuffers_[0x88EB]];
+  if (offset > b.size || static_cast<std::int64_t>(need) > b.size - offset) return error(GL_INVALID_OPERATION);
+  glReadPixels(x, y, w, h, format, type, reinterpret_cast<void*>(static_cast<std::intptr_t>(offset)));
 }
 
 }  // namespace zn::gl

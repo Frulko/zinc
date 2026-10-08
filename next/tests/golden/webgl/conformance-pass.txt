@@ -10,6 +10,7 @@ buffers/index-validation-verifies-too-many-indices.html
 buffers/index-validation-with-resized-buffer.html
 buffers/index-validation.html
 conformance2/attribs/gl-vertex-attrib-i-render.html
+conformance2/attribs/gl-vertex-attrib.html
 conformance2/attribs/gl-vertexattribipointer-offsets.html
 conformance2/attribs/gl-vertexattribipointer.html
 conformance2/buffers/bound-buffer-size-change-test.html
@@ -28,10 +29,14 @@ conformance2/misc/expando-loss-2.html
 conformance2/misc/getextension-while-pbo-bound-stability.html
 conformance2/misc/instanceof-test.html
 conformance2/misc/object-deletion-behaviour-2.html
+conformance2/misc/views-with-offsets.html
 conformance2/programs/active-built-in-attribs.html
 conformance2/programs/gl-get-frag-data-location.html
 conformance2/query/occlusion-query.html
 conformance2/query/query.html
+conformance2/reading/read-pixels-from-fbo-test.html
+conformance2/reading/read-pixels-into-pixel-pack-buffer.html
+conformance2/reading/read-pixels-pack-parameters.html
 conformance2/renderbuffers/framebuffer-object-attachment.html
 conformance2/renderbuffers/framebuffer-test.html
 conformance2/renderbuffers/framebuffer-texture-layer.html
@@ -97,6 +102,7 @@ rendering/gl-drawelements.html
 rendering/gl-scissor-test.html
 rendering/line-loop-tri-fan.html
 rendering/more-than-65536-indices.html
+rendering/multisample-corruption.html
 rendering/out-of-bounds-array-buffers.html
 rendering/out-of-bounds-index-buffers.html
 rendering/point-size.html

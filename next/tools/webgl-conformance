@@ -49,7 +49,10 @@ def sloppy(code):
 
 def read(p): return open(p, encoding="utf-8", errors="replace").read()
 
+SLOW = {"rendering/multisample-corruption.html": 90}   # 25 contexts and a 16 MB pixel check in script: about 35 s
+
 def run_page(rel, timeout):
+    timeout = max(timeout, SLOW.get(rel, 0))
     path = rel if os.path.isabs(rel) else os.path.join(SUITE, rel) if rel.startswith("conformance2/") else os.path.join(SUITE, "conformance", rel)
     p = Page(); p.feed(read(path))
     base = os.path.dirname(path)

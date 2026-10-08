@@ -29,6 +29,7 @@ class WebGL1 {
   bool create(Api api, int width, int height, std::string& error, int version = 1);   // version 2: WebGL 2.0 (needs GL 3.3 core or GLES3)
   int version() const { return version_; }
   const Offscreen& target() const { return gl_; }
+  void makeCurrent() { gl_.makeCurrent(); }   // several contexts live side by side: each call of the binding makes its own current
 
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
   std::uint32_t getError();
@@ -169,6 +170,9 @@ class WebGL1 {
   void framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level);
   std::uint32_t checkFramebufferStatus(std::uint32_t target);
   void readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes);
+  void readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, std::int64_t offset);   // WebGL 2 with a PIXEL_PACK_BUFFER bound
+  bool packBufferBound() const { auto it = otherBuffers_.find(0x88EB); return it != otherBuffers_.end() && it->second != 0; }
+  void implementationReadFormat(std::uint32_t& format, std::uint32_t& type);   // IMPLEMENTATION_COLOR_READ_FORMAT / _TYPE of the read buffer
   Id createRenderbuffer();
   void deleteRenderbuffer(Id r);
   void bindRenderbuffer(std::uint32_t target, Id r);
@@ -307,6 +311,8 @@ class WebGL1 {
   bool drawBufferOn(int i) const { return (fbo_ ? fbos_.at(fbo_).draw[i] : defaultDraw_[i]) != 0; }
   bool clearClassOk(int drawbuffer, char want);   // clear (drawbuffer -1, want 'f') and clearBuffer*: false when an enabled draw buffer's attachment is of another class
   int unpackAlignment_ = 4, maxTexSize_ = 0;
+  int packAlignment_ = 4, packRowLength_ = 0, packSkipPixels_ = 0, packSkipRows_ = 0, unpackRowLength_ = 0, unpackImageHeight_ = 0, unpackSkipPixels_ = 0, unpackSkipRows_ = 0, unpackSkipImages_ = 0;
+  bool readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed);   // the WebGL 2 readPixels rules; needed: bytes of the destination
   std::uint32_t mipmapHint_ = 0x1100, derivativeHint_ = 0x1100;   // DONT_CARE
   int unpackFlipY_ = 0, unpackPremultiply_ = 0, unpackColorspace_ = 0x9244;   // the WEBGL pixel-store state, applied by the binding on image sources
   std::uint32_t vao_ = 0;
