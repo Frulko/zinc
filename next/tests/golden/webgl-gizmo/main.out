@@ -1,0 +1,6 @@
+camera before 3.20 2.60 4.20
+camera after an orbit drag -5.14 -0.31 -2.15
+cube on canvas 180 110
+x arrow found true
+cube before cube 0.00 0.80 0.00
+cube after a drag on the X arrow cube -1.64 0.80 0.00
