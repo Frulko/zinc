@@ -3,7 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style", "ui_font", "ui_textlayout", "ui_alloc_text", "ui_alloc_layout", "ui_sides", "ui_media", "ui_docs", "ui_virtual", "ui_theme", "ui_state", "ui_a11y", "ui_alloc", "ui_select", "ui_kbd_inset", "ui_kbd_reveal", "ui_kbd_mode", "ui_kit_sections", "ui_cmds", "webgl_surface", "layout_iface", "layout_rn", "classic_rewrap", "rn_showcase", "style_flex", "style_size", "scroll_axis", "layout_anim", "animated", "style_shadow", "style_transform", "pan_responder", "react_native"], "canary": true},
-    {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "jsx_style"]},
+    {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "jsx_style"]},
     {"paths": ["../examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
     {"paths": ["../lib/std/react-native.tsx"], "tests": ["react_native"]},
     {"paths": ["../lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "rn_showcase", "pan_responder"]},

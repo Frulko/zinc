@@ -396,7 +396,12 @@ currently mean 16 logical pixels, not inherited CSS font sizes. Colors accept th
 are encoded separately from floating/fixed-point values, preserving them on PS1 profiles. Dynamic numeric colors
 still follow the target's `number` range; choose conditional named styles for portable color changes.
 
-Dynamic values inside an inline object must be numeric Zinc expressions. For enum/string changes, select named
+Dynamic values inside an inline object are numeric Zinc expressions, or (ZN-362) a conditional between literals for a key that takes strings:
+`fontWeight: on() ? 'bold' : 'normal'`, `display: open ? 'flex' : 'none'`, `backgroundColor: on() ? '#0f766e' : 'white'`, nested conditionals too. The keys
+that take such a conditional: the enum keys (`flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `position`, `display`,
+`overflow`, `fontWeight`, `textAlign`), the colour keys (`backgroundColor`/`bg`, `color`, `borderColor`, `shadowColor`: each literal becomes its number);
+both branches must set the same properties. `fontWeight` also takes a number (600 and up is bold). A string decided elsewhere (a variable,
+a call) is a build error. For other changes, select named
 styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`, `false`, `undefined` branches are
 empty styles. Object spreads, nested style arrays, `calc`, grid, arbitrary CSS
 selectors and the React Native transform-array syntax are not implemented. Unsupported keys/values are build errors.

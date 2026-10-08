@@ -1,0 +1,2 @@
+off: row false justify 0 align 3 abs false overflow false bg ffffff | bold false talign 0 fg 1c1917 | weight bold false bg ffffff | hidden false bold false
+on: row true justify 3 align 1 abs true overflow true bg 0f766e | bold true talign 1 fg ff5a36 | weight bold true bg 000000 | hidden true bold true

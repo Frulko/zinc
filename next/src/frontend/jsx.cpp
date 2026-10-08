@@ -569,6 +569,35 @@ struct Lowering {
     auto r = std::to_chars(buf, buf + sizeof buf, v);
     return std::string(buf, r.ptr);
   }
+  // A value of a string-valued key decided at run time (ZN-362): `cond ? 'bold' : 'normal'`, nested, between literals. Each literal goes through styleEntry
+  // like a static value, so the branches become numbers on the same keys; a colour becomes its 0xRRGGBB number. Empty when [a, b) is not such a tree.
+  std::vector<std::pair<std::string, std::string>> literalChoice(const std::string& key, std::size_t a, std::size_t b) {
+    strip(a, b);
+    std::size_t q = 0, colon = 0;
+    int depth = 0;
+    scan(a, b, [&](std::size_t i, const std::string& x) {
+      if (x == "?") { if (!q) q = i; ++depth; }
+      else if (x == ":" && q && depth > 0) { if (--depth == 0 && !colon) colon = i; }
+    });
+    if (q && colon) {
+      auto l = literalChoice(key, q + 1, colon), r = literalChoice(key, colon + 1, b);
+      if (l.empty() || r.empty()) return {};
+      if (l.size() != r.size()) fail(q, "both branches of '" + styleName(key) + "' must set the same properties");
+      for (std::size_t k = 0; k < l.size(); ++k) {
+        if (l[k].first != r[k].first) fail(q, "both branches of '" + styleName(key) + "' must set the same properties");
+        l[k].second = "(" + rw(a, q) + " ? " + l[k].second + " : " + r[k].second + ")";
+      }
+      return l;
+    }
+    StyleVal lv;
+    if (b == a + 1 && (t[a].kind == Tok::String || t[a].kind == Tok::TemplateNoSub)) lv.str = tx(a).substr(1, tx(a).size() - 2);
+    else if (b == a + 1 && t[a].kind == Tok::Number) { lv.isNum = true; lv.num = std::strtod(tx(a).c_str(), nullptr); }
+    else if (b == a + 2 && isP(a, "-") && t[a + 1].kind == Tok::Number) { lv.isNum = true; lv.num = -std::strtod(tx(a + 1).c_str(), nullptr); }
+    else return {};
+    std::vector<std::pair<std::string, std::string>> out;
+    try { for (const StyleOp& op : styleEntry(key, lv)) out.push_back({op.key, jsNumber(op.value)}); } catch (const std::runtime_error& e) { fail(a, e.what()); }
+    return out;
+  }
   std::string styleObject(std::size_t a, std::size_t b) {
     std::vector<std::string> keys, values, resources;
     std::size_t from = a;
@@ -641,6 +670,27 @@ struct Lowering {
             else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); }
           }
         } else {
+          std::string sk = styleName(key);
+          const bool stringKey = kStyleEnums.count(sk) || sk == "background" || sk == "border";
+          if (stringKey || (!kStyleAliases.count(sk) && !kStyleNumeric.count(sk) && sk != "width" && sk != "height")) {   // an enum or string key: a conditional between literals lowers to numbers (ZN-362)
+            auto choice = literalChoice(key, vb, ve);
+            if (choice.empty() && sk == "fontWeight") choice.push_back({"fontWeight", "((" + rw(vb, ve) + ") >= 600 ? 1 : 0)"});   // a number: 600 and up is bold
+            if (choice.empty()) fail(vb, "'" + sk + "' takes a literal or a conditional between literals (c ? 'a' : 'b'); a string decided elsewhere cannot be lowered");
+            for (auto& [k, v] : choice) { keys.push_back(quote(k)); values.push_back(v); }
+            continue;
+          }
+          const std::string ck = kStyleAliases.count(sk) && kStyleAliases.at(sk).size() == 1 ? kStyleAliases.at(sk)[0] : sk;   // bg is backgroundColor
+          bool colourKey = ck == "backgroundColor" || ck == "color" || ck == "borderColor" || ck == "shadowColor";
+          if (colourKey) {   // a conditional between colour literals: their numbers (a number decided elsewhere stays a number)
+            auto choice = literalChoice(key, vb, ve);
+            if (!choice.empty()) {
+              for (auto& [k, v] : choice) { keys.push_back(quote(k)); values.push_back(v); }
+              bool alpha = false;
+              for (auto& kv : choice) alpha = alpha || kv.first == "backgroundAlpha";
+              if (ck == "backgroundColor" && !alpha) { keys.push_back(quote("backgroundAlpha")); values.push_back("255"); }
+              continue;
+            }
+          }
           std::string raw = rw(vb, ve);
           std::string dk = key;
           if ((styleName(key) == "width" || styleName(key) == "height") && ve > vb + 2 && t[vb].kind == Tok::Ident && tx(vb) == "pct" && isP(vb + 1, "(") && isP(ve - 1, ")")) {
