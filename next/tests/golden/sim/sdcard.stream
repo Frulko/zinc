@@ -1,0 +1,6 @@
+CMD0 01
+CMD8 01
+ACMD41 00
+CMD58 c0
+token fe
+data response 05

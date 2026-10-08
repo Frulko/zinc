@@ -9,6 +9,7 @@
     {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/prelude.cpp", "src/qjs/ext.cpp", "plugins/script/", "../examples/webgl-studio/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo", "webgl_studio"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},
+    {"paths": ["src/sim/chips/", "tests/native/chip_wave3.cpp", "tests/native/chip_common.h"], "tests": ["chip_models"]},
     {"paths": ["src/sim/", "include/zn/sim.h", "tests/native/sim_test.cpp", "tests/native/board_test.cpp", "tests/native/scenario_test.cpp", "tests/golden/sim/", "third_party/libyaml/", "../examples/boards/s3-matrix/dice/", "src/host/hal_dispatch.cpp", "src/vm/vm.cpp"], "tests": ["sim_core", "sim_board", "sim_scenario", "sim_program", "sim_replay"]},
     {"paths": ["tests/three/", "third_party/three/", "tools/three-compare"], "tests": ["three"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
