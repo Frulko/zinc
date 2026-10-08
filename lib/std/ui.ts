@@ -149,6 +149,7 @@ export class UiNode {
   mAuto: i32 = 0;   // margin-left/right/top/bottom: auto, bits 1 2 4 8: they take the free space of their line (before justify)
   w: i32 = -1; h: i32 = -1; wFrac: number = 0; hFrac: number = 0;
   fullW: boolean = false; fullH: boolean = false;
+  minW: i32 = -1; maxW: i32 = -1; minH: i32 = -1; maxH: i32 = -1; aspect: number = 0;   // min/max sizes (px, -1: none) and aspect-ratio (width / height, 0: none)
   abs: boolean = false; top: i32 = UNSET; left: i32 = UNSET; right: i32 = UNSET; bottom: i32 = UNSET;
   hidden: boolean = false;
   overflow: boolean = false;
@@ -725,6 +726,8 @@ function alphaOf(s: string): i32 {
   if (s.startsWith('[')) { cssColor(s.slice(1, s.length - 1)); return cssAlpha; }
   return 255;
 }
+const MAX_NAMES: string[] = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl'];
+const MAX_PX: number[] = [320, 384, 448, 512, 576, 672, 768, 896, 1024, 1152, 1280];
 const TEXT_PX: string[] = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl'];
 const TEXT_SIZE: i32[] = [12, 14, 16, 18, 20, 24, 30, 36, 48, 60];
 const TEXT_LEAD: i32[] = [16, 20, 24, 28, 28, 32, 36, 40, 48, 60];
@@ -875,6 +878,31 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (gx) n.gapX = Math.round(g); else if (gy) n.gapY = Math.round(g); else n.gap = Math.round(g);
     return true;
   }
+  if (tok.startsWith('min-') || tok.startsWith('max-')) {   // min-w-0, max-w-md, max-h-[300px], min-h-screen
+    const mn = tok.startsWith('min-'), axis = tok.slice(4, 5), k = tok.slice(6);
+    if ((axis !== 'w' && axis !== 'h') || tok.slice(5, 6) !== '-' || k === '') return false;
+    let v: number = -2;
+    if (k === 'full' || k === 'none') v = -1;   // no limit: the parent already bounds the box
+    else if (k === 'screen') v = axis === 'w' ? width() : height();
+    else { const i = MAX_NAMES.indexOf(k); v = i >= 0 ? MAX_PX[i] : num(k); }
+    if (v !== v || v === -2) return false;
+    const iv = Math.round(v);
+    if (axis === 'w') { if (mn) n.minW = iv; else n.maxW = iv; } else { if (mn) n.minH = iv; else n.maxH = iv; }
+    if (k === 'screen') n.responsive = true;
+    return true;
+  }
+  if (tok.startsWith('aspect-')) {
+    const k = tok.slice(7);
+    if (k === 'auto') n.aspect = 0;
+    else if (k === 'square') n.aspect = 1;
+    else if (k === 'video') n.aspect = 16 / 9;
+    else if (k.startsWith('[') && k.indexOf('/') > 0) { const pr = k.slice(1, k.length - 1).split('/'); const a = parseFloat(pr[0]) / parseFloat(pr[1]); if (a !== a || a <= 0) return false; n.aspect = a; }
+    else return false;
+    return true;
+  }
+  if (tok === 'w-screen') { n.w = width(); n.wFrac = 0; n.fullW = false; n.responsive = true; return true; }
+  if (tok === 'h-screen') { n.h = height(); n.hFrac = 0; n.fullH = false; n.responsive = true; return true; }
+  if (tok.startsWith('size-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.w = Math.round(v); n.h = Math.round(v); return true; }
   if (tok.startsWith('top-')) { const v = num(tok.slice(4)); if (v !== v) return false; n.top = Math.round(v); return true; }
   if (tok.startsWith('left-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.left = Math.round(v); return true; }
   if (tok.startsWith('right-')) { const v = num(tok.slice(6)); if (v !== v) return false; n.right = Math.round(v); return true; }
@@ -920,7 +948,7 @@ function resetStyle(n: UiNode): void {
   defaults(fresh);
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0;
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
-  n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
+  n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
@@ -1050,6 +1078,17 @@ function wrapText(n: UiNode, maxW: number): void {
   }
   if (line.length > 0) { n.lines.push(line); n.lineW.push(textWidth(f, line, tr)); }
 }
+/** The size a node ends with: its width and height inside min/max, and aspect-ratio filling the side that is not set. */
+let csW: number = 0, csH: number = 0;
+function constrainSize(c: UiNode, w: number, h: number): void {
+  if (c.maxW >= 0 && w > c.maxW) w = c.maxW;
+  if (c.minW >= 0 && w < c.minW) w = c.minW;
+  if (c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) h = Math.round(w / c.aspect);
+  else if (c.aspect > 0 && c.w < 0 && c.wFrac === 0 && !c.fullW) w = Math.round(h * c.aspect);
+  if (c.maxH >= 0 && h > c.maxH) h = c.maxH;
+  if (c.minH >= 0 && h < c.minH) h = c.minH;
+  csW = w; csH = h;
+}
 function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
 function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
@@ -1084,8 +1123,27 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     let main: number = 0, cross: number = 0, lineMain: number = 0, lineCross: number = 0;
     let count: i32 = 0;
     const gm = gapMain(n), gc = gapCross(n);
+    // aspect-ratio children whose width comes from the line (grow in a row, stretch in a column): their height follows that width, so it counts in the container's size
+    let aspects = false;
+    for (const c of kids) if (c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) aspects = true;
+    let growSum: number = 0, growUsed: number = 0;
+    if (aspects && n.row) {
+      let cnt: i32 = 0;
+      for (const c of kids) {
+        measure(c, inner, innerH);
+        growUsed += outerW(c) + (cnt > 0 ? gm : 0); cnt++;
+        growSum += c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
+      }
+    }
+    const growFree: number = growSum > 0 ? Math.max(0, inner - growUsed) : 0;
     for (const c of kids) {
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
+      if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
+        const g: number = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
+        const fw: number = n.row ? c.lw + (growSum > 0 ? growFree * g / growSum : 0) : (c.w < 0 && c.wFrac === 0 && (n.align === 3 || c.fullW) ? inner - c.ml - c.mr : c.lw);
+        constrainSize(c, Math.round(fw), c.lh);
+        c.lh = csH;
+      }
       const cm = n.row ? outerW(c) : outerH(c), cc = n.row ? outerH(c) : outerW(c);
       if (n.row && n.wrap && count > 0 && lineMain + gm + cm > inner) {
         if (lineMain > main) main = lineMain;
@@ -1115,6 +1173,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   }
   if (ownW >= 0) n.lw = ownW;
   if (ownH >= 0) n.lh = ownH;
+  if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
@@ -1173,10 +1232,15 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const stretch = (n.align === 3 && (n.row ? c.h < 0 : c.w < 0)) || (n.row ? c.fullH : c.fullW);
       const am = c.mAuto;
       const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
+      const fullCross = n.row ? c.fullH : c.fullW;   // w-full / h-full fill the line even with auto margins; an implicit stretch gives way to them
+      if (stretch && (fullCross || (!autoCrossStart && !autoCrossEnd))) cc = lineCross - marginCross;
+      if (c.maxW >= 0 || c.minW >= 0 || c.maxH >= 0 || c.minH >= 0 || c.aspect > 0) {   // the final size (grow, stretch) inside min/max and aspect-ratio
+        constrainSize(c, n.row ? cm : cc, n.row ? cc : cm);
+        cm = n.row ? csW : csH; cc = n.row ? csH : csW;
+      }
       if (autoCrossStart || autoCrossEnd) off = autoCrossStart && autoCrossEnd ? Math.floor((lineCross - cc - marginCross) / 2) : autoCrossStart ? lineCross - cc - marginCross : 0;   // an auto cross margin beats align-items
-      else if (stretch) cc = lineCross - marginCross;
-      else if (n.align === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
-      else if (n.align === 2) off = lineCross - cc - marginCross;
+      else if (!stretch && n.align === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
+      else if (!stretch && n.align === 2) off = lineCross - cc - marginCross;
       const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
       if (n.row) place(c, Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);
