@@ -313,6 +313,14 @@ A.spring(fade, { toValue: 1, bounciness: 6 }).start();
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
 `useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
 
+## LayoutAnimation
+
+`LayoutAnimation` (from `zinc:ui`) is React Native's: `LayoutAnimation.configureNext(config, onEnd)` before a state change animates the layout that
+change causes. Moved and resized nodes go from their old box to their new one, new nodes fade in, removed nodes stay where they were and fade out
+before they leave the tree. Presets: `LayoutAnimation.Presets.easeInEaseOut` (300 ms), `.linear` (500 ms), `.spring` (700 ms, damping 0.4), the
+shortcuts `LayoutAnimation.easeInEaseOut()` / `.linear()` / `.spring()`, and `LayoutAnimation.create(duration, type, property)`. Curves: the iOS
+ones (`easeInEaseOut`, `easeIn`, `easeOut`), `linear`, `spring`. It works with both layout engines.
+
 ## Object styles and StyleSheet
 
 Host JSX nodes accept inline CSS-like objects, reusable `StyleSheet.create` entries, and flat arrays mixing both.

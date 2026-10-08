@@ -1,0 +1,8 @@
+layout rn
+before: a 10,10 100x30 b 10,50 80x30
+at 0: a 10,10 100x30 b 10,50 80x30 added fade 0
+at 50%: a 10,10 150x30 b 10,65 80x45 added fade 0.5
+onEnd called
+at 100%: a 10,10 200x30 b 10,80 80x60 added fade 1
+removing: still in the tree 1, fading 0.5
+removed: in the tree 0

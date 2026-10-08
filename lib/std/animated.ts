@@ -190,15 +190,16 @@ const EASE_IN_OUT: (t: number) => number = Easing.inOut(Easing.ease);
 // ---------------------------------------------------------------- the driver: running animations advance each frame on the engine clock
 const running: Animation[] = [];
 let stepping = false;
+const stepper: () => void = (): void => step();   // one function value, so removeStepper finds it again
 function step(): void {
   const t = now();
   let i = 0;
   while (i < running.length) { const a = running[i]; if (a.active) { a.frame(t); i++; } else running.splice(i, 1); }
-  if (running.length === 0 && stepping) { removeStepper(step); stepping = false; }
+  if (running.length === 0 && stepping) { removeStepper(stepper); stepping = false; }
 }
 function run(a: Animation): void {
   running.push(a);
-  if (!stepping) { addStepper(step); stepping = true; }
+  if (!stepping) { addStepper(stepper); stepping = true; }
 }
 
 /** One animation of one value; composites are built from these. */

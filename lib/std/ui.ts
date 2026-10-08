@@ -275,7 +275,9 @@ export class UiNode {
     // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
-  rn: RnRec | null = null;            // what the rn layout engine was last told about this node (ZN-286)
+  rn: RnRec | null = null;
+  fade: number = 1;                    // LayoutAnimation's create/delete opacity, times the style opacity (ZN-365)
+  leaving: boolean = false;            // removed while a LayoutAnimation runs: painted where it was, fading out, then released            // what the rn layout engine was last told about this node (ZN-286)
   wk: WrapKey | null = null;          // what the text lines were computed from (wrapText)
   hs: Handlers | null = null;
   ed: Edit | null = null;
@@ -425,6 +427,7 @@ export function insert(parent: i32, child: i32, before: i32): void {
 }
 export function remove(parent: i32, child: i32): void {
   const p = node(parent);
+  if (laDeleting(child)) { layoutDirty = true; return; }   // it fades out where it is, then leaves (LayoutAnimation)
   const i = p.children.indexOf(child);
   if (i >= 0) p.children.splice(i, 1);
   release(child);
@@ -432,8 +435,9 @@ export function remove(parent: i32, child: i32): void {
 }
 export function clearChildren(parent: i32): void {
   const p = node(parent);
-  for (const c of p.children) release(c);
-  p.children = [];
+  const stay: i32[] = [];
+  for (const c of p.children) { if (laDeleting(c)) stay.push(c); else release(c); }   // (a LayoutAnimation fades them out first)
+  p.children = stay;
   layoutDirty = true;
 }
 /** Moves an existing child to position `index` (keyed lists reuse nodes instead of rebuilding them). */
@@ -1731,7 +1735,7 @@ function pooled(pool: UiNode[][], d: i32): UiNode[] {
 function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
   for (const h of n.children) {
     const c = node(h);
-    if (c.hidden || c.layer) continue;
+    if (c.hidden || c.layer || c.leaving) continue;
     if (c.tag === FRAGMENT) flat(c, out, wantAbs);
     else if (c.abs === wantAbs) out.push(c);
   }
@@ -2211,7 +2215,7 @@ function rnKids(n: UiNode, out: i32[]): void {
   out.length = 0;
   if (n.tag === TEXT) return;   // a text's spans are measured with it
   let ordered = false;
-  for (const c of n.children) { const k = nodes[c]; if (k.layer) continue; out.push(c); if (k.order !== 0) ordered = true; }
+  for (const c of n.children) { const k = nodes[c]; if (k.layer || k.leaving) continue; out.push(c); if (k.order !== 0) ordered = true; }
   if (ordered) out.sort((a: i32, b: i32): number => nodes[a].order - nodes[b].order);   // (stable)
 }
 const rnScratch: i32[] = [];
@@ -2298,7 +2302,10 @@ export function layout(): void {
   // the root always fills the surface (which follows the window in fill mode)
   const r = node(root);
   r.w = width(); r.h = height();
+  const laNow = laNext !== null;
+  if (laNow) laSnapshot();
   calculate(r, width(), height());
+  if (laNow) laStart();
   if (layers.length > 0) layoutLayers();
   if (anchors.length > 0) applyAnchors();
   layoutDirty = false;
@@ -2343,6 +2350,141 @@ export function animate(h: i32, key: string, to: number, dur: number, easing: st
   anims.push(a);
   return new Promise<void>(resolve => { a.done = resolve; });
 }
+// ---------------------------------------------------------------- LayoutAnimation (ZN-365): React Native's LayoutAnimation on zinc:ui
+// configureNext(config) animates the next layout: every node that moved or resized goes from its old box to its new one (each node interpolates its own
+// absolute box, so children follow their parents), new nodes fade or scale in, removed ones stay where they were and fade out before they leave. The presets
+// and the curves are React Native's (iOS: the UIView curves; spring: damping ratio springDamping over the duration).
+export type LayoutAnimationAnim = { type?: string; property?: string; springDamping?: number; duration?: number; delay?: number };
+export type LayoutAnimationConfig = { duration: number; create?: LayoutAnimationAnim; update?: LayoutAnimationAnim; delete?: LayoutAnimationAnim };
+function laAnim(type: string, property: string, damping: number): LayoutAnimationAnim { return { type: type, property: property, springDamping: damping }; }
+export class LayoutAnimationPresets {
+  easeInEaseOut: LayoutAnimationConfig = { duration: 300, create: laAnim('easeInEaseOut', 'opacity', 0), update: laAnim('easeInEaseOut', '', 0), delete: laAnim('easeInEaseOut', 'opacity', 0) };
+  linear: LayoutAnimationConfig = { duration: 500, create: laAnim('linear', 'opacity', 0), update: laAnim('linear', '', 0), delete: laAnim('linear', 'opacity', 0) };
+  spring: LayoutAnimationConfig = { duration: 700, create: laAnim('linear', 'opacity', 0), update: laAnim('spring', '', 0.4), delete: laAnim('linear', 'opacity', 0) };
+}
+/** The create/delete opacity LayoutAnimation gives a node now (1 outside an animation); for tests. */
+export function fadeOf(h: i32): number { return node(h).fade; }
+export function childCount(h: i32): i32 { return node(h).children.length; }
+export function childAt(h: i32, i: i32): i32 { const c = node(h).children; return i >= 0 && i < c.length ? c[i] : -1; }
+export class LayoutAnimation {
+  static Presets: LayoutAnimationPresets = new LayoutAnimationPresets();
+  /** Animates the layout that the next change causes; onEnd runs when every node has arrived. */
+  static configureNext(config: LayoutAnimationConfig, onEnd: (() => void) | null = null): void { laNext = config; laOnEnd = onEnd; layoutDirty = true; }
+  static create(duration: number, type: string = 'easeInEaseOut', property: string = 'opacity'): LayoutAnimationConfig {
+    return { duration: duration, create: laAnim(type, property, 0), update: laAnim(type, '', 0.4), delete: laAnim(type, property, 0) };
+  }
+  static easeInEaseOut(): void { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); }
+  static linear(): void { LayoutAnimation.configureNext(LayoutAnimation.Presets.linear); }
+  static spring(): void { LayoutAnimation.configureNext(LayoutAnimation.Presets.spring); }
+}
+let laNext: LayoutAnimationConfig | null = null;
+let laOnEnd: (() => void) | null = null;
+let laCfg: LayoutAnimationConfig | null = null;
+let laStartAt: number = 0;
+let laRunning = false;
+const laOld: number[] = [];          // per handle: x, y, w, h before the layout (NaN: not laid out yet)
+const laFrom: number[] = [];         // per animated node: handle, x0, y0, w0, h0, x1, y1, w1, h1, kind (0 update, 1 create)
+const laGone: i32[] = [];            // nodes leaving (removed during the animation)
+const laStepper: () => void = (): void => laStep();   // one function value, so addStepper/removeStepper find it again
+/** The curve of one animation kind at t in 0..1. */
+function laCurve(a: LayoutAnimationAnim | undefined, t: number): number {
+  if (a === undefined) return 1;
+  const type = (a as LayoutAnimationAnim).type ?? 'easeInEaseOut';
+  if (type === 'linear') return t;
+  if (type === 'spring') {
+    const z = (a as LayoutAnimationAnim).springDamping ?? 0.5;
+    if (t >= 1) return 1;
+    const w0 = Math.log(1000) / Math.max(0.05, z), wd = w0 * Math.sqrt(Math.max(0.0001, 1 - z * z));   // settles (to 1/1000) at the end of the duration
+    return 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t));
+  }
+  const x1 = type === 'easeOut' ? 0 : 0.42, x2 = type === 'easeIn' ? 1 : 0.58;   // the iOS curves: easeIn (.42,0,1,1), easeOut (0,0,.58,1), easeInEaseOut (.42,0,.58,1)
+  return cubicBezier(x1, 0, x2, 1, t);
+}
+function cubicBezier(x1: number, y1: number, x2: number, y2: number, x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bx = (u: number): number => ((1 - 3 * x2 + 3 * x1) * u + (3 * x2 - 6 * x1)) * u * u + 3 * x1 * u;
+  let lo = 0, hi = 1, u = x;
+  for (let i = 0; i < 30; i++) { const v = bx(u); if (Math.abs(v - x) < 1e-7) break; if (v < x) lo = u; else hi = u; u = (lo + hi) / 2; }
+  return ((1 - 3 * y2 + 3 * y1) * u + (3 * y2 - 6 * y1)) * u * u + 3 * y1 * u;
+}
+function laSnapshot(): void {
+  laOld.length = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    const laid = n.alive && (n.lw > 0 || n.lh > 0 || n.x !== 0 || n.y !== 0);
+    laOld.push(laid ? n.x : NaN); laOld.push(n.y); laOld.push(n.lw); laOld.push(n.lh);
+  }
+}
+function laStart(): void {
+  laCfg = laNext; laNext = null;
+  laFrom.length = 0;
+  const c = laCfg as LayoutAnimationConfig;
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (!n.alive || n.leaving) continue;
+    const x0 = i * 4 < laOld.length ? laOld[i * 4] : NaN;
+    if (x0 !== x0) {   // created by this change: fades (or scales) in
+      if (c.create !== undefined && (c.create as LayoutAnimationAnim).property === 'opacity') { n.fade = 0; laFrom.push(i); for (let k = 0; k < 8; k++) laFrom.push(0); laFrom.push(1); }
+      continue;
+    }
+    const y0 = laOld[i * 4 + 1], w0 = laOld[i * 4 + 2], h0 = laOld[i * 4 + 3];
+    if (x0 === n.x && y0 === n.y && w0 === n.lw && h0 === n.lh) continue;
+    laFrom.push(i); laFrom.push(x0); laFrom.push(y0); laFrom.push(w0); laFrom.push(h0);
+    laFrom.push(n.x); laFrom.push(n.y); laFrom.push(n.lw); laFrom.push(n.lh); laFrom.push(0);
+  }
+  laStartAt = clock;
+  laRunning = true;
+  addStepper(laStepper);
+  laStep();
+}
+/** A node removed while an animation is armed or running fades out where it is; true: it stays in the tree until then. */
+function laDeleting(h: i32): boolean {
+  const c = laNext !== null ? laNext : laRunning ? laCfg : null;
+  if (c === null) return false;
+  const d = (c as LayoutAnimationConfig).delete;
+  if (d === undefined || (d as LayoutAnimationAnim).property !== 'opacity') return false;
+  const n = node(h);
+  if (n.leaving) return true;
+  n.leaving = true;
+  laGone.push(h);
+  if (!laRunning) { laStartAt = clock; laRunning = true; laCfg = c; addStepper(laStepper); }
+  return true;
+}
+function laStep(): void {
+  const c = laCfg;
+  if (c === null) { removeStepper(laStepper); laRunning = false; return; }
+  const cfg = c as LayoutAnimationConfig;
+  const el = clock - laStartAt, t = el >= cfg.duration - 0.001 ? 1 : Math.max(0, el / Math.max(1, cfg.duration));   // (the engine clock adds frame times: an epsilon ends on time)
+  const pu = laCurve(cfg.update, t), pc = laCurve(cfg.create, t), pd = laCurve(cfg.delete, t);
+  for (let k = 0; k < laFrom.length; k += 10) {
+    const n = nodes[laFrom[k]];
+    if (!n.alive) continue;
+    if (laFrom[k + 9] === 1) { n.fade = pc; continue; }
+    if (t >= 1) { n.x = laFrom[k + 5]; n.y = laFrom[k + 6]; n.lw = laFrom[k + 7]; n.lh = laFrom[k + 8]; continue; }
+    n.x = laFrom[k + 1] + (laFrom[k + 5] - laFrom[k + 1]) * pu; n.y = laFrom[k + 2] + (laFrom[k + 6] - laFrom[k + 2]) * pu;
+    n.lw = laFrom[k + 3] + (laFrom[k + 7] - laFrom[k + 3]) * pu; n.lh = laFrom[k + 4] + (laFrom[k + 8] - laFrom[k + 4]) * pu;
+  }
+  for (const h of laGone) if (nodes[h].alive) nodes[h].fade = 1 - pd;
+  paintDirty = true;
+  if (t < 1) return;
+  for (const h of laGone) {   // the fade-outs end: the nodes leave for real (a node its owner already destroyed leaves the list too)
+    const n = nodes[h];
+    n.leaving = false;
+    if (n.parent >= 0) { const p = nodes[n.parent]; const i = p.children.indexOf(h); if (i >= 0) p.children.splice(i, 1); }
+    if (n.alive) release(h);
+  }
+  laGone.length = 0;
+  for (let k = 0; k < laFrom.length; k += 10) if (nodes[laFrom[k]].alive) nodes[laFrom[k]].fade = 1;
+  laFrom.length = 0;
+  laRunning = false; laCfg = null;
+  removeStepper(laStepper);
+  layoutDirty = true;
+  const done = laOnEnd;
+  laOnEnd = null;
+  if (done !== null) (done as () => void)();
+}
+
 // steppers run each frame after the clock moved (zinc:ui/animated drives its animations from here, ZN-364); a frame is never kept while one is registered
 const steppers: (() => void)[] = [];
 export function addStepper(f: () => void): void { if (steppers.indexOf(f) < 0) steppers.push(f); }
@@ -2410,7 +2552,7 @@ function fontAtScale(n: UiNode, k: number): i32 {
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
-  const a = alpha * n.opacity;
+  const a = alpha * n.opacity * n.fade;
   if (a <= 0.004) return;
   const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
   const w = n.lw * kk, hh = n.lh * kk;
