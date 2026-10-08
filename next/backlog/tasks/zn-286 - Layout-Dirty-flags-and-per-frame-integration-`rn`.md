@@ -4,14 +4,14 @@ title: 'Layout: Dirty flags and per-frame integration (`rn`)'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 13:08'
+updated_date: '2026-10-08 14:28'
 labels:
   - ui
   - layout
   - size-M
 milestone: m-17
 dependencies:
-  - ZN-283
-  - ZN-285
+  - ZN-284.01
 ordinal: 50760
 ---
 
