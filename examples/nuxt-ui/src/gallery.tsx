@@ -1,5 +1,6 @@
 // The gallery of zinc:ui/nuxt (ZN-357.02): every component with its variants, sizes and colours, in the light or the dark scheme.
 import { createSignal, For } from 'zinc:ui/solid';
+import { Overlays } from './overlays';
 import { theme, hex, Button, Badge, Avatar, Card, Input, Textarea, Select, Checkbox, Switch, RadioGroup } from 'zinc:ui/nuxt';
 
 const VARIANTS = ['solid', 'outline', 'soft', 'subtle', 'ghost', 'link'];
@@ -81,6 +82,7 @@ export function Gallery(): i32 {
         <RadioGroup legend="Digest" items={['Daily', 'Weekly', 'Never']} modelValue={freq} onUpdate={setFreq} orientation="horizontal" />
         <RadioGroup items={['Daily', 'Weekly']} modelValue={freq} onUpdate={setFreq} variant="card" color="neutral" />
       </Card>
+      <Overlays />
       <Card variant="solid" title="Solid card" description="An inverted surface." />
     </View>
   </View>;

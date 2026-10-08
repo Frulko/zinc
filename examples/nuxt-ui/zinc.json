@@ -1,2 +1,2 @@
-{ "name": "nuxt-ui", "entry": "src/main.tsx", "icons": ["loader-circle", "chevron-down", "check", "plus", "arrow-right", "search", "mail", "heart", "bell", "settings", "user", "trash-2", "eye"],
+{ "name": "nuxt-ui", "entry": "src/main.tsx", "icons": ["loader-circle", "chevron-down", "check", "plus", "arrow-right", "search", "mail", "heart", "bell", "settings", "user", "trash-2", "eye", "x", "info", "circle-check", "copy", "pencil", "log-out", "panel-right"],
   "targets": { "macos": { "width": 1100, "height": 900 }, "linux": { "width": 1100, "height": 900 } } }

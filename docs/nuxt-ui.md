@@ -44,17 +44,17 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 | Card (done) | outline, soft, subtle, solid; header, body, footer | ZN-357.02 | |
 | Input (done) | outline, soft, subtle, ghost, none; xs..xl; leading / trailing icon | ZN-357.02 | 16 px text below 768 px (Nuxt UI's responsive size) |
 | Textarea (done) | as Input; `rows`, `autoresize`, `maxrows` | ZN-357.02 | autoresize from the field's line count |
-| Select (trigger and list done) | as Input; items, placeholder | ZN-357.02 (field), ZN-357.03 (popup) | the popup on zinc:ui's anchored floats (flip and margin); typeahead |
+| Select (trigger and inline list done; a layer later) | as Input; items, placeholder | ZN-357.02 (field), ZN-357.03 (popup) | the popup on zinc:ui's anchored floats (flip and margin); typeahead |
 | Checkbox (done) | xs..xl; indeterminate; label, description | ZN-357.02 | |
 | Switch (done) | xs..xl (md 36 x 20, thumb 16); loading | ZN-357.02 | thumb animation 200 ms |
 | RadioGroup (done) | list, card, table variants; xs..xl; orientation | ZN-357.02 | arrow keys move the choice |
 | Tabs | pill, link; xs..xl; horizontal / vertical | ZN-357.04 | the indicator measured from the trigger boxes (screenBox) |
 | Accordion | single / multiple, collapsible | ZN-357.04 | height animation to the content's measured height |
-| Modal | fullscreen, dismissible, overlay | ZN-357.03 | zinc:ui layers for the portal; focus kept inside; Escape and outside click |
-| Slideover | side top / right / bottom / left | ZN-357.03 | slide-in keyframes: ZN-275 |
-| DropdownMenu | items with icons, kbds, checkbox items, submenus | ZN-357.03 | anchored float; submenu pointer grace |
-| Tooltip | delay, side | ZN-357.03 | 24 px high, 100 ms |
-| Toast / Toaster | color, title, description, actions, duration, progress | ZN-357.03 | queue of 5, stacked, pause on hover; swipe through onDrag |
+| Modal (done) | fullscreen, dismissible, overlay | ZN-357.03 | zinc:ui layers for the portal; focus kept inside; Escape and outside click |
+| Slideover (done) | side top / right / bottom / left | ZN-357.03 | slide-in keyframes: ZN-275 |
+| DropdownMenu (done) | items with icons, kbds, checkbox items, submenus | ZN-357.03 | anchored float; submenu pointer grace |
+| Tooltip (done) | delay, side | ZN-357.03 | 24 px high, 100 ms |
+| Toast / Toaster (done) | color, title, description, actions, duration, progress | ZN-357.03 | queue of 5, stacked, pause on hover; swipe through onDrag |
 | Table | columns, sorting, row selection, sticky header, loading bar | ZN-357.04 | large data through VirtualList |
 | Pagination | page, total, items-per-page, sibling-count | ZN-357.04 | outline neutral buttons, the current page a solid primary button (Nuxt UI's own composition) |
 | Breadcrumb | items with icons, separator | ZN-357.04 | |

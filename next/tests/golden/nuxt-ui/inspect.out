@@ -1,3 +1,18 @@
 after clicks: buttons 2 terms false news true notify false digest Never select open true
 select: Enterprise open false
 typed: email ada@zinc.dev | bio  Loves maps.Builds UIs in Zinc.
+modal open true
+modal after Escape false
+modal reopened true
+modal after a press outside false
+slideover after Escape false
+slideover reopened true
+slideover after a press outside false
+menu open true
+menu after Escape false
+menu reopened true
+menu after a press outside false
+menu choice duplicate compact true open false
+tooltip after 700 ms of hover true
+tooltip after leaving false
+toasts 1
