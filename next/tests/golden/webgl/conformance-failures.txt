@@ -1,16 +1,5 @@
-attribs/gl-enable-vertex-attrib.html	did not finish
-buffers/buffer-data-and-buffer-sub-data.html	@E bufferData: data must be an ArrayBuffer, a view or a size |     at bufferData (native) |     at bufferDataTest (<input>:41:47)
 conformance2/attribs/gl-vertex-attrib.html	@E not a function |     at getDrng (<input>:1110:37) |     at <eval> (<input>:14:12)
-conformance2/buffers/bound-buffer-size-change-test.html	getError expected: NO_ERROR. Was INVALID_VALUE : Calling bindBufferRange on a buffer where no storage is allocated should succeed.
-conformance2/buffers/buffer-copying-contents.html	getError expected: NO_ERROR. Was INVALID_OPERATION : Copying should work
-conformance2/buffers/buffer-copying-restrictions.html	getError expected: NO_ERROR. Was INVALID_OPERATION : copying from a gl.COPY_READ_BUFFER/COPY_READ_BUFFER_BINDING buffer to a gl.ELEMENT
-conformance2/buffers/buffer-data-and-buffer-sub-data-sub-source.html	getError expected: INVALID_VALUE. Was NO_ERROR : calling bufferData when srcOffset + length is larger than source size
-conformance2/buffers/buffer-overflow-test.html	getError expected: NO_ERROR. Was INVALID_VALUE : Calling bindBufferRange on a buffer where no storage is allocated should succeed.
-conformance2/buffers/buffer-type-restrictions.html	getError expected: NO_ERROR. Was INVALID_VALUE : bindBufferRange(gl.UNIFORM_BUFFER, 0, buffer2, 0, 4) should WORK
-conformance2/buffers/get-buffer-sub-data.html	areArraysEqual(retArray.slice(0, 2), [0, 0]) should be true. Was false.
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
-conformance2/context/methods-2.html	Property either does not exist or is not a function: texParameterf
-conformance2/misc/expando-loss-2.html	getParameter(TEXTURE_BINDING_3D) returns instance that was bound.
 conformance2/misc/instanceof-test.html	gl instanceof WebGL2RenderingContext should be true. Threw exception ReferenceError: gl is not defined
 conformance2/misc/object-deletion-behaviour-2.html	getError expected: INVALID_OPERATION. Was NO_ERROR : after evaluating: gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, bufferBaseUniform)
 conformance2/misc/uninitialized-test-2.html	timeout
@@ -22,7 +11,7 @@ conformance2/reading/read-pixels-into-pixel-pack-buffer.html	@E readPixels: pixe
 conformance2/reading/read-pixels-pack-parameters.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : buffer too small
 conformance2/renderbuffers/framebuffer-object-attachment.html	gl.getParameter(gl.DEPTH_BITS) == 0 should be true. Was false.
 conformance2/renderbuffers/framebuffer-test.html	checkFramebufferStatus(READ_FRAMEBUFFER) should succeed.
-conformance2/renderbuffers/framebuffer-texture-layer.html	checkFramebufferStatus expects [FRAMEBUFFER_COMPLETE], was FRAMEBUFFER_INCOMPLETE_ATTACHMENT
+conformance2/renderbuffers/framebuffer-texture-layer.html	getError expected: INVALID_VALUE. Was NO_ERROR : calling framebufferTextureLayer with a texture layer out of range should generate INVA
 conformance2/renderbuffers/invalidate-framebuffer.html	getError expected: INVALID_VALUE. Was NO_ERROR : calling invalidateSubFramebuffer should generate INVALID_VALUE if width < 0 or height 
 conformance2/renderbuffers/multisampled-renderbuffer-initialization.html	internal buffers have been initialized to 0 at (0, 0) expected: 0,0,0,0 was 0,255,0,255
 conformance2/renderbuffers/readbuffer.html	getError expected: INVALID_ENUM. Was INVALID_OPERATION : calling readBuffer with an enum below GL_COLOR_ATTACHMENT0 on fbo should gener
@@ -32,20 +21,16 @@ conformance2/rendering/blitframebuffer-multisampled-readbuffer.html	should be 25
 conformance2/rendering/blitframebuffer-scissor-enabled.html	Framebuffer incomplete.
 conformance2/rendering/blitframebuffer-size-overflow.html	Framebuffer incomplete.
 conformance2/rendering/blitframebuffer-test.html	Framebuffer incomplete.
-conformance2/rendering/canvas-resizing-with-pbo-bound.html	did not finish
 conformance2/rendering/clear-func-buffer-type-match.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : clear and INT buffer
 conformance2/rendering/draw-buffers.html	@E WebGLDrawBuffersUtils is not defined |     at <eval> (<input>:17:22) |     at eval (native)
 conformance2/rendering/element-index-uint.html	Draw 0 failed pixel test
 conformance2/rendering/framebuffer-completeness-unaffected.html	gl.checkFramebufferStatus(gl.FRAMEBUFFER) should be 36053. Was 36061.
 conformance2/rendering/framebuffer-unsupported.html	checkFramebufferStatus expects [FRAMEBUFFER_UNSUPPORTED], was FRAMEBUFFER_COMPLETE
-conformance2/rendering/out-of-bounds-index-buffers-after-copying.html	getError expected: NO_ERROR. Was INVALID_OPERATION : copyBufferSubData should generate no errors
 conformance2/rendering/uniform-block-buffer-size.html	getError expected: INVALID_OPERATION. Was NO_ERROR : drawArrays: UniformBlock is not backed by a buffer
 conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
-conformance2/samplers/samplers.html	gl.isSampler(s1) should be true. Was false.
 conformance2/state/gl-enum-tests.html	@E gl is not defined |     at <eval> (<input>:1:1) |     at TestEval (<input>:12:15)
-conformance2/state/gl-get-calls.html	context.getParameter(context.FRAGMENT_SHADER_DERIVATIVE_HINT) should be 4352 (of type number). Was null (of type object).
 conformance2/state/gl-object-get-calls.html	gl.getBufferParameter(34962, gl.BUFFER_SIZE) should be 16. Threw exception ReferenceError: gl is not defined
-conformance2/sync/sync-webgl-specific.html	gl.getError() should be 0. Was 1280.
+conformance2/sync/sync-webgl-specific.html	gl.getError() should be 1282. Was 0.
 conformance2/transform_feedback/transform_feedback.html	gl.getIndexedParameter(gl.TRANSFORM_FEEDBACK_BUFFER_BINDING, 0) should be null. Was [object Object].
 conformance2/transform_feedback/unwritten-output-defaults-to-zero.html	buffer should match expected values
 conformance2/vertex_arrays/vertex-array-object.html	buffer removed too early
@@ -56,14 +41,10 @@ context/premultiplyalpha-test.html	@E not a function |     at doNextTest (<input
 misc/bad-arguments-test.html	context.getUniform(program, argument) should throw an exception. Was null.
 misc/invalid-passed-params.html	context.getError() should be 1281. Was 0.
 misc/object-deletion-behaviour.html	gl.isShader(fragmentShader) should be false. Was true.
-misc/shader-precision-format.html	did not finish
-misc/type-conversion-test.html	context.bufferData(context.ARRAY_BUFFER, argument, context.STATIC_DRAW) should be undefined. Threw exception TypeError: bufferData: dat
 misc/uninitialized-test.html	@E canvas is not defined |     at <eval> (<input>:227:46) |     at eval (native)
 programs/get-active-test.html	context2.getActiveAttrib(program, 0) should be null (of type object). Was undefined (of type undefined).
 programs/program-test.html	getError expected: INVALID_OPERATION. Was NO_ERROR : drawing with a newly-invalidated program should generate INVALID_OPERATION
 reading/read-pixels-test.html	color pixel at 1, 0 should be about 19,72,0,198, was = 51,153,102,255
 renderbuffers/renderbuffer-initialization.html	internal buffers have been initialized to 0 at (0, 0) expected: 0,0,0,0 was 0,255,0,255
 rendering/multisample-corruption.html	Canvas should be red
-state/gl-get-calls.html	context.getParameter(context.BLEND_DST_ALPHA) should be 0. Was 4352.
 uniforms/uniform-location.html	getError expected: INVALID_OPERATION. Was NO_ERROR : after evaluating: contextA.uniform1i(locationSx, 3)
-uniforms/uniform-samplers-test.html	did not finish

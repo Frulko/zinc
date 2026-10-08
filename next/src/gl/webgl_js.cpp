@@ -74,19 +74,40 @@ std::int64_t i64(JSContext* c, JSValueConst v) { std::int64_t x = 0; JS_ToInt64(
 #define NEED(n) if (argc < n) return JS_ThrowTypeError(c, "not enough arguments")
 
 // the bytes of an ArrayBuffer, a typed array or a DataView, in place
-bool bytesOf(JSContext* c, JSValueConst v, std::uint8_t*& p, std::size_t& n) {
+bool bytesOf(JSContext* c, JSValueConst v, std::uint8_t*& p, std::size_t& n, std::size_t* elem = nullptr) {
   std::size_t size = 0;
+  if (elem) *elem = 1;
   if (std::uint8_t* b = JS_GetArrayBuffer(c, &size, v)) { p = b; n = size; return true; }
   JS_FreeValue(c, JS_GetException(c));
   size_t off = 0, len = 0, bpe = 0;
   JSValue ab = JS_GetTypedArrayBuffer(c, v, &off, &len, &bpe);
-  if (JS_IsException(ab)) { JS_FreeValue(c, JS_GetException(c)); return false; }
+  if (JS_IsException(ab)) {
+    JS_FreeValue(c, JS_GetException(c));
+    if (!JS_IsDataView(v)) return false;
+    ab = JS_GetPropertyStr(c, v, "buffer");   // a DataView: its buffer, byteOffset and byteLength
+    JSValue o = JS_GetPropertyStr(c, v, "byteOffset"), l = JS_GetPropertyStr(c, v, "byteLength");
+    off = static_cast<size_t>(num(c, o)); len = static_cast<size_t>(num(c, l)); bpe = 1;
+    JS_FreeValue(c, o); JS_FreeValue(c, l);
+  }
   std::uint8_t* base = JS_GetArrayBuffer(c, &size, ab);
   JS_FreeValue(c, ab);
   if (!base) return false;
   p = base + off;
   n = len;
+  if (elem && bpe) *elem = bpe;
   return true;
+}
+// the WebGL 2 tail (srcOffset, length) of a view argument, both counted in elements: 0 not a buffer, 1 ok, 2 INVALID_VALUE raised
+int viewSlice(JSContext* c, WebGL1& gl, int argc, JSValueConst* argv, int i, std::uint8_t*& p, std::size_t& n, int gap = 0) {
+  std::size_t el = 1;
+  i += gap;
+  if (!bytesOf(c, argv[i - gap], p, n, &el)) return 0;
+  const std::int64_t total = static_cast<std::int64_t>(n / el);
+  std::int64_t off = argc > i + 1 ? i64(c, argv[i + 1]) : 0, len = argc > i + 2 ? i64(c, argv[i + 2]) : 0;
+  if (off < 0 || len < 0 || off > total || off + len > total) { gl.raise(0x0501); return 2; }
+  p += off * static_cast<std::int64_t>(el);
+  n = static_cast<std::size_t>((len ? len : total - off) * static_cast<std::int64_t>(el));
+  return 1;
 }
 std::string str(JSContext* c, JSValueConst v) {
   size_t n = 0;
@@ -128,19 +149,18 @@ M(bufferData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
-  if (bytesOf(c, argv[1], p, n)) gl.bufferData(U(0), static_cast<std::int64_t>(n), p, U(2));
-  else if (JS_IsNull(argv[1])) gl.raise(0x0501);   // INVALID_VALUE
-  else if (JS_IsNumber(argv[1])) gl.bufferData(U(0), i64(c, argv[1]), nullptr, U(2));   // a size
-  else return JS_ThrowTypeError(c, "bufferData: data must be an ArrayBuffer, a view or a size");
+  if (int r = viewSlice(c, gl, argc, argv, 1, p, n, 1)) { if (r == 1) gl.bufferData(U(0), static_cast<std::int64_t>(n), p, U(2)); }
+  else if (JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])) gl.raise(0x0501);   // INVALID_VALUE
+  else { double d = num(c, argv[1]); gl.bufferData(U(0), d != d ? 0 : static_cast<std::int64_t>(d), nullptr, U(2)); }   // a size, converted like an IDL integer (NaN is 0)
   return JS_UNDEFINED;
 }
 M(bufferSubData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
-  if (JS_IsNull(argv[2])) { gl.raise(0x0501); return JS_UNDEFINED; }
-  if (!bytesOf(c, argv[2], p, n)) return JS_ThrowTypeError(c, "bufferSubData: data must be an ArrayBuffer or a view");
-  gl.bufferSubData(U(0), i64(c, argv[1]), static_cast<std::int64_t>(n), p);
+  int r = viewSlice(c, gl, argc, argv, 2, p, n);
+  if (!r) return JS_ThrowTypeError(c, "bufferSubData: data must be an ArrayBuffer or a view");
+  if (r == 1) gl.bufferSubData(U(0), i64(c, argv[1]), static_cast<std::int64_t>(n), p);
   return JS_UNDEFINED;
 }
 
@@ -204,6 +224,7 @@ M(createTexture) { SELF return wrapOnce(c, g, 4, gl.createTexture()); }
 M(deleteTexture) { SELF NEED(1); OBJ(o, 0, 4) gl.deleteTexture(o.id); return JS_UNDEFINED; }
 M(bindTexture) { SELF NEED(2); OBJ(o, 1, 4) gl.bindTexture(U(0), o.id); return JS_UNDEFINED; }
 M(activeTexture) { SELF NEED(1); gl.activeTexture(U(0)); return JS_UNDEFINED; }
+M(texParameterf) { SELF NEED(3); gl.texParameteri(U(0), U(1), static_cast<int>(num(c, argv[2]))); return JS_UNDEFINED; }   // ponytail: LOD floats are truncated
 M(texParameteri) { SELF NEED(3); gl.texParameteri(U(0), U(1), I(2)); return JS_UNDEFINED; }
 M(texImage2D) {
   SELF NEED(9);   // the 9-argument form; the image-source form comes with the DOM shims of ZN-204
@@ -285,7 +306,7 @@ JSValue paramToJs(JSContext* c, Gl* g, std::uint32_t pname, const WebGL1::Param&
     case 'a': {
       switch (pname) {
         case 0xBA2: case 0xC10: case 0xD3A: return typed(c, "Int32Array", p.v);                                    // VIEWPORT, SCISSOR_BOX, MAX_VIEWPORT_DIMS
-        case 0x846E: case 0x846D: case 0xB70: case 0xC22: case 0x8005: case 0x8869: return typed(c, "Float32Array", p.v);   // line/point ranges, depth range, clear colour, blend colour, current attrib
+        case 0x846E: case 0x846D: case 0xB70: case 0xC22: case 0x8005: case 0x8626: return typed(c, "Float32Array", p.v);   // line/point ranges, depth range, clear colour, blend colour, current attrib
         case 0x86A3: return typed(c, "Uint32Array", p.v);                                                          // COMPRESSED_TEXTURE_FORMATS
       }
       JSValue arr = JS_NewArray(c);
@@ -376,7 +397,7 @@ JSValue uniformFv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   g->gl.uniformNfv(l, n, v.data(), v.size());
   return JS_UNDEFINED;
 }
-JSValue uniformIv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
+JSValue uniformIv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv, bool uns = false) {
   if (argc < 2) return JS_ThrowTypeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
   std::vector<int> v;
@@ -384,12 +405,15 @@ JSValue uniformIv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   if (bytesOf(c, argv[1], p, nb)) { v.resize(nb / 4); std::memcpy(v.data(), p, v.size() * 4); }
   else if (JS_IsArray(argv[1])) { JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); std::uint32_t len = u32(c, lv); JS_FreeValue(c, lv); for (std::uint32_t i = 0; i < len; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], i); v.push_back(i32(c, e)); JS_FreeValue(c, e); } }
   else return JS_ThrowTypeError(c, "value must be an Int32Array or an array");
-  g->gl.uniformNiv(l, n, v.data(), v.size());
+  if (uns) g->gl.uniformNui(l, n, reinterpret_cast<const std::uint32_t*>(v.data()), v.size());
+  else g->gl.uniformNiv(l, n, v.data(), v.size());
   return JS_UNDEFINED;
 }
 #define UNI_FV(k) M(uniform##k##fv) { SELF return uniformFv(c, g, k, argc, argv); }
 #define UNI_IV(k) M(uniform##k##iv) { SELF return uniformIv(c, g, k, argc, argv); }
 UNI_FV(1) UNI_FV(2) UNI_FV(3) UNI_FV(4) UNI_IV(1) UNI_IV(2) UNI_IV(3) UNI_IV(4)
+#define UNI_UIV(k) M(uniform##k##uiv) { SELF return uniformIv(c, g, k, argc, argv, true); }
+UNI_UIV(1) UNI_UIV(2) UNI_UIV(3) UNI_UIV(4)
 JSValue uniformMat(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   if (argc < 3) return JS_ThrowTypeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
@@ -432,7 +456,7 @@ const Fn kMethods[] = {
   F_(createProgram, 0), F_(attachShader, 2), F_(bindAttribLocation, 3), F_(linkProgram, 1), F_(getProgramParameter, 2), F_(getProgramInfoLog, 1), F_(useProgram, 1),
   F_(getAttribLocation, 2), F_(getUniformLocation, 2), F_(uniform1f, 2), F_(uniform2f, 3), F_(uniform4f, 5), F_(uniform1i, 2), F_(uniformMatrix4fv, 3),
   F_(enableVertexAttribArray, 1), F_(disableVertexAttribArray, 1), F_(vertexAttribPointer, 6), F_(drawArrays, 3), F_(drawElements, 4),
-  F_(createTexture, 0), F_(deleteTexture, 1), F_(bindTexture, 2), F_(activeTexture, 1), F_(texParameteri, 3), F_(texImage2D, 9),
+  F_(createTexture, 0), F_(deleteTexture, 1), F_(bindTexture, 2), F_(activeTexture, 1), F_(texParameteri, 3), F_(texParameterf, 3), F_(texImage2D, 9),
   F_(createFramebuffer, 0), F_(bindFramebuffer, 2), F_(framebufferTexture2D, 5), F_(checkFramebufferStatus, 1), F_(readPixels, 7), F_(zincPresent, 1),
   F_(getContextAttributes, 0), F_(getExtension, 1), F_(isContextLost, 0),
   F_(blendColor, 4),
@@ -551,8 +575,9 @@ M(getBufferSubData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr; std::size_t n = 0;
   { size_t off = 0, len = 0, bpe = 0; JSValue ab = JS_GetTypedArrayBuffer(c, argv[2], &off, &len, &bpe); if (JS_IsException(ab)) { JS_FreeValue(c, JS_GetException(c)); return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view"); } JS_FreeValue(c, ab); }
-  if (!bytesOf(c, argv[2], p, n)) return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view");
-  gl.getBufferSubData(U(0), i64(c, argv[1]), p, n);
+  int r = viewSlice(c, gl, argc, argv, 2, p, n);
+  if (!r) return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view");
+  if (r == 1) gl.getBufferSubData(U(0), i64(c, argv[1]), p, n);
   return JS_UNDEFINED;
 }
 M(uniform1ui) { SELF NEED(2); LOC std::uint32_t v[1] = {U(1)}; gl.uniformNui(l, 1, v, 1); return JS_UNDEFINED; }
@@ -727,6 +752,7 @@ const Fn kMethods2[] = {
   {"vertexAttribDivisor", js_vertexAttribDivisor, 2}, {"drawArraysInstanced", js_drawArraysInstanced, 4}, {"drawElementsInstanced", js_drawElementsInstanced, 5}, {"drawRangeElements", js_drawRangeElements, 6},
   {"drawBuffers", js_drawBuffers, 1}, {"readBuffer", js_readBuffer, 1}, {"bindBufferBase", js_bindBufferBase, 3}, {"bindBufferRange", js_bindBufferRange, 5},
   {"getUniformBlockIndex", js_getUniformBlockIndex, 2}, {"uniformBlockBinding", js_uniformBlockBinding, 3}, {"getActiveUniformBlockParameter", js_getActiveUniformBlockParameter, 3}, {"getActiveUniformBlockName", js_getActiveUniformBlockName, 2},
+  {"uniform1uiv", js_uniform1uiv, 2}, {"uniform2uiv", js_uniform2uiv, 2}, {"uniform3uiv", js_uniform3uiv, 2}, {"uniform4uiv", js_uniform4uiv, 2},
   {"copyBufferSubData", js_copyBufferSubData, 5}, {"getBufferSubData", js_getBufferSubData, 3},
   {"texImage3D", js_texImage3D, 10},
   {"texSubImage3D", js_texSubImage3D, 11},

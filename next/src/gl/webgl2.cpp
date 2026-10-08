@@ -105,19 +105,24 @@ void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, s
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER && target != GL_TRANSFORM_FEEDBACK_BUFFER)) return error(GL_INVALID_ENUM);
   if (index >= 24) return error(GL_INVALID_VALUE);
   if (offset < 0 || size < 0) return error(GL_INVALID_VALUE);
-  std::uint32_t name = 0;
   if (id) {
     auto it = buffers_.find(id);
     if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
     if (it->second.target == GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_OPERATION);
     if (target == GL_UNIFORM_BUFFER) { GLint a = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &a); if (a > 0 && offset % a) return error(GL_INVALID_VALUE); }   // sizes are checked at draw time: an unallocated buffer can be bound
     it->second.target = GL_ARRAY_BUFFER;
-    name = it->second.name;
   }
   indexed_[(static_cast<std::uint64_t>(target) << 32) | index] = Indexed{id, offset, size};
   otherBuffers_[target] = id;
-  if (size == 0 && offset == 0) glBindBufferBase(target, index, name);   // glBindBufferRange rejects size 0; the whole (empty) buffer is what is meant
-  else glBindBufferRange(target, index, name, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size));
+  applyIndexed(target, index);
+}
+// glBindBufferRange rejects a range beyond the storage (or size 0); WebGL allows it, so bind the whole buffer then and re-apply after bufferData
+void WebGL1::applyIndexed(std::uint32_t target, std::uint32_t index) {
+  const Indexed& x = indexed_[(static_cast<std::uint64_t>(target) << 32) | index];
+  auto it = buffers_.find(x.buffer);
+  const std::uint32_t name = x.buffer && it != buffers_.end() ? it->second.name : 0;
+  if (!name || x.size == 0 || x.offset + x.size > it->second.size) glBindBufferBase(target, index, name);
+  else glBindBufferRange(target, index, name, static_cast<GLintptr>(x.offset), static_cast<GLsizeiptr>(x.size));
 }
 std::uint32_t WebGL1::getUniformBlockIndex(Id pid, const std::string& name) {
   auto p = programs_.find(pid);

@@ -54,7 +54,7 @@ def run_page(rel, timeout):
     p = Page(); p.feed(read(path))
     base = os.path.dirname(path)
     p.elements = [{"tag": "script", "id": "", "attrs": {"src": sc["src"]}, "text": ""} for sc in p.scripts if sc["src"]] + p.elements   # getResourcePath() finds js/webgl-test-utils.js among the script elements
-    parts = ["globalThis.__pageDir = %s; globalThis.__pagePath = %s;" % (json.dumps(base), json.dumps("/" + os.path.relpath(path, os.path.dirname(SUITE)))), read(SHIM), "__buildPage(%s);" % json.dumps(p.elements)]
+    parts = ["globalThis.__pageDir = %s; globalThis.__pagePath = %s;" % (json.dumps(base), json.dumps("/" + os.path.relpath(path, os.path.dirname(SUITE)))), read(SHIM), "__buildPage(%s);" % json.dumps(p.elements), "globalThis.__postJs = %s;" % json.dumps(read(os.path.join(SUITE, "js", "js-test-post.js")))]
     for s in p.scripts:
         if s["src"]:
             f = os.path.normpath(os.path.join(base, s["src"].split("?")[0]))
@@ -66,12 +66,13 @@ def run_page(rel, timeout):
     parts.append("__fireLoad();")
     with tempfile.TemporaryDirectory() as d:
         b = os.path.join(d, "bundle.js"); open(b, "w").write("\n".join(parts))
+        if os.environ.get("WGC_BUNDLE"): open(os.environ["WGC_BUNDLE"], "w").write("\n".join(parts))   # keep the bundle to run it by hand
         try:
             r = subprocess.run([zinc, "run", b, "--engine", "quickjs"], capture_output=True, text=True, timeout=timeout, env=dict(os.environ, ZINC_HEADLESS="1"))
             out, code = r.stdout + r.stderr, r.returncode
         except subprocess.TimeoutExpired as e:
             out, code = (e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or "")), -9
-    if os.environ.get("WGC_SHOW"): print(out[-3000:])
+    if os.environ.get("WGC_SHOW"): print(out if os.environ["WGC_SHOW"] == "full" else out[-3000:], "exit", code)
     passes = fails = 0; reason = ""; finished = False
     for line in out.splitlines():
         if line.startswith("@R 1"): passes += 1

@@ -202,8 +202,9 @@ void WebGL1::bindBuffer(std::uint32_t target, Id id) {
     if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
     // WebGL 1: a buffer keeps the first target it was bound to. WebGL 2: only the element-array / other split is kept.
     const std::uint32_t pin = version_ == 2 ? (target == GL_ELEMENT_ARRAY_BUFFER ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER) : target;
-    if (it->second.target && it->second.target != pin) return error(GL_INVALID_OPERATION);
-    it->second.target = pin;
+    const bool copy = target == GL_COPY_READ_BUFFER || target == GL_COPY_WRITE_BUFFER;   // copy targets may hold either kind of buffer
+    if (!copy && it->second.target && it->second.target != pin) return error(GL_INVALID_OPERATION);
+    if (!it->second.target) it->second.target = pin;
     it->second.bound = true;
     name = it->second.name;
   }
@@ -222,6 +223,7 @@ void WebGL1::bufferData(std::uint32_t target, std::int64_t size, const void* dat
   b.shadow.assign(static_cast<std::size_t>(size), 0);
   if (data && size) std::memcpy(b.shadow.data(), data, static_cast<std::size_t>(size));
   glBufferData(target, static_cast<GLsizeiptr>(size), b.shadow.empty() ? nullptr : b.shadow.data(), usage);
+  for (auto& x : indexed_) if (x.second.buffer == id) applyIndexed(static_cast<std::uint32_t>(x.first >> 32), static_cast<std::uint32_t>(x.first));
 }
 void WebGL1::bufferSubData(std::uint32_t target, std::int64_t offset, std::int64_t size, const void* data) {
   if (!bufferTargetOk(target)) return error(GL_INVALID_ENUM);

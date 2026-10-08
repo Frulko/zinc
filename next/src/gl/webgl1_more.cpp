@@ -52,10 +52,10 @@ void WebGL1::depthMask(bool m) { glDepthMask(m); }
 void WebGL1::depthRange(float n, float f) { if (n > f) return error(GL_INVALID_OPERATION); glDepthRange(n, f); }
 void WebGL1::frontFace(std::uint32_t m) { if (m != GL_CW && m != GL_CCW) return error(GL_INVALID_ENUM); glFrontFace(m); }
 void WebGL1::hint(std::uint32_t target, std::uint32_t mode) {
-  if (target != GL_GENERATE_MIPMAP_HINT) return error(GL_INVALID_ENUM);   // FRAGMENT_SHADER_DERIVATIVE_HINT needs OES_standard_derivatives
+  if (target != GL_GENERATE_MIPMAP_HINT && !(version_ == 2 && target == 0x8B8B)) return error(GL_INVALID_ENUM);   // 0x8B8B: FRAGMENT_SHADER_DERIVATIVE_HINT (WebGL 2, or OES_standard_derivatives)
   if (mode != GL_DONT_CARE && mode != GL_FASTEST && mode != GL_NICEST) return error(GL_INVALID_ENUM);
-  mipmapHint_ = mode;
-  glHint(target, mode);
+  (target == GL_GENERATE_MIPMAP_HINT ? mipmapHint_ : derivativeHint_) = mode;
+  if (target == GL_GENERATE_MIPMAP_HINT) glHint(target, mode);
 }
 void WebGL1::lineWidth(float w) { if (!(w > 0)) return error(GL_INVALID_VALUE); glLineWidth(std::min(w, 1.0f)); }   // core profiles accept only 1.0
 void WebGL1::polygonOffset(float f, float u) { glPolygonOffset(f, u); }
@@ -230,8 +230,9 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_BLEND_DST_ALPHA: case GL_BLEND_DST_RGB: case GL_BLEND_SRC_ALPHA: case GL_BLEND_SRC_RGB: case GL_BLEND_EQUATION_RGB: case GL_BLEND_EQUATION_ALPHA:
     case GL_CULL_FACE_MODE: case GL_FRONT_FACE: case GL_DEPTH_FUNC:
     case GL_STENCIL_FUNC: case GL_STENCIL_FAIL: case GL_STENCIL_PASS_DEPTH_FAIL: case GL_STENCIL_PASS_DEPTH_PASS: case GL_STENCIL_BACK_FUNC: case GL_STENCIL_BACK_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_PASS:
-    case GL_STENCIL_REF: case GL_STENCIL_BACK_REF: case GL_STENCIL_CLEAR_VALUE: case GL_STENCIL_VALUE_MASK: case GL_STENCIL_BACK_VALUE_MASK: case GL_STENCIL_WRITEMASK: case GL_STENCIL_BACK_WRITEMASK:
+    case GL_STENCIL_REF: case GL_STENCIL_BACK_REF: case GL_STENCIL_CLEAR_VALUE: case GL_STENCIL_VALUE_MASK: case GL_STENCIL_BACK_VALUE_MASK: case GL_STENCIL_WRITEMASK: case GL_STENCIL_BACK_WRITEMASK: ints(1); break;
     case GL_GENERATE_MIPMAP_HINT: fixed(mipmapHint_); break;
+    case 0x8B8B: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(derivativeHint_); break;   // FRAGMENT_SHADER_DERIVATIVE_HINT
     case GL_PACK_ALIGNMENT: case GL_UNPACK_ALIGNMENT: case GL_SUBPIXEL_BITS: case GL_SAMPLE_BUFFERS: case GL_SAMPLES: ints(1); break;
     case GL_DEPTH_BITS: fixed(depthAttr_ ? 24 : 0); break;
     case GL_STENCIL_BITS: fixed(stencilAttr_ ? 8 : 0); break;
@@ -260,9 +261,10 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_CURRENT_PROGRAM: object(program_, 3); break;
     case GL_TEXTURE_BINDING_2D: object(tex2d_[activeUnit_], 4); break;
     case GL_TEXTURE_BINDING_CUBE_MAP: object(texCube_[activeUnit_], 4); break;
+    case 0x806A: case 0x8C1D: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(pname == 0x806A ? tex3d_[activeUnit_] : texArr_[activeUnit_], 4); break;   // TEXTURE_BINDING_3D, TEXTURE_BINDING_2D_ARRAY
     case GL_FRAMEBUFFER_BINDING: object(fbo_, 5); break;   // (the DRAW and READ bindings are WebGL 2 pnames below)
     case GL_RENDERBUFFER_BINDING: object(rbo_, 7); break;
-    case GL_READ_BUFFER: case GL_SAMPLER_BINDING: case GL_TRANSFORM_FEEDBACK_BINDING: case GL_MAX_ELEMENT_INDEX: case GL_MAX_ARRAY_TEXTURE_LAYERS: case GL_MAX_3D_TEXTURE_SIZE: case GL_MAX_SAMPLES: case GL_MAX_COMBINED_UNIFORM_BLOCKS: case GL_MAX_VERTEX_UNIFORM_BLOCKS: case GL_MAX_FRAGMENT_UNIFORM_BLOCKS: case GL_MAX_UNIFORM_BLOCK_SIZE: case GL_MIN_PROGRAM_TEXEL_OFFSET: case GL_MAX_PROGRAM_TEXEL_OFFSET: case GL_MAX_TEXTURE_LOD_BIAS: case GL_MAX_VARYING_COMPONENTS: case GL_PACK_ROW_LENGTH: case GL_PACK_SKIP_PIXELS: case GL_PACK_SKIP_ROWS: case GL_UNPACK_ROW_LENGTH: case GL_UNPACK_IMAGE_HEIGHT: case GL_UNPACK_SKIP_PIXELS: case GL_UNPACK_SKIP_ROWS: case GL_UNPACK_SKIP_IMAGES: case GL_PIXEL_PACK_BUFFER_BINDING: case GL_PIXEL_UNPACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: case GL_READ_FRAMEBUFFER_BINDING:
+    case GL_READ_BUFFER: case GL_SAMPLER_BINDING: case GL_TRANSFORM_FEEDBACK_BINDING: case GL_MAX_ELEMENT_INDEX: case GL_MAX_ARRAY_TEXTURE_LAYERS: case GL_MAX_3D_TEXTURE_SIZE: case GL_MAX_SAMPLES: case GL_MAX_COMBINED_UNIFORM_BLOCKS: case GL_MAX_VERTEX_UNIFORM_BLOCKS: case GL_MAX_FRAGMENT_UNIFORM_BLOCKS: case GL_MAX_UNIFORM_BLOCK_SIZE: case GL_MIN_PROGRAM_TEXEL_OFFSET: case GL_MAX_PROGRAM_TEXEL_OFFSET: case GL_MAX_TEXTURE_LOD_BIAS: case GL_PACK_ROW_LENGTH: case GL_PACK_SKIP_PIXELS: case GL_PACK_SKIP_ROWS: case GL_UNPACK_ROW_LENGTH: case GL_UNPACK_IMAGE_HEIGHT: case GL_UNPACK_SKIP_PIXELS: case GL_UNPACK_SKIP_ROWS: case GL_UNPACK_SKIP_IMAGES: case GL_PIXEL_PACK_BUFFER_BINDING: case GL_PIXEL_UNPACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: case GL_READ_FRAMEBUFFER_BINDING:
       if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
       switch (pname) {
         case GL_READ_BUFFER: fixed(fboRead_ ? fbos_[fboRead_].readBuffer : defaultRead_); break;
@@ -278,6 +280,30 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
         default: ints(1);
       }
       break;
+    case GL_RASTERIZER_DISCARD: case 0x9247: case 0x9111: case 0x80E8: case 0x80E9: case 0x9125: case 0x8B49: case 0x8B4A: case 0x8B4B: case 0x9122: case 0x8A31: case 0x8A33:
+    case 0x8C8A: case 0x8C8B: case 0x8C80: {   // WebGL 2 limits: the context reports what the WebGL 2 minimums and the GL 3.3 core query allow
+      if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
+      GLint64 v = 0;
+      switch (pname) {
+        case GL_RASTERIZER_DISCARD: bools(1); break;
+        case 0x9247: fixed(0); break;                                  // MAX_CLIENT_WAIT_TIMEOUT_WEBGL
+        case 0x9111: fixed(0x7FFFFFFF); break;                         // MAX_SERVER_WAIT_TIMEOUT
+        case 0x80E8: case 0x80E9: fixed(1 << 20); break;               // MAX_ELEMENTS_VERTICES / INDICES (not in a core profile)
+        case 0x9125: case 0x8B4B: fixed(60); break;                    // MAX_FRAGMENT_INPUT_COMPONENTS, MAX_VARYING_COMPONENTS: the 15 varying vectors reported
+        case 0x9122: fixed(64); break;                                  // MAX_VERTEX_OUTPUT_COMPONENTS
+        case 0x8B49: case 0x8B4A: glGetInteger64v(pname, &v); fixed(static_cast<double>(v)); break;   // MAX_FRAGMENT / VERTEX_UNIFORM_COMPONENTS
+        case 0x8A31: case 0x8A33: {   // MAX_COMBINED_VERTEX / FRAGMENT_UNIFORM_COMPONENTS = blocks * block size / 4 + default-block components
+          GLint64 size = 0, blocks = 0, comps = 0;
+          glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &size);
+          glGetInteger64v(pname == 0x8A31 ? GL_MAX_VERTEX_UNIFORM_BLOCKS : GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &blocks);
+          glGetInteger64v(pname == 0x8A31 ? GL_MAX_VERTEX_UNIFORM_COMPONENTS : GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &comps);
+          fixed(static_cast<double>(size / 4 * blocks + comps));
+          break;
+        }
+        default: glGetInteger64v(pname, &v); fixed(static_cast<double>(v));   // the transform feedback limits
+      }
+      break;
+    }
     case GL_DRAW_BUFFER0: case GL_DRAW_BUFFER0 + 1: case GL_DRAW_BUFFER0 + 2: case GL_DRAW_BUFFER0 + 3:
       if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
       fixed(fbo_ ? fbos_[fbo_].draw[pname - GL_DRAW_BUFFER0] : defaultDraw_[pname - GL_DRAW_BUFFER0]);

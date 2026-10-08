@@ -80,6 +80,7 @@ bool Offscreen::create(Api want, int width, int height, bool fallback, std::stri
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth_);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error = "offscreen framebuffer incomplete"; return false; }
     glViewport(0, 0, w_, h_);
+    glScissor(0, 0, w_, h_);
   } else {
     if (!gladLoadGL(reinterpret_cast<GLADloadfunc>(SDL_GL_GetProcAddress))) { error = "gladLoadGLES2 failed"; return false; }
     info_.es = true;
@@ -100,6 +101,7 @@ bool Offscreen::create(Api want, int width, int height, bool fallback, std::stri
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error = "offscreen framebuffer incomplete"; return false; }
     glViewport(0, 0, w_, h_);
+    glScissor(0, 0, w_, h_);
   }
   return true;
 }

@@ -114,7 +114,7 @@ class WebGL1 {
   void copyTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int x, int y, int width, int height);
   Id createSampler();
   void deleteSampler(Id s);
-  bool isSampler(Id s) const { auto it = samplers_.find(s); return it != samplers_.end() && it->second.bound; }
+  bool isSampler(Id s) const { return samplers_.count(s) != 0; }   // an object from creation on, unlike buffers or queries
   void bindSampler(std::uint32_t unit, Id s);
   void samplerParameteri(Id s, std::uint32_t pname, int v);
   void samplerParameterf(Id s, std::uint32_t pname, float v);
@@ -256,6 +256,7 @@ class WebGL1 {
   bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub);
   bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1);
   bool bufferTargetOk(std::uint32_t t) const;
+  void applyIndexed(std::uint32_t target, std::uint32_t index);
   Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
 
   Offscreen gl_;
@@ -285,7 +286,7 @@ class WebGL1 {
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
   int unpackAlignment_ = 4, maxTexSize_ = 0;
-  std::uint32_t mipmapHint_ = 0x1100;   // DONT_CARE
+  std::uint32_t mipmapHint_ = 0x1100, derivativeHint_ = 0x1100;   // DONT_CARE
   int unpackFlipY_ = 0, unpackPremultiply_ = 0, unpackColorspace_ = 0x9244;   // the WEBGL pixel-store state, applied by the binding on image sources
   std::uint32_t vao_ = 0;
 };

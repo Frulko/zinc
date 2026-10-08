@@ -1,6 +1,8 @@
 // A just-enough DOM for the Khronos WebGL conformance pages (ZN-203.04): the page's elements come from tools/webgl-conformance as __elements, the results leave through
 // window.parent.webglTestHarness (what js-test-pre.js already calls) and are printed as "@R 1|0 message", "@F" and "@E message" lines.
 (function (g) {
+  delete g.SharedArrayBuffer;   // a page that is not cross-origin isolated has none; the engine cannot hand out its bytes
+  g.screen = { width: 1920, height: 1080 };
   g.window = g; g.self = g; g.top = g;
   const out = (...a) => console.log(a.join(' '));
   g.parent = { webglTestHarness: {
@@ -26,7 +28,7 @@
   function initNode(n, tag) { n.tagName = String(tag).toUpperCase(); n.nodeName = n.tagName; n.childNodes = []; n.children = n.childNodes; n.parentNode = null; n.attributes = {}; n.style = {}; n._text = ''; n._ev = {}; n.className = ''; n.id = ''; n.dataset = {}; n.classList = { add() {}, remove() {}, contains() { return false; }, toggle() {} }; }
   class Node {
     constructor(tag) { initNode(this, tag); }
-    appendChild(c) { c.parentNode = this; this.childNodes.push(c); return c; }
+    appendChild(c) { c.parentNode = this; this.childNodes.push(c); if (c.tagName === 'SCRIPT' && /js-test-post\.js$/.test(c.src || '') && g.__postJs) (0, eval)(g.__postJs); return c; }   // finishTest() loads the epilogue this way
     insertBefore(c, ref) { c.parentNode = this; const i = this.childNodes.indexOf(ref); if (i < 0) this.childNodes.push(c); else this.childNodes.splice(i, 0, c); return c; }
     removeChild(c) { const i = this.childNodes.indexOf(c); if (i >= 0) this.childNodes.splice(i, 1); c.parentNode = null; return c; }
     remove() { if (this.parentNode) this.parentNode.removeChild(this); }
