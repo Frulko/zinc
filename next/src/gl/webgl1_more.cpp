@@ -332,10 +332,15 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
       break;
     }
     case GL_RED_BITS: case GL_GREEN_BITS: case GL_BLUE_BITS: case GL_ALPHA_BITS: {
-      GLint v = 0;
-      glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &v);   // clears any error a default framebuffer query leaves
-      while (glGetError() != GL_NO_ERROR) {}
-      fixed(pname == GL_DEPTH_BITS ? 24 : pname == GL_STENCIL_BITS ? 8 : 8);
+      GLint v = 8;
+      if (!fbo_) v = pname == GL_ALPHA_BITS && !alphaAttr_ ? 0 : 8;   // the canvas: 8 bits per channel, none of alpha when the context was made without
+      else {   // a framebuffer object: the bits of its first colour attachment
+        const GLenum sz = pname == GL_RED_BITS ? GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE : pname == GL_GREEN_BITS ? GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE : pname == GL_BLUE_BITS ? GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE : GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE;
+        v = 0;
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, sz, &v);
+        while (glGetError() != GL_NO_ERROR) {}
+      }
+      fixed(v);
       break;
     }
     case GL_MAX_TEXTURE_SIZE: fixed(maxTexSize_); break;
@@ -582,7 +587,14 @@ void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, 
   if (!data) return error(GL_INVALID_VALUE);
   const Tex& t = textures_[id];
   if (t.cfmt) return error(GL_INVALID_OPERATION);   // a compressed texture is updated with compressedTexSubImage2D
-  if (level == 0 && (xoff + width > t.w || yoff + height > t.h)) return error(GL_INVALID_VALUE);
+  {   // the level must exist, and the update lie inside it
+    GLint lw = 0, lh = 0;
+    glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &lw);
+    glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &lh);
+    while (glGetError() != GL_NO_ERROR) {}
+    if (lw == 0 && lh == 0 && (level > 0 || t.w == 0)) return error(GL_INVALID_OPERATION);   // no such image yet
+    if (xoff + width > lw || yoff + height > lh) return error(GL_INVALID_VALUE);
+  }
   if (t.format && t.format != format) return error(GL_INVALID_OPERATION);   // the format of the level must match
   std::size_t row = (static_cast<std::size_t>(width) * bpp + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
   std::size_t need = height ? row * (height - 1) + static_cast<std::size_t>(width) * bpp : 0;

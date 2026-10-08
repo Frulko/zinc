@@ -121,6 +121,8 @@ std::string essl1Violation(const std::string& src, int webgl) {
     if (id.find("__") != std::string::npos && id != "__VERSION__" && id != "__LINE__" && id != "__FILE__") return "ERROR: 0:1: '" + id + "' : identifiers containing \"__\" are reserved";   // (the suite is of two minds: shader-with-double-underscore wants one accepted)
     i = j;
   }
+  static const std::regex globalInOut(R"((^|[;}])\s*(?:in|out)\s+(?:(?:lowp|mediump|highp)\s+)?\w+\s+\w+\s*[;\[=])");   // `in` and `out` declare variables in GLSL ES 3.00 only; here they are for parameters
+  if (std::regex_search(t, globalInOut)) return "ERROR: 0:1: 'in' : storage qualifier supported in GLSL ES 3.00 and above only";
   return "";
 }
 // words that desktop GLSL 330 keeps for itself but ESSL 1.00 lets a shader use as names: renamed by macro when the shader uses them
@@ -136,6 +138,7 @@ bool desktopOnlyWord(const std::string& id) {
 // valSrc / valPre: what the GLSL ES validator (essl_check.cpp) is shown: the source with comments gone and the macros of this context in a preamble
 std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err, std::string& valSrc, std::string& valPre) {
   if (es) return src;
+  if (webgl == 1 && src.find("#version 300 es") != std::string::npos) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
   {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
     std::size_t at = src.find("#version");
     const bool es3 = at != std::string::npos && src.compare(at, 15, "#version 300 es") == 0;
@@ -163,7 +166,6 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
       return "#version 330 core\n" + body;
     }
   }
-  if (webgl == 1 && src.find("#version 300 es") != std::string::npos) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
   if (const std::string bad = essl1Violation(src, webgl); !bad.empty()) { err = bad; return ""; }
   std::string body;
   std::string pre = "#version 330 core\n";
@@ -670,11 +672,13 @@ void WebGL1::compileShader(Id id) {
   std::string terr, valSrc, valPre;
   std::string full = translate(s.source, s.type, gl_.info().es, extOn_, version_, terr, valSrc, valPre);
   if (!terr.empty()) { s.compiled = false; s.log = terr; return; }
+  s.valSrc.clear(); s.valPre.clear();
   if (!gl_.info().es) {   // (an OpenGL ES driver is a GLSL ES compiler already)
     if (const std::string bad = esslValidate(valSrc, valPre, s.type == GL_FRAGMENT_SHADER); !bad.empty()) {
       if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- rejected by glslang\n%s\n%s\n%s\n", bad.c_str(), valPre.c_str(), valSrc.c_str());
       s.compiled = false; s.log = bad; return;
     }
+    s.valSrc = valSrc; s.valPre = valPre;
   }
   if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- translated shader\n%s\n", full.c_str());
   const char* p = full.c_str();
@@ -724,6 +728,14 @@ void WebGL1::linkProgram(Id pid) {
     p.linked = false;
     p.log = "ERROR: a program needs a compiled vertex shader and a compiled fragment shader";
     return;
+  }
+  if (!gl_.info().es) {   // the checks that need both stages: versions, varyings, uniforms
+    const Shader &vs = shaders_[p.vs], &fs = shaders_[p.fs];
+    if (const std::string bad = esslLink(vs.valSrc, vs.valPre, fs.valSrc, fs.valPre); !bad.empty()) {
+      if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- link rejected by glslang\n%s\n", bad.c_str());
+      p.linked = false; p.log = bad;
+      return;
+    }
   }
   glLinkProgram(p.name);
   GLint ok = 0, len = 0;

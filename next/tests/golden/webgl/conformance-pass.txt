@@ -82,6 +82,7 @@ conformance2/glsl3/precision-side-effects-bug.html
 conformance2/glsl3/reciprocal-sqrt-of-sum-of-squares-crash.html
 conformance2/glsl3/sampler-array-indexing.html
 conformance2/glsl3/sampler-no-precision.html
+conformance2/glsl3/shader-linking.html
 conformance2/glsl3/shader-with-1024-character-define.html
 conformance2/glsl3/shader-with-1024-character-identifier.frag.html
 conformance2/glsl3/shader-with-1025-character-define.html
@@ -296,6 +297,7 @@ glsl/bugs/conditional-discard-in-loop.html
 glsl/bugs/conditional-discard-optimization.html
 glsl/bugs/conditional-texture-fetch.html
 glsl/bugs/constant-precision-qualifier.html
+glsl/bugs/essl3-shaders-with-webgl1.html
 glsl/bugs/floor-div-cos-should-not-truncate.html
 glsl/bugs/floored-division-accuracy.html
 glsl/bugs/fragcoord-linking-bug.html
@@ -445,6 +447,8 @@ glsl/implicit/ternary_ivec4_vec4.vert.html
 glsl/literals/float_literal.vert.html
 glsl/literals/literal_precision.html
 glsl/literals/overflow_leak.vert.html
+glsl/matrices/glsl-mat3-construction.html
+glsl/matrices/glsl-mat4-to-mat3.html
 glsl/matrices/matrix-compound-multiply.html
 glsl/misc/attrib-location-length-limits.html
 glsl/misc/boolean_precision.html
@@ -458,6 +462,8 @@ glsl/misc/glsl-function-nodes.html
 glsl/misc/glsl-vertex-branch.html
 glsl/misc/large-loop-compile.html
 glsl/misc/local-variable-shadowing-outer-function.html
+glsl/misc/non-ascii-comments.vert.html
+glsl/misc/non-ascii.vert.html
 glsl/misc/re-compile-re-link.html
 glsl/misc/sampler-operand.html
 glsl/misc/sequence-operator-returns-constant.html
@@ -582,6 +588,7 @@ misc/null-object-behaviour.html
 misc/object-deletion-behaviour.html
 misc/shader-precision-format.html
 misc/type-conversion-test.html
+misc/uninitialized-test.html
 misc/webgl-specific.html
 programs/get-active-test.html
 programs/gl-bind-attrib-location-test.html

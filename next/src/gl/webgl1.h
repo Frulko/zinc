@@ -286,7 +286,7 @@ class WebGL1 {
 
  private:
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
-  struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
+  struct Shader { std::uint32_t name = 0, type = 0; std::string source, log, valSrc, valPre; bool compiled = false, deleted = false; int attached = 0; };   // valSrc / valPre: what the GLSL ES validator was shown, kept for the link-time checks
   struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t cfmt = 0; /* the compressed format of level 0, 0: not compressed */ std::uint32_t minF = 0x2702, magF = 0x2601, wrapS = 0x2901, wrapT = 0x2901; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
   struct Sampler { std::uint32_t name = 0; bool bound = false; };

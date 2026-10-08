@@ -5,5 +5,7 @@
 
 namespace zn::gl {
 /** "" when the source is a valid ESSL shader of that stage (100, or 300 es when it says `#version 300 es`), else the compiler's error log. The preamble holds the macros of the context (ZN_GL_ES ...). */
-std::string esslValidate(const std::string& source, const std::string& preamble, bool fragment);
+std::string esslValidate(const std::string& source, std::string& preamble, bool fragment);   // (the preamble gains the renames the validation needed)
+/** The checks that need both stages (varyings, uniforms, versions): "" when the pair links as GLSL ES, else the log. */
+std::string esslLink(const std::string& vsSource, const std::string& vsPreamble, const std::string& fsSource, const std::string& fsPreamble);
 }  // namespace zn::gl

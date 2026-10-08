@@ -6,7 +6,6 @@ conformance2/glsl3/array-length-side-effects.html	should be green at (0, 0) expe
 conformance2/glsl3/forbidden-operators.html	[unexpected link status] (expected: false) Using ternary operators with arrays is not allowed
 conformance2/glsl3/loops-with-side-effects.html	should be 255,255,0,255 at (0, 0) expected: 255,255,0,255 was 0,0,0,255
 conformance2/glsl3/sequence-operator-returns-non-constant.html	[unexpected link status] (expected: false) Sequence operator cannot return a constant expression
-conformance2/glsl3/shader-linking.html	[unexpected link status] (expected: false) OpenGL ES Shading Language 3.00 vertex shader should not link with OpenGL ES Shading Languag
 conformance2/glsl3/shader-with-mis-matching-uniform-block.html	[unexpected link status] (expected: false) Shaders with precision mis-matching uniform blocks should fail
 conformance2/glsl3/short-circuiting-in-loop-condition.html	should be green at (0, 0) expected: 0,255,0,255 was 0,255,0,0
 conformance2/glsl3/switch-case.html	[unexpected fragment shader compile status] (expected: true) Empty declaration should count as a statement for the purposes of switch s
@@ -47,17 +46,12 @@ extensions/oes-texture-half-float-with-image.html	@E image decoding is not avail
 extensions/oes-texture-half-float-with-video.html	video.canPlayType required method missing
 glsl/bugs/assign-to-swizzled-twice-in-function.html	should be green at (16, 0) expected: 0,255,0,255 was 255,255,0,255
 glsl/bugs/character-set.html	[unexpected fragment shader compile status] (expected: true) Out-of-charset string '"' in ifdef-out MUST compile.
-glsl/bugs/essl3-shaders-with-webgl1.html	[unexpected link status] (expected: false) OpenGL ES 3 shading language vertex shader with an in variable should not be accepted by Web
 glsl/bugs/in-parameter-passed-as-inout-argument-and-global.html	should be green at (0, 0) expected: 0,255,0,255 was 0,0,0,255
 glsl/bugs/sequence-operator-evaluation-order.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
-glsl/matrices/glsl-mat3-construction.html	@E cannot read property 'innerText' of undefined |     at runBasicTest (<input>:465:39) |     at <eval> (<input>:18:21)
-glsl/matrices/glsl-mat4-to-mat3.html	@E cannot read property 'innerText' of undefined |     at runBasicTest (<input>:465:39) |     at <eval> (<input>:18:21)
 glsl/misc/extension-enable-and-disable.html	Shader compiled and linked successfully, but it should have failed.
 glsl/misc/fragcolor-fragdata-invariant.html	[unexpected fragment shader compile status] (expected: true) Declaring both gl_FragColor and gl_FragData invariant should succeed.
 glsl/misc/global-variable-init.html	[unexpected vertex shader compile status] (expected: true) Another global in a global variable initializer should be accepted by WebGL.
 glsl/misc/glsl-long-variable-names.html	activeUniform.name should be value01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
-glsl/misc/non-ascii-comments.vert.html	@E vertexShader is not defined |     at <eval> (<input>:12:1) |     at eval (native)
-glsl/misc/non-ascii.vert.html	@E vertexShader is not defined |     at <eval> (<input>:14:1) |     at eval (native)
 glsl/misc/shader-struct-scope.html	[unexpected vertex shader compile status] (expected: true) Two structs defined within non-overlapping scopes should be able to use the 
 glsl/misc/shader-uniform-packing-restrictions.html	[unexpected link status] (expected: false) vertex shader with uniform array of bool with 1025 elements (one past maximum) accessing fir
 glsl/misc/shader-varying-packing-restrictions.html	[unexpected link status] (expected: false) shaders with varying array of float with 16 elements (one past maximum) accessing last eleme
@@ -75,7 +69,6 @@ glsl/misc/uninitialized-local-global-variables.html	should be 0,0,0,0 at (25, 0)
 glsl/preprocessor/macro-expansion-tricky.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
 glsl/samplers/glsl-function-texture2dprojlod.html	sampling with lod = 0 divider = 1 should be red at (0, 0) expected: 255,0,0,255 was 0,0,0,255
 glsl/variables/glsl-built-ins.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
-misc/uninitialized-test.html	@E canvas is not defined |     at <eval> (<input>:227:46) |     at eval (native)
 textures/misc/canvas-teximage-after-multiple-drawimages.html	no PASS
 textures/misc/copy-tex-image-and-sub-image-2d.html	0, 0 should render 0,0,0,0 (+/-1) at (0, 0) expected: 0,0,0,0 was 136,136,136,136
 textures/misc/cube-incomplete-fbo.html	gl.checkFramebufferStatus(gl.FRAMEBUFFER) should be 36054. Was 36053.
