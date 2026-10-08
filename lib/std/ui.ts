@@ -173,6 +173,7 @@ export class UiNode {
   shadowLevel: i32 = 0;
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
+  z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
   size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
@@ -783,7 +784,22 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   const css = CSS.get(tok);
   if (css !== undefined) { for (const t of css.split(' ')) if (t.length > 0) applyToken(n, t, ''); return true; }
-  if (tok === 'flex' || tok === 'relative' || tok === 'static' || tok === 'font-normal' || tok === 'font-medium' || tok === 'transition' || tok === 'ease-out' || tok === 'ease-in' || tok === 'ease-in-out') return true;
+  if (tok === 'relative') { n.rel = true; n.sticky = false; return true; }
+  if (tok === 'static') { n.rel = false; n.sticky = false; return true; }
+  if (tok === 'sticky') { n.sticky = true; n.rel = false; return true; }
+  if (tok === 'invisible') { n.invisible = true; return true; }
+  if (tok === 'visible') { n.invisible = false; return true; }
+  if (tok === 'pointer-events-none') { n.noPointer = true; return true; }
+  if (tok === 'pointer-events-auto') { n.noPointer = false; return true; }
+  if (tok === 'z-auto') { n.z = 0; return true; }
+  if (tok.startsWith('z-') || tok.startsWith('-z-')) {   // z-10, -z-10, z-[5]
+    const neg = tok.startsWith('-'), k = tok.slice(neg ? 3 : 2);
+    const zv = k.startsWith('[') ? parseFloat(k.slice(1, k.length - 1)) : parseFloat(k);
+    if (zv !== zv) return false;
+    n.z = Math.round(neg ? -zv : zv);
+    return true;
+  }
+  if (tok === 'flex' || tok === 'font-normal' || tok === 'font-medium' || tok === 'transition' || tok === 'ease-out' || tok === 'ease-in' || tok === 'ease-in-out') return true;
   if (tok === 'flex-row') { n.row = true; return true; }
   if (tok === 'flex-col') { n.row = false; return true; }
   if (tok === 'flex-wrap') { n.wrap = true; return true; }
@@ -994,7 +1010,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
@@ -1241,6 +1257,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
+  if (n.rel) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
   if (n.tag === TEXT) return;
   // scroll containers lay their content out at its natural size; the viewport only clips and offsets it
@@ -1476,10 +1493,10 @@ function fontAtScale(n: UiNode, k: number): i32 {
 // sized n.lw * k * n.k (style scale zooms the node and its subtree around its top-left corner).
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
-  if (n.hidden || (n.layer && h !== layerPass)) return;
+  if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
   const a = alpha * n.opacity;
   if (a <= 0.004) return;
-  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
+  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
   if (n.tag !== FRAGMENT) {
@@ -1537,7 +1554,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     }
   }
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
-  for (const c of n.children) paint(c, cx, cy, kk, a);
+  const zp = zSorted(n);
+  if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
 }
@@ -2233,15 +2251,45 @@ function editScrolls(n: UiNode, e: Edit): boolean {
   return e.multi && e.rs.length * lineHeightOf(n) > n.lh - n.pt - n.pb;
 }
 /** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
+/** position: sticky; top-N: how far the box is held down from its place while its scroll container is scrolled past it (kept inside its parent). */
+function stickyDy(n: UiNode): number {
+  if (!n.sticky || n.top === UNSET) return 0;
+  let p = n.parent;
+  while (p >= 0 && nodes[p].scroll === 0) p = nodes[p].parent;
+  if (p < 0) return 0;
+  const sc = nodes[p];
+  let dy = sc.y + sc.sy + n.top - n.y;
+  if (dy <= 0) return 0;
+  const par = n.parent >= 0 ? nodes[n.parent] : sc;
+  const room = par.y + par.lh - par.pb - (n.y + n.lh);
+  return dy < room ? dy : (room > 0 ? room : 0);
+}
+/** Children in paint order (hit test: the reverse): by z-index, a stable sort; null when none has a z-index or is sticky (the order of the tree). */
+function zSorted(n: UiNode): i32[] | null {
+  let any = false;
+  for (const c of n.children) { const q = nodes[c]; if (q.z !== 0 || q.sticky) { any = true; break; } }
+  if (!any) return null;
+  const out: i32[] = [];
+  for (const c of n.children) out.push(c);
+  for (let i = 1; i < out.length; i++) {
+    const c = out[i], zc = nodes[c].z !== 0 ? nodes[c].z : nodes[c].sticky ? 1 : 0;
+    let j = i - 1;
+    while (j >= 0 && (nodes[out[j]].z !== 0 ? nodes[out[j]].z : nodes[out[j]].sticky ? 1 : 0) > zc) { out[j + 1] = out[j]; j--; }
+    out[j + 1] = c;
+  }
+  return out;
+}
 function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number, mode: i32): i32 {
   const n = node(h);
-  if (n.hidden || (n.layer && h !== layerPass)) return -1;
-  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty) * k + oy, kk = k * n.k;
+  if (n.hidden || n.invisible || n.noPointer || (n.layer && h !== layerPass)) return -1;
+  const sd = n.sticky ? stickyDy(n) : 0;
+  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
+  const zs = zSorted(n);
   for (let i = n.children.length - 1; i >= 0; i--) {
-    const r = hitIn(n.children[i], px, py, cx, cy, kk, mode);
+    const r = hitIn(zs !== null ? zs[i] : n.children[i], px, py, cx, cy, kk, mode);
     if (r >= 0) return r;
   }
   if (n.tag !== FRAGMENT && inside && wants(n, mode)) return h;
@@ -2259,11 +2307,11 @@ function boxOf(h: i32): void {
   let ox: number = 0, oy: number = 0, k: number = 1;
   for (let i = chain.length - 1; i >= 1; i--) {
     const a = nodes[chain[i]];
-    const x = (a.x + a.tx) * k + ox, y = (a.y + a.ty) * k + oy, kk = k * a.k;
+    const x = (a.x + a.tx) * k + ox, y = (a.y + a.ty + (a.sticky ? stickyDy(a) : 0)) * k + oy, kk = k * a.k;
     ox = x - (a.x + a.sx) * kk; oy = y - (a.y + a.sy) * kk; k = kk;
   }
   const n = nodes[h];
-  boxX = (n.x + n.tx) * k + ox; boxY = (n.y + n.ty) * k + oy; boxK = k * n.k;
+  boxX = (n.x + n.tx) * k + ox; boxY = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy; boxK = k * n.k;
 }
 /** Converts a surface point to node-local coordinates (its own units). */
 export function toLocal(h: i32, gx: number, gy: number): number[] { boxOf(h); return [(gx - boxX) / boxK, (gy - boxY) / boxK]; }
