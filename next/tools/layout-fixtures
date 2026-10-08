@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+# Layout conformance corpus (ZN-289, docs/reports/layout-engines.md LE-10): extracts the 548 generated cases of Yoga's tests/generated/*.cpp (made by
+# gentest from HTML fixtures run in Chrome) into tests/golden/layout-conformance/cases.json. Each case keeps Yoga's style calls and their translation
+# to zinc:ui style keys, or the first call zinc:ui cannot express (`unsupported`), and the LTR boxes Yoga asserts (left, top, width, height relative to
+# the parent). Run offline, the output is committed:
+#   git clone --depth 1 --branch v3.2.1 https://github.com/facebook/yoga /tmp/yoga
+#   tools/layout-fixtures /tmp/yoga
+# `tools/layout-fixtures --report <rn run> <classic run>` writes the feature x engine matrix of two runner outputs (tests/t1/layout_conformance.sh) to
+# docs/reports/layout-conformance.md.
+import json, os, re, subprocess, sys
+
+YOGA_TAG = 'v3.2.1'
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tests', 'golden', 'layout-conformance', 'cases.json')
+
+ALIGN = {'YGAlignFlexStart': 0, 'YGAlignCenter': 1, 'YGAlignFlexEnd': 2, 'YGAlignStretch': 3, 'YGAlignSpaceBetween': 4, 'YGAlignSpaceAround': 5, 'YGAlignSpaceEvenly': 6}
+JUSTIFY = {'YGJustifyFlexStart': 0, 'YGJustifyCenter': 1, 'YGJustifyFlexEnd': 2, 'YGJustifySpaceBetween': 3, 'YGJustifySpaceAround': 4, 'YGJustifySpaceEvenly': 5}
+EDGES = {'YGEdgeLeft': ['Left'], 'YGEdgeStart': ['Left'], 'YGEdgeTop': ['Top'], 'YGEdgeRight': ['Right'], 'YGEdgeEnd': ['Right'], 'YGEdgeBottom': ['Bottom'],
+         'YGEdgeHorizontal': ['Left', 'Right'], 'YGEdgeVertical': ['Top', 'Bottom'], 'YGEdgeAll': ['Top', 'Right', 'Bottom', 'Left']}
+
+
+def num(s):
+    parts = [p.strip().rstrip('f') for p in s.split('/')]   # gentest writes ratios as `1 / 1`
+    v = float(parts[0])
+    for p in parts[1:]: v /= float(p)
+    return v
+
+
+def translate(setter, args):
+    """zinc:ui style keys and values for one Yoga style call, or a string naming what does not map."""
+    a = [x.strip() for x in args]
+    if setter in ('Width', 'Height', 'MinWidth', 'MaxWidth', 'MinHeight', 'MaxHeight'):
+        return [(setter[0].lower() + setter[1:], num(a[0]))]
+    if setter in ('WidthPercent', 'HeightPercent'):
+        return [(setter[0].lower() + setter[1:], num(a[0]) / 100)]
+    if setter in ('WidthAuto', 'HeightAuto'):
+        return []
+    if setter == 'FlexGrow': return [('grow', num(a[0]))]
+    if setter == 'FlexShrink': return [('shrink', num(a[0]))]
+    if setter == 'FlexBasis': return [('basis', num(a[0]))]
+    if setter == 'FlexBasisPercent': return [('basisPercent', num(a[0]) / 100)]
+    if setter == 'AspectRatio': return [('aspectRatio', num(a[0]))]
+    if setter == 'FlexDirection':
+        return {'YGFlexDirectionColumn': [('flexDirection', 0)], 'YGFlexDirectionRow': [('flexDirection', 1)]}.get(a[0], 'reverse direction')
+    if setter == 'FlexWrap':
+        return {'YGWrapNoWrap': [('flexWrap', 0)], 'YGWrapWrap': [('flexWrap', 1)]}.get(a[0], 'wrap-reverse')
+    if setter == 'PositionType':
+        return {'YGPositionTypeRelative': [('position', 0)], 'YGPositionTypeAbsolute': [('position', 1)]}.get(a[0], 'position static')
+    if setter in ('AlignItems', 'AlignSelf', 'AlignContent'):
+        if a[0] == 'YGAlignAuto' and setter == 'AlignSelf': return [('alignSelf', -1)]
+        if a[0] == 'YGAlignBaseline': return 'baseline'
+        v = ALIGN.get(a[0])
+        if v is None or (setter != 'AlignContent' and v > 3): return 'align ' + a[0]
+        return [(setter[0].lower() + setter[1:], v)]
+    if setter == 'JustifyContent':
+        v = JUSTIFY.get(a[0])
+        return 'justify ' + a[0] if v is None else [('justifyContent', v)]
+    if setter == 'Display':
+        return {'YGDisplayFlex': [('hidden', 0)], 'YGDisplayNone': [('hidden', 1)]}.get(a[0], 'display contents')
+    if setter == 'Overflow':
+        return {'YGOverflowVisible': [('overflow', 0)], 'YGOverflowHidden': [('overflow', 1)], 'YGOverflowScroll': [('overflow', 2)]}[a[0]]
+    if setter in ('Padding', 'Margin'):
+        return [(setter.lower() + side, num(a[1])) for side in EDGES[a[0]]]
+    if setter == 'Position':
+        return [(side.lower(), num(a[1])) for side in EDGES[a[0]]] if a[0] in ('YGEdgeLeft', 'YGEdgeStart', 'YGEdgeTop', 'YGEdgeRight', 'YGEdgeEnd', 'YGEdgeBottom') else 'position edge ' + a[0]
+    if setter == 'Gap':
+        return [('gap', num(a[1]))] if a[0] == 'YGGutterAll' else 'row or column gap'
+    if setter == 'PositionAuto': return []
+    names = {'Border': 'border in layout', 'BoxSizing': 'box-sizing', 'MarginAuto': 'auto margins', 'PaddingPercent': 'percent padding', 'MarginPercent': 'percent margin',
+             'PositionPercent': 'percent position', 'GapPercent': 'percent gap', 'MinWidthPercent': 'percent min/max', 'MaxWidthPercent': 'percent min/max',
+             'MinHeightPercent': 'percent min/max', 'MaxHeightPercent': 'percent min/max'}
+    return names.get(setter, 'unknown ' + setter)
+
+
+def parse_case(name, body, feature):
+    nodes, order, unsupported, expected, skip = {}, [], None, {}, 'GTEST_SKIP' in body
+    ltr = body.split('YGDirectionLTR', 1)
+    setup, asserts = ltr[0], ltr[1].split('YGDirectionRTL', 1)[0] if len(ltr) > 1 else ''
+    for line in setup.splitlines():
+        line = line.strip()
+        m = re.match(r'YGNodeRef (\w+) = YGNodeNewWithConfig', line)
+        if m:
+            nodes[m.group(1)] = {'id': m.group(1), 'parent': None, 'index': 0, 'yoga': [], 'keys': [], 'values': []}
+            order.append(m.group(1)); continue
+        m = re.match(r'YGNodeInsertChild\((\w+), (\w+), (\d+)\)', line)
+        if m:
+            nodes[m.group(2)]['parent'] = m.group(1); nodes[m.group(2)]['index'] = int(m.group(3)); continue
+        m = re.match(r'YGNodeStyleSet(\w+)\((\w+)(?:, (.*))?\);', line)
+        if m:
+            setter, node, args = m.group(1), m.group(2), (m.group(3) or '').split(',') if m.group(3) else []
+            nodes[node]['yoga'].append([setter] + [x.strip() for x in args])
+            r = translate(setter, args)
+            if isinstance(r, str):
+                unsupported = unsupported or r
+            else:
+                for k, v in r: nodes[node]['keys'].append(k); nodes[node]['values'].append(v)
+            continue
+        if line.startswith('YGNodeSetMeasureFunc'): unsupported = unsupported or 'measure function'
+        if line.startswith('YGConfigSet'): unsupported = unsupported or 'config ' + line
+    root = order[0] if order else None
+    if root and unsupported is None:   # what this harness or zinc:ui's data model cannot express, named rather than counted as failures
+        rn = nodes[root]
+        if any(k in ('top', 'left', 'right', 'bottom') for k in rn['keys']): unsupported = 'insets on the root'
+        elif 'width' not in rn['keys'] and 'height' not in rn['keys'] and any(k in ('widthPercent', 'heightPercent') for n in order[1:] for k in nodes[n]['keys']):
+            unsupported = 'percent of an undefined size'
+        elif any(v != int(v) for n in order for v in nodes[n]['values']) and not all(k in ('widthPercent', 'heightPercent', 'basisPercent', 'aspectRatio', 'grow', 'shrink')
+                for n in order for k, v in zip(nodes[n]['keys'], nodes[n]['values']) if v != int(v)):
+            unsupported = 'fractional lengths (zinc:ui keeps whole pixels)'
+    for m in re.finditer(r'ASSERT_FLOAT_EQ\(([-\d.]+f?), YGNodeLayoutGet(Left|Top|Width|Height)\((\w+)\)\)', asserts):
+        expected.setdefault(m.group(3), [0, 0, 0, 0])['LTWH'.index(m.group(2)[0]) if m.group(2) != 'Height' else 3] = num(m.group(1))
+    for n in order:
+        if n in expected: nodes[n]['expect'] = expected[n]
+    return {'name': name, 'feature': feature, 'skip': skip, 'unsupported': unsupported, 'nodes': [nodes[n] for n in order]}
+
+
+def report(rn_out, classic_out):
+    rows = {}
+    reasons = {}
+    for engine, path in (('rn', rn_out), ('classic', classic_out)):
+        for line in open(path):
+            m = re.match(r'(PASS|FAIL|SKIP) (\w+)/(\w+)(?: \((.*)\))?', line)
+            if not m: continue
+            r = rows.setdefault(m.group(2), {'cases': set(), 'rn': 0, 'classic': 0, 'skip': 0})
+            r['cases'].add(m.group(3))
+            if m.group(1) == 'PASS': r[engine] += 1
+            if m.group(1) == 'SKIP' and engine == 'rn':
+                r['skip'] += 1; reasons[m.group(4)] = reasons.get(m.group(4), 0) + 1
+    doc = os.path.join(os.path.dirname(OUT), '..', '..', '..', '..', 'docs', 'reports', 'layout-conformance.md')
+    t = {'cases': 0, 'rn': 0, 'classic': 0, 'skip': 0}
+    lines = ['# Layout conformance: Yoga\'s generated cases on zinc:ui', '',
+             'Generated by `next/tools/layout-fixtures --report` from `next/tests/t1/layout_conformance.sh` (ZN-289, LE-10). The corpus is the 548 cases of',
+             'Yoga ' + YOGA_TAG + ' `tests/generated` (made in Chrome by gentest), extracted to `next/tests/golden/layout-conformance/cases.json`. Each case is built from',
+             'zinc:ui nodes with style keys, laid out by the engine and compared with Yoga\'s boxes at tolerance 0. A case zinc:ui cannot express is skipped with the',
+             'reason (below); `rn` must pass every other case, `classic` must keep its baseline (`classic.pass`).', '',
+             '| Feature | Cases | Expressible | rn | classic |', '|---|---|---|---|---|']
+    for f in sorted(rows):
+        r = rows[f]; n = len(r['cases']); e = n - r['skip']
+        for k in t: t[k] += n if k == 'cases' else r[k]
+        lines.append(f'| {f} | {n} | {e} | {r["rn"]} | {r["classic"]} |')
+    lines.append(f'| **total** | {t["cases"]} | {t["cases"] - t["skip"]} | {t["rn"]} | {t["classic"]} |')
+    lines += ['', 'Skipped cases by reason. The gaps of zinc:ui have tasks: ZN-380 (reverse directions, wrap-reverse, row/column gap, auto margins), ZN-381',
+              '(borders in layout, box-sizing, position static), ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure',
+              'functions, insets on the root, a percent of an undefined size and fractional lengths are limits of this harness or of zinc:ui\'s whole-pixel model.',
+              '', '| Reason | Cases |', '|---|---|']
+    for k, v in sorted(reasons.items(), key=lambda x: -x[1]): lines.append(f'| {k} | {v} |')
+    open(os.path.normpath(doc), 'w').write('\n'.join(lines) + '\n')
+    print('wrote ' + os.path.normpath(doc))
+
+
+def main():
+    if len(sys.argv) == 4 and sys.argv[1] == '--report': return report(sys.argv[2], sys.argv[3])
+    if len(sys.argv) != 2: sys.exit('usage: tools/layout-fixtures <yoga checkout at ' + YOGA_TAG + '>')
+    root = sys.argv[1]
+    commit = subprocess.run(['git', '-C', root, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    gen = os.path.join(root, 'tests', 'generated')
+    cases = []
+    for f in sorted(os.listdir(gen)):
+        if not f.endswith('.cpp'): continue
+        feature = re.sub(r'^YG|Test\.cpp$|\.cpp$', '', f)
+        text = open(os.path.join(gen, f)).read()
+        for m in re.finditer(r'^TEST\(YogaTest, (\w+)\) \{\n(.*?)^\}', text, re.S | re.M):
+            cases.append(parse_case(m.group(1), m.group(2), feature))
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    with open(OUT, 'w') as o:
+        json.dump({'yoga': YOGA_TAG, 'commit': commit, 'count': len(cases), 'cases': cases}, o, separators=(',', ':'))
+        o.write('\n')
+    print(f'{len(cases)} cases from {YOGA_TAG} ({commit[:9]}): {sum(1 for c in cases if c["unsupported"] is None and not c["skip"])} expressible in zinc:ui -> {os.path.normpath(OUT)}')
+
+
+if __name__ == '__main__':
+    main()

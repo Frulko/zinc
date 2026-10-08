@@ -135,6 +135,11 @@ default (`UI_PRESET` of `zinc:platform`). `flexShrink`, `flexBasis`, `minWidth/m
 every other line keeps the legacy share. `tests/t1/layout_compat.sh` runs the cases in both engines: equal boxes except a grow item with a `minWidth`, where
 `classic` follows CSS (250 / 50) and Yoga gives 275 / 25. Size: +1,086 bytes of ZBC on the esp32 profile (467,771 -> 468,857 for the test program).
 
+Implemented in ZN-289 (LE-10): `next/tools/layout-fixtures` extracts the 548 cases of Yoga v3.2.1 into `next/tests/golden/layout-conformance/cases.json`,
+`tests/t1/layout_conformance.sh` runs them through zinc:ui in both engines: `rn` passes all 227 cases zinc:ui can express, `classic` 190 (baseline
+`classic.pass`, the 37 others in `classic.known-fail`). The matrix: `docs/reports/layout-conformance.md`. The run found two bugs of the rn mode, fixed:
+`flexBasis: '0%'` was read as auto, and a recycled node handle looked already inserted in its parent's Yoga children (layout NaN after a removal).
+
 ## 6. Scores (RULES section 4: fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1; maximum 70)
 
 | Option | Fit | Perf | Size | Maint | Licence | Port | Effort | Total |
