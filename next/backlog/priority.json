@@ -9,6 +9,12 @@
       "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF"
     },
     {
+      "name": "app templates, packaging and distribution (owner, 2026-10-08: right after the UI)",
+      "milestones": [
+        "m-19"
+      ]
+    },
+    {
       "name": "desktop integration",
       "milestones": [
         "m-16"
