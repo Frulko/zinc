@@ -9,7 +9,8 @@ FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN
 objs=""
 for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/web_main.cpp targets/wasm/host_gfx_web.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
   o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
-  [ "$o" -nt "$f" ] || "$Z" c++ $FLAGS -c "$f" -o "$o" || exit 1
+  stale=0; [ "$o" -nt "$f" ] || stale=1; [ -n "$(find include src/rt src/zbc src/vm src/ir -name '*.h' -newer "$o" 2>/dev/null | head -1)" ] && stale=1   # headers count: the runtime table lives in one
+  [ $stale = 0 ] || "$Z" c++ $FLAGS -c "$f" -o "$o" || exit 1
 done
 for f in third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c; do
   [ -f "$f" ] || continue

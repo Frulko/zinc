@@ -6,7 +6,8 @@ import { wasiImports } from './wasi.mjs';
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 
-self.onmessage = async (e) => {
+self.onmessage = async (e) => { try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); } };
+async function start(e) {
   const { wasm, zbc, canvas, sab } = e.data;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
@@ -91,4 +92,4 @@ self.onmessage = async (e) => {
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     self.postMessage({ png: await blob.arrayBuffer() });
   }
-};
+}

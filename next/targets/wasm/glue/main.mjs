@@ -22,8 +22,9 @@ addEventListener('pointerup', (e) => pointer(e, false));
 let ticks = 0, done = false;
 worker.onmessage = (e) => {
   const m = e.data;
+  if (m.error) { log.textContent += 'worker error: ' + m.error + '\n'; console.error('worker error: ' + m.error); }
   if (m.frames) window.__znFrames = m.frames;
-  if (m.started) document.title = 'running';
+  if (m.started) { document.title = 'running'; requestAnimationFrame(tick); }   // ticks only count once the program runs
   if (m.png) { document.title = 'done'; const b64 = btoa(String.fromCharCode(...new Uint8Array(m.png))); const pre = document.createElement('pre'); pre.id = 'png'; pre.textContent = b64; document.body.appendChild(pre); }
   if (m.done) { done = true; log.textContent = 'exit ' + m.rc + ', ' + m.frames + ' frames'; }
 };
@@ -34,4 +35,3 @@ function tick() {
   if (maxFrames && ticks >= maxFrames) { Atomics.store(shared, 5, 1); Atomics.add(shared, 0, 1); Atomics.notify(shared, 0); return; }
   requestAnimationFrame(tick);
 }
-requestAnimationFrame(tick);
