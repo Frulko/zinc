@@ -1,5 +1,59 @@
 attribs/gl-enable-vertex-attrib.html	did not finish
 buffers/buffer-data-and-buffer-sub-data.html	@E bufferData: data must be an ArrayBuffer, a view or a size |     at bufferData (native) |     at bufferDataTest (<input>:41:47)
+conformance2/attribs/gl-vertex-attrib-i-render.html	@E not a function |     at runTest (<input>:44:74) |     at <eval> (<input>:4:1)
+conformance2/attribs/gl-vertex-attrib.html	@E not a function |     at getDrng (<input>:1110:37) |     at <eval> (<input>:14:12)
+conformance2/buffers/bound-buffer-size-change-test.html	getError expected: NO_ERROR. Was INVALID_VALUE : Calling bindBufferBase on a buffer where no storage is allocated should succeed.
+conformance2/buffers/buffer-copying-contents.html	getError expected: NO_ERROR. Was INVALID_ENUM : Copying should work
+conformance2/buffers/buffer-copying-restrictions.html	getError expected: NO_ERROR. Was INVALID_OPERATION : copying from a gl.COPY_READ_BUFFER/COPY_READ_BUFFER_BINDING buffer to a gl.ELEMENT
+conformance2/buffers/buffer-data-and-buffer-sub-data-sub-source.html	getError expected: INVALID_VALUE. Was NO_ERROR : calling bufferData when srcOffset + length is larger than source size
+conformance2/buffers/buffer-overflow-test.html	getError expected: NO_ERROR. Was INVALID_VALUE : Calling bindBufferRange on a buffer where no storage is allocated should succeed.
+conformance2/buffers/buffer-type-restrictions.html	getError expected: NO_ERROR. Was INVALID_VALUE : bindBufferRange(gl.UNIFORM_BUFFER, 0, buffer2, 0, 4) should WORK
+conformance2/buffers/get-buffer-sub-data.html	gl.getBufferSubData(gl.ARRAY_BUFFER, 0, new ArrayBuffer(4)) should throw an exception. Was undefined.
+conformance2/buffers/uniform-buffers.html	@E not a function |     at runDrawTest (<input>:119:49) |     at <eval> (<input>:23:5)
+conformance2/context/constants-and-properties-2.html	Property does not exist: FLOAT_MAT2x3
+conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
+conformance2/context/methods-2.html	Property either does not exist or is not a function: compressedTexImage2D
+conformance2/misc/expando-loss-2.html	getParameter(SAMPLER_BINDING) returns instance that was bound.
+conformance2/misc/getextension-while-pbo-bound-stability.html	Fail to maintain PIXEL_UNPACK_BUFFER binding when enabling extension EXT_color_buffer_float
+conformance2/misc/instanceof-test.html	gl instanceof WebGL2RenderingContext should be true. Threw exception ReferenceError: gl is not defined
+conformance2/misc/object-deletion-behaviour-2.html	getError expected: NO_ERROR. Was INVALID_VALUE : after evaluating: gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, bufferBaseUniform)
+conformance2/misc/uninitialized-test-2.html	getError expected: NO_ERROR. Was INVALID_ENUM : 
+conformance2/misc/views-with-offsets.html	Does not support texImage2D with offsets into views.
+conformance2/query/occlusion-query.html	Query's result became available too early
+conformance2/query/query.html	gl.getQuery(gl.TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, gl.CURRENT_QUERY) should be null. Was [object Object].
+conformance2/reading/read-pixels-from-fbo-test.html	getError expected: NO_ERROR. Was INVALID_ENUM : readPixels should generate no error
+conformance2/reading/read-pixels-into-pixel-pack-buffer.html	@E readPixels: pixels must be an ArrayBuffer view |     at readPixels (native) |     at validatePixelPackBufferAndParameters (<input>:73:40)
+conformance2/reading/read-pixels-pack-parameters.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : buffer too small
+conformance2/renderbuffers/framebuffer-object-attachment.html	gl.getParameter(gl.DEPTH_BITS) == 0 should be true. Was false.
+conformance2/renderbuffers/framebuffer-test.html	getError expected: INVALID_ENUM. Was NO_ERROR : getFramebufferAttachmentParameter(COLOR_ATTACHMENT0) on the default framebuffer.
+conformance2/renderbuffers/framebuffer-texture-layer.html	checkFramebufferStatus expects [FRAMEBUFFER_COMPLETE], was FRAMEBUFFER_INCOMPLETE_ATTACHMENT
+conformance2/renderbuffers/invalidate-framebuffer.html	@E not a function |     at invalidateIncompleteAttachment (<input>:121:40) |     at <eval> (<input>:30:50)
+conformance2/renderbuffers/multisampled-renderbuffer-initialization.html	getError expected: NO_ERROR. Was INVALID_ENUM : should be no error after framebufferRenderbuffer.
+conformance2/renderbuffers/readbuffer.html	gl.getParameter(gl.READ_BUFFER) should be 1029 (of type number). Was null (of type object).
+conformance2/rendering/attrib-type-match.html	@E not a function |     at testGenericAttribs (<input>:44:24) |     at <eval> (<input>:16:5)
+conformance2/rendering/blitframebuffer-filter-outofbounds.html	framebuffer not complete
+conformance2/rendering/blitframebuffer-multisampled-readbuffer.html	should be 254,184,69,255 at (0, 0) expected: 254,184,69,255 was 252,122,15,255
+conformance2/rendering/blitframebuffer-scissor-enabled.html	Framebuffer incomplete.
+conformance2/rendering/blitframebuffer-size-overflow.html	Framebuffer incomplete.
+conformance2/rendering/blitframebuffer-test.html	Framebuffer incomplete.
+conformance2/rendering/canvas-resizing-with-pbo-bound.html	Pixel unpack buffer binding was lost
+conformance2/rendering/clear-func-buffer-type-match.html	gl.checkFramebufferStatus(gl.FRAMEBUFFER) should be 36053. Was 36054.
+conformance2/rendering/draw-buffers.html	@E WebGLDrawBuffersUtils is not defined |     at <eval> (<input>:17:22) |     at eval (native)
+conformance2/rendering/element-index-uint.html	Draw 0 failed pixel test
+conformance2/rendering/framebuffer-completeness-unaffected.html	gl.checkFramebufferStatus(gl.FRAMEBUFFER) should be 36053. Was 36054.
+conformance2/rendering/framebuffer-unsupported.html	checkFramebufferStatus expects [FRAMEBUFFER_UNSUPPORTED], was FRAMEBUFFER_COMPLETE
+conformance2/rendering/out-of-bounds-index-buffers-after-copying.html	getError expected: NO_ERROR. Was INVALID_OPERATION : copyBufferSubData should generate no errors
+conformance2/rendering/rgb-format-support.html	getError expected: NO_ERROR. Was INVALID_ENUM : should be no errors from renderbufferStorage{Multisample}
+conformance2/rendering/uniform-block-buffer-size.html	@E not a function |     at runDrawArraysTests (<input>:34:47) |     at <eval> (<input>:16:5)
+conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
+conformance2/samplers/samplers.html	getError expected: NO_ERROR. Was INVALID_ENUM : SAMPLER_BINDING query should succeed
+conformance2/state/gl-enum-tests.html	@E gl is not defined |     at <eval> (<input>:1:1) |     at TestEval (<input>:12:15)
+conformance2/state/gl-get-calls.html	context.getParameter(context.DRAW_BUFFER0) should be 1029 (of type number). Was null (of type object).
+conformance2/state/gl-object-get-calls.html	gl.getBufferParameter(34962, gl.BUFFER_SIZE) should be 16. Threw exception ReferenceError: gl is not defined
+conformance2/sync/sync-webgl-specific.html	gl.TIMEOUT_IGNORED should be -1 (of type number). Was undefined (of type undefined).
+conformance2/transform_feedback/transform_feedback.html	getError expected: NO_ERROR. Was INVALID_ENUM : TRANSFORM_FEEDBACK_BINDING query should succeed
+conformance2/transform_feedback/unwritten-output-defaults-to-zero.html	buffer should match expected values
+conformance2/vertex_arrays/vertex-array-object.html	buffer removed too early
 context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
 context/context-lost-restored.html	no PASS
 context/context-lost.html	no PASS

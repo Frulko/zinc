@@ -7,6 +7,16 @@ buffers/index-validation-crash-with-buffer-sub-data.html
 buffers/index-validation-verifies-too-many-indices.html
 buffers/index-validation-with-resized-buffer.html
 buffers/index-validation.html
+conformance2/attribs/gl-vertexattribipointer-offsets.html
+conformance2/attribs/gl-vertexattribipointer.html
+conformance2/buffers/one-large-uniform-buffer.html
+conformance2/context/context-type-test-2.html
+conformance2/programs/active-built-in-attribs.html
+conformance2/programs/gl-get-frag-data-location.html
+conformance2/rendering/blitframebuffer-filter-srgb.html
+conformance2/rendering/instanced-arrays.html
+conformance2/state/gl-getstring.html
+conformance2/transform_feedback/two-unreferenced-varyings.html
 context/incorrect-context-object-behaviour.html
 limits/gl-max-texture-dimensions.html
 limits/gl-min-attribs.html

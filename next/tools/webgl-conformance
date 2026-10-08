@@ -16,6 +16,7 @@ PASS_LIST = os.path.join(NEXT, "tests", "golden", "webgl", "conformance-pass.txt
 FAIL_LIST = os.path.join(NEXT, "tests", "golden", "webgl", "conformance-failures.txt")
 zinc = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
 DIRS = ["attribs", "buffers", "context", "limits", "misc", "programs", "reading", "renderbuffers", "rendering", "state", "typedarrays", "uniforms"]
+DIRS2 = ["attribs", "buffers", "context", "misc", "programs", "query", "reading", "renderbuffers", "rendering", "samplers", "state", "sync", "transform_feedback", "uniforms", "vertex_arrays"]   # conformance2: pages are named conformance2/<dir>/<page>
 
 class Page(html.parser.HTMLParser):
     def __init__(self):
@@ -49,11 +50,11 @@ def sloppy(code):
 def read(p): return open(p, encoding="utf-8", errors="replace").read()
 
 def run_page(rel, timeout):
-    path = os.path.join(SUITE, "conformance", rel) if not os.path.isabs(rel) else rel
+    path = rel if os.path.isabs(rel) else os.path.join(SUITE, rel) if rel.startswith("conformance2/") else os.path.join(SUITE, "conformance", rel)
     p = Page(); p.feed(read(path))
     base = os.path.dirname(path)
     p.elements = [{"tag": "script", "id": "", "attrs": {"src": sc["src"]}, "text": ""} for sc in p.scripts if sc["src"]] + p.elements   # getResourcePath() finds js/webgl-test-utils.js among the script elements
-    parts = ["globalThis.__pageDir = %s;" % json.dumps(base), read(SHIM), "__buildPage(%s);" % json.dumps(p.elements)]
+    parts = ["globalThis.__pageDir = %s; globalThis.__pagePath = %s;" % (json.dumps(base), json.dumps("/" + os.path.relpath(path, os.path.dirname(SUITE)))), read(SHIM), "__buildPage(%s);" % json.dumps(p.elements)]
     for s in p.scripts:
         if s["src"]:
             f = os.path.normpath(os.path.join(base, s["src"].split("?")[0]))
@@ -93,6 +94,13 @@ def pages(args):
             line = line.strip().split("#")[0].strip()
             if not line or line.startswith("--") or not line.endswith(".html"): continue
             if os.path.isfile(os.path.join(SUITE, "conformance", d, line)): out.append(d + "/" + line)
+    for d in DIRS2:
+        lst = os.path.join(SUITE, "conformance2", d, "00_test_list.txt")
+        if not os.path.isfile(lst): continue
+        for line in read(lst).splitlines():
+            line = line.strip().split("#")[0].strip()
+            if not line or line.startswith("--") or not line.endswith(".html"): continue
+            if os.path.isfile(os.path.join(SUITE, "conformance2", d, line)): out.append("conformance2/" + d + "/" + line)
     return out
 
 def main(argv):
@@ -105,7 +113,7 @@ def main(argv):
         elif a == "--dir": only.append(argv[i + 1]); i += 2
         else: rest.append(a); i += 1
     todo = pages(rest)
-    if only: todo = [t for t in todo if t.split("/")[0] in only]
+    if only: todo = [t for t in todo if t.split("/")[0] in only or "/".join(t.split("/")[:2]) in only]
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex: results = list(ex.map(lambda t: run_page(t, timeout), todo))
     npass = sum(1 for r in results if r[1])
     for rel, ok, p, f, why in results: print("%s %-60s %3d pass %3d fail %s" % ("PASS" if ok else "FAIL", rel, p, f, "" if ok else why))
