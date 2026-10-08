@@ -20,4 +20,8 @@ printf 'function f(n: i32): i32 { return f(n + 1) + 1; }\nconsole.log("start");\
 "$ZINC" build "$tmp/so.ts" -o "$tmp/so" 2>/dev/null; "$tmp/so" > "$tmp/so.a" 2>&1; ca=$?
 "$ZINC" run "$tmp/so.ts" > "$tmp/so.i" 2>&1; ci=$?
 [ $ca -eq $ci ] && cmp -s "$tmp/so.a" "$tmp/so.i" && grep -q "stack overflow" "$tmp/so.a" || { echo "typed recursion without end: AOT (exit $ca) and interpreter (exit $ci) disagree"; fail=1; }
+# ZN-146: a compiled program does not replace the global operator new (dyld would bind it across libc++ at every launch: 3 ms and 8 MB for a program that prints one line); the heap budget of a profile needs it
+echo 'console.log(1);' > "$tmp/one.ts"
+"$ZINC" build "$tmp/one.ts" -o "$tmp/one" 2>/dev/null; nm "$tmp/one" 2>/dev/null | grep -q " T __Znwm" && { echo "a compiled program replaces the global operator new"; fail=1; }
+"$ZINC" build --profile esp32 "$tmp/one.ts" -o "$tmp/one_esp" 2>/dev/null; nm "$tmp/one_esp" 2>/dev/null | grep -q " T __Znwm" || { echo "a program built for a profile with a heap budget does not count the global allocations"; fail=1; }
 exit $fail

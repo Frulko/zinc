@@ -96,7 +96,20 @@ if old:
                 if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance):
                     regressions.append(f"{k} {e} {label}: {o[key]:.3f} -> {v[key]:.3f} (+{(v[key] / o[key] - 1) * 100:.0f}%)")
 
-doc = {"runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
+# start-up (ZN-146): a program that prints one line, the compiled program and `zinc run`, against an empty C program, median of 200 launches
+startup = {}
+one = os.path.join(tmp, "one.ts"); open(one, "w").write("console.log(1);\n")
+empty_c = os.path.join(tmp, "empty.c"); open(empty_c, "w").write("int main(void) { return 0; }\n")
+if run(f"cc -O2 {empty_c} -o {tmp}/empty_c").returncode == 0 and run(f"{zinc} build {one} -o {tmp}/one_aot").returncode == 0:
+    def launches(cmd, n=200):
+        ts = []
+        for _ in range(n):
+            t = time.perf_counter(); subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); ts.append(time.perf_counter() - t)
+        return statistics.median(ts) * 1000
+    startup = {"empty_c_ms": launches([f"{tmp}/empty_c"]), "aot_ms": launches([f"{tmp}/one_aot"]), "run_ms": launches([zinc, "run", one], 100)}
+    print("startup: empty C %.2f ms, console.log(1) AOT %.2f ms, zinc run %.2f ms" % (startup["empty_c_ms"], startup["aot_ms"], startup["run_ms"]))
+
+doc = {"startup": startup, "runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
 os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 json.dump(doc, open(out, "w"), indent=1)
 lines = ["# Zinc Next: M4 benchmarks", "", f"Median of {runs} runs (one warm-up), wall clock, ms. Machine: {platform.platform()}. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `next/bench/m4.json`.", "",

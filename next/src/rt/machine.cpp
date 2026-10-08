@@ -1,6 +1,7 @@
 // The machine the engines share: loading a module into classes and functions, allocation, reference counting and
 // destruction order, comparator and exception callbacks. The interpreter (vm) and the compiled programs (aot) both link it.
 #include <pthread.h>
+#include <sys/mman.h>
 #include "rt/rt.h"
 #include "zn/native.h"
 
@@ -182,7 +183,7 @@ Machine::~Machine() {
       default: freeRaw(o); break;
     }
   }
-  std::free(stack);
+  if (stackMapped) munmap(stack, stackMapped); else std::free(stack);
 }
 
 bool Machine::load(const zbc::Module& m, std::string& err) {
@@ -200,7 +201,12 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   // Verified code never reads a register before writing it, so the stack needs no initialisation; calloc hands out
   // lazily zeroed pages, so the 20 MB is not touched until used.
   std::size_t slots = stackSlots ? stackSlots : kStackSlots;
-  stack = static_cast<Slot*>(std::calloc(slots, sizeof(Slot)));
+  // A large stack comes from mmap: the system's calloc zeroes blocks of this size itself (a 20 MB memset, 90% of the start-up of a small program, ZN-146), mapped pages are zero and untouched until used.
+  if (slots * sizeof(Slot) >= (1u << 20)) {
+    void* p = mmap(nullptr, slots * sizeof(Slot), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (p != MAP_FAILED) { stack = static_cast<Slot*>(p); stackMapped = slots * sizeof(Slot); }
+  }
+  if (!stack) stack = static_cast<Slot*>(std::calloc(slots, sizeof(Slot)));
   stackEnd = stack ? stack + slots : nullptr;
   if (!stack) { err = "out of memory"; return false; }
   globals.assign(m.globals.size(), 0);

@@ -247,7 +247,7 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   if (std::string(t->name).size() > 6 && std::string(t->name).substr(std::string(t->name).size() - 6) == "-macos") flags += " -I " + quote(root + "/third_party/macos-shim");  // CommonCrypto for mimalloc
   if (std::string(t->name) == "armhf-linux") flags += " -mcpu=arm1176jzf_s";  // runs on every 32-bit Pi, the first one included
   struct Src { std::string path; bool c; };
-  std::vector<Src> srcs = {{"src/rt/machine.cpp", false}, {"src/rt/rtcalls.cpp", false}, {"src/rt/program.cpp", false}, {"src/rt/native.cpp", false}, {"src/rt/alloc.cpp", false}, {"src/rt/unicode.cpp", false}, {"third_party/quickjs-ng/libunicode.c", true}, {"src/zbc/zbc.cpp", false}, {"third_party/mimalloc/src/static.c", true}};
+  std::vector<Src> srcs = {{"src/rt/machine.cpp", false}, {"src/rt/rtcalls.cpp", false}, {"src/rt/program.cpp", false}, {"src/rt/native.cpp", false}, {"src/rt/alloc.cpp", false}, {"src/rt/alloc_new.cpp", false}, {"src/rt/unicode.cpp", false}, {"third_party/quickjs-ng/libunicode.c", true}, {"src/zbc/zbc.cpp", false}, {"third_party/mimalloc/src/static.c", true}};
   std::string objs;
   for (const Src& s : srcs) {
     std::string src = root + "/" + s.path;

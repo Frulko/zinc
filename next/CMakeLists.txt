@@ -97,7 +97,11 @@ target_link_libraries(zn_rt PUBLIC zn_zbc zn_mimalloc zn_regexp)   # libunicode:
 if(ZN_SANITIZE)
   target_compile_definitions(zn_rt PUBLIC ZN_NO_MIMALLOC)   # keep ASan's own allocator checks
 else()
-  target_sources(zn_rt PRIVATE src/rt/alloc.cpp)            # mimalloc serves global operator new/delete
+  target_sources(zn_rt PRIVATE src/rt/alloc.cpp)            # the heap budget (mimalloc serves the runtime's objects)
+  add_library(zn_rt_new STATIC src/rt/alloc_new.cpp)        # mimalloc serves global operator new/delete: a separate archive, linked into compiled programs only when they need the budget (ZN-146)
+  target_include_directories(zn_rt_new PUBLIC include src PRIVATE third_party/mimalloc/include)
+  set_target_properties(zn_rt_new PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(zn_rt PUBLIC zn_rt_new)
 endif()
 
 add_library(zn_vm STATIC src/vm/vm.cpp)

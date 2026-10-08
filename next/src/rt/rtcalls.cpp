@@ -270,9 +270,9 @@ double toNumberJs(const StrObj* s) {
 }
 
 // Stable merge sort; `cmp(a, b) > 0` puts b first. Fails when the comparator does.
-bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, bool refs, Slot* scratch) {
+bool mergeSort(Machine& m, ObjVec<Slot>& v, const Func* cmp, Obj* fn, bool refs, Slot* scratch) {
   std::size_t n = v.size();
-  std::vector<Slot> tmp(n);
+  ObjVec<Slot> tmp(n);
   for (std::size_t width = 1; width < n; width *= 2) {
     for (std::size_t lo = 0; lo < n; lo += 2 * width) {
       std::size_t mid = std::min(lo + width, n), hi = std::min(lo + 2 * width, n), i = lo, j = mid, k = lo;
@@ -290,7 +290,7 @@ bool mergeSort(Machine& m, std::vector<Slot>& v, const Func* cmp, Obj* fn, bool 
 }
 
 // The same merge for an f64[] sorted by (a, b) => a - b (or b - a): the comparison is made here, no function is called. `sign` is 1 or -1.
-void mergeSortNumbers(std::vector<Slot>& v, double sign) {
+void mergeSortNumbers(ObjVec<Slot>& v, double sign) {
   std::size_t n = v.size();
   bool nan = false;
   for (Slot x : v) if (std::isnan(std::bit_cast<double>(x))) { nan = true; break; }
@@ -299,7 +299,7 @@ void mergeSortNumbers(std::vector<Slot>& v, double sign) {
     else std::stable_sort(v.begin(), v.end(), [](Slot x, Slot y) { return std::bit_cast<double>(x) > std::bit_cast<double>(y); });
     return;
   }
-  std::vector<Slot> tmp(n);
+  ObjVec<Slot> tmp(n);
   auto gt = [&](Slot x, Slot y) { return sign * (std::bit_cast<double>(x) - std::bit_cast<double>(y)) > 0; };  // what `cmp(x, y) > 0` was
   for (std::size_t width = 1; width < n; width *= 2) {
     for (std::size_t lo = 0; lo < n; lo += 2 * width) {

@@ -40,6 +40,19 @@ inline void* allocZero(std::size_t n) { void* p = mi_zalloc(n); if (gHeapBudgetO
 inline void freeRaw(void* p) { if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
 #endif
 
+// An allocator over allocRaw for the containers of the runtime's objects (arrays, Maps, Sets): the objects stay on mimalloc without replacing the global operator new,
+// which would make dyld bind the replacement across libc++ at every launch (3 ms and 8 MB for a program that prints one line, ZN-146).
+template <class T> struct ObjAlloc {
+  using value_type = T;
+  ObjAlloc() noexcept = default;
+  template <class U> ObjAlloc(const ObjAlloc<U>&) noexcept {}
+  T* allocate(std::size_t n) { void* p = allocRaw(n * sizeof(T)); if (!p) throw std::bad_alloc(); return static_cast<T*>(p); }
+  void deallocate(T* p, std::size_t) noexcept { freeRaw(p); }
+  template <class U> bool operator==(const ObjAlloc<U>&) const noexcept { return true; }
+  template <class U> bool operator!=(const ObjAlloc<U>&) const noexcept { return false; }
+};
+template <class T> using ObjVec = std::vector<T, ObjAlloc<T>>;
+
 // ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
 std::string numberToString(double v);
 
@@ -94,16 +107,18 @@ struct StrObj : Obj {
 };
 
 struct ArrObj : Obj {
-  std::vector<Slot> v;
+  ObjVec<Slot> v;
+  static void* operator new(std::size_t n) { return allocRaw(n); }
+  static void operator delete(void* p) { freeRaw(p); }
 };
 
 // Insertion-ordered hash table; deleted entries stay as tombstones until the next rehash.
 struct Table {
   KeyKind kk = KeyKind::Int;
   bool hasVals = false;
-  std::vector<Slot> keys, vals;
-  std::vector<std::uint8_t> dead;
-  std::vector<std::int32_t> index;  // entry numbers, -1 empty; a power-of-two size
+  ObjVec<Slot> keys, vals;
+  ObjVec<std::uint8_t> dead;
+  ObjVec<std::int32_t> index;  // entry numbers, -1 empty; a power-of-two size
   std::uint32_t live = 0;
 
   std::uint64_t hash(Slot k) const;
@@ -117,6 +132,8 @@ struct Table {
 
 struct MapObj : Obj {
   Table t;
+  static void* operator new(std::size_t n) { return allocRaw(n); }
+  static void operator delete(void* p) { freeRaw(p); }
 };
 
 inline bool isSubclassRT(const ClassRT* c, std::uint32_t target) {
@@ -168,6 +185,7 @@ struct Machine {
   bool failed = false;      // a compiled program: a typed function trapped (the error is in `error`); checked after typed calls
   std::vector<std::uint8_t> globalRef;  // per global: holds a reference
   Slot* stack = nullptr;
+  std::size_t stackMapped = 0;   // bytes of `stack` when it came from mmap (0: calloc)
   std::vector<Frame> frames;
   Frame* fp = nullptr;
   Frame* framesEnd = nullptr;
