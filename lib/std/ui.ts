@@ -246,6 +246,7 @@ export class UiNode {
   borderW: number = 0; borderColor: i32 = 0xe5e7eb; borderAlpha: i32 = 255; fgAlpha: i32 = 255;   // borderColor -3: currentColor
    // border-t/r/b/l widths, -1 = borderW
   shadowLevel: i32 = 0;
+  shX: number = 0; shY: number = 0; shBlur: number = 0; shColor: i32 = 0; shOpacity: number = 0;   // React Native's shadow (ZN-360): drawn when shOpacity > 0
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
     // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
@@ -715,6 +716,12 @@ const P_MAX_WIDTH: i32 = 61;
 const P_MIN_HEIGHT: i32 = 62;
 const P_MAX_HEIGHT: i32 = 63;
 const P_ASPECT: i32 = 64;
+const P_SHADOW_COLOR: i32 = 65;
+const P_SHADOW_X: i32 = 66;
+const P_SHADOW_Y: i32 = 67;
+const P_SHADOW_OPACITY: i32 = 68;
+const P_SHADOW_RADIUS: i32 = 69;
+const P_ELEVATION: i32 = 70;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -778,6 +785,7 @@ function propInit(): void {
   PROP.set('basis', P_BASIS); PROP.set('flexBasis', P_BASIS); PROP.set('basisPercent', P_BASIS_PERCENT);
   PROP.set('alignSelf', P_ALIGN_SELF); PROP.set('alignContent', P_ALIGN_CONTENT);
   PROP.set('minWidth', P_MIN_WIDTH); PROP.set('maxWidth', P_MAX_WIDTH); PROP.set('minHeight', P_MIN_HEIGHT); PROP.set('maxHeight', P_MAX_HEIGHT); PROP.set('aspectRatio', P_ASPECT);
+  PROP.set('shadowColor', P_SHADOW_COLOR); PROP.set('shadowOffsetX', P_SHADOW_X); PROP.set('shadowOffsetY', P_SHADOW_Y); PROP.set('shadowOpacity', P_SHADOW_OPACITY); PROP.set('shadowRadius', P_SHADOW_RADIUS); PROP.set('elevation', P_ELEVATION);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -811,6 +819,15 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
     if (id === P_LINE_NUMBERS) { e.lineNumbers = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
     if (id === P_WRAP) { e.wrap = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
     if (id === P_ROWS) { e.rows = iv; layoutDirty = true; return; }
+  }
+  if (id >= P_SHADOW_COLOR && id <= P_ELEVATION) {   // React Native's shadow keys (ZN-360): paint only
+    if (id === P_SHADOW_COLOR) n.shColor = iv; else if (id === P_SHADOW_X) n.shX = v; else if (id === P_SHADOW_Y) n.shY = v;
+    else if (id === P_SHADOW_OPACITY) n.shOpacity = v; else if (id === P_SHADOW_RADIUS) n.shBlur = v;
+    else {   // elevation: one shadow along a curve close to Material's (offset e/2, blur 0.8e, opacity 0.12 + 0.012e up to 0.4), black
+      n.shColor = 0; n.shX = 0; n.shY = v * 0.5; n.shBlur = v * 0.8; n.shOpacity = v > 0 ? Math.min(0.4, 0.12 + 0.012 * v) : 0;
+    }
+    paintDirty = true;
+    return;
   }
   if (id === P_WIDTH) { n.w = iv; n.wFrac = 0; n.fullW = false; }
   else if (id === P_HEIGHT) { n.h = iv; n.hFrac = 0; n.fullH = false; }
@@ -1644,7 +1661,7 @@ function resetStyle(n: UiNode): void {
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
-  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0;
+  n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
@@ -1665,7 +1682,7 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
   const colon = key.indexOf(':');
   if (key.startsWith('@') && colon > 0) {
     const c = parseHex(key.slice(colon + 1)), prop = key.slice(1, colon);
-    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else n.borderColor = c;
+    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else if (prop === 'shadowColor') n.shColor = c; else n.borderColor = c;
     paintDirty = true; return;
   }
   applyToken(n, key.slice(1), '');
@@ -2560,6 +2577,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.tag !== FRAGMENT) {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
     if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
+    if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * 255 * a));
     if (n.grad > 0 && n.gradFrom >= 0 && n.gradTo >= 0) {
       const flip = n.grad === 3 || n.grad === 4;
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);

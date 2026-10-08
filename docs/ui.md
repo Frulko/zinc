@@ -357,7 +357,9 @@ Supported properties:
 - Position: `position` (`relative`/`static`/`absolute`), `top/right/bottom/left`, `display` (`flex`/`none`),
   `overflow` (`visible`/`hidden`/`auto`/`scroll`). Relative means normal flow; offsets position absolute nodes.
 - Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths, `borderRadius`,
-  `border: '<width> solid <color>'`, `opacity`, `translateX/Y`, `scale`.
+  `border: '<width> solid <color>'`, `opacity`, `translateX/Y`, `scale`, and React Native's shadow: `shadowColor`, `shadowOffset: { width, height }`,
+  `shadowOpacity` (no shadow while it is 0, React Native's default), `shadowRadius`, and `elevation` (one black shadow: offset e/2, blur 0.8e, opacity
+  0.12 + 0.012e up to 0.4).
 - Text: `fontSize`, `fontFamily`, `fontWeight`, `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
 - Existing numeric aliases remain: `bg`, `radius`, `x/y`, `hidden`, `lazy` (canvas).
 
@@ -476,6 +478,12 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 62 | `minHeight` |  |
 | 63 | `maxHeight` |  |
 | 64 | `aspectRatio` |  |
+| 65 | `shadowColor` |  |
+| 66 | `shadowOffsetX` |  |
+| 67 | `shadowOffsetY` |  |
+| 68 | `shadowOpacity` |  |
+| 69 | `shadowRadius` |  |
+| 70 | `elevation` |  |
 
 ### Accepted class tokens (generated)
 

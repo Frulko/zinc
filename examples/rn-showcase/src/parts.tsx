@@ -7,7 +7,7 @@ export const styles = StyleSheet.create({
   screen: { flexDirection: 'column', paddingHorizontal: 20, paddingTop: 24, gap: 20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  card: { flexDirection: 'column', borderRadius: 22, overflow: 'hidden' },
+  card: { flexDirection: 'column', borderRadius: 22, overflow: 'hidden', shadowColor: '#1c1917', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14 },
   cardBody: { flexDirection: 'column', padding: 16, gap: 8 },
   pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 34, borderRadius: 999 },
   title: { fontSize: 22, fontWeight: 'bold', letterSpacing: -0.4 },

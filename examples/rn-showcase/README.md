@@ -25,7 +25,7 @@ ease every frame from the app's tick (`render(App, bg, onTick)`).
 `flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `flexGrow`, `gap`, `width`/`height` (numbers and static
 percentages), `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop`, `paddingBottom`, `position`,
 `top`/`right`/`bottom`/`left`, `display`, `overflow`, `backgroundColor`, `color`, `borderWidth`,
-`borderBottomWidth`, `borderColor`, `borderRadius`, `opacity`, `translateX`/`translateY`, `fontSize`, `fontWeight`,
+`borderBottomWidth`, `borderColor`, `borderRadius`, `shadowColor`, `shadowOffset`, `shadowOpacity`, `shadowRadius`, `opacity`, `translateX`/`translateY`, `fontSize`, `fontWeight`,
 `lineHeight`, `letterSpacing`. Colours are numbers from the palette, so a scheme switch is one signal.
 
 ## What zinc:ui lacks (each a task)
@@ -34,7 +34,7 @@ percentages), `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop`, `
 |---|---|---|
 | `flex` shorthand (basis 0), `flexShrink`, `flexBasis`, `alignSelf`, `alignContent` | done in ZN-358 (the scroll view needed `flex: 1`) | ZN-358 |
 | `minWidth`/`maxWidth`/`minHeight`/`maxHeight`, `aspectRatio`, dynamic percent sizes | done in ZN-359 (the progress bars use `width: pct(v)`) | ZN-359 |
-| `shadowColor`/`shadowOffset`/`shadowOpacity`/`shadowRadius`, `elevation` | flat cards on a contrasting background | ZN-360 |
+| `shadowColor`/`shadowOffset`/`shadowOpacity`/`shadowRadius`, `elevation` | done in ZN-360 (the cards have a soft shadow) | ZN-360 |
 | `transform: [{ rotate }, { scale }, ...]` | `translateX`/`translateY` keys | ZN-361 |
 | dynamic enum values (`fontWeight: on ? 700 : 400`, `display`) | conditional named styles (`on() && styles.bold`) | ZN-362 |
 | `borderStyle`, per-corner radii, per-side border colours | not used | ZN-363 |

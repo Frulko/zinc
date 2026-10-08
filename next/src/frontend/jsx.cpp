@@ -120,7 +120,7 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
     {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}, {"flexShrink", {"shrink"}}, {"flexBasis", {"basis"}}};
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
-    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent"};
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -576,6 +576,20 @@ struct Lowering {
       if (t[x].kind == Tok::String) key = key.substr(1, key.size() - 2);
       std::size_t vb = x + 1, ve = y;
       if (isP(x + 1, ":")) vb = x + 2; else { vb = x; ve = x + 1; }  // shorthand `{ gap }`
+      if (styleName(key) == "shadowOffset" && vb < ve && isP(vb, "{") && isP(ve - 1, "}")) {   // React Native's { width, height } (ZN-360)
+        std::vector<std::pair<std::size_t, std::size_t>> parts;
+        std::size_t from2 = vb + 1;
+        scan(vb + 1, ve - 1, [&](std::size_t q, const std::string& tk) { if (tk == ",") { parts.push_back({from2, q}); from2 = q + 1; } });
+        if (from2 < ve - 1) parts.push_back({from2, ve - 1});
+        for (auto [p0, p1] : parts) {
+          if (p1 < p0 + 3 || !isP(p0 + 1, ":")) fail(p0, "shadowOffset takes { width: number, height: number }");
+          const std::string side = tx(p0);
+          if (side != "width" && side != "height") fail(p0, "shadowOffset takes { width: number, height: number }");
+          keys.push_back(quote(side == "width" ? "shadowOffsetX" : "shadowOffsetY"));
+          values.push_back("(" + rw(p0 + 2, p1) + ")");
+        }
+        continue;
+      }
       // a literal value (string, number, negative number, hex) becomes numeric operations here; anything else is read when the style is applied
       bool literal = false;
       StyleVal lv;
@@ -587,7 +601,7 @@ struct Lowering {
           std::string sk = styleName(key);
           for (const StyleOp& op : styleEntry(key, lv)) {
             if (sk == "fontSize" && op.key == "fontSize") resources.push_back("font-size: " + std::to_string(static_cast<long>(std::lround(op.value))) + "px");
-            bool color = op.key == "backgroundColor" || op.key == "color" || op.key == "borderColor";
+            bool color = op.key == "backgroundColor" || op.key == "color" || op.key == "borderColor" || op.key == "shadowColor";
             if (color) { char hx[24]; long long cv = static_cast<long long>(op.value); std::snprintf(hx, sizeof hx, "%llx", static_cast<unsigned long long>(cv < 0 ? -cv : cv)); keys.push_back(quote("@" + op.key + ":" + (cv < 0 ? "-" : "") + std::string(hx))); values.push_back("0"); }
             else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); }
           }
