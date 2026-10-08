@@ -1,0 +1,17 @@
+[Unit]
+Description={{name}} (a Zinc service)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/{{id}}/{{id}}
+Environment=PORT=3000
+Restart=on-failure
+RestartSec=2
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

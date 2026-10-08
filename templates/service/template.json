@@ -1,0 +1,8 @@
+{
+  "name": "service",
+  "description": "An HTTP JSON API (items: list, create, read, delete; health) with tests and a systemd unit to run it on a Linux box or a Raspberry Pi (zinc:net).",
+  "tags": ["server", "net", "api"],
+  "targets": ["linux", "rpi", "macos"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

@@ -13,7 +13,7 @@ for d in "$tpl"/*/; do
   echo "$list" | grep -q "^  $t .*(.*)$" || { echo "zinc new --list misses $t: $list"; fail=1; }
   p="$tmp/My $t"
   "$Z" new "$t" "$p" >/dev/null || { echo "zinc new $t failed"; fail=1; continue; }
-  (cd "$d" && find . -type f ! -name template.json | sort) > "$tmp/want"
+  (cd "$d" && find . -type f ! -name template.json | sed 's/{{id}}/my-'"$t"'/g; s/{{name}}/My '"$t"'/g' | sort) > "$tmp/want"
   (cd "$p" && find . -type f ! -name tsconfig.json | sort) > "$tmp/got"
   cmp -s "$tmp/want" "$tmp/got" || { echo "$t: files differ: $(diff "$tmp/want" "$tmp/got" | head -4)"; fail=1; }
   grep -q '"name": "My '"$t"'"' "$p/zinc.json" || { echo "$t: {{name}} not filled in zinc.json"; fail=1; }
