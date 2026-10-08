@@ -32,7 +32,7 @@
         "m-11",
         "m-18"
       ],
-      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets"
+      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets|Side records and move state|SoA node storage"
     }
   ]
 }
