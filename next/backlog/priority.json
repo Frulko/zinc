@@ -1,9 +1,38 @@
 {
-  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title).",
+  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title).",
   "groups": [
-    { "name": "ui", "milestones": ["m-17"], "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF" },
-    { "name": "desktop integration", "milestones": ["m-16"] },
-    { "name": "rendering and media", "milestones": ["m-8"], "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF|zinc-script" },
-    { "name": "3D and WebGL", "title": "WebGL|\\b3D\\b|three\\.js|glTF|Surface.*viewport" }
+    {
+      "name": "ui",
+      "milestones": [
+        "m-17"
+      ],
+      "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF"
+    },
+    {
+      "name": "desktop integration",
+      "milestones": [
+        "m-16"
+      ]
+    },
+    {
+      "name": "rendering and media",
+      "milestones": [
+        "m-8"
+      ],
+      "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF|zinc-script"
+    },
+    {
+      "name": "3D and WebGL",
+      "title": "WebGL|\\b3D\\b|three\\.js|glTF|Surface.*viewport"
+    },
+    {
+      "name": "deferred: cross builds and simulators (owner, 2026-10-07: at the end)",
+      "last": true,
+      "milestones": [
+        "m-12",
+        "m-18"
+      ],
+      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target"
+    }
   ]
 }
