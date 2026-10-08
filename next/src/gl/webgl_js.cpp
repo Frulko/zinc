@@ -975,10 +975,10 @@ M(vertexAttribI4uiv) {
 }
 M(invalidateSubFramebuffer) { SELF NEED2; NEED(6); if (I(4) < 0 || I(5) < 0) { gl.raise(0x0501); return JS_UNDEFINED; } return js_invalidateFramebuffer(c, t, 2, argv); }
 // no compressed formats without an extension: every format is an enum the context does not know
-M(compressedTexImage2D) { SELF gl.raise(0x0500); return JS_UNDEFINED; }   // (WebGL 1 has these in the core API: no compressed format exists until an extension brings one)
-M(compressedTexSubImage2D) { SELF gl.raise(0x0500); return JS_UNDEFINED; }
-M(compressedTexImage3D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
-M(compressedTexSubImage3D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexImage2D) { SELF NEED(7); gl.raise(0x0500); return JS_UNDEFINED; }   // (WebGL 1 has these in the core API: no compressed format exists until an extension brings one)
+M(compressedTexSubImage2D) { SELF NEED(8); gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexImage3D) { SELF NEED2; NEED(8); gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexSubImage3D) { SELF NEED2; NEED(10); gl.raise(0x0500); return JS_UNDEFINED; }
 
 const Fn kMethods2[] = {
   {"createVertexArray", js_createVertexArray, 0}, {"deleteVertexArray", js_deleteVertexArray, 1}, {"bindVertexArray", js_bindVertexArray, 1}, {"isVertexArray", js_isVertexArray, 1},

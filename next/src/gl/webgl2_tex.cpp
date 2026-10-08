@@ -68,7 +68,7 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   const bool three = target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY;
   const std::uint32_t bindTarget = face ? GL_TEXTURE_CUBE_MAP : target;
-  if (!(target == GL_TEXTURE_2D || face || three)) { error(GL_INVALID_ENUM); return false; }
+  if (!(target == GL_TEXTURE_2D || face || three || (storage && target == GL_TEXTURE_CUBE_MAP))) { error(GL_INVALID_ENUM); return false; }
   Id id = boundTex(bindTarget);
   if (!id) { error(GL_INVALID_OPERATION); return false; }
   Tex& t = textures_[id];
@@ -76,7 +76,8 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     if (!sizedFormat(ifmt)) { error(GL_INVALID_ENUM); return false; }
     if (t.immutable) { error(GL_INVALID_OPERATION); return false; }
     int levels = level;   // for storage, `level` carries the level count
-    if (levels < 1 || w < 1 || h < 1 || d < 1 || w > maxTexSize_ || h > maxTexSize_ || levels > levelsFor(w, h, target == GL_TEXTURE_3D ? d : 1)) { error(GL_INVALID_VALUE); return false; }
+    if (levels < 1 || w < 1 || h < 1 || d < 1 || w > (target == GL_TEXTURE_3D ? max3dSize_ : maxTexSize_) || h > (target == GL_TEXTURE_3D ? max3dSize_ : maxTexSize_) || (target == GL_TEXTURE_3D && d > max3dSize_)) { error(GL_INVALID_VALUE); return false; }
+    if (levels > levelsFor(w, h, target == GL_TEXTURE_3D ? d : 1)) { error(GL_INVALID_OPERATION); return false; }   // more levels than the size has
     // glTexStorage* is GL 4.2 (macOS stops at 4.1): the levels are allocated one by one, which looks the same once the wrapper refuses later respecification
     std::uint32_t fmt = 0, typ = 0;
     for (const Fmt& f : kFormats) if (f.internal == ifmt) { fmt = f.format; typ = f.type; break; }
@@ -108,7 +109,8 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
       return false;
     }
   } else if (!formatType(format, type, bpp)) { error(GL_INVALID_OPERATION); return false; }
-  if (level < 0 || w < 0 || h < 0 || d < 0 || w > maxTexSize_ || h > maxTexSize_ || (three && d > 2048)) { error(GL_INVALID_VALUE); return false; }
+  const int lim = level >= 0 && level <= 30 ? (target == GL_TEXTURE_3D ? max3dSize_ : maxTexSize_) >> level : 0;   // each level is half the one before it
+  if (level < 0 || w < 0 || h < 0 || d < 0 || w > lim || h > lim || (target == GL_TEXTURE_3D ? d > lim : three && d > 2048)) { error(GL_INVALID_VALUE); return false; }
   if (data) {
     const std::size_t row = (static_cast<std::size_t>(w) * bpp + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
     const std::size_t need = (h && w && d) ? row * static_cast<std::size_t>(h) * (d - 1) + row * (h - 1) + static_cast<std::size_t>(w) * bpp : 0;

@@ -271,7 +271,7 @@ class WebGL1 {
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
   struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
-  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t minF = 0x2702, magF = 0x2601; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
+  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t minF = 0x2702, magF = 0x2601, wrapS = 0x2901, wrapT = 0x2901; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
   struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
@@ -330,6 +330,8 @@ class WebGL1 {
   bool v1Format(std::uint32_t format) const;
   bool floatRenderable(int bits, int channels) const;
   bool readFormat(int& comps, char& cls);
+  int copyClash(std::uint32_t target, int level, std::uint32_t destName);
+  void copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h);
   bool renderbufferFormatAllowed(std::uint32_t fmt) const;
   bool v1Type(std::uint32_t type) const;
   bool depthAttr_ = true, stencilAttr_ = false, alphaAttr_ = true;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
@@ -342,7 +344,7 @@ class WebGL1 {
   char attachmentKind(int i);   // component class of draw buffer i of the draw framebuffer: 'f', 'i', 'u', 0 for nothing there
   bool drawBufferOn(int i) const { return (fbo_ ? fbos_.at(fbo_).draw[i] : defaultDraw_[i]) != 0; }
   bool clearClassOk(int drawbuffer, char want);   // clear (drawbuffer -1, want 'f') and clearBuffer*: false when an enabled draw buffer's attachment is of another class
-  int unpackAlignment_ = 4, maxTexSize_ = 0;
+  int unpackAlignment_ = 4, maxTexSize_ = 0, max3dSize_ = 256;
   int packAlignment_ = 4, packRowLength_ = 0, packSkipPixels_ = 0, packSkipRows_ = 0, unpackRowLength_ = 0, unpackImageHeight_ = 0, unpackSkipPixels_ = 0, unpackSkipRows_ = 0, unpackSkipImages_ = 0;
   bool srgbBlit(int sx0, int sy0, int sx1, int sy1, int dx0, int dy0, int dx1, int dy1, std::uint32_t filter);   // colour blit by drawing, for the cases the driver's blit converts wrongly
   std::uint32_t blitProg_ = 0, blitVao_ = 0;

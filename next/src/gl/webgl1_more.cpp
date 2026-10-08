@@ -598,6 +598,46 @@ static bool copyFits(int srcComps, char srcCls, int dstComps, char dstCls) {
   if (dstComps < 0) return srcComps == 4;       // ALPHA, LUMINANCE_ALPHA
   return srcComps >= dstComps;
 }
+// A copy whose destination texture is attached (at another level) to the read framebuffer crashes Apple's GL driver (ANGLE bug 4267, the page texture-copying-and-deletion), and a copy of the very
+// level that is attached is a feedback loop. 0: no clash, 1: feedback loop (INVALID_OPERATION), 2: the driver needs the detour of copyThrough.
+int WebGL1::copyClash(std::uint32_t target, int level, std::uint32_t destName) {
+  GLint type = GL_NONE, name = 0, lv = 0, face = 0;
+  const GLenum att = version_ == 2 ? (fboRead_ ? fbos_[fboRead_].readBuffer : GL_NONE) : (fboRead_ ? static_cast<GLenum>(GL_COLOR_ATTACHMENT0) : GL_NONE);
+  if (att == GL_NONE || att == GL_BACK) return 0;
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+  if (type == GL_TEXTURE) {
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &lv);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &face);
+  }
+  while (glGetError() != GL_NO_ERROR) {}
+  if (type != GL_TEXTURE || static_cast<std::uint32_t>(name) != destName) return 0;
+  const bool cubeFace = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  return lv == level && (!cubeFace || static_cast<std::uint32_t>(face) == target) ? 1 : 2;
+}
+// glCopyTex(Sub)Image2D of the read framebuffer in two steps through a temporary texture
+void WebGL1::copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h) {
+  const bool cubeFace = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  const GLenum bt = cubeFace ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+  const Id destId = (cubeFace ? texCube_ : tex2d_)[activeUnit_];
+  const GLuint dest = textures_[destId].name;
+  GLint read = 0;
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  if (sub) { GLint f = 0; glGetTexLevelParameteriv(target, level, GL_TEXTURE_INTERNAL_FORMAT, &f); ifmt = f ? static_cast<std::uint32_t>(f) : GL_RGBA8; }
+  GLuint tmp = 0, fbo = 0;
+  glGenTextures(1, &tmp);
+  glBindTexture(GL_TEXTURE_2D, tmp);
+  glCopyTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(ifmt), x, y, w, h, 0);
+  glGenFramebuffers(1, &fbo);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+  glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tmp, 0);
+  glBindTexture(bt, dest);
+  if (sub) glCopyTexSubImage2D(target, level, xoff, yoff, 0, 0, w, h); else glCopyTexImage2D(target, level, static_cast<GLenum>(ifmt), 0, 0, w, h, 0);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
+  glDeleteFramebuffers(1, &fbo);
+  glDeleteTextures(1, &tmp);
+  if (bt == GL_TEXTURE_2D) glBindTexture(GL_TEXTURE_2D, dest);   // (the destination was the bound texture of its target all along)
+}
 void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, int x, int y, int w, int h, int border) {
   ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
@@ -609,7 +649,8 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
     return error(GL_INVALID_ENUM);
   }
   if (legacy) texFormatInfo(fmt, dstComps, dstCls);
-  if (level < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
+  if (level < 0 || w < 0 || h < 0 || level > 30 || w > (maxTexSize_ >> level) || h > (maxTexSize_ >> level) || border != 0) return error(GL_INVALID_VALUE);
+  if (version_ != 2 && level > 0 && (((w & (w - 1)) != 0) || ((h & (h - 1)) != 0))) return error(GL_INVALID_VALUE);   // WebGL 1: a level other than the base is a power of two
   if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   int srcComps = 4; char srcCls = 'f';
@@ -617,7 +658,11 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (textures_[id].immutable) return error(GL_INVALID_OPERATION);
   // the legacy one- and two-channel formats do not exist in core: an RGBA copy and a swizzle give the same sampling
-  glCopyTexImage2D(target, level, legacy ? (fmt == GL_RGB ? GL_RGB : GL_RGBA) : fmt, x, y, w, h, 0);
+  const std::uint32_t ifmt = legacy ? (fmt == GL_RGB ? GL_RGB : GL_RGBA) : fmt;
+  const int clash = copyClash(target, level, textures_[id].name);
+  if (clash == 1) return error(GL_INVALID_OPERATION);
+  if (clash == 2) copyThrough(false, target, level, ifmt, 0, 0, x, y, w, h);
+  else glCopyTexImage2D(target, level, ifmt, x, y, w, h, 0);
   Tex& t = textures_[id];
   if (level == 0) {
     t.w = w; t.h = h; t.format = fmt; t.type = 0; t.f32 = t.f16 = false;
@@ -638,7 +683,10 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   if (t.format && !texFormatInfo(t.format, dstComps, dstCls)) { dstComps = 4; dstCls = 'f'; }   // (a WebGL 2 texture keeps its base format: RED, RG ... map to their counts below)
   if (t.format == 0x1903) dstComps = 1; else if (t.format == 0x8227) dstComps = 2;
   if (!readFormat(srcComps, srcCls) || !copyFits(srcComps, srcCls, dstComps, dstCls)) return error(GL_INVALID_OPERATION);
-  glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
+  const int clash = copyClash(target, level, t.name);
+  if (clash == 1) return error(GL_INVALID_OPERATION);
+  if (clash == 2) copyThrough(true, target, level, 0, xoff, yoff, x, y, w, h);
+  else glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
 }
 void WebGL1::generateMipmap(std::uint32_t target) {
   if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
@@ -646,6 +694,7 @@ void WebGL1::generateMipmap(std::uint32_t target) {
   if (!id) return error(GL_INVALID_OPERATION);
   const Tex& t = textures_[id];
   if (target == GL_TEXTURE_2D && (t.w == 0 || t.h == 0)) return error(GL_INVALID_OPERATION);   // level 0 must be defined
+  if (version_ != 2 && (((t.w & (t.w - 1)) != 0) || ((t.h & (t.h - 1)) != 0))) return error(GL_INVALID_OPERATION);   // WebGL 1: no mipmaps for a non-power-of-two texture
   if (version_ != 2 && (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.format == kSrgbExt || t.format == kSrgbAlphaExt)) return error(GL_INVALID_OPERATION);   // depth and sRGB (EXT_sRGB) textures have no mipmaps
   glGenerateMipmap(target);
 }

@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <regex>
+#include <set>
 
 #include "glad/gl.h"
 
@@ -30,6 +33,70 @@ void replaceIdent(std::string& body, const std::string& from, const std::string&
     if ((p > 0 && word(body[p - 1])) || (e < body.size() && word(body[e]))) continue;
     body.replace(p, from.size(), to);
   }
+}
+// the source with its comments blanked (newlines kept)
+std::string withoutComments(const std::string& src) {
+  std::string t;
+  for (std::size_t i = 0; i < src.size(); ++i) {
+    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
+    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); const std::size_t stop = e == std::string::npos ? src.size() : e + 2; for (std::size_t k = i; k < stop; ++k) if (src[k] == '\n') t += '\n'; t += ' '; i = stop - 1; }
+    else t += src[i];
+  }
+  return t;
+}
+// The rules of GLSL ES 1.00 and WebGL (Appendix A, the reserved words, the character set, the webgl_ prefix) that a desktop GLSL compiler does not enforce. Empty: fine, else the compile error.
+std::string essl1Violation(const std::string& src, int webgl, std::uint32_t type) {
+  static const char* const reserved[] = {"asm", "class", "union", "enum", "typedef", "template", "this", "packed", "goto", "switch", "default", "inline", "noinline", "volatile", "public", "static", "extern", "external", "interface", "flat", "long", "short", "double", "half", "fixed", "unsigned", "superp", "input", "output", "hvec2", "hvec3", "hvec4", "dvec2", "dvec3", "dvec4", "fvec2", "fvec3", "fvec4", "sampler1D", "sampler3D", "sampler1DShadow", "sampler2DShadow", "sampler2DRect", "sampler3DRect", "sampler2DRectShadow", "sizeof", "cast", "namespace", "using"};
+  const std::string t = withoutComments(src);
+  {   // the character set, outside conditional blocks (an excluded block is skipped by the preprocessor, which is not ours)
+    int depth = 0;
+    std::size_t ls = 0;
+    while (ls <= t.size()) {
+      std::size_t le = t.find('\n', ls);
+      if (le == std::string::npos) le = t.size();
+      const std::size_t k = t.find_first_not_of(" \t", ls);
+      const bool dir = k != std::string::npos && k < le && t[k] == '#';
+      std::string name;
+      if (dir) { std::size_t w = t.find_first_not_of(" \t", k + 1); while (w != std::string::npos && w < le && std::isalpha(static_cast<unsigned char>(t[w]))) name += t[w++]; }
+      if (dir && (name == "endif")) --depth;
+      if (depth <= 0) for (std::size_t i = ls; i < le; ++i) { const unsigned char ch = static_cast<unsigned char>(t[i]); if (ch >= 0x80 || ch == '$' || ch == '@' || ch == '`' || (ch < 0x20 && ch != '\r' && ch != '\t')) return "ERROR: 0:1: '' : unexpected character in the shader source (outside the GLSL ES character set)"; }
+      if (dir && (name == "if" || name == "ifdef" || name == "ifndef")) ++depth;
+      ls = le + 1;
+    }
+  }
+  std::size_t at = t.find_first_not_of(" \t\r\n");
+  for (std::size_t p = t.find("#version"); p != std::string::npos; p = t.find("#version", p + 1)) {
+    (void)at;
+    static const std::regex ver(R"(#\s*version\s+(\w+))");
+    std::smatch m; const std::string rest = t.substr(p, 40);
+    if (std::regex_search(rest, m, ver) && m[1] != "100") return "ERROR: 0:1: '#version' : version number not supported by WebGL 1 / ESSL 1.00 (" + m[1].str() + ")";
+  }
+  const auto word = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+  for (std::size_t i = 0; i < t.size();) {
+    if (!word(t[i]) || std::isdigit(static_cast<unsigned char>(t[i]))) { ++i; continue; }
+    std::size_t j = i;
+    while (j < t.size() && word(t[j])) ++j;
+    const std::string id = t.substr(i, j - i);
+    if (id.size() > (webgl == 2 ? 1024u : 256u)) return "ERROR: 0:1: '" + id.substr(0, 20) + "...' : identifier is too long (more than 256 characters)";
+    if (id.compare(0, 6, "webgl_") == 0 || id.compare(0, 7, "_webgl_") == 0) return "ERROR: 0:1: '" + id + "' : identifiers starting with \"webgl_\" or \"_webgl_\" are reserved";
+    if (id.find("__") != std::string::npos && id != "__VERSION__" && id != "__LINE__" && id != "__FILE__") return "ERROR: 0:1: '" + id + "' : identifiers containing \"__\" are reserved";   // (the suite is of two minds: shader-with-double-underscore wants one accepted)
+    if (id == "attribute" && type == GL_FRAGMENT_SHADER) return "ERROR: 0:1: 'attribute' : attributes are for vertex shaders";
+    if (id == "while" || id == "do") return "ERROR: 0:1: '" + id + "' : loops other than for are not supported (GLSL ES 1.00 Appendix A)";
+    for (const char* r : reserved) if (id == r) return "ERROR: 0:1: '" + id + "' : reserved keyword";
+    i = j;
+  }
+  static const std::regex attrArray(R"(\battribute\s+(?:lowp\s+|mediump\s+|highp\s+)?\w+\s+\w+\s*\[)");
+  if (std::regex_search(t, attrArray)) return "ERROR: 0:1: 'attribute' : arrays of attributes are not allowed";
+  return "";
+}
+// words that desktop GLSL 330 keeps for itself but ESSL 1.00 lets a shader use as names: renamed by macro when the shader uses them
+bool desktopOnlyWord(const std::string& id) {
+  static const std::set<std::string> fixed = {"case", "layout", "centroid", "smooth", "noperspective", "patch", "sample", "subroutine", "uint", "coherent", "restrict", "readonly", "writeonly", "common", "partition", "active", "resource", "filter", "shared", "atomic_uint", "row_major", "column_major"};
+  if (fixed.count(id)) return true;
+  static const std::regex sampler(R"(^[iu]?(sampler|image)(1D|2D|3D|Cube|2DRect|Buffer|2DMS)(Array)?(Shadow)?$)");
+  static const std::regex vec(R"(^(uvec[234]|d?mat[234]x[234]|dmat[234])$)");
+  if (id == "sampler2D" || id == "samplerCube") return false;
+  return std::regex_match(id, sampler) || std::regex_match(id, vec);
 }
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
 std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err) {
@@ -60,6 +127,8 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
       return "#version 330 core\n" + body;
     }
   }
+  if (webgl == 1 && src.find("#version 300 es") != std::string::npos) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
+  if (const std::string bad = essl1Violation(src, webgl, type); !bad.empty()) { err = bad; return ""; }
   std::string body;
   std::string pre = "#version 330 core\n";
   std::string tail;
@@ -102,11 +171,24 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
   const bool drawBuf = webgl == 1 && ((extOn >> static_cast<int>(Ext::DrawBuffers)) & 1);   // (WEBGL_draw_buffers: gl_FragData[1..3] and gl_MaxDrawBuffers come with getExtension, no pragma needed)
   auto has = [&](Ext e) { return (active >> static_cast<int>(e)) & 1; };
   pre += "#define texture2D texture\n#define textureCube texture\n#define texture2DProj textureProj\n";
+  replaceIdent(body, "__VERSION__", "100");
+  {
+    const std::string t = withoutComments(body);
+    std::set<std::string> seen;
+    for (std::size_t i = 0; i < t.size();) {
+      if (!(std::isalpha(static_cast<unsigned char>(t[i])) || t[i] == '_')) { ++i; continue; }
+      std::size_t j = i;
+      while (j < t.size() && (std::isalnum(static_cast<unsigned char>(t[j])) || t[j] == '_')) ++j;
+      const std::string id = t.substr(i, j - i);
+      i = j;
+      if (desktopOnlyWord(id) && seen.insert(id).second) pre += "#define " + id + " zn_" + id + "\n";
+    }
+  }
   for (const ExtDef& e : kExtensions) if (e.glsl && (e.webgl & (1u << (webgl - 1))) && ((extOn >> static_cast<int>(e.id)) & 1)) pre += std::string("#define ZN_") + e.glsl + " 1\n";   // enabled by getExtension: the macro exists
   pre += type == GL_VERTEX_SHADER ? "#define ZN_GL_ES 1\n" : "#define ZN_GL_ES 1\n#define ZN_GL_FRAGMENT_PRECISION_HIGH 1\n";
+  if (type != GL_FRAGMENT_SHADER || !has(Ext::StdDerivatives)) pre += "#define dFdx zn_no_OES_standard_derivatives\n#define dFdy zn_no_OES_standard_derivatives\n#define fwidth zn_no_OES_standard_derivatives\n";   // desktop GLSL has them: hide what ESSL 1.00 needs the extension (and a fragment shader) for
   if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n#define texture2DLod textureLod\n#define textureCubeLod textureLod\n#define texture2DProjLod textureProjLod\n";
   else {
-    if (!has(Ext::StdDerivatives)) pre += "#define dFdx zn_no_OES_standard_derivatives\n#define dFdy zn_no_OES_standard_derivatives\n#define fwidth zn_no_OES_standard_derivatives\n";   // desktop GLSL has them: hide what ESSL 1.00 needs the extension for
     if (has(Ext::ShaderTexLod)) pre += "#define texture2DLodEXT textureLod\n#define texture2DProjLodEXT textureProjLod\n#define textureCubeLodEXT textureLod\n#define texture2DGradEXT textureGrad\n#define texture2DProjGradEXT textureProjGrad\n#define textureCubeGradEXT textureGrad\n";
     pre += "#define varying in\n";
     replaceIdent(body, "gl_FragDepth", "zn_no_gl_FragDepth");   // not in ESSL 1.00; gl_FragDepthEXT is, with the extension
@@ -215,6 +297,7 @@ bool formatType(std::uint32_t format, std::uint32_t type, int& bpp) {   // share
   return false;
 }
 
+bool pot(int v) { return (v & (v - 1)) == 0; }   // (a zero-sized level counts)
 // ---- the pixel formats the WebGL 1 extensions add (OES_texture_float / _half_float, WEBGL_depth_texture, EXT_sRGB) and what the driver gets for them
 GlFmt glFormat(std::uint32_t format, std::uint32_t type, bool es) {
   if (es) return {format, format, type, 0};   // OpenGL ES 2.0 takes the WebGL pair as it is (with the OES extensions)
@@ -273,7 +356,9 @@ void WebGL1::refreshSampling(Id id) {
   if (it == textures_.end() || gl_.info().es || !it->second.target || it->second.target == GL_TEXTURE_3D || it->second.target == GL_TEXTURE_2D_ARRAY) return;
   Tex& t = it->second;
   const bool filtered = t.magF == GL_LINEAR || (t.minF != GL_NEAREST && t.minF != GL_NEAREST_MIPMAP_NEAREST);
-  const bool black = filtered && ((t.f32 && !extOn(Ext::TexFloatLinear)) || (t.f16 && !extOn(Ext::TexHalfLinear)));
+  const auto pow2 = [](int v) { return (v & (v - 1)) == 0; };
+  const bool npotIncomplete = version_ != 2 && (t.target == GL_TEXTURE_2D || t.target == GL_TEXTURE_CUBE_MAP) && t.w > 0 && (!pow2(t.w) || !pow2(t.h)) && (t.wrapS != GL_CLAMP_TO_EDGE || t.wrapT != GL_CLAMP_TO_EDGE || (t.minF != GL_NEAREST && t.minF != GL_LINEAR));   // WebGL 1: a non-power-of-two texture needs CLAMP_TO_EDGE and no mipmaps
+  const bool black = npotIncomplete || (filtered && ((t.f32 && !extOn(Ext::TexFloatLinear)) || (t.f16 && !extOn(Ext::TexHalfLinear))));
   static const GLint sw[7][4] = {{GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_RED}, {GL_RED, GL_RED, GL_RED, GL_ONE}, {GL_RED, GL_RED, GL_RED, GL_GREEN}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_ONE}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_ALPHA}, {GL_RED, GL_RED, GL_RED, GL_ALPHA}};   // 4: black; 5, 6: ALPHA and LUMINANCE_ALPHA backed by RGBA (copyTexImage2D)
   const GLenum bt = t.target;
   const Id cur = boundTex(bt);
@@ -316,6 +401,8 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
   GLint m = 0;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m);
   maxTexSize_ = m;
+  glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &m);
+  max3dSize_ = m > 0 ? m : 256;
   for (const ExtDef& e : kExtensions) {
     const char* spec = gl_.info().es ? (version == 2 ? e.es3 : e.es2) : e.gl;
     if ((e.webgl & (1u << (version - 1))) && probe(spec)) extSup_ |= 1u << static_cast<int>(e.id);
@@ -526,6 +613,7 @@ void WebGL1::compileShader(Id id) {
   std::string terr;
   std::string full = translate(s.source, s.type, gl_.info().es, extOn_, version_, terr);
   if (!terr.empty()) { s.compiled = false; s.log = terr; return; }
+  if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- translated shader\n%s\n", full.c_str());
   const char* p = full.c_str();
   glShaderSource(s.name, 1, &p, nullptr);
   glCompileShader(s.name);
@@ -558,7 +646,7 @@ static bool validName(const std::string& n) {
 void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& name) {
   auto p = programs_.find(pid);
   if (p == programs_.end()) return error(GL_INVALID_OPERATION);
-  if (index >= kMaxAttribs || !validName(name)) return error(GL_INVALID_VALUE);
+  if (index >= kMaxAttribs || !validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) return error(GL_INVALID_VALUE);
   if (name.compare(0, 3, "gl_") == 0) return error(GL_INVALID_OPERATION);
   if (name.compare(0, 6, "webgl_") == 0 || name.compare(0, 6, "_webgl") == 0) return error(GL_INVALID_OPERATION);
   p->second.attribBindings[name] = static_cast<int>(index);
@@ -606,7 +694,7 @@ void WebGL1::useProgram(Id id) {
 int WebGL1::getAttribLocation(Id pid, const std::string& name) {
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return -1; }
-  if (!validName(name)) { error(GL_INVALID_VALUE); return -1; }
+  if (!validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) { error(GL_INVALID_VALUE); return -1; }
   if (name.compare(0, 3, "gl_") == 0) return -1;
   return glGetAttribLocation(it->second.name, name.c_str());
 }
@@ -614,7 +702,7 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   UniformLoc l;
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return l; }
-  if (!validName(name)) { error(GL_INVALID_VALUE); return l; }
+  if (!validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) { error(GL_INVALID_VALUE); return l; }
   if (name.compare(0, 3, "gl_") == 0 || name.compare(0, 6, "webgl_") == 0) return l;
   for (std::size_t br = name.find('['); br != std::string::npos; br = name.find('[', br + 1)) {   // "u[3]", "lights[2].color": digits only, an index that fits an int, a closing bracket that ends the name or is followed by `.` or `[`
     std::size_t close = name.find(']', br);
@@ -849,7 +937,8 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   }
   int bpp = 0;
   if (!v1Format(format) || !v1Type(type)) return error(GL_INVALID_ENUM);   // FLOAT / HALF_FLOAT_OES, the depth and sRGB formats need their extensions
-  if (level < 0 || width < 0 || height < 0 || width > maxTexSize_ || height > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
+  if (level < 0 || width < 0 || height < 0 || level > 30 || width > (maxTexSize_ >> level) || height > (maxTexSize_ >> level) || border != 0) return error(GL_INVALID_VALUE);
+  if (version_ != 2 && level > 0 && (!pot(width) || !pot(height))) return error(GL_INVALID_VALUE);   // WebGL 1: a level other than the base is a power of two
   if (internalformat != format) return error(GL_INVALID_OPERATION);
   if (!v1FormatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
   const bool depth = format == GL_DEPTH_COMPONENT || format == kDepthStencilFmt;
@@ -902,7 +991,12 @@ void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) { +
   if (pname == GL_TEXTURE_MIN_FILTER || pname == GL_TEXTURE_MAG_FILTER) {
     Tex& t = textures_[boundTex(target)];
     (pname == GL_TEXTURE_MIN_FILTER ? t.minF : t.magF) = static_cast<std::uint32_t>(v);
-    if (t.f32 || t.f16 || t.black) refreshSampling(boundTex(target));
+    if (t.f32 || t.f16 || t.black || version_ != 2) refreshSampling(boundTex(target));
+  }
+  if (pname == GL_TEXTURE_WRAP_S || pname == GL_TEXTURE_WRAP_T) {
+    Tex& t = textures_[boundTex(target)];
+    (pname == GL_TEXTURE_WRAP_S ? t.wrapS : t.wrapT) = static_cast<std::uint32_t>(v);
+    if (version_ != 2) refreshSampling(boundTex(target));
   }
 }
 

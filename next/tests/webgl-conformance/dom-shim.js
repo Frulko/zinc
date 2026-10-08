@@ -132,6 +132,7 @@
     if (String(tag).toLowerCase() === 'canvas' && nativeCreate) { const c = nativeCreate('canvas'); const glContext = c.getContext; Object.setPrototypeOf(c, Canvas.prototype); initNode(c, 'canvas');
       c.getContext = function (type, attrs) { if (type === '2d') return this._ctx2d || (this._ctx2d = new Context2D(this)); return glContext.call(this, type, attrs); };
       return c; }
+    if (String(tag).toLowerCase() === 'img') return new g.Image();
     return new Node(tag);
   };
   doc.createElementNS = (ns, tag) => doc.createElement(tag);
@@ -150,8 +151,10 @@
     get src() { return this._src || ''; }
     set src(v) {
       this._src = String(v);
+      if (this._src === 'data:image/png;base64,') return;   // canvas.toDataURL() of this shim: a picture for the page's log, nobody waits for it
       setTimeout(() => {
         const e = { type: 'error', target: this };
+        out('@E', 'image decoding is not available (' + this._src.slice(0, 40) + ')');
         if (typeof this.onerror === 'function') this.onerror(e);
         else if (!(this._ev.error || []).length && typeof g.testFailed === 'function') { g.testFailed('image decoding is not available (' + this._src.slice(0, 40) + ')'); if (typeof g.finishTest === 'function') g.finishTest(); }   // the page waits for a load that cannot come
         this.dispatchEvent(e);
