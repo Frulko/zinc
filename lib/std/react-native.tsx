@@ -5,8 +5,10 @@ import * as ui from 'zinc:ui';
 import { useState, useEffect, useRef } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
 import { platform, env } from 'zinc:sys';
 import { width, height, pixelScale, stroke } from 'zinc:gfx';
+import { createEffect } from 'zinc:ui/solid';
+import * as A from 'zinc:ui/animated';
 
-export { StyleSheet, PanResponder } from 'zinc:ui';
+export { StyleSheet, PanResponder, LayoutAnimation } from 'zinc:ui';
 
 /** Host elements: the JSX lowering turns these names into zinc:ui nodes. */
 export const View: i32 = ui.VIEW, Text: i32 = ui.TEXT, Image: i32 = ui.IMAGE, ScrollView: i32 = ui.SCROLL;
@@ -386,5 +388,15 @@ export function SectionList<T>(p: SectionListProps<T>): i32 {
   </ScrollView>;
   watchList(watch.current, sv.current, count, p.onEndReached, p.onEndReachedThreshold, p.onRefresh, p.refreshing === true);
   return list;
+}
+
+// ---------------------------------------------------------------- Animated in the React model (ZN-386)
+/** The current number of an Animated value or interpolation, and a new render of the component each time it moves: what Animated.View does for its
+ *  style in React Native (`const x = useAnimated(pan.x)` then `transform: [{ translateX: x }]`). ponytail: the watcher lives as long as the program. */
+export function useAnimated(n: A.Node): number {
+  const [v, setV] = useState<number>(n.get());
+  const on = useRef<boolean>(false);
+  if (!on.current) { on.current = true; createEffect((): void => { setV(n.get()); }); }
+  return v;
 }
 

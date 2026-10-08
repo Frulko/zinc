@@ -312,6 +312,8 @@ A.spring(fade, { toValue: 1, bounciness: 6 }).start();
 
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
 `useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
+In the React model, `useAnimated(value)` of `zinc:react-native` returns the value's number and renders the component again when it moves
+(React Native's Animated.View does this for its style): `const x = useAnimated(pan.x)` then `transform: [{ translateX: x }]` (examples/rn-tester).
 
 ## Layout engines
 

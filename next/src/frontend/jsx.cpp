@@ -910,7 +910,7 @@ struct Lowering {
       const Attr* key = find("key");
       auto imp = imported.find(tag);
       const bool rn = imp != imported.end() && imp->second == "zinc:react-native";   // its style props are one flattened Style, as React Native composes them
-      auto styleProp = [](const std::string& n) { return n == "style" || (n.size() > 5 && n.compare(n.size() - 5, 5, "Style") == 0); };
+      auto styleProp = [](const std::string& n) { return n == "style" || (n != "barStyle" && n.size() > 5 && n.compare(n.size() - 5, 5, "Style") == 0); };   // StatusBar's barStyle is a string
       for (auto& p : attrs) {
         if (p.first == "key") continue;
         if (rn && p.second->kind == 2 && styleProp(p.first)) props.push_back(p.first + ": _flat(" + styleLayers(p.second->eb, p.second->ee) + ")");
