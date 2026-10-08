@@ -1,0 +1,18 @@
+#!/bin/sh
+# The interpreter as a WASI module (ZN-135): zig c++ -target wasm32-wasi over the pure runtime (rt, zbc, vm). Output: build-wasm/vm.wasm (or $1).
+cd "$(dirname "$0")/.." || exit 2
+Z=${ZIG:-$(ls -d "$HOME"/.zinc/toolchains/zig-*/zig 2>/dev/null | head -1)}
+[ -x "$Z" ] || { echo "no zig: zinc toolchain install"; exit 1; }
+out=${1:-build-wasm/vm.wasm}; obj=$(dirname "$out")/obj; mkdir -p "$obj"
+FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off -Iinclude -Isrc -Ithird_party/quickjs-ng -w"
+objs=""
+for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
+  o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
+  [ "$o" -nt "$f" ] || "$Z" c++ $FLAGS -c "$f" -o "$o" || exit 1
+done
+for f in third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c; do
+  [ -f "$f" ] || continue
+  o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
+  [ "$o" -nt "$f" ] || "$Z" cc -target wasm32-wasi -O2 -w -D_WASI_EMULATED_MMAN -Ithird_party/quickjs-ng -c "$f" -o "$o" || exit 1
+done
+"$Z" c++ -target wasm32-wasi -O2 $objs -lwasi-emulated-mman -o "$out" && ls -la "$out"
