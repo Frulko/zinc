@@ -4,12 +4,14 @@ title: 'CI: a release job on tags (packages attached, macOS signed)'
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:20'
+updated_date: '2026-10-08 14:35'
 labels:
   - ci
   - distribution
   - size-S
 milestone: m-19
-dependencies: []
+dependencies:
+  - ZN-331
 ordinal: 55210
 ---
 

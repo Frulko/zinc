@@ -6,12 +6,13 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:21'
-updated_date: '2026-10-08 14:22'
+updated_date: '2026-10-08 14:35'
 labels:
   - architecture
   - webgl
+milestone: m-19
 dependencies: []
-ordinal: 124000
+ordinal: 55215
 ---
 
 ## Description
