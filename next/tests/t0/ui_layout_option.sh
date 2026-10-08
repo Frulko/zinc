@@ -1,6 +1,6 @@
 #!/bin/sh
 # The layout engine option (ZN-285): zinc.json "ui": {"layout", "preset"} with targets/capabilities.json "ui" decides UI_LAYOUT of zinc:platform (classic by default,
-# rn when asked, auto from the target); rn for esp32 or ps1 stops the build with the reason; a bad value is refused; the ESP32 core links no Yoga.
+# rn when asked, auto from the target); rn for esp32 or ps1 stops the build with the reason, the react-native preset falls back to classic there; a bad value is refused; the ESP32 core links no Yoga.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
@@ -29,7 +29,7 @@ expect bad '"ui.layout" must be "classic", "rn" or "auto"'
 expect rn "the rn layout (Yoga) is not available on esp32: Yoga needs" --profile esp32
 expect rn "not available on ps1: soft float" --profile ps1
 expect rn "not available on esp32" --target esp32 --device true
-expect preset "not available on esp32" --target esp32 --device true
+expect preset "layout classic" --profile esp32   # the preset where Yoga is not available: classic with React Native styles (ZN-288)
 expect none "layout classic" --profile esp32
 # a classic ESP32 build holds no Yoga: none of its symbols in the core's ELF (when built here), none of its messages in the committed image
 LC_ALL=C grep -aq "measure function" build/libzn_yoga.a 2>/dev/null || { echo "probe: Yoga's message not found in build/libzn_yoga.a"; fail=1; }

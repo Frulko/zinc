@@ -1,0 +1,1 @@
+{ "name": "layout-compat", "entry": "main.tsx", "ui": { "preset": "react-native" } }

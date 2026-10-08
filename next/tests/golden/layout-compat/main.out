@@ -1,0 +1,17 @@
+flex1 a: 0,0 100x30
+flex1 b: 100,0 100x30
+flex1 c: 200,0 100x30
+shrink a: 0,30 100x20
+shrink b: 100,30 100x20
+max: 0,50 80x20
+beside max: 80,50 220x20
+min: 0,70 250x20
+beside min: 250,70 50x20
+self stretch: 0,90 300x10
+self center: 130,100 40x10
+self end: 260,110 40x10
+aspect from width: 0,120 120x60
+aspect from height: 120,120 100x50
+content a: 0,210 200x20
+content b: 0,230 200x20
+content c: 200,230 80x20

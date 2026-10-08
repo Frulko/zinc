@@ -203,6 +203,7 @@ static bool loadManifestPermissions(const char* path) {
     if (!zn::frontend::resolveUiLayout(p, caps, target, uiLayout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.empty() ? "ZINC_UI_LAYOUT" : pf.c_str(), lerr.c_str()); return false; }
   }
   zn::frontend::setUiLayout(uiLayout);
+  zn::frontend::setUiPreset(p.uiPreset);
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
   zn::frontend::setSystemScopesJson(scopesJson);

@@ -68,6 +68,9 @@ bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>&
 // The layout engine of the program being compiled, exported by zinc:platform as UI_LAYOUT ("classic" when nothing set it).
 void setUiLayout(const std::string& layout);
 const std::string& uiLayout();
+// "react-native" when zinc.json has "ui": {"preset": "react-native"}: React Native's style semantics (flex: n, black text) in either layout engine (ZN-288).
+void setUiPreset(const std::string& preset);
+const std::string& uiPreset();
 
 // Parses the manifest text. False with `err` set when it is not a JSON object or a typed key has the wrong type.
 bool parseProject(const std::string& text, Project& out, std::string& err);

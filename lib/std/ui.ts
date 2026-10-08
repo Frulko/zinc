@@ -13,7 +13,7 @@ import {
 import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
-import { UI_LAYOUT } from 'zinc:platform';
+import { UI_LAYOUT, UI_PRESET } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
@@ -1881,7 +1881,7 @@ export function textFont(h: i32): i32 { if (layoutDirty) layout(); return node(h
 export function textFg(h: i32): i32 {
   let q = h;
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
-  return q >= 0 ? nodes[q].fg : RN ? 0x000000 : 0xffffff;   // React Native's text is black by default (ZN-367.01)
+  return q >= 0 ? nodes[q].fg : RN_STYLE ? 0x000000 : 0xffffff;   // React Native's text is black by default (ZN-367.01)
 }
 /** Text inherits size and weight from its parent text node. */
 function inheritText(n: UiNode): void {
@@ -2149,6 +2149,36 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   if (ownH >= 0) n.lh = Math.max(ownH, n.pt + n.pb);
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
+/** The main sizes of the growing items of one line when one of them has a min or max on the main axis (ZN-288), else null (the legacy share runs):
+ *  CSS's "resolve flexible lengths" loop, an item clamped by its limit is frozen at it and the others share what is left. */
+function growWithLimits(n: UiNode, kids: UiNode[], start: i32, end: i32, free: number, grows: number): number[] | null {
+  let limited = false;
+  for (let i = start; i < end; i++) {
+    const c = kids[i];
+    const g = c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
+    if (g > 0 && (n.row ? c.minW >= 0 || c.maxW >= 0 : c.minH >= 0 || c.maxH >= 0)) limited = true;
+  }
+  if (!limited) return null;
+  const size: number[] = [], done: boolean[] = [];
+  for (let i = start; i < end; i++) { size.push(n.row ? kids[i].lw : kids[i].lh); done.push(false); }
+  let left = free, total = grows;
+  for (let round = 0; round <= end - start; round++) {   // each round shares what is left among the unfrozen items, then freezes the clamped ones
+    let nextLeft = left, nextTotal = total, clamped = false;
+    for (let i = start; i < end; i++) {
+      const c = kids[i], k = i - start;
+      const g = c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
+      if (g <= 0 || done[k]) continue;
+      const lo = n.row ? c.minW : c.minH, hi = n.row ? c.maxW : c.maxH, base = n.row ? c.lw : c.lh;
+      const want = base + Math.floor(left * g / total);
+      const got = hi >= 0 && want > hi ? hi : lo >= 0 && want < lo ? lo : want;
+      size[k] = got;
+      if (got !== want) { done[k] = true; clamped = true; nextLeft -= got - base; nextTotal -= g; }
+    }
+    left = nextLeft; total = nextTotal;
+    if (!clamped || total <= 0) break;
+  }
+  return size;
+}
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   if (n.rel) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
@@ -2241,11 +2271,13 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       else if (jm === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
       else if (jm === 5) { between = gm + free / (count + 1); pos = between - gm; }
     }
+    const frozen = grows > 0 && free > 0 ? growWithLimits(n, kids, start, end, free, grows) : null;
     for (let i = start; i < end; i++) {
       const c = kids[i];
       let cm: number = n.row ? c.lw : c.lh;
       const g = c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
-      if (grows > 0 && free > 0 && g > 0) cm += Math.floor(free * g / grows);
+      if (frozen !== null && g > 0) cm = (frozen as number[])[i - start];
+      else if (grows > 0 && free > 0 && g > 0) cm += Math.floor(free * g / grows);
       else if (free < 0 && shrinkTotal > 0 && c.shrink > 0) cm = Math.max(0, cm + Math.floor(free * c.shrink * cm / shrinkTotal));
       let cc: number = n.row ? c.lh : c.lw;
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
@@ -2295,6 +2327,7 @@ function calculate(r: UiNode, w: number, h: number): void {
 // Each layout sends the engine what changed since the last one (per node: the values of RN_PROPS, the children, the text), lets it compute (it re-measures only
 // what was dirtied), and reads the boxes back as absolute x, y, lw, lh and the text lines. Layers and anchors stay as in classic (they run after `calculate`).
 const RN: boolean = UI_LAYOUT === 'rn';
+const RN_STYLE: boolean = RN || UI_PRESET === 'react-native';   // React Native's style defaults (black text), in classic too with the preset (ZN-288)
 let rnOpen = false;
 class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey: number[] = []; leaf: i32 = 0; }
 // zn::host::LayoutProp numbers; W, H and B are composites: size or percent or full, basis or basis percent

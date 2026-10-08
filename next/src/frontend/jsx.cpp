@@ -162,7 +162,7 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     return a;
   }
   if (name == "background") name = "backgroundColor";
-  if (name == "flex" && value.isNum && uiLayout() == "rn") {   // React Native's shorthand in the rn layout mode (ZN-358): n > 0 grows n with shrink 1 and basis 0; 0 is rigid; -1 shrinks only
+  if (name == "flex" && value.isNum && (uiLayout() == "rn" || uiPreset() == "react-native")) {   // React Native's shorthand in the rn layout mode (ZN-358): n > 0 grows n with shrink 1 and basis 0; 0 is rigid; -1 shrinks only
     const double n = value.num;
     if (n > 0) return {{"grow", n}, {"shrink", 1}, {"basis", 0}};
     return {{"grow", 0}, {"shrink", n < 0 ? 1.0 : 0.0}, {"basis", -1}};

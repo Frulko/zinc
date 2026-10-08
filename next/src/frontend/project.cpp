@@ -58,10 +58,14 @@ void setSystemScopesJson(const std::string& json) { gScopesJson = json; }
 namespace { std::string gUiLayout = "classic"; }
 void setUiLayout(const std::string& layout) { gUiLayout = layout.empty() ? "classic" : layout; }
 const std::string& uiLayout() { return gUiLayout; }
+namespace { std::string gUiPreset; }
+void setUiPreset(const std::string& preset) { gUiPreset = preset; }
+const std::string& uiPreset() { return gUiPreset; }
 bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>& caps, const std::string& target, std::string& layout, std::string& err) {
   auto cap = [&](const char* k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
   layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" ? "rn" : "auto") : p.uiLayout;
   if (layout == "auto") layout = cap("ui.layout").empty() ? "classic" : cap("ui.layout");
+  if (layout == "rn" && cap("ui.rn") == "false" && p.uiLayout.empty()) { layout = "classic"; return true; }   // the preset on a target without Yoga: classic with RN styles (ZN-288)
   if (layout == "rn" && cap("ui.rn") == "false") {
     const std::string why = cap("ui.why");
     err = "the rn layout (Yoga) is not available on " + target + (why.empty() ? "" : ": " + why) + "; use \"ui\": {\"layout\": \"classic\"} or \"auto\"";

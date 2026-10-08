@@ -313,6 +313,14 @@ A.spring(fade, { toValue: 1, bounciness: 6 }).start();
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
 `useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
 
+## Layout engines
+
+`zinc.json` `"ui": {"layout": "classic" | "rn" | "auto"}` picks the engine: `classic` (the default, every demo) or `rn` (Yoga 3.2.1, React Native's
+layout). `"ui": {"preset": "react-native"}` asks for `rn` and React Native's style semantics: `flex: n` is grow n, shrink 1, basis 0 (equal shares) and text
+is black by default. On a target without Yoga (esp32, ps1) the preset falls back to `classic` with the same semantics, where `flexShrink`, `flexBasis`,
+`minWidth/maxWidth` (a growing item is frozen at its limit and the others share the rest), `alignSelf`, `aspectRatio` and `alignContent` also work; an
+explicit `"layout": "rn"` on such a target is a build error. Programs read the choice as `UI_LAYOUT` and `UI_PRESET` of `zinc:platform`.
+
 ## Gestures: PanResponder and Animated.event
 
 `PanResponder.create({ onStartShouldSetPanResponder, onMoveShouldSetPanResponder, onPanResponderGrant, onPanResponderMove, onPanResponderRelease,

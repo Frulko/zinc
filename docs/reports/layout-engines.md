@@ -128,6 +128,13 @@ Implemented in ZN-285: `"ui": {"layout", "preset"}` in zinc.json, the `ui` group
 
 An RN app on a tiny target uses `classic`: the RN-only styles it relies on (flex 1 equal shares, shrink, aspectRatio, alignContent) must then be handled by LE-9, or the app is not a candidate for that target. This is stated in the docs, not hidden.
 
+Implemented in ZN-288 (LE-9): `"preset": "react-native"` on a target without Yoga resolves to `classic` instead of failing (an explicit `"layout": "rn"` still
+fails), and in either engine the preset gives React Native's style semantics: `flex: n` lowers to grow n, shrink 1, basis 0 (equal shares) and text is black by
+default (`UI_PRESET` of `zinc:platform`). `flexShrink`, `flexBasis`, `minWidth/maxWidth`, `alignSelf`, `aspectRatio` and `alignContent` were already honoured by
+`classic` (ST tasks, ZN-358/359); ZN-288 adds CSS's freeze loop for a growing item with a main-axis min or max, run only when such an item is in the line, so
+every other line keeps the legacy share. `tests/t1/layout_compat.sh` runs the cases in both engines: equal boxes except a grow item with a `minWidth`, where
+`classic` follows CSS (250 / 50) and Yoga gives 275 / 25. Size: +1,086 bytes of ZBC on the esp32 profile (467,771 -> 468,857 for the test program).
+
 ## 6. Scores (RULES section 4: fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1; maximum 70)
 
 | Option | Fit | Perf | Size | Maint | Licence | Port | Effort | Total |
