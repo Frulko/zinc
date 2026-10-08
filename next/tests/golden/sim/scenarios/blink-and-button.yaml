@@ -1,0 +1,14 @@
+name: blink and button
+version: 1
+board: ../diagrams/blink.json
+steps:
+  - wait-serial: "ready"
+  - expect-pin: { part-id: mcu, pin: GPIO2, expected: 0 }
+  - advance: 500ms
+  - expect-pin: { part-id: mcu, pin: 2, value: 1 }
+  - set-control: { part-id: btn, control: pressed, value: 1 }
+  - wait-serial: { text: "button down", timeout: 200ms }
+  - expect-bus: { part-id: oled, protocol: i2c, address: 0x3c, contains: [0x00, 0xAF] }
+  - write-serial: "led on\n"
+  - delay: 10ms
+  - wait-serial: "echo: led on"

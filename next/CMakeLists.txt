@@ -242,13 +242,20 @@ set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_C
 target_compile_options(zn_quickjs PRIVATE -w -O2)
 target_link_libraries(zn_quickjs PUBLIC zn_regexp)
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
-add_library(zn_sim STATIC src/sim/sim.cpp src/sim/board.cpp src/sim/parts/registry.cpp)
-target_link_libraries(zn_sim PUBLIC zn_yyjson)   # the simulator core (ZN-292): scheduler, netlist, trace
+add_library(zn_yaml STATIC third_party/libyaml/api.c third_party/libyaml/loader.c third_party/libyaml/parser.c third_party/libyaml/reader.c third_party/libyaml/scanner.c)   # libyaml 0.2.5 (read side only): scenario files (ZN-295)
+target_include_directories(zn_yaml PUBLIC third_party/libyaml)
+target_compile_definitions(zn_yaml PRIVATE YAML_VERSION_MAJOR=0 YAML_VERSION_MINOR=2 YAML_VERSION_PATCH=5 "YAML_VERSION_STRING=\"0.2.5\"")
+target_compile_options(zn_yaml PRIVATE -w)
+add_library(zn_sim STATIC src/sim/sim.cpp src/sim/board.cpp src/sim/scenario.cpp src/sim/parts/registry.cpp)
+target_link_libraries(zn_sim PUBLIC zn_yyjson zn_yaml)   # the simulator core (ZN-292): scheduler, netlist, trace
 set_target_properties(zn_sim PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_include_directories(zn_sim PUBLIC include src)
 add_executable(sim_test tests/native/sim_test.cpp)
 set_target_properties(sim_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(sim_test PRIVATE zn_sim)
+add_executable(scenario_test tests/native/scenario_test.cpp)
+set_target_properties(scenario_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(scenario_test PRIVATE zn_sim)
 add_executable(board_test tests/native/board_test.cpp)
 set_target_properties(board_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(board_test PRIVATE zn_sim)

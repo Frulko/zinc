@@ -1,0 +1,15 @@
+# the example of the Wokwi CI documentation, unchanged
+name: Blink and button
+version: 1
+author: Wokwi
+steps:
+  - wait-serial: 'Hello'
+  - set-control:
+      part-id: btn1
+      control: pressed
+      value: 1
+  - delay: 100ms
+  - expect-pin:
+      part-id: led1
+      pin: A
+      value: 1
