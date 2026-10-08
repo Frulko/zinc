@@ -575,7 +575,8 @@ int main(int argc, char** argv) {
 #endif
       std::error_code ec;
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
-        std::string e = zn::frontend::entryOf(path, have && fs::path(projectDir) == fs::absolute(path).lexically_normal() ? &project : nullptr);
+        std::error_code eq;   // `zinc run .` too: lexically_normal keeps a trailing slash on "./", so compare the directories themselves
+        std::string e = zn::frontend::entryOf(path, have && fs::equivalent(fs::path(projectDir), fs::path(path), eq) ? &project : nullptr);
         if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts or main.tsx)\n", path.c_str()); return 2; }
         path = e;
       }
