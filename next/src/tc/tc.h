@@ -23,6 +23,7 @@ std::string zigVersion();   // the pinned version
 
 // Hex SHA-256 of a file, empty when it cannot be read.
 std::string sha256File(const std::string& path);
+std::string sha256Hex(const std::string& bytes);   // of bytes in memory
 
 // The path of a usable zig: $ZINC_ZIG, or the pinned one (downloaded and verified when missing). False with `err` set when that fails.
 bool ensureZig(std::string& zigPath, std::string& err);

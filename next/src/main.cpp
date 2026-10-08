@@ -49,6 +49,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include <unistd.h>
 #include "vm/vm.h"
 #include "zbc/zbc.h"
+#include "zapp.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #ifdef ZN_HOST_GFX
 #include "res/codec.h"
@@ -523,8 +524,74 @@ int main(int argc, char** argv) {
 #endif
     return zn::qjs::run(qo);
   }
+  if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
+    namespace fs = std::filesystem;
+    std::string dir = ".", outPath;
+    for (int k = 2; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
+      else if (argv[k][0] != '-') dir = argv[k];
+      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp]\n", argv[k]); return 2; }
+    }
+    const std::string projDir = fs::absolute(dir).lexically_normal().string();
+    std::ifstream pf(fs::path(projDir) / "zinc.json");
+    std::stringstream ps; ps << pf.rdbuf();
+    zn::frontend::Project project; std::string perr;
+    const bool have = pf && zn::frontend::parseProject(ps.str(), project, perr);
+    const std::string entry = zn::frontend::entryOf(projDir, have ? &project : nullptr);
+    if (entry.empty()) { std::fprintf(stderr, "zinc pack: %s has no zinc.json entry nor src/main.ts[x]\n", projDir.c_str()); return 2; }
+    std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
+    std::map<std::string, std::string> files;
+    const auto zbc = zn::zbc::encode(zm);
+    files["program.zbc"] = std::string(zbc.begin(), zbc.end());
+    std::vector<std::uint8_t> blob; std::string err;
+    if (!bakeResources(entry.c_str(), blob, err)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+    files["resources.bin"] = std::string(blob.begin(), blob.end());
+    if (have) files["zinc.json"] = ps.str();
+    std::error_code ec;
+    const fs::path assets = fs::path(projDir) / "assets";
+    if (fs::is_directory(assets, ec))
+      for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        const std::string rel = fs::relative(it->path(), projDir).generic_string();
+        if (!it->is_regular_file() || rel.find("/.") != std::string::npos) continue;   // hidden files (.gitkeep, .DS_Store) stay out
+        std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
+        files[rel] = as.str();
+      }
+    if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
+    const std::string archive = zn::zapp::pack(files, name, kVersionText);
+    std::ofstream out(outPath, std::ios::binary);
+    out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
+    if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
+    std::printf("packed %s (%zu files, %zu bytes)\n", outPath.c_str(), files.size() + 1, archive.size());
+    return 0;
+  }
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];
+    if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0) {   // a packed app (ZN-318): checked, unpacked once into the cache, run from there
+      namespace fs = std::filesystem;
+      std::ifstream zf(path, std::ios::binary);
+      if (!zf) { std::fprintf(stderr, "zinc: cannot read %s\n", path.c_str()); return 2; }
+      std::stringstream zs; zs << zf.rdbuf();
+      const std::string archive = zs.str();
+      std::map<std::string, std::string> files; std::string err;
+      if (!zn::zapp::unpack(archive, kVersionText, files, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
+      if (!files.count("program.zbc")) { std::fprintf(stderr, "zinc: %s: the archive has no program.zbc\n", path.c_str()); return 1; }
+      const fs::path dir = fs::path(zn::tc::home()) / "cache" / "zapp" / zn::tc::sha256Hex(archive).substr(0, 24);
+      std::error_code ec;
+      if (!fs::exists(dir / "program.zbc", ec)) {
+        const fs::path tmp = dir.string() + ".part" + std::to_string(::getpid());
+        for (const auto& [n, bytes] : files) {
+          fs::create_directories((tmp / n).parent_path(), ec);
+          std::ofstream o(tmp / n, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        }
+        fs::create_directories(dir.parent_path(), ec);
+        fs::rename(tmp, dir, ec);
+        if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
+      }
+      gOriginalArgs[2] = (dir / "program.zbc").string();
+      path = (dir / "program.zbc").string();
+    }
     std::string projectDir;
     zn::frontend::TargetOptions window;  // zinc.json: what concerns the host
     bool shapedText = false;             // zinc.json "text": "shaped" (ZN-224)
@@ -636,10 +703,14 @@ int main(int argc, char** argv) {
       fs::path dir = fs::path(absPath).parent_path();
       for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
     }
-    if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them
+    if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them; a packed program brings them (resources.bin)
       std::vector<std::uint8_t> blob;
       std::string err;
-      if (!bakeResources(absPath.c_str(), blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
+      const std::filesystem::path baked = std::filesystem::path(absPath).parent_path() / "resources.bin";
+      std::error_code rec;
+      if (gSources.empty() && std::filesystem::exists(baked, rec)) { std::ifstream rf(baked, std::ios::binary); blob.assign(std::istreambuf_iterator<char>(rf), std::istreambuf_iterator<char>()); }
+      else if (!bakeResources(absPath.c_str(), blob, err)) blob.clear();
+      if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
     auto res = zn::vm::run(zm, out, trace);

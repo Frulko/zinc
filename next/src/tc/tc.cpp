@@ -118,6 +118,17 @@ std::string hostName() {
 
 std::string zigVersion() { return kVersion; }
 
+std::string sha256Hex(const std::string& bytes) {
+  SHA256_CTX ctx;
+  sha256_init(&ctx);
+  sha256_update(&ctx, reinterpret_cast<const BYTE*>(bytes.data()), bytes.size());
+  BYTE out[SHA256_BLOCK_SIZE];
+  sha256_final(&ctx, out);
+  static const char* hex = "0123456789abcdef";
+  std::string r;
+  for (BYTE b : out) { r += hex[b >> 4]; r += hex[b & 15]; }
+  return r;
+}
 std::string sha256File(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
   if (!in) return "";
