@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 07:32'
+updated_date: '2026-10-08 09:10'
 labels:
   - ui
   - style
@@ -33,5 +33,5 @@ From docs/reports/ui-style-system.md (section 6, ST-24). The audit and the desig
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. hover:/focus:/active:/disabled: take any paint-only property (opacity-N, translate-x/y, shadow-*, bg/text/border colours incl. alpha, rounded-*, ring) through a StateOverlay applied by syncState (no relayout: ui.layoutCount() stays, golden/ui-state); other tokens under a state are refused at runtime and at build time (jsx.cpp validClass), the 'accepted and ignored' hover: path is gone. New translate-x/y tokens. Open: group/peer, aria-*, data-* variants, scale-N (origin top-left only today).
+usage: n/a. + group / group-hover: / group-focus: / group-active: (the nearest ancestor with the group class decides; same paint-only properties as hover:, no relayout), golden ui-state extended. Open: peer, aria-*, data-* variants, scale-N.
 <!-- SECTION:NOTES:END -->

@@ -22,6 +22,7 @@ const toks = [
   'hover:opacity-80', 'hover:-translate-y-1', 'hover:shadow-lg', 'hover:bg-red-500', 'hover:bg-red-500/50', 'disabled:opacity-50', 'disabled:bg-slate-300', 'disabled:text-slate-500', 'active:translate-y-px', 'focus:shadow-md', 'hover:p-4', 'hover:w-4', 'disabled:text-lg', 'hover:border-2', 'hover:bogus', 'translate-x-2', '-translate-y-1', 'translate-x-[3px]', 'translate-z-1',
   'sr-only', 'not-sr-only',
   'select-text', 'select-none', 'select-all', 'select-auto', 'select-foo',
+  'group', 'group-hover:bg-red-500', 'group-focus:opacity-50', 'group-active:translate-y-px', 'group-hover:p-4', 'group-x:bg-red-500',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);
