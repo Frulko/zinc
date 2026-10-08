@@ -144,7 +144,7 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
     {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
     {"alignContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"space-between", 4}, {"space-around", 5}, {"space-evenly", 6}}},
-    {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}}},
+    {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}, {"contents", 2}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
     {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
     {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}}};
@@ -262,6 +262,15 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     if (percent > 1000000) throw std::runtime_error("percentage out of range");
     if (percent == 0) return {{name, 0}};
     return {{name + "Percent", percent / 100}};
+  }
+  if (std::regex_match(sv, pct)) {   // padding, margin, insets, gaps and min/max sizes as a percent of the containing block (rn engine, ZN-382)
+    static const std::set<std::string> pctKeys = {"paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
+        "top", "left", "right", "bottom", "gap", "columnGap", "rowGap", "minWidth", "maxWidth", "minHeight", "maxHeight"};
+    auto al = kStyleAliases.find(name);
+    std::vector<std::string> keys = al != kStyleAliases.end() ? al->second : std::vector<std::string>{name};
+    std::vector<StyleOp> ops;
+    for (const std::string& k : keys) if (pctKeys.count(k)) ops.push_back({k + "Percent", std::stod(sv) / 100});
+    if (ops.size() == keys.size()) return ops;
   }
   static const std::regex len(R"(^-?(?:\d+\.?\d*|\.\d+)(px|rem|em)?$)");
   if (std::regex_match(sv, len)) {

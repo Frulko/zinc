@@ -1,0 +1,11 @@
+padding 10%: 40,40 10x10
+margin 5%: 10,90 10x10
+left 25%: 50,100 10x10
+gap 10% a: 0,120 10x10
+gap 10% b: 30,120 10x10
+minWidth 50%: 0,130 100x10
+maxWidth 25%: 0,140 50x10
+contents a: 0,150 30x10
+contents b: 30,150 30x10
+baseline small: 0,180 10x10
+baseline tall: 10,160 10x30

@@ -240,7 +240,7 @@ export class UiNode {
   fullW: boolean = false; fullH: boolean = false;
   minW: i32 = -1; maxW: i32 = -1; minH: i32 = -1; maxH: i32 = -1; aspect: number = 0;   // min/max sizes (px, -1: none) and aspect-ratio (width / height, 0: none)
   abs: boolean = false; top: i32 = UNSET; left: i32 = UNSET; right: i32 = UNSET; bottom: i32 = UNSET;
-  hidden: boolean = false;
+  hidden: boolean = false; contents: boolean = false; pct: number[] | null = null;   // display: contents; the percent lengths of PCT_KEYS (-1: none; rn only, ZN-382)
   overflow: boolean = false;
   // scrolling (UI-14): 1 vertical, 2 horizontal, 3 both; content size from layout, offset applied at paint/hit time
   scroll: i32 = 0;
@@ -824,6 +824,13 @@ const P_BORDER_TOP_COLOR: i32 = 81, P_BORDER_RIGHT_COLOR: i32 = 82, P_BORDER_BOT
 const P_NUMBER_OF_LINES: i32 = 85;
 const P_ROW_GAP: i32 = 86, P_COLUMN_GAP: i32 = 87, P_MARGIN_AUTO: i32 = 88;   // marginAuto: the sides' bits 1 left, 2 right, 4 top, 8 bottom (ZN-380)
 const P_BOX_SIZING: i32 = 89;   // 0 border-box, 1 content-box (ZN-381)
+// Percent lengths (ZN-382): the key `<name>Percent` (a fraction, like widthPercent) is PROP P_PCT0 + its index; the rn engine sends it as the layout
+// property of PCT_OF + 2000 (Yoga's percent setters). classic ignores them (documented rn-only: they resolve against the containing block's size).
+const P_PCT0: i32 = 90;
+const PCT_KEYS: string[] = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'top', 'left', 'right', 'bottom',
+  'gap', 'columnGap', 'rowGap', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight'];
+const PCT_OF: i32[] = [36, 37, 38, 39, 40, 41, 42, 43, 51, 52, 53, 54, 45, 1013, 1014, 1002, 1003, 1004, 1005];
+const PCT_ENC: number = -10000000;   // rnValue's encoding of a percent: PCT_ENC - fraction
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -878,6 +885,7 @@ function propInit(): void {
   PROP.set('columnGap', P_COLUMN_GAP);
   PROP.set('marginAuto', P_MARGIN_AUTO);
   PROP.set('boxSizing', P_BOX_SIZING);
+  for (let i = 0; i < PCT_KEYS.length; i++) PROP.set(PCT_KEYS[i] + 'Percent', P_PCT0 + i);
   PROP.set('padding', P_PADDING);
   PROP.set('fontSize', P_FONT_SIZE);
   PROP.set('hidden', P_HIDDEN);
@@ -985,7 +993,8 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_PADDING) { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
   else if (id === P_SCALE) n.size = 8 * iv;
   else if (id === P_FONT_SIZE) { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
-  else if (id === P_HIDDEN) n.hidden = iv !== 0;
+  else if (id === P_HIDDEN) { n.hidden = iv === 1; n.contents = iv === 2; }   // display: flex 0, none 1, contents 2
+  else if (id >= P_PCT0 && id < P_PCT0 + PCT_KEYS.length) { if (n.pct === null) { const a: number[] = []; for (let i = 0; i < PCT_KEYS.length; i++) a.push(-1); n.pct = a; } (n.pct as number[])[id - P_PCT0] = v; }
   else if (id === P_KEEP_FOCUS) { n.keepFocus = iv !== 0; return; }
   else if (id === P_INPUT_MODE) { n.inputMode = iv; return; }
   else if (id === P_TOP) n.top = iv; else if (id === P_LEFT) n.left = iv;
@@ -1795,7 +1804,7 @@ function resetStyle(n: UiNode): void {
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false;
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
-  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
+  n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
@@ -1837,8 +1846,7 @@ function rebuildStyle(n: UiNode): void {
 function sheetProperty(key: string): string {
   if (key.startsWith('@font-')) return 'fontFamily';
   if (key.startsWith('@') && key.indexOf(':') > 0) return key.slice(1, key.indexOf(':'));
-  if (key === 'widthPercent') return 'width';
-  if (key === 'heightPercent') return 'height';
+  if (key.endsWith('Percent')) return key.slice(0, key.length - 7);   // a length in px and in % are the same CSS property
   return key;
 }
 /** Last layer wins. Cache is bounded by the styles on this node; inline allocations compare by value. */
@@ -1890,7 +1898,7 @@ function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
   for (const h of n.children) {
     const c = node(h);
     if (c.hidden || c.layer || c.leaving) continue;
-    if (c.tag === FRAGMENT) flat(c, out, wantAbs);
+    if (c.tag === FRAGMENT || c.contents) flat(c, out, wantAbs);   // display: contents lays its children out in its place
     else if (c.abs === wantAbs) out.push(c);
   }
 }
@@ -2371,6 +2379,7 @@ class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey:
 const RN_W: i32 = -1, RN_H: i32 = -2, RN_B: i32 = -3;
 const RN_PROPS: i32[] = [RN_W, RN_H, 32, 33, 34, 35, 89, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54, 1016];
 function rnValue(n: UiNode, p: i32): number {
+  if (n.pct !== null) { const i = PCT_OF.indexOf(p); if (i >= 0 && (n.pct as number[])[i] >= 0) return PCT_ENC - (n.pct as number[])[i]; }
   const inset = n.abs || n.rel || (RN_STYLE && !n.stat);   // React Native: position is relative by default, insets shift a node in the flow (ZN-380)
   if (p === RN_W) return n.fullW ? -2 : n.wFrac > 0 ? -3 - n.wFrac : n.w;
   if (p === RN_H) return n.fullH ? -2 : n.hFrac > 0 ? -3 - n.hFrac : n.h;
@@ -2397,7 +2406,7 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 1002) return n.minW; if (p === 1003) return n.maxW; if (p === 1004) return n.minH; if (p === 1005) return n.maxH;
   if (p === 1006) return n.aspect;
   if (p === 48) return n.hidden ? 1 : 0;
-  if (p === 1015) return n.tag === FRAGMENT ? 1 : 0;
+  if (p === 1015) return n.tag === FRAGMENT || n.contents ? 1 : 0;
   if (p === 1016) return n.parent < 0 ? (rtl ? 1 : 0) : -1;   // the direction: set on the root, inherited below (ZN-377)
   if (p === 51) return inset ? n.top : UNSET;
   if (p === 52) return inset ? n.left : UNSET;
@@ -2411,7 +2420,8 @@ function rnSend(h: i32, p: i32, v: number): void {
     else LY.style(h, p === RN_W ? 17 : 18, v);
   } else if (p === RN_B) {
     if (v < -2) LY.style(h, 1008, -3 - v); else LY.style(h, 1007, v);
-  } else LY.style(h, p, v);
+  } else if (v <= PCT_ENC / 2) LY.style(h, p + 2000, PCT_ENC - v);   // a percent length
+  else LY.style(h, p, v);
 }
 /** The children the engine lays out: those of the node except layers (laid out apart), in `order`. */
 function rnKids(n: UiNode, out: i32[]): void {

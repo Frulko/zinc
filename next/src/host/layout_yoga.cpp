@@ -12,6 +12,7 @@ namespace zn::host {
 namespace {
 
 constexpr float kUnsetInset = -100000;   // UNSET of lib/std/ui.ts
+constexpr std::int32_t kPercent = 2000;   // LayoutProp + kPercent: the same property as a percentage (layout.h)
 
 class YogaLayout final : public Layout {
  public:
@@ -105,6 +106,7 @@ class YogaLayout final : public Layout {
     Rec* r = rec(h);
     if (!r) return;
     YGNodeRef n = r->node;
+    if (static_cast<std::int32_t>(prop) >= kPercent) { percent(n, static_cast<LayoutProp>(static_cast<std::int32_t>(prop) - kPercent), v * 100); return; }
     switch (prop) {
       case LayoutProp::Width: v < 0 ? YGNodeStyleSetWidthAuto(n) : YGNodeStyleSetWidth(n, v); break;
       case LayoutProp::Height: v < 0 ? YGNodeStyleSetHeightAuto(n) : YGNodeStyleSetHeight(n, v); break;
@@ -226,6 +228,31 @@ class YogaLayout final : public Layout {
   const Rec* rec(std::int32_t h) const { return const_cast<YogaLayout*>(this)->rec(h); }
   static int index(float v, int count) { const int i = static_cast<int>(v); return i < 0 ? 0 : i >= count ? count - 1 : i; }
   static YGAlign align(float v) { static const YGAlign a[] = {YGAlignFlexStart, YGAlignCenter, YGAlignFlexEnd, YGAlignStretch, YGAlignBaseline}; return a[index(v, 5)]; }
+  // A percent length (ZN-382): the property's number + kPercent, the value a percentage of the containing block.
+  static void percent(YGNodeRef n, LayoutProp p, float v) {
+    switch (p) {
+      case LayoutProp::PaddingTop: YGNodeStyleSetPaddingPercent(n, YGEdgeTop, v); break;
+      case LayoutProp::PaddingRight: YGNodeStyleSetPaddingPercent(n, YGEdgeRight, v); break;
+      case LayoutProp::PaddingBottom: YGNodeStyleSetPaddingPercent(n, YGEdgeBottom, v); break;
+      case LayoutProp::PaddingLeft: YGNodeStyleSetPaddingPercent(n, YGEdgeLeft, v); break;
+      case LayoutProp::MarginTop: YGNodeStyleSetMarginPercent(n, YGEdgeTop, v); break;
+      case LayoutProp::MarginRight: YGNodeStyleSetMarginPercent(n, YGEdgeRight, v); break;
+      case LayoutProp::MarginBottom: YGNodeStyleSetMarginPercent(n, YGEdgeBottom, v); break;
+      case LayoutProp::MarginLeft: YGNodeStyleSetMarginPercent(n, YGEdgeLeft, v); break;
+      case LayoutProp::Top: YGNodeStyleSetPositionPercent(n, YGEdgeTop, v); break;
+      case LayoutProp::Left: YGNodeStyleSetPositionPercent(n, YGEdgeLeft, v); break;
+      case LayoutProp::Right: YGNodeStyleSetPositionPercent(n, YGEdgeRight, v); break;
+      case LayoutProp::Bottom: YGNodeStyleSetPositionPercent(n, YGEdgeBottom, v); break;
+      case LayoutProp::Gap: YGNodeStyleSetGapPercent(n, YGGutterAll, v); break;
+      case LayoutProp::GapX: YGNodeStyleSetGapPercent(n, YGGutterColumn, v); break;
+      case LayoutProp::GapY: YGNodeStyleSetGapPercent(n, YGGutterRow, v); break;
+      case LayoutProp::MinWidth: YGNodeStyleSetMinWidthPercent(n, v); break;
+      case LayoutProp::MaxWidth: YGNodeStyleSetMaxWidthPercent(n, v); break;
+      case LayoutProp::MinHeight: YGNodeStyleSetMinHeightPercent(n, v); break;
+      case LayoutProp::MaxHeight: YGNodeStyleSetMaxHeightPercent(n, v); break;
+      default: break;
+    }
+  }
   static void margin(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetMarginAuto(n, e); else YGNodeStyleSetMargin(n, e, v); }   // unset: auto (ZN-380)
   static void inset(YGNodeRef n, YGEdge e, float v) { YGNodeStyleSetPosition(n, e, v <= kUnsetInset ? YGUndefined : v); }   // undefined, not auto: an absolute node without insets keeps its static position
   static void direction(const Rec& r) {

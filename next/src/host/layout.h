@@ -28,6 +28,7 @@ enum class LayoutProp : std::int32_t {
   FullWidth = 1000, FullHeight, MinWidth, MaxWidth, MinHeight, MaxHeight, AspectRatio, Basis, BasisPercent, Shrink, AlignSelf, AlignContent, Reverse,
   GapX, GapY, Contents, Direction,   // Direction: 1 rtl, 0 ltr, -1 inherit (ZN-377)
 };
+// A property's number + 2000 sets it as a percentage (a fraction 0..1): padding, margin, insets, gaps, min/max sizes (ZN-382).
 
 /** A node's box after `calculate`, relative to its parent and already rounded to pixels. */
 struct LayoutBox { float x = 0, y = 0, w = 0, h = 0; };

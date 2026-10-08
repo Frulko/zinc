@@ -18,6 +18,11 @@ EDGES = {'YGEdgeLeft': ['Left'], 'YGEdgeStart': ['Left'], 'YGEdgeTop': ['Top'], 
          'YGEdgeHorizontal': ['Left', 'Right'], 'YGEdgeVertical': ['Top', 'Bottom'], 'YGEdgeAll': ['Top', 'Right', 'Bottom', 'Left']}
 
 
+# Cases whose result depends on the case root being Yoga's root: the harness nests it in a large box, and Yoga itself lays the nested root out differently
+# (checked against the vendored Yoga alone: 120/80 as a root, 128/72 nested).
+NESTED = {'percentage_flex_basis_main_min_width': 'flex basis and min width resolved differently under a parent (Yoga itself)'}
+
+
 def num(s):
     parts = [p.strip().rstrip('f') for p in s.split('/')]   # gentest writes ratios as `1 / 1`
     v = float(parts[0])
@@ -48,7 +53,7 @@ def translate(setter, args):
         return {'YGPositionTypeRelative': [('position', 0)], 'YGPositionTypeAbsolute': [('position', 1)], 'YGPositionTypeStatic': [('position', 2)]}[a[0]]
     if setter in ('AlignItems', 'AlignSelf', 'AlignContent'):
         if a[0] == 'YGAlignAuto' and setter == 'AlignSelf': return [('alignSelf', -1)]
-        if a[0] == 'YGAlignBaseline': return 'baseline'
+        if a[0] == 'YGAlignBaseline': return [(setter[0].lower() + setter[1:], 4)] if setter != 'AlignContent' else 'align baseline'
         v = ALIGN.get(a[0])
         if v is None or (setter != 'AlignContent' and v > 3): return 'align ' + a[0]
         return [(setter[0].lower() + setter[1:], v)]
@@ -56,7 +61,7 @@ def translate(setter, args):
         v = JUSTIFY.get(a[0])
         return 'justify ' + a[0] if v is None else [('justifyContent', v)]
     if setter == 'Display':
-        return {'YGDisplayFlex': [('hidden', 0)], 'YGDisplayNone': [('hidden', 1)]}.get(a[0], 'display contents')
+        return {'YGDisplayFlex': [('hidden', 0)], 'YGDisplayNone': [('hidden', 1)], 'YGDisplayContents': [('hidden', 2)]}[a[0]]
     if setter == 'Overflow':
         return {'YGOverflowVisible': [('overflow', 0)], 'YGOverflowHidden': [('overflow', 1)], 'YGOverflowScroll': [('overflow', 2)]}[a[0]]
     if setter in ('Padding', 'Margin'):
@@ -66,15 +71,20 @@ def translate(setter, args):
     if setter == 'Gap':
         return [({'YGGutterAll': 'gap', 'YGGutterRow': 'rowGap', 'YGGutterColumn': 'columnGap'}[a[0]], num(a[1]))]
     if setter == 'PositionAuto': return []
+    if setter in ('PaddingPercent', 'MarginPercent'):
+        return [(setter[:-7].lower() + side + 'Percent', num(a[1]) / 100) for side in EDGES[a[0]]]
+    if setter == 'PositionPercent':
+        return [(side.lower() + 'Percent', num(a[1]) / 100) for side in EDGES[a[0]]] if a[0] in ('YGEdgeLeft', 'YGEdgeStart', 'YGEdgeTop', 'YGEdgeRight', 'YGEdgeEnd', 'YGEdgeBottom') else 'position edge ' + a[0]
+    if setter == 'GapPercent':
+        return [({'YGGutterAll': 'gap', 'YGGutterRow': 'rowGap', 'YGGutterColumn': 'columnGap'}[a[0]] + 'Percent', num(a[1]) / 100)]
+    if setter in ('MinWidthPercent', 'MaxWidthPercent', 'MinHeightPercent', 'MaxHeightPercent'):
+        return [(setter[0].lower() + setter[1:], num(a[0]) / 100)]
     if setter == 'Border':
         return [('border' + side + 'Width', num(a[1])) for side in EDGES[a[0]]]
     if setter == 'BoxSizing': return [('boxSizing', {'YGBoxSizingBorderBox': 0, 'YGBoxSizingContentBox': 1}[a[0]])]
     if setter == 'MarginAuto':
         return [('marginAuto', sum({'Left': 1, 'Right': 2, 'Top': 4, 'Bottom': 8}[side] for side in EDGES[a[0]]))]
-    names = {'PaddingPercent': 'percent padding', 'MarginPercent': 'percent margin',
-             'PositionPercent': 'percent position', 'GapPercent': 'percent gap', 'MinWidthPercent': 'percent min/max', 'MaxWidthPercent': 'percent min/max',
-             'MinHeightPercent': 'percent min/max', 'MaxHeightPercent': 'percent min/max'}
-    return names.get(setter, 'unknown ' + setter)
+    return 'unknown ' + setter
 
 
 def parse_case(name, body, feature):
@@ -108,7 +118,11 @@ def parse_case(name, body, feature):
         if any(k in ('top', 'left', 'right', 'bottom') for k in rn['keys']): unsupported = 'insets on the root'
         elif 'width' not in rn['keys'] and 'height' not in rn['keys'] and any(k in ('widthPercent', 'heightPercent') for n in order[1:] for k in nodes[n]['keys']):
             unsupported = 'percent of an undefined size'
-        elif any(v != int(v) for n in order for v in nodes[n]['values']) and not all(k in ('widthPercent', 'heightPercent', 'basisPercent', 'aspectRatio', 'grow', 'shrink')
+        elif 'height' not in rn['keys'] and any(k in ('rowGapPercent', 'gapPercent') for k in rn['keys']):
+            unsupported = 'percent of an undefined size'
+        elif name in NESTED:
+            unsupported = NESTED[name]
+        elif any(v != int(v) for n in order for v in nodes[n]['values']) and not all(k.endswith('Percent') or k in ('aspectRatio', 'grow', 'shrink')
                 for n in order for k, v in zip(nodes[n]['keys'], nodes[n]['values']) if v != int(v)):
             unsupported = 'fractional lengths (zinc:ui keeps whole pixels)'
     for m in re.finditer(r'ASSERT_FLOAT_EQ\(([-\d.]+f?), YGNodeLayoutGet(Left|Top|Width|Height)\((\w+)\)\)', asserts):
@@ -145,8 +159,9 @@ def report(rn_out, classic_out):
     lines.append(f'| **total** | {t["cases"]} | {t["cases"] - t["skip"]} | {t["rn"]} | {t["classic"]} |')
     lines += ['', 'Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380, borders in layout,',
               'box-sizing and position static since ZN-381 (classic paints borders without layout space and has no static containing block: those cases',
-              'are its known failures, classic.known-fail). The other gaps of zinc:ui have tasks: ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure',
-              'functions, insets on the root, a percent of an undefined size and fractional lengths are limits of this harness or of zinc:ui\'s whole-pixel model.',
+              'are its known failures, classic.known-fail), percent padding, margin, insets, gaps and min/max, baseline and display contents since ZN-382 (percent',
+              'lengths are rn-only: classic ignores them). Measure functions, insets on the root, a percent of an undefined size, fractional lengths and a',
+              'root nested in the harness\'s box are limits of this harness or of zinc:ui\'s whole-pixel model.',
               '', '| Reason | Cases |', '|---|---|']
     for k, v in sorted(reasons.items(), key=lambda x: -x[1]): lines.append(f'| {k} | {v} |')
     open(os.path.normpath(doc), 'w').write('\n'.join(lines) + '\n')

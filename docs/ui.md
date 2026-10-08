@@ -395,9 +395,10 @@ Supported properties:
   layout mode (grow n, shrink 1, basis 0; `0` rigid; `-1` shrink only) and an alias of grow in `classic`.
 - Dimensions: `width`, `height` (numbers, px, percentages, auto, and `pct(v)` for a percent decided at run time), `minWidth`, `maxWidth`,
   `minHeight`, `maxHeight` (px, `none`), `aspectRatio` (`'16/9'` or a number); padding/margin and individual sides, plus
-  `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand.
+  `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand. Padding, margin, insets, gaps and
+  min/max sizes also take a percent of the containing block (`'10%'`) in the `rn` engine; `classic` ignores those.
 - Position: `position` (`relative`/`static`/`absolute`; React Native's default `relative` under the preset and in `rn`, where `static` ignores insets and
-  is no containing block), `boxSizing` (`border-box`, `content-box`: in `rn`), `top/right/bottom/left`, `display` (`flex`/`none`),
+  is no containing block), `boxSizing` (`border-box`, `content-box`: in `rn`), `top/right/bottom/left`, `display` (`flex`/`none`/`contents`: the children take its place),
   `overflow` (`visible`/`hidden`/`auto`/`scroll`). Relative means normal flow; offsets position absolute nodes.
 - Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths (layout space in `rn`, as in CSS and React Native), `borderRadius`,
   `border: '<width> solid <color>'`, React Native's `borderStyle` (`solid`/`dashed`/`dotted`), corner radii (`borderTopLeftRadius`,
