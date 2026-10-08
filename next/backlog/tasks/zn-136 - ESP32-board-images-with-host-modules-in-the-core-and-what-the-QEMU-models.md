@@ -4,6 +4,7 @@ title: 'ESP32 board images with host modules in the core, and what the QEMU mode
 status: Backlog
 assignee: []
 created_date: '2026-10-06 23:01'
+updated_date: '2026-10-08 08:28'
 labels:
   - targets
   - simulator
@@ -23,6 +24,12 @@ First list what the pinned Espressif QEMU models (I2C, SPI, RMT, LEDC, GPIO, RGB
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a table of QEMU-modelled peripherals in the doc
+- [x] #1 a table of QEMU-modelled peripherals in the doc
 - [ ] #2 s3-matrix and 2432s022 images boot in QEMU and in device-sim and report their module list
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. AC1: the table of QEMU-modelled peripherals (esp32 and esp32s3, read from the pinned QEMU's qom tree) is in docs/reports/zinc-next-esp32.md. AC2 (board images built with IDF and booted in QEMU and device-sim with their module list) is open: it needs full IDF builds per board; device-sim already reports the module list of the board presets.
+<!-- SECTION:NOTES:END -->
