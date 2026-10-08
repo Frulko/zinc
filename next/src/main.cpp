@@ -234,7 +234,10 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   o.fontDir = gRoot + "/../lib/fonts";
   fs::path dir = fs::absolute(entry).parent_path();
   for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
-  return zn::res::bake(gSources, o, blob, err);
+  if (zn::frontend::uiPreset() != "react-native") return zn::res::bake(gSources, o, blob, err);
+  std::vector<std::string> src = gSources;
+  src.push_back("text-[14px]");   // React Native's default text size under the preset (ZN-385)
+  return zn::res::bake(src, o, blob, err);
 }
 
 static std::vector<std::string> gHostImports;   // the host modules ('zinc:gfx', 'zinc:sys'...) the last program compiled imports, directly or through the standard modules

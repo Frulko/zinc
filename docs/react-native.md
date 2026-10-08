@@ -25,7 +25,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Component | Status | Notes |
 |---|---|---|
 | View | supported | host element; style, onPress (zinc:ui's), `{...panResponder.panHandlers}` |
-| Text | supported | host element; `numberOfLines` (ellipsis); black by default, 16 px (React Native: 14, ZN-385) |
+| Text | supported | host element; `numberOfLines` (ellipsis); black by default, 14 px under the preset (16 px without it); the face is Inter, or the app's own: an `assets/Roboto*.ttf` (Apache-2.0) and `ui.setFontSans('Roboto')` come closer to Android's, San Francisco cannot be shipped |
 | Image | partial | host element with `src`; `source={{ uri }}`, `resizeMode`, `ImageBackground` missing |
 | ScrollView | partial | host element; `onScroll` with `nativeEvent.contentOffset`; `contentContainerStyle`, `horizontal`, `refreshControl` missing |
 | Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; `style` as a function of `{ pressed }` and `hitSlop` missing |
@@ -47,7 +47,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 
 | API | Status | Notes |
 |---|---|---|
-| StyleSheet | partial | create (lowered at build time), flatten, compose, hairlineWidth (1 logical px, ZN-385); absoluteFill / absoluteFillObject missing |
+| StyleSheet | partial | create (lowered at build time), flatten, compose, hairlineWidth (0.4 rounded to the device pixel, else one device pixel: 0.5 at scale 2, as React Native; a hairline-high box keeps a pixel of layout); absoluteFill / absoluteFillObject missing |
 | Animated | supported | Value, ValueXY, timing, spring, decay, interpolate (numbers and colours), add / subtract / multiply / divide / modulo, diffClamp, sequence, parallel, stagger, delay, loop, event; in the React model `useAnimated(value)` of zinc:react-native re-renders with the value; useNativeDriver accepted (ZN-364.01) |
 | Easing | supported | linear, ease, quad, cubic, poly, sin, circle, exp, elastic, back, bounce, bezier, in / out / inOut |
 | LayoutAnimation | supported | configureNext, create, Presets easeInEaseOut / linear / spring |

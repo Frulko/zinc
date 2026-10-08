@@ -21,7 +21,7 @@ lines with an ellipsis, the progress bar at 80% of its track (238 of 298 px), a 
 | `zinc run .` ignored `zinc.json` "entry" (the project directory compared with a trailing slash) | `fs::equivalent` in main.cpp; an `index.tsx` entry works |
 | `<Text numberOfLines>` unknown | the numberOfLines property (line clamp with an ellipsis) |
 | `alignItems: 'baseline'` refused | the enum value: real baselines in Yoga, flex-end in classic (ZN-382 for real baselines there) |
-| `StyleSheet.hairlineWidth` missing | 1 logical px (ZN-385 for 1 / PixelRatio) |
+| `StyleSheet.hairlineWidth` missing | React Native's value from the pixel scale (ZN-385) |
 | `` width: `${n}%` `` refused (a string) | lowered to the run-time percent, like `pct(n)` |
 | `keyExtractor={(c) => c.id}` refused (one parameter against two) | keyExtractor takes one parameter until ZN-383 (contextual typing of generic arguments) |
 | TextInput drew zinc:ui's field border | zinc:react-native's TextInput has no border of its own |
@@ -31,9 +31,9 @@ lines with an ellipsis, the progress bar at 80% of its track (238 of 298 px), a 
 | Difference | Task |
 |---|---|
 | The imports must name `zinc:ui/react` and `zinc:react-native` | ZN-367.05 (aliases for 'react' and 'react-native') |
-| Inter instead of San Francisco: glyph widths and line heights differ, so wrapping points can move by a word | ZN-385 |
-| Text without a fontSize is 16 px (React Native: 14) | ZN-385 |
-| hairlineWidth is 1 logical px (iPhone: 1/3) | ZN-385 |
+| Inter instead of San Francisco: glyph widths and line heights differ, so wrapping points can move by a word | an app can ship Roboto and call `ui.setFontSans('Roboto')` (ZN-379, ZN-385) |
+| Text without a fontSize is 16 px (React Native: 14) | 14 px under the preset (ZN-385) |
+| hairlineWidth is 1 logical px (iPhone: 1/3) | 1 / PixelRatio as React Native (ZN-385) |
 | Baseline alignment in classic is approximated by flex-end | ZN-382 |
 | A generic list prop's lambda must match its arity; sections must be exactly { title, data } | ZN-383 |
 | No device screenshot to diff pixel by pixel | a real-device run is a board task (RULES section 2, parked) |

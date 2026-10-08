@@ -11,6 +11,9 @@
 
 #include "hal.h"
 
+// Pixels per logical pixel without a window: ZINC_SCALE=1..4 (a HiDPI frame in headless runs and tests), 1 by default.
+static int32_t headlessScale(void) { const char* s = getenv("ZINC_SCALE"); int k = s ? atoi(s) : 1; return k >= 1 && k <= 4 ? k : 1; }
+
 extern "C" {
 void null_hal_init(const HalConfig*); void null_hal_shutdown(void); void null_hal_frame_begin(void); void null_hal_frame_end(void);
 void null_hal_poll_input(HalInput*); void null_hal_present(const HalFrame*); void null_hal_surface_size(int*, int*); double null_hal_fixed_dt(void);
@@ -123,7 +126,7 @@ void hal_clipboard_set(const char* s, size_t n) { if (live) sdl_hal_clipboard_se
 void hal_set_cursor(int32_t shape) { if (live) sdl_hal_set_cursor(shape); }
 void hal_escape_by_app(int32_t on) { if (live) sdl_hal_escape_by_app(on); }
 void hal_escape(void) { if (live) sdl_hal_escape(); }
-int32_t hal_pixel_scale(void) { return live ? sdl_hal_pixel_scale() : 1; }
+int32_t hal_pixel_scale(void) { return live ? sdl_hal_pixel_scale() : headlessScale(); }
 void* hal_window_handle(void) { return live ? sdl_hal_window_handle() : nullptr; }
 #else
 void hal_init(const HalConfig* c) { null_hal_init(c); }
@@ -141,7 +144,7 @@ void hal_clipboard_set(const char* s, size_t n) { privateClipboard.assign(s, n);
 void hal_set_cursor(int32_t) {}
 void hal_escape_by_app(int32_t) {}
 void hal_escape(void) {}
-int32_t hal_pixel_scale(void) { return 1; }
+int32_t hal_pixel_scale(void) { return headlessScale(); }
 void* hal_window_handle(void) { return nullptr; }
 #endif
 }

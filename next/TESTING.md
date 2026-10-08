@@ -43,7 +43,7 @@ Runner rules (built in ZN-002):
 
 ## Pixel goldens (ZN-113)
 
-`tests/golden/examples/proto/` holds the prototype's frames (`tools/proto-capture capture`, one command, `ZINC_SCALE=1`, deterministic) and `manifest.json` (entry, frame numbers, env, tolerance, `skip` reason). `tools/proto-capture compare` (T2: `tests/t2/examples_pixels.sh`) renders the same entries with this engine and runs the `tools/pngdiff` rules; a failure prints the differing pixel count and writes a diff image.
+`tests/golden/examples/proto/` holds the prototype's frames (`tools/proto-capture capture`, one command, `ZINC_SCALE=1`, deterministic; `ZINC_SCALE=1..4` is the pixel scale of a headless run) and `manifest.json` (entry, frame numbers, env, tolerance, `skip` reason). `tools/proto-capture compare` (T2: `tests/t2/examples_pixels.sh`) renders the same entries with this engine and runs the `tools/pngdiff` rules; a failure prints the differing pixel count and writes a diff image.
 
 Tolerance policy: exact (`tol` 0, `max_diff` 0) by default, which holds for text-free UI and for text too while the engine uses the prototype's font renderer. A tolerance is allowed only where a library replaces the prototype's renderer (ThorVG, HarfBuzz, a codec) and is set per entry with the reason in the task that introduced the library. A difference not yet explained is a `known` row: it records the pixel count, may not grow, and is listed in ZN-223 until fixed. Entries the prototype renders no frame for (console, LED-matrix, device programs) are `skip` rows. Input scripts are not replayed yet (the manifest has no `input` field): frames are the first 30 of an idle run.
 

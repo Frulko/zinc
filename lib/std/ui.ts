@@ -10,11 +10,12 @@ import {
   escapeByApp, escapeDefault, stroke, polygon,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
-import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
+import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
 import { UI_LAYOUT, UI_PRESET } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
+const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
 export const INPUT: i32 = 7, TEXTAREA: i32 = 8;
@@ -125,8 +126,8 @@ export class Style {
 }
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
-  /** React Native's thinnest line: one logical pixel here (React Native: 1 / PixelRatio). */
-  static hairlineWidth: number = 1;
+  /** React Native's thinnest line: 0.4 rounded to the nearest device pixel, else one device pixel (0.5 at pixel scale 2, 1 at scale 1; ZN-385). */
+  static hairlineWidth: number = Math.round(0.4 * pixelScale()) > 0 ? Math.round(0.4 * pixelScale()) / pixelScale() : 1 / pixelScale();
   static create<T>(styles: T): T { return styles; }
   static flatten(styles: Style[]): Style {
     const keys: string[] = [], values: number[] = [];
@@ -275,7 +276,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
+  size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
    tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -964,8 +965,8 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
     paintDirty = true;
     return;
   }
-  if (id === P_WIDTH) { n.w = iv; n.wFrac = 0; n.fullW = false; }
-  else if (id === P_HEIGHT) { n.h = iv; n.hFrac = 0; n.fullH = false; }
+  if (id === P_WIDTH) { n.w = v > 0 && iv === 0 ? 1 : iv; n.wFrac = 0; n.fullW = false; }   // a hairline (StyleSheet.hairlineWidth 0.33 at scale 3) keeps one pixel
+  else if (id === P_HEIGHT) { n.h = v > 0 && iv === 0 ? 1 : iv; n.hFrac = 0; n.fullH = false; }
   else if (id === P_WIDTH_PERCENT) { n.w = -1; n.wFrac = v; n.fullW = false; }
   else if (id === P_HEIGHT_PERCENT) { n.h = -1; n.hFrac = v; n.fullH = false; }
   else if (id === P_FLEX_DIRECTION) { n.row = (iv & 1) !== 0; n.reverse = iv >= 2; }   // 0 column, 1 row, 2 column-reverse, 3 row-reverse
@@ -1807,7 +1808,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = DEFAULT_TEXT; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; }   // curBg, fromBg and transStart stay: a transition goes on across a class change
