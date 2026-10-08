@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, textWidth, image, imageWidth, imageHeight,
+  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -178,7 +178,8 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
+  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
+   tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
   lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
@@ -916,6 +917,26 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   const fw = FONT_WEIGHT_TOKENS.indexOf(tok);
   if (fw >= 0) { n.weight = (fw + 1) * 100; n.bold = fw >= 5; return true; }
   if (tok === 'italic') { n.italic = true; return true; }
+  if (tok === 'uppercase') { n.transform = 1; return true; }
+  if (tok === 'lowercase') { n.transform = 2; return true; }
+  if (tok === 'capitalize') { n.transform = 3; return true; }
+  if (tok === 'normal-case') { n.transform = 0; return true; }
+  if (tok === 'underline') { n.deco = n.deco | 1; return true; }
+  if (tok === 'line-through') { n.deco = n.deco | 2; return true; }
+  if (tok === 'overline') { n.deco = n.deco | 4; return true; }
+  if (tok === 'no-underline') { n.deco = 0; return true; }
+  if (tok === 'align-baseline') { n.vshift = 0; return true; }
+  if (tok === 'align-super') { n.vshift = -0.35; return true; }
+  if (tok === 'align-sub') { n.vshift = 0.2; return true; }
+  if (tok.startsWith('word-') || tok.startsWith('-word-')) {   // word-4, word-[3px], -word-1: extra px after every space
+    const neg = tok.startsWith('-');
+    let t = tok.slice(neg ? 6 : 5);
+    if (t.startsWith('[') && t.endsWith(']')) { t = t.slice(1, t.length - 1); if (t.endsWith('px')) t = t.slice(0, t.length - 2); }
+    const v = parseInt(t, 10);
+    if (!(v >= 0) || `${v}` !== t) return false;
+    n.wordSp = neg ? -v : v;
+    return true;
+  }
   if (tok === 'not-italic') { n.italic = false; return true; }
   if (tok === 'font-mono') { n.family = 'mono'; return true; }
   if (tok === 'font-sans') { n.family = 'sans'; return true; }
@@ -1090,7 +1111,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -1189,7 +1210,7 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
@@ -1227,20 +1248,34 @@ function fontOf(n: UiNode): i32 {
 function lineHeightOf(n: UiNode): number { return n.leading > 0 ? n.leading : Math.round(n.size * 1.4); }
 function trackPx(n: UiNode): number { return n.tracking * n.size; }
 /** Word wrap with the baked font metrics (UI-10). */
+function shownText(n: UiNode): string {
+  if (n.transform === 1) return n.text.toUpperCase();
+  if (n.transform === 2) return n.text.toLowerCase();
+  if (n.transform === 3) {
+    let out = '', start = true;
+    for (let i = 0; i < n.text.length; i++) { const c = n.text.slice(i, i + 1); out += start ? c.toUpperCase() : c; start = c === ' ' || c === '\n'; }
+    return out;
+  }
+  return n.text;
+}
+function spaces(s: string): i32 { let k = 0; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 32) k++; return k; }
+function lineWidth(n: UiNode, f: i32, s: string, tr: number): number { return textWidth(f, s, tr) + (n.wordSp !== 0 ? n.wordSp * spaces(s) : 0); }
+/** Word wrap with the baked font metrics (UI-10). */
 function wrapText(n: UiNode, maxW: number): void {
   const f = fontOf(n), tr = trackPx(n);
   n.lines = [];
   n.lineW = [];
-  const full = textWidth(f, n.text, tr);
+  const text = shownText(n);
+  const full = lineWidth(n, f, text, tr);
   const avail = maxW - n.pl - n.pr;
-  if (full <= avail || avail <= n.size) { n.lines.push(n.text); n.lineW.push(full); return; }
+  if (full <= avail || avail <= n.size) { n.lines.push(text); n.lineW.push(full); return; }
   let line = '';
-  for (const word of n.text.split(' ')) {
+  for (const word of text.split(' ')) {
     const cand = line.length === 0 ? word : line + ' ' + word;
-    if (textWidth(f, cand, tr) > avail && line.length > 0) { n.lines.push(line); n.lineW.push(textWidth(f, line, tr)); line = word; }
+    if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { n.lines.push(line); n.lineW.push(lineWidth(n, f, line, tr)); line = word; }
     else line = cand;
   }
-  if (line.length > 0) { n.lines.push(line); n.lineW.push(textWidth(f, line, tr)); }
+  if (line.length > 0) { n.lines.push(line); n.lineW.push(lineWidth(n, f, line, tr)); }
 }
 /** The size a node ends with: its width and height inside min/max, and aspect-ratio filling the side that is not set. */
 let csW: number = 0, csH: number = 0;
@@ -1652,7 +1687,19 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       for (let i = 0; i < n.lines.length; i++) {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
-        drawText(f, x + (n.pl + off) * kk, y + (n.pt + i * lh + top) * kk, n.lines[i], fg, tai, trackPx(n));
+        const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
+        if (n.wordSp === 0) drawText(f, tx, ty, n.lines[i], fg, tai, trackPx(n));
+        else {
+          let cx = tx;
+          const sp = textWidth(f, ' ', trackPx(n)) + n.wordSp * kk;
+          for (const word of n.lines[i].split(' ')) { if (word.length > 0) drawText(f, cx, ty, word, fg, tai, trackPx(n)); cx += textWidth(f, word, trackPx(n)) + sp; }
+        }
+        if (n.deco !== 0) {
+          const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = n.lineW[i] * kk;
+          if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
+          if ((n.deco & 2) !== 0) rrect(tx, ty + asc - Math.round(n.size * 0.3) * kk, lw, th, 0, fg, tai);
+          if ((n.deco & 4) !== 0) rrect(tx, ty, lw, th, 0, fg, tai);
+        }
       }
     }
     if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);
