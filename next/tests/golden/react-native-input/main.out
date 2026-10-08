@@ -1,0 +1,6 @@
+autofocus true
+pin password true mode 1 | notes readOnly true multiline true value fixed
+typed: change abc | change abcde | submit | field abcde state abcde
+keyboard: did show 300 visible true height 300
+avoiding: padding 300 lift -280
+dismissed: focus -1 did hide

@@ -183,3 +183,86 @@ export function useColorScheme(): string {
   }, []);
   return s;
 }
+
+// ---------------------------------------------------------------- TextInput, Keyboard, KeyboardAvoidingView (ZN-367.02)
+const INPUT_MODES: string[] = ['default', 'number-pad', 'decimal-pad', 'phone-pad', 'email-address', 'url', 'web-search'];
+export type TextInputProps = {
+  value?: string; defaultValue?: string; onChangeText?: (text: string) => void; onSubmitEditing?: () => void; placeholder?: string;
+  keyboardType?: string; secureTextEntry?: boolean; multiline?: boolean; editable?: boolean; maxLength?: number; autoFocus?: boolean;
+  style?: ui.Style; testID?: string; accessibilityLabel?: string;
+};
+/** A zinc:ui text field (a TextArea when multiline). Controlled through value + onChangeText as in React Native; maxLength cuts what is typed past it;
+ *  onSubmitEditing on Enter (single line); keyboardType picks the on-screen keyboard (numeric 'numeric' / 'number-pad', 'decimal-pad', 'phone-pad',
+ *  'email-address', 'url', 'web-search'). ponytail: onFocus / onBlur are not offered yet (zinc:ui's focus listeners cannot be removed). */
+export function TextInput(p: TextInputProps): i32 {
+  const field = useRef<i32>(-1);
+  const started = useRef<boolean>(false);
+  const kt = p.keyboardType ?? 'default';
+  const mode = kt === 'numeric' ? 1 : Math.max(0, INPUT_MODES.indexOf(kt));
+  const flags = new ui.Style(['password', 'readOnly', 'inputMode'], [p.secureTextEntry === true ? 1 : 0, p.editable === false ? 1 : 0, mode]);
+  const text = p.value ?? p.defaultValue ?? '';
+  const typed = (s: string): void => {
+    let v = s;
+    const max = p.maxLength ?? -1;
+    if (max >= 0 && v.length > max) { v = v.substring(0, max); ui.setValue(field.current, v); }
+    const f = p.onChangeText; if (f !== undefined) f(v);
+  };
+  const key = (e: ui.KeyEvent): void => { if (e.key === 'Enter' && p.multiline !== true) { const f = p.onSubmitEditing; if (f !== undefined) f(); } };
+  useEffect((): void => {
+    if (started.current) return;
+    started.current = true;
+    if (p.autoFocus === true) ui.focusNode(field.current);
+  }, []);
+  if (p.multiline === true)
+    return <TextArea ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''} />;
+  return <Input ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''} />;
+}
+
+export class KeyboardCoordinates { screenX: number = 0; screenY: number = 0; width: number = 0; height: number = 0; }
+export class KeyboardEvent { endCoordinates: KeyboardCoordinates = new KeyboardCoordinates(); duration: number = 0; easing: string = 'keyboard'; }
+const kbFns: ((e: KeyboardEvent) => void)[] = [], kbKinds: string[] = [];
+let kbShown: number = 0;
+function kbEvent(h: number): KeyboardEvent { const e = new KeyboardEvent(); const c = e.endCoordinates; c.width = width(); c.height = h; c.screenY = height() - h; return e; }
+/** Watches zinc:ui's keyboard inset each frame while someone listens: Did and Will events fire together (there is no animation to anticipate). */
+const kbStep: () => void = (): void => {
+  const now = ui.keyboardInset();
+  if (now === kbShown) return;
+  const show = now > 0 && kbShown === 0, hide = now === 0;
+  kbShown = now;
+  const e = kbEvent(now);
+  for (let i = 0; i < kbFns.length; i++) {
+    const k = kbKinds[i];
+    if ((show && (k === 'keyboardDidShow' || k === 'keyboardWillShow')) || (hide && (k === 'keyboardDidHide' || k === 'keyboardWillHide')) ||
+        (!show && !hide && (k === 'keyboardDidChangeFrame' || k === 'keyboardWillChangeFrame'))) kbFns[i](e);
+  }
+};
+export class Keyboard {
+  /** keyboardDidShow / WillShow, keyboardDidHide / WillHide, keyboardDidChangeFrame / WillChangeFrame. */
+  static addListener(kind: string, f: (e: KeyboardEvent) => void): Subscription {
+    if (kbFns.length === 0) { kbShown = ui.keyboardInset(); ui.addStepper(kbStep); }
+    kbFns.push(f); kbKinds.push(kind);
+    return new Subscription((): void => { const i = kbFns.indexOf(f); if (i >= 0) { kbFns.splice(i, 1); kbKinds.splice(i, 1); } if (kbFns.length === 0) ui.removeStepper(kbStep); });
+  }
+  /** Takes the focus from the field, which hides the on-screen keyboard. */
+  static dismiss(): void { ui.focusNode(-1); }
+  static isVisible(): boolean { return ui.keyboardInset() > 0; }
+  static metrics(): KeyboardCoordinates { return kbEvent(ui.keyboardInset()).endCoordinates; }
+}
+
+export type KeyboardAvoidingViewProps = { behavior?: string; keyboardVerticalOffset?: number; enabled?: boolean; style?: ui.Style; children?: () => i32 };
+/** Makes room for the on-screen keyboard: behavior 'padding' (and 'height', the same picture for a flex: 1 view) pads the bottom by the keyboard's height,
+ *  'position' lifts the content by it; keyboardVerticalOffset is taken off. */
+export function KeyboardAvoidingView(p: KeyboardAvoidingViewProps): i32 {
+  const [inset, setInset] = useState<number>(ui.keyboardInset());
+  const subscribed = useRef<boolean>(false);
+  useEffect((): void => {
+    if (subscribed.current) return;
+    subscribed.current = true;
+    Keyboard.addListener('keyboardDidChangeFrame', (e: KeyboardEvent): void => setInset(e.endCoordinates.height));
+    Keyboard.addListener('keyboardDidShow', (e: KeyboardEvent): void => setInset(e.endCoordinates.height));
+    Keyboard.addListener('keyboardDidHide', (e: KeyboardEvent): void => setInset(0));
+  }, []);
+  const room = p.enabled === false ? 0 : Math.max(0, inset - (p.keyboardVerticalOffset ?? 0));
+  const lift = p.behavior === 'position' ? new ui.Style(['translateY'], [-room]) : p.behavior !== undefined ? new ui.Style(['paddingBottom'], [room]) : NONE;
+  return <View style={[p.style ?? NONE, lift]}>{renderChildren(p.children)}</View>;
+}
