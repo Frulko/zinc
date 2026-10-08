@@ -1,0 +1,6 @@
+start a op1 ty0 sh0 b op1 bg1096065 layouts 1
+hover a a op0.8 ty-4 sh4 b op1 bg1096065 layouts 1
+left a op1 ty0 sh0 b op1 bg1096065 layouts 1
+b disabled a op1 ty0 sh0 b op0.5 bg9741240 layouts 1
+no relayout true
+b enabled a op1 ty0 sh0 b op1 bg1096065 layouts 1

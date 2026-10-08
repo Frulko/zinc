@@ -164,6 +164,7 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
+  ov: StateOverlay | null = null;   // paint-only styles of hover: focus: active: disabled: (ZN-273)
   id: i32 = -1; media: i32 = 0; container: boolean = false; cqW: number = -1;   // media bits: 2 pointer, 4 container query, 8 env(); container: `@container`; cqW: the container width the styles were computed for
   responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
   bg: i32 = -1; bgAlpha: i32 = 255;
@@ -208,6 +209,18 @@ export class UiNode {
   constructor(tag: i32) { this.tag = tag; }
 }
 
+/** The paint-only properties a state can change (hover:, focus:, active:, disabled:): one record per state plus the values to go back to. mask bits: 1 opacity, 2 tx, 4 ty, 16 shadow, 32 bg, 64 fg, 128 border colour, 256 radius. */
+export class StateStyle {
+  mask: i32 = 0;
+  opacity: number = 1; tx: number = 0; ty: number = 0; shadow: i32 = 0;
+  bg: i32 = -1; bgAlpha: i32 = 255; fg: i32 = -1; fgAlpha: i32 = 255; bc: i32 = -1; bcAlpha: i32 = 255; radius: number = 0;
+}
+export class StateOverlay {
+  s: (StateStyle | null)[] = [null, null, null, null];   // hover, focus, active, disabled
+  base: StateStyle = new StateStyle();
+  all: i32 = 0;           // the union of the masks
+  act: i32 = 0;           // the states applied now (bit per state)
+}
 /** Virtualized list state: only rows in the viewport (+ overscan) exist as nodes. */
 export class Virtual {
   count: i32 = 0;
@@ -924,6 +937,84 @@ function settleContainers(): void {
   }
   inSettle = false;
 }
+let layoutRuns: i32 = 0;
+/** How many times the layout ran (a paint-only change must not move it). */
+export function layoutCount(): i32 { return layoutRuns; }
+const statefuls: i32[] = [];
+/** hover: focus: active: disabled: tokens of one node: only paint-only properties, copied from a scratch node that took the token. */
+function stateToken(n: UiNode, variant: string, tok: string): boolean {
+  const st = variant === 'hover' ? 0 : variant === 'focus' ? 1 : variant === 'active' ? 2 : variant === 'disabled' ? 3 : -1;
+  if (st < 0) return false;
+  const t = new UiNode(n.tag);
+  if (!applyToken(t, tok, '')) return false;
+  const d = new UiNode(n.tag);
+  let m: i32 = 0;
+  if (tok.startsWith('opacity-')) m = 1;
+  else if (tok.startsWith('translate-x') || tok.startsWith('-translate-x')) m = 2;
+  else if (tok.startsWith('translate-y') || tok.startsWith('-translate-y')) m = 4;
+  else if (tok.startsWith('shadow')) m = 16;
+  else if (tok.startsWith('bg-') && t.grad === 0) m = 32;
+  else if (tok.startsWith('text-') && t.size === d.size && t.leading === d.leading && t.fg !== d.fg) m = 64;
+  else if (tok.startsWith('border-') && t.borderW === d.borderW && t.borderColor !== d.borderColor) m = 128;
+  else if (tok.startsWith('rounded') && t.crTL < 0 && t.crTR < 0 && t.crBR < 0 && t.crBL < 0) m = 256;
+  if (m === 0) return false;
+  let ov = n.ov;
+  if (ov === null) { ov = new StateOverlay(); n.ov = ov; if (n.id >= 0 && statefuls.indexOf(n.id) < 0) statefuls.push(n.id); }
+  const o = ov as StateOverlay;
+  let ss = o.s[st];
+  if (ss === null) { ss = new StateStyle(); o.s[st] = ss; }
+  const x = ss as StateStyle;
+  x.mask = x.mask | m; o.all = o.all | m;
+  if (m === 1) x.opacity = t.opacity; else if (m === 2) x.tx = t.tx; else if (m === 4) x.ty = t.ty; else if (m === 16) x.shadow = t.shadowLevel;
+  else if (m === 32) { x.bg = t.bg; x.bgAlpha = t.bgAlpha; } else if (m === 64) { x.fg = t.fg; x.fgAlpha = t.fgAlpha; }
+  else if (m === 128) { x.bc = t.borderColor; x.bcAlpha = t.borderAlpha; } else x.radius = t.radius;
+  return true;
+}
+function stateBits(h: i32): i32 {
+  const n = nodes[h];
+  return (n.hovered ? 1 : 0) | (focus === h ? 2 : 0) | (pressed === h ? 4 : 0) | (isDisabled(h) ? 8 : 0);
+}
+/** Puts the values of the active states on a node (and the base values back when they end): no layout, only a repaint. */
+function syncState(h: i32): void {
+  const n = nodes[h], o = n.ov as StateOverlay;
+  const want = stateBits(h);
+  if (want === o.act) return;
+  const b = o.base;
+  if (o.act === 0) {   // leaving the base: remember it
+    b.opacity = n.opacity; b.tx = n.tx; b.ty = n.ty; b.shadow = n.shadowLevel; b.bg = n.bg; b.bgAlpha = n.bgAlpha; b.fg = n.fg; b.fgAlpha = n.fgAlpha; b.bc = n.borderColor; b.bcAlpha = n.borderAlpha; b.radius = n.radius;
+  }
+  const a = o.all;
+  if ((a & 1) !== 0) n.opacity = b.opacity;
+  if ((a & 2) !== 0) n.tx = b.tx;
+  if ((a & 4) !== 0) n.ty = b.ty;
+  if ((a & 16) !== 0) n.shadowLevel = b.shadow;
+  if ((a & 32) !== 0) { n.bg = b.bg; n.bgAlpha = b.bgAlpha; }
+  if ((a & 64) !== 0) { n.fg = b.fg; n.fgAlpha = b.fgAlpha; }
+  if ((a & 128) !== 0) { n.borderColor = b.bc; n.borderAlpha = b.bcAlpha; }
+  if ((a & 256) !== 0) n.radius = b.radius;
+  for (let i = 0; i < 4; i++) {
+    const ss = o.s[i];
+    if (ss === null || (want & (1 << i)) === 0) continue;
+    const x = ss as StateStyle;
+    if ((x.mask & 1) !== 0) n.opacity = x.opacity;
+    if ((x.mask & 2) !== 0) n.tx = x.tx;
+    if ((x.mask & 4) !== 0) n.ty = x.ty;
+    if ((x.mask & 16) !== 0) n.shadowLevel = x.shadow;
+    if ((x.mask & 32) !== 0) { n.bg = x.bg; n.bgAlpha = x.bgAlpha; }
+    if ((x.mask & 64) !== 0) { n.fg = x.fg; n.fgAlpha = x.fgAlpha; }
+    if ((x.mask & 128) !== 0) { n.borderColor = x.bc; n.borderAlpha = x.bcAlpha; }
+    if ((x.mask & 256) !== 0) n.radius = x.radius;
+  }
+  o.act = want;
+  paintDirty = true;
+}
+function syncStates(): void {
+  for (let i = statefuls.length - 1; i >= 0; i--) {
+    const h = statefuls[i], n = nodes[h];
+    if (!n.alive || n.ov === null) { statefuls.splice(i, 1); continue; }
+    syncState(h);
+  }
+}
 const FONT_WEIGHT_TOKENS: string[] = ['font-thin', 'font-extralight', 'font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-extrabold', 'font-black'];
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
   const qc = tok.indexOf(':');
@@ -945,11 +1036,13 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('focus:')) return applyToken(n, tok.slice(6), 'focus');
   if (tok.startsWith('active:')) return applyToken(n, tok.slice(7), 'active');
   // hover: colors under the mouse (desktop); other hover: tokens are accepted and ignored
-  if (tok.startsWith('hover:')) { applyToken(n, tok.slice(6), 'hover'); return true; }
+  if (tok.startsWith('hover:')) return applyToken(n, tok.slice(6), 'hover');
+  if (tok.startsWith('disabled:')) return applyToken(n, tok.slice(9), 'disabled');
   if (variant === '' && ringToken(n, tok, 0)) return true;
   if (variant !== '') {
     const isBg = tok.startsWith('bg-'), isBorder = tok.startsWith('border-');
     const c = isBg ? colorOf(tok.slice(3)) : isBorder ? colorOf(tok.slice(7)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
+    if (variant !== 'selection' && variant !== 'within' && (c === -2 || variant === 'disabled' || (variant === 'active' && isBorder) || (c >= 0 && alphaOf(isBg ? tok.slice(3) : isBorder ? tok.slice(7) : tok.slice(5)) !== 255))) return stateToken(n, variant, tok);
     if (c === -2) return false;
     if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
     else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
@@ -1201,6 +1294,14 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.borderW = borderPx(k);
     return true;
   }
+  if (tok.startsWith('translate-') || tok.startsWith('-translate-')) {   // translate-x-2, -translate-y-1, translate-y-[3px]
+    const neg = tok.startsWith('-'), r = tok.slice(neg ? 11 : 10);
+    if (r.length < 3 || r.slice(1, 2) !== '-' || (r.slice(0, 1) !== 'x' && r.slice(0, 1) !== 'y')) return false;
+    const v = num(r.slice(2));
+    if (v !== v) return false;
+    if (r.slice(0, 1) === 'x') n.tx = neg ? -v : v; else n.ty = neg ? -v : v;
+    return true;
+  }
   if (tok.startsWith('opacity-')) { n.opacity = parseFloat(tok.slice(8)) / 100; return true; }
   if (tok.startsWith('text-')) {
     const k = tok.slice(5);
@@ -1286,7 +1387,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   return false;
 }
 function resetStyle(n: UiNode): void {
-  n.media = 0; n.container = false;
+  n.media = 0; n.container = false; n.ov = null;
   const fresh = new UiNode(n.tag);
   defaults(fresh);
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false;
@@ -1766,6 +1867,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
 }
 export function layout(): void {
   if (root < 0) return;
+  layoutRuns++;
   // the root always fills the surface (which follows the window in fill mode)
   const r = node(root);
   r.w = width(); r.h = height();
@@ -3037,7 +3139,7 @@ function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i3
   directScroll(padScroller, -dx, -dy);
   if (phase === 2) { releaseScroll(padScroller); padScroller = -1; }
 }
-function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0; }
+function hasHoverStyle(n: UiNode): boolean { return n.hoverBg >= 0 || n.hoverFg >= 0 || n.hoverBorder >= 0 || n.ov !== null; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */
 function updateHover(): void {
   hoverDirty = false;
@@ -3067,6 +3169,7 @@ function updateHover(): void {
   }
   if (c === Cursor.Grab && (held & 1) !== 0 && capture >= 0) c = Cursor.Grabbing;
   if (c !== cursorShown) { cursorShown = c; setCursor(c); }
+  if (statefuls.length > 0) syncStates();
 }
 function typeInto(h: i32, s: string): void {
   if (h < 0) return;

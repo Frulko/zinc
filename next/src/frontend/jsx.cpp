@@ -79,14 +79,24 @@ bool validClass(const std::string& c) {
       std::regex(R"(^bg-gradient-to-(t|b|l|r)$)"), std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
       std::regex(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?$)"),
       std::regex(R"(^ring(-\d+)?$)"), std::regex(R"(^outline(-\d+)?$)"), std::regex(R"(^(ring|outline)-offset-\d+$)"), std::regex(R"(^outline-none$)"),
+      std::regex("^-?translate-[xy]-" + num + "$"),
       std::regex(R"(^line-clamp-[1-9]\d*$)"),
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
-  static const std::regex variant(R"(^(focus|focus-visible|selection|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex variant(R"(^(focus|focus-visible|selection|disabled|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
   static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
-  if (std::regex_match(c, m, variant)) return validClass(m[2].str());
+  if (std::regex_match(c, m, variant)) {
+    std::string state = m[1].str(), rest = m[2].str();
+    if (!validClass(rest)) return false;
+    if (state == "hover" || state == "focus" || state == "active" || state == "disabled") {   // paint-only properties (ZN-273): opacity, translate, shadow, colours, radius, ring
+      static const std::regex paintOnly(R"(^(opacity-\d+|-?translate-[xy]-.+|shadow(-(none|sm|md|lg|xl))?|rounded(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?|(ring|outline)(-.+)?)$)");
+      static const std::regex colouredState("^(bg|text|border)-" + color + "$");
+      return std::regex_match(rest, paintOnly) || std::regex_match(rest, colouredState);
+    }
+    return true;
+  }
   if (fixed.count(c)) return true;
   for (const std::regex& r : rules) if (std::regex_match(c, r)) return true;
   static const std::regex sideColour(R"(^border-[trblxy]-(.+)$)");   // border-t-red-500: the colour of one side
