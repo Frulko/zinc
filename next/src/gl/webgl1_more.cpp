@@ -164,8 +164,7 @@ void WebGL1::deleteProgram(Id id) {
   if (it == programs_.end()) return;
   glDeleteProgram(it->second.name);
   if (program_ == id) { it->second.deleted = true; return; }   // in use: deleted when another program replaces it (useProgram)
-  for (Id sid : {it->second.vs, it->second.fs}) if (sid) { auto sh = shaders_.find(sid); if (sh != shaders_.end() && --sh->second.attached <= 0 && sh->second.deleted) shaders_.erase(sh); }
-  programs_.erase(it);
+  eraseProgram(id);
 }
 void WebGL1::detachShader(Id pid, Id sid) {
   auto p = programs_.find(pid);
@@ -181,7 +180,7 @@ void WebGL1::validateProgram(Id pid) { auto p = programs_.find(pid); if (p == pr
 WebGL1::Active WebGL1::getActiveUniform(Id pid, std::uint32_t index) {
   Active a;
   auto p = programs_.find(pid);
-  if (p == programs_.end()) { error(GL_INVALID_OPERATION); return a; }
+  if (p == programs_.end()) { error(GL_INVALID_VALUE); return a; }
   GLint n = 0;
   glGetProgramiv(p->second.name, GL_ACTIVE_UNIFORMS, &n);
   if (index >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return a; }
@@ -193,7 +192,7 @@ WebGL1::Active WebGL1::getActiveUniform(Id pid, std::uint32_t index) {
 WebGL1::Active WebGL1::getActiveAttrib(Id pid, std::uint32_t index) {
   Active a;
   auto p = programs_.find(pid);
-  if (p == programs_.end()) { error(GL_INVALID_OPERATION); return a; }
+  if (p == programs_.end()) { error(GL_INVALID_VALUE); return a; }
   GLint n = 0;
   glGetProgramiv(p->second.name, GL_ACTIVE_ATTRIBUTES, &n);
   if (index >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return a; }
@@ -307,7 +306,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
       GLint64 v = 0;
       switch (pname) {
         case GL_RASTERIZER_DISCARD: bools(1); break;
-        case 0x9247: fixed(0); break;                                  // MAX_CLIENT_WAIT_TIMEOUT_WEBGL
+        case 0x9247: fixed(1000000000); break;                                // MAX_CLIENT_WAIT_TIMEOUT_WEBGL
         case 0x9111: fixed(0x7FFFFFFF); break;                         // MAX_SERVER_WAIT_TIMEOUT
         case 0x80E8: case 0x80E9: fixed(1 << 20); break;               // MAX_ELEMENTS_VERTICES / INDICES (not in a core profile)
         case 0x9125: case 0x8B4B: fixed(60); break;                    // MAX_FRAGMENT_INPUT_COMPONENTS, MAX_VARYING_COMPONENTS: the 15 varying vectors reported
@@ -384,7 +383,7 @@ WebGL1::Param WebGL1::getTexParameter(std::uint32_t target, std::uint32_t pname)
 WebGL1::Param WebGL1::getUniform(Id pid, const UniformLoc& l) {
   Param r;
   auto p = programs_.find(pid);
-  if (p == programs_.end() || !p->second.linked || !l.valid() || l.program != pid) { error(GL_INVALID_OPERATION); return r; }
+  if (p == programs_.end() || !p->second.linked || !l.valid() || l.program != pid || stale(l)) { error(GL_INVALID_OPERATION); return r; }
   r.ok = true;
   const bool isInt = l.type == GL_INT || l.type == GL_BOOL || isSamplerType(l.type);
   int n = l.type == GL_FLOAT_VEC2 || l.type == GL_INT_VEC2 || l.type == GL_BOOL_VEC2 ? 2 : l.type == GL_FLOAT_VEC3 || l.type == GL_INT_VEC3 || l.type == GL_BOOL_VEC3 ? 3 : l.type == GL_FLOAT_VEC4 || l.type == GL_INT_VEC4 || l.type == GL_BOOL_VEC4 || l.type == GL_FLOAT_MAT2 ? 4 : l.type == GL_FLOAT_MAT3 ? 9 : l.type == GL_FLOAT_MAT4 ? 16 : 1;
@@ -408,7 +407,7 @@ void WebGL1::getShaderPrecisionFormat(std::uint32_t shadertype, std::uint32_t pr
 // ---- uniforms and attributes
 #define ZN_UNIFORM_OK(l, ...) \
   if (!(l).valid()) return; \
-  if (!program_ || (l).program != program_) return error(GL_INVALID_OPERATION); \
+  if (!program_ || (l).program != program_ || stale(l)) return error(GL_INVALID_OPERATION); \
   { const std::uint32_t ok_[] = {__VA_ARGS__}; bool match_ = false; for (std::uint32_t t_ : ok_) match_ = match_ || t_ == (l).type; if (!match_) return error(GL_INVALID_OPERATION); }
 void WebGL1::uniform3f(const UniformLoc& l, float x, float y, float z) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC3) glUniform3f(l.location, x, y, z); }
 void WebGL1::uniform2i(const UniformLoc& l, int x, int y) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) glUniform2i(l.location, x, y); }
@@ -421,7 +420,7 @@ void WebGL1::uniformNfv(const UniformLoc& l, int n, const float* v, std::size_t 
   if (n == 1) glUniform1fv(l.location, k, v); else if (n == 2) glUniform2fv(l.location, k, v); else if (n == 3) glUniform3fv(l.location, k, v); else glUniform4fv(l.location, k, v);
 }
 void WebGL1::uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count) {
-  if (n == 1) { if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION); } else { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL) } }
+  if (n == 1) { if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION); } else { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL) } }
   else if (n == 2) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
   if (isSamplerType(l.type)) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= 32) return error(GL_INVALID_VALUE);
@@ -475,7 +474,7 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   if (fmt != GL_ALPHA && fmt != GL_RGB && fmt != GL_RGBA && fmt != GL_LUMINANCE && fmt != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
   if (level < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
   if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glCopyTexImage2D(target, level, fmt == GL_ALPHA || fmt == GL_LUMINANCE || fmt == GL_LUMINANCE_ALPHA ? GL_RGBA : fmt, x, y, w, h, 0);
   Tex& t = textures_[(face ? texCube_ : tex2d_)[activeUnit_]];
   if (level == 0) { t.w = w; t.h = h; t.format = fmt; }
@@ -485,7 +484,7 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   if (level < 0 || xoff < 0 || yoff < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);
   if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
 }
 void WebGL1::generateMipmap(std::uint32_t target) {
@@ -534,7 +533,12 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
   glGetFramebufferAttachmentParameteriv(target == GL_FRAMEBUFFER ? GL_FRAMEBUFFER : target, attachment == GL_DEPTH_STENCIL_ATTACHMENT ? GL_DEPTH_ATTACHMENT : attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
   while (glGetError() != GL_NO_ERROR) {}
   if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) { r.ok = true; r.kind = 'i'; r.v.push_back(type); return r; }
-  if (type == GL_NONE) { if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) { r.ok = true; r.kind = 'n'; return r; } error(GL_INVALID_OPERATION); return r; }
+  if (type == GL_NONE) {
+    if (version_ != 2) { error(GL_INVALID_ENUM); return r; }
+    if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) { r.ok = true; r.kind = 'n'; return r; }
+    error(GL_INVALID_OPERATION);
+    return r;
+  }
   GLint v = 0;
   const GLenum att = attachment == GL_DEPTH_STENCIL_ATTACHMENT ? GL_DEPTH_ATTACHMENT : attachment;
   if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) {
@@ -597,7 +601,7 @@ WebGL1::Param WebGL1::getActiveUniforms(Id pid, const std::vector<std::uint32_t>
 void WebGL1::uniformMatrixRC(const UniformLoc& l, int cols, int rows, bool transpose, const float* v, std::size_t count) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (!l.valid()) return;
-  if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION);
+  if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION);
   static const std::uint32_t types[3][3] = {{GL_FLOAT_MAT2, GL_FLOAT_MAT2x3, GL_FLOAT_MAT2x4}, {GL_FLOAT_MAT3x2, GL_FLOAT_MAT3, GL_FLOAT_MAT3x4}, {GL_FLOAT_MAT4x2, GL_FLOAT_MAT4x3, GL_FLOAT_MAT4}};
   if (l.type != types[cols - 2][rows - 2]) return error(GL_INVALID_OPERATION);
   const std::size_t per = static_cast<std::size_t>(cols) * rows;

@@ -62,6 +62,7 @@ int object(JSContext* c, Gl* g, JSValueConst v, int kind, Obj& out, bool nullabl
 }
 // OBJ: nullable (bind*, framebufferTexture2D...); OBJR: required (compileShader, linkProgram...): null throws a TypeError
 #define OBJ(var, idx, kind) Obj var; { int st_ = object(c, g, argv[idx], kind, var, true); if (st_ == 2) return JS_EXCEPTION; if (st_ == 1) return JS_UNDEFINED; }
+#define OBJN(var, idx, kind) Obj var; { int st_ = object(c, g, argv[idx], kind, var, false); if (st_ == 2) return JS_EXCEPTION; if (st_ == 1) return JS_NULL; }   // a query: null for another context's object
 #define OBJR(var, idx, kind) Obj var; { int st_ = object(c, g, argv[idx], kind, var, false); if (st_ == 2) return JS_EXCEPTION; if (st_ == 1) return JS_UNDEFINED; }
 
 double num(JSContext* c, JSValueConst v) { double d = 0; JS_ToFloat64(c, &d, v); return d; }
@@ -358,13 +359,13 @@ JSValue activeInfo(JSContext* c, const WebGL1::Active& a) {
   JS_SetPropertyStr(c, o, "type", JS_NewUint32(c, a.type));
   return o;
 }
-M(getActiveUniform) { SELF NEED(2); OBJR(p, 0, 3) return activeInfo(c, gl.getActiveUniform(p.id, U(1))); }
-M(getActiveAttrib) { SELF NEED(2); OBJR(p, 0, 3) return activeInfo(c, gl.getActiveAttrib(p.id, U(1))); }
+M(getActiveUniform) { SELF NEED(2); OBJN(p, 0, 3) return activeInfo(c, gl.getActiveUniform(p.id, U(1))); }
+M(getActiveAttrib) { SELF NEED(2); OBJN(p, 0, 3) return activeInfo(c, gl.getActiveAttrib(p.id, U(1))); }
 M(getParameter) { SELF NEED(1); std::uint32_t pn = U(0); return paramToJs(c, g, pn, gl.getParameter(pn)); }
 M(getVertexAttrib) { SELF NEED(2); std::uint32_t pn = U(1); return paramToJs(c, g, pn, gl.getVertexAttrib(U(0), pn)); }
 M(getBufferParameter) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getBufferParameter(U(0), U(1))); }
 M(getTexParameter) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getTexParameter(U(0), U(1))); }
-M(getUniform) { SELF NEED(2); OBJR(p, 0, 3) bool ok, fo; UniformLoc l = locOf(c, g, argv[1], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_NULL; return paramToJs(c, g, 0, gl.getUniform(p.id, l)); }
+M(getUniform) { SELF NEED(2); OBJR(p, 0, 3) if (JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])) return JS_ThrowTypeError(c, "getUniform: location is required"); bool ok, fo; UniformLoc l = locOf(c, g, argv[1], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_NULL; return paramToJs(c, g, 0, gl.getUniform(p.id, l)); }
 M(getShaderPrecisionFormat) {
   SELF NEED(2);
   int out[3];
@@ -879,11 +880,37 @@ JSValue js_canvasGetContext(JSContext* c, JSValueConst t, int argc, JSValueConst
   if (!JS_IsNull(ctxv)) { JS_SetPropertyStr(c, ctxv, "canvas", JS_DupValue(c, t)); JS_SetPropertyStr(c, t, "__gl", JS_DupValue(c, ctxv)); }
   return ctxv;
 }
+// canvas.width / canvas.height: setting either gives the WebGL context a new drawing buffer
+JSValue js_canvasSize(JSContext* c, JSValueConst t, int argc, JSValueConst* argv, int magic) {
+  const char* key = magic & 1 ? "__h" : "__w";
+  if (!(magic & 2)) return JS_GetPropertyStr(c, t, key);
+  std::uint32_t v = argc > 0 ? u32(c, argv[0]) : 0;
+  JS_SetPropertyStr(c, t, key, JS_NewUint32(c, v));
+  JSValue gv = JS_GetPropertyStr(c, t, "__gl");
+  if (!JS_IsUndefined(gv)) {
+    Gl* g = static_cast<Gl*>(JS_GetOpaque(gv, gCtxClass));
+    if (g) {
+      JSValue wv = JS_GetPropertyStr(c, t, "__w"), hv = JS_GetPropertyStr(c, t, "__h");
+      g->w = std::max(1, i32(c, wv)); g->h = std::max(1, i32(c, hv));
+      JS_FreeValue(c, wv); JS_FreeValue(c, hv);
+      g->gl.resizeDrawingBuffer(g->w, g->h);
+      JS_SetPropertyStr(c, gv, "drawingBufferWidth", JS_NewInt32(c, g->w));
+      JS_SetPropertyStr(c, gv, "drawingBufferHeight", JS_NewInt32(c, g->h));
+    }
+  }
+  JS_FreeValue(c, gv);
+  return JS_UNDEFINED;
+}
 JSValue js_createElement(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (argc < 1 || str(c, argv[0]) != "canvas") return JS_NULL;
   JSValue o = JS_NewObject(c);
-  JS_SetPropertyStr(c, o, "width", JS_NewInt32(c, 300));
-  JS_SetPropertyStr(c, o, "height", JS_NewInt32(c, 150));
+  JS_SetPropertyStr(c, o, "__w", JS_NewInt32(c, 300));
+  JS_SetPropertyStr(c, o, "__h", JS_NewInt32(c, 150));
+  for (int k = 0; k < 2; ++k) {
+    JSAtom a = JS_NewAtom(c, k ? "height" : "width");
+    JS_DefinePropertyGetSet(c, o, a, JS_NewCFunctionMagic(c, js_canvasSize, "get", 0, JS_CFUNC_generic_magic, k), JS_NewCFunctionMagic(c, js_canvasSize, "set", 1, JS_CFUNC_generic_magic, k | 2), JS_PROP_C_W_E);
+    JS_FreeAtom(c, a);
+  }
   JS_SetPropertyStr(c, o, "getContext", JS_NewCFunction(c, js_canvasGetContext, "getContext", 2));
   return o;
 }

@@ -120,6 +120,29 @@ bool Offscreen::hasExtension(const char* name) const {
   return false;
 }
 
+void Offscreen::resize(int width, int height) {
+  if (width < 1) width = 1;
+  if (height < 1) height = 1;
+  makeCurrent();
+  w_ = width; h_ = height;
+  GLint unit = 0, tex = 0, rb = 0;
+  glGetIntegerv(GL_ACTIVE_TEXTURE, &unit);
+  glActiveTexture(GL_TEXTURE0);
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
+  glGetIntegerv(GL_RENDERBUFFER_BINDING, &rb);
+  const bool es = api_ != Api::Gl33;
+  GLint pbo = 0;
+  if (api_ != Api::Gles2) { glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &pbo); glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0); }   // a pixel unpack buffer would turn the null into an offset
+  glBindTexture(GL_TEXTURE_2D, color_);
+  glTexImage2D(GL_TEXTURE_2D, 0, es ? GL_RGBA : GL_RGBA8, w_, h_, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  if (api_ != Api::Gles2) glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(pbo));
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(tex));
+  glActiveTexture(static_cast<GLenum>(unit));
+  glBindRenderbuffer(GL_RENDERBUFFER, depth_);
+  glRenderbufferStorage(GL_RENDERBUFFER, es ? GL_DEPTH_COMPONENT16 : GL_DEPTH24_STENCIL8, w_, h_);
+  glBindRenderbuffer(GL_RENDERBUFFER, static_cast<GLuint>(rb));
+}
+
 std::vector<std::uint8_t> Offscreen::read() const {
   std::vector<std::uint8_t> px(static_cast<std::size_t>(w_) * h_ * 4);
   glReadPixels(0, 0, w_, h_, GL_RGBA, GL_UNSIGNED_BYTE, px.data());

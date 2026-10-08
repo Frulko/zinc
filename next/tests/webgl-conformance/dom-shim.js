@@ -26,12 +26,13 @@
   const listeners = {};
 
   const nativeCreate = g.document && g.document.createElement;   // WebGL's own canvas (src/gl/webgl_js.cpp): width, height and getContext
-  function initNode(n, tag) { n.tagName = String(tag).toUpperCase(); n.nodeName = n.tagName; n.childNodes = []; n.children = n.childNodes; n.parentNode = null; n.attributes = {}; n.style = {}; n._text = ''; n._ev = {}; n.className = ''; n.id = ''; n.dataset = {}; n.classList = { add() {}, remove() {}, contains() { return false; }, toggle() {} }; }
+  function initNode(n, tag) { n.tagName = String(tag).toUpperCase(); n.nodeName = n.tagName; if (n.tagName === 'SCRIPT') n.src = ''; n.childNodes = []; n.children = n.childNodes; n.parentNode = null; n.attributes = {}; n.style = {}; n._text = ''; n._ev = {}; n.className = ''; n.id = ''; n.dataset = {}; n.classList = { add() {}, remove() {}, contains() { return false; }, toggle() {} }; }
   class Node {
     constructor(tag) { initNode(this, tag); }
     appendChild(c) { c.parentNode = this; this.childNodes.push(c); if (c.tagName === 'SCRIPT' && /js-test-post\.js$/.test(c.src || '') && g.__postJs) (0, eval)(g.__postJs); return c; }   // finishTest() loads the epilogue this way
     insertBefore(c, ref) { c.parentNode = this; const i = this.childNodes.indexOf(ref); if (i < 0) this.childNodes.push(c); else this.childNodes.splice(i, 0, c); return c; }
     removeChild(c) { const i = this.childNodes.indexOf(c); if (i >= 0) this.childNodes.splice(i, 1); c.parentNode = null; return c; }
+    replaceChild(n, old) { const i = this.childNodes.indexOf(old); if (i < 0) this.childNodes.push(n); else this.childNodes[i] = n; n.parentNode = this; if (old) old.parentNode = null; return old; }
     remove() { if (this.parentNode) this.parentNode.removeChild(this); }
     setAttribute(k, v) { this.attributes[k] = String(v); if (k === 'type' || k === 'name' || k === 'value' || k === 'src' || k === 'href') this[k] = String(v); if (k === 'id') this.id = String(v); if (k === 'width') this.width = Number(v); if (k === 'height') this.height = Number(v); }
     getAttribute(k) { return k in this.attributes ? this.attributes[k] : null; }

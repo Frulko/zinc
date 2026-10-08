@@ -353,7 +353,7 @@ void WebGL1::clearBufferfv(std::uint32_t buffer, int drawbuffer, const float* v,
   if (buffer != GL_COLOR && buffer != GL_DEPTH) return error(GL_INVALID_ENUM);
   if (drawbuffer < 0 || (buffer == GL_DEPTH && drawbuffer != 0) || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < (buffer == GL_COLOR ? 4u : 1u)) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glClearBufferfv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferiv(std::uint32_t buffer, int drawbuffer, const int* v, std::size_t n) {
@@ -361,7 +361,7 @@ void WebGL1::clearBufferiv(std::uint32_t buffer, int drawbuffer, const int* v, s
   if (buffer != GL_COLOR && buffer != GL_STENCIL) return error(GL_INVALID_ENUM);
   if (drawbuffer < 0 || (buffer == GL_STENCIL && drawbuffer != 0) || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < (buffer == GL_COLOR ? 4u : 1u)) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glClearBufferiv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferuiv(std::uint32_t buffer, int drawbuffer, const std::uint32_t* v, std::size_t n) {
@@ -369,14 +369,14 @@ void WebGL1::clearBufferuiv(std::uint32_t buffer, int drawbuffer, const std::uin
   if (buffer != GL_COLOR) return error(GL_INVALID_ENUM);
   if (drawbuffer < 0 || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < 4) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glClearBufferuiv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferfi(std::uint32_t buffer, int drawbuffer, float depth, int stencil) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (buffer != GL_DEPTH_STENCIL) return error(GL_INVALID_ENUM);
   if (drawbuffer != 0) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glClearBufferfi(buffer, drawbuffer, depth, stencil);
 }
 void WebGL1::invalidateFramebuffer(std::uint32_t target, const std::uint32_t* attachments, int n) {

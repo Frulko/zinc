@@ -129,6 +129,30 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
   return true;
 }
 
+// canvas.width / canvas.height was set: a new drawing buffer, transparent black, depth 1, stencil 0, whatever state the context is in
+void WebGL1::resizeDrawingBuffer(int w, int h) {
+  GLint draw = 0, read = 0;
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  gl_.resize(w, h);
+  GLboolean cm[4], dm;
+  GLint sm, cs;
+  GLfloat cc[4], cd;
+  const GLboolean sc = glIsEnabled(GL_SCISSOR_TEST);
+  glGetBooleanv(GL_COLOR_WRITEMASK, cm); glGetBooleanv(GL_DEPTH_WRITEMASK, &dm); glGetIntegerv(GL_STENCIL_WRITEMASK, &sm);
+  glGetFloatv(GL_COLOR_CLEAR_VALUE, cc); glGetFloatv(GL_DEPTH_CLEAR_VALUE, &cd); glGetIntegerv(GL_STENCIL_CLEAR_VALUE, &cs);
+  glBindFramebuffer(GL_FRAMEBUFFER, gl_.framebuffer());
+  glDisable(GL_SCISSOR_TEST);
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); glDepthMask(GL_TRUE); glStencilMask(~0u);
+  glClearColor(0, 0, 0, 0); glClearDepth(1); glClearStencil(0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  glColorMask(cm[0], cm[1], cm[2], cm[3]); glDepthMask(dm); glStencilMask(static_cast<GLuint>(sm));
+  glClearColor(cc[0], cc[1], cc[2], cc[3]); glClearDepth(cd); glClearStencil(cs);
+  if (sc) glEnable(GL_SCISSOR_TEST);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(draw));
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
+}
+
 std::uint32_t WebGL1::getError() {
   while (true) {   // errors of the driver that validation missed are kept visible rather than lost
     GLenum e = glGetError();
@@ -156,7 +180,7 @@ void WebGL1::scissor(int x, int y, int w, int h) { if (w < 0 || h < 0) return er
 void WebGL1::clearColor(float r, float g, float b, float a) { glClearColor(r, g, b, a); }
 void WebGL1::clear(std::uint32_t mask) {
   if (mask & ~static_cast<std::uint32_t>(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   glClear(mask);
 }
 void WebGL1::pixelStorei(std::uint32_t pname, int value) {
@@ -176,19 +200,31 @@ void WebGL1::pixelStorei(std::uint32_t pname, int value) {
 Id WebGL1::createBuffer() { Buf b; glGenBuffers(1, &b.name); Id id = nextId_++; buffers_[id] = b; return id; }
 void WebGL1::deleteBuffer(Id id) {
   auto it = buffers_.find(id);
-  if (it == buffers_.end()) return;   // null and already deleted: nothing happens
-  glDeleteBuffers(1, &it->second.name);
-  if (arrayBuffer_ == id) arrayBuffer_ = 0;
-  if (elementBuffer_ == id) elementBuffer_ = 0;
+  if (it == buffers_.end() || it->second.deleted) return;   // null and already deleted: nothing happens
+  if (arrayBuffer_ == id) { arrayBuffer_ = 0; glBindBuffer(GL_ARRAY_BUFFER, 0); }
+  if (elementBuffer_ == id) { elementBuffer_ = 0; glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
   for (Attrib& a : attribs_) if (a.buffer == id) a.buffer = 0;
-  for (auto& v : vaos_) { for (Attrib& a : v.second.attribs) if (a.buffer == id) a.buffer = 0; if (v.second.element == id) v.second.element = 0; }
-  for (Attrib& a : defaultVao_.attribs) if (a.buffer == id) a.buffer = 0;
-  if (defaultVao_.element == id) defaultVao_.element = 0;
-  for (auto& o : otherBuffers_) if (o.second == id) o.second = 0;
-  for (auto& o : indexed_) if (o.second.buffer == id) o.second.buffer = 0;
-  buffers_.erase(it);
+  for (auto& o : otherBuffers_) if (o.second == id) { o.second = 0; glBindBuffer(o.first, 0); }
+  for (auto& o : indexed_) if (o.second.buffer == id) { o.second.buffer = 0; glBindBufferBase(static_cast<std::uint32_t>(o.first >> 32), static_cast<std::uint32_t>(o.first), 0); }
+  it->second.deleted = true;   // a buffer that another vertex array still uses lives on until it lets go
+  releaseBuffers();
 }
-bool WebGL1::isBuffer(Id id) const { auto it = buffers_.find(id); return it != buffers_.end() && it->second.bound; }   // a buffer is an object once it has been bound
+// the deleted buffers that no vertex array holds any more
+void WebGL1::releaseBuffers() {
+  for (auto it = buffers_.begin(); it != buffers_.end();) {
+    bool used = false;
+    if (it->second.deleted) {
+      auto uses = [&](const Vao& v) { for (const Attrib& a : v.attribs) if (a.buffer == it->first) return true; return v.element == it->first; };
+      for (auto& v : vaos_) if (v.first != curVao_ && uses(v.second)) used = true;
+      if (curVao_ && uses(defaultVao_)) used = true;
+      for (const Attrib& a : attribs_) if (a.buffer == it->first) used = true;   // the bound vertex array's own state is live, not in its Vao
+      if (elementBuffer_ == it->first) used = true;
+    }
+    if (it->second.deleted && !used) { glDeleteBuffers(1, &it->second.name); it = buffers_.erase(it); }
+    else ++it;
+  }
+}
+bool WebGL1::isBuffer(Id id) const { auto it = buffers_.find(id); return it != buffers_.end() && it->second.bound && !it->second.deleted; }   // a buffer is an object once it has been bound
 bool WebGL1::bufferTargetOk(std::uint32_t t) const {
   if (t == GL_ARRAY_BUFFER || t == GL_ELEMENT_ARRAY_BUFFER) return true;
   return version_ == 2 && (t == GL_UNIFORM_BUFFER || t == GL_COPY_READ_BUFFER || t == GL_COPY_WRITE_BUFFER || t == GL_PIXEL_PACK_BUFFER || t == GL_PIXEL_UNPACK_BUFFER || t == GL_TRANSFORM_FEEDBACK_BUFFER);
@@ -199,7 +235,7 @@ void WebGL1::bindBuffer(std::uint32_t target, Id id) {
   std::uint32_t name = 0;
   if (id) {
     auto it = buffers_.find(id);
-    if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
+    if (it == buffers_.end() || it->second.deleted) return error(GL_INVALID_OPERATION);
     // WebGL 1: a buffer keeps the first target it was bound to. WebGL 2: only the element-array / other split is kept.
     const std::uint32_t pin = version_ == 2 ? (target == GL_ELEMENT_ARRAY_BUFFER ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER) : target;
     const bool copy = target == GL_COPY_READ_BUFFER || target == GL_COPY_WRITE_BUFFER;   // copy targets may hold either kind of buffer
@@ -247,12 +283,12 @@ Id WebGL1::createShader(std::uint32_t type) {
 }
 void WebGL1::shaderSource(Id id, const std::string& src) {
   auto it = shaders_.find(id);
-  if (it == shaders_.end()) return error(GL_INVALID_OPERATION);
+  if (it == shaders_.end()) return error(id < nextId_ ? GL_INVALID_VALUE : GL_INVALID_OPERATION);   // a deleted shader is name 0 to GL
   it->second.source = src;
 }
 void WebGL1::compileShader(Id id) {
   auto it = shaders_.find(id);
-  if (it == shaders_.end()) return error(GL_INVALID_OPERATION);
+  if (it == shaders_.end()) return error(id < nextId_ ? GL_INVALID_VALUE : GL_INVALID_OPERATION);
   Shader& s = it->second;
   // GLSL ES 1.00 requires a precision for every float declaration in a fragment shader: a default (`precision mediump float;`) or a qualifier on the declaration.
   // Desktop GLSL does not, so the rule is checked here on the source with its comments removed.
@@ -286,10 +322,15 @@ void WebGL1::attachShader(Id pid, Id sid) {
   ++s->second.attached;
   glAttachShader(p->second.name, s->second.name);
 }
+// WebGL: names of attributes and uniforms use the GLSL ES source character set
+static bool validName(const std::string& n) {
+  for (unsigned char ch : n) if (ch < 0x20 || ch > 0x7E || std::strchr("\"$`@\\'", ch)) return false;
+  return true;
+}
 void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& name) {
   auto p = programs_.find(pid);
   if (p == programs_.end()) return error(GL_INVALID_OPERATION);
-  if (index >= kMaxAttribs) return error(GL_INVALID_VALUE);
+  if (index >= kMaxAttribs || !validName(name)) return error(GL_INVALID_VALUE);
   if (name.compare(0, 3, "gl_") == 0) return error(GL_INVALID_OPERATION);
   if (name.compare(0, 6, "webgl_") == 0 || name.compare(0, 6, "_webgl") == 0) return error(GL_INVALID_OPERATION);
   p->second.attribBindings[name] = static_cast<int>(index);
@@ -297,8 +338,9 @@ void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& 
 }
 void WebGL1::linkProgram(Id pid) {
   auto it = programs_.find(pid);
-  if (it == programs_.end()) return error(GL_INVALID_OPERATION);
+  if (it == programs_.end()) return error(pid < nextId_ ? GL_INVALID_VALUE : GL_INVALID_OPERATION);
   Program& p = it->second;
+  ++p.gen;
   if (!p.vs || !p.fs || !shaders_[p.vs].compiled || !shaders_[p.fs].compiled) {   // WebGL: both stages, compiled (a desktop driver would link an empty program)
     p.linked = false;
     p.log = "ERROR: a program needs a compiled vertex shader and a compiled fragment shader";
@@ -315,18 +357,26 @@ void WebGL1::linkProgram(Id pid) {
 }
 bool WebGL1::programLinked(Id id) const { auto it = programs_.find(id); return it != programs_.end() && it->second.linked; }
 std::string WebGL1::programInfoLog(Id id) const { auto it = programs_.find(id); return it == programs_.end() ? "" : it->second.log; }
+// a program is gone: the shaders it held may now go too
+void WebGL1::eraseProgram(Id id) {
+  auto it = programs_.find(id);
+  if (it == programs_.end()) return;
+  for (Id sid : {it->second.vs, it->second.fs}) if (sid) { auto sh = shaders_.find(sid); if (sh != shaders_.end() && --sh->second.attached <= 0 && sh->second.deleted) shaders_.erase(sh); }
+  programs_.erase(it);
+}
 void WebGL1::useProgram(Id id) {
-  if (!id) { const Id old = program_; program_ = 0; glUseProgram(0); if (old) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) programs_.erase(o); } return; }
+  if (!id) { const Id old = program_; program_ = 0; glUseProgram(0); if (old) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) eraseProgram(old); } return; }
   auto it = programs_.find(id);
   if (it == programs_.end() || !it->second.linked || it->second.deleted) return error(GL_INVALID_OPERATION);
   const Id old = program_;
   program_ = id;
   glUseProgram(it->second.name);
-  if (old && old != id) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) { for (Id sid : {o->second.vs, o->second.fs}) if (sid) { auto sh = shaders_.find(sid); if (sh != shaders_.end() && --sh->second.attached <= 0 && sh->second.deleted) shaders_.erase(sh); } programs_.erase(o); } }
+  if (old && old != id) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) eraseProgram(old); }
 }
 int WebGL1::getAttribLocation(Id pid, const std::string& name) {
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return -1; }
+  if (!validName(name)) { error(GL_INVALID_VALUE); return -1; }
   if (name.compare(0, 3, "gl_") == 0) return -1;
   return glGetAttribLocation(it->second.name, name.c_str());
 }
@@ -334,6 +384,7 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   UniformLoc l;
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return l; }
+  if (!validName(name)) { error(GL_INVALID_VALUE); return l; }
   if (name.compare(0, 3, "gl_") == 0 || name.compare(0, 6, "webgl_") == 0) return l;
   for (std::size_t br = name.find('['); br != std::string::npos; br = name.find('[', br + 1)) {   // "u[3]", "lights[2].color": digits only, an index that fits an int, a closing bracket that ends the name or is followed by `.` or `[`
     std::size_t close = name.find(']', br);
@@ -358,6 +409,7 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
     if (name.find('.') != std::string::npos ? an == name : an.substr(0, an.find('[')) == base) { l.type = type; l.size = size; break; }
   }
   l.program = pid;
+  l.gen = it->second.gen;
   l.location = loc;
   return l;
 }
@@ -365,13 +417,13 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
 // A uniform call: null location is ignored, the location must belong to the program in use, and the call must match the uniform's type.
 #define ZN_UNIFORM_CHECK(l, ...) \
   if (!(l).valid()) return; \
-  if (!program_ || (l).program != program_) return error(GL_INVALID_OPERATION); \
+  if (!program_ || (l).program != program_ || stale(l)) return error(GL_INVALID_OPERATION); \
   { const std::uint32_t ok_[] = {__VA_ARGS__}; bool match_ = false; for (std::uint32_t t_ : ok_) match_ = match_ || t_ == (l).type; if (!match_) return error(GL_INVALID_OPERATION); }
 void WebGL1::uniform1f(const UniformLoc& l, float x) { ZN_UNIFORM_CHECK(l, GL_FLOAT, GL_BOOL) glUniform1f(l.location, x); }
 void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) glUniform2f(l.location, x, y); }
 void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) glUniform4f(l.location, x, y, z, w); }
 void WebGL1::uniform1i(const UniformLoc& l, int x) {
-  if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION); }
+  if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION); }
   else { ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL) }
   if (isSamplerType(l.type) && (x < 0 || x >= 32)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist (MAX_COMBINED_TEXTURE_IMAGE_UNITS is reported as 32)
   glUniform1i(l.location, x);
@@ -394,13 +446,15 @@ void WebGL1::vertexAttribPointer(std::uint32_t i, int size, std::uint32_t type, 
   if (!arrayBuffer_ && offset != 0) return error(GL_INVALID_OPERATION);
   Attrib& a = attribs_[i];
   a.buffer = arrayBuffer_;
+  releaseBuffers();
   a.size = size; a.type = type; a.normalized = normalized; a.stride = stride; a.offset = offset;
   glVertexAttribPointer(i, size, type, normalized, stride, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)));
 }
 bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances) {
   if (!program_) { error(GL_INVALID_OPERATION); return false; }
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
+  if (!framebufferReady()) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
   const Program& pr = programs_[program_];
+  if (!pr.linked) { error(GL_INVALID_OPERATION); return false; }   // a failed link invalidates the program even while it is in use
   GLint n = 0;
   glGetProgramiv(pr.name, GL_ACTIVE_ATTRIBUTES, &n);
   for (GLint k = 0; k < n; ++k) {   // only the attributes the program reads, as WebGL does
@@ -418,6 +472,19 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     std::int64_t need = a.offset + stride * last + static_cast<std::int64_t>(a.size) * ts;
     if (need > b->second.size) { error(GL_INVALID_OPERATION); return false; }
   }
+  if (version_ == 2) {   // every uniform block needs a buffer range big enough for it
+    GLint blocks = 0;
+    glGetProgramiv(pr.name, GL_ACTIVE_UNIFORM_BLOCKS, &blocks);
+    for (GLint i = 0; i < blocks; ++i) {
+      GLint binding = 0, size = 0;
+      glGetActiveUniformBlockiv(pr.name, static_cast<GLuint>(i), GL_UNIFORM_BLOCK_BINDING, &binding);
+      glGetActiveUniformBlockiv(pr.name, static_cast<GLuint>(i), GL_UNIFORM_BLOCK_DATA_SIZE, &size);
+      auto x = indexed_.find((static_cast<std::uint64_t>(GL_UNIFORM_BUFFER) << 32) | static_cast<std::uint32_t>(binding));
+      auto b = x == indexed_.end() ? buffers_.end() : buffers_.find(x->second.buffer);
+      const std::int64_t avail = b == buffers_.end() ? -1 : x->second.whole ? b->second.size - x->second.offset : x->second.size;
+      if (avail < size) { error(GL_INVALID_OPERATION); return false; }
+    }
+  }
   return true;
 }
 void WebGL1::drawArrays(std::uint32_t mode, int first, int count) {
@@ -428,6 +495,7 @@ void WebGL1::drawArrays(std::uint32_t mode, int first, int count) {
   glDrawArrays(mode, first, count);
 }
 void WebGL1::drawElements(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset) {
+  if (version_ == 2) return drawElementsInstanced(mode, count, type, offset, 1);   // WebGL 2 also takes UNSIGNED_INT
   if (mode > GL_TRIANGLE_FAN) return error(GL_INVALID_ENUM);
   if (type != GL_UNSIGNED_BYTE && type != GL_UNSIGNED_SHORT) return error(GL_INVALID_ENUM);   // UNSIGNED_INT needs OES_element_index_uint
   if (count < 0 || offset < 0) return error(GL_INVALID_VALUE);
@@ -568,6 +636,8 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
   if (attachment == GL_COLOR_ATTACHMENT0) fbos_[fbo_].color = tex;
   glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, textarget, name, 0);
 }
+// the per-draw test: the driver's own answer is enough unless it says no (then the full rules decide)
+bool WebGL1::framebufferReady() { return !fbo_ || glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE || checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE; }
 std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) { error(GL_INVALID_ENUM); return 0; }
   const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
@@ -609,7 +679,7 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
   switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
   if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
   if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
-  if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if (outBytes < static_cast<std::size_t>(w) * h * 4) return error(GL_INVALID_OPERATION);
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, out);
 }

@@ -19,7 +19,7 @@ inline bool isSamplerType(std::uint32_t t) {
 using Id = std::uint32_t;   // 0: null object
 bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
 constexpr int kMaxVertexAttribs = 16;
-struct UniformLoc { Id program = 0; int location = -1; std::uint32_t type = 0; int size = 0; bool valid() const { return program && location >= 0; } };
+struct UniformLoc { Id program = 0; std::uint32_t gen = 0; int location = -1; std::uint32_t type = 0; int size = 0; bool valid() const { return program && location >= 0; } };
 
 class WebGL1 {
  public:
@@ -32,6 +32,7 @@ class WebGL1 {
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
   std::uint32_t getError();
   void raise(std::uint32_t code) { error(code); }   // for the binding layer: wrong-context objects and the like
+  void resizeDrawingBuffer(int w, int h);
   void setAttributes(bool depth, bool stencil) { depthAttr_ = depth; stencilAttr_ = stencil; }
   Param getFramebufferAttachmentParameter(std::uint32_t target, std::uint32_t attachment, std::uint32_t pname);
   Param getIndexedParameter(std::uint32_t target, std::uint32_t index);
@@ -239,9 +240,9 @@ class WebGL1 {
   void generateMipmap(std::uint32_t target);
 
  private:
-  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false; std::vector<std::uint8_t> shadow; };
+  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
-  struct Program { std::uint32_t name = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; std::string log; std::map<std::string, int> attribBindings; };
+  struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; std::string log; std::map<std::string, int> attribBindings; };
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, target = 0; bool bound = false, immutable = false; int levels = 0; };
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
@@ -258,6 +259,10 @@ class WebGL1 {
   bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1);
   bool bufferTargetOk(std::uint32_t t) const;
   void applyIndexed(std::uint32_t target, std::uint32_t index);
+  void releaseBuffers();
+  bool stale(const UniformLoc& l) const { auto p = programs_.find(l.program); return p == programs_.end() || p->second.gen != l.gen; }   // the program was linked again since
+  void eraseProgram(Id id);
+  bool framebufferReady();
   Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
 
   Offscreen gl_;
@@ -277,7 +282,7 @@ class WebGL1 {
   Vao defaultVao_;                       // the state of the VAO 0 while another VAO is bound
   Id curVao_ = 0;
   std::map<std::uint32_t, Id> otherBuffers_;   // WebGL 2 targets other than ARRAY / ELEMENT_ARRAY
-  struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; };
+  struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; bool whole = false; };   // whole: bound with bindBufferBase
   std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
   int version_ = 1;
   bool depthAttr_ = true, stencilAttr_ = false;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report

@@ -23,6 +23,7 @@ void WebGL1::deleteVertexArray(Id id) {
   if (curVao_ == id) bindVertexArray(0);
   glDeleteVertexArrays(1, &it->second.name);
   vaos_.erase(it);
+  releaseBuffers();
 }
 void WebGL1::bindVertexArray(Id id) {
   if (id && vaos_.find(id) == vaos_.end()) return error(GL_INVALID_OPERATION);
@@ -36,6 +37,7 @@ void WebGL1::bindVertexArray(Id id) {
   curVao_ = id;
   if (id) next.bound = true;
   glBindVertexArray(id ? next.name : vao_);
+  releaseBuffers();
 }
 
 // ---- instancing
@@ -103,8 +105,10 @@ void WebGL1::readBuffer(std::uint32_t src) {
 // ---- uniform buffers and the other indexed targets
 void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) {
   auto it = buffers_.find(id);
-  if (id && it == buffers_.end()) return error(GL_INVALID_OPERATION);
+  if (id && (it == buffers_.end() || it->second.deleted)) return error(GL_INVALID_OPERATION);
   bindBufferRange(target, index, id, 0, id ? it->second.size : 0);
+  auto x = indexed_.find((static_cast<std::uint64_t>(target) << 32) | index);
+  if (x != indexed_.end() && x->second.buffer == id) { x->second.whole = true; applyIndexed(target, index); }
 }   // size 0 for a buffer with no storage yet
 void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, std::int64_t offset, std::int64_t size) {
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER && target != GL_TRANSFORM_FEEDBACK_BUFFER)) return error(GL_INVALID_ENUM);
@@ -112,7 +116,7 @@ void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, s
   if (offset < 0 || size < 0) return error(GL_INVALID_VALUE);
   if (id) {
     auto it = buffers_.find(id);
-    if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
+    if (it == buffers_.end() || it->second.deleted) return error(GL_INVALID_OPERATION);
     if (it->second.target == GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_OPERATION);
     if (target == GL_UNIFORM_BUFFER) { GLint a = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &a); if (a > 0 && offset % a) return error(GL_INVALID_VALUE); }   // sizes are checked at draw time: an unallocated buffer can be bound
     it->second.target = GL_ARRAY_BUFFER;
@@ -126,7 +130,7 @@ void WebGL1::applyIndexed(std::uint32_t target, std::uint32_t index) {
   const Indexed& x = indexed_[(static_cast<std::uint64_t>(target) << 32) | index];
   auto it = buffers_.find(x.buffer);
   const std::uint32_t name = x.buffer && it != buffers_.end() ? it->second.name : 0;
-  if (!name || x.size == 0 || x.offset + x.size > it->second.size) glBindBufferBase(target, index, name);
+  if (!name || x.whole || x.size == 0 || x.offset + x.size > it->second.size) glBindBufferBase(target, index, name);
   else glBindBufferRange(target, index, name, static_cast<GLintptr>(x.offset), static_cast<GLsizeiptr>(x.size));
 }
 std::uint32_t WebGL1::getUniformBlockIndex(Id pid, const std::string& name) {
@@ -198,7 +202,7 @@ void WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst,
 // ---- unsigned and integer attributes
 void WebGL1::uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count) {
   if (!l.valid()) return;
-  if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION);
+  if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION);
   const std::uint32_t want = n == 1 ? GL_UNSIGNED_INT : n == 2 ? GL_UNSIGNED_INT_VEC2 : n == 3 ? GL_UNSIGNED_INT_VEC3 : GL_UNSIGNED_INT_VEC4;
   if (l.type != want) return error(GL_INVALID_OPERATION);
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);

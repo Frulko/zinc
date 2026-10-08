@@ -9,7 +9,6 @@ conformance2/reading/read-pixels-into-pixel-pack-buffer.html	@E readPixels: pixe
 conformance2/reading/read-pixels-pack-parameters.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : buffer too small
 conformance2/renderbuffers/framebuffer-object-attachment.html	gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) == '[object Object]' s
 conformance2/renderbuffers/framebuffer-test.html	getError expected: INVALID_OPERATION. Was NO_ERROR : getFramebufferAttachmentParameter(GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING) with n
-conformance2/renderbuffers/multisampled-renderbuffer-initialization.html	internal buffers have been initialized to 0 at (0, 0) expected: 0,0,0,0 was 0,255,0,255
 conformance2/rendering/attrib-type-match.html	getError expected: INVALID_OPERATION. Was NO_ERROR : Type mismatch: type in shader mismatch the default type for a vertex attrib
 conformance2/rendering/blitframebuffer-filter-outofbounds.html	framebuffer not complete
 conformance2/rendering/blitframebuffer-multisampled-readbuffer.html	should be 254,184,69,255 at (0, 0) expected: 254,184,69,255 was 252,122,15,255
@@ -18,25 +17,15 @@ conformance2/rendering/blitframebuffer-size-overflow.html	Framebuffer incomplete
 conformance2/rendering/blitframebuffer-test.html	Framebuffer incomplete.
 conformance2/rendering/clear-func-buffer-type-match.html	getError expected: INVALID_OPERATION. Was NO_ERROR : clear and INT buffer
 conformance2/rendering/draw-buffers.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
-conformance2/rendering/element-index-uint.html	Draw 0 failed pixel test
-conformance2/rendering/uniform-block-buffer-size.html	getError expected: INVALID_OPERATION. Was NO_ERROR : drawArrays: UniformBlock is not backed by a buffer
 conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
 conformance2/state/gl-object-get-calls.html	getError expected: INVALID_OPERATION. Was NO_ERROR : after evaluating: gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ST
-conformance2/sync/sync-webgl-specific.html	gl.getError() should be 1282. Was 0.
+conformance2/sync/sync-webgl-specific.html	Sync object was signaled too early
 conformance2/transform_feedback/transform_feedback.html	gl.getIndexedParameter(gl.TRANSFORM_FEEDBACK_BUFFER_BINDING, 0) should be null. Was [object Object].
 conformance2/transform_feedback/unwritten-output-defaults-to-zero.html	buffer should match expected values
-conformance2/vertex_arrays/vertex-array-object.html	buffer removed too early
 context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
 context/context-lost-restored.html	no PASS
 context/context-lost.html	no PASS
 context/premultiplyalpha-test.html	@E not a function |     at doNextTest (<input>:206:39) |     at <eval> (<input>:123:1)
-misc/bad-arguments-test.html	context.getUniform(program, argument) should throw an exception. Was null.
-misc/invalid-passed-params.html	context.getError() should be 1281. Was 0.
-misc/object-deletion-behaviour.html	gl.isShader(fragmentShader) should be false. Was true.
+misc/object-deletion-behaviour.html	fbo should be blue at (0, 0) expected: 0,0,255,255 was 0,255,0,255
 misc/uninitialized-test.html	@E canvas is not defined |     at <eval> (<input>:227:46) |     at eval (native)
-programs/get-active-test.html	context2.getActiveAttrib(program, 0) should be null (of type object). Was undefined (of type undefined).
-programs/program-test.html	getError expected: INVALID_OPERATION. Was NO_ERROR : drawing with a newly-invalidated program should generate INVALID_OPERATION
-reading/read-pixels-test.html	color pixel at 1, 0 should be about 19,72,0,198, was = 51,153,102,255
-renderbuffers/renderbuffer-initialization.html	internal buffers have been initialized to 0 at (0, 0) expected: 0,0,0,0 was 0,255,0,255
 rendering/multisample-corruption.html	Canvas should be red
-uniforms/uniform-location.html	getError expected: INVALID_OPERATION. Was NO_ERROR : after evaluating: contextA.uniform1i(locationSx, 3)
