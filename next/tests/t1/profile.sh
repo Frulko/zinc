@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # the conformance programs of the profile that run on the host alone (the others need the network, plugins or the old simulator's file-system messages)
-for n in tour clock array_search async string_number_edges conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals clock_frames hardening canvas2d scene3d ink lottie fetch_web; do
+for n in tour clock array_search async string_number_edges conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals clock_frames hardening canvas2d scene3d ink lottie fetch_web three; do
   [ -f ../tests/conformance/$n.f32.out ] || continue
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile esp32 ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile esp32 does not print $n.f32.out"; fail=1; }
 done
@@ -29,6 +29,14 @@ T
 out=$("$ZINC" run --profile esp32 "$tmp/oom.ts" 2>&1); code=$?
 case "$out" in *"out of memory (heap budget 163840 bytes"*) ;; *) echo "no heap overflow under --profile esp32: $out"; fail=1 ;; esac
 [ "$code" -ne 0 ] || { echo "the heap overflow exits with 0"; fail=1; }
+# ZN-229: the profile and its heap budget travel in the ZBC header and an AOT program enforces them
+"$ZINC" --profile esp32 --emit=zbc "$tmp/oom.ts" 2>&1 | head -1 | grep -q "^profile esp32 heap 163840$" || { echo "the ZBC header does not carry the profile and its heap"; fail=1; }
+if command -v c++ >/dev/null; then
+  "$ZINC" build --profile esp32 "$tmp/oom.ts" -o "$tmp/oom_aot" >/dev/null 2>&1 || "$ZINC" build "$tmp/oom.ts" -o "$tmp/oom_aot" --profile esp32 >/dev/null 2>&1
+  out=$("$tmp/oom_aot" 2>&1); code=$?
+  case "$out" in *"out of memory (heap budget 163840 bytes"*) ;; *) echo "an AOT program built with --profile esp32 does not enforce the heap: $out"; fail=1 ;; esac
+  [ "$code" -ne 0 ] || { echo "the AOT heap overflow exits with 0"; fail=1; }
+fi
 [ "$("$ZINC" run "$tmp/oom.ts" 2>&1)" = "survived 100000" ] || { echo "the host's own profile limits the heap"; fail=1; }
 # zinc.json "profile"
 mkdir -p "$tmp/p"

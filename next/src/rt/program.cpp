@@ -21,6 +21,7 @@ Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree,
   Result res;
   std::string err;
   if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
+  if (mod.heapBytes) setHeapBudget(mod.heapBytes);   // the target profile's heap, carried by the program (ZN-229)
   if (setup) setup(m, setupData);
   if (!m.exec(&m.funcs[0], m.stack)) { res.ok = false; res.error = m.error; nativeEnd(m); }
   else {

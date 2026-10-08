@@ -83,6 +83,8 @@ struct Module {
   std::vector<SelInfo> selectors;
   std::vector<Function> functions;  // functions[0] is main
   std::vector<Native> natives;      // the targets of CallNative
+  std::string profile;              // the target profile the program was built for (esp32, ps1...; "" = the host's) and its heap budget in bytes (0 = none): enforced by the runtime, in an AOT program too
+  std::uint32_t heapBytes = 0;
 };
 
 // Emits ZBC. Constructs without bytecode yet (exceptions, fixed-point numbers) are

@@ -551,7 +551,7 @@ struct Verifier {
 // ---- binary format. "ZBC2", u32 version, then: classes, selectors, strings, globals, functions (see encode()).
 
 constexpr char kMagic[4] = {'Z', 'B', 'C', '2'};
-constexpr std::uint32_t kVersion = 6;  // 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
+constexpr std::uint32_t kVersion = 7;  // 7: the profile name and heap budget after the natives; 6: fixed-point ops (fx12, fx16); 5: the natives table after the functions, and CallNative
 
 struct Writer {
   std::vector<std::uint8_t> b;
@@ -662,6 +662,8 @@ std::vector<std::uint8_t> encode(const Module& m) {
   }
   w.u32(static_cast<std::uint32_t>(m.natives.size()));
   for (const Native& n : m.natives) { w.str(n.module); w.str(n.name); w.str(n.sig); }
+  w.str(m.profile);
+  w.u32(m.heapBytes);
   return w.b;
 }
 
@@ -746,13 +748,16 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (!r.str(n.module) || !r.str(n.name) || !r.str(n.sig)) return fail("truncated file (natives)");
     out.natives.push_back(std::move(n));
   }
+  if (!r.str(out.profile)) return fail("truncated file (profile)");
+  out.heapBytes = r.u32();
   if (r.bad) return fail("truncated file");
-  if (r.p != bytes.size()) return fail("trailing bytes after the last native");
+  if (r.p != bytes.size()) return fail("trailing bytes after the profile");
   return true;
 }
 
 std::string disassemble(const Module& m) {
   std::string out;
+  if (!m.profile.empty()) out += "profile " + m.profile + " heap " + std::to_string(m.heapBytes) + "\n";
   for (std::size_t ci = 0; ci < m.classes.size(); ++ci) {
     const ClassInfo& c = m.classes[ci];
     if (c.kind != CKind::Object) { out += "builtin " + c.name + "\n"; continue; }

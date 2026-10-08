@@ -250,6 +250,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       std::string bad = zn::zbc::verify(em.module);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid ZBC: %s\n", bad.c_str()); return 3; }
       out = std::move(em.module);
+      if (gProfile) { out.profile = gProfile->name; out.heapBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(gProfile->heapBytes, 0xFFFFFFFFu)); }
       return 0;
     }
   }
@@ -560,7 +561,6 @@ int main(int argc, char** argv) {
       if (!bakeResources(absPath.c_str(), blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
-    if (gProfile) zn::rt::setHeapBudget(static_cast<std::size_t>(gProfile->heapBytes));   // the target's heap: an overflow stops the program like on the device
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
   }

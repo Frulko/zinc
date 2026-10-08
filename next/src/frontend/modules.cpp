@@ -967,7 +967,9 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         const Node& mem = pr.ast.nodes[pr.ast.nodes[d].kids[k]];
         std::string mname(mem.text);
         if (mem.kind != N::Method) { bad(kZNativeTypeNotExpressible, "'" + mname + "' is not a method"); ok = false; break; }
-        std::string sig, params, args, wrapArgs;
+        std::string sig, params, args, wrapArgs, pre, post;   // pre/post: under a profile whose `number` is not f64, number[] arguments the module may fill travel in f64 copies that are copied back (ZN-229)
+        const Profile* cp = currentProfile();
+        const bool narrow = cp && cp->number != Num::f64;
         for (std::size_t j = 2; j < mem.kids.size(); ++j) {
           std::uint32_t ty = pr.ast.nodes[mem.kids[j]].kids.empty() ? kNone : pr.ast.nodes[mem.kids[j]].kids[0];
           std::string l = ty == kNone ? "" : nativeLetter(pr.ast, text, ty, false, true);
@@ -976,6 +978,12 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
           std::string tyText = text.substr(pr.ast.nodes[ty].start, pr.ast.nodes[ty].end - pr.ast.nodes[ty].start);
           std::string pn = "__p" + std::to_string(j - 2);
           params += (j > 2 ? ", " : "") + pn + ": " + tyText;
+          if (narrow && l == "D" && tyText == "number[]") {
+            std::string an = "__a" + std::to_string(j - 2);
+            pre += "const " + an + ": f64[] = []; for (let __i: i32 = 0; __i < " + pn + ".length; __i++) " + an + ".push(" + pn + "[__i] as f64); ";
+            post += "while (" + pn + ".length > 0) " + pn + ".pop(); for (let __i: i32 = 0; __i < " + an + ".length; __i++) " + pn + ".push(" + an + "[__i] as number); ";
+            args += (j > 2 ? ", " : "") + an;
+          } else
           args += (j > 2 ? ", " : "") + dynArgument(pr.ast, text, ty, tyText, pn);
         }
         if (!ok) break;
@@ -994,7 +1002,8 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
         } else {
           bool dynResult = rl == "s" && rtext.find("unknown") != std::string::npos;
           if (dynResult) call = "__nativeValue(" + call + ")";
-          body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
+          if (post.empty()) body += "  " + mname + "(" + params + "): " + rtext + " { " + (rl == "n" ? "" : "return ") + call + "; }\n";
+          else body += "  " + mname + "(" + params + "): " + rtext + " { " + pre + (rl == "n" ? call + "; " + post + "}\n" : "const __r = " + call + "; " + post + "return __r; }\n");
         }
       }
       break;
