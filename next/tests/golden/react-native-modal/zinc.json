@@ -1,0 +1,1 @@
+{ "name": "react-native-modal", "entry": "main.tsx", "ui": { "preset": "react-native" } }

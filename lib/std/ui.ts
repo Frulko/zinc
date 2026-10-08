@@ -4176,6 +4176,8 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
 /** Draw commands the last painted frame recorded (tests assert what a style costs: a ring is one border). */
 let lastCommands: i32 = 0;
 export function lastFrameCommands(): i32 { return lastCommands; }
+/** The mounted root (-1 before mount): where a program hangs nodes made outside its tree (an alert). */
+export function rootNode(): i32 { return root; }
 export function setRoot(h: i32): void {
   root = h;
   layoutDirty = true;

@@ -1,0 +1,12 @@
+[system] opener.open {"target":"https://reactnative.dev"}
+[system] opener.open {"target":"tel:+33123456789"}
+[system] opener.open {"target":"ftp://example.com"}
+[system] denied opener.open ftp://example.com
+[system] deep-link.getCurrent {}
+[system] opener.last {}
+[system] event {"type":"open-url","args":["myapp://item/7"]}
+ftp: ftp://example.com is outside scopes.opener.allow
+can open true
+initial ""
+last {"text":"open tel:+33123456789"}
+url event myapp://item/7

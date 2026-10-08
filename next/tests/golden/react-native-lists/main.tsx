@@ -20,7 +20,7 @@ function App(): i32 {
   return <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#ffffff' }}>
     <View style={{ width: 180 }}>
       <FlatList data={items} renderItem={(x: ListRenderItemInfo<Item>) => <View style={{ height: 40, justifyContent: 'center' }}><Text>{x.item.label}</Text></View>}
-        keyExtractor={(it: Item, i: number) => `${it.id}`} ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#dddddd' }} />}
+        keyExtractor={(it: Item) => `${it.id}`} ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#dddddd' }} />}
         ListHeaderComponent={() => <Text>header</Text>} ListFooterComponent={() => <Text>footer</Text>}
         getItemLayout={(d: Item[], i: number) => { return { length: 41, offset: 41 * i, index: i }; }}
         onEndReached={() => { log.push('end reached'); }} onEndReachedThreshold={0.5}

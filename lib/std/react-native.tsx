@@ -400,3 +400,78 @@ export function useAnimated(n: A.Node): number {
   return v;
 }
 
+// ---------------------------------------------------------------- Modal, Alert (ZN-367.04); Linking is zinc:react-native/linking (it needs the opener permission)
+export type ModalProps = { visible?: boolean; transparent?: boolean; animationType?: string; onRequestClose?: () => void; onShow?: () => void; children?: () => i32 };
+class ModalState { open: boolean = false; at: A.Value = new A.Value(0); }
+/** A full-screen modal layer above the app: the backdrop is white unless transparent, Escape asks onRequestClose, animationType 'slide' comes up from
+ *  the bottom and 'fade' fades in (300 ms). ponytail: it hides at once on close (React Native animates the way out too). */
+export function Modal(p: ModalProps): i32 {
+  const host = useRef<i32>(-1);
+  const st = useRef<ModalState>(new ModalState());
+  const visible = p.visible ?? true;
+  const k = useAnimated(st.current.at);
+  useEffect((): void => {
+    const s = st.current, h = host.current;
+    if (visible && !s.open) {
+      s.open = true;
+      ui.openLayer(h, { modal: true, priority: 1000 });
+      ui.onDismiss(h, (): void => { const f = p.onRequestClose; if (f !== undefined) f(); });
+      if (p.animationType === 'slide' || p.animationType === 'fade') { s.at.setValue(0); A.timing(s.at, { toValue: 1, duration: 300, easing: A.Easing.out(A.Easing.cubic) }).start(); }
+      else s.at.setValue(1);
+      const f = p.onShow; if (f !== undefined) f();
+    } else if (!visible && s.open) { s.open = false; ui.closeLayer(h); }
+  }, [visible ? 1 : 0]);
+  const motion = p.animationType === 'slide' ? new ui.Style(['translateY'], [(1 - k) * height()]) : p.animationType === 'fade' ? new ui.Style(['opacity'], [k]) : NONE;
+  return <View ref={host} style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, p.transparent === true ? NONE : new ui.Style(['backgroundColor', 'backgroundAlpha'], [0xffffff, 255]),
+    motion, visible ? NONE : new ui.Style(['hidden'], [1])]}>{renderChildren(p.children)}</View>;
+}
+
+export type AlertButton = { text?: string; onPress?: () => void; style?: string };
+class AlertBox { node: i32 = -1; cancel: (() => void) | null = null; }
+const DEFAULT_OK: AlertButton[] = [{ text: 'OK' }];
+/** React Native's Alert.alert as an in-app dialog over the app (a modal layer): the buttons close it, then call their onPress; Escape presses the
+ *  'cancel' button (or just closes when there is none and the alert is not a choice). */
+export class Alert {
+  static alert(title: string, message: string = '', buttons: AlertButton[] = DEFAULT_OK): void {
+    const root = ui.rootNode();
+    if (root < 0) {   // called before the app is mounted (an effect of the first render): shown on the first frame that has a root
+      const later: () => void = (): void => { if (ui.rootNode() < 0) return; ui.removeStepper(later); Alert.alert(title, message, buttons); };
+      ui.addStepper(later);
+      return;
+    }
+    const box = new AlertBox();
+    const close = (): void => { ui.closeLayer(box.node); ui.remove(root, box.node); };
+    const shade = ui.createNode(ui.VIEW);
+    ui.setStyles(shade, [new ui.Style(['position', 'left', 'top', 'right', 'bottom', 'alignItems', 'justifyContent', 'backgroundColor', 'backgroundAlpha'], [1, 0, 0, 0, 0, 1, 1, 0x000000, 90])]);
+    const card = ui.createNode(ui.VIEW);
+    ui.setStyles(card, [new ui.Style(['width', 'borderRadius', 'backgroundColor', 'backgroundAlpha', 'paddingTop'], [270, 14, 0xf2f2f2, 255, 18])]);
+    const t = ui.createText(title);
+    ui.setStyles(t, [new ui.Style(['fontSize', 'fontWeight', 'textAlign', 'paddingLeft', 'paddingRight', 'color'], [17, 1, 1, 16, 16, 0x000000])]);
+    ui.insert(card, t, -1);
+    if (message !== '') {
+      const m = ui.createText(message);
+      ui.setStyles(m, [new ui.Style(['fontSize', 'textAlign', 'paddingLeft', 'paddingRight', 'marginTop', 'color'], [13, 1, 16, 16, 4, 0x000000])]);
+      ui.insert(card, m, -1);
+    }
+    const row = ui.createNode(ui.VIEW);
+    ui.setStyles(row, [new ui.Style(['flexDirection', 'marginTop', 'borderTopWidth', 'borderColor'], [buttons.length === 2 ? 1 : 0, 18, 1, 0xc6c6c8])]);
+    for (const b of buttons) {
+      const btn = ui.createNode(ui.VIEW);
+      ui.setStyles(btn, [new ui.Style(['grow', 'height', 'alignItems', 'justifyContent'], [1, 44, 1, 1])]);
+      const label = ui.createText(b.text ?? 'OK');
+      ui.setStyles(label, [new ui.Style(['fontSize', 'fontWeight', 'color'], [17, b.style === 'cancel' ? 1 : 0, b.style === 'destructive' ? 0xff3b30 : 0x007aff])]);
+      ui.insert(btn, label, -1);
+      const press = (): void => { close(); const f = b.onPress; if (f !== undefined) f(); };
+      if (b.style === 'cancel') box.cancel = press;
+      ui.listen(btn, press);
+      ui.insert(row, btn, -1);
+    }
+    ui.insert(card, row, -1);
+    ui.insert(shade, card, -1);
+    box.node = shade;
+    ui.insert(root, shade, -1);
+    ui.openLayer(shade, { modal: true, priority: 2000 });
+    ui.onDismiss(shade, (): void => { const c = box.cancel; if (c !== null) (c as () => void)(); else if (buttons.length <= 1) close(); });
+  }
+}
+

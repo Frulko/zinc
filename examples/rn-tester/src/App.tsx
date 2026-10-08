@@ -8,6 +8,7 @@ import { FlatListPage, SectionListPage } from './pages/lists';
 import { AnimatedPage, GesturesPage, LayoutAnimationPage } from './pages/motion';
 import { StylesPage } from './pages/styles';
 import { PlatformPage } from './pages/platform';
+import { DialogsPage } from './pages/dialogs';
 
 class Entry { id: string; title: string; about: string; constructor(id: string, title: string, about: string) { this.id = id; this.title = title; this.about = about; } }
 const PAGES: Entry[] = [
@@ -19,6 +20,7 @@ const PAGES: Entry[] = [
   new Entry('animated', 'Animated', 'timing, spring, interpolate, colours, loop'),
   new Entry('gestures', 'Gestures', 'PanResponder, Animated.event: drag and spring back, a scroll-driven fade'),
   new Entry('layout', 'LayoutAnimation', 'animated insert and remove'),
+  new Entry('dialogs', 'Modal · Alert', 'slide and fade modals, onRequestClose, Alert.alert'),
   new Entry('styles', 'Styles', 'transform, shadows, elevation, borders, run-time values'),
   new Entry('platform', 'Platform · Appearance', 'Platform, Dimensions, PixelRatio, dark scheme'),
 ];
@@ -34,6 +36,7 @@ function renderMain(id: string, open: (id: string) => void): i32 {
   if (id === 'animated') return <AnimatedPage />;
   if (id === 'gestures') return <GesturesPage />;
   if (id === 'layout') return <LayoutAnimationPage />;
+  if (id === 'dialogs') return <DialogsPage />;
   if (id === 'styles') return <StylesPage />;
   if (id === 'platform') return <PlatformPage />;
   return <Home open={open} />;

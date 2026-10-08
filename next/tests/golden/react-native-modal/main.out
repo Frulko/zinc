@@ -1,0 +1,8 @@
+closed: modal text 700 hidden
+sliding: below its place
+open: show, text at 40
+after Escape: show request close
+alert shown: true
+pressed Delete: delete, alert gone true
+Escape on an alert: no, gone true
+one-button alert closed by OK: true
