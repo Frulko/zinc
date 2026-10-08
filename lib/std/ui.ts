@@ -1906,6 +1906,7 @@ function inheritText(n: UiNode): void {
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
 function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
+  if (fam === 'sans' && fontSans !== '') { const f = familyFace(fontSans, weight, italic, px); if (f >= 0) return f; }
   const want = Math.max(0, Math.min(8, Math.round(weight / 100) - 1));
   for (let k = 0; k < 9; k++) {
     for (let s = 0; s < 2; s++) {
@@ -1924,6 +1925,13 @@ function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
     }
   }
   return -1;
+}
+let fontSans: string = '';
+/** Tailwind's --font-sans: the family font-sans (the default) means, e.g. an app's assets/PublicSans*.ttf; '' is the built-in Inter. Missing weights fall back to it. */
+export function setFontSans(family: string): void {
+  if (family === fontSans) return;
+  fontSans = family;
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
 }
 /** font-[A,B,C]: the first family of the list that has a face wins; the built-in sans is the last resort. */
 function faceOf(n: UiNode, px: i32): i32 {

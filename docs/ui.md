@@ -426,6 +426,8 @@ styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`
 empty styles. Object spreads, nested style arrays, `calc`, grid, arbitrary CSS
 selectors and the React Native transform-array syntax are not implemented. Unsupported keys/values are build errors.
 Static font sizes (1–256 px) are passed to font baking; dynamic sizes use Zinc's existing nearest baked font behavior.
+Fonts of the app: every `assets/<Family>.ttf` is `font-[Family]`, its weights `<Family>-Medium.ttf`, `-SemiBold`, `-Bold` (... `-Black`, `-Italic`);
+`ui.setFontSans('Family')` makes it what `font-sans`, the default, means (Tailwind's `--font-sans`; `examples/nuxt-ui` uses Public Sans), Inter otherwise.
 
 ### Precedence, reset and caching
 

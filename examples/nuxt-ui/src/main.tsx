@@ -2,12 +2,14 @@
 // NUXT_PAGE=gallery | navigation. NUXT_SCHEME=dark starts dark; NUXT_OPEN=modal|slideover|menu|tooltip|toast opens an overlay of the gallery.
 import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
+import { setFontSans } from 'zinc:ui';
 import { theme, setColorMode, hex } from 'zinc:ui/nuxt';
 import { Gallery } from './gallery';
 import { openAtStart } from './overlays';
 import { Navigation } from './navigation';
 import { Dashboard, setSection } from './dashboard';
 
+setFontSans('PublicSans');   // ui.nuxt.com's face (assets/PublicSans*.ttf, 400 to 700)
 if (env('NUXT_SCHEME') === 'dark') setColorMode('dark');
 if (env('NUXT_SECTION') !== '') setSection(env('NUXT_SECTION'));
 const page = env('NUXT_PAGE');

@@ -3,7 +3,7 @@
 # the gallery of every component light and dark with the Modal, Slideover, menu and a toast open, the navigation page, and the dashboard app's sections.
 # Scripted clicks and typing drive every control (inspect.tsx), each overlay opens and closes on Escape and a press outside, the navigation page's Tabs,
 # Accordion, Table, Pagination and sidebar respond (inspect-nav.tsx), and the dashboard navigates, filters, adds a customer through its modal, switches the
-# scheme and collapses its sidebar (inspect-dashboard.tsx).
+# scheme and collapses its sidebar (inspect-dashboard.tsx). The app's text is Public Sans at 400 to 700 (ZN-379, inspect-font.tsx).
 cd "$(dirname "$0")/../.." || exit 2
 app=../examples/nuxt-ui
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1
@@ -24,5 +24,6 @@ check() {   # check <entry> <frames> <size> <golden>
 check inspect.tsx 80 1100x1400 inspect.out
 check inspect-nav.tsx 14 1100x900 inspect-nav.out
 check inspect-dashboard.tsx 14 1280x860 inspect-dashboard.out
+check inspect-font.tsx 4 400x300 inspect-font.out
 [ $fail -eq 0 ] && echo "nuxt ui: ok"
 exit $fail
