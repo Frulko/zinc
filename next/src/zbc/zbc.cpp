@@ -719,8 +719,8 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     Function f;
     if (!r.str(f.name)) return fail("truncated file (function name)");
     std::uint8_t np = r.u8();
-    for (std::uint8_t k = 0; k < np; ++k) { VType t; if (!r.vt(t)) return fail("invalid parameter type"); f.params.push_back(t); }
-    if (!r.vt(f.ret)) return fail("invalid return type");
+    for (std::uint8_t k = 0; k < np; ++k) { VType t; if (!r.vt(t)) return fail(r.bad ? "truncated file (parameter type)" : "invalid parameter type"); f.params.push_back(t); }
+    if (!r.vt(f.ret)) return fail(r.bad ? "truncated file (return type)" : "invalid return type");
     f.nregs = r.u16();
     std::uint32_t ncode = r.u32();
     if (ncode > kMaxCodeWords || !r.has(static_cast<std::size_t>(ncode) * 4)) return fail("truncated file (code)");

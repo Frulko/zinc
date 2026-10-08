@@ -1,5 +1,6 @@
 // The machine the engines share: loading a module into classes and functions, allocation, reference counting and
 // destruction order, comparator and exception callbacks. The interpreter (vm) and the compiled programs (aot) both link it.
+#include <pthread.h>
 #include "rt/rt.h"
 #include "zn/native.h"
 
@@ -56,6 +57,20 @@ std::string numberToString(double v) {
 
 
 namespace {
+
+// The lowest address compiled code may use on this thread: its stack's low end plus 256 KiB for what the runtime calls need (null when the system does not say).
+char* cStackLimit() {
+  char* low = nullptr;
+#if defined(__APPLE__)
+  pthread_t t = pthread_self();
+  low = static_cast<char*>(pthread_get_stackaddr_np(t)) - pthread_get_stacksize_np(t);
+#elif defined(__linux__)
+  pthread_attr_t a;
+  void* addr = nullptr; size_t sz = 0;
+  if (pthread_getattr_np(pthread_self(), &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); low = static_cast<char*>(addr); }
+#endif
+  return low ? low + 256 * 1024 : nullptr;
+}
 
 // Every frame starts at most 255 slots above its caller's base and has at most 256 registers, so a depth check alone
 // bounds the stack: no per-call stack-end check.
@@ -226,6 +241,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
   if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
   for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; strConsts.push_back(so); }
+  cLimit = cStackLimit();
   std::size_t depthMax = maxDepth ? maxDepth : kMaxCallDepth;
   frames.resize(depthMax);
   fp = frames.data();

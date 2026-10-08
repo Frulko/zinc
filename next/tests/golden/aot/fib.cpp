@@ -19,50 +19,59 @@ static const unsigned char kModule[] = {
 
 static int f0(Machine& m, Slot* r);
 static int f1(Machine& m, Slot* r);
+static Slot t1(Machine& m, Slot);
 
 // function 0
 static int f0(Machine& m, Slot* r) {
-  if (__builtin_expect(m.depth >= kMaxCallDepth, 0)) { m.error = "stack overflow"; return 2; }
-  ++m.depth;
+  if (__builtin_expect(op::stackLow(m) || (r + 1 > m.stackEnd && r >= m.stack && r < m.stackEnd), 0)) { m.error = "stack overflow"; return 2; }
   r[0] = zn::ops::sx(32);
-  { int st = f1(m, r + 0); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
+  { int st = f1(m, r + 0); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } return st; } }
   *m.out += std::to_string(static_cast<std::int64_t>(r[0]));
   *m.out += '\n';
-  { --m.depth; return 0; }
-  --m.depth;
+  return 0;
   return 0;
 }
 
-// function 1
-static int f1(Machine& m, Slot* r) {
-  if (__builtin_expect(m.depth >= kMaxCallDepth, 0)) { m.error = "stack overflow"; return 2; }
-  ++m.depth;
-  if (zn::ops::JGeIK(r[0], 2)) goto L3;
-  { r[0] = r[0]; --m.depth; return 0; }
+// function 1 (typed)
+static Slot t1(Machine& m, Slot a0) {
+  if (__builtin_expect(op::stackLow(m), 0)) { m.error = "stack overflow"; m.failed = true; return 0; }
+  Slot r0 = a0;
+  Slot r1;
+  Slot r2;
+  Slot r3;
+  if (zn::ops::JGeIK(r0, 2)) goto L3;
+  return r0;
 L3:
-  r[1] = zn::ops::AddI32K(r[0], -1);
-  if (zn::ops::JGeIK(r[1], 2)) goto L7;
+  r1 = zn::ops::AddI32K(r0, -1);
+  if (zn::ops::JGeIK(r1, 2)) goto L7;
   goto L12;
 L7:
-  r[2] = zn::ops::AddI32K(r[1], -1);
-  { int st = f1(m, r + 2); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[3] = zn::ops::AddI32K(r[1], -2);
-  { int st = f1(m, r + 3); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[1] = zn::ops::AddI32(r[2], r[3]);
+  r2 = zn::ops::AddI32K(r1, -1);
+  { Slot v = t1(m, r2); if (__builtin_expect(m.failed, 0)) return 0; r2 = v; }
+  r3 = zn::ops::AddI32K(r1, -2);
+  { Slot v = t1(m, r3); if (__builtin_expect(m.failed, 0)) return 0; r3 = v; }
+  r1 = zn::ops::AddI32(r2, r3);
 L12:
-  r[0] = zn::ops::AddI32K(r[0], -2);
-  if (zn::ops::JGeIK(r[0], 2)) goto L16;
+  r0 = zn::ops::AddI32K(r0, -2);
+  if (zn::ops::JGeIK(r0, 2)) goto L16;
   goto L21;
 L16:
-  r[2] = zn::ops::AddI32K(r[0], -1);
-  { int st = f1(m, r + 2); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[3] = zn::ops::AddI32K(r[0], -2);
-  { int st = f1(m, r + 3); if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } --m.depth; return st; } }
-  r[0] = zn::ops::AddI32(r[2], r[3]);
+  r2 = zn::ops::AddI32K(r0, -1);
+  { Slot v = t1(m, r2); if (__builtin_expect(m.failed, 0)) return 0; r2 = v; }
+  r3 = zn::ops::AddI32K(r0, -2);
+  { Slot v = t1(m, r3); if (__builtin_expect(m.failed, 0)) return 0; r3 = v; }
+  r0 = zn::ops::AddI32(r2, r3);
 L21:
-  r[0] = zn::ops::AddI32(r[1], r[0]);
-  { r[0] = r[0]; --m.depth; return 0; }
-  --m.depth;
+  r0 = zn::ops::AddI32(r1, r0);
+  return r0;
+  return 0;
+}
+
+static int f1(Machine& m, Slot* r) {
+  m.failed = false;
+  Slot v = t1(m, r[0]);
+  if (__builtin_expect(m.failed, 0)) return 2;
+  r[0] = v;
   return 0;
 }
 

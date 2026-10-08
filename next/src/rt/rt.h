@@ -163,7 +163,9 @@ struct Machine {
   bool resolveDyn();
   std::vector<Obj*> destroyStack;
   Obj* thrown = nullptr;  // a compiled program: the exception being unwound (the interpreter keeps it in a register)
-  std::uint32_t depth = 0;  // a compiled program: the call depth
+  std::uint32_t depth = 0;  // (the interpreter and virtual calls of earlier builds; compiled code checks the stack pointer, see stackLow)
+  char* cLimit = nullptr;   // a compiled program: the lowest address its C++ frames may reach (the stack of the thread that loaded it, less a margin)
+  bool failed = false;      // a compiled program: a typed function trapped (the error is in `error`); checked after typed calls
   std::vector<std::uint8_t> globalRef;  // per global: holds a reference
   Slot* stack = nullptr;
   std::vector<Frame> frames;
@@ -294,6 +296,8 @@ inline const Func* virtualTarget(const Slot* r, unsigned a, unsigned sel, const 
   if (__builtin_expect(!o, 0)) { err = kNullRef; return nullptr; }
   return o->cls->vtable[sel];
 }
+// Whether the C++ stack of the running thread is nearly used up (the recursion of compiled functions; no store, one compare).
+inline bool stackLow(const Machine& m) { return static_cast<char*>(__builtin_frame_address(0)) < m.cLimit; }
 inline const char* downcast(const Slot* r, unsigned a, unsigned cls) {
   auto* o = reinterpret_cast<const Obj*>(r[a]);
   return o && !isSubclassRT(o->cls, cls) ? "invalid cast" : nullptr;
