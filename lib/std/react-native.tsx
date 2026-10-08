@@ -2,7 +2,7 @@
 // Native 0.76; what does not map is listed in docs/react-native.md. View, Text, Image and ScrollView imported from here are zinc:ui's host elements; the
 // style props of these components (style, *Style) arrive as one flattened Style, as React Native composes `style={[a, b]}`.
 import * as ui from 'zinc:ui';
-import { useState, useEffect, useRef } from 'zinc:ui/react';
+import { useState, useEffect, useRef } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
 import { platform, env } from 'zinc:sys';
 import { width, height, pixelScale, stroke } from 'zinc:gfx';
 
@@ -266,3 +266,123 @@ export function KeyboardAvoidingView(p: KeyboardAvoidingViewProps): i32 {
   const lift = p.behavior === 'position' ? new ui.Style(['translateY'], [-room]) : p.behavior !== undefined ? new ui.Style(['paddingBottom'], [room]) : NONE;
   return <View style={[p.style ?? NONE, lift]}>{renderChildren(p.children)}</View>;
 }
+
+// ---------------------------------------------------------------- FlatList, SectionList, RefreshControl (ZN-367.03)
+/** A spinner row: what a list shows at its top while `refreshing`. */
+export function RefreshControl(p: { refreshing: boolean; onRefresh?: () => void; tintColor?: string; colors?: string[] }): i32 {
+  if (!p.refreshing) return <View />;
+  return <View style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={p.tintColor ?? '#999999'} /></View>;
+}
+/** What a list watches on its scroll node: onEndReached once per data length, pull to refresh past 64 px of overscroll at the top. */
+class ListWatch {
+  onEnd: (() => void) | null = null; threshold: number = 0.5; endFired: boolean = false; count: i32 = -1;
+  onRefresh: (() => void) | null = null; refreshing: boolean = false; pulled: boolean = false; node: i32 = -1;
+}
+function watchList(w: ListWatch, h: i32, count: i32, onEnd: (() => void) | undefined, threshold: number | undefined, onRefresh: (() => void) | undefined, refreshing: boolean): void {
+  w.onEnd = onEnd ?? null; w.threshold = threshold ?? 0.5; w.onRefresh = onRefresh ?? null; w.refreshing = refreshing;
+  if (count !== w.count) { w.count = count; w.endFired = false; }   // more data: the end can be reached again
+  if (w.node === h) return;
+  w.node = h;
+  ui.onScroll(h, (e: ui.ResponderEvent, g: ui.GestureState): void => {
+    const n = ui.inspectNode(h);
+    if (n === null) return;
+    const y = e.nativeEvent.contentOffset.y, view = n.lh, far = n.contentH - (y + view);
+    if (!w.endFired && w.onEnd !== null && far <= w.threshold * view) { w.endFired = true; (w.onEnd as () => void)(); }
+    if (y < -64 && !w.pulled && !w.refreshing && w.onRefresh !== null) { w.pulled = true; (w.onRefresh as () => void)(); }
+    if (y >= 0) w.pulled = false;
+  });
+}
+function renderSlot(f: (() => i32) | undefined): i32 { return f !== undefined ? f() : ui.createNode(ui.FRAGMENT); }
+
+export type ListRenderItemInfo<T> = { item: T; index: number };
+export type ItemLayout = { length: number; offset: number; index: number };
+export type FlatListProps<T> = {
+  data: T[]; renderItem: (info: ListRenderItemInfo<T>) => i32; keyExtractor?: (item: T, index: number) => string;
+  ItemSeparatorComponent?: () => i32; ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; ListEmptyComponent?: () => i32;
+  onEndReached?: () => void; onEndReachedThreshold?: number; refreshing?: boolean; onRefresh?: () => void;
+  numColumns?: number; getItemLayout?: (data: T[], index: number) => ItemLayout; initialNumToRender?: number;
+  style?: ui.Style; contentContainerStyle?: ui.Style; columnWrapperStyle?: ui.Style; testID?: string;
+};
+/** A virtualised vertical list: only the rows near the viewport exist (zinc:ui virtualize, rows of their own heights estimated from getItemLayout or
+ *  44 px). Rows: the refresh spinner while refreshing, ListHeaderComponent, the items (numColumns per row, each followed by ItemSeparatorComponent)
+ *  or ListEmptyComponent, ListFooterComponent. ponytail: horizontal lists, inverted and scrollToIndex are not offered yet (docs/react-native.md). */
+export function FlatList<T>(p: FlatListProps<T>): i32 {
+  const sv = useRef<i32>(-1);
+  const watch = useRef<ListWatch>(new ListWatch());
+  const cols: i32 = Math.max(1, Math.floor(p.numColumns ?? 1));
+  const n: i32 = p.data.length, refreshing = p.refreshing === true;
+  const spin: i32 = refreshing ? 1 : 0, head: i32 = p.ListHeaderComponent !== undefined ? 1 : 0;
+  const body: i32 = n === 0 ? (p.ListEmptyComponent !== undefined ? 1 : 0) : Math.ceil(n / cols);
+  const total: i32 = spin + head + body + (p.ListFooterComponent !== undefined ? 1 : 0);
+  const gl = p.getItemLayout;
+  const est = gl !== undefined && n > 0 ? gl(p.data, 0).length : 44;
+  const renderCell = (i: i32): i32 => {
+    const sep = p.ItemSeparatorComponent;
+    const last = i === n - 1;
+    return <View style={cols > 1 ? { flex: 1 } : NONE}>{p.renderItem({ item: p.data[i], index: i })}{renderSlot(sep === undefined || last || cols > 1 ? undefined : sep)}</View>;
+  };
+  const renderBodyRow = (r: i32): i32 => {
+    if (cols === 1) return renderCell(r);
+    const row = ui.createNode(ui.FRAGMENT);
+    for (let c = 0; c < cols && r * cols + c < n; c++) ui.insert(row, renderCell(r * cols + c), -1);
+    return <View style={[{ flexDirection: 'row' }, p.columnWrapperStyle ?? NONE]}>{renderChildren((): i32 => row)}</View>;
+  };
+  const renderRow = (i: i32): i32 => {
+    if (i < spin) return <RefreshControl refreshing={true} />;
+    if (i < spin + head) return renderSlot(p.ListHeaderComponent);
+    if (i < spin + head + body) return n === 0 ? renderSlot(p.ListEmptyComponent) : renderBodyRow(i - spin - head);
+    return renderSlot(p.ListFooterComponent);
+  };
+  const list = <ScrollView ref={sv} style={[{ flex: 1 }, p.style ?? NONE]} />;
+  _virtual(sv.current, total, -est, renderRow);
+  watchList(watch.current, sv.current, n, p.onEndReached, p.onEndReachedThreshold, p.onRefresh, refreshing);
+  return list;
+}
+
+/** A section is exactly { title, data } here: a generic call takes the shape of the literal it is given, so an optional field would make a different
+ *  record (contextual typing of generic arguments: ZN-383). */
+export type SectionBase<T> = { title: string; data: T[] };
+export type SectionListRenderItemInfo<T> = { item: T; index: number; section: SectionBase<T> };
+export type SectionHeaderInfo<T> = { section: SectionBase<T> };
+export type SectionListProps<T> = {
+  sections: SectionBase<T>[]; renderItem: (info: SectionListRenderItemInfo<T>) => i32;
+  renderSectionHeader?: (info: SectionHeaderInfo<T>) => i32; renderSectionFooter?: (info: SectionHeaderInfo<T>) => i32;
+  stickySectionHeadersEnabled?: boolean; keyExtractor?: (item: T, index: number) => string; ItemSeparatorComponent?: () => i32;
+  ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; onEndReached?: () => void; onEndReachedThreshold?: number;
+  refreshing?: boolean; onRefresh?: () => void; style?: ui.Style; contentContainerStyle?: ui.Style;
+};
+/** Sections with their headers, sticky by default (iOS): a header stays at the top while its section scrolls under it. ponytail: not virtualised (every
+ *  row exists); fine for the hundreds of rows a sectioned screen shows, a FlatList is the tool for thousands. */
+export function SectionList<T>(p: SectionListProps<T>): i32 {
+  const sv = useRef<i32>(-1);
+  const watch = useRef<ListWatch>(new ListWatch());
+  const sticky = p.stickySectionHeadersEnabled ?? true;
+  let count: i32 = 0;
+  const content = ui.createNode(ui.FRAGMENT);
+  for (const sec of p.sections) {
+    const part = ui.createNode(ui.VIEW);   // the section's box bounds its sticky header, as in React Native (a direct parent: sticky reads its box)
+    const hd = p.renderSectionHeader;
+    if (hd !== undefined) {
+      const h = hd({ section: sec });
+      if (sticky) { const wrap = ui.createNode(ui.VIEW); ui.setClass(wrap, 'sticky top-0 z-10'); ui.insert(wrap, h, -1); ui.insert(part, wrap, -1); } else ui.insert(part, h, -1);
+    }
+    for (let i = 0; i < sec.data.length; i++) {
+      ui.insert(part, p.renderItem({ item: sec.data[i], index: i, section: sec }), -1);
+      const sep = p.ItemSeparatorComponent;
+      if (sep !== undefined && i < sec.data.length - 1) ui.insert(part, sep(), -1);
+      count++;
+    }
+    const ft = p.renderSectionFooter;
+    if (ft !== undefined) ui.insert(part, ft({ section: sec }), -1);
+    ui.insert(content, part, -1);
+  }
+  const list = <ScrollView ref={sv} style={[{ flex: 1 }, p.style ?? NONE]}>
+    <RefreshControl refreshing={p.refreshing === true} />
+    {renderSlot(p.ListHeaderComponent)}
+    <View style={p.contentContainerStyle ?? NONE}>{renderChildren((): i32 => content)}</View>
+    {renderSlot(p.ListFooterComponent)}
+  </ScrollView>;
+  watchList(watch.current, sv.current, count, p.onEndReached, p.onEndReachedThreshold, p.onRefresh, p.refreshing === true);
+  return list;
+}
+

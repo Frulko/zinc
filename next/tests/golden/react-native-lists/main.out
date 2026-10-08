@@ -1,0 +1,8 @@
+rows alive at the top: true | grid rows 3
+near the end: end reached | rows alive true
+further: end reached
+pull: refresh | spinners while refreshing 1
+spinners after 0
+sections at rest: Fruits 0 Greens 456
+scrolled 100: Fruits 0 (sticky)
+scrolled 500: Greens 0 (sticky), Fruits -68 (pushed up with its section)
