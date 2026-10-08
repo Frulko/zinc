@@ -8,6 +8,7 @@
 #include <regex>
 #include <set>
 
+#include "gl/essl_check.h"
 #include "glad/gl.h"
 
 namespace zn::gl {
@@ -44,9 +45,46 @@ std::string withoutComments(const std::string& src) {
   }
   return t;
 }
-// The rules of GLSL ES 1.00 and WebGL (Appendix A, the reserved words, the character set, the webgl_ prefix) that a desktop GLSL compiler does not enforce. Empty: fine, else the compile error.
-std::string essl1Violation(const std::string& src, int webgl, std::uint32_t type) {
-  static const char* const reserved[] = {"asm", "class", "union", "enum", "typedef", "template", "this", "packed", "goto", "switch", "default", "inline", "noinline", "volatile", "public", "static", "extern", "external", "interface", "flat", "long", "short", "double", "half", "fixed", "unsigned", "superp", "input", "output", "hvec2", "hvec3", "hvec4", "dvec2", "dvec3", "dvec4", "fvec2", "fvec3", "fvec4", "sampler1D", "sampler3D", "sampler1DShadow", "sampler2DShadow", "sampler2DRect", "sampler3DRect", "sampler2DRectShadow", "sizeof", "cast", "namespace", "using"};
+// The validator's view of a source: comments gone (a backslash at the end of a // comment line continues the comment) and the loop steps ++i / --i written i++ / i--, the forms Appendix A names and WebGL implementations also take in the prefix form
+std::string normalizeForValidator(const std::string& src) {
+  std::string t;
+  for (std::size_t i = 0; i < src.size(); ++i) {
+    if (src.compare(i, 2, "//") == 0) {
+      while (i < src.size() && src[i] != '\n') { if (src[i] == '\\' && i + 1 < src.size() && (src[i + 1] == '\n' || (src[i + 1] == '\r' && i + 2 < src.size() && src[i + 2] == '\n'))) { t += '\n'; i += src[i + 1] == '\r' ? 2 : 1; } ++i; }
+      t += '\n';
+    } else if (src.compare(i, 2, "/*") == 0) {
+      std::size_t e = src.find("*/", i + 2);
+      const std::size_t stop = e == std::string::npos ? src.size() : e + 2;
+      for (std::size_t k = i; k < stop; ++k) if (src[k] == '\n') t += '\n';
+      t += ' ';
+      i = stop - 1;
+    } else t += src[i];
+  }
+  static const std::regex step(R"((\bfor\s*\([^;()]*;[^;()]*;\s*)(\+\+|--)\s*(\w+)(\s*\)))");
+  t = std::regex_replace(t, step, "$1$3$2$4");
+  {   // a sequence of two literals in parentheses, (0.2, 0.5): a constant expression for WebGL implementations (ANGLE), not for glslang; it is the second literal
+    static const std::regex seq(R"(\(\s*([0-9][0-9.eE+-]*[fuU]?)\s*,\s*([0-9][0-9.eE+-]*[fuU]?)\s*\))");
+    std::string out;
+    auto last = t.cbegin();
+    for (std::sregex_iterator it(t.begin(), t.end(), seq), end; it != end; ++it) {
+      const std::size_t at = static_cast<std::size_t>(it->position());
+      std::size_t b = at;
+      while (b > 0 && (t[b - 1] == ' ' || t[b - 1] == '\t' || t[b - 1] == '\n')) --b;
+      const bool call = b > 0 && (std::isalnum(static_cast<unsigned char>(t[b - 1])) || t[b - 1] == '_' || t[b - 1] == ')' || t[b - 1] == ']');   // f(1.0, 2.0) and v[i](..) are arguments, not a sequence
+      if (call) continue;
+      out.append(last, t.cbegin() + static_cast<std::ptrdiff_t>(at));
+      out += "(" + (*it)[2].str() + ")";
+      last = t.cbegin() + static_cast<std::ptrdiff_t>(at + it->length());
+    }
+    out.append(last, t.cend());
+    t = out;
+  }
+  static const std::regex lengthName(R"(\blength\b(?!\s*\())");   // `length` as a name (glslang takes `.length` for the array method)
+  return std::regex_replace(t, lengthName, "zn_length");
+}
+// The rules of WebGL on top of GLSL ES 1.00 that neither glslang nor a desktop compiler enforces: the character set, the webgl_ prefix, the length of names, #version 100 only. Empty: fine, else the compile error.
+std::string essl1Violation(const std::string& src, int webgl) {
+  static const char* const reserved[] = {"asm", "class", "union", "enum", "typedef", "template", "this", "packed", "goto", "switch", "default", "inline", "noinline", "volatile", "public", "static", "extern", "external", "interface", "flat", "long", "short", "double", "half", "fixed", "unsigned", "superp", "input", "output", "hvec2", "hvec3", "hvec4", "dvec2", "dvec3", "dvec4", "fvec2", "fvec3", "fvec4", "sampler1D", "sampler3D", "sampler1DShadow", "sampler2DShadow", "sampler2DRect", "sampler3DRect", "sampler2DRectShadow", "sizeof", "cast", "namespace", "using"};   // GLSL ES 1.00 section 3.7 (glslang takes some of them for desktop types)
   const std::string t = withoutComments(src);
   {   // the character set, outside conditional blocks (an excluded block is skipped by the preprocessor, which is not ours)
     int depth = 0;
@@ -79,14 +117,10 @@ std::string essl1Violation(const std::string& src, int webgl, std::uint32_t type
     const std::string id = t.substr(i, j - i);
     if (id.size() > (webgl == 2 ? 1024u : 256u)) return "ERROR: 0:1: '" + id.substr(0, 20) + "...' : identifier is too long (more than 256 characters)";
     if (id.compare(0, 6, "webgl_") == 0 || id.compare(0, 7, "_webgl_") == 0) return "ERROR: 0:1: '" + id + "' : identifiers starting with \"webgl_\" or \"_webgl_\" are reserved";
-    if (id.find("__") != std::string::npos && id != "__VERSION__" && id != "__LINE__" && id != "__FILE__") return "ERROR: 0:1: '" + id + "' : identifiers containing \"__\" are reserved";   // (the suite is of two minds: shader-with-double-underscore wants one accepted)
-    if (id == "attribute" && type == GL_FRAGMENT_SHADER) return "ERROR: 0:1: 'attribute' : attributes are for vertex shaders";
-    if (id == "while" || id == "do") return "ERROR: 0:1: '" + id + "' : loops other than for are not supported (GLSL ES 1.00 Appendix A)";
     for (const char* r : reserved) if (id == r) return "ERROR: 0:1: '" + id + "' : reserved keyword";
+    if (id.find("__") != std::string::npos && id != "__VERSION__" && id != "__LINE__" && id != "__FILE__") return "ERROR: 0:1: '" + id + "' : identifiers containing \"__\" are reserved";   // (the suite is of two minds: shader-with-double-underscore wants one accepted)
     i = j;
   }
-  static const std::regex attrArray(R"(\battribute\s+(?:lowp\s+|mediump\s+|highp\s+)?\w+\s+\w+\s*\[)");
-  if (std::regex_search(t, attrArray)) return "ERROR: 0:1: 'attribute' : arrays of attributes are not allowed";
   return "";
 }
 // words that desktop GLSL 330 keeps for itself but ESSL 1.00 lets a shader use as names: renamed by macro when the shader uses them
@@ -99,12 +133,14 @@ bool desktopOnlyWord(const std::string& id) {
   return std::regex_match(id, sampler) || std::regex_match(id, vec);
 }
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
-std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err) {
+// valSrc / valPre: what the GLSL ES validator (essl_check.cpp) is shown: the source with comments gone and the macros of this context in a preamble
+std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err, std::string& valSrc, std::string& valPre) {
   if (es) return src;
   {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
     std::size_t at = src.find("#version");
     const bool es3 = at != std::string::npos && src.compare(at, 15, "#version 300 es") == 0;
     if (es3) {
+      valSrc = normalizeForValidator(src);
       std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
       // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
       for (const char* name : {"gl_FragColor", "gl_FragData", "gl_MaxDrawBuffers"}) {   // the last: MAX_DRAW_BUFFERS is reported as 4, not what the driver has
@@ -128,7 +164,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
     }
   }
   if (webgl == 1 && src.find("#version 300 es") != std::string::npos) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
-  if (const std::string bad = essl1Violation(src, webgl, type); !bad.empty()) { err = bad; return ""; }
+  if (const std::string bad = essl1Violation(src, webgl); !bad.empty()) { err = bad; return ""; }
   std::string body;
   std::string pre = "#version 330 core\n";
   std::string tail;
@@ -140,7 +176,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
     std::size_t k = line.find_first_not_of(" \t");
     bool directive = k != std::string::npos && line[k] == '#';
     std::size_t w = directive ? line.find_first_not_of(" \t", k + 1) : std::string::npos;
-    if (directive && line.compare(k + 1, 7, "version") == 0 && w == k + 1) body += "\n";
+    if (directive && line.compare(k + 1, 7, "version") == 0 && w == k + 1) { body += "\n"; valSrc += "\n"; }
     else if (w != std::string::npos && line.compare(w, 9, "extension") == 0) {   // #extension NAME : BEHAVIOR
       static const std::regex ext(R"(extension\s+(\w+)\s*:\s*(\w+))");
       std::smatch m;
@@ -154,6 +190,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
       if (def && how != "disable") active |= 1u << static_cast<int>(def->id);
       else if (!def && how == "require") { err = "ERROR: 0:1: '#extension' : extension '" + name + "' is not supported"; return ""; }
       body += "\n";
+      valSrc += def && how != "disable" && def->id != Ext::DrawBuffers ? line + "\n" : "\n";   // the validator sees the pragmas that count (it does not know GL_EXT_draw_buffers: gl_FragData[0..3] is open to it)
     }
     else {
       if (w != std::string::npos && (line.compare(w, 2, "if") == 0 || line.compare(w, 4, "elif") == 0)) {   // GL_xxx macros are reserved in GLSL: the conditions of the page read ZN_GL_xxx, defined below
@@ -163,7 +200,8 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
         for (std::sregex_iterator it(line.begin(), line.end(), macro), end; it != end; ++it) { out.append(last, line.cbegin() + it->position()); out += "ZN_" + it->str(); last = line.cbegin() + it->position() + it->length(); }
         out.append(last, line.cend());
         body += out + "\n";
-      } else body += line + "\n";
+        valSrc += out + "\n";
+      } else { body += line + "\n"; valSrc += line + "\n"; }
     }
     if (nl == std::string::npos) break;
     pos = nl + 1;
@@ -181,10 +219,16 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
       while (j < t.size() && (std::isalnum(static_cast<unsigned char>(t[j])) || t[j] == '_')) ++j;
       const std::string id = t.substr(i, j - i);
       i = j;
-      if (desktopOnlyWord(id) && seen.insert(id).second) pre += "#define " + id + " zn_" + id + "\n";
+      if (desktopOnlyWord(id) && seen.insert(id).second) { pre += "#define " + id + " zn_" + id + "\n"; valPre += "#define " + id + " zn_" + id + "\n"; }
     }
   }
-  for (const ExtDef& e : kExtensions) if (e.glsl && (e.webgl & (1u << (webgl - 1))) && ((extOn >> static_cast<int>(e.id)) & 1)) pre += std::string("#define ZN_") + e.glsl + " 1\n";   // enabled by getExtension: the macro exists
+  for (const ExtDef& e : kExtensions) if (e.glsl && (e.webgl & (1u << (webgl - 1))) && ((extOn >> static_cast<int>(e.id)) & 1)) { pre += std::string("#define ZN_") + e.glsl + " 1\n"; valPre += std::string("#define ZN_") + e.glsl + " 1\n"; }   // enabled by getExtension: the macro exists
+  valPre += type == GL_VERTEX_SHADER ? "#define ZN_GL_ES 1\n" : "#define ZN_GL_ES 1\n#define ZN_GL_FRAGMENT_PRECISION_HIGH 1\n";
+  valSrc = normalizeForValidator(valSrc);
+  if (type == GL_FRAGMENT_SHADER && valSrc.find("gl_FragData") != std::string::npos) {   // the validator indexes a plain array: loop-indexed gl_FragData[i] of the draw-buffers extension is fine for WebGL, not for its ES rules
+    replaceIdent(valSrc, "gl_FragData", "zn_fd");
+    valPre += "highp vec4 zn_fd[4];\n";
+  }
   pre += type == GL_VERTEX_SHADER ? "#define ZN_GL_ES 1\n" : "#define ZN_GL_ES 1\n#define ZN_GL_FRAGMENT_PRECISION_HIGH 1\n";
   if (type != GL_FRAGMENT_SHADER || !has(Ext::StdDerivatives)) pre += "#define dFdx zn_no_OES_standard_derivatives\n#define dFdy zn_no_OES_standard_derivatives\n#define fwidth zn_no_OES_standard_derivatives\n";   // desktop GLSL has them: hide what ESSL 1.00 needs the extension (and a fragment shader) for
   if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n#define texture2DLod textureLod\n#define textureCubeLod textureLod\n#define texture2DProjLod textureProjLod\n";
@@ -623,9 +667,15 @@ void WebGL1::compileShader(Id id) {
     s.log = "ERROR: 0:1: 'float' : No precision specified (fragment shaders need a default float precision)";
     return;
   }
-  std::string terr;
-  std::string full = translate(s.source, s.type, gl_.info().es, extOn_, version_, terr);
+  std::string terr, valSrc, valPre;
+  std::string full = translate(s.source, s.type, gl_.info().es, extOn_, version_, terr, valSrc, valPre);
   if (!terr.empty()) { s.compiled = false; s.log = terr; return; }
+  if (!gl_.info().es) {   // (an OpenGL ES driver is a GLSL ES compiler already)
+    if (const std::string bad = esslValidate(valSrc, valPre, s.type == GL_FRAGMENT_SHADER); !bad.empty()) {
+      if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- rejected by glslang\n%s\n%s\n%s\n", bad.c_str(), valPre.c_str(), valSrc.c_str());
+      s.compiled = false; s.log = bad; return;
+    }
+  }
   if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- translated shader\n%s\n", full.c_str());
   const char* p = full.c_str();
   glShaderSource(s.name, 1, &p, nullptr);
