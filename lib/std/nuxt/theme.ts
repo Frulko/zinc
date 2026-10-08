@@ -67,6 +67,18 @@ export function makeTheme(mode: string, colors: NuxtColors): NuxtTheme {
   return t;
 }
 
+/** `c` at `alpha` % over the opaque `over`, as a browser shows Tailwind 4's `bg-c/alpha` (color-mix(in oklab, c alpha%, transparent): the colour keeps its
+ *  OKLab coordinates, only the alpha changes, and the page composites it in sRGB with a float alpha). The opaque result as '#rrggbb' (ZN-378): exact where
+ *  the tint sits on that background, which zinc:ui's 8-bit alpha blend misses by 1 or 2 per channel. */
+export function mix(c: string, alpha: i32, over: string): string {
+  const a = alpha / 100, x = parseInt(c.substring(1), 16), y = parseInt(over.substring(1), 16);
+  let out = '#';
+  for (let k = 16; k >= 0; k -= 8) {
+    const v = Math.round(((x >> k) & 255) * a + ((y >> k) & 255) * (1 - a));
+    out += '0123456789abcdef'.charAt(v >> 4) + '0123456789abcdef'.charAt(v & 15);
+  }
+  return out;
+}
 /** `[#rrggbb]` or `[#rrggbb]/alpha` for a class: `bg-${hex(t.primary, 10)}`. */
 export function hex(c: string, alpha: i32 = 100): string { return alpha >= 100 ? '[' + c + ']' : '[' + c + ']/' + alpha; }
 

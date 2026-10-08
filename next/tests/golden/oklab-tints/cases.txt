@@ -1,0 +1,20 @@
+# colour alpha background: Nuxt UI's tints (Tailwind 4: color-mix(in oklab, <colour> <alpha>%, transparent) over the background)
+00c950 10 ffffff
+00c950 15 ffffff
+00c950 25 ffffff
+00c950 50 ffffff
+00c950 75 ffffff
+fb2c36 10 ffffff
+2b7fff 10 ffffff
+fdc700 50 ffffff
+05df72 10 0f172b
+05df72 50 0f172b
+ff6467 10 0f172b
+f1f5f9 50 ffffff
+1d293d 50 0f172b
+cad5e2 75 ffffff
+# a ring over the element's own tint (subtle buttons and badges, checked cards): colour alpha background under-alpha
+00c950 25 ffffff 10
+fb2c36 25 ffffff 10
+00c950 50 ffffff 10
+05df72 25 0f172b 10

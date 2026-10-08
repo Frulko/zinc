@@ -3,7 +3,7 @@
 // on zinc:ui's layers: each overlay stays mounted and toggles `hidden`, Escape and a press outside close it, a modal keeps the focus inside.
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';
-import { theme, hex, rounded } from './theme';
+import { theme, hex, mix, rounded } from './theme';
 import { rgb, buttonIconSize } from './variants';
 import { renderSlot } from './host';
 import { Button } from './controls';
@@ -86,7 +86,7 @@ export function DropdownMenu(p: DropdownMenuProps): i32 {
     if (it.type === 'label') return <Text class={`p-1.5 ${text} font-semibold text-${hex(t.textHighlighted)}`}>{it.label ?? ''}</Text>;
     const col = it.color !== undefined ? t.color(it.color as string) : t.text;
     const ink = (): i32 => rgb(it.color !== undefined ? theme().color(it.color as string) : theme().textDimmed);
-    return <View class={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} ${it.disabled === true ? 'opacity-75' : 'hover:bg-' + (it.color !== undefined ? hex(col, 10) : hex(t.bgElevated, 50))}`}
+    return <View class={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} ${it.disabled === true ? 'opacity-75' : 'hover:bg-' + (it.color !== undefined ? hex(mix(col, 10, theme().bg)) : hex(mix(t.bgElevated, 50, theme().bg)))}`}
       onClick={() => { if (it.disabled === true) return; show(menu.node, false); const f = it.onSelect; if (f !== undefined) f(); }} role="menuitem">
       <Show when={it.icon !== undefined}><Icon name={it.icon ?? ''} size={buttonIconSize(size)} color={ink} /></Show>
       <Text class={`grow ${text} text-${hex(col)}`}>{it.label ?? ''}</Text>

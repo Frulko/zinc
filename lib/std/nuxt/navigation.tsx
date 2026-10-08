@@ -2,7 +2,7 @@
 // zinc:ui/nuxt, navigation and data (ZN-357.04): Tabs, Accordion, Table, Pagination, Breadcrumb, NavigationMenu and the Dashboard layout (DashboardGroup,
 // DashboardSidebar, DashboardPanel, DashboardNavbar, DashboardToolbar) with Nuxt UI 4's look (docs/reports/nuxt-ui-research.md 3.11, 3.12, 3.18 to 3.22).
 // Controlled state is an accessor and an onUpdate, like the controls.
-import { theme, hex, rounded } from './theme';
+import { theme, hex, mix, rounded } from './theme';
 import { rgb, buttonIconSize, checkedFill } from './variants';
 import { renderSlot } from './host';
 import { Button, Badge, Checkbox } from './controls';
@@ -95,7 +95,7 @@ export function Table(p: TableProps): i32 {
     </View>
     <Show when={p.loading === true}><View class={`h-[1px] bg-${hex(theme().primary)}`} /></Show>
     <Show when={p.rows.length === 0}><Text class={`py-6 text-center text-sm text-${hex(theme().textMuted)}`}>{p.empty ?? 'No data.'}</Text></Show>
-    <For each={sortedRows(p.rows, sortCol(), desc())}>{(r: i32, k: i32) => <View class={`flex-row items-center border-b border-${hex(theme().border)} ${sel().indexOf(r) >= 0 ? 'bg-' + hex(theme().bgElevated, 50) : ''} ${selectable ? 'hover:bg-' + hex(theme().bgElevated, 50) : ''}`} role="row">
+    <For each={sortedRows(p.rows, sortCol(), desc())}>{(r: i32, k: i32) => <View class={`flex-row items-center border-b border-${hex(theme().border)} ${sel().indexOf(r) >= 0 ? 'bg-' + hex(mix(theme().bgElevated, 50, theme().bg)) : ''} ${selectable ? 'hover:bg-' + hex(mix(theme().bgElevated, 50, theme().bg)) : ''}`} role="row">
       <Show when={selectable}><View class="w-[44px] pl-4"><Checkbox modelValue={() => sel().indexOf(r) >= 0} onUpdate={(v: boolean) => flip(r)} /></View></Show>
       <For each={p.columns}>{(c: TableColumn, i: i32) => <View class={`p-4 overflow-hidden ${cell(c)}`}><Text class={`text-sm whitespace-nowrap truncate text-${hex(theme().textMuted)}`}>{p.rows[r][i]}</Text></View>}</For>
     </View>}</For>
@@ -156,7 +156,7 @@ export function NavigationMenu(p: { items: NavigationItem[]; orientation?: strin
     if (it.type === 'label') return <Text class={`px-2.5 py-1.5 text-xs font-semibold text-${hex(t.textHighlighted)}`}>{p.collapsed === true ? '' : it.label}</Text>;
     const on = it.active === true;
     const ink = on ? (color === 'neutral' ? t.textHighlighted : t.color(color)) : t.textMuted;
-    return <View class={`flex-row items-center gap-1.5 py-1.5 ${p.collapsed === true ? 'px-1.5 justify-center' : 'px-2.5'} ${rounded('md')} ${pill && on ? 'bg-' + hex(t.bgElevated) : 'hover:bg-' + hex(t.bgElevated, 50)} ${vertical ? 'w-full' : ''}`}
+    return <View class={`flex-row items-center gap-1.5 py-1.5 ${p.collapsed === true ? 'px-1.5 justify-center' : 'px-2.5'} ${rounded('md')} ${pill && on ? 'bg-' + hex(t.bgElevated) : 'hover:bg-' + hex(mix(t.bgElevated, 50, theme().bg))} ${vertical ? 'w-full' : ''}`}
       onClick={() => { const f = it.onSelect; if (f !== undefined) f(); }} role="link" aria-current={on ? 'page' : ''}>
       <Show when={it.icon !== undefined}><Icon name={it.icon ?? ''} size={20} color={() => rgb(on ? ink : theme().textDimmed)} /></Show>
       <Show when={p.collapsed !== true}><Text class={`grow text-sm font-medium text-${hex(ink)}`}>{it.label}</Text></Show>

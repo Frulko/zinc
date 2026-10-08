@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# Nuxt UI's tints against a browser (ZN-378): renders tests/golden/oklab-tints/cases.txt as CSS color-mix(in oklab, <c> <a>%, transparent) over the background
+# in headless Chrome (tools/cdp.py) and as zinc:ui classes bg-[#c]/a over bg-[#bg] with `zinc run`, and prints the largest difference per channel.
+#   tools/oklab-tints [zinc binary]       (exit 1 when a case differs by more than 1)
+import base64, io, os, subprocess, sys, tempfile
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome
+from PIL import Image
+
+here = os.path.dirname(os.path.abspath(__file__))
+cases = [(l.split() + ['0'])[:4] for l in open(os.path.join(here, '..', 'tests', 'golden', 'oklab-tints', 'cases.txt')) if l.strip() and not l.startswith('#')]
+W, H = 40, 40
+def layer(c, a): return f'<div style="width:{W}px;height:{H}px;background:color-mix(in oklab, #{c} {a}%, transparent)">'
+html = '<html><body style="margin:0">' + ''.join(f'<div style="width:{W}px;height:{H}px;background:#{bg}">' + (layer(c, u) if u != '0' else '') + layer(c, a) + '</div>' * (3 if u != '0' else 2) for c, a, bg, u in cases) + '</body></html>'
+with Chrome(['--window-size=200,%d' % (H * len(cases) + 20), '--force-device-scale-factor=1', '--hide-scrollbars']) as ch:
+    ch.call('Emulation.setDeviceMetricsOverride', {'width': 200, 'height': H * len(cases) + 20, 'deviceScaleFactor': 1, 'mobile': False})
+    ch.open('data:text/html;base64,' + base64.b64encode(html.encode()).decode())
+    ch.eval('new Promise(r => setTimeout(r, 300))')
+    shot = ch.call('Page.captureScreenshot', {'format': 'png', 'clip': {'x': 0, 'y': 0, 'width': W, 'height': H * len(cases), 'scale': 1}})
+ref = Image.open(io.BytesIO(base64.b64decode(shot['data']))).convert('RGB')
+
+zinc = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, '..', 'build', 'zinc')
+d = tempfile.mkdtemp()
+src = os.path.join(d, 'main.tsx')
+# zinc:ui/nuxt's tint: mix() of the colour over the background, as the kit's variants paint it
+def under(c, bg, u): return f"\'#{bg}\'" if u == '0' else f"mix(\'#{c}\', {u}, \'#{bg}\')"
+rows = ''.join(f'<view class="w-[{W}px] h-[{H}px] bg-[#{bg}]"><view class={{`w-[{W}px] h-[{H}px] bg-[${{mix(\'#{c}\', {a}, {under(c, bg, u)})}}]`}} /></view>' for c, a, bg, u in cases)
+open(src, 'w').write("import { render } from 'zinc:ui/solid';\nimport { mix } from 'zinc:ui/nuxt';\nfunction App(): i32 { return <view class=\"flex-col\">" + rows + "</view>; }\nrender(App, 0xffffff, null);\n")
+png = os.path.join(d, 'z.png')
+env = dict(os.environ, ZINC_HEADLESS='1', ZINC_DETERMINISTIC='1', ZINC_FRAMES='2', ZINC_SIZE='%dx%d' % (W, H * len(cases)), ZINC_SCALE='1', ZINC_SHOT=png)
+subprocess.run([zinc, 'run', src], env=env, check=True, capture_output=True)
+got = Image.open(png).convert('RGB')
+worst = 0
+for i, (c, a, bg, u) in enumerate(cases):
+    p, q = ref.getpixel((W // 2, i * H + H // 2)), got.getpixel((W // 2, i * H + H // 2))
+    dmax = max(abs(p[k] - q[k]) for k in range(3))
+    worst = max(worst, dmax)
+    print(f'#{c} /{a} on #{bg}' + (f' over /{u}' if u != '0' else '') + f': chrome {p} zinc {q} diff {dmax}')
+print(f'worst {worst}')
+sys.exit(0 if worst <= 1 else 1)

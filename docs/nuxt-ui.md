@@ -24,7 +24,7 @@ const c = new NuxtColors(); c.primary = 'blue'; setColors(c);   // app.config ui
 | `.light` / `.dark` | `setColorMode('light' \| 'dark')`, `colorMode()` | done |
 | Tailwind 4 palettes (OKLCH) | `PALETTES`, `shade(palette, n)`: exact sRGB hex of slate, green, blue, yellow, red | done (other palettes on demand) |
 | `--ui-radius` scale xs..3xl (2, 4, 6, 8, 12, 16, 24 px) | `radius(size)`, `rounded(size)` (`rounded-[6px]`: zinc:ui's own `rounded-sm` is 2 px) | done |
-| `bg-primary/10`, `ring-primary/25` (OKLab color-mix) | `bg-${hex(c, 10)}`: sRGB alpha | partial: ZN-378 |
+| `bg-primary/10`, `ring-primary/25` (OKLab color-mix) | `mix(c, alpha, over)`: the browser's composite on the page, rings over the element's own tint (within 1 per channel of Chrome, `tests/t1/oklab_tints.sh`) | done (ZN-378) |
 | `focus-visible:outline-3 outline-<c>/25` | zinc:ui's `focus-visible:` and `outline-N` (ZN-258) | done (used by the components) |
 | `transition-colors` 150 ms, `--ease-out` | zinc:ui transitions | done |
 | keyframes scale-in / slide-in / fade / accordion, reduced motion | | ZN-275 |
@@ -67,7 +67,6 @@ Nuxt's inset ring is a 1 px border (borders take no layout space in zinc:ui, so 
 
 ## What does not map, and the tasks
 
-- OKLab colour mixing of tints: sRGB alpha today (ZN-378).
 - Public Sans, the face of the Nuxt UI site (ZN-379).
 - Enter / exit keyframes and reduced motion (ZN-275).
 - Router links (`to`, active matching): no router in zinc:ui; components take `onPress` and an `active` flag.

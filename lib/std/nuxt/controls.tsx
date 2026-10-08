@@ -4,7 +4,7 @@
 // zinc:ui/kit: under Solid the classes follow theme() and the accessors; under React a render reads them. Controlled values are an accessor
 // (`modelValue`) and `onUpdate`, Vue's v-model. Icons are Lucide names (zinc:icons): name the ones a program uses in zinc.json "icons".
 import * as ui from 'zinc:ui';
-import { theme, hex, rounded } from './theme';
+import { theme, hex, mix, rounded } from './theme';
 import { buttonSize, buttonIconSize, buttonVariant, contentColor, badgeSize, badgeIconSize, badgeVariant, avatarBox, inputSize, inputHeight, inputVariant,
   choiceText, checkboxBox, switchThumb, radioDot, checkedFill, choiceCard, rgb } from './variants';
 import { renderSlot } from './host';
@@ -50,7 +50,7 @@ export function Avatar(p: AvatarProps): i32 {
     return words.length === 0 ? '' : words.length === 1 ? words[0].charAt(0).toUpperCase() : (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
   };
   const fg = (): string => color === 'neutral' ? theme().textMuted : theme().color(color);
-  return <View class={`items-center justify-center rounded-full relative w-[${n}px] h-[${n}px] bg-${color === 'neutral' ? hex(theme().bgElevated) : hex(theme().color(color), 10)} ${p.class ?? ''}`}>
+  return <View class={`items-center justify-center rounded-full relative w-[${n}px] h-[${n}px] bg-${color === 'neutral' ? hex(theme().bgElevated) : hex(mix(theme().color(color), 10, theme().bg))} ${p.class ?? ''}`}>
     <Show when={p.src !== undefined}><Image class="w-full h-full rounded-full overflow-hidden" src={p.src ?? ''} /></Show>
     <Show when={p.src === undefined && p.icon !== undefined}><Icon name={p.icon ?? ''} size={n / 2} color={() => rgb(fg())} /></Show>
     <Show when={p.src === undefined && p.icon === undefined}><Text class={`font-medium text-[${Math.round(n / 2)}px] text-${hex(fg())}`}>{initials()}</Text></Show>
@@ -65,8 +65,8 @@ export function Card(p: CardProps): i32 {
   const box = (): string => {
     const t = theme();
     if (variant === 'solid') return `bg-${hex(t.bgInverted)}`;
-    if (variant === 'soft') return `bg-${hex(t.bgElevated, 50)}`;
-    if (variant === 'subtle') return `bg-${hex(t.bgElevated, 50)} border border-${hex(t.border)}`;
+    if (variant === 'soft') return `bg-${hex(mix(t.bgElevated, 50, theme().bg))}`;
+    if (variant === 'subtle') return `bg-${hex(mix(t.bgElevated, 50, theme().bg))} border border-${hex(t.border)}`;
     return `bg-${hex(t.bg)} border border-${hex(t.border)}`;
   };
   const title = (): string => variant === 'solid' ? theme().textInverted : theme().textHighlighted;
@@ -127,7 +127,7 @@ export function Select(p: SelectProps): i32 {
     </View>
     <Show when={isOpen()}>
       <View class={`absolute left-0 right-0 top-[${inputHeight(size) + 8}px] z-50 flex-col p-1 shadow-lg ${rounded('md')} bg-${hex(theme().bg)} border border-${hex(theme().border)}`}>
-        <For each={p.items}>{(it: string, i: i32) => <View class={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} hover:bg-${hex(theme().bgElevated, 50)}`} onClick={() => { const f = p.onUpdate; if (f !== undefined) f(it); setOpen(false); }}>
+        <For each={p.items}>{(it: string, i: i32) => <View class={`flex-row items-center gap-1.5 p-1.5 ${rounded('md')} hover:bg-${hex(mix(theme().bgElevated, 50, theme().bg))}`} onClick={() => { const f = p.onUpdate; if (f !== undefined) f(it); setOpen(false); }}>
           <Text class={`grow text-sm text-${hex(theme().text)}`}>{it}</Text>
           <Show when={it === value()}><Icon name="check" size={16} color={() => rgb(theme().textDimmed)} /></Show>
         </View>}</For>
