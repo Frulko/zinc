@@ -185,22 +185,22 @@ static bool loadManifestPermissions(const char* path) {
   granted.clear();
   std::string appJson, scopesJson, uiLayout = "classic";
   std::string pf = zn::frontend::findProjectFile(path);
+  zn::frontend::Project p;
   if (!pf.empty()) {
     std::ifstream in(pf);
     std::stringstream ss; ss << in.rdbuf();
-    zn::frontend::Project p;
     std::string err;
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
-    else {
-      granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes;
-      // the layout engine (ZN-285): zinc.json "ui" against the rules of the machine compiled for
-      const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
-      std::string layout = "classic", lerr;
-      zn::frontend::Caps caps;
-      if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/../targets/capabilities.json");
-      if (!zn::frontend::resolveUiLayout(p, caps, target, layout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), lerr.c_str()); return false; }
-      uiLayout = layout;
-    }
+    else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
+  }
+  {  // the layout engine (ZN-285): zinc.json "ui", or ZINC_UI_LAYOUT for a run (ZN-286), against the rules of the machine compiled for
+    if (const char* forced = std::getenv("ZINC_UI_LAYOUT"); forced && *forced) p.uiLayout = forced;
+    const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
+    std::string lerr;
+    zn::frontend::Caps caps;
+    if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/../targets/capabilities.json");
+    if (p.uiLayout != "" && p.uiLayout != "classic" && p.uiLayout != "rn" && p.uiLayout != "auto") { std::fprintf(stderr, "zinc: ZINC_UI_LAYOUT must be classic, rn or auto\n"); return false; }
+    if (!zn::frontend::resolveUiLayout(p, caps, target, uiLayout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.empty() ? "ZINC_UI_LAYOUT" : pf.c_str(), lerr.c_str()); return false; }
   }
   zn::frontend::setUiLayout(uiLayout);
   zn::frontend::setSystemPermissions(&granted);
@@ -496,6 +496,7 @@ int main(int argc, char** argv) {
     }
     qo.entry = argv[2];
     qo.stdRoot = gRoot + "/../lib/std";
+    if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
 #ifdef ZN_HOST_GFX
     {
       std::vector<std::string> args;

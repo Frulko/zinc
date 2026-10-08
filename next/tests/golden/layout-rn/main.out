@@ -1,0 +1,5 @@
+layout rn
+row 3 at 8,140 200x44 lines row 3 with a few words to | wrap
+text change: 1 calculate, 1 measures (that text only), lines 3
+row 6 moved to y 294
+opacity change: 0 layouts, 0 measures, 0 calculate

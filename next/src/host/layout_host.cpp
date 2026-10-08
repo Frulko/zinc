@@ -60,6 +60,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostLayoutLineWidth: { const auto* w = engine->lineWidths(n(0)); r->d = w && n(1) >= 0 && static_cast<std::size_t>(n(1)) < w->size() ? (*w)[static_cast<std::size_t>(n(1))] : 0; break; }
+    case Rt::HostLayoutCounter: r->d = static_cast<double>(engine->counter(n(0))); break;
     default: break;
   }
 }

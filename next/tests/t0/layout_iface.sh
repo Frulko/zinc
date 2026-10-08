@@ -17,6 +17,7 @@ struct Fixed : zn::host::Layout {   // the smallest engine: every node a 10x10 b
   void clearMeasure(std::int32_t) override {}
   const std::vector<std::string>* lines(std::int32_t) const override { return nullptr; }
   const std::vector<double>* lineWidths(std::int32_t) const override { return nullptr; }
+  std::uint64_t counter(int) const override { return 0; }
   void markDirty(std::int32_t) override {}
   void calculate(std::int32_t, float, float) override {}
   zn::host::LayoutBox box(std::int32_t) const override { return {0, 0, 10, 10}; }

@@ -13,6 +13,8 @@ import {
 import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
+import { UI_LAYOUT } from 'zinc:platform';
+import * as LY from 'zinc:__layout';
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
 export const INPUT: i32 = 7, TEXTAREA: i32 = 8;
@@ -271,6 +273,7 @@ export class UiNode {
     // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
+  rn: RnRec | null = null;            // what the rn layout engine was last told about this node (ZN-286)
   wk: WrapKey | null = null;          // what the text lines were computed from (wrapText)
   hs: Handlers | null = null;
   ed: Edit | null = null;
@@ -454,6 +457,7 @@ function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
   for (const c of n.children) release(c);
+  if (n.rn !== null) { LY.destroy(h); n.rn = null; }
   if (n.tag === CANVAS && !n.lazy) canvases--;
   if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
@@ -2119,8 +2123,144 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
 }
 /** The layout engine (ZN-282, docs/reports/layout-engines.md §5): `classic` is the measure and place passes above; a host engine (`rn`, Yoga, next/src/host/layout.h) comes in here with ZN-286. */
 function calculate(r: UiNode, w: number, h: number): void {
+  if (RN) { rnLayout(r, w, h); return; }
   measure(r, w, h);
   place(r, 0, 0, w, h);
+}
+
+// ---------------------------------------------------------------- the rn layout engine (ZN-286): Yoga in the host, zinc.json "ui": {"layout": "rn"}
+// Each layout sends the engine what changed since the last one (per node: the values of RN_PROPS, the children, the text), lets it compute (it re-measures only
+// what was dirtied), and reads the boxes back as absolute x, y, lw, lh and the text lines. Layers and anchors stay as in classic (they run after `calculate`).
+const RN: boolean = UI_LAYOUT === 'rn';
+let rnOpen = false;
+class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey: number[] = []; leaf: i32 = 0; }
+// zn::host::LayoutProp numbers; W, H and B are composites: size or percent or full, basis or basis percent
+const RN_W: i32 = -1, RN_H: i32 = -2, RN_B: i32 = -3;
+const RN_PROPS: i32[] = [RN_W, RN_H, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54];
+function rnValue(n: UiNode, p: i32): number {
+  const inset = n.abs || n.rel;
+  if (p === RN_W) return n.fullW ? -2 : n.wFrac > 0 ? -3 - n.wFrac : n.w;
+  if (p === RN_H) return n.fullH ? -2 : n.hFrac > 0 ? -3 - n.hFrac : n.h;
+  if (p === RN_B) return n.basisFrac > 0 ? -3 - n.basisFrac : n.basis;
+  if (p === 21) return n.row ? 1 : 0;
+  if (p === 1012) return n.reverse ? 1 : 0;
+  if (p === 22) return n.wrap ? 1 : 0;
+  if (p === 23) return n.justify;
+  if (p === 24) return n.align;
+  if (p === 1010) return n.selfAlign;
+  if (p === 1011) return n.alignContent;
+  if (p === 25) return n.abs ? 1 : 0;
+  if (p === 26) return n.scroll !== 0 ? 2 : n.overflow ? 1 : 0;
+  if (p === 36) return n.pt; if (p === 37) return n.pr; if (p === 38) return n.pb; if (p === 39) return n.pl;
+  if (p === 40) return n.mt; if (p === 41) return n.mr; if (p === 42) return n.mb; if (p === 43) return n.ml;
+  if (p === 44) return n.grow;
+  if (p === 1009) return n.shrink;
+  if (p === 45) return n.gap;
+  if (p === 1013) return n.gapX;
+  if (p === 1014) return n.gapY;
+  if (p === 1002) return n.minW; if (p === 1003) return n.maxW; if (p === 1004) return n.minH; if (p === 1005) return n.maxH;
+  if (p === 1006) return n.aspect;
+  if (p === 48) return n.hidden ? 1 : 0;
+  if (p === 1015) return n.tag === FRAGMENT ? 1 : 0;
+  if (p === 51) return inset ? n.top : UNSET;
+  if (p === 52) return inset ? n.left : UNSET;
+  if (p === 53) return inset ? n.right : UNSET;
+  return inset ? n.bottom : UNSET;   // 54
+}
+function rnSend(h: i32, p: i32, v: number): void {
+  if (p === RN_W || p === RN_H) {
+    if (v === -2) LY.style(h, p === RN_W ? 1000 : 1001, 1);
+    else if (v < -2) LY.style(h, p === RN_W ? 19 : 20, -3 - v);
+    else LY.style(h, p === RN_W ? 17 : 18, v);
+  } else if (p === RN_B) {
+    if (v < -2) LY.style(h, 1008, -3 - v); else LY.style(h, 1007, v);
+  } else LY.style(h, p, v);
+}
+/** The children the engine lays out: those of the node except layers (laid out apart), in `order`. */
+function rnKids(n: UiNode, out: i32[]): void {
+  out.length = 0;
+  if (n.tag === TEXT) return;   // a text's spans are measured with it
+  let ordered = false;
+  for (const c of n.children) { const k = nodes[c]; if (k.layer) continue; out.push(c); if (k.order !== 0) ordered = true; }
+  if (ordered) out.sort((a: i32, b: i32): number => nodes[a].order - nodes[b].order);   // (stable)
+}
+const rnScratch: i32[] = [];
+function rnSync(n: UiNode): void {
+  const h = n.id;
+  if (n.rn === null) { LY.create(h); n.rn = new RnRec(); }
+  const r = n.rn as RnRec;
+  for (let i = 0; i < RN_PROPS.length; i++) {
+    const v = rnValue(n, RN_PROPS[i]);
+    if (i >= r.sent.length) r.sent.push(NaN);
+    if (r.sent[i] !== v) { r.sent[i] = v; rnSend(h, RN_PROPS[i], v); }
+  }
+  // the leaf measure: text, image or text field
+  if (n.tag === TEXT) {
+    inheritText(n);
+    const f = fontOf(n), s = shownText(n), lh = lineHeightOf(n), flags = (n.ellipsis ? 1 : 0) | (n.balance ? 2 : 0);
+    const key: number[] = [f, n.size, trackPx(n), n.wordSp, n.ws, n.brk, n.clamp, flags, lh];
+    let same = r.leaf === 1 && r.text === s && r.textKey.length === key.length;
+    for (let i = 0; same && i < key.length; i++) same = r.textKey[i] === key[i];
+    if (!same) { r.leaf = 1; r.text = s; r.textKey = key; LY.text(h, s, f, n.size, trackPx(n), n.wordSp, n.ws, n.brk, n.clamp, flags, lh); }
+  } else if (n.ed !== null) {
+    fontOf(n);
+    const e = n.ed as Edit;
+    LY.field(h, e.multi ? e.rows : 1, lineHeightOf(n), n.fullW);   // (the engine ignores an unchanged field)
+    r.leaf = 3;
+  } else if (n.tag === IMAGE && n.img >= 0) {
+    LY.image(h, imageWidth(n.img), imageHeight(n.img));
+    r.leaf = 2;
+  } else if (r.leaf !== 0) { LY.clear(h); r.leaf = 0; }
+  // the children: told again only when the list changed
+  rnKids(n, rnScratch);
+  let same = rnScratch.length === r.kids.length;
+  for (let i = 0; same && i < rnScratch.length; i++) same = rnScratch[i] === r.kids[i];
+  if (!same) {
+    for (const c of r.kids) LY.remove(h, c);
+    r.kids = rnScratch.slice(0);
+  }
+  for (let i = 0; i < r.kids.length; i++) {
+    const c = nodes[r.kids[i]];
+    rnSync(c);
+    if (!same) LY.insert(h, r.kids[i], i);
+  }
+}
+function rnRead(n: UiNode, ax: number, ay: number): void {
+  const h = n.id;
+  n.x = ax + LY.x(h); n.y = ay + LY.y(h); n.lw = LY.width(h); n.lh = LY.height(h);
+  if (n.tag === TEXT) {
+    n.lines = []; n.lineW = [];
+    const k = LY.lineCount(h);
+    for (let i = 0; i < k; i++) { n.lines.push(LY.line(h, i)); n.lineW.push(LY.lineWidth(h, i)); }
+    n.wk = null;   // (classic's wrap cache no longer describes these lines)
+    return;
+  }
+  const r = n.rn as RnRec;
+  for (const c of r.kids) rnRead(nodes[c], n.x, n.y);
+  if (n.scroll !== 0) {   // the content: the extent of the children (through fragments, which have no box of their own), or the size of a virtual list
+    rnCW = 0; rnCH = 0;
+    rnExtent(n, n);
+    n.contentW = Math.max(n.lw, rnCW + n.pr); n.contentH = Math.max(n.lh, rnCH + n.pb);
+    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + n.pt + n.pb; }
+    clampScroll(n);
+  }
+}
+let rnCW: number = 0, rnCH: number = 0;
+function rnExtent(n: UiNode, of: UiNode): void {
+  if (n.rn === null) return;
+  for (const c of (n.rn as RnRec).kids) {
+    const k = nodes[c];
+    if (k.hidden) continue;
+    if (k.tag === FRAGMENT) { rnExtent(k, of); continue; }
+    rnCW = Math.max(rnCW, k.x - of.x + k.lw + k.mr);
+    rnCH = Math.max(rnCH, k.y - of.y + k.lh + k.mb);
+  }
+}
+function rnLayout(r: UiNode, w: number, h: number): void {
+  if (!rnOpen) { LY.open(false); rnOpen = true; }   // React Native's defaults (flex-shrink 0, as classic never shrinks)
+  rnSync(r);
+  LY.calculate(r.id, w, h);
+  rnRead(r, 0, 0);
 }
 export function layout(): void {
   if (root < 0) return;

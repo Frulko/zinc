@@ -218,7 +218,7 @@
   X(HostLayoutText, "host.layoutText", "isiiddiiiid>n", 2) X(HostLayoutImage, "host.layoutImage", "idd>n", 2) X(HostLayoutField, "host.layoutField", "iidb>n", 2) \
   X(HostLayoutClear, "host.layoutClear", "i>n", 2) X(HostLayoutDirty, "host.layoutDirty", "i>n", 2) X(HostLayoutCalc, "host.layoutCalc", "idd>n", 2) \
   X(HostLayoutBox, "host.layoutBox", "ii>d", 2) X(HostLayoutLines, "host.layoutLines", "i>i", 2) X(HostLayoutLine, "host.layoutLine", "ii>s", 2) \
-  X(HostLayoutLineWidth, "host.layoutLineWidth", "ii>d", 2)
+  X(HostLayoutLineWidth, "host.layoutLineWidth", "ii>d", 2) X(HostLayoutCounter, "host.layoutCounter", "i>d", 2)
 
 namespace zn {
 
@@ -243,7 +243,7 @@ inline constexpr RtInfo kRtInfo[] = {
 };
 
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
-inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= Rt::HostLayoutLineWidth; }
+inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= Rt::HostLayoutCounter; }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && !isLayoutRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }

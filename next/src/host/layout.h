@@ -53,6 +53,8 @@ class Layout {
   /** The lines of a text node after `calculate`, wrapped at its final width, and their widths; null for other nodes. */
   virtual const std::vector<std::string>* lines(std::int32_t node) const = 0;
   virtual const std::vector<double>* lineWidths(std::int32_t node) const = 0;
+  /** Work counters for tests: 0 the leaves measured, 1 the calculate calls (ZN-286: a change re-measures only what it dirtied). */
+  virtual std::uint64_t counter(int which) const = 0;
 };
 
 /** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine, measuring text with `metric`. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch),

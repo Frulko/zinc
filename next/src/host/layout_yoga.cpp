@@ -76,6 +76,7 @@ class YogaLayout final : public Layout {
     r->leaf.reset();
   }
   const std::vector<std::string>* lines(std::int32_t h) const override { const Rec* r = rec(h); return r && r->leaf && r->leaf->kind == Leaf::Text ? &r->leaf->lines : nullptr; }
+  std::uint64_t counter(int which) const override { return which == 0 ? measures_ : calculates_; }
   const std::vector<double>* lineWidths(std::int32_t h) const override { const Rec* r = rec(h); return r && r->leaf && r->leaf->kind == Leaf::Text ? &r->leaf->widths : nullptr; }
   void markDirty(std::int32_t h) override {
     Rec* r = rec(h);
@@ -84,6 +85,7 @@ class YogaLayout final : public Layout {
   void calculate(std::int32_t root, float width, float height) override {
     Rec* r = rec(root);
     if (!r) return;
+    ++calculates_;
     YGNodeCalculateLayout(r->node, width, height, YGDirectionLTR);
     // the lines the painter draws: wrapped again at the final content width when the last measure ran at another one (a flex item is measured
     // before it grows or shrinks); ponytail: a pass over every text leaf, per subtree if layouts of several roots share an engine
@@ -195,6 +197,7 @@ class YogaLayout final : public Layout {
   /** Yoga asks a leaf its size under the constraints: `width` is the content width (the padding is Yoga's), exact, at most, or none. */
   static YGSize measure(YGNodeConstRef node, float width, YGMeasureMode wm, float height, YGMeasureMode hm) {
     Leaf& f = *static_cast<Leaf*>(YGNodeGetContext(node));
+    ++f.engine->measures_;
     const bool wExact = wm == YGMeasureModeExactly, hExact = hm == YGMeasureModeExactly;
     if (f.kind == Leaf::Text) {   // as measure() of ui.ts: the widest line, rounded up, and one line height per line
       const double avail = wm == YGMeasureModeUndefined ? INFINITY : width;
@@ -224,6 +227,8 @@ class YogaLayout final : public Layout {
   static void display(const Rec& r) { YGNodeStyleSetDisplay(r.node, r.hidden ? YGDisplayNone : r.contents ? YGDisplayContents : YGDisplayFlex); }
 
   TextMetric metric_;
+  mutable std::uint64_t measures_ = 0;   // (counted from the measure callback, which only sees the engine as const)
+  std::uint64_t calculates_ = 0;
   YGConfigRef config_;
   std::vector<Rec> nodes_;
 };

@@ -158,6 +158,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   std::string src, path = name;
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:gfx") src = gfxSource();
+    else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
     else {
       std::string_view f = zn::frontend::stdModuleFile(name);

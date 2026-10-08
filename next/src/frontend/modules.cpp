@@ -676,6 +676,8 @@ export function height(n: i32): number { return __host_layoutBox(n, 3); }
 export function lineCount(n: i32): i32 { return __host_layoutLines(n); }
 export function line(n: i32, i: i32): string { return __host_layoutLine(n, i); }
 export function lineWidth(n: i32, i: i32): number { return __host_layoutLineWidth(n, i); }
+/** 0: leaves measured so far, 1: calculate calls (tests of the dirty flags) */
+export function counter(which: i32): number { return __host_layoutCounter(which); }
 )ZN";
 const char* kHostSockModule = R"ZN(
 export function connect(host: string, port: i32): i32 { return __host_sockConnect(host, port); }
@@ -3002,5 +3004,7 @@ std::string_view stdModuleFile(std::string_view spec) {
 std::function<bool(const std::string&, std::string&)> gNativeProvider;
 std::function<bool(const std::string&)> gNativePreferred;
 std::function<bool(const std::string&)> gNativeLive;
+
+std::string platformModule(const std::string& capsFile) { return platformModuleSource(capsFile); }
 
 }  // namespace zn::frontend
