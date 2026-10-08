@@ -109,6 +109,22 @@ export class Edit {
   constructor(multi: boolean) { this.multi = multi; }
 }
 
+/** Compiler-normalized immutable style. Keep shared styles outside render functions. */
+export class Style {
+  keys: string[]; values: number[];
+  constructor(keys: string[], values: number[]) { this.keys = keys; this.values = values; }
+}
+/** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
+export class StyleSheet {
+  static create<T>(styles: T): T { return styles; }
+  static flatten(styles: Style[]): Style {
+    const keys: string[] = [], values: number[] = [];
+    for (const s of styles) for (let i = 0; i < s.keys.length; i++) { keys.push(s.keys[i]); values.push(s.values[i]); }
+    return new Style(keys, values);
+  }
+  static compose(base: Style, override: Style): Style { return StyleSheet.flatten([base, override]); }
+}
+
 const NO_LINES: string[] = [];
 const NO_LINEW: number[] = [];
 export class UiNode {
@@ -149,6 +165,7 @@ export class UiNode {
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
+  letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
   size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -158,6 +175,7 @@ export class UiNode {
   transMs: number = 0; curBg: i32 = -1; fromBg: i32 = -1; transStart: number = 0;
   focusable: boolean = false;
   styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW;   // shared empties until the first style number
+  sheets: Style[] = []; sheetKeys: string[] = []; sheetVals: number[] = [];
   cls: string = '\u0000';
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
@@ -415,6 +433,8 @@ function applyNumber(n: UiNode, key: string, v: number): void {
   if (key === 'translateX' || key === 'x') { n.tx = v; paintDirty = true; return; }
   if (key === 'translateY' || key === 'y') { n.ty = v; paintDirty = true; return; }
   if (key === 'bg' || key === 'backgroundColor') { n.bg = iv; paintDirty = true; return; }
+  if (key === 'backgroundAlpha') { n.bgAlpha = iv; paintDirty = true; return; }
+  if (key === 'borderColor') { n.borderColor = iv; paintDirty = true; return; }
   if (key === 'color') { n.fg = iv; paintDirty = true; return; }
   if (key === 'radius' || key === 'borderRadius') { n.radius = v; paintDirty = true; return; }
   if (key === 'scale' && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
@@ -431,15 +451,38 @@ function applyNumber(n: UiNode, key: string, v: number): void {
     if (key === 'wrap') { e.wrap = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
     if (key === 'rows') { e.rows = iv; layoutDirty = true; return; }
   }
-  if (key === 'width') n.w = iv; else if (key === 'height') n.h = iv;
+  if (key === 'width') { n.w = iv; n.wFrac = 0; n.fullW = false; }
+  else if (key === 'height') { n.h = iv; n.hFrac = 0; n.fullH = false; }
+  else if (key === 'widthPercent') { n.w = -1; n.wFrac = v; n.fullW = false; }
+  else if (key === 'heightPercent') { n.h = -1; n.hFrac = v; n.fullH = false; }
+  else if (key === 'flexDirection') n.row = iv !== 0;
+  else if (key === 'flexWrap') n.wrap = iv !== 0;
+  else if (key === 'justifyContent') n.justify = iv;
+  else if (key === 'alignItems') n.align = iv;
+  else if (key === 'position') n.abs = iv !== 0;
+  else if (key === 'overflow') { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
+  else if (key === 'fontWeight') n.bold = iv !== 0;
+  else if (key === 'textAlign') n.talign = iv;
+  else if (key === 'lineHeight') n.leading = iv;
+  else if (key === 'letterSpacing') { n.letterSpace = v; n.tracking = v / (n.size > 0 ? n.size : 16); }
+  else if (key === 'borderWidth') n.borderW = v;
+  else if (key === 'borderTopWidth') n.bT = v;
+  else if (key === 'borderRightWidth') n.bR = v;
+  else if (key === 'borderBottomWidth') n.bB = v;
+  else if (key === 'borderLeftWidth') n.bL = v;
+  else if (key === 'paddingTop') n.pt = iv; else if (key === 'paddingRight') n.pr = iv;
+  else if (key === 'paddingBottom') n.pb = iv; else if (key === 'paddingLeft') n.pl = iv;
+  else if (key === 'marginTop') n.mt = iv; else if (key === 'marginRight') n.mr = iv;
+  else if (key === 'marginBottom') n.mb = iv; else if (key === 'marginLeft') n.ml = iv;
   else if (key === 'grow') n.grow = iv; else if (key === 'gap') n.gap = iv;
   else if (key === 'padding') { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
   else if (key === 'scale') n.size = 8 * iv;
-  else if (key === 'fontSize') n.size = iv;
+  else if (key === 'fontSize') { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
   else if (key === 'hidden') n.hidden = iv !== 0;
   else if (key === 'keepFocus') { n.keepFocus = iv !== 0; return; }
   else if (key === 'inputMode') { n.inputMode = iv; return; }
   else if (key === 'top') n.top = iv; else if (key === 'left') n.left = iv;
+  else if (key === 'right') n.right = iv; else if (key === 'bottom') n.bottom = iv;
   layoutDirty = true;
 }
 
@@ -648,7 +691,8 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.talign = 0; n.leading = 0;
+  n.tx = 0; n.ty = 0; n.k = 1; n.borderColor = fresh.borderColor;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -658,11 +702,64 @@ export function setClass(h: i32, cls: string): void {
   const n = node(h);
   if (n.cls === cls) return;
   n.cls = cls;
-  resetStyle(n);
-  for (const c of cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
-  for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
+  rebuildStyle(n);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;  // the font may have changed
   layoutDirty = true;
+}
+function sheetNumber(n: UiNode, key: string, value: number): void {
+  const colon = key.indexOf(':');
+  if (key.startsWith('@') && colon > 0) {
+    const c = parseHex(key.slice(colon + 1)), prop = key.slice(1, colon);
+    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else n.borderColor = c;
+    paintDirty = true; return;
+  }
+  if (key.startsWith('@')) applyToken(n, key.slice(1), ''); else applyNumber(n, key, value);
+}
+function rebuildStyle(n: UiNode): void {
+  resetStyle(n);
+  for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
+  for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetVals[i]);
+  for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
+  if (n.ed !== null) (n.ed as Edit).rowsW = -1;
+  layoutDirty = true;
+}
+function sheetProperty(key: string): string {
+  if (key.startsWith('@font-')) return 'fontFamily';
+  if (key.startsWith('@') && key.indexOf(':') > 0) return key.slice(1, key.indexOf(':'));
+  if (key === 'widthPercent') return 'width';
+  if (key === 'heightPercent') return 'height';
+  return key;
+}
+/** Last layer wins. Cache is bounded by the styles on this node; inline allocations compare by value. */
+export function setStyles(h: i32, styles: Style[]): void {
+  const n = node(h);
+  let same = styles.length === n.sheets.length;
+  if (same) for (let i = 0; i < styles.length; i++) if (styles[i] !== n.sheets[i]) same = false;
+  if (same) return;
+  const keys: string[] = [], vals: number[] = [];
+  // ponytail: linear lookup over the small supported property set; index it if profiling warrants it.
+  for (const s of styles) for (let j = 0; j < s.keys.length; j++) {
+    const k = s.keys[j];
+    // Width in px and in % are the same CSS property; font families likewise replace one another.
+    for (let z = keys.length - 1; z >= 0; z--) if (sheetProperty(keys[z]) === sheetProperty(k)) { keys.splice(z, 1); vals.splice(z, 1); }
+    keys.push(k); vals.push(s.values[j]);
+  }
+  n.sheets = styles;
+  let shape = keys.length === n.sheetKeys.length;
+  if (shape) for (let i = 0; i < keys.length; i++) if (keys[i] !== n.sheetKeys[i]) shape = false;
+  if (!shape) {
+    // Stateful numeric extensions (e.g. a lazy canvas) also need their reset hook.
+    if (n.sheetKeys.indexOf('lazy') >= 0 && keys.indexOf('lazy') < 0) applyNumber(n, 'lazy', 0);
+    n.sheetKeys = keys; n.sheetVals = vals; rebuildStyle(n); return;
+  }
+  let changed = false;
+  for (let i = 0; i < keys.length; i++) if (vals[i] !== n.sheetVals[i]) {
+    n.sheetVals[i] = vals[i];
+    sheetNumber(n, keys[i], vals[i]);
+    changed = true;
+  }
+  // Reapply all overrides: aliases and shorthands can affect the same property.
+  if (changed) for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
 }
 /** Class validation used by debug builds and tools. */
 export function isKnownClass(tok: string): boolean { return applyToken(new UiNode(VIEW), tok, ''); }
@@ -1675,6 +1772,8 @@ function stepScroll(dt: number): void {
     if (!moving) { n.live = false; n.vx = 0; n.vy = 0; clampScroll(n); scrollers.splice(i, 1); }
   }
 }
+/** Scrolls the enclosing containers so the focused node is visible (again): call it after the layout changed, e.g. an on-screen keyboard took room. */
+export function revealFocused(): void { if (focus >= 0) revealFocus(focus); }
 /** Keyboard focus: scroll every enclosing container so the focused node is visible. */
 function revealFocus(h: i32): void {
   const f = node(h);
@@ -1686,6 +1785,7 @@ function revealFocus(h: i32): void {
       else if (f.y + f.lh > n.y + n.sy + n.lh) n.sy = f.y + f.lh - n.y - n.lh;
       clampScroll(n); n.scrolledAt = clock; paintDirty = true;
     }
+    if (n.layer) break;   // a layer is placed on the surface, apart from its ancestors: their scrolling cannot reveal it
     p = n.parent;
   }
 }
