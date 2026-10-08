@@ -1,0 +1,8 @@
+tabs 2 2 | accordion open 1
+accordion closed true | sort 3 desc false first Alan Turing
+sort desc true first Katherine Johnson
+sort by name first Ada Lovelace | page 5 | section Customers
+page 12
+selected rows 1,3
+select all 5 | page still 12
+sidebar collapsed true

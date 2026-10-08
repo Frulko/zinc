@@ -5,3 +5,6 @@ export { Button, ButtonProps, Badge, BadgeProps, Avatar, AvatarProps, Card, Card
   CheckboxProps, Switch, SwitchProps, RadioGroup, RadioGroupProps } from './controls';
 export { Modal, ModalProps, Slideover, SlideoverProps, DropdownMenu, DropdownMenuItem, DropdownMenuProps, isMenuOpen, Tooltip, TooltipProps, showTooltip, addToast,
   ToastOptions, toastCount } from './overlays';
+export { Tabs, TabsItem, TabsProps, Accordion, AccordionItem, AccordionProps, Table, TableColumn, TableProps, sortedRows, Pagination, PaginationProps, pageItems,
+  Breadcrumb, BreadcrumbItem, NavigationMenu, NavigationItem, DashboardGroup, DashboardSidebar, DashboardSidebarProps, DashboardPanel, DashboardNavbar,
+  DashboardToolbar } from './navigation';

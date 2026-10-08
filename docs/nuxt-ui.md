@@ -48,18 +48,18 @@ The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`
 | Checkbox (done) | xs..xl; indeterminate; label, description | ZN-357.02 | |
 | Switch (done) | xs..xl (md 36 x 20, thumb 16); loading | ZN-357.02 | thumb animation 200 ms |
 | RadioGroup (done) | list, card, table variants; xs..xl; orientation | ZN-357.02 | arrow keys move the choice |
-| Tabs | pill, link; xs..xl; horizontal / vertical | ZN-357.04 | the indicator measured from the trigger boxes (screenBox) |
-| Accordion | single / multiple, collapsible | ZN-357.04 | height animation to the content's measured height |
+| Tabs (done) | pill, link; xs..xl; horizontal / vertical | ZN-357.04 | the indicator measured from the trigger boxes (screenBox) |
+| Accordion (done) | single / multiple, collapsible | ZN-357.04 | height animation to the content's measured height |
 | Modal (done) | fullscreen, dismissible, overlay | ZN-357.03 | zinc:ui layers for the portal; focus kept inside; Escape and outside click |
 | Slideover (done) | side top / right / bottom / left | ZN-357.03 | slide-in keyframes: ZN-275 |
 | DropdownMenu (done) | items with icons, kbds, checkbox items, submenus | ZN-357.03 | anchored float; submenu pointer grace |
 | Tooltip (done) | delay, side | ZN-357.03 | 24 px high, 100 ms |
 | Toast / Toaster (done) | color, title, description, actions, duration, progress | ZN-357.03 | queue of 5, stacked, pause on hover; swipe through onDrag |
-| Table | columns, sorting, row selection, sticky header, loading bar | ZN-357.04 | large data through VirtualList |
-| Pagination | page, total, items-per-page, sibling-count | ZN-357.04 | outline neutral buttons, the current page a solid primary button (Nuxt UI's own composition) |
-| Breadcrumb | items with icons, separator | ZN-357.04 | |
-| NavigationMenu | horizontal, vertical, collapsed; highlight | ZN-357.04 | the horizontal viewport animation is simplified to a popover |
-| Dashboard layout | DashboardGroup, DashboardSidebar (collapsible, resizable), DashboardPanel, DashboardNavbar, toolbar | ZN-357.04 | sizes kept per app (zinc:ui storage); below 1024 px the sidebar is a Slideover |
+| Table (done) | columns, sorting, row selection, sticky header, loading bar | ZN-357.04 | large data through VirtualList |
+| Pagination (done) | page, total, items-per-page, sibling-count | ZN-357.04 | outline neutral buttons, the current page a solid primary button (Nuxt UI's own composition) |
+| Breadcrumb (done) | items with icons, separator | ZN-357.04 | |
+| NavigationMenu (done) | horizontal, vertical, collapsed; highlight | ZN-357.04 | the horizontal viewport animation is simplified to a popover |
+| Dashboard layout (done) | DashboardGroup, DashboardSidebar (collapsible, resizable), DashboardPanel, DashboardNavbar, toolbar | ZN-357.04 | sizes kept per app (zinc:ui storage); below 1024 px the sidebar is a Slideover |
 
 The gallery of every component and the dashboard app are `examples/nuxt-ui` (ZN-357.05); the components marked done are in its gallery now.
 Nuxt's inset ring is a 1 px border (borders take no layout space in zinc:ui, so the boxes keep Nuxt's sizes); the kit has its own JSX helpers
