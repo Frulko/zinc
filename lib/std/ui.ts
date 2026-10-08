@@ -111,8 +111,13 @@ export class Edit {
 
 /** Compiler-normalized immutable style. Keep shared styles outside render functions. */
 export class Style {
-  keys: string[]; values: number[];
-  constructor(keys: string[], values: number[]) { this.keys = keys; this.values = values; }
+  keys: string[]; values: number[]; ids: i32[];   // ids: propId of each key, found once here
+  constructor(keys: string[], values: number[]) {
+    this.keys = keys; this.values = values;
+    const ids: i32[] = [];
+    for (let i = 0; i < keys.length; i++) ids.push(propId(keys[i]));
+    this.ids = ids;
+  }
 }
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
@@ -127,6 +132,7 @@ export class StyleSheet {
 
 const NO_LINES: string[] = [];
 const NO_LINEW: number[] = [];
+const NO_IDS: i32[] = [];
 export class UiNode {
   tag: i32;
   parent: i32 = -1;
@@ -174,8 +180,8 @@ export class UiNode {
   focusBg: i32 = -1; activeBg: i32 = -1; focusFg: i32 = -1; activeFg: i32 = -1;
   transMs: number = 0; curBg: i32 = -1; fromBg: i32 = -1; transStart: number = 0;
   focusable: boolean = false;
-  styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW;   // shared empties until the first style number
-  sheets: Style[] = []; sheetKeys: string[] = []; sheetVals: number[] = [];
+  styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW; styleIds: i32[] = NO_IDS;   // shared empties until the first style number
+  sheets: Style[] = []; sheetKeys: string[] = []; sheetVals: number[] = []; sheetIds: i32[] = [];
   cls: string = '\u0000';
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
@@ -421,68 +427,191 @@ function clampI(v: i32, a: i32, b: i32): i32 { return v < a ? a : v > b ? b : v;
 /** Numeric style properties (style={{ ... }}, animate, dynamic attributes). */
 export function setNumber(h: i32, key: string, v: number): void {
   const n = node(h);
-  if (n.styleKeys === NO_LINES) { n.styleKeys = []; n.styleVals = []; }
+  if (n.styleKeys === NO_LINES) { n.styleKeys = []; n.styleVals = []; n.styleIds = []; }
   const i = n.styleKeys.indexOf(key);
-  if (i >= 0) { if (n.styleVals[i] === v) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); }
-  applyNumber(n, key, v);
+  const id = i >= 0 ? n.styleIds[i] : propId(key);
+  if (i >= 0) { if (n.styleVals[i] === v) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); n.styleIds.push(id); }
+  applyProp(n, id, key, v);
 }
-function applyNumber(n: UiNode, key: string, v: number): void {
+/** Numeric style properties by id (ZN-250): a key is looked up once, when a Style or a setNumber meets it; applying a style compares integers. Aliases share an id; 0 is a key the table does not know (interaction keys). */
+const P_OPACITY: i32 = 1;
+const P_TRANSLATE_X: i32 = 2;
+const P_TRANSLATE_Y: i32 = 3;
+const P_BACKGROUND_COLOR: i32 = 5;
+const P_BACKGROUND_ALPHA: i32 = 6;
+const P_BORDER_COLOR: i32 = 7;
+const P_COLOR: i32 = 8;
+const P_RADIUS: i32 = 9;
+const P_SCALE: i32 = 10;
+const P_LAZY: i32 = 11;
+const P_PASSWORD: i32 = 12;
+const P_READ_ONLY: i32 = 13;
+const P_LINE_NUMBERS: i32 = 14;
+const P_WRAP: i32 = 15;
+const P_ROWS: i32 = 16;
+const P_WIDTH: i32 = 17;
+const P_HEIGHT: i32 = 18;
+const P_WIDTH_PERCENT: i32 = 19;
+const P_HEIGHT_PERCENT: i32 = 20;
+const P_FLEX_DIRECTION: i32 = 21;
+const P_FLEX_WRAP: i32 = 22;
+const P_JUSTIFY_CONTENT: i32 = 23;
+const P_ALIGN_ITEMS: i32 = 24;
+const P_POSITION: i32 = 25;
+const P_OVERFLOW: i32 = 26;
+const P_FONT_WEIGHT: i32 = 27;
+const P_TEXT_ALIGN: i32 = 28;
+const P_LINE_HEIGHT: i32 = 29;
+const P_LETTER_SPACING: i32 = 30;
+const P_BORDER_WIDTH: i32 = 31;
+const P_BORDER_TOP_WIDTH: i32 = 32;
+const P_BORDER_RIGHT_WIDTH: i32 = 33;
+const P_BORDER_BOTTOM_WIDTH: i32 = 34;
+const P_BORDER_LEFT_WIDTH: i32 = 35;
+const P_PADDING_TOP: i32 = 36;
+const P_PADDING_RIGHT: i32 = 37;
+const P_PADDING_BOTTOM: i32 = 38;
+const P_PADDING_LEFT: i32 = 39;
+const P_MARGIN_TOP: i32 = 40;
+const P_MARGIN_RIGHT: i32 = 41;
+const P_MARGIN_BOTTOM: i32 = 42;
+const P_MARGIN_LEFT: i32 = 43;
+const P_GROW: i32 = 44;
+const P_GAP: i32 = 45;
+const P_PADDING: i32 = 46;
+const P_FONT_SIZE: i32 = 47;
+const P_HIDDEN: i32 = 48;
+const P_KEEP_FOCUS: i32 = 49;
+const P_INPUT_MODE: i32 = 50;
+const P_TOP: i32 = 51;
+const P_LEFT: i32 = 52;
+const P_RIGHT: i32 = 53;
+const P_BOTTOM: i32 = 54;
+const PROP = new Map<string, i32>();
+function propInit(): void {
+  PROP.set('opacity', P_OPACITY);
+  PROP.set('translateX', P_TRANSLATE_X);
+  PROP.set('x', P_TRANSLATE_X);
+  PROP.set('translateY', P_TRANSLATE_Y);
+  PROP.set('y', P_TRANSLATE_Y);
+  PROP.set('bg', P_BACKGROUND_COLOR);
+  PROP.set('backgroundColor', P_BACKGROUND_COLOR);
+  PROP.set('backgroundAlpha', P_BACKGROUND_ALPHA);
+  PROP.set('borderColor', P_BORDER_COLOR);
+  PROP.set('color', P_COLOR);
+  PROP.set('radius', P_RADIUS);
+  PROP.set('borderRadius', P_RADIUS);
+  PROP.set('scale', P_SCALE);
+  PROP.set('lazy', P_LAZY);
+  PROP.set('password', P_PASSWORD);
+  PROP.set('readOnly', P_READ_ONLY);
+  PROP.set('lineNumbers', P_LINE_NUMBERS);
+  PROP.set('wrap', P_WRAP);
+  PROP.set('rows', P_ROWS);
+  PROP.set('width', P_WIDTH);
+  PROP.set('height', P_HEIGHT);
+  PROP.set('widthPercent', P_WIDTH_PERCENT);
+  PROP.set('heightPercent', P_HEIGHT_PERCENT);
+  PROP.set('flexDirection', P_FLEX_DIRECTION);
+  PROP.set('flexWrap', P_FLEX_WRAP);
+  PROP.set('justifyContent', P_JUSTIFY_CONTENT);
+  PROP.set('alignItems', P_ALIGN_ITEMS);
+  PROP.set('position', P_POSITION);
+  PROP.set('overflow', P_OVERFLOW);
+  PROP.set('fontWeight', P_FONT_WEIGHT);
+  PROP.set('textAlign', P_TEXT_ALIGN);
+  PROP.set('lineHeight', P_LINE_HEIGHT);
+  PROP.set('letterSpacing', P_LETTER_SPACING);
+  PROP.set('borderWidth', P_BORDER_WIDTH);
+  PROP.set('borderTopWidth', P_BORDER_TOP_WIDTH);
+  PROP.set('borderRightWidth', P_BORDER_RIGHT_WIDTH);
+  PROP.set('borderBottomWidth', P_BORDER_BOTTOM_WIDTH);
+  PROP.set('borderLeftWidth', P_BORDER_LEFT_WIDTH);
+  PROP.set('paddingTop', P_PADDING_TOP);
+  PROP.set('paddingRight', P_PADDING_RIGHT);
+  PROP.set('paddingBottom', P_PADDING_BOTTOM);
+  PROP.set('paddingLeft', P_PADDING_LEFT);
+  PROP.set('marginTop', P_MARGIN_TOP);
+  PROP.set('marginRight', P_MARGIN_RIGHT);
+  PROP.set('marginBottom', P_MARGIN_BOTTOM);
+  PROP.set('marginLeft', P_MARGIN_LEFT);
+  PROP.set('grow', P_GROW);
+  PROP.set('gap', P_GAP);
+  PROP.set('padding', P_PADDING);
+  PROP.set('fontSize', P_FONT_SIZE);
+  PROP.set('hidden', P_HIDDEN);
+  PROP.set('keepFocus', P_KEEP_FOCUS);
+  PROP.set('inputMode', P_INPUT_MODE);
+  PROP.set('top', P_TOP);
+  PROP.set('left', P_LEFT);
+  PROP.set('right', P_RIGHT);
+  PROP.set('bottom', P_BOTTOM);
+}
+/** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
+export function propId(key: string): i32 {
+  if (PROP.size === 0) propInit();
+  if (key.startsWith('@')) return -1;
+  const id = PROP.get(key);
+  return id === undefined ? 0 : id;
+}
+function applyNumber(n: UiNode, key: string, v: number): void { applyProp(n, propId(key), key, v); }
+function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   const iv: i32 = Math.round(v);
-  if (applyInteraction(n, key, iv, v)) return;
-  if (key === 'opacity') { n.opacity = v; paintDirty = true; return; }
-  if (key === 'translateX' || key === 'x') { n.tx = v; paintDirty = true; return; }
-  if (key === 'translateY' || key === 'y') { n.ty = v; paintDirty = true; return; }
-  if (key === 'bg' || key === 'backgroundColor') { n.bg = iv; paintDirty = true; return; }
-  if (key === 'backgroundAlpha') { n.bgAlpha = iv; paintDirty = true; return; }
-  if (key === 'borderColor') { n.borderColor = iv; paintDirty = true; return; }
-  if (key === 'color') { n.fg = iv; paintDirty = true; return; }
-  if (key === 'radius' || key === 'borderRadius') { n.radius = v; paintDirty = true; return; }
-  if (key === 'scale' && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
-  if (key === 'lazy' && n.tag === CANVAS) {
+  if (id === 0 && applyInteraction(n, key, iv, v)) return;   // grab, dragAxis, tabIndex... keep their names
+  if (id === P_OPACITY) { n.opacity = v; paintDirty = true; return; }
+  if (id === P_TRANSLATE_X || id === P_TRANSLATE_X) { n.tx = v; paintDirty = true; return; }
+  if (id === P_TRANSLATE_Y || id === P_TRANSLATE_Y) { n.ty = v; paintDirty = true; return; }
+  if (id === P_BACKGROUND_COLOR || id === P_BACKGROUND_COLOR) { n.bg = iv; paintDirty = true; return; }
+  if (id === P_BACKGROUND_ALPHA) { n.bgAlpha = iv; paintDirty = true; return; }
+  if (id === P_BORDER_COLOR) { n.borderColor = iv; paintDirty = true; return; }
+  if (id === P_COLOR) { n.fg = iv; paintDirty = true; return; }
+  if (id === P_RADIUS || id === P_RADIUS) { n.radius = v; paintDirty = true; return; }
+  if (id === P_SCALE && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
+  if (id === P_LAZY && n.tag === CANVAS) {
     // a lazy canvas does not force a repaint every frame: it is drawn when something else changed (or ui.repaint())
     if (n.lazy !== (iv !== 0)) { n.lazy = iv !== 0; canvases += n.lazy ? -1 : 1; paintDirty = true; }
     return;
   }
   const e = n.ed;
   if (e !== null) {
-    if (key === 'password') { e.password = iv !== 0; e.rowsFor = '\u0000'; paintDirty = true; return; }
-    if (key === 'readOnly') { e.readOnly = iv !== 0; paintDirty = true; return; }
-    if (key === 'lineNumbers') { e.lineNumbers = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
-    if (key === 'wrap') { e.wrap = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
-    if (key === 'rows') { e.rows = iv; layoutDirty = true; return; }
+    if (id === P_PASSWORD) { e.password = iv !== 0; e.rowsFor = '\u0000'; paintDirty = true; return; }
+    if (id === P_READ_ONLY) { e.readOnly = iv !== 0; paintDirty = true; return; }
+    if (id === P_LINE_NUMBERS) { e.lineNumbers = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
+    if (id === P_WRAP) { e.wrap = iv !== 0; e.rowsW = -1; paintDirty = true; return; }
+    if (id === P_ROWS) { e.rows = iv; layoutDirty = true; return; }
   }
-  if (key === 'width') { n.w = iv; n.wFrac = 0; n.fullW = false; }
-  else if (key === 'height') { n.h = iv; n.hFrac = 0; n.fullH = false; }
-  else if (key === 'widthPercent') { n.w = -1; n.wFrac = v; n.fullW = false; }
-  else if (key === 'heightPercent') { n.h = -1; n.hFrac = v; n.fullH = false; }
-  else if (key === 'flexDirection') n.row = iv !== 0;
-  else if (key === 'flexWrap') n.wrap = iv !== 0;
-  else if (key === 'justifyContent') n.justify = iv;
-  else if (key === 'alignItems') n.align = iv;
-  else if (key === 'position') n.abs = iv !== 0;
-  else if (key === 'overflow') { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
-  else if (key === 'fontWeight') n.bold = iv !== 0;
-  else if (key === 'textAlign') n.talign = iv;
-  else if (key === 'lineHeight') n.leading = iv;
-  else if (key === 'letterSpacing') { n.letterSpace = v; n.tracking = v / (n.size > 0 ? n.size : 16); }
-  else if (key === 'borderWidth') n.borderW = v;
-  else if (key === 'borderTopWidth') n.bT = v;
-  else if (key === 'borderRightWidth') n.bR = v;
-  else if (key === 'borderBottomWidth') n.bB = v;
-  else if (key === 'borderLeftWidth') n.bL = v;
-  else if (key === 'paddingTop') n.pt = iv; else if (key === 'paddingRight') n.pr = iv;
-  else if (key === 'paddingBottom') n.pb = iv; else if (key === 'paddingLeft') n.pl = iv;
-  else if (key === 'marginTop') n.mt = iv; else if (key === 'marginRight') n.mr = iv;
-  else if (key === 'marginBottom') n.mb = iv; else if (key === 'marginLeft') n.ml = iv;
-  else if (key === 'grow') n.grow = iv; else if (key === 'gap') n.gap = iv;
-  else if (key === 'padding') { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
-  else if (key === 'scale') n.size = 8 * iv;
-  else if (key === 'fontSize') { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
-  else if (key === 'hidden') n.hidden = iv !== 0;
-  else if (key === 'keepFocus') { n.keepFocus = iv !== 0; return; }
-  else if (key === 'inputMode') { n.inputMode = iv; return; }
-  else if (key === 'top') n.top = iv; else if (key === 'left') n.left = iv;
-  else if (key === 'right') n.right = iv; else if (key === 'bottom') n.bottom = iv;
+  if (id === P_WIDTH) { n.w = iv; n.wFrac = 0; n.fullW = false; }
+  else if (id === P_HEIGHT) { n.h = iv; n.hFrac = 0; n.fullH = false; }
+  else if (id === P_WIDTH_PERCENT) { n.w = -1; n.wFrac = v; n.fullW = false; }
+  else if (id === P_HEIGHT_PERCENT) { n.h = -1; n.hFrac = v; n.fullH = false; }
+  else if (id === P_FLEX_DIRECTION) n.row = iv !== 0;
+  else if (id === P_FLEX_WRAP) n.wrap = iv !== 0;
+  else if (id === P_JUSTIFY_CONTENT) n.justify = iv;
+  else if (id === P_ALIGN_ITEMS) n.align = iv;
+  else if (id === P_POSITION) n.abs = iv !== 0;
+  else if (id === P_OVERFLOW) { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
+  else if (id === P_FONT_WEIGHT) n.bold = iv !== 0;
+  else if (id === P_TEXT_ALIGN) n.talign = iv;
+  else if (id === P_LINE_HEIGHT) n.leading = iv;
+  else if (id === P_LETTER_SPACING) { n.letterSpace = v; n.tracking = v / (n.size > 0 ? n.size : 16); }
+  else if (id === P_BORDER_WIDTH) n.borderW = v;
+  else if (id === P_BORDER_TOP_WIDTH) n.bT = v;
+  else if (id === P_BORDER_RIGHT_WIDTH) n.bR = v;
+  else if (id === P_BORDER_BOTTOM_WIDTH) n.bB = v;
+  else if (id === P_BORDER_LEFT_WIDTH) n.bL = v;
+  else if (id === P_PADDING_TOP) n.pt = iv; else if (id === P_PADDING_RIGHT) n.pr = iv;
+  else if (id === P_PADDING_BOTTOM) n.pb = iv; else if (id === P_PADDING_LEFT) n.pl = iv;
+  else if (id === P_MARGIN_TOP) n.mt = iv; else if (id === P_MARGIN_RIGHT) n.mr = iv;
+  else if (id === P_MARGIN_BOTTOM) n.mb = iv; else if (id === P_MARGIN_LEFT) n.ml = iv;
+  else if (id === P_GROW) n.grow = iv; else if (id === P_GAP) n.gap = iv;
+  else if (id === P_PADDING) { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
+  else if (id === P_SCALE) n.size = 8 * iv;
+  else if (id === P_FONT_SIZE) { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
+  else if (id === P_HIDDEN) n.hidden = iv !== 0;
+  else if (id === P_KEEP_FOCUS) { n.keepFocus = iv !== 0; return; }
+  else if (id === P_INPUT_MODE) { n.inputMode = iv; return; }
+  else if (id === P_TOP) n.top = iv; else if (id === P_LEFT) n.left = iv;
+  else if (id === P_RIGHT) n.right = iv; else if (id === P_BOTTOM) n.bottom = iv;
   layoutDirty = true;
 }
 
@@ -706,20 +835,21 @@ export function setClass(h: i32, cls: string): void {
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;  // the font may have changed
   layoutDirty = true;
 }
-function sheetNumber(n: UiNode, key: string, value: number): void {
+function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
+  if (id >= 0) { applyProp(n, id, key, value); return; }   // a numeric property: no string work
   const colon = key.indexOf(':');
   if (key.startsWith('@') && colon > 0) {
     const c = parseHex(key.slice(colon + 1)), prop = key.slice(1, colon);
     if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else n.borderColor = c;
     paintDirty = true; return;
   }
-  if (key.startsWith('@')) applyToken(n, key.slice(1), ''); else applyNumber(n, key, value);
+  applyToken(n, key.slice(1), '');
 }
 function rebuildStyle(n: UiNode): void {
   resetStyle(n);
   for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
-  for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetVals[i]);
-  for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
+  for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
+  for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
   layoutDirty = true;
 }
@@ -736,13 +866,13 @@ export function setStyles(h: i32, styles: Style[]): void {
   let same = styles.length === n.sheets.length;
   if (same) for (let i = 0; i < styles.length; i++) if (styles[i] !== n.sheets[i]) same = false;
   if (same) return;
-  const keys: string[] = [], vals: number[] = [];
+  const keys: string[] = [], vals: number[] = [], ids: i32[] = [];
   // ponytail: linear lookup over the small supported property set; index it if profiling warrants it.
   for (const s of styles) for (let j = 0; j < s.keys.length; j++) {
     const k = s.keys[j];
     // Width in px and in % are the same CSS property; font families likewise replace one another.
-    for (let z = keys.length - 1; z >= 0; z--) if (sheetProperty(keys[z]) === sheetProperty(k)) { keys.splice(z, 1); vals.splice(z, 1); }
-    keys.push(k); vals.push(s.values[j]);
+    for (let z = keys.length - 1; z >= 0; z--) if (sheetProperty(keys[z]) === sheetProperty(k)) { keys.splice(z, 1); vals.splice(z, 1); ids.splice(z, 1); }
+    keys.push(k); vals.push(s.values[j]); ids.push(s.ids[j]);
   }
   n.sheets = styles;
   let shape = keys.length === n.sheetKeys.length;
@@ -750,16 +880,16 @@ export function setStyles(h: i32, styles: Style[]): void {
   if (!shape) {
     // Stateful numeric extensions (e.g. a lazy canvas) also need their reset hook.
     if (n.sheetKeys.indexOf('lazy') >= 0 && keys.indexOf('lazy') < 0) applyNumber(n, 'lazy', 0);
-    n.sheetKeys = keys; n.sheetVals = vals; rebuildStyle(n); return;
+    n.sheetKeys = keys; n.sheetVals = vals; n.sheetIds = ids; rebuildStyle(n); return;
   }
   let changed = false;
   for (let i = 0; i < keys.length; i++) if (vals[i] !== n.sheetVals[i]) {
     n.sheetVals[i] = vals[i];
-    sheetNumber(n, keys[i], vals[i]);
+    sheetNumber(n, keys[i], ids[i], vals[i]);
     changed = true;
   }
   // Reapply all overrides: aliases and shorthands can affect the same property.
-  if (changed) for (let i = 0; i < n.styleKeys.length; i++) applyNumber(n, n.styleKeys[i], n.styleVals[i]);
+  if (changed) for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
 }
 /** Class validation used by debug builds and tools. */
 export function isKnownClass(tok: string): boolean { return applyToken(new UiNode(VIEW), tok, ''); }
