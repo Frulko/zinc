@@ -1,3 +1,4 @@
+#include "zn/stamp.h"
 #include "vm/vm.h"
 
 #include <bit>
@@ -196,7 +197,17 @@ L_LogFx12: *out += numberToString(zn::ops::fxToD(r[A], 12)); NEXT();
 L_LogFx16: *out += numberToString(zn::ops::fxToD(r[A], 16)); NEXT();
 L_LogBool: *out += r[A] ? "true" : "false"; NEXT();
 L_LogSep: *out += ' '; NEXT();
-L_LogEnd: *out += '\n'; NEXT();
+L_LogEnd: {
+  *out += '\n';
+  static const bool stamp = std::getenv("ZINC_STAMP_OUT") != nullptr;   // the simulator runner: every console line starts with "@<frames done> " (include/zn/stamp.h)
+  if (__builtin_expect(stamp, 0)) {
+    static std::size_t lineStart = 0;
+    if (lineStart > out->size() - 1) lineStart = 0;
+    out->insert(lineStart, "@" + std::to_string(zn::rt::gStampFrame) + " ");
+    lineStart = out->size();
+  }
+  NEXT();
+}
 L_LogBegErr: errMark = out->size(); NEXT();
 L_LogEndErr: flushErrLine(); NEXT();
 #undef NEXT

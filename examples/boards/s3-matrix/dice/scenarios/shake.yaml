@@ -1,0 +1,14 @@
+# Shake the die, wait for it to land, look at what it shows.
+name: dice shake and roll
+version: 1
+project: ..
+board: ../board.json
+steps:
+  - wait-serial: "imu: no sensor"
+  - expect-frame: { part-id: matrix, hash: "bcc44417c08eee63" }
+  - set-control: { part-id: imu, control: shake, value: 1 }
+  - wait-serial: { text: "roll 1:", timeout: 3s }
+  - advance: 400ms
+  - expect-frame: { part-id: matrix, hash: "29d60c2a649e9f83" }
+  - take-screenshot: { part-id: matrix, compare-with: shots/landed.png, tolerance: 0% }
+  - expect-pixel: { part-id: matrix, x: 0, y: 0, rgb: "#30e050" }

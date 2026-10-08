@@ -16,3 +16,13 @@ zinc flash examples/boards/s3-matrix/dice --target esp32 # the real board
 ```
 
 The shake threshold is in `plugins/imu-qmi8658/index.ts` (`SHAKE_G`, about 0.9 g away from rest).
+
+## Scenario
+
+`scenarios/shake.yaml` shakes the die and checks what it prints and shows, in virtual time, without a window (`zinc sim`). `board.json` says that the part `imu` shakes with the gamepad button A
+(`attrs.inputs`); the steps `set-control`, `wait-serial`, `advance`, `expect-frame` (the hash of the 8x8 frame), `take-screenshot` and `expect-pixel` work, a failing step exits 1 and leaves its last frame in `--out`.
+
+```sh
+zinc sim examples/boards/s3-matrix/dice/scenarios/shake.yaml
+zinc sim examples/boards/s3-matrix/dice/scenarios/shake.yaml --update-goldens   # rewrites shots/landed.png
+```

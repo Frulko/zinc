@@ -29,7 +29,7 @@ static bool headlessRequested() {
 int zn_hal_is_live(void) { return live ? 1 : 0; }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text STRING | wheel DX DY
+//   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text STRING | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel).
 namespace {
 struct Event { int frame; std::string kind, a, b; };
@@ -37,7 +37,7 @@ std::vector<Event> script;
 bool scriptRead = false;
 int pollNo = 0;
 float curX = 0, curY = 0;
-uint32_t heldButtons = 0;
+uint32_t heldButtons = 0, heldPad = 0;
 void readScript() {
   scriptRead = true;
   const char* path = getenv("ZINC_INPUT");
@@ -71,6 +71,11 @@ void applyScript(HalInput* in) {
   in->px = curX; in->py = curY; in->pdown = heldButtons & 1; in->pbuttons = heldButtons;
   for (const Event& e : script) {
     if (e.frame != pollNo) continue;
+    if (e.kind == "pad" || e.kind == "padup") {
+      static const char* names[] = {"Up", "Down", "Left", "Right", "A", "B", "X", "Y", "L", "R", "Start", "Select"};
+      for (int i = 0; i < 12; ++i) if (e.a == names[i]) heldPad = e.kind == "pad" ? (heldPad | (1u << i)) : (heldPad & ~(1u << i));
+      continue;
+    }
     auto button = [&](int which, int down) {
       uint32_t bit = which == 0 ? 1u : 2u;
       heldButtons = down ? (heldButtons | bit) : (heldButtons & ~bit);
@@ -96,6 +101,7 @@ void applyScript(HalInput* in) {
       }
     }
   }
+  in->buttons |= heldPad;
   ++pollNo;
 }
 }  // namespace

@@ -1,10 +1,18 @@
 #include "sim/scenario.h"
 
 #include <yaml.h>
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "../../third_party/stb/stb_image.h"
+#pragma GCC diagnostic pop
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <map>
 #include <memory>
 
@@ -96,6 +104,7 @@ bool parseScenario(const std::string& yaml, Scenario& out, std::string& err) {
   if (root.kind != Node::Map) { err = "a scenario is a mapping with `steps`"; return false; }
   if (const Node* n = root.get("name")) out.name = n->text;
   if (const Node* n = root.get("board")) out.board = n->text;
+  if (const Node* n = root.get("project")) out.project = n->text;
   if (const Node* n = root.get("seed")) { double v = 0; toNumber(n->text, v); out.seed = static_cast<int>(v); }
   const Node* steps = root.get("steps");
   if (!steps || steps->kind != Node::Seq) { err = "a scenario needs a `steps` list"; return false; }
@@ -158,15 +167,48 @@ std::string fmtTime(std::uint64_t ns) {
 }
 }  // namespace
 
-RunResult runScenario(const Scenario& sc, Dut& dut, std::uint64_t defaultTimeoutNs) {
+double pngDiffFraction(const std::string& a, const std::string& b, std::string& err) {
+  int wa = 0, ha = 0, wb = 0, hb = 0, n = 0;
+  unsigned char* pa = stbi_load(a.c_str(), &wa, &ha, &n, 3);
+  if (!pa) { err = "cannot read " + a; return -1; }
+  unsigned char* pb = stbi_load(b.c_str(), &wb, &hb, &n, 3);
+  if (!pb) { stbi_image_free(pa); err = "cannot read " + b; return -1; }
+  double r = -1;
+  if (wa != wb || ha != hb) err = "sizes differ: " + std::to_string(wa) + "x" + std::to_string(ha) + " and " + std::to_string(wb) + "x" + std::to_string(hb);
+  else { std::size_t diff = 0; for (std::size_t i = 0; i < static_cast<std::size_t>(wa) * ha; ++i) if (pa[i * 3] != pb[i * 3] || pa[i * 3 + 1] != pb[i * 3 + 1] || pa[i * 3 + 2] != pb[i * 3 + 2]) ++diff; r = static_cast<double>(diff) / (static_cast<double>(wa) * ha); }
+  stbi_image_free(pa); stbi_image_free(pb);
+  return r;
+}
+bool pngPixel(const std::string& path, int x, int y, std::uint32_t& rgb, std::string& err) {
+  int w = 0, h = 0, n = 0;
+  unsigned char* p = stbi_load(path.c_str(), &w, &h, &n, 3);
+  if (!p) { err = "cannot read " + path; return false; }
+  bool ok = x >= 0 && y >= 0 && x < w && y < h;
+  if (ok) { const unsigned char* q = p + (static_cast<std::size_t>(y) * w + x) * 3; rgb = (static_cast<std::uint32_t>(q[0]) << 16) | (static_cast<std::uint32_t>(q[1]) << 8) | q[2]; }
+  else err = "pixel " + std::to_string(x) + "," + std::to_string(y) + " is outside the " + std::to_string(w) + "x" + std::to_string(h) + " frame";
+  stbi_image_free(p);
+  return ok;
+}
+
+RunResult runScenario(const Scenario& sc, Dut& dut, const RunOptions& opt) {
+  namespace fs = std::filesystem;
+  const std::uint64_t defaultTimeoutNs = opt.defaultTimeoutNs;
+  auto rel = [&](const std::string& path) { return fs::path(path).is_absolute() ? path : (fs::path(opt.baseDir) / path).string(); };
+  std::string tmpDir = (fs::temp_directory_path() / ("zn-sim-" + std::to_string(reinterpret_cast<std::uintptr_t>(&sc)))).string();
+  fs::create_directories(tmpDir);
+  struct Clean { std::string d; ~Clean() { std::error_code ec; fs::remove_all(d, ec); } } clean{tmpDir};
   RunResult r;
   std::string serial;   // everything the device wrote, searched by wait-serial from the end of the last match
   std::size_t from = 0;
-  auto fail = [&](const Step& s, const std::string& msg) { r.ok = false; r.failedStep = s.index; r.message = msg; r.t_ns = dut.now(); return r; };
+  auto fail = [&](const Step& s, const std::string& msg) {
+    r.ok = false; r.failedStep = s.index; r.message = msg; r.t_ns = dut.now();
+    if (!opt.outDir.empty()) { std::error_code ec; fs::create_directories(opt.outDir, ec); std::string e2, file = (fs::path(opt.outDir) / ("fail-step-" + std::to_string(s.index) + ".png")).string(); if (dut.screenshot("", file, e2)) r.message += " (last frame: " + file + ")"; }
+    return r;
+  };
   for (const Step& s : sc.steps) {
     std::string err;
     if (s.kind == "delay" || s.kind == "advance") { dut.advance(s.ns); serial += dut.takeSerial(); }
-    else if (s.kind == "write-serial") dut.writeSerial(s.text);
+    else if (s.kind == "write-serial") { if (!dut.writeSerial(s.text, err)) return fail(s, "write-serial: " + err); }
     else if (s.kind == "wait-serial") {
       const std::uint64_t timeout = s.ns ? s.ns : defaultTimeoutNs, end = dut.now() + timeout;
       constexpr std::uint64_t slice = 1'000'000;   // 1 ms of virtual time between looks at the output
@@ -192,7 +234,28 @@ RunResult runScenario(const Scenario& sc, Dut& dut, std::uint64_t defaultTimeout
         if (found) break;
       }
       if (!found) return fail(s, "expect-bus " + s.part + " " + s.protocol + ": no transaction contains the bytes (" + std::to_string(tx.size()) + " transactions seen)");
-    } else { r.ok = false; r.failedStep = s.index; r.t_ns = dut.now(); r.message = s.kind + " is parsed but this runner does not run it yet"; return r; }
+    } else if (s.kind == "expect-frame") {
+      std::string hash;
+      if (!dut.frameHash(s.part, hash, err)) return fail(s, "expect-frame " + s.part + ": " + err);
+      if (hash != s.text) return fail(s, "expect-frame " + s.part + ": the frame hashes to " + hash + ", expected " + s.text);
+    } else if (s.kind == "expect-pixel") {
+      const std::string png = tmpDir + "/px.png"; std::uint32_t rgb = 0;
+      if (!dut.screenshot(s.part, png, err) || !pngPixel(png, s.x, s.y, rgb, err)) return fail(s, "expect-pixel " + s.part + ": " + err);
+      if (rgb != s.rgb) { char b[80]; std::snprintf(b, sizeof b, "is #%06x, expected #%06x", rgb, s.rgb); return fail(s, "expect-pixel " + s.part + " at " + std::to_string(s.x) + "," + std::to_string(s.y) + " " + b); }
+    } else if (s.kind == "take-screenshot") {
+      const std::string png = tmpDir + "/shot.png";
+      if (!dut.screenshot(s.part, png, err)) return fail(s, "take-screenshot " + s.part + ": " + err);
+      std::error_code ec;
+      if (!s.text.empty()) { fs::create_directories(fs::path(rel(s.text)).parent_path(), ec); fs::copy_file(png, rel(s.text), fs::copy_options::overwrite_existing, ec); }
+      if (!s.compareWith.empty()) {
+        if (opt.updateGoldens) { fs::create_directories(fs::path(rel(s.compareWith)).parent_path(), ec); fs::copy_file(png, rel(s.compareWith), fs::copy_options::overwrite_existing, ec); }
+        else {
+          const double d = pngDiffFraction(png, rel(s.compareWith), err);
+          if (d < 0) return fail(s, "take-screenshot " + s.part + " compare-with " + s.compareWith + ": " + err);
+          if (d > s.tolerance) { char b[120]; std::snprintf(b, sizeof b, "%.3f%% of the pixels differ (tolerance %.3f%%)", d * 100, s.tolerance * 100); return fail(s, "take-screenshot " + s.part + " compare-with " + s.compareWith + ": " + b); }
+        }
+      }
+    } else { r.ok = false; r.failedStep = s.index; r.t_ns = dut.now(); r.message = s.kind + " is not a known step"; return r; }
   }
   r.t_ns = dut.now();
   return r;

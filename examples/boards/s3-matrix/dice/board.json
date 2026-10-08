@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc",
+  "zinc": { "mcu": "esp32s3", "firmware": "src/main.ts", "clock": "virtual" },
+  "parts": [
+    { "id": "mcu", "type": "board-esp32-s3-devkitc-1" },
+    { "id": "imu", "type": "zn-qmi8658", "attrs": { "inputs": { "shake": "pad A" } } },
+    { "id": "matrix", "type": "wokwi-neopixel-matrix", "attrs": { "rows": "8", "cols": "8" } }
+  ],
+  "connections": []
+}

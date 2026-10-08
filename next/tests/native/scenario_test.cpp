@@ -24,7 +24,7 @@ struct Fake : Dut {
     t = to;
   }
   std::string takeSerial() override { std::string s; s.swap(out); return s; }
-  void writeSerial(const std::string& s) override { in += s; }
+  bool writeSerial(const std::string& s, std::string&) override { in += s; return true; }
   bool setControl(const std::string& p, const std::string& c, double v, std::string& err) override {
     if (p != "btn" && p != "btn1") { err = "no part " + p; return false; }
     if (c != "pressed") { err = "no control " + c; return false; }

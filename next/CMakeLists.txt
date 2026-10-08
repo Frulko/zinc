@@ -246,7 +246,7 @@ add_library(zn_yaml STATIC third_party/libyaml/api.c third_party/libyaml/loader.
 target_include_directories(zn_yaml PUBLIC third_party/libyaml)
 target_compile_definitions(zn_yaml PRIVATE YAML_VERSION_MAJOR=0 YAML_VERSION_MINOR=2 YAML_VERSION_PATCH=5 "YAML_VERSION_STRING=\"0.2.5\"")
 target_compile_options(zn_yaml PRIVATE -w)
-add_library(zn_sim STATIC src/sim/sim.cpp src/sim/board.cpp src/sim/scenario.cpp src/sim/parts/registry.cpp)
+add_library(zn_sim STATIC src/sim/sim.cpp src/sim/board.cpp src/sim/scenario.cpp src/sim/program_dut.cpp src/sim/parts/registry.cpp)
 target_link_libraries(zn_sim PUBLIC zn_yyjson zn_yaml)   # the simulator core (ZN-292): scheduler, netlist, trace
 set_target_properties(zn_sim PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_include_directories(zn_sim PUBLIC include src)
@@ -281,7 +281,7 @@ if(ZN_NATIVE_FIXTURE)
 endif()
 target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
-target_link_libraries(zinc PRIVATE zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
   target_include_directories(zinc PRIVATE ${ZN_RUNTIME_DIR}/include)   # hal_window.h (ZN-233)

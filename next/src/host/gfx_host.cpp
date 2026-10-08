@@ -1,5 +1,6 @@
 // The graphics host: serves the Rt::HostGfx* calls (include/zn/runtime.h) over the existing runtime (runtime/gfx.cpp, raster.cpp),
 // headless. Compiled with the runtime's flags (C++17, no exceptions, no RTTI, no FP contraction) so the pixels match its builds.
+#include "zn/stamp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,6 +70,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxEnd: {
       g::end_frame();
       zrt::frame_no++;
+      zn::rt::gStampFrame = zrt::frame_no;
       hal_frame_end();
       if (hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
         uint64_t spent = hal_time_us() - frameStartUs;

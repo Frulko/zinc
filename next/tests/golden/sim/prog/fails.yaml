@@ -1,0 +1,8 @@
+# A step that fails: the exit code, the virtual time and the last frame as a PNG.
+name: dice, a wrong hash
+project: ../../../../../examples/boards/s3-matrix/dice
+board: ../../../../../examples/boards/s3-matrix/dice/board.json
+steps:
+  - set-control: { part-id: imu, control: shake, value: 1 }
+  - wait-serial: { text: "roll 1:", timeout: 3s }
+  - expect-frame: { part-id: matrix, hash: "0000000000000000" }

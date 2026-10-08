@@ -42,6 +42,7 @@
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
 #include "tc/tc.h"
+#include "sim/program_dut.h"
 #include "dev/client.h"
 #include "dev/core.h"
 #include <unistd.h>
@@ -614,6 +615,39 @@ int main(int argc, char** argv) {
 #endif
     auto res = zn::vm::run(zm, out, trace);
     return zn::rt::report(res, out, trace);
+  }
+  if (argc >= 3 && !std::strcmp(argv[1], "sim")) {   // zinc sim <scenario.yaml> [--out DIR] [--update-goldens]: the steps of a scenario against the program it names (ZN-295)
+    namespace fs = std::filesystem;
+    std::string outDir; bool update = false;
+    for (int k = 3; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "--out") && k + 1 < argc) outDir = argv[++k];
+      else if (!std::strcmp(argv[k], "--update-goldens")) update = true;
+      else { std::fprintf(stderr, "zinc sim: unknown option %s\n", argv[k]); return 2; }
+    }
+    std::ifstream in(argv[2]);
+    if (!in) { std::fprintf(stderr, "zinc sim: cannot read %s\n", argv[2]); return 2; }
+    std::stringstream text; text << in.rdbuf();
+    zn::sim::Scenario sc; std::string err;
+    if (!zn::sim::parseScenario(text.str(), sc, err)) { std::fprintf(stderr, "zinc sim: %s: %s\n", argv[2], err.c_str()); return 2; }
+    const fs::path base = fs::absolute(fs::path(argv[2])).parent_path();
+    zn::sim::Board board; bool haveBoard = false;
+    if (!sc.board.empty()) {
+      std::ifstream bf(base / sc.board);
+      std::stringstream bt; bt << bf.rdbuf();
+      if (!bf || !zn::sim::parseBoard(bt.str(), board, err)) { std::fprintf(stderr, "zinc sim: board %s: %s\n", sc.board.c_str(), bf ? err.c_str() : "cannot read it"); return 2; }
+      haveBoard = true;
+    }
+    if (sc.project.empty()) { std::fprintf(stderr, "zinc sim: the scenario has no `project:` (the program to run, relative to the scenario)\n"); return 2; }
+    zn::sim::ProgramDut::Config cfg;
+    cfg.zinc = zn::tc::executablePath(); cfg.project = (base / sc.project).lexically_normal().string();
+    cfg.scratch = (fs::temp_directory_path() / ("zinc-sim-" + std::to_string(::getpid()))).string();
+    cfg.board = haveBoard ? &board : nullptr;
+    zn::sim::ProgramDut dut(cfg);
+    zn::sim::RunOptions opt; opt.baseDir = base.string(); opt.outDir = outDir; opt.updateGoldens = update;
+    zn::sim::RunResult r = zn::sim::runScenario(sc, dut, opt);
+    std::error_code ec; fs::remove_all(cfg.scratch, ec);
+    std::printf("%s%s%s\n", sc.name.empty() ? "" : (sc.name + ": ").c_str(), r.ok ? "" : "", zn::sim::describe(sc, r).c_str());
+    return r.ok ? 0 : 1;
   }
   if (argc >= 2 && !std::strcmp(argv[1], "device-sim")) {  // zinc device-sim: the device core of src/dev on stdin and stdout (what a flashed ESP32 does on its UART)
     zn::dev::CoreConfig cfg;
