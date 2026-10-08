@@ -1,20 +1,26 @@
 #!/bin/sh
 # Quiet runner: one PASS/FAIL line per test, details in next/.logs/. See next/TESTING.md.
 # Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
-# Usage: tests/run [--tier t0|t1|t2] [--only <name>]   (env ZINC = binary, default build/zinc)
+# Usage: tests/run [--tier t0|t1|t2] [--only <name>] [--changed]   (env ZINC = binary, default build/zinc)
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
-tier=t0; only=
+tier=t0; only=; changed=
 while [ $# -gt 0 ]; do
   case $1 in
     --tier) tier=$2; shift 2 ;;
     --only) only=$2; shift 2 ;;
+    --changed) changed=1; tier=t1; shift ;;   # only the tests that cover the files changed since HEAD (tests/affected.json)
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
 case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
 export ZINC=${ZINC:-$root/build/zinc}
 export ZINC_DETERMINISTIC=1   # the goldens read the virtual clock; tests/t0/clock_real.sh checks both clocks itself
+if [ -n "$changed" ]; then   # the names of the tests covering the changed files, one per line
+  wanted=$(cd "$root/.." && { git diff --name-only HEAD; git ls-files --others --exclude-standard; } | python3 "$here/affected.py" "$here/affected.json")
+  echo "affected tests: $(echo "$wanted" | grep -v '^canary' | tr '\n' ' ')" >&2
+  echo "$wanted" | grep -q '^canary$' && echo "pixel canary: tools/proto-capture compare --canary (run it if the change is visible)" >&2
+fi
 mkdir -p "$root/.logs"
 log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
 : > "$log"
@@ -24,6 +30,7 @@ for t in $tiers; do
     [ -e "$f" ] || continue
     name=$(basename "$f" .sh)
     [ -z "$only" ] || [ "$only" = "$name" ] || continue
+    [ -z "$changed" ] || echo "$wanted" | grep -qx "$name" || continue
     sh "$f" >"$log.tmp" 2>&1; rc=$?
     if [ $rc -eq 0 ]; then
       echo "PASS $name"; pass=$((pass + 1))

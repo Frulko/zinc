@@ -18,6 +18,6 @@ Rules (the full text is `next/RULES.md`):
 - No hardware: use the simulators/emulators. No Windows. No decision left to a person: research, score, record in `docs/reports/zinc-next-decisions.md`, go on.
 - Proven vendored libraries first (licence, pinned version, `third_party/README.md`); never reinvent regex, TLS, fonts, SQL, codecs, JSON.
 - Too big: split with `backlog task create --parent`; stuck twice: write the failing case, fix the root cause; blocked for real: label `parked`, say why, take the next task.
-- Run only the smallest test tier that proves the change, quiet (`next/tests/run`). One T0 test per new module, a regression test per bug, warning-free builds.
+- Tests: the new feature's test plus `next/tests/run --changed` (see "What to run" in `next/TESTING.md`). Never the 42 demos, `examples_all`, T2, benchmarks or fuzz runs at the end of a task; those are milestone jobs, in the background. A wait over a minute is a mistake: go on with the next step. One T0 test per new module, a regression test per bug, warning-free builds.
 - Commits: English, conventional (`type(scope): description`), no co-author, explicit paths, never `git add .`, never other people's uncommitted changes.
 - Use sub-agents for research and for independent investigations; measure performance, do not guess it.

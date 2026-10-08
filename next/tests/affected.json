@@ -1,0 +1,21 @@
+{
+  "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
+  "default": ["checker", "lang"],
+  "map": [
+    {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style"], "canary": true},
+    {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_style", "react_class", "ui_tokens"], "canary": true},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
+    {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang"]},
+    {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
+    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast"]},
+    {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
+    {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile"]},
+    {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
+    {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
+    {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
+    {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
+    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "cli_tools"]},
+    {"paths": ["tests/fuzz/", "tools/fuzz"], "tests": ["fuzz_regress"]},
+    {"paths": ["src/host/sys_host.cpp"], "tests": ["sys_host", "camera"]}
+  ]
+}

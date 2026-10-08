@@ -4,6 +4,7 @@ description: End a Zinc Next session (task status, usage, commit, RESUME.md, nex
 
 End the Zinc Next session:
 
+0. Tests of the unit only: `next/tests/run --changed` and the task's own test; the demos and T2 are not part of ending a task.
 1. Check the acceptance criteria of the current task against real test output. Tick the ones that pass (`backlog task edit <id> --check-ac <n>`).
    Set the status: Done when all pass; otherwise split what is left into new tasks (`backlog task create ... --dep <id>`) and set Done, or Review if the rest
    needs a person (say what in the notes). Never leave a task half open without a follow-up task.

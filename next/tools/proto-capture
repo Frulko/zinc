@@ -4,7 +4,7 @@
   tools/proto-capture --init                 write tests/golden/examples/proto/manifest.json from the OK entries of tests/examples.lst (existing rows are kept)
   tools/proto-capture capture [ENTRY...]     render the entries with the prototype (node compiler/bin/zinc.mjs run, deterministic, ZINC_SCALE=1) into tests/golden/examples/proto/
   tools/proto-capture compare [ENTRY...]     render them with this engine and compare with the goldens (tools/pngdiff rules); exit 1 on a difference above the tolerance
-  options: --write-known (compare: record the current differences as "known" rows: they may not grow, and the row says why), --jobs N (default 3), --zinc PATH (this engine), --out DIR (compare: where frames and diff images go; default a temp dir)
+  options: --canary (compare: the default, four entries), --all (every entry: a T2 job), --write-known (compare: record the current differences as "known" rows: they may not grow, and the row says why), --jobs N (default 3), --zinc PATH (this engine), --out DIR (compare: where frames and diff images go; default a temp dir)
 
 The manifest rows: {"entry": "hero/src/main.tsx", "frames": [30], "tol": 0, "max_diff": 0, "env": {}, "skip": "reason"}. A row with "skip" is neither captured nor compared.
 `tol` is the per-channel tolerance and `max_diff` the number of pixels allowed above it (policy: TESTING.md, "Pixel goldens").
@@ -19,6 +19,7 @@ pd = importlib.util.module_from_spec(spec)
 loader.exec_module(pd)
 
 WRITE_KNOWN = False
+CANARY_ENTRIES = ["hero/src/main.tsx", "ui/kit-gallery/src/main.tsx", "iot-panel/src/main.tsx", "text/src/main-react.tsx"]
 def name(entry): return entry.split("#")[0].replace("/", "-").rsplit(".", 1)[0] + ("-" + entry.split("#")[1] if "#" in entry else "")   # `entry#variant`: the same program under another env (a scripted session)
 def project(entry):
     d = os.path.dirname(os.path.join(EX, entry.split("#")[0]))
@@ -75,17 +76,22 @@ def compare_one(row, zinc, out):
 
 def main(argv):
     global WRITE_KNOWN
-    jobs = 3; zinc = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc")); out = None; pos = []; i = 0
+    canary = everything = False; jobs = 3; zinc = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc")); out = None; pos = []; i = 0
     while i < len(argv):
         if argv[i] == "--jobs": jobs = int(argv[i+1]); i += 2
         elif argv[i] == "--zinc": zinc = argv[i+1]; i += 2
         elif argv[i] == "--write-known": WRITE_KNOWN = True; i += 1
         elif argv[i] == "--out": out = argv[i+1]; i += 2
+        elif argv[i] == "--canary": canary = True; i += 1
+        elif argv[i] == "--all": everything = True; i += 1
         else: pos.append(argv[i]); i += 1
     if not pos: print(__doc__); return 2
     if pos[0] == "--init": init(); return 0
     mode, only = pos[0], pos[1:]
     allrows = load()
+    if mode == "compare" and not only and not everything:   # a comparison of the 42 entries is a T2 job (once per milestone); by default four entries that cover text, kit, forms and icons
+        only = CANARY_ENTRIES
+        print("compare: the canary entries (%d); --all for every entry (T2, in the background)" % len(only))
     rows = [r for r in allrows if not r.get("skip") and (not only or r["entry"] in only)]
     os.makedirs(DIR, exist_ok=True); out = out or tempfile.mkdtemp(prefix="pixels-"); os.makedirs(out, exist_ok=True)
     bad = 0

@@ -64,3 +64,8 @@ Nothing in the main chain may depend on a parked task.
 
 `/loop /zn-start` picks the next task (`tools/next-task`), works it start to end, then `/zn-end`. Use sub-agents for research and for independent investigations (several at once when the questions are independent); keep their findings in `docs/reports/`.
 Run only the tier that proves the change; run T2 before closing a milestone. Keep `RESUME.md` short and true.
+
+
+## Testing is targeted (owner, 2026-10-08)
+
+A task ends with its own test and `tests/run --changed`, nothing else. The 42 demos (`tools/proto-capture compare --all`), `examples_all`, T2, benchmarks, fuzz and full profile runs are milestone jobs, started in the background, never waited for. Details and the reasons: `TESTING.md`, "What to run".
