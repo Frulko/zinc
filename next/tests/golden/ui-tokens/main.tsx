@@ -20,6 +20,7 @@ const toks = [
   'landscape:flex-row', 'portrait:p-2', 'pointer-coarse:p-4', 'pointer-fine:p-1', 'hover-none:p-3', 'max-md:hidden', 'max-[600px]:p-2', 'min-[600px]:p-2', '@md:p-4', '@[300px]:p-2', '@container', 'pb-[env(keyboard-inset)]', 'pt-[env(safe-area-inset-top)]', 'max-foo:p-2', 'pointer-x:p-2', '@xx:p-2',
   'dark:bg-zinc-900', 'light:p-2', 'dark:text-white', 'dark:', 'darkx:p-2',
   'hover:opacity-80', 'hover:-translate-y-1', 'hover:shadow-lg', 'hover:bg-red-500', 'hover:bg-red-500/50', 'disabled:opacity-50', 'disabled:bg-slate-300', 'disabled:text-slate-500', 'active:translate-y-px', 'focus:shadow-md', 'hover:p-4', 'hover:w-4', 'disabled:text-lg', 'hover:border-2', 'hover:bogus', 'translate-x-2', '-translate-y-1', 'translate-x-[3px]', 'translate-z-1',
+  'sr-only', 'not-sr-only',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

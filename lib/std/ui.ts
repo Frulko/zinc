@@ -164,6 +164,7 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
+  role: string = ''; label: string = ''; ariaHidden: boolean = false;   // accessibility metadata (ZN-276)
   ov: StateOverlay | null = null;   // paint-only styles of hover: focus: active: disabled: (ZN-273)
   id: i32 = -1; media: i32 = 0; container: boolean = false; cqW: number = -1;   // media bits: 2 pointer, 4 container query, 8 env(); container: `@container`; cqW: the container width the styles were computed for
   responsive: boolean = false;  // has sm:/md:/lg:/xl: classes
@@ -712,12 +713,12 @@ function num(s: string): number {
   if (s.startsWith('[')) return arbitrary(s.slice(1, s.length - 1));
   if (s.indexOf('/') > 0) { const p = s.split('/'); return parseFloat(p[0]) / parseFloat(p[1]); }
   if (s === 'px') return 1;
-  return parseFloat(s) * 4;
+  return rootFont === 16 ? parseFloat(s) * 4 : parseFloat(s) * 4 * rootFont / 16;
 }
 /** The inside of `[...]`: pixels, rem (16 px), vh / vw (of the surface now); a % is handled by the width and height tokens. */
 function arbitrary(v: string): number {
   if (v.startsWith('env(')) { envUsed = true; return envValue(v.slice(4, v.length - 1)); }
-  if (v.endsWith('rem')) return parseFloat(v.slice(0, v.length - 3)) * 16;
+  if (v.endsWith('rem')) return parseFloat(v.slice(0, v.length - 3)) * rootFont;
   if (v.endsWith('vh')) return parseFloat(v.slice(0, v.length - 2)) * height() / 100;
   if (v.endsWith('vw')) return parseFloat(v.slice(0, v.length - 2)) * width() / 100;
   return parseFloat(v.replace('px', ''));
@@ -839,6 +840,35 @@ function ringToken(n: UiNode, tok: string, mode: i32): boolean {
   } else if (ring) { if (w >= 0) n.fRingW = w; else if (off >= 0) n.fRingO = off; else n.fRingC = c; }
   else { if (w >= 0) n.fOutW = w; else if (off >= 0) n.fOutO = off; else n.fOutC = c; }
   return true;
+}
+// ---- accessibility (ZN-276)
+let rootFont: number = 16;
+/** The size of 1rem in pixels (16 by default): rem lengths, the spacing scale and the text sizes follow it, and every node is restyled. */
+export function setRootFontSize(px: number): void {
+  if (px === rootFont || !(px > 0)) return;
+  rootFont = px;
+  for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
+}
+export function setRole(h: i32, role: string): void { node(h).role = role; }
+export function setLabel(h: i32, label: string): void { node(h).label = label; }
+export function setAriaHidden(h: i32, on: boolean): void { node(h).ariaHidden = on; }
+const ROLE_OF_TAG: string[] = ['', 'text', 'button', 'img', 'scrollarea', '', '', 'textbox', 'textbox'];
+/** The accessibility tree as text, one node per line indented by depth: `role "label" (hidden) (disabled)`. Plain boxes without role or label do not show; aria-hidden subtrees are listed once and skipped. */
+export function inspect(): string {
+  let out = '';
+  const walk = (h: i32, depth: i32): void => {
+    const n = nodes[h];
+    if (!n.alive) return;
+    const role = n.role !== '' ? n.role : ROLE_OF_TAG[n.tag];
+    const label = n.label !== '' ? n.label : n.tag === TEXT ? n.text : n.ed !== null ? (n.ed as Edit).value : '';
+    const hidden = n.ariaHidden || n.hidden;
+    const shown = role !== '' || n.label !== '' || n.ariaHidden;
+    if (shown) out += '  '.repeat(depth) + (role === '' ? 'node' : role) + (label !== '' ? ' "' + label + '"' : '') + (hidden ? ' (hidden)' : '') + (n.hs !== null && (n.hs as Handlers).disabled ? ' (disabled)' : '') + '\n';
+    if (hidden) return;
+    for (const c of n.children) walk(c, shown ? depth + 1 : depth);
+  };
+  if (root >= 0) walk(root, 0);
+  return out;
 }
 // ---- media and container queries, env() lengths (ZN-272)
 let envUsed = false, varUsed = false, coarse = false, cqAny = false, inSettle = false, settlePasses: i32 = 0;
@@ -1193,6 +1223,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.clamp = v; n.ellipsis = true;
     return true;
   }
+  if (tok === 'sr-only') { n.abs = true; n.left = 0; n.top = 0; n.w = 1; n.h = 1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.overflow = true; n.noPointer = true; n.invisible = true; return true; }
   if (tok === 'uppercase') { n.transform = 1; return true; }
   if (tok === 'lowercase') { n.transform = 2; return true; }
   if (tok === 'capitalize') { n.transform = 3; return true; }
@@ -1306,7 +1337,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('text-')) {
     const k = tok.slice(5);
     const i = TEXT_PX.indexOf(k);
-    if (i >= 0) { n.size = TEXT_SIZE[i]; n.leading = TEXT_LEAD[i]; return true; }
+    if (i >= 0) { n.size = rootFont === 16 ? TEXT_SIZE[i] : Math.round(TEXT_SIZE[i] * rootFont / 16); n.leading = rootFont === 16 ? TEXT_LEAD[i] : Math.round(TEXT_LEAD[i] * rootFont / 16); return true; }
     if (k.startsWith('[') && !k.startsWith('[#') && !k.startsWith('[rgb') && !k.startsWith('[hsl') && !k.startsWith('[var(')) { n.size = Math.round(num(k)); n.leading = 0; return true; }
     const c = colorOf(k);
     if (c === -2) return false;
@@ -3445,6 +3476,7 @@ function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
   if (key === 'dragThreshold') { hsOf(n).dragThreshold = v; return true; }
   if (key === 'tabIndex') { hsOf(n).tabIndex = iv; n.focusable = true; return true; }
   if (key === 'disabled') { hsOf(n).disabled = iv !== 0; paintDirty = true; return true; }
+  if (key === 'ariaHidden') { n.ariaHidden = iv !== 0; return true; }
   return false;
 }
 /** The node or an ancestor has `disabled`: no pointer events, no activation, no focus. */

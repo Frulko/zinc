@@ -1,0 +1,13 @@
+form "Sign in"
+  text "Welcome back"
+  textbox "Email"
+  button "Submit"
+    text "Go"
+  node (hidden)
+  text "Required fields are marked"
+  button (disabled)
+    text "Cancel"
+
+padding p-2 at 16: 8
+padding p-2 at 20: 10
+padding p-2 back at 16: 8

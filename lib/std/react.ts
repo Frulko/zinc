@@ -143,6 +143,7 @@ export function _append(parent: i32, child: i32): void { ui.insert(parent, child
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
 export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }
+export function _styles(n: i32, styles: ui.Style[]): void { ui.setStyles(n, styles); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
 // text fields and pointer / key events (onChange of a field fires on every edit, like React)
@@ -150,7 +151,7 @@ export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void {
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
 export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
-export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
+export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s); else ui.setPlaceholder(n, s); }
 export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
 /** <VirtualList count itemHeight>{(i) => ...}</VirtualList>: visible rows only; rows re-render when the list re-renders. */
 export function _virtual(n: i32, count: i32, itemH: number, render: (i: i32) => i32): void {

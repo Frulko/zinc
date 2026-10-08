@@ -62,7 +62,7 @@ export const DARK: Theme = {
   border: 'zinc-800', input: 'zinc-700',
   primary: 'zinc-50', primaryForeground: 'zinc-900', primaryFocus: 'zinc-200', primaryPressed: 'zinc-300',
   secondary: 'zinc-800', secondaryForeground: 'zinc-50', secondaryPressed: 'zinc-700', subtle: 'zinc-800',
-  accent: 'indigo-500', accentForeground: 'white', accentSoft: 'indigo-950', accentSoftForeground: 'indigo-300',
+  accent: 'indigo-600', accentForeground: 'white', accentSoft: 'indigo-950', accentSoftForeground: 'indigo-300',
   destructive: 'red-600', destructiveForeground: 'white', destructivePressed: 'red-700',
   destructiveSoft: 'red-950', destructiveSoftForeground: 'red-300',
   success: 'emerald-500', successSoft: 'emerald-950', successSoftForeground: 'emerald-300',

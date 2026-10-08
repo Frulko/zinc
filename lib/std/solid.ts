@@ -169,6 +169,8 @@ export function _append(parent: i32, child: i32): void { ui.insert(parent, child
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
 export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }
+export function _styles(n: i32, styles: ui.Style[]): void { ui.setStyles(n, styles); }
+export function _dynStyles(n: i32, get: () => ui.Style[]): void { createEffect(() => { ui.setStyles(n, get()); }); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _dynText(parent: i32, get: () => string): void {
   const t = ui.createText('');
@@ -182,7 +184,7 @@ export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void {
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
 export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
-export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else ui.setPlaceholder(n, s); }
+export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s); else ui.setPlaceholder(n, s); }
 export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
 export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
 /** <Show when={...} fallback={...}>children</Show> */
