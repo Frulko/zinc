@@ -184,7 +184,7 @@
       for (const k of Object.keys(e.attrs)) n.setAttribute(k, e.attrs[k]);
       if (e.tag === 'canvas') { if (e.attrs.width) n.width = Number(e.attrs.width); if (e.attrs.height) n.height = Number(e.attrs.height); }
       n._text = e.text || '';
-      if (e.id) byId[e.id] = n;
+      if (e.id) { byId[e.id] = n; if (!(e.id in g)) g[e.id] = n; }   // an element with an id is also a global of the page
       doc.body.appendChild(n);
     }
   };

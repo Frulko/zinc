@@ -7,7 +7,7 @@ tests/webgl-conformance/dom-shim.js and run by `zinc run --engine quickjs`; resu
 one PASS, no FAIL, no uncaught error and finishes. Without --write-lists: exit 1 when a page of the pass list (tests/golden/webgl/conformance-pass.txt) fails: the gate.
 --write-lists: rewrite the pass list and tests/golden/webgl/conformance-failures.txt (page, first reason) from this run.
 """
-import html.parser, json, os, subprocess, sys, tempfile, concurrent.futures
+import html.parser, json, os, subprocess, sys, tempfile, time, concurrent.futures
 
 HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE)
 SUITE = os.path.join(NEXT, "third_party", "webgl-conformance", "sdk", "tests")
@@ -25,12 +25,14 @@ class Page(html.parser.HTMLParser):
     def handle_starttag(self, tag, attrs):
         a = dict((k, v if v is not None else "") for k, v in attrs)
         if tag == "body" and a.get("onload"): self.body_onload = a["onload"]
+        if tag == "title": self._intitle = True
         if tag == "script":
             t = a.get("type", "").lower()
             self._cur = {"src": a.get("src"), "type": t, "id": a.get("id"), "attrs": a, "text": ""}
             return
         if a.get("id"): self.elements.append({"tag": tag, "id": a["id"], "attrs": a, "text": ""})
     def handle_endtag(self, tag):
+        if tag == "title": self._intitle = False
         if tag == "script" and self._cur is not None:
             c = self._cur; self._cur = None
             if c["type"] in ("", "text/javascript", "application/javascript", "module"):
@@ -38,6 +40,7 @@ class Page(html.parser.HTMLParser):
             elif c["id"]:   # shader sources and data blocks: elements with a text
                 self.elements.append({"tag": "script", "id": c["id"], "attrs": c["attrs"], "text": c["text"]})
     def handle_data(self, data):
+        if getattr(self, "_intitle", False): self.title += data
         if self._cur is not None: self._cur["text"] += data
 
 import re
@@ -57,7 +60,8 @@ def run_page(rel, timeout):
     path = rel if os.path.isabs(rel) else os.path.join(SUITE, rel) if rel.startswith("conformance2/") else os.path.join(SUITE, "conformance", rel)
     p = Page(); p.feed(read(path))
     base = os.path.dirname(path)
-    p.elements = [{"tag": "script", "id": "", "attrs": {"src": sc["src"]}, "text": ""} for sc in p.scripts if sc["src"]] + p.elements   # getResourcePath() finds js/webgl-test-utils.js among the script elements
+    p.elements = [{"tag": "script", "id": "", "attrs": {"src": sc["src"]}, "text": ""} for sc in p.scripts if sc["src"]] + p.elements
+    p.elements.append({"tag": "title", "id": "", "attrs": {}, "text": p.title})   # document.getElementsByTagName("title")   # getResourcePath() finds js/webgl-test-utils.js among the script elements
     parts = ["globalThis.__pageDir = %s; globalThis.__pagePath = %s;" % (json.dumps(base), json.dumps("/" + os.path.relpath(path, os.path.dirname(SUITE)))), read(SHIM), "__buildPage(%s);" % json.dumps(p.elements), "globalThis.__postJs = %s;" % json.dumps(read(os.path.join(SUITE, "js", "js-test-post.js")))]
     for s in p.scripts:
         if s["src"]:
@@ -73,7 +77,11 @@ def run_page(rel, timeout):
         b = os.path.join(d, "bundle.js"); open(b, "w").write("\n".join(parts))
         if os.environ.get("WGC_BUNDLE"): open(os.environ["WGC_BUNDLE"], "w").write("\n".join(parts))   # keep the bundle to run it by hand
         try:
-            r = subprocess.run([zinc, "run", b, "--engine", "quickjs"], capture_output=True, text=True, timeout=timeout, env=dict(os.environ, ZINC_HEADLESS="1"))
+            for attempt in range(60):   # a machine out of memory refuses to start the process: wait for it
+                try: r = subprocess.run([zinc, "run", b, "--engine", "quickjs"], capture_output=True, text=True, timeout=timeout, env=dict(os.environ, ZINC_HEADLESS="1")); break
+                except OSError as e:
+                    if e.errno not in (11, 12) or attempt == 59: raise
+                    time.sleep(3)
             out, code = r.stdout + r.stderr, r.returncode
         except subprocess.TimeoutExpired as e:
             out, code = (e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or "")), -9
@@ -141,10 +149,12 @@ def main(argv):
         else: rest.append(a); i += 1
     todo = pages(rest)
     if only: todo = [t for t in todo if t.split("/")[0] in only or "/".join(t.split("/")[:2]) in only]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex: results = list(ex.map(lambda t: run_page(t, timeout), todo))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get("WGC_JOBS", "4"))) as ex: results = list(ex.map(lambda t: run_page(t, timeout), todo))
     npass = sum(1 for r in results if r[1])
     for rel, ok, p, f, why in results: print("%s %-60s %3d pass %3d fail %s" % ("PASS" if ok else "FAIL", rel, p, f, "" if ok else why))
     print("webgl-conformance: %d of %d pages pass" % (npass, len(results)))
+    import resource
+    if os.environ.get("WGC_RSS"): print("largest child: %d MB" % (resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss // 1048576))
     if write:
         os.makedirs(os.path.dirname(PASS_LIST), exist_ok=True)
         open(PASS_LIST, "w").write("".join(r[0] + "\n" for r in sorted(results) if r[1]))
