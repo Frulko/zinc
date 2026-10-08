@@ -82,7 +82,7 @@ int runTestCommand(const std::string& self, const Profile& p, const std::string&
       std::string n = it->path().filename().string();
       if (it->is_directory() && (n == "build" || n == "node_modules")) { it.disable_recursion_pending(); continue; }
       std::string ext = it->path().extension().string(), stem = it->path().stem().string();
-      if ((ext == ".ts" || ext == ".tsx") && (n.rfind("test-", 0) == 0 || stem.size() > 5 && stem.compare(stem.size() - 5, 5, ".test") == 0)) tests.push_back(it->path());
+      if ((ext == ".ts" || ext == ".tsx") && (n.rfind("test-", 0) == 0 || (stem.size() > 5 && stem.compare(stem.size() - 5, 5, ".test") == 0))) tests.push_back(it->path());
     }
     if (!tests.empty() && !fs::exists(fs::path(dir) / "tour.out")) {
       std::sort(tests.begin(), tests.end());

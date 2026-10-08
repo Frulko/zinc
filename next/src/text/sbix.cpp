@@ -4,7 +4,10 @@
 #define STB_IMAGE_STATIC
 #define STBI_ONLY_PNG
 #define STB_IMAGE_IMPLEMENTATION
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"   // the static PNG-only build leaves stb helpers unused
 #include "stb_image.h"
+#pragma GCC diagnostic pop
 
 namespace zn::text {
 namespace {

@@ -75,6 +75,8 @@ void hal_escape(void);
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */
+// A frame as draw commands (layout of zrt::raster::Frame, runtime/zrt_raster.h): what a GPU display replays.
+struct HalCmdList { const void* cmds; uint32_t count; const char* text; const float* pts; };
 struct HalFrame {
   int32_t w, h;
   int32_t x0, y0, x1, y1;   // damaged rectangle (empty when nothing changed)
@@ -82,6 +84,9 @@ struct HalFrame {
   // Same, but only the damaged rectangles are written; the rest of `rows` must still hold the previous frame
   // (persistent framebuffers). Cheaper when several small areas change (e.g. a grid of animations).
   void (*render_damage)(uint32_t* rows, int32_t y0, int32_t y1);
+  // GPU displays (docs/reports/gpu-renderer-design.md): the command lists to draw, in paint order (the program's
+  // frame, then the runtime overlays); returns how many were written (at most `max`). Null: pixels only.
+  int32_t (*frames)(const HalCmdList* out[], int32_t max);
 };
 
 // Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the

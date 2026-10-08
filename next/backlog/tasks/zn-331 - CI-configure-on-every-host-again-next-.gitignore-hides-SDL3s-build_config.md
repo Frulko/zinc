@@ -1,10 +1,10 @@
 ---
 id: ZN-331
 title: 'CI: configure on every host again (next/.gitignore hides SDL3''s build_config)'
-status: Backlog
+status: Review
 assignee: []
 created_date: '2026-10-08 14:34'
-updated_date: '2026-10-08 14:38'
+updated_date: '2026-10-08 23:05'
 labels:
   - ci
   - distribution
@@ -22,12 +22,12 @@ next/.gitignore has `build*/`, which also ignores next/third_party/SDL3/include/
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a fresh `git clone` + `cmake -S next -B build` configures with no missing file (checked in a T0 test that lists the files cmake needs against `git ls-files`)
+- [x] #1 a fresh `git clone` + `cmake -S next -B build` configures with no missing file (checked in a T0 test that lists the files cmake needs against `git ls-files`)
 - [ ] #2 the linux-x86_64, linux-aarch64 and macos-arm64 jobs of zinc-next.yml pass build and T1
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-2026-10-08: the .gitignore fix is committed (dc4d08f: !third_party/SDL3/include/build_config/ and the SDL files tracked). Left to do: see the CI run green on every host after the next push (pushing is the owner's step).
+2026-10-09: fresh clone (git clone --depth 1 of HEAD) configured, but did not compile: runtime/gfx.cpp (committed in e0a02eaa) uses HalCmdList and HalFrame.frames, whose declaration stayed in the uncommitted runtime/include/hal.h; that hunk is now committed (the whole uncommitted diff of hal.h, which is exactly it). With it the clone builds zinc and runs. New T0 tests/t0/build_inputs_tracked.sh: every repository file cmake reads at configure (Makefile.cmake) or a source includes (compiler_depend.make) is tracked by git (2880 inputs; checked to fail on a file removed from a copied index). Warnings of a fresh build fixed: stb_image unused functions in src/text/sbix.cpp, && within || in src/test_cmd.cpp. Left for a person: push (296 commits ahead of origin), then check that the linux-x86_64, linux-aarch64 and macos-arm64 jobs of zinc-next.yml pass (gh run list --workflow zinc-next.yml) and tick AC #2. usage: n/a
 <!-- SECTION:NOTES:END -->
