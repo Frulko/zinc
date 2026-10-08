@@ -4191,6 +4191,9 @@ struct Checker {
         if (it == exportsOf[im.from].end()) { diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' is not exported by '" + a.modules[im.from].path + "'"); continue; }
         if (scopes.back()->count(im.local)) { diag(kZDuplicateDeclaration, im.node, "'" + std::string(im.local) + "'"); continue; }
         (*scopes.back())[im.local] = it->second;
+        const std::string dotted = std::string(im.name) + ".";   // the class's static generic methods, generic functions named `Class.method`
+        for (auto& [nm, sym] : exportsOf[im.from])
+          if (nm.size() > dotted.size() && nm.compare(0, dotted.size(), dotted) == 0) (*scopes.back())[keep(std::string(im.local) + "." + std::string(nm.substr(dotted.size())))] = sym;
       }
       topList = &mod.stmts;
       stmtList(mod.stmts);
@@ -4205,6 +4208,14 @@ struct Checker {
         else { auto f = exportsOf[e.from].find(e.local); if (f != exportsOf[e.from].end()) sym = f->second; }
         if (sym == kNone) { diag(kZCannotFindName, e.node, "'" + std::string(e.local) + "' " + (e.from == kNone ? "is not declared in this module" : "is not exported by '" + a.modules[e.from].path + "'")); continue; }
         add(e.name, sym, e.node);
+        if (out.syms[sym].kind == SymKind::Class) {   // and its static generic methods (`Class.method`), so an importer can call them
+          const std::string dotted = std::string(e.local) + ".";
+          auto statics = [&](auto& table) {
+            for (auto& [nm, gs] : table)
+              if (nm.size() > dotted.size() && nm.compare(0, dotted.size(), dotted) == 0) mine.emplace(keep(std::string(e.name) + "." + std::string(nm.substr(dotted.size()))), gs);
+          };
+          if (e.from == kNone) statics(*scopes.back()); else statics(exportsOf[e.from]);
+        }
       }
       pop();
     }

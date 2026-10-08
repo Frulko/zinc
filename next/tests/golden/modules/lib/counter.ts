@@ -8,6 +8,7 @@ export function bump(): i32 {
 export class Box {
   constructor(public v: i32) {}
   twice(): i32 { return this.v * 2; }
+  static pick<T>(a: T, b: T, first: boolean): T { return first ? a : b; }   // a static generic method, called from other modules
 }
 export interface Named { label(): string; }
 export type Pair = [i32, i32];
