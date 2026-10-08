@@ -220,6 +220,7 @@ class WebGL1 {
   Param getParameter(std::uint32_t pname);
   Param getVertexAttrib(std::uint32_t index, std::uint32_t pname);
   Param getBufferParameter(std::uint32_t target, std::uint32_t pname);
+  Param getRenderbufferParameter(std::uint32_t target, std::uint32_t pname);
   Param getTexParameter(std::uint32_t target, std::uint32_t pname);
   Param getUniform(Id p, const UniformLoc& l);
   void getShaderPrecisionFormat(std::uint32_t shadertype, std::uint32_t precisiontype, int out[3]);

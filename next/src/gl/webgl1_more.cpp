@@ -105,17 +105,29 @@ void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w,
   r.w = w; r.h = h; r.format = fmt;
   glRenderbufferStorage(GL_RENDERBUFFER, fmt == GL_DEPTH_STENCIL ? GL_DEPTH24_STENCIL8 : fmt, w, h);
 }
+WebGL1::Param WebGL1::getRenderbufferParameter(std::uint32_t target, std::uint32_t pname) {
+  Param r;
+  if (target != GL_RENDERBUFFER) { error(GL_INVALID_ENUM); return r; }
+  const bool sizes = pname >= GL_RENDERBUFFER_RED_SIZE && pname <= GL_RENDERBUFFER_STENCIL_SIZE;
+  if (pname != GL_RENDERBUFFER_WIDTH && pname != GL_RENDERBUFFER_HEIGHT && pname != GL_RENDERBUFFER_INTERNAL_FORMAT && !sizes && !(version_ == 2 && pname == GL_RENDERBUFFER_SAMPLES)) { error(GL_INVALID_ENUM); return r; }
+  if (!rbo_) { error(GL_INVALID_OPERATION); return r; }
+  GLint v = 0;
+  glGetRenderbufferParameteriv(GL_RENDERBUFFER, pname, &v);
+  if (pname == GL_RENDERBUFFER_INTERNAL_FORMAT && rbos_[rbo_].format) v = static_cast<GLint>(rbos_[rbo_].format);   // DEPTH_STENCIL is DEPTH24_STENCIL8 underneath
+  r.ok = true; r.kind = 'i'; r.v.push_back(v);
+  return r;
+}
 void WebGL1::framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachment, std::uint32_t rbtarget, Id rb) {
-  if (target != GL_FRAMEBUFFER || rbtarget != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
-  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT) return error(GL_INVALID_ENUM);
-  if (!fbo_) return error(GL_INVALID_OPERATION);
+  if ((target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) || rbtarget != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
+  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(version_ == 2 && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
+  if (!(target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_)) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
   if (rb) {
     auto it = rbos_.find(rb);
     if (it == rbos_.end()) return error(GL_INVALID_OPERATION);
     name = it->second.name;
   }
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, name);
+  glFramebufferRenderbuffer(target, attachment, GL_RENDERBUFFER, name);
 }
 void WebGL1::deleteFramebuffer(Id id) {
   auto it = fbos_.find(id);
@@ -234,8 +246,17 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_GENERATE_MIPMAP_HINT: fixed(mipmapHint_); break;
     case 0x8B8B: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(derivativeHint_); break;   // FRAGMENT_SHADER_DERIVATIVE_HINT
     case GL_PACK_ALIGNMENT: case GL_UNPACK_ALIGNMENT: case GL_SUBPIXEL_BITS: case GL_SAMPLE_BUFFERS: case GL_SAMPLES: ints(1); break;
-    case GL_DEPTH_BITS: fixed(depthAttr_ ? 24 : 0); break;
-    case GL_STENCIL_BITS: fixed(stencilAttr_ ? 8 : 0); break;
+    case GL_DEPTH_BITS: case GL_STENCIL_BITS: {
+      const bool depth = pname == GL_DEPTH_BITS;
+      GLint v = 0;
+      if (!fbo_) v = (depth ? depthAttr_ : stencilAttr_) ? (depth ? 24 : 8) : 0;
+      else {   // a framebuffer object: the bits of what is attached
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, depth ? GL_DEPTH_ATTACHMENT : GL_STENCIL_ATTACHMENT, depth ? GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE : GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &v);
+        while (glGetError() != GL_NO_ERROR) {}   // an empty attachment point is an error in GL and 0 bits here
+      }
+      fixed(v);
+      break;
+    }
     case GL_RED_BITS: case GL_GREEN_BITS: case GL_BLUE_BITS: case GL_ALPHA_BITS: {
       GLint v = 0;
       glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &v);   // clears any error a default framebuffer query leaves
@@ -341,9 +362,9 @@ WebGL1::Param WebGL1::getVertexAttrib(std::uint32_t index, std::uint32_t pname) 
 }
 WebGL1::Param WebGL1::getBufferParameter(std::uint32_t target, std::uint32_t pname) {
   Param r;
-  if (target != GL_ARRAY_BUFFER && target != GL_ELEMENT_ARRAY_BUFFER) { error(GL_INVALID_ENUM); return r; }
+  if (!bufferTargetOk(target)) { error(GL_INVALID_ENUM); return r; }
   if (pname != GL_BUFFER_SIZE && pname != GL_BUFFER_USAGE) { error(GL_INVALID_ENUM); return r; }
-  Id id = target == GL_ARRAY_BUFFER ? arrayBuffer_ : elementBuffer_;
+  Id id = bufferSlot(target);
   if (!id) { error(GL_INVALID_OPERATION); return r; }
   GLint v = 0;
   glGetBufferParameteriv(target, pname, &v);
@@ -499,6 +520,16 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
     return r;
   }
   if (attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(attachment >= GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + (version_ == 2 ? 4u : 1u))) { error(GL_INVALID_ENUM); return r; }
+  if (attachment == GL_DEPTH_STENCIL_ATTACHMENT) {   // answered when depth and stencil hold the same image, or both nothing
+    GLint t[2] = {}, n[2] = {};
+    const GLenum pts[2] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+    for (int i = 0; i < 2; ++i) {
+      glGetFramebufferAttachmentParameteriv(target, pts[i], GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t[i]);
+      if (t[i] != GL_NONE) glGetFramebufferAttachmentParameteriv(target, pts[i], GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &n[i]);
+    }
+    while (glGetError() != GL_NO_ERROR) {}
+    if (t[0] != t[1] || n[0] != n[1]) { error(GL_INVALID_OPERATION); return r; }
+  }
   GLint type = 0;
   glGetFramebufferAttachmentParameteriv(target == GL_FRAMEBUFFER ? GL_FRAMEBUFFER : target, attachment == GL_DEPTH_STENCIL_ATTACHMENT ? GL_DEPTH_ATTACHMENT : attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
   while (glGetError() != GL_NO_ERROR) {}

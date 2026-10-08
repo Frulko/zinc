@@ -444,7 +444,7 @@ M(texSubImage2D) {
 M(copyTexImage2D) { SELF NEED(8); gl.copyTexImage2D(U(0), I(1), U(2), I(3), I(4), I(5), I(6), I(7)); return JS_UNDEFINED; }
 M(copyTexSubImage2D) { SELF NEED(8); gl.copyTexSubImage2D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7)); return JS_UNDEFINED; }
 M(generateMipmap) { SELF NEED(1); gl.generateMipmap(U(0)); return JS_UNDEFINED; }
-M(getRenderbufferParameter) { SELF NEED(2); return JS_NULL; }
+M(getRenderbufferParameter) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getRenderbufferParameter(U(0), U(1))); }
 M(getFramebufferAttachmentParameter) { SELF NEED(3); std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getFramebufferAttachmentParameter(U(0), U(1), pn)); }
 
 struct Fn { const char* name; JSCFunction* fn; int len; };
@@ -740,7 +740,7 @@ M(vertexAttribI4uiv) {
   gl.vertexAttribINui(U(0), v);
   return JS_UNDEFINED;
 }
-M(invalidateSubFramebuffer) { SELF NEED2; NEED(6); return js_invalidateFramebuffer(c, t, 2, argv); }
+M(invalidateSubFramebuffer) { SELF NEED2; NEED(6); if (I(4) < 0 || I(5) < 0) { gl.raise(0x0501); return JS_UNDEFINED; } return js_invalidateFramebuffer(c, t, 2, argv); }
 // no compressed formats without an extension: every format is an enum the context does not know
 M(compressedTexImage2D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
 M(compressedTexSubImage2D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }

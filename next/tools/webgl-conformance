@@ -42,7 +42,7 @@ class Page(html.parser.HTMLParser):
 import re
 def sloppy(code):
     # a browser makes the top-level vars of a "use strict" script global; an indirect eval keeps them local, so the directive is dropped (the pages are written to pass either way)
-    code = re.sub(r"""(["'])use strict\1;?""", "", code[:300], count=1) + code[300:]
+    code = re.sub(r"""(["'])use strict\1;?""", "", code[:700], count=1) + code[700:]
     # the same for the lexical top level of a classic script (shared by the scripts of a page, local to an eval): column-0 const/let/class become var
     code = re.sub(r"^(const|let) ", "var ", code, flags=re.M)
     return re.sub(r"^class (\w+)", r"var \1 = class \1", code, flags=re.M)

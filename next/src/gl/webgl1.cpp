@@ -569,9 +569,40 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
   glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, textarget, name, 0);
 }
 std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
-  if (target != GL_FRAMEBUFFER) { error(GL_INVALID_ENUM); return 0; }
-  if (!fbo_) return GL_FRAMEBUFFER_COMPLETE;
-  return glCheckFramebufferStatus(GL_FRAMEBUFFER);
+  if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) { error(GL_INVALID_ENUM); return 0; }
+  const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
+  if (!bound) return GL_FRAMEBUFFER_COMPLETE;
+  if (version_ != 2) return glCheckFramebufferStatus(target);
+  // what is attached: type, name and, for textures, level, face and layer
+  struct Img { GLint type = GL_NONE, name = 0, level = 0, face = 0, layer = 0; bool operator==(const Img& o) const { return type == o.type && name == o.name && level == o.level && face == o.face && layer == o.layer; } };
+  auto img = [&](GLenum att) {
+    Img i;
+    glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &i.type);
+    if (i.type != GL_NONE) glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &i.name);
+    if (i.type == GL_TEXTURE) {
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &i.level);
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &i.face);
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER, &i.layer);
+    }
+    return i;
+  };
+  Img color[4];
+  GLenum bufs[4];
+  GLenum firstColor = GL_NONE;
+  for (int i = 0; i < 4; ++i) { color[i] = img(GL_COLOR_ATTACHMENT0 + i); bufs[i] = color[i].type != GL_NONE ? GL_COLOR_ATTACHMENT0 + i : GL_NONE; if (bufs[i] && !firstColor) firstColor = bufs[i]; }
+  // some drivers call a framebuffer incomplete when the draw or read buffer names an empty attachment; WebGL says they never matter, so point them at what is attached while asking
+  if (target != GL_READ_FRAMEBUFFER) glDrawBuffers(4, bufs);
+  if (target != GL_DRAW_FRAMEBUFFER) glReadBuffer(firstColor);
+  GLenum status = glCheckFramebufferStatus(target);
+  if (target != GL_READ_FRAMEBUFFER) { GLenum d[4]; for (int i = 0; i < 4; ++i) d[i] = fbos_[fbo_].draw[i]; glDrawBuffers(4, d); }
+  if (target != GL_DRAW_FRAMEBUFFER) glReadBuffer(fbos_[fboRead_ ? fboRead_ : fbo_].readBuffer);
+  while (glGetError() != GL_NO_ERROR) {}
+  if (status != GL_FRAMEBUFFER_COMPLETE) return status;
+  for (int i = 0; i < 4; ++i) for (int j = i + 1; j < 4; ++j) if (color[i].type != GL_NONE && color[i] == color[j]) return GL_FRAMEBUFFER_UNSUPPORTED;   // one image on two attachment points
+  const Img depth = img(GL_DEPTH_ATTACHMENT), stencil = img(GL_STENCIL_ATTACHMENT);
+  while (glGetError() != GL_NO_ERROR) {}
+  if (depth.type != GL_NONE && stencil.type != GL_NONE && !(depth == stencil)) return GL_FRAMEBUFFER_UNSUPPORTED;   // depth and stencil must be the same image
+  return status;
 }
 void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
   if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);

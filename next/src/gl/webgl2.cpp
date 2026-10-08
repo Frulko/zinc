@@ -94,13 +94,18 @@ void WebGL1::drawBuffers(const std::uint32_t* bufs, int n) {
 }
 void WebGL1::readBuffer(std::uint32_t src) {
   if (!fboRead_) { if (src != GL_BACK && src != GL_NONE) return error(GL_INVALID_OPERATION); defaultRead_ = src; glReadBuffer(src == GL_BACK ? GL_COLOR_ATTACHMENT0 : GL_NONE); return; }
+  if (src != GL_NONE && src != GL_BACK && (src < GL_COLOR_ATTACHMENT0 || src >= GL_COLOR_ATTACHMENT0 + 16)) return error(GL_INVALID_ENUM);
   if (src != GL_NONE && (src < GL_COLOR_ATTACHMENT0 || src >= GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_OPERATION);
   fbos_[fboRead_].readBuffer = src;
   glReadBuffer(src);
 }
 
 // ---- uniform buffers and the other indexed targets
-void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) { bindBufferRange(target, index, id, 0, id ? buffers_[id].size : 0); }   // size 0 for a buffer with no storage yet
+void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) {
+  auto it = buffers_.find(id);
+  if (id && it == buffers_.end()) return error(GL_INVALID_OPERATION);
+  bindBufferRange(target, index, id, 0, id ? it->second.size : 0);
+}   // size 0 for a buffer with no storage yet
 void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, std::int64_t offset, std::int64_t size) {
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER && target != GL_TRANSFORM_FEEDBACK_BUFFER)) return error(GL_INVALID_ENUM);
   if (index >= 24) return error(GL_INVALID_VALUE);

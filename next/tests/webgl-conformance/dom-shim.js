@@ -19,6 +19,7 @@
   g.devicePixelRatio = 1; g.innerWidth = 800; g.innerHeight = 600;
   g.addEventListener = function (type, f) { (listeners[type] = listeners[type] || []).push(f); };
   g.removeEventListener = function () {};
+  g.postMessage = function (data) { setTimeout(() => { for (const f of (listeners['message'] || [])) f({ type: 'message', data, source: g, stopPropagation() {} }); }, 0); };
   g.dispatchEvent = function () { return true; };
   g.getComputedStyle = () => ({ getPropertyValue() { return ''; } });
   g.matchMedia = () => ({ matches: false, addListener() {}, addEventListener() {} });

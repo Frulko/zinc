@@ -194,7 +194,13 @@ WebGL1::Param WebGL1::getSamplerParameter(Id id, std::uint32_t pname) {
 
 // ---- queries
 Id WebGL1::createQuery() { if (version_ != 2) { error(GL_INVALID_OPERATION); return 0; } Query q; glGenQueries(1, &q.name); Id id = nextId_++; queries_[id] = q; return id; }
-void WebGL1::deleteQuery(Id id) { auto it = queries_.find(id); if (it == queries_.end()) return; glDeleteQueries(1, &it->second.name); queries_.erase(it); }
+void WebGL1::deleteQuery(Id id) {
+  auto it = queries_.find(id);
+  if (it == queries_.end()) return;
+  for (auto& a : activeQuery_) if (a.second == id) { a.second = 0; glEndQuery(a.first == 0x8D6A ? 0x8C2F : a.first); }   // deleting an active query ends it
+  glDeleteQueries(1, &it->second.name);
+  queries_.erase(it);
+}
 static bool queryTarget(std::uint32_t t) { return t == 0x8C2F || t == 0x8D6A || t == 0x8C88; }   // ANY_SAMPLES_PASSED, ..._CONSERVATIVE, TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN
 void WebGL1::beginQuery(std::uint32_t target, Id id) {
   if (!queryTarget(target)) return error(GL_INVALID_ENUM);
@@ -389,7 +395,16 @@ void WebGL1::framebufferTextureLayer(std::uint32_t target, std::uint32_t attachm
   if (level < 0 || layer < 0) return error(GL_INVALID_VALUE);
   if (!(target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_)) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
-  if (tex) { auto it = textures_.find(tex); if (it == textures_.end()) return error(GL_INVALID_OPERATION); name = it->second.name; }
+  if (tex) {
+    auto it = textures_.find(tex);
+    if (it == textures_.end()) return error(GL_INVALID_OPERATION);
+    name = it->second.name;
+    if (it->second.target == GL_TEXTURE_3D || it->second.target == GL_TEXTURE_2D_ARRAY) {
+      GLint lim = 0;
+      glGetIntegerv(it->second.target == GL_TEXTURE_3D ? GL_MAX_3D_TEXTURE_SIZE : GL_MAX_ARRAY_TEXTURE_LAYERS, &lim);
+      if (layer >= lim) return error(GL_INVALID_VALUE);
+    }
+  }
   glFramebufferTextureLayer(target, attachment, name, level, layer);
 }
 int WebGL1::getFragDataLocation(Id pid, const std::string& name) {
