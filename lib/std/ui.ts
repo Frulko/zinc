@@ -3176,7 +3176,9 @@ function wakeScroll(h: i32): void {
 function directScroll(h: i32, dx: number, dy: number): void {
   const n = node(h);
   if ((n.scroll & 1) !== 0) { const a = axisY(n); beginDirect(a, maxScrollY(n), n.lh); if (dy !== 0) directBy(a, dy, maxScrollY(n), n.lh); n.sy = a.pos; }
-  if ((n.scroll & 2) !== 0) { const a = axisX(n); beginDirect(a, maxScrollX(n), n.lw); if (dx !== 0) directBy(a, dx, maxScrollX(n), n.lw); n.sx = a.pos; }
+  // the horizontal axis follows the fingers only when its content is wider than the viewport (iOS and React Native's alwaysBounceHorizontal = false); the
+  // vertical one always does, so a short page still rubber-bands vertically
+  if ((n.scroll & 2) !== 0 && maxScrollX(n) > 0.5) { const a = axisX(n); beginDirect(a, maxScrollX(n), n.lw); if (dx !== 0) directBy(a, dx, maxScrollX(n), n.lw); n.sx = a.pos; }
   n.scrolledAt = clock; paintDirty = true;
   wakeScroll(h);
 }
