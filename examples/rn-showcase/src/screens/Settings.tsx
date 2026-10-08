@@ -1,15 +1,19 @@
 // Settings: grouped lists with switches (the knobs slide), a row that opens a bottom sheet, and the colour scheme.
 import { styles, Switch } from '../parts';
 import { t, isDark } from '../theme';
+import { Icon } from 'zinc:icons';
 
 export class Toggle {
   label: string; on: boolean; pos: number;   // pos: the knob, 0..1, eased towards on by the app each frame
   constructor(label: string, on: boolean) { this.label = label; this.on = on; this.pos = on ? 1 : 0; }
 }
 
-function Row(p: { label: string; last: boolean; children: () => i32 }): i32 {
+function Row(p: { label: string; icon: string; last: boolean; children: () => i32 }): i32 {
   return <view style={[styles.listRow, { borderBottomWidth: p.last ? 0 : 1, borderColor: t().line }]}>
-    <text style={[styles.body, { color: t().ink }]}>{p.label}</text>
+    <view style={styles.row}>
+      <Icon name={p.icon} size={20} color={() => t().muted} />
+      <text style={[styles.body, { color: t().ink }]}>{p.label}</text>
+    </view>
     {p.children()}
   </view>;
 }
@@ -20,18 +24,24 @@ export function Settings(toggles: Toggle[], pos: (i: i32) => number, flip: (i: i
     <view style={{ flexDirection: 'column', gap: 8 }}>
       <text style={[styles.tiny, { color: t().muted }]}>READING</text>
       <view style={[styles.group, { backgroundColor: t().surface }]}>
-        <Row label={toggles[0].label} last={false}><Switch pos={() => pos(0)} press={() => flip(0)} /></Row>
-        <Row label={toggles[1].label} last={false}><Switch pos={() => pos(1)} press={() => flip(1)} /></Row>
-        <Row label={toggles[2].label} last={true}><Switch pos={() => pos(2)} press={() => flip(2)} /></Row>
+        <Row label={toggles[0].label} icon="download" last={false}><Switch pos={() => pos(0)} press={() => flip(0)} /></Row>
+        <Row label={toggles[1].label} icon="newspaper" last={false}><Switch pos={() => pos(1)} press={() => flip(1)} /></Row>
+        <Row label={toggles[2].label} icon="volume-2" last={true}><Switch pos={() => pos(2)} press={() => flip(2)} /></Row>
       </view>
     </view>
     <view style={{ flexDirection: 'column', gap: 8 }}>
       <text style={[styles.tiny, { color: t().muted }]}>APPEARANCE</text>
       <view style={[styles.group, { backgroundColor: t().surface }]}>
-        <Row label="Dark mode" last={false}><Switch pos={dark} press={flipDark} /></Row>
+        <Row label="Dark mode" icon="moon" last={false}><Switch pos={dark} press={flipDark} /></Row>
         <view style={styles.listRow} onClick={openSheet}>
-          <text style={[styles.body, { color: t().ink }]}>Text size</text>
-          <text style={[styles.body, { color: t().muted }]}>Comfortable ›</text>
+          <view style={styles.row}>
+            <Icon name="type" size={20} color={() => t().muted} />
+            <text style={[styles.body, { color: t().ink }]}>Text size</text>
+          </view>
+          <view style={[styles.row, { gap: 2 }]}>
+            <text style={[styles.body, { color: t().muted }]}>Comfortable</text>
+            <Icon name="chevron-right" size={18} color={() => t().faint} />
+          </view>
         </view>
       </view>
     </view>

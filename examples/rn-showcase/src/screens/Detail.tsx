@@ -2,6 +2,7 @@
 import { styles, Button } from '../parts';
 import { t } from '../theme';
 import { cover } from '../art';
+import { Icon } from 'zinc:icons';
 import { Story } from './Discover';
 
 function Stat(p: { value: string; label: string }): i32 {
@@ -16,7 +17,8 @@ export function Detail(s: () => Story, back: () => void): i32 {
     <view style={{ height: 300 }}>
       <canvas style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => cover(x, y, w, h, s().seed, s().c1, s().c2, t())} />
       <view style={[styles.pill, { position: 'absolute', top: 20, left: 20, backgroundColor: 0xFFFFFF }]} onClick={back}>
-        <text style={[styles.small, styles.bold, { color: 0x1C1917 }]}>‹ Back</text>
+        <Icon name="chevron-left" size={18} color={() => 0x1C1917} />
+        <text style={[styles.small, styles.bold, { color: 0x1C1917 }]}>Back</text>
       </view>
       <view style={{ position: 'absolute', left: 20, right: 20, bottom: 22, flexDirection: 'column', gap: 6 }}>
         <text style={[styles.tiny, styles.bold, { color: 0xFFFFFF }]}>{s().tag.toUpperCase()}</text>

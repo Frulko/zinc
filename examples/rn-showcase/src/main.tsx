@@ -9,6 +9,7 @@ import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
 import { t, setDark, isDark } from './theme';
 import { styles } from './parts';
+import { Icon } from 'zinc:icons';
 import { Discover, Story, STORIES } from './screens/Discover';
 import { Detail } from './screens/Detail';
 import { Stats } from './screens/Stats';
@@ -31,10 +32,10 @@ const [tick, setTick] = createSignal<i32>(0);   // bumped when a knob moved: the
 const [darkPos, setDarkPos] = createSignal<number>(0);
 const scroller = createNodeRef();
 
-function Tab(p: { label: string; id: i32 }): i32 {
+function Tab(p: { label: string; id: i32; icon: string }): i32 {
   const on = (): boolean => screen() === p.id || (p.id === DISCOVER && screen() === DETAIL);
   return <view style={[tabStyles.tab, { backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => setScreen(p.id)}>
-    <view style={[tabStyles.dot, { backgroundColor: on() ? t().accent : t().faint }]} />
+    <Icon name={p.icon} size={22} color={() => on() ? t().accent : t().muted} strokeWidth={on() ? 2.2 : 1.8} />
     <text style={[styles.tiny, { color: on() ? t().accent : t().muted }, on() && styles.bold]}>{p.label}</text>
   </view>;
 }
@@ -48,9 +49,9 @@ function App(): i32 {
       <Show when={screen() === SETTINGS}>{Settings(toggles, (i: i32) => { tick(); return toggles[i].pos; }, (i: i32) => { toggles[i].on = !toggles[i].on; }, () => setSheetTarget(1), darkPos, () => setDark(!isDark()))}</Show>
     </view>
     <view style={[tabStyles.bar, { backgroundColor: t().surface, borderWidth: 1, borderColor: t().line }]}>
-      <Tab label="Discover" id={DISCOVER} />
-      <Tab label="Stats" id={STATS} />
-      <Tab label="Settings" id={SETTINGS} />
+      <Tab label="Discover" id={DISCOVER} icon="compass" />
+      <Tab label="Stats" id={STATS} icon="chart-column" />
+      <Tab label="Settings" id={SETTINGS} icon="settings" />
     </view>
     <Sheet at={sheetAt} close={() => setSheetTarget(0)} choose={(s: string) => { setTextSize(s); setSheetTarget(0); }} current={textSize} />
   </view>;

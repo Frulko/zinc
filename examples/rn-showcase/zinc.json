@@ -1,11 +1,35 @@
 {
   "name": "rn-showcase",
   "entry": "src/main.tsx",
-  "ui": { "layout": "rn" },
+  "ui": {
+    "layout": "rn"
+  },
   "targets": {
-    "macos": { "width": 420, "height": 860, "resize": "fill" },
-    "linux": { "width": 420, "height": 860 },
-    "sim": { "width": 420, "height": 860 },
-    "wasm": { "width": 420, "height": 860 }
-  }
+    "macos": {
+      "width": 420,
+      "height": 860,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 420,
+      "height": 860
+    },
+    "sim": {
+      "width": 420,
+      "height": 860
+    },
+    "wasm": {
+      "width": 420,
+      "height": 860
+    }
+  },
+  "icons": [
+    "compass",
+    "chart-column",
+    "settings",
+    "download",
+    "newspaper",
+    "volume-2",
+    "moon"
+  ]
 }

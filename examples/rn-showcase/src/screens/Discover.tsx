@@ -3,6 +3,7 @@ import { createSignal, For } from 'zinc:ui/solid';
 import { styles, Chip, Avatar } from '../parts';
 import { t } from '../theme';
 import { cover } from '../art';
+import { Icon } from 'zinc:icons';
 
 export class Story {
   title: string; author: string; initials: string; minutes: i32; likes: i32; seed: i32; c1: i32; c2: i32; tag: string;
@@ -29,7 +30,10 @@ function Card(s: Story, open: (s: Story) => void): i32 {
           <Avatar initials={s.initials} bg={() => s.c2} />
           <text style={[styles.small, { color: t().muted }]}>{`${s.author} · ${s.minutes} min`}</text>
         </view>
-        <text style={[styles.small, { color: t().muted }]}>{`${s.likes} likes`}</text>
+        <view style={[styles.row, { gap: 4 }]}>
+          <Icon name="heart" size={16} color={() => t().accent} />
+          <text style={[styles.small, { color: t().muted }]}>{`${s.likes}`}</text>
+        </view>
       </view>
     </view>
   </view>;

@@ -283,6 +283,19 @@ Not done yet: IME composition preview (committed text works), comments spanning 
 `setHighlightAt` with a per-line state, as `examples/zed-editor` does), multiple carets, word-wise drag
 selection after a double click, exact-size fonts for continuous zoom.
 
+## Icons
+
+`zinc:icons` draws the [Lucide](https://lucide.dev) set (1848 icons, ISC, pinned in `next/third_party/lucide`) through `zinc:svg`:
+
+```tsx
+import { Icon, icon } from 'zinc:icons';
+<Icon name="heart" size={20} color={() => theme().accent} strokeWidth={2} />
+```
+
+Only the icons a project names are compiled in: the compiler collects `<Icon name="...">` and `icon('...')` with literal names from the project's
+sources, plus `zinc.json` `"icons": ["compass", "moon"]` for names decided at run time (`["*"]` compiles the whole set). `icon(name, color, strokeWidth)`
+returns the parsed `Svg` (cached) or null for a name that was not compiled in; `iconNames()` lists them.
+
 ## Object styles and StyleSheet
 
 Host JSX nodes accept inline CSS-like objects, reusable `StyleSheet.create` entries, and flat arrays mixing both.

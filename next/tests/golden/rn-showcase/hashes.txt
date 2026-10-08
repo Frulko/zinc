@@ -1,11 +1,11 @@
-discover light bccb1c77fa9fcf10
-detail light 84f754a11f2d8729
-stats light 55dc8aa848b39673
-settings light 54732cc94befe112
-sheet light 35bed5bccb341b2a
-discover dark f205b24540ea50bc
-detail dark d8d7f3118e226c52
-stats dark 1954f503b8731cd2
-settings dark 6f13863d88e1f74f
-sheet dark e19a80cd254660ae
-discover light a67c34204f22e364 600
+discover light 73793f03cb21a3dd
+detail light 23664e08f12d2adf
+stats light c084bc94ba8f4a3c
+settings light b0b7d8f17ad5eb25
+sheet light e5fb1a63db66964d
+discover dark 0b8411718828143c
+detail dark e8983940a12d9159
+stats dark 51dae29f6fccd95c
+settings dark 3aa0b603af3c909f
+sheet dark c7a531b5f47f59f0
+discover light 761abf0c4a972df8 600

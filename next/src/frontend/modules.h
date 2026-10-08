@@ -46,6 +46,8 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict 
 const char* builtinModuleSource(std::string_view spec);
 // The source of zinc:platform (the capabilities of this host's profile from `capsFile`, and UI_LAYOUT), generated for each run.
 std::string platformModule(const std::string& capsFile);
+// The source of zinc:icons/lucide: the Lucide icons the project of `entry` names (ZN-374), from `nodesFile` (third_party/lucide/icon-nodes.json).
+std::string lucideModule(const std::string& entry, const std::string& nodesFile);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.
 std::string_view stdModuleFile(std::string_view spec);
 

@@ -38,7 +38,7 @@ percentages), `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop`, `
 | `transform: [{ rotate }, { scale }, ...]` | `translateX`/`translateY` keys | ZN-361 |
 | dynamic enum values (`fontWeight: on ? 700 : 400`, `display`) | conditional named styles (`on() && styles.bold`) | ZN-362 |
 | `borderStyle`, per-corner radii, per-side border colours | not used | ZN-363 |
-| an icon set (`<Icon name="heart" />`) | text and dots | ZN-374 |
+| an icon set (`<Icon name="heart" />`) | done in ZN-374 (`zinc:icons`, Lucide); names passed through props are listed in `zinc.json` `icons` | ZN-374 |
 
 The test `next/tests/t1/rn_showcase.sh` checks that no source uses a class string or the kit, and that the five
 states render to their recorded frame hashes in both schemes.

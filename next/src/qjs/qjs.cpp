@@ -31,6 +31,7 @@ struct Engine {
   JSRuntime* rt = nullptr;
   JSContext* ctx = nullptr;
   std::string stdRoot;
+  std::string entry;   // the program's entry file (zinc:icons/lucide reads its project)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
 };
 
@@ -159,6 +160,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
+    else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../next/third_party/lucide/icon-nodes.json");
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
     else {
       std::string_view f = zn::frontend::stdModuleFile(name);
@@ -314,6 +316,7 @@ int run(const Options& o) {
 
   std::string entry = o.entry;
   if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
+  e.entry = entry;
   {   // importmap.json next to the entry: {"imports": {"three": "../../third_party/three/build/three.module.js"}} (paths relative to the file)
     std::string text, dir = dirOf(entry);
     if (readFile(dir + "/importmap.json", text)) {
