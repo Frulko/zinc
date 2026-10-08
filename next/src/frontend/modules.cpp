@@ -1550,6 +1550,7 @@ struct Loader {
   std::uint32_t loadFile(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
+    if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
     if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {

@@ -1,4 +1,5 @@
-// The entry React Native's AppRegistry.registerComponent('main', () => App) would be: render the default export.
-import { render } from 'zinc:ui/react';
+// The entry of a React Native app, unchanged.
+import { AppRegistry } from 'react-native';
 import App from './App';
-render(App, 0xf2f2f7, null);
+
+AppRegistry.registerComponent('main', () => App);

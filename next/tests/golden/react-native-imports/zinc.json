@@ -1,0 +1,1 @@
+{ "name": "react-native-imports", "entry": "main.tsx", "ui": { "preset": "react-native" } }

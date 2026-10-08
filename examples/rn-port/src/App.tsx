@@ -1,8 +1,8 @@
-// A React Native screen as React Native developers write it (ZN-290): only the two imports below differ from the React Native original
-// ('react' -> 'zinc:ui/react', 'react-native' -> 'zinc:react-native'). Contacts with a search field, a FlatList of rows (avatar with initials and an absolute
+// A React Native screen as React Native developers write it (ZN-290), unchanged: under the react-native preset Zinc resolves 'react' and 'react-native'
+// itself (ZN-367.05). Contacts with a search field, a FlatList of rows (avatar with initials and an absolute
 // online badge, a bio that wraps to two lines, a percent progress bar), a header and a bottom action.
-import { useState } from 'zinc:ui/react';
-import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ListRenderItemInfo } from 'zinc:react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ListRenderItemInfo } from 'react-native';
 
 type Contact = { id: string; name: string; bio: string; online: boolean; progress: number };
 

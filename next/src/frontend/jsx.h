@@ -16,5 +16,8 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
 
 // StyleSheet.create({...}) of a .ts or .tsx source (StyleSheet imported from zinc:ui): the CSS-like objects become style operations. The source unchanged when there is none.
 std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx);
+// Under the react-native preset: imports of 'react' and 'react-native' rewritten to zinc:ui/react, zinc:react-native, zinc:ui/animated and
+// zinc:react-native/linking (ZN-367.05).
+std::string rewriteReactNativeImports(std::string_view src, bool tsx);
 
 }  // namespace zn::frontend

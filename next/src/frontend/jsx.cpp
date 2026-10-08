@@ -730,7 +730,7 @@ struct Lowering {
     if (upper) {
       auto it = imported.find(tag);
       bool hostImport = it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0) ||
-                        it->second == "zinc:react-native";   // View, Text, Image, ScrollView of zinc:react-native are the host elements (ZN-367)
+                        (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
       if (!(kTags.count(tag) && hostImport)) return component(e, out);
     }
     auto tagIt = kTags.find(tag);
@@ -945,6 +945,76 @@ struct Lowering {
 };
 
 }  // namespace
+
+// React Native's imports under the react-native preset (ZN-367.05): 'react' is zinc:ui/react (a default `React` becomes a namespace import of it), and of
+// 'react-native' the names live in zinc:react-native except Animated and Easing (zinc:ui/animated) and Linking (zinc:react-native/linking, it needs the
+// opener permission). `import type` from either is dropped. Lines are kept, so diagnostics still point at the right place.
+std::string rewriteReactNativeImports(std::string_view src, bool tsx) {
+  if (src.find("'react") == std::string_view::npos && src.find("\"react") == std::string_view::npos) return std::string(src);
+  Lowering L;
+  L.s = src;
+  L.t = lex(src, tsx);
+  std::string out;
+  std::size_t pos = 0;
+  for (std::size_t i = 0; i < L.t.size(); ++i) {
+    if (!L.isK(i, "import")) continue;
+    std::size_t k = i + 1;
+    while (k < L.t.size() && L.t[k].kind != Tok::String && !L.isP(k, ";") && !L.isP(k, "(")) ++k;
+    if (k >= L.t.size() || L.t[k].kind != Tok::String) continue;
+    const std::string spec = L.tx(k).substr(1, L.tx(k).size() - 2);
+    if (spec != "react" && spec != "react-native") continue;
+    std::string def, ns;
+    std::vector<std::pair<std::string, std::string>> named;   // imported name, local name
+    bool typeOnly = i + 1 < k && L.t[i + 1].kind == Tok::Ident && L.tx(i + 1) == "type";
+    for (std::size_t j = i + 1; j < k; ++j) {
+      if (L.isP(j, "*") && j + 2 < k) { ns = L.tx(j + 2); j += 2; continue; }
+      if (L.isP(j, "{")) {
+        std::size_t e = L.match(j);
+        for (std::size_t q = j + 1; q < e; ++q) {
+          if (L.t[q].kind != Tok::Ident) continue;
+          if (L.tx(q) == "type" && q + 1 < e && L.t[q + 1].kind == Tok::Ident) { ++q; while (q + 1 < e && !L.isP(q + 1, ",")) ++q; continue; }   // `type T` inside braces: a type, dropped
+          std::string name = L.tx(q), local = name;
+          if (q + 2 < e && L.t[q + 1].kind == Tok::Ident && L.tx(q + 1) == "as") { local = L.tx(q + 2); q += 2; }
+          named.push_back({name, local});
+        }
+        j = e;
+        continue;
+      }
+      if (L.t[j].kind == Tok::Ident && L.tx(j) != "type" && L.tx(j) != "from" && def.empty() && ns.empty()) def = L.tx(j);
+    }
+    std::string rep;
+    if (!typeOnly) {
+      if (spec == "react") {
+        if (!def.empty()) rep += "import * as " + def + " from 'zinc:ui/react'; ";
+        if (!ns.empty()) rep += "import * as " + ns + " from 'zinc:ui/react'; ";
+        std::string list;
+        for (auto& [n, l] : named) list += (list.empty() ? "" : ", ") + (n == l ? n : n + " as " + l);
+        if (!list.empty()) rep += "import { " + list + " } from 'zinc:ui/react'; ";
+      } else {
+        std::string list, linking, easing;
+        for (auto& [n, l] : named) {
+          if (n == "Animated") rep += "import * as " + l + " from 'zinc:ui/animated'; ";
+          else if (n == "Easing") easing += (easing.empty() ? "" : ", ") + (n == l ? n : n + " as " + l);
+          else if (n == "Linking") linking += (linking.empty() ? "" : ", ") + (n == l ? n : n + " as " + l);
+          else list += (list.empty() ? "" : ", ") + (n == l ? n : n + " as " + l);
+        }
+        if (!easing.empty()) rep += "import { " + easing + " } from 'zinc:ui/animated'; ";
+        if (!linking.empty()) rep += "import { " + linking + " } from 'zinc:react-native/linking'; ";
+        if (!list.empty()) rep += "import { " + list + " } from 'zinc:react-native'; ";
+        if (!ns.empty()) rep += "import * as " + ns + " from 'zinc:react-native'; ";
+      }
+    }
+    std::size_t end = k + 1 < L.t.size() && L.isP(k + 1, ";") ? k + 1 : k;
+    std::size_t a = L.t[i].start, b = L.t[end].end;
+    int lines = 0;
+    for (std::size_t q = a; q < b; ++q) lines += src[q] == '\n';
+    out += std::string(src.substr(pos, a - pos)) + rep + std::string(static_cast<std::size_t>(lines), '\n');
+    pos = b;
+    i = end;
+  }
+  out += std::string(src.substr(pos));
+  return out;
+}
 
 // StyleSheet.create({ name: { ...css } }) becomes ({ name: new __ZStyle(...) }) in .ts and .tsx alike (compiler/src/styles.ts lowerStyleSheets).
 std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx) {

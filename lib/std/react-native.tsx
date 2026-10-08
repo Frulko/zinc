@@ -2,7 +2,7 @@
 // Native 0.76; what does not map is listed in docs/react-native.md. View, Text, Image and ScrollView imported from here are zinc:ui's host elements; the
 // style props of these components (style, *Style) arrive as one flattened Style, as React Native composes `style={[a, b]}`.
 import * as ui from 'zinc:ui';
-import { useState, useEffect, useRef } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
+import { useState, useEffect, useRef, render } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
 import { platform, env } from 'zinc:sys';
 import { width, height, pixelScale, stroke } from 'zinc:gfx';
 import { createEffect } from 'zinc:ui/solid';
@@ -48,6 +48,13 @@ function Press(p: PressableProps, pressedStyle: ui.Style | null): i32 {
     onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderChildren(p.children)}</View>;
 }
 export function Pressable(p: PressableProps): i32 { return Press(p, null); }
+/** React Native's Button: iOS's look (a blue title; `color` tints it), dims while pressed and when disabled. */
+export function Button(p: { title: string; onPress?: () => void; color?: string; disabled?: boolean; accessibilityLabel?: string; testID?: string }): i32 {
+  const c = processColor(p.color ?? '#007aff'), off = p.disabled ?? false;
+  return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['paddingTop', 'paddingBottom', 'alignItems'], [8, 8, 1])}>
+    <Text style={{ fontSize: 18, color: off ? 0x999999 : (c < 0 ? 0x007aff : c) }}>{p.title}</Text>
+  </Pressable>;
+}
 export function TouchableWithoutFeedback(p: PressableProps): i32 { return Press(p, null); }
 /** Dims to activeOpacity (0.2) while pressed. */
 export function TouchableOpacity(p: PressableProps): i32 { return Press(p, new ui.Style(['opacity'], [p.activeOpacity ?? 0.2])); }
@@ -473,5 +480,11 @@ export class Alert {
     ui.openLayer(shade, { modal: true, priority: 2000 });
     ui.onDismiss(shade, (): void => { const c = box.cancel; if (c !== null) (c as () => void)(); else if (buttons.length <= 1) close(); });
   }
+}
+
+// ---------------------------------------------------------------- AppRegistry (ZN-367.05)
+/** React Native's entry: `AppRegistry.registerComponent('main', () => App)` mounts App (white background, React Native's). One app per program. */
+export class AppRegistry {
+  static registerComponent(name: string, getComponent: () => () => i32): void { render(getComponent(), 0xffffff, null); }
 }
 
