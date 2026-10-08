@@ -663,6 +663,12 @@ int main(int argc, char** argv) {
       std::ofstream zf(recordTo, std::ios::binary); const std::string bytes = tr.serialize(); zf.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
       std::printf("recorded %zu events (%zu bytes) to %s\n", tr.events().size(), bytes.size(), recordTo.c_str());
     }
+    if (update && !r.newHashes.empty()) {   // the hashes of the steps that changed are rewritten in the scenario file
+      std::string t = text.str();
+      for (const auto& h : r.newHashes) for (std::size_t at = t.find(h.first); at != std::string::npos; at = t.find(h.first, at + h.second.size())) t.replace(at, h.first.size(), h.second);
+      std::ofstream out(argv[2]); out << t;
+      std::printf("rewrote %zu hash(es) in %s\n", r.newHashes.size(), argv[2]);
+    }
     std::error_code ec; fs::remove_all(cfg.scratch, ec);
     std::printf("%s%s%s\n", sc.name.empty() ? "" : (sc.name + ": ").c_str(), r.ok ? "" : "", zn::sim::describe(sc, r).c_str());
     return r.ok ? 0 : 1;

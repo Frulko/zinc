@@ -147,6 +147,11 @@ bool parseScenario(const std::string& yaml, Scenario& out, std::string& err) {
       if (!str("part-id", s.part, true) || !num("x", x) || !num("y", y) || !str("rgb", rgb, true)) return false;
       s.x = static_cast<int>(x); s.y = static_cast<int>(y);
       s.rgb = static_cast<std::uint32_t>(std::strtoul(rgb.c_str() + (rgb[0] == '#'), nullptr, 16));
+    } else if (kind == "expect-logic") {
+      if (const Node* pn = arg.get("pins")) { if (pn->kind == Node::Seq) for (const Node& q : pn->seq) s.pins.push_back(q.text); else s.pins.push_back(pn->text); }
+      if (s.pins.empty()) { err = at + "expect-logic needs `pins`"; return false; }
+      if (const Node* w = arg.get("window")) { if (!toDuration(*w, s.windowNs)) { err = at + "bad window: " + w->text; return false; } } else { err = at + "expect-logic needs `window`"; return false; }
+      double e = -1; if (!num("edges", e) || e < 0) { err = at + "expect-logic needs `edges`"; return false; } s.edges = static_cast<int>(e);
     } else if (kind == "take-screenshot") {
       if (!str("part-id", s.part, true)) return false;
       if (const Node* n = arg.get("compare-with")) s.compareWith = n->text;
@@ -237,7 +242,14 @@ RunResult runScenario(const Scenario& sc, Dut& dut, const RunOptions& opt) {
     } else if (s.kind == "expect-frame") {
       std::string hash;
       if (!dut.frameHash(s.part, hash, err)) return fail(s, "expect-frame " + s.part + ": " + err);
-      if (hash != s.text) return fail(s, "expect-frame " + s.part + ": the frame hashes to " + hash + ", expected " + s.text);
+      if (hash != s.text) {
+        if (!opt.updateGoldens) return fail(s, "expect-frame " + s.part + ": the frame hashes to " + hash + ", expected " + s.text);
+        r.newHashes.push_back({s.text, hash});
+      }
+    } else if (s.kind == "expect-logic") {
+      int edges = 0;
+      if (!dut.logicEdges(s.pins, s.windowNs, edges, err)) return fail(s, "expect-logic: " + err);
+      if (edges != s.edges) return fail(s, "expect-logic: " + std::to_string(edges) + " edges in " + fmtTime(s.windowNs) + ", expected " + std::to_string(s.edges));
     } else if (s.kind == "expect-pixel") {
       const std::string png = tmpDir + "/px.png"; std::uint32_t rgb = 0;
       if (!dut.screenshot(s.part, png, err) || !pngPixel(png, s.x, s.y, rgb, err)) return fail(s, "expect-pixel " + s.part + ": " + err);

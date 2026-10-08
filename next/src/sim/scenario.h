@@ -19,6 +19,8 @@ struct Step {
   std::string compareWith;                 // take-screenshot compare-with
   double tolerance = 0;                    // take-screenshot tolerance, a fraction (0.005 for "0.5%")
   int x = 0, y = 0;                        // expect-pixel
+  std::vector<std::string> pins;           // expect-logic: part:pin names
+  std::uint64_t windowNs = 0; int edges = -1;   // expect-logic: the window and the number of edges expected in it
   std::uint32_t rgb = 0;
 };
 struct Scenario {
@@ -44,6 +46,8 @@ class Dut {
   virtual bool busWrites(const std::string& part, const std::string& protocol, std::int64_t address, std::vector<std::vector<std::uint8_t>>& out, std::string& err) = 0;
   // The frame a part (a display) shows now: its hash (FNV-1a 64, 16 hex digits, the ZINC_FRAMEHASH contract) and as a PNG file. An empty part is the device's main display.
   virtual bool frameHash(const std::string& part, std::string& hash, std::string& err) { (void)part; (void)hash; err = "this device has no frames"; return false; }
+  // The number of edges the given pins ('part:pin') made in the last windowNs; false with err when the device does not report pins.
+  virtual bool logicEdges(const std::vector<std::string>& pins, std::uint64_t windowNs, int& edges, std::string& err) { (void)pins; (void)windowNs; (void)edges; err = "this device does not report pins"; return false; }
   virtual bool screenshot(const std::string& part, const std::string& pngPath, std::string& err) { (void)part; (void)pngPath; err = "this device has no frames"; return false; }
 };
 
@@ -52,12 +56,13 @@ struct RunResult {
   int failedStep = 0;                      // 1-based, 0 when ok
   std::uint64_t t_ns = 0;                  // virtual time at the end (or at the failure)
   std::string message;
+  std::vector<std::pair<std::string, std::string>> newHashes;   // with updateGoldens: (old, new) of every expect-frame whose hash changed
 };
 struct RunOptions {
   std::uint64_t defaultTimeoutNs = 10'000'000'000ull;   // bounds a wait-serial without a timeout (virtual time)
   std::string baseDir = ".";                            // where the relative paths of the steps (compare-with, save-to) start: the scenario's directory
   std::string outDir;                                   // a failing step leaves the last frame here as fail-step-N.png ("" none)
-  bool updateGoldens = false;                           // take-screenshot with compare-with writes the file instead of comparing
+  bool updateGoldens = false;                           // take-screenshot with compare-with writes the file instead of comparing, expect-frame accepts the frame it gets and reports the new hash
 };
 // Runs every step in order; the first failing step stops the run.
 RunResult runScenario(const Scenario& sc, Dut& dut, const RunOptions& opt = RunOptions());
