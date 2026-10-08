@@ -25,5 +25,6 @@ ui.insert(root, title, -1); ui.insert(root, view, -1); ui.insert(root, bar, -1);
 ui.mount(root, 0x0f172a, (dt: number) => {
   t += dt * speed; n++;
   vm.call('frame', [ui.surfaceImage(view), t]);
+  ui.repaint();   // a surface changes behind the UI's back: ask for the repaint (an idle page keeps its last frame)
   if (n % 15 === 0) ui.setText(info, `frame ${n}, speed ${speed}, ${Math.round(1 / Math.max(dt, 0.001))} fps`);
 });

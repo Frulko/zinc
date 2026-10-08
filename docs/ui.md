@@ -346,6 +346,7 @@ const vm = new Script({ engine: 'quickjs' });
 vm.eval(source);                                   // creates a canvas and a draw(image) function
 const view = ui.createSurface(256, 256);
 vm.call('draw', [ui.surfaceImage(view)]);          // every frame, or when the scene changes
+ui.repaint();                                      // the surface changed behind the UI's back: an idle page keeps its last frame otherwise
 ```
 
 `tests/golden/webgl-surface` is the working example.
