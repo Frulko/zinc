@@ -41,7 +41,7 @@ const Command kCommands[] = {
    "Compiles to C++ and builds an executable (out defaults to build/<project name>). --target aarch64-linux|armhf-linux|x86_64-linux|aarch64-macos|x86_64-macos cross builds with the pinned zig (no Docker); --bundle makes a macOS .app."},
   {"check", "zinc check [entry|dir]", "type check without running", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
-  {"new", "zinc new [template] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets."},
+  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ (or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets."},
   {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
   {"doctor", "zinc doctor", "check the machine", "Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
   {"toolchain", "zinc toolchain install|path|esptool|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc; targets: the cross targets."},
@@ -71,27 +71,89 @@ std::vector<std::string> jsonStrings(yyjson_val* a) {
   if (yyjson_is_arr(a)) yyjson_arr_foreach(a, i, n, v) if (yyjson_is_str(v)) out.push_back(yyjson_get_str(v));
   return out;
 }
+// A template.json: an object with only the known keys (a template cannot ask for anything else, such as a script to run). Empty: valid.
+std::string readTemplateInfo(const fs::path& dir, TemplateInfo& t) {
+  std::ifstream f(dir / "template.json");
+  if (!f) return "no template.json in " + dir.string();
+  std::stringstream ss; ss << f.rdbuf();
+  const std::string text = ss.str();
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* r = doc ? yyjson_doc_get_root(doc) : nullptr;
+  std::string err;
+  if (!yyjson_is_obj(r)) err = "template.json is not a JSON object";
+  else {
+    static const std::vector<std::string> known = {"name", "description", "tags", "targets", "entry", "variables"};
+    std::size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(r, i, n, k, v) if (std::find(known.begin(), known.end(), yyjson_get_str(k)) == known.end() && err.empty()) err = std::string("template.json: unknown key \"") + yyjson_get_str(k) + "\"";
+    t.dir = dir;
+    t.name = dir.filename().string();
+    if (const char* nm = yyjson_get_str(yyjson_obj_get(r, "name"))) t.name = nm;
+    if (const char* d = yyjson_get_str(yyjson_obj_get(r, "description"))) t.description = d;
+    if (const char* en = yyjson_get_str(yyjson_obj_get(r, "entry"))) t.entry = en;
+    t.tags = jsonStrings(yyjson_obj_get(r, "tags"));
+    t.targets = jsonStrings(yyjson_obj_get(r, "targets"));
+  }
+  yyjson_doc_free(doc);
+  return err;
+}
+// Runs a program with its arguments, no shell (a URL cannot inject a command); 0 on success.
+int runArgv(const std::vector<std::string>& argv, bool quiet) {
+  pid_t pid = fork();
+  if (pid < 0) return -1;
+  if (pid == 0) {
+    if (quiet) { int fd = open("/dev/null", O_WRONLY); if (fd >= 0) { dup2(fd, 1); dup2(fd, 2); } }
+    std::vector<char*> a;
+    for (const std::string& x : argv) a.push_back(const_cast<char*>(x.c_str()));
+    a.push_back(nullptr);
+    execvp(a[0], a.data());
+    _exit(127);
+  }
+  int st = 0;
+  while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
+  return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+// A template given by a git URL (https, ssh, file://, gh:user/repo[@ref]) is cloned into `into` (no hooks of the template run: git copies none,
+// and hooks are pointed at nothing); its commit is returned in `commit`. A local directory is used as it is. Empty: done.
+std::string fetchTemplate(const std::string& spec, const fs::path& into, fs::path& dir, std::string& source, std::string& commit) {
+  std::error_code ec;
+  const bool git = spec.rfind("gh:", 0) == 0 || spec.rfind("https://", 0) == 0 || spec.rfind("http://", 0) == 0 || spec.rfind("ssh://", 0) == 0 ||
+                   spec.rfind("git@", 0) == 0 || spec.rfind("file://", 0) == 0 || (spec.size() > 4 && spec.compare(spec.size() - 4, 4, ".git") == 0 && !fs::is_directory(spec, ec));
+  if (!git) {
+    if (!fs::is_directory(spec, ec)) return "no template '" + spec + "': not a template name, a directory or a git URL";
+    dir = fs::absolute(spec).lexically_normal();
+    source = dir.string();
+    return "";
+  }
+  std::string url = spec, ref;
+  if (spec.rfind("gh:", 0) == 0) {
+    std::string repo = spec.substr(3);
+    const std::size_t at = repo.find('@');
+    if (at != std::string::npos) { ref = repo.substr(at + 1); repo = repo.substr(0, at); }
+    url = "https://github.com/" + repo + ".git";
+  }
+  if (runArgv({"git", "-c", "core.hooksPath=/dev/null", "-c", "protocol.file.allow=always", "clone", "--quiet", "--no-recurse-submodules", "--", url, into.string()}, true) != 0)
+    return "cannot clone " + url;
+  if (!ref.empty() && runArgv({"git", "-C", into.string(), "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", ref}, true) != 0) return "no ref '" + ref + "' in " + url;
+  int fd[2];
+  if (pipe(fd) != 0) return "cannot read the commit";
+  pid_t pid = fork();
+  if (pid == 0) { dup2(fd[1], 1); close(fd[0]); execlp("git", "git", "-C", into.c_str(), "rev-parse", "HEAD", static_cast<char*>(nullptr)); _exit(127); }
+  close(fd[1]);
+  char buf[128]; ssize_t k = read(fd[0], buf, sizeof buf - 1); close(fd[0]);
+  int st = 0; waitpid(pid, &st, 0);
+  commit = k > 0 ? std::string(buf, static_cast<std::size_t>(k)) : "";
+  while (!commit.empty() && (commit.back() == '\n' || commit.back() == '\r')) commit.pop_back();
+  if (commit.size() != 40) return "cannot read the commit of " + url;
+  dir = into;
+  source = url + (ref.empty() ? "" : "@" + ref);
+  return "";
+}
 std::vector<TemplateInfo> listTemplates(const std::string& engineRoot) {
   std::vector<TemplateInfo> out;
   std::error_code ec;
   for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "templates", ec)) {
-    std::ifstream f(e.path() / "template.json");
-    if (!f) continue;
-    std::stringstream ss; ss << f.rdbuf();
-    const std::string text = ss.str();
-    yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
-    yyjson_val* r = doc ? yyjson_doc_get_root(doc) : nullptr;
-    if (yyjson_is_obj(r)) {
-      TemplateInfo t;
-      t.dir = e.path();
-      t.name = e.path().filename().string();
-      if (const char* d = yyjson_get_str(yyjson_obj_get(r, "description"))) t.description = d;
-      if (const char* en = yyjson_get_str(yyjson_obj_get(r, "entry"))) t.entry = en;
-      t.tags = jsonStrings(yyjson_obj_get(r, "tags"));
-      t.targets = jsonStrings(yyjson_obj_get(r, "targets"));
-      out.push_back(t);
-    }
-    yyjson_doc_free(doc);
+    TemplateInfo t;
+    if (fs::exists(e.path() / "template.json", ec) && readTemplateInfo(e.path(), t).empty()) { t.name = e.path().filename().string(); out.push_back(t); }
   }
   std::sort(out.begin(), out.end(), [](const TemplateInfo& x, const TemplateInfo& y) { return x.name < y.name; });
   return out;
@@ -208,8 +270,9 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   const std::string dir = pos.empty() ? "." : pos.back();
   const TemplateInfo* t = nullptr;
   for (const TemplateInfo& x : all) if (x.name == tmpl) t = &x;
-  if (!t) { std::fprintf(stderr, "zinc %s: unknown template '%s'; choose one of:\n", cmd.c_str(), tmpl.c_str()); printTemplates(stderr, all); return 2; }
   std::error_code ec;
+  const bool external = !t && (tmpl.find('/') != std::string::npos || tmpl.find(':') != std::string::npos || tmpl.rfind(".", 0) == 0);
+  if (!t && !external) { std::fprintf(stderr, "zinc %s: unknown template '%s'; choose one of (or a directory or git URL):\n", cmd.c_str(), tmpl.c_str()); printTemplates(stderr, all); return 2; }
   if (fs::exists(dir, ec) && !fs::is_empty(dir, ec)) {
     std::fprintf(stderr, "zinc %s: %s is not empty; give a new or empty directory (zinc new [template] <dir>), templates:\n", cmd.c_str(), dir.c_str());
     printTemplates(stderr, all);
@@ -219,10 +282,30 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   std::string id;
   for (char c : name) id += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '-';
   const std::map<std::string, std::string> vars{{"name", name}, {"id", id}};
+  // a template from a directory or a git URL (ZN-316): fetched into a scratch directory, its template.json checked; nothing of it is run
+  TemplateInfo ext;
+  std::string source, commit;
+  struct Scratch { fs::path p; ~Scratch() { std::error_code e; if (!p.empty()) fs::remove_all(p, e); } } scratch;
+  if (external) {
+    scratch.p = fs::temp_directory_path(ec) / ("zinc-template-" + std::to_string(getpid()));
+    fs::remove_all(scratch.p, ec);
+    fs::path tdir;
+    std::string err = fetchTemplate(tmpl, scratch.p, tdir, source, commit);
+    if (err.empty()) err = readTemplateInfo(tdir, ext);
+    if (err.empty())   // only plain files and directories: a link could name a file outside the template
+      for (auto it = fs::recursive_directory_iterator(tdir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+        if (it->is_symlink() || (!it->is_regular_file() && !it->is_directory())) { err = "a file outside the template (link or special file): " + fs::relative(it->path(), tdir).string(); break; }
+      }
+    if (!err.empty()) { std::fprintf(stderr, "zinc %s: %s\n", cmd.c_str(), err.c_str()); return 1; }
+    t = &ext;
+    tmpl = ext.name;
+  }
   fs::path root(dir);
   bool ok = true;
   for (auto it = fs::recursive_directory_iterator(t->dir, ec); ok && it != fs::recursive_directory_iterator(); it.increment(ec)) {
-    if (!it->is_regular_file() || it->path().filename() == "template.json") continue;
+    if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+    if (it->is_symlink() || !it->is_regular_file() || it->path().filename() == "template.json") continue;
     const fs::path rel = fs::relative(it->path(), t->dir);
     std::ifstream f(it->path(), std::ios::binary);
     std::stringstream ss; ss << f.rdbuf();
@@ -234,6 +317,14 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
       libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
   // the editor configuration names this machine's engine files, so it is written here rather than kept in the template
   ok = ok && writeFile(root / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\"\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n");
+  if (ok && external) {   // where the project came from: the source and, for git, the pinned commit
+    std::ifstream zf(root / "zinc.json");
+    std::stringstream zs; zs << zf.rdbuf();
+    std::string z = zs.str();
+    const std::size_t brace = z.find('{');
+    const std::string rec = "\n  \"template\": { \"source\": " + jsonString(source) + (commit.empty() ? "" : ", \"commit\": " + jsonString(commit)) + " },";
+    if (brace != std::string::npos) ok = writeFile(root / "zinc.json", z.substr(0, brace + 1) + rec + z.substr(brace + 1));
+  }
   if (!ok) { std::fprintf(stderr, "zinc %s: cannot write into %s\n", cmd.c_str(), dir.c_str()); return 1; }
   std::printf("created %s (%s); next: cd %s && zinc run\n", dir.c_str(), tmpl.c_str(), dir.c_str());
   return 0;

@@ -40,3 +40,19 @@ Each template carries `tests/smoke.test.ts`, so `zinc test` (the tests of the pr
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |
 | remarkable | a reMarkable Paper Pro ink canvas with undo (zinc:ui, zinc:ink) | rmpp |
+
+## Templates from elsewhere
+
+The template can also be a directory or a git repository holding a `template.json` at its root:
+
+```sh
+zinc new ../my-template my-app                       # a directory
+zinc new https://github.com/user/zinc-starter.git app  # a git URL (https, ssh, git@, file://)
+zinc new gh:user/zinc-starter@v1.2 app               # GitHub shorthand, at a tag, branch or commit
+```
+
+A git template is cloned without its submodules; its commit is recorded in the new project's `zinc.json`
+(`"template": { "source": "...", "commit": "..." }`), a directory's path likewise. Creating a project never runs code of the template: git hooks
+are pointed at nothing (and a clone brings none), filters configured in the template's repository are not cloned, and scripts the template
+carries (a `setup.sh`, an npm `postinstall`) are plain files. `template.json` may only use the keys above; a template containing a link or a
+special file (which could name a file outside it) is refused, and its `.git` directory is never copied.
