@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""ui-docs: the style tables of docs/ui.md are generated from lib/std/ui.ts and the token golden (ZN-279).
+
+  tools/ui-docs            rewrite the block between the ui-docs markers of docs/ui.md
+  tools/ui-docs --check    exit 1 when the block is stale (tests/t0/ui_docs.sh)
+"""
+import os, re, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(HERE))
+UI = os.path.join(ROOT, "lib/std/ui.ts"); DOC = os.path.join(ROOT, "docs/ui.md"); TOK = os.path.join(HERE, "..", "tests/golden/ui-tokens/main.out")
+BEGIN, END = "<!-- ui-docs:begin -->", "<!-- ui-docs:end -->"
+
+def table():
+    src = open(UI).read()
+    ids = {m.group(1): int(m.group(2)) for m in re.finditer(r"const (P_[A-Z0-9_]+): i32 = (\d+);", src)}
+    keys = {}
+    for m in re.finditer(r"PROP\.set\('([A-Za-z]+)', (P_[A-Z0-9_]+)\);", src): keys.setdefault(m.group(2), []).append(m.group(1))
+    rows = ["| Id | Style key | Aliases |", "|---|---|---|"]
+    for name, ks in sorted(keys.items(), key=lambda kv: ids.get(kv[0], 0)): rows.append("| %d | `%s` | %s |" % (ids.get(name, -1), ks[0], ", ".join("`%s`" % k for k in ks[1:]) or ""))
+    toks = sorted({l.split()[0] for l in open(TOK) if len(l.split()) > 1 and l.split()[1] == "true" and ":" not in l.split()[0]})
+    return "\n".join(["### Style keys (generated)", "", "Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites this block.", ""] + rows +
+        ["", "### Accepted class tokens (generated)", "", "The tokens of `tests/golden/ui-tokens` that `isKnownClass` accepts (families such as `p-N`, `rounded-*` and the colour scale take more values than the samples):", "", ", ".join("`%s`" % t for t in toks)])
+
+def main():
+    doc = open(DOC).read(); block = BEGIN + "\n" + table() + "\n" + END
+    if BEGIN in doc: new = re.sub(re.escape(BEGIN) + ".*?" + re.escape(END), lambda m: block, doc, flags=re.S)
+    else: new = doc.rstrip("\n") + "\n\n## Style reference\n\n" + block + "\n"
+    if "--check" in sys.argv:
+        if new != doc: print("docs/ui.md is stale: run next/tools/ui-docs"); return 1
+        print("ui-docs: docs/ui.md is up to date"); return 0
+    open(DOC, "w").write(new); print("docs/ui.md updated"); return 0
+sys.exit(main())

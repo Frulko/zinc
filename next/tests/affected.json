@@ -2,7 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
-    {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style", "ui_font", "ui_textlayout", "ui_media"], "canary": true},
+    {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style", "ui_font", "ui_textlayout", "ui_media", "ui_docs"], "canary": true},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang"]},

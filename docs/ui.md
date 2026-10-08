@@ -269,3 +269,138 @@ Optional HAL hooks with weak defaults in the runtime: `hal_text_input` (SDL_Star
 Not done yet: IME composition preview (committed text works), comments spanning lines in `tsHighlight` (use
 `setHighlightAt` with a per-line state, as `examples/zed-editor` does), multiple carets, word-wise drag
 selection after a double click, exact-size fonts for continuous zoom.
+
+## Object styles and StyleSheet
+
+Host JSX nodes accept inline CSS-like objects, reusable `StyleSheet.create` entries, and flat arrays mixing both.
+Import `StyleSheet` from `zinc:ui`; the same syntax works with Zinc's Solid and React renderers and the kit host.
+
+```tsx
+import { StyleSheet } from 'zinc:ui';
+
+const styles = StyleSheet.create({
+  card: { padding: 16, gap: 8, backgroundColor: '#ffffff', borderRadius: 12 },
+  selected: { border: '2px solid #2563eb' },
+});
+
+// Solid: active() and opacity() are signals. React: use the corresponding state values.
+<view class="w-full" style={[styles.card, active() && styles.selected, { opacity: opacity() }]} />
+<text style={{ fontSize: 24, fontWeight: 'bold', color: 'rgb(15,23,42)' }}>Hello</text>
+```
+
+Named styles can live in an imported `.ts` module or inside a component. Use module scope when the values are
+shared and constant. `StyleSheet.create` is a compiler intrinsic: named CSS objects become immutable `Style`
+records before type checking/code generation. Arbitrary mutable plain objects are not runtime style dictionaries;
+use `StyleSheet.create` to prepare reusable entries. Styles are immutable by convention: do not mutate their arrays.
+`StyleSheet.compose(base, override)` and `StyleSheet.flatten(styles)` return a composed `Style`; avoid calling them
+on every frame when the composition is constant.
+
+Supported properties:
+
+- Flex layout: `flexDirection` (`row`/`column`), `flexWrap`, `justifyContent`, `alignItems`, `flexGrow`/`grow`, `gap`.
+  `flex` is an alias for grow only; it does not implement CSS flex-basis/shrink shorthand.
+- Dimensions: `width`, `height` (numbers, px, percentages, auto); padding/margin and individual sides, plus
+  `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand.
+- Position: `position` (`relative`/`static`/`absolute`), `top/right/bottom/left`, `display` (`flex`/`none`),
+  `overflow` (`visible`/`hidden`/`auto`/`scroll`). Relative means normal flow; offsets position absolute nodes.
+- Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths, `borderRadius`,
+  `border: '<width> solid <color>'`, `opacity`, `translateX/Y`, `scale`.
+- Text: `fontSize`, `fontFamily`, `fontWeight`, `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
+- Existing numeric aliases remain: `bg`, `radius`, `x/y`, `hidden`, `lazy` (canvas).
+
+CamelCase and quoted CSS kebab-case keys work. Numbers are logical pixels except unitless properties. `rem`/`em`
+currently mean 16 logical pixels, not inherited CSS font sizes. Colors accept the named subset in the compiler,
+`#RGB`, `#RRGGBB`, `rgb(...)`; background colors additionally accept alpha hex and `rgba(...)`. Static 24-bit colors
+are encoded separately from floating/fixed-point values, preserving them on PS1 profiles. Dynamic numeric colors
+still follow the target's `number` range; choose conditional named styles for portable color changes.
+
+Dynamic values inside an inline object must be numeric Zinc expressions. For enum/string changes, select named
+styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`, `false`, `undefined` branches are
+empty styles. Object spreads, nested style arrays, `calc`, grid, min/max dimensions, shrink/basis, arbitrary CSS
+selectors and the React Native transform-array syntax are not implemented. Unsupported keys/values are build errors.
+Static font sizes (1–256 px) are passed to font baking; dynamic sizes use Zinc's existing nearest baked font behavior.
+
+### Precedence, reset and caching
+
+Classes/CSS imports provide the base. Style array layers apply left to right; the last value wins, including
+shorthand expansion. Removing a conditional layer restores the preceding layer or class/default value, including
+transforms. Imperative `ui.setNumber`/engine animation values sit above the stylesheet and survive a class change.
+
+Static inline objects are hoisted by the compiler. Shared named entries keep their identity. Each node retains
+only its last style layers and resolved properties: there is no global cache of animated values. Unchanged layer
+identities skip resolution; fresh inline records compare by value. With an unchanged property set, only changed
+numeric values are applied; opacity/translation changes invalidate painting without relayout. Removing/changing the
+property set rebuilds that node's base styles. Dynamic inline records/arrays still allocate; prefer shared static
+styles and engine animations for long-running motion. CSS strings are normalized at build time, not parsed per frame.
+
+[Figma UI documents](figma-ui.md) use these same style properties and generate this same TSX API.
+
+## Style reference
+
+<!-- ui-docs:begin -->
+### Style keys (generated)
+
+Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites this block.
+
+| Id | Style key | Aliases |
+|---|---|---|
+| 1 | `opacity` |  |
+| 2 | `translateX` | `x` |
+| 3 | `translateY` | `y` |
+| 5 | `bg` | `backgroundColor` |
+| 6 | `backgroundAlpha` |  |
+| 7 | `borderColor` |  |
+| 8 | `color` |  |
+| 9 | `radius` | `borderRadius` |
+| 10 | `scale` |  |
+| 11 | `lazy` |  |
+| 12 | `password` |  |
+| 13 | `readOnly` |  |
+| 14 | `lineNumbers` |  |
+| 15 | `wrap` |  |
+| 16 | `rows` |  |
+| 17 | `width` |  |
+| 18 | `height` |  |
+| 19 | `widthPercent` |  |
+| 20 | `heightPercent` |  |
+| 21 | `flexDirection` |  |
+| 22 | `flexWrap` |  |
+| 23 | `justifyContent` |  |
+| 24 | `alignItems` |  |
+| 25 | `position` |  |
+| 26 | `overflow` |  |
+| 27 | `fontWeight` |  |
+| 28 | `textAlign` |  |
+| 29 | `lineHeight` |  |
+| 30 | `letterSpacing` |  |
+| 31 | `borderWidth` |  |
+| 32 | `borderTopWidth` |  |
+| 33 | `borderRightWidth` |  |
+| 34 | `borderBottomWidth` |  |
+| 35 | `borderLeftWidth` |  |
+| 36 | `paddingTop` |  |
+| 37 | `paddingRight` |  |
+| 38 | `paddingBottom` |  |
+| 39 | `paddingLeft` |  |
+| 40 | `marginTop` |  |
+| 41 | `marginRight` |  |
+| 42 | `marginBottom` |  |
+| 43 | `marginLeft` |  |
+| 44 | `grow` |  |
+| 45 | `gap` |  |
+| 46 | `padding` |  |
+| 47 | `fontSize` |  |
+| 48 | `hidden` |  |
+| 49 | `keepFocus` |  |
+| 50 | `inputMode` |  |
+| 51 | `top` |  |
+| 52 | `left` |  |
+| 53 | `right` |  |
+| 54 | `bottom` |  |
+
+### Accepted class tokens (generated)
+
+The tokens of `tests/golden/ui-tokens` that `isKnownClass` accepts (families such as `p-N`, `rounded-*` and the colour scale take more values than the samples):
+
+`-m-4`, `-ml-px`, `-mt-2`, `-mx-1`, `-word-1`, `-z-10`, `absolute`, `align-baseline`, `align-sub`, `align-super`, `aspect-[4/3]`, `aspect-auto`, `aspect-square`, `aspect-video`, `basis-0`, `basis-1/2`, `basis-32`, `basis-auto`, `basis-full`, `bg-white`, `border`, `border-b-white/50`, `border-dashed`, `border-dotted`, `border-solid`, `border-t-red-500`, `border-x-blue-600`, `bottom-0`, `break-all`, `break-normal`, `break-words`, `capitalize`, `content-between`, `content-evenly`, `flex-auto`, `flex-col-reverse`, `flex-none`, `flex-row`, `flex-row-reverse`, `flex-wrap`, `font-[Inter,Roboto-Mono]`, `font-black`, `font-light`, `font-medium`, `font-thin`, `gap-2`, `gap-[10px]`, `gap-x-4`, `gap-y-2`, `grow`, `grow-2`, `grow-[0.5]`, `h-1/3`, `h-8`, `h-[1.5rem]`, `h-[10vh]`, `h-[25%]`, `h-screen`, `hidden`, `inset-0`, `inset-4`, `inset-[8px]`, `inset-x-2`, `inset-y-1`, `invisible`, `italic`, `items-center`, `justify-between`, `left-3`, `line-clamp-3`, `line-clamp-none`, `line-through`, `lowercase`, `m-2`, `m-auto`, `max-h-[300px]`, `max-w-full`, `max-w-md`, `min-h-screen`, `min-w-0`, `ml-6`, `ml-auto`, `mr-auto`, `mt-1`, `mt-auto`, `mx-3`, `mx-auto`, `my-auto`, `no-underline`, `normal-case`, `not-italic`, `opacity-50`, `order-2`, `order-first`, `order-last`, `outline`, `outline-2`, `outline-none`, `outline-offset-1`, `outline-red-500`, `overline`, `p-4`, `pointer-events-auto`, `pointer-events-none`, `pt-1`, `px-2`, `relative`, `right-1`, `ring`, `ring-0`, `ring-2`, `ring-4`, `ring-indigo-500`, `ring-offset-2`, `rounded-b-[6px]`, `rounded-br`, `rounded-l-full`, `rounded-lg`, `rounded-t-lg`, `rounded-tl-xl`, `scroll-p-4`, `scroll-pt-2`, `scroll-px-3`, `self-auto`, `self-end`, `shrink`, `shrink-0`, `shrink-[0.5]`, `size-8`, `snap-align-none`, `snap-both`, `snap-center`, `snap-end`, `snap-mandatory`, `snap-none`, `snap-proximity`, `snap-start`, `snap-x`, `snap-y`, `static`, `sticky`, `text-balance`, `text-clip`, `text-ellipsis`, `text-justify`, `text-lg`, `text-nowrap`, `text-shadow`, `text-shadow-lg`, `text-shadow-md`, `text-shadow-none`, `text-shadow-red-500`, `text-shadow-sm`, `text-wrap`, `top-2`, `truncate`, `underline`, `uppercase`, `visible`, `w-1/2`, `w-4`, `w-[100px]`, `w-[10vw]`, `w-[2rem]`, `w-[50%]`, `w-full`, `w-screen`, `whitespace-normal`, `whitespace-nowrap`, `whitespace-pre`, `whitespace-pre-wrap`, `word-4`, `word-[3px]`, `z-10`, `z-[5]`, `z-auto`
+<!-- ui-docs:end -->
