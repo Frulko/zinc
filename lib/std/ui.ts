@@ -195,6 +195,8 @@ export class UiNode {
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
   hoverBg: i32 = -1; hoverFg: i32 = -1; hoverBorder: i32 = -1; focusBorder: i32 = -1;
+  ringW: i32 = 0; ringC: i32 = -1; ringO: i32 = 0; outW: i32 = 0; outC: i32 = -1; outO: i32 = 0; outNone: boolean = false;   // ring-* / outline-* (ZN-258)
+  fRingW: i32 = -1; fRingC: i32 = -1; fRingO: i32 = 0; fOutW: i32 = -1; fOutC: i32 = -1; fOutO: i32 = 0; fVisible: boolean = false;   // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
   hs: Handlers | null = null;
@@ -756,6 +758,26 @@ const CURSORS: string[] = ['default', 'auto', 'text', 'pointer', 'move', 'ew-res
 const CURSOR_OF: i32[] = [0, 0, 1, 2, 3, 4, 4, 5, 5, 6, 7, 8, 9];
 const BREAKPOINTS: string[] = ['sm:', 'md:', 'lg:', 'xl:', '2xl:'];
 const BREAKPOINT_PX: i32[] = [640, 768, 1024, 1280, 1536];
+/** ring-N / ring-<colour> / ring-offset-N / outline-N / outline-none / outline-<colour> / outline-offset-N. `mode`: 0 always, 1 under focus:, 2 under focus-visible:. */
+function ringStep(t: string, from: number): i32 { const w = parseInt(t.slice(from), 10); return w >= 0 && w <= 16 && t.slice(from) === `${w}` ? w : -1; }
+function ringToken(n: UiNode, tok: string, mode: i32): boolean {
+  const ring = tok === 'ring' || tok.startsWith('ring-'), out = tok === 'outline' || tok.startsWith('outline-');
+  if (!ring && !out) return false;
+  const pre = ring ? 4 : 7;
+  if (mode > 0) n.fVisible = mode === 2;
+  if (tok === 'outline-none' || tok === 'outline-0') { if (mode === 0) n.outNone = true; else n.fOutW = 0; return true; }
+  let w = -1, off = -1, c = -2;
+  if (tok.length === pre) w = ring ? 3 : 1;
+  else if (tok.startsWith(tok.slice(0, pre + 1) + 'offset-')) off = ringStep(tok, pre + 8);
+  else { w = ringStep(tok, pre + 1); if (w < 0) c = colorOf(tok.slice(pre + 1)); }
+  if (w < 0 && off < 0 && c === -2) return false;
+  if (mode === 0) {
+    if (ring) { if (w >= 0) n.ringW = w; else if (off >= 0) n.ringO = off; else n.ringC = c; }
+    else { if (w >= 0) n.outW = w; else if (off >= 0) n.outO = off; else n.outC = c; }
+  } else if (ring) { if (w >= 0) n.fRingW = w; else if (off >= 0) n.fRingO = off; else n.fRingC = c; }
+  else { if (w >= 0) n.fOutW = w; else if (off >= 0) n.fOutO = off; else n.fOutC = c; }
+  return true;
+}
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
   // responsive (mobile first): md:flex-row applies from 768 px wide; re-evaluated when the window is resized
   for (let i = 0; i < BREAKPOINTS.length; i++) if (tok.startsWith(BREAKPOINTS[i])) {
@@ -764,10 +786,13 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     return width() >= BREAKPOINT_PX[i] ? applyToken(n, rest, variant) : applyToken(new UiNode(n.tag), rest, variant);
   }
   if (tok.startsWith('focus-within:')) return applyToken(n, tok.slice(13), 'within');
+  if (tok.startsWith('focus-visible:')) return ringToken(n, tok.slice(14), 2);
+  if (tok.startsWith('focus:') && ringToken(n, tok.slice(6), 1)) return true;
   if (tok.startsWith('focus:')) return applyToken(n, tok.slice(6), 'focus');
   if (tok.startsWith('active:')) return applyToken(n, tok.slice(7), 'active');
   // hover: colors under the mouse (desktop); other hover: tokens are accepted and ignored
   if (tok.startsWith('hover:')) { applyToken(n, tok.slice(6), 'hover'); return true; }
+  if (variant === '' && ringToken(n, tok, 0)) return true;
   if (variant !== '') {
     const isBg = tok.startsWith('bg-'), isBorder = tok.startsWith('border-');
     const c = isBg ? colorOf(tok.slice(3)) : isBorder ? colorOf(tok.slice(7)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
@@ -1065,6 +1090,7 @@ function resetStyle(n: UiNode): void {
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
+  n.ringW = 0; n.ringC = -1; n.ringO = 0; n.outW = 0; n.outC = -1; n.outO = 0; n.outNone = false; n.fRingW = -1; n.fRingC = -1; n.fRingO = 0; n.fOutW = -1; n.fOutC = -1; n.fOutO = 0; n.fVisible = false;
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
@@ -1573,7 +1599,14 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       if (l > 0) rrect(x, y + t, l, hh - t - b, 0, bc, bai);
       if (rr > 0) rrect(x + w - rr, y + t, rr, hh - t - b, 0, bc, bai);
     } else if (bw > 0 || (focused && n.ed !== null)) border(x, y, w, hh, r, Math.max(bw, focused && n.ed !== null ? 2 : 0) * kk, bc, bai);
-    if (focused && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
+    let rw = n.ringW, rc = n.ringC, ro = n.ringO, ow = n.outW, oc = n.outC, oo = n.outO;
+    if (focused && n.fRingW + n.fOutW > -2 && (!n.fVisible || keyboardFocus || n.ed !== null)) {
+      if (n.fRingW >= 0) { rw = n.fRingW; ro = n.fRingO; } if (n.fRingC !== -1) rc = n.fRingC;
+      if (n.fOutW >= 0) { ow = n.fOutW; oo = n.fOutO; } if (n.fOutC !== -1) oc = n.fOutC;
+    }
+    if (ow > 0) border(x - (oo + ow) * kk, y - (oo + ow) * kk, w + 2 * (oo + ow) * kk, hh + 2 * (oo + ow) * kk, r + (oo + ow) * kk, ow * kk, oc >= 0 ? oc : 0x000000, ai);
+    if (rw > 0) border(x - (ro + rw) * kk, y - (ro + rw) * kk, w + 2 * (ro + rw) * kk, hh + 2 * (ro + rw) * kk, r + (ro + rw) * kk, rw * kk, rc >= 0 ? rc : 0x3b82f6, ai);
+    if (focused && rw + ow === 0 && !n.outNone && n.focusBg < 0 && n.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
     if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
@@ -2510,6 +2543,7 @@ function fire(h: i32, kind: i32, gx: number, gy: number, button: i32): PointerEv
   if (f !== null) f(e);
   return e;
 }
+let keyboardFocus = false;   // the last input was the keyboard: focus-visible: applies
 function setFocusTo(h: i32): void {
   if (focus === h) return;
   if (focus >= 0 && nodes[focus].alive) { const e = nodes[focus].ed; if (e !== null) commit(e as Edit); }
@@ -2525,6 +2559,7 @@ export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f)
 export function focusNode(h: i32): void { setFocusTo(h); }
 export function focused(): i32 { if (overlays.length > 0 || restoreTo >= 0) flushOverlays(); return focus; }
 function focusStep(back: boolean): void {
+  keyboardFocus = true;
   const list: i32[] = [];
   focusables(focusRoot(), list);
   if (list.length > 1) tabOrder(list);
@@ -2560,6 +2595,7 @@ function pointerMove(px: number, py: number): void {
 }
 function keepsFocus(h: i32): boolean { for (let p = h; p >= 0; p = nodes[p].parent) if (nodes[p].keepFocus) return true; return false; }
 function pressAt(px: number, py: number, button: i32): void {
+  keyboardFocus = false;
   held = held | bitOf(button);
   if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
   lastBtn = button; lastDownAt = clock; lastDownX = px; lastDownY = py;
@@ -2956,6 +2992,7 @@ export function trackpadAt(x: number, y: number, dx: number, dy: number, phase: 
  *  Returns whether something handled it. */
 export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
   synthetic = true;
+  keyboardFocus = true;
   if (h >= 0) setFocusTo(h);
   if (layoutDirty) layout();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();

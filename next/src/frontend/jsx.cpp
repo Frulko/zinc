@@ -78,9 +78,10 @@ bool validClass(const std::string& c) {
       std::regex(R"(^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$)"),
       std::regex(R"(^bg-gradient-to-(t|b|l|r)$)"), std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
       std::regex(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?$)"),
+      std::regex(R"(^ring(-\d+)?$)"), std::regex(R"(^outline(-\d+)?$)"), std::regex(R"(^(ring|outline)-offset-\d+$)"), std::regex(R"(^outline-none$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
-  static const std::regex variant(R"(^(focus|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
-  static const std::regex colored("^(bg|text|border|from|via|to)-" + color + "$");
+  static const std::regex variant(R"(^(focus|focus-visible|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex colored("^(bg|text|border|from|via|to|ring|outline)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
   if (std::regex_match(c, m, variant)) return validClass(m[2].str());
