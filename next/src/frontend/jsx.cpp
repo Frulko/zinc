@@ -730,15 +730,17 @@ struct Lowering {
     if (tag == "VirtualList") {  // <VirtualList count={n} itemHeight={h} class="...">{(i) => <row/>}</VirtualList>
       const Attr* count = find("count");
       const Attr* ih = find("itemHeight");
+      const Attr* est = find("estimatedItemHeight");   // rows of different heights: the estimate (a negative itemHeight for zinc:ui virtualize)
       const Child* c = kids.size() == 1 ? kids[0] : nullptr;
-      if (!count || !ih || !c || c->kind != 1 || c->ee <= c->eb) fail(e.begin, "<VirtualList> needs count, itemHeight and a function child: {(i) => <...>}");
+      if (!count || (!ih && !est) || !c || c->kind != 1 || c->ee <= c->eb) fail(e.begin, "<VirtualList> needs count, itemHeight and a function child: {(i) => <...>}");
       out.push_back("const " + v + ": i32 = _el(4);");
       const Attr* cls = find("class");
       if (!cls) cls = find("className");
       if (cls && cls->kind == 1) out.push_back("_class(" + v + ", " + quote(cls->lit) + ");");
       else if (cls) out.push_back(react ? "_class(" + v + ", " + valueOf(*cls) + ");" : "_dynClass(" + v + ", () => (" + valueOf(*cls) + "));");
-      out.push_back(react ? "_virtual(" + v + ", " + valueOf(*count) + ", " + valueOf(*ih) + ", " + rw(c->eb, c->ee) + ");"
-                          : "_virtual(" + v + ", () => (" + valueOf(*count) + "), " + valueOf(*ih) + ", " + rw(c->eb, c->ee) + ");");
+      const std::string height = ih ? valueOf(*ih) : "-(" + valueOf(*est) + ")";
+      out.push_back(react ? "_virtual(" + v + ", " + valueOf(*count) + ", " + height + ", " + rw(c->eb, c->ee) + ");"
+                          : "_virtual(" + v + ", () => (" + valueOf(*count) + "), " + height + ", " + rw(c->eb, c->ee) + ");");
       return v;
     }
     out.push_back("const " + v + ": i32 = _el(6);");

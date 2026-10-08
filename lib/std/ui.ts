@@ -216,6 +216,8 @@ export class Virtual {
   drop: ((row: i32) => void) | null = null;  // called before a row node is destroyed (reactive cleanup)
   rows: Map<i32, i32> = new Map<i32, i32>();  // index -> node
   first: i32 = 0; last: i32 = -1;
+  variable = false;                          // rows of different heights (estimate = itemH until a row has been laid out)
+  hs: number[] = []; known: boolean[] = []; tree: number[] = [];   // heights, measured flags and their Fenwick tree (prefix sums in O(log n))
   constructor(render: (i: i32) => i32) { this.render = render; }
 }
 const nodes: UiNode[] = [];
@@ -352,17 +354,58 @@ export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) =
   let v = n.virt;
   if (v === null) { v = new Virtual(render); n.virt = v; virtList.push(h); }
   const vv = v as Virtual;
-  vv.render = render; vv.count = count; vv.itemH = itemH; vv.drop = drop;
+  // a negative itemH is an estimate: rows have their own heights (ZN-193)
+  vv.render = render; vv.count = count; vv.itemH = itemH < 0 ? -itemH : itemH; vv.drop = drop;
+  vv.variable = itemH < 0;
+  if (vv.variable) fwBuild(vv, vv.itemH);
   vv.rows.forEach((row: i32, i: i32) => { if (drop !== null) drop(row); detach(h, row); release(row); });
   vv.rows = new Map<i32, i32>();
   vv.first = 0; vv.last = -1;
   layoutDirty = true;
 }
+// Fenwick tree over the row heights of a variable list: offset of a row and the row at an offset, both O(log n); 100k rows cost two arrays.
+function fwBuild(v: Virtual, est: number): void {
+  v.hs = []; v.known = []; v.tree = [0];
+  for (let i = 0; i < v.count; i++) { v.hs.push(est); v.known.push(false); v.tree.push(est); }
+  for (let i = 1; i <= v.count; i++) { const j = i + (i & -i); if (j <= v.count) v.tree[j] = v.tree[j] + v.tree[i]; }
+}
+function fwPrefix(v: Virtual, i: i32): number { let s = 0; for (let k = i; k > 0; k -= k & -k) s += v.tree[k]; return s; }
+function fwAdd(v: Virtual, i: i32, d: number): void { for (let k = i + 1; k <= v.count; k += k & -k) v.tree[k] = v.tree[k] + d; }
+/** The row that contains offset y (0 above the list, the last row below it). */
+function fwFind(v: Virtual, y: number): i32 {
+  let pos: i32 = 0, step: i32 = 1;
+  while (step * 2 <= v.count) step *= 2;
+  for (; step > 0; step = Math.floor(step / 2)) {
+    const nx = pos + step;
+    if (nx <= v.count && v.tree[nx] <= y) { pos = nx; y -= v.tree[nx]; }
+  }
+  return pos > v.count - 1 ? v.count - 1 : pos;
+}
+let inVirt = false;
+/** After a layout: the rows' own heights replace the estimates; rows are moved, and the scroll offset follows the rows above the view so nothing jumps. */
+function settleVirtuals(): void {
+  for (const h of virtuals()) {
+    const n = node(h), v = n.virt as Virtual;
+    if (!v.variable) continue;
+    let changed = false;
+    v.rows.forEach((row: i32, i: i32) => {
+      const nh = node(row).lh;
+      if (v.known[i] && Math.abs(nh - v.hs[i]) < 0.01) return;
+      const d = nh - v.hs[i];
+      v.known[i] = true; v.hs[i] = nh; fwAdd(v, i, d);
+      if (n.pt + fwPrefix(v, i) + nh <= n.sy) n.sy += d;   // a row above the view: keep what is shown where it is
+      changed = true;
+    });
+    if (!changed) continue;
+    v.rows.forEach((row: i32, i: i32) => { node(row).top = Math.round(n.pt + fwPrefix(v, i)); });
+    layoutDirty = true;
+  }
+}
 function syncVirtual(h: i32, n: UiNode): void {
   const v = n.virt as Virtual;
   const over: i32 = 3;
-  let first: i32 = Math.floor(n.sy / v.itemH) - over;
-  let last: i32 = Math.ceil((n.sy + n.lh) / v.itemH) + over;
+  let first: i32 = v.variable ? fwFind(v, n.sy - n.pt) - over : Math.floor(n.sy / v.itemH) - over;
+  let last: i32 = v.variable ? fwFind(v, n.sy + n.lh - n.pt) + over : Math.ceil((n.sy + n.lh) / v.itemH) + over;
   if (first < 0) first = 0;
   if (last > v.count - 1) last = v.count - 1;
   if (first === v.first && last === v.last) return;
@@ -373,7 +416,8 @@ function syncVirtual(h: i32, n: UiNode): void {
     if (v.rows.has(i)) continue;
     const row = v.render(i);
     const r = node(row);
-    r.abs = true; r.top = Math.round(n.pt + i * v.itemH); r.left = n.pl; r.right = n.pr; r.h = Math.round(v.itemH);
+    r.abs = true; r.top = Math.round(n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH)); r.left = n.pl; r.right = n.pr;
+    if (!v.variable) r.h = Math.round(v.itemH);
     insert(h, row, -1);
     v.rows.set(i, row);
   }
@@ -1549,7 +1593,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   if (n.scroll !== 0) {
     // the viewport is sized by its constraints (grow / full / fixed), the content keeps its natural size
     n.contentW = n.lw; n.contentH = n.lh;
-    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = v.count * v.itemH + n.pt + n.pb; }
+    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + n.pt + n.pb; }
     if ((n.scroll & 1) !== 0) n.lh = ownH >= 0 ? ownH : n.fullH || n.grow > 0 ? 0 : Math.min(n.contentH, maxH);
     if ((n.scroll & 2) !== 0) n.lw = ownW >= 0 ? ownW : n.fullW || n.grow > 0 ? 0 : Math.min(n.contentW, maxW);
   }
@@ -1697,6 +1741,7 @@ export function layout(): void {
   paintDirty = true;
   hoverDirty = true;
   if (cqAny && !inSettle) settleContainers();
+  if (virtList.length > 0 && !inVirt) { inVirt = true; settleVirtuals(); if (layoutDirty) layout(); inVirt = false; }
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
