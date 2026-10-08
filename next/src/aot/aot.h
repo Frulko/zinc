@@ -14,7 +14,8 @@ namespace zn::aot {
 // The source of a program that behaves like `zinc run` of the module. Build it with
 //   c++ -std=c++20 -O2 -I include -I src program.cpp libzn_rt.a libzn_zbc.a ...
 // `resources` (the blob of src/res) is embedded and installed when the program starts, for programs that draw (usesHost).
-std::string emitCpp(const zbc::Module& m, const std::vector<std::uint8_t>* resources = nullptr);
+// rnLayout: the program was compiled for the rn layout engine (Yoga); in classic its layout rows are never called, so the engine is neither installed nor linked (ZN-355).
+std::string emitCpp(const zbc::Module& m, const std::vector<std::uint8_t>* resources = nullptr, bool rnLayout = true);
 
 // Whether the module calls the graphics host (the Rt::Host* entries).
 bool usesHost(const zbc::Module& m);

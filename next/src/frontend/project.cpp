@@ -61,6 +61,9 @@ const std::string& uiLayout() { return gUiLayout; }
 namespace { std::string gUiPreset; }
 void setUiPreset(const std::string& preset) { gUiPreset = preset; }
 const std::string& uiPreset() { return gUiPreset; }
+namespace { bool gDirectLayout = false; }
+void noteDirectLayoutUse() { gDirectLayout = true; }
+bool directLayoutUse() { return gDirectLayout; }
 bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>& caps, const std::string& target, std::string& layout, std::string& err) {
   auto cap = [&](const char* k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
   layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" ? "rn" : "auto") : p.uiLayout;

@@ -4,14 +4,14 @@ title: 'Layout: RN example port spike: one React Native screen on Zinc in `rn` m
 status: Backlog
 assignee: []
 created_date: '2026-10-07 13:08'
+updated_date: '2026-10-08 19:04'
 labels:
   - ui
   - layout
   - size-M
 milestone: m-17
 dependencies:
-  - ZN-284
-  - ZN-286
+  - ZN-367.03
 ordinal: 50800
 ---
 
@@ -27,3 +27,9 @@ From docs/reports/layout-engines.md (section 8, LE-11). Decision: a pluggable la
 - [ ] #2 Pixel golden recorded; a diff list of what differs from the device screenshot is written.
 - [ ] #3 Gaps become backlog tasks (each with a fixture).
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Needs FlatList (ZN-367.03) to run a real React Native screen unchanged apart from imports; dependency added 2026-10-08.
+<!-- SECTION:NOTES:END -->

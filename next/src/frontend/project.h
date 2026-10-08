@@ -71,6 +71,9 @@ const std::string& uiLayout();
 // "react-native" when zinc.json has "ui": {"preset": "react-native"}: React Native's style semantics (flex: n, black text) in either layout engine (ZN-288).
 void setUiPreset(const std::string& preset);
 const std::string& uiPreset();
+// Whether a module other than zinc:ui imports zinc:__layout: the AOT then installs and links the engine in classic too (ZN-355).
+void noteDirectLayoutUse();
+bool directLayoutUse();
 
 // Parses the manifest text. False with `err` set when it is not a JSON object or a typed key has the wrong type.
 bool parseProject(const std::string& text, Project& out, std::string& err);

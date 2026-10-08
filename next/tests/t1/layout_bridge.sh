@@ -1,6 +1,7 @@
 #!/bin/sh
 # The host layout engine through the runtime (ZN-284.01): tests/golden/layout-bridge wraps 100 random strings with the engine and compares them with the lines of
 # lib/std/ui.ts, and lays out the owner's flex: 1 text case; the interpreter, the AOT and --engine quickjs print the same golden (no call back into the program).
+# The program imports zinc:__layout itself, so its classic AOT build still installs and links the engine (ZN-355).
 # Also covers two QuickJS fixes found on the way: a project directory runs its entry, and zinc:ui's relative import of ./palette resolves.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

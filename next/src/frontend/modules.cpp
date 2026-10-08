@@ -1315,6 +1315,10 @@ struct Loader {
   std::uint32_t resolve(std::uint32_t fromFile, std::uint32_t node, std::string_view quoted) {
     std::string spec(quoted.substr(1, quoted.size() - 2));
     if (spec.rfind("zinc:", 0) == 0) {
+      if (spec == "zinc:__layout") {   // a program that drives the engine itself needs it whatever its layout mode (ZN-355); zinc:ui uses it in rn only
+        const std::string& from = prog.files[fromFile].path;
+        if (from.size() < 6 || from.compare(from.size() - 6, 6, "/ui.ts") != 0) noteDirectLayoutUse();
+      }
       if (done.count(spec)) return done[spec];
       if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
