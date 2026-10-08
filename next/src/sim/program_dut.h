@@ -3,6 +3,7 @@
 // what a step injects (a key, at a virtual time) becomes a line of the ZINC_INPUT script, the program is run again from the start for as many frames as the scenario has reached, and
 // what it printed (ZINC_STAMP_OUT), the hash of each frame (ZINC_FRAMEHASH) and the PNG of a frame come back from that run. A deterministic program says the same again, so a replay is
 // an exact answer; runs go ahead of the clock (a wait-serial costs one run, not one per millisecond) and are dropped when an input lands before their horizon.
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -10,6 +11,7 @@
 
 #include "sim/board.h"
 #include "sim/scenario.h"
+#include "sim/sim.h"
 
 namespace zn::sim {
 
@@ -33,6 +35,15 @@ class ProgramDut : public Dut {
   bool frameHash(const std::string& part, std::string& hash, std::string& err) override;
   bool screenshot(const std::string& part, const std::string& pngPath, std::string& err) override;
   static constexpr std::uint64_t kFrameNs = 16'666'667;   // one frame of the headless clock
+
+  // ---- traces (ZN-296): what was injected and what the program did, as a .zsim
+  enum TraceKind : std::uint32_t { kInput = 1, kSerial = 2, kFrame = 3 };   // input: a = frame, data = the event; serial: a = frames done, data = the line; frame: a = frame number, data = its hash
+  void addInput(std::uint64_t frame, const std::string& event) { inputs_.push_back({frame, event}); run_ = Run(); }
+  // Runs the program for `frames` frames and returns the trace: the inputs given so far and the outputs of the run, in time order.
+  bool recordTrace(std::uint64_t frames, Trace& out, std::string& err);
+  // Runs up to the horizon of `now()`.
+  bool recordTrace(Trace& out, std::string& err) { return recordTrace(std::max<std::uint64_t>(1, framesAt(t_)), out, err); }
+  void setNow(std::uint64_t t) { t_ = t; }
 
  private:
   struct Line { std::uint64_t frame; std::string text; };

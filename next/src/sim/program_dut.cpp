@@ -96,6 +96,19 @@ bool ProgramDut::setControl(const std::string& part, const std::string& control,
   return false;
 }
 
+bool ProgramDut::recordTrace(std::uint64_t frames, Trace& out, std::string& err) {
+  Run r;
+  if (!execute(frames, 0, "", &r, err)) return false;
+  std::vector<TraceEvent> ev;
+  for (const auto& in : inputs_) if (in.first <= frames) ev.push_back({in.first * kFrameNs, kInput, static_cast<std::uint32_t>(in.first), 0, in.second});
+  for (const Line& l : r.lines) if (l.frame + 1 <= frames) ev.push_back({(l.frame + 1) * kFrameNs, kSerial, static_cast<std::uint32_t>(l.frame), 0, l.text});
+  for (const auto& h : r.hashes) if (h.first <= frames) ev.push_back({h.first * kFrameNs, kFrame, static_cast<std::uint32_t>(h.first), 0, h.second});
+  std::stable_sort(ev.begin(), ev.end(), [](const TraceEvent& a, const TraceEvent& b) { return a.t_ns != b.t_ns ? a.t_ns < b.t_ns : a.kind < b.kind; });
+  out = Trace();
+  for (const TraceEvent& e : ev) out.add(e.t_ns, e.kind, e.a, e.b, e.data);
+  return true;
+}
+
 bool ProgramDut::frameHash(const std::string&, std::string& hash, std::string& err) {
   const std::uint64_t f = std::max<std::uint64_t>(1, framesAt(t_));
   if (!ensure(f, err)) return false;

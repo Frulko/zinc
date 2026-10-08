@@ -43,6 +43,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "tc/plugin_build.h"
 #include "tc/tc.h"
 #include "sim/program_dut.h"
+#include "sim/replay.h"
 #include "dev/client.h"
 #include "dev/core.h"
 #include <unistd.h>
@@ -618,9 +619,11 @@ int main(int argc, char** argv) {
   }
   if (argc >= 3 && !std::strcmp(argv[1], "sim")) {   // zinc sim <scenario.yaml> [--out DIR] [--update-goldens]: the steps of a scenario against the program it names (ZN-295)
     namespace fs = std::filesystem;
-    std::string outDir; bool update = false;
+    std::string outDir, recordTo, replayOf; bool update = false;
     for (int k = 3; k < argc; ++k) {
       if (!std::strcmp(argv[k], "--out") && k + 1 < argc) outDir = argv[++k];
+      else if (!std::strcmp(argv[k], "--record") && k + 1 < argc) recordTo = argv[++k];   // after the run: the trace (inputs and outputs) as a .zsim
+      else if (!std::strcmp(argv[k], "--replay") && k + 1 < argc) replayOf = argv[++k];   // instead of the steps: the .zsim is replayed against the scenario's program and compared
       else if (!std::strcmp(argv[k], "--update-goldens")) update = true;
       else { std::fprintf(stderr, "zinc sim: unknown option %s\n", argv[k]); return 2; }
     }
@@ -643,8 +646,23 @@ int main(int argc, char** argv) {
     cfg.scratch = (fs::temp_directory_path() / ("zinc-sim-" + std::to_string(::getpid()))).string();
     cfg.board = haveBoard ? &board : nullptr;
     zn::sim::ProgramDut dut(cfg);
+    if (!replayOf.empty()) {
+      std::ifstream zf(replayOf, std::ios::binary); std::stringstream zs; zs << zf.rdbuf();
+      zn::sim::Trace recorded;
+      if (!zf || !zn::sim::Trace::parse(zs.str(), recorded, err)) { std::fprintf(stderr, "zinc sim: %s: %s\n", replayOf.c_str(), zf ? err.c_str() : "cannot read it"); return 2; }
+      zn::sim::ReplayResult rr = zn::sim::replayTrace(dut, recorded);
+      std::error_code ec2; fs::remove_all(cfg.scratch, ec2);
+      std::printf("replay %s: %s\n", replayOf.c_str(), rr.message.c_str());
+      return rr.ok ? 0 : 1;
+    }
     zn::sim::RunOptions opt; opt.baseDir = base.string(); opt.outDir = outDir; opt.updateGoldens = update;
     zn::sim::RunResult r = zn::sim::runScenario(sc, dut, opt);
+    if (!recordTo.empty() && r.ok) {
+      zn::sim::Trace tr;
+      if (!dut.recordTrace(tr, err)) { std::fprintf(stderr, "zinc sim: cannot record: %s\n", err.c_str()); return 1; }
+      std::ofstream zf(recordTo, std::ios::binary); const std::string bytes = tr.serialize(); zf.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+      std::printf("recorded %zu events (%zu bytes) to %s\n", tr.events().size(), bytes.size(), recordTo.c_str());
+    }
     std::error_code ec; fs::remove_all(cfg.scratch, ec);
     std::printf("%s%s%s\n", sc.name.empty() ? "" : (sc.name + ": ").c_str(), r.ok ? "" : "", zn::sim::describe(sc, r).c_str());
     return r.ok ? 0 : 1;
