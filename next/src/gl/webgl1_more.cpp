@@ -19,6 +19,18 @@ bool faceOk(std::uint32_t f) { return f == GL_FRONT || f == GL_BACK || f == GL_F
 bool constColor(std::uint32_t f) { return f == GL_CONSTANT_COLOR || f == GL_ONE_MINUS_CONSTANT_COLOR; }
 bool constAlpha(std::uint32_t f) { return f == GL_CONSTANT_ALPHA || f == GL_ONE_MINUS_CONSTANT_ALPHA; }
 
+bool renderbufferFormatOk(std::uint32_t f, bool v2) {
+  switch (f) { case GL_RGBA4: case GL_RGB565: case GL_RGB5_A1: case GL_DEPTH_COMPONENT16: case GL_STENCIL_INDEX8: case GL_DEPTH_STENCIL: return true; }
+  if (!v2) return false;
+  switch (f) {
+    case GL_R8: case GL_RG8: case GL_RGB8: case GL_RGBA8: case GL_SRGB8_ALPHA8: case GL_RGB10_A2: case GL_RGB10_A2UI:
+    case GL_R8UI: case GL_R8I: case GL_R16UI: case GL_R16I: case GL_R32UI: case GL_R32I: case GL_RG8UI: case GL_RG8I: case GL_RG16UI: case GL_RG16I: case GL_RG32UI: case GL_RG32I:
+    case GL_RGBA8UI: case GL_RGBA8I: case GL_RGBA16UI: case GL_RGBA16I: case GL_RGBA32UI: case GL_RGBA32I:
+    case GL_DEPTH_COMPONENT24: case GL_DEPTH_COMPONENT32F: case GL_DEPTH24_STENCIL8: case GL_DEPTH32F_STENCIL8: return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 // ---- state
@@ -86,7 +98,7 @@ void WebGL1::bindRenderbuffer(std::uint32_t target, Id id) {
 }
 void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w, int h) {
   if (target != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
-  switch (fmt) { case GL_RGBA4: case GL_RGB565: case GL_RGB5_A1: case GL_DEPTH_COMPONENT16: case GL_STENCIL_INDEX8: case GL_DEPTH_STENCIL: break; default: return error(GL_INVALID_ENUM); }
+  if (!renderbufferFormatOk(fmt, version_ == 2)) return error(GL_INVALID_ENUM);
   if (w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
@@ -221,7 +233,9 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_STENCIL_REF: case GL_STENCIL_BACK_REF: case GL_STENCIL_CLEAR_VALUE: case GL_STENCIL_VALUE_MASK: case GL_STENCIL_BACK_VALUE_MASK: case GL_STENCIL_WRITEMASK: case GL_STENCIL_BACK_WRITEMASK:
     case GL_GENERATE_MIPMAP_HINT: fixed(mipmapHint_); break;
     case GL_PACK_ALIGNMENT: case GL_UNPACK_ALIGNMENT: case GL_SUBPIXEL_BITS: case GL_SAMPLE_BUFFERS: case GL_SAMPLES: ints(1); break;
-    case GL_RED_BITS: case GL_GREEN_BITS: case GL_BLUE_BITS: case GL_ALPHA_BITS: case GL_DEPTH_BITS: case GL_STENCIL_BITS: {
+    case GL_DEPTH_BITS: fixed(depthAttr_ ? 24 : 0); break;
+    case GL_STENCIL_BITS: fixed(stencilAttr_ ? 8 : 0); break;
+    case GL_RED_BITS: case GL_GREEN_BITS: case GL_BLUE_BITS: case GL_ALPHA_BITS: {
       GLint v = 0;
       glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &v);   // clears any error a default framebuffer query leaves
       while (glGetError() != GL_NO_ERROR) {}
@@ -246,8 +260,28 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_CURRENT_PROGRAM: object(program_, 3); break;
     case GL_TEXTURE_BINDING_2D: object(tex2d_[activeUnit_], 4); break;
     case GL_TEXTURE_BINDING_CUBE_MAP: object(texCube_[activeUnit_], 4); break;
-    case GL_FRAMEBUFFER_BINDING: object(fbo_, 5); break;
+    case GL_FRAMEBUFFER_BINDING: object(fbo_, 5); break;   // (the DRAW and READ bindings are WebGL 2 pnames below)
     case GL_RENDERBUFFER_BINDING: object(rbo_, 7); break;
+    case GL_READ_BUFFER: case GL_SAMPLER_BINDING: case GL_TRANSFORM_FEEDBACK_BINDING: case GL_MAX_ELEMENT_INDEX: case GL_MAX_ARRAY_TEXTURE_LAYERS: case GL_MAX_3D_TEXTURE_SIZE: case GL_MAX_SAMPLES: case GL_MAX_COMBINED_UNIFORM_BLOCKS: case GL_MAX_VERTEX_UNIFORM_BLOCKS: case GL_MAX_FRAGMENT_UNIFORM_BLOCKS: case GL_MAX_UNIFORM_BLOCK_SIZE: case GL_MIN_PROGRAM_TEXEL_OFFSET: case GL_MAX_PROGRAM_TEXEL_OFFSET: case GL_MAX_TEXTURE_LOD_BIAS: case GL_MAX_VARYING_COMPONENTS: case GL_PACK_ROW_LENGTH: case GL_PACK_SKIP_PIXELS: case GL_PACK_SKIP_ROWS: case GL_UNPACK_ROW_LENGTH: case GL_UNPACK_IMAGE_HEIGHT: case GL_UNPACK_SKIP_PIXELS: case GL_UNPACK_SKIP_ROWS: case GL_UNPACK_SKIP_IMAGES: case GL_PIXEL_PACK_BUFFER_BINDING: case GL_PIXEL_UNPACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_BUFFER_BINDING: case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: case GL_READ_FRAMEBUFFER_BINDING:
+      if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
+      switch (pname) {
+        case GL_READ_BUFFER: fixed(fboRead_ ? fbos_[fboRead_].readBuffer : defaultRead_); break;
+        case GL_SAMPLER_BINDING: object(samplerUnit_[activeUnit_], 9); break;
+        case GL_TRANSFORM_FEEDBACK_BINDING: object(tf_, 12); break;
+        case GL_MAX_ELEMENT_INDEX: fixed(4294967295.0); break;
+        case GL_PIXEL_PACK_BUFFER_BINDING: object(otherBuffers_[GL_PIXEL_PACK_BUFFER], 1); break;
+        case GL_PIXEL_UNPACK_BUFFER_BINDING: object(otherBuffers_[GL_PIXEL_UNPACK_BUFFER], 1); break;
+        case GL_TRANSFORM_FEEDBACK_BUFFER_BINDING: object(otherBuffers_[GL_TRANSFORM_FEEDBACK_BUFFER], 1); break;
+        case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: { auto it = tfs_.find(tf_); r.kind = 'b'; r.v.push_back(it != tfs_.end() && (pname == GL_TRANSFORM_FEEDBACK_ACTIVE ? it->second.active : it->second.paused)); break; }
+        case GL_READ_FRAMEBUFFER_BINDING: object(fboRead_, 5); break;
+        case GL_MAX_TEXTURE_LOD_BIAS: floats(1); break;
+        default: ints(1);
+      }
+      break;
+    case GL_DRAW_BUFFER0: case GL_DRAW_BUFFER0 + 1: case GL_DRAW_BUFFER0 + 2: case GL_DRAW_BUFFER0 + 3:
+      if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
+      fixed(fbo_ ? fbos_[fbo_].draw[pname - GL_DRAW_BUFFER0] : defaultDraw_[pname - GL_DRAW_BUFFER0]);
+      break;
     case GL_VERTEX_ARRAY_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(curVao_, 8); break;
     case GL_MAX_DRAW_BUFFERS: case GL_MAX_COLOR_ATTACHMENTS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(4); break;
     case GL_MAX_UNIFORM_BUFFER_BINDINGS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(24); break;
@@ -415,5 +449,117 @@ void WebGL1::generateMipmap(std::uint32_t target) {
   if (target == GL_TEXTURE_2D && (t.w == 0 || t.h == 0)) return error(GL_INVALID_OPERATION);   // level 0 must be defined
   glGenerateMipmap(target);
 }
+
+
+// ---- WebGL 2 queries (ZN-203.09)
+WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, std::uint32_t attachment, std::uint32_t pname) {
+  Param r;
+  if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) { error(GL_INVALID_ENUM); return r; }
+  const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
+  if (!bound) {   // the canvas: BACK, DEPTH, STENCIL (WebGL 2); attachment points of a user framebuffer are errors
+    if (version_ != 2 || (attachment != GL_BACK && attachment != GL_DEPTH && attachment != GL_STENCIL)) { error(GL_INVALID_ENUM); return r; }
+    if ((attachment == GL_DEPTH && !depthAttr_) || (attachment == GL_STENCIL && !stencilAttr_)) { if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) { r.ok = true; r.kind = 'i'; r.v.push_back(GL_NONE); return r; } error(GL_INVALID_OPERATION); return r; }
+    r.ok = true; r.kind = 'i';
+    switch (pname) {
+      case GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE: r.v.push_back(GL_FRAMEBUFFER_DEFAULT); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE: r.v.push_back(attachment == GL_BACK ? 8 : 0); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE: r.v.push_back(attachment == GL_BACK ? 8 : 0); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE: r.v.push_back(attachment == GL_DEPTH ? 24 : 0); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE: r.v.push_back(attachment == GL_STENCIL ? 8 : 0); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: r.v.push_back(GL_UNSIGNED_NORMALIZED); return r;
+      case GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING: r.v.push_back(GL_LINEAR); return r;
+    }
+    r.ok = false; error(GL_INVALID_ENUM);
+    return r;
+  }
+  if (attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(attachment >= GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + (version_ == 2 ? 4u : 1u))) { error(GL_INVALID_ENUM); return r; }
+  GLint type = 0;
+  glGetFramebufferAttachmentParameteriv(target == GL_FRAMEBUFFER ? GL_FRAMEBUFFER : target, attachment == GL_DEPTH_STENCIL_ATTACHMENT ? GL_DEPTH_ATTACHMENT : attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+  while (glGetError() != GL_NO_ERROR) {}
+  if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) { r.ok = true; r.kind = 'i'; r.v.push_back(type); return r; }
+  if (type == GL_NONE) { if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) { r.ok = true; r.kind = 'n'; return r; } error(GL_INVALID_OPERATION); return r; }
+  GLint v = 0;
+  const GLenum att = attachment == GL_DEPTH_STENCIL_ATTACHMENT ? GL_DEPTH_ATTACHMENT : attachment;
+  if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) {
+    glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &v);
+    r.ok = true; r.kind = 'n';
+    if (type == GL_TEXTURE) { for (auto& t : textures_) if (t.second.name == static_cast<std::uint32_t>(v)) { r.kind = 'o'; r.object = t.first; r.objKind = 4; } }
+    else for (auto& b : rbos_) if (b.second.name == static_cast<std::uint32_t>(v)) { r.kind = 'o'; r.object = b.first; r.objKind = 7; }
+    return r;
+  }
+  switch (pname) {
+    case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL: case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE: if (type != GL_TEXTURE) { error(GL_INVALID_ENUM); return r; } break;
+    case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER: if (version_ != 2 || type != GL_TEXTURE) { error(GL_INVALID_ENUM); return r; } break;
+    case GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: case GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
+      if (version_ != 2) { error(GL_INVALID_ENUM); return r; }
+      break;
+    default: error(GL_INVALID_ENUM); return r;
+  }
+  glGetFramebufferAttachmentParameteriv(target, att, pname, &v);
+  r.ok = true; r.kind = 'i'; r.v.push_back(v);
+  return r;
+}
+WebGL1::Param WebGL1::getIndexedParameter(std::uint32_t target, std::uint32_t index) {
+  Param r;
+  if (version_ != 2 || (target != GL_UNIFORM_BUFFER_BINDING && target != GL_UNIFORM_BUFFER_START && target != GL_UNIFORM_BUFFER_SIZE && target != GL_TRANSFORM_FEEDBACK_BUFFER_BINDING && target != GL_TRANSFORM_FEEDBACK_BUFFER_START && target != GL_TRANSFORM_FEEDBACK_BUFFER_SIZE)) { error(GL_INVALID_ENUM); return r; }
+  if (index >= 24) { error(GL_INVALID_VALUE); return r; }
+  const bool uniform = target == GL_UNIFORM_BUFFER_BINDING || target == GL_UNIFORM_BUFFER_START || target == GL_UNIFORM_BUFFER_SIZE;
+  auto it = indexed_.find((static_cast<std::uint64_t>(uniform ? GL_UNIFORM_BUFFER : GL_TRANSFORM_FEEDBACK_BUFFER) << 32) | index);
+  Indexed b = it == indexed_.end() ? Indexed{} : it->second;
+  r.ok = true;
+  if (target == GL_UNIFORM_BUFFER_BINDING || target == GL_TRANSFORM_FEEDBACK_BUFFER_BINDING) { r.kind = b.buffer ? 'o' : 'n'; r.object = b.buffer; r.objKind = 1; }
+  else { r.kind = 'i'; r.v.push_back(static_cast<double>(target == GL_UNIFORM_BUFFER_START || target == GL_TRANSFORM_FEEDBACK_BUFFER_START ? b.offset : b.size)); }
+  return r;
+}
+std::vector<std::uint32_t> WebGL1::getUniformIndices(Id pid, const std::vector<std::string>& names) {
+  std::vector<std::uint32_t> out;
+  auto p = programs_.find(pid);
+  if (p == programs_.end() || !p->second.linked) { error(GL_INVALID_OPERATION); return out; }
+  std::vector<const char*> v;
+  for (const std::string& n : names) v.push_back(n.c_str());
+  out.resize(names.size());
+  if (!names.empty()) glGetUniformIndices(p->second.name, static_cast<GLsizei>(names.size()), v.data(), out.data());
+  return out;
+}
+WebGL1::Param WebGL1::getActiveUniforms(Id pid, const std::vector<std::uint32_t>& indices, std::uint32_t pname, bool& ok) {
+  Param r;
+  ok = false;
+  auto p = programs_.find(pid);
+  if (p == programs_.end() || !p->second.linked) { error(GL_INVALID_OPERATION); return r; }
+  switch (pname) { case GL_UNIFORM_TYPE: case GL_UNIFORM_SIZE: case GL_UNIFORM_BLOCK_INDEX: case GL_UNIFORM_OFFSET: case GL_UNIFORM_ARRAY_STRIDE: case GL_UNIFORM_MATRIX_STRIDE: case GL_UNIFORM_IS_ROW_MAJOR: break; default: error(GL_INVALID_ENUM); return r; }
+  GLint n = 0;
+  glGetProgramiv(p->second.name, GL_ACTIVE_UNIFORMS, &n);
+  for (std::uint32_t i : indices) if (i >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return r; }
+  std::vector<GLint> v(indices.size());
+  if (!indices.empty()) glGetActiveUniformsiv(p->second.name, static_cast<GLsizei>(indices.size()), indices.data(), pname, v.data());
+  r.ok = true; r.kind = 'a';
+  for (GLint x : v) r.v.push_back(pname == GL_UNIFORM_IS_ROW_MAJOR ? (x != 0) : x);
+  ok = true;
+  return r;
+}
+void WebGL1::uniformMatrixRC(const UniformLoc& l, int cols, int rows, bool transpose, const float* v, std::size_t count) {
+  if (version_ != 2) return error(GL_INVALID_OPERATION);
+  if (!l.valid()) return;
+  if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION);
+  static const std::uint32_t types[3][3] = {{GL_FLOAT_MAT2, GL_FLOAT_MAT2x3, GL_FLOAT_MAT2x4}, {GL_FLOAT_MAT3x2, GL_FLOAT_MAT3, GL_FLOAT_MAT3x4}, {GL_FLOAT_MAT4x2, GL_FLOAT_MAT4x3, GL_FLOAT_MAT4}};
+  if (l.type != types[cols - 2][rows - 2]) return error(GL_INVALID_OPERATION);
+  const std::size_t per = static_cast<std::size_t>(cols) * rows;
+  if (count == 0 || count % per) return error(GL_INVALID_VALUE);
+  const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / per, static_cast<std::size_t>(l.size)));
+  const GLboolean t = transpose ? GL_TRUE : GL_FALSE;
+  switch (cols * 10 + rows) {
+    case 22: glUniformMatrix2fv(l.location, k, t, v); break;
+    case 23: glUniformMatrix2x3fv(l.location, k, t, v); break;
+    case 24: glUniformMatrix2x4fv(l.location, k, t, v); break;
+    case 32: glUniformMatrix3x2fv(l.location, k, t, v); break;
+    case 33: glUniformMatrix3fv(l.location, k, t, v); break;
+    case 34: glUniformMatrix3x4fv(l.location, k, t, v); break;
+    case 42: glUniformMatrix4x2fv(l.location, k, t, v); break;
+    case 43: glUniformMatrix4x3fv(l.location, k, t, v); break;
+    default: glUniformMatrix4fv(l.location, k, t, v);
+  }
+}
+void WebGL1::vertexAttribINi(std::uint32_t i, const int* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); glVertexAttribI4iv(i, v); }
+void WebGL1::vertexAttribINui(std::uint32_t i, const std::uint32_t* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); glVertexAttribI4uiv(i, v); }
 
 }  // namespace zn::gl

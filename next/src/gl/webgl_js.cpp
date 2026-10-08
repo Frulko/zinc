@@ -411,7 +411,7 @@ M(copyTexImage2D) { SELF NEED(8); gl.copyTexImage2D(U(0), I(1), U(2), I(3), I(4)
 M(copyTexSubImage2D) { SELF NEED(8); gl.copyTexSubImage2D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7)); return JS_UNDEFINED; }
 M(generateMipmap) { SELF NEED(1); gl.generateMipmap(U(0)); return JS_UNDEFINED; }
 M(getRenderbufferParameter) { SELF NEED(2); return JS_NULL; }
-M(getFramebufferAttachmentParameter) { SELF NEED(3); return JS_NULL; }
+M(getFramebufferAttachmentParameter) { SELF NEED(3); std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getFramebufferAttachmentParameter(U(0), U(1), pn)); }
 
 struct Fn { const char* name; JSCFunction* fn; int len; };
 #define F_(n, len) {#n, js_##n, len}
@@ -540,6 +540,7 @@ M(copyBufferSubData) { SELF NEED(5); gl.copyBufferSubData(U(0), U(1), i64(c, arg
 M(getBufferSubData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr; std::size_t n = 0;
+  { size_t off = 0, len = 0, bpe = 0; JSValue ab = JS_GetTypedArrayBuffer(c, argv[2], &off, &len, &bpe); if (JS_IsException(ab)) { JS_FreeValue(c, JS_GetException(c)); return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view"); } JS_FreeValue(c, ab); }
   if (!bytesOf(c, argv[2], p, n)) return JS_ThrowTypeError(c, "getBufferSubData: dstData must be an ArrayBuffer view");
   gl.getBufferSubData(U(0), i64(c, argv[1]), p, n);
   return JS_UNDEFINED;
@@ -651,6 +652,66 @@ M(getInternalformatParameter) {
   return typed(c, "Int32Array", d);
 }
 
+
+// ---- more WebGL 2 (ZN-203.09)
+M(getIndexedParameter) { SELF NEED2; NEED(2); return paramToJs(c, g, 0, gl.getIndexedParameter(U(0), U(1))); }
+M(getUniformIndices) {
+  SELF NEED2; NEED(2); OBJR(p, 0, 3)
+  std::vector<std::string> names;
+  JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); std::uint32_t n = u32(c, lv); JS_FreeValue(c, lv);
+  for (std::uint32_t i = 0; i < n; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], i); names.push_back(str(c, e)); JS_FreeValue(c, e); }
+  std::vector<std::uint32_t> idx = gl.getUniformIndices(p.id, names);
+  JSValue arr = JS_NewArray(c);
+  for (std::size_t i = 0; i < idx.size(); ++i) JS_SetPropertyUint32(c, arr, static_cast<std::uint32_t>(i), JS_NewUint32(c, idx[i]));
+  return arr;
+}
+M(getActiveUniforms) {
+  SELF NEED2; NEED(3); OBJR(p, 0, 3)
+  std::vector<std::uint32_t> idx;
+  JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); std::uint32_t n = u32(c, lv); JS_FreeValue(c, lv);
+  for (std::uint32_t i = 0; i < n; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], i); idx.push_back(u32(c, e)); JS_FreeValue(c, e); }
+  bool ok = false;
+  std::uint32_t pn = U(2);
+  WebGL1::Param r = gl.getActiveUniforms(p.id, idx, pn, ok);
+  if (!ok) return JS_NULL;
+  return paramToJs(c, g, 0, r);
+}
+JSValue matRC(JSContext* c, Gl* g, int cols, int rows, int argc, JSValueConst* argv) {
+  if (g->gl.version() != 2) return JS_ThrowTypeError(c, "not a WebGL 2 context");
+  if (argc < 3) return JS_ThrowTypeError(c, "not enough arguments");
+  bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
+  std::vector<float> v;
+  if (!floatsOf(c, argv[2], v)) return JS_ThrowTypeError(c, "value must be a Float32Array or an array");
+  g->gl.uniformMatrixRC(l, cols, rows, JS_ToBool(c, argv[1]) != 0, v.data(), v.size());
+  return JS_UNDEFINED;
+}
+#define MAT_RC(cols, rows) M(uniformMatrix##cols##x##rows##fv) { SELF return matRC(c, g, cols, rows, argc, argv); }
+MAT_RC(2, 3) MAT_RC(2, 4) MAT_RC(3, 2) MAT_RC(3, 4) MAT_RC(4, 2) MAT_RC(4, 3)
+M(vertexAttribI4i) { SELF NEED2; NEED(5); int v[4] = {I(1), I(2), I(3), I(4)}; gl.vertexAttribINi(U(0), v); return JS_UNDEFINED; }
+M(vertexAttribI4ui) { SELF NEED2; NEED(5); std::uint32_t v[4] = {U(1), U(2), U(3), U(4)}; gl.vertexAttribINui(U(0), v); return JS_UNDEFINED; }
+M(vertexAttribI4iv) {
+  SELF NEED2; NEED(2); std::uint8_t* p = nullptr; std::size_t nb = 0; int v[4] = {0, 0, 0, 1};
+  if (bytesOf(c, argv[1], p, nb) && nb >= 16) std::memcpy(v, p, 16);
+  else if (JS_IsArray(argv[1])) { for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = i32(c, e); JS_FreeValue(c, e); } }
+  else return JS_ThrowTypeError(c, "value must be an Int32Array or an array of 4");
+  gl.vertexAttribINi(U(0), v);
+  return JS_UNDEFINED;
+}
+M(vertexAttribI4uiv) {
+  SELF NEED2; NEED(2); std::uint8_t* p = nullptr; std::size_t nb = 0; std::uint32_t v[4] = {0, 0, 0, 1};
+  if (bytesOf(c, argv[1], p, nb) && nb >= 16) std::memcpy(v, p, 16);
+  else if (JS_IsArray(argv[1])) { for (int i = 0; i < 4; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], static_cast<std::uint32_t>(i)); v[i] = u32(c, e); JS_FreeValue(c, e); } }
+  else return JS_ThrowTypeError(c, "value must be a Uint32Array or an array of 4");
+  gl.vertexAttribINui(U(0), v);
+  return JS_UNDEFINED;
+}
+M(invalidateSubFramebuffer) { SELF NEED2; NEED(6); return js_invalidateFramebuffer(c, t, 2, argv); }
+// no compressed formats without an extension: every format is an enum the context does not know
+M(compressedTexImage2D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexSubImage2D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexImage3D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
+M(compressedTexSubImage3D) { SELF NEED2; gl.raise(0x0500); return JS_UNDEFINED; }
+
 const Fn kMethods2[] = {
   {"createVertexArray", js_createVertexArray, 0}, {"deleteVertexArray", js_deleteVertexArray, 1}, {"bindVertexArray", js_bindVertexArray, 1}, {"isVertexArray", js_isVertexArray, 1},
   {"vertexAttribDivisor", js_vertexAttribDivisor, 2}, {"drawArraysInstanced", js_drawArraysInstanced, 4}, {"drawElementsInstanced", js_drawElementsInstanced, 5}, {"drawRangeElements", js_drawRangeElements, 6},
@@ -702,6 +763,24 @@ const Fn kMethods2[] = {
   {"framebufferTextureLayer", js_framebufferTextureLayer, 5},
   {"getFragDataLocation", js_getFragDataLocation, 2},
   {"getInternalformatParameter", js_getInternalformatParameter, 3},
+  {"getIndexedParameter", js_getIndexedParameter, 2},
+  {"getUniformIndices", js_getUniformIndices, 2},
+  {"getActiveUniforms", js_getActiveUniforms, 3},
+  {"uniformMatrix2x3fv", js_uniformMatrix2x3fv, 3},
+  {"uniformMatrix2x4fv", js_uniformMatrix2x4fv, 3},
+  {"uniformMatrix3x2fv", js_uniformMatrix3x2fv, 3},
+  {"uniformMatrix3x4fv", js_uniformMatrix3x4fv, 3},
+  {"uniformMatrix4x2fv", js_uniformMatrix4x2fv, 3},
+  {"uniformMatrix4x3fv", js_uniformMatrix4x3fv, 3},
+  {"vertexAttribI4i", js_vertexAttribI4i, 5},
+  {"vertexAttribI4ui", js_vertexAttribI4ui, 5},
+  {"vertexAttribI4iv", js_vertexAttribI4iv, 2},
+  {"vertexAttribI4uiv", js_vertexAttribI4uiv, 2},
+  {"invalidateSubFramebuffer", js_invalidateSubFramebuffer, 6},
+  {"compressedTexImage2D", js_compressedTexImage2D, 7},
+  {"compressedTexSubImage2D", js_compressedTexSubImage2D, 9},
+  {"compressedTexImage3D", js_compressedTexImage3D, 8},
+  {"compressedTexSubImage3D", js_compressedTexSubImage3D, 10},
   {"uniform1ui", js_uniform1ui, 2}, {"uniform2ui", js_uniform2ui, 3}, {"uniform3ui", js_uniform3ui, 4}, {"uniform4ui", js_uniform4ui, 5}, {"vertexAttribIPointer", js_vertexAttribIPointer, 5},
 };
 
@@ -739,6 +818,7 @@ JSValue createContext(JSContext* c, int w, int h, int version = 1, JSValueConst 
     auto flag = [&](const char* k, bool& dst) { JSValue v = JS_GetPropertyStr(c, attrs, k); if (!JS_IsUndefined(v)) dst = JS_ToBool(c, v) != 0; JS_FreeValue(c, v); };
     flag("alpha", g->alpha); flag("depth", g->depth); flag("stencil", g->stencil); flag("premultipliedAlpha", g->premultipliedAlpha); flag("preserveDrawingBuffer", g->preserveDrawingBuffer);
   }
+  g->gl.setAttributes(g->depth, g->stencil);
   JSValue proto = version == 2 ? JS_DupValue(c, gProto2) : JS_GetClassProto(c, static_cast<int>(gCtxClass));
   JSValue o = JS_NewObjectProtoClass(c, proto, static_cast<int>(gCtxClass));
   JS_FreeValue(c, proto);
@@ -805,6 +885,8 @@ void install(JSContext* c) {
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, gProto2, k.name, JS_NewUint32(c, k.value));
   JSValue ctor2 = ctor("WebGL2RenderingContext", gProto2);
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, ctor2, k.name, JS_NewUint32(c, k.value));
+  JS_SetPropertyStr(c, gProto2, "TIMEOUT_IGNORED", JS_NewInt32(c, -1));   // 0xFFFFFFFFFFFFFFFF as a signed number
+  JS_SetPropertyStr(c, ctor2, "TIMEOUT_IGNORED", JS_NewInt32(c, -1));
   JS_SetPropertyStr(c, global0, "__zincReadFile", JS_NewCFunction(c, js_readFile, "__zincReadFile", 1));
   JS_FreeValue(c, global0);
   JSValue global = JS_GetGlobalObject(c);

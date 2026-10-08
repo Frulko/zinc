@@ -18,6 +18,8 @@ struct UniformLoc { Id program = 0; int location = -1; std::uint32_t type = 0; i
 
 class WebGL1 {
  public:
+  struct Param;     // defined with the queries further down
+  struct Active;
   bool create(Api api, int width, int height, std::string& error, int version = 1);   // version 2: WebGL 2.0 (needs GL 3.3 core or GLES3)
   int version() const { return version_; }
   const Offscreen& target() const { return gl_; }
@@ -25,6 +27,14 @@ class WebGL1 {
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
   std::uint32_t getError();
   void raise(std::uint32_t code) { error(code); }   // for the binding layer: wrong-context objects and the like
+  void setAttributes(bool depth, bool stencil) { depthAttr_ = depth; stencilAttr_ = stencil; }
+  Param getFramebufferAttachmentParameter(std::uint32_t target, std::uint32_t attachment, std::uint32_t pname);
+  Param getIndexedParameter(std::uint32_t target, std::uint32_t index);
+  std::vector<std::uint32_t> getUniformIndices(Id p, const std::vector<std::string>& names);
+  Param getActiveUniforms(Id p, const std::vector<std::uint32_t>& indices, std::uint32_t pname, bool& ok);
+  void uniformMatrixRC(const UniformLoc& l, int cols, int rows, bool transpose, const float* v, std::size_t count);
+  void vertexAttribINi(std::uint32_t index, const int* v);
+  void vertexAttribINui(std::uint32_t index, const std::uint32_t* v);
   std::int64_t attribOffset(std::uint32_t index) const { return index < 16 ? attribs_[index].offset : 0; }
   bool shaderQueryOk(Id s, std::uint32_t pname);   // getShaderParameter's pname check (INVALID_ENUM)
   // state
@@ -70,8 +80,6 @@ class WebGL1 {
   void vertexAttribPointer(std::uint32_t index, int size, std::uint32_t type, bool normalized, int stride, std::int64_t offset);
   void drawArrays(std::uint32_t mode, int first, int count);
   void drawElements(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset);
-  struct Param;   // defined with the queries below
-  struct Active;
   // ---- WebGL 2.0 (webgl2.cpp)
   Id createVertexArray();
   void deleteVertexArray(Id v);
@@ -232,7 +240,7 @@ class WebGL1 {
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
   struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
-  struct Fbo { std::uint32_t name = 0; Id color = 0; bool bound = false; };
+  struct Fbo { std::uint32_t name = 0; Id color = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; };   // 0x8CE0: COLOR_ATTACHMENT0
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
   struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
@@ -265,6 +273,9 @@ class WebGL1 {
   struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; };
   std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
   int version_ = 1;
+  bool depthAttr_ = true, stencilAttr_ = false;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
+  std::uint32_t defaultRead_ = 0x0405, defaultDraw_[4] = {0x0405, 0, 0, 0};   // BACK; NONE for the others
+  int uniformAlignment_ = 256;
   Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, tex3d_[8] = {}, texArr_[8] = {}, samplerUnit_[8] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];

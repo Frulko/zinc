@@ -88,16 +88,19 @@ void WebGL1::drawBuffers(const std::uint32_t* bufs, int n) {
       mapped[i] = bufs[i];
     }
   }
+  std::uint32_t* dst = fbo_ ? fbos_[fbo_].draw : defaultDraw_;
+  for (int i = 0; i < 4; ++i) dst[i] = i < n ? bufs[i] : GL_NONE;
   glDrawBuffers(n, mapped);
 }
 void WebGL1::readBuffer(std::uint32_t src) {
-  if (!fbo_) { if (src != GL_BACK && src != GL_NONE) return error(GL_INVALID_OPERATION); glReadBuffer(src == GL_BACK ? GL_COLOR_ATTACHMENT0 : GL_NONE); return; }
+  if (!fboRead_) { if (src != GL_BACK && src != GL_NONE) return error(GL_INVALID_OPERATION); defaultRead_ = src; glReadBuffer(src == GL_BACK ? GL_COLOR_ATTACHMENT0 : GL_NONE); return; }
   if (src != GL_NONE && (src < GL_COLOR_ATTACHMENT0 || src >= GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_OPERATION);
+  fbos_[fboRead_].readBuffer = src;
   glReadBuffer(src);
 }
 
 // ---- uniform buffers and the other indexed targets
-void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) { bindBufferRange(target, index, id, 0, id ? buffers_[id].size : 0); }
+void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) { bindBufferRange(target, index, id, 0, id ? buffers_[id].size : 0); }   // size 0 for a buffer with no storage yet
 void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, std::int64_t offset, std::int64_t size) {
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER && target != GL_TRANSFORM_FEEDBACK_BUFFER)) return error(GL_INVALID_ENUM);
   if (index >= 24) return error(GL_INVALID_VALUE);
@@ -107,14 +110,14 @@ void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, s
     auto it = buffers_.find(id);
     if (it == buffers_.end()) return error(GL_INVALID_OPERATION);
     if (it->second.target == GL_ELEMENT_ARRAY_BUFFER) return error(GL_INVALID_OPERATION);
-    if (offset + size > it->second.size) return error(GL_INVALID_VALUE);
-    if (target == GL_UNIFORM_BUFFER && offset % 256) return error(GL_INVALID_VALUE);   // UNIFORM_BUFFER_OFFSET_ALIGNMENT is at most 256 on every driver
+    if (target == GL_UNIFORM_BUFFER) { GLint a = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &a); if (a > 0 && offset % a) return error(GL_INVALID_VALUE); }   // sizes are checked at draw time: an unallocated buffer can be bound
     it->second.target = GL_ARRAY_BUFFER;
     name = it->second.name;
   }
   indexed_[(static_cast<std::uint64_t>(target) << 32) | index] = Indexed{id, offset, size};
   otherBuffers_[target] = id;
-  glBindBufferRange(target, index, name, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size));
+  if (size == 0 && offset == 0) glBindBufferBase(target, index, name);   // glBindBufferRange rejects size 0; the whole (empty) buffer is what is meant
+  else glBindBufferRange(target, index, name, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size));
 }
 std::uint32_t WebGL1::getUniformBlockIndex(Id pid, const std::string& name) {
   auto p = programs_.find(pid);
