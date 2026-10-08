@@ -66,7 +66,6 @@ glsl/misc/shaders-with-varyings.html	[unexpected link status] (expected: true) v
 glsl/misc/struct-nesting-exceeds-maximum.html	[unexpected link status] (expected: false) shader with too-deep struct nesting should fail per WebGL spec
 glsl/misc/struct-nesting-of-variable-names.html	[unexpected fragment shader compile status] (expected: true) Outer struct type: float inner struct type: float
 glsl/misc/uninitialized-local-global-variables.html	should be 0,0,0,0 at (25, 0) expected: 0,0,0,0 was 5,5,5,5
-glsl/preprocessor/macro-expansion-tricky.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
 glsl/samplers/glsl-function-texture2dprojlod.html	sampling with lod = 0 divider = 1 should be red at (0, 0) expected: 255,0,0,255 was 0,0,0,255
 glsl/variables/glsl-built-ins.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 textures/misc/canvas-teximage-after-multiple-drawimages.html	no PASS

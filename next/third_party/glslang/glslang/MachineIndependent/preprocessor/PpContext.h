@@ -411,6 +411,7 @@ protected:
     static const int maxIfNesting = 65;
 
     int ifdepth;                  // current #if-#else-#endif nesting in the cpp.c file (pre-processor)
+    int macroExpandDepth = 0;     // zinc patch (see PIN): nesting of MacroExpand, bounded
     bool elseSeen[maxIfNesting];  // Keep a track of whether an else has been seen at a particular depth
     int elsetracker;              // #if-#else and #endif constructs...Counter.
 

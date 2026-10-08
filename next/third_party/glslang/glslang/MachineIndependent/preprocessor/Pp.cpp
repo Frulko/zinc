@@ -1184,6 +1184,14 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
     if (ppToken->fullyExpanded)
         return MacroExpandNotStarted;
 
+    // zinc patch (see PIN): a macro name met again in the argument of a call its own expansion began (`#define a m((a)`) was expanded without end, until the
+    // stack overflowed; past 64 nested expansions the name is left as it is, as a C preprocessor leaves a name it is already expanding
+    if (macroExpandDepth >= 64) {
+        parseContext.ppWarn(ppToken->loc, "macro expansion nested too deeply, name left unexpanded", ppToken->name, "");
+        return MacroExpandNotStarted;
+    }
+    struct DepthGuard { int& d; explicit DepthGuard(int& d) : d(d) { ++d; } ~DepthGuard() { --d; } } depthGuard(macroExpandDepth);
+
     switch (macroAtom) {
     case PpAtomLineMacro:
         // Arguments which are macro have been replaced in the first stage.

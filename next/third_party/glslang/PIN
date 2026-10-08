@@ -1,1 +1,2 @@
 15.1.0 (tag 15.1.0 of KhronosGroup/glslang, commit 1062752a891c95b2bfeed9e356562d88f9df84ac)
+Local patch: preprocessor/Pp.cpp + PpContext.h bound MacroExpand nesting at 64 (a recursive macro inside an incomplete call overflowed the stack; WebGL conformance glsl/preprocessor/macro-expansion-tricky.html).

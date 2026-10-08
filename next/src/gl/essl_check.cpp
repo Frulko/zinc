@@ -21,6 +21,8 @@ struct Parsed {
   TBuiltInResource res;
   std::unique_ptr<glslang::TShader> shader;
   std::string log;   // empty: it parsed
+  bool deepMacros = false;   // the parse left a macro name unexpanded (the zinc patch of glslang's preprocessor, see third_party/glslang/PIN)
+  std::string* expanded = nullptr;   // set: only preprocess, into it
 };
 
 void parseOne(Parsed& p, bool fragment) {
@@ -65,7 +67,16 @@ void parseOne(Parsed& p, bool fragment) {
     p.res.limits.generalVariableIndexing = false;
     p.res.limits.generalConstantMatrixVectorIndexing = false;
   }
-  if (p.shader->parse(&p.res, version, false, EShMsgDefault)) { p.log.clear(); return; }
+  if (p.expanded) {
+    glslang::TShader::ForbidIncluder none;
+    p.shader->preprocess(&p.res, version, EEsProfile, false, false, EShMsgDefault, p.expanded, none);
+    return;
+  }
+  if (p.shader->parse(&p.res, version, false, EShMsgDefault)) {
+    p.deepMacros = std::string(p.shader->getInfoLog()).find("macro expansion nested too deeply") != std::string::npos;
+    p.log.clear();
+    return;
+  }
   p.log = p.shader->getInfoLog();
   if (p.log.empty()) p.log = "ERROR: 0:1: '' : the shader is not valid GLSL ES";
 }
@@ -101,14 +112,24 @@ int callDepth(glslang::TIntermediate* in) {
 
 // glslang knows the functions of extensions a WebGL page never enabled (INTEL's `average` ...) and refuses a user function of the same name, an overload of a built-in as well; such a name is renamed and the parse repeated.
 // (A redeclaration of a real built-in with its own signature is then left to the desktop compiler, which refuses it too.)
-std::string esslValidate(const std::string& source, std::string& preamble, bool fragment) {
+std::string esslValidate(const std::string& source, std::string& preamble, bool fragment, std::string& expanded) {
   std::set<std::string> renamed;
   for (int attempt = 0; attempt < 8; ++attempt) {
     Parsed p;
     p.source = source;
     p.preamble = preamble;
     parseOne(p, fragment);
-    if (p.log.empty()) return callDepth(p.shader->getIntermediate()) > kMaxCallDepth ? "ERROR: 0:1: 'main' : call stack too deep (more than 256 nested calls)" : "";
+    if (p.log.empty()) {
+      if (callDepth(p.shader->getIntermediate()) > kMaxCallDepth) return "ERROR: 0:1: 'main' : call stack too deep (more than 256 nested calls)";
+      if (p.deepMacros) {   // a desktop preprocessor loops on such macros too (Apple's overflows its stack): the driver gets the source glslang expanded
+        Parsed e;
+        e.source = source;
+        e.preamble = preamble;
+        e.expanded = &expanded;
+        parseOne(e, fragment);
+      }
+      return "";
+    }
     static const std::regex clash(R"('(\w+)' : function name is redeclaration of existing name)");
     bool again = false;
     for (std::sregex_iterator it(p.log.begin(), p.log.end(), clash), end; it != end; ++it) {

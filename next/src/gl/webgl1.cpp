@@ -674,9 +674,15 @@ void WebGL1::compileShader(Id id) {
   if (!terr.empty()) { s.compiled = false; s.log = terr; return; }
   s.valSrc.clear(); s.valPre.clear();
   if (!gl_.info().es) {   // (an OpenGL ES driver is a GLSL ES compiler already)
-    if (const std::string bad = esslValidate(valSrc, valPre, s.type == GL_FRAGMENT_SHADER); !bad.empty()) {
+    std::string expanded;
+    if (const std::string bad = esslValidate(valSrc, valPre, s.type == GL_FRAGMENT_SHADER, expanded); !bad.empty()) {
       if (std::getenv("ZN_GL_DEBUG_SHADER")) std::fprintf(stderr, "---- rejected by glslang\n%s\n%s\n%s\n", bad.c_str(), valPre.c_str(), valSrc.c_str());
       s.compiled = false; s.log = bad; return;
+    }
+    if (!expanded.empty()) {   // macros too deep for the driver's preprocessor: it is given the expanded source
+      std::string e2, v2, p2;
+      full = translate(expanded, s.type, false, extOn_, version_, e2, v2, p2);
+      if (!e2.empty()) { s.compiled = false; s.log = e2; return; }
     }
     s.valSrc = valSrc; s.valPre = valPre;
   }
