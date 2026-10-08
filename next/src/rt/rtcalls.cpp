@@ -1,5 +1,7 @@
 // Runtime calls of the VM (zn/runtime.h): strings, arrays, Map and Set. Strings are immutable UTF-8 objects with a
 // JavaScript (UTF-16) view for lengths and indices; an ASCII string is indexed by byte.
+#include <thread>
+#include <chrono>
 #include <algorithm>
 #include <unordered_map>
 #include <bit>
@@ -800,7 +802,17 @@ void nativeEnd(Machine& m) {
 std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
   installSink(m);
   gScratch = scratch;
-  if (run) { zn_native_poll(0); zn_native_drain(); }
+  if (run) {
+    zn_native_poll(0); zn_native_drain();
+    // A deterministic run has no wall clock to race: an asynchronous native call (a camera scan on a thread) completes before the next frame, as it does in the prototype's runtime.
+    // ZN-223: bounded by a budget for the whole run, so a promise that waits for the outside world cannot stall every frame.
+    static const bool det = std::getenv("ZINC_DETERMINISTIC") && !std::getenv("ZINC_REALTIME");
+    static std::int64_t budgetMs = 3000;
+    for (; det && !gPromises.empty() && budgetMs > 0; --budgetMs) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      zn_native_poll(0); zn_native_drain();
+    }
+  }
   return zn_native_pending() > 0 || !gPromises.empty() ? 1 : 0;
 }
 

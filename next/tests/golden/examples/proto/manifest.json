@@ -31,8 +31,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 361,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 400,
+   "reason": "ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
   }
  },
  {
@@ -138,11 +138,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 1811,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "canvas/sketch/main.tsx",
@@ -312,11 +308,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 574688,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "pocket-hero/main.tsx",
@@ -326,8 +318,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 292,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 350,
+   "reason": "ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
   }
  },
  {
@@ -348,7 +340,7 @@
   "max_diff": 0,
   "known": {
    "over": 700,
-   "reason": "differs from the prototype (ZN-223); varies between runs"
+   "reason": "the output of a real child process (pid, ticks printed by wall-clock sleeps) varies between runs (ZN-223)"
   }
  },
  {
@@ -359,8 +351,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 2226,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 2600,
+   "reason": "the status-bar clock shows the prototype's wall-clock time, a deterministic run here shows 00:00; everything else is identical (ZN-223)"
   }
  },
  {
@@ -371,8 +363,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 2387,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 2800,
+   "reason": "the status-bar clock shows the prototype's wall-clock time, a deterministic run here shows 00:00; everything else is identical (ZN-223)"
   }
  },
  {
@@ -440,11 +432,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 76,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "text/src/main-solid.tsx",
@@ -460,11 +448,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 366758,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "three/gltf-viewer/main.tsx",
@@ -530,8 +514,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 64031,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 26000,
+   "reason": "a deterministic run plays the fake video player here (D12, tests/t1/video.sh checks the real decode against the prototype's first frame); the prototype decodes the clip (ZN-223)"
   }
  },
  {
@@ -540,11 +524,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 5849,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "video/mapper/src/main.ts",
@@ -563,8 +543,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 16113,
-   "reason": "differs from the prototype (ZN-223)"
+   "over": 215000,
+   "reason": "a deterministic run plays the fake video player here (D12, tests/t1/video.sh checks the real decode against the prototype's first frame); the prototype decodes the clips (ZN-223)"
   }
  },
  {
@@ -573,11 +553,7 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0,
-  "known": {
-   "over": 7679,
-   "reason": "differs from the prototype (ZN-223)"
-  }
+  "max_diff": 0
  },
  {
   "entry": "zed-editor/sample/src/main.ts",

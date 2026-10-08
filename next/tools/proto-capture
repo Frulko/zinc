@@ -47,7 +47,7 @@ def init():
 
 def capture_one(row):
     e = row["entry"]; tmp = tempfile.mkdtemp(); shot = os.path.join(tmp, "s.png")
-    r = subprocess.run(["node", os.path.join(ROOT, "compiler/bin/zinc.mjs"), "run", project(e)], cwd=ROOT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=600)
+    r = subprocess.run(["node", os.path.join(ROOT, "compiler/bin/zinc.mjs"), "run", os.path.join(EX, e.split("#")[0])], cwd=project(e), env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=600)
     got = []
     for f in row["frames"]:
         s = os.path.join(tmp, "s-%d.png" % f)
@@ -56,7 +56,7 @@ def capture_one(row):
 
 def compare_one(row, zinc, out):
     e = row["entry"]; shot = os.path.join(out, name(e) + ".png"); res = []; over_seen = 0
-    try: subprocess.run([zinc, "run", os.path.join(EX, e.split("#")[0])], cwd=NEXT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=120)
+    try: subprocess.run([zinc, "run", os.path.join(EX, e.split("#")[0])], cwd=project(e), env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired: return e, False, "timed out"
     for f in row["frames"]:
         mine = os.path.join(out, "%s-%d.png" % (name(e), f)); gold = os.path.join(DIR, "%s-%d.png" % (name(e), f))
