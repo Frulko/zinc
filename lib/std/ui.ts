@@ -271,6 +271,7 @@ export class UiNode {
     // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
+  wk: WrapKey | null = null;          // what the text lines were computed from (wrapText)
   hs: Handlers | null = null;
   ed: Edit | null = null;
   layer: boolean = false;              // ui.openLayer: laid out, painted and hit-tested apart from its parent
@@ -1690,6 +1691,15 @@ export function setStyles(h: i32, styles: Style[]): void {
 export function isKnownClass(tok: string): boolean { return applyToken(new UiNode(VIEW), tok, ''); }
 
 // ---------------------------------------------------------------- layout (UI-08)
+// Child lists of the layout passes: one per depth of the recursion, emptied and reused (a relayout allocates none).
+const mKids: UiNode[][] = [], mAbs: UiNode[][] = [], pKids: UiNode[][] = [], pAbs: UiNode[][] = [];
+let mDepth: i32 = 0, pDepth: i32 = 0;
+function pooled(pool: UiNode[][], d: i32): UiNode[] {
+  if (pool.length <= d) pool.push([]);
+  const a = pool[d];
+  a.length = 0;
+  return a;
+}
 function flat(n: UiNode, out: UiNode[], wantAbs: boolean): void {
   for (const h of n.children) {
     const c = node(h);
@@ -1796,12 +1806,23 @@ function ellipsize(n: UiNode, f: i32, tr: number, line: string, avail: number): 
   return line.slice(0, lo).trimEnd() + '\u2026';
 }
 /** Word wrap with the baked font metrics (UI-10), white-space, break, line-clamp, ellipsis and balance (ZN-269). */
+/** What the lines of a text node were computed from: when none of it changed, the last lines are still right (a relayout of an unchanged page wraps nothing). */
+class WrapKey {
+  avail: number = -1; f: i32 = -2; tr: number = 0; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; flags: i32 = 0; wordSp: number = 0; transform: i32 = 0; size: i32 = 0; text: string = '';
+}
 function wrapText(n: UiNode, maxW: number): void {
   const f = fontOf(n), tr = trackPx(n);
+  const avail = maxW - n.pl - n.pr;
+  const flags = (n.ellipsis ? 1 : 0) | (n.balance ? 2 : 0);
+  let k = n.wk;
+  if (k !== null) {
+    const c = k as WrapKey;
+    if (c.avail === avail && c.f === f && c.tr === tr && c.ws === n.ws && c.brk === n.brk && c.clamp === n.clamp && c.flags === flags && c.wordSp === n.wordSp && c.transform === n.transform && c.size === n.size && c.text === n.text) return;
+  } else { k = new WrapKey(); n.wk = k; }
+  { const c = k as WrapKey; c.avail = avail; c.f = f; c.tr = tr; c.ws = n.ws; c.brk = n.brk; c.clamp = n.clamp; c.flags = flags; c.wordSp = n.wordSp; c.transform = n.transform; c.size = n.size; c.text = n.text; }
   n.lines = [];
   n.lineW = [];
   const text = shownText(n);
-  const avail = maxW - n.pl - n.pr;
   let lines: string[] = [];
   if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail, 0);
   else {
@@ -1899,7 +1920,8 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     n.lw = ownW >= 0 ? ownW : ownH >= 0 && ih > 0 ? Math.round(ownH * iw / ih) : n.fullW ? 0 : iw;
     n.lh = ownH >= 0 ? ownH : ownW >= 0 && iw > 0 ? Math.round(ownW * ih / iw) : n.fullH ? 0 : ih;
   } else {
-    const kids: UiNode[] = [];
+    const kids = pooled(mKids, mDepth), abs = pooled(mAbs, mDepth);
+    mDepth++;
     flat(n, kids, false);
     orderKids(kids);
     const inner: number = (ownW >= 0 ? ownW : maxW) - n.pl - n.pr;
@@ -1948,9 +1970,9 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     cross += lineCross;
     n.lw = (n.row ? main : cross) + n.pl + n.pr;
     n.lh = (n.row ? cross : main) + n.pt + n.pb;
-    const abs: UiNode[] = [];
     flat(n, abs, true);
     for (const c of abs) measure(c, inner, innerH);
+    mDepth--;
   }
   if (n.scroll !== 0) {
     // the viewport is sized by its constraints (grow / full / fixed), the content keeps its natural size
@@ -1970,7 +1992,8 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   // scroll containers lay their content out at its natural size; the viewport only clips and offsets it
   const w = (n.scroll & 2) !== 0 ? Math.max(vw, n.contentW) : vw, h = (n.scroll & 1) !== 0 ? Math.max(vh, n.contentH) : vh;
   if (n.scroll !== 0) clampScroll(n);
-  const kids: UiNode[] = [];
+  const kids = pooled(pKids, pDepth), abs = pooled(pAbs, pDepth);
+  pDepth++;
   flat(n, kids, false);
   orderKids(kids);
   if (n.reverse) kids.reverse();   // row-reverse / col-reverse: the main axis runs the other way; start and end swap below
@@ -2079,7 +2102,6 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     crossPos += lineCross + gc + acBetween;
     start = end;
   }
-  const abs: UiNode[] = [];
   flat(n, abs, true);
   for (const c of abs) {
     let cw: number = c.fullW ? w : c.lw;
@@ -2090,6 +2112,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     const cy = c.top !== UNSET ? y + c.top : c.bottom !== UNSET ? y + h - c.bottom - ch : y + n.pt;
     place(c, cx, cy, cw, ch);
   }
+  pDepth--;
 }
 export function layout(): void {
   if (root < 0) return;
