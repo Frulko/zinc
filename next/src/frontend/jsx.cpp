@@ -22,7 +22,7 @@ namespace {
 
 const std::map<std::string, int> kTags = {{"view", 0}, {"text", 1}, {"button", 2}, {"image", 3}, {"scroll", 4}, {"canvas", 5}, {"input", 7}, {"textarea", 8},
                                           {"View", 0}, {"Text", 1}, {"Button", 2}, {"Image", 3}, {"ScrollView", 4}, {"Canvas", 5}, {"Input", 7}, {"TextArea", 8}};
-const std::set<std::string> kNumAttrs = {"width", "height", "grow", "gap", "bg", "color", "scale", "hidden", "x", "y", "opacity", "translateX", "translateY", "rows", "tabIndex", "dragThreshold"};
+const std::set<std::string> kNumAttrs = {"width", "height", "grow", "gap", "bg", "color", "scale", "hidden", "x", "y", "opacity", "translateX", "translateY", "rows", "tabIndex", "dragThreshold", "numberOfLines"};
 const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPointerMove", 1}, {"onPointerUp", 2}, {"onDoubleClick", 3}, {"onContextMenu", 4}, {"onWheel", 5}, {"onPointerEnter", 6},
                                                   {"onPointerLeave", 7}, {"onTap", 8}, {"onLongPress", 9}, {"onDrag", 10}, {"onPinch", 11}, {"onPointerCancel", 12}};
 const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled"};
@@ -125,8 +125,8 @@ const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingT
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}}}, {"borderStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
-    {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
-    {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
+    {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
+    {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"baseline", 4}}},
     {"alignContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"space-between", 4}, {"space-around", 5}, {"space-evenly", 6}}},
     {"position", {{"relative", 0}, {"static", 0}, {"absolute", 1}}}, {"display", {{"flex", 0}, {"none", 1}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
@@ -697,6 +697,12 @@ struct Lowering {
           if ((styleName(key) == "width" || styleName(key) == "height") && ve > vb + 2 && t[vb].kind == Tok::Ident && tx(vb) == "pct" && isP(vb + 1, "(") && isP(ve - 1, ")")) {
             dk = styleName(key) + "Percent";   // width: pct(v()): a percent decided at run time (ZN-359)
             raw = "(" + rw(vb + 2, ve - 1) + ") / 100";
+          }
+          static const std::regex percentTemplate(R"(^`\$\{([^`]*)\}%`$)");   // React Native's width: `${p}%` (ZN-290)
+          std::smatch pm;
+          if ((styleName(key) == "width" || styleName(key) == "height") && std::regex_match(raw, pm, percentTemplate)) {
+            dk = styleName(key) + "Percent";
+            raw = "(" + pm[1].str() + ") / 100";
           }
           for (const std::string& k : numericStyleKeys(dk)) {
             keys.push_back(quote(k)); values.push_back("(" + raw + ")");

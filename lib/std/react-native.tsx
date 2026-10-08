@@ -200,6 +200,7 @@ export function TextInput(p: TextInputProps): i32 {
   const kt = p.keyboardType ?? 'default';
   const mode = kt === 'numeric' ? 1 : Math.max(0, INPUT_MODES.indexOf(kt));
   const flags = new ui.Style(['password', 'readOnly', 'inputMode'], [p.secureTextEntry === true ? 1 : 0, p.editable === false ? 1 : 0, mode]);
+  const bare = new ui.Style(['borderWidth'], [0]);   // React Native's TextInput has no border of its own (zinc:ui's field has one)
   const text = p.value ?? p.defaultValue ?? '';
   const typed = (s: string): void => {
     let v = s;
@@ -214,8 +215,8 @@ export function TextInput(p: TextInputProps): i32 {
     if (p.autoFocus === true) ui.focusNode(field.current);
   }, []);
   if (p.multiline === true)
-    return <TextArea ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''} />;
-  return <Input ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''} />;
+    return <TextArea ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''} />;
+  return <Input ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''} />;
 }
 
 export class KeyboardCoordinates { screenX: number = 0; screenY: number = 0; width: number = 0; height: number = 0; }
@@ -295,9 +296,10 @@ function watchList(w: ListWatch, h: i32, count: i32, onEnd: (() => void) | undef
 function renderSlot(f: (() => i32) | undefined): i32 { return f !== undefined ? f() : ui.createNode(ui.FRAGMENT); }
 
 export type ListRenderItemInfo<T> = { item: T; index: number };
+// keyExtractor takes one parameter until ZN-383: the lambda of a generic argument keeps its own arity, and `item => item.id` is the common form.
 export type ItemLayout = { length: number; offset: number; index: number };
 export type FlatListProps<T> = {
-  data: T[]; renderItem: (info: ListRenderItemInfo<T>) => i32; keyExtractor?: (item: T, index: number) => string;
+  data: T[]; renderItem: (info: ListRenderItemInfo<T>) => i32; keyExtractor?: (item: T) => string;
   ItemSeparatorComponent?: () => i32; ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; ListEmptyComponent?: () => i32;
   onEndReached?: () => void; onEndReachedThreshold?: number; refreshing?: boolean; onRefresh?: () => void;
   numColumns?: number; getItemLayout?: (data: T[], index: number) => ItemLayout; initialNumToRender?: number;
@@ -347,7 +349,7 @@ export type SectionHeaderInfo<T> = { section: SectionBase<T> };
 export type SectionListProps<T> = {
   sections: SectionBase<T>[]; renderItem: (info: SectionListRenderItemInfo<T>) => i32;
   renderSectionHeader?: (info: SectionHeaderInfo<T>) => i32; renderSectionFooter?: (info: SectionHeaderInfo<T>) => i32;
-  stickySectionHeadersEnabled?: boolean; keyExtractor?: (item: T, index: number) => string; ItemSeparatorComponent?: () => i32;
+  stickySectionHeadersEnabled?: boolean; keyExtractor?: (item: T) => string; ItemSeparatorComponent?: () => i32;
   ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; onEndReached?: () => void; onEndReachedThreshold?: number;
   refreshing?: boolean; onRefresh?: () => void; style?: ui.Style; contentContainerStyle?: ui.Style;
 };

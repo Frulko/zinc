@@ -1,10 +1,10 @@
 ---
 id: ZN-290
 title: 'Layout: RN example port spike: one React Native screen on Zinc in `rn` mode'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-07 13:08'
-updated_date: '2026-10-08 19:04'
+updated_date: '2026-10-08 19:49'
 labels:
   - ui
   - layout
@@ -23,13 +23,14 @@ From docs/reports/layout-engines.md (section 8, LE-11). Decision: a pluggable la
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A real RN screen (FlatList, nested flex, percent, absolute badge, text wrapping) from the owner's app (or a public RN sample if not shared) runs unchanged apart from imports.
-- [ ] #2 Pixel golden recorded; a diff list of what differs from the device screenshot is written.
-- [ ] #3 Gaps become backlog tasks (each with a fixture).
+- [x] #1 A real RN screen (FlatList, nested flex, percent, absolute badge, text wrapping) from the owner's app (or a public RN sample if not shared) runs unchanged apart from imports.
+- [x] #2 Pixel golden recorded; a diff list of what differs from the device screenshot is written.
+- [x] #3 Gaps become backlog tasks (each with a fixture).
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Needs FlatList (ZN-367.03) to run a real React Native screen unchanged apart from imports; dependency added 2026-10-08.
+usage: n/a
+Done: examples/rn-port, a React Native screen (FlatList, nested flex, percent widths, absolute badge, numberOfLines, baseline, hairlineWidth, TextInput, Pressable, default export, no return types, useState('')) runs with only its two imports changed, in the react-native preset at 390x844. Golden: tests/golden/rn-port (frame hash + layout facts and a search filter), tests/t1/rn_port.sh. Fixed on the way: zinc run . ignored zinc.json entry (own commit); numberOfLines; alignItems/alignSelf baseline (Yoga real, classic flex-end); StyleSheet.hairlineWidth; width/height from a template percent; keyExtractor with one parameter; TextInput without a border. Diff list against React Native (no device: Yoga is the layout reference, ZN-289) in docs/reports/rn-port-spike.md; gaps: ZN-367.05 (import aliases), ZN-385 (text defaults, hairlineWidth, system font), ZN-382 (classic baseline), ZN-383 (contextual typing). tests/run --changed 48/48, proto-capture 4/4.
 <!-- SECTION:NOTES:END -->

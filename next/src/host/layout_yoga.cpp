@@ -219,7 +219,7 @@ class YogaLayout final : public Layout {
   Rec* rec(std::int32_t h) { return h >= 0 && static_cast<std::size_t>(h) < nodes_.size() && nodes_[static_cast<std::size_t>(h)].node ? &nodes_[static_cast<std::size_t>(h)] : nullptr; }
   const Rec* rec(std::int32_t h) const { return const_cast<YogaLayout*>(this)->rec(h); }
   static int index(float v, int count) { const int i = static_cast<int>(v); return i < 0 ? 0 : i >= count ? count - 1 : i; }
-  static YGAlign align(float v) { static const YGAlign a[] = {YGAlignFlexStart, YGAlignCenter, YGAlignFlexEnd, YGAlignStretch}; return a[index(v, 4)]; }
+  static YGAlign align(float v) { static const YGAlign a[] = {YGAlignFlexStart, YGAlignCenter, YGAlignFlexEnd, YGAlignStretch, YGAlignBaseline}; return a[index(v, 5)]; }
   static void inset(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetPositionAuto(n, e); else YGNodeStyleSetPosition(n, e, v); }
   static void direction(const Rec& r) {
     YGNodeStyleSetFlexDirection(r.node, r.row ? (r.reverse ? YGFlexDirectionRowReverse : YGFlexDirectionRow) : (r.reverse ? YGFlexDirectionColumnReverse : YGFlexDirectionColumn));

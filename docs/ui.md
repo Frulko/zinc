@@ -540,6 +540,7 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 74 | `scaleX` |  |
 | 75 | `scaleY` |  |
 | 76 | `borderStyle` |  |
+| 85 | `numberOfLines` |  |
 
 ### Accepted class tokens (generated)
 

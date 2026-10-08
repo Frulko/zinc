@@ -125,6 +125,8 @@ export class Style {
 }
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
+  /** React Native's thinnest line: one logical pixel here (React Native: 1 / PixelRatio). */
+  static hairlineWidth: number = 1;
   static create<T>(styles: T): T { return styles; }
   static flatten(styles: Style[]): Style {
     const keys: string[] = [], values: number[] = [];
@@ -819,6 +821,7 @@ const P_SCALE_Y: i32 = 75;
 const P_BORDER_STYLE: i32 = 76;
 const P_RADIUS_TL: i32 = 77, P_RADIUS_TR: i32 = 78, P_RADIUS_BR: i32 = 79, P_RADIUS_BL: i32 = 80;
 const P_BORDER_TOP_COLOR: i32 = 81, P_BORDER_RIGHT_COLOR: i32 = 82, P_BORDER_BOTTOM_COLOR: i32 = 83, P_BORDER_LEFT_COLOR: i32 = 84;
+const P_NUMBER_OF_LINES: i32 = 85;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -885,6 +888,7 @@ function propInit(): void {
   PROP.set('shadowColor', P_SHADOW_COLOR); PROP.set('shadowOffsetX', P_SHADOW_X); PROP.set('shadowOffsetY', P_SHADOW_Y); PROP.set('shadowOpacity', P_SHADOW_OPACITY); PROP.set('shadowRadius', P_SHADOW_RADIUS); PROP.set('elevation', P_ELEVATION);
   PROP.set('rotate', P_ROTATE); PROP.set('skewX', P_SKEW_X); PROP.set('skewY', P_SKEW_Y); PROP.set('scaleX', P_SCALE_X); PROP.set('scaleY', P_SCALE_Y);
   PROP.set('borderStyle', P_BORDER_STYLE);
+  PROP.set('numberOfLines', P_NUMBER_OF_LINES);
   PROP.set('borderTopLeftRadius', P_RADIUS_TL); PROP.set('borderTopRightRadius', P_RADIUS_TR); PROP.set('borderBottomRightRadius', P_RADIUS_BR); PROP.set('borderBottomLeftRadius', P_RADIUS_BL);
   PROP.set('borderTopColor', P_BORDER_TOP_COLOR); PROP.set('borderRightColor', P_BORDER_RIGHT_COLOR); PROP.set('borderBottomColor', P_BORDER_BOTTOM_COLOR); PROP.set('borderLeftColor', P_BORDER_LEFT_COLOR);
 }
@@ -907,6 +911,7 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   if (id === P_BORDER_COLOR) { n.borderColor = iv; paintDirty = true; return; }
   if (id === P_COLOR) { n.fg = iv; paintDirty = true; return; }
   if (id === P_RADIUS || id === P_RADIUS) { n.radius = v; paintDirty = true; return; }
+  if (id === P_NUMBER_OF_LINES) { n.clamp = iv > 0 ? iv : 0; n.ellipsis = iv > 0; layoutDirty = true; return; }   // React Native's <Text numberOfLines> (ZN-290)
   if (id >= P_BORDER_STYLE && id <= P_BORDER_LEFT_COLOR) {   // React Native's borderStyle, corner radii and side colours (ZN-363): the classes' border record
     const b = n.ownBd();
     if (id === P_BORDER_STYLE) b.borderStyle = iv;
@@ -2287,7 +2292,8 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       let cc: number = n.row ? c.lh : c.lw;
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
       let off: number = 0;
-      const al: i32 = c.selfAlign >= 0 ? c.selfAlign : n.align;   // align-self
+      const al0: i32 = c.selfAlign >= 0 ? c.selfAlign : n.align;   // align-self
+      const al: i32 = al0 === 4 ? 2 : al0;   // ponytail: baseline ends at the line's end in classic (Yoga aligns real baselines in rn)
       const stretch = (al === 3 && (n.row ? c.h < 0 && c.hFrac === 0 : c.w < 0 && c.wFrac === 0)) || (n.row ? c.fullH : c.fullW);   // a fixed or percent size on the cross axis wins over the stretch
       const am = c.mAuto;
       const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
