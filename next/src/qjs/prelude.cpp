@@ -157,6 +157,12 @@ const char* kPrelude = R"JS(
     return t.f;
   };
   g.__setClock = ms => { clock = ms; };
+  g.process = { argv: ['zinc', 'main'], env: {}, exit: c => g.__host_sysExit(c | 0), platform: 'zinc', stdout: { write: s => write(String(s)) }, stderr: { write: s => writeErr(String(s)) } };
+})(globalThis);
+)JS";
+
+// The web classes that loaders and engines expect, for the main program and for zinc:script contexts alike.
+const char* kWebShims = R"JS((g => {
   // TextEncoder / TextDecoder (UTF-8 only): glTF and other loaders decode their JSON chunks with them (ZN-204)
   if (typeof g.TextEncoder === 'undefined') {
     g.TextEncoder = class TextEncoder {
@@ -202,7 +208,6 @@ const char* kPrelude = R"JS(
     g.AbortSignal = AbortSignal;
     g.AbortController = class AbortController { constructor() { this.signal = new AbortSignal(); } abort() { if (this.signal.aborted) return; this.signal.aborted = true; for (const f of this.signal._l) f({ type: 'abort' }); } };
   }
-  g.process = { argv: ['zinc', 'main'], env: {}, exit: c => g.__host_sysExit(c | 0), platform: 'zinc', stdout: { write: s => write(String(s)) }, stderr: { write: s => writeErr(String(s)) } };
 })(globalThis);
 )JS";
 

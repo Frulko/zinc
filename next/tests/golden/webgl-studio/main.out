@@ -1,0 +1,9 @@
+markers Cube:1 Ring:1 Sphere:1 Truck:1
+pick below the marker of Cube -> Cube
+pick below the marker of Ring -> nothing
+pick below the marker of Sphere -> Sphere
+pick below the marker of Truck -> nothing
+pick the sky -> nothing
+select Cube | Cube -1.9 0.5 3.0  truck ready
+select nothing -> ""
+look applied

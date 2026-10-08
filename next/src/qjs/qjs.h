@@ -16,5 +16,6 @@ struct Options {
 int run(const Options& o);
 
 extern const char* kPrelude;
+extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)
 
 }  // namespace zn::qjs

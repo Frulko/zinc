@@ -22,6 +22,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 }
 
 #include "zn/native.h"
+namespace zn::qjs { extern const char* kWebShims; }   // src/qjs/prelude.cpp
 
 namespace {
 
@@ -441,6 +442,7 @@ int32_t qCreate(void*, ZnCtx*, Args a, ZnVal* r) {
   JSContext* ctx = JS_NewContext(rt);
   if (!ctx) { JS_FreeRuntime(rt); return ZN_OK; }
   if (const char* wg = std::getenv("ZINC_WEBGL"); wg && *wg && *wg != '0') zn::qjs::runContextHooks(ctx);   // zinc.json "webgl": true: document.createElement('canvas').getContext('webgl') in scripts (ZN-205)
+  { JSValue r = JS_Eval(ctx, zn::qjs::kWebShims, strlen(zn::qjs::kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL); JS_FreeValue(ctx, r); }   // TextDecoder and friends: GLTFLoader and other loaders need them
   Vm* vm = new Vm();
   vm->h = h; vm->rt = rt; vm->ctx = ctx; vm->limitMs = a[1].d; vm->memLimit = a[0].d;
   JS_SetContextOpaque(ctx, vm);

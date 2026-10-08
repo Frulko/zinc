@@ -1,0 +1,1 @@
+{ "name": "webgl-studio", "entry": "src/main.tsx", "assets": "assets", "webgl": true }

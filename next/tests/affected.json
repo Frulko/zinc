@@ -6,7 +6,7 @@
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["lib/std/kit/theme.ts", "lib/std/palette.ts", "tools/contrast-check"], "tests": ["contrast", "ui_theme"]},
     {"paths": ["tests/golden/ui-tokens/"], "tests": ["ui_tokens", "ui_docs"]},
-    {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/ext.cpp", "plugins/script/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo"]},
+    {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/prelude.cpp", "src/qjs/ext.cpp", "plugins/script/", "../examples/webgl-studio/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo", "webgl_studio"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},
     {"paths": ["src/sim/", "include/zn/sim.h", "tests/native/sim_test.cpp", "tests/native/board_test.cpp", "tests/native/scenario_test.cpp", "tests/golden/sim/", "third_party/libyaml/"], "tests": ["sim_core", "sim_board", "sim_scenario"]},

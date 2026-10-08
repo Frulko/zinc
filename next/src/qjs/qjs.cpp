@@ -301,6 +301,9 @@ int run(const Options& o) {
   JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
   if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
   JS_FreeValue(e.ctx, pre);
+  JSValue shims = JS_Eval(e.ctx, kWebShims, std::strlen(kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL);
+  if (JS_IsException(shims)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
+  JS_FreeValue(e.ctx, shims);
 
   std::string entry = o.entry;
   if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
