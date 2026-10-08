@@ -56,7 +56,7 @@ struct Failure { std::uint32_t pos; std::string msg; };
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
 bool validClass(const std::string& c) {
   static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
-      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal",
+      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\d+/\d+|px))";
@@ -77,6 +77,7 @@ bool validClass(const std::string& c) {
       std::regex(R"(^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$)"),
       std::regex(R"(^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$)"),
       std::regex(R"(^bg-gradient-to-(t|b|l|r)$)"), std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
+      std::regex(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
   static const std::regex variant(R"(^(focus|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
   static const std::regex colored("^(bg|text|border|from|via|to)-" + color + "$");
@@ -85,6 +86,8 @@ bool validClass(const std::string& c) {
   if (std::regex_match(c, m, variant)) return validClass(m[2].str());
   if (fixed.count(c)) return true;
   for (const std::regex& r : rules) if (std::regex_match(c, r)) return true;
+  static const std::regex sideColour(R"(^border-[trblxy]-(.+)$)");   // border-t-red-500: the colour of one side
+  if (std::regex_match(c, m, sideColour) && m[1].str().find_first_not_of("0123456789") != std::string::npos) return validClass("border-" + m[1].str());
   if (std::regex_match(c, m, colored)) {
     std::string col = m[2].str();
     if (col[0] == '[' || col == "white" || col == "black" || col == "transparent" || col == "current") return true;

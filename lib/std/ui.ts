@@ -7,7 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault, stroke,
+  escapeByApp, escapeDefault, stroke, polygon,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
@@ -173,6 +173,7 @@ export class UiNode {
   shadowLevel: i32 = 0;
   opacity: number = 1;
   tx: number = 0; ty: number = 0;
+  borderStyle: i32 = 0; bcT: i32 = -1; bcR: i32 = -1; bcB: i32 = -1; bcL: i32 = -1; crTL: number = -1; crTR: number = -1; crBR: number = -1; crBL: number = -1;   // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
   snap: i32 = 0; snapProx: boolean = false; snapAlign: i32 = 0; spt: number = 0; spb: number = 0; spl: number = 0; spr: number = 0;   // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
@@ -906,10 +907,25 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'shadow-lg') { n.shadowLevel = 4; return true; }
   if (tok === 'shadow-xl') { n.shadowLevel = 5; return true; }
   if (tok === 'border') { n.borderW = 1; return true; }
+  if (tok.startsWith('rounded-') && 'tblr'.indexOf(tok.slice(8, 9)) >= 0 && (tok.length === 9 || tok.slice(9, 10) === '-' || ('lr'.indexOf(tok.slice(9, 10)) >= 0 && tok.slice(8, 9) !== 'l' && tok.slice(8, 9) !== 'r' && (tok.length === 10 || tok.slice(10, 11) === '-')))) {
+    // rounded-t-lg, rounded-tl, rounded-br-xl: the corners of one side or one corner
+    const two = 'lr'.indexOf(tok.slice(9, 10)) >= 0 && tok.length >= 10 && tok.slice(8, 9) !== 'l' && tok.slice(8, 9) !== 'r';
+    const sd = tok.slice(8, two ? 10 : 9), rest = tok.slice(two ? 11 : 10);
+    const i = RADII.indexOf(rest);
+    const rv = i >= 0 ? RADIUS_PX[i] : rest === '' ? RADIUS_PX[2] : num(rest);
+    if (rv !== rv) return false;
+    if (sd === 't' || sd === 'tl' || sd === 'l') n.crTL = rv;
+    if (sd === 't' || sd === 'tr' || sd === 'r') n.crTR = rv;
+    if (sd === 'b' || sd === 'br' || sd === 'r') n.crBR = rv;
+    if (sd === 'b' || sd === 'bl' || sd === 'l') n.crBL = rv;
+    return true;
+  }
   if (tok === 'rounded' || tok.startsWith('rounded-')) {
     const k = tok === 'rounded' ? '' : tok.slice(8);
     const i = RADII.indexOf(k);
-    n.radius = i >= 0 ? RADIUS_PX[i] : num(k);
+    const rv = i >= 0 ? RADIUS_PX[i] : num(k);
+    if (rv !== rv) return false;
+    n.radius = rv;
     return true;
   }
   if (tok.startsWith('items-')) { const k = tok.slice(6); n.align = k === 'start' ? 0 : k === 'center' ? 1 : k === 'end' ? 2 : 3; return true; }
@@ -923,8 +939,21 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('via-')) return true;
   if (tok.startsWith('to-')) { n.gradTo = colorOf(tok.slice(3)); return n.gradTo !== -2; }
   if (tok.startsWith('bg-')) { const c = colorOf(tok.slice(3)); if (c === -2) return false; n.bg = c; n.bgAlpha = alphaOf(tok.slice(3)); return true; }
+  if (tok === 'border-solid') { n.borderStyle = 0; return true; }
+  if (tok === 'border-dashed') { n.borderStyle = 1; return true; }
+  if (tok === 'border-dotted') { n.borderStyle = 2; return true; }
+  if (tok.startsWith('border-') && tok.length > 9 && tok.slice(8, 9) === '-' && 'trblxy'.indexOf(tok.slice(7, 8)) >= 0 && colorOf(tok.slice(9)) !== -2) {   // border-t-red-500: the colour of one side
+    const sd = tok.slice(7, 8), c = colorOf(tok.slice(9));
+    if (n.borderW === 0 && n.bT < 0 && n.bR < 0 && n.bB < 0 && n.bL < 0) n.borderW = -1;
+    if (sd === 't' || sd === 'y') n.bcT = c;
+    if (sd === 'b' || sd === 'y') n.bcB = c;
+    if (sd === 'l' || sd === 'x') n.bcL = c;
+    if (sd === 'r' || sd === 'x') n.bcR = c;
+    return true;
+  }
   if (tok.startsWith('border-') && (tok.length === 8 || tok.slice(8, 9) === '-') && 'trblxy'.indexOf(tok.slice(7, 8)) >= 0) {
     const sd = tok.slice(7, 8), bw = tok.length === 8 ? 1 : borderPx(tok.slice(9));
+    if (bw !== bw) return false;
     if (n.borderW < 0) n.borderW = 0;  // a color token alone no longer implies all four sides
     if (sd === 't' || sd === 'y') n.bT = bw;
     if (sd === 'b' || sd === 'y') n.bB = bw;
@@ -1031,7 +1060,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
@@ -1528,14 +1557,15 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else {
       const bg = effectiveBg(h, n);
-      if (bg >= 0) rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a));
+      if (bg >= 0) { if (n.crTL >= 0 || n.crTR >= 0 || n.crBR >= 0 || n.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.crTL, r, kk, w, hh), cornerR(n.crTR, r, kk, w, hh), cornerR(n.crBR, r, kk, w, hh), cornerR(n.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
     }
     const focused = h === focus;
     let bc = focused && n.focusBorder >= 0 ? n.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.withinBorder : n.hovered && n.hoverBorder >= 0 ? n.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
     const bai: i32 = n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);
     if (bc === -3) bc = textFg(h);   // border-current
-    if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
+    if (n.borderStyle !== 0 || n.bcT >= 0 || n.bcR >= 0 || n.bcB >= 0 || n.bcL >= 0 || n.crTL >= 0 || n.crTR >= 0 || n.crBR >= 0 || n.crBL >= 0) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw);
+    else if (n.bT >= 0 || n.bR >= 0 || n.bB >= 0 || n.bL >= 0) {
       // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
       const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
       if (t > 0) rrect(x, y, w, t, 0, bc, bai);
@@ -1579,6 +1609,71 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
+}
+// ---- extended borders (ZN-257): dashed and dotted lines, a colour per side, a radius per corner; the plain border keeps its old drawing (border() and rrect() bands)
+function pt(o: number[], x: number, y: number): void { o.push(x); o.push(y); }
+function cornerR(own: number, base: number, kk: number, w: number, h: number): number {
+  const r = own >= 0 ? own * kk : base;
+  return Math.min(r, Math.min(w, h) / 2);
+}
+/** Points of a rounded rectangle path (clockwise from the top-left corner's end), `steps` points per corner arc. */
+function arcPoints(out: number[], cx: number, cy: number, r: number, a0: number, a1: number): void {
+  const steps: i32 = r < 3 ? 2 : r < 12 ? 6 : 10;
+  for (let i = 0; i <= steps; i++) { const a = a0 + (a1 - a0) * i / steps; pt(out, cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+}
+function roundedPath(x: number, y: number, w: number, h: number, tl: number, tr: number, br: number, bl: number): number[] {
+  const o: number[] = [], P = Math.PI;
+  if (tl > 0) arcPoints(o, x + tl, y + tl, tl, P, 1.5 * P); else pt(o, x, y);
+  if (tr > 0) arcPoints(o, x + w - tr, y + tr, tr, 1.5 * P, 2 * P); else pt(o, x + w, y);
+  if (br > 0) arcPoints(o, x + w - br, y + h - br, br, 0, 0.5 * P); else pt(o, x + w, y + h);
+  if (bl > 0) arcPoints(o, x + bl, y + h - bl, bl, 0.5 * P, P); else pt(o, x, y + h);
+  return o;
+}
+/** Draws the polyline `pts` (x, y pairs) with the border style: solid, or dashes / dots of the line width along it. */
+function strokeStyled(pts: number[], bw: number, color: i32, alpha: i32, style: i32): void {
+  if (pts.length < 4 || bw <= 0) return;
+  if (style === 0) { stroke(pts, bw, color, alpha, false); return; }
+  const dash = style === 1 ? Math.max(2, bw * 3) : Math.max(1, bw), gap = style === 1 ? Math.max(2, bw * 2) : Math.max(1, bw);
+  let on = true, left = dash;
+  let cur: number[] = [pts[0], pts[1]];
+  for (let i = 2; i < pts.length; i += 2) {
+    const ax0 = pts[i - 2], ay0 = pts[i - 1], bx = pts[i], by = pts[i + 1];
+    const len = Math.sqrt((bx - ax0) * (bx - ax0) + (by - ay0) * (by - ay0));
+    let done: number = 0;
+    while (len - done > 0.0001) {
+      const take = Math.min(left, len - done);
+      done += take; left -= take;
+      if (on) pt(cur, ax0 + (bx - ax0) * done / len, ay0 + (by - ay0) * done / len);
+      if (left <= 0.0001) {
+        if (on && cur.length >= 4) stroke(cur, bw, color, alpha, false);
+        on = !on; left = on ? dash : gap;
+        cur = [ax0 + (bx - ax0) * done / len, ay0 + (by - ay0) * done / len];
+      }
+    }
+  }
+  if (on && cur.length >= 4) stroke(cur, bw, color, alpha, false);
+}
+function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, kk: number, r: number, bc: i32, bai: i32, bw: number): void {
+  const t = (n.bT >= 0 ? n.bT : bw) * kk, rr = (n.bR >= 0 ? n.bR : bw) * kk, b = (n.bB >= 0 ? n.bB : bw) * kk, l = (n.bL >= 0 ? n.bL : bw) * kk;
+  if (t <= 0 && rr <= 0 && b <= 0 && l <= 0) return;
+  const rtl = cornerR(n.crTL, r, kk, w, hh), rtr = cornerR(n.crTR, r, kk, w, hh), rbr = cornerR(n.crBR, r, kk, w, hh), rbl = cornerR(n.crBL, r, kk, w, hh);
+  // the centre line of the border: the box inset by half of each side's width, the radii reduced by the same
+  const x0 = x + l / 2, y0 = y + t / 2, x1 = x + w - rr / 2, y1 = y + hh - b / 2;
+  const ctl = Math.max(0, rtl - Math.max(l, t) / 2), ctr = Math.max(0, rtr - Math.max(rr, t) / 2), cbr = Math.max(0, rbr - Math.max(rr, b) / 2), cbl = Math.max(0, rbl - Math.max(l, b) / 2);
+  const sides: number[][] = [[], [], [], []];   // top, right, bottom, left: each from the middle of one corner arc to the middle of the next
+  const P = Math.PI;
+  const s0 = sides[0], s1 = sides[1], s2 = sides[2], s3 = sides[3];
+  if (ctl > 0) arcPoints(s0, x0 + ctl, y0 + ctl, ctl, 1.25 * P, 1.5 * P); else pt(s0, x0, y0);
+  if (ctr > 0) arcPoints(s0, x1 - ctr, y0 + ctr, ctr, 1.5 * P, 1.75 * P); else pt(s0, x1, y0);
+  if (ctr > 0) arcPoints(s1, x1 - ctr, y0 + ctr, ctr, 1.75 * P, 2 * P); else pt(s1, x1, y0);
+  if (cbr > 0) arcPoints(s1, x1 - cbr, y1 - cbr, cbr, 0, 0.25 * P); else pt(s1, x1, y1);
+  if (cbr > 0) arcPoints(s2, x1 - cbr, y1 - cbr, cbr, 0.25 * P, 0.5 * P); else pt(s2, x1, y1);
+  if (cbl > 0) arcPoints(s2, x0 + cbl, y1 - cbl, cbl, 0.5 * P, 0.75 * P); else pt(s2, x0, y1);
+  if (cbl > 0) arcPoints(s3, x0 + cbl, y1 - cbl, cbl, 0.75 * P, P); else pt(s3, x0, y1);
+  if (ctl > 0) arcPoints(s3, x0 + ctl, y0 + ctl, ctl, P, 1.25 * P); else pt(s3, x0, y0);
+  const cols: i32[] = [n.bcT >= 0 ? n.bcT : bc, n.bcR >= 0 ? n.bcR : bc, n.bcB >= 0 ? n.bcB : bc, n.bcL >= 0 ? n.bcL : bc];
+  const wd: number[] = [t, rr, b, l];
+  for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, n.borderStyle);
 }
 function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number): void {
   // thin overlay bars, shown while scrolling and fading out after ~1 s
