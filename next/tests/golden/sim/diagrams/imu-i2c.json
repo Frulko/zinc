@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "zinc": {
+    "mcu": "esp32s3",
+    "buses": {
+      "i2c0": {
+        "sda": 11,
+        "scl": 12
+      }
+    }
+  },
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-s3-devkitc-1"
+    },
+    {
+      "id": "imu",
+      "type": "wokwi-mpu6050",
+      "left": 150,
+      "top": 0,
+      "attrs": {
+        "i2cAddress": "0x68"
+      }
+    },
+    {
+      "id": "seg",
+      "type": "wokwi-7segment",
+      "left": 150,
+      "top": 100
+    }
+  ],
+  "connections": [
+    [
+      "imu:SDA",
+      "mcu:11",
+      "yellow",
+      []
+    ],
+    [
+      "imu:SCL",
+      "mcu:12",
+      "white",
+      []
+    ],
+    [
+      "seg:A",
+      "mcu:1",
+      "red",
+      []
+    ]
+  ]
+}

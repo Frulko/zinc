@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "dht",
+      "type": "wokwi-dht22",
+      "left": 160,
+      "top": 10,
+      "attrs": {
+        "temperature": "24.5",
+        "humidity": "40"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "dht:SDA",
+      "mcu:GPIO4",
+      "green",
+      []
+    ],
+    [
+      "dht:VCC",
+      "mcu:3V3",
+      "red",
+      []
+    ],
+    [
+      "dht:GND",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

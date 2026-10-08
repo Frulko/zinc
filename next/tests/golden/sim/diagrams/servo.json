@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "servo",
+      "type": "wokwi-servo",
+      "left": 160,
+      "top": 10
+    }
+  ],
+  "connections": [
+    [
+      "servo:PWM",
+      "mcu:GPIO18",
+      "orange",
+      []
+    ],
+    [
+      "servo:V+",
+      "mcu:5V",
+      "red",
+      []
+    ],
+    [
+      "servo:GND",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

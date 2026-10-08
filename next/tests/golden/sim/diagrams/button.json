@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "btn",
+      "type": "wokwi-pushbutton",
+      "left": 120,
+      "top": 20,
+      "attrs": {
+        "color": "green"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "mcu:GPIO0",
+      "btn:1.l",
+      "blue",
+      []
+    ],
+    [
+      "btn:2.l",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

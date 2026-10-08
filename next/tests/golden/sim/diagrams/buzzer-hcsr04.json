@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "bz",
+      "type": "wokwi-buzzer",
+      "left": 200,
+      "top": 20
+    },
+    {
+      "id": "us",
+      "type": "wokwi-hc-sr04",
+      "left": 200,
+      "top": 120
+    }
+  ],
+  "connections": [
+    [
+      "bz:1",
+      "uno:8",
+      "green",
+      []
+    ],
+    [
+      "bz:2",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "us:TRIG",
+      "uno:9",
+      "blue",
+      []
+    ],
+    [
+      "us:ECHO",
+      "uno:10",
+      "white",
+      []
+    ]
+  ]
+}

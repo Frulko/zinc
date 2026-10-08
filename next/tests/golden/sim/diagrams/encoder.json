@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "enc",
+      "type": "wokwi-ky-040",
+      "left": 160,
+      "top": 10
+    }
+  ],
+  "connections": [
+    [
+      "enc:CLK",
+      "mcu:GPIO32",
+      "green",
+      []
+    ],
+    [
+      "enc:DT",
+      "mcu:GPIO33",
+      "blue",
+      []
+    ],
+    [
+      "enc:SW",
+      "mcu:GPIO25",
+      "purple",
+      []
+    ]
+  ]
+}

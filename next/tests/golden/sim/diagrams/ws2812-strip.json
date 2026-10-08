@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "strip",
+      "type": "wokwi-led-ring",
+      "left": 160,
+      "top": 30,
+      "attrs": {
+        "pixels": "16"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "strip:DIN",
+      "mcu:GPIO14",
+      "green",
+      []
+    ],
+    [
+      "strip:VCC",
+      "mcu:5V",
+      "red",
+      []
+    ],
+    [
+      "strip:GND",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

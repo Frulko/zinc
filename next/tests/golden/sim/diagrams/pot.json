@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "pot",
+      "type": "wokwi-potentiometer",
+      "left": 120,
+      "top": 20
+    }
+  ],
+  "connections": [
+    [
+      "mcu:GPIO34",
+      "pot:SIG",
+      "orange",
+      []
+    ],
+    [
+      "pot:VCC",
+      "mcu:3V3",
+      "red",
+      []
+    ],
+    [
+      "pot:GND",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

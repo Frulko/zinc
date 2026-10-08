@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "zinc": {
+    "mcu": "esp32s3",
+    "profile": "esp32"
+  },
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-s3-devkitc-1",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "oled",
+      "type": "wokwi-ssd1306",
+      "left": 180,
+      "top": 20,
+      "attrs": {
+        "i2cAddress": "0x3c",
+        "rotate": 180
+      }
+    }
+  ],
+  "connections": [
+    [
+      "oled:SDA",
+      "mcu:21",
+      "yellow",
+      []
+    ],
+    [
+      "oled:SCL",
+      "mcu:22",
+      "white",
+      []
+    ],
+    [
+      "oled:VCC",
+      "mcu:3V3",
+      "red",
+      []
+    ],
+    [
+      "oled:GND",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

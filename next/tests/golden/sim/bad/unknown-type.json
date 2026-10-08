@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "parts": [
+    {
+      "id": "x",
+      "type": "wokwi-flux-capacitor"
+    }
+  ],
+  "connections": [
+    [
+      "x:A",
+      "nowhere:B",
+      "green",
+      []
+    ]
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "author": "zinc",
+  "editor": "zinc-atelier",
+  "zinc": {
+    "mcu": "esp32",
+    "firmware": "src/main.ts",
+    "clock": "virtual"
+  },
+  "parts": [
+    {
+      "id": "mcu",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0
+    },
+    {
+      "id": "led1",
+      "type": "wokwi-led",
+      "left": 120,
+      "top": 20,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "id": "r1",
+      "type": "wokwi-resistor",
+      "left": 80,
+      "top": 60,
+      "attrs": {
+        "value": "220"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "mcu:GPIO2",
+      "r1:1",
+      "green",
+      []
+    ],
+    [
+      "r1:2",
+      "led1:A",
+      "green",
+      []
+    ],
+    [
+      "led1:C",
+      "mcu:GND.1",
+      "black",
+      []
+    ]
+  ]
+}
