@@ -1,0 +1,24 @@
+ease ok
+inOut(ease), the timing default ok
+bezier(.25,.1,.25,1) ok
+bounce ok
+elastic(1) ok
+back() ok
+out(cubic) ok
+sin ok
+exp ok
+spring default (tension 40, friction 7) ok
+spring bounciness 8 speed 12 ok
+spring bounciness 20 speed 5 ok
+spring stiffness 100 damping 10 ok
+spring critically damped ok
+decay velocity 1, deceleration 0.998 ok
+timing 10 -> 30 in 300 ms: middle 20, end 30, finished
+sequence: ab done, b at 300 ms 1
+parallel at 120 ms: c 1 d 0.654 running
+parallel at 220 ms: done
+loop 3 times: reached 1 3 times
+interpolate 0.5: 150 20
+out of range 2: clamp 10 extend 20 identity 2
+colour half way red -> blue: rgb 128 0 128
+add(v, v * 2) at 0.5: 1.5

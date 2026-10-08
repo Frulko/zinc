@@ -296,6 +296,23 @@ Only the icons a project names are compiled in: the compiler collects `<Icon nam
 sources, plus `zinc.json` `"icons": ["compass", "moon"]` for names decided at run time (`["*"]` compiles the whole set). `icon(name, color, strokeWidth)`
 returns the parsed `Svg` (cached) or null for a name that was not compiled in; `iconNames()` lists them.
 
+## Animated (React Native's API)
+
+`zinc:ui/animated` is React Native's `Animated`: `Value`, `ValueXY`, `timing` (default easing `Easing.inOut(Easing.ease)`, 500 ms), `spring`
+(tension/friction, bounciness/speed or stiffness/damping/mass), `decay`, `interpolate` (ranges, `extrapolate` clamp/identity/extend, `colors: true` for
+0xRRGGBB outputs), `add`/`subtract`/`multiply`/`divide`/`modulo`/`diffClamp`, `sequence`, `parallel`, `stagger`, `delay`, `loop`, and `Easing`. The maths
+are ports of React Native 0.76 (MIT) and give its values (tests/t1/animated.sh compares with numbers computed by React Native's own code).
+
+```tsx
+import * as A from 'zinc:ui/animated';
+const fade = new A.Value(0);
+A.spring(fade, { toValue: 1, bounciness: 6 }).start();
+<view style={{ opacity: fade.get(), translateY: (1 - fade.get()) * 20 }} />
+```
+
+Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
+`useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
+
 ## Object styles and StyleSheet
 
 Host JSX nodes accept inline CSS-like objects, reusable `StyleSheet.create` entries, and flat arrays mixing both.

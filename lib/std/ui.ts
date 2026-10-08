@@ -2343,6 +2343,11 @@ export function animate(h: i32, key: string, to: number, dur: number, easing: st
   anims.push(a);
   return new Promise<void>(resolve => { a.done = resolve; });
 }
+// steppers run each frame after the clock moved (zinc:ui/animated drives its animations from here, ZN-364); a frame is never kept while one is registered
+const steppers: (() => void)[] = [];
+export function addStepper(f: () => void): void { if (steppers.indexOf(f) < 0) steppers.push(f); }
+export function removeStepper(f: () => void): void { const i = steppers.indexOf(f); if (i >= 0) steppers.splice(i, 1); }
+function runSteppers(): void { for (let i = 0; i < steppers.length; i++) steppers[i](); }
 function stepAnims(): void {
   let i: i32 = 0;
   while (i < anims.length) {
@@ -3730,6 +3735,7 @@ export function frame(dt: number, background: i32): void {
   clock += dt * 1000;
   frameDt = dt;
   stepAnims();
+  if (steppers.length > 0) runSteppers();
   if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
@@ -3764,7 +3770,7 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty) updateHover();
   if (prof) profMark(PROF_INPUT);
-  if (!paintDirty && !animating && anims.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
+  if (!paintDirty && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
   animating = false;
   paintDirty = false;
   if (background >= 0) clear(background);
@@ -3863,7 +3869,7 @@ export function find(text: string): i32 {
   return -1;
 }
 /** Advances the engine clock without the frame loop (tests). */
-export function tick(ms: number): void { clock += ms; stepAnims(); if (grabber === -1 && longNode >= 0) stepGestures(); }
+export function tick(ms: number): void { clock += ms; stepAnims(); if (steppers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
 
 // ---------------------------------------------------------------- input test hooks: from the first call on, the
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.

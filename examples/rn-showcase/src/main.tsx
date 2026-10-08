@@ -10,6 +10,7 @@ import { env } from 'zinc:sys';
 import { t, setDark, isDark } from './theme';
 import { styles } from './parts';
 import { Icon } from 'zinc:icons';
+import * as A from 'zinc:ui/animated';
 import { Discover, Story, STORIES } from './screens/Discover';
 import { Detail } from './screens/Detail';
 import { Stats } from './screens/Stats';
@@ -24,12 +25,14 @@ const tabStyles = StyleSheet.create({
 const DISCOVER = 0, DETAIL = 1, STATS = 2, SETTINGS = 3;
 const [screen, setScreen] = createSignal<i32>(DISCOVER);
 const [story, setStory] = createSignal<Story>(STORIES[0]);
-const [sheetTarget, setSheetTarget] = createSignal<number>(0);
-const [sheetAt, setSheetAt] = createSignal<number>(0);
+const sheetAt = new A.Value(0);   // the sheet: 0 hidden .. 1 open (Animated)
 const [textSize, setTextSize] = createSignal<string>('Comfortable');
 const toggles: Toggle[] = [new Toggle('Download for offline', true), new Toggle('Daily digest', false), new Toggle('Autoplay audio', true)];
-const [tick, setTick] = createSignal<i32>(0);   // bumped when a knob moved: the switches read their positions through it
-const [darkPos, setDarkPos] = createSignal<number>(0);
+const darkPos = new A.Value(0);
+const SPRING: A.SpringConfig = { toValue: 0, bounciness: 6, speed: 16 };
+function springTo(v: A.Value, to: number): void { A.spring(v, { toValue: to, bounciness: SPRING.bounciness, speed: SPRING.speed }).start(); }
+function openSheet(): void { A.spring(sheetAt, { toValue: 1, bounciness: 4, speed: 14 }).start(); }
+function closeSheet(): void { A.timing(sheetAt, { toValue: 0, duration: 220, easing: A.Easing.out(A.Easing.cubic) }).start(); }
 const scroller = createNodeRef();
 
 function Tab(p: { label: string; id: i32; icon: string }): i32 {
@@ -46,36 +49,27 @@ function App(): i32 {
       <Show when={screen() === DISCOVER}>{Discover((s: Story) => { setStory(s); setScreen(DETAIL); })}</Show>
       <Show when={screen() === DETAIL}>{Detail(story, () => setScreen(DISCOVER))}</Show>
       <Show when={screen() === STATS}>{Stats()}</Show>
-      <Show when={screen() === SETTINGS}>{Settings(toggles, (i: i32) => { tick(); return toggles[i].pos; }, (i: i32) => { toggles[i].on = !toggles[i].on; }, () => setSheetTarget(1), darkPos, () => setDark(!isDark()))}</Show>
+      <Show when={screen() === SETTINGS}>{Settings(toggles, (i: i32) => toggles[i].pos.get(), (i: i32) => { toggles[i].on = !toggles[i].on; springTo(toggles[i].pos, toggles[i].on ? 1 : 0); }, openSheet, () => darkPos.get(), () => { setDark(!isDark()); springTo(darkPos, isDark() ? 1 : 0); })}</Show>
     </view>
     <view style={[tabStyles.bar, { backgroundColor: t().surface, borderWidth: 1, borderColor: t().line }]}>
       <Tab label="Discover" id={DISCOVER} icon="compass" />
       <Tab label="Stats" id={STATS} icon="chart-column" />
       <Tab label="Settings" id={SETTINGS} icon="settings" />
     </view>
-    <Sheet at={sheetAt} close={() => setSheetTarget(0)} choose={(s: string) => { setTextSize(s); setSheetTarget(0); }} current={textSize} />
+    <Sheet at={() => sheetAt.get()} close={closeSheet} choose={(s: string) => { setTextSize(s); closeSheet(); }} current={textSize} />
   </view>;
 }
 
-/** Eases `v` towards `to` (critically damped feel at 60 fps). */
-function ease(v: number, to: number, dt: number): number { const k = Math.min(1, dt * 14); const n = v + (to - v) * k; return Math.abs(to - n) < 0.002 ? to : n; }
 
 // test hooks: start on a given screen and scheme, with the sheet open
 const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME'), scrollTo = env('SHOWCASE_SCROLL');
 let frames = 0;
-if (scheme === 'dark') { setDark(true); setDarkPos(1); }
+if (scheme === 'dark') { setDark(true); darkPos.setValue(1); }
 if (start === 'detail') { setStory(STORIES[2]); setScreen(DETAIL); }
 if (start === 'stats') setScreen(STATS);
 if (start === 'settings' || start === 'sheet') setScreen(SETTINGS);
-if (start === 'sheet') { setSheetTarget(1); setSheetAt(1); }
+if (start === 'sheet') sheetAt.setValue(1);
 
 render(App, 0xF6F3EE, (dt: number) => {
   if (++frames === 2 && scrollTo !== '') ui.scrollTo(scroller.node, 0, parseFloat(scrollTo));   // SHOWCASE_SCROLL=400: the content scrolled (screenshots)
-  let moved = false;
-  for (const g of toggles) { const p = ease(g.pos, g.on ? 1 : 0, dt); if (p !== g.pos) { g.pos = p; moved = true; } }
-  if (moved) setTick(tick() + 1);
-  const d = ease(darkPos(), isDark() ? 1 : 0, dt);
-  if (d !== darkPos()) setDarkPos(d);
-  const a = ease(sheetAt(), sheetTarget(), dt);
-  if (a !== sheetAt()) setSheetAt(a);
-});
+});   // switches, the sheet and the scheme move with zinc:ui/animated (springs and timing): nothing to step here

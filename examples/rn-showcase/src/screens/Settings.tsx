@@ -2,10 +2,11 @@
 import { styles, Switch } from '../parts';
 import { t, isDark } from '../theme';
 import { Icon } from 'zinc:icons';
+import * as A from 'zinc:ui/animated';
 
 export class Toggle {
-  label: string; on: boolean; pos: number;   // pos: the knob, 0..1, eased towards on by the app each frame
-  constructor(label: string, on: boolean) { this.label = label; this.on = on; this.pos = on ? 1 : 0; }
+  label: string; on: boolean; pos: A.Value;   // pos: the knob, 0..1, sprung by Animated when the switch flips
+  constructor(label: string, on: boolean) { this.label = label; this.on = on; this.pos = new A.Value(on ? 1 : 0); }
 }
 
 function Row(p: { label: string; icon: string; last: boolean; children: () => i32 }): i32 {
