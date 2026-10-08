@@ -168,6 +168,10 @@
   "env": {
    "ZINC_CHATAIGNE_SIM": "1",
    "ZINC_CHATAIGNE_DEMO": "1"
+  },
+  "known": {
+   "over": 6255,
+   "reason": "max-w-[240px] on the chat bubbles is honoured now (ZN-252 arbitrary values: the bubble is 240 wide); the prototype ignored the value and drew them wider"
   }
  },
  {
@@ -415,7 +419,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 422,
+   "reason": "the status line prints measured timings (eval and draw ms), which differ from run to run"
+  }
  },
  {
   "entry": "service/sensor-hub/src/main.ts",
