@@ -77,6 +77,21 @@ const Target* findTarget(const std::string& name) {
   return nullptr;
 }
 
+std::vector<PinnedTool> pinnedTools() {
+  std::vector<PinnedTool> out;
+  auto add = [&](const char* name, const std::string& version, const Pin* pins, std::size_t n, const std::string& dirPrefix, const char* marker) {
+    for (std::size_t i = 0; i < n; ++i) {
+      if (hostName() != pins[i].host) continue;
+      std::string dir = (fs::path(home()) / "toolchains" / (dirPrefix + pins[i].host + "-" + version)).string();
+      out.push_back(PinnedTool{name, version, pins[i].file, pins[i].sha256, dir, fs::exists(fs::path(dir) / marker)});
+    }
+  };
+  add("zig", kVersion, kZigPins, sizeof kZigPins / sizeof *kZigPins, "zig-", "zig");
+  add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
+  add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
+  return out;
+}
+
 std::string home() {
   if (const char* h = std::getenv("ZINC_HOME")) return h;
   const char* u = std::getenv("HOME");

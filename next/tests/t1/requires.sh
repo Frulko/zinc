@@ -20,6 +20,6 @@ for pr in esp32 rpi1; do
   case "$out" in *"requires gpu>=gles3"*) [ $code -ne 0 ] || { echo "gpu>=gles3 on $pr exits 0"; fail=1; } ;; *) echo "gpu>=gles3 on $pr: $out"; fail=1 ;; esac
 done
 for pr in linux macos; do [ "$(ZINC_HEADLESS=1 "$ZINC" run "$tmp/gpu" --profile $pr 2>&1)" = ok ] || { echo "gpu>=gles3 must hold on $pr"; fail=1; }; done
-"$ZINC" doctor | grep -q '^tier T[0-4]$' || { echo "zinc doctor prints no tier"; fail=1; }
+"$ZINC" doctor | grep -q 'tier T[0-4]$' || { echo "zinc doctor prints no tier"; fail=1; }
 [ $fail -eq 0 ] && echo "requires: ok"
 exit $fail

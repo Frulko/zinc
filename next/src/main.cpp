@@ -19,6 +19,7 @@
 #include "frontend/parser.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
+#include "cli_core.h"
 #include "frontend/capabilities.h"
 #ifdef ZN_WEBGL
 #include "gl/webgl_js.h"
@@ -287,8 +288,25 @@ int main(int argc, char** argv) {
     for (int j = k; j + used < argc; ++j) argv[j] = argv[j + used];
     argc -= used; --k;
   }
+  {   // help, init and the bare project commands (ZN-138)
+    std::vector<std::string> cl(argv, argv + argc);
+    if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
+    if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
+    if (argc >= 2 && !std::strcmp(argv[1], "init")) return zn::cli::init(cl, gRoot);
+    std::string derr;
+    if (!zn::cli::discoverEntry(cl, derr)) { std::fprintf(stderr, "zinc: %s\n", derr.c_str()); return 2; }
+    if (cl.size() != static_cast<std::size_t>(argc) || !std::equal(cl.begin(), cl.end(), argv, [](const std::string& a, const char* b) { return a == b; })) {
+      static std::vector<std::string> keep;
+      static std::vector<char*> ptrs;
+      keep = cl;
+      for (std::string& x : keep) ptrs.push_back(x.data());
+      ptrs.push_back(nullptr);
+      argv = ptrs.data();
+      argc = static_cast<int>(keep.size());
+    }
+  }
   if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
-  if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: what this machine offers the renderer (ZN-175): profile, gpu, tier
+  if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: the engine, the renderer of this machine, the pinned tools, the host tools (ZN-138, ZN-175)
     const zn::frontend::Profile* hp = gProfile ? gProfile : zn::frontend::findProfile(
 #if defined(__APPLE__)
         "macos"
@@ -307,8 +325,7 @@ int main(int argc, char** argv) {
       if (!egl || !gles) { gpu = "none"; tier = "T0"; note = " (libEGL/libGLESv2 not found: software raster)"; }
     }
 #endif
-    std::printf("profile %s\ngpu %s%s\ntier %s\nrenderer %s\n", hp->name, gpu.c_str(), note.c_str(), tier.c_str(), gpu == "none" ? "cpu" : "auto");
-    return 0;
+    return zn::cli::doctor(gRoot, std::string("profile ") + hp->name + "\ngpu " + gpu + note + "\ntier " + tier + "\nrenderer " + (gpu == "none" ? "cpu" : "auto") + "\n");
   }
   if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(

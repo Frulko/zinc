@@ -34,6 +34,10 @@ bool ensureEsptool(std::string& path, std::string& err);
 // pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.
 bool qemuCommand(const std::string& chip, const std::string& sourceRoot, std::string& cmd, std::string& err);
 
+// The pinned tools of this machine (zinc doctor): what zinc downloads on first use, where it keeps it, and whether it is there already.
+struct PinnedTool { std::string name, version, archive, sha256, dir; bool present; };
+std::vector<PinnedTool> pinnedTools();
+
 // Compiles `cppFile` (the C++ of a program, src/aot) together with the runtime for `target` and writes the executable `outFile`.
 // `sourceRoot` is the directory of the engine sources (next/). Objects of the runtime are cached per target under home()/cache.
 bool crossBuild(const std::string& zig, const std::string& sourceRoot, const std::string& cppFile, const std::string& target, const std::string& outFile, std::string& err);

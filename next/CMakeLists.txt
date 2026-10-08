@@ -235,7 +235,7 @@ add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/strip.cpp src/qjs/prelude.cpp 
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend)
 target_include_directories(zn_qjs PUBLIC include src)
 
-add_executable(zinc src/main.cpp src/test_cmd.cpp)
+add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
   add_library(zn_native_fixture STATIC tests/native/fixture.c)   # also linked into the programs zinc build writes when they call the module
