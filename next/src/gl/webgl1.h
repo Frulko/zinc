@@ -71,6 +71,7 @@ class WebGL1 {
   void drawArrays(std::uint32_t mode, int first, int count);
   void drawElements(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset);
   struct Param;   // defined with the queries below
+  struct Active;
   // ---- WebGL 2.0 (webgl2.cpp)
   Id createVertexArray();
   void deleteVertexArray(Id v);
@@ -92,6 +93,52 @@ class WebGL1 {
   void getBufferSubData(std::uint32_t target, std::int64_t srcOffset, void* dst, std::size_t dstBytes);
   void uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count);
   void vertexAttribIPointer(std::uint32_t index, int size, std::uint32_t type, int stride, std::int64_t offset);
+  // ---- WebGL 2.0 textures, samplers, queries, sync, transform feedback, blits (webgl2_tex.cpp)
+  void texImage3D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int depth, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void texSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int width, int height, int depth, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void texStorage2D(std::uint32_t target, int levels, std::uint32_t internalformat, int width, int height);
+  void texStorage3D(std::uint32_t target, int levels, std::uint32_t internalformat, int width, int height, int depth);
+  void copyTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int x, int y, int width, int height);
+  Id createSampler();
+  void deleteSampler(Id s);
+  bool isSampler(Id s) const { auto it = samplers_.find(s); return it != samplers_.end() && it->second.bound; }
+  void bindSampler(std::uint32_t unit, Id s);
+  void samplerParameteri(Id s, std::uint32_t pname, int v);
+  void samplerParameterf(Id s, std::uint32_t pname, float v);
+  Param getSamplerParameter(Id s, std::uint32_t pname);
+  Id createQuery();
+  void deleteQuery(Id q);
+  bool isQuery(Id q) const { auto it = queries_.find(q); return it != queries_.end() && it->second.used; }
+  void beginQuery(std::uint32_t target, Id q);
+  void endQuery(std::uint32_t target);
+  Param getQuery(std::uint32_t target, std::uint32_t pname);
+  Param getQueryParameter(Id q, std::uint32_t pname);
+  Id fenceSync(std::uint32_t condition, std::uint32_t flags);
+  bool isSync(Id s) const { return syncs_.count(s) != 0; }
+  void deleteSync(Id s);
+  std::uint32_t clientWaitSync(Id s, std::uint32_t flags, double timeoutNs);
+  void waitSync(Id s, std::uint32_t flags, std::int64_t timeout);
+  Param getSyncParameter(Id s, std::uint32_t pname);
+  Id createTransformFeedback();
+  void deleteTransformFeedback(Id t);
+  bool isTransformFeedback(Id t) const { auto it = tfs_.find(t); return it != tfs_.end() && it->second.bound; }
+  void bindTransformFeedback(std::uint32_t target, Id t);
+  void beginTransformFeedback(std::uint32_t primitiveMode);
+  void endTransformFeedback();
+  void pauseTransformFeedback();
+  void resumeTransformFeedback();
+  void transformFeedbackVaryings(Id p, const std::vector<std::string>& names, std::uint32_t bufferMode);
+  Active getTransformFeedbackVarying(Id p, std::uint32_t index);
+  void blitFramebuffer(int sx0, int sy0, int sx1, int sy1, int dx0, int dy0, int dx1, int dy1, std::uint32_t mask, std::uint32_t filter);
+  void renderbufferStorageMultisample(std::uint32_t target, int samples, std::uint32_t internalformat, int width, int height);
+  void clearBufferfv(std::uint32_t buffer, int drawbuffer, const float* v, std::size_t n);
+  void clearBufferiv(std::uint32_t buffer, int drawbuffer, const int* v, std::size_t n);
+  void clearBufferuiv(std::uint32_t buffer, int drawbuffer, const std::uint32_t* v, std::size_t n);
+  void clearBufferfi(std::uint32_t buffer, int drawbuffer, float depth, int stencil);
+  void invalidateFramebuffer(std::uint32_t target, const std::uint32_t* attachments, int n);
+  void framebufferTextureLayer(std::uint32_t target, std::uint32_t attachment, Id tex, int level, int layer);
+  int getFragDataLocation(Id p, const std::string& name);
+  std::vector<int> getInternalformatParameter(std::uint32_t target, std::uint32_t internalformat, std::uint32_t pname);
   // textures
   Id createTexture();
   void deleteTexture(Id t);
@@ -181,7 +228,10 @@ class WebGL1 {
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
   struct Program { std::uint32_t name = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; std::string log; std::map<std::string, int> attribBindings; };
-  struct Tex { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0, target = 0; bool bound = false; };
+  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, target = 0; bool bound = false, immutable = false; int levels = 0; };
+  struct Sampler { std::uint32_t name = 0; bool bound = false; };
+  struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
+  struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
   struct Fbo { std::uint32_t name = 0; Id color = 0; bool bound = false; };
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
@@ -189,6 +239,8 @@ class WebGL1 {
 
   void error(std::uint32_t code) { flags_ |= bit(code); }
   static unsigned bit(std::uint32_t code);
+  Id& boundTex(std::uint32_t target);   // the texture bound to `target` on the active unit
+  bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub);
   bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1);
   bool bufferTargetOk(std::uint32_t t) const;
   Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
@@ -202,13 +254,18 @@ class WebGL1 {
   std::map<Id, Fbo> fbos_;
   std::map<Id, Rbo> rbos_;
   std::map<Id, Vao> vaos_;
+  std::map<Id, Sampler> samplers_;
+  std::map<Id, Query> queries_;
+  std::map<Id, TransformFeedback> tfs_;
+  std::map<Id, void*> syncs_;   // GLsync objects
+  std::map<std::uint32_t, Id> activeQuery_;   // target -> the query in flight
   Vao defaultVao_;                       // the state of the VAO 0 while another VAO is bound
   Id curVao_ = 0;
   std::map<std::uint32_t, Id> otherBuffers_;   // WebGL 2 targets other than ARRAY / ELEMENT_ARRAY
   struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; };
   std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
   int version_ = 1;
-  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, fbo_ = 0, rbo_ = 0;
+  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, tex3d_[8] = {}, texArr_[8] = {}, samplerUnit_[8] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
   int unpackAlignment_ = 4, maxTexSize_ = 0;

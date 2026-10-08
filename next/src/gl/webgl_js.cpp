@@ -22,8 +22,8 @@ struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth =
 
 JSClassID gCtxClass = 0, gObjClass = 0;
 JSValue gProto2, gPrecisionProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
-JSValue gKindProto[9];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
-const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject"};
+JSValue gKindProto[13];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
+const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject", "WebGLSampler", "WebGLQuery", "WebGLSync", "WebGLTransformFeedback"};
 
 void ctxFinalizer(JSRuntime* rt, JSValue v) {
   Gl* g = static_cast<Gl*>(JS_GetOpaque(v, gCtxClass));
@@ -549,12 +549,159 @@ M(uniform2ui) { SELF NEED(3); LOC std::uint32_t v[2] = {U(1), U(2)}; gl.uniformN
 M(uniform3ui) { SELF NEED(4); LOC std::uint32_t v[3] = {U(1), U(2), U(3)}; gl.uniformNui(l, 3, v, 3); return JS_UNDEFINED; }
 M(uniform4ui) { SELF NEED(5); LOC std::uint32_t v[4] = {U(1), U(2), U(3), U(4)}; gl.uniformNui(l, 4, v, 4); return JS_UNDEFINED; }
 M(vertexAttribIPointer) { SELF NEED(5); gl.vertexAttribIPointer(U(0), I(1), U(2), I(3), i64(c, argv[4])); return JS_UNDEFINED; }
+
+// ---- WebGL 2.0 textures, samplers, queries, sync, transform feedback (ZN-203.07)
+JSValue dataArg(JSContext* c, JSValueConst v, const void*& p, std::size_t& n, bool& nul) {
+  p = nullptr; n = 0; nul = JS_IsNull(v) || JS_IsUndefined(v);
+  if (nul) return JS_UNDEFINED;
+  std::uint8_t* b = nullptr;
+  if (!bytesOf(c, v, b, n)) return JS_ThrowTypeError(c, "pixels must be null or an ArrayBuffer view");
+  p = b;
+  return JS_UNDEFINED;
+}
+M(texImage3D) {
+  SELF NEED2; NEED(10);
+  const void* p; std::size_t n; bool nul;
+  JSValue e = dataArg(c, argv[9], p, n, nul); if (JS_IsException(e)) return e;
+  gl.texImage3D(U(0), I(1), U(2), I(3), I(4), I(5), I(6), U(7), U(8), p, n);
+  return JS_UNDEFINED;
+}
+M(texSubImage3D) {
+  SELF NEED2; NEED(11);
+  const void* p; std::size_t n; bool nul;
+  JSValue e = dataArg(c, argv[10], p, n, nul); if (JS_IsException(e)) return e;
+  gl.texSubImage3D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), U(8), U(9), p, n);
+  return JS_UNDEFINED;
+}
+M(texStorage2D) { SELF NEED2; NEED(5); gl.texStorage2D(U(0), I(1), U(2), I(3), I(4)); return JS_UNDEFINED; }
+M(texStorage3D) { SELF NEED2; NEED(6); gl.texStorage3D(U(0), I(1), U(2), I(3), I(4), I(5)); return JS_UNDEFINED; }
+M(copyTexSubImage3D) { SELF NEED2; NEED(9); gl.copyTexSubImage3D(U(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), I(8)); return JS_UNDEFINED; }
+M(createSampler) { SELF NEED2; return wrapOnce(c, g, 9, gl.createSampler()); }
+M(deleteSampler) { SELF NEED(1); OBJ(o, 0, 9) gl.deleteSampler(o.id); return JS_UNDEFINED; }
+M(isSampler) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 9 && gl.isSampler(o->id)); }
+M(bindSampler) { SELF NEED(2); OBJ(o, 1, 9) gl.bindSampler(U(0), o.id); return JS_UNDEFINED; }
+M(samplerParameteri) { SELF NEED(3); OBJR(o, 0, 9) gl.samplerParameteri(o.id, U(1), I(2)); return JS_UNDEFINED; }
+M(samplerParameterf) { SELF NEED(3); OBJR(o, 0, 9) gl.samplerParameterf(o.id, U(1), F(2)); return JS_UNDEFINED; }
+M(getSamplerParameter) { SELF NEED(2); OBJR(o, 0, 9) std::uint32_t pn = U(1); return paramToJs(c, g, pn, gl.getSamplerParameter(o.id, pn)); }
+M(createQuery) { SELF NEED2; return wrapOnce(c, g, 10, gl.createQuery()); }
+M(deleteQuery) { SELF NEED(1); OBJ(o, 0, 10) gl.deleteQuery(o.id); return JS_UNDEFINED; }
+M(isQuery) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 10 && gl.isQuery(o->id)); }
+M(beginQuery) { SELF NEED(2); OBJR(o, 1, 10) gl.beginQuery(U(0), o.id); return JS_UNDEFINED; }
+M(endQuery) { SELF NEED(1); gl.endQuery(U(0)); return JS_UNDEFINED; }
+M(getQuery) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getQuery(U(0), U(1))); }
+M(getQueryParameter) { SELF NEED(2); OBJR(o, 0, 10) return paramToJs(c, g, U(1), gl.getQueryParameter(o.id, U(1))); }
+M(fenceSync) { SELF NEED2; NEED(2); Id id = gl.fenceSync(U(0), U(1)); return id ? wrapOnce(c, g, 11, id) : JS_NULL; }
+M(isSync) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 11 && gl.isSync(o->id)); }
+M(deleteSync) { SELF NEED(1); OBJ(o, 0, 11) gl.deleteSync(o.id); return JS_UNDEFINED; }
+M(clientWaitSync) { SELF NEED(3); OBJR(o, 0, 11) return JS_NewUint32(c, gl.clientWaitSync(o.id, U(1), num(c, argv[2]))); }
+M(waitSync) { SELF NEED(3); OBJR(o, 0, 11) gl.waitSync(o.id, U(1), i64(c, argv[2])); return JS_UNDEFINED; }
+M(getSyncParameter) { SELF NEED(2); OBJR(o, 0, 11) return paramToJs(c, g, U(1), gl.getSyncParameter(o.id, U(1))); }
+M(createTransformFeedback) { SELF NEED2; return wrapOnce(c, g, 12, gl.createTransformFeedback()); }
+M(deleteTransformFeedback) { SELF NEED(1); OBJ(o, 0, 12) gl.deleteTransformFeedback(o.id); return JS_UNDEFINED; }
+M(isTransformFeedback) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 12 && gl.isTransformFeedback(o->id)); }
+M(bindTransformFeedback) { SELF NEED(2); OBJ(o, 1, 12) gl.bindTransformFeedback(U(0), o.id); return JS_UNDEFINED; }
+M(beginTransformFeedback) { SELF NEED(1); gl.beginTransformFeedback(U(0)); return JS_UNDEFINED; }
+M(endTransformFeedback) { SELF gl.endTransformFeedback(); return JS_UNDEFINED; }
+M(pauseTransformFeedback) { SELF gl.pauseTransformFeedback(); return JS_UNDEFINED; }
+M(resumeTransformFeedback) { SELF gl.resumeTransformFeedback(); return JS_UNDEFINED; }
+M(transformFeedbackVaryings) {
+  SELF NEED(3); OBJR(p, 0, 3)
+  std::vector<std::string> names;
+  JSValue lv = JS_GetPropertyStr(c, argv[1], "length");
+  std::uint32_t n = u32(c, lv);
+  JS_FreeValue(c, lv);
+  for (std::uint32_t i = 0; i < n; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], i); names.push_back(str(c, e)); JS_FreeValue(c, e); }
+  gl.transformFeedbackVaryings(p.id, names, U(2));
+  return JS_UNDEFINED;
+}
+M(getTransformFeedbackVarying) { SELF NEED(2); OBJR(p, 0, 3) return activeInfo(c, gl.getTransformFeedbackVarying(p.id, U(1))); }
+M(blitFramebuffer) { SELF NEED(10); gl.blitFramebuffer(I(0), I(1), I(2), I(3), I(4), I(5), I(6), I(7), U(8), U(9)); return JS_UNDEFINED; }
+M(renderbufferStorageMultisample) { SELF NEED(5); gl.renderbufferStorageMultisample(U(0), I(1), U(2), I(3), I(4)); return JS_UNDEFINED; }
+M(clearBufferfv) { SELF NEED(3); std::vector<float> v; if (!floatsOf(c, argv[2], v)) return JS_ThrowTypeError(c, "values must be a Float32Array or an array"); gl.clearBufferfv(U(0), I(1), v.data(), v.size()); return JS_UNDEFINED; }
+M(clearBufferiv) {
+  SELF NEED(3); std::vector<int> v; std::uint8_t* p = nullptr; std::size_t nb = 0;
+  if (bytesOf(c, argv[2], p, nb)) { v.resize(nb / 4); std::memcpy(v.data(), p, v.size() * 4); }
+  else if (JS_IsArray(argv[2])) { JSValue lv = JS_GetPropertyStr(c, argv[2], "length"); std::uint32_t len = u32(c, lv); JS_FreeValue(c, lv); for (std::uint32_t i = 0; i < len; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[2], i); v.push_back(i32(c, e)); JS_FreeValue(c, e); } }
+  else return JS_ThrowTypeError(c, "values must be an Int32Array or an array");
+  gl.clearBufferiv(U(0), I(1), v.data(), v.size());
+  return JS_UNDEFINED;
+}
+M(clearBufferuiv) {
+  SELF NEED(3); std::vector<std::uint32_t> v; std::uint8_t* p = nullptr; std::size_t nb = 0;
+  if (bytesOf(c, argv[2], p, nb)) { v.resize(nb / 4); std::memcpy(v.data(), p, v.size() * 4); }
+  else if (JS_IsArray(argv[2])) { JSValue lv = JS_GetPropertyStr(c, argv[2], "length"); std::uint32_t len = u32(c, lv); JS_FreeValue(c, lv); for (std::uint32_t i = 0; i < len; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[2], i); v.push_back(u32(c, e)); JS_FreeValue(c, e); } }
+  else return JS_ThrowTypeError(c, "values must be a Uint32Array or an array");
+  gl.clearBufferuiv(U(0), I(1), v.data(), v.size());
+  return JS_UNDEFINED;
+}
+M(clearBufferfi) { SELF NEED(4); gl.clearBufferfi(U(0), I(1), F(2), I(3)); return JS_UNDEFINED; }
+M(invalidateFramebuffer) {
+  SELF NEED(2);
+  std::uint32_t a[16]; JSValue lv = JS_GetPropertyStr(c, argv[1], "length"); std::uint32_t n = u32(c, lv); JS_FreeValue(c, lv); if (n > 16) n = 16;
+  for (std::uint32_t i = 0; i < n; ++i) { JSValue e = JS_GetPropertyUint32(c, argv[1], i); a[i] = u32(c, e); JS_FreeValue(c, e); }
+  gl.invalidateFramebuffer(U(0), a, static_cast<int>(n));
+  return JS_UNDEFINED;
+}
+M(framebufferTextureLayer) { SELF NEED(5); OBJ(o, 2, 4) gl.framebufferTextureLayer(U(0), U(1), o.id, I(3), I(4)); return JS_UNDEFINED; }
+M(getFragDataLocation) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewInt32(c, gl.getFragDataLocation(p.id, str(c, argv[1]))); }
+M(getInternalformatParameter) {
+  SELF NEED(3);
+  std::vector<int> v = gl.getInternalformatParameter(U(0), U(1), U(2));
+  std::vector<double> d(v.begin(), v.end());
+  return typed(c, "Int32Array", d);
+}
+
 const Fn kMethods2[] = {
   {"createVertexArray", js_createVertexArray, 0}, {"deleteVertexArray", js_deleteVertexArray, 1}, {"bindVertexArray", js_bindVertexArray, 1}, {"isVertexArray", js_isVertexArray, 1},
   {"vertexAttribDivisor", js_vertexAttribDivisor, 2}, {"drawArraysInstanced", js_drawArraysInstanced, 4}, {"drawElementsInstanced", js_drawElementsInstanced, 5}, {"drawRangeElements", js_drawRangeElements, 6},
   {"drawBuffers", js_drawBuffers, 1}, {"readBuffer", js_readBuffer, 1}, {"bindBufferBase", js_bindBufferBase, 3}, {"bindBufferRange", js_bindBufferRange, 5},
   {"getUniformBlockIndex", js_getUniformBlockIndex, 2}, {"uniformBlockBinding", js_uniformBlockBinding, 3}, {"getActiveUniformBlockParameter", js_getActiveUniformBlockParameter, 3}, {"getActiveUniformBlockName", js_getActiveUniformBlockName, 2},
   {"copyBufferSubData", js_copyBufferSubData, 5}, {"getBufferSubData", js_getBufferSubData, 3},
+  {"texImage3D", js_texImage3D, 10},
+  {"texSubImage3D", js_texSubImage3D, 11},
+  {"texStorage2D", js_texStorage2D, 5},
+  {"texStorage3D", js_texStorage3D, 6},
+  {"copyTexSubImage3D", js_copyTexSubImage3D, 9},
+  {"createSampler", js_createSampler, 0},
+  {"deleteSampler", js_deleteSampler, 1},
+  {"isSampler", js_isSampler, 1},
+  {"bindSampler", js_bindSampler, 2},
+  {"samplerParameteri", js_samplerParameteri, 3},
+  {"samplerParameterf", js_samplerParameterf, 3},
+  {"getSamplerParameter", js_getSamplerParameter, 2},
+  {"createQuery", js_createQuery, 0},
+  {"deleteQuery", js_deleteQuery, 1},
+  {"isQuery", js_isQuery, 1},
+  {"beginQuery", js_beginQuery, 2},
+  {"endQuery", js_endQuery, 1},
+  {"getQuery", js_getQuery, 2},
+  {"getQueryParameter", js_getQueryParameter, 2},
+  {"fenceSync", js_fenceSync, 2},
+  {"isSync", js_isSync, 1},
+  {"deleteSync", js_deleteSync, 1},
+  {"clientWaitSync", js_clientWaitSync, 3},
+  {"waitSync", js_waitSync, 3},
+  {"getSyncParameter", js_getSyncParameter, 2},
+  {"createTransformFeedback", js_createTransformFeedback, 0},
+  {"deleteTransformFeedback", js_deleteTransformFeedback, 1},
+  {"isTransformFeedback", js_isTransformFeedback, 1},
+  {"bindTransformFeedback", js_bindTransformFeedback, 2},
+  {"beginTransformFeedback", js_beginTransformFeedback, 1},
+  {"endTransformFeedback", js_endTransformFeedback, 0},
+  {"pauseTransformFeedback", js_pauseTransformFeedback, 0},
+  {"resumeTransformFeedback", js_resumeTransformFeedback, 0},
+  {"transformFeedbackVaryings", js_transformFeedbackVaryings, 3},
+  {"getTransformFeedbackVarying", js_getTransformFeedbackVarying, 2},
+  {"blitFramebuffer", js_blitFramebuffer, 10},
+  {"renderbufferStorageMultisample", js_renderbufferStorageMultisample, 5},
+  {"clearBufferfv", js_clearBufferfv, 3},
+  {"clearBufferiv", js_clearBufferiv, 3},
+  {"clearBufferuiv", js_clearBufferuiv, 3},
+  {"clearBufferfi", js_clearBufferfi, 4},
+  {"invalidateFramebuffer", js_invalidateFramebuffer, 2},
+  {"framebufferTextureLayer", js_framebufferTextureLayer, 5},
+  {"getFragDataLocation", js_getFragDataLocation, 2},
+  {"getInternalformatParameter", js_getInternalformatParameter, 3},
   {"uniform1ui", js_uniform1ui, 2}, {"uniform2ui", js_uniform2ui, 3}, {"uniform3ui", js_uniform3ui, 4}, {"uniform4ui", js_uniform4ui, 5}, {"vertexAttribIPointer", js_vertexAttribIPointer, 5},
 };
 
@@ -650,7 +797,7 @@ void install(JSContext* c) {
   };
   JSValue ctxCtor = ctor("WebGLRenderingContext", proto);
   for (const Const& k : kConsts) JS_SetPropertyStr(c, ctxCtor, k.name, JS_NewUint32(c, k.value));
-  for (int k = 1; k <= 8; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
+  for (int k = 1; k <= 12; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
   gPrecisionProto = JS_NewObject(c);
   ctor("WebGLShaderPrecisionFormat", gPrecisionProto);
   gProto2 = JS_NewObjectProto(c, proto);   // WebGL2RenderingContext.prototype

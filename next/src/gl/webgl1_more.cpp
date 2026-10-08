@@ -115,6 +115,7 @@ void WebGL1::deleteFramebuffer(Id id) {
 
 // ---- queries
 bool WebGL1::isEnabled(std::uint32_t cap) {
+  if (version_ == 2 && cap == GL_RASTERIZER_DISCARD) return glIsEnabled(cap) != 0;
   switch (cap) { case GL_BLEND: case GL_CULL_FACE: case GL_DEPTH_TEST: case GL_DITHER: case GL_POLYGON_OFFSET_FILL: case GL_SAMPLE_ALPHA_TO_COVERAGE: case GL_SAMPLE_COVERAGE: case GL_SCISSOR_TEST: case GL_STENCIL_TEST: return glIsEnabled(cap) != 0; }
   error(GL_INVALID_ENUM);
   return false;
@@ -361,6 +362,11 @@ void WebGL1::vertexAttribNf(std::uint32_t i, int n, const float* v) {
 
 // ---- textures
 void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) {
+  if (version_ == 2) {   // sized formats: the pair (format, type) is checked against the ES 3.0 table
+    if (!data) return error(GL_INVALID_VALUE);
+    uploadTexture(false, target, level, 0, width, height, 1, format, type, data, dataBytes, xoff, yoff, 0, true);
+    return;
+  }
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   const bool validFormat = format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA;
@@ -402,8 +408,8 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
 }
 void WebGL1::generateMipmap(std::uint32_t target) {
-  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) return error(GL_INVALID_ENUM);
-  Id id = (target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_];
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
+  Id id = boundTex(target);
   if (!id) return error(GL_INVALID_OPERATION);
   const Tex& t = textures_[id];
   if (target == GL_TEXTURE_2D && (t.w == 0 || t.h == 0)) return error(GL_INVALID_OPERATION);   // level 0 must be defined

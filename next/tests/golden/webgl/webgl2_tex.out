@@ -1,0 +1,37 @@
+R8 ok
+RGBA32F ok
+RGBA8 with FLOAT (INVALID_OPERATION 0x502) 0x502
+bad internal format (INVALID_ENUM 0x500) 0x500
+texStorage2D ok
+texImage2D on immutable (0x502) 0x502
+texSubImage2D on immutable ok
+texStorage2D twice (0x502) 0x502
+texImage3D ok
+texSubImage3D ok
+WRAP_R ok
+texStorage3D array ok
+generateMipmap array ok
+an array texture bound to TEXTURE_2D (0x502) 0x502
+framebufferTextureLayer ok
+status true
+clearBufferfv ok
+clearBufferfv(drawbuffer 7) (0x501) 0x501
+blitFramebuffer ok
+blitted pixel 0,255,0,255
+blit depth with LINEAR (0x502) 0x502
+samplerParameteri ok
+sampler param true true
+sampler bad wrap (0x500) 0x500
+bindSampler(99) (0x501) 0x501
+beginQuery ok
+current query true
+endQuery ok
+endQuery with none active (0x502) 0x502
+result false true
+sync true true true
+sync deleted false
+linked true {"name":"y","size":1,"type":5126}
+transform feedback ok
+captured 2 4 6
+endTransformFeedback with none active (0x502) 0x502
+internalformat samples true

@@ -129,10 +129,12 @@ std::uint32_t WebGL1::getError() {
 
 // ---- state
 void WebGL1::enable(std::uint32_t cap) {
+  if (version_ == 2 && cap == GL_RASTERIZER_DISCARD) { glEnable(cap); return; }
   switch (cap) { case GL_BLEND: case GL_CULL_FACE: case GL_DEPTH_TEST: case GL_DITHER: case GL_POLYGON_OFFSET_FILL: case GL_SAMPLE_ALPHA_TO_COVERAGE: case GL_SAMPLE_COVERAGE: case GL_SCISSOR_TEST: case GL_STENCIL_TEST: glEnable(cap); return; }
   error(GL_INVALID_ENUM);
 }
 void WebGL1::disable(std::uint32_t cap) {
+  if (version_ == 2 && cap == GL_RASTERIZER_DISCARD) { glDisable(cap); return; }
   switch (cap) { case GL_BLEND: case GL_CULL_FACE: case GL_DEPTH_TEST: case GL_DITHER: case GL_POLYGON_OFFSET_FILL: case GL_SAMPLE_ALPHA_TO_COVERAGE: case GL_SAMPLE_COVERAGE: case GL_SCISSOR_TEST: case GL_STENCIL_TEST: glDisable(cap); return; }
   error(GL_INVALID_ENUM);
 }
@@ -445,7 +447,7 @@ void WebGL1::activeTexture(std::uint32_t unit) {
   glActiveTexture(unit);
 }
 void WebGL1::bindTexture(std::uint32_t target, Id id) {
-  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) return error(GL_INVALID_ENUM);
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
   std::uint32_t name = 0;
   if (id) {
     auto it = textures_.find(id);
@@ -455,12 +457,18 @@ void WebGL1::bindTexture(std::uint32_t target, Id id) {
     name = it->second.name;
     it->second.bound = true;
   }
-  (target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_] = id;
+  boundTex(target) = id;
   glBindTexture(target, name);
 }
 void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) {
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
+  if (version_ == 2 && border != 0) return error(GL_INVALID_VALUE);
+  if (version_ == 2 && internalformat != format) {   // sized internal formats (ES 3.0 table 3.2)
+    if (face && width != height) return error(GL_INVALID_VALUE);
+    uploadTexture(false, target, level, internalformat, width, height, 1, format, type, data, dataBytes, 0, 0, 0, false);
+    return;
+  }
   int bpp = 0;
   const bool validFormat = format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA;
   const bool validType = type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5 || type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1;
@@ -470,6 +478,7 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   if (!formatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
   Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (!id) return error(GL_INVALID_OPERATION);
+  if (textures_[id].immutable) return error(GL_INVALID_OPERATION);   // texStorage fixed the format and sizes
   if (face && width != height) return error(GL_INVALID_VALUE);   // cube faces are square
   if (data) {
     std::size_t row = static_cast<std::size_t>(width) * bpp;
@@ -494,23 +503,28 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   if (level == 0) { t.w = width; t.h = height; t.format = format; }
 }
 void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) {
-  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) return error(GL_INVALID_ENUM);
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
   bool ok = false;
   switch (pname) {
+    case GL_TEXTURE_WRAP_R: if (version_ != 2) return error(GL_INVALID_ENUM); ok = v == GL_REPEAT || v == GL_CLAMP_TO_EDGE || v == GL_MIRRORED_REPEAT; break;
+    case GL_TEXTURE_COMPARE_MODE: if (version_ != 2) return error(GL_INVALID_ENUM); ok = v == GL_NONE || v == GL_COMPARE_REF_TO_TEXTURE; break;
+    case GL_TEXTURE_COMPARE_FUNC: if (version_ != 2) return error(GL_INVALID_ENUM); ok = v >= GL_NEVER && v <= GL_ALWAYS; break;
+    case GL_TEXTURE_BASE_LEVEL: case GL_TEXTURE_MAX_LEVEL: if (version_ != 2) return error(GL_INVALID_ENUM); if (v < 0) return error(GL_INVALID_VALUE); ok = true; break;
+    case GL_TEXTURE_MIN_LOD: case GL_TEXTURE_MAX_LOD: if (version_ != 2) return error(GL_INVALID_ENUM); ok = true; break;
     case GL_TEXTURE_MIN_FILTER: ok = v == GL_NEAREST || v == GL_LINEAR || v == GL_NEAREST_MIPMAP_NEAREST || v == GL_LINEAR_MIPMAP_NEAREST || v == GL_NEAREST_MIPMAP_LINEAR || v == GL_LINEAR_MIPMAP_LINEAR; break;
     case GL_TEXTURE_MAG_FILTER: ok = v == GL_NEAREST || v == GL_LINEAR; break;
     case GL_TEXTURE_WRAP_S: case GL_TEXTURE_WRAP_T: ok = v == GL_REPEAT || v == GL_CLAMP_TO_EDGE || v == GL_MIRRORED_REPEAT; break;
     default: return error(GL_INVALID_ENUM);
   }
   if (!ok) return error(GL_INVALID_ENUM);
-  if (!(target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_]) return error(GL_INVALID_OPERATION);
+  if (!boundTex(target)) return error(GL_INVALID_OPERATION);
   glTexParameteri(target, pname, v);
 }
 
 // ---- framebuffers
 Id WebGL1::createFramebuffer() { Fbo f; glGenFramebuffers(1, &f.name); Id id = nextId_++; fbos_[id] = f; return id; }
 void WebGL1::bindFramebuffer(std::uint32_t target, Id id) {
-  if (target != GL_FRAMEBUFFER) return error(GL_INVALID_ENUM);
+  if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) return error(GL_INVALID_ENUM);
   std::uint32_t name = gl_.framebuffer();   // null: the canvas
   if (id) {
     auto it = fbos_.find(id);
@@ -518,12 +532,13 @@ void WebGL1::bindFramebuffer(std::uint32_t target, Id id) {
     name = it->second.name;
     it->second.bound = true;
   }
-  fbo_ = id;
-  glBindFramebuffer(GL_FRAMEBUFFER, name);
+  if (target != GL_READ_FRAMEBUFFER) fbo_ = id;
+  if (target != GL_DRAW_FRAMEBUFFER) fboRead_ = id;
+  glBindFramebuffer(target, name);
 }
 void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level) {
-  if (target != GL_FRAMEBUFFER) return error(GL_INVALID_ENUM);
-  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT) return error(GL_INVALID_ENUM);
+  if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) return error(GL_INVALID_ENUM);
+  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(version_ == 2 && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
   if (textarget != GL_TEXTURE_2D && !(textarget >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && textarget <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)) return error(GL_INVALID_ENUM);
   if (level != 0) return error(GL_INVALID_VALUE);
   if (!fbo_) return error(GL_INVALID_OPERATION);
