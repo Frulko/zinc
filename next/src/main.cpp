@@ -101,6 +101,14 @@ static void installNativeProvider(const char* entry) {
     gPlugins.push_back(lib);
     return true;
   };
+  zn::frontend::gNativeLive = [](const std::string& module) {
+    const char* det = std::getenv("ZINC_DETERMINISTIC");
+    if (det && *det && std::strcmp(det, "0")) return false;
+    std::vector<std::string> problems;
+    auto found = zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems);
+    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+    return p && p->manifest.live;
+  };
   zn::frontend::gNativePreferred = [](const std::string& module) {
     const char* det = std::getenv("ZINC_DETERMINISTIC");
     if (!det || !*det || !std::strcmp(det, "0")) return true;

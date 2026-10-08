@@ -40,6 +40,7 @@ struct PluginManifest {
   std::map<std::string, std::string> nativeImpl;  // `native.impl`: target -> source (default: <x>.<target>.cpp, else <x>.host.cpp)
   std::string sim;                       // a Zinc stand-in for the native part
   bool deterministic = false, threads = false;
+  bool live = false;   // "live": the plugin's stand-in only serves deterministic runs; anywhere else its native code wins even over an x.next.ts (video: real decoding)
   std::string license, link;             // link: "static" or "dynamic"
 };
 

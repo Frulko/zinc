@@ -133,8 +133,9 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
   }
   if (!str(root, "sim", out.sim, err) || !str(root, "license", out.license, err) || !str(root, "link", out.link, err)) return false;
   if (yyjson_val* x = yyjson_obj_get(root, "deterministic")) out.deterministic = yyjson_get_bool(x);
+  if (yyjson_val* x = yyjson_obj_get(root, "live")) out.live = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "threads")) out.threads = yyjson_get_bool(x);
-  static const std::set<std::string> known = {"name", "kind", "module", "entry", "description", "requires", "modules", "targets", "options", "abi", "native", "sim", "deterministic", "threads", "license", "link"};
+  static const std::set<std::string> known = {"name", "kind", "module", "entry", "description", "requires", "modules", "targets", "options", "abi", "native", "sim", "deterministic", "live", "threads", "license", "link"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) if (!known.count(yyjson_get_str(k))) warnings.push_back(std::string("unknown key \"") + yyjson_get_str(k) + "\"");

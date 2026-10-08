@@ -37,6 +37,8 @@ extern std::function<bool(const std::string& module, std::string& err)> gNativeP
 // Whether the plugin's native code should win over its x.sim.ts stand-in in "auto" mode: not in a deterministic run (ZINC_DETERMINISTIC: golden tests, headless captures) unless the
 // manifest says `"deterministic": true` (no clock, no network, no machine state).
 extern std::function<bool(const std::string& module)> gNativePreferred;
+// Whether the module's native code wins even over an x.next.ts stand-in in "auto" mode: outside deterministic runs, for a plugin whose manifest says `"live": true` (a real video decoder).
+extern std::function<bool(const std::string& module)> gNativeLive;
 
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "");
 

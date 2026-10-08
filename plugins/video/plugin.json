@@ -1,6 +1,7 @@
 {
   "name": "video",
   "kind": "module",
+  "live": true,
   "module": "zinc:video",
   "entry": "index.ts",
   "description": "Video playback (FFmpeg, VideoToolbox / V4L2 M2M decode), gapless playlists as runtime images",
