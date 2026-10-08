@@ -310,8 +310,9 @@ on every frame when the composition is constant.
 
 Supported properties:
 
-- Flex layout: `flexDirection` (`row`/`column`), `flexWrap`, `justifyContent`, `alignItems`, `flexGrow`/`grow`, `gap`.
-  `flex` is an alias for grow only; it does not implement CSS flex-basis/shrink shorthand.
+- Flex layout: `flexDirection` (`row`/`column`), `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`,
+  `flexGrow`/`grow`, `flexShrink`, `flexBasis` (number, percent, `auto`), `gap`. `flex: n` is React Native's shorthand in the `rn`
+  layout mode (grow n, shrink 1, basis 0; `0` rigid; `-1` shrink only) and an alias of grow in `classic`.
 - Dimensions: `width`, `height` (numbers, px, percentages, auto); padding/margin and individual sides, plus
   `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand.
 - Position: `position` (`relative`/`static`/`absolute`), `top/right/bottom/left`, `display` (`flex`/`none`),
@@ -329,7 +330,7 @@ still follow the target's `number` range; choose conditional named styles for po
 
 Dynamic values inside an inline object must be numeric Zinc expressions. For enum/string changes, select named
 styles with `condition ? styles.a : styles.b` or `condition && styles.a`. `null`, `false`, `undefined` branches are
-empty styles. Object spreads, nested style arrays, `calc`, grid, min/max dimensions, shrink/basis, arbitrary CSS
+empty styles. Object spreads, nested style arrays, `calc`, grid, min/max dimensions, arbitrary CSS
 selectors and the React Native transform-array syntax are not implemented. Unsupported keys/values are build errors.
 Static font sizes (1–256 px) are passed to font baking; dynamic sizes use Zinc's existing nearest baked font behavior.
 
@@ -426,6 +427,11 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 52 | `left` |  |
 | 53 | `right` |  |
 | 54 | `bottom` |  |
+| 55 | `shrink` | `flexShrink` |
+| 56 | `basis` | `flexBasis` |
+| 57 | `basisPercent` |  |
+| 58 | `alignSelf` |  |
+| 59 | `alignContent` |  |
 
 ### Accepted class tokens (generated)
 

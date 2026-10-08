@@ -699,6 +699,11 @@ const P_TOP: i32 = 51;
 const P_LEFT: i32 = 52;
 const P_RIGHT: i32 = 53;
 const P_BOTTOM: i32 = 54;
+const P_SHRINK: i32 = 55;
+const P_BASIS: i32 = 56;
+const P_BASIS_PERCENT: i32 = 57;
+const P_ALIGN_SELF: i32 = 58;
+const P_ALIGN_CONTENT: i32 = 59;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -758,6 +763,9 @@ function propInit(): void {
   PROP.set('left', P_LEFT);
   PROP.set('right', P_RIGHT);
   PROP.set('bottom', P_BOTTOM);
+  PROP.set('shrink', P_SHRINK); PROP.set('flexShrink', P_SHRINK);
+  PROP.set('basis', P_BASIS); PROP.set('flexBasis', P_BASIS); PROP.set('basisPercent', P_BASIS_PERCENT);
+  PROP.set('alignSelf', P_ALIGN_SELF); PROP.set('alignContent', P_ALIGN_CONTENT);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -824,6 +832,11 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_INPUT_MODE) { n.inputMode = iv; return; }
   else if (id === P_TOP) n.top = iv; else if (id === P_LEFT) n.left = iv;
   else if (id === P_RIGHT) n.right = iv; else if (id === P_BOTTOM) n.bottom = iv;
+  else if (id === P_SHRINK) n.shrink = v;   // object styles of React Native (ZN-358)
+  else if (id === P_BASIS) { n.basis = iv; n.basisFrac = 0; }
+  else if (id === P_BASIS_PERCENT) { n.basis = -1; n.basisFrac = v; }
+  else if (id === P_ALIGN_SELF) n.selfAlign = iv;
+  else if (id === P_ALIGN_CONTENT) n.alignContent = iv;
   layoutDirty = true;
 }
 

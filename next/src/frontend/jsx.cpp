@@ -4,6 +4,7 @@
 // text, keeping line breaks so diagnostics keep their line numbers.
 // Not ported yet: class components in React mode (ZN-163), the hook-rule checks.
 #include "frontend/jsx.h"
+#include "frontend/project.h"
 
 #include <cctype>
 #include <charconv>
@@ -116,14 +117,16 @@ bool validClass(const std::string& c) {
 const std::map<std::string, std::vector<std::string>> kStyleAliases = {
     {"padding", {"paddingTop", "paddingRight", "paddingBottom", "paddingLeft"}}, {"paddingHorizontal", {"paddingLeft", "paddingRight"}}, {"paddingVertical", {"paddingTop", "paddingBottom"}},
     {"margin", {"marginTop", "marginRight", "marginBottom", "marginLeft"}}, {"marginHorizontal", {"marginLeft", "marginRight"}}, {"marginVertical", {"marginTop", "marginBottom"}},
-    {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}};
+    {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}, {"flexShrink", {"shrink"}}, {"flexBasis", {"basis"}}};
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
-    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "hidden", "lazy"};
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
     {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
+    {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
+    {"alignContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}, {"space-between", 4}, {"space-around", 5}, {"space-evenly", 6}}},
     {"position", {{"relative", 0}, {"static", 0}, {"absolute", 1}}}, {"display", {{"flex", 0}, {"none", 1}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
     {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
@@ -158,6 +161,16 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     return a;
   }
   if (name == "background") name = "backgroundColor";
+  if (name == "flex" && value.isNum && uiLayout() == "rn") {   // React Native's shorthand in the rn layout mode (ZN-358): n > 0 grows n with shrink 1 and basis 0; 0 is rigid; -1 shrinks only
+    const double n = value.num;
+    if (n > 0) return {{"grow", n}, {"shrink", 1}, {"basis", 0}};
+    return {{"grow", 0}, {"shrink", n < 0 ? 1.0 : 0.0}, {"basis", -1}};
+  }
+  if (name == "flexBasis" && !value.isNum) {   // auto, or a percent of the container
+    if (value.str == "auto") return {{"basis", -1}};
+    static const std::regex bpct(R"(^\d+(\.\d+)?%$)");
+    if (std::regex_match(value.str, bpct)) return {{"basisPercent", std::stod(value.str) / 100}};
+  }
   auto en = kStyleEnums.find(name);
   if (en != kStyleEnums.end()) {
     std::string key = value.isNum ? [&] { char b[40]; std::snprintf(b, sizeof b, "%g", value.num); return std::string(b); }() : value.str;

@@ -1,0 +1,7 @@
+layout rn
+flex 1 x2 + 120: 0,0 90x20 | 90,0 90x20 | 180,0 120x20
+shrink 1 vs 0: 0,50 100x20 | 100,50 200x20
+basis 50 grow, 25%, auto: 0,100 195x20 | 195,100 75x20 | 270,100 30x20
+alignSelf flex-end: 0,170 40x20
+alignContent flex-end: 0,370 140x40 | 0,410 140x40
+flex 1 with content 100 and 20 (rn: basis 0, equal; classic: grow only): 0,200 150x20 | 150,200 150x40
