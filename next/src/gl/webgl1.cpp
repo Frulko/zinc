@@ -22,8 +22,17 @@ int typeSize(std::uint32_t t) {
   return 0;
 }
 
+// every whole-word occurrence of an identifier (names like gl_FragColor cannot be #defined in GLSL: some drivers refuse a macro named after a built-in)
+void replaceIdent(std::string& body, const std::string& from, const std::string& to) {
+  const auto word = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+  for (std::size_t p = body.find(from); p != std::string::npos; p = body.find(from, p + to.size())) {
+    const std::size_t e = p + from.size();
+    if ((p > 0 && word(body[p - 1])) || (e < body.size() && word(body[e]))) continue;
+    body.replace(p, from.size(), to);
+  }
+}
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
-std::string translate(const std::string& src, std::uint32_t type, bool es) {
+std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err) {
   if (es) return src;
   {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
     std::size_t at = src.find("#version");
@@ -32,13 +41,8 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
       std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
       // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
       for (const char* name : {"gl_FragColor", "gl_FragData", "gl_MaxDrawBuffers"}) {   // the last: MAX_DRAW_BUFFERS is reported as 4, not what the driver has
-        const std::string from = name, to = from == "gl_MaxDrawBuffers" ? "4" : std::string("zn_") + (name + 3);
-        for (std::size_t p = body.find(from); p != std::string::npos; p = body.find(from, p + to.size())) {
-          const bool left = p > 0 && (std::isalnum(static_cast<unsigned char>(body[p - 1])) || body[p - 1] == '_');
-          const std::size_t e = p + from.size();
-          const bool right = e < body.size() && (std::isalnum(static_cast<unsigned char>(body[e])) || body[e] == '_');
-          if (!left && !right) body.replace(p, from.size(), to);
-        }
+        const std::string from = name;
+        replaceIdent(body, from, from == "gl_MaxDrawBuffers" ? "4" : std::string("zn_") + (name + 3));
       }
       if (type == GL_VERTEX_SHADER && body.find("#if") == std::string::npos) {   // (a declaration under #if may not exist: left alone) an output the shader leaves unwritten is zero in WebGL 2 (transform feedback shows it); a driver leaves it undefined
         static const std::regex outDecl(R"(\bout\s+(?:lowp\s+|mediump\s+|highp\s+)?((?:u?int|float|[ui]?vec[234]|mat[234](?:x[234])?))\s+(\w+)\s*;)");
@@ -58,23 +62,72 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
   }
   std::string body;
   std::string pre = "#version 330 core\n";
+  std::string tail;
+  std::uint32_t active = 0;   // the extensions this shader enabled with #extension (a built-in of an extension needs both the pragma and getExtension)
   std::size_t pos = 0;
-  while (pos < src.size()) {   // drop #version 100 and the ES-only #extension lines (their features are core here)
+  while (pos < src.size()) {   // drop #version 100; #extension lines become blank lines after their check
     std::size_t nl = src.find('\n', pos);
     std::string line = src.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
     std::size_t k = line.find_first_not_of(" \t");
     bool directive = k != std::string::npos && line[k] == '#';
-    if (directive && (line.find("version", k) == k + 1)) body += "\n";
-    else if (directive && line.find("extension", k) == k + 1 && (line.find("OES_standard_derivatives") != std::string::npos || line.find("EXT_frag_depth") != std::string::npos || line.find("EXT_shader_texture_lod") != std::string::npos || line.find("EXT_draw_buffers") != std::string::npos)) body += "\n";
-    else body += line + "\n";
+    std::size_t w = directive ? line.find_first_not_of(" \t", k + 1) : std::string::npos;
+    if (directive && line.compare(k + 1, 7, "version") == 0 && w == k + 1) body += "\n";
+    else if (w != std::string::npos && line.compare(w, 9, "extension") == 0) {   // #extension NAME : BEHAVIOR
+      static const std::regex ext(R"(extension\s+(\w+)\s*:\s*(\w+))");
+      std::smatch m;
+      const std::string rest = line.substr(w);
+      if (!std::regex_search(rest, m, ext)) { err = "ERROR: 0:1: '#extension' : invalid extension directive"; return ""; }
+      const std::string name = m[1], how = m[2];
+      if (how != "enable" && how != "require" && how != "warn" && how != "disable") { err = "ERROR: 0:1: '#extension' : invalid behavior '" + how + "'"; return ""; }
+      const ExtDef* def = nullptr;
+      for (const ExtDef& e : kExtensions) if (e.glsl && name == e.glsl && (e.webgl & (1u << (webgl - 1))) && ((extOn >> static_cast<int>(e.id)) & 1)) def = &e;
+      if (name == "all" && (how == "enable" || how == "require")) { err = "ERROR: 0:1: '#extension' : 'all' extension cannot be enabled or required"; return ""; }
+      if (def && how != "disable") active |= 1u << static_cast<int>(def->id);
+      else if (!def && how == "require") { err = "ERROR: 0:1: '#extension' : extension '" + name + "' is not supported"; return ""; }
+      body += "\n";
+    }
+    else {
+      if (w != std::string::npos && (line.compare(w, 2, "if") == 0 || line.compare(w, 4, "elif") == 0)) {   // GL_xxx macros are reserved in GLSL: the conditions of the page read ZN_GL_xxx, defined below
+        static const std::regex macro(R"(\bGL_\w+)");
+        std::string out;
+        auto last = line.cbegin();
+        for (std::sregex_iterator it(line.begin(), line.end(), macro), end; it != end; ++it) { out.append(last, line.cbegin() + it->position()); out += "ZN_" + it->str(); last = line.cbegin() + it->position() + it->length(); }
+        out.append(last, line.cend());
+        body += out + "\n";
+      } else body += line + "\n";
+    }
     if (nl == std::string::npos) break;
     pos = nl + 1;
   }
-  pre += "#define texture2D texture\n#define textureCube texture\n#define texture2DLodEXT textureLod\n#define texture2DProj textureProj\n";
-  if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n";
-  else if (body.find("gl_FragData") != std::string::npos) pre += "#define varying in\nout vec4 zn_FragData[1];\n#define gl_FragData zn_FragData\n";   // gl_FragData[0] without the draw-buffers extension
-  else pre += "#define varying in\nout vec4 zn_FragColor;\n#define gl_FragColor zn_FragColor\n";
-  return pre + body;
+  const bool drawBuf = webgl == 1 && ((extOn >> static_cast<int>(Ext::DrawBuffers)) & 1);   // (WEBGL_draw_buffers: gl_FragData[1..3] and gl_MaxDrawBuffers come with getExtension, no pragma needed)
+  auto has = [&](Ext e) { return (active >> static_cast<int>(e)) & 1; };
+  pre += "#define texture2D texture\n#define textureCube texture\n#define texture2DProj textureProj\n";
+  for (const ExtDef& e : kExtensions) if (e.glsl && (e.webgl & (1u << (webgl - 1))) && ((extOn >> static_cast<int>(e.id)) & 1)) pre += std::string("#define ZN_") + e.glsl + " 1\n";   // enabled by getExtension: the macro exists
+  pre += type == GL_VERTEX_SHADER ? "#define ZN_GL_ES 1\n" : "#define ZN_GL_ES 1\n#define ZN_GL_FRAGMENT_PRECISION_HIGH 1\n";
+  if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n#define texture2DLod textureLod\n#define textureCubeLod textureLod\n#define texture2DProjLod textureProjLod\n";
+  else {
+    if (!has(Ext::StdDerivatives)) pre += "#define dFdx zn_no_OES_standard_derivatives\n#define dFdy zn_no_OES_standard_derivatives\n#define fwidth zn_no_OES_standard_derivatives\n";   // desktop GLSL has them: hide what ESSL 1.00 needs the extension for
+    if (has(Ext::ShaderTexLod)) pre += "#define texture2DLodEXT textureLod\n#define texture2DProjLodEXT textureProjLod\n#define textureCubeLodEXT textureLod\n#define texture2DGradEXT textureGrad\n#define texture2DProjGradEXT textureProjGrad\n#define textureCubeGradEXT textureGrad\n";
+    pre += "#define varying in\n";
+    replaceIdent(body, "gl_FragDepth", "zn_no_gl_FragDepth");   // not in ESSL 1.00; gl_FragDepthEXT is, with the extension
+    if (has(Ext::FragDepth)) replaceIdent(body, "gl_FragDepthEXT", "gl_FragDepth");
+    replaceIdent(body, "gl_MaxDrawBuffers", drawBuf ? "4" : "1");   // (1 without the extension; fixed when the shader is compiled)
+    replaceIdent(body, "gl_MaxDrawBuffersEXT", drawBuf ? "4" : "zn_no_gl_MaxDrawBuffersEXT");
+    const bool usesColor = body.find("gl_FragColor") != std::string::npos;
+    if (drawBuf) {
+      pre += "layout(location = 0) out vec4 zn_FragData[4];\n";
+      replaceIdent(body, "gl_FragData", "zn_FragData");
+      if (usesColor && !has(Ext::DrawBuffers)) replaceIdent(body, "gl_FragColor", "zn_FragData[0]");   // without the shader's own #extension gl_FragColor stays the first buffer
+      else if (usesColor) {   // gl_FragColor writes every draw buffer
+        pre += "vec4 zn_FragColor;\n";
+        replaceIdent(body, "gl_FragColor", "zn_FragColor");
+        replaceIdent(body, "main", "zn_user_main");
+        tail = "\nvoid main() { zn_user_main(); zn_FragData[0] = zn_FragColor; zn_FragData[1] = zn_FragColor; zn_FragData[2] = zn_FragColor; zn_FragData[3] = zn_FragColor; }\n";
+      }
+    } else if (body.find("gl_FragData") != std::string::npos) { pre += "out vec4 zn_FragData[1];\n"; replaceIdent(body, "gl_FragData", "zn_FragData"); }   // gl_FragData[0] without the draw-buffers extension
+    else { pre += "out vec4 zn_FragColor;\n"; replaceIdent(body, "gl_FragColor", "zn_FragColor"); }
+  }
+  return pre + body + tail;
 }
 
 
@@ -87,7 +140,19 @@ void fragOutputs(const std::string& src, char out[4]) {
     else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); i = e == std::string::npos ? src.size() : e + 1; t += ' '; }
     else t += src[i];
   }
-  if (t.find("#version 300 es") == std::string::npos) { out[0] = 'f'; return; }
+  if (t.find("#version 300 es") == std::string::npos) {   // ESSL 1.00: gl_FragColor writes every draw buffer, gl_FragData[n] the one it names (a computed index: all)
+    static const std::regex data(R"(gl_FragData\s*\[\s*(\w+)\s*\])");
+    static const std::regex pragma(R"(#\s*extension\s+GL_EXT_draw_buffers\s*:\s*(enable|require))");
+    const bool usesColor = t.find("gl_FragColor") != std::string::npos;
+    if (usesColor) { if (std::regex_search(t, pragma)) std::fill(out, out + 4, 'f'); else out[0] = 'f'; }   // (the pragma makes gl_FragColor broadcast)
+    if (t.find("gl_FragData") == std::string::npos) return;
+    for (std::sregex_iterator it(t.begin(), t.end(), data), end; it != end; ++it) {
+      const std::string idx = (*it)[1];
+      if (idx.size() == 1 && idx[0] >= '0' && idx[0] <= '3') out[idx[0] - '0'] = 'f';
+      else std::fill(out, out + 4, 'f');
+    }
+    return;
+  }
   static const std::regex decl(R"((layout\s*\(([^)]*)\)\s*)?(?:flat\s+|smooth\s+|centroid\s+)?\bout\s+(?:lowp\s+|mediump\s+|highp\s+)?(\w+)\s+(\w+)\s*(?:\[\s*([^\]]*)\])?\s*;)");
   static const std::regex loc(R"(location\s*=\s*(\d+))");
   for (std::sregex_iterator it(t.begin(), t.end(), decl), end; it != end; ++it) {
@@ -149,11 +214,100 @@ bool formatType(std::uint32_t format, std::uint32_t type, int& bpp) {   // share
   if ((type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1) && format == GL_RGBA) { bpp = 2; return true; }
   return false;
 }
-namespace {
 
-}  // namespace
+// ---- the pixel formats the WebGL 1 extensions add (OES_texture_float / _half_float, WEBGL_depth_texture, EXT_sRGB) and what the driver gets for them
+GlFmt glFormat(std::uint32_t format, std::uint32_t type, bool es) {
+  if (es) return {format, format, type, 0};   // OpenGL ES 2.0 takes the WebGL pair as it is (with the OES extensions)
+  const bool fl = type == GL_FLOAT, hf = type == kHalfFloatOes, ub = type == GL_UNSIGNED_BYTE;
+  GlFmt r{0, format, hf ? GL_HALF_FLOAT : type, 0};
+  switch (format) {
+    case GL_ALPHA: case GL_LUMINANCE: r.format = GL_RED; r.internal = fl ? GL_R32F : hf ? GL_R16F : GL_R8; r.swizzle = format == GL_ALPHA ? 1 : 2; break;
+    case GL_LUMINANCE_ALPHA: r.format = GL_RG; r.internal = fl ? GL_RG32F : hf ? GL_RG16F : GL_RG8; r.swizzle = 3; break;
+    case GL_RGB: r.internal = fl ? GL_RGB32F : hf ? GL_RGB16F : ub ? GL_RGB8 : GL_RGB; break;
+    case GL_RGBA: r.internal = fl ? GL_RGBA32F : hf ? GL_RGBA16F : ub ? GL_RGBA8 : GL_RGBA; break;
+    case kSrgbExt: r.format = GL_RGB; r.internal = GL_SRGB8; break;
+    case kSrgbAlphaExt: r.format = GL_RGBA; r.internal = GL_SRGB8_ALPHA8; break;
+    case GL_DEPTH_COMPONENT: r.internal = type == GL_UNSIGNED_SHORT ? GL_DEPTH_COMPONENT16 : GL_DEPTH_COMPONENT24; break;
+    case kDepthStencilFmt: r.internal = GL_DEPTH24_STENCIL8; break;
+  }
+  return r;
+}
+
+// (format, type) pairs of WebGL 1 with the extensions the page enabled; bpp: bytes of a pixel
+bool WebGL1::v1FormatType(std::uint32_t format, std::uint32_t type, int& bpp) const {
+  if (formatType(format, type, bpp)) return true;
+  const int ch = format == GL_ALPHA || format == GL_LUMINANCE ? 1 : format == GL_LUMINANCE_ALPHA ? 2 : format == GL_RGB ? 3 : format == GL_RGBA ? 4 : 0;
+  if (ch && type == GL_FLOAT && extOn(Ext::TexFloat)) { bpp = 4 * ch; return true; }
+  if (ch && type == kHalfFloatOes && extOn(Ext::TexHalf)) { bpp = 2 * ch; return true; }
+  if (extOn(Ext::DepthTexture)) {
+    if (format == GL_DEPTH_COMPONENT && (type == GL_UNSIGNED_SHORT || type == GL_UNSIGNED_INT)) { bpp = type == GL_UNSIGNED_SHORT ? 2 : 4; return true; }
+    if (format == kDepthStencilFmt && type == kUnsignedInt248) { bpp = 4; return true; }
+  }
+  if (extOn(Ext::Srgb) && type == GL_UNSIGNED_BYTE && (format == kSrgbExt || format == kSrgbAlphaExt)) { bpp = format == kSrgbExt ? 3 : 4; return true; }
+  return false;
+}
+bool WebGL1::v1Format(std::uint32_t format) const {
+  return format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA ||
+         (extOn(Ext::DepthTexture) && (format == GL_DEPTH_COMPONENT || format == kDepthStencilFmt)) || (extOn(Ext::Srgb) && (format == kSrgbExt || format == kSrgbAlphaExt));
+}
+bool WebGL1::v1Type(std::uint32_t type) const {
+  return type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5 || type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1 || (type == GL_FLOAT && extOn(Ext::TexFloat)) ||
+         (type == kHalfFloatOes && extOn(Ext::TexHalf)) || (extOn(Ext::DepthTexture) && (type == GL_UNSIGNED_SHORT || type == GL_UNSIGNED_INT || type == kUnsignedInt248));
+}
 
 unsigned WebGL1::bit(std::uint32_t code) { return 1u << (code - GL_INVALID_ENUM); }
+
+bool WebGL1::enableExt(Ext e) {
+  if (!extSupported(e)) return false;
+  const bool was = extOn(e);
+  extOn_ |= 1u << static_cast<int>(e);
+  ++fbGen_;
+  if (version_ == 1 && !was && e == Ext::TexFloat) enableExt(Ext::ColorBufFloatWebgl);   // the texture extensions bring their rendering extension along, as in browsers
+  if (version_ == 1 && !was && e == Ext::TexHalf) enableExt(Ext::ColorBufHalf);
+  if (!was && (e == Ext::TexFloatLinear || e == Ext::TexHalfLinear)) for (auto& t : textures_) if (t.second.f32 || t.second.f16) refreshSampling(t.first);
+  return true;
+}
+// a float texture with a linear filter is incomplete (samples black) until OES_texture_float_linear / OES_texture_half_float_linear is enabled; core GL would just filter, so the swizzle does the blacking
+void WebGL1::refreshSampling(Id id) {
+  auto it = textures_.find(id);
+  if (it == textures_.end() || gl_.info().es || !it->second.target || it->second.target == GL_TEXTURE_3D || it->second.target == GL_TEXTURE_2D_ARRAY) return;
+  Tex& t = it->second;
+  const bool filtered = t.magF == GL_LINEAR || (t.minF != GL_NEAREST && t.minF != GL_NEAREST_MIPMAP_NEAREST);
+  const bool black = filtered && ((t.f32 && !extOn(Ext::TexFloatLinear)) || (t.f16 && !extOn(Ext::TexHalfLinear)));
+  static const GLint sw[7][4] = {{GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_RED}, {GL_RED, GL_RED, GL_RED, GL_ONE}, {GL_RED, GL_RED, GL_RED, GL_GREEN}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_ONE}, {GL_ZERO, GL_ZERO, GL_ZERO, GL_ALPHA}, {GL_RED, GL_RED, GL_RED, GL_ALPHA}};   // 4: black; 5, 6: ALPHA and LUMINANCE_ALPHA backed by RGBA (copyTexImage2D)
+  const GLenum bt = t.target;
+  const Id cur = boundTex(bt);
+  glBindTexture(bt, t.name);
+  glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[black ? 4 : t.swz]);
+  glBindTexture(bt, cur ? textures_[cur].name : 0);
+  t.black = black;
+}
+
+// the spec strings of webgl_ext.h against this driver
+bool WebGL1::probe(const char* spec) const {
+  const std::string all = spec;
+  for (std::size_t from = 0; from <= all.size();) {
+    std::size_t bar = all.find('|', from);
+    if (bar == std::string::npos) bar = all.size();
+    bool ok = true;
+    for (std::size_t i = from; i < bar;) {
+      std::size_t sp = all.find(' ', i);
+      if (sp == std::string::npos || sp > bar) sp = bar;
+      const std::string tok = all.substr(i, sp - i);
+      i = sp + 1;
+      if (tok.empty()) continue;
+      if (tok == "-") ok = false;
+      else if (tok == "core") {}
+      else if ((tok[0] == 'V' || tok[0] == 'E') && std::isdigit(static_cast<unsigned char>(tok[1]))) {
+        const int major = tok[1] - '0', minor = tok[3] - '0';
+        ok = ok && gl_.info().es == (tok[0] == 'E') && (gl_.info().major > major || (gl_.info().major == major && gl_.info().minor >= minor));
+      } else ok = ok && gl_.hasExtension(tok.c_str());
+    }
+    if (ok) return true;
+    from = bar + 1;
+  }
+  return false;
+}
 
 bool WebGL1::create(Api api, int width, int height, std::string& err, int version) {
   version_ = version;
@@ -162,6 +316,10 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
   GLint m = 0;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m);
   maxTexSize_ = m;
+  for (const ExtDef& e : kExtensions) {
+    const char* spec = gl_.info().es ? (version == 2 ? e.es3 : e.es2) : e.gl;
+    if ((e.webgl & (1u << (version - 1))) && probe(spec)) extSup_ |= 1u << static_cast<int>(e.id);
+  }
   if (!gl_.info().es) { glGenVertexArrays(1, &vao_); glBindVertexArray(vao_); glEnable(GL_PROGRAM_POINT_SIZE); glEnable(GL_FRAMEBUFFER_SRGB); }   // sRGB attachments always convert in WebGL 2   // core profiles need the switch for gl_PointSize, WebGL always honours it   // core contexts have no default VAO; the WebGL1 attribute state lives in this one
   while (glGetError() != GL_NO_ERROR) {}
   return true;
@@ -169,10 +327,15 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
 
 // canvas.width / canvas.height was set: a new drawing buffer, transparent black, depth 1, stencil 0, whatever state the context is in
 void WebGL1::resizeDrawingBuffer(int w, int h) {
+  gl_.resize(w, h);
+  compositeClear();
+}
+// the drawing buffer after a composite (no preserveDrawingBuffer): transparent black, depth 1, stencil 0, whatever state the context is in
+void WebGL1::compositeClear() {
+  dirty_ = false;
   GLint draw = 0, read = 0;
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
-  gl_.resize(w, h);
   GLboolean cm[4], dm;
   GLint sm, cs;
   GLfloat cc[4], cd;
@@ -183,7 +346,10 @@ void WebGL1::resizeDrawingBuffer(int w, int h) {
   glDisable(GL_SCISSOR_TEST);
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); glDepthMask(GL_TRUE); glStencilMask(~0u);
   glClearColor(0, 0, 0, 0); glClearDepth(1); glClearStencil(0);
+  const GLenum all = GL_COLOR_ATTACHMENT0, kept = defaultDraw_[0] == GL_BACK ? GL_COLOR_ATTACHMENT0 : GL_NONE;   // the canvas is cleared whatever its draw buffer says
+  glDrawBuffers(1, &all);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  glDrawBuffers(1, &kept);
   glColorMask(cm[0], cm[1], cm[2], cm[3]); glDepthMask(dm); glStencilMask(static_cast<GLuint>(sm));
   glClearColor(cc[0], cc[1], cc[2], cc[3]); glClearDepth(cd); glClearStencil(cs);
   if (sc) glEnable(GL_SCISSOR_TEST);
@@ -220,7 +386,13 @@ void WebGL1::clear(std::uint32_t mask) {
   if (mask & ~static_cast<std::uint32_t>(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) return error(GL_INVALID_VALUE);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if ((mask & GL_COLOR_BUFFER_BIT) && !clearClassOk(-1, 'f')) return error(GL_INVALID_OPERATION);   // an integer attachment cannot take clear()
+  if (!fbo_) dirty_ = true;
   glClear(mask);
+}
+void WebGL1::domUnpack(bool on) {
+  if (version_ != 2) return;
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, on ? 0 : unpackRowLength_); glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, on ? 0 : unpackImageHeight_);
+  glPixelStorei(GL_UNPACK_SKIP_PIXELS, on ? 0 : unpackSkipPixels_); glPixelStorei(GL_UNPACK_SKIP_ROWS, on ? 0 : unpackSkipRows_); glPixelStorei(GL_UNPACK_SKIP_IMAGES, on ? 0 : unpackSkipImages_);
 }
 void WebGL1::pixelStorei(std::uint32_t pname, int value) {
   if (pname == GL_UNPACK_ALIGNMENT || pname == GL_PACK_ALIGNMENT) {
@@ -351,7 +523,9 @@ void WebGL1::compileShader(Id id) {
     s.log = "ERROR: 0:1: 'float' : No precision specified (fragment shaders need a default float precision)";
     return;
   }
-  std::string full = translate(s.source, s.type, gl_.info().es);
+  std::string terr;
+  std::string full = translate(s.source, s.type, gl_.info().es, extOn_, version_, terr);
+  if (!terr.empty()) { s.compiled = false; s.log = terr; return; }
   const char* p = full.c_str();
   glShaderSource(s.name, 1, &p, nullptr);
   glCompileShader(s.name);
@@ -523,12 +697,13 @@ bool WebGL1::clearClassOk(int drawbuffer, char want) {
   }
   return true;
 }
-bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances) {
+bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances, bool instancedDraw) {
   if (!program_) { error(GL_INVALID_OPERATION); return false; }
   if (!framebufferReady()) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
   const Program& pr = programs_[program_];
   if (!pr.linked) { error(GL_INVALID_OPERATION); return false; }   // a failed link invalidates the program even while it is in use
   GLint n = 0;
+  bool zeroDivisor = false, anyUsed = false;
   glGetProgramiv(pr.name, GL_ACTIVE_ATTRIBUTES, &n);
   for (GLint k = 0; k < n; ++k) {   // only the attributes the program reads, as WebGL does
     char buf[256];
@@ -544,15 +719,31 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     }
     if (!attribs_[loc].enabled) continue;
     const Attrib& a = attribs_[loc];
+    anyUsed = true;
+    if (!a.divisor) zeroDivisor = true;
     auto b = buffers_.find(a.buffer);
     if (b == buffers_.end()) { error(GL_INVALID_OPERATION); return false; }   // no client-side arrays in WebGL
     int ts = typeSize(a.type), stride = a.stride ? a.stride : a.size * ts;
     std::int64_t last = a.divisor ? (instances + a.divisor - 1) / a.divisor - 1 : lastIndex;   // per-instance attributes advance once per `divisor` instances
-    if (a.divisor ? instances <= 0 : lastIndex < firstIndex) continue;
+    if (a.divisor ? instances <= 0 : lastIndex < firstIndex || (instancedDraw && instances == 0)) continue;
     std::int64_t need = a.offset + stride * last + static_cast<std::int64_t>(a.size) * ts;
     if (need > b->second.size) { error(GL_INVALID_OPERATION); return false; }
   }
-  if (version_ == 2 && !glIsEnabled(GL_RASTERIZER_DISCARD)) {   // every enabled draw buffer needs an output of its class, unless nothing can be written
+  if (!fbo_) dirty_ = true;
+  if (instancedDraw && version_ != 2 && anyUsed && !zeroDivisor) { error(GL_INVALID_OPERATION); return false; }   // ANGLE_instanced_arrays: one attribute must advance per vertex
+  if (!extSupported(Ext::FloatBlend) && fbo_ && glIsEnabled(GL_BLEND)) {   // blending into a 32-bit float colour attachment needs EXT_float_blend
+    for (int i = 0; i < 4; ++i) {
+      if (!drawBufferOn(i)) continue;
+      GLint type = GL_NONE, comp = 0, red = 0;
+      glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+      if (type == GL_NONE) continue;
+      glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+      glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, &red);
+      if (comp == GL_FLOAT && red == 32) { while (glGetError() != GL_NO_ERROR) {} error(GL_INVALID_OPERATION); return false; }
+    }
+    while (glGetError() != GL_NO_ERROR) {}
+  }
+  if ((version_ == 2 || extOn(Ext::DrawBuffers)) && !glIsEnabled(GL_RASTERIZER_DISCARD)) {   // every enabled draw buffer needs an output of its class, unless nothing can be written
     GLboolean cm[4] = {};
     glGetBooleanv(GL_COLOR_WRITEMASK, cm);
     if (cm[0] || cm[1] || cm[2] || cm[3]) for (int i = 0; i < 4; ++i) {
@@ -584,7 +775,7 @@ void WebGL1::drawArrays(std::uint32_t mode, int first, int count) {
   glDrawArrays(mode, first, count);
 }
 void WebGL1::drawElements(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset) {
-  if (version_ == 2) return drawElementsInstanced(mode, count, type, offset, 1);   // WebGL 2 also takes UNSIGNED_INT
+  if (version_ == 2 || (type == GL_UNSIGNED_INT && extOn(Ext::IndexUint))) return drawElementsInstanced(mode, count, type, offset, 1);   // WebGL 2 also takes UNSIGNED_INT, WebGL 1 with OES_element_index_uint
   if (mode > GL_TRIANGLE_FAN) return error(GL_INVALID_ENUM);
   if (type != GL_UNSIGNED_BYTE && type != GL_UNSIGNED_SHORT) return error(GL_INVALID_ENUM);   // UNSIGNED_INT needs OES_element_index_uint
   if (count < 0 || offset < 0) return error(GL_INVALID_VALUE);
@@ -606,7 +797,7 @@ void WebGL1::drawElements(std::uint32_t mode, int count, std::uint32_t type, std
 
 // ---- textures
 Id WebGL1::createTexture() { Tex t; glGenTextures(1, &t.name); Id id = nextId_++; textures_[id] = t; return id; }
-void WebGL1::deleteTexture(Id id) {
+void WebGL1::deleteTexture(Id id) { ++fbGen_;
   auto it = textures_.find(id);
   if (it == textures_.end()) return;
   // deleting an image attached to the bound framebuffer detaches it there (as GL does); other framebuffers keep it alive
@@ -647,7 +838,7 @@ void WebGL1::bindTexture(std::uint32_t target, Id id) {
   boundTex(target) = id;
   glBindTexture(target, name);
 }
-void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) {
+void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) { ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   if (version_ == 2 && border != 0) return error(GL_INVALID_VALUE);
@@ -657,12 +848,12 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
     return;
   }
   int bpp = 0;
-  const bool validFormat = format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA;
-  const bool validType = type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5 || type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1;
-  if (!validFormat || !validType) return error(GL_INVALID_ENUM);   // FLOAT / HALF_FLOAT_OES need their extensions
+  if (!v1Format(format) || !v1Type(type)) return error(GL_INVALID_ENUM);   // FLOAT / HALF_FLOAT_OES, the depth and sRGB formats need their extensions
   if (level < 0 || width < 0 || height < 0 || width > maxTexSize_ || height > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
   if (internalformat != format) return error(GL_INVALID_OPERATION);
-  if (!formatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
+  if (!v1FormatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
+  const bool depth = format == GL_DEPTH_COMPONENT || format == kDepthStencilFmt;
+  if (depth && (face || level != 0 || data)) return error(GL_INVALID_OPERATION);   // depth textures: 2D, level 0, no data
   Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (!id) return error(GL_INVALID_OPERATION);
   if (textures_[id].immutable) return error(GL_INVALID_OPERATION);   // texStorage fixed the format and sizes
@@ -673,23 +864,25 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
     std::size_t need = height ? row * (height - 1) + static_cast<std::size_t>(width) * bpp : 0;
     if (dataBytes < need) return error(GL_INVALID_OPERATION);
   }
-  GLenum gf = format, gi = format;
-  if (!gl_.info().es) {   // the legacy formats do not exist in core: one or two channels plus a swizzle give the same sampling
-    if (format == GL_ALPHA || format == GL_LUMINANCE) { gf = GL_RED; gi = GL_R8; }
-    else if (format == GL_LUMINANCE_ALPHA) { gf = GL_RG; gi = GL_RG8; }
-    else if (format == GL_RGB) gi = type == GL_UNSIGNED_BYTE ? GL_RGB8 : GL_RGB;
-    else gi = type == GL_UNSIGNED_BYTE ? GL_RGBA8 : GL_RGBA;
-    const GLint sw[3][4] = {{GL_ZERO, GL_ZERO, GL_ZERO, GL_RED}, {GL_RED, GL_RED, GL_RED, GL_ONE}, {GL_RED, GL_RED, GL_RED, GL_GREEN}};
-    const GLenum bt = face ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
-    if (format == GL_ALPHA) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[0]);
-    else if (format == GL_LUMINANCE) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[1]);
-    else if (format == GL_LUMINANCE_ALPHA) glTexParameteriv(bt, GL_TEXTURE_SWIZZLE_RGBA, sw[2]);
-  }
-  glTexImage2D(target, level, static_cast<GLint>(gi), width, height, 0, gf, type, data);
+  const GlFmt f = glFormat(format, type, gl_.info().es);
+  glTexImage2D(target, level, static_cast<GLint>(f.internal), width, height, 0, f.format, f.type, data);
   Tex& t = textures_[id];
-  if (level == 0) { t.w = width; t.h = height; t.format = format; }
+  if (level == 0) {
+    t.w = width; t.h = height; t.format = format; t.type = type;
+    t.swz = f.swizzle; t.f32 = type == GL_FLOAT; t.f16 = type == kHalfFloatOes;
+    refreshSampling(id);   // (the legacy formats do not exist in core: one or two channels plus a swizzle give the same sampling)
+  }
 }
-void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) {
+void WebGL1::texParameterf(std::uint32_t target, std::uint32_t pname, float v) {
+  const bool lod = version_ == 2 && (pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD);
+  if (pname != 0x84FE && !lod) return texParameteri(target, pname, static_cast<int>(v));
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
+  if (pname == 0x84FE) { if (!extOn(Ext::Aniso)) return error(GL_INVALID_ENUM); if (!(v >= 1)) return error(GL_INVALID_VALUE); }   // TEXTURE_MAX_ANISOTROPY_EXT
+  if (!boundTex(target)) return error(GL_INVALID_OPERATION);
+  glTexParameterf(target, pname, v);
+}
+void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) { ++fbGen_;
+  if (pname == 0x84FE) return texParameterf(target, pname, static_cast<float>(v));
   if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) return error(GL_INVALID_ENUM);
   bool ok = false;
   switch (pname) {
@@ -706,6 +899,11 @@ void WebGL1::texParameteri(std::uint32_t target, std::uint32_t pname, int v) {
   if (!ok) return error(GL_INVALID_ENUM);
   if (!boundTex(target)) return error(GL_INVALID_OPERATION);
   glTexParameteri(target, pname, v);
+  if (pname == GL_TEXTURE_MIN_FILTER || pname == GL_TEXTURE_MAG_FILTER) {
+    Tex& t = textures_[boundTex(target)];
+    (pname == GL_TEXTURE_MIN_FILTER ? t.minF : t.magF) = static_cast<std::uint32_t>(v);
+    if (t.f32 || t.f16 || t.black) refreshSampling(boundTex(target));
+  }
 }
 
 // ---- framebuffers
@@ -723,11 +921,11 @@ void WebGL1::bindFramebuffer(std::uint32_t target, Id id) {
   if (target != GL_DRAW_FRAMEBUFFER) fboRead_ = id;
   glBindFramebuffer(target, name);
 }
-void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level) {
+void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level) { ++fbGen_;
   if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) return error(GL_INVALID_ENUM);
-  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(version_ == 2 && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
+  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !((version_ == 2 || extOn(Ext::DrawBuffers)) && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
   if (textarget != GL_TEXTURE_2D && !(textarget >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && textarget <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)) return error(GL_INVALID_ENUM);
-  if (version_ == 2 ? (tex && (level < 0 || level > 14)) : level != 0) return error(GL_INVALID_VALUE);
+  if (version_ == 2 ? (tex && (level < 0 || level > 14)) : (level != 0 && (!extOn(Ext::FboRenderMipmap) || level < 0 || level > 14))) return error(GL_INVALID_VALUE);   // OES_fbo_render_mipmap: any level
   const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
   if (!bound) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
@@ -741,12 +939,46 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
   glFramebufferTexture2D(target, attachment, textarget, name, level);
 }
 // the per-draw test: the driver's own answer is enough unless it says no (then the full rules decide)
-bool WebGL1::framebufferReady() { return !fbo_ || glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE || checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE; }
+bool WebGL1::framebufferReady() {
+  if (!fbo_) return true;
+  Fbo& f = fbos_[fbo_];
+  if (f.okGen == fbGen_) return true;   // nothing that decides completeness changed since the last answer
+  const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+  if (ok) f.okGen = fbGen_;
+  return ok;
+}
 std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) { error(GL_INVALID_ENUM); return 0; }
   const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
   if (!bound) return GL_FRAMEBUFFER_COMPLETE;
-  if (version_ != 2) return glCheckFramebufferStatus(target);
+  {   // colour attachments that are not renderable without an extension: floating point (WEBGL_color_buffer_float, EXT_color_buffer_half_float, EXT_color_buffer_float) and WebGL 1's ALPHA / LUMINANCE
+    for (int i = 0; i < 4; ++i) {
+      GLint type = GL_NONE, comp = 0, bits[4] = {};
+      const GLenum att = GL_COLOR_ATTACHMENT0 + i;
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+      if (type == GL_NONE) continue;
+      if (version_ != 2 && type == GL_TEXTURE) {
+        GLint name = 0;
+        glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+        for (auto& t : textures_) if (t.second.name == static_cast<std::uint32_t>(name) && (t.second.format == GL_ALPHA || t.second.format == GL_LUMINANCE || t.second.format == GL_LUMINANCE_ALPHA || t.second.format == kSrgbExt)) { while (glGetError() != GL_NO_ERROR) {} return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT; }
+      }
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+      if (comp == GL_SIGNED_NORMALIZED && version_ == 2) { while (glGetError() != GL_NO_ERROR) {} return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT; }   // snorm is not renderable without EXT_render_snorm
+      if (comp != GL_FLOAT) continue;
+      const GLenum sz[4] = {GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE};
+      for (int k = 0; k < 4; ++k) glGetFramebufferAttachmentParameteriv(target, att, sz[k], &bits[k]);
+      const int channels = bits[3] ? 4 : bits[2] ? 3 : bits[1] ? 2 : 1;
+      if (!floatRenderable(bits[0], channels)) { while (glGetError() != GL_NO_ERROR) {} return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT; }
+    }
+    while (glGetError() != GL_NO_ERROR) {}
+    if (version_ != 2) {   // WEBGL_depth_texture: DEPTH_COMPONENT goes to DEPTH_ATTACHMENT, DEPTH_STENCIL to DEPTH_STENCIL_ATTACHMENT, no texture to STENCIL_ATTACHMENT
+      const Fbo& f = fbos_[bound];
+      auto format = [&](std::uint32_t name) { for (auto& t : textures_) if (t.second.name == name) return t.second.format; return 0u; };
+      if (f.tx[4] && f.tx[4] == f.tx[5]) { if (format(f.tx[4]) != kDepthStencilFmt) return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT; }
+      else if (f.tx[4] && format(f.tx[4]) != GL_DEPTH_COMPONENT) return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+      else if (f.tx[5]) return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+    }
+  }
   // what is attached: type, name and, for textures, level, face and layer
   struct Img { GLint type = GL_NONE, name = 0, level = 0, face = 0, layer = 0; bool operator==(const Img& o) const { return type == o.type && name == o.name && level == o.level && face == o.face && layer == o.layer; } };
   auto img = [&](GLenum att) {
@@ -789,11 +1021,21 @@ std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   }
   return status;
 }
+// is a floating-point colour format of this many bits per channel (11: R11F_G11F_B10F) and channels color-renderable with the extensions the page enabled
+bool WebGL1::floatRenderable(int bits, int channels) const {
+  const bool half = extOn(Ext::ColorBufHalf), full = extOn(Ext::ColorBufFloat), webgl = extOn(Ext::ColorBufFloatWebgl);
+  if (version_ == 2) {
+    if (bits == 11) return full;
+    if (channels == 3) return false;   // RGB16F and RGB32F are never color-renderable in WebGL 2
+    return bits == 16 ? (full || half) : full;
+  }
+  return bits == 16 ? half : webgl;
+}
 // the pair IMPLEMENTATION_COLOR_READ_* reports for the read buffer: what a framebuffer of that component class reads without conversion
 void WebGL1::implementationReadFormat(std::uint32_t& format, std::uint32_t& type) {
   format = GL_RGBA; type = GL_UNSIGNED_BYTE;
-  if (version_ != 2 || !fboRead_) return;
-  const GLenum att = fbos_[fboRead_].readBuffer;
+  if (!fboRead_) return;
+  const GLenum att = version_ == 2 ? fbos_[fboRead_].readBuffer : static_cast<GLenum>(GL_COLOR_ATTACHMENT0);
   GLint t = GL_NONE, comp = 0, red = 0, alpha = 0;
   glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t);
   if (t != GL_NONE) {
@@ -803,6 +1045,7 @@ void WebGL1::implementationReadFormat(std::uint32_t& format, std::uint32_t& type
   }
   while (glGetError() != GL_NO_ERROR) {}
   if (comp == GL_FLOAT) type = GL_FLOAT;
+  else if (version_ != 2) {}
   else if (comp == GL_INT) { format = GL_RGBA_INTEGER; type = GL_INT; }
   else if (comp == GL_UNSIGNED_INT) { format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; }
   else if (red == 10 && alpha == 2) type = GL_UNSIGNED_INT_2_10_10_10_REV;
@@ -849,6 +1092,19 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
     return;
   }
   if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
+  if (format == GL_RGBA && (type == GL_FLOAT || type == kHalfFloatOes) && fbo_ && (extOn(Ext::ColorBufHalf) || extOn(Ext::ColorBufFloatWebgl))) {   // a floating-point framebuffer reads back as floats
+    GLint ctype = GL_NONE, comp = 0;
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &ctype);
+    if (ctype != GL_NONE) glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+    while (glGetError() != GL_NO_ERROR) {}
+    if (comp == GL_FLOAT) {
+      if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
+      if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+      if (outBytes < static_cast<std::size_t>(w) * h * (type == GL_FLOAT ? 16 : 8)) return error(GL_INVALID_OPERATION);
+      glReadPixels(x, y, w, h, GL_RGBA, type == GL_FLOAT ? GL_FLOAT : GL_HALF_FLOAT, out);
+      return;
+    }
+  }
   switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
   if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
   if (w < 0 || h < 0) return error(GL_INVALID_VALUE);

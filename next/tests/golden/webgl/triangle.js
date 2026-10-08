@@ -39,4 +39,4 @@ gl.bindBuffer(0x1234, buf);
 console.log('bad target', gl.getError() === gl.INVALID_ENUM, gl.getError());
 gl.drawArrays(gl.TRIANGLES, 0, 1000);
 console.log('draw out of range', gl.getError() === gl.INVALID_OPERATION);
-console.log('types', typeof gl.createBuffer(), gl.drawingBufferWidth, gl.canvas === canvas, gl.getExtension('OES_texture_float'));
+console.log('types', typeof gl.createBuffer(), gl.drawingBufferWidth, gl.canvas === canvas, typeof gl.getExtension('OES_texture_float'));

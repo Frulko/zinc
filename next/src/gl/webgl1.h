@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "gl/offscreen.h"
+#include "gl/webgl_ext.h"
 
 namespace zn::gl {
 /** Every sampler type of GLSL ES 3.00 (WebGL 2 adds 3D, array, shadow and integer samplers): such a uniform takes a texture unit through uniform1i / uniform1iv. */
@@ -18,7 +19,13 @@ inline bool isSamplerType(std::uint32_t t) {
 
 
 using Id = std::uint32_t;   // 0: null object
+constexpr std::uint32_t kHalfFloatOes = 0x8D61, kDepthStencilFmt = 0x84F9, kUnsignedInt248 = 0x84FA, kSrgbExt = 0x8C40, kSrgbAlphaExt = 0x8C42;   // the WebGL 1 extension enums
+/** What the driver gets for a WebGL 1 (format, type) pair: internal format, format, type and the swizzle that stands in for ALPHA / LUMINANCE (0 none, 1 ALPHA, 2 LUMINANCE, 3 LUMINANCE_ALPHA) on a core profile. */
+struct GlFmt { std::uint32_t internal, format, type; int swizzle; };
+GlFmt glFormat(std::uint32_t format, std::uint32_t type, bool es);
 bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
+/** WebGL 2 sized or legacy unsized texture format: its component count and class ('f' fixed / float, 'i' signed integer, 'u' unsigned integer); false for depth / stencil and for anything that is not a format. */
+bool texFormatInfo(std::uint32_t internal, int& comps, char& cls);
 constexpr int kMaxVertexAttribs = 16;
 struct UniformLoc { Id program = 0; std::uint32_t gen = 0; int location = -1; std::uint32_t type = 0; int size = 0; bool valid() const { return program && location >= 0; } };
 
@@ -29,13 +36,26 @@ class WebGL1 {
   bool create(Api api, int width, int height, std::string& error, int version = 1);   // version 2: WebGL 2.0 (needs GL 3.3 core or GLES3)
   int version() const { return version_; }
   const Offscreen& target() const { return gl_; }
+  // extensions (webgl_ext.h): supported = the driver provides what the table asks for; on = the page called getExtension for it
+  bool extSupported(Ext e) const { return (extSup_ >> static_cast<int>(e)) & 1; }
+  bool extOn(Ext e) const { return (extOn_ >> static_cast<int>(e)) & 1; }
+  bool enableExt(Ext e);
+  int unpackAlignment() const { return unpackAlignment_; }
+  int unpackSkipPixels() const { return unpackSkipPixels_; }
+  int unpackSkipRows() const { return unpackSkipRows_; }
+  int unpackImageHeight() const { return unpackImageHeight_; }
+  void domUnpack(bool on);   // around an upload of converted DOM pixels: the pixel-store skips and row lengths were already applied to them
+  bool unpackFlipY() const { return unpackFlipY_ != 0; }
+  bool unpackPremultiply() const { return unpackPremultiply_ != 0; }
   void makeCurrent() { gl_.makeCurrent(); }   // several contexts live side by side: each call of the binding makes its own current
 
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
   std::uint32_t getError();
   void raise(std::uint32_t code) { error(code); }   // for the binding layer: wrong-context objects and the like
   void resizeDrawingBuffer(int w, int h);
-  void setAttributes(bool depth, bool stencil) { depthAttr_ = depth; stencilAttr_ = stencil; }
+  bool drawingBufferDirty() const { return dirty_; }   // something was drawn to the default framebuffer since the last composite
+  void compositeClear();
+  void setAttributes(bool depth, bool stencil, bool alpha = true) { depthAttr_ = depth; stencilAttr_ = stencil; alphaAttr_ = alpha; }
   Param getFramebufferAttachmentParameter(std::uint32_t target, std::uint32_t attachment, std::uint32_t pname);
   Param getIndexedParameter(std::uint32_t target, std::uint32_t index);
   std::vector<std::uint32_t> getUniformIndices(Id p, const std::vector<std::string>& names);
@@ -164,6 +184,7 @@ class WebGL1 {
   void activeTexture(std::uint32_t unit);
   void texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
   void texParameteri(std::uint32_t target, std::uint32_t pname, int value);
+  void texParameterf(std::uint32_t target, std::uint32_t pname, float value);
   // framebuffers and renderbuffers
   Id createFramebuffer();
   void bindFramebuffer(std::uint32_t target, Id f);
@@ -250,11 +271,11 @@ class WebGL1 {
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
   struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
-  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, target = 0; bool bound = false, immutable = false; int levels = 0; };
+  struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t minF = 0x2702, magF = 0x2601; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
   struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
-  struct Fbo { std::uint32_t name = 0; Id color = 0, colorRb = 0, rb[6] = {}, tx[6] = {};   /* rb: renderbuffers by attachment: colour 0-3, depth, stencil */  int colorLevel = 0; std::uint32_t colorFace = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; };   // 0x8CE0: COLOR_ATTACHMENT0
+  struct Fbo { std::uint32_t name = 0; Id color = 0, colorRb = 0, rb[6] = {}, tx[6] = {};   /* rb: renderbuffers by attachment: colour 0-3, depth, stencil */  int colorLevel = 0; std::uint32_t colorFace = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; std::uint64_t okGen = 0; };   // okGen: the fbGen_ at which it was last found complete   // 0x8CE0: COLOR_ATTACHMENT0
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0, samples = 0; std::uint32_t format = 0; bool bound = false, deleted = false; };   // deleted: still attached somewhere, so the name stays known
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
   struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
@@ -265,7 +286,7 @@ class WebGL1 {
   static unsigned bit(std::uint32_t code);
   Id& boundTex(std::uint32_t target);   // the texture bound to `target` on the active unit
   bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub);
-  bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1);
+  bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1, bool instancedDraw = false);
   bool bufferTargetOk(std::uint32_t t) const;
   void applyIndexed(std::uint32_t target, std::uint32_t index);
   void releaseBuffers();
@@ -300,7 +321,18 @@ class WebGL1 {
   bool idxCurrent(std::uint64_t key) const { return static_cast<std::uint32_t>(key >> 32) != 0x8C8E || ((key >> 8) & 0xFFFFFF) == tf_; }
   std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
   int version_ = 1;
-  bool depthAttr_ = true, stencilAttr_ = false;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
+  std::uint32_t extSup_ = 0, extOn_ = 0;
+  bool dirty_ = false;
+  std::uint64_t fbGen_ = 1;   // bumped by everything that can change whether a framebuffer is complete
+  bool probe(const char* spec) const;
+  void refreshSampling(Id id);   // swizzle of a texture: its format's, or black while it is a float texture filtered linearly without the extension
+  bool v1FormatType(std::uint32_t format, std::uint32_t type, int& bpp) const;   // texImage2D of WebGL 1 with the enabled extensions
+  bool v1Format(std::uint32_t format) const;
+  bool floatRenderable(int bits, int channels) const;
+  bool readFormat(int& comps, char& cls);
+  bool renderbufferFormatAllowed(std::uint32_t fmt) const;
+  bool v1Type(std::uint32_t type) const;
+  bool depthAttr_ = true, stencilAttr_ = false, alphaAttr_ = true;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
   std::uint32_t defaultRead_ = 0x0405, defaultDraw_[4] = {0x0405, 0, 0, 0};   // BACK; NONE for the others
   int uniformAlignment_ = 256;
   Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[32] = {}, texCube_[32] = {}, tex3d_[32] = {}, texArr_[32] = {}, samplerUnit_[32] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;

@@ -10,7 +10,6 @@ namespace zn::gl {
 
 // ---- vertex array objects: the attribute state and the ELEMENT_ARRAY_BUFFER binding move with the VAO
 Id WebGL1::createVertexArray() {
-  if (version_ != 2) { error(GL_INVALID_OPERATION); return 0; }
   Vao v;
   glGenVertexArrays(1, &v.name);
   Id id = nextId_++;
@@ -49,18 +48,20 @@ void WebGL1::vertexAttribDivisor(std::uint32_t index, std::uint32_t divisor) {
 void WebGL1::drawArraysInstanced(std::uint32_t mode, int first, int count, int instances) {
   if (mode > GL_TRIANGLE_FAN) return error(GL_INVALID_ENUM);
   if (first < 0 || count < 0 || instances < 0) return error(GL_INVALID_VALUE);
-  if (!checkDrawState(first, static_cast<std::int64_t>(first) + count - 1, instances)) return;
+  if (!checkDrawState(first, static_cast<std::int64_t>(first) + count - 1, instances, true)) return;
   if (count == 0 || instances == 0) return;
   glDrawArraysInstanced(mode, first, count, instances);
 }
 void WebGL1::drawElementsInstanced(std::uint32_t mode, int count, std::uint32_t type, std::int64_t offset, int instances) {
   if (mode > GL_TRIANGLE_FAN) return error(GL_INVALID_ENUM);
   if (type != GL_UNSIGNED_BYTE && type != GL_UNSIGNED_SHORT && type != GL_UNSIGNED_INT) return error(GL_INVALID_ENUM);
+  if (type == GL_UNSIGNED_INT && version_ != 2 && !extOn(Ext::IndexUint)) return error(GL_INVALID_ENUM);
   if (count < 0 || offset < 0 || instances < 0) return error(GL_INVALID_VALUE);
   const int ts = type == GL_UNSIGNED_BYTE ? 1 : type == GL_UNSIGNED_SHORT ? 2 : 4;
   if (offset % ts) return error(GL_INVALID_OPERATION);
   auto e = buffers_.find(elementBuffer_);
   if (e == buffers_.end()) return error(GL_INVALID_OPERATION);
+  if (instances == 0 && version_ != 2) return;   // ANGLE_instanced_arrays: nothing is drawn, nothing is checked against the buffer
   if (count > 0 && offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
   std::int64_t maxIndex = -1;
   for (int i = 0; i < count; ++i) {
@@ -68,7 +69,7 @@ void WebGL1::drawElementsInstanced(std::uint32_t mode, int count, std::uint32_t 
     std::int64_t v = ts == 1 ? p[0] : ts == 2 ? (p[0] | (p[1] << 8)) : static_cast<std::int64_t>(p[0] | (p[1] << 8) | (p[2] << 16) | (static_cast<std::uint32_t>(p[3]) << 24));
     maxIndex = std::max(maxIndex, v);
   }
-  if (!checkDrawState(0, maxIndex, instances)) return;
+  if (!checkDrawState(0, maxIndex, instances, true)) return;
   if (count == 0 || instances == 0) return;
   glDrawElementsInstanced(mode, count, type, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)), instances);
 }
@@ -81,6 +82,7 @@ void WebGL1::drawRangeElements(std::uint32_t mode, std::uint32_t start, std::uin
 void WebGL1::drawBuffers(const std::uint32_t* bufs, int n) {
   if (n < 0 || n > 4) return error(GL_INVALID_VALUE);   // MAX_DRAW_BUFFERS is at least 4; reported as 4
   std::uint32_t mapped[4];
+  if (!fbo_ && n != 1) return error(GL_INVALID_OPERATION);   // the canvas: exactly one buffer
   for (int i = 0; i < n; ++i) {
     if (!fbo_) {   // the canvas: exactly one buffer, BACK or NONE
       if (n != 1 || (bufs[i] != GL_BACK && bufs[i] != GL_NONE)) return error(GL_INVALID_OPERATION);

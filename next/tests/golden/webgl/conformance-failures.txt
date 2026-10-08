@@ -1,8 +1,222 @@
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
+conformance2/extensions/nv-shader-noperspective-interpolation.html	Noperspective interpolation qualifier allowed without #extension pragma
+conformance2/extensions/oes-draw-buffers-indexed.html	ext.enableiOES(gl.BLEND, -1) threw exception TypeError: not a function
+conformance2/extensions/required-extensions.html	((has_s3tc && has_s3tc_srgb && has_rgtc) || has_etc) should be true. Was false.
+conformance2/extensions/webgl-blend-func-extended.html	@E not a function |     at runTestNoExtension (<input>:62:46) |     at runTest (<input>:528:5)
+conformance2/glsl3/array-in-complex-expression.html	should be green at (0, 0) expected: 0,255,0,255 was 0,0,0,255
+conformance2/glsl3/array-length-side-effects.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
+conformance2/glsl3/attrib-location-length-limits.html	getError expected: INVALID_VALUE. Was NO_ERROR : 
+conformance2/glsl3/forbidden-operators.html	[unexpected link status] (expected: false) Using ternary operators with arrays is not allowed
+conformance2/glsl3/invalid-default-precision.html	[unexpected link status] (expected: false) default precision qualifier shouldn't work with vec2
+conformance2/glsl3/invalid-invariant.html	[unexpected link status] (expected: false) fragment shader with an input variable which is invariant must fail
+conformance2/glsl3/loops-with-side-effects.html	should be 255,255,0,255 at (0, 0) expected: 255,255,0,255 was 0,0,0,255
+conformance2/glsl3/misplaced-version-directive.html	[unexpected link status] (expected: false) Vertex shader with a newline before the version directive should fail.
+conformance2/glsl3/sampler-array-indexing.html	[unexpected link status] (expected: false) indexing into an array of samplers with constant-index-expression is forbidden in essl300
+conformance2/glsl3/sampler-no-precision.html	[unexpected link status] (expected: false) Vertex shader with a sampler3D uniform with no precision qualifier should not compile
+conformance2/glsl3/sequence-operator-returns-non-constant.html	[unexpected link status] (expected: false) Sequence operator cannot return a constant expression
+conformance2/glsl3/shader-linking.html	[unexpected link status] (expected: false) OpenGL ES Shading Language 3.00 vertex shader should not link with OpenGL ES Shading Languag
+conformance2/glsl3/shader-with-mis-matching-uniform-block.html	[unexpected link status] (expected: false) Shaders with precision mis-matching uniform blocks should fail
+conformance2/glsl3/short-circuiting-in-loop-condition.html	should be green at (0, 0) expected: 0,255,0,255 was 0,255,0,0
+conformance2/glsl3/switch-case.html	exit -11: 
+conformance2/glsl3/texture-offset-out-of-range.html	[unexpected link status] (expected: false) Texture offset below minimum valid value should not compile
+conformance2/glsl3/tricky-loop-conditions.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
+conformance2/glsl3/uniform-block-layouts.html	[unexpected link status] (expected: undefined) Packed uniform buffers are disallowed
+conformance2/glsl3/uniform-location-length-limits.html	getError expected: INVALID_VALUE. Was NO_ERROR : 
+conformance2/glsl3/uninitialized-local-global-variables.html	should be 0,0,0,0 at (0, 0) expected: 0,0,0,0 was 255,0,255,0
+conformance2/glsl3/valid-invariant.html	[unexpected link status] (expected: true) vertex shader with invariant varying and fragment shader with variant varying must succeed
+conformance2/glsl3/vector-dynamic-indexing.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/misc/uninitialized-test-2.html	timeout
-conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
-context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
-context/context-lost-restored.html	no PASS
-context/context-lost.html	no PASS
-context/premultiplyalpha-test.html	@E not a function |     at doNextTest (<input>:206:39) |     at <eval> (<input>:123:1)
+conformance2/textures/misc/angle-stuck-depth-textures.html	gl.getProgramParameter(blitProgram, gl.LINK_STATUS) should be true. Threw exception TypeError: argument must not be null
+conformance2/textures/misc/compressed-tex-image.html	Should throw a TypeError: too few args
+conformance2/textures/misc/copy-texture-image-same-texture.html	checkFramebufferStatus expects [FRAMEBUFFER_INCOMPLETE_ATTACHMENT], was FRAMEBUFFER_COMPLETE
+conformance2/textures/misc/copy-texture-image-webgl-specific.html	getError expected: INVALID_OPERATION. Was NO_ERROR : gl.INVALID_OPERATION is generated
+conformance2/textures/misc/copy-texture-image.html	getError expected: INVALID_OPERATION. Was NO_ERROR : copyTexImage2D should fail for good internalformat with unmatched component sizes 
+conformance2/textures/misc/immutable-tex-render-feedback.html	getError expected: INVALID_OPERATION. Was NO_ERROR : after draw with texture
+conformance2/textures/misc/npot-video-sizing.html	video.canPlayType required method missing
+conformance2/textures/misc/origin-clean-conformance-offscreencanvas.html	Image setup failed (createCrossOriginImage failed).
+conformance2/textures/misc/pbo-texture-uploads.html	getError expected: INVALID_OPERATION. Was INVALID_VALUE : should generate INVALID_OPERATION when PBO is bound
+conformance2/textures/misc/tex-3d-size-limit.html	getError expected: INVALID_VALUE. Was NO_ERROR : texImage3D should fail for dimension out of range.
+conformance2/textures/misc/tex-base-level-bug.html	should draw with [255, 0, 0, 255] at (0, 0) expected: 255,0,0,255 was 0,0,0,255
+conformance2/textures/misc/tex-image-10bpc.html	no PASS
+conformance2/textures/misc/tex-image-with-bad-args-from-dom-elements.html	did not finish
+conformance2/textures/misc/tex-image-with-bad-args.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : TexImage2D taking RGBA/RGBA/FLOAT
+conformance2/textures/misc/tex-image-with-different-data-source.html	getError expected: NO_ERROR. Was INVALID_VALUE : TexImage2D taking a canvas source should succeed
+conformance2/textures/misc/tex-input-validation.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : internalFormat: RGBA target: TEXTURE_2D format: RGBA type: BYTE border: 0
+conformance2/textures/misc/tex-mipmap-levels.html	getError expected: NO_ERROR. Was INVALID_OPERATION : generateMipmap should succeed
+conformance2/textures/misc/tex-new-formats.html	getError expected: INVALID_OPERATION. Was NO_ERROR : texImage2D should fail with sized internalformat and data of wrong type
+conformance2/textures/misc/tex-storage-2d.html	getError expected: INVALID_OPERATION. Was INVALID_VALUE : texStorage2D should fail for too many levels
+conformance2/textures/misc/tex-storage-and-subimage-3d.html	getError expected: INVALID_OPERATION. Was INVALID_VALUE : texStorage3D should fail for too many levels
+conformance2/textures/misc/tex-subimage3d-pixel-buffer-bug.html	@E pixels must be null or an ArrayBuffer view |     at texSubImage3D (native) |     at runTest (<input>:33:78)
+conformance2/textures/misc/tex-unpack-params-with-flip-y-and-premultiply-alpha.html	compare pixels: 15 pixels differ
+conformance2/textures/misc/tex-unpack-params.html	getError expected: INVALID_OPERATION. Was NO_ERROR : buffer too small
+context/context-attributes-alpha-depth-stencil-antialias.html	gl.getParameter(gl.ALPHA_BITS) should be 0. Was 8.
+context/premultiplyalpha-test.html	did not finish
+extensions/ext-sRGB.html	did not finish
+extensions/khr-parallel-shader-compile.html	@E spinner is not defined |     at spinSpinner (<input>:7:5) |     at <eval> (<input>:10:1)
+extensions/oes-texture-float-with-canvas.html	font missing
+extensions/oes-texture-float-with-image.html	image decoding is not available (../../resources/red-green.png)
+extensions/oes-texture-float-with-video.html	video.canPlayType required method missing
+extensions/oes-texture-half-float-with-canvas.html	font missing
+extensions/oes-texture-half-float-with-image.html	image decoding is not available (../../resources/red-green.png)
+extensions/oes-texture-half-float-with-video.html	video.canPlayType required method missing
+extensions/webgl-compressed-texture-etc.html	gl.compressedTexImage2D(gl.TEXTURE_2D, 0, validFormats.COMPRESSED_R11_EAC, 4, 4, 0, null) should throw an exception. Was undefined.
+glsl/bugs/assign-to-swizzled-twice-in-function.html	should be green at (1, 0) expected: 0,255,0,255 was 255,255,0,255
+glsl/bugs/character-set.html	[unexpected link status] (expected: false) Out-of-charset string '$' in #preproc MUST NOT compile.
+glsl/bugs/essl3-shaders-with-webgl1.html	[unexpected link status] (expected: false) OpenGL ES 3 shading language vertex shader with an in variable should not be accepted by Web
+glsl/bugs/in-parameter-passed-as-inout-argument-and-global.html	should be green at (0, 0) expected: 0,255,0,255 was 0,0,0,255
+glsl/bugs/sequence-operator-evaluation-order.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
+glsl/constructors/glsl-construct-mat2.html	[unexpected link status] (expected: false) Vertex shader : mat2(float, mat2), invalid, argument list greater than one contains matrix t
+glsl/constructors/glsl-construct-mat3.html	[unexpected link status] (expected: false) Vertex shader : mat3(float, mat3), invalid, argument list greater than one contains matrix t
+glsl/constructors/glsl-construct-mat4.html	[unexpected link status] (expected: false) Vertex shader : mat4(float, mat4), invalid, argument list greater than one contains matrix t
+glsl/implicit/add_int_float.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to float should fail
+glsl/implicit/add_int_mat2.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to mat2 should fail
+glsl/implicit/add_int_mat3.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to mat3 should fail
+glsl/implicit/add_int_mat4.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to mat4 should fail
+glsl/implicit/add_int_vec2.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to vec2 should fail
+glsl/implicit/add_int_vec3.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to vec3 should fail
+glsl/implicit/add_int_vec4.vert.html	[unexpected link status] (expected: false) implicit cast adding integer to vec4 should fail
+glsl/implicit/add_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast adding ivec2 to vec2 should fail
+glsl/implicit/add_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast adding ivec3 to vec3 should fail
+glsl/implicit/add_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast adding ivec4 to vec4 should fail
+glsl/implicit/assign_int_to_float.vert.html	[unexpected link status] (expected: false) implicit cast assing int to float should fail
+glsl/implicit/assign_ivec2_to_vec2.vert.html	[unexpected link status] (expected: false) implicit cast assigning ivec2 to vec2 should fail
+glsl/implicit/assign_ivec3_to_vec3.vert.html	[unexpected link status] (expected: false) implicit cast assigning ivec3 to vec3 should fail
+glsl/implicit/assign_ivec4_to_vec4.vert.html	[unexpected link status] (expected: false) implicit cast assigning ivec4 to vec4 should fail
+glsl/implicit/construct_struct.vert.html	[unexpected link status] (expected: false) implicit cast from int to float in struct initializer should fail
+glsl/implicit/divide_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of float divided by int should fail
+glsl/implicit/divide_int_mat2.vert.html	[unexpected link status] (expected: false) implicit cast of mat2 divided by int should fail
+glsl/implicit/divide_int_mat3.vert.html	[unexpected link status] (expected: false) implicit cast of mat3 divided by int should fail
+glsl/implicit/divide_int_mat4.vert.html	[unexpected link status] (expected: false) implicit cast of mat4 divided by int should fail
+glsl/implicit/divide_int_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of vec2 divided by int should fail
+glsl/implicit/divide_int_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of vec3 divided by int should fail
+glsl/implicit/divide_int_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of vec4 divided by int should fail
+glsl/implicit/divide_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of vec2 divided by ivec2 should fail
+glsl/implicit/divide_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of vec3 divided by ivec3 should fail
+glsl/implicit/divide_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of vec4 divided by ivec4 should fail
+glsl/implicit/equal_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in comparision should fail
+glsl/implicit/equal_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in comparision should fail
+glsl/implicit/equal_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in comparision should fail
+glsl/implicit/equal_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in comparision should fail
+glsl/implicit/function_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in function argument should fail
+glsl/implicit/function_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in function argument should fail
+glsl/implicit/function_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in function argument should fail
+glsl/implicit/function_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in function argument should fail
+glsl/implicit/greater_than.vert.html	[unexpected link status] (expected: false) implicit cast of int to float with greater than should fail
+glsl/implicit/greater_than_equal.vert.html	[unexpected link status] (expected: false) implicit cast of int to float with greater than or equal to should fail
+glsl/implicit/less_than.vert.html	[unexpected link status] (expected: false) implicit cast of int to float with less than should fail
+glsl/implicit/less_than_equal.vert.html	[unexpected link status] (expected: false) implicit cast of int to float with less than or equal to should fail
+glsl/implicit/multiply_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in multiply should fail
+glsl/implicit/multiply_int_mat2.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat2 in multiply should fail
+glsl/implicit/multiply_int_mat3.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat3 in multiply should fail
+glsl/implicit/multiply_int_mat4.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat4 in multiply should fail
+glsl/implicit/multiply_int_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec2 in multiply should fail
+glsl/implicit/multiply_int_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec3 in multiply should fail
+glsl/implicit/multiply_int_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec4 in multiply should fail
+glsl/implicit/multiply_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in multiply should fail
+glsl/implicit/multiply_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in multiply should fail
+glsl/implicit/multiply_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in multiply should fail
+glsl/implicit/not_equal_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in not equal comparison should fail
+glsl/implicit/not_equal_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in not equal comparison should fail
+glsl/implicit/not_equal_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in not equal comparison should fail
+glsl/implicit/not_equal_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in not equal comparison should fail
+glsl/implicit/subtract_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in subtraction should fail
+glsl/implicit/subtract_int_mat2.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat2 in subtraction should fail
+glsl/implicit/subtract_int_mat3.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat3 in subtraction should fail
+glsl/implicit/subtract_int_mat4.vert.html	[unexpected link status] (expected: false) implicit cast of int to mat4 in subtraction should fail
+glsl/implicit/subtract_int_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec2 in subtraction should fail
+glsl/implicit/subtract_int_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec3 in subtraction should fail
+glsl/implicit/subtract_int_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of int to vec4 in subtraction should fail
+glsl/implicit/subtract_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in subtraction should fail
+glsl/implicit/subtract_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in subtraction should fail
+glsl/implicit/subtract_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in subtraction should fail
+glsl/implicit/ternary_int_float.vert.html	[unexpected link status] (expected: false) implicit cast of int to float in ternary expression should fail
+glsl/implicit/ternary_ivec2_vec2.vert.html	[unexpected link status] (expected: false) implicit cast of ivec2 to vec2 in ternary expression should fail
+glsl/implicit/ternary_ivec3_vec3.vert.html	[unexpected link status] (expected: false) implicit cast of ivec3 to vec3 in ternary expression should fail
+glsl/implicit/ternary_ivec4_vec4.vert.html	[unexpected link status] (expected: false) implicit cast of ivec4 to vec4 in ternary expression should fail
+glsl/matrices/glsl-mat3-construction.html	@E cannot read property 'innerText' of undefined |     at runBasicTest (<input>:465:39) |     at <eval> (<input>:18:21)
+glsl/matrices/glsl-mat4-to-mat3.html	@E cannot read property 'innerText' of undefined |     at runBasicTest (<input>:465:39) |     at <eval> (<input>:18:21)
+glsl/misc/attrib-location-length-limits.html	wtu.loadProgramFromScriptExpectError(gl, "badVertexShader", "fragmentShader") should be null. Was [object Object].
+glsl/misc/embedded-struct-definitions-forbidden.html	[unexpected link status] (expected: false) embedded structure definitions are forbidden per GLSL ES section 4.1.8, "Structures", and sh
+glsl/misc/extension-enable-and-disable.html	Shader compiled and linked successfully, but it should have failed.
+glsl/misc/fragcolor-fragdata-invariant.html	[unexpected fragment shader compile status] (expected: true) Declaring both gl_FragColor and gl_FragData invariant should succeed.
+glsl/misc/global-variable-init.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
+glsl/misc/glsl-long-variable-names.html	activeUniform.name should be value01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+glsl/misc/non-ascii-comments.vert.html	@E vertexShader is not defined |     at <eval> (<input>:12:1) |     at eval (native)
+glsl/misc/non-ascii.vert.html	@E vertexShader is not defined |     at <eval> (<input>:14:1) |     at eval (native)
+glsl/misc/shader-struct-scope.html	[unexpected vertex shader compile status] (expected: true) Two structs defined within non-overlapping scopes should be able to use the 
+glsl/misc/shader-uniform-packing-restrictions.html	[unexpected link status] (expected: false) vertex shader with uniform array of bool with 1025 elements (one past maximum) accessing fir
+glsl/misc/shader-varying-packing-restrictions.html	[unexpected link status] (expected: false) shaders with varying array of float with 16 elements (one past maximum) accessing last eleme
+glsl/misc/shader-with-257-character-define.html	[unexpected link status] (expected: false) vertex shader that uses 257 character token in #define should fail
+glsl/misc/shader-with-257-character-identifier.frag.html	[unexpected link status] (expected: false) shader that uses 257 character identifier should fail
+glsl/misc/shader-with-_webgl-identifier.vert.html	[unexpected link status] (expected: false) vertex shader that uses _webgl identifier should fail
+glsl/misc/shader-with-array-of-structs-containing-arrays.html	Should be red at (0, 0) expected: 255,0,0,255 was 0,0,0,0
+glsl/misc/shader-with-attrib-array.vert.html	[unexpected link status] (expected: false) vertex shader that uses attribute array should fail as per GLSL page 110, appendix A, sectio
+glsl/misc/shader-with-do-loop.html	[unexpected link status] (expected: false) fragment shader with do loop should fail
+glsl/misc/shader-with-double-underscore.html	[unexpected fragment shader compile status] (expected: true) fragment shader that uses double-underscore in identifier should succeed
+glsl/misc/shader-with-function-scoped-struct.html	[unexpected link status] (expected: false) fragment shader with private function scoped struct should fail.
+glsl/misc/shader-with-global-variable-precision-mismatch.html	[unexpected link status] (expected: false) mismatching precision for uniforms causes link error (as expected)
+glsl/misc/shader-with-non-reserved-words-1-of-8.html	shader with: 'uint' failed to compile
+glsl/misc/shader-with-non-reserved-words-3-of-8.html	shader with: 'fwidth' failed to compile
+glsl/misc/shader-with-non-reserved-words-5-of-8.html	shader with: 'layout' failed to compile
+glsl/misc/shader-with-non-reserved-words-6-of-8.html	shader with: 'mat2x2' failed to compile
+glsl/misc/shader-with-non-reserved-words-7-of-8.html	shader with: 'isampler3D' failed to compile
+glsl/misc/shader-with-non-reserved-words-8-of-8.html	shader with: 'common' failed to compile
+glsl/misc/shader-with-reserved-words.html	shader with: 'attribute' compiled even though it should not
+glsl/misc/shader-with-short-circuiting-operators.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
+glsl/misc/shader-with-uniform-in-loop-condition.vert.html	[unexpected link status] (expected: false) vertex shader with uniform variable in loop condition should fail
+glsl/misc/shader-with-version-100.frag.html	[unexpected fragment shader compile status] (expected: true) fragment shader that uses __VERSION__==100 should succeed
+glsl/misc/shader-with-version-120.vert.html	[unexpected link status] (expected: false) vertex shader uses the #version not 100 directive should fail
+glsl/misc/shader-with-version-130.vert.html	[unexpected link status] (expected: false) vertex shader uses the #version not 100 directive should fail
+glsl/misc/shader-with-webgl-identifier.vert.html	[unexpected link status] (expected: false) vertex shader that uses webgl identifier should fail
+glsl/misc/shader-with-while-loop.html	[unexpected link status] (expected: false) fragment shader with while loop should fail
+glsl/misc/shaders-with-constant-expression-loop-conditions.html	[unexpected link status] (expected: false) Vertex shader with non-const variable in the loop condition should fail.
+glsl/misc/shaders-with-invariance.html	[unexpected link status] (expected: false) vertex shader with invariant (global setting) varying and fragment shader with variant varyi
+glsl/misc/shaders-with-uniform-structs.html	[unexpected link status] (expected: false) Structures must have the same type definitions (including precision) to be considered the sa
+glsl/misc/shaders-with-varyings.html	[unexpected link status] (expected: true) vertex shader with unused varying and fragment shader with used varying must succeed
+glsl/misc/struct-assign.html	[unexpected link status] (expected: false) Assigning a struct containing an array should not compile
+glsl/misc/struct-equals.html	[unexpected link status] (expected: false) Comparing a struct containing an array should not compile
+glsl/misc/struct-nesting-exceeds-maximum.html	[unexpected link status] (expected: false) shader with too-deep struct nesting should fail per WebGL spec
+glsl/misc/struct-nesting-of-variable-names.html	[unexpected fragment shader compile status] (expected: true) Outer struct type: float inner struct type: float
+glsl/misc/ternary-operator-on-arrays.html	[unexpected link status] (expected: false) Using ternary operators with arrays is not allowed
+glsl/misc/uniform-location-length-limits.html	getError expected: INVALID_VALUE. Was NO_ERROR : 
+glsl/misc/uninitialized-local-global-variables.html	should be 0,0,0,0 at (25, 0) expected: 0,0,0,0 was 5,5,5,5
+glsl/preprocessor/macro-expansion-tricky.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
+glsl/reserved/_webgl_field.vert.html	[unexpected link status] (expected: false) use of reserved _webgl prefix as structure field should fail
+glsl/reserved/_webgl_function.vert.html	[unexpected link status] (expected: false) use of reserved _webgl prefix as function name should fail
+glsl/reserved/_webgl_struct.vert.html	[unexpected link status] (expected: false) use of reserved _webgl prefix as structure name should fail
+glsl/reserved/_webgl_variable.vert.html	[unexpected link status] (expected: false) use of reserved _webgl prefix as structure field should fail
+glsl/reserved/webgl_field.vert.html	[unexpected link status] (expected: false) use of reserved webgl_ prefix as structure field should fail
+glsl/reserved/webgl_function.vert.html	[unexpected link status] (expected: false) use of reserved webgl_ prefix as function name should fail
+glsl/reserved/webgl_struct.vert.html	[unexpected link status] (expected: false) use of reserved webgl_ prefix as structure name should fail
+glsl/reserved/webgl_variable.vert.html	[unexpected link status] (expected: false) use of reserved webgl_ prefix as variable should fail
+glsl/samplers/glsl-function-texture2dprojlod.html	sampling with lod = 0 divider = 1 should be red at (0, 0) expected: 255,0,0,255 was 0,0,0,255
+glsl/variables/glsl-built-ins.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 misc/uninitialized-test.html	@E canvas is not defined |     at <eval> (<input>:227:46) |     at eval (native)
+textures/misc/canvas-teximage-after-multiple-drawimages.html	no PASS
+textures/misc/compressed-tex-image.html	Should throw a TypeError: too few args
+textures/misc/copy-tex-image-and-sub-image-2d.html	0, 0 should render 0,0,0,0 (+/-1) at (0, 0) expected: 0,0,0,0 was 136,136,136,136
+textures/misc/cube-incomplete-fbo.html	gl.checkFramebufferStatus(gl.FRAMEBUFFER) should be 36054. Was 36053.
+textures/misc/exif-orientation.html	no PASS
+textures/misc/gl-teximage.html	did not finish
+textures/misc/origin-clean-conformance-offscreencanvas.html	Image setup failed (createCrossOriginImage failed).
+textures/misc/origin-clean-conformance.html	Image setup failed (createCrossOriginImage failed).
+textures/misc/png-image-types.html	image decoding is not available (data:image/png;base64,iVBORw0KGgoAAAANSU)
+textures/misc/tex-image-and-sub-image-2d-with-array-buffer-view.html	bottom pixel should be 0,255,0,255
+textures/misc/tex-image-canvas-corruption.html	no PASS
+textures/misc/tex-image-svg-image-no-natural-width-and-height.html	no PASS
+textures/misc/tex-image-webgl.html	Canvas should be red at (0, 0) expected: 255,0,0,255 was 0,0,0,255
+textures/misc/tex-image-with-format-and-type.html	no PASS
+textures/misc/tex-sub-image-2d-bad-args.html	getError expected: INVALID_OPERATION. Was INVALID_VALUE : no previously defined texture image
+textures/misc/tex-video-using-tex-unit-non-zero.html	no PASS
+textures/misc/texture-copying-and-deletion.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
+textures/misc/texture-copying-feedback-loops.html	exit -11: getDefault3DContextVersion(): Implying webgl1 based on path.
+textures/misc/texture-corner-case-videos.html	video.canPlayType required method missing
+textures/misc/texture-fakeblack.html	should be 0,0,0,255 at (0, 0) expected: 0,0,0,255 was 255,0,0,255
+textures/misc/texture-npot-video.html	waitVideoUploadable/video.play failed: TypeError: not a function
+textures/misc/texture-npot.html	getError expected: INVALID_VALUE. Was NO_ERROR : gl.texImage2D with NPOT texture with level > 0 should return INVALID_VALUE
+textures/misc/texture-size-limit.html	getError expected: INVALID_VALUE. Was NO_ERROR : width or height out of bounds: should generate INVALID_VALUE: level is 1, size is 8193
+textures/misc/texture-srgb-upload.html	no PASS
+textures/misc/texture-transparent-pixels-initialized.html	image decoding is not available (../../../resources/bug-32888-texture.png)
+textures/misc/texture-upload-size.html	did not finish
+textures/misc/texture-video-transparent.html	video.canPlayType required method missing
+textures/misc/video-rotation.html	video.canPlayType required method missing

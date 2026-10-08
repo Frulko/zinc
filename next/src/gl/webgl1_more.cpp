@@ -12,14 +12,14 @@ bool blendFactor(std::uint32_t f) {
   switch (f) { case GL_ZERO: case GL_ONE: case GL_SRC_COLOR: case GL_ONE_MINUS_SRC_COLOR: case GL_DST_COLOR: case GL_ONE_MINUS_DST_COLOR: case GL_SRC_ALPHA: case GL_ONE_MINUS_SRC_ALPHA: case GL_DST_ALPHA: case GL_ONE_MINUS_DST_ALPHA: case GL_CONSTANT_COLOR: case GL_ONE_MINUS_CONSTANT_COLOR: case GL_CONSTANT_ALPHA: case GL_ONE_MINUS_CONSTANT_ALPHA: case GL_SRC_ALPHA_SATURATE: return true; }
   return false;
 }
-bool blendMode(std::uint32_t m) { return m == GL_FUNC_ADD || m == GL_FUNC_SUBTRACT || m == GL_FUNC_REVERSE_SUBTRACT; }
+bool blendMode(std::uint32_t m, bool minmax) { return m == GL_FUNC_ADD || m == GL_FUNC_SUBTRACT || m == GL_FUNC_REVERSE_SUBTRACT || (minmax && (m == GL_MIN || m == GL_MAX)); }
 bool compareFunc(std::uint32_t f) { return f >= GL_NEVER && f <= GL_ALWAYS; }
 bool stencilOpOk(std::uint32_t o) { switch (o) { case GL_KEEP: case GL_ZERO: case GL_REPLACE: case GL_INCR: case GL_DECR: case GL_INVERT: case GL_INCR_WRAP: case GL_DECR_WRAP: return true; } return false; }
 bool faceOk(std::uint32_t f) { return f == GL_FRONT || f == GL_BACK || f == GL_FRONT_AND_BACK; }
 bool constColor(std::uint32_t f) { return f == GL_CONSTANT_COLOR || f == GL_ONE_MINUS_CONSTANT_COLOR; }
 bool constAlpha(std::uint32_t f) { return f == GL_CONSTANT_ALPHA || f == GL_ONE_MINUS_CONSTANT_ALPHA; }
 
-bool renderbufferFormatOk(std::uint32_t f, bool v2) {
+bool renderbufferFormatOk(std::uint32_t f, bool v2) {   // (the floating-point and sRGB formats the extensions add are tested in renderbufferStorage)
   switch (f) { case GL_RGBA4: case GL_RGB565: case GL_RGB5_A1: case GL_DEPTH_COMPONENT16: case GL_STENCIL_INDEX8: case GL_DEPTH_STENCIL: return true; }
   if (!v2) return false;
   switch (f) {
@@ -35,11 +35,11 @@ bool renderbufferFormatOk(std::uint32_t f, bool v2) {
 
 // ---- state
 void WebGL1::blendColor(float r, float g, float b, float a) { glBlendColor(r, g, b, a); }
-void WebGL1::blendEquation(std::uint32_t m) { if (!blendMode(m)) return error(GL_INVALID_ENUM); glBlendEquation(m); }
-void WebGL1::blendEquationSeparate(std::uint32_t rgb, std::uint32_t a) { if (!blendMode(rgb) || !blendMode(a)) return error(GL_INVALID_ENUM); glBlendEquationSeparate(rgb, a); }
+void WebGL1::blendEquation(std::uint32_t m) { if (!blendMode(m, version_ == 2 || extOn(Ext::BlendMinmax))) return error(GL_INVALID_ENUM); glBlendEquation(m); }
+void WebGL1::blendEquationSeparate(std::uint32_t rgb, std::uint32_t a) { if (!blendMode(rgb, version_ == 2 || extOn(Ext::BlendMinmax)) || !blendMode(a, version_ == 2 || extOn(Ext::BlendMinmax))) return error(GL_INVALID_ENUM); glBlendEquationSeparate(rgb, a); }
 void WebGL1::blendFunc(std::uint32_t s, std::uint32_t d) { blendFuncSeparate(s, d, s, d); }
 void WebGL1::blendFuncSeparate(std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da) {
-  if (!blendFactor(sr) || !blendFactor(dr) || !blendFactor(sa) || !blendFactor(da)) return error(GL_INVALID_ENUM);
+  if (!blendFactor(sr) || !blendFactor(dr) || !blendFactor(sa) || !blendFactor(da) || dr == GL_SRC_ALPHA_SATURATE || da == GL_SRC_ALPHA_SATURATE) return error(GL_INVALID_ENUM);   // (SRC_ALPHA_SATURATE is for the source factor only)
   if ((constColor(sr) && constAlpha(dr)) || (constAlpha(sr) && constColor(dr)) || (constColor(sa) && constAlpha(da)) || (constAlpha(sa) && constColor(da))) return error(GL_INVALID_OPERATION);   // WebGL: both kinds of constant at once
   glBlendFuncSeparate(sr, dr, sa, da);
 }
@@ -52,7 +52,7 @@ void WebGL1::depthMask(bool m) { glDepthMask(m); }
 void WebGL1::depthRange(float n, float f) { if (n > f) return error(GL_INVALID_OPERATION); glDepthRange(n, f); }
 void WebGL1::frontFace(std::uint32_t m) { if (m != GL_CW && m != GL_CCW) return error(GL_INVALID_ENUM); glFrontFace(m); }
 void WebGL1::hint(std::uint32_t target, std::uint32_t mode) {
-  if (target != GL_GENERATE_MIPMAP_HINT && !(version_ == 2 && target == 0x8B8B)) return error(GL_INVALID_ENUM);   // 0x8B8B: FRAGMENT_SHADER_DERIVATIVE_HINT (WebGL 2, or OES_standard_derivatives)
+  if (target != GL_GENERATE_MIPMAP_HINT && !((version_ == 2 || extOn(Ext::StdDerivatives)) && target == 0x8B8B)) return error(GL_INVALID_ENUM);   // 0x8B8B: FRAGMENT_SHADER_DERIVATIVE_HINT (WebGL 2, or OES_standard_derivatives)
   if (mode != GL_DONT_CARE && mode != GL_FASTEST && mode != GL_NICEST) return error(GL_INVALID_ENUM);
   (target == GL_GENERATE_MIPMAP_HINT ? mipmapHint_ : derivativeHint_) = mode;
   if (target == GL_GENERATE_MIPMAP_HINT) glHint(target, mode);
@@ -101,7 +101,7 @@ Id WebGL1::createRenderbuffer() {
   for (auto it = rbos_.begin(); it != rbos_.end();) it = it->second.deleted && it->second.name == r.name ? rbos_.erase(it) : std::next(it);   // the driver reused the name of a detached, deleted one
   Id id = nextId_++; rbos_[id] = r; return id;
 }
-void WebGL1::deleteRenderbuffer(Id id) {
+void WebGL1::deleteRenderbuffer(Id id) { ++fbGen_;
   auto it = rbos_.find(id);
   if (it == rbos_.end()) return;
   if (it->second.deleted) return;
@@ -135,9 +135,24 @@ void WebGL1::bindRenderbuffer(std::uint32_t target, Id id) {
   rbo_ = id;
   glBindRenderbuffer(GL_RENDERBUFFER, name);
 }
-void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w, int h) {
+// the renderbuffer formats of the context: the core ones plus what the enabled extensions add (EXT_sRGB, EXT_color_buffer_half_float, WEBGL_color_buffer_float, EXT_color_buffer_float)
+bool WebGL1::renderbufferFormatAllowed(std::uint32_t fmt) const {
+  if (renderbufferFormatOk(fmt, version_ == 2)) return true;
+  if (version_ != 2) {
+    if (fmt == 0x8C43) return extOn(Ext::Srgb);                                  // SRGB8_ALPHA8_EXT
+    if (fmt == 0x881A || fmt == 0x881B) return extOn(Ext::ColorBufHalf);         // RGBA16F_EXT, RGB16F_EXT
+    return fmt == 0x8814 && extOn(Ext::ColorBufFloatWebgl);                      // RGBA32F_EXT
+  }
+  switch (fmt) {
+    case GL_R16F: case GL_RG16F: case GL_RGBA16F: return floatRenderable(16, 1);
+    case GL_R32F: case GL_RG32F: case GL_RGBA32F: return floatRenderable(32, 1);
+    case GL_R11F_G11F_B10F: return floatRenderable(11, 1);
+  }
+  return false;
+}
+void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w, int h) { ++fbGen_;
   if (target != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
-  if (!renderbufferFormatOk(fmt, version_ == 2)) return error(GL_INVALID_ENUM);
+  if (!renderbufferFormatAllowed(fmt)) return error(GL_INVALID_ENUM);
   if (w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
@@ -156,9 +171,9 @@ WebGL1::Param WebGL1::getRenderbufferParameter(std::uint32_t target, std::uint32
   r.ok = true; r.kind = 'i'; r.v.push_back(v);
   return r;
 }
-void WebGL1::framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachment, std::uint32_t rbtarget, Id rb) {
+void WebGL1::framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachment, std::uint32_t rbtarget, Id rb) { ++fbGen_;
   if ((target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) || rbtarget != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
-  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(version_ == 2 && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
+  if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !((version_ == 2 || extOn(Ext::DrawBuffers)) && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
   if (!(target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_)) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
   if (rb) {
@@ -287,7 +302,9 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_STENCIL_FUNC: case GL_STENCIL_FAIL: case GL_STENCIL_PASS_DEPTH_FAIL: case GL_STENCIL_PASS_DEPTH_PASS: case GL_STENCIL_BACK_FUNC: case GL_STENCIL_BACK_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_PASS:
     case GL_STENCIL_REF: case GL_STENCIL_BACK_REF: case GL_STENCIL_CLEAR_VALUE: case GL_STENCIL_VALUE_MASK: case GL_STENCIL_BACK_VALUE_MASK: case GL_STENCIL_WRITEMASK: case GL_STENCIL_BACK_WRITEMASK: ints(1); break;
     case GL_GENERATE_MIPMAP_HINT: fixed(mipmapHint_); break;
-    case 0x8B8B: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(derivativeHint_); break;   // FRAGMENT_SHADER_DERIVATIVE_HINT
+    case 0x8B8B: if (version_ != 2 && !extOn(Ext::StdDerivatives)) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(derivativeHint_); break;
+    case 0x84FF: if (!extOn(Ext::Aniso)) { r.ok = false; error(GL_INVALID_ENUM); } else floats(1); break;   // MAX_TEXTURE_MAX_ANISOTROPY_EXT
+    case 0x9245: case 0x9246: if (!extOn(Ext::DebugRenderer)) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 's'; r.s = reinterpret_cast<const char*>(glGetString(pname == 0x9245 ? GL_VENDOR : GL_RENDERER)); } break;   // UNMASKED_VENDOR_WEBGL, UNMASKED_RENDERER_WEBGL   // FRAGMENT_SHADER_DERIVATIVE_HINT
     case GL_PACK_ALIGNMENT: case GL_UNPACK_ALIGNMENT: case GL_SUBPIXEL_BITS: case GL_SAMPLE_BUFFERS: case GL_SAMPLES: ints(1); break;
     case GL_DEPTH_BITS: case GL_STENCIL_BITS: {
       const bool depth = pname == GL_DEPTH_BITS;
@@ -309,7 +326,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     }
     case GL_MAX_TEXTURE_SIZE: fixed(maxTexSize_); break;
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE: case GL_MAX_RENDERBUFFER_SIZE: ints(1); break;
-    case 0x8B9B: case 0x8B9A: { std::uint32_t f, t; implementationReadFormat(f, t); fixed(pname == 0x8B9B ? f : t); break; }   // IMPLEMENTATION_COLOR_READ_FORMAT, _TYPE
+    case 0x8B9B: case 0x8B9A: { if ((version_ == 2 ? fboRead_ : fbo_) && checkFramebufferStatus(version_ == 2 ? GL_READ_FRAMEBUFFER : GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error(GL_INVALID_OPERATION); r.kind = 'n'; break; } std::uint32_t f, t; implementationReadFormat(f, t); fixed(pname == 0x8B9B ? f : t); break; }   // IMPLEMENTATION_COLOR_READ_FORMAT, _TYPE
     case GL_MAX_VERTEX_ATTRIBS: fixed(kMaxVertexAttribs); break;
     case GL_MAX_VERTEX_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
     case GL_MAX_FRAGMENT_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
@@ -370,11 +387,11 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
       break;
     }
     case GL_DRAW_BUFFER0: case GL_DRAW_BUFFER0 + 1: case GL_DRAW_BUFFER0 + 2: case GL_DRAW_BUFFER0 + 3:
-      if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); break; }
+      if (version_ != 2 && !extOn(Ext::DrawBuffers)) { r.ok = false; error(GL_INVALID_ENUM); break; }
       fixed(fbo_ ? fbos_[fbo_].draw[pname - GL_DRAW_BUFFER0] : defaultDraw_[pname - GL_DRAW_BUFFER0]);
       break;
-    case GL_VERTEX_ARRAY_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(curVao_, 8); break;
-    case GL_MAX_DRAW_BUFFERS: case GL_MAX_COLOR_ATTACHMENTS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(4); break;
+    case GL_VERTEX_ARRAY_BINDING: if (version_ != 2 && !extOn(Ext::Vao)) { r.ok = false; error(GL_INVALID_ENUM); } else object(curVao_, 8); break;
+    case GL_MAX_DRAW_BUFFERS: case GL_MAX_COLOR_ATTACHMENTS: if (version_ != 2 && !extOn(Ext::DrawBuffers)) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(4); break;
     case GL_MAX_UNIFORM_BUFFER_BINDINGS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(24); break;
     case GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else ints(1); break;
     case GL_UNIFORM_BUFFER_BINDING: case GL_COPY_READ_BUFFER_BINDING: case GL_COPY_WRITE_BUFFER_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(otherBuffers_[pname == GL_UNIFORM_BUFFER_BINDING ? GL_UNIFORM_BUFFER : pname == GL_COPY_READ_BUFFER_BINDING ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER], 1); break;
@@ -396,7 +413,7 @@ WebGL1::Param WebGL1::getVertexAttrib(std::uint32_t index, std::uint32_t pname) 
     case GL_VERTEX_ATTRIB_ARRAY_STRIDE: r.kind = 'i'; r.v.push_back(a.stride); break;
     case GL_VERTEX_ATTRIB_ARRAY_TYPE: r.kind = 'i'; r.v.push_back(a.type); break;
     case GL_VERTEX_ATTRIB_ARRAY_NORMALIZED: r.kind = 'b'; r.v.push_back(a.normalized); break;
-    case 0x88FE: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'i'; r.v.push_back(a.divisor); } break;   // VERTEX_ATTRIB_ARRAY_DIVISOR
+    case 0x88FE: if (version_ != 2 && !extOn(Ext::InstancedArrays)) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'i'; r.v.push_back(a.divisor); } break;   // VERTEX_ATTRIB_ARRAY_DIVISOR
     case 0x88FD: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else { r.kind = 'b'; r.v.push_back(a.integer ? 1 : 0); } break;   // VERTEX_ATTRIB_ARRAY_INTEGER
     case GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING: r.kind = a.buffer ? 'o' : 'n'; r.object = a.buffer; r.objKind = 1; break;
     case GL_CURRENT_VERTEX_ATTRIB:
@@ -432,6 +449,7 @@ WebGL1::Param WebGL1::getTexParameter(std::uint32_t target, std::uint32_t pname)
   const bool v2 = version_ == 2;
   switch (pname) {
     case GL_TEXTURE_MIN_FILTER: case GL_TEXTURE_MAG_FILTER: case GL_TEXTURE_WRAP_S: case GL_TEXTURE_WRAP_T: break;
+    case 0x84FE: if (extOn(Ext::Aniso)) break; error(GL_INVALID_ENUM); return r;
     case GL_TEXTURE_BASE_LEVEL: case GL_TEXTURE_COMPARE_FUNC: case GL_TEXTURE_COMPARE_MODE: case GL_TEXTURE_MAX_LEVEL: case GL_TEXTURE_MAX_LOD: case GL_TEXTURE_MIN_LOD: case GL_TEXTURE_WRAP_R:
     case GL_TEXTURE_IMMUTABLE_FORMAT: case GL_TEXTURE_IMMUTABLE_LEVELS: if (v2) break; [[fallthrough]];
     default: error(GL_INVALID_ENUM); return r;
@@ -441,7 +459,7 @@ WebGL1::Param WebGL1::getTexParameter(std::uint32_t target, std::uint32_t pname)
   r.ok = true;
   if (pname == GL_TEXTURE_IMMUTABLE_FORMAT) { r.kind = 'b'; r.v.push_back(textures_[id].immutable ? 1 : 0); return r; }   // GL 3.3 has no immutable storage: the wrapper keeps the flag
   if (pname == GL_TEXTURE_IMMUTABLE_LEVELS) { r.kind = 'i'; r.v.push_back(textures_[id].immutable ? textures_[id].levels : 0); return r; }
-  if (pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD) { GLfloat f = 0; glGetTexParameterfv(target, pname, &f); r.kind = 'f'; r.v.push_back(f); return r; }
+  if (pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD || pname == 0x84FE) { GLfloat f = 0; glGetTexParameterfv(target, pname, &f); r.kind = 'f'; r.v.push_back(f); return r; }
   GLint v = 0;
   glGetTexParameteriv(target, pname, &v);
   r.kind = 'i'; r.v.push_back(v);
@@ -540,12 +558,11 @@ void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, 
   }
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
-  const bool validFormat = format == GL_ALPHA || format == GL_RGB || format == GL_RGBA || format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA;
-  const bool validType = type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5 || type == GL_UNSIGNED_SHORT_4_4_4_4 || type == GL_UNSIGNED_SHORT_5_5_5_1;
-  if (!validFormat || !validType) return error(GL_INVALID_ENUM);
+  if (!v1Format(format) || !v1Type(type)) return error(GL_INVALID_ENUM);
   if (level < 0 || xoff < 0 || yoff < 0 || width < 0 || height < 0) return error(GL_INVALID_VALUE);
   int bpp = 0;
-  if (!formatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
+  if (!v1FormatType(format, type, bpp)) return error(GL_INVALID_OPERATION);
+  if (format == GL_DEPTH_COMPONENT || format == 0x84F9) return error(GL_INVALID_OPERATION);   // depth textures take no pixels
   Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (!id) return error(GL_INVALID_OPERATION);
   if (!data) return error(GL_INVALID_VALUE);
@@ -555,27 +572,72 @@ void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, 
   std::size_t row = (static_cast<std::size_t>(width) * bpp + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
   std::size_t need = height ? row * (height - 1) + static_cast<std::size_t>(width) * bpp : 0;
   if (dataBytes < need) return error(GL_INVALID_OPERATION);
-  GLenum gf = format;
-  if (!gl_.info().es) { if (format == GL_ALPHA || format == GL_LUMINANCE) gf = GL_RED; else if (format == GL_LUMINANCE_ALPHA) gf = GL_RG; }
-  glTexSubImage2D(target, level, xoff, yoff, width, height, gf, type, data);
+  const GlFmt f = glFormat(format, type, gl_.info().es);
+  glTexSubImage2D(target, level, xoff, yoff, width, height, f.format, f.type, data);
+}
+// what the read framebuffer holds, for copyTexImage2D: the number of colour components (1-4) and their class
+bool WebGL1::readFormat(int& comps, char& cls) {
+  comps = 4; cls = 'f';
+  const Id fb = fboRead_ ? fboRead_ : (version_ == 2 ? Id(0) : fbo_);
+  if (!fb) { comps = alphaAttr_ ? 4 : 3; return true; }   // the canvas
+  const GLenum att = version_ == 2 ? fbos_[fb].readBuffer : static_cast<GLenum>(GL_COLOR_ATTACHMENT0);
+  GLint t = GL_NONE, comp = 0, bits[4] = {};
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t);
+  if (t == GL_NONE) { while (glGetError() != GL_NO_ERROR) {} return false; }
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+  const GLenum sz[4] = {GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE};
+  for (int i = 0; i < 4; ++i) glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, sz[i], &bits[i]);
+  while (glGetError() != GL_NO_ERROR) {}
+  comps = bits[3] ? 4 : bits[2] ? 3 : bits[1] ? 2 : 1;
+  cls = comp == GL_INT ? 'i' : comp == GL_UNSIGNED_INT ? 'u' : 'f';
+  return true;
+}
+// does a read framebuffer of (comps, cls) fill a texture of this base format (comps: see texFormatInfo)?
+static bool copyFits(int srcComps, char srcCls, int dstComps, char dstCls) {
+  if (srcCls != dstCls) return false;
+  if (dstComps < 0) return srcComps == 4;       // ALPHA, LUMINANCE_ALPHA
+  return srcComps >= dstComps;
 }
 void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, int x, int y, int w, int h, int border) {
+  ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
-  if (fmt != GL_ALPHA && fmt != GL_RGB && fmt != GL_RGBA && fmt != GL_LUMINANCE && fmt != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
+  const bool legacy = fmt == GL_ALPHA || fmt == GL_RGB || fmt == GL_RGBA || fmt == GL_LUMINANCE || fmt == GL_LUMINANCE_ALPHA;
+  int dstComps = 0; char dstCls = 'f';
+  if (!legacy && (version_ != 2 || !texFormatInfo(fmt, dstComps, dstCls))) {
+    if (version_ == 2 && (fmt == GL_DEPTH_COMPONENT16 || fmt == GL_DEPTH_COMPONENT24 || fmt == GL_DEPTH_COMPONENT32F || fmt == GL_DEPTH24_STENCIL8 || fmt == GL_DEPTH32F_STENCIL8)) return error(GL_INVALID_OPERATION);
+    return error(GL_INVALID_ENUM);
+  }
+  if (legacy) texFormatInfo(fmt, dstComps, dstCls);
   if (level < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_ || border != 0) return error(GL_INVALID_VALUE);
   if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-  glCopyTexImage2D(target, level, fmt == GL_ALPHA || fmt == GL_LUMINANCE || fmt == GL_LUMINANCE_ALPHA ? GL_RGBA : fmt, x, y, w, h, 0);
-  Tex& t = textures_[(face ? texCube_ : tex2d_)[activeUnit_]];
-  if (level == 0) { t.w = w; t.h = h; t.format = fmt; }
+  int srcComps = 4; char srcCls = 'f';
+  if (!readFormat(srcComps, srcCls) || !copyFits(srcComps, srcCls, dstComps, dstCls)) return error(GL_INVALID_OPERATION);
+  const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
+  if (textures_[id].immutable) return error(GL_INVALID_OPERATION);
+  // the legacy one- and two-channel formats do not exist in core: an RGBA copy and a swizzle give the same sampling
+  glCopyTexImage2D(target, level, legacy ? (fmt == GL_RGB ? GL_RGB : GL_RGBA) : fmt, x, y, w, h, 0);
+  Tex& t = textures_[id];
+  if (level == 0) {
+    t.w = w; t.h = h; t.format = fmt; t.type = 0; t.f32 = t.f16 = false;
+    t.swz = fmt == GL_ALPHA ? 5 : fmt == GL_LUMINANCE ? 2 : fmt == GL_LUMINANCE_ALPHA ? 6 : 0;
+    if (!gl_.info().es) refreshSampling(id);
+  }
 }
 void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int x, int y, int w, int h) {
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   if (level < 0 || xoff < 0 || yoff < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);
-  if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
+  const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
+  if (!id) return error(GL_INVALID_OPERATION);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  const Tex& t = textures_[id];
+  if (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt) return error(GL_INVALID_OPERATION);
+  int srcComps = 4, dstComps = 4; char srcCls = 'f', dstCls = 'f';
+  if (t.format && !texFormatInfo(t.format, dstComps, dstCls)) { dstComps = 4; dstCls = 'f'; }   // (a WebGL 2 texture keeps its base format: RED, RG ... map to their counts below)
+  if (t.format == 0x1903) dstComps = 1; else if (t.format == 0x8227) dstComps = 2;
+  if (!readFormat(srcComps, srcCls) || !copyFits(srcComps, srcCls, dstComps, dstCls)) return error(GL_INVALID_OPERATION);
   glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
 }
 void WebGL1::generateMipmap(std::uint32_t target) {
@@ -584,6 +646,7 @@ void WebGL1::generateMipmap(std::uint32_t target) {
   if (!id) return error(GL_INVALID_OPERATION);
   const Tex& t = textures_[id];
   if (target == GL_TEXTURE_2D && (t.w == 0 || t.h == 0)) return error(GL_INVALID_OPERATION);   // level 0 must be defined
+  if (version_ != 2 && (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.format == kSrgbExt || t.format == kSrgbAlphaExt)) return error(GL_INVALID_OPERATION);   // depth and sRGB (EXT_sRGB) textures have no mipmaps
   glGenerateMipmap(target);
 }
 
@@ -609,7 +672,7 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
     r.ok = false; error(GL_INVALID_ENUM);
     return r;
   }
-  if (attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(attachment >= GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + (version_ == 2 ? 4u : 1u))) { error(GL_INVALID_ENUM); return r; }
+  if (attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(attachment >= GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + (version_ == 2 || extOn(Ext::DrawBuffers) ? 4u : 1u))) { error(GL_INVALID_ENUM); return r; }
   if (attachment == GL_DEPTH_STENCIL_ATTACHMENT) {   // answered when depth and stencil hold the same image, or both nothing
     GLint t[2] = {}, n[2] = {};
     const GLenum pts[2] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
@@ -647,7 +710,7 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
     case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL: case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE: if (type != GL_TEXTURE) { error(GL_INVALID_ENUM); return r; } break;
     case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER: if (version_ != 2 || type != GL_TEXTURE) { error(GL_INVALID_ENUM); return r; } break;
     case GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: case GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-      if (version_ != 2) { error(GL_INVALID_ENUM); return r; }
+      if (version_ != 2 && !(pname == GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING && extOn(Ext::Srgb)) && !(pname == GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE && (extOn(Ext::ColorBufHalf) || extOn(Ext::ColorBufFloatWebgl)))) { error(GL_INVALID_ENUM); return r; }
       if (attachment == GL_DEPTH_STENCIL_ATTACHMENT && pname == GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE) { error(GL_INVALID_OPERATION); return r; }   // depth and stencil differ
       break;
     default: error(GL_INVALID_ENUM); return r;

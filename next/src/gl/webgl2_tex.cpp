@@ -32,6 +32,18 @@ const Fmt kFormats[] = {
 };
 #undef F
 
+}  // namespace
+bool texFormatInfo(std::uint32_t internal, int& comps, char& cls) {
+  switch (internal) { case GL_ALPHA: comps = -1; cls = 'f'; return true; case GL_LUMINANCE: comps = 1; cls = 'f'; return true; case GL_LUMINANCE_ALPHA: comps = -2; cls = 'f'; return true; case GL_RGB: comps = 3; cls = 'f'; return true; case GL_RGBA: comps = 4; cls = 'f'; return true; }   // -1: alpha only, -2: luminance alpha (both want an alpha channel)
+  for (const Fmt& f : kFormats) if (f.internal == internal) {
+    if (f.format == DEPTH_ || f.format == DEPTHST) return false;
+    comps = f.format == RED_ || f.format == REDI ? 1 : f.format == RG_ || f.format == RGI ? 2 : f.format == GL_RGB || f.format == RGBI ? 3 : 4;
+    cls = f.format == REDI || f.format == RGI || f.format == RGBI || f.format == RGBAI ? (f.type == GL_BYTE || f.type == GL_SHORT || f.type == GL_INT ? 'i' : 'u') : 'f';
+    return true;
+  }
+  return false;
+}
+namespace {
 bool sizedFormat(std::uint32_t internal) { for (const Fmt& f : kFormats) if (f.internal == internal) return true; return false; }
 bool lookup(std::uint32_t internal, std::uint32_t format, std::uint32_t type, int& bpp) {
   for (const Fmt& f : kFormats) if (f.internal == internal && f.format == format && f.type == type) { bpp = f.bpp; return true; }
@@ -52,7 +64,7 @@ Id& WebGL1::boundTex(std::uint32_t target) {
 }
 
 // One upload for texImage2D (sized), texImage3D, texSubImage3D and the texStorage calls. Returns false after setting the error.
-bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub) {
+bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub) { ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   const bool three = target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY;
   const std::uint32_t bindTarget = face ? GL_TEXTURE_CUBE_MAP : target;
@@ -77,6 +89,8 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     }
     glTexParameteri(bindTarget, GL_TEXTURE_MAX_LEVEL, levels - 1);
     t.immutable = true; t.levels = levels; t.w = w; t.h = h; t.d = d; t.format = ifmt;
+    t.f32 = ifmt == GL_R32F || ifmt == GL_RG32F || ifmt == GL_RGB32F || ifmt == GL_RGBA32F; t.f16 = false; t.swz = 0;
+    refreshSampling(id);
     return true;
   }
   if (t.immutable && !sub) { error(GL_INVALID_OPERATION); return false; }   // storage fixed the sizes
@@ -123,7 +137,12 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   if (three) glTexImage3D(target, level, static_cast<GLint>(ifmt), w, h, d, 0, format, type, data);
   else glTexImage2D(target, level, static_cast<GLint>(ifmt), w, h, 0, format, type, data);
   if (!zeros.empty()) { for (int i = 0; i < 5; ++i) glPixelStorei(psName[i], ps[i]); glPixelStorei(GL_UNPACK_ALIGNMENT, align); }
-  if (level == 0) { t.w = w; t.h = h; t.d = d; t.format = format; }
+  if (level == 0) {
+    t.w = w; t.h = h; t.d = d; t.format = format;
+    t.f32 = ifmt == GL_R32F || ifmt == GL_RG32F || ifmt == GL_RGB32F || ifmt == GL_RGBA32F || (isUnsizedLegacy(ifmt) && type == GL_FLOAT);   // not filterable without OES_texture_float_linear
+    t.f16 = false; t.swz = 0;
+    refreshSampling(id);
+  }
   return true;
 }
 
@@ -173,8 +192,9 @@ void WebGL1::bindSampler(std::uint32_t unit, Id id) {
   samplerUnit_[unit] = id;
   glBindSampler(unit, name);
 }
-static bool samplerParamOk(std::uint32_t pname, int v) {
+static bool samplerParamOk(std::uint32_t pname, int v, bool aniso = false) {
   switch (pname) {
+    case 0x84FE: return aniso && v >= 1;   // TEXTURE_MAX_ANISOTROPY_EXT
     case GL_TEXTURE_MIN_FILTER: return v == GL_NEAREST || v == GL_LINEAR || v == GL_NEAREST_MIPMAP_NEAREST || v == GL_LINEAR_MIPMAP_NEAREST || v == GL_NEAREST_MIPMAP_LINEAR || v == GL_LINEAR_MIPMAP_LINEAR;
     case GL_TEXTURE_MAG_FILTER: return v == GL_NEAREST || v == GL_LINEAR;
     case GL_TEXTURE_WRAP_S: case GL_TEXTURE_WRAP_T: case GL_TEXTURE_WRAP_R: return v == GL_REPEAT || v == GL_CLAMP_TO_EDGE || v == GL_MIRRORED_REPEAT;
@@ -187,19 +207,20 @@ static bool samplerParamOk(std::uint32_t pname, int v) {
 void WebGL1::samplerParameteri(Id id, std::uint32_t pname, int v) {
   auto it = samplers_.find(id);
   if (it == samplers_.end()) return error(GL_INVALID_OPERATION);
-  if (!samplerParamOk(pname, v)) return error(GL_INVALID_ENUM);
+  if (!samplerParamOk(pname, v, extOn(Ext::Aniso))) return error(pname == 0x84FE && extOn(Ext::Aniso) ? GL_INVALID_VALUE : GL_INVALID_ENUM);
   glSamplerParameteri(it->second.name, pname, v);
 }
 void WebGL1::samplerParameterf(Id id, std::uint32_t pname, float v) {
   auto it = samplers_.find(id);
   if (it == samplers_.end()) return error(GL_INVALID_OPERATION);
-  if (!samplerParamOk(pname, static_cast<int>(v))) return error(GL_INVALID_ENUM);
+  if (!samplerParamOk(pname, pname == 0x84FE ? (v >= 1 ? 1 : 0) : static_cast<int>(v), extOn(Ext::Aniso))) return error(pname == 0x84FE && extOn(Ext::Aniso) ? GL_INVALID_VALUE : GL_INVALID_ENUM);
   glSamplerParameterf(it->second.name, pname, v);
 }
 WebGL1::Param WebGL1::getSamplerParameter(Id id, std::uint32_t pname) {
   Param r;
   auto it = samplers_.find(id);
   if (it == samplers_.end()) { error(GL_INVALID_OPERATION); return r; }
+  if (pname == 0x84FE && extOn(Ext::Aniso)) { GLfloat f = 1; glGetSamplerParameterfv(it->second.name, pname, &f); r.ok = true; r.kind = 'f'; r.v.push_back(f); return r; }
   if (!samplerParamOk(pname, pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD ? 0 : GL_NEAREST) && pname != GL_TEXTURE_COMPARE_MODE && pname != GL_TEXTURE_COMPARE_FUNC && pname != GL_TEXTURE_WRAP_S && pname != GL_TEXTURE_WRAP_T && pname != GL_TEXTURE_WRAP_R && pname != GL_TEXTURE_MAG_FILTER) { error(GL_INVALID_ENUM); return r; }
   r.ok = true;
   if (pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD) { GLfloat f = 0; glGetSamplerParameterfv(it->second.name, pname, &f); r.kind = 'f'; r.v.push_back(f); }
@@ -508,9 +529,10 @@ bool WebGL1::srgbBlit(int sx0, int sy0, int sx1, int sy1, int dx0, int dy0, int 
   while (glGetError() != GL_NO_ERROR) {}
   return true;
 }
-void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, std::uint32_t fmt, int w, int h) {
+void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, std::uint32_t fmt, int w, int h) { ++fbGen_;
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (target != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
+  if (!renderbufferFormatAllowed(fmt)) return error(GL_INVALID_ENUM);
   if (samples < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
@@ -560,7 +582,7 @@ void WebGL1::invalidateFramebuffer(std::uint32_t target, const std::uint32_t* at
     if (!(color || a == GL_DEPTH_ATTACHMENT || a == GL_STENCIL_ATTACHMENT || a == GL_DEPTH_STENCIL_ATTACHMENT || def)) return error(GL_INVALID_ENUM);
   }
 }
-void WebGL1::framebufferTextureLayer(std::uint32_t target, std::uint32_t attachment, Id tex, int level, int layer) {
+void WebGL1::framebufferTextureLayer(std::uint32_t target, std::uint32_t attachment, Id tex, int level, int layer) { ++fbGen_;
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (target != GL_FRAMEBUFFER && target != GL_READ_FRAMEBUFFER && target != GL_DRAW_FRAMEBUFFER) return error(GL_INVALID_ENUM);
   if (attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(attachment >= GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
@@ -593,6 +615,7 @@ std::vector<int> WebGL1::getInternalformatParameter(std::uint32_t target, std::u
   switch (ifmt) {
     case GL_R8: case GL_RG8: case GL_RGB8: case GL_RGBA8: case GL_SRGB8_ALPHA8: case GL_RGBA4: case GL_RGB565: case GL_RGB5_A1: case GL_RGB10_A2: case GL_RGB10_A2UI:
     case GL_DEPTH_COMPONENT16: case GL_DEPTH_COMPONENT24: case GL_DEPTH_COMPONENT32F: case GL_DEPTH24_STENCIL8: case GL_DEPTH32F_STENCIL8: case GL_STENCIL_INDEX8: break;
+    case GL_R16F: case GL_RG16F: case GL_RGBA16F: case GL_R32F: case GL_RG32F: case GL_RGBA32F: case GL_R11F_G11F_B10F: if (renderbufferFormatAllowed(ifmt)) break; error(GL_INVALID_ENUM); return {};   // the float formats need EXT_color_buffer_float / _half_float
     default: if (!integer) { error(GL_INVALID_ENUM); return {}; }
   }
   GLint max = 0;
