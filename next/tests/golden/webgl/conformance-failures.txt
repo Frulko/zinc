@@ -1,6 +1,5 @@
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
 conformance2/misc/uninitialized-test-2.html	timeout
-conformance2/rendering/blitframebuffer-filter-srgb.html	pixel at [0, 0] should be (110,110,110,255), but the actual color is (40,40,40,255)
 conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
 context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
 context/context-lost-restored.html	no PASS

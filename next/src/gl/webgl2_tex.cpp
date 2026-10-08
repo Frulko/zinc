@@ -432,7 +432,81 @@ void WebGL1::blitFramebuffer(int sx0, int sy0, int sx1, int sy1, int dx0, int dy
     clip(sy0, sy1, dy0, dy1, rh, dh);
     if (sx0 == sx1 || sy0 == sy1 || dx0 == dx1 || dy0 == dy1) return;   // nothing left inside
   }
+  if ((mask & GL_COLOR_BUFFER_BIT) && srgbBlit(sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, filter)) {
+    mask &= ~static_cast<std::uint32_t>(GL_COLOR_BUFFER_BIT);
+    if (!mask) return;
+  }
   glBlitFramebuffer(sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, mask, filter);
+}
+// The desktop driver copies sRGB images raw in a blit. WebGL wants the conversion (decode on read, encode on write, filtering in linear space), which sampling a texture and writing with
+// FRAMEBUFFER_SRGB does: draw the source rectangle into the destination. Only for a 2D texture source whose encoding differs from the destination's, or a scaled filtered sRGB one.
+bool WebGL1::srgbBlit(int sx0, int sy0, int sx1, int sy1, int dx0, int dy0, int dx1, int dy1, std::uint32_t filter) {
+  if (gl_.info().es || !fboRead_) return false;
+  const GLenum att = fbos_[fboRead_].readBuffer;
+  GLint type = GL_NONE, name = 0, level = 0, face = 0, rEnc = GL_LINEAR, dEnc = GL_LINEAR;
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+  if (type != GL_TEXTURE) { while (glGetError() != GL_NO_ERROR) {} return false; }
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &level);
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &face);
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &rEnc);
+  if (fbo_) glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &dEnc);
+  while (glGetError() != GL_NO_ERROR) {}
+  const bool scaled = sx1 - sx0 != dx1 - dx0 || sy1 - sy0 != dy1 - dy0;
+  if (face != 0 || !(rEnc != dEnc || (rEnc == GL_SRGB && filter == GL_LINEAR && scaled))) return false;
+  if (!blitProg_) {
+    const char* vs = "#version 330 core\nuniform vec4 r; out vec2 uv; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1); uv = mix(r.xy, r.zw, p); gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }";
+    const char* fs = "#version 330 core\nuniform sampler2D s; in vec2 uv; out vec4 c; void main() { c = texture(s, uv); }";
+    GLuint v = glCreateShader(GL_VERTEX_SHADER), f = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(v, 1, &vs, nullptr); glCompileShader(v);
+    glShaderSource(f, 1, &fs, nullptr); glCompileShader(f);
+    blitProg_ = glCreateProgram();
+    glAttachShader(blitProg_, v); glAttachShader(blitProg_, f); glLinkProgram(blitProg_);
+    glDeleteShader(v); glDeleteShader(f);
+    glGenVertexArrays(1, &blitVao_);
+  }
+  // save what the draw touches
+  GLint prog = 0, vao = 0, active = 0, tex = 0, smp = 0, vp[4], sc[4];
+  GLboolean cm[4];
+  glGetIntegerv(GL_CURRENT_PROGRAM, &prog); glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao); glGetIntegerv(GL_ACTIVE_TEXTURE, &active);
+  glGetIntegerv(GL_VIEWPORT, vp); glGetIntegerv(GL_SCISSOR_BOX, sc); glGetBooleanv(GL_COLOR_WRITEMASK, cm);
+  const GLenum caps[] = {GL_BLEND, GL_DEPTH_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_RASTERIZER_DISCARD, GL_SAMPLE_ALPHA_TO_COVERAGE};
+  GLboolean on[6];
+  for (int i = 0; i < 6; ++i) { on[i] = glIsEnabled(caps[i]); glDisable(caps[i]); }
+  glActiveTexture(GL_TEXTURE0 + 31);
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex); glGetIntegerv(GL_SAMPLER_BINDING, &smp);
+  glBindSampler(31, 0);
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(name));
+  GLint old[5], w = 1, h = 1;
+  const GLenum pn[5] = {GL_TEXTURE_MIN_FILTER, GL_TEXTURE_MAG_FILTER, GL_TEXTURE_BASE_LEVEL, GL_TEXTURE_MAX_LEVEL, GL_TEXTURE_WRAP_S};
+  GLint wrapT = 0;
+  for (int i = 0; i < 5; ++i) glGetTexParameteriv(GL_TEXTURE_2D, pn[i], &old[i]);
+  glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &wrapT);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, level, GL_TEXTURE_WIDTH, &w); glGetTexLevelParameteriv(GL_TEXTURE_2D, level, GL_TEXTURE_HEIGHT, &h);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(filter)); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(filter));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, level); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, level);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  float r[4] = {static_cast<float>(sx0) / w, static_cast<float>(sy0) / h, static_cast<float>(sx1) / w, static_cast<float>(sy1) / h};
+  if (dx1 < dx0) std::swap(r[0], r[2]);
+  if (dy1 < dy0) std::swap(r[1], r[3]);
+  glUseProgram(blitProg_);
+  glUniform4fv(glGetUniformLocation(blitProg_, "r"), 1, r);
+  glUniform1i(glGetUniformLocation(blitProg_, "s"), 31);
+  glBindVertexArray(blitVao_);
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  glViewport(std::min(dx0, dx1), std::min(dy0, dy1), std::abs(dx1 - dx0), std::abs(dy1 - dy0));
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  // put it all back
+  glColorMask(cm[0], cm[1], cm[2], cm[3]);
+  glViewport(vp[0], vp[1], vp[2], vp[3]); glScissor(sc[0], sc[1], sc[2], sc[3]);
+  glBindVertexArray(static_cast<GLuint>(vao)); glUseProgram(static_cast<GLuint>(prog));
+  for (int i = 0; i < 5; ++i) glTexParameteri(GL_TEXTURE_2D, pn[i], old[i]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(tex)); glBindSampler(31, static_cast<GLuint>(smp));
+  glActiveTexture(static_cast<GLenum>(active));
+  for (int i = 0; i < 6; ++i) if (on[i]) glEnable(caps[i]);
+  while (glGetError() != GL_NO_ERROR) {}
+  return true;
 }
 void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, std::uint32_t fmt, int w, int h) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);

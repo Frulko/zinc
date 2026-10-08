@@ -45,6 +45,7 @@ conformance2/renderbuffers/multisampled-renderbuffer-initialization.html
 conformance2/renderbuffers/readbuffer.html
 conformance2/rendering/attrib-type-match.html
 conformance2/rendering/blitframebuffer-filter-outofbounds.html
+conformance2/rendering/blitframebuffer-filter-srgb.html
 conformance2/rendering/blitframebuffer-multisampled-readbuffer.html
 conformance2/rendering/blitframebuffer-scissor-enabled.html
 conformance2/rendering/blitframebuffer-size-overflow.html
