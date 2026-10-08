@@ -1932,6 +1932,13 @@ struct Lowering::FnLower {
     }
   }
 
+  // Whether the subtree at `i` names symbol `s` (an initializer that closes over its own variable).
+  bool mentions(std::uint32_t i, std::uint32_t s) const {
+    if (i == kNil) return false;
+    if (n(i).kind == N::Ident && i < c.nodeSym.size() && c.nodeSym[i] == s) return true;
+    for (std::uint32_t k : n(i).kids) if (mentions(k, s)) return true;
+    return false;
+  }
   void declare(std::uint32_t d, bool) {
     const Node& x = n(d);
     if (x.kids.size() > 2 && x.kids[2] != kNil) {  // const [a, b] = ... / const {x, y} = ...
@@ -1940,7 +1947,7 @@ struct Lowering::FnLower {
     }
     std::uint32_t s = c.nodeSym[d];
     TypeId t = L.irType(c.syms[s].type, d);
-    if (L.isCell(s) && n(x.kids[1]).kind == N::FuncExpr) {  // a closure that uses its own variable: the cell exists before the closure is made
+    if (L.isCell(s) && (n(x.kids[1]).kind == N::FuncExpr || mentions(x.kids[1], s))) {  // the cell exists before the initializer runs: a closure made in it (`const f = () => f()`, `const sub = on(() => sub.remove())`) captures the cell
       declSym(s, emit(IrOp::Const, t, {}, ty(t).builtinRef() ? ir::kNullConst : 0));
       writeSym(s, exprTo(x.kids[1], t));
       return;
