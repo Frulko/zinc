@@ -2,6 +2,7 @@
 // entries from HostSysFirst (include/zn/runtime.h). The Zinc side (the module sources of src/frontend/modules.cpp) turns the flat calls into
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
 #include <signal.h>
+#include "zn/alloc_stats.h"
 #include <sys/wait.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -251,6 +252,8 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostSysPid: r->i = getpid(); break;
+    case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
+    case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
     case Rt::HostSysCwd: { char b[4096]; ret(r, getcwd(b, sizeof b) ? b : ""); break; }
     case Rt::HostSysChdir: r->i = chdir(s(0).c_str()) == 0; break;
     case Rt::HostSysSetEnv: setenv(s(0).c_str(), s(1).c_str(), 1); break;

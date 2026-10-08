@@ -170,8 +170,8 @@ export function env(name: string): string { return __host_sysEnv(name); }
 export function exit(code: i32): void { __host_sysExit(code); }
 export function platform(): string { return __host_sysPlatform(); }
 export function clock(): f64 { return Date.now(); }
-export function liveObjects(): i32 { return 0; }
-export function allocations(): i32 { return 0; }
+export function liveObjects(): i32 { return __host_sysLiveBlocks() as i32; }
+export function allocations(): i32 { return __host_sysAllocations() as i32; }
 export function randomBytes(n: i32): u8[] { const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_sysRandomByte() as u8); return r; }
 export function utf8Encode(s: string): u8[] { const r: u8[] = []; const n = __host_sysUtf8Len(s); for (let i: i32 = 0; i < n; i++) r.push(__host_sysUtf8Byte(s, i) as u8); return r; }
 export function utf8Decode(bytes: u8[]): string { return __host_sysUtf8Decode(bytes); }

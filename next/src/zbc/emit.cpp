@@ -141,7 +141,6 @@ struct FnEmitter {
     }
     zf.params.clear();
     for (ValueId p : f.params) zf.params.push_back(vtOf(f.valueTypes[p]));
-    const ir::Type& rt = ty(f.ret);
     zf.ret = vtOf(f.ret);
     return true;
   }

@@ -17,6 +17,7 @@
 
 #include "zbc/zbc.h"
 #include "zn/limits.h"
+#include "zn/alloc_stats.h"
 #include "zn/runtime.h"
 #include "zn/value.h"
 
@@ -31,13 +32,13 @@ void heapAccount(void* p, bool add);
 
 // Object memory: mimalloc, except in sanitizer builds (ZN_NO_MIMALLOC), where the plain allocator keeps ASan's checks.
 #ifdef ZN_NO_MIMALLOC
-inline void* allocRaw(std::size_t n) { return std::malloc(n); }
-inline void* allocZero(std::size_t n) { return std::calloc(1, n); }
-inline void freeRaw(void* p) { std::free(p); }
+inline void* allocRaw(std::size_t n) { ++gAllocs; return std::malloc(n); }
+inline void* allocZero(std::size_t n) { ++gAllocs; return std::calloc(1, n); }
+inline void freeRaw(void* p) { if (p) ++gFrees; std::free(p); }
 #else
-inline void* allocRaw(std::size_t n) { void* p = mi_malloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
-inline void* allocZero(std::size_t n) { void* p = mi_zalloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
-inline void freeRaw(void* p) { if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
+inline void* allocRaw(std::size_t n) { ++gAllocs; void* p = mi_malloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void* allocZero(std::size_t n) { ++gAllocs; void* p = mi_zalloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void freeRaw(void* p) { if (p) ++gFrees; if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
 #endif
 
 // An allocator over allocRaw for the containers of the runtime's objects (arrays, Maps, Sets): the objects stay on mimalloc without replacing the global operator new,
