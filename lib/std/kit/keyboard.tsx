@@ -74,6 +74,7 @@ export function Keyboard(props: KeyboardProps): i32 {
   let pressedAt: number = 0;
   let longTimer: i32 = -1;
   let repeatTimer: i32 = -1;
+  let kbHeight: number = 0;
   const cellW: number = keyH * 0.9;
 
   const layout = (): KeyboardLayout => layoutOf(ids[layoutIx() % ids.length]);
@@ -131,7 +132,15 @@ export function Keyboard(props: KeyboardProps): i32 {
   async function place(): Promise<void> {
     const n = ui.inspectNode(root.node);
     const h = n !== null ? n.lh : 280;
-    if (shown()) { await ui.animate(root.node, 'translateY', 0, 220, 'out', 0); return; }
+    // env(keyboard-inset): what a bottom-pinned bar makes room for (ZN-272); the height is known after the first layout, so it is read again when the slide ends
+    if (n !== null && n.lh > 0) kbHeight = n.lh;
+    ui.setKeyboardInset(shown() ? (kbHeight > 0 ? kbHeight : 4 * keyH + 5 * gap + 16) : 0);
+    if (shown()) {
+      await ui.animate(root.node, 'translateY', 0, 220, 'out', 0);
+      const m = ui.inspectNode(root.node);
+      if (shown() && m !== null && m.lh > 0) { kbHeight = m.lh; ui.setKeyboardInset(m.lh); }
+      return;
+    }
     await ui.animate(root.node, 'translateY', h, 180, 'in', 0);
     if (!shown()) ui.setNumber(root.node, 'hidden', 1);
   }
