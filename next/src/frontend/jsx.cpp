@@ -56,7 +56,7 @@ struct Failure { std::uint32_t pos; std::string msg; };
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
 bool validClass(const std::string& c) {
   static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
-      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
+      "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "peer", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
   static const std::string num = R"((\d+(\.\d+)?|\[\d+(\.\d+)?(px|rem|vh|vw|%)?\]|\[env\([a-z-]+\)\]|\d+/\d+|px))";
@@ -83,14 +83,14 @@ bool validClass(const std::string& c) {
       std::regex(R"(^line-clamp-[1-9]\d*$)"),
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^duration-\d+$)")};
-  static const std::regex variant(R"(^(focus|focus-visible|selection|disabled|group-hover|group-focus|group-active|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
+  static const std::regex variant(R"(^(focus|focus-visible|selection|disabled|group-hover|group-focus|group-active|peer-hover|peer-focus|peer-active|aria-(?:checked|selected|expanded|pressed|disabled|busy|current|invalid|required|readonly)|data-\[[a-z][a-z0-9-]*=[A-Za-z0-9_-]+\]|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
   static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
   if (std::regex_match(c, m, variant)) {
     std::string state = m[1].str(), rest = m[2].str();
     if (!validClass(rest)) return false;
-    if (state == "hover" || state == "focus" || state == "active" || state == "disabled" || state.rfind("group-", 0) == 0) {   // paint-only properties (ZN-273): opacity, translate, shadow, colours, radius, ring
+    if (state == "hover" || state == "focus" || state == "active" || state == "disabled" || state.rfind("group-", 0) == 0 || state.rfind("peer-", 0) == 0 || state.rfind("aria-", 0) == 0 || state.rfind("data-", 0) == 0) {   // paint-only properties (ZN-273): opacity, translate, shadow, colours, radius, ring
       static const std::regex paintOnly(R"(^(opacity-\d+|-?translate-[xy]-.+|shadow(-(none|sm|md|lg|xl))?|rounded(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?|(ring|outline)(-.+)?)$)");
       static const std::regex colouredState("^(bg|text|border)-" + color + "$");
       return std::regex_match(rest, paintOnly) || std::regex_match(rest, colouredState);
@@ -638,6 +638,11 @@ struct Lowering {
       else if (name == "role") push("_str(" + v + ", 'role', " + (lit ? quote(a.lit) : expr) + ");");
       else if (name == "aria-label") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
       else if (name == "aria-hidden") push("_num(" + v + ", 'ariaHidden', " + (lit || a.kind == 0 || expr == "true" ? "1" : "0") + ");");
+      else if (name.rfind("aria-", 0) == 0 || name.rfind("data-", 0) == 0) {   // aria-checked={on}, data-state="open": read by the aria-*: and data-[k=v]: variants
+        const std::string key = quote("attr:" + name);
+        if (lit) push("_str(" + v + ", " + key + ", " + quote(a.lit) + ");");
+        else push(react ? "_str(" + v + ", " + key + ", String(" + expr + "));" : "_dynStr(" + v + ", " + key + ", () => String(" + expr + "));");
+      }
       else if (name == "onDraw") push("_draw(" + v + ", " + expr + ");");
       else if (kPointerAttrs.count(name)) push("_ptr(" + v + ", " + num(kPointerAttrs.at(name)) + ", " + expr + ");");
       else if (name == "onKeyDown") push("_key(" + v + ", " + expr + ");");

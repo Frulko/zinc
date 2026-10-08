@@ -165,6 +165,8 @@ export class UiNode {
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
   group: boolean = false;              // `group`: group-hover: group-focus: group-active: classes of its descendants follow it
+  peer: boolean = false;               // `peer`: peer-hover: peer-focus: peer-active: classes of the siblings after it follow it
+  attrK: string[] = []; attrV: string[] = [];   // aria-* and data-* attributes (setAttr): aria-checked: and data-[state=open]: variants read them
   selectable: boolean = false;         // select-text: the pointer selects its text (ZN-270)
   surface: boolean = false;            // img is a runtime image this node owns (createSurface)
   role: string = ''; label: string = ''; ariaHidden: boolean = false;   // accessibility metadata (ZN-276)
@@ -220,7 +222,7 @@ export class StateStyle {
   bg: i32 = -1; bgAlpha: i32 = 255; fg: i32 = -1; fgAlpha: i32 = 255; bc: i32 = -1; bcAlpha: i32 = 255; radius: number = 0;
 }
 export class StateOverlay {
-  s: (StateStyle | null)[] = [null, null, null, null, null, null, null];   // hover, focus, active, disabled, group-hover, group-focus, group-active
+  s: (StateStyle | null)[] = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];   // hover, focus, active, disabled, group-hover, group-focus, group-active, peer-hover, peer-focus, peer-active, then one slot per attribute variant in use (attrSlots)
   base: StateStyle = new StateStyle();
   all: i32 = 0;           // the union of the masks
   act: i32 = 0;           // the states applied now (bit per state)
@@ -988,9 +990,24 @@ let layoutRuns: i32 = 0;
 /** How many times the layout ran (a paint-only change must not move it). */
 export function layoutCount(): i32 { return layoutRuns; }
 const statefuls: i32[] = [];
+const attrSlots: string[] = [];   // "aria-checked=true", "data-state=open": the conditions of the attribute variants, slot i is state bit 10 + i
+/** The value of an aria-* or data-* attribute of a node ("" when unset). */
+function attrOf(n: UiNode, k: string): string { const i = n.attrK.indexOf(k); return i < 0 ? '' : n.attrV[i]; }
+/** Sets an aria-* or data-* attribute (aria-checked = "true", data-state = "open"): variants such as aria-checked: and data-[state=open]: follow it, paint only. */
+export function setAttr(h: i32, name: string, value: string): void {
+  const n = node(h), i = n.attrK.indexOf(name);
+  if (i < 0) { n.attrK.push(name); n.attrV.push(value); } else if (n.attrV[i] === value) return; else n.attrV[i] = value;
+  paintDirty = true;
+}
 /** hover: focus: active: disabled: tokens of one node: only paint-only properties, copied from a scratch node that took the token. */
 function stateToken(n: UiNode, variant: string, tok: string): boolean {
-  const st = variant === 'hover' ? 0 : variant === 'focus' ? 1 : variant === 'active' ? 2 : variant === 'disabled' ? 3 : variant === 'group-hover' ? 4 : variant === 'group-focus' ? 5 : variant === 'group-active' ? 6 : -1;
+  let st = variant === 'hover' ? 0 : variant === 'focus' ? 1 : variant === 'active' ? 2 : variant === 'disabled' ? 3 : variant === 'group-hover' ? 4 : variant === 'group-focus' ? 5 : variant === 'group-active' ? 6 : variant === 'peer-hover' ? 7 : variant === 'peer-focus' ? 8 : variant === 'peer-active' ? 9 : -1;
+  if (variant.startsWith('attr:')) {   // attr:aria-checked=true, attr:data-state=open: one slot per distinct condition (at most 20 in a program)
+    const k = variant.slice(5);
+    let i = attrSlots.indexOf(k);
+    if (i < 0) { if (attrSlots.length >= 20) return false; attrSlots.push(k); i = attrSlots.length - 1; }
+    st = 10 + i;
+  }
   if (st < 0) return false;
   const t = new UiNode(n.tag);
   if (!applyToken(t, tok, '')) return false;
@@ -1024,6 +1041,14 @@ function stateBits(h: i32): i32 {
     b = b | (nodes[p].hovered ? 16 : 0) | (focus === p ? 32 : 0) | (pressed === p ? 64 : 0);
     break;
   }
+  if (n.parent >= 0) {   // the nearest peer before this node among its siblings
+    const sib = nodes[n.parent].children;
+    for (let i = sib.indexOf(h) - 1; i >= 0; i--) if (nodes[sib[i]].peer) { const q = sib[i]; b = b | (nodes[q].hovered ? 128 : 0) | (focus === q ? 256 : 0) | (pressed === q ? 512 : 0); break; }
+  }
+  for (let i = 0; i < attrSlots.length; i++) {
+    const k = attrSlots[i], e = k.indexOf('=');
+    if (attrOf(n, k.slice(0, e)) === k.slice(e + 1)) b = b | (1 << (10 + i));
+  }
   return b;
 }
 /** Puts the values of the active states on a node (and the base values back when they end): no layout, only a repaint. */
@@ -1044,7 +1069,7 @@ function syncState(h: i32): void {
   if ((a & 64) !== 0) { n.fg = b.fg; n.fgAlpha = b.fgAlpha; }
   if ((a & 128) !== 0) { n.borderColor = b.bc; n.borderAlpha = b.bcAlpha; }
   if ((a & 256) !== 0) n.radius = b.radius;
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 30; i++) {
     const ss = o.s[i];
     if (ss === null || (want & (1 << i)) === 0) continue;
     const x = ss as StateStyle;
@@ -1093,12 +1118,24 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('group-hover:')) return applyToken(n, tok.slice(12), 'group-hover');
   if (tok.startsWith('group-focus:')) return applyToken(n, tok.slice(12), 'group-focus');
   if (tok.startsWith('group-active:')) return applyToken(n, tok.slice(13), 'group-active');
+  if (tok.startsWith('peer-hover:')) return applyToken(n, tok.slice(11), 'peer-hover');
+  if (tok.startsWith('peer-focus:')) return applyToken(n, tok.slice(11), 'peer-focus');
+  if (tok.startsWith('peer-active:')) return applyToken(n, tok.slice(12), 'peer-active');
+  if (tok.startsWith('aria-')) {   // aria-checked:bg-x == the attribute aria-checked is "true"
+    const c = tok.indexOf(':');
+    if (c > 5) return applyToken(n, tok.slice(c + 1), 'attr:' + tok.slice(0, c) + '=true');
+  }
+  if (tok.startsWith('data-[')) {   // data-[state=open]:bg-x
+    const c = tok.indexOf(']:'), e = tok.indexOf('=');
+    if (c > 6 && e > 6 && e < c) return applyToken(n, tok.slice(c + 2), 'attr:data-' + tok.slice(6, e) + '=' + tok.slice(e + 1, c));
+  }
   if (tok === 'group') { n.group = true; return true; }
+  if (tok === 'peer') { n.peer = true; return true; }
   if (variant === '' && ringToken(n, tok, 0)) return true;
   if (variant !== '') {
     const isBg = tok.startsWith('bg-'), isBorder = tok.startsWith('border-');
     const c = isBg ? colorOf(tok.slice(3)) : isBorder ? colorOf(tok.slice(7)) : tok.startsWith('text-') ? colorOf(tok.slice(5)) : -2;
-    if (variant !== 'selection' && variant !== 'within' && (c === -2 || variant === 'disabled' || variant.startsWith('group-') || (variant === 'active' && isBorder) || (c >= 0 && alphaOf(isBg ? tok.slice(3) : isBorder ? tok.slice(7) : tok.slice(5)) !== 255))) return stateToken(n, variant, tok);
+    if (variant !== 'selection' && variant !== 'within' && (c === -2 || variant === 'disabled' || variant.startsWith('group-') || variant.startsWith('peer-') || variant.startsWith('attr:') || (variant === 'active' && isBorder) || (c >= 0 && alphaOf(isBg ? tok.slice(3) : isBorder ? tok.slice(7) : tok.slice(5)) !== 255))) return stateToken(n, variant, tok);
     if (c === -2) return false;
     if (variant === 'focus') { if (isBg) n.focusBg = c; else if (isBorder) n.focusBorder = c; else n.focusFg = c; }
     else if (variant === 'hover') { if (isBg) n.hoverBg = c; else if (isBorder) n.hoverBorder = c; else n.hoverFg = c; }
@@ -1455,7 +1492,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;

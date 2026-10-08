@@ -1,6 +1,13 @@
+  peer sibling bg16007006 op1  attr node bg9741240 op1
 start a op1 ty0 sh0 b op1 bg1096065 child bg16007006 op1 layouts 1
+  peer sibling bg16007006 op1  attr node bg9741240 op1
 hover a a op0.8 ty-4 sh4 b op1 bg1096065 child bg16007006 op1 layouts 1
+  peer sibling bg16007006 op1  attr node bg9741240 op1
 over the group a op1 ty0 sh0 b op1 bg1096065 child bg959977 op0.6 layouts 1
+  peer sibling bg959977 op0.5  attr node bg9741240 op1
 b disabled a op1 ty0 sh0 b op0.5 bg9741240 child bg16007006 op1 layouts 1
 no relayout true
+  peer sibling bg959977 op0.5  attr node bg1096065 op0.4
+attributes set a op1 ty0 sh0 b op1 bg1096065 child bg16007006 op1 layouts 1
+  peer sibling bg959977 op0.5  attr node bg9741240 op0.4
 b enabled a op1 ty0 sh0 b op1 bg1096065 child bg16007006 op1 layouts 1

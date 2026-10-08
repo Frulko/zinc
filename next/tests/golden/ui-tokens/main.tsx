@@ -23,6 +23,7 @@ const toks = [
   'sr-only', 'not-sr-only',
   'select-text', 'select-none', 'select-all', 'select-auto', 'select-foo',
   'group', 'group-hover:bg-red-500', 'group-focus:opacity-50', 'group-active:translate-y-px', 'group-hover:p-4', 'group-x:bg-red-500',
+  'peer', 'peer-hover:bg-red-500', 'peer-focus:opacity-50', 'peer-active:translate-y-px', 'peer-hover:p-4', 'peer-x:p-2', 'aria-checked:bg-emerald-500', 'aria-selected:opacity-50', 'aria-foo:p-2', 'aria-checked:p-2', 'data-[state=open]:bg-sky-500', 'data-[state=open]:p-4', 'data-[x]:p-2',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);
