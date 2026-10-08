@@ -1,0 +1,8 @@
+{
+  "name": "desktop-app",
+  "description": "A desktop app shell: sidebar navigation with a router, Home / Notes / Settings pages, an app menu, dark mode and saved settings (zinc:ui/nuxt).",
+  "tags": ["ui", "desktop"],
+  "targets": ["macos", "linux"],
+  "entry": "src/main.tsx",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

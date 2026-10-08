@@ -1,0 +1,8 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "permissions": ["menu", "tray"],
+  "icons": ["house", "notebook-pen", "settings", "sun", "moon", "plus", "trash-2", "chevron-left", "chevron-right", "chevron-down", "menu", "info", "check"],
+  "targets": { "macos": { "width": 1100, "height": 700 }, "linux": { "width": 1100, "height": 700 } }
+}

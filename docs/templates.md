@@ -38,6 +38,7 @@ project; `tests/t1/templates_kickstart.sh` creates every template and checks the
 |---|---|---|
 | game | a window, the arrow keys and a square (zinc:gfx) | macos, linux, rpi |
 | game-2d | a 2D game to grow from: title / play / game-over scenes, keyboard, gamepad and pointer input, SVG sprites, a saved best score (zinc:gfx, zinc:storage); sound waits for zinc:audio (ZN-390) | macos, linux, rpi |
+| desktop-app | a desktop app shell on zinc:ui/nuxt: sidebar and router (Home, Notes, Settings), the application menu and a tray icon (zinc:system/menu, zinc:system/tray), dark mode and settings saved with zinc:storage | macos, linux |
 | cli | a command-line program (zinc:sys) | macos, linux, rpi |
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |
