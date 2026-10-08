@@ -132,7 +132,7 @@ int main() {
   w.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt, 0);        EXPECT_ERR(w, GL_INVALID_OPERATION, "framebufferTexture2D on the canvas framebuffer");
   w.clear(0x1);                                            EXPECT_ERR(w, GL_INVALID_VALUE, "clear(bad mask)");
   w.viewport(0, 0, -1, 4);                                 EXPECT_ERR(w, GL_INVALID_VALUE, "viewport(negative size)");
-  w.readPixels(0, 0, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px, 4);   EXPECT_ERR(w, GL_INVALID_ENUM, "readPixels(RGB)");
+  w.readPixels(0, 0, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px, 4);   EXPECT_ERR(w, GL_INVALID_OPERATION, "readPixels(RGB: a valid format, not a supported combination)");
   w.readPixels(0, 0, 4, 4, GL_RGBA, GL_UNSIGNED_BYTE, px, 4); EXPECT_ERR(w, GL_INVALID_OPERATION, "readPixels(buffer too small)");
   { Id empty = w.createFramebuffer(); w.bindFramebuffer(GL_FRAMEBUFFER, empty); w.clear(GL_COLOR_BUFFER_BIT); w.bindFramebuffer(GL_FRAMEBUFFER, 0); }
                                                            EXPECT_ERR(w, GL_INVALID_FRAMEBUFFER_OPERATION, "clear on an incomplete framebuffer");

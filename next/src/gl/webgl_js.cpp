@@ -16,11 +16,12 @@
 namespace zn::gl {
 namespace {
 
-struct Obj { int kind; Id id; UniformLoc loc; };   // kind: 1 buffer, 2 shader, 3 program, 4 texture, 5 framebuffer, 6 uniform location
-struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
+struct Gl;
+struct Obj { int kind; Id id; UniformLoc loc; const Gl* owner; };   // kind: 1 buffer, 2 shader, 3 program, 4 texture, 5 framebuffer, 6 uniform location
+struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0;
-JSValue gProto2;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
+JSValue gProto2, gPrecisionProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
 JSValue gKindProto[9];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
 const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject"};
 
@@ -34,9 +35,9 @@ void objFinalizer(JSRuntime*, JSValue v) { delete static_cast<Obj*>(JS_GetOpaque
 Gl* self(JSContext* c, JSValueConst t) { return static_cast<Gl*>(JS_GetOpaque2(c, t, gCtxClass)); }
 #define SELF Gl* g = self(c, t); if (!g) return JS_EXCEPTION; WebGL1& gl = g->gl; (void)gl; (void)argc; (void)argv;
 
-JSValue wrap(JSContext* c, int kind, Id id, UniformLoc loc = {}) {
+JSValue wrap(JSContext* c, const Gl* owner, int kind, Id id, UniformLoc loc = {}) {
   JSValue o = JS_NewObjectProtoClass(c, gKindProto[kind], static_cast<int>(gObjClass));
-  JS_SetOpaque(o, new Obj{kind, id, loc});
+  JS_SetOpaque(o, new Obj{kind, id, loc, owner});
   return o;
 }
 // the one wrapper of a GL object (not for uniform locations, which are values)
@@ -44,20 +45,24 @@ JSValue wrapOnce(JSContext* c, Gl* g, int kind, Id id) {
   const std::uint64_t key = (static_cast<std::uint64_t>(kind) << 32) | id;
   auto it = g->wrappers.find(key);
   if (it != g->wrappers.end()) return JS_DupValue(c, it->second);
-  JSValue o = wrap(c, kind, id);
+  JSValue o = wrap(c, g, kind, id);
   g->wrappers[key] = JS_DupValue(c, o);
   return o;
 }
 // null and undefined are the null object; anything else must be an object of the right kind
-bool object(JSContext* c, JSValueConst v, int kind, Obj& out) {
-  out = Obj{kind, 0, {}};
-  if (JS_IsNull(v) || JS_IsUndefined(v)) return true;
+int object(JSContext* c, Gl* g, JSValueConst v, int kind, Obj& out, bool nullable) {
+  out = Obj{kind, 0, {}, g};
+  if (JS_IsNull(v)) { if (nullable) return 0; JS_ThrowTypeError(c, "argument must not be null"); return 2; }
+  if (JS_IsUndefined(v)) { if (nullable) return 0; JS_ThrowTypeError(c, "argument must not be undefined"); return 2; }
   Obj* o = static_cast<Obj*>(JS_GetOpaque(v, gObjClass));
-  if (!o || o->kind != kind) { JS_ThrowTypeError(c, "argument is not a %s", kKindNames[kind]); return false; }
+  if (!o || o->kind != kind) { JS_ThrowTypeError(c, "argument is not a %s", kKindNames[kind]); return 2; }
+  if (o->owner != g) { g->gl.raise(0x0502); return 1; }   // an object of another context: INVALID_OPERATION, the call does nothing
   out = *o;
-  return true;
+  return 0;
 }
-#define OBJ(var, idx, kind) Obj var; if (!object(c, argv[idx], kind, var)) return JS_EXCEPTION;
+// OBJ: nullable (bind*, framebufferTexture2D...); OBJR: required (compileShader, linkProgram...): null throws a TypeError
+#define OBJ(var, idx, kind) Obj var; { int st_ = object(c, g, argv[idx], kind, var, true); if (st_ == 2) return JS_EXCEPTION; if (st_ == 1) return JS_UNDEFINED; }
+#define OBJR(var, idx, kind) Obj var; { int st_ = object(c, g, argv[idx], kind, var, false); if (st_ == 2) return JS_EXCEPTION; if (st_ == 1) return JS_UNDEFINED; }
 
 double num(JSContext* c, JSValueConst v) { double d = 0; JS_ToFloat64(c, &d, v); return d; }
 std::uint32_t u32(JSContext* c, JSValueConst v) { std::uint32_t x = 0; JS_ToUint32(c, &x, v); return x; }
@@ -117,62 +122,66 @@ M(pixelStorei) { SELF NEED(2); gl.pixelStorei(U(0), I(1)); return JS_UNDEFINED; 
 
 M(createBuffer) { SELF return wrapOnce(c, g, 1, gl.createBuffer()); }
 M(deleteBuffer) { SELF NEED(1); OBJ(o, 0, 1) gl.deleteBuffer(o.id); return JS_UNDEFINED; }
-M(isBuffer) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->kind == 1 && gl.isBuffer(o->id)); }
+M(isBuffer) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 1 && gl.isBuffer(o->id)); }
 M(bindBuffer) { SELF NEED(2); OBJ(o, 1, 1) gl.bindBuffer(U(0), o.id); return JS_UNDEFINED; }
 M(bufferData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
   if (bytesOf(c, argv[1], p, n)) gl.bufferData(U(0), static_cast<std::int64_t>(n), p, U(2));
-  else if (JS_IsNull(argv[1])) { gl.bufferData(U(0), 0, nullptr, U(2)); JS_ThrowTypeError(c, "bufferData: data is null"); return JS_EXCEPTION; }
-  else gl.bufferData(U(0), i64(c, argv[1]), nullptr, U(2));   // a size
+  else if (JS_IsNull(argv[1])) gl.raise(0x0501);   // INVALID_VALUE
+  else if (JS_IsNumber(argv[1])) gl.bufferData(U(0), i64(c, argv[1]), nullptr, U(2));   // a size
+  else return JS_ThrowTypeError(c, "bufferData: data must be an ArrayBuffer, a view or a size");
   return JS_UNDEFINED;
 }
 M(bufferSubData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
+  if (JS_IsNull(argv[2])) { gl.raise(0x0501); return JS_UNDEFINED; }
   if (!bytesOf(c, argv[2], p, n)) return JS_ThrowTypeError(c, "bufferSubData: data must be an ArrayBuffer or a view");
   gl.bufferSubData(U(0), i64(c, argv[1]), static_cast<std::int64_t>(n), p);
   return JS_UNDEFINED;
 }
 
 M(createShader) { SELF NEED(1); Id id = gl.createShader(U(0)); return id ? wrapOnce(c, g, 2, id) : JS_NULL; }
-M(shaderSource) { SELF NEED(2); OBJ(o, 0, 2) gl.shaderSource(o.id, str(c, argv[1])); return JS_UNDEFINED; }
-M(compileShader) { SELF NEED(1); OBJ(o, 0, 2) gl.compileShader(o.id); return JS_UNDEFINED; }
+M(shaderSource) { SELF NEED(2); OBJR(o, 0, 2) gl.shaderSource(o.id, str(c, argv[1])); return JS_UNDEFINED; }
+M(compileShader) { SELF NEED(1); OBJR(o, 0, 2) gl.compileShader(o.id); return JS_UNDEFINED; }
 M(getShaderParameter) {
-  SELF NEED(2); OBJ(o, 0, 2)
-  switch (U(1)) { case 0x8B81: return JS_NewBool(c, gl.shaderCompiled(o.id)); case 0x8B80: return JS_FALSE; case 0x8B4F: return JS_NewUint32(c, gl.shaderTypeOf(o.id)); }
+  SELF NEED(2); OBJR(o, 0, 2)
+  if (!gl.shaderQueryOk(o.id, U(1))) return JS_NULL;
+  switch (U(1)) { case 0x8B81: return JS_NewBool(c, gl.shaderCompiled(o.id)); case 0x8B80: return JS_NewBool(c, gl.isDeletedShader(o.id)); case 0x8B4F: return JS_NewUint32(c, gl.shaderTypeOf(o.id)); }
   return JS_NULL;
 }
-M(getShaderInfoLog) { SELF NEED(1); OBJ(o, 0, 2) return JS_NewString(c, gl.shaderInfoLog(o.id).c_str()); }
+M(getShaderInfoLog) { SELF NEED(1); OBJR(o, 0, 2) return JS_NewString(c, gl.shaderInfoLog(o.id).c_str()); }
 M(createProgram) { SELF return wrapOnce(c, g, 3, gl.createProgram()); }
-M(attachShader) { SELF NEED(2); OBJ(p, 0, 3) OBJ(s, 1, 2) gl.attachShader(p.id, s.id); return JS_UNDEFINED; }
-M(bindAttribLocation) { SELF NEED(3); OBJ(p, 0, 3) gl.bindAttribLocation(p.id, U(1), str(c, argv[2])); return JS_UNDEFINED; }
-M(linkProgram) { SELF NEED(1); OBJ(p, 0, 3) gl.linkProgram(p.id); return JS_UNDEFINED; }
+M(attachShader) { SELF NEED(2); OBJR(p, 0, 3) OBJR(s, 1, 2) gl.attachShader(p.id, s.id); return JS_UNDEFINED; }
+M(bindAttribLocation) { SELF NEED(3); OBJR(p, 0, 3) gl.bindAttribLocation(p.id, U(1), str(c, argv[2])); return JS_UNDEFINED; }
+M(linkProgram) { SELF NEED(1); OBJR(p, 0, 3) gl.linkProgram(p.id); return JS_UNDEFINED; }
 M(getProgramParameter) {
-  SELF NEED(2); OBJ(p, 0, 3)
+  SELF NEED(2); OBJR(p, 0, 3)
   bool ok = false;
   int v = gl.programParameter(p.id, U(1), ok);
   if (!ok) return JS_NULL;
   return U(1) == 0x8B80 || U(1) == 0x8B82 || U(1) == 0x8B83 ? JS_NewBool(c, v != 0) : JS_NewInt32(c, v);
 }
-M(getProgramInfoLog) { SELF NEED(1); OBJ(p, 0, 3) return JS_NewString(c, gl.programInfoLog(p.id).c_str()); }
+M(getProgramInfoLog) { SELF NEED(1); OBJR(p, 0, 3) return JS_NewString(c, gl.programInfoLog(p.id).c_str()); }
 M(useProgram) { SELF NEED(1); OBJ(p, 0, 3) gl.useProgram(p.id); return JS_UNDEFINED; }
-M(getAttribLocation) { SELF NEED(2); OBJ(p, 0, 3) return JS_NewInt32(c, gl.getAttribLocation(p.id, str(c, argv[1]))); }
+M(getAttribLocation) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewInt32(c, gl.getAttribLocation(p.id, str(c, argv[1]))); }
 M(getUniformLocation) {
-  SELF NEED(2); OBJ(p, 0, 3)
+  SELF NEED(2); OBJR(p, 0, 3)
   UniformLoc l = gl.getUniformLocation(p.id, str(c, argv[1]));
-  return l.valid() ? wrap(c, 6, 0, l) : JS_NULL;
+  return l.valid() ? wrap(c, g, 6, 0, l) : JS_NULL;
 }
-UniformLoc locOf(JSContext* c, JSValueConst v, bool& ok) {
-  ok = true;
+UniformLoc locOf(JSContext* c, Gl* g, JSValueConst v, bool& ok, bool& foreign) {
+  ok = true; foreign = false;
   if (JS_IsNull(v) || JS_IsUndefined(v)) return {};
   Obj* o = static_cast<Obj*>(JS_GetOpaque(v, gObjClass));
   if (!o || o->kind != 6) { ok = false; JS_ThrowTypeError(c, "argument is not a WebGLUniformLocation"); return {}; }
+  if (o->owner != g) { foreign = true; g->gl.raise(0x0502); return {}; }   // a location of another context: INVALID_OPERATION, nothing happens
   return o->loc;
 }
-#define LOC bool ok_; UniformLoc l = locOf(c, argv[0], ok_); if (!ok_) return JS_EXCEPTION;
+#define LOC bool ok_, fo_; UniformLoc l = locOf(c, g, argv[0], ok_, fo_); if (!ok_) return JS_EXCEPTION; if (fo_) return JS_UNDEFINED;
 M(uniform1f) { SELF NEED(2); LOC gl.uniform1f(l, F(1)); return JS_UNDEFINED; }
 M(uniform2f) { SELF NEED(3); LOC gl.uniform2f(l, F(1), F(2)); return JS_UNDEFINED; }
 M(uniform4f) { SELF NEED(5); LOC gl.uniform4f(l, F(1), F(2), F(3), F(4)); return JS_UNDEFINED; }
@@ -214,16 +223,30 @@ M(readPixels) {
   SELF NEED(7);
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
+  if (JS_IsNull(argv[6])) { gl.raise(0x0501); return JS_UNDEFINED; }
   if (!bytesOf(c, argv[6], p, n)) return JS_ThrowTypeError(c, "readPixels: pixels must be an ArrayBuffer view");
+  if (U(5) == 0x1401) {   // UNSIGNED_BYTE needs a Uint8Array (or its clamped sibling)
+    JSValue ctor = JS_GetPropertyStr(c, argv[6], "constructor");
+    JSValue nm = JS_IsObject(ctor) ? JS_GetPropertyStr(c, ctor, "name") : JS_UNDEFINED;
+    std::string cn = JS_IsString(nm) ? str(c, nm) : "";
+    JS_FreeValue(c, nm); JS_FreeValue(c, ctor);
+    if (cn != "Uint8Array" && cn != "Uint8ClampedArray") { gl.raise(0x0502); return JS_UNDEFINED; }
+  }
   gl.readPixels(I(0), I(1), I(2), I(3), U(4), U(5), p, n);
   return JS_UNDEFINED;
 }
 
-JSValue js_getContextAttributes(JSContext* c, JSValueConst, int, JSValueConst*) {
+JSValue js_getContextAttributes(JSContext* c, JSValueConst t, int, JSValueConst*) {
+  Gl* g = self(c, t);
+  if (!g) return JS_EXCEPTION;
   JSValue o = JS_NewObject(c);
-  for (const char* k : {"alpha", "depth", "premultipliedAlpha", "preserveDrawingBuffer"}) JS_SetPropertyStr(c, o, k, JS_NewBool(c, std::strcmp(k, "preserveDrawingBuffer") != 0));
-  JS_SetPropertyStr(c, o, "stencil", JS_FALSE);
-  JS_SetPropertyStr(c, o, "antialias", JS_FALSE);
+  JS_SetPropertyStr(c, o, "alpha", JS_NewBool(c, g->alpha));
+  JS_SetPropertyStr(c, o, "depth", JS_NewBool(c, g->depth));
+  JS_SetPropertyStr(c, o, "stencil", JS_NewBool(c, g->stencil));
+  JS_SetPropertyStr(c, o, "antialias", JS_FALSE);   // the offscreen target is not multisampled
+  JS_SetPropertyStr(c, o, "premultipliedAlpha", JS_NewBool(c, g->premultipliedAlpha));
+  JS_SetPropertyStr(c, o, "preserveDrawingBuffer", JS_NewBool(c, g->preserveDrawingBuffer));
+  JS_SetPropertyStr(c, o, "failIfMajorPerformanceCaveat", JS_FALSE);
   return o;
 }
 JSValue js_getExtension(JSContext*, JSValueConst, int, JSValueConst*) { return JS_NULL; }   // none yet: three.js asks, and gets null like on a bare driver
@@ -289,13 +312,13 @@ M(renderbufferStorage) { SELF NEED(4); gl.renderbufferStorage(U(0), U(1), I(2), 
 M(framebufferRenderbuffer) { SELF NEED(4); OBJ(o, 3, 7) gl.framebufferRenderbuffer(U(0), U(1), U(2), o.id); return JS_UNDEFINED; }
 M(deleteFramebuffer) { SELF NEED(1); OBJ(o, 0, 5) gl.deleteFramebuffer(o.id); return JS_UNDEFINED; }
 M(isEnabled) { SELF NEED(1); return JS_NewBool(c, gl.isEnabled(U(0))); }
-#define IS_KIND(n, K, call) M(n) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->kind == K && gl.call(o->id)); }
+#define IS_KIND(n, K, call) M(n) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == K && gl.call(o->id)); }
 IS_KIND(isShader, 2, isShader) IS_KIND(isProgram, 3, isProgram) IS_KIND(isTexture, 4, isTexture) IS_KIND(isFramebuffer, 5, isFramebuffer) IS_KIND(isRenderbuffer, 7, isRenderbuffer)
-M(getShaderSource) { SELF NEED(1); OBJ(o, 0, 2) if (!gl.isShader(o.id)) return JS_NULL; return JS_NewString(c, gl.shaderSourceOf(o.id).c_str()); }
+M(getShaderSource) { SELF NEED(1); OBJR(o, 0, 2) if (!gl.isShader(o.id)) return JS_NULL; return JS_NewString(c, gl.shaderSourceOf(o.id).c_str()); }
 M(deleteShader) { SELF NEED(1); OBJ(o, 0, 2) gl.deleteShader(o.id); return JS_UNDEFINED; }
 M(deleteProgram) { SELF NEED(1); OBJ(o, 0, 3) gl.deleteProgram(o.id); return JS_UNDEFINED; }
-M(detachShader) { SELF NEED(2); OBJ(p, 0, 3) OBJ(s, 1, 2) gl.detachShader(p.id, s.id); return JS_UNDEFINED; }
-M(validateProgram) { SELF NEED(1); OBJ(p, 0, 3) gl.validateProgram(p.id); return JS_UNDEFINED; }
+M(detachShader) { SELF NEED(2); OBJR(p, 0, 3) OBJR(s, 1, 2) gl.detachShader(p.id, s.id); return JS_UNDEFINED; }
+M(validateProgram) { SELF NEED(1); OBJR(p, 0, 3) gl.validateProgram(p.id); return JS_UNDEFINED; }
 JSValue activeInfo(JSContext* c, const WebGL1::Active& a) {
   if (!a.ok) return JS_NULL;
   JSValue o = JS_NewObject(c);
@@ -304,25 +327,32 @@ JSValue activeInfo(JSContext* c, const WebGL1::Active& a) {
   JS_SetPropertyStr(c, o, "type", JS_NewUint32(c, a.type));
   return o;
 }
-M(getActiveUniform) { SELF NEED(2); OBJ(p, 0, 3) return activeInfo(c, gl.getActiveUniform(p.id, U(1))); }
-M(getActiveAttrib) { SELF NEED(2); OBJ(p, 0, 3) return activeInfo(c, gl.getActiveAttrib(p.id, U(1))); }
+M(getActiveUniform) { SELF NEED(2); OBJR(p, 0, 3) return activeInfo(c, gl.getActiveUniform(p.id, U(1))); }
+M(getActiveAttrib) { SELF NEED(2); OBJR(p, 0, 3) return activeInfo(c, gl.getActiveAttrib(p.id, U(1))); }
 M(getParameter) { SELF NEED(1); std::uint32_t pn = U(0); return paramToJs(c, g, pn, gl.getParameter(pn)); }
 M(getVertexAttrib) { SELF NEED(2); std::uint32_t pn = U(1); return paramToJs(c, g, pn, gl.getVertexAttrib(U(0), pn)); }
 M(getBufferParameter) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getBufferParameter(U(0), U(1))); }
 M(getTexParameter) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getTexParameter(U(0), U(1))); }
-M(getUniform) { SELF NEED(2); OBJ(p, 0, 3) bool ok; UniformLoc l = locOf(c, argv[1], ok); if (!ok) return JS_EXCEPTION; return paramToJs(c, g, 0, gl.getUniform(p.id, l)); }
+M(getUniform) { SELF NEED(2); OBJR(p, 0, 3) bool ok, fo; UniformLoc l = locOf(c, g, argv[1], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_NULL; return paramToJs(c, g, 0, gl.getUniform(p.id, l)); }
 M(getShaderPrecisionFormat) {
   SELF NEED(2);
   int out[3];
   gl.getShaderPrecisionFormat(U(0), U(1), out);
-  JSValue o = JS_NewObject(c);
+  JSValue o = JS_NewObjectProto(c, gPrecisionProto);
   JS_SetPropertyStr(c, o, "rangeMin", JS_NewInt32(c, out[0]));
   JS_SetPropertyStr(c, o, "rangeMax", JS_NewInt32(c, out[1]));
   JS_SetPropertyStr(c, o, "precision", JS_NewInt32(c, out[2]));
   return o;
 }
+M(getAttachedShaders) {
+  SELF NEED(1); OBJR(p, 0, 3)
+  JSValue arr = JS_NewArray(c);
+  std::uint32_t i = 0;
+  for (Id sid : gl.attachedShaders(p.id)) JS_SetPropertyUint32(c, arr, i++, wrapOnce(c, g, 2, sid));
+  return arr;
+}
 M(getSupportedExtensions) { return JS_NewArray(c); (void)t; (void)argc; (void)argv; }
-M(getVertexAttribOffset) { SELF NEED(2); return JS_NewInt32(c, 0); }
+M(getVertexAttribOffset) { SELF NEED(2); if (U(1) != 0x8645) { gl.raise(0x0500); return JS_NULL; } if (U(0) >= 16) { gl.raise(0x0501); return JS_NULL; } return JS_NewInt64(c, gl.attribOffset(U(0))); }
 
 M(uniform3f) { SELF NEED(4); LOC gl.uniform3f(l, F(1), F(2), F(3)); return JS_UNDEFINED; }
 M(uniform2i) { SELF NEED(3); LOC gl.uniform2i(l, I(1), I(2)); return JS_UNDEFINED; }
@@ -330,7 +360,7 @@ M(uniform3i) { SELF NEED(4); LOC gl.uniform3i(l, I(1), I(2), I(3)); return JS_UN
 M(uniform4i) { SELF NEED(5); LOC gl.uniform4i(l, I(1), I(2), I(3), I(4)); return JS_UNDEFINED; }
 JSValue uniformFv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   if (argc < 2) return JS_ThrowTypeError(c, "not enough arguments");
-  bool ok; UniformLoc l = locOf(c, argv[0], ok); if (!ok) return JS_EXCEPTION;
+  bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
   std::vector<float> v;
   if (!floatsOf(c, argv[1], v)) return JS_ThrowTypeError(c, "value must be a Float32Array or an array");
   g->gl.uniformNfv(l, n, v.data(), v.size());
@@ -338,7 +368,7 @@ JSValue uniformFv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
 }
 JSValue uniformIv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   if (argc < 2) return JS_ThrowTypeError(c, "not enough arguments");
-  bool ok; UniformLoc l = locOf(c, argv[0], ok); if (!ok) return JS_EXCEPTION;
+  bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
   std::vector<int> v;
   std::uint8_t* p = nullptr; std::size_t nb = 0;
   if (bytesOf(c, argv[1], p, nb)) { v.resize(nb / 4); std::memcpy(v.data(), p, v.size() * 4); }
@@ -352,7 +382,7 @@ JSValue uniformIv(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
 UNI_FV(1) UNI_FV(2) UNI_FV(3) UNI_FV(4) UNI_IV(1) UNI_IV(2) UNI_IV(3) UNI_IV(4)
 JSValue uniformMat(JSContext* c, Gl* g, int n, int argc, JSValueConst* argv) {
   if (argc < 3) return JS_ThrowTypeError(c, "not enough arguments");
-  bool ok; UniformLoc l = locOf(c, argv[0], ok); if (!ok) return JS_EXCEPTION;
+  bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return JS_EXCEPTION; if (fo) return JS_UNDEFINED;
   std::vector<float> v;
   if (!floatsOf(c, argv[2], v)) return JS_ThrowTypeError(c, "value must be a Float32Array or an array");
   g->gl.uniformMatrixNfv(l, n, JS_ToBool(c, argv[1]) != 0, v.data(), v.size());
@@ -445,7 +475,7 @@ const Fn kMethods[] = {
   F_(getTexParameter, 2),
   F_(getUniform, 2),
   F_(getShaderPrecisionFormat, 2),
-  F_(getSupportedExtensions, 0),
+  F_(getSupportedExtensions, 0), F_(getAttachedShaders, 1),
   F_(getVertexAttribOffset, 2),
   F_(uniform3f, 4),
   F_(uniform2i, 3),
@@ -482,7 +512,7 @@ const Fn kMethods[] = {
 M(createVertexArray) { SELF NEED2; return wrapOnce(c, g, 8, gl.createVertexArray()); }
 M(deleteVertexArray) { SELF NEED(1); OBJ(o, 0, 8) gl.deleteVertexArray(o.id); return JS_UNDEFINED; }
 M(bindVertexArray) { SELF NEED(1); OBJ(o, 0, 8) gl.bindVertexArray(o.id); return JS_UNDEFINED; }
-M(isVertexArray) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->kind == 8 && gl.isVertexArray(o->id)); }
+M(isVertexArray) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 8 && gl.isVertexArray(o->id)); }
 M(vertexAttribDivisor) { SELF NEED(2); gl.vertexAttribDivisor(U(0), U(1)); return JS_UNDEFINED; }
 M(drawArraysInstanced) { SELF NEED(4); gl.drawArraysInstanced(U(0), I(1), I(2), I(3)); return JS_UNDEFINED; }
 M(drawElementsInstanced) { SELF NEED(5); gl.drawElementsInstanced(U(0), I(1), U(2), i64(c, argv[3]), I(4)); return JS_UNDEFINED; }
@@ -502,10 +532,10 @@ M(drawBuffers) {
 M(readBuffer) { SELF NEED(1); gl.readBuffer(U(0)); return JS_UNDEFINED; }
 M(bindBufferBase) { SELF NEED(3); OBJ(o, 2, 1) gl.bindBufferBase(U(0), U(1), o.id); return JS_UNDEFINED; }
 M(bindBufferRange) { SELF NEED(5); OBJ(o, 2, 1) gl.bindBufferRange(U(0), U(1), o.id, i64(c, argv[3]), i64(c, argv[4])); return JS_UNDEFINED; }
-M(getUniformBlockIndex) { SELF NEED(2); OBJ(p, 0, 3) return JS_NewUint32(c, gl.getUniformBlockIndex(p.id, str(c, argv[1]))); }
-M(uniformBlockBinding) { SELF NEED(3); OBJ(p, 0, 3) gl.uniformBlockBinding(p.id, U(1), U(2)); return JS_UNDEFINED; }
-M(getActiveUniformBlockParameter) { SELF NEED(3); OBJ(p, 0, 3) std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getActiveUniformBlockParameter(p.id, U(1), pn)); }
-M(getActiveUniformBlockName) { SELF NEED(2); OBJ(p, 0, 3) return JS_NewString(c, gl.getActiveUniformBlockName(p.id, U(1)).c_str()); }
+M(getUniformBlockIndex) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewUint32(c, gl.getUniformBlockIndex(p.id, str(c, argv[1]))); }
+M(uniformBlockBinding) { SELF NEED(3); OBJR(p, 0, 3) gl.uniformBlockBinding(p.id, U(1), U(2)); return JS_UNDEFINED; }
+M(getActiveUniformBlockParameter) { SELF NEED(3); OBJR(p, 0, 3) std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getActiveUniformBlockParameter(p.id, U(1), pn)); }
+M(getActiveUniformBlockName) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewString(c, gl.getActiveUniformBlockName(p.id, U(1)).c_str()); }
 M(copyBufferSubData) { SELF NEED(5); gl.copyBufferSubData(U(0), U(1), i64(c, argv[2]), i64(c, argv[3]), i64(c, argv[4])); return JS_UNDEFINED; }
 M(getBufferSubData) {
   SELF NEED(3);
@@ -552,12 +582,16 @@ JSValue js_readFile(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
 
 JSValue js_illegalConstructor(JSContext* c, JSValueConst, int, JSValueConst*) { return JS_ThrowTypeError(c, "Illegal constructor"); }
 
-JSValue createContext(JSContext* c, int w, int h, int version = 1) {
+JSValue createContext(JSContext* c, int w, int h, int version = 1, JSValueConst attrs = JS_UNDEFINED) {
   auto g = std::make_unique<Gl>();
   std::string err;
   if (version == 2) { if (!g->gl.create(Api::Gl33, w, h, err, 2) && !g->gl.create(Api::Gles3, w, h, err, 2)) return JS_NULL; }
   else if (!g->gl.create(Api::Gl33, w, h, err) && !g->gl.create(Api::Gles2, w, h, err)) return JS_NULL;
   g->w = w; g->h = h; g->version = version;
+  if (JS_IsObject(attrs)) {   // the attributes asked for, reported back by getContextAttributes
+    auto flag = [&](const char* k, bool& dst) { JSValue v = JS_GetPropertyStr(c, attrs, k); if (!JS_IsUndefined(v)) dst = JS_ToBool(c, v) != 0; JS_FreeValue(c, v); };
+    flag("alpha", g->alpha); flag("depth", g->depth); flag("stencil", g->stencil); flag("premultipliedAlpha", g->premultipliedAlpha); flag("preserveDrawingBuffer", g->preserveDrawingBuffer);
+  }
   JSValue proto = version == 2 ? JS_DupValue(c, gProto2) : JS_GetClassProto(c, static_cast<int>(gCtxClass));
   JSValue o = JS_NewObjectProtoClass(c, proto, static_cast<int>(gCtxClass));
   JS_FreeValue(c, proto);
@@ -578,7 +612,7 @@ JSValue js_canvasGetContext(JSContext* c, JSValueConst t, int argc, JSValueConst
   JSValue wv = JS_GetPropertyStr(c, t, "width"), hv = JS_GetPropertyStr(c, t, "height");
   int w = i32(c, wv), h = i32(c, hv);
   JS_FreeValue(c, wv); JS_FreeValue(c, hv);
-  JSValue ctxv = createContext(c, w > 0 ? w : 300, h > 0 ? h : 150, v2 ? 2 : 1);
+  JSValue ctxv = createContext(c, w > 0 ? w : 300, h > 0 ? h : 150, v2 ? 2 : 1, argc > 1 ? argv[1] : JS_UNDEFINED);
   if (!JS_IsNull(ctxv)) { JS_SetPropertyStr(c, ctxv, "canvas", JS_DupValue(c, t)); JS_SetPropertyStr(c, t, "__gl", JS_DupValue(c, ctxv)); }
   return ctxv;
 }
@@ -617,6 +651,8 @@ void install(JSContext* c) {
   JSValue ctxCtor = ctor("WebGLRenderingContext", proto);
   for (const Const& k : kConsts) JS_SetPropertyStr(c, ctxCtor, k.name, JS_NewUint32(c, k.value));
   for (int k = 1; k <= 8; ++k) { gKindProto[k] = JS_NewObject(c); ctor(kKindNames[k], gKindProto[k]); }
+  gPrecisionProto = JS_NewObject(c);
+  ctor("WebGLShaderPrecisionFormat", gPrecisionProto);
   gProto2 = JS_NewObjectProto(c, proto);   // WebGL2RenderingContext.prototype
   for (const Fn& f : kMethods2) JS_SetPropertyStr(c, gProto2, f.name, JS_NewCFunction(c, f.fn, f.name, f.len));
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, gProto2, k.name, JS_NewUint32(c, k.value));

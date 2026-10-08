@@ -42,6 +42,7 @@ void WebGL1::frontFace(std::uint32_t m) { if (m != GL_CW && m != GL_CCW) return 
 void WebGL1::hint(std::uint32_t target, std::uint32_t mode) {
   if (target != GL_GENERATE_MIPMAP_HINT) return error(GL_INVALID_ENUM);   // FRAGMENT_SHADER_DERIVATIVE_HINT needs OES_standard_derivatives
   if (mode != GL_DONT_CARE && mode != GL_FASTEST && mode != GL_NICEST) return error(GL_INVALID_ENUM);
+  mipmapHint_ = mode;
   glHint(target, mode);
 }
 void WebGL1::lineWidth(float w) { if (!(w > 0)) return error(GL_INVALID_VALUE); glLineWidth(std::min(w, 1.0f)); }   // core profiles accept only 1.0
@@ -120,12 +121,25 @@ bool WebGL1::isEnabled(std::uint32_t cap) {
 }
 std::string WebGL1::shaderSourceOf(Id s) const { auto it = shaders_.find(s); return it == shaders_.end() ? "" : it->second.source; }
 std::uint32_t WebGL1::shaderTypeOf(Id s) const { auto it = shaders_.find(s); return it == shaders_.end() ? 0 : it->second.type; }
-void WebGL1::deleteShader(Id id) { auto it = shaders_.find(id); if (it == shaders_.end()) return; glDeleteShader(it->second.name); shaders_.erase(it); }
+bool WebGL1::shaderQueryOk(Id s, std::uint32_t pname) {
+  if (!shaders_.count(s)) { error(GL_INVALID_OPERATION); return false; }
+  if (pname != GL_DELETE_STATUS && pname != GL_COMPILE_STATUS && pname != GL_SHADER_TYPE) { error(GL_INVALID_ENUM); return false; }
+  return true;
+}
+// a shader attached to a program stays an object (DELETE_STATUS true) until it is detached
+void WebGL1::deleteShader(Id id) {
+  auto it = shaders_.find(id);
+  if (it == shaders_.end()) return;
+  glDeleteShader(it->second.name);
+  it->second.deleted = true;
+  if (it->second.attached <= 0) shaders_.erase(it);
+}
 void WebGL1::deleteProgram(Id id) {
   auto it = programs_.find(id);
   if (it == programs_.end()) return;
   glDeleteProgram(it->second.name);
-  if (program_ == id) program_ = 0;
+  if (program_ == id) { it->second.deleted = true; return; }   // in use: deleted when another program replaces it (useProgram)
+  for (Id sid : {it->second.vs, it->second.fs}) if (sid) { auto sh = shaders_.find(sid); if (sh != shaders_.end() && --sh->second.attached <= 0 && sh->second.deleted) shaders_.erase(sh); }
   programs_.erase(it);
 }
 void WebGL1::detachShader(Id pid, Id sid) {
@@ -136,6 +150,7 @@ void WebGL1::detachShader(Id pid, Id sid) {
   if (slot != sid) return error(GL_INVALID_OPERATION);
   slot = 0;
   glDetachShader(p->second.name, s->second.name);
+  if (--s->second.attached <= 0 && s->second.deleted) shaders_.erase(s);
 }
 void WebGL1::validateProgram(Id pid) { auto p = programs_.find(pid); if (p == programs_.end()) return error(GL_INVALID_OPERATION); glValidateProgram(p->second.name); }
 WebGL1::Active WebGL1::getActiveUniform(Id pid, std::uint32_t index) {
@@ -168,7 +183,7 @@ int WebGL1::programParameter(Id pid, std::uint32_t pname, bool& ok) {
   if (p == programs_.end()) { ok = false; error(GL_INVALID_OPERATION); return 0; }
   GLint v = 0;
   switch (pname) {
-    case GL_DELETE_STATUS: return 0;
+    case GL_DELETE_STATUS: return p->second.deleted ? 1 : 0;
     case GL_LINK_STATUS: return p->second.linked ? 1 : 0;
     case GL_VALIDATE_STATUS: glGetProgramiv(p->second.name, GL_VALIDATE_STATUS, &v); return v;
     case GL_ATTACHED_SHADERS: return (p->second.vs ? 1 : 0) + (p->second.fs ? 1 : 0);
@@ -191,7 +206,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_ACTIVE_TEXTURE: fixed(GL_TEXTURE0 + activeUnit_); break;
     case GL_VIEWPORT: case GL_SCISSOR_BOX: ints(4); break;
     case GL_ALIASED_LINE_WIDTH_RANGE: r.kind = 'a'; r.v = {1, 1}; break;
-    case GL_ALIASED_POINT_SIZE_RANGE: floats(2); break;
+    case GL_ALIASED_POINT_SIZE_RANGE: { GLfloat v[2] = {1, 1}; glGetFloatv(GL_POINT_SIZE_RANGE, v); r.kind = 'a'; r.v = {1, std::max<double>(1, v[1])}; break; }   // core GL names it POINT_SIZE_RANGE; WebGL wants a minimum of at most 1
     case GL_DEPTH_RANGE: floats(2); break;
     case GL_COLOR_CLEAR_VALUE: case GL_BLEND_COLOR: floats(4); break;
     case GL_COLOR_WRITEMASK: bools(4); break;
@@ -200,9 +215,10 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_LINE_WIDTH: fixed(1); r.kind = 'f'; break;
     case GL_DEPTH_CLEAR_VALUE: case GL_POLYGON_OFFSET_FACTOR: case GL_POLYGON_OFFSET_UNITS: case GL_SAMPLE_COVERAGE_VALUE: floats(1); break;
     case GL_BLEND_DST_ALPHA: case GL_BLEND_DST_RGB: case GL_BLEND_SRC_ALPHA: case GL_BLEND_SRC_RGB: case GL_BLEND_EQUATION_RGB: case GL_BLEND_EQUATION_ALPHA:
-    case GL_CULL_FACE_MODE: case GL_FRONT_FACE: case GL_DEPTH_FUNC: case GL_GENERATE_MIPMAP_HINT:
+    case GL_CULL_FACE_MODE: case GL_FRONT_FACE: case GL_DEPTH_FUNC:
     case GL_STENCIL_FUNC: case GL_STENCIL_FAIL: case GL_STENCIL_PASS_DEPTH_FAIL: case GL_STENCIL_PASS_DEPTH_PASS: case GL_STENCIL_BACK_FUNC: case GL_STENCIL_BACK_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_FAIL: case GL_STENCIL_BACK_PASS_DEPTH_PASS:
     case GL_STENCIL_REF: case GL_STENCIL_BACK_REF: case GL_STENCIL_CLEAR_VALUE: case GL_STENCIL_VALUE_MASK: case GL_STENCIL_BACK_VALUE_MASK: case GL_STENCIL_WRITEMASK: case GL_STENCIL_BACK_WRITEMASK:
+    case GL_GENERATE_MIPMAP_HINT: fixed(mipmapHint_); break;
     case GL_PACK_ALIGNMENT: case GL_UNPACK_ALIGNMENT: case GL_SUBPIXEL_BITS: case GL_SAMPLE_BUFFERS: case GL_SAMPLES: ints(1); break;
     case GL_RED_BITS: case GL_GREEN_BITS: case GL_BLUE_BITS: case GL_ALPHA_BITS: case GL_DEPTH_BITS: case GL_STENCIL_BITS: {
       GLint v = 0;
@@ -236,8 +252,9 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_MAX_UNIFORM_BUFFER_BINDINGS: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else fixed(24); break;
     case GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else ints(1); break;
     case GL_UNIFORM_BUFFER_BINDING: case GL_COPY_READ_BUFFER_BINDING: case GL_COPY_WRITE_BUFFER_BINDING: if (version_ != 2) { r.ok = false; error(GL_INVALID_ENUM); } else object(otherBuffers_[pname == GL_UNIFORM_BUFFER_BINDING ? GL_UNIFORM_BUFFER : pname == GL_COPY_READ_BUFFER_BINDING ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER], 1); break;
-    case 0x9240: case 0x9241: r.kind = pname == 0x9240 ? 'b' : 'b'; r.v.push_back(pname == 0x9241 ? 1 : 0); break;   // UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL (applied by the binding)
-    case 0x9243: fixed(0x9244); break;                                                                                   // UNPACK_COLORSPACE_CONVERSION_WEBGL = BROWSER_DEFAULT_WEBGL
+    case 0x9240: r.kind = 'b'; r.v.push_back(unpackFlipY_); break;           // UNPACK_FLIP_Y_WEBGL
+    case 0x9241: r.kind = 'b'; r.v.push_back(unpackPremultiply_); break;     // UNPACK_PREMULTIPLY_ALPHA_WEBGL
+    case 0x9243: fixed(unpackColorspace_); break;                             // UNPACK_COLORSPACE_CONVERSION_WEBGL
     default: r.ok = false; error(GL_INVALID_ENUM);
   }
   return r;
@@ -316,19 +333,17 @@ void WebGL1::uniform2i(const UniformLoc& l, int x, int y) { ZN_UNIFORM_OK(l, GL_
 void WebGL1::uniform3i(const UniformLoc& l, int x, int y, int z) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) glUniform3i(l.location, x, y, z); }
 void WebGL1::uniform4i(const UniformLoc& l, int x, int y, int z, int w) { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) glUniform4i(l.location, x, y, z, w); }
 void WebGL1::uniformNfv(const UniformLoc& l, int n, const float* v, std::size_t count) {
-  const std::uint32_t want = n == 1 ? GL_FLOAT : n == 2 ? GL_FLOAT_VEC2 : n == 3 ? GL_FLOAT_VEC3 : GL_FLOAT_VEC4;
-  if (n == 1) { ZN_UNIFORM_OK(l, GL_FLOAT) } else { ZN_UNIFORM_OK(l, want) }
+  if (n == 1) { ZN_UNIFORM_OK(l, GL_FLOAT, GL_BOOL) } else if (n == 2) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
-  if (count / n > static_cast<std::size_t>(l.size)) return error(GL_INVALID_OPERATION);
-  const GLsizei k = static_cast<GLsizei>(count / n);
+  const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / n, static_cast<std::size_t>(l.size)));   // more values than the array holds: the excess is ignored
   if (n == 1) glUniform1fv(l.location, k, v); else if (n == 2) glUniform2fv(l.location, k, v); else if (n == 3) glUniform3fv(l.location, k, v); else glUniform4fv(l.location, k, v);
 }
 void WebGL1::uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count) {
   if (n == 1) { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL, GL_SAMPLER_2D, GL_SAMPLER_CUBE) }
   else if (n == 2) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
-  if (count / n > static_cast<std::size_t>(l.size)) return error(GL_INVALID_OPERATION);
-  const GLsizei k = static_cast<GLsizei>(count / n);
+  if (l.type == GL_SAMPLER_2D || l.type == GL_SAMPLER_CUBE) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= 32) return error(GL_INVALID_VALUE);
+  const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / n, static_cast<std::size_t>(l.size)));
   if (n == 1) glUniform1iv(l.location, k, v); else if (n == 2) glUniform2iv(l.location, k, v); else if (n == 3) glUniform3iv(l.location, k, v); else glUniform4iv(l.location, k, v);
 }
 void WebGL1::uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const float* v, std::size_t count) {
@@ -336,8 +351,7 @@ void WebGL1::uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const 
   if (transpose) return error(GL_INVALID_VALUE);
   const std::size_t per = static_cast<std::size_t>(n) * n;
   if (count == 0 || count % per) return error(GL_INVALID_VALUE);
-  if (count / per > static_cast<std::size_t>(l.size)) return error(GL_INVALID_OPERATION);
-  const GLsizei k = static_cast<GLsizei>(count / per);
+  const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / per, static_cast<std::size_t>(l.size)));
   if (n == 2) glUniformMatrix2fv(l.location, k, GL_FALSE, v); else if (n == 3) glUniformMatrix3fv(l.location, k, GL_FALSE, v); else glUniformMatrix4fv(l.location, k, GL_FALSE, v);
 }
 void WebGL1::vertexAttribNf(std::uint32_t i, int n, const float* v) {

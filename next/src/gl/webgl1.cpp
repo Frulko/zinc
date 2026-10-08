@@ -45,6 +45,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
   }
   pre += "#define texture2D texture\n#define textureCube texture\n#define texture2DLodEXT textureLod\n#define texture2DProj textureProj\n";
   if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n";
+  else if (body.find("gl_FragData") != std::string::npos) pre += "#define varying in\nout vec4 zn_FragData[1];\n#define gl_FragData zn_FragData\n";   // gl_FragData[0] without the draw-buffers extension
   else pre += "#define varying in\nout vec4 zn_FragColor;\n#define gl_FragColor zn_FragColor\n";
   return pre + body;
 }
@@ -110,7 +111,7 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
   GLint m = 0;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m);
   maxTexSize_ = m;
-  if (!gl_.info().es) { glGenVertexArrays(1, &vao_); glBindVertexArray(vao_); }   // core contexts have no default VAO; the WebGL1 attribute state lives in this one
+  if (!gl_.info().es) { glGenVertexArrays(1, &vao_); glBindVertexArray(vao_); glEnable(GL_PROGRAM_POINT_SIZE); }   // core profiles need the switch for gl_PointSize, WebGL always honours it   // core contexts have no default VAO; the WebGL1 attribute state lives in this one
   while (glGetError() != GL_NO_ERROR) {}
   return true;
 }
@@ -150,7 +151,9 @@ void WebGL1::pixelStorei(std::uint32_t pname, int value) {
     glPixelStorei(pname, value);
     return;
   }
-  if (pname == 0x9240 || pname == 0x9241 || pname == 0x9243) return;   // UNPACK_FLIP_Y / PREMULTIPLY_ALPHA / COLORSPACE_CONVERSION: applied by the JS binding on the source image
+  if (pname == 0x9240) { unpackFlipY_ = value != 0; return; }          // UNPACK_FLIP_Y_WEBGL, PREMULTIPLY_ALPHA, COLORSPACE_CONVERSION: kept here, applied by the binding on image sources
+  if (pname == 0x9241) { unpackPremultiply_ = value != 0; return; }
+  if (pname == 0x9243) { if (value != 0 && value != 0x9244) return error(GL_INVALID_VALUE); unpackColorspace_ = value; return; }
   error(GL_INVALID_ENUM);
 }
 
@@ -170,7 +173,7 @@ void WebGL1::deleteBuffer(Id id) {
   for (auto& o : indexed_) if (o.second.buffer == id) o.second.buffer = 0;
   buffers_.erase(it);
 }
-bool WebGL1::isBuffer(Id id) const { return buffers_.count(id) != 0; }
+bool WebGL1::isBuffer(Id id) const { auto it = buffers_.find(id); return it != buffers_.end() && it->second.bound; }   // a buffer is an object once it has been bound
 bool WebGL1::bufferTargetOk(std::uint32_t t) const {
   if (t == GL_ARRAY_BUFFER || t == GL_ELEMENT_ARRAY_BUFFER) return true;
   return version_ == 2 && (t == GL_UNIFORM_BUFFER || t == GL_COPY_READ_BUFFER || t == GL_COPY_WRITE_BUFFER || t == GL_PIXEL_PACK_BUFFER || t == GL_PIXEL_UNPACK_BUFFER || t == GL_TRANSFORM_FEEDBACK_BUFFER);
@@ -186,6 +189,7 @@ void WebGL1::bindBuffer(std::uint32_t target, Id id) {
     const std::uint32_t pin = version_ == 2 ? (target == GL_ELEMENT_ARRAY_BUFFER ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER) : target;
     if (it->second.target && it->second.target != pin) return error(GL_INVALID_OPERATION);
     it->second.target = pin;
+    it->second.bound = true;
     name = it->second.name;
   }
   bufferSlot(target) = id;
@@ -262,6 +266,7 @@ void WebGL1::attachShader(Id pid, Id sid) {
   Id& slot = s->second.type == GL_VERTEX_SHADER ? p->second.vs : p->second.fs;
   if (slot) return error(GL_INVALID_OPERATION);   // one shader of each type
   slot = sid;
+  ++s->second.attached;
   glAttachShader(p->second.name, s->second.name);
 }
 void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& name) {
@@ -294,11 +299,13 @@ void WebGL1::linkProgram(Id pid) {
 bool WebGL1::programLinked(Id id) const { auto it = programs_.find(id); return it != programs_.end() && it->second.linked; }
 std::string WebGL1::programInfoLog(Id id) const { auto it = programs_.find(id); return it == programs_.end() ? "" : it->second.log; }
 void WebGL1::useProgram(Id id) {
-  if (!id) { program_ = 0; glUseProgram(0); return; }
+  if (!id) { const Id old = program_; program_ = 0; glUseProgram(0); if (old) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) programs_.erase(o); } return; }
   auto it = programs_.find(id);
-  if (it == programs_.end() || !it->second.linked) return error(GL_INVALID_OPERATION);
+  if (it == programs_.end() || !it->second.linked || it->second.deleted) return error(GL_INVALID_OPERATION);
+  const Id old = program_;
   program_ = id;
   glUseProgram(it->second.name);
+  if (old && old != id) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) { for (Id sid : {o->second.vs, o->second.fs}) if (sid) { auto sh = shaders_.find(sid); if (sh != shaders_.end() && --sh->second.attached <= 0 && sh->second.deleted) shaders_.erase(sh); } programs_.erase(o); } }
 }
 int WebGL1::getAttribLocation(Id pid, const std::string& name) {
   auto it = programs_.find(pid);
@@ -342,10 +349,14 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   if (!(l).valid()) return; \
   if (!program_ || (l).program != program_) return error(GL_INVALID_OPERATION); \
   { const std::uint32_t ok_[] = {__VA_ARGS__}; bool match_ = false; for (std::uint32_t t_ : ok_) match_ = match_ || t_ == (l).type; if (!match_) return error(GL_INVALID_OPERATION); }
-void WebGL1::uniform1f(const UniformLoc& l, float x) { ZN_UNIFORM_CHECK(l, GL_FLOAT) glUniform1f(l.location, x); }
-void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC2) glUniform2f(l.location, x, y); }
-void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC4) glUniform4f(l.location, x, y, z, w); }
-void WebGL1::uniform1i(const UniformLoc& l, int x) { ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL, GL_SAMPLER_2D, GL_SAMPLER_CUBE) glUniform1i(l.location, x); }
+void WebGL1::uniform1f(const UniformLoc& l, float x) { ZN_UNIFORM_CHECK(l, GL_FLOAT, GL_BOOL) glUniform1f(l.location, x); }
+void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) glUniform2f(l.location, x, y); }
+void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) glUniform4f(l.location, x, y, z, w); }
+void WebGL1::uniform1i(const UniformLoc& l, int x) {
+  ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL, GL_SAMPLER_2D, GL_SAMPLER_CUBE)
+  if ((l.type == GL_SAMPLER_2D || l.type == GL_SAMPLER_CUBE) && (x < 0 || x >= 32)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist (MAX_COMBINED_TEXTURE_IMAGE_UNITS is reported as 32)
+  glUniform1i(l.location, x);
+}
 void WebGL1::uniformMatrix4fv(const UniformLoc& l, bool transpose, const float* v, std::size_t n) {
   ZN_UNIFORM_CHECK(l, GL_FLOAT_MAT4)
   if (transpose) return error(GL_INVALID_VALUE);   // WebGL1 forbids it
@@ -405,7 +416,7 @@ void WebGL1::drawElements(std::uint32_t mode, int count, std::uint32_t type, std
   if (offset % ts) return error(GL_INVALID_OPERATION);
   auto e = buffers_.find(elementBuffer_);
   if (e == buffers_.end()) return error(GL_INVALID_OPERATION);
-  if (offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
+  if (count > 0 && offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
   std::int64_t maxIndex = -1;
   for (int i = 0; i < count; ++i) {
     const std::uint8_t* p = e->second.shadow.data() + offset + static_cast<std::int64_t>(i) * ts;
@@ -505,6 +516,7 @@ void WebGL1::bindFramebuffer(std::uint32_t target, Id id) {
     auto it = fbos_.find(id);
     if (it == fbos_.end()) return error(GL_INVALID_OPERATION);
     name = it->second.name;
+    it->second.bound = true;
   }
   fbo_ = id;
   glBindFramebuffer(GL_FRAMEBUFFER, name);
@@ -530,8 +542,9 @@ std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   return glCheckFramebufferStatus(GL_FRAMEBUFFER);
 }
 void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
-  if (format != GL_RGBA) return error(GL_INVALID_ENUM);
-  if (type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);
+  if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
+  switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
+  if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
   if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
   if (checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if (outBytes < static_cast<std::size_t>(w) * h * 4) return error(GL_INVALID_OPERATION);

@@ -59,7 +59,7 @@ void WebGL1::drawElementsInstanced(std::uint32_t mode, int count, std::uint32_t 
   if (offset % ts) return error(GL_INVALID_OPERATION);
   auto e = buffers_.find(elementBuffer_);
   if (e == buffers_.end()) return error(GL_INVALID_OPERATION);
-  if (offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
+  if (count > 0 && offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
   std::int64_t maxIndex = -1;
   for (int i = 0; i < count; ++i) {
     const std::uint8_t* p = e->second.shadow.data() + offset + static_cast<std::int64_t>(i) * ts;

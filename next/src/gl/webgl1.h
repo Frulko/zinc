@@ -24,6 +24,9 @@ class WebGL1 {
 
   // errors: the first error since the last call is kept (WebGL: one flag per error code, getError returns and clears one)
   std::uint32_t getError();
+  void raise(std::uint32_t code) { error(code); }   // for the binding layer: wrong-context objects and the like
+  std::int64_t attribOffset(std::uint32_t index) const { return index < 16 ? attribs_[index].offset : 0; }
+  bool shaderQueryOk(Id s, std::uint32_t pname);   // getShaderParameter's pname check (INVALID_ENUM)
   // state
   void enable(std::uint32_t cap);
   void disable(std::uint32_t cap);
@@ -36,6 +39,8 @@ class WebGL1 {
   Id createBuffer();
   void deleteBuffer(Id b);
   bool isBuffer(Id b) const;
+  bool isDeletedShader(Id s) const { auto it = shaders_.find(s); return it != shaders_.end() && it->second.deleted; }
+  bool isDeletedProgram(Id p) const { auto it = programs_.find(p); return it != programs_.end() && it->second.deleted; }
   void bindBuffer(std::uint32_t target, Id b);
   void bufferData(std::uint32_t target, std::int64_t size, const void* data, std::uint32_t usage);   // data null: allocate size zeroed bytes
   void bufferSubData(std::uint32_t target, std::int64_t offset, std::int64_t size, const void* data);
@@ -134,11 +139,12 @@ class WebGL1 {
   void finish();
   // queries
   bool isEnabled(std::uint32_t cap);
+  std::vector<Id> attachedShaders(Id p) const { std::vector<Id> r; auto it = programs_.find(p); if (it != programs_.end()) { if (it->second.vs) r.push_back(it->second.vs); if (it->second.fs) r.push_back(it->second.fs); } return r; }
   bool isShader(Id id) const { return shaders_.count(id) != 0; }
   bool isProgram(Id id) const { return programs_.count(id) != 0; }
   bool isTexture(Id id) const { return textures_.count(id) != 0 && textures_.at(id).bound; }
-  bool isFramebuffer(Id id) const { return fbos_.count(id) != 0; }
-  bool isRenderbuffer(Id id) const { return rbos_.count(id) != 0; }
+  bool isFramebuffer(Id id) const { auto it = fbos_.find(id); return it != fbos_.end() && it->second.bound; }
+  bool isRenderbuffer(Id id) const { auto it = rbos_.find(id); return it != rbos_.end() && it->second.bound; }
   std::string shaderSourceOf(Id s) const;
   std::uint32_t shaderTypeOf(Id s) const;
   void deleteShader(Id s);
@@ -172,11 +178,11 @@ class WebGL1 {
   void generateMipmap(std::uint32_t target);
 
  private:
-  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; std::vector<std::uint8_t> shadow; };
-  struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false; };
-  struct Program { std::uint32_t name = 0; Id vs = 0, fs = 0; bool linked = false; std::string log; std::map<std::string, int> attribBindings; };
+  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false; std::vector<std::uint8_t> shadow; };
+  struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
+  struct Program { std::uint32_t name = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; std::string log; std::map<std::string, int> attribBindings; };
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0, target = 0; bool bound = false; };
-  struct Fbo { std::uint32_t name = 0; Id color = 0; };
+  struct Fbo { std::uint32_t name = 0; Id color = 0; bool bound = false; };
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
   struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
@@ -206,6 +212,8 @@ class WebGL1 {
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
   int unpackAlignment_ = 4, maxTexSize_ = 0;
+  std::uint32_t mipmapHint_ = 0x1100;   // DONT_CARE
+  int unpackFlipY_ = 0, unpackPremultiply_ = 0, unpackColorspace_ = 0x9244;   // the WEBGL pixel-store state, applied by the binding on image sources
   std::uint32_t vao_ = 0;
 };
 
