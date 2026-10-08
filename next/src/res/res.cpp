@@ -256,7 +256,7 @@ bool readFile(const std::string& path, std::vector<std::uint8_t>& out) {
 }
 
 // Rasterizes `chars` of a font at `px` pixels. `grid` forces a monospace cell (the legacy 8x8 gfx.text).
-BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::vector<std::uint32_t>& chars, const Grid* grid) {
+BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::vector<std::uint32_t>& chars, const Grid* grid, bool italic = false) {
   double scale = static_cast<double>(px) / ttf.unitsPerEm;
   BakedFont f;
   f.name = name; f.px = px;
@@ -267,7 +267,7 @@ BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::v
     if (it == ttf.cmap.end()) continue;
     int g = static_cast<int>(it->second);
     std::vector<Poly> polys = ttf.glyph(g);
-    for (Poly& p : polys) for (Pt& pt : p) pt = {pt.first * scale, -pt.second * scale};
+    for (Poly& p : polys) for (Pt& pt : p) pt = {(pt.first + (italic ? 0.2126 * pt.second : 0)) * scale, -pt.second * scale};
     double minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
     for (const Poly& p : polys) for (const Pt& pt : p) { minX = std::min(minX, pt.first); minY = std::min(minY, pt.second); maxX = std::max(maxX, pt.first); maxY = std::max(maxY, pt.second); }
     int adv = static_cast<int>(jsRound(ttf.advance(g) * scale * 64));
@@ -518,7 +518,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   std::set<int> sizes{16};
   std::set<std::uint32_t> chars;
   for (int c = 32; c < 127; ++c) chars.insert(static_cast<std::uint32_t>(c));
-  bool fontMono = false;
+  bool fontMono = false, italicUsed = false;
   static const std::regex reText("text-(xs|sm|base|lg|xl|[2-6]xl)\\b"), reTextPx("text-\\[(\\d+)(?:px)?\\]"), reFontSize("font-size\\s*:\\s*(\\d+)px"),
       reFontCall("\\bfont\\(\\s*['\"][\\w-]+['\"]\\s*,\\s*(\\d+)\\s*\\)"),
       reCanvas("['\"`](?:(?:bold|normal|italic|[1-9]00)\\s+)*(\\d+)px\\s+[\\w\\s,\"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)"), reMono("\\bfont-mono\\b");
@@ -537,6 +537,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       if (line.find("font-size") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontSize); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
+      if (!italicUsed && line.find("italic") != std::string::npos) italicUsed = true;
       if (!fontMono && line.find("font-mono") != std::string::npos && std::regex_search(line, reMono)) fontMono = true;
     }
     literalChars(text, chars);
@@ -550,7 +551,16 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
     std::vector<fs::path> found;
     for (auto& e : fs::recursive_directory_iterator(opt.assetsDir)) if (e.is_regular_file() && (e.path().extension() == ".ttf" || e.path().extension() == ".otf")) found.push_back(e.path());
     std::sort(found.begin(), found.end());
-    for (auto& p : found) families.push_back({p.stem().string(), p.string()});
+    // weight and italic faces (Roboto-Medium, Roboto-BoldItalic) are baked only when the app names the file or its family (ZN-267); other files stay: the shaper falls back on them
+    auto named = [&](const std::string& stem) {
+      std::size_t dash = stem.rfind('-');
+      static const std::set<std::string> faces{"Thin", "ExtraLight", "Light", "Medium", "SemiBold", "Bold", "ExtraBold", "Black", "Italic", "BoldItalic", "LightItalic", "MediumItalic", "SemiBoldItalic", "BlackItalic", "ThinItalic"};
+      if (dash == std::string::npos || !faces.count(stem.substr(dash + 1))) return true;
+      std::string fam = stem.substr(0, dash);
+      for (const std::string& t : sources) if (t.find(stem) != std::string::npos || (!fam.empty() && t.find(fam) != std::string::npos)) return true;
+      return false;
+    };
+    for (auto& p : found) if (named(p.stem().string())) families.push_back({p.stem().string(), p.string()});
   }
   std::map<std::string, std::vector<std::uint8_t>> fontBytes;
   std::vector<BakedFont> fonts;
@@ -561,6 +571,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       std::string e;
       if (!ttf.parse(fontBytes[f.file].data(), fontBytes[f.file].size(), e)) { err = f.file + ": " + e; return false; }
       fonts.push_back(bakeFont(ttf, f.name, px, cps, nullptr));
+      if (italicUsed) fonts.push_back(bakeFont(ttf, f.name + "~i", px, cps, nullptr, true));   // font-italic: the synthetic slant of the face
     }
   {  // the legacy gfx.text(x, y, s, color, scale): crisp monospace on an 8 px grid; the larger cells serve HiDPI screens
     if (!fontBytes.count(monoFile) && !readFile(monoFile, fontBytes[monoFile])) { err = "cannot read the font " + monoFile; return false; }

@@ -1,0 +1,16 @@
+font-[Missing,Inter-Regular] inter
+font-[Missing,Nothing] sans
+font-[Inter-Regular,Missing] inter
+font-[Inter-Regular] font-bold inter
+font-[Inter-Regular] font-medium inter
+font-[Inter-Regular] italic inter~i
+font-medium sans
+font-light sans
+font-thin sans
+font-semibold sans-bold
+font-black sans-bold
+italic sans~i
+font-bold italic sans-bold~i
+font-bold italic not-italic sans-bold
+font-mono mono
+unnamed face baked: false

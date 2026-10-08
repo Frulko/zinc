@@ -13,6 +13,7 @@ const toks = [
   'snap-y', 'snap-x', 'snap-both', 'snap-none', 'snap-mandatory', 'snap-proximity', 'snap-start', 'snap-center', 'snap-end', 'snap-align-none', 'scroll-p-4', 'scroll-pt-2', 'scroll-px-3', 'scroll-pz-1', 'snap-foo',
   'border-dashed', 'border-dotted', 'border-solid', 'border-t-red-500', 'border-x-blue-600', 'border-b-white/50', 'border-t-nocolor-9', 'rounded-t-lg', 'rounded-tl-xl', 'rounded-br', 'rounded-l-full', 'rounded-b-[6px]', 'rounded-x-lg', 'rounded-tx',
   'ring', 'ring-0', 'ring-2', 'ring-4', 'ring-indigo-500', 'ring-offset-2', 'outline', 'outline-2', 'outline-none', 'outline-offset-1', 'outline-red-500', 'focus-visible:ring-2', 'focus-visible:ring-indigo-500', 'focus:ring-4', 'focus-visible:outline-none', 'ring-x', 'ring-offset-x', 'outline-foo', 'focus-visible:bg-red-500',
+  'italic', 'not-italic', 'font-thin', 'font-light', 'font-medium', 'font-black', 'font-[Inter,Roboto-Mono]', 'font-heavy',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

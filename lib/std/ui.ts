@@ -178,7 +178,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = 16; bold: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
+  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
   lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
@@ -778,6 +778,7 @@ function ringToken(n: UiNode, tok: string, mode: i32): boolean {
   else { if (w >= 0) n.fOutW = w; else if (off >= 0) n.fOutO = off; else n.fOutC = c; }
   return true;
 }
+const FONT_WEIGHT_TOKENS: string[] = ['font-thin', 'font-extralight', 'font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-extrabold', 'font-black'];
 function applyToken(n: UiNode, tok: string, variant: string): boolean {
   // responsive (mobile first): md:flex-row applies from 768 px wide; re-evaluated when the window is resized
   for (let i = 0; i < BREAKPOINTS.length; i++) if (tok.startsWith(BREAKPOINTS[i])) {
@@ -846,7 +847,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.z = Math.round(neg ? -zv : zv);
     return true;
   }
-  if (tok === 'flex' || tok === 'font-normal' || tok === 'font-medium' || tok === 'transition' || tok === 'ease-out' || tok === 'ease-in' || tok === 'ease-in-out') return true;
+  if (tok === 'flex' || tok === 'transition' || tok === 'ease-out' || tok === 'ease-in' || tok === 'ease-in-out') return true;
   if (tok === 'flex-row') { n.row = true; return true; }
   if (tok === 'flex-col') { n.row = false; return true; }
   if (tok === 'flex-wrap') { n.wrap = true; return true; }
@@ -912,7 +913,10 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (!ax) { n.top = v; n.bottom = v; }
     return true;
   }
-  if (tok === 'font-bold' || tok === 'font-semibold') { n.bold = true; return true; }
+  const fw = FONT_WEIGHT_TOKENS.indexOf(tok);
+  if (fw >= 0) { n.weight = (fw + 1) * 100; n.bold = fw >= 5; return true; }
+  if (tok === 'italic') { n.italic = true; return true; }
+  if (tok === 'not-italic') { n.italic = false; return true; }
   if (tok === 'font-mono') { n.family = 'mono'; return true; }
   if (tok === 'font-sans') { n.family = 'sans'; return true; }
   if (tok.startsWith('font-[') && tok.endsWith(']')) { n.family = tok.slice(6, tok.length - 1); return true; }
@@ -1086,7 +1090,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -1185,14 +1189,39 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+}
+const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
+/** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
+function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
+  const want = Math.max(0, Math.min(8, Math.round(weight / 100) - 1));
+  for (let k = 0; k < 9; k++) {
+    for (let s = 0; s < 2; s++) {
+      const up = weight >= 600 ? s === 0 : s === 1;
+      const i = up ? want + k : want - k;
+      if (i < 0 || i > 8 || (k === 0 && s === 1)) continue;
+      const name = fam === 'sans' ? (i >= 5 ? 'sans-bold' : i === 3 ? 'sans' : '') : WEIGHT_FACE[i] === '' ? fam : fam + '-' + WEIGHT_FACE[i];
+      if (name === '') continue;
+      if (italic) {
+        let f = font(fam + (i >= 5 ? '-BoldItalic' : '-Italic'), px);
+        if (f < 0) f = font(name + '~i', px);
+        if (f >= 0) return f;
+      }
+      const f = font(name, px);
+      if (f >= 0) return f;
+    }
+  }
+  return -1;
+}
+/** font-[A,B,C]: the first family of the list that has a face wins; the built-in sans is the last resort. */
+function faceOf(n: UiNode, px: i32): i32 {
+  const w = n.weight > 0 ? n.weight : n.bold ? 700 : 400;
+  if (n.family.indexOf(',') < 0) { const f = familyFace(n.family, w, n.italic, px); if (f >= 0) return f; }
+  else for (const fam of n.family.split(',')) { const f = familyFace(fam.trim(), w, n.italic, px); if (f >= 0) return f; }
+  return familyFace('sans', w, n.italic, px);
 }
 function fontOf(n: UiNode): i32 {
-  // font-mono / font-[Family] (a TTF in the assets); bold: sans-bold, or Family-Bold when that file exists
-  const bold = n.family === 'sans' ? 'sans-bold' : n.family + '-Bold';
-  n.fontId = n.bold ? font(bold, n.size) : -1;
-  if (n.fontId < 0) n.fontId = font(n.family, n.size);
-  if (n.fontId < 0) n.fontId = font(n.bold ? 'sans-bold' : 'sans', n.size);
+  n.fontId = faceOf(n, n.size);
   return n.fontId;
 }
 function lineHeightOf(n: UiNode): number { return n.leading > 0 ? n.leading : Math.round(n.size * 1.4); }
@@ -1561,8 +1590,7 @@ const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
 function fontAtScale(n: UiNode, k: number): i32 {
   if (k === 1) return n.fontId;
   const px: i32 = Math.max(1, Math.round(n.size * k));
-  let f = n.bold ? font(n.family === 'sans' ? 'sans-bold' : n.family + '-Bold', px) : -1;
-  if (f < 0) f = font(n.family, px);
+  const f = faceOf(n, px);
   return f < 0 ? n.fontId : f;
 }
 // Coordinates: a layout point p of a node's children is drawn at p * k + o; a node's own box at (n.x + n.tx) * k + o,

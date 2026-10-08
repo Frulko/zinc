@@ -219,7 +219,7 @@ static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth,
 #endif
 struct RFont {
   Font f;          // name/px/metrics; glyphs/bitmap point into the growable arrays below
-  int32_t file;
+  int32_t file; bool italic;   // italic: synthetic slant (12 degrees), the font is asked as "Name~i"
   Glyph* glyphs; int32_t nglyph, capglyph;   // open-addressing table keyed by cp (cp 0xFFFFFFFF = empty)
   uint8_t* bitmap; uint32_t nbits, capbits;
 };
@@ -251,7 +251,8 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
   uint32_t gi = glyph_index(t, cp);
   if (!gi && cp != 0) return nullptr;
   float scale = (float)r.f.px / t.upem;
-  Xf m{scale, 0, 0, -scale, 0, 0};  // font units (y up) -> pixels (y down)
+  const float slant = r.italic ? 0.2126f * scale : 0;   // x grows with the height above the baseline
+  Xf m{scale, 0, slant, -scale, 0, 0};  // font units (y up) -> pixels (y down)
   float bb[4] = {1e9f, 1e9f, -1e9f, -1e9f};
   Raster none{nullptr, 0, 0};
   outline(t, gi, m, none, 0, true, bb);
@@ -265,7 +266,7 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
       if (!acc) return nullptr;
       __builtin_memset(acc, 0, sizeof(float) * (size_t)aw * h + 16);
       Raster ras{acc, aw, h};
-      Xf mm{scale, 0, 0, -scale, (float)-x0 + 1, (float)-y0};
+      Xf mm{scale, 0, slant, -scale, (float)-x0 + 1, (float)-y0};
       outline(t, gi, mm, ras, 0, false, nullptr);
       if (r.nbits + (uint32_t)(w * h) > r.capbits) {
         uint32_t nc = r.capbits ? r.capbits * 2 : 16384;
@@ -306,12 +307,14 @@ const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
 /** Font `name` at exactly `px` pixels: a baked one if it exists, else rasterized from the embedded TTF, else the
  *  closest baked size. `name` "sans"/"sans-bold"/"mono" or the file name of a TTF in the assets. */
 int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
+  bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
+  if (italic) name_len -= 2;
   int32_t baked = find_font(name, name_len, px);
-  if (baked >= 0 && fonts[baked].px == px) return baked;
+  if (baked >= 0 && fonts[baked].px == px && !italic) return baked;
   for (int32_t i = 0; i < nrfonts; i++) {
     const Font& f = rfonts[i].f;
     uint32_t k = 0; while (f.name[k]) k++;
-    if (f.px == px && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
+    if (f.px == px && rfonts[i].italic == italic && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
   }
   for (int32_t i = 0; i < ttf_count && i < MAX_TTF && nrfonts < ZRT_RUNTIME_FONTS; i++) {
     const char* n = ttf_files[i].name;
@@ -324,7 +327,7 @@ int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
     r = RFont{};
     float s = (float)px / t.upem;
     r.f = Font{ttf_files[i].name, px, (int32_t)__builtin_roundf(t.ascent * s), (int32_t)__builtin_roundf(-t.descent * s), (int32_t)__builtin_roundf(t.lineGap * s), 0, nullptr, nullptr};
-    r.file = i;
+    r.file = i; r.italic = italic;
     return RUNTIME_FONT_BASE + nrfonts++;
   }
   return baked;
