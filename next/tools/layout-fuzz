@@ -13,6 +13,7 @@ from cdp import Chrome, find_chrome
 args = sys.argv[1:]
 def opt(name, default):
     return args[args.index(name) + 1] if name in args else default
+EXT = set((opt("--ext", "") or "").split(",")) - {""} if "--ext" in args else set()   # pct, rev, wrap, mm (min/max): which extra features to generate
 N = int(opt("--cases", 200)); SEED = int(opt("--seed", 1)); KEEP = opt("--keep", None)
 ZINC = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
 W, H = 400, 300
@@ -25,6 +26,14 @@ def css(tok):
     t = tok
     if t == "flex-row": return "flex-direction:row"
     if t == "flex-col": return "flex-direction:column"
+    if t == "flex-row-reverse": return "flex-direction:row-reverse"
+    if t == "flex-col-reverse": return "flex-direction:column-reverse"
+    if t.startswith("w-") and "/" in t: a, b = t[2:].split("/"); return "width:%g%%" % (100 * int(a) / int(b))
+    if t.startswith("h-") and "/" in t: a, b = t[2:].split("/"); return "height:%g%%" % (100 * int(a) / int(b))
+    if t.startswith("min-w-["): return "min-width:" + t[7:-1]
+    if t.startswith("max-w-["): return "max-width:" + t[7:-1]
+    if t.startswith("min-h-["): return "min-height:" + t[7:-1]
+    if t.startswith("max-h-["): return "max-height:" + t[7:-1]
     if t == "flex-wrap": return "flex-wrap:wrap"
     if t.startswith("justify-"): return "justify-content:" + JUSTIFY[t[8:]]
     if t.startswith("items-"): return "align-items:" + ITEMS[t[6:]]
@@ -45,8 +54,8 @@ def css(tok):
 
 def gen(rng):
     def node(depth, parent_row):
-        cls = [rng.choice(["flex-row", "flex-col"])]
-        row = cls[0] == "flex-row"
+        cls = [rng.choice(["flex-row", "flex-col"] + (["flex-row-reverse", "flex-col-reverse"] if "rev" in EXT else []))]
+        row = cls[0].startswith("flex-row")
         if rng.random() < 0.8: cls.append("justify-" + rng.choice(list(JUSTIFY)))
         cls.append("items-" + rng.choice(list(ITEMS)))
         if rng.random() < 0.5: cls.append("gap-%d" % rng.randint(0, 3))
@@ -56,6 +65,7 @@ def gen(rng):
         if rng.random() < 0.25: cls.append("self-" + rng.choice(list(ITEMS)))
         if rng.random() < 0.3: cls.append("grow" if rng.random() < 0.6 else "grow-%d" % rng.randint(2, 3))
         if rng.random() < 0.15: cls.append("basis-[%dpx]" % rng.choice([20, 30, 40]))
+        if "wrap" in EXT and row and rng.random() < 0.3: cls += ["flex-wrap", "content-" + rng.choice(list(CONTENT))] + (["gap-y-%d" % rng.randint(0, 3)] if rng.random() < 0.5 else [])
         has_basis = any(c.startswith("basis-") for c in cls)   # a box with both basis and width: CSS sizes its container by the width, zinc by the basis (not compared)
         kids = []
         leaf = depth >= 2 or rng.random() < 0.3
@@ -66,6 +76,8 @@ def gen(rng):
         else:
             if rng.random() < 0.3 and not has_basis: cls.append("w-[%dpx]" % rng.choice([80, 120, 160]))
             if rng.random() < 0.3 and not has_basis: cls.append("h-[%dpx]" % rng.choice([60, 90, 120]))
+            if "pct" in EXT and rng.random() < 0.25 and not any(c.startswith("w-[") for c in cls): cls.append(rng.choice(["w-1/2", "w-1/4", "w-3/4"]))
+            if "mm" in EXT and rng.random() < 0.2: cls.append(rng.choice(["max-w-[%dpx]" % rng.choice([60, 100, 200]), "min-w-[%dpx]" % rng.choice([40, 80])]))
             kids = [node(depth + 1, row) for _ in range(rng.randint(1, 3))]
         return {"cls": cls, "kids": kids}
     root = node(0, True)

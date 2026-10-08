@@ -1711,8 +1711,10 @@ function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.g
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
 function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
 function outerH(c: UiNode): number { return c.lh + c.mt + c.mb; }
+let pctBase: number = -1;   // the width a percent width is taken of: the container's content width, whatever margins the child has (CSS)
 function measure(n: UiNode, maxW: number, maxH: number): void {
-  const ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round(maxW * n.wFrac) : -1;
+  const ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round((pctBase >= 0 ? pctBase : maxW) * n.wFrac) : -1;
+  pctBase = -1;
   const ownH: number = n.h >= 0 ? n.h : n.hFrac > 0 ? Math.round(maxH * n.hFrac) : -1;
   if (n.tag === TEXT) {
     inheritText(n);
@@ -1758,6 +1760,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     }
     const growFree: number = growSum > 0 ? Math.max(0, inner - growUsed) : 0;
     for (const c of kids) {
+      pctBase = n.row ? -1 : inner;
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
       applyBasis(c, n.row, mainAvail);
       if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
@@ -1878,6 +1881,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       if (jm === 1) pos = Math.floor(free / 2);
       else if (jm === 2) pos = free;
       else if (jm === 3 && count > 1) between = gm + free / (count - 1);
+      else if (jm === 3 && n.reverse) pos = free;   // one item: space-between is flex-start, which is the far end of a reversed axis
       else if (jm === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
       else if (jm === 5) { between = gm + free / (count + 1); pos = between - gm; }
     }
@@ -1891,7 +1895,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
       let off: number = 0;
       const al: i32 = c.selfAlign >= 0 ? c.selfAlign : n.align;   // align-self
-      const stretch = (al === 3 && (n.row ? c.h < 0 : c.w < 0)) || (n.row ? c.fullH : c.fullW);
+      const stretch = (al === 3 && (n.row ? c.h < 0 && c.hFrac === 0 : c.w < 0 && c.wFrac === 0)) || (n.row ? c.fullH : c.fullW);   // a fixed or percent size on the cross axis wins over the stretch
       const am = c.mAuto;
       const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
       const fullCross = n.row ? c.fullH : c.fullW;   // w-full / h-full fill the line even with auto margins; an implicit stretch gives way to them

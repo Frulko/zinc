@@ -6,5 +6,8 @@ fail=0
 for seed in 1 2 5 6 7; do
   tools/layout-fuzz --cases 200 --seed $seed | tail -3 | grep -q "layout-fuzz: 0 of" || { echo "seed $seed differs:"; tools/layout-fuzz --cases 200 --seed $seed | tail -4; fail=1; }
 done
+for ext in pct rev wrap; do   # the extra features: percent sizes, reversed axes, wrapping (min/max and basis with width are not compared: CSS redistributes clamped space)
+  tools/layout-fuzz --cases 200 --seed 1 --ext $ext | tail -1 | grep -q "layout-fuzz: 0 of" || { echo "--ext $ext differs:"; tools/layout-fuzz --cases 200 --seed 1 --ext $ext | tail -3; fail=1; }
+done
 [ $fail = 0 ] && echo "layout_fuzz: 1000 random trees match Chrome"
 exit $fail
