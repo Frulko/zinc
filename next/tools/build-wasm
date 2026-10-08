@@ -4,9 +4,10 @@ cd "$(dirname "$0")/.." || exit 2
 Z=${ZIG:-$(ls -d "$HOME"/.zinc/toolchains/zig-*/zig 2>/dev/null | head -1)}
 [ -x "$Z" ] || { echo "no zig: zinc toolchain install"; exit 1; }
 out=${1:-build-wasm/vm.wasm}; obj=$(dirname "$out")/obj; mkdir -p "$obj"
+web=$(dirname "$out")/vm-web.wasm
 FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off -Iinclude -Isrc -Ithird_party/quickjs-ng -w"
 objs=""
-for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
+for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/web_main.cpp targets/wasm/host_gfx_web.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
   o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
   [ "$o" -nt "$f" ] || "$Z" c++ $FLAGS -c "$f" -o "$o" || exit 1
 done
@@ -15,4 +16,8 @@ for f in third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c; do
   o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
   [ "$o" -nt "$f" ] || "$Z" cc -target wasm32-wasi -O2 -w -D_WASI_EMULATED_MMAN -Ithird_party/quickjs-ng -c "$f" -o "$o" || exit 1
 done
-"$Z" c++ -target wasm32-wasi -O2 $objs -lwasi-emulated-mman -o "$out" && ls -la "$out"
+shared=""; for o in $objs; do case "$o" in *vm_main*|*web_main*|*host_gfx_web*) ;; *) shared="$shared $o";; esac; done
+"$Z" c++ -target wasm32-wasi -O2 $shared "$obj/targets_wasm_vm_main.cpp.o" -lwasi-emulated-mman -o "$out" || exit 1
+# the browser build: a reactor (no _start), zn_run and the graphics import (glue/worker.mjs)
+"$Z" c++ -target wasm32-wasi -O2 -mexec-model=reactor $shared "$obj/targets_wasm_web_main.cpp.o" "$obj/targets_wasm_host_gfx_web.cpp.o" -lwasi-emulated-mman -o "$web" || exit 1
+ls -la "$out" "$web"
