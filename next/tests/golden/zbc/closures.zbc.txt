@@ -1,3 +1,13 @@
+class Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class TypeError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class RangeError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class SyntaxError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class ReferenceError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
 class Button { i, ref fn () => i32 }
 interface fn () => i32
   method .call
@@ -24,138 +34,230 @@ class lambda7:addTo {}
   vtable .call -> @lambda7:addTo
 class fnref double {}
   vtable .call -> @fnref double$call
+builtin str
 global g0: i
 global g1: i
+global g2: i
 func @main() -> void nregs=11
    0  LoadI    r0, 0
-   1  New      r1, cell i32
-   2  SetField r1, r0, .0
-   3  New      r0, lambda0
-   4  SetField r0, r1, .0
-   5  Move     r1, r0
-   6  Retain   r1
-   7  Release  r0
+   1  SetGlobalr0, g1
+   2  LoadI    r0, 0
+   3  New      r1, cell i32
+   4  SetField r1, r0, .0
+   5  New      r0, lambda0
+   6  SetField r0, r1, .0
+   7  Move     r1, r0
    8  Retain   r1
-   9  Move     r2, r1
-  10  CallVirt r2, .call
-  11  Retain   r1
-  12  Move     r2, r1
-  13  CallVirt r2, .call
-  14  LoadI    r0, 0
-  15  New      r2, cell i32
-  16  SetField r2, r0, .0
-  17  New      r0, lambda0
-  18  SetField r0, r2, .0
-  19  Move     r2, r0
-  20  Retain   r2
-  21  Release  r0
-  22  New      r0, lambda4:add5
-  23  Move     r3, r0
-  24  Retain   r3
-  25  Release  r0
-  26  LoadI    r0, 10
-  27  SetGlobalr0, g0
-  28  Move     r4, r1
-  29  CallVirt r4, .call
-  30  Move     r5, r2
-  31  CallVirt r5, .call
-  32  LoadI    r7, 1
-  33  Retain   r3
-  34  Move     r6, r3
-  35  CallVirt r6, .call
-  36  New      r0, lambda5
-  37  Move     r7, r0
-  38  Retain   r7
-  39  Release  r0
-  40  LoadI    r8, 3
-  41  CallVirt r7, .call
-  42  New      r0, lambda6
-  43  Move     r1, r0
-  44  Retain   r1
-  45  Release  r0
-  46  New      r0, lambda1
-  47  SetField r0, r1, .0
-  48  SetField r0, r3, .1
-  49  Move     r1, r0
-  50  Retain   r1
-  51  Release  r0
-  52  LoadI    r9, 1
-  53  Move     r8, r1
-  54  CallVirt r8, .call
-  55  New      r0, fnref double
-  56  Move     r1, r0
-  57  Retain   r1
-  58  Release  r0
-  59  LoadI    r0, 3
-  60  New      r2, lambda2
-  61  SetField r2, r0, .0
-  62  Move     r0, r2
-  63  Retain   r0
-  64  Release  r2
-  65  New      r2, lambda1
-  66  SetField r2, r0, .0
-  67  SetField r2, r1, .1
-  68  Move     r0, r2
-  69  Retain   r0
-  70  Release  r2
-  71  LoadI    r10, 4
-  72  Move     r9, r0
-  73  CallVirt r9, .call
-  74  LogI     r4
-  75  LogSep   
-  76  LogI     r5
-  77  LogSep   
-  78  LogI     r6
-  79  LogSep   
-  80  LogI     r7
-  81  LogSep   
-  82  LogI     r8
-  83  LogSep   
-  84  LogI     r9
-  85  LogEnd   
-  86  New      r0, Button
-  87  LoadI    r1, 0
-  88  SetField r0, r1, .0
-  89  New      r1, lambda3:on
-  90  Retain   r0
-  91  SetField r1, r0, .0
-  92  Move     r2, r1
-  93  Retain   r2
-  94  Release  r1
-  95  SetField r0, r2, .1
-  96  GetField r1, r0, .1
-  97  Retain   r1
-  98  CallVirt r1, .call
-  99  GetField r1, r0, .1
- 100  Retain   r1
- 101  CallVirt r1, .call
- 102  GetField r2, r0, .0
- 103  Release  r0
- 104  LogI     r1
- 105  LogSep   
- 106  LogI     r2
- 107  LogEnd   
- 108  LoadI    r0, 0
- 109  SetGlobalr0, g1
- 110  New      r0, lambda7:addTo
- 111  Move     r1, r0
- 112  Retain   r1
+   9  Release  r0
+  10  Retain   r1
+  11  Move     r2, r1
+  12  CallVirt r2, .call
+  13  Retain   r1
+  14  Move     r2, r1
+  15  CallVirt r2, .call
+  16  LoadI    r0, 0
+  17  New      r2, cell i32
+  18  SetField r2, r0, .0
+  19  New      r0, lambda0
+  20  SetField r0, r2, .0
+  21  Move     r2, r0
+  22  Retain   r2
+  23  Release  r0
+  24  New      r0, lambda4:add5
+  25  Move     r3, r0
+  26  Retain   r3
+  27  Release  r0
+  28  LoadI    r0, 10
+  29  SetGlobalr0, g0
+  30  LoadI    r0, 1
+  31  SetGlobalr0, g1
+  32  Move     r4, r1
+  33  CallVirt r4, .call
+  34  Move     r5, r2
+  35  CallVirt r5, .call
+  36  LoadI    r7, 1
+  37  Retain   r3
+  38  Move     r6, r3
+  39  CallVirt r6, .call
+  40  Jmp      -> 43
+  41  Release  r3
+  42  Throw    r0
+  43  New      r0, lambda5
+  44  Move     r7, r0
+  45  Retain   r7
+  46  Release  r0
+  47  LoadI    r8, 3
+  48  CallVirt r7, .call
+  49  Jmp      -> 52
+  50  Release  r3
+  51  Throw    r0
+  52  New      r0, lambda6
+  53  Move     r1, r0
+  54  Retain   r1
+  55  Release  r0
+  56  New      r0, lambda1
+  57  SetField r0, r1, .0
+  58  SetField r0, r3, .1
+  59  Move     r1, r0
+  60  Retain   r1
+  61  Release  r0
+  62  LoadI    r9, 1
+  63  Move     r8, r1
+  64  CallVirt r8, .call
+  65  New      r0, fnref double
+  66  Move     r1, r0
+  67  Retain   r1
+  68  Release  r0
+  69  LoadI    r0, 3
+  70  New      r2, lambda2
+  71  SetField r2, r0, .0
+  72  Move     r0, r2
+  73  Retain   r0
+  74  Release  r2
+  75  New      r2, lambda1
+  76  SetField r2, r0, .0
+  77  SetField r2, r1, .1
+  78  Move     r0, r2
+  79  Retain   r0
+  80  Release  r2
+  81  LoadI    r10, 4
+  82  Move     r9, r0
+  83  CallVirt r9, .call
+  84  LogI     r4
+  85  LogSep   
+  86  LogI     r5
+  87  LogSep   
+  88  LogI     r6
+  89  LogSep   
+  90  LogI     r7
+  91  LogSep   
+  92  LogI     r8
+  93  LogSep   
+  94  LogI     r9
+  95  LogEnd   
+  96  New      r0, Button
+  97  LoadI    r1, 0
+  98  SetField r0, r1, .0
+  99  New      r1, lambda3:on
+ 100  Retain   r0
+ 101  SetField r1, r0, .0
+ 102  Move     r2, r1
+ 103  Retain   r2
+ 104  Release  r1
+ 105  SetField r0, r2, .1
+ 106  GetField r1, r0, .1
+ 107  Retain   r1
+ 108  CallVirt r1, .call
+ 109  GetField r1, r0, .1
+ 110  Retain   r1
+ 111  CallVirt r1, .call
+ 112  GetField r2, r0, .0
  113  Release  r0
- 114  Move     r0, r1
- 115  Downcast r0, lambda7:addTo
- 116  GetGlobalr0, g1
- 117  AddI32K  r0, r0, 3
- 118  SetGlobalr0, g1
- 119  Move     r0, r1
- 120  Downcast r0, lambda7:addTo
- 121  Release  r1
- 122  GetGlobalr0, g1
- 123  AddI32K  r0, r0, 4
- 124  SetGlobalr0, g1
- 125  GetGlobalr0, g1
- 126  LogI     r0
- 127  LogEnd   
- 128  RetV     
+ 114  LogI     r1
+ 115  LogSep   
+ 116  LogI     r2
+ 117  LogEnd   
+ 118  LoadI    r0, 0
+ 119  SetGlobalr0, g2
+ 120  New      r0, lambda7:addTo
+ 121  Move     r1, r0
+ 122  Retain   r1
+ 123  Release  r0
+ 124  Move     r0, r1
+ 125  Downcast r0, lambda7:addTo
+ 126  GetGlobalr0, g2
+ 127  AddI32K  r0, r0, 3
+ 128  SetGlobalr0, g2
+ 129  Move     r0, r1
+ 130  Downcast r0, lambda7:addTo
+ 131  Release  r1
+ 132  GetGlobalr0, g2
+ 133  AddI32K  r0, r0, 4
+ 134  SetGlobalr0, g2
+ 135  GetGlobalr0, g2
+ 136  LogI     r0
+ 137  LogEnd   
+ 138  RetV     
+  handler 39 -> 41 r0 Error
+  handler 48 -> 50 r0 Error
+func @Error.constructor(ref Error, ref str) -> void nregs=3
+   0  LoadStr  r2, "Error"
+   1  SetField r0, r2, .1
+   2  SetField r0, r1, .0
+   3  Release  r0
+   4  RetV     
+func @Error.__errorString(ref Error) -> ref str nregs=5
+   0  GetField r1, r0, .0
+   1  Retain   r1
+   2  LoadStr  r3, ""
+   3  Move     r2, r1
+   4  Rt       r2, string.#eq
+   5  Release  r1
+   6  JmpIfNot r2, -> 11
+   7  GetField r1, r0, .1
+   8  Retain   r1
+   9  Release  r0
+  10  Jmp      -> 26
+  11  GetField r1, r0, .1
+  12  Retain   r1
+  13  LoadStr  r3, ": "
+  14  Move     r2, r1
+  15  Rt       r2, string.#concat
+  16  Release  r1
+  17  GetField r1, r0, .0
+  18  Retain   r1
+  19  Release  r0
+  20  Move     r3, r2
+  21  Move     r4, r1
+  22  Rt       r3, string.#concat
+  23  Release  r2
+  24  Release  r1
+  25  Move     r1, r3
+  26  Ret      r1
+func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "TypeError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "RangeError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "SyntaxError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @ReferenceError.constructor(ref ReferenceError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "ReferenceError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
 func @makeCounter() -> ref fn () => i32 nregs=2
    0  LoadI    r0, 0
    1  New      r1, cell i32
@@ -200,6 +302,32 @@ func @Button.constructor(ref Button) -> void nregs=3
    8  SetField r0, r2, .1
    9  Release  r0
   10  RetV     
+func @__tdzChk<i32>(i, ref str, i) -> i nregs=6
+   0  NotB     r0, r0
+   1  JmpIfNot r0, -> 23
+   2  New      r0, ReferenceError
+   3  LoadStr  r3, "Cannot access '"
+   4  Move     r4, r1
+   5  Rt       r3, string.#concat
+   6  Release  r1
+   7  LoadStr  r5, "' before initialization"
+   8  Move     r4, r3
+   9  Rt       r4, string.#concat
+  10  Release  r3
+  11  Move     r3, r0
+  12  Retain   r3
+  13  LoadStr  r5, "Error"
+  14  SetField r3, r5, .1
+  15  SetField r3, r4, .0
+  16  Release  r3
+  17  LoadStr  r3, "ReferenceError"
+  18  SetField r0, r3, .1
+  19  Move     r3, r0
+  20  Retain   r3
+  21  Release  r0
+  22  Throw    r3
+  23  Release  r1
+  24  Ret      r2
 func @lambda0(ref lambda0) -> i nregs=3
    0  GetField r1, r0, .0
    1  Retain   r1
@@ -224,10 +352,13 @@ func @lambda1(ref lambda1, i) -> i nregs=5
    4  Release  r0
    5  Move     r4, r1
    6  CallVirt r3, .call
-   7  Move     r0, r2
-   8  Move     r1, r3
-   9  CallVirt r0, .call
-  10  Ret      r0
+   7  Move     r4, r3
+   8  Move     r3, r2
+   9  CallVirt r3, .call
+  10  Ret      r3
+  11  Release  r2
+  12  Throw    r0
+  handler 6 -> 11 r0 Error
 func @lambda2(ref lambda2, i) -> i nregs=3
    0  GetField r2, r0, .0
    1  Release  r0
@@ -247,11 +378,37 @@ func @lambda4:add5(ref lambda4:add5, i) -> i nregs=2
    0  Release  r0
    1  AddI32K  r0, r1, 5
    2  Ret      r0
-func @lambda5(ref lambda5, i) -> i nregs=2
+func @lambda5(ref lambda5, i) -> i nregs=7
    0  Release  r0
-   1  GetGlobalr0, g0
-   2  MulI32   r0, r1, r0
-   3  Ret      r0
+   1  GetGlobalr0, g1
+   2  LoadStr  r3, "k"
+   3  GetGlobalr2, g0
+   4  NotB     r0, r0
+   5  JmpIfNot r0, -> 28
+   6  New      r0, ReferenceError
+   7  LoadStr  r4, "Cannot access '"
+   8  Move     r6, r3
+   9  Move     r3, r4
+  10  Move     r4, r6
+  11  Rt       r3, string.#concat
+  12  LoadStr  r5, "' before initialization"
+  13  Move     r4, r3
+  14  Rt       r4, string.#concat
+  15  Release  r3
+  16  Move     r3, r0
+  17  Retain   r3
+  18  LoadStr  r5, "Error"
+  19  SetField r3, r5, .1
+  20  SetField r3, r4, .0
+  21  Release  r3
+  22  LoadStr  r3, "ReferenceError"
+  23  SetField r0, r3, .1
+  24  Move     r3, r0
+  25  Retain   r3
+  26  Release  r0
+  27  Throw    r3
+  28  MulI32   r0, r1, r2
+  29  Ret      r0
 func @lambda6(ref lambda6, i) -> i nregs=2
    0  Release  r0
    1  LoadI    r0, 2
@@ -259,9 +416,9 @@ func @lambda6(ref lambda6, i) -> i nregs=2
    3  Ret      r0
 func @lambda7:addTo(ref lambda7:addTo, i) -> void nregs=2
    0  Release  r0
-   1  GetGlobalr0, g1
+   1  GetGlobalr0, g2
    2  AddI32   r0, r0, r1
-   3  SetGlobalr0, g1
+   3  SetGlobalr0, g2
    4  RetV     
 func @fnref double$call(ref fnref double, i) -> i nregs=2
    0  Release  r0

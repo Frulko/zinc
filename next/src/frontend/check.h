@@ -75,6 +75,7 @@ struct Symbol {
   bool forward = false;                 // declared ahead of its statement (a top-level variable of known type): functions may use it, the code before it may not
   bool captured = false;                // referenced from a lambda or nested function other than its owner
   bool reassigned = false;              // assigned after its declaration: a captured one then lives in a shared cell
+  bool tdz = false;                     // a top-level variable that functions above its declaration use: a read from a function checks the flag __tdz_<name> (ReferenceError before the declaration ran)
 };
 
 // A type parameter of a generic declaration, seen as an opaque type while the template itself is checked.

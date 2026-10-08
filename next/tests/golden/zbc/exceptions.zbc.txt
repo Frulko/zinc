@@ -6,6 +6,8 @@ class RangeError : Error { ref str, ref str }
   vtable .__errorString -> @Error.__errorString
 class SyntaxError : Error { ref str, ref str }
   vtable .__errorString -> @Error.__errorString
+class ReferenceError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
 class AppError : Error { ref str, ref str, i }
   vtable .__errorString -> @Error.__errorString
 class Shape {}
@@ -625,6 +627,17 @@ func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
    4  SetField r2, r1, .0
    5  Release  r2
    6  LoadStr  r1, "SyntaxError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @ReferenceError.constructor(ref ReferenceError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "ReferenceError"
    7  SetField r0, r1, .1
    8  Release  r0
    9  RetV     

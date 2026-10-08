@@ -1,134 +1,227 @@
+class Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class TypeError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class RangeError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class SyntaxError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
+class ReferenceError : Error { ref str, ref str }
+  vtable .__errorString -> @Error.__errorString
 class P { i, i }
 class [i32, i32] { i, i }
 class [i32, f64] { i, f64 }
 class [f64, f64] { f64, f64 }
 class [[f64, f64], f64] { ref [f64, f64], f64 }
+builtin str
 func @main() -> void nregs=17
-   0  New      r0, [i32, f64]
-   1  LoadI    r1, 1
-   2  SetField r0, r1, .0
-   3  LoadK    r1, f64 2.5
-   4  SetField r0, r1, .1
-   5  GetField r1, r0, .0
-   6  GetField r2, r0, .1
-   7  LoadI    r3, 5
-   8  LoadI    r4, 3
-   9  JLeI     r4, r3, -> 15
-  11  New      r5, [i32, i32]
-  12  SetField r5, r3, .0
-  13  SetField r5, r4, .1
-  14  Jmp      -> 18
-  15  New      r5, [i32, i32]
-  16  SetField r5, r4, .0
-  17  SetField r5, r3, .1
-  18  GetField r3, r5, .0
-  19  GetField r4, r5, .1
-  20  Release  r5
-  21  LoadI    r5, 1
-  22  LoadI    r6, 2
-  23  New      r7, [i32, i32]
-  24  SetField r7, r6, .0
-  25  SetField r7, r5, .1
-  26  GetField r5, r7, .0
-  27  GetField r6, r7, .1
-  28  Release  r7
-  29  New      r7, P
-  30  LoadI    r8, 7
-  31  LoadI    r9, 8
-  32  SetField r7, r8, .0
-  33  SetField r7, r9, .1
-  34  GetField r8, r7, .0
-  35  GetField r9, r7, .1
-  36  Release  r7
-  37  New      r7, [[f64, f64], f64]
-  38  New      r10, [f64, f64]
-  39  LoadK    r11, f64 1
-  40  SetField r10, r11, .0
-  41  LoadK    r11, f64 2
-  42  SetField r10, r11, .1
-  43  SetField r7, r10, .0
-  44  LoadK    r10, f64 3
-  45  SetField r7, r10, .1
-  46  GetField r10, r7, .0
-  47  Retain   r10
-  48  GetField r11, r10, .0
-  49  GetField r12, r10, .1
-  50  Release  r10
-  51  GetField r10, r7, .1
-  52  Release  r7
-  53  LoadI    r7, 9
-  54  SetField r0, r7, .0
-  55  New      r7, [i32, i32]
-  56  LoadI    r13, 1
-  57  SetField r7, r13, .0
-  58  LoadI    r13, 2
-  59  SetField r7, r13, .1
-  60  New      r13, P
-  61  LoadI    r14, 3
-  62  LoadI    r15, 4
-  63  SetField r13, r14, .0
-  64  SetField r13, r15, .1
-  65  GetField r14, r7, .0
-  66  GetField r15, r7, .1
-  67  Release  r7
-  68  GetField r7, r13, .0
-  69  GetField r16, r13, .1
-  70  Release  r13
-  71  AddI32   r13, r14, r15
-  72  AddI32   r7, r13, r7
-  73  AddI32   r7, r7, r16
-  74  GetField r13, r0, .0
-  75  GetField r14, r0, .1
-  76  Release  r0
-  77  LogI     r1
-  78  LogSep   
-  79  LogF64   r2
-  80  LogSep   
-  81  LogI     r3
+   0  LoadI    r0, 0
+   1  LoadI    r0, 0
+   2  New      r0, [i32, f64]
+   3  LoadI    r1, 1
+   4  SetField r0, r1, .0
+   5  LoadK    r1, f64 2.5
+   6  SetField r0, r1, .1
+   7  GetField r1, r0, .0
+   8  GetField r2, r0, .1
+   9  LoadI    r3, 5
+  10  LoadI    r4, 3
+  11  JLeI     r4, r3, -> 17
+  13  New      r5, [i32, i32]
+  14  SetField r5, r3, .0
+  15  SetField r5, r4, .1
+  16  Jmp      -> 20
+  17  New      r5, [i32, i32]
+  18  SetField r5, r4, .0
+  19  SetField r5, r3, .1
+  20  GetField r3, r5, .0
+  21  GetField r4, r5, .1
+  22  Release  r5
+  23  LoadI    r5, 1
+  24  LoadI    r6, 1
+  25  LoadI    r6, 2
+  26  LoadI    r7, 1
+  27  New      r7, [i32, i32]
+  28  SetField r7, r6, .0
+  29  SetField r7, r5, .1
+  30  GetField r5, r7, .0
+  31  GetField r6, r7, .1
+  32  Release  r7
+  33  New      r7, P
+  34  LoadI    r8, 7
+  35  LoadI    r9, 8
+  36  SetField r7, r8, .0
+  37  SetField r7, r9, .1
+  38  GetField r8, r7, .0
+  39  GetField r9, r7, .1
+  40  Release  r7
+  41  New      r7, [[f64, f64], f64]
+  42  New      r10, [f64, f64]
+  43  LoadK    r11, f64 1
+  44  SetField r10, r11, .0
+  45  LoadK    r11, f64 2
+  46  SetField r10, r11, .1
+  47  SetField r7, r10, .0
+  48  LoadK    r10, f64 3
+  49  SetField r7, r10, .1
+  50  GetField r10, r7, .0
+  51  Retain   r10
+  52  GetField r11, r10, .0
+  53  GetField r12, r10, .1
+  54  Release  r10
+  55  GetField r10, r7, .1
+  56  Release  r7
+  57  LoadI    r7, 9
+  58  SetField r0, r7, .0
+  59  New      r7, [i32, i32]
+  60  LoadI    r13, 1
+  61  SetField r7, r13, .0
+  62  LoadI    r13, 2
+  63  SetField r7, r13, .1
+  64  New      r13, P
+  65  LoadI    r14, 3
+  66  LoadI    r15, 4
+  67  SetField r13, r14, .0
+  68  SetField r13, r15, .1
+  69  GetField r14, r7, .0
+  70  GetField r15, r7, .1
+  71  Release  r7
+  72  GetField r7, r13, .0
+  73  GetField r16, r13, .1
+  74  Release  r13
+  75  AddI32   r13, r14, r15
+  76  AddI32   r7, r13, r7
+  77  AddI32   r7, r7, r16
+  78  GetField r13, r0, .0
+  79  GetField r14, r0, .1
+  80  Release  r0
+  81  LogI     r1
   82  LogSep   
-  83  LogI     r4
+  83  LogF64   r2
   84  LogSep   
-  85  LogI     r5
+  85  LogI     r3
   86  LogSep   
-  87  LogI     r6
+  87  LogI     r4
   88  LogSep   
-  89  LogI     r8
+  89  LogI     r5
   90  LogSep   
-  91  LogI     r9
+  91  LogI     r6
   92  LogSep   
-  93  LogI     r7
+  93  LogI     r8
   94  LogSep   
-  95  LogI     r13
+  95  LogI     r9
   96  LogSep   
-  97  LogF64   r14
+  97  LogI     r7
   98  LogSep   
-  99  LogF64   r11
+  99  LogI     r13
  100  LogSep   
- 101  LogF64   r12
+ 101  LogF64   r14
  102  LogSep   
- 103  LogF64   r10
- 104  LogEnd   
- 105  LoadI    r0, 0
- 106  LoadI    r1, 10
- 107  LoadI    r2, 0
- 108  JGeIK    r2, 4, -> 122
- 110  New      r3, [i32, i32]
- 111  SubI32   r4, r1, r2
- 112  SetField r3, r4, .0
- 113  AddI32   r4, r0, r2
- 114  SetField r3, r4, .1
- 115  GetField r4, r3, .0
- 116  GetField r5, r3, .1
- 117  Release  r3
- 118  AddI32K  r2, r2, 1
- 119  Move     r1, r5
- 120  Move     r0, r4
- 121  Jmp      -> 108
- 122  LogI     r0
- 123  LogSep   
- 124  LogI     r1
- 125  LogEnd   
- 126  RetV     
+ 103  LogF64   r11
+ 104  LogSep   
+ 105  LogF64   r12
+ 106  LogSep   
+ 107  LogF64   r10
+ 108  LogEnd   
+ 109  LoadI    r0, 0
+ 110  LoadI    r1, 10
+ 111  LoadI    r2, 0
+ 112  JGeIK    r2, 4, -> 126
+ 114  New      r3, [i32, i32]
+ 115  SubI32   r4, r1, r2
+ 116  SetField r3, r4, .0
+ 117  AddI32   r4, r0, r2
+ 118  SetField r3, r4, .1
+ 119  GetField r4, r3, .0
+ 120  GetField r5, r3, .1
+ 121  Release  r3
+ 122  AddI32K  r2, r2, 1
+ 123  Move     r1, r5
+ 124  Move     r0, r4
+ 125  Jmp      -> 112
+ 126  LogI     r0
+ 127  LogSep   
+ 128  LogI     r1
+ 129  LogEnd   
+ 130  RetV     
+func @Error.constructor(ref Error, ref str) -> void nregs=3
+   0  LoadStr  r2, "Error"
+   1  SetField r0, r2, .1
+   2  SetField r0, r1, .0
+   3  Release  r0
+   4  RetV     
+func @Error.__errorString(ref Error) -> ref str nregs=5
+   0  GetField r1, r0, .0
+   1  Retain   r1
+   2  LoadStr  r3, ""
+   3  Move     r2, r1
+   4  Rt       r2, string.#eq
+   5  Release  r1
+   6  JmpIfNot r2, -> 11
+   7  GetField r1, r0, .1
+   8  Retain   r1
+   9  Release  r0
+  10  Jmp      -> 26
+  11  GetField r1, r0, .1
+  12  Retain   r1
+  13  LoadStr  r3, ": "
+  14  Move     r2, r1
+  15  Rt       r2, string.#concat
+  16  Release  r1
+  17  GetField r1, r0, .0
+  18  Retain   r1
+  19  Release  r0
+  20  Move     r3, r2
+  21  Move     r4, r1
+  22  Rt       r3, string.#concat
+  23  Release  r2
+  24  Release  r1
+  25  Move     r1, r3
+  26  Ret      r1
+func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "TypeError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "RangeError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "SyntaxError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
+func @ReferenceError.constructor(ref ReferenceError, ref str) -> void nregs=4
+   0  Move     r2, r0
+   1  Retain   r2
+   2  LoadStr  r3, "Error"
+   3  SetField r2, r3, .1
+   4  SetField r2, r1, .0
+   5  Release  r2
+   6  LoadStr  r1, "ReferenceError"
+   7  SetField r0, r1, .1
+   8  Release  r0
+   9  RetV     
 func @P.constructor(ref P, i, i) -> void nregs=3
    0  SetField r0, r1, .0
    1  SetField r0, r2, .1

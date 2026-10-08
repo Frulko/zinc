@@ -1797,6 +1797,14 @@ struct Checker {
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
         if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { unknownName(i, x.text); return tError; }  // a forward variable is only visible to other functions
         out.nodeSym[i] = s;
+        if (out.syms[s].tdz && !tdzBusy && i != tdzTarget && lookup("__tdz_" + std::string(x.text)) != kNone && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {   // a function reads a top-level variable declared below it: ReferenceError until the declaration has run
+          const std::string nm(x.text);
+          tdzBusy = true;
+          const bool ok = replaceWith(i, "__tdzChk(__tdz_" + nm + ", '" + nm + "', " + nm + ")", {});
+          TypeId r = ok ? expr0(i, expected) : tError;
+          tdzBusy = false;
+          return r;
+        }
         if (out.syms[s].kind == SymKind::Func) {  // a function whose return type is still to be found
           if (inferring.count(s)) { diag(kZCannotInfer, i, "return type of '" + std::string(x.text) + "' (it needs itself: annotate it)"); return tError; }
           resolvePending(s);
@@ -1960,6 +1968,7 @@ struct Checker {
         return op == "~" ? num(Num::i32) : t;
       }
       case N::UpdatePre: case N::UpdatePost: {
+        tdzTarget = x.kids[0];
         if ((n(x.kids[0]).kind == N::Member || n(x.kids[0]).kind == N::Index) && rewriteDynStore(i, x.kids[0], x.text == "++" ? "+" : "-", kNone, false)) return expr0(i, expected);
         if (n(x.kids[0]).kind == N::Ident && !rawDyn()) {
           std::uint32_t sy = lookup(n(x.kids[0]).text);
@@ -1975,6 +1984,7 @@ struct Checker {
       }
       case N::Assign: {
         std::uint32_t target = x.kids[0], value = x.kids[1];
+        tdzTarget = target;   // a store is not a read: no dead-zone check on the target
         if (n(target).kind == N::Member || n(target).kind == N::Index) {
           std::string bop = x.text == "=" ? "" : std::string(x.text.substr(0, x.text.size() - 1));
           if (rewriteDynStore(i, target, bop, value, false)) return expr0(i, expected);
@@ -4094,6 +4104,7 @@ struct Checker {
           std::uint32_t sy = declare(SymKind::Var, dn.text, vt, d, n(s).text == "const", d);
           declAsGlobal = false;
           out.syms[sy].forward = true;
+          out.syms[sy].tdz = tdzNames.count(std::string(dn.text)) != 0;
           forwardVars[d] = {sy, vt};
         }
       }
@@ -4114,7 +4125,44 @@ struct Checker {
     defer = saved;
   }
 
+  // ---- temporal dead zone for the top-level variables that functions above their declaration use (ZN-162): `let __tdz_x: boolean = false;` first, `__tdz_x = true;` after the declaration,
+  // and every read from a function becomes __tdzChk(__tdz_x, 'x', x), which throws a ReferenceError naming the variable while the flag is false.
+  std::set<std::string> tdzNames;
+  bool tdzBusy = false;
+  std::uint32_t tdzTarget = kNone;
+  void tdzPrepass(std::vector<std::uint32_t>& stmts, std::uint32_t where) {
+    std::vector<std::uint32_t> head, next;
+    for (std::size_t si = 0; si < stmts.size(); ++si) {
+      const std::uint32_t s = stmts[si];
+      next.push_back(s);
+      if (n(s).kind != N::VarDecl || n(s).text == "using") continue;
+      for (std::uint32_t d : std::vector<std::uint32_t>(n(s).kids)) {
+        const Node& dn = n(d);
+        if (dn.kind != N::Declarator || (dn.kids.size() > 2 && dn.kids[2] != kNone) || dn.kids[0] == kNone || dn.kids[1] == kNone || dn.text.empty()) continue;
+        bool early = false;
+        for (std::size_t pj = 0; pj < si && !early; ++pj) early = mentionsInFunction(stmts[pj], dn.text);
+        const std::string nm(dn.text);
+        if (!early || tdzNames.count(nm)) continue;
+        auto decl = snippet(a, "let __tdz_" + nm + ": boolean = false;", {}, where);
+        auto set = snippet(a, "__tdz_" + nm + " = true;", {}, where);
+        if (decl.size() != 1 || set.size() != 1) continue;
+        tdzNames.insert(nm);
+        head.push_back(decl[0]);
+        next.push_back(set[0]);
+      }
+    }
+    if (head.empty()) return;
+    next.insert(next.begin(), head.begin(), head.end());
+    auto& rk = a.nodes[a.root].kids;   // the lowering walks the program's flat list: same splice there
+    auto at = std::find(rk.begin(), rk.end(), stmts[0]);
+    if (at != rk.end() && static_cast<std::size_t>(rk.end() - at) >= stmts.size()) { at = rk.erase(at, at + stmts.size()); rk.insert(at, next.begin(), next.end()); }
+    stmts = next;
+    out.nodeType.resize(a.nodes.size(), kNoType);
+    out.nodeSym.resize(a.nodes.size(), kNone);
+  }
+
   const std::vector<std::uint32_t>* topList = nullptr;  // the statement list of the module being checked
+  bool inPreludeFile(const ModuleInfo& m) const { return m.path.size() > 0 && m.path[0] == '<'; }   // generated text (the prelude) is not rewritten
   std::vector<std::map<std::string_view, std::uint32_t>> exportsOf;  // per module: exported name -> symbol
 
   void run() {
@@ -4131,6 +4179,8 @@ struct Checker {
     if (lookup("__fmtDyn") != kNone) preludeDone = jsonPreludeDone = true;  // the Dyn prelude carries the console.log and JSON helpers
     exportsOf.resize(a.modules.size());
     for (std::uint32_t mi = 0; mi < a.modules.size(); ++mi) {  // initialisation order: a module after the modules it imports
+      tdzNames.clear();   // the flags are module-local
+      if (!inPreludeFile(a.modules[mi])) tdzPrepass(a.modules[mi].stmts, a.modules[mi].stmts.empty() ? a.root : a.modules[mi].stmts[0]);
       const ModuleInfo& mod = a.modules[mi];
       push();
       for (const ModuleImport& im : mod.imports) {

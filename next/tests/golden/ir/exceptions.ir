@@ -11,6 +11,8 @@ class RangeError : Error { message: str, name: str }
   sel .__errorString -> @Error.__errorString
 class SyntaxError : Error { message: str, name: str }
   sel .__errorString -> @Error.__errorString
+class ReferenceError : Error { message: str, name: str }
+  sel .__errorString -> @Error.__errorString
 class AppError : Error { message: str, name: str, code: i32 }
   sel .__errorString -> @Error.__errorString
 class Shape {}
@@ -206,6 +208,14 @@ bb0:
   %2: ref Error = refcast %0
   call @Error.constructor(%2, %1)
   %3: str = const "SyntaxError"
+  setfield .1 %0, %3
+  ret
+}
+func @ReferenceError.constructor(%0: ref ReferenceError, %1: str) -> void {
+bb0:
+  %2: ref Error = refcast %0
+  call @Error.constructor(%2, %1)
+  %3: str = const "ReferenceError"
   setfield .1 %0, %3
   ret
 }

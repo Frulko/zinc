@@ -1472,6 +1472,9 @@ struct Loader {
 };
 
 // The built-in classes of exceptions, written in Zinc and added when a program throws, catches or mentions them.
+const char* kTdzPrelude = R"ZN(
+function __tdzChk<T>(ok: boolean, name: string, v: T): T { if (!ok) throw new ReferenceError("Cannot access '" + name + "' before initialization"); return v; }
+)ZN";
 const char* kErrorPrelude = R"ZN(
 class Error {
   message: string;
@@ -1482,6 +1485,7 @@ class Error {
 class TypeError extends Error { constructor(message: string) { super(message); this.name = 'TypeError'; } }
 class RangeError extends Error { constructor(message: string) { super(message); this.name = 'RangeError'; } }
 class SyntaxError extends Error { constructor(message: string) { super(message); this.name = 'SyntaxError'; } }
+class ReferenceError extends Error { constructor(message: string) { super(message); this.name = 'ReferenceError'; } }
 )ZN";
 
 // Math.random and Math.seed: the generator of the old runtime (xorshift32, default seed 0x2545F491), so seeded programs print the same numbers.
@@ -2732,6 +2736,32 @@ bool needsErrors(const Ast& A) {
   return false;
 }
 
+// A top-level annotated variable that a function above its declaration mentions: the checker guards its reads (TDZ, ZN-162) and throws a ReferenceError, so the prelude must carry it.
+bool needsTdz(const Ast& A) {
+  auto mentionsInFn = [&](auto&& self, std::uint32_t i, std::string_view nm, bool inFn) -> bool {
+    const Node& x = A.nodes[i];
+    if (x.kind == N::Ident && inFn && x.text == nm) return true;
+    const bool f = inFn || x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
+    for (std::uint32_t k : x.kids) if (k != kNone && self(self, k, nm, f)) return true;
+    return false;
+  };
+  auto scan = [&](const std::vector<std::uint32_t>& stmts) {
+    for (std::size_t si = 0; si < stmts.size(); ++si) {
+      const Node& s = A.nodes[stmts[si]];
+      if (s.kind != N::VarDecl || s.text == "using") continue;
+      for (std::uint32_t d : s.kids) {
+        const Node& dn = A.nodes[d];
+        if (dn.kind != N::Declarator || dn.text.empty() || (dn.kids.size() > 2 && dn.kids[2] != kNone) || dn.kids[0] == kNone || dn.kids[1] == kNone) continue;
+        for (std::size_t pj = 0; pj < si; ++pj) if (mentionsInFn(mentionsInFn, stmts[pj], dn.text, false)) return true;
+      }
+    }
+    return false;
+  };
+  if (A.modules.empty()) return A.root != kNone && scan(A.nodes[A.root].kids);
+  for (const ModuleInfo& m : A.modules) if (!m.path.empty() && m.path[0] != '<' && scan(m.stmts)) return true;
+  return false;
+}
+
 }  // namespace
 
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot) {
@@ -2794,9 +2824,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   bool regexp = p.diags.empty() && needsRegExp(p.ast);
   if (async) desugarAsync(p.ast, p.diags);
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast))) {
+  if (p.diags.empty() && (async || json || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast) || needsTdz(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    std::string preludeText = std::string(kErrorPrelude) + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
+    std::string preludeText = std::string(kErrorPrelude) + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
     if (const char* dump = std::getenv("ZN_DUMP_PRELUDE")) { if (FILE* df = std::fopen(dump, "w")) { std::fputs(preludeText.c_str(), df); std::fclose(df); } }   // the text that diagnostics of <prelude> point into
     p.files.push_back({"<prelude>", preludeText});
     ParseResult pr = parse(p.files[fi].text);
