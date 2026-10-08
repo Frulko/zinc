@@ -145,7 +145,8 @@ export class UiNode {
   grow: i32 = 0;
   pt: i32 = 0; pr: i32 = 0; pb: i32 = 0; pl: i32 = 0;
   mt: i32 = 0; mr: i32 = 0; mb: i32 = 0; ml: i32 = 0;
-  gap: i32 = 0;
+  gap: i32 = 0; gapX: i32 = -1; gapY: i32 = -1;   // gap-x (between columns) and gap-y (between rows) override `gap` when set
+  mAuto: i32 = 0;   // margin-left/right/top/bottom: auto, bits 1 2 4 8: they take the free space of their line (before justify)
   w: i32 = -1; h: i32 = -1; wFrac: number = 0; hFrac: number = 0;
   fullW: boolean = false; fullH: boolean = false;
   abs: boolean = false; top: i32 = UNSET; left: i32 = UNSET; right: i32 = UNSET; bottom: i32 = UNSET;
@@ -641,10 +642,17 @@ function initColors(): void {
 /** Registers a CSS class (compiled from a .css file) as a list of Tailwind-like tokens. */
 export function defineClass(name: string, tokens: string): void { CSS.set(name, tokens); }
 function num(s: string): number {
-  if (s.startsWith('[')) return parseFloat(s.slice(1, s.length - 1).replace('px', ''));
+  if (s.startsWith('[')) return arbitrary(s.slice(1, s.length - 1));
   if (s.indexOf('/') > 0) { const p = s.split('/'); return parseFloat(p[0]) / parseFloat(p[1]); }
   if (s === 'px') return 1;
   return parseFloat(s) * 4;
+}
+/** The inside of `[...]`: pixels, rem (16 px), vh / vw (of the surface now); a % is handled by the width and height tokens. */
+function arbitrary(v: string): number {
+  if (v.endsWith('rem')) return parseFloat(v.slice(0, v.length - 3)) * 16;
+  if (v.endsWith('vh')) return parseFloat(v.slice(0, v.length - 2)) * height() / 100;
+  if (v.endsWith('vw')) return parseFloat(v.slice(0, v.length - 2)) * width() / 100;
+  return parseFloat(v.replace('px', ''));
 }
 /** Border widths are pixels: border-2 = 2px, border-[3px] = 3px. */
 function borderPx(s: string): number { return s.startsWith('[') ? num(s) : num(s) / 4; }
@@ -730,7 +738,16 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'grow-0') { n.grow = 0; return true; }
   if (tok === 'w-full') { n.fullW = true; return true; }
   if (tok === 'h-full') { n.fullH = true; return true; }
-  if (tok === 'inset-0') { n.abs = true; n.top = 0; n.left = 0; n.right = 0; n.bottom = 0; return true; }
+  if (tok.startsWith('inset-')) {   // inset-0, inset-4, inset-x-2, inset-y-0, inset-[10px]: an absolute box
+    const k = tok.slice(6), ax = k.startsWith('x-'), ay = k.startsWith('y-');
+    const fv = num(ax || ay ? k.slice(2) : k);
+    if (fv !== fv) return false;
+    const v = Math.round(fv);
+    n.abs = true;
+    if (!ay) { n.left = v; n.right = v; }
+    if (!ax) { n.top = v; n.bottom = v; }
+    return true;
+  }
   if (tok === 'font-bold' || tok === 'font-semibold') { n.bold = true; return true; }
   if (tok === 'font-mono') { n.family = 'mono'; return true; }
   if (tok === 'font-sans') { n.family = 'sans'; return true; }
@@ -796,17 +813,48 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     return true;
   }
   if (tok.startsWith('leading-')) { n.leading = Math.round(num(tok.slice(8))); return true; }
-  if (tok.startsWith('gap-')) { n.gap = Math.round(num(tok.slice(tok.startsWith('gap-x-') || tok.startsWith('gap-y-') ? 6 : 4))); return true; }
-  if (tok.startsWith('top-')) { n.top = Math.round(num(tok.slice(4))); return true; }
-  if (tok.startsWith('left-')) { n.left = Math.round(num(tok.slice(5))); return true; }
-  if (tok.startsWith('right-')) { n.right = Math.round(num(tok.slice(6))); return true; }
-  if (tok.startsWith('bottom-')) { n.bottom = Math.round(num(tok.slice(7))); return true; }
-  if (tok.startsWith('w-')) { const k = tok.slice(2); if (k.indexOf('/') > 0) n.wFrac = num(k); else n.w = Math.round(num(k)); return true; }
-  if (tok.startsWith('h-')) { const k = tok.slice(2); if (k.indexOf('/') > 0) n.hFrac = num(k); else n.h = Math.round(num(k)); return true; }
-  const dash = tok.indexOf('-');
+  if (tok.startsWith('gap-')) {
+    const gx = tok.startsWith('gap-x-'), gy = tok.startsWith('gap-y-');
+    const g = num(tok.slice(gx || gy ? 6 : 4));
+    if (g !== g) return false;
+    if (gx) n.gapX = Math.round(g); else if (gy) n.gapY = Math.round(g); else n.gap = Math.round(g);
+    return true;
+  }
+  if (tok.startsWith('top-')) { const v = num(tok.slice(4)); if (v !== v) return false; n.top = Math.round(v); return true; }
+  if (tok.startsWith('left-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.left = Math.round(v); return true; }
+  if (tok.startsWith('right-')) { const v = num(tok.slice(6)); if (v !== v) return false; n.right = Math.round(v); return true; }
+  if (tok.startsWith('bottom-')) { const v = num(tok.slice(7)); if (v !== v) return false; n.bottom = Math.round(v); return true; }
+  if (tok.startsWith('w-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) n.wFrac = f; else n.w = Math.round(v); return true; }
+  if (tok.startsWith('h-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) n.hFrac = f; else n.h = Math.round(v); return true; }
+  // negative margins: -m-2, -mt-4, -mx-1; auto margins: m-auto, mx-auto, ml-auto...
+  const neg = tok.startsWith('-');
+  const body = neg ? tok.slice(1) : tok;
+  const dash = body.indexOf('-');
+  if (dash > 0 && body.slice(0, 1) === 'm' && body.length - dash > 1) {
+    const pre = body.slice(0, dash), val = body.slice(dash + 1);
+    if (pre === 'm' || pre === 'mx' || pre === 'my' || pre === 'mt' || pre === 'mr' || pre === 'mb' || pre === 'ml') {
+      if (val === 'auto') {
+        if (neg) return false;
+        const w = pre.slice(1);
+        if (w === '' || w === 'x' || w === 'l') n.mAuto = n.mAuto | 1;
+        if (w === '' || w === 'x' || w === 'r') n.mAuto = n.mAuto | 2;
+        if (w === '' || w === 'y' || w === 't') n.mAuto = n.mAuto | 4;
+        if (w === '' || w === 'y' || w === 'b') n.mAuto = n.mAuto | 8;
+        return true;
+      }
+      const fv = num(val);
+      if (fv !== fv) return false;
+      const v: i32 = Math.round(fv);
+      side(n, pre.slice(1), neg ? -v : v, true);
+      return true;
+    }
+  }
+  if (neg) return false;
   if (dash > 0) {
     const pre = tok.slice(0, dash);
-    const v: i32 = Math.round(num(tok.slice(dash + 1)));
+    const fv = num(tok.slice(dash + 1));
+    const v: i32 = Math.round(fv);
+    if (fv !== fv && (pre === 'p' || pre === 'px' || pre === 'py' || pre === 'pt' || pre === 'pr' || pre === 'pb' || pre === 'pl' || pre === 'm' || pre === 'mx' || pre === 'my' || pre === 'mt' || pre === 'mr' || pre === 'mb' || pre === 'ml')) return false;
     if (pre === 'p' || pre === 'px' || pre === 'py' || pre === 'pt' || pre === 'pr' || pre === 'pb' || pre === 'pl') { side(n, pre.slice(1), v, false); return true; }
     if (pre === 'm' || pre === 'mx' || pre === 'my' || pre === 'mt' || pre === 'mr' || pre === 'mb' || pre === 'ml') { side(n, pre.slice(1), v, true); return true; }
   }
@@ -816,7 +864,7 @@ function resetStyle(n: UiNode): void {
   const fresh = new UiNode(n.tag);
   defaults(fresh);
   n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0;
-  n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0;
+  n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
@@ -942,6 +990,8 @@ function wrapText(n: UiNode, maxW: number): void {
   }
   if (line.length > 0) { n.lines.push(line); n.lineW.push(textWidth(f, line, tr)); }
 }
+function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
+function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
 function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
 function outerH(c: UiNode): number { return c.lh + c.mt + c.mb; }
 function measure(n: UiNode, maxW: number, maxH: number): void {
@@ -973,17 +1023,18 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     const innerH: number = (n.scroll & 1) !== 0 ? 1000000 : (ownH >= 0 ? ownH : maxH) - n.pt - n.pb;
     let main: number = 0, cross: number = 0, lineMain: number = 0, lineCross: number = 0;
     let count: i32 = 0;
+    const gm = gapMain(n), gc = gapCross(n);
     for (const c of kids) {
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
       const cm = n.row ? outerW(c) : outerH(c), cc = n.row ? outerH(c) : outerW(c);
-      if (n.row && n.wrap && count > 0 && lineMain + n.gap + cm > inner) {
+      if (n.row && n.wrap && count > 0 && lineMain + gm + cm > inner) {
         if (lineMain > main) main = lineMain;
-        cross += lineCross + n.gap;
+        cross += lineCross + gc;
         lineMain = 0;
         lineCross = 0;
         count = 0;
       }
-      lineMain += (count > 0 ? n.gap : 0) + cm;
+      lineMain += (count > 0 ? gm : 0) + cm;
       if (cc > lineCross) lineCross = cc;
       count++;
     }
@@ -1015,6 +1066,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   flat(n, kids, false);
   const iw = w - n.pl - n.pr, ih = h - n.pt - n.pb;
   const innerMain = n.row ? iw : ih, innerCross = n.row ? ih : iw;
+  const gm = gapMain(n), gc = gapCross(n);
   let start: i32 = 0;
   let crossPos: number = 0;
   while (start < kids.length) {
@@ -1022,8 +1074,8 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     let used: number = 0;
     while (end < kids.length) {
       const cm = n.row ? outerW(kids[end]) : outerH(kids[end]);
-      if (n.row && n.wrap && end > start && used + n.gap + cm > innerMain) break;
-      used += (end > start ? n.gap : 0) + cm;
+      if (n.row && n.wrap && end > start && used + gm + cm > innerMain) break;
+      used += (end > start ? gm : 0) + cm;
       end++;
     }
     let lineCross: number = 0;
@@ -1037,13 +1089,18 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     if (!n.wrap || !n.row) lineCross = innerCross;
     const free = innerMain - used;
     const count = end - start;
-    let pos: number = 0, between: number = n.gap;
-    if (grows === 0 && free > 0) {
+    let pos: number = 0, between: number = gm;
+    // auto margins on the main axis take the free space of the line (they win over justify-content, like CSS)
+    let autos: i32 = 0;
+    if (grows === 0 && free > 0) for (let i = start; i < end; i++) { const am = kids[i].mAuto; if (am !== 0) autos += n.row ? ((am & 1) + ((am >> 1) & 1)) : (((am >> 2) & 1) + ((am >> 3) & 1)); }
+    const autoShare: number = autos > 0 ? free / autos : 0;
+    if (autos > 0) {}
+    else if (grows === 0 && free > 0) {
       if (n.justify === 1) pos = Math.floor(free / 2);
       else if (n.justify === 2) pos = free;
-      else if (n.justify === 3 && count > 1) between = n.gap + free / (count - 1);
-      else if (n.justify === 4) { between = n.gap + free / count; pos = between / 2 - n.gap / 2; }
-      else if (n.justify === 5) { between = n.gap + free / (count + 1); pos = between - n.gap; }
+      else if (n.justify === 3 && count > 1) between = gm + free / (count - 1);
+      else if (n.justify === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
+      else if (n.justify === 5) { between = gm + free / (count + 1); pos = between - gm; }
     }
     for (let i = start; i < end; i++) {
       const c = kids[i];
@@ -1054,14 +1111,19 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
       let off: number = 0;
       const stretch = (n.align === 3 && (n.row ? c.h < 0 : c.w < 0)) || (n.row ? c.fullH : c.fullW);
-      if (stretch) cc = lineCross - marginCross;
+      const am = c.mAuto;
+      const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
+      if (autoCrossStart || autoCrossEnd) off = autoCrossStart && autoCrossEnd ? Math.floor((lineCross - cc - marginCross) / 2) : autoCrossStart ? lineCross - cc - marginCross : 0;   // an auto cross margin beats align-items
+      else if (stretch) cc = lineCross - marginCross;
       else if (n.align === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
       else if (n.align === 2) off = lineCross - cc - marginCross;
-      if (n.row) place(c, Math.round(x + n.pl + pos + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);
-      else place(c, Math.round(x + n.pl + crossPos + off + c.ml), Math.round(y + n.pt + pos + c.mt), cc, cm);
-      pos += cm + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
+      const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
+      const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
+      if (n.row) place(c, Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);
+      else place(c, Math.round(x + n.pl + crossPos + off + c.ml), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
+      pos += lead + cm + trail + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
     }
-    crossPos += lineCross + n.gap;
+    crossPos += lineCross + gc;
     start = end;
   }
   const abs: UiNode[] = [];
