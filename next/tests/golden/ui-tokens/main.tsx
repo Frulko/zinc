@@ -15,6 +15,7 @@ const toks = [
   'ring', 'ring-0', 'ring-2', 'ring-4', 'ring-indigo-500', 'ring-offset-2', 'outline', 'outline-2', 'outline-none', 'outline-offset-1', 'outline-red-500', 'focus-visible:ring-2', 'focus-visible:ring-indigo-500', 'focus:ring-4', 'focus-visible:outline-none', 'ring-x', 'ring-offset-x', 'outline-foo', 'focus-visible:bg-red-500',
   'italic', 'not-italic', 'font-thin', 'font-light', 'font-medium', 'font-black', 'font-[Inter,Roboto-Mono]', 'font-heavy',
   'uppercase', 'lowercase', 'capitalize', 'normal-case', 'underline', 'line-through', 'overline', 'no-underline', 'align-super', 'align-sub', 'align-baseline', 'word-4', 'word-[3px]', '-word-1', 'word-x', 'word-', 'align-top',
+  'whitespace-nowrap', 'whitespace-pre', 'whitespace-pre-wrap', 'whitespace-normal', 'whitespace-foo', 'break-words', 'break-all', 'break-normal', 'truncate', 'text-ellipsis', 'text-clip', 'line-clamp-3', 'line-clamp-none', 'line-clamp-0', 'line-clamp-x', 'text-balance', 'text-justify', 'text-wrap', 'text-nowrap',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

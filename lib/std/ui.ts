@@ -178,7 +178,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
+  size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
    tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -917,6 +917,25 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   const fw = FONT_WEIGHT_TOKENS.indexOf(tok);
   if (fw >= 0) { n.weight = (fw + 1) * 100; n.bold = fw >= 5; return true; }
   if (tok === 'italic') { n.italic = true; return true; }
+  if (tok === 'whitespace-normal' || tok === 'text-wrap') { n.ws = 0; return true; }
+  if (tok === 'whitespace-nowrap' || tok === 'text-nowrap') { n.ws = 1; return true; }
+  if (tok === 'whitespace-pre') { n.ws = 2; return true; }
+  if (tok === 'whitespace-pre-wrap') { n.ws = 3; return true; }
+  if (tok === 'break-normal') { n.brk = 0; return true; }
+  if (tok === 'break-words') { n.brk = 1; return true; }
+  if (tok === 'break-all') { n.brk = 2; return true; }
+  if (tok === 'truncate') { n.ws = 1; n.ellipsis = true; return true; }
+  if (tok === 'text-ellipsis') { n.ellipsis = true; return true; }
+  if (tok === 'text-clip') { n.ellipsis = false; return true; }
+  if (tok === 'text-balance') { n.balance = true; return true; }
+  if (tok === 'text-justify') { n.talign = 3; return true; }
+  if (tok === 'line-clamp-none') { n.clamp = 0; return true; }
+  if (tok.startsWith('line-clamp-')) {
+    const v = parseInt(tok.slice(11), 10);
+    if (!(v >= 1) || `${v}` !== tok.slice(11)) return false;
+    n.clamp = v; n.ellipsis = true;
+    return true;
+  }
   if (tok === 'uppercase') { n.transform = 1; return true; }
   if (tok === 'lowercase') { n.transform = 2; return true; }
   if (tok === 'capitalize') { n.transform = 3; return true; }
@@ -1111,7 +1130,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -1210,7 +1229,7 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
@@ -1247,7 +1266,6 @@ function fontOf(n: UiNode): i32 {
 }
 function lineHeightOf(n: UiNode): number { return n.leading > 0 ? n.leading : Math.round(n.size * 1.4); }
 function trackPx(n: UiNode): number { return n.tracking * n.size; }
-/** Word wrap with the baked font metrics (UI-10). */
 function shownText(n: UiNode): string {
   if (n.transform === 1) return n.text.toUpperCase();
   if (n.transform === 2) return n.text.toLowerCase();
@@ -1260,22 +1278,70 @@ function shownText(n: UiNode): string {
 }
 function spaces(s: string): i32 { let k = 0; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 32) k++; return k; }
 function lineWidth(n: UiNode, f: i32, s: string, tr: number): number { return textWidth(f, s, tr) + (n.wordSp !== 0 ? n.wordSp * spaces(s) : 0); }
-/** Word wrap with the baked font metrics (UI-10). */
+/** Greedy wrap of one paragraph (break-words splits a word wider than the line, break-all breaks anywhere). */
+function wrapPara(n: UiNode, f: i32, tr: number, text: string, avail: number): string[] {
+  const out: string[] = [];
+  if (lineWidth(n, f, text, tr) <= avail || avail <= n.size) { out.push(text); return out; }
+  let line = '';
+  if (n.brk === 2) {
+    for (let i = 0; i < text.length; i++) {
+      const c = text.slice(i, i + 1), cand = line + c;
+      if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = c; } else line = cand;
+    }
+  } else for (const word of text.split(' ')) {
+    const cand = line.length === 0 ? word : line + ' ' + word;
+    if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = word; }
+    else line = cand;
+    if (n.brk === 1) while (line.length > 1 && lineWidth(n, f, line, tr) > avail) {
+      let k = line.length - 1;
+      while (k > 1 && lineWidth(n, f, line.slice(0, k), tr) > avail) k--;
+      out.push(line.slice(0, k)); line = line.slice(k);
+    }
+  }
+  if (line.length > 0 || out.length === 0) out.push(line);
+  return out;
+}
+/** `line` cut so that it and the ellipsis fit `avail`. */
+function ellipsize(n: UiNode, f: i32, tr: number, line: string, avail: number): string {
+  let k = line.length;
+  while (k > 0 && lineWidth(n, f, line.slice(0, k).trimEnd() + '\u2026', tr) > avail) k--;
+  return line.slice(0, k).trimEnd() + '\u2026';
+}
+/** Word wrap with the baked font metrics (UI-10), white-space, break, line-clamp, ellipsis and balance (ZN-269). */
 function wrapText(n: UiNode, maxW: number): void {
   const f = fontOf(n), tr = trackPx(n);
   n.lines = [];
   n.lineW = [];
   const text = shownText(n);
-  const full = lineWidth(n, f, text, tr);
   const avail = maxW - n.pl - n.pr;
-  if (full <= avail || avail <= n.size) { n.lines.push(text); n.lineW.push(full); return; }
-  let line = '';
-  for (const word of text.split(' ')) {
-    const cand = line.length === 0 ? word : line + ' ' + word;
-    if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { n.lines.push(line); n.lineW.push(lineWidth(n, f, line, tr)); line = word; }
-    else line = cand;
+  let lines: string[] = [];
+  if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail);
+  else {
+    const paras = n.ws >= 2 ? text.split('\n') : [text];
+    for (const para of paras) {
+      if (n.ws === 1 || n.ws === 2) lines.push(para);
+      else for (const l of wrapPara(n, f, tr, para, avail)) lines.push(l);
+    }
+    if (n.balance && lines.length > 1 && n.ws !== 1 && n.ws !== 2) {   // the narrowest width that keeps the line count
+      let lo = 0, hi = avail;
+      const want = lines.length;
+      for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        let k = 0;
+        for (const para of paras) k += wrapPara(n, f, tr, para, mid).length;
+        if (k <= want) hi = mid; else lo = mid;
+      }
+      lines = [];
+      for (const para of paras) for (const l of wrapPara(n, f, tr, para, hi)) lines.push(l);
+    }
+    if (n.clamp > 0 && lines.length > n.clamp) {
+      lines = lines.slice(0, n.clamp);
+      lines[n.clamp - 1] = ellipsize(n, f, tr, lines[n.clamp - 1], avail);
+    } else if (n.ellipsis && (n.ws === 1 || n.ws === 2 || n.clamp === 1)) {
+      for (let i = 0; i < lines.length; i++) if (lineWidth(n, f, lines[i], tr) > avail && avail > n.size) lines[i] = ellipsize(n, f, tr, lines[i], avail);
+    }
   }
-  if (line.length > 0) { n.lines.push(line); n.lineW.push(lineWidth(n, f, line, tr)); }
+  for (const l of lines) { n.lines.push(l); n.lineW.push(lineWidth(n, f, l, tr)); }
 }
 /** The size a node ends with: its width and height inside min/max, and aspect-ratio filling the side that is not set. */
 let csW: number = 0, csH: number = 0;
@@ -1688,14 +1754,15 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
         const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
-        if (n.wordSp === 0) drawText(f, tx, ty, n.lines[i], fg, tai, trackPx(n));
+        const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
+        if (n.wordSp === 0 && jx === 0) drawText(f, tx, ty, n.lines[i], fg, tai, trackPx(n));
         else {
           let cx = tx;
-          const sp = textWidth(f, ' ', trackPx(n)) + n.wordSp * kk;
+          const sp = textWidth(f, ' ', trackPx(n)) + (n.wordSp + jx) * kk;
           for (const word of n.lines[i].split(' ')) { if (word.length > 0) drawText(f, cx, ty, word, fg, tai, trackPx(n)); cx += textWidth(f, word, trackPx(n)) + sp; }
         }
         if (n.deco !== 0) {
-          const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = n.lineW[i] * kk;
+          const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
           if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
           if ((n.deco & 2) !== 0) rrect(tx, ty + asc - Math.round(n.size * 0.3) * kk, lw, th, 0, fg, tai);
           if ((n.deco & 4) !== 0) rrect(tx, ty, lw, th, 0, fg, tai);

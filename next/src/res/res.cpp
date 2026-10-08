@@ -519,7 +519,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   std::set<int> sizes{16};
   std::set<std::uint32_t> chars;
   for (int c = 32; c < 127; ++c) chars.insert(static_cast<std::uint32_t>(c));
-  bool fontMono = false, italicUsed = false, caseUsed = false;
+  bool fontMono = false, italicUsed = false, caseUsed = false, ellipsisUsed = false;
   static const std::regex reText("text-(xs|sm|base|lg|xl|[2-6]xl)\\b"), reTextPx("text-\\[(\\d+)(?:px)?\\]"), reFontSize("font-size\\s*:\\s*(\\d+)px"),
       reFontCall("\\bfont\\(\\s*['\"][\\w-]+['\"]\\s*,\\s*(\\d+)\\s*\\)"),
       reCanvas("['\"`](?:(?:bold|normal|italic|[1-9]00)\\s+)*(\\d+)px\\s+[\\w\\s,\"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)"), reMono("\\bfont-mono\\b");
@@ -539,11 +539,13 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (!caseUsed && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) caseUsed = true;
+      if (!ellipsisUsed && (line.find("truncate") != std::string::npos || line.find("text-ellipsis") != std::string::npos || line.find("line-clamp") != std::string::npos || line.find("textOverflow") != std::string::npos)) ellipsisUsed = true;
       if (!italicUsed && line.find("italic") != std::string::npos) italicUsed = true;
       if (!fontMono && line.find("font-mono") != std::string::npos && std::regex_search(line, reMono)) fontMono = true;
     }
     literalChars(text, chars);
   }
+  if (ellipsisUsed) chars.insert(0x2026);   // truncate, text-ellipsis, line-clamp (ZN-269)
   if (caseUsed)   // uppercase / lowercase / capitalize (ZN-268): the other case of every non-ASCII letter is baked with it
     for (std::uint32_t cp : std::vector<std::uint32_t>(chars.begin(), chars.end()))
       if (cp >= 128 && cp < 0xD800) {
