@@ -37,6 +37,8 @@ if (flag('--help') || flag('-h')) {
 }
 const ZINC_ROOT = path.resolve(val('--zinc', ROOT));
 const ZINC_BIN = path.join(ZINC_ROOT, 'compiler/bin/zinc.mjs');
+// the new engine (next/, ZN-139): its zinc binary; `next` runs the typed program (interpreter), `next-qjs` the plain JavaScript on its QuickJS-ng engine
+const NEXT_BIN = path.resolve(val('--zinc-next', path.join(ROOT, 'next/build/zinc')));
 const JOBS = Number(val('--jobs', '4'));
 const FILTER = val('--filter', '');
 const SUITES = (val('--suite', 'wpt,test262,node,quickjs')).split(',');
@@ -48,6 +50,8 @@ const ENGINES = {
   'zinc-sim-strict': { zinc: true, target: 'sim', strict: true },
   'zinc-native': { zinc: true, target: NATIVE, strict: false },
   'zinc-native-strict': { zinc: true, target: NATIVE, strict: true },
+  next: { zinc: true, next: true, strict: false },
+  'next-qjs': { zinc: false, next: true, qjs: true, version: [NEXT_BIN, '--version'] },
   node: { cmd: ['node', '--no-warnings'], version: ['node', '--version'] },
   // --location: the base URL Deno's own WPT runner gives (relative Request URLs); Node and Bun have no equivalent
   deno: { cmd: ['deno', 'run', '-A', '--quiet', '--location=http://web-platform.test/'], version: ['deno', '--version'] },
@@ -321,7 +325,8 @@ const DETERMINISTIC = { ZINC_DETERMINISTIC: '1', ZINC_FIXED_DT: String(1 / 60), 
 const keyOf = (id) => ('z_' + id.replace(/[^A-Za-z0-9]+/g, '_')).slice(0, 72) + '_' + createHash('sha1').update(id).digest('hex').slice(0, 8);
 
 function prepareWork() {
-  for (const d of ['gradual', 'strict', 'ref']) fs.mkdirSync(path.join(WORK, d), { recursive: true });
+  for (const d of ['gradual', 'strict', 'ref', 'next']) fs.mkdirSync(path.join(WORK, d), { recursive: true });
+  for (const f of ['t262.ts', 'testharness.ts']) fs.copyFileSync(path.join(HERE, 'shims', f), path.join(WORK, 'next', f));
   for (const d of ['gradual', 'strict']) for (const f of ['t262.ts', 'testharness.ts']) fs.copyFileSync(path.join(HERE, 'shims', f), path.join(WORK, d, f));
   // the strict profile on the same targets: zinc.json overrides the typing of sim and the host target
   fs.writeFileSync(path.join(WORK, 'strict/zinc.json'), JSON.stringify({ name: 'compat-strict', targets: { sim: { typing: 'strict' }, [NATIVE]: { typing: 'strict' } } }, null, 2) + '\n');
@@ -381,6 +386,14 @@ async function runZinc(c, eng, text) {
   fs.rmSync(path.join(dir, 'build', `${keyOf(c.id)}-${eng.target}`), { recursive: true, force: true });
   return classify(c, r, true);
 }
+async function runNext(c, eng, text) {
+  const dir = path.join(WORK, 'next');   // the shims are copied once by prepareWork: a copy per test races with the programs reading them
+  const file = path.join(dir, keyOf(c.id) + '.js');   // Zinc takes the program as .js too (gradual typing, like the prototype's harness)
+  fs.writeFileSync(file, text);
+  const args = eng.qjs ? ['run', file, '--engine', 'quickjs'] : ['run', file];
+  const r = await exec(NEXT_BIN, args, { cwd: dir, env: { ...process.env, ...DETERMINISTIC, ZINC_HEADLESS: '1' }, timeout: TIMEOUT.native });
+  return classify(c, r, !eng.qjs);
+}
 async function runRef(c, name, text) {
   const file = path.join(WORK, 'ref', keyOf(c.id) + '.cjs');
   fs.writeFileSync(file, text);
@@ -399,11 +412,12 @@ async function runCase(c, engines, exhaustive) {
   const r = res.r = {};
   for (const name of engines) {
     const e = ENGINES[name];
+    if (e.next && e.qjs) { r[name] = await runNext(c, e, p.ref.text); continue; }
     if (e.zinc) {
       if (p.zinc.unsupported) { r[name] = ['unsupported', p.zinc.unsupported, 0]; continue; }
       // a program zinc-sim rejects is rejected by every Zinc variant (same front end; strict only adds errors)
       const from = !exhaustive && (r['zinc-sim']?.[0] === 'rejected' ? r['zinc-sim'] : e.strict && e.target !== 'sim' && r['zinc-sim-strict']?.[0] === 'rejected' ? r['zinc-sim-strict'] : undefined);
-      r[name] = from ? ['rejected', from[1], 0, 'inherited'] : await runZinc(c, e, p.zinc.text);
+      r[name] = from ? ['rejected', from[1], 0, 'inherited'] : e.next ? await runNext(c, e, p.zinc.text) : await runZinc(c, e, p.zinc.text);
     } else r[name] = await runRef(c, name, p.ref.text);
   }
   return res;
@@ -427,9 +441,10 @@ console.log(JSON.stringify(out));
   const file = path.join(WORK, 'ref', 'wintertc_probe.cjs');
   fs.writeFileSync(file, src);
   const outp = {};
-  for (const name of engines.filter(n => !ENGINES[n].zinc)) {
+  for (const name of engines.filter(n => !ENGINES[n].zinc || ENGINES[n].qjs)) {
     const e = ENGINES[name];
-    const r = await exec(e.cmd[0], [...e.cmd.slice(1), file], { cwd: path.join(WORK, 'ref'), timeout: TIMEOUT.ref });
+    const r = e.qjs ? await exec(NEXT_BIN, ['run', file, '--engine', 'quickjs'], { cwd: path.join(WORK, 'ref'), timeout: TIMEOUT.ref, env: { ...process.env, ZINC_HEADLESS: '1' } })
+      : await exec(e.cmd[0], [...e.cmd.slice(1), file], { cwd: path.join(WORK, 'ref'), timeout: TIMEOUT.ref });
     try { outp[name] = JSON.parse(r.out.trim().split('\n').pop()); } catch { outp[name] = {}; }
   }
   return outp;
@@ -437,7 +452,7 @@ console.log(JSON.stringify(out));
 
 function version(name) {
   const e = ENGINES[name];
-  if (e.zinc) return '';
+  if (e.zinc && !e.qjs) return '';
   const r = spawnSync(e.version[0], e.version.slice(1), { encoding: 'utf8' });
   return ((r.stdout || r.stderr || '').split('\n')[0] ?? '').trim();
 }
@@ -446,7 +461,7 @@ function version(name) {
 async function main() {
   if (flag('--report')) {  // offline: regenerate the page (and check / record the baseline) from a results file
     const res = JSON.parse(fs.readFileSync(val('--report'), 'utf8'));
-    writeReport(res);
+    if (Object.keys(res.engines).every(n => ENGINES[n]?.next)) writeNextReport(res); else writeReport(res);
     if (flag('--update-baseline')) updateBaseline(res);
     if (flag('--check')) process.exit(check(res) ? 0 : 1);
     return;
@@ -455,7 +470,7 @@ async function main() {
   if (flag('--fetch')) return;
   await loadTs();
   const wanted = (val('--engines', Object.keys(ENGINES).join(','))).split(',');
-  const engines = wanted.filter(n => ENGINES[n] && (ENGINES[n].zinc || spawnSync('which', [ENGINES[n].cmd[0]]).status === 0));
+  const engines = wanted.filter(n => ENGINES[n] && (ENGINES[n].zinc || ENGINES[n].next || spawnSync('which', [ENGINES[n].cmd[0]]).status === 0));
   for (const n of wanted.filter(n => !engines.includes(n))) console.error(`compat: engine ${n} not found, skipped`);
   prepareWork();
   const cases = collect();
@@ -483,14 +498,55 @@ async function main() {
     tests: Object.fromEntries(Object.entries(tests).sort(([a], [b]) => a < b ? -1 : 1)),
   };
   const full = !FILTER && SUITES.length === 4;
-  const out = full ? path.join(HERE, 'results', `${results.date}.json`) : path.join(CACHE, 'last.json');
+  const nextOnly = engines.length > 0 && engines.every(n => ENGINES[n].next);   // the new engine's runs have their own files: the prototype's report and results stay as they are
+  const out = full ? path.join(HERE, 'results', `${nxt(nextOnly)}${results.date}.json`) : path.join(CACHE, 'last.json');
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, JSON.stringify(results) + '\n');
   console.error(`compat: wrote ${path.relative(process.cwd(), out)} in ${results.durationS} s`);
   summary(results);
-  if (full) writeReport(results);
+  if (full) { if (nextOnly) writeNextReport(results); else writeReport(results); }
   if (flag('--update-baseline')) updateBaseline(results);
   if (flag('--check')) process.exit(check(results) ? 0 : 1);
+}
+
+const nxt = (nextOnly) => nextOnly ? 'next-' : '';
+
+/** docs/reports/zinc-next-compat.md and its failure list: the numbers of the new engine per suite, the reasons, the URL data of ZN-095 (ZN-139). */
+function writeNextReport(res) {
+  const engines = Object.keys(res.engines);
+  const rows = {}, reasons = {}, failures = [];
+  for (const [id, t] of Object.entries(res.tests)) {
+    if (t.skip) continue;
+    for (const e of engines) {
+      const r = t.r[e];
+      const st = r?.[0] ?? 'n/a';
+      ((rows[t.suite] ??= {})[e] ??= {})[st] = (rows[t.suite][e][st] ?? 0) + 1;
+      if (st !== 'pass') {
+        const key = `${e} / ${st}: ${String(r?.[1] ?? '').replace(/'[^']*'/g, "'…'").replace(/\d+/g, 'N').slice(0, 90)}`;
+        reasons[key] = (reasons[key] ?? 0) + 1;
+        if (st === 'fail' || st === 'timeout') failures.push(`${id}\t${e}\t${st}\t${r?.[1] ?? ''}`);
+      }
+    }
+  }
+  const url = spawnSync(NEXT_BIN, ['run', path.join(ROOT, 'next/tests/golden/host/wpt_url.ts'), '--', path.join(ROOT, 'next/tests/data/wpt')], { encoding: 'utf8', cwd: path.join(ROOT, 'next'), env: { ...process.env, ZINC_HEADLESS: '1' } }).stdout.trim().split('\n').filter(l => /\d+\/\d+$/.test(l));
+  const L = [];
+  L.push('# Zinc Next: standards conformance', '', `Generated by \`node tests/compat/run.mjs --engines next,next-qjs\` (${res.date}, commit ${res.commit}). Pinned suites: ${Object.entries(res.pins).map(([k, p]) => `${k} ${p.commit.slice(0, 8)}`).join(', ')}.`, '',
+    'Two ways of running the same programs on the new engine (the prototype\'s numbers are in [compat.md](compat.md)):', '',
+    '* `next`: the program as Zinc source (`zinc run file.js`, the typed engine, gradual typing); WPT, test262 and the quickjs tests go through the typed shims `tests/compat/shims`.',
+    '* `next-qjs`: the plain JavaScript of the reference runs on QuickJS-ng (`zinc run file.js --engine quickjs`): it measures the engine and the host glue, not the type system.', '',
+    '## Results', '', '| suite | engine | pass | total | % | other |', '|---|---|---:|---:|---:|---|');
+  for (const [suite, byEng] of Object.entries(rows)) for (const [e, st] of Object.entries(byEng)) {
+    const total = Object.values(st).reduce((a, b) => a + b, 0);
+    L.push(`| ${suite} | ${e} | ${st.pass ?? 0} | ${total} | ${(100 * (st.pass ?? 0) / total).toFixed(1)} | ${Object.entries(st).filter(([k]) => k !== 'pass').map(([k, v]) => `${k} ${v}`).join(', ')} |`);
+  }
+  L.push('', '## WPT URL data (the prototype\'s 896/896 and 278/278)', '', 'The WPT `urltestdata.json` and `setters_tests.json` run through `new URL` by `next/tests/golden/host/wpt_url.ts` (T1 `wpt_url`):', '', '```', ...url, '```', '',
+    'The typed WPT ports of the harness (`next`) reject most `.any.js` files at compile time (the strict subset refuses untyped callbacks), and the `next-qjs` engine has no web globals yet (`window`, `TextEncoder`, `URL`...): the WPT rows are the honest numbers of those two facts, not of the URL implementation.', '',
+    '## Why the rest fails', '', '| engine / status: reason | tests |', '|---|---:|');
+  for (const [k, v] of Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 25)) L.push(`| ${k.replace(/\|/g, '/')} | ${v} |`);
+  L.push('', `Failures that are not compile-time rejections (status fail or timeout) are listed with their first message in [zinc-next-compat-failures.txt](zinc-next-compat-failures.txt) (${failures.length} lines). Regressions are gated in T2 (\`next/tests/t2/compat.sh\`, baseline \`tests/compat/baseline.json\`).`, '');
+  fs.writeFileSync(path.join(ROOT, 'docs/reports/zinc-next-compat.md'), L.join('\n'));
+  fs.writeFileSync(path.join(ROOT, 'docs/reports/zinc-next-compat-failures.txt'), failures.sort().join('\n') + '\n');
+  console.error('compat: wrote docs/reports/zinc-next-compat.md');
 }
 
 function summary(res) {
@@ -512,8 +568,10 @@ function summary(res) {
 const BASELINE = path.join(HERE, 'baseline.json');
 function updateBaseline(res) {
   const pass = {};
-  for (const [id, t] of Object.entries(res.tests)) for (const [e, r] of Object.entries(t.r ?? {})) if (ENGINES[e]?.zinc && r[0] === 'pass') (pass[e] ??= []).push(id);
-  fs.writeFileSync(BASELINE, JSON.stringify({ date: res.date, commit: res.commit, pins: res.pins, pass }, null, 1) + '\n');
+  for (const [id, t] of Object.entries(res.tests)) for (const [e, r] of Object.entries(t.r ?? {})) if ((ENGINES[e]?.zinc || ENGINES[e]?.qjs) && r[0] === 'pass') (pass[e] ??= []).push(id);
+  // only the engines of this run are replaced: the prototype's entries stay
+  const old = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : { pass: {} };
+  fs.writeFileSync(BASELINE, JSON.stringify({ date: res.date, commit: res.commit, pins: res.pins, pass: { ...old.pass, ...pass } }, null, 1) + '\n');
   console.error(`compat: baseline updated (${Object.entries(pass).map(([e, l]) => `${e} ${l.length}`).join(', ')})`);
 }
 function check(res) {
