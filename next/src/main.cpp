@@ -47,7 +47,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include <unistd.h>
 #include "vm/vm.h"
 #include "zbc/zbc.h"
-namespace zn::text { void installSegmenter(); }
+namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #include "vm/vm.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
@@ -433,6 +433,7 @@ int main(int argc, char** argv) {
     std::string path = argv[2];
     std::string projectDir;
     zn::frontend::TargetOptions window;  // zinc.json: what concerns the host
+    bool shapedText = false;             // zinc.json "text": "shaped" (ZN-224)
     {
       namespace fs = std::filesystem;
       std::string projFile = zn::frontend::findProjectFile(path);
@@ -487,7 +488,9 @@ int main(int argc, char** argv) {
         if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts or main.tsx)\n", path.c_str()); return 2; }
         path = e;
       }
-      if (have) {  // the profile of the target this machine runs: macos, linux, else the simulator's
+      if (have) {
+        shapedText = project.text == "shaped";
+        // the profile of the target this machine runs: macos, linux, else the simulator's
 #if defined(__APPLE__)
         const char* order[] = {"macos", "sim"};
 #else
@@ -506,6 +509,7 @@ int main(int argc, char** argv) {
     if (window.fullscreen) setenv("ZINC_FULLSCREEN", "1", 0);
     if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
 #ifdef ZN_HOST_GFX
+    if (shapedText || (std::getenv("ZINC_TEXT") && !std::strcmp(std::getenv("ZINC_TEXT"), "shaped"))) zn::text::installShapedGfx();   // ZN-224
     zn::host::setGrowDrawCommands(window.growDrawCommands);
 #endif
     zn::zbc::Module zm;
@@ -778,6 +782,24 @@ int main(int argc, char** argv) {
       if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
     }
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob); if (!gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
+    if (zn::aot::usesHost(zm)) {
+      std::string pf = zn::frontend::findProjectFile(argv[2]);
+      zn::frontend::Project proj;
+      std::string perr;
+      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+      if (proj.text == "shaped") {
+        std::string text;
+        { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
+        if (at != std::string::npos && mainAt != std::string::npos) {
+          text.insert(at + 26, "  zn_install_shaped_text();\n");
+          text.insert(mainAt, "void zn_install_shaped_text();\n");
+          { std::ofstream o(cpp); o << text; }
+          for (const char* l : {"libzn_text_gfx.a", "libzn_text.a", "libzn_harfbuzz.a", "libzn_sheenbidi.a", "libzn_unibreak.a"}) shapedLibs += " '" + (libs / l).string() + "'";
+        }
+      }
+    }
     const char* cxx = std::getenv("CXX");
     bool haveLibs = fs::exists(libs / "libzn_rt.a");
     bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
@@ -793,6 +815,7 @@ int main(int argc, char** argv) {
     bool usesScript = false;
     for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
     std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+    nativeLibs += shapedLibs;
     for (const zn::tc::PluginLib& pl : gPlugins) {
       if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
 #ifdef __APPLE__

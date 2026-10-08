@@ -309,6 +309,13 @@ target_include_directories(zn_segment PUBLIC src include)
 set_target_properties(zn_segment PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(zn_segment PUBLIC zn_unibreak zn_quickjs)
 target_link_libraries(zinc PRIVATE zn_segment)
+if(TARGET zn_host_gfx)   # shaped zinc:gfx / zinc:ui text (ZN-224): linked by programs that ask for it
+  add_library(zn_text_gfx STATIC src/text/shaped_gfx.cpp)
+  set_target_properties(zn_text_gfx PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(zn_text_gfx PUBLIC src ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include)
+  target_link_libraries(zn_text_gfx PUBLIC zn_text)
+  target_link_libraries(zinc PRIVATE zn_text_gfx)
+endif()
 # glTF cross-check (ZN-119): cgltf reads the models independently of the three plugin's reader, meshoptimizer's vertex cache optimiser must keep their triangles.
 file(GLOB ZN_MESHOPT_SRC third_party/meshoptimizer/*.cpp)
 add_library(zn_meshopt STATIC ${ZN_MESHOPT_SRC})

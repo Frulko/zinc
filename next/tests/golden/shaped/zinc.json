@@ -1,0 +1,2 @@
+{ "name": "shaped", "entry": "main.ts", "assets": "../../data/fonts", "text": "shaped",
+  "targets": { "macos": { "width": 400, "height": 260 } } }

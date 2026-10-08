@@ -297,6 +297,7 @@ const Font* font_at(int32_t id) {
   if (runtime_font(id)) return &rfonts[id - RUNTIME_FONT_BASE].f;
   return nullptr;
 }
+int32_t font_file(int32_t id) { return runtime_font(id) ? rfonts[id - RUNTIME_FONT_BASE].file : -1; }
 const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
   RFont& r = rfonts[id - RUNTIME_FONT_BASE];
   if (r.capglyph) { Glyph* s = slot(r, cp); if (s->cp == cp) return s; }

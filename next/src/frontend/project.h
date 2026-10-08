@@ -32,6 +32,7 @@ struct Project {
   std::string entry;                // "entry", else "main" ("" when neither is set)
   std::string profile;              // "profile": the target profile (esp32, ps1...) that sets `number`, the heap budget and typing; "" = the host's
   std::vector<std::string> requires_;
+  std::string text;                 // "text": "shaped" lays out zinc:gfx / zinc:ui text with HarfBuzz and SheenBidi (ZN-224); "" or "simple": the codepoint tables
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})

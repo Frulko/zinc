@@ -19,6 +19,14 @@ struct TtfFile { const char* name; const uint8_t* data; uint32_t len; };
 extern const TtfFile ttf_files[];
 extern const int ttf_count;
 static const int32_t RUNTIME_FONT_BASE = 1 << 16;
+/** Optional text shaping (ZN-224): a host that links a shaping tier installs these; text that needs it (any code point from U+0300) goes through them, Latin text keeps the
+ *  glyph tables. `run` lays out `n` bytes of UTF-8 in `font` and calls `emit` once per glyph with its 8-bit coverage bitmap placed relative to the pen origin on the baseline
+ *  (x right, y down); it returns the advance in 26.6 pixels, or a negative number when it declines the text (the caller falls back to the glyph tables). */
+struct ShapedGlyph { int32_t x, y, w, h; const uint8_t* a; };
+struct ShapeHooks { int32_t (*run)(int32_t font, const char* s, uint32_t n, float tracking, void (*emit)(void* user, const ShapedGlyph& g), void* user); };
+extern const ShapeHooks* shape_hooks;
+/** The embedded TrueType file (index in ttf_files) a runtime font was made from, -1 for a baked font. */
+int32_t font_file(int32_t id);
 /** Baked or runtime font by id (null when unknown). */
 const Font* font_at(int32_t id);
 bool runtime_font(int32_t id);

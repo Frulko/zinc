@@ -300,9 +300,19 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   i += w;
   return cp;
 }
+const ShapeHooks* shape_hooks = nullptr;
+static bool needs_shaping(const char* s, uint32_t n) {   // combining marks, Hebrew to Indic and Southeast Asian scripts, ZWJ and variation selectors, Arabic forms, emoji: not symbols, arrows or CJK
+  for (uint32_t i = 0; i < n;) {
+    if ((uint8_t)s[i] < 0xCC) { i++; continue; }
+    uint32_t cp = next_cp(s, n, i);
+    if ((cp >= 0x300 && cp <= 0x36F) || (cp >= 0x590 && cp <= 0x1FFF) || cp == 0x200C || cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xFB1D && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF) || cp >= 0x1F000) return true;
+  }
+  return false;
+}
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   const Font* fp = font_at(font);
   if (!fp) return 0;
+  if (shape_hooks && needs_shaping(s, n)) { int32_t a = shape_hooks->run(font, s, n, tracking, nullptr, nullptr); if (a >= 0) return a; }
   const Font& f = *fp;
   int32_t pen = 0;
   for (uint32_t i = 0; i < n;) {
@@ -317,6 +327,23 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   if (!fp) return;
   const Font& f = *fp;
   int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
+  if (shape_hooks && needs_shaping(s, c.n)) {
+    struct Ctx { const Target* t; const Cmd* c; int32_t px, py; } cx = {&t, &c, (pen + 32) >> 6, base};
+    int32_t a = shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
+      Ctx& k = *static_cast<Ctx*>(u);
+      for (int32_t yy = 0; yy < g.h; yy++) {
+        int32_t y = k.py + g.y + yy;
+        if (y < k.t->clip.y0 || y >= k.t->clip.y1) continue;
+        const uint8_t* row = g.a + yy * g.w;
+        for (int32_t xx = 0; xx < g.w; xx++) {
+          int32_t x = k.px + g.x + xx;
+          if (x < k.t->clip.x0 || x >= k.t->clip.x1 || !row[xx]) continue;
+          blend(at(*k.t, x, y), k.c->c1, (uint32_t)row[xx] * k.c->alpha / 255);
+        }
+      }
+    }, &cx);
+    if (a >= 0) return;
+  }
   for (uint32_t i = 0; i < c.n;) {
     const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
     if (!g) g = glyph_of(c.res, f, '?');
