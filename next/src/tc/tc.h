@@ -54,6 +54,12 @@ std::string executablePath();  // the running binary, resolved; empty when unkno
 
 // Updates: a manifest is a text file of `key=value` lines (version, url, sha256, notes), fetched with curl from $ZINC_UPDATE_URL (or an argument).
 struct UpdateInfo { std::string version, url, sha256, notes; };
+// A manifest carries `sig=<128 hex>`: an Ed25519 signature (RFC 8032) of the manifest text without that line. fetchManifest refuses a manifest whose signature does not verify with one of the trusted
+// public keys (hex, 64 digits): $ZINC_UPDATE_PUBKEY, the lines of ~/.zinc/update-keys, the keys compiled in (the release key). Without a trusted key there is no update.
+bool verifyManifest(const std::string& text, const std::vector<std::string>& trustedKeys, std::string& err);
+std::vector<std::string> trustedUpdateKeys();
+bool signManifest(const std::string& text, const std::string& seedHex, std::string& signedText, std::string& err);   // the `zinc update-sign` recipe of a release
+bool newKeyPair(std::string& seedHex, std::string& publicHex);
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err);
 bool newerVersion(const std::string& candidate, const std::string& current);  // dotted numbers
 // Downloads info.url into `dir`, checks its SHA-256 against the manifest before keeping it; `path` is the verified file.

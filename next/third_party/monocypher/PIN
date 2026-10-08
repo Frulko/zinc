@@ -1,0 +1,2 @@
+Monocypher 4.0.2 (BSD-2-Clause or CC0), github.com/LoupVaillant/Monocypher tag 4.0.2, archive sha256 bc1ca30b1b2654e4e7daf2492c0d204200e55137f23fda6b7142fd7d523bd6b4
+Files: src/monocypher.c, src/monocypher.h, src/optional/monocypher-ed25519.c, src/optional/monocypher-ed25519.h, LICENCE.md (unmodified)

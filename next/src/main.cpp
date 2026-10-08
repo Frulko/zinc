@@ -982,6 +982,19 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[2], "--types")) std::fputs(zn::frontend::dumpTypes(checked, prog.ast, prog.files[0].text).c_str(), stdout);
     return 0;
   }
+  if (argc == 2 && !std::strcmp(argv[1], "update-keygen")) {   // zinc update-keygen: a new Ed25519 key pair for signing releases (seed secret, public key for ~/.zinc/update-keys or the build)
+    std::string seed, pub;
+    if (!zn::tc::newKeyPair(seed, pub)) { std::fprintf(stderr, "zinc: no randomness\n"); return 1; }
+    std::printf("seed=%s\npublic=%s\n", seed.c_str(), pub.c_str());
+    return 0;
+  }
+  if (argc == 4 && !std::strcmp(argv[1], "update-sign")) {   // zinc update-sign <manifest> <seed-hex>: the manifest with its sig= line (stdout)
+    std::string text, out, err;
+    if (!readFile(argv[2], text)) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+    if (!zn::tc::signManifest(text, argv[3], out, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::fputs(out.c_str(), stdout);
+    return 0;
+  }
   if (argc >= 2 && !std::strcmp(argv[1], "update")) {  // zinc update [--check] [manifest-url]: look for a newer release; without --check, download and verify it
     bool checkOnly = argc >= 3 && !std::strcmp(argv[2], "--check");
     const char* url = argc >= (checkOnly ? 4 : 3) ? argv[checkOnly ? 3 : 2] : std::getenv("ZINC_UPDATE_URL");

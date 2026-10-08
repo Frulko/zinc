@@ -29,6 +29,7 @@ host in that path), and runs a program on the emulated ESP32 (QEMU downloaded). 
 - `zinc update [--check] <manifest-url>` (or `ZINC_UPDATE_URL`): the manifest is `key=value` lines (`version`, `url`, `sha256`, `notes`). `--check` exits 10 when a newer release exists; without it the
   archive is downloaded to `~/.zinc/updates`, its SHA-256 compared to the manifest before it is kept (a mismatch is deleted), and the user is told how to install it. Replacing the running app
   is left to the user (drag the app, unpack the tar). The pins of zig, QEMU and esptool are compiled into each release, so a new release is how they update.
+- **Signed manifests (ZN-149):** the manifest carries `sig=<128 hex>`, an Ed25519 signature (RFC 8032, Monocypher 4.0.2 in `third_party/monocypher`; checked against OpenSSL) of the manifest text without that line. `zinc update` refuses an unsigned manifest, a changed line, a signature of another key and a malformed signature, and refuses everything when no key is trusted: the trusted public keys are `$ZINC_UPDATE_PUBKEY`, the lines of `~/.zinc/update-keys` and the release key compiled in (`kReleaseKeys` in `src/tc/tc.cpp`, empty until the first signed release). A release is signed with `zinc update-keygen` (once; the seed stays secret) and `zinc update-sign manifest.txt <seed>`. `tests/t0/update_sign.sh` covers the cases.
 
 ## Not covered
 

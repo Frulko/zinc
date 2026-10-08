@@ -1,3 +1,4 @@
+#include "monocypher-ed25519.h"
 #include "tc/tc.h"
 
 #include <algorithm>
@@ -336,11 +337,81 @@ bool newerVersion(const std::string& candidate, const std::string& current) {
   return false;
 }
 
+namespace {
+const char* const kReleaseKeys[] = {nullptr};   // the hex public keys of the release signing key(s), set when the first signed release is cut (zinc update-keygen)
+int hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; }
+bool fromHex(const std::string& h, std::uint8_t* out, std::size_t n) {
+  if (h.size() != n * 2) return false;
+  for (std::size_t i = 0; i < n; ++i) { int a = hexv(h[2 * i]), b = hexv(h[2 * i + 1]); if (a < 0 || b < 0) return false; out[i] = static_cast<std::uint8_t>(a * 16 + b); }
+  return true;
+}
+std::string toHex(const std::uint8_t* p, std::size_t n) { static const char* d = "0123456789abcdef"; std::string s; for (std::size_t i = 0; i < n; ++i) { s += d[p[i] >> 4]; s += d[p[i] & 15]; } return s; }
+// the manifest without its `sig=` line, and the signature (empty when there is none)
+std::string unsignedPart(const std::string& text, std::string& sig) {
+  std::string out;
+  std::size_t pos = 0;
+  while (pos < text.size()) {
+    std::size_t nl = text.find('\n', pos);
+    std::string line = text.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos + 1);
+    if (line.rfind("sig=", 0) == 0) { sig = line.substr(4); while (!sig.empty() && (sig.back() == '\n' || sig.back() == '\r')) sig.pop_back(); }
+    else out += line;
+    if (nl == std::string::npos) break;
+    pos = nl + 1;
+  }
+  return out;
+}
+}  // namespace
+
+std::vector<std::string> trustedUpdateKeys() {
+  std::vector<std::string> keys;
+  if (const char* k = std::getenv("ZINC_UPDATE_PUBKEY")) if (*k) keys.push_back(k);
+  std::ifstream in(home() + "/update-keys");
+  std::string line;
+  while (std::getline(in, line)) if (line.size() == 64) keys.push_back(line);
+  for (const char* k : kReleaseKeys) if (k) keys.push_back(k);
+  return keys;
+}
+bool verifyManifest(const std::string& text, const std::vector<std::string>& trusted, std::string& err) {
+  std::string sigHex, body = unsignedPart(text, sigHex);
+  std::uint8_t sig[64];
+  if (sigHex.empty()) { err = "the update manifest is not signed (no sig= line)"; return false; }
+  if (!fromHex(sigHex, sig, 64)) { err = "the update manifest has a malformed signature"; return false; }
+  if (trusted.empty()) { err = "no trusted update key (set ZINC_UPDATE_PUBKEY or list public keys in " + home() + "/update-keys)"; return false; }
+  for (const std::string& k : trusted) {
+    std::uint8_t pk[32];
+    if (fromHex(k, pk, 32) && crypto_ed25519_check(sig, pk, reinterpret_cast<const std::uint8_t*>(body.data()), body.size()) == 0) return true;
+  }
+  err = "the signature of the update manifest does not verify with a trusted key: refused";
+  return false;
+}
+bool signManifest(const std::string& text, const std::string& seedHex, std::string& signedText, std::string& err) {
+  std::uint8_t seed[32], sk[64], pk[32], sig[64];
+  if (!fromHex(seedHex, seed, 32)) { err = "the signing seed is 64 hex digits"; return false; }
+  crypto_ed25519_key_pair(sk, pk, seed);
+  std::string ignored, body = unsignedPart(text, ignored);
+  if (!body.empty() && body.back() != '\n') body += '\n';
+  crypto_ed25519_sign(sig, sk, reinterpret_cast<const std::uint8_t*>(body.data()), body.size());
+  signedText = body + "sig=" + toHex(sig, 64) + "\n";
+  return true;
+}
+bool newKeyPair(std::string& seedHex, std::string& publicHex) {
+  std::uint8_t seed[32], sk[64], pk[32];
+  std::ifstream r("/dev/urandom", std::ios::binary);
+  if (!r.read(reinterpret_cast<char*>(seed), 32)) return false;
+  seedHex = toHex(seed, 32);   // before: key_pair wipes the seed it is given
+  crypto_ed25519_key_pair(sk, pk, seed);
+  publicHex = toHex(pk, 32);
+  return true;
+}
+
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) {
   fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(std::rand()));
   std::string cmd = "curl -fL --retry 2 -sS -o " + quote(tmp.string()) + " " + quote(manifestUrl);
   if (!run(cmd, err, "fetching the update manifest")) return false;
-  std::ifstream in(tmp);
+  std::string text;
+  { std::ifstream f(tmp, std::ios::binary); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
+  if (!verifyManifest(text, trustedUpdateKeys(), err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
+  std::istringstream in(text);
   std::string line;
   while (std::getline(in, line)) {
     auto eq = line.find('=');
