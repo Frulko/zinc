@@ -202,7 +202,7 @@ target_include_directories(zn_codec PUBLIC src PRIVATE third_party/stb)
 set_target_properties(zn_codec PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_codec PRIVATE -w -O2)
 target_include_directories(zn_res PUBLIC include src PRIVATE third_party/stb)
-target_link_libraries(zn_res PUBLIC zn_webp)
+target_link_libraries(zn_res PUBLIC zn_webp zn_rt)   # zn::uni (case maps of the baked glyphs)
 
 add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)

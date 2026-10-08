@@ -389,13 +389,14 @@ on every frame when the composition is constant.
 
 Supported properties:
 
-- Flex layout: `flexDirection` (`row`/`column`), `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`,
-  `flexGrow`/`grow`, `flexShrink`, `flexBasis` (number, percent, `auto`), `gap`. `flex: n` is React Native's shorthand in the `rn`
+- Flex layout: `flexDirection` (`row`/`column`/`row-reverse`/`column-reverse`), `flexWrap` (`wrap-reverse` too), `justifyContent`, `alignItems`, `alignSelf`, `alignContent`,
+  `flexGrow`/`grow`, `flexShrink`, `flexBasis` (number, percent, `auto`), `gap`, `rowGap`, `columnGap`; a margin side `auto` takes the free space
+  of its line (`margin: 'auto'` centres). `flex: n` is React Native's shorthand in the `rn`
   layout mode (grow n, shrink 1, basis 0; `0` rigid; `-1` shrink only) and an alias of grow in `classic`.
 - Dimensions: `width`, `height` (numbers, px, percentages, auto, and `pct(v)` for a percent decided at run time), `minWidth`, `maxWidth`,
   `minHeight`, `maxHeight` (px, `none`), `aspectRatio` (`'16/9'` or a number); padding/margin and individual sides, plus
   `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand.
-- Position: `position` (`relative`/`static`/`absolute`), `top/right/bottom/left`, `display` (`flex`/`none`),
+- Position: `position` (`relative`/`static`/`absolute`; React Native's default `relative` under the preset and in `rn`), `top/right/bottom/left`, `display` (`flex`/`none`),
   `overflow` (`visible`/`hidden`/`auto`/`scroll`). Relative means normal flow; offsets position absolute nodes.
 - Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths, `borderRadius`,
   `border: '<width> solid <color>'`, React Native's `borderStyle` (`solid`/`dashed`/`dotted`), corner radii (`borderTopLeftRadius`,
@@ -469,6 +470,9 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 
 | Id | Style key | Aliases |
 |---|---|---|
+| -1 | `rowGap` |  |
+| -1 | `columnGap` |  |
+| -1 | `marginAuto` |  |
 | -1 | `borderTopLeftRadius` |  |
 | -1 | `borderTopRightRadius` |  |
 | -1 | `borderBottomRightRadius` |  |

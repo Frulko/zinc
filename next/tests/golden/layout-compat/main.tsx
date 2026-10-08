@@ -1,5 +1,6 @@
 // classic's React Native subset (ZN-288): the same cases run in classic with "preset": "react-native" (ZINC_UI_LAYOUT=classic) and in Yoga
-// (ZINC_UI_LAYOUT=rn) and must print the same boxes: flex: 1 equal shares, flexShrink, minWidth / maxWidth, alignSelf, aspectRatio, alignContent.
+// (ZINC_UI_LAYOUT=rn) and must print the same boxes: flex: 1 equal shares, flexShrink, minWidth / maxWidth, alignSelf, aspectRatio, alignContent;
+// row-reverse, column-reverse, wrap-reverse, rowGap / columnGap and auto margins (ZN-380).
 import * as ui from 'zinc:ui';
 import { createNodeRef, render, NodeRef } from 'zinc:ui/solid';
 import { quit } from 'zinc:gfx';
@@ -13,6 +14,9 @@ const m1 = r('max'), m2 = r('beside max'), m3 = r('min'), m4 = r('beside min');
 const l1 = r('self stretch'), l2 = r('self center'), l3 = r('self end');
 const p1 = r('aspect from width'), p2 = r('aspect from height');
 const c1 = r('content a'), c2 = r('content b'), c3 = r('content c');
+const v1 = r('row-reverse a'), v2 = r('row-reverse b'), v3 = r('column-reverse');
+const w1 = r('wrap-reverse a'), w2 = r('wrap-reverse b'), w3 = r('wrap-reverse c');
+const u1 = r('margin auto'), u2 = r('marginLeft auto'), u3 = r('marginVertical auto');
 function App(): i32 {
   return <view style={{ width: 300, padding: 0 }}>
     <view style={{ flexDirection: 'row', width: 300, height: 30 }}>
@@ -46,6 +50,19 @@ function App(): i32 {
       <view ref={c2} style={{ width: 200, height: 20 }} />
       <view ref={c3} style={{ width: 80, height: 20 }} />
     </view>
+    <view style={{ flexDirection: 'row-reverse', width: 100, height: 20 }}>
+      <view ref={v1} style={{ width: 10, height: 10 }} />
+      <view ref={v2} style={{ width: 10, height: 10 }} />
+    </view>
+    <view style={{ flexDirection: 'column-reverse', width: 20, height: 60 }}><view ref={v3} style={{ width: 10, height: 10 }} /></view>
+    <view style={{ flexDirection: 'row', flexWrap: 'wrap-reverse', width: 50, height: 60, alignContent: 'flex-start', rowGap: 4, columnGap: 6 }}>
+      <view ref={w1} style={{ width: 20, height: 10 }} />
+      <view ref={w2} style={{ width: 20, height: 10 }} />
+      <view ref={w3} style={{ width: 20, height: 10 }} />
+    </view>
+    <view style={{ flexDirection: 'row', width: 100, height: 40 }}><view ref={u1} style={{ width: 20, height: 10, margin: 'auto' }} /></view>
+    <view style={{ flexDirection: 'row', width: 100, height: 20 }}><view ref={u2} style={{ width: 20, height: 10, marginLeft: 'auto' }} /></view>
+    <view style={{ width: 100, height: 40 }}><view ref={u3} style={{ width: 20, height: 10, marginVertical: 'auto' }} /></view>
   </view>;
 }
 render(App, 0xffffff, (dt: number) => {

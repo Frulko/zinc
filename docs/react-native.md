@@ -66,9 +66,9 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 
 ## Styles
 
-React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset), flexGrow / Shrink / Basis, flexDirection, flexWrap, justifyContent,
-alignItems / Self / Content (baseline: Yoga, flex-end in classic), position and insets, width / height (numbers, `'50%'`, `` `${n}%` ``), min / max sizes,
-aspectRatio, margin / padding (sides, horizontal / vertical), gap, display, overflow, opacity, backgroundColor, color, border widths, colours (sides),
+React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset), flexGrow / Shrink / Basis, flexDirection (reverse too), flexWrap (wrap-reverse too), justifyContent,
+alignItems / Self / Content (baseline: Yoga, flex-end in classic), position (relative by default) and insets, width / height (numbers, `'50%'`, `` `${n}%` ``), min / max sizes,
+aspectRatio, margin / padding (sides, horizontal / vertical, margins `'auto'`), gap, rowGap, columnGap, display, overflow, opacity, backgroundColor, color, border widths, colours (sides),
 radii (corners), borderStyle, shadowColor / Offset / Opacity / Radius, elevation, the transform array (translate, scale, scaleX / Y, rotate, skew: rotate
 and skew hit-test now and paint with ZN-361.01), fontSize, fontWeight, lineHeight, letterSpacing, textAlign, numberOfLines. Values chosen at run time:
 numbers, and conditionals between literals for the keys that take strings (`fontWeight: on ? 'bold' : 'normal'`). Missing: fontStyle italic as a key,

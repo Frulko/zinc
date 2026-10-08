@@ -7,48 +7,45 @@ reason (below); `rn` must pass every other case, `classic` must keep its baselin
 
 | Feature | Cases | Expressible | rn | classic |
 |---|---|---|---|---|
-| AbsolutePosition | 34 | 22 | 22 | 11 |
+| AbsolutePosition | 34 | 26 | 26 | 13 |
 | AlignContent | 64 | 48 | 48 | 47 |
 | AlignItems | 30 | 15 | 15 | 13 |
 | AlignSelf | 5 | 4 | 4 | 4 |
 | AndroidNewsFeed | 1 | 1 | 1 | 1 |
 | AspectRatio | 2 | 1 | 1 | 1 |
-| Auto | 5 | 4 | 4 | 4 |
+| Auto | 5 | 5 | 5 | 5 |
 | Border | 5 | 0 | 0 | 0 |
 | BoxSizing | 48 | 5 | 5 | 5 |
 | Dimension | 2 | 2 | 2 | 2 |
 | Display | 14 | 6 | 6 | 6 |
 | DisplayContents | 1 | 0 | 0 | 0 |
 | Flex | 10 | 10 | 10 | 9 |
-| FlexDirection | 55 | 4 | 4 | 4 |
-| FlexWrap | 24 | 18 | 18 | 14 |
-| Gap | 33 | 0 | 0 | 0 |
+| FlexDirection | 55 | 40 | 40 | 18 |
+| FlexWrap | 24 | 24 | 24 | 20 |
+| Gap | 33 | 24 | 24 | 23 |
 | IntrinsicSize | 11 | 0 | 0 | 0 |
-| JustifyContent | 30 | 25 | 25 | 22 |
-| Margin | 34 | 12 | 12 | 12 |
+| JustifyContent | 30 | 28 | 28 | 25 |
+| Margin | 34 | 34 | 34 | 30 |
 | MinMaxDimension | 26 | 23 | 23 | 21 |
 | Padding | 7 | 7 | 7 | 7 |
 | Percentage | 29 | 10 | 10 | 3 |
 | Rounding | 13 | 7 | 7 | 1 |
 | SizeOverflow | 3 | 3 | 3 | 3 |
 | StaticPosition | 62 | 0 | 0 | 0 |
-| **total** | 548 | 227 | 227 | 190 |
+| **total** | 548 | 323 | 323 | 257 |
 
-Skipped cases by reason. The gaps of zinc:ui have tasks: ZN-380 (reverse directions, wrap-reverse, row/column gap, auto margins), ZN-381
+Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380 (classic keeps 29 of them as
+known failures: overflow under padding and absolute children of reversed containers). The other gaps of zinc:ui have tasks: ZN-381
 (borders in layout, box-sizing, position static), ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure
 functions, insets on the root, a percent of an undefined size and fractional lengths are limits of this harness or of zinc:ui's whole-pixel model.
 
 | Reason | Cases |
 |---|---|
-| border in layout | 74 |
-| reverse direction | 56 |
-| position static | 40 |
-| auto margins | 24 |
-| row or column gap | 24 |
+| border in layout | 87 |
+| position static | 45 |
 | skipped by Yoga | 17 |
 | baseline | 14 |
 | measure function | 11 |
-| wrap-reverse | 10 |
 | display contents | 9 |
 | percent gap | 8 |
 | percent min/max | 8 |

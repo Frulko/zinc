@@ -15,3 +15,12 @@ aspect from height: 120,120 100x50
 content a: 0,210 200x20
 content b: 0,230 200x20
 content c: 200,230 80x20
+row-reverse a: 90,280 10x10
+row-reverse b: 80,280 10x10
+column-reverse: 0,350 10x10
+wrap-reverse a: 0,410 20x10
+wrap-reverse b: 26,410 20x10
+wrap-reverse c: 0,396 20x10
+margin auto: 40,435 20x10
+marginLeft auto: 80,460 20x10
+marginVertical auto: 0,495 20x10

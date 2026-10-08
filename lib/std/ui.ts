@@ -231,7 +231,7 @@ export class UiNode {
   justify: i32 = 0;   // 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly
   align: i32 = 3;     // 0 start, 1 center, 2 end, 3 stretch
   grow: number = 0;   // flex-grow, fractional
-  shrink: number = -1; basis: number = -1; basisFrac: number = 0; order: i32 = 0; selfAlign: i32 = -1; alignContent: i32 = -1; reverse: boolean = false;   // flex-shrink (-1: legacy, never shrinks), flex-basis, order, align-self (-1: auto), align-content (-1: start), row-reverse / col-reverse
+  shrink: number = -1; basis: number = -1; basisFrac: number = 0; order: i32 = 0; selfAlign: i32 = -1; alignContent: i32 = -1; reverse: boolean = false; wrapRev: boolean = false;   // flex-shrink (-1: legacy, never shrinks), flex-basis, order, align-self (-1: auto), align-content (-1: start), row-reverse / col-reverse
   pt: i32 = 0; pr: i32 = 0; pb: i32 = 0; pl: i32 = 0;
   mt: i32 = 0; mr: i32 = 0; mb: i32 = 0; ml: i32 = 0;
   gap: i32 = 0; gapX: i32 = -1; gapY: i32 = -1;   // gap-x (between columns) and gap-y (between rows) override `gap` when set
@@ -822,6 +822,7 @@ const P_BORDER_STYLE: i32 = 76;
 const P_RADIUS_TL: i32 = 77, P_RADIUS_TR: i32 = 78, P_RADIUS_BR: i32 = 79, P_RADIUS_BL: i32 = 80;
 const P_BORDER_TOP_COLOR: i32 = 81, P_BORDER_RIGHT_COLOR: i32 = 82, P_BORDER_BOTTOM_COLOR: i32 = 83, P_BORDER_LEFT_COLOR: i32 = 84;
 const P_NUMBER_OF_LINES: i32 = 85;
+const P_ROW_GAP: i32 = 86, P_COLUMN_GAP: i32 = 87, P_MARGIN_AUTO: i32 = 88;   // marginAuto: the sides' bits 1 left, 2 right, 4 top, 8 bottom (ZN-380)
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -872,6 +873,9 @@ function propInit(): void {
   PROP.set('marginLeft', P_MARGIN_LEFT);
   PROP.set('grow', P_GROW);
   PROP.set('gap', P_GAP);
+  PROP.set('rowGap', P_ROW_GAP);
+  PROP.set('columnGap', P_COLUMN_GAP);
+  PROP.set('marginAuto', P_MARGIN_AUTO);
   PROP.set('padding', P_PADDING);
   PROP.set('fontSize', P_FONT_SIZE);
   PROP.set('hidden', P_HIDDEN);
@@ -954,8 +958,9 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_HEIGHT) { n.h = iv; n.hFrac = 0; n.fullH = false; }
   else if (id === P_WIDTH_PERCENT) { n.w = -1; n.wFrac = v; n.fullW = false; }
   else if (id === P_HEIGHT_PERCENT) { n.h = -1; n.hFrac = v; n.fullH = false; }
-  else if (id === P_FLEX_DIRECTION) n.row = iv !== 0;
-  else if (id === P_FLEX_WRAP) n.wrap = iv !== 0;
+  else if (id === P_FLEX_DIRECTION) { n.row = (iv & 1) !== 0; n.reverse = iv >= 2; }   // 0 column, 1 row, 2 column-reverse, 3 row-reverse
+  else if (id === P_FLEX_WRAP) { n.wrap = iv !== 0; n.wrapRev = iv === 2; }   // 2: wrap-reverse
+  else if (id === P_ROW_GAP) n.gapY = iv; else if (id === P_COLUMN_GAP) n.gapX = iv; else if (id === P_MARGIN_AUTO) n.mAuto = iv;   // ponytail: replaces the auto sides of the classes (ml-auto); merge per side if apps mix them
   else if (id === P_JUSTIFY_CONTENT) n.justify = iv;
   else if (id === P_ALIGN_ITEMS) n.align = iv;
   else if (id === P_POSITION) n.abs = iv !== 0;
@@ -1486,6 +1491,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'flex-row') { n.row = true; return true; }
   if (tok === 'flex-col') { n.row = false; return true; }
   if (tok === 'flex-wrap') { n.wrap = true; return true; }
+  if (tok === 'flex-wrap-reverse') { n.wrap = true; n.wrapRev = true; return true; }
   if (tok === 'absolute') { n.abs = true; return true; }
   if (tok === 'hidden') { n.hidden = true; return true; }
   if (tok === 'overflow-hidden') { n.overflow = true; return true; }
@@ -1781,7 +1787,7 @@ function resetStyle(n: UiNode): void {
   n.media = 0; n.container = false; n.ov = null;
   const fresh = new UiNode(n.tag);
   defaults(fresh);
-  n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false;
+  n.row = false; n.wrap = false; n.justify = fresh.justify; n.align = fresh.align; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false;
   n.pt = fresh.pt; n.pr = fresh.pr; n.pb = fresh.pb; n.pl = fresh.pl; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
@@ -1841,8 +1847,9 @@ export function setStyles(h: i32, styles: Style[]): void {
   for (const s of styles) for (let j = 0; j < s.keys.length; j++) {
     const k = s.keys[j];
     // Width in px and in % are the same CSS property; font families likewise replace one another.
-    for (let z = keys.length - 1; z >= 0; z--) if (sheetProperty(keys[z]) === sheetProperty(k)) { keys.splice(z, 1); vals.splice(z, 1); ids.splice(z, 1); }
-    keys.push(k); vals.push(s.values[j]); ids.push(s.ids[j]);
+    let v = s.values[j];
+    for (let z = keys.length - 1; z >= 0; z--) if (sheetProperty(keys[z]) === sheetProperty(k)) { if (k === 'marginAuto') v = (v as i32) | (vals[z] as i32); keys.splice(z, 1); vals.splice(z, 1); ids.splice(z, 1); }   // auto sides add up
+    keys.push(k); vals.push(v); ids.push(s.ids[j]);
   }
   n.sheets = styles;
   let shape = keys.length === n.sheetKeys.length;
@@ -2201,7 +2208,7 @@ function growWithLimits(n: UiNode, kids: UiNode[], start: i32, end: i32, free: n
   return size;
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
-  if (n.rel) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
+  if (n.rel || (RN_STYLE && !n.abs)) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
   if (n.tag === TEXT) {
     // measured at the width offered before grow and stretch were shared out: when it ends wider than the width it was wrapped at and has several lines, its lines
@@ -2320,8 +2327,10 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       else if (!stretch && alx === 2) off = lineCross - cc - marginCross;
       const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
-      if (n.row) place(c, rtl ? Math.round(x + n.lw - n.pr - pos - lead - c.mr - cm) : Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);   // RTL: rows run from the right edge
-      else place(c, Math.round(x + n.pl + crossPos + off + c.ml), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
+      // wrap-reverse: the cross axis is mirrored, lines stack from its end and each line's start is its far edge (ZN-380)
+      const cs = n.wrapRev ? innerCross - (crossPos + off + cc + marginCross) + (n.row ? c.mt : c.ml) : crossPos + off + (n.row ? c.mt : c.ml);
+      if (n.row) place(c, rtl ? Math.round(x + n.lw - n.pr - pos - lead - c.mr - cm) : Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + cs), cm, cc);   // RTL: rows run from the right edge
+      else place(c, Math.round(x + n.pl + cs), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
       pos += lead + cm + trail + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
     }
     crossPos += lineCross + gc + acBetween;
@@ -2357,13 +2366,13 @@ class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey:
 const RN_W: i32 = -1, RN_H: i32 = -2, RN_B: i32 = -3;
 const RN_PROPS: i32[] = [RN_W, RN_H, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54, 1016];
 function rnValue(n: UiNode, p: i32): number {
-  const inset = n.abs || n.rel;
+  const inset = n.abs || n.rel || RN_STYLE;   // React Native: position is relative by default, insets shift a node in the flow (ZN-380)
   if (p === RN_W) return n.fullW ? -2 : n.wFrac > 0 ? -3 - n.wFrac : n.w;
   if (p === RN_H) return n.fullH ? -2 : n.hFrac > 0 ? -3 - n.hFrac : n.h;
   if (p === RN_B) return n.basisFrac > 0 ? -3 - n.basisFrac : n.basis;
   if (p === 21) return n.row ? 1 : 0;
   if (p === 1012) return n.reverse ? 1 : 0;
-  if (p === 22) return n.wrap ? 1 : 0;
+  if (p === 22) return n.wrapRev ? 2 : n.wrap ? 1 : 0;
   if (p === 23) return n.justify;
   if (p === 24) return n.align;
   if (p === 1010) return n.selfAlign;
@@ -2371,7 +2380,8 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 25) return n.abs ? 1 : 0;
   if (p === 26) return n.scroll !== 0 ? 2 : n.overflow ? 1 : 0;
   if (p === 36) return n.pt; if (p === 37) return n.pr; if (p === 38) return n.pb; if (p === 39) return n.pl;
-  if (p === 40) return n.mt; if (p === 41) return n.mr; if (p === 42) return n.mb; if (p === 43) return n.ml;
+  if (p === 40) return (n.mAuto & 4) !== 0 ? UNSET : n.mt; if (p === 41) return (n.mAuto & 2) !== 0 ? UNSET : n.mr;   // UNSET: auto
+  if (p === 42) return (n.mAuto & 8) !== 0 ? UNSET : n.mb; if (p === 43) return (n.mAuto & 1) !== 0 ? UNSET : n.ml;
   if (p === 44) return n.grow;
   if (p === 1009) return n.shrink;
   if (p === 45) return n.gap;

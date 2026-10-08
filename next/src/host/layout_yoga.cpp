@@ -114,7 +114,7 @@ class YogaLayout final : public Layout {
       case LayoutProp::FullHeight: if (v != 0) YGNodeStyleSetHeightPercent(n, 100); else YGNodeStyleSetHeightAuto(n); break;
       case LayoutProp::FlexDirection: r->row = v != 0; direction(*r); break;
       case LayoutProp::Reverse: r->reverse = v != 0; direction(*r); break;
-      case LayoutProp::FlexWrap: YGNodeStyleSetFlexWrap(n, v != 0 ? YGWrapWrap : YGWrapNoWrap); break;
+      case LayoutProp::FlexWrap: YGNodeStyleSetFlexWrap(n, v >= 2 ? YGWrapWrapReverse : v != 0 ? YGWrapWrap : YGWrapNoWrap); break;
       case LayoutProp::JustifyContent: {
         static const YGJustify j[] = {YGJustifyFlexStart, YGJustifyCenter, YGJustifyFlexEnd, YGJustifySpaceBetween, YGJustifySpaceAround, YGJustifySpaceEvenly};
         YGNodeStyleSetJustifyContent(n, j[index(v, 6)]);
@@ -138,10 +138,10 @@ class YogaLayout final : public Layout {
       case LayoutProp::PaddingBottom: YGNodeStyleSetPadding(n, YGEdgeBottom, v); break;
       case LayoutProp::PaddingLeft: YGNodeStyleSetPadding(n, YGEdgeLeft, v); break;
       case LayoutProp::Padding: YGNodeStyleSetPadding(n, YGEdgeAll, v); break;
-      case LayoutProp::MarginTop: YGNodeStyleSetMargin(n, YGEdgeTop, v); break;
-      case LayoutProp::MarginRight: YGNodeStyleSetMargin(n, YGEdgeRight, v); break;
-      case LayoutProp::MarginBottom: YGNodeStyleSetMargin(n, YGEdgeBottom, v); break;
-      case LayoutProp::MarginLeft: YGNodeStyleSetMargin(n, YGEdgeLeft, v); break;
+      case LayoutProp::MarginTop: margin(n, YGEdgeTop, v); break;
+      case LayoutProp::MarginRight: margin(n, YGEdgeRight, v); break;
+      case LayoutProp::MarginBottom: margin(n, YGEdgeBottom, v); break;
+      case LayoutProp::MarginLeft: margin(n, YGEdgeLeft, v); break;
       case LayoutProp::Grow: YGNodeStyleSetFlexGrow(n, v); break;
       case LayoutProp::Shrink: YGNodeStyleSetFlexShrink(n, v < 0 ? YGUndefined : v); break;   // undefined: the config's default (1 with web defaults, 0 otherwise)
       case LayoutProp::Basis: v < 0 ? YGNodeStyleSetFlexBasisAuto(n) : YGNodeStyleSetFlexBasis(n, v); break;
@@ -221,6 +221,7 @@ class YogaLayout final : public Layout {
   const Rec* rec(std::int32_t h) const { return const_cast<YogaLayout*>(this)->rec(h); }
   static int index(float v, int count) { const int i = static_cast<int>(v); return i < 0 ? 0 : i >= count ? count - 1 : i; }
   static YGAlign align(float v) { static const YGAlign a[] = {YGAlignFlexStart, YGAlignCenter, YGAlignFlexEnd, YGAlignStretch, YGAlignBaseline}; return a[index(v, 5)]; }
+  static void margin(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetMarginAuto(n, e); else YGNodeStyleSetMargin(n, e, v); }   // unset: auto (ZN-380)
   static void inset(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetPositionAuto(n, e); else YGNodeStyleSetPosition(n, e, v); }
   static void direction(const Rec& r) {
     YGNodeStyleSetFlexDirection(r.node, r.row ? (r.reverse ? YGFlexDirectionRowReverse : YGFlexDirectionRow) : (r.reverse ? YGFlexDirectionColumnReverse : YGFlexDirectionColumn));
