@@ -1,0 +1,8 @@
+{
+  "name": "iot-board",
+  "description": "A microcontroller device: an ESP32-S3 with a motion sensor and a 128x64 OLED (a bubble level), its board.json and a zinc sim scenario; runs on the desktop with the sensor emulated.",
+  "tags": ["iot", "esp32", "oled", "sensor", "sim"],
+  "targets": ["esp32", "macos", "sim", "rpi1"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

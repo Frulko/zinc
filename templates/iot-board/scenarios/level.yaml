@@ -1,0 +1,13 @@
+# The board of board.json running the program: it starts, the screen shows a level board, a shake calibrates it.
+# zinc sim scenarios/level.yaml (--update-goldens records the hashes again after a change of the screen).
+name: bubble level
+version: 1
+project: ..
+board: ../board.json
+steps:
+  - wait-serial: "ready"
+  - expect-frame: { part-id: oled, hash: "07f9d91563994fbe" }
+  - set-control: { part-id: imu, control: shake, value: 1 }
+  - wait-serial: { text: "calibrated 1", timeout: 3s }
+  - advance: 200ms
+  - expect-frame: { part-id: oled, hash: "07f9d91563994fbe" }

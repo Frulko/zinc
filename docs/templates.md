@@ -32,7 +32,8 @@ in `.json` files the values are escaped as JSON strings. A file containing a NUL
 written by `zinc new` itself, since it names the engine files of the machine.
 
 Each template carries tests (`tests/smoke.test.ts` at least), so `zinc test` (the tests of the project in the current directory) passes on a new
-project; `tests/t1/templates_kickstart.sh` creates every template and checks them, and the graphical ones against a recorded frame.
+project; `tests/t1/templates_kickstart.sh` creates every template and checks them, runs their `scenarios/*.yaml` with `zinc sim`, and
+compares the graphical ones with a recorded frame.
 
 | Template | What it is | Targets |
 |---|---|---|
@@ -42,6 +43,7 @@ project; `tests/t1/templates_kickstart.sh` creates every template and checks the
 | dashboard | a live dashboard on zinc:ui/nuxt: stat cards, a line and a bar chart drawn in a Canvas, alerts, pause; fed by a mock source behind a `Source` interface | macos, linux, rpi |
 | 3d | a three.js scene (lights, floor, a spinning ring, orbiting satellites) with OrbitControls; motion as plain functions, tested | macos, linux, rpi |
 | service | an HTTP JSON API (items, health) with tests without the network and over HTTP, and a hardened systemd unit `deploy/{{id}}.service` (zinc:net) | linux, rpi, macos |
+| iot-board | an ESP32-S3 device: a QMI8658 motion sensor and a 128x64 SSD1306 OLED (a bubble level, shake to calibrate), its `board.json` and a `zinc sim` scenario; the sensor is emulated on the desktop | esp32, macos, sim, rpi1 |
 | cli | a command-line program (zinc:sys) | macos, linux, rpi |
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |
