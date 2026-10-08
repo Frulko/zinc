@@ -106,8 +106,23 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     else glTexSubImage2D(target, level, xoff, yoff, w, h, format, type, data);
     return true;
   }
+  // no data means zeros in WebGL; a driver re-specifying a level of the same size would keep the old pixels, so hand it zeros (default pixel-store state, no unpack buffer)
+  std::vector<std::uint8_t> zeros;
+  GLint pbo = 0, align = 0, ps[5] = {0, 0, 0, 0, 0};
+  const GLenum psName[5] = {GL_UNPACK_ROW_LENGTH, GL_UNPACK_IMAGE_HEIGHT, GL_UNPACK_SKIP_PIXELS, GL_UNPACK_SKIP_ROWS, GL_UNPACK_SKIP_IMAGES};
+  if (!data) {
+    glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &pbo);
+    if (!pbo) {
+      zeros.assign(static_cast<std::size_t>(w) * h * std::max(d, 1) * bpp, 0);
+      glGetIntegerv(GL_UNPACK_ALIGNMENT, &align);
+      for (int i = 0; i < 5; ++i) { glGetIntegerv(psName[i], &ps[i]); glPixelStorei(psName[i], 0); }
+      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+      data = zeros.data();
+    }
+  }
   if (three) glTexImage3D(target, level, static_cast<GLint>(ifmt), w, h, d, 0, format, type, data);
   else glTexImage2D(target, level, static_cast<GLint>(ifmt), w, h, 0, format, type, data);
+  if (!zeros.empty()) { for (int i = 0; i < 5; ++i) glPixelStorei(psName[i], ps[i]); glPixelStorei(GL_UNPACK_ALIGNMENT, align); }
   if (level == 0) { t.w = w; t.h = h; t.d = d; t.format = format; }
   return true;
 }
@@ -337,6 +352,73 @@ void WebGL1::blitFramebuffer(int sx0, int sy0, int sx1, int sy1, int dx0, int dy
   if (mask & ~static_cast<std::uint32_t>(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) return error(GL_INVALID_VALUE);
   if (filter != GL_NEAREST && filter != GL_LINEAR) return error(GL_INVALID_ENUM);
   if ((mask & (GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) && filter == GL_LINEAR) return error(GL_INVALID_OPERATION);
+  auto span = [](int a, int b) { return a > b ? static_cast<std::int64_t>(a) - b : static_cast<std::int64_t>(b) - a; };
+  if (span(sx0, sx1) > 0x7fffffff || span(sy0, sy1) > 0x7fffffff || span(dx0, dx1) > 0x7fffffff || span(dy0, dy1) > 0x7fffffff) return error(GL_INVALID_VALUE);
+  if (fboRead_ == fbo_) return error(GL_INVALID_OPERATION);
+  if (fboRead_ && fbo_) {   // the same image (object, level, face, layer) on both sides of a copied buffer
+    auto img = [](GLenum target, GLenum att, GLint* v) {
+      v[0] = GL_NONE; v[1] = v[2] = v[3] = v[4] = 0;
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &v[0]);
+      if (v[0] == GL_NONE) return false;
+      glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &v[1]);
+      if (v[0] == GL_TEXTURE) {
+        glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &v[2]);
+        glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &v[3]);
+        glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER, &v[4]);
+      }
+      return true;
+    };
+    auto same = [&](GLenum ra, GLenum da) { GLint r[5], d[5]; return img(GL_READ_FRAMEBUFFER, ra, r) && img(GL_DRAW_FRAMEBUFFER, da, d) && std::equal(r, r + 5, d); };
+    bool clash = ((mask & GL_DEPTH_BUFFER_BIT) && same(GL_DEPTH_ATTACHMENT, GL_DEPTH_ATTACHMENT)) || ((mask & GL_STENCIL_BUFFER_BIT) && same(GL_STENCIL_ATTACHMENT, GL_STENCIL_ATTACHMENT));
+    if (mask & GL_COLOR_BUFFER_BIT) for (int k = 0; k < 4; ++k) if (fbos_[fbo_].draw[k] && same(fbos_[fboRead_].readBuffer, fbos_[fbo_].draw[k])) clash = true;
+    while (glGetError() != GL_NO_ERROR) {}
+    if (clash) return error(GL_INVALID_OPERATION);
+  }
+  // multisampled read: the draw side must be single sampled, the regions equal and the formats the same; a multisampled draw image is never allowed
+  auto samplesOf = [&](Id fb) {
+    auto f = fbos_.find(fb);
+    if (!fb || f == fbos_.end() || !f->second.colorRb) return 0;
+    auto r = rbos_.find(f->second.colorRb);
+    return r == rbos_.end() ? 0 : r->second.samples;
+  };
+  auto encoding = [](GLenum target) { GLint e = 0; glGetFramebufferAttachmentParameteriv(target, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &e); while (glGetError() != GL_NO_ERROR) {} return e; };
+  const int rs = samplesOf(fboRead_), ds = samplesOf(fbo_);
+  if (ds > 0) return error(GL_INVALID_OPERATION);
+  if (rs > 0 && (sx0 != dx0 || sy0 != dy0 || sx1 != dx1 || sy1 != dy1 || (fbo_ && fboRead_ && encoding(GL_READ_FRAMEBUFFER) != encoding(GL_DRAW_FRAMEBUFFER)))) return error(GL_INVALID_OPERATION);
+  // the driver does not clip out-of-bounds regions like the spec: clip source then destination to the colour images, scaling the other side, and round to pixels
+  auto size = [&](Id fb, int& w, int& h) {
+    w = gl_.width(); h = gl_.height();
+    auto f = fbos_.find(fb);
+    if (!fb || f == fbos_.end()) return true;
+    if (f->second.colorRb) { auto r = rbos_.find(f->second.colorRb); if (r == rbos_.end()) return false; w = r->second.w; h = r->second.h; return true; }
+    auto t = textures_.find(f->second.color);
+    if (t == textures_.end()) return false;
+    w = std::max(1, t->second.w >> f->second.colorLevel); h = std::max(1, t->second.h >> f->second.colorLevel);
+    return true;
+  };
+  int rw, rh, dw, dh;
+  if ((mask & GL_COLOR_BUFFER_BIT) && size(fboRead_, rw, rh) && size(fbo_, dw, dh)) {
+    auto clip = [](int& s0, int& s1, int& d0, int& d1, int sn, int dn) {
+      if (s0 == s1 || d0 == d1 || (s0 >= 0 && s1 >= 0 && s0 <= sn && s1 <= sn && d0 >= 0 && d1 >= 0 && d0 <= dn && d1 <= dn)) return;
+      double S0 = s0, S1 = s1, D0 = d0, D1 = d1;
+      const double k = (D1 - D0) / (S1 - S0);   // destination pixels per source pixel, negative when one side is flipped
+      auto toD = [&](double s) { return D0 + (s - S0) * k; };
+      const double lo = std::min(S0, S1), hi = std::max(S0, S1);
+      const double cl = std::max(lo, 0.0), ch = std::min(hi, static_cast<double>(sn));
+      const double a = toD(S0 < S1 ? cl : ch), b = toD(S0 < S1 ? ch : cl);   // the new destination ends, still paired with the source ends
+      const double ns0 = S0 < S1 ? cl : ch, ns1 = S0 < S1 ? ch : cl;
+      D0 = a; D1 = b; S0 = ns0; S1 = ns1;
+      const double dlo = std::min(D0, D1), dhi = std::max(D0, D1);
+      const double c0 = std::max(dlo, 0.0), c1 = std::min(dhi, static_cast<double>(dn));
+      const double k2 = (D1 - D0) / (S1 - S0);
+      const double nd0 = D0 < D1 ? c0 : c1, nd1 = D0 < D1 ? c1 : c0;
+      const double ss0 = S0 + (nd0 - D0) / k2, ss1 = S0 + (nd1 - D0) / k2;
+      s0 = static_cast<int>(std::lround(ss0)); s1 = static_cast<int>(std::lround(ss1)); d0 = static_cast<int>(std::lround(nd0)); d1 = static_cast<int>(std::lround(nd1));
+    };
+    clip(sx0, sx1, dx0, dx1, rw, dw);
+    clip(sy0, sy1, dy0, dy1, rh, dh);
+    if (sx0 == sx1 || sy0 == sy1 || dx0 == dx1 || dy0 == dy1) return;   // nothing left inside
+  }
   glBlitFramebuffer(sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, mask, filter);
 }
 void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, std::uint32_t fmt, int w, int h) {
@@ -345,7 +427,7 @@ void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, s
   if (samples < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
-  r.w = w; r.h = h; r.format = fmt;
+  r.w = w; r.h = h; r.format = fmt; r.samples = samples;
   glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, fmt == GL_DEPTH_STENCIL ? GL_DEPTH24_STENCIL8 : fmt, w, h);
 }
 void WebGL1::clearBufferfv(std::uint32_t buffer, int drawbuffer, const float* v, std::size_t n) {
@@ -405,6 +487,7 @@ void WebGL1::framebufferTextureLayer(std::uint32_t target, std::uint32_t attachm
       if (layer >= lim) return error(GL_INVALID_VALUE);
     }
   }
+  attachRb(target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_, attachment, 0, name);
   glFramebufferTextureLayer(target, attachment, name, level, layer);
 }
 int WebGL1::getFragDataLocation(Id pid, const std::string& name) {
@@ -412,7 +495,8 @@ int WebGL1::getFragDataLocation(Id pid, const std::string& name) {
   if (p == programs_.end() || !p->second.linked) { error(GL_INVALID_OPERATION); return -1; }
   return glGetFragDataLocation(p->second.name, name.c_str());
 }
-std::vector<int> WebGL1::getInternalformatParameter(std::uint32_t target, std::uint32_t ifmt, std::uint32_t pname) {
+std::vector<int> WebGL1::getInternalformatParameter(std::uint32_t target, std::uint32_t ifmt, std::uint32_t pname, bool& ok) {
+  ok = false;
   if (target != GL_RENDERBUFFER) { error(GL_INVALID_ENUM); return {}; }
   if (pname != GL_SAMPLES) { error(GL_INVALID_ENUM); return {}; }
   const bool integer = ifmt == GL_R8UI || ifmt == GL_R8I || ifmt == GL_R16UI || ifmt == GL_R16I || ifmt == GL_R32UI || ifmt == GL_R32I || ifmt == GL_RG8UI || ifmt == GL_RG8I || ifmt == GL_RGBA8UI || ifmt == GL_RGBA8I;
@@ -424,6 +508,7 @@ std::vector<int> WebGL1::getInternalformatParameter(std::uint32_t target, std::u
   GLint max = 0;
   glGetIntegerv(GL_MAX_SAMPLES, &max);
   std::vector<int> out;
+  ok = true;
   if (integer) return out;   // integer formats are not multisample renderable in ES 3.0
   for (int s : {8, 4, 2, 1}) if (s <= max) out.push_back(s);
   return out;

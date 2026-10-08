@@ -102,7 +102,7 @@ class WebGL1 {
   std::uint32_t getUniformBlockIndex(Id p, const std::string& name);   // 0xFFFFFFFF: INVALID_INDEX
   void uniformBlockBinding(Id p, std::uint32_t block, std::uint32_t binding);
   Param getActiveUniformBlockParameter(Id p, std::uint32_t block, std::uint32_t pname);
-  std::string getActiveUniformBlockName(Id p, std::uint32_t block);
+  std::string getActiveUniformBlockName(Id p, std::uint32_t block, bool& ok);
   void copyBufferSubData(std::uint32_t readTarget, std::uint32_t writeTarget, std::int64_t readOffset, std::int64_t writeOffset, std::int64_t size);
   void getBufferSubData(std::uint32_t target, std::int64_t srcOffset, void* dst, std::size_t dstBytes);
   void uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count);
@@ -152,7 +152,7 @@ class WebGL1 {
   void invalidateFramebuffer(std::uint32_t target, const std::uint32_t* attachments, int n);
   void framebufferTextureLayer(std::uint32_t target, std::uint32_t attachment, Id tex, int level, int layer);
   int getFragDataLocation(Id p, const std::string& name);
-  std::vector<int> getInternalformatParameter(std::uint32_t target, std::uint32_t internalformat, std::uint32_t pname);
+  std::vector<int> getInternalformatParameter(std::uint32_t target, std::uint32_t internalformat, std::uint32_t pname, bool& ok);
   // textures
   Id createTexture();
   void deleteTexture(Id t);
@@ -205,7 +205,7 @@ class WebGL1 {
   bool isProgram(Id id) const { return programs_.count(id) != 0; }
   bool isTexture(Id id) const { return textures_.count(id) != 0 && textures_.at(id).bound; }
   bool isFramebuffer(Id id) const { auto it = fbos_.find(id); return it != fbos_.end() && it->second.bound; }
-  bool isRenderbuffer(Id id) const { auto it = rbos_.find(id); return it != rbos_.end() && it->second.bound; }
+  bool isRenderbuffer(Id id) const { auto it = rbos_.find(id); return it != rbos_.end() && it->second.bound && !it->second.deleted; }
   std::string shaderSourceOf(Id s) const;
   std::uint32_t shaderTypeOf(Id s) const;
   void deleteShader(Id s);
@@ -247,11 +247,13 @@ class WebGL1 {
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
   struct TransformFeedback { std::uint32_t name = 0; bool bound = false; bool active = false, paused = false; };
-  struct Fbo { std::uint32_t name = 0; Id color = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; };   // 0x8CE0: COLOR_ATTACHMENT0
-  struct Rbo { std::uint32_t name = 0; int w = 0, h = 0; std::uint32_t format = 0; bool bound = false; };
+  struct Fbo { std::uint32_t name = 0; Id color = 0, colorRb = 0, rb[6] = {}, tx[6] = {};   /* rb: renderbuffers by attachment: colour 0-3, depth, stencil */  int colorLevel = 0; std::uint32_t colorFace = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; };   // 0x8CE0: COLOR_ATTACHMENT0
+  struct Rbo { std::uint32_t name = 0; int w = 0, h = 0, samples = 0; std::uint32_t format = 0; bool bound = false, deleted = false; };   // deleted: still attached somewhere, so the name stays known
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
   struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
 
+  void attachRb(Id fbo, std::uint32_t attachment, Id rb, std::uint32_t tex = 0);   // records a renderbuffer (0: none) or a texture's GL name on an attachment point and frees deleted ones nobody holds
+  std::map<std::uint32_t, Id> zombieTex_;   // GL name to the id the page knew;   // deleted textures a framebuffer other than the bound one still holds
   void error(std::uint32_t code) { flags_ |= bit(code); }
   static unsigned bit(std::uint32_t code);
   Id& boundTex(std::uint32_t target);   // the texture bound to `target` on the active unit

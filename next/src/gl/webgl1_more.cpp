@@ -76,12 +76,51 @@ void WebGL1::flush() { glFlush(); }
 void WebGL1::finish() { glFinish(); }
 
 // ---- renderbuffers
-Id WebGL1::createRenderbuffer() { Rbo r; glGenRenderbuffers(1, &r.name); Id id = nextId_++; rbos_[id] = r; return id; }
+void WebGL1::attachRb(Id fbo, std::uint32_t attachment, Id rb, std::uint32_t tex) {
+  Fbo& f = fbos_[fbo];
+  Id old[2] = {0, 0}; std::uint32_t oldTex[2] = {0, 0};
+  auto set = [&](int slot) { old[slot == 5] = f.rb[slot]; oldTex[slot == 5] = f.tx[slot]; f.rb[slot] = rb; f.tx[slot] = tex; };
+  if (attachment == GL_DEPTH_STENCIL_ATTACHMENT) { set(4); set(5); } else if (attachment == GL_DEPTH_ATTACHMENT) set(4); else if (attachment == GL_STENCIL_ATTACHMENT) set(5); else set(static_cast<int>(attachment - GL_COLOR_ATTACHMENT0));
+  for (Id o : old) {
+    auto it = o ? rbos_.find(o) : rbos_.end();
+    if (it == rbos_.end() || !it->second.deleted) continue;
+    bool held = false;
+    for (auto& e : fbos_) for (Id r : e.second.rb) if (r == o) held = true;
+    if (!held) { glDeleteRenderbuffers(1, &it->second.name); rbos_.erase(it); }
+  }
+  for (std::uint32_t t : oldTex) {
+    auto z = t ? zombieTex_.find(t) : zombieTex_.end();
+    if (z == zombieTex_.end()) continue;
+    bool held = false;
+    for (auto& e : fbos_) for (std::uint32_t n : e.second.tx) if (n == t) held = true;
+    if (!held) { glDeleteTextures(1, &t); zombieTex_.erase(z); }
+  }
+}
+Id WebGL1::createRenderbuffer() {
+  Rbo r; glGenRenderbuffers(1, &r.name);
+  for (auto it = rbos_.begin(); it != rbos_.end();) it = it->second.deleted && it->second.name == r.name ? rbos_.erase(it) : std::next(it);   // the driver reused the name of a detached, deleted one
+  Id id = nextId_++; rbos_[id] = r; return id;
+}
 void WebGL1::deleteRenderbuffer(Id id) {
   auto it = rbos_.find(id);
   if (it == rbos_.end()) return;
+  if (it->second.deleted) return;
+  if (rbo_ == id) { rbo_ = 0; glBindRenderbuffer(GL_RENDERBUFFER, 0); }
+  // deleting an image attached to the bound framebuffer detaches it there (as GL does); other framebuffers keep it
+  for (int side = 0; side < 2; ++side) {
+    const Id fb = side ? fboRead_ : fbo_;
+    if (!fb || (side && fboRead_ == fbo_)) continue;
+    for (int slot = 0; slot < 6; ++slot) if (fbos_[fb].rb[slot] == id) {
+      static const GLenum atts[6] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT0 + 1, GL_COLOR_ATTACHMENT0 + 2, GL_COLOR_ATTACHMENT0 + 3, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+      glFramebufferRenderbuffer(side ? GL_READ_FRAMEBUFFER : GL_DRAW_FRAMEBUFFER, atts[slot], GL_RENDERBUFFER, 0);
+      if (slot == 0) fbos_[fb].colorRb = 0;
+      attachRb(fb, atts[slot], 0);
+    }
+  }
+  bool held = false;
+  for (auto& e : fbos_) for (Id r : e.second.rb) if (r == id) held = true;
+  if (held) { it->second.deleted = true; return; }   // WebGL keeps an attached image alive (GL would detach it from the bound framebuffer): freed when the last attachment goes
   glDeleteRenderbuffers(1, &it->second.name);
-  if (rbo_ == id) rbo_ = 0;
   rbos_.erase(it);
 }
 void WebGL1::bindRenderbuffer(std::uint32_t target, Id id) {
@@ -89,7 +128,7 @@ void WebGL1::bindRenderbuffer(std::uint32_t target, Id id) {
   std::uint32_t name = 0;
   if (id) {
     auto it = rbos_.find(id);
-    if (it == rbos_.end()) return error(GL_INVALID_OPERATION);
+    if (it == rbos_.end() || it->second.deleted) return error(GL_INVALID_OPERATION);
     name = it->second.name;
     it->second.bound = true;
   }
@@ -102,7 +141,7 @@ void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w,
   if (w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
-  r.w = w; r.h = h; r.format = fmt;
+  r.w = w; r.h = h; r.format = fmt; r.samples = 0;
   glRenderbufferStorage(GL_RENDERBUFFER, fmt == GL_DEPTH_STENCIL ? GL_DEPTH24_STENCIL8 : fmt, w, h);
 }
 WebGL1::Param WebGL1::getRenderbufferParameter(std::uint32_t target, std::uint32_t pname) {
@@ -124,15 +163,19 @@ void WebGL1::framebufferRenderbuffer(std::uint32_t target, std::uint32_t attachm
   std::uint32_t name = 0;
   if (rb) {
     auto it = rbos_.find(rb);
-    if (it == rbos_.end()) return error(GL_INVALID_OPERATION);
+    if (it == rbos_.end() || it->second.deleted) return error(GL_INVALID_OPERATION);
     name = it->second.name;
   }
+  const Id fb = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
+  if (attachment == GL_COLOR_ATTACHMENT0) { Fbo& f = fbos_[fb]; f.colorRb = rb; f.color = 0; }
+  attachRb(fb, attachment, rb);
   glFramebufferRenderbuffer(target, attachment, GL_RENDERBUFFER, name);
 }
 void WebGL1::deleteFramebuffer(Id id) {
   auto it = fbos_.find(id);
   if (it == fbos_.end()) return;
   glDeleteFramebuffers(1, &it->second.name);
+  for (std::uint32_t att : {0x8CE0u, 0x8CE1u, 0x8CE2u, 0x8CE3u, 0x821Au}) attachRb(id, att, 0);
   if (fbo_ == id) { fbo_ = 0; glBindFramebuffer(GL_FRAMEBUFFER, gl_.framebuffer()); }
   fbos_.erase(it);
 }
@@ -212,6 +255,7 @@ int WebGL1::programParameter(Id pid, std::uint32_t pname, bool& ok) {
     case GL_VALIDATE_STATUS: glGetProgramiv(p->second.name, GL_VALIDATE_STATUS, &v); return v;
     case GL_ATTACHED_SHADERS: return (p->second.vs ? 1 : 0) + (p->second.fs ? 1 : 0);
     case GL_ACTIVE_UNIFORMS: case GL_ACTIVE_ATTRIBUTES: glGetProgramiv(p->second.name, pname, &v); return v;
+    case GL_ACTIVE_UNIFORM_BLOCKS: case GL_TRANSFORM_FEEDBACK_VARYINGS: case GL_TRANSFORM_FEEDBACK_BUFFER_MODE: if (version_ != 2) break; glGetProgramiv(p->second.name, pname, &v); return v;
   }
   ok = false;
   error(GL_INVALID_ENUM);
@@ -370,14 +414,29 @@ WebGL1::Param WebGL1::getBufferParameter(std::uint32_t target, std::uint32_t pna
   r.ok = true; r.kind = 'i'; r.v.push_back(v);
   return r;
 }
+#ifndef GL_TEXTURE_IMMUTABLE_FORMAT
+#define GL_TEXTURE_IMMUTABLE_FORMAT 0x912F
+#define GL_TEXTURE_IMMUTABLE_LEVELS 0x82DF
+#endif
 WebGL1::Param WebGL1::getTexParameter(std::uint32_t target, std::uint32_t pname) {
   Param r;
-  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP) { error(GL_INVALID_ENUM); return r; }
-  if (pname != GL_TEXTURE_MIN_FILTER && pname != GL_TEXTURE_MAG_FILTER && pname != GL_TEXTURE_WRAP_S && pname != GL_TEXTURE_WRAP_T) { error(GL_INVALID_ENUM); return r; }
-  if (!(target == GL_TEXTURE_2D ? tex2d_ : texCube_)[activeUnit_]) { error(GL_INVALID_OPERATION); return r; }
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_CUBE_MAP && !(version_ == 2 && (target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY))) { error(GL_INVALID_ENUM); return r; }
+  const bool v2 = version_ == 2;
+  switch (pname) {
+    case GL_TEXTURE_MIN_FILTER: case GL_TEXTURE_MAG_FILTER: case GL_TEXTURE_WRAP_S: case GL_TEXTURE_WRAP_T: break;
+    case GL_TEXTURE_BASE_LEVEL: case GL_TEXTURE_COMPARE_FUNC: case GL_TEXTURE_COMPARE_MODE: case GL_TEXTURE_MAX_LEVEL: case GL_TEXTURE_MAX_LOD: case GL_TEXTURE_MIN_LOD: case GL_TEXTURE_WRAP_R:
+    case GL_TEXTURE_IMMUTABLE_FORMAT: case GL_TEXTURE_IMMUTABLE_LEVELS: if (v2) break; [[fallthrough]];
+    default: error(GL_INVALID_ENUM); return r;
+  }
+  const Id id = boundTex(target);
+  if (!id) { error(GL_INVALID_OPERATION); return r; }
+  r.ok = true;
+  if (pname == GL_TEXTURE_IMMUTABLE_FORMAT) { r.kind = 'b'; r.v.push_back(textures_[id].immutable ? 1 : 0); return r; }   // GL 3.3 has no immutable storage: the wrapper keeps the flag
+  if (pname == GL_TEXTURE_IMMUTABLE_LEVELS) { r.kind = 'i'; r.v.push_back(textures_[id].immutable ? textures_[id].levels : 0); return r; }
+  if (pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD) { GLfloat f = 0; glGetTexParameterfv(target, pname, &f); r.kind = 'f'; r.v.push_back(f); return r; }
   GLint v = 0;
   glGetTexParameteriv(target, pname, &v);
-  r.ok = true; r.kind = 'i'; r.v.push_back(v);
+  r.kind = 'i'; r.v.push_back(v);
   return r;
 }
 WebGL1::Param WebGL1::getUniform(Id pid, const UniformLoc& l) {
@@ -385,13 +444,36 @@ WebGL1::Param WebGL1::getUniform(Id pid, const UniformLoc& l) {
   auto p = programs_.find(pid);
   if (p == programs_.end() || !p->second.linked || !l.valid() || l.program != pid || stale(l)) { error(GL_INVALID_OPERATION); return r; }
   r.ok = true;
-  const bool isInt = l.type == GL_INT || l.type == GL_BOOL || isSamplerType(l.type);
-  int n = l.type == GL_FLOAT_VEC2 || l.type == GL_INT_VEC2 || l.type == GL_BOOL_VEC2 ? 2 : l.type == GL_FLOAT_VEC3 || l.type == GL_INT_VEC3 || l.type == GL_BOOL_VEC3 ? 3 : l.type == GL_FLOAT_VEC4 || l.type == GL_INT_VEC4 || l.type == GL_BOOL_VEC4 || l.type == GL_FLOAT_MAT2 ? 4 : l.type == GL_FLOAT_MAT3 ? 9 : l.type == GL_FLOAT_MAT4 ? 16 : 1;
-  GLfloat f[16] = {};
-  if (isInt || l.type == GL_INT_VEC2 || l.type == GL_INT_VEC3 || l.type == GL_INT_VEC4 || l.type == GL_BOOL_VEC2 || l.type == GL_BOOL_VEC3 || l.type == GL_BOOL_VEC4) { GLint iv[16] = {}; glGetUniformiv(p->second.name, l.location, iv); for (int i = 0; i < n; ++i) f[i] = static_cast<float>(iv[i]); }
-  else glGetUniformfv(p->second.name, l.location, f);
-  r.kind = n == 1 ? (l.type == GL_BOOL ? 'b' : isInt ? 'i' : 'f') : 'a';
-  for (int i = 0; i < n; ++i) r.v.push_back(f[i]);
+  int n = 1; char kind = 'f';   // n values; kind: f float, i int, b bool, u unsigned (scalars unwrapped, vectors and matrices arrays)
+  switch (l.type) {
+    case GL_INT: kind = 'i'; break;
+    case GL_BOOL: kind = 'b'; break;
+    case GL_UNSIGNED_INT: kind = 'u'; break;
+    case GL_FLOAT_VEC2: n = 2; break;
+    case GL_FLOAT_VEC3: n = 3; break;
+    case GL_FLOAT_VEC4: case GL_FLOAT_MAT2: n = 4; break;
+    case GL_INT_VEC2: n = 2; kind = 'i'; break;
+    case GL_INT_VEC3: n = 3; kind = 'i'; break;
+    case GL_INT_VEC4: n = 4; kind = 'i'; break;
+    case GL_BOOL_VEC2: n = 2; kind = 'b'; break;
+    case GL_BOOL_VEC3: n = 3; kind = 'b'; break;
+    case GL_BOOL_VEC4: n = 4; kind = 'b'; break;
+    case GL_UNSIGNED_INT_VEC2: n = 2; kind = 'u'; break;
+    case GL_UNSIGNED_INT_VEC3: n = 3; kind = 'u'; break;
+    case GL_UNSIGNED_INT_VEC4: n = 4; kind = 'u'; break;
+    case GL_FLOAT_MAT3: n = 9; break;
+    case GL_FLOAT_MAT4: n = 16; break;
+    case GL_FLOAT_MAT2x3: case GL_FLOAT_MAT3x2: n = 6; break;
+    case GL_FLOAT_MAT2x4: case GL_FLOAT_MAT4x2: n = 8; break;
+    case GL_FLOAT_MAT3x4: case GL_FLOAT_MAT4x3: n = 12; break;
+    default: if (isSamplerType(l.type)) kind = 'i';
+  }
+  GLfloat f[16] = {}; GLint iv[16] = {}; GLuint uv[16] = {};
+  if (kind == 'f') glGetUniformfv(p->second.name, l.location, f);
+  else if (kind == 'u') glGetUniformuiv(p->second.name, l.location, uv);
+  else glGetUniformiv(p->second.name, l.location, iv);
+  for (int i = 0; i < n; ++i) r.v.push_back(kind == 'f' ? f[i] : kind == 'u' ? static_cast<double>(uv[i]) : iv[i]);
+  r.kind = n == 1 ? kind == 'u' ? 'i' : kind : kind == 'b' ? 'B' : kind == 'u' ? 'U' : 'a';
   return r;
 }
 void WebGL1::getShaderPrecisionFormat(std::uint32_t shadertype, std::uint32_t precisiontype, int out[3]) {
@@ -544,7 +626,11 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
   if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) {
     glGetFramebufferAttachmentParameteriv(target, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &v);
     r.ok = true; r.kind = 'n';
-    if (type == GL_TEXTURE) { for (auto& t : textures_) if (t.second.name == static_cast<std::uint32_t>(v)) { r.kind = 'o'; r.object = t.first; r.objKind = 4; } }
+    if (type == GL_TEXTURE) {
+      for (auto& t : textures_) if (t.second.name == static_cast<std::uint32_t>(v)) { r.kind = 'o'; r.object = t.first; r.objKind = 4; }
+      auto z = zombieTex_.find(static_cast<std::uint32_t>(v));   // deleted, but another framebuffer still holds it
+      if (z != zombieTex_.end()) { r.kind = 'o'; r.object = z->second; r.objKind = 4; }
+    }
     else for (auto& b : rbos_) if (b.second.name == static_cast<std::uint32_t>(v)) { r.kind = 'o'; r.object = b.first; r.objKind = 7; }
     return r;
   }
@@ -553,6 +639,7 @@ WebGL1::Param WebGL1::getFramebufferAttachmentParameter(std::uint32_t target, st
     case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER: if (version_ != 2 || type != GL_TEXTURE) { error(GL_INVALID_ENUM); return r; } break;
     case GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE: case GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: case GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
       if (version_ != 2) { error(GL_INVALID_ENUM); return r; }
+      if (attachment == GL_DEPTH_STENCIL_ATTACHMENT && pname == GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE) { error(GL_INVALID_OPERATION); return r; }   // depth and stencil differ
       break;
     default: error(GL_INVALID_ENUM); return r;
   }
@@ -593,7 +680,7 @@ WebGL1::Param WebGL1::getActiveUniforms(Id pid, const std::vector<std::uint32_t>
   for (std::uint32_t i : indices) if (i >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return r; }
   std::vector<GLint> v(indices.size());
   if (!indices.empty()) glGetActiveUniformsiv(p->second.name, static_cast<GLsizei>(indices.size()), indices.data(), pname, v.data());
-  r.ok = true; r.kind = 'a';
+  r.ok = true; r.kind = pname == GL_UNIFORM_IS_ROW_MAJOR ? 'B' : 'a';
   for (GLint x : v) r.v.push_back(pname == GL_UNIFORM_IS_ROW_MAJOR ? (x != 0) : x);
   ok = true;
   return r;

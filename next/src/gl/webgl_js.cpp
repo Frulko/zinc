@@ -303,6 +303,8 @@ JSValue paramToJs(JSContext* c, Gl* g, std::uint32_t pname, const WebGL1::Param&
     case 'f': return JS_NewFloat64(c, p.v.empty() ? 0 : p.v[0]);
     case 's': return JS_NewString(c, p.s.c_str());
     case 'n': return JS_NULL;
+    case 'B': { JSValue arr = JS_NewArray(c); for (std::size_t i = 0; i < p.v.size(); ++i) JS_SetPropertyUint32(c, arr, static_cast<std::uint32_t>(i), JS_NewBool(c, p.v[i] != 0)); return arr; }
+    case 'U': return typed(c, "Uint32Array", p.v);
     case 'o': return wrapOnce(c, g, p.objKind, p.object);
     case 'a': {
       switch (pname) {
@@ -570,7 +572,7 @@ M(bindBufferRange) { SELF NEED(5); OBJ(o, 2, 1) gl.bindBufferRange(U(0), U(1), o
 M(getUniformBlockIndex) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewUint32(c, gl.getUniformBlockIndex(p.id, str(c, argv[1]))); }
 M(uniformBlockBinding) { SELF NEED(3); OBJR(p, 0, 3) gl.uniformBlockBinding(p.id, U(1), U(2)); return JS_UNDEFINED; }
 M(getActiveUniformBlockParameter) { SELF NEED(3); OBJR(p, 0, 3) std::uint32_t pn = U(2); return paramToJs(c, g, pn, gl.getActiveUniformBlockParameter(p.id, U(1), pn)); }
-M(getActiveUniformBlockName) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewString(c, gl.getActiveUniformBlockName(p.id, U(1)).c_str()); }
+M(getActiveUniformBlockName) { SELF NEED(2); OBJR(p, 0, 3) bool ok = false; std::string s = gl.getActiveUniformBlockName(p.id, U(1), ok); return ok ? JS_NewString(c, s.c_str()) : JS_NULL; }
 M(copyBufferSubData) { SELF NEED(5); gl.copyBufferSubData(U(0), U(1), i64(c, argv[2]), i64(c, argv[3]), i64(c, argv[4])); return JS_UNDEFINED; }
 M(getBufferSubData) {
   SELF NEED(3);
@@ -683,7 +685,9 @@ M(framebufferTextureLayer) { SELF NEED(5); OBJ(o, 2, 4) gl.framebufferTextureLay
 M(getFragDataLocation) { SELF NEED(2); OBJR(p, 0, 3) return JS_NewInt32(c, gl.getFragDataLocation(p.id, str(c, argv[1]))); }
 M(getInternalformatParameter) {
   SELF NEED(3);
-  std::vector<int> v = gl.getInternalformatParameter(U(0), U(1), U(2));
+  bool ok = false;
+  std::vector<int> v = gl.getInternalformatParameter(U(0), U(1), U(2), ok);
+  if (!ok) return JS_NULL;
   std::vector<double> d(v.begin(), v.end());
   return typed(c, "Int32Array", d);
 }

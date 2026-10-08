@@ -124,7 +124,7 @@ bool WebGL1::create(Api api, int width, int height, std::string& err, int versio
   GLint m = 0;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m);
   maxTexSize_ = m;
-  if (!gl_.info().es) { glGenVertexArrays(1, &vao_); glBindVertexArray(vao_); glEnable(GL_PROGRAM_POINT_SIZE); }   // core profiles need the switch for gl_PointSize, WebGL always honours it   // core contexts have no default VAO; the WebGL1 attribute state lives in this one
+  if (!gl_.info().es) { glGenVertexArrays(1, &vao_); glBindVertexArray(vao_); glEnable(GL_PROGRAM_POINT_SIZE); glEnable(GL_FRAMEBUFFER_SRGB); }   // sRGB attachments always convert in WebGL 2   // core profiles need the switch for gl_PointSize, WebGL always honours it   // core contexts have no default VAO; the WebGL1 attribute state lives in this one
   while (glGetError() != GL_NO_ERROR) {}
   return true;
 }
@@ -520,7 +520,20 @@ Id WebGL1::createTexture() { Tex t; glGenTextures(1, &t.name); Id id = nextId_++
 void WebGL1::deleteTexture(Id id) {
   auto it = textures_.find(id);
   if (it == textures_.end()) return;
-  glDeleteTextures(1, &it->second.name);
+  // deleting an image attached to the bound framebuffer detaches it there (as GL does); other framebuffers keep it alive
+  const std::uint32_t name = it->second.name;
+  for (int side = 0; side < 2; ++side) {
+    const Id fb = side ? fboRead_ : fbo_;
+    if (!fb || (side && fboRead_ == fbo_)) continue;
+    for (int slot = 0; slot < 6; ++slot) if (fbos_[fb].tx[slot] == name) {
+      static const GLenum atts[6] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT0 + 1, GL_COLOR_ATTACHMENT0 + 2, GL_COLOR_ATTACHMENT0 + 3, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+      glFramebufferTexture2D(side ? GL_READ_FRAMEBUFFER : GL_DRAW_FRAMEBUFFER, atts[slot], GL_TEXTURE_2D, 0, 0);
+      attachRb(fb, atts[slot], 0, 0);
+    }
+  }
+  bool held = false;
+  for (auto& e : fbos_) for (std::uint32_t n : e.second.tx) if (n == name) held = true;
+  if (held) zombieTex_[name] = id; else glDeleteTextures(1, &it->second.name);
   for (Id& b : tex2d_) if (b == id) b = 0;
   for (Id& b : texCube_) if (b == id) b = 0;
   for (auto& f : fbos_) if (f.second.color == id) f.second.color = 0;
@@ -625,16 +638,18 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
   if (target != GL_FRAMEBUFFER && !(version_ == 2 && (target == GL_READ_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER))) return error(GL_INVALID_ENUM);
   if (attachment != GL_COLOR_ATTACHMENT0 && attachment != GL_DEPTH_ATTACHMENT && attachment != GL_STENCIL_ATTACHMENT && attachment != GL_DEPTH_STENCIL_ATTACHMENT && !(version_ == 2 && attachment > GL_COLOR_ATTACHMENT0 && attachment < GL_COLOR_ATTACHMENT0 + 4)) return error(GL_INVALID_ENUM);
   if (textarget != GL_TEXTURE_2D && !(textarget >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && textarget <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)) return error(GL_INVALID_ENUM);
-  if (level != 0) return error(GL_INVALID_VALUE);
-  if (!fbo_) return error(GL_INVALID_OPERATION);
+  if (version_ == 2 ? (tex && (level < 0 || level > 14)) : level != 0) return error(GL_INVALID_VALUE);
+  const Id bound = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
+  if (!bound) return error(GL_INVALID_OPERATION);
   std::uint32_t name = 0;
   if (tex) {
     auto it = textures_.find(tex);
     if (it == textures_.end()) return error(GL_INVALID_OPERATION);
     name = it->second.name;
   }
-  if (attachment == GL_COLOR_ATTACHMENT0) fbos_[fbo_].color = tex;
-  glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, textarget, name, 0);
+  if (attachment == GL_COLOR_ATTACHMENT0) { Fbo& f = fbos_[bound]; f.color = tex; f.colorLevel = level; f.colorFace = textarget; f.colorRb = 0; }
+  attachRb(bound, attachment, 0, name);
+  glFramebufferTexture2D(target, attachment, textarget, name, level);
 }
 // the per-draw test: the driver's own answer is enough unless it says no (then the full rules decide)
 bool WebGL1::framebufferReady() { return !fbo_ || glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE || checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE; }
@@ -672,6 +687,17 @@ std::uint32_t WebGL1::checkFramebufferStatus(std::uint32_t target) {
   const Img depth = img(GL_DEPTH_ATTACHMENT), stencil = img(GL_STENCIL_ATTACHMENT);
   while (glGetError() != GL_NO_ERROR) {}
   if (depth.type != GL_NONE && stencil.type != GL_NONE && !(depth == stencil)) return GL_FRAMEBUFFER_UNSUPPORTED;   // depth and stencil must be the same image
+  // WebGL 2 wants every attachment the same size (GL 3.3 does not care)
+  int w = -1, h = -1;
+  const Img* all[6] = {&color[0], &color[1], &color[2], &color[3], &depth, &stencil};
+  for (const Img* a : all) {
+    int iw = -1, ih = -1;
+    if (a->type == GL_RENDERBUFFER) { for (auto& r : rbos_) if (r.second.name == static_cast<std::uint32_t>(a->name)) { iw = r.second.w; ih = r.second.h; } }
+    else if (a->type == GL_TEXTURE) { for (auto& t : textures_) if (t.second.name == static_cast<std::uint32_t>(a->name)) { iw = std::max(1, t.second.w >> a->level); ih = std::max(1, t.second.h >> a->level); } }
+    if (iw < 0) continue;
+    if (w >= 0 && (iw != w || ih != h)) return GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS;
+    w = iw; h = ih;
+  }
   return status;
 }
 void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {

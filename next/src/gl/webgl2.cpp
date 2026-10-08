@@ -163,18 +163,29 @@ WebGL1::Param WebGL1::getActiveUniformBlockParameter(Id pid, std::uint32_t block
       return r;
     }
   }
+  if (pname == GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES) {
+    GLint count = 0;
+    glGetActiveUniformBlockiv(p->second.name, block, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &count);
+    std::vector<GLint> idx(static_cast<std::size_t>(count));
+    if (count) glGetActiveUniformBlockiv(p->second.name, block, pname, idx.data());
+    r.ok = true; r.kind = 'U';
+    for (GLint i : idx) r.v.push_back(i);
+    return r;
+  }
   error(GL_INVALID_ENUM);
   return r;
 }
-std::string WebGL1::getActiveUniformBlockName(Id pid, std::uint32_t block) {
+std::string WebGL1::getActiveUniformBlockName(Id pid, std::uint32_t block, bool& ok) {
+  ok = false;
   auto p = programs_.find(pid);
-  if (p == programs_.end()) { error(GL_INVALID_OPERATION); return ""; }
+  if (p == programs_.end() || !p->second.linked) { error(GL_INVALID_OPERATION); return ""; }
   GLint n = 0;
   glGetProgramiv(p->second.name, GL_ACTIVE_UNIFORM_BLOCKS, &n);
   if (block >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return ""; }
   char buf[256];
   GLsizei len = 0;
   glGetActiveUniformBlockName(p->second.name, block, sizeof buf, &len, buf);
+  ok = true;
   return std::string(buf, static_cast<std::size_t>(len));
 }
 
