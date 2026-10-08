@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""layout-fuzz: random flex trees laid out by zinc:ui and by headless Chrome, compared box by box (ZN-253, ZN-254).
+
+  tools/layout-fuzz [--cases N] [--seed S] [--keep DIR]    exit 1 when a case differs by more than 1 px
+The classes are the Tailwind-style subset with the same meaning in CSS (flex direction, gap, padding, justify, items, fixed sizes, grow, basis, self, order, margins, wrap with content);
+sizes stay small so nothing overflows (flex-shrink is 0 on both sides). Every element is `display:flex; box-sizing:border-box; min-size 0`.
+"""
+import json, os, random, subprocess, sys, tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); sys.path.insert(0, HERE)
+from cdp import Chrome, find_chrome
+
+args = sys.argv[1:]
+def opt(name, default):
+    return args[args.index(name) + 1] if name in args else default
+N = int(opt("--cases", 200)); SEED = int(opt("--seed", 1)); KEEP = opt("--keep", None)
+ZINC = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
+W, H = 400, 300
+
+JUSTIFY = {"start": "flex-start", "center": "center", "end": "flex-end", "between": "space-between", "around": "space-around", "evenly": "space-evenly"}
+ITEMS = {"start": "flex-start", "center": "center", "end": "flex-end", "stretch": "stretch"}
+CONTENT = {"start": "flex-start", "center": "center", "end": "flex-end", "between": "space-between", "around": "space-around", "evenly": "space-evenly", "stretch": "stretch"}
+def css(tok):
+    """the CSS declarations of one class token"""
+    t = tok
+    if t == "flex-row": return "flex-direction:row"
+    if t == "flex-col": return "flex-direction:column"
+    if t == "flex-wrap": return "flex-wrap:wrap"
+    if t.startswith("justify-"): return "justify-content:" + JUSTIFY[t[8:]]
+    if t.startswith("items-"): return "align-items:" + ITEMS[t[6:]]
+    if t.startswith("content-"): return "align-content:" + CONTENT[t[8:]]
+    if t.startswith("self-"): return "align-self:" + ITEMS[t[5:]]
+    if t.startswith("gap-x-"): return "column-gap:%dpx" % (int(t[6:]) * 4)
+    if t.startswith("gap-y-"): return "row-gap:%dpx" % (int(t[6:]) * 4)
+    if t.startswith("gap-"): return "gap:%dpx" % (int(t[4:]) * 4)
+    if t.startswith("p-"): return "padding:%dpx" % (int(t[2:]) * 4)
+    if t.startswith("m-"): return "margin:%dpx" % (int(t[2:]) * 4)
+    if t.startswith("w-["): return "width:" + t[3:-1]
+    if t.startswith("h-["): return "height:" + t[3:-1]
+    if t.startswith("basis-["): return "flex-basis:" + t[7:-1]
+    if t == "grow": return "flex-grow:1"
+    if t.startswith("grow-"): return "flex-grow:" + t[5:]
+    if t.startswith("order-"): return "order:" + t[6:]
+    raise ValueError(tok)
+
+def gen(rng):
+    def node(depth, parent_row):
+        cls = [rng.choice(["flex-row", "flex-col"])]
+        row = cls[0] == "flex-row"
+        if rng.random() < 0.8: cls.append("justify-" + rng.choice(list(JUSTIFY)))
+        cls.append("items-" + rng.choice(list(ITEMS)))
+        if rng.random() < 0.5: cls.append("gap-%d" % rng.randint(0, 3))
+        if rng.random() < 0.4: cls.append("p-%d" % rng.randint(0, 3))
+        if rng.random() < 0.3 and depth > 0: cls.append("m-%d" % rng.randint(0, 2))
+        if rng.random() < 0.15: cls.append("order-%d" % rng.randint(0, 3))
+        if rng.random() < 0.25: cls.append("self-" + rng.choice(list(ITEMS)))
+        if rng.random() < 0.3: cls.append("grow" if rng.random() < 0.6 else "grow-%d" % rng.randint(2, 3))
+        if rng.random() < 0.15: cls.append("basis-[%dpx]" % rng.choice([20, 30, 40]))
+        has_basis = any(c.startswith("basis-") for c in cls)   # a box with both basis and width: CSS sizes its container by the width, zinc by the basis (not compared)
+        kids = []
+        leaf = depth >= 2 or rng.random() < 0.3
+        if leaf:
+            cls[:] = [c for c in cls if not c.startswith("p-")]   # CSS floors a box at its padding, zinc does not: not a case worth comparing
+            if rng.random() < 0.9 and not has_basis: cls.append("w-[%dpx]" % rng.choice([10, 20, 30, 40, 50]))
+            if rng.random() < 0.9 and not has_basis: cls.append("h-[%dpx]" % rng.choice([10, 20, 30, 40, 50]))
+        else:
+            if rng.random() < 0.3 and not has_basis: cls.append("w-[%dpx]" % rng.choice([80, 120, 160]))
+            if rng.random() < 0.3 and not has_basis: cls.append("h-[%dpx]" % rng.choice([60, 90, 120]))
+            kids = [node(depth + 1, row) for _ in range(rng.randint(1, 3))]
+        return {"cls": cls, "kids": kids}
+    root = node(0, True)
+    root["cls"] = [c for c in root["cls"] if not c.startswith(("w-[", "h-[", "m-", "self-", "order-", "grow", "basis-"))] + ["w-[%dpx]" % W, "h-[%dpx]" % H]
+    return root
+
+def flat(t, out=None, parent=-1):
+    out = [] if out is None else out
+    i = len(out); out.append((t["cls"], parent))
+    for k in t["kids"]: flat(k, out, i)
+    return out
+
+rng = random.Random(SEED)
+cases = [gen(rng) for _ in range(N)]
+tmp = KEEP or tempfile.mkdtemp(); os.makedirs(tmp, exist_ok=True)
+
+# ---- Chrome
+def html_of(t):
+    def h(n):
+        decl = "display:flex;" + ";".join(css(c) for c in n["cls"])
+        return '<div data-n style="%s">%s</div>' % (decl, "".join(h(k) for k in n["kids"]))
+    return h(t)
+page = "<!doctype html><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;min-width:0;min-height:0;flex-shrink:0}body{margin:0}.case{position:absolute;left:0;width:%dpx;height:%dpx}</style>" % (W, H)
+page += "".join('<div class="case" style="top:%dpx">%s</div>' % (i * (H + 20), html_of(c)) for i, c in enumerate(cases))
+open(os.path.join(tmp, "fuzz.html"), "w").write(page)
+with Chrome(["--window-size=%d,%d" % (W, H * 2)]) as c:
+    c.open("file://" + os.path.join(tmp, "fuzz.html"))
+    import time; time.sleep(1.0)
+    chrome_boxes = c.eval("""[...document.querySelectorAll('.case')].map(cs => { const o = cs.getBoundingClientRect(); return [...cs.querySelectorAll('[data-n]')].map(e => { const r = e.getBoundingClientRect(); return [r.left - o.left, r.top - o.top, r.width, r.height, (() => { const p = e.parentElement, q = p.getBoundingClientRect(), cs = getComputedStyle(p); const L = q.left + parseFloat(cs.paddingLeft), T = q.top + parseFloat(cs.paddingTop), R = q.right - parseFloat(cs.paddingRight), B = q.bottom - parseFloat(cs.paddingBottom); return (e.scrollWidth > e.clientWidth + 0.5 || e.scrollHeight > e.clientHeight + 0.5 || r.left < L - 0.5 || r.top < T - 0.5 || r.right > R + 0.5 || r.bottom > B + 0.5) ? 1 : 0; })()]; }); })""")
+if not chrome_boxes or len(chrome_boxes) != N: print("layout-fuzz: Chrome gave", None if not chrome_boxes else len(chrome_boxes), "cases"); sys.exit(2)
+
+# ---- zinc
+lines = ["import * as ui from 'zinc:ui';", "import { quit } from 'zinc:gfx';", "function build(cls: string[], par: i32[]): i32 {", "  const hs: i32[] = [];",
+         "  for (let i = 0; i < cls.length; i++) { const h = ui.createNode(ui.VIEW); ui.setClass(h, cls[i]); hs.push(h); if (par[i] >= 0) ui.insert(hs[par[i]], h, -1); }", "  return hs[0];", "}",
+         "function boxes(h: i32): string { const n = ui.inspectNode(h); if (n === null) return ''; let s = `${Math.round(n.x * 100) / 100},${Math.round(n.y * 100) / 100},${Math.round(n.lw * 100) / 100},${Math.round(n.lh * 100) / 100};`; for (const c of n.children) s += boxes(c); return s; }"]
+for i, t in enumerate(cases):
+    f = flat(t)
+    lines.append("{ const w = ui.createNode(ui.VIEW); ui.setClass(w, 'flex-row items-start justify-start'); const r = build(%s, %s); ui.insert(w, r, -1); ui.setRoot(w); ui.layout(); console.log('%d ' + boxes(r)); }" % (json.dumps([x[0] and " ".join(x[0]) for x in f]), json.dumps([x[1] for x in f]), i))
+lines.append("quit();")
+prog = os.path.join(tmp, "fuzz.ts"); open(prog, "w").write("\n".join(lines) + "\n")
+r = subprocess.run([ZINC, "run", prog], env=dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_SIZE="%dx%d" % (W, H), ZINC_FRAMES="1"), capture_output=True, text=True, timeout=300)
+mine = {}
+for l in r.stdout.splitlines():
+    p = l.split(" ", 1)
+    if len(p) == 2 and p[0].isdigit(): mine[int(p[0])] = [[float(v) for v in b.split(",")] for b in p[1].strip(";").split(";")]
+if len(mine) != N: print("layout-fuzz: zinc gave %d of %d cases: %s" % (len(mine), N, (r.stderr or r.stdout)[-400:])); sys.exit(2)
+
+SHOW = int(opt('--show', -1))
+if SHOW >= 0:
+    f = flat(cases[SHOW])
+    for j, (cl, par) in enumerate(f): print('%s%d %s  chrome %s  zinc %s' % ('  ' * (1 + len([1 for _ in range(1)]) * 0), j, ' '.join(cl) + ' (parent %d)' % par, [round(v, 1) for v in chrome_boxes[SHOW][j][:4]], [round(v, 1) for v in mine[SHOW][j]]))
+    sys.exit(0)
+bad = 0; worst = 0; skipped = 0
+for i in range(N):
+    a, b = chrome_boxes[i], mine[i]
+    if any(box[4] for box in a): skipped += 1; continue   # a box whose content overflows it: CSS aligns the overflow, zinc clamps (a separate question)
+    a = [box[:4] for box in a]
+    if len(a) != len(b): print("case %d: %d boxes in Chrome, %d in zinc" % (i, len(a), len(b))); bad += 1; continue
+    for j, (p, q) in enumerate(zip(a, b)):
+        d = max(abs(round(x) - y) for x, y in zip(p, q)); worst = max(worst, d)   # Chrome keeps 1/64 px, zinc whole pixels: compare Chrome's rounded boxes
+        if d > 1.0:
+            f = flat(cases[i])
+            print("case %d node %d (%s): Chrome %s, zinc %s" % (i, j, " ".join(f[j][0]), [round(v, 1) for v in p], [round(v, 1) for v in q])); bad += 1; break
+print("layout-fuzz: %d of %d cases differ by more than 1 px (worst %.1f px), %d with overflow skipped, seed %d" % (bad, N - skipped, worst, skipped, SEED))
+sys.exit(1 if bad else 0)

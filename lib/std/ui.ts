@@ -1693,7 +1693,7 @@ function orderKids(kids: UiNode[]): void {
 function applyBasis(c: UiNode, row: boolean, mainAvail: number): void {
   if (c.basis < 0 && c.basisFrac <= 0) return;
   const b: number = c.basis >= 0 ? c.basis : Math.round(mainAvail * c.basisFrac);
-  if (row) c.lw = b; else c.lh = b;
+  if (row) c.lw = Math.max(b, c.pl + c.pr); else c.lh = Math.max(b, c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
 }
 function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
@@ -1781,8 +1781,8 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     if ((n.scroll & 1) !== 0) n.lh = ownH >= 0 ? ownH : n.fullH || n.grow > 0 ? 0 : Math.min(n.contentH, maxH);
     if ((n.scroll & 2) !== 0) n.lw = ownW >= 0 ? ownW : n.fullW || n.grow > 0 ? 0 : Math.min(n.contentW, maxW);
   }
-  if (ownW >= 0) n.lw = ownW;
-  if (ownH >= 0) n.lh = ownH;
+  if (ownW >= 0) n.lw = Math.max(ownW, n.pl + n.pr);
+  if (ownH >= 0) n.lh = Math.max(ownH, n.pt + n.pb);
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
