@@ -120,9 +120,10 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
     {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}, {"flexShrink", {"shrink"}}, {"flexBasis", {"basis"}}};
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
-    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY"};
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY",
+    "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
-    {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
+    {"flexDirection", {{"column", 0}, {"row", 1}}}, {"borderStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
     {"alignItems", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
     {"alignSelf", {{"auto", -1}, {"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"stretch", 3}}},
@@ -665,7 +666,7 @@ struct Lowering {
           std::string sk = styleName(key);
           for (const StyleOp& op : styleEntry(key, lv)) {
             if (sk == "fontSize" && op.key == "fontSize") resources.push_back("font-size: " + std::to_string(static_cast<long>(std::lround(op.value))) + "px");
-            bool color = op.key == "backgroundColor" || op.key == "color" || op.key == "borderColor" || op.key == "shadowColor";
+            bool color = op.key == "color" || (op.key.size() > 5 && op.key.compare(op.key.size() - 5, 5, "Color") == 0);   // backgroundColor, borderTopColor...
             if (color) { char hx[24]; long long cv = static_cast<long long>(op.value); std::snprintf(hx, sizeof hx, "%llx", static_cast<unsigned long long>(cv < 0 ? -cv : cv)); keys.push_back(quote("@" + op.key + ":" + (cv < 0 ? "-" : "") + std::string(hx))); values.push_back("0"); }
             else { keys.push_back(quote(op.key)); values.push_back(jsNumber(op.value)); }
           }
@@ -680,7 +681,7 @@ struct Lowering {
             continue;
           }
           const std::string ck = kStyleAliases.count(sk) && kStyleAliases.at(sk).size() == 1 ? kStyleAliases.at(sk)[0] : sk;   // bg is backgroundColor
-          bool colourKey = ck == "backgroundColor" || ck == "color" || ck == "borderColor" || ck == "shadowColor";
+          bool colourKey = ck == "color" || (ck.size() > 5 && ck.compare(ck.size() - 5, 5, "Color") == 0);
           if (colourKey) {   // a conditional between colour literals: their numbers (a number decided elsewhere stays a number)
             auto choice = literalChoice(key, vb, ve);
             if (!choice.empty()) {

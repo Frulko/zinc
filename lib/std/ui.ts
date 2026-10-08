@@ -811,6 +811,9 @@ const P_SKEW_X: i32 = 72;
 const P_SKEW_Y: i32 = 73;
 const P_SCALE_X: i32 = 74;
 const P_SCALE_Y: i32 = 75;
+const P_BORDER_STYLE: i32 = 76;
+const P_RADIUS_TL: i32 = 77, P_RADIUS_TR: i32 = 78, P_RADIUS_BR: i32 = 79, P_RADIUS_BL: i32 = 80;
+const P_BORDER_TOP_COLOR: i32 = 81, P_BORDER_RIGHT_COLOR: i32 = 82, P_BORDER_BOTTOM_COLOR: i32 = 83, P_BORDER_LEFT_COLOR: i32 = 84;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -876,6 +879,9 @@ function propInit(): void {
   PROP.set('minWidth', P_MIN_WIDTH); PROP.set('maxWidth', P_MAX_WIDTH); PROP.set('minHeight', P_MIN_HEIGHT); PROP.set('maxHeight', P_MAX_HEIGHT); PROP.set('aspectRatio', P_ASPECT);
   PROP.set('shadowColor', P_SHADOW_COLOR); PROP.set('shadowOffsetX', P_SHADOW_X); PROP.set('shadowOffsetY', P_SHADOW_Y); PROP.set('shadowOpacity', P_SHADOW_OPACITY); PROP.set('shadowRadius', P_SHADOW_RADIUS); PROP.set('elevation', P_ELEVATION);
   PROP.set('rotate', P_ROTATE); PROP.set('skewX', P_SKEW_X); PROP.set('skewY', P_SKEW_Y); PROP.set('scaleX', P_SCALE_X); PROP.set('scaleY', P_SCALE_Y);
+  PROP.set('borderStyle', P_BORDER_STYLE);
+  PROP.set('borderTopLeftRadius', P_RADIUS_TL); PROP.set('borderTopRightRadius', P_RADIUS_TR); PROP.set('borderBottomRightRadius', P_RADIUS_BR); PROP.set('borderBottomLeftRadius', P_RADIUS_BL);
+  PROP.set('borderTopColor', P_BORDER_TOP_COLOR); PROP.set('borderRightColor', P_BORDER_RIGHT_COLOR); PROP.set('borderBottomColor', P_BORDER_BOTTOM_COLOR); PROP.set('borderLeftColor', P_BORDER_LEFT_COLOR);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -896,6 +902,14 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   if (id === P_BORDER_COLOR) { n.borderColor = iv; paintDirty = true; return; }
   if (id === P_COLOR) { n.fg = iv; paintDirty = true; return; }
   if (id === P_RADIUS || id === P_RADIUS) { n.radius = v; paintDirty = true; return; }
+  if (id >= P_BORDER_STYLE && id <= P_BORDER_LEFT_COLOR) {   // React Native's borderStyle, corner radii and side colours (ZN-363): the classes' border record
+    const b = n.ownBd();
+    if (id === P_BORDER_STYLE) b.borderStyle = iv;
+    else if (id === P_RADIUS_TL) b.crTL = v; else if (id === P_RADIUS_TR) b.crTR = v; else if (id === P_RADIUS_BR) b.crBR = v; else if (id === P_RADIUS_BL) b.crBL = v;
+    else if (id === P_BORDER_TOP_COLOR) b.bcT = iv; else if (id === P_BORDER_RIGHT_COLOR) b.bcR = iv; else if (id === P_BORDER_BOTTOM_COLOR) b.bcB = iv; else b.bcL = iv;
+    paintDirty = true;
+    return;
+  }
   if (id >= P_ROTATE && id <= P_SCALE_Y) {   // React Native's transform array (ZN-361), around the centre
     if (n.tf === null) n.tf = new TransformX();
     const t = n.tf as TransformX;
@@ -1779,7 +1793,8 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
   const colon = key.indexOf(':');
   if (key.startsWith('@') && colon > 0) {
     const c = parseHex(key.slice(colon + 1)), prop = key.slice(1, colon);
-    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else if (prop === 'shadowColor') n.shColor = c; else n.borderColor = c;
+    if (prop === 'backgroundColor') n.bg = c; else if (prop === 'color') n.fg = c; else if (prop === 'shadowColor') n.shColor = c;
+    else if (prop === 'borderColor') n.borderColor = c; else applyProp(n, propId(prop), prop, c);   // the side colours
     paintDirty = true; return;
   }
   applyToken(n, key.slice(1), '');
