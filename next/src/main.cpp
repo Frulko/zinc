@@ -293,6 +293,12 @@ int main(int argc, char** argv) {
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && !std::strcmp(argv[1], "init")) return zn::cli::init(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && !std::strcmp(argv[2], "--scene"))) return zn::cli::capture(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
     std::string derr;
     if (!zn::cli::discoverEntry(cl, derr)) { std::fprintf(stderr, "zinc: %s\n", derr.c_str()); return 2; }
     if (cl.size() != static_cast<std::size_t>(argc) || !std::equal(cl.begin(), cl.end(), argv, [](const std::string& a, const char* b) { return a == b; })) {

@@ -1,11 +1,15 @@
 #include "cli_core.h"
 
 #include <cstdio>
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "frontend/project.h"
 #include "tc/tc.h"
@@ -29,11 +33,16 @@ const Command kCommands[] = {
   {"init", "zinc init <dir> [--template game|cli|server|iot|remarkable]", "create a project", "Writes zinc.json, src/main.ts[x], assets/, tsconfig.json, .gitignore and a README into an empty directory. Default template: game."},
   {"doctor", "zinc doctor", "check the machine", "Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
   {"toolchain", "zinc toolchain install|path|esptool|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc; targets: the cross targets."},
-  {"capture", "zinc capture --scene <dump> <entry> -o <png> | --bench N T | --damage <dump>", "replay a scene dump", "Renders a ZINC_SCENE_DUMP through the software raster (see docs/reports/ui-rendering-architecture.md)."},
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
   {"flash", "zinc flash --target esp32 [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool."},
   {"update", "zinc update [--check] [manifest-url]", "look for a newer release", "Downloads and verifies a signed manifest's package."},
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]]", "the plugin table", "Lists the plugins visible to a project and where they run."},
+  {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
+  {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS)."},
+  {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
+  {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
+  {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
 };
 
@@ -236,6 +245,199 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
   int plugins = 0;
   for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "plugins", ec)) if (e.is_directory() && fs::exists(e.path() / "plugin.json")) ++plugins;
   std::printf("plugins: %d in %s/../plugins (zinc plugins lists them with the targets they run on)\n", plugins, engineRoot.c_str());
+  return 0;
+}
+
+
+// ---- commands that run the engine itself (ZN-140)
+namespace {
+
+std::string q(const std::string& s) {   // shell quoting
+  std::string o = "'";
+  for (char c : s) { if (c == '\'') o += "'\\''"; else o += c; }
+  return o + "'";
+}
+std::string self() { std::string e = zn::tc::executablePath(); return e.empty() ? "zinc" : e; }
+int status(int rc) { return rc == -1 ? 1 : WIFEXITED(rc) ? WEXITSTATUS(rc) : 1; }
+
+/** Splits `args` (after the command) into the positional entry and the named options listed in `valued`. */
+struct Opts { std::string entry; std::map<std::string, std::string> v; std::vector<std::string> flags; bool bad = false; std::string badArg; };
+Opts parseOpts(const std::vector<std::string>& args, const std::vector<std::string>& valued, const std::vector<std::string>& boolFlags) {
+  Opts o;
+  for (std::size_t i = 2; i < args.size(); ++i) {
+    const std::string& a = args[i];
+    bool took = false;
+    for (const std::string& n : valued) if (a == n && i + 1 < args.size()) { o.v[n] = args[++i]; took = true; break; }
+    if (took) continue;
+    for (const std::string& n : boolFlags) if (a == n) { o.flags.push_back(n); took = true; break; }
+    if (took) continue;
+    if (a.rfind("-", 0) == 0) { o.bad = true; o.badArg = a; return o; }
+    o.entry = a;
+  }
+  return o;
+}
+bool has(const Opts& o, const std::string& f) { for (const std::string& x : o.flags) if (x == f) return true; return false; }
+
+struct ProjectInfo { std::string dir, entry, name, version; };
+bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
+  std::error_code ec;
+  std::string a = arg.empty() ? "." : arg;
+  std::string dir = fs::is_directory(a, ec) ? fs::absolute(a).lexically_normal().string() : fs::absolute(a).parent_path().lexically_normal().string();
+  std::string text;
+  { std::ifstream f(fs::path(dir) / "zinc.json"); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
+  zn::frontend::Project proj;
+  std::string perr;
+  const bool have = !text.empty() && zn::frontend::parseProject(text, proj, perr);
+  if (fs::is_directory(a, ec)) {
+    p.entry = zn::frontend::entryOf(dir, have ? &proj : nullptr);
+    if (p.entry.empty()) { err = "no project in " + dir + " (zinc init creates one)"; return false; }
+  } else p.entry = fs::absolute(a).lexically_normal().string();
+  p.dir = dir;
+  p.name = have && !proj.name.empty() ? proj.name : fs::path(p.entry).stem().string();
+  p.version = have && !proj.app.version.empty() ? proj.app.version : "0.1.0";
+  return true;
+}
+
+std::string zigTargetFor(const std::string& t) {
+  if (t == "macos") return "";   // the host build
+  if (t == "linux" || t == "rpi" || t == "rmpp") return "aarch64-linux";
+  if (t == "rpi1") return "armhf-linux";
+  return t;
+}
+
+}  // namespace
+
+int capture(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {"--frames", "--every", "--out", "--size"}, {});
+  if (o.bad) { std::fprintf(stderr, "zinc capture: unknown option %s\nusage: zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]\n", o.badArg.c_str()); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  std::string frames = o.v.count("--frames") ? o.v["--frames"] : (o.v.count("--every") ? "" : "1,60");
+  std::string out = o.v.count("--out") ? o.v["--out"] : "shots";
+  std::error_code ec;
+  fs::create_directories(out, ec);
+  int last = 0;
+  { std::stringstream ss(frames); std::string tok; while (std::getline(ss, tok, ',')) last = std::max(last, std::atoi(tok.c_str())); }
+  const int every = o.v.count("--every") ? std::atoi(o.v["--every"].c_str()) : 0;
+  const int total = std::max(last, every > 0 ? every * 3 : 0);
+  if (total <= 0) { std::fprintf(stderr, "zinc capture: nothing to capture (--frames or --every)\n"); return 2; }
+  std::string cmd = "env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=" + std::to_string(total) + " ZINC_SHOT=" + q((fs::path(out) / "frame.png").string());
+  if (!frames.empty()) cmd += " ZINC_SHOT_FRAMES=" + q(frames);
+  if (every > 0) cmd += " ZINC_SHOT_EVERY=" + std::to_string(every);
+  if (o.v.count("--size")) cmd += " ZINC_SIZE=" + q(o.v["--size"]);
+  cmd += " " + q(self()) + " run " + q(p.entry);
+  int rc = status(std::system(cmd.c_str()));
+  if (rc != 0) return rc;
+  int n = 0;
+  for (const auto& e : fs::directory_iterator(out, ec)) if (e.path().extension() == ".png") { std::printf("%s\n", e.path().string().c_str()); ++n; }
+  if (!n) { std::fprintf(stderr, "zinc capture: the program drew no frame (does it use zinc:gfx or zinc:ui?)\n"); return 1; }
+  return 0;
+}
+
+int bench(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {"--frames"}, {});
+  if (o.bad) { std::fprintf(stderr, "zinc bench: unknown option %s\nusage: zinc bench [entry|dir] [--frames n]\n", o.badArg.c_str()); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  const std::string frames = o.v.count("--frames") ? o.v["--frames"] : "120";
+  std::string cmd = "env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=" + frames + " ZINC_PROFILE=1 " + q(self()) + " run " + q(p.entry) + " 2>&1 >/dev/null | grep '^zinc profile:'";
+  std::printf("bench %s, %s frames (headless, ms per frame)\n", p.name.c_str(), frames.c_str());
+  std::fflush(stdout);
+  int rc = status(std::system(cmd.c_str()));
+  if (rc != 0) { std::fprintf(stderr, "zinc bench: no profile came back (a program with a frame loop is needed)\n"); return 1; }
+  return 0;
+}
+
+int exportApp(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {"--target", "-o"}, {});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir]\n", o.badArg.c_str()); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
+#if defined(__APPLE__)
+  const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
+#else
+  const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
+#endif
+  const std::string zt = zigTargetFor(target);
+  fs::path out = o.v.count("-o") ? fs::path(o.v["-o"]) : fs::path(p.dir) / "dist" / (p.name + "-" + target);
+  std::error_code ec;
+  fs::remove_all(out, ec);
+  fs::create_directories(out, ec);
+  // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
+  const std::string cmd = zt.empty() ? q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())
+                                     : q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
+  int rc = status(std::system(cmd.c_str()));
+  if (rc != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return rc; }
+  if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
+  writeFile(out / "run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec ./" + p.name + " \"$@\"\n");
+  fs::permissions(out / "run.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+  writeFile(out / "README.txt", p.name + " " + p.version + " (" + target + ") built with Zinc.\nRun: ./run.sh\nThe executable is self-contained: the fonts and images are baked in; assets/ holds the files the program reads at run time.\n");
+  if (target == "linux" || target == "rpi" || target == "rpi1" || target == "rmpp")
+    writeFile(out / (p.name + ".desktop"), "[Desktop Entry]\nType=Application\nName=" + p.name + "\nExec=" + p.name + "\nTerminal=false\nCategories=Utility;\n");
+  if (target == "macos") {
+    std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
+    if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
+  }
+  std::printf("%s\n", out.string().c_str());
+  return 0;
+}
+
+int deploy(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {"--target", "--device", "--dir"}, {"--print"});
+  if (o.bad) { std::fprintf(stderr, "zinc deploy: unknown option %s\nusage: zinc deploy [entry|dir] --target linux|rpi|rpi1|rmpp --device user@host [--dir path] [--print]\n", o.badArg.c_str()); return 2; }
+  if (!o.v.count("--device")) { std::fprintf(stderr, "zinc deploy: --device user@host is needed\n"); return 2; }
+  const std::string device = o.v["--device"];
+  for (char c : device) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '@' || c == '.' || c == '-' || c == '_' || c == ':')) { std::fprintf(stderr, "zinc deploy: --device must look like user@host\n"); return 2; }
+  const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  const std::string remote = o.v.count("--dir") ? o.v["--dir"] : "~/" + p.name;
+  const bool dry = has(o, "--print") || std::getenv("ZINC_DEPLOY_DRY");
+  std::vector<std::string> ex = {"zinc", "export", p.entry, "--target", target};
+  if (!dry) { int rc = exportApp(ex); if (rc != 0) return rc; }
+  const std::string dist = (fs::path(p.dir) / "dist" / (p.name + "-" + target)).string();
+  const std::string mk = "ssh " + q(device) + " " + q("mkdir -p " + remote);
+  const std::string cp = "scp -r " + q(dist + "/.") + " " + q(device + ":" + remote + "/");
+  const std::string run = "ssh " + q(device) + " " + q("cd " + remote + " && ./run.sh");
+  if (dry) { std::printf("%s\n%s\n%s\n", mk.c_str(), cp.c_str(), run.c_str()); return 0; }
+  for (const std::string& c : {mk, cp, run}) { std::printf("+ %s\n", c.c_str()); std::fflush(stdout); if (int rc = status(std::system(c.c_str()))) return rc; }
+  return 0;
+}
+
+int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot) {
+  std::string dir = args.size() >= 3 ? args[2] : ".";
+  std::error_code ec;
+  if (!fs::is_directory(dir, ec)) { std::fprintf(stderr, "zinc tsconfig: %s is not a directory\n", dir.c_str()); return 2; }
+  std::string libFiles;
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "lib", ec)) {
+    const std::string f = e.path().filename().string();
+    if (f.size() > 5 && f.compare(f.size() - 5, 5, ".d.ts") == 0) libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
+  }
+  if (!writeFile(fs::path(dir) / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\"\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n")) { std::fprintf(stderr, "zinc tsconfig: cannot write %s/tsconfig.json\n", dir.c_str()); return 1; }
+  std::printf("wrote %s/tsconfig.json\n", dir.c_str());
+  return 0;
+}
+
+int infer(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {}, {"--write"});
+  if (o.bad) { std::fprintf(stderr, "zinc infer: unknown option %s\nusage: zinc infer <entry|dir>\n", o.badArg.c_str()); return 2; }
+  if (has(o, "--write")) { std::fprintf(stderr, "zinc infer: --write is not available yet: the report below names the declarations to annotate\n"); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  const fs::path tmp = fs::temp_directory_path() / ("zinc-infer-" + std::to_string(getpid()));
+  std::string cmd = q(self()) + " check --check " + q(p.entry) + " > " + q(tmp.string()) + " 2>&1";
+  std::system(cmd.c_str());
+  std::ifstream f(tmp);
+  std::string line;
+  int sites = 0, other = 0;
+  while (std::getline(f, line)) {
+    if (line.find("Z0109") != std::string::npos) { std::printf("%s\n", line.c_str()); ++sites; }
+    else if (line.find("error") != std::string::npos) ++other;
+  }
+  std::error_code ec;
+  fs::remove(tmp, ec);
+  std::printf("%d site(s) where a type could not be inferred%s\n", sites, other ? " (other errors exist: zinc check lists them)" : "");
   return 0;
 }
 
