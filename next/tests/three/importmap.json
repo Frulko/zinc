@@ -1,0 +1,1 @@
+{ "imports": { "three": "../../third_party/three/three.module.js", "GLTFLoader": "../../third_party/three/examples/jsm/loaders/GLTFLoader.js" } }

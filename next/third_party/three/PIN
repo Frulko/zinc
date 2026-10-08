@@ -1,0 +1,2 @@
+three 0.186.1 (MIT), npm tarball three-0.186.1.tgz sha256 8cd068708ea44f2c73c944b1cead2ba2f0d5c15c8fc194e5700f4e4f4a033fe7
+Files: three.module.js, three.core.js (npm build/), LICENSE, examples/jsm/loaders/GLTFLoader.js, examples/jsm/utils/BufferGeometryUtils.js, examples/jsm/utils/SkeletonUtils.js (unmodified)

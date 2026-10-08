@@ -81,7 +81,7 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   }
   if (t.immutable && !sub) { error(GL_INVALID_OPERATION); return false; }   // storage fixed the sizes
   int bpp = 0;
-  const bool legacy = !sub && isUnsizedLegacy(ifmt) && ifmt == format && !three;
+  const bool legacy = !sub && isUnsizedLegacy(ifmt) && ifmt == format;   // unsized RGBA on a 3D or array texture too: three.js does it for its placeholders and browsers accept it
   if (!legacy) {
     const std::uint32_t lookupFormat = sub ? 0 : ifmt;
     if (sub) {   // the format of the existing level decides; here the (format, type) pair must exist for some internal format

@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""three-compare: real three.js scenes on zinc's WebGL 2 against headless Chrome (ZN-204).
+
+  tools/three-compare                    run every scene of tests/three on `zinc run --engine quickjs`, compare with tests/three/ref/<scene>.png (SSIM >= 0.90, mean error <= 12), exit 1 below
+  tools/three-compare --update-refs      render the references with headless Chrome (needs Google Chrome; a local http server serves this directory), write tests/three/ref/*.png
+  tools/three-compare --out DIR          keep the zinc frames as PNG in DIR
+The scene modules (tests/three/scenes.mjs) are the same on both sides; 128 x 128 pixels, antialias off.
+"""
+import time, resource, http.server, importlib.machinery, importlib.util, os, socketserver, struct, subprocess, sys, tempfile, threading, zlib
+
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); T = os.path.join(NEXT, "tests", "three"); REF = os.path.join(T, "ref")
+STATS = {}
+SCENES = ["cube", "instancedShadow", "gltf"]; SIZE = 128
+ZINC = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc")); CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader); pd = importlib.util.module_from_spec(spec); loader.exec_module(pd)
+
+def write_png(path, w, h, rgb):
+    def chunk(t, b): return struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xffffffff)
+    raw = b"".join(b"\0" + rgb[y * w * 3:(y + 1) * w * 3] for y in range(h))
+    open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+def zinc_frame(scene):
+    t0 = time.time(); before = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    r = subprocess.run([ZINC, "run", os.path.join(T, "run-%s.mjs" % scene), "--engine", "quickjs"], env=dict(os.environ, ZINC_HEADLESS="1"), capture_output=True, text=True, timeout=300)
+    STATS[scene] = {"seconds": time.time() - t0, "rss_mb": max(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss, before) / (1024 * 1024 if sys.platform == "darwin" else 1024), "calls": next((l[6:] for l in r.stdout.splitlines() if l.startswith("CALLS ")), "?")}
+    line = next((l for l in r.stdout.splitlines() if l.startswith("RGBA ")), None)
+    if not line: raise RuntimeError("%s: no frame: %s" % (scene, (r.stderr or r.stdout).strip()[:400]))
+    raw = bytes.fromhex(line[5:]); rgb = bytearray()
+    for y in range(SIZE - 1, -1, -1):   # readPixels is bottom to top
+        row = raw[y * SIZE * 4:(y + 1) * SIZE * 4]
+        for x in range(SIZE): rgb += row[x * 4:x * 4 + 3]
+    return bytes(rgb)
+
+def luma(rgb): return [0.299 * rgb[i] + 0.587 * rgb[i + 1] + 0.114 * rgb[i + 2] for i in range(0, len(rgb), 3)]
+def ssim(a, b, w, h, win=8):
+    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2; total = n = 0
+    for y in range(0, h - win + 1, 4):
+        for x in range(0, w - win + 1, 4):
+            pa = [a[(y + j) * w + x + i] for j in range(win) for i in range(win)]; pb = [b[(y + j) * w + x + i] for j in range(win) for i in range(win)]
+            ma, mb = sum(pa) / len(pa), sum(pb) / len(pb)
+            va = sum((v - ma) ** 2 for v in pa) / len(pa); vb = sum((v - mb) ** 2 for v in pb) / len(pb); cov = sum((p - ma) * (q - mb) for p, q in zip(pa, pb)) / len(pa)
+            total += ((2 * ma * mb + c1) * (2 * cov + c2)) / ((ma ** 2 + mb ** 2 + c1) * (va + vb + c2)); n += 1
+    return total / n
+def load_png(path):
+    w, h, bpp, d = pd.dec(path); return w, h, b"".join(d[i * bpp:i * bpp + 3] for i in range(w * h)) if bpp == 4 else d
+
+def update_refs():
+    class Q(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **k): super().__init__(*a, directory=NEXT, **k)
+        def log_message(self, *a): pass
+    srv = socketserver.TCPServer(("127.0.0.1", 0), Q); port = srv.server_address[1]; threading.Thread(target=srv.serve_forever, daemon=True).start()
+    os.makedirs(REF, exist_ok=True)
+    for s in SCENES:
+        out = os.path.join(REF, s + ".png")
+        subprocess.run([CHROME, "--headless=new", "--disable-gpu-vsync", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=%d,%d" % (SIZE, SIZE), "--virtual-time-budget=20000", "--screenshot=" + out, "http://127.0.0.1:%d/tests/three/page.html?scene=%s" % (port, s)], capture_output=True, timeout=120)
+        w, h, rgb = load_png(out); write_png(out, w, h, rgb); print("ref", s, w, h)
+    srv.shutdown()
+
+def main():
+    if "--update-refs" in sys.argv: update_refs(); return 0
+    out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
+    bad = 0
+    for s in SCENES:
+        try: mine = zinc_frame(s)
+        except Exception as e: print("FAIL %s: %s" % (s, e)); bad += 1; continue
+        if out: os.makedirs(out, exist_ok=True); write_png(os.path.join(out, s + ".png"), SIZE, SIZE, mine)
+        w, h, ref = load_png(os.path.join(REF, s + ".png"))
+        if (w, h) != (SIZE, SIZE): print("FAIL %s: reference is %dx%d" % (s, w, h)); bad += 1; continue
+        q = ssim(luma(mine), luma(ref), SIZE, SIZE); mae = sum(abs(a - b) for a, b in zip(mine, ref)) / len(mine)
+        ok = q >= 0.90 and mae <= 12; bad += not ok
+        print("%s %-16s ssim %.3f mean error %.2f   gl calls %s, %.1f s, peak %.0f MB" % ("ok  " if ok else "FAIL", s, q, mae, STATS[s]["calls"], STATS[s]["seconds"], STATS[s]["rss_mb"]))
+    return 1 if bad else 0
+sys.exit(main())

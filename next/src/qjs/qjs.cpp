@@ -1,3 +1,5 @@
+#include "yyjson.h"
+#include <map>
 #include "qjs/qjs.h"
 #include "zn/js_ext.h"
 
@@ -29,6 +31,7 @@ struct Engine {
   JSRuntime* rt = nullptr;
   JSContext* ctx = nullptr;
   std::string stdRoot;
+  std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
 };
 
 bool readFile(const std::string& path, std::string& out) {
@@ -168,10 +171,11 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   return true;
 }
 
-char* normalizeName(JSContext* ctx, const char* base, const char* name, void*) {
+char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
   std::string n = name;
   std::string r = n;
-  if (n.rfind("zinc:", 0) != 0 && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
+  if (auto* e = static_cast<Engine*>(opaque)) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
+  if (r == n && n.rfind("zinc:", 0) != 0 && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
     r = normalize(dirOf(base) + "/" + n);
     std::string probe;
     for (const char* ext : {"", ".ts", ".js", ".mjs", "/index.ts"}) {
@@ -300,6 +304,16 @@ int run(const Options& o) {
 
   std::string entry = o.entry;
   if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
+  {   // importmap.json next to the entry: {"imports": {"three": "../../third_party/three/build/three.module.js"}} (paths relative to the file)
+    std::string text, dir = dirOf(entry);
+    if (readFile(dir + "/importmap.json", text)) {
+      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+      yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;
+      size_t i, n; yyjson_val *k, *v;
+      if (im && yyjson_is_obj(im)) yyjson_obj_foreach(im, i, n, k, v) if (yyjson_is_str(v)) e.imports[yyjson_get_str(k)] = normalize(yyjson_get_str(v)[0] == '/' ? std::string(yyjson_get_str(v)) : dir + "/" + yyjson_get_str(v));
+      yyjson_doc_free(doc);
+    }
+  }
   int rc = 0;
   std::string js, err;
   if (!moduleText(e, entry, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }

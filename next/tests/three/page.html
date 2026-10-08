@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html, body { margin: 0; background: #000; overflow: hidden; } canvas { display: block; }</style>
+<script type="importmap">
+{ "imports": { "three": "/third_party/three/three.module.js", "GLTFLoader": "/third_party/three/examples/jsm/loaders/GLTFLoader.js" } }
+</script></head>
+<body>
+<script type="module">
+// The reference frame of tools/three-compare: the scene of tests/three/scenes.mjs in a real browser (headless Chrome), 128 x 128 CSS pixels.
+import * as THREE from 'three';
+import * as scenes from '/tests/three/scenes.mjs';
+import { glb } from '/tests/three/glb.mjs';
+const canvas = document.createElement('canvas');
+canvas.width = 128; canvas.height = 128;
+document.body.appendChild(canvas);
+const name = new URL(location.href).searchParams.get('scene');
+const s = await scenes[name](THREE, canvas, { import: (n) => import(n), glb });
+s.render();
+document.title = 'done';
+</script></body></html>

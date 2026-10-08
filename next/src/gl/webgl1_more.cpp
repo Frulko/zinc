@@ -339,7 +339,7 @@ WebGL1::Param WebGL1::getUniform(Id pid, const UniformLoc& l) {
   auto p = programs_.find(pid);
   if (p == programs_.end() || !p->second.linked || !l.valid() || l.program != pid) { error(GL_INVALID_OPERATION); return r; }
   r.ok = true;
-  const bool isInt = l.type == GL_INT || l.type == GL_BOOL || l.type == GL_SAMPLER_2D || l.type == GL_SAMPLER_CUBE;
+  const bool isInt = l.type == GL_INT || l.type == GL_BOOL || isSamplerType(l.type);
   int n = l.type == GL_FLOAT_VEC2 || l.type == GL_INT_VEC2 || l.type == GL_BOOL_VEC2 ? 2 : l.type == GL_FLOAT_VEC3 || l.type == GL_INT_VEC3 || l.type == GL_BOOL_VEC3 ? 3 : l.type == GL_FLOAT_VEC4 || l.type == GL_INT_VEC4 || l.type == GL_BOOL_VEC4 || l.type == GL_FLOAT_MAT2 ? 4 : l.type == GL_FLOAT_MAT3 ? 9 : l.type == GL_FLOAT_MAT4 ? 16 : 1;
   GLfloat f[16] = {};
   if (isInt || l.type == GL_INT_VEC2 || l.type == GL_INT_VEC3 || l.type == GL_INT_VEC4 || l.type == GL_BOOL_VEC2 || l.type == GL_BOOL_VEC3 || l.type == GL_BOOL_VEC4) { GLint iv[16] = {}; glGetUniformiv(p->second.name, l.location, iv); for (int i = 0; i < n; ++i) f[i] = static_cast<float>(iv[i]); }
@@ -374,10 +374,10 @@ void WebGL1::uniformNfv(const UniformLoc& l, int n, const float* v, std::size_t 
   if (n == 1) glUniform1fv(l.location, k, v); else if (n == 2) glUniform2fv(l.location, k, v); else if (n == 3) glUniform3fv(l.location, k, v); else glUniform4fv(l.location, k, v);
 }
 void WebGL1::uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count) {
-  if (n == 1) { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL, GL_SAMPLER_2D, GL_SAMPLER_CUBE) }
+  if (n == 1) { if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION); } else { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL) } }
   else if (n == 2) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
-  if (l.type == GL_SAMPLER_2D || l.type == GL_SAMPLER_CUBE) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= 32) return error(GL_INVALID_VALUE);
+  if (isSamplerType(l.type)) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= 32) return error(GL_INVALID_VALUE);
   const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / n, static_cast<std::size_t>(l.size)));
   if (n == 1) glUniform1iv(l.location, k, v); else if (n == 2) glUniform2iv(l.location, k, v); else if (n == 3) glUniform3iv(l.location, k, v); else glUniform4iv(l.location, k, v);
 }

@@ -10,6 +10,11 @@
 #include "gl/offscreen.h"
 
 namespace zn::gl {
+/** Every sampler type of GLSL ES 3.00 (WebGL 2 adds 3D, array, shadow and integer samplers): such a uniform takes a texture unit through uniform1i / uniform1iv. */
+inline bool isSamplerType(std::uint32_t t) {
+  return t == 0x8B5E || t == 0x8B5F || t == 0x8B60 || t == 0x8B62 || t == 0x8DC1 || t == 0x8DC4 || t == 0x8DC5 || (t >= 0x8DCA && t <= 0x8DCC) || t == 0x8DCF || (t >= 0x8DD2 && t <= 0x8DD4) || t == 0x8DD7;
+}
+
 
 using Id = std::uint32_t;   // 0: null object
 bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
@@ -276,7 +281,7 @@ class WebGL1 {
   bool depthAttr_ = true, stencilAttr_ = false;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
   std::uint32_t defaultRead_ = 0x0405, defaultDraw_[4] = {0x0405, 0, 0, 0};   // BACK; NONE for the others
   int uniformAlignment_ = 256;
-  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[8] = {}, texCube_[8] = {}, tex3d_[8] = {}, texArr_[8] = {}, samplerUnit_[8] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
+  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[32] = {}, texCube_[32] = {}, tex3d_[32] = {}, texArr_[32] = {}, samplerUnit_[32] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
   int unpackAlignment_ = 4, maxTexSize_ = 0;

@@ -10,7 +10,7 @@ namespace zn::gl {
 namespace {
 
 constexpr int kMaxAttribs = 16;
-constexpr int kMaxUnits = 8;
+constexpr int kMaxUnits = 32;   // the units reported by MAX_COMBINED_TEXTURE_IMAGE_UNITS (three.js binds TEXTURE0 + that - 1)
 
 int typeSize(std::uint32_t t) {
   switch (t) {
@@ -26,8 +26,21 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
   if (es) return src;
   {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
     std::size_t at = src.find("#version");
-    if (at != std::string::npos && src.compare(at, 17, "#version 300 es\n") == 0) return "#version 330 core\n" + src.substr(at + 16);
-    if (at != std::string::npos && src.compare(at, 16, "#version 300 es") == 0) return "#version 330 core\n" + src.substr(at + 15);
+    const bool es3 = at != std::string::npos && src.compare(at, 15, "#version 300 es") == 0;
+    if (es3) {
+      std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
+      // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
+      for (const char* name : {"gl_FragColor", "gl_FragData"}) {
+        const std::string from = name, to = std::string("zn_") + (name + 3);
+        for (std::size_t p = body.find(from); p != std::string::npos; p = body.find(from, p + to.size())) {
+          const bool left = p > 0 && (std::isalnum(static_cast<unsigned char>(body[p - 1])) || body[p - 1] == '_');
+          const std::size_t e = p + from.size();
+          const bool right = e < body.size() && (std::isalnum(static_cast<unsigned char>(body[e])) || body[e] == '_');
+          if (!left && !right) body.replace(p, from.size(), to);
+        }
+      }
+      return "#version 330 core\n" + body;
+    }
   }
   std::string body;
   std::string pre = "#version 330 core\n";
@@ -320,10 +333,10 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   auto it = programs_.find(pid);
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return l; }
   if (name.compare(0, 3, "gl_") == 0 || name.compare(0, 6, "webgl_") == 0) return l;
-  std::size_t br = name.find('[');
-  if (br != std::string::npos) {   // "u[3]": digits only, an index that fits an int, and the closing bracket last (a huge index must not wrap into a valid one)
+  for (std::size_t br = name.find('['); br != std::string::npos; br = name.find('[', br + 1)) {   // "u[3]", "lights[2].color": digits only, an index that fits an int, a closing bracket that ends the name or is followed by `.` or `[`
     std::size_t close = name.find(']', br);
-    if (close != name.size() - 1 || close == br + 1) return l;
+    if (close == std::string::npos || close == br + 1) return l;
+    if (close != name.size() - 1 && name[close + 1] != '.' && name[close + 1] != '[') return l;
     std::uint64_t idx = 0;
     for (std::size_t i = br + 1; i < close; ++i) { if (name[i] < '0' || name[i] > '9') return l; idx = idx * 10 + static_cast<std::uint64_t>(name[i] - '0'); if (idx > 0x7fffffffu) return l; }
   }
@@ -339,7 +352,8 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
     GLenum type = 0;
     glGetActiveUniform(it->second.name, static_cast<GLuint>(i), sizeof buf, &len, &size, &type, buf);
     std::string an(buf, static_cast<std::size_t>(len));
-    if (an.substr(0, an.find('[')) == base) { l.type = type; l.size = size; break; }
+    // a member of a struct (array) is found by its whole name; a plain array by its base (u[3] is the active uniform u[0])
+    if (name.find('.') != std::string::npos ? an == name : an.substr(0, an.find('[')) == base) { l.type = type; l.size = size; break; }
   }
   l.program = pid;
   l.location = loc;
@@ -355,8 +369,9 @@ void WebGL1::uniform1f(const UniformLoc& l, float x) { ZN_UNIFORM_CHECK(l, GL_FL
 void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) glUniform2f(l.location, x, y); }
 void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) glUniform4f(l.location, x, y, z, w); }
 void WebGL1::uniform1i(const UniformLoc& l, int x) {
-  ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL, GL_SAMPLER_2D, GL_SAMPLER_CUBE)
-  if ((l.type == GL_SAMPLER_2D || l.type == GL_SAMPLER_CUBE) && (x < 0 || x >= 32)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist (MAX_COMBINED_TEXTURE_IMAGE_UNITS is reported as 32)
+  if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_) return error(GL_INVALID_OPERATION); }
+  else { ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL) }
+  if (isSamplerType(l.type) && (x < 0 || x >= 32)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist (MAX_COMBINED_TEXTURE_IMAGE_UNITS is reported as 32)
   glUniform1i(l.location, x);
 }
 void WebGL1::uniformMatrix4fv(const UniformLoc& l, bool transpose, const float* v, std::size_t n) {
