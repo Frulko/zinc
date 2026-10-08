@@ -4,7 +4,7 @@ Overwritten at the end of every session. Run `next/tools/status` (or `/zn-resume
 
 ## State (2026-10-08)
 
-- Done: M0 to M6, the first parity round, and today: the simulator chain (ZN-295.01, 296, 297, 299), the WebGL validation with glslang (link checks, std140 blocks, call depth limit 256, macro depth bound; conformance 695 of 787, no regression), display-gl's GPU renderer committed (f44420e, LINE/POLY), ZN-282 (host layout interface), ZN-283 (Yoga engine behind it) and ZN-284 (native text/image/field measure; the runtime bridge is ZN-284.01, then ZN-285 selection, ZN-286 integration).
+- Done: M0 to M6, the first parity round, and today: the simulator chain (ZN-295.01, 296, 297, 299), the WebGL validation with glslang (link checks, std140 blocks, call depth limit 256, macro depth bound; conformance 695 of 787, no regression), display-gl's GPU renderer committed (f44420e, LINE/POLY), ZN-282 (host layout interface), ZN-283 (Yoga engine behind it) ZN-284 (native text/image/field measure) and ZN-285 (ui.layout option, UI_LAYOUT); next: ZN-284.01 runtime bridge, ZN-286 integration.
 - Order of work (`backlog/priority.json`): UI, then M19 app templates/packaging/distribution (ZN-315..329, owner 2026-10-08), desktop, rendering, 3D/WebGL, then simulators. The GL renderer tasks (R2/R3, ZN-178..186, 201, 202) and the layout chain (ZN-282..291) are unparked: display-gl and lib/std/ui.ts have no uncommitted work left.
 - Parity plan, audits and decisions: `docs/reports/parity/01..04`, `docs/reports/zinc-next-decisions.md`.
 - Parked: boards, Windows, Linux-only runs (ZN-054, 055, 133, 134, 137, 245) and the measurement-parked ZN-177, 190, 191.
