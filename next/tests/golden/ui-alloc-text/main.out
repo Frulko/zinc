@@ -1,0 +1,2 @@
+passes te-900: 437 | te-900 line-clamp-3 text: 461 | te-900 whitespace-pre-wr: 606 | te-900 truncate: 73
+clamp <= 1.5x default true pre-wrap <= 1.5x true truncate <= default true

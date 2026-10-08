@@ -3,10 +3,10 @@ id: ZN-269
 title: >-
   UI style: Text layout: `white-space`, `overflow-wrap`, `word-break`, ellipsis,
   `line-clamp`, justify, `balance`
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 07:05'
+updated_date: '2026-10-08 10:17'
 labels:
   - ui
   - style
@@ -29,11 +29,11 @@ From docs/reports/ui-style-system.md (section 6, ST-20). The audit and the desig
 <!-- AC:BEGIN -->
 - [x] #1 `line-clamp-3` on a 600-char string yields 3 lines ending in the ellipsis (exact string test, then golden).
 - [x] #2 Explicit `\n`, `nowrap` and `pre` tests; default wrapping identical (proto text goldens).
-- [ ] #3 `measure` allocations not higher (ZN-189 counter).
+- [x] #3 `measure` allocations not higher (ZN-189 counter).
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. whitespace-normal/nowrap/pre/pre-wrap, break-normal/words/all, truncate, text-ellipsis/clip, line-clamp-N/none, text-justify (free width to the spaces), text-balance (narrowest width keeping the line count). Exact-line test golden/ui-textlayout (630-char line-clamp-3 ends in the ellipsis), scene ui-style/text-layout, token rows; canary 4/4. Ellipsis glyph baked when used. Open: AC3 no allocation counter available (default path unchanged, one extra function call), whitespace-pre-line, style-object keys.
+usage: n/a. AC3: tests/t1/ui_alloc_text.sh counts allocations per layout pass of one long paragraph: default wrapping 437 (the path of before ZN-269), line-clamp-3 461, pre-wrap 606 (limit 1.5x), truncate 73. Fixes: ellipsize is a binary search (1843 to 73), a clamp without balance stops wrapping one line past the clamp, text-balance only for blocks of up to 6 lines (like Chrome; it wrapped the paragraph 13 times: 5515).
 <!-- SECTION:NOTES:END -->

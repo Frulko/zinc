@@ -1644,18 +1644,18 @@ function shownText(n: UiNode): string {
 function spaces(s: string): i32 { let k = 0; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 32) k++; return k; }
 function lineWidth(n: UiNode, f: i32, s: string, tr: number): number { return textWidth(f, s, tr) + (n.wordSp !== 0 ? n.wordSp * spaces(s) : 0); }
 /** Greedy wrap of one paragraph (break-words splits a word wider than the line, break-all breaks anywhere). */
-function wrapPara(n: UiNode, f: i32, tr: number, text: string, avail: number): string[] {
+function wrapPara(n: UiNode, f: i32, tr: number, text: string, avail: number, limit: i32): string[] {   // limit > 0: stops once there are more than `limit` lines (the caller only needs to know that there are more)
   const out: string[] = [];
   if (lineWidth(n, f, text, tr) <= avail || avail <= n.size) { out.push(text); return out; }
   let line = '';
   if (n.brk === 2) {
     for (let i = 0; i < text.length; i++) {
       const c = text.slice(i, i + 1), cand = line + c;
-      if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = c; } else line = cand;
+      if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = c; if (limit > 0 && out.length > limit) return out; } else line = cand;
     }
   } else for (const word of text.split(' ')) {
     const cand = line.length === 0 ? word : line + ' ' + word;
-    if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = word; }
+    if (lineWidth(n, f, cand, tr) > avail && line.length > 0) { out.push(line); line = word; if (limit > 0 && out.length > limit) return out; }
     else line = cand;
     if (n.brk === 1) while (line.length > 1 && lineWidth(n, f, line, tr) > avail) {
       let k = line.length - 1;
@@ -1668,9 +1668,12 @@ function wrapPara(n: UiNode, f: i32, tr: number, text: string, avail: number): s
 }
 /** `line` cut so that it and the ellipsis fit `avail`. */
 function ellipsize(n: UiNode, f: i32, tr: number, line: string, avail: number): string {
-  let k = line.length;
-  while (k > 0 && lineWidth(n, f, line.slice(0, k).trimEnd() + '\u2026', tr) > avail) k--;
-  return line.slice(0, k).trimEnd() + '\u2026';
+  let lo = 0, hi = line.length;   // the largest k whose cut and ellipsis fit (the width never shrinks as k grows): a binary search instead of one slice per character
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineWidth(n, f, line.slice(0, mid).trimEnd() + '\u2026', tr) > avail) hi = mid - 1; else lo = mid;
+  }
+  return line.slice(0, lo).trimEnd() + '\u2026';
 }
 /** Word wrap with the baked font metrics (UI-10), white-space, break, line-clamp, ellipsis and balance (ZN-269). */
 function wrapText(n: UiNode, maxW: number): void {
@@ -1680,24 +1683,27 @@ function wrapText(n: UiNode, maxW: number): void {
   const text = shownText(n);
   const avail = maxW - n.pl - n.pr;
   let lines: string[] = [];
-  if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail);
+  if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail, 0);
   else {
     const paras = n.ws >= 2 ? text.split('\n') : [text];
+    const cut = n.clamp > 0 && !n.balance;   // a clamp without balance needs one line more than the clamp, no more
     for (const para of paras) {
+      if (cut && lines.length > n.clamp) break;
       if (n.ws === 1 || n.ws === 2) lines.push(para);
-      else for (const l of wrapPara(n, f, tr, para, avail)) lines.push(l);
+      else if (paras.length === 1) lines = wrapPara(n, f, tr, para, avail, cut ? n.clamp : 0);
+      else for (const l of wrapPara(n, f, tr, para, avail, cut ? n.clamp + 1 - lines.length : 0)) lines.push(l);
     }
-    if (n.balance && lines.length > 1 && n.ws !== 1 && n.ws !== 2) {   // the narrowest width that keeps the line count
+    if (n.balance && lines.length > 1 && lines.length <= 6 && n.ws !== 1 && n.ws !== 2) {   // like Chrome, only short blocks are balanced (the search wraps the paragraph a dozen times)   // the narrowest width that keeps the line count
       let lo = 0, hi = avail;
       const want = lines.length;
       for (let i = 0; i < 12; i++) {
         const mid = (lo + hi) / 2;
         let k = 0;
-        for (const para of paras) k += wrapPara(n, f, tr, para, mid).length;
+        for (const para of paras) { if (k > want) break; k += wrapPara(n, f, tr, para, mid, want + 1 - k).length; }
         if (k <= want) hi = mid; else lo = mid;
       }
       lines = [];
-      for (const para of paras) for (const l of wrapPara(n, f, tr, para, hi)) lines.push(l);
+      for (const para of paras) for (const l of wrapPara(n, f, tr, para, hi, 0)) lines.push(l);
     }
     if (n.clamp > 0 && lines.length > n.clamp) {
       lines = lines.slice(0, n.clamp);
