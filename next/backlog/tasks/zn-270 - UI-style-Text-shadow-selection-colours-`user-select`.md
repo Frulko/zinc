@@ -4,7 +4,7 @@ title: 'UI style: Text shadow, selection colours, `user-select`'
 status: Review
 assignee: []
 created_date: '2026-10-07 12:57'
-updated_date: '2026-10-08 07:08'
+updated_date: '2026-10-08 08:39'
 labels:
   - ui
   - style
@@ -25,12 +25,12 @@ From docs/reports/ui-style-system.md (section 6, ST-21). The audit and the desig
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Offset shadow golden (two runs).
-- [ ] #2 `selection:bg-*` colours the field selection and a selectable static text (pointer test).
+- [x] #2 `selection:bg-*` colours the field selection and a selectable static text (pointer test).
 - [ ] #3 T0 budget guard drops the shadow below 32 free commands.
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. text-shadow(-sm/md/lg/none/<colour>) drawn as a second text run (offset, black or tinted, alpha), selection:bg-* colours a field selection. Golden ui-style/text-shadow (checked visually), token rows, canary 4/4. Open: AC2 selectable static text and user-select (no static text selection exists yet), AC3 no free-command API in gfx for the budget guard (needs a runtime hook, see ZN-189/ZN-191).
+usage: n/a. Static text selection done: select-text / select-none tokens, a drag over a selectable Text selects by character (highlight selection:bg-* or the blue default), Cmd/Ctrl+C copies the selected text (lines of a wrapped paragraph joined by a space), a press elsewhere or a text change clears it; tests/golden/ui-select (pointer + clipboard) and the screenshot checked. Still open: AC3 (a free-command API for the shadow budget guard); select-all on click, double-click word selection.
 <!-- SECTION:NOTES:END -->

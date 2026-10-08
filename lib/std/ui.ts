@@ -164,6 +164,7 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
+  selectable: boolean = false;         // select-text: the pointer selects its text (ZN-270)
   surface: boolean = false;            // img is a runtime image this node owns (createSurface)
   role: string = ''; label: string = ''; ariaHidden: boolean = false;   // accessibility metadata (ZN-276)
   ov: StateOverlay | null = null;   // paint-only styles of hover: focus: active: disabled: (ZN-273)
@@ -278,7 +279,7 @@ export function createText(s: string): i32 {
 }
 export function setText(h: i32, s: string): void {
   const n = node(h);
-  if (n.text !== s) { n.text = s; layoutDirty = true; }
+  if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h) tsNode = -1; }
 }
 export function insert(parent: i32, child: i32, before: i32): void {
   const p = node(parent);
@@ -341,6 +342,7 @@ function release(h: i32): void {
   if (pressed === h) pressed = -1;
   if (capture === h) capture = -1;
   if (selecting === h) selecting = -1;
+  if (tsNode === h) tsNode = -1;
   for (const a of anims) if (a.node === h) a.node = -1;
   nodes[h] = DEAD;
   free.push(h);
@@ -1216,6 +1218,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.tsColor = c; if (n.tsAlpha === 0) { n.tsX = 1; n.tsY = 1; n.tsAlpha = 110; }
     return true;
   }
+  if (tok === 'select-text' || tok === 'select-all') { n.selectable = true; return true; }
+  if (tok === 'select-none' || tok === 'select-auto') { n.selectable = false; return true; }
   if (tok === 'whitespace-normal' || tok === 'text-wrap') { n.ws = 0; return true; }
   if (tok === 'whitespace-nowrap' || tok === 'text-nowrap') { n.ws = 1; return true; }
   if (tok === 'whitespace-pre') { n.ws = 2; return true; }
@@ -1439,7 +1443,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.bT = -1; n.bR = -1; n.bB = -1; n.bL = -1; n.shadowLevel = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.borderStyle = 0; n.bcT = -1; n.bcR = -1; n.bcB = -1; n.bcL = -1; n.crTL = -1; n.crTR = -1; n.crBR = -1; n.crBL = -1; n.snap = 0; n.snapProx = false; n.snapAlign = 0; n.spt = 0; n.spb = 0; n.spl = 0; n.spr = 0; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.focusBg = -1; n.activeBg = -1; n.focusFg = -1; n.activeFg = -1; n.transMs = 0;
   n.hoverBg = -1; n.hoverFg = -1; n.hoverBorder = -1; n.focusBorder = -1; n.cursor = -1;
   n.withinBg = -1; n.withinFg = -1; n.withinBorder = -1;
@@ -2076,6 +2080,10 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
         const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
         const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
+        if (tsNode === h && tsA !== tsB) {   // the selected part of this line, under the text
+          const ls = tsStart(n, i), a0 = imax(imin(tsA, tsB), ls), b0 = imin(imax(tsA, tsB), ls + n.lines[i].length);
+          if (b0 > a0) { const x0 = textWidth(f, n.lines[i].slice(0, a0 - ls), trackPx(n)), x1 = textWidth(f, n.lines[i].slice(0, b0 - ls), trackPx(n)); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
+        }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
         if (n.tsAlpha > 0) drawLine(n, f, tx + n.tsX * kk, ty + n.tsY * kk, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, kk);
         drawLine(n, f, tx, ty, n.lines[i], fg, tai, jx, kk);
@@ -2894,7 +2902,7 @@ function wants(n: UiNode, mode: i32): boolean {
   if (mode === HIT_NODE) return true;
   const s = n.hs;
   if (mode === HIT_WHEEL) return (s !== null && (s as Handlers).wheel !== null) || (n.ed !== null && editScrolls(n, n.ed as Edit));
-  return n.onClick !== null || n.ed !== null || s !== null;
+  return n.onClick !== null || n.ed !== null || s !== null || n.selectable;
 }
 function editScrolls(n: UiNode, e: Edit): boolean {
   ensureRows(n, e);
@@ -3052,12 +3060,44 @@ function pointerMove(px: number, py: number): void {
     const ly = Math.max(n.pt - lh / 2, Math.min(n.lh - n.pb + lh / 2, (py - boxY) / boxK));
     moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
   }
+  if (tsDrag && tsNode >= 0 && (held & 1) !== 0) { boxOf(tsNode); const nb = tsPosAt(nodes[tsNode], (px - boxX) / boxK, (py - boxY) / boxK); if (nb !== tsB) { tsB = nb; paintDirty = true; } }
   if (capture >= 0) { fire(capture, PMOVE, px, py, -1); return; }
   if (grabKind !== 0) return;   // a gesture took this press: raw handlers got onPointerCancel
   const t = bubble(hit(px, py, HIT_ANY), PMOVE, false);
   if (t >= 0) fire(t, PMOVE, px, py, -1);
 }
 function keepsFocus(h: i32): boolean { for (let p = h; p >= 0; p = nodes[p].parent) if (nodes[p].keepFocus) return true; return false; }
+// ---- selection of static text (select-text, ZN-270): positions run over the displayed lines laid end to end
+let tsNode: i32 = -1, tsA: i32 = 0, tsB: i32 = 0, tsDrag = false;
+function tsStart(n: UiNode, line: i32): i32 { let k = 0; for (let i = 0; i < line; i++) k += n.lines[i].length; return k; }
+function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
+  if (n.lines.length === 0) return 0;
+  const lh = lineHeightOf(n), f = n.fontId;
+  const line = Math.max(0, Math.min(n.lines.length - 1, Math.floor((ly - n.pt) / lh)));
+  const text = n.lines[line], free = n.lw - n.pl - n.pr - n.lineW[line];
+  const x = lx - n.pl - (n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0);
+  let col = 0, prev = 0;
+  for (let c = 1; c <= text.length; c++) {
+    const w = textWidth(f, text.slice(0, c), trackPx(n));
+    if (w >= x) { col = x - prev < w - x ? c - 1 : c; break; }
+    prev = w; col = c;
+  }
+  return tsStart(n, line) + col;
+}
+/** The selected text of the static text node, lines of a wrapped paragraph joined by a space. */
+function tsSelected(): string {
+  if (tsNode < 0 || !nodes[tsNode].alive || tsA === tsB) return '';
+  const n = nodes[tsNode], a = imin(tsA, tsB), b = imax(tsA, tsB);
+  let out = '', at = 0;
+  for (let i = 0; i < n.lines.length; i++) {
+    const t = n.lines[i], s0 = imax(a, at), s1 = imin(b, at + t.length);
+    if (s1 > s0) out += (out.length > 0 ? ' ' : '') + t.slice(s0 - at, s1 - at);
+    at += t.length;
+  }
+  return out;
+}
+/** The selected text of a static node, for tests and for programs that copy it. */
+export function selectedStaticText(): string { return tsSelected(); }
 function pressAt(px: number, py: number, button: i32): void {
   keyboardFocus = false;
   held = held | bitOf(button);
@@ -3072,6 +3112,11 @@ function pressAt(px: number, py: number, button: i32): void {
   if (button === 2) { const c = bubble(t, PCONTEXT, false); if (c >= 0) fire(c, PCONTEXT, px, py, button); }
   if (clicks === 2 && button === 0) { const c = bubble(t, PDBL, true); if (c >= 0) fire(c, PDBL, px, py, button); }
   if (button !== 0) return;
+  if (tsNode >= 0 && tsNode !== t) { tsNode = -1; paintDirty = true; }
+  if (t >= 0 && nodes[t].selectable && nodes[t].tag === TEXT) {
+    boxOf(t);
+    tsNode = t; tsA = tsB = tsPosAt(nodes[t], (px - boxX) / boxK, (py - boxY) / boxK); tsDrag = true; paintDirty = true;
+  }
   if (keepsFocus(t)) {
     // a virtual keyboard key: it activates on release like a button, but the focused field keeps the focus
     const h = hit(px, py, HIT_CLICK);
@@ -3107,6 +3152,7 @@ function releaseAt(px: number, py: number, button: i32): void {
   if (button !== 0) return;
   gestureEnd(px, py);
   selecting = -1;
+  tsDrag = false;
   if (pressed >= 0) {
     const h = pressed;
     pressed = -1;
@@ -3233,6 +3279,7 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   }
   if (!ev.handled && key === 'Escape' && overlays.length > 0 && dismissTop()) ev.handled = true;
   if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) !== 0) ev.handled = runKeymap(key, mods);
+  if (!ev.handled && ev.primary && key === 'c' && !(focus >= 0 && nodes[focus].ed !== null) && tsSelected().length > 0) { setClipboardText(tsSelected()); ev.handled = true; }
   let byApp = ev.handled;
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
   if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) === 0 && runKeymap(key, mods)) { ev.handled = true; byApp = true; }
