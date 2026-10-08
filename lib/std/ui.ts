@@ -927,7 +927,7 @@ export function schemeRestyled(): i32 { return schemeCount; }
 /** Called by the host when the operating system's preference changes. */
 export function setSystemScheme(name: string): void { systemScheme = name; if (schemeMode === 'auto') applyScheme(name); }
 /** The room an on-screen keyboard takes at the bottom of the surface, readable in classes as `pb-[env(keyboard-inset)]`. */
-export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); }
+export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); focusShown = -1; }   // the focused field is revealed again once the room is made
 export function keyboardInset(): number { return kbInset; }
 /** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
 export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
@@ -2881,8 +2881,9 @@ function revealFocus(h: i32): void {
   while (p >= 0) {
     const n = node(p);
     if (n.scroll !== 0) {
+      const cover = kbInset > 0 ? Math.max(0, n.y + n.lh - (height() - kbInset)) : 0;   // the on-screen keyboard hides the bottom of a scroll area that reaches it
       if (f.y < n.y + n.sy) n.sy = f.y - n.y;
-      else if (f.y + f.lh > n.y + n.sy + n.lh) n.sy = f.y + f.lh - n.y - n.lh;
+      else if (f.y + f.lh > n.y + n.sy + n.lh - cover) n.sy = f.y + f.lh - n.y - n.lh + cover;
       clampScroll(n); n.scrolledAt = clock; paintDirty = true;
     }
     if (n.layer) break;   // a layer is placed on the surface, apart from its ancestors: their scrolling cannot reveal it

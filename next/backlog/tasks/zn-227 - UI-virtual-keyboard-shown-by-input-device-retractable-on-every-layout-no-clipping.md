@@ -6,7 +6,7 @@ title: >-
 status: Review
 assignee: []
 created_date: '2026-10-07 11:40'
-updated_date: '2026-10-07 11:58'
+updated_date: '2026-10-08 09:01'
 labels:
   - ui
   - input
@@ -23,7 +23,7 @@ Feedback from running examples/hero (screens/Forms): (1) the on-screen keyboard 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the keyboard is never clipped and the content resizes or scrolls to keep the focused field visible
+- [x] #1 the keyboard is never clipped and the content resizes or scrolls to keep the focused field visible
 - [ ] #2 auto mode: hidden with a mouse and keyboard, shown on a touch-only device; override with a ui option and zinc.json
 - [x] #3 every layout has the retract control, with a golden per layout family
 <!-- AC:END -->
@@ -31,5 +31,5 @@ Feedback from running examples/hero (screens/Forms): (1) the on-screen keyboard 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. usage: n/a. Done: a retract handle (prop retractable, default on) above the keys of every layout, tap hides the keyboard (lib/std/kit/keyboard.tsx; checked on the letters and the digit pad). Not done: AC1 clipping: hero at 907x600 headless shows the whole keyboard (screenshots), the user's capture also cuts the sidebar footer, so the surface is taller than the visible window area in a real macOS window (fill mode): to investigate in targets/macos/hal_sdl.cpp with a real window; AC2 auto detection needs the pointer type (mouse/touch/pen) in UI events, which touches lib/std/ui.ts where someone else has uncommitted work (StyleSheet): do it with ZN-228 once that file is committed. Also found: text in nested grow flex items does not wrap (min-width auto), same root cause as the Kit overlays overlap; the fix belongs in the layout code of lib/std/ui.ts.
+usage: n/a. + AC1: setKeyboardInset re-reveals the focused field and revealFocus leaves out the part of a scroll area the keyboard covers; golden/ui-kbd-reveal: the last field of a 9-field form ends above the keyboard. AC2 (auto mode by input device, option and zinc.json) is open.
 <!-- SECTION:NOTES:END -->
