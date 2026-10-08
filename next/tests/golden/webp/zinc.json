@@ -1,0 +1,1 @@
+{ "name": "webp", "entry": "main.ts", "targets": { "macos": { "width": 400, "height": 260 } } }

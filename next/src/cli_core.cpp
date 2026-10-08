@@ -322,12 +322,14 @@ std::string zigTargetFor(const std::string& t) {
 }  // namespace
 
 int capture(const std::vector<std::string>& args) {
-  Opts o = parseOpts(args, {"--frames", "--every", "--out", "--size"}, {});
-  if (o.bad) { std::fprintf(stderr, "zinc capture: unknown option %s\nusage: zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--frames", "--every", "--out", "--size", "--format"}, {});
+  if (o.bad) { std::fprintf(stderr, "zinc capture: unknown option %s\nusage: zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH] [--format png|webp]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   std::string frames = o.v.count("--frames") ? o.v["--frames"] : (o.v.count("--every") ? "" : "1,60");
   std::string out = o.v.count("--out") ? o.v["--out"] : "shots";
+  const std::string ext = o.v.count("--format") ? o.v["--format"] : "png";
+  if (ext != "png" && ext != "webp") { std::fprintf(stderr, "zinc capture: --format is png or webp\n"); return 2; }
   std::error_code ec;
   fs::create_directories(out, ec);
   int last = 0;
@@ -335,7 +337,7 @@ int capture(const std::vector<std::string>& args) {
   const int every = o.v.count("--every") ? std::atoi(o.v["--every"].c_str()) : 0;
   const int total = std::max(last, every > 0 ? every * 3 : 0);
   if (total <= 0) { std::fprintf(stderr, "zinc capture: nothing to capture (--frames or --every)\n"); return 2; }
-  std::string cmd = "env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=" + std::to_string(total) + " ZINC_SHOT=" + q((fs::path(out) / "frame.png").string());
+  std::string cmd = "env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=" + std::to_string(total) + " ZINC_SHOT=" + q((fs::path(out) / ("frame." + ext)).string());
   if (!frames.empty()) cmd += " ZINC_SHOT_FRAMES=" + q(frames);
   if (every > 0) cmd += " ZINC_SHOT_EVERY=" + std::to_string(every);
   if (o.v.count("--size")) cmd += " ZINC_SIZE=" + q(o.v["--size"]);
@@ -343,7 +345,7 @@ int capture(const std::vector<std::string>& args) {
   int rc = status(std::system(cmd.c_str()));
   if (rc != 0) return rc;
   int n = 0;
-  for (const auto& e : fs::directory_iterator(out, ec)) if (e.path().extension() == ".png") { std::printf("%s\n", e.path().string().c_str()); ++n; }
+  for (const auto& e : fs::directory_iterator(out, ec)) if (e.path().extension() == "." + ext) { std::printf("%s\n", e.path().string().c_str()); ++n; }
   if (!n) { std::fprintf(stderr, "zinc capture: the program drew no frame (does it use zinc:gfx or zinc:ui?)\n"); return 1; }
   return 0;
 }

@@ -182,12 +182,19 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   target_compile_definitions(zn_host_gfx PRIVATE ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="${ZN_PLATFORM_NAME}" ZRT_POINT_POOL=262144 ZRT_GROW_DRAW_CMDS)
 endif()
 
+# libwebp 1.5.0 (BSD-3): decoder and encoder of .webp assets and captures (ZN-226); no demux/mux. The SIMD files compile to nothing unless the compiler targets their instruction set.
+file(GLOB ZN_WEBP_SRC third_party/libwebp/src/dec/*.c third_party/libwebp/src/dsp/*.c third_party/libwebp/src/enc/*.c third_party/libwebp/src/utils/*.c third_party/libwebp/sharpyuv/*.c)
+add_library(zn_webp STATIC ${ZN_WEBP_SRC})
+target_include_directories(zn_webp PUBLIC third_party/libwebp third_party/libwebp/src)
+set_target_properties(zn_webp PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_webp PRIVATE -w -O2)
 add_library(zn_res STATIC src/res/res.cpp)
 add_library(zn_codec STATIC src/res/codec.cpp)   # encoders (stb_image_write); screenshots and zinc capture use it
 target_include_directories(zn_codec PUBLIC src PRIVATE third_party/stb)
 set_target_properties(zn_codec PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_codec PRIVATE -w -O2)
 target_include_directories(zn_res PUBLIC include src PRIVATE third_party/stb)
+target_link_libraries(zn_res PUBLIC zn_webp)
 
 add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)

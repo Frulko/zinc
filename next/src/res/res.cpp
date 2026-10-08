@@ -30,6 +30,9 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 #include "stb_image.h"
+#include "webp/decode.h"
+#include "webp/encode.h"
+#include "res/codec.h"
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -285,8 +288,18 @@ BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::v
 }
 
 // ---------------------------------------------------------------- images
+bool isWebp(const std::uint8_t* d, std::size_t n) { return n >= 12 && !std::memcmp(d, "RIFF", 4) && !std::memcmp(d + 8, "WEBP", 4); }
+
 bool decodePng(const std::vector<std::uint8_t>& buf, BakedImage& im, std::string& err) {
   int w = 0, h = 0, n = 0;
+  if (isWebp(buf.data(), buf.size())) {   // WebP (ZN-226): libwebp, straight RGBA like the other decoders
+    std::uint8_t* px = WebPDecodeRGBA(buf.data(), buf.size(), &w, &h);
+    if (!px) { err = "image: not a valid WebP file"; return false; }
+    im.w = w; im.h = h;
+    im.rgba.assign(px, px + static_cast<std::size_t>(w) * h * 4);
+    WebPFree(px);
+    return true;
+  }
   unsigned char* px = stbi_load_from_memory(buf.data(), static_cast<int>(buf.size()), &w, &h, &n, 4);
   if (!px) { err = std::string("image: ") + stbi_failure_reason(); return false; }
   im.w = w; im.h = h;
@@ -591,7 +604,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
           im.name = rel; im.scale = 1;
           images.push_back(std::move(im));
         }
-      } else if (ext == ".jpg" || ext == ".jpeg") {   // a photograph: decoded like a PNG, no @2x variants
+      } else if (ext == ".jpg" || ext == ".jpeg" || ext == ".webp") {   // a photograph (or a WebP): decoded like a PNG, no @2x variants
         std::vector<std::uint8_t> b; BakedImage im;
         if (!readFile(p.string(), b) || !decodePng(b, im, err)) { if (err.empty()) err = "cannot read " + p.string(); return false; }
         im.name = rel; im.scale = 1;
@@ -647,6 +660,13 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
 
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba) {
   int n = 0;
+  if (isWebp(data, size)) {
+    std::uint8_t* q = WebPDecodeRGBA(data, size, &w, &h);
+    if (!q) return false;
+    rgba.assign(q, q + static_cast<size_t>(w) * h * 4);
+    WebPFree(q);
+    return true;
+  }
   unsigned char* p = stbi_load_from_memory(data, static_cast<int>(size), &w, &h, &n, 4);
   if (!p) return false;
   rgba.assign(p, p + static_cast<size_t>(w) * h * 4);
@@ -655,4 +675,14 @@ bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<ui
 }
 
 
+std::vector<uint8_t> encodeWebp(const uint8_t* px, int w, int h, int comp, bool lossless, float quality) {
+  std::vector<uint8_t> out;
+  uint8_t* data = nullptr;
+  size_t n = 0;
+  if (comp == 4) n = lossless ? WebPEncodeLosslessRGBA(px, w, h, w * 4, &data) : WebPEncodeRGBA(px, w, h, w * 4, quality, &data);
+  else if (comp == 3) n = lossless ? WebPEncodeLosslessRGB(px, w, h, w * 3, &data) : WebPEncodeRGB(px, w, h, w * 3, quality, &data);
+  if (n && data) out.assign(data, data + n);
+  WebPFree(data);
+  return out;
+}
 }  // namespace zn::res

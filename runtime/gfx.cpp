@@ -526,13 +526,16 @@ uint8_t* capture_png(size_t* n, int32_t maxw, int32_t maxh) {
   if (px) hal_free(px);
   return png;
 }
-/** Saves the frame on screen: BMP when the path ends in .bmp, PNG otherwise. */
+/** ZINC_SHOT=*.webp: a host that links a WebP encoder installs this (lossless; `alloc` is the allocator the caller frees with); without it a .webp path gets a PNG. */
+uint8_t* (*encode_webp_hook)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) = nullptr;
+/** Saves the frame on screen: BMP when the path ends in .bmp, WebP for .webp when the host can, PNG otherwise. */
 static bool write_image(const char* path, uint32_t* px, int32_t w, int32_t h) {
   uint32_t n = 0;
   while (path[n]) n++;
   bool bmp = n > 4 && path[n - 4] == '.' && (path[n - 3] | 32) == 'b' && (path[n - 2] | 32) == 'm' && (path[n - 1] | 32) == 'p';
+  bool webp = n > 5 && path[n - 5] == '.' && (path[n - 4] | 32) == 'w' && (path[n - 3] | 32) == 'e' && (path[n - 2] | 32) == 'b' && (path[n - 1] | 32) == 'p';
   size_t len = 0;
-  uint8_t* data = !px ? nullptr : bmp ? encode_bmp(px, w, h, &len) : encode_png(px, w, h, &len);
+  uint8_t* data = !px ? nullptr : bmp ? encode_bmp(px, w, h, &len) : webp && encode_webp_hook ? encode_webp_hook(px, w, h, &len, hal_alloc) : encode_png(px, w, h, &len);
   void* f = data ? zrt_host_open(path, "wb") : nullptr;
   bool ok = f && zrt_host_io(f, data, len, 1) == len;
   if (f) zrt_host_close(f);

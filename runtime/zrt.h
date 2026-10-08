@@ -811,6 +811,7 @@ int32_t frame();
 int32_t pixelScale();
 void quit();
 bool capture(const String& path);
+extern uint8_t* (*encode_webp_hook)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t));   // ZINC_SHOT=*.webp (installed by a host that links a WebP encoder)
 uint8_t* capture_png(size_t* n, int32_t maxw = 0, int32_t maxh = 0);  // the frame on screen as PNG bytes (hal_free them),
                                                                    // shrunk to fit maxw x maxh; DevTools screenshots
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing

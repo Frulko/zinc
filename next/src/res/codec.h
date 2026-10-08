@@ -10,7 +10,8 @@ std::vector<uint8_t> encodePng(const uint8_t* px, int w, int h, int comp);
 std::vector<uint8_t> encodeJpeg(const uint8_t* px, int w, int h, int comp, int quality = 90);
 std::vector<uint8_t> encodeBmp(const uint8_t* px, int w, int h, int comp);
 
-// Decodes PNG, JPEG, BMP or GIF (first frame) to RGBA; false for anything else (WebP is a plugin).
+std::vector<uint8_t> encodeWebp(const uint8_t* px, int w, int h, int comp, bool lossless = true, float quality = 90);   // libwebp
+// Decodes PNG, JPEG, BMP, GIF (first frame) or WebP to RGBA; false for anything else.
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba);
 
 }  // namespace zn::res

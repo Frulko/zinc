@@ -48,6 +48,19 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
+#ifdef ZN_HOST_GFX
+#include "res/codec.h"
+namespace zrt::gfx { extern uint8_t* (*encode_webp_hook)(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)); }
+// ZINC_SHOT=*.webp and `zinc capture --format webp`: lossless WebP (ZN-226)
+static uint8_t* webpShot(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {
+  std::vector<uint8_t> rgb(static_cast<size_t>(w) * h * 3);
+  for (size_t i = 0; i < static_cast<size_t>(w) * h; ++i) { rgb[i * 3] = static_cast<uint8_t>(px[i] >> 16); rgb[i * 3 + 1] = static_cast<uint8_t>(px[i] >> 8); rgb[i * 3 + 2] = static_cast<uint8_t>(px[i]); }
+  std::vector<uint8_t> out = zn::res::encodeWebp(rgb.data(), w, h, 3, true);
+  uint8_t* o = out.empty() ? nullptr : static_cast<uint8_t*>(alloc(out.size()));
+  if (o) { std::memcpy(o, out.data(), out.size()); *n = out.size(); }
+  return o;
+}
+#endif
 #include "vm/vm.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
@@ -399,6 +412,9 @@ int main(int argc, char** argv) {
     return 0;
   }
 #ifdef ZN_WEBGL
+#ifdef ZN_HOST_GFX
+  zrt::gfx::encode_webp_hook = webpShot;
+#endif
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
   zn::gl::installWebGLBindings();   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03)
 #endif
