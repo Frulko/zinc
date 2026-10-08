@@ -1667,7 +1667,7 @@ struct Checker {
           if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
         }
         if (!a.targs.count(i))  // with explicit type arguments the arguments are checked against the parameter types instead (an array literal takes the element kind of `T`)
-        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty())) expr(an);  // function expressions and empty array literals wait for the type arguments the others give
+        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty()) && !recordLiteral(an)) expr(an);  // function expressions, empty array literals and object literals wait for the type arguments the others give
         preEvaluated = true;
         GenericDecl& g = generics[gs];
         ensureSelf(g);
@@ -1714,7 +1714,7 @@ struct Checker {
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       if (!isNew && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error")) logArg = arg;
-      TypeId at = preEvaluated ? out.nodeType[arg] : expr(arg, expected);
+      TypeId at = preEvaluated && out.nodeType[arg] != kNoType ? out.nodeType[arg] : expr(arg, expected);
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error") && at == tNull && replaceWith(arg, ((n(arg).flags & kFlagUndefined) || (n(arg).kind == N::Ident && out.nodeSym[arg] != kNone && ty(out.syms[out.nodeSym[arg]].type).undef)) ? "'undefined'" : "'null'", {})) at = expr(arg);  // a value known to be null (or undefined)
       if (!isNew && !preEvaluated && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error") && n(n(callee).kids[0]).kind == N::Ident && out.nodeSym[n(callee).kids[0]] != kNone &&
           out.syms[out.nodeSym[n(callee).kids[0]]].kind == SymKind::Builtin && !bad(at) && needsInspect(at)) {
@@ -3689,6 +3689,46 @@ struct Checker {
     return true;
   }
 
+  // An object literal, or an array literal with one: typed by the shape of the literal it could not be converted to the instantiated parameter's records (ZN-383).
+  bool literalShape = false;   // inferFromLiteral met a leaf with a lambda that binds a type parameter
+  bool recordLiteral(std::uint32_t i) const {
+    if (n(i).kind == N::ObjectLit) return true;
+    if (n(i).kind == N::Array) for (std::uint32_t k : n(i).kids) if (recordLiteral(k)) return true;
+    return false;
+  }
+  // Type arguments from the leaves of a literal argument: the literal follows the parameter's shape (arrays, object members by name) and each leaf that
+  // could bind a type parameter is evaluated and unified. Function expressions are left for the call's check against the instantiated parameter.
+  void inferFromLiteral(const GenericDecl& g, TypeId p, std::uint32_t node, std::vector<TypeId>& bound) {
+    const Node nd = n(node);
+    const Type pt = ty(p);
+    if (nd.kind == N::Array && pt.k == TK::Array) { for (std::uint32_t k : nd.kids) if (n(k).kind != N::Spread) inferFromLiteral(g, pt.elem, k, bound); return; }
+    if (nd.kind == N::ObjectLit && pt.k == TK::Object) {
+      for (std::uint32_t pr : nd.kids) {
+        if (n(pr).kind != N::Prop || n(pr).text.empty() || n(pr).kids.empty()) continue;
+        for (const Member& m : out.objs[pt.obj].members)
+          if (!m.isStatic && !m.method && m.name == n(pr).text) { TypeId mt = m.type; inferFromLiteral(g, mt, n(pr).kids[0], bound); break; }
+      }
+      return;
+    }
+    if (!mentionsParam(g, p)) return;
+    if (hasLambda(node)) { literalShape = true; return; }
+    TypeId t = expr(node);
+    if (!bad(t)) unify(g, p, t, bound, node);
+  }
+  bool mentionsParam(const GenericDecl& g, TypeId t, int depth = 0) {
+    const Type x = ty(t);
+    if (depth > 4) return false;
+    if (x.k == TK::Param) return std::find(g.selfParams.begin(), g.selfParams.end(), t) != g.selfParams.end();
+    if (x.k == TK::Array) return mentionsParam(g, x.elem, depth + 1);
+    if (x.k == TK::Func) { for (TypeId q : x.params) if (mentionsParam(g, q, depth + 1)) return true; return mentionsParam(g, x.elem, depth + 1); }
+    if (x.k == TK::Union) { for (TypeId q : x.params) if (mentionsParam(g, q, depth + 1)) return true; }
+    if (x.k == TK::Object) {
+      const ObjInfo& o = out.objs[x.obj];
+      if (!o.typeArgs.empty()) { for (TypeId q : o.typeArgs) if (mentionsParam(g, q, depth + 1)) return true; return false; }
+      for (const Member& m : o.members) if (!m.isStatic && mentionsParam(g, m.type, depth + 1)) return true;   // an object type literal of the signature
+    }
+    return false;
+  }
   bool mentionsUnbound(const GenericDecl& g, TypeId t, const std::vector<TypeId>& bound) {
     const Type x = ty(t);
     if (x.k == TK::Param) { for (std::size_t i = 0; i < g.selfParams.size(); ++i) if (g.selfParams[i] == t) return bound[i] == kNoType; return false; }
@@ -3743,8 +3783,15 @@ struct Checker {
     }
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)
       if (out.nodeType[argNodes[k]] != kNoType && !unify(g, f.params[k], out.nodeType[argNodes[k]], bound, argNodes[k])) return {};
+    for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k)  // object literals: their leaves bind what they can; the call types them once, against the instantiated parameter
+      if (out.nodeType[argNodes[k]] == kNoType && recordLiteral(argNodes[k])) {
+        literalShape = false;
+        inferFromLiteral(g, f.params[k], argNodes[k], bound);
+        if (literalShape && std::find(bound.begin(), bound.end(), kNoType) == bound.end()) literalShape = false;   // the lambdas only receive what the other leaves bound
+        if (literalShape) { TypeId lt = expr(argNodes[k]); if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {}; }   // a type parameter only its lambdas tell: the literal's own shape, as before
+      }
     for (std::size_t k = 0; k < argNodes.size() && k < f.params.size(); ++k) {  // function expressions, now that the other arguments have bound what they can
-      if (out.nodeType[argNodes[k]] != kNoType) continue;
+      if (out.nodeType[argNodes[k]] != kNoType || recordLiteral(argNodes[k])) continue;
       TypeId want = substitute(g, f.params[k], bound);
       if (ty(f.params[k]).k == TK::Func && mentionsUnbound(g, ty(f.params[k]).elem, bound)) {  // the result type is what the lambda is to tell
         std::vector<TypeId> ps;

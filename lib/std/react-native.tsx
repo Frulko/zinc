@@ -305,10 +305,9 @@ function watchList(w: ListWatch, h: i32, count: i32, onEnd: (() => void) | undef
 function renderSlot(f: (() => i32) | undefined): i32 { return f !== undefined ? f() : ui.createNode(ui.FRAGMENT); }
 
 export type ListRenderItemInfo<T> = { item: T; index: number };
-// keyExtractor takes one parameter until ZN-383: the lambda of a generic argument keeps its own arity, and `item => item.id` is the common form.
 export type ItemLayout = { length: number; offset: number; index: number };
 export type FlatListProps<T> = {
-  data: T[]; renderItem: (info: ListRenderItemInfo<T>) => i32; keyExtractor?: (item: T) => string;
+  data: T[]; renderItem: (info: ListRenderItemInfo<T>) => i32; keyExtractor?: (item: T, index: number) => string;
   ItemSeparatorComponent?: () => i32; ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; ListEmptyComponent?: () => i32;
   onEndReached?: () => void; onEndReachedThreshold?: number; refreshing?: boolean; onRefresh?: () => void;
   numColumns?: number; getItemLayout?: (data: T[], index: number) => ItemLayout; initialNumToRender?: number;
@@ -350,15 +349,16 @@ export function FlatList<T>(p: FlatListProps<T>): i32 {
   return list;
 }
 
-/** A section is exactly { title, data } here: a generic call takes the shape of the literal it is given, so an optional field would make a different
- *  record (contextual typing of generic arguments: ZN-383). */
+/** A section is exactly { title, data } here: a literal passed in the call is typed against this record (ZN-383), but the common form declares the
+ *  sections first (`const DATA = [{ title, data }]`), whose record is the literal's own shape, and an array of records does not convert to a wider
+ *  record (ZN-389). */
 export type SectionBase<T> = { title: string; data: T[] };
 export type SectionListRenderItemInfo<T> = { item: T; index: number; section: SectionBase<T> };
 export type SectionHeaderInfo<T> = { section: SectionBase<T> };
 export type SectionListProps<T> = {
   sections: SectionBase<T>[]; renderItem: (info: SectionListRenderItemInfo<T>) => i32;
   renderSectionHeader?: (info: SectionHeaderInfo<T>) => i32; renderSectionFooter?: (info: SectionHeaderInfo<T>) => i32;
-  stickySectionHeadersEnabled?: boolean; keyExtractor?: (item: T) => string; ItemSeparatorComponent?: () => i32;
+  stickySectionHeadersEnabled?: boolean; keyExtractor?: (item: T, index: number) => string; ItemSeparatorComponent?: () => i32;
   ListHeaderComponent?: () => i32; ListFooterComponent?: () => i32; onEndReached?: () => void; onEndReachedThreshold?: number;
   refreshing?: boolean; onRefresh?: () => void; style?: ui.Style; contentContainerStyle?: ui.Style;
 };

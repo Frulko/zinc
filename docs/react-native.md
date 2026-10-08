@@ -35,8 +35,8 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped |
 | TextInput | partial | value, defaultValue, onChangeText, onSubmitEditing, placeholder, keyboardType, secureTextEntry, multiline, editable, maxLength, autoFocus; onFocus / onBlur, placeholderTextColor, returnKeyType, autoCapitalize, selection missing |
 | KeyboardAvoidingView | supported | behavior padding / height (both pad) / position, keyboardVerticalOffset, enabled |
-| FlatList | partial | virtualised: data, renderItem, keyExtractor (one parameter: ZN-383), ItemSeparatorComponent, ListHeader / Footer / EmptyComponent, numColumns, columnWrapperStyle, getItemLayout, onEndReached + threshold, refreshing / onRefresh; horizontal, inverted, scrollToIndex, onViewableItemsChanged missing |
-| SectionList | partial | sections exactly `{ title, data }` (ZN-383), renderItem, renderSectionHeader / Footer, sticky headers, separators, refresh, onEndReached; not virtualised |
+| FlatList | partial | virtualised: data, renderItem, keyExtractor (item, index), ItemSeparatorComponent, ListHeader / Footer / EmptyComponent, numColumns, columnWrapperStyle, getItemLayout, onEndReached + threshold, refreshing / onRefresh; horizontal, inverted, scrollToIndex, onViewableItemsChanged missing |
+| SectionList | partial | sections exactly `{ title, data }` (a declared array of sections cannot widen to optional members yet: ZN-389), renderItem, renderSectionHeader / Footer, sticky headers, separators, refresh, onEndReached; not virtualised |
 | RefreshControl | partial | the spinner row of FlatList / SectionList `refreshing`; the ScrollView `refreshControl` prop is missing |
 | Modal | supported | visible, transparent, animationType slide / fade, onRequestClose (Escape), onShow; closes without an exit animation |
 | SafeAreaView | supported | a View (no notch on desktop and simulator surfaces) |
