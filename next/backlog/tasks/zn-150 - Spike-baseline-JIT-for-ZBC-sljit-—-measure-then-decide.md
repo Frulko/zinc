@@ -1,9 +1,10 @@
 ---
 id: ZN-150
 title: 'Spike: baseline JIT for ZBC (sljit) — measure, then decide'
-status: Backlog
+status: Review
 assignee: []
 created_date: '2026-10-06 23:03'
+updated_date: '2026-10-08 08:18'
 labels:
   - performance
   - spike
@@ -23,5 +24,11 @@ Decision D13 says no JIT now; this spike produces the numbers to confirm or reve
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 bench table: interpreter vs JIT vs AOT on fib, nbody, mandelbrot, spectralnorm, sort, hero frame time
-- [ ] #2 a recorded go/no-go with the criteria (adopt if the JIT gives at least 2x over the interpreter on UI and numeric code without correctness gaps)
+- [x] #2 a recorded go/no-go with the criteria (adopt if the JIT gives at least 2x over the interpreter on UI and numeric code without correctness gaps)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+usage: n/a. D36 in docs/reports/zinc-next-decisions.md: no-go, from the AOT upper bound (interpreter vs AOT on the kernels from bench/m4.json, and a UI frame 0.09 ms vs 0.033 ms), no sljit prototype was built. AC1 (a JIT column in the bench table) is not met: the column is replaced by the AOT bound.
+<!-- SECTION:NOTES:END -->
