@@ -120,7 +120,7 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
     {"bg", {"backgroundColor"}}, {"radius", {"borderRadius"}}, {"x", {"translateX"}}, {"y", {"translateY"}}, {"flex", {"grow"}}, {"flexGrow", {"grow"}}, {"flexShrink", {"shrink"}}, {"flexBasis", {"basis"}}};
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
-    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation"};
+    "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -587,6 +587,35 @@ struct Lowering {
           if (side != "width" && side != "height") fail(p0, "shadowOffset takes { width: number, height: number }");
           keys.push_back(quote(side == "width" ? "shadowOffsetX" : "shadowOffsetY"));
           values.push_back("(" + rw(p0 + 2, p1) + ")");
+        }
+        continue;
+      }
+      if (styleName(key) == "transform" && vb < ve && isP(vb, "[") && isP(ve - 1, "]")) {   // React Native's [{ rotate: '45deg' }, { scale: 1.2 }...] (ZN-361)
+        const char* use = "transform takes [{ translateX | translateY | scale | scaleX | scaleY | rotate | skewX | skewY: value }, ...]";
+        std::vector<std::pair<std::size_t, std::size_t>> entries;
+        std::size_t from2 = vb + 1;
+        scan(vb + 1, ve - 1, [&](std::size_t q, const std::string& tk) { if (tk == ",") { entries.push_back({from2, q}); from2 = q + 1; } });
+        if (from2 < ve - 1) entries.push_back({from2, ve - 1});
+        for (auto [e0, e1] : entries) {
+          if (e1 < e0 + 5 || !isP(e0, "{") || match(e0) != e1 - 1 || !isP(e0 + 2, ":")) fail(e0, use);
+          std::string kind = tx(e0 + 1);
+          if (kind == "rotateZ") kind = "rotate";
+          if (kind != "translateX" && kind != "translateY" && kind != "scale" && kind != "scaleX" && kind != "scaleY" && kind != "rotate" && kind != "skewX" && kind != "skewY")
+            fail(e0 + 1, kind == "perspective" || kind == "rotateX" || kind == "rotateY" || kind == "matrix" ? "transform: " + kind + " is 3D, only 2D transforms are supported" : use);
+          std::size_t v0 = e0 + 3, v1 = e1 - 1;
+          std::string value = "(" + rw(v0, v1) + ")";
+          if (v1 == v0 + 1 && (t[v0].kind == Tok::String || t[v0].kind == Tok::TemplateNoSub)) {   // an angle: '45deg', '-0.5rad', '0.25turn'
+            if (kind != "rotate" && kind != "skewX" && kind != "skewY") fail(v0, "transform: " + kind + " takes a number");
+            static const std::regex angle(R"(^\s*(-?\d*\.?\d+)\s*(deg|rad|turn)\s*$)");
+            std::smatch m;
+            const std::string lit = tx(v0).substr(1, tx(v0).size() - 2);
+            if (!std::regex_match(lit, m, angle)) fail(v0, "transform: " + kind + " takes an angle like '45deg' or '0.5rad'");
+            double deg = std::stod(m[1].str());
+            if (m[2] == "rad") deg = deg * 180 / 3.14159265358979323846; else if (m[2] == "turn") deg *= 360;
+            value = jsNumber(deg);
+          }
+          if (kind == "scale") { keys.push_back(quote("scaleX")); values.push_back(value); keys.push_back(quote("scaleY")); values.push_back(value); }   // ponytail: a dynamic scale is read twice
+          else { keys.push_back(quote(kind)); values.push_back(value); }
         }
         continue;
       }

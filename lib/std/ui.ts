@@ -199,6 +199,25 @@ export class InterX {
   transStart: number = 0;
 }
 const DEF_INTERX = new InterX();
+/** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
+class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; }
+/** The part of a transform painted today: an even scale around the centre. Rotate, skew and uneven scales only hit-test until the
+ *  renderer takes a matrix (ZN-361.01). */
+function tfK(n: UiNode): number { const t = n.tf; if (t === null) return 1; return t.sx === t.sy ? t.sx : 1; }
+let tpx: number = 0, tpy: number = 0;
+/** (px, py) brought back through the rest of n's transform (rotate, uneven scale, skew) around the centre (cx, cy) into tpx, tpy. */
+function untransform(n: UiNode, px: number, py: number, cx: number, cy: number): void {
+  tpx = px; tpy = py;
+  const t = n.tf;
+  if (t === null || (t.rot === 0 && t.skX === 0 && t.skY === 0 && t.sx === t.sy)) return;
+  const s = t.sx === t.sy ? t.sx : 1, r = t.rot * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const dx = t.sx / s, dy = t.sy / s, kx = Math.tan(t.skX * Math.PI / 180), ky = Math.tan(t.skY * Math.PI / 180);
+  const a = cs * dx - sn * dy * ky, b = sn * dx + cs * dy * ky, c = cs * dx * kx - sn * dy, d = sn * dx * kx + cs * dy;   // R(rot) · diag(dx, dy) · skew
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-9) { tpx = -1e9; tpy = -1e9; return; }   // flattened: nothing is inside
+  const qx = px - cx, qy = py - cy;
+  tpx = cx + (d * qx - c * qy) / det; tpy = cy + (a * qy - b * qx) / det;
+}
 
 export class UiNode {
   tag: i32;
@@ -270,6 +289,7 @@ export class UiNode {
   onClick: (() => void) | null = null;
   onDraw: ((x: i32, y: i32, w: i32, h: i32) => void) | null = null;
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
+  tf: TransformX | null = null;        // React Native's transform array: rotate, skew, scaleX/Y around the centre (ZN-361)
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
   
     // ring-* / outline-* (ZN-258)
@@ -722,6 +742,11 @@ const P_SHADOW_Y: i32 = 67;
 const P_SHADOW_OPACITY: i32 = 68;
 const P_SHADOW_RADIUS: i32 = 69;
 const P_ELEVATION: i32 = 70;
+const P_ROTATE: i32 = 71;
+const P_SKEW_X: i32 = 72;
+const P_SKEW_Y: i32 = 73;
+const P_SCALE_X: i32 = 74;
+const P_SCALE_Y: i32 = 75;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -786,6 +811,7 @@ function propInit(): void {
   PROP.set('alignSelf', P_ALIGN_SELF); PROP.set('alignContent', P_ALIGN_CONTENT);
   PROP.set('minWidth', P_MIN_WIDTH); PROP.set('maxWidth', P_MAX_WIDTH); PROP.set('minHeight', P_MIN_HEIGHT); PROP.set('maxHeight', P_MAX_HEIGHT); PROP.set('aspectRatio', P_ASPECT);
   PROP.set('shadowColor', P_SHADOW_COLOR); PROP.set('shadowOffsetX', P_SHADOW_X); PROP.set('shadowOffsetY', P_SHADOW_Y); PROP.set('shadowOpacity', P_SHADOW_OPACITY); PROP.set('shadowRadius', P_SHADOW_RADIUS); PROP.set('elevation', P_ELEVATION);
+  PROP.set('rotate', P_ROTATE); PROP.set('skewX', P_SKEW_X); PROP.set('skewY', P_SKEW_Y); PROP.set('scaleX', P_SCALE_X); PROP.set('scaleY', P_SCALE_Y);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -806,6 +832,13 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   if (id === P_BORDER_COLOR) { n.borderColor = iv; paintDirty = true; return; }
   if (id === P_COLOR) { n.fg = iv; paintDirty = true; return; }
   if (id === P_RADIUS || id === P_RADIUS) { n.radius = v; paintDirty = true; return; }
+  if (id >= P_ROTATE && id <= P_SCALE_Y) {   // React Native's transform array (ZN-361), around the centre
+    if (n.tf === null) n.tf = new TransformX();
+    const t = n.tf as TransformX;
+    if (id === P_ROTATE) t.rot = v; else if (id === P_SKEW_X) t.skX = v; else if (id === P_SKEW_Y) t.skY = v; else if (id === P_SCALE_X) t.sx = v; else t.sy = v;
+    paintDirty = true;
+    return;
+  }
   if (id === P_SCALE && n.tag !== TEXT) { n.k = v > 0 ? v : 1; paintDirty = true; return; }  // text: legacy font scale below
   if (id === P_LAZY && n.tag === CANVAS) {
     // a lazy canvas does not force a repaint every frame: it is drawn when something else changed (or ui.repaint())
@@ -1662,7 +1695,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
@@ -2358,6 +2391,9 @@ function currentValue(n: UiNode, key: string): number {
   if (key === 'translateX' || key === 'x') return n.tx;
   if (key === 'translateY' || key === 'y') return n.ty;
   if (key === 'scale') return n.k;
+  const t = n.tf;
+  if (t !== null) { if (key === 'rotate') return t.rot; if (key === 'scaleX') return t.sx; if (key === 'scaleY') return t.sy; if (key === 'skewX') return t.skX; if (key === 'skewY') return t.skY; }
+  if (key === 'scaleX' || key === 'scaleY') return 1;
   return 0;
 }
 /** Tweens a numeric property of node `h` (width, height, opacity, translateX, translateY...). */
@@ -2571,7 +2607,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
   const a = alpha * n.opacity * n.fade;
   if (a <= 0.004) return;
-  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
+  let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
+  if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
   if (n.tag !== FRAGMENT) {
@@ -3241,7 +3278,8 @@ const scrollers: i32[] = [];   // containers whose offset is animating (wheel ea
 function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: number, axes: i32): i32 {
   const n = node(h);
   if (n.hidden || (n.layer && h !== layerPass)) return -1;
-  const x0 = (n.x + n.tx) * k + ox, y0 = (n.y + n.ty) * k + oy, kk = k * n.k;
+  let x0 = (n.x + n.tx) * k + ox, y0 = (n.y + n.ty) * k + oy, kk = k * n.k;
+  if (n.tf !== null) { const s = tfK(n); x0 += n.lw * kk * (1 - s) / 2; y0 += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x0 + n.lw * kk / 2, y0 + n.lh * kk / 2); px = tpx; py = tpy; }
   const inside = px >= x0 && py >= y0 && px < x0 + n.lw * kk && py < y0 + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
   const cx = x0 - (n.x + n.sx) * kk, cy = y0 - (n.y + n.sy) * kk;
@@ -3489,7 +3527,8 @@ function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number
   const n = node(h);
   if (n.hidden || n.invisible || n.noPointer || (n.layer && h !== layerPass)) return -1;
   const sd = n.sticky ? stickyDy(n) : 0;
-  const x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
+  let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
+  if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x + n.lw * kk / 2, y + n.lh * kk / 2); px = tpx; py = tpy; }
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
@@ -3513,11 +3552,13 @@ function boxOf(h: i32): void {
   let ox: number = 0, oy: number = 0, k: number = 1;
   for (let i = chain.length - 1; i >= 1; i--) {
     const a = nodes[chain[i]];
-    const x = (a.x + a.tx) * k + ox, y = (a.y + a.ty + (a.sticky ? stickyDy(a) : 0)) * k + oy, kk = k * a.k;
+    let x = (a.x + a.tx) * k + ox, y = (a.y + a.ty + (a.sticky ? stickyDy(a) : 0)) * k + oy, kk = k * a.k;
+    if (a.tf !== null) { const s = tfK(a); x += a.lw * kk * (1 - s) / 2; y += a.lh * kk * (1 - s) / 2; kk *= s; }
     ox = x - (a.x + a.sx) * kk; oy = y - (a.y + a.sy) * kk; k = kk;
   }
   const n = nodes[h];
   boxX = (n.x + n.tx) * k + ox; boxY = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy; boxK = k * n.k;
+  if (n.tf !== null) { const s = tfK(n); boxX += n.lw * boxK * (1 - s) / 2; boxY += n.lh * boxK * (1 - s) / 2; boxK *= s; }
 }
 /** Converts a surface point to node-local coordinates (its own units). */
 export function toLocal(h: i32, gx: number, gy: number): number[] { boxOf(h); return [(gx - boxX) / boxK, (gy - boxY) / boxK]; }

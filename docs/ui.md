@@ -360,6 +360,10 @@ Supported properties:
   `border: '<width> solid <color>'`, `opacity`, `translateX/Y`, `scale`, and React Native's shadow: `shadowColor`, `shadowOffset: { width, height }`,
   `shadowOpacity` (no shadow while it is 0, React Native's default), `shadowRadius`, and `elevation` (one black shadow: offset e/2, blur 0.8e, opacity
   0.12 + 0.012e up to 0.4).
+- React Native's `transform: [{ rotate: '45deg' }, { scale: 1.2 }, ...]` with `translateX/Y`, `scale`, `scaleX/Y`, `rotate`/`rotateZ` (`deg`, `rad`,
+  `turn`, or a number of degrees), `skewX/Y`; static or dynamic values. It applies around the centre in one fixed order (translate, rotate, scale, skew; a
+  repeated entry keeps the last value) and 3D entries are refused. Hits follow the transformed shape; an even scale paints today, rotate, skew and uneven
+  scales paint once the renderer takes a matrix (ZN-361.01).
 - Text: `fontSize`, `fontFamily`, `fontWeight`, `lineHeight` (absolute units), `letterSpacing` (px), `textAlign`.
 - Existing numeric aliases remain: `bg`, `radius`, `x/y`, `hidden`, `lazy` (canvas).
 
@@ -484,6 +488,11 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 68 | `shadowOpacity` |  |
 | 69 | `shadowRadius` |  |
 | 70 | `elevation` |  |
+| 71 | `rotate` |  |
+| 72 | `skewX` |  |
+| 73 | `skewY` |  |
+| 74 | `scaleX` |  |
+| 75 | `scaleY` |  |
 
 ### Accepted class tokens (generated)
 
