@@ -1,16 +1,20 @@
 ---
 id: ZN-367
 title: 'zinc:react-native: React Native''s components and APIs on zinc:ui'
-status: In Progress
+status: Backlog
 assignee: []
 created_date: '2026-10-08 15:16'
-updated_date: '2026-10-08 18:09'
+updated_date: '2026-10-08 18:20'
 labels:
   - ui
   - rn
   - size-L
 milestone: m-17
-dependencies: []
+dependencies:
+  - ZN-367.02
+  - ZN-367.03
+  - ZN-367.04
+  - ZN-367.05
 ordinal: 50090
 ---
 
