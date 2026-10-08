@@ -48,6 +48,16 @@ Face::~Face() {
 int Face::unitsPerEm() const { return impl_->upem; }
 float Face::ascent(float px) const { int a, d, g; stbtt_GetFontVMetrics(&impl_->info, &a, &d, &g); return a * stbtt_ScaleForMappingEmToPixels(&impl_->info, px); }
 float Face::descent(float px) const { int a, d, g; stbtt_GetFontVMetrics(&impl_->info, &a, &d, &g); return -d * stbtt_ScaleForMappingEmToPixels(&impl_->info, px); }
+bool Face::hasEmoji(uint32_t cp) const { hb_codepoint_t g; return hb_font_get_nominal_glyph(impl_->font, cp, &g) || hb_font_get_variation_glyph(impl_->font, cp, 0xFE0F, &g); }
+bool Face::isColor() const {   // sbix, COLR or CBDT: the font draws its glyphs in colour
+  for (hb_tag_t t : {HB_TAG('s', 'b', 'i', 'x'), HB_TAG('C', 'O', 'L', 'R'), HB_TAG('C', 'B', 'D', 'T')}) {
+    hb_blob_t* b = hb_face_reference_table(impl_->face, t);
+    bool has = hb_blob_get_length(b) > 0;
+    hb_blob_destroy(b);
+    if (has) return true;
+  }
+  return false;
+}
 bool Face::hasGlyph(uint32_t cp) const { hb_codepoint_t g; return hb_font_get_nominal_glyph(impl_->font, cp, &g); }
 
 bool rasterize(const Face& f, uint32_t gid, float px, Bitmap& out) {
@@ -126,8 +136,9 @@ void paragraph(const std::vector<Face*>& faces, std::string_view p, uint32_t bas
     bool glue = cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (i > 0 && cps[i - 1].cp == 0x200D);
     hb_script_t sc = hb_unicode_script(uf, cp);
     bool common = sc == HB_SCRIPT_COMMON || sc == HB_SCRIPT_INHERITED;   // spaces and punctuation stay in the font of the text before them
-    if (i > 0 && (glue || ((common || isMark(uf, cp)) && levels[cps[i].off] == levels[cps[i - 1].off])) && faces[face[i - 1]]->hasGlyph(cp)) f = face[i - 1];
-    else if (i > 0 && glue) f = face[i - 1];
+    if (i + 1 < cps.size() && cps[i + 1].cp == 0xFE0F) for (size_t k = 0; f < 0 && k < faces.size(); k++) if (faces[k]->isColor() && faces[k]->hasEmoji(cp)) f = static_cast<int>(k);   // emoji presentation asks for a colour font
+    if (f < 0 && i > 0 && (glue || ((common || isMark(uf, cp)) && levels[cps[i].off] == levels[cps[i - 1].off])) && faces[face[i - 1]]->hasGlyph(cp)) f = face[i - 1];
+    else if (f < 0 && i > 0 && glue) f = face[i - 1];
     for (size_t k = 0; f < 0 && k < faces.size(); k++) if (faces[k]->hasGlyph(cp)) f = static_cast<int>(k);
     face[i] = f < 0 ? 0 : f;
     hb_script_t s = hb_unicode_script(uf, cp);

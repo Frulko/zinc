@@ -17,6 +17,8 @@ class Face {
   float ascent(float px) const;    // pixels above the baseline
   float descent(float px) const;   // pixels below the baseline (positive)
   bool hasGlyph(uint32_t cp) const;
+  bool hasEmoji(uint32_t cp) const;   // a glyph for cp, or for cp followed by U+FE0F
+  bool isColor() const;   // sbix, COLR or CBDT tables: colour glyphs
   struct Impl;
   Impl* impl() const { return impl_; }
  private:

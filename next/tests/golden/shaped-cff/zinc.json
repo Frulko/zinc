@@ -1,0 +1,1 @@
+{ "name": "shaped-cff", "entry": "main.ts", "text": "shaped", "targets": { "macos": { "width": 320, "height": 100 } } }

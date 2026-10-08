@@ -312,7 +312,7 @@ static bool needs_shaping(const char* s, uint32_t n) {   // combining marks, Heb
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   const Font* fp = font_at(font);
   if (!fp) return 0;
-  if (shape_hooks && needs_shaping(s, n)) { int32_t a = shape_hooks->run(font, s, n, tracking, nullptr, nullptr); if (a >= 0) return a; }
+  if (shape_hooks && (needs_shaping(s, n) || (font < font_count && !fp->count))) { int32_t a = shape_hooks->run(font, s, n, tracking, nullptr, nullptr); if (a >= 0) return a; }
   const Font& f = *fp;
   int32_t pen = 0;
   for (uint32_t i = 0; i < n;) {
@@ -327,18 +327,23 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   if (!fp) return;
   const Font& f = *fp;
   int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
-  if (shape_hooks && needs_shaping(s, c.n)) {
+  if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {   // a baked font without glyphs is an outline format the tables cannot read (CFF)
     struct Ctx { const Target* t; const Cmd* c; int32_t px, py; } cx = {&t, &c, (pen + 32) >> 6, base};
     int32_t a = shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
       Ctx& k = *static_cast<Ctx*>(u);
       for (int32_t yy = 0; yy < g.h; yy++) {
         int32_t y = k.py + g.y + yy;
         if (y < k.t->clip.y0 || y >= k.t->clip.y1) continue;
-        const uint8_t* row = g.a + yy * g.w;
         for (int32_t xx = 0; xx < g.w; xx++) {
           int32_t x = k.px + g.x + xx;
-          if (x < k.t->clip.x0 || x >= k.t->clip.x1 || !row[xx]) continue;
-          blend(at(*k.t, x, y), k.c->c1, (uint32_t)row[xx] * k.c->alpha / 255);
+          if (x < k.t->clip.x0 || x >= k.t->clip.x1) continue;
+          if (g.rgba) {
+            uint32_t p = g.rgba[yy * g.w + xx], al = p >> 24;
+            if (al) blend(at(*k.t, x, y), ((p & 0xFF) << 16) | (p & 0xFF00) | ((p >> 16) & 0xFF), al * k.c->alpha / 255);
+          } else {
+            uint8_t cov = g.a[yy * g.w + xx];
+            if (cov) blend(at(*k.t, x, y), k.c->c1, (uint32_t)cov * k.c->alpha / 255);
+          }
         }
       }
     }, &cx);

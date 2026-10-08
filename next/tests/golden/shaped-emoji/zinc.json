@@ -1,0 +1,1 @@
+{ "name": "shaped-emoji", "entry": "main.ts", "text": "shaped", "targets": { "macos": { "width": 360, "height": 120 } } }

@@ -104,6 +104,7 @@ struct Ttf {
   bool longLoca = false;
   std::size_t head = 0, hhea = 0, maxp = 0, hmtx = 0, loca = 0, glyf = 0;
   std::map<std::uint32_t, std::uint32_t> cmap;
+  bool cff = false;   // OpenType with CFF outlines: embedded for the shaping tier, no glyphs baked
 
   unsigned u16(std::size_t o) const { return o + 2 <= size ? (buf[o] << 8) | buf[o + 1] : 0; }
   int i16(std::size_t o) const { unsigned v = u16(o); return v >= 0x8000 ? static_cast<int>(v) - 0x10000 : static_cast<int>(v); }
@@ -116,7 +117,9 @@ struct Ttf {
     unsigned nt = u16(4);
     for (unsigned i = 0; i < nt; ++i) { std::size_t o = 12 + i * 16; tables[std::string(reinterpret_cast<const char*>(b + o), 4)] = u32(o + 8); }
     auto t = [&](const char* name) -> std::size_t { auto it = tables.find(name); if (it == tables.end()) { err = std::string("font: missing table ") + name; return SIZE_MAX; } return it->second; };
-    head = t("head"); hhea = t("hhea"); maxp = t("maxp"); hmtx = t("hmtx"); loca = t("loca"); glyf = t("glyf");
+    cff = tables.count("CFF ") || tables.count("CFF2");
+    head = t("head"); hhea = t("hhea"); maxp = t("maxp"); hmtx = t("hmtx");
+    if (!cff) { loca = t("loca"); glyf = t("glyf"); }
     std::size_t cmapT = t("cmap");
     if (!err.empty()) return false;
     unitsPerEm = static_cast<int>(u16(head + 18));
@@ -255,6 +258,7 @@ BakedFont bakeFont(const Ttf& ttf, const std::string& name, int px, const std::v
   BakedFont f;
   f.name = name; f.px = px;
   std::set<std::uint32_t> uniq(chars.begin(), chars.end());
+  if (ttf.cff) uniq.clear();
   for (std::uint32_t cp : uniq) {
     auto it = ttf.cmap.find(cp);
     if (it == ttf.cmap.end()) continue;
