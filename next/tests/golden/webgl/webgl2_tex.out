@@ -27,7 +27,7 @@ beginQuery ok
 current query true
 endQuery ok
 endQuery with none active (0x502) 0x502
-result false true
+result false false
 sync true true true
 sync deleted false
 linked true {"name":"y","size":1,"type":5126}

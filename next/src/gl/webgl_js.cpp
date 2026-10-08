@@ -18,7 +18,7 @@ namespace {
 
 struct Gl;
 struct Obj { int kind; Id id; UniformLoc loc; const Gl* owner; };   // kind: 1 buffer, 2 shader, 3 program, 4 texture, 5 framebuffer, 6 uniform location
-struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
+struct Gl { WebGL1 gl; int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; bool boundaryScheduled = false; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0;
 JSValue gProto2, gPrecisionProto, gActiveProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
@@ -626,10 +626,27 @@ M(createQuery) { SELF NEED2; return wrapOnce(c, g, 10, gl.createQuery()); }
 M(deleteQuery) { SELF NEED(1); OBJ(o, 0, 10) gl.deleteQuery(o.id); return JS_UNDEFINED; }
 M(isQuery) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 10 && gl.isQuery(o->id)); }
 M(beginQuery) { SELF NEED(2); OBJR(o, 1, 10) gl.beginQuery(U(0), o.id); return JS_UNDEFINED; }
-M(endQuery) { SELF NEED(1); gl.endQuery(U(0)); return JS_UNDEFINED; }
+// queries and fences become available only once the event loop has turned: a timer of 0 ms marks that task boundary
+JSValue js_boundary(JSContext*, JSValueConst, int, JSValueConst*, int, JSValueConst* data) {
+  Gl* g = static_cast<Gl*>(JS_GetOpaque(data[0], gCtxClass));
+  if (g) { g->gl.taskBoundary(); g->boundaryScheduled = false; }
+  return JS_UNDEFINED;
+}
+void scheduleBoundary(JSContext* c, JSValueConst ctxObj, Gl* g) {
+  if (g->boundaryScheduled || !g->gl.taskPending()) return;
+  JSValue global = JS_GetGlobalObject(c), st = JS_GetPropertyStr(c, global, "setTimeout");
+  if (JS_IsFunction(c, st)) {
+    JSValue args[2] = {JS_NewCFunctionData(c, js_boundary, 0, 0, 1, &ctxObj), JS_NewInt32(c, 0)};
+    JS_FreeValue(c, JS_Call(c, st, global, 2, args));
+    JS_FreeValue(c, args[0]);
+    g->boundaryScheduled = true;
+  } else g->gl.taskBoundary();   // no event loop to wait for
+  JS_FreeValue(c, st); JS_FreeValue(c, global);
+}
+M(endQuery) { SELF NEED(1); gl.endQuery(U(0)); scheduleBoundary(c, t, g); return JS_UNDEFINED; }
 M(getQuery) { SELF NEED(2); return paramToJs(c, g, U(1), gl.getQuery(U(0), U(1))); }
 M(getQueryParameter) { SELF NEED(2); OBJR(o, 0, 10) return paramToJs(c, g, U(1), gl.getQueryParameter(o.id, U(1))); }
-M(fenceSync) { SELF NEED2; NEED(2); Id id = gl.fenceSync(U(0), U(1)); return id ? wrapOnce(c, g, 11, id) : JS_NULL; }
+M(fenceSync) { SELF NEED2; NEED(2); Id id = gl.fenceSync(U(0), U(1)); scheduleBoundary(c, t, g); return id ? wrapOnce(c, g, 11, id) : JS_NULL; }
 M(isSync) { SELF NEED(1); Obj* o = static_cast<Obj*>(JS_GetOpaque(argv[0], gObjClass)); return JS_NewBool(c, o && o->owner == g && o->kind == 11 && gl.isSync(o->id)); }
 M(deleteSync) { SELF NEED(1); OBJ(o, 0, 11) gl.deleteSync(o.id); return JS_UNDEFINED; }
 M(clientWaitSync) { SELF NEED(3); OBJR(o, 0, 11) return JS_NewUint32(c, gl.clientWaitSync(o.id, U(1), num(c, argv[2]))); }

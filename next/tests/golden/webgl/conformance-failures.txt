@@ -2,18 +2,11 @@ conformance2/attribs/gl-vertex-attrib.html	@E not a function |     at getDrng (<
 conformance2/context/context-attributes-depth-stencil-antialias-obeyed.html	antialias = true is not obeyed
 conformance2/misc/uninitialized-test-2.html	timeout
 conformance2/misc/views-with-offsets.html	Does not support texImage2D with offsets into views.
-conformance2/query/occlusion-query.html	Query's result became available too early
 conformance2/reading/read-pixels-from-fbo-test.html	getError expected: NO_ERROR. Was INVALID_ENUM : readPixels should generate no error
 conformance2/reading/read-pixels-into-pixel-pack-buffer.html	@E readPixels: pixels must be an ArrayBuffer view |     at readPixels (native) |     at validatePixelPackBufferAndParameters (<input>:73:40)
 conformance2/reading/read-pixels-pack-parameters.html	getError expected: INVALID_OPERATION. Was INVALID_ENUM : buffer too small
-conformance2/rendering/attrib-type-match.html	getError expected: INVALID_OPERATION. Was NO_ERROR : Type mismatch: type in shader mismatch the default type for a vertex attrib
 conformance2/rendering/blitframebuffer-filter-srgb.html	pixel at [0, 0] should be (110,110,110,255), but the actual color is (40,40,40,255)
-conformance2/rendering/clear-func-buffer-type-match.html	getError expected: INVALID_OPERATION. Was NO_ERROR : clear and INT buffer
-conformance2/rendering/draw-buffers.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/samplers/sampler-drawing-test.html	@E cannot set property 'fillStyle' of null |     at setupCanvasTexture (<input>:34:95) |     at <eval> (<input>:23:5)
-conformance2/sync/sync-webgl-specific.html	Sync object was signaled too early
-conformance2/transform_feedback/transform_feedback.html	gl.getIndexedParameter(gl.TRANSFORM_FEEDBACK_BUFFER_BINDING, 0) should be null. Was [object Object].
-conformance2/transform_feedback/unwritten-output-defaults-to-zero.html	buffer should match expected values
 context/context-attributes-alpha-depth-stencil-antialias.html	no PASS
 context/context-lost-restored.html	no PASS
 context/context-lost.html	no PASS

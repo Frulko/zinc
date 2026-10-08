@@ -30,6 +30,7 @@ conformance2/misc/instanceof-test.html
 conformance2/misc/object-deletion-behaviour-2.html
 conformance2/programs/active-built-in-attribs.html
 conformance2/programs/gl-get-frag-data-location.html
+conformance2/query/occlusion-query.html
 conformance2/query/query.html
 conformance2/renderbuffers/framebuffer-object-attachment.html
 conformance2/renderbuffers/framebuffer-test.html
@@ -37,12 +38,15 @@ conformance2/renderbuffers/framebuffer-texture-layer.html
 conformance2/renderbuffers/invalidate-framebuffer.html
 conformance2/renderbuffers/multisampled-renderbuffer-initialization.html
 conformance2/renderbuffers/readbuffer.html
+conformance2/rendering/attrib-type-match.html
 conformance2/rendering/blitframebuffer-filter-outofbounds.html
 conformance2/rendering/blitframebuffer-multisampled-readbuffer.html
 conformance2/rendering/blitframebuffer-scissor-enabled.html
 conformance2/rendering/blitframebuffer-size-overflow.html
 conformance2/rendering/blitframebuffer-test.html
 conformance2/rendering/canvas-resizing-with-pbo-bound.html
+conformance2/rendering/clear-func-buffer-type-match.html
+conformance2/rendering/draw-buffers.html
 conformance2/rendering/element-index-uint.html
 conformance2/rendering/framebuffer-completeness-unaffected.html
 conformance2/rendering/framebuffer-unsupported.html
@@ -55,7 +59,10 @@ conformance2/state/gl-enum-tests.html
 conformance2/state/gl-get-calls.html
 conformance2/state/gl-getstring.html
 conformance2/state/gl-object-get-calls.html
+conformance2/sync/sync-webgl-specific.html
+conformance2/transform_feedback/transform_feedback.html
 conformance2/transform_feedback/two-unreferenced-varyings.html
+conformance2/transform_feedback/unwritten-output-defaults-to-zero.html
 conformance2/vertex_arrays/vertex-array-object.html
 context/incorrect-context-object-behaviour.html
 limits/gl-max-texture-dimensions.html

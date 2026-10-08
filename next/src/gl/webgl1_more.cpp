@@ -519,6 +519,7 @@ void WebGL1::uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const 
 }
 void WebGL1::vertexAttribNf(std::uint32_t i, int n, const float* v) {
   if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE);
+  genericType_[i] = GL_FLOAT;
   if (n == 1) glVertexAttrib1fv(i, v); else if (n == 2) glVertexAttrib2fv(i, v); else if (n == 3) glVertexAttrib3fv(i, v); else glVertexAttrib4fv(i, v);
 }
 
@@ -652,7 +653,7 @@ WebGL1::Param WebGL1::getIndexedParameter(std::uint32_t target, std::uint32_t in
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER_BINDING && target != GL_UNIFORM_BUFFER_START && target != GL_UNIFORM_BUFFER_SIZE && target != GL_TRANSFORM_FEEDBACK_BUFFER_BINDING && target != GL_TRANSFORM_FEEDBACK_BUFFER_START && target != GL_TRANSFORM_FEEDBACK_BUFFER_SIZE)) { error(GL_INVALID_ENUM); return r; }
   if (index >= 24) { error(GL_INVALID_VALUE); return r; }
   const bool uniform = target == GL_UNIFORM_BUFFER_BINDING || target == GL_UNIFORM_BUFFER_START || target == GL_UNIFORM_BUFFER_SIZE;
-  auto it = indexed_.find((static_cast<std::uint64_t>(uniform ? GL_UNIFORM_BUFFER : GL_TRANSFORM_FEEDBACK_BUFFER) << 32) | index);
+  auto it = indexed_.find(idxKey(uniform ? GL_UNIFORM_BUFFER : GL_TRANSFORM_FEEDBACK_BUFFER, index));
   Indexed b = it == indexed_.end() ? Indexed{} : it->second;
   r.ok = true;
   if (target == GL_UNIFORM_BUFFER_BINDING || target == GL_TRANSFORM_FEEDBACK_BUFFER_BINDING) { r.kind = b.buffer ? 'o' : 'n'; r.object = b.buffer; r.objKind = 1; }
@@ -707,7 +708,7 @@ void WebGL1::uniformMatrixRC(const UniformLoc& l, int cols, int rows, bool trans
     default: glUniformMatrix4fv(l.location, k, t, v);
   }
 }
-void WebGL1::vertexAttribINi(std::uint32_t i, const int* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); glVertexAttribI4iv(i, v); }
-void WebGL1::vertexAttribINui(std::uint32_t i, const std::uint32_t* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); glVertexAttribI4uiv(i, v); }
+void WebGL1::vertexAttribINi(std::uint32_t i, const int* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); genericType_[i] = GL_INT; glVertexAttribI4iv(i, v); }
+void WebGL1::vertexAttribINui(std::uint32_t i, const std::uint32_t* v) { if (version_ != 2) return error(GL_INVALID_OPERATION); if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); genericType_[i] = GL_UNSIGNED_INT; glVertexAttribI4uiv(i, v); }
 
 }  // namespace zn::gl

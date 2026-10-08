@@ -106,14 +106,16 @@ void WebGL1::readBuffer(std::uint32_t src) {
 void WebGL1::bindBufferBase(std::uint32_t target, std::uint32_t index, Id id) {
   auto it = buffers_.find(id);
   if (id && (it == buffers_.end() || it->second.deleted)) return error(GL_INVALID_OPERATION);
+  if (target == GL_TRANSFORM_FEEDBACK_BUFFER && tfActive()) return error(GL_INVALID_OPERATION);
   bindBufferRange(target, index, id, 0, id ? it->second.size : 0);
-  auto x = indexed_.find((static_cast<std::uint64_t>(target) << 32) | index);
+  auto x = indexed_.find(idxKey(target, index));
   if (x != indexed_.end() && x->second.buffer == id) { x->second.whole = true; applyIndexed(target, index); }
 }   // size 0 for a buffer with no storage yet
 void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, std::int64_t offset, std::int64_t size) {
   if (version_ != 2 || (target != GL_UNIFORM_BUFFER && target != GL_TRANSFORM_FEEDBACK_BUFFER)) return error(GL_INVALID_ENUM);
   if (index >= 24) return error(GL_INVALID_VALUE);
   if (offset < 0 || size < 0) return error(GL_INVALID_VALUE);
+  if (target == GL_TRANSFORM_FEEDBACK_BUFFER && tfActive()) return error(GL_INVALID_OPERATION);   // the bindings are fixed while recording
   if (id) {
     auto it = buffers_.find(id);
     if (it == buffers_.end() || it->second.deleted) return error(GL_INVALID_OPERATION);
@@ -121,13 +123,13 @@ void WebGL1::bindBufferRange(std::uint32_t target, std::uint32_t index, Id id, s
     if (target == GL_UNIFORM_BUFFER) { GLint a = 0; glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &a); if (a > 0 && offset % a) return error(GL_INVALID_VALUE); }   // sizes are checked at draw time: an unallocated buffer can be bound
     it->second.target = GL_ARRAY_BUFFER;
   }
-  indexed_[(static_cast<std::uint64_t>(target) << 32) | index] = Indexed{id, offset, size};
+  indexed_[idxKey(target, index)] = Indexed{id, offset, size};
   otherBuffers_[target] = id;
   applyIndexed(target, index);
 }
 // glBindBufferRange rejects a range beyond the storage (or size 0); WebGL allows it, so bind the whole buffer then and re-apply after bufferData
 void WebGL1::applyIndexed(std::uint32_t target, std::uint32_t index) {
-  const Indexed& x = indexed_[(static_cast<std::uint64_t>(target) << 32) | index];
+  const Indexed& x = indexed_[idxKey(target, index)];
   auto it = buffers_.find(x.buffer);
   const std::uint32_t name = x.buffer && it != buffers_.end() ? it->second.name : 0;
   if (!name || x.whole || x.size == 0 || x.offset + x.size > it->second.size) glBindBufferBase(target, index, name);
@@ -206,6 +208,7 @@ void WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst,
   Id id = bufferSlot(target);
   if (!id) return error(GL_INVALID_OPERATION);
   Buf& b = buffers_[id];
+  if (tfActive()) for (auto& x : indexed_) if (static_cast<std::uint32_t>(x.first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && idxCurrent(x.first) && x.second.buffer == id) return error(GL_INVALID_OPERATION);   // being written
   if (src < 0 || src + static_cast<std::int64_t>(dstBytes) > b.size) return error(GL_INVALID_VALUE);
   glGetBufferSubData(target, static_cast<GLintptr>(src), static_cast<GLsizeiptr>(dstBytes), dst);
 }

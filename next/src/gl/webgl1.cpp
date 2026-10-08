@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <regex>
 
 #include "glad/gl.h"
 
@@ -30,13 +31,26 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
     if (es3) {
       std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
       // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
-      for (const char* name : {"gl_FragColor", "gl_FragData"}) {
-        const std::string from = name, to = std::string("zn_") + (name + 3);
+      for (const char* name : {"gl_FragColor", "gl_FragData", "gl_MaxDrawBuffers"}) {   // the last: MAX_DRAW_BUFFERS is reported as 4, not what the driver has
+        const std::string from = name, to = from == "gl_MaxDrawBuffers" ? "4" : std::string("zn_") + (name + 3);
         for (std::size_t p = body.find(from); p != std::string::npos; p = body.find(from, p + to.size())) {
           const bool left = p > 0 && (std::isalnum(static_cast<unsigned char>(body[p - 1])) || body[p - 1] == '_');
           const std::size_t e = p + from.size();
           const bool right = e < body.size() && (std::isalnum(static_cast<unsigned char>(body[e])) || body[e] == '_');
           if (!left && !right) body.replace(p, from.size(), to);
+        }
+      }
+      if (type == GL_VERTEX_SHADER && body.find("#if") == std::string::npos) {   // (a declaration under #if may not exist: left alone) an output the shader leaves unwritten is zero in WebGL 2 (transform feedback shows it); a driver leaves it undefined
+        static const std::regex outDecl(R"(\bout\s+(?:lowp\s+|mediump\s+|highp\s+)?((?:u?int|float|[ui]?vec[234]|mat[234](?:x[234])?))\s+(\w+)\s*;)");
+        static const std::regex mainOpen(R"(\bvoid\s+main\s*\(\s*(?:void)?\s*\)\s*\{)");
+        std::smatch mm;
+        if (std::regex_search(body, mm, mainOpen)) {
+          std::string init;
+          for (std::sregex_iterator it(body.begin(), body.end(), outDecl), end; it != end; ++it) {
+            const std::string t = (*it)[1];
+            init += (*it)[2].str() + " = " + t + (t[0] == 'u' && t[1] == 'i' ? "(0u)" : t[0] == 'i' || t == "int" ? "(0)" : "(0.0)") + ";";
+          }
+          body.insert(static_cast<std::size_t>(mm.position(0) + mm.length(0)), init);
         }
       }
       return "#version 330 core\n" + body;
@@ -63,6 +77,30 @@ std::string translate(const std::string& src, std::uint32_t type, bool es) {
   return pre + body;
 }
 
+
+// the colour numbers a fragment shader writes, as the class of each ('f', 'i', 'u'; 0: not written): from its `out` declarations (ES 3.00) or gl_FragColor / gl_FragData (ES 1.00)
+void fragOutputs(const std::string& src, char out[4]) {
+  std::fill(out, out + 4, 0);
+  std::string t;   // comments out
+  for (std::size_t i = 0; i < src.size(); ++i) {
+    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
+    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); i = e == std::string::npos ? src.size() : e + 1; t += ' '; }
+    else t += src[i];
+  }
+  if (t.find("#version 300 es") == std::string::npos) { out[0] = 'f'; return; }
+  static const std::regex decl(R"((layout\s*\(([^)]*)\)\s*)?(?:flat\s+|smooth\s+|centroid\s+)?\bout\s+(?:lowp\s+|mediump\s+|highp\s+)?(\w+)\s+(\w+)\s*(?:\[\s*([^\]]*)\])?\s*;)");
+  static const std::regex loc(R"(location\s*=\s*(\d+))");
+  for (std::sregex_iterator it(t.begin(), t.end(), decl), end; it != end; ++it) {
+    const std::smatch& m = *it;
+    const std::string type = m[3];
+    const char kind = type[0] == 'i' ? 'i' : type[0] == 'u' ? 'u' : 'f';
+    int first = 0, count = 1;
+    std::smatch lm; const std::string lay = m[2];
+    if (std::regex_search(lay, lm, loc)) first = std::stoi(lm[1]);
+    if (m[5].matched) { try { count = std::stoi(m[5]); } catch (...) { count = 4; } }
+    for (int k = first; k < first + count && k < 4; ++k) out[k] = kind;
+  }
+}
 
 // true when every float-typed declaration has a precision (default or qualifier)
 bool fragmentPrecisionOk(const std::string& src) {
@@ -181,6 +219,7 @@ void WebGL1::clearColor(float r, float g, float b, float a) { glClearColor(r, g,
 void WebGL1::clear(std::uint32_t mask) {
   if (mask & ~static_cast<std::uint32_t>(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) return error(GL_INVALID_VALUE);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if ((mask & GL_COLOR_BUFFER_BIT) && !clearClassOk(-1, 'f')) return error(GL_INVALID_OPERATION);   // an integer attachment cannot take clear()
   glClear(mask);
 }
 void WebGL1::pixelStorei(std::uint32_t pname, int value) {
@@ -205,7 +244,7 @@ void WebGL1::deleteBuffer(Id id) {
   if (elementBuffer_ == id) { elementBuffer_ = 0; glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
   for (Attrib& a : attribs_) if (a.buffer == id) a.buffer = 0;
   for (auto& o : otherBuffers_) if (o.second == id) { o.second = 0; glBindBuffer(o.first, 0); }
-  for (auto& o : indexed_) if (o.second.buffer == id) { o.second.buffer = 0; glBindBufferBase(static_cast<std::uint32_t>(o.first >> 32), static_cast<std::uint32_t>(o.first), 0); }
+  for (auto& o : indexed_) if (o.second.buffer == id && idxCurrent(o.first)) { o.second.buffer = 0; glBindBufferBase(static_cast<std::uint32_t>(o.first >> 32), static_cast<std::uint32_t>(o.first & 0xFF), 0); }
   it->second.deleted = true;   // a buffer that another vertex array still uses lives on until it lets go
   releaseBuffers();
 }
@@ -219,6 +258,7 @@ void WebGL1::releaseBuffers() {
       if (curVao_ && uses(defaultVao_)) used = true;
       for (const Attrib& a : attribs_) if (a.buffer == it->first) used = true;   // the bound vertex array's own state is live, not in its Vao
       if (elementBuffer_ == it->first) used = true;
+      for (auto& x : indexed_) if (x.second.buffer == it->first) used = true;   // a transform feedback object other than the bound one still has it
     }
     if (it->second.deleted && !used) { glDeleteBuffers(1, &it->second.name); it = buffers_.erase(it); }
     else ++it;
@@ -259,7 +299,7 @@ void WebGL1::bufferData(std::uint32_t target, std::int64_t size, const void* dat
   b.shadow.assign(static_cast<std::size_t>(size), 0);
   if (data && size) std::memcpy(b.shadow.data(), data, static_cast<std::size_t>(size));
   glBufferData(target, static_cast<GLsizeiptr>(size), b.shadow.empty() ? nullptr : b.shadow.data(), usage);
-  for (auto& x : indexed_) if (x.second.buffer == id) applyIndexed(static_cast<std::uint32_t>(x.first >> 32), static_cast<std::uint32_t>(x.first));
+  for (auto& x : indexed_) if (x.second.buffer == id && idxCurrent(x.first)) applyIndexed(static_cast<std::uint32_t>(x.first >> 32), static_cast<std::uint32_t>(x.first & 0xFF));
 }
 void WebGL1::bufferSubData(std::uint32_t target, std::int64_t offset, std::int64_t size, const void* data) {
   if (!bufferTargetOk(target)) return error(GL_INVALID_ENUM);
@@ -354,6 +394,7 @@ void WebGL1::linkProgram(Id pid) {
   glGetProgramInfoLog(p.name, len, nullptr, p.log.data());
   p.log.resize(std::strlen(p.log.c_str()));
   p.linked = ok != 0;
+  if (p.linked) fragOutputs(shaders_[p.fs].source, p.fragOut);
 }
 bool WebGL1::programLinked(Id id) const { auto it = programs_.find(id); return it != programs_.end() && it->second.linked; }
 std::string WebGL1::programInfoLog(Id id) const { auto it = programs_.find(id); return it == programs_.end() ? "" : it->second.log; }
@@ -365,6 +406,7 @@ void WebGL1::eraseProgram(Id id) {
   programs_.erase(it);
 }
 void WebGL1::useProgram(Id id) {
+  if (version_ == 2 && tfRunning()) return error(GL_INVALID_OPERATION);   // not while transform feedback records (paused is fine)
   if (!id) { const Id old = program_; program_ = 0; glUseProgram(0); if (old) { auto o = programs_.find(old); if (o != programs_.end() && o->second.deleted) eraseProgram(old); } return; }
   auto it = programs_.find(id);
   if (it == programs_.end() || !it->second.linked || it->second.deleted) return error(GL_INVALID_OPERATION);
@@ -447,8 +489,25 @@ void WebGL1::vertexAttribPointer(std::uint32_t i, int size, std::uint32_t type, 
   Attrib& a = attribs_[i];
   a.buffer = arrayBuffer_;
   releaseBuffers();
-  a.size = size; a.type = type; a.normalized = normalized; a.stride = stride; a.offset = offset;
+  a.size = size; a.type = type; a.normalized = normalized; a.stride = stride; a.offset = offset; a.integer = false;
   glVertexAttribPointer(i, size, type, normalized, stride, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)));
+}
+char WebGL1::attachmentKind(int i) {
+  if (!fbo_) return i == 0 ? 'f' : 0;
+  GLint type = GL_NONE, comp = 0;
+  glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+  if (type != GL_NONE) glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+  while (glGetError() != GL_NO_ERROR) {}
+  return type == GL_NONE ? 0 : comp == GL_INT ? 'i' : comp == GL_UNSIGNED_INT ? 'u' : 'f';
+}
+bool WebGL1::clearClassOk(int drawbuffer, char want) {
+  if (version_ != 2) return true;
+  for (int i = drawbuffer < 0 ? 0 : drawbuffer; i < (drawbuffer < 0 ? 4 : drawbuffer + 1); ++i) {
+    if (!drawBufferOn(i)) continue;
+    const char k = attachmentKind(i);
+    if (k && k != want) return false;
+  }
+  return true;
 }
 bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances) {
   if (!program_) { error(GL_INVALID_OPERATION); return false; }
@@ -462,7 +521,14 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     GLsizei len = 0; GLint size = 0; GLenum type = 0;
     glGetActiveAttrib(pr.name, static_cast<GLuint>(k), sizeof buf, &len, &size, &type, buf);
     int loc = glGetAttribLocation(pr.name, buf);
-    if (loc < 0 || loc >= kMaxAttribs || !attribs_[loc].enabled) continue;
+    if (loc < 0 || loc >= kMaxAttribs || std::strncmp(buf, "gl_", 3) == 0) continue;   // gl_InstanceID and friends are built-ins, whatever location a driver gives them
+    if (version_ == 2) {   // the class of the data (array or constant) must be the class the shader declares
+      const char want = type == GL_INT || (type >= GL_INT_VEC2 && type <= GL_INT_VEC4) ? 'i' : type == GL_UNSIGNED_INT || (type >= GL_UNSIGNED_INT_VEC2 && type <= GL_UNSIGNED_INT_VEC4) ? 'u' : 'f';
+      const Attrib& d = attribs_[loc];
+      const char have = d.enabled ? (d.integer ? (d.type == GL_UNSIGNED_BYTE || d.type == GL_UNSIGNED_SHORT || d.type == GL_UNSIGNED_INT ? 'u' : 'i') : 'f') : genericType_[loc] == GL_INT ? 'i' : genericType_[loc] == GL_UNSIGNED_INT ? 'u' : 'f';
+      if (want != have) { error(GL_INVALID_OPERATION); return false; }
+    }
+    if (!attribs_[loc].enabled) continue;
     const Attrib& a = attribs_[loc];
     auto b = buffers_.find(a.buffer);
     if (b == buffers_.end()) { error(GL_INVALID_OPERATION); return false; }   // no client-side arrays in WebGL
@@ -471,6 +537,15 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     if (a.divisor ? instances <= 0 : lastIndex < firstIndex) continue;
     std::int64_t need = a.offset + stride * last + static_cast<std::int64_t>(a.size) * ts;
     if (need > b->second.size) { error(GL_INVALID_OPERATION); return false; }
+  }
+  if (version_ == 2 && !glIsEnabled(GL_RASTERIZER_DISCARD)) {   // every enabled draw buffer needs an output of its class, unless nothing can be written
+    GLboolean cm[4] = {};
+    glGetBooleanv(GL_COLOR_WRITEMASK, cm);
+    if (cm[0] || cm[1] || cm[2] || cm[3]) for (int i = 0; i < 4; ++i) {
+      if (!drawBufferOn(i)) continue;
+      const char k = attachmentKind(i);
+      if (k && pr.fragOut[i] != k) { error(GL_INVALID_OPERATION); return false; }
+    }
   }
   if (version_ == 2) {   // every uniform block needs a buffer range big enough for it
     GLint blocks = 0;

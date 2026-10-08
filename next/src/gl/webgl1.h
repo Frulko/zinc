@@ -4,6 +4,7 @@
 #pragma once
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -128,6 +129,8 @@ class WebGL1 {
   Param getQuery(std::uint32_t target, std::uint32_t pname);
   Param getQueryParameter(Id q, std::uint32_t pname);
   Id fenceSync(std::uint32_t condition, std::uint32_t flags);
+  bool taskPending() const { return !pendingTask_.empty(); }   // queries ended and fences created in this task: not available before the event loop turns
+  void taskBoundary() { pendingTask_.clear(); }
   bool isSync(Id s) const { return syncs_.count(s) != 0; }
   void deleteSync(Id s);
   std::uint32_t clientWaitSync(Id s, std::uint32_t flags, double timeoutNs);
@@ -242,7 +245,7 @@ class WebGL1 {
  private:
   struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log; bool compiled = false, deleted = false; int attached = 0; };
-  struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; std::string log; std::map<std::string, int> attribBindings; };
+  struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, target = 0; bool bound = false, immutable = false; int levels = 0; };
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
@@ -279,12 +282,18 @@ class WebGL1 {
   std::map<Id, Sampler> samplers_;
   std::map<Id, Query> queries_;
   std::map<Id, TransformFeedback> tfs_;
+  std::set<Id> pendingTask_;
   std::map<Id, void*> syncs_;   // GLsync objects
   std::map<std::uint32_t, Id> activeQuery_;   // target -> the query in flight
   Vao defaultVao_;                       // the state of the VAO 0 while another VAO is bound
   Id curVao_ = 0;
   std::map<std::uint32_t, Id> otherBuffers_;   // WebGL 2 targets other than ARRAY / ELEMENT_ARRAY
   struct Indexed { Id buffer = 0; std::int64_t offset = 0, size = 0; bool whole = false; };   // whole: bound with bindBufferBase
+  // the key holds target, index and, for TRANSFORM_FEEDBACK_BUFFER, the transform feedback object it belongs to (bindings are state of that object)
+  std::uint64_t idxKey(std::uint32_t target, std::uint32_t index) const { return (static_cast<std::uint64_t>(target) << 32) | (target == 0x8C8E ? static_cast<std::uint64_t>(tf_) << 8 : 0) | index; }
+  bool tfActive() const { auto c = tfs_.find(tf_); return c != tfs_.end() ? c->second.active : tfUnbound_ != 0; }
+  bool tfRunning() const { auto c = tfs_.find(tf_); return c != tfs_.end() ? c->second.active && !c->second.paused : tfUnbound_ != 0; }
+  bool idxCurrent(std::uint64_t key) const { return static_cast<std::uint32_t>(key >> 32) != 0x8C8E || ((key >> 8) & 0xFFFFFF) == tf_; }
   std::map<std::uint64_t, Indexed> indexed_;   // (target, index) -> UNIFORM_BUFFER / TRANSFORM_FEEDBACK_BUFFER bindings
   int version_ = 1;
   bool depthAttr_ = true, stencilAttr_ = false;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
@@ -293,6 +302,10 @@ class WebGL1 {
   Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[32] = {}, texCube_[32] = {}, tex3d_[32] = {}, texArr_[32] = {}, samplerUnit_[32] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
   std::uint32_t activeUnit_ = 0;
   Attrib attribs_[16];
+  std::uint32_t genericType_[16] = {0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406};   // FLOAT, INT or UNSIGNED_INT: what vertexAttrib* last set as the constant value
+  char attachmentKind(int i);   // component class of draw buffer i of the draw framebuffer: 'f', 'i', 'u', 0 for nothing there
+  bool drawBufferOn(int i) const { return (fbo_ ? fbos_.at(fbo_).draw[i] : defaultDraw_[i]) != 0; }
+  bool clearClassOk(int drawbuffer, char want);   // clear (drawbuffer -1, want 'f') and clearBuffer*: false when an enabled draw buffer's attachment is of another class
   int unpackAlignment_ = 4, maxTexSize_ = 0;
   std::uint32_t mipmapHint_ = 0x1100, derivativeHint_ = 0x1100;   // DONT_CARE
   int unpackFlipY_ = 0, unpackPremultiply_ = 0, unpackColorspace_ = 0x9244;   // the WEBGL pixel-store state, applied by the binding on image sources

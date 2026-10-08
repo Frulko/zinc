@@ -234,6 +234,7 @@ void WebGL1::endQuery(std::uint32_t target) {
   queries_[id].active = false;
   activeQuery_[target] = 0;
   glEndQuery(target == 0x8D6A ? 0x8C2F : target);
+  pendingTask_.insert(id);
 }
 WebGL1::Param WebGL1::getQuery(std::uint32_t target, std::uint32_t pname) {
   Param r;
@@ -249,6 +250,7 @@ WebGL1::Param WebGL1::getQueryParameter(Id id, std::uint32_t pname) {
   if (pname != 0x8866 && pname != 0x8867) { error(GL_INVALID_ENUM); return r; }   // QUERY_RESULT, QUERY_RESULT_AVAILABLE
   GLuint v = 0;
   glGetQueryObjectuiv(it->second.name, pname, &v);
+  if (pname == 0x8867 && pendingTask_.count(id)) v = 0;   // not available in the task that ended it
   r.ok = true;
   r.kind = pname == 0x8867 ? 'b' : (it->second.target == 0x8C88 ? 'i' : 'b');
   r.v.push_back(v);
@@ -262,6 +264,7 @@ Id WebGL1::fenceSync(std::uint32_t condition, std::uint32_t flags) {
   GLsync s = glFenceSync(condition, 0);
   Id id = nextId_++;
   syncs_[id] = s;
+  pendingTask_.insert(id);
   return id;
 }
 void WebGL1::deleteSync(Id id) { auto it = syncs_.find(id); if (it == syncs_.end()) return; glDeleteSync(static_cast<GLsync>(it->second)); syncs_.erase(it); }
@@ -270,6 +273,7 @@ std::uint32_t WebGL1::clientWaitSync(Id id, std::uint32_t flags, double timeoutN
   if (it == syncs_.end()) { error(GL_INVALID_OPERATION); return GL_WAIT_FAILED; }
   if (flags & ~static_cast<std::uint32_t>(GL_SYNC_FLUSH_COMMANDS_BIT)) { error(GL_INVALID_VALUE); return GL_WAIT_FAILED; }
   if (timeoutNs < 0 || timeoutNs > 1e9) { error(GL_INVALID_OPERATION); return GL_WAIT_FAILED; }   // WebGL caps the wait at MAX_CLIENT_WAIT_TIMEOUT_WEBGL (0 in the spec's sense)
+  if (pendingTask_.count(id)) return GL_TIMEOUT_EXPIRED;
   return glClientWaitSync(static_cast<GLsync>(it->second), flags, static_cast<GLuint64>(timeoutNs));
 }
 void WebGL1::waitSync(Id id, std::uint32_t flags, std::int64_t timeout) {
@@ -285,6 +289,7 @@ WebGL1::Param WebGL1::getSyncParameter(Id id, std::uint32_t pname) {
   if (pname != GL_OBJECT_TYPE && pname != GL_SYNC_STATUS && pname != GL_SYNC_CONDITION && pname != GL_SYNC_FLAGS) { error(GL_INVALID_ENUM); return r; }
   GLint v = 0;
   glGetSynciv(static_cast<GLsync>(it->second), pname, 1, nullptr, &v);
+  if (pname == GL_SYNC_STATUS && pendingTask_.count(id)) v = GL_UNSIGNALED;
   r.ok = true; r.kind = 'i'; r.v.push_back(v);
   return r;
 }
@@ -293,10 +298,13 @@ WebGL1::Param WebGL1::getSyncParameter(Id id, std::uint32_t pname) {
 Id WebGL1::createTransformFeedback() { if (version_ != 2 || !glGenTransformFeedbacks) { error(GL_INVALID_OPERATION); return 0; } TransformFeedback t; glGenTransformFeedbacks(1, &t.name); Id id = nextId_++; tfs_[id] = t; return id; }   // objects are GL 4.0; GLES 3.0 has them too
 void WebGL1::deleteTransformFeedback(Id id) {
   auto it = tfs_.find(id);
-  if (it == tfs_.end() || it->second.active) return;
+  if (it == tfs_.end()) return;
+  if (it->second.active) return error(GL_INVALID_OPERATION);
   if (tf_ == id) { tf_ = 0; glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0); }
   glDeleteTransformFeedbacks(1, &it->second.name);
+  for (auto x = indexed_.begin(); x != indexed_.end();) x = static_cast<std::uint32_t>(x->first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && ((x->first >> 8) & 0xFFFFFF) == id ? indexed_.erase(x) : std::next(x);
   tfs_.erase(it);
+  releaseBuffers();
 }
 void WebGL1::bindTransformFeedback(std::uint32_t target, Id id) {
   if (target != GL_TRANSFORM_FEEDBACK) return error(GL_INVALID_ENUM);
@@ -312,9 +320,14 @@ void WebGL1::beginTransformFeedback(std::uint32_t mode) {
   if (!program_) return error(GL_INVALID_OPERATION);
   auto cur = tfs_.find(tf_);
   if (cur != tfs_.end() && cur->second.active) return error(GL_INVALID_OPERATION);
+  GLint varyings = 0;
+  glGetProgramiv(programs_[program_].name, GL_TRANSFORM_FEEDBACK_VARYINGS, &varyings);
+  if (varyings == 0) return error(GL_INVALID_OPERATION);   // nothing to record
+  while (glGetError() != GL_NO_ERROR) {}
+  glBeginTransformFeedback(mode);
+  if (glGetError() != GL_NO_ERROR) return error(GL_INVALID_OPERATION);   // e.g. a varying without a buffer
   if (cur != tfs_.end()) cur->second.active = true;
   else tfUnbound_ = 1;
-  glBeginTransformFeedback(mode);
 }
 void WebGL1::endTransformFeedback() {
   auto cur = tfs_.find(tf_);
@@ -436,6 +449,7 @@ void WebGL1::clearBufferfv(std::uint32_t buffer, int drawbuffer, const float* v,
   if (drawbuffer < 0 || (buffer == GL_DEPTH && drawbuffer != 0) || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < (buffer == GL_COLOR ? 4u : 1u)) return error(GL_INVALID_VALUE);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (buffer == GL_COLOR && !clearClassOk(drawbuffer, 'f')) return error(GL_INVALID_OPERATION);
   glClearBufferfv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferiv(std::uint32_t buffer, int drawbuffer, const int* v, std::size_t n) {
@@ -444,6 +458,7 @@ void WebGL1::clearBufferiv(std::uint32_t buffer, int drawbuffer, const int* v, s
   if (drawbuffer < 0 || (buffer == GL_STENCIL && drawbuffer != 0) || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < (buffer == GL_COLOR ? 4u : 1u)) return error(GL_INVALID_VALUE);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (buffer == GL_COLOR && !clearClassOk(drawbuffer, 'i')) return error(GL_INVALID_OPERATION);
   glClearBufferiv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferuiv(std::uint32_t buffer, int drawbuffer, const std::uint32_t* v, std::size_t n) {
@@ -452,6 +467,7 @@ void WebGL1::clearBufferuiv(std::uint32_t buffer, int drawbuffer, const std::uin
   if (drawbuffer < 0 || drawbuffer >= 4) return error(GL_INVALID_VALUE);
   if (n < 4) return error(GL_INVALID_VALUE);
   if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!clearClassOk(drawbuffer, 'u')) return error(GL_INVALID_OPERATION);
   glClearBufferuiv(buffer, drawbuffer, v);
 }
 void WebGL1::clearBufferfi(std::uint32_t buffer, int drawbuffer, float depth, int stencil) {
