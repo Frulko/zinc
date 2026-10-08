@@ -61,7 +61,8 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Appearance, useColorScheme | partial | ZINC_COLOR_SCHEME or setColorScheme; the system setting is not read yet |
 | AppRegistry | partial | registerComponent mounts the app; runApplication missing |
 | processColor | partial | #rgb, #rrggbb, #rrggbbaa (alpha dropped), white, black, transparent |
-| AccessibilityInfo, AppState, BackHandler, I18nManager (RTL: ZN-377), InteractionManager, PlatformColor, Share, Vibration, ToastAndroid | missing | |
+| I18nManager | partial | isRTL, forceRTL (at once, for the whole surface), allowRTL |
+| AccessibilityInfo, AppState, BackHandler, InteractionManager, PlatformColor, Share, Vibration, ToastAndroid | missing | |
 
 ## Styles
 

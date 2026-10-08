@@ -29,7 +29,7 @@ const c = new NuxtColors(); c.primary = 'blue'; setColors(c);   // app.config ui
 | `transition-colors` 150 ms, `--ease-out` | zinc:ui transitions | done |
 | keyframes scale-in / slide-in / fade / accordion, reduced motion | | ZN-275 |
 | font: system `font-sans`; the docs site uses Public Sans | zinc:ui's sans (Inter) | partial: ZN-379 |
-| logical properties (`ms-`, `ps-`, `start-`), `rtl:` | | missing: ZN-377 |
+| logical properties (`ms-`, `ps-`, `start-`), `rtl:` | zinc:ui's direction and logical classes; the Switch thumb mirrors | done (ZN-377) |
 
 ## Components
 
@@ -68,7 +68,6 @@ Nuxt's inset ring is a 1 px border (borders take no layout space in zinc:ui, so 
 ## What does not map, and the tasks
 
 - OKLab colour mixing of tints: sRGB alpha today (ZN-378).
-- Right-to-left direction and logical properties (ZN-377).
 - Public Sans, the face of the Nuxt UI site (ZN-379).
 - Enter / exit keyframes and reduced motion (ZN-275).
 - Router links (`to`, active matching): no router in zinc:ui; components take `onPress` and an `active` flag.

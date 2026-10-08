@@ -315,6 +315,14 @@ Values are signals: a style reads them with `.get()` and the node follows. Anima
 In the React model, `useAnimated(value)` of `zinc:react-native` returns the value's number and renders the component again when it moves
 (React Native's Animated.View does this for its style): `const x = useAnimated(pan.x)` then `transform: [{ translateX: x }]` (examples/rn-tester).
 
+## Right to left
+
+`ui.setDirection('rtl')` (or `ZINC_DIR=rtl`) lays the whole surface out from the right, like `<html dir="rtl">`, in both layout engines: rows run from the
+right edge, a column's start (and its children that are not stretched) is on the right, text without an explicit alignment starts on the right. The logical
+classes `ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `rounded-s`, `rounded-e`, `border-s`, `border-e`, `text-start`, `text-end` and the `rtl:` / `ltr:`
+variants follow it (switching restyles the nodes that use them). Absolute insets and the physical classes (`ml-`, `left-`, `text-left`) stay physical.
+`ui.direction()`, `ui.isRtl()`; React Native's `I18nManager.forceRTL` / `isRTL` map onto them.
+
 ## Layout engines
 
 `zinc.json` `"ui": {"layout": "classic" | "rn" | "auto"}` picks the engine: `classic` (the default, every demo) or `rn` (Yoga 3.2.1, React Native's

@@ -488,3 +488,13 @@ export class AppRegistry {
   static registerComponent(name: string, getComponent: () => () => i32): void { render(getComponent(), 0xffffff, null); }
 }
 
+// ---------------------------------------------------------------- I18nManager (ZN-377)
+/** React Native's right-to-left switch over zinc:ui's direction (one for the surface): forceRTL(true) lays everything out from the right at once
+ *  (React Native applies it on the next start). */
+export class I18nManager {
+  static isRTL(): boolean { return ui.isRtl(); }
+  static forceRTL(on: boolean): void { ui.setDirection(on ? 'rtl' : 'ltr'); }
+  static allowRTL(on: boolean): void {}
+  static getConstants(): boolean { return ui.isRtl(); }
+}
+

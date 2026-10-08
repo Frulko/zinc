@@ -156,6 +156,7 @@ class YogaLayout final : public Layout {
       case LayoutProp::AspectRatio: YGNodeStyleSetAspectRatio(n, v > 0 ? v : YGUndefined); break;
       case LayoutProp::Hidden: r->hidden = v != 0; display(*r); break;
       case LayoutProp::Contents: r->contents = v != 0; display(*r); break;
+      case LayoutProp::Direction: YGNodeStyleSetDirection(n, v > 0 ? YGDirectionRTL : v == 0 ? YGDirectionLTR : YGDirectionInherit); break;
     }
   }
 

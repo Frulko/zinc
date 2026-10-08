@@ -3,6 +3,7 @@
 // props (color, variant, size, label, icon, loading, disabled...), variants and sizes (variants.ts, docs/nuxt-ui.md). Written once for both UI models like
 // zinc:ui/kit: under Solid the classes follow theme() and the accessors; under React a render reads them. Controlled values are an accessor
 // (`modelValue`) and `onUpdate`, Vue's v-model. Icons are Lucide names (zinc:icons): name the ones a program uses in zinc.json "icons".
+import * as ui from 'zinc:ui';
 import { theme, hex, rounded } from './theme';
 import { buttonSize, buttonIconSize, buttonVariant, contentColor, badgeSize, badgeIconSize, badgeVariant, avatarBox, inputSize, inputHeight, inputVariant,
   choiceText, checkboxBox, switchThumb, radioDot, checkedFill, choiceCard, rgb } from './variants';
@@ -160,7 +161,7 @@ export function Switch(p: SwitchProps): i32 {
   const flip = (): void => { const f = p.onUpdate; if (!(p.disabled ?? false) && f !== undefined) f(!on()); };
   return <View class={`flex-row items-center gap-2 ${p.disabled === true ? 'opacity-75' : ''} ${p.class ?? ''}`} onClick={flip} role="switch" aria-checked={on()}>
     <View class={`flex-row items-center rounded-full p-[2px] w-[${k * 2 + 4}px] h-[${k + 4}px] transition-colors bg-${hex(on() ? checkedFill(theme(), color) : theme().bgAccented)}`}>
-      <View class={`rounded-full shadow-lg w-[${k}px] h-[${k}px] bg-${hex(theme().bg)}`} style={{ translateX: on() ? k : 0 }} />
+      <View class={`rounded-full shadow-lg w-[${k}px] h-[${k}px] bg-${hex(theme().bg)}`} style={{ translateX: on() ? (ui.isRtl() ? -k : k) : 0 }} />
     </View>
     <View class="flex-col">
       <Show when={p.label !== undefined}><Text class={`${choiceText(size)} font-medium text-${hex(theme().text)}`}>{p.label ?? ''}</Text></Show>

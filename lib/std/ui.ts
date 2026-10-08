@@ -1236,6 +1236,7 @@ const CQ_PX: i32[] = [384, 448, 512, 576];
 /** The value of one query prefix (`max-md`, `landscape`, `pointer-coarse`, `@md`...): 1 true, 0 false, -1 not a query. Sets the node's dependency bits. */
 function queryOf(n: UiNode, q: string): i32 {
   if (q === 'dark' || q === 'light') { n.media = n.media | 16; return scheme === q ? 1 : 0; }
+  if (q === 'rtl' || q === 'ltr') { n.media = n.media | 32; return (q === 'rtl') === rtl ? 1 : 0; }
   if (q === 'landscape') { n.responsive = true; return width() >= height() ? 1 : 0; }
   if (q === 'portrait') { n.responsive = true; return width() < height() ? 1 : 0; }
   if (q === 'pointer-coarse' || q === 'hover-none') { n.media = n.media | 2; return coarse ? 1 : 0; }
@@ -1391,6 +1392,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     const qv = queryOf(n, tok.slice(0, qc));
     if (qv >= 0) return qv === 1 ? applyToken(n, tok.slice(qc + 1), variant) : applyToken(new UiNode(n.tag), tok.slice(qc + 1), variant);
   }
+  const lg = logicalToken(tok);
+  if (lg !== '') { n.media = n.media | 32; return applyToken(n, lg, variant); }
   if (tok === '@container') { n.container = true; return true; }
   // responsive (mobile first): md:flex-row applies from 768 px wide; re-evaluated when the window is resized
   for (let i = 0; i < BREAKPOINTS.length; i++) if (tok.startsWith(BREAKPOINTS[i])) {
@@ -2294,6 +2297,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       let off: number = 0;
       const al0: i32 = c.selfAlign >= 0 ? c.selfAlign : n.align;   // align-self
       const al: i32 = al0 === 4 ? 2 : al0;   // ponytail: baseline ends at the line's end in classic (Yoga aligns real baselines in rn)
+      const alx: i32 = rtl && !n.row ? (al === 1 ? 1 : al === 2 ? 0 : 2) : al;   // RTL: a column's start (and a child not stretched) is its right edge
       const stretch = (al === 3 && (n.row ? c.h < 0 && c.hFrac === 0 : c.w < 0 && c.wFrac === 0)) || (n.row ? c.fullH : c.fullW);   // a fixed or percent size on the cross axis wins over the stretch
       const am = c.mAuto;
       const autoCrossStart = (n.row ? (am >> 2) & 1 : am & 1) !== 0, autoCrossEnd = (n.row ? (am >> 3) & 1 : (am >> 1) & 1) !== 0;
@@ -2304,11 +2308,11 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
         cm = n.row ? csW : csH; cc = n.row ? csH : csW;
       }
       if (autoCrossStart || autoCrossEnd) off = autoCrossStart && autoCrossEnd ? Math.floor((lineCross - cc - marginCross) / 2) : autoCrossStart ? lineCross - cc - marginCross : 0;   // an auto cross margin beats align-items
-      else if (!stretch && al === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
-      else if (!stretch && al === 2) off = lineCross - cc - marginCross;
+      else if (!stretch && alx === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
+      else if (!stretch && alx === 2) off = lineCross - cc - marginCross;
       const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
-      if (n.row) place(c, Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);
+      if (n.row) place(c, rtl ? Math.round(x + n.lw - n.pr - pos - lead - c.mr - cm) : Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + crossPos + off + c.mt), cm, cc);   // RTL: rows run from the right edge
       else place(c, Math.round(x + n.pl + crossPos + off + c.ml), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
       pos += lead + cm + trail + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
     }
@@ -2343,7 +2347,7 @@ let rnOpen = false;
 class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey: number[] = []; leaf: i32 = 0; }
 // zn::host::LayoutProp numbers; W, H and B are composites: size or percent or full, basis or basis percent
 const RN_W: i32 = -1, RN_H: i32 = -2, RN_B: i32 = -3;
-const RN_PROPS: i32[] = [RN_W, RN_H, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54];
+const RN_PROPS: i32[] = [RN_W, RN_H, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54, 1016];
 function rnValue(n: UiNode, p: i32): number {
   const inset = n.abs || n.rel;
   if (p === RN_W) return n.fullW ? -2 : n.wFrac > 0 ? -3 - n.wFrac : n.w;
@@ -2369,6 +2373,7 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 1006) return n.aspect;
   if (p === 48) return n.hidden ? 1 : 0;
   if (p === 1015) return n.tag === FRAGMENT ? 1 : 0;
+  if (p === 1016) return n.parent < 0 ? (rtl ? 1 : 0) : -1;   // the direction: set on the root, inherited below (ZN-377)
   if (p === 51) return inset ? n.top : UNSET;
   if (p === 52) return inset ? n.left : UNSET;
   if (p === 53) return inset ? n.right : UNSET;
@@ -2783,7 +2788,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       const tai: i32 = fa === 255 ? ai : Math.round(ai * fa / 255);
       for (let i = 0; i < n.lines.length; i++) {
         const free = n.lw - n.pl - n.pr - n.lineW[i];
-        const off = n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0;
+        const off = talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0;
         const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
         if (tsNode === h && tsA !== tsB) {   // the selected part of this line, under the text
           const ls = tsStart(n, i), a0 = imax(imin(tsA, tsB), ls), b0 = imin(imax(tsA, tsB), ls + n.lines[i].length);
@@ -3787,7 +3792,7 @@ function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
   const lh = lineHeightOf(n), f = n.fontId;
   const line = Math.max(0, Math.min(n.lines.length - 1, Math.floor((ly - n.pt) / lh)));
   const text = n.lines[line], free = n.lw - n.pl - n.pr - n.lineW[line];
-  const x = lx - n.pl - (n.talign === 1 ? Math.floor(free / 2) : n.talign === 2 ? free : 0);
+  const x = lx - n.pl - (talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0);
   let col = 0, prev = 0;
   for (let c = 1; c <= text.length; c++) {
     const w = textWidth(f, text.slice(0, c), trackPx(n));
@@ -4176,6 +4181,32 @@ function dumpNode(h: i32, depth: i32, out: string[]): void {
 /** Draw commands the last painted frame recorded (tests assert what a style costs: a ring is one border). */
 let lastCommands: i32 = 0;
 export function lastFrameCommands(): i32 { return lastCommands; }
+// ---- writing direction (ZN-377): one for the whole surface, like <html dir="rtl">. Rows run from the right, the start alignment and text are on the right,
+// the logical classes (ms-, me-, ps-, pe-, start-, end-, rounded-s/e, border-s/e, text-start/end) and the rtl: / ltr: variants follow it.
+let rtl: boolean = env('ZINC_DIR') === 'rtl';
+/** 'ltr' or 'rtl': restyles the nodes whose classes depend on the direction and lays the surface out again. */
+export function setDirection(d: string): void { const r = d === 'rtl'; if (r === rtl) return; rtl = r; restyleMedia(32); layoutDirty = true; paintDirty = true; }
+export function direction(): string { return rtl ? 'rtl' : 'ltr'; }
+export function isRtl(): boolean { return rtl; }
+/** The physical class of a logical one ('' for any other class). */
+const LOGICAL: string[] = ['ms-', 'ml-', 'mr-', 'me-', 'mr-', 'ml-', 'ps-', 'pl-', 'pr-', 'pe-', 'pr-', 'pl-', 'start-', 'left-', 'right-', 'end-', 'right-', 'left-',
+  'rounded-s-', 'rounded-l-', 'rounded-r-', 'rounded-e-', 'rounded-r-', 'rounded-l-'];   // logical prefix, its ltr class, its rtl class
+function logicalToken(tok: string): string {
+  const c0 = tok.charCodeAt(0);
+  if (c0 !== 45 && c0 !== 109 && c0 !== 112 && c0 !== 115 && c0 !== 101 && c0 !== 114 && c0 !== 116 && c0 !== 98) return '';   // - m p s e r t b: nothing else is logical (no work for the other classes)
+  const neg = c0 === 45 ? '-' : '', t = neg === '' ? tok : tok.slice(1);
+  for (let i = 0; i < LOGICAL.length; i += 3) if (t.startsWith(LOGICAL[i])) return neg + (rtl ? LOGICAL[i + 2] : LOGICAL[i + 1]) + t.slice(LOGICAL[i].length);
+  if (t === 'rounded-s') return rtl ? 'rounded-r' : 'rounded-l';
+  if (t === 'rounded-e') return rtl ? 'rounded-l' : 'rounded-r';
+  if (t === 'text-start') return rtl ? 'text-right' : 'text-left';
+  if (t === 'text-end') return rtl ? 'text-left' : 'text-right';
+  if (t === 'border-s' || t === 'border-e') return (t === 'border-s') !== rtl ? 'border-l' : 'border-r';
+  if ((t.startsWith('border-s-') || t.startsWith('border-e-')) && t.slice(9).length > 0 && t.slice(9).charCodeAt(0) >= 48 && t.slice(9).charCodeAt(0) <= 57)
+    return ((t.startsWith('border-s-')) !== rtl ? 'border-l-' : 'border-r-') + t.slice(9);
+  return '';
+}
+/** A text's alignment on screen: the start (0, the default) is the right edge in RTL. */
+function talignOf(n: UiNode): i32 { return rtl && n.talign === 0 ? 2 : n.talign; }
 /** The mounted root (-1 before mount): where a program hangs nodes made outside its tree (an alert). */
 export function rootNode(): i32 { return root; }
 export function setRoot(h: i32): void {

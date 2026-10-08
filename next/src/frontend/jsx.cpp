@@ -55,7 +55,23 @@ struct Elem {
 struct Failure { std::uint32_t pos; std::string msg; };
 
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
+bool validClass(const std::string& c);
+// A logical class (ZN-377: ms-, me-, ps-, pe-, start-, end-, rounded-s/e, border-s/e, text-start/end) as the left-to-right class that checks it.
+std::string ltrOf(const std::string& c) {
+  const std::string neg = !c.empty() && c[0] == '-' ? "-" : "", t = neg.empty() ? c : c.substr(1);
+  static const std::pair<const char*, const char*> kMap[] = {{"ms-", "ml-"}, {"me-", "mr-"}, {"ps-", "pl-"}, {"pe-", "pr-"}, {"start-", "left-"}, {"end-", "right-"}, {"rounded-s-", "rounded-l-"}, {"rounded-e-", "rounded-r-"}};
+  for (auto [from, to] : kMap) if (t.rfind(from, 0) == 0) return neg + to + t.substr(std::strlen(from));
+  if (t == "rounded-s") return "rounded-l";
+  if (t == "rounded-e") return "rounded-r";
+  if (t == "text-start") return "text-left";
+  if (t == "text-end") return "text-right";
+  if (t == "border-s" || t == "border-e") return t == "border-s" ? "border-l" : "border-r";
+  if ((t.rfind("border-s-", 0) == 0 || t.rfind("border-e-", 0) == 0) && t.size() > 9 && std::isdigit(static_cast<unsigned char>(t[9]))) return std::string(t[7] == 's' ? "border-l-" : "border-r-") + t.substr(9);
+  return "";
+}
 bool validClass(const std::string& c) {
+  if (std::string l = ltrOf(c); !l.empty()) return validClass(l);
+  if (c.rfind("rtl:", 0) == 0 || c.rfind("ltr:", 0) == 0) return validClass(c.substr(4));
   static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
       "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "peer", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",

@@ -25,7 +25,7 @@ enum class LayoutProp : std::int32_t {
   MarginTop = 40, MarginRight = 41, MarginBottom = 42, MarginLeft = 43,
   Grow = 44, Gap = 45, Padding = 46, Hidden = 48, Top = 51, Left = 52, Right = 53, Bottom = 54,
   FullWidth = 1000, FullHeight, MinWidth, MaxWidth, MinHeight, MaxHeight, AspectRatio, Basis, BasisPercent, Shrink, AlignSelf, AlignContent, Reverse,
-  GapX, GapY, Contents,
+  GapX, GapY, Contents, Direction,   // Direction: 1 rtl, 0 ltr, -1 inherit (ZN-377)
 };
 
 /** A node's box after `calculate`, relative to its parent and already rounded to pixels. */
