@@ -31,6 +31,7 @@ int main() {
   P(Width); P(Height); P(WidthPercent); P(HeightPercent); P(FlexDirection); P(FlexWrap); P(JustifyContent); P(AlignItems); P(Position); P(Overflow);
   P(PaddingTop); P(PaddingRight); P(PaddingBottom); P(PaddingLeft); P(MarginTop); P(MarginRight); P(MarginBottom); P(MarginLeft);
   P(Grow); P(Gap); P(Padding); P(Hidden); P(Top); P(Left); P(Right); P(Bottom);
+  P(BorderTopWidth); P(BorderRightWidth); P(BorderBottomWidth); P(BorderLeftWidth); P(BoxSizing);
 }
 C
 c++ -std=c++20 -Wall -Wextra -Werror -Isrc "$tmp/t.cpp" -o "$tmp/t" 2>"$tmp/err" || { echo "layout.h: does not build: $(head -c 400 "$tmp/err")"; exit 1; }

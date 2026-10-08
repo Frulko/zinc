@@ -127,7 +127,12 @@ class YogaLayout final : public Layout {
         YGNodeStyleSetAlignContent(n, v < 0 ? YGAlignFlexStart : a[index(v, 7)]);
         break;
       }
-      case LayoutProp::Position: YGNodeStyleSetPositionType(n, v != 0 ? YGPositionTypeAbsolute : YGPositionTypeRelative); break;
+      case LayoutProp::Position: YGNodeStyleSetPositionType(n, v >= 2 ? YGPositionTypeStatic : v != 0 ? YGPositionTypeAbsolute : YGPositionTypeRelative); break;
+      case LayoutProp::BoxSizing: YGNodeStyleSetBoxSizing(n, v != 0 ? YGBoxSizingContentBox : YGBoxSizingBorderBox); break;
+      case LayoutProp::BorderTopWidth: YGNodeStyleSetBorder(n, YGEdgeTop, v); break;
+      case LayoutProp::BorderRightWidth: YGNodeStyleSetBorder(n, YGEdgeRight, v); break;
+      case LayoutProp::BorderBottomWidth: YGNodeStyleSetBorder(n, YGEdgeBottom, v); break;
+      case LayoutProp::BorderLeftWidth: YGNodeStyleSetBorder(n, YGEdgeLeft, v); break;
       case LayoutProp::Top: inset(n, YGEdgeTop, v); break;
       case LayoutProp::Left: inset(n, YGEdgeLeft, v); break;
       case LayoutProp::Right: inset(n, YGEdgeRight, v); break;
@@ -222,7 +227,7 @@ class YogaLayout final : public Layout {
   static int index(float v, int count) { const int i = static_cast<int>(v); return i < 0 ? 0 : i >= count ? count - 1 : i; }
   static YGAlign align(float v) { static const YGAlign a[] = {YGAlignFlexStart, YGAlignCenter, YGAlignFlexEnd, YGAlignStretch, YGAlignBaseline}; return a[index(v, 5)]; }
   static void margin(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetMarginAuto(n, e); else YGNodeStyleSetMargin(n, e, v); }   // unset: auto (ZN-380)
-  static void inset(YGNodeRef n, YGEdge e, float v) { if (v <= kUnsetInset) YGNodeStyleSetPositionAuto(n, e); else YGNodeStyleSetPosition(n, e, v); }
+  static void inset(YGNodeRef n, YGEdge e, float v) { YGNodeStyleSetPosition(n, e, v <= kUnsetInset ? YGUndefined : v); }   // undefined, not auto: an absolute node without insets keeps its static position
   static void direction(const Rec& r) {
     YGNodeStyleSetFlexDirection(r.node, r.row ? (r.reverse ? YGFlexDirectionRowReverse : YGFlexDirectionRow) : (r.reverse ? YGFlexDirectionColumnReverse : YGFlexDirectionColumn));
   }

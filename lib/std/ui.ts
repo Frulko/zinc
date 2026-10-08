@@ -272,7 +272,7 @@ export class UiNode {
   tx: number = 0; ty: number = 0;
     // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
     // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
-  z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky
+  z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
   size: i32 = 16; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline), word spacing px, sub/super shift (em)
@@ -823,6 +823,7 @@ const P_RADIUS_TL: i32 = 77, P_RADIUS_TR: i32 = 78, P_RADIUS_BR: i32 = 79, P_RAD
 const P_BORDER_TOP_COLOR: i32 = 81, P_BORDER_RIGHT_COLOR: i32 = 82, P_BORDER_BOTTOM_COLOR: i32 = 83, P_BORDER_LEFT_COLOR: i32 = 84;
 const P_NUMBER_OF_LINES: i32 = 85;
 const P_ROW_GAP: i32 = 86, P_COLUMN_GAP: i32 = 87, P_MARGIN_AUTO: i32 = 88;   // marginAuto: the sides' bits 1 left, 2 right, 4 top, 8 bottom (ZN-380)
+const P_BOX_SIZING: i32 = 89;   // 0 border-box, 1 content-box (ZN-381)
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -876,6 +877,7 @@ function propInit(): void {
   PROP.set('rowGap', P_ROW_GAP);
   PROP.set('columnGap', P_COLUMN_GAP);
   PROP.set('marginAuto', P_MARGIN_AUTO);
+  PROP.set('boxSizing', P_BOX_SIZING);
   PROP.set('padding', P_PADDING);
   PROP.set('fontSize', P_FONT_SIZE);
   PROP.set('hidden', P_HIDDEN);
@@ -963,7 +965,8 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_ROW_GAP) n.gapY = iv; else if (id === P_COLUMN_GAP) n.gapX = iv; else if (id === P_MARGIN_AUTO) n.mAuto = iv;   // ponytail: replaces the auto sides of the classes (ml-auto); merge per side if apps mix them
   else if (id === P_JUSTIFY_CONTENT) n.justify = iv;
   else if (id === P_ALIGN_ITEMS) n.align = iv;
-  else if (id === P_POSITION) n.abs = iv !== 0;
+  else if (id === P_POSITION) { n.abs = iv === 1; n.stat = iv === 2; }   // 0 relative, 1 absolute, 2 static
+  else if (id === P_BOX_SIZING) n.contentBox = iv !== 0;
   else if (id === P_OVERFLOW) { n.overflow = iv !== 0; n.scroll = iv === 2 ? 3 : 0; }
   else if (id === P_FONT_WEIGHT) n.bold = iv !== 0;
   else if (id === P_TEXT_ALIGN) n.talign = iv;
@@ -1472,8 +1475,10 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (w === '' || w === 'r' || w === 'x') n.ownSn().spr = v;
     return true;
   }
-  if (tok === 'relative') { n.rel = true; n.sticky = false; return true; }
-  if (tok === 'static') { n.rel = false; n.sticky = false; return true; }
+  if (tok === 'relative') { n.rel = true; n.sticky = false; n.stat = false; return true; }
+  if (tok === 'static') { n.rel = false; n.sticky = false; n.stat = true; return true; }
+  if (tok === 'box-content') { n.contentBox = true; return true; }
+  if (tok === 'box-border') { n.contentBox = false; return true; }
   if (tok === 'sticky') { n.sticky = true; n.rel = false; return true; }
   if (tok === 'invisible') { n.invisible = true; return true; }
   if (tok === 'visible') { n.invisible = false; return true; }
@@ -1792,7 +1797,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
-  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = 16; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
@@ -2208,7 +2213,7 @@ function growWithLimits(n: UiNode, kids: UiNode[], start: i32, end: i32, free: n
   return size;
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
-  if (n.rel || (RN_STYLE && !n.abs)) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
+  if (n.rel || (RN_STYLE && !n.abs && !n.stat)) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
   if (n.tag === TEXT) {
     // measured at the width offered before grow and stretch were shared out: when it ends wider than the width it was wrapped at and has several lines, its lines
@@ -2364,9 +2369,9 @@ let rnOpen = false;
 class RnRec { sent: number[] = []; kids: i32[] = []; text: string = ''; textKey: number[] = []; leaf: i32 = 0; }
 // zn::host::LayoutProp numbers; W, H and B are composites: size or percent or full, basis or basis percent
 const RN_W: i32 = -1, RN_H: i32 = -2, RN_B: i32 = -3;
-const RN_PROPS: i32[] = [RN_W, RN_H, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54, 1016];
+const RN_PROPS: i32[] = [RN_W, RN_H, 32, 33, 34, 35, 89, 21, 1012, 22, 23, 24, 1010, 1011, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1009, RN_B, 45, 1013, 1014, 1002, 1003, 1004, 1005, 1006, 48, 1015, 51, 52, 53, 54, 1016];
 function rnValue(n: UiNode, p: i32): number {
-  const inset = n.abs || n.rel || RN_STYLE;   // React Native: position is relative by default, insets shift a node in the flow (ZN-380)
+  const inset = n.abs || n.rel || (RN_STYLE && !n.stat);   // React Native: position is relative by default, insets shift a node in the flow (ZN-380)
   if (p === RN_W) return n.fullW ? -2 : n.wFrac > 0 ? -3 - n.wFrac : n.w;
   if (p === RN_H) return n.fullH ? -2 : n.hFrac > 0 ? -3 - n.hFrac : n.h;
   if (p === RN_B) return n.basisFrac > 0 ? -3 - n.basisFrac : n.basis;
@@ -2377,8 +2382,10 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 24) return n.align;
   if (p === 1010) return n.selfAlign;
   if (p === 1011) return n.alignContent;
-  if (p === 25) return n.abs ? 1 : 0;
+  if (p === 25) return n.abs ? 1 : n.stat ? 2 : 0;
   if (p === 26) return n.scroll !== 0 ? 2 : n.overflow ? 1 : 0;
+  if (p >= 32 && p <= 35) { const b = n.bd, s = p === 32 ? b.bT : p === 33 ? b.bR : p === 34 ? b.bB : b.bL; return s >= 0 ? s : n.borderW; }   // borders take layout space in Yoga (React Native, CSS)
+  if (p === 89) return n.contentBox ? 1 : 0;
   if (p === 36) return n.pt; if (p === 37) return n.pr; if (p === 38) return n.pb; if (p === 39) return n.pl;
   if (p === 40) return (n.mAuto & 4) !== 0 ? UNSET : n.mt; if (p === 41) return (n.mAuto & 2) !== 0 ? UNSET : n.mr;   // UNSET: auto
   if (p === 42) return (n.mAuto & 8) !== 0 ? UNSET : n.mb; if (p === 43) return (n.mAuto & 1) !== 0 ? UNSET : n.ml;

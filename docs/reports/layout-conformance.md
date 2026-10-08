@@ -7,20 +7,20 @@ reason (below); `rn` must pass every other case, `classic` must keep its baselin
 
 | Feature | Cases | Expressible | rn | classic |
 |---|---|---|---|---|
-| AbsolutePosition | 34 | 26 | 26 | 13 |
-| AlignContent | 64 | 48 | 48 | 47 |
+| AbsolutePosition | 34 | 31 | 31 | 14 |
+| AlignContent | 64 | 64 | 64 | 47 |
 | AlignItems | 30 | 15 | 15 | 13 |
 | AlignSelf | 5 | 4 | 4 | 4 |
 | AndroidNewsFeed | 1 | 1 | 1 | 1 |
 | AspectRatio | 2 | 1 | 1 | 1 |
 | Auto | 5 | 5 | 5 | 5 |
-| Border | 5 | 0 | 0 | 0 |
-| BoxSizing | 48 | 5 | 5 | 5 |
+| Border | 5 | 5 | 5 | 0 |
+| BoxSizing | 48 | 44 | 44 | 13 |
 | Dimension | 2 | 2 | 2 | 2 |
 | Display | 14 | 6 | 6 | 6 |
 | DisplayContents | 1 | 0 | 0 | 0 |
 | Flex | 10 | 10 | 10 | 9 |
-| FlexDirection | 55 | 40 | 40 | 18 |
+| FlexDirection | 55 | 52 | 52 | 21 |
 | FlexWrap | 24 | 24 | 24 | 20 |
 | Gap | 33 | 24 | 24 | 23 |
 | IntrinsicSize | 11 | 0 | 0 | 0 |
@@ -31,28 +31,25 @@ reason (below); `rn` must pass every other case, `classic` must keep its baselin
 | Percentage | 29 | 10 | 10 | 3 |
 | Rounding | 13 | 7 | 7 | 1 |
 | SizeOverflow | 3 | 3 | 3 | 3 |
-| StaticPosition | 62 | 0 | 0 | 0 |
-| **total** | 548 | 323 | 323 | 257 |
+| StaticPosition | 62 | 14 | 14 | 5 |
+| **total** | 548 | 414 | 414 | 274 |
 
-Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380 (classic keeps 29 of them as
-known failures: overflow under padding and absolute children of reversed containers). The other gaps of zinc:ui have tasks: ZN-381
-(borders in layout, box-sizing, position static), ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure
+Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380, borders in layout,
+box-sizing and position static since ZN-381 (classic paints borders without layout space and has no static containing block: those cases
+are its known failures, classic.known-fail). The other gaps of zinc:ui have tasks: ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure
 functions, insets on the root, a percent of an undefined size and fractional lengths are limits of this harness or of zinc:ui's whole-pixel model.
 
 | Reason | Cases |
 |---|---|
-| border in layout | 87 |
-| position static | 45 |
+| percent of an undefined size | 28 |
+| percent position | 22 |
 | skipped by Yoga | 17 |
 | baseline | 14 |
 | measure function | 11 |
 | display contents | 9 |
 | percent gap | 8 |
 | percent min/max | 8 |
-| percent position | 7 |
-| box-sizing | 5 |
+| percent padding | 6 |
+| percent margin | 4 |
 | fractional lengths (zinc:ui keeps whole pixels) | 4 |
 | insets on the root | 3 |
-| percent padding | 3 |
-| percent of an undefined size | 3 |
-| percent margin | 1 |

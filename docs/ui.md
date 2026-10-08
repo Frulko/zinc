@@ -396,9 +396,10 @@ Supported properties:
 - Dimensions: `width`, `height` (numbers, px, percentages, auto, and `pct(v)` for a percent decided at run time), `minWidth`, `maxWidth`,
   `minHeight`, `maxHeight` (px, `none`), `aspectRatio` (`'16/9'` or a number); padding/margin and individual sides, plus
   `paddingHorizontal/Vertical`, `marginHorizontal/Vertical`. String padding/margin use CSS 1–4-value shorthand.
-- Position: `position` (`relative`/`static`/`absolute`; React Native's default `relative` under the preset and in `rn`), `top/right/bottom/left`, `display` (`flex`/`none`),
+- Position: `position` (`relative`/`static`/`absolute`; React Native's default `relative` under the preset and in `rn`, where `static` ignores insets and
+  is no containing block), `boxSizing` (`border-box`, `content-box`: in `rn`), `top/right/bottom/left`, `display` (`flex`/`none`),
   `overflow` (`visible`/`hidden`/`auto`/`scroll`). Relative means normal flow; offsets position absolute nodes.
-- Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths, `borderRadius`,
+- Paint: `backgroundColor`/`background`, `color`, `borderColor`, `borderWidth`, side border widths (layout space in `rn`, as in CSS and React Native), `borderRadius`,
   `border: '<width> solid <color>'`, React Native's `borderStyle` (`solid`/`dashed`/`dotted`), corner radii (`borderTopLeftRadius`,
   `borderTopRightRadius`, `borderBottomRightRadius`, `borderBottomLeftRadius`) and side colours (`borderTopColor`, `borderRightColor`, `borderBottomColor`,
   `borderLeftColor`: like React Native, a side colour needs a border width), `opacity`, `translateX/Y`, `scale`, and React Native's shadow: `shadowColor`, `shadowOffset: { width, height }`,
@@ -557,6 +558,7 @@ Object-style keys of `lib/std/ui.ts` (`PROP` table); `tools/ui-docs` rewrites th
 | 75 | `scaleY` |  |
 | 76 | `borderStyle` |  |
 | 85 | `numberOfLines` |  |
+| 89 | `boxSizing` |  |
 
 ### Accepted class tokens (generated)
 

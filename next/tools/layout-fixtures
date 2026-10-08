@@ -45,7 +45,7 @@ def translate(setter, args):
     if setter == 'FlexWrap':
         return {'YGWrapNoWrap': [('flexWrap', 0)], 'YGWrapWrap': [('flexWrap', 1)], 'YGWrapWrapReverse': [('flexWrap', 2)]}[a[0]]
     if setter == 'PositionType':
-        return {'YGPositionTypeRelative': [('position', 0)], 'YGPositionTypeAbsolute': [('position', 1)]}.get(a[0], 'position static')
+        return {'YGPositionTypeRelative': [('position', 0)], 'YGPositionTypeAbsolute': [('position', 1)], 'YGPositionTypeStatic': [('position', 2)]}[a[0]]
     if setter in ('AlignItems', 'AlignSelf', 'AlignContent'):
         if a[0] == 'YGAlignAuto' and setter == 'AlignSelf': return [('alignSelf', -1)]
         if a[0] == 'YGAlignBaseline': return 'baseline'
@@ -66,9 +66,12 @@ def translate(setter, args):
     if setter == 'Gap':
         return [({'YGGutterAll': 'gap', 'YGGutterRow': 'rowGap', 'YGGutterColumn': 'columnGap'}[a[0]], num(a[1]))]
     if setter == 'PositionAuto': return []
+    if setter == 'Border':
+        return [('border' + side + 'Width', num(a[1])) for side in EDGES[a[0]]]
+    if setter == 'BoxSizing': return [('boxSizing', {'YGBoxSizingBorderBox': 0, 'YGBoxSizingContentBox': 1}[a[0]])]
     if setter == 'MarginAuto':
         return [('marginAuto', sum({'Left': 1, 'Right': 2, 'Top': 4, 'Bottom': 8}[side] for side in EDGES[a[0]]))]
-    names = {'Border': 'border in layout', 'BoxSizing': 'box-sizing', 'PaddingPercent': 'percent padding', 'MarginPercent': 'percent margin',
+    names = {'PaddingPercent': 'percent padding', 'MarginPercent': 'percent margin',
              'PositionPercent': 'percent position', 'GapPercent': 'percent gap', 'MinWidthPercent': 'percent min/max', 'MaxWidthPercent': 'percent min/max',
              'MinHeightPercent': 'percent min/max', 'MaxHeightPercent': 'percent min/max'}
     return names.get(setter, 'unknown ' + setter)
@@ -140,9 +143,9 @@ def report(rn_out, classic_out):
         for k in t: t[k] += n if k == 'cases' else r[k]
         lines.append(f'| {f} | {n} | {e} | {r["rn"]} | {r["classic"]} |')
     lines.append(f'| **total** | {t["cases"]} | {t["cases"] - t["skip"]} | {t["rn"]} | {t["classic"]} |')
-    lines += ['', 'Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380 (classic keeps 29 of them as',
-              'known failures: overflow under padding and absolute children of reversed containers). The other gaps of zinc:ui have tasks: ZN-381',
-              '(borders in layout, box-sizing, position static), ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure',
+    lines += ['', 'Skipped cases by reason. Reverse directions, wrap-reverse, row/column gap and auto margins run since ZN-380, borders in layout,',
+              'box-sizing and position static since ZN-381 (classic paints borders without layout space and has no static containing block: those cases',
+              'are its known failures, classic.known-fail). The other gaps of zinc:ui have tasks: ZN-382 (percent padding, margin, insets, gap, min/max; baseline; display contents). Measure',
               'functions, insets on the root, a percent of an undefined size and fractional lengths are limits of this harness or of zinc:ui\'s whole-pixel model.',
               '', '| Reason | Cases |', '|---|---|']
     for k, v in sorted(reasons.items(), key=lambda x: -x[1]): lines.append(f'| {k} | {v} |')

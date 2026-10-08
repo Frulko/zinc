@@ -15,7 +15,7 @@ namespace zn::host {
 /** The layout properties a host engine is given. Below 1000: the layout class of the PROP table of lib/std/ui.ts, with the same numbers (tests/t0/layout_iface.sh
  *  checks them); from 1000: the other layout fields of a UiNode, which have no PROP number yet. Values are those of the UiNode fields:
  *  sizes, insets, paddings, margins and gaps in pixels (Width/Height -1: auto; insets -100000: unset); *Percent a fraction 0..1; FlexDirection, FlexWrap, Reverse,
- *  Position (absolute), Hidden, FullWidth/FullHeight and Contents 0 or 1; JustifyContent 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly; AlignItems and
+ *  Position (1 absolute, 2 static), BoxSizing (1 content-box), Hidden, FullWidth/FullHeight and Contents 0 or 1; JustifyContent 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly; AlignItems and
  *  AlignSelf 0 start, 1 center, 2 end, 3 stretch (AlignSelf -1: auto); AlignContent 0 start, 1 center, 2 end, 3 stretch, 4 between, 5 around, 6 evenly (-1: the
  *  default); Overflow 0 visible, 1 hidden, 2 scroll; Shrink -1: the engine's default; min/max -1: none; AspectRatio width / height, 0: none. */
 enum class LayoutProp : std::int32_t {
@@ -23,7 +23,8 @@ enum class LayoutProp : std::int32_t {
   FlexDirection = 21, FlexWrap = 22, JustifyContent = 23, AlignItems = 24, Position = 25, Overflow = 26,
   PaddingTop = 36, PaddingRight = 37, PaddingBottom = 38, PaddingLeft = 39,
   MarginTop = 40, MarginRight = 41, MarginBottom = 42, MarginLeft = 43,
-  Grow = 44, Gap = 45, Padding = 46, Hidden = 48, Top = 51, Left = 52, Right = 53, Bottom = 54,
+  BorderTopWidth = 32, BorderRightWidth = 33, BorderBottomWidth = 34, BorderLeftWidth = 35,
+  Grow = 44, Gap = 45, Padding = 46, Hidden = 48, Top = 51, Left = 52, Right = 53, Bottom = 54, BoxSizing = 89,
   FullWidth = 1000, FullHeight, MinWidth, MaxWidth, MinHeight, MaxHeight, AspectRatio, Basis, BasisPercent, Shrink, AlignSelf, AlignContent, Reverse,
   GapX, GapY, Contents, Direction,   // Direction: 1 rtl, 0 ltr, -1 inherit (ZN-377)
 };
