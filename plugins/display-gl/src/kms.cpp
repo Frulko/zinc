@@ -131,11 +131,46 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   }
   px = px < 0 ? 0 : px > W - 1 ? W - 1 : px;
   py = py < 0 ? 0 : py > H - 1 ? H - 1 : py;
+  static bool info = getenv("ZINC_GL_INFO") != nullptr, was_down;
+  if (info && pdown != was_down) { was_down = pdown; fprintf(stderr, "gl-info: pointer %s at %.0f,%.0f\n", pdown ? "down" : "up", px, py); }
   in->buttons = keys; in->px = px; in->py = py; in->pdown = pdown; in->quit = quit;
   in->ntouch = 0;  // ponytail: single pointer; multitouch slots when a touch UI needs them
 }
 
 // ---------- display ----------
+// ZINC_GL_INFO=1: what the driver offers (renderer choices are made from these numbers, docs/reports/gpu-renderer-design.md).
+static void print_info() {
+  auto has = [](const char* list, const char* name) { return list && strstr(list, name) ? "yes" : "no"; };
+  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+  const char* eext = eglQueryString(dpy, EGL_EXTENSIONS);
+  fprintf(stderr, "gl-info: vendor=%s renderer=%s version=%s glsl=%s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
+  fprintf(stderr, "gl-info: egl=%s\n", eglQueryString(dpy, EGL_VERSION));
+  static const char* const names[] = {"GL_OES_EGL_image_external", "GL_EXT_texture_format_BGRA8888", "GL_OES_texture_npot", "GL_OES_packed_depth_stencil",
+    "GL_EXT_multisampled_render_to_texture", "GL_OES_rgb8_rgba8", "GL_EXT_unpack_subimage", "GL_OES_vertex_array_object", "GL_OES_standard_derivatives",
+    "GL_EXT_shader_texture_lod", "GL_OES_depth_texture", "GL_OES_element_index_uint"};
+  for (const char* n : names) fprintf(stderr, "gl-info: %s=%s\n", n, has(ext, n));
+  static const char* const enames[] = {"EGL_KHR_image_base", "EGL_EXT_image_dma_buf_import", "EGL_EXT_image_dma_buf_import_modifiers", "EGL_KHR_surfaceless_context", "EGL_MESA_platform_gbm"};
+  for (const char* n : enames) fprintf(stderr, "gl-info: %s=%s\n", n, has(eext, n));
+  GLint v = 0, r[2] = {0, 0}, p = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &v);
+  fprintf(stderr, "gl-info: max_texture_size=%d\n", v);
+  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &v); fprintf(stderr, "gl-info: max_vertex_attribs=%d\n", v);
+  glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &v); fprintf(stderr, "gl-info: max_texture_image_units=%d\n", v);
+  glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &v); fprintf(stderr, "gl-info: max_fragment_uniform_vectors=%d\n", v);
+  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, r, &p);
+  fprintf(stderr, "gl-info: fragment highp float: range=%d,%d precision=%d bits (0 = unsupported)\n", r[0], r[1], p);
+  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_MEDIUM_FLOAT, r, &p);
+  fprintf(stderr, "gl-info: fragment mediump float: range=%d,%d precision=%d bits\n", r[0], r[1], p);
+  for (int samples = 2; samples <= 8; samples *= 2) {
+    const EGLint a[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_SAMPLES, samples, EGL_NONE};
+    EGLConfig c[16];
+    EGLint n = 0, xrgb = 0, id;
+    eglChooseConfig(dpy, a, c, 16, &n);
+    for (int i = 0; i < n; i++) if (eglGetConfigAttrib(dpy, c[i], EGL_NATIVE_VISUAL_ID, &id) && id == GBM_FORMAT_XRGB8888) xrgb++;
+    fprintf(stderr, "gl-info: EGL configs with >= %d samples: %d (XRGB8888 window: %d)\n", samples, n, xrgb);
+  }
+}
+
 bool zgl_backend_init(const HalConfig* cfg) {
   if (!open_card()) { fprintf(stderr, "display-gl: no connected display on /dev/dri/card*\n"); return false; }
   gbm = gbm_create_device(fd);
@@ -160,6 +195,7 @@ bool zgl_backend_init(const HalConfig* cfg) {
   surf = eglCreateWindowSurface(dpy, chosen, (EGLNativeWindowType)gs, nullptr);
   if (ctx == EGL_NO_CONTEXT || surf == EGL_NO_SURFACE || !eglMakeCurrent(dpy, surf, surf, ctx)) { fprintf(stderr, "display-gl: EGL context failed\n"); return false; }
   saved = drmModeGetCrtc(fd, crtc_id);
+  if (getenv("ZINC_GL_INFO")) print_info();
   open_inputs();
   px = cfg->width / 2.f; py = cfg->height / 2.f;
   fprintf(stderr, "display-gl: %dx%d@%d, %s\n", mode.hdisplay, mode.vdisplay, mode.vrefresh, glGetString(GL_RENDERER));
@@ -178,26 +214,41 @@ static uint32_t fb_of(gbm_bo* bo) {
 }
 static void flipped(int, unsigned, unsigned, unsigned, void* data) { *(bool*)data = false; }
 
-// Page flip on vblank: the frame loop is paced by the display refresh.
+// Page flip on vblank: the frame loop is paced by the display refresh. The wait for a flip to complete happens at the
+// start of the NEXT swap, not right after requesting it: the CPU work of frame N+1 then overlaps the GPU work and the
+// vblank wait of frame N, and a frame ready just before a vblank is flipped at that vblank. ZINC_GL_PIPE=0 waits
+// straight after the request (one frame less latency, no overlap).
+static gbm_bo* pending_bo;
+static bool flip_pending;
+static void wait_flip() {
+  drmEventContext evc = {};
+  evc.version = 2;
+  evc.page_flip_handler = flipped;
+  pollfd p = {fd, POLLIN, 0};
+  while (flip_pending && poll(&p, 1, 100) > 0) drmHandleEvent(fd, &evc);
+  if (!flip_pending && pending_bo) {   // the queued buffer is on screen now: the one it replaced is free
+    if (prev_bo) gbm_surface_release_buffer(gs, prev_bo);
+    prev_bo = pending_bo;
+    pending_bo = nullptr;
+  }
+}
 void zgl_backend_swap() {
+  static const bool pipe = !getenv("ZINC_GL_PIPE") || atoi(getenv("ZINC_GL_PIPE")) != 0;
   eglSwapBuffers(dpy, surf);
   gbm_bo* bo = gbm_surface_lock_front_buffer(gs);
   uint32_t id = fb_of(bo);
   if (first_frame) {
     first_frame = false;
     if (drmModeSetCrtc(fd, crtc_id, id, 0, 0, &conn_id, 1, &mode)) fprintf(stderr, "display-gl: drmModeSetCrtc failed (is another program the DRM master?)\n");
-  } else {
-    bool waiting = true;
-    if (drmModePageFlip(fd, crtc_id, id, DRM_MODE_PAGE_FLIP_EVENT, &waiting) == 0) {
-      drmEventContext evc = {};
-      evc.version = 2;
-      evc.page_flip_handler = flipped;
-      pollfd p = {fd, POLLIN, 0};
-      while (waiting && poll(&p, 1, 100) > 0) drmHandleEvent(fd, &evc);
-    }
+    prev_bo = bo;
+    return;
   }
-  if (prev_bo) gbm_surface_release_buffer(gs, prev_bo);
-  prev_bo = bo;
+  if (flip_pending) wait_flip();
+  if (flip_pending) { gbm_surface_release_buffer(gs, bo); return; }   // the previous flip never completed (100 ms): drop this frame
+  flip_pending = true;
+  if (drmModePageFlip(fd, crtc_id, id, DRM_MODE_PAGE_FLIP_EVENT, &flip_pending) == 0) pending_bo = bo;
+  else { flip_pending = false; gbm_surface_release_buffer(gs, bo); return; }
+  if (!pipe) wait_flip();
 }
 
 void zgl_backend_shutdown() {
