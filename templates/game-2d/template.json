@@ -1,0 +1,8 @@
+{
+  "name": "game-2d",
+  "description": "A 2D game to grow from: title, play and game-over scenes, keyboard / gamepad / pointer input, SVG sprites, a saved best score.",
+  "tags": ["game", "gfx", "2d"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}

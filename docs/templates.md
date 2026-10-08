@@ -31,11 +31,13 @@ In text files `{{name}}` becomes the project directory's name and `{{id}}` that 
 in `.json` files the values are escaped as JSON strings. A file containing a NUL byte (an image, a font) is copied as it is. `tsconfig.json` is
 written by `zinc new` itself, since it names the engine files of the machine.
 
-Each template carries `tests/smoke.test.ts`, so `zinc test` (the tests of the project in the current directory) passes on a new project.
+Each template carries tests (`tests/smoke.test.ts` at least), so `zinc test` (the tests of the project in the current directory) passes on a new
+project; `tests/t1/templates_kickstart.sh` creates every template and checks them, and the graphical ones against a recorded frame.
 
 | Template | What it is | Targets |
 |---|---|---|
 | game | a window, the arrow keys and a square (zinc:gfx) | macos, linux, rpi |
+| game-2d | a 2D game to grow from: title / play / game-over scenes, keyboard, gamepad and pointer input, SVG sprites, a saved best score (zinc:gfx, zinc:storage); sound waits for zinc:audio (ZN-390) | macos, linux, rpi |
 | cli | a command-line program (zinc:sys) | macos, linux, rpi |
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |

@@ -1,0 +1,6 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": { "macos": { "width": 640, "height": 400 }, "linux": { "width": 640, "height": 400 } }
+}

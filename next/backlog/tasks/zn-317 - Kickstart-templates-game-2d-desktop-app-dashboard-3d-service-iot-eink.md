@@ -1,9 +1,10 @@
 ---
 id: ZN-317
 title: 'Kickstart templates: game-2d, desktop-app, dashboard, 3d, service, iot, eink'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:19'
+updated_date: '2026-10-08 23:21'
 labels:
   - templates
   - examples
