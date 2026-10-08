@@ -32,6 +32,7 @@ struct Project {
   std::string entry;                // "entry", else "main" ("" when neither is set)
   std::string profile;              // "profile": the target profile (esp32, ps1...) that sets `number`, the heap budget and typing; "" = the host's
   std::vector<std::string> requires_;
+  std::string keyboard;             // "keyboard": "auto" | "touch" | "always" | "never": the default mode of the kit's on-screen keyboard (ZN-227), passed as ZINC_KEYBOARD
   bool webgl = false;               // "webgl": true lets zinc:script contexts create WebGL canvases (ZN-205), passed as ZINC_WEBGL
   std::string scheme;               // "scheme": "light" | "dark" | "auto": the initial colour scheme of zinc:ui (ZN-271), passed as ZINC_SCHEME
   std::string text;                 // "text": "shaped" lays out zinc:gfx / zinc:ui text with HarfBuzz and SheenBidi (ZN-224); "" or "simple": the codepoint tables

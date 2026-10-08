@@ -3,10 +3,10 @@ id: ZN-227
 title: >-
   UI: virtual keyboard shown by input device, retractable on every layout, no
   clipping
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 11:40'
-updated_date: '2026-10-08 09:01'
+updated_date: '2026-10-08 09:03'
 labels:
   - ui
   - input
@@ -24,12 +24,12 @@ Feedback from running examples/hero (screens/Forms): (1) the on-screen keyboard 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 the keyboard is never clipped and the content resizes or scrolls to keep the focused field visible
-- [ ] #2 auto mode: hidden with a mouse and keyboard, shown on a touch-only device; override with a ui option and zinc.json
+- [x] #2 auto mode: hidden with a mouse and keyboard, shown on a touch-only device; override with a ui option and zinc.json
 - [x] #3 every layout has the retract control, with a golden per layout family
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-usage: n/a. + AC1: setKeyboardInset re-reveals the focused field and revealFocus leaves out the part of a scroll area the keyboard covers; golden/ui-kbd-reveal: the last field of a 9-field form ends above the keyboard. AC2 (auto mode by input device, option and zinc.json) is open.
++ AC2: Keyboard mode 'touch' shows it only when the last pointer was a finger or a pen (ui.pointerIsCoarse(); devices that are not desktops start coarse), 'never', 'always', 'auto' (default, unchanged); zinc.json "keyboard" sets the default mode of a Keyboard without a prop (ZINC_KEYBOARD). Golden ui-kbd-mode + t1.
 <!-- SECTION:NOTES:END -->

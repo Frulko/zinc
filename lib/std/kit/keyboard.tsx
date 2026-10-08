@@ -15,13 +15,14 @@
 // captions (via the layout), and custom layouts (registerLayout).
 import { createSignal, createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
+import { env } from 'zinc:sys';
 import { theme } from './theme';
 import { KeyboardLayout, layoutOf, SYMBOLS, SYMBOLS2, NUMERIC, DECIMAL, PHONE, withBottom } from './keyboard-layouts';
 
 export interface KeyboardProps {
   /** Layout ids the {lang} key cycles through (default: ['en']). */
   layouts?: string[];
-  /** 'auto' (default): visible while a text field has the focus. 'always': always visible. */
+  /** 'auto' (default): visible while a text field has the focus. 'touch': the same, only when the last pointer was a finger or a pen (a mouse and a keyboard do not need it). 'always': always visible. 'never': never. Without the prop, zinc.json "keyboard" decides (ZINC_KEYBOARD). */
   mode?: string;
   /** Called with every key: a character, or 'Backspace', 'Enter', 'Shift', 'Layout:<id>', 'Hide'... */
   onKey?: (key: string) => void;
@@ -58,7 +59,8 @@ export function Keyboard(props: KeyboardProps): i32 {
   const [page, setPage] = createSignal<i32>(0);            // 0 letters, 1 symbols, 2 more symbols
   const [shift, setShift] = createSignal<i32>(0);          // 0 off, 1 one-shot, 2 caps lock
   const [fieldMode, setFieldMode] = createSignal<i32>(0);  // inputMode of the focused field (ui.fieldMode)
-  const [shown, setShown] = createSignal<boolean>(props.mode === 'always');
+  const mode = props.mode ?? (env('ZINC_KEYBOARD') !== '' ? env('ZINC_KEYBOARD') : 'auto');
+  const [shown, setShown] = createSignal<boolean>(mode === 'always');
   const [bubble, setBubble] = createSignal<string>('');    // preview text ('' hidden)
   const [bubbleX, setBubbleX] = createSignal<number>(0);
   const [bubbleY, setBubbleY] = createSignal<number>(0);
@@ -68,7 +70,7 @@ export function Keyboard(props: KeyboardProps): i32 {
   const [accX, setAccX] = createSignal<number>(0);
   const [accY, setAccY] = createSignal<number>(0);
   const root = createNodeRef();
-  const always = props.mode === 'always';
+  const always = mode === 'always';
   let lastShiftAt: number = -1000;
   let pressToken: string = '';
   let pressedAt: number = 0;
@@ -146,6 +148,7 @@ export function Keyboard(props: KeyboardProps): i32 {
   }
   if (!always) ui.onFocusChange((h: i32) => {
     const f = ui.focusedField();
+    if (f >= 0 && (mode === 'never' || (mode === 'touch' && !ui.pointerIsCoarse()))) return;
     if (f >= 0) { setFieldMode(ui.fieldMode(f)); if (!shown()) { setShown(true); ui.setNumber(root.node, 'hidden', 0); ui.setNumber(root.node, 'translateY', 320); place(); } }
     else if (shown()) { setShown(false); place(); }
   });

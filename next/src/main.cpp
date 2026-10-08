@@ -532,6 +532,7 @@ int main(int argc, char** argv) {
       }
       if (have) {
         shapedText = project.text == "shaped";
+        if (!project.keyboard.empty()) setenv("ZINC_KEYBOARD", project.keyboard.c_str(), 0);   // zinc.json "keyboard" (ZN-227)
         if (project.webgl) setenv("ZINC_WEBGL", "1", 0);   // zinc.json "webgl" (ZN-205)
         if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
         // the profile of the target this machine runs: macos, linux, else the simulator's

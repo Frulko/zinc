@@ -1,0 +1,2 @@
+mouse: keyboard inset 0
+touch: keyboard inset above 100 true coarse true

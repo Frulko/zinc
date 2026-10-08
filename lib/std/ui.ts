@@ -885,7 +885,7 @@ export function inspect(): string {
   return out;
 }
 // ---- media and container queries, env() lengths (ZN-272)
-let envUsed = false, varUsed = false, coarse = false, cqAny = false, inSettle = false, settlePasses: i32 = 0;
+let envUsed = false, varUsed = false, coarse = platform() !== 'macos' && platform() !== 'linux' && platform() !== 'wasm', cqAny = false, inSettle = false, settlePasses: i32 = 0;
 let kbInset: number = 0, safeT: number = 0, safeR: number = 0, safeB: number = 0, safeL: number = 0;
 function envValue(name: string): number {
   return name === 'keyboard-inset' ? kbInset : name === 'safe-area-inset-top' ? safeT : name === 'safe-area-inset-right' ? safeR : name === 'safe-area-inset-bottom' ? safeB : name === 'safe-area-inset-left' ? safeL : 0;
@@ -931,6 +931,8 @@ export function setKeyboardInset(px: number): void { if (px === kbInset) return;
 export function keyboardInset(): number { return kbInset; }
 /** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
 export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
+/** The last pointer was a finger or a pen (a touch screen), not a mouse. Devices that are not desktops start with it true. */
+export function pointerIsCoarse(): boolean { return coarse; }
 function setCoarse(c: boolean): void { if (c === coarse) return; coarse = c; restyleMedia(2); }
 /** Layout passes the last container-query settling needed (1: nothing changed). */
 export function layoutPasses(): i32 { return settlePasses; }
