@@ -1714,6 +1714,9 @@ export function textFgAlpha(h: i32): i32 {
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;
   return q >= 0 ? nodes[q].fgAlpha : 255;
 }
+/** The lines of a text node at its last layout and the font they were measured with (ZN-284.01: the host engine's lines are checked against these). */
+export function textLines(h: i32): string[] { if (layoutDirty) layout(); return node(h).lines; }
+export function textFont(h: i32): i32 { if (layoutDirty) layout(); return node(h).fontId; }
 export function textFg(h: i32): i32 {
   let q = h;
   while (q >= 0 && nodes[q].fg < 0) q = nodes[q].parent;

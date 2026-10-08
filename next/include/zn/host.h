@@ -20,10 +20,12 @@ using HostCall = void (*)(int id, const HostArg* args, HostArg* result);
 
 // Installed by the host library at startup; null in an engine built without one.
 extern HostCall hostGfx;
+extern HostCall hostLayout;  // the Rt::HostLayout* rows (isLayoutRow): a host layout engine, installed by installLayout (src/host/layout_host.cpp)
 extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together
-void installSys();    // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (src/host/sys_host.cpp)
+void installSys();
+void installLayout();  // the rn layout engine (Yoga, ZN-284.01): zinc installs it; an AOT program does when it calls the layout rows    // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (src/host/sys_host.cpp)
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images

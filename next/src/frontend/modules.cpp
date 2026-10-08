@@ -652,6 +652,31 @@ export class MqttClient {
 )ZN";
 
 // zinc:__sock: the raw socket rows (src/host/sock.cpp) for plugins/socket/native/socket.next.ts; events arrive through onEvent (kinds 50 to 57).
+// zinc:__layout (ZN-284.01): the host layout engine of src/host/layout.h for lib/std/ui.ts in `rn` mode; properties use the numbers of zn::host::LayoutProp.
+const char* kHostLayoutModule = R"ZN(
+export function open(webDefaults: boolean): boolean { return __host_layoutNew(webDefaults); }
+export function create(n: i32): void { __host_layoutCreate(n); }
+export function destroy(n: i32): void { __host_layoutDestroy(n); }
+export function style(n: i32, prop: i32, v: number): void { __host_layoutStyle(n, prop, v); }
+export function insert(parent: i32, child: i32, index: i32): void { __host_layoutInsert(parent, child, index); }
+export function remove(parent: i32, child: i32): void { __host_layoutRemove(parent, child); }
+/** flags: 1 ellipsis, 2 balance */
+export function text(n: i32, s: string, font: i32, size: i32, tracking: number, wordSpacing: number, whiteSpace: i32, wordBreak: i32, clamp: i32, flags: i32, lineHeight: number): void {
+  __host_layoutText(n, s, font, size, tracking, wordSpacing, whiteSpace, wordBreak, clamp, flags, lineHeight);
+}
+export function image(n: i32, w: number, h: number): void { __host_layoutImage(n, w, h); }
+export function field(n: i32, rows: i32, lineHeight: number, fullWidth: boolean): void { __host_layoutField(n, rows, lineHeight, fullWidth); }
+export function clear(n: i32): void { __host_layoutClear(n); }
+export function dirty(n: i32): void { __host_layoutDirty(n); }
+export function calculate(root: i32, w: number, h: number): void { __host_layoutCalc(root, w, h); }
+export function x(n: i32): number { return __host_layoutBox(n, 0); }
+export function y(n: i32): number { return __host_layoutBox(n, 1); }
+export function width(n: i32): number { return __host_layoutBox(n, 2); }
+export function height(n: i32): number { return __host_layoutBox(n, 3); }
+export function lineCount(n: i32): i32 { return __host_layoutLines(n); }
+export function line(n: i32, i: i32): string { return __host_layoutLine(n, i); }
+export function lineWidth(n: i32, i: i32): number { return __host_layoutLineWidth(n, i); }
+)ZN";
 const char* kHostSockModule = R"ZN(
 export function connect(host: string, port: i32): i32 { return __host_sockConnect(host, port); }
 export function connectUnix(path: string): i32 { return __host_sockConnectUnix(path); }
@@ -883,6 +908,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:osc") return kOscModule;
   if (spec == "zinc:__sock") return kHostSockModule;
+  if (spec == "zinc:__layout") return kHostLayoutModule;
   if (spec == "zinc:__crypto") return kHostCryptoModule;
   if (spec == "zinc:mqtt") return kMqttModule;
   if (spec == "zinc:gfx") return kGfxModule;

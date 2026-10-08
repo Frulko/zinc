@@ -4,6 +4,7 @@ title: 'CI: configure on every host again (next/.gitignore hides SDL3''s build_c
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-08 14:38'
 labels:
   - ci
   - distribution
@@ -24,3 +25,9 @@ next/.gitignore has `build*/`, which also ignores next/third_party/SDL3/include/
 - [ ] #1 a fresh `git clone` + `cmake -S next -B build` configures with no missing file (checked in a T0 test that lists the files cmake needs against `git ls-files`)
 - [ ] #2 the linux-x86_64, linux-aarch64 and macos-arm64 jobs of zinc-next.yml pass build and T1
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-08: the .gitignore fix is committed (dc4d08f: !third_party/SDL3/include/build_config/ and the SDL files tracked). Left to do: see the CI run green on every host after the next push (pushing is the owner's step).
+<!-- SECTION:NOTES:END -->

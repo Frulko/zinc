@@ -293,7 +293,7 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   std::string cfg = "cmake -S " + quote(root) + " -B " + quote(dir) + " -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=" + arch + " -DCMAKE_C_COMPILER=" + quote(dir + "/wrap/cc") + " -DCMAKE_CXX_COMPILER=" + quote(dir + "/wrap/c++") +
                     " -DCMAKE_AR=" + quote(dir + "/wrap/ar") + " -DCMAKE_RANLIB=" + quote(dir + "/wrap/ranlib") + " -DCMAKE_BUILD_TYPE=Release -DZN_SDL_VENDORED=OFF >" + quote(dir + "/configure.log") + " 2>&1";
   if (!run(cfg, err, "cmake")) return false;
-  std::string build = "cmake --build " + quote(dir) + " --target zn_host_gfx zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls -j 8 >" + quote(dir + "/build.log") + " 2>&1";
+  std::string build = "cmake --build " + quote(dir) + " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls -j 8 >" + quote(dir + "/build.log") + " 2>&1";
   if (!run(build, err, "cmake --build")) { fs::remove(dir + "/libzn_host_gfx.a", ec); return false; }
   return fs::exists(dir + "/libzn_host_gfx.a");
 }

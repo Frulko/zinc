@@ -317,6 +317,7 @@ int main(int argc, char** argv) {
   if (char* self = realpath(argv[0], nullptr)) { setenv("ZINC_BIN", self, 0); std::free(self); }  // the apps that start `zinc` (Zinc Atelier) find this binary through it
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
+  zn::host::installLayout();
 #endif
   for (int k = 1; k < argc; ++k) {  // `--strict` anywhere on the command line selects the strict profile; `--force` builds despite unmet `requires`
     if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
@@ -483,6 +484,16 @@ int main(int argc, char** argv) {
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
     zn::qjs::Options qo;
+    static std::string entryOfDir;   // a project directory runs its entry (zinc.json "entry", src/main.ts...), as `zinc run <dir>` does
+    if (std::filesystem::is_directory(argv[2])) {
+      zn::frontend::Project proj;
+      std::string pf = std::string(argv[2]) + "/zinc.json", perr;
+      bool have = false;
+      if (std::filesystem::exists(pf)) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); have = zn::frontend::parseProject(ss.str(), proj, perr); }
+      entryOfDir = zn::frontend::entryOf(argv[2], have ? &proj : nullptr);
+      if (entryOfDir.empty()) { std::fprintf(stderr, "zinc: no entry in %s (zinc.json \"entry\", src/main.ts or main.ts)\n", argv[2]); return 2; }
+      argv[2] = entryOfDir.data();
+    }
     qo.entry = argv[2];
     qo.stdRoot = gRoot + "/../lib/std";
 #ifdef ZN_HOST_GFX
@@ -880,7 +891,7 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
       ok = std::system(cmd.c_str()) == 0;
       if (!ok) err = "the cross compiler failed: " + cmd;
@@ -967,7 +978,7 @@ int main(int argc, char** argv) {
     }
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
-                      (!nativeLibs.empty() ? nativeLibs : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
+                      (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }

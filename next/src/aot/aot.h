@@ -18,5 +18,6 @@ std::string emitCpp(const zbc::Module& m, const std::vector<std::uint8_t>* resou
 
 // Whether the module calls the graphics host (the Rt::Host* entries).
 bool usesHost(const zbc::Module& m);
+bool usesLayout(const zbc::Module& m);   // the program calls the host layout engine: link zn_layout and zn_yoga
 
 }  // namespace zn::aot

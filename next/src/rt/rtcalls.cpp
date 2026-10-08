@@ -18,7 +18,7 @@
 #include "zn/native.h"
 #include "zn/native_sig.h"
 
-namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; }
+namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; HostCall hostLayout = nullptr; }
 
 namespace zn::rt {
 
@@ -614,7 +614,7 @@ struct JsonBuild {
 static const char* hostRt(Machine& m, Rt id, Slot* a) {
   const RtInfo& ri = rtInfo(id);
   bool sys = isSysRow(id);
-  zn::host::HostCall call = sys ? zn::host::hostSys : zn::host::hostGfx;
+  zn::host::HostCall call = isLayoutRow(id) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   // what needs the machine: the program's standard output is buffered in the machine, so writes and exit go through it
   if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
   if (id == Rt::HostSysExit) {
@@ -622,7 +622,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
     std::fflush(stdout);
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
-  if (!call) return sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
+  if (!call) return isLayoutRow(id) ? "the rn layout engine is not available in this build" : sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
   zn::host::HostArg args[12], res;
   for (unsigned k = 0; k < rtParamCount(ri); ++k) {
     zn::host::HostArg& h = args[k];

@@ -78,7 +78,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
     if (p) { std::fwrite(p, 1, n, id == zn::Rt::HostSysWrite ? stdout : stderr); JS_FreeCString(ctx, p); }
     return JS_UNDEFINED;
   }
-  zn::host::HostCall call = sys ? zn::host::hostSys : zn::host::hostGfx;
+  zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   if (!call) return JS_ThrowInternalError(ctx, "%s is not available in this build", ri.name);
   HostArg args[12], res;
   std::vector<std::string> strings;
@@ -133,7 +133,8 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
 
 void installHost(JSContext* ctx) {
   JSValue g = JS_GetGlobalObject(ctx);
-  for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::HostHostLast); ++i) {
+  for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::Count); ++i) {
+    if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !zn::isLayoutRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01)
     const zn::RtInfo& ri = zn::kRtInfo[i];
     std::string name = std::string("__host_") + zn::rtMember(ri);
     JS_SetPropertyStr(ctx, g, name.c_str(), JS_NewCFunctionMagic(ctx, hostFn, name.c_str(), static_cast<int>(zn::rtParamCount(ri)), JS_CFUNC_generic_magic, static_cast<int>(i)));
@@ -176,7 +177,12 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
   std::string r = n;
   if (auto* e = static_cast<Engine*>(opaque)) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
   if (r == n && n.rfind("zinc:", 0) != 0 && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
-    r = normalize(dirOf(base) + "/" + n);
+    std::string dir = dirOf(base);
+    if (auto* e = static_cast<Engine*>(opaque); e && std::string_view(base).rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
+      std::string_view f = zn::frontend::stdModuleFile(base);
+      if (!f.empty() && !e->stdRoot.empty()) dir = dirOf(e->stdRoot + "/" + std::string(f));
+    }
+    r = normalize(dir + "/" + n);
     std::string probe;
     for (const char* ext : {"", ".ts", ".js", ".mjs", "/index.ts"}) {
       std::ifstream f(r + ext);
@@ -230,7 +236,7 @@ bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
 
 JSValue global(Engine& e, const char* name) { JSValue g = JS_GetGlobalObject(e.ctx); JSValue v = JS_GetPropertyStr(e.ctx, g, name); JS_FreeValue(e.ctx, g); return v; }
 
-void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
+void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
 
 // the frame loop of a zinc:gfx program: poll, clock, due timers, begin, the callback, end (what the typed engine's __gfxLoop does)
 bool frameLoop(Engine& e) {
