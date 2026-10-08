@@ -10,11 +10,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
+option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
 add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
 if(ZN_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
+  if(ZN_FUZZ)
+    add_compile_options(-fsanitize=fuzzer-no-link)   # coverage instrumentation of every library; only the targets link the engine
+  endif()
 endif()
 
 # Dependency direction: include/zn <- frontend <- ir <- zbc <- rt <- vm (see ARCHITECTURE.md).
@@ -423,4 +427,22 @@ if(TARGET zn_host_gfx)
   target_compile_options(native_plugins_test PRIVATE -fno-exceptions -fno-rtti -fwrapv -w)
   target_compile_definitions(native_plugins_test PRIVATE ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="macos" ZRT_POINT_POOL=262144 ZRT_GROW_DRAW_CMDS)
   target_link_libraries(native_plugins_test PRIVATE zn_plugin_sqlite zn_plugin_process zn_plugin_socket zn_plugin_system zn_native zn_host_gfx)
+endif()
+
+# ---- fuzzing (ZN-147): `cmake -S . -B build-fuzz -DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++ -DZN_SANITIZE=ON -DZN_FUZZ=ON`
+if(ZN_FUZZ)
+  foreach(t parse check zbc native)
+    add_executable(fuzz_${t} tests/fuzz/fuzz_${t}.cpp)
+    target_compile_options(fuzz_${t} PRIVATE -fsanitize=fuzzer-no-link)
+    target_link_options(fuzz_${t} PRIVATE -fsanitize=fuzzer)
+    set_target_properties(fuzz_${t} PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  endforeach()
+  target_link_libraries(fuzz_parse PRIVATE zn_frontend)
+  target_link_libraries(fuzz_check PRIVATE zn_frontend zn_ir zn_zbc zn_native)
+  target_link_libraries(fuzz_zbc PRIVATE zn_zbc)
+  target_link_libraries(fuzz_native PRIVATE zn_native)
+  target_include_directories(fuzz_parse PRIVATE src include)
+  target_include_directories(fuzz_check PRIVATE src include)
+  target_include_directories(fuzz_zbc PRIVATE src include)
+  target_include_directories(fuzz_native PRIVATE src include)
 endif()

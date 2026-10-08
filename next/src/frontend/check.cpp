@@ -564,6 +564,7 @@ struct Checker {
   }
   // Builtin members of primitives, arrays, strings, Map and Set; the result's Member lives in `scratch`.
   bool primMember(TypeId t, std::string_view nm, Member& scratch) {
+    if (t >= out.types.size() || bad(t)) return false;   // no type yet (a target the checker did not reach), or an error type
     const Type x = ty(t);
     if (x.k == TK::Array && nm == "length") { scratch = {"length", num(Num::i32), false, false}; return true; }
     if (x.k == TK::Array && nm == "push") { scratch = {"push", func({x.elem}, num(Num::i32), 1), true, true}; return true; }
@@ -777,6 +778,7 @@ struct Checker {
     }
     if (x.kind == N::Member) {
       TypeId ot = out.nodeType[x.kids[0]];
+      if (ot == kNoType) return true;   // the object was not typed (an earlier error)
       Member scratch;
       const Member* m = nullptr;
       const Node& on = n(x.kids[0]);

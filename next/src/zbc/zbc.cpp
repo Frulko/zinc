@@ -685,6 +685,7 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
     if (!r.str(c.name)) return fail("truncated file (class name)");
     c.parent = r.u32();
     std::uint8_t fl = r.u8();
+    if (fl > 3) return fail("invalid class flags");   // one spelling: no bit the encoder never writes
     c.isInterface = fl & 1; c.isAbstract = (fl & 2) != 0;
     std::uint8_t kd = r.u8();
     if (kd > static_cast<std::uint8_t>(CKind::Set)) return fail("invalid class kind");

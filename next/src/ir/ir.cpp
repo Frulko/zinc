@@ -230,7 +230,6 @@ struct Verifier {
   std::string err;
   std::vector<int> defBlock;   // per value: defining block or -1
   std::vector<int> defIndex;   // per value: instruction index, -1 for parameters
-  std::vector<std::vector<bool>> dom;  // dom[b][a]: a dominates b
 
   Verifier(const Module& mod, const Function& fn) : m(mod), f(fn) {}
 
@@ -247,36 +246,70 @@ struct Verifier {
   bool known(ValueId x) const { return x < f.valueTypes.size(); }
   TypeId tyOf(ValueId x) const { return f.valueTypes[x]; }
 
+  // Dominators by Cooper, Harvey and Kennedy over a reverse postorder (ZN-147: the matrix of n x n bits this replaces was quadratic in the blocks and took minutes on a generated function), then
+  // intervals of a walk of the dominator tree: a dominates b exactly when b lies inside a's interval.
+  std::vector<int> tin, tout;   // -1: not reachable
   void computeDominators() {
-    std::size_t n = f.blocks.size();
-    std::vector<bool> reach(n, false);
-    std::vector<BlockId> stack{0};
-    reach[0] = true;
-    while (!stack.empty()) {
-      BlockId b = stack.back(); stack.pop_back();
+    const std::size_t n = f.blocks.size();
+    auto successors = [&](BlockId b, std::vector<BlockId>& out) {
+      out.clear();
       const auto& insts = f.blocks[b].insts;
-      if (insts.empty()) continue;
-      for (const Edge& e : insts.back().edges) if (e.to < n && !reach[e.to]) { reach[e.to] = true; stack.push_back(e.to); }
-      for (const Inst& i : insts) if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (const Edge& e : i.edges) if (e.to < n && !reach[e.to]) { reach[e.to] = true; stack.push_back(e.to); }
+      if (insts.empty()) return;
+      for (const Edge& e : insts.back().edges) if (e.to < n) out.push_back(e.to);
+      for (const Inst& i : insts) if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (const Edge& e : i.edges) if (e.to < n) out.push_back(e.to);
+    };
+    std::vector<int> post(n, -1);                 // postorder number of the reachable blocks
+    std::vector<BlockId> order;                   // postorder
+    {
+      std::vector<char> seen(n, 0);
+      std::vector<std::pair<BlockId, std::size_t>> stack{{0, 0}};
+      std::vector<std::vector<BlockId>> succ(n);
+      seen[0] = 1; successors(0, succ[0]);
+      while (!stack.empty()) {
+        auto& [b, k] = stack.back();
+        if (k < succ[b].size()) {
+          BlockId t = succ[b][k++];
+          if (!seen[t]) { seen[t] = 1; successors(t, succ[t]); stack.push_back({t, 0}); }
+        } else { post[b] = static_cast<int>(order.size()); order.push_back(b); stack.pop_back(); }
+      }
     }
     std::vector<std::vector<BlockId>> preds(n);
     for (BlockId b = 0; b < n; ++b) {
-      if (!reach[b]) continue;
+      if (post[b] < 0) continue;
       for (const Inst& i : f.blocks[b].insts) for (const Edge& e : i.edges) if (e.to < n) preds[e.to].push_back(b);
     }
-    dom.assign(n, std::vector<bool>(n, true));
-    for (BlockId b = 0; b < n; ++b) if (!reach[b]) dom[b].assign(n, false);
-    dom[0].assign(n, false);
-    dom[0][0] = true;
+    std::vector<int> idom(n, -1);
+    idom[0] = 0;
+    auto intersect = [&](int x, int y) {
+      while (x != y) {
+        while (post[x] < post[y]) x = idom[x];
+        while (post[y] < post[x]) y = idom[y];
+      }
+      return x;
+    };
     for (bool changed = true; changed;) {
       changed = false;
-      for (BlockId b = 1; b < n; ++b) {
-        if (!reach[b]) continue;
-        std::vector<bool> d(n, true);
-        for (BlockId p : preds[b]) for (std::size_t k = 0; k < n; ++k) d[k] = d[k] && dom[p][k];
-        d[b] = true;
-        if (d != dom[b]) { dom[b] = d; changed = true; }
+      for (std::size_t k = order.size(); k-- > 0;) {   // reverse postorder
+        BlockId b = order[k];
+        if (b == 0) continue;
+        int ni = -1;
+        for (BlockId p : preds[b]) {
+          if (idom[p] < 0) continue;
+          ni = ni < 0 ? static_cast<int>(p) : intersect(static_cast<int>(p), ni);
+        }
+        if (ni >= 0 && idom[b] != ni) { idom[b] = ni; changed = true; }
       }
+    }
+    std::vector<std::vector<BlockId>> kids(n);
+    for (BlockId b = 1; b < n; ++b) if (post[b] >= 0 && idom[b] >= 0) kids[static_cast<std::size_t>(idom[b])].push_back(b);
+    tin.assign(n, -1); tout.assign(n, -1);
+    int clock = 0;
+    std::vector<std::pair<BlockId, std::size_t>> walk{{0, 0}};
+    tin[0] = clock++;
+    while (!walk.empty()) {
+      auto& [b, k] = walk.back();
+      if (k < kids[b].size()) { BlockId c = kids[b][k++]; tin[c] = clock++; walk.push_back({c, 0}); }
+      else { tout[b] = clock++; walk.pop_back(); }
     }
   }
 
@@ -284,7 +317,7 @@ struct Verifier {
     int db = defBlock[x];
     if (db < 0) return false;
     if (static_cast<std::size_t>(db) == ub) return defIndex[x] < ui;
-    return dom[ub][static_cast<std::size_t>(db)];
+    return tin[ub] >= 0 && tin[static_cast<std::size_t>(db)] >= 0 && tin[static_cast<std::size_t>(db)] <= tin[ub] && tout[ub] <= tout[static_cast<std::size_t>(db)];
   }
 
   bool checkEdge(std::size_t b, int ii, const Edge& e) {
