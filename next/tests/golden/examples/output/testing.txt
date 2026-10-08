@@ -1,0 +1,3 @@
+ok   examples/testing/tests/sqlite.test.ts
+ok   examples/testing/tests/test-path.ts
+2 test file(s), 0 failure(s)

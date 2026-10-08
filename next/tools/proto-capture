@@ -19,9 +19,9 @@ pd = importlib.util.module_from_spec(spec)
 loader.exec_module(pd)
 
 WRITE_KNOWN = False
-def name(entry): return entry.replace("/", "-").rsplit(".", 1)[0]
+def name(entry): return entry.split("#")[0].replace("/", "-").rsplit(".", 1)[0] + ("-" + entry.split("#")[1] if "#" in entry else "")   # `entry#variant`: the same program under another env (a scripted session)
 def project(entry):
-    d = os.path.dirname(os.path.join(EX, entry))
+    d = os.path.dirname(os.path.join(EX, entry.split("#")[0]))
     while d != EX and not os.path.isfile(os.path.join(d, "zinc.json")): d = os.path.dirname(d)
     return d if d != EX else os.path.dirname(os.path.join(EX, entry))
 def env_for(row, shot, frames):
@@ -56,7 +56,7 @@ def capture_one(row):
 
 def compare_one(row, zinc, out):
     e = row["entry"]; shot = os.path.join(out, name(e) + ".png"); res = []; over_seen = 0
-    try: subprocess.run([zinc, "run", os.path.join(EX, e)], cwd=NEXT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=120)
+    try: subprocess.run([zinc, "run", os.path.join(EX, e.split("#")[0])], cwd=NEXT, env=env_for(row, shot, row["frames"]), capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired: return e, False, "timed out"
     for f in row["frames"]:
         mine = os.path.join(out, "%s-%d.png" % (name(e), f)); gold = os.path.join(DIR, "%s-%d.png" % (name(e), f))

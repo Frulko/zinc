@@ -161,6 +161,20 @@
   "max_diff": 0
  },
  {
+  "entry": "chataigne/src/main.tsx#demo",
+  "frames": [
+   30,
+   120,
+   240
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "env": {
+   "ZINC_CHATAIGNE_SIM": "1",
+   "ZINC_CHATAIGNE_DEMO": "1"
+  }
+ },
+ {
   "entry": "flipctl/src/main.ts",
   "frames": [
    30
@@ -200,6 +214,19 @@
   ],
   "tol": 0,
   "max_diff": 0
+ },
+ {
+  "entry": "iot-panel/src/main.tsx#press",
+  "frames": [
+   20,
+   60,
+   120
+  ],
+  "tol": 0,
+  "max_diff": 0,
+  "env": {
+   "ZINC_GPIO_SCRIPT": "27:0@500,27:1@1500"
+  }
  },
  {
   "entry": "lang/src/main.ts",

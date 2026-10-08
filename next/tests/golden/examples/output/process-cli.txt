@@ -1,0 +1,9 @@
+ok   run: stdout, stderr, exit code
+ok   streamed lines + unterminated last line
+ok   first line arrives before exit (streaming)
+ok   stdin round trip (UTF-8)
+ok   cwd and env
+ok   kill -> 128 + SIGTERM
+ok   missing program throws
+ok   separator in an argument throws
+process: all checks passed

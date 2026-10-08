@@ -1,0 +1,14 @@
+The device
+----------
+serial HOST-0001
+
+Readings
+--------
+reading 21.75
+reading 22
+reading 22.25
+
+Telemetry
+---------
+temperature exposed (set ZINC_TELEMETRY to stream it)
+status LED on

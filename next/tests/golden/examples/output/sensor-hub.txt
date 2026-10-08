@@ -1,0 +1,2 @@
+GET /healthz -> N {"ok":true}
+GET /readings -> N {"seq":N,"tempC":N,"humidity":N}

@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""example-output (ZN-152): the text output of the non-visual examples on the new engine against the prototype's, on a scripted session each.
+
+  tools/example-output [--update] [NAME...]     compare (default: all); --update rewrites the goldens in tests/golden/examples/output/ from the PROTOTYPE's output
+
+A scenario = a command line of `zinc run` plus environment; the prototype runs it on the Node oracle (--target sim, the reference of its own tests) when `sim` is set, else natively.
+The pixel side of iot-panel (GPIO presses) and chataigne (demo gestures) is in tests/golden/examples/proto/manifest.json (`entry#variant` rows, tools/proto-capture).
+The output is normalised (ANSI, timestamps, ports, durations) before the comparison; a golden file holds the prototype's normalised output, so the check needs no prototype once recorded.
+"""
+import os, re, subprocess, sys, json, socket, time, threading, urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); ROOT = os.path.dirname(NEXT)
+GOLD = os.path.join(NEXT, "tests", "golden", "examples", "output")
+ZN = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc"))
+PROTO = ["node", os.path.join(ROOT, "compiler", "bin", "zinc.mjs")]
+
+def norm(t):
+    t = re.sub(r"\x1b\[[0-9;]*m", "", t)
+    t = re.sub(r" \(\d+(\.\d+)? ?ms\)", "", t)          # the prototype prints a duration per test file
+    t = re.sub(r"\b\d+(\.\d+)? ?ms\b", "N ms", t)
+    t = re.sub(r"\b\d{4}-\d\d-\d\dT[\d:.]+Z?", "TIME", t)
+    t = re.sub(r"^zinc: .*$\n?", "", t, flags=re.M)          # the prototype's build chatter
+    t = re.sub(r"[ \t]+$", "", t, flags=re.M)
+    return t.strip() + "\n"
+
+def run(cmd, env=None, timeout=60, cwd=ROOT):
+    e = dict(os.environ, **(env or {}))
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=e, cwd=cwd)
+    return norm(r.stdout + (("\n" + r.stderr) if r.returncode else ""))
+
+def serve_session(cmd_base, env, port, paths):
+    """Starts a service, fetches the paths, stops it; the answers are the output."""
+    e = dict(os.environ, PORT=str(port), **env)
+    p = subprocess.Popen(cmd_base, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=e, cwd=ROOT, start_new_session=True)
+    out = []
+    try:
+        for _ in range(200):
+            try: socket.create_connection(("127.0.0.1", port), 0.2).close(); break
+            except OSError: time.sleep(0.1)
+        for path in paths:
+            try:
+                with urllib.request.urlopen("http://127.0.0.1:%d%s" % (port, path), timeout=5) as r: out.append("GET %s -> %d %s" % (path, r.status, r.read().decode()[:400]))
+            except Exception as ex: out.append("GET %s -> %s" % (path, type(ex).__name__))
+    finally:
+        try: os.killpg(p.pid, 15)
+        except Exception: pass
+        try: p.wait(timeout=5)
+        except Exception: pass
+    return norm("\n".join(out))
+
+SCENARIOS = {
+    "process-cli": lambda z, sim: run(z + ["run", "examples/process/cli/main.ts"] + (["--target", "sim"] if sim else []) + ["--", "a", "b"]),
+    "native-module": lambda z, sim: run(z + ["run", "examples/native-module"] + (["--target", "sim"] if sim else []), {"ZINC_HEADLESS": "1", "ZINC_FRAMES": "3"}),
+    "testing": lambda z, sim: run(z + ["test", "examples/testing"], timeout=120),
+    # the prototype's sensor-hub does not compile at the moment (lib/modules.d.ts:142, Z9004), so its golden is written from the program (src/main.ts routes), numbers normalised: the random sensor makes each value differ
+    "sensor-hub": lambda z, sim: re.sub(r"\d+(\.\d+)?", "N", serve_session(z + ["run", "examples/service/sensor-hub"], {}, 3918, ["/healthz", "/readings"])),
+}
+
+def main(argv):
+    update = "--update" in argv
+    names = [a for a in argv if not a.startswith("--")] or list(SCENARIOS)
+    os.makedirs(GOLD, exist_ok=True)
+    bad = 0
+    for n in names:
+        gold = os.path.join(GOLD, n + ".txt")
+        if update:
+            if n == "sensor-hub": print("sensor-hub: golden is written by hand (the prototype does not compile it)"); continue
+            open(gold, "w").write(SCENARIOS[n](PROTO, True)); print("recorded", n); continue
+        want = open(gold).read() if os.path.exists(gold) else None
+        got = SCENARIOS[n]([ZN], False)
+        if want is None: print("NO GOLDEN", n); bad += 1; continue
+        if got == want: print("ok  ", n)
+        else:
+            bad += 1; print("DIFF", n)
+            import difflib
+            for l in list(difflib.unified_diff(want.splitlines(), got.splitlines(), "prototype", "next", lineterm="", n=1))[:14]: print("    " + l)
+    return 1 if bad else 0
+
+sys.exit(main(sys.argv[1:]))
