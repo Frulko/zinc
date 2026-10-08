@@ -15,6 +15,12 @@
       ]
     },
     {
+      "name": "developer tools: verbose output, inspector, network, debugger, mobile spike (owner, 2026-10-08)",
+      "milestones": [
+        "m-20"
+      ]
+    },
+    {
       "name": "desktop integration",
       "milestones": [
         "m-16"
