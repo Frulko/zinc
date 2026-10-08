@@ -4,6 +4,7 @@ title: 'UI style: Side records and move state colours out of `UiNode`'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 12:56'
+updated_date: '2026-10-08 06:05'
 labels:
   - ui
   - style
@@ -11,7 +12,6 @@ labels:
 milestone: m-17
 dependencies:
   - ZN-250
-  - ZN-189
 ordinal: 50510
 ---
 

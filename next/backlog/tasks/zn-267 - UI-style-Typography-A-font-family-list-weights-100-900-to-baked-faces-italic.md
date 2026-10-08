@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-07 12:57'
+updated_date: '2026-10-08 06:05'
 labels:
   - ui
   - style
@@ -13,7 +14,6 @@ labels:
 milestone: m-17
 dependencies:
   - ZN-114
-  - ZN-251
 ordinal: 50670
 ---
 

@@ -4,12 +4,11 @@ title: 'Layout: `zn::ui::Layout` interface and `classic` adapter'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 13:07'
-updated_date: '2026-10-07 15:25'
+updated_date: '2026-10-08 05:51'
 labels:
   - ui
   - layout
   - size-M
-  - parked
 milestone: m-17
 dependencies: []
 ordinal: 50720
