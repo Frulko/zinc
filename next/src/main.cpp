@@ -47,6 +47,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include <unistd.h>
 #include "vm/vm.h"
 #include "zbc/zbc.h"
+namespace zn::text { void installSegmenter(); }
 #include "vm/vm.h"
 #include "vm/vm.h"
 #include "zbc/zbc.h"
@@ -398,6 +399,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 #ifdef ZN_WEBGL
+  zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
   zn::gl::installWebGLBindings();   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03)
 #endif
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng

@@ -1,0 +1,23 @@
+grapheme latin: H@0|e@1|l@2|l@3|o@4|,@5| @6|w@7|o@8|r@9|l@10|d@11|!@12| @13|I@14|t@15|'@16|s@17| @18|3@19|.@20|1@21|4@22| @23|o@24|'@25|c@26|l@27|o@28|c@29|k@30|.@31
+grapheme zwj: a@0|👨‍👩‍👧‍👦@1|b@12|👩🏽‍💻@13|c@20
+grapheme flags: 🇫🇷@0|🇩🇪@4|x@8|🇺🇸@9
+grapheme combining: é@0|ạ̈@2|ñ@5|o@6
+grapheme hangul: 한@0|국@1|어@2| @3|한@4
+grapheme cjk: 日@0|本@1|語@2|の@3|テ@4|キ@5|ス@6|ト@7|、@8|漢@9|字@10|。@11
+grapheme thai: ส@0|วั@1|ส@3|ดี@4|ค@6|รั@7|บ@9
+grapheme indic: क्ष@0|त्रि@3|य@7| @8|हि@9|न्दी@11
+grapheme crlf: a@0|
+@1|b@3|
+@4|c@5
+grapheme emoji: 👍🏻@0| @4|o@5|k@6| @7|❤️@8| @10|✌@11
+word latin: Hello+@0|,-@5| -@6|world+@7|!-@12| -@13|It's+@14| -@18|3.14+@19| -@23|o'clock+@24|.-@31
+word zwj: a+@0|👨‍👩‍👧‍👦-@1|b+@12|👩🏽‍💻-@13|c+@20
+word flags: 🇫🇷-@0|🇩🇪-@4|x+@8|🇺🇸-@9
+word combining: éạ̈ño+@0
+word hangul: 한국어+@0| -@3|한+@4
+word indic: क्षत्रिय+@0| -@8|हिन्दी+@9
+word crlf: a+@0|
+-@1|b+@3|
+-@4|c+@5
+word emoji: 👍🏻-@0| -@4|ok+@5| -@7|❤️-@8| -@10|✌-@11
+containing {"segment":"👍","index":1,"input":"a👍b"} undefined
