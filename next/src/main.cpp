@@ -344,7 +344,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> cl(argv, argv + argc);
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
-    if (argc >= 2 && !std::strcmp(argv[1], "init")) return zn::cli::init(cl, gRoot);
+    if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && !std::strcmp(argv[2], "--scene"))) return zn::cli::capture(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);

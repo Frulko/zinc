@@ -1,0 +1,6 @@
+{
+  "name": "{{name}}",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {}
+}

@@ -1,0 +1,18 @@
+{
+  "name": "iot",
+  "description": "A button on GPIO 27 lights pin 17 and sends an OSC message; simulated off the board (zinc:gpio, zinc:osc).",
+  "tags": [
+    "iot",
+    "gpio"
+  ],
+  "targets": [
+    "rpi",
+    "linux",
+    "macos"
+  ],
+  "entry": "src/main.ts",
+  "variables": {
+    "name": "the project directory name",
+    "id": "the name as an identifier (lower case, letters, digits and -)"
+  }
+}

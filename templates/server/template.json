@@ -1,0 +1,18 @@
+{
+  "name": "server",
+  "description": "An HTTP server on port 3000 with a telemetry counter (zinc:net, zinc:telemetry).",
+  "tags": [
+    "server",
+    "net"
+  ],
+  "targets": [
+    "macos",
+    "linux",
+    "rpi"
+  ],
+  "entry": "src/main.ts",
+  "variables": {
+    "name": "the project directory name",
+    "id": "the name as an identifier (lower case, letters, digits and -)"
+  }
+}

@@ -35,7 +35,7 @@ def copy_tree(src, dst, keep=None):
             shutil.copy2(os.path.join(root, f), out)
 
 def payload(share):
-    """share/zinc: next/ (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, the plugins' Zinc sources."""
+    """share/zinc: next/ (headers and sources for cross builds, the core firmware, the app), lib/std, lib/fonts, templates, the plugins' Zinc sources."""
     nx = os.path.join(share, "next")
     copy_tree(os.path.join(NEXT, "include"), os.path.join(nx, "include"))
     copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
@@ -49,6 +49,7 @@ def payload(share):
     copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx')))
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
+    copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
     open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
 

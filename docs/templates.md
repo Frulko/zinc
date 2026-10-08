@@ -1,0 +1,42 @@
+# Project templates
+
+`zinc new` creates a project from a template:
+
+```sh
+zinc new --list               # the templates, their descriptions and targets
+zinc new game my-game         # templates/game/ into my-game/
+zinc new my-tool              # the default template (game)
+zinc init my-app --template cli   # the older spelling, same command
+```
+
+The directory must be new or empty; an unknown template or a non-empty directory is refused with the list of templates.
+
+## Format
+
+A template is a directory `templates/<name>/` (beside `lib/`; packages ship it in `share/zinc/templates`). Every file in it is copied into the new
+project, except `template.json`, which describes it:
+
+```json
+{
+  "name": "game",
+  "description": "A window, the arrow keys and a square: the smallest game loop (zinc:gfx).",
+  "tags": ["game", "gfx"],
+  "targets": ["macos", "linux", "rpi"],
+  "entry": "src/main.ts",
+  "variables": { "name": "the project directory name", "id": "the name as an identifier" }
+}
+```
+
+In text files `{{name}}` becomes the project directory's name and `{{id}}` that name in lower case with every other character turned into `-`;
+in `.json` files the values are escaped as JSON strings. A file containing a NUL byte (an image, a font) is copied as it is. `tsconfig.json` is
+written by `zinc new` itself, since it names the engine files of the machine.
+
+Each template carries `tests/smoke.test.ts`, so `zinc test` (the tests of the project in the current directory) passes on a new project.
+
+| Template | What it is | Targets |
+|---|---|---|
+| game | a window, the arrow keys and a square (zinc:gfx) | macos, linux, rpi |
+| cli | a command-line program (zinc:sys) | macos, linux, rpi |
+| server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
+| iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |
+| remarkable | a reMarkable Paper Pro ink canvas with undo (zinc:ui, zinc:ink) | rmpp |

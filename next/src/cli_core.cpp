@@ -40,8 +40,9 @@ const Command kCommands[] = {
   {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle]", "compile to a native program",
    "Compiles to C++ and builds an executable (out defaults to build/<project name>). --target aarch64-linux|armhf-linux|x86_64-linux|aarch64-macos|x86_64-macos cross builds with the pinned zig (no Docker); --bundle makes a macOS .app."},
   {"check", "zinc check [entry|dir]", "type check without running", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
-  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens."},
-  {"init", "zinc init <dir> [--template game|cli|server|iot|remarkable]", "create a project", "Writes zinc.json, src/main.ts[x], assets/, tsconfig.json, .gitignore and a README into an empty directory. Default template: game."},
+  {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
+  {"new", "zinc new [template] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets."},
+  {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
   {"doctor", "zinc doctor", "check the machine", "Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
   {"toolchain", "zinc toolchain install|path|esptool|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc; targets: the cross targets."},
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
@@ -62,73 +63,57 @@ const Command kCommands[] = {
 
 const Command* findCommand(const std::string& n) { for (const Command& c : kCommands) if (n == c.name) return &c; return nullptr; }
 
-// ---- init templates (the prototype's, compiler/src/tools.ts)
-struct Template { const char* name; const char* entry; const char* source; };
-const Template kTemplates[] = {
-  {"game", "src/main.ts", R"(import { onFrame, clear, rect, text, width, height, isDown, Btn } from 'zinc:gfx';
-
-let x = width() / 2, y = height() / 2;
-onFrame((dt: number) => {
-  if (isDown(Btn.Left)) x -= 120 * dt;
-  if (isDown(Btn.Right)) x += 120 * dt;
-  if (isDown(Btn.Up)) y -= 120 * dt;
-  if (isDown(Btn.Down)) y += 120 * dt;
-  clear(0x101820);
-  rect(x - 8, y - 8, 16, 16, 0xfeca57);
-  text(4, 4, 'arrows to move', 0xffffff, 1);
-});
-)"},
-  {"cli", "src/main.ts", R"(import * as sys from 'zinc:sys';
-
-const args = sys.args();
-console.log(`hello from ${sys.platform()}`, args);
-)"},
-  {"server", "src/main.ts", R"(import { serve, Request, Reply } from 'zinc:net';
-import * as telemetry from 'zinc:telemetry';
-
-let hits = 0;
-telemetry.expose('hits', () => hits);
-serve(3000, (req: Request): Reply => {
-  hits++;
-  return { status: 200, contentType: 'application/json', body: JSON.stringify({ path: req.path, hits }) };
-});
-console.log('listening on http://localhost:3000');
-)"},
-  {"iot", "src/main.ts", R"(import * as gpio from 'zinc:gpio';
-import { send } from 'zinc:osc';
-
-gpio.setup(17, 'out', 'none');
-gpio.setup(27, 'in', 'up');
-gpio.watch(27, 'falling', 20, (e: gpio.PinEdge) => {
-  gpio.write(17, 1);
-  send('127.0.0.1', 9000, '/button', [e.pin, e.timestampMs]);
-  console.log('button', e.pin);
-});
-console.log('waiting for the button on pin 27 (ZINC_GPIO_SCRIPT="27:0@500" simulates a press)');
-)"},
-  {"remarkable", "src/main.tsx", R"(import { createSignal, render } from 'zinc:ui/solid';
-import { Ink, InkCanvas } from 'zinc:ink';
-
-const ink = new Ink();
-const [strokes, setStrokes] = createSignal<i32>(0);
-
-function App(): i32 {
-  return <view class="flex-col h-full bg-white">
-    <view class="flex-row items-center gap-6 p-6">
-      <text class="text-[48px] font-bold text-black">My app</text>
-      <button class="px-6 py-4 rounded-lg border-2 border-black bg-white focus:bg-white" onClick={() => { ink.undo(); setStrokes(ink.strokes.length); }}>
-        <text class="text-[34px] text-black">Undo</text>
-      </button>
-      <text class="text-[34px] text-gray-600">{strokes()} stroke(s)</text>
-    </view>
-    <view class="h-[3px] bg-black"></view>
-    <InkCanvas ink={ink} class="grow" />
-  </view>;
+// ---- templates (ZN-315): templates/<name>/ beside lib/, any files, described by template.json
+struct TemplateInfo { std::string name, description, entry; std::vector<std::string> tags, targets; fs::path dir; };
+std::vector<std::string> jsonStrings(yyjson_val* a) {
+  std::vector<std::string> out;
+  std::size_t i, n; yyjson_val* v;
+  if (yyjson_is_arr(a)) yyjson_arr_foreach(a, i, n, v) if (yyjson_is_str(v)) out.push_back(yyjson_get_str(v));
+  return out;
 }
-
-render(App, 0xffffff, (dt: number) => { if (ink.strokes.length !== strokes()) setStrokes(ink.strokes.length); });
-)"},
-};
+std::vector<TemplateInfo> listTemplates(const std::string& engineRoot) {
+  std::vector<TemplateInfo> out;
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "templates", ec)) {
+    std::ifstream f(e.path() / "template.json");
+    if (!f) continue;
+    std::stringstream ss; ss << f.rdbuf();
+    const std::string text = ss.str();
+    yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+    yyjson_val* r = doc ? yyjson_doc_get_root(doc) : nullptr;
+    if (yyjson_is_obj(r)) {
+      TemplateInfo t;
+      t.dir = e.path();
+      t.name = e.path().filename().string();
+      if (const char* d = yyjson_get_str(yyjson_obj_get(r, "description"))) t.description = d;
+      if (const char* en = yyjson_get_str(yyjson_obj_get(r, "entry"))) t.entry = en;
+      t.tags = jsonStrings(yyjson_obj_get(r, "tags"));
+      t.targets = jsonStrings(yyjson_obj_get(r, "targets"));
+      out.push_back(t);
+    }
+    yyjson_doc_free(doc);
+  }
+  std::sort(out.begin(), out.end(), [](const TemplateInfo& x, const TemplateInfo& y) { return x.name < y.name; });
+  return out;
+}
+void printTemplates(std::FILE* to, const std::vector<TemplateInfo>& ts) {
+  for (const TemplateInfo& t : ts) {
+    std::string targets;
+    for (const std::string& x : t.targets) targets += (targets.empty() ? "" : ", ") + x;
+    std::fprintf(to, "  %-12s %s (%s)\n", t.name.c_str(), t.description.c_str(), targets.c_str());
+  }
+}
+// {{name}} and {{id}} in a text file; in a JSON file the values are escaped as JSON string contents. A file with a NUL byte is copied as it is.
+std::string fillVariables(std::string text, const std::map<std::string, std::string>& vars, bool json) {
+  if (text.find('\0') != std::string::npos) return text;
+  for (const auto& [k, v] : vars) {
+    std::string val = v;
+    if (json) { val.clear(); for (char c : v) { if (c == '"' || c == '\\') val += '\\'; val += c; } }
+    const std::string key = "{{" + k + "}}";
+    for (std::size_t at = text.find(key); at != std::string::npos; at = text.find(key, at + val.size())) text.replace(at, key.size(), val);
+  }
+  return text;
+}
 
 std::string jsonString(const std::string& s) {
   std::string o = "\"";
@@ -205,36 +190,51 @@ int help(const std::vector<std::string>& args) {
 }
 
 int init(const std::vector<std::string>& args, const std::string& engineRoot) {
-  std::string dir = ".", tmpl = "game";
+  const std::string cmd = args.size() > 1 ? args[1] : "new";   // `zinc init <dir> --template t` is `zinc new [t] <dir>`
+  std::string tmpl = "game";
+  std::vector<std::string> pos;
+  bool list = false, named = false;
   for (std::size_t i = 2; i < args.size(); ++i) {
-    if (args[i] == "--template" && i + 1 < args.size()) tmpl = args[++i];
-    else if (args[i].rfind("--template=", 0) == 0) tmpl = args[i].substr(11);
-    else if (args[i].rfind("-", 0) != 0) dir = args[i];
-    else { std::fprintf(stderr, "zinc init: unknown option %s\nusage: %s\n", args[i].c_str(), findCommand("init")->usage); return 2; }
+    if (args[i] == "--template" && i + 1 < args.size()) { tmpl = args[++i]; named = true; }
+    else if (args[i].rfind("--template=", 0) == 0) { tmpl = args[i].substr(11); named = true; }
+    else if (args[i] == "--list") list = true;
+    else if (args[i].rfind("-", 0) != 0) pos.push_back(args[i]);
+    else { std::fprintf(stderr, "zinc %s: unknown option %s\nusage: %s\n", cmd.c_str(), args[i].c_str(), findCommand(cmd.c_str())->usage); return 2; }
   }
-  const Template* t = nullptr;
-  for (const Template& x : kTemplates) if (tmpl == x.name) t = &x;
-  if (!t) {
-    std::string all;
-    for (const Template& x : kTemplates) all += (all.empty() ? "" : ", ") + std::string(x.name);
-    std::fprintf(stderr, "zinc init: unknown template '%s' (%s)\n", tmpl.c_str(), all.c_str());
-    return 2;
-  }
+  const std::vector<TemplateInfo> all = listTemplates(engineRoot);
+  if (list) { printTemplates(stdout, all); return 0; }
+  if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "usage: %s\n", findCommand(cmd.c_str())->usage); return 2; }
+  if (pos.size() == 2) tmpl = pos[0];
+  const std::string dir = pos.empty() ? "." : pos.back();
+  const TemplateInfo* t = nullptr;
+  for (const TemplateInfo& x : all) if (x.name == tmpl) t = &x;
+  if (!t) { std::fprintf(stderr, "zinc %s: unknown template '%s'; choose one of:\n", cmd.c_str(), tmpl.c_str()); printTemplates(stderr, all); return 2; }
   std::error_code ec;
-  if (fs::exists(dir, ec) && !fs::is_empty(dir, ec)) { std::fprintf(stderr, "zinc init: %s is not empty\n", dir.c_str()); return 1; }
+  if (fs::exists(dir, ec) && !fs::is_empty(dir, ec)) {
+    std::fprintf(stderr, "zinc %s: %s is not empty; give a new or empty directory (zinc new [template] <dir>), templates:\n", cmd.c_str(), dir.c_str());
+    printTemplates(stderr, all);
+    return 1;
+  }
   const std::string name = fs::path(fs::absolute(dir).lexically_normal()).filename().string().empty() ? "app" : fs::path(fs::absolute(dir).lexically_normal()).filename().string();
+  std::string id;
+  for (char c : name) id += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '-';
+  const std::map<std::string, std::string> vars{{"name", name}, {"id", id}};
+  fs::path root(dir);
+  bool ok = true;
+  for (auto it = fs::recursive_directory_iterator(t->dir, ec); ok && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file() || it->path().filename() == "template.json") continue;
+    const fs::path rel = fs::relative(it->path(), t->dir);
+    std::ifstream f(it->path(), std::ios::binary);
+    std::stringstream ss; ss << f.rdbuf();
+    ok = writeFile(root / rel, fillVariables(ss.str(), vars, rel.extension() == ".json"));
+  }
   std::string libFiles;
   for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "lib", ec))
     if (e.path().extension() == ".ts" && e.path().filename().string().size() > 5 && e.path().filename().string().rfind(".d.ts") == e.path().filename().string().size() - 5)
       libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
-  fs::path root(dir);
-  bool ok = writeFile(root / "zinc.json", "{\n  \"name\": " + jsonString(name) + ",\n  \"entry\": " + jsonString(t->entry) + ",\n  \"assets\": \"assets\",\n  \"targets\": {}\n}\n");
-  ok = ok && writeFile(root / t->entry, t->source);
-  ok = ok && writeFile(root / "assets/.gitkeep", "");
-  ok = ok && writeFile(root / ".gitignore", "build/\ndist/\nnode_modules/\n");
+  // the editor configuration names this machine's engine files, so it is written here rather than kept in the template
   ok = ok && writeFile(root / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\"\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n");
-  ok = ok && writeFile(root / "README.md", "# " + name + "\n\nA Zinc app (" + tmpl + " template).\n\n```sh\nzinc run     # compile and run\nzinc build   # native executable in build/\nzinc check   # type check\n```\n");
-  if (!ok) { std::fprintf(stderr, "zinc init: cannot write into %s\n", dir.c_str()); return 1; }
+  if (!ok) { std::fprintf(stderr, "zinc %s: cannot write into %s\n", cmd.c_str(), dir.c_str()); return 1; }
   std::printf("created %s (%s); next: cd %s && zinc run\n", dir.c_str(), tmpl.c_str(), dir.c_str());
   return 0;
 }

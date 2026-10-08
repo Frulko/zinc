@@ -1,0 +1,17 @@
+{
+  "name": "cli",
+  "description": "A command-line program: its arguments and the platform (zinc:sys).",
+  "tags": [
+    "cli"
+  ],
+  "targets": [
+    "macos",
+    "linux",
+    "rpi"
+  ],
+  "entry": "src/main.ts",
+  "variables": {
+    "name": "the project directory name",
+    "id": "the name as an identifier (lower case, letters, digits and -)"
+  }
+}

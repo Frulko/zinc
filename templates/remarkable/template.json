@@ -1,0 +1,17 @@
+{
+  "name": "remarkable",
+  "description": "A reMarkable Paper Pro app: an ink canvas with undo (zinc:ui, zinc:ink).",
+  "tags": [
+    "ui",
+    "ink",
+    "e-paper"
+  ],
+  "targets": [
+    "rmpp"
+  ],
+  "entry": "src/main.tsx",
+  "variables": {
+    "name": "the project directory name",
+    "id": "the name as an identifier (lower case, letters, digits and -)"
+  }
+}

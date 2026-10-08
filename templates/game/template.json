@@ -1,0 +1,18 @@
+{
+  "name": "game",
+  "description": "A window, the arrow keys and a square: the smallest game loop (zinc:gfx).",
+  "tags": [
+    "game",
+    "gfx"
+  ],
+  "targets": [
+    "macos",
+    "linux",
+    "rpi"
+  ],
+  "entry": "src/main.ts",
+  "variables": {
+    "name": "the project directory name",
+    "id": "the name as an identifier (lower case, letters, digits and -)"
+  }
+}
