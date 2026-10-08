@@ -4,11 +4,10 @@ title: 'Layout: `zn::ui::Layout` interface and `classic` adapter'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 13:07'
-updated_date: '2026-10-08 07:10'
+updated_date: '2026-10-08 13:46'
 labels:
   - ui
   - layout
-  - parked
 milestone: m-17
 dependencies: []
 ordinal: 50720
@@ -31,4 +30,6 @@ From docs/reports/layout-engines.md (section 8, LE-3). Decision: a pluggable lay
 
 <!-- SECTION:NOTES:BEGIN -->
 parked 2026-10-08: RN-oriented pluggable layout; the interface header alone has no user until the Yoga adapter exists, and the owner's order puts visible UI, style and rendering first. Resume after the style chain (ZN-272, ZN-279) and the GL tasks.
+
+unparked 2026-10-08: the style chain is blocked behind the display-gl tasks, so the layout chain is the UI work that can move; lib/std/ui.ts has no uncommitted changes now.
 <!-- SECTION:NOTES:END -->
