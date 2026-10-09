@@ -875,9 +875,9 @@ void border(double x, double y, double w, double h, double r, double width, uint
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha) {
   if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r; c->s = (float)blur; }
 }
-static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
+// The point rows read the program's f64 storage in place (ZN-405): no array is built per call.
+static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) {
   Buf& b = bufs[cur];
-  uint32_t n = (uint32_t)pts.length();
   if (b.npts + n + 1 > ZRT_POINT_POOL) { pool_full(2); return false; }  // + 1: an open polygon writes its count first
   c->off = b.npts;
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
@@ -885,11 +885,11 @@ static bool add_points(Cmd* c, const Array<double>& pts, bool closed_list) {
   while (i < n) {
     // a contour count is program data: negative / NaN / too large must not wrap `i` or claim points not written
     const uint32_t start = closed_list ? i + 1 : 0, avail = (n - start) / 2;
-    double want = closed_list ? pts.get((int32_t)i) : (double)avail;
+    double want = closed_list ? pts[i] : (double)avail;
     uint32_t cnt = want >= 1 ? (want < (double)avail ? (uint32_t)want : avail) : 0;
     b.pts[b.npts++] = (float)cnt;
     for (uint32_t k = 0; k < cnt; k++) {
-      float x = (float)(pts.get((int32_t)(start + k * 2)) + tx), y = (float)(pts.get((int32_t)(start + k * 2 + 1)) + ty);
+      float x = (float)(pts[start + k * 2] + tx), y = (float)(pts[start + k * 2 + 1] + ty);
       b.pts[b.npts++] = x; b.pts[b.npts++] = y;
       minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
     }
@@ -919,19 +919,22 @@ Cmd* emit(uint8_t kind, const float* pts, uint32_t len) {
   return c;
 }
 /** Filled polygon from flat [x0, y0, x1, y1, ...] coordinates. */
-void polygon(const Array<double>& pts, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::POLY, color, alpha)) if (!add_points(c, pts, false)) bufs[cur].ncmd--;
+void polygon(const double* pts, uint32_t n, uint32_t color, int32_t alpha) {
+  if (Cmd* c = push(raster::POLY, color, alpha)) if (!add_points(c, pts, n, false)) bufs[cur].ncmd--;
 }
+void polygon(const Array<double>& pts, uint32_t color, int32_t alpha) { polygon(pts.obj()->data, (uint32_t)pts.length(), color, alpha); }
 /** Several contours: [count, x0, y0, ..., count, x0, y0, ...] (nonzero winding, for holes and vector art). */
-void path(const Array<double>& contours, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::POLY, color, alpha)) if (!add_points(c, contours, true)) bufs[cur].ncmd--;
+void path(const double* contours, uint32_t n, uint32_t color, int32_t alpha) {
+  if (Cmd* c = push(raster::POLY, color, alpha)) if (!add_points(c, contours, n, true)) bufs[cur].ncmd--;
 }
+void path(const Array<double>& contours, uint32_t color, int32_t alpha) { path(contours.obj()->data, (uint32_t)contours.length(), color, alpha); }
 void line(double x1, double y1, double x2, double y2, uint32_t color) {
   // a 1px line is a thin quad
   double dx = x2 - x1, dy = y2 - y1, len = math::sqrt(dx * dx + dy * dy);
   if (len <= 0) { rect(x1, y1, 1, 1, color); return; }
   double nx = -dy / len * 0.5, ny = dx / len * 0.5;
-  polygon(Array<double>::of(x1 + nx + 0.5, y1 + ny + 0.5, x2 + nx + 0.5, y2 + ny + 0.5, x2 - nx + 0.5, y2 - ny + 0.5, x1 - nx + 0.5, y1 - ny + 0.5), color, 255);
+  const double q[8] = {x1 + nx + 0.5, y1 + ny + 0.5, x2 + nx + 0.5, y2 + ny + 0.5, x2 - nx + 0.5, y2 - ny + 0.5, x1 - nx + 0.5, y1 - ny + 0.5};
+  polygon(q, 8, color, 255);
 }
 int32_t font(const String& name, int32_t px) { return raster::find_font(name.ptr(), name.bytes(), px); }
 int32_t fontAscent(int32_t f) { return f >= 0 && f < raster::font_count ? raster::fonts[f].ascent : 0; }
@@ -960,16 +963,16 @@ void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha,
   if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius; c->c2 = raster::image_version(i); }
 }
 /** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
-void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed) {
+void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32_t alpha, bool closed) {
   Buf& b = bufs[cur];
-  uint32_t n = (uint32_t)pts.length() / 2;
+  uint32_t n = len / 2;
   if (n < 2) return;
 #ifndef ZRT_STROKE_POINTS
 #define ZRT_STROKE_POINTS 2048  // esp32: 512 (its point pool holds 1024 floats anyway)
 #endif
   static float tmp[ZRT_STROKE_POINTS * 2];
   if (n > ZRT_STROKE_POINTS) n = ZRT_STROKE_POINTS;  // ponytail: long lines are split by the caller (map tiles already are)
-  for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts.get((int32_t)i * 2) + tx); tmp[i * 2 + 1] = (float)(pts.get((int32_t)i * 2 + 1) + ty); }
+  for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts[i * 2] + tx); tmp[i * 2 + 1] = (float)(pts[i * 2 + 1] + ty); }
   Cmd* c = push(raster::POLY, color, alpha);
   if (!c) return;
   uint32_t r = raster::stroke_contours(tmp, n, (float)width, closed, b.pts + b.npts, ZRT_POINT_POOL - b.npts);
@@ -979,6 +982,7 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
   if (!c->n) { if (ZRT_POINT_POOL - b.npts < 64) pool_full(2); b.ncmd--; return; }
   c->x = minx - hw; c->y = miny - hw; c->w = maxx - minx + 2 * hw; c->h = maxy - miny + 2 * hw;
 }
+void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed) { stroke(pts.obj()->data, (uint32_t)pts.length(), width, color, alpha, closed); }
 /** Runtime image (black), drawable with drawImage and a render target for beginImage. */
 int32_t createImage(int32_t w, int32_t h) { return raster::dyn_create(w, h); }
 void destroyImage(int32_t i) { raster::dyn_destroy(i); }

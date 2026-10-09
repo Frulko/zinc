@@ -32,12 +32,6 @@ using zn::host::HostArg;
 using zn::Rt;
 
 zrt::String str(const HostArg& a) { return zrt::String::from(static_cast<const char*>(a.p), a.n); }
-zrt::Array<double> arr(const HostArg& a) {
-  auto r = zrt::Array<double>::with_cap(static_cast<int32_t>(a.n));
-  const double* p = static_cast<const double*>(a.p);
-  for (uint32_t k = 0; k < a.n; ++k) r.push_raw(p[k]);
-  return r;
-}
 
 bool quitFlag = false;
 uint64_t lastFrameUs = 0, frameStartUs = 0;
@@ -121,9 +115,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxGradient: g::gradient(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, u(5), u(6), a[7].i != 0, n(8)); break;
     case Rt::HostGfxBorder: g::border(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
     case Rt::HostGfxShadow: g::shadow(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
-    case Rt::HostGfxPolygon: g::polygon(arr(a[0]), u(1), n(2)); break;
-    case Rt::HostGfxPath: g::path(arr(a[0]), u(1), n(2)); break;
-    case Rt::HostGfxStroke: g::stroke(arr(a[0]), a[1].d, u(2), n(3), a[4].i != 0); break;
+    case Rt::HostGfxPolygon: g::polygon(static_cast<const double*>(a[0].p), a[0].n, u(1), n(2)); break;   // the program's f64 storage, read in place (ZN-405)
+    case Rt::HostGfxPath: g::path(static_cast<const double*>(a[0].p), a[0].n, u(1), n(2)); break;
+    case Rt::HostGfxStroke: g::stroke(static_cast<const double*>(a[0].p), a[0].n, a[1].d, u(2), n(3), a[4].i != 0); break;
     case Rt::HostGfxFontAscent: r->i = g::fontAscent(n(0)); break;
     case Rt::HostGfxLineHeight: r->i = g::lineHeight(n(0)); break;
     case Rt::HostGfxTextWidth: r->d = g::textWidth(n(0), str(a[1]), a[2].d); break;

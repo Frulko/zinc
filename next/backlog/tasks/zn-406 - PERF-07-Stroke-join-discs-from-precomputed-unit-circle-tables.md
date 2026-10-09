@@ -4,6 +4,7 @@ title: PERF-07 Stroke join discs from precomputed unit-circle tables
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:34'
+updated_date: '2026-10-09 09:02'
 labels:
   - perf
   - size-S
@@ -25,3 +26,9 @@ raster.cpp:730 stroke_contours calls cosf/sinf for every vertex of every join di
 - [ ] #2 contours bit-identical to the current ones (unit test over random polylines)
 - [ ] #3 navigation AOT paint p50 -8% or better
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+From ZN-405: the navigation paint target (-8% against 3.5 ms) moves here; after ZN-405 the profile shows stroke_contours 9.2% and __sincosf_stret 4.9% of main-thread samples.
+<!-- SECTION:NOTES:END -->

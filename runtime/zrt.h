@@ -768,7 +768,9 @@ void gradient(double x, double y, double w, double h, double r, uint32_t c1, uin
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha);
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha);
 void polygon(const Array<double>& pts, uint32_t color, int32_t alpha);
+void polygon(const double* pts, uint32_t n, uint32_t color, int32_t alpha);   // the same from n f64 values in place
 void path(const Array<double>& contours, uint32_t color, int32_t alpha);
+void path(const double* contours, uint32_t n, uint32_t color, int32_t alpha);
 void line(double x1, double y1, double x2, double y2, uint32_t color);
 int32_t font(const String& name, int32_t px);
 int32_t fontAscent(int32_t f);
@@ -785,6 +787,7 @@ void unclip();
 void translate(double x, double y);
 void keep();
 void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed);
+void stroke(const double* pts, uint32_t n, double width, uint32_t color, int32_t alpha, bool closed);
 int32_t createImage(int32_t w, int32_t h);
 void destroyImage(int32_t i);
 void beginImage(int32_t i);
