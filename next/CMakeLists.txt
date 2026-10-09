@@ -394,7 +394,8 @@ set_target_properties(zn_glslang PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRE
 target_compile_definitions(zn_glslang PRIVATE ENABLE_OPT=0)
 target_compile_options(zn_glslang PRIVATE -w -O2)
 # WebGL foundation (ZN-203.01): the merged glad loader (third_party/glad) and the offscreen context helper over SDL3; a test executable, not linked into zinc yet.
-if(TARGET SDL3::SDL3)
+option(ZN_WEBGL "build the WebGL module libzn_webgl beside zinc (off: about 16 s less to build; QuickJS programs run without WebGL)" ON)
+if(TARGET SDL3::SDL3 AND ZN_WEBGL)
   add_library(zn_glad STATIC third_party/glad/src/gl.c)
   target_include_directories(zn_glad PUBLIC third_party/glad/include)
   target_compile_options(zn_glad PRIVATE -w)

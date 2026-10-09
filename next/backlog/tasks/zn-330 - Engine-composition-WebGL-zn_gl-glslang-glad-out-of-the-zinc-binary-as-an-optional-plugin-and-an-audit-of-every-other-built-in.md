@@ -3,10 +3,10 @@ id: ZN-330
 title: >-
   Engine composition: WebGL (zn_gl, glslang, glad) out of the zinc binary as an
   optional plugin, and an audit of every other built-in
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-08 14:21'
-updated_date: '2026-10-08 14:35'
+updated_date: '2026-10-09 03:05'
 labels:
   - architecture
   - webgl
@@ -23,13 +23,13 @@ Owner, 2026-10-08: glslang must not be in the engine; everything optional, the e
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a zinc built without WebGL has no glslang, glad or src/gl symbol (nm check in a T0 test) and runs every non-WebGL test unchanged
-- [ ] #2 a WebGL program (tests/t1/webgl_js, three, webgl_gizmo) loads WebGL as a plugin and passes as before; the conformance pass list holds
-- [ ] #3 docs/reports/zinc-next-decisions.md: a decision record listing each built-in with its verdict (core, optional build flag, plugin) and the size and build time saved
+- [x] #1 a zinc built without WebGL has no glslang, glad or src/gl symbol (nm check in a T0 test) and runs every non-WebGL test unchanged
+- [x] #2 a WebGL program (tests/t1/webgl_js, three, webgl_gizmo) loads WebGL as a plugin and passes as before; the conformance pass list holds
+- [x] #3 docs/reports/zinc-next-decisions.md: a decision record listing each built-in with its verdict (core, optional build flag, plugin) and the size and build time saved
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Owner, 2026-10-08, same principle for SDL3: a program without UI must not carry it. Today SDL3 (vendored, static) comes with the graphics host zn_host_gfx (option ZN_HOST_GFX, ON by default), all or nothing: the window, the headless HAL and zinc:gfx together. Target: SDL3 is the window/input display backend, loaded as a plugin like the other display-* drivers; zinc:gfx and the headless HAL stay without it. Also check that the AOT output (zinc build) links SDL3 only when the program opens a window.
+Done through ZN-330.01 (libzn_webgl) and ZN-330.02 (D40). The owner's SDL3 point and shaped text continue as ZN-330.03 and ZN-330.04. usage: n/a
 <!-- SECTION:NOTES:END -->
