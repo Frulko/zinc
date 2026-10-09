@@ -162,6 +162,20 @@ from the system (`/etc/zinc/policy.json`, or `$ZINC_SYSTEM_POLICY`), the user (`
 `ZINC_REBUILDS_MIN`), then the project (`zinc.json` `"policy"`); each layer can only tighten the one before, so a cloned
 project never loosens a company's or a CI's policy. `zinc doctor` prints the effective policy and where each value comes from.
 
+**Commands.**
+
+```sh
+zinc plugins search hello        # kind, name and version, targets, description: one line per entry
+zinc add greet@^1.2              # the highest 1.x >= 1.2 in the index (also ~1.2, >=1.2, 1.2, or no range)
+zinc install --frozen            # exactly zinc.lock, on a clean machine or in CI
+zinc plugins update [greet]      # each dependency added by name moves within its range; one line per plugin that moved
+zinc remove greet                # plugins/greet, its dependency and its lock entry
+zinc trust greet                 # forget a community plugin's pinned key
+```
+
+The index holds `plugins/<name>/<version>.json` per version (or one `plugins/<name>.json`). An error names the plugin, its
+version and the reason: `zinc add: greet 1.3: plugin greet now asks for capabilities the lock does not grant: camera`.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

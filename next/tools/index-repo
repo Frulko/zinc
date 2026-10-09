@@ -106,7 +106,7 @@ def entries(checkout, out, version):
             if not os.path.isfile(path): continue
             m = json.load(open(path))
             t = m.get("targets", [])
-            d = {"kind": kind, "name": m.get("name", name), "description": m.get("description", ""), "targets": sorted(t if isinstance(t, list) else t.keys())}
+            d = {"kind": kind, "name": m.get("name", name), "description": m.get("description", ""), "targets": sorted(t if isinstance(t, list) else t.keys()), "version": m.get("version", "")}
             if kind == "plugin":
                 d["module"] = m.get("module", "")
                 src = lock.get(name)
@@ -116,7 +116,7 @@ def entries(checkout, out, version):
             file = os.path.join(out, folder, name + ".json")
             os.makedirs(os.path.dirname(file), exist_ok=True)
             json.dump(d, open(file, "w"), indent=2, sort_keys=True, ensure_ascii=False)
-            targets[folder + "/" + name + ".json"] = {"file": file, "custom": {k: d[k] for k in ("kind", "name", "description", "targets")}}
+            targets[folder + "/" + name + ".json"] = {"file": file, "custom": {k: d[k] for k in ("kind", "name", "description", "targets", "version")}}
     json.dump({"version": version, "expires_days": 30, "targets": targets}, open(os.path.join(out, "entries.json"), "w"), indent=2, ensure_ascii=False)
     return len(targets)
 

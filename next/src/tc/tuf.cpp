@@ -321,7 +321,10 @@ bool Client::walk(const std::string& path, const std::string& role, const Target
     for (const std::string& pat : d.paths) match = match || fnmatch(pat.c_str(), path.c_str(), FNM_PATHNAME) == 0;
     if (!match) continue;
     Targets child;
-    if (!loadTargets(d.name, t.keys, Role{d.keyids, d.threshold}, child, err)) return false;
+    if (!loadTargets(d.name, t.keys, Role{d.keyids, d.threshold}, child, err)) {
+      if (all) { err.clear(); continue; }   // a listing skips a role that does not verify (a revoked key, a broken publisher): nothing of it is used
+      return false;
+    }
     if (all) {   // only what the role may sign: its targets under its paths
       std::vector<Target> mine;
       if (!walk(path, d.name, child, depth + 1, &mine, nullptr, stop, err)) return false;

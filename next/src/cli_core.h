@@ -32,6 +32,9 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
 int installPlugins(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** A warning on stderr for each plugin of the project's zinc.lock that the last index refresh revoked (ZN-345); run by `zinc run`. */
 void warnRevoked(const std::string& projectDir);
+/** `zinc remove <plugin> [dir]` and `zinc plugins update [plugin...]` (ZN-347). */
+int removePlugin(const std::vector<std::string>& args);
+int updatePlugins(const std::vector<std::string>& args, const std::string& engineRoot);
 /** `zinc trust <plugin> [dir]`: forget a community plugin's pinned publisher key (ZN-340.02). */
 int trustPlugin(const std::vector<std::string>& args);
 /** `zinc index-sign <metadata.json> <seed-hex>...` and `zinc index-get <repository-url> <cache-dir> [target-path]`: TUF metadata of the plugin index (ZN-336.02). */

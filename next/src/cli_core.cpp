@@ -21,6 +21,7 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <thread>
+#include <tuple>
 #include <unistd.h>
 
 #include "frontend/plugin_manifest.h"
@@ -60,12 +61,13 @@ const Command kCommands[] = {
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
   {"flash", "zinc flash --target esp32 [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool."},
   {"update", "zinc update [--check] [manifest-url]", "look for a newer release", "Downloads and verifies a signed manifest's package."},
-  {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]]", "the plugin table", "Lists the plugins visible to a project and where they run."},
+  {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "the plugin table, the index", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
-  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name is looked up in the signed index: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
+  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
+  {"remove", "zinc remove <plugin> [dir]", "remove a plugin", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
   {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
   {"install", "zinc install [--offline] [--frozen] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.lock into plugins/<name> again (a zinc.json dependency not locked yet is added; --frozen refuses when zinc.json and zinc.lock disagree): git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
@@ -946,18 +948,51 @@ void warnRevoked(const std::string& projectDir) {
 
 // `zinc add <name>` (ZN-340): the plugin's descriptor in the signed index, plugins/<name>.json signed by the top-level role (tier official) or
 // <publisher>/plugins/<name>.json signed by a role delegated to that publisher (tier verified); its source becomes what is fetched.
-static std::string fromIndex(const std::string name, const std::string& engineRoot, PluginPin& want, std::string& spec) {   // `name` by value: `spec` may be the same string
+// Versions (ZN-347): dotted numbers; a range is "" or "*" (any), "1.2.3" (that version: its given parts), "^1.2" (same major, or same minor under 1.0),
+// "~1.2" (same minor), ">=1.2".
+static std::vector<long> versionParts(const std::string& v) { std::vector<long> r; std::stringstream ss(v); std::string t; while (std::getline(ss, t, '.')) r.push_back(std::atol(t.c_str())); return r; }
+static int versionCmp(const std::string& a, const std::string& b) {
+  const auto x = versionParts(a), y = versionParts(b);
+  for (std::size_t i = 0; i < std::max(x.size(), y.size()); ++i) { const long p = i < x.size() ? x[i] : 0, q = i < y.size() ? y[i] : 0; if (p != q) return p < q ? -1 : 1; }
+  return 0;
+}
+static bool satisfies(const std::string& v, const std::string& range) {
+  if (range.empty() || range == "*") return true;
+  if (v.empty()) return false;
+  const char op = range[0];
+  const std::string base = (op == '^' || op == '~') ? range.substr(1) : range.rfind(">=", 0) == 0 ? range.substr(2) : range;
+  const auto x = versionParts(v), b = versionParts(base);
+  auto part = [](const std::vector<long>& p, std::size_t i) { return i < p.size() ? p[i] : 0; };
+  if (range.rfind(">=", 0) == 0) return versionCmp(v, base) >= 0;
+  if (op == '^') return versionCmp(v, base) >= 0 && part(x, 0) == part(b, 0) && (part(b, 0) != 0 || part(x, 1) == part(b, 1));
+  if (op == '~') return versionCmp(v, base) >= 0 && part(x, 0) == part(b, 0) && part(x, 1) == part(b, 1);
+  for (std::size_t i = 0; i < b.size(); ++i) if (part(x, i) != b[i]) return false;   // "1.2" is any 1.2.x
+  return true;
+}
+
+// `zinc add <name>[@range]` (ZN-340, ZN-347): the plugin's descriptor in the signed index, plugins/<name>/<version>.json or plugins/<name>.json signed by the
+// top-level role (tier official), or the same under <publisher>/ signed by a role delegated to that publisher (tier verified); the highest version the range
+// allows wins, and its source becomes what is fetched. `version` gets the version chosen.
+static std::string fromIndex(const std::string name, const std::string range, const std::string& engineRoot, PluginPin& want, std::string& spec, std::string& version, bool quiet = false) {   // by value: `spec` may be the same string
   std::unique_ptr<zn::tc::tuf::Client> index;
   std::string err, bytes;
   if (!zn::tc::tuf::openIndex(engineRoot, index, err)) return err;
+  std::vector<zn::tc::tuf::Target> all;
+  if (!index->all(all, err)) return err;
   zn::tc::tuf::Target t;
-  if (!index->find("plugins/" + name + ".json", t, err)) {
-    std::vector<zn::tc::tuf::Target> all;
-    t = zn::tc::tuf::Target{};
-    const std::string tail = "/plugins/" + name + ".json";
-    if (index->all(all, err)) for (const auto& x : all) if (x.role != "targets" && x.path.size() > tail.size() && x.path.compare(x.path.size() - tail.size(), tail.size(), tail) == 0) { t = x; break; }
-    if (t.path.empty()) return "no plugin '" + name + "' in the index (zinc plugins search lists them)";
+  std::string best;
+  for (const auto& x : all) {   // plugins/<name>.json and plugins/<name>/<version>.json, at the top or under a publisher
+    std::string p = x.path;
+    if (x.role != "targets") { const std::size_t slash = p.find('/'); if (slash == std::string::npos || p.compare(0, slash, x.role) != 0) continue; p = p.substr(slash + 1); }
+    std::string v;
+    if (p == "plugins/" + name + ".json") v = "";
+    else if (p.rfind("plugins/" + name + "/", 0) == 0 && p.size() > 5 && p.compare(p.size() - 5, 5, ".json") == 0) v = p.substr(9 + name.size(), p.size() - 14 - name.size());
+    else continue;
+    if (yyjson_doc* cd = yyjson_read(x.custom.data(), x.custom.size(), 0)) { yyjson_val* cv = yyjson_obj_get(yyjson_doc_get_root(cd), "version"); if (yyjson_is_str(cv) && *yyjson_get_str(cv)) v = yyjson_get_str(cv); yyjson_doc_free(cd); }
+    if (!satisfies(v, range)) continue;
+    if (t.path.empty() || versionCmp(v, best) > 0 || (versionCmp(v, best) == 0 && x.role == "targets" && t.role != "targets")) { t = x; best = v; }
   }
+  if (t.path.empty()) return range.empty() ? "no plugin '" + name + "' in the index (zinc plugins search lists them)" : "no version of '" + name + "' in the index satisfies " + range;
   if (!index->download(t, bytes, err)) return err;
   yyjson_doc* d = yyjson_read(bytes.data(), bytes.size(), 0);
   yyjson_val* src = yyjson_obj_get(yyjson_doc_get_root(d), "source");
@@ -968,8 +1003,9 @@ static std::string fromIndex(const std::string name, const std::string& engineRo
   want.tier = zn::tc::tuf::tierOf(t);
   want.publisher = t.role == "targets" ? "Zinc (the index's release role)" : t.role;
   want.path = path;
+  version = best;
   spec = repo + (commit.empty() ? "" : "@" + commit);
-  std::printf("%s: tier %s, publisher %s, from %s%s\n", name.c_str(), want.tier.c_str(), want.publisher.c_str(), spec.c_str(), path.empty() ? "" : (" (" + path + ")").c_str());
+  if (!quiet) std::printf("%s%s: tier %s, publisher %s, from %s%s\n", name.c_str(), best.empty() ? "" : (" " + best).c_str(), want.tier.c_str(), want.publisher.c_str(), spec.c_str(), path.empty() ? "" : (" (" + path + ")").c_str());
   return "";
 }
 
@@ -998,9 +1034,10 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
   fs::remove_all(scratch.p, ec);
   fs::path dir;
   PluginPin got;
-  std::string spec = pos[0], name, err;
-  const bool byName = spec.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos && !fs::exists(spec, ec);
-  if (byName) err = fromIndex(spec, engineRoot, want, spec);
+  std::string spec = pos[0], name, err, indexVersion;
+  const std::string asked = spec.substr(0, spec.find('@')), range = spec.find('@') == std::string::npos ? "" : spec.substr(spec.find('@') + 1);
+  const bool byName = !asked.empty() && asked.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos && !fs::exists(spec, ec) && range.find('/') == std::string::npos;
+  if (byName) err = fromIndex(asked, range, engineRoot, want, spec, indexVersion);
   if (err.empty()) err = fetchPlugin(spec, want, scratch.p, dir, got);
   ScratchDir again;
   if (err.empty() && !byName) {   // a URL: the community tier (ZN-340.02); the key plugin.json names is checked against <url>.sig and pinned on first use
@@ -1065,7 +1102,21 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
     else if (!list.empty()) std::printf("%s: %s %s\n", pname.c_str(), old ? "granted the new capabilities" : "asks for the capabilities", list.c_str());
   }
   if (err.empty()) err = installPlugin(dir, project, name);
-  if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
+  if (!err.empty()) {   // the plugin, its version, then the reason (ZN-347)
+    yyjson_doc_free(doc);
+    if (pname.empty() && !dir.empty()) {   // fetched before it failed: its plugin.json names it
+      const std::string mt = slurp(dir / "plugin.json");
+      if (yyjson_doc* pd = yyjson_read(mt.data(), mt.size(), 0)) {
+        yyjson_val* r = yyjson_doc_get_root(pd);
+        if (yyjson_is_str(yyjson_obj_get(r, "name"))) pname = yyjson_get_str(yyjson_obj_get(r, "name"));
+        if (yyjson_is_str(yyjson_obj_get(r, "version"))) version = yyjson_get_str(yyjson_obj_get(r, "version"));
+        yyjson_doc_free(pd);
+      }
+    }
+    const std::string who = !pname.empty() ? pname + (version.empty() ? "" : " " + version) : byName ? asked + (indexVersion.empty() ? "" : " " + indexVersion) : pos[0];
+    std::fprintf(stderr, "zinc add: %s: %s\n", who.c_str(), err.c_str());
+    return 1;
+  }
   // zinc.lock: the entry pinned; zinc.json: the dependency as asked
   yyjson_mut_doc* lm = yyjson_mut_doc_new(nullptr);
   yyjson_mut_val* plugins = lk.plugins ? yyjson_val_mut_copy(lm, lk.plugins) : yyjson_mut_obj(lm);
@@ -1119,6 +1170,66 @@ int trustPlugin(const std::vector<std::string>& args) {
   if (!ok) return 1;
   std::printf("%s: the publisher key is no longer pinned; the next `zinc add` pins the key it brings\n", args[2].c_str());
   return 0;
+}
+
+// `zinc remove <plugin> [dir]` (ZN-347): plugins/<name>, its dependency in zinc.json and its entry in zinc.lock go.
+int removePlugin(const std::vector<std::string>& args) {
+  if (args.size() < 3 || args.size() > 4) { std::fprintf(stderr, "usage: zinc remove <plugin> [project-dir]\n"); return 2; }
+  const std::string name = args[2];
+  const fs::path project = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal();
+  Lock lk;
+  readLock(project, lk);
+  const std::string zt = slurp(project / "zinc.json");
+  yyjson_doc* zd = yyjson_read(zt.data(), zt.size(), 0);
+  const bool dep = yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(zd), "dependencies"), name.c_str()) != nullptr;
+  if (!dep && !yyjson_obj_get(lk.plugins, name.c_str())) { yyjson_doc_free(zd); std::fprintf(stderr, "zinc remove: %s is not a dependency of %s\n", name.c_str(), project.string().c_str()); return 1; }
+  yyjson_mut_doc* lm = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* plugins = lk.plugins ? yyjson_val_mut_copy(lm, lk.plugins) : yyjson_mut_obj(lm);
+  yyjson_mut_obj_remove_key(plugins, name.c_str());
+  bool ok = writeLock(project, lm, plugins);
+  yyjson_mut_doc_free(lm);
+  yyjson_doc_free(zd);
+  const std::string zt2 = slurp(project / "zinc.json");
+  if (yyjson_doc* d2 = yyjson_read(zt2.data(), zt2.size(), 0)) {
+    yyjson_mut_doc* md = yyjson_doc_mut_copy(d2, nullptr);
+    yyjson_doc_free(d2);
+    yyjson_mut_obj_remove_key(yyjson_mut_obj_get(yyjson_mut_doc_get_root(md), "dependencies"), name.c_str());
+    ok = ok && writeJson(project / "zinc.json", md);
+    yyjson_mut_doc_free(md);
+  }
+  std::error_code ec;
+  fs::remove_all(project / "plugins" / name, ec);
+  return ok ? 0 : 1;
+}
+
+// `zinc plugins update [plugin...]` (ZN-347): each dependency added by name from the index moves to the highest version its range allows, through
+// zinc add (signatures, policy, capabilities and revocations checked again); one line per plugin that moved, nothing when all are current.
+int updatePlugins(const std::vector<std::string>& args, const std::string& engineRoot) {
+  const fs::path project = fs::current_path();
+  std::vector<std::string> only(args.begin() + std::min<std::size_t>(3, args.size()), args.end());
+  Lock lk;
+  readLock(project, lk);
+  int failed = 0;
+  size_t i, n; yyjson_val *k, *v;
+  std::vector<std::tuple<std::string, std::string, std::string>> todo;   // name, requested, locked version
+  yyjson_obj_foreach(lk.plugins, i, n, k, v) {
+    const std::string name = yyjson_get_str(k);
+    yyjson_val* req = yyjson_obj_get(v, "requested");
+    yyjson_val* ver = yyjson_obj_get(v, "version");
+    const std::string requested = yyjson_is_str(req) ? yyjson_get_str(req) : "";
+    if ((!only.empty() && std::find(only.begin(), only.end(), name) == only.end()) || requested.empty() || requested.find("://") != std::string::npos || requested.find(':') != std::string::npos) continue;   // URLs are pinned as given
+    todo.emplace_back(name, requested, yyjson_is_str(ver) ? yyjson_get_str(ver) : "");
+  }
+  for (const auto& [name, requested, locked] : todo) {
+    PluginPin want;
+    std::string spec, version;
+    const std::string asked = requested.substr(0, requested.find('@')), range = requested.find('@') == std::string::npos ? "" : requested.substr(requested.find('@') + 1);
+    if (std::string err = fromIndex(asked, range, engineRoot, want, spec, version, true); !err.empty()) { std::fprintf(stderr, "zinc plugins update: %s: %s\n", name.c_str(), err.c_str()); ++failed; continue; }
+    if (versionCmp(version, locked) <= 0) continue;
+    if (addPlugin({"zinc", "add", requested, project.string()}, engineRoot) != 0) { ++failed; continue; }
+    std::printf("%s %s -> %s\n", name.c_str(), locked.empty() ? "?" : locked.c_str(), version.c_str());
+  }
+  return failed ? 1 : 0;
 }
 
 int installPlugins(const std::vector<std::string>& args, const std::string& engineRoot) {
@@ -1255,7 +1366,7 @@ int indexSearch(const std::vector<std::string>& args, const std::string& engineR
     yyjson_doc* d = yyjson_read(t.custom.data(), t.custom.size(), 0);
     yyjson_val* o = yyjson_doc_get_root(d);
     auto str = [&](const char* k) { yyjson_val* v = yyjson_obj_get(o, k); return yyjson_is_str(v) ? std::string(yyjson_get_str(v)) : std::string(); };
-    const std::string kind = str("kind"), name = str("name"), desc = str("description");
+    const std::string kind = str("kind"), name = str("name") + (str("version").empty() ? "" : " " + str("version")), desc = str("description");
     std::string targets;
     size_t i, n; yyjson_val* e;
     yyjson_arr_foreach(yyjson_obj_get(o, "targets"), i, n, e) if (yyjson_is_str(e)) targets += (targets.empty() ? "" : ",") + std::string(yyjson_get_str(e));

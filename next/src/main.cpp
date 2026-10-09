@@ -606,6 +606,8 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "index-get")) return zn::cli::indexGet(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "install")) return zn::cli::installPlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "trust")) return zn::cli::trustPlugin(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "remove")) return zn::cli::removePlugin(cl);
+    if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
     std::string derr;
