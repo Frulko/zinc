@@ -8,7 +8,7 @@ export interface OpArgs {
   'notification.delivered': {  };
   'menu.setApp': { template: MenuItem[] };
   'menu.update': { id: string; props: object };
-  'menu.popup': { template: MenuItem[]; x?: number; y?: number };
+  'menu.popup': { template: MenuItem[]; x?: number; y?: number; abortMs?: number };
   'tray.create': { id: string; icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean };
   'tray.update': { id: string; props: {icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean} };
   'tray.remove': { id: string };
@@ -35,6 +35,7 @@ export interface OpArgs {
   'opener.open': { target: string };
   'window.confirmClose': {  };
   'notification.backend': {  };
+  'notification.openSettings': {  };
   'menu.dump': {  };
   'menu.perform': { path: string };
   'dock.getBadge': {  };
@@ -85,7 +86,7 @@ export interface OpResult {
   'notification.delivered': {items: {id: string; title: string; body: string}[]};
   'menu.setApp': {};
   'menu.update': {};
-  'menu.popup': {id: string | null};
+  'menu.popup': {id: string | null, at?: number[]};
   'tray.create': {};
   'tray.update': {};
   'tray.remove': {};
@@ -112,6 +113,7 @@ export interface OpResult {
   'opener.open': {};
   'window.confirmClose': {};
   'notification.backend': {backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'};
+  'notification.openSettings': {opened: boolean};
   'menu.dump': {text: string};
   'menu.perform': {ok: boolean};
   'dock.getBadge': {text: string};

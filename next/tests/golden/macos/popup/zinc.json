@@ -1,0 +1,1 @@
+{"name":"popup","entry":"main.ts","permissions":["menu","window"],"app":{"id":"dev.zinc.test.popup","name":"Popup Test"},"targets":{"macos":{"width":500,"height":300}}}

@@ -67,9 +67,10 @@
    "params": {
     "template": "MenuItem[]",
     "x?": "number",
-    "y?": "number"
+    "y?": "number",
+    "abortMs?": "number"
    },
-   "returns": "{id: string | null}",
+   "returns": "{id: string | null, at?: number[]}",
    "sim": "{\"id\":null}"
   },
   {
@@ -333,6 +334,13 @@
    "params": {},
    "returns": "{backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'}",
    "sim": "{\"backend\":\"sim\"}"
+  },
+  {
+   "op": "notification.openSettings",
+   "permission": "notification",
+   "params": {},
+   "returns": "{opened: boolean}",
+   "sim": "{\"opened\":true}"
   },
   {
    "op": "menu.dump",

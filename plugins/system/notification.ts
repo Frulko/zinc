@@ -56,6 +56,8 @@ let counter = 0;
 export function isSupported(): boolean { return supports('notification'); }
 /** 'osascript' (macOS without a bundle: no actions, no click events), 'native', 'dbus', 'sim'. */
 export function backend(): string { const r = call('notification.backend', {}) as { backend: string }; return r.backend; }
+/** Opens the system's notification settings for this app: what apps offer once requestPermission answered 'denied' (the system asks only once). */
+export function openSettings(): boolean { const r = call('notification.openSettings', {}) as { opened: boolean }; return r.opened; }
 
 /** 'granted' | 'denied' | 'default' (not asked yet) | 'unsupported'. macOS shows the OS prompt the first time. */
 export async function requestPermission(): Promise<string> {

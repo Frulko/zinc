@@ -35,6 +35,7 @@ static const ZnSystemOp kSystemOps[] = {
   {"opener.open", "opener", "{}"},
   {"window.confirmClose", "window", "{}"},
   {"notification.backend", "notification", "{\"backend\":\"sim\"}"},
+  {"notification.openSettings", "notification", "{\"opened\":true}"},
   {"menu.dump", "menu", "{\"text\":\"\"}"},
   {"menu.perform", "menu", "{\"ok\":false}"},
   {"dock.getBadge", "dock", "{\"text\":\"\"}"},

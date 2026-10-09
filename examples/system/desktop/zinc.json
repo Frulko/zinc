@@ -1,7 +1,7 @@
 {
   "name": "desktop",
   "entry": "main.tsx",
-  "permissions": ["menu", "dock", "notification"],
+  "permissions": ["menu", "dock", "notification", "dialog"],
   "app": { "id": "dev.zinc.desktop-demo", "name": "Desktop Demo", "version": "0.1.0" },
   "targets": { "macos": { "width": 720, "height": 360 }, "linux": { "width": 720, "height": 360 }, "sim": { "width": 720, "height": 360 } }
 }

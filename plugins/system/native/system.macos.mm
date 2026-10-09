@@ -39,6 +39,8 @@ static void pushEvent(NSString* type, NSArray* args) {
 @end
 
 static bool bundled() { return [[NSBundle mainBundle] bundleIdentifier] != nil; }
+static NSWindow* appWindow();
+extern "C" int32_t hal_pixel_scale(void) __attribute__((weak));   // the host's pixels per surface unit (zoom x density)
 static UNUserNotificationCenter* center() {
   static UNUserNotificationCenter* c;
   static ZnNotifDelegate* delegate;
@@ -233,10 +235,19 @@ static int menuCall(const char* op, NSDictionary* a, char* out, int cap) {
   } else if (!strcmp(op, "menu.popup")) {
     NSMenu* m = buildMenu(a[@"template"], @"");
     gPicked = nil; gInPopup = YES;
-    NSPoint p = NSMakePoint([a[@"x"] doubleValue], [NSScreen mainScreen].frame.size.height - [a[@"y"] doubleValue]);
-    [m popUpMenuPositioningItem:nil atLocation:p inView:nil];   // blocks while the menu is tracked
+    // (x, y) in the program's surface units, where its pointer events are: the menu opens there in the window (it used screen coordinates
+    // flipped against the main screen, so it showed at the top of the screen). No window: at the mouse.
+    NSWindow* w = appWindow();
+    NSView* v = w.contentView;
+    const double k = v && hal_pixel_scale ? hal_pixel_scale() / w.backingScaleFactor : 1;   // ponytail: a letterboxed surface (fixed size, larger window) is not offset
+    NSPoint p = v ? NSMakePoint([a[@"x"] doubleValue] * k, [a[@"y"] doubleValue] * k) : [NSEvent mouseLocation];
+    if (v && !v.isFlipped) p.y = v.bounds.size.height - p.y;
+    const NSPoint at = v ? [w convertPointToScreen:[v convertPoint:p toView:nil]] : p;
+    double ms = [a[@"abortMs"] doubleValue];   // test hook: the menu closes by itself
+    if (ms > 0) [m performSelector:@selector(cancelTracking) withObject:nil afterDelay:ms / 1000.0 inModes:@[NSEventTrackingRunLoopMode]];
+    [m popUpMenuPositioningItem:nil atLocation:p inView:v];   // blocks while the menu is tracked
     gInPopup = NO;
-    result = json(@{@"id": gPicked ?: [NSNull null]});
+    result = json(@{@"id": gPicked ?: [NSNull null], @"at": @[@(at.x), @(at.y)]});
   } else if (!strcmp(op, "menu.dump")) {
     NSMutableString* text = [NSMutableString new];
     if (NSApp.mainMenu) dumpMenu(NSApp.mainMenu, 0, text);
@@ -755,6 +766,12 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
     NSString* result = nil;
     BOOL native = bundled();
     if (!strcmp(op, "notification.backend")) result = json(@{@"backend": native ? @"native" : @"osascript"});
+    else if (!strcmp(op, "notification.openSettings")) {   // System Settings > Notifications, on this app's page when it has a bundle id (macOS 13+), else the list
+      NSString* bid = [[NSBundle mainBundle] bundleIdentifier];
+      NSURL* app = bid ? [NSURL URLWithString:[@"x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=" stringByAppendingString:bid]] : nil;
+      BOOL opened = (app && [[NSWorkspace sharedWorkspace] openURL:app]) || [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.notifications"]];
+      result = json(@{@"opened": @(opened)});
+    }
     else if (!strcmp(op, "notification.requestPermission")) {
       if (!native) result = json(@{@"state": @"granted"});   // osascript needs nothing from us; the system decides what Script Editor may show
       else {

@@ -7,13 +7,30 @@ import * as system from 'zinc:system';
 import * as menu from 'zinc:system/menu';
 import * as dock from 'zinc:system/dock';
 import * as notification from 'zinc:system/notification';
+import * as dialog from 'zinc:system/dialog';
+import { pointerX, pointerY } from 'zinc:gfx';
 
 const [status, setStatus] = createSignal<string>('Choose something in the menu bar, the dock menu or the buttons.');
 const [count, setCount] = createSignal<number>(0);
 let notified: i32 = 0;
 
-function bump(): void { setCount(count() + 1); dock.setBadge(String(count())); setStatus('Badge ' + count()); }
+let offered = false;
+/** Asks as most apps do: the system's prompt the first time; once notifications (and with them dock badges) are turned off, a dialog that opens
+ *  System Settings on this app's page, offered once per run. */
+async function allowed(): Promise<boolean> {
+  if ((await notification.requestPermission()) !== 'denied') return true;
+  setStatus('Notifications and badges are off for Desktop Demo (System Settings > Notifications)');
+  if (offered) return false;
+  offered = true;
+  const o = new dialog.MessageOptions('Notifications are turned off for Desktop Demo');
+  o.detail = 'Its notifications and dock badge show once "Allow notifications" is on in System Settings > Notifications > Desktop Demo.';
+  o.buttons = ['Open System Settings', 'Not now'];
+  if ((await dialog.message(o)) === 0) notification.openSettings();
+  return false;
+}
+function bump(): void { setCount(count() + 1); dock.setBadge(String(count())); setStatus('Badge ' + count()); allowed(); }
 async function notify(): Promise<void> {
+  if (!(await allowed())) return;
   const perm = await notification.requestPermission();
   const o = new notification.Options('Hello from Zinc');
   o.id = 'demo-' + (++notified); o.body = 'Sent by the desktop demo (' + notification.backend() + ' backend)';
@@ -24,7 +41,7 @@ async function notify(): Promise<void> {
   n.onAction((a: string) => setStatus('Notification action: ' + a));
 }
 async function context(): Promise<void> {
-  const picked = await menu.popup([menu.item('ctx-badge', 'Add to the badge'), menu.item('ctx-clear', 'Clear the badge'), menu.separator(), menu.role('copy')], 100, 100);
+  const picked = await menu.popup([menu.item('ctx-badge', 'Add to the badge'), menu.item('ctx-clear', 'Clear the badge'), menu.separator(), menu.role('copy')], pointerX(), pointerY());
   setStatus('Context menu: ' + (picked.length > 0 ? picked : 'dismissed'));
 }
 
@@ -40,11 +57,13 @@ menu.setApp([
   ]),
   menu.role('editMenu'), menu.role('viewMenu'), menu.role('windowMenu'),
 ]);
+// macOS bounces the dock icon of an app in the background only: the button or Cmd+J brings this one to the front, so the bounce waits
+function bounceLater(): void { setStatus('Switch to another app: the dock icon bounces in 3 s'); setTimeout(() => dock.bounce('informational'), 3000); }
 let step: i32 = 0;
 menu.onClick('notify', () => { notify(); });
 menu.onClick('badge', () => bump());
 menu.onClick('clear', () => { setCount(0); dock.setBadge(''); setStatus('Badge cleared'); });
-menu.onClick('bounce', () => { dock.bounce('informational'); setStatus('Bounced'); });
+menu.onClick('bounce', () => bounceLater());
 menu.onClick('progress', () => { step = (step + 1) % 3; dock.setProgress(step === 0 ? -1 : step === 1 ? 0.5 : 1); setStatus('Dock progress ' + (step === 0 ? 'off' : step === 1 ? '50%' : '100%')); });
 menu.onClick('ctx-badge', () => bump());
 menu.onClick('ctx-clear', () => { setCount(0); dock.setBadge(''); });
@@ -59,7 +78,7 @@ function App(): i32 {
     <view class="flex-row gap-2">
       <button class="bg-sky-600 hover:bg-sky-500 rounded-md px-3 py-1 cursor-pointer" onClick={() => { notify(); }}><text class="text-sm text-white">Notify</text></button>
       <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bump()}><text class="text-sm text-white">Badge +1</text></button>
-      <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { dock.bounce('informational'); setStatus('Bounced'); }}><text class="text-sm text-white">Bounce</text></button>
+      <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bounceLater()}><text class="text-sm text-white">Bounce</text></button>
       <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { context(); }}><text class="text-sm text-white">Context menu</text></button>
     </view>
     <text class="text-xs text-slate-500">Cmd+N notify, Cmd+B badge, Cmd+J bounce, Cmd+P progress. Right-click the dock icon for its menu.</text>

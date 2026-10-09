@@ -6,7 +6,7 @@ export function isSupported(): boolean { return supports('dock'); }
 /** The badge text ('' clears it). */
 export function setBadge(text: string): void { call('dock.setBadge', { text: text }); }
 export function getBadge(): string { const r = call('dock.getBadge', {}) as { text: string }; return r.text; }
-/** Asks for attention: 'informational' bounces once, 'critical' until the app is activated. */
+/** Asks for attention: 'informational' bounces once, 'critical' until the app is activated. macOS ignores it while the app is in front. */
 export function bounce(kind: string = 'informational'): void { call('dock.bounce', { kind: kind }); }
 /** Progress on the dock icon, 0..1; a negative value removes the bar. */
 export function setProgress(value: number): void { call('dock.setProgress', { value: value }); }

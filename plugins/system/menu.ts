@@ -135,7 +135,8 @@ export function defaultMenu(): void { setApp([role('appMenu'), role('editMenu'),
 /** Whether the application menu was set by the program (when not, the host applies defaultMenu). */
 export function isCustomized(): boolean { return hasApp; }
 
-/** A context menu at (x, y): resolves with the chosen id, or '' when dismissed. */
+/** A context menu at (x, y) in the window, in the program's units (where pointer events are, e.g. pointerX() / pointerY()): resolves with the chosen id,
+ *  or '' when dismissed. */
 export async function popup(items: Item[], x: number, y: number): Promise<string> {
   wire();
   const r = callRaw('menu.popup', '{"template":' + encodeAll(items) + ',"x":' + x + ',"y":' + y + '}') as { id: string | null };
