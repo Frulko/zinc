@@ -525,6 +525,16 @@ int exportApp(const std::vector<std::string>& args) {
     std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
     if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
   }
+  {   // what the exported app may do (ZN-322.03): zinc.json "permissions", enforced by the app
+    std::ifstream pf(fs::path(p.dir) / "zinc.json");
+    std::stringstream ps; ps << pf.rdbuf();
+    zn::frontend::Project proj; std::string perr;
+    if (pf && zn::frontend::parseProject(ps.str(), proj, perr)) {
+      std::string list;
+      for (const std::string& e : zn::frontend::permissionsFor(proj, target == "macos" ? "macos" : "linux")) list += (list.empty() ? "" : ", ") + e;
+      std::printf("permissions: %s\n", !proj.permissionsDeclared ? "not declared (zinc.json \"permissions\": the app is not restricted)" : list.empty() ? "none (every checked call is refused)" : list.c_str());
+    }
+  }
   if (has(o, "--dmg")) {   // a disk image with the .app and a link to /Applications (ZN-320.02)
     const fs::path app = out / (p.name + ".app");
     if (!fs::exists(app, ec)) { std::fprintf(stderr, "zinc export: --dmg needs the .app, which needs \"app\": { \"id\": \"com.example.%s\" } in zinc.json\n", p.name.c_str()); return 1; }

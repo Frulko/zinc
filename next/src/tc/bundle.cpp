@@ -50,6 +50,7 @@ std::string infoPlist(const BundleSpec& s, bool hasIcon) {
   if (!s.copyright.empty()) kv("NSHumanReadableCopyright", s.copyright);
   if (hasIcon) kv("CFBundleIconFile", "icon");
   o << "<key>NSHighResolutionCapable</key><true/>\n";
+  for (const auto& [k, v] : s.usage) kv(k.c_str(), v);
   if (!s.dock) o << "<key>LSUIElement</key><true/>\n";
   if (!s.urlSchemes.empty()) {
     o << "<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>" << esc(s.id) << "</string><key>CFBundleURLSchemes</key><array>";

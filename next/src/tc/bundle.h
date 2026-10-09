@@ -11,6 +11,7 @@ struct BundleSpec {
   bool dock = true;                                          // false: LSUIElement, a tray-only app
   std::vector<std::string> urlSchemes, fileTypes;            // file types are extensions without the dot
   std::string exeName = "zinc";                              // the executable inside Contents/MacOS
+  std::vector<std::pair<std::string, std::string>> usage;    // NSCameraUsageDescription... and their text: what zinc.json "permissions" asks of the system (ZN-322.03)
 };
 
 /** The Info.plist text (XML) of `spec`. */

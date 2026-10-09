@@ -297,6 +297,12 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
   b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
   b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
   if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
+  const std::string who = b.name.empty() ? "This app" : b.name;   // macOS asks the user with these strings; without them the request fails (ZN-322.03)
+  for (const std::string& e : p.permissions) {
+    if (e == "camera") b.usage.push_back({"NSCameraUsageDescription", who + " uses the camera."});
+    else if (e == "microphone") b.usage.push_back({"NSMicrophoneUsageDescription", who + " uses the microphone."});
+    else if (e == "location") { b.usage.push_back({"NSLocationWhenInUseUsageDescription", who + " uses your location."}); b.usage.push_back({"NSLocationUsageDescription", who + " uses your location."}); }
+  }
   return b;
 }
 // A .zapp archive (ZN-318), checked and unpacked once into ~/.zinc/cache/zapp/<sha>; `zbc` is its program. False with `err` when refused.
@@ -1106,6 +1112,27 @@ int main(int argc, char** argv) {
           text.insert(mainAt, "void zn_install_shaped_text();\n");
           { std::ofstream o(cpp); o << text; }
           for (const char* l : {"libzn_text_gfx.a", "libzn_text.a", "libzn_harfbuzz.a", "libzn_sheenbidi.a", "libzn_unibreak.a"}) shapedLibs += " '" + (libs / l).string() + "'";
+        }
+      }
+    }
+    if (zn::aot::usesHost(zm)) {   // zinc.json "permissions" (ZN-322.03): the compiled program enforces them from its first instruction
+      std::string pf = zn::frontend::findProjectFile(argv[2]);
+      zn::frontend::Project proj;
+      std::string perr;
+      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+      if (proj.permissionsDeclared) {
+        std::string joined;
+        for (const std::string& e : zn::frontend::permissionsFor(proj, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux")) {
+          for (char c : e) { if (c == '"' || c == '\\') joined += '\\'; joined += c; }
+          joined += "\\n";
+        }
+        std::string text;
+        { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
+        if (at != std::string::npos && mainAt != std::string::npos) {
+          text.insert(at, "  zn_host_permissions_enforce(\"" + joined + "\");\n");
+          text.insert(mainAt, "extern \"C\" void zn_host_permissions_enforce(const char*);\n");
+          std::ofstream o(cpp); o << text;
         }
       }
     }

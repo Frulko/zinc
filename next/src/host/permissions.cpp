@@ -66,6 +66,17 @@ std::string check(const std::string& feature, const std::string& detail) {
 
 }  // namespace zn::host::perm
 
+// For compiled programs (ZN-322.03): `zinc build` of a project with "permissions" calls this first in main, so an exported app enforces them.
+extern "C" void zn_host_permissions_enforce(const char* entries) {
+  std::vector<std::string> list;
+  std::string cur;
+  for (const char* c = entries ? entries : ""; ; ++c) {
+    if (*c == '\n' || *c == 0) { if (!cur.empty()) list.push_back(cur); cur.clear(); if (*c == 0) break; }
+    else cur += *c;
+  }
+  zn::host::perm::configure(list, true, true, ".");
+}
+
 // For plugins, which declare it weak: 1 and the reason in `why` when zinc.json's permissions refuse `feature` (camera, microphone...), else 0.
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) {
   const std::string deny = zn::host::perm::check(feature ? feature : "", detail ? detail : "");
