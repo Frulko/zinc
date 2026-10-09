@@ -187,7 +187,8 @@ export ZINC_MIRRORS="https://mirror.example.com/zinc file:///srv/zinc-mirror"   
 
 A mirror serves the toolchains at `<mirror>/<archive name>` (as `ZINC_TC_MIRROR` did) and the index at `<mirror>/index/<path>`.
 A source whose answer does not verify is reported and the next one is tried. Downloads go through curl, so `HTTPS_PROXY`,
-`http_proxy` and `NO_PROXY` apply. `ZINC_OFFLINE=1` allows only `file://` sources.
+`http_proxy` and `NO_PROXY` apply. `ZINC_OFFLINE=1` allows only `file://` sources. What a mirror or a proxy can and cannot do,
+each tier's guarantees, publishing, a private index and key rotation: [security](08-security.md), "Plugin distribution".
 
 Plugins fetched by `zinc add` or `zinc install` are kept by content in `~/.zinc/cache/sources` (archives by SHA-256, git trees
 by commit), and a locked archive is asked of the mirrors as `<mirror>/sha256/<hash>`. `zinc install --offline` installs from

@@ -159,13 +159,65 @@ export builds are linked statically (no PIE, so no ASLR of the main image). ESP3
 
 ## Supply chain
 
-- Cross builds run in SDK Docker images whose base images are **pinned by digest** (`docker/sdk-*`, and
-  `espressif/idf:v6.0@sha256:…` for ESP32), rebuilt from the checked-in Dockerfiles. The packages installed in them
-  come from the distribution at build time (not pinned).
-- The runtime links only what a program uses (libcurl for `zinc:net`, SDL3 for windows, plugin-declared libraries).
-  Vendored code and system libraries, with versions and advisories: [security/third-party.md](../security/third-party.md).
-- Third-party plugins are source you compile into your program: read them like your own code. There is no registry
-  and no post-install scripts.
+- The toolchains zinc downloads (the pinned zig, esptool, Espressif's QEMU) are checked against SHA-256 pins compiled into
+  zinc before anything is unpacked; a mirror or proxy that serves other bytes is refused (see below).
+- Vendored libraries are listed with their licences and versions in `next/third_party/components.json`; every
+  `zinc export` writes an SPDX SBOM of what the app links (ZN-323).
+- Builds are reproducible (`-DZN_REPRODUCIBLE=ON`, docs/reports/zinc-next-reproducible.md): a release can be rebuilt and
+  compared byte for byte, and the CI does so for zinc and three plugins.
+- Plugins are source by default and nothing of a plugin runs while it is fetched (no hooks, no install scripts); how they are
+  published, signed, logged and trusted is the next section.
+
+## Plugin distribution: threat model and guarantees
+
+**Who is trusted for what.** The index's top-level role (the Zinc release key) signs what is official and the delegations to
+verified publishers; a verified publisher's key signs only the paths delegated to it; a community publisher is trusted only
+for its own plugin, by the key pinned on first use; mirrors, proxies, CDNs and the network are trusted for nothing: they may
+serve bytes, every byte is checked against a signature or a hash before it is used.
+
+| Attack | What zinc does | Test |
+| --- | --- | --- |
+| Freeze: a mirror keeps serving an old index | the timestamp expires after 7 days (republished daily); an expired role is refused | `tuf_index` (expired timestamp) |
+| Rollback: an older, vulnerable index or version | versions never go down against the cached trusted metadata; the snapshot pins every role's version | `tuf_index` (rolled-back snapshot) |
+| Arbitrary package / mix and match: other bytes under a signed name | every target's length and SHA-256 come from the signed metadata; a mirror that serves other bytes is refused and the next one tried | `tuf_index` (target hash), `mirrors`, `plugin_fetch` (tampered archive) |
+| A stolen key, below threshold | a role needs its threshold of distinct valid signatures | `tuf_index` (below threshold) |
+| A publisher signing what is not theirs | a delegated role is consulted only for its paths, and only its delegated keys count | `tuf_index` (not delegated, another key), `plugin_tiers` |
+| A signed but malicious release, slipped in quietly | with a log key pinned, an artifact must be in the transparency log, whose history cannot be rewritten without every client noticing | `tlog` (unlogged artifact, rewritten history), `plugin_fetch` |
+| A key or version found bad later | the index's `revocations.json` revokes it: installs refuse it, `zinc run` warns, a revoked key signs nothing | `revocation` |
+| A verified publisher's binary built from other sources | used only after the policy's number of matching independent rebuilds, else built here | `plugin_tiers`, `trust_policy` |
+| A community plugin taken over (new key) | the key pinned on first use is required; a new one is refused until `zinc trust` | `plugin_community`, `plugin_sign` |
+| An update that quietly asks for more | capabilities are pinned in `zinc.lock`; a new one needs `zinc add --accept` | `plugin_lock`, `plugin_cli` |
+| A changed archive, a moved git ref | `zinc.lock` pins the SHA-256 or the commit; `zinc install --frozen` refuses any drift | `plugin_add`, `plugin_lock` |
+| A cloned project loosening a company's rules | the trust policy can only be tightened by the project | `trust_policy`, `policy` |
+
+**Mirrors and proxies** (`ZINC_MIRRORS`, `HTTPS_PROXY`, the policy's `mirrors`) can delay or withhold downloads, and see what
+is fetched; they cannot make zinc use bytes the index, the lock or the pins do not name, roll it back past what it has seen,
+or keep a frozen index alive for more than a week.
+
+**Publishing a plugin.** 1. Write the plugin in its own repository (`zinc-engine/plugin-starter`, ZN-354): `plugin.json` with
+`version`, `permissions` and, for a community plugin, `publisher { name, publicKey }` from `zinc update-keygen`. 2. Release an
+archive and sign it: `zinc sign plugin-1.0.tar.gz <seed>` writes the `.sig` beside it; users `zinc add <url>` (community, the
+key pinned). 3. To be verified, ask for a delegation in the index (your public key for `<you>/*/*` and `<you>/*/*/*`); your CI
+publishes `<you>/plugins/<name>/<version>.json` and, per target, `zinc plugin-build <name> --pack` archives signed by your
+key; the reusable workflow that does this is ZN-338. 4. Rebuilders rebuild the archives (`-DZN_REPRODUCIBLE`, the pinned zig)
+and the index records `rebuilds/<sha256>.json`; your binaries are used once the policy's number of rebuilds match.
+
+**A private index and mirror for a company.** Run `next/tools/index-repo` with the company's keys over its plugins, publish it
+on any static host, and set on every machine `ZINC_INDEX_URL`, `ZINC_INDEX_ROOT` (the company's root), `ZINC_MIRRORS` (an
+internal mirror of `index/` and of the toolchains, laid out as described in [distribution](07-distribution.md)) and a
+system policy (`/etc/zinc/policy.json`: tiers, `prebuilt`, `transparency`, `mirrors`) that projects cannot loosen.
+`zinc install --offline` then works from the content cache on machines without network.
+
+**Key rotation.** The index root: publish `N+1.root.json` signed by the old and the new root keys; clients walk the chain.
+Top-level role keys change through a new root; a publisher's key through a new delegation (and the old one revoked); a
+community publisher's through `zinc trust` by each user, on purpose. The log key and the root shipped with zinc change
+with a zinc release.
+
+**Incident response.** A compromised publisher key: revoke it in `revocations.json` and remove its delegation; republish.
+A bad version: revoke the version with a reason and a replacement; `zinc install` refuses it and `zinc run` warns where it is
+still locked. A compromised index key: rotate the root (above) and revoke what it signed. Every published artifact stays in
+the transparency log, so what was served can be audited afterwards. Report vulnerabilities as described at the end of this
+page.
 
 ## Fuzzing
 
