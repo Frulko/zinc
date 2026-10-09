@@ -36,6 +36,7 @@
     "zinc:system/deeplink": "deeplink.ts",
     "zinc:system/opener": "opener.ts",
     "zinc:system/power": "power.ts",
-    "zinc:system/clipboard": "clipboard.ts"
+    "zinc:system/clipboard": "clipboard.ts",
+    "zinc:system/update": "update.ts"
   }
 }

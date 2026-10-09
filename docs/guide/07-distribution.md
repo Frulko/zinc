@@ -121,6 +121,17 @@ publishing machine; a manifest altered after signing, or one signed with another
 version on trial: once it has run 5 seconds or exited normally it becomes the version in use (`~/.zinc/apps/<id>/current`). If it crashes
 before that, the launch after drops it ("failed to start; it was rolled back") and runs the previous version. Nothing is overwritten.
 
+The app does the same itself with `zinc:system/update` (permission `"update"`):
+
+```ts
+import * as update from 'zinc:system/update';
+const u = update.check();                 // { available, version, notes }: the signed manifest checked by the engine with the app's key
+if (u.available) { update.download(); update.restart(); }   // staged, then the app starts again into it
+update.healthy();                         // in the new version: keep it now (else after 5 s or at a normal exit)
+```
+
+Updates apply to apps run as a `.zapp` or a fused executable; a natively compiled app (`zinc build`) says "unsupported".
+
 ## Versioning
 
 Bump `zinc.json` `"version"` (semver). It appears in `Info.plist` (macOS), the `.desktop` file (Linux), the AppLoad

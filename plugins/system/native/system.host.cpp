@@ -30,6 +30,7 @@ extern "C" int zn_sys_macos_pump(void);
 #endif
 extern "C" void zn_host_fs_scope(int) __attribute__((weak));    // src/host/sys_host.cpp: the fs scope
 extern "C" void zn_host_fs_grant(const char*) __attribute__((weak));
+extern "C" int zn_host_update(const char* op, const char* args, char* out, int cap) __attribute__((weak));   // app updates, done by the engine (ZN-324.03)
 namespace zrt { extern bool quit_requested; }   // the runtime's request to end the program (runtime/zrt.cpp)
 
 namespace {
@@ -211,6 +212,11 @@ struct Sim : NativeSystem, zrt::Poller {
         return zrt::String::from(buf, (uint32_t)n);
       }
       log("[system] ", name, " ", args);
+      if (!strncmp(name, "update.", 7)) {   // the engine knows the app's channel and key, and how to restart it: live and in the simulator alike
+        static char ubuf[4096];
+        if (!zn_host_update || !zn_host_update(name, args, ubuf, sizeof ubuf)) return reply("{\"error\":{\"code\":\"unsupported\",\"message\":\"this engine has no app updates\"}}");
+        return reply(ubuf);
+      }
 #ifdef __APPLE__
       if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
 #endif

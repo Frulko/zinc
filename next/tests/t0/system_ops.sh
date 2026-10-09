@@ -6,7 +6,7 @@ tools/system-ops --check || exit 1
 python3 - <<'P' || exit 1
 import json
 d = json.load(open("../plugins/system/ops.json"))
-features = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener"}
+features = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener", "update"}
 bad = [o["op"] for o in d["ops"] if o["permission"].split(":")[0] not in features]
 if bad: print("ops with an unknown permission feature:", bad); raise SystemExit(1)
 names = [o["op"] for o in d["ops"]]

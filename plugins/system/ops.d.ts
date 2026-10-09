@@ -72,6 +72,10 @@ export interface OpArgs {
   'clipboard.writeFiles': { paths: string[] };
   'clipboard.readFiles': {  };
   'window.setVibrancy': { material: '' | 'sidebar' | 'menu' | 'hud' | 'under-window' };
+  'update.check': {  };
+  'update.download': {  };
+  'update.restart': {  };
+  'update.healthy': {  };
 }
 
 export interface OpResult {
@@ -145,6 +149,10 @@ export interface OpResult {
   'clipboard.writeFiles': {};
   'clipboard.readFiles': {paths: string[]};
   'window.setVibrancy': {};
+  'update.check': {available: boolean; version: string; notes: string};
+  'update.download': {version: string; path: string};
+  'update.restart': {};
+  'update.healthy': {};
 }
 
 export type OpName = keyof OpArgs;

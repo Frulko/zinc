@@ -633,6 +633,34 @@
    },
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "update.check",
+   "permission": "update",
+   "params": {},
+   "returns": "{available: boolean; version: string; notes: string}",
+   "sim": "{\"available\":false,\"version\":\"\",\"notes\":\"\"}"
+  },
+  {
+   "op": "update.download",
+   "permission": "update",
+   "params": {},
+   "returns": "{version: string; path: string}",
+   "sim": "{\"version\":\"\",\"path\":\"\"}"
+  },
+  {
+   "op": "update.restart",
+   "permission": "update",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "update.healthy",
+   "permission": "update",
+   "params": {},
+   "returns": "{}",
+   "sim": "{}"
   }
  ],
  "events": [

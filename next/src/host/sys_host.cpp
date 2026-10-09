@@ -573,5 +573,7 @@ void installSys() { hostSys = call; }
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
 extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
 extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(path)); }
+// App updates (ZN-324.03) are the engine's (src/main.cpp defines the real one, which wins); a compiled program has none: the system plugin says "unsupported".
+extern "C" __attribute__((weak)) int zn_host_update(const char*, const char*, char*, int) { return 0; }
 
 }  // namespace zn::host

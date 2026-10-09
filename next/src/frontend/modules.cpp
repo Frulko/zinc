@@ -1328,7 +1328,7 @@ struct Loader {
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
-                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}};
+                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/update", "system/update.ts"}};
       if (spec == "zinc:system/permissions") {   // the permissions of zinc.json as a constant, so the native gate of the system plugin knows what was compiled in
         std::string csv;
         if (const std::vector<std::string>* g = systemPermissions()) for (const std::string& p : *g) csv += (csv.empty() ? "" : ",") + p;

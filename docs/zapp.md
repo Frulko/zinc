@@ -19,6 +19,9 @@ byte-identical, and `tar tf game.zapp` lists it.
 | `zinc.json` | the project's manifest: window size, targets, permissions |
 | `assets/...` | the project's assets, read at run time (`zinc:assets`); hidden files stay out |
 
+A program that calls a native plugin (`zinc:sqlite`, `zinc:system`...) gets it loaded at start, built from the engine's `plugins/` like
+a compile would (cached in `~/.zinc`); a machine running a `.zapp` therefore needs the engine's plugin sources and a compiler for those.
+
 `zinc run` refuses an archive whose header checksums or file SHA-256 do not match (corrupted or edited), one made by a newer zinc or in a
 newer format ("update zinc"), and one naming a file outside it. Nothing of the archive runs before those checks.
 

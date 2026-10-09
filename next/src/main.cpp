@@ -51,6 +51,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "zbc/zbc.h"
 #include "zapp.h"
 #include <thread>
+#include <set>
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #ifdef ZN_HOST_GFX
@@ -423,6 +424,46 @@ static std::string chooseAppVersion(const std::string& zbc) {
   }
   return run;
 }
+// The app API of updates (ZN-324.03), called by the system plugin (zinc:system/update) through this weak symbol: the running app's zinc.json
+// update block (set by `zinc run`), the launch arguments for a restart.
+static zn::frontend::Project gUpdProject;
+static std::vector<std::string> gLaunchArgs;   // argv as the process got it, before a fused app or a .zapp rewrote it
+static std::string* gRunOut = nullptr;          // what the running program printed so far (the VM writes it out at the end): a restart prints it first
+static int updateReply(char* out, int cap, const std::string& json) { std::snprintf(out, static_cast<std::size_t>(cap), "%s", json.c_str()); return 1; }
+static std::string jsonText(const std::string& s) { std::string o = "\""; for (char c : s) { if (c == '"' || c == '\\') o += '\\'; if (c == '\n') { o += "\\n"; continue; } o += c; } return o + "\""; }
+extern "C" int zn_host_update(const char* op, const char* args, char* out, int cap) {
+  (void)args;
+  const zn::frontend::Project& p = gUpdProject;
+  const std::string what = op ? op : "";
+  auto failed = [&](const std::string& m) { return updateReply(out, cap, "{\"error\":{\"code\":\"failed\",\"message\":" + jsonText(m) + "}}"); };
+  if (what == "update.healthy") { promoteTrial(); return updateReply(out, cap, "{}"); }
+  if (what == "update.restart") {
+    if (gRunOut) { std::fwrite(gRunOut->data(), 1, gRunOut->size(), stdout); gRunOut->clear(); }
+    std::fflush(stdout); std::fflush(stderr);
+    std::vector<char*> av;
+    std::string exe = zn::tc::executablePath();
+    for (std::string& a : gLaunchArgs) av.push_back(a.data());
+    av.push_back(nullptr);
+    execv(exe.c_str(), av.data());
+    return failed(std::string("cannot restart: ") + std::strerror(errno));
+  }
+  if (p.updateKey.empty() || p.updateUrl.empty()) return failed("zinc.json has no \"update\": { \"url\", \"publicKey\" }");
+  const std::string channel = p.updateChannel.empty() ? "stable" : p.updateChannel, version = p.app.version.empty() ? "0.0.0" : p.app.version;
+  const std::string url = p.updateUrl.size() > 9 && p.updateUrl.compare(p.updateUrl.size() - 9, 9, ".manifest") == 0 ? p.updateUrl : p.updateUrl + (p.updateUrl.back() == '/' ? "" : "/") + channel + ".manifest";
+  zn::tc::UpdateInfo info; std::string err;
+  if (!zn::tc::fetchManifest(url, info, err, {p.updateKey})) return failed(err);
+  const bool newer = zn::tc::newerVersion(info.version, version);
+  if (what == "update.check") return updateReply(out, cap, std::string("{\"available\":") + (newer ? "true" : "false") + ",\"version\":" + jsonText(info.version) + ",\"notes\":" + jsonText(info.notes) + "}");
+  if (what == "update.download") {
+    if (!newer) return failed("no newer version on the " + channel + " channel (" + info.version + ", this is " + version + ")");
+    const std::string dir = zn::tc::home() + "/apps/" + (p.app.id.empty() ? p.name : p.app.id);
+    std::string path;
+    if (!zn::tc::downloadUpdate(info, dir + "/updates", path, err)) return failed(err);
+    std::ofstream(dir + "/staged") << path << "\n";
+    return updateReply(out, cap, "{\"version\":" + jsonText(info.version) + ",\"path\":" + jsonText(path) + "}");
+  }
+  return 0;
+}
 static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
@@ -430,6 +471,7 @@ static std::string gBundleOut;                   // `zinc build --bundle ... -o 
 static zn::tc::BundleSpec gBundleSpec;
 
 int main(int argc, char** argv) {
+  for (int k = 0; k < argc; ++k) gLaunchArgs.push_back(argv[k]);
   {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
     std::string archive, zbc, err;
     if (fusedArchive(archive)) {
@@ -821,6 +863,7 @@ int main(int argc, char** argv) {
         const char* mode = std::getenv("ZINC_PERMISSIONS");
         zn::host::perm::configure(granted, have && project.permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
       }
+      if (have) gUpdProject = project;   // zinc:system/update (ZN-324.03)
       if (have) {
         shapedText = project.text == "shaped";
         if (!project.keyboard.empty()) setenv("ZINC_KEYBOARD", project.keyboard.c_str(), 0);   // zinc.json "keyboard" (ZN-227)
@@ -860,6 +903,15 @@ int main(int argc, char** argv) {
       err = zn::zbc::verify(zm);
       if (std::getenv("ZN_TIMING")) std::fprintf(stderr, "decode %.2f ms, verify %.2f ms\n", std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count());
       if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
+      {   // a compiled program (a .zapp's, a fused app's) loads the native plugins it calls, as a compile would have (ZN-324.03)
+        installNativeProvider(path.c_str());
+        std::set<std::string> mods;
+        for (const auto& nt : zm.natives) if (nt.module != "QuickJS" && nt.module != "Fixture") mods.insert(nt.module);
+        for (const std::string& m : mods) {
+          std::string why;
+          if (!zn::frontend::gNativeProvider(m, why)) { std::fprintf(stderr, "zinc: %s: the native module '%s' cannot be loaded: %s\n", argv[2], m.c_str(), why.c_str()); return 1; }
+        }
+      }
     } else if (int rc = compileToZbc(path.c_str(), zm)) return rc;
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
@@ -885,6 +937,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
+    gRunOut = &out;
     auto res = zn::vm::run(zm, out, trace);
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
     return zn::rt::report(res, out, trace);

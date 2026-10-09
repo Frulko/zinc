@@ -72,5 +72,9 @@ static const ZnSystemOp kSystemOps[] = {
   {"clipboard.writeFiles", "clipboard:rich", "{}"},
   {"clipboard.readFiles", "clipboard:rich", "{\"paths\":[]}"},
   {"window.setVibrancy", "window", "{}"},
+  {"update.check", "update", "{\"available\":false,\"version\":\"\",\"notes\":\"\"}"},
+  {"update.download", "update", "{\"version\":\"\",\"path\":\"\"}"},
+  {"update.restart", "update", "{}"},
+  {"update.healthy", "update", "{}"},
 };
 static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file"};
