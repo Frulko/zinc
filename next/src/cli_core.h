@@ -26,6 +26,10 @@ int bench(const std::vector<std::string>& args);
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */
 int deploy(const std::vector<std::string>& args);
+/** `zinc add <git-url[@ref] | archive URL> [dir]`: the plugin into <dir>/plugins/<name>, its commit or sha256 in zinc.json "lock" (ZN-328.01). */
+int addPlugin(const std::vector<std::string>& args);
+/** `zinc install [dir]`: every plugin of zinc.json "lock" fetched again at its pinned commit or checked against its pinned sha256. */
+int installPlugins(const std::vector<std::string>& args);
 /** `zinc tsconfig [dir]`: tsconfig.json for the editor, with the engine's lib. */
 int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot);
 /** `zinc infer <entry|dir>`: the places where gradual typing could not infer a type (Z0109), by file and line. */

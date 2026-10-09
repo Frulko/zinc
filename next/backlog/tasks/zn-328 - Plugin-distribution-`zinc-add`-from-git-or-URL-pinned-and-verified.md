@@ -1,10 +1,10 @@
 ---
 id: ZN-328
 title: 'Plugin distribution: `zinc add` from git or URL, pinned and verified'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:20'
-updated_date: '2026-10-08 14:28'
+updated_date: '2026-10-09 01:57'
 labels:
   - plugins
   - distribution

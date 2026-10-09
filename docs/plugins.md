@@ -51,6 +51,28 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 `<zinc>/plugins/*`, then `<project>/plugins/*`, then `zinc.json` `"pluginDirs"`. A project plugin shadows a bundled one
 with the same name.
 
+## Adding a plugin from git or an archive
+
+```sh
+zinc add gh:user/zinc-greet@v1.2        # or https://.../repo.git[@ref], file:///path/repo, git@host:repo.git
+zinc add https://example.com/greet-1.2.tar.gz   # .tar.gz, .tgz or .tar; file:// works too
+zinc install                            # on another checkout: every locked plugin, at the same bytes
+```
+
+`zinc add` copies the plugin into `<project>/plugins/<name>` (its `plugin.json` name; an archive may hold one top
+directory) and pins it in `zinc.json`:
+
+```json
+"lock": { "plugins": {
+  "greet": { "source": "gh:user/zinc-greet@v1.2", "commit": "9f3c..." },
+  "shout": { "source": "https://example.com/shout-1.0.tar.gz", "sha256": "4be1..." } } }
+```
+
+`zinc install` fetches each locked plugin again: git at the pinned commit, archives checked against the pinned
+sha256 (a changed archive is refused and nothing is installed). Nothing of a plugin runs while it is fetched: git
+hooks are off, archives are unpacked by `tar`, and links or special files are refused. A local directory belongs
+in `"pluginDirs"`. Native code is built on first use as for any project plugin.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

@@ -1,6 +1,7 @@
 #include "cli_core.h"
 
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <algorithm>
 #include <cctype>
@@ -22,6 +23,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "zn/devproto.h"
 #include "zapp.h"
@@ -59,6 +61,8 @@ const Command kCommands[] = {
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
+  {"add", "zinc add <git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from git or an archive", "Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. Nothing of the plugin is run; links and special files are refused."},
+  {"install", "zinc install [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused)."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -132,12 +136,8 @@ std::string fetchTemplate(const std::string& spec, const fs::path& into, fs::pat
     return "";
   }
   std::string url = spec, ref;
-  if (spec.rfind("gh:", 0) == 0) {
-    std::string repo = spec.substr(3);
-    const std::size_t at = repo.find('@');
-    if (at != std::string::npos) { ref = repo.substr(at + 1); repo = repo.substr(0, at); }
-    url = "https://github.com/" + repo + ".git";
-  }
+  if (const std::size_t at = spec.rfind('@'), slash = spec.rfind('/'); at != std::string::npos && slash != std::string::npos && at > slash) { ref = spec.substr(at + 1); url = spec.substr(0, at); }   // url@ref (git@host:... has its @ before the path)
+  if (url.rfind("gh:", 0) == 0) url = "https://github.com/" + url.substr(3) + ".git";
   if (runArgv({"git", "-c", "core.hooksPath=/dev/null", "-c", "protocol.file.allow=always", "clone", "--quiet", "--no-recurse-submodules", "--", url, into.string()}, true) != 0)
     return "cannot clone " + url;
   if (!ref.empty() && runArgv({"git", "-C", into.string(), "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", ref}, true) != 0) return "no ref '" + ref + "' in " + url;
@@ -741,6 +741,158 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   }
   std::printf("%s\n", out.string().c_str());
   return 0;
+}
+
+// zinc add / zinc install (ZN-328.01): a plugin from a git repository (pinned by commit) or a .tar.gz / .tgz / .tar archive (pinned by sha256), copied into
+// <project>/plugins/<name> where the module loader and the native build already look, and recorded in zinc.json "lock": { "plugins": { name: {source, commit | sha256} } }.
+// Nothing of the plugin is run: git hooks are off, archives are unpacked by tar, links and special files are refused.
+namespace {
+struct PluginPin { std::string source, commit, sha256; };
+
+bool isArchive(const std::string& s) {
+  auto ends = [&](const char* e) { const std::size_t n = std::strlen(e); return s.size() > n && s.compare(s.size() - n, n, e) == 0; };
+  return ends(".tar.gz") || ends(".tgz") || ends(".tar");
+}
+
+// Fetches `spec` into `scratch` and finds the plugin directory (plugin.json at the top, or in the archive's one top directory). `pin` (from the lock) fixes the commit or
+// the sha256; `got` is what was fetched. Empty: done.
+std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs::path& scratch, fs::path& dir, PluginPin& got) {
+  std::error_code ec;
+  fs::create_directories(scratch, ec);
+  fs::path top;
+  if (isArchive(spec)) {
+    const fs::path archive = scratch / "archive", x = scratch / "x";
+    if (spec.rfind("file://", 0) == 0) { if (!fs::copy_file(spec.substr(7), archive, ec)) return "cannot read " + spec; }
+    else if (spec.rfind("https://", 0) == 0 || spec.rfind("http://", 0) == 0) { if (runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", archive.string(), "--", spec}, true) != 0) return "cannot download " + spec; }
+    else return "an archive is given by a file:// or https:// URL: " + spec;
+    got = {spec, "", zn::tc::sha256File(archive.string())};
+    if (!pin.sha256.empty() && got.sha256 != pin.sha256) return "the archive " + spec + " changed: sha256 " + got.sha256 + ", the lock pins " + pin.sha256 + "; nothing was installed";
+    fs::create_directories(x, ec);
+    if (runArgv({"tar", "-xf", archive.string(), "-C", x.string()}, true) != 0) return "cannot unpack " + spec;
+    top = x;
+  } else {
+    std::string fetchSpec = spec;
+    if (!pin.commit.empty()) { const std::size_t at = spec.rfind('@'), slash = spec.rfind('/'); fetchSpec = (at != std::string::npos && slash != std::string::npos && at > slash ? spec.substr(0, at) : spec) + "@" + pin.commit; }
+    std::string source;
+    if (std::string err = fetchTemplate(fetchSpec, scratch / "git", top, source, got.commit); !err.empty()) return err.rfind("no template", 0) == 0 ? "no plugin '" + spec + "': not a git URL or an archive (.tar.gz, .tgz, .tar)" : err;
+    if (top == fs::absolute(spec).lexically_normal()) return "no plugin '" + spec + "': a local directory goes in zinc.json \"pluginDirs\"; zinc add takes a git URL or an archive";
+    got.source = spec;
+    if (!pin.commit.empty() && got.commit != pin.commit) return "the commit of " + spec + " is " + got.commit + ", the lock pins " + pin.commit;
+  }
+  dir = top;
+  if (!fs::exists(dir / "plugin.json", ec)) {   // an archive of a directory (GitHub's name-ref/)
+    std::vector<fs::path> subs;
+    for (const auto& e : fs::directory_iterator(top, ec)) if (e.path().filename() != ".git") subs.push_back(e.path());
+    if (subs.size() == 1 && fs::exists(subs[0] / "plugin.json", ec)) dir = subs[0];
+    else return "no plugin.json in " + spec;
+  }
+  for (auto it = fs::recursive_directory_iterator(dir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+    if (it->is_symlink() || (!it->is_regular_file() && !it->is_directory())) return "a file outside the plugin (link or special file): " + fs::relative(it->path(), dir).string();
+  }
+  return "";
+}
+
+// Copies the plugin into <project>/plugins/<name> (replacing it) and returns its name, from plugin.json.
+std::string installPlugin(const fs::path& from, const fs::path& project, std::string& name) {
+  std::ifstream mf(from / "plugin.json");
+  std::stringstream ms; ms << mf.rdbuf();
+  zn::frontend::PluginManifest pm;
+  std::string err;
+  std::vector<std::string> warnings;
+  if (!zn::frontend::parsePluginManifest(ms.str(), pm, err, warnings)) return "plugin.json: " + err;
+  name = pm.name;
+  if (name.empty() || name[0] == '.' || name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") != std::string::npos) return "plugin.json \"name\" '" + name + "' is not usable as a directory name";
+  const fs::path to = project / "plugins" / name;
+  std::error_code ec;
+  fs::remove_all(to, ec);
+  fs::create_directories(to, ec);
+  for (auto it = fs::recursive_directory_iterator(from, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+    const fs::path rel = fs::relative(it->path(), from);
+    if (it->is_directory()) fs::create_directories(to / rel, ec);
+    else fs::copy_file(it->path(), to / rel, fs::copy_options::overwrite_existing, ec);
+    if (ec) return "cannot write " + (to / rel).string() + ": " + ec.message();
+  }
+  return "";
+}
+
+struct ScratchDir { fs::path p; ~ScratchDir() { std::error_code e; if (!p.empty()) fs::remove_all(p, e); } };
+}  // namespace
+
+int addPlugin(const std::vector<std::string>& args) {
+  if (args.size() < 3 || args.size() > 4) { std::fprintf(stderr, "usage: zinc add <git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir]\n"); return 2; }
+  const fs::path project = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal();
+  const fs::path zj = project / "zinc.json";
+  std::ifstream zf(zj);
+  std::stringstream zs; zs << zf.rdbuf();
+  const std::string text = zs.str();
+  yyjson_doc* doc = zf ? yyjson_read(text.data(), text.size(), 0) : nullptr;
+  if (!doc || !yyjson_is_obj(yyjson_doc_get_root(doc))) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: no zinc.json object in %s\n", project.string().c_str()); return 2; }
+  ScratchDir scratch;
+  std::error_code ec;
+  scratch.p = fs::temp_directory_path(ec) / ("zinc-add-" + std::to_string(getpid()));
+  fs::remove_all(scratch.p, ec);
+  fs::path dir;
+  PluginPin got;
+  std::string name, err = fetchPlugin(args[2], {}, scratch.p, dir, got);
+  if (err.empty()) err = installPlugin(dir, project, name);
+  if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
+  yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
+  yyjson_doc_free(doc);
+  yyjson_mut_val* root = yyjson_mut_doc_get_root(md);
+  auto objIn = [&](yyjson_mut_val* o, const char* key) {
+    yyjson_mut_val* v = yyjson_mut_obj_get(o, key);
+    if (!yyjson_mut_is_obj(v)) { yyjson_mut_obj_remove_key(o, key); v = yyjson_mut_obj(md); yyjson_mut_obj_add_val(md, o, key, v); }
+    return v;
+  };
+  yyjson_mut_val* plugins = objIn(objIn(root, "lock"), "plugins");
+  yyjson_mut_obj_remove_str(plugins, name.c_str());
+  yyjson_mut_val* e = yyjson_mut_obj(md);
+  yyjson_mut_obj_add_strcpy(md, e, "source", got.source.c_str());
+  if (!got.commit.empty()) yyjson_mut_obj_add_strcpy(md, e, "commit", got.commit.c_str());
+  if (!got.sha256.empty()) yyjson_mut_obj_add_strcpy(md, e, "sha256", got.sha256.c_str());
+  yyjson_mut_obj_add(plugins, yyjson_mut_strcpy(md, name.c_str()), e);
+  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  const bool ok = out && writeFile(zj, std::string(out) + "\n");
+  std::free(out);
+  yyjson_mut_doc_free(md);
+  if (!ok) { std::fprintf(stderr, "zinc add: cannot write %s\n", zj.string().c_str()); return 1; }
+  std::printf("added %s (%s %s) in plugins/%s\n", name.c_str(), got.commit.empty() ? "sha256" : "commit", (got.commit.empty() ? got.sha256 : got.commit).c_str(), name.c_str());
+  return 0;
+}
+
+int installPlugins(const std::vector<std::string>& args) {
+  if (args.size() > 3) { std::fprintf(stderr, "usage: zinc install [project-dir]\n"); return 2; }
+  const fs::path project = fs::absolute(args.size() == 3 ? args[2] : ".").lexically_normal();
+  std::ifstream zf(project / "zinc.json");
+  std::stringstream zs; zs << zf.rdbuf();
+  const std::string text = zs.str();
+  yyjson_doc* doc = zf ? yyjson_read(text.data(), text.size(), 0) : nullptr;
+  if (!doc) { std::fprintf(stderr, "zinc install: no zinc.json in %s\n", project.string().c_str()); return 2; }
+  yyjson_val* plugins = yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), "lock"), "plugins");
+  int failed = 0, done = 0;
+  size_t i, n;
+  yyjson_val *k, *v;
+  yyjson_obj_foreach(plugins, i, n, k, v) {
+    auto str = [&](const char* key) { yyjson_val* x = yyjson_obj_get(v, key); return yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
+    const PluginPin pin{str("source"), str("commit"), str("sha256")};
+    const std::string want = yyjson_get_str(k);
+    ScratchDir scratch;
+    std::error_code ec;
+    scratch.p = fs::temp_directory_path(ec) / ("zinc-install-" + std::to_string(getpid()) + "-" + std::to_string(i));
+    fs::remove_all(scratch.p, ec);
+    fs::path dir;
+    PluginPin got;
+    std::string name, err = pin.commit.empty() && pin.sha256.empty() ? "the lock pins neither a commit nor a sha256" : fetchPlugin(pin.source, pin, scratch.p, dir, got);
+    if (err.empty()) err = installPlugin(dir, project, name);
+    if (err.empty() && name != want) err = "the source now holds plugin '" + name + "'";
+    if (!err.empty()) { std::fprintf(stderr, "zinc install: %s: %s\n", want.c_str(), err.c_str()); ++failed; continue; }
+    ++done;
+  }
+  yyjson_doc_free(doc);
+  std::printf("installed %d plugin(s)%s\n", done, failed ? (", " + std::to_string(failed) + " failed").c_str() : "");
+  return failed ? 1 : 0;
 }
 
 int deploy(const std::vector<std::string>& args) {

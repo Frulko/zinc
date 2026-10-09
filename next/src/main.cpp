@@ -535,6 +535,8 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::addPlugin(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "install")) return zn::cli::installPlugins(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
     std::string derr;
