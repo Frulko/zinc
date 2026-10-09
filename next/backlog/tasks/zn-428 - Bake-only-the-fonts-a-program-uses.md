@@ -4,13 +4,15 @@ title: Bake only the fonts a program uses
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:35'
+updated_date: '2026-10-09 10:22'
 labels:
   - games
   - assets
   - size-S
+  - perf
 milestone: m-22
 dependencies: []
-ordinal: 196000
+ordinal: 5003
 ---
 
 ## Description
