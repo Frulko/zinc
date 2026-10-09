@@ -54,7 +54,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]]", "the plugin table", "Lists the plugins visible to a project and where they run."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -492,8 +492,8 @@ static bool writeDeb(const fs::path& exportDir, const std::string& name, const s
 }
 
 int exportApp(const std::vector<std::string>& args) {
-  Opts o = parseOpts(args, {"--target", "-o"}, {"--deb"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o"}, {"--deb", "--dmg"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb] [--dmg]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
@@ -505,6 +505,7 @@ int exportApp(const std::vector<std::string>& args) {
   const std::string zt = zigTargetFor(target);
   const std::string arch = zt == "aarch64-linux" ? "arm64" : zt == "armhf-linux" ? "armhf" : zt == "x86_64-linux" ? "amd64" : "";   // Debian's names
   if (has(o, "--deb") && arch.empty()) { std::fprintf(stderr, "zinc export: --deb is for the Linux targets (linux, rpi, rpi1, rmpp)\n"); return 2; }
+  if (has(o, "--dmg") && target != "macos") { std::fprintf(stderr, "zinc export: --dmg is for the macos target\n"); return 2; }
   fs::path out = o.v.count("-o") ? fs::path(o.v["-o"]) : fs::path(p.dir) / "dist" / (p.name + "-" + target);
   std::error_code ec;
   fs::remove_all(out, ec);
@@ -523,6 +524,21 @@ int exportApp(const std::vector<std::string>& args) {
   if (target == "macos") {
     std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
     if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
+  }
+  if (has(o, "--dmg")) {   // a disk image with the .app and a link to /Applications (ZN-320.02)
+    const fs::path app = out / (p.name + ".app");
+    if (!fs::exists(app, ec)) { std::fprintf(stderr, "zinc export: --dmg needs the .app, which needs \"app\": { \"id\": \"com.example.%s\" } in zinc.json\n", p.name.c_str()); return 1; }
+    const fs::path stage = out.parent_path() / (p.name + "-dmg-staging");
+    const fs::path dmg = out.parent_path() / (p.name + "-" + p.version + ".dmg");
+    fs::remove_all(stage, ec);
+    fs::create_directories(stage, ec);
+    fs::create_symlink("/Applications", stage / "Applications", ec);
+    const std::string cmd = "ditto " + q(app.string()) + " " + q((stage / app.filename()).string()) + " && hdiutil create -quiet -ov -fs HFS+ -format UDZO -volname " + q(p.name) +
+                            " -srcfolder " + q(stage.string()) + " " + q(dmg.string());
+    const int rc = status(std::system(cmd.c_str()));
+    fs::remove_all(stage, ec);
+    if (rc != 0) { std::fprintf(stderr, "zinc export: hdiutil could not make %s\n", dmg.string().c_str()); return 1; }
+    std::printf("%s\n", dmg.string().c_str());
   }
   if (has(o, "--deb")) {   // a Debian package of the export (ZN-320.01)
     const fs::path deb = out.parent_path() / (p.name + "_" + p.version + "_" + arch + ".deb");

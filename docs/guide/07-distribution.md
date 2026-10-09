@@ -75,6 +75,13 @@ $ plutil -p dist/myapp-macos/myapp.app/Contents/Info.plist
 The `.icns` is built at 16/32/128/256/512 px @1x and @2x. On a non-macOS host the `.icns` step is skipped (with a
 notice) — build the macOS bundle on macOS.
 
+## macOS disk images
+
+`zinc export --target macos --dmg` writes `dist/<name>-<version>.dmg` (compressed, HFS+) holding the `.app` and a link to
+`/Applications`, the usual drag-to-install window. The `.app` needs `"app": { "id": "com.example.name" }` in `zinc.json` (the
+templates for windowed apps have it). Sign the `.app` for distribution before making the image (see below); the image itself is not signed
+yet, and hdiutil stamps it, so two images differ in bytes even when the `.app` does not.
+
 ## Debian packages
 
 `zinc export --target linux --deb` (also `rpi`, `rpi1`, `rmpp`) writes `dist/<name>_<version>_<arch>.deb` beside the export directory,

@@ -1,5 +1,6 @@
 {
   "name": "{{name}}",
+  "app": { "id": "com.example.{{id}}", "name": "{{name}}", "version": "0.1.0" },
   "entry": "src/main.tsx",
   "assets": "assets",
   "permissions": ["menu", "tray"],
