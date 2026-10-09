@@ -30,6 +30,9 @@ int deploy(const std::vector<std::string>& args);
 int addPlugin(const std::vector<std::string>& args);
 /** `zinc install [dir]`: every plugin of zinc.json "lock" fetched again at its pinned commit or checked against its pinned sha256. */
 int installPlugins(const std::vector<std::string>& args);
+/** `zinc index-sign <metadata.json> <seed-hex>...` and `zinc index-get <repository-url> <cache-dir> [target-path]`: TUF metadata of the plugin index (ZN-336.02). */
+int indexSign(const std::vector<std::string>& args);
+int indexGet(const std::vector<std::string>& args);
 /** `zinc tsconfig [dir]`: tsconfig.json for the editor, with the engine's lib. */
 int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot);
 /** `zinc infer <entry|dir>`: the places where gradual typing could not infer a type (Z0109), by file and line. */

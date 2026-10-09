@@ -38,6 +38,7 @@
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
     {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "cli_tools", "plugin_add", "plugin_sign", "templates_remote"]},
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
+    {"paths": ["src/tc/tuf", "tools/index-repo", "tests/data/tuf_interop.py"], "tests": ["tuf_canonical", "tuf_index", "tuf_interop"]},
     {"paths": ["tests/fuzz/", "tools/fuzz"], "tests": ["fuzz_regress"]},
     {"paths": ["src/host/sys_host.cpp"], "tests": ["sys_host", "camera"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]},

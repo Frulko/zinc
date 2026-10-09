@@ -29,6 +29,7 @@
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
+#include "tc/tuf.h"
 
 namespace fs = std::filesystem;
 
@@ -916,6 +917,81 @@ int installPlugins(const std::vector<std::string>& args) {
   yyjson_doc_free(doc);
   std::printf("installed %d plugin(s)%s\n", done, failed ? (", " + std::to_string(failed) + " failed").c_str() : "");
   return failed ? 1 : 0;
+}
+
+// The plugin index's TUF metadata (ZN-336.02, D41). `zinc index-sign <file.json> <seed-hex>...` adds a signature per seed over the canonical "signed" part
+// (keyid: SHA-256 of the canonical key object, as TUF defines it); `zinc index-get <repository-url> <cache-dir> [target-path]` runs the client: the root
+// chain, timestamp, snapshot and targets checked, then the target fetched and checked (its length on stdout) or, without a path, every target listed.
+int indexSign(const std::vector<std::string>& args) {
+  if (args.size() < 4) { std::fprintf(stderr, "usage: zinc index-sign <metadata.json> <seed-hex>...\n"); return 2; }
+  std::ifstream f(args[2]);
+  std::stringstream ss; ss << f.rdbuf();
+  yyjson_doc* d = yyjson_read(ss.str().data(), ss.str().size(), 0);
+  yyjson_val* sv = d ? yyjson_obj_get(yyjson_doc_get_root(d), "signed") : nullptr;
+  if (!sv) { yyjson_doc_free(d); std::fprintf(stderr, "zinc index-sign: %s has no \"signed\" object\n", args[2].c_str()); return 2; }
+  char* sj = yyjson_val_write(sv, 0, nullptr);
+  std::string body;
+  const bool ok = sj && zn::tc::tuf::canonical(sj, body);
+  std::free(sj);
+  if (!ok) { yyjson_doc_free(d); std::fprintf(stderr, "zinc index-sign: the metadata cannot be canonicalised (floats?)\n"); return 2; }
+  yyjson_mut_doc* md = yyjson_doc_mut_copy(d, nullptr);
+  yyjson_doc_free(d);
+  yyjson_mut_val* root = yyjson_mut_doc_get_root(md);
+  yyjson_mut_val* sigs = yyjson_mut_obj_get(root, "signatures");
+  if (!yyjson_mut_is_arr(sigs)) { yyjson_mut_obj_remove_key(root, "signatures"); sigs = yyjson_mut_arr(md); yyjson_mut_obj_add_val(md, root, "signatures", sigs); }
+  for (std::size_t k = 3; k < args.size(); ++k) {
+    std::string sig, err, keyCanon;
+    const std::string pub = zn::tc::publicKeyOf(args[k]);
+    if (pub.empty() || !zn::tc::signBytes(body, args[k], sig, err)) { yyjson_mut_doc_free(md); std::fprintf(stderr, "zinc index-sign: a seed is 64 hex digits\n"); return 2; }
+    zn::tc::tuf::canonical("{\"keytype\":\"ed25519\",\"keyval\":{\"public\":\"" + pub + "\"},\"scheme\":\"ed25519\"}", keyCanon);
+    yyjson_mut_val* s = yyjson_mut_obj(md);
+    yyjson_mut_obj_add_strcpy(md, s, "keyid", zn::tc::sha256Hex(keyCanon).c_str());
+    yyjson_mut_obj_add_strcpy(md, s, "sig", sig.c_str());
+    yyjson_mut_arr_append(sigs, s);
+  }
+  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  const bool wrote = out && writeFile(args[2], std::string(out) + "\n");
+  std::free(out);
+  yyjson_mut_doc_free(md);
+  return wrote ? 0 : 1;
+}
+
+// Reads <base>/<path> (file:// or http(s)://) for the TUF client.
+static bool fetchFrom(const std::string& base, const std::string& path, std::string& bytes) {
+  const std::string url = base + (base.empty() || base.back() == '/' ? "" : "/") + path;
+  std::string file = url.rfind("file://", 0) == 0 ? url.substr(7) : std::string();
+  std::error_code ec;
+  fs::path tmp;
+  if (file.empty()) {
+    tmp = fs::temp_directory_path(ec) / ("zinc-index-" + std::to_string(getpid()));
+    if (runArgv({"curl", "-fsSL", "--max-filesize", "52428800", "-o", tmp.string(), "--", url}, true) != 0) { fs::remove(tmp, ec); return false; }
+    file = tmp.string();
+  }
+  std::ifstream f(file, std::ios::binary);
+  if (!f) return false;
+  std::stringstream ss; ss << f.rdbuf();
+  bytes = ss.str();
+  if (!tmp.empty()) fs::remove(tmp, ec);
+  return true;
+}
+
+int indexGet(const std::vector<std::string>& args) {
+  if (args.size() < 4 || args.size() > 5) { std::fprintf(stderr, "usage: zinc index-get <repository-url> <cache-dir> [target-path]\n"); return 2; }
+  const std::string base = args[2];
+  zn::tc::tuf::Client c(args[3], [&](const std::string& p, std::string& b) { return fetchFrom(base, p, b); }, static_cast<long long>(std::time(nullptr)));
+  std::string err;
+  if (!c.refresh(err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }
+  if (args.size() == 5) {
+    zn::tc::tuf::Target t;
+    std::string bytes;
+    if (!c.find(args[4], t, err) || !c.download(t, bytes, err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }
+    std::printf("%s %zu %s\n", t.path.c_str(), bytes.size(), t.role.c_str());
+    return 0;
+  }
+  std::vector<zn::tc::tuf::Target> all;
+  if (!c.all(all, err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }
+  for (const auto& t : all) std::printf("%s %lld %s\n", t.path.c_str(), t.length, t.role.c_str());
+  return 0;
 }
 
 int deploy(const std::vector<std::string>& args) {
