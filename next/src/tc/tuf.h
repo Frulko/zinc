@@ -61,6 +61,10 @@ class Client {
 // The plugin index of this machine (ZN-336, ZN-340): ZINC_INDEX_URL (default the zinc-engine Pages site) checked into ~/.zinc/index from its trusted root
 // ($ZINC_INDEX_ROOT, else <engine>/index/root.json, copied there once) and refreshed. False with `err` when there is no trusted root or the index does not verify.
 bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std::string& err);
+// ZINC_INDEX_URL, else the zinc-engine Pages site.
+std::string indexUrl();
+// The transparency log's key (ZN-343): ZINC_TLOG_KEY, else <engine>/index/log.pub; "" when none is pinned (then nothing is required of the log).
+std::string logKey(const std::string& engineRoot);
 // "official" for what the top-level targets role signs, "verified" for a role delegated to a publisher (its name is the publisher).
 inline std::string tierOf(const Target& t) { return t.role == "targets" ? "official" : "verified"; }
 

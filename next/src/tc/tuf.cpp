@@ -100,6 +100,16 @@ Fetch indexFetch(const std::string& base) {
   };
 }
 
+std::string indexUrl() { const char* u = std::getenv("ZINC_INDEX_URL"); return u && *u ? u : "https://zinc-engine.github.io/zinc/index"; }
+
+std::string logKey(const std::string& engineRoot) {
+  if (const char* k = std::getenv("ZINC_TLOG_KEY")) return k;
+  std::ifstream f(fs::path(engineRoot) / "index" / "log.pub");
+  std::string k;
+  f >> k;
+  return k;
+}
+
 bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std::string& err) {
   const fs::path cache = fs::path(home()) / "index";
   std::error_code ec;
@@ -110,8 +120,7 @@ bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std:
     fs::create_directories(cache, ec);
     fs::copy_file(root, cache / "root.json", ec);
   }
-  const char* u = std::getenv("ZINC_INDEX_URL");
-  out = std::make_unique<Client>(cache.string(), indexFetch(u && *u ? u : "https://zinc-engine.github.io/zinc/index"), static_cast<long long>(std::time(nullptr)));
+  out = std::make_unique<Client>(cache.string(), indexFetch(indexUrl()), static_cast<long long>(std::time(nullptr)));
   return out->refresh(err);
 }
 

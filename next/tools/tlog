@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""The transparency log of publications (ZN-343, D42): a Merkle log (RFC 6962 / 9162) of every artifact under an index repository's targets/.
+
+  tools/tlog keys <log-key.json>              an Ed25519 key pair for the log (`zinc update-keygen`); its public half is what clients pin (next/index/log.pub)
+  tools/tlog publish <index-repo> <log-key.json>
+      appends the artifacts of <index-repo>/targets/ not yet in <index-repo>/log/entries.json (sorted by path), then writes log/checkpoint.json (size, root,
+      signed), log/proof/<leaf hash>.json for every entry and log/consistency/<size>.json from every earlier published size. Entries are never removed.
+
+An entry is the canonical JSON {"path": ..., "sha256": ...}; leaf = SHA-256(0x00 || entry), node = SHA-256(0x01 || left || right).
+"""
+import hashlib, importlib.machinery, importlib.util, json, os, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+_l = importlib.machinery.SourceFileLoader("index_repo", os.path.join(HERE, "index-repo")); _s = importlib.util.spec_from_loader("index_repo", _l)
+ir = importlib.util.module_from_spec(_s); _l.exec_module(ir)
+
+def H(b): return hashlib.sha256(b).digest()
+def leaf(entry): return H(b"\x00" + entry.encode())
+def split(n):
+    k = 1
+    while k * 2 < n: k *= 2
+    return k
+def mth(d):
+    if not d: return H(b"")
+    if len(d) == 1: return d[0]
+    k = split(len(d)); return H(b"\x01" + mth(d[:k]) + mth(d[k:]))
+def path(m, d):
+    if len(d) == 1: return []
+    k = split(len(d))
+    return path(m, d[:k]) + [mth(d[k:])] if m < k else path(m - k, d[k:]) + [mth(d[:k])]
+def subproof(m, d, b):
+    if m == len(d): return [] if b else [mth(d)]
+    k = split(len(d))
+    return subproof(m, d[:k], b) + [mth(d[k:])] if m <= k else subproof(m - k, d[k:], False) + [mth(d[:k])]
+def entry(p, sha): return ir.canonical({"path": p, "sha256": sha})
+
+def publish(repo, seed):
+    log = os.path.join(repo, "log")
+    os.makedirs(os.path.join(log, "proof"), exist_ok=True); os.makedirs(os.path.join(log, "consistency"), exist_ok=True)
+    ef, sf = os.path.join(log, "entries.json"), os.path.join(log, "sizes.json")
+    entries = json.load(open(ef)) if os.path.exists(ef) else []
+    sizes = json.load(open(sf)) if os.path.exists(sf) else []
+    seen = {(e["path"], e["sha256"]) for e in entries}
+    root = os.path.join(repo, "targets")
+    new = []
+    for dirpath, _, files in os.walk(root):
+        for f in files:
+            p = os.path.relpath(os.path.join(dirpath, f), root).replace(os.sep, "/")
+            sha = hashlib.sha256(open(os.path.join(dirpath, f), "rb").read()).hexdigest()
+            if (p, sha) not in seen: new.append({"path": p, "sha256": sha})
+    entries += sorted(new, key=lambda e: (e["path"], e["sha256"]))
+    leaves = [leaf(entry(e["path"], e["sha256"])) for e in entries]
+    n = len(leaves)
+    for i, lf in enumerate(leaves):
+        json.dump({"index": i, "size": n, "proof": [h.hex() for h in path(i, leaves)]}, open(os.path.join(log, "proof", lf.hex() + ".json"), "w"))
+    for m in sizes:
+        if 0 < m < n: json.dump({"from": m, "to": n, "proof": [h.hex() for h in subproof(m, leaves, True)]}, open(os.path.join(log, "consistency", "%d.json" % m), "w"))
+    ir.sign(os.path.join(log, "checkpoint.json"), {"signed": {"_type": "checkpoint", "origin": "zinc-index", "size": n, "root": mth(leaves).hex()}, "signatures": []}, [seed])
+    if not sizes or sizes[-1] != n: sizes.append(n)
+    json.dump(entries, open(ef, "w"), indent=1); json.dump(sizes, open(sf, "w"))
+    return n, len(new)
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "keys":
+        json.dump(ir.keygen(), open(sys.argv[2], "w")); os.chmod(sys.argv[2], 0o600); return
+    if len(sys.argv) == 4 and sys.argv[1] == "publish":
+        n, added = publish(sys.argv[2], json.load(open(sys.argv[3]))["seed"]); print("log: %d entries (%d new)" % (n, added)); return
+    sys.exit(__doc__)
+
+if __name__ == "__main__":
+    main()

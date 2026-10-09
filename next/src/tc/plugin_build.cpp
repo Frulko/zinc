@@ -1,4 +1,5 @@
 #include "tc/plugin_build.h"
+#include "tc/tlog.h"
 #include "tc/tuf.h"
 #include "zapp.h"
 #include "yyjson.h"
@@ -203,6 +204,10 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
     if (matches < need) return;
   }
   if (!c.download(t, bytes, err)) { std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str()); return; }
+  if (const std::string lk = tuf::logKey(engineRoot); !lk.empty() && !tlog::checkArtifact(tuf::indexFetch(tuf::indexUrl()), lk, home() + "/index/log-state.json", t.path, t.sha256, err)) {
+    std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str());   // ZN-343: what is installed must be in the public log
+    return;
+  }
   std::map<std::string, std::string> files;
   if (!zapp::untar(bytes, files, err)) { std::fprintf(stderr, "zinc: the published binary %s is not a readable archive (%s); building it here\n", path.c_str(), err.c_str()); return; }
   const std::string shared = fs::path(out.shared).filename().string();

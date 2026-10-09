@@ -133,6 +133,14 @@ A plugin added by URL is `community`: its `plugin.json` may name its publisher, 
 installing, and the key is pinned in the lock on first use. A later archive signed with another key is refused until
 `zinc trust <name>` forgets the pinned key (the next `zinc add` pins the new one). Community plugins are built from source.
 
+**Transparency log** (decision D42). Every artifact of the index (its path and SHA-256) is appended to a Merkle log published
+beside it under `index/log/` (RFC 6962 / 9162 hashing, `checkpoint.json` signed with the log key, an inclusion proof per
+artifact, a consistency proof from every earlier size; `next/tools/tlog publish`). When a log key is pinned (`ZINC_TLOG_KEY`,
+or `next/index/log.pub` in the engine), a published binary is installed only with an inclusion proof against a checkpoint
+that extends the last one this machine saw: a signed release left out of the log is refused, and a log that rewrote its
+history is caught. The owner's steps: `next/tools/tlog keys log-key.json`, commit its public key as `next/index/log.pub`,
+and put the file's content in the secret `ZINC_LOG_KEY`.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

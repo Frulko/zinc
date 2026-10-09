@@ -30,6 +30,9 @@ export ZINC_INDEX_URL="file://$tmp/index" ZINC_INDEX_ROOT="$tmp/index/root.json"
 out=$(ZINC_HOME="$tmp/hit" "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^device fetched " && [ "$(runs)" = 0 ] || { echo "plugin_fetch: the published binary was not used ($(runs) compiler runs): $out"; fail=1; }
 (cd "$tmp/proj" && ZINC_HOME="$tmp/hit" "$Z" run main.ts 2>&1) | grep -qx "touch true\|touch false" || { echo "plugin_fetch: the program does not run on the fetched binary"; fail=1; }
+: > "$tmp/runs"   # with a transparency log key pinned (ZN-343), a binary the log does not hold is refused and built here
+out=$(ZINC_HOME="$tmp/logged" ZINC_TLOG_KEY=$("$Z" update-keygen | sed -n 's/^public=//p') "$Z" plugin-build device "$tmp/proj" 2>&1)
+echo "$out" | grep -q "transparency log" && echo "$out" | grep -q "^device built " && [ "$(runs)" -gt 0 ] || { echo "plugin_fetch: a binary outside the transparency log was used: $out"; fail=1; }
 f="$tmp/index/targets/binaries/$t/device-$key.tar"; printf 'X' | dd of="$f" bs=1 seek=600 conv=notrunc 2>/dev/null
 : > "$tmp/runs"
 out=$(ZINC_HOME="$tmp/tampered" "$Z" plugin-build device "$tmp/proj" 2>&1)

@@ -29,6 +29,7 @@
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
+#include "tc/tlog.h"
 #include "tc/tuf.h"
 
 namespace fs = std::filesystem;
@@ -1091,6 +1092,7 @@ int indexGet(const std::vector<std::string>& args) {
     zn::tc::tuf::Target t;
     std::string bytes;
     if (!c.find(args[4], t, err) || !c.download(t, bytes, err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }
+    if (const std::string lk = zn::tc::tuf::logKey(""); !lk.empty() && !zn::tc::tlog::checkArtifact(zn::tc::tuf::indexFetch(base), lk, args[3] + "/log-state.json", t.path, t.sha256, err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }   // ZN-343
     std::printf("%s %zu %s\n", t.path.c_str(), bytes.size(), t.role.c_str());
     return 0;
   }

@@ -2,7 +2,7 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: [site/**, docs/**, plugins/**, templates/**, next/tools/index-repo, next/index/**, .github/workflows/pages.yml]
+    paths: [site/**, docs/**, plugins/**, templates/**, next/tools/index-repo, next/tools/tlog, next/index/**, .github/workflows/pages.yml]
   schedule:
     - cron: '17 3 * * *'   # the index's timestamp lasts 7 days: republished daily so clients never see it expire (ZN-336)
   workflow_dispatch:
@@ -32,6 +32,20 @@ jobs:
           python3 next/tools/index-repo entries . "$RUNNER_TEMP/entries" "$GITHUB_RUN_NUMBER"
           python3 next/tools/index-repo build site/dist/index "$RUNNER_TEMP/keys.json" "$RUNNER_TEMP/entries/entries.json" $root
           rm "$RUNNER_TEMP/keys.json"
+      - name: Transparency log (ZN-343)
+        working-directory: .
+        env:
+          ZINC_LOG_KEY: ${{ secrets.ZINC_LOG_KEY }}
+          SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          if [ -z "$ZINC_LOG_KEY" ] || [ ! -d site/dist/index ]; then echo "::notice::no ZINC_LOG_KEY secret or no index: the log is not published"; exit 0; fi
+          umask 077; printf '%s' "$ZINC_LOG_KEY" > "$RUNNER_TEMP/log-key.json"
+          mkdir -p site/dist/index/log
+          if curl -fsSL "$SITE/index/log/checkpoint.json" -o /dev/null; then   # the log only grows: start from what is published, or stop (a fresh log would look like a rewrite)
+            for f in entries.json sizes.json; do curl -fsSL "$SITE/index/log/$f" -o "site/dist/index/log/$f" || { echo "::error::cannot read the published log's $f"; exit 1; }; done
+          fi
+          python3 next/tools/tlog publish site/dist/index "$RUNNER_TEMP/log-key.json"
+          rm "$RUNNER_TEMP/log-key.json"
       - uses: actions/upload-pages-artifact@v3
         with: { path: site/dist }
   deploy:
