@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libpixman-1-0 libsdl2-2.0-0 libslirp0  # the last three: Espressif's QEMU
+        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev libpixman-1-0 libsdl2-2.0-0 libslirp0  # the last three: Espressif's QEMU
       - name: Dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install cmake sdl3 || true

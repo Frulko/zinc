@@ -18,7 +18,7 @@
 #include "zn/native.h"
 #include "zn/native_sig.h"
 
-namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; HostCall hostLayout = nullptr; HostFast hostFast[kHostFastRows] = {}; }
+namespace zn::host { HostCall hostGfx = nullptr; HostCall hostLayout = nullptr; HostFast hostFast[kHostFastRows] = {}; }
 static_assert(static_cast<int>(zn::Rt::Count) <= zn::host::kHostFastRows);
 
 namespace zn::rt {

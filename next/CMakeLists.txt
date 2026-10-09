@@ -111,6 +111,7 @@ else()
   add_library(zn_rt_new STATIC src/rt/alloc_new.cpp)        # mimalloc serves global operator new/delete: a separate archive, linked into compiled programs only when they need the budget (ZN-146)
   target_include_directories(zn_rt_new PUBLIC include src PRIVATE third_party/mimalloc/include)
   set_target_properties(zn_rt_new PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(zn_rt_new PUBLIC zn_rt zn_mimalloc)
   target_link_libraries(zn_rt PUBLIC zn_rt_new)
 endif()
 
@@ -465,12 +466,12 @@ if(TARGET zn_host_gfx)
   function(zn_plugin name Name)
     set(gen ${CMAKE_BINARY_DIR}/gen/${name})
     set(spec ${ZN_PLUGIN_DIR}/${name}/native/${name}.spec.ts)
-    add_custom_command(OUTPUT ${gen}/zinc_native_${Name}.h ${gen}/zinc_native_${Name}_thunk.cpp
+    add_custom_command(OUTPUT ${gen}/zinc_native_${name}.h ${gen}/zinc_native_${name}_thunk.cpp
       COMMAND ${CMAKE_COMMAND} -E make_directory ${gen}
       COMMAND zinc native-gen ${spec} ${gen}
       COMMAND zinc native-gen --thunk ${spec} ${gen}
       DEPENDS zinc ${spec} VERBATIM)
-    add_library(zn_plugin_${name} STATIC ${ZN_PLUGIN_DIR}/${name}/native/${name}.host.cpp ${gen}/zinc_native_${Name}_thunk.cpp ${ARGN})
+    add_library(zn_plugin_${name} STATIC ${ZN_PLUGIN_DIR}/${name}/native/${name}.host.cpp ${gen}/zinc_native_${name}_thunk.cpp ${ARGN})
     target_include_directories(zn_plugin_${name} PRIVATE ${gen} ${CMAKE_SOURCE_DIR}/src PUBLIC ${CMAKE_SOURCE_DIR}/include ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include)
     set_target_properties(zn_plugin_${name} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
     target_compile_options(zn_plugin_${name} PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)

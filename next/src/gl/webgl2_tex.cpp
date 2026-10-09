@@ -1,5 +1,6 @@
 // WebGL 2.0 textures, samplers, queries, sync objects, transform feedback and framebuffer blits (ZN-203.07).
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "gl/webgl1.h"
