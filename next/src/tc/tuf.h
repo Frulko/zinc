@@ -6,6 +6,7 @@
 // role that is not delegated for its path.
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,12 @@ class Client {
   long long snapshotVersion_ = 0;
   Targets top_;
 };
+
+// The plugin index of this machine (ZN-336, ZN-340): ZINC_INDEX_URL (default the zinc-engine Pages site) checked into ~/.zinc/index from its trusted root
+// ($ZINC_INDEX_ROOT, else <engine>/index/root.json, copied there once) and refreshed. False with `err` when there is no trusted root or the index does not verify.
+bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std::string& err);
+// "official" for what the top-level targets role signs, "verified" for a role delegated to a publisher (its name is the publisher).
+inline std::string tierOf(const Target& t) { return t.role == "targets" ? "official" : "verified"; }
 
 // OLPC canonical JSON of a JSON text (sorted keys, no whitespace, only \" and \\ escaped, integers only): what TUF signs. False for floats or bad JSON.
 bool canonical(const std::string& json, std::string& out);

@@ -62,7 +62,7 @@ const Command kCommands[] = {
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
-  {"add", "zinc add <git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from git or an archive", "Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
+  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name is looked up in the signed index: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"install", "zinc install [--offline] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
@@ -749,7 +749,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
 // <project>/plugins/<name> where the module loader and the native build already look, and recorded in zinc.json "lock": { "plugins": { name: {source, commit | sha256} } }.
 // Nothing of the plugin is run: git hooks are off, archives are unpacked by tar, links and special files are refused.
 namespace {
-struct PluginPin { std::string source, commit, sha256, publicKey; };   // publicKey: the archive's <url>.sig must verify with it (ZN-328.02)
+struct PluginPin { std::string source, commit, sha256, publicKey, path, tier, publisher; };   // publicKey: the archive's <url>.sig must verify with it (ZN-328.02); path: the plugin's directory in its source (a monorepo); tier, publisher: ZN-340
 
 bool isArchive(const std::string& s) {
   auto ends = [&](const char* e) { const std::size_t n = std::strlen(e); return s.size() > n && s.compare(s.size() - n, n, e) == 0; };
@@ -779,7 +779,7 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
           }, err))
         return pin.sha256.empty() ? "cannot download " + spec : "the archive " + spec + " changed, or no source serves the locked bytes (" + err + "); nothing was installed";
     }
-    got = {spec, "", zn::tc::sha256File(archive.string()), ""};
+    got = PluginPin{spec, "", zn::tc::sha256File(archive.string()), "", "", "", ""};
     fs::create_directories(store / "sha256", ec);
     if (!fs::exists(store / "sha256" / got.sha256, ec)) fs::copy_file(archive, store / "sha256" / got.sha256, ec);
     if (!pin.sha256.empty() && got.sha256 != pin.sha256) return "the archive " + spec + " changed: sha256 " + got.sha256 + ", the lock pins " + pin.sha256 + "; nothing was installed";
@@ -804,7 +804,7 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
     top = x;
   } else {
     if (!pin.publicKey.empty()) return "a key checks the signature of an archive; a git source is pinned by its commit";
-    if (!pin.commit.empty() && fs::exists(store / "git" / pin.commit / "plugin.json", ec)) { got = {spec, pin.commit, "", ""}; top = store / "git" / pin.commit; }
+    if (!pin.commit.empty() && fs::exists(store / "git" / pin.commit / "plugin.json", ec)) { got = PluginPin{spec, pin.commit, "", "", "", "", ""}; top = store / "git" / pin.commit; }
     else if (zn::tc::offline()) return "offline: not in the local cache (" + spec + (pin.commit.empty() ? "" : " at " + pin.commit) + ")";
     else {
     std::string fetchSpec = spec;
@@ -826,7 +826,8 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
     }
     }
   }
-  dir = top;
+  dir = pin.path.empty() ? top : top / pin.path;   // a plugin inside a larger repository (the index names its path)
+  got.path = pin.path;
   if (!fs::exists(dir / "plugin.json", ec)) {   // an archive of a directory (GitHub's name-ref/)
     std::vector<fs::path> subs;
     for (const auto& e : fs::directory_iterator(top, ec)) if (e.path().filename() != ".git") subs.push_back(e.path());
@@ -867,7 +868,36 @@ std::string installPlugin(const fs::path& from, const fs::path& project, std::st
 struct ScratchDir { fs::path p; ~ScratchDir() { std::error_code e; if (!p.empty()) fs::remove_all(p, e); } };
 }  // namespace
 
-int addPlugin(const std::vector<std::string>& args) {
+// `zinc add <name>` (ZN-340): the plugin's descriptor in the signed index, plugins/<name>.json signed by the top-level role (tier official) or
+// <publisher>/plugins/<name>.json signed by a role delegated to that publisher (tier verified); its source becomes what is fetched.
+static std::string fromIndex(const std::string name, const std::string& engineRoot, PluginPin& want, std::string& spec) {   // `name` by value: `spec` may be the same string
+  std::unique_ptr<zn::tc::tuf::Client> index;
+  std::string err, bytes;
+  if (!zn::tc::tuf::openIndex(engineRoot, index, err)) return err;
+  zn::tc::tuf::Target t;
+  if (!index->find("plugins/" + name + ".json", t, err)) {
+    std::vector<zn::tc::tuf::Target> all;
+    t = zn::tc::tuf::Target{};
+    const std::string tail = "/plugins/" + name + ".json";
+    if (index->all(all, err)) for (const auto& x : all) if (x.role != "targets" && x.path.size() > tail.size() && x.path.compare(x.path.size() - tail.size(), tail.size(), tail) == 0) { t = x; break; }
+    if (t.path.empty()) return "no plugin '" + name + "' in the index (zinc plugins search lists them)";
+  }
+  if (!index->download(t, bytes, err)) return err;
+  yyjson_doc* d = yyjson_read(bytes.data(), bytes.size(), 0);
+  yyjson_val* src = yyjson_obj_get(yyjson_doc_get_root(d), "source");
+  auto str = [&](const char* k) { yyjson_val* v = yyjson_obj_get(src, k); return yyjson_is_str(v) ? std::string(yyjson_get_str(v)) : std::string(); };
+  const std::string repo = str("repository"), commit = str("commit"), path = str("path");
+  yyjson_doc_free(d);
+  if (repo.empty()) return "the index entry of '" + name + "' names no source";
+  want.tier = zn::tc::tuf::tierOf(t);
+  want.publisher = t.role == "targets" ? "Zinc (the index's release role)" : t.role;
+  want.path = path;
+  spec = repo + (commit.empty() ? "" : "@" + commit);
+  std::printf("%s: tier %s, publisher %s, from %s%s\n", name.c_str(), want.tier.c_str(), want.publisher.c_str(), spec.c_str(), path.empty() ? "" : (" (" + path + ")").c_str());
+  return "";
+}
+
+int addPlugin(const std::vector<std::string>& args, const std::string& engineRoot) {
   std::vector<std::string> pos;
   PluginPin want;
   for (std::size_t k = 2; k < args.size(); ++k) {
@@ -875,7 +905,7 @@ int addPlugin(const std::vector<std::string>& args) {
     else if (args[k].rfind("--", 0) == 0) { std::fprintf(stderr, "zinc add: unknown option %s\n", args[k].c_str()); return 2; }
     else pos.push_back(args[k]);
   }
-  if (pos.empty() || pos.size() > 2) { std::fprintf(stderr, "usage: zinc add <git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir] [--key <public key hex>]\n"); return 2; }
+  if (pos.empty() || pos.size() > 2) { std::fprintf(stderr, "usage: zinc add <name | git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir] [--key <public key hex>]\n"); return 2; }
   if (!want.publicKey.empty() && want.publicKey.size() != 64) { std::fprintf(stderr, "zinc add: --key is a public key of 64 hex digits (zinc update-keygen)\n"); return 2; }
   const fs::path project = fs::absolute(pos.size() == 2 ? pos[1] : ".").lexically_normal();
   const fs::path zj = project / "zinc.json";
@@ -890,7 +920,10 @@ int addPlugin(const std::vector<std::string>& args) {
   fs::remove_all(scratch.p, ec);
   fs::path dir;
   PluginPin got;
-  std::string name, err = fetchPlugin(pos[0], want, scratch.p, dir, got);
+  std::string spec = pos[0], name, err;
+  const bool byName = spec.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos && !fs::exists(spec, ec);
+  if (byName) err = fromIndex(spec, engineRoot, want, spec);
+  if (err.empty()) err = fetchPlugin(spec, want, scratch.p, dir, got);
   if (err.empty()) err = installPlugin(dir, project, name);
   if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
   yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
@@ -908,6 +941,8 @@ int addPlugin(const std::vector<std::string>& args) {
   if (!got.commit.empty()) yyjson_mut_obj_add_strcpy(md, e, "commit", got.commit.c_str());
   if (!got.sha256.empty()) yyjson_mut_obj_add_strcpy(md, e, "sha256", got.sha256.c_str());
   if (!got.publicKey.empty()) yyjson_mut_obj_add_strcpy(md, e, "publicKey", got.publicKey.c_str());
+  if (!got.path.empty()) yyjson_mut_obj_add_strcpy(md, e, "path", got.path.c_str());
+  if (!want.tier.empty()) { yyjson_mut_obj_add_strcpy(md, e, "tier", want.tier.c_str()); yyjson_mut_obj_add_strcpy(md, e, "publisher", want.publisher.c_str()); }
   yyjson_mut_obj_add(plugins, yyjson_mut_strcpy(md, name.c_str()), e);
   char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
   const bool ok = out && writeFile(zj, std::string(out) + "\n");
@@ -937,7 +972,7 @@ int installPlugins(const std::vector<std::string>& args) {
   yyjson_val *k, *v;
   yyjson_obj_foreach(plugins, i, n, k, v) {
     auto str = [&](const char* key) { yyjson_val* x = yyjson_obj_get(v, key); return yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
-    const PluginPin pin{str("source"), str("commit"), str("sha256"), str("publicKey")};
+    const PluginPin pin{str("source"), str("commit"), str("sha256"), str("publicKey"), str("path"), str("tier"), str("publisher")};
     const std::string want = yyjson_get_str(k);
     ScratchDir scratch;
     std::error_code ec;
@@ -1016,20 +1051,10 @@ int indexGet(const std::vector<std::string>& args) {
 // ~/.zinc/index; the trusted root is $ZINC_INDEX_ROOT or the engine's index/root.json. Lists the plugins and templates whose name or description has the word.
 int indexSearch(const std::vector<std::string>& args, const std::string& engineRoot) {
   const std::string word = args.size() > 3 ? args[3] : "";
-  const char* u = std::getenv("ZINC_INDEX_URL");
-  const std::string base = u && *u ? u : "https://zinc-engine.github.io/zinc/index";
-  const fs::path cache = fs::path(zn::tc::home()) / "index";
-  std::error_code ec;
-  fs::create_directories(cache, ec);
-  if (!fs::exists(cache / "root.json", ec)) {
-    const char* r = std::getenv("ZINC_INDEX_ROOT");
-    const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
-    if (!fs::copy_file(root, cache / "root.json", ec)) { std::fprintf(stderr, "zinc plugins search: no trusted root for the index (%s): set ZINC_INDEX_ROOT\n", root.string().c_str()); return 1; }
-  }
-  zn::tc::tuf::Client c(cache.string(), zn::tc::tuf::indexFetch(base), static_cast<long long>(std::time(nullptr)));
+  std::unique_ptr<zn::tc::tuf::Client> index;
   std::string err;
   std::vector<zn::tc::tuf::Target> all;
-  if (!c.refresh(err) || !c.all(all, err)) { std::fprintf(stderr, "zinc plugins search: %s\n", err.c_str()); return 1; }
+  if (!zn::tc::tuf::openIndex(engineRoot, index, err) || !index->all(all, err)) { std::fprintf(stderr, "zinc plugins search: %s\n", err.c_str()); return 1; }
   auto lower = [](std::string x) { for (char& ch : x) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); return x; };
   int shown = 0;
   for (const auto& t : all) {

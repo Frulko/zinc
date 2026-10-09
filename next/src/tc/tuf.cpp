@@ -100,6 +100,21 @@ Fetch indexFetch(const std::string& base) {
   };
 }
 
+bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std::string& err) {
+  const fs::path cache = fs::path(home()) / "index";
+  std::error_code ec;
+  if (!fs::exists(cache / "root.json", ec)) {
+    const char* r = std::getenv("ZINC_INDEX_ROOT");
+    const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
+    if (!fs::exists(root, ec)) { err = "no trusted root for the plugin index (" + root.string() + "; ZINC_INDEX_ROOT names another)"; return false; }
+    fs::create_directories(cache, ec);
+    fs::copy_file(root, cache / "root.json", ec);
+  }
+  const char* u = std::getenv("ZINC_INDEX_URL");
+  out = std::make_unique<Client>(cache.string(), indexFetch(u && *u ? u : "https://zinc-engine.github.io/zinc/index"), static_cast<long long>(std::time(nullptr)));
+  return out->refresh(err);
+}
+
 bool canonical(const std::string& json, std::string& out) {
   Doc d(json);
   out.clear();

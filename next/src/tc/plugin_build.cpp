@@ -1,6 +1,7 @@
 #include "tc/plugin_build.h"
 #include "tc/tuf.h"
 #include "zapp.h"
+#include "yyjson.h"
 
 #include <dlfcn.h>
 #include <sys/wait.h>
@@ -14,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <sstream>
 
 #include "frontend/native_gen.h"
@@ -173,21 +175,33 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
 // Off with ZINC_PREBUILT=0; no trusted index root, or the index unreachable: a silent miss; a refused archive is said, then the plugin is built here.
 void fetchPrebuilt(const std::string& name, const std::string& key, const std::string& target, const std::string& engineRoot, const std::string& dir, const std::string& vdir, PluginLib& out) {
   if (const char* off = std::getenv("ZINC_PREBUILT"); off && std::string(off) == "0") return;
-  const fs::path cache = fs::path(home()) / "index";
-  std::error_code ec;
-  if (!fs::exists(cache / "root.json", ec)) {
-    const char* r = std::getenv("ZINC_INDEX_ROOT");
-    const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
-    if (!fs::exists(root, ec)) return;
-    fs::create_directories(cache, ec);
-    fs::copy_file(root, cache / "root.json", ec);
-  }
-  const char* u = std::getenv("ZINC_INDEX_URL");
-  tuf::Client c(cache.string(), tuf::indexFetch(u && *u ? u : "https://zinc-engine.github.io/zinc/index"), static_cast<long long>(std::time(nullptr)));
+  std::unique_ptr<tuf::Client> index;
   std::string err, bytes;
+  if (!tuf::openIndex(engineRoot, index, err)) return;   // no index here: build
+  tuf::Client& c = *index;
+  std::error_code ec;
   tuf::Target t;
-  const std::string path = "binaries/" + target + "/" + name + "-" + key + ".tar";
-  if (!c.refresh(err) || !c.find(path, t, err)) return;   // no index here, or no binary for this key: build
+  // an official binary (signed by the top-level role), else a verified publisher's (<publisher>/binaries/...) once enough rebuilds matched it (ZN-340)
+  std::string path = "binaries/" + target + "/" + name + "-" + key + ".tar";
+  if (!c.find(path, t, err)) {
+    std::vector<tuf::Target> all;
+    t = tuf::Target{};
+    if (c.all(all, err)) for (const tuf::Target& x : all) {
+      const std::string tail = "/binaries/" + target + "/" + name + "-" + key + ".tar";
+      if (x.role != "targets" && x.path.size() > tail.size() && x.path.compare(x.path.size() - tail.size(), tail.size(), tail) == 0) { t = x; break; }
+    }
+    if (t.path.empty()) return;   // no binary for this key: build
+    path = t.path;
+    tuf::Target att;
+    std::string attBytes, e2;
+    long long matches = 0;
+    if (c.find("rebuilds/" + t.sha256 + ".json", att, e2) && att.role == "targets" && c.download(att, attBytes, e2))
+      if (yyjson_doc* d = yyjson_read(attBytes.data(), attBytes.size(), 0)) { yyjson_val* m = yyjson_obj_get(yyjson_doc_get_root(d), "matches"); matches = yyjson_is_int(m) ? yyjson_get_sint(m) : 0; yyjson_doc_free(d); }
+    const char* mn = std::getenv("ZINC_REBUILDS_MIN");
+    const long long need = mn && *mn ? std::atoll(mn) : 2;
+    std::fprintf(stderr, "zinc: plugin '%s': a binary of verified publisher %s, %lld matching rebuild(s) of the %lld required%s\n", name.c_str(), t.role.c_str(), matches, need, matches >= need ? "" : ": building it here");
+    if (matches < need) return;
+  }
   if (!c.download(t, bytes, err)) { std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str()); return; }
   std::map<std::string, std::string> files;
   if (!zapp::untar(bytes, files, err)) { std::fprintf(stderr, "zinc: the published binary %s is not a readable archive (%s); building it here\n", path.c_str(), err.c_str()); return; }

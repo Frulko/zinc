@@ -27,7 +27,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */
 int deploy(const std::vector<std::string>& args);
 /** `zinc add <git-url[@ref] | archive URL> [dir]`: the plugin into <dir>/plugins/<name>, its commit or sha256 in zinc.json "lock" (ZN-328.01). */
-int addPlugin(const std::vector<std::string>& args);
+int addPlugin(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc install [dir]`: every plugin of zinc.json "lock" fetched again at its pinned commit or checked against its pinned sha256. */
 int installPlugins(const std::vector<std::string>& args);
 /** `zinc index-sign <metadata.json> <seed-hex>...` and `zinc index-get <repository-url> <cache-dir> [target-path]`: TUF metadata of the plugin index (ZN-336.02). */

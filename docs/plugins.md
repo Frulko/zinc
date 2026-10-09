@@ -120,6 +120,14 @@ plugin whose sources changed never matches an old binary). A hit is checked by t
 unpacked into the cache, and nothing is compiled; a refused archive is reported and the plugin is built here, as on a miss.
 `ZINC_PREBUILT=0` turns the lookup off. Publishers make the archive with `zinc plugin-build <name> --pack <file.tar>`.
 
+**Tiers.** `zinc add <name>` looks the name up in the index and prints its tier and publisher before installing:
+`official` when the top-level role signs `plugins/<name>.json` (built by the Zinc CI), `verified` when a role the index
+delegates to a publisher signs `<publisher>/plugins/<name>.json` (the delegation's paths are `<publisher>/*/*` and
+`<publisher>/*/*/*`: a `*` stays within one path segment, as in python-tuf). The descriptor's source is then fetched like a
+URL, and the lock records the tier and the publisher. A verified publisher's binary (`<publisher>/binaries/...`) is used only
+when `rebuilds/<sha256>.json`, signed by the top-level role, counts at least `ZINC_REBUILDS_MIN` (default 2) matching
+rebuilds; otherwise the plugin is built here.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a
