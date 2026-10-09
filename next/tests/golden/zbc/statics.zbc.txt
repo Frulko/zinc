@@ -11,7 +11,7 @@ func @main() -> void nregs=4
    6  AddI32K  r1, r1, 1
    7  SetGlobalr1, g0
    8  GetGlobalr1, g0
-   9  GetGlobalr2, g1
+   9  LoadI    r2, 5
   10  MulI32   r1, r1, r2
   11  SetField r0, r1, .0
   12  New      r1, Counter
@@ -19,7 +19,7 @@ func @main() -> void nregs=4
   14  AddI32K  r2, r2, 1
   15  SetGlobalr2, g0
   16  GetGlobalr2, g0
-  17  GetGlobalr3, g1
+  17  LoadI    r3, 5
   18  MulI32   r2, r2, r3
   19  SetField r1, r2, .0
   20  GetField r2, r0, .0
@@ -39,7 +39,7 @@ func @Counter.constructor(ref Counter) -> void nregs=3
    1  AddI32K  r1, r1, 1
    2  SetGlobalr1, g0
    3  GetGlobalr1, g0
-   4  GetGlobalr2, g1
+   4  LoadI    r2, 5
    5  MulI32   r1, r1, r2
    6  SetField r0, r1, .0
    7  Release  r0
@@ -50,7 +50,7 @@ func @Counter.make() -> ref Counter nregs=3
    2  AddI32K  r1, r1, 1
    3  SetGlobalr1, g0
    4  GetGlobalr1, g0
-   5  GetGlobalr2, g1
+   5  LoadI    r2, 5
    6  MulI32   r1, r1, r2
    7  SetField r0, r1, .0
    8  Ret      r0

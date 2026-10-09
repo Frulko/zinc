@@ -382,7 +382,7 @@ func @lambda5(ref lambda5, i) -> i nregs=7
    0  Release  r0
    1  GetGlobalr0, g1
    2  LoadStr  r3, "k"
-   3  GetGlobalr2, g0
+   3  LoadI    r2, 10
    4  NotB     r0, r0
    5  JmpIfNot r0, -> 28
    6  New      r0, ReferenceError

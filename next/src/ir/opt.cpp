@@ -7,6 +7,7 @@
 #include <cstring>
 #include <functional>
 #include <map>
+#include <optional>
 #include <tuple>
 #include <set>
 
@@ -164,6 +165,52 @@ std::vector<bool> loopBlocks(const Function& f) {
     for (std::size_t w : succ[b]) if (w == b) in[b] = true;
   }
   return in;
+}
+
+// A module-level `const G = 240` lowers to a global written once by @main; every read elsewhere is a GetGlobal (two dependent loads in the
+// AOT output, and nothing to fold). A global with exactly one SetGlobal, in @main's entry block, of a numeric or boolean constant becomes that
+// constant at each GetGlobal the store precedes: in every other function, in @main's other blocks (reached only after the entry block) and
+// after the store in the entry block (ZN-404). An f64 value computed from constants with + - * / in the entry block counts as a constant: the
+// same IEEE operations at compile time give the same bits. A read in another function that runs before @main's store would have seen zero;
+// JavaScript throws there (TDZ), so no correct program observes it. The store stays: the global keeps its value for the inspector.
+void foldConstGlobals(Module& m) {
+  if (m.functions.empty() || m.functions[0].blocks.empty()) return;
+  std::vector<int> stores(m.globals.size(), 0);
+  for (const Function& f : m.functions)
+    for (const Block& b : f.blocks)
+      for (const Inst& i : b.insts)
+        if (i.op == IrOp::SetGlobal && i.sym < stores.size()) ++stores[i.sym];
+  struct Known { TypeId ty; std::int64_t imm; double fimm; };
+  std::map<ValueId, Known> known;   // entry-block values whose constant is known
+  std::vector<std::optional<Known>> value(m.globals.size());
+  std::vector<std::size_t> storedAt(m.globals.size(), 0);   // index of the store in the entry block
+  const Block& entry = m.functions[0].blocks[0];
+  for (std::size_t k = 0; k < entry.insts.size(); ++k) {
+    const Inst& i = entry.insts[k];
+    const Type& t = m.types[i.ty];
+    if (i.op == IrOp::Const && i.res != kNoValue && (t.k == Type::K::Num || t.k == Type::K::Bool)) known[i.res] = {i.ty, i.imm, i.fimm};
+    else if ((i.op == IrOp::Add || i.op == IrOp::Sub || i.op == IrOp::Mul || i.op == IrOp::Div) && i.res != kNoValue && i.args.size() == 2 &&
+             t.k == Type::K::Num && t.num == frontend::Num::f64) {
+      auto a = known.find(i.args[0]), b = known.find(i.args[1]);
+      if (a == known.end() || b == known.end() || a->second.ty != i.ty || b->second.ty != i.ty) continue;
+      const double x = a->second.fimm, y = b->second.fimm;
+      known[i.res] = {i.ty, 0, i.op == IrOp::Add ? x + y : i.op == IrOp::Sub ? x - y : i.op == IrOp::Mul ? x * y : x / y};
+    } else if (i.op == IrOp::SetGlobal && i.sym < stores.size() && stores[i.sym] == 1 && !i.args.empty()) {
+      auto it = known.find(i.args[0]);
+      if (it != known.end() && it->second.ty == m.globals[i.sym].type) { value[i.sym] = it->second; storedAt[i.sym] = k; }
+    }
+  }
+  for (std::size_t fi = 0; fi < m.functions.size(); ++fi)
+    for (std::size_t bi = 0; bi < m.functions[fi].blocks.size(); ++bi) {
+      std::vector<Inst>& insts = m.functions[fi].blocks[bi].insts;
+      for (std::size_t k = 0; k < insts.size(); ++k) {
+        Inst& i = insts[k];
+        if (i.op != IrOp::GetGlobal || i.sym >= value.size() || !value[i.sym] || i.ty != value[i.sym]->ty) continue;
+        if (fi == 0 && bi == 0 && k < storedAt[i.sym]) continue;   // before the store: still zero
+        const Known c = *value[i.sym];
+        i.op = IrOp::Const; i.imm = c.imm; i.fimm = c.fimm; i.sym = 0; i.args.clear();
+      }
+    }
 }
 
 void hoistConsts(Module& m) {
@@ -459,6 +506,7 @@ void divByPowerOfTwo(Module& m) {
 }  // namespace
 
 void optimize(Module& m, bool deviceCore) {
+  foldConstGlobals(m);   // first: inlining, CSE and hoisting then see the constants
   if (!deviceCore) specializeSort(m);
   devirtualize(m);
   for (int round = 0; round < 3 && inlineRound(m); ++round) devirtualize(m);
