@@ -1,7 +1,7 @@
 ---
 id: ZN-593
 title: 'Diagnose CI benchmark gate regressions and fib output'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-09 12:30'
 labels:
@@ -29,3 +29,35 @@ Reproduce on the tested revision and separate correctness failures from machine/
 - [ ] #3 The benchmark gate passes on a fresh GitHub run, or a reviewed measurement correction explains and fixes the runner mismatch while retaining meaningful regression detection.
 - [ ] #4 Keep any runtime fix separate from benchmark measurement changes and run the relevant focused tests plus `next/tests/run --changed`.
 <!-- AC:END -->
+
+## Implementation Notes
+
+- The historical baseline is from `fb610f986e50a0533301cbcc16b5addefb56089f`
+  on macOS 15.7.4. CI runs macOS 14.8.9 with Homebrew QuickJS 2026-06-04;
+  the historical artifact records neither the CPU model nor its QuickJS version.
+  Dividing by QuickJS cannot establish equal scaling for interpreter/native
+  workloads across machines.
+- `bench-m4 --baseline-zinc` measures the fixed historical build on the same
+  runner and kernel sources, retaining the 15% time threshold. It preserves the
+  committed M4 artifact. Ordinary M4 target verdicts remain separate from the
+  CI correctness/regression gate. Same-runner mode measures interpreter/AOT
+  directly and requires neither Node, external QuickJS, nor prototype binaries.
+- Every timed sample now verifies its exit status and golden stdout; failures
+  include stdout/stderr diagnostics. Missing baseline measurements also fail.
+- Twelve deterministic harness checks pass, including an injected 20% slowdown
+  returning exit 3 and a failed timed sample returning exit 1.
+- Both builds are warmed before alternating paired samples. A sequential
+  self-comparison reported nbody AOT +17% on the identical engine; pairing
+  removes that ordering bias without increasing the tolerance.
+- The redundant T2 timed self-comparison is removed. T2 retains the deterministic
+  T0 correctness/slowdown contract checks; the dedicated CI job measures the
+  candidate against the pinned historical engine once.
+- The candidate at `90dc1797` compiles and interprets the fib benchmark with
+  exact stdout `2178309\n`, empty stderr and exit 0. The historical CI failure
+  is not reproduced by this focused local run.
+- The fixed reference rebuild is viable after reconstructing its omitted SDL
+  configuration headers and HAL command-list declarations. Its fib interpreter
+  and AOT build/run both produce the exact golden output with exit 0.
+- See [the benchmark gate report](../../../docs/reports/zinc-next-bench-gate.md).
+  Reference/candidate performance measurement and fresh CI confirmation remain
+  to be recorded before closing this task.

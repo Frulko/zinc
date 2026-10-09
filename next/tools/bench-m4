@@ -8,13 +8,13 @@ present. Every engine's output is compared with corpus/bench/<k>.out first. Loss
 Thresholds (TESTING.md, M4): AOT within 3x of native on fib, nbody, binarytrees, sort; interpreter at least 5x faster than
 QuickJS on the numeric kernels (fib, nbody, mandelbrot, spectralnorm, fannkuchredux) and not slower on strings, jsonout and dynsum.
 """
-import json, os, platform, shlex, statistics, subprocess, sys, tempfile, time
+import json, math, os, platform, shlex, statistics, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import zn_resmon
 
 args = sys.argv[1:]
 runs, out, md = 11, "bench/m4.json", "../docs/reports/zinc-next-m4-benchmarks.md"
-baseline, check, tolerance = None, False, 0.15
+baseline, baseline_zinc, check, tolerance = None, None, False, 0.15
 only, inject, relative, startup_on = None, 1.0, False, True
 while args:
     a = args.pop(0)
@@ -22,6 +22,7 @@ while args:
     elif a == "--out": out = args.pop(0)
     elif a == "--md": md = args.pop(0)
     elif a == "--baseline": baseline = args.pop(0)      # a bench json to compare with (default: the one committed at HEAD)
+    elif a == "--baseline-zinc": baseline_zinc = os.path.abspath(args.pop(0))  # measure a fixed reference build on this machine
     elif a == "--check-regressions": check = True       # exit 3 when a time or peak RSS is more than `tolerance` worse than the baseline
     elif a == "--tolerance": tolerance = float(args.pop(0))
     elif a == "--kernels": only = args.pop(0).split(",")   # a subset (the CI gate)
@@ -31,8 +32,14 @@ while args:
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(root)
 zinc = os.environ.get("ZINC", os.path.join(root, "build/zinc"))
+os.environ["ZINC_RUN"] = "interp"  # benchmark bytecode, independently of zinc run's compiled-run default
+if baseline_zinc:
+    relative = False  # the reference and candidate use this machine; no cross-engine hardware normalization
 kernels = ["fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux", "binarytrees", "sort", "mapset", "strings", "jsonout", "dynsum"]
 if only: kernels = [k for k in kernels if k in only]
+if not kernels or runs < 1:
+    print("Benchmark requires known kernels and at least one run", file=sys.stderr)
+    sys.exit(2)
 numeric = {"fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux"}
 aot_native = {"fib", "nbody", "binarytrees", "sort"}
 no_slower = {"strings", "jsonout", "dynsum"}
@@ -41,38 +48,86 @@ tmp = tempfile.mkdtemp()
 def run(cmd):
     return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-def median_of(cmd, expect):
-    r = run(cmd)
-    if r.returncode != 0 or r.stdout != expect:
-        return None
-    times = []
-    for _ in range(runs):
-        t = time.perf_counter(); run(cmd); times.append(time.perf_counter() - t)
-    res = zn_resmon.measure(shlex.split(cmd), interval=0.02)  # one more run: CPU time and peak RSS of the process
-    return {"median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times,
-            "user_s": res["user_s"], "sys_s": res["sys_s"], "peak_rss_mb": res["peak_rss_mb"]}
+diagnostics = []
 
-results, failures = {}, []
+def valid_output(cmd, r, expect):
+    if r.returncode == 0 and r.stdout == expect:
+        return True
+    diagnostics.append(f"{cmd}: exit {r.returncode}, stdout {r.stdout[:1000]!r}, stderr {r.stderr[:1000]!r}")
+    return False
+
+def medians_of(cmds, expect):
+    valid = [valid_output(cmd, run(cmd), expect) for cmd in cmds]
+    samples = [[] for cmd in cmds]
+    for sample in range(runs):
+        order = range(len(cmds)) if sample % 2 == 0 else reversed(range(len(cmds)))
+        for i in order:  # warm both builds, then alternate paired samples to avoid first/last timing bias
+            if not valid[i]: continue
+            t = time.perf_counter(); r = run(cmds[i]); elapsed = time.perf_counter() - t
+            valid[i] = valid_output(cmds[i], r, expect)
+            samples[i].append(elapsed)
+    measured = []
+    for cmd, ok, times in zip(cmds, valid, samples):
+        if not ok:
+            measured.append(None)
+            continue
+        res = zn_resmon.measure(shlex.split(cmd), interval=0.02)  # one extra run: CPU time and peak RSS
+        if res["exit"] != 0:
+            diagnostics.append(f"{cmd}: resource sample exited {res['exit']}")
+            measured.append(None)
+            continue
+        measured.append({"median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times,
+                         "user_s": res["user_s"], "sys_s": res["sys_s"], "peak_rss_mb": res["peak_rss_mb"]})
+    return measured
+
+def median_of(cmd, expect):
+    return medians_of([cmd], expect)[0]
+
+results, reference_results, failures = {}, {}, []
 for k in kernels:
     src = f"../tests/bench/kernels/{k}.ts"
     expect = open(f"corpus/bench/{k}.out").read()
     js = f"{tmp}/{k}.js"
-    open(js, "w").write(run(f"node -e \"const m=require('module');process.stdout.write(m.stripTypeScriptTypes(require('fs').readFileSync('{src}','utf8')))\"").stdout)
+    if not baseline_zinc:
+        open(js, "w").write(run(f"node -e \"const m=require('module');process.stdout.write(m.stripTypeScriptTypes(require('fs').readFileSync('{src}','utf8')))\"").stdout)
     zbc = f"{tmp}/{k}.zbc"
-    run(f"{zinc} --emit=zbc-bin {src} {zbc}")
+    compiled = run(f"{zinc} --emit=zbc-bin {src} {zbc}")
     aot = f"{tmp}/{k}.aot"
     b = run(f"{zinc} build {src} -o {aot}")
     nat = f"../tests/bench/kernels/build/{k}-macos/cmake/app"
-    cell = {
-        "interp": median_of(f"{zinc} run {zbc}", expect),
-        "aot": median_of(aot, expect) if b.returncode == 0 else None,
-        "quickjs": median_of(f"qjs {js}", expect),
-        "native": median_of(nat, expect) if os.path.exists(nat) else None,
-    }
+    cell = {e: None for e in ("interp", "aot", "quickjs", "native")}
+    for label, r in (("bytecode", compiled), ("AOT", b)):
+        if r.returncode: diagnostics.append(f"{k}: {label} compile exited {r.returncode}: {r.stderr[:1000]}")
+    if baseline_zinc:
+        ref = shlex.quote(baseline_zinc)
+        ref_zbc, ref_aot = f"{tmp}/{k}.reference.zbc", f"{tmp}/{k}.reference.aot"
+        rc = run(f"{ref} --emit=zbc-bin {src} {ref_zbc}")
+        rb = run(f"{ref} build {src} -o {ref_aot}")
+        reference_results[k] = {}
+        for e, cmd, ref_cmd, built, ref_built in (
+                ("interp", f"{zinc} run {zbc}", f"{ref} run {ref_zbc}", compiled, rc),
+                ("aot", aot, ref_aot, b, rb)):
+            if built.returncode == 0 and ref_built.returncode == 0:
+                cell[e], reference_results[k][e] = medians_of([cmd, ref_cmd], expect)
+            else:
+                cell[e] = median_of(cmd, expect) if built.returncode == 0 else None
+                reference_results[k][e] = median_of(ref_cmd, expect) if ref_built.returncode == 0 else None
+        for e, v in reference_results[k].items():
+            if v is None: failures.append(f"{k}: reference {e} did not run or printed a different output")
+        for label, r in (("bytecode", rc), ("AOT", rb)):
+            if r.returncode: diagnostics.append(f"{k}: reference {label} compile exited {r.returncode}: {r.stderr[:1000]}")
+    else:
+        cell = {
+            "interp": median_of(f"{zinc} run {zbc}", expect) if compiled.returncode == 0 else None,
+            "aot": median_of(aot, expect) if b.returncode == 0 else None,
+            "quickjs": median_of(f"qjs {js}", expect),
+            "native": median_of(nat, expect) if os.path.exists(nat) else None,
+        }
     for e in ("interp", "aot"):
         if inject != 1.0 and cell.get(e): cell[e]["median_s"] *= inject
     results[k] = cell
     for e, v in cell.items():
+        if baseline_zinc and e not in ("interp", "aot"): continue
         if v is None and not (e == "native" and not os.path.exists(nat)): failures.append(f"{k}: {e} did not run or printed a different output")
 
 def ms(c): return "n/a" if c is None else f"{c['median_s']*1000:.1f}"
@@ -91,22 +146,40 @@ for k in kernels:
 
 # regressions against the previous numbers (the file committed at HEAD unless --baseline): median time and peak RSS per kernel and engine
 regressions = []
-try:
-    old = json.load(open(baseline)) if baseline else json.loads(subprocess.run(["git", "show", "HEAD:next/" + out], capture_output=True, text=True, check=True).stdout)
-except Exception:
-    old = None
+def has_time(cell):
+    value = cell.get("median_s") if isinstance(cell, dict) else None
+    return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+if baseline_zinc:
+    old = {"results": reference_results}
+else:
+    try:
+        old = json.load(open(baseline)) if baseline else json.loads(subprocess.run(["git", "show", "HEAD:next/" + out], capture_output=True, text=True, check=True).stdout)
+        if not isinstance(old.get("results"), dict): raise ValueError("missing results object")
+    except Exception as error:
+        if check:
+            print(f"Cannot read benchmark baseline: {error}", file=sys.stderr)
+            sys.exit(2)
+        old = None
 if old:
     for k, cell in results.items():
         for e, v in cell.items():
             o = (old.get("results", {}).get(k) or {}).get(e)
+            if check and e in ("interp", "aot") and not has_time(o):
+                failures.append(f"{k}: baseline {e} measurement is missing or invalid")
+                continue
             if not v or not o: continue
-            if relative:   # time against QuickJS of the same run: hardware cancels
+            if relative:   # historic cross-machine QuickJS ratios (CI uses a same-runner reference instead)
                 q, oq = cell.get("quickjs"), (old.get("results", {}).get(k) or {}).get("quickjs")
+                if check and e in ("interp", "aot") and not has_time(oq):
+                    failures.append(f"{k}: baseline QuickJS measurement is missing or invalid")
+                    continue
                 if e != "quickjs" and q and oq and o.get("median_s") and v.get("median_s") and q.get("median_s") and oq.get("median_s"):
                     r_new, r_old = v["median_s"] / q["median_s"], o["median_s"] / oq["median_s"]
                     if r_new > r_old * (1 + tolerance): regressions.append(f"{k} {e} time / QuickJS: {r_old:.3f} -> {r_new:.3f} (+{(r_new / r_old - 1) * 100:.0f}%)")
                 continue
-            for key, label in (("median_s", "time"), ("peak_rss_mb", "peak RSS")):
+            metrics = (("median_s", "time"),) if baseline_zinc else (("median_s", "time"), ("peak_rss_mb", "peak RSS"))
+            for key, label in metrics:
                 if o.get(key) and v.get(key) and v[key] > o[key] * (1 + tolerance):
                     regressions.append(f"{k} {e} {label}: {o[key]:.3f} -> {v[key]:.3f} (+{(v[key] / o[key] - 1) * 100:.0f}%)")
 
@@ -123,7 +196,9 @@ if startup_on and run(f"cc -O2 {empty_c} -o {tmp}/empty_c").returncode == 0 and 
     startup = {"empty_c_ms": launches([f"{tmp}/empty_c"]), "aot_ms": launches([f"{tmp}/one_aot"]), "run_ms": launches([zinc, "run", one], 100)}
     print("startup: empty C %.2f ms, console.log(1) AOT %.2f ms, zinc run %.2f ms" % (startup["empty_c_ms"], startup["aot_ms"], startup["run_ms"]))
 
+failures.extend(diagnostics)
 doc = {"startup": startup, "runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
+if baseline_zinc: doc.update(reference_zinc=baseline_zinc, reference_results=reference_results)
 os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 json.dump(doc, open(out, "w"), indent=1)
 lines = ["# Zinc Next: M4 benchmarks", "", f"Median of {runs} runs (one warm-up), wall clock, ms. Machine: {platform.platform()}. Interpreter: `zinc run` of the compiled bytecode; AOT: `zinc build`; QuickJS: `qjs` on the stripped kernel; native: the old toolchain's release build. `tools/bench-m4` regenerates this file and `next/bench/m4.json`.", "",
@@ -142,4 +217,4 @@ if regressions: lines += ["", f"## Regressions against the previous numbers (mor
 if failures: lines += ["", "## Failed runs", ""] + [f"- {f}" for f in failures]
 if md != "none": open(md, "w").write("\n".join(lines) + "\n")
 print("\n".join(lines))
-sys.exit(3 if check and regressions else 0 if all(v["pass"] for v in verdicts) and not failures else 1)
+sys.exit(1 if failures else 3 if check and regressions else 0 if check or all(v["pass"] for v in verdicts) else 1)

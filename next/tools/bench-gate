@@ -1,7 +1,8 @@
 #!/bin/sh
-# The benchmark regression gate (ZN-148): four kernels, five runs, each engine's time against QuickJS's of the same run compared with the committed numbers (bench/m4.json);
-# exit 3 when one is more than 15% worse (so a slower machine does not fail it, a slower engine does). `--inject-slowdown 1.2` is the test that it fails on a 20% slowdown.
+# Four kernels, five runs; --baseline-zinc measures a fixed reference build on this runner.
+# Without it, compare the historic QuickJS ratios. Exit 3 for >15% slower, 1 for incorrect output.
 cd "$(dirname "$0")/.." || exit 2
+if [ -n "$ZINC_BENCH_BASELINE" ]; then set -- --baseline-zinc "$ZINC_BENCH_BASELINE" "$@"; fi
 tools/bench-m4 --runs 5 --kernels fib,nbody,sort,strings --no-startup --md none --out /tmp/zn-bench-gate.json --baseline bench/m4.json --relative --check-regressions "$@" > /tmp/zn-bench-gate.txt
 rc=$?
 grep -E "^- |Regressions" /tmp/zn-bench-gate.txt
