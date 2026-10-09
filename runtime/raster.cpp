@@ -367,8 +367,21 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
 }
 
 // ---------------------------------------------------------------- text and images
+// ASCII glyphs of the baked fonts by direct index (ZN-407): 128 entries per font, built on first use (concurrent bands write the same values;
+// the ready flag is published after the table). -1: no glyph. Fonts past the first 64 and other code points keep the binary search.
+static int16_t ascii_tab[64][128];
+static int ascii_ready[64];
 static const Glyph* glyph_of(int32_t font, const Font& f, uint32_t cp) {
   if (font >= RUNTIME_FONT_BASE) return runtime_glyph(font, cp);
+  if (cp < 128 && font >= 0 && font < 64 && f.count < 32768) {
+    if (!__atomic_load_n(&ascii_ready[font], __ATOMIC_ACQUIRE)) {
+      for (int k = 0; k < 128; k++) ascii_tab[font][k] = -1;
+      for (int32_t g = 0; g < f.count; g++) if (f.glyphs[g].cp < 128 && ascii_tab[font][f.glyphs[g].cp] < 0) ascii_tab[font][f.glyphs[g].cp] = (int16_t)g;
+      __atomic_store_n(&ascii_ready[font], 1, __ATOMIC_RELEASE);
+    }
+    const int16_t g = ascii_tab[font][cp];
+    return g < 0 ? nullptr : &f.glyphs[g];
+  }
   int32_t lo = 0, hi = f.count - 1;
   while (lo <= hi) { int32_t m = (lo + hi) >> 1; if (f.glyphs[m].cp == cp) return &f.glyphs[m]; if (f.glyphs[m].cp < cp) lo = m + 1; else hi = m - 1; }
   return nullptr;
@@ -429,22 +442,25 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
     }, &cx);
     if (a >= 0) return;
   }
+  const uint32_t col = c.c1, alpha = c.alpha;
+  const int32_t track = f2i(c.s * 64);
   for (uint32_t i = 0; i < c.n;) {
     const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
     if (!g) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     int32_t gx = ((pen + 32) >> 6) + g->x0, gy = base + g->y0;
-    for (int32_t yy = 0; yy < g->h; yy++) {
-      int32_t y = gy + yy;
-      if (y < t.clip.y0 || y >= t.clip.y1) continue;
-      const uint8_t* row = f.bitmap + g->off + yy * g->w;
-      for (int32_t xx = 0; xx < g->w; xx++) {
-        int32_t x = gx + xx;
-        if (x < t.clip.x0 || x >= t.clip.x1 || !row[xx]) continue;
-        blend(at(t, x, y), c.c1, (uint32_t)row[xx] * c.alpha / 255);
+    // the glyph box clipped once (ZN-407), then an unchecked loop: the same pixels as clipping each one
+    const int32_t y0 = gy > t.clip.y0 ? gy : t.clip.y0, y1 = gy + g->h < t.clip.y1 ? gy + g->h : t.clip.y1;
+    const int32_t x0 = gx > t.clip.x0 ? gx : t.clip.x0, x1 = gx + g->w < t.clip.x1 ? gx + g->w : t.clip.x1;
+    for (int32_t y = y0; y < y1; y++) {
+      const uint8_t* row = f.bitmap + g->off + (y - gy) * g->w - gx;
+      uint32_t* dst = &at(t, 0, y);
+      for (int32_t x = x0; x < x1; x++) {
+        const uint32_t cov = row[x];
+        if (cov) blend(dst[x], col, alpha == 255 ? cov : cov * alpha / 255);
       }
     }
-    pen += g->adv + f2i(c.s * 64);
+    pen += g->adv + track;
   }
 }
 // ---------------------------------------------------------------- runtime images
