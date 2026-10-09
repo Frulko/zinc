@@ -6,6 +6,9 @@ assignee: []
 created_date: '2026-10-09 07:35'
 updated_date: '2026-10-09 09:49'
 labels:
+  - games
+  - assets
+  - size-M
   - perf
 milestone: m-22
 dependencies: []
