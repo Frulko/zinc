@@ -21,6 +21,7 @@ commit=$(git -C "$tmp/greet" rev-parse HEAD); sum=$(shasum -a 256 "$tmp/shout.ta
 grep -q "\"commit\": \"$commit\"" "$tmp/a/zinc.lock" || { echo "plugin_add: the commit is not pinned"; fail=1; }
 grep -q "\"sha256\": \"$sum\"" "$tmp/a/zinc.lock" || { echo "plugin_add: the sha256 is not pinned"; fail=1; }
 [ -d "$tmp/a/plugins/greet/.git" ] && { echo "plugin_add: the .git directory was copied"; fail=1; }
+[ "$(cd "$tmp/a" && "$Z" run main.ts 2>&1)" = "HI ZINC!" ] || { echo "plugin_add: a relative entry does not find the project's plugins"; fail=1; }   # regression (ZN-345): main.ts had no parent to walk
 [ "$("$Z" run "$tmp/a/main.ts" 2>&1)" = "HI ZINC!" ] || { echo "plugin_add: the project does not run with its plugins: $("$Z" run "$tmp/a/main.ts" 2>&1 | head -3)"; fail=1; }
 printf "export function greet(n: string): string { return 'bye ' + n; }\n" > "$tmp/greet/index.ts"
 (cd "$tmp/greet" && git -c user.name=t -c user.email=t@t commit -qam two) || exit 2

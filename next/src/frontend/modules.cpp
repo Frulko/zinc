@@ -1244,7 +1244,8 @@ struct Loader {
   }
   void readPlugins(const std::string& fromFile) {
     namespace fs = std::filesystem;
-    for (fs::path d = fs::path(fromFile).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) readPluginsIn((d / "plugins").string());
+    std::error_code ec;
+    for (fs::path d = fs::absolute(fromFile, ec).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) readPluginsIn((d / "plugins").string());   // absolute: `zinc run main.ts` has no parent to walk
     if (!stdRoot.empty()) readPluginsIn((fs::path(stdRoot).parent_path().parent_path() / "plugins").string());
   }
 
