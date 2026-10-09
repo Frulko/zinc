@@ -13,3 +13,5 @@ customers light - - Customers 4eb61c9f30385ed8
 settings light - - Settings a7b82a3ccd5e2399
 home dark - - Home d5ccb7779f7f160f
 customers dark - - Customers 8ec15575e6efe375
+components light - - Components 28f34d136738ecb1
+navsection light - - Navigation c9cf2b76de5a3bab

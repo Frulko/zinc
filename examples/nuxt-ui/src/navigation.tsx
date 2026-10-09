@@ -26,7 +26,7 @@ function Nav(p: { collapsed: boolean }): i32 {
 }
 
 export function Navigation(): i32 {
-  return <View class="flex-row gap-6 p-6 items-start">
+  return <View class="flex-row flex-wrap gap-6 p-6 items-start">
     <View class="flex-col gap-6 w-[480px]">
       <Card title="Tabs">
         <Tabs items={[{ label: 'Account', icon: 'user' }, { label: 'Password' }, { label: 'Billing', badge: '2' }]} modelValue={tab} onUpdate={setTab}

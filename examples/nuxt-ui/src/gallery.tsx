@@ -27,7 +27,7 @@ function Section(p: { title: string; children?: () => i32 }): i32 {
 }
 
 export function Gallery(): i32 {
-  return <View class="flex-row gap-8 p-6 items-start">
+  return <View class="flex-row flex-wrap gap-8 p-6 items-start">
     <View class="flex-col gap-6 w-[500px]">
       <Section title="Button · variants">
         <View class="flex-row gap-2 flex-wrap">
