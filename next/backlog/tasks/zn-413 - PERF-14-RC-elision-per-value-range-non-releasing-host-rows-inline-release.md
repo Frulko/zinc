@@ -4,6 +4,7 @@ title: 'PERF-14 RC elision per value range, non-releasing host rows, inline rele
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:34'
+updated_date: '2026-10-09 09:13'
 labels:
   - perf
   - size-M
@@ -25,3 +26,9 @@ src/ir/rc.cpp:76 lendsForever skips retain/release of borrowed loads only when t
 - [ ] #2 zinc mem retain count per frame at 200k balls < 1000 (baseline 400k)
 - [ ] #3 ASan corpus clean, ZN_LEAK_CHECK and destruction-order goldens unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+From ZN-405/406: navigation AOT is 3.27 ms CPU per frame after them; the remaining -8% paint target of ZN-405 (3.5 ms baseline) depends on the release/arrPush share (~11% of samples) this task removes.
+<!-- SECTION:NOTES:END -->

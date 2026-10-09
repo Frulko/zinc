@@ -674,7 +674,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
-    if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && !std::strcmp(argv[2], "--scene"))) return zn::cli::capture(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && (!std::strcmp(argv[2], "--scene") || !std::strcmp(argv[2], "--stroke-check")))) return zn::cli::capture(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/../lib/std");
@@ -1223,6 +1223,11 @@ int main(int argc, char** argv) {
     if (!zn::host::benchScene(argv[3], std::atoi(argv[6]), std::atoi(argv[7]), rb)) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
     std::printf("bench %dx%d cmds=%d median_us=%.0f p99_us=%.0f hash=%016llx\n", rb.width, rb.height, rb.cmds, rb.medianUs, rb.p99Us, static_cast<unsigned long long>(rb.hash));
     return 0;
+  }
+  if (argc == 4 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--stroke-check")) {   // zinc capture --stroke-check <n>: "strokes <n> mismatches <m>" (ZN-406)
+    const int n = std::atoi(argv[3]), bad = zn::host::strokeCheck(n);
+    std::printf("strokes %d mismatches %d\n", n, bad);
+    return bad ? 1 : 0;
   }
   if (argc == 6 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[4], "--damage")) {   // zinc capture --scene <before> --damage <now>: "damage <n> rects equal|DIFFERENT" (ZN-179)
     int n = 0;

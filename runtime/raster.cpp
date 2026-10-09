@@ -803,6 +803,20 @@ int32_t find_font(const char* name, uint32_t name_len, int32_t px) {
 // ---------------------------------------------------------------- strokes
 // A polyline becomes one quad per segment plus a round join/cap disc per vertex, all wound the same way, so the
 // nonzero fill unions them without seams. ponytail: round joins only; miter joins if a style needs them.
+// The unit circle of the join discs (ZN-406): built on first use with the same expression and the same libm calls as the loop it replaces,
+// at run time (seg is not a constant there, so the compiler cannot fold cosf differently), hence the same floats. Concurrent first uses
+// write the same values.
+static float circle_c[3][16], circle_s[3][16];
+static volatile int circle_ready[3];
+static const float* circle(int seg, const float** sin_out) {
+  const int t = seg == 6 ? 0 : seg == 10 ? 1 : 2;
+  if (!circle_ready[t]) {
+    for (int k = 0; k < seg; k++) { float a = 6.2831853f * k / seg; circle_c[t][k] = __builtin_cosf(a); circle_s[t][k] = __builtin_sinf(a); }
+    circle_ready[t] = 1;
+  }
+  *sin_out = circle_s[t];
+  return circle_c[t];
+}
 uint32_t stroke_contours(const float* p, uint32_t n, float width, bool closed, float* out, uint32_t cap) {
   uint32_t used = 0, contours = 0;
   float r = width * 0.5f;
@@ -825,6 +839,8 @@ uint32_t stroke_contours(const float* p, uint32_t n, float width, bool closed, f
   }
   if (r >= 1.0f) {  // joins and caps; thin lines skip them (invisible at that size)
     int seg = r < 3 ? 6 : r < 8 ? 10 : 16;
+    const float* sn;
+    const float* cs = circle(seg, &sn);
     for (uint32_t i = 0; i < n; i++) {
       if (closed || (i > 0 && i + 1 < n)) {  // interior vertex: no disc where the turn leaves no visible notch
         uint32_t a = (i + n - 1) % n, b = (i + 1) % n;
@@ -833,7 +849,7 @@ uint32_t stroke_contours(const float* p, uint32_t n, float width, bool closed, f
         if (l2 > 0 && ux * vx + uy * vy > 0 && cr * cr * r * r < 0.1f * l2) continue;  // r * sin(turn) < ~0.3px
       }
       float q[32];
-      for (int k = 0; k < seg; k++) { float a = 6.2831853f * k / seg; q[k * 2] = p[i * 2] + __builtin_cosf(a) * r; q[k * 2 + 1] = p[i * 2 + 1] + __builtin_sinf(a) * r; }
+      for (int k = 0; k < seg; k++) { q[k * 2] = p[i * 2] + cs[k] * r; q[k * 2 + 1] = p[i * 2 + 1] + sn[k] * r; }
       emit(q, (uint32_t)seg);
     }
   }

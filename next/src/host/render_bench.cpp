@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <fstream>
 #include <thread>
@@ -43,6 +44,65 @@ bool damageCheck(const char* before, const char* now, int& rects, bool& same) {
   auto inside = [](const zrt::raster::Rect& r, const zrt::raster::Rect& o) { return o.x0 <= r.x0 && o.y0 <= r.y0 && o.x1 >= r.x1 && o.y1 >= r.y1; };
   for (int i = 0; same && i < nf; ++i) same = nb == 1 && inside(full[i], bulk[0]) && (inside(full[i], ba) || inside(full[i], bb) || inside(full[i], zrt::raster::Rect{std::min(ba.x0, bb.x0), std::min(ba.y0, bb.y0), std::max(ba.x1, bb.x1), std::max(ba.y1, bb.y1)}));
   return true;
+}
+
+// ZN-406: stroke_contours with the precomputed join circles gives the same floats as the per-vertex cosf/sinf it replaced (kept here as the
+// reference), over random polylines of every join size. Returns the number of mismatching polylines (0 = identical).
+namespace {
+std::uint32_t strokeReference(const float* p, std::uint32_t n, float width, bool closed, float* out, std::uint32_t cap) {
+  std::uint32_t used = 0, contours = 0;
+  float r = width * 0.5f;
+  auto emit = [&](const float* q, std::uint32_t cnt) {
+    if (used + 1 + cnt * 2 > cap) return;
+    float area = 0;
+    for (std::uint32_t i = 0; i < cnt; i++) { std::uint32_t j = (i + 1) % cnt; area += q[i * 2] * q[j * 2 + 1] - q[j * 2] * q[i * 2 + 1]; }
+    out[used++] = (float)cnt;
+    for (std::uint32_t i = 0; i < cnt; i++) { std::uint32_t k = area < 0 ? cnt - 1 - i : i; out[used++] = q[k * 2]; out[used++] = q[k * 2 + 1]; }
+    contours++;
+  };
+  std::uint32_t segs = closed ? n : n - 1;
+  for (std::uint32_t i = 0; i < segs && n > 1; i++) {
+    float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[((i + 1) % n) * 2], by = p[((i + 1) % n) * 2 + 1];
+    float dx = bx - ax, dy = by - ay, len = __builtin_sqrtf(dx * dx + dy * dy);
+    if (len <= 0) continue;
+    float nx = -dy / len * r, ny = dx / len * r;
+    float q[8] = {ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny};
+    emit(q, 4);
+  }
+  if (r >= 1.0f) {
+    int seg = r < 3 ? 6 : r < 8 ? 10 : 16;
+    for (std::uint32_t i = 0; i < n; i++) {
+      if (closed || (i > 0 && i + 1 < n)) {
+        std::uint32_t a = (i + n - 1) % n, b = (i + 1) % n;
+        float ux = p[i * 2] - p[a * 2], uy = p[i * 2 + 1] - p[a * 2 + 1], vx = p[b * 2] - p[i * 2], vy = p[b * 2 + 1] - p[i * 2 + 1];
+        float l2 = (ux * ux + uy * uy) * (vx * vx + vy * vy), cr = ux * vy - uy * vx;
+        if (l2 > 0 && ux * vx + uy * vy > 0 && cr * cr * r * r < 0.1f * l2) continue;
+      }
+      float q[32];
+      for (int k = 0; k < seg; k++) { float a = 6.2831853f * k / seg; q[k * 2] = p[i * 2] + __builtin_cosf(a) * r; q[k * 2 + 1] = p[i * 2 + 1] + __builtin_sinf(a) * r; }
+      emit(q, (std::uint32_t)seg);
+    }
+  }
+  return contours | (used << 16);
+}
+}  // namespace
+
+int strokeCheck(int count) {
+  std::uint64_t s = 0x9E3779B97F4A7C15ull;
+  auto rnd = [&]() { s ^= s << 13; s ^= s >> 7; s ^= s << 17; return static_cast<float>(s % 100000) / 100.0f; };
+  std::vector<float> pts, a(1 << 16), b(1 << 16);
+  int bad = 0;
+  for (int t = 0; t < count; ++t) {
+    const std::uint32_t n = 2 + static_cast<std::uint32_t>(s % 40);
+    pts.resize(n * 2);
+    for (float& v : pts) v = rnd();
+    const float width = 0.5f + static_cast<float>(t % 40) * 0.5f;   // every join size: < 2, < 6, < 16 and above
+    const bool closed = t % 3 == 0;
+    const std::uint32_t ra = zrt::raster::stroke_contours(pts.data(), n, width, closed, a.data(), static_cast<std::uint32_t>(a.size()));
+    const std::uint32_t rb = strokeReference(pts.data(), n, width, closed, b.data(), static_cast<std::uint32_t>(b.size()));
+    if (ra != rb || std::memcmp(a.data(), b.data(), (ra >> 16) * sizeof(float))) ++bad;
+  }
+  return bad;
 }
 
 bool benchScene(const char* scene, int runs, int threads, RenderBench& out) {

@@ -27,7 +27,7 @@ extern HostCall hostLayout;  // the Rt::HostLayout* rows (isLayoutRow): a host l
 using HostFast = void (*)(std::uint64_t* a);
 inline constexpr int kHostFastRows = 1024;
 extern HostFast hostFast[kHostFastRows];
-extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
+inline HostCall hostSys = nullptr;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together
 void installSys();
@@ -37,6 +37,7 @@ bool installResources(const std::uint8_t* blob, std::size_t size);
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
 struct RenderBench { int width, height, cmds; double medianUs, p99Us; std::uint64_t hash; };   // hash: FNV-1a 64 of the pixels like ZINC_FRAMEHASH
 bool benchScene(const char* scene, int runs, int threads, RenderBench& out);   // ZN-171: replay a scene dump `runs` times on `threads` band threads (src/host/render_bench.cpp)
+int strokeCheck(int count);   // ZN-406: random polylines through stroke_contours against the per-vertex cosf/sinf reference; mismatches (0 = identical)
 bool damageCheck(const char* before, const char* now, int& rects, bool& same);   // ZN-179: diff_rects of two scene dumps with the full previous frame and with its compact signatures: the same rectangles
 
 }  // namespace zn::host
