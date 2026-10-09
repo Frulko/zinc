@@ -24,4 +24,10 @@ kz=$(ZINC_HOME="$tmp/h2" "$Z" plugin-build device "$tmp/b/deeper/b" 2>&1 | key)
 [ "$kz" = "$ks" ] || { echo "plugin_key: zinc.json pluginCompiler does not select the system compiler: '$kz'"; fail=1; }
 printf "import * as device from 'zinc:device';\nconsole.log('touch ' + device.hasTouch());\n" > "$tmp/a/main.ts"
 (cd "$tmp/a" && ZINC_HOME="$tmp/h1" "$Z" run main.ts 2>&1) | grep -qx "touch true\|touch false" || { echo "plugin_key: the zig-built plugin does not load"; fail=1; }
+# a file beside the sources that one of them #includes is part of the key (display-gl's gl_renderer.cpp, ZN-412.01)
+src=$(ls "$tmp/a/plugins/device/native/"*.cpp 2>/dev/null | head -1)
+[ -n "$src" ] || { echo "plugin_key: no source in the device plugin"; exit 1; }
+echo '// an included source' > "$(dirname "$src")/zz_included.cpp"
+k3=$(ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/a" 2>&1 | key)
+[ -n "$k3" ] && [ "$k3" != "$k1" ] || { echo "plugin_key: a source beside the listed ones does not change the key: '$k3'"; fail=1; }
 exit $fail

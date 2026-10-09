@@ -340,11 +340,14 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   h.add(gen.cppHeader); h.add(gen.thunk);
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
-  for (const std::string& s : own) {   // the headers beside the sources, in name order
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
+  for (const std::string& s : own) {   // the files beside the sources, in name order: headers, and sources one of them #includes (display-gl's gl_renderer.cpp)
     std::vector<std::string> hs;
     std::error_code e2;
-    for (const auto& f : fs::directory_iterator(fs::path(s).parent_path(), e2)) if (f.path().extension() == ".h") hs.push_back(f.path().string());
+    for (const auto& f : fs::directory_iterator(fs::path(s).parent_path(), e2)) {
+      const std::string ext = f.path().extension().string();
+      if (ext == ".h" || ext == ".hpp" || ext == ".inc" || ext == ".cpp" || ext == ".cc" || ext == ".c" || ext == ".mm") hs.push_back(f.path().string());
+    }
     std::sort(hs.begin(), hs.end());
     for (const std::string& f : hs) h.add(sha256File(f));
   }
