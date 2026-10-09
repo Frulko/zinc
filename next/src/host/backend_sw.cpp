@@ -2,6 +2,7 @@
 // No zrt.h here (it clashes with <thread>): only the raster API.
 #include <algorithm>
 #include <cstring>
+#include <atomic>
 #include <thread>
 #include <vector>
 
@@ -28,8 +29,13 @@ class SoftwareBackend final : public Backend {
         zrt::raster::render(zrt::raster::Frame{static_cast<const zrt::raster::Cmd*>(lists[i].cmds), lists[i].count, lists[i].text, lists[i].pts}, px_ + static_cast<std::size_t>(a) * w_, w_, a, b, r);
     };
     if (t == 1) { band(y0, y1); return; }
-    std::vector<std::thread> pool;   // ponytail: a thread per band per frame, the HAL keeps workers
-    for (int k = 0; k < t; ++k) pool.emplace_back(band, y0 + (y1 - y0) * k / t, y0 + (y1 - y0) * (k + 1) / t);
+    // stripes of 32 rows taken from a counter, as the window HAL does: a dense region next to an empty one balances itself (ZN-400)
+    constexpr int kStripe = 32;
+    std::atomic<int> next{0};
+    auto worker = [&] { for (int a; (a = y0 + next.fetch_add(1) * kStripe) < y1;) band(a, std::min(a + kStripe, y1)); };
+    std::vector<std::thread> pool;   // ponytail: threads per frame, the HAL keeps workers
+    for (int k = 1; k < t; ++k) pool.emplace_back(worker);
+    worker();
     for (auto& th : pool) th.join();
   }
   void present() override {}

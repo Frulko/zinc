@@ -4,6 +4,7 @@ title: PERF-02 Solid fills by row and SIMD row blend in the raster
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:33'
+updated_date: '2026-10-09 07:53'
 labels:
   - perf
   - size-S
@@ -25,3 +26,9 @@ runtime/raster.cpp:528-535 (CLEAR, opaque RECT) store per pixel through at(), 0.
 - [ ] #2 200k scene on 1 thread <= 25 ms (baseline 65 ms); CLEAR of 1000x640 <= 0.06 ms
 - [ ] #3 pixel goldens (tools/proto-capture compare) and render corpus hashes unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+From ZN-400: with dynamic stripes the 200k scene rasterizes in 22.6 ms on 8 threads; the <= 15 ms target of ZN-400 is expected once solid fills go by row (this task).
+<!-- SECTION:NOTES:END -->

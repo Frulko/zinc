@@ -7,6 +7,7 @@
 #include <string.h>
 #include <condition_variable>
 #include <mutex>
+#include <atomic>
 #include <thread>
 
 extern "C" { static void start_workers(); }   // parallel rasterization (hal_present); defined inside the extern "C" block below (GCC wants the same linkage)
@@ -370,11 +371,15 @@ void hal_poll_input(HalInput* in) {
   in->quit = quit;
 }
 
-// Parallel rasterization: the damaged rows are split into horizontal bands, one per core; each band renders the
-// whole command list clipped to its rows (the rasterizer keeps its scratch buffers per thread), so the pixels are
-// the same as a single-threaded render. ZINC_RENDER_THREADS=n overrides the count (1: no worker threads).
+// Parallel rasterization: the damaged rows are cut into stripes of kStripe rows that the threads take from a counter, so a
+// dense region next to an empty one balances itself (one band per core left one core with 62% of the pixels of
+// bouncing-ball, ZN-400). Each stripe renders the whole command list clipped to its rows (the rasterizer keeps its
+// scratch buffers per thread), so the pixels are the same as a single-threaded render. ZINC_RENDER_THREADS=n
+// overrides the count (1: no worker threads).
 static void (*band_fn)(uint32_t*, int32_t, int32_t);
-static int32_t band_y0, band_y1, band_count, workers, band_pending;
+static int32_t band_y0, band_y1, workers, band_pending;
+static std::atomic<int32_t> band_next;
+static int32_t kStripe = 32;
 static unsigned band_gen;
 static std::mutex band_mu;
 static std::condition_variable band_go, band_done;
@@ -383,9 +388,9 @@ extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
 static bool band_prof;
 static void run_band(int i) {
-  int32_t rows = band_y1 - band_y0, a = band_y0 + rows * i / band_count, b = band_y0 + rows * (i + 1) / band_count;
   uint64_t t0 = band_prof ? hal_time_us() : 0;
-  if (b > a) band_fn(fb + (size_t)a * PW, a, b);
+  for (int32_t a; (a = band_y0 + band_next.fetch_add(1, std::memory_order_relaxed) * kStripe) < band_y1;)
+    band_fn(fb + (size_t)a * PW, a, a + kStripe < band_y1 ? a + kStripe : band_y1);
   if (band_prof) zrt_prof_band(i, t0, hal_time_us());
 }
 static void band_worker(int id) {
@@ -407,12 +412,13 @@ static void start_workers() {
   const char* e = getenv("ZINC_RENDER_THREADS");
   int n = e ? atoi(e) : SDL_GetNumLogicalCPUCores();
   if (n > 8) n = 8;   // ponytail: memory bandwidth, not cores, limits past ~8 bands
+  if (const char* st = getenv("ZINC_RENDER_STRIPE")) if (atoi(st) >= 8) kStripe = atoi(st);   // rows per stripe, for measuring
   for (int i = 1; i < n; i++) std::thread(band_worker, i).detach();
   workers = n > 1 ? n - 1 : 0;
 }
 static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
   band_prof = zrt_profiling() != 0;
-  if (workers == 0 || y1 - y0 < 32 * (workers + 1)) {
+  if (workers == 0 || y1 - y0 < 2 * kStripe) {
     uint64_t t0 = band_prof ? hal_time_us() : 0;
     fn(fb + (size_t)y0 * PW, y0, y1);
     if (band_prof) zrt_prof_band(0, t0, hal_time_us());
@@ -420,7 +426,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   }
   {
     std::lock_guard<std::mutex> l(band_mu);
-    band_fn = fn; band_y0 = y0; band_y1 = y1; band_count = workers + 1; band_pending = workers; band_gen++;
+    band_fn = fn; band_y0 = y0; band_y1 = y1; band_next.store(0, std::memory_order_relaxed); band_pending = workers; band_gen++;
   }
   band_go.notify_all();
   run_band(0);
