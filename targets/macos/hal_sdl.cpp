@@ -40,8 +40,33 @@ static bool surface_ok;        // the surface of the current size is allocated
 #ifdef ZN_HAL_GL
 // The window presents with OpenGL and replays the frame's command lists on the GPU (ZN-412.02, runtime/gl_replay.cpp): no software raster
 // per frame. The SDL_Renderer path stays for ZINC_RENDERER=cpu, transparent windows, display plugins, and when no hardware GL comes up
-// (none, llvmpipe, Apple's software renderer); screenshots and tests keep the software raster of the runtime.
+// (none, llvmpipe, Apple's software renderer); screenshots and tests keep the software raster of the runtime. macOS links OpenGL.framework; Linux loads
+// its functions through SDL (ZN-412.06).
+#ifdef __APPLE__
 #include <OpenGL/gl3.h>
+static bool zgl_load() { return true; }
+#else
+// Linux (ZN-412.06): glad's types and names with GLAD_API_CALL static, a private table of this file filled through SDL_GL_GetProcAddress. Nothing is
+// exported, so the WebGL module's own glad (libzn_webgl, which resolves symbols against zinc) cannot interpose, and zinc does not link libGL.
+#define GLAD_API_CALL static
+#include <glad/gl.h>
+#define ZGL_FUNCS(X) X(ActiveTexture) X(AttachShader) X(BindAttribLocation) X(BindBuffer) X(BindFramebuffer) X(BindRenderbuffer) X(BindTexture) \
+  X(BindVertexArray) X(BlendFunc) X(BufferData) X(CheckFramebufferStatus) X(Clear) X(ClearColor) X(ClearDepth) X(CompileShader) X(CopyTexSubImage2D) \
+  X(CreateProgram) X(CreateShader) X(DeleteProgram) X(DeleteShader) X(DeleteTextures) X(DepthFunc) X(DepthMask) X(Disable) X(DisableVertexAttribArray) \
+  X(DrawArrays) X(DrawArraysInstanced) X(DrawElements) X(Enable) X(EnableVertexAttribArray) X(FramebufferRenderbuffer) X(FramebufferTexture2D) \
+  X(GenBuffers) X(GenFramebuffers) X(GenRenderbuffers) X(GenTextures) X(GenVertexArrays) X(GetAttribLocation) X(GetFramebufferAttachmentParameteriv) \
+  X(GetIntegerv) X(GetProgramiv) X(GetShaderInfoLog) X(GetShaderiv) X(GetString) X(GetUniformLocation) X(LinkProgram) X(PixelStorei) \
+  X(RenderbufferStorage) X(Scissor) X(ShaderSource) X(TexImage2D) X(TexParameteri) X(TexSubImage2D) X(Uniform1f) X(Uniform1i) X(Uniform2f) X(UseProgram) \
+  X(VertexAttribDivisor) X(VertexAttribPointer) X(Viewport)
+/** After the context is current: false when a function is missing (the window then stays on SDL_Renderer). */
+static bool zgl_load() {
+  bool ok = true;
+#define ZGL_LOAD(n) ok = (glad_gl##n = (decltype(glad_gl##n))SDL_GL_GetProcAddress("gl" #n)) != nullptr && ok;
+  ZGL_FUNCS(ZGL_LOAD)
+#undef ZGL_LOAD
+  return ok;
+}
+#endif
 #include "zrt_raster.h"
 static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // GLSL ES 1.00 sources as GLSL 1.50 core
   static const char* pre_vs = "#version 150\n#define attribute in\n#define varying out\n";
@@ -101,7 +126,7 @@ static bool gl_window(const char* title, int ww, int wh) {
   SDL_DestroyProperties(props);
   if (!win) return false;
   glctx = SDL_GL_CreateContext(win);
-  const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) ? (const char*)glGetString(GL_RENDERER) : nullptr;
+  const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) && zgl_load() ? (const char*)glGetString(GL_RENDERER) : nullptr;
   const bool soft = r && (strstr(r, "llvmpipe") || strstr(r, "softpipe") || strstr(r, "Software"));
   if (r && (!soft || force)) {
     glGenVertexArrays(1, &gl_vao);   // core profile: one VAO bound for the whole program
@@ -307,7 +332,7 @@ void hal_init(const HalConfig* cfg) {
 void hal_shutdown(void) {
   if (!gfx_on) return;
 #ifdef ZN_HAL_GL
-  if (glctx) { if (glr_ok) glr::report(); SDL_GL_DestroyContext(glctx); }
+  if (glctx) SDL_GL_DestroyContext(glctx);
 #endif
   if (ren) SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
@@ -531,8 +556,10 @@ static int32_t band_y0, band_y1, workers, band_pending;
 static std::atomic<int32_t> band_next;
 static int32_t kStripe = 32;
 static unsigned band_gen;
-static std::mutex band_mu;
-static std::condition_variable band_go, band_done;
+// never destroyed: at exit the detached workers still wait on band_go, and glibc's pthread_cond_destroy waits for its waiters, so a Linux window run hung
+// in the static destructors after its last frame (ZN-412.06)
+static std::mutex& band_mu = *new std::mutex;
+static std::condition_variable &band_go = *new std::condition_variable, &band_done = *new std::condition_variable;
 // profiler hooks (runtime/gfx.cpp): band spans for the raster phase and the trace; no-ops without zinc:gfx
 extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
@@ -589,6 +616,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 // most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
 static void gl_present(const HalFrame* f) {
   if (glr_stale) {
+    if (!glr_made && getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
     glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
     glr_made = true; glr_stale = false;
   }
