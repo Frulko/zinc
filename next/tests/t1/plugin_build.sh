@@ -21,7 +21,7 @@ out=$("$ZINC" plugin-build sqlite "$tmp/proj" 2>&1)
 secs=$(( $(date +%s) - start ))
 echo "$out" | grep -q "^sqlite built " && [ "$secs" -lt 5 ] || { echo "an edit does not rebuild the plugin in under 5 s ($secs s): $out"; fail=1; }
 [ "$(ls -d "$ZINC_HOME"/cache/*/plugins/sqlite-vendor-* | wc -l | tr -d ' ')" = "$vend" ] || { echo "an edit of the plugin rebuilt its vendored library"; fail=1; }
-[ "$(ls -d "$ZINC_HOME"/cache/*/plugins/* | wc -l | tr -d ' ')" = "$((vend + 3))" ] || { echo "the edit built more than one new plugin directory"; fail=1; }
+[ "$(ls -d "$ZINC_HOME"/cache/*/plugins/* | wc -l | tr -d ' ')" = "$((vend + 2))" ] || { echo "the edit built more than one new plugin directory (the unedited copy shares the engine's entry: keys do not depend on paths, ZN-332)"; fail=1; }
 # the interpreter loads it with dlopen, an AOT program links the archives and needs no dlopen
 cat > "$tmp/t.ts" <<'TS'
 import { Database } from 'zinc:sqlite';

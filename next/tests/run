@@ -16,6 +16,12 @@ done
 case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
 export ZINC=${ZINC:-$root/build/zinc}
 export ZINC_DETERMINISTIC=1   # the goldens read the virtual clock; tests/t0/clock_real.sh checks both clocks itself
+# plugins build with the pinned zig (ZN-332): tests that make their own ZINC_HOME reuse this one (fetched once here if missing) instead of downloading 50 MB each
+if [ -z "$ZINC_ZIG" ] && [ -x "$ZINC" ]; then
+  z=$(ls -d "${ZINC_HOME:-$HOME/.zinc}"/toolchains/zig-*/zig 2>/dev/null | head -1)
+  [ -n "$z" ] || z=$("$ZINC" toolchain path 2>/dev/null | tail -1)
+  [ -x "$z" ] && export ZINC_ZIG="$z"
+fi
 if [ -n "$changed" ]; then   # the names of the tests covering the changed files, one per line
   wanted=$(cd "$root/.." && { git diff --name-only HEAD; git ls-files --others --exclude-standard; } | python3 "$here/affected.py" "$here/affected.json")
   echo "affected tests: $(echo "$wanted" | grep -v '^canary' | tr '\n' ' ')" >&2

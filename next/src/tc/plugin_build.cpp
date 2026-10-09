@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <sys/wait.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -77,20 +78,41 @@ struct Cross { std::string name, zigTarget, zig; bool on = false; } gCross;
 std::string crossArch() { return gCross.name == "armhf-linux" ? " -mcpu=arm1176jzf_s" : ""; }
 
 // The compilers: $CXX / $CC, else c++ / cc, else the pinned zig (downloaded on first use).
-bool compilers(std::string& cxx, std::string& cc, std::string& err) {
-  if (gCross.on) { cxx = q(gCross.zig) + " c++ -target " + gCross.zigTarget + crossArch(); cc = q(gCross.zig) + " cc -target " + gCross.zigTarget + crossArch(); return true; }
-  const char* x = std::getenv("CXX");
-  const char* c = std::getenv("CC");
-  if (x && c) { cxx = x; cc = c; return true; }
-  if (haveCommand("c++") && haveCommand("cc")) { cxx = x ? x : "c++"; cc = c ? c : "cc"; return true; }
+// The compilers of a plugin (ZN-332): the pinned zig by default, so the cache key names the compiler by its version, not by where it is, and two machines building the same
+// plugin for the same target compute the same key (a prebuilt binary can match). ZINC_PLUGIN_CC=system, or zinc.json "pluginCompiler": "system", uses $CXX / $CC or the
+// system c++ / cc instead; their key then carries the compiler's --version line. `id` is what the key hashes.
+std::string gAr = "ar", gKeyTarget;   // gKeyTarget: the machine the code is for, as the key names it
+bool compilers(bool system, std::string& cxx, std::string& cc, std::string& id, std::string& err) {
+  if (gCross.on) { cxx = q(gCross.zig) + " c++ -target " + gCross.zigTarget + crossArch(); cc = q(gCross.zig) + " cc -target " + gCross.zigTarget + crossArch(); gAr = q(gCross.zig) + " ar"; id = "zig " + zigVersion(); gKeyTarget = gCross.zigTarget + crossArch(); return true; }
+  if (system) {
+    const char* x = std::getenv("CXX");
+    const char* c = std::getenv("CC");
+    if (!(x && c) && !(haveCommand("c++") && haveCommand("cc"))) { err = "ZINC_PLUGIN_CC=system, but this machine has no c++ and cc (or set CXX and CC)"; return false; }
+    cxx = x ? x : "c++";
+    cc = c ? c : "cc";
+    gAr = "ar";
+    std::string v;
+    capture(cxx + " --version 2>&1 | head -1", v);
+    id = "system " + v;
+    gKeyTarget = hostName();
+    return true;
+  }
   std::string zig;
   if (!ensureZig(zig, err)) return false;
   cxx = q(zig) + " c++";
   cc = q(zig) + " cc";
+  gAr = q(zig) + " ar";
+  id = "zig " + zigVersion();   // the version, never the path
+  gKeyTarget = hostName();
+  if (const Target* t = findTarget(hostName()); t && pluginTarget() == "linux") {   // Linux: the triple a cross build from another machine uses (aarch64-linux-gnu), so both build the same code
+    cxx += std::string(" -target ") + t->zigTarget;
+    cc += std::string(" -target ") + t->zigTarget;
+    gKeyTarget = t->zigTarget;
+  }
   return true;
 }
 
-std::string arTool() { return gCross.on ? q(gCross.zig) + " ar" : std::string("ar"); }
+std::string arTool() { return gAr; }
 
 bool run(const std::string& cmd, std::string& err, const std::string& what) {
   std::string log = cmd + " 2>&1";
@@ -187,7 +209,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   for (const std::string& l : ts.linkFlags) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : q(rel(l)));
   out.linkArgs = libs;
   // flags: the runtime's own, the manifest's defines, the options as ZP_ defines
-  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
+  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on || pluginTarget() == "linux" ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
   for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
   std::string flags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
@@ -226,21 +248,33 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
       std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
     }
   }
-  std::string cxx, cc;
-  if (!compilers(cxx, cc, err)) return false;
-  // cache keys
+  bool system = false;   // ZINC_PLUGIN_CC=system or zinc.json "pluginCompiler": "system"
+  if (const char* pc = std::getenv("ZINC_PLUGIN_CC"); pc && *pc) system = std::string(pc) == "system";
+  else if (std::string zj; readAll(projectDir + "/zinc.json", zj)) system = zj.find("\"pluginCompiler\": \"system\"") != std::string::npos || zj.find("\"pluginCompiler\":\"system\"") != std::string::npos;
+  std::string cxx, cc, ccId;
+  if (!compilers(system, cxx, cc, ccId, err)) return false;
+  // cache keys: by content and by what the compiler is, never by where the plugin, the engine or the compiler sits on this machine
+  std::string keyFlags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
+  for (const std::string& f : ts.flags) keyFlags += " " + f;   // as written in plugin.json (`flags` resolves ./ paths against this machine's plugin directory)
+  for (const std::string& c : cflags) keyFlags += " " + c;
+  const auto relToPlugin = [&](const std::string& path) { return fs::path(path).lexically_relative(p.dir).generic_string(); };
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
-  h.add(flags); vh.add(flags);
-  h.add(cxx); vh.add(cc);
+  h.add(keyFlags); vh.add(keyFlags);
+  h.add(ccId); vh.add(ccId);
   h.add(gen.cppHeader); h.add(gen.thunk);
   h.add(display ? "display" : "module");
-  for (const std::string& s : own) { std::string t; readAll(s, t); h.add(s); h.add(t); }
+  for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
-  for (const std::string& s : own) { std::string d = s.substr(0, s.find_last_of('/')); std::error_code e2; for (const auto& f : fs::directory_iterator(d, e2)) if (f.path().extension() == ".h") h.add(sha256File(f.path().string())); }   // the headers beside the sources
+  for (const std::string& s : own) {   // the headers beside the sources, in name order
+    std::vector<std::string> hs;
+    std::error_code e2;
+    for (const auto& f : fs::directory_iterator(fs::path(s).parent_path(), e2)) if (f.path().extension() == ".h") hs.push_back(f.path().string());
+    std::sort(hs.begin(), hs.end());
+    for (const std::string& f : hs) h.add(sha256File(f));
+  }
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
-  h.add(target);
-  if (gCross.on) h.add(gCross.zigTarget + crossArch());
+  h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
   std::string dir = cache + "/" + m.name + "-" + h.hex();
   std::string vdir = cache + "/" + m.name + "-vendor-" + vh.hex();

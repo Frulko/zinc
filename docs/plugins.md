@@ -85,6 +85,13 @@ plugin's defines (its options included), so the libraries are used, with no comp
 other options in `zinc.json`, another engine, or no `prebuilt/`, the plugin is built locally as before. The
 libraries come with the plugin, so the lock's commit, sha256 and signature cover them too.
 
+Native code is compiled with the pinned zig (`zinc toolchain install`, downloaded on first use) into
+`~/.zinc/cache/<target>/plugins/<name>-<key>/`. The key hashes the plugin's sources by content and relative path, its
+defines and flags as written, the ABI headers, the zig version and the target triple (`aarch64-linux-gnu` both for a
+Linux machine and for a cross build from a Mac): never a path of this machine, so two machines building the same
+plugin for the same target compute the same key. `ZINC_PLUGIN_CC=system` (or `"pluginCompiler": "system"` in
+`zinc.json`) uses `$CXX` / `$CC` or the system `c++` / `cc` instead, under a key that carries its `--version` line.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a
