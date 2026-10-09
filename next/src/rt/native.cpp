@@ -192,8 +192,10 @@ extern "C" {
 
 std::int32_t zn_register_module(const ZnModule* module, char* err, std::size_t errsize) {
   if (!module) { setError(err, errsize, "no module"); return -1; }
-  if (module->abi != ZN_ABI_VERSION) {
-    setError(err, errsize, std::string("module '") + (module->name ? module->name : "?") + "' was built for native ABI " + std::to_string(module->abi) + ", this engine speaks ABI " + std::to_string(ZN_ABI_VERSION));
+  if ((module->abi >> 16) != ZN_ABI_MAJOR || (module->abi & 0xffffu) > ZN_ABI_MINOR) {   // another major, or a newer minor: refused; an older minor loads (ZN-353)
+    auto v = [](std::uint32_t a) { return std::to_string(a >> 16) + "." + std::to_string(a & 0xffffu); };
+    setError(err, errsize, std::string("module '") + (module->name ? module->name : "?") + "' was built for native ABI " + v(module->abi) + ", this engine speaks ABI " + v(ZN_ABI_VERSION) +
+                               ((module->abi >> 16) != ZN_ABI_MAJOR ? " (another major version: rebuild the plugin for this zinc)" : " (a newer minor: update zinc)"));
     return -2;
   }
   auto m = std::make_unique<Mod>();

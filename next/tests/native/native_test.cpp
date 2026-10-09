@@ -35,15 +35,23 @@ static void waitFor(const std::function<bool()>& done) {
 
 int main() {
   char err[256] = "";
-  ZnSink sink{nullptr, sinkResolve, sinkReject, sinkCall, sinkRelease};
+  ZnSink sink{nullptr, sinkResolve, sinkReject, sinkCall, sinkRelease, nullptr, nullptr};
   zn_native_set_sink(&sink);
 
   // a module built for another ABI is refused, and so are a malformed signature and an unknown resource kind
   ZnModule old = *fixture_module();
-  old.abi = ZN_ABI_VERSION + 1;
+  old.abi = (2u << 16) | 0u;   // another major (ZN-353): refused, naming both versions
   old.name = "Old";
   CHECK(zn_register_module(&old, err, sizeof err) < 0);
-  CHECK(std::strstr(err, "ABI 2") && std::strstr(err, "ABI 1"));
+  CHECK(std::strstr(err, "ABI 2.0") && std::strstr(err, "ABI 1.1") && std::strstr(err, "another major"));
+  old.abi = (ZN_ABI_MAJOR << 16) | (ZN_ABI_MINOR + 1);   // a newer minor: refused
+  CHECK(zn_register_module(&old, err, sizeof err) < 0 && std::strstr(err, "a newer minor"));
+  ZnModule older = *fixture_module();   // an older minor (1.0, before cb_error): loads
+  older.abi = (ZN_ABI_MAJOR << 16) | 0u;
+  older.name = "Older";
+  older.init = nullptr; older.shutdown = nullptr;
+  CHECK(zn_register_module(&older, err, sizeof err) == 0);
+  CHECK(zn_native_has_module("Older") == 1);
   static const ZnExport badSig[] = {{"x", "i>", [](void*, ZnCtx*, const ZnVal*, ZnVal*) -> std::int32_t { return 0; }, 0}};
   ZnModule bad = *fixture_module();
   bad.name = "Bad"; bad.exports = badSig; bad.nexports = 1; bad.init = nullptr; bad.shutdown = nullptr;

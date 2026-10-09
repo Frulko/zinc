@@ -21,8 +21,13 @@
 extern "C" {
 #endif
 
-/* The ABI version: a module built for another one is refused when it registers (never loaded half way). */
-#define ZN_ABI_VERSION 1u
+/* The ABI version (ZN-353, v1 frozen): major and minor in one number, (major << 16) | minor. Within a major version every change is additive: an engine
+ * function appended to ZnHostApi or a field appended to ZnModule (both carry their size), a new signature letter or flag; nothing is removed, reordered or
+ * retyped (tools/abi-check compares this header with tests/data/native-abi-v1.txt). The engine refuses a module built for another major, or for a newer minor
+ * than its own (it would call what this engine lacks), and loads one built for an older minor. 1.0: the first table; 1.1: ZnHostApi.cb_error. */
+#define ZN_ABI_MAJOR 1u
+#define ZN_ABI_MINOR 1u
+#define ZN_ABI_VERSION ((ZN_ABI_MAJOR << 16) | ZN_ABI_MINOR)
 
 typedef struct ZnStr { const char* p; uint32_t n; } ZnStr;     /* UTF-8; as an argument p[n] == 0 */
 typedef struct ZnView { const void* p; uint32_t n; } ZnView;   /* n packed elements of the type the signature names (u8, i32 or f64; a string[] is ZnStr[]) */

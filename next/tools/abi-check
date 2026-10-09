@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""The native plugin ABI against its frozen snapshot (ZN-353):
+
+  tools/abi-check include/zn/native.h tests/data/native-abi-v1.txt     prints what changed incompatibly; exit 1 when something did
+  tools/abi-check --snapshot include/zn/native.h > file                writes a snapshot
+
+A snapshot lists the header's declarations in order: `struct T: field type`, `typedef ...`, `fn name(params) -> result`, `define NAME value`. Compatible means:
+every snapshot line is still there; a struct keeps its fields in order with their types, and only ZnModule and ZnHostApi (they carry their size) may grow, at
+the end; a define keeps its value, except ZN_ABI_MINOR and ZN_ABI_VERSION, which may grow within the major version.
+"""
+import re, sys
+
+GROWS = {"ZnModule", "ZnHostApi"}
+MAY_GROW = {"ZN_ABI_MINOR"}
+
+def decls(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", " ", text)
+    out = []
+    for m in re.finditer(r"^#define[ \t]+(ZN_\w+)(?:[ \t]+(.*))?$", text, flags=re.M):   # [ \t]: a define without a value stays on its line
+        out.append(("define %s %s" % (m.group(1), " ".join((m.group(2) or "").split()))).rstrip())
+    body = re.sub(r"^#.*$", " ", text, flags=re.M)
+    body = body.replace('extern "C" {', " ").replace("extern \"C\"", " ")
+    for m in re.finditer(r"typedef\s+(struct|union)\s+(\w+)\s*\{(.*?)\}\s*(\w+)\s*;", body, flags=re.S):
+        for f in m.group(3).split(";"):
+            f = " ".join(f.split())
+            if f: out.append("%s %s: %s" % (m.group(1), m.group(4), f))
+    body = re.sub(r"typedef\s+(struct|union)\s+\w+\s*\{.*?\}\s*\w+\s*;", " ", body, flags=re.S)
+    for st in body.split(";"):
+        st = " ".join(st.split())
+        if st.startswith("typedef"): out.append(st)
+        elif "(" in st and not st.startswith("struct") and st not in ("}",):
+            st = st.replace("}", "").strip()
+            if st: out.append("fn " + st)
+    return out
+
+def check(header, snap):
+    now, old = decls(open(header).read()), [l.rstrip("\n") for l in open(snap) if l.strip() and not l.startswith("#")]
+    problems = []
+    structs_now = {}
+    for l in now:
+        if l.startswith(("struct ", "union ")): structs_now.setdefault(l.split(":")[0], []).append(l)
+    structs_old = {}
+    for l in old:
+        if l.startswith(("struct ", "union ")): structs_old.setdefault(l.split(":")[0], []).append(l)
+    for k, fields in structs_old.items():
+        cur = structs_now.get(k, [])
+        if cur[:len(fields)] != fields: problems.append("%s changed: %s" % (k, next((a for a, b in zip(fields + [""] * len(cur), cur + [""] * len(fields)) if a != b), "a field is missing")))
+        elif len(cur) > len(fields) and k.split()[1] not in GROWS: problems.append("%s grew, but only %s may (they carry their size)" % (k, ", ".join(sorted(GROWS))))
+    defs_now = {l.split()[1]: l for l in now if l.startswith("define ")}
+    for l in old:
+        if l.startswith("define "):
+            name = l.split()[1]
+            if name not in defs_now: problems.append("removed: " + l)
+            elif defs_now[name] != l and name not in MAY_GROW and name != "ZN_ABI_VERSION": problems.append("changed: %s -> %s" % (l, defs_now[name]))
+            elif name == "ZN_ABI_MINOR" and int(defs_now[name].split()[2].rstrip("u")) < int(l.split()[2].rstrip("u")): problems.append("the minor version went down: " + defs_now[name])
+        elif not l.startswith(("struct ", "union ")) and l not in now: problems.append("removed or changed: " + l)
+    return problems
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--snapshot":
+        print("# The native plugin ABI v1 (ZN-353), frozen: tools/abi-check compares include/zn/native.h with it. Regenerate only for a new major version.")
+        print("\n".join(decls(open(sys.argv[2]).read()))); sys.exit(0)
+    if len(sys.argv) != 3: sys.exit(__doc__)
+    p = check(sys.argv[1], sys.argv[2])
+    for x in p: print("abi-check:", x)
+    sys.exit(1 if p else 0)

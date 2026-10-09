@@ -176,6 +176,24 @@ zinc trust greet                 # forget a community plugin's pinned key
 The index holds `plugins/<name>/<version>.json` per version (or one `plugins/<name>.json`). An error names the plugin, its
 version and the reason: `zinc add: greet 1.3: plugin greet now asks for capabilities the lock does not grant: camera`.
 
+## Native ABI v1 (frozen)
+
+A plugin's native side talks to the engine only through `include/zn/native.h` (the generated thunk and the plugin's own code).
+Its version is `major.minor` (`ZN_ABI_MAJOR`, `ZN_ABI_MINOR`; v1.1 today: 1.0 plus `ZnHostApi.cb_error`). The rules:
+
+- Within a major version every change is additive: an engine function appended at the end of `ZnHostApi`, a field appended at
+  the end of `ZnModule` (both carry their size, so an older module and a newer engine agree), a new signature letter, a new
+  flag. Nothing is removed, reordered or retyped, and no constant changes value.
+- The engine loads a module built for its major version and an older or equal minor; it refuses another major ("rebuild the
+  plugin for this zinc") or a newer minor ("update zinc"), naming both versions.
+- `tools/abi-check include/zn/native.h tests/data/native-abi-v1.txt` compares the header with the recorded v1 snapshot;
+  `tests/t0/native_abi_freeze.sh` fails on an incompatible change. A new snapshot is written only for a new major version.
+
+Ready to leave the monorepo (their native code uses only `native.h`, or they have none): device, devtools, ffi, process,
+script, socket, sqlite, wasm, and gestures, ink, pixelfont. The others also include engine headers the v1 ABI does not
+cover (`hal.h` for the display drivers and system, `zrt_raster.h` for the drawing plugins, `hw.h`, `zgl.h`, SDL3) and stay
+here until those interfaces are frozen too (ZN-396).
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

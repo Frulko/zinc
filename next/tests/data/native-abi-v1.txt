@@ -1,0 +1,77 @@
+# The native plugin ABI v1 (ZN-353), frozen: tools/abi-check compares include/zn/native.h with it. Regenerate only for a new major version.
+define ZN_NATIVE_H
+define ZN_ABI_MAJOR 1u
+define ZN_ABI_MINOR 1u
+define ZN_ABI_VERSION ((ZN_ABI_MAJOR << 16) | ZN_ABI_MINOR)
+define ZN_OK 0
+define ZN_PENDING 1
+define ZN_ERROR 2
+define ZN_PURE_SCALAR 1u
+define ZN_THREADS 1u
+struct ZnStr: const char* p
+struct ZnStr: uint32_t n
+struct ZnView: const void* p
+struct ZnView: uint32_t n
+union ZnVal: int64_t i
+union ZnVal: uint64_t u
+union ZnVal: double d
+union ZnVal: ZnStr s
+union ZnVal: ZnView v
+union ZnVal: uint64_t h
+struct ZnExport: const char* name
+struct ZnExport: const char* sig
+struct ZnExport: ZnFn fn
+struct ZnExport: uint32_t flags
+struct ZnKind: uint32_t id
+struct ZnKind: const char* name
+struct ZnKind: void (*finalize)(void* ptr)
+struct ZnModule: uint32_t abi
+struct ZnModule: uint32_t size
+struct ZnModule: const char* name
+struct ZnModule: const ZnExport* exports
+struct ZnModule: uint32_t nexports
+struct ZnModule: const ZnKind* kinds
+struct ZnModule: uint32_t nkinds
+struct ZnModule: uint32_t flags
+struct ZnModule: int32_t (*init)(const struct ZnHostApi* host, void** self)
+struct ZnModule: void (*poll)(void* self, uint64_t now_ms)
+struct ZnModule: void (*shutdown)(void* self)
+struct ZnHostApi: uint32_t size
+struct ZnHostApi: void (*set_error)(ZnCtx* cx, const char* message)
+struct ZnHostApi: ZnStr (*ret_str)(ZnCtx* cx, const char* p, uint32_t n)
+struct ZnHostApi: void* (*ret_buf)(ZnCtx* cx, uint32_t bytes)
+struct ZnHostApi: uint64_t (*res_new)(uint32_t kind, void* ptr)
+struct ZnHostApi: void* (*res_get)(uint64_t handle, uint32_t kind)
+struct ZnHostApi: void (*res_retain)(uint64_t handle)
+struct ZnHostApi: void (*res_release)(uint64_t handle)
+struct ZnHostApi: uint64_t (*cb_retain)(uint64_t cb)
+struct ZnHostApi: void (*cb_release)(uint64_t cb)
+struct ZnHostApi: int32_t (*cb_call)(uint64_t cb, const ZnVal* args, uint32_t nargs, ZnVal* ret)
+struct ZnHostApi: int32_t (*cb_post)(uint64_t cb, const char* sig, const ZnVal* args, uint32_t nargs)
+struct ZnHostApi: uint64_t (*promise_take)(ZnCtx* cx)
+struct ZnHostApi: void (*promise_resolve)(uint64_t promise, const char* type, const ZnVal* value)
+struct ZnHostApi: void (*promise_reject)(uint64_t promise, const char* message)
+struct ZnHostApi: void (*loop_ref)(void)
+struct ZnHostApi: void (*loop_unref)(void)
+struct ZnHostApi: double (*now_ms)(void)
+struct ZnHostApi: const char* (*cb_error)(void)
+struct ZnSink: void* user
+struct ZnSink: void (*resolve)(void* user, uint64_t promise, const ZnVal* value)
+struct ZnSink: void (*reject)(void* user, uint64_t promise, const char* message)
+struct ZnSink: int32_t (*call)(void* user, uint64_t cb, const ZnVal* args, uint32_t nargs, ZnVal* ret)
+struct ZnSink: void (*release)(void* user, uint64_t cb)
+struct ZnSink: const char* (*error)(void* user)
+struct ZnSink: void (*hold)(void* user, uint64_t cb)
+typedef struct ZnCtx ZnCtx
+typedef int32_t (*ZnFn)(void* self, ZnCtx* cx, const ZnVal* args, ZnVal* ret)
+fn int32_t zn_register_module(const ZnModule* module, char* err, size_t errsize)
+fn const ZnExport* zn_native_find(const char* module, const char* name)
+fn int32_t zn_native_has_module(const char* module)
+fn int32_t zn_native_call(const char* module, const char* name, const char* sig, const ZnVal* args, ZnVal* ret, char* err, size_t errsize)
+fn uint64_t zn_native_last_promise(void)
+fn void zn_native_shutdown(void)
+fn void zn_native_set_sink(const ZnSink* sink)
+fn void zn_native_drop_callbacks(void)
+fn uint32_t zn_native_drain(void)
+fn int32_t zn_native_pending(void)
+fn void zn_native_poll(uint64_t now_ms)

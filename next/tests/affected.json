@@ -38,6 +38,7 @@
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
     {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "cli_tools", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
+    {"paths": ["include/zn/native.h", "src/rt/native.cpp", "tools/abi-check", "tests/data/native-abi-v1.txt", "tests/native/native_test.cpp"], "tests": ["native", "native_abi_freeze", "native_call", "plugin_build", "script"]},
     {"paths": ["tools/gh-org-setup", "tools/gh-org-protection.json"], "tests": ["gh_org_setup"]},
     {"paths": ["src/tc/tuf", "tools/index-repo", "tests/data/tuf_interop.py"], "tests": ["tuf_canonical", "tuf_index", "tuf_interop", "index_search", "mirrors", "tlog", "revocation"]},
     {"paths": ["src/tc/tlog", "tools/tlog"], "tests": ["tlog", "plugin_fetch"]},
