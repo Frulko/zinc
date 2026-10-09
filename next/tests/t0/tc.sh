@@ -16,7 +16,7 @@ esac
 if [ -n "$f" ]; then
   mkdir "$tmp/mirror"; head -c 4096 /dev/zero | tr '\0' 'x' > "$tmp/mirror/$f"
   out=$(env -u ZINC_ZIG ZINC_HOME="$tmp/home" ZINC_TC_MIRROR="file://$tmp/mirror" "$ZINC" toolchain install 2>&1); rc=$?
-  [ $rc -ne 0 ] && echo "$out" | grep -q "checksum mismatch" || { echo "a tampered toolchain archive was not refused: $out"; fail=1; }
+  [ $rc -ne 0 ] && echo "$out" | grep -q "does not verify (SHA-256" || { echo "a tampered toolchain archive was not refused: $out"; fail=1; }
   [ -d "$tmp/home/toolchains/zig-"*"-0.15.2" ] 2>/dev/null && { echo "a tampered archive was unpacked"; fail=1; }
 fi
 exit $fail
