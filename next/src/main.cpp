@@ -404,6 +404,15 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     zn::frontend::Project proj;
     std::string perr;
     if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+    {   // zinc.json targets.<this machine>.resize, as zinc run passes it: a built program keeps the project's choice (ZN-608)
+      auto t = proj.targets.find(zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");
+      if (t != proj.targets.end() && !t->second.resize.empty()) {
+        std::string text;
+        { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+        std::size_t at = text.find("{\n", text.find("int main("));
+        if (at != std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_RESIZE\", \"" + t->second.resize + "\", 0);   // zinc.json resize\n"); std::ofstream o(cpp); o << text; }
+      }
+    }
     if (proj.text == "shaped") {
       std::string text;
       { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }

@@ -3,6 +3,9 @@ declare module 'zinc:gfx' {
   export const enum Btn { Up = 0, Down = 1, Left = 2, Right = 3, A = 4, B = 5, X = 6, Y = 7, L = 8, R = 9, Start = 10, Select = 11 }
   /** Register the frame callback; dt in seconds. Runs after top-level code finishes. */
   export function onFrame(cb: (dt: number) => void): void;
+  /** Calls `cb(width, height)` before the next frame each time the surface changes size; asking for it makes the surface follow the window,
+   *  unless zinc.json's `resize` is "letterbox". */
+  export function onResize(cb: (w: number, h: number) => void): void;
   export function width(): i32;
   export function height(): i32;
   export function clear(color: u32): void;

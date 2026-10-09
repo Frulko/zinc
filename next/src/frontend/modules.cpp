@@ -59,6 +59,8 @@ std::string normalize(const std::string& p) {
 const char* kGfxModule = R"ZN(
 let __frameCb: ((dt: number) => void) | null = null;
 let __frameNo: i32 = 0;
+const __resizeFns: ((w: i32, h: i32) => void)[] = [];
+let __lastW: i32 = 0, __lastH: i32 = 0;
 function __gfxLoop(): void {
   const n = __host_gfxFrames();
   for (let f: i32 = 0; f < n; f++) {
@@ -67,6 +69,10 @@ function __gfxLoop(): void {
     __pollHost();
     __frameTimers();
     __host_gfxBegin();
+    if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {   // the window was resized (ZN-608)
+      __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight();
+      for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
+    }
     const cb = __frameCb;
     if (cb !== null) cb(dt);
     __drainJobs();
@@ -77,6 +83,12 @@ function __gfxLoop(): void {
   __host_gfxFinish();
 }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
+/** Calls `cb(width, height)` before the next frame each time the surface changes size. Asking for it makes the surface follow the window
+ *  (responsive) instead of a fixed size scaled into it, unless zinc.json chose: targets.<target>.resize "letterbox" keeps the fixed surface. */
+export function onResize(cb: (w: i32, h: i32) => void): void {
+  if (__resizeFns.length === 0) { __host_gfxSetResize(1); __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); }
+  __resizeFns.push(cb);
+}
 export function frame(): i32 { return __frameNo; }
 // ---- api: everything below is shared with the QuickJS engine (src/qjs), which brings its own frame loop
 export function width(): i32 { return __host_gfxWidth(); }

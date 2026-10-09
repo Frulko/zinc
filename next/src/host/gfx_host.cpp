@@ -22,6 +22,7 @@ namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); exter
   extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
+extern "C" void hal_set_resize(int32_t on) __attribute__((weak));   // targets/macos/hal_sdl.cpp (ZN-608)
 
 namespace zn::res { uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, void* (*alloc)(size_t)); }   // src/res/codec.cpp (no <vector> here: zrt.h clashes with it)
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
@@ -199,6 +200,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxEscapeDefault: g::escapeDefault(); break;
     case Rt::HostGfxProfiling: r->i = g::profiling() || zn_ui_log_on() ? 1 : 0; break;   // ZINC_LOG=ui=debug: zinc:ui marks its phases (ZN-368)
     case Rt::HostGfxCommands: r->i = g::commandCount(); break;
+    case Rt::HostGfxSetResize: if (hal_set_resize) hal_set_resize(static_cast<int32_t>(n(0))); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:

@@ -151,7 +151,14 @@ std::string gfxSource() {
   auto at = s.find("// ---- api");
   std::string api = at == std::string::npos ? "" : s.substr(at);
   return "let __frameCb = null;\n"
-         "export function onFrame(cb) { __frameCb = cb; globalThis.__zincFrameCb = cb; }\n"
+         "const __resizeFns = []; let __lastW = 0, __lastH = 0;\n"   // onResize (ZN-608): the frame callback reports a new size first
+         "export function onFrame(cb) { __frameCb = cb; globalThis.__zincFrameCb = (dt) => {\n"
+         "  if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {\n"
+         "    __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); for (const f of __resizeFns) f(__lastW, __lastH); }\n"
+         "  cb(dt); }; }\n"
+         "export function onResize(cb) {\n"
+         "  if (__resizeFns.length === 0) { __host_gfxSetResize(1); __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); }\n"
+         "  __resizeFns.push(cb); }\n"
          "export function frame() { return globalThis.__zincFrameNo | 0; }\n" + api;
 }
 

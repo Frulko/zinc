@@ -112,13 +112,16 @@ automatic — resources are baked at the display scale (Retina ×2 on macOS, ×w
 
 ## Windows
 
-UI apps follow the window by default (responsive, live resize redraw); games keep a fixed surface and scale it. Set
-per target in `zinc.json` `targets.<id>`, or with `ZINC_*` env vars:
+UI apps follow the window by default (responsive, live resize redraw); games keep a fixed surface and scale it. A program
+that draws with `zinc:gfx` asks to follow the window with `onResize((w, h) => ...)`, called before the next frame with each
+new size (zinc:ui does it for every app). `resize` in `zinc.json` wins over that request, in `zinc run` and in the programs
+`zinc build` writes: `letterbox` keeps a UI app at its fixed size. Set per target in `zinc.json` `targets.<id>`, or with
+`ZINC_*` env vars:
 
 | option | env | meaning |
 | --- | --- | --- |
 | `zoom` | `ZINC_ZOOM` | window points = logical size × zoom (auto ×2 below 400 px) |
-| `resize` | `ZINC_RESIZE` | `fill` (surface follows the window — default for UI) or `letterbox` (fixed surface, scaled) |
+| `resize` | `ZINC_RESIZE` | `fill` (surface follows the window: the default of zinc:ui apps and of `onResize`) or `letterbox` (fixed surface, scaled: the default otherwise) |
 | `fullscreen` | `ZINC_FULLSCREEN` | start fullscreen; F11 / Ctrl+Cmd+F toggles, Esc leaves |
 | `kiosk` | `ZINC_KIOSK` | fullscreen, no cursor, always on top, quit shortcuts ignored |
 

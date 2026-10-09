@@ -21,6 +21,8 @@ static int zoom = 1;
 // Window behaviour (zinc.json targets.<id>: resize "fill" | "letterbox", fullscreen, kiosk; ZINC_RESIZE / ZINC_FULLSCREEN /
 // ZINC_KIOSK override). fill: the logical surface follows the window (responsive layouts); letterbox: fixed surface, scaled.
 static bool fill = false, kiosk = false;
+static bool resize_fixed = false;     // zinc.json resize / ZINC_RESIZE chose the mode: what the program asks (hal_set_resize) does not change it
+static bool resize_pending = false;   // the mode changed: the surface follows at the next poll, between frames
 // ZN-233: window properties from zinc.json app.window, the close veto and file drops (runtime/include/hal_window.h)
 static int (*close_handler)(void) = nullptr;
 static void (*drop_handler)(const char*, int) = nullptr;
@@ -234,6 +236,13 @@ static bool escape_app;   // zinc:ui handles Escape (hal_escape_by_app)
 static long frames_left = -1;
 // Deterministic runs (ZINC_DETERMINISTIC / ZINC_RECORD / ZINC_REPLAY): fixed surface size, private clipboard.
 static bool det = false;
+// ZN-608: the program follows the window (zinc:gfx onResize, so every zinc:ui app): fill, unless the project fixed the mode, the run is
+// deterministic or a device panel is emulated (letterbox, a fixed surface scaled, is what a program that never asks keeps)
+extern "C" void hal_set_resize(int32_t on) {
+  if (!gfx_on || resize_fixed || det || hal_display || fill == (on != 0)) return;
+  fill = on != 0;
+  resize_pending = true;
+}
 
 extern "C" {
 void hal_init(const HalConfig* cfg) {
@@ -263,9 +272,9 @@ void hal_init(const HalConfig* cfg) {
   if (scale < 1) scale = 1;
   zoom = scale;
 #ifdef ZINC_RESIZE_FILL
-  fill = true;
+  fill = true; resize_fixed = true;
 #endif
-  if (const char* r = getenv("ZINC_RESIZE")) fill = r[0] == 'f';
+  if (const char* r = getenv("ZINC_RESIZE")) { fill = r[0] == 'f'; resize_fixed = true; }
   if (det) fill = false;  // the layout must not follow the window
   if (hal_display) fill = false;   // an emulated device (host_window driver) has a fixed panel: letterbox it
   bool full = false;
@@ -439,6 +448,7 @@ static void scroll_resample(HalInput* in) {
 
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
+  if (resize_pending) { resize_pending = false; apply_size(); }
   // A display plugin with its own window (LED / OLED / e-ink emulators) still needs this HAL to pump the OS events,
   // unless it reads them itself (display-gl).
   if (!gfx_on && (!hal_display || hal_display->owns_input || !SDL_WasInit(SDL_INIT_VIDEO))) {

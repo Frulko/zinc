@@ -1,0 +1,1 @@
+{"name":"resize","entry":"main.ts","permissions":["window"],"app":{"id":"dev.zinc.test.resize","name":"Resize Test"},"targets":{"macos":{"width":500,"height":300}}}

@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -4195,6 +4195,7 @@ function pickInput(px: number, py: number): void {
 export function mount(h: i32, background: i32, extra: ((dt: number) => void) | null): void {
   setRoot(h);
   escapeByApp(true);   // Escape reaches onKeyDown / onKey handlers first (dispatchKey)
+  onResize((w: i32, h: i32): void => {});   // the surface follows the window (ZN-608): the frame step sees the new size and lays out again
   onFrame((dt: number) => {
     if (extra !== null) extra(dt);
     frame(dt, background);
