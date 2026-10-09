@@ -1,9 +1,10 @@
 ---
 id: ZN-343
 title: 'Transparency log of publications (append-only, inclusion proofs)'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-09 05:09'
 labels:
   - distribution
   - security
