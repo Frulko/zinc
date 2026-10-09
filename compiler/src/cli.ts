@@ -945,6 +945,7 @@ function help(topic?: string) {
                                         render frames headless and deterministically, save them as PNG (build/shots)
   zinc export [entry] --target <id>     dist/<name>-<target>: one executable with assets embedded, scripts, service unit
   zinc deploy [entry] --target linux|rpi1|rmpp [--device user@host]   export, copy over ssh and start
+  zinc ui     check|code|import|pack|serve   Figma / zinc-ui documents (docs/figma-ui.md)
   zinc init   <dir> [--template game|cli|server|iot|remarkable]
   zinc plugins [project]                the plugin toolbox: modules, display drivers, where they run
   zinc flash  [entry] --target esp32 [--port /dev/cu.usbmodem*]   build, then flash with the host esptool (docs/boards.md)
@@ -1049,6 +1050,7 @@ function main() {
   const cmd = argv[0];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help(argv[1]);
   if (cmd === 'doctor') return doctor();
+  if (cmd === 'ui') { import('./ui-tools.ts').then(m => m.uiCommand(argv.slice(1))).catch(e => { console.error(`zinc ui: ${e.message}`); process.exitCode = 1; }); return; }
   // standards conformance: WinterTC / WPT, test262, Node API, QuickJS tests vs reference engines (docs/reports/compat.md)
   if (cmd === 'compat') process.exit(spawnSync(process.execPath, [path.join(ZINC_ROOT, 'tests/compat/run.mjs'), ...argv.slice(1)], { stdio: 'inherit' }).status ?? 1);
   if (cmd === 'plugins') { console.log(listPlugins(projectDir(argv[1] && !argv[1].startsWith('-') ? path.join(argv[1], 'x') : 'x'))); return; }

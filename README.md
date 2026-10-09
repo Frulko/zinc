@@ -82,6 +82,7 @@ compares them with golden PNGs), `ZINC_DETERMINISTIC=1` runs on a virtual clock
 - **Developer guide**: [docs/guide/](docs/guide/README.md) — getting started, language, UI apps, headless services,
   plugins, testing, distribution (app bundles, icons, signing), security and obfuscation.
 - **UI kit**: [docs/ui-kit.md](docs/ui-kit.md); **UI input and events**: [docs/ui.md](docs/ui.md).
+- **Figma → Zinc**: [UI documents, TSX export and interactive preview](docs/figma-ui.md); [StyleSheet objects](docs/ui.md#object-styles-and-stylesheet).
 - **ZincStudio**: [docs/studio.md](docs/studio.md); **boards** (ESP32-S3 Matrix, ESP32-2432S022 2.2" touch LCD, Scroll pHAT): [docs/boards.md](docs/boards.md).
 - **Architecture overview** (French): https://claude.ai/artifact/EJAZtwX2HRPtYYBjfypThU
 

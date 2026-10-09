@@ -1,0 +1,76 @@
+// Run: node tests/ui/check.mjs. Host-side format, compiler, transport and exporter checks.
+import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as vm from 'node:vm';
+import { once } from 'node:events';
+import { validateDocument, generateUI } from '../../compiler/src/ui-document.ts';
+import { styleEntry } from '../../compiler/src/ui-style.ts';
+import { lowerStyleSheets } from '../../compiler/src/styles.ts';
+import { lowerJsx } from '../../compiler/src/jsx.ts';
+import { packUI, unpackUI, writeUI, serveUI } from '../../compiler/src/ui-tools.ts';
+import { zipUI, unzipUI } from '../../compiler/src/ui-package.ts';
+const doc = JSON.parse(fs.readFileSync(new URL('../../examples/ui/figma-storyboard/design.zui.json', import.meta.url)));
+const code = generateUI(doc);
+assert.match(code, /temperature\?: \(\) => number/);
+assert.match(code, /history.push/);
+assert.match(code, /targetChanged/);
+const bad = edit => { const d = structuredClone(doc); edit(d); assert.throws(() => validateDocument(d)); };
+bad(d => d.components[1].screens[0].root.children[1].onClick[0].target = 'missing');
+bad(d => d.components[0].root.children[2].onClick[0].value = 'wrong type');
+bad(d => d.components[0].root.children.push({ id: 'recursive', type: 'TemperatureCard' }));
+bad(d => d.assets = ['../escape.png']);
+bad(d => d.components[0].root.style = { opacity: Infinity });
+bad(d => d.components[0].root.children[0].style = { position: 'fixed' });
+bad(d => d.components[0].root.children[0].text = { input: 'toString' });
+bad(d => d.components[0].root.onClick = [{ type: 'eval', source: 'process.exit()' }]);
+assert.throws(() => styleEntry('fontSzie', 18));
+assert.throws(() => styleEntry('toString', 'call'));
+assert.throws(() => styleEntry('alignItems', 'constructor'));
+assert.throws(() => styleEntry('fontSize', 100000));
+assert.throws(() => styleEntry('width', 'calc(100% - 2px)'));
+assert.deepEqual(styleEntry('padding', '2px 4px'), [{ key: 'paddingTop', value: 2 }, { key: 'paddingRight', value: 4 }, { key: 'paddingBottom', value: 2 }, { key: 'paddingLeft', value: 4 }]);
+assert.deepEqual(styleEntry('background-color', 'rgba(255,0,0,0.5)'), [{ key: 'backgroundColor', value: 0xff0000 }, { key: 'backgroundAlpha', value: 128 }]);
+const lowered = lowerStyleSheets("import {StyleSheet as S} from 'zinc:ui'; export const styles = S.create({'card': {padding: 10, color: '#fff'}});", 'styles.ts');
+assert.match(lowered, /card: new __ZStyle/); assert.match(lowered, /@color:ffffff/);
+const inline = lowerJsx('const v = <view style={{ width: 20, opacity: 0.5 }} />;', 'app.tsx');
+assert.match(inline, /const __zsheet0/);
+assert.throws(() => lowerJsx('const v = <view style={{ fontSzie: 20 }} />;', 'app.tsx'));
+const zipped = await packUI(doc, new Map());
+assert.ok(zipped.length < Buffer.byteLength(JSON.stringify(doc)), 'JSON is compressed');
+assert.deepEqual((await unpackUI(zipped)).document, doc);
+await assert.rejects(() => zipUI(new Map([['../bad', new Uint8Array()]])));
+const corrupt = zipped.slice(); corrupt[14] ^= 1; // local CRC is not authoritative; corrupt payload instead
+const view = new DataView(corrupt.buffer); const payload = 30 + view.getUint16(26, true) + view.getUint16(28, true); corrupt[payload] ^= 255;
+await assert.rejects(() => unzipUI(corrupt));
+const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'zinc-ui-')));
+let server;
+try {
+  writeUI(dir, doc, new Map()); writeUI(dir, doc, new Map());
+  assert.equal(fs.readFileSync(path.join(dir, 'src/design.tsx'), 'utf8'), code);
+  fs.appendFileSync(path.join(dir, 'src/design.tsx'), '// human edit\n');
+  assert.throws(() => writeUI(dir, doc, new Map()), /edited/);
+  fs.writeFileSync(path.join(dir, 'src/design.tsx'), code);
+  let pairing = ''; const log = console.log;
+  try { console.log = s => { pairing = String(s); }; server = serveUI(dir, 0); await once(server, 'listening'); } finally { console.log = log; }
+  const url = new URL(pairing.match(/http:\/\/localhost:[^\s]+/)[0]); const token = url.hash.slice(1);
+  const unauthorized = await fetch(url.origin + '/import', { method: 'POST', body: zipped }); assert.equal(unauthorized.status, 401);
+  const response = await fetch(url.origin + '/import', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: zipped });
+  assert.equal(response.status, 200, await response.text());
+  const original = fs.readFileSync(path.join(dir, 'src/design.tsx'), 'utf8');
+  const invalid = await fetch(url.origin + '/import', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: 'not a zip' });
+  assert.equal(invalid.status, 400); assert.equal(fs.readFileSync(path.join(dir, 'src/design.tsx'), 'utf8'), original);
+} finally { if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } fs.rmSync(dir, { recursive: true, force: true }); }
+// Exercise the actual plugin sandbox code with a small Figma API fixture (no Figma account needed).
+const frame = (id, children = []) => ({ id, name: id, type: 'FRAME', width: 320, height: 240, x: 0, y: 0, layoutMode: 'NONE', fills: [], strokes: [], effects: [], children, getPluginData: () => '', reactions: [] });
+const button = frame('button'); button.reactions = [{ trigger: { type: 'ON_CLICK' }, actions: [{ type: 'NODE', navigation: 'NAVIGATE', destinationId: 'second', transition: null }] }];
+const first = frame('first', [button]), second = frame('second');
+const context = vm.createContext({ __html__: '', figma: { currentPage: { selection: [first, second] }, showUI() {}, on() {}, ui: { postMessage() {} }, mixed: Symbol('mixed') } });
+vm.runInContext(fs.readFileSync(new URL('../../integrations/figma/code.js', import.meta.url), 'utf8'), context);
+const result = JSON.parse(JSON.stringify(await vm.runInContext('exportSelection("DemoApp", false)', context)));
+validateDocument(result.document);
+assert.deepEqual(result.document.components[0].screens[0].root.children[0].onClick, [{ type: 'navigate', target: 'second' }]);
+button.reactions[0].trigger.type = 'ON_HOVER';
+await assert.rejects(vm.runInContext('exportSelection("DemoApp", false)', context), /unsupported/);
+console.log(`UI checks OK: schema, styles, TSX, ZIP (${zipped.length} bytes), safe imports, paired service, Figma export.`);

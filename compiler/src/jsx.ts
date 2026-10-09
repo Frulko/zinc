@@ -3,6 +3,7 @@
 // Solid mode: dynamic expressions become fine-grained effects. React mode: a component re-renders as a whole.
 // Line breaks are preserved so diagnostics keep their line numbers.
 import { ts } from './frontend.ts';
+import { styleLayers } from './styles.ts';
 
 const TAGS: Record<string, number> = { view: 0, text: 1, button: 2, image: 3, scroll: 4, canvas: 5, input: 7, textarea: 8, View: 0, Text: 1, Button: 2, Image: 3, ScrollView: 4, Canvas: 5, Input: 7, TextArea: 8 };
 const NUM_ATTRS = new Set(['width', 'height', 'grow', 'gap', 'bg', 'color', 'scale', 'hidden', 'x', 'y', 'opacity', 'translateX', 'translateY', 'rows', 'tabIndex', 'dragThreshold']);
@@ -82,6 +83,11 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   const pragma = /@jsxHelpers\s+(\S+)/.exec(text)?.[1];
   const lib = pragma ?? (react ? 'zinc:ui/react' : 'zinc:ui/solid');
   let counter = 0, named = false;
+  const staticStyles: string[] = [];
+  const constantStyle = (n: ts.Node): boolean => ts.isNumericLiteral(n) || ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || n.kind === ts.SyntaxKind.NullKeyword || n.kind === ts.SyntaxKind.FalseKeyword ||
+    (ts.isPrefixUnaryExpression(n) && ts.isNumericLiteral(n.operand)) ||
+    (ts.isObjectLiteralExpression(n) && n.properties.every(p => ts.isPropertyAssignment(p) && constantStyle(p.initializer))) ||
+    (ts.isArrayLiteralExpression(n) && n.elements.every(constantStyle));
   // PocketJS-style host components (View, Text, Image...) when imported from a components module (or not imported at all)
   const imported = new Map<string, string>();
   for (const st of sf.statements) if (ts.isImportDeclaration(st) && st.importClause?.namedBindings && ts.isNamedImports(st.importClause.namedBindings))
@@ -147,13 +153,13 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
       } else if (name === 'onClick' || name === 'onPress') out.push(`_on(${v}, ${val.expr});`);
       else if (name === 'style') {
         const init = a.initializer;
-        const obj = init && ts.isJsxExpression(init) && init.expression && ts.isObjectLiteralExpression(init.expression) ? init.expression : undefined;
-        if (!obj) throw new JsxError('style expects an object literal: style={{ opacity: x }}', a.getStart(sf));
-        for (const p of obj.properties) {
-          if (!ts.isPropertyAssignment(p)) throw new JsxError('style supports `key: value` entries', p.getStart(sf));
-          const key = p.name.getText(sf), e = rewrite(p.initializer);
-          out.push(react || /^[-\d.]+$/.test(e) ? `_num(${v}, '${key}', ${e});` : `_dynNum(${v}, '${key}', () => (${e}));`);
+        if (!init || !ts.isJsxExpression(init) || !init.expression) throw new JsxError('style expects an object, a StyleSheet entry or an array of styles', a.getStart(sf));
+        let layers = styleLayers(init.expression, sf);
+        if (constantStyle(init.expression)) {
+          const id = `__zsheet${staticStyles.length}`;
+          staticStyles.push(`const ${id} = ${layers};`); layers = id;
         }
+        out.push(react ? `_styles(${v}, ${layers});` : `_dynStyles(${v}, () => ${layers});`);
       }
       else if (name === 'src') out.push(val.lit !== undefined ? `_img(${v}, ${JSON.stringify(val.lit)});` : react ? `_img(${v}, ${val.expr});` : `_dynImg(${v}, () => (${val.expr}));`);
       else if (name === 'ref') out.push(`_ref(${v}, ${val.expr});`);
@@ -338,7 +344,9 @@ export function lowerJsx(text: string, fileName: string, customClasses?: Set<str
   visit(sf);
   let out = text;
   for (const s of spans.sort((a, b) => b.start - a.start)) out = out.slice(0, s.start) + s.code + out.slice(s.end);
-  const input = '_ptr, _key, _onText, _str, _hl, _ctx';
-  const helpers = react ? `_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ${input}` : `_el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ${input}`;
-  return `import { ${helpers} } from '${lib}'; ` + (named ? "import { setComponentName as __zcomp } from 'zinc:ui'; " : '') + out;
+  const input = '_styles, _ptr, _key, _onText, _str, _hl, _ctx';
+  const helpers = react ? `_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ${input}` : `_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ${input}`;
+  out = staticStyles.join(' ') + ' ' + out;
+  const styleImport = out.includes('new __ZStyle(') && !out.includes('Style as __ZStyle') ? "import { Style as __ZStyle } from 'zinc:ui'; " : '';
+  return styleImport + `import { ${helpers} } from '${lib}'; ` + (named ? "import { setComponentName as __zcomp } from 'zinc:ui'; " : '') + out;
 }

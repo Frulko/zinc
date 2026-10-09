@@ -1,0 +1,36 @@
+{
+  "format": "zinc-ui/1", "name": "Thermostat", "entry": "ThermostatApp", "width": 480, "height": 320,
+  "styles": {
+    "screen": { "width": "100%", "height": "100%", "padding": 24, "gap": 16, "backgroundColor": "#f1f5f9" },
+    "card": { "padding": 20, "gap": 12, "backgroundColor": "#ffffff", "borderRadius": 16 },
+    "title": { "fontSize": 24, "color": "#0f172a", "fontWeight": "bold" },
+    "action": { "padding": 12, "backgroundColor": "#2563eb", "color": "#ffffff", "borderRadius": 8 }
+  },
+  "components": [
+    {
+      "name": "TemperatureCard",
+      "inputs": { "temperature": { "type": "number", "default": 21 } },
+      "events": { "targetChanged": "number" },
+      "root": { "id": "card", "type": "view", "styles": ["card"], "children": [
+        { "id": "label", "type": "text", "text": "Temperature", "styles": ["title"] },
+        { "id": "value", "type": "text", "text": { "input": "temperature" }, "style": { "fontSize": 32, "color": "#2563eb" } },
+        { "id": "set", "type": "button", "text": "Set to 22", "styles": ["action"], "onClick": [{ "type": "emit", "event": "targetChanged", "value": 22 }] }
+      ] }
+    },
+    {
+      "name": "ThermostatApp",
+      "inputs": { "temperature": { "type": "number", "default": 21 } },
+      "events": { "targetChanged": "number" }, "initial": "home",
+      "screens": [
+        { "id": "home", "root": { "id": "home-root", "type": "view", "styles": ["screen"], "children": [
+          { "id": "instance", "type": "TemperatureCard", "inputs": { "temperature": { "input": "temperature" } }, "events": { "targetChanged": "targetChanged" } },
+          { "id": "next", "type": "button", "text": "Details", "styles": ["action"], "onClick": [{ "type": "navigate", "target": "details" }] }
+        ] } },
+        { "id": "details", "root": { "id": "details-root", "type": "view", "styles": ["screen"], "children": [
+          { "id": "heading", "type": "text", "text": "Connected component", "styles": ["title"] },
+          { "id": "back", "type": "button", "text": "Back", "styles": ["action"], "onClick": [{ "type": "back" }] }
+        ] } }
+      ]
+    }
+  ]
+}

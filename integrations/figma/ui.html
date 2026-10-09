@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zinc UI</title>
+<style>
+:root { color-scheme: light dark; --paper: var(--figma-color-bg, #f5f4ef); --ink: var(--figma-color-text, #20231f); --line: var(--figma-color-border, #d7d9d0); --muted: var(--figma-color-text-secondary, #5d6259); }
+* { box-sizing: border-box; } body { margin: 0; padding: 24px; color: var(--ink); background: var(--paper); font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
+header { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 16px; border-bottom: 2px solid var(--ink); } h1 { margin: 0; font: 34px Georgia, serif; letter-spacing: -1.5px; } .edition, legend { font: 10px ui-monospace, monospace; letter-spacing: 1.3px; text-transform: uppercase; } .edition { color: var(--muted); }
+#selection { margin: 16px 0 22px; color: var(--muted); overflow-wrap: anywhere; } label { display: block; margin: 12px 0 5px; font-weight: 600; } input, textarea, button { font: inherit; } input[type=text], textarea { width: 100%; background: var(--figma-color-bg-secondary, #fff); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 9px 10px; } textarea { resize: vertical; font: 11px/1.6 ui-monospace, monospace; } button { border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 9px 12px; border-radius: 4px; cursor: pointer; } button:hover:not(:disabled) { border-color: var(--ink); } button:disabled { opacity: .45; cursor: wait; } :focus-visible { outline: 2px solid #388543; outline-offset: 2px; } .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; } .primary { background: #d4f57b; color: #1a2912; border-color: #adc952; font-weight: 700; flex: 1; } small { display: block; color: var(--muted); margin: 5px 0; } .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; } details { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 14px; } summary { cursor: pointer; font-weight: 600; } .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } #status { padding: 10px 0; min-height: 36px; white-space: pre-wrap; overflow-wrap: anywhere; } #status[data-error=true] { color: var(--figma-color-text-danger, #a62918); } #warnings { white-space: pre-wrap; max-height: 160px; overflow: auto; color: var(--muted); font-size: 12px; } iframe { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: 4px; background: #0b0e1a; } #code { height: 260px; } [hidden] { display: none !important; }
+</style>
+<header><h1>Zinc UI<span style="color:#739d31">.</span></h1><span class="edition">Design → native / 01</span></header>
+<p id="selection">Select your screens in Figma.</p>
+<label for="name">Export name</label><input id="name" type="text" value="MyApp" spellcheck="false">
+<label class="check"><input id="raster" type="checkbox">Allow PNG fallback for static decorations</label>
+<small>Interactive subtrees remain native. Unsupported interactions are reported.</small>
+<div class="actions"><button id="export" class="primary">Export ZIP</button><button id="show-code">Generate TSX</button></div>
+<details><summary>Connect to Zinc</summary>
+<label for="pair">Pairing URL</label><input id="pair" type="text" placeholder="http://localhost:7331/#…" autocomplete="off" spellcheck="false">
+<small>Run <code>zinc ui serve ./build/figma-preview</code> and paste its URL.</small>
+<div class="actions"><button id="send">Send to Zinc</button><button id="preview" class="primary">Preview in Zinc</button></div>
+</details>
+<details><summary>Selected layer · inputs & events</summary>
+<small>Select one layer. Annotations are saved only when you press Save.</small>
+<div class="row"><div><label for="bind">Text input binding</label><input id="bind" type="text" placeholder="temperature"></div><div><label for="emit">Click event (no payload)</label><input id="emit" type="text" placeholder="submitted"></div></div>
+<label for="metadata">Annotations</label><textarea id="metadata" rows="8" spellcheck="false">{}</textarea>
+<small>Root contract: <code>{"contract":{"inputs":{"title":{"type":"string","default":"Hello"}},"events":{"submitted":"void"}}}</code></small>
+<div class="actions"><button id="save">Save annotations</button></div>
+</details>
+<div id="status" role="status" aria-live="polite">Ready.</div><div id="warnings"></div>
+<section id="source" hidden><label for="code">Generated Zinc TSX</label><textarea id="code" readonly spellcheck="false"></textarea><div class="actions"><button id="copy">Copy code</button><button id="download-code">Download TSX</button></div><small>Assets travel in the ZIP. Hand-edited TSX is independent of future Figma exports.</small></section>
+<iframe id="frame" title="Interactive Zinc WebAssembly preview" hidden></iframe>
+<script>
+/*__ZINC_BUNDLE__*/
+const { validateDocument, generateUI } = zincRequire('./ui-document.ts');
+const { zipUI } = zincRequire('./ui-package.ts');
+const $ = id => document.getElementById(id);
+let selectedId = null, action = null, last = null;
+function status(message, error = false) { $('status').textContent = message; $('status').dataset.error = String(error); }
+function busy(on) { for (const id of ['export', 'show-code', 'send', 'preview']) $(id).disabled = on; }
+function post(message) { parent.postMessage({ pluginMessage: message }, '*'); }
+function download(name, bytes, type) { const url = URL.createObjectURL(new Blob([bytes], { type })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+async function pack(result) {
+  const encode = value => new TextEncoder().encode(JSON.stringify(value));
+  const files = new Map([['manifest.json', encode({ format: 'zinc-ui-package/1', document: 'design.zui.json' })], ['design.zui.json', encode(result.document)]]);
+  for (const a of result.assets) files.set('assets/' + a.name, new Uint8Array(a.bytes));
+  return zipUI(files);
+}
+function connection() {
+  const url = new URL($('pair').value.trim());
+  if (url.protocol !== 'http:' || url.hostname !== 'localhost' || url.port !== '7331' || !/^[a-f0-9]{48}$/.test(url.hash.slice(1)) || url.username || url.password) throw new Error('Paste the http://localhost:7331/#… pairing URL printed by zinc ui serve.');
+  return { origin: url.origin, token: url.hash.slice(1) };
+}
+for (const [id, mode] of [['export', 'zip'], ['show-code', 'code'], ['send', 'send'], ['preview', 'preview']]) $(id).onclick = () => {
+  try { if (mode === 'send' || mode === 'preview') connection(); action = mode; busy(true); status('Reading selected design…'); $('warnings').textContent = ''; post({ type: 'export', name: $('name').value.trim(), rasterize: $('raster').checked }); }
+  catch (e) { status(e.message, true); }
+};
+$('save').onclick = () => {
+  try {
+    if (!selectedId) throw new Error('Select one layer first.');
+    const m = JSON.parse($('metadata').value);
+    if ($('bind').value.trim()) m.text = { input: $('bind').value.trim() };
+    if ($('emit').value.trim()) m.onClick = [{ type: 'emit', event: $('emit').value.trim() }];
+    post({ type: 'save', id: selectedId, json: JSON.stringify(m) });
+  } catch (e) { status(e.message, true); }
+};
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('code').value); status('Code copied.'); }
+  catch { $('code').focus(); $('code').select(); status('Code selected. Press Cmd/Ctrl+C to copy.'); }
+};
+$('download-code').onclick = () => { if (last) download(last.document.name + '.tsx', $('code').value, 'text/plain'); };
+window.addEventListener('message', async e => {
+  if (e.source !== parent || !e.data.pluginMessage) return;
+  const msg = e.data.pluginMessage;
+  if (msg.type === 'selection') {
+    selectedId = msg.id; $('selection').textContent = msg.names.length ? msg.names.join(' / ') : 'Select your screens in Figma.';
+    $('metadata').value = JSON.stringify(msg.metadata, null, 2); $('bind').value = msg.metadata.text?.input ?? ''; $('emit').value = msg.metadata.onClick?.length === 1 && msg.metadata.onClick[0].type === 'emit' && msg.metadata.onClick[0].value === undefined ? msg.metadata.onClick[0].event : '';
+    $('save').disabled = !selectedId; return;
+  }
+  if (msg.type === 'error') { status(msg.message, true); busy(false); return; }
+  if (msg.type !== 'export') return;
+  try {
+    validateDocument(msg.document); last = msg;
+    $('warnings').textContent = (msg.warnings ?? []).join('\n');
+    if (action === 'code') { $('code').value = generateUI(msg.document); $('source').hidden = false; status('TSX generated.'); }
+    else {
+      const bytes = await pack(msg);
+      if (action === 'zip') { download(msg.document.name + '.zui.zip', bytes, 'application/zip'); status(`Exported ${(bytes.length / 1024).toFixed(1)} KiB.`); }
+      else {
+        const c = connection(); status(action === 'preview' ? 'Compiling the Zinc preview…' : 'Sending to Zinc…');
+        const r = await fetch(c.origin + (action === 'preview' ? '/preview' : '/import'), { method: 'POST', headers: { Authorization: 'Bearer ' + c.token, 'Content-Type': 'application/zip' }, body: bytes });
+        if (!r.ok) throw new Error(await r.text());
+        const result = await r.json();
+        if (action === 'preview') { $('frame').src = c.origin + result.preview; $('frame').hidden = false; }
+        status(action === 'preview' ? 'Zinc preview ready. Click inside to interact.' : 'Generated project updated.');
+      }
+    }
+  } catch (error) { status(error.message, true); }
+  finally { busy(false); }
+});
+post({ type: 'selection' });
+</script>
+</html>

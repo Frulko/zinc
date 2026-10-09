@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { lowerJsx, JsxError, setComponentNames } from './jsx.ts';
 export { setComponentNames };
 import { compileCss, CssError } from './css.ts';
+import { lowerStyleSheets } from './styles.ts';
 import { modulePaths, projectDir } from './plugins.ts';
 
 export { ts };
@@ -151,6 +152,7 @@ export function loadProgram(entryPath: string, extra: string[] = [], virtual?: M
         return `import { defineClass as __zcss } from 'zinc:ui'; ${calls}`;
       });
       const kind = f.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+      text = lowerStyleSheets(text, f);
       if (kind === ts.ScriptKind.TSX) text = lowerJsx(text, f, custom);
       return ts.createSourceFile(f, webGlobals(f, text, kind), lang, true, kind);
     } catch (e) {

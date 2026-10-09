@@ -20,6 +20,8 @@ export function _append(parent: i32, child: i32): void { ui.insert(parent, child
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
 export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }
+export function _styles(n: i32, styles: ui.Style[]): void { ui.setStyles(n, styles); }
+export function _dynStyles(n: i32, get: () => ui.Style[]): void { if (fineGrained()) solid._dynStyles(n, get); else ui.setStyles(n, get()); }
 export function _num(n: i32, key: string, v: number): void { ui.setNumber(n, key, v); }
 export function _img(n: i32, src: string): void { ui.setImage(n, src); }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }

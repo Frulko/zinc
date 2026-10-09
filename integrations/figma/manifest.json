@@ -1,0 +1,13 @@
+{
+  "name": "Zinc UI",
+  "id": "zinc-ui-development",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["http://localhost:7331"],
+    "reasoning": "Send UI documents to the user's paired local Zinc compiler and display its WebAssembly preview."
+  }
+}

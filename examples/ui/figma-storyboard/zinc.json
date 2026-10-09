@@ -1,0 +1,1 @@
+{ "name": "figma-storyboard", "entry": "src/main.tsx", "targets": { "macos": { "width": 480, "height": 320 }, "wasm": { "width": 480, "height": 320 }, "sim": { "width": 480, "height": 320 } } }
