@@ -1,4 +1,5 @@
 /* A native module written in C99 (ZN-096): every kind of export the ABI has. Built with -std=c99 -Wall -Wextra -Werror -pedantic. */
+#define _DEFAULT_SOURCE   /* usleep under -std=c99 with glibc (macOS declares it anyway) */
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>

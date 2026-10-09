@@ -2,13 +2,14 @@
 #include "hal.h"
 #include "hal_window.h"
 #include <SDL3/SDL.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
-static void start_workers();   // parallel rasterization (hal_present)
+extern "C" { static void start_workers(); }   // parallel rasterization (hal_present); defined inside the extern "C" block below (GCC wants the same linkage)
 static SDL_Window* win;
 static SDL_Renderer* ren;
 static SDL_Texture* tex;

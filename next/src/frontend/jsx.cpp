@@ -9,6 +9,7 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <map>
 #include <memory>

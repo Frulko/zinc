@@ -72,7 +72,13 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
   fs::path exe = fs::path(appPath) / "Contents/MacOS" / spec.exeName, plist = fs::path(appPath) / "Contents/Info.plist", stamp = fs::path(cacheDir) / (spec.id + ".stamp");   // beside the bundle, not in it: the signature seals what is inside
   struct stat st;
   if (stat(engine.c_str(), &st) != 0) { err = "cannot read the engine " + engine; return false; }
-  std::string want = std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(static_cast<long long>(st.st_mtime)) + " " + std::to_string(static_cast<long long>(st.st_mtimespec.tv_nsec));
+  std::string want = std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(static_cast<long long>(st.st_mtime)) + " " + std::to_string(static_cast<long long>(
+#ifdef __APPLE__
+      st.st_mtimespec.tv_nsec
+#else
+      st.st_mtim.tv_nsec   // the same nanoseconds under POSIX's name (the bundle itself is macOS-only; this compiles on Linux)
+#endif
+      ));
   std::string plistText = infoPlist(spec, false);
   std::error_code ec;
   if (fs::exists(exe, ec) && readAll(stamp) == want && readAll(plist) == plistText) return true;   // nothing changed: two small reads and two stats
