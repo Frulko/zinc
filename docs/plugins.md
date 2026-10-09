@@ -128,6 +128,11 @@ URL, and the lock records the tier and the publisher. A verified publisher's bin
 when `rebuilds/<sha256>.json`, signed by the top-level role, counts at least `ZINC_REBUILDS_MIN` (default 2) matching
 rebuilds; otherwise the plugin is built here.
 
+A plugin added by URL is `community`: its `plugin.json` may name its publisher, `"publisher": { "name": "Alice", "publicKey":
+"<hex>" }`; the archive's `<url>.sig` must then verify with that key, `zinc add` prints the tier and the publisher before
+installing, and the key is pinned in the lock on first use. A later archive signed with another key is refused until
+`zinc trust <name>` forgets the pinned key (the next `zinc add` pins the new one). Community plugins are built from source.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

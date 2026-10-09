@@ -64,6 +64,7 @@ const Command kCommands[] = {
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name is looked up in the signed index: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
+  {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
   {"install", "zinc install [--offline] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
@@ -924,6 +925,36 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
   const bool byName = spec.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos && !fs::exists(spec, ec);
   if (byName) err = fromIndex(spec, engineRoot, want, spec);
   if (err.empty()) err = fetchPlugin(spec, want, scratch.p, dir, got);
+  ScratchDir again;
+  if (err.empty() && !byName) {   // a URL: the community tier (ZN-340.02); the key plugin.json names is checked against <url>.sig and pinned on first use
+    std::ifstream mf(dir / "plugin.json");
+    std::stringstream ms; ms << mf.rdbuf();
+    std::string pname, pubName, pubKey;
+    if (yyjson_doc* pd = yyjson_read(ms.str().data(), ms.str().size(), 0)) {
+      yyjson_val* r = yyjson_doc_get_root(pd);
+      yyjson_val* pub = yyjson_obj_get(r, "publisher");
+      if (yyjson_is_str(yyjson_obj_get(r, "name"))) pname = yyjson_get_str(yyjson_obj_get(r, "name"));
+      if (yyjson_is_str(yyjson_obj_get(pub, "name"))) pubName = yyjson_get_str(yyjson_obj_get(pub, "name"));
+      if (yyjson_is_str(yyjson_obj_get(pub, "publicKey"))) pubKey = yyjson_get_str(yyjson_obj_get(pub, "publicKey"));
+      yyjson_doc_free(pd);
+    }
+    if (!pubKey.empty() && want.publicKey.empty() && isArchive(spec)) {
+      PluginPin signedPin = want;
+      signedPin.publicKey = pubKey;
+      signedPin.sha256 = got.sha256;   // the same bytes, from the cache
+      again.p = scratch.p.string() + "-signed";
+      fs::remove_all(again.p, ec);
+      err = fetchPlugin(spec, signedPin, again.p, dir, got);
+    }
+    yyjson_val* lockedV = yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), "lock"), "plugins"), pname.c_str()), "publicKey");
+    const std::string locked = yyjson_is_str(lockedV) ? yyjson_get_str(lockedV) : "";
+    if (err.empty() && !locked.empty() && locked != got.publicKey)
+      err = "plugin " + pname + ": its publisher key changed (pinned " + locked.substr(0, 16) + "..., now " + (got.publicKey.empty() ? std::string("none") : got.publicKey.substr(0, 16) + "...") + "): refused; `zinc trust " + pname + "` accepts the new key";
+    want.tier = "community";
+    want.publisher = pubName.empty() ? "unknown" : pubName;
+    if (err.empty())
+      std::printf("%s: tier community, publisher %s (%s), from %s\n", pname.c_str(), want.publisher.c_str(), got.publicKey.empty() ? (isArchive(spec) ? "unsigned" : "pinned by its commit") : ("key " + got.publicKey.substr(0, 16) + "..., pinned").c_str(), spec.c_str());
+  }
   if (err.empty()) err = installPlugin(dir, project, name);
   if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
   yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
@@ -950,6 +981,28 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
   yyjson_mut_doc_free(md);
   if (!ok) { std::fprintf(stderr, "zinc add: cannot write %s\n", zj.string().c_str()); return 1; }
   std::printf("added %s (%s %s) in plugins/%s\n", name.c_str(), got.commit.empty() ? "sha256" : "commit", (got.commit.empty() ? got.sha256 : got.commit).c_str(), name.c_str());
+  return 0;
+}
+
+// `zinc trust <name> [dir]` (ZN-340.02): forgets the publisher key pinned for a community plugin, so the next `zinc add` pins the key it brings.
+int trustPlugin(const std::vector<std::string>& args) {
+  if (args.size() < 3 || args.size() > 4) { std::fprintf(stderr, "usage: zinc trust <plugin> [project-dir]\n"); return 2; }
+  const fs::path zj = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal() / "zinc.json";
+  std::ifstream zf(zj);
+  std::stringstream zs; zs << zf.rdbuf();
+  yyjson_doc* doc = zf ? yyjson_read(zs.str().data(), zs.str().size(), 0) : nullptr;
+  if (!doc) { std::fprintf(stderr, "zinc trust: no zinc.json at %s\n", zj.string().c_str()); return 2; }
+  yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
+  yyjson_doc_free(doc);
+  yyjson_mut_val* entry = yyjson_mut_obj_get(yyjson_mut_obj_get(yyjson_mut_obj_get(yyjson_mut_doc_get_root(md), "lock"), "plugins"), args[2].c_str());
+  if (!entry || !yyjson_mut_obj_get(entry, "publicKey")) { yyjson_mut_doc_free(md); std::fprintf(stderr, "zinc trust: %s has no pinned publisher key in %s\n", args[2].c_str(), zj.string().c_str()); return 1; }
+  yyjson_mut_obj_remove_key(entry, "publicKey");
+  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  const bool ok = out && writeFile(zj, std::string(out) + "\n");
+  std::free(out);
+  yyjson_mut_doc_free(md);
+  if (!ok) return 1;
+  std::printf("%s: the publisher key is no longer pinned; the next `zinc add` pins the key it brings\n", args[2].c_str());
   return 0;
 }
 
