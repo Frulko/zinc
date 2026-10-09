@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef ZP_DISPLAY_GL_FULLSCREEN
 #define ZP_DISPLAY_GL_FULLSCREEN 0
@@ -75,6 +76,8 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
       for (int32_t k = 0; k < in->ntouch; k++) if (in->touch[k].id == (int32_t)e.tfinger.fingerID) { in->touch[k] = in->touch[--in->ntouch]; break; }
     }
   }
+  static const bool det = getenv("ZINC_DETERMINISTIC") && strcmp(getenv("ZINC_DETERMINISTIC"), "0") != 0;
+  if (det) { in->quit = quit; return; }   // a deterministic run (tests) reads no live keyboard or mouse: the pointer over the window changed hover states
   const bool* k = SDL_GetKeyboardState(nullptr);
   uint32_t b = 0;
   if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) b |= HAL_UP;
