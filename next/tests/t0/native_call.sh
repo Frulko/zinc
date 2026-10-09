@@ -19,7 +19,7 @@ assert b.count(b'Fixture') >= 1 and b.count(b'ii>i') == 1
 open(d + '/unlinked.zbc', 'wb').write(b.replace(b'Fixture', b'Fixtuxe'))
 open(d + '/badsig.zbc', 'wb').write(b.replace(b'ii>i', b'ui>i'))
 PY
-"$ZINC" run "$tmp/unlinked.zbc" 2>&1 | grep -q "the native module 'Fixtuxe' is not linked" || { echo "an unlinked native module is not refused when the zbc loads"; fail=1; }
+"$ZINC" run "$tmp/unlinked.zbc" 2>&1 | grep -q "the native module 'Fixtuxe' \(is not linked\|cannot be loaded\)" ||   # a .zbc run directly looks for a plugin first (ZN-324.03) { echo "an unlinked native module is not refused when the zbc loads"; fail=1; }
 "$ZINC" run "$tmp/badsig.zbc" 2>&1 | grep -q "the program expects the signature 'ui>i', the module has 'ii>i'" || { echo "a signature mismatch is not refused when the zbc loads"; fail=1; }
 cat > "$tmp/fail.ts" <<'TS'
 import { NativeModule, requireNative } from 'zinc:native';

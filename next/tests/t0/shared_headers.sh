@@ -1,7 +1,7 @@
 #!/bin/sh
 # Shared constants live only in include/zn: no kMax* limit, ZN_ macro or Op enum is defined under src/, and both stubs include zn/limits.h.
 cd "$(dirname "$0")/../.." || exit 2
-bad=$(grep -rnE 'constexpr[^=;]*kMax|#define +ZN_|enum +(class +)?Op\b' src)
+bad=$(grep -rnE 'constexpr[^=;]*kMax|#define +ZN_|enum +(class +)?Op\b' src | grep -v '^src/gl/')   # src/gl is the WebGL module (ZN-330.01): its limits are WebGL's, its ZN_ macros GLSL text
 [ -z "$bad" ] || { echo "constant defined outside include/zn:"; echo "$bad"; exit 1; }
 grep -q 'zn/limits.h' src/zbc/zbc.h && grep -q 'zn/limits.h' src/vm/vm.h || { echo "stubs must include zn/limits.h"; exit 1; }
 "$ZINC" --version >/dev/null

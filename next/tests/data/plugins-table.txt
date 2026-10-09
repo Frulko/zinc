@@ -27,6 +27,7 @@ plugin (import / display)  targets                             description
   zinc:socket              macos,linux,rpi1,rmpp              TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
   zinc:sqlite              macos,linux,rpi1,rmpp              SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
   zinc:svg                 macos,linux,rpi1,wasm              Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
+  zinc:system              macos,linux                        Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)
   three                    macos,linux,rpi1,wasm              three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls
   zinc:video               macos,linux,rpi1                   Video playback (FFmpeg, VideoToolbox / V4L2 M2M decode), gapless playlists as runtime images
   zinc:wasm                macos,linux,rpi1,rmpp              WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals

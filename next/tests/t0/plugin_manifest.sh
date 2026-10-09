@@ -7,7 +7,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 n=$(ls ../plugins/*/plugin.json | wc -l | tr -d ' ')
 out=$("$ZINC" plugins 2>"$tmp/err"); rc=$?
 [ $rc -eq 0 ] && [ "$(echo "$out" | wc -l | tr -d ' ')" = "$((n + 1))" ] || { echo "zinc plugins does not list the $n manifests (and the header): rc=$rc $(head -c 200 "$tmp/err")"; fail=1; }
-# the table of the prototype's `zinc plugins` (tests/data/plugins-table.txt is its output at the time of the port)
+# the table of the prototype's `zinc plugins` (tests/data/plugins-table.txt is its output at the time of the port), plus the plugins Next added since (zinc:system)
 echo "$out" | diff -q - tests/data/plugins-table.txt >/dev/null || { echo "zinc plugins differs from the prototype's table"; fail=1; }
 echo "$out" | grep -q "^  zinc:pixelfont  " || { echo "pixelfont (no entry in its manifest) is not listed"; fail=1; }
 mkdir -p "$tmp/p/plugins/a" "$tmp/p/plugins/b" "$tmp/p/plugins/c"

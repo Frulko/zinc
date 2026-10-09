@@ -31,6 +31,7 @@ maps/navigation/src/main.tsx | OK |  |
 maps/svg-gallery/src/main.tsx | OK |  | 
 modules-showcase/src/main.tsx | OK |  | 
 native-module/src/main.ts | OK |  | 
+nuxt-ui/src/main.tsx | OK |  | 
 pinball/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
 process/cli/main.ts | OK |  | 
@@ -38,6 +39,9 @@ process/shell/main.tsx | OK |  |
 remarkable/dashboard/src/main.tsx | OK |  | 
 remarkable/notes/src/main.tsx | OK |  | 
 remote/viewer/main.tsx | OK |  | 
+rn-port/src/index.tsx | OK |  | 
+rn-showcase/src/main.tsx | OK |  | 
+rn-tester/src/index.tsx | OK |  | 
 robot-eyes-oled/src/main.ts | OK |  | 
 robot-eyes/src/main.ts | OK |  | 
 scripting/bench/src/main.ts | OK |  | 
@@ -59,6 +63,8 @@ video/bounce/src/main.ts | OK |  |
 video/looper/src/main.ts | OK |  | 
 video/mapper/src/main.ts | OK |  | 
 video/quad/src/main.ts | OK |  | 
+webgl-cube/src/main.tsx | OK |  | 
+webgl-studio/src/main.tsx | OK |  | 
 webview/hybrid/main.tsx | OK |  | 
 zed-editor/sample/src/main.ts | OK |  | 
 zed-editor/src/main.tsx | OK |  | 
