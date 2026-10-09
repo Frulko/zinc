@@ -354,7 +354,12 @@ static int runCompiled(const zn::zbc::Module& zm, const std::string& entry, cons
   const char* mode = std::getenv("ZINC_RUN");
   if (mode && !std::strcmp(mode, "interp")) return -1;
   if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return -1;
-  if (gProfile || !zn::aot::usesHost(zm)) return -1;
+  bool draws = false;   // a zinc:gfx row (the graphics rows come before HostSysFirst): timers, files and processes alone stay interpreted (D43)
+  for (const zn::zbc::Function& fn : zm.functions)
+    for (std::size_t pc = 0; pc < fn.code.size() && !draws; pc += zn::instrLen(static_cast<zn::Op>(zn::opOf(fn.code[pc]))))
+      if (static_cast<zn::Op>(zn::opOf(fn.code[pc])) == zn::Op::Rt && zn::dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostGfxFrames) &&
+          zn::dOf(fn.code[pc]) < static_cast<unsigned>(zn::Rt::HostSysFirst)) draws = true;
+  if (gProfile || !draws) return -1;
   const std::string exe = zn::tc::executablePath();
   const fs::path libs = fs::path(exe).parent_path();
   const char* cxx = std::getenv("CXX");
