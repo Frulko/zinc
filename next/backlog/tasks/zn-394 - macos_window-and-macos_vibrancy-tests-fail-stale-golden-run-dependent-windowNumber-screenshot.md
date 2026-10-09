@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 00:33'
+updated_date: '2026-10-09 02:59'
 labels:
   - test
   - macos
@@ -24,3 +25,9 @@ Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the win
 <!-- AC:BEGIN -->
 - [ ] #1 macos_window and macos_vibrancy pass twice in a row on this Mac, or skip with the reason
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-09: macos_deeplink fails the same way in full T1 (the app's out.log is never written).
+<!-- SECTION:NOTES:END -->
