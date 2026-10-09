@@ -160,7 +160,7 @@ std::vector<std::string> mirrors() {
 
 bool downloadTo(const std::string& origin, const std::string& rel, const std::string& out, const Accept& ok, std::string& err) {
   std::vector<std::string> urls;
-  for (const std::string& m : mirrors()) urls.push_back(m + "/" + rel);
+  if (!rel.empty()) for (const std::string& m : mirrors()) urls.push_back(m + "/" + rel);   // no name a mirror would know: the origin only
   if (!origin.empty()) urls.push_back(origin);
   std::error_code ec;
   int tried = 0;

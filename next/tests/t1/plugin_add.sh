@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+export ZINC_HOME="$tmp/home"   # its own cache of sources (ZN-339.02); the refusals below use an empty one
 mkdir -p "$tmp/greet" "$tmp/shout/shout" "$tmp/a" "$tmp/b"
 printf '{ "name": "greet", "kind": "module", "module": "zinc:greet", "entry": "index.ts" }\n' > "$tmp/greet/plugin.json"
 printf "export function greet(n: string): string { return 'hi ' + n; }\n" > "$tmp/greet/index.ts"
@@ -27,7 +28,8 @@ cp "$tmp/a/zinc.json" "$tmp/a/main.ts" "$tmp/b/"
 "$Z" install "$tmp/b" >/dev/null || { echo "plugin_add: zinc install failed"; fail=1; }
 diff -r "$tmp/a/plugins" "$tmp/b/plugins" >/dev/null || { echo "plugin_add: the second checkout got other bytes"; fail=1; }
 printf 'x' >> "$tmp/shout.tar.gz"
-"$Z" install "$tmp/b" >/dev/null 2>"$tmp/err" && { echo "plugin_add: a changed archive was installed"; fail=1; }
+"$Z" install "$tmp/b" >/dev/null 2>&1 || { echo "plugin_add: the locked bytes in the cache are not used when the origin changed"; fail=1; }
+ZINC_HOME="$tmp/cold" "$Z" install "$tmp/b" >/dev/null 2>"$tmp/err" && { echo "plugin_add: a changed archive was installed"; fail=1; }
 grep -q "changed" "$tmp/err" || { echo "plugin_add: the refusal does not say the archive changed: $(cat "$tmp/err")"; fail=1; }
 "$Z" add "$tmp/greet" "$tmp/a" >/dev/null 2>&1 && { echo "plugin_add: a plain directory was added (pluginDirs is for those)"; fail=1; }
 exit $fail

@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+export ZINC_HOME="$tmp/home"   # its own cache of sources (ZN-339.02); the refusals below use empty ones
 mkdir -p "$tmp/src/greet" "$tmp/a" "$tmp/b"
 printf '{ "name": "greet", "kind": "module", "module": "zinc:greet", "entry": "index.ts" }\n' > "$tmp/src/greet/plugin.json"
 printf "export function greet(n: string): string { return 'hi ' + n; }\n" > "$tmp/src/greet/index.ts"
@@ -19,11 +20,11 @@ cp "$tmp/a/zinc.json" "$tmp/b/"
 "$Z" install "$tmp/b" >/dev/null || { echo "plugin_sign: zinc install refused the signed archive"; fail=1; }
 cp "$tmp/greet.tar.gz.sig" "$tmp/good.sig"
 "$Z" sign "$tmp/greet.tar.gz" "$other" >/dev/null
-"$Z" add "file://$tmp/greet.tar.gz" "$tmp/a" --key "$pub" >/dev/null 2>"$tmp/err" && { echo "plugin_sign: a signature of another key was accepted"; fail=1; }
+ZINC_HOME="$tmp/cold1" "$Z" add "file://$tmp/greet.tar.gz" "$tmp/a" --key "$pub" >/dev/null 2>"$tmp/err" && { echo "plugin_sign: a signature of another key was accepted"; fail=1; }
 grep -q "does not verify" "$tmp/err" || { echo "plugin_sign: unexpected refusal: $(cat "$tmp/err")"; fail=1; }
-"$Z" install "$tmp/b" >/dev/null 2>&1 && { echo "plugin_sign: zinc install accepted a signature of another key"; fail=1; }
+ZINC_HOME="$tmp/cold2" "$Z" install "$tmp/b" >/dev/null 2>&1 && { echo "plugin_sign: zinc install accepted a signature of another key"; fail=1; }
 rm "$tmp/greet.tar.gz.sig"
-"$Z" add "file://$tmp/greet.tar.gz" "$tmp/a" --key "$pub" >/dev/null 2>"$tmp/err" && { echo "plugin_sign: a missing signature was accepted"; fail=1; }
+ZINC_HOME="$tmp/cold3" "$Z" add "file://$tmp/greet.tar.gz" "$tmp/a" --key "$pub" >/dev/null 2>"$tmp/err" && { echo "plugin_sign: a missing signature was accepted"; fail=1; }
 grep -q "no signature" "$tmp/err" || { echo "plugin_sign: unexpected refusal: $(cat "$tmp/err")"; fail=1; }
 cp "$tmp/good.sig" "$tmp/greet.tar.gz.sig"
 "$Z" install "$tmp/b" >/dev/null || { echo "plugin_sign: the restored signature is refused"; fail=1; }

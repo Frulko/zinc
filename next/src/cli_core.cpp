@@ -64,7 +64,7 @@ const Command kCommands[] = {
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
   {"add", "zinc add <git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from git or an archive", "Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
-  {"install", "zinc install [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused)."},
+  {"install", "zinc install [--offline] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -762,23 +762,41 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
   std::error_code ec;
   fs::create_directories(scratch, ec);
   fs::path top;
+  // what was fetched once is kept by content (ZN-339.02): archives by SHA-256, git trees by commit; ZINC_OFFLINE (zinc install --offline) uses only that
+  const fs::path store = fs::path(zn::tc::home()) / "cache" / "sources";
   if (isArchive(spec)) {
     const fs::path archive = scratch / "archive", x = scratch / "x";
-    if (spec.rfind("file://", 0) == 0) { if (!fs::copy_file(spec.substr(7), archive, ec)) return "cannot read " + spec; }
-    else if (spec.rfind("https://", 0) == 0 || spec.rfind("http://", 0) == 0) { if (runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", archive.string(), "--", spec}, true) != 0) return "cannot download " + spec; }
-    else return "an archive is given by a file:// or https:// URL: " + spec;
+    if (spec.rfind("file://", 0) != 0 && spec.rfind("https://", 0) != 0 && spec.rfind("http://", 0) != 0) return "an archive is given by a file:// or https:// URL: " + spec;
+    const fs::path kept = pin.sha256.empty() ? fs::path() : store / "sha256" / pin.sha256;
+    if (!kept.empty() && zn::tc::sha256File(kept.string()) == pin.sha256) fs::copy_file(kept, archive, fs::copy_options::overwrite_existing, ec);
+    else if (zn::tc::offline()) return "offline: not in the local cache (" + spec + ")";
+    else {   // the mirrors by content (<mirror>/sha256/<hash>) when the lock pins it, then the URL
+      std::string err;
+      if (!zn::tc::downloadTo(spec, pin.sha256.empty() ? "" : "sha256/" + pin.sha256, archive.string(), [&](const std::string& path, std::string& why) {
+            if (pin.sha256.empty() || zn::tc::sha256File(path) == pin.sha256) return true;
+            why = "its sha256 is not the locked " + pin.sha256;
+            return false;
+          }, err))
+        return pin.sha256.empty() ? "cannot download " + spec : "the archive " + spec + " changed, or no source serves the locked bytes (" + err + "); nothing was installed";
+    }
     got = {spec, "", zn::tc::sha256File(archive.string()), ""};
+    fs::create_directories(store / "sha256", ec);
+    if (!fs::exists(store / "sha256" / got.sha256, ec)) fs::copy_file(archive, store / "sha256" / got.sha256, ec);
     if (!pin.sha256.empty() && got.sha256 != pin.sha256) return "the archive " + spec + " changed: sha256 " + got.sha256 + ", the lock pins " + pin.sha256 + "; nothing was installed";
     if (!pin.publicKey.empty()) {   // the detached signature next to the archive: <url>.sig, 128 hex digits
-      const fs::path sig = scratch / "archive.sig";
-      if (spec.rfind("file://", 0) == 0) fs::copy_file(spec.substr(7) + ".sig", sig, ec);
-      else runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", sig.string(), "--", spec + ".sig"}, true);
+      const fs::path sig = scratch / "archive.sig", keptSig = store / "sha256" / (got.sha256 + ".sig");
+      if (fs::exists(keptSig, ec)) fs::copy_file(keptSig, sig, ec);
+      else if (!zn::tc::offline()) {
+        if (spec.rfind("file://", 0) == 0) fs::copy_file(spec.substr(7) + ".sig", sig, ec);
+        else runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", sig.string(), "--", spec + ".sig"}, true);
+      }
       std::ifstream sf(sig), af(archive, std::ios::binary);
       std::string sigHex;
       sf >> sigHex;
       if (sigHex.empty()) return "no signature " + spec + ".sig (the lock names a key for this archive); nothing was installed";
       const std::string bytes((std::istreambuf_iterator<char>(af)), std::istreambuf_iterator<char>());
       if (!zn::tc::verifyBytes(bytes, sigHex, pin.publicKey)) return "the signature " + spec + ".sig does not verify with the key " + pin.publicKey + ": refused, nothing was installed";
+      fs::copy_file(sig, keptSig, fs::copy_options::overwrite_existing, ec);
       got.publicKey = pin.publicKey;
     }
     fs::create_directories(x, ec);
@@ -786,6 +804,9 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
     top = x;
   } else {
     if (!pin.publicKey.empty()) return "a key checks the signature of an archive; a git source is pinned by its commit";
+    if (!pin.commit.empty() && fs::exists(store / "git" / pin.commit / "plugin.json", ec)) { got = {spec, pin.commit, "", ""}; top = store / "git" / pin.commit; }
+    else if (zn::tc::offline()) return "offline: not in the local cache (" + spec + (pin.commit.empty() ? "" : " at " + pin.commit) + ")";
+    else {
     std::string fetchSpec = spec;
     if (!pin.commit.empty()) { const std::size_t at = spec.rfind('@'), slash = spec.rfind('/'); fetchSpec = (at != std::string::npos && slash != std::string::npos && at > slash ? spec.substr(0, at) : spec) + "@" + pin.commit; }
     std::string source;
@@ -793,6 +814,17 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
     if (top == fs::absolute(spec).lexically_normal()) return "no plugin '" + spec + "': a local directory goes in zinc.json \"pluginDirs\"; zinc add takes a git URL or an archive";
     got.source = spec;
     if (!pin.commit.empty() && got.commit != pin.commit) return "the commit of " + spec + " is " + got.commit + ", the lock pins " + pin.commit;
+    const fs::path keep = store / "git" / got.commit;   // the tree at that commit, without .git
+    if (!fs::exists(keep / "plugin.json", ec)) {
+      fs::create_directories(keep, ec);
+      for (auto it = fs::recursive_directory_iterator(top, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+        if (it->is_symlink()) continue;
+        const fs::path rel = fs::relative(it->path(), top);
+        if (it->is_directory()) fs::create_directories(keep / rel, ec); else fs::copy_file(it->path(), keep / rel, fs::copy_options::overwrite_existing, ec);
+      }
+    }
+    }
   }
   dir = top;
   if (!fs::exists(dir / "plugin.json", ec)) {   // an archive of a directory (GitHub's name-ref/)
@@ -887,8 +919,13 @@ int addPlugin(const std::vector<std::string>& args) {
 }
 
 int installPlugins(const std::vector<std::string>& args) {
-  if (args.size() > 3) { std::fprintf(stderr, "usage: zinc install [project-dir]\n"); return 2; }
-  const fs::path project = fs::absolute(args.size() == 3 ? args[2] : ".").lexically_normal();
+  std::vector<std::string> pos;
+  for (std::size_t k = 2; k < args.size(); ++k) {
+    if (args[k] == "--offline") setenv("ZINC_OFFLINE", "1", 1);   // only the local cache of sources (ZN-339.02)
+    else pos.push_back(args[k]);
+  }
+  if (pos.size() > 1) { std::fprintf(stderr, "usage: zinc install [--offline] [project-dir]\n"); return 2; }
+  const fs::path project = fs::absolute(pos.empty() ? "." : pos[0]).lexically_normal();
   std::ifstream zf(project / "zinc.json");
   std::stringstream zs; zs << zf.rdbuf();
   const std::string text = zs.str();

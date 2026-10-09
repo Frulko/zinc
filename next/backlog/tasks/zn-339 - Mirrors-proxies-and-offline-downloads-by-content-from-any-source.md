@@ -1,10 +1,10 @@
 ---
 id: ZN-339
 title: 'Mirrors, proxies and offline: downloads by content from any source'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-08 14:34'
-updated_date: '2026-10-09 04:42'
+updated_date: '2026-10-09 04:53'
 labels:
   - distribution
   - security
@@ -24,7 +24,13 @@ Every download (index files, plugins, templates, toolchains) is verified by hash
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a mirror that serves a modified archive is refused and the next mirror is tried
-- [ ] #2 through an HTTP proxy (test proxy) every download works
-- [ ] #3 `zinc install --offline` succeeds from a warm cache and names what is missing from a cold one
+- [x] #1 a mirror that serves a modified archive is refused and the next mirror is tried
+- [x] #2 through an HTTP proxy (test proxy) every download works
+- [x] #3 `zinc install --offline` succeeds from a warm cache and names what is missing from a cold one
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done through ZN-339.01 (mirrors, proxies) and .02 (content cache, install --offline). App updates (fetchManifest, downloadUpdate) still download from their URL only (proxies apply). usage: n/a
+<!-- SECTION:NOTES:END -->

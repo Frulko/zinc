@@ -167,6 +167,14 @@ A mirror serves the toolchains at `<mirror>/<archive name>` (as `ZINC_TC_MIRROR`
 A source whose answer does not verify is reported and the next one is tried. Downloads go through curl, so `HTTPS_PROXY`,
 `http_proxy` and `NO_PROXY` apply. `ZINC_OFFLINE=1` allows only `file://` sources.
 
+Plugins fetched by `zinc add` or `zinc install` are kept by content in `~/.zinc/cache/sources` (archives by SHA-256, git trees
+by commit), and a locked archive is asked of the mirrors as `<mirror>/sha256/<hash>`. `zinc install --offline` installs from
+that cache only, and names each plugin it does not hold:
+
+```sh
+zinc install --offline        # a plane, a CI runner without network: works after one online install
+```
+
 ## Releases of Zinc itself (CI)
 
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
