@@ -184,9 +184,25 @@ void log_banner(int, const char* s, uint32_t n) {
 
 // ZINC_VISUALIZE=damage|cmds (docs/dev-mode.md): an overlay over the program's frame, allocated only when asked for.
 static struct Vis { Cmd* cmds; uint32_t ncmd, cap; int32_t mode; } vis = {nullptr, 0, 0, -1};  // mode 0 off, 1 damage, 2 cmds
+// ZN-410: a frame of many commands is binned into tiles once, by the first band that paints it (the HAL may paint bands on several threads,
+// or not at all: GPU displays take the command lists); the next shown frame bins again.
+static raster::Tiles shown_tiles = {};
+static int32_t tiles_state = 0;   // 0 not binned, 1 binning, 2 ready
+static void paint_shown(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) {
+  const raster::Frame f = frame_of(*shown);
+  if (f.count < raster::kTilesMin) { raster::render(f, rows, pw, y0, y1, r); return; }
+  if (__atomic_load_n(&tiles_state, __ATOMIC_ACQUIRE) != 2) {
+    int32_t idle = 0;
+    if (__atomic_compare_exchange_n(&tiles_state, &idle, 1, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+      raster::bin(f, pw, ph, shown_tiles);
+      __atomic_store_n(&tiles_state, 2, __ATOMIC_RELEASE);
+    } else while (__atomic_load_n(&tiles_state, __ATOMIC_ACQUIRE) != 2) {}
+  }
+  raster::render_tiles(f, shown_tiles, rows, pw, y0, y1, r);
+}
 static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   raster::Rect all{0, y0, pw, y1};
-  if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, all);
+  if (shown) paint_shown(rows, y0, y1, all);
   else for (int32_t i = 0; i < (y1 - y0) * pw; i++) rows[i] = 0;
   if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, all);
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
@@ -213,7 +229,7 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
   for (int32_t i = 0; i < ndmg; i++) {
     raster::Rect r{dmg[i].x0, dmg[i].y0 > y0 ? dmg[i].y0 : y0, dmg[i].x1, dmg[i].y1 < y1 ? dmg[i].y1 : y1};
     if (r.y0 >= r.y1) continue;
-    if (shown) raster::render(frame_of(*shown), rows, pw, y0, y1, r);
+    if (shown) paint_shown(rows, y0, y1, r);
     if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
     if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
     if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
@@ -813,6 +829,7 @@ void end_frame() {
   ovl_changed = false;
   first = false;
   shown = &now;
+  __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
   HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
   present(&f);

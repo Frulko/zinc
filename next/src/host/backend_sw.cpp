@@ -17,16 +17,20 @@ static_assert(sizeof(zrt::raster::Cmd) == 48, "Scene v1 is the 48-byte Cmd");
 class SoftwareBackend final : public Backend {
  public:
   SoftwareBackend(std::uint32_t* px, int w, int h, int threads) : px_(px), w_(w), h_(h), threads_(std::max(1, threads)) {}
+  ~SoftwareBackend() override { for (zrt::raster::Tiles& t : tiles_) zrt::raster::free_tiles(t); }
   Caps caps() const override { Caps c; c.tier = Tier::T0; std::strcpy(c.api, "sw"); std::strcpy(c.renderer, "zrt raster"); c.partialPresent = true; c.threadedBands = true; return c; }
   bool begin(const FrameInfo& f) override { return f.width == w_ && f.height == h_; }
   void draw(const SceneList* lists, int n, const RectI& d) override {
     const int y0 = std::max(0, d.y0), y1 = std::min(h_, d.y1);
     if (y1 <= y0 || d.x1 <= d.x0) return;
     const int t = std::min(threads_, y1 - y0);
+    auto frame = [&](int i) { return zrt::raster::Frame{static_cast<const zrt::raster::Cmd*>(lists[i].cmds), lists[i].count, lists[i].text, lists[i].pts}; };
+    for (int i = 0; i < n && i < kLists; ++i) zrt::raster::bin(frame(i), w_, h_, tiles_[i]);   // the large lists, once per frame (ZN-410)
     auto band = [&](int a, int b) {
       const zrt::raster::Rect r{std::max(0, d.x0), a, std::min(w_, d.x1), b};
       for (int i = 0; i < n; ++i)
-        zrt::raster::render(zrt::raster::Frame{static_cast<const zrt::raster::Cmd*>(lists[i].cmds), lists[i].count, lists[i].text, lists[i].pts}, px_ + static_cast<std::size_t>(a) * w_, w_, a, b, r);
+        if (i < kLists) zrt::raster::render_tiles(frame(i), tiles_[i], px_ + static_cast<std::size_t>(a) * w_, w_, a, b, r);
+        else zrt::raster::render(frame(i), px_ + static_cast<std::size_t>(a) * w_, w_, a, b, r);
     };
     if (t == 1) { band(y0, y1); return; }
     // stripes of 32 rows taken from a counter, as the window HAL does: a dense region next to an empty one balances itself (ZN-400)
@@ -49,6 +53,8 @@ class SoftwareBackend final : public Backend {
  private:
   std::uint32_t* px_;
   int w_, h_, threads_;
+  static constexpr int kLists = 4;
+  zrt::raster::Tiles tiles_[kLists] = {};
 };
 
 }  // namespace

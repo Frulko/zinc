@@ -78,6 +78,24 @@ struct Frame {
 };
 /** Rasterizes `f` into rows [y0, y1) of a `w`-wide buffer (0x00RRGGBB), limited to `damage`. */
 void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
+/** A frame binned into 16 x 16 tiles (ZN-410): per tile, the commands that touch it in paint order, from the last opaque one that covers it whole
+ *  outside any clip. The buffers are kept and grown from frame to frame (free_tiles releases them). */
+struct Tiles {
+  int32_t w, h, tw, th;
+  uint32_t *start, *idx;              // tile t lists idx[start[t] .. start[t + 1])
+  uint32_t *rng, *head, *closed, *chunks;   // scratch of bin()
+  uint32_t cap_start, cap_idx, cap_rng, cap_head, cap_closed, cap_chunks;
+  uint32_t cooldown;          // frames to paint without binning after the tiles did not pay off
+  bool ok;
+};
+/** Frames with fewer commands are painted by render() directly: binning would cost more than it saves. */
+constexpr uint32_t kTilesMin = 2048;
+/** Bins `f` for a w x h surface; false (tiles not usable) under kTilesMin commands, past 16 nested clips, out of memory, or when the tiles
+ *  would repeat more set-up work than they hide (little occlusion). */
+bool bin(const Frame& f, int32_t w, int32_t h, Tiles& out);
+/** render() through the tiles of `f` binned by bin(): the same pixels; falls back to render() when the tiles are not usable. */
+void render_tiles(const Frame& f, const Tiles& tiles, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
+void free_tiles(Tiles& t);
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 /** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */

@@ -609,14 +609,12 @@ template<class F> static void corners(const Target& t, const RoundClip& k, Rect 
 #ifdef ZRT_RASTER_PROFILE
 extern "C" void zrt_raster_profile(uint32_t* us, uint32_t* n) { for (int i = 0; i < 13; i++) { us[i] = prof_us[i]; n[i] = prof_n[i]; prof_us[i] = prof_n[i] = 0; } }
 #endif
-void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
-  Rect base = intersect(damage, Rect{0, y0, w, y1});
-  if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
+// Paints the commands `pick(0 .. n)` of `f` in order into `t` (render: all of them; render_tiles: a tile's list).
+template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, Pick pick) {
   Rect stack[16]; int sp = 0;
   RoundClip rstack[16]; uint32_t pool = 0;
-  Target t = {band, w, y0, base};
-  for (uint32_t i = 0; i < f.count; i++) {
-    const Cmd& c = f.cmds[i];
+  for (uint32_t i = 0; i < n; i++) {
+    const Cmd& c = f.cmds[pick(i)];
 #ifdef ZRT_RASTER_PROFILE
     struct Prof { uint8_t k; uint64_t t0 = hal_time_us(); ~Prof() { prof_us[k] += (uint32_t)(hal_time_us() - t0); prof_n[k]++; } } prof{(uint8_t)c.kind};
 #endif
@@ -670,6 +668,12 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
   }
 }
 
+void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
+  Rect base = intersect(damage, Rect{0, y0, w, y1});
+  if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
+  run_cmds(f, Target{band, w, y0, base}, f.count, [](uint32_t i) { return i; });
+}
+
 static Rect cmd_bounds(const Cmd& c, int32_t w, int32_t h) {
   if (c.kind == CLEAR || c.kind == CLIP || c.kind == UNCLIP) return Rect{0, 0, w, h};
   float e = c.kind == SHADOW ? c.s + 1 : 1;
@@ -703,6 +707,156 @@ Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
     if (inb) grow(r, cmd_bounds(b.cmds[i], w, h));
   }
   return intersect(r, Rect{0, 0, w, h});
+}
+
+// ---------------------------------------------------------------- tiles (ZN-410)
+// A frame with many commands is binned once into 16 x 16 tiles: each tile keeps the commands that touch it, in paint order, from the last
+// opaque one that covers it whole outside any clip (CLEAR, an opaque square-cornered RECT), so each band paints its tiles' short lists instead
+// of every command over every layer. A tile paints exactly the pixels render() would: the same code runs with the tile as the clip, and
+// CLIP / UNCLIP (and their rounded corners) are replayed in every tile their box touches.
+static const int32_t kTile = 16;
+// What a command can touch: the damage bounds, widened for glyphs that overhang their line box and borders drawn across their edge.
+static Rect bin_bounds(const Cmd& c, int32_t w, int32_t h) {
+  if (c.kind == TEXT) { float m = c.h + 2; return Rect{ifloor(c.x - m), ifloor(c.y - m), iceil(c.x + c.w + m), iceil(c.y + c.h + m)}; }
+  float e = (c.kind == SHADOW || c.kind == BORDER ? c.s : 0) + 2;
+  if (c.kind == CLEAR || c.kind == CLIP || c.kind == UNCLIP) return Rect{0, 0, w, h};
+  return Rect{ifloor(c.x - e), ifloor(c.y - e), iceil(c.x + c.w + e), iceil(c.y + c.h + e)};
+}
+static bool grow_buf(uint32_t*& p, uint32_t& cap, uint32_t need, uint32_t keep = 0) {   // keep: the leading words to copy over
+  if (need <= cap) return true;
+  uint32_t n = need + need / 2;
+  uint32_t* q = (uint32_t*)hal_alloc((size_t)n * 4);
+  if (!q) return false;
+  for (uint32_t k = 0; k < keep; k++) q[k] = p[k];
+  if (p) hal_free(p);
+  p = q; cap = n;
+  return true;
+}
+static inline Rect tile_range(Rect r) { return Rect{r.x0 / kTile, r.y0 / kTile, (r.x1 + kTile - 1) / kTile, (r.y1 + kTile - 1) / kTile}; }
+// Binning walks the commands from the last to the first: a tile takes a command unless an opaque command above it already covers the tile
+// whole (the tile is then closed), so hidden commands are never listed and the walk ends once every tile is closed. Clip boxes come from
+// the commands before, so a frame with clips first records each command's tile range forward (Tiles.rng), with the clip stack applied.
+bool bin(const Frame& f, int32_t w, int32_t h, Tiles& out) {
+  out.ok = false;
+  if (f.count < kTilesMin || w <= 0 || h <= 0 || w > 0x7FFF * kTile || h > 0x7FFF * kTile) return false;
+  if (out.cooldown) { out.cooldown--; return false; }   // the tiles did not pay off a few frames ago
+  static int8_t enabled = -1;   // ZINC_TILES=0: every frame through render() (comparisons, bisecting)
+  if (enabled < 0) { const char* e = hal_env("ZINC_TILES"); enabled = !(e && e[0] == '0'); }
+  if (!enabled) return false;
+  const int32_t tw = (w + kTile - 1) / kTile, th = (h + kTile - 1) / kTile;
+  const uint32_t nt = (uint32_t)(tw * th);
+  const Rect screen{0, 0, w, h};
+  bool clips = false;
+  for (uint32_t i = 0; i < f.count && !clips; i++) clips = f.cmds[i].kind == CLIP;
+  // forward, only with clips: per command 2 words, its tile range (x0 | y0 << 16 and x1 | y1 << 16; x1 = 0: none), bit 31 of the first set
+  // when it is outside any clip (only there may it close tiles)
+  if (clips) {
+    if (!grow_buf(out.rng, out.cap_rng, 2 * f.count)) return false;
+    struct Lvl { Rect clip, tiles; };
+    Lvl stack[16]; int sp = 0;
+    Rect clip = screen;
+    for (uint32_t i = 0; i < f.count; i++) {
+      const Cmd& c = f.cmds[i];
+      Rect tr{0, 0, 0, 0};
+      bool outside = false;
+      if (c.kind == CLIP) {
+        if (sp >= 16) return false;   // render() would ignore it and pop a parent at its UNCLIP: too deep to bin, render() paints the frame
+        Rect inner = intersect(clip, bounds(c.x, c.y, c.w, c.h, Rect{-100000, -100000, 100000, 100000}));
+        if (inner.x0 < inner.x1 && inner.y0 < inner.y1) tr = tile_range(inner);
+        stack[sp++] = Lvl{clip, tr};
+        clip = inner;
+      } else if (c.kind == UNCLIP) {
+        if (sp > 0) { const Lvl& l = stack[--sp]; clip = l.clip; tr = l.tiles; }   // else render() ignores it
+      } else {
+        Rect b = intersect(bin_bounds(c, w, h), clip);
+        if (b.x0 < b.x1 && b.y0 < b.y1) tr = tile_range(b);
+        outside = sp == 0;
+      }
+      out.rng[2 * i] = (uint32_t)tr.x0 | (uint32_t)tr.y0 << 16 | (outside ? 0x80000000u : 0);
+      out.rng[2 * i + 1] = (uint32_t)tr.x1 | (uint32_t)tr.y1 << 16;
+    }
+  }
+  // backward: per tile a chain of chunks, newest first (link, count, then kChunk command indices); closed[t] once a command covers tile t
+  static const uint32_t kChunk = 14, kWords = kChunk + 2, kNone = 0xFFFFFFFFu;
+  if (!grow_buf(out.head, out.cap_head, nt) || !grow_buf(out.closed, out.cap_closed, nt) || !grow_buf(out.chunks, out.cap_chunks, 256 * kWords)) return false;
+  uint32_t *head = out.head, *closed = out.closed;
+  for (uint32_t t = 0; t < nt; t++) { head[t] = kNone; closed[t] = 0; }
+  uint32_t used = 0, open = nt, listed = 0, repeats = 0;
+  for (uint32_t i = f.count; i-- > 0 && open;) {
+    const Cmd& c = f.cmds[i];
+    Rect tr;
+    bool outside;   // outside any clip
+    if (clips) {
+      const uint32_t a = out.rng[2 * i], b = out.rng[2 * i + 1];
+      tr = Rect{(int32_t)(a & 0xFFFF), (int32_t)((a >> 16) & 0x7FFF), (int32_t)(b & 0xFFFF), (int32_t)(b >> 16)};
+      outside = (a & 0x80000000u) != 0;
+    } else {
+      if (c.kind == UNCLIP) continue;   // without a CLIP, render() ignores it
+      Rect b = intersect(bin_bounds(c, w, h), screen);
+      if (b.x0 >= b.x1 || b.y0 >= b.y1) continue;
+      tr = tile_range(b);
+      outside = true;
+    }
+    if (tr.x0 >= tr.x1 || tr.y0 >= tr.y1) continue;
+    const bool opaque = outside && (c.kind == CLEAR || (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255));
+    const bool light = c.kind == CLEAR || c.kind == CLIP || c.kind == UNCLIP || (c.kind == RECT && c.r <= 0 && !c.grad);
+    const Rect pr = c.kind == CLEAR ? screen : Rect{ifloor(c.x), ifloor(c.y), iceil(c.x + c.w), iceil(c.y + c.h)};
+    uint32_t calls = 0;
+    for (int32_t ty = tr.y0; ty < tr.y1; ty++)
+      for (int32_t tx = tr.x0; tx < tr.x1; tx++) {
+        const uint32_t t = (uint32_t)(ty * tw + tx);
+        if (closed[t]) continue;
+        uint32_t k = head[t];
+        if (k == kNone || out.chunks[k + 1] == kChunk) {
+          if (!grow_buf(out.chunks, out.cap_chunks, used + kWords, used)) return false;
+          out.chunks[used] = k; out.chunks[used + 1] = 0;
+          k = head[t] = used; used += kWords;
+        }
+        out.chunks[k + 2 + out.chunks[k + 1]++] = i;
+        calls++;
+        if (!opaque) continue;
+        const int32_t x0 = tx * kTile, y0 = ty * kTile, x1 = x0 + kTile < w ? x0 + kTile : w, y1 = y0 + kTile < h ? y0 + kTile : h;
+        if (pr.x0 <= x0 && pr.y0 <= y0 && pr.x1 >= x1 && pr.y1 >= y1) { closed[t] = 1; open--; }
+      }
+    if (calls) { listed++; if (!light) repeats += calls - 1; }
+  }
+  // a shape with a set-up per call (rounded corners, text, polygons, images) is painted once per tile it lists in: those repeated calls must
+  // cost less than the commands the tiles hide (b2-rounded, 6000 overlapping rounded rects: 14 ms whole, 54 ms in tiles); else render(),
+  // and no binning for the next 30 frames
+  if ((uint64_t)repeats * 4 > f.count - listed) { out.cooldown = 30; return false; }
+  // flat lists in paint order: a chain starts at the lowest command index (the newest chunk, its last entry first)
+  if (!grow_buf(out.start, out.cap_start, nt + 1)) return false;
+  uint32_t total = 0;
+  for (uint32_t t = 0; t < nt; t++) {
+    out.start[t] = total;
+    for (uint32_t k = head[t]; k != kNone; k = out.chunks[k]) total += out.chunks[k + 1];
+  }
+  out.start[nt] = total;
+  if (!grow_buf(out.idx, out.cap_idx, total ? total : 1)) return false;
+  for (uint32_t t = 0, n = 0; t < nt; t++)
+    for (uint32_t k = head[t]; k != kNone; k = out.chunks[k])
+      for (uint32_t e = out.chunks[k + 1]; e-- > 0;) out.idx[n++] = out.chunks[k + 2 + e];
+  out.w = w; out.h = h; out.tw = tw; out.th = th; out.ok = true;
+  return true;
+}
+void render_tiles(const Frame& f, const Tiles& tl, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
+  if (!tl.ok || tl.w != w) { render(f, band, w, y0, y1, damage); return; }
+  Rect base = intersect(intersect(damage, Rect{0, y0, w, y1}), Rect{0, 0, tl.w, tl.h});
+  if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
+  for (int32_t ty = base.y0 / kTile; ty * kTile < base.y1; ty++)
+    for (int32_t tx = base.x0 / kTile; tx * kTile < base.x1; tx++) {
+      const uint32_t t = (uint32_t)(ty * tl.tw + tx), a = tl.start[t], n = tl.start[t + 1] - a;
+      if (!n) continue;
+      Rect clip = intersect(base, Rect{tx * kTile, ty * kTile, tx * kTile + kTile, ty * kTile + kTile});
+      const uint32_t* list = tl.idx + a;
+      run_cmds(f, Target{band, w, y0, clip}, n, [list](uint32_t k) { return list[k]; });
+    }
+}
+void free_tiles(Tiles& t) {
+  uint32_t* owned[] = {t.start, t.idx, t.rng, t.head, t.closed, t.chunks};
+  for (uint32_t* p : owned) if (p) hal_free(p);
+  t = Tiles{};
+  t.ok = false;
 }
 
 static bool overlaps(Rect a, Rect b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }

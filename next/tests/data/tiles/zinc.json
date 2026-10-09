@@ -1,0 +1,1 @@
+{ "name": "tiles", "entry": "main.ts", "targets": { "macos": { "width": 640, "height": 480, "growDrawCommands": true }, "linux": { "width": 640, "height": 480, "growDrawCommands": true } } }
