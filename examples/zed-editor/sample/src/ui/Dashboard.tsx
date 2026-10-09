@@ -18,7 +18,8 @@ function Stat(props: StatProps): i32 {
 
 function Dashboard(): i32 {
   const range = minMax(TEMPS);
-  return <View class="flex-col gap-4 p-6 h-full bg-slate-950">
+  return (
+  <View class="flex-col gap-4 p-6 h-full bg-slate-950">
     <Text class="text-lg font-bold text-white">Weather station</Text>
     <View class="flex-row gap-3">
       <Stat label="Mean" value={() => celsius(mean(TEMPS))} />
@@ -28,7 +29,8 @@ function Dashboard(): i32 {
     <Button class="px-3 py-1 rounded bg-sky-600" onClick={() => setUnit(unit() === 'C' ? 'F' : 'C')}>
       <Text class="text-sm text-white">Unit: {unit()}</Text>
     </Button>
-  </View>;
+  </View>
+  );
 }
 
 render(Dashboard, 0x020617, null);
