@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "frontend/project.h"
+#include "zn/devproto.h"
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
@@ -57,7 +58,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]]", "the plugin table", "Lists the plugins visible to a project and where they run."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -592,6 +593,36 @@ static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::stri
   return ok;
 }
 
+// zinc export --target esp32 (ZN-326.02): the core firmware (core.bin, at 0x0) and the program (app.bin, at 0x300000) that the core runs at start-up: "ZNAPP1\0\0", the
+// little-endian length, then the bytes of an upload (include/zn/devproto.h: the load line and the ZBC), so the firmware feeds it to the core as if it came over the UART.
+static int exportEsp32(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot) {
+  const fs::path core = fs::path(engineRoot) / "firmware" / "esp32" / "prebuilt" / "esp32-core-flash.bin";
+  std::error_code ec;
+  if (!fs::exists(core, ec)) { std::fprintf(stderr, "zinc export: the core firmware image is missing: %s\n", core.string().c_str()); return 1; }
+  const fs::path zbc = out / "app.zbc";
+  if (status(std::system(("ZINC_DEVICE_TARGET=esp32 " + q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q(zbc.string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  std::ifstream zf(zbc, std::ios::binary);
+  const std::string body((std::istreambuf_iterator<char>(zf)), std::istreambuf_iterator<char>());
+  zf.close();
+  fs::remove(zbc, ec);
+  if (body.size() > 48 * 1024) { std::fprintf(stderr, "zinc export: the program is %zu bytes of bytecode; the ESP32 core takes 48 KB\n", body.size()); return 1; }
+  const std::string stream = std::string(1, zn::dev::kMark) + "ZN load " + std::to_string(body.size()) + " " +
+                             zn::dev::hex32(zn::dev::crc32(reinterpret_cast<const std::uint8_t*>(body.data()), body.size())) + "\n" + body;
+  std::string rec("ZNAPP1\0\0", 8);
+  for (int k = 0; k < 4; ++k) rec += static_cast<char>((stream.size() >> (8 * k)) & 0xff);
+  writeFile(out / "app.bin", rec + stream);
+  fs::copy_file(core, out / "core.bin", fs::copy_options::overwrite_existing, ec);
+  writeFile(out / "flash.sh", "#!/bin/sh\n# Flashes " + p.name + " onto an ESP32: the Zinc core at 0x0, the program at 0x300000. Usage: ./flash.sh [port] (ESPTOOL overrides the esptool).\n"
+            "cd \"$(dirname \"$0\")\" || exit 1\nESPTOOL=${ESPTOOL:-$(zinc toolchain esptool 2>/dev/null || command -v esptool || command -v esptool.py)}\n"
+            "[ -n \"$ESPTOOL\" ] || { echo \"flash.sh: no esptool (zinc toolchain esptool fetches the pinned one, or pip install esptool)\"; exit 1; }\n"
+            "exec \"$ESPTOOL\" --chip esp32 ${1:+-p \"$1\"} -b 460800 write-flash 0x0 core.bin 0x300000 app.bin\n");
+  fs::permissions(out / "flash.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+  writeFile(out / "README.txt", p.name + " " + p.version + " (esp32) built with Zinc.\nFlash: ./flash.sh /dev/ttyUSB0. The program starts when the board boots; its output arrives on the UART at 115200 baud,\n"
+            "framed by the upload protocol, and the board then waits for `zinc run --target esp32` uploads as usual.\n");
+  std::printf("%s\n", out.string().c_str());
+  return 0;
+}
+
 // zinc export --target wasm (ZN-326.01): a static site, the program as ZBC (app.zbc) for the interpreter built for the browser (app.wasm, tools/build-wasm) and the
 // page's glue (targets/wasm/glue: app.js, its worker and WASI). The SharedArrayBuffer of the frame loop needs COOP/COEP headers: serve.py serves the folder with them.
 static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot) {
@@ -637,7 +668,7 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
   Opts o = parseOpts(args, {"--target", "-o"}, {"--deb", "--dmg"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm] [-o dir] [--deb] [--dmg]\n", o.badArg.c_str()); return 2; }
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
@@ -655,6 +686,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   fs::remove_all(out, ec);
   fs::create_directories(out, ec);
   if (target == "wasm") return exportWasm(p, out, engineRoot);
+  if (target == "esp32") return exportEsp32(p, out, engineRoot);
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
                                      : "ZINC_COMPONENTS=1 " + q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());

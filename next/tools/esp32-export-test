@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Boots an export of `zinc export --target esp32` in Espressif's QEMU (ZN-326.02, tests/t1/export_esp32.sh): esp32-export-test <qemu-system-xtensa> <export dir> <expected output file>.
+Lays core.bin at 0x0 and app.bin at 0x300000 in a 4 MB flash (as flash.sh writes them), boots it with no host attached and checks what the program printed (the `ZN out` frames
+of include/zn/devproto.h) and that it ended with status 0."""
+import os, re, subprocess, sys, tempfile, time
+
+qemu, site, expected = sys.argv[1], sys.argv[2], open(sys.argv[3], "rb").read()
+flash = bytearray(b"\xff" * (4 << 20))
+core, app = open(os.path.join(site, "core.bin"), "rb").read(), open(os.path.join(site, "app.bin"), "rb").read()
+flash[0:len(core)] = core; flash[0x300000:0x300000 + len(app)] = app
+img = os.path.join(tempfile.mkdtemp(), "flash.bin"); open(img, "wb").write(flash)
+p = subprocess.Popen([qemu, "-nographic", "-machine", "esp32", "-m", "4M", "-drive", "file=%s,if=mtd,format=raw" % img, "-global", "driver=timer.esp32.timg,property=wdt_disable,value=true",
+                      "-serial", "stdio", "-monitor", "none"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+os.set_blocking(p.stdout.fileno(), False)
+buf, deadline, done = b"", time.time() + 60, None
+while time.time() < deadline and not done:
+    time.sleep(0.2)
+    buf += p.stdout.read() or b""
+    done = re.search(rb"\x1eZN done (-?\d+) ", buf)
+p.kill()
+out, at = b"", 0
+while (m := re.compile(rb"\x1eZN out (\d+)\n").search(buf, at)):
+    n = int(m.group(1)); out += buf[m.end():m.end() + n]; at = m.end() + n
+name = os.path.basename(os.path.normpath(site))
+if not done: print("%s: no `ZN done` from the emulated ESP32 in 60 s; serial: %r" % (name, buf[-400:])); sys.exit(1)
+if done.group(1) != b"0" or out != expected: print("%s: status %s, output %r (expected %r)" % (name, done.group(1).decode(), out[-300:], expected[-300:])); sys.exit(1)
+print("%s: booted on the emulated ESP32 and printed the expected %d bytes" % (name, len(out)))

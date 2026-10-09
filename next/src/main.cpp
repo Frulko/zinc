@@ -1309,6 +1309,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "--emit=zbc-bin")) {  // zinc --emit=zbc-bin <file> <out.zbc>
+    if (const char* t = std::getenv("ZINC_DEVICE_TARGET")) { gDeviceCore = true; gBuildTarget = t; }   // as `run --target esp32` compiles (zinc export --target esp32)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     auto bytes = zn::zbc::encode(zm);

@@ -1,10 +1,10 @@
 // The allocator of the runtime: mimalloc serves every global `new`/`delete` (the heap objects, their vectors, the compiler's own
 // data) so interpreter and compiled programs allocate the same way. Objects themselves use zn::rt::alloc below.
 #include <cstddef>
-#ifndef __wasi__
+#if !defined(__wasi__) && !defined(ESP_PLATFORM)
 #include <mimalloc.h>
 #else
-inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI: the plain allocator, no heap budget (a browser tab has its own limit)
+inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI and ESP-IDF: the plain allocator, no heap budget (a browser tab, the device's heap have their own limit)
 #endif
 #include <cstdio>
 #include <cstdlib>

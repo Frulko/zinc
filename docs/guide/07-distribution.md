@@ -9,7 +9,7 @@ zinc export --target macos            # dist/<name>-macos/<name>.app (GUI) or ./
 zinc export --target linux            # executable + systemd unit + deploy.sh
 zinc export --target rpi1             # ARMv6 static-ish binary + unit + deploy.sh
 zinc export --target rmpp             # reMarkable AppLoad directory
-zinc export --target esp32            # firmware images + flash.sh
+zinc export --target esp32            # core.bin + app.bin + flash.sh
 zinc export --target wasm             # static site (index.html, app.js, app.wasm, favicon)
 zinc export --target ps1              # PS-EXE + bootable CD image
 ```
@@ -168,17 +168,20 @@ Cross builds run inside pinned SDK Docker images (`zinc/sdk-linux`, `zinc/sdk-rp
 
 ## ESP32 flashing
 
-`zinc export --target esp32` copies the firmware images and writes `flash.sh` (offsets from ESP-IDF's
-`flasher_args.json`):
+`zinc export --target esp32` writes `core.bin` (the Zinc core firmware, a merged image for offset 0x0: bootloader,
+partition table and the interpreter), `app.bin` (your program as bytecode, at 0x300000) and `flash.sh`. At start-up the core
+runs the program stored at 0x300000, then waits for `zinc run --target esp32` uploads as usual. The bytecode must fit the
+core's 48 KB; the export refuses a larger program.
 
 ```sh
 zinc export --target esp32 myapp
-dist/myapp-esp32/flash.sh /dev/ttyUSB0        # needs esptool: pip install esptool
-# under the hood: esptool --chip esp32 -p <port> write_flash 0x1000 bootloader.bin 0x8000 partition-table.bin 0x10000 myapp.bin
-python3 -m serial.tools.miniterm /dev/ttyUSB0 115200   # serial console
+dist/myapp-esp32/flash.sh /dev/ttyUSB0        # the pinned esptool (zinc toolchain esptool), else esptool from PATH
+# under the hood: esptool --chip esp32 -p <port> -b 460800 write-flash 0x0 core.bin 0x300000 app.bin
 ```
 
-You can also flash straight from the build with the IDF tool: `idf.py -p <port> flash monitor`.
+The program's output arrives on the UART at 115200 baud, framed by the upload protocol (`include/zn/devproto.h`).
+`tests/t1/export_esp32.sh` lays both images in a 4 MB flash and boots it in the pinned QEMU (Espressif's
+qemu-system-xtensa), with no host attached: the hello prints the same bytes as on the desktop.
 
 ## PS1 CD image
 

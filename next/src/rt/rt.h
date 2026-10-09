@@ -47,7 +47,11 @@ template <class T> struct ObjAlloc {
   using value_type = T;
   ObjAlloc() noexcept = default;
   template <class U> ObjAlloc(const ObjAlloc<U>&) noexcept {}
+#if defined(__cpp_exceptions)
   T* allocate(std::size_t n) { void* p = allocRaw(n * sizeof(T)); if (!p) throw std::bad_alloc(); return static_cast<T*>(p); }
+#else   // built without exceptions (the ESP32 firmware): out of memory ends the program
+  T* allocate(std::size_t n) { void* p = allocRaw(n * sizeof(T)); if (!p) std::abort(); return static_cast<T*>(p); }
+#endif
   void deallocate(T* p, std::size_t) noexcept { freeRaw(p); }
   template <class U> bool operator==(const ObjAlloc<U>&) const noexcept { return true; }
   template <class U> bool operator!=(const ObjAlloc<U>&) const noexcept { return false; }
