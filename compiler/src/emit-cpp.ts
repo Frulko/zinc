@@ -308,7 +308,7 @@ class CppEmitter {
     if (!e) return false;
     if (ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e)) return true;
     const k = this.s.paramType(p).k;
-    return (ts.isIdentifier(e) || ts.isPropertyAccessExpression(e)) && (k === 'fn' || k === 'obj' || k === 'arr');
+    return (ts.isIdentifier(e) || ts.isPropertyAccessExpression(e) || ts.isCallExpression(e)) && (k === 'fn' || k === 'obj' || k === 'arr');
   }
   prologue(ps: readonly ts.ParameterDeclaration[], d: number): string {
     let out = '';

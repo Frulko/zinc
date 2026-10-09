@@ -409,10 +409,10 @@ class Lower {
       }
       const d = s.declOf(e.expression);
       const ctor = d && ts.isClassDeclaration(d) ? this.ctorOf(d) : undefined;
-      return { k: 'new', t, cls: e.expression.getText(), args: (e.arguments ?? []).map((a, i) => {
-        const parameter = ctor?.parameters[i], expected = parameter ? s.paramType(parameter, s.substFor(t, parameter)) : undefined;
-        return this.conv(this.expr(a, expected), expected);
-      }), check: s.mayThrow(e) };
+      const params = (ctor?.parameters ?? []).map(p => s.paramType(p, s.substFor(t, p)));
+      const supplied = e.arguments ?? [], args = supplied.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
+      if (this.symbols && ctor) this.defaultArgs(args, supplied, ctor, params);
+      return { k: 'new', t, cls: e.expression.getText(), args, check: s.mayThrow(e) };
     }
     if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return { k: 'lambda', t, fn: this.fn(e, '<lambda>') };
     if (ts.isConditionalExpression(e)) return { k: 'cond', t, c: this.cond(e.condition), a: this.conv(this.expr(e.whenTrue), t), b: this.conv(this.expr(e.whenFalse), t) };
@@ -588,6 +588,20 @@ class Lower {
     return { k: 'call', t: result, how: 'closure', fn: factory.name, recv: { k: 'lambda', t: { k: 'fn', params: captured.map(p => p.t), ret: result }, fn: factory }, args: [value, receiver, ...bound], check: true };
   }
 
+  defaultArgs(args: HExpr[], supplied: readonly ts.Expression[], declaration: ts.SignatureDeclaration, params: (ZT | undefined)[]): void {
+    for (let i = 0; i < declaration.parameters.length; i++) {
+      const parameter = declaration.parameters[i], source = supplied[i];
+      const omitted = i >= supplied.length || (ts.isIdentifier(source) && source.text === 'undefined');
+      if (!omitted || !parameter.initializer) continue;
+      const checkDefault = (node: ts.Node): void => {
+        if (ts.isIdentifier(node) && declaration.parameters.includes(this.s.declOf(node) as ts.ParameterDeclaration)) throw new Error('zinc-vm: defaults referencing other parameters are not implemented');
+        ts.forEachChild(node, checkDefault);
+      };
+      checkDefault(parameter.initializer);
+      args[i] = this.conv(this.expr(parameter.initializer, params[i]), params[i]);
+    }
+  }
+
   call(e: ts.CallExpression, t: ZT): HExpr {
     const s = this.s, c = e.expression, check = s.mayThrow(e);
     if (this.symbols && ts.isPropertyAccessExpression(c) && c.name.text === 'bind' && s.tryZ(c.expression).k === 'fn') return this.bindFunction(e, c.expression, t);
@@ -604,21 +618,7 @@ class Lower {
     }
     const args = e.arguments.map((a, i) => this.conv(this.expr(a, params[i]), params[i]));
     const native = d && this.nativeCalls?.get(d);
-    if(this.symbols && native === undefined && d && !s.isLib(d) && ts.isFunctionLike(d)) {
-      const declaration = d as ts.SignatureDeclaration;
-      for(let i=0;i<declaration.parameters.length;i++) {
-        const parameter=declaration.parameters[i];
-        const omitted=i>=args.length || (ts.isIdentifier(e.arguments[i]) && e.arguments[i].getText()==='undefined');
-        if(!omitted || !parameter.initializer)continue;
-        const checkDefault=(node: ts.Node): void => {
-          if(ts.isIdentifier(node) && declaration.parameters.includes(s.declOf(node) as ts.ParameterDeclaration))
-            throw new Error('zinc-vm: defaults referencing other parameters are not implemented');
-          ts.forEachChild(node,checkDefault);
-        };
-        checkDefault(parameter.initializer);
-        args[i]=this.conv(this.expr(parameter.initializer,params[i]),params[i]);
-      }
-    }
+    if (this.symbols && native === undefined && d && !s.isLib(d) && ts.isFunctionLike(d)) this.defaultArgs(args, e.arguments, d as ts.SignatureDeclaration, params);
     if (native !== undefined) {
       for (let i = args.length; i < params.length; i++) {
         const p = params[i];
@@ -797,6 +797,44 @@ class Lower {
     return { k: 'call', t: VOID, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: { k: 'fn', params: [collection, signature], ret: VOID }, fn: helper }, args: [input, callback], check: true };
   }
 
+  /** Array callbacks use ordinary typed VM calls, so captures, GC and exceptions
+   * follow the same path as explicit guest loops. Length is captured once (JS). */
+  arrayCallback(name: string, input: HExpr, callback: HExpr, resultType: ZT): HExpr {
+    if (input.t.k !== 'arr' || callback.t.k !== 'fn' || callback.t.params.length > 2) throw new Error(`zinc-vm: unsupported ${name} callback signature`);
+    const element = input.t.el, signature = callback.t;
+    const findsValue = name === 'find' || name === 'findLast';
+    if (findsValue && !['obj', 'arr', 'fn'].includes(element.k)) throw new Error(`zinc-vm: ${name} requires reference elements until scalar undefined is represented; use findIndex`);
+    if (name === 'map' && signature.ret.k === 'void') throw new Error('zinc-vm: map requires a representable element result');
+    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
+    const array = variable('%array', input.t), fn = variable('%callback', signature);
+    const length = variable('%length', I32), index = variable('%index', I32), item = variable('%item', element), out = variable('%out', resultType);
+    const declaration = (v: typeof array, init: HExpr): HStmt => ({ k: 'let', name: v.name, t: v.t, init, cell: false });
+    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = BOOL): HExpr => ({ k: 'bin', op, t, l, r });
+    const size: HExpr = { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: array, args: [], check: false };
+    const reverse = name === 'findLastIndex' || name === 'findLast';
+    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: fn.name, recv: fn,
+      args: [item, index].slice(0, signature.params.length).map((v, i) => this.conv(v, signature.params[i])), check: true };
+    const condition: HExpr = { k: 'un', t: BOOL, op: 'truthy', e: invoke };
+    let action: HStmt;
+    if (name === 'filter') action = { k: 'if', c: condition, then: [{ k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [item], check: false } }], else: [] };
+    else if (name === 'map') action = { k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [invoke], check: false } };
+    else if (name === 'forEach') action = { k: 'expr', e: invoke };
+    else action = { k: 'if', c: name === 'every' ? { k: 'un', t: BOOL, op: '!', e: condition } : condition,
+      then: [{ k: 'return', e: name === 'every' ? lit(BOOL, 'false') : name === 'some' ? lit(BOOL, 'true') : findsValue ? item : index }], else: [] };
+    const body: HStmt[] = [declaration(length, size), declaration(index, reverse ? binary('-', length, lit(I32, '1'), I32) : lit(I32, '0'))];
+    if (name === 'filter' || name === 'map') body.push(declaration(out, { k: 'alloc', t: resultType, what: 'array', items: [] }));
+    // Dense Zinc arrays cannot pass undefined to a typed callback or represent
+    // holes in map's result. Reject that mutation explicitly rather than compact.
+    const missing: HStmt[] = name === 'map' || name.startsWith('find') ? [{ k: 'throw', e: { k: 'new', t: { k: 'obj', decl: this.s.errorDecl, args: [] }, cls: 'Error', args: [lit(STR, JSON.stringify(`typed array ${name} cannot visit removed elements`))], check: false } }] : [];
+    body.push({ k: 'loop', c: binary(reverse ? '>=' : '<', index, reverse ? lit(I32, '0') : length),
+      body: [{ k: 'if', c: binary('<', index, size), then: [declaration(item, { k: 'index', t: element, obj: array, idx: index }), action], else: missing }],
+      step: [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: binary(reverse ? '-' : '+', index, lit(I32, '1'), I32) } }] });
+    body.push({ k: 'return', e: name === 'filter' || name === 'map' ? out : name === 'forEach' ? undefined : name === 'every' ? lit(BOOL, 'true') : name === 'some' ? lit(BOOL, 'false') : findsValue ? lit({ k: 'null' }, 'null') : lit(I32, '-1') });
+    const functionType: ZT = { k: 'fn', params: [input.t, signature], ret: resultType };
+    const helper: HFunc = { name: `<array.${name}>`, params: [array, fn].map(v => ({ name: v.name, t: v.t, cell: false })), ret: resultType, body, throws: true, kind: 'fn', captures: [] };
+    return { k: 'call', t: resultType, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: functionType, fn: helper }, args: [input, callback], check: true };
+  }
+
   promiseChain(t: ZT, source: HExpr, cb: HExpr, mode: string): HExpr {
     const src = source.t as Extract<ZT, { k: 'promise' }>, ft = cb.t as Extract<ZT, { k: 'fn' }>;
     const error: ZT = { k: 'obj', decl: this.s.errorDecl, args: [] };
@@ -839,45 +877,6 @@ class Lower {
     }
     const fn: HFunc = { name: `<${mode}>`, params: [promise, callback].map(v => ({ name: v.name, t: v.t, cell: false })), ret: t, kind: 'async', captures: [], throws: false, body };
     return { k: 'call', t, how: 'closure', fn: fn.name, recv: { k: 'lambda', t: { k: 'fn', params: fn.params.map(p => p.t), ret: t }, fn }, args: [source, cb], check: false };
-  }
-
-
-  /** Array callbacks use ordinary typed VM calls, so captures, GC and exceptions
-   * follow the same path as explicit guest loops. Length is captured once (JS). */
-  arrayCallback(name: string, input: HExpr, callback: HExpr, resultType: ZT): HExpr {
-    if (input.t.k !== 'arr' || callback.t.k !== 'fn' || callback.t.params.length > 2) throw new Error(`zinc-vm: unsupported ${name} callback signature`);
-    const element = input.t.el, signature = callback.t;
-    const findsValue = name === 'find' || name === 'findLast';
-    if (findsValue && !['obj', 'arr', 'fn'].includes(element.k)) throw new Error(`zinc-vm: ${name} requires reference elements until scalar undefined is represented; use findIndex`);
-    if (name === 'map' && signature.ret.k === 'void') throw new Error('zinc-vm: map requires a representable element result');
-    const variable = (name: string, t: ZT): HExpr & { k: 'var' } => ({ k: 'var', name, t });
-    const array = variable('%array', input.t), fn = variable('%callback', signature);
-    const length = variable('%length', I32), index = variable('%index', I32), item = variable('%item', element), out = variable('%out', resultType);
-    const declaration = (v: typeof array, init: HExpr): HStmt => ({ k: 'let', name: v.name, t: v.t, init, cell: false });
-    const binary = (op: string, l: HExpr, r: HExpr, t: ZT = BOOL): HExpr => ({ k: 'bin', op, t, l, r });
-    const size: HExpr = { k: 'call', t: I32, how: 'builtin', fn: 'length', recv: array, args: [], check: false };
-    const reverse = name === 'findLastIndex' || name === 'findLast';
-    const invoke: HExpr = { k: 'call', t: signature.ret, how: 'closure', fn: fn.name, recv: fn,
-      args: [item, index].slice(0, signature.params.length).map((v, i) => this.conv(v, signature.params[i])), check: true };
-    const condition: HExpr = { k: 'un', t: BOOL, op: 'truthy', e: invoke };
-    let action: HStmt;
-    if (name === 'filter') action = { k: 'if', c: condition, then: [{ k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [item], check: false } }], else: [] };
-    else if (name === 'map') action = { k: 'expr', e: { k: 'call', t: I32, how: 'builtin', fn: 'push', recv: out, args: [invoke], check: false } };
-    else if (name === 'forEach') action = { k: 'expr', e: invoke };
-    else action = { k: 'if', c: name === 'every' ? { k: 'un', t: BOOL, op: '!', e: condition } : condition,
-      then: [{ k: 'return', e: name === 'every' ? lit(BOOL, 'false') : name === 'some' ? lit(BOOL, 'true') : findsValue ? item : index }], else: [] };
-    const body: HStmt[] = [declaration(length, size), declaration(index, reverse ? binary('-', length, lit(I32, '1'), I32) : lit(I32, '0'))];
-    if (name === 'filter' || name === 'map') body.push(declaration(out, { k: 'alloc', t: resultType, what: 'array', items: [] }));
-    // Dense Zinc arrays cannot pass undefined to a typed callback or represent
-    // holes in map's result. Reject that mutation explicitly rather than compact.
-    const missing: HStmt[] = name === 'map' || name.startsWith('find') ? [{ k: 'throw', e: { k: 'new', t: { k: 'obj', decl: this.s.errorDecl, args: [] }, cls: 'Error', args: [lit(STR, JSON.stringify(`typed array ${name} cannot visit removed elements`))], check: false } }] : [];
-    body.push({ k: 'loop', c: binary(reverse ? '>=' : '<', index, reverse ? lit(I32, '0') : length),
-      body: [{ k: 'if', c: binary('<', index, size), then: [declaration(item, { k: 'index', t: element, obj: array, idx: index }), action], else: missing }],
-      step: [{ k: 'expr', e: { k: 'assign', t: I32, target: index, v: binary(reverse ? '-' : '+', index, lit(I32, '1'), I32) } }] });
-    body.push({ k: 'return', e: name === 'filter' || name === 'map' ? out : name === 'forEach' ? undefined : name === 'every' ? lit(BOOL, 'true') : name === 'some' ? lit(BOOL, 'false') : findsValue ? lit({ k: 'null' }, 'null') : lit(I32, '-1') });
-    const functionType: ZT = { k: 'fn', params: [input.t, signature], ret: resultType };
-    const helper: HFunc = { name: `<array.${name}>`, params: [array, fn].map(v => ({ name: v.name, t: v.t, cell: false })), ret: resultType, body, throws: true, kind: 'fn', captures: [] };
-    return { k: 'call', t: resultType, how: 'closure', fn: helper.name, recv: { k: 'lambda', t: functionType, fn: helper }, args: [input, callback], check: true };
   }
 
   arraySearch(name: string, input: HExpr, target: HExpr, from: HExpr, resultType: ZT): HExpr {
