@@ -134,6 +134,10 @@
  },
  {
   "entry": "camera/remote/src/main.tsx",
+  "env": {
+   "IOLIBS_PREFIX": "ptpip",
+   "ZINC_FAKE_CAMERA": "0"
+  },
   "frames": [
    30
   ],

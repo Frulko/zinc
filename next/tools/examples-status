@@ -46,7 +46,7 @@ def read_list():
 ERR = re.compile(r"error Z\d{4}|cannot read|Cannot find module|Unexpected token|no entry")
 
 def run_one(zinc, entry, frames, timeout):
-    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES=str(frames), PORT="0")   # PORT=0: a daemon takes any free port, not 3000
+    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FAKE_CAMERA="1", ZINC_FRAMES=str(frames), PORT="0")   # The milestone uses camera fixtures even when a USB camera is connected; PORT=0 avoids a shared daemon port.
     daemon = entry.startswith("service/")   # a service runs until it is stopped: alive at the end of a short run is OK
     if daemon: timeout = min(timeout, 6)
     path = os.path.join(EXAMPLES, entry)

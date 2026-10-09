@@ -5,6 +5,9 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME="${ZINC_TEST_HOME:-$PWD/build/tc-home}"
 g=tests/golden/atelier
+# Provision the pinned emulator before its first-download diagnostics can enter the UI's output pane.
+out=$("$ZINC" run "$g/proj/good.ts" --target esp32 --qemu 2>"$tmp/err"); rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = "hello from atelier" ] || { echo "atelier emulator setup failed: $out $(head -c 300 "$tmp/err")"; exit 1; }
 ZINC_ATELIER_SYNC=1 ZINC_INPUT=$g/esp32.input ZINC_SIZE=1100x700 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=16 ZINC_SCALE=1 ZINC_SHOT="$tmp/esp32.png" ZINC_SHOT_FRAMES=16 \
   "$ZINC" run app/atelier/main.tsx -- $g/proj >/dev/null 2>"$tmp/err" || { echo "atelier esp32 failed: $(head -c 300 "$tmp/err")"; exit 1; }
 tools/pngdiff "$tmp/esp32-16.png" $g/esp32-16.png >/dev/null || { echo "atelier esp32: frame 16 differs from $g/esp32-16.png"; exit 1; }

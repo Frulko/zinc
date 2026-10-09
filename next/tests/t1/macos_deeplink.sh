@@ -15,7 +15,7 @@ log('current ' + JSON.stringify(deeplink.current()));
 deeplink.onOpen((u: string) => { log('open-url ' + u); });
 setTimeout(() => system.quit(0), 7000);
 T
-printf '{"name":"dl","entry":"main.ts","permissions":["deep-link"],"app":{"id":"dev.zinc.test.deeplinktest","name":"DL Test","urlSchemes":["zndltest"],"dock":false}}\n' > "$tmp/zinc.json"
+printf '{"name":"dl","entry":"main.ts","permissions":["deep-link","fs:write:%s/out.log"],"app":{"id":"dev.zinc.test.deeplinktest","name":"DL Test","urlSchemes":["zndltest"],"dock":false}}\n' "$tmp" > "$tmp/zinc.json"
 cd "$tmp" || exit 2
 env -u ZINC_DETERMINISTIC "$ZINC" build --bundle main.ts -o "$app" >/dev/null 2>&1 || { echo "build --bundle failed"; exit 1; }
 $ls -f "$app"
