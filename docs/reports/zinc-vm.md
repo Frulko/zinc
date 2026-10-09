@@ -4,6 +4,11 @@ Design study, 2026-09-28. Status: proposal. It builds on `docs/reports/ios-core-
 bundles, OTA, App Store rules), which it does not repeat. The prototype lives in `research/vm-proto/` and is
 not part of the build. The sources are listed at the end.
 
+> Implementation update, 2026-09-29: an experimental typed backend (objects, arrays, closures, classes and a traced heap), shared scalar native C ABI, QuickJS CLI runner,
+> and AArch64 baseline JIT are now integrated. See [execution engines](../engines.md) for actual commands,
+> limitations and checks. The full architecture below remains a design; these prototype performance numbers
+> do not describe the integrated backend.
+
 ## Summary
 
 - **One bytecode, three engines.**
