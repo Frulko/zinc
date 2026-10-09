@@ -65,3 +65,15 @@ A git template is cloned without its submodules; its commit is recorded in the n
 are pointed at nothing (and a clone brings none), filters configured in the template's repository are not cloned, and scripts the template
 carries (a `setup.sh`, an npm `postinstall`) are plain files. `template.json` may only use the keys above; a template containing a link or a
 special file (which could name a file outside it) is refused, and its `.git` directory is never copied.
+
+## Templates from the index
+
+The plugin index (see [plugins](plugins.md), "Plugin index") also carries templates: `templates/<name>.json` signed by its
+top-level role (tier official) or `<publisher>/templates/<name>.json` signed by a role delegated to a publisher (tier
+verified). `zinc new --list` adds them, with their tier, after the engine's own; `zinc new <name> <dir>` uses one when no
+engine template has that name. A template given by URL is community. The trust policy decides which tiers may be used, and
+under an official-only policy a verified or community template is neither listed nor created.
+
+A template can name the plugins it needs in `template.json`, `"plugins": ["greet@^1.0", "https://example.com/x.tar.gz"]`;
+`zinc new` adds each one as `zinc add` would, so the new project starts with them pinned in its `zinc.lock`.
+

@@ -82,7 +82,7 @@ const Command kCommands[] = {
 const Command* findCommand(const std::string& n) { for (const Command& c : kCommands) if (n == c.name) return &c; return nullptr; }
 
 // ---- templates (ZN-315): templates/<name>/ beside lib/, any files, described by template.json
-struct TemplateInfo { std::string name, description, entry; std::vector<std::string> tags, targets; fs::path dir; };
+struct TemplateInfo { std::string name, description, entry; std::vector<std::string> tags, targets, plugins; fs::path dir; };   // plugins: what zinc new adds (ZN-349)
 std::vector<std::string> jsonStrings(yyjson_val* a) {
   std::vector<std::string> out;
   std::size_t i, n; yyjson_val* v;
@@ -100,7 +100,7 @@ std::string readTemplateInfo(const fs::path& dir, TemplateInfo& t) {
   std::string err;
   if (!yyjson_is_obj(r)) err = "template.json is not a JSON object";
   else {
-    static const std::vector<std::string> known = {"name", "description", "tags", "targets", "entry", "variables"};
+    static const std::vector<std::string> known = {"name", "description", "tags", "targets", "entry", "variables", "plugins"};   // plugins: added by zinc new (ZN-349)
     std::size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(r, i, n, k, v) if (std::find(known.begin(), known.end(), yyjson_get_str(k)) == known.end() && err.empty()) err = std::string("template.json: unknown key \"") + yyjson_get_str(k) + "\"";
     t.dir = dir;
@@ -110,6 +110,7 @@ std::string readTemplateInfo(const fs::path& dir, TemplateInfo& t) {
     if (const char* en = yyjson_get_str(yyjson_obj_get(r, "entry"))) t.entry = en;
     t.tags = jsonStrings(yyjson_obj_get(r, "tags"));
     t.targets = jsonStrings(yyjson_obj_get(r, "targets"));
+    t.plugins = jsonStrings(yyjson_obj_get(r, "plugins"));
   }
   yyjson_doc_free(doc);
   return err;
@@ -265,6 +266,10 @@ int help(const std::vector<std::string>& args) {
   return 0;
 }
 
+static std::string templateFromIndex(const std::string& name, const std::string& engineRoot, std::string& spec, std::string& path, std::string& tier);
+static void printIndexTemplates(const std::string& engineRoot);
+static std::string policyRefusal(const std::string& tier);
+
 int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   const std::string cmd = args.size() > 1 ? args[1] : "new";   // `zinc init <dir> --template t` is `zinc new [t] <dir>`
   std::string tmpl = "game";
@@ -278,14 +283,20 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     else { std::fprintf(stderr, "zinc %s: unknown option %s\nusage: %s\n", cmd.c_str(), args[i].c_str(), findCommand(cmd.c_str())->usage); return 2; }
   }
   const std::vector<TemplateInfo> all = listTemplates(engineRoot);
-  if (list) { printTemplates(stdout, all); return 0; }
+  if (list) { printTemplates(stdout, all); printIndexTemplates(engineRoot); return 0; }
   if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "usage: %s\n", findCommand(cmd.c_str())->usage); return 2; }
   if (pos.size() == 2) tmpl = pos[0];
   const std::string dir = pos.empty() ? "." : pos.back();
   const TemplateInfo* t = nullptr;
   for (const TemplateInfo& x : all) if (x.name == tmpl) t = &x;
   std::error_code ec;
-  const bool external = !t && (tmpl.find('/') != std::string::npos || tmpl.find(':') != std::string::npos || tmpl.rfind(".", 0) == 0);
+  bool external = !t && (tmpl.find('/') != std::string::npos || tmpl.find(':') != std::string::npos || tmpl.rfind(".", 0) == 0);
+  std::string subdir, tier = t ? "official" : "community";   // the engine's own templates are official; a URL is community (ZN-349)
+  if (!t && !external) {   // a name the index knows: its descriptor's source, at its tier
+    std::string spec;
+    if (templateFromIndex(tmpl, engineRoot, spec, subdir, tier).empty()) { tmpl = spec; external = true; }
+  }
+  if (const std::string why = policyRefusal(tier); !why.empty()) { std::fprintf(stderr, "zinc %s: template %s: %s\n", cmd.c_str(), tmpl.c_str(), why.c_str()); return 1; }
   if (!t && !external) { std::fprintf(stderr, "zinc %s: unknown template '%s'; choose one of (or a directory or git URL):\n", cmd.c_str(), tmpl.c_str()); printTemplates(stderr, all); return 2; }
   if (fs::exists(dir, ec) && !fs::is_empty(dir, ec)) {
     std::fprintf(stderr, "zinc %s: %s is not empty; give a new or empty directory (zinc new [template] <dir>), templates:\n", cmd.c_str(), dir.c_str());
@@ -305,6 +316,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     fs::remove_all(scratch.p, ec);
     fs::path tdir;
     std::string err = fetchTemplate(tmpl, scratch.p, tdir, source, commit);
+    if (err.empty() && !subdir.empty()) tdir = tdir / subdir;   // a template inside a larger repository (the index names its path)
     if (err.empty()) err = readTemplateInfo(tdir, ext);
     if (err.empty())   // only plain files and directories: a link could name a file outside the template
       for (auto it = fs::recursive_directory_iterator(tdir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
@@ -340,6 +352,8 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     if (brace != std::string::npos) ok = writeFile(root / "zinc.json", z.substr(0, brace + 1) + rec + z.substr(brace + 1));
   }
   if (!ok) { std::fprintf(stderr, "zinc %s: cannot write into %s\n", cmd.c_str(), dir.c_str()); return 1; }
+  for (const std::string& plugin : t->plugins)   // the plugins the template needs, pinned in the new zinc.lock (ZN-349)
+    if (addPlugin({"zinc", "add", plugin, fs::absolute(dir).string()}, engineRoot) != 0) { std::fprintf(stderr, "zinc %s: the template's plugin %s could not be added\n", cmd.c_str(), plugin.c_str()); return 1; }
   std::printf("created %s (%s); next: cd %s && zinc run\n", dir.c_str(), tmpl.c_str(), dir.c_str());
   return 0;
 }
@@ -922,6 +936,42 @@ static bool writeLock(const fs::path& project, yyjson_mut_doc* md, yyjson_mut_va
 }
 static std::vector<std::string> strArr(yyjson_val* a) { std::vector<std::string> r; size_t i, n; yyjson_val* e; yyjson_arr_foreach(a, i, n, e) if (yyjson_is_str(e)) r.push_back(yyjson_get_str(e)); return r; }
 
+// "" when the trust policy (of this machine: system, user) accepts `tier`, else why not.
+static std::string policyRefusal(const std::string& tier) {
+  const zn::tc::Policy& p = zn::tc::loadPolicy("");
+  if (p.accepts(tier)) return "";
+  std::string t;
+  for (const std::string& x : p.tiers) t += (t.empty() ? "" : ", ") + x;
+  return "the trust policy accepts only " + (t.empty() ? std::string("no tier") : t) + " (" + p.from.at("tiers") + "), not " + tier + ": refused";
+}
+
+// The index's templates the policy accepts, after the engine's own (zinc new --list).
+static void printIndexTemplates(const std::string& engineRoot) {
+  std::unique_ptr<zn::tc::tuf::Client> index;
+  std::string err;
+  std::vector<zn::tc::tuf::Target> all;
+  if (!zn::tc::tuf::openIndex(engineRoot, index, err) || !index->all(all, err)) return;   // no index here: the engine's templates only
+  const zn::tc::Policy& policy = zn::tc::loadPolicy("");
+  bool header = false;
+  for (const auto& t : all) {
+    std::string p = t.path;
+    if (t.role != "targets") { const std::size_t slash = p.find('/'); if (slash == std::string::npos) continue; p = p.substr(slash + 1); }
+    if (p.rfind("templates/", 0) != 0) continue;
+    const std::string tier = zn::tc::tuf::tierOf(t);
+    if (!policy.accepts(tier)) continue;
+    std::string name, desc;
+    if (yyjson_doc* d = yyjson_read(t.custom.data(), t.custom.size(), 0)) {
+      yyjson_val* r = yyjson_doc_get_root(d);
+      if (yyjson_is_str(yyjson_obj_get(r, "name"))) name = yyjson_get_str(yyjson_obj_get(r, "name"));
+      if (yyjson_is_str(yyjson_obj_get(r, "description"))) desc = yyjson_get_str(yyjson_obj_get(r, "description"));
+      yyjson_doc_free(d);
+    }
+    if (name.empty()) continue;
+    if (!header) { std::printf("\nfrom the index:\n"); header = true; }
+    std::printf("  %-14s %-9s %s%s\n", name.c_str(), tier.c_str(), t.role == "targets" ? "" : ("(" + t.role + ") ").c_str(), desc.c_str());
+  }
+}
+
 // Revocations (ZN-345): what the index's revocations.json says about a plugin version or its publisher key ("" for nothing). `fresh` refreshes the index
 // first (add, install); otherwise the copy of the last refresh is read (zinc run, which has no network).
 static std::string revokedWhy(const std::string& engineRoot, bool fresh, const std::string& name, const std::string& version, const std::string& sha256, const std::string& commit, const std::string& key) {
@@ -973,7 +1023,7 @@ static bool satisfies(const std::string& v, const std::string& range) {
 // `zinc add <name>[@range]` (ZN-340, ZN-347): the plugin's descriptor in the signed index, plugins/<name>/<version>.json or plugins/<name>.json signed by the
 // top-level role (tier official), or the same under <publisher>/ signed by a role delegated to that publisher (tier verified); the highest version the range
 // allows wins, and its source becomes what is fetched. `version` gets the version chosen.
-static std::string fromIndex(const std::string name, const std::string range, const std::string& engineRoot, PluginPin& want, std::string& spec, std::string& version, bool quiet = false) {   // by value: `spec` may be the same string
+static std::string fromIndex(const std::string name, const std::string range, const std::string& engineRoot, PluginPin& want, std::string& spec, std::string& version, bool quiet, const std::string& folder) {   // by value: `spec` may be the same string
   std::unique_ptr<zn::tc::tuf::Client> index;
   std::string err, bytes;
   if (!zn::tc::tuf::openIndex(engineRoot, index, err)) return err;
@@ -985,14 +1035,16 @@ static std::string fromIndex(const std::string name, const std::string range, co
     std::string p = x.path;
     if (x.role != "targets") { const std::size_t slash = p.find('/'); if (slash == std::string::npos || p.compare(0, slash, x.role) != 0) continue; p = p.substr(slash + 1); }
     std::string v;
-    if (p == "plugins/" + name + ".json") v = "";
-    else if (p.rfind("plugins/" + name + "/", 0) == 0 && p.size() > 5 && p.compare(p.size() - 5, 5, ".json") == 0) v = p.substr(9 + name.size(), p.size() - 14 - name.size());
+    const std::string stem = folder + "/" + name;   // plugins/<name> or templates/<name>
+    if (p == stem + ".json") v = "";
+    else if (p.rfind(stem + "/", 0) == 0 && p.size() > 5 && p.compare(p.size() - 5, 5, ".json") == 0) v = p.substr(stem.size() + 1, p.size() - stem.size() - 6);
     else continue;
     if (yyjson_doc* cd = yyjson_read(x.custom.data(), x.custom.size(), 0)) { yyjson_val* cv = yyjson_obj_get(yyjson_doc_get_root(cd), "version"); if (yyjson_is_str(cv) && *yyjson_get_str(cv)) v = yyjson_get_str(cv); yyjson_doc_free(cd); }
     if (!satisfies(v, range)) continue;
     if (t.path.empty() || versionCmp(v, best) > 0 || (versionCmp(v, best) == 0 && x.role == "targets" && t.role != "targets")) { t = x; best = v; }
   }
-  if (t.path.empty()) return range.empty() ? "no plugin '" + name + "' in the index (zinc plugins search lists them)" : "no version of '" + name + "' in the index satisfies " + range;
+  const std::string noun = folder == "templates" ? "template" : "plugin";
+  if (t.path.empty()) return range.empty() ? "no " + noun + " '" + name + "' in the index (zinc plugins search lists them)" : "no version of '" + name + "' in the index satisfies " + range;
   if (!index->download(t, bytes, err)) return err;
   yyjson_doc* d = yyjson_read(bytes.data(), bytes.size(), 0);
   yyjson_val* src = yyjson_obj_get(yyjson_doc_get_root(d), "source");
@@ -1006,6 +1058,16 @@ static std::string fromIndex(const std::string name, const std::string range, co
   version = best;
   spec = repo + (commit.empty() ? "" : "@" + commit);
   if (!quiet) std::printf("%s%s: tier %s, publisher %s, from %s%s\n", name.c_str(), best.empty() ? "" : (" " + best).c_str(), want.tier.c_str(), want.publisher.c_str(), spec.c_str(), path.empty() ? "" : (" (" + path + ")").c_str());
+  return "";
+}
+
+// Templates of the index (ZN-349): templates/<name>.json (or per version) at the top (official) or under a verified publisher; zinc new fetches its source.
+static std::string templateFromIndex(const std::string& name, const std::string& engineRoot, std::string& spec, std::string& path, std::string& tier) {
+  PluginPin want;
+  std::string version;
+  if (std::string err = fromIndex(name, "", engineRoot, want, spec, version, false, "templates"); !err.empty()) return err;
+  path = want.path;
+  tier = want.tier;
   return "";
 }
 
@@ -1037,7 +1099,7 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
   std::string spec = pos[0], name, err, indexVersion;
   const std::string asked = spec.substr(0, spec.find('@')), range = spec.find('@') == std::string::npos ? "" : spec.substr(spec.find('@') + 1);
   const bool byName = !asked.empty() && asked.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos && !fs::exists(spec, ec) && range.find('/') == std::string::npos;
-  if (byName) err = fromIndex(asked, range, engineRoot, want, spec, indexVersion);
+  if (byName) err = fromIndex(asked, range, engineRoot, want, spec, indexVersion, false, "plugins");
   if (err.empty()) err = fetchPlugin(spec, want, scratch.p, dir, got);
   ScratchDir again;
   if (err.empty() && !byName) {   // a URL: the community tier (ZN-340.02); the key plugin.json names is checked against <url>.sig and pinned on first use
@@ -1224,7 +1286,7 @@ int updatePlugins(const std::vector<std::string>& args, const std::string& engin
     PluginPin want;
     std::string spec, version;
     const std::string asked = requested.substr(0, requested.find('@')), range = requested.find('@') == std::string::npos ? "" : requested.substr(requested.find('@') + 1);
-    if (std::string err = fromIndex(asked, range, engineRoot, want, spec, version, true); !err.empty()) { std::fprintf(stderr, "zinc plugins update: %s: %s\n", name.c_str(), err.c_str()); ++failed; continue; }
+    if (std::string err = fromIndex(asked, range, engineRoot, want, spec, version, true, "plugins"); !err.empty()) { std::fprintf(stderr, "zinc plugins update: %s: %s\n", name.c_str(), err.c_str()); ++failed; continue; }
     if (versionCmp(version, locked) <= 0) continue;
     if (addPlugin({"zinc", "add", requested, project.string()}, engineRoot) != 0) { ++failed; continue; }
     std::printf("%s %s -> %s\n", name.c_str(), locked.empty() ? "?" : locked.c_str(), version.c_str());
