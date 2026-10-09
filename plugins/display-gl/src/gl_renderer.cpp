@@ -12,16 +12,16 @@ namespace glr {
 using namespace zrt::raster;
 
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
-struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; };
+struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
 enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16, TEXS = 256;
 
 static const char* VS =
-  "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2;\n"
+  "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "void main() { v_pos = a_pos; v_box = a_box; v_par = a_par; v_c1 = a_c1; v_c2 = a_c2;\n"
-  "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, 0.0, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
+  "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
 static const char* FS =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "uniform sampler2D u_tex;\n"
@@ -61,6 +61,21 @@ static const char* FS =
   "  gl_FragColor = vec4(col, a * cov);\n"
   "}\n";
 
+// The occlusion pass draws only opaque square rectangles: a program of its own, 24 bytes a rectangle (bounds, colour, depth), one instance
+// each where the API has instancing (desktop GL), else four 16-byte vertices (GLES 2), instead of four 60-byte vertices (ZN-412.01)
+static const char* SVS =
+  "uniform vec2 u_res; uniform float u_flip; varying vec4 v_col;\n"
+  "#ifdef INSTANCED\n"
+  "attribute vec4 a_rect; attribute vec4 a_col; attribute float a_z;\n"
+  "void main() { vec2 k = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)); vec2 p = mix(a_rect.xy, a_rect.zw, k);\n"
+  "#else\n"
+  "attribute vec2 a_pos; attribute vec4 a_col; attribute float a_z;\n"
+  "void main() { vec2 p = a_pos;\n"
+  "#endif\n"
+  "  v_col = a_col; gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, (p.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
+static const char* SFS = "varying vec4 v_col; void main() { gl_FragColor = v_col; }\n";
+struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
+
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest; };
 static Tex2 texs[TEXS];
 static Tex2* baked;                 // by baked image index
@@ -69,8 +84,22 @@ static GSlot gtab[8192];
 static int gcount, gx, gy, growh;
 
 static int32_t W, H;
-static GLuint prog, vbo, ibo, fbo, fbo_tex, white, atlas, corner_tex, cur_tex;
-static GLint u_res, u_tex, u_flip, a_box, a_par, a_c1, a_c2;
+static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
+static GLint u_res, u_tex, u_flip, a_box, a_par, a_c1, a_c2, a_z;
+static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
+static GLuint sprog, svbo;    // the occlusion pass's program and buffer
+static GLint s_res, s_flip, s_rect, s_col, s_z, s_pos;
+static bool instanced;
+static SV* sverts; static size_t sverts_cap; static int ns;
+static bool occl;            // this frame: opaque square RECTs and CLEARs outside clips drawn first, front to back, the rest depth-tested
+static uint8_t* drawn; static size_t drawn_cap;   // per command of the first list: already drawn by the occlusion pass
+static bool culled;
+static Tiles cull_scratch;
+static uint8_t* hidden; static size_t hidden_cap;   // per command of the first list: covered whole by later opaque rectangles (zrt::raster::cull)
+static uint32_t* vis; static size_t vis_cap; static uint32_t nvis;   // when culled: the visible commands of the first list, in paint order
+// the commands a pass walks: the visible ones when culled (CLIP and UNCLIP are always among them), else all of them
+static inline uint32_t walk_count(const Frame& f, bool first) { return first && culled ? nvis : f.count; }
+static inline uint32_t walk_at(uint32_t k, bool first) { return first && culled ? vis[k] : k; }
 static bool flipy, split = true;   // flipy: drawing into the window framebuffer (rows bottom-up); split: cheap quads for the interior of boxes
 static V verts[MAXQ * 4];
 static int nq;
@@ -80,7 +109,7 @@ struct RC { float x, y, w, h, r; int R; bool on; };
 static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs; double us; } st;
+static struct { uint32_t frames, idle, draws, quads, glyphs; double us, cull_us; uint64_t hidden; } st;
 static double now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec / 1e3; }
 
 // ---- helpers shared in spirit with runtime/raster.cpp (kept identical: the pixels must agree)
@@ -116,13 +145,30 @@ bool init(int32_t w, int32_t h) {
   W = w; H = h;
   prog = zgl_program("", VS, FS);
   if (!prog) return false;
+#ifdef __APPLE__
+  instanced = true;   // GL 3.3+ core: instanced draws and attribute divisors
+#endif
+  sprog = zgl_program(instanced ? "#define INSTANCED 1\n" : "", SVS, SFS);
+  if (!sprog) return false;
+  s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
+  s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
+  glGenBuffers(1, &svbo);
   u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex");
   a_box = glGetAttribLocation(prog, "a_box"); a_par = glGetAttribLocation(prog, "a_par");
-  a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2");
+  a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2"); a_z = glGetAttribLocation(prog, "a_z");
   fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
   glGenFramebuffers(1, &fbo);
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_tex, 0);
+  glGenRenderbuffers(1, &fbo_depth);
+  glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
+#ifdef __APPLE__
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, W, H);   // 24 bits: 4M commands told apart
+#else
+  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+  glRenderbufferStorage(GL_RENDERBUFFER, ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
+#endif
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fbo_depth);
   bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   if (!ok) { fprintf(stderr, "display-gl: renderer gl: framebuffer %dx%d is not complete\n", W, H); return false; }
@@ -159,6 +205,7 @@ static void flush() {
   glEnableVertexAttribArray(a_par); glVertexAttribPointer(a_par, 4, GL_FLOAT, GL_FALSE, S, (void*)32);
   glEnableVertexAttribArray(a_c1); glVertexAttribPointer(a_c1, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)48);
   glEnableVertexAttribArray(a_c2); glVertexAttribPointer(a_c2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)52);
+  glEnableVertexAttribArray(a_z); glVertexAttribPointer(a_z, 1, GL_FLOAT, GL_FALSE, S, (void*)56);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
   apply_clip();
   glBindTexture(GL_TEXTURE_2D, cur_tex);
@@ -185,7 +232,7 @@ static void quad(const Q& q) {
   nq++;
   const float xs[4] = {q.x0, q.x1, q.x1, q.x0}, ys[4] = {q.y0, q.y0, q.y1, q.y1}, us[4] = {q.u0, q.u1, q.u1, q.u0}, vs[4] = {q.v0, q.v0, q.v1, q.v1};
   for (int i = 0; i < 4; i++) {
-    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)q.mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}};
+    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)q.mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
     setc(v[i].c1, q.c1, q.alpha); setc(v[i].c2, q.c2, 255);
   }
 }
@@ -407,13 +454,103 @@ static void solid_and_bands(const Cmd& c, const Rect& b, const Rect& in, int mod
 }
 
 // ---- one command list
-static void run(const Frame& f) {
+// depth of command i of n in NDC: the first is farthest, the last nearest
+static inline float depth_of(uint32_t i, uint32_t n) { return 1.0f - 2.0f * (float)(i + 1) / (float)(n + 1); }
+// The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
+// them is shaded once and every later draw behind them fails the depth test early (the GPU side of the raster's tiles, ZN-410).
+struct SV4 { float x, y; uint8_t c[4]; float z; };   // a corner (GLES 2: no instancing)
+static SV4* sq; static size_t sq_cap;
+static void sflush() {
+  if (!ns) return;
+  glUseProgram(sprog);
+  glUniform2f(s_res, (float)W, (float)H);
+  glUniform1f(s_flip, flipy ? -1.f : 1.f);
+  glBindBuffer(GL_ARRAY_BUFFER, svbo);
+  apply_clip();
+  if (instanced) {
+#ifdef __APPLE__
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)ns * sizeof(SV), sverts, GL_STREAM_DRAW);
+    const GLint at[3] = {s_rect, s_col, s_z};
+    glEnableVertexAttribArray(s_rect); glVertexAttribPointer(s_rect, 4, GL_FLOAT, GL_FALSE, sizeof(SV), (void*)0);
+    glEnableVertexAttribArray(s_col); glVertexAttribPointer(s_col, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SV), (void*)16);
+    glEnableVertexAttribArray(s_z); glVertexAttribPointer(s_z, 1, GL_FLOAT, GL_FALSE, sizeof(SV), (void*)20);
+    for (GLint a : at) glVertexAttribDivisor((GLuint)a, 1);
+    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, ns);
+    for (GLint a : at) { glVertexAttribDivisor((GLuint)a, 0); glDisableVertexAttribArray((GLuint)a); }
+#endif
+  } else {
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)ns * 4 * sizeof(SV4), sq, GL_STREAM_DRAW);
+    glEnableVertexAttribArray(s_pos); glVertexAttribPointer(s_pos, 2, GL_FLOAT, GL_FALSE, sizeof(SV4), (void*)0);
+    glEnableVertexAttribArray(s_col); glVertexAttribPointer(s_col, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SV4), (void*)8);
+    glEnableVertexAttribArray(s_z); glVertexAttribPointer(s_z, 1, GL_FLOAT, GL_FALSE, sizeof(SV4), (void*)12);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glDrawElements(GL_TRIANGLES, ns * 6, GL_UNSIGNED_SHORT, nullptr);
+    glDisableVertexAttribArray(s_pos); glDisableVertexAttribArray(s_col); glDisableVertexAttribArray(s_z);
+  }
+  st.draws++; st.quads += (uint32_t)ns;
+  ns = 0;
+  glUseProgram(prog);
+}
+static void solid(const Rect& b, uint32_t c) {
+  if (instanced) {
+    if (!grow(sverts, sverts_cap, (size_t)ns + 1)) return;
+    SV& v = sverts[ns++];
+    v = SV{(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, {0, 0, 0, 255}, cur_z};
+    setc(v.c, c, 255);
+    return;
+  }
+  if (ns == MAXQ) sflush();
+  if (!grow(sq, sq_cap, (size_t)(ns + 1) * 4)) return;
+  SV4* v = sq + (size_t)ns++ * 4;
+  const float xs[4] = {(float)b.x0, (float)b.x1, (float)b.x1, (float)b.x0}, ys[4] = {(float)b.y0, (float)b.y0, (float)b.y1, (float)b.y1};
+  for (int k = 0; k < 4; k++) { v[k] = SV4{xs[k], ys[k], {0, 0, 0, 255}, cur_z}; setc(v[k].c, c, 255); }
+}
+// The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
+// them is shaded once and every later draw behind them fails the depth test early (the GPU side of the raster's tiles, ZN-410).
+static void occlusion_pass(const Frame& f) {
+  if (!grow(drawn, drawn_cap, (size_t)f.count + 1)) { occl = false; return; }
+  int depth = 0;
+  const uint32_t nw = walk_count(f, true);
+  for (uint32_t k = 0; k < nw; k++) {
+    const uint32_t i = walk_at(k, true);
+    const Cmd& c = f.cmds[i];
+    drawn[i] = 0;
+    if (c.kind == CLIP) { if (depth < 16) depth++; else { occl = false; return; } }   // past 16, run() ignores the CLIP and pops a parent: no occlusion then
+    else if (c.kind == UNCLIP) { if (depth > 0) depth--; }
+    else if (depth == 0 && (c.kind == CLEAR || (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255))) drawn[i] = 1;
+  }
+  flush();
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
+  clip = base;
+  for (uint32_t k = nw; k-- > 0;) {
+    const uint32_t i = walk_at(k, true);
+    if (!drawn[i]) continue;
+    const Cmd& c = f.cmds[i];
+    cur_z = depth_of(i, f.count);
+    Rect b = isect(c.kind == CLEAR ? base : bounds(c.x, c.y, c.w, c.h, HUGE_R), base);
+    if (b.x0 < b.x1 && b.y0 < b.y1) solid(b, c.c1);
+  }
+  sflush();
+  glEnable(GL_BLEND);
+  glDepthMask(GL_FALSE);
+}
+static void run(const Frame& f, bool first) {
   sp = 0;
   clip = base;
-  for (uint32_t i = 0; i < f.count; i++) {
+  const uint32_t nw = walk_count(f, first);
+  for (uint32_t k = 0; k < nw; k++) {
+    const uint32_t i = walk_at(k, first);
     const Cmd& c = f.cmds[i];
+    if (occl && first) { if (drawn[i]) continue; cur_z = depth_of(i, f.count); }
     switch (c.kind) {
       case CLEAR:
+        if (occl && first) {   // inside a clip: a quad at its depth (glClear would ignore the depth test)
+          Q q = box_q(c, clip, SOLID);
+          q.alpha = 255;
+          quad(q);
+          break;
+        }
         flush();
         apply_clip();
         glClearColor(((c.c1 >> 16) & 255) / 255.f, ((c.c1 >> 8) & 255) / 255.f, (c.c1 & 255) / 255.f, 1.f);
@@ -529,8 +666,25 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
   glEnable(GL_SCISSOR_TEST);
   clip = base;
   apply_clip();   // the clear stays inside the base rectangle
+  // occlusion (ZN-412.01) when the framebuffer has a depth buffer that tells the commands apart (16 bits: up to 16k commands); ZINC_GL_OCCLUDE=0 turns it off
+  static const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
+  GLint bits = 0;
+#ifdef __APPLE__
+  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_DEPTH : GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &bits);
+#else
+  glGetIntegerv(GL_DEPTH_BITS, &bits);
+#endif
+  const uint32_t first_n = n > 0 ? lists[0]->count : 0;
+  occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits));
   glClearColor(0, 0, 0, 1);
-  glClear(GL_COLOR_BUFFER_BIT);
+#ifdef __APPLE__
+  glClearDepth(1.0);
+#else
+  glClearDepthf(1.0f);
+#endif
+  glDepthMask(GL_TRUE);   // the occlusion pass leaves it off: a depth clear needs it on
+  glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0));
+  cur_z = 0;
   glUseProgram(prog);
   glUniform1f(u_flip, direct ? -1.f : 1.f);
   glUniform2f(u_res, (float)W, (float)H);
@@ -539,8 +693,32 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
   cur_tex = white;
   glEnable(GL_BLEND);
   glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-  for (int32_t i = 0; i < n; i++) run(Frame{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts});
-  glDisableVertexAttribArray(a_box); glDisableVertexAttribArray(a_par); glDisableVertexAttribArray(a_c1); glDisableVertexAttribArray(a_c2);
+  for (int32_t i = 0; i < n; i++) {
+    const Frame fr{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts};
+    // a large first list: the commands that later opaque rectangles cover whole are not drawn at all (on a tiling GPU the primitives
+    // cost, not the hidden pixels: 200k balls 4 ms of GPU, 17k of them visible)
+    const double tc = now_us();
+    static const bool cull_on = !getenv("ZINC_GL_CULL") || atoi(getenv("ZINC_GL_CULL")) != 0;
+    culled = false;
+    // 8 px tiles: the balls of bouncing-ball (8 to 18 px at 2x) cover some whole. ponytail: one thread, 14 ns a command (2.8 ms for 200k);
+    // bands of tile rows on 4 threads were slower (every band reads every command), ZN-412.05 has the rest
+    if (cull_on && i == 0 && fr.count >= kTilesMin && grow(hidden, hidden_cap, (size_t)fr.count + 1) && grow(vis, vis_cap, (size_t)fr.count + 1) && cull(fr, W, H, 8, cull_scratch, hidden)) {
+      nvis = 0;
+      for (uint32_t k = 0; k < fr.count; k++) if (!hidden[k]) vis[nvis++] = k;
+      culled = true;
+    }
+    if (i == 0) { st.cull_us += now_us() - tc; st.hidden += culled ? fr.count - nvis : 0; }
+    if (i == 0 && occl) {
+      glEnable(GL_DEPTH_TEST);
+      glDepthFunc(GL_LESS);
+      occlusion_pass(fr);
+      if (!occl) { glDisable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); }   // too deep in clips: painted in order
+    }
+    run(fr, i == 0);
+    culled = false;
+    if (i == 0 && occl) { glDisable(GL_DEPTH_TEST); occl = false; cur_z = 0; }   // the overlays (warnings, the profiler) go on top
+  }
+  glDisableVertexAttribArray(a_box); glDisableVertexAttribArray(a_par); glDisableVertexAttribArray(a_c1); glDisableVertexAttribArray(a_c2); glDisableVertexAttribArray(a_z);
   glDisable(GL_SCISSOR_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   st.frames++;
@@ -550,7 +728,7 @@ void idle() { st.idle++; }
 void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;
-  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it\n",
-          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n);
+  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands\n",
+          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n);
 }
 }  // namespace glr

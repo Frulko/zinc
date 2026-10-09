@@ -180,14 +180,17 @@ bool zgl_backend_init(const HalConfig* cfg) {
   dpy = platform ? platform(EGL_PLATFORM_GBM_KHR, gbm, nullptr) : eglGetDisplay((EGLNativeDisplayType)gbm);
   if (!eglInitialize(dpy, nullptr, nullptr)) { fprintf(stderr, "display-gl: eglInitialize failed\n"); return false; }
   eglBindAPI(EGL_OPENGL_ES_API);
-  const EGLint attr[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 0,
-                         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
+  // a depth buffer lets the GL renderer skip what opaque rectangles hide (ZN-412.01); a config without one is taken when there is none
   EGLConfig cfgs[64], chosen = nullptr;
-  EGLint n = 0;
-  eglChooseConfig(dpy, attr, cfgs, 64, &n);
-  for (int i = 0; i < n && !chosen; i++) {
-    EGLint id;
-    if (eglGetConfigAttrib(dpy, cfgs[i], EGL_NATIVE_VISUAL_ID, &id) && id == GBM_FORMAT_XRGB8888) chosen = cfgs[i];
+  for (int depth = 16; depth >= 0 && !chosen; depth -= 16) {
+    const EGLint attr[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, depth,
+                           EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
+    EGLint n = 0;
+    eglChooseConfig(dpy, attr, cfgs, 64, &n);
+    for (int i = 0; i < n && !chosen; i++) {
+      EGLint id;
+      if (eglGetConfigAttrib(dpy, cfgs[i], EGL_NATIVE_VISUAL_ID, &id) && id == GBM_FORMAT_XRGB8888) chosen = cfgs[i];
+    }
   }
   if (!chosen) { fprintf(stderr, "display-gl: no XRGB8888 EGL config\n"); return false; }
   const EGLint cattr[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};

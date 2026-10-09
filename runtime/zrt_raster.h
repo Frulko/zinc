@@ -96,6 +96,14 @@ bool bin(const Frame& f, int32_t w, int32_t h, Tiles& out);
 /** render() through the tiles of `f` binned by bin(): the same pixels; falls back to render() when the tiles are not usable. */
 void render_tiles(const Frame& f, const Tiles& tiles, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
 void free_tiles(Tiles& t);
+/** hidden[i] = 1 for the commands of `f` that opaque square RECTs and CLEARs drawn after them, outside any clip, cover whole (`tile` px
+ *  tiles, the commands' own bounds); a CLIP or UNCLIP is marked only with its whole scope, under a covered screen. Returns how many. For
+ *  renderers that draw every command, the GL replay (ZN-412.01): they skip what nobody sees. `scratch` keeps its buffer between frames. */
+uint32_t cull(const Frame& f, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint8_t* hidden);
+/** cull() for the tile rows row0 .. row1 - 1 alone, to run bands on several threads: visible[i] = 1 for the commands seen in the band and for
+ *  CLIP / UNCLIP (a command is visible when some band sees it); the others are left alone. The caller checks clips_balanced first. */
+void cull_rows(const Frame& f, int32_t w, int32_t h, int32_t tile, int32_t row0, int32_t row1, Tiles& scratch, uint8_t* visible);
+bool clips_balanced(const Frame& f);
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 /** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */

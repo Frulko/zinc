@@ -143,10 +143,27 @@ static void save_bmp(const char* path, int32_t w, int32_t h) {
 
 // ZINC_GL_TIME=1: glFinish after the replay and after the present pass, to see where the GPU time goes (serialises the
 // pipeline: the sum is longer than a normal frame).
-static double t_rep, t_pas, t_swp; static long t_n;
+static double t_rep, t_pas, t_swp, t_gpu; static long t_n;
+#ifdef __APPLE__
+static GLuint t_query;   // GL_TIME_ELAPSED of the replay and the present pass: the GPU's own time, without the driver's submission (ZN-412.01)
+#endif
+static void gpu_time(bool tm) {
+#ifdef __APPLE__
+  if (!tm) return;
+  glEndQuery(GL_TIME_ELAPSED);
+  GLuint64 ns = 0;
+  glGetQueryObjectui64v(t_query, GL_QUERY_RESULT, &ns);   // the frame was finished above: no wait
+  t_gpu += ns / 1000.0;
+#else
+  (void)tm;
+#endif
+}
 static void present(const HalFrame* f) {
   static const bool tm = getenv("ZINC_GL_TIME") != nullptr;
   double ta = tm ? glr::now_us() : 0, tb = ta;
+#ifdef __APPLE__
+  if (tm) { if (!t_query) glGenQueries(1, &t_query); glBeginQuery(GL_TIME_ELAPSED, t_query); }
+#endif
   if (!glr_state) choose_renderer(f);
   glBindTexture(GL_TEXTURE_2D, overlay);
   bool damaged = f->y1 > f->y0 && f->x1 > f->x0;
@@ -183,6 +200,7 @@ static void present(const HalFrame* f) {
     if (shot_path && frames_left == 0) save_bmp(shot_path, dw, dh);
     double tc = 0;
     if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
+    gpu_time(tm);
     zgl_backend_swap();
     if (tm) { t_swp += glr::now_us() - tc; t_n++; }
     return;
@@ -210,6 +228,7 @@ static void present(const HalFrame* f) {
   if (shot_path && frames_left == 0) save_bmp(shot_path, dw, dh);
   double tc = 0;
   if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
+  gpu_time(tm);
   zgl_backend_swap();
   if (tm) { t_swp += glr::now_us() - tc; t_n++; }
 }
@@ -220,7 +239,7 @@ static void poll(HalInput* in) {
 }
 
 static void shutdown() {
-  if (t_n) fprintf(stderr, "display-gl time: per frame replay %.0f us (GPU done), present pass %.0f us (GPU done), swap %.0f us (%ld frames)\n", t_rep / t_n, t_pas / t_n, t_swp / t_n, t_n);
+  if (t_n) fprintf(stderr, "display-gl time: per frame replay %.0f us (GPU done), present pass %.0f us (GPU done), swap %.0f us, GPU %.0f us (timer query) (%ld frames)\n", t_rep / t_n, t_pas / t_n, t_swp / t_n, t_gpu / t_n, t_n);
   if (glr_state > 0) glr::report();
   else if (cpu_stats && cpu_n) fprintf(stderr, "display-gl renderer cpu: %ld damaged frames, %.0f us of CPU per frame in the software raster\n", cpu_n, cpu_us / cpu_n);
   zgl_backend_shutdown();

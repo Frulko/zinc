@@ -1,9 +1,10 @@
 ---
 id: ZN-412
 title: PERF-13 GPU 2D backend by default where a GPU exists
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-09 07:34'
+updated_date: '2026-10-09 12:25'
 labels:
   - perf
   - size-L

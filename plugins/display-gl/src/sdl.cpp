@@ -20,13 +20,14 @@ bool zgl_backend_init(const HalConfig* cfg) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);   // the GL renderer's occlusion of what opaque rectangles hide (ZN-412.01)
   int scale = cfg->width <= 400 ? 3 : cfg->width <= 700 ? 2 : 1;
   if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z) > 0 ? atoi(z) : scale;   // window size in points, as in hal_sdl (zinc.json zoom)
   SDL_WindowFlags fl = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | (ZP_DISPLAY_GL_FULLSCREEN ? SDL_WINDOW_FULLSCREEN : 0);
   win = SDL_CreateWindow(cfg->title, cfg->width * scale, cfg->height * scale, fl);
   if (!win || !(ctx = SDL_GL_CreateContext(win))) { fprintf(stderr, "display-gl: %s\n", SDL_GetError()); return false; }
   SDL_GL_MakeCurrent(win, ctx);
-  SDL_GL_SetSwapInterval(1);
+  SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);   // ZINC_VSYNC=0: as fast as the frames come (measurements)
   return true;
 }
 
