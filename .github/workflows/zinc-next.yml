@@ -95,11 +95,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the plugins' split commits need the history
       - uses: actions/download-artifact@v4
         with:
           pattern: package-*
           path: release
           merge-multiple: true
+      - name: plugins.lock (ZN-335)
+        run: next/tools/plugin-split --lock release/plugins.lock
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,6 +114,30 @@ jobs:
           if [ ! -f release/.signed ]; then notes="$notes The macOS package is not signed or notarized (no signing secrets): right-click > Open the first time."; echo "::warning::releasing an unsigned macOS package"; fi
           ls release/*.manifest >/dev/null 2>&1 || notes="$notes No update manifests (no ZINC_UPDATE_SEED secret)."
           gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" release/*
+  plugin-mirrors:
+    # ZN-335, D37: each plugins/<name> changed on main is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>
+    name: plugin-mirrors
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Split and push the changed plugins
+        env:
+          PLUGIN_MIRROR_TOKEN: ${{ secrets.PLUGIN_MIRROR_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- plugins/ 2>/dev/null | cut -d/ -f2 | sort -u)
+          [ -n "$changed" ] || { echo "no plugin changed"; exit 0; }
+          if [ -z "$PLUGIN_MIRROR_TOKEN" ]; then
+            echo "::notice::no PLUGIN_MIRROR_TOKEN: splitting without pushing ($(echo "$changed" | tr '\n' ' '))"
+            for n in $changed; do [ -f "plugins/$n/plugin.json" ] && next/tools/plugin-split "$n"; done
+            exit 0
+          fi
+          for n in $changed; do
+            [ -f "plugins/$n/plugin.json" ] || continue
+            ZINC_PLUGIN_REPO_BASE="https://x-access-token:${PLUGIN_MIRROR_TOKEN}@github.com/zinc-engine" next/tools/plugin-split --push "$n"
+          done
   reproducible:
     # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
     name: reproducible

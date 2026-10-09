@@ -1,0 +1,43 @@
+#!/bin/sh
+# Plugins as their own repositories (ZN-335, D37): plugins/<name> of the monorepo published as a mirror repository with `git subtree split`, history kept.
+# The split is deterministic (the same history gives the same commit ids), and a commit that touches plugins/<name> gives exactly one new commit in its split.
+#   tools/plugin-split [-C repo] <name>...                 "<name> <split commit>" per plugin, and the branch plugin/<name> at it
+#   tools/plugin-split [-C repo] --lock [file]             plugins.lock (JSON): name, repository, commit, source (the git tree id of plugins/<name>) of every plugin at HEAD
+#   tools/plugin-split [-C repo] --push <name>...          the split pushed to its repository (needs push rights; the CI does it with a token)
+# The repository of plugin <name> is $ZINC_PLUGIN_REPO_BASE/plugin-<name>.git (default https://github.com/zinc-engine).
+repo=.
+[ "$1" = "-C" ] && { repo=$2; shift 2; }
+cd "$repo" && repo=$(git rev-parse --show-toplevel) || exit 2
+cd "$repo" || exit 2
+base=${ZINC_PLUGIN_REPO_BASE:-https://github.com/zinc-engine}
+split() {   # the split commit of plugins/$1 at HEAD, kept on the branch plugin/$1
+  [ -f "plugins/$1/plugin.json" ] || { echo "plugin-split: no plugins/$1/plugin.json" >&2; return 1; }
+  c=$(git subtree split -q --prefix="plugins/$1" HEAD 2>/dev/null) && [ -n "$c" ] || { echo "plugin-split: the split of $1 failed" >&2; return 1; }
+  git branch -f "plugin/$1" "$c" >/dev/null
+  echo "$c"
+}
+case $1 in
+  --lock)
+    out=${2:-plugins.lock}
+    {
+      printf '{\n  "format": 1,\n  "engine": "%s",\n  "plugins": [' "$(git rev-parse HEAD)"
+      sep=
+      for d in $(git ls-tree -d --name-only HEAD plugins/ | sort); do
+        n=${d#plugins/}
+        git cat-file -e "HEAD:$d/plugin.json" 2>/dev/null || continue
+        c=$(split "$n") || exit 1
+        printf '%s\n    { "name": "%s", "repository": "%s/plugin-%s.git", "commit": "%s", "source": "git-tree:%s" }' "$sep" "$n" "$base" "$n" "$c" "$(git rev-parse "HEAD:$d")"
+        sep=,
+      done
+      printf '\n  ]\n}\n'
+    } > "$out.tmp" && mv "$out.tmp" "$out" && echo "$out"
+    ;;
+  --push)
+    shift
+    for n in "$@"; do c=$(split "$n") || exit 1; git push "$base/plugin-$n.git" "$c:refs/heads/main" || exit 1; done
+    ;;
+  ''|-h|--help) sed -n '2,8p' "$0"; exit 2 ;;
+  *)
+    for n in "$@"; do c=$(split "$n") || exit 1; echo "$n $c"; done
+    ;;
+esac

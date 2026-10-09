@@ -92,6 +92,15 @@ Linux machine and for a cross build from a Mac): never a path of this machine, s
 plugin for the same target compute the same key. `ZINC_PLUGIN_CC=system` (or `"pluginCompiler": "system"` in
 `zinc.json`) uses `$CXX` / `$CC` or the system `c++` / `cc` instead, under a key that carries its `--version` line.
 
+## Plugin repositories
+
+Official plugins are developed here, in `plugins/`, and published as mirror repositories `zinc-engine/plugin-<name>` (D37):
+`next/tools/plugin-split <name>` runs `git subtree split`, so the plugin sits at the root of its repository with its history,
+the same history always gives the same commit ids, and a commit that touches `plugins/<name>` gives exactly one new commit
+in its mirror. The `plugin-mirrors` CI job pushes the plugins a push to main changed (secret `PLUGIN_MIRROR_TOKEN`; without it
+the job only splits). A release attaches `plugins.lock` (`tools/plugin-split --lock`): for every plugin, its repository, its
+split commit and its source tree id, so `zinc add <repository>@<commit>` gets exactly what the release shipped.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a
