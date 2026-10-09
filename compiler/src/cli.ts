@@ -24,8 +24,10 @@ interface Profile { number: NumKind; width: number; height: number; typing: 'str
   chip?: string; psram?: boolean; flashSize?: string;
   /** esp32 only: size of the app partition ("2M"); a custom partition table is generated when set (default table: 1M). */
   appSize?: string;
-  /** esp32 only: runtime pool sizes (ZRT_<NAME>), e.g. { "MAX_DRAW_CMDS": 160, "POINT_POOL": 2048 }; static RAM = less Zinc heap. */
+  /** Runtime pool sizes (ZRT_<NAME>), e.g. { "MAX_DRAW_CMDS": 160, "POINT_POOL": 2048 }; static RAM = less Zinc heap. */
   pools?: Record<string, number>;
+  /** Grow the graphics command buffers on demand instead of dropping commands at the pool limit. */
+  growDrawCommands?: boolean;
   /** esp32 only: extra sdkconfig.defaults lines, e.g. { "CONFIG_FREERTOS_HZ": 1000, "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": true }. */
   sdkconfig?: Record<string, string | number | boolean> }
 // Section 12 defaults: number representation, typing profile, resolution, TLSF heap budget.
@@ -50,6 +52,7 @@ export interface Project { name: string; dir: string; assets?: string; crash?: s
 export interface Opts { core?: string; headless?: boolean; engine?: Engine; nativeLibraries?: string[]; vmTier?: 0 | 1; project: Project; cmd: string; entry: string; target: string; profile: string; debug: boolean; emit?: string; json: boolean; noFloat: boolean; rest: string[]; dev: boolean; devtools: boolean; device?: string; noDyn?: boolean; obfuscate?: boolean; force?: boolean; port?: string; vals: Record<string, string> }
 
 function parseArgs(argv: string[]): Opts {
+  const pools: Record<string, number> = {};
   const o: Opts = { project: { name: '', dir: '', requires: [], targets: {} }, cmd: argv[0] ?? 'help', entry: '', target: process.platform === 'darwin' ? 'macos' : 'linux', profile: '', debug: false, json: false, noFloat: false, rest: [], dev: false, devtools: false, vals: {} };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
@@ -79,6 +82,11 @@ function parseArgs(argv: string[]): Opts {
     else if (a.startsWith('--target=')) o.target = a.slice(9);
     else if (a === '--profile') o.profile = argv[++i];
     else if (a.startsWith('--profile=')) o.profile = a.slice(10);
+    else if (a.startsWith('-DZRT_')) {
+      const match = /^-DZRT_(MAX_DRAW_CMDS|TEXT_POOL|POINT_POOL)=([1-9][0-9]*)$/.exec(a);
+      if (!match || Number(match[2]) > 0x7fffffff) die('expected -DZRT_MAX_DRAW_CMDS=<n>, -DZRT_TEXT_POOL=<n> or -DZRT_POINT_POOL=<n> (positive 32-bit integer)');
+      pools[match[1]] = Number(match[2]);
+    }
     else if (a === '--headless') o.headless = true;
     else if (a === '--debug') o.debug = true;
     else if (a === '--release') o.debug = false;
@@ -119,6 +127,7 @@ function parseArgs(argv: string[]): Opts {
   const engineHost = process.platform === 'darwin' ? 'macos' : 'linux';
   if (o.engine && o.engine !== 'native' && o.target !== engineHost) die(`${o.engine}: application runners require the host target (${engineHost})`);
   if (!PROFILES[o.profile]) die(`unknown profile '${o.profile}'`);
+  if (Object.keys(pools).length) PROFILES[o.profile] = { ...PROFILES[o.profile], pools: { ...PROFILES[o.profile].pools, ...pools } };
   // capabilities of the target profile (docs/targets/capabilities.md): zinc:platform, and the app's requirements
   const caps = capsFor(o.profile, PROFILES[o.profile]);
   setPlatform(o.target, o.profile, platformModule(o.target, o.profile, caps));
@@ -222,7 +231,7 @@ function guard<T>(o: Opts, f: () => T): T {
 
 function outDir(o: Opts): string {
   const base = path.basename(o.entry).replace(/\.[cm]?[jt]sx?$/, '');
-  const name = (o.engine && o.engine !== 'native' ? o.engine + '-' : '') + (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '') + (o.core ? '-script' : '');
+  const name = (o.engine && o.engine !== 'native' ? o.engine + '-' : '') + (base === 'main' ? '' : base + '-') + o.target + (o.profile !== o.target ? `-${o.profile}` : '') + (o.dev ? '-dev' : o.debug ? '-debug' : '') + (o.headless ? '-headless' : '') + (process.env.ZINC_DISPLAY ? `-${process.env.ZINC_DISPLAY}` : '') + (isDist(o) ? '-dist' : '') + (o.obfuscate ? '-obf' : '') + (o.core ? '-script' : '');
   return path.join(o.project.dir || path.dirname(path.resolve(o.entry)), 'build', name);  // next to zinc.json
 }
 
@@ -411,11 +420,20 @@ function hotTarget(o: Opts): boolean { return o.dev && !o.device && ((o.target =
 function windowDefines(prof: Profile, sema: Sema): string[] {
   const ui = sema.fe.sources.some(f => f.fileName.endsWith(path.join('lib', 'std', 'ui.ts')));
   const out: string[] = [];
+  if (prof.growDrawCommands) out.push('ZRT_GROW_DRAW_CMDS=1');
   if (prof.zoom) out.push(`ZINC_ZOOM=${prof.zoom}`);
   if ((prof.resize ?? (ui ? 'fill' : 'letterbox')) === 'fill') out.push('ZINC_RESIZE_FILL');
   if (prof.fullscreen) out.push('ZINC_FULLSCREEN');
   if (prof.kiosk) out.push('ZINC_KIOSK');
   return out;
+}
+
+/** Pool overrides shared by native and interpreter graphics builds. */
+function poolDefines(prof: Profile): string[] {
+  return Object.entries(prof.pools ?? {}).map(([name, size]) => {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || !Number.isInteger(size) || size <= 0 || size > 0x7fffffff) die(`invalid runtime pool ${name}=${size}`);
+    return `ZRT_${name}=${size}`;
+  });
 }
 
 /** Active plugins for this build (PLG); unavailable ones are Z5003 like built-in modules. */
@@ -457,7 +475,7 @@ function build(o: Opts): Built {
     const display = active.plugins.find(plugin => plugin.kind === 'display');
     if (display) die(`${o.engine}: display plugin ${display.name} has no application runner adapter yet`);
     try {
-      const graphics = usesGfx(sema) ? { ...bakeResources(o, sema, dir), title, headless: !!o.headless, defines: windowDefines(prof, sema) } : undefined;
+      const graphics = usesGfx(sema) ? { ...bakeResources(o, sema, dir), title, headless: !!o.headless, defines: [...windowDefines(prof, sema), ...poolDefines(prof)] } : undefined;
       return buildEngine(sema, o.engine, dir, o.target, o.debug, o.project.assets, [prof.width, prof.height], o.vmTier ?? 0, o.nativeLibraries ?? [], graphics, o.core);
     }
     catch (e) { die((e as Error).message); }
@@ -474,6 +492,7 @@ function build(o: Opts): Built {
     return { exe: ['node', ...simFlags, path.join(dir, 'run.mjs')], dir };
   }
   const ps = pluginSettings(o, sema);
+  if (o.target !== 'esp32') ps.defines.push(...poolDefines(prof));
   const crash = o.dev ? 1 : CRASH[o.project.crash ?? 'exit'];
   if (crash === undefined) die(`zinc.json: crash must be "exit", "redbox" or "restart"`);
   const mode: BuildMode = { dev: o.dev, hot: hotTarget(o), crash, dist: isDist(o) };
@@ -812,7 +831,7 @@ function captureRun(o: Opts, exe: string[], base: string, frames: number[], ever
   const files = nums.length ? nums.filter(n => n <= budget).map(n => `${base}-${n}.png`) : [base + '.png'];
   for (const f of files) fs.rmSync(f, { force: true });
   const r = spawnSync(exe[0], [...exe.slice(1), ...o.rest], { stdio: ['ignore', 'ignore', 'inherit'], env });
-  if (r.status) console.error(`zinc: the program exited with ${r.status}`);
+  if (r.error || r.status !== 0) die(`capture failed: ${r.error?.message ?? (r.signal ? `signal ${r.signal}` : `exit ${r.status}`)}`);
   return files.filter(f => fs.existsSync(f)).map(f => { fs.writeFileSync(f, png.encode(png.decode(fs.readFileSync(f)))); return f; });
 }
 function frameList(s: string | undefined): number[] {
@@ -971,6 +990,7 @@ function help(topic?: string) {
   --native-library <file>             load a trusted ABI module (.so/.dylib), repeatable
   --engine native|zinc-vm|quickjs      execution engine (build/run/test/dev/capture/export; docs/engines.md)
   --vm-tier 0|1                       Zinc VM interpreter or AArch64 baseline JIT (--jit = --vm-tier=1)
+  -DZRT_MAX_DRAW_CMDS=<n>  draw command capacity (also ZRT_TEXT_POOL / ZRT_POINT_POOL)
   --headless         real rasterization and captures with the null HAL (no window)
   --debug            ASan + UBSan, leak report at exit        --release (default)
   --emit=hir|mir|cpp|js   print the typed HIR, the SSA MIR, the generated C++ or JavaScript

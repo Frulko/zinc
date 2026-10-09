@@ -12,8 +12,21 @@ zinc run examples/bouncing-ball --target wasm    # browser: http://localhost:808
 zinc run examples/bouncing-ball --target sim     # Node, headless (stop it with ZINC_FRAMES=n)
 ```
 
-Controls: **Up** or **Space** adds 100 balls, **Down** resets to one ball, hold the **mouse button** to spray balls
+Controls: hold **Up** or **Space** to add 100 balls per frame, **Down** resets to one ball, hold the **mouse button** to spray balls
 under the pointer. The HUD shows the ball count and the frame rate: a good first stress test on a new board.
+
+## Stress test
+
+On macOS/Linux, `targets.<id>.growDrawCommands` enables growing command buffers: every ball submits a rectangle,
+even above 8,192 commands. Buffers double when full and retain their capacity; allocation failure stops the app
+instead of silently dropping balls. Other projects and small-device targets keep fixed pools by default.
+With growth enabled, `-DZRT_MAX_DRAW_CMDS=100000` sets the initial capacity, not a maximum.
+
+Hold Up/Space to increase the load, then release and let the FPS settle at that ball count. The HUD measures
+elapsed monotonic time, independently of the physics timestep clamp. Compare runs at the same window size,
+pixel scale and renderer. This measures physics + command generation + rendering + presentation together;
+VSync can cap the displayed FPS. Do not use deterministic mode or a headless run to measure interactive FPS.
+Growth/spawn allocations can cause transient slow frames: measure after releasing the key.
 
 ## What to look at
 
