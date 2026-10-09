@@ -155,6 +155,13 @@ install` refuse a revoked version and say why and what replaces it; `zinc run` o
 prints the same as a warning (from the copy kept at the last index refresh, so it needs no network). A revoked key signs
 nothing any more: a role or an archive that only that key signed is refused.
 
+**Trust policy.** One policy decides what may be installed: `tiers` (the accepted tiers), `prebuilt` (published binaries
+allowed, or `false`: source only), `rebuilds` (matching rebuilds a verified publisher's binary needs), `transparency`
+(`"required"`: binaries need the transparency log) and `mirrors` (the only mirrors that may serve downloads). It is read
+from the system (`/etc/zinc/policy.json`, or `$ZINC_SYSTEM_POLICY`), the user (`~/.zinc/policy.json`, and `ZINC_PREBUILT=0`,
+`ZINC_REBUILDS_MIN`), then the project (`zinc.json` `"policy"`); each layer can only tighten the one before, so a cloned
+project never loosens a company's or a CI's policy. `zinc doctor` prints the effective policy and where each value comes from.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

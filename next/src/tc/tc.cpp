@@ -1,5 +1,6 @@
 #include "monocypher-ed25519.h"
 #include "tc/tc.h"
+#include "tc/policy.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -152,7 +153,15 @@ std::vector<std::string> mirrors() {
   const char* m = std::getenv("ZINC_MIRRORS");
   std::string cur;
   for (const char* c = m ? m : ""; ; ++c) {
-    if (*c == 0 || *c == ' ' || *c == ',' || *c == '\n') { if (!cur.empty()) { while (cur.back() == '/') cur.pop_back(); r.push_back(cur); } cur.clear(); if (!*c) break; }
+    if (*c == 0 || *c == ' ' || *c == ',' || *c == '\n') {
+      if (!cur.empty()) {
+        while (cur.back() == '/') cur.pop_back();
+        const auto& allowed = currentPolicy().mirrors;   // the trust policy may name the only mirrors allowed (ZN-346)
+        if (allowed.empty() || std::find(allowed.begin(), allowed.end(), cur) != allowed.end()) r.push_back(cur);
+      }
+      cur.clear();
+      if (!*c) break;
+    }
     else cur += *c;
   }
   return r;

@@ -40,6 +40,7 @@
 #include "frontend/profile.h"
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
+#include "tc/policy.h"
 #include "tc/tc.h"
 #include "sim/program_dut.h"
 #include "sim/replay.h"
@@ -102,6 +103,7 @@ static void installNativeProvider(const char* entry) {
   std::string pf = zn::frontend::findProjectFile(entry);
   gProjectDir = pf.empty() ? fs::absolute(entry).parent_path().string() : fs::path(pf).parent_path().string();
   zn::cli::warnRevoked(gProjectDir);   // plugins of zinc.lock the index revoked (ZN-345)
+  zn::tc::loadPolicy(gProjectDir);     // the trust policy of the plugins built for it (ZN-346)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     std::vector<std::string> problems;
     std::string root = gRoot + "/..";
@@ -1569,6 +1571,7 @@ int main(int argc, char** argv) {
     if (!hit) { std::fprintf(stderr, "zinc: no plugin named '%s' (zinc plugins lists them)\n", argv[2]); return 1; }
     zn::tc::PluginLib lib;
     std::string err;
+    zn::tc::loadPolicy(project);   // ZN-346
     if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.fetched ? "fetched" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
     if (!packOut.empty()) {

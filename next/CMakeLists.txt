@@ -215,7 +215,7 @@ add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)
 target_link_libraries(zn_dev PUBLIC zn_vm)
 
-add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/zapp.cpp third_party/sha256/sha256.c third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
+add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/sha256/sha256.c third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/sha256 third_party/monocypher)
 target_link_libraries(zn_tc PUBLIC zn_frontend ${CMAKE_DL_LIBS})
 if(APPLE)

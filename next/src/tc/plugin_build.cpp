@@ -1,4 +1,5 @@
 #include "tc/plugin_build.h"
+#include "tc/policy.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
 #include "zapp.h"
@@ -175,7 +176,8 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
 // archive's length and SHA-256), unpacked into the cache entry with its digest, so nothing is compiled. The key covers the sources, so a changed plugin misses.
 // Off with ZINC_PREBUILT=0; no trusted index root, or the index unreachable: a silent miss; a refused archive is said, then the plugin is built here.
 void fetchPrebuilt(const std::string& name, const std::string& key, const std::string& target, const std::string& engineRoot, const std::string& dir, const std::string& vdir, PluginLib& out) {
-  if (const char* off = std::getenv("ZINC_PREBUILT"); off && std::string(off) == "0") return;
+  const Policy& policy = currentPolicy();   // ZN-346: published binaries allowed or source only, tiers, rebuilds, transparency
+  if (!policy.prebuilt) return;
   std::unique_ptr<tuf::Client> index;
   std::string err, bytes;
   if (!tuf::openIndex(engineRoot, index, err)) return;   // no index here: build
@@ -184,26 +186,26 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
   tuf::Target t;
   // an official binary (signed by the top-level role), else a verified publisher's (<publisher>/binaries/...) once enough rebuilds matched it (ZN-340)
   std::string path = "binaries/" + target + "/" + name + "-" + key + ".tar";
-  if (!c.find(path, t, err)) {
+  if (!c.find(path, t, err) || !policy.accepts("official")) {
     std::vector<tuf::Target> all;
     t = tuf::Target{};
     if (c.all(all, err)) for (const tuf::Target& x : all) {
       const std::string tail = "/binaries/" + target + "/" + name + "-" + key + ".tar";
       if (x.role != "targets" && x.path.size() > tail.size() && x.path.compare(x.path.size() - tail.size(), tail.size(), tail) == 0) { t = x; break; }
     }
-    if (t.path.empty()) return;   // no binary for this key: build
+    if (t.path.empty() || !policy.accepts("verified")) return;   // no binary for this key, or the policy refuses verified publishers: build
     path = t.path;
     tuf::Target att;
     std::string attBytes, e2;
     long long matches = 0;
     if (c.find("rebuilds/" + t.sha256 + ".json", att, e2) && att.role == "targets" && c.download(att, attBytes, e2))
       if (yyjson_doc* d = yyjson_read(attBytes.data(), attBytes.size(), 0)) { yyjson_val* m = yyjson_obj_get(yyjson_doc_get_root(d), "matches"); matches = yyjson_is_int(m) ? yyjson_get_sint(m) : 0; yyjson_doc_free(d); }
-    const char* mn = std::getenv("ZINC_REBUILDS_MIN");
-    const long long need = mn && *mn ? std::atoll(mn) : 2;
+    const long long need = policy.rebuilds;
     std::fprintf(stderr, "zinc: plugin '%s': a binary of verified publisher %s, %lld matching rebuild(s) of the %lld required%s\n", name.c_str(), t.role.c_str(), matches, need, matches >= need ? "" : ": building it here");
     if (matches < need) return;
   }
   if (!c.download(t, bytes, err)) { std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str()); return; }
+  if (policy.transparency == "required" && tuf::logKey(engineRoot).empty()) { std::fprintf(stderr, "zinc: the policy requires the transparency log and no log key is pinned; building plugin '%s' here\n", name.c_str()); return; }
   if (const std::string lk = tuf::logKey(engineRoot); !lk.empty() && !tlog::checkArtifact(tuf::indexFetch(tuf::indexUrl()), lk, home() + "/index/log-state.json", t.path, t.sha256, err)) {
     std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str());   // ZN-343: what is installed must be in the public log
     return;

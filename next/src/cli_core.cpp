@@ -29,6 +29,7 @@
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
+#include "tc/policy.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
 
@@ -361,6 +362,11 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
   int plugins = 0;
   for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "plugins", ec)) if (e.is_directory() && fs::exists(e.path() / "plugin.json")) ++plugins;
   std::printf("plugins: %d in %s/../plugins (zinc plugins lists them with the targets they run on)\n", plugins, engineRoot.c_str());
+  {   // the trust policy in force here (ZN-346)
+    std::error_code ec;
+    const zn::tc::Policy& p = zn::tc::loadPolicy(fs::exists("zinc.json", ec) ? fs::current_path(ec).string() : "");
+    std::printf("\ntrust policy (system $ZINC_SYSTEM_POLICY or /etc/zinc/policy.json, user ~/.zinc/policy.json, project zinc.json \"policy\")\n%s", zn::tc::describePolicy(p).c_str());
+  }
   return 0;
 }
 
@@ -1028,6 +1034,13 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
     if (err.empty())
       std::printf("%s: tier community, publisher %s (%s), from %s\n", pname.c_str(), want.publisher.c_str(), got.publicKey.empty() ? (isArchive(spec) ? "unsigned" : "pinned by its commit") : ("key " + got.publicKey.substr(0, 16) + "..., pinned").c_str(), spec.c_str());
   }
+  // the trust policy (ZN-346): the tiers it accepts
+  const zn::tc::Policy& policy = zn::tc::loadPolicy(project.string());
+  if (err.empty() && !policy.accepts(want.tier.empty() ? "community" : want.tier)) {
+    std::string t;
+    for (const std::string& x : policy.tiers) t += (t.empty() ? "" : ", ") + x;
+    err = "the trust policy accepts only " + (t.empty() ? std::string("no tier") : t) + " (" + policy.from.at("tiers") + "), not " + (want.tier.empty() ? "community" : want.tier) + ": refused";
+  }
   // capabilities (ZN-344): what plugin.json "permissions" asks for; an update that asks for one the lock does not grant stops unless --accept
   std::vector<std::string> perms, fresh;
   std::string version, pname;
@@ -1124,6 +1137,7 @@ int installPlugins(const std::vector<std::string>& args, const std::string& engi
   Lock lk;
   readLock(project, lk);
   yyjson_val* plugins = lk.plugins;
+  const zn::tc::Policy& policy = zn::tc::loadPolicy(project.string());   // ZN-346
   {   // the dependencies of zinc.json against the lock: --frozen refuses any difference; otherwise a dependency not locked yet is added
     yyjson_val* deps = yyjson_obj_get(yyjson_doc_get_root(doc), "dependencies");
     std::vector<std::string> problems, missing;
@@ -1158,6 +1172,7 @@ int installPlugins(const std::vector<std::string>& args, const std::string& engi
     PluginPin got;
     std::string name, err = pin.commit.empty() && pin.sha256.empty() ? "the lock pins neither a commit nor a sha256" : revokedWhy(engineRoot, i == 0, want, str("version"), pin.sha256, pin.commit, pin.publicKey);
     if (!err.empty() && err.rfind("the lock pins", 0) != 0) err += ": refused (zinc add the replacement)";
+    if (const std::string tier = str("tier").empty() ? "community" : str("tier"); err.empty() && !policy.accepts(tier)) err = "the trust policy (" + policy.from.at("tiers") + ") does not accept tier " + tier + ": refused";
     if (err.empty()) err = fetchPlugin(pin.source, pin, scratch.p, dir, got);
     if (err.empty()) err = installPlugin(dir, project, name);
     if (err.empty() && name != want) err = "the source now holds plugin '" + name + "'";
