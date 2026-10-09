@@ -4,7 +4,7 @@ title: 'PERF-01 SDL HAL rasterizes in dynamic bands (zbands::Pool)'
 status: Done
 assignee: []
 created_date: '2026-10-09 07:33'
-updated_date: '2026-10-09 07:53'
+updated_date: '2026-10-09 08:11'
 labels:
   - perf
   - size-S
@@ -23,7 +23,7 @@ targets/macos/hal_sdl.cpp:373-430 splits the damaged rows into workers+1 equal b
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 hal_sdl.cpp uses zbands::Pool; its own band workers are removed
-- [ ] #2 zinc capture --scene of the 200k bouncing-ball dump (frame 400, ZINC_SCALE=4) rasterizes in <= 15 ms on 8 threads (baseline 41.4 ms), same pixel hash
+- [x] #2 zinc capture --scene of the 200k bouncing-ball dump (frame 400, ZINC_SCALE=4) rasterizes in <= 15 ms on 8 threads (baseline 41.4 ms), same pixel hash
 - [x] #3 ZINC_RENDER_THREADS=1 still runs without threads; render corpus (tools/bench-render) no regression
 <!-- AC:END -->
 

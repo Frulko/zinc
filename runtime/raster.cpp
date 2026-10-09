@@ -48,6 +48,18 @@ static inline float rr_sdf(float px, float py, float cx, float cy, float hw, flo
 }
 
 struct Target { uint32_t* px; int32_t w, y0; Rect clip; };
+// Runs of one colour (ZN-401): the colour and alpha arrive by value, so a pixel store cannot alias them (a store through
+// uint32_t* could be the command's c1) and the loops vectorize; same formula per pixel as blend(), same pixels.
+static inline void fill_row(uint32_t* p, int32_t n, uint32_t col) { for (int32_t i = 0; i < n; i++) p[i] = col; }
+static inline void blend_row(uint32_t* p, int32_t n, uint32_t col, uint32_t a) {
+  if (a >= 255) { fill_row(p, n, col); return; }
+  if (!a) return;
+  const uint32_t crb = (col & 0xFF00FF) * a, cg = (col & 0x00FF00) * a, ia = 255 - a;
+  for (int32_t i = 0; i < n; i++) {
+    uint32_t d = p[i];
+    p[i] = (((crb + (d & 0xFF00FF) * ia) >> 8) & 0xFF00FF) | (((cg + (d & 0x00FF00) * ia) >> 8) & 0x00FF00);
+  }
+}
 static inline uint32_t& at(const Target& t, int32_t x, int32_t y) { return t.px[(y - t.y0) * t.w + x]; }
 static Rect intersect(Rect a, Rect b) {
   Rect r = {a.x0 > b.x0 ? a.x0 : b.x0, a.y0 > b.y0 ? a.y0 : b.y0, a.x1 < b.x1 ? a.x1 : b.x1, a.y1 < b.y1 ? a.y1 : b.y1};
@@ -98,8 +110,7 @@ static void fill_rrect(const Target& t, const Cmd& c) {
     for (int32_t x = x0; x < x1; x++) {
       if (x == i0 && i1 > i0) {   // fully covered run
         if (per_pixel) for (; x < i1; x++) blend(at(t, x, y), color_at(c, x + 0.5f, py), c.alpha);
-        else if (c.alpha == 255) for (; x < i1; x++) at(t, x, y) = row_color;
-        else for (; x < i1; x++) blend(at(t, x, y), row_color, c.alpha);
+        else { blend_row(&at(t, x, y), i1 - x, row_color, c.alpha); x = i1; }
         if (x >= x1) break;
       }
       float px = x + 0.5f;
@@ -140,7 +151,7 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
     int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
     int32_t i0 = in.x0 > x0 ? in.x0 : x0, i1 = in.x1 < x1 ? in.x1 : x1;
     for (int32_t x = x0; x < x1; x++) {
-      if (x == i0 && i1 > i0) { for (; x < i1; x++) blend(at(t, x, y), c.c1, c.alpha); if (x >= x1) break; }
+      if (x == i0 && i1 > i0) { blend_row(&at(t, x, y), i1 - x, c.c1, c.alpha); x = i1; if (x >= x1) break; }
       float d = rr_sdf(x + 0.5f, py, cx, cy, hw, hh, r);
       float k = clampf(1.0f - (d + blur * 0.5f) / (blur * 1.5f), 0, 1);
       k = k * k * (3 - 2 * k);
@@ -526,11 +537,11 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
 #endif
     switch (c.kind) {
       case CLEAR:
-        for (int32_t y = t.clip.y0; y < t.clip.y1; y++) for (int32_t x = t.clip.x0; x < t.clip.x1; x++) at(t, x, y) = c.c1;
+        for (int32_t y = t.clip.y0; y < t.clip.y1; y++) fill_row(&at(t, t.clip.x0, y), t.clip.x1 - t.clip.x0, c.c1);
         break;
       case RECT: if (c.r <= 0 && !c.grad && c.alpha == 255) {
           Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
-          for (int32_t y = b.y0; y < b.y1; y++) for (int32_t x = b.x0; x < b.x1; x++) at(t, x, y) = c.c1;
+          for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, c.c1);
         } else fill_rrect(t, c);
         break;
       case BORDER: border_rrect(t, c); break;
