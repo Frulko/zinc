@@ -1,18 +1,18 @@
 // One native export description consumed by both interpreter adapters.
-// The v3 adapter admits scalar values, resource handles, callbacks, byte snapshots and scalar record results.
+// Draft v4 array snapshots: runtime adapter support is tracked in ZN-591.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ts, ZINC_ROOT } from './frontend.ts';
 import { NativeModules } from './native.ts';
 import type { Sema, ZT } from './sema.ts';
 
-export const ABI_VERSION = 3;
-export const ABI_TYPES = ['void', 'bool', 'i32', 'u32', 'f32', 'f64', 'str', 'resource', 'fn', 'bytes', 'record', 'numbers'] as const;
+export const ABI_VERSION = 4;
+export const ABI_TYPES = ['void', 'bool', 'i32', 'u32', 'f32', 'f64', 'str', 'resource', 'fn', 'bytes', 'record', 'numbers', 'array'] as const;
 export function abiType(t: ZT): number {
   const resource = t.k === 'obj' && ts.isInterfaceDeclaration(t.decl) && t.decl.name.text === 'NativeResource' && ts.isModuleBlock(t.decl.parent) && ts.isModuleDeclaration(t.decl.parent.parent) && t.decl.parent.parent.name.text === 'zinc:native';
-  const name = t.k === 'arr' && t.el.k === 'num' && t.el.m === 'f64' ? 'numbers' : t.k === 'arr' && t.el.k === 'num' && t.el.m === 'u8' ? 'bytes' : resource ? 'resource' : t.k === 'obj' ? 'record' : t.k === 'num' ? t.m : t.k;
+  const name = t.k === 'arr' && t.el.k === 'num' && t.el.m === 'f64' ? 'numbers' : t.k === 'arr' && t.el.k === 'num' && t.el.m === 'u8' ? 'bytes' : t.k === 'arr' ? 'array' : resource ? 'resource' : t.k === 'obj' ? 'record' : t.k === 'num' ? t.m : t.k;
   const id = (ABI_TYPES as readonly string[]).indexOf(name);
-  if (id < 0) throw new Error(`native ABI v3 does not yet support ${name}`);
+  if (id < 0) throw new Error(`native ABI v4 does not yet support ${name}`);
   return id;
 }
 export function abiDefault(s: Sema, declaration: ts.SignatureDeclaration, parameter: ts.ParameterDeclaration): 'false' | '0' | undefined {
@@ -20,7 +20,7 @@ export function abiDefault(s: Sema, declaration: ts.SignatureDeclaration, parame
   if (s.paramType(parameter).k === 'bool') return 'false';
   if (s.libModule(declaration) === 'gfx' && declaration.name?.getText() === 'clip' && parameter.name.getText() === 'radius') return '0';
 }
-export interface AbiExport { module: string; name: string; parameters: number[]; result: number; record?: { name: string; type: number }[] }
+export interface AbiExport { module: string; name: string; parameters: number[]; result: number; element?: number; record?: { name: string; type: number }[] }
 export interface AbiResult { imports: Map<string, string>; exports: AbiExport[]; calls: Map<ts.Node, number>; sources: string[]; header: string }
 export function emitAbi(s: Sema, dir: string, target: string): AbiResult {
   const native = new NativeModules(s);
@@ -28,7 +28,7 @@ export function emitAbi(s: Sema, dir: string, target: string): AbiResult {
   const calls = new Map<ts.Node, number>();
   const lines = ['// Generated native ABI adapters. Do not edit.', '#include "abi.h"', '#include "zrt.h"', '#include <string>', '#include <memory>', `static_assert(ZINC_ABI_VERSION == ${ABI_VERSION}, "ABI generator/runtime version mismatch");`];
   const init: string[] = [];
-  const cpp = (t: ZT): string => t.k === 'arr' && abiType(t) === 11 ? 'zrt::Array<double>' : t.k === 'obj' && abiType(t) === 10 ? `zrt::Ref<${s.libModule(t.decl) ? `zrt::${s.libModule(t.decl)}` : 'm_' + path.relative(s.root, t.decl.getSourceFile().fileName).replace(/\.[cm]?[jt]sx?$/, '').replace(/[^A-Za-z0-9]/g, '_')}::${(t.decl as ts.InterfaceDeclaration).name.text}>` : t.k === 'arr' && abiType(t) === 9 ? 'zrt::Array<uint8_t>' : t.k === 'fn' ? `zrt::Fn<${cpp(t.ret)}(${t.params.map(cpp).join(', ')})>` : ['void', 'bool', 'int32_t', 'uint32_t', 'float', 'double', 'zrt::String', 'zrt::Ref<zrt::native::NativeResource>'][abiType(t)];
+  const cpp = (t: ZT): string => t.k === 'arr' ? `zrt::Array<${t.el.k === 'num' && t.el.m === 'u8' ? 'uint8_t' : cpp(t.el)}>` : t.k === 'obj' && abiType(t) === 10 ? `zrt::Ref<${s.libModule(t.decl) ? `zrt::${s.libModule(t.decl)}` : 'm_' + path.relative(s.root, t.decl.getSourceFile().fileName).replace(/\.[cm]?[jt]sx?$/, '').replace(/[^A-Za-z0-9]/g, '_')}::${(t.decl as ts.InterfaceDeclaration).name.text}>` : t.k === 'fn' ? `zrt::Fn<${cpp(t.ret)}(${t.params.map(cpp).join(', ')})>` : ['void', 'bool', 'int32_t', 'uint32_t', 'float', 'double', 'zrt::String', 'zrt::Ref<zrt::native::NativeResource>'][abiType(t)];
   const callback = (t: ZT, index: number): string => {
     if (t.k !== 'fn' || [...t.params, t.ret].some(p => abiType(p) > 6)) throw new Error('native ABI: callbacks currently require scalar signatures');
     const values = t.params.map((p, j) => {
@@ -67,24 +67,28 @@ export function emitAbi(s: Sema, dir: string, target: string): AbiResult {
     const state = `abi_state_${imports.size}`;
     lines.push(`struct ${state} { ${u.builtin ? '' : `zrt::Ref<Native${u.name}> instance;`} zinc::Modules* registry; std::vector<ZincExport> exports; ZincModule module{}; };`);
     for (const m of u.members) {
-      if (!ts.isMethodSignature(m) && !ts.isFunctionDeclaration(m)) throw new Error(`native ABI v3: ${u.name}: only methods are supported`);
-      if (m.parameters.some(p => (p.questionToken && abiDefault(s, m, p) === undefined) || p.dotDotDotToken || p.initializer)) throw new Error(`native ABI v3: ${u.name}: optional/rest parameters are not supported`);
+      if (!ts.isMethodSignature(m) && !ts.isFunctionDeclaration(m)) throw new Error(`native ABI v4: ${u.name}: only methods are supported`);
+      if (m.parameters.some(p => (p.questionToken && abiDefault(s, m, p) === undefined) || p.dotDotDotToken || p.initializer)) throw new Error(`native ABI v4: ${u.name}: optional/rest parameters are not supported`);
       const parameters = m.parameters.map(p => abiType(s.paramType(p))), result = abiType(s.retOf(m));
       if (!u.builtin && (parameters.includes(9) || result === 9)) throw new Error('native ABI: u8[] specs require a mutable buffer contract; byte snapshots currently support readonly fs/sys services only');
       if (result === 11 || (parameters.includes(11) && u.module !== 'zinc:gfx')) throw new Error('native ABI: number[] snapshots currently support readonly gfx arguments only');
+      if (parameters.includes(12)) throw new Error('native ABI: array arguments require an explicit readonly/mutable contract');
       if (result === 8) throw new Error('native ABI: returned callbacks are not yet supported');
       const name = m.name!.getText();
       if (!/^[A-Za-z_$][\w$]*$/.test(name)) throw new Error('native ABI: invalid export name');
       const resultType = s.retOf(m);
       if (parameters.includes(10)) throw new Error('native ABI: record parameters require a mutable record contract; snapshots currently support return values only');
       let record: { name: string; type: number }[] | undefined;
-      if (result === 10) {
-        if (resultType.k !== 'obj' || !ts.isInterfaceDeclaration(resultType.decl)) throw new Error('native ABI: record results require a named interface');
-        record = s.fieldNames(resultType.decl).map(name => ({ name, type: abiType(s.declType(s.memberDecl(resultType.decl, name)!)) }));
+      const element = result === 12 && resultType.k === 'arr' ? abiType(resultType.el) : undefined;
+      if (element !== undefined && ((!element || element > 6) && element !== 10)) throw new Error('native ABI: array results require scalar or scalar-field record elements');
+      const recordType = resultType.k === 'arr' ? resultType.el : resultType;
+      if (result === 10 || element === 10) {
+        if (recordType.k !== 'obj' || !ts.isInterfaceDeclaration(recordType.decl)) throw new Error('native ABI: record results require a named interface');
+        record = s.fieldNames(recordType.decl).map(name => ({ name, type: abiType(s.declType(s.memberDecl(recordType.decl, name)!)) }));
         if (record.length > 256 || record.some(f => !f.type || f.type > 6 || !/^[A-Za-z_$][\w$]*$/.test(f.name))) throw new Error('native ABI: record results require at most 256 named scalar fields');
-        if (s.libModule(resultType.decl)) lines.push(`#include "mod/${s.libModule(resultType.decl)}.h"`);
+        if (s.libModule(recordType.decl)) lines.push(`#include "mod/${s.libModule(recordType.decl)}.h"`);
       }
-      const id = exports.length; calls.set(m, id); exports.push({ module, name, parameters, result, ...(record ? { record } : {}) });
+      const id = exports.length; calls.set(m, id); exports.push({ module, name, parameters, result, ...(element !== undefined ? { element } : {}), ...(record ? { record } : {}) });
       if (record) {
         lines.push(`static const ZincField abi_fields_${id}[${Math.max(1, record.length)}] = {${record.map(f => `{${JSON.stringify(f.name)}, ${f.type}}`).join(',')}};`);
         lines.push(`static const ZincRecord abi_record_${id} = {abi_fields_${id}, ${record.length}};`);
@@ -97,7 +101,19 @@ export function emitAbi(s: Sema, dir: string, target: string): AbiResult {
       lines.push(`  ${result ? 'auto result = ' : ''}${u.builtin ? `zrt::${u.name}::` : 'self.instance->'}${name}(${args.join(', ')});`);
       lines.push(`  if (zrt::g_err) { static thread_local std::string message; auto e = zrt::g_err; zrt::g_err = {}; auto text = e->message; message.assign(text.ptr(), text.bytes()); error->data = message.data(); error->length = (uint32_t)message.size(); return ZINC_HOST_ERROR; }`);
       lines.push(`  out->type = ${result};`);
-      if (record) {
+      if (result === 12) {
+        lines.push(`  static thread_local ${cpp(resultType)} retained; retained = std::move(result);`,
+          `  static thread_local std::vector<ZincValue> elements; elements.assign(retained.length(), {});`);
+        if (record) lines.push(`  static thread_local std::vector<ZincValue> fields; fields.assign((size_t)retained.length() * ${record.length}, {});`);
+        lines.push(`  for (int32_t j=0; j<retained.length(); ++j) { auto item = retained[j]; auto& value = elements[j]; value.type = ${element};`);
+        const store = (dest: string, value: string, tag: number) => tag === 6 ? `${dest}.as.string = ${value}.ptr(); ${dest}.length = ${value}.bytes();` : `${dest}.as.${tag === 2 ? 'integer' : tag === 1 || tag === 3 ? 'unsigned_integer' : 'number'} = ${value};`;
+        if (record) {
+          lines.push('  if (!item) throw std::runtime_error("native record array element is null");');
+          record.forEach((field, k) => lines.push(`  fields[(size_t)j*${record.length}+${k}].type = ${field.type}; ${store(`fields[(size_t)j*${record.length}+${k}]`, `item->${field.name}`, field.type)}`));
+          lines.push(`  value.as.record = fields.data() + (size_t)j*${record.length}; value.length = ${record.length};`);
+        } else lines.push(store('value', 'item', element!));
+        lines.push('  } out->as.record = elements.data(); out->length = (uint32_t)elements.size();');
+      } else if (record) {
         lines.push('  if (!result) throw std::runtime_error("native record result is null");', `  static thread_local ZincValue fields[${Math.max(1, record.length)}]{};`);
         for (const [i, field] of record.entries()) {
           lines.push(`  fields[${i}].type = ${field.type};`);
@@ -111,7 +127,7 @@ export function emitAbi(s: Sema, dir: string, target: string): AbiResult {
       else if (result) lines.push(`  out->as.${result === 2 ? 'integer' : result === 1 || result === 3 ? 'unsigned_integer' : 'number'} = result;`);
       lines.push('  return ZINC_OK;', '  } catch (const std::exception& e) { static thread_local std::string message; message = e.what(); *error = {message.data(), (uint32_t)message.size()}; return ZINC_HOST_ERROR; } catch (...) { static const char message[] = "native adapter failed"; *error = {message, sizeof(message)-1}; return ZINC_HOST_ERROR; }', '}');
       if (parameters.length) lines.push(`static const uint32_t abi_params_${id}[] = {${parameters.join(',')}};`);
-      entries.push(`{${JSON.stringify(name)}, ${parameters.length ? `abi_params_${id}` : 'nullptr'}, ${parameters.length}, ${result}, abi_call_${id}, nullptr, ${record ? `&abi_record_${id}` : 'nullptr'}}`);
+      entries.push(`{${JSON.stringify(name)}, ${parameters.length ? `abi_params_${id}` : 'nullptr'}, ${parameters.length}, ${result}, abi_call_${id}, nullptr, ${record ? `&abi_record_${id}` : 'nullptr'}, ${element ?? 0}}`);
     }
     const id = imports.size;
     lines.push(`static const std::vector<ZincExport> abi_exports_${id} = {${entries.join(',\n')}};`);

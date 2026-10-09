@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-/* In-process C ABI, v3. No C++ layout or engine-owned JSValue crosses this boundary.
+/* In-process C ABI, v4. No C++ layout or engine-owned JSValue crosses this boundary.
  * Arguments are borrowed for the duration of invoke. Result/error bytes are borrowed
  * until the next invocation of that export (or module teardown). The adapter
  * copies them before yielding or calling the host again. Stack-local result bytes
@@ -19,9 +19,14 @@ extern "C" {
  * RECORD results and each of their string fields are borrowed until the next
  * invocation of that export, then copied by value before guest allocation. No
  * resource handles, nested records, cycles or alias identity cross as RECORD.
+ * Draft ARRAY contract (not implemented by the VM/QuickJS adapters; see ZN-591):
+ * ARRAY results copy elements by value (scalars or scalar-field records only).
+ * They borrow as.record for length elements until the next invocation, just like RECORD.
+ * Arrays are capped at 1,048,576 elements and composite snapshots at 64 MiB.
+ * Guest copies are mutable; mutations never write back to the native result.
  * Scalars, scalar-field record snapshots, byte snapshots, opaque resources and scalar callbacks are implemented; record arguments and async completion are not. */
-#define ZINC_ABI_VERSION 3u
-enum ZincType { ZINC_VOID, ZINC_BOOL, ZINC_I32, ZINC_U32, ZINC_F32, ZINC_F64, ZINC_STRING, ZINC_RESOURCE, ZINC_CALLBACK, ZINC_BYTES, ZINC_RECORD, ZINC_NUMBERS };
+#define ZINC_ABI_VERSION 4u
+enum ZincType { ZINC_VOID, ZINC_BOOL, ZINC_I32, ZINC_U32, ZINC_F32, ZINC_F64, ZINC_STRING, ZINC_RESOURCE, ZINC_CALLBACK, ZINC_BYTES, ZINC_RECORD, ZINC_NUMBERS, ZINC_ARRAY };
 typedef uint64_t ZincHandle;
 /* Resource kind reserved for generated zrt::native::NativeResource adapters. */
 #define ZINC_RESOURCE_ZRT 1ull
@@ -37,7 +42,7 @@ typedef struct { const char* name; uint32_t type; } ZincField;
 typedef struct { const ZincField* fields; uint32_t field_count; } ZincRecord;
 struct ZincValue {
   uint32_t type;
-  uint32_t length; /* STRING: UTF-8 bytes; BYTES: byte count (maximum INT32_MAX); RECORD: field count; NUMBERS: element count. */
+  uint32_t length; /* STRING: UTF-8 bytes; BYTES: byte count (maximum INT32_MAX); RECORD: field count; NUMBERS/ARRAY: element count. */
   union { double number; int32_t integer; uint32_t unsigned_integer; const char* string; const uint8_t* bytes; const double* numbers; const ZincValue* record; ZincHandle handle; } as;
 };
 typedef struct { const char* data; uint32_t length; } ZincError;
@@ -49,7 +54,8 @@ typedef struct {
   uint32_t result;
   ZincInvoke invoke;
   void* context;
-  const ZincRecord* result_record; /* Required exactly when result == ZINC_RECORD. */
+  const ZincRecord* result_record; /* Required for RECORD, or ARRAY with RECORD elements. */
+  uint32_t result_element_type; /* ARRAY only: BOOL..STRING or RECORD; zero otherwise. */
 } ZincExport;
 typedef struct {
   uint32_t version;
