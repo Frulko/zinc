@@ -1,10 +1,10 @@
 ---
 id: ZN-563
-title: 'three (the Zinc subset) on the GPU through zinc:gl'
+title: 'zinc:3d and three (the Zinc subset) on the GPU through zinc:gl'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:59'
-updated_date: '2026-10-09 07:59'
+updated_date: '2026-10-09 08:06'
 labels:
   - perf
   - 3d
@@ -27,3 +27,9 @@ plugins/three is three.js's API written in Zinc, compiled AOT like any Zinc code
 - [ ] #2 1000 meshes animate at 60 fps on macOS and the CPU time per frame is recorded against real three.js on QuickJS for the same scene
 - [ ] #3 the zinc:3d path and its goldens stay unchanged; the renderer is chosen by tier or zinc.json
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner 2026-10-09: 'why is zinc:3d not GPU? yes to everything (a, b, c, d)'. Scope widened: the GPU renderer goes into zinc:3d itself, as a new native backend next to render3d.host/rpi1/esp32/wasm.cpp (render3d.gl.cpp on zinc:gl / GLES2-GLES3), so plugins/three, which draws through zinc:3d, gets the GPU for free; the handheld backends (render3d.psp/vita/n3ds/ios, ZN-453..511) follow the same interface. The software backend stays for targets without a GPU and as the oracle.
+<!-- SECTION:NOTES:END -->
