@@ -11,6 +11,9 @@
 #include "zrt.h"
 #include "zrt_raster.h"
 
+extern "C" int zn_ui_log_on(void);             // src/host/ui_log.cpp (ZN-368): this file includes zrt.h, which keeps the C++ library out
+extern "C" void zn_ui_log_mark(int phase);
+
 namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
@@ -167,10 +170,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxStopTextInput: g::stopTextInput(); break;
     case Rt::HostGfxSetCursor: g::setCursor(n(0)); break;
     case Rt::HostGfxEscapeDefault: g::escapeDefault(); break;
-    case Rt::HostGfxProfiling: r->i = g::profiling() ? 1 : 0; break;
+    case Rt::HostGfxProfiling: r->i = g::profiling() || zn_ui_log_on() ? 1 : 0; break;   // ZINC_LOG=ui=debug: zinc:ui marks its phases (ZN-368)
     case Rt::HostGfxCommands: r->i = g::commandCount(); break;
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
-    case Rt::HostGfxProfMark: g::profMark(n(0)); break;
+    case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:
       zrt::finish_run();
       if (zrt::display_driver && hal_display && hal_display->shutdown) { zrt::display_driver = false; hal_display->shutdown(); }   // a display driver closes its device or window (and writes ZINC_SHOT)

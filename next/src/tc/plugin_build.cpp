@@ -1,5 +1,6 @@
 #include "tc/plugin_build.h"
 #include "tc/policy.h"
+#include "zn/log.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
 #include "zapp.h"
@@ -316,6 +317,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
         if (fs::exists(pre / "vendor.a")) out.vendor = (pre / "vendor.a").string();
         out.prebuilt = true;
         out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        log::write("plugin", log::Info, m.name + ": prebuilt in the plugin (" + pre.string() + ")", out.seconds * 1000);
         return true;
       }
       std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
@@ -424,6 +426,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     out.rebuilt = true;
   }
   out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  log::write("plugin", log::Info, m.name + ": " + (out.fetched ? "fetched from the index" : out.rebuilt ? "built" : "cache hit") + " (" + dir + ")", out.seconds * 1000);   // ZN-368
   return true;
 }
 

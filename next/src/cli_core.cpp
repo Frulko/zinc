@@ -258,6 +258,7 @@ int help(const std::vector<std::string>& args) {
     std::puts("zinc: typed TypeScript for apps, games, services and boards\n\nusage: zinc <command> [options]\n");
     for (const Command& c : kCommands) std::printf("  %-10s %s\n", c.name, c.summary);
     std::puts("\nzinc help <command> describes one. In a project directory `zinc run`, `zinc build` and `zinc check` need no argument.\nOther commands for engine work: lex, parse, ir, zbc, bake, profile, mem, device-sim, --version, --emit=cpp|zbc.");
+    std::puts("\nWith any command: -v (or --verbose) prints the build phases with their durations, the plugins' cache decisions and the engine at run; -vv more;\n--log-format json one JSON object per line. ZINC_LOG=<module>=<level>,... chooses (modules build, plugin, run, ui; levels info, debug, trace),\ne.g. ZINC_LOG=ui=debug for the layout passes.");
     return 0;
   }
   const Command* c = findCommand(topic);

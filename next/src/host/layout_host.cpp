@@ -6,6 +6,7 @@
 
 #include "host/layout.h"
 #include "zn/host.h"
+#include "zn/log.h"
 #include "zn/runtime.h"
 #include "zrt_raster.h"
 
@@ -45,7 +46,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostLayoutField: engine->setField(n(0), n(1), static_cast<float>(a[2].d), a[3].i != 0); break;
     case Rt::HostLayoutClear: engine->clearMeasure(n(0)); break;
     case Rt::HostLayoutDirty: engine->markDirty(n(0)); break;
-    case Rt::HostLayoutCalc: engine->calculate(n(0), static_cast<float>(a[1].d), static_cast<float>(a[2].d)); break;
+    case Rt::HostLayoutCalc: {
+      zn::log::Phase ph("ui", "layout pass (rn, Yoga)", zn::log::Debug);   // ZINC_LOG=ui=debug (ZN-368)
+      engine->calculate(n(0), static_cast<float>(a[1].d), static_cast<float>(a[2].d));
+      break;
+    }
     case Rt::HostLayoutBox: {   // 0 x, 1 y, 2 width, 3 height: relative to the parent
       const LayoutBox b = engine->box(n(0));
       r->d = n(1) == 0 ? b.x : n(1) == 1 ? b.y : n(1) == 2 ? b.w : b.h;

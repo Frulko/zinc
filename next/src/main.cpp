@@ -41,6 +41,7 @@
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
 #include "tc/policy.h"
+#include "zn/log.h"
 #include "tc/tc.h"
 #include "sim/program_dut.h"
 #include "sim/replay.h"
@@ -227,9 +228,11 @@ static bool loadManifestPermissions(const char* path) {
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
-  prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std");
+  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std"); }
+  if (zn::log::on("build", zn::log::Info)) zn::log::write("build", zn::log::Info, std::to_string(prog.files.size()) + " files; target " + (gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget) + ", profile " + (gProfile ? gProfile->name : std::string("host")) + ", layout " + (zn::frontend::uiLayout().empty() ? std::string("classic") : zn::frontend::uiLayout()));
   auto diags = prog.diags;
   if (diags.empty()) {
+    zn::log::Phase ph("build", "check");
     checked = zn::frontend::check(prog.ast);
     diags = checked.diags;
   }
@@ -277,13 +280,14 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   for (const auto& f : prog.files) gSources.push_back(f.text);
   std::vector<zn::frontend::Diag> diags;
   {
-    auto low = zn::ir::lower(prog.ast, checked, prog.files[0].text);
+    auto low = [&] { zn::log::Phase ph("build", "lower to IR"); return zn::ir::lower(prog.ast, checked, prog.files[0].text); }();
     diags = low.diags;
     if (diags.empty()) {
-      if (!std::getenv("ZN_NO_OPT")) zn::ir::optimize(low.module, gDeviceCore);
-      zn::ir::insertRc(low.module);
+      if (!std::getenv("ZN_NO_OPT")) { zn::log::Phase ph("build", "optimise"); zn::ir::optimize(low.module, gDeviceCore); }
+      { zn::log::Phase ph("build", "reference counting"); zn::ir::insertRc(low.module); }
       std::string badIr = zn::ir::verify(low.module);
       if (!badIr.empty()) { std::fprintf(stderr, "internal error: invalid IR after reference counting: %s\n", badIr.c_str()); return 3; }
+      zn::log::Phase emitPhase("build", "emit ZBC");
       auto em = zn::zbc::emit(low.module);
       for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
       if (!em.errors.empty()) return 1;
@@ -561,6 +565,17 @@ int main(int argc, char** argv) {
       argc -= 2;
       break;
     }
+  for (int k = 1; k < argc; ++k) {   // -v / --verbose, -vv, --log-format json (ZN-368): set ZINC_LOG / ZINC_LOG_FORMAT, which child zincs inherit; `--` ends the options
+    if (!std::strcmp(argv[k], "--")) break;
+    int drop = 0;
+    if (!std::strcmp(argv[k], "-v") || !std::strcmp(argv[k], "--verbose")) { setenv("ZINC_LOG", "info", 0); drop = 1; }
+    else if (!std::strcmp(argv[k], "-vv")) { setenv("ZINC_LOG", "debug", 0); drop = 1; }
+    else if (!std::strcmp(argv[k], "--log-format") && k + 1 < argc) { setenv("ZINC_LOG_FORMAT", argv[k + 1], 1); drop = 2; }
+    if (!drop) continue;
+    for (int j = k; j + drop <= argc; ++j) argv[j] = argv[j + drop];
+    argc -= drop;
+    --k;
+  }
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
@@ -745,6 +760,7 @@ int main(int argc, char** argv) {
       if (bakeResources(argv[2], blob, err)) zn::host::installResources(blob.data(), blob.size());
     }
 #endif
+    zn::log::write("run", zn::log::Info, "engine QuickJS-ng");   // ZN-368
     return zn::qjs::run(qo);
   }
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
@@ -979,7 +995,8 @@ int main(int argc, char** argv) {
 #endif
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
-    auto res = zn::vm::run(zm, out, trace);
+    zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368
+    auto res = [&] { zn::log::Phase ph("run", "program"); return zn::vm::run(zm, out, trace); }();
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
     return zn::rt::report(res, out, trace);
   }
@@ -1274,9 +1291,10 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> blob;
     if (zn::aot::usesHost(zm)) {
       std::string err;
+      zn::log::Phase ph("build", "bake fonts and images");
       if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
     }
-    { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse())); if (!gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    { zn::log::Phase ph("build", "AOT C++"); std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse())); if (!gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
     if (zn::aot::usesHost(zm)) {
       std::string pf = zn::frontend::findProjectFile(argv[2]);
@@ -1327,7 +1345,9 @@ int main(int argc, char** argv) {
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                       (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     writeComponents(std::string(argv[4]) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
-    int rc = std::system(cmd.c_str());
+    zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
+    int rc;
+    { zn::log::Phase ph("build", "compile and link (C++)"); rc = std::system(cmd.c_str()); }
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
     if (!gBundleOut.empty()) {
