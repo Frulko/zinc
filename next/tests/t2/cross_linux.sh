@@ -7,7 +7,7 @@ fail=0
 machine() { od -An -tx1 -j18 -N2 "$1" | tr -d ' \n'; }   # e_machine, little endian
 for t in aarch64-linux:b700 armhf-linux:2800; do
   name=${t%%:*}; want=${t##*:}
-  "$ZINC" build --target "$name" ../examples/hero/src/main.tsx -o "$tmp/hero-$name" >"$tmp/log" 2>&1 || { echo "$name: build fails: $(tail -c 500 "$tmp/log")"; fail=1; continue; }
+  "$ZINC" build --target "$name" ../examples/hero/src/main.tsx -o "$tmp/hero-$name" >"$tmp/log" 2>&1 || { echo "$name: build fails:"; cat "$tmp/log"; fail=1; continue; }
   [ "$(od -An -c -N4 "$tmp/hero-$name" | tr -d ' \n')" = '177ELF' ] || { echo "$name: not an ELF"; fail=1; continue; }
   [ "$(machine "$tmp/hero-$name")" = "$want" ] || { echo "$name: e_machine $(machine "$tmp/hero-$name"), expected $want"; fail=1; }
   strings "$tmp/hero-$name" | grep -q "Lottie" || { echo "$name: the Lottie plugin is not linked"; fail=1; }

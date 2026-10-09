@@ -97,12 +97,14 @@ struct ClassRT {
 
 inline constexpr std::uint32_t kImmortal = 0xFFFFFFFFu;  // a reference count that never changes (string constants)
 
-struct Obj {
+// The Slot payload follows this header on every host, including ARM32 where pointer alignment is smaller.
+struct alignas(Slot) Obj {
   const ClassRT* cls;
   std::uint32_t rc;   // references held; new objects start at 1
   std::uint32_t pad;  // index in Machine::allocated
   Slot* fields() { return reinterpret_cast<Slot*>(this + 1); }
 };
+static_assert(sizeof(Obj) % alignof(Slot) == 0, "object payload must align its Slot fields");
 
 struct StrObj : Obj {
   std::uint32_t len;     // bytes (UTF-8)
