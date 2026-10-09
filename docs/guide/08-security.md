@@ -82,10 +82,10 @@ when enforced (exported apps, or `ZINC_PERMISSIONS=enforce`) it fails with an `E
 | `camera` | `zinc:gphoto2` (detect, open) |
 | `serial`, `microphone`, `location` | accepted; no module of the engine reaches them yet |
 
-Exported apps enforce them: `zinc build` / `zinc export` of a project with `"permissions"` (this machine's target) compiles a program that
+Exported apps enforce them: `zinc build` / `zinc export` of a project with `"permissions"` (for this machine and for the Linux targets) compiles a program that
 enforces the list from its first instruction, `zinc export` prints the list, and on macOS `camera`, `microphone` and `location` add the usage
 strings (`NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSLocationWhenInUseUsageDescription`) the system shows when it asks the
-user. Cross builds (`--target` of another machine) have no host modules to check yet.
+user.
 
 Exempt: the app's own `assets/` (zinc:assets), and files the user picked in a dialog. With `"scopes": {"fs": "user-picked"}` the scope, which
 is stricter, decides for files. Redirects are checked against the new host.

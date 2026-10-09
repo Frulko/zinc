@@ -89,6 +89,15 @@ without dpkg on the build machine: the export goes to `/opt/<name>/`, a launcher
 `/usr/share/applications`. The control and data members are uncompressed tars (dpkg reads them) written deterministically, so two exports
 of the same project give the same bytes. Install with `sudo dpkg -i <name>_<version>_<arch>.deb`.
 
+## SBOM and licences
+
+Every `zinc export` writes, beside the executable, `sbom.spdx.json` (SPDX 2.3: the app, the Zinc runtime and each third-party component
+it links, with versions, licences and SHA-256 where pinned) and `THIRD-PARTY-LICENSES.txt` (the full text of each of those licences).
+What is listed is what the program links: the components of `next/third_party/components.json` whose scope the build pulled in (the runtime
+always; the host libraries and fonts for programs that use the host; Yoga, the shaped-text stack, QuickJS when used; each plugin's own
+libraries, such as SQLite for `zinc:sqlite`; Lucide when `zinc.json` names icons). The SBOM's creation time is `SOURCE_DATE_EPOCH` when set, else the newest modification time of the project's sources, so two exports
+of the same sources give the same bytes (and the same `.deb`).
+
 ## Versioning
 
 Bump `zinc.json` `"version"` (semver). It appears in `Info.plist` (macOS), the `.desktop` file (Linux), the AppLoad

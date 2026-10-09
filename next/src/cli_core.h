@@ -23,7 +23,7 @@ int capture(const std::vector<std::string>& args);
 /** `zinc bench [entry|dir] [--frames n]`: the frame timings (p50 / p99 / max per phase) of a program run headless. */
 int bench(const std::vector<std::string>& args);
 /** `zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|<zig target>] [-o dir]`: dist/<name>-<target>/ with the executable, run.sh and README.txt (macOS: the .app too). */
-int exportApp(const std::vector<std::string>& args);
+int exportApp(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */
 int deploy(const std::vector<std::string>& args);
 /** `zinc tsconfig [dir]`: tsconfig.json for the editor, with the engine's lib. */

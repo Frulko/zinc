@@ -305,6 +305,39 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
   }
   return b;
 }
+// zinc.json "permissions" (ZN-322.03): the generated main of a program that calls the host enforces them from its first instruction.
+static void injectPermissions(const std::string& cpp, const char* entry, const std::string& target) {
+  std::string pf = zn::frontend::findProjectFile(entry);
+  zn::frontend::Project proj;
+  std::string perr;
+  if (pf.empty()) return;
+  { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) return; }
+  if (!proj.permissionsDeclared) return;
+  std::string joined;
+  for (const std::string& e : zn::frontend::permissionsFor(proj, target)) {
+    for (char c : e) { if (c == '"' || c == '\\') joined += '\\'; joined += c; }
+    joined += "\\n";
+  }
+  std::string text;
+  { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+  std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
+  if (at == std::string::npos || mainAt == std::string::npos) return;
+  text.insert(at, "  zn_host_permissions_enforce(\"" + joined + "\");\n");
+  text.insert(mainAt, "extern \"C\" void zn_host_permissions_enforce(const char*);\n");
+  std::ofstream o(cpp); o << text;
+}
+// What a program links, for the SBOM and licences of `zinc export` (ZN-323): the scopes of third_party/components.json its link command pulls in, and its plugins.
+static void writeComponents(const std::string& file, const std::string& link, const std::vector<zn::tc::PluginLib>& plugins) {
+  if (!std::getenv("ZINC_COMPONENTS")) return;   // asked by zinc export only: a plain build leaves no file beside the program
+  std::ofstream cf(file);
+  cf << "runtime\n";
+  if (link.find("zn_host_gfx") != std::string::npos) cf << "host\n";
+  if (link.find("zn_yoga") != std::string::npos) cf << "rn\n";
+  if (link.find("zn_harfbuzz") != std::string::npos) cf << "shaped\n";
+  if (link.find("zn_quickjs") != std::string::npos) cf << "script\n";
+  if (link.find("zn_frontend") != std::string::npos) cf << "frontend\n";
+  for (const zn::tc::PluginLib& pl : plugins) if (!pl.display) cf << "plugin:" << pl.plugin << "\n";
+}
 // A .zapp archive (ZN-318), checked and unpacked once into ~/.zinc/cache/zapp/<sha>; `zbc` is its program. False with `err` when refused.
 static bool unpackZapp(const std::string& archive, std::string& zbc, std::string& err) {
   namespace fs = std::filesystem;
@@ -410,7 +443,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/../lib/std");
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
@@ -1047,6 +1080,7 @@ int main(int argc, char** argv) {
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()));
       if (draws && !gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
       o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
     bool ok;
     if (draws) {
       const zn::tc::Target* tg = zn::tc::findTarget(argv[3]);
@@ -1059,9 +1093,10 @@ int main(int argc, char** argv) {
       }
       for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
+      writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       ok = std::system(cmd.c_str()) == 0;
       if (!ok) err = "the cross compiler failed: " + cmd;
-    } else ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err);
+    } else { ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err); writeComponents(std::string(argv[6]) + ".components", "", {}); }   // only the runtime
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     return 0;
@@ -1115,27 +1150,7 @@ int main(int argc, char** argv) {
         }
       }
     }
-    if (zn::aot::usesHost(zm)) {   // zinc.json "permissions" (ZN-322.03): the compiled program enforces them from its first instruction
-      std::string pf = zn::frontend::findProjectFile(argv[2]);
-      zn::frontend::Project proj;
-      std::string perr;
-      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
-      if (proj.permissionsDeclared) {
-        std::string joined;
-        for (const std::string& e : zn::frontend::permissionsFor(proj, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux")) {
-          for (char c : e) { if (c == '"' || c == '\\') joined += '\\'; joined += c; }
-          joined += "\\n";
-        }
-        std::string text;
-        { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
-        if (at != std::string::npos && mainAt != std::string::npos) {
-          text.insert(at, "  zn_host_permissions_enforce(\"" + joined + "\");\n");
-          text.insert(mainAt, "extern \"C\" void zn_host_permissions_enforce(const char*);\n");
-          std::ofstream o(cpp); o << text;
-        }
-      }
-    }
+    if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), argv[2], zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
     const char* cxx = std::getenv("CXX");
     bool haveLibs = fs::exists(libs / "libzn_rt.a");
     bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
@@ -1166,6 +1181,7 @@ int main(int argc, char** argv) {
     std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                       (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
+    writeComponents(std::string(argv[4]) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
     int rc = std::system(cmd.c_str());
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }

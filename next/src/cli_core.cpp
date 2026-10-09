@@ -1,6 +1,7 @@
 #include "cli_core.h"
 
 #include <cstdio>
+#include <ctime>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -491,7 +492,105 @@ static bool writeDeb(const fs::path& exportDir, const std::string& name, const s
   return true;
 }
 
-int exportApp(const std::vector<std::string>& args) {
+// The SBOM (SPDX 2.3 JSON) and the licence texts of what an exported program links (ZN-323): the scopes the build wrote in <exe>.components,
+// matched against next/third_party/components.json; the program and the Zinc engine are packages too.
+static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::string& engineRoot, bool icons, std::string& err) {
+  const fs::path exe = out / p.name, compFile = exe.string() + ".components";
+  std::ifstream cf(compFile);
+  if (!cf) { err = "the build wrote no " + compFile.string(); return false; }
+  std::vector<std::string> scopes;
+  for (std::string l; std::getline(cf, l);) if (!l.empty()) scopes.push_back(l);
+  cf.close();
+  std::error_code ec;
+  fs::remove(compFile, ec);
+  if (icons) scopes.push_back("icons");
+  const fs::path repo = fs::path(engineRoot) / "..";
+  std::ifstream jf(fs::path(engineRoot) / "third_party" / "components.json");
+  std::stringstream js; js << jf.rdbuf();
+  const std::string text = js.str();
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* list = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "components") : nullptr;
+  if (!yyjson_is_arr(list)) { yyjson_doc_free(doc); err = "cannot read third_party/components.json"; return false; }
+  auto str = [](yyjson_val* o, const char* k) { const char* v = yyjson_get_str(yyjson_obj_get(o, k)); return std::string(v ? v : ""); };
+  auto slurp = [](const fs::path& f) { std::ifstream in(f, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); };
+  yyjson_mut_doc* d = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* root = yyjson_mut_obj(d);
+  yyjson_mut_doc_set_root(d, root);
+  std::string all;   // what the namespace is made from: the same program and components give the same SBOM
+  for (const std::string& s : scopes) all += s + "\n";
+  const char* sde = std::getenv("SOURCE_DATE_EPOCH");   // reproducible builds: the creation time comes from it, else from the newest source of the project
+  std::time_t t = sde ? static_cast<std::time_t>(std::atoll(sde)) : 0;
+  if (!sde) {
+    for (auto it = fs::recursive_directory_iterator(p.dir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      const std::string nm = it->path().filename().string();
+      if (it->is_directory() && (nm == "dist" || nm == "build" || nm == "node_modules" || nm[0] == '.')) { it.disable_recursion_pending(); continue; }
+      if (!it->is_regular_file()) continue;
+      struct stat st;
+      if (stat(it->path().c_str(), &st) == 0 && st.st_mtime > t) t = st.st_mtime;
+    }
+  }
+  char when[32]; std::strftime(when, sizeof when, "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t));
+  yyjson_mut_obj_add_str(d, root, "spdxVersion", "SPDX-2.3");
+  yyjson_mut_obj_add_str(d, root, "dataLicense", "CC0-1.0");
+  yyjson_mut_obj_add_str(d, root, "SPDXID", "SPDXRef-DOCUMENT");
+  yyjson_mut_obj_add_strcpy(d, root, "name", (p.name + "-" + p.version).c_str());
+  yyjson_mut_obj_add_strcpy(d, root, "documentNamespace", ("https://zinc.dev/spdx/" + p.name + "-" + p.version + "-" + zn::tc::sha256Hex(all).substr(0, 16)).c_str());
+  yyjson_mut_val* ci = yyjson_mut_obj_add_obj(d, root, "creationInfo");
+  yyjson_mut_obj_add_strcpy(d, ci, "created", when);
+  yyjson_mut_val* creators = yyjson_mut_obj_add_arr(d, ci, "creators");
+  yyjson_mut_arr_add_str(d, creators, "Tool: zinc-0.0.1");
+  yyjson_mut_val* pkgs = yyjson_mut_obj_add_arr(d, root, "packages");
+  yyjson_mut_val* rels = yyjson_mut_obj_add_arr(d, root, "relationships");
+  auto pkg = [&](const std::string& id, const std::string& name, const std::string& version, const std::string& lic, const std::string& url, const std::string& sha) {
+    yyjson_mut_val* o = yyjson_mut_arr_add_obj(d, pkgs);
+    yyjson_mut_obj_add_strcpy(d, o, "name", name.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "SPDXID", ("SPDXRef-" + id).c_str());
+    if (!version.empty()) yyjson_mut_obj_add_strcpy(d, o, "versionInfo", version.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "downloadLocation", url.empty() ? "NOASSERTION" : url.c_str());
+    yyjson_mut_obj_add_bool(d, o, "filesAnalyzed", false);
+    yyjson_mut_obj_add_strcpy(d, o, "licenseConcluded", lic.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "licenseDeclared", lic.c_str());
+    yyjson_mut_obj_add_str(d, o, "copyrightText", "NOASSERTION");
+    if (!sha.empty()) { yyjson_mut_val* cs = yyjson_mut_obj_add_arr(d, o, "checksums"); yyjson_mut_val* c = yyjson_mut_arr_add_obj(d, cs); yyjson_mut_obj_add_str(d, c, "algorithm", "SHA256"); yyjson_mut_obj_add_strcpy(d, c, "checksumValue", sha.c_str()); }
+  };
+  auto rel = [&](const std::string& a, const char* kind, const std::string& b) {
+    yyjson_mut_val* o = yyjson_mut_arr_add_obj(d, rels);
+    yyjson_mut_obj_add_strcpy(d, o, "spdxElementId", a.c_str());
+    yyjson_mut_obj_add_str(d, o, "relationshipType", kind);
+    yyjson_mut_obj_add_strcpy(d, o, "relatedSpdxElement", b.c_str());
+  };
+  std::string appId;
+  for (char c : p.name) appId += std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' ? c : '-';
+  pkg("App-" + appId, p.name, p.version, "NOASSERTION", "", "");
+  pkg("Zinc", "Zinc runtime", "0.0.1", "NOASSERTION", "https://github.com/Frulko/zinc", "");
+  rel("SPDXRef-DOCUMENT", "DESCRIBES", "SPDXRef-App-" + appId);
+  rel("SPDXRef-App-" + appId, "DEPENDS_ON", "SPDXRef-Zinc");
+  std::string licences = p.name + " " + p.version + " contains the following third-party components. Their licences follow, in full.\n";
+  std::size_t i, n; yyjson_val* c;
+  yyjson_arr_foreach(list, i, n, c) {
+    if (std::find(scopes.begin(), scopes.end(), str(c, "scope")) == scopes.end()) continue;
+    const std::string id = str(c, "id"), name = str(c, "name"), version = str(c, "version"), lic = str(c, "license");
+    pkg(id, name, version, lic, str(c, "url"), str(c, "sha256"));
+    rel("SPDXRef-App-" + appId, "DEPENDS_ON", "SPDXRef-" + id);
+    std::string body;
+    if (yyjson_val* ex = yyjson_obj_get(c, "licenseExcerpt")) {   // the licence inside a source file: from the marker up to the end marker
+      const std::string src = slurp(repo / str(ex, "file")), from = str(ex, "from"), to = str(ex, "to");
+      const std::size_t a = src.find(from), b = a == std::string::npos ? a : src.find(to, a + from.size());
+      if (a != std::string::npos) body = src.substr(a, b == std::string::npos ? std::string::npos : b - a);
+    } else body = slurp(repo / str(c, "licenseFile"));
+    if (body.empty()) { yyjson_doc_free(doc); yyjson_mut_doc_free(d); err = "no licence text for " + name + " (third_party/components.json)"; return false; }
+    licences += "\n\n==== " + name + (version.empty() ? "" : " " + version) + " (" + lic + ") ====\n\n" + body + (body.back() == '\n' ? "" : "\n");
+  }
+  yyjson_doc_free(doc);
+  char* json = yyjson_mut_write(d, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  yyjson_mut_doc_free(d);
+  const bool ok = json && writeFile(out / "sbom.spdx.json", std::string(json) + "\n") && writeFile(out / "THIRD-PARTY-LICENSES.txt", licences);
+  std::free(json);
+  if (!ok) err = "cannot write the SBOM into " + out.string();
+  return ok;
+}
+
+int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
   Opts o = parseOpts(args, {"--target", "-o"}, {"--deb", "--dmg"});
   if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb] [--dmg]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
@@ -511,8 +610,8 @@ int exportApp(const std::vector<std::string>& args) {
   fs::remove_all(out, ec);
   fs::create_directories(out, ec);
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
-  const std::string cmd = zt.empty() ? q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())
-                                     : q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
+  const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
+                                     : "ZINC_COMPONENTS=1 " + q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
   int rc = status(std::system(cmd.c_str()));
   if (rc != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return rc; }
   if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
@@ -529,7 +628,14 @@ int exportApp(const std::vector<std::string>& args) {
     std::ifstream pf(fs::path(p.dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
     zn::frontend::Project proj; std::string perr;
-    if (pf && zn::frontend::parseProject(ps.str(), proj, perr)) {
+    const bool haveProj = pf && zn::frontend::parseProject(ps.str(), proj, perr);
+    if (!engineRoot.empty() && fs::exists(out / (p.name + ".components"), ec)) {   // what it contains and under which licences (ZN-323)
+      bool icons = false;   // zinc.json "icons": Lucide icons baked into the program
+      if (yyjson_doc* jd = yyjson_read(ps.str().data(), ps.str().size(), 0)) { yyjson_val* ic = yyjson_obj_get(yyjson_doc_get_root(jd), "icons"); icons = yyjson_is_arr(ic) && yyjson_arr_size(ic) > 0; yyjson_doc_free(jd); }
+      if (!writeSbom(out, p, engineRoot, icons, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+      std::printf("sbom: %s, %s\n", (out / "sbom.spdx.json").string().c_str(), (out / "THIRD-PARTY-LICENSES.txt").string().c_str());
+    }
+    if (haveProj) {
       std::string list;
       for (const std::string& e : zn::frontend::permissionsFor(proj, target == "macos" ? "macos" : "linux")) list += (list.empty() ? "" : ", ") + e;
       std::printf("permissions: %s\n", !proj.permissionsDeclared ? "not declared (zinc.json \"permissions\": the app is not restricted)" : list.empty() ? "none (every checked call is refused)" : list.c_str());
