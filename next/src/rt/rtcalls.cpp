@@ -934,9 +934,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       StrObj *x = S(a[0]), *y = S(a[1]);
       NN(x && y);
       if (static_cast<std::uint64_t>(x->len) + y->len > 0x7fffffffu) return "RangeError: Invalid string length";
-      std::string r(x->data(), x->len);
-      r.append(y->data(), y->len);
-      a[0] = P(m.newStr(r.data(), r.size()));
+      a[0] = P(m.newStrCat(x, y));
       return nullptr;
     }
     case Rt::StrEq: { StrObj *x = S(a[0]), *y = S(a[1]); if (!x || !y) { a[0] = boolSlot(x == y); return nullptr; } a[0] = boolSlot(x == y || (x->len == y->len && std::memcmp(x->data(), y->data(), x->len) == 0)); return nullptr; }

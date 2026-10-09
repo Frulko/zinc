@@ -228,6 +228,7 @@ struct Machine {
   void destroy(Obj* o);
   void releaseSlot(Slot s) { release(reinterpret_cast<Obj*>(s)); }
   StrObj* newStr(const char* p, std::size_t n);
+  StrObj* newStrCat(const StrObj* a, const StrObj* b);   // a + b, one allocation, ascii and UTF-16 length from the parts
   ArrObj* newArr(const ClassRT* cls);
   // Runs `callee` with its frame at `base` (arguments already in base[0..]) until it returns; the result is in base[0].
   bool fusedReady = false;                   // the interpreter has replaced pairs of instructions by its superinstructions in the copies below

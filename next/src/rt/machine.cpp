@@ -283,6 +283,23 @@ StrObj* Machine::newStr(const char* p, std::size_t n) {
   return s;
 }
 
+// a + b in one allocation and one copy (ZN-408): the bytes are appended as they are, so ascii and the UTF-16 length are those of the parts.
+StrObj* Machine::newStrCat(const StrObj* a, const StrObj* b) {
+  const std::size_t n = static_cast<std::size_t>(a->len) + b->len;
+  auto* s = static_cast<StrObj*>(allocRaw(sizeof(StrObj) + n + 1));
+  if (!s) std::abort();
+  s->cls = strClass; s->rc = 1;
+  s->len = static_cast<std::uint32_t>(n);
+  char* d = reinterpret_cast<char*>(s + 1);
+  if (a->len) std::memcpy(d, a->data(), a->len);
+  if (b->len) std::memcpy(d + a->len, b->data(), b->len);
+  d[n] = 0;
+  s->ascii = a->ascii && b->ascii;
+  s->u16len = a->u16len + b->u16len;
+  track(s);
+  return s;
+}
+
 ArrObj* Machine::newArr(const ClassRT* cls) {
   auto* o = new ArrObj();
   o->cls = cls; o->rc = 1;
