@@ -9,6 +9,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <unistd.h>
 
 namespace zn::log {
 
@@ -74,14 +75,46 @@ inline void write(const char* module, int level, const std::string& msg, double 
   }
 }
 
+// The steps of a command: one short line per stage a user cares about (compile, resources, native build, result), on by default when stderr is a
+// terminal, off when it is a pipe (scripts, tests, CI); ZINC_STEPS=1 forces them, ZINC_STEPS=0 (or -q) hides them. -v adds the module details above.
+inline bool steps() {
+  static const bool on = [] { const char* e = std::getenv("ZINC_STEPS"); return e ? std::atoi(e) != 0 : isatty(2) != 0; }();
+  return on;
+}
+inline std::string duration(double ms) { char b[32]; if (ms < 1000) std::snprintf(b, sizeof b, "%.0f ms", ms); else std::snprintf(b, sizeof b, "%.1f s", ms / 1000); return b; }
+// "  compile    6 files                           35 ms"; `ms` < 0: no duration.
+inline void step(const char* what, const std::string& detail, double ms = -1) {
+  if (!steps()) return;
+  if (ms >= 0) std::fprintf(stderr, "  %-10s %-44s %s\n", what, detail.c_str(), duration(ms).c_str());
+  else std::fprintf(stderr, "  %-10s %s\n", what, detail.c_str());
+}
+// A path as the user would type it: relative to the working directory when that is shorter.
+inline std::string shortPath(const std::string& p) {
+  char cwd[4096];
+  if (!getcwd(cwd, sizeof cwd)) return p;
+  std::string c = std::string(cwd) + "/";
+  if (p.compare(0, c.size(), c) == 0) return p.substr(c.size());
+  const char* home = std::getenv("HOME");
+  if (home && *home && p.compare(0, std::strlen(home), home) == 0) return "~" + p.substr(std::strlen(home));
+  return p;
+}
+inline double since(std::chrono::steady_clock::time_point t0) { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(); }
+
 // A timed phase: written with its duration when it ends (when the module's level allows it; costs one clock read otherwise).
 struct Phase {
   const char* module;
   std::string name;
   int level;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  const char* stepName = nullptr;   // also a step line of the command (see step())
+  std::string stepDetail;
   Phase(const char* m, std::string n, int l = Info) : module(m), name(std::move(n)), level(l) {}
-  ~Phase() { if (on(module, level)) write(module, level, name, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count()); }
+  Phase(const char* m, std::string n, const char* stepAs, std::string detail) : module(m), name(std::move(n)), level(Info), stepName(stepAs), stepDetail(std::move(detail)) {}
+  ~Phase() {
+    const double ms = since(t0);
+    if (on(module, level)) write(module, level, name, ms);
+    if (stepName) step(stepName, stepDetail, ms);
+  }
 };
 
 }  // namespace zn::log
