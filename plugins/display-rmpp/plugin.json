@@ -2,10 +2,33 @@
   "name": "display-rmpp",
   "kind": "display",
   "description": "reMarkable Paper Pro: e-ink refresh policy, Marker pen + touch (emulated e-ink look on desktop)",
-  "options": { "full_every": 60, "upgrade_ms": 350, "dither": false },
+  "options": {
+    "direct": false,
+    "full_every": 60,
+    "upgrade_ms": 350,
+    "dither": false,
+    "refresh_mode": "ui",
+    "fast_hz": 60,
+    "color_hz": 8
+  },
   "targets": {
-    "rmpp": { "sources": ["rmpp.cpp"], "linkFlags": ["-pthread"] },
-    "macos": { "sources": ["emulator.cpp"] },
-    "linux": { "sources": ["emulator.cpp"] }
+    "rmpp": {
+      "sources": [
+        "rmpp.cpp"
+      ],
+      "linkFlags": [
+        "-pthread"
+      ]
+    },
+    "macos": {
+      "sources": [
+        "emulator.cpp"
+      ]
+    },
+    "linux": {
+      "sources": [
+        "emulator.cpp"
+      ]
+    }
   }
 }

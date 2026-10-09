@@ -14,8 +14,10 @@ A project opts into the screen driver with `"display": "rmpp"` in zinc.json (see
 from `zinc:ink` (`Ink`, `<InkCanvas ink={doc} />`); raw pen samples come from `zinc:gfx` (`penCount`, `penX/penY`,
 `penPressure`, `penTiltX/penTiltY`, `penFlags`: `PenFlag.Down | Eraser | Hover`).
 
-**Nothing here has run on a Paper Pro yet.** Everything below the "verified" line was checked on macOS and in an
-arm64 container only (see the end of this document).
+**Hardware feedback:** the initial driver was tested on a Paper Pro and showed excessive refreshes, missing colour
+and no finger input. The revised partial-RGB/qtfb-touch driver is covered by a socket-pair test, but the user
+reports that FAST still has unacceptable handwriting lag. Native-speed drawing remains unresolved;
+see the [source and device ABI investigation](../reports/rmpp-latency-2026-09-29.md).
 
 ## Hardware and OS (research, 2026-09)
 
@@ -46,35 +48,47 @@ framebuffer composited by xochitl, used by KOReader ([framebuffer_qtfb.lua](http
 (c) is the community standard, needs no private ABI and survives OS updates as long as AppLoad does, so
 `plugins/display-rmpp/rmpp.cpp` implements it: `SOCK_SEQPACKET` `/tmp/qtfb.sock`, `MESSAGE_INITIALIZE` with
 `QTFB_KEY` and `FBFMT_RMPP_RGB888`, `shm_open("/qtfb_<key>")`, `MESSAGE_UPDATE`(partial rect),
-`MESSAGE_SET_REFRESH_MODE`, `MESSAGE_REQUEST_FULL_REFRESH` (protocol: `src/qtfb/common.h`). The server sleeps 1 s after
-a mode change or full refresh on the sending connection, so those go through a second connection on its own thread.
+`MESSAGE_SET_REFRESH_MODE` once at startup (protocol: `src/qtfb/common.h`). The server sleeps 1 s after
+a mode change or full refresh on the sending connection, so neither belongs in the stroke update path.
 Requires [xovi](https://github.com/asivery/xovi) + AppLoad on the tablet (e.g. via [Vellum](https://github.com/vellum-dev/vellum)
 or [remagic](https://github.com/maximerivest/remagic); toltec does not support the Paper Pro).
 
-**Refresh policy** (`plugins/display-rmpp/eink.h`, shared with the emulator). The runtime's damage rectangle is
-rendered, then shrunk to the pixels that really changed (pixel diff against the last frame), then:
+**Device refresh** (`plugins/display-rmpp/rmpp.cpp`). Notes starts in `REFRESH_MODE_FAST` for drawing;
+**Colour preview** explicitly switches to `REFRESH_MODE_UI`, and **Fast drawing** switches back.
+Dashboard and other apps default to UI. Original RGB pixels are retained in both modes: FAST displays
+monochrome, while preview and saved JSON/SVG retain the selected colours.
 
-- small change (≤ 1/8 screen: pen segments, button feedback) → FAST (`REFRESH_MODE_FAST`, monochrome; KOReader notes
-  FAST/UFAST lose colour); if the area had greys or colour it is queued;
-- after 350 ms without updates the queued area is redrawn in QUALITY (`REFRESH_MODE_UI`, colour): colour ink appears
-  right after the pen lifts, which is how xochitl behaves too
-  ([review](https://ewritable.net/brands/remarkable/tablets/remarkable-paper-pro/));
-- larger change → QUALITY; ≥ 60 % of the screen (page turn) or every 60 partial updates once idle → FULL (flash,
-  clears ghosting).
+AppLoad sleeps one second after a mode change on the sending connection. The driver uses one connection,
+continues processing input/rendering during a 1.1 s settling window, and coalesces unsent damage into one
+rectangle containing the latest pixels. A mode switch repaints unchanged RGB too, so colours reappear without
+another pen event. No per-stroke mode switching and no hardware full-refresh request.
 
-Options (`zinc.json` `"display": { "driver": "rmpp", "full_every": 60, "upgrade_ms": 350, "dither": false }`).
-`dither: true` quantizes QUALITY pixels ourselves (16 greys + 27-colour cube, 4x4 ordered dither: position-only, so
-a partial update never changes pixels outside its rectangle); it is off on the device because xochitl's own ACeP
-pipeline renders RGB. FAST is always black/white (ordered dither for greys).
+Partial notifications are capped at 60/s in FAST and 8/s in UI (based on the observed ~8 UI paints/s).
+These are submission limits, **not measured display frame rates**. The send is nonblocking: a full socket keeps
+the pending damage for retry, and idle frames flush the final stroke segment. Rasterization uses the runtime's
+`render_damage` callback when available. Xochitl owns the physical waveform; native pen latency is not guaranteed.
 
-**Input**: evdev directly (qtfb forwards pen pressure only, without tilt or eraser; xochitl does not grab the devices).
-Devices are found by capability (`BTN_TOOL_PEN`, `ABS_MT_POSITION_X`), ranges come from `EVIOCGABS`; a reader thread
-queues every pen report (~480 Hz), so nothing is lost while a frame renders, and wakes the idle main loop instantly.
-The pen drives the UI pointer; fingers are ignored while the Marker is in range (palm rejection). Orientation override:
-`ZINC_RMPP_PEN_ROTATE` / `ZINC_RMPP_TOUCH_ROTATE` (0/90/180/270). The app holds `/sys/power/wake_lock` while running.
+Configuration (settings are compiled into each app; environment override is read at launch):
+
+```json
+"display": { "driver": "rmpp", "refresh_mode": "fast", "fast_hz": 60, "color_hz": 8 }
+```
+
+`refresh_mode`: `fast` or `ui`; `ZINC_RMPP_REFRESH_MODE=fast|ui` overrides the initial mode.
+Frequency knobs are clamped to 1–125 Hz. Desktop controls preview UI state only, not device timing.
+
+The desktop emulator retains the illustrative FAST/QUALITY/FULL policy in `eink.h`.
+Its `full_every`, `upgrade_ms` and `dither` options do **not** control the device backend.
+
+**Input**: Marker samples come from evdev (pressure, tilt, eraser), queued on a reader thread.
+Finger events come from AppLoad's `MESSAGE_USERINPUT`, already mapped to framebuffer coordinates;
+quick press/release pairs are delivered on separate UI frames. Fingers are ignored while the Marker is in range
+(palm rejection). Pen orientation override: `ZINC_RMPP_PEN_ROTATE` (0/90/180/270).
+The app holds `/sys/power/wake_lock` while running. Notes has **Save & quit** (stays open if saving fails);
+dashboard has **Quit**. AppLoad disconnect and SIGTERM also exit the app.
 
 **Ink latency path** (`plugins/ink/index.ts`): each pen sample becomes one 2-point stroke command at the end of the
-frame, so the damage is just the new segment → FAST refresh of a few hundred pixels. Finished strokes are baked into
+frame, so the damage is just the new segment → partial RGB update of the changed pixels. Finished strokes are baked into
 a runtime image with the same commands (identical pixels, so the pixel diff sees nothing to refresh). Stroke eraser
 (Marker eraser end or the Eraser tool), undo (50 levels), clear, JSON (`toJSON`/`parseStrokes`) and SVG (`toSVG`,
 round-capped polylines per width run: same geometry as the screen).
@@ -103,11 +117,20 @@ Verified here: conformance suite on `rmpp` (static ELF in the arm64 container, s
 app renders the scripted replay identically on macOS and in the container (headless frame); emulator screenshots
 show FAST monochrome ink mid-stroke and the colour upgrade after.
 
+Driver regression check (ARM64 container, no tablet required):
+
+```sh
+docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work zinc/sdk-rmpp sh -c \
+  'g++ -std=c++17 -pthread -Iruntime/include tests/rmpp/qtfb.cpp -o /tmp/qtfb-test && /tmp/qtfb-test'
+```
+
+This checks partial-update packets, preserved RGB after 120 stroke updates, no redundant idle update,
+mode settling, latest-frame coalescing, socket backpressure, colour restoration without new damage,
+quick taps, multitouch, palm rejection and exit on qtfb disconnect.
+
 To validate on hardware:
 
-- qtfb attach, RGB888 byte order, partial updates, and whether our mode switches (FAST/UI/CONTENT, full refresh)
-  behave as expected and quickly enough; the ordering between a mode change (control connection) and the next update;
-- pen-to-glass latency of the FAST path through xochitl, and the `upgrade_ms` / `full_every` / fast-area thresholds;
-- evdev discovery (both devices found, no rotation needed), pressure curve (`Stroke.segWidth` is linear), tilt sign;
-- palm rejection feel, wake lock effect, exit by AppLoad's swipe-down gesture (SIGTERM handling);
-- CPU cost of the full-row rasterization and pixel diff at 1620x2160 on the A53, memory (3 frame buffers ≈ 42 MB).
+- continuous strokes without repeated screen flashes, colour swatches and coloured ink;
+- finger taps with the Marker away from the screen, pressure, eraser and palm rejection;
+- **Save & quit** / **Quit**, followed by relaunch from AppLoad;
+- pen-to-glass latency and ghosting in FAST versus UI (the socket test cannot measure these).

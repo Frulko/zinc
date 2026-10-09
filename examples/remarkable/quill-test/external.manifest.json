@@ -1,0 +1,8 @@
+{
+  "id": "zinc-quill-test",
+  "name": "Quill drawing test (3 min)",
+  "version": "0.1.0",
+  "description": "Temporary direct-ink test. Power button or five fingers exits. Drawing is not saved.",
+  "application": "launch.sh",
+  "qtfb": false
+}

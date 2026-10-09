@@ -100,7 +100,7 @@ export function modulePaths(projDir: string): Record<string, string[]> {
 
 /** Display plugin chosen for a target: zinc.json `display` (string or { driver, ...options }), per-target override;
  *  ZINC_DISPLAY (`zinc run --display remote`) overrides both for one build. */
-function displayOf(projDir: string, target: string): { driver: string; opts: Record<string, unknown> } | undefined {
+export function displayOf(projDir: string, target: string): { driver: string; opts: Record<string, unknown> } | undefined {
   const j = projectJson(projDir);
   const d = process.env.ZINC_DISPLAY || (j.targets?.[target]?.display ?? j.display);
   if (!d) return undefined;

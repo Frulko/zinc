@@ -6,7 +6,7 @@ import * as dgram from 'node:dgram';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { ZINC_ROOT, STD_MODULES, LIB_FILES } from './frontend.ts';
 import { iconPng } from './icon.ts';
-import { modulePaths } from './plugins.ts';
+import { modulePaths, displayOf } from './plugins.ts';
 import type { Built, Opts, Project } from './cli.ts';
 
 const TEMPLATES: Record<string, Record<string, string>> = {
@@ -213,7 +213,8 @@ export function exportApp(p: Project, target: string, exe: string, buildDir: str
   }
   if (target === 'rmpp') {  // an AppLoad app directory (docs/targets/remarkable-paper-pro.md)
     const dir = `/home/root/xovi/exthome/appload/${name}`;
-    files['external.manifest.json'] = JSON.stringify({ name, application: name, workingDirectory: dir, qtfb: true, disablesWindowedMode: true }, null, 2) + '\n';
+    const direct = displayOf(p.dir, target)?.opts.direct === true;
+    files['external.manifest.json'] = JSON.stringify({ name, application: name, workingDirectory: dir, qtfb: !direct, disablesWindowedMode: true }, null, 2) + '\n';
     files['deploy.sh'] = `#!/bin/sh\n# usage: ./deploy.sh [root@10.11.99.1]  (developer mode + xovi/AppLoad installed on the tablet)\nset -e\nHOST="\${1:-root@10.11.99.1}"\nssh "$HOST" "mkdir -p ${dir}"\nscp -q "$(dirname "$0")/${name}" "$(dirname "$0")/external.manifest.json" "$(dirname "$0")/icon.png" "$HOST:${dir}/"\necho "installed in ${dir}: open AppLoad on the tablet, tap reload, then launch '${name}'"\n`;
     fs.copyFileSync(iconFile, path.join(out, 'icon.png'));
   }
