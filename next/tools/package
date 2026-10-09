@@ -117,6 +117,8 @@ def package_macos(build, out):
     os.makedirs(macos); os.makedirs(res)
     binary = os.path.join(macos, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
+    if os.path.exists(os.path.join(build, "libzn_webgl.dylib")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
+        shutil.copy2(os.path.join(build, "libzn_webgl.dylib"), os.path.join(macos, "libzn_webgl.dylib"))
     bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
     payload(os.path.join(res, "zinc"))
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
@@ -135,6 +137,8 @@ def package_linux(build, out):
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     os.makedirs(os.path.join(root, "bin")); os.makedirs(os.path.join(root, "lib"))
     shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
+    if os.path.exists(os.path.join(build, "libzn_webgl.so")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
+        shutil.copy2(os.path.join(build, "libzn_webgl.so"), os.path.join(root, "bin", "libzn_webgl.so"))
     ldd = run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout
     for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
         if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):

@@ -1,5 +1,5 @@
 // WebGL 1.0 in the QuickJS engine (ZN-203.03): the WebGLRenderingContext class and the object classes as native JS classes over zn::gl::WebGL1 (src/gl/webgl1.cpp), typed arrays read in place,
-// plus a tiny `document.createElement('canvas')` / `canvas.getContext('webgl')`. Registered with zn::qjs::addContextHook; trusted programs only (`zinc run --engine quickjs`).
+// plus a tiny `document.createElement('canvas')` / `canvas.getContext('webgl')`. Built as the module libzn_webgl (zn_webgl_open below), installed by zinc as a QuickJS context hook; trusted programs only (`zinc run --engine quickjs`).
 #include "gl/webgl_js.h"
 
 #include <cstdio>
@@ -13,7 +13,6 @@
 
 #include "gl/webgl1.h"
 #include "quickjs.h"
-#include "zn/js_ext.h"
 
 namespace zn::gl {
 namespace {
@@ -1433,7 +1432,9 @@ void install(JSContext* c) {
 
 }  // namespace
 
-void setPresentHook(PresentHook h) { gPresent = h; }
-void installWebGLBindings() { zn::qjs::addContextHook(install); }
-
 }  // namespace zn::gl
+
+extern "C" __attribute__((visibility("default"))) zn::gl::ContextInstall zn_webgl_open(zn::gl::PresentHook present) {
+  zn::gl::gPresent = present;
+  return &zn::gl::install;
+}

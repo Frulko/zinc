@@ -22,6 +22,8 @@ next/
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
   firmware/esp32/ the ESP-IDF project of the ESP32 core; its image is kept in firmware/esp32/prebuilt (rebuilt by tools/build-esp32-core)
+  src/gl/         WebGL 1/2 for the QuickJS engine (ZN-203), with glad and glslang: not linked into zinc but built as the module libzn_webgl beside it, loaded with dlopen on the
+                  first QuickJS context (ZN-330.01); it resolves SDL3, QuickJS and zn_qjs from zinc; its one entry is zn_webgl_open (src/gl/webgl_js.h)
   src/qjs/        the QuickJS engine (ZN-051): type stripper, host calls generated from the runtime table, module loader, prelude; depends on frontend, include/zn and the vendored QuickJS-ng
   app/atelier/    Zinc Atelier (ZN-050), the desktop app: Zinc source run by the engine, talks to the CLI through zinc:process; not part of the engine build
   src/main.cpp    CLI wiring only, no logic

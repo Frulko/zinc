@@ -22,9 +22,8 @@
 #include "cli_core.h"
 #include "lsp/lsp.h"
 #include "frontend/capabilities.h"
-#ifdef ZN_WEBGL
 #include "gl/webgl_js.h"
-#endif
+#include "zn/js_ext.h"
 #include "tc/bundle.h"
 #include "ir/ir.h"
 #include "aot/aot.h"
@@ -470,6 +469,62 @@ static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: t
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static zn::tc::BundleSpec gBundleSpec;
 
+#ifdef ZN_HOST_GFX
+// gl.zincPresent (WebGL module): RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
+static bool glPresent(int image, const unsigned char* rgba, int w, int h) {   // gl.zincPresent: RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
+    int32_t iw = 0, ih = 0;
+    if (!zrt::raster::image_size(image, &iw, &ih)) return false;
+    const int ss = (iw > 0 && ih > 0 && w % iw == 0 && h % ih == 0 && w / iw == h / ih && w / iw > 1 && w / iw <= 4) ? w / iw : 1;   // a canvas that is a whole multiple of the image: supersampling, averaged down (anti-aliasing for contexts without MSAA)
+    if (ss == 1 && (iw != w || ih != h)) zrt::raster::dyn_resize(image, w, h);
+    uint32_t* dst = zrt::raster::dyn_pixels(image);
+    if (!dst) return false;
+    if (ss > 1) {
+      for (int y = 0; y < ih; ++y)
+        for (int x = 0; x < iw; ++x) {
+          unsigned r = 0, g = 0, b = 0;
+          for (int sy = 0; sy < ss; ++sy) {
+            const unsigned char* src = rgba + static_cast<size_t>(h - 1 - (y * ss + sy)) * w * 4 + static_cast<size_t>(x) * ss * 4;
+            for (int sx = 0; sx < ss; ++sx, src += 4) { r += src[0]; g += src[1]; b += src[2]; }
+          }
+          const unsigned n = static_cast<unsigned>(ss * ss);
+          dst[static_cast<size_t>(y) * iw + x] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
+        }
+      zrt::raster::dyn_update(image, nullptr, 0);
+      return true;
+    }
+    for (int y = 0; y < h; ++y) {
+      const unsigned char* src = rgba + static_cast<size_t>(h - 1 - y) * w * 4;
+      for (int x = 0; x < w; ++x, src += 4) dst[static_cast<size_t>(y) * w + x] = (uint32_t(src[0]) << 16) | (uint32_t(src[1]) << 8) | src[2];
+    }
+    zrt::raster::dyn_update(image, nullptr, 0);
+    return true;
+}
+#endif
+// WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made; zinc carries no WebGL,
+// glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
+static void webglHook(JSContext* ctx) {
+  static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
+    namespace fs = std::filesystem;
+    const char* env = std::getenv("ZINC_WEBGL_LIB");
+#if defined(__APPLE__)
+    const char* file = "libzn_webgl.dylib";
+#else
+    const char* file = "libzn_webgl.so";
+#endif
+    const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+    void* h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    const char* wanted = std::getenv("ZINC_WEBGL");
+    if (!h) { if (wanted && *wanted && *wanted != '0') std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror()); return nullptr; }
+    auto open = reinterpret_cast<zn::gl::ContextInstall (*)(zn::gl::PresentHook)>(dlsym(h, "zn_webgl_open"));
+#ifdef ZN_HOST_GFX
+    return open ? open(glPresent) : nullptr;
+#else
+    return open ? open(nullptr) : nullptr;
+#endif
+  }();
+  if (install) install(ctx);
+}
+
 int main(int argc, char** argv) {
   for (int k = 0; k < argc; ++k) gLaunchArgs.push_back(argv[k]);
   {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
@@ -633,43 +688,11 @@ int main(int argc, char** argv) {
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
-#ifdef ZN_WEBGL
 #ifdef ZN_HOST_GFX
   zrt::gfx::encode_webp_hook = webpShot;
 #endif
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
-#ifdef ZN_HOST_GFX
-  zn::gl::setPresentHook([](int image, const unsigned char* rgba, int w, int h) -> bool {   // gl.zincPresent: RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
-    int32_t iw = 0, ih = 0;
-    if (!zrt::raster::image_size(image, &iw, &ih)) return false;
-    const int ss = (iw > 0 && ih > 0 && w % iw == 0 && h % ih == 0 && w / iw == h / ih && w / iw > 1 && w / iw <= 4) ? w / iw : 1;   // a canvas that is a whole multiple of the image: supersampling, averaged down (anti-aliasing for contexts without MSAA)
-    if (ss == 1 && (iw != w || ih != h)) zrt::raster::dyn_resize(image, w, h);
-    uint32_t* dst = zrt::raster::dyn_pixels(image);
-    if (!dst) return false;
-    if (ss > 1) {
-      for (int y = 0; y < ih; ++y)
-        for (int x = 0; x < iw; ++x) {
-          unsigned r = 0, g = 0, b = 0;
-          for (int sy = 0; sy < ss; ++sy) {
-            const unsigned char* src = rgba + static_cast<size_t>(h - 1 - (y * ss + sy)) * w * 4 + static_cast<size_t>(x) * ss * 4;
-            for (int sx = 0; sx < ss; ++sx, src += 4) { r += src[0]; g += src[1]; b += src[2]; }
-          }
-          const unsigned n = static_cast<unsigned>(ss * ss);
-          dst[static_cast<size_t>(y) * iw + x] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
-        }
-      zrt::raster::dyn_update(image, nullptr, 0);
-      return true;
-    }
-    for (int y = 0; y < h; ++y) {
-      const unsigned char* src = rgba + static_cast<size_t>(h - 1 - y) * w * 4;
-      for (int x = 0; x < w; ++x, src += 4) dst[static_cast<size_t>(y) * w + x] = (uint32_t(src[0]) << 16) | (uint32_t(src[1]) << 8) | src[2];
-    }
-    zrt::raster::dyn_update(image, nullptr, 0);
-    return true;
-  });
-#endif
-  zn::gl::installWebGLBindings();   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03)
-#endif
+  zn::qjs::addContextHook(webglHook);   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
     zn::qjs::Options qo;
