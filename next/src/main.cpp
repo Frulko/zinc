@@ -50,6 +50,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "zapp.h"
+#include <thread>
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #ifdef ZN_HOST_GFX
@@ -376,6 +377,52 @@ static bool fusedArchive(std::string& archive) {
   f.seekg(end - 16 - static_cast<std::streamoff>(n)); f.read(archive.data(), static_cast<std::streamsize>(n));
   return static_cast<bool>(f);
 }
+// App updates at launch (ZN-324.02). ~/.zinc/apps/<id>/ holds `staged` (the path of a verified update to try), `current` (the update in use) and
+// `trial` (written when a staged update starts; removed when it proves healthy). A launch finding `trial` left behind means the update on trial
+// crashed: it is dropped and the previous version runs. Nothing is overwritten, so a fused executable updates the same way as a .zapp.
+static std::string gTrialDir;   // set while a staged update runs on trial: promoted once it ran 5 s or exited normally
+static void promoteTrial() {
+  namespace fs = std::filesystem;
+  if (gTrialDir.empty()) return;
+  std::error_code ec;
+  std::ifstream sf(gTrialDir + "/staged"); std::string staged; std::getline(sf, staged); sf.close();
+  if (!staged.empty()) { std::ofstream(gTrialDir + "/current") << staged << "\n"; }
+  fs::remove(gTrialDir + "/staged", ec); fs::remove(gTrialDir + "/trial", ec);
+  gTrialDir.clear();
+}
+static std::string chooseAppVersion(const std::string& zbc) {
+  namespace fs = std::filesystem;
+  std::ifstream pf(fs::path(zbc).parent_path() / "zinc.json");
+  std::stringstream ps; ps << pf.rdbuf();
+  zn::frontend::Project proj; std::string err;
+  if (!pf || !zn::frontend::parseProject(ps.str(), proj, err) || proj.app.id.empty() || proj.updateKey.empty()) return zbc;
+  const std::string dir = zn::tc::home() + "/apps/" + proj.app.id;
+  const std::string base = proj.app.version.empty() ? "0.0.0" : proj.app.version;
+  std::error_code ec;
+  auto line = [](const std::string& f) { std::ifstream in(f); std::string l; std::getline(in, l); return l; };
+  auto versionOf = [&](const std::string& zappPath, std::string& out) {   // unpacked (and checked) with its own manifest's version
+    std::ifstream zf(zappPath, std::ios::binary);
+    std::stringstream zs; zs << zf.rdbuf();
+    if (!zf || !unpackZapp(zs.str(), out, err)) return std::string();
+    std::ifstream jf(fs::path(out).parent_path() / "zinc.json"); std::stringstream js; js << jf.rdbuf();
+    zn::frontend::Project p2; std::string e2;
+    return zn::frontend::parseProject(js.str(), p2, e2) && p2.app.id == proj.app.id ? (p2.app.version.empty() ? "0.0.0" : p2.app.version) : std::string();
+  };
+  if (fs::exists(dir + "/trial", ec)) {   // the update on trial did not make it: back to the previous version
+    std::fprintf(stderr, "zinc: the update %s of %s failed to start; it was rolled back\n", line(dir + "/staged").c_str(), proj.app.id.c_str());
+    fs::remove(dir + "/trial", ec); fs::remove(dir + "/staged", ec);
+  }
+  std::string run = zbc, best = base, z;
+  const std::string current = line(dir + "/current");
+  if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, best)) { run = z; best = v; } }
+  const std::string staged = line(dir + "/staged");
+  if (!staged.empty()) {
+    std::string v = versionOf(staged, z);
+    if (!v.empty() && zn::tc::newerVersion(v, best)) { std::ofstream(dir + "/trial") << v << "\n"; gTrialDir = dir; std::atexit(promoteTrial); return z; }
+    fs::remove(dir + "/staged", ec);   // not newer than what runs (or unreadable): nothing to try
+  }
+  return run;
+}
 static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
@@ -387,6 +434,7 @@ int main(int argc, char** argv) {
     std::string archive, zbc, err;
     if (fusedArchive(archive)) {
       if (!unpackZapp(archive, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
+      zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gFusedArgs = {argv[0], "run", zbc, "--"};
       for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
       for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
@@ -702,6 +750,7 @@ int main(int argc, char** argv) {
       std::stringstream zs; zs << zf.rdbuf();
       std::string zbc, err;
       if (!unpackZapp(zs.str(), zbc, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
+      zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gOriginalArgs[2] = zbc;
       path = zbc;
     }
@@ -835,7 +884,9 @@ int main(int argc, char** argv) {
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
+    if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     auto res = zn::vm::run(zm, out, trace);
+    if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
     return zn::rt::report(res, out, trace);
   }
   if (argc >= 3 && !std::strcmp(argv[1], "sim")) {   // zinc sim <scenario.yaml> [--out DIR] [--update-goldens]: the steps of a scenario against the program it names (ZN-295)
@@ -1365,6 +1416,7 @@ int main(int argc, char** argv) {
     if (checkOnly) return 10;
     std::string path;
     if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/apps/" + (proj.app.id.empty() ? name : proj.app.id) + "/updates", path, err)) { std::fprintf(stderr, "zinc update-app: %s\n", err.c_str()); return 1; }
+    { std::ofstream(zn::tc::home() + "/apps/" + (proj.app.id.empty() ? name : proj.app.id) + "/staged") << path << "\n"; }   // the next launch tries it (ZN-324.02)
     std::printf("downloaded and verified: %s\n", path.c_str());
     return 0;
   }

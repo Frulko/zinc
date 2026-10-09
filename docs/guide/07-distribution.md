@@ -117,6 +117,10 @@ For each release, `zinc publish --key <seed> [--channel beta] [--notes "..."] -o
 version older than the app's, downloads the archive and checks its SHA-256 into `~/.zinc/apps/<id>/updates/`. The seed never leaves the
 publishing machine; a manifest altered after signing, or one signed with another key, is refused.
 
+`zinc update-app` also stages the download. The next launch of the app (`zinc run app.zapp`, or its fused executable) runs the staged
+version on trial: once it has run 5 seconds or exited normally it becomes the version in use (`~/.zinc/apps/<id>/current`). If it crashes
+before that, the launch after drops it ("failed to start; it was rolled back") and runs the previous version. Nothing is overwritten.
+
 ## Versioning
 
 Bump `zinc.json` `"version"` (semver). It appears in `Info.plist` (macOS), the `.desktop` file (Linux), the AppLoad
