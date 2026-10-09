@@ -4,9 +4,17 @@ dist/
 .DS_Store
 .claude/
 zinc.storage
+*.swp
+*.swo
+zinc.speedscope.json
+/examples/camera/cli/captures/
+/showcase-data/
 
 # Chataigne autosaves next to the example project
 examples/chataigne/chataigne-project/*_autosave/
 
 # zinc compat: fetched suites (test262, WPT, quickjs-ng) and scratch programs
 tests/compat/cache/
+
+# Big Buck Bunny for the Video tab (see README.md), an asset read at runtime, not embedded
+examples/hero/media/
