@@ -4,9 +4,11 @@ import { createSignal } from 'zinc:ui/solid';
 import { Ink, Stroke, parseStrokes } from 'zinc:ink';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
+import refresh from '../native/refresh.spec';
 
 const DIR = sys.platform() === 'rmpp' ? '/home/root/zinc-notes' : 'notes-data';
 export const COLORS: i32[] = [0x000000, 0x6b7280, 0x1d4ed8, 0xdc2626, 0x15803d, 0xca8a04];
+export const COLOR_NAMES: string[] = ['Black', 'Grey', 'Blue', 'Red', 'Green', 'Gold'];
 export const WIDTHS: number[] = [3, 6, 12];
 export const WIDTH_NAMES: string[] = ['Fine', 'Medium', 'Bold'];
 
@@ -20,6 +22,23 @@ export const [tool, setTool] = createSignal<string>('pen');
 export const [color, setColor] = createSignal<i32>(0x000000);
 export const [penWidth, setPenWidth] = createSignal<number>(6);
 export const [status, setStatus] = createSignal<string>('');
+
+export const [fastDrawing, setFastDrawing] = createSignal<boolean>(true);
+export const [displayBusy, setDisplayBusy] = createSignal<boolean>(false);
+export const onTablet: boolean = sys.platform() === 'rmpp';
+
+/** Switch only on an explicit button press; per-stroke switches stall AppLoad. */
+export function pickDisplay(fast: boolean): void {
+  if (refresh.busy()) return;
+  if (!refresh.setFast(fast)) { setStatus('Display mode unavailable'); return; }
+  setFastDrawing(fast);
+  setDisplayBusy(refresh.busy());
+}
+setInterval(() => {
+  const mode = refresh.mode();
+  if (mode >= 0) setFastDrawing(mode === 1);
+  setDisplayBusy(refresh.busy());
+}, 100);
 
 function fileOf(index: i32, ext: string): string {
   return `${DIR}/page-${index + 1}.${ext}`;
@@ -36,15 +55,17 @@ export function loadPages(): void {
 }
 
 /** Writes the current page as JSON (reloadable) and SVG (for sharing). */
-export function savePage(): void {
+export function savePage(): boolean {
   pages[page()] = ink.strokes;
-  fs.mkdir(DIR);
   try {
+    fs.mkdir(DIR);
     fs.writeText(fileOf(page(), 'json'), ink.toJSON());
     fs.writeText(fileOf(page(), 'svg'), ink.toSVG());
     setStatus(`saved ${fileOf(page(), 'svg')}`);
+    return true;
   } catch (e) {
     setStatus(`save failed: ${e.message}`);
+    return false;
   }
 }
 

@@ -207,3 +207,8 @@ takes user scripts or mods.
 - `gfx.stroke`, `gfx.path`, render-to-image (`gfx.beginImage` / `endImage`);
 - multitouch, wheel and pinch input (`gfx.touchCount`, `gfx.wheel`, `gfx.pinch`);
 - the event loop's pollers (`zrt::Poller`) to deliver results from threads or sockets.
+
+## Research
+
+[GPU WebGL and audio plugins for games and interactive creation](reports/creative-runtime-webgl-audio-2026-09-29.md)
+records requirements, candidate backends and validation milestones. It describes proposed work, not available APIs.

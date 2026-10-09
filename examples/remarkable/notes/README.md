@@ -16,6 +16,17 @@ zinc export examples/remarkable/notes --target rmpp    # dist/notes-rmpp: binary
 zinc deploy examples/remarkable/notes --target rmpp [--device root@10.11.99.1]
 ```
 
+On the tablet, **Fast drawing** starts in the fast monochrome waveform. Ink colours are still stored unchanged.
+Use **Colour preview** to see them, then **Fast drawing** to resume drawing. The mode switch takes about one
+second because AppLoad pauses its connection; it never happens automatically between strokes. The driver sends
+partial updates only, groups pending changes and keeps consuming pen samples while switching.
+
+The desktop buttons preview the controls, not the device waveform. **Known issue:** the user-tested FAST mode
+still has unacceptable handwriting lag. This qtfb backend does not provide xochitl-equivalent ink;
+see the [latency investigation](../../../docs/reports/rmpp-latency-2026-09-29.md).
+
+The shared `RemarkableBar` shows local time, battery charge and **Quitter**. Quitter saves the current page before closing; a save error keeps it open. Fingers operate the entire UI, including while the pen hovers. Only the pen feeds the drawing canvas.
+
 Pages are saved to `/home/root/zinc-notes` on the tablet, `notes-data/` in the working directory elsewhere.
 
 ## What to look at

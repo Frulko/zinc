@@ -4,7 +4,7 @@ A daily dashboard for the reMarkable Paper Pro's colour e-ink screen, written in
 a 25-minute focus timer, today's tasks, a week of habits and a pen scratchpad. It is designed for e-paper: pure
 black and white, thick outlines, large type and targets, no shadows or animation. Only what changes is redrawn (the
 clock once a minute, the timer once a second, a tapped task), so `display-rmpp` refreshes small rectangles with its
-fast waveform and upgrades them once the screen is idle.
+configured waveform.
 
 ![dashboard](../../../docs/img/remarkable-dashboard.png)
 
@@ -13,11 +13,11 @@ fast waveform and upgrades them once the screen is idle.
 ```sh
 zinc run examples/remarkable/dashboard                    # macOS: e-ink emulator at 1620x2160 (mouse = pen)
 zinc build examples/remarkable/dashboard --target rmpp    # static aarch64 ELF (docker zinc/sdk-rmpp)
-zinc deploy examples/remarkable/dashboard --target rmpp   # copy to the tablet over ssh and start it
+zinc deploy examples/remarkable/dashboard --target rmpp   # install over ssh; launch from AppLoad
 ```
 
 Controls: tap a task or a habit day to toggle it, **Start** / **Pause** runs the focus timer, write in the
-scratchpad with the pen (the mouse on the desktop).
+scratchpad with the pen (the mouse on the desktop). The shared `RemarkableBar` shows local time, battery and **Quitter**; the scratchpad is session-only. Fingers operate the controls, including while the pen hovers; only the pen draws.
 
 ## What to look at
 

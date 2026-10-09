@@ -1,0 +1,8 @@
+{
+  "name": "remarkable",
+  "kind": "module",
+  "module": "zinc:remarkable",
+  "entry": "index.tsx",
+  "description": "reMarkable status toolbar: local clock, battery and app-owned exit; desktop preview supported",
+  "targets": { "rmpp": {}, "macos": {}, "linux": {} }
+}

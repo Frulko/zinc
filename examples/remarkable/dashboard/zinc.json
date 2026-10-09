@@ -1,7 +1,7 @@
 {
   "name": "dashboard",
   "entry": "src/main.tsx",
-  "display": "rmpp",
+  "display": { "driver": "rmpp" },
   "targets": {
     "macos": { "width": 1620, "height": 2160 },
     "linux": { "width": 1620, "height": 2160 }

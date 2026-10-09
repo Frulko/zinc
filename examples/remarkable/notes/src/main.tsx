@@ -3,9 +3,11 @@
 // widths, undo / clear, save (JSON) and export (SVG). On the desktop the mouse is the pen (right button erases).
 import { render } from 'zinc:ui/solid';
 import { InkCanvas } from 'zinc:ink';
-import { ink, loadPages } from './notebook';
+import { quit } from 'zinc:gfx';
+import { RemarkableBar } from 'zinc:remarkable';
+import { ink, loadPages, savePage } from './notebook';
 import { stepDemo } from './demo';
-import { DrawingBar, PageBar } from './components/toolbar';
+import { DrawingBar, PageBar, DisplayBar } from './components/toolbar';
 
 /** A 3 px black rule between the bars and the page. */
 function Rule(): i32 {
@@ -14,9 +16,11 @@ function Rule(): i32 {
 
 function App(): i32 {
   return <View class="flex-col h-full bg-white">
+    <RemarkableBar title="Notes" onQuit={() => { if (savePage()) quit(); }} />
     <DrawingBar />
     <Rule />
     <PageBar />
+    <DisplayBar />
     <Rule />
     <InkCanvas ink={ink} class="grow" />
   </View>;

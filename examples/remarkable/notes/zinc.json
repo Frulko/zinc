@@ -1,9 +1,18 @@
 {
   "name": "notes",
   "entry": "src/main.tsx",
-  "display": "rmpp",
+  "display": {
+    "driver": "rmpp",
+    "refresh_mode": "fast"
+  },
   "targets": {
-    "macos": { "width": 1620, "height": 2160 },
-    "linux": { "width": 1620, "height": 2160 }
+    "macos": {
+      "width": 1620,
+      "height": 2160
+    },
+    "linux": {
+      "width": 1620,
+      "height": 2160
+    }
   }
 }

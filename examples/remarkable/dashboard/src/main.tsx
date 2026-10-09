@@ -1,6 +1,7 @@
 // dashboard: an e-ink friendly JSX app for the reMarkable Paper Pro. High contrast, big targets, no animation:
 // only what changes is redrawn (the clock once a minute, the timer once a second, a tapped task), so display-rmpp
 // refreshes small rectangles with its fast waveform and upgrades them once the screen is idle.
+import { RemarkableBar } from 'zinc:remarkable';
 import { render } from 'zinc:ui/solid';
 import { InkCanvas, Ink } from 'zinc:ink';
 import { PAGE, LABEL } from './eink';
@@ -22,6 +23,7 @@ function Scratchpad(): i32 {
 
 function App(): i32 {
   return <View class={PAGE}>
+    <RemarkableBar title="Dashboard" />
     <View class="flex-row justify-between items-center">
       <ClockPanel />
       <TimerPanel />
