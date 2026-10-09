@@ -1,9 +1,10 @@
 ---
 id: ZN-320
 title: 'Installers: macOS .dmg, Linux AppImage and .deb'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:19'
+updated_date: '2026-10-09 00:03'
 labels:
   - packaging
   - desktop

@@ -9,10 +9,19 @@
 #pragma once
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace zn::zapp {
 
 constexpr int kFormat = 1;
+
+/** One member of a ustar archive: a file (mode 0644 or 0755) or, when `dir`, a directory (mode 0755). */
+struct TarEntry { std::string name, data; unsigned mode = 0644; bool dir = false; };
+/** A ustar archive of `entries` in the given order, deterministic (time 0, owner 0): .zapp, and the control and data members of a .deb. */
+std::string ustar(const std::vector<TarEntry>& entries);
+/** A Unix ar archive ("!<arch>", as .deb files use) of (name, bytes) members in order, deterministic (time 0, owner 0, mode 0644). */
+std::string ar(const std::vector<std::pair<std::string, std::string>>& members);
 
 /** The archive of `files` (name -> bytes): manifest.json is made here from the others. */
 std::string pack(const std::map<std::string, std::string>& files, const std::string& name, const std::string& engine);

@@ -75,6 +75,13 @@ $ plutil -p dist/myapp-macos/myapp.app/Contents/Info.plist
 The `.icns` is built at 16/32/128/256/512 px @1x and @2x. On a non-macOS host the `.icns` step is skipped (with a
 notice) — build the macOS bundle on macOS.
 
+## Debian packages
+
+`zinc export --target linux --deb` (also `rpi`, `rpi1`, `rmpp`) writes `dist/<name>_<version>_<arch>.deb` beside the export directory,
+without dpkg on the build machine: the export goes to `/opt/<name>/`, a launcher to `/usr/bin/<name>` and the `.desktop` file to
+`/usr/share/applications`. The control and data members are uncompressed tars (dpkg reads them) written deterministically, so two exports
+of the same project give the same bytes. Install with `sudo dpkg -i <name>_<version>_<arch>.deb`.
+
 ## Versioning
 
 Bump `zinc.json` `"version"` (semver). It appears in `Info.plist` (macOS), the `.desktop` file (Linux), the AppLoad

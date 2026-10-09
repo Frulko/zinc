@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include "frontend/project.h"
+#include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
 
@@ -53,7 +54,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]]", "the plugin table", "Lists the plugins visible to a project and where they run."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg)."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -457,9 +458,42 @@ int bench(const std::vector<std::string>& args) {
   return 0;
 }
 
+// A .deb of an export directory (ZN-320.01), written directly: an ar of debian-binary, control.tar and data.tar (uncompressed tars, which dpkg
+// reads), deterministic. The export goes to /opt/<package>/, a launcher to /usr/bin/<package>, the .desktop file to /usr/share/applications.
+static bool writeDeb(const fs::path& exportDir, const std::string& name, const std::string& version, const std::string& arch, const fs::path& deb, std::string& err) {
+  std::string pkg;
+  for (char c : name) pkg += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : (c == '.' || c == '+' ? c : '-');
+  if (pkg.size() < 2) pkg += "-app";
+  std::vector<zn::zapp::TarEntry> data{{"./", "", 0755, true}, {"./opt/", "", 0755, true}, {"./opt/" + pkg + "/", "", 0755, true}};
+  std::vector<fs::path> files;
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(exportDir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) files.push_back(it->path());
+  std::sort(files.begin(), files.end());
+  std::uintmax_t bytes = 0;
+  for (const fs::path& f : files) {
+    const std::string rel = "./opt/" + pkg + "/" + fs::relative(f, exportDir).generic_string();
+    if (fs::is_directory(f, ec)) { data.push_back({rel + "/", "", 0755, true}); continue; }
+    std::ifstream in(f, std::ios::binary); std::stringstream ss; ss << in.rdbuf();
+    const bool exec = (fs::status(f, ec).permissions() & fs::perms::owner_exec) != fs::perms::none;
+    bytes += ss.str().size();
+    data.push_back({rel, ss.str(), exec ? 0755u : 0644u});
+  }
+  const std::string launcher = "#!/bin/sh\nexec /opt/" + pkg + "/run.sh \"$@\"\n";
+  data.push_back({"./usr/", "", 0755, true}); data.push_back({"./usr/bin/", "", 0755, true}); data.push_back({"./usr/bin/" + pkg, launcher, 0755});
+  data.push_back({"./usr/share/", "", 0755, true}); data.push_back({"./usr/share/applications/", "", 0755, true});
+  data.push_back({"./usr/share/applications/" + pkg + ".desktop", "[Desktop Entry]\nType=Application\nName=" + name + "\nExec=/usr/bin/" + pkg + "\nTerminal=false\nCategories=Utility;\n"});
+  const std::string control = "Package: " + pkg + "\nVersion: " + version + "\nArchitecture: " + arch + "\nMaintainer: " + name + " developers <noreply@localhost>\nInstalled-Size: " +
+                              std::to_string((bytes + 1023) / 1024) + "\nSection: misc\nPriority: optional\nDescription: " + name + "\n " + name + " " + version + ", built with Zinc.\n";
+  const std::string archive = zn::zapp::ar({{"debian-binary", "2.0\n"}, {"control.tar", zn::zapp::ustar({{"./", "", 0755, true}, {"./control", control}})}, {"data.tar", zn::zapp::ustar(data)}});
+  std::ofstream out(deb, std::ios::binary);
+  out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
+  if (!out) { err = "cannot write " + deb.string(); return false; }
+  return true;
+}
+
 int exportApp(const std::vector<std::string>& args) {
-  Opts o = parseOpts(args, {"--target", "-o"}, {});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o"}, {"--deb"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos] [-o dir] [--deb]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
@@ -469,6 +503,8 @@ int exportApp(const std::vector<std::string>& args) {
   const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
 #endif
   const std::string zt = zigTargetFor(target);
+  const std::string arch = zt == "aarch64-linux" ? "arm64" : zt == "armhf-linux" ? "armhf" : zt == "x86_64-linux" ? "amd64" : "";   // Debian's names
+  if (has(o, "--deb") && arch.empty()) { std::fprintf(stderr, "zinc export: --deb is for the Linux targets (linux, rpi, rpi1, rmpp)\n"); return 2; }
   fs::path out = o.v.count("-o") ? fs::path(o.v["-o"]) : fs::path(p.dir) / "dist" / (p.name + "-" + target);
   std::error_code ec;
   fs::remove_all(out, ec);
@@ -487,6 +523,11 @@ int exportApp(const std::vector<std::string>& args) {
   if (target == "macos") {
     std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
     if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
+  }
+  if (has(o, "--deb")) {   // a Debian package of the export (ZN-320.01)
+    const fs::path deb = out.parent_path() / (p.name + "_" + p.version + "_" + arch + ".deb");
+    if (!writeDeb(out, p.name, p.version, arch, deb, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+    std::printf("%s\n", deb.string().c_str());
   }
   std::printf("%s\n", out.string().c_str());
   return 0;
