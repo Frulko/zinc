@@ -628,6 +628,8 @@ static Rect united(Rect a, Rect b) { grow(a, b); return a; }
 static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r) {
   r = intersect(r, screen);
   if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+  for (int32_t i = 0; i < n; i++)   // already covered: nothing to join (ZN-402)
+    if (out[i].x0 <= r.x0 && out[i].y0 <= r.y0 && out[i].x1 >= r.x1 && out[i].y1 >= r.y1) return;
   auto join_all = [&]() {
     for (;;) {
       int32_t hit = -1;
@@ -646,17 +648,41 @@ static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r) 
   join_all();   // the grown rect may now overlap or join others
   out[n++] = r;
 }
-int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max) {
+int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max, uint32_t* changed, uint32_t bulk_after) {
   int32_t n = 0;
+  uint32_t nch = 0;
   const Rect screen{0, 0, w, h};
+  Rect bulk = {w, h, 0, 0};   // past kBulkChanged changes: one box instead of joining every rectangle
   uint32_t cnt = a.count > b.count ? a.count : b.count;
   for (uint32_t i = 0; i < cnt; i++) {
     bool ina = i < a.count, inb = i < b.count;
     if (ina && inb && same(a, a.cmds[i], b, b.cmds[i])) continue;
+    if (++nch > bulk_after) {
+      if (ina) grow(bulk, cmd_bounds(a.cmds[i], w, h));
+      if (inb) grow(bulk, cmd_bounds(b.cmds[i], w, h));
+      continue;
+    }
     if (ina) damage_add(out, n, max, screen, cmd_bounds(a.cmds[i], w, h));
     if (inb) damage_add(out, n, max, screen, cmd_bounds(b.cmds[i], w, h));
   }
+  if (changed) *changed = nch;
+  if (nch > bulk_after) {
+    for (int32_t i = 0; i < n; i++) grow(bulk, out[i]);
+    bulk = intersect(bulk, screen);
+    n = bulk.x0 < bulk.x1 && bulk.y0 < bulk.y1 ? 1 : 0;
+    if (n) out[0] = bulk;
+  }
   return n;
+}
+Rect bounds_all(const Frame& f, int32_t w, int32_t h) {
+  Rect r = {w, h, 0, 0};
+  for (uint32_t i = 0; i < f.count; i++) {
+    const uint8_t k = f.cmds[i].kind;
+    if (k == CLEAR || k == CLIP || k == UNCLIP) return Rect{0, 0, w, h};   // their bounds are the screen: nothing can grow it further
+    grow(r, cmd_bounds(f.cmds[i], w, h));
+  }
+  r = intersect(r, Rect{0, 0, w, h});
+  return r.x0 < r.x1 && r.y0 < r.y1 ? r : Rect{0, 0, 0, 0};
 }
 
 // Compact previous frame (T0, ZRT_COMPACT_PREV): 12 bytes per command instead of the 48-byte command plus its share of the pools.

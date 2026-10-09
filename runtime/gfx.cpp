@@ -762,7 +762,13 @@ static void to_physical(Buf& b) {
 }
 
 static bool first_frame() { first = true; return true; }
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; prof::begin(); }
+// Bulk frames (ZN-402): when most commands changed, the damage is the union of everything the two frames draw, found without comparing them;
+// a full diff every 16th frame leaves the mode once the scene calms down. all_box caches that union per buffer.
+static bool bulk_mode = false;
+static uint32_t bulk_n = 0;
+static raster::Rect all_box[2];
+static bool all_ok[2];
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; all_ok[cur] = false; prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
@@ -785,7 +791,20 @@ void end_frame() {
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
   if (first || ovl_changed) set_full_damage();
-  else ndmg = raster::diff_rects(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS);
+  else if (bulk_mode && (++bulk_n & 15)) {
+    if (!all_ok[cur ^ 1]) { all_box[cur ^ 1] = raster::bounds_all(frame_of(before), pw, ph); all_ok[cur ^ 1] = true; }
+    all_box[cur] = raster::bounds_all(frame_of(now), pw, ph); all_ok[cur] = true;
+    raster::Rect a = all_box[cur ^ 1], b = all_box[cur];
+    const bool ea = a.x0 >= a.x1 || a.y0 >= a.y1, eb = b.x0 >= b.x1 || b.y0 >= b.y1;
+    if (ea) a = b; else if (!eb) { a.x0 = b.x0 < a.x0 ? b.x0 : a.x0; a.y0 = b.y0 < a.y0 ? b.y0 : a.y0; a.x1 = b.x1 > a.x1 ? b.x1 : a.x1; a.y1 = b.y1 > a.y1 ? b.y1 : a.y1; }
+    ndmg = (ea && eb) ? 0 : 1;
+    dmg[0] = a;
+  } else {
+    uint32_t changed = 0;
+    ndmg = raster::diff_rects(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS, &changed);
+    bulk_mode = changed > raster::kBulkChanged;
+    bulk_n = 0;
+  }
   if (vis.mode && vis_update(&now, true)) set_full_damage();
   if (prof_on) prof::mark(prof::DIFF);
   raster::Rect d = {pw, ph, 0, 0};

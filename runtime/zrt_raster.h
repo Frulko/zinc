@@ -81,7 +81,11 @@ void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, R
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 /** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */
-int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max);
+/** Past this many changed commands diff_rects returns one rectangle, the union of their bounds (ZN-402: a frame where most things move). */
+constexpr uint32_t kBulkChanged = 4096;
+int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max, uint32_t* changed = nullptr, uint32_t bulk_after = kBulkChanged);
+/** The union of the bounds of every command of a frame, within the screen (empty when it has none). */
+Rect bounds_all(const Frame& f, int32_t w, int32_t h);
 /** Compact record of a command of the previous frame (T0): content hash and damage bounds, 12 bytes. */
 struct CmdSig { uint32_t hash; int16_t x0, y0, x1, y1; };
 /** Fills `out[0 .. f.count)`. */

@@ -37,6 +37,11 @@ bool damageCheck(const char* before, const char* now, int& rects, bool& same) {
   rects = nf;
   same = nf == ns;
   for (int i = 0; same && i < nf; ++i) same = full[i].x0 == sig[i].x0 && full[i].y0 == sig[i].y0 && full[i].x1 == sig[i].x1 && full[i].y1 == sig[i].y1;
+  // the bulk damage (ZN-402) covers the exact one: diff_rects past its change threshold, and the union of everything the two frames draw
+  zrt::raster::Rect bulk[8], ba = zrt::raster::bounds_all(fa, w, h), bb = zrt::raster::bounds_all(fb, w, h);
+  const int nb = zrt::raster::diff_rects(fa, fb, w, h, bulk, 8, nullptr, 0);
+  auto inside = [](const zrt::raster::Rect& r, const zrt::raster::Rect& o) { return o.x0 <= r.x0 && o.y0 <= r.y0 && o.x1 >= r.x1 && o.y1 >= r.y1; };
+  for (int i = 0; same && i < nf; ++i) same = nb == 1 && inside(full[i], bulk[0]) && (inside(full[i], ba) || inside(full[i], bb) || inside(full[i], zrt::raster::Rect{std::min(ba.x0, bb.x0), std::min(ba.y0, bb.y0), std::max(ba.x1, bb.x1), std::max(ba.y1, bb.y1)}));
   return true;
 }
 
