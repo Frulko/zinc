@@ -14,7 +14,7 @@ import json, os, platform, re, shutil, subprocess, sys, tarfile, zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
 REPO = os.path.dirname(NEXT)
-VERSION = "0.0.1"
+VERSION = os.environ.get("ZINC_VERSION", "0.0.1")   # the release job sets it from the tag (v1.2.0 -> 1.2.0)
 # size budgets in MB of the download (the archive); a package over its budget fails the script
 BUDGET_MB = {"macos": 40, "linux": 40}
 

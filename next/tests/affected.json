@@ -19,6 +19,7 @@
     {"paths": ["tests/golden/ui-tokens/"], "tests": ["ui_tokens", "ui_docs"]},
     {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/prelude.cpp", "src/qjs/ext.cpp", "plugins/script/", "../examples/webgl-studio/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo", "webgl_studio"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign"]},
+    {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow"]},
     {"paths": ["src/tc/plugin_build"], "tests": ["plugin_build", "plugin_prebuilt", "native_plugins"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},
     {"paths": ["src/sim/chips/", "tests/native/chip_wave3.cpp", "tests/native/chip_common.h"], "tests": ["chip_models"]},

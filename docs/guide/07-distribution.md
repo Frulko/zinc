@@ -154,6 +154,35 @@ xcrun stapler staple dist/myapp-macos/myapp.app
 Verify with `codesign -dv --verbose=4 myapp.app` and `spctl -a -vv myapp.app`. (Notarization is Apple's server-side
 step; Zinc prepares the bundle but cannot notarize for you.)
 
+## Releases of Zinc itself (CI)
+
+The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
+builds, tests and packages (`tools/package`, the version taken from the tag); the macOS job signs and notarizes its package
+with `tools/sign-macos`; each job writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then
+the `release` job attaches every package and manifest to the release. Without the signing secrets the release still
+happens with an unsigned macOS package, and both the job log (a warning) and the release notes say so; without the update
+key the manifests are left out and the notes say that too.
+
+The owner's steps, once (Settings > Secrets and variables > Actions):
+
+| secret | what |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12` | the Developer ID Application certificate and its key, exported as .p12, base64 (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PASSWORD` | the password of that .p12 |
+| `ZINC_SIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | the notarization account: Apple ID, team ID, an app-specific password |
+| `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` whose public key is the release key compiled into zinc |
+
+Then, for each release:
+
+```sh
+git tag -a v0.1.0 -m "Zinc 0.1.0" && git push origin v0.1.0
+```
+
+`zinc update <https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest>` then finds it
+(the manifest's package URL is relative, so it resolves to the asset next to it). `tests/t0/release_workflow.sh` runs the
+manifest and release steps of the workflow locally (a stand-in for `gh`) and lints the workflow with actionlint.
+
 ## `zinc deploy` and Docker images
 
 ```sh
