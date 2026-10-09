@@ -97,6 +97,9 @@ static bool readFile(const std::string& path, std::string& out) {
 static std::vector<zn::tc::PluginLib> gPlugins;  // the native plugins built and loaded for this program, for the link line of zinc build
 static std::string gProjectDir = ".";
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
+static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
+static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
+static zn::tc::BundleSpec gBundleSpec;
 
 // A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
 static void installNativeProvider(const char* entry) {
@@ -116,6 +119,7 @@ static void installNativeProvider(const char* entry) {
     if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
     if (!zn::tc::loadPlugin(lib, err)) return false;
     gPlugins.push_back(lib);
+    gPluginDirs.push_back(p->dir);
     return true;
   };
   zn::frontend::gNativeLive = [](const std::string& module) {
@@ -157,6 +161,7 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   std::string err;
   if (!zn::tc::buildPlugin(*hit, gRoot, dir, zn::tc::pluginTarget(), lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
   gPlugins.push_back(lib);
+  gPluginDirs.push_back(hit->dir);
 }
 
 #ifdef ZN_HOST_GFX
@@ -244,6 +249,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
 static bool gDeviceCore = false;  // the program goes to a device core (ESP32): the optimizer only writes runtime calls that every core release has
 static std::vector<std::string> gSources;  // the texts of the files of the last program compiled: they decide which fonts and images are baked
 static std::vector<bool> gSourceIsLib;     // per file of gSources: one of the engine's own modules (ZN-428)
+static std::vector<std::string> gSourcePaths;   // the files of gSources that are files on disk: inputs of a compiled run (ZN-605)
 
 // The baked fonts and images of the last program compiled, as one blob (src/res); assets are the `assets` directory beside the entry file or above it.
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
@@ -289,9 +295,11 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   scanHostImports(prog);
   gSources.clear();
   gSourceIsLib.clear();
+  gSourcePaths.clear();
   for (const auto& f : prog.files) {
     gSources.push_back(f.text);
-    const std::string& p = f.path;   // the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files
+    const std::string& p = f.path;
+    if (!p.empty() && p[0] != '<' && p.rfind("zinc:", 0) != 0) gSourcePaths.push_back(p);   // the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files
     gSourceIsLib.push_back(p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos || p.find("/plugins/") != std::string::npos);
   }
   std::vector<zn::frontend::Diag> diags;
@@ -359,70 +367,6 @@ static void injectPermissions(const std::string& cpp, const char* entry, const s
   text.insert(mainAt, "extern \"C\" void zn_host_permissions_enforce(const char*);\n");
   std::ofstream o(cpp); o << text;
 }
-#ifdef ZN_HOST_GFX
-// `zinc run` of a program that draws compiles it as `zinc build` does and starts the executable, as the old toolchain's run did: native speed (ZN-398, D43).
-// One executable per entry is cached under ~/.zinc/cache/run, keyed by the program's C++ (resources included), zinc.json, the engine and the plugins: an unchanged
-// program starts at once. Returns the program's exit code, or -1 to interpret: --interp (ZINC_RUN=interp, set by zinc dev), test runs (ZINC_DETERMINISTIC,
-// ZINC_HEADLESS) unless --native, a dev bundle, a --profile, a program that does not draw, no C++ compiler, or a failed build (said on stderr).
-static int runCompiled(const zn::zbc::Module& zm, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
-  namespace fs = std::filesystem;
-  const char* mode = std::getenv("ZINC_RUN");
-  if (mode && !std::strcmp(mode, "interp")) return -1;
-  if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return -1;
-  bool draws = false;   // a zinc:gfx row (the graphics rows come before HostSysFirst): timers, files and processes alone stay interpreted (D43)
-  for (const zn::zbc::Function& fn : zm.functions)
-    for (std::size_t pc = 0; pc < fn.code.size() && !draws; pc += zn::instrLen(static_cast<zn::Op>(zn::opOf(fn.code[pc]))))
-      if (static_cast<zn::Op>(zn::opOf(fn.code[pc])) == zn::Op::Rt && zn::dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostGfxFrames) &&
-          zn::dOf(fn.code[pc]) < static_cast<unsigned>(zn::Rt::HostSysFirst)) draws = true;
-  if (gProfile || !draws) return -1;
-  const std::string exe = zn::tc::executablePath();
-  const fs::path libs = fs::path(exe).parent_path();
-  const char* cxx = std::getenv("CXX");
-  if (exe.empty() || !fs::exists(libs / "libzn_host_gfx.a") || (!cxx && std::system("command -v c++ >/dev/null 2>&1") != 0)) return -1;
-  std::vector<std::uint8_t> blob;
-  std::string err;
-  if (!bakeResources(entry.c_str(), blob, err)) return -1;   // the interpreter reports it
-  std::string key = zn::aot::emitCpp(zm, &blob, zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse());
-  auto stamp = [&](const fs::path& f) { std::error_code ec; auto t = fs::last_write_time(f, ec); key += "\n" + f.string() + " " + std::to_string(ec ? 0LL : static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(ec ? 0ULL : static_cast<unsigned long long>(fs::file_size(f, ec))); };
-  stamp(exe); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a");
-  for (const zn::tc::PluginLib& pl : gPlugins) stamp(pl.archive);
-  if (std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); key += "\n" + ss.str(); }
-  for (const char* v : {"CXX", "ZINC_TEXT", "ZN_KEEP_SYMBOLS"}) if (const char* e = std::getenv(v)) key += std::string("\n") + v + "=" + e;
-  key = zn::tc::sha256Hex(key);
-  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "run" / zn::tc::sha256Hex(entry).substr(0, 16);
-  const fs::path app = dir / "app", keyFile = dir / "key";
-  std::string have;
-  bool built = false;
-  { std::ifstream in(keyFile); std::getline(in, have); }
-  if (have != key || !fs::exists(app)) {
-    std::error_code ec;
-    fs::create_directories(dir, ec);
-    fs::remove(keyFile, ec);
-    if (zn::log::steps()) zn::log::step("build", "first run of this version: native build, cached for the next runs");
-    else std::fprintf(stderr, "zinc: compiling %s for this machine (cached for the next runs; --interp starts at once)\n", fs::path(entry).filename().c_str());
-    setenv("ZINC_STEPS", zn::log::steps() ? "1" : "0", 1);   // the build below shows its steps under this run's
-    built = true;
-    zn::log::Phase ph("run", "compile for the run");
-    auto q = [](const std::string& x) { std::string r = "'"; for (char c : x) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; };
-    if (std::system((q(exe) + " build " + q(entry) + " -o " + q((dir / "app.new").string())).c_str()) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
-    fs::rename(dir / "app.new", app, ec);
-    if (ec) return -1;
-    std::ofstream(keyFile) << key << "\n";
-  }
-  zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
-  zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
-  if (!projectDir.empty()) { std::error_code ec; fs::current_path(projectDir, ec); }
-  std::vector<std::string> av = {app.string()};
-  av.insert(av.end(), progArgs.begin(), progArgs.end());
-  std::vector<char*> cav;
-  for (std::string& a : av) cav.push_back(a.data());
-  cav.push_back(nullptr);
-  std::fflush(nullptr);
-  execv(app.c_str(), cav.data());
-  std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
-  return -1;
-}
-#endif
 
 // What a program links, for the SBOM and licences of `zinc export` (ZN-323): the scopes of third_party/components.json its link command pulls in, and its plugins.
 static void writeComponents(const std::string& file, const std::string& link, const std::vector<zn::tc::PluginLib>& plugins) {
@@ -436,6 +380,241 @@ static void writeComponents(const std::string& file, const std::string& link, co
   if (link.find("zn_frontend") != std::string::npos) cf << "frontend\n";
   for (const zn::tc::PluginLib& pl : plugins) if (!pl.display) cf << "plugin:" << pl.plugin << "\n";
 }
+// zinc build <file> -o <out> once the program is compiled: fonts and images baked, the AOT C++ written and compiled with the runtime, the host and the plugins.
+// A compiled run (ZN-605) calls it in-process with `run`: when the C++ and the link inputs hash to run->have, nothing is compiled (run->reused).
+struct RunBuild { std::string have, key; bool reused = false; };
+static int buildNative(const char* argv0, const char* entry, const char* out, zn::zbc::Module& zm, std::chrono::steady_clock::time_point tBuild, RunBuild* run = nullptr) {
+  namespace fs = std::filesystem;
+  fs::path libs = fs::absolute(argv0).parent_path(), cpp = fs::path(out).string() + ".cpp";
+  std::vector<std::uint8_t> blob;
+  if (zn::aot::usesHost(zm)) {
+    std::string err;
+    zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
+    if (!bakeResources(entry, blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+  }
+  const char* cxx = std::getenv("CXX");
+  bool haveLibs = fs::exists(libs / "libzn_rt.a");
+  bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
+  std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
+  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
+    for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().c_str()); return 2; } } }
+  std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
+  if (zn::aot::usesHost(zm)) {
+    std::string pf = zn::frontend::findProjectFile(entry);
+    zn::frontend::Project proj;
+    std::string perr;
+    if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+    if (proj.text == "shaped") {
+      std::string text;
+      { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+      std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
+      if (at != std::string::npos && mainAt != std::string::npos) {
+        text.insert(at + 26, "  zn_install_shaped_text();\n");
+        text.insert(mainAt, "void zn_install_shaped_text();\n");
+        { std::ofstream o(cpp); o << text; }
+        for (const char* l : {"libzn_text_gfx.a", "libzn_text.a", "libzn_harfbuzz.a", "libzn_sheenbidi.a", "libzn_unibreak.a"}) shapedLibs += " '" + (libs / l).string() + "'";
+      }
+    }
+  }
+  if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), entry, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
+  if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
+    if (zn::aot::usesHost(zm)) { std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX)\n"); fs::remove(cpp); return 1; }
+    std::string zig, err;
+    if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); fs::remove(cpp); return 1; }
+    bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), zn::tc::hostName(), out, err);
+    if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
+    if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    return 0;
+  }
+  bool usesScript = false;
+  for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
+  std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+  nativeLibs += shapedLibs;
+  for (const zn::tc::PluginLib& pl : gPlugins) {
+    if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
+#ifdef __APPLE__
+      nativeLibs += " -Wl,-force_load,'" + pl.archive + "'";
+#else
+      nativeLibs += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";
+#endif
+    } else nativeLibs += " '" + pl.archive + "'";
+    if (!pl.vendor.empty()) nativeLibs += " '" + pl.vendor + "'";
+    for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
+  }
+#if defined(__APPLE__) && defined(__aarch64__)
+  // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns
+  // field reloads after field stores into 16-byte loads over an 8-byte store, a store-forwarding stall: nbody 106 -> 37 ms without it (ZN-409)
+  const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false -Wl,-dead_strip";   // dead_strip: unreferenced functions of the libraries (ZN-603)
+#else
+  const char* noOutline = "";
+#endif
+  // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
+  const std::string lean = std::string(" -fno-stack-protector") + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
+  const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + lean + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
+  std::vector<fs::path> units{cpp};
+  units.insert(units.end(), moreUnits.begin(), moreUnits.end());
+  std::string inputs;   // one unit: compiled and linked by one command; several: their objects, compiled at once below
+  for (const fs::path& u : units) inputs += " '" + (moreUnits.empty() ? u.string() : u.string() + ".o") + "'";
+  std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
+                    (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
+                    (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+  if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
+    std::string k;
+    for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
+    k += "\n" + cmd;
+    auto stamp = [&](const fs::path& f) { std::error_code ec; auto t = fs::last_write_time(f, ec); k += "\n" + f.string() + " " + std::to_string(ec ? 0LL : static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(ec ? 0ULL : static_cast<unsigned long long>(fs::file_size(f, ec))); };
+    stamp(zn::tc::executablePath()); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a");
+    for (const zn::tc::PluginLib& pl : gPlugins) stamp(pl.archive);
+    run->key = zn::tc::sha256Hex(k);
+    if (run->key == run->have) {
+      for (const fs::path& u : units) { std::error_code ec; fs::remove(u, ec); }
+      run->reused = true;
+      return 0;
+    }
+    if (zn::log::steps()) zn::log::step("build", "first run of this version: native build, cached for the next runs");
+    else std::fprintf(stderr, "zinc: compiling %s for this machine (cached for the next runs; --interp starts at once)\n", fs::path(entry).filename().c_str());
+  }
+  writeComponents(std::string(out) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
+  zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
+  int rc = 0;
+  if (!moreUnits.empty()) {
+    zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(units.size()) + " units at once");
+    std::string all, waits;   // one shell runs the compilers in the background (std::system from several threads runs them one after the other on macOS)
+    for (std::size_t k = 0; k < units.size(); ++k) {
+      all += "( " + std::string(cxx ? cxx : "c++") + cflags + " -c '" + units[k].string() + "' -o '" + units[k].string() + ".o' ) & p" + std::to_string(k) + "=$!; ";
+      waits += "wait $p" + std::to_string(k) + " || r=1; ";
+    }
+    rc = std::system((all + "r=0; " + waits + "exit $r").c_str());
+  }
+  if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = std::system(cmd.c_str()); }
+  for (const fs::path& u : units) {
+    std::error_code ec;
+    if (!moreUnits.empty()) fs::remove(u.string() + ".o", ec);
+    if (!std::getenv("ZN_KEEP_CPP")) fs::remove(u, ec);
+  }
+  if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
+  { std::error_code ec; const auto sz = fs::file_size(out, ec); char mb[32]; std::snprintf(mb, sizeof mb, "%.1f MB", ec ? 0.0 : static_cast<double>(sz) / 1e6); zn::log::step("done", zn::log::shortPath(fs::absolute(out).string()) + " (" + mb + ")", zn::log::since(tBuild)); }
+  if (!gBundleOut.empty()) {
+    std::string berr;
+    if (!zn::tc::writeBundle(gBundleSpec, out, gBundleOut, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
+    std::fprintf(stderr, "zinc: wrote %s (ad-hoc signed; to sign for distribution: codesign --force --options runtime --sign \"Developer ID Application: ...\" %s)\n", gBundleOut.c_str(), gBundleOut.c_str());
+  }
+  return 0;
+}
+
+#ifdef ZN_HOST_GFX
+// `zinc run` of a program that draws compiles it as `zinc build` does and starts the executable, as the old toolchain's run did: native speed (ZN-398, D43).
+// One executable per entry is cached under ~/.zinc/cache/run/<entry>: app, key (its C++ and link inputs, hashed) and inputs (ZN-605), the files the
+// compile and the bake read (sources, zinc.json, assets, fonts, plugin directories) with their times and sizes under a line of the engine's stamps and the
+// environment the compiler reads. runCached starts the app before any compile when no input changed; else runCompiled builds in-process from the program
+// just compiled, and compiles no C++ when the key is the same (a touched file, an edited comment). -1 means interpret: --interp (ZINC_RUN=interp, set by
+// zinc dev), test runs (ZINC_DETERMINISTIC, ZINC_HEADLESS) unless --native, a dev bundle, a --profile, a program that does not draw, no C++ compiler, or a
+// failed build (said on stderr).
+namespace runcache {
+namespace fs = std::filesystem;
+static fs::path dirOf(const std::string& entry) { return fs::path(zn::tc::home()) / "cache" / "run" / zn::tc::sha256Hex(entry).substr(0, 16); }
+static std::string stampOf(const fs::path& f) {
+  std::error_code ec;
+  const auto t = fs::last_write_time(f, ec);
+  if (ec) return "-";
+  const auto n = fs::is_regular_file(f, ec) ? fs::file_size(f, ec) : 0;
+  return std::to_string(static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(static_cast<unsigned long long>(n));
+}
+static std::string signature(const std::string& entry) {
+  const fs::path exe = zn::tc::executablePath(), libs = exe.parent_path();
+  std::string s = entry;
+  for (const fs::path& f : {exe, libs / "libzn_rt.a", libs / "libzn_host_gfx.a"}) s += " " + stampOf(f);
+  for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_NATIVE", "ZINC_PLUGIN_CC", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
+                        "ZN_AOT_PART_BYTES", "ZN_DEBUG_CLOSURES", "ZN_KEEP_SYMBOLS", "ZN_KEEP_UNREACHABLE", "ZN_NO_OPT", "ZN_NO_UNROLL"})
+    if (const char* e = std::getenv(v)) s += std::string(" ") + v + "=" + e;
+  return s;
+}
+static bool wanted() {
+  const char* mode = std::getenv("ZINC_RUN");
+  if (mode && !std::strcmp(mode, "interp")) return false;
+  if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return false;
+  return !gProfile;
+}
+/** After a build: what it read, for the next run's check. */
+static void writeInputs(const fs::path& dir, const std::string& entry) {
+  std::set<std::string> in(gSourcePaths.begin(), gSourcePaths.end());
+  if (std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) in.insert(pf);
+  auto tree = [&](const fs::path& d) {   // a directory with everything under it: an added or removed file changes a directory's time
+    std::error_code ec;
+    if (!fs::is_directory(d, ec)) return;
+    in.insert(d.string());
+    for (auto it = fs::recursive_directory_iterator(d, fs::directory_options::skip_permission_denied, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) in.insert(it->path().string());
+  };
+  const fs::path ed = fs::absolute(entry).parent_path();
+  for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { tree(d); break; }   // as bakeResources finds them
+  tree(fs::path(gRoot + "/../lib/fonts"));
+  in.insert(gRoot + "/../targets/capabilities.json");   // zinc:platform
+  in.insert(gRoot + "/third_party/lucide/icon-nodes.json");   // zinc:icons/lucide
+  for (const std::string& d : gPluginDirs) tree(d);
+  std::ofstream o(dir / "inputs");
+  o << signature(entry) << "\n";
+  for (const std::string& f : in) o << stampOf(f) << "\t" << f << "\n";
+}
+static int exec(const fs::path& app, bool built, const std::string& projectDir, const std::vector<std::string>& progArgs) {
+  zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
+  zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
+  if (!projectDir.empty()) { std::error_code ec; fs::current_path(projectDir, ec); }
+  std::vector<std::string> av = {app.string()};
+  av.insert(av.end(), progArgs.begin(), progArgs.end());
+  std::vector<char*> cav;
+  for (std::string& a : av) cav.push_back(a.data());
+  cav.push_back(nullptr);
+  std::fflush(nullptr);
+  execv(app.c_str(), cav.data());
+  std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
+  return -1;
+}
+}  // namespace runcache
+/** Before the compile: the cached executable when nothing it was built from changed. */
+static int runCached(const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
+  namespace fs = std::filesystem;
+  if (!runcache::wanted()) return -1;
+  const fs::path dir = runcache::dirOf(entry);
+  std::ifstream in(dir / "inputs");
+  std::string line;
+  if (!in || !std::getline(in, line) || line != runcache::signature(entry) || !fs::exists(dir / "app")) return -1;
+  while (std::getline(in, line)) {
+    const std::size_t tab = line.find('\t');
+    if (tab == std::string::npos || runcache::stampOf(line.substr(tab + 1)) != line.substr(0, tab)) return -1;
+  }
+  return runcache::exec(dir / "app", false, projectDir, progArgs);
+}
+/** After the compile: builds the executable in-process from `zm` (one compile, one bake), or keeps the cached one when its C++ did not change. */
+static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
+  namespace fs = std::filesystem;
+  if (!runcache::wanted()) return -1;
+  bool draws = false;   // a zinc:gfx row (the graphics rows come before HostSysFirst): timers, files and processes alone stay interpreted (D43)
+  for (const zn::zbc::Function& fn : zm.functions)
+    for (std::size_t pc = 0; pc < fn.code.size() && !draws; pc += zn::instrLen(static_cast<zn::Op>(zn::opOf(fn.code[pc]))))
+      if (static_cast<zn::Op>(zn::opOf(fn.code[pc])) == zn::Op::Rt && zn::dOf(fn.code[pc]) >= static_cast<unsigned>(zn::Rt::HostGfxFrames) &&
+          zn::dOf(fn.code[pc]) < static_cast<unsigned>(zn::Rt::HostSysFirst)) draws = true;
+  if (!draws) return -1;
+  const std::string exe = zn::tc::executablePath();
+  const fs::path libs = fs::path(exe).parent_path();
+  const char* cxx = std::getenv("CXX");
+  if (exe.empty() || !fs::exists(libs / "libzn_host_gfx.a") || (!cxx && std::system("command -v c++ >/dev/null 2>&1") != 0)) return -1;
+  const fs::path dir = runcache::dirOf(entry), app = dir / "app", keyFile = dir / "key";
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  fs::remove(dir / "inputs", ec);   // stale until this build is done
+  RunBuild rb;
+  if (fs::exists(app)) { std::ifstream k(keyFile); std::getline(k, rb.have); }
+  if (buildNative(exe.c_str(), entry.c_str(), (dir / "app.new").c_str(), zm, std::chrono::steady_clock::now(), &rb) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
+  if (!rb.reused) {
+    fs::rename(dir / "app.new", app, ec);
+    if (ec) return -1;
+    std::ofstream(keyFile) << rb.key << "\n";
+  }
+  runcache::writeInputs(dir, entry);
+  return runcache::exec(app, !rb.reused, projectDir, progArgs);
+}
+#endif
+
 // A .zapp archive (ZN-318), checked and unpacked once into ~/.zinc/cache/zapp/<sha>; `zbc` is its program. False with `err` when refused.
 static bool unpackZapp(const std::string& archive, std::string& zbc, std::string& err) {
   namespace fs = std::filesystem;
@@ -563,8 +742,6 @@ extern "C" int zn_host_update(const char* op, const char* args, char* out, int c
 static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
-static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
-static zn::tc::BundleSpec gBundleSpec;
 
 #ifdef ZN_HOST_GFX
 // gl.zincPresent (WebGL module, ZN-411): the module writes the canvas into the runtime image's own pixels
@@ -1016,6 +1193,13 @@ int main(int argc, char** argv) {
     if (shapedText || (std::getenv("ZINC_TEXT") && !std::strcmp(std::getenv("ZINC_TEXT"), "shaped"))) zn::text::installShapedGfx();   // ZN-224
     zn::host::setGrowDrawCommands(window.growDrawCommands);
 #endif
+#ifdef ZN_HOST_GFX
+    if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") {   // the cached executable of a compiled run, when nothing it was built from changed (ZN-605)
+      std::vector<std::string> progArgs;
+      for (int k = 4; k < argc; ++k) progArgs.push_back(argv[k]);
+      if (int rc = runCached(std::filesystem::absolute(path).string(), projectDir, progArgs); rc >= 0) return rc;
+    }
+#endif
     zn::zbc::Module zm;
     if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
       std::ifstream in(path, std::ios::binary);
@@ -1369,106 +1553,7 @@ int main(int argc, char** argv) {
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     installDisplayDriver("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
-    namespace fs = std::filesystem;
-    fs::path libs = fs::absolute(argv[0]).parent_path(), cpp = fs::path(argv[4]).string() + ".cpp";
-    std::vector<std::uint8_t> blob;
-    if (zn::aot::usesHost(zm)) {
-      std::string err;
-      zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
-      if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
-    }
-    const char* cxx = std::getenv("CXX");
-    bool haveLibs = fs::exists(libs / "libzn_rt.a");
-    bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
-    std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
-    { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
-      for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(argv[4]).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().c_str()); return 2; } } }
-    std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
-    if (zn::aot::usesHost(zm)) {
-      std::string pf = zn::frontend::findProjectFile(argv[2]);
-      zn::frontend::Project proj;
-      std::string perr;
-      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
-      if (proj.text == "shaped") {
-        std::string text;
-        { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
-        if (at != std::string::npos && mainAt != std::string::npos) {
-          text.insert(at + 26, "  zn_install_shaped_text();\n");
-          text.insert(mainAt, "void zn_install_shaped_text();\n");
-          { std::ofstream o(cpp); o << text; }
-          for (const char* l : {"libzn_text_gfx.a", "libzn_text.a", "libzn_harfbuzz.a", "libzn_sheenbidi.a", "libzn_unibreak.a"}) shapedLibs += " '" + (libs / l).string() + "'";
-        }
-      }
-    }
-    if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), argv[2], zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
-    if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
-      if (zn::aot::usesHost(zm)) { std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX)\n"); fs::remove(cpp); return 1; }
-      std::string zig, err;
-      if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); fs::remove(cpp); return 1; }
-      bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), zn::tc::hostName(), argv[4], err);
-      if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
-      if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-      return 0;
-    }
-    bool usesScript = false;
-    for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
-    std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
-    nativeLibs += shapedLibs;
-    for (const zn::tc::PluginLib& pl : gPlugins) {
-      if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
-#ifdef __APPLE__
-        nativeLibs += " -Wl,-force_load,'" + pl.archive + "'";
-#else
-        nativeLibs += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";
-#endif
-      } else nativeLibs += " '" + pl.archive + "'";
-      if (!pl.vendor.empty()) nativeLibs += " '" + pl.vendor + "'";
-      for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
-    }
-#if defined(__APPLE__) && defined(__aarch64__)
-    // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns
-    // field reloads after field stores into 16-byte loads over an 8-byte store, a store-forwarding stall: nbody 106 -> 37 ms without it (ZN-409)
-    const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false -Wl,-dead_strip";   // dead_strip: unreferenced functions of the libraries (ZN-603)
-#else
-    const char* noOutline = "";
-#endif
-    // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
-    const std::string lean = std::string(" -fno-stack-protector") + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
-    const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + lean + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
-    std::vector<fs::path> units{cpp};
-    units.insert(units.end(), moreUnits.begin(), moreUnits.end());
-    std::string inputs;   // one unit: compiled and linked by one command; several: their objects, compiled at once below
-    for (const fs::path& u : units) inputs += " '" + (moreUnits.empty() ? u.string() : u.string() + ".o") + "'";
-    std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
-                      (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
-                      (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
-    writeComponents(std::string(argv[4]) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
-    zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
-    int rc = 0;
-    if (!moreUnits.empty()) {
-      zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(units.size()) + " units at once");
-      std::string all, waits;   // one shell runs the compilers in the background (std::system from several threads runs them one after the other on macOS)
-      for (std::size_t k = 0; k < units.size(); ++k) {
-        all += "( " + std::string(cxx ? cxx : "c++") + cflags + " -c '" + units[k].string() + "' -o '" + units[k].string() + ".o' ) & p" + std::to_string(k) + "=$!; ";
-        waits += "wait $p" + std::to_string(k) + " || r=1; ";
-      }
-      rc = std::system((all + "r=0; " + waits + "exit $r").c_str());
-    }
-    if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = std::system(cmd.c_str()); }
-    for (const fs::path& u : units) {
-      std::error_code ec;
-      if (!moreUnits.empty()) fs::remove(u.string() + ".o", ec);
-      if (!std::getenv("ZN_KEEP_CPP")) fs::remove(u, ec);
-    }
-    if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
-    { std::error_code ec; const auto sz = fs::file_size(argv[4], ec); char mb[32]; std::snprintf(mb, sizeof mb, "%.1f MB", ec ? 0.0 : static_cast<double>(sz) / 1e6); zn::log::step("done", zn::log::shortPath(fs::absolute(argv[4]).string()) + " (" + mb + ")", zn::log::since(tBuild)); }
-    if (!gBundleOut.empty()) {
-      std::string berr;
-      if (!zn::tc::writeBundle(gBundleSpec, bundleExe, gBundleOut, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
-      std::fprintf(stderr, "zinc: wrote %s (ad-hoc signed; to sign for distribution: codesign --force --options runtime --sign \"Developer ID Application: ...\" %s)\n", gBundleOut.c_str(), gBundleOut.c_str());
-    }
-    return 0;
+    return buildNative(argv[0], argv[2], argv[4], zm, tBuild);
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=cpp")) {  // zinc --emit=cpp <file>: the C++ of the AOT build
     zn::zbc::Module zm;
