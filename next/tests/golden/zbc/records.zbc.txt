@@ -294,30 +294,3 @@ func @main() -> void nregs=6
  280  LogEnd   
  281  Release  r0
  282  RetV     
-func @dist2(ref Point, ref Point) -> f64 nregs=4
-   0  GetField r2, r0, .0
-   1  GetField r3, r1, .0
-   2  SubF64   r2, r2, r3
-   3  GetField r3, r0, .1
-   4  Release  r0
-   5  GetField r0, r1, .1
-   6  Release  r1
-   7  SubF64   r0, r3, r0
-   8  MulF64   r1, r2, r2
-   9  MulF64   r0, r0, r0
-  10  AddF64   r0, r1, r0
-  11  Ret      r0
-func @zero() -> ref Point nregs=2
-   0  New      r0, Point
-   1  LoadK    r1, f64 0
-   2  SetField r0, r1, .0
-   3  LoadK    r1, f64 0
-   4  SetField r0, r1, .1
-   5  Ret      r0
-func @withX(ref Point, f64) -> ref Point nregs=3
-   0  New      r2, Point
-   1  SetField r2, r1, .0
-   2  GetField r1, r0, .1
-   3  Release  r0
-   4  SetField r2, r1, .1
-   5  Ret      r2

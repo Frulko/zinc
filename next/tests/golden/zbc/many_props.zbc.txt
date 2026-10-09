@@ -148,21 +148,6 @@ func @main() -> void nregs=15
  141  LogI     r4
  142  LogEnd   
  143  RetV     
-func @Many.constructor(ref Many, i, i, i, i, i, i, i, i, i, i, i, i) -> void nregs=13
-   0  SetField r0, r1, .0
-   1  SetField r0, r2, .1
-   2  SetField r0, r3, .2
-   3  SetField r0, r4, .3
-   4  SetField r0, r5, .4
-   5  SetField r0, r6, .5
-   6  SetField r0, r7, .6
-   7  SetField r0, r8, .7
-   8  SetField r0, r9, .8
-   9  SetField r0, r10, .9
-  10  SetField r0, r11, .10
-  11  SetField r0, r12, .11
-  12  Release  r0
-  13  RetV     
 func @Many.sum(ref Many) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r0, .1
@@ -189,36 +174,6 @@ func @Many.sum(ref Many) -> i nregs=3
   22  Release  r0
   23  AddI32   r0, r1, r2
   24  Ret      r0
-func @Sub.constructor(ref Sub) -> void nregs=13
-   0  Move     r1, r0
-   1  Retain   r1
-   2  Release  r0
-   3  LoadI    r0, 1
-   4  LoadI    r2, 2
-   5  LoadI    r3, 3
-   6  LoadI    r4, 4
-   7  LoadI    r5, 5
-   8  LoadI    r6, 6
-   9  LoadI    r7, 7
-  10  LoadI    r8, 8
-  11  LoadI    r9, 9
-  12  LoadI    r10, 10
-  13  LoadI    r11, 11
-  14  LoadI    r12, 12
-  15  SetField r1, r0, .0
-  16  SetField r1, r2, .1
-  17  SetField r1, r3, .2
-  18  SetField r1, r4, .3
-  19  SetField r1, r5, .4
-  20  SetField r1, r6, .5
-  21  SetField r1, r7, .6
-  22  SetField r1, r8, .7
-  23  SetField r1, r9, .8
-  24  SetField r1, r10, .9
-  25  SetField r1, r11, .10
-  26  SetField r1, r12, .11
-  27  Release  r1
-  28  RetV     
 func @Sub.twice(ref Sub) -> i nregs=4
    0  Move     r1, r0
    1  Retain   r1

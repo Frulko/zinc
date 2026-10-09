@@ -555,9 +555,3 @@ func @main() -> void nregs=13
  551  LogEnd   
  552  Release  r0
  553  RetV     
-func @greet(ref str) -> ref str nregs=3
-   0  LoadStr  r1, "hi "
-   1  Move     r2, r0
-   2  Rt       r1, string.#concat
-   3  Release  r0
-   4  Ret      r1

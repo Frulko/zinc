@@ -503,6 +503,58 @@ void divByPowerOfTwo(Module& m) {
   }
 }
 
+// Functions no reachable code can call are dropped (ZN-431): from @main, through direct calls and through the vtables of the classes reachable
+// code constructs (closures, callbacks, promise jobs and onFrame handlers are such objects, so they stay). A class nothing constructs keeps its
+// layout and becomes abstract when its vtable loses methods: nothing can call them. Function indices are renumbered in calls and vtables.
+void removeUnreachable(Module& m) {
+  const std::size_t nf = m.functions.size();
+  if (nf <= 1) return;
+  std::vector<char> live(nf, 0), built(m.classes.size(), 0);
+  std::vector<std::uint32_t> work{0};
+  live[0] = 1;
+  auto reach = [&](std::uint32_t fn) { if (fn < nf && !live[fn]) { live[fn] = 1; work.push_back(fn); } };
+  auto build = [&](std::uint32_t c) {
+    if (c >= built.size() || built[c]) return;
+    built[c] = 1;
+    for (std::uint32_t fn : m.classes[c].vtable) if (fn != kNoClass) reach(fn);
+  };
+  // the classes the runtime itself instantiates (src/rt/machine.cpp: JSON.parse, any values) are built even when no code says `new`
+  for (std::uint32_t c = 0; c < m.classes.size(); ++c) {
+    const std::string& n = m.classes[c].name;
+    if (n == "DynNum" || n == "DynStr" || n == "DynBool" || n == "DynArr" || n == "DynObj" || n == "DynUndef" || n == "DynNull") build(c);
+  }
+  while (!work.empty()) {
+    const Function& f = m.functions[work.back()];
+    work.pop_back();
+    for (const Block& b : f.blocks)
+      for (const Inst& i : b.insts) {
+        if (i.op == IrOp::Call) reach(i.sym);
+        else if (i.op == IrOp::New) build(i.sym);
+      }
+  }
+  std::vector<std::uint32_t> to(nf, kNoClass);
+  std::uint32_t next = 0;
+  for (std::size_t k = 0; k < nf; ++k) if (live[k]) to[k] = next++;
+  if (next == nf) return;
+  for (std::size_t c = 0; c < m.classes.size(); ++c) {
+    Class& cl = m.classes[c];
+    bool lost = false;
+    for (std::uint32_t& fn : cl.vtable) {
+      if (fn == kNoClass) continue;
+      if (fn < nf && to[fn] != kNoClass) fn = to[fn];
+      else { fn = kNoClass; lost = true; }
+    }
+    if (lost && !built[c] && !cl.isInterface) cl.isAbstract = true;
+  }
+  std::vector<Function> kept;
+  kept.reserve(next);
+  for (std::size_t k = 0; k < nf; ++k) if (live[k]) kept.push_back(std::move(m.functions[k]));
+  m.functions = std::move(kept);
+  for (Function& f : m.functions)
+    for (Block& b : f.blocks)
+      for (Inst& i : b.insts) if (i.op == IrOp::Call) i.sym = to[i.sym];
+}
+
 }  // namespace
 
 void optimize(Module& m, bool deviceCore) {
@@ -514,7 +566,8 @@ void optimize(Module& m, bool deviceCore) {
   divByPowerOfTwo(m);
   threadBranches(m);  // after inlining: an inlined `a && b` joins like a written one
   cse(m);
-  hoistConsts(m);     // last: the constants the inlined bodies brought are loaded once too
+  hoistConsts(m);     // the constants the inlined bodies brought are loaded once too
+  if (!std::getenv("ZN_KEEP_UNREACHABLE")) removeUnreachable(m);   // last: inlining leaves more functions without callers
 }
 
 }  // namespace zn::ir

@@ -1,6 +1,6 @@
-class Animal { i }
-  vtable .sound -> @Animal.sound
-  vtable .describe -> @Animal.describe
+abstract class Animal { i }
+  method .sound
+  method .describe
 class Dog : Animal { i, i }
   vtable .sound -> @Dog.sound
   vtable .describe -> @Animal.describe
@@ -66,14 +66,6 @@ func @main() -> void nregs=6
   55  LogI     r1
   56  LogEnd   
   57  RetV     
-func @Animal.constructor(ref Animal, i) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     
-func @Animal.sound(ref Animal) -> i nregs=1
-   0  Release  r0
-   1  LoadI    r0, 0
-   2  Ret      r0
 func @Animal.describe(ref Animal) -> i nregs=3
    0  GetField r1, r0, .0
    1  LoadI    r2, 10
@@ -82,36 +74,13 @@ func @Animal.describe(ref Animal) -> i nregs=3
    4  CallVirt r2, .sound
    5  AddI32   r0, r1, r2
    6  Ret      r0
-func @Dog.constructor(ref Dog) -> void nregs=3
-   0  Move     r1, r0
-   1  Retain   r1
-   2  LoadI    r2, 4
-   3  SetField r1, r2, .0
-   4  Release  r1
-   5  LoadI    r1, 3
-   6  SetField r0, r1, .1
-   7  Release  r0
-   8  RetV     
 func @Dog.sound(ref Dog) -> i nregs=1
    0  Release  r0
    1  LoadI    r0, 1
    2  Ret      r0
-func @Bird.constructor(ref Bird) -> void nregs=2
-   0  Move     r1, r0
-   1  Retain   r1
-   2  Release  r0
-   3  LoadI    r0, 2
-   4  SetField r1, r0, .0
-   5  Release  r1
-   6  RetV     
 func @Bird.sound(ref Bird) -> i nregs=2
    0  Move     r1, r0
    1  Release  r0
    2  LoadI    r0, 0
    3  AddI32K  r0, r0, 2
    4  Ret      r0
-func @twice(ref Animal) -> i nregs=2
-   0  CallVirt r0, .sound
-   1  LoadI    r1, 2
-   2  MulI32   r0, r0, r1
-   3  Ret      r0

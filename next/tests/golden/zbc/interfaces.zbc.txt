@@ -49,10 +49,6 @@ func @main() -> void nregs=7
   38  LogF64   r1
   39  LogEnd   
   40  RetV     
-func @Sq.constructor(ref Sq, f64) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     
 func @Sq.area(ref Sq) -> f64 nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r0, .0
@@ -66,10 +62,6 @@ func @Sq.scale(ref Sq, f64) -> f64 nregs=4
    3  MulF64   r0, r2, r3
    4  MulF64   r0, r0, r1
    5  Ret      r0
-func @Circ.constructor(ref Circ, f64) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     
 func @Circ.area(ref Circ) -> f64 nregs=3
    0  LoadK    r1, f64 3
    1  GetField r2, r0, .0
@@ -87,11 +79,3 @@ func @Circ.scale(ref Circ, f64) -> f64 nregs=4
    5  MulF64   r0, r2, r3
    6  AddF64   r0, r0, r1
    7  Ret      r0
-func @total(ref Shape, ref Shape) -> f64 nregs=5
-   0  Move     r2, r0
-   1  CallVirt r2, .area
-   2  LoadK    r4, f64 2
-   3  Move     r3, r1
-   4  CallVirt r3, .scale
-   5  AddF64   r0, r2, r3
-   6  Ret      r0

@@ -1,13 +1,13 @@
-class Error { ref str, ref str }
-  vtable .__errorString -> @Error.__errorString
-class TypeError : Error { ref str, ref str }
-  vtable .__errorString -> @Error.__errorString
-class RangeError : Error { ref str, ref str }
-  vtable .__errorString -> @Error.__errorString
-class SyntaxError : Error { ref str, ref str }
-  vtable .__errorString -> @Error.__errorString
-class ReferenceError : Error { ref str, ref str }
-  vtable .__errorString -> @Error.__errorString
+abstract class Error { ref str, ref str }
+  method .__errorString
+abstract class TypeError : Error { ref str, ref str }
+  method .__errorString
+abstract class RangeError : Error { ref str, ref str }
+  method .__errorString
+abstract class SyntaxError : Error { ref str, ref str }
+  method .__errorString
+abstract class ReferenceError : Error { ref str, ref str }
+  method .__errorString
 class P { i, i }
 class [i32, i32] { i, i }
 class [i32, f64] { i, f64 }
@@ -144,107 +144,3 @@ func @main() -> void nregs=17
  128  LogI     r1
  129  LogEnd   
  130  RetV     
-func @Error.constructor(ref Error, ref str) -> void nregs=3
-   0  LoadStr  r2, "Error"
-   1  SetField r0, r2, .1
-   2  SetField r0, r1, .0
-   3  Release  r0
-   4  RetV     
-func @Error.__errorString(ref Error) -> ref str nregs=5
-   0  GetField r1, r0, .0
-   1  Retain   r1
-   2  LoadStr  r3, ""
-   3  Move     r2, r1
-   4  Rt       r2, string.#eq
-   5  Release  r1
-   6  JmpIfNot r2, -> 11
-   7  GetField r1, r0, .1
-   8  Retain   r1
-   9  Release  r0
-  10  Jmp      -> 26
-  11  GetField r1, r0, .1
-  12  Retain   r1
-  13  LoadStr  r3, ": "
-  14  Move     r2, r1
-  15  Rt       r2, string.#concat
-  16  Release  r1
-  17  GetField r1, r0, .0
-  18  Retain   r1
-  19  Release  r0
-  20  Move     r3, r2
-  21  Move     r4, r1
-  22  Rt       r3, string.#concat
-  23  Release  r2
-  24  Release  r1
-  25  Move     r1, r3
-  26  Ret      r1
-func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "TypeError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "RangeError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "SyntaxError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @ReferenceError.constructor(ref ReferenceError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "ReferenceError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @P.constructor(ref P, i, i) -> void nregs=3
-   0  SetField r0, r1, .0
-   1  SetField r0, r2, .1
-   2  Release  r0
-   3  RetV     
-func @minmax(i, i) -> ref [i32, i32] nregs=3
-   0  JLeI     r1, r0, -> 6
-   2  New      r2, [i32, i32]
-   3  SetField r2, r0, .0
-   4  SetField r2, r1, .1
-   5  Jmp      -> 9
-   6  New      r2, [i32, i32]
-   7  SetField r2, r1, .0
-   8  SetField r2, r0, .1
-   9  Ret      r2
-func @dist(ref [i32, i32], ref P) -> i nregs=5
-   0  GetField r2, r0, .0
-   1  GetField r3, r0, .1
-   2  Release  r0
-   3  GetField r0, r1, .0
-   4  GetField r4, r1, .1
-   5  Release  r1
-   6  AddI32   r1, r2, r3
-   7  AddI32   r0, r1, r0
-   8  AddI32   r0, r0, r4
-   9  Ret      r0

@@ -580,7 +580,3 @@ func @main() -> void nregs=12
  575  LogI     r1
  576  LogEnd   
  577  RetV     
-func @Box.constructor(ref Box, i) -> void nregs=2
-   0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     

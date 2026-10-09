@@ -327,67 +327,6 @@ func @main() -> void nregs=17
  344  LogI     r2
  345  LogEnd   
  346  RetV     
-func @describe(i) -> ref str nregs=2
-   0  JNeIK    r0, 0, -> 4
-   2  LoadStr  r1, "up"
-   3  Ret      r1
-   4  JNeIK    r0, 10, -> 7
-   6  Jmp      -> 9
-   7  JNeIK    r0, 11, -> 11
-   9  LoadStr  r0, "side"
-  10  Ret      r0
-  11  LoadStr  r0, "down"
-  12  Ret      r0
-func @weird(i) -> ref str nregs=5
-   0  LoadStr  r1, ""
-   1  JNeIK    r0, 1, -> 8
-   3  LoadStr  r3, "one "
-   4  Move     r2, r1
-   5  Rt       r2, string.#concat
-   6  Move     r1, r2
-   7  Jmp      -> 16
-   8  JEqIK    r0, 2, -> 21
-  10  JNeIK    r0, 3, -> 16
-  12  LoadStr  r3, "three "
-  13  Move     r2, r1
-  14  Rt       r2, string.#concat
-  15  Jmp      -> 25
-  16  LoadStr  r3, "dflt "
-  17  Move     r2, r1
-  18  Rt       r2, string.#concat
-  19  Release  r1
-  20  Move     r1, r2
-  21  LoadStr  r3, "two "
-  22  Move     r2, r1
-  23  Rt       r2, string.#concat
-  24  Release  r1
-  25  LoadStr  r4, "|"
-  26  Move     r3, r2
-  27  Rt       r3, string.#concat
-  28  Release  r2
-  29  Ret      r3
-func @word(ref str) -> i nregs=3
-   0  LoadStr  r2, "a"
-   1  Move     r1, r0
-   2  Rt       r1, string.#eq
-   3  JmpIfNot r1, -> 7
-   4  Release  r0
-   5  LoadI    r1, 1
-   6  Ret      r1
-   7  LoadStr  r2, "bb"
-   8  Move     r1, r0
-   9  Rt       r1, string.#eq
-  10  Release  r0
-  11  JmpIfNot r1, -> 14
-  12  LoadI    r0, 2
-  13  Ret      r0
-  14  LoadI    r0, 0
-  15  Ret      r0
-func @Rect.constructor(ref Rect, i, i) -> void nregs=3
-   0  SetField r0, r1, .0
-   1  SetField r0, r2, .1
-   2  Release  r0
-   3  RetV     
 func @Rect.area(ref Rect) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r0, .1
@@ -400,14 +339,6 @@ func @Rect.isSquare(ref Rect) -> i nregs=3
    2  Release  r0
    3  EqI      r0, r1, r2
    4  Ret      r0
-func @Sq.constructor(ref Sq, i) -> void nregs=3
-   0  Move     r2, r0
-   1  Retain   r2
-   2  Release  r0
-   3  SetField r2, r1, .0
-   4  SetField r2, r1, .1
-   5  Release  r2
-   6  RetV     
 func @Sq.area(ref Sq) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r0, .0

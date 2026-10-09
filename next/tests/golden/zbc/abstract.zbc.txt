@@ -46,13 +46,3 @@ func @B.area(ref B) -> i nregs=2
    2  LoadI    r0, 4
    3  MulI32   r0, r1, r0
    4  Ret      r0
-func @B.constructor(ref B) -> void nregs=2
-   0  LoadI    r1, 3
-   1  SetField r0, r1, .0
-   2  Release  r0
-   3  RetV     
-func @run(ref Base) -> i nregs=2
-   0  CallVirt r0, .area
-   1  LoadI    r1, 2
-   2  MulI32   r0, r0, r1
-   3  Ret      r0

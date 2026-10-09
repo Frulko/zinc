@@ -180,12 +180,6 @@ func @main() -> void nregs=11
  138  RetV     
   handler 39 -> 41 r0 Error
   handler 48 -> 50 r0 Error
-func @Error.constructor(ref Error, ref str) -> void nregs=3
-   0  LoadStr  r2, "Error"
-   1  SetField r0, r2, .1
-   2  SetField r0, r1, .0
-   3  Release  r0
-   4  RetV     
 func @Error.__errorString(ref Error) -> ref str nregs=5
    0  GetField r1, r0, .0
    1  Retain   r1
@@ -214,120 +208,6 @@ func @Error.__errorString(ref Error) -> ref str nregs=5
   24  Release  r1
   25  Move     r1, r3
   26  Ret      r1
-func @TypeError.constructor(ref TypeError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "TypeError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @RangeError.constructor(ref RangeError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "RangeError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @SyntaxError.constructor(ref SyntaxError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "SyntaxError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @ReferenceError.constructor(ref ReferenceError, ref str) -> void nregs=4
-   0  Move     r2, r0
-   1  Retain   r2
-   2  LoadStr  r3, "Error"
-   3  SetField r2, r3, .1
-   4  SetField r2, r1, .0
-   5  Release  r2
-   6  LoadStr  r1, "ReferenceError"
-   7  SetField r0, r1, .1
-   8  Release  r0
-   9  RetV     
-func @makeCounter() -> ref fn () => i32 nregs=2
-   0  LoadI    r0, 0
-   1  New      r1, cell i32
-   2  SetField r1, r0, .0
-   3  New      r0, lambda0
-   4  SetField r0, r1, .0
-   5  Move     r1, r0
-   6  Retain   r1
-   7  Release  r0
-   8  Ret      r1
-func @apply(ref fn (i32) => i32, i) -> i nregs=2
-   0  CallVirt r0, .call
-   1  Ret      r0
-func @compose(ref fn (i32) => i32, ref fn (i32) => i32) -> ref fn (i32) => i32 nregs=3
-   0  New      r2, lambda1
-   1  SetField r2, r1, .0
-   2  SetField r2, r0, .1
-   3  Move     r0, r2
-   4  Retain   r0
-   5  Release  r2
-   6  Ret      r0
-func @double(i) -> i nregs=2
-   0  LoadI    r1, 2
-   1  MulI32   r0, r0, r1
-   2  Ret      r0
-func @makeAdder(i) -> ref fn (i32) => i32 nregs=2
-   0  New      r1, lambda2
-   1  SetField r1, r0, .0
-   2  Move     r0, r1
-   3  Retain   r0
-   4  Release  r1
-   5  Ret      r0
-func @Button.constructor(ref Button) -> void nregs=3
-   0  LoadI    r1, 0
-   1  SetField r0, r1, .0
-   2  New      r1, lambda3:on
-   3  Retain   r0
-   4  SetField r1, r0, .0
-   5  Move     r2, r1
-   6  Retain   r2
-   7  Release  r1
-   8  SetField r0, r2, .1
-   9  Release  r0
-  10  RetV     
-func @__tdzChk<i32>(i, ref str, i) -> i nregs=6
-   0  NotB     r0, r0
-   1  JmpIfNot r0, -> 23
-   2  New      r0, ReferenceError
-   3  LoadStr  r3, "Cannot access '"
-   4  Move     r4, r1
-   5  Rt       r3, string.#concat
-   6  Release  r1
-   7  LoadStr  r5, "' before initialization"
-   8  Move     r4, r3
-   9  Rt       r4, string.#concat
-  10  Release  r3
-  11  Move     r3, r0
-  12  Retain   r3
-  13  LoadStr  r5, "Error"
-  14  SetField r3, r5, .1
-  15  SetField r3, r4, .0
-  16  Release  r3
-  17  LoadStr  r3, "ReferenceError"
-  18  SetField r0, r3, .1
-  19  Move     r3, r0
-  20  Retain   r3
-  21  Release  r0
-  22  Throw    r3
-  23  Release  r1
-  24  Ret      r2
 func @lambda0(ref lambda0) -> i nregs=3
    0  GetField r1, r0, .0
    1  Retain   r1
