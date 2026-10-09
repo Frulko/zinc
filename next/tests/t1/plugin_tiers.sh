@@ -47,7 +47,7 @@ echo "$out" | grep -q "^device fetched " && [ "$(runs)" = 0 ] || { echo "plugin_
 use verified
 out=$("$Z" add widget "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^widget: tier verified, publisher acme" && [ -f "$tmp/proj/plugins/widget/plugin.json" ] || { echo "plugin_tiers: zinc add widget: $out"; fail=1; }
-grep -q '"tier": "verified"' "$tmp/proj/zinc.json" || { echo "plugin_tiers: the tier is not in the lock"; fail=1; }
+grep -q '"tier": "verified"' "$tmp/proj/zinc.lock" || { echo "plugin_tiers: the tier is not in the lock"; fail=1; }
 out=$("$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "0 matching rebuild(s) of the 2 required: building it here" && echo "$out" | grep -q "^device built " && [ "$(runs)" -gt 0 ] || { echo "plugin_tiers: a verified binary without rebuilds was used: $out"; fail=1; }
 use rebuilt

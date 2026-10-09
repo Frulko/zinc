@@ -60,18 +60,26 @@ zinc install                            # on another checkout: every locked plug
 ```
 
 `zinc add` copies the plugin into `<project>/plugins/<name>` (its `plugin.json` name; an archive may hold one top
-directory) and pins it in `zinc.json`:
+directory), records what was asked in `zinc.json` (`"dependencies": { "greet": "gh:user/zinc-greet@v1.2" }`) and pins
+it in `zinc.lock` beside it:
 
 ```json
-"lock": { "plugins": {
-  "greet": { "source": "gh:user/zinc-greet@v1.2", "commit": "9f3c..." },
-  "shout": { "source": "https://example.com/shout-1.0.tar.gz", "sha256": "4be1..." } } }
+{ "format": 1, "plugins": {
+  "greet": { "source": "gh:user/zinc-greet@v1.2", "commit": "9f3c...", "version": "1.2", "permissions": ["net"],
+             "requested": "gh:user/zinc-greet@v1.2" },
+  "shout": { "source": "https://example.com/shout-1.0.tar.gz", "sha256": "4be1...", "permissions": [],
+             "requested": "https://example.com/shout-1.0.tar.gz" } } }
 ```
 
 `zinc install` fetches each locked plugin again: git at the pinned commit, archives checked against the pinned
-sha256 (a changed archive is refused and nothing is installed). Nothing of a plugin runs while it is fetched: git
-hooks are off, archives are unpacked by `tar`, and links or special files are refused. A local directory belongs
-in `"pluginDirs"`. Native code is built on first use as for any project plugin.
+sha256 (a changed archive is refused and nothing is installed); a dependency not locked yet is added. `zinc install
+--frozen` (CI) refuses to run when `zinc.json` and `zinc.lock` disagree, and says how. Nothing of a plugin runs while
+it is fetched: git hooks are off, archives are unpacked by `tar`, and links or special files are refused. A local
+directory belongs in `"pluginDirs"`. Native code is built on first use as for any project plugin.
+
+**Capabilities.** A plugin lists the permissions it needs (the names of the app permissions, `fs`, `net`, `process`,
+`camera`...) in `plugin.json` `"permissions"`. `zinc add` shows them and pins them in the lock; an update that asks for
+one the lock does not hold is refused and names it, until `zinc add --accept` grants it.
 
 A publisher can sign an archive: `zinc update-keygen` makes a key pair, `zinc sign greet-1.2.tar.gz <seed>` writes
 `greet-1.2.tar.gz.sig` (a detached Ed25519 signature) to upload beside it. `zinc add <url> --key <public key>` then

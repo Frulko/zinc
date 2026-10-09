@@ -15,7 +15,7 @@ echo "export const s = 1;" > "$tmp/shout/shout/index.ts"
 tar -czf "$tmp/shout.tar.gz" -C "$tmp/shout" shout
 echo '{ "name": "app" }' > "$tmp/a/zinc.json"
 "$Z" add "file://$tmp/greet" "$tmp/a" >/dev/null && "$Z" add "file://$tmp/shout.tar.gz" "$tmp/a" >/dev/null || { echo "install_offline: zinc add failed"; exit 1; }
-cp "$tmp/a/zinc.json" "$tmp/b/"
+cp "$tmp/a/zinc.json" "$tmp/a/zinc.lock" "$tmp/b/"
 rm -rf "$tmp/greet" "$tmp/shout" "$tmp/shout.tar.gz"   # no source left: only the cache
 "$Z" install --offline "$tmp/b" >"$tmp/out" 2>&1 || { echo "install_offline: a warm cache does not install offline: $(cat "$tmp/out")"; fail=1; }
 diff -r "$tmp/a/plugins" "$tmp/b/plugins" >/dev/null || { echo "install_offline: the offline install differs from the first"; fail=1; }

@@ -15,8 +15,8 @@ printf '{ "name": "app", "entry": "main.ts" }\n' > "$tmp/a/zinc.json"
 seed=$(sed -n 's/^seed=//p' "$tmp/k1"); pub=$(sed -n 's/^public=//p' "$tmp/k1"); other=$(sed -n 's/^seed=//p' "$tmp/k2")
 "$Z" sign "$tmp/greet.tar.gz" "$seed" >/dev/null || { echo "plugin_sign: zinc sign failed"; exit 1; }
 "$Z" add "file://$tmp/greet.tar.gz" "$tmp/a" --key "$pub" >/dev/null || { echo "plugin_sign: a good signature was refused"; fail=1; }
-grep -q "\"publicKey\": \"$pub\"" "$tmp/a/zinc.json" || { echo "plugin_sign: the key is not locked"; fail=1; }
-cp "$tmp/a/zinc.json" "$tmp/b/"
+grep -q "\"publicKey\": \"$pub\"" "$tmp/a/zinc.lock" || { echo "plugin_sign: the key is not locked"; fail=1; }
+cp "$tmp/a/zinc.json" "$tmp/a/zinc.lock" "$tmp/b/"
 "$Z" install "$tmp/b" >/dev/null || { echo "plugin_sign: zinc install refused the signed archive"; fail=1; }
 cp "$tmp/greet.tar.gz.sig" "$tmp/good.sig"
 "$Z" sign "$tmp/greet.tar.gz" "$other" >/dev/null

@@ -63,10 +63,10 @@ const Command kCommands[] = {
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
-  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name is looked up in the signed index: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
+  {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name is looked up in the signed index: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
-  {"install", "zinc install [--offline] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
+  {"install", "zinc install [--offline] [--frozen] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.lock into plugins/<name> again (a zinc.json dependency not locked yet is added; --frozen refuses when zinc.json and zinc.lock disagree): git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
@@ -748,7 +748,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
 }
 
 // zinc add / zinc install (ZN-328.01): a plugin from a git repository (pinned by commit) or a .tar.gz / .tgz / .tar archive (pinned by sha256), copied into
-// <project>/plugins/<name> where the module loader and the native build already look, and recorded in zinc.json "lock": { "plugins": { name: {source, commit | sha256} } }.
+// <project>/plugins/<name> where the module loader and the native build already look, recorded in zinc.json "dependencies" and pinned in zinc.lock (ZN-344).
 // Nothing of the plugin is run: git hooks are off, archives are unpacked by tar, links and special files are refused.
 namespace {
 struct PluginPin { std::string source, commit, sha256, publicKey, path, tier, publisher; };   // publicKey: the archive's <url>.sig must verify with it (ZN-328.02); path: the plugin's directory in its source (a monorepo); tier, publisher: ZN-340
@@ -870,6 +870,50 @@ std::string installPlugin(const fs::path& from, const fs::path& project, std::st
 struct ScratchDir { fs::path p; ~ScratchDir() { std::error_code e; if (!p.empty()) fs::remove_all(p, e); } };
 }  // namespace
 
+// zinc.lock (ZN-344): {"format": 1, "plugins": {name: {source, commit | sha256, publicKey, tier, publisher, path, version, permissions, requested}}} beside
+// zinc.json, whose "dependencies" keep what was asked for (name -> what `zinc add` was given). A lock still inside zinc.json ("lock", ZN-328) is read and
+// moved out at the next write.
+struct Lock {
+  yyjson_doc* doc = nullptr;
+  yyjson_val* plugins = nullptr;
+  ~Lock() { yyjson_doc_free(doc); }
+};
+static std::string slurp(const fs::path& f) { std::ifstream in(f, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }
+static void readLock(const fs::path& project, Lock& l) {
+  yyjson_doc_free(l.doc);
+  l = Lock{};
+  std::error_code ec;
+  const bool own = fs::exists(project / "zinc.lock", ec);
+  const std::string t = slurp(project / (own ? "zinc.lock" : "zinc.json"));
+  l.doc = yyjson_read(t.data(), t.size(), 0);
+  yyjson_val* r = yyjson_doc_get_root(l.doc);
+  l.plugins = yyjson_obj_get(own ? r : yyjson_obj_get(r, "lock"), "plugins");
+}
+static bool writeJson(const fs::path& f, yyjson_mut_doc* md) {
+  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  const bool ok = out && writeFile(f, std::string(out) + "\n");
+  std::free(out);
+  return ok;
+}
+// The lock with `plugins` (a mutable object of `md`) written to zinc.lock, and zinc.json's old "lock" removed.
+static bool writeLock(const fs::path& project, yyjson_mut_doc* md, yyjson_mut_val* plugins) {
+  yyjson_mut_val* root = yyjson_mut_obj(md);
+  yyjson_mut_obj_add_int(md, root, "format", 1);
+  yyjson_mut_obj_add_val(md, root, "plugins", plugins);
+  yyjson_mut_doc_set_root(md, root);
+  if (!writeJson(project / "zinc.lock", md)) return false;
+  const std::string zt = slurp(project / "zinc.json");
+  yyjson_doc* zd = yyjson_read(zt.data(), zt.size(), 0);
+  if (!zd || !yyjson_obj_get(yyjson_doc_get_root(zd), "lock")) { yyjson_doc_free(zd); return true; }
+  yyjson_mut_doc* zm = yyjson_doc_mut_copy(zd, nullptr);
+  yyjson_doc_free(zd);
+  yyjson_mut_obj_remove_key(yyjson_mut_doc_get_root(zm), "lock");
+  const bool ok = writeJson(project / "zinc.json", zm);
+  yyjson_mut_doc_free(zm);
+  return ok;
+}
+static std::vector<std::string> strArr(yyjson_val* a) { std::vector<std::string> r; size_t i, n; yyjson_val* e; yyjson_arr_foreach(a, i, n, e) if (yyjson_is_str(e)) r.push_back(yyjson_get_str(e)); return r; }
+
 // `zinc add <name>` (ZN-340): the plugin's descriptor in the signed index, plugins/<name>.json signed by the top-level role (tier official) or
 // <publisher>/plugins/<name>.json signed by a role delegated to that publisher (tier verified); its source becomes what is fetched.
 static std::string fromIndex(const std::string name, const std::string& engineRoot, PluginPin& want, std::string& spec) {   // `name` by value: `spec` may be the same string
@@ -902,12 +946,14 @@ static std::string fromIndex(const std::string name, const std::string& engineRo
 int addPlugin(const std::vector<std::string>& args, const std::string& engineRoot) {
   std::vector<std::string> pos;
   PluginPin want;
+  bool accept = false;
   for (std::size_t k = 2; k < args.size(); ++k) {
     if (args[k] == "--key" && k + 1 < args.size()) want.publicKey = args[++k];
+    else if (args[k] == "--accept") accept = true;   // grants the new capabilities an update asks for (ZN-344)
     else if (args[k].rfind("--", 0) == 0) { std::fprintf(stderr, "zinc add: unknown option %s\n", args[k].c_str()); return 2; }
     else pos.push_back(args[k]);
   }
-  if (pos.empty() || pos.size() > 2) { std::fprintf(stderr, "usage: zinc add <name | git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir] [--key <public key hex>]\n"); return 2; }
+  if (pos.empty() || pos.size() > 2) { std::fprintf(stderr, "usage: zinc add <name | git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir] [--key <public key hex>] [--accept]\n"); return 2; }
   if (!want.publicKey.empty() && want.publicKey.size() != 64) { std::fprintf(stderr, "zinc add: --key is a public key of 64 hex digits (zinc update-keygen)\n"); return 2; }
   const fs::path project = fs::absolute(pos.size() == 2 ? pos[1] : ".").lexically_normal();
   const fs::path zj = project / "zinc.json";
@@ -947,7 +993,9 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
       fs::remove_all(again.p, ec);
       err = fetchPlugin(spec, signedPin, again.p, dir, got);
     }
-    yyjson_val* lockedV = yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), "lock"), "plugins"), pname.c_str()), "publicKey");
+    Lock lk;
+    readLock(project, lk);
+    yyjson_val* lockedV = yyjson_obj_get(yyjson_obj_get(lk.plugins, pname.c_str()), "publicKey");
     const std::string locked = yyjson_is_str(lockedV) ? yyjson_get_str(lockedV) : "";
     if (err.empty() && !locked.empty() && locked != got.publicKey)
       err = "plugin " + pname + ": its publisher key changed (pinned " + locked.substr(0, 16) + "..., now " + (got.publicKey.empty() ? std::string("none") : got.publicKey.substr(0, 16) + "...") + "): refused; `zinc trust " + pname + "` accepts the new key";
@@ -956,31 +1004,64 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
     if (err.empty())
       std::printf("%s: tier community, publisher %s (%s), from %s\n", pname.c_str(), want.publisher.c_str(), got.publicKey.empty() ? (isArchive(spec) ? "unsigned" : "pinned by its commit") : ("key " + got.publicKey.substr(0, 16) + "..., pinned").c_str(), spec.c_str());
   }
+  // capabilities (ZN-344): what plugin.json "permissions" asks for; an update that asks for one the lock does not grant stops unless --accept
+  std::vector<std::string> perms, fresh;
+  std::string version, pname;
+  Lock lk;
+  readLock(project, lk);
+  if (err.empty()) {
+    const std::string mt = slurp(dir / "plugin.json");
+    if (yyjson_doc* pd = yyjson_read(mt.data(), mt.size(), 0)) {
+      yyjson_val* r = yyjson_doc_get_root(pd);
+      perms = strArr(yyjson_obj_get(r, "permissions"));
+      if (yyjson_is_str(yyjson_obj_get(r, "version"))) version = yyjson_get_str(yyjson_obj_get(r, "version"));
+      if (yyjson_is_str(yyjson_obj_get(r, "name"))) pname = yyjson_get_str(yyjson_obj_get(r, "name"));
+      yyjson_doc_free(pd);
+    }
+    yyjson_val* old = yyjson_obj_get(lk.plugins, pname.c_str());
+    const std::vector<std::string> granted = strArr(yyjson_obj_get(old, "permissions"));
+    for (const std::string& c : perms) if (std::find(granted.begin(), granted.end(), c) == granted.end()) fresh.push_back(c);
+    std::string list;
+    for (const std::string& c : (old ? fresh : perms)) list += (list.empty() ? "" : ", ") + c;
+    if (old && !fresh.empty() && !accept) err = "plugin " + pname + " now asks for capabilities the lock does not grant: " + list + "; `zinc add --accept " + pos[0] + "` grants them";
+    else if (!list.empty()) std::printf("%s: %s %s\n", pname.c_str(), old ? "granted the new capabilities" : "asks for the capabilities", list.c_str());
+  }
   if (err.empty()) err = installPlugin(dir, project, name);
   if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
-  yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
-  yyjson_doc_free(doc);
-  yyjson_mut_val* root = yyjson_mut_doc_get_root(md);
-  auto objIn = [&](yyjson_mut_val* o, const char* key) {
-    yyjson_mut_val* v = yyjson_mut_obj_get(o, key);
-    if (!yyjson_mut_is_obj(v)) { yyjson_mut_obj_remove_key(o, key); v = yyjson_mut_obj(md); yyjson_mut_obj_add_val(md, o, key, v); }
-    return v;
-  };
-  yyjson_mut_val* plugins = objIn(objIn(root, "lock"), "plugins");
+  // zinc.lock: the entry pinned; zinc.json: the dependency as asked
+  yyjson_mut_doc* lm = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* plugins = lk.plugins ? yyjson_val_mut_copy(lm, lk.plugins) : yyjson_mut_obj(lm);
   yyjson_mut_obj_remove_str(plugins, name.c_str());
-  yyjson_mut_val* e = yyjson_mut_obj(md);
-  yyjson_mut_obj_add_strcpy(md, e, "source", got.source.c_str());
-  if (!got.commit.empty()) yyjson_mut_obj_add_strcpy(md, e, "commit", got.commit.c_str());
-  if (!got.sha256.empty()) yyjson_mut_obj_add_strcpy(md, e, "sha256", got.sha256.c_str());
-  if (!got.publicKey.empty()) yyjson_mut_obj_add_strcpy(md, e, "publicKey", got.publicKey.c_str());
-  if (!got.path.empty()) yyjson_mut_obj_add_strcpy(md, e, "path", got.path.c_str());
-  if (!want.tier.empty()) { yyjson_mut_obj_add_strcpy(md, e, "tier", want.tier.c_str()); yyjson_mut_obj_add_strcpy(md, e, "publisher", want.publisher.c_str()); }
-  yyjson_mut_obj_add(plugins, yyjson_mut_strcpy(md, name.c_str()), e);
-  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
-  const bool ok = out && writeFile(zj, std::string(out) + "\n");
-  std::free(out);
-  yyjson_mut_doc_free(md);
-  if (!ok) { std::fprintf(stderr, "zinc add: cannot write %s\n", zj.string().c_str()); return 1; }
+  yyjson_mut_val* e = yyjson_mut_obj(lm);
+  yyjson_mut_obj_add_strcpy(lm, e, "source", got.source.c_str());
+  if (!got.commit.empty()) yyjson_mut_obj_add_strcpy(lm, e, "commit", got.commit.c_str());
+  if (!got.sha256.empty()) yyjson_mut_obj_add_strcpy(lm, e, "sha256", got.sha256.c_str());
+  if (!got.publicKey.empty()) yyjson_mut_obj_add_strcpy(lm, e, "publicKey", got.publicKey.c_str());
+  if (!got.path.empty()) yyjson_mut_obj_add_strcpy(lm, e, "path", got.path.c_str());
+  if (!want.tier.empty()) { yyjson_mut_obj_add_strcpy(lm, e, "tier", want.tier.c_str()); yyjson_mut_obj_add_strcpy(lm, e, "publisher", want.publisher.c_str()); }
+  if (!version.empty()) yyjson_mut_obj_add_strcpy(lm, e, "version", version.c_str());
+  yyjson_mut_val* pa = yyjson_mut_arr(lm);
+  for (const std::string& c : perms) yyjson_mut_arr_add_strcpy(lm, pa, c.c_str());
+  yyjson_mut_obj_add_val(lm, e, "permissions", pa);
+  yyjson_mut_obj_add_strcpy(lm, e, "requested", pos[0].c_str());
+  yyjson_mut_obj_add(plugins, yyjson_mut_strcpy(lm, name.c_str()), e);
+  bool ok = writeLock(project, lm, plugins);
+  yyjson_mut_doc_free(lm);
+  yyjson_doc_free(doc);
+  const std::string zt = slurp(zj);   // re-read: writeLock may have removed the old "lock"
+  yyjson_doc* zd = yyjson_read(zt.data(), zt.size(), 0);
+  yyjson_mut_doc* md = zd ? yyjson_doc_mut_copy(zd, nullptr) : nullptr;
+  yyjson_doc_free(zd);
+  if (md) {
+    yyjson_mut_val* root = yyjson_mut_doc_get_root(md);
+    yyjson_mut_val* deps = yyjson_mut_obj_get(root, "dependencies");
+    if (!yyjson_mut_is_obj(deps)) { yyjson_mut_obj_remove_key(root, "dependencies"); deps = yyjson_mut_obj(md); yyjson_mut_obj_add_val(md, root, "dependencies", deps); }
+    yyjson_mut_obj_remove_str(deps, name.c_str());
+    yyjson_mut_obj_add(deps, yyjson_mut_strcpy(md, name.c_str()), yyjson_mut_strcpy(md, pos[0].c_str()));
+    ok = ok && writeJson(zj, md);
+    yyjson_mut_doc_free(md);
+  }
+  if (!ok) { std::fprintf(stderr, "zinc add: cannot write %s or zinc.lock\n", zj.string().c_str()); return 1; }
   std::printf("added %s (%s %s) in plugins/%s\n", name.c_str(), got.commit.empty() ? "sha256" : "commit", (got.commit.empty() ? got.sha256 : got.commit).c_str(), name.c_str());
   return 0;
 }
@@ -988,19 +1069,14 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
 // `zinc trust <name> [dir]` (ZN-340.02): forgets the publisher key pinned for a community plugin, so the next `zinc add` pins the key it brings.
 int trustPlugin(const std::vector<std::string>& args) {
   if (args.size() < 3 || args.size() > 4) { std::fprintf(stderr, "usage: zinc trust <plugin> [project-dir]\n"); return 2; }
-  const fs::path zj = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal() / "zinc.json";
-  std::ifstream zf(zj);
-  std::stringstream zs; zs << zf.rdbuf();
-  yyjson_doc* doc = zf ? yyjson_read(zs.str().data(), zs.str().size(), 0) : nullptr;
-  if (!doc) { std::fprintf(stderr, "zinc trust: no zinc.json at %s\n", zj.string().c_str()); return 2; }
-  yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
-  yyjson_doc_free(doc);
-  yyjson_mut_val* entry = yyjson_mut_obj_get(yyjson_mut_obj_get(yyjson_mut_obj_get(yyjson_mut_doc_get_root(md), "lock"), "plugins"), args[2].c_str());
-  if (!entry || !yyjson_mut_obj_get(entry, "publicKey")) { yyjson_mut_doc_free(md); std::fprintf(stderr, "zinc trust: %s has no pinned publisher key in %s\n", args[2].c_str(), zj.string().c_str()); return 1; }
-  yyjson_mut_obj_remove_key(entry, "publicKey");
-  char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
-  const bool ok = out && writeFile(zj, std::string(out) + "\n");
-  std::free(out);
+  const fs::path project = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal();
+  Lock lk;
+  readLock(project, lk);
+  if (!yyjson_obj_get(yyjson_obj_get(lk.plugins, args[2].c_str()), "publicKey")) { std::fprintf(stderr, "zinc trust: %s has no pinned publisher key in %s\n", args[2].c_str(), (project / "zinc.lock").string().c_str()); return 1; }
+  yyjson_mut_doc* md = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* plugins = yyjson_val_mut_copy(md, lk.plugins);
+  yyjson_mut_obj_remove_key(yyjson_mut_obj_get(plugins, args[2].c_str()), "publicKey");
+  const bool ok = writeLock(project, md, plugins);
   yyjson_mut_doc_free(md);
   if (!ok) return 1;
   std::printf("%s: the publisher key is no longer pinned; the next `zinc add` pins the key it brings\n", args[2].c_str());
@@ -1009,18 +1085,39 @@ int trustPlugin(const std::vector<std::string>& args) {
 
 int installPlugins(const std::vector<std::string>& args) {
   std::vector<std::string> pos;
+  bool frozen = false;
   for (std::size_t k = 2; k < args.size(); ++k) {
     if (args[k] == "--offline") setenv("ZINC_OFFLINE", "1", 1);   // only the local cache of sources (ZN-339.02)
+    else if (args[k] == "--frozen") frozen = true;               // zinc.json and zinc.lock must agree (ZN-344)
     else pos.push_back(args[k]);
   }
-  if (pos.size() > 1) { std::fprintf(stderr, "usage: zinc install [--offline] [project-dir]\n"); return 2; }
+  if (pos.size() > 1) { std::fprintf(stderr, "usage: zinc install [--offline] [--frozen] [project-dir]\n"); return 2; }
   const fs::path project = fs::absolute(pos.empty() ? "." : pos[0]).lexically_normal();
-  std::ifstream zf(project / "zinc.json");
-  std::stringstream zs; zs << zf.rdbuf();
-  const std::string text = zs.str();
-  yyjson_doc* doc = zf ? yyjson_read(text.data(), text.size(), 0) : nullptr;
+  const std::string text = slurp(project / "zinc.json");
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
   if (!doc) { std::fprintf(stderr, "zinc install: no zinc.json in %s\n", project.string().c_str()); return 2; }
-  yyjson_val* plugins = yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), "lock"), "plugins");
+  Lock lk;
+  readLock(project, lk);
+  yyjson_val* plugins = lk.plugins;
+  {   // the dependencies of zinc.json against the lock: --frozen refuses any difference; otherwise a dependency not locked yet is added
+    yyjson_val* deps = yyjson_obj_get(yyjson_doc_get_root(doc), "dependencies");
+    std::vector<std::string> problems, missing;
+    size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(deps, i, n, k, v) {
+      yyjson_val* e = yyjson_obj_get(plugins, yyjson_get_str(k));
+      yyjson_val* req = yyjson_obj_get(e, "requested");
+      if (!e) { problems.push_back(std::string(yyjson_get_str(k)) + " is a dependency but not in zinc.lock"); missing.push_back(yyjson_is_str(v) ? yyjson_get_str(v) : ""); }
+      else if (yyjson_is_str(req) && yyjson_is_str(v) && std::strcmp(yyjson_get_str(req), yyjson_get_str(v)) != 0) problems.push_back(std::string(yyjson_get_str(k)) + " asks for " + yyjson_get_str(v) + ", zinc.lock pins " + yyjson_get_str(req));
+    }
+    yyjson_obj_foreach(plugins, i, n, k, v) if (deps && !yyjson_obj_get(deps, yyjson_get_str(k))) problems.push_back(std::string(yyjson_get_str(k)) + " is in zinc.lock but not a dependency");
+    if (frozen && !problems.empty()) {
+      for (const std::string& p : problems) std::fprintf(stderr, "zinc install --frozen: %s\n", p.c_str());
+      yyjson_doc_free(doc);
+      return 1;
+    }
+    for (const std::string& spec : missing) if (!spec.empty()) addPlugin({"zinc", "add", spec, project.string()});
+    if (!missing.empty()) { readLock(project, lk); plugins = lk.plugins; }
+  }
   int failed = 0, done = 0;
   size_t i, n;
   yyjson_val *k, *v;
