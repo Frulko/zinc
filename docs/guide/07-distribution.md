@@ -154,6 +154,28 @@ xcrun stapler staple dist/myapp-macos/myapp.app
 Verify with `codesign -dv --verbose=4 myapp.app` and `spctl -a -vv myapp.app`. (Notarization is Apple's server-side
 step; Zinc prepares the bundle but cannot notarize for you.)
 
+## The zinc-engine organization
+
+Zinc lives in the GitHub organization `zinc-engine` (decision D37):
+
+| Repository | What it holds |
+| --- | --- |
+| `zinc` | the engine: compiler, runtime, CLI, standard library, the official plugins under `plugins/` (developed here) and the CI that releases it |
+| `index` | the signed plugin and template index and its transparency log, published on Pages (`zinc plugins search`, `zinc add <name>`) |
+| `templates` | app templates outside the engine's own (`zinc new --list`) |
+| `plugin-starter` | the repository a community author clones to publish a plugin |
+| `plugin-<name>` | one per official plugin: a mirror of `plugins/<name>` pushed by `tools/plugin-split` from `zinc` (history kept) |
+
+`next/tools/gh-org-setup` creates what is missing (the repositories, the protection of `zinc`'s main branch with the
+`zinc-next` checks) and lists the CI secrets not set yet; it never writes a secret's value. Running it twice changes nothing
+the second time. The owner's steps:
+
+```sh
+gh auth login                                  # an owner of zinc-engine (created at github.com/organizations/new)
+next/tools/gh-org-setup --dry-run              # every gh command it would run
+next/tools/gh-org-setup                        # then: gh secret set -R zinc-engine/zinc NAME for each secret it lists
+```
+
 ## Mirrors, proxies and offline
 
 Everything zinc downloads is checked before it is used: the toolchains against their pinned SHA-256, the plugin index by its

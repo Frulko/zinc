@@ -1,0 +1,47 @@
+#!/bin/sh
+# The GitHub organization zinc-engine (ZN-352, decision D37): the repositories and settings of the engine, its signed index and its official plugins.
+#   tools/gh-org-setup [--dry-run] [--org NAME]
+# Creates what is missing and leaves what exists (running it twice changes nothing the second time):
+#   zinc             the engine (this repository), main protected (pull requests, the zinc-next checks)
+#   index            the signed plugin and template index and its transparency log (ZN-336, ZN-343), published on Pages
+#   templates        the app templates outside the engine's own (ZN-349)
+#   plugin-starter   what a community author clones to publish a plugin (ZN-354)
+#   plugin-<name>    one mirror per official plugin, pushed from plugins/<name> by tools/plugin-split (ZN-335)
+# then lists the secrets the CI needs that are not set yet (values are the owner's: the script never writes one).
+# --dry-run runs no gh command and prints every one it would run. Needs gh, logged in as an owner of the organization.
+cd "$(dirname "$0")/../.." || exit 2
+org=zinc-engine; dry=0
+while [ $# -gt 0 ]; do
+  case $1 in --dry-run) dry=1 ;; --org) org=$2; shift ;; *) sed -n '2,13p' "$0"; exit 2 ;; esac
+  shift
+done
+GH=${GH:-gh}
+say() {   # the command as one could paste it
+  printf '+'
+  for a in "$@"; do case $a in *[!A-Za-z0-9_./:@=-]*) printf " '%s'" "$(printf '%s' "$a" | sed "s/'/'\\\\''/g")" ;; *) printf ' %s' "$a" ;; esac; done
+  printf '\n'
+}
+do_() { if [ $dry = 1 ]; then say "$@"; else say "$@"; "$@" >/dev/null || { echo "gh-org-setup: failed: $*" >&2; exit 1; }; fi; }
+exists() { [ $dry = 0 ] && "$GH" "$@" >/dev/null 2>&1; }   # a dry run assumes nothing exists, so it shows every command
+repo() {   # repo <name> <description>
+  if exists repo view "$org/$1"; then echo "= $org/$1 exists"; else do_ "$GH" repo create "$org/$1" --public --description "$2"; fi
+}
+repo zinc "Zinc: a TypeScript engine for apps, games and devices"
+repo index "The signed index of Zinc plugins and templates, and its transparency log"
+repo templates "Zinc app templates outside the engine's own"
+repo plugin-starter "Start here to publish a Zinc plugin"
+for d in $(git ls-tree -d --name-only HEAD plugins/); do   # the committed official plugins (as tools/plugin-split)
+  n=$(basename "$d"); git cat-file -e "HEAD:$d/plugin.json" 2>/dev/null || continue
+  repo "plugin-$n" "Zinc plugin $n (a mirror of zinc-engine/zinc plugins/$n)"
+done
+# main of the engine: pull requests and the checks of the zinc-next workflow before a merge
+if exists api "repos/$org/zinc/branches/main/protection"; then echo "= $org/zinc main is protected"
+else
+  do_ "$GH" api -X PUT "repos/$org/zinc/branches/main/protection" --input next/tools/gh-org-protection.json
+fi
+# the secrets the CI reads (zinc-next.yml, pages.yml): named here, set by the owner with `gh secret set -R $org/zinc NAME`
+missing=
+for s in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD ZINC_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD ZINC_UPDATE_SEED ZINC_INDEX_KEYS ZINC_LOG_KEY PLUGIN_MIRROR_TOKEN; do
+  if [ $dry = 0 ] && "$GH" secret list -R "$org/zinc" 2>/dev/null | grep -q "^$s[[:space:]]"; then :; else missing="$missing $s"; fi
+done
+[ -z "$missing" ] || echo "secrets to set (gh secret set -R $org/zinc NAME):$missing"
