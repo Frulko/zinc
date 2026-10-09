@@ -1,7 +1,7 @@
 ---
 id: ZN-593
 title: 'Diagnose CI benchmark gate regressions and fib output'
-status: In Progress
+status: Review
 assignee: []
 created_date: '2026-10-09 12:30'
 labels:
@@ -59,5 +59,14 @@ Reproduce on the tested revision and separate correctness failures from machine/
   configuration headers and HAL command-list declarations. Its fib interpreter
   and AOT build/run both produce the exact golden output with exit 0.
 - See [the benchmark gate report](../../../docs/reports/zinc-next-bench-gate.md).
-  Reference/candidate performance measurement and fresh CI confirmation remain
-  to be recorded before closing this task.
+  The final candidate `b092de67` (on main `2ec2657b`) passes the pinned paired
+  gate with exit 0, no incorrect outputs and no regressions. Its largest
+  slowdown is fib interpreter +3.97%; nbody AOT is 63.75% faster. All eight
+  interpreter/AOT cells contain five samples on each side. Artifact:
+  `/tmp/zinc-ci-pinned-paired.json`.
+- The runtime alignment fix, macOS fixtures, and benchmark measurement changes
+  are kept in separate commits. Final affected T0/T1 validation reports 250
+  passed, 0 failed, 2 prerequisite skips; the five rebase integration cases also
+  pass. Fresh GitHub confirmation remains pending the push. The historical fib
+  mismatch remains unreproduced locally, so its original cause is not claimed
+  as a diagnosed runtime bug.

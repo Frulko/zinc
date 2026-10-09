@@ -8,10 +8,19 @@ tool output staying in the context, so every runner prints a summary and writes 
 A task ends with the tests that cover **what it touched**, not with the corpus. Time spent on tests nobody needed is the most common waste of a session.
 
 - `tests/run --changed` runs the T0/T1 tests mapped to the files changed since HEAD (`tests/affected.json`; add a mapping when you add a module or a test). It prints `pixel canary` when the change is visible: then `tools/proto-capture compare` (4 entries, 4 seconds).
+- `tests/run --changed-from <ref>` selects tests for committed changes relative to a Git ref (CI uses the push predecessor or pull-request base). Shared compiler/runtime changes and unmapped code fall back to all T0/T1 tests; a mapped file never hides an unmapped one.
 - Add the one test of the new feature or the regression test of the bug (`--only <name>`). That is the whole end-of-task check.
 - **Never at the end of a task:** `tools/proto-capture compare --all` (42 entries), `examples_all`, `tests/run --tier t2`, the benchmarks (`tools/bench-m4`), a fuzz run, a full `zinc test --profile`. These are T2: once per milestone, or when the shared core changed (raster, layout, text engine, IR, runtime) and then **in the background** (`run_in_background`) while the next task starts.
 - A run that lasts more than a minute is a T2 job: do not wait for it; read its result later.
 - Do not rebuild everything (`cmake --build build`) for a change of one library: build the target you need (`--target zinc`).
+
+## CI scope
+
+Every code push and pull request builds macOS and both Linux architectures and runs affected tests, normally T0/T1. Explicitly mapped T2 cases and edited T2 test scripts also run individually; this does not select the full corpus. The complete example sweep (`examples_all`) belongs to T2. Windows remains experimental. Documentation-only changes skip builds. New pushes cancel superseded runs for the same branch.
+
+The historical-reference benchmark gate runs for engine, runtime, library, plugin, target, benchmark or workflow changes, with the existing 15% regression limit. Fixture-only changes avoid a benchmark build. Reproducible builds run for build/package/plugin-tooling changes. Packages are produced for distribution-tooling changes and full runs.
+
+Nightly runs (03:00 UTC), manual workflow dispatches and `v*` release tags run the complete T2 suite, benchmarks, reproducibility and packages. Pinned toolchain downloads and pnpm packages are cached; compiled binaries are rebuilt. A local fix needs its regression test and affected tests, without repeating the corpus after every edit.
 
 ## Test tiers
 

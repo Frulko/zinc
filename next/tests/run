@@ -1,15 +1,17 @@
 #!/bin/sh
 # Quiet runner: one PASS/FAIL line per test, details in next/.logs/. See next/TESTING.md.
 # Tests are executables tests/<tier>/<name>.sh that get $ZINC; tiers are cumulative (t1 includes t0).
-# Usage: tests/run [--tier t0|t1|t2] [--only <name>] [--changed]   (env ZINC = binary, default build/zinc)
+# Usage: tests/run [--tier t0|t1|t2] [--only <name>] [--changed | --changed-from <ref>]
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
-tier=t0; only=; changed=
+cd "$root" || exit 2
+tier=t0; only=; changed=; base=
 while [ $# -gt 0 ]; do
   case $1 in
     --tier) tier=$2; shift 2 ;;
     --only) only=$2; shift 2 ;;
     --changed) changed=1; tier=t1; shift ;;   # only the tests that cover the files changed since HEAD (tests/affected.json)
+    --changed-from) base=${2:?missing comparison ref}; changed=1; tier=t1; shift 2 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -23,7 +25,12 @@ if [ -z "$ZINC_ZIG" ] && [ -x "$ZINC" ]; then
   [ -x "$z" ] && export ZINC_ZIG="$z"
 fi
 if [ -n "$changed" ]; then   # the names of the tests covering the changed files, one per line
-  wanted=$(cd "$root/.." && { git diff --name-only HEAD; git ls-files --others --exclude-standard; } | python3 "$here/affected.py" "$here/affected.json")
+  if [ -n "$base" ]; then
+    paths=$(git -C "$root/.." diff --name-only "$base" HEAD --) || exit 2
+  else
+    paths=$(cd "$root/.." && { git diff --name-only HEAD; git ls-files --others --exclude-standard; }) || exit 2
+  fi
+  wanted=$(printf '%s\n' "$paths" | python3 "$here/affected.py" "$here/affected.json") || exit 2
   echo "affected tests: $(echo "$wanted" | grep -v '^canary' | tr '\n' ' ')" >&2
   echo "$wanted" | grep -q '^canary$' && echo "pixel canary: tools/proto-capture compare --canary (run it if the change is visible)" >&2
 fi

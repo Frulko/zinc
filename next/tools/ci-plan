@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Choose CI jobs from changed repository paths; full runs remain scheduled/release gates."""
+import json
+import sys
+
+
+def plan(paths, full=False):
+    code = [p for p in paths if not (
+        p.startswith(("docs/", "next/backlog/", "tests/compat/results/")) or p.endswith(".md"))]
+    performance = ("next/src/", "next/include/", "next/third_party/", "next/CMakeLists.txt",
+                   "next/bench/", "next/corpus/bench/", "next/tools/bench-", "next/tests/data/bench_harness.py",
+                   "next/tests/t0/bench_harness.sh", "next/tests/t2/bench_gate.sh",
+                   "compiler/", "runtime/", "lib/", "plugins/", "targets/")
+    workflow = ".github/workflows/zinc-next.yml" in code
+    return {
+        "test": full or bool(code),
+        "full": full,
+        "bench": full or workflow or any(p.startswith(performance) for p in code),
+        "reproducible": full or workflow or any(p.startswith((
+            "next/CMakeLists.txt", "next/src/tc/plugin_build", "next/tools/package",
+            "next/tools/plugin-split")) for p in code),
+        "package": full or workflow or any(p.startswith((
+            "next/tools/package", "next/tools/sign-macos")) for p in code),
+    }
+
+
+if __name__ == "__main__":
+    result = plan([line.strip() for line in sys.stdin if line.strip()], "--full" in sys.argv)
+    for key, value in result.items():
+        print(f"{key}={json.dumps(value)}")

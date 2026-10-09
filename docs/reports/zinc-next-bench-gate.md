@@ -61,3 +61,36 @@ first/second order. This avoids comparing a cold candidate to a warmed reference
 A sequential self-comparison on the development machine incorrectly reported
 `nbody` AOT +17% (40 ms versus 47 ms), despite using the identical engine for
 both sides. The sampling-order regression test protects this correction.
+
+## Final paired measurement
+
+Candidate `b092de67`, rebased on `2ec2657b`, versus reference
+`fb610f986e50a0533301cbcc16b5addefb56089f`, on macOS 15.7.4 ARM64,
+Apple M1 Pro, Apple clang 17.0.0 (`clang-1700.6.4.2`).
+Five paired samples per engine, with one checked warm-up each:
+
+| Kernel | Engine | Reference ms | Candidate ms | Change |
+|---|---|---:|---:|---:|
+| fib | interpreter | 57.753 | 60.047 | +3.97% |
+| fib | AOT | 13.457 | 13.042 | -3.09% |
+| nbody | interpreter | 764.542 | 761.322 | -0.42% |
+| nbody | AOT | 110.573 | 40.084 | -63.75% |
+| sort | interpreter | 167.999 | 170.394 | +1.43% |
+| sort | AOT | 109.761 | 106.582 | -2.90% |
+| strings | interpreter | 49.370 | 50.553 | +2.40% |
+| strings | AOT | 37.436 | 37.202 | -0.62% |
+
+The following command exited 0:
+
+```sh
+ZINC=/tmp/zinc-fix-macos-ci/next/build/zinc next/tools/bench-gate \
+  --baseline-zinc /tmp/zinc-benchmark-reference/next/build/zinc \
+  --out /tmp/zinc-ci-pinned-paired.json
+```
+
+The artifact contains no
+incorrect outputs, unsuccessful required-engine runs, or regressions. The
+largest measured slowdown is 3.97%, below the unchanged 15% limit. This local
+run validates the corrected method and final candidate; a fresh GitHub runner
+confirmation is still pending the push. The older CI fib mismatch remains
+unreproduced, rather than being assigned an unsupported runtime cause.

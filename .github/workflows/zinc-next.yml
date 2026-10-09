@@ -1,4 +1,4 @@
-# Zinc Next (next/): build and test on every host. T0 and T1 on each OS; T2 (downloads zig and QEMU, about 100 MB) on Linux and macOS.
+# Zinc Next: affected T0/T1 on every host; full T2 on nightly/manual/release runs.
 # Windows is listed so the day the host is ported (ZN-054) it starts running; until then its job may fail and does not block.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
 # then the release job attaches everything to a GitHub Release. The secrets and the tag command: docs/guide/07-distribution.md, "Releases".
@@ -7,11 +7,49 @@ on:
   push:
     branches: ['**']
     tags: ['v*']   # path filters are not applied to tags
-    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', '.github/workflows/zinc-next.yml']
+    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
   pull_request:
-    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', '.github/workflows/zinc-next.yml']
+    paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      test: ${{ steps.scope.outputs.test }}
+      full: ${{ steps.scope.outputs.full }}
+      bench: ${{ steps.scope.outputs.bench }}
+      reproducible: ${{ steps.scope.outputs.reproducible }}
+      package: ${{ steps.scope.outputs.package }}
+      base: ${{ steps.scope.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: scope
+        name: Select checks
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          full=
+          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then full=--full; fi
+          base="$BEFORE"
+          if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base=$(git merge-base "origin/$DEFAULT_BRANCH" HEAD 2>/dev/null) || base=$(git hash-object -w -t tree /dev/null)
+          fi
+          git diff --name-only "$base" HEAD -- > "$RUNNER_TEMP/changed-paths"
+          python3 next/tools/ci-plan ${full:+"$full"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
   test:
+    needs: plan
+    if: needs.plan.outputs.test == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -29,20 +67,57 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { version: '10' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'pnpm' }
+      - name: Install compiler dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
       - name: Dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev libpixman-1-0 libsdl2-2.0-0 libslirp0  # the last three: Espressif's QEMU
       - name: Dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake sdl3 || true
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2
       - name: Build
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
-      - name: Tests (${{ matrix.tier }})
+      - name: Cache pinned toolchains
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.zinc/toolchains
+            ${{ runner.temp }}/zinc-home/toolchains
+          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+      - name: Tests
         env:
           ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
-        run: tests/run --tier ${{ matrix.tier }}
+          FULL: ${{ needs.plan.outputs.full }}
+          BASE: ${{ needs.plan.outputs.base }}
+        run: |
+          if [ "$FULL" = true ]; then
+            tests/run --tier ${{ matrix.tier }}
+          else
+            tests/run --changed-from "$BASE" --tier ${{ matrix.tier }}
+          fi
+      - name: Pixel canary for visible changes
+        if: needs.plan.outputs.full != 'true' && runner.os != 'Windows'
+        env:
+          BASE: ${{ needs.plan.outputs.base }}
+        run: |
+          git diff --name-only "$BASE" HEAD -- | python3 tests/affected.py tests/affected.json > "$RUNNER_TEMP/affected-tests"
+          if grep -qx canary "$RUNNER_TEMP/affected-tests"; then tools/proto-capture compare --canary --zinc build/zinc; fi
+      - name: Upload failed test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.name }}
+          path: next/.logs/
+          include-hidden-files: true
       - name: Package (macOS and Linux)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && needs.plan.outputs.package == 'true'
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then export ZINC_VERSION="${GITHUB_REF_NAME#v}"; fi   # v1.2.0 -> Zinc-1.2.0-...
           tools/package --out dist
@@ -81,7 +156,7 @@ jobs:
           printf 'version=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "${GITHUB_REF_NAME#v}" "$(basename "$pkg")" "$(shasum -a 256 "$pkg" | cut -d' ' -f1)" "Zinc ${GITHUB_REF_NAME}" > "$RUNNER_TEMP/m"
           build/zinc update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "dist/zinc-${{ matrix.name }}.manifest"
       - uses: actions/upload-artifact@v4
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && needs.plan.outputs.package == 'true'
         with:
           name: package-${{ matrix.name }}
           path: next/dist/
@@ -141,6 +216,8 @@ jobs:
   reproducible:
     # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
     name: reproducible
+    needs: plan
+    if: needs.plan.outputs.reproducible == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -167,8 +244,10 @@ jobs:
           done
           for p in device sqlite svg; do cmp "$RUNNER_TEMP/$p-one.tar" "$RUNNER_TEMP/$p-second.tar"; done
   bench-gate:
-    # ZN-148: a slower interpreter or AOT build than the committed numbers (relative to QuickJS of the same run) fails the job
+    # ZN-148: compare the candidate and pinned reference on the same runner; preserve the 15% limit.
     name: bench-gate
+    needs: plan
+    if: needs.plan.outputs.bench == 'true'
     runs-on: macos-14
     defaults:
       run:
@@ -176,8 +255,25 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - run: brew install cmake quickjs node || true
+        with: { fetch-depth: 0 }
+      - run: brew install cmake
       - name: Build
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target zinc -j3
+      - name: Build the measured reference revision
+        run: |
+          reference="$RUNNER_TEMP/zinc-benchmark-reference"
+          git worktree add --detach "$reference" fb610f986e50a0533301cbcc16b5addefb56089f
+          # Reconstruct headers omitted from the original measured checkout; leave engine sources unchanged.
+          git -C "$reference" restore --source=dc4d08f4fef006c9858057ef54b7825308f1c7c3 --worktree -- next/third_party/SDL3/include/build_config
+          git -C "$reference" restore --source=f1b0f48f675d8921879ac5859979033d08a4e5c3 --worktree -- runtime/include/hal.h
+          cmake -S "$reference/next" -B "$reference/next/build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$reference/next/build" --target zinc -j3
+          echo "ZINC_BENCH_BASELINE=$reference/next/build/zinc" >> "$GITHUB_ENV"
       - name: Gate
         run: tools/bench-gate
+      - name: Upload benchmark measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-measurements
+          path: /tmp/zn-bench-gate.*
