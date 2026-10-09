@@ -226,6 +226,7 @@ struct Machine {
     return true;
   }
   void destroy(Obj* o);
+  const char* releaseLast(Obj* o);   // the count is 0 or 1 (op::releaseC): destroy, or the message of a release of a dead object
   void releaseSlot(Slot s) { release(reinterpret_cast<Obj*>(s)); }
   StrObj* newStr(const char* p, std::size_t n);
   StrObj* newStrCat(const StrObj* a, const StrObj* b);   // a + b, one allocation, ascii and UTF-16 length from the parts
@@ -334,6 +335,20 @@ inline Slot instanceOf(Slot v, unsigned cls) {
 inline const char* release(Machine& m, Slot v) {
   return __builtin_expect(!m.release(reinterpret_cast<Obj*>(v)), 0) ? "release of an object that is already dead" : nullptr;
 }
+// Reference counting in compiled programs (ZN-604): they never count statistics (zinc mem runs the interpreter), so they skip Machine::mem, and
+// the last reference, which destroys, leaves the line for Machine::releaseLast. Measured on hero and the M4 kernels: as written, clang inlines a
+// third of the sites and calls one copy elsewhere (hero 8.2 MB, 34 s); moving the kImmortal test into releaseLast makes it inline all of them (9.0 MB,
+// 47 s, no kernel faster); calling all of it out of line saves 0.6 MB more but costs binarytrees 9.6% and mapset 4.4%.
+inline void retainC(Slot v) { auto* o = reinterpret_cast<Obj*>(v); if (o && o->rc != kImmortal) ++o->rc; }
+inline const char* releaseC(Machine& m, Slot v) {
+  auto* o = reinterpret_cast<Obj*>(v);
+  if (!o) return nullptr;
+  const std::uint32_t c = o->rc;
+  if (__builtin_expect(c - 2u < kImmortal - 2u, 1)) { o->rc = c - 1; return nullptr; }   // 2 .. kImmortal - 1: other references remain
+  return c == kImmortal ? nullptr : m.releaseLast(o);
+}
+inline void dropC(Machine& m, Slot v) { (void)releaseC(m, v); }
+bool catches(const Obj* e, std::uint32_t cls);   // a handler of class `cls` takes the exception `e` (out of line: only a throw runs it, 2500 sites in hero)   // a replaced field's old value (Machine::releaseSlot)
 inline const char* arrGet(Slot* r, unsigned a, unsigned b, unsigned c) {
   auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[b]));
   if (__builtin_expect(!o, 0)) return kNullRef;

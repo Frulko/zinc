@@ -6,23 +6,34 @@
 using namespace zn;
 using namespace zn::rt;
 
-static const unsigned char kModule[] = {
-  10,90,66,67,50,7,39,0,42,2,0,0,0,4,0,0,0,109,97,105,110,0,0,1,
-  0,1,0,0,0,1,23,0,34,3,0,0,0,102,105,98,1,1,1,4,0,1,0,0,
-  0,1,47,0,
-};
+// The checks every function repeats, short (ZN-604): zt and ze are the messages of the function's error exits Ltrap and Lrterr.
+#define ZTRAP(msg) { zt = (msg); goto Ltrap; }
+#define ZNULLREF ZTRAP(op::kNullRef)
+#define ZNULL(x) if (__builtin_expect(!(x), 0)) ZNULLREF
+#define ZCHK(call) if (__builtin_expect((zt = (call)) != nullptr, 0)) goto Ltrap;
+#define ZRTERR if (__builtin_expect(e != nullptr, 0)) { ze = e; goto Lrterr; }
+#define ZST if (__builtin_expect(st != 0, 0)) return st;
+#define ZRETAIN(x) op::retainC(x)
+#define ZRELEASE(x) ZCHK(op::releaseC(m, x))
+#define ZSTR(k) reinterpret_cast<Slot>(m.strConsts[k])
+#define ZOBJ(cls, x) reinterpret_cast<Z_C##cls*>(x)
+#define ZSETG(g, x) { Slot old = m.globals[g]; m.globals[g] = (x); if (m.globalRef[g]) op::dropC(m, old); }
+#define ZVIRT(x, sel) const char* ce = nullptr; Slot vt = (x); const Func* cf = op::virtualTarget(&vt, 0, sel, ce); if (__builtin_expect(ce != nullptr, 0)) ZTRAP(ce)
+// a window outside the stack (the temporary one of an exception text, a native callback) is not checked against its end
+#define ZFN static
+#define ZSTACK(n) if (__builtin_expect(op::stackLow(m) || (win + (n) > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = "stack overflow"; return 2; }
 
-static int f0(Machine& m, Slot* r);
-static int f1(Machine& m, Slot* r);
-static Slot t1(Machine& m, Slot);
+ZFN int f0(Machine& m, Slot* r);
+ZFN int f1(Machine& m, Slot* r);
+ZFN Slot t1(Machine& m, Slot);
 
 // function 0
-static int f0(Machine& m, Slot* win) {
-  const char* zt; const char* ze;   // the message of the error exits below
-  if (__builtin_expect(op::stackLow(m) || (win + 1 > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = "stack overflow"; return 2; }
+ZFN int f0(Machine& m, Slot* win) {
+  const char* zt; const char* ze;
+  ZSTACK(1)
   Slot r[1];
   r[0] = zn::ops::sx(32);
-  { win[0] = r[0]; int st = f1(m, win + 0); r[0] = win[0]; if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; } return st; } }
+  { win[0] = r[0]; int st = f1(m, win + 0); r[0] = win[0]; ZST }
   *m.out += std::to_string(static_cast<std::int64_t>(r[0]));
   *m.out += '\n';
   return 0;
@@ -30,7 +41,7 @@ static int f0(Machine& m, Slot* win) {
 }
 
 // function 1 (typed)
-static Slot t1(Machine& m, Slot a0) {
+ZFN Slot t1(Machine& m, Slot a0) {
   if (__builtin_expect(op::stackLow(m), 0)) { m.error = "stack overflow"; m.failed = true; return 0; }
   Slot r0 = a0;
   Slot r1;
@@ -64,13 +75,17 @@ L21:
   return 0;
 }
 
-static int f1(Machine& m, Slot* r) {
+ZFN int f1(Machine& m, Slot* r) {
   m.failed = false;
   Slot v = t1(m, r[0]);
   if (__builtin_expect(m.failed, 0)) return 2;
   r[0] = v;
   return 0;
 }
+
+static const char kModule[] = 
+  "\12ZBC2\7'\0*\2\0\0\0\4\0\0\0main\0\0\1\0\1\0\0\0\1\27\0\42\3\0\0\0fib\1\1\1\4\0\1\0\0\0\1/\0";
+static const unsigned kModuleSize = 52;
 
 static int (*const kNatives[])(Machine&, Slot*) = {f0, f1};
 
@@ -82,5 +97,5 @@ bool zn::rt::Machine::exec(const Func* f, Slot* base) {
 }
 
 int main() {
-  return zn::rt::runProgramPacked(kModule, sizeof kModule, kNatives, 2);
+  return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, 2);
 }

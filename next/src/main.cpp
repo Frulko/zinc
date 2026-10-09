@@ -387,7 +387,7 @@ static int runCompiled(const zn::zbc::Module& zm, const std::string& entry, cons
   stamp(exe); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a");
   for (const zn::tc::PluginLib& pl : gPlugins) stamp(pl.archive);
   if (std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); key += "\n" + ss.str(); }
-  for (const char* v : {"CXX", "ZINC_TEXT"}) if (const char* e = std::getenv(v)) key += std::string("\n") + v + "=" + e;
+  for (const char* v : {"CXX", "ZINC_TEXT", "ZN_KEEP_SYMBOLS"}) if (const char* e = std::getenv(v)) key += std::string("\n") + v + "=" + e;
   key = zn::tc::sha256Hex(key);
   const fs::path dir = fs::path(zn::tc::home()) / "cache" / "run" / zn::tc::sha256Hex(entry).substr(0, 16);
   const fs::path app = dir / "app", keyFile = dir / "key";
@@ -1395,7 +1395,12 @@ int main(int argc, char** argv) {
       zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
       if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
     }
-    { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse())); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    const char* cxx = std::getenv("CXX");
+    bool haveLibs = fs::exists(libs / "libzn_rt.a");
+    bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
+    std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
+    { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
+      for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(argv[4]).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().c_str()); return 2; } } }
     std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
     if (zn::aot::usesHost(zm)) {
       std::string pf = zn::frontend::findProjectFile(argv[2]);
@@ -1415,9 +1420,6 @@ int main(int argc, char** argv) {
       }
     }
     if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), argv[2], zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
-    const char* cxx = std::getenv("CXX");
-    bool haveLibs = fs::exists(libs / "libzn_rt.a");
-    bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
     if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
       if (zn::aot::usesHost(zm)) { std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX)\n"); fs::remove(cpp); return 1; }
       std::string zig, err;
@@ -1449,14 +1451,34 @@ int main(int argc, char** argv) {
 #else
     const char* noOutline = "";
 #endif
-    std::string cmd = std::string(cxx ? cxx : "c++") + " -std=c++20 -O2" + noOutline + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "' '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
+    // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
+    const std::string lean = std::string(" -fno-stack-protector") + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
+    const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + lean + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
+    std::vector<fs::path> units{cpp};
+    units.insert(units.end(), moreUnits.begin(), moreUnits.end());
+    std::string inputs;   // one unit: compiled and linked by one command; several: their objects, compiled at once below
+    for (const fs::path& u : units) inputs += " '" + (moreUnits.empty() ? u.string() : u.string() + ".o") + "'";
+    std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                       (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                       (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + argv[4] + "'";  // the graphics host, used by programs that call it
     writeComponents(std::string(argv[4]) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
     zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
-    int rc;
-    { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + " -O2, compile and link"); rc = std::system(cmd.c_str()); }
-    if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
+    int rc = 0;
+    if (!moreUnits.empty()) {
+      zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(units.size()) + " units at once");
+      std::string all, waits;   // one shell runs the compilers in the background (std::system from several threads runs them one after the other on macOS)
+      for (std::size_t k = 0; k < units.size(); ++k) {
+        all += "( " + std::string(cxx ? cxx : "c++") + cflags + " -c '" + units[k].string() + "' -o '" + units[k].string() + ".o' ) & p" + std::to_string(k) + "=$!; ";
+        waits += "wait $p" + std::to_string(k) + " || r=1; ";
+      }
+      rc = std::system((all + "r=0; " + waits + "exit $r").c_str());
+    }
+    if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = std::system(cmd.c_str()); }
+    for (const fs::path& u : units) {
+      std::error_code ec;
+      if (!moreUnits.empty()) fs::remove(u.string() + ".o", ec);
+      if (!std::getenv("ZN_KEEP_CPP")) fs::remove(u, ec);
+    }
     if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }
     { std::error_code ec; const auto sz = fs::file_size(argv[4], ec); char mb[32]; std::snprintf(mb, sizeof mb, "%.1f MB", ec ? 0.0 : static_cast<double>(sz) / 1e6); zn::log::step("done", zn::log::shortPath(fs::absolute(argv[4]).string()) + " (" + mb + ")", zn::log::since(tBuild)); }
     if (!gBundleOut.empty()) {

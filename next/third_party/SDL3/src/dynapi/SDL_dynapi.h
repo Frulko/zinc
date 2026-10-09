@@ -67,6 +67,8 @@
 #define SDL_DYNAMIC_API 0
 #elif defined(DYNAPI_NEEDS_DLOPEN) && !defined(HAVE_DLOPEN)
 #define SDL_DYNAMIC_API 0 // we need dlopen(), but don't have it....
+#elif defined(ZN_SDL_NO_DYNAPI) // Zinc: linked statically into one executable; its table keeps every SDL function from dead-stripping (ZN-604)
+#define SDL_DYNAMIC_API 0
 #endif
 
 // everyone else. This is where we turn on the API if nothing forced it off.

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <set>
 #include <vector>
@@ -88,12 +89,14 @@ struct FnEmitter {
     auto it = handlersAt.find(pc);
     if (it != handlersAt.end()) {
       for (const zbc::Handler* h : it->second)
-        s += "if (isSubclassRT(" + exc + "->cls, " + std::to_string(h->cls) + ")) { m.thrown = nullptr; r[" + std::to_string(h->reg) + "] = reinterpret_cast<Slot>(" + exc + "); goto L" + std::to_string(h->target) + "; } ";
+        s += "if (op::catches(" + exc + ", " + std::to_string(h->cls) + ")) { m.thrown = nullptr; r[" + std::to_string(h->reg) + "] = reinterpret_cast<Slot>(" + exc + "); goto L" + std::to_string(h->target) + "; } ";
     }
     return s;
   }
   std::string afterCall(std::uint32_t pc) {
-    return "if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; " + unwind(pc, "e") + "} return st; }";  // (only in functions that call)
+    std::string u = unwind(pc, "e");
+    if (u.empty()) return "ZST";   // (only in functions that call)
+    return "if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; " + u + "} return st; }";
   }
   bool leaf = false;  // no calls and no runtime calls: the registers can live in C++ locals
   // A function that calls keeps its registers in C++ locals too (ZN-397): the window `win` holds only the frames of its callees, the argument registers are
@@ -114,14 +117,19 @@ struct FnEmitter {
   std::string trap(const std::string& msg) {
     if (typed) return "{ m.error = " + msg + "; m.failed = true; return 0; }";
     usedTrap = true;
-    return "{ zt = " + msg + "; goto Ltrap; }";
+    return msg == "op::kNullRef" ? "ZNULLREF" : "ZTRAP(" + msg + ")";
   }
   std::string checked(const std::string& call) {
     if (typed) return "{ const char* e = " + call + "; if (__builtin_expect(e != nullptr, 0)) " + trap("e") + " }";
     usedTrap = true;
-    return "if (__builtin_expect((zt = " + call + ") != nullptr, 0)) goto Ltrap;";
+    return "ZCHK(" + call + ")";
   }
-  std::string rtFail() { usedRt = true; return "if (__builtin_expect(e != nullptr, 0)) { ze = e; goto Lrterr; }"; }
+  std::string rtFail() { usedRt = true; return "ZRTERR"; }
+  std::string nullGuard(const std::string& reg) {
+    if (typed) return "if (__builtin_expect(!" + reg + ", 0)) " + trap("op::kNullRef") + " ";
+    usedTrap = true;
+    return "ZNULL(" + reg + ") ";
+  }
 
   void emit() {
     collectLabels();
@@ -133,19 +141,19 @@ struct FnEmitter {
     if (typed) {   // typed parameters and result, the registers are locals, a failure is a flag: no window, no status codes (ZN-144)
       std::string ps;
       for (std::size_t k = 0; k < f.params.size(); ++k) ps += ", Slot a" + std::to_string(k);
-      out += "// function " + std::to_string(index) + " (typed)\nstatic Slot t" + std::to_string(index) + "(Machine& m" + ps + ") {\n";
+      out += "// function " + std::to_string(index) + " (typed)\nZFN Slot t" + std::to_string(index) + "(Machine& m" + ps + ") {\n";
       line("if (__builtin_expect(op::stackLow(m), 0)) { m.error = \"stack overflow\"; m.failed = true; return 0; }");
       for (std::uint32_t k = 0; k < (f.nregs ? f.nregs : 1); ++k) line("Slot r" + std::to_string(k) + (k < f.params.size() ? " = a" + std::to_string(k) : "") + ";");
     } else
-    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf || locals ? "win" : "r") + ") {\n";
-    if (!typed) line("const char* zt; const char* ze;   // the message of the error exits below");
+    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nZFN int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf || locals ? "win" : "r") + ") {\n";
+    if (!typed) line("const char* zt; const char* ze;");
     if (typed) {}
     else if (leaf) {  // the registers are C++ locals so the compiler keeps them in machine registers; arguments come in, the result goes out through the window
       line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
       for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
     } else {
       // a window outside the stack (the temporary one of an exception text, a native callback) is not checked against its end
-      line("if (__builtin_expect(op::stackLow(m) || (win + " + std::to_string(f.nregs ? f.nregs : 1) + " > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = \"stack overflow\"; return 2; }");
+      line("ZSTACK(" + std::to_string(f.nregs ? f.nregs : 1) + ")");
       line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
       for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
     }
@@ -176,7 +184,7 @@ struct FnEmitter {
         line("{ Slot v = t" + std::to_string(D) + "(m" + args + "); if (__builtin_expect(m.failed, 0)) return 0; " + (g.ret.cls == zbc::Cls::None ? "(void)v;" : r(A) + " = v;") + " }");
       }
       else if (nm == "Call") { unsigned n = static_cast<unsigned>(m.functions[D].params.size()); line("{ " + toWin(A, n) + "int st = f" + std::to_string(D) + "(m, " + frame(A) + "); " + fromWin(A, std::max(1u, n)) + afterCall(P) + " }"); }
-      else if (nm == "CallVirt") line("{ const char* ce = nullptr; Slot vt = " + r(A) + "; const Func* cf = op::virtualTarget(&vt, 0, " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " " + toWin(A, virtArity(D, A)) + "int st = cf->native(m, " + frame(A) + "); " + fromWin(A, virtArity(D, A)) + afterCall(P) + " }");
+      else if (nm == "CallVirt") line("{ " + (typed ? "const char* ce = nullptr; Slot vt = " + r(A) + "; const Func* cf = op::virtualTarget(&vt, 0, " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " " : (usedTrap = true, "ZVIRT(" + r(A) + ", " + std::to_string(D) + ") ")) + toWin(A, virtArity(D, A)) + "int st = cf->native(m, " + frame(A) + "); " + fromWin(A, virtArity(D, A)) + afterCall(P) + " }");
       else if (nm == "Ret" && typed) line("return " + r(A) + ";");
       else if (nm == "RetV" && typed) line("return 0;");
       else if (nm == "Ret") line(leaf || locals ? "{ win[0] = " + r(A) + "; return 0; }" : "{ r[0] = " + r(A) + "; return 0; }");
@@ -186,14 +194,14 @@ struct FnEmitter {
       else if ((nm == "GetField" || nm == "SetField") && objClass(nm == "GetField" ? B : A, P, C) >= 0) {
         const int cls = objClass(nm == "GetField" ? B : A, P, C);
         const zbc::Cls fk = m.classes[cls].fields[C].cls;
-        const std::string ptr = "reinterpret_cast<Z_C" + std::to_string(cls) + "*>(" + r(nm == "GetField" ? B : A) + ")", mem = "->f" + std::to_string(C);
-        const std::string guard = "if (__builtin_expect(!" + r(nm == "GetField" ? B : A) + ", 0)) " + trap("op::kNullRef") + " ";
+        const std::string ptr = "ZOBJ(" + std::to_string(cls) + ", " + r(nm == "GetField" ? B : A) + ")", mem = "->f" + std::to_string(C);
+        const std::string guard = nullGuard(r(nm == "GetField" ? B : A));
         if (nm == "GetField") line("{ " + guard + r(A) + " = " + (fk == zbc::Cls::D ? "std::bit_cast<Slot>(" + ptr + mem + ")" : ptr + mem) + "; }");
-        else if (fk == zbc::Cls::R) line("{ " + guard + "Slot old = " + ptr + mem + "; " + ptr + mem + " = " + r(B) + "; m.releaseSlot(old); }");
+        else if (fk == zbc::Cls::R) line("{ " + guard + "Slot old = " + ptr + mem + "; " + ptr + mem + " = " + r(B) + "; op::dropC(m, old); }");
         else line("{ " + guard + ptr + mem + " = " + (fk == zbc::Cls::D ? "std::bit_cast<double>(" + r(B) + ")" : r(B)) + "; }");
       }
-      else if (nm == "GetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(B) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " " + r(A) + " = o->fields()[" + std::to_string(C) + "]; }");
-      else if (nm == "SetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(A) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " Slot old = o->fields()[" + std::to_string(C) + "]; o->fields()[" + std::to_string(C) + "] = " + r(B) + "; if (o->cls->fieldRef[" + std::to_string(C) + "]) m.releaseSlot(old); }");
+      else if (nm == "GetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(B) + "); " + nullGuard("o") + r(A) + " = o->fields()[" + std::to_string(C) + "]; }");
+      else if (nm == "SetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(A) + "); " + nullGuard("o") + "Slot old = o->fields()[" + std::to_string(C) + "]; o->fields()[" + std::to_string(C) + "] = " + r(B) + "; if (o->cls->fieldRef[" + std::to_string(C) + "]) op::dropC(m, old); }");
       else if (nm == "Downcast") line("{ Slot t = " + r(A) + "; " + checked("op::downcast(&t, 0, " + std::to_string(D) + ")") + " }");
       else if (nm == "EqR") line(r(A) + " = Slot{" + r(B) + " == " + r(C) + "};");
       else if (nm == "NeR") line(r(A) + " = Slot{" + r(B) + " != " + r(C) + "};");
@@ -201,17 +209,17 @@ struct FnEmitter {
       else if (nm == "InstanceOf") line(r(A) + " = op::instanceOf(" + r(A) + ", " + std::to_string(D) + ");");
       else if (nm == "GetGlobal") line(r(A) + " = m.globals[" + std::to_string(D) + "];");
       else if (nm == "SetGlobal" && typed) line("m.globals[" + std::to_string(D) + "] = " + r(A) + ";");
-      else if (nm == "SetGlobal") line("{ Slot old = m.globals[" + std::to_string(D) + "]; m.globals[" + std::to_string(D) + "] = " + r(A) + "; if (m.globalRef[" + std::to_string(D) + "]) m.releaseSlot(old); }");
-      else if (nm == "Retain") line("m.retain(reinterpret_cast<Obj*>(" + r(A) + "));");
-      else if (nm == "Release") line(checked("op::release(m, " + r(A) + ")"));
-      else if (nm == "LoadStr") line(r(A) + " = reinterpret_cast<Slot>(m.strConsts[" + std::to_string(D) + "]);");
+      else if (nm == "SetGlobal") line("ZSETG(" + std::to_string(D) + ", " + r(A) + ")");
+      else if (nm == "Retain") line("ZRETAIN(" + r(A) + ");");
+      else if (nm == "Release") line(typed ? checked("op::releaseC(m, " + r(A) + ")") : (usedTrap = true, "ZRELEASE(" + r(A) + ")"));
+      else if (nm == "LoadStr") line(r(A) + " = ZSTR(" + std::to_string(D) + ");");
       else if (nm == "ArrGet") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrGet(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
       else if (nm == "ArrSet") line("{ Slot t[3] = {" + r(A) + ", " + r(B) + ", " + r(C) + "}; " + checked("op::arrSet(m, t, 0, 1, 2)") + " }");
       else if (nm == "ArrLen") line("{ Slot t[2] = {0, " + r(B) + "}; " + checked("op::arrLen(t, 0, 1)") + " " + r(A) + " = t[0]; }");
       else if (nm == "ArrPush") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrPush(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
       else if (nm == "Rt" && D >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && D < static_cast<unsigned>(zn::Rt::HostSysFirst))   // a graphics row: its direct entry when the host has one (ZN-397)
-        line("{ " + toWin(A, rtArity(D)) + "if (zn::host::HostFast hf = zn::host::hostFast[" + std::to_string(D) + "]) hf(" + frame(A) + "); else { const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), " + frame(A) + ", " + frame(f.nregs) + "); " + rtFail() + " } " + fromWin(A, std::max(1u, rtArity(D))) + "}");
-      else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + rtFail() + " }");
+        line("{ " + toWin(A, rtArity(D)) + "if (zn::host::HostFast hf = zn::host::hostFast[" + std::to_string(D) + "]) hf(" + frame(A) + "); else { const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + rtFail() + " } " + fromWin(A, std::max(1u, rtArity(D))) + "}");
+      else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + rtFail() + " }");
       else if (nm == "CallNative") line("{ " + toWin(A, f.nregs > A ? f.nregs - A : 1) + "const char* e = nativeCall(m, " + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, f.nregs > A ? f.nregs - A : 1) + rtFail() + " }");
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));
       else if (nm == "LogI") line("*m.out += std::to_string(static_cast<std::int64_t>(" + r(A) + "));");
@@ -233,13 +241,29 @@ struct FnEmitter {
     if (typed) {   // the window entry the interpreter, the other compiled functions and the virtual calls use
       std::string args;
       for (std::size_t k = 0; k < f.params.size(); ++k) args += (k ? ", r[" : ", r[") + std::to_string(k) + "]";
-      out += "static int f" + std::to_string(index) + "(Machine& m, Slot* r) {\n  m.failed = false;\n  Slot v = t" + std::to_string(index) + "(m" + args + ");\n  if (__builtin_expect(m.failed, 0)) return 2;\n" +
+      out += "ZFN int f" + std::to_string(index) + "(Machine& m, Slot* r) {\n  m.failed = false;\n  Slot v = t" + std::to_string(index) + "(m" + args + ");\n  if (__builtin_expect(m.failed, 0)) return 2;\n" +
              (f.ret.cls == zbc::Cls::None ? "  (void)v;\n" : "  r[0] = v;\n") + "  return 0;\n}\n\n";
     }
   }
 };
 
 // Functions that can be compiled with typed parameters (ZN-144): numbers and booleans in and out, no references, no handlers, only operations on registers, and calls to such functions.
+// Bytes as one string literal: a single token for the compiler instead of a list of a million integers, about 2 characters a byte (ZN-604).
+void appendBytes(std::string& s, const std::uint8_t* p, std::size_t n) {
+  s += "\"";
+  bool octal = false;   // the last escape was octal: a digit after it would extend it, so it is escaped too
+  for (std::size_t i = 0; i < n; ++i) {
+    if (i && i % 96 == 0) { s += "\"\n  \""; octal = false; }
+    const unsigned c = p[i];
+    if (c >= 32 && c < 127 && c != '"' && c != '\\' && c != '?' && !(octal && c >= '0' && c <= '7')) { s += static_cast<char>(c); octal = false; continue; }
+    char buf[8];
+    std::snprintf(buf, sizeof buf, "\\%o", c);
+    s += buf;
+    octal = true;
+  }
+  s += "\"";
+}
+
 std::vector<char> typedFunctions(const zbc::Module& mod, const std::set<std::string>& arith, const std::set<std::string>& divs) {
   auto scalar = [](zbc::Cls c) { return c == zbc::Cls::I || c == zbc::Cls::S || c == zbc::Cls::D; };
   static const std::set<std::string> plain = {"Nop", "Trap", "Move", "LoadI", "LoadK", "AddI32K", "Jmp", "JmpIf", "JmpIfNot", "Call", "Ret", "RetV", "GetGlobal", "SetGlobal",
@@ -289,21 +313,31 @@ bool usesLayout(const zbc::Module& mod) {
   return false;
 }
 
-std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* resources, bool rnLayout) {
+std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<std::uint8_t>* resources, bool rnLayout, unsigned maxParts) {
   auto arith = namesOf(0), divs = namesOf(1);
   std::string s = "// Generated by zinc (ZN-022): a function of the module per C++ function, over the interpreter's register window.\n"
-                  "#include \"rt/rt.h\"\n#include \"zn/host.h\"\n#include \"zn/ops.h\"\n\nusing namespace zn;\nusing namespace zn::rt;\n\n";
+                  "#include \"rt/rt.h\"\n#include \"zn/host.h\"\n#include \"zn/ops.h\"\n\nusing namespace zn;\nusing namespace zn::rt;\n\n"
+                  "// The checks every function repeats, short (ZN-604): zt and ze are the messages of the function's error exits Ltrap and Lrterr.\n"
+                  "#define ZTRAP(msg) { zt = (msg); goto Ltrap; }\n"
+                  "#define ZNULLREF ZTRAP(op::kNullRef)\n"
+                  "#define ZNULL(x) if (__builtin_expect(!(x), 0)) ZNULLREF\n"
+                  "#define ZCHK(call) if (__builtin_expect((zt = (call)) != nullptr, 0)) goto Ltrap;\n"
+                  "#define ZRTERR if (__builtin_expect(e != nullptr, 0)) { ze = e; goto Lrterr; }\n"
+                  "#define ZST if (__builtin_expect(st != 0, 0)) return st;\n"
+                  "#define ZRETAIN(x) op::retainC(x)\n"
+                  "#define ZRELEASE(x) ZCHK(op::releaseC(m, x))\n"
+                  "#define ZSTR(k) reinterpret_cast<Slot>(m.strConsts[k])\n"
+                  "#define ZOBJ(cls, x) reinterpret_cast<Z_C##cls*>(x)\n"
+                  "#define ZSETG(g, x) { Slot old = m.globals[g]; m.globals[g] = (x); if (m.globalRef[g]) op::dropC(m, old); }\n"
+                  "#define ZVIRT(x, sel) const char* ce = nullptr; Slot vt = (x); const Func* cf = op::virtualTarget(&vt, 0, sel, ce); if (__builtin_expect(ce != nullptr, 0)) ZTRAP(ce)\n"
+                  "// a window outside the stack (the temporary one of an exception text, a native callback) is not checked against its end\n"
+                  "#define ZFN static\n"
+                  "#define ZSTACK(n) if (__builtin_expect(op::stackLow(m) || (win + (n) > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = \"stack overflow\"; return 2; }\n\n";
   // The module the program loads keeps its tables (classes, selectors, strings, globals, signatures) but not the code of its functions: every
   // function is compiled below, so its words would only be decoded and verified at each launch (ZN-603). One Trap stands for each body.
   zbc::Module tables = mod;
   for (zbc::Function& fn : tables.functions) { fn.code.assign(1, static_cast<std::uint32_t>(zn::Op::Trap)); fn.consts.clear(); fn.handlers.clear(); }
   auto bytes = zbc::packRuns(zbc::encode(tables));
-  s += "static const unsigned char kModule[] = {";
-  for (std::size_t i = 0; i < bytes.size(); ++i) {
-    if (i % 24 == 0) s += "\n  ";
-    s += std::to_string(bytes[i]) + ",";
-  }
-  s += "\n};\n\n";
   const std::vector<char> typedFn = typedFunctions(mod, arith, divs);
   // one struct per object class with fields (ZN-409): the same layout as Obj + Slot fields[], f64 fields typed double
   for (std::size_t c = 0; c < mod.classes.size(); ++c) {
@@ -315,22 +349,39 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
     s += " };\nstatic_assert(sizeof(" + n + ") == sizeof(Obj) + " + std::to_string(ci.fields.size()) + " * sizeof(Slot), \"" + n + " layout\");\n";
   }
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
-    s += "static int f" + std::to_string(i) + "(Machine& m, Slot* r);\n";
-    if (typedFn[i]) { s += "static Slot t" + std::to_string(i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }
+    s += "ZFN int f" + std::to_string(i) + "(Machine& m, Slot* r);\n";
+    if (typedFn[i]) { s += "ZFN Slot t" + std::to_string(i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }
   }
   s += "\n";
+  std::vector<std::string> bodies(mod.functions.size());
+  std::size_t total = 0;
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
     FnEmitter fe(mod, mod.functions[i], i, arith, divs, typedFn);
     fe.emit();
-    s += fe.out;
+    bodies[i] = std::move(fe.out);
+    total += bodies[i].size();
   }
+  // A large program is compiled as several translation units at once (ZN-604): about 2 MB of functions each, contiguous so that callers and
+  // callees of one source file stay together (a call across units is not inlined); the first unit has the tables and main. Small programs (the
+  // benchmarks) stay one unit with static functions.
+  const char* pb = std::getenv("ZN_AOT_PART_BYTES");   // tests: split small programs too
+  const std::size_t kPartBytes = pb ? std::max<std::size_t>(1, std::strtoull(pb, nullptr, 10)) : std::size_t{2} << 20;
+  const unsigned parts = static_cast<unsigned>(std::clamp<std::size_t>((total + kPartBytes - 1) / kPartBytes, 1, std::max(1u, maxParts)));
+  if (parts > 1) s.replace(s.find("#define ZFN static\n"), 19, "#define ZFN   // the functions are called across the units of this program\n");
+  std::vector<std::string> out(parts, s);
+  for (std::size_t i = 0, part = 0, acc = 0; i < bodies.size(); ++i) {
+    if (part + 1 < parts && acc >= total * (part + 1) / parts) ++part;
+    out[part] += bodies[i];
+    acc += bodies[i].size();
+  }
+  s = std::move(out[0]);
+  s += "static const char kModule[] = \n  ";
+  appendBytes(s, bytes.data(), bytes.size());
+  s += ";\nstatic const unsigned kModuleSize = " + std::to_string(bytes.size()) + ";\n\n";
   if (resources && usesHost(mod)) {  // baked fonts and images
-    s += "static const unsigned char kResources[] = {";
-    for (std::size_t i = 0; i < resources->size(); ++i) {
-      if (i % 32 == 0) s += "\n  ";
-      s += std::to_string((*resources)[i]) + ",";
-    }
-    s += "\n};\n\n";
+    s += "static const char kResources[] = \n  ";
+    appendBytes(s, resources->data(), resources->size());
+    s += ";\n\n";
   }
   std::vector<std::string> linkedNative;  // modules the program is linked with (ZINC_NATIVE_LIBS): the generated main registers them
   for (const zn::zbc::Native& nt : mod.natives) if (nt.module != "Fixture" && std::find(linkedNative.begin(), linkedNative.end(), nt.module) == linkedNative.end()) linkedNative.push_back(nt.module);
@@ -349,8 +400,11 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
        "}\n\n"
        + std::string(usesHost(mod) ? "namespace zn::host { void installGfx(); void installLayout(); bool installResources(const unsigned char*, decltype(sizeof 0)); }  // the graphics host (src/host), linked by zinc build\n" : "") +
        std::string(hasFixture || !linkedNative.empty() ? "#include \"zn/native.h\"\n" + nativeDecls : "") + std::string(hasFixture ? "#include \"zn/native.h\"\nextern \"C\" const ZnModule* fixture_module(void);  // the C test module of tests/native, linked by zinc build (ZN-097; plugin modules come with the loader)\n" : "") +
-       (usesHost(mod) ? "#include \"zn/hostsys.h\"\n\nint main(int argc, char** argv) {\n  zn::host::setProgramArgs(std::vector<std::string>(argv + 1, argv + argc));   // zinc:sys args()\n" : "int main() {\n") + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(rnLayout && usesLayout(mod) ? "  zn::host::installLayout();\n" : "") + std::string(resources ? "  zn::host::installResources(kResources, sizeof kResources);\n" : "") : std::string()) + "  return zn::rt::runProgramPacked(kModule, sizeof kModule, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
-  return s;
+       (usesHost(mod) ? "#include \"zn/hostsys.h\"\n\nint main(int argc, char** argv) {\n  zn::host::setProgramArgs(std::vector<std::string>(argv + 1, argv + argc));   // zinc:sys args()\n" : "int main() {\n") + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n" + std::string(rnLayout && usesLayout(mod) ? "  zn::host::installLayout();\n" : "") + std::string(resources ? "  zn::host::installResources(reinterpret_cast<const unsigned char*>(kResources), sizeof kResources - 1);\n" : "") : std::string()) + "  return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, " + std::to_string(mod.functions.size()) + ");\n}\n";
+  out[0] = std::move(s);
+  return out;
 }
+
+std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* resources, bool rnLayout) { return emitCppParts(mod, resources, rnLayout, 1)[0]; }
 
 }  // namespace zn::aot

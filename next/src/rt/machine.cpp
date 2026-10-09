@@ -125,6 +125,9 @@ void Machine::memFree(Obj* o) {
   mem->liveBytes -= b;
 }
 
+bool op::catches(const Obj* e, std::uint32_t cls) { return isSubclassRT(e->cls, cls); }
+const char* Machine::releaseLast(Obj* o) { return release(o) ? nullptr : "release of an object that is already dead"; }
+
 // The last reference to `root` is gone: destroy it and, depth first, whatever only it kept alive. Order, as with the native
 // runtime's RAII: an object's fields in reverse order of declaration, an array's elements first to last, a Map's entries
 // first to last (key, then value).

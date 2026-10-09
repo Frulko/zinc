@@ -155,6 +155,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     endforeach()
     add_subdirectory(third_party/SDL3 EXCLUDE_FROM_ALL)
     target_compile_options(SDL3-static PRIVATE -w)   # vendored code: its warnings are not ours
+    target_compile_definitions(SDL3-static PRIVATE ZN_SDL_NO_DYNAPI)   # no dynamic API table (src/dynapi/SDL_dynapi.h, patched): unused SDL code is dead-stripped (ZN-604)
     set(SDL3_FOUND TRUE)
     set(ZN_SDL_VENDORED_BUILD TRUE)
   else()
