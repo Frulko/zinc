@@ -1,1 +1,2 @@
-{ "name": "rn-port", "entry": "src/index.tsx", "ui": { "preset": "react-native" } }
+{ "name": "rn-port", "entry": "src/index.tsx", "ui": { "preset": "react-native" },
+  "targets": { "macos": { "width": 390, "height": 844, "zoom": 1, "resize": "fill" }, "linux": { "width": 390, "height": 844, "zoom": 1 }, "sim": { "width": 390, "height": 844 } } }
