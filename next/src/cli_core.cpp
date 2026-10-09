@@ -61,7 +61,8 @@ const Command kCommands[] = {
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
-  {"add", "zinc add <git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from git or an archive", "Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. Nothing of the plugin is run; links and special files are refused."},
+  {"add", "zinc add <git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from git or an archive", "Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name> and pins it in zinc.json \"lock\": the commit, or the archive's sha256. --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused."},
+  {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"install", "zinc install [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.json \"lock\" into plugins/<name> again: git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused)."},
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
@@ -747,7 +748,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
 // <project>/plugins/<name> where the module loader and the native build already look, and recorded in zinc.json "lock": { "plugins": { name: {source, commit | sha256} } }.
 // Nothing of the plugin is run: git hooks are off, archives are unpacked by tar, links and special files are refused.
 namespace {
-struct PluginPin { std::string source, commit, sha256; };
+struct PluginPin { std::string source, commit, sha256, publicKey; };   // publicKey: the archive's <url>.sig must verify with it (ZN-328.02)
 
 bool isArchive(const std::string& s) {
   auto ends = [&](const char* e) { const std::size_t n = std::strlen(e); return s.size() > n && s.compare(s.size() - n, n, e) == 0; };
@@ -765,12 +766,25 @@ std::string fetchPlugin(const std::string& spec, const PluginPin& pin, const fs:
     if (spec.rfind("file://", 0) == 0) { if (!fs::copy_file(spec.substr(7), archive, ec)) return "cannot read " + spec; }
     else if (spec.rfind("https://", 0) == 0 || spec.rfind("http://", 0) == 0) { if (runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", archive.string(), "--", spec}, true) != 0) return "cannot download " + spec; }
     else return "an archive is given by a file:// or https:// URL: " + spec;
-    got = {spec, "", zn::tc::sha256File(archive.string())};
+    got = {spec, "", zn::tc::sha256File(archive.string()), ""};
     if (!pin.sha256.empty() && got.sha256 != pin.sha256) return "the archive " + spec + " changed: sha256 " + got.sha256 + ", the lock pins " + pin.sha256 + "; nothing was installed";
+    if (!pin.publicKey.empty()) {   // the detached signature next to the archive: <url>.sig, 128 hex digits
+      const fs::path sig = scratch / "archive.sig";
+      if (spec.rfind("file://", 0) == 0) fs::copy_file(spec.substr(7) + ".sig", sig, ec);
+      else runArgv({"curl", "-fL", "--retry", "3", "-sS", "-o", sig.string(), "--", spec + ".sig"}, true);
+      std::ifstream sf(sig), af(archive, std::ios::binary);
+      std::string sigHex;
+      sf >> sigHex;
+      if (sigHex.empty()) return "no signature " + spec + ".sig (the lock names a key for this archive); nothing was installed";
+      const std::string bytes((std::istreambuf_iterator<char>(af)), std::istreambuf_iterator<char>());
+      if (!zn::tc::verifyBytes(bytes, sigHex, pin.publicKey)) return "the signature " + spec + ".sig does not verify with the key " + pin.publicKey + ": refused, nothing was installed";
+      got.publicKey = pin.publicKey;
+    }
     fs::create_directories(x, ec);
     if (runArgv({"tar", "-xf", archive.string(), "-C", x.string()}, true) != 0) return "cannot unpack " + spec;
     top = x;
   } else {
+    if (!pin.publicKey.empty()) return "a key checks the signature of an archive; a git source is pinned by its commit";
     std::string fetchSpec = spec;
     if (!pin.commit.empty()) { const std::size_t at = spec.rfind('@'), slash = spec.rfind('/'); fetchSpec = (at != std::string::npos && slash != std::string::npos && at > slash ? spec.substr(0, at) : spec) + "@" + pin.commit; }
     std::string source;
@@ -821,8 +835,16 @@ struct ScratchDir { fs::path p; ~ScratchDir() { std::error_code e; if (!p.empty(
 }  // namespace
 
 int addPlugin(const std::vector<std::string>& args) {
-  if (args.size() < 3 || args.size() > 4) { std::fprintf(stderr, "usage: zinc add <git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir]\n"); return 2; }
-  const fs::path project = fs::absolute(args.size() == 4 ? args[3] : ".").lexically_normal();
+  std::vector<std::string> pos;
+  PluginPin want;
+  for (std::size_t k = 2; k < args.size(); ++k) {
+    if (args[k] == "--key" && k + 1 < args.size()) want.publicKey = args[++k];
+    else if (args[k].rfind("--", 0) == 0) { std::fprintf(stderr, "zinc add: unknown option %s\n", args[k].c_str()); return 2; }
+    else pos.push_back(args[k]);
+  }
+  if (pos.empty() || pos.size() > 2) { std::fprintf(stderr, "usage: zinc add <git-url[@ref] | gh:user/repo[@ref] | file:// or https:// archive (.tar.gz, .tgz, .tar)> [project-dir] [--key <public key hex>]\n"); return 2; }
+  if (!want.publicKey.empty() && want.publicKey.size() != 64) { std::fprintf(stderr, "zinc add: --key is a public key of 64 hex digits (zinc update-keygen)\n"); return 2; }
+  const fs::path project = fs::absolute(pos.size() == 2 ? pos[1] : ".").lexically_normal();
   const fs::path zj = project / "zinc.json";
   std::ifstream zf(zj);
   std::stringstream zs; zs << zf.rdbuf();
@@ -835,7 +857,7 @@ int addPlugin(const std::vector<std::string>& args) {
   fs::remove_all(scratch.p, ec);
   fs::path dir;
   PluginPin got;
-  std::string name, err = fetchPlugin(args[2], {}, scratch.p, dir, got);
+  std::string name, err = fetchPlugin(pos[0], want, scratch.p, dir, got);
   if (err.empty()) err = installPlugin(dir, project, name);
   if (!err.empty()) { yyjson_doc_free(doc); std::fprintf(stderr, "zinc add: %s\n", err.c_str()); return 1; }
   yyjson_mut_doc* md = yyjson_doc_mut_copy(doc, nullptr);
@@ -852,6 +874,7 @@ int addPlugin(const std::vector<std::string>& args) {
   yyjson_mut_obj_add_strcpy(md, e, "source", got.source.c_str());
   if (!got.commit.empty()) yyjson_mut_obj_add_strcpy(md, e, "commit", got.commit.c_str());
   if (!got.sha256.empty()) yyjson_mut_obj_add_strcpy(md, e, "sha256", got.sha256.c_str());
+  if (!got.publicKey.empty()) yyjson_mut_obj_add_strcpy(md, e, "publicKey", got.publicKey.c_str());
   yyjson_mut_obj_add(plugins, yyjson_mut_strcpy(md, name.c_str()), e);
   char* out = yyjson_mut_write(md, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
   const bool ok = out && writeFile(zj, std::string(out) + "\n");
@@ -876,7 +899,7 @@ int installPlugins(const std::vector<std::string>& args) {
   yyjson_val *k, *v;
   yyjson_obj_foreach(plugins, i, n, k, v) {
     auto str = [&](const char* key) { yyjson_val* x = yyjson_obj_get(v, key); return yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
-    const PluginPin pin{str("source"), str("commit"), str("sha256")};
+    const PluginPin pin{str("source"), str("commit"), str("sha256"), str("publicKey")};
     const std::string want = yyjson_get_str(k);
     ScratchDir scratch;
     std::error_code ec;

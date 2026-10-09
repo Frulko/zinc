@@ -408,6 +408,18 @@ bool signManifest(const std::string& text, const std::string& seedHex, std::stri
   signedText = body + "sig=" + toHex(sig, 64) + "\n";
   return true;
 }
+bool signBytes(const std::string& bytes, const std::string& seedHex, std::string& sigHex, std::string& err) {
+  std::uint8_t seed[32], sk[64], pk[32], sig[64];
+  if (!fromHex(seedHex, seed, 32)) { err = "the signing seed is 64 hex digits"; return false; }
+  crypto_ed25519_key_pair(sk, pk, seed);
+  crypto_ed25519_sign(sig, sk, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+  sigHex = toHex(sig, 64);
+  return true;
+}
+bool verifyBytes(const std::string& bytes, const std::string& sigHex, const std::string& publicHex) {
+  std::uint8_t sig[64], pk[32];
+  return fromHex(sigHex, sig, 64) && fromHex(publicHex, pk, 32) && crypto_ed25519_check(sig, pk, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()) == 0;
+}
 bool newKeyPair(std::string& seedHex, std::string& publicHex) {
   std::uint8_t seed[32], sk[64], pk[32];
   std::ifstream r("/dev/urandom", std::ios::binary);

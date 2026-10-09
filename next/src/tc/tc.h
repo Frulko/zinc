@@ -61,6 +61,8 @@ bool verifyManifest(const std::string& text, const std::vector<std::string>& tru
 std::vector<std::string> trustedUpdateKeys();
 bool signManifest(const std::string& text, const std::string& seedHex, std::string& signedText, std::string& err);   // the `zinc update-sign` recipe of a release
 bool newKeyPair(std::string& seedHex, std::string& publicHex);
+bool signBytes(const std::string& bytes, const std::string& seedHex, std::string& sigHex, std::string& err);   // a detached Ed25519 signature, 128 hex digits (zinc sign: plugin archives)
+bool verifyBytes(const std::string& bytes, const std::string& sigHex, const std::string& publicHex);
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err);
 // The same for an app's channel (ZN-324): verified with the app's own public keys; a relative `url` in the manifest is resolved against the manifest's.
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys);

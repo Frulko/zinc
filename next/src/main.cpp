@@ -1413,6 +1413,18 @@ int main(int argc, char** argv) {
     std::printf("seed=%s\npublic=%s\n", seed.c_str(), pub.c_str());
     return 0;
   }
+  if (argc == 4 && !std::strcmp(argv[1], "sign")) {   // zinc sign <file> <seed-hex>: <file>.sig, the detached signature zinc add --key checks (ZN-328.02)
+    std::ifstream in(argv[2], std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string sig, err;
+    if (!in && bytes.empty()) { std::fprintf(stderr, "zinc sign: cannot read %s\n", argv[2]); return 2; }
+    if (!zn::tc::signBytes(bytes, argv[3], sig, err)) { std::fprintf(stderr, "zinc sign: %s\n", err.c_str()); return 2; }
+    std::ofstream out(std::string(argv[2]) + ".sig");
+    out << sig << "\n";
+    if (!out) { std::fprintf(stderr, "zinc sign: cannot write %s.sig\n", argv[2]); return 1; }
+    std::printf("%s.sig\n", argv[2]);
+    return 0;
+  }
   if (argc == 4 && !std::strcmp(argv[1], "update-sign")) {   // zinc update-sign <manifest> <seed-hex>: the manifest with its sig= line (stdout)
     std::string text, out, err;
     if (!readFile(argv[2], text)) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }

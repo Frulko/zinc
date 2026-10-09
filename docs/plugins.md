@@ -73,6 +73,11 @@ sha256 (a changed archive is refused and nothing is installed). Nothing of a plu
 hooks are off, archives are unpacked by `tar`, and links or special files are refused. A local directory belongs
 in `"pluginDirs"`. Native code is built on first use as for any project plugin.
 
+A publisher can sign an archive: `zinc update-keygen` makes a key pair, `zinc sign greet-1.2.tar.gz <seed>` writes
+`greet-1.2.tar.gz.sig` (a detached Ed25519 signature) to upload beside it. `zinc add <url> --key <public key>` then
+requires `<url>.sig` to verify with that key and locks the key (`"publicKey"`), so `zinc install` checks it again; a
+missing or foreign signature is refused. Git sources are pinned by their commit and take no key.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a
