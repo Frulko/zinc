@@ -1,10 +1,11 @@
 // Scroll axes (owner, 2026-10-08): a vertical list in an `overflow: scroll` view must not move sideways when its content fits the width. A horizontal drag
 // and a diagonal trackpad gesture leave scrollLeft at 0 (no rubber band on X), the vertical part still scrolls; a view wider than its content's viewport
-// still scrolls on X.
+// still scrolls on X. ZN-607: in content that overflows both ways, a trackpad swipe that starts mostly vertical (or horizontal) stays on that axis until
+// the fingers lift; a diagonal one moves both.
 import * as ui from 'zinc:ui';
 import { createNodeRef, render, For } from 'zinc:ui/solid';
 
-const list = createNodeRef(), wide = createNodeRef();
+const list = createNodeRef(), wide = createNodeRef(), both = createNodeRef();
 const rows: i32[] = [];
 for (let i = 0; i < 30; i++) rows.push(i);
 function App(): i32 {
@@ -14,6 +15,9 @@ function App(): i32 {
     </view>
     <view ref={wide} style={{ width: 120, height: 200, overflow: 'scroll' }}>
       <view style={{ width: 400, height: 100 }} />
+    </view>
+    <view ref={both} style={{ width: 120, height: 200, overflow: 'scroll' }}>
+      <view style={{ width: 400, height: 600 }} />
     </view>
   </view>;
 }
@@ -36,5 +40,17 @@ render(App, 0xffffff, (dt: number) => {
     for (let k = 1; k <= 6; k++) ui.pointerAt(w[0] + 100 - k * 12, w[1] + 50, true);
     console.log(`wide content, drag left: left ${r(ui.scrollLeft(wide.node))}`);
     ui.pointerAt(w[0] + 28, w[1] + 50, false);
+    const o = ui.screenBox(both.node);
+    for (let k = 0; k < 5; k++) ui.trackpadAt(o[0] + 50, o[1] + 50, 6, -30, 1);   // up, drifting sideways
+    ui.trackpadAt(o[0] + 50, o[1] + 50, 0, 0, 2);
+    console.log(`both ways, vertical swipe: left ${r(ui.scrollLeft(both.node))} top ${r(ui.scrollTop(both.node)) > 0 ? 'moved' : 'still'}`);
+    const top = r(ui.scrollTop(both.node));
+    for (let k = 0; k < 5; k++) ui.trackpadAt(o[0] + 50, o[1] + 50, -30, 6, 1);   // sideways, drifting down
+    ui.trackpadAt(o[0] + 50, o[1] + 50, 0, 0, 2);
+    console.log(`both ways, horizontal swipe: left ${r(ui.scrollLeft(both.node)) > 0 ? 'moved' : 'still'} top ${r(ui.scrollTop(both.node)) === top ? 'kept' : 'moved'}`);
+    const left = r(ui.scrollLeft(both.node));
+    for (let k = 0; k < 5; k++) ui.trackpadAt(o[0] + 50, o[1] + 50, -20, -20, 1);  // diagonal
+    ui.trackpadAt(o[0] + 50, o[1] + 50, 0, 0, 2);
+    console.log(`both ways, diagonal swipe: left ${r(ui.scrollLeft(both.node)) > left ? 'moved' : 'still'} top ${r(ui.scrollTop(both.node)) > top ? 'moved' : 'still'}`);
   }
 });

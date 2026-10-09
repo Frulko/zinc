@@ -3959,9 +3959,11 @@ function wheelInput(px: number, py: number, wy: number, wx: number, pz: number):
 // Trackpad gestures (HAL: pixels resampled at frame time + the finger phase): the scroller under the pointer when
 // the gesture starts (or the text area) follows the fingers until they lift, then its inertia takes over. A node
 // with its own wheel handler gets the deltas as wheel steps instead.
-let padScroller: i32 = -1, padEdit: i32 = -1;
+// A swipe that starts mostly along one axis (twice the other) stays on it until the fingers lift, as macOS scroll views and Safari lock it (ZN-607):
+// a vertical swipe no longer drifts sideways in content that is also wider; a diagonal start moves freely.
+let padScroller: i32 = -1, padEdit: i32 = -1, padAxis: i32 = 0;   // padAxis: 0 not decided yet, 1 vertical, 2 horizontal, 3 both
 function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i32): void {
-  if (phase === 3) { const sc = scrollerTop(px, py, 3); if (sc >= 0) catchScroll(sc); return; }
+  if (phase === 3) { padAxis = 0; const sc = scrollerTop(px, py, 3); if (sc >= 0) catchScroll(sc); return; }
   if (phase === 0) return;
   if (padEdit < 0 && (padScroller < 0 || !nodes[padScroller].alive)) {
     if (dx === 0 && dy === 0 && phase !== 2) return;
@@ -3982,8 +3984,9 @@ function trackpadInput(px: number, py: number, dx: number, dy: number, phase: i3
     if (phase === 2) padEdit = -1;
     return;
   }
-  directScroll(padScroller, -dx, -dy);
-  if (phase === 2) { releaseScroll(padScroller); padScroller = -1; }
+  if (padAxis === 0 && (dx !== 0 || dy !== 0)) padAxis = Math.abs(dy) >= 2 * Math.abs(dx) ? 1 : Math.abs(dx) >= 2 * Math.abs(dy) ? 2 : 3;
+  directScroll(padScroller, padAxis === 1 ? 0 : -dx, padAxis === 2 ? 0 : -dy);
+  if (phase === 2) { releaseScroll(padScroller); padScroller = -1; padAxis = 0; }
 }
 function hasHoverStyle(n: UiNode): boolean { return n.it.hoverBg >= 0 || n.it.hoverFg >= 0 || n.it.hoverBorder >= 0 || n.ov !== null; }
 /** Hover path under the pointer: hover: classes, onPointerEnter / onPointerLeave, the cursor shape. */

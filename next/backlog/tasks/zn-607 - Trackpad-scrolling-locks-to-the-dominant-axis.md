@@ -1,9 +1,10 @@
 ---
 id: ZN-607
 title: Trackpad scrolling locks to the dominant axis
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-09 15:07'
+updated_date: '2026-10-09 16:02'
 labels:
   - ui
 milestone: m-21

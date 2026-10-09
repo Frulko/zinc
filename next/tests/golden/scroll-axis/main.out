@@ -1,3 +1,6 @@
 drag left and up: left 0 top 60
 trackpad sideways: left 0
 wide content, drag left: left 72
+both ways, vertical swipe: left 0 top moved
+both ways, horizontal swipe: left moved top kept
+both ways, diagonal swipe: left moved top moved
