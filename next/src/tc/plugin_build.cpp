@@ -81,9 +81,20 @@ std::string crossArch() { return gCross.name == "armhf-linux" ? " -mcpu=arm1176j
 // The compilers of a plugin (ZN-332): the pinned zig by default, so the cache key names the compiler by its version, not by where it is, and two machines building the same
 // plugin for the same target compute the same key (a prebuilt binary can match). ZINC_PLUGIN_CC=system, or zinc.json "pluginCompiler": "system", uses $CXX / $CC or the
 // system c++ / cc instead; their key then carries the compiler's --version line. `id` is what the key hashes.
-std::string gAr = "ar", gKeyTarget;   // gKeyTarget: the machine the code is for, as the key names it
+std::string gAr = "ar", gKeyTarget;
+// zig compiles libc++, libc++abi and libunwind from its own lib/ into Linux plugins and writes their paths (assert and __PRETTY_FUNCTION__ strings): it sees that
+// directory through a fixed link, /tmp/zinc-zig-<version>-lib, so the bytes do not depend on where ZINC_HOME is (ZN-333). An unusable link: the real path.
+std::string zigEnv(const std::string& zig) {
+  const fs::path lib = fs::path(zig).parent_path() / "lib", link = fs::path("/tmp") / ("zinc-zig-" + zigVersion() + "-lib");
+  std::error_code ec;
+  if (!fs::exists(link / "libcxx", ec)) {   // missing or broken: (re)made, pointing at this zig
+    fs::remove(link, ec);
+    fs::create_directory_symlink(lib, link, ec);
+  }
+  return fs::exists(link / "libcxx", ec) ? "ZIG_LIB_DIR=" + q(link.string()) + " " : std::string();
+}   // gKeyTarget: the machine the code is for, as the key names it
 bool compilers(bool system, std::string& cxx, std::string& cc, std::string& id, std::string& err) {
-  if (gCross.on) { cxx = q(gCross.zig) + " c++ -target " + gCross.zigTarget + crossArch(); cc = q(gCross.zig) + " cc -target " + gCross.zigTarget + crossArch(); gAr = q(gCross.zig) + " ar"; id = "zig " + zigVersion(); gKeyTarget = gCross.zigTarget + crossArch(); return true; }
+  if (gCross.on) { cxx = zigEnv(gCross.zig) + q(gCross.zig) + " c++ -target " + gCross.zigTarget + crossArch(); cc = zigEnv(gCross.zig) + q(gCross.zig) + " cc -target " + gCross.zigTarget + crossArch(); gAr = q(gCross.zig) + " ar"; id = "zig " + zigVersion(); gKeyTarget = gCross.zigTarget + crossArch(); return true; }
   if (system) {
     const char* x = std::getenv("CXX");
     const char* c = std::getenv("CC");
@@ -99,8 +110,8 @@ bool compilers(bool system, std::string& cxx, std::string& cc, std::string& id, 
   }
   std::string zig;
   if (!ensureZig(zig, err)) return false;
-  cxx = q(zig) + " c++";
-  cc = q(zig) + " cc";
+  cxx = zigEnv(zig) + q(zig) + " c++";
+  cc = zigEnv(zig) + q(zig) + " cc";
   gAr = q(zig) + " ar";
   id = "zig " + zigVersion();   // the version, never the path
   gKeyTarget = hostName();
@@ -284,6 +295,9 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   out.archive = dir + "/plugin.a";
   if (!vendored.empty()) out.vendor = vdir + "/vendor.a";
   (void)dyn;
+  // reproducible objects (ZN-333): the paths of this machine (the plugin, the cache entry, the engine, the toolchains) become fixed names in __FILE__ and the object files
+  const std::string remap = " -ffile-prefix-map=" + q(p.dir) + "=plugins/" + m.name + " -ffile-prefix-map=" + q(dir) + "=cache -ffile-prefix-map=" + q(vdir) + "=cache" +
+                            " -ffile-prefix-map=" + q(fs::path(root).parent_path().string()) + "=zinc -ffile-prefix-map=" + q(home() + "/toolchains") + "=toolchains";
   fs::create_directories(dir, ec);
   if (!vendored.empty() && !fs::exists(out.vendor)) {   // the vendored C libraries: compiled once for these defines
     fs::create_directories(vdir, ec);
@@ -293,7 +307,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
       std::string o = vdir + "/v" + std::to_string(k++) + ".o";
       std::string cflagsC = "-O2 -fPIC -w";
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);
-      if (!run(cc + " " + cflagsC + " -c " + q(s) + " -o " + q(o), err, "the C compiler on " + s)) return false;
+      if (!run(cc + " " + cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, "the C compiler on " + s)) return false;
       objs += " " + q(o);
     }
     if (!run(arTool() + " rcs " + q(out.vendor) + objs, err, "ar")) return false;
@@ -321,22 +335,22 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
       + (!display && fs::exists(root + "/../plugins/display-gl/zgl.h") ? " -I" + q(root + "/../plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
-      + (display && pluginTarget() == "macos" ? " -I" + q(ZN_SDL_INCLUDE) : std::string())   // the emulator windows of the display drivers use SDL3 (the host's)
+      + (display && pluginTarget() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // the emulator windows of the display drivers use SDL3 (the host's)
 #endif
       ;
     std::vector<std::string> objs;
     int k = 0;
     for (const std::string& s : own) {
       std::string o = dir + "/o" + std::to_string(k++) + ".o";
-      if (!run(cxx + " " + flags + defs + inc + " -c " + q(s) + " -o " + q(o), err, "the C++ compiler on " + fs::path(s).filename().string())) return false;
+      if (!run(cxx + " " + flags + remap + defs + inc + " -c " + q(s) + " -o " + q(o), err, "the C++ compiler on " + fs::path(s).filename().string())) return false;
       objs.push_back(o);
     }
-    if (!display) { std::string o = dir + "/thunk.o"; if (!run(cxx + " " + flags + defs + inc + " -c " + q(thunk) + " -o " + q(o), err, "the C++ compiler on the thunk of " + m.name)) return false; objs.push_back(o); }
+    if (!display) { std::string o = dir + "/thunk.o"; if (!run(cxx + " " + flags + remap + defs + inc + " -c " + q(thunk) + " -o " + q(o), err, "the C++ compiler on the thunk of " + m.name)) return false; objs.push_back(o); }
     std::string list;
     for (const std::string& o : objs) list += " " + q(o);
     std::string linkLibs;
     for (const std::string& l : libs) linkLibs += " " + l;
-    std::string undefined = pluginTarget() == "macos" ? " -undefined dynamic_lookup" : "";   // zrt and the registry come from the zinc that loads it
+    std::string undefined = pluginTarget() == "macos" ? " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S" : "";   // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333)
     std::string vend = out.vendor.empty() ? "" : " " + q(out.vendor);
     if (!gCross.on && !run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
     fs::remove(out.archive, ec);

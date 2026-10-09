@@ -110,6 +110,34 @@ jobs:
           if [ ! -f release/.signed ]; then notes="$notes The macOS package is not signed or notarized (no signing secrets): right-click > Open the first time."; echo "::warning::releasing an unsigned macOS package"; fi
           ls release/*.manifest >/dev/null 2>&1 || notes="$notes No update manifests (no ZINC_UPDATE_SEED secret)."
           gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" release/*
+  reproducible:
+    # ZN-333: zinc and three plugins built twice, from two directories, are byte-identical (docs/reports/zinc-next-reproducible.md)
+    name: reproducible
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: one }
+      - uses: actions/checkout@v4
+        with: { path: second/copy }
+      - run: brew install cmake || true
+      - name: Build twice
+        run: |
+          for d in one second/copy; do
+            cmake -S "$d/next" -B "$d/next/build" -DCMAKE_BUILD_TYPE=Release -DZN_REPRODUCIBLE=ON && cmake --build "$d/next/build" -j4 --target zinc
+            sleep 2
+          done
+      - name: Compare zinc and libzn_webgl
+        run: cmp one/next/build/zinc second/copy/next/build/zinc && cmp one/next/build/libzn_webgl.dylib second/copy/next/build/libzn_webgl.dylib
+      - name: Compare plugin archives
+        run: |
+          ZINC_ZIG="$(ZINC_ROOT="$PWD/one/next" one/next/build/zinc toolchain path | tail -1)"
+          export ZINC_ZIG
+          for d in one second/copy; do
+            for p in device sqlite svg; do
+              ZINC_ROOT="$PWD/$d/next" ZINC_HOME="$RUNNER_TEMP/home-${d%%/*}" "$d/next/build/zinc" plugin-build "$p" "$d" --pack "$RUNNER_TEMP/$p-${d%%/*}.tar"
+            done
+          done
+          for p in device sqlite svg; do cmp "$RUNNER_TEMP/$p-one.tar" "$RUNNER_TEMP/$p-second.tar"; done
   bench-gate:
     # ZN-148: a slower interpreter or AOT build than the committed numbers (relative to QuickJS of the same run) fails the job
     name: bench-gate

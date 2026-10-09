@@ -33,7 +33,7 @@
 #include "zn/hostsys.h"
 #include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
-#define HOSTLIBS + std::string(" ") + ZN_HOST_LIBS   // the window library the host links
+#define HOSTLIBS + std::string(" ") + hostLibs()   // the window library the host links (@bin@: the directory of this zinc, ZN-333)
 #else
 #define HOSTLIBS
 #endif
@@ -72,6 +72,14 @@ static uint8_t* webpShot(const uint32_t* px, int32_t w, int32_t h, size_t* n, vo
 #include "zbc/zbc.h"
 
 static const char* const kVersionText = "0.0.1";
+#ifdef ZN_HOST_LIBS
+static std::string hostLibs() {   // ZN_HOST_LIBS with @bin@ (the directory of this zinc, where the build tree keeps libSDL3.a) filled in
+  std::string s = ZN_HOST_LIBS;
+  const std::string bin = std::filesystem::path(zn::tc::executablePath()).parent_path().string();
+  for (std::size_t at; (at = s.find("@bin@")) != std::string::npos;) s.replace(at, 5, bin);
+  return s;
+}
+#endif
 static std::string gRoot = ZN_SOURCE_DIR;  // the engine files: the checkout, or the package around the binary (zn::tc::sourceRoot)
 static bool readFile(const std::string& path, std::string& out) {
   if (!std::filesystem::is_regular_file(path)) return false;
@@ -1543,6 +1551,9 @@ int main(int argc, char** argv) {
   }
   if (argc >= 3 && !std::strcmp(argv[1], "plugin-build")) {  // zinc plugin-build <plugin> [project-dir] [--prebuild]: compile the plugin's native code into the cache (or find it there) and say where it is
     // --prebuild: also copy the libraries into the plugin's prebuilt/<target>/ with their key, for a publisher to ship (ZN-328.03)
+    // --pack <file.tar>: the same files as a deterministic ustar archive (<target>/plugin.*, key), byte-identical across machines of one target (ZN-333)
+    std::string packOut;
+    if (argc >= 5 && !std::strcmp(argv[argc - 2], "--pack")) { packOut = argv[argc - 1]; argc -= 2; }
     const bool prebuild = !std::strcmp(argv[argc - 1], "--prebuild");
     if (prebuild) --argc;
     std::string project = argc >= 4 ? argv[3] : ".";
@@ -1555,6 +1566,23 @@ int main(int argc, char** argv) {
     std::string err;
     if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    if (!packOut.empty()) {
+      namespace fs = std::filesystem;
+      std::vector<zn::zapp::TarEntry> files;
+      const std::string t = zn::tc::pluginTarget();
+      auto add = [&](const std::string& from, const std::string& name) {
+        std::ifstream in(from, std::ios::binary);
+        if (in) files.push_back({t + "/" + name, std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()), 0644, false});
+      };
+      add(lib.shared, fs::path(lib.shared).filename().string());
+      add(lib.archive, "plugin.a");
+      if (!lib.vendor.empty()) add(lib.vendor, "vendor.a");
+      files.push_back({t + "/key", lib.key + "\n", 0644, false});
+      std::sort(files.begin(), files.end(), [](const zn::zapp::TarEntry& a, const zn::zapp::TarEntry& b) { return a.name < b.name; });
+      files.insert(files.begin(), {t, "", 0755, true});
+      std::ofstream(packOut, std::ios::binary) << zn::zapp::ustar(files);
+      std::printf("pack: %s\n", packOut.c_str());
+    }
     if (prebuild && !lib.prebuilt) {
       namespace fs = std::filesystem;
       const fs::path pre = fs::path(hit->dir) / "prebuilt" / zn::tc::pluginTarget();

@@ -9,6 +9,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)  # benchmarks and the speed gates need -O2
 endif()
 
+# Reproducible builds (ZN-333, docs/reports/zinc-next-reproducible.md): the checkout and build paths never reach the binary through __FILE__, and with
+# ZN_REPRODUCIBLE the path of the checkout is not compiled in either (zinc finds its files in the package around it, or $ZINC_ROOT): two release builds of one
+# commit in two directories are byte-identical.
+get_filename_component(ZN_REPO_DIR "${CMAKE_SOURCE_DIR}" DIRECTORY)   # the checkout (next/ is in it); the compiler compares prefixes as text, so no ".."
+add_compile_options("-ffile-prefix-map=${CMAKE_BINARY_DIR}=build" "-ffile-prefix-map=${ZN_REPO_DIR}=zinc")
+option(ZN_REPRODUCIBLE "do not compile the checkout's path into zinc (release packages; a build-tree zinc then needs ZINC_ROOT)" OFF)
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
@@ -171,6 +177,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     target_link_libraries(zn_host_gfx PUBLIC SDL3::SDL3)
     if(ZN_SDL_VENDORED_BUILD)
       set(ZN_SDL_LIB "${CMAKE_BINARY_DIR}/third_party/SDL3/libSDL3.a")
+      set(ZN_SDL_LIB_LINE "'@bin@/third_party/SDL3/libSDL3.a'")   # beside zinc in the build tree, written relative to it (ZN-333)
       set(ZN_SDL_INC "${CMAKE_SOURCE_DIR}/third_party/SDL3/include")
     else()
       get_target_property(ZN_SDL_LIB SDL3::SDL3 LOCATION)
@@ -222,6 +229,7 @@ if(ZN_SDL_LIB AND NOT ZN_SDL_INC)   # a prefix install does not name its include
 endif()
 if(ZN_SDL_INC)
   list(GET ZN_SDL_INC 0 ZN_SDL_INC0)
+  string(REPLACE "${CMAKE_SOURCE_DIR}" "@root@" ZN_SDL_INC0 "${ZN_SDL_INC0}")   # the vendored headers, relative to the engine files (ZN-333)
   target_compile_definitions(zn_tc PRIVATE ZN_SDL_INCLUDE="${ZN_SDL_INC0}")   # the display drivers' emulator windows include <SDL3/SDL.h>
 endif()
 set_source_files_properties(third_party/sha256/sha256.c third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c PROPERTIES COMPILE_OPTIONS "-w")
@@ -279,7 +287,11 @@ if(ZN_NATIVE_FIXTURE)
   target_link_libraries(zinc PRIVATE zn_native_fixture)
   target_compile_definitions(zinc PRIVATE ZN_NATIVE_FIXTURE)
 endif()
-target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(ZN_REPRODUCIBLE)
+  target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="")
+else()
+  target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+endif()
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
 target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_host_gfx)
@@ -287,6 +299,9 @@ if(TARGET zn_host_gfx)
   target_include_directories(zinc PRIVATE ${ZN_RUNTIME_DIR}/include)   # hal_window.h (ZN-233)
   if(ZN_SDL_LIB)
     set(ZN_HOST_LIBS_LINE "'${ZN_SDL_LIB}'")
+    if(ZN_SDL_LIB_LINE)
+      set(ZN_HOST_LIBS_LINE "${ZN_SDL_LIB_LINE}")
+    endif()
     if(ZN_SDL_VENDORED_BUILD)   # what the static archive needs from the system, repeated by `zinc build` (the frameworks SDL's cocoa/metal build links)
       if(APPLE)
         foreach(fw Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion)
