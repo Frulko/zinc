@@ -165,8 +165,10 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
       if (!yyjson_is_str(e)) return fatal(1, std::string("\"") + where + "\" holds a non-string entry");
       std::string id = yyjson_get_str(e), base = id.size() && id[0] == '-' ? id.substr(1) : id;
       std::string feature = base.substr(0, base.find(':'));
-      if (std::find(systemFeatures().begin(), systemFeatures().end(), feature) == systemFeatures().end()) {
+      static const std::vector<std::string> hostFeatures = {"net", "fs", "process", "serial", "camera", "microphone", "location"};   // checked by the host modules at run time (ZN-322)
+      if (std::find(systemFeatures().begin(), systemFeatures().end(), feature) == systemFeatures().end() && std::find(hostFeatures.begin(), hostFeatures.end(), feature) == hostFeatures.end()) {
         std::string all; for (const std::string& f : systemFeatures()) all += (all.empty() ? "" : ", ") + f;
+        for (const std::string& f : hostFeatures) all += ", " + f;
         return fatal(lineOf(text, id), "unknown permission '" + id + "' (known features: " + all + ")");
       }
       dst.push_back(id);
@@ -192,7 +194,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     }
     if (yyjson_val* w = yyjson_obj_get(a, "window")) { if (!yyjson_is_obj(w)) return fatal(lineOf(text, "window"), "app.window must be an object"); char* js = yyjson_val_write(w, 0, nullptr); if (js) { app.window = js; std::free(js); } }
   }
-  if (yyjson_val* pm = yyjson_obj_get(root, "permissions")) if (!permissionList(pm, out.permissions, "permissions")) return false;
+  if (yyjson_val* pm = yyjson_obj_get(root, "permissions")) { out.permissionsDeclared = true; if (!permissionList(pm, out.permissions, "permissions")) return false; }
   if (yyjson_val* sc = yyjson_obj_get(root, "scopes")) {
     if (!yyjson_is_obj(sc)) return fatal(lineOf(text, "scopes"), "\"scopes\" must be an object");
     char* js = yyjson_val_write(sc, 0, nullptr); if (js) { out.scopes = js; std::free(js); }

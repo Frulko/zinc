@@ -1,0 +1,7 @@
+read data/a.txt: hello
+read zinc.json: EACCES: zinc.json needs the permission "fs:read" (or "fs") in zinc.json "permissions"
+read zinc.json again: EACCES: zinc.json needs the permission "fs:read" (or "fs") in zinc.json "permissions"
+write out.txt: EACCES: out.txt needs the permission "fs:write" (or "fs") in zinc.json "permissions"
+serve: net.serve: EACCES: listening needs the permission "net:*" (or "net") in zinc.json "permissions"
+fetch blocked.invalid: fetch failed: EACCES: blocked.invalid needs the permission "net:blocked.invalid" (or "net") in zinc.json "permissions"
+fetch 127.0.0.1: allowed (no server)

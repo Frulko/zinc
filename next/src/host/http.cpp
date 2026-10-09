@@ -1,4 +1,5 @@
 #include "http.h"
+#include "host/permissions.h"
 
 #include <llhttp.h>
 #include <uv.h>
@@ -146,6 +147,7 @@ void onComplete(Fetch* f) {
     std::string next = resolveLocation(f, loc), why;
     Fetch probe;
     if (!splitUrl(next, &probe, &why)) { finish(f, false, "fetch failed: " + why); return; }
+    if (std::string deny = zn::host::perm::check("net", probe.host); !deny.empty()) { finish(f, false, "fetch failed: redirected, " + deny); return; }
     if (s == 303 || ((s == 301 || s == 302) && f->method == "POST")) { if (f->method != "HEAD") f->method = "GET"; f->reqBody.clear(); }
     splitUrl(next, f, &why);
     f->msg = Msg();
@@ -400,6 +402,7 @@ int fetchOpen(const std::string& url, const std::string& method, const std::stri
   p->timerOpen = true;
   std::string why;
   if (!splitUrl(url, p, &why)) finish(p, false, "fetch failed: " + why);
+  else if (std::string deny = zn::host::perm::check("net", p->host); !deny.empty()) finish(p, false, "fetch failed: " + deny);   // zinc.json permissions (ZN-322)
   else startConnection(p);
   return p->handle;
 }

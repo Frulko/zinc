@@ -513,7 +513,7 @@ export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOpti
   if (tls !== undefined) {
     const t = tls as TlsOptions;
     if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
+  } else if (__host_httpServe(port) === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
   __netHandler = handler;
 }
 /** Like serve, for a handler that answers later: the reply is sent when the promise resolves (a rejection is a 500). */
@@ -522,7 +522,7 @@ export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>,
   if (tls !== undefined) {
     const t = tls as TlsOptions;
     if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else if (__host_httpServe(port) === 0) throw new Error('net.serve: cannot listen');
+  } else if (__host_httpServe(port) === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
   __netAsyncHandler = handler;
 }
 export function stop(): void { __host_httpStop(); __netHandler = null; __netAsyncHandler = null; }

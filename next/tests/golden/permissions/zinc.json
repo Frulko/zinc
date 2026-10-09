@@ -1,0 +1,1 @@
+{ "name": "permissions", "entry": "main.ts", "permissions": ["fs:read:data", "net:127.0.0.1"] }

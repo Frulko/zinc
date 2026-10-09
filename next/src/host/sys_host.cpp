@@ -1,6 +1,7 @@
 // The system modules of the host (ZN-049): zinc:sys, zinc:fs, zinc:storage, zinc:assets and zinc:os on a POSIX machine, behind the Rt::Host*
 // entries from HostSysFirst (include/zn/runtime.h). The Zinc side (the module sources of src/frontend/modules.cpp) turns the flat calls into
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
+#include "host/permissions.h"
 #include <signal.h>
 #include "zn/alloc_stats.h"
 #include <sys/wait.h>
@@ -66,6 +67,7 @@ std::vector<unsigned char> gBytes; // the file or asset loaded last
 struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; } gStat;
 
 std::string gCryptoError;
+std::string gServeDenied;   // why the last serve was refused by the permissions
 std::string gPayload;   // the payload of the event evNext returned last
 void ret(HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
@@ -89,6 +91,18 @@ bool scopeAllows(const std::string& path) {
   for (const std::string& g : gGrants) if (a == g || (a.size() > g.size() && a.compare(0, g.size(), g) == 0 && a[g.size()] == '/')) return true;
   return false;
 }
+// zinc.json "permissions" (ZN-322): fs:read / fs:write with their roots; a refusal is an EACCES error naming the permission.
+std::string assetsDir();
+bool denyByPermission(const char* feature, const std::string& path) {
+  if (gScopeOn) return false;   // "scopes": {"fs": "user-picked"} is stricter than the manifest: it decides (denyByScope)
+  const std::string a = assetsDir();
+  if (!a.empty() && path.size() > a.size() && path.compare(0, a.size(), a) == 0 && path[a.size()] == '/') return false;   // the app's own assets need no permission
+  if (!gGrants.empty()) { const std::string ap = absPath(path); for (const std::string& g : gGrants) if (ap == g || (ap.size() > g.size() && ap.compare(0, g.size(), g) == 0 && ap[g.size()] == '/')) return false; }   // picked by the user in a dialog: their consent
+  const std::string deny = zn::host::perm::check(feature, path);
+  if (deny.empty()) return false;
+  gFailed = true; gError = deny;
+  return true;
+}
 bool denyByScope(const char* op, const std::string& path) {
   if (scopeAllows(path)) return false;
   gFailed = true; gError = std::string("EACCES: ") + op + " " + path + " (outside the fs scope: only files picked in a dialog)";
@@ -96,7 +110,7 @@ bool denyByScope(const char* op, const std::string& path) {
 }
 
 bool readAll(const std::string& path, std::vector<unsigned char>& out, const char* op) {
-  if (denyByScope(op, path)) return false;
+  if (denyByPermission("fs:read", path) || denyByScope(op, path)) return false;
   std::ifstream in(path, std::ios::binary);
   struct stat st;
   if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) { fail(op, path, EISDIR); return false; }
@@ -106,7 +120,7 @@ bool readAll(const std::string& path, std::vector<unsigned char>& out, const cha
 }
 
 bool writeAll(const std::string& path, const char* p, size_t n, bool append, const char* op) {
-  if (denyByScope(op, path)) return false;
+  if (denyByPermission("fs:write", path) || denyByScope(op, path)) return false;
   std::ofstream out(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc));
   if (!out) { fail(op, path); return false; }
   out.write(p, static_cast<std::streamsize>(n));
@@ -282,6 +296,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsListCount: {
       gNames.clear(); gKinds.clear();
       std::string dir = s(0);
+      if (denyByPermission("fs:read", dir)) { r->i = 0; break; }
       DIR* d = opendir(dir.c_str());
       if (!d) { fail("scandir", dir); r->i = 0; break; }
       std::vector<std::pair<std::string, int>> es;
@@ -302,14 +317,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsListName: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostFsListKind: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gKinds.size() ? gKinds[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsRemove: {
-      if (denyByScope("remove", s(0))) break;
+      if (denyByPermission("fs:write", s(0)) || denyByScope("remove", s(0))) break;
       std::string p = s(0);
       struct stat st;
       if (lstat(p.c_str(), &st) != 0) { r->i = 0; break; }
       r->i = a[1].i ? removeTree(p) : (S_ISDIR(st.st_mode) ? rmdir(p.c_str()) == 0 : unlink(p.c_str()) == 0);
       break;
     }
-    case Rt::HostFsMkdir: if (denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
+    case Rt::HostFsMkdir: if (denyByPermission("fs:write", s(0)) || denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
     case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "cannot open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
     case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsWriteBytes: {
@@ -336,10 +351,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostFsStatD: r->d = n(0) == 0 ? gStat.size : n(0) == 1 ? gStat.mtime : n(0) == 2 ? gStat.atime : gStat.ctime; break;
     case Rt::HostFsStatI: r->i = n(0) == 0 ? gStat.mode : n(0) == 1 ? gStat.file : n(0) == 2 ? gStat.dir : gStat.link; break;
-    case Rt::HostFsRename: if (rename(s(0).c_str(), s(1).c_str()) != 0) fail("rename", s(0)); break;
-    case Rt::HostFsSymlink: if (symlink(s(0).c_str(), s(1).c_str()) != 0) fail("symlink", s(0) + " -> " + s(1)); break;
+    case Rt::HostFsRename: if (denyByPermission("fs:write", s(0)) || denyByPermission("fs:write", s(1))) break; if (rename(s(0).c_str(), s(1).c_str()) != 0) fail("rename", s(0)); break;
+    case Rt::HostFsSymlink: if (denyByPermission("fs:write", s(1))) break; if (symlink(s(0).c_str(), s(1).c_str()) != 0) fail("symlink", s(0) + " -> " + s(1)); break;
     case Rt::HostFsReadlink: { char b[4096]; ssize_t k = readlink(s(0).c_str(), b, sizeof b - 1); if (k >= 0) { b[k] = 0; ret(r, b); } else { fail("readlink", s(0)); ret(r, ""); } break; }
-    case Rt::HostFsChmod: if (chmod(s(0).c_str(), static_cast<mode_t>(n(1))) != 0) fail("chmod", s(0)); break;
+    case Rt::HostFsChmod: if (denyByPermission("fs:write", s(0))) break; if (chmod(s(0).c_str(), static_cast<mode_t>(n(1))) != 0) fail("chmod", s(0)); break;
     case Rt::HostFsCopyFile: { std::vector<unsigned char> b; if (readAll(s(0), b, "copyfile")) writeAll(s(1), reinterpret_cast<const char*>(b.data()), b.size(), false, "copyfile"); break; }
     case Rt::HostFsRealpath: { char b[4096]; if (realpath(s(0).c_str(), b)) ret(r, b); else { fail("realpath", s(0)); ret(r, ""); } break; }
     case Rt::HostFsTmpdir: ret(r, tmpdirPath()); break;
@@ -470,9 +485,13 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;
     case Rt::HostHttpUrl: ret(r, zn::http::fetchUrl(n(0))); break;
     case Rt::HostHttpFree: zn::http::fetchFree(n(0)); break;
-    case Rt::HostHttpServe: r->i = zn::http::serve(n(0)) ? 1 : 0; break;
-    case Rt::HostHttpServeTls: r->i = zn::http::serve(n(0), s(1), s(2)) ? 1 : 0; break;
-    case Rt::HostHttpError: ret(r, zn::http::lastError()); break;
+    case Rt::HostHttpServe: case Rt::HostHttpServeTls: {   // listening needs "net" (or "net:*"): zinc.json permissions (ZN-322)
+      gServeDenied = zn::host::perm::check("net", "*");
+      if (!gServeDenied.empty()) { r->i = 0; break; }
+      r->i = (static_cast<Rt>(id) == Rt::HostHttpServe ? zn::http::serve(n(0)) : zn::http::serve(n(0), s(1), s(2))) ? 1 : 0;
+      break;
+    }
+    case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;
     case Rt::HostHttpStop: zn::http::stop(); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostSockConnect: r->i = zn::sock::connectTcp(s(0), n(1)); break;

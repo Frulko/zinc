@@ -1,9 +1,10 @@
 ---
 id: ZN-322
 title: Permission manifest enforced at run time
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:19'
+updated_date: '2026-10-09 00:17'
 labels:
   - security
   - runtime

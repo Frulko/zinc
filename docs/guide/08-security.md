@@ -62,6 +62,26 @@ Build with `--debug` (ASan + UBSan + leak report) throughout development; aim fo
   `zinc:process` do what the OS user can do; `zinc:fs` has no root directory (a path from outside must be checked by
   the program: a path containing a NUL byte is refused). Run services as an unprivileged user (the exported unit does).
 
+## Permissions
+
+`zinc.json` `"permissions"` says what the program's host modules may do. Without the key nothing is checked (as before); with it, every
+call is checked: while developing (`zinc run`) a call the list does not cover works but is warned about once per permission on stderr, and
+when enforced (exported apps, or `ZINC_PERMISSIONS=enforce`) it fails with an `EACCES` error that names the permission to add.
+
+```json
+{ "permissions": ["fs:read:data", "fs:write:out", "net:api.example.com", "net:*.cdn.example.com"] }
+```
+
+| Entry | Allows |
+|---|---|
+| `fs`, `fs:read`, `fs:write` | every file, reading only, writing only (also remove, mkdir, rename, chmod, symlink) |
+| `fs:read:<root>`, `fs:write:<root>` | under that directory (relative to the project, or absolute) |
+| `net`, `net:<host>`, `net:*.<domain>`, `net:*` | fetch to any host, one host, a domain's hosts; listening (`serve`) needs `net` or `net:*` |
+| `process`, `serial`, `camera`, `microphone`, `location` | checked by their modules (ZN-322.02) |
+
+Exempt: the app's own `assets/` (zinc:assets), and files the user picked in a dialog. With `"scopes": {"fs": "user-picked"}` the scope, which
+is stricter, decides for files. Redirects are checked against the new host.
+
 ## Network services: defaults
 
 | Service | Default bind | Authentication | Limits |

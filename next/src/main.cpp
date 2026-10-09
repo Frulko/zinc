@@ -50,6 +50,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "zapp.h"
+#include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #ifdef ZN_HOST_GFX
 #include "res/codec.h"
@@ -722,6 +723,15 @@ int main(int argc, char** argv) {
         std::string e = zn::frontend::entryOf(path, have && fs::equivalent(fs::path(projectDir), fs::path(path), eq) ? &project : nullptr);
         if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts or main.tsx)\n", path.c_str()); return 2; }
         path = e;
+      }
+      {   // zinc.json "permissions" at run time (ZN-322): warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)
+#if defined(__APPLE__)
+        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "macos") : std::vector<std::string>{};
+#else
+        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "linux") : std::vector<std::string>{};
+#endif
+        const char* mode = std::getenv("ZINC_PERMISSIONS");
+        zn::host::perm::configure(granted, have && project.permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
       }
       if (have) {
         shapedText = project.text == "shaped";
