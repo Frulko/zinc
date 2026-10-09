@@ -336,12 +336,67 @@ static void injectPermissions(const std::string& cpp, const char* entry, const s
   }
   std::string text;
   { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-  std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
+  std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
   if (at == std::string::npos || mainAt == std::string::npos) return;
   text.insert(at, "  zn_host_permissions_enforce(\"" + joined + "\");\n");
   text.insert(mainAt, "extern \"C\" void zn_host_permissions_enforce(const char*);\n");
   std::ofstream o(cpp); o << text;
 }
+#ifdef ZN_HOST_GFX
+// `zinc run` of a program that draws compiles it as `zinc build` does and starts the executable, as the old toolchain's run did: native speed (ZN-398, D43).
+// One executable per entry is cached under ~/.zinc/cache/run, keyed by the program's C++ (resources included), zinc.json, the engine and the plugins: an unchanged
+// program starts at once. Returns the program's exit code, or -1 to interpret: --interp (ZINC_RUN=interp, set by zinc dev), test runs (ZINC_DETERMINISTIC,
+// ZINC_HEADLESS) unless --native, a dev bundle, a --profile, a program that does not draw, no C++ compiler, or a failed build (said on stderr).
+static int runCompiled(const zn::zbc::Module& zm, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
+  namespace fs = std::filesystem;
+  const char* mode = std::getenv("ZINC_RUN");
+  if (mode && !std::strcmp(mode, "interp")) return -1;
+  if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return -1;
+  if (gProfile || !zn::aot::usesHost(zm)) return -1;
+  const std::string exe = zn::tc::executablePath();
+  const fs::path libs = fs::path(exe).parent_path();
+  const char* cxx = std::getenv("CXX");
+  if (exe.empty() || !fs::exists(libs / "libzn_host_gfx.a") || (!cxx && std::system("command -v c++ >/dev/null 2>&1") != 0)) return -1;
+  std::vector<std::uint8_t> blob;
+  std::string err;
+  if (!bakeResources(entry.c_str(), blob, err)) return -1;   // the interpreter reports it
+  std::string key = zn::aot::emitCpp(zm, &blob, zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse());
+  auto stamp = [&](const fs::path& f) { std::error_code ec; auto t = fs::last_write_time(f, ec); key += "\n" + f.string() + " " + std::to_string(ec ? 0LL : static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(ec ? 0ULL : static_cast<unsigned long long>(fs::file_size(f, ec))); };
+  stamp(exe); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a");
+  for (const zn::tc::PluginLib& pl : gPlugins) stamp(pl.archive);
+  if (std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); key += "\n" + ss.str(); }
+  for (const char* v : {"CXX", "ZINC_TEXT"}) if (const char* e = std::getenv(v)) key += std::string("\n") + v + "=" + e;
+  key = zn::tc::sha256Hex(key);
+  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "run" / zn::tc::sha256Hex(entry).substr(0, 16);
+  const fs::path app = dir / "app", keyFile = dir / "key";
+  std::string have;
+  { std::ifstream in(keyFile); std::getline(in, have); }
+  if (have != key || !fs::exists(app)) {
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    fs::remove(keyFile, ec);
+    std::fprintf(stderr, "zinc: compiling %s for this machine (cached for the next runs; --interp starts at once)\n", fs::path(entry).filename().c_str());
+    zn::log::Phase ph("run", "compile for the run");
+    auto q = [](const std::string& x) { std::string r = "'"; for (char c : x) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; };
+    if (std::system((q(exe) + " build " + q(entry) + " -o " + q((dir / "app.new").string())).c_str()) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
+    fs::rename(dir / "app.new", app, ec);
+    if (ec) return -1;
+    std::ofstream(keyFile) << key << "\n";
+  }
+  zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
+  if (!projectDir.empty()) { std::error_code ec; fs::current_path(projectDir, ec); }
+  std::vector<std::string> av = {app.string()};
+  av.insert(av.end(), progArgs.begin(), progArgs.end());
+  std::vector<char*> cav;
+  for (std::string& a : av) cav.push_back(a.data());
+  cav.push_back(nullptr);
+  std::fflush(nullptr);
+  execv(app.c_str(), cav.data());
+  std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
+  return -1;
+}
+#endif
+
 // What a program links, for the SBOM and licences of `zinc export` (ZN-323): the scopes of third_party/components.json its link command pulls in, and its plugins.
 static void writeComponents(const std::string& file, const std::string& link, const std::vector<zn::tc::PluginLib>& plugins) {
   if (!std::getenv("ZINC_COMPONENTS")) return;   // asked by zinc export only: a plain build leaves no file beside the program
@@ -591,6 +646,8 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
     else if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   }
+  for (int k = 1; k < argc && std::strcmp(argv[k], "--"); ++k)   // `zinc run --interp` interprets, `--native` compiles even a test run (ZN-398)
+    if (!std::strcmp(argv[k], "--interp") || !std::strcmp(argv[k], "--native")) { setenv("ZINC_RUN", argv[k] + 2, 1); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
   for (int k = 1; k < argc; ++k) {
     std::string name;
@@ -975,6 +1032,13 @@ int main(int argc, char** argv) {
     std::string absPath = std::filesystem::absolute(path).string();
     if (!projectDir.empty()) { std::error_code ec; std::filesystem::current_path(projectDir, ec); }  // the program's relative file names (media/...) are the project's
 #ifdef ZN_HOST_GFX
+    if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") {   // a compiled run, as the old toolchain's `zinc run` was (ZN-398, D43)
+      std::vector<std::string> progArgs;
+      for (int k = 4; k < argc; ++k) progArgs.push_back(argv[k]);
+      if (int rc = runCompiled(zm, absPath, projectDir, progArgs); rc >= 0) return rc;
+    }
+#endif
+#ifdef ZN_HOST_GFX
     {  // the program's arguments (after `--`) and its assets directory (beside the entry file or above it) for zinc:sys and zinc:assets
       std::vector<std::string> args;
       for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
@@ -1240,7 +1304,7 @@ int main(int argc, char** argv) {
       zn::tc::clearCrossTarget();
     }
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()));
-      if (draws && !gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
+      if (draws && !gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
       o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
     bool ok;
@@ -1294,7 +1358,7 @@ int main(int argc, char** argv) {
       zn::log::Phase ph("build", "bake fonts and images");
       if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
     }
-    { zn::log::Phase ph("build", "AOT C++"); std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse())); if (!gBakedSize.empty()) { std::size_t at = text.find("int main() {\n"); if (at != std::string::npos) text.insert(at + 13, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+    { zn::log::Phase ph("build", "AOT C++"); std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse())); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
     std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
     if (zn::aot::usesHost(zm)) {
       std::string pf = zn::frontend::findProjectFile(argv[2]);
@@ -1304,7 +1368,7 @@ int main(int argc, char** argv) {
       if (proj.text == "shaped") {
         std::string text;
         { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main() {\n");
+        std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
         if (at != std::string::npos && mainAt != std::string::npos) {
           text.insert(at + 26, "  zn_install_shaped_text();\n");
           text.insert(mainAt, "void zn_install_shaped_text();\n");

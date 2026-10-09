@@ -41,8 +41,11 @@ namespace {
 
 struct Command { const char* name; const char* usage; const char* summary; const char* detail; };
 const Command kCommands[] = {
-  {"run", "zinc run [entry|dir] [--profile P] [--target esp32 ...] [-- args]", "run a program or project",
+  {"run", "zinc run [entry|dir] [--interp|--native] [--profile P] [--target esp32 ...] [-- args]", "run a program or project",
    "Compiles the entry (a .ts/.tsx/.js file, or a project directory: zinc.json \"entry\", else src/main.ts[x]) and runs it. With no entry it runs the project of the working directory.\n"
+   "A program that draws is compiled to native code, as zinc build does, and the executable is cached (~/.zinc/cache/run): the first run of a version compiles, the next ones start at once.\n"
+   "  --interp                interpret instead (starts at once; zinc dev and the test runs, ZINC_HEADLESS / ZINC_DETERMINISTIC, interpret too)\n"
+   "  --native                compile even a headless or deterministic run\n"
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2): numbers, heap and typing of that target\n"
    "  --engine quickjs        plain JavaScript on QuickJS-ng\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
@@ -1576,6 +1579,7 @@ std::string redBoxSource(const std::vector<std::string>& lines) {
 }  // namespace
 
 int dev(const std::vector<std::string>& args) {
+  setenv("ZINC_RUN", "interp", 1);   // the restarts interpret: a save restarts in 0.2 s, a compiled run would rebuild (ZN-398)
   std::vector<std::string> own, rest;
   bool noTools = false;
   for (std::size_t i = 0; i < args.size(); ++i) {
