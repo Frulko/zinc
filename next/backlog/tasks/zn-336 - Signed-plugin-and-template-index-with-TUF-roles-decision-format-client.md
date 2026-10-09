@@ -1,9 +1,10 @@
 ---
 id: ZN-336
 title: 'Signed plugin and template index with TUF roles (decision, format, client)'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-09 04:18'
 labels:
   - distribution
   - security
