@@ -243,12 +243,22 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
 // Compiles a source file down to a ZBC module, printing diagnostics; returns 0 on success.
 static bool gDeviceCore = false;  // the program goes to a device core (ESP32): the optimizer only writes runtime calls that every core release has
 static std::vector<std::string> gSources;  // the texts of the files of the last program compiled: they decide which fonts and images are baked
+static std::vector<bool> gSourceIsLib;     // per file of gSources: one of the engine's own modules (ZN-428)
 
 // The baked fonts and images of the last program compiled, as one blob (src/res); assets are the `assets` directory beside the entry file or above it.
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
   o.fontDir = gRoot + "/../lib/fonts";
+  o.library = gSourceIsLib;   // ZN-428: the library's style tables do not decide what is baked
+  {   // "text": "shaped" (or ZINC_TEXT=shaped): the shaper reads the whole TrueType files
+    const char* zt = std::getenv("ZINC_TEXT");
+    o.wholeFonts = zt && !std::strcmp(zt, "shaped");
+    std::string pf = zn::frontend::findProjectFile(entry);
+    zn::frontend::Project proj;
+    std::string perr;
+    if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (zn::frontend::parseProject(ss.str(), proj, perr) && proj.text == "shaped") o.wholeFonts = true; }
+  }
   fs::path dir = fs::absolute(entry).parent_path();
   for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
   if (zn::frontend::uiPreset() != "react-native") return zn::res::bake(gSources, o, blob, err);
@@ -278,7 +288,12 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   if (!loadChecked(path, prog, checked)) return 1;
   scanHostImports(prog);
   gSources.clear();
-  for (const auto& f : prog.files) gSources.push_back(f.text);
+  gSourceIsLib.clear();
+  for (const auto& f : prog.files) {
+    gSources.push_back(f.text);
+    const std::string& p = f.path;   // the engine's own modules: zinc:* specs, <prelude>, lib/ and plugins/ files
+    gSourceIsLib.push_back(p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos || p.find("/plugins/") != std::string::npos);
+  }
   std::vector<zn::frontend::Diag> diags;
   {
     auto low = [&] { zn::log::Phase ph("build", "lower to IR"); return zn::ir::lower(prog.ast, checked, prog.files[0].text); }();

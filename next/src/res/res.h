@@ -14,6 +14,10 @@ struct Options {
   std::string fontDir;    // lib/fonts: Inter-Regular.ttf, Inter-Bold.ttf, JetBrainsMono-Regular.ttf
   std::string assetsDir;  // images (PNG, SVG) and extra TrueType files; empty: none
   int hiScale = 2;        // pixels per logical pixel the target may display: > 0 embeds the TrueType files and bakes images at that scale
+  // Which of `sources` are the engine's own modules (zinc:*, lib/std, plugins): with TrueType files embedded, the sizes and styles their tables
+  // mention are not baked (the runtime rasterizes what they really use); empty: every source is the program's (ZN-428).
+  std::vector<bool> library;
+  bool wholeFonts = false;   // "text": "shaped": the shaper needs the whole TrueType files; otherwise they are subset to what the program can show
 };
 
 // `sources` are the texts of every file of the program (user code and standard modules): they decide the sizes and the characters.

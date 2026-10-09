@@ -7,6 +7,7 @@
 #define STBI_NO_PIC
 #define STBI_NO_PNM
 #define STBI_NO_STDIO
+#include "hb-subset.h"
 #include "res/res.h"
 #include "res/codec.h"
 #include "rt/unicode.h"
@@ -514,6 +515,34 @@ void writeStr(std::vector<std::uint8_t>& b, const std::string& s) { writeU32(b, 
 
 }  // namespace
 
+// The TrueType file reduced to `cps` with hb-subset (ZN-428): no hinting and no layout tables, which the runtime rasterizer (runtime/ttf.cpp:
+// head, hhea, hmtx, loca, glyf, cmap, maxp) does not read; the outlines and metrics it reads are kept. False: keep the whole file.
+bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t>& cps, std::vector<std::uint8_t>& out) {
+  hb_blob_t* blob = hb_blob_create(reinterpret_cast<const char*>(in.data()), static_cast<unsigned>(in.size()), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_face_t* face = hb_face_create(blob, 0);
+  hb_subset_input_t* input = hb_subset_input_create_or_fail();
+  bool ok = false;
+  if (input) {
+    hb_set_t* u = hb_subset_input_unicode_set(input);
+    for (std::uint32_t cp : cps) hb_set_add(u, cp);
+    hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NO_HINTING);
+    hb_set_t* drop = hb_subset_input_set(input, HB_SUBSET_SETS_DROP_TABLE_TAG);
+    for (const char* t : {"GSUB", "GPOS", "GDEF", "kern", "DSIG", "STAT", "fvar", "gvar", "HVAR", "avar"}) hb_set_add(drop, HB_TAG(t[0], t[1], t[2], t[3]));
+    if (hb_face_t* sub = hb_subset_or_fail(face, input)) {
+      hb_blob_t* b = hb_face_reference_blob(sub);
+      unsigned n = 0;
+      const char* d = hb_blob_get_data(b, &n);
+      if (d && n) { out.assign(reinterpret_cast<const std::uint8_t*>(d), reinterpret_cast<const std::uint8_t*>(d) + n); ok = true; }
+      hb_blob_destroy(b);
+      hb_face_destroy(sub);
+    }
+    hb_subset_input_destroy(input);
+  }
+  hb_face_destroy(face);
+  hb_blob_destroy(blob);
+  return ok;
+}
+
 bool bake(const std::vector<std::string>& sources, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err) {
   const bool embedTtf = opt.hiScale > 0;
   std::set<int> sizes{16};
@@ -523,7 +552,14 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   static const std::regex reText("text-(xs|sm|base|lg|xl|[2-6]xl)\\b"), reTextPx("text-\\[(\\d+)(?:px)?\\]"), reFontSize("font-size\\s*:\\s*(\\d+)px"),
       reFontCall("\\bfont\\(\\s*['\"][\\w-]+['\"]\\s*,\\s*(\\d+)\\s*\\)"),
       reCanvas("['\"`](?:(?:bold|normal|italic|[1-9]00)\\s+)*(\\d+)px\\s+[\\w\\s,\"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)"), reMono("\\bfont-mono\\b");
-  for (const std::string& text : sources) {
+  bool gridUsed = !embedTtf;   // the legacy gfx.text: every grid size when a program calls it (or when no TrueType file backs the overlays)
+  static const std::regex reGfxText("\\btext\\s*\\(");
+  for (std::size_t si = 0; si < sources.size(); ++si) {
+    const std::string& text = sources[si];
+    // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
+    // say "text (": those faces and the grid come from the program's own files; the runtime rasterizes the rest from the TrueType files (ZN-428)
+    const bool lib = embedTtf && si < opt.library.size() && opt.library[si];
+    if (!lib && !gridUsed && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText)) gridUsed = true;
     // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
     std::size_t at = 0;
     while (at < text.size()) {
@@ -538,8 +574,9 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       if (line.find("font-size") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontSize); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
-      if (!caseUsed && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) caseUsed = true;
       if (!ellipsisUsed && (line.find("truncate") != std::string::npos || line.find("text-ellipsis") != std::string::npos || line.find("line-clamp") != std::string::npos || line.find("textOverflow") != std::string::npos)) ellipsisUsed = true;
+      if (lib) continue;
+      if (!caseUsed && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) caseUsed = true;
       if (!italicUsed && line.find("italic") != std::string::npos) italicUsed = true;
       if (!fontMono && line.find("font-mono") != std::string::npos && std::regex_search(line, reMono)) fontMono = true;
     }
@@ -591,6 +628,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
     std::vector<std::uint32_t> ascii;
     for (int i = 0; i < 95; ++i) ascii.push_back(static_cast<std::uint32_t>(i + 32));
     for (int k : {1, 2, 3, 4, 6, 8}) {
+      if (!gridUsed && k > 3) continue;   // the runtime's own overlays (errors, profiler) use 8 x the pixel scale
       Grid grid{8 * k, true};
       BakedFont g = bakeFont(mono, "grid", static_cast<int>(jsRound(8 * k * 1.3)), ascii, &grid);
       g.px = 8 * k; g.ascent = static_cast<int>(jsRound(7.0 * k)); g.descent = k; g.lineGap = 0;
@@ -670,11 +708,17 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   std::vector<Family> ttfs;
   if (embedTtf) { ttfs = families; if (!fontMono) ttfs.push_back({"mono", monoFile}); }
   writeU32(blob, static_cast<std::uint32_t>(ttfs.size()));
+  // what the program can show: its characters, ASCII, Latin-1 and Latin Extended-A (text typed at run time), common punctuation and symbols
+  std::set<std::uint32_t> keep(chars.begin(), chars.end());
+  for (std::uint32_t c = 0x20; c < 0x17F; ++c) keep.insert(c);
+  for (std::uint32_t c : {0x2010u, 0x2011u, 0x2012u, 0x2013u, 0x2014u, 0x2018u, 0x2019u, 0x201Au, 0x201Cu, 0x201Du, 0x201Eu, 0x2020u, 0x2021u, 0x2022u, 0x2026u, 0x2030u, 0x2039u, 0x203Au, 0x20ACu, 0x2122u, 0xFFFDu}) keep.insert(c);
   for (const Family& f : ttfs) {
     if (!fontBytes.count(f.file) && !readFile(f.file, fontBytes[f.file])) { err = "cannot read the font " + f.file; return false; }
+    std::vector<std::uint8_t> sub;
+    const std::vector<std::uint8_t>& bytes = !opt.wholeFonts && subsetTtf(fontBytes[f.file], keep, sub) ? sub : fontBytes[f.file];
     writeStr(blob, f.name);
-    writeU32(blob, static_cast<std::uint32_t>(fontBytes[f.file].size()));
-    blob.insert(blob.end(), fontBytes[f.file].begin(), fontBytes[f.file].end());
+    writeU32(blob, static_cast<std::uint32_t>(bytes.size()));
+    blob.insert(blob.end(), bytes.begin(), bytes.end());
   }
   return true;
 }

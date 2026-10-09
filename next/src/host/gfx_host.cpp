@@ -108,7 +108,16 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxClear: g::clear(u(0)); break;
     case Rt::HostGfxRect: g::rect(a[0].d, a[1].d, a[2].d, a[3].d, u(4)); break;
     case Rt::HostGfxRRect: g::rrect(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, u(5), n(6)); break;
-    case Rt::HostGfxFont: r->i = zrt::raster::find_font(static_cast<const char*>(a[0].p), a[0].n, n(1)); break;
+    case Rt::HostGfxFont: {   // the exact size: baked, else rasterized from the embedded TrueType file (ZN-428 bakes only the program's sizes), else the closest baked
+      const char* name = static_cast<const char*>(a[0].p);
+      std::int32_t f = zrt::raster::find_font(name, a[0].n, n(1));
+      if (f < 0 || zrt::raster::font_at(f)->px != n(1)) {
+        const std::int32_t rf = zrt::raster::render_font(name, a[0].n, n(1));
+        if (rf >= 0 && zrt::raster::font_at(rf)->px == n(1)) f = rf;
+      }
+      r->i = f;
+      break;
+    }
     case Rt::HostGfxDrawText: g::drawText(n(0), a[1].d, a[2].d, str(a[3]), u(4), n(5), a[6].d); break;
     case Rt::HostGfxLine: g::line(a[0].d, a[1].d, a[2].d, a[3].d, u(4)); break;
     case Rt::HostGfxText: g::text(a[0].d, a[1].d, str(a[2]), u(3), n(4)); break;
