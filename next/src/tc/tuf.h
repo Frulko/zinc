@@ -11,8 +11,11 @@
 
 namespace zn::tc::tuf {
 
-// Fetches a repository path ("timestamp.json", "2.root.json", "targets/<name>"): false when it does not exist or cannot be read.
-using Fetch = std::function<bool(const std::string& path, std::string& bytes)>;
+// Fetches a repository path ("timestamp.json", "2.root.json", "targets/<name>"): false when it does not exist or cannot be read. `sha256` is the hash the
+// signed metadata expects ("" for metadata the client checks by signature), so a source that serves other bytes can be skipped for the next one (ZN-339).
+using Fetch = std::function<bool(const std::string& path, const std::string& sha256, std::string& bytes)>;
+// The fetch of an index at `base` (file:// or https://), through the mirrors of ZINC_MIRRORS (<mirror>/index/<path>) first.
+Fetch indexFetch(const std::string& base);
 
 struct Target {
   std::string path, sha256, custom;   // custom: the target's "custom" object as JSON text ("" when absent)

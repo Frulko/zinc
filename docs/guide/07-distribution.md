@@ -154,6 +154,19 @@ xcrun stapler staple dist/myapp-macos/myapp.app
 Verify with `codesign -dv --verbose=4 myapp.app` and `spctl -a -vv myapp.app`. (Notarization is Apple's server-side
 step; Zinc prepares the bundle but cannot notarize for you.)
 
+## Mirrors, proxies and offline
+
+Everything zinc downloads is checked before it is used: the toolchains against their pinned SHA-256, the plugin index by its
+TUF signatures, its targets (published plugin binaries) by the SHA-256 the index signs. So any server may serve them:
+
+```sh
+export ZINC_MIRRORS="https://mirror.example.com/zinc file:///srv/zinc-mirror"   # tried in order, before the origin
+```
+
+A mirror serves the toolchains at `<mirror>/<archive name>` (as `ZINC_TC_MIRROR` did) and the index at `<mirror>/index/<path>`.
+A source whose answer does not verify is reported and the next one is tried. Downloads go through curl, so `HTTPS_PROXY`,
+`http_proxy` and `NO_PROXY` apply. `ZINC_OFFLINE=1` allows only `file://` sources.
+
 ## Releases of Zinc itself (CI)
 
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job

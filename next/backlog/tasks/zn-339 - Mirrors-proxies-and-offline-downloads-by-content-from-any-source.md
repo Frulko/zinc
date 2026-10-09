@@ -1,9 +1,10 @@
 ---
 id: ZN-339
 title: 'Mirrors, proxies and offline: downloads by content from any source'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-09 04:42'
 labels:
   - distribution
   - security

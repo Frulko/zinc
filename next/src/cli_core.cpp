@@ -956,29 +956,10 @@ int indexSign(const std::vector<std::string>& args) {
   return wrote ? 0 : 1;
 }
 
-// Reads <base>/<path> (file:// or http(s)://) for the TUF client.
-static bool fetchFrom(const std::string& base, const std::string& path, std::string& bytes) {
-  const std::string url = base + (base.empty() || base.back() == '/' ? "" : "/") + path;
-  std::string file = url.rfind("file://", 0) == 0 ? url.substr(7) : std::string();
-  std::error_code ec;
-  fs::path tmp;
-  if (file.empty()) {
-    tmp = fs::temp_directory_path(ec) / ("zinc-index-" + std::to_string(getpid()));
-    if (runArgv({"curl", "-fsSL", "--max-filesize", "52428800", "-o", tmp.string(), "--", url}, true) != 0) { fs::remove(tmp, ec); return false; }
-    file = tmp.string();
-  }
-  std::ifstream f(file, std::ios::binary);
-  if (!f) return false;
-  std::stringstream ss; ss << f.rdbuf();
-  bytes = ss.str();
-  if (!tmp.empty()) fs::remove(tmp, ec);
-  return true;
-}
-
 int indexGet(const std::vector<std::string>& args) {
   if (args.size() < 4 || args.size() > 5) { std::fprintf(stderr, "usage: zinc index-get <repository-url> <cache-dir> [target-path]\n"); return 2; }
   const std::string base = args[2];
-  zn::tc::tuf::Client c(args[3], [&](const std::string& p, std::string& b) { return fetchFrom(base, p, b); }, static_cast<long long>(std::time(nullptr)));
+  zn::tc::tuf::Client c(args[3], zn::tc::tuf::indexFetch(base), static_cast<long long>(std::time(nullptr)));
   std::string err;
   if (!c.refresh(err)) { std::fprintf(stderr, "zinc index-get: %s\n", err.c_str()); return 1; }
   if (args.size() == 5) {
@@ -1008,7 +989,7 @@ int indexSearch(const std::vector<std::string>& args, const std::string& engineR
     const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
     if (!fs::copy_file(root, cache / "root.json", ec)) { std::fprintf(stderr, "zinc plugins search: no trusted root for the index (%s): set ZINC_INDEX_ROOT\n", root.string().c_str()); return 1; }
   }
-  zn::tc::tuf::Client c(cache.string(), [&](const std::string& p, std::string& b) { return fetchFrom(base, p, b); }, static_cast<long long>(std::time(nullptr)));
+  zn::tc::tuf::Client c(cache.string(), zn::tc::tuf::indexFetch(base), static_cast<long long>(std::time(nullptr)));
   std::string err;
   std::vector<zn::tc::tuf::Target> all;
   if (!c.refresh(err) || !c.all(all, err)) { std::fprintf(stderr, "zinc plugins search: %s\n", err.c_str()); return 1; }

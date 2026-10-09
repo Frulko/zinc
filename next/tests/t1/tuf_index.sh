@@ -36,7 +36,7 @@ expect("rolled-back snapshot", False, get(repo, c), "rollback")
 # a target whose bytes differ from its signed hash
 ir.build(repo, keys, {"plugins/greet-1.0.tar": (plugin, None)}, version=1)
 open(os.path.join(repo, "targets", "plugins", "greet-1.0.tar"), "wb").write(b"evil bytes!!\n")
-expect("target hash", False, get(repo, fresh(repo, "hash"), "plugins/greet-1.0.tar"), "hash differs")
+expect("target hash", False, get(repo, fresh(repo, "hash"), "plugins/greet-1.0.tar"), "does not verify")
 # a role signed below its threshold: targets needs 2 of its 2 keys, one signs
 keys2 = dict(keys); keys2["targets"] = [ir.keygen(), ir.keygen()]
 repo2 = os.path.join(tmp, "repo2"); ir.build(repo2, keys2, {"plugins/greet-1.0.tar": (plugin, None)})

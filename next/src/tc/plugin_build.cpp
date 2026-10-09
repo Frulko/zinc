@@ -183,19 +183,7 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
     fs::copy_file(root, cache / "root.json", ec);
   }
   const char* u = std::getenv("ZINC_INDEX_URL");
-  const std::string base = std::string(u && *u ? u : "https://zinc-engine.github.io/zinc/index") + "/";
-  const fs::path tmp = fs::path(dir) / "fetch.tmp";
-  tuf::Client c(cache.string(), [&](const std::string& path, std::string& bytes) {
-    std::string file = base.rfind("file://", 0) == 0 ? base.substr(7) + path : std::string();
-    if (file.empty()) {
-      std::string e;
-      if (!run("curl -fsSL --max-filesize 268435456 -o " + q(tmp.string()) + " " + q(base + path), e, "the download")) return false;
-      file = tmp.string();
-    }
-    const bool ok = readAll(file, bytes);
-    fs::remove(tmp, ec);
-    return ok;
-  }, static_cast<long long>(std::time(nullptr)));
+  tuf::Client c(cache.string(), tuf::indexFetch(u && *u ? u : "https://zinc-engine.github.io/zinc/index"), static_cast<long long>(std::time(nullptr)));
   std::string err, bytes;
   tuf::Target t;
   const std::string path = "binaries/" + target + "/" + name + "-" + key + ".tar";

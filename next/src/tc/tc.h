@@ -4,6 +4,7 @@
 // program that `zinc build` writes for a target (aarch64 and x86_64 Linux, macOS), with no Docker and no installation by hand.
 // Environment: ZINC_HOME (where toolchains and object caches live), ZINC_ZIG (use this zig instead of the pinned one, for development),
 // ZINC_TC_MIRROR (a base URL, or file:// directory, that replaces https://ziglang.org/download/<version> for the downloads).
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,15 @@ std::string zigVersion();   // the pinned version
 
 // Hex SHA-256 of a file, empty when it cannot be read.
 std::string sha256File(const std::string& path);
+
+// Downloads (ZN-339): every source of `rel` is tried in order, the mirrors of ZINC_MIRRORS (base URLs, spaces or commas: <mirror>/<rel>) then `origin`
+// (a whole URL, "" for none); each answer must pass `accept` (its pinned hash, its signature), else it is reported and the next source is tried.
+// curl honours HTTPS_PROXY / http_proxy / NO_PROXY. ZINC_OFFLINE=1: only file:// sources.
+using Accept = std::function<bool(const std::string& path, std::string& why)>;
+bool downloadTo(const std::string& origin, const std::string& rel, const std::string& out, const Accept& accept, std::string& err);
+bool downloadBytes(const std::string& origin, const std::string& rel, std::string& bytes, const std::function<bool(const std::string& bytes, std::string& why)>& accept, std::string& err);
+bool offline();
+std::vector<std::string> mirrors();
 std::string sha256Hex(const std::string& bytes);   // of bytes in memory
 
 // The path of a usable zig: $ZINC_ZIG, or the pinned one (downloaded and verified when missing). False with `err` set when that fails.

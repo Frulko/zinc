@@ -9,6 +9,7 @@
 #include <iterator>
 #include <map>
 #include <sstream>
+#include <unistd.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -144,6 +145,58 @@ std::string sha256File(const std::string& path) {
   return r;
 }
 
+bool offline() { const char* o = std::getenv("ZINC_OFFLINE"); return o && *o && std::string(o) != "0"; }
+
+std::vector<std::string> mirrors() {
+  std::vector<std::string> r;
+  const char* m = std::getenv("ZINC_MIRRORS");
+  std::string cur;
+  for (const char* c = m ? m : ""; ; ++c) {
+    if (*c == 0 || *c == ' ' || *c == ',' || *c == '\n') { if (!cur.empty()) { while (cur.back() == '/') cur.pop_back(); r.push_back(cur); } cur.clear(); if (!*c) break; }
+    else cur += *c;
+  }
+  return r;
+}
+
+bool downloadTo(const std::string& origin, const std::string& rel, const std::string& out, const Accept& ok, std::string& err) {
+  std::vector<std::string> urls;
+  for (const std::string& m : mirrors()) urls.push_back(m + "/" + rel);
+  if (!origin.empty()) urls.push_back(origin);
+  std::error_code ec;
+  int tried = 0;
+  std::string refused;
+  for (const std::string& url : urls) {
+    if (offline() && url.rfind("file://", 0) != 0) continue;   // offline: local sources only
+    ++tried;
+    std::string e;
+    if (!run("curl -fL --retry 2 -sS -o " + quote(out) + " " + quote(url) + " 2>/dev/null", e, "the download")) { fs::remove(out, ec); continue; }   // curl honours HTTPS_PROXY, http_proxy and NO_PROXY
+    std::string why;
+    if (ok && !ok(out, why)) {
+      std::fprintf(stderr, "zinc: %s served %s that does not verify (%s): refused, trying the next source\n", url.c_str(), rel.c_str(), why.c_str());
+      refused += (refused.empty() ? "" : ", ") + url;
+      fs::remove(out, ec);
+      continue;
+    }
+    return true;
+  }
+  err = offline() && !tried ? "offline (ZINC_OFFLINE): " + rel + " has no local source"
+                            : "cannot download " + rel + " from any of " + std::to_string(tried) + " source(s)" + (refused.empty() ? "" : " (refused: " + refused + ")");
+  return false;
+}
+
+bool downloadBytes(const std::string& origin, const std::string& rel, std::string& bytes, const std::function<bool(const std::string& bytes, std::string& why)>& ok, std::string& err) {
+  std::error_code ec;
+  const fs::path tmp = fs::temp_directory_path(ec) / ("zinc-dl-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand()));
+  const bool got = downloadTo(origin, rel, tmp.string(), [&](const std::string& path, std::string& why) {
+    std::ifstream f(path, std::ios::binary);
+    std::stringstream ss; ss << f.rdbuf();
+    bytes = ss.str();
+    return !ok || ok(bytes, why);
+  }, err);
+  fs::remove(tmp, ec);
+  return got;
+}
+
 // Downloads `pin` from `url`, checks it against the pin before anything is unpacked, and unpacks it into `dir` (the archive holds one directory).
 // `marker` is a file that must be in the unpacked directory. Nothing happens when `marker` is already there.
 static bool fetchTool(const char* what, const Pin& pin, const std::string& url, const fs::path& dir, const char* marker, std::string& err) {
@@ -152,14 +205,13 @@ static bool fetchTool(const char* what, const Pin& pin, const std::string& url, 
   fs::create_directories(dir.parent_path(), ec);
   fs::path archive = dir.parent_path() / (std::string(pin.file) + ".part");
   std::fprintf(stderr, "zinc: downloading %s %s (once)...\n", what, url.c_str());
-  std::string cmd = "curl -fL --retry 3 -sS -o " + quote(archive.string()) + " " + quote(url);
-  if (!run(cmd, err, "the download")) return false;
-  std::string got = sha256File(archive.string());
-  if (got != pin.sha256) {
-    fs::remove(archive, ec);
-    err = "checksum mismatch for " + std::string(pin.file) + ": expected " + pin.sha256 + ", got " + (got.empty() ? "nothing" : got) + "; the download was discarded";
-    return false;
-  }
+  std::string got;
+  if (!downloadTo(url, pin.file, archive.string(), [&](const std::string& path, std::string& why) {   // the mirrors first (ZINC_MIRRORS/<file>), then `url`; each checked against the pin
+        got = sha256File(path);
+        if (got == pin.sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + pin.sha256;
+        return false;
+      }, err)) return false;
   std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
   fs::path tmp = dir.parent_path() / (std::string("extract-") + dir.filename().string());
   fs::remove_all(tmp, ec);

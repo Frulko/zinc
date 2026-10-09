@@ -87,6 +87,19 @@ std::map<std::string, std::string> keysOf(yyjson_val* keys) {
 
 }  // namespace
 
+Fetch indexFetch(const std::string& base) {
+  std::string b = base;
+  while (!b.empty() && b.back() == '/') b.pop_back();
+  return [b](const std::string& path, const std::string& sha, std::string& bytes) {
+    std::string err;
+    return downloadBytes(b.empty() ? std::string() : b + "/" + path, "index/" + path, bytes, [&](const std::string& got, std::string& why) {
+      if (sha.empty() || sha256Hex(got) == sha) return true;
+      why = "its SHA-256 is not the signed one";
+      return false;
+    }, err);
+  };
+}
+
 bool canonical(const std::string& json, std::string& out) {
   Doc d(json);
   out.clear();
@@ -152,7 +165,7 @@ bool Client::refresh(std::string& err) {
   long long version = useRoot(text);
   for (;;) {   // 5.3: the root chain, N+1.root.json signed by the old root and by itself
     std::string next;
-    if (!fetch_(std::to_string(version + 1) + ".root.json", next)) break;
+    if (!fetch_(std::to_string(version + 1) + ".root.json", "", next)) break;
     Doc d(next);
     yyjson_val* sv = yyjson_obj_get(d.root(), "signed");
     if (str(sv, "_type") != "root" || num(sv, "version") != version + 1) { err = "root: version " + std::to_string(version + 1) + " is not what its file name says"; return false; }
@@ -174,7 +187,7 @@ bool Client::refresh(std::string& err) {
   if (!readCache("root.json", text) || !load("root", text, rootKeys_, roles_["root"], "root", err)) return false;   // a frozen root is refused
   // 5.4 timestamp: never lower than the trusted one
   std::string ts;
-  if (!fetch_("timestamp.json", ts)) { err = "timestamp.json cannot be fetched"; return false; }
+  if (!fetch_("timestamp.json", "", ts)) { err = "timestamp.json cannot be fetched"; return false; }
   if (!load("timestamp", ts, rootKeys_, roles_["timestamp"], "timestamp", err)) return false;
   Doc tsd(ts);
   yyjson_val* tsv = yyjson_obj_get(tsd.root(), "signed");
@@ -190,7 +203,7 @@ bool Client::refresh(std::string& err) {
   // 5.5 snapshot: the version (and hash, when given) the timestamp names; no role older than in the trusted snapshot
   snapshotVersion_ = num(snapMeta, "version");
   std::string snap;
-  if (!fetch_(consistent_ ? std::to_string(snapshotVersion_) + ".snapshot.json" : "snapshot.json", snap)) { err = "snapshot.json cannot be fetched"; return false; }
+  if (!fetch_(consistent_ ? std::to_string(snapshotVersion_) + ".snapshot.json" : "snapshot.json", str(yyjson_obj_get(snapMeta, "hashes"), "sha256"), snap)) { err = "snapshot.json cannot be fetched"; return false; }
   if (const std::string h = str(yyjson_obj_get(snapMeta, "hashes"), "sha256"); !h.empty() && sha256Hex(snap) != h) { err = "snapshot: its hash differs from the timestamp's"; return false; }
   if (!load("snapshot", snap, rootKeys_, roles_["snapshot"], "snapshot", err)) return false;
   Doc sd(snap);
@@ -216,7 +229,7 @@ bool Client::loadTargets(const std::string& name, const std::map<std::string, st
   auto it = snapshotMeta_.find(name + ".json");
   if (it == snapshotMeta_.end()) { err = name + ": not in the snapshot"; return false; }
   std::string text;
-  if (!fetch_(consistent_ ? std::to_string(it->second) + "." + name + ".json" : name + ".json", text)) { err = name + ".json cannot be fetched"; return false; }
+  if (!fetch_(consistent_ ? std::to_string(it->second) + "." + name + ".json" : name + ".json", "", text)) { err = name + ".json cannot be fetched"; return false; }
   if (!load(name, text, keys, r, "targets", err)) return false;
   Doc d(text);
   yyjson_val* sv = yyjson_obj_get(d.root(), "signed");
@@ -287,7 +300,7 @@ bool Client::all(std::vector<Target>& out, std::string& err) {
 bool Client::download(const Target& t, std::string& bytes, std::string& err) {
   std::string name = t.path;
   if (consistent_) { const size_t slash = name.rfind('/'); name.insert(slash == std::string::npos ? 0 : slash + 1, t.sha256 + "."); }
-  if (!fetch_("targets/" + name, bytes)) { err = "target " + t.path + " cannot be fetched"; return false; }
+  if (!fetch_("targets/" + name, t.sha256, bytes)) { err = "target " + t.path + " cannot be fetched with the hash its metadata signs from any source"; return false; }
   if (static_cast<long long>(bytes.size()) != t.length || sha256Hex(bytes) != t.sha256) { err = "target " + t.path + ": its length or hash differs from the signed metadata"; return false; }
   return true;
 }
