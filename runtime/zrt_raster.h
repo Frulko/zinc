@@ -96,14 +96,19 @@ bool bin(const Frame& f, int32_t w, int32_t h, Tiles& out);
 /** render() through the tiles of `f` binned by bin(): the same pixels; falls back to render() when the tiles are not usable. */
 void render_tiles(const Frame& f, const Tiles& tiles, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
 void free_tiles(Tiles& t);
-/** hidden[i] = 1 for the commands of `f` that opaque square RECTs and CLEARs drawn after them, outside any clip, cover whole (`tile` px
- *  tiles, the commands' own bounds); a CLIP or UNCLIP is marked only with its whole scope, under a covered screen. Returns how many. For
- *  renderers that draw every command, the GL replay (ZN-412.01): they skip what nobody sees. `scratch` keeps its buffer between frames. */
-uint32_t cull(const Frame& f, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint8_t* hidden);
-/** cull() for the tile rows row0 .. row1 - 1 alone, to run bands on several threads: visible[i] = 1 for the commands seen in the band and for
- *  CLIP / UNCLIP (a command is visible when some band sees it); the others are left alone. The caller checks clips_balanced first. */
-void cull_rows(const Frame& f, int32_t w, int32_t h, int32_t tile, int32_t row0, int32_t row1, Tiles& scratch, uint8_t* visible);
-bool clips_balanced(const Frame& f);
+/** The commands of `f` that opaque square RECTs and CLEARs drawn after them, outside any clip, do not cover whole (`tile` px tiles, 0: a
+ *  size from the frame's opaque rectangles; the commands' own bounds), from the last to the first into `out` (room for f.count): index | kCullOpaque when the command is itself such an
+ *  opaque rectangle outside clips. CLIP and UNCLIP are listed, except whole clip scopes under a covered screen. Returns how many; 0: not
+ *  culled (clips left open), draw every command. For renderers that draw every command, the GL replay (ZN-412.01): they skip what nobody
+ *  sees, and draw the opaque ones front to back in this order. `scratch` keeps its buffer from frame to frame. */
+constexpr uint32_t kCullOpaque = 0x80000000u;
+uint32_t cull_list(const Frame& f, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint32_t* out);
+/** cull_list in two phases, so the first can run on several threads: cull_pack writes packed[begin .. end) (each command's tile range and
+ *  kind, from the Cmd array), cull_walk then walks the packed array alone (it reads a Cmd only for the visible opaque rectangles).
+ *  cull_tile is the size cull_list picks for 0. */
+int32_t cull_tile(const Frame& f);
+void cull_pack(const Frame& f, uint32_t begin, uint32_t end, int32_t w, int32_t h, int32_t tile, uint64_t* packed);
+uint32_t cull_walk(const Frame& f, const uint64_t* packed, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint32_t* out);
 /** Damage between two frames (empty rect when identical). */
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h);
 /** Damage as up to `max` disjoint rectangles; returns the count (0 when identical). */

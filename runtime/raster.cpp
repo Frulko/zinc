@@ -841,96 +841,110 @@ bool bin(const Frame& f, int32_t w, int32_t h, Tiles& out) {
 }
 // bits lo .. hi (inclusive) of a row of 64-bit words
 static inline uint64_t span_mask(int32_t lo, int32_t hi) { return (hi >= 63 ? ~0ull : ((1ull << (hi + 1)) - 1)) & ~((1ull << lo) - 1); }
-bool clips_balanced(const Frame& f) {
+static bool clips_balanced(const Frame& f) {
   int depth = 0;
   for (uint32_t i = 0; i < f.count; i++) { if (f.cmds[i].kind == CLIP) depth++; else if (f.cmds[i].kind == UNCLIP && depth > 0) depth--; }
   return depth == 0;
 }
-void cull_rows(const Frame& f, int32_t w, int32_t h, int32_t tile, int32_t row0, int32_t row1, Tiles& scratch, uint8_t* visible) {
-  int32_t ts = 0;   // tiles of 1 << ts pixels
-  while ((1 << (ts + 1)) <= tile && ts < 8) ts++;
-  if (w <= 0 || h <= 0 || tile < 1) return;
-  const int32_t T = 1 << ts, tw = (w + T - 1) >> ts, th0 = (h + T - 1) >> ts, words = (tw + 63) >> 6;
-  row0 = row0 < 0 ? 0 : row0; row1 = row1 > th0 ? th0 : row1;
-  if (row0 >= row1) return;
-  const int32_t th = row1 - row0, ylo = row0 << ts, yhi = (row1 << ts) < h ? (row1 << ts) : h;   // this band's rows of tiles and pixels
-  // a bit per tile, 1 while it is open: a row's open tiles in a range are an AND of one or two words
-  if (!grow_buf(scratch.closed, scratch.cap_closed, (uint32_t)(words * th * 2))) { for (uint32_t i = 0; i < f.count; i++) visible[i] = 1; return; }
-  uint64_t* open_bits = (uint64_t*)scratch.closed;
-  for (int32_t ty = 0; ty < th; ty++)
-    for (int32_t k = 0; k < words; k++) { const int32_t lo = k * 64, hi = tw - 1 < lo + 63 ? tw - 1 : lo + 63; open_bits[ty * words + k] = span_mask(0, hi - lo); }
-  auto any_open = [&](const uint64_t* row, int32_t x0, int32_t x1) {   // tiles x0 .. x1 inclusive
-    for (int32_t k = x0 >> 6; k <= (x1 >> 6); k++) {
-      const int32_t lo = k << 6;
-      if (row[k] & span_mask(x0 > lo ? x0 - lo : 0, x1 < lo + 63 ? x1 - lo : 63)) return true;
+int32_t cull_tile(const Frame& f) {
+  // tiles a little smaller than the opaque rectangles, so they close some (bouncing-ball at 320x240: 4 px, 5.9k visible of 200k in 1.1 ms;
+  // 8 px tiles leave 36k visible in 1.5 ms, 2 px tiles take 3 ms). The opaque square RECTs among every 4th of the last 4096 commands decide.
+  double sum = 0;
+  uint32_t n = 0;
+  for (uint32_t i = f.count > 4096 ? f.count - 4096 : 0; i < f.count; i += 4) {
+    const Cmd& c = f.cmds[i];
+    if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255 && c.w > 0 && c.h > 0) { sum += c.w < c.h ? c.w : c.h; n++; }
+  }
+  const double want = n ? sum / n * (2.0 / 3.0) : 16;
+  int32_t tile = 4;
+  while (tile * 2 <= want && tile < 32) tile *= 2;
+  return tile;
+}
+static inline int32_t tile_shift(int32_t tile) { int32_t ts = 0; while ((1 << (ts + 1)) <= tile && ts < 8) ts++; return ts; }
+// a packed command: tile range x0 | y0 << 16 | x1 << 32 | y1 << 48 (inclusive, 15 bits each), the code in bits 15 and 31
+static const uint64_t kPackNone = ~0ull, kPackOpaque = 1ull << 15, kPackClip = 1ull << 31, kPackUnclip = (1ull << 15) | (1ull << 31);
+void cull_pack(const Frame& f, uint32_t begin, uint32_t end, int32_t w, int32_t h, int32_t tile, uint64_t* packed) {
+  const int32_t ts = tile_shift(tile);
+  const float fw = (float)w, fh = (float)h;
+  for (uint32_t i = begin; i < end && i < f.count; i++) {
+    const Cmd& c = f.cmds[i];
+    if (c.kind == CLIP) { packed[i] = kPackClip; continue; }
+    if (c.kind == UNCLIP) { packed[i] = kPackUnclip; continue; }
+    int32_t x0, y0, x1, y1;
+    const bool square = c.kind == RECT && c.r <= 0;
+    if (square) {   // a square-cornered RECT paints exactly its pixel bounds: clamped as floats, then rounded out (the screen fits an int)
+      float fx0 = c.x, fy0 = c.y, fx1 = c.x + c.w, fy1 = c.y + c.h;
+      if (!(fx0 < fw && fy0 < fh && fx1 > 0 && fy1 > 0)) { packed[i] = kPackNone; continue; }   // off screen, empty or NaN: render() paints nothing either
+      fx0 = fx0 > 0 ? fx0 : 0; fy0 = fy0 > 0 ? fy0 : 0; fx1 = fx1 < fw ? fx1 : fw; fy1 = fy1 < fh ? fy1 : fh;
+      x0 = (int32_t)fx0; y0 = (int32_t)fy0; x1 = (int32_t)fx1; y1 = (int32_t)fy1;
+      x1 += (float)x1 < fx1; y1 += (float)y1 < fy1;
+    } else {   // its own bounds, clips ignored: a superset of what it paints
+      const Rect b = bin_bounds(c, w, h);
+      x0 = b.x0 < 0 ? 0 : b.x0; y0 = b.y0 < 0 ? 0 : b.y0; x1 = b.x1 > w ? w : b.x1; y1 = b.y1 > h ? h : b.y1;
     }
-    return false;
-  };
-  // superblocks of 8 x 8 tiles with their open count: a large command inside closed superblocks is hidden after a few reads
-  const int32_t sw = (tw + 7) >> 3, sh = (th + 7) >> 3;
-  if (!grow_buf(scratch.idx, scratch.cap_idx, (uint32_t)(sw * sh))) { for (uint32_t i = 0; i < f.count; i++) visible[i] = 1; return; }
-  uint32_t* sopen = scratch.idx;
-  for (int32_t sy = 0; sy < sh; sy++)
-    for (int32_t sx = 0; sx < sw; sx++) { const int32_t bw = (sx * 8 + 8 < tw ? 8 : tw - sx * 8), bh = (sy * 8 + 8 < th ? 8 : th - sy * 8); sopen[sy * sw + sx] = (uint32_t)(bw * bh); }
-  uint32_t open = (uint32_t)(tw * th);
+    if (x0 >= x1 || y0 >= y1) { packed[i] = kPackNone; continue; }
+    const bool opaque = c.kind == CLEAR || (square && !c.grad && c.alpha == 255);
+    packed[i] = (uint64_t)(x0 >> ts) | (uint64_t)(y0 >> ts) << 16 | (uint64_t)((x1 - 1) >> ts) << 32 | (uint64_t)((y1 - 1) >> ts) << 48 | (opaque ? kPackOpaque : 0);
+  }
+}
+uint32_t cull_walk(const Frame& f, const uint64_t* packed, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint32_t* out) {
+  const int32_t ts = tile_shift(tile);
+  if (w <= 0 || h <= 0 || !f.count || w >= (0x7FFF << ts) || h >= (0x7FFF << ts)) return 0;
+  const int32_t T = 1 << ts, tw = (w + T - 1) >> ts, th = (h + T - 1) >> ts, words = (tw + 63) >> 6;
+  // a bit per tile, 1 while it is open: a row's open tiles in a range are an AND of one or two words
+  if (!grow_buf(scratch.closed, scratch.cap_closed, (uint32_t)(words * th * 2))) return 0;
+  uint64_t* ob = (uint64_t*)scratch.closed;
+  for (int32_t ty = 0; ty < th; ty++)
+    for (int32_t k = 0; k < words; k++) { const int32_t lo = k * 64, hi = tw - 1 < lo + 63 ? tw - 1 : lo + 63; ob[ty * words + k] = span_mask(0, hi - lo); }
+  uint32_t open = (uint32_t)(tw * th), n = 0;
   int depth = 0;
   for (uint32_t i = f.count; i-- > 0 && open;) {
-    const Cmd& c = f.cmds[i];
-    if (c.kind == CLIP) { depth--; visible[i] = 1; continue; }   // walking backward: an UNCLIP opens a clip, its CLIP closes it
-    if (c.kind == UNCLIP) { depth++; visible[i] = 1; continue; }
-    // its own bounds, clips ignored (a superset of what it paints); a square-cornered RECT paints exactly its pixel bounds
-    const bool square = c.kind == RECT && c.r <= 0;
-    Rect b = square ? Rect{ifloor(c.x), ifloor(c.y), iceil(c.x + c.w), iceil(c.y + c.h)} : bin_bounds(c, w, h);
-    const Rect px = b;
-    b.x0 = b.x0 < 0 ? 0 : b.x0; b.y0 = b.y0 < ylo ? ylo : b.y0; b.x1 = b.x1 > w ? w : b.x1; b.y1 = b.y1 > yhi ? yhi : b.y1;
-    if (b.x0 >= b.x1 || b.y0 >= b.y1) continue;   // not in this band
-    const int32_t tx0 = b.x0 >> ts, ty0 = (b.y0 >> ts) - row0, tx1 = (b.x1 - 1) >> ts, ty1 = ((b.y1 - 1) >> ts) - row0;   // inclusive, band rows
+    const uint64_t p = packed[i];
+    if (p == kPackNone) continue;
+    if (p == kPackClip) { if (depth == 0) return 0; depth--; out[n++] = i; continue; }   // walking backward: an UNCLIP opens a clip, its CLIP closes it; a CLIP no UNCLIP closes: not culled
+    if (p == kPackUnclip) { depth++; out[n++] = i; continue; }
+    const int32_t tx0 = (int32_t)(p & 0x7FFF), ty0 = (int32_t)((p >> 16) & 0x7FFF), tx1 = (int32_t)((p >> 32) & 0x7FFF), ty1 = (int32_t)((p >> 48) & 0x7FFF);   // inclusive
     bool seen;
     if ((tx0 >> 6) == (tx1 >> 6) && ty1 - ty0 < 4) {   // the usual small command: one word per row, at most 4 rows, no branch per tile
-      const uint64_t* p = open_bits + ty0 * words + (tx0 >> 6);
-      const int32_t n = ty1 - ty0, last = n * words;
-      const uint64_t acc = p[0] | p[(n > 0) * words] | p[(n > 1) * 2 * words] | p[last];
-      seen = (acc & span_mask(tx0 & 63, tx1 & 63)) != 0;
+      const uint64_t* q = ob + ty0 * words + (tx0 >> 6);
+      const int32_t k = ty1 - ty0;
+      seen = ((q[0] | q[(k > 0) * words] | q[(k > 1) * 2 * words] | q[k * words]) & span_mask(tx0 & 63, tx1 & 63)) != 0;
     } else {
       seen = false;
-      for (int32_t sy = ty0 >> 3; sy <= (ty1 >> 3) && !seen; sy++)
-        for (int32_t sx = tx0 >> 3; sx <= (tx1 >> 3); sx++) if (sopen[sy * sw + sx]) { seen = true; break; }
-      if (seen) {   // some superblock is open: the tiles themselves
-        seen = false;
-        for (int32_t ty = ty0; ty <= ty1 && !seen; ty++) seen = any_open(open_bits + ty * words, tx0, tx1);
-      }
+      for (int32_t ty = ty0; ty <= ty1 && !seen; ty++)
+        for (int32_t k = tx0 >> 6; k <= (tx1 >> 6) && !seen; k++) { const int32_t lo = k << 6; seen = (ob[ty * words + k] & span_mask(tx0 > lo ? tx0 - lo : 0, tx1 < lo + 63 ? tx1 - lo : 63)) != 0; }
     }
     if (!seen) continue;
-    visible[i] = 1;
-    if (depth != 0 || !(c.kind == CLEAR || (square && !c.grad && c.alpha == 255))) continue;
+    const bool opaque = depth == 0 && (p & kPackOpaque);
+    out[n++] = i | (opaque ? kCullOpaque : 0);
+    if (!opaque) continue;
     // the tiles the opaque rectangle covers whole: those inside its pixel bounds, and the partial tiles of the screen edges it reaches
-    const int32_t px0 = c.kind == CLEAR ? 0 : px.x0, py0 = c.kind == CLEAR ? 0 : px.y0, px1 = c.kind == CLEAR ? w : px.x1, py1 = c.kind == CLEAR ? h : px.y1;
-    const int32_t cx0 = px0 <= 0 ? 0 : (px0 + T - 1) >> ts, cx1 = px1 >= w ? tw : px1 >> ts;   // exclusive
-    int32_t cy0 = py0 <= 0 ? 0 : (py0 + T - 1) >> ts, cy1 = py1 >= h ? th0 : py1 >> ts;
-    cy0 = (cy0 < row0 ? row0 : cy0) - row0; cy1 = (cy1 > row1 ? row1 : cy1) - row0;
+    const Cmd& c = f.cmds[i];
+    int32_t px0 = 0, py0 = 0, px1 = w, py1 = h;
+    if (c.kind != CLEAR) { px0 = ifloor(c.x); py0 = ifloor(c.y); px1 = iceil(c.x + c.w); py1 = iceil(c.y + c.h); }
+    const int32_t cx0 = px0 <= 0 ? 0 : (px0 + T - 1) >> ts, cy0 = py0 <= 0 ? 0 : (py0 + T - 1) >> ts;
+    const int32_t cx1 = px1 >= w ? tw : px1 >> ts, cy1 = py1 >= h ? th : py1 >> ts;   // exclusive
     if (cx0 >= cx1) continue;
     for (int32_t ty = cy0; ty < cy1; ty++) {
-      uint64_t* row = open_bits + ty * words;
+      uint64_t* row = ob + ty * words;
       for (int32_t k = cx0 >> 6; k <= ((cx1 - 1) >> 6); k++) {
         const int32_t lo = k << 6;
         const uint64_t m = row[k] & span_mask(cx0 > lo ? cx0 - lo : 0, cx1 - 1 < lo + 63 ? cx1 - 1 - lo : 63);
-        if (m) {
-          row[k] &= ~m;
-          open -= (uint32_t)__builtin_popcountll(m);
-          for (uint64_t r = m; r; r &= r - 1) sopen[(ty >> 3) * sw + ((lo + __builtin_ctzll(r)) >> 3)]--;
-        }
+        if (m) { row[k] &= ~m; open -= (uint32_t)__builtin_popcountll(m); }
       }
     }
   }
-  // the commands the walk did not reach lie under a covered band: not visible here (it stops between whole clip scopes, outside them)
+  // a frame that leaves clips open is not culled: the walk took the end for depth 0 (a whole walk ends back at 0, a short one checks the rest)
+  if (open ? depth != 0 : !clips_balanced(f)) return 0;
+  // the commands the walk did not reach lie under a covered screen, whole clip scopes with them (it stops outside clips): none is listed
+  return n;
 }
-uint32_t cull(const Frame& f, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint8_t* hidden) {
-  __builtin_memset(hidden, 0, f.count);
-  if (!clips_balanced(f)) return 0;   // a frame that leaves clips open is not culled
-  cull_rows(f, w, h, tile, 0, 0x7FFFFFFF, scratch, hidden);   // marks the visible ones
-  uint32_t marked = 0;
-  for (uint32_t i = 0; i < f.count; i++) { hidden[i] = !hidden[i]; marked += hidden[i]; }
-  return marked;
+uint32_t cull_list(const Frame& f, int32_t w, int32_t h, int32_t tile, Tiles& scratch, uint32_t* out) {
+  if (tile <= 0) tile = cull_tile(f);
+  if (!f.count || !grow_buf(scratch.rng, scratch.cap_rng, f.count * 2)) return 0;
+  uint64_t* packed = (uint64_t*)scratch.rng;
+  cull_pack(f, 0, f.count, w, h, tile, packed);
+  return cull_walk(f, packed, w, h, tile, scratch, out);
 }
 void render_tiles(const Frame& f, const Tiles& tl, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage) {
   if (!tl.ok || tl.w != w) { render(f, band, w, y0, y1, damage); return; }

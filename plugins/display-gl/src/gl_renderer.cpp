@@ -6,6 +6,7 @@
 // Included by display_gl.cpp (one translation unit: plugin.json needs no new source). GLSL ES 1.00 dialect.
 #include "zrt_raster.h"
 #include <string.h>
+#include <thread>
 #include <time.h>
 
 namespace glr {
@@ -95,11 +96,11 @@ static bool occl;            // this frame: opaque square RECTs and CLEARs outsi
 static uint8_t* drawn; static size_t drawn_cap;   // per command of the first list: already drawn by the occlusion pass
 static bool culled;
 static Tiles cull_scratch;
-static uint8_t* hidden; static size_t hidden_cap;   // per command of the first list: covered whole by later opaque rectangles (zrt::raster::cull)
-static uint32_t* vis; static size_t vis_cap; static uint32_t nvis;   // when culled: the visible commands of the first list, in paint order
-// the commands a pass walks: the visible ones when culled (CLIP and UNCLIP are always among them), else all of them
+static uint64_t* packed; static size_t packed_cap;   // cull_pack's output, filled by 4 threads
+static uint32_t* vis; static size_t vis_cap; static uint32_t nvis;   // when culled: the visible commands of the first list, last first, kCullOpaque on the opaque ones
+// the commands a pass walks in paint order: when culled the visible ones (with their kCullOpaque bit), else all of them
 static inline uint32_t walk_count(const Frame& f, bool first) { return first && culled ? nvis : f.count; }
-static inline uint32_t walk_at(uint32_t k, bool first) { return first && culled ? vis[k] : k; }
+static inline uint32_t walk_entry(uint32_t k, bool first) { return first && culled ? vis[nvis - 1 - k] : k; }
 static bool flipy, split = true;   // flipy: drawing into the window framebuffer (rows bottom-up); split: cheap quads for the interior of boxes
 static V verts[MAXQ * 4];
 static int nq;
@@ -508,11 +509,27 @@ static void solid(const Rect& b, uint32_t c) {
 // The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
 // them is shaded once and every later draw behind them fails the depth test early (the GPU side of the raster's tiles, ZN-410).
 static void occlusion_pass(const Frame& f) {
+  if (culled) {   // cull_list gave the visible commands front to back and flagged the opaque ones outside clips
+    flush();
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    clip = base;
+    for (uint32_t k = 0; k < nvis; k++) {
+      if (!(vis[k] & kCullOpaque)) continue;
+      const uint32_t i = vis[k] & ~kCullOpaque;
+      const Cmd& c = f.cmds[i];
+      cur_z = depth_of(i, f.count);
+      Rect b = isect(c.kind == CLEAR ? base : bounds(c.x, c.y, c.w, c.h, HUGE_R), base);
+      if (b.x0 < b.x1 && b.y0 < b.y1) solid(b, c.c1);
+    }
+    sflush();
+    glEnable(GL_BLEND);
+    glDepthMask(GL_FALSE);
+    return;
+  }
   if (!grow(drawn, drawn_cap, (size_t)f.count + 1)) { occl = false; return; }
   int depth = 0;
-  const uint32_t nw = walk_count(f, true);
-  for (uint32_t k = 0; k < nw; k++) {
-    const uint32_t i = walk_at(k, true);
+  for (uint32_t i = 0; i < f.count; i++) {
     const Cmd& c = f.cmds[i];
     drawn[i] = 0;
     if (c.kind == CLIP) { if (depth < 16) depth++; else { occl = false; return; } }   // past 16, run() ignores the CLIP and pops a parent: no occlusion then
@@ -523,8 +540,7 @@ static void occlusion_pass(const Frame& f) {
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
   clip = base;
-  for (uint32_t k = nw; k-- > 0;) {
-    const uint32_t i = walk_at(k, true);
+  for (uint32_t i = f.count; i-- > 0;) {
     if (!drawn[i]) continue;
     const Cmd& c = f.cmds[i];
     cur_z = depth_of(i, f.count);
@@ -540,9 +556,9 @@ static void run(const Frame& f, bool first) {
   clip = base;
   const uint32_t nw = walk_count(f, first);
   for (uint32_t k = 0; k < nw; k++) {
-    const uint32_t i = walk_at(k, first);
+    const uint32_t e = walk_entry(k, first), i = e & ~kCullOpaque;
     const Cmd& c = f.cmds[i];
-    if (occl && first) { if (drawn[i]) continue; cur_z = depth_of(i, f.count); }
+    if (occl && first) { if (culled ? (e & kCullOpaque) != 0 : drawn[i] != 0) continue; cur_z = depth_of(i, f.count); }
     switch (c.kind) {
       case CLEAR:
         if (occl && first) {   // inside a clip: a quad at its depth (glClear would ignore the depth test)
@@ -700,12 +716,17 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
     const double tc = now_us();
     static const bool cull_on = !getenv("ZINC_GL_CULL") || atoi(getenv("ZINC_GL_CULL")) != 0;
     culled = false;
-    // 8 px tiles: the balls of bouncing-ball (8 to 18 px at 2x) cover some whole. ponytail: one thread, 14 ns a command (2.8 ms for 200k);
-    // bands of tile rows on 4 threads were slower (every band reads every command), ZN-412.05 has the rest
-    if (cull_on && i == 0 && fr.count >= kTilesMin && grow(hidden, hidden_cap, (size_t)fr.count + 1) && grow(vis, vis_cap, (size_t)fr.count + 1) && cull(fr, W, H, 8, cull_scratch, hidden)) {
-      nvis = 0;
-      for (uint32_t k = 0; k < fr.count; k++) if (!hidden[k]) vis[nvis++] = k;
-      culled = true;
+    // tiles sized from the frame's opaque rectangles; one thread (bands of tile rows on 4 threads were slower: every band reads every command)
+    // the packing reads every command (the memory-bound half): 4 threads; the walk over the packed array is serial
+    if (cull_on && i == 0 && fr.count >= kTilesMin && grow(vis, vis_cap, (size_t)fr.count + 1) && grow(packed, packed_cap, (size_t)fr.count)) {
+      const int32_t tile = cull_tile(fr);
+      const uint32_t per = (fr.count + 3) / 4;
+      std::thread workers[3];
+      for (int t = 1; t < 4; t++) workers[t - 1] = std::thread([&fr, t, per, tile] { cull_pack(fr, t * per, (t + 1) * per, W, H, tile, packed); });
+      cull_pack(fr, 0, per, W, H, tile, packed);
+      for (std::thread& t : workers) t.join();
+      nvis = cull_walk(fr, packed, W, H, tile, cull_scratch, vis);
+      culled = nvis > 0;
     }
     if (i == 0) { st.cull_us += now_us() - tc; st.hidden += culled ? fr.count - nvis : 0; }
     if (i == 0 && occl) {
