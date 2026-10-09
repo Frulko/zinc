@@ -55,6 +55,12 @@ void bind(Machine& m, const void* data) {
 }
 }  // namespace
 
+int runProgramPacked(const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
+  std::vector<std::uint8_t> bytes;
+  if (!zbc::unpackRuns(packed, size, bytes)) { std::fprintf(stderr, "embedded module: damaged\n"); return 1; }
+  return runProgram(bytes.data(), bytes.size(), natives, count);
+}
+
 int runProgram(const unsigned char* zbcBytes, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
   zbc::Module mod;
   std::string err;

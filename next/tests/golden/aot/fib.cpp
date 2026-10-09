@@ -7,15 +7,9 @@ using namespace zn;
 using namespace zn::rt;
 
 static const unsigned char kModule[] = {
-  90,66,67,50,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  2,0,0,0,4,0,0,0,109,97,105,110,0,0,1,0,5,0,0,0,3,0,32,0,
-  121,0,1,0,145,0,0,0,151,0,0,0,123,0,0,0,0,0,0,0,0,0,0,0,
-  3,0,0,0,102,105,98,1,1,1,4,0,23,0,0,0,120,0,0,2,3,0,0,0,
-  122,0,0,0,99,1,0,255,120,1,0,2,7,0,0,0,100,12,0,0,99,2,1,255,
-  121,2,1,0,99,3,1,254,121,3,1,0,5,1,2,3,99,0,0,254,120,0,0,2,
-  16,0,0,0,100,21,0,0,99,2,0,255,121,2,1,0,99,3,0,254,121,3,1,0,
-  5,0,2,3,5,0,1,0,122,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,
+  10,90,66,67,50,7,39,0,42,2,0,0,0,4,0,0,0,109,97,105,110,0,0,1,
+  0,1,0,0,0,1,23,0,34,3,0,0,0,102,105,98,1,1,1,4,0,1,0,0,
+  0,1,47,0,
 };
 
 static int f0(Machine& m, Slot* r);
@@ -24,6 +18,7 @@ static Slot t1(Machine& m, Slot);
 
 // function 0
 static int f0(Machine& m, Slot* win) {
+  const char* zt; const char* ze;   // the message of the error exits below
   if (__builtin_expect(op::stackLow(m) || (win + 1 > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = "stack overflow"; return 2; }
   Slot r[1];
   r[0] = zn::ops::sx(32);
@@ -87,5 +82,5 @@ bool zn::rt::Machine::exec(const Func* f, Slot* base) {
 }
 
 int main() {
-  return zn::rt::runProgram(kModule, sizeof kModule, kNatives, 2);
+  return zn::rt::runProgramPacked(kModule, sizeof kModule, kNatives, 2);
 }

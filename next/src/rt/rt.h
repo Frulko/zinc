@@ -274,6 +274,7 @@ int report(const Result& res, const std::string& out, bool traceFree);
 
 // The entry point of a compiled program: decodes and verifies the embedded module, binds `natives[i]` to function i and runs it.
 int runProgram(const unsigned char* zbcBytes, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count);
+int runProgramPacked(const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count);   // the module packed by zbc::packRuns (AOT, ZN-603)
 
 // ---- the object and heap instructions, one definition for the interpreter and the compiled programs. Each takes the register
 // window and the operands of the instruction and returns null, or the message of the trap.

@@ -623,6 +623,38 @@ std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size
   return out;
 }
 
+std::vector<std::uint8_t> packRuns(const std::vector<std::uint8_t>& in) {
+  std::vector<std::uint8_t> out;
+  auto varint = [&](std::uint64_t v) { while (v >= 0x80) { out.push_back(static_cast<std::uint8_t>(v | 0x80)); v >>= 7; } out.push_back(static_cast<std::uint8_t>(v)); };
+  std::size_t i = 0, lit = 0;   // lit: start of the pending literal bytes
+  auto flush = [&](std::size_t end) { if (end > lit) { varint(static_cast<std::uint64_t>(end - lit) << 1); out.insert(out.end(), in.begin() + static_cast<std::ptrdiff_t>(lit), in.begin() + static_cast<std::ptrdiff_t>(end)); } };
+  while (i < in.size()) {
+    std::size_t j = i + 1;
+    while (j < in.size() && in[j] == in[i]) ++j;
+    if (j - i >= 4) { flush(i); varint((static_cast<std::uint64_t>(j - i) << 1) | 1); out.push_back(in[i]); lit = j; }
+    i = j;
+  }
+  flush(in.size());
+  return out;
+}
+
+bool unpackRuns(const std::uint8_t* p, std::size_t n, std::vector<std::uint8_t>& out) {
+  std::size_t i = 0;
+  while (i < n) {
+    std::uint64_t t = 0;
+    for (int shift = 0;; shift += 7) {
+      if (i >= n || shift > 56) return false;
+      std::uint8_t b = p[i++];
+      t |= static_cast<std::uint64_t>(b & 0x7F) << shift;
+      if (!(b & 0x80)) break;
+    }
+    const std::uint64_t len = t >> 1;
+    if (t & 1) { if (i >= n) return false; out.insert(out.end(), static_cast<std::size_t>(len), p[i++]); }
+    else { if (len > n - i) return false; out.insert(out.end(), p + i, p + i + len); i += static_cast<std::size_t>(len); }
+  }
+  return true;
+}
+
 std::string verify(const Module& m) {
   if (m.functions.empty()) return "module has no functions";
   if (m.functions.size() > kMaxFunctions) return "too many functions";
