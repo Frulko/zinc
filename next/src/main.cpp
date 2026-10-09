@@ -1313,6 +1313,61 @@ int main(int argc, char** argv) {
     std::fputs(out.c_str(), stdout);
     return 0;
   }
+  if (argc >= 2 && (!std::strcmp(argv[1], "publish") || !std::strcmp(argv[1], "update-app"))) {   // app updates (ZN-324.01)
+    // zinc publish [dir] --key <seed-hex> [--channel C] [--notes text] [-o out]: <out>/<name>-<version>.zapp and <out>/<channel>.manifest signed with the app's key
+    // zinc update-app [dir] [--check] [--channel C]: the app's channel checked (signature, newer version), the update downloaded and verified
+    namespace fs = std::filesystem;
+    const bool publish = !std::strcmp(argv[1], "publish");
+    std::string dir = ".", key, channel, notes, outDir;
+    bool checkOnly = false;
+    for (int k = 2; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "--key") && k + 1 < argc) key = argv[++k];
+      else if (!std::strcmp(argv[k], "--channel") && k + 1 < argc) channel = argv[++k];
+      else if (!std::strcmp(argv[k], "--notes") && k + 1 < argc) notes = argv[++k];
+      else if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outDir = argv[++k];
+      else if (!std::strcmp(argv[k], "--check")) checkOnly = true;
+      else if (argv[k][0] != '-') dir = argv[k];
+      else { std::fprintf(stderr, "zinc %s: unknown option %s\n", argv[1], argv[k]); return 2; }
+    }
+    std::ifstream pf(fs::path(dir) / "zinc.json");
+    std::stringstream ps; ps << pf.rdbuf();
+    zn::frontend::Project proj; std::string err;
+    if (!pf || !zn::frontend::parseProject(ps.str(), proj, err)) { std::fprintf(stderr, "zinc %s: %s has no readable zinc.json%s%s\n", argv[1], dir.c_str(), err.empty() ? "" : ": ", err.c_str()); return 2; }
+    if (proj.updateKey.empty()) { std::fprintf(stderr, "zinc %s: zinc.json needs \"update\": { \"url\": ..., \"publicKey\": ... } (zinc update-keygen makes a key pair)\n", argv[1]); return 2; }
+    if (channel.empty()) channel = proj.updateChannel;
+    const std::string version = proj.app.version.empty() ? "0.0.0" : proj.app.version, name = proj.name.empty() ? fs::absolute(dir).filename().string() : proj.name;
+    if (publish) {
+      if (zn::tc::publicKeyOf(key) != proj.updateKey) { std::fprintf(stderr, "zinc publish: --key is not the seed of zinc.json update.publicKey\n"); return 2; }
+      if (outDir.empty()) outDir = (fs::path(dir) / "dist" / "updates").string();
+      std::error_code ec; fs::create_directories(outDir, ec);
+      const std::string file = name + "-" + version + ".zapp", zapp = (fs::path(outDir) / file).string();
+      const std::string cmd = "'" + zn::tc::executablePath() + "' pack '" + dir + "' -o '" + zapp + "' >/dev/null";
+      if (std::system(cmd.c_str()) != 0) { std::fprintf(stderr, "zinc publish: the pack failed\n"); return 1; }
+      std::string manifest = "app=" + (proj.app.id.empty() ? name : proj.app.id) + "\nchannel=" + channel + "\nversion=" + version + "\nurl=" + file + "\nsha256=" + zn::tc::sha256File(zapp) + "\n";
+      if (!notes.empty()) manifest += "notes=" + notes + "\n";
+      std::string signedText;
+      if (!zn::tc::signManifest(manifest, key, signedText, err)) { std::fprintf(stderr, "zinc publish: %s\n", err.c_str()); return 1; }
+      const fs::path mf = fs::path(outDir) / (channel + ".manifest");
+      std::ofstream(mf) << signedText;
+      std::printf("published %s %s on %s: %s, %s\n", name.c_str(), version.c_str(), channel.c_str(), zapp.c_str(), mf.string().c_str());
+      return 0;
+    }
+    if (proj.updateUrl.empty()) { std::fprintf(stderr, "zinc update-app: zinc.json update.url is where the channel manifests are\n"); return 2; }
+    const std::string url = proj.updateUrl.size() > 9 && proj.updateUrl.compare(proj.updateUrl.size() - 9, 9, ".manifest") == 0 ? proj.updateUrl : proj.updateUrl + (proj.updateUrl.back() == '/' ? "" : "/") + channel + ".manifest";
+    zn::tc::UpdateInfo info;
+    if (!zn::tc::fetchManifest(url, info, err, {proj.updateKey})) { std::fprintf(stderr, "zinc update-app: %s\n", err.c_str()); return 1; }
+    if (!zn::tc::newerVersion(info.version, version)) {
+      if (info.version != version) { std::fprintf(stderr, "zinc update-app: refused: the %s channel offers %s, older than %s\n", channel.c_str(), info.version.c_str(), version.c_str()); return 1; }
+      std::printf("%s %s is up to date\n", name.c_str(), version.c_str());
+      return 0;
+    }
+    std::printf("%s %s is available (this is %s)%s%s\n", name.c_str(), info.version.c_str(), version.c_str(), info.notes.empty() ? "" : ": ", info.notes.c_str());
+    if (checkOnly) return 10;
+    std::string path;
+    if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/apps/" + (proj.app.id.empty() ? name : proj.app.id) + "/updates", path, err)) { std::fprintf(stderr, "zinc update-app: %s\n", err.c_str()); return 1; }
+    std::printf("downloaded and verified: %s\n", path.c_str());
+    return 0;
+  }
   if (argc >= 2 && !std::strcmp(argv[1], "update")) {  // zinc update [--check] [manifest-url]: look for a newer release; without --check, download and verify it
     bool checkOnly = argc >= 3 && !std::strcmp(argv[2], "--check");
     const char* url = argc >= (checkOnly ? 4 : 3) ? argv[checkOnly ? 3 : 2] : std::getenv("ZINC_UPDATE_URL");

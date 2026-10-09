@@ -418,13 +418,20 @@ bool newKeyPair(std::string& seedHex, std::string& publicHex) {
   return true;
 }
 
-bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) {
+std::string publicKeyOf(const std::string& seedHex) {
+  std::uint8_t seed[32], sk[64], pk[32];
+  if (!fromHex(seedHex, seed, 32)) return "";
+  crypto_ed25519_key_pair(sk, pk, seed);
+  return toHex(pk, 32);
+}
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) { return fetchManifest(manifestUrl, info, err, trustedUpdateKeys()); }
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys) {
   fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(std::rand()));
   std::string cmd = "curl -fL --retry 2 -sS -o " + quote(tmp.string()) + " " + quote(manifestUrl);
   if (!run(cmd, err, "fetching the update manifest")) return false;
   std::string text;
   { std::ifstream f(tmp, std::ios::binary); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
-  if (!verifyManifest(text, trustedUpdateKeys(), err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
+  if (!verifyManifest(text, keys, err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
   std::istringstream in(text);
   std::string line;
   while (std::getline(in, line)) {
@@ -436,6 +443,10 @@ bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string
   std::error_code ec;
   fs::remove(tmp, ec);
   if (info.version.empty() || info.url.empty() || info.sha256.size() != 64) { err = "the update manifest needs version, url and a 64 digit sha256"; return false; }
+  if (info.url.find("://") == std::string::npos) {   // a file beside the manifest
+    const std::size_t slash = manifestUrl.rfind('/');
+    info.url = (slash == std::string::npos ? std::string() : manifestUrl.substr(0, slash + 1)) + info.url;
+  }
   return true;
 }
 

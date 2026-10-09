@@ -194,6 +194,12 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     }
     if (yyjson_val* w = yyjson_obj_get(a, "window")) { if (!yyjson_is_obj(w)) return fatal(lineOf(text, "window"), "app.window must be an object"); char* js = yyjson_val_write(w, 0, nullptr); if (js) { app.window = js; std::free(js); } }
   }
+  if (yyjson_val* up = yyjson_obj_get(root, "update")) {   // app updates (ZN-324)
+    if (!yyjson_is_obj(up)) return fatal(lineOf(text, "update"), "\"update\" must be an object: { \"url\", \"channel\", \"publicKey\" }");
+    if (const char* v = yyjson_get_str(yyjson_obj_get(up, "url"))) out.updateUrl = v;
+    if (const char* v = yyjson_get_str(yyjson_obj_get(up, "channel"))) out.updateChannel = v;
+    if (const char* v = yyjson_get_str(yyjson_obj_get(up, "publicKey"))) out.updateKey = v;
+  }
   if (yyjson_val* pm = yyjson_obj_get(root, "permissions")) { out.permissionsDeclared = true; if (!permissionList(pm, out.permissions, "permissions")) return false; }
   if (yyjson_val* sc = yyjson_obj_get(root, "scopes")) {
     if (!yyjson_is_obj(sc)) return fatal(lineOf(text, "scopes"), "\"scopes\" must be an object");
@@ -203,7 +209,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "keyboard", "bench", "description", "profile", "ui", "icons", "template"};
+  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

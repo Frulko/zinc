@@ -40,7 +40,8 @@ struct Project {
   std::string uiPreset;             // "ui": {"preset"}: "react-native" or ""
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
-  bool permissionsDeclared = false;                // the "permissions" key is there: the host modules check it at run time (ZN-322)
+  bool permissionsDeclared = false;
+  std::string updateUrl, updateChannel = "stable", updateKey;   // "update": where the channel manifests are, the channel, the app's Ed25519 public key (ZN-324)                // the "permissions" key is there: the host modules check it at run time (ZN-322)
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
   std::map<std::string, std::vector<std::string>> targetPermissions;   // targets.<name>.permissions: additions, and `-id` removals for that target
   bool fatal = false;                              // parseProject failed on a manifest rule (not on JSON): the command must stop

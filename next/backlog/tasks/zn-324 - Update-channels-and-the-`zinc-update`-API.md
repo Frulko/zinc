@@ -1,9 +1,10 @@
 ---
 id: ZN-324
 title: 'Update channels and the `zinc:update` API'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-08 14:19'
+updated_date: '2026-10-09 01:09'
 labels:
   - distribution
   - size-M

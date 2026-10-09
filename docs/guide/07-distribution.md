@@ -98,6 +98,25 @@ always; the host libraries and fonts for programs that use the host; Yoga, the s
 libraries, such as SQLite for `zinc:sqlite`; Lucide when `zinc.json` names icons). The SBOM's creation time is `SOURCE_DATE_EPOCH` when set, else the newest modification time of the project's sources, so two exports
 of the same sources give the same bytes (and the same `.deb`).
 
+## App updates
+
+An app updates from a channel of signed manifests (ZN-324). Once:
+
+```sh
+zinc update-keygen          # seed=<keep it secret>  public=<goes into zinc.json>
+```
+
+```json
+{ "app": { "id": "com.example.notes", "version": "1.2.0" },
+  "update": { "url": "https://updates.example.com/notes/", "channel": "stable", "publicKey": "<public>" } }
+```
+
+For each release, `zinc publish --key <seed> [--channel beta] [--notes "..."] -o dist/updates` writes `<name>-<version>.zapp` and
+`<channel>.manifest` (app, channel, version, url, sha256, notes, then an Ed25519 signature of those lines); upload the directory to `update.url`.
+`zinc update-app [--check]` fetches `<url>/<channel>.manifest`, refuses it unless its signature verifies with `update.publicKey`, refuses a
+version older than the app's, downloads the archive and checks its SHA-256 into `~/.zinc/apps/<id>/updates/`. The seed never leaves the
+publishing machine; a manifest altered after signing, or one signed with another key, is refused.
+
 ## Versioning
 
 Bump `zinc.json` `"version"` (semver). It appears in `Info.plist` (macOS), the `.desktop` file (Linux), the AppLoad

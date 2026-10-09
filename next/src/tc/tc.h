@@ -62,6 +62,9 @@ std::vector<std::string> trustedUpdateKeys();
 bool signManifest(const std::string& text, const std::string& seedHex, std::string& signedText, std::string& err);   // the `zinc update-sign` recipe of a release
 bool newKeyPair(std::string& seedHex, std::string& publicHex);
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err);
+// The same for an app's channel (ZN-324): verified with the app's own public keys; a relative `url` in the manifest is resolved against the manifest's.
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys);
+std::string publicKeyOf(const std::string& seedHex);   // the hex Ed25519 public key of a signing seed, "" when the seed is not 64 hex digits
 bool newerVersion(const std::string& candidate, const std::string& current);  // dotted numbers
 // Downloads info.url into `dir`, checks its SHA-256 against the manifest before keeping it; `path` is the verified file.
 bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string& path, std::string& err);
