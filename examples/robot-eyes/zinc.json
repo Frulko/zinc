@@ -1,0 +1,9 @@
+{
+  "name": "robot-eyes",
+  "entry": "src/main.ts",
+  "board": "esp32-2432s022",
+  "targets": {
+    "macos": {},
+    "esp32": {}
+  }
+}
