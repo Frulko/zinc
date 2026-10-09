@@ -149,6 +149,7 @@ struct Verifier {
   std::size_t fi;
   std::string err;
   using State = std::vector<St>;  // per register
+  std::vector<State>* trace = nullptr;   // registerTypes(): the state before every instruction, at the fixpoint
 
   std::uint32_t strCls = kNoCls;
 
@@ -527,6 +528,7 @@ struct Verifier {
       State s = in[pc];
       for (;;) {
         State before = handlerAt[pc] ? s : State();
+        if (trace) (*trace)[pc] = s;   // the last visit is the converged state: a changed block start is visited again
         if (!step(pc, s)) return false;
         Op op = static_cast<Op>(opOf(f.code[pc]));
         if (handlerAt[pc]) {  // the handler sees the registers below the call window as they were, and the exception
@@ -610,6 +612,16 @@ std::string constText(const Const& c) {
 }
 
 }  // namespace
+
+std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn) {
+  std::vector<std::vector<std::uint16_t>> out;
+  if (fn >= m.functions.size() || !verifyTables(m).empty()) return {};
+  out.resize(m.functions[fn].code.size());
+  Verifier v(m, fn);
+  v.trace = &out;
+  if (!v.run()) return {};
+  return out;
+}
 
 std::string verify(const Module& m) {
   if (m.functions.empty()) return "module has no functions";

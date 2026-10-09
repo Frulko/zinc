@@ -52,6 +52,16 @@ struct FnEmitter {
       : m(mod), f(fn), index(i), arith(a), divs(d), typedFn(tf) {}
 
   std::string r(unsigned k) { return typed ? "r" + std::to_string(k) : "r[" + std::to_string(k) + "]"; }
+  // The verifier's register classes before each instruction (ZN-409): a field access on a register of a known object class goes through that
+  // class's C++ struct (structOf), so the compiler sees typed, distinct members instead of a Slot array.
+  std::vector<std::vector<std::uint16_t>> types;
+  int objClass(unsigned reg, std::uint32_t pc, unsigned field) const {
+    if (pc >= types.size() || reg >= types[pc].size() || types[pc][reg] < 4) return -1;
+    const unsigned c = types[pc][reg] - 4u;
+    if (c >= m.classes.size() || !hasStruct(m.classes[c]) || field >= m.classes[c].fields.size()) return -1;
+    return static_cast<int>(c);
+  }
+  static bool hasStruct(const zbc::ClassInfo& c) { return c.kind == zbc::CKind::Object && !c.isInterface && !c.fields.empty(); }
   std::string num(std::int64_t v) { return std::to_string(v); }
   void line(const std::string& s) { out += "  " + s + "\n"; }
 
@@ -106,6 +116,7 @@ struct FnEmitter {
     leaf = true;
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt" || n == "CallNative") leaf = false; }
     typed = typedFn[index] != 0;
+    if (!typed) types = zbc::registerTypes(m, index);
     locals = !leaf && !typed;
     if (typed) {   // typed parameters and result, the registers are locals, a failure is a flag: no window, no status codes (ZN-144)
       std::string ps;
@@ -159,6 +170,15 @@ struct FnEmitter {
       else if (nm == "RetV") line("return 0;");
       else if (nm == "Throw") line("{ if (!" + r(A) + ") " + trap("op::kNullRef") + " Obj* e = reinterpret_cast<Obj*>(" + r(A) + "); " + unwind(P, "e") + "m.thrown = e; " + unwindDepth() + "return 1; }");
       else if (nm == "New") line("{ Slot t; " + checked("op::newObject(m, " + std::to_string(D) + ", t)") + " " + r(A) + " = t; }");
+      else if ((nm == "GetField" || nm == "SetField") && objClass(nm == "GetField" ? B : A, P, C) >= 0) {
+        const int cls = objClass(nm == "GetField" ? B : A, P, C);
+        const zbc::Cls fk = m.classes[cls].fields[C].cls;
+        const std::string ptr = "reinterpret_cast<Z_C" + std::to_string(cls) + "*>(" + r(nm == "GetField" ? B : A) + ")", mem = "->f" + std::to_string(C);
+        const std::string guard = "if (__builtin_expect(!" + r(nm == "GetField" ? B : A) + ", 0)) " + trap("op::kNullRef") + " ";
+        if (nm == "GetField") line("{ " + guard + r(A) + " = " + (fk == zbc::Cls::D ? "std::bit_cast<Slot>(" + ptr + mem + ")" : ptr + mem) + "; }");
+        else if (fk == zbc::Cls::R) line("{ " + guard + "Slot old = " + ptr + mem + "; " + ptr + mem + " = " + r(B) + "; m.releaseSlot(old); }");
+        else line("{ " + guard + ptr + mem + " = " + (fk == zbc::Cls::D ? "std::bit_cast<double>(" + r(B) + ")" : r(B)) + "; }");
+      }
       else if (nm == "GetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(B) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " " + r(A) + " = o->fields()[" + std::to_string(C) + "]; }");
       else if (nm == "SetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(A) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " Slot old = o->fields()[" + std::to_string(C) + "]; o->fields()[" + std::to_string(C) + "] = " + r(B) + "; if (o->cls->fieldRef[" + std::to_string(C) + "]) m.releaseSlot(old); }");
       else if (nm == "Downcast") line("{ Slot t = " + r(A) + "; " + checked("op::downcast(&t, 0, " + std::to_string(D) + ")") + " }");
@@ -266,6 +286,15 @@ std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* res
   }
   s += "\n};\n\n";
   const std::vector<char> typedFn = typedFunctions(mod, arith, divs);
+  // one struct per object class with fields (ZN-409): the same layout as Obj + Slot fields[], f64 fields typed double
+  for (std::size_t c = 0; c < mod.classes.size(); ++c) {
+    const zbc::ClassInfo& ci = mod.classes[c];
+    if (!FnEmitter::hasStruct(ci)) continue;
+    const std::string n = "Z_C" + std::to_string(c);
+    s += "struct " + n + " { const ClassRT* cls; std::uint32_t rc, pad;";
+    for (std::size_t k = 0; k < ci.fields.size(); ++k) s += std::string(ci.fields[k].cls == zbc::Cls::D ? " double" : " Slot") + " f" + std::to_string(k) + ";";
+    s += " };\nstatic_assert(sizeof(" + n + ") == sizeof(Obj) + " + std::to_string(ci.fields.size()) + " * sizeof(Slot), \"" + n + " layout\");\n";
+  }
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
     s += "static int f" + std::to_string(i) + "(Machine& m, Slot* r);\n";
     if (typedFn[i]) { s += "static Slot t" + std::to_string(i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }

@@ -1423,7 +1423,9 @@ int main(int argc, char** argv) {
       for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
     }
 #if defined(__APPLE__) && defined(__aarch64__)
-    const char* noOutline = " -mno-outline";   // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397)
+    // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns
+    // field reloads after field stores into 16-byte loads over an 8-byte store, a store-forwarding stall: nbody 106 -> 37 ms without it (ZN-409)
+    const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false";
 #else
     const char* noOutline = "";
 #endif

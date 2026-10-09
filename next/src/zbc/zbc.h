@@ -98,6 +98,9 @@ EmitResult emit(const ir::Module& m);
 // Empty when the module is well formed: operands in range, jumps land on instructions, every path ends in a
 // terminator, and every register read has the class the operation expects (typed abstract interpretation).
 std::string verify(const Module& m);
+// The class of every register before each instruction of function `fn`, as the verifier proves it (index = code word of an instruction's
+// start; other words stay empty): 0 none or unknown, 1 I, 2 S, 3 D, 4 + class id for a reference of that class. Empty when it does not verify.
+std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn);
 
 std::vector<std::uint8_t> encode(const Module& m);
 // Fails (returns false, `err` set) on truncated or inconsistent bytes; callers must still run verify().
