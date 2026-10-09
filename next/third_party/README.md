@@ -6,7 +6,7 @@ and `zig c++` and needs no install step (ARCHITECTURE.md, rules).
 | Library | Version | Licence | Used for |
 |---|---|---|---|
 | mimalloc | v2.1.7 (`src/static.c` build, global `operator new/delete` and the object allocator of `src/rt`) | MIT | Fast malloc/free for the many small objects of the runtime (interpreter and AOT programs) |
-| crypto-algorithms sha256 | commit cfbde48 (B-Con, 2015; `sha256.c`: 4cbc93d3…, `sha256.h`: a946e621…) | Public domain | SHA-256 of the toolchain downloads (src/tc) |
+| crypto-algorithms sha256 | commit cfbde48 (B-Con, 2015; `sha256.c`: 4cbc93d3…, `sha256.h`: a946e621…) | Public domain | SHA-256 of the toolchain downloads (src/tc); patched: the byte shifts of `sha256_transform` cast to WORD (UBSan: a byte of 128 or more shifted by 24 overflowed int) |
 | stb_image | v2.30 (nothings/stb commit 2c980bb, `stb_image.h` sha256 594c2fe3…; PNG, JPEG, BMP and GIF enabled) | MIT or public domain | Image decoding of the assets (src/res) |
 | stb_image_write | v1.16 (nothings/stb commit 2c980bb) | MIT or public domain | PNG (deflate), JPEG and BMP encoders: screenshots, `zinc capture` (src/res/codec.cpp, ZN-115) |
 | libwebp | v1.5.0 (webmproject/libwebp tag v1.5.0; `src/{dec,dsp,enc,utils}` and `sharpyuv`, no demux/mux; COPYING and PATENTS kept) | BSD-3-Clause | WebP decoding of assets and lossless WebP capture (src/res, ZN-226) |
