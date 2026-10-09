@@ -2,7 +2,9 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: [site/**, docs/**, .github/workflows/pages.yml]
+    paths: [site/**, docs/**, plugins/**, templates/**, next/tools/index-repo, next/index/**, .github/workflows/pages.yml]
+  schedule:
+    - cron: '17 3 * * *'   # the index's timestamp lasts 7 days: republished daily so clients never see it expire (ZN-336)
   workflow_dispatch:
 permissions: { contents: read, pages: write, id-token: write }
 concurrency: { group: pages, cancel-in-progress: true }
@@ -18,6 +20,18 @@ jobs:
         with: { node-version: 24 }
       - run: pnpm install --ignore-workspace
       - run: pnpm build
+      - name: Plugin and template index (TUF, ZN-336)
+        working-directory: .
+        env:
+          ZINC_INDEX_KEYS: ${{ secrets.ZINC_INDEX_KEYS }}
+        run: |
+          if [ -z "$ZINC_INDEX_KEYS" ]; then echo "::notice::no ZINC_INDEX_KEYS secret: the index is not published (docs/plugins.md, Plugin index)"; exit 0; fi
+          pip install --quiet "cryptography==50.0.2"
+          umask 077; printf '%s' "$ZINC_INDEX_KEYS" > "$RUNNER_TEMP/keys.json"
+          root=; [ -f next/index/root.json ] && root=next/index/root.json
+          python3 next/tools/index-repo entries . "$RUNNER_TEMP/entries" "$GITHUB_RUN_NUMBER"
+          python3 next/tools/index-repo build site/dist/index "$RUNNER_TEMP/keys.json" "$RUNNER_TEMP/entries/entries.json" $root
+          rm "$RUNNER_TEMP/keys.json"
       - uses: actions/upload-pages-artifact@v3
         with: { path: site/dist }
   deploy:

@@ -101,6 +101,20 @@ in its mirror. The `plugin-mirrors` CI job pushes the plugins a push to main cha
 the job only splits). A release attaches `plugins.lock` (`tools/plugin-split --lock`): for every plugin, its repository, its
 split commit and its source tree id, so `zinc add <repository>@<commit>` gets exactly what the release shipped.
 
+## Plugin index
+
+`zinc plugins search [word]` lists the plugins and templates of the signed index, published on the Pages site under
+`/index` by the `Site` workflow (on every change to `plugins/` or `templates/`, and daily). The index is a TUF repository
+(decision D41): `root.json`, `targets.json` (one descriptor per plugin and template: name, description, targets, source),
+`snapshot.json` and `timestamp.json`, all Ed25519-signed; `zinc` checks them with its TUF client (`src/tc/tuf.cpp`) into
+`~/.zinc/index` and refuses an expired, rolled-back, below-threshold or tampered index. `ZINC_INDEX_URL` points it elsewhere
+(a mirror, `file://`), `ZINC_INDEX_ROOT` at another trusted root.
+
+The owner's steps, once: `next/tools/index-repo keys keys.json` (keep the file secret); `next/tools/index-repo entries . e 1`
+then `next/tools/index-repo build idx keys.json e/entries.json` and commit `idx/root.json` as `next/index/root.json` (the root
+zinc trusts); put the content of `keys.json` in the repository secret `ZINC_INDEX_KEYS`. Without the secret the workflow
+publishes no index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

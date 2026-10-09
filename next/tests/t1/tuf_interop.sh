@@ -23,4 +23,6 @@ root.verify_delegate("root", root)
 for name, cls in (("timestamp", Timestamp), ("snapshot", Snapshot), ("targets", Targets)):
     root.verify_delegate(name, Metadata[cls].from_file(d + "/" + name + ".json"))
 PY
+"$PY" tools/index-repo build "$tmp/pysigned" "$tmp/keys.json" "$tmp/e.json" >/dev/null && mkdir "$tmp/c2" && cp "$tmp/pysigned/root.json" "$tmp/c2/" &&   # signed by `cryptography`, as the Pages job does
+  "$Z" index-get "file://$tmp/pysigned" "$tmp/c2" plugins/t.tar >/dev/null || { echo "tuf_interop: zinc refuses the index signed with cryptography"; fail=1; }
 exit $fail

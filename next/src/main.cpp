@@ -1536,6 +1536,7 @@ int main(int argc, char** argv) {
     std::printf("downloaded and verified: %s\nopen it to install (the macOS app: drag it over the old one; Linux: unpack over the old directory)\n", path.c_str());
     return 0;
   }
+  if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "search")) return zn::cli::indexSearch(std::vector<std::string>(argv, argv + argc), gRoot);   // ZN-336.03
   if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
     std::vector<std::string> problems;
     std::string project = argc >= 3 && std::strncmp(argv[2], "--", 2) ? argv[2] : ".";

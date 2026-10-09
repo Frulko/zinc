@@ -1,10 +1,10 @@
 ---
 id: ZN-336
 title: 'Signed plugin and template index with TUF roles (decision, format, client)'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-08 14:34'
-updated_date: '2026-10-09 04:18'
+updated_date: '2026-10-09 04:32'
 labels:
   - distribution
   - security
@@ -23,7 +23,13 @@ The list of plugins and templates (name, versions, sources, publisher key, targe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 decision record in docs/reports/zinc-next-decisions.md with the scores and the evidence
-- [ ] #2 the TUF attack tests refuse: an expired timestamp, a rolled-back snapshot, a target whose hash differs, a role signed below threshold, a key not delegated for that name
-- [ ] #3 the index is published on GitHub Pages by CI and `zinc plugins search <word>` lists its entries
+- [x] #1 decision record in docs/reports/zinc-next-decisions.md with the scores and the evidence
+- [x] #2 the TUF attack tests refuse: an expired timestamp, a rolled-back snapshot, a target whose hash differs, a role signed below threshold, a key not delegated for that name
+- [x] #3 the index is published on GitHub Pages by CI and `zinc plugins search <word>` lists its entries
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done through ZN-336.01 (D41), .02 (TUF client, attack and interop tests) and .03 (index on Pages, zinc plugins search). Owner: keys, secret ZINC_INDEX_KEYS, next/index/root.json. usage: n/a
+<!-- SECTION:NOTES:END -->

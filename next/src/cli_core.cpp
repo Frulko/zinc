@@ -994,6 +994,43 @@ int indexGet(const std::vector<std::string>& args) {
   return 0;
 }
 
+// `zinc plugins search [word]` (ZN-336.03): the signed index (ZINC_INDEX_URL, default the zinc-engine Pages site) refreshed through the TUF client into
+// ~/.zinc/index; the trusted root is $ZINC_INDEX_ROOT or the engine's index/root.json. Lists the plugins and templates whose name or description has the word.
+int indexSearch(const std::vector<std::string>& args, const std::string& engineRoot) {
+  const std::string word = args.size() > 3 ? args[3] : "";
+  const char* u = std::getenv("ZINC_INDEX_URL");
+  const std::string base = u && *u ? u : "https://zinc-engine.github.io/zinc/index";
+  const fs::path cache = fs::path(zn::tc::home()) / "index";
+  std::error_code ec;
+  fs::create_directories(cache, ec);
+  if (!fs::exists(cache / "root.json", ec)) {
+    const char* r = std::getenv("ZINC_INDEX_ROOT");
+    const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
+    if (!fs::copy_file(root, cache / "root.json", ec)) { std::fprintf(stderr, "zinc plugins search: no trusted root for the index (%s): set ZINC_INDEX_ROOT\n", root.string().c_str()); return 1; }
+  }
+  zn::tc::tuf::Client c(cache.string(), [&](const std::string& p, std::string& b) { return fetchFrom(base, p, b); }, static_cast<long long>(std::time(nullptr)));
+  std::string err;
+  std::vector<zn::tc::tuf::Target> all;
+  if (!c.refresh(err) || !c.all(all, err)) { std::fprintf(stderr, "zinc plugins search: %s\n", err.c_str()); return 1; }
+  auto lower = [](std::string x) { for (char& ch : x) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); return x; };
+  int shown = 0;
+  for (const auto& t : all) {
+    yyjson_doc* d = yyjson_read(t.custom.data(), t.custom.size(), 0);
+    yyjson_val* o = yyjson_doc_get_root(d);
+    auto str = [&](const char* k) { yyjson_val* v = yyjson_obj_get(o, k); return yyjson_is_str(v) ? std::string(yyjson_get_str(v)) : std::string(); };
+    const std::string kind = str("kind"), name = str("name"), desc = str("description");
+    std::string targets;
+    size_t i, n; yyjson_val* e;
+    yyjson_arr_foreach(yyjson_obj_get(o, "targets"), i, n, e) if (yyjson_is_str(e)) targets += (targets.empty() ? "" : ",") + std::string(yyjson_get_str(e));
+    yyjson_doc_free(d);
+    if (!word.empty() && lower(name + " " + desc).find(lower(word)) == std::string::npos) continue;
+    std::printf("%-9s %-20s %-28s %s\n", kind.c_str(), name.c_str(), targets.c_str(), desc.c_str());
+    ++shown;
+  }
+  if (!shown) std::printf("nothing in the index matches '%s'\n", word.c_str());
+  return 0;
+}
+
 int deploy(const std::vector<std::string>& args) {
   Opts o = parseOpts(args, {"--target", "--device", "--dir"}, {"--print"});
   if (o.bad) { std::fprintf(stderr, "zinc deploy: unknown option %s\nusage: zinc deploy [entry|dir] --target linux|rpi|rpi1|rmpp --device user@host [--dir path] [--print]\n", o.badArg.c_str()); return 2; }
