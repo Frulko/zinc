@@ -1,0 +1,9 @@
+{
+  "name": "gl-check",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": { "width": 480, "height": 360 },
+    "linux": { "width": 480, "height": 360 },
+    "sim": { "width": 480, "height": 360 }
+  }
+}
