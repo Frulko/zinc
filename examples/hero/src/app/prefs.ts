@@ -12,6 +12,10 @@ export const [dark, setDarkSignal] = createSignal<boolean>(false);
 export const [accent, setAccentSignal] = createSignal<string>('indigo');
 export const [speed, setSpeedSignal] = createSignal<number>(1);
 export const [reduceMotion, setReduceSignal] = createSignal<boolean>(false);
+/** On-screen keyboard: slides in when a text field takes the focus (touch screens). */
+export const [keyboardOn, setKeyboardOn] = createSignal<boolean>(true);
+/** Keeps the focused field in view when the keyboard (or anything else) shrinks the screen. */
+export const [autoScroll, setAutoScroll] = createSignal<boolean>(true);
 
 /** `base` with another accent hue (the kit roles that carry the brand colour). */
 function withAccent(base: Theme, hue: string): Theme {
@@ -45,6 +49,8 @@ export function resetPrefs(): void {
   setAccentSignal('indigo');
   setSpeed(1);
   setReduceMotion(false);
+  setKeyboardOn(true);
+  setAutoScroll(true);
   applyTheme();
 }
 

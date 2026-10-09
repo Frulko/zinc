@@ -33,7 +33,7 @@ function greeting(): string { const h = Math.floor(uptime() / 3600); return h < 
 
 export function Home(): i32 {
   return <ScrollView class="grow">
-    <View class="flex-col gap-6 p-8">
+    <View class="flex-col gap-6 p-4 lg:p-8">
       <Rise delay={0} class="flex-row items-end justify-between">
         <View class="flex-col gap-1">
           <Text class={heading(2)}>{`${greeting()}, ${name().split(' ')[0]}`}</Text>
@@ -44,13 +44,13 @@ export function Home(): i32 {
           <Button label="New task" onClick={() => go(TASKS)} />
         </View>
       </Rise>
-      <View class="flex-row gap-4">
+      <View class="flex-row flex-wrap gap-4">
         <Rise delay={0.04} class="flex-col grow"><Stat label="Frames drawn" value={() => countUp(frameCount(), 0.04)} hint="since launch" /></Rise>
         <Rise delay={0.07} class="flex-col grow"><Stat label="Tasks done" value={() => `${countUp(doneCount(), 0.07)} / ${totalCount()}`} hint="Tasks screen" /></Rise>
         <Rise delay={0.1} class="flex-col grow"><Stat label="Liked artworks" value={() => countUp(likes(), 0.1)} hint={`of ${ARTWORKS.length}`} /></Rise>
         <Rise delay={0.13} class="flex-col grow"><Stat label="Uptime" value={() => clock(uptime())} hint="minutes:seconds" /></Rise>
       </View>
-      <View class="flex-row gap-4">
+      <View class="flex-row flex-wrap gap-4">
         <Rise delay={0.16} class="flex-col grow">
           <Card>
             <CardHeader title="Requests" description="Streaming, 8 samples a second. Hover the chart.">

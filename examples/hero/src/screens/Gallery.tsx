@@ -45,7 +45,7 @@ function ArtCard(props: { art: Artwork }): i32 {
 
 export function Gallery(): i32 {
   return <ScrollView class="grow">
-    <View class="flex-col gap-6 p-8">
+    <View class="flex-col gap-6 p-4 lg:p-8">
       <View class="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
         <View class="flex-col gap-1">
           <Text class={heading(2)}>Gallery</Text>

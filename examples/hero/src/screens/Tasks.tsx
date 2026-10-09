@@ -54,7 +54,7 @@ function TaskRow(props: { task: Task }): i32 {
 
 export function Tasks(): i32 {
   syncProgress();
-  return <View class="grow flex-col gap-5 p-8">
+  return <View class="grow flex-col gap-5 p-4 lg:p-8">
     <View class="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
       <View class="flex-col gap-1">
         <Text class={heading(2)}>Tasks</Text>

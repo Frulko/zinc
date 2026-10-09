@@ -31,22 +31,22 @@ export class KeyboardLayout {
   }
 }
 
-const BOTTOM = '{sym:1.5} {lang} {space:5} {enter:2}';
-const BOTTOM_EMAIL = '{sym:1.5} {lang} @ {space:3} . {enter:2}';
-const BOTTOM_URL = '{sym:1.5} {lang} / {space:3} . {enter:2}';
+const BOTTOM = '{sym:1.5} {lang} {space:4} {hide} {enter:2}';
+const BOTTOM_EMAIL = '{sym:1.5} {lang} @ {space:2} . {hide} {enter:2}';
+const BOTTOM_URL = '{sym:1.5} {lang} / {space:2} . {hide} {enter:2}';
 
 /** Symbol pages, shared by the letter layouts. */
 export const SYMBOLS: string[] = [
   '1 2 3 4 5 6 7 8 9 0',
   '- / : ; ( ) € $ & @',
   '{sym2:1.5} . , ? ! \' " % {bksp:1.5}',
-  '{abc:1.5} {lang} {space:5} {enter:2}',
+  '{abc:1.5} {lang} {space:4} {hide} {enter:2}',
 ];
 export const SYMBOLS2: string[] = [
   '[ ] { } # ^ * + = _',
   '\\ | ~ < > £ ¥ • ° §',
   '{sym:1.5} . , ? ! \' ` … {bksp:1.5}',
-  '{abc:1.5} {lang} {space:5} {enter:2}',
+  '{abc:1.5} {lang} {space:4} {hide} {enter:2}',
 ];
 /** Digit pads for inputMode numeric / decimal / tel. */
 export const NUMERIC: string[] = ['1 2 3', '4 5 6', '7 8 9', '{hide} 0 {bksp}'];

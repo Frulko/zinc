@@ -5,19 +5,24 @@
 // Each screen gets an Entrance clock restarted when it appears, so its content can stagger in again.
 import { createSignal } from 'zinc:ui/solid';
 import { Tween, Entrance, easeInOut, easeOut } from './motion';
+import { HOME_ICON, GRID_ICON, PLAY_ICON, CHECK_ICON, GEAR_ICON, KIT_ICON, FORMS_ICON, VIDEO_ICON, NAV_ICON } from '../components/icons';
 
 export class TabInfo {
-  label: string; hint: string; key: string;
-  constructor(label: string, hint: string, key: string) { this.label = label; this.hint = hint; this.key = key; }
+  label: string; hint: string; key: string; icon: i32;
+  constructor(label: string, hint: string, key: string, icon: i32) { this.label = label; this.hint = hint; this.key = key; this.icon = icon; }
 }
 export const TABS: TabInfo[] = [
-  new TabInfo('Home', 'Live numbers and charts', '1'),
-  new TabInfo('Gallery', 'Generative artworks', '2'),
-  new TabInfo('Playground', 'Drag and throw the balls', '3'),
-  new TabInfo('Tasks', 'Add, check, remove', '4'),
-  new TabInfo('Settings', 'Theme, motion, profile', '5'),
+  new TabInfo('Home', 'Live numbers and charts', '1', HOME_ICON),
+  new TabInfo('Gallery', 'Generative artworks', '2', GRID_ICON),
+  new TabInfo('Playground', 'Drag and throw the balls', '3', PLAY_ICON),
+  new TabInfo('Tasks', 'Add, check, remove', '4', CHECK_ICON),
+  new TabInfo('Settings', 'Theme, motion, profile', '5', GEAR_ICON),
+  new TabInfo('Kit', 'Every zinc:ui/kit component', '6', KIT_ICON),
+  new TabInfo('Forms', 'Every kind of input', '7', FORMS_ICON),
+  new TabInfo('Video', 'Big Buck Bunny, decoded natively', '8', VIDEO_ICON),
+  new TabInfo('Navigation', 'Turn-by-turn GPS, offline', '9', NAV_ICON),
 ];
-export const HOME: i32 = 0, GALLERY: i32 = 1, PLAYGROUND: i32 = 2, TASKS: i32 = 3, SETTINGS: i32 = 4;
+export const HOME: i32 = 0, GALLERY: i32 = 1, PLAYGROUND: i32 = 2, TASKS: i32 = 3, SETTINGS: i32 = 4, KIT: i32 = 5, FORMS: i32 = 6, VIDEO: i32 = 7, NAVIGATION: i32 = 8;
 
 export const [tab, setTabSignal] = createSignal<i32>(HOME);
 export const [prevTab, setPrevTab] = createSignal<i32>(-1);

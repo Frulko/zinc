@@ -9,7 +9,7 @@ import { env } from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { stepClock } from './app/clock';
-import { tab, go, next, introShown, introOut, leaveIntro, detail, closeDetail, entrances, GALLERY, TASKS, PLAYGROUND, openDetailByIndex } from './app/router';
+import { tab, go, next, introShown, introOut, leaveIntro, detail, closeDetail, entrances, GALLERY, TASKS, PLAYGROUND, NAVIGATION, KIT, FORMS, openDetailByIndex } from './app/router';
 import { dark, setDark } from './app/prefs';
 import { stepToasts, toast, overlayOpen, dialog, closeDialog, paletteOpen, openPalette, closePalette } from './app/overlays';
 import { stepPhysics, shake } from './app/physics';
@@ -23,6 +23,11 @@ import { Detail, browseDetail } from './screens/Detail';
 import { Playground } from './screens/Playground';
 import { Tasks, taskInput } from './screens/Tasks';
 import { Settings } from './screens/Settings';
+import { Kit } from './screens/Kit';
+import { Forms } from './screens/Forms';
+import { Video, stepVideo } from './screens/Video';
+import { NavigationScreen, navigationKey, stepNavigationTab, driveAt } from './screens/Navigation';
+import { advanceUpload } from '../../ui/kit-gallery/src/state';
 import { Intro } from './screens/Intro';
 
 function App(): i32 {
@@ -34,6 +39,10 @@ function App(): i32 {
         <Screen index={2}><Playground /></Screen>
         <Screen index={3}><Tasks /></Screen>
         <Screen index={4}><Settings /></Screen>
+        <Screen index={5}><Kit /></Screen>
+        <Screen index={6}><Forms /></Screen>
+        <Screen index={7}><Video /></Screen>
+        <Screen index={8}><NavigationScreen /></Screen>
         <Detail />
       </Shell>
     </View>
@@ -48,6 +57,7 @@ ui.onKey((e: ui.KeyEvent) => {
     if (paletteOpen()) closePalette();
     else if (dialog() !== null) closeDialog();
     else if (detail() >= 0) closeDetail();
+    else if (tab() === NAVIGATION && navigationKey(e)) { /* closed the report menu */ }
     else return;   // unhandled: zinc:ui blurs the focus or leaves fullscreen / quits
     e.preventDefault();
     return;
@@ -57,7 +67,8 @@ ui.onKey((e: ui.KeyEvent) => {
   if ((e.primary && e.key === 'k') || (e.key === '/' && !e.shift)) { openPalette(); e.preventDefault(); return; }
   if (e.primary || e.alt) return;
   const k = e.key;
-  if (k.length === 1 && k >= '1' && k <= '5') go(k.charCodeAt(0) - 49);
+  if (tab() === NAVIGATION && navigationKey(e)) { e.preventDefault(); return; }
+  if (k.length === 1 && k >= '1' && k <= '9') go(k.charCodeAt(0) - 49);
   else if (k === '[') next(-1);
   else if (k === ']') next(1);
   else if (k === 'd') setDark(!dark());
@@ -95,6 +106,8 @@ function bench(): void {
 function script(): void {
   frame++;
   if (demo === 'bench') { bench(); return; }
+  // ZINC_DEMO=navdrive [ZINC_NAVAT=<metres>]: the navigation tab already driving from that point of the route (perf runs)
+  if (demo === 'navdrive' && frame === 12) { const at = env('ZINC_NAVAT'); driveAt(at === '' ? 0 : parseFloat(at)); return; }
   if (demo === '' || frame !== 2) return;
   leaveIntro();
   if (demo === 'gallery') go(GALLERY);
@@ -102,6 +115,9 @@ function script(): void {
   else if (demo === 'playground') go(PLAYGROUND);
   else if (demo === 'tasks') { go(TASKS); addTask('Try the command palette (⌘K)', 'Docs'); }
   else if (demo === 'settings') go(4);
+  else if (demo === 'kit') go(KIT);
+  else if (demo === 'forms') go(FORMS);
+  else if (demo === 'navigation' || demo === 'navdrive') go(NAVIGATION);
   else if (demo === 'palette') openPalette();
   else if (demo === 'dialog') showShortcuts();
   else if (demo === 'dark') { setDark(true); toast('Dark mode', 'Every kit component follows the theme.', 'success'); }
@@ -114,6 +130,9 @@ function tick(dt: number): void {
   stepToasts(dt);
   stepPhysics(dt);
   series.step(dt);
+  advanceUpload(dt);
+  stepVideo();
+  if (tab() === NAVIGATION) stepNavigationTab(dt);
   script();
 }
 

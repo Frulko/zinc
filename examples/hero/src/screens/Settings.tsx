@@ -3,7 +3,7 @@
 // for confirmation in a modal.
 import { theme, Card, CardHeader, CardContent, Switch, Slider, Button, heading, mutedText } from 'zinc:ui/kit';
 import { entrances, SETTINGS, replayIntro } from '../app/router';
-import { ACCENTS, name, setName, dark, setDark, accent, setAccent, speed, setSpeed, reduceMotion, setReduceMotion, resetPrefs } from '../app/prefs';
+import { ACCENTS, keyboardOn, setKeyboardOn, autoScroll, setAutoScroll, name, setName, dark, setDark, accent, setAccent, speed, setSpeed, reduceMotion, setReduceMotion, resetPrefs } from '../app/prefs';
 import { seedTasks } from '../app/tasks';
 import { resetBalls } from '../app/physics';
 import { ARTWORKS, Artwork } from '../app/art';
@@ -48,7 +48,7 @@ function resetAll(): void {
 
 export function Settings(): i32 {
   return <ScrollView class="grow">
-    <View class="flex-col gap-5 p-8 w-[720]">
+    <View class="flex-col gap-5 p-4 lg:p-8 w-full lg:w-[720px]">
       <Section delay={0}>
         <Text class={heading(2)}>Settings</Text>
         <Text class={mutedText()}>Every change applies at once, across the whole app.</Text>
@@ -81,6 +81,19 @@ export function Settings(): i32 {
             </Row>
             <Row title="Intro" hint="The title screen, from the start">
               <Button label="Replay intro" variant="outline" onClick={() => replayIntro()} />
+            </Row>
+          </CardContent>
+        </Card>
+      </Section>
+      <Section delay={0.1}>
+        <Card>
+          <CardHeader title="Input" description="Touch screens" />
+          <CardContent>
+            <Row title="On-screen keyboard" hint="Slides in when a text field takes the focus">
+              <Switch checked={keyboardOn} onChange={(on: boolean) => setKeyboardOn(on)} />
+            </Row>
+            <Row title="Keep the field in view" hint="Scrolls to what you type when the keyboard opens">
+              <Switch checked={autoScroll} onChange={(on: boolean) => setAutoScroll(on)} />
             </Row>
           </CardContent>
         </Card>

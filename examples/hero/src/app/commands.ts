@@ -13,7 +13,7 @@ export class Command {
 
 export function showShortcuts(): void {
   openDialog(new Dialog('Keyboard shortcuts',
-    '1–5 switch screens · [ and ] previous / next · ⌘K or / command palette · D dark mode · ? this help · ' +
+    '1–9 switch screens · [ and ] previous / next · ⌘K or / command palette · D dark mode · ? this help · ' +
     'Esc closes the palette, a dialog or the artwork · ← → browse artworks · N new task (Tasks) · S shake (Playground)',
     'Got it', false, () => {}));
 }
@@ -26,6 +26,10 @@ export const COMMANDS: Command[] = [
   new Command('Go to', TABS[2].label, '3', goTo(2)),
   new Command('Go to', TABS[3].label, '4', goTo(3)),
   new Command('Go to', TABS[4].label, '5', goTo(4)),
+  new Command('Go to', TABS[5].label, '6', goTo(5)),
+  new Command('Go to', TABS[6].label, '7', goTo(6)),
+  new Command('Go to', TABS[7].label, '8', goTo(7)),
+  new Command('Go to', TABS[8].label, '9', goTo(8)),
   new Command('Theme', 'Toggle dark mode', 'D', () => setDark(!dark())),
   new Command('Gallery', `Open "${ARTWORKS[0].title}"`, '', () => openDetailByIndex(0)),
   new Command('Gallery', 'Open a random artwork', '', () => openDetailByIndex(Math.floor(Math.random() * ARTWORKS.length))),

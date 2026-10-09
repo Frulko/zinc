@@ -31,7 +31,7 @@ function drawScene(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function Playground(): i32 {
-  return <View class="grow flex-col gap-4 p-8">
+  return <View class="grow flex-col gap-4 p-4 lg:p-8">
     <View class="flex-row items-center gap-3" style={{ opacity: enter.at(0), translateY: (1 - enter.at(0)) * 12 }}>
       <Tabs items={['Gravity ↓', 'Zero-g', 'Gravity ↑']} selected={() => 1 - gravity()} onSelect={(i: i32) => setGravity(1 - i)} />
       <Button label="Shake" variant="secondary" onClick={() => shake()} />

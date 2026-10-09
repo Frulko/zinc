@@ -1,22 +1,21 @@
 {
   "name": "hero",
   "entry": "src/main.tsx",
+  "pluginDirs": ["../maps/navigation/plugins"],
   "targets": {
     "macos": {
       "width": 1100,
       "height": 700
     },
     "linux": {
-      "width": 1100,
-      "height": 700
+      "width": 800,
+      "height": 480,
+      "display": "fbdev"
     },
     "rpi1": {
-      "width": 1280,
-      "height": 720
-    },
-    "wasm": {
-      "width": 1100,
-      "height": 700
+      "width": 800,
+      "height": 480,
+      "display": "fbdev"
     },
     "sim": {
       "width": 1100,

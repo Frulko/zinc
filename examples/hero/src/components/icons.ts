@@ -2,7 +2,7 @@
 import { stroke, rrect } from 'zinc:gfx';
 
 export const HOME_ICON: i32 = 0, GRID_ICON: i32 = 1, PLAY_ICON: i32 = 2, CHECK_ICON: i32 = 3, GEAR_ICON: i32 = 4,
-  SEARCH_ICON: i32 = 5, BELL_ICON: i32 = 6, BACK_ICON: i32 = 7, PLUS_ICON: i32 = 8, CLOSE_ICON: i32 = 9;
+  SEARCH_ICON: i32 = 5, BELL_ICON: i32 = 6, BACK_ICON: i32 = 7, PLUS_ICON: i32 = 8, CLOSE_ICON: i32 = 9, KIT_ICON: i32 = 10, FORMS_ICON: i32 = 11, VIDEO_ICON: i32 = 12, NAV_ICON: i32 = 13;
 
 /** Draws icon `kind` centred in the box, with 1.6 px lines at 20 px (scaled with the box). */
 export function drawIcon(kind: i32, x: number, y: number, w: number, h: number, color: u32): void {
@@ -29,5 +29,9 @@ export function drawIcon(kind: i32, x: number, y: number, w: number, h: number, 
   else if (kind === BACK_ICON) { stroke(P([12, 4, 6, 10, 12, 16]), lw, color, 255, false); }
   else if (kind === PLUS_ICON) { stroke(P([10, 4, 10, 16]), lw, color, 255, false); stroke(P([4, 10, 16, 10]), lw, color, 255, false); }
   else if (kind === CLOSE_ICON) { stroke(P([5, 5, 15, 15]), lw, color, 255, false); stroke(P([15, 5, 5, 15]), lw, color, 255, false); }
+  else if (kind === KIT_ICON) { stroke(P([3, 8, 10, 4, 17, 8, 10, 12, 3, 8]), lw, color, 255, false); stroke(P([3, 12, 10, 16, 17, 12]), lw, color, 255, false); }
+  else if (kind === FORMS_ICON) { stroke(P([3, 3, 17, 3, 17, 17, 3, 17]), lw, color, 255, true); stroke(P([6, 7, 14, 7]), lw, color, 255, false); stroke(P([6, 10, 14, 10]), lw, color, 255, false); stroke(P([6, 13, 10, 13]), lw, color, 255, false); }
+  else if (kind === VIDEO_ICON) { stroke(P([2, 4, 18, 4, 18, 16, 2, 16]), lw, color, 255, true); stroke(P([8.5, 7, 13, 10, 8.5, 13]), lw, color, 255, true); }
+  else if (kind === NAV_ICON) { stroke(P([10, 18, 5, 10.5, 5, 7, 7, 4, 10, 3, 13, 4, 15, 7, 15, 10.5, 10, 18]), lw, color, 255, true); ring(10, 7.5, 2); }
   else rrect(ox + s * 0.3, oy + s * 0.3, s * 0.4, s * 0.4, s * 0.1, color, 255);
 }
