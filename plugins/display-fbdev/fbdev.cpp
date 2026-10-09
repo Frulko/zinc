@@ -3,6 +3,10 @@
 // (nearest, aspect kept, centered). Only damaged rows are rendered and written. /dev/fb0 missing or unusable:
 // init returns 0 and the target HAL keeps the screen (headless builds under QEMU/docker).
 #include "hal.h"
+#include "render_bands.h"
+#include <algorithm>
+#include <atomic>
+#include <vector>
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
@@ -41,19 +45,45 @@ static uint32_t amask;
 static bool vsync = true;
 static uint64_t last_us;
 static volatile sig_atomic_t sig_quit;
+// ZINC_RENDER_THREADS: rasterizer and converter threads (1 = the old single-thread path). Leaked on purpose: the workers
+// wait on its condition variable until the process ends, and destroying it at exit would hang (glibc waits for waiters).
+static zbands::Pool& pool = *new zbands::Pool;
+static bool stats, crc_on, fuse;     // ZINC_FBDEV_STATS / _CRC / _FUSE (see fb_present)
+static double skip_s;                // ZINC_FBDEV_SKIP_S: seconds after the first frame left out of the stats
 
 static uint64_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000u + t.tv_nsec / 1000; }
 static inline uint32_t pack(uint32_t c) {
   return (((c >> 16 & 255) >> (8 - rl)) << ro) | (((c >> 8 & 255) >> (8 - gl)) << go) | (((c & 255) >> (8 - bl)) << bo) | amask;
 }
+// ---------------------------------------------------------------- output: converting a surface row to the framebuffer format
+enum { FMT_GENERIC, FMT_565, FMT_8888 };
+static int fmt = FMT_GENERIC;      // exact layouts get a branch-free loop, anything else the generic one
+static void conv_row(const uint32_t* s, uint8_t* row, int x0, int n) {
+  if (fmt == FMT_565) {
+    uint16_t* d = (uint16_t*)row + x0;
+    for (int i = 0; i < n; i++) { uint32_t c = s[i]; d[i] = (uint16_t)(((c >> 8) & 0xF800) | ((c >> 5) & 0x07E0) | ((c >> 3) & 0x001F)); }
+  } else if (fmt == FMT_8888) {
+    uint32_t* d = (uint32_t*)row + x0;
+    for (int i = 0; i < n; i++) d[i] = s[i] | amask;
+  } else if (bpp == 32) {
+    uint32_t* d = (uint32_t*)row + x0;
+    for (int i = 0; i < n; i++) d[i] = pack(s[i]);
+  } else if (bpp == 16) {
+    uint16_t* d = (uint16_t*)row + x0;
+    for (int i = 0; i < n; i++) d[i] = (uint16_t)pack(s[i]);
+  } else {
+    uint8_t* d = row + x0 * 3;
+    for (int i = 0; i < n; i++, d += 3) { uint32_t v = pack(s[i]); d[0] = v; d[1] = v >> 8; d[2] = v >> 16; }
+  }
+}
+/** Framebuffer row y from the surface row `src`, columns x0..x1 (framebuffer coordinates); xm maps them when scaled. */
 static void put_row(int y, int x0, int x1, const uint32_t* src, const int* xm) {
   uint8_t* row = fbmem + (size_t)y * pitch;
-  for (int x = x0; x < x1; x++) {
-    uint32_t v = pack(src[xm ? xm[x - dx] : x - dx]);
-    if (bpp == 32) ((uint32_t*)row)[x] = v;
-    else if (bpp == 16) ((uint16_t*)row)[x] = (uint16_t)v;
-    else { uint8_t* p = row + x * 3; p[0] = v; p[1] = v >> 8; p[2] = v >> 16; }
-  }
+  if (!xm) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
+  static thread_local std::vector<uint32_t> tmp;   // scaled: gather the columns, then convert them in one go
+  if ((int)tmp.size() < x1 - x0) tmp.resize(x1 - x0);
+  for (int x = x0; x < x1; x++) tmp[x - x0] = src[xm[x - dx]];
+  conv_row(tmp.data(), row, x0, x1 - x0);
 }
 
 // ---------------------------------------------------------------- input (evdev)
@@ -206,12 +236,57 @@ static int fb_init(const HalConfig* cfg) {
   if (tty >= 0 && ioctl(tty, KDSETMODE, KD_GRAPHICS) < 0) { close(tty); tty = -1; }
   signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
   if (ZP_DISPLAY_FBDEV_INPUT) open_inputs();
+  fmt = FMT_GENERIC;
+  if (bpp == 16 && rl == 5 && gl == 6 && bl == 5 && ro == 11 && go == 5 && bo == 0) fmt = FMT_565;
+  else if (bpp == 32 && rl == 8 && gl == 8 && bl == 8 && ro == 16 && go == 8 && bo == 0) fmt = FMT_8888;
+  pool.init();
+  auto on = [](const char* n) { const char* e = getenv(n); return e && *e && *e != '0'; };
+  skip_s = getenv("ZINC_FBDEV_SKIP_S") ? atof(getenv("ZINC_FBDEV_SKIP_S")) : 0;
+  stats = on("ZINC_FBDEV_STATS"); crc_on = on("ZINC_FBDEV_CRC"); fuse = on("ZINC_FBDEV_FUSE");
   fprintf(stderr, "fbdev: %s %dx%d %d bpp, surface %dx%d at %d,%d size %dx%d, %d input device(s)\n", ZP_DISPLAY_FBDEV_DEVICE, fw, fh, bpp, W, H, dx, dy, dw, dh, ndev);
   return 1;
 }
 
+// Bands: 16 rows, pulled by the pool's threads. A band rasterizes its rows (phase 1) and converts them to the
+// framebuffer (phase 2); every framebuffer row belongs to exactly one band, so bands never write the same byte.
+enum { BAND_ROWS = 16 };
+struct Job { const HalFrame* f; int phase; };
+static std::atomic<uint64_t> cpu_render, cpu_convert;   // thread time of the frame in microseconds (stats only)
+static void convert_rows(const HalFrame* f, int a, int b) {
+  if (!xmap) { for (int y = a; y < b; y++) put_row(y, f->x0, f->x1, surf + (size_t)y * W, nullptr); return; }
+  int j0 = (int)((double)a * dh / H) - 1, j1 = (int)((double)b * dh / H) + 2;
+  if (j0 < 0) j0 = 0;
+  if (j1 > dh) j1 = dh;
+  for (int j = j0; j < j1; j++) if (ymap[j] >= a && ymap[j] < b) put_row(dy + j, dx, dx + dw, surf + (size_t)ymap[j] * W, xmap);
+}
+static void band(void* p, int32_t a, int32_t b) {
+  const Job* j = (const Job*)p;
+  uint64_t t0 = stats ? now_us() : 0;
+  if (j->phase & 1) j->f->render(surf + (size_t)a * W, a, b);
+  uint64_t t1 = stats ? now_us() : 0;
+  if (j->phase & 2) convert_rows(j->f, a, b);
+  if (stats) { cpu_render += t1 - t0; cpu_convert += now_us() - t1; }
+}
+
+struct Sample { float raster, vsync, convert, total, cpu_render, cpu_convert; };
+static std::vector<Sample> samples;
+static uint64_t first_us, last_us_end;
+
+// Default: rasterize all bands (parallel), wait for the vertical blank, then convert all bands (parallel), so the
+// framebuffer is written right behind the vblank, ahead of the scan-out beam. ZINC_FBDEV_FUSE=1: each band converts
+// its rows right after rasterizing them (cache hot), then the vsync wait: fewer passes over memory, but the write
+// is no longer timed to the beam.
 static void fb_present(const HalFrame* f) {
-  if (f->y1 > f->y0 && f->x1 > f->x0) f->render(surf + (size_t)f->y0 * W, f->y0, f->y1);
+  bool has = f->y1 > f->y0 && f->x1 > f->x0;
+  uint64_t t0 = now_us();
+  static uint64_t started;
+  if (!started) started = t0;
+  bool count = stats && (t0 - started) / 1e6 >= skip_s;
+  if (count && !first_us) first_us = t0;
+  cpu_render = 0; cpu_convert = 0;
+  Job job{f, fuse ? 3 : 1};
+  if (has) pool.run(f->y0, f->y1, BAND_ROWS, band, &job);
+  uint64_t t1 = now_us();
   // pacing: the null HAL has no vsync; wait for the display's, or sleep to the configured rate
   if (vsync) { int z = 0; if (sim_fb || ioctl(fd, FBIO_WAITFORVSYNC, &z) < 0) vsync = false; }
   if (!vsync) {
@@ -219,15 +294,11 @@ static void fb_present(const HalFrame* f) {
     if (last_us && t - last_us < period) usleep((useconds_t)(period - (t - last_us)));
     last_us = now_us();
   }
-  if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
-  if (!xmap) {
-    for (int y = f->y0; y < f->y1; y++) put_row(y, f->x0, f->x1, surf + (size_t)y * W, nullptr);
-    return;
-  }
-  int j0 = (int)((double)f->y0 * dh / H) - 1, j1 = (int)((double)f->y1 * dh / H) + 2;
-  if (j0 < 0) j0 = 0;
-  if (j1 > dh) j1 = dh;
-  for (int j = j0; j < j1; j++) if (ymap[j] >= f->y0 && ymap[j] < f->y1) put_row(dy + j, dx, dx + dw, surf + (size_t)ymap[j] * W, xmap);
+  uint64_t t2 = now_us();
+  if (has && !fuse) { job.phase = 2; pool.run(f->y0, f->y1, BAND_ROWS, band, &job); }
+  uint64_t t3 = now_us();
+  last_us_end = t3;
+  if (count && samples.size() < 100000) samples.push_back({(t1 - t0) / 1e3f, (t2 - t1) / 1e3f, (t3 - t2) / 1e3f, (t3 - t0) / 1e3f, cpu_render / 1e3f, cpu_convert / 1e3f});
 }
 
 static void fb_poll(HalInput* in) {
@@ -245,7 +316,24 @@ static void fb_poll(HalInput* in) {
   if (quit_key || sig_quit) in->quit = 1;
 }
 
+static uint32_t crc32_of(const uint32_t* p, size_t n) {
+  uint32_t c = ~0u;
+  for (size_t i = 0; i < n; i++) for (int k = 0; k < 4; k++) { c ^= (p[i] >> (8 * k)) & 255; for (int b = 0; b < 8; b++) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1; }
+  return ~c;
+}
+static void report(const char* name, float Sample::*m) {
+  std::vector<float> v; for (auto& x : samples) v.push_back(x.*m);
+  std::sort(v.begin(), v.end());
+  double sum = 0; for (float x : v) sum += x;
+  fprintf(stderr, "fbdev stats: %-12s p50=%6.2f p99=%6.2f mean=%6.2f ms\n", name, v[v.size() / 2], v[(size_t)(v.size() * 0.99)], sum / v.size());
+}
 static void fb_shutdown() {
+  if (stats && !samples.empty()) {
+    fprintf(stderr, "fbdev stats: threads=%d fuse=%d frames=%zu wall=%.2f s effective=%.1f fps\n", pool.threads, (int)fuse, samples.size(), (last_us_end - first_us) / 1e6, samples.size() * 1e6 / (double)(last_us_end - first_us));
+    report("raster", &Sample::raster); report("vsync", &Sample::vsync); report("convert", &Sample::convert); report("present", &Sample::total);
+    report("cpu-render", &Sample::cpu_render); report("cpu-convert", &Sample::cpu_convert);
+  }
+  if (crc_on) fprintf(stderr, "fbdev crc: %08x\n", crc32_of(surf, (size_t)W * H));
   if (tty >= 0) { ioctl(tty, KDSETMODE, KD_TEXT); close(tty); tty = -1; }
   for (int i = 0; i < ndev; i++) close(devs[i].fd);
   ndev = 0;

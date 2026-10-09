@@ -4,7 +4,7 @@
   "description": "Linux framebuffer (/dev/fb0, 16/24/32 bpp) with evdev keyboard, mouse and multitouch",
   "options": { "device": "/dev/fb0", "input": true, "grab": true, "fps": 60 },
   "targets": {
-    "linux": { "sources": ["fbdev.cpp"] },
-    "rpi1": { "sources": ["fbdev.cpp"], "packages": ["linux-headers"] }
+    "linux": { "sources": ["fbdev.cpp"], "linkFlags": ["-pthread"] },
+    "rpi1": { "sources": ["fbdev.cpp"], "packages": ["linux-headers"], "linkFlags": ["-pthread"] }
   }
 }
