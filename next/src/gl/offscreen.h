@@ -25,6 +25,13 @@ class Offscreen {
   bool hasExtension(const char* name) const;
   /** RGBA8 pixels of the framebuffer, bottom row first like glReadPixels. */
   std::vector<std::uint8_t> read() const;
+  /** Starts reading the framebuffer, scaled down `ss` times (1 or 2) and flipped on the GPU, into the pixel pack buffer `pbo` (made when 0,
+   *  dw x dh RGBA): what gl.zincPresent shows, without a full-size readback nor a wait for the GPU (ZN-411). The script's GL state is left
+   *  as it was. False (nothing started): no framebuffer blit or pixel buffer (GLES 2) or another `ss`; the caller averages read() itself. */
+  bool readScaledAsync(std::uint32_t& pbo, int dw, int dh, int ss) const;
+  /** Waits for the read readScaledAsync started into `pbo` and copies it into `dst` as 0x00RRGGBB rows, top to bottom. */
+  void finishRead(std::uint32_t pbo, std::uint32_t* dst, int dw, int dh) const;
+  void deleteBuffer(std::uint32_t pbo) const;
   /** Reallocates the colour and depth storage at a new size (contents undefined; the caller clears). Bindings are left as they were. */
   void resize(int width, int height);
   std::uint32_t framebuffer() const { return fbo_; }   // the offscreen framebuffer: what WebGL calls the default framebuffer
@@ -38,6 +45,8 @@ class Offscreen {
   Info info_;
   std::uint32_t fbo_ = 0, color_ = 0, depth_ = 0;
   int w_ = 0, h_ = 0;
+  mutable std::uint32_t small_ = 0, smallColor_ = 0;   // readScaled's target, made on first use
+  mutable int sw_ = 0, sh_ = 0;
 };
 
 }  // namespace zn::gl

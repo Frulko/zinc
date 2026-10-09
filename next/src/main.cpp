@@ -567,35 +567,17 @@ static std::string gBundleOut;                   // `zinc build --bundle ... -o 
 static zn::tc::BundleSpec gBundleSpec;
 
 #ifdef ZN_HOST_GFX
-// gl.zincPresent (WebGL module): RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
-static bool glPresent(int image, const unsigned char* rgba, int w, int h) {   // gl.zincPresent: RGBA rows bottom to top -> the 0xRRGGBB runtime image, top to bottom
-    int32_t iw = 0, ih = 0;
-    if (!zrt::raster::image_size(image, &iw, &ih)) return false;
-    const int ss = (iw > 0 && ih > 0 && w % iw == 0 && h % ih == 0 && w / iw == h / ih && w / iw > 1 && w / iw <= 4) ? w / iw : 1;   // a canvas that is a whole multiple of the image: supersampling, averaged down (anti-aliasing for contexts without MSAA)
-    if (ss == 1 && (iw != w || ih != h)) zrt::raster::dyn_resize(image, w, h);
-    uint32_t* dst = zrt::raster::dyn_pixels(image);
-    if (!dst) return false;
-    if (ss > 1) {
-      for (int y = 0; y < ih; ++y)
-        for (int x = 0; x < iw; ++x) {
-          unsigned r = 0, g = 0, b = 0;
-          for (int sy = 0; sy < ss; ++sy) {
-            const unsigned char* src = rgba + static_cast<size_t>(h - 1 - (y * ss + sy)) * w * 4 + static_cast<size_t>(x) * ss * 4;
-            for (int sx = 0; sx < ss; ++sx, src += 4) { r += src[0]; g += src[1]; b += src[2]; }
-          }
-          const unsigned n = static_cast<unsigned>(ss * ss);
-          dst[static_cast<size_t>(y) * iw + x] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
-        }
-      zrt::raster::dyn_update(image, nullptr, 0);
-      return true;
-    }
-    for (int y = 0; y < h; ++y) {
-      const unsigned char* src = rgba + static_cast<size_t>(h - 1 - y) * w * 4;
-      for (int x = 0; x < w; ++x, src += 4) dst[static_cast<size_t>(y) * w + x] = (uint32_t(src[0]) << 16) | (uint32_t(src[1]) << 8) | src[2];
-    }
-    zrt::raster::dyn_update(image, nullptr, 0);
-    return true;
-}
+// gl.zincPresent (WebGL module, ZN-411): the module writes the canvas into the runtime image's own pixels
+static const zn::gl::PresentHooks kGlPresent = {
+    [](int image, int* w, int* h) { int32_t iw = 0, ih = 0; if (!zrt::raster::image_size(image, &iw, &ih)) return false; *w = iw; *h = ih; return true; },
+    [](int image, int w, int h) -> unsigned* {
+      int32_t iw = 0, ih = 0;
+      if (!zrt::raster::image_size(image, &iw, &ih)) return nullptr;
+      if (iw != w || ih != h) zrt::raster::dyn_resize(image, w, h);
+      return zrt::raster::dyn_pixels(image);
+    },
+    [](int image) { zrt::raster::dyn_update(image, nullptr, 0); },
+    zn::host::onFrameEnd};
 #endif
 // WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made; zinc carries no WebGL,
 // glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
@@ -612,9 +594,9 @@ static void webglHook(JSContext* ctx) {
     void* h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
     const char* wanted = std::getenv("ZINC_WEBGL");
     if (!h) { if (wanted && *wanted && *wanted != '0') std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror()); return nullptr; }
-    auto open = reinterpret_cast<zn::gl::ContextInstall (*)(zn::gl::PresentHook)>(dlsym(h, "zn_webgl_open"));
+    auto open = reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_open"));
 #ifdef ZN_HOST_GFX
-    return open ? open(glPresent) : nullptr;
+    return open ? open(&kGlPresent) : nullptr;
 #else
     return open ? open(nullptr) : nullptr;
 #endif

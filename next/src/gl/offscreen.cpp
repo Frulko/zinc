@@ -35,6 +35,7 @@ Offscreen::~Offscreen() {
   if (context_) {
     SDL_GL_MakeCurrent(static_cast<SDL_Window*>(window_), static_cast<SDL_GLContext>(context_));
     glDeleteFramebuffers(1, &fbo_); glDeleteTextures(1, &color_); glDeleteRenderbuffers(1, &depth_);
+    if (small_) { glDeleteFramebuffers(1, &small_); glDeleteRenderbuffers(1, &smallColor_); }
     SDL_GL_DestroyContext(static_cast<SDL_GLContext>(context_));
   }
   if (window_) SDL_DestroyWindow(static_cast<SDL_Window*>(window_));
@@ -148,5 +149,57 @@ std::vector<std::uint8_t> Offscreen::read() const {
   glReadPixels(0, 0, w_, h_, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
   return px;
 }
+
+bool Offscreen::readScaledAsync(std::uint32_t& pbo, int dw, int dh, int ss) const {
+  if (api_ == Api::Gles2 || (ss != 1 && ss != 2) || dw * ss != w_ || dh * ss != h_) return false;
+  GLint read = 0, draw = 0, rb = 0, pack = 0, align = 0, rowLen = 0, skipRows = 0, skipPx = 0;
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+  glGetIntegerv(GL_RENDERBUFFER_BINDING, &rb);
+  glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+  glGetIntegerv(GL_PACK_ALIGNMENT, &align); glGetIntegerv(GL_PACK_ROW_LENGTH, &rowLen); glGetIntegerv(GL_PACK_SKIP_ROWS, &skipRows); glGetIntegerv(GL_PACK_SKIP_PIXELS, &skipPx);
+  const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST), discard = glIsEnabled(GL_RASTERIZER_DISCARD);
+  if (!small_ || sw_ != dw || sh_ != dh) {
+    if (!small_) { glGenFramebuffers(1, &small_); glGenRenderbuffers(1, &smallColor_); }
+    glBindRenderbuffer(GL_RENDERBUFFER, smallColor_);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, dw, dh);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, small_);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, smallColor_);
+    sw_ = dw; sh_ = dh;
+  }
+  if (!pbo) glGenBuffers(1, &pbo);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  glBufferData(GL_PIXEL_PACK_BUFFER, static_cast<GLsizeiptr>(dw) * dh * 4, nullptr, GL_STREAM_READ);   // a new store: the GPU need not wait for a previous read of it
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_RASTERIZER_DISCARD);   // a blit ignores the write masks, not the scissor
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo_);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, small_);
+  // dw x dh, rows flipped (the destination's y runs down); halving with LINEAR samples between 4 texels: their average
+  glBlitFramebuffer(0, 0, w_, h_, 0, dh, dw, 0, GL_COLOR_BUFFER_BIT, ss == 2 ? GL_LINEAR : GL_NEAREST);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, small_);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4); glPixelStorei(GL_PACK_ROW_LENGTH, 0); glPixelStorei(GL_PACK_SKIP_ROWS, 0); glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+  glReadPixels(0, 0, dw, dh, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);   // into the buffer: the GPU copies, the call returns at once
+  glPixelStorei(GL_PACK_ALIGNMENT, align); glPixelStorei(GL_PACK_ROW_LENGTH, rowLen); glPixelStorei(GL_PACK_SKIP_ROWS, skipRows); glPixelStorei(GL_PACK_SKIP_PIXELS, skipPx);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(pack));
+  if (scissor) glEnable(GL_SCISSOR_TEST);
+  if (discard) glEnable(GL_RASTERIZER_DISCARD);
+  glBindRenderbuffer(GL_RENDERBUFFER, static_cast<GLuint>(rb));
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(draw));
+  return true;
+}
+
+void Offscreen::finishRead(std::uint32_t pbo, std::uint32_t* dst, int dw, int dh) const {
+  GLint pack = 0;
+  glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  const std::size_t n = static_cast<std::size_t>(dw) * dh;
+  if (const auto* src = static_cast<const std::uint32_t*>(glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, static_cast<GLsizeiptr>(n * 4), GL_MAP_READ_BIT))) {
+    for (std::size_t i = 0; i < n; ++i) { const std::uint32_t p = src[i]; dst[i] = (p & 0x00FF00u) | ((p & 0xFF) << 16) | ((p >> 16) & 0xFF); }   // RGBA bytes -> 0x00RRGGBB
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+  }
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(pack));
+}
+
+void Offscreen::deleteBuffer(std::uint32_t pbo) const { if (pbo) glDeleteBuffers(1, &pbo); }
 
 }  // namespace zn::gl

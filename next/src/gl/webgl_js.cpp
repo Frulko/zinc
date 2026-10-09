@@ -2,7 +2,9 @@
 // plus a tiny `document.createElement('canvas')` / `canvas.getContext('webgl')`. Built as the module libzn_webgl (zn_webgl_open below), installed by zinc as a QuickJS context hook; trusted programs only (`zinc run --engine quickjs`).
 #include "gl/webgl_js.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 #include <strings.h>
@@ -19,7 +21,9 @@ namespace {
 
 struct Gl;
 struct Obj { int kind; Id id; UniformLoc loc; const Gl* owner; int epoch; };   // epoch: the context life the object belongs to (a restored context starts a new one)   // kind: 1 buffer, 2 shader, 3 program, 4 texture, 5 framebuffer, 6 uniform location
-struct Gl { Gl() { for (JSValue& e : exts) e = JS_UNDEFINED; } WebGL1 gl; JSValue exts[kExtCount]; bool lost = false, lostReported = false, restorable = false, restorePending = false, restoreWanted = false, eventDispatched = false, compositeScheduled = false; int epoch = 0; JSValue self = JS_UNDEFINED;   /* self: the context object, not owned */ int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; bool boundaryScheduled = false; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
+struct Gl { Gl() { for (JSValue& e : exts) e = JS_UNDEFINED; } WebGL1 gl; JSValue exts[kExtCount]; bool lost = false, lostReported = false, restorable = false, restorePending = false, restoreWanted = false, eventDispatched = false, compositeScheduled = false; int epoch = 0; JSValue self = JS_UNDEFINED;   /* self: the context object, not owned */ int w = 0, h = 0, version = 1; bool alpha = true, depth = true, stencil = false, premultipliedAlpha = true, preserveDrawingBuffer = false; std::map<std::uint64_t, JSValue> wrappers; bool boundaryScheduled = false;
+  struct Present { std::uint32_t pbo[2] = {0, 0}; int w = 0, h = 0, ss = 0, slot = -1; unsigned frame = 0; bool shown = false; };   // gl.zincPresent's reads per image: the slot in flight and the frame it started in
+  std::map<int, Present> presents; };   // wrappers: one JS object per GL object, so `gl.getParameter(gl.ARRAY_BUFFER_BINDING) === buffer`
 
 JSClassID gCtxClass = 0, gObjClass = 0, gExtClass = 0;   // gExtClass: the extension objects (getExtension), whose opaque is their context
 Gl* gCurrent = nullptr;   // the context whose driver context is current
@@ -29,8 +33,13 @@ const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "W
 
 struct ExtObj { Gl* g; int epoch; bool sticky; };   // the opaque of an extension object: its context, the context life it was made in (an old extension object after a restore is inert), sticky for WEBGL_lose_context, which survives
 void extFinalizer(JSRuntime*, JSValue v) { delete static_cast<ExtObj*>(JS_GetOpaque(v, gExtClass)); }
+std::vector<Gl*> gLive;   // the contexts with canvas reads in flight (the frame-end hook finishes them)
 void ctxFinalizer(JSRuntime* rt, JSValue v) {
   Gl* g = static_cast<Gl*>(JS_GetOpaque(v, gCtxClass));
+  if (g) {
+    gLive.erase(std::remove(gLive.begin(), gLive.end(), g), gLive.end());
+    if (!g->presents.empty()) { g->gl.makeCurrent(); for (auto& p : g->presents) for (std::uint32_t b : p.second.pbo) g->gl.target().deleteBuffer(b); }
+  }
   if (g) for (auto& w : g->wrappers) JS_FreeValueRT(rt, w.second);
   if (g) for (JSValue& e : g->exts) { if (JS_IsObject(e)) if (ExtObj* x = static_cast<ExtObj*>(JS_GetOpaque(e, gExtClass))) x->g = nullptr; JS_FreeValueRT(rt, e); }   // an extension object outliving its context is inert
   delete g;
@@ -383,13 +392,64 @@ M(bindFramebuffer) { SELF NEED(2); OBJ(o, 1, 5) gl.bindFramebuffer(U(0), o.id); 
 M(framebufferTexture2D) { SELF NEED(5); OBJ(tex, 3, 4) gl.framebufferTexture2D(U(0), U(1), U(2), tex.id, I(4)); return JS_UNDEFINED; }
 M(checkFramebufferStatus) { SELF NEED(1); return JS_NewUint32(c, gl.checkFramebufferStatus(U(0))); }
 // gl.zincPresent(image): the drawing buffer's pixels (rows flipped, no alpha) go to a zinc:gfx runtime image, so a zinc:ui Surface node shows the canvas (ZN-205). Zinc's own extension, not WebGL.
-PresentHook gPresent = nullptr;
+const PresentHooks* gPresent = nullptr;
+unsigned gFrame = 0;   // frames ended since the module opened
+// Pipelined presents (ZN-411): a read started in frame N is shown in frame N + 1, so the main thread never waits for the GPU; deterministic
+// runs read in the same frame (ZINC_GL_PRESENT=async|sync chooses)
+bool asyncPresent() {
+  static const int on = [] { const char* e = std::getenv("ZINC_GL_PRESENT"); if (e && *e) return std::strcmp(e, "async") == 0 ? 1 : 0; return std::getenv("ZINC_DETERMINISTIC") ? 0 : 1; }();
+  return on != 0;
+}
+void finishPresent(Gl* g, int image, Gl::Present& p) {
+  if (p.slot < 0) return;
+  if (unsigned* dst = gPresent->pixels(image, p.w, p.h)) { g->gl.target().finishRead(p.pbo[p.slot], dst, p.w, p.h); gPresent->done(image); }
+  p.slot = -1;
+}
+// the host's frame end: reads started in an earlier frame and not taken by a present since (a canvas drawn only on demand) are shown now
+void presentFrameEnd() {
+  for (Gl* g : gLive)
+    for (auto& [image, p] : g->presents)
+      if (p.slot >= 0 && p.frame != gFrame) { if (gCurrent != g) { g->gl.makeCurrent(); gCurrent = g; } finishPresent(g, image, p); }
+  ++gFrame;
+}
 M(zincPresent) {
   SELF NEED(1);
   if (!gPresent) return JS_ThrowTypeError(c, "zincPresent: this program has no UI surface");
-  const int w = gl.target().width(), h = gl.target().height();
-  std::vector<std::uint8_t> px = gl.target().read();   // the driver call straight, so the script's pack state and error flags stay untouched
-  return JS_NewBool(c, gPresent(I(0), px.data(), w, h));
+  const int image = I(0), w = gl.target().width(), h = gl.target().height();
+  int iw = 0, ih = 0;
+  if (!gPresent->size(image, &iw, &ih)) return JS_NewBool(c, false);
+  // a canvas that is a whole multiple of the image is supersampled: averaged down (anti-aliasing for contexts without MSAA); else the image takes the canvas's size
+  const int ss = (iw > 0 && ih > 0 && w % iw == 0 && h % ih == 0 && w / iw == h / ih && w / iw > 1 && w / iw <= 4) ? w / iw : 1;
+  const int ow = ss > 1 ? iw : w, oh = ss > 1 ? ih : h;
+  Gl::Present& p = g->presents[image];
+  if (p.w != ow || p.h != oh || p.ss != ss) { p.slot = -1; p.w = ow; p.h = oh; p.ss = ss; p.shown = false; }   // a read of another size is dropped
+  const bool async = asyncPresent();
+  if (async && p.slot >= 0 && p.frame != gFrame) finishPresent(g, image, p);   // the previous frame's read: done by now, no wait
+  const int slot = p.slot < 0 ? 0 : p.slot ^ 1;
+  if (gl.target().readScaledAsync(p.pbo[slot], ow, oh, ss)) {
+    if (p.slot >= 0) finishPresent(g, image, p);   // two presents in one frame: the first is shown before the second starts
+    p.slot = slot; p.frame = gFrame;
+    if (std::find(gLive.begin(), gLive.end(), g) == gLive.end()) gLive.push_back(g);
+    if (!async || !p.shown) { finishPresent(g, image, p); p.shown = true; }   // a synchronous present, or the first at this size: shown now
+    return JS_NewBool(c, true);
+  }
+  unsigned* dst = gPresent->pixels(image, ow, oh);
+  if (!dst) return JS_NewBool(c, false);
+  {   // no framebuffer blit or pixel buffer (GLES 2) or 3x / 4x: read it all and average on the CPU
+    std::vector<std::uint8_t> px = gl.target().read();   // the driver call straight, so the script's pack state and error flags stay untouched
+    for (int y = 0; y < oh; ++y)
+      for (int x = 0; x < ow; ++x) {
+        unsigned r = 0, g = 0, b = 0;
+        for (int sy = 0; sy < ss; ++sy) {
+          const unsigned char* src = px.data() + static_cast<std::size_t>(h - 1 - (y * ss + sy)) * w * 4 + static_cast<std::size_t>(x) * ss * 4;
+          for (int sx = 0; sx < ss; ++sx, src += 4) { r += src[0]; g += src[1]; b += src[2]; }
+        }
+        const unsigned n = static_cast<unsigned>(ss * ss);
+        dst[static_cast<std::size_t>(y) * ow + x] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
+      }
+  }
+  gPresent->done(image);
+  return JS_NewBool(c, true);
 }
 // the typed array a readPixels type wants (WebGL 2 lists them all; WebGL 1 only checks UNSIGNED_BYTE)
 bool viewMatchesType(JSContext* c, JSValueConst v, std::uint32_t type, bool v2) {
@@ -1434,7 +1494,8 @@ void install(JSContext* c) {
 
 }  // namespace zn::gl
 
-extern "C" __attribute__((visibility("default"))) zn::gl::ContextInstall zn_webgl_open(zn::gl::PresentHook present) {
+extern "C" __attribute__((visibility("default"))) zn::gl::ContextInstall zn_webgl_open(const zn::gl::PresentHooks* present) {
   zn::gl::gPresent = present;
+  if (present && present->atFrameEnd) present->atFrameEnd(zn::gl::presentFrameEnd);
   return &zn::gl::install;
 }

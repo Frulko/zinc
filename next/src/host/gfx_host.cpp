@@ -74,6 +74,8 @@ void installFast() {
   at(Rt::HostGfxPointerDown) = [](uint64_t* a) { a[0] = g::pointerDown() ? 1 : 0; };
 }
 
+static void (*frameEnd[4])();   // zn::host::onFrameEnd
+static int nFrameEnd = 0;
 void call(int id, const HostArg* a, HostArg* r) {
   namespace g = zrt::gfx;
   auto u = [&](int k) { return static_cast<uint32_t>(a[k].i); };
@@ -95,6 +97,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostGfxBegin: g::begin_frame(); break;
     case Rt::HostGfxEnd: {
+      for (int k = 0; k < nFrameEnd; ++k) frameEnd[k]();
       g::end_frame();
       zrt::frame_no++;
       zn::rt::gStampFrame = zrt::frame_no;
@@ -211,6 +214,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 namespace zn::host {
 bool replayScene(const char* scene, const char* out) { return zrt::gfx::scene_replay(scene, out); }
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
+void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
 
 // screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)
 uint8_t* encodePngHook(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {
