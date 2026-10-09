@@ -22,5 +22,15 @@ byte-identical, and `tar tf game.zapp` lists it.
 `zinc run` refuses an archive whose header checksums or file SHA-256 do not match (corrupted or edited), one made by a newer zinc or in a
 newer format ("update zinc"), and one naming a file outside it. Nothing of the archive runs before those checks.
 
+## Fused executables
+
+```sh
+zinc fuse game.zapp -o game     # this engine with the archive appended: ./game runs the app, its arguments go to the app
+```
+
+The fused file needs no zinc on the machine (it unpacks the app once into `~/.zinc/cache/zapp/`); it is about 15 MB for a hello (the whole
+engine, compiler included). `zinc export` stays the way to a small native build (the AOT). Fusing for another target than this machine's needs
+a prebuilt player runtime per target (ZN-392).
+
 Not yet: opening a `.zapp` by double-click needs the file type registered with the desktop (ZN-391), and signatures
 are a slot only (the trust work of the plugin distribution tasks).

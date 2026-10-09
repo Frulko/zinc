@@ -298,11 +298,63 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
   if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
   return b;
 }
+// A .zapp archive (ZN-318), checked and unpacked once into ~/.zinc/cache/zapp/<sha>; `zbc` is its program. False with `err` when refused.
+static bool unpackZapp(const std::string& archive, std::string& zbc, std::string& err) {
+  namespace fs = std::filesystem;
+  std::map<std::string, std::string> files;
+  if (!zn::zapp::unpack(archive, kVersionText, files, err)) return false;
+  if (!files.count("program.zbc")) { err = "the archive has no program.zbc"; return false; }
+  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "zapp" / zn::tc::sha256Hex(archive).substr(0, 24);
+  std::error_code ec;
+  if (!fs::exists(dir / "program.zbc", ec)) {
+    const fs::path tmp = dir.string() + ".part" + std::to_string(::getpid());
+    for (const auto& [n, bytes] : files) {
+      fs::create_directories((tmp / n).parent_path(), ec);
+      std::ofstream o(tmp / n, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    }
+    fs::create_directories(dir.parent_path(), ec);
+    fs::rename(tmp, dir, ec);
+    if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
+  }
+  zbc = (dir / "program.zbc").string();
+  return true;
+}
+// A fused executable (ZN-319): this binary followed by a .zapp and a 16-byte trailer, the archive's size (8 bytes, little endian) and "ZNFUSED1".
+static const char kFuseMagic[9] = "ZNFUSED1";
+static bool fusedArchive(std::string& archive) {
+  std::ifstream f(zn::tc::executablePath(), std::ios::binary | std::ios::ate);
+  if (!f) return false;
+  const std::streamoff end = f.tellg();
+  if (end < 16) return false;
+  char t[16];
+  f.seekg(end - 16); f.read(t, 16);
+  if (!f || std::memcmp(t + 8, kFuseMagic, 8) != 0) return false;
+  std::uint64_t n = 0;
+  for (int i = 7; i >= 0; --i) n = (n << 8) | static_cast<unsigned char>(t[i]);
+  if (n == 0 || static_cast<std::streamoff>(n) > end - 16) return false;
+  archive.resize(n);
+  f.seekg(end - 16 - static_cast<std::streamoff>(n)); f.read(archive.data(), static_cast<std::streamsize>(n));
+  return static_cast<bool>(f);
+}
+static std::vector<std::string> gFusedArgs;
+static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static zn::tc::BundleSpec gBundleSpec;
 
 int main(int argc, char** argv) {
+  {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
+    std::string archive, zbc, err;
+    if (fusedArchive(archive)) {
+      if (!unpackZapp(archive, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
+      gFusedArgs = {argv[0], "run", zbc, "--"};
+      for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
+      for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
+      gFusedArgv.push_back(nullptr);
+      argc = static_cast<int>(gFusedArgs.size());
+      argv = gFusedArgv.data();
+    }
+  }
   for (int k = 0; k < argc; ++k) gOriginalArgs.push_back(argv[k]);
   for (int k = 1; k + 1 < argc; ++k)   // --clock virtual|real (ZN-293): the program's time source, whatever the command; `--` ends the options
     if (!std::strcmp(argv[k], "--")) break;
@@ -546,8 +598,10 @@ int main(int argc, char** argv) {
     const auto zbc = zn::zbc::encode(zm);
     files["program.zbc"] = std::string(zbc.begin(), zbc.end());
     std::vector<std::uint8_t> blob; std::string err;
-    if (!bakeResources(entry.c_str(), blob, err)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
-    files["resources.bin"] = std::string(blob.begin(), blob.end());
+    if (zn::aot::usesHost(zm)) {   // a program that draws: its baked fonts and images (a command-line program needs none)
+      if (!bakeResources(entry.c_str(), blob, err)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+      files["resources.bin"] = std::string(blob.begin(), blob.end());
+    }
     if (have) files["zinc.json"] = ps.str();
     std::error_code ec;
     const fs::path assets = fs::path(projDir) / "assets";
@@ -566,31 +620,50 @@ int main(int argc, char** argv) {
     std::printf("packed %s (%zu files, %zu bytes)\n", outPath.c_str(), files.size() + 1, archive.size());
     return 0;
   }
+  if (argc >= 3 && !std::strcmp(argv[1], "fuse")) {   // zinc fuse app.zapp [--target T] [-o app]: this engine with the archive appended, one executable (ZN-319)
+    namespace fs = std::filesystem;
+    std::string in = argv[2], outPath, target;
+    for (int k = 3; k < argc; ++k) {
+      if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
+      else if (!std::strcmp(argv[k], "--target") && k + 1 < argc) target = argv[++k];
+      else { std::fprintf(stderr, "zinc fuse: unknown option %s\nusage: zinc fuse app.zapp [--target T] [-o app]\n", argv[k]); return 2; }
+    }
+#if defined(__APPLE__)
+    const char* host = "macos";
+#else
+    const char* host = "linux";
+#endif
+    if (!target.empty() && target != host) { std::fprintf(stderr, "zinc fuse: only this machine's target (%s) for now: a prebuilt runtime for %s is not available yet (ZN-392); zinc export --target %s builds it with the AOT\n", host, target.c_str(), target.c_str()); return 2; }
+    std::ifstream zf(in, std::ios::binary);
+    std::stringstream zs; zs << zf.rdbuf();
+    const std::string archive = zs.str();
+    std::map<std::string, std::string> files; std::string err;
+    if (!zf || !zn::zapp::unpack(archive, kVersionText, files, err)) { std::fprintf(stderr, "zinc fuse: %s: %s\n", in.c_str(), zf ? err.c_str() : "cannot read it"); return 1; }
+    if (outPath.empty()) outPath = fs::path(in).replace_extension().string();
+    std::ifstream self(zn::tc::executablePath(), std::ios::binary);
+    std::stringstream ss; ss << self.rdbuf();
+    const std::string engine = ss.str();   // (a fused binary runs its app whatever its arguments, so the engine here is never a fused one)
+    std::string trailer(8, '\0');
+    for (int i = 0; i < 8; ++i) trailer[i] = static_cast<char>((static_cast<std::uint64_t>(archive.size()) >> (8 * i)) & 0xff);
+    trailer += std::string(kFuseMagic, 8);
+    std::ofstream out(outPath, std::ios::binary);
+    out << engine << archive << trailer;
+    if (!out) { std::fprintf(stderr, "zinc fuse: cannot write %s\n", outPath.c_str()); return 1; }
+    out.close();
+    fs::permissions(outPath, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, fs::perm_options::replace);
+    std::printf("fused %s (%s, %zu bytes: engine %zu + app %zu)\n", outPath.c_str(), host, engine.size() + archive.size() + 16, engine.size(), archive.size());
+    return 0;
+  }
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];
     if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0) {   // a packed app (ZN-318): checked, unpacked once into the cache, run from there
-      namespace fs = std::filesystem;
       std::ifstream zf(path, std::ios::binary);
       if (!zf) { std::fprintf(stderr, "zinc: cannot read %s\n", path.c_str()); return 2; }
       std::stringstream zs; zs << zf.rdbuf();
-      const std::string archive = zs.str();
-      std::map<std::string, std::string> files; std::string err;
-      if (!zn::zapp::unpack(archive, kVersionText, files, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
-      if (!files.count("program.zbc")) { std::fprintf(stderr, "zinc: %s: the archive has no program.zbc\n", path.c_str()); return 1; }
-      const fs::path dir = fs::path(zn::tc::home()) / "cache" / "zapp" / zn::tc::sha256Hex(archive).substr(0, 24);
-      std::error_code ec;
-      if (!fs::exists(dir / "program.zbc", ec)) {
-        const fs::path tmp = dir.string() + ".part" + std::to_string(::getpid());
-        for (const auto& [n, bytes] : files) {
-          fs::create_directories((tmp / n).parent_path(), ec);
-          std::ofstream o(tmp / n, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-        }
-        fs::create_directories(dir.parent_path(), ec);
-        fs::rename(tmp, dir, ec);
-        if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
-      }
-      gOriginalArgs[2] = (dir / "program.zbc").string();
-      path = (dir / "program.zbc").string();
+      std::string zbc, err;
+      if (!unpackZapp(zs.str(), zbc, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
+      gOriginalArgs[2] = zbc;
+      path = zbc;
     }
     std::string projectDir;
     zn::frontend::TargetOptions window;  // zinc.json: what concerns the host
