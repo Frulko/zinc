@@ -566,10 +566,11 @@ export function send(host: string, port: i32, address: string, numbers: f64[], s
   let packed = address;
   for (const v of numbers) packed += '\u001en:' + v;
   if (strings !== undefined) for (const s of strings) packed += '\u001es:' + s;
-  __host_oscSend(host, port, packed);
+  if (__host_oscSend(host, port, packed) === -1) throw new Error('osc: ' + __host_sockError());
 }
 export function listen(port: i32, cb: (m: OscMessage) => void): void {
-  if (__host_oscListen(port) === 0) throw new Error('osc: cannot bind port');
+  const bound = __host_oscListen(port);
+  if (bound !== 1) throw new Error('osc: ' + (bound === -1 ? __host_sockError() : 'cannot bind port'));
   __oscCb = cb;
   if (__oscHooked) return;
   __oscHooked = true;
@@ -635,7 +636,7 @@ export class MqttClient {
       this.onConnect = () => resolve();
       this.onFail = (e: Error) => reject(e);
       this.handle = this.secure ? __host_mqttOpenTls(this.host, this.port, this.clientId, 1) : __host_mqttOpen(this.host, this.port, this.clientId);
-      if (this.handle < 0) { reject(new Error('mqtt: cannot connect')); return; }
+      if (this.handle < 0) { reject(new Error('mqtt: ' + (this.handle === -2 ? __host_sockError() : 'cannot connect'))); return; }
       __mqttClients.push(this);
     });
   }

@@ -57,10 +57,19 @@ std::string check(const std::string& feature, const std::string& detail) {
   for (const std::string& e : gEntries) if (covers(e, feature, detail)) return "";
   const std::string need = feature == "net" ? "net:" + detail : feature;
   const std::string subject = feature == "net" && detail == "*" ? "listening" : detail;   // serve asks for "net:*"
-  const std::string what = "needs the permission \"" + need + "\" (or \"" + feature.substr(0, feature.find(':')) + "\") in zinc.json \"permissions\"";
+  const std::string family = feature.substr(0, feature.find(':'));
+  const std::string what = "needs the permission \"" + need + "\"" + (need == family ? "" : " (or \"" + family + "\")") + " in zinc.json \"permissions\"";
   if (gEnforce) return "EACCES: " + subject + " " + what;
   if (gWarned.insert(need).second) std::fprintf(stderr, "zinc: warning: %s %s; allowed while developing, an exported app refuses it\n", subject.c_str(), what.c_str());
   return "";
 }
 
 }  // namespace zn::host::perm
+
+// For plugins, which declare it weak: 1 and the reason in `why` when zinc.json's permissions refuse `feature` (camera, microphone...), else 0.
+extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) {
+  const std::string deny = zn::host::perm::check(feature ? feature : "", detail ? detail : "");
+  if (deny.empty()) return 0;
+  if (why && n > 0) std::snprintf(why, static_cast<std::size_t>(n), "%s", deny.c_str());
+  return 1;
+}

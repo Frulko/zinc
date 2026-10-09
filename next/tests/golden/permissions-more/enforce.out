@@ -1,0 +1,7 @@
+osc send blocked.invalid: refused: needs the permission "net:blocked.invalid" (or "net") in zinc.json "permissions"
+osc send 127.0.0.1: done
+osc listen: refused: needs the permission "net:*" (or "net") in zinc.json "permissions"
+process: refused: needs the permission "process" in zinc.json "permissions"
+socket blocked.invalid: refused: needs the permission "net:blocked.invalid" (or "net") in zinc.json "permissions"
+socket 127.0.0.1: allowed (connect ECONNREFUSED 127.0.0.1:9)
+mqtt blocked.invalid: refused: needs the permission "net:blocked.invalid" (or "net") in zinc.json "permissions"

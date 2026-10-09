@@ -68,6 +68,9 @@ struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0
 
 std::string gCryptoError;
 std::string gServeDenied;   // why the last serve was refused by the permissions
+std::string gPermDenied;    // why the last process, socket, mqtt or osc call was refused by the permissions (read once by their error())
+bool refused(const char* feature, const std::string& detail) { gPermDenied = zn::host::perm::check(feature, detail); return !gPermDenied.empty(); }
+std::string takeRefusal() { std::string s; s.swap(gPermDenied); return s; }
 std::string gPayload;   // the payload of the event evNext returned last
 void ret(HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
@@ -422,7 +425,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostOsCpus: r->i = sysconf(_SC_NPROCESSORS_ONLN); break;
-    case Rt::HostProcSpawn: r->i = procSpawn(s(0)); break;
+    case Rt::HostProcSpawn: if (refused("process", s(0))) { r->i = -1; break; } r->i = procSpawn(s(0)); break;
     case Rt::HostProcRead: ret(r, procRead(n(0))); break;
     case Rt::HostProcStatus: r->i = procStatus(n(0)); break;
     case Rt::HostProcKill: procKill(n(0)); break;
@@ -438,12 +441,13 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostLoopNow: r->d = zn::loop::nowMs(); break;
     case Rt::HostProcSpawnEx: {
       auto split = [](const std::string& joined) { std::vector<std::string> v; if (joined.empty()) return v; size_t at = 0; for (;;) { size_t k = joined.find('\x1f', at); v.push_back(joined.substr(at, k == std::string::npos ? std::string::npos : k - at)); if (k == std::string::npos) break; at = k + 1; } return v; };
+      if (refused("process", s(0))) { r->i = -1; break; }   // zinc.json permissions (ZN-322)
       std::vector<std::string> argv = split(s(1));
       argv.insert(argv.begin(), s(0));
       r->i = zn::loop::spawnProcess(argv, s(2), split(s(3)));
       break;
     }
-    case Rt::HostProcError: ret(r, zn::loop::lastError()); break;
+    case Rt::HostProcError: { std::string why = takeRefusal(); ret(r, why.empty() ? zn::loop::lastError() : why); break; }
     case Rt::HostProcPid: r->i = zn::loop::pidOf(n(0)); break;
     case Rt::HostProcWrite: r->i = zn::loop::writeStdin(n(0), s(1)) ? 1 : 0; break;
     case Rt::HostProcCloseStdin: zn::loop::closeStdin(n(0)); break;
@@ -459,10 +463,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
     case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
     case Rt::HostStdinRead: zn::loop::readStdin(); break;
-    case Rt::HostOscListen: r->i = zn::loop::oscListen(n(0)) ? 1 : 0; break;
+    case Rt::HostOscListen: r->i = refused("net", "*") ? -1 : zn::loop::oscListen(n(0)) ? 1 : 0; break;
     case Rt::HostOscClose: zn::loop::oscClose(); break;
-    case Rt::HostMqttOpen: r->i = zn::mqtt::open(s(0), n(1), s(2)); break;
-    case Rt::HostMqttOpenTls: r->i = zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
+    case Rt::HostMqttOpen: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2)); break;   // -2: refused by the permissions (sockError says why)
+    case Rt::HostMqttOpenTls: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
     case Rt::HostCrypto: { std::string e; std::string o = zn::crypto::run(s(0), rawBytes(a[1]), rawBytes(a[2]), rawBytes(a[3]), rawBytes(a[4]), n(5), n(6), e); gCryptoError = e; ret(r, o); break; }
     case Rt::HostCryptoError: ret(r, gCryptoError); break;
     case Rt::HostReCompile: r->i = zn::re::compile(s(0), s(1)); break;
@@ -494,11 +498,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;
     case Rt::HostHttpStop: zn::http::stop(); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
-    case Rt::HostSockConnect: r->i = zn::sock::connectTcp(s(0), n(1)); break;
-    case Rt::HostSockConnectUnix: r->i = zn::sock::connectUnix(s(0)); break;
-    case Rt::HostSockListen: r->i = zn::sock::listenTcp(s(0), n(1)); break;
-    case Rt::HostSockListenUnix: r->i = zn::sock::listenUnix(s(0)); break;
-    case Rt::HostSockUdp: r->i = zn::sock::udp(s(0), n(1)); break;
+    case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)
+    case Rt::HostSockConnectUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::connectUnix(s(0)); break;
+    case Rt::HostSockListen: r->i = refused("net", "*") ? -1 : zn::sock::listenTcp(s(0), n(1)); break;
+    case Rt::HostSockListenUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::listenUnix(s(0)); break;
+    case Rt::HostSockUdp: r->i = refused("net", "*") ? -1 : zn::sock::udp(s(0), n(1)); break;
     case Rt::HostSockWrite: r->i = zn::sock::write(n(0), rawBytes(a[1])) ? 1 : 0; break;
     case Rt::HostSockWriteText: r->i = zn::sock::write(n(0), s(1)) ? 1 : 0; break;
     case Rt::HostSockSendTo: r->i = zn::sock::sendTo(n(0), s(1), n(2), rawBytes(a[3])) ? 1 : 0; break;
@@ -508,9 +512,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSockRemoteAddr: ret(r, zn::sock::remoteAddress(n(0))); break;
     case Rt::HostSockRemotePort: r->i = zn::sock::remotePort(n(0)); break;
     case Rt::HostSockLookup: r->i = zn::sock::lookup(s(0)); break;
-    case Rt::HostSockError: ret(r, zn::sock::error()); break;
+    case Rt::HostSockError: { std::string why = takeRefusal(); ret(r, why.empty() ? zn::sock::error() : why); break; }
     case Rt::HostSysBytesToString: ret(r, rawBytes(a[0])); break;
-    case Rt::HostOscSend: r->i = zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
+    case Rt::HostOscSend: r->i = refused("net", s(0)) ? -1 : zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsCpuModel: {
       std::string model;

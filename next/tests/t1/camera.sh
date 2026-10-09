@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc:gphoto2 with the fake camera (ZN-110, ZINC_FAKE_CAMERA=1): a session through promises (detect, open, capture, download, live view frames settled by the plugin's worker), and the camera
-# examples run headless. libgphoto2 and libturbojpeg are system libraries (pkg-config): without them the test skips and says so.
+# examples run headless; a project whose permissions lack "camera" is refused when enforced (ZN-322.02). libgphoto2 and libturbojpeg are system libraries (pkg-config): without them the test skips and says so.
 cd "$(dirname "$0")/../.." || exit 2
 command -v pkg-config >/dev/null && pkg-config --exists libgphoto2 libturbojpeg && command -v c++ >/dev/null || { echo "skipped: libgphoto2, libturbojpeg or a compiler is missing"; exit 77; }
 fail=0
@@ -15,6 +15,11 @@ live view frames yes"
 got=$(cd "$tmp/w" && env -u ZINC_DETERMINISTIC ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=2000000 timeout 120 "$ZINC" run "$OLDPWD/tests/golden/host/camera_session.ts" 2>&1)
 [ "$got" = "$want" ] || { echo "the fake-camera session differs: $got"; fail=1; }
 [ -s "$tmp/w/captures/IMG_0001.JPG" ] || { echo "no captured file"; fail=1; }
+# zinc.json permissions (ZN-322.02): a project that declares none of "camera" cannot reach the camera when enforced
+mkdir -p "$tmp/denied" && printf '{ "name": "denied", "entry": "main.ts", "permissions": [] }\n' > "$tmp/denied/zinc.json"
+printf "import * as cam from 'zinc:gphoto2';\ncam.detect().then(() => console.log('detected')).catch((e: Error) => console.log(e.message));\n" > "$tmp/denied/main.ts"
+out=$(cd "$tmp/denied" && ZINC_PERMISSIONS=enforce ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 timeout 120 "$ZINC" run . 2>&1)
+echo "$out" | grep -q 'needs the permission "camera"' || { echo "an undeclared camera is not refused: $out"; fail=1; }
 for e in cli bench remote; do
   out=$(env -u ZINC_DETERMINISTIC ZINC_FAKE_CAMERA=1 ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_FRAMES=900 timeout 120 "$ZINC" run "../examples/camera/$e" 2>&1 >/dev/null); rc=$?
   [ $rc -eq 0 ] || { echo "examples/camera/$e: exit $rc: $(echo "$out" | head -c 200)"; fail=1; }

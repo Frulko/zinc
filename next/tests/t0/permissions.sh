@@ -2,7 +2,7 @@
 # zinc.json "permissions" at run time (ZN-322.01, tests/golden/permissions: fs:read:data and net:127.0.0.1 granted). Enforced
 # (ZINC_PERMISSIONS=enforce), the allowed calls work and the others (reading outside data, writing, listening, fetching another host) fail with
 # errors naming the permission (enforce.out); while developing they work and each missing permission is warned about once on stderr; a project
-# without "permissions" is not checked at all.
+# without "permissions" is not checked at all. tests/golden/permissions-more: processes, sockets, osc and mqtt with net:127.0.0.1 only (ZN-322.02).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 g=tests/golden/permissions
@@ -18,5 +18,11 @@ cp -R $g "$tmp/open" && echo '{ "name": "open", "entry": "main.ts" }' > "$tmp/op
 out=$(cd "$tmp/open" && ZINC_PERMISSIONS=enforce "$Z" run . 2>&1)
 echo "$out" | grep -q 'warning\|EACCES' && { echo "a project without permissions is checked: $out"; fail=1; }
 echo "$out" | grep -qx 'write out.txt: written' || { echo "a project without permissions cannot write: $out"; fail=1; }
+m=tests/golden/permissions-more   # processes, sockets, osc and mqtt (ZN-322.02): only net:127.0.0.1 granted
+(cd $m && ZINC_PERMISSIONS=enforce "$Z" run . > "$tmp/more" 2>&1)
+diff -q "$tmp/more" $m/enforce.out >/dev/null || { echo "enforced (other families): $(diff "$tmp/more" $m/enforce.out | head -6)"; fail=1; }
+(cd $m && "$Z" run . > "$tmp/more.dev" 2>/dev/null)
+grep -q 'refused' "$tmp/more.dev" && { echo "developing (other families): refused calls: $(grep refused "$tmp/more.dev")"; fail=1; }
+[ "$(grep -c ': done\|allowed' "$tmp/more.dev")" = 7 ] || { echo "developing (other families): $(cat "$tmp/more.dev")"; fail=1; }
 [ $fail -eq 0 ] && echo "permissions: ok"
 exit $fail

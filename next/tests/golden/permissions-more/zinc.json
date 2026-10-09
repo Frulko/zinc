@@ -1,0 +1,1 @@
+{ "name": "permissions-more", "entry": "main.ts", "permissions": ["net:127.0.0.1"] }

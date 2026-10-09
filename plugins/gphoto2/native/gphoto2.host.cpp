@@ -18,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
+extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // the engine's zinc.json permissions (src/host/permissions.cpp)
 
 #ifndef ZP_GPHOTO2_FAKE
 #define ZP_GPHOTO2_FAKE 0
@@ -576,8 +577,16 @@ struct HostGphoto2 : NativeGphoto2, zrt::Poller {
     pthread_mutex_unlock(&mu);
     return pr;
   }
-  zrt::Promise<zrt::String> detect() override { return submit(DETECT, zrt::String(), zrt::String()); }
-  zrt::Promise<zrt::String> open(zrt::String model, zrt::String port) override { return submit(OPEN, model, port); }
+  /** zinc.json "permissions" (ZN-322): a camera needs "camera"; the engine answers through zn_host_permission (absent in older engines: allowed). */
+  bool refuse(zrt::Promise<zrt::String>& pr) {
+    char why[512];
+    if (!zn_host_permission || !zn_host_permission("camera", "gphoto2", why, sizeof why)) return false;
+    pr = zrt::Promise<zrt::String>::make_pending();
+    pr.p->reject(zrt::make<zrt::Error>(zstr(why)));
+    return true;
+  }
+  zrt::Promise<zrt::String> detect() override { zrt::Promise<zrt::String> pr; if (refuse(pr)) return pr; return submit(DETECT, zrt::String(), zrt::String()); }
+  zrt::Promise<zrt::String> open(zrt::String model, zrt::String port) override { zrt::Promise<zrt::String> pr; if (refuse(pr)) return pr; return submit(OPEN, model, port); }
   zrt::Promise<zrt::String> close() override { return submit(CLOSE, zrt::String(), zrt::String()); }
   zrt::Promise<zrt::String> summary() override { return submit(SUMMARY, zrt::String(), zrt::String()); }
   zrt::Promise<zrt::String> config() override { return submit(CONFIG, zrt::String(), zrt::String()); }

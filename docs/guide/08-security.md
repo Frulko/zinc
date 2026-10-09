@@ -77,7 +77,10 @@ when enforced (exported apps, or `ZINC_PERMISSIONS=enforce`) it fails with an `E
 | `fs`, `fs:read`, `fs:write` | every file, reading only, writing only (also remove, mkdir, rename, chmod, symlink) |
 | `fs:read:<root>`, `fs:write:<root>` | under that directory (relative to the project, or absolute) |
 | `net`, `net:<host>`, `net:*.<domain>`, `net:*` | fetch to any host, one host, a domain's hosts; listening (`serve`) needs `net` or `net:*` |
-| `process`, `serial`, `camera`, `microphone`, `location` | checked by their modules (ZN-322.02) |
+| `net` also covers sockets (`zinc:socket`: connect to the host, listening and UDP need `net` or `net:*`, Unix sockets `net:unix:<path>`), `zinc:mqtt` and `zinc:osc` (send to the host, listen) | |
+| `process` | child processes (`zinc:process`) |
+| `camera` | `zinc:gphoto2` (detect, open) |
+| `serial`, `microphone`, `location` | accepted; no module of the engine reaches them yet |
 
 Exempt: the app's own `assets/` (zinc:assets), and files the user picked in a dialog. With `"scopes": {"fs": "user-picked"}` the scope, which
 is stricter, decides for files. Redirects are checked against the new host.
