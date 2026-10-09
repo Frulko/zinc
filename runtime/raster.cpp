@@ -128,35 +128,104 @@ static void border_rrect(const Target& t, const Cmd& c) {
     // skip the hole: pixels well inside the inner box are not part of the ring
     Span o = row_span(py, cx, cy, hw, hh, r, 0.5f), hole = row_span(py, cx, cy, hw - bw, hh - bw, ri, -0.5f);
     int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
+    // over the straight part of a top or bottom row (qx <= 0 < qy) rr_sdf depends on the row alone (see shadow_rrect): computed once (ZN-403)
+    const float hwi = hw - bw, hhi = hh - bw;
+    const float sxo = hw - r, sxi = hwi - ri, qyo = fabsf_(py - cy) - (hh - r), qyi = fabsf_(py - cy) - (hhi - ri);
+    const float row_outer = clampf(0.5f - rr_sdf(cx, py, cx, cy, hw, hh, r), 0, 1), row_inner = clampf(0.5f - rr_sdf(cx, py, cx, cy, hwi, hhi, ri), 0, 1);
     for (int32_t x = x0; x < x1; x++) {
       if (x == hole.x0 && hole.x1 > hole.x0) { x = hole.x1 - 1; continue; }
-      float px = x + 0.5f;
-      float outer = clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
+      float px = x + 0.5f, ax = fabsf_(px - cx);
+      float outer = qyo > 0 && ax - sxo <= 0 ? row_outer : clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
       if (outer <= 0) continue;
-      float inner = clampf(0.5f - rr_sdf(px, py, cx, cy, hw - bw, hh - bw, ri), 0, 1);
+      float inner = qyi > 0 && ax - sxi <= 0 ? row_inner : clampf(0.5f - rr_sdf(px, py, cx, cy, hwi, hhi, ri), 0, 1);
       float cov = outer - inner;
       if (cov > 0) blend(at(t, x, y), c.c1, (uint32_t)(cov * c.alpha));
     }
   }
 }
+// Shadows (ZN-403): the same pixels as one rr_sdf per pixel, computed once per distinct row. With qx = |px - cx| - (hw - r) and
+// qy = |py - cy| - (hh - r), rr_sdf is (sqrt(ox*ox + oy*oy) + min(max(qx, qy), 0)) - r: a row's alphas depend on qy and its spans only, so
+// rows with the same qy bits and spans share them (top and bottom halves), and a middle row (qy <= 0) whose own qy-alpha is already full
+// (every pixel ruled by qy is fully covered) has alphas that depend on qx alone: every such row shares one. The per-row loops have no
+// data-dependent branches, so they vectorize, with the same float operations per pixel.
+static ZRT_TLS uint8_t* shadow_rows; static ZRT_TLS uint32_t shadow_rows_cap;
+struct ShadowKey { uint32_t q; int32_t x0, x1, i0, i1, row; };
+static ZRT_TLS ShadowKey* shadow_keys; static ZRT_TLS uint32_t shadow_keys_cap;
+static inline float sdf_q(float qx, float qy, float r) {   // rr_sdf from its qx, qy
+  float ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0;
+  float m = qx > qy ? qx : qy;
+  return __builtin_sqrtf(ox * ox + oy * oy) + (m < 0 ? m : 0) - r;
+}
+static inline void blend_alphas(uint32_t* p, const uint8_t* a, int32_t n, uint32_t col) {   // blend() per pixel with its own alpha
+  const uint32_t crb = col & 0xFF00FF, cg = col & 0x00FF00;
+  for (int32_t i = 0; i < n; i++) {
+    const uint32_t k = a[i], d = p[i], ik = 255 - k;
+    const uint32_t mixed = ((((crb * k) + (d & 0xFF00FF) * ik) >> 8) & 0xFF00FF) | ((((cg * k) + (d & 0x00FF00) * ik) >> 8) & 0x00FF00);
+    p[i] = k >= 255 ? col : k ? mixed : d;
+  }
+}
+template<class T> static T* grow_scratch(T*& buf, uint32_t& cap, uint32_t need) {
+  if (need <= cap) return buf;
+  uint32_t n = cap ? cap : 256;
+  while (n < need) n *= 2;
+  T* nb = (T*)hal_alloc((size_t)n * sizeof(T));
+  if (!nb) return nullptr;
+  if (buf) hal_free(buf);
+  buf = nb; cap = n;
+  return buf;
+}
 static void shadow_rrect(const Target& t, const Cmd& c) {
   float blur = c.s > 0.5f ? c.s : 0.5f;
   Rect b = bounds(c.x - blur, c.y - blur, c.w + 2 * blur, c.h + 2 * blur, t.clip);
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
   float r = clampf(c.r, 0, hw < hh ? hw : hh);
+  const float sx = hw - r, sy = hh - r, bh = blur * 0.5f, bd = blur * 1.5f;
+  const uint32_t alpha = c.alpha, col = c.c1;
+  auto alpha_of = [&](float d) {
+    float k = clampf(1.0f - (d + bh) / bd, 0, 1);
+    k = k * k * (3 - 2 * k);
+    return k > 0 ? (uint32_t)(k * alpha) : 0u;
+  };
+  const uint32_t full = alpha_of(-1e30f);   // what a fully covered pixel gets: (uint32_t)(1 * alpha)
+  const uint32_t ncol = (uint32_t)(b.x1 - b.x0), nrow = (uint32_t)(b.y1 - b.y0);
+  // one alpha row per distinct key; without memory for the cache every row is computed into row 0
+  const bool cache = (uint64_t)ncol * nrow <= (8u << 20) && grow_scratch(shadow_rows, shadow_rows_cap, ncol * nrow) && grow_scratch(shadow_keys, shadow_keys_cap, nrow);
+  if (!cache && !grow_scratch(shadow_rows, shadow_rows_cap, ncol)) return;
+  uint32_t nkeys = 0, nslots = 0;
   for (int32_t y = b.y0; y < b.y1; y++) {
     float py = y + 0.5f;
     // k = 1 where d <= -blur/2 (inside the box shrunk by blur/2), 0 where d >= blur (outside it grown by blur)
     Span o = row_span(py, cx, cy, hw, hh, r, blur), in = row_span(py, cx, cy, hw, hh, r, -blur * 0.5f);
     int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
     int32_t i0 = in.x0 > x0 ? in.x0 : x0, i1 = in.x1 < x1 ? in.x1 : x1;
-    for (int32_t x = x0; x < x1; x++) {
-      if (x == i0 && i1 > i0) { blend_row(&at(t, x, y), i1 - x, c.c1, c.alpha); x = i1; if (x >= x1) break; }
-      float d = rr_sdf(x + 0.5f, py, cx, cy, hw, hh, r);
-      float k = clampf(1.0f - (d + blur * 0.5f) / (blur * 1.5f), 0, 1);
-      k = k * k * (3 - 2 * k);
-      if (k > 0) blend(at(t, x, y), c.c1, (uint32_t)(k * c.alpha));
+    if (!(i1 > i0)) i0 = i1 = x1;   // no covered run: the whole span is computed
+    if (x0 >= x1) continue;
+    const float qy = fabsf_(py - cy) - sy;
+    const bool by_column = qy <= 0 && alpha_of(sdf_q(qy, qy, r)) == full;   // every pixel ruled by qy is full, so the row depends on qx alone
+    uint32_t qbits; __builtin_memcpy(&qbits, &qy, 4);
+    const ShadowKey key = {by_column ? 0x7FC0DEADu : qbits, x0, x1, i0, i1, 0};
+    uint8_t* a = nullptr;
+    if (cache) {
+      for (uint32_t k = nkeys; k-- > 0;) {   // newest first: neighbouring rows repeat most
+        const ShadowKey& h = shadow_keys[k];
+        if (h.q == key.q && h.x0 == x0 && h.x1 == x1 && h.i0 == i0 && h.i1 == i1) { a = shadow_rows + (size_t)h.row * ncol; break; }
+      }
     }
+    if (!a) {
+      a = shadow_rows + (cache ? (size_t)nslots * ncol : 0);
+      auto fill = [&](int32_t from, int32_t to) {
+        for (int32_t x = from; x < to; x++) {
+          const float qx = fabsf_((x + 0.5f) - cx) - sx;
+          a[x - b.x0] = (uint8_t)alpha_of(sdf_q(qx, qy, r));
+        }
+      };
+      fill(x0, i0); fill(i1, x1);
+      if (cache) { shadow_keys[nkeys] = key; shadow_keys[nkeys].row = (int32_t)nslots; nkeys++; nslots++; }
+    }
+    blend_alphas(&at(t, x0, y), a + (x0 - b.x0), i0 - x0, col);
+    if (i1 > i0) blend_row(&at(t, i0, y), i1 - i0, col, alpha);
+    blend_alphas(&at(t, i1, y), a + (i1 - b.x0), x1 - i1, col);
   }
 }
 
