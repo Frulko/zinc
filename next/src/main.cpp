@@ -1518,7 +1518,10 @@ int main(int argc, char** argv) {
     for (const std::string& p : problems) std::fprintf(stderr, "zinc: %s\n", p.c_str());
     return rc;
   }
-  if (argc >= 3 && !std::strcmp(argv[1], "plugin-build")) {  // zinc plugin-build <plugin> [project-dir]: compile the plugin's native code into the cache (or find it there) and say where it is
+  if (argc >= 3 && !std::strcmp(argv[1], "plugin-build")) {  // zinc plugin-build <plugin> [project-dir] [--prebuild]: compile the plugin's native code into the cache (or find it there) and say where it is
+    // --prebuild: also copy the libraries into the plugin's prebuilt/<target>/ with their key, for a publisher to ship (ZN-328.03)
+    const bool prebuild = !std::strcmp(argv[argc - 1], "--prebuild");
+    if (prebuild) --argc;
     std::string project = argc >= 4 ? argv[3] : ".";
     std::vector<std::string> problems;
     auto found = zn::frontend::discoverPlugins(gRoot + "/..", project, problems);
@@ -1528,7 +1531,17 @@ int main(int argc, char** argv) {
     zn::tc::PluginLib lib;
     std::string err;
     if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-    std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    if (prebuild && !lib.prebuilt) {
+      namespace fs = std::filesystem;
+      const fs::path pre = fs::path(hit->dir) / "prebuilt" / zn::tc::pluginTarget();
+      std::error_code ec;
+      fs::create_directories(pre, ec);
+      for (const std::string& f : {lib.shared, lib.archive, lib.vendor}) if (!f.empty()) fs::copy_file(f, pre / (&f == &lib.vendor ? "vendor.a" : fs::path(f).filename().string()), fs::copy_options::overwrite_existing, ec);
+      std::ofstream(pre / "key") << lib.key << "\n";
+      if (ec) { std::fprintf(stderr, "zinc: cannot write %s: %s\n", pre.string().c_str(), ec.message().c_str()); return 1; }
+      std::printf("prebuilt: %s\n", pre.string().c_str());
+    }
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "ir") && !std::strcmp(argv[2], "--check")) {  // zinc ir --check <file.ir>: read a dump back, verify it, and check that it dumps to the same text

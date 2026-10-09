@@ -78,6 +78,13 @@ A publisher can sign an archive: `zinc update-keygen` makes a key pair, `zinc si
 requires `<url>.sig` to verify with that key and locks the key (`"publicKey"`), so `zinc install` checks it again; a
 missing or foreign signature is refused. Git sources are pinned by their commit and take no key.
 
+A plugin can ship its native code prebuilt: `zinc plugin-build <name> [project] --prebuild` builds it for this
+machine and copies `plugin.dylib` (or `.so`), `plugin.a`, `vendor.a` and a `key` into the plugin's
+`prebuilt/<target>/` (`macos`, `linux`, or a cross target name). The key digests the engine's ABI headers and the
+plugin's defines (its options included), so the libraries are used, with no compiler, only where they match; with
+other options in `zinc.json`, another engine, or no `prebuilt/`, the plugin is built locally as before. The
+libraries come with the plugin, so the lock's commit, sha256 and signature cover them too.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

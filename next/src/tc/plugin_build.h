@@ -17,13 +17,15 @@ struct PluginLib {
   std::vector<std::string> linkArgs;   // -l, -framework, pkg-config --libs and linkFlags for a program that links the archives
   bool display = false;                // a display driver (kind "display"): no native module, its static constructor registers it with the HAL; AOT links it whole
   bool rebuilt = false;                // false when the cache already held it
+  bool prebuilt = false;               // the plugin's own prebuilt/<target>/ libraries were used (ZN-328.03)
+  std::string key;                     // what prebuilt/<target>/key must hold for them to be used: the ABI headers and the defines
   double seconds = 0;
 };
 
 // The plugin of `plugins` whose spec names native module `module`; null when none does.
 const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPlugin>& plugins, const std::string& module);
 
-// Builds (or finds in the cache) the native code of `p` for `target` ("macos" or "linux": this machine). False with `err` when it cannot: the target is not in its
+// Builds (or finds in the cache, or in the plugin's prebuilt/<target>/ when its key matches) the native code of `p` for `target` ("macos" or "linux": this machine). False with `err` when it cannot: the target is not in its
 // manifest, a compiler or a system library is missing (the message names the package to install), or the compiler fails.
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err);
 

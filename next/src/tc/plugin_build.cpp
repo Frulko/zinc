@@ -158,8 +158,6 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   if (impl.empty()) { err = "plugin '" + m.name + "' has no native source for target '" + target + "' (expected native/" + base + ".host.cpp)"; return false; }
   }
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
-  std::string cxx, cc;
-  if (!compilers(cxx, cc, err)) return false;
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
   if (gCross.on && !ts.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " has no sysroot for yet"; return false; }
@@ -203,6 +201,33 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   std::vector<std::string> own, vendored;
   if (!display) own.push_back(impl);
   for (const std::string& s : ts.sources) (endsWith(s, ".c") ? vendored : own).push_back((fs::path(p.dir) / s).string());
+  // prebuilt libraries shipped with the plugin (ZN-328.03): prebuilt/<target>/ holds plugin.dylib or .so, plugin.a, vendor.a when it has vendored C, and `key`: the
+  // digest of the ABI headers and the defines they were built with (zinc plugin-build --prebuild writes them). A matching key uses them, no compiler needed; otherwise
+  // (other options in zinc.json, another engine) the plugin is built locally as before.
+  {
+    Hash k;
+    for (const std::string& d : defines) k.add(d);
+    for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) k.add(sha256File(hp));
+    k.add(display ? "display" : "module");
+    out.key = k.hex();
+    const fs::path pre = fs::path(p.dir) / "prebuilt" / (gCross.on ? gCross.name : target);
+    std::string key;
+    if (readAll((pre / "key").string(), key)) {
+      while (!key.empty() && (key.back() == '\n' || key.back() == ' ')) key.pop_back();
+      const std::string ext = pluginTarget() == "macos" ? ".dylib" : ".so";
+      if (key == out.key && fs::exists(pre / "plugin.a") && (gCross.on || fs::exists(pre / ("plugin" + ext)))) {
+        out.shared = (pre / ("plugin" + ext)).string();
+        out.archive = (pre / "plugin.a").string();
+        if (fs::exists(pre / "vendor.a")) out.vendor = (pre / "vendor.a").string();
+        out.prebuilt = true;
+        out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        return true;
+      }
+      std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
+    }
+  }
+  std::string cxx, cc;
+  if (!compilers(cxx, cc, err)) return false;
   // cache keys
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
