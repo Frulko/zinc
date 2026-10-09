@@ -1271,7 +1271,7 @@ int main(int argc, char** argv) {
     }
     bool usesScript = false;
     for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
-    std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+    std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
     nativeLibs += shapedLibs;
     for (const zn::tc::PluginLib& pl : gPlugins) {
       if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
