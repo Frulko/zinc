@@ -555,8 +555,10 @@ static void writeInputs(const fs::path& dir, const std::string& entry) {
   o << signature(entry) << "\n";
   for (const std::string& f : in) o << stampOf(f) << "\t" << f << "\n";
 }
-static int exec(const fs::path& app, bool built, const std::string& projectDir, const std::vector<std::string>& progArgs) {
+static int exec(const fs::path& app, bool built, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
   zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
+  const fs::path ed = fs::path(entry).parent_path();   // zinc:assets reads ZINC_ASSETS, set for the interpreter below main's compile: the same directory here
+  for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
   if (!projectDir.empty()) { std::error_code ec; fs::current_path(projectDir, ec); }
   std::vector<std::string> av = {app.string()};
@@ -582,7 +584,7 @@ static int runCached(const std::string& entry, const std::string& projectDir, co
     const std::size_t tab = line.find('\t');
     if (tab == std::string::npos || runcache::stampOf(line.substr(tab + 1)) != line.substr(0, tab)) return -1;
   }
-  return runcache::exec(dir / "app", false, projectDir, progArgs);
+  return runcache::exec(dir / "app", false, entry, projectDir, progArgs);
 }
 /** After the compile: builds the executable in-process from `zm` (one compile, one bake), or keeps the cached one when its C++ did not change. */
 static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
@@ -611,7 +613,7 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
     std::ofstream(keyFile) << rb.key << "\n";
   }
   runcache::writeInputs(dir, entry);
-  return runcache::exec(app, !rb.reused, projectDir, progArgs);
+  return runcache::exec(app, !rb.reused, entry, projectDir, progArgs);
 }
 #endif
 

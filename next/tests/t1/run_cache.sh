@@ -1,7 +1,7 @@
 #!/bin/sh
 # zinc run's compiled-run cache (ZN-605): a hit starts the cached executable without compiling; editing an imported module or an asset compiles once
 # and builds again; a touched file or an edited zinc.json is compiled, and the executable is kept when its C++ did not change. A headless compiled run
-# (ZINC_RUN=native) of a small project with an import and a baked image; the program prints both.
+# (ZINC_RUN=native) of a small project with an import, a baked image and a file of its assets read at run time (ZINC_ASSETS); the program prints them.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 [ -n "$CXX" ] || command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
@@ -21,11 +21,13 @@ printf '{ "name": "cache", "entry": "src/main.ts" }\n' > "$p/zinc.json"
 printf "export const LABEL: string = 'a';\n" > "$p/src/label.ts"
 cat > "$p/src/main.ts" <<'EOF'
 import { onFrame, clear, rect, image, imageWidth } from 'zinc:gfx';
+import { readText } from 'zinc:assets';
 import { LABEL } from './label';
-console.log('out ' + LABEL + ' ' + imageWidth(image('dot.png')));
+console.log('out ' + LABEL + ' ' + imageWidth(image('dot.png')) + ' ' + readText('msg.txt'));
 onFrame((dt: number) => { clear(0); rect(0, 0, 4, 4, 0xffffff); });
 EOF
 png "$p/assets/dot.png" 3
+printf 'hi' > "$p/assets/msg.txt"
 fail=0
 # step <what> <expected program line> <compiled: yes|no> <native build: yes|no>
 step() {
@@ -35,15 +37,15 @@ step() {
   b=no; printf '%s\n' "$out" | grep -q 'native build' && b=yes
   [ "$c:$b" = "$3:$4" ] || { echo "run_cache: $1: compiled $c (want $3), native build $b (want $4): $out"; fail=1; }
 }
-step "first run" "out a 3" yes yes
-step "cache hit" "out a 3" no no
+step "first run" "out a 3 hi" yes yes
+step "cache hit" "out a 3 hi" no no
 printf "export const LABEL: string = 'b';\n" > "$p/src/label.ts"
-step "imported module edited" "out b 3" yes yes
+step "imported module edited" "out b 3 hi" yes yes
 png "$p/assets/dot.png" 5
-step "asset edited" "out b 5" yes yes
-step "cache hit after the asset" "out b 5" no no
+step "asset edited" "out b 5 hi" yes yes
+step "cache hit after the asset" "out b 5 hi" no no
 touch -t 203001010000 "$p/src/label.ts"
-step "touched module" "out b 5" yes no
+step "touched module" "out b 5 hi" yes no
 printf '{ "name": "cache", "entry": "src/main.ts", "description": "edited" }\n' > "$p/zinc.json"
-step "zinc.json edited" "out b 5" yes no
+step "zinc.json edited" "out b 5 hi" yes no
 exit $fail
