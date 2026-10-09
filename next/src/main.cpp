@@ -101,6 +101,7 @@ static void installNativeProvider(const char* entry) {
   namespace fs = std::filesystem;
   std::string pf = zn::frontend::findProjectFile(entry);
   gProjectDir = pf.empty() ? fs::absolute(entry).parent_path().string() : fs::path(pf).parent_path().string();
+  zn::cli::warnRevoked(gProjectDir);   // plugins of zinc.lock the index revoked (ZN-345)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     std::vector<std::string> problems;
     std::string root = gRoot + "/..";
@@ -601,7 +602,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::addPlugin(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "index-sign")) return zn::cli::indexSign(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "index-get")) return zn::cli::indexGet(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "install")) return zn::cli::installPlugins(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "install")) return zn::cli::installPlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "trust")) return zn::cli::trustPlugin(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);

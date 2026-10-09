@@ -29,7 +29,9 @@ int deploy(const std::vector<std::string>& args);
 /** `zinc add <git-url[@ref] | archive URL> [dir]`: the plugin into <dir>/plugins/<name>, its commit or sha256 in zinc.json "lock" (ZN-328.01). */
 int addPlugin(const std::vector<std::string>& args, const std::string& engineRoot = "");
 /** `zinc install [dir]`: every plugin of zinc.json "lock" fetched again at its pinned commit or checked against its pinned sha256. */
-int installPlugins(const std::vector<std::string>& args);
+int installPlugins(const std::vector<std::string>& args, const std::string& engineRoot = "");
+/** A warning on stderr for each plugin of the project's zinc.lock that the last index refresh revoked (ZN-345); run by `zinc run`. */
+void warnRevoked(const std::string& projectDir);
 /** `zinc trust <plugin> [dir]`: forget a community plugin's pinned publisher key (ZN-340.02). */
 int trustPlugin(const std::vector<std::string>& args);
 /** `zinc index-sign <metadata.json> <seed-hex>...` and `zinc index-get <repository-url> <cache-dir> [target-path]`: TUF metadata of the plugin index (ZN-336.02). */

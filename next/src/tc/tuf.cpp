@@ -121,7 +121,39 @@ bool openIndex(const std::string& engineRoot, std::unique_ptr<Client>& out, std:
     fs::copy_file(root, cache / "root.json", ec);
   }
   out = std::make_unique<Client>(cache.string(), indexFetch(indexUrl()), static_cast<long long>(std::time(nullptr)));
-  return out->refresh(err);
+  if (!out->refresh(err)) return false;
+  Target t;
+  std::string bytes, e2;
+  Revocations rv;
+  if (out->find("revocations.json", t, e2) && t.role == "targets" && out->download(t, bytes, e2) && parseRevocations(bytes, rv)) {   // only the top-level role revokes
+    std::ofstream(cache / "revocations.json", std::ios::binary) << bytes;
+    out->revokeKeys(rv.keys);
+  }
+  return true;
+}
+
+const Revoked* Revocations::match(const std::string& plugin, const std::string& version, const std::string& sha256, const std::string& commit) const {
+  for (const Revoked& r : versions)
+    if ((!r.sha256.empty() && r.sha256 == sha256) || (!r.commit.empty() && r.commit == commit) || (!r.plugin.empty() && r.plugin == plugin && !r.version.empty() && r.version == version)) return &r;
+  return nullptr;
+}
+
+bool parseRevocations(const std::string& json, Revocations& out) {
+  Doc d(json);
+  if (!yyjson_is_obj(d.root())) return false;
+  out = Revocations{};
+  size_t i, n; yyjson_val* v;
+  yyjson_arr_foreach(yyjson_obj_get(d.root(), "versions"), i, n, v)
+    out.versions.push_back(Revoked{str(v, "plugin"), str(v, "version"), str(v, "sha256"), str(v, "commit"), str(v, "reason"), str(v, "replacement")});
+  yyjson_arr_foreach(yyjson_obj_get(d.root(), "keys"), i, n, v) if (!str(v, "publicKey").empty()) out.keys[str(v, "publicKey")] = str(v, "reason");
+  return true;
+}
+
+bool cachedRevocations(Revocations& out) {
+  std::ifstream f(fs::path(home()) / "index" / "revocations.json", std::ios::binary);
+  if (!f) return false;
+  std::stringstream ss; ss << f.rdbuf();
+  return parseRevocations(ss.str(), out);
 }
 
 bool canonical(const std::string& json, std::string& out) {
@@ -163,7 +195,7 @@ bool Client::load(const std::string& role, const std::string& text, const std::m
   yyjson_arr_foreach(yyjson_obj_get(d.root(), "signatures"), i, n, s) {
     const std::string id = str(s, "keyid");
     auto k = keys.find(id);
-    if (k == keys.end() || std::find(r.keyids.begin(), r.keyids.end(), id) == r.keyids.end()) continue;
+    if (k == keys.end() || std::find(r.keyids.begin(), r.keyids.end(), id) == r.keyids.end() || revoked_.count(k->second)) continue;   // a revoked key signs nothing
     if (verifyBytes(body, str(s, "sig"), k->second)) good.insert(id);
   }
   if (static_cast<int>(good.size()) < r.threshold) { err = role + ": " + std::to_string(good.size()) + " valid signature(s), the threshold is " + std::to_string(r.threshold); return false; }

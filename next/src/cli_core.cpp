@@ -914,6 +914,30 @@ static bool writeLock(const fs::path& project, yyjson_mut_doc* md, yyjson_mut_va
 }
 static std::vector<std::string> strArr(yyjson_val* a) { std::vector<std::string> r; size_t i, n; yyjson_val* e; yyjson_arr_foreach(a, i, n, e) if (yyjson_is_str(e)) r.push_back(yyjson_get_str(e)); return r; }
 
+// Revocations (ZN-345): what the index's revocations.json says about a plugin version or its publisher key ("" for nothing). `fresh` refreshes the index
+// first (add, install); otherwise the copy of the last refresh is read (zinc run, which has no network).
+static std::string revokedWhy(const std::string& engineRoot, bool fresh, const std::string& name, const std::string& version, const std::string& sha256, const std::string& commit, const std::string& key) {
+  if (fresh) { std::unique_ptr<zn::tc::tuf::Client> c; std::string e; zn::tc::tuf::openIndex(engineRoot, c, e); }
+  zn::tc::tuf::Revocations rv;
+  if (!zn::tc::tuf::cachedRevocations(rv)) return "";
+  if (const auto* r = rv.match(name, version, sha256, commit))
+    return "plugin " + name + (version.empty() ? "" : " " + version) + " is revoked: " + (r->reason.empty() ? "no reason given" : r->reason) + (r->replacement.empty() ? "" : "; use " + r->replacement + " instead");
+  if (auto k = rv.keys.find(key); !key.empty() && k != rv.keys.end()) return "the publisher key of plugin " + name + " is revoked: " + (k->second.empty() ? "no reason given" : k->second);
+  return "";
+}
+
+void warnRevoked(const std::string& projectDir) {
+  Lock lk;
+  readLock(projectDir, lk);
+  if (!lk.plugins) return;
+  size_t i, n; yyjson_val *k, *v;
+  yyjson_obj_foreach(lk.plugins, i, n, k, v) {
+    auto str = [&](const char* key) { yyjson_val* x = yyjson_obj_get(v, key); return yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
+    const std::string why = revokedWhy("", false, yyjson_get_str(k), str("version"), str("sha256"), str("commit"), str("publicKey"));
+    if (!why.empty()) std::fprintf(stderr, "zinc: warning: %s (zinc.lock)\n", why.c_str());
+  }
+}
+
 // `zinc add <name>` (ZN-340): the plugin's descriptor in the signed index, plugins/<name>.json signed by the top-level role (tier official) or
 // <publisher>/plugins/<name>.json signed by a role delegated to that publisher (tier verified); its source becomes what is fetched.
 static std::string fromIndex(const std::string name, const std::string& engineRoot, PluginPin& want, std::string& spec) {   // `name` by value: `spec` may be the same string
@@ -1024,6 +1048,7 @@ int addPlugin(const std::vector<std::string>& args, const std::string& engineRoo
     std::string list;
     for (const std::string& c : (old ? fresh : perms)) list += (list.empty() ? "" : ", ") + c;
     if (old && !fresh.empty() && !accept) err = "plugin " + pname + " now asks for capabilities the lock does not grant: " + list + "; `zinc add --accept " + pos[0] + "` grants them";
+    else if (const std::string why = revokedWhy(engineRoot, true, pname, version, got.sha256, got.commit, got.publicKey); !why.empty()) err = why + ": refused";
     else if (!list.empty()) std::printf("%s: %s %s\n", pname.c_str(), old ? "granted the new capabilities" : "asks for the capabilities", list.c_str());
   }
   if (err.empty()) err = installPlugin(dir, project, name);
@@ -1083,7 +1108,7 @@ int trustPlugin(const std::vector<std::string>& args) {
   return 0;
 }
 
-int installPlugins(const std::vector<std::string>& args) {
+int installPlugins(const std::vector<std::string>& args, const std::string& engineRoot) {
   std::vector<std::string> pos;
   bool frozen = false;
   for (std::size_t k = 2; k < args.size(); ++k) {
@@ -1115,7 +1140,7 @@ int installPlugins(const std::vector<std::string>& args) {
       yyjson_doc_free(doc);
       return 1;
     }
-    for (const std::string& spec : missing) if (!spec.empty()) addPlugin({"zinc", "add", spec, project.string()});
+    for (const std::string& spec : missing) if (!spec.empty()) addPlugin({"zinc", "add", spec, project.string()}, engineRoot);
     if (!missing.empty()) { readLock(project, lk); plugins = lk.plugins; }
   }
   int failed = 0, done = 0;
@@ -1131,7 +1156,9 @@ int installPlugins(const std::vector<std::string>& args) {
     fs::remove_all(scratch.p, ec);
     fs::path dir;
     PluginPin got;
-    std::string name, err = pin.commit.empty() && pin.sha256.empty() ? "the lock pins neither a commit nor a sha256" : fetchPlugin(pin.source, pin, scratch.p, dir, got);
+    std::string name, err = pin.commit.empty() && pin.sha256.empty() ? "the lock pins neither a commit nor a sha256" : revokedWhy(engineRoot, i == 0, want, str("version"), pin.sha256, pin.commit, pin.publicKey);
+    if (!err.empty() && err.rfind("the lock pins", 0) != 0) err += ": refused (zinc add the replacement)";
+    if (err.empty()) err = fetchPlugin(pin.source, pin, scratch.p, dir, got);
     if (err.empty()) err = installPlugin(dir, project, name);
     if (err.empty() && name != want) err = "the source now holds plugin '" + name + "'";
     if (!err.empty()) { std::fprintf(stderr, "zinc install: %s: %s\n", want.c_str(), err.c_str()); ++failed; continue; }

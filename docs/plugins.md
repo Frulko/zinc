@@ -149,6 +149,12 @@ that extends the last one this machine saw: a signed release left out of the log
 history is caught. The owner's steps: `next/tools/tlog keys log-key.json`, commit its public key as `next/index/log.pub`,
 and put the file's content in the secret `ZINC_LOG_KEY`.
 
+**Revocations.** The index can revoke a plugin version (by name and version, or by its source's SHA-256 or commit, with a
+reason and a replacement) or a publisher key, in `revocations.json` signed by the top-level role. `zinc add` and `zinc
+install` refuse a revoked version and say why and what replaces it; `zinc run` of a project whose `zinc.lock` holds one
+prints the same as a warning (from the copy kept at the last index refresh, so it needs no network). A revoked key signs
+nothing any more: a role or an archive that only that key signed is refused.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

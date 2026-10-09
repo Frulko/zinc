@@ -6,6 +6,7 @@
 // role that is not delegated for its path.
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -36,6 +37,8 @@ class Client {
   bool all(std::vector<Target>& out, std::string& err);
   // The target's bytes, fetched from targets/<path> and checked against its length and SHA-256.
   bool download(const Target& t, std::string& bytes, std::string& err);
+  // Keys revoked by the index (ZN-345): their signatures no longer count, so what only they signed falls below its threshold. Before find / all.
+  void revokeKeys(const std::map<std::string, std::string>& keys) { for (const auto& [k, why] : keys) revoked_.insert(k); }
 
  private:
   struct Role { std::vector<std::string> keyids; int threshold = 1; };
@@ -49,6 +52,7 @@ class Client {
 
   std::string cache_;
   Fetch fetch_;
+  std::set<std::string> revoked_;   // hex public keys
   long long now_;
   std::map<std::string, std::string> rootKeys_;   // keyid -> hex public key
   std::map<std::string, Role> roles_;              // root, timestamp, snapshot, targets
@@ -67,6 +71,18 @@ std::string indexUrl();
 std::string logKey(const std::string& engineRoot);
 // "official" for what the top-level targets role signs, "verified" for a role delegated to a publisher (its name is the publisher).
 inline std::string tierOf(const Target& t) { return t.role == "targets" ? "official" : "verified"; }
+
+// Revocations (ZN-345): the index's revocations.json, signed by the top-level role: {"versions": [{plugin, version | sha256 | commit, reason, replacement}],
+// "keys": [{publicKey, reason}]}. openIndex applies the keys and keeps a copy in ~/.zinc/index/revocations.json for `zinc run`, which has no network.
+struct Revoked { std::string plugin, version, sha256, commit, reason, replacement; };
+struct Revocations {
+  std::vector<Revoked> versions;
+  std::map<std::string, std::string> keys;   // hex public key -> reason
+  // The revocation of a plugin version (by name and version, or by its source's sha256 or commit), or null.
+  const Revoked* match(const std::string& plugin, const std::string& version, const std::string& sha256, const std::string& commit) const;
+};
+bool parseRevocations(const std::string& json, Revocations& out);
+bool cachedRevocations(Revocations& out);   // the copy of the last index refresh; false when there is none
 
 // OLPC canonical JSON of a JSON text (sorted keys, no whitespace, only \" and \\ escaped, integers only): what TUF signs. False for floats or bad JSON.
 bool canonical(const std::string& json, std::string& out);
