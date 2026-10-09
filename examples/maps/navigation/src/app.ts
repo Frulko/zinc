@@ -12,11 +12,21 @@ import { resetAlerts, toast } from './alerts';
 // ---------------------------------------------------------------- night mode: the map palette crossfades
 export const [dark, setDark] = createSignal<boolean>(false);
 export const nightT = new Tween(0);
+/** Sets the night flag and crossfades the map palette (no theme change: see toggleNight). */
+export function setNight(on: boolean): void {
+  if (on === dark()) return;
+  setDark(on);
+  nightT.to(on ? 1 : 0, 0.8, easeInOut);
+}
+/** Embedded in an app that owns the theme (examples/hero): the night button asks it, which calls setNight back. */
+let hostNight: ((on: boolean) => void) | null = null;
+export function handNightToHost(f: (on: boolean) => void): void { hostNight = f; }
 export function toggleNight(): void {
   const on = !dark();
-  setDark(on);
+  const host = hostNight;
+  if (host !== null) { host(on); return; }
   setTheme(on ? DARK : LIGHT);
-  nightT.to(on ? 1 : 0, 0.8, easeInOut);
+  setNight(on);
 }
 
 // ---------------------------------------------------------------- step list (pull-up sheet)
