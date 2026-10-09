@@ -18,6 +18,7 @@
 
 // backend
 bool zgl_backend_init(const HalConfig* cfg);
+int32_t zgl_backend_scale();                    // surface pixels per logical pixel: zoom x density in a desktop window, 1 on a panel
 void zgl_backend_size(int32_t* w, int32_t* h);  // drawable pixels
 void zgl_backend_swap();
 void zgl_backend_poll(HalInput* in, int32_t w, int32_t h);  // buttons, pointer (logical), touch, quit
@@ -25,7 +26,8 @@ void zgl_backend_shutdown();
 
 extern "C" void (*zgl_layers)(int32_t, int32_t) = nullptr;
 
-static int32_t W, H;
+static int32_t W, H;          // logical size (input, zgl_logical_size)
+static int32_t K = 1, PW, PH;  // the frames' pixels: W x H times K (Retina)
 static uint32_t* fb;
 static GLuint overlay, prog, quad;
 static long frames_left = -1;  // ZINC_FRAMES / ZINC_SHOT, as in hal_sdl
@@ -92,19 +94,20 @@ static void choose_renderer(const HalFrame* f) {
 static int init(const HalConfig* cfg) {
   W = cfg->width; H = cfg->height;
   if (!zgl_backend_init(cfg)) return 0;
+  K = zgl_backend_scale(); PW = W * K; PH = H * K;
 #ifdef __APPLE__
   GLuint vao;  // core profile: one VAO bound for the whole program
   glGenVertexArrays(1, &vao);
   glBindVertexArray(vao);
 #endif
-  fb = (uint32_t*)calloc((size_t)W * H, 4);
+  fb = (uint32_t*)calloc((size_t)PW * PH, 4);
   glGenTextures(1, &overlay);
   glBindTexture(GL_TEXTURE_2D, overlay);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, fb);
   prog = zgl_program("", OVL_VS, OVL_FS);
   if (!prog) return 0;
   static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
@@ -176,21 +179,21 @@ static void present(const HalFrame* f) {
     // the intermediate texture and the copy pass are skipped), or into the surface texture, then copied to the window.
     static const int mode = getenv("ZINC_GL_DIRECT") ? atoi(getenv("ZINC_GL_DIRECT")) : 2;   // 0 texture, 1 direct, 2 adaptive
     static bool tex_ok = false;   // the texture holds the last frame
-    bool can = dw == W && dh == H && !zgl_layers;
+    bool can = dw == PW && dh == PH && !zgl_layers;
     int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
-    direct = can && damaged && (mode == 1 || (mode == 2 && area * 2 >= (int64_t)W * H));
-    if (direct) { glr::frame(f, true, glr::Rect{0, 0, W, H}); tex_ok = false; }
+    direct = can && damaged && (mode == 1 || (mode == 2 && area * 2 >= (int64_t)PW * PH));
+    if (direct) { glr::frame(f, true, glr::Rect{0, 0, PW, PH}); tex_ok = false; }
     else if (damaged || !tex_ok) {
-      glr::frame(f, false, tex_ok && damaged ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, W, H});
+      glr::frame(f, false, tex_ok && damaged ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
       tex_ok = true;
     } else glr::idle();
     if (tm) { glFinish(); tb = glr::now_us(); t_rep += tb - ta; }
   } else if (damaged) {
     double t0 = cpu_stats ? glr::now_us() : 0;
-    f->render(fb + (size_t)f->y0 * W, f->y0, f->y1);
+    f->render(fb + (size_t)f->y0 * PW, f->y0, f->y1);
     if (cpu_stats) { cpu_us += glr::now_us() - t0; cpu_n++; }
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, W, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)f->y0 * W);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)f->y0 * PW);
   }
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glViewport(0, 0, dw, dh);
@@ -245,5 +248,6 @@ static void shutdown() {
   zgl_backend_shutdown();
 }
 
-static HalDisplay display = {init, present, poll, shutdown, 1, 0};  // SDL events are read in src/sdl.cpp
+static int32_t scale() { return K; }
+static HalDisplay display = {init, present, poll, shutdown, 1, 0, scale};  // SDL events are read in src/sdl.cpp
 static int registered = (hal_display = &display, 0);

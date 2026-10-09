@@ -19,7 +19,7 @@ Options (`"display": { "driver": "gl", ... }` or `plugins.display-gl`):
 
 | target | status | backend | notes |
 |---|---|---|---|
-| macos | supported, verified (screenshots through `glReadPixels`) | SDL3 window, OpenGL 3.2 core | `brew install sdl3`; Retina drawable size is used for GPU layers |
+| macos | supported, verified (screenshots through `glReadPixels`) | SDL3 window, OpenGL 3.2 core | `brew install sdl3`; the window opens at hal_sdl's zoom (2 below 400 px wide, `ZINC_ZOOM`) and the surface has its pixels: zoom x Retina density (`ZINC_SCALE` overrides) |
 | rpi1 build on Pi 3B+ / 4 / 5 (32-bit OS) | builds in docker (Alpine 3.20 armhf, Mesa 24); **not run on hardware** | KMS/DRM + GBM + EGL + GLES 2.0, no X/Wayland | Mesa `vc4` (Pi 3, `dtoverlay=vc4-kms-v3d`) or `v3d` (Pi 4/5); run from a console (the program must be DRM master), user in the `video` and `input` groups |
 | rpi1 on Pi 1 / Zero | builds; not a target for GPU work | same (vc4) | same VideoCore IV as the Pi 3 but a 700 MHz/1 GHz ARMv6 CPU: the UI overlay upload and any runtime image upload dominate; fine for a static screen, not for mapping |
 | linux arm64 (Raspberry Pi OS 64-bit, Debian trixie) | supported, **verified on a Pi 3B+** (see below) | KMS/DRM + GBM + EGL + GLES 2.0 (Mesa `vc4`), same `kms.cpp` | built in `zinc/sdk-linux` (Debian `libegl-dev libgles-dev libgbm-dev libdrm-dev`), links the distribution's `libEGL` / `libGLESv2` / `libgbm` / `libdrm`; run from a console |
@@ -170,8 +170,8 @@ Three changes, each behind an environment switch so one binary can be compared w
 Correctness of the quad split was checked on macOS with `scripts/gl-compare.sh` (`ZINC_GL_SPLIT=0` and `1` give the
 same numbers to the last digit: rects 2, gradients 3, borders 3, shadows 4, clip 2, text 2, images 194 max channel
 difference, only the known 1 px image offset above the threshold; the split scene uses 78 quads instead of 18 for
-the shadows scene). The direct path cannot run on the macOS Retina drawable (its size is not the surface size): its
-pixels were **not** compared with the CPU on the Pi.
+the shadows scene). The direct path did not run on the macOS Retina drawable then (the surface was logical-sized; it has the window's pixels
+since the HiDPI fix): its pixels were **not** compared with the CPU on the Pi.
 
 **Measured on the Pi 3B+ after the reboot** (`scripts/pi-gl-matrix.sh`: 27 runs of 600 frames, each under
 `timeout -s KILL 60`, GPU reset counter read before and after each: **0 resets in the whole batch**, `throttled` 0x0

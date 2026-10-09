@@ -12,6 +12,8 @@
 static SDL_Window* win;
 static SDL_GLContext ctx;
 static bool quit;
+static float zoom = 1;   // window points per logical pixel
+static int lw, lh;       // logical size
 
 bool zgl_backend_init(const HalConfig* cfg) {
   if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "display-gl: %s\n", SDL_GetError()); return false; }
@@ -21,14 +23,32 @@ bool zgl_backend_init(const HalConfig* cfg) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);   // the GL renderer's occlusion of what opaque rectangles hide (ZN-412.01)
-  int scale = cfg->width <= 400 ? 3 : cfg->width <= 700 ? 2 : 1;
-  if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z) > 0 ? atoi(z) : scale;   // window size in points, as in hal_sdl (zinc.json zoom)
+  // window size in points as in hal_sdl: tiny surfaces doubled (ZINC_ZOOM overrides), a surface larger than the screen scaled down to fit
+  int scale = cfg->width <= 400 ? 2 : 1;
+  if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z) > 0 ? atoi(z) : scale;
+  zoom = scale; lw = cfg->width; lh = cfg->height;
+  float ww = (float)cfg->width * scale, wh = (float)cfg->height * scale;
+  SDL_Rect usable;
+  if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
+    const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
+    if (fit < 1) { ww *= fit; wh *= fit; zoom *= fit; }
+  }
   SDL_WindowFlags fl = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | (ZP_DISPLAY_GL_FULLSCREEN ? SDL_WINDOW_FULLSCREEN : 0);
-  win = SDL_CreateWindow(cfg->title, cfg->width * scale, cfg->height * scale, fl);
+  win = SDL_CreateWindow(cfg->title, (int)ww, (int)wh, fl);
   if (!win || !(ctx = SDL_GL_CreateContext(win))) { fprintf(stderr, "display-gl: %s\n", SDL_GetError()); return false; }
   SDL_GL_MakeCurrent(win, ctx);
   SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);   // ZINC_VSYNC=0: as fast as the frames come (measurements)
   return true;
+}
+
+// zoom x the screen's density (2 on Retina), so the surface has the window's own pixels and is not stretched; ZINC_SCALE overrides, capped at 4K like hal_sdl
+int32_t zgl_backend_scale() {
+  const float density = SDL_GetWindowPixelDensity(win);
+  int32_t k = (int32_t)(zoom * (density > 0 ? density : 1) + 0.5f);
+  if (const char* ks = getenv("ZINC_SCALE")) k = atoi(ks);
+  if (k < 1) k = 1;
+  while (k > 1 && (long)lw * k * lh * k > 3840L * 2400L) k--;
+  return k;
 }
 
 void zgl_backend_size(int32_t* w, int32_t* h) { int a, b; SDL_GetWindowSizeInPixels(win, &a, &b); *w = a; *h = b; }

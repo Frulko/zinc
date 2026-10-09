@@ -205,6 +205,7 @@ bool zgl_backend_init(const HalConfig* cfg) {
   return true;
 }
 
+int32_t zgl_backend_scale() { return 1; }   // the panel's own pixels
 void zgl_backend_size(int32_t* w, int32_t* h) { *w = mode.hdisplay; *h = mode.vdisplay; }
 
 static void drop_fb(gbm_bo* bo, void* data) { uint32_t id = (uint32_t)(uintptr_t)data; if (id) drmModeRmFB(fd, id); (void)bo; }
