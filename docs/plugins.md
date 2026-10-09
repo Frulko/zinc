@@ -115,6 +115,11 @@ then `next/tools/index-repo build idx keys.json e/entries.json` and commit `idx/
 zinc trusts); put the content of `keys.json` in the repository secret `ZINC_INDEX_KEYS`. Without the secret the workflow
 publishes no index. The root expires after a year: publish `2.root.json` signed by the old and the new root keys before then.
 
+Before compiling a plugin, zinc asks the index for `binaries/<target>/<name>-<key>.tar` (`<key>` is the cache key above, so a
+plugin whose sources changed never matches an old binary). A hit is checked by the TUF client (signatures, length, SHA-256),
+unpacked into the cache, and nothing is compiled; a refused archive is reported and the plugin is built here, as on a miss.
+`ZINC_PREBUILT=0` turns the lookup off. Publishers make the archive with `zinc plugin-build <name> --pack <file.tar>`.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

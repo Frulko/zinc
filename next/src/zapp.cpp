@@ -93,7 +93,7 @@ std::string pack(const std::map<std::string, std::string>& files, const std::str
   return ustar(entries);
 }
 
-bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err) {
+bool untar(const std::string& archive, std::map<std::string, std::string>& files, std::string& err) {
   files.clear();
   std::size_t at = 0;
   while (at + 512 <= archive.size()) {
@@ -101,7 +101,7 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
     bool zero = true;
     for (int i = 0; i < 512; ++i) if (h[i] != 0) { zero = false; break; }
     if (zero) break;
-    if (std::memcmp(h + 257, "ustar", 5) != 0) { err = "not a .zapp archive (no ustar header at byte " + std::to_string(at) + ")"; return false; }
+    if (std::memcmp(h + 257, "ustar", 5) != 0) { err = "not a ustar archive (no header at byte " + std::to_string(at) + ")"; return false; }
     unsigned sum = 0;
     for (int i = 0; i < 512; ++i) sum += (i >= 148 && i < 156) ? ' ' : static_cast<unsigned char>(h[i]);
     if (std::strtoul(std::string(h + 148, 8).c_str(), nullptr, 8) != sum) { err = "the archive is corrupted (a header checksum is wrong)"; return false; }
@@ -110,9 +110,14 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
     const std::size_t size = std::strtoull(std::string(h + 124, 12).c_str(), nullptr, 8);
     if (name.empty() || name.find("..") != std::string::npos || name[0] == '/') { err = "the archive names a file outside it: " + name; return false; }
     if (at + 512 + size > archive.size()) { err = "the archive is truncated"; return false; }
-    files[name] = archive.substr(at + 512, size);
+    if (h[156] == '0' || h[156] == 0) files[name] = archive.substr(at + 512, size);   // files; directories are implied by the names
     at += 512 + (size + 511) / 512 * 512;
   }
+  return true;
+}
+
+bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err) {
+  if (!untar(archive, files, err)) return false;
   auto m = files.find("manifest.json");
   if (m == files.end()) { err = "not a .zapp archive (no manifest.json)"; return false; }
   yyjson_doc* doc = yyjson_read(m->second.data(), m->second.size(), 0);

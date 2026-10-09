@@ -1,15 +1,19 @@
 #include "tc/plugin_build.h"
+#include "tc/tuf.h"
+#include "zapp.h"
 
 #include <dlfcn.h>
 #include <sys/wait.h>
 
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include "frontend/native_gen.h"
@@ -164,6 +168,55 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
   return nullptr;
 }
 
+// A published binary (ZN-337): binaries/<target>/<name>-<cache key>.tar from the signed plugin index (the TUF client checks the index's signatures and the
+// archive's length and SHA-256), unpacked into the cache entry with its digest, so nothing is compiled. The key covers the sources, so a changed plugin misses.
+// Off with ZINC_PREBUILT=0; no trusted index root, or the index unreachable: a silent miss; a refused archive is said, then the plugin is built here.
+void fetchPrebuilt(const std::string& name, const std::string& key, const std::string& target, const std::string& engineRoot, const std::string& dir, const std::string& vdir, PluginLib& out) {
+  if (const char* off = std::getenv("ZINC_PREBUILT"); off && std::string(off) == "0") return;
+  const fs::path cache = fs::path(home()) / "index";
+  std::error_code ec;
+  if (!fs::exists(cache / "root.json", ec)) {
+    const char* r = std::getenv("ZINC_INDEX_ROOT");
+    const fs::path root = r && *r ? fs::path(r) : fs::path(engineRoot) / "index" / "root.json";
+    if (!fs::exists(root, ec)) return;
+    fs::create_directories(cache, ec);
+    fs::copy_file(root, cache / "root.json", ec);
+  }
+  const char* u = std::getenv("ZINC_INDEX_URL");
+  const std::string base = std::string(u && *u ? u : "https://zinc-engine.github.io/zinc/index") + "/";
+  const fs::path tmp = fs::path(dir) / "fetch.tmp";
+  tuf::Client c(cache.string(), [&](const std::string& path, std::string& bytes) {
+    std::string file = base.rfind("file://", 0) == 0 ? base.substr(7) + path : std::string();
+    if (file.empty()) {
+      std::string e;
+      if (!run("curl -fsSL --max-filesize 268435456 -o " + q(tmp.string()) + " " + q(base + path), e, "the download")) return false;
+      file = tmp.string();
+    }
+    const bool ok = readAll(file, bytes);
+    fs::remove(tmp, ec);
+    return ok;
+  }, static_cast<long long>(std::time(nullptr)));
+  std::string err, bytes;
+  tuf::Target t;
+  const std::string path = "binaries/" + target + "/" + name + "-" + key + ".tar";
+  if (!c.refresh(err) || !c.find(path, t, err)) return;   // no index here, or no binary for this key: build
+  if (!c.download(t, bytes, err)) { std::fprintf(stderr, "zinc: the published binary %s was refused (%s); building plugin '%s' here\n", path.c_str(), err.c_str(), name.c_str()); return; }
+  std::map<std::string, std::string> files;
+  if (!zapp::untar(bytes, files, err)) { std::fprintf(stderr, "zinc: the published binary %s is not a readable archive (%s); building it here\n", path.c_str(), err.c_str()); return; }
+  const std::string shared = fs::path(out.shared).filename().string();
+  std::string so, ar, vendor;
+  for (const auto& [n, b] : files) {
+    const std::string f = fs::path(n).filename().string();
+    if (f == shared) so = b; else if (f == "plugin.a") ar = b; else if (f == "vendor.a") vendor = b;
+  }
+  if (ar.empty() || (so.empty() && !gCross.on) || (!out.vendor.empty() && vendor.empty())) { std::fprintf(stderr, "zinc: the published binary %s lacks a library; building it here\n", path.c_str()); return; }
+  std::ofstream(out.shared, std::ios::binary) << (so.empty() ? std::string("cross build: no shared library\n") : so);
+  std::ofstream(out.archive, std::ios::binary) << ar;
+  if (!out.vendor.empty()) { fs::create_directories(vdir, ec); std::ofstream(out.vendor, std::ios::binary) << vendor; }
+  std::ofstream(dir + "/plugin.sha256") << sha256File(out.shared) << " " << sha256File(out.archive) << "\n";
+  out.fetched = true;
+}
+
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
   auto t0 = std::chrono::steady_clock::now();
   const frontend::PluginManifest& m = p.manifest;
@@ -287,7 +340,8 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   for (const std::string& s : vendored) { vh.add(fs::path(s).filename().string()); vh.add(sha256File(s)); }   // by content, so a copy of the plugin shares the archive
   h.add(gKeyTarget); vh.add(gKeyTarget);   // the machine the code is for: aarch64-linux-gnu from a Mac and in a Linux container alike
   std::string cache = home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugins";
-  std::string dir = cache + "/" + m.name + "-" + h.hex();
+  const std::string keyHex = h.hex();
+  std::string dir = cache + "/" + m.name + "-" + keyHex;
   std::string vdir = cache + "/" + m.name + "-vendor-" + vh.hex();
   bool dyn = true;
   std::string ext = pluginTarget() == "macos" ? ".dylib" : ".so";
@@ -299,6 +353,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   const std::string remap = " -ffile-prefix-map=" + q(p.dir) + "=plugins/" + m.name + " -ffile-prefix-map=" + q(dir) + "=cache -ffile-prefix-map=" + q(vdir) + "=cache" +
                             " -ffile-prefix-map=" + q(fs::path(root).parent_path().string()) + "=zinc -ffile-prefix-map=" + q(home() + "/toolchains") + "=toolchains";
   fs::create_directories(dir, ec);
+  if (!fs::exists(out.shared) || !fs::exists(out.archive)) fetchPrebuilt(m.name, keyHex, gCross.on ? gCross.name : target, engineRoot, dir, vdir, out);   // ZN-337: a published binary first
   if (!vendored.empty() && !fs::exists(out.vendor)) {   // the vendored C libraries: compiled once for these defines
     fs::create_directories(vdir, ec);
     std::string objs;

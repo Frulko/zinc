@@ -17,6 +17,7 @@ struct PluginLib {
   std::vector<std::string> linkArgs;   // -l, -framework, pkg-config --libs and linkFlags for a program that links the archives
   bool display = false;                // a display driver (kind "display"): no native module, its static constructor registers it with the HAL; AOT links it whole
   bool rebuilt = false;                // false when the cache already held it
+  bool fetched = false;                // a published binary of the signed index was used (ZN-337)
   bool prebuilt = false;               // the plugin's own prebuilt/<target>/ libraries were used (ZN-328.03)
   std::string key;                     // what prebuilt/<target>/key must hold for them to be used: the ABI headers and the defines
   double seconds = 0;

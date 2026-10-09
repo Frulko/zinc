@@ -26,6 +26,9 @@ std::string ar(const std::vector<std::pair<std::string, std::string>>& members);
 /** The archive of `files` (name -> bytes): manifest.json is made here from the others. */
 std::string pack(const std::map<std::string, std::string>& files, const std::string& name, const std::string& engine);
 
+/** The files of a ustar archive (`files`: name -> bytes; directories left out), every header checksum checked, names outside it refused. */
+bool untar(const std::string& archive, std::map<std::string, std::string>& files, std::string& err);
+
 /** The files of an archive, checked; false with `err` for a corrupted archive or one made for a newer format or engine than `engine`. */
 bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err);
 

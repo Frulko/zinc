@@ -1568,7 +1568,7 @@ int main(int argc, char** argv) {
     zn::tc::PluginLib lib;
     std::string err;
     if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-    std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.fetched ? "fetched" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
     if (!packOut.empty()) {
       namespace fs = std::filesystem;
       std::vector<zn::zapp::TarEntry> files;
