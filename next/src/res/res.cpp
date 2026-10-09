@@ -557,7 +557,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   for (std::size_t si = 0; si < sources.size(); ++si) {
     const std::string& text = sources[si];
     // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
-    // say "text (": those faces and the grid come from the program's own files; the runtime rasterizes the rest from the TrueType files (ZN-428)
+    // say "text (": those faces and the grid come from the program's own files (ZN-428)
     const bool lib = embedTtf && si < opt.library.size() && opt.library[si];
     if (!lib && !gridUsed && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText)) gridUsed = true;
     // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
