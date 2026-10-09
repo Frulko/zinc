@@ -525,7 +525,7 @@ static std::string signature(const std::string& entry) {
   std::string s = entry;
   for (const fs::path& f : {exe, libs / "libzn_rt.a", libs / "libzn_host_gfx.a"}) s += " " + stampOf(f);
   for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_NATIVE", "ZINC_PLUGIN_CC", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
-                        "ZN_AOT_PART_BYTES", "ZN_DEBUG_CLOSURES", "ZN_KEEP_SYMBOLS", "ZN_KEEP_UNREACHABLE", "ZN_NO_OPT", "ZN_NO_UNROLL"})
+                        "ZN_AOT_PART_BYTES", "ZN_DEBUG_CLOSURES", "ZN_KEEP_SYMBOLS", "ZN_KEEP_UNREACHABLE", "ZN_NO_LEND", "ZN_NO_OPT", "ZN_NO_UNROLL"})
     if (const char* e = std::getenv(v)) s += std::string(" ") + v + "=" + e;
   return s;
 }

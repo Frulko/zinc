@@ -92,205 +92,189 @@ func @main() -> void nregs=6
   77  Rt       r4, Array.join
   78  Release  r3
   79  GetField r3, r1, .1
-  80  Retain   r3
+  80  ArrLen   r3, r3
   81  Release  r1
-  82  ArrLen   r1, r3
-  83  Release  r3
-  84  LogStr   r2
+  82  LogStr   r2
+  83  LogSep   
+  84  LogStr   r4
   85  LogSep   
-  86  LogStr   r4
-  87  LogSep   
-  88  LogI     r1
-  89  LogEnd   
-  90  Release  r2
-  91  Release  r4
-  92  New      r1, Line
-  93  New      r2, Point
-  94  LoadK    r3, f64 1
-  95  SetField r2, r3, .0
-  96  LoadK    r3, f64 2
-  97  SetField r2, r3, .1
-  98  SetField r1, r2, .0
-  99  Retain   r0
- 100  SetField r1, r0, .1
- 101  GetField r2, r1, .1
- 102  Retain   r2
- 103  LoadK    r3, f64 10
- 104  SetField r2, r3, .0
- 105  Release  r2
- 106  GetField r2, r1, .0
- 107  Retain   r2
- 108  GetField r3, r2, .1
- 109  Release  r2
- 110  GetField r2, r1, .1
- 111  Retain   r2
- 112  Release  r1
- 113  GetField r1, r2, .0
- 114  Release  r2
- 115  GetField r2, r0, .0
- 116  LogF64   r3
- 117  LogSep   
- 118  LogF64   r1
- 119  LogSep   
- 120  LogF64   r2
- 121  LogEnd   
- 122  New      r1, ref Point[]
- 123  New      r2, Point
- 124  LoadK    r3, f64 1
- 125  SetField r2, r3, .0
- 126  LoadK    r3, f64 1
- 127  SetField r2, r3, .1
- 128  ArrPush  r2, r1, r2
- 129  New      r2, Point
- 130  LoadK    r3, f64 2
- 131  SetField r2, r3, .0
- 132  LoadK    r3, f64 4
- 133  SetField r2, r3, .1
- 134  ArrPush  r2, r1, r2
- 135  ArrPush  r0, r1, r0
- 136  LoadK    r0, f64 0
- 137  LoadI    r2, 0
- 138  ArrLen   r3, r1
- 139  JLeI     r3, r2, -> 151
- 141  ArrGet   r3, r1, r2
- 142  Retain   r3
- 143  GetField r4, r3, .0
- 144  GetField r5, r3, .1
- 145  Release  r3
- 146  MulF64   r3, r4, r5
- 147  AddF64   r3, r0, r3
- 148  AddI32K  r2, r2, 1
- 149  Move     r0, r3
- 150  Jmp      -> 138
- 151  ArrLen   r2, r1
- 152  Release  r1
- 153  LogF64   r0
- 154  LogSep   
- 155  LogI     r2
- 156  LogEnd   
- 157  New      r0, Map<str, ref Point>
- 158  LoadStr  r2, "k"
- 159  New      r3, Point
- 160  LoadK    r1, f64 5
- 161  SetField r3, r1, .0
- 162  LoadK    r1, f64 6
- 163  SetField r3, r1, .1
- 164  Move     r1, r0
- 165  Rt       r1, Map.set
- 166  Release  r1
- 167  LoadStr  r2, "k"
- 168  Move     r3, r0
- 169  Move     r4, r2
- 170  Rt       r3, Map.has
- 171  JmpIfNot r3, -> 176
- 172  Move     r1, r0
- 173  Rt       r1, Map.get
- 174  Retain   r1
- 175  Jmp      -> 181
- 176  New      r1, Point
- 177  LoadK    r2, f64 0
- 178  SetField r1, r2, .0
- 179  LoadK    r2, f64 0
- 180  SetField r1, r2, .1
- 181  GetField r2, r1, .0
- 182  GetField r3, r1, .1
- 183  Release  r1
- 184  AddF64   r1, r2, r3
- 185  LoadStr  r3, "z"
- 186  Move     r2, r0
- 187  Rt       r2, Map.has
- 188  Release  r0
- 189  LogF64   r1
- 190  LogSep   
- 191  LogBool  r2
- 192  LogEnd   
- 193  New      r0, { id: f64; label: string; ok: boolean }
- 194  LoadK    r1, f64 7
- 195  SetField r0, r1, .0
- 196  LoadStr  r1, "seven"
- 197  SetField r0, r1, .1
- 198  LoadI    r1, 1
- 199  SetField r0, r1, .2
- 200  New      r1, { id: f64; label: string; ok: boolean }
- 201  LoadK    r2, f64 8
- 202  SetField r1, r2, .0
- 203  LoadStr  r2, "eight"
- 204  SetField r1, r2, .1
- 205  LoadI    r2, 0
- 206  SetField r1, r2, .2
- 207  New      r2, ref "{ id: f64; label: string; ok: boolean }"[]
- 208  Retain   r0
- 209  ArrPush  r3, r2, r0
- 210  Retain   r1
- 211  ArrPush  r3, r2, r1
- 212  GetField r3, r0, .0
- 213  GetField r4, r1, .0
- 214  AddF64   r3, r3, r4
- 215  LoadI    r4, 1
- 216  ArrGet   r4, r2, r4
- 217  Retain   r4
- 218  GetField r5, r4, .1
- 219  Retain   r5
- 220  Release  r4
- 221  ArrLen   r4, r2
- 222  Release  r2
- 223  GetField r2, r0, .2
- 224  Release  r0
- 225  LogF64   r3
- 226  LogSep   
- 227  LogStr   r5
- 228  LogSep   
- 229  LogI     r4
- 230  LogSep   
- 231  LogBool  r2
- 232  LogEnd   
- 233  Release  r5
- 234  GetField r0, r1, .1
- 235  Retain   r0
- 236  Release  r1
- 237  LogStr   r0
- 238  LogEnd   
- 239  Release  r0
- 240  New      r0, { inner: { v: f64 }; list: f64[] }
- 241  New      r1, { v: f64 }
- 242  LoadK    r2, f64 1.5
- 243  SetField r1, r2, .0
- 244  SetField r0, r1, .0
- 245  New      r1, f64[]
- 246  LoadK    r2, f64 1
- 247  ArrPush  r2, r1, r2
- 248  LoadK    r2, f64 2
- 249  ArrPush  r2, r1, r2
- 250  LoadK    r2, f64 3
- 251  ArrPush  r2, r1, r2
- 252  SetField r0, r1, .1
- 253  GetField r1, r0, .0
- 254  Retain   r1
- 255  GetField r2, r1, .0
- 256  Release  r1
- 257  LoadK    r1, f64 2
- 258  MulF64   r1, r2, r1
- 259  GetField r2, r0, .1
- 260  Retain   r2
- 261  Release  r0
- 262  ArrLen   r0, r2
- 263  Release  r2
- 264  LogF64   r1
- 265  LogSep   
- 266  LogI     r0
- 267  LogEnd   
- 268  LoadStr  r0, "q"
- 269  New      r1, { key: string; n: f64 }
- 270  SetField r1, r0, .0
- 271  LoadK    r0, f64 2
- 272  SetField r1, r0, .1
- 273  GetField r0, r1, .0
- 274  Retain   r0
- 275  GetField r2, r1, .1
- 276  Release  r1
- 277  LogStr   r0
- 278  LogSep   
- 279  LogF64   r2
- 280  LogEnd   
- 281  Release  r0
- 282  RetV     
+  86  LogI     r3
+  87  LogEnd   
+  88  Release  r2
+  89  Release  r4
+  90  New      r1, Line
+  91  New      r2, Point
+  92  LoadK    r3, f64 1
+  93  SetField r2, r3, .0
+  94  LoadK    r3, f64 2
+  95  SetField r2, r3, .1
+  96  SetField r1, r2, .0
+  97  Retain   r0
+  98  SetField r1, r0, .1
+  99  GetField r2, r1, .1
+ 100  LoadK    r3, f64 10
+ 101  SetField r2, r3, .0
+ 102  GetField r2, r1, .0
+ 103  GetField r2, r2, .1
+ 104  GetField r3, r1, .1
+ 105  GetField r3, r3, .0
+ 106  Release  r1
+ 107  GetField r1, r0, .0
+ 108  LogF64   r2
+ 109  LogSep   
+ 110  LogF64   r3
+ 111  LogSep   
+ 112  LogF64   r1
+ 113  LogEnd   
+ 114  New      r1, ref Point[]
+ 115  New      r2, Point
+ 116  LoadK    r3, f64 1
+ 117  SetField r2, r3, .0
+ 118  LoadK    r3, f64 1
+ 119  SetField r2, r3, .1
+ 120  ArrPush  r2, r1, r2
+ 121  New      r2, Point
+ 122  LoadK    r3, f64 2
+ 123  SetField r2, r3, .0
+ 124  LoadK    r3, f64 4
+ 125  SetField r2, r3, .1
+ 126  ArrPush  r2, r1, r2
+ 127  ArrPush  r0, r1, r0
+ 128  LoadK    r0, f64 0
+ 129  LoadI    r2, 0
+ 130  ArrLen   r3, r1
+ 131  JLeI     r3, r2, -> 141
+ 133  ArrGet   r3, r1, r2
+ 134  GetField r4, r3, .0
+ 135  GetField r3, r3, .1
+ 136  MulF64   r3, r4, r3
+ 137  AddF64   r3, r0, r3
+ 138  AddI32K  r2, r2, 1
+ 139  Move     r0, r3
+ 140  Jmp      -> 130
+ 141  ArrLen   r2, r1
+ 142  Release  r1
+ 143  LogF64   r0
+ 144  LogSep   
+ 145  LogI     r2
+ 146  LogEnd   
+ 147  New      r0, Map<str, ref Point>
+ 148  LoadStr  r2, "k"
+ 149  New      r3, Point
+ 150  LoadK    r1, f64 5
+ 151  SetField r3, r1, .0
+ 152  LoadK    r1, f64 6
+ 153  SetField r3, r1, .1
+ 154  Move     r1, r0
+ 155  Rt       r1, Map.set
+ 156  Release  r1
+ 157  LoadStr  r2, "k"
+ 158  Move     r3, r0
+ 159  Move     r4, r2
+ 160  Rt       r3, Map.has
+ 161  JmpIfNot r3, -> 166
+ 162  Move     r1, r0
+ 163  Rt       r1, Map.get
+ 164  Retain   r1
+ 165  Jmp      -> 171
+ 166  New      r1, Point
+ 167  LoadK    r2, f64 0
+ 168  SetField r1, r2, .0
+ 169  LoadK    r2, f64 0
+ 170  SetField r1, r2, .1
+ 171  GetField r2, r1, .0
+ 172  GetField r3, r1, .1
+ 173  Release  r1
+ 174  AddF64   r1, r2, r3
+ 175  LoadStr  r3, "z"
+ 176  Move     r2, r0
+ 177  Rt       r2, Map.has
+ 178  Release  r0
+ 179  LogF64   r1
+ 180  LogSep   
+ 181  LogBool  r2
+ 182  LogEnd   
+ 183  New      r0, { id: f64; label: string; ok: boolean }
+ 184  LoadK    r1, f64 7
+ 185  SetField r0, r1, .0
+ 186  LoadStr  r1, "seven"
+ 187  SetField r0, r1, .1
+ 188  LoadI    r1, 1
+ 189  SetField r0, r1, .2
+ 190  New      r1, { id: f64; label: string; ok: boolean }
+ 191  LoadK    r2, f64 8
+ 192  SetField r1, r2, .0
+ 193  LoadStr  r2, "eight"
+ 194  SetField r1, r2, .1
+ 195  LoadI    r2, 0
+ 196  SetField r1, r2, .2
+ 197  New      r2, ref "{ id: f64; label: string; ok: boolean }"[]
+ 198  Retain   r0
+ 199  ArrPush  r3, r2, r0
+ 200  Retain   r1
+ 201  ArrPush  r3, r2, r1
+ 202  GetField r3, r0, .0
+ 203  GetField r4, r1, .0
+ 204  AddF64   r3, r3, r4
+ 205  LoadI    r4, 1
+ 206  ArrGet   r4, r2, r4
+ 207  GetField r4, r4, .1
+ 208  Retain   r4
+ 209  ArrLen   r5, r2
+ 210  Release  r2
+ 211  GetField r2, r0, .2
+ 212  Release  r0
+ 213  LogF64   r3
+ 214  LogSep   
+ 215  LogStr   r4
+ 216  LogSep   
+ 217  LogI     r5
+ 218  LogSep   
+ 219  LogBool  r2
+ 220  LogEnd   
+ 221  Release  r4
+ 222  GetField r0, r1, .1
+ 223  Retain   r0
+ 224  Release  r1
+ 225  LogStr   r0
+ 226  LogEnd   
+ 227  Release  r0
+ 228  New      r0, { inner: { v: f64 }; list: f64[] }
+ 229  New      r1, { v: f64 }
+ 230  LoadK    r2, f64 1.5
+ 231  SetField r1, r2, .0
+ 232  SetField r0, r1, .0
+ 233  New      r1, f64[]
+ 234  LoadK    r2, f64 1
+ 235  ArrPush  r2, r1, r2
+ 236  LoadK    r2, f64 2
+ 237  ArrPush  r2, r1, r2
+ 238  LoadK    r2, f64 3
+ 239  ArrPush  r2, r1, r2
+ 240  SetField r0, r1, .1
+ 241  GetField r1, r0, .0
+ 242  GetField r1, r1, .0
+ 243  LoadK    r2, f64 2
+ 244  MulF64   r1, r1, r2
+ 245  GetField r2, r0, .1
+ 246  ArrLen   r2, r2
+ 247  Release  r0
+ 248  LogF64   r1
+ 249  LogSep   
+ 250  LogI     r2
+ 251  LogEnd   
+ 252  LoadStr  r0, "q"
+ 253  New      r1, { key: string; n: f64 }
+ 254  SetField r1, r0, .0
+ 255  LoadK    r0, f64 2
+ 256  SetField r1, r0, .1
+ 257  GetField r0, r1, .0
+ 258  Retain   r0
+ 259  GetField r2, r1, .1
+ 260  Release  r1
+ 261  LogStr   r0
+ 262  LogSep   
+ 263  LogF64   r2
+ 264  LogEnd   
+ 265  Release  r0
+ 266  RetV     

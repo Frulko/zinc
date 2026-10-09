@@ -283,50 +283,48 @@ func @main() -> void nregs=17
  297  CallVirt r9, .area
  298  LoadI    r10, 1
  299  ArrGet   r10, r7, r10
- 300  Retain   r10
- 301  Release  r7
- 302  GetField r7, r10, .0
- 303  GetField r11, r10, .1
- 304  Release  r10
- 305  EqI      r7, r7, r11
- 306  LogI     r8
+ 300  GetField r11, r10, .0
+ 301  GetField r10, r10, .1
+ 302  Release  r7
+ 303  EqI      r7, r11, r10
+ 304  LogI     r8
+ 305  LogSep   
+ 306  LogBool  r6
  307  LogSep   
- 308  LogBool  r6
+ 308  LogI     r9
  309  LogSep   
- 310  LogI     r9
- 311  LogSep   
- 312  LogBool  r7
- 313  LogEnd   
- 314  LoadK    r6, f64 0
- 315  LoadK    r7, f64 0
- 316  JNLtF    r7, r0, -> 332
- 318  RemF64   r8, r7, r1
- 319  JNeF     r8, r2, -> 323
- 321  Move     r8, r6
- 322  Jmp      -> 329
- 323  JNeF     r8, r3, -> 327
- 325  AddF64   r8, r6, r5
- 326  Jmp      -> 328
- 327  AddF64   r8, r6, r3
- 328  AddF64   r8, r8, r4
- 329  AddF64   r7, r7, r3
- 330  Move     r6, r8
- 331  Jmp      -> 316
- 332  LogF64   r6
- 333  LogEnd   
- 334  LoadI    r0, 10
- 335  LoadI    r1, 10
- 336  EqI      r1, r0, r1
- 337  AddI32K  r0, r0, 1
- 338  LoadI    r2, 5
- 339  AddI32K  r2, r2, 0
- 340  LogBool  r1
+ 310  LogBool  r7
+ 311  LogEnd   
+ 312  LoadK    r6, f64 0
+ 313  LoadK    r7, f64 0
+ 314  JNLtF    r7, r0, -> 330
+ 316  RemF64   r8, r7, r1
+ 317  JNeF     r8, r2, -> 321
+ 319  Move     r8, r6
+ 320  Jmp      -> 327
+ 321  JNeF     r8, r3, -> 325
+ 323  AddF64   r8, r6, r5
+ 324  Jmp      -> 326
+ 325  AddF64   r8, r6, r3
+ 326  AddF64   r8, r8, r4
+ 327  AddF64   r7, r7, r3
+ 328  Move     r6, r8
+ 329  Jmp      -> 314
+ 330  LogF64   r6
+ 331  LogEnd   
+ 332  LoadI    r0, 10
+ 333  LoadI    r1, 10
+ 334  EqI      r1, r0, r1
+ 335  AddI32K  r0, r0, 1
+ 336  LoadI    r2, 5
+ 337  AddI32K  r2, r2, 0
+ 338  LogBool  r1
+ 339  LogSep   
+ 340  LogI     r0
  341  LogSep   
- 342  LogI     r0
- 343  LogSep   
- 344  LogI     r2
- 345  LogEnd   
- 346  RetV     
+ 342  LogI     r2
+ 343  LogEnd   
+ 344  RetV     
 func @Rect.area(ref Rect) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r0, .1

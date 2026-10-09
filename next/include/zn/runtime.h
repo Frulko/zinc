@@ -273,5 +273,17 @@ inline bool rtConsumes(Rt id, unsigned paramIndex) {
   }
 }
 inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
+// Rows that may drop a reference the program holds or run its code (a comparator, a toString, the event loop): a value a load lends is
+// retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
+// graphics host (numbers, borrowed strings and arrays, no callbacks).
+inline bool rtMayRelease(Rt id) {
+  if (id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) return false;
+  if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
+  switch (id) {
+    case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:
+    case Rt::SetHas: case Rt::SetValues: case Rt::SetSize: return false;
+    default: return true;
+  }
+}
 
 }  // namespace zn

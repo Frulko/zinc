@@ -180,50 +180,35 @@ func @main() -> void nregs=11
  138  RetV     
   handler 39 -> 41 r0 Error
   handler 48 -> 50 r0 Error
-func @Error.__errorString(ref Error) -> ref str nregs=5
+func @Error.__errorString(ref Error) -> ref str nregs=4
    0  GetField r1, r0, .0
-   1  Retain   r1
-   2  LoadStr  r3, ""
-   3  Move     r2, r1
-   4  Rt       r2, string.#eq
-   5  Release  r1
-   6  JmpIfNot r2, -> 11
-   7  GetField r1, r0, .1
-   8  Retain   r1
-   9  Release  r0
-  10  Jmp      -> 26
-  11  GetField r1, r0, .1
-  12  Retain   r1
-  13  LoadStr  r3, ": "
-  14  Move     r2, r1
-  15  Rt       r2, string.#concat
-  16  Release  r1
-  17  GetField r1, r0, .0
-  18  Retain   r1
-  19  Release  r0
-  20  Move     r3, r2
-  21  Move     r4, r1
-  22  Rt       r3, string.#concat
-  23  Release  r2
-  24  Release  r1
-  25  Move     r1, r3
-  26  Ret      r1
+   1  LoadStr  r2, ""
+   2  Rt       r1, string.#eq
+   3  JmpIfNot r1, -> 8
+   4  GetField r1, r0, .1
+   5  Retain   r1
+   6  Release  r0
+   7  Jmp      -> 17
+   8  GetField r1, r0, .1
+   9  LoadStr  r2, ": "
+  10  Rt       r1, string.#concat
+  11  GetField r3, r0, .0
+  12  Move     r2, r1
+  13  Rt       r2, string.#concat
+  14  Release  r0
+  15  Release  r1
+  16  Move     r1, r2
+  17  Ret      r1
 func @lambda0(ref lambda0) -> i nregs=3
    0  GetField r1, r0, .0
-   1  Retain   r1
-   2  GetField r2, r1, .0
-   3  Release  r1
-   4  AddI32K  r1, r2, 1
-   5  GetField r2, r0, .0
-   6  Retain   r2
-   7  SetField r2, r1, .0
-   8  Release  r2
-   9  GetField r1, r0, .0
-  10  Retain   r1
-  11  Release  r0
-  12  GetField r0, r1, .0
-  13  Release  r1
-  14  Ret      r0
+   1  GetField r1, r1, .0
+   2  AddI32K  r1, r1, 1
+   3  GetField r2, r0, .0
+   4  SetField r2, r1, .0
+   5  GetField r1, r0, .0
+   6  GetField r1, r1, .0
+   7  Release  r0
+   8  Ret      r1
 func @lambda1(ref lambda1, i) -> i nregs=5
    0  GetField r2, r0, .0
    1  Retain   r2
@@ -244,16 +229,14 @@ func @lambda2(ref lambda2, i) -> i nregs=3
    1  Release  r0
    2  AddI32   r0, r1, r2
    3  Ret      r0
-func @lambda3:on(ref lambda3:on) -> i nregs=2
+func @lambda3:on(ref lambda3:on) -> i nregs=3
    0  GetField r1, r0, .0
-   1  Retain   r1
-   2  Release  r0
-   3  GetField r0, r1, .0
-   4  AddI32K  r0, r0, 1
-   5  SetField r1, r0, .0
-   6  GetField r0, r1, .0
-   7  Release  r1
-   8  Ret      r0
+   1  GetField r2, r1, .0
+   2  AddI32K  r2, r2, 1
+   3  SetField r1, r2, .0
+   4  GetField r1, r1, .0
+   5  Release  r0
+   6  Ret      r1
 func @lambda4:add5(ref lambda4:add5, i) -> i nregs=2
    0  Release  r0
    1  AddI32K  r0, r1, 5

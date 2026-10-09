@@ -70,189 +70,178 @@ func @main() -> void nregs=12
   23  GetField r2, r0, .0
   24  Retain   r2
   25  GetField r3, r0, .1
-  26  Retain   r3
-  27  Release  r0
-  28  Move     r0, r3
-  29  Downcast r0, lambda3
-  30  Retain   r0
-  31  GetField r4, r0, .0
-  32  Retain   r4
-  33  GetField r5, r4, .0
+  26  Move     r4, r3
+  27  Downcast r4, lambda3
+  28  Retain   r4
+  29  GetField r5, r4, .0
+  30  GetField r5, r5, .0
+  31  AddI32K  r5, r5, 1
+  32  GetField r6, r4, .0
+  33  SetField r6, r5, .0
   34  Release  r4
-  35  AddI32K  r4, r5, 1
-  36  GetField r5, r0, .0
-  37  Retain   r5
-  38  Release  r0
-  39  SetField r5, r4, .0
-  40  Release  r5
-  41  Move     r0, r3
-  42  Downcast r0, lambda3
-  43  Retain   r0
-  44  Release  r3
-  45  GetField r3, r0, .0
-  46  Retain   r3
-  47  GetField r4, r3, .0
-  48  Release  r3
-  49  AddI32K  r3, r4, 1
-  50  GetField r4, r0, .0
-  51  Retain   r4
-  52  Release  r0
-  53  SetField r4, r3, .0
-  54  Release  r4
-  55  LoadI    r4, 5
-  56  Move     r3, r1
-  57  CallVirt r3, .call
-  58  New      r0, Counter
-  59  LoadI    r1, 2
-  60  SetField r0, r1, .0
-  61  LoadI    r1, 0
-  62  SetField r0, r1, .1
-  63  New      r1, lambda8
-  64  Retain   r0
-  65  SetField r1, r0, .0
-  66  Move     r3, r1
-  67  Retain   r3
-  68  Release  r1
-  69  Retain   r3
-  70  Move     r4, r3
-  71  CallVirt r4, .call
-  72  LoadI    r1, 1
-  73  New      r4, lambda0
-  74  SetField r4, r1, .0
-  75  Move     r1, r4
-  76  Retain   r1
-  77  Release  r4
-  78  LoadI    r4, 2
-  79  Move     r5, r1
-  80  Downcast r5, lambda0
-  81  Retain   r5
-  82  Release  r1
-  83  New      r1, lambda1
-  84  GetField r6, r5, .0
-  85  Release  r5
-  86  SetField r1, r6, .0
-  87  SetField r1, r4, .1
-  88  Move     r4, r1
-  89  Retain   r4
-  90  Release  r1
-  91  LoadI    r5, 3
-  92  CallVirt r4, .call
-  93  Move     r5, r2
-  94  CallVirt r5, .call
-  95  New      r1, fnref sq
-  96  Move     r2, r1
-  97  Retain   r2
-  98  Release  r1
-  99  New      r1, lambda4
- 100  SetField r1, r2, .0
- 101  Move     r2, r1
- 102  Retain   r2
- 103  Release  r1
- 104  LoadI    r7, 3
- 105  Move     r6, r2
- 106  CallVirt r6, .call
- 107  New      r1, lambda9
- 108  Move     r2, r1
- 109  Retain   r2
- 110  Release  r1
- 111  New      r1, lambda4
- 112  SetField r1, r2, .0
- 113  Move     r2, r1
- 114  Retain   r2
- 115  Release  r1
- 116  LoadI    r8, 0
- 117  Move     r7, r2
- 118  CallVirt r7, .call
- 119  LoadI    r1, 10
- 120  New      r2, cell i32
- 121  SetField r2, r1, .0
- 122  New      r1, lambda6:add
- 123  Retain   r2
- 124  SetField r1, r2, .0
- 125  Move     r8, r1
- 126  Retain   r8
- 127  Release  r1
- 128  LoadI    r10, 1
- 129  Retain   r8
- 130  Move     r9, r8
- 131  CallVirt r9, .call
- 132  LoadI    r9, 2
- 133  CallVirt r8, .call
- 134  GetField r1, r2, .0
- 135  Release  r2
- 136  LoadI    r2, 0
- 137  LoadI    r8, 0
- 138  JGeIK    r8, 3, -> 152
- 140  LoadI    r9, 10
- 141  MulI32   r9, r8, r9
- 142  New      r10, lambda7:f
- 143  SetField r10, r9, .0
- 144  Move     r9, r10
- 145  Retain   r9
- 146  Release  r10
- 147  CallVirt r9, .call
- 148  AddI32   r9, r2, r9
- 149  AddI32K  r8, r8, 1
- 150  Move     r2, r9
- 151  Jmp      -> 138
- 152  GetGlobalr8, g0
- 153  Move     r9, r3
- 154  CallVirt r9, .call
- 155  GetField r3, r0, .1
- 156  Release  r0
- 157  LogI     r4
- 158  LogSep   
- 159  LogI     r5
- 160  LogSep   
- 161  LogI     r6
- 162  LogSep   
- 163  LogI     r7
- 164  LogSep   
- 165  LogI     r1
- 166  LogSep   
- 167  LogI     r2
- 168  LogSep   
- 169  LogI     r8
- 170  LogSep   
- 171  LogI     r9
- 172  LogSep   
- 173  LogI     r3
- 174  LogEnd   
- 175  New      r0, lambda10:fn2
- 176  Move     r1, r0
- 177  Retain   r1
- 178  Release  r0
- 179  LoadI    r0, 6
- 180  LoadI    r2, 7
- 181  Move     r3, r1
- 182  Downcast r3, lambda10:fn2
- 183  Release  r1
- 184  MulI32   r0, r0, r2
- 185  New      r1, lambda11
- 186  Move     r2, r1
- 187  Retain   r2
- 188  Release  r1
- 189  LoadI    r1, 41
- 190  Move     r11, r1
- 191  Move     r1, r2
- 192  Move     r2, r11
- 193  CallVirt r1, .call
- 194  New      r2, lambda12
- 195  Move     r3, r2
- 196  Retain   r3
- 197  Release  r2
- 198  LoadI    r2, 8
- 199  Move     r11, r2
- 200  Move     r2, r3
- 201  Move     r3, r11
- 202  CallVirt r2, .call
- 203  LogI     r0
- 204  LogSep   
- 205  LogI     r1
- 206  LogSep   
- 207  LogI     r2
- 208  LogEnd   
- 209  RetV     
+  35  Downcast r3, lambda3
+  36  Retain   r3
+  37  Release  r0
+  38  GetField r0, r3, .0
+  39  GetField r0, r0, .0
+  40  AddI32K  r0, r0, 1
+  41  GetField r4, r3, .0
+  42  SetField r4, r0, .0
+  43  Release  r3
+  44  LoadI    r4, 5
+  45  Move     r3, r1
+  46  CallVirt r3, .call
+  47  New      r0, Counter
+  48  LoadI    r1, 2
+  49  SetField r0, r1, .0
+  50  LoadI    r1, 0
+  51  SetField r0, r1, .1
+  52  New      r1, lambda8
+  53  Retain   r0
+  54  SetField r1, r0, .0
+  55  Move     r3, r1
+  56  Retain   r3
+  57  Release  r1
+  58  Retain   r3
+  59  Move     r4, r3
+  60  CallVirt r4, .call
+  61  LoadI    r1, 1
+  62  New      r4, lambda0
+  63  SetField r4, r1, .0
+  64  Move     r1, r4
+  65  Retain   r1
+  66  Release  r4
+  67  LoadI    r4, 2
+  68  Move     r5, r1
+  69  Downcast r5, lambda0
+  70  Retain   r5
+  71  Release  r1
+  72  New      r1, lambda1
+  73  GetField r6, r5, .0
+  74  Release  r5
+  75  SetField r1, r6, .0
+  76  SetField r1, r4, .1
+  77  Move     r4, r1
+  78  Retain   r4
+  79  Release  r1
+  80  LoadI    r5, 3
+  81  CallVirt r4, .call
+  82  Move     r5, r2
+  83  CallVirt r5, .call
+  84  New      r1, fnref sq
+  85  Move     r2, r1
+  86  Retain   r2
+  87  Release  r1
+  88  New      r1, lambda4
+  89  SetField r1, r2, .0
+  90  Move     r2, r1
+  91  Retain   r2
+  92  Release  r1
+  93  LoadI    r7, 3
+  94  Move     r6, r2
+  95  CallVirt r6, .call
+  96  New      r1, lambda9
+  97  Move     r2, r1
+  98  Retain   r2
+  99  Release  r1
+ 100  New      r1, lambda4
+ 101  SetField r1, r2, .0
+ 102  Move     r2, r1
+ 103  Retain   r2
+ 104  Release  r1
+ 105  LoadI    r8, 0
+ 106  Move     r7, r2
+ 107  CallVirt r7, .call
+ 108  LoadI    r1, 10
+ 109  New      r2, cell i32
+ 110  SetField r2, r1, .0
+ 111  New      r1, lambda6:add
+ 112  Retain   r2
+ 113  SetField r1, r2, .0
+ 114  Move     r8, r1
+ 115  Retain   r8
+ 116  Release  r1
+ 117  LoadI    r10, 1
+ 118  Retain   r8
+ 119  Move     r9, r8
+ 120  CallVirt r9, .call
+ 121  LoadI    r9, 2
+ 122  CallVirt r8, .call
+ 123  GetField r1, r2, .0
+ 124  Release  r2
+ 125  LoadI    r2, 0
+ 126  LoadI    r8, 0
+ 127  JGeIK    r8, 3, -> 141
+ 129  LoadI    r9, 10
+ 130  MulI32   r9, r8, r9
+ 131  New      r10, lambda7:f
+ 132  SetField r10, r9, .0
+ 133  Move     r9, r10
+ 134  Retain   r9
+ 135  Release  r10
+ 136  CallVirt r9, .call
+ 137  AddI32   r9, r2, r9
+ 138  AddI32K  r8, r8, 1
+ 139  Move     r2, r9
+ 140  Jmp      -> 127
+ 141  GetGlobalr8, g0
+ 142  Move     r9, r3
+ 143  CallVirt r9, .call
+ 144  GetField r3, r0, .1
+ 145  Release  r0
+ 146  LogI     r4
+ 147  LogSep   
+ 148  LogI     r5
+ 149  LogSep   
+ 150  LogI     r6
+ 151  LogSep   
+ 152  LogI     r7
+ 153  LogSep   
+ 154  LogI     r1
+ 155  LogSep   
+ 156  LogI     r2
+ 157  LogSep   
+ 158  LogI     r8
+ 159  LogSep   
+ 160  LogI     r9
+ 161  LogSep   
+ 162  LogI     r3
+ 163  LogEnd   
+ 164  New      r0, lambda10:fn2
+ 165  Move     r1, r0
+ 166  Retain   r1
+ 167  Release  r0
+ 168  LoadI    r0, 6
+ 169  LoadI    r2, 7
+ 170  Move     r3, r1
+ 171  Downcast r3, lambda10:fn2
+ 172  Release  r1
+ 173  MulI32   r0, r0, r2
+ 174  New      r1, lambda11
+ 175  Move     r2, r1
+ 176  Retain   r2
+ 177  Release  r1
+ 178  LoadI    r1, 41
+ 179  Move     r11, r1
+ 180  Move     r1, r2
+ 181  Move     r2, r11
+ 182  CallVirt r1, .call
+ 183  New      r2, lambda12
+ 184  Move     r3, r2
+ 185  Retain   r3
+ 186  Release  r2
+ 187  LoadI    r2, 8
+ 188  Move     r11, r2
+ 189  Move     r2, r3
+ 190  Move     r3, r11
+ 191  CallVirt r2, .call
+ 192  LogI     r0
+ 193  LogSep   
+ 194  LogI     r1
+ 195  LogSep   
+ 196  LogI     r2
+ 197  LogEnd   
+ 198  RetV     
 func @Counter.make(ref Counter) -> ref fn () => i32 nregs=2
    0  New      r1, lambda8
    1  SetField r1, r0, .0
@@ -279,23 +268,17 @@ func @lambda1(ref lambda1, i) -> i nregs=4
    5  Ret      r0
 func @lambda2(ref lambda2) -> i nregs=2
    0  GetField r1, r0, .0
-   1  Retain   r1
+   1  GetField r1, r1, .0
    2  Release  r0
-   3  GetField r0, r1, .0
-   4  Release  r1
-   5  Ret      r0
+   3  Ret      r1
 func @lambda3(ref lambda3) -> void nregs=3
    0  GetField r1, r0, .0
-   1  Retain   r1
-   2  GetField r2, r1, .0
-   3  Release  r1
-   4  AddI32K  r1, r2, 1
-   5  GetField r2, r0, .0
-   6  Retain   r2
-   7  Release  r0
-   8  SetField r2, r1, .0
-   9  Release  r2
-  10  RetV     
+   1  GetField r1, r1, .0
+   2  AddI32K  r1, r1, 1
+   3  GetField r2, r0, .0
+   4  SetField r2, r1, .0
+   5  Release  r0
+   6  RetV     
 func @lambda4(ref lambda4, i) -> i nregs=5
    0  GetField r2, r0, .0
    1  Retain   r2
@@ -314,34 +297,28 @@ func @lambda5:bump(ref lambda5:bump, i) -> void nregs=2
    2  AddI32   r0, r0, r1
    3  SetGlobalr0, g0
    4  RetV     
-func @lambda6:add(ref lambda6:add, i) -> void nregs=4
+func @lambda6:add(ref lambda6:add, i) -> void nregs=3
    0  GetField r2, r0, .0
-   1  Retain   r2
-   2  GetField r3, r2, .0
-   3  Release  r2
-   4  AddI32   r1, r3, r1
-   5  GetField r2, r0, .0
-   6  Retain   r2
-   7  Release  r0
-   8  SetField r2, r1, .0
-   9  Release  r2
-  10  RetV     
+   1  GetField r2, r2, .0
+   2  AddI32   r1, r2, r1
+   3  GetField r2, r0, .0
+   4  SetField r2, r1, .0
+   5  Release  r0
+   6  RetV     
 func @lambda7:f(ref lambda7:f) -> i nregs=2
    0  GetField r1, r0, .0
    1  Release  r0
    2  AddI32K  r0, r1, 1
    3  Ret      r0
-func @lambda8(ref lambda8) -> i nregs=3
+func @lambda8(ref lambda8) -> i nregs=4
    0  GetField r1, r0, .0
-   1  Retain   r1
-   2  Release  r0
-   3  GetField r0, r1, .1
-   4  GetField r2, r1, .0
-   5  AddI32   r0, r0, r2
-   6  SetField r1, r0, .1
-   7  GetField r0, r1, .1
-   8  Release  r1
-   9  Ret      r0
+   1  GetField r2, r1, .1
+   2  GetField r3, r1, .0
+   3  AddI32   r2, r2, r3
+   4  SetField r1, r2, .1
+   5  GetField r1, r1, .1
+   6  Release  r0
+   7  Ret      r1
 func @lambda9(ref lambda9, i) -> i nregs=2
    0  Release  r0
    1  AddI32K  r0, r1, 1

@@ -65,82 +65,80 @@ func @main() -> void nregs=17
   48  LoadK    r10, f64 3
   49  SetField r7, r10, .1
   50  GetField r10, r7, .0
-  51  Retain   r10
-  52  GetField r11, r10, .0
-  53  GetField r12, r10, .1
-  54  Release  r10
-  55  GetField r10, r7, .1
-  56  Release  r7
-  57  LoadI    r7, 9
-  58  SetField r0, r7, .0
-  59  New      r7, [i32, i32]
-  60  LoadI    r13, 1
-  61  SetField r7, r13, .0
-  62  LoadI    r13, 2
-  63  SetField r7, r13, .1
-  64  New      r13, P
-  65  LoadI    r14, 3
-  66  LoadI    r15, 4
-  67  SetField r13, r14, .0
-  68  SetField r13, r15, .1
-  69  GetField r14, r7, .0
-  70  GetField r15, r7, .1
-  71  Release  r7
-  72  GetField r7, r13, .0
-  73  GetField r16, r13, .1
-  74  Release  r13
-  75  AddI32   r13, r14, r15
-  76  AddI32   r7, r13, r7
-  77  AddI32   r7, r7, r16
-  78  GetField r13, r0, .0
-  79  GetField r14, r0, .1
-  80  Release  r0
-  81  LogI     r1
+  51  GetField r11, r10, .0
+  52  GetField r10, r10, .1
+  53  GetField r12, r7, .1
+  54  Release  r7
+  55  LoadI    r7, 9
+  56  SetField r0, r7, .0
+  57  New      r7, [i32, i32]
+  58  LoadI    r13, 1
+  59  SetField r7, r13, .0
+  60  LoadI    r13, 2
+  61  SetField r7, r13, .1
+  62  New      r13, P
+  63  LoadI    r14, 3
+  64  LoadI    r15, 4
+  65  SetField r13, r14, .0
+  66  SetField r13, r15, .1
+  67  GetField r14, r7, .0
+  68  GetField r15, r7, .1
+  69  Release  r7
+  70  GetField r7, r13, .0
+  71  GetField r16, r13, .1
+  72  Release  r13
+  73  AddI32   r13, r14, r15
+  74  AddI32   r7, r13, r7
+  75  AddI32   r7, r7, r16
+  76  GetField r13, r0, .0
+  77  GetField r14, r0, .1
+  78  Release  r0
+  79  LogI     r1
+  80  LogSep   
+  81  LogF64   r2
   82  LogSep   
-  83  LogF64   r2
+  83  LogI     r3
   84  LogSep   
-  85  LogI     r3
+  85  LogI     r4
   86  LogSep   
-  87  LogI     r4
+  87  LogI     r5
   88  LogSep   
-  89  LogI     r5
+  89  LogI     r6
   90  LogSep   
-  91  LogI     r6
+  91  LogI     r8
   92  LogSep   
-  93  LogI     r8
+  93  LogI     r9
   94  LogSep   
-  95  LogI     r9
+  95  LogI     r7
   96  LogSep   
-  97  LogI     r7
+  97  LogI     r13
   98  LogSep   
-  99  LogI     r13
+  99  LogF64   r14
  100  LogSep   
- 101  LogF64   r14
+ 101  LogF64   r11
  102  LogSep   
- 103  LogF64   r11
+ 103  LogF64   r10
  104  LogSep   
  105  LogF64   r12
- 106  LogSep   
- 107  LogF64   r10
- 108  LogEnd   
- 109  LoadI    r0, 0
- 110  LoadI    r1, 10
- 111  LoadI    r2, 0
- 112  JGeIK    r2, 4, -> 126
- 114  New      r3, [i32, i32]
- 115  SubI32   r4, r1, r2
- 116  SetField r3, r4, .0
- 117  AddI32   r4, r0, r2
- 118  SetField r3, r4, .1
- 119  GetField r4, r3, .0
- 120  GetField r5, r3, .1
- 121  Release  r3
- 122  AddI32K  r2, r2, 1
- 123  Move     r1, r5
- 124  Move     r0, r4
- 125  Jmp      -> 112
- 126  LogI     r0
- 127  LogSep   
- 128  LogI     r1
- 129  LogEnd   
- 130  RetV     
+ 106  LogEnd   
+ 107  LoadI    r0, 0
+ 108  LoadI    r1, 10
+ 109  LoadI    r2, 0
+ 110  JGeIK    r2, 4, -> 124
+ 112  New      r3, [i32, i32]
+ 113  SubI32   r4, r1, r2
+ 114  SetField r3, r4, .0
+ 115  AddI32   r4, r0, r2
+ 116  SetField r3, r4, .1
+ 117  GetField r4, r3, .0
+ 118  GetField r5, r3, .1
+ 119  Release  r3
+ 120  AddI32K  r2, r2, 1
+ 121  Move     r1, r5
+ 122  Move     r0, r4
+ 123  Jmp      -> 110
+ 124  LogI     r0
+ 125  LogSep   
+ 126  LogI     r1
+ 127  LogEnd   
+ 128  RetV     

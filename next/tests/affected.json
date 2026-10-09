@@ -39,7 +39,7 @@
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang"]},
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
-    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast"]},
+    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},

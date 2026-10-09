@@ -9,6 +9,7 @@
 //     retained or released.
 // So the last use of a value costs nothing, and the destruction points are a property of the IR, not of an engine.
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 
 #include "ir/ir.h"
@@ -46,6 +47,7 @@ struct Rc {
   const std::vector<char>& mayThrow;  // per function
   std::size_t nb, nv;
   std::vector<char> tracked;
+  std::vector<ValueId> anchor;   // per lent value: the tracked value it was read from (or the root of that chain), kept alive to its last use
   std::vector<std::vector<char>> liveIn, liveOut, reach;
 
   Rc(Module& mod, Function& fn, const std::vector<char>& thr) : m(mod), f(fn), mayThrow(thr), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
@@ -71,33 +73,72 @@ struct Rc {
     return i;
   }
 
-  // Whether nothing in the function can release a reference or pass one on: no calls, no stores of references, no references in block
-  // parameters or the result. Then what a load lends stays alive as long as the function runs, and needs no retain and release.
-  bool lendsForever() const {
-    if (refLike(m, f.ret)) return false;
-    for (const Block& b : f.blocks) {
-      for (ValueId p : b.params) if (refLike(m, f.valueTypes[p])) return false;
-      for (const Inst& i : b.insts) {
-        switch (i.op) {
-          case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::Rt: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return false;
-          case IrOp::SetField: if (refLike(m, f.valueTypes[i.args[1]])) return false; break;
-          case IrOp::ArrSet: case IrOp::ArrPush: if (refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]])) return false; break;
-          default: break;
-        }
-      }
+  // Whether an instruction may drop a reference the function was lent, or run code that could: calls, stores of references, the runtime
+  // rows that release or call back (rtMayRelease), console output (an object's toString).
+  bool mayRelease(const Inst& i) const {
+    switch (i.op) {
+      case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return true;
+      case IrOp::Builtin: return i.sym == static_cast<std::uint32_t>(Builtin::ConsoleLog) || i.sym == static_cast<std::uint32_t>(Builtin::ConsoleError);
+      case IrOp::Rt: return rtMayRelease(static_cast<zn::Rt>(i.sym));
+      case IrOp::ToStr: return !i.args.empty() && refLike(m, f.valueTypes[i.args[0]]);
+      case IrOp::SetField: return refLike(m, f.valueTypes[i.args[1]]);
+      case IrOp::ArrSet: case IrOp::ArrPush: return refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]]);
+      default: return false;
     }
-    return true;
   }
 
+  // A load lends its value: no retain and no release when no use consumes it (a call argument, a store, a return, an edge) and nothing in
+  // its live range may release (ZN-413). What it was read from stays alive meanwhile: a global (nothing in the range stores), or the tracked
+  // value at the root of the chain of loads, its anchor, whose last use becomes the lent value's last use.
   void classify() {
     tracked.assign(nv, 0);
-    bool lent = lendsForever();
-    for (const Block& b : f.blocks) {
-      for (ValueId p : b.params) tracked[p] = refLike(m, f.valueTypes[p]);
-      for (const Inst& i : b.insts)
-        if (i.res != kNoValue && i.op != IrOp::Const) tracked[i.res] = refLike(m, f.valueTypes[i.res]) && !(lent && resultBorrowed(i) && i.op != IrOp::RefCast);   // a cast may lend an owned local that is released at its last use
+    anchor.assign(nv, kNoValue);
+    std::vector<const Inst*> defOf(nv, nullptr);
+    std::vector<BlockId> defBlock(nv, 0);
+    std::vector<std::size_t> defIdx(nv, 0);
+    for (BlockId b = 0; b < nb; ++b) {
+      for (ValueId p : f.blocks[b].params) tracked[p] = refLike(m, f.valueTypes[p]);
+      for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) {
+        const Inst& i = f.blocks[b].insts[k];
+        if (i.res == kNoValue || i.op == IrOp::Const) continue;
+        tracked[i.res] = refLike(m, f.valueTypes[i.res]);
+        defOf[i.res] = &i; defBlock[i.res] = b; defIdx[i.res] = k;
+      }
     }
+    liveness();
+    std::vector<char> lent(nv, 0), consumed(nv, 0);
+    for (BlockId b = 0; b < nb; ++b)
+      for (const Inst& i : f.blocks[b].insts) {
+        for (std::size_t k = 0; k < i.args.size(); ++k) if (i.args[k] < nv && consumes(i, k)) consumed[i.args[k]] = 1;
+        for (const Edge& e : i.edges) for (ValueId a : e.args) if (a < nv) consumed[a] = 1;
+      }
+    static const bool off = std::getenv("ZN_NO_LEND") != nullptr;   // every load retained, to measure what lending saves
+    for (std::size_t v = 0; v < nv && !off; ++v) {
+      const Inst* d = defOf[v];
+      if (!d || !tracked[v] || consumed[v] || !resultBorrowed(*d) || d->op == IrOp::RefCast) continue;   // a cast may lend an owned local that is released at its last use
+      bool ok = true;
+      for (BlockId b = 0; b < nb && ok; ++b) {
+        if (!reach[0][b] || (defBlock[v] != b && !liveIn[b][v])) continue;
+        const std::vector<Inst>& ins = f.blocks[b].insts;
+        long start = defBlock[v] == b ? static_cast<long>(defIdx[v]) + 1 : 0, end = -1;
+        if (liveOut[b][v]) end = static_cast<long>(ins.size()) - 1;
+        else for (std::size_t p = 0; p < ins.size(); ++p) {
+          bool uses = std::find(ins[p].args.begin(), ins[p].args.end(), static_cast<ValueId>(v)) != ins[p].args.end();
+          if (uses) end = static_cast<long>(p);
+        }
+        for (long p = start; p <= end && ok; ++p) ok = !mayRelease(ins[static_cast<std::size_t>(p)]);
+      }
+      lent[v] = ok;
+    }
+    for (std::size_t v = 0; v < nv; ++v) {
+      if (!lent[v]) continue;
+      ValueId l = defOf[v]->op == IrOp::GetGlobal ? kNoValue : defOf[v]->args[0];
+      while (l != kNoValue && l < nv && lent[l]) l = defOf[l]->op == IrOp::GetGlobal ? kNoValue : defOf[l]->args[0];
+      anchor[v] = l < nv && tracked[l] ? l : kNoValue;   // an untracked root (an immortal constant) needs no keeping
+    }
+    for (std::size_t v = 0; v < nv; ++v) if (lent[v]) tracked[v] = 0;
   }
+  ValueId anchorOf(ValueId v) const { return v < nv ? anchor[v] : kNoValue; }
 
   void liveness() {
     reach.assign(1, std::vector<char>(nb, 0));
@@ -114,7 +155,7 @@ struct Rc {
       for (ValueId p : f.blocks[b].params) def[b][p] = 1;
       auto usev = [&](ValueId v) { if (isTracked(v) && !def[b][v]) use[b][v] = 1; };
       for (const Inst& i : f.blocks[b].insts) {
-        for (ValueId a : i.args) usev(a);
+        for (ValueId a : i.args) { usev(a); if (anchorOf(a) != kNoValue) usev(anchorOf(a)); }
         for (const Edge& e : i.edges) for (ValueId a : e.args) usev(a);
         if (i.res != kNoValue) def[b][i.res] = 1;
       }
@@ -147,7 +188,7 @@ struct Rc {
     const std::size_t n = src.size();
     std::vector<long> lastIdx(nv, -1);  // the last instruction (the terminator counts its edge arguments) using each value
     for (std::size_t p = 0; p < n; ++p) {
-      for (ValueId a : src[p].args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
+      for (ValueId a : src[p].args) { if (isTracked(a)) lastIdx[a] = static_cast<long>(p); if (anchorOf(a) != kNoValue) lastIdx[anchorOf(a)] = static_cast<long>(p); }
       for (const Edge& e : src[p].edges) for (ValueId a : e.args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
     }
     auto usedAfter = [&](ValueId v, std::size_t p) { return liveOut[b][v] || lastIdx[v] > static_cast<long>(p); };
@@ -159,8 +200,10 @@ struct Rc {
     for (std::size_t p = 0; p + 1 < n; ++p) {
       Inst inst = src[p];
       std::map<ValueId, std::pair<int, int>> counts;  // consuming, borrowing occurrences in this instruction
-      for (std::size_t k = 0; k < inst.args.size(); ++k)
+      for (std::size_t k = 0; k < inst.args.size(); ++k) {
         if (isTracked(inst.args[k])) (consumes(inst, k) ? counts[inst.args[k]].first : counts[inst.args[k]].second)++;
+        else if (anchorOf(inst.args[k]) != kNoValue) counts[anchorOf(inst.args[k])].second++;   // a lent value's use keeps its anchor
+      }
       std::vector<ValueId> releaseAfter;
       for (auto& [v, cb] : counts) {
         bool dies = !liveOut[b][v] && lastIdx[v] == static_cast<long>(p);
