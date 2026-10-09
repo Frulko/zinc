@@ -11,7 +11,7 @@
 #define ZP_DISPLAY_GL_KEY 0
 #endif
 // renderer: "cpu" (software UI, uploaded as a texture: the default), "gl" (the command lists are replayed by
-// gl_renderer.cpp) or "auto" (gl, else cpu). zinc.json: "display": { "driver": "gl", "renderer": "gl" }; ZINC_RENDERER overrides.
+// runtime/gl_replay.cpp) or "auto" (gl, else cpu). zinc.json: "display": { "driver": "gl", "renderer": "gl" }; ZINC_RENDERER overrides.
 #ifndef ZP_DISPLAY_GL_RENDERER
 #define ZP_DISPLAY_GL_RENDERER "cpu"
 #endif
@@ -74,7 +74,7 @@ static const char* OVL_FS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform
   "void main() { vec4 t = texture2D(u_tex, v_uv); vec3 c = u_bgr > 0.5 ? t.bgr : t.rgb; float a = (u_key.a > 0.5 && distance(c, u_key.rgb) < 0.01) ? 0.0 : 1.0;\n"
   "  gl_FragColor = vec4(c * a, a); }\n";
 
-#include "gl_renderer.cpp"
+#include "gl_replay.cpp"   // runtime/gl_replay.cpp: the GL replay, shared with the SDL window (ZN-412.02)
 
 /** First frame: which renderer (option / ZINC_RENDERER), and the GPU one is set up now that the surface size is known. */
 static void choose_renderer(const HalFrame* f) {

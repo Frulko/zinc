@@ -35,8 +35,144 @@ static bool wcfg_set = false;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
 static uint32_t* tbuf;         // transparent windows: the rows being uploaded with their alpha
 static size_t tbuf_n;
+static bool surface_ok;        // the surface of the current size is allocated
+
+#ifdef ZN_HAL_GL
+// The window presents with OpenGL and replays the frame's command lists on the GPU (ZN-412.02, runtime/gl_replay.cpp): no software raster
+// per frame. The SDL_Renderer path stays for ZINC_RENDERER=cpu, transparent windows, display plugins, and when no hardware GL comes up
+// (none, llvmpipe, Apple's software renderer); screenshots and tests keep the software raster of the runtime.
+#include <OpenGL/gl3.h>
+#include "zrt_raster.h"
+static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // GLSL ES 1.00 sources as GLSL 1.50 core
+  static const char* pre_vs = "#version 150\n#define attribute in\n#define varying out\n";
+  static const char* pre_fs = "#version 150\n#define varying in\n#define texture2D texture\nout vec4 zgl_color;\n#define gl_FragColor zgl_color\n";
+  GLuint p = glCreateProgram();
+  const char* src[2][3] = {{pre_vs, defines, vs}, {pre_fs, defines, fs}};
+  for (int i = 0; i < 2; i++) {
+    GLuint sh = glCreateShader(i ? GL_FRAGMENT_SHADER : GL_VERTEX_SHADER);
+    glShaderSource(sh, 3, src[i], nullptr);
+    glCompileShader(sh);
+    GLint ok = 0;
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (!ok) { char log[1024]; glGetShaderInfoLog(sh, sizeof log, nullptr, log); fprintf(stderr, "zinc: window GL shader: %s\n", log); glDeleteShader(sh); glDeleteProgram(p); return 0; }
+    glAttachShader(p, sh);
+    glDeleteShader(sh);
+  }
+  glBindAttribLocation(p, 0, "a_pos");
+  glBindAttribLocation(p, 1, "a_uv");
+  glLinkProgram(p);
+  GLint ok = 0;
+  glGetProgramiv(p, GL_LINK_STATUS, &ok);
+  if (!ok) { glDeleteProgram(p); return 0; }
+  return p;
+}
+#define GLR_CORE 1
+#include "gl_replay.cpp"
+static SDL_GLContext glctx;
+static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
+static GLuint gl_prog, gl_quad, gl_upload, gl_vao;
+static GLint gl_u_tex, gl_u_bgr;
+// the present pass: a texture of the surface over the window (rows top first); u_bgr for the software rows (bytes B, G, R)
+static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n";
+static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr;\n"
+  "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, 1.0); }\n";
+/** Creates the window with an OpenGL context; false (nothing left behind) without a hardware context, unless ZINC_RENDERER=gl. */
+static bool gl_window(const char* title, int ww, int wh) {
+  const char* rr = getenv("ZINC_RENDERER");
+  const bool force = rr && !strcmp(rr, "gl");
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);   // the replay's occlusion pass
+  SDL_PropertiesID props = SDL_CreateProperties();
+  SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, wcfg_set && wcfg.title[0] ? wcfg.title : title);
+  SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, ww);
+  SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, wh);
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, !(wcfg_set && wcfg.not_resizable));
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, wcfg_set && wcfg.borderless != 0);
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg_set && wcfg.always_on_top != 0);
+  if (wcfg_set && wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);   // shown once the context proved good
+  win = SDL_CreateWindowWithProperties(props);
+  SDL_DestroyProperties(props);
+  if (!win) return false;
+  glctx = SDL_GL_CreateContext(win);
+  const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) ? (const char*)glGetString(GL_RENDERER) : nullptr;
+  const bool soft = r && (strstr(r, "llvmpipe") || strstr(r, "softpipe") || strstr(r, "Software"));
+  if (r && (!soft || force)) {
+    glGenVertexArrays(1, &gl_vao);   // core profile: one VAO bound for the whole program
+    glBindVertexArray(gl_vao);
+    gl_prog = zgl_program("", kPresentVS, kPresentFS);
+  }
+  if (!r || (soft && !force) || !gl_prog) {
+    if (glctx) SDL_GL_DestroyContext(glctx);
+    glctx = nullptr;
+    SDL_DestroyWindow(win);
+    win = nullptr;
+    return false;
+  }
+  gl_u_tex = glGetUniformLocation(gl_prog, "u_tex"); gl_u_bgr = glGetUniformLocation(gl_prog, "u_bgr");
+  static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
+  glGenBuffers(1, &gl_quad);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glBufferData(GL_ARRAY_BUFFER, sizeof q, q, GL_STATIC_DRAW);
+  glGenTextures(1, &gl_upload);
+  glBindTexture(GL_TEXTURE_2D, gl_upload);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  if (wcfg_set && (wcfg.min_w > 0 || wcfg.min_h > 0)) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
+  SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);
+  SDL_ShowWindow(win);
+  if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer gl (%s)\n", r);
+  return true;
+}
+// the surface's place in the window, letterboxed like SDL_LOGICAL_PRESENTATION_LETTERBOX: origin and scale in window points
+static void letterbox(float* ox, float* oy, float* sc) {
+  int ww = 1, wh = 1;
+  SDL_GetWindowSize(win, &ww, &wh);
+  const float s = SDL_min((float)ww / PW, (float)wh / PH);
+  *sc = s > 0 ? s : 1; *ox = (ww - PW * *sc) * 0.5f; *oy = (wh - PH * *sc) * 0.5f;
+}
+#endif
+// window points <-> surface pixels (the SDL_Renderer's logical presentation, or the GL window's letterbox)
+static void from_window(float wx, float wy, float* sx, float* sy) {
+  if (ren) { SDL_RenderCoordinatesFromWindow(ren, wx, wy, sx, sy); return; }
+#ifdef ZN_HAL_GL
+  float ox, oy, sc;
+  letterbox(&ox, &oy, &sc);
+  *sx = (wx - ox) / sc; *sy = (wy - oy) / sc;
+#else
+  *sx = wx; *sy = wy;
+#endif
+}
+static void to_window(float sx, float sy, float* wx, float* wy) {
+  if (ren) { SDL_RenderCoordinatesToWindow(ren, sx, sy, wx, wy); return; }
+#ifdef ZN_HAL_GL
+  float ox, oy, sc;
+  letterbox(&ox, &oy, &sc);
+  *wx = sx * sc + ox; *wy = sy * sc + oy;
+#else
+  *wx = sx; *wy = sy;
+#endif
+}
 
 static void alloc_surface() {
+  surface_ok = true;
+#ifdef ZN_HAL_GL
+  if (gl_on) {   // the software rows (frames without command lists) and the replay follow the surface
+    free(fb);
+    fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+    glBindTexture(GL_TEXTURE_2D, gl_upload);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+    glr_stale = true;   // the replay follows at the next present: set up once the program's fonts and images are installed
+    gl_tex_ok = false;
+    return;
+  }
+#endif
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
   SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
@@ -56,7 +192,7 @@ static void apply_size() {
   if (const char* ks = getenv("ZINC_SCALE")) k = atoi(ks);
   if (k < 1) k = 1;
   while (k > 1 && (long)nw * k * nh * k > 3840L * 2400L) k--;
-  if (nw == W && nh == H && k == K && tex) return;
+  if (nw == W && nh == H && k == K && surface_ok) return;
   W = nw; H = nh; K = k; PW = W * K; PH = H * K;
   alloc_surface();
 }
@@ -125,6 +261,14 @@ void hal_init(const HalConfig* cfg) {
     const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
     if (fit < 1) { ww = (int)(ww * fit); wh = (int)(wh * fit); }
   }
+#ifdef ZN_HAL_GL
+  {   // ZINC_RENDERER=cpu|gl|auto (default auto): GL when a hardware context comes up; transparent windows and display plugins stay on SDL_Renderer
+    const char* rr = getenv("ZINC_RENDERER");
+    if (!(rr && !strcmp(rr, "cpu")) && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
+  }
+  if (!gl_on) {
+    if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
+#endif
   if (!wcfg_set) {
     if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
       hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
@@ -147,9 +291,12 @@ void hal_init(const HalConfig* cfg) {
     if (wcfg.transparent) hal_sdl_transparent_layers(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr));
 #endif
   }
+#ifdef ZN_HAL_GL
+  }
+#endif
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
-  SDL_SetRenderVSync(ren, 1);
+  if (ren) SDL_SetRenderVSync(ren, 1);
   start_workers();
   if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
@@ -159,7 +306,10 @@ void hal_init(const HalConfig* cfg) {
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;
-  SDL_DestroyRenderer(ren);
+#ifdef ZN_HAL_GL
+  if (glctx) { if (glr_ok) glr::report(); SDL_GL_DestroyContext(glctx); }
+#endif
+  if (ren) SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
   SDL_Quit();
 }
@@ -169,7 +319,7 @@ void hal_frame_end(void) {}
 // Pen: SDL pen events (Wacom, tablets); the mouse stands in for a pen (left = draw, right = eraser, pressure 0.5).
 static HalPen pen;
 static void pen_push(float wx, float wy, uint32_t flags) {
-  if (ren) SDL_RenderCoordinatesFromWindow(ren, wx, wy, &wx, &wy);
+  from_window(wx, wy, &wx, &wy);
   pen.x = wx / K; pen.y = wy / K; pen.flags = flags;
   hal_pen_push(&pen);
 }
@@ -280,7 +430,7 @@ void hal_poll_input(HalInput* in) {
     if ((e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_UP) && in->nbtn < HAL_MAX_BUTTON_EVENTS) {
       HalButtonEvent& b = in->btn[in->nbtn++];
       float bx = e.button.x, by = e.button.y;
-      if (ren) SDL_RenderCoordinatesFromWindow(ren, bx, by, &bx, &by);
+      from_window(bx, by, &bx, &by);
       b.x = bx / K; b.y = by / K;
       b.button = e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0;
       b.down = e.button.down;
@@ -338,7 +488,7 @@ void hal_poll_input(HalInput* in) {
       if (k == in->ntouch && k < HAL_MAX_TOUCH) in->ntouch++;
       int ww, wh;
       float tx = e.tfinger.x * W, ty = e.tfinger.y * H;
-      if (SDL_GetWindowSize(win, &ww, &wh)) { SDL_RenderCoordinatesFromWindow(ren, e.tfinger.x * ww, e.tfinger.y * wh, &tx, &ty); tx /= K; ty /= K; }  // letterbox
+      if (SDL_GetWindowSize(win, &ww, &wh)) { from_window(e.tfinger.x * ww, e.tfinger.y * wh, &tx, &ty); tx /= K; ty /= K; }  // letterbox
       if (k < HAL_MAX_TOUCH) in->touch[k] = HalTouch{id, tx, ty};
     }
     if (e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) {
@@ -363,7 +513,7 @@ void hal_poll_input(HalInput* in) {
   in->buttons = b;
   float mx, my;
   SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
-  if (ren) { SDL_RenderCoordinatesFromWindow(ren, mx, my, &mx, &my); mx /= K; my /= K; }
+  if (win) { from_window(mx, my, &mx, &my); mx /= K; my /= K; }
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
   in->pbuttons = ((mb & SDL_BUTTON_LMASK) ? 1u : 0u) | ((mb & SDL_BUTTON_RMASK) ? 2u : 0u) | ((mb & SDL_BUTTON_MMASK) ? 4u : 0u);
   in->mods = mods_of(SDL_GetModState());
@@ -434,6 +584,59 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   band_done.wait(l, [] { return band_pending == 0; });
 }
 
+#ifdef ZN_HAL_GL
+// GL: the command lists replayed on the GPU into the replay's texture (or straight into the window when it has the surface's size and
+// most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
+static void gl_present(const HalFrame* f) {
+  if (glr_stale) {
+    glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
+    glr_made = true; glr_stale = false;
+  }
+  int dw = PW, dh = PH;
+  SDL_GetWindowSizeInPixels(win, &dw, &dh);
+  const bool damaged = f->y1 > f->y0 && f->x1 > f->x0;
+  GLuint src = glr::texture();
+  float bgr = 0;
+  if (glr_ok && f->frames) {
+    const int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
+    if (dw == PW && dh == PH && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
+      glr::frame(f, true, glr::Rect{0, 0, PW, PH});
+      gl_tex_ok = false;
+      SDL_GL_SwapWindow(win);
+      return;
+    }
+    if (damaged || !gl_tex_ok) { glr::frame(f, false, glr::Rect{0, 0, PW, PH}); gl_tex_ok = true; }
+    else glr::idle();
+  } else {
+    if (damaged) {
+      render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);   // fb keeps the previous frame
+      glBindTexture(GL_TEXTURE_2D, gl_upload);
+      glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)f->y0 * PW);
+    }
+    src = gl_upload; bgr = 1;   // 0x00RRGGBB in memory: B, G, R, 0
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
+  glViewport(0, 0, dw, dh);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
+  const float sc = SDL_min((float)dw / PW, (float)dh / PH);
+  const int vw = (int)(PW * sc + 0.5f), vh = (int)(PH * sc + 0.5f);
+  glViewport((dw - vw) / 2, (dh - vh) / 2, vw, vh);
+  glUseProgram(gl_prog);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, src);
+  glUniform1i(gl_u_tex, 0);
+  glUniform1f(gl_u_bgr, bgr);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisableVertexAttribArray(0);
+  SDL_GL_SwapWindow(win);
+}
+#endif
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
@@ -446,6 +649,9 @@ void hal_present(const HalFrame* f) {
     }
     return;
   }
+#ifdef ZN_HAL_GL
+  if (gl_on) { gl_present(f); return; }
+#endif
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
@@ -468,8 +674,8 @@ void hal_text_input(int32_t on, float x, float y, float w, float h) {
   if (!gfx_on) return;
   if (!on) { SDL_StopTextInput(win); return; }
   float x0 = x * K, y0 = y * K, x1 = (x + w) * K, y1 = (y + h) * K;
-  SDL_RenderCoordinatesToWindow(ren, x0, y0, &x0, &y0);
-  SDL_RenderCoordinatesToWindow(ren, x1, y1, &x1, &y1);
+  to_window(x0, y0, &x0, &y0);
+  to_window(x1, y1, &x1, &y1);
   SDL_Rect r = {(int)x0, (int)y0, (int)(x1 - x0), (int)(y1 - y0)};
   SDL_SetTextInputArea(win, &r, 0);
   SDL_StartTextInput(win);

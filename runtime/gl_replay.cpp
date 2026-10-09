@@ -1,9 +1,17 @@
-// display-gl GPU renderer: replays the frame's draw commands (zrt::raster::Cmd) with OpenGL instead of asking the
-// software rasterizer for pixels (docs/reports/gpu-renderer-design.md, phase 1). The result goes to an RGBA
-// texture of the surface size, which display_gl.cpp then presents exactly like the software overlay, so the layers,
-// the key colour and the screenshots keep working. The pixels follow runtime/raster.cpp: the coverage of a rounded
-// box is 0.5 - sdf at the pixel centre, glyphs sit on integer pixels, rounded CLIPs restore the corners.
-// Included by display_gl.cpp (one translation unit: plugin.json needs no new source). GLSL ES 1.00 dialect.
+// The GL replay: draws the frame's commands (zrt::raster::Cmd) with OpenGL instead of asking the software rasterizer for pixels
+// (docs/reports/gpu-renderer-design.md, phase 1). The result goes to an RGBA texture of the surface size (or straight into the window),
+// which the includer presents. The pixels follow runtime/raster.cpp: the coverage of a rounded box is 0.5 - sdf at the pixel centre,
+// glyphs sit on integer pixels, rounded CLIPs restore the corners. GLSL ES 1.00 dialect.
+// Included by its users, whose GL headers and `zgl_program` (shader preamble) it uses: plugins/display-gl/src/display_gl.cpp and the
+// SDL window, targets/macos/hal_sdl.cpp (ZN-412.02). Everything is static: each user has its own copy. GLR_CORE: 1 on a desktop core
+// profile (macOS, glad), 0 on GLES 2.
+#ifndef GLR_CORE
+#ifdef __APPLE__
+#define GLR_CORE 1
+#else
+#define GLR_CORE 0
+#endif
+#endif
 #include "zrt_raster.h"
 #include <string.h>
 #include <thread>
@@ -136,17 +144,17 @@ static GLuint make_tex(int32_t w, int32_t h, GLenum ifmt, GLenum fmt, const void
   glTexImage2D(GL_TEXTURE_2D, 0, (GLint)ifmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, px);
   return t;
 }
-#ifdef __APPLE__
+#if GLR_CORE
 static const GLenum A_IFMT = GL_R8, A_FMT = GL_RED;   // core profile: no LUMINANCE; the shader reads .r
 #else
 static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
 #endif
 
-bool init(int32_t w, int32_t h) {
+static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   prog = zgl_program("", VS, FS);
   if (!prog) return false;
-#ifdef __APPLE__
+#if GLR_CORE
   instanced = true;   // GL 3.3+ core: instanced draws and attribute divisors
 #endif
   sprog = zgl_program(instanced ? "#define INSTANCED 1\n" : "", SVS, SFS);
@@ -163,7 +171,7 @@ bool init(int32_t w, int32_t h) {
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_tex, 0);
   glGenRenderbuffers(1, &fbo_depth);
   glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
-#ifdef __APPLE__
+#if GLR_CORE
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, W, H);   // 24 bits: 4M commands told apart
 #else
   const char* ext = (const char*)glGetString(GL_EXTENSIONS);
@@ -187,7 +195,25 @@ bool init(int32_t w, int32_t h) {
   baked = (Tex2*)calloc(image_count > 0 ? (size_t)image_count : 1, sizeof(Tex2));
   return true;
 }
-GLuint texture() { return fbo_tex; }
+static GLuint texture() { return fbo_tex; }
+/** The surface changed size (a window resized): the render texture and its depth buffer follow; the programs and atlases stay. */
+static bool resize(int32_t w, int32_t h) {
+  if (w == W && h == H) return true;
+  W = w; H = h;
+  glBindTexture(GL_TEXTURE_2D, fbo_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
+#if GLR_CORE
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, W, H);
+#else
+  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+  glRenderbufferStorage(GL_RENDERBUFFER, ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 : GL_DEPTH_COMPONENT16, W, H);
+#endif
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  return ok;
+}
 
 // ---- batching
 static void apply_clip() {
@@ -469,7 +495,7 @@ static void sflush() {
   glBindBuffer(GL_ARRAY_BUFFER, svbo);
   apply_clip();
   if (instanced) {
-#ifdef __APPLE__
+#if GLR_CORE
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)ns * sizeof(SV), sverts, GL_STREAM_DRAW);
     const GLint at[3] = {s_rect, s_col, s_z};
     glEnableVertexAttribArray(s_rect); glVertexAttribPointer(s_rect, 4, GL_FLOAT, GL_FALSE, sizeof(SV), (void*)0);
@@ -669,7 +695,7 @@ static void run(const Frame& f, bool first) {
  *  a swap, so the whole surface is drawn); else into the surface texture, the whole surface too unless ZINC_GL_DMG=1
  *  limits it to `dmg`. ponytail: off by default, that scissored replay is the prime suspect of GPU hangs seen on the
  *  Pi 3B+ (Kit / Forms: partial damage, "Resetting GPU"); see docs/plugins/display-gl.md. */
-void frame(const HalFrame* f, bool direct, Rect dmg) {
+static void frame(const HalFrame* f, bool direct, Rect dmg) {
   static const bool dmg_on = getenv("ZINC_GL_DMG") && atoi(getenv("ZINC_GL_DMG")) != 0;
   double t0 = now_us();
   const HalCmdList* lists[8];
@@ -685,7 +711,7 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
   // occlusion (ZN-412.01) when the framebuffer has a depth buffer that tells the commands apart (16 bits: up to 16k commands); ZINC_GL_OCCLUDE=0 turns it off
   static const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
   GLint bits = 0;
-#ifdef __APPLE__
+#if GLR_CORE
   glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_DEPTH : GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &bits);
 #else
   glGetIntegerv(GL_DEPTH_BITS, &bits);
@@ -693,7 +719,7 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
   occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits));
   glClearColor(0, 0, 0, 1);
-#ifdef __APPLE__
+#if GLR_CORE
   glClearDepth(1.0);
 #else
   glClearDepthf(1.0f);
@@ -745,8 +771,8 @@ void frame(const HalFrame* f, bool direct, Rect dmg) {
   st.frames++;
   st.us += now_us() - t0;
 }
-void idle() { st.idle++; }
-void report() {
+static void idle() { st.idle++; }
+static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;
   fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands\n",

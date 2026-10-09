@@ -135,6 +135,10 @@ What is still not deterministic:
   already (1/60, esp32 1/30), but timers follow the hardware clock.
 - **Pixel density**: frames are rasterized at the window's physical size (`ZINC_SCALE`, Retina × zoom); captures pin
   `ZINC_SCALE=1` so goldens do not depend on the screen.
+- **Window renderer**: on macOS the window draws the frame's commands with OpenGL when the Mac has a GPU (`ZINC_RENDERER=auto`,
+  the default; `gl` forces it, `cpu` keeps the software raster) and waits for the display between frames (`ZINC_VSYNC=0` to
+  measure without it). Transparent windows and display plugins use the software raster. Captures, goldens and headless
+  runs always use the software raster: it is the reference the GL output is compared with (`tests/t1/gl_renderer.sh`).
 
 ## Captures
 
