@@ -6,11 +6,14 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:22'
+updated_date: '2026-10-09 07:42'
 labels:
   - perf
   - aot
 dependencies:
-  - ZN-397
+  - ZN-404
+  - ZN-409
+  - ZN-413
 priority: high
 ordinal: 195000
 ---
@@ -27,3 +30,9 @@ ZN-397 follow-up. Script time per frame at 200k balls (headless, min of 5): Next
 - [ ] #2 Interpreter and AOT frames stay identical on bouncing-ball, nuxt-ui, rn-showcase, navigation
 - [ ] #3 A test per optimisation (refcount elision, constant folding) in tests/
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Umbrella for the bouncing-ball update-loop parity: PERF-05 (ZN-404, folded consts), PERF-10 (ZN-409, typed AOT emission), PERF-14 (ZN-413, RC elision). The perf audit measured hand-typed loops at 2.12 ms vs 4.22 ms per frame (prototype level).
+<!-- SECTION:NOTES:END -->

@@ -1,6 +1,15 @@
 {
-  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title).",
+  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group.",
   "groups": [
+    {
+      "name": "performance (owner, 2026-10-09: the fastest engine, every ms tracked in docs/reports/zinc-next-perf.md)",
+      "milestones": [
+        "m-21"
+      ],
+      "labels": [
+        "perf"
+      ]
+    },
     {
       "name": "ui",
       "milestones": [
@@ -36,6 +45,20 @@
     {
       "name": "3D and WebGL",
       "title": "WebGL|\\b3D\\b|three\\.js|glTF|Surface.*viewport"
+    },
+    {
+      "name": "games: assets, loading, JS game libraries (owner, 2026-10-09)",
+      "milestones": [
+        "m-22"
+      ]
+    },
+    {
+      "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK (owner, 2026-10-09)",
+      "milestones": [
+        "m-23",
+        "m-24",
+        "m-25"
+      ]
     },
     {
       "name": "deferred: cross builds and simulators (owner, 2026-10-07: at the end)",
