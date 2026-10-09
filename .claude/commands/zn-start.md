@@ -3,6 +3,8 @@ description: Start or resume a Zinc Next session (one task, start to end)
 argument-hint: [task number, optional]
 ---
 
+First: if `next/.paused` exists, do nothing, stop the loop (`ScheduleWakeup` with `stop: true`) and answer `STOP: paused` (`/zn-resume` lifts it).
+
 Resume Zinc Next work. One invocation = one task, start to end. Never wait for a person (see `next/RULES.md`).
 
 1. Read `next/RESUME.md`, `next/RULES.md`, `next/TESTING.md` and `next/ARCHITECTURE.md` (binding rules). Nothing else yet.
