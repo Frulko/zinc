@@ -49,7 +49,8 @@ static const char* FS =
   "      if (grad < 1.5) t = (p.y - (c.y - h.y)) / max(2.0 * h.y, 1e-6);\n"
   "      else if (grad < 2.5) t = (p.x - (c.x - h.x)) / max(2.0 * h.x, 1e-6);\n"
   "      else { vec2 d = (p - (c - h)) / max(2.0 * h, vec2(1e-6)) * 2.0 - 1.0; t = length(d); }\n"
-  "      col = mix(v_c1.rgb, v_c2.rgb, clamp(t, 0.0, 1.0)); }\n"
+  "      float k = floor(clamp(t * 256.0, 0.0, 256.0));\n"                         // raster.cpp lerp_color: a weight out of 256, channels rounded down
+  "      col = floor((floor(v_c1.rgb * 255.0 + 0.5) * (256.0 - k) + floor(v_c2.rgb * 255.0 + 0.5) * k) / 256.0) / 255.0; }\n"
   "  } else if (mode < 1.5) {\n"                                                 // BORDER: ring between two boxes
   "    float bw = v_par.y;\n"
   "    cov = cover(p, c, h, r) - cover(p, c, h - bw, max(r - bw, 0.0));\n"
@@ -67,7 +68,15 @@ static const char* FS =
   "    float blur = v_par.y, k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0);\n"
   "    cov = k * k * (3.0 - 2.0 * k);\n"
   "  }\n"
-  "  gl_FragColor = vec4(col, a * cov);\n"
+  // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
+  // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
+  // alpha of (A + 1) / 256), less half a step so the framebuffer's rounding becomes the shift's truncation. Stacked translucent layers
+  // (hero's glows) then match the software frame instead of drifting a unit a layer (ZN-412.03). RESTORE keeps the plain mix (lerp_color).
+  "  if (mode > 5.5 && mode < 6.5) { gl_FragColor = vec4(col * a, a); return; }\n"
+  "  float A = floor(cov * floor(a * 255.0 + 0.5) + 0.001);\n"
+  "  if (A >= 255.0) gl_FragColor = vec4(col, 1.0);\n"
+  "  else if (A < 1.0) gl_FragColor = vec4(0.0);\n"
+  "  else gl_FragColor = vec4(max(floor(col * 255.0 + 0.5) * (A / 256.0) / 255.0 - 0.499 / 255.0, 0.0), (A + 1.0) / 256.0);\n"
   "}\n";
 
 // The occlusion pass draws only opaque square rectangles: a program of its own, 24 bytes a rectangle (bounds, colour, depth), one instance
@@ -734,7 +743,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   glActiveTexture(GL_TEXTURE0);
   cur_tex = white;
   glEnable(GL_BLEND);
-  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);   // premultiplied: the fragment shader writes the raster's blend (ZN-412.03)
   for (int32_t i = 0; i < n; i++) {
     const Frame fr{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts};
     // a large first list: the commands that later opaque rectangles cover whole are not drawn at all (on a tiling GPU the primitives
