@@ -4,13 +4,12 @@ title: Remove unreachable functions from the ZBC module
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:35'
+updated_date: '2026-10-09 09:49'
 labels:
-  - games
-  - assets
-  - size-M
+  - perf
 milestone: m-22
 dependencies: []
-ordinal: 199000
+ordinal: 5001
 ---
 
 ## Description
