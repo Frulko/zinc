@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""A site of `zinc export --target wasm` in headless Chrome (ZN-326.01, tests/t1/export_wasm.sh): wasm-export-test <chrome> <site dir> <frames> <text> [frame.png].
+Serves the site with its own serve.py, loads index.html for <frames> ticks, and checks that the program exited 0, printed <text> and (frames > 0) drew a frame."""
+import base64, importlib.machinery, importlib.util, os, socket, subprocess, sys, tempfile, time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+chrome, site, frames, text = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+srv = subprocess.Popen([sys.executable, os.path.join(site, "serve.py"), str(port)], stderr=subprocess.DEVNULL)
+sys.path.insert(0, HERE)
+from cdp import Chrome
+try:
+    time.sleep(0.5)
+    with Chrome(["--window-size=1024,768"], chrome) as c:
+        c.open("http://127.0.0.1:%d/index.html?frames=%d" % (port, max(frames, 1)))
+        deadline, png = time.time() + 60, None
+        while time.time() < deadline:
+            time.sleep(0.5)
+            v = c.eval("document.title + '|' + (document.getElementById('png') ? document.getElementById('png').textContent : '')") or ""
+            if v.startswith("done|") and len(v) > 10: png = v[5:]; break
+        log = c.eval("document.getElementById('log').textContent") or ""
+        console = c.console
+finally:
+    srv.kill()
+name = os.path.basename(os.path.normpath(site))
+if "exit 0," not in log or text not in log: print("%s: the program did not finish (log: %r; console: %s)" % (name, log[-400:], " / ".join(console)[:600])); sys.exit(1)
+if frames > 0:
+    loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader); pd = importlib.util.module_from_spec(spec); loader.exec_module(pd)
+    shot = sys.argv[5] if len(sys.argv) > 5 else os.path.join(tempfile.mkdtemp(), "frame.png"); open(shot, "wb").write(base64.b64decode(png or ""))
+    w, h, bpp, d = pd.dec(shot)
+    colours = len(set(d[i * bpp:i * bpp + 3] for i in range(0, w * h, 7)))
+    if colours < 4: print("%s: the frame (%dx%d) has %d colours" % (name, w, h, colours)); sys.exit(1)
+    print("%s: ran in Chrome, drew %dx%d with %d colours" % (name, w, h, colours))
+else:
+    print("%s: ran in Chrome and printed the expected %d bytes" % (name, len(text)))

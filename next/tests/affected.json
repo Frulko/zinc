@@ -35,6 +35,7 @@
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
     {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "cli_tools"]},
     {"paths": ["tests/fuzz/", "tools/fuzz"], "tests": ["fuzz_regress"]},
-    {"paths": ["src/host/sys_host.cpp"], "tests": ["sys_host", "camera"]}
+    {"paths": ["src/host/sys_host.cpp"], "tests": ["sys_host", "camera"]},
+    {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]}
   ]
 }

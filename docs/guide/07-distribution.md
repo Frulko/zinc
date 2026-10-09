@@ -194,16 +194,21 @@ PCSX-Redux with OpenBIOS (no Sony BIOS needed); see [docs/targets/playstation.md
 
 ## wasm hosting
 
-`zinc export --target wasm` writes a static site: `index.html` (title = your app name, favicon = your icon),
-`app.js`, `app.wasm`. Serve it over HTTP (a `.wasm` cannot load from `file://`):
+`zinc export --target wasm` writes a static site: `index.html` (title = your app name, favicon = `app.icon`, the canvas
+size from `targets.wasm` `width` / `height` in `zinc.json`, 480 x 320 otherwise), `app.js` with its worker and WASI shim,
+`app.wasm` (the interpreter, built by `tools/build-wasm` with the pinned zig), `app.zbc` (your program) and `serve.py`.
+The program runs in a worker that draws on an `OffscreenCanvas`; its output goes to the page under the canvas. The frame
+loop waits on a `SharedArrayBuffer`, so the server must send `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` (a plain `python3 -m http.server` does not):
 
 ```sh
 zinc export --target wasm myapp
-python3 -m http.server -d dist/myapp-wasm 8080     # then open http://localhost:8080/
+dist/myapp-wasm/serve.py 8080      # serves the folder with those headers; open http://127.0.0.1:8080/
 ```
 
-Any static host works (GitHub Pages, S3, nginx). `zinc run --target wasm` serves it locally with hot reload during
-development.
+Any static host that can set the two headers works (nginx, Netlify, Cloudflare Pages). Native modules and plugins with
+native code are not available in the browser; the zinc:gfx calls the page does not implement print one warning each.
+`tests/t1/export_wasm.sh` exports the hello and `examples/ui/forms` and runs both in headless Chrome.
 
 ## Release hardening and obfuscation
 

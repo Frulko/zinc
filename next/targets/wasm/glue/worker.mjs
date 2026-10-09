@@ -76,7 +76,7 @@ async function start(e) {
   let this_bits = 0;
 
   const imports = {
-    wasi_snapshot_preview1: wasiImports(module, () => memory, (fd, text) => (fd === 2 ? console.error : console.log)(text.replace(/\n$/, ''))),
+    wasi_snapshot_preview1: wasiImports(module, () => memory, (fd, text) => { (fd === 2 ? console.error : console.log)(text.replace(/\n$/, '')); self.postMessage({ out: text }); }),
     zn: { gfx },
   };
   const inst = await WebAssembly.instantiate(module, imports);
