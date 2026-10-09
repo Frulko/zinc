@@ -51,6 +51,35 @@ void answer(zn::host::HostArg* r, const char* p, size_t n) {
   r->n = static_cast<uint32_t>(n);
 }
 
+// The direct entries (zn/host.h, ZN-397): the rows a program calls once per element per frame, without the HostArg decoding of `call`.
+double D(uint64_t s) { double d; memcpy(&d, &s, 8); return d; }
+uint64_t fromD(double d) { uint64_t s; memcpy(&s, &d, 8); return s; }
+uint64_t fromI(int64_t v) { return static_cast<uint64_t>(v); }
+void installFast() {
+  namespace g = zrt::gfx;
+  zn::host::HostFast* t = zn::host::hostFast;
+  auto at = [&](Rt id) -> zn::host::HostFast& { return t[static_cast<int>(id)]; };
+  at(Rt::HostGfxClear) = [](uint64_t* a) { g::clear(static_cast<uint32_t>(a[0])); };
+  at(Rt::HostGfxRect) = [](uint64_t* a) { g::rect(D(a[0]), D(a[1]), D(a[2]), D(a[3]), static_cast<uint32_t>(a[4])); };
+  at(Rt::HostGfxRRect) = [](uint64_t* a) { g::rrect(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), static_cast<uint32_t>(a[5]), static_cast<int32_t>(a[6])); };
+  at(Rt::HostGfxLine) = [](uint64_t* a) { g::line(D(a[0]), D(a[1]), D(a[2]), D(a[3]), static_cast<uint32_t>(a[4])); };
+  at(Rt::HostGfxBorder) = [](uint64_t* a) { g::border(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), static_cast<uint32_t>(a[6]), static_cast<int32_t>(a[7])); };
+  at(Rt::HostGfxDrawImage) = [](uint64_t* a) { g::drawImage(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), static_cast<int32_t>(a[5]), D(a[6])); };
+  at(Rt::HostGfxClip) = [](uint64_t* a) { g::clip(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4])); };
+  at(Rt::HostGfxUnclip) = [](uint64_t*) { g::unclip(); };
+  at(Rt::HostGfxTranslate) = [](uint64_t* a) { g::translate(D(a[0]), D(a[1])); };
+  at(Rt::HostGfxWidth) = [](uint64_t* a) { a[0] = fromI(g::width()); };
+  at(Rt::HostGfxHeight) = [](uint64_t* a) { a[0] = fromI(g::height()); };
+  at(Rt::HostGfxPixelScale) = [](uint64_t* a) { a[0] = fromI(g::pixelScale()); };
+  at(Rt::HostGfxImageWidth) = [](uint64_t* a) { a[0] = fromI(g::imageWidth(static_cast<int32_t>(a[0]))); };
+  at(Rt::HostGfxImageHeight) = [](uint64_t* a) { a[0] = fromI(g::imageHeight(static_cast<int32_t>(a[0]))); };
+  at(Rt::HostGfxIsDown) = [](uint64_t* a) { a[0] = g::isDown(static_cast<int32_t>(a[0])) ? 1 : 0; };
+  at(Rt::HostGfxWasPressed) = [](uint64_t* a) { a[0] = g::wasPressed(static_cast<int32_t>(a[0])) ? 1 : 0; };
+  at(Rt::HostGfxPointerX) = [](uint64_t* a) { a[0] = fromD(g::pointerX()); };
+  at(Rt::HostGfxPointerY) = [](uint64_t* a) { a[0] = fromD(g::pointerY()); };
+  at(Rt::HostGfxPointerDown) = [](uint64_t* a) { a[0] = g::pointerDown() ? 1 : 0; };
+}
+
 void call(int id, const HostArg* a, HostArg* r) {
   namespace g = zrt::gfx;
   auto u = [&](int k) { return static_cast<uint32_t>(a[k].i); };
@@ -62,6 +91,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     int w = 0, h = 0;
     if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
     zrt::start(cfg, 0, nullptr);
+    installFast();
   }
   switch (static_cast<Rt>(id)) {
     case Rt::HostGfxFrames: {

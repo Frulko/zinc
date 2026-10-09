@@ -18,7 +18,8 @@
 #include "zn/native.h"
 #include "zn/native_sig.h"
 
-namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; HostCall hostLayout = nullptr; }
+namespace zn::host { HostCall hostGfx = nullptr; HostCall hostSys = nullptr; HostCall hostLayout = nullptr; HostFast hostFast[kHostFastRows] = {}; }
+static_assert(static_cast<int>(zn::Rt::Count) <= zn::host::kHostFastRows);
 
 namespace zn::rt {
 
@@ -923,6 +924,7 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
 }
 
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
+  if (zn::host::HostFast f = zn::host::hostFast[static_cast<unsigned>(id)]) { f(a); return nullptr; }   // a hot scalar host row (ZN-397)
   if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
 #define NN(x) do { if (!(x)) return kNull; } while (0)
   if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a);

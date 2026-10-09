@@ -86,6 +86,17 @@ struct FnEmitter {
     return "if (__builtin_expect(st != 0, 0)) { if (st == 1) { Obj* e = m.thrown; " + unwind(pc, "e") + "} return st; }";  // (only in functions that call)
   }
   bool leaf = false;  // no calls and no runtime calls: the registers can live in C++ locals
+  // A function that calls keeps its registers in C++ locals too (ZN-397): the window `win` holds only the frames of its callees, the argument registers are
+  // copied there before a call and back after it (the callee may write them; the registers above them are the callee's and dead after the call).
+  bool locals = false;
+  std::string frame(unsigned A) { return std::string(locals ? "win" : "r") + " + " + std::to_string(A); }
+  std::string toWin(unsigned A, unsigned n) { std::string s; if (locals) for (unsigned k = A; k < A + n; ++k) s += "win[" + std::to_string(k) + "] = r[" + std::to_string(k) + "]; "; return s; }
+  std::string fromWin(unsigned A, unsigned n) { std::string s; if (locals) for (unsigned k = A; k < A + n; ++k) s += "r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "]; "; return s; }
+  static unsigned rtArity(unsigned id) { return rtParamCount(rtInfo(static_cast<zn::Rt>(id))); }
+  unsigned virtArity(unsigned sel, unsigned A) {   // the argument registers of a virtual call: the parameters of an implementation of the selector, else the rest of the frame
+    for (const zbc::ClassInfo& c : m.classes) if (sel < c.vtable.size() && c.vtable[sel] < m.functions.size()) return std::max<unsigned>(1, static_cast<unsigned>(m.functions[c.vtable[sel]].params.size()));
+    return f.nregs > A ? f.nregs - A : 1;
+  }
   std::string unwindDepth() { return ""; }
   std::string trap(const std::string& msg) { return typed ? "{ m.error = " + msg + "; m.failed = true; return 0; }" : "{ m.error = " + msg + "; return 2; }"; }
   std::string checked(const std::string& call) { return "{ const char* e = " + call + "; if (__builtin_expect(e != nullptr, 0)) " + trap("e") + " }"; }
@@ -95,6 +106,7 @@ struct FnEmitter {
     leaf = true;
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt" || n == "CallNative") leaf = false; }
     typed = typedFn[index] != 0;
+    locals = !leaf && !typed;
     if (typed) {   // typed parameters and result, the registers are locals, a failure is a flag: no window, no status codes (ZN-144)
       std::string ps;
       for (std::size_t k = 0; k < f.params.size(); ++k) ps += ", Slot a" + std::to_string(k);
@@ -102,14 +114,16 @@ struct FnEmitter {
       line("if (__builtin_expect(op::stackLow(m), 0)) { m.error = \"stack overflow\"; m.failed = true; return 0; }");
       for (std::uint32_t k = 0; k < (f.nregs ? f.nregs : 1); ++k) line("Slot r" + std::to_string(k) + (k < f.params.size() ? " = a" + std::to_string(k) : "") + ";");
     } else
-    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf ? "win" : "r") + ") {\n";
+    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nstatic int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf || locals ? "win" : "r") + ") {\n";
     if (typed) {}
     else if (leaf) {  // the registers are C++ locals so the compiler keeps them in machine registers; arguments come in, the result goes out through the window
       line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
       for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
     } else {
       // a window outside the stack (the temporary one of an exception text, a native callback) is not checked against its end
-      line("if (__builtin_expect(op::stackLow(m) || (r + " + std::to_string(f.nregs ? f.nregs : 1) + " > m.stackEnd && r >= m.stack && r < m.stackEnd), 0)) { m.error = \"stack overflow\"; return 2; }");
+      line("if (__builtin_expect(op::stackLow(m) || (win + " + std::to_string(f.nregs ? f.nregs : 1) + " > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = \"stack overflow\"; return 2; }");
+      line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
+      for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
     }
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) {
       std::uint32_t w = f.code[pc];
@@ -137,17 +151,17 @@ struct FnEmitter {
         for (std::size_t k = 0; k < g.params.size(); ++k) args += ", " + r(A + static_cast<unsigned>(k));
         line("{ Slot v = t" + std::to_string(D) + "(m" + args + "); if (__builtin_expect(m.failed, 0)) return 0; " + (g.ret.cls == zbc::Cls::None ? "(void)v;" : r(A) + " = v;") + " }");
       }
-      else if (nm == "Call") line("{ int st = f" + std::to_string(D) + "(m, r + " + std::to_string(A) + "); " + afterCall(P) + " }");
-      else if (nm == "CallVirt") line("{ const char* ce = nullptr; const Func* cf = op::virtualTarget(r, " + std::to_string(A) + ", " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " int st = cf->native(m, r + " + std::to_string(A) + "); " + afterCall(P) + " }");
+      else if (nm == "Call") { unsigned n = static_cast<unsigned>(m.functions[D].params.size()); line("{ " + toWin(A, n) + "int st = f" + std::to_string(D) + "(m, " + frame(A) + "); " + fromWin(A, std::max(1u, n)) + afterCall(P) + " }"); }
+      else if (nm == "CallVirt") line("{ const char* ce = nullptr; Slot vt = " + r(A) + "; const Func* cf = op::virtualTarget(&vt, 0, " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " " + toWin(A, virtArity(D, A)) + "int st = cf->native(m, " + frame(A) + "); " + fromWin(A, virtArity(D, A)) + afterCall(P) + " }");
       else if (nm == "Ret" && typed) line("return " + r(A) + ";");
       else if (nm == "RetV" && typed) line("return 0;");
-      else if (nm == "Ret") line(leaf ? "{ win[0] = " + r(A) + "; return 0; }" : "{ r[0] = " + r(A) + "; return 0; }");
+      else if (nm == "Ret") line(leaf || locals ? "{ win[0] = " + r(A) + "; return 0; }" : "{ r[0] = " + r(A) + "; return 0; }");
       else if (nm == "RetV") line("return 0;");
       else if (nm == "Throw") line("{ if (!" + r(A) + ") " + trap("op::kNullRef") + " Obj* e = reinterpret_cast<Obj*>(" + r(A) + "); " + unwind(P, "e") + "m.thrown = e; " + unwindDepth() + "return 1; }");
-      else if (nm == "New") line(checked("op::newObject(m, " + std::to_string(D) + ", " + r(A) + ")"));
-      else if (nm == "GetField") line(checked("op::getField(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
-      else if (nm == "SetField") line(checked("op::setField(m, r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
-      else if (nm == "Downcast") line(checked("op::downcast(r, " + std::to_string(A) + ", " + std::to_string(D) + ")"));
+      else if (nm == "New") line("{ Slot t; " + checked("op::newObject(m, " + std::to_string(D) + ", t)") + " " + r(A) + " = t; }");
+      else if (nm == "GetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(B) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " " + r(A) + " = o->fields()[" + std::to_string(C) + "]; }");
+      else if (nm == "SetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(A) + "); if (__builtin_expect(!o, 0)) " + trap("op::kNullRef") + " Slot old = o->fields()[" + std::to_string(C) + "]; o->fields()[" + std::to_string(C) + "] = " + r(B) + "; if (o->cls->fieldRef[" + std::to_string(C) + "]) m.releaseSlot(old); }");
+      else if (nm == "Downcast") line("{ Slot t = " + r(A) + "; " + checked("op::downcast(&t, 0, " + std::to_string(D) + ")") + " }");
       else if (nm == "EqR") line(r(A) + " = Slot{" + r(B) + " == " + r(C) + "};");
       else if (nm == "NeR") line(r(A) + " = Slot{" + r(B) + " != " + r(C) + "};");
       else if (nm == "LoadNull") line(r(A) + " = 0;");
@@ -158,12 +172,14 @@ struct FnEmitter {
       else if (nm == "Retain") line("m.retain(reinterpret_cast<Obj*>(" + r(A) + "));");
       else if (nm == "Release") line(checked("op::release(m, " + r(A) + ")"));
       else if (nm == "LoadStr") line(r(A) + " = reinterpret_cast<Slot>(m.strConsts[" + std::to_string(D) + "]);");
-      else if (nm == "ArrGet") line(checked("op::arrGet(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
-      else if (nm == "ArrSet") line(checked("op::arrSet(m, r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
-      else if (nm == "ArrLen") line(checked("op::arrLen(r, " + std::to_string(A) + ", " + std::to_string(B) + ")"));
-      else if (nm == "ArrPush") line(checked("op::arrPush(r, " + std::to_string(A) + ", " + std::to_string(B) + ", " + std::to_string(C) + ")"));
-      else if (nm == "Rt") line("{ const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), r + " + std::to_string(A) + ", r + " + std::to_string(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; return 2; } }");
-      else if (nm == "CallNative") line("{ const char* e = nativeCall(m, " + std::to_string(D) + ", r + " + std::to_string(A) + ", r + " + std::to_string(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; return 2; } }");
+      else if (nm == "ArrGet") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrGet(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
+      else if (nm == "ArrSet") line("{ Slot t[3] = {" + r(A) + ", " + r(B) + ", " + r(C) + "}; " + checked("op::arrSet(m, t, 0, 1, 2)") + " }");
+      else if (nm == "ArrLen") line("{ Slot t[2] = {0, " + r(B) + "}; " + checked("op::arrLen(t, 0, 1)") + " " + r(A) + " = t[0]; }");
+      else if (nm == "ArrPush") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrPush(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
+      else if (nm == "Rt" && D >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && D < static_cast<unsigned>(zn::Rt::HostSysFirst))   // a graphics row: its direct entry when the host has one (ZN-397)
+        line("{ " + toWin(A, rtArity(D)) + "if (zn::host::HostFast hf = zn::host::hostFast[" + std::to_string(D) + "]) hf(" + frame(A) + "); else { const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), " + frame(A) + ", " + frame(f.nregs) + "); if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; return 2; } } " + fromWin(A, std::max(1u, rtArity(D))) + "}");
+      else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, static_cast<zn::Rt>(" + std::to_string(D) + "), " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + "if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; return 2; } }");
+      else if (nm == "CallNative") line("{ " + toWin(A, f.nregs > A ? f.nregs - A : 1) + "const char* e = nativeCall(m, " + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, f.nregs > A ? f.nregs - A : 1) + "if (__builtin_expect(e != nullptr, 0)) { if (e != m.error.c_str()) m.error = e; return 2; } }");
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));
       else if (nm == "LogI") line("*m.out += std::to_string(static_cast<std::int64_t>(" + r(A) + "));");
       else if (nm == "LogU") line("*m.out += std::to_string(" + r(A) + ");");
@@ -241,7 +257,7 @@ bool usesLayout(const zbc::Module& mod) {
 std::string emitCpp(const zbc::Module& mod, const std::vector<std::uint8_t>* resources, bool rnLayout) {
   auto arith = namesOf(0), divs = namesOf(1);
   std::string s = "// Generated by zinc (ZN-022): a function of the module per C++ function, over the interpreter's register window.\n"
-                  "#include \"rt/rt.h\"\n#include \"zn/ops.h\"\n\nusing namespace zn;\nusing namespace zn::rt;\n\n";
+                  "#include \"rt/rt.h\"\n#include \"zn/host.h\"\n#include \"zn/ops.h\"\n\nusing namespace zn;\nusing namespace zn::rt;\n\n";
   auto bytes = zbc::encode(mod);
   s += "static const unsigned char kModule[] = {";
   for (std::size_t i = 0; i < bytes.size(); ++i) {

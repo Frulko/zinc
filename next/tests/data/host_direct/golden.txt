@@ -1,0 +1,2 @@
+320x240 8d0b12038e7558df
+size 320x240 scale 1 down false pressed false pointer 0,0 false

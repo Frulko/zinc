@@ -21,6 +21,12 @@ using HostCall = void (*)(int id, const HostArg* args, HostArg* result);
 // Installed by the host library at startup; null in an engine built without one.
 extern HostCall hostGfx;
 extern HostCall hostLayout;  // the Rt::HostLayout* rows (isLayoutRow): a host layout engine, installed by installLayout (src/host/layout_host.cpp)
+// Direct entries for the hot scalar rows (ZN-397): rect, line, width()... called once per element per frame skip the letter decoding. a[k] is the raw slot of
+// argument k (f64 bits, sign-extended integers), the result goes to a[0]. The graphics host fills them once its runtime started (its first HostCall); a null
+// entry takes the HostCall path. Indexed by the zn::Rt value.
+using HostFast = void (*)(std::uint64_t* a);
+inline constexpr int kHostFastRows = 1024;
+extern HostFast hostFast[kHostFastRows];
 extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together
