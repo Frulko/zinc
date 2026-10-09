@@ -1,0 +1,12 @@
+{
+  "name": "flipctl",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "board": "esp32-2432s022",
+  "targets": {
+    "macos": { "width": 256, "height": 144, "zoom": 4, "resize": "letterbox" },
+    "linux": { "width": 256, "height": 144, "display": "fbdev", "resize": "letterbox" },
+    "sim": { "width": 256, "height": 144 },
+    "esp32": { "width": 256, "height": 144, "display": { "madctl": 104, "xoff": 32, "yoff": 48 } }
+  }
+}
