@@ -59,9 +59,9 @@ static const char* FS =
   "    cov = cover(p, c, h, r) - cover(p, c, h - bw, max(r - bw, 0.0));\n"
   "  } else if (mode < 2.5) {\n"                                                 // TEXT: alpha atlas
   "    cov = texture2D(u_tex, v_pos.zw).r;\n"
-  "  } else if (mode < 4.5) {\n"                                                 // IMAGE: baked RGBA / runtime 0x00RRGGBB
+  "  } else if (mode < 4.5) {\n"                                                 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB)
   "    vec4 t = texture2D(u_tex, v_pos.zw);\n"
-  "    col = mode < 3.5 ? t.rgb : t.bgr; cov = mode < 3.5 ? t.a : 1.0;\n"
+  "    col = mode < 3.5 ? t.rgb : t.bgr; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
   "    if (r > 0.0) cov *= cover(p, c, h, r);\n"
   "  } else if (mode < 5.5) {\n"                                                 // SOLID: whole pixels
   "    cov = 1.0;\n"
@@ -439,33 +439,44 @@ static Tex2* dyn_tex(int32_t id) {
   }
   return t;
 }
+// The texture coordinates come from the image's box (zrt_raster.h image_box: the painted rectangle itself, or the box of a drawImageRect,
+// whose negative size mirrors), the filter from raster.cpp's rules: draw_dyn's for a whole opaque runtime image, draw_boxed's otherwise.
 static void draw_image(const Cmd& c) {
   if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
-  Tex2* t; int mode; bool nearest;
+  const Box m = image_box(c);
+  if (!(m.w != 0 && m.h != 0 && m.w - m.w == 0 && m.h - m.h == 0 && m.x - m.x == 0 && m.y - m.y == 0)) return;
+  const float mw = m.w < 0 ? -m.w : m.w, mh = m.h < 0 ? -m.h : m.h;
+  Tex2* t; int mode; bool nearest, alpha = false;
   if (c.res >= DYN_BASE) {
     const uint32_t* px; int32_t w, h, stride;
-    if (!dyn_view(c.res, &px, &w, &h, &stride) || !((float)w / c.w < 1e6f && (float)h / c.h < 1e6f)) return;
+    if (!dyn_view(c.res, &px, &w, &h, &stride) || !((float)w / mw < 1e6f && (float)h / mh < 1e6f)) return;
     t = dyn_tex(c.res);
+    alpha = dyn_alpha(c.res);
     int32_t sx = f2i((float)w / c.w * 65536), sy = f2i((float)h / c.h * 65536);
     nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
     mode = IMAGE_BGR;
   } else {
     if (c.res < 0 || c.res >= image_count) return;
     const Image& im = images[c.res];
-    if (!((float)im.w / c.w < 1e6f && (float)im.h / c.h < 1e6f)) return;
+    if (!((float)im.w / mw < 1e6f && (float)im.h / mh < 1e6f)) return;
     t = &baked[c.res];
     if (!t->id) { t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->nearest = 0; t->w = im.w; t->h = im.h; }
     nearest = false; mode = IMAGE_RGBA;
   }
   if (!t || !t->id) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, HUGE_R);
+  if ((c.pad & kImageBox) || alpha) {
+    nearest = c.grad == 1 || (mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
+    b = isect(b, bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, mw, mh, HUGE_R));   // nothing is painted outside the image
+  }
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   set_filter(*t, nearest);
   use_tex(t->id);
   Q q = box_q(c, b, mode);
   q.r = c.r > 0 ? c.r : 0;   // the CPU does not clamp an image's radius
   q.c1 = 0xffffff;
-  q.u0 = ((float)b.x0 - c.x) / c.w; q.u1 = ((float)b.x1 - c.x) / c.w; q.v0 = ((float)b.y0 - c.y) / c.h; q.v1 = ((float)b.y1 - c.y) / c.h;
+  q.grad = alpha;            // the coverage is the texture's alpha
+  q.u0 = ((float)b.x0 - m.x) / m.w; q.u1 = ((float)b.x1 - m.x) / m.w; q.v0 = ((float)b.y0 - m.y) / m.h; q.v1 = ((float)b.y1 - m.y) / m.h;
   quad(q);
 }
 

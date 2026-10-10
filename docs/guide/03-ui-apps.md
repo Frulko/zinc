@@ -127,7 +127,7 @@ drawImageRect(skin, 0, 0, 16, 16, x, y, 16, 16);          // alpha 255 and the l
 
 The source rectangle is in the pixels `imageWidth` and `imageHeight` report; what of it lies outside the image is not drawn. The
 linear blend reads the texels just outside the rectangle, as a GPU does: keep a transparent pixel between the frames of a sheet
-drawn at another size, or use `ImageFlag.Nearest`.
+drawn at another size, or use `ImageFlag.Nearest`. The GPU renderer of a window draws the sprites the software renderer draws.
 
 ## WebGL from Zinc code (`zinc:gl`)
 

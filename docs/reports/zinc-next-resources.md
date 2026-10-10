@@ -35,6 +35,8 @@ not opaque (`raster::dyn_set_alpha`); an image used as a render target is opaque
 size mirrors the image. So a command stays 48 bytes and a frame takes as many sprites as commands. The rasterizer (`draw_boxed` in `runtime/raster.cpp`) samples
 as a GPU would: linear sampling reads the texels around the source rectangle, nearest takes the texel under the pixel centre, nothing is painted outside the
 image. `zinc:canvas`'s 9-argument `drawImage` is on the row; its frame is the one the earlier clip around the whole image gave (`tests/t1/image_rect.sh`).
+The GL replay (`draw_image` in `runtime/gl_replay.cpp`) takes its texture coordinates from the same box and its filter from the same rule, and reads the alpha
+of a decoded image: on the test's frame it is within 2 levels a channel of the software frame at the same density (`tests/t1/image_rect_gl.sh`).
 
 ## Not covered
 

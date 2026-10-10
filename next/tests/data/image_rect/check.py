@@ -52,7 +52,7 @@ for y0 in (8, 48):
                     if 0 < a < 255: tol = max(slack, 2)
                 got = frame(x0 + i, y0 + j)
                 if not near(got, want, tol): bad.append("sprite at %d,%d pixel %d,%d: %s, want %s" % (x0, y0, i, j, got, want))
-    for j in range(8):   # the copy: frame 1 of the sheet, pixel for texel
+    for j in range(8 if K == 1 else 0):   # the copy: frame 1 of the sheet, pixel for texel (at a higher density it is an enlargement, with its blend)
         for i in range(8):
             if not near(frame(288 + i, y0 + j), texel(8 + i, j)[:3], slack): bad.append("copy at 288,%d pixel %d,%d: %s, want %s" % (y0, i, j, frame(288 + i, y0 + j), texel(8 + i, j)[:3]))
 for y in range(8, 40):   # baked and decoded: the same pixels, linear sprites included

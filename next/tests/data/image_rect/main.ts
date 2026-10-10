@@ -1,7 +1,8 @@
 // zinc:gfx sprites (ZN-432): frames of assets/sheet.png (32x16, eight 8x8 frames) through drawImageRect, from the baked image and from the
 // same file decoded at run time with imageFromBytes. tests/t1/image_rect.sh runs it 400x180 on the interpreter, the AOT build and QuickJS
-// (the same frame hash) and checks the sprites of row() against the sheet (check.py).
-import { onFrame, clear, clip, unclip, translate, image, imageWidth, imageHeight, drawImage, drawImageRect, imageFromBytes, destroyImage, ImageFlag, quit } from 'zinc:gfx';
+// (the same frame hash) and checks the sprites of row() against the sheet (check.py); tests/t1/image_rect_gl.sh compares the frame of the
+// GL replay with the software one.
+import { onFrame, clear, clip, unclip, translate, image, imageWidth, imageHeight, drawImage, drawImageRect, imageFromBytes, destroyImage, ImageFlag } from 'zinc:gfx';
 import { readBytes } from 'zinc:assets';
 
 const baked = image('sheet.png');
@@ -27,7 +28,6 @@ function row(img: i32, y: number): void {
   drawImageRect(img, 16, 0, 8, 8, 344, y, 32, 32, 200, ImageFlag.FlipX);   // linear, mirrored, transparency
 }
 
-let frames = 0;
 onFrame((dt: number) => {
   clear(0x203040);
   row(baked, 8);
@@ -51,6 +51,4 @@ onFrame((dt: number) => {
   drawImageRect(baked, 0, 0, 0, 8, 240, 128, 32, 32);
   drawImageRect(baked, 0, 0, 8, 8, 240, 128, -32, 32);
   drawImageRect(-1, 0, 0, 8, 8, 240, 128, 32, 32);
-  frames++;
-  if (frames === 3) quit();
 });
