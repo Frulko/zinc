@@ -4,8 +4,8 @@ import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
 import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
 import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
-import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, found, mirrorName, newTableText } from './doc';
-import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf } from './presets';
+import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, isOffset, isPath, isClosed, found, mirrorName, newTableText } from './doc';
+import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith } from './presets';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE } from './strings';
 
 let failed = false;
@@ -179,6 +179,31 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     && !d.set('walls[0].points[1]', [1, 92]) && d.refused === 'walls[0].points[0]: the point is the same as the next one');
   const ramp = fieldAt('ramps[0].profile');
   check('a height profile is what the format says it is', ramp !== null && isProfile(ramp) && !isProfile(fieldAt('ramps[0].points') as Field));
+}
+
+// ---- lists inside forms (the rules, the missions and their steps): a line per item, new items, their order
+{
+  const d = new Doc(sample, sample);
+  check('an item of a list is told by a line', d.summaryOf('rules.when[0]') === 'pops hit [score 500, bonus 100]' && d.summaryOf('rules.missions[0]') === 'cargo: Cargo Run'
+    && d.summaryOf('rules.missions[0].steps[0]') === 'Shoot the ramp rail exit 2 rampArrow' && d.nameOf('rules.when[3]') === 'rule 4');
+  const rule = d.add('rules.when', blankOf('rule')), action = d.add(`${rule}.do`, blankOf('action'));
+  check('a rule, and an action of it, are added where they belong', rule === 'rules.when[24]' && action === 'rules.when[24].do[1]' && d.undoLabel === 'Add action' && plays(d.text()));
+  const up = d.reorder(rule, -1);
+  check('an item moves up and down its list', up === 'rules.when[23]' && d.summaryOf(up) === 'game start [score 100, score 100]' && d.reorder('rules.when[0]', -1) === '' && plays(d.text()));
+  const e = new Doc(newTableText('New table'), '');
+  const mission = e.add('rules.missions', blankOf('mission'), 'Add', alongWith('mission'));
+  check('the first mission of a table brings the rank it needs', mission === 'rules.missions[0]' && e.get('rules.ranks').length === 1 && e.get(`${mission}.id`) === 'mission1' && plays(e.text()));
+  check('a step is called by the thing it changes', d.set('physics.ball.radius', 1.4) && d.undoLabel === 'Change physics.ball.radius' && d.set('bumpers[0].kick', 150) && d.undoLabel === 'Change pop1.kick'
+    && d.set('rules.when[0].do[0].value', 600) && d.undoLabel === 'Change action 1.value');
+  // a step counted from a thing turns and mirrors with it, and stays when the thing moves
+  const dock = d.find('kickers', 'dock');
+  d.set(`${dock}.exit`, [2, 0, 6]); d.move(dock, 1, 1); d.turn(dock, 90);
+  const turned = JSON.stringify(d.get(`${dock}.exit`));
+  const twin = d.mirror(dock, 23.85);
+  check('an offset turns and mirrors with its thing, and does not move with it', turned === '[0,2,6]' && isOffset(fieldAt(`${dock}.exit`) as Field) && JSON.stringify(d.get(`${twin}.exit`)) === '[0,2,6]'
+    && d.turn(twin, -90) && JSON.stringify(d.get(`${twin}.exit`)) === '[2,0,6]' && plays(d.text()));
+  const area = fieldAt('floors[0].points');
+  check('the outline of an upper playfield closes by itself', area !== null && area.role === 'area' && isPath(area) && isClosed(area, e.get('plunger')) && !isClosed(fieldAt('walls[0].points') as Field, d.get('walls[0]')));
 }
 
 // ---- 50 mixed operations: undo and redo give back every file, byte for byte

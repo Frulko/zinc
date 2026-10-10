@@ -1,10 +1,11 @@
 // The list at the left: everything a table file holds, by the lists and the objects of the format. A click selects; the panel at the
 // right then shows its properties. What has a place is also on the top view; what has none (surfaces, looks, sounds, the physics, the
-// rules) is reached from here. The lists are read from the schema: a list added to the format gets its line.
+// rules) is reached from here. The lists are read from the schema: a list added to the format gets its line. A list of things without
+// a place has a "+" that adds one (the things with a place are added from the palette).
 // The box at the top goes to a thing by its name, or by its path in the file (Cmd+G).
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { doc, selected, select, goTo, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
+import { doc, selected, select, goTo, addTo, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
 import { listOf } from './doc';
 import { rgb } from './shapes';
 import { Ico, Heading, MUTED, chord } from './widgets';
@@ -21,14 +22,15 @@ function isOpen(list: string): boolean { return unfolded().indexOf(`|${list}|`) 
 function toggle(list: string): void { setUnfolded(isOpen(list) ? unfolded().replaceAll(`|${list}|`, '|') : `${unfolded()}${list}|`); }
 
 function Line(p: { path: string; label: () => string; inset: boolean; dot: () => string }): i32 {
-  const on = (): boolean => selected() === p.path;
+  // a thing is also shown as chosen while something inside it is (a rule of the rules, a step of a mission)
+  const on = (): boolean => selected() === p.path || (p.path !== '' && (selected().startsWith(`${p.path}.`) || selected().startsWith(`${p.path}[`)));
   return <button class={`flex-row items-center justify-start gap-2 h-6 pr-2 rounded cursor-pointer ${p.inset ? 'pl-7' : 'pl-2'} ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => select(p.path)}>
     <Show when={p.dot().length === 7}><view class="w-[9] h-[9] rounded-full border border-zinc-600" style={{ bg: p.dot().length === 7 ? rgb(p.dot()) : 0 }} /></Show>
     <text class={`truncate text-xs ${on() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 170 }}>{p.label()}</text>
   </button>;
 }
 /** A list of the table: its name and how many it holds; unfolded, a line per item. */
-function Group(p: { list: string }): i32 {
+function Group(p: { list: string; add: boolean }): i32 {
   const list = p.list;
   const count = (): i32 => { const v: any = doc().get(list); return v === undefined ? 0 : v.length; };
   // "2 pop3": the place of an item and its name; the rows are made again when a name or the order changes
@@ -44,6 +46,11 @@ function Group(p: { list: string }): i32 {
       <Show when={!isOpen(list)}><Ico name="chevron-right" size={12} color={MUTED} /></Show>
       <text class={`grow truncate text-xs ${count() === 0 ? 'text-zinc-500' : 'text-zinc-200'}`} style={{ maxWidth: 160 }}>{listName(list, false)}</text>
       <text class="text-[11px] text-zinc-500">{`${count()}`}</text>
+      <Show when={p.add}>
+        <button class="w-[18] h-[18] ml-1 items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700" tabIndex={-1} onClick={() => { addTo(list); }}>
+          <Ico name="plus" size={11} color={MUTED} />
+        </button>
+      </Show>
     </button>
     <Show when={isOpen(list)}>
       <view class="flex-col">
@@ -78,10 +85,10 @@ export function Outline(): i32 {
       </Section>
       <Section label={t(L.ON_THE_TABLE)}>
         {PLACED_OBJECTS.map((name: string, i: i32) => <Line path={name} label={() => listName(name, false)} inset={false} dot={noDot} />)}
-        {PLACED_LISTS.map((list: string, i: i32) => <Group list={list} />)}
+        {PLACED_LISTS.map((list: string, i: i32) => <Group list={list} add={false} />)}
       </Section>
       <Section label={t(L.MATERIALS)}>
-        {OTHER_LISTS.map((list: string, i: i32) => <Group list={list} />)}
+        {OTHER_LISTS.map((list: string, i: i32) => <Group list={list} add={true} />)}
       </Section>
     </scroll>
   </view>;

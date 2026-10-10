@@ -1,7 +1,7 @@
 // The small parts the panels of the editor share: icons, buttons, a segmented choice, a list to choose from, a switch.
 // Ico, Tool, Action, Segmented, Heading, the colours and DRAWN are copied from the museum editor (examples/museum-table/editor/widgets.tsx,
 // D76): the two editors look alike on purpose. A module shared by both is proposed as a follow-up of ZN-649.04.
-import { createNodeRef, createSignal, For } from 'zinc:ui/solid';
+import { createNodeRef, createSignal, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { platform } from 'zinc:sys';
 import { icon } from 'zinc:icons';
@@ -58,24 +58,39 @@ export function Heading(p: { label: string }): i32 {
 }
 
 /** One of many choices: a field that opens a list under it. `options` is read when the list opens (the names of the table change);
- *  `labels` gives what is shown for each. */
+ *  `labels` gives what is shown for each. A long list (the elements of a table) opens with a box to type in: the list keeps what
+ *  holds the text, and Enter takes the first. */
 export function Chooser(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void }): i32 {
-  const field = createNodeRef(), list = createNodeRef();
+  const field = createNodeRef(), list = createNodeRef(), search = createNodeRef();
   const [open, setOpen] = createSignal<boolean>(false);
+  const [typed, setTyped] = createSignal<string>('');
+  const [long, setLong] = createSignal<boolean>(false);
   const close = (): void => { if (open()) { setOpen(false); ui.setNumber(list.node, 'hidden', 1); } };
   const toggle = (): void => {
     if (open()) { close(); return; }
+    setTyped('');
+    setLong(p.options().length > 10);
     setOpen(true);
     ui.setNumber(list.node, 'hidden', 0);
+    if (long()) queueMicrotask(() => { if (search.node >= 0) { ui.setValue(search.node, ''); ui.focusNode(search.node); } });
+  };
+  const shown = (): string[] => {
+    if (!open()) return [];
+    const want = typed().trim().toLowerCase();
+    return want === '' ? p.options() : p.options().filter((o: string) => o.toLowerCase().indexOf(want) >= 0 || p.label(o).toLowerCase().indexOf(want) >= 0);
   };
   const node = <view class="w-full flex-col">
     <button ref={field} class="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
       <text class="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</text>
       <Ico name="chevron-down" size={12} color={MUTED} />
     </button>
-    <view ref={list} hidden={1} class="flex-col p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: 190 }}>
+    <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: 190 }}>
+      <Show when={long()}>
+        <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: 180 }}
+          onInput={(v: string) => setTyped(v)} onChange={(v: string) => { const all = shown(); if (open() && all.length > 0) { close(); p.onPick(all[0]); } }} />
+      </Show>
       <scroll class="flex-col" style={{ maxHeight: 264 }}>
-        <For each={open() ? p.options() : []}>{(o: string, i: i32) => <button
+        <For each={shown()}>{(o: string, i: i32) => <button
           class={`flex-row items-center justify-start h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
           <text class={`truncate text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-200'}`} style={{ maxWidth: 166 }}>{p.label(o)}</text>
         </button>}</For>

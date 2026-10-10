@@ -30,8 +30,14 @@ export class Outline {
   z1: number = 0;
   /** Its height along the table when it varies (a ramp): y, z pairs. Empty: a box from z0 to z1. */
   section: number[] = [];
-  /** 0: in the board (lights, switches); 1: standing on it; 2: above it (ramps, upper levels). Drawn in that order. */
+  /** 0: in the board (lights, switches); 1: standing on it; 2: above it (ramps). Drawn in that order on its level. */
   layer: i32 = 1;
+  /** The level it stands on: 0 for the playfield, the height of an upper playfield for what stands on one; -1 for what goes from
+   *  one level to another (a ramp). An upper playfield is itself the plate of its level. */
+  level: number = 0;
+  plate: boolean = false;
+  /** Where it comes in the drawing: the lower levels first, on each level its plate, what is in it, what stands on it. */
+  rank: number = 0;
   x0: number = 0; y0: number = 0; x1: number = 0; y1: number = 0;
   /** Its colour where it is shown as one mark (the side profile). */
   tone: i32 = 0xb0b8c0;
@@ -250,7 +256,7 @@ function floorOutline(o: Outline, f: FloorDef, looks: Looks): void {
   edge.push(pts[0]); edge.push(pts[1]);
   o.line(edge, 0.2, c);
   o.z0 = f.z - f.thickness; o.z1 = f.z;
-  o.layer = 2;
+  o.plate = true;
 }
 function lightOutline(o: Outline, l: LightDef): void {
   const c = rgb(l.color), s = l.size;
@@ -267,10 +273,12 @@ function modelOutline(o: Outline, m: ModelDef, looks: Looks): void {
   // a mesh file is shown as the box of its scale: its real outline is not read here
   const round = m.mesh === '' && m.shape !== 'box';
   const pts = placed(round ? oval(hx, hy) : [-hx, -hy, hx, -hy, hx, hy, -hx, hy], m.at[0], m.at[1], m.rotation[2]);
-  o.fill(pts, c, 96);
+  // a model is mostly scenery (the cabinet, a plastic over the slingshots): its outline, hardly filled, so that what the ball
+  // plays with stays the picture
+  o.fill(pts, c, 26);
   const edge = pts.slice();
   edge.push(pts[0]); edge.push(pts[1]);
-  o.line(edge, 0.2, c);
+  o.line(edge, 0.15, c, 170);
   o.z0 = m.at[2]; o.z1 = m.at[2] + m.scale[2];
 }
 /** A kind this file does not know: its points as dots, its paths as lines. */
@@ -322,10 +330,36 @@ export function outlines(t: TableDef, data: any, root: Schema, placedLists: stri
     o.bound();
     out.push(o);
   }
+  // each thing on its level, and the levels from the playfield up: what is on an upper playfield is drawn over its plate, and
+  // the plate over what lies under it
+  const levels = levelsOf(t);
+  for (let i = 0; i < out.length; i++) {
+    const o = out[i];
+    if (o.plate) o.level = o.z1;
+    else if (o.section.length > 0) o.level = -1;
+    else { o.level = 0; for (const l of levels) if (l <= o.z0 + 0.05) o.level = l; }
+    o.rank = (o.level < 0 ? 1e6 : levels.indexOf(o.level) * 1000 + (o.plate ? 0 : (o.layer + 1) * 200)) + i * 0.01;
+  }
+  out.sort((a: Outline, b: Outline): number => a.rank - b.rank);
   return out;
 }
-/** The colour of the board in the top view. */
+/** The levels of a table, from the playfield (0) up: the heights of its upper playfields. */
+export function levelsOf(t: TableDef): number[] {
+  const out: number[] = [0];
+  for (const f of t.floors) if (out.indexOf(f.z) < 0) out.push(f.z);
+  out.sort((a: number, b: number): number => a - b);
+  return out;
+}
+/** The colour of the board in the top view: the colour of its look, kept dark so that what stands on it is read (a look with a
+ *  painting has a light colour, which only tints the painting). */
 export function boardColor(t: TableDef): i32 {
-  for (const l of t.looks) if (l.id === t.playfield.look) return rgb(l.color);
-  return 0x16224a;
+  let c: i32 = 0x16224a;
+  for (const l of t.looks) if (l.id === t.playfield.look) c = rgb(l.color);
+  const light = (((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11) / 255;
+  return mix(c, 0x000000, light > 0.3 ? 0.8 : 0.42);
+}
+/** The image painted on the board ('' when its look has none): a file of the table's folder. */
+export function boardImage(t: TableDef): string {
+  for (const l of t.looks) if (l.id === t.playfield.look) return l.texture;
+  return '';
 }

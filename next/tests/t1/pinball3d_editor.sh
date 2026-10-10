@@ -2,6 +2,7 @@
 # The table editor of the 3D pinball (ZN-649.04, examples/pinball3d-editor). Slice 1: a table folder opened, the top view, the
 # properties generated from the format's schema, undo and redo, save. Slice 2: drawing (paths, arcs, snapping, mirror), ramps with
 # their height profile, the palette, the plunger lane, duplicate. Slice 3: the table in 3D and the game played in the editor.
+# Slice 4: sounds per event with their preview, the music, the rules and the missions as forms; the levels of a table.
 # The format grows while the editor is written, and its forms and its list are generated from it, so nothing here depends on how many
 # fields or lists the format has:
 # - the sessions run on a table kept with the test (table.json, Tidal Lock of 2026-10-10); they reach a field by its key (Cmd+F, the
@@ -30,6 +31,12 @@
 #                    The 3D view and the game's window are the game's own drawing, which changes with the game's look: they are
 #                    held to the same picture roughly (SSIM 0.5) and to showing the game (a ball in play is not the table at rest)
 #   flip.input       the game's flipper button pressed while a ball is played in the editor: the game logs the flip
+#   rules.input      a sound added, named on a bumper's hit and heard (the preview is logged), the music of a ball in play, a rule
+#                    added and written as the file has it, its action changed in its form, a mission with its step (what it
+#                    listens to chosen in the long list by typing), the ball save, the tilt, multiball, Save: rules.json, two
+#                    frames; the game's probe on that file gives the bumper the points of the new rule
+#   levels.input     an upper playfield drawn, its level chosen, a bumper placed on it: levels.json (the bumper stands at the
+#                    level's height), one frame
 #   the form on the schema of formcheck.tsx, in English and in French (two frames); a new table is saved in the folder the system's
 #   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -143,6 +150,22 @@ tools/pngdiff "$tmp/shot-58-w1.png" "$tmp/shot-154-w1.png" >/dev/null && { echo 
 fresh flip
 PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/flip.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=60 \
   "$ZINC" run "$ex" -- "$tmp/flip" --log 2>/dev/null | grep -q ' left flip' || { echo "the game's flipper button does nothing while a ball is played in the editor"; fail=1; }
+
+# sounds and rules: the file, the preview that was asked for, and what the game makes of the new rule
+fresh rules
+PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/rules.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=140 ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=33,138 \
+  "$ZINC" run "$ex" -- "$tmp/rules" --log >"$tmp/rules.log" 2>"$tmp/rules.err" || { echo "the editor failed on rules.input: $(head -c 300 "$tmp/rules.err")"; fail=1; }
+same "the sounds and rules session" "$tmp/rules/table.json" "$g/rules.json"
+frames "the sounds and rules session" rules $CROP 33 138
+accepted "the sounds and rules session" "$tmp/rules"
+grep -q 'preview: sound1 vol 1.00 rate 1.00' "$tmp/rules.log" || { echo "the button beside a sound's name did not ask for the sound: $(head -c 200 "$tmp/rules.log")"; fail=1; }
+"$ZINC" run "$game/tools/probe.ts" -- "$tmp/rules" 17.5 20 1.37 0 0 0 1 2>/dev/null | grep -q 'pop1 hit +800 = 800' || { echo "the rule made in the editor does not score in the game (500 + 300 for a hit of pop1)"; fail=1; }
+
+fresh levels
+edit "$tmp/levels" "$g/levels.input" 38 37
+same "the levels session" "$tmp/levels/table.json" "$g/levels.json"
+frames "the levels session" levels $CROP 37
+accepted "the levels session" "$tmp/levels"
 
 # the generated form, on the schema the editor keeps for this: a field of every kind, with the help of the one the pointer is over;
 # then the same in French, the pointer on another line

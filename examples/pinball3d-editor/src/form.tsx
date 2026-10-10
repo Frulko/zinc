@@ -11,13 +11,14 @@ import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/so
 import * as ui from 'zinc:ui';
 import { rect, stroke } from 'zinc:gfx';
 import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
-import { doc, table, selected, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
-  activeRow, setActiveRow, dragRow, changeRows } from './state';
-import { fieldAt, schemaAt, listOf, steps, found, isPath, isProfile } from './doc';
+import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
+  activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected } from './state';
+import { previewSound } from './play';
+import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile } from './doc';
 import { rgb } from './shapes';
 import { Ico, Action, Segmented, Chooser, Switch, Heading, MUTED, ACCENT, chord } from './widgets';
 import * as L from './strings';
-import { t, f, fieldName, listName } from './strings';
+import { t, f, fieldName, listName, kindName } from './strings';
 
 /** What a form shows and changes. */
 export class Source {
@@ -28,6 +29,14 @@ export class Source {
   names(space: string): string[] { return []; }
   set(path: string, value: any): void {}
   field(path: string): Field | null { return null; }
+  /** One line that tells an item of a list from the others. */
+  summary(path: string): string { return path; }
+  /** Shows an item of a list in a form of its own. */
+  open(path: string): void {}
+  /** Adds an item to a list. */
+  add(list: string): void {}
+  /** Lets a sound be heard, by its name. */
+  hear(name: string): void {}
 }
 /** The open table. */
 class TableSource extends Source {
@@ -36,6 +45,10 @@ class TableSource extends Source {
   names(space: string): string[] { return doc().namesOf(space); }
   set(path: string, value: any): void { setField(path, value); }
   field(path: string): Field | null { return fieldAt(path); }
+  summary(path: string): string { return doc().summaryOf(path); }
+  open(path: string): void { select(path); }
+  add(list: string): void { addTo(list); }
+  hear(name: string): void { previewSound(name); }
 }
 const TABLE = new TableSource();
 
@@ -83,6 +96,12 @@ function TupleBoxes(p: { src: Source; field: Field; path: string }): i32 {
       }} />)}
   </view>;
 }
+/** A reference: one of the names the table has for it, or none. */
+function Names(p: { src: Source; field: Field; path: string }): i32 {
+  const src = p.src, fd = p.field, path = p.path;
+  const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
+  return <Chooser value={text} options={() => fd.required ? src.names(fd.to) : [''].concat(src.names(fd.to))} label={(v: string) => v === '' ? t(L.NONE) : v} onPick={(v: string) => { src.set(path, v); }} />;
+}
 function Control(p: { src: Source; field: Field; path: string }): i32 {
   const fd = p.field, path = p.path, src = p.src;
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
@@ -101,11 +120,18 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
     if (fd.choices.length <= 3 && fd.choices.join('').length < 22) return <view style={{ width: WIDE }}><Segmented options={fd.choices} labels={fd.choices.map((c: string) => said(c))} value={text} onPick={(v: string) => { src.set(path, v); }} /></view>;
     return <view style={{ width: WIDE }}><Chooser value={text} options={() => fd.choices} label={said} onPick={(v: string) => { src.set(path, v); }} /></view>;
   }
-  // a reference: one of the names the table has for it, or none
-  if (fd.kind === Kind.Ref) return <view style={{ width: WIDE }}><Chooser value={text} options={() => fd.required ? src.names(fd.to) : [''].concat(src.names(fd.to))}
-    label={(v: string) => v === '' ? t(L.NONE) : v} onPick={(v: string) => { src.set(path, v); }} /></view>;
+  if (fd.kind === Kind.Ref) {
+    if (fd.to !== 'sounds') return <view style={{ width: WIDE }}><Names src={src} field={fd} path={path} /></view>;
+    // the name of a sound: it can be heard
+    return <view class="flex-row items-center gap-1" style={{ width: WIDE }}>
+      <view style={{ width: WIDE - 30 }}><Names src={src} field={fd} path={path} /></view>
+      <button class={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+        <Ico name="play" size={12} color={ACCENT} />
+      </button>
+    </view>;
+  }
   if (fd.kind === Kind.Tuple) return <view class="flex-row items-center gap-[6]"><TupleBoxes src={src} field={fd} path={path} /><Unit of={fd} /></view>;
-  if (fd.kind === Kind.Rows) return <text class="text-xs text-zinc-500">{f(fd.role === 'path' ? L.POINTS : L.ROWS, count())}</text>;
+  if (fd.kind === Kind.Rows) return <text class="text-xs text-zinc-500">{f(isPath(fd) ? L.POINTS : L.ROWS, count())}</text>;
   if (fd.kind === Kind.List) return <text class="text-xs text-zinc-500">{f(L.ITEMS, count())}</text>;
   if (fd.kind === Kind.Texts) {
     const lines = (): string => { const v: any = src.get(path); const out: string[] = []; if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${v[i]}`); return out.join('\n'); };
@@ -113,6 +139,36 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
       onChange={(v: string) => { src.set(path, v.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)); }} />;
   }
   return <input class={FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
+}
+/** A list of objects inside a form (the rules, the steps of a mission, the actions of a rule): a line per item, which says what the
+ *  item is and opens its own form, and a way to add one. */
+function Items(p: { src: Source; field: Field; path: string }): i32 {
+  // "3 pops hit [score 500]": the place of an item and what tells it from the others; the lines are made again when either changes
+  const rows = (): string[] => {
+    const v: any = p.src.get(p.path), out: string[] = [];
+    if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${i} ${p.src.summary(`${p.path}[${i}]`)}`);
+    return out;
+  };
+  return <view class="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <view class="flex-row items-center gap-2 px-4 h-7">
+      <Heading label={label(p.field)} />
+      <text class="text-[11px] text-zinc-600">{`${rows().length}`}</text>
+    </view>
+    <view class="flex-col gap-[2] px-4">
+      <For each={rows()}>{(row: string, i: i32) => {
+        const cut = row.indexOf(' '), at = row.slice(0, cut);
+        return <button class="flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => p.src.open(`${p.path}[${at}]`)}>
+          <text class="w-[18] shrink-0 text-right text-[11px] text-zinc-600">{`${parseInt(at, 10) + 1}`}</text>
+          <text class="grow truncate text-xs text-zinc-200" style={{ maxWidth: 236 }}>{row.slice(cut + 1)}</text>
+          <Ico name="chevron-right" size={12} color={MUTED} />
+        </button>;
+      }}</For>
+      <button class="flex-row items-center justify-center gap-[6] h-7 px-2 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800" onClick={() => p.src.add(p.path)}>
+        <Ico name="plus" size={12} color={MUTED} />
+        <text class="text-xs font-bold text-zinc-300">{t(L.ADD)}</text>
+      </button>
+    </view>
+  </view>;
 }
 /** A height profile of the table as a curve to shape: the height (up) along the path (from its start at the left to its end at the right). A
  *  point is dragged; a double click adds one; the first and the last stay at the two ends of the path. */
@@ -180,6 +236,7 @@ function Entry(p: { src: Source; field: Field; path: string }): i32 {
     <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>
     <text class="px-4 pb-2 text-[11px] text-zinc-500" style={{ width: 340 }}>{t(L.PATH_HINT)}</text>
   </view>;
+  if (fd.kind === Kind.List) return <Items src={p.src} field={fd} path={p.path} />;
   if (fd.kind !== Kind.Obj) return <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>;
   return <view class="flex-col mt-2">
     <view class="flex-row items-center px-4 h-7" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}><Heading label={label(fd)} /></view>
@@ -268,14 +325,30 @@ function Written(): i32 {
 /** The form of one selection. It is built again when another thing is selected. */
 function Panel(p: { path: string }): i32 {
   const path = p.path, list = listOf(path), parts = steps(path);
-  const kind = path === '' ? '' : list !== '' ? list : parts[0];
+  // what kind of thing it is: a list of the table has its own word, an item deeper in (a rule, a step) the format's
+  const kind = path === '' ? listName('', true) : parts.length === 1 ? listName(parts[0], true) : parts.length === 2 && list !== '' ? listName(list, true) : kindName(schemaAt(path).name);
+  // the objects it is in, the outermost first: a step is in a mission, which is in the rules
+  const above: string[] = [];
+  for (let k = 1; k < parts.length; k++) {
+    const up = pathOf(parts.slice(0, k)), v: any = doc().get(up);
+    if (v !== undefined && v !== null && typeof v === 'object' && !Array.isArray(v)) above.push(up);
+  }
+  const sound = (): string => { const id = schemaAt(path).field('id'); return id !== null && id.to === 'sounds' ? `${doc().get(`${path}.id`)}` : ''; };
   const hits = (): string[] => wanted().trim() === '' ? [] : found(schemaAt(path), path, wanted(), fieldName, (fd: Field, at: string): boolean => !offered(fd, at));
   return <view class="flex-col pb-4">
     <Show when={wanted().trim() === ''}>
       <view class="flex-col">
+        <Show when={above.length > 0}>
+          <view class="flex-row items-center gap-1 px-3 pt-3">
+            {above.map((up: string, i: i32) => <button class="flex-row items-center gap-1 h-6 px-1 rounded cursor-pointer bg-transparent hover:bg-zinc-800" onClick={() => select(up)}>
+              <text class="truncate text-[11px] text-zinc-400" style={{ maxWidth: 120 }}>{steps(up).length === 1 ? listName(up, false) : doc().nameOf(up)}</text>
+              <Ico name="chevron-right" size={11} color={MUTED} />
+            </button>)}
+          </view>
+        </Show>
         <view class="flex-col gap-1 px-4 pt-4 pb-3">
-          <Heading label={listName(kind, true)} />
-          <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{path === '' ? `${doc().get('name')}` : doc().nameOf(path)}</text>
+          <Heading label={kind} />
+          <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{path === '' ? `${doc().get('name')}` : parts.length > 2 ? doc().summaryOf(path) : doc().nameOf(path)}</text>
           <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{schemaAt(path).doc}</text>
         </view>
         <Show when={path === ''}><text class="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</text></Show>
@@ -285,6 +358,11 @@ function Panel(p: { path: string }): i32 {
               <Action icon="copy" label={t(L.DUPLICATE)} look="plain" onClick={duplicateSelected} />
               <Show when={selectionPlaced()}><Action icon="square-split-horizontal" label={t(L.MIRROR)} look="plain" onClick={mirrorSelected} /></Show>
               <Action icon="trash" label={t(L.DELETE)} look="danger" onClick={deleteSelected} />
+            </view>
+            <view class="flex-row gap-2">
+              <Show when={sound() !== ''}><Action icon="play" label={t(L.LISTEN)} look="primary" onClick={() => { previewSound(sound()); }} /></Show>
+              <Action icon="arrow-up" label="" look="plain" onClick={() => reorderSelected(-1)} />
+              <Action icon="arrow-down" label="" look="plain" onClick={() => reorderSelected(1)} />
             </view>
             <Show when={selectionTurns()}>
               <view class="flex-row gap-2">

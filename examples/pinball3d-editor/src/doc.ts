@@ -105,8 +105,10 @@ export function found(s: Schema, path: string, text: string, labelOf: (key: stri
 // turns a thing by the roles of its fields, and knows no field by its name.
 /** A place of the top view: [x, y], or [x, y, z]. */
 export function isPoint(f: Field): boolean { return f.role === 'point'; }
-/** A line of the top view: rows [x, y] or [x, y, bulge]. */
-export function isPath(f: Field): boolean { return f.role === 'path'; }
+/** A line of the top view, or the outline of an area: rows [x, y] or [x, y, bulge]. */
+export function isPath(f: Field): boolean { return f.role === 'path' || f.role === 'area'; }
+/** A step counted from the thing's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with the thing, and does not move with it. */
+export function isOffset(f: Field): boolean { return f.role === 'offset'; }
 /** An angle of the top view. */
 export function isDirection(f: Field): boolean { return f.role === 'direction'; }
 /** A turn in space, [around x, y, z]: the third number turns the thing in the top view. */
@@ -120,7 +122,7 @@ export function isPlaced(s: Schema): boolean {
 export function canTurn(s: Schema): boolean {
   let points = 0;
   for (const f of s.fields) {
-    if (isDirection(f) || isPath(f) || isRotation(f)) return true;
+    if (isDirection(f) || isPath(f) || isRotation(f) || isOffset(f)) return true;
     if (isPoint(f)) points++;
   }
   return points > 1;
@@ -134,10 +136,8 @@ function wrap(degrees: number): number {
   if (a <= -180) a += 360;
   return round2(a);
 }
-/** Whether a path goes back to its first point: the object says so (`closed`), or the path is an outline.
- *  ponytail: the format has no word for an outline (an upper playfield's path "closes by itself"); it is known here as a path that
- *  needs three points. A role of its own, asked of the format's owner, replaces the test. */
-export function isClosed(f: Field, item: any): boolean { return f.minRows >= 3 || item.closed === true; }
+/** Whether a path goes back to its first point: it is the outline of an area, or the object says so (`closed`). */
+export function isClosed(f: Field, item: any): boolean { return f.role === 'area' || item.closed === true; }
 /** A height along a path: rows [fraction of the length, height]. */
 export function isProfile(f: Field): boolean { return f.role === 'profile'; }
 /** The points of an object of schema `s`, as the rows that hold them (a point's own row, each row of a path). */
@@ -173,6 +173,7 @@ export function turnItem(s: Schema, item: any, degrees: number, about: number[])
   for (const f of s.fields) {
     if (isDirection(f)) { const d: number = item[f.name]; item[f.name] = wrap(d + degrees); }
     else if (isRotation(f)) { const r: any = item[f.name]; const d: number = r[2]; r[2] = wrap(d + degrees); }
+    else if (isOffset(f)) { const o: any = item[f.name]; const x: number = o[0], y: number = o[1]; o[0] = round2(x * c - y * sn); o[1] = round2(x * sn + y * c); }
   }
 }
 /** The mirror image of an object of schema `s` about the line x = `axis` of the top view. Changes `item`. */
@@ -190,12 +191,11 @@ export function mirrorItem(s: Schema, item: any, axis: number): void {
       }
     } else if (isDirection(f)) { const d: number = v; item[f.name] = wrap(180 - d); }
     else if (isRotation(f)) { const d: number = v[2]; v[2] = d === 0 ? 0 : -d; }
-    // ponytail: three things a mirror changes have no role in the format yet (asked of its owner) and are known by what they look
-    // like: a swing counted both ways in degrees (a flipper's stroke), a choice between left and right (its button), and by its
-    // name the offset at which a kicker throws its ball
+    else if (isOffset(f)) { const x: number = v[0]; v[0] = x === 0 ? 0 : -x; }
+    // ponytail: two things a mirror changes have no role in the format and are known by what they look like: a swing counted
+    // both ways in degrees (a flipper's stroke) and a choice between left and right (its button)
     else if (f.kind === Kind.Num && f.unit === 'degrees' && f.min === -f.max) { const d: number = v; item[f.name] = d === 0 ? 0 : -d; }
     else if (f.kind === Kind.Choice && f.choices.length === 2 && f.choices[0] === 'left' && f.choices[1] === 'right') item[f.name] = v === 'left' ? 'right' : 'left';
-    else if (f.kind === Kind.Tuple && f.name === 'exit') { const x: number = v[0]; v[0] = x === 0 ? 0 : -x; }
   }
   // what lies between two points has a side (a gate lets through from its left, a slingshot kicks to its left): the ends change
   // places, so that the side is mirrored with the rest
@@ -209,6 +209,24 @@ export function mirrorName(id: string): string {
     if (at >= 0) return id.slice(0, at) + pairs[k % 2 === 0 ? k + 1 : k - 1] + id.slice(at + pairs[k].length);
   }
   return id;
+}
+
+function summary(s: Schema, v: any): string {
+  const id: any = v.id, name: any = v.name;
+  if (typeof id === 'string' && id !== '') return typeof name === 'string' && name !== '' ? `${id}: ${name}` : `${id}`;
+  const parts: string[] = [];
+  for (const f of s.fields) {
+    const x: any = v[f.name];
+    if (x === undefined || f.kind === Kind.Obj || f.kind === Kind.Rows) continue;
+    if (f.kind === Kind.List) {
+      if (x.length === 0) continue;
+      const inner: string[] = [];
+      for (let i = 0; i < x.length; i++) inner.push(summary(f.of as Schema, x[i]));
+      parts.push(`[${inner.join(', ')}]`);
+    } else if (f.kind === Kind.Tuple || f.kind === Kind.Texts) { if (f.required) parts.push(JSON.stringify(x)); }
+    else if (f.required || JSON.stringify(x) !== JSON.stringify(f.def)) parts.push(`${x}`);
+  }
+  return parts.join(' ');
 }
 
 /** The path a fault of the loader is about: the text before its first ": ". */
@@ -327,7 +345,10 @@ export class Doc {
     const v: any = this.get(path);
     if (v !== undefined && v !== null && typeof v === 'object' && typeof v.id === 'string') { const id: string = v.id; return id; }
     const s = steps(path);
-    return s.length === 0 ? 'table' : s[s.length - 1];
+    if (s.length === 0) return 'table';
+    // an item without a name is called by its kind and its place in its list: "rule 4"
+    const last = s[s.length - 1];
+    return isIndex(last) ? `${schemaAt(path).name} ${parseInt(last, 10) + 1}` : last;
   }
   /** The path of the item of `list` whose id is `id`; '' when there is none. */
   find(list: string, id: string): string {
@@ -375,13 +396,16 @@ export class Doc {
     const f = fieldAt(path);
     if (f === null) { this.refused = `${path}: unknown field`; return false; }
     const old: any = this.get(path);
-    // the object the field belongs to: the path up to the field's own name
+    // what the step is called: the thing the field belongs to (the nearest item of a list above it, by its name), then the
+    // way from it to the field: "pop1.sounds.hit", "left.speed", "physics.ball.radius"
     const s = steps(path);
     let last = s.length - 1;
     while (last > 0 && isIndex(s[last])) last--;
-    const owner = pathOf(s.slice(0, last));
+    let item = last;
+    while (item > 0 && !isIndex(s[item - 1])) item--;
+    const called = item === 0 ? pathOf(s.slice(0, last + 1)) : `${this.nameOf(pathOf(s.slice(0, item)))}.${pathOf(s.slice(item, last + 1))}`;
     const rename = typeof old === 'string' && typeof value === 'string' && old !== '' && value !== '' && (f.name === 'id' || f.name === 'group');
-    return this.apply(`Change ${this.nameOf(owner)}.${f.name}`, merge ? `set ${path}` : '', (d: any) => { put(d, path, value); }, !rename ? null : (d: any, found: string[]): boolean => {
+    return this.apply(`Change ${called}`, merge ? `set ${path}` : '', (d: any) => { put(d, path, value); }, !rename ? null : (d: any, found: string[]): boolean => {
       // what named the old name and now names nothing: it takes the new one
       for (const fault of found) {
         const p = faultPath(fault);
@@ -440,7 +464,7 @@ export class Doc {
   /** Adds an item at the end of a list and returns its path ('' when it is refused). `item`: its fields as a file would hold them;
    *  it is given a name when it has none or one that is taken, and an optional reference to something the table does not have (the
    *  look or the surface of the table it was made for) is cleared. */
-  add(list: string, item: any, verb: string = 'Add'): string {
+  add(list: string, item: any, verb: string = 'Add', also: ((d: any) => void) | null = null): string {
     const f = fieldAt(list);
     if (f === null || f.kind !== Kind.List || f.of === null) { this.refused = `${list}: not a list of the table`; return ''; }
     const of = f.of as Schema, copy: any = JSON.parse(JSON.stringify(item)), at: i32 = this.get(list).length;
@@ -454,6 +478,7 @@ export class Doc {
       for (let i = 0; i < items.length; i++) all.push(items[i]);
       all.push(copy);
       put(d, list, all);
+      if (also !== null) also(d);   // what the new item cannot do without elsewhere in the table, in the same step
     }, (d: any, found: string[]): boolean => {
       for (const fault of found) {
         const p = faultPath(fault), fd = p === '' ? null : fieldAt(p);
@@ -482,6 +507,21 @@ export class Doc {
     if (typeof copy.id === 'string') { const id: string = copy.id; copy.id = mirrorName(id); }
     return this.add(list, copy, 'Mirror');
   }
+  /** Moves an item of a list one place up (`by` -1) or down (1): rules are read in order, a mission follows the one before it.
+   *  Returns the path the item has afterwards ('' when it did not move). */
+  reorder(path: string, by: i32): string {
+    const list = listOf(path), at = indexOf(path), items: any = list === '' ? undefined : this.get(list);
+    if (items === undefined || at + by < 0 || at + by >= items.length) return '';
+    const done = this.apply(`Move ${this.nameOf(path)}`, '', (d: any) => {
+      const old: any = valueAt(d, list), all: any[] = [];
+      for (let i = 0; i < old.length; i++) all.push(old[i === at ? at + by : i === at + by ? at : i]);
+      put(d, list, all);
+    }, null);
+    return done ? `${list}[${at + by}]` : '';
+  }
+  /** One line that tells an object of the table from its neighbours in a list: its name when it has one, else what it holds that is
+   *  not a default, the items of its own lists in brackets ("pops hit [score 500, bonus 100]"). */
+  summaryOf(path: string): string { const v: any = this.get(path); return v === undefined ? '' : summary(schemaAt(path), v); }
   /** Several changes of the tree as one step (the plunger lane is a wall, a gate and the plunger at once). */
   edit(label: string, change: (d: any) => void): boolean { return this.apply(label, '', change, null); }
   /** Replaces the object at a path by the one a JSON text holds: the selection edited as the file has it. */

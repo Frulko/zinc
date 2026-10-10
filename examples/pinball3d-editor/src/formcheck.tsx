@@ -43,6 +43,7 @@ class Fixture extends Source {
   names(space: string): string[] { return space === 'looks' ? ['steel', 'rubber', 'glass'] : space === 'sounds' ? ['clack', 'hum'] : []; }
   set(path: string, value: any): void { data[path] = value; setRev(rev() + 1); }   // the fields of the gadget itself: enough to see a control answer
   field(path: string): Field | null { return fieldIn(gadget, path); }
+  summary(path: string): string { return `${valueAt(data, path).text}`; }
 }
 const fixture = new Fixture();
 

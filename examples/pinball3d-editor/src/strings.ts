@@ -54,6 +54,8 @@ export const VIEW_HINT = S('Click an element to select it, drag it to move it, d
   'Cliquez un élément pour le sélectionner, glissez-le pour le déplacer, glissez sa poignée ronde pour le tourner. Glissez le fond pour déplacer la vue, la molette zoome.');
 export const CM = S('cm', 'cm');
 export const SNAP = S('Snap', 'Aimant');
+export const LEVEL = S('Level', 'Niveau');
+export const ALL_LEVELS = S('all', 'tous');
 export const SNAP_OFF = S('off', 'aucun');
 export const AXIS = S('axis', 'axe');
 // ---- the palette and what is being placed
@@ -87,6 +89,7 @@ export const NOTHING_SELECTED = S('Nothing is selected: this is the table itself
   'Rien n’est sélectionné : voici la table elle-même. Cliquez un élément sur la table, ou une ligne de la liste à gauche.');
 export const DELETE = S('Delete', 'Supprimer');
 export const DUPLICATE = S('Duplicate', 'Dupliquer');
+export const LISTEN = S('Listen', 'Écouter');
 export const MIRROR = S('Mirror', 'Miroir');
 export const TURN_LEFT = S('Turn left', 'Tourner à gauche');
 export const TURN_RIGHT = S('Turn right', 'Tourner à droite');
@@ -197,12 +200,21 @@ export function listName(key: string, one: boolean): string {
   for (let i = 0; i < LISTS.length; i += 5) if (LISTS[i] === key) return LISTS[i + (one ? 3 : 1) + (uiLang() === 'fr' ? 1 : 0)];
   return readable(key);
 }
+// what the format calls the items of the lists that are inside other things, in English and in French
+const KINDS: string[] = ['rule', 'Rule', 'Règle', 'condition', 'Condition', 'Condition', 'action', 'Action', 'Action', 'mission', 'Mission', 'Mission', 'step', 'Step', 'Étape',
+  'high score', 'High score', 'Meilleur score', 'lamp', 'Lamp', 'Projecteur', 'panel item', 'Thing on the panel', 'Élément du panneau', 'layout', 'Screen layout', 'Mise en page',
+  'camera', 'Camera', 'Caméra', 'panel', 'Panel', 'Panneau', 'ball', 'Ball', 'Bille', 'tilt', 'Tilt', 'Tilt', 'multiball', 'Multiball', 'Multibille'];
+/** The name of a kind of object of the format ("rule", "step"), for one of them. */
+export function kindName(kind: string): string {
+  for (let i = 0; i < KINDS.length; i += 3) if (KINDS[i] === kind) return KINDS[i + (uiLang() === 'fr' ? 2 : 1)];
+  return readable(kind);
+}
 // key, in English ('' for the key made readable), in French
 const FIELDS: string[] = [
   'id', 'Name', 'Nom', 'group', 'Group', 'Groupe', 'name', 'Name', 'Nom', 'author', 'Author', 'Auteur', 'description', 'Description', 'Description',
   'format', 'Format', 'Format', 'version', 'Version', 'Version',
   'friction', 'Friction', 'Adhérence', 'restitution', 'Bounce', 'Rebond', 'color', 'Colour', 'Couleur', 'shading', 'Shading', 'Rendu', 'specular', 'Highlights', 'Reflets',
-  'shininess', 'Shininess', 'Brillance', 'glow', 'Glow when lit', 'Lueur allumé', 'texture', 'Image', 'Image',
+  'shininess', 'Shininess', 'Brillance', 'glow', 'Glow', 'Lueur', 'texture', 'Image', 'Image',
   'file', 'File', 'Fichier', 'wave', 'Wave', 'Onde', 'hz', 'Pitch (Hz)', 'Hauteur (Hz)', 'seconds', 'Seconds', 'Secondes', 'volume', 'Volume', 'Volume',
   'volumeVariation', 'Volume variation', 'Variation du volume', 'pitch', 'Speed', 'Vitesse de lecture', 'pitchVariation', 'Pitch variation', 'Variation de hauteur', 'loop', 'Loop', 'En boucle',
   'attract', 'Waiting for a player', 'En attente d’un joueur', 'play', 'During a ball', 'Pendant une bille', 'multiball', 'Multiball', 'Multibille', 'gameOver', 'Game over', 'Fin de partie',
@@ -231,7 +243,8 @@ const FIELDS: string[] = [
   'label', 'Caption', 'Légende', 'items', 'Items', 'Éléments', 'window', 'Window', 'Fenêtre', 'view', 'Table view', 'Vue de la table', 'camera', 'Camera', 'Caméra', 'panel', 'Panel', 'Panneau',
   'landscape', 'Landscape', 'Paysage', 'portrait', 'Portrait', 'Portrait', 'direction', 'Direction', 'Direction', 'lamps', 'Lamps', 'Projecteurs', 'background', 'Background', 'Fond',
   'ambient', 'Ambient light', 'Lumière ambiante', 'files', 'Files', 'Fichiers', 'source', 'Source', 'Source', 'licence', 'Licence', 'Licence',
-  'land', 'Landing', 'Chute', 'knock', 'Knock', 'Coup sourd'];
+  'land', 'Landing', 'Chute', 'knock', 'Knock', 'Coup sourd', 'textureLit', 'Image when lit', 'Image éclairée', 'general', 'General lighting', 'Éclairage général',
+  'dimmed', 'Light left when it is off', 'Lumière qui reste éteint', 'image', 'Image', 'Image'];
 /** The label of a field of the format. */
 export function fieldName(key: string): string {
   for (let i = 0; i < FIELDS.length; i += 3) if (FIELDS[i] === key) return FIELDS[i + (uiLang() === 'fr' ? 2 : 1)];

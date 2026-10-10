@@ -8,13 +8,13 @@
 // it lasts); a point or an arc being dragged changes it as it goes, the whole drag being one step for undo.
 import { createSignal, createEffect, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip } from 'zinc:gfx';
+import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip, drawImage } from 'zinc:gfx';
 import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, fitSoon, viewW, viewH,
-  setViewSize, moveSelected, turnSelected, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
+  setViewSize, moveSelected, turnSelected, level, levels, nextLevel, onLevel, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
 import { centreOf, schemaAt, isPoint, isPath, isClosed } from './doc';
 import { Outline, Shape, Draw, boardColor, mix } from './shapes';
 import { pointsNeeded, rowsNeeded } from './presets';
-import { view3d, dropping, dropBall, flashes, gameIfAny, moved } from './play';
+import { view3d, dropping, dropBall, flashes, gameIfAny, moved, boardPainting } from './play';
 import { Pane3D, PaneSwitch } from './view3d';
 import { Tool, Heading, ACCENT, chord } from './widgets';
 import * as L from './strings';
@@ -125,9 +125,12 @@ export function drawShape(s: Shape, m: Placing, ox: number, oy: number, z: numbe
 export function drawPlain(o: Outline, ox: number, oy: number, z: number): void { for (const s of o.shapes) drawShape(s, STILL, ox, oy, z, 0, s.color, s.alpha, 0); }
 function drawOutline(o: Outline, ox: number, oy: number, z: number, halo: i32): void {
   const m = placingOf(o);
-  // what stands higher throws a longer shadow: the height read at a glance
-  if (o.layer > 0 && o.z1 > 0.3) {
-    const push = Math.min(o.z1, 14) * 0.11 * z;
+  // what is on another level than the one being worked on is only hinted at
+  if (!onLevel(o)) { for (const s of o.shapes) drawShape(s, m, ox, oy, z, 0, s.color, Math.round(s.alpha * 0.16), 0); return; }
+  // what stands higher throws a longer shadow: the height read at a glance (from the level it stands on, when one is chosen)
+  const top = o.z1 - (level() > 0 && o.level >= 0 ? level() : 0);
+  if (!o.plate && o.layer > 0 && top > 0.3) {
+    const push = Math.min(top, 14) * 0.11 * z;
     for (const s of o.shapes) if (s.alpha > 100) drawShape(s, m, ox, oy, z, push, 0x000000, 70, 0);
   }
   if (halo >= 0) for (const s of o.shapes) if (s.alpha > 100) drawShape(s, m, ox, oy, z, 0, halo, 255, 2);
@@ -143,7 +146,10 @@ function drawTop(x: i32, y: i32, w: i32, h: i32): void {
   clip(x, y, w, h);
   // the board and its grid
   rrect(ox - 3, oy - 3, W * z + 6, Len * z + 6, 5, 0x27272a, 255);
-  rect(ox, oy, W * z, Len * z, mix(board, 0x000000, 0.42));
+  rect(ox, oy, W * z, Len * z, board);
+  // the painting of the board, under a veil: it is what the elements are placed on, not what is being drawn
+  const painting = boardPainting();
+  if (painting >= 0) { drawImage(painting, ox, oy, W * z, Len * z, 255, 0); rrect(ox, oy, W * z, Len * z, 0, 0x05060c, 150); }
   const step = gridStep(z);
   for (let g = step; g < W; g += step) rect(Math.round(ox + g * z), oy, 1, Len * z, mix(board, 0xffffff, g % 10 === 0 ? 0.1 : 0.03));
   for (let g = step; g < Len; g += step) rect(ox, Math.round(oy + g * z), W * z, 1, mix(board, 0xffffff, g % 10 === 0 ? 0.1 : 0.03));
@@ -152,9 +158,7 @@ function drawTop(x: i32, y: i32, w: i32, h: i32): void {
   for (let d = 0; d < Len * z; d += 10) rect(gx, oy + d, 1, 5, mix(board, GUIDE, 0.5));
   // everything on it, the lowest first; what is selected and what the pointer is over wear a halo
   const all = placed(), chosen = selected(), over = hovered();
-  for (let layer = 0; layer < 3; layer++) {
-    for (const o of all) if (o.layer === layer) drawOutline(o, ox, oy, z, o.path === chosen ? ACCENT : o.path === over ? 0xe4e4e7 : -1);
-  }
+  for (const o of all) drawOutline(o, ox, oy, z, o.path === chosen ? ACCENT : o.path === over ? 0xe4e4e7 : -1);
   const sel = outlineOf(chosen);
   if (sel !== null) drawHandles(sel, ox, oy, z);
   drawPlacing(ox, oy, z);
@@ -264,21 +268,21 @@ function drawProfile(x: i32, y: i32, w: i32, h: i32): void {
     if (g > 0) rect(gx, oy, 1, Len * z, 0x27272a);
     drawText(SMALL, Math.round(gx - textWidth(SMALL, s, 0) / 2), oy - 19, s, 0x71717a, 255, 0);
   }
-  for (let layer = 0; layer < 3; layer++) {
+  {
     for (const o of placed()) {
-      if (o.layer !== layer) continue;
-      const m = placingOf(o), lit = o.path === chosen;
+      const m = placingOf(o), lit = o.path === chosen, faint = !onLevel(o);
       if (o.section.length > 0) {
         const pts: number[] = [];
         for (let i = 0; i + 1 < o.section.length; i += 2) { pts.push(x0 + o.section[i + 1] * kz); pts.push(oy + (o.section[i] + m.dy) * z); }
         if (lit) stroke(pts, 6, ACCENT, 255, false);
-        stroke(pts, 3, o.tone, 255, false);
+        stroke(pts, 3, o.tone, faint ? 60 : 255, false);
         continue;
       }
       const bx = Math.round(x0 + o.z0 * kz), by = Math.round(oy + (o.y0 + m.dy) * z), bw = Math.max(2, Math.round((o.z1 - o.z0) * kz)), bh = Math.max(2, Math.round((o.y1 - o.y0) * z));
       const near = o.path === hovered();
-      rrect(bx, by, bw, bh, 1, lit ? ACCENT : o.tone, lit ? 150 : near ? 90 : 22);
-      border(bx, by, bw, bh, 1, lit ? 2 : 1, lit ? ACCENT : near ? 0xe4e4e7 : o.tone, lit || near ? 255 : 96);
+      // an upper playfield is a plate across the table at its height: it reads as a level
+      rrect(bx, by, bw, bh, 1, lit ? ACCENT : o.tone, lit ? 150 : near ? 90 : o.plate && !faint ? 120 : 22);
+      border(bx, by, bw, bh, 1, lit ? 2 : 1, lit ? ACCENT : near ? 0xe4e4e7 : o.tone, lit || near ? 255 : faint ? 30 : o.plate ? 255 : 96);
     }
   }
   // the selection's foot and top, in figures
@@ -301,11 +305,12 @@ function drawProfile(x: i32, y: i32, w: i32, h: i32): void {
  *  switch in a lane, can be picked; '' for none. */
 function pick(x: number, y: number): string {
   const reach = 5 / zoom();
-  let best = '', size = 1e12;
+  let best = '', size = 1e12, high = -1;
   for (const o of placed()) {
-    if (o.distance(x, y) > reach) continue;
-    const area = (o.x1 - o.x0 + 0.5) * (o.y1 - o.y0 + 0.5);
-    if (area <= size) { size = area; best = o.path; }
+    // what is on another level than the one being worked on is not picked; with all levels shown, the upper one is on top
+    if (!onLevel(o) || o.distance(x, y) > reach) continue;
+    const area = (o.x1 - o.x0 + 0.5) * (o.y1 - o.y0 + 0.5), at = Math.max(0, o.level);
+    if (at > high || (at === high && area <= size)) { size = area; best = o.path; high = at; }
   }
   return best;
 }
@@ -318,7 +323,7 @@ function down(e: ui.PointerEvent): void {
   if (e.button !== 0) return;
   const z = zoom(), x = (e.x - panX()) / z, y = (e.y - panY()) / z;
   pressX = e.x; pressY = e.y;
-  if (dropping()) { dropBall(Math.round(x * 100) / 100, Math.round(y * 100) / 100); return; }
+  if (dropping()) { dropBall(Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.max(0, level())); return; }
   if (tool() !== null) { const p = snapped(x, y, '', e.alt); placeAt(p[0], p[1]); return; }
   if (onAxisMarker(e.x, e.y)) { setGesture(Gesture.Axis); return; }
   const hp = handleAt();
@@ -435,7 +440,7 @@ function placingHint(): string {
 
 export function TopView(): i32 {
   // both views are drawn by hand: ask for a repaint when what they show changes
-  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); axis(); activeRow(); tool(); clicks(); moved(); if (tool() !== null) { pointX(); pointY(); } ui.repaint(); });
+  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); axis(); activeRow(); tool(); clicks(); moved(); level(); if (tool() !== null) { pointX(); pointY(); } ui.repaint(); });
   // the top view is narrower beside the table in 3D: the whole table again, once the view has its new size
   createEffect(() => { view3d(); fitSoon(); });
   // where the pointer is on the table, and how large the table is shown
@@ -445,6 +450,12 @@ export function TopView(): i32 {
       <view class="flex-row items-center gap-1 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
         <Heading label={t(L.TOP_VIEW)} />
         <view class="grow" />
+        <Show when={levels().length > 1}>
+          <button class={`flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer ${level() < 0 ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-zinc-700'}`} onClick={nextLevel}>
+            <text class="text-[11px] text-zinc-500">{t(L.LEVEL)}</text>
+            <text class="text-xs font-bold text-zinc-200">{level() < 0 ? t(L.ALL_LEVELS) : `${level()} cm`}</text>
+          </button>
+        </Show>
         <button class="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
           <text class="text-[11px] text-zinc-500">{t(L.SNAP)}</text>
           <text class="text-xs font-bold text-zinc-200">{gridName(grid())}</text>

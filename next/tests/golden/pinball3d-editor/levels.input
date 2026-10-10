@@ -1,0 +1,30 @@
+# The table editor, the levels of a table (tests/t1/pinball3d_editor.sh), window 1440x900.
+# An upper playfield: its outline, four points, Enter. It stands 5 cm above the playfield (the format's default).
+4 key g meta
+5 text +floor
+6 key Enter
+8 move 739 149
+9 down
+10 up
+11 move 831 149
+12 down
+13 up
+14 move 831 281
+15 down
+16 up
+17 move 739 281
+18 down
+19 up
+20 key Enter
+# L goes from all the levels to the playfield, then to the upper one: what stands on the others is only hinted at.
+23 key l
+25 key l
+# A bumper placed now stands on that level.
+27 key g meta
+28 text +bumper
+29 key Enter
+31 move 785 215
+32 down
+33 up
+# Save.
+36 key s meta

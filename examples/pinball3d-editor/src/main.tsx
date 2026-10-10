@@ -14,7 +14,7 @@ import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
-  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow } from './state';
+  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
@@ -135,14 +135,15 @@ ui.onKey((e: ui.KeyEvent) => {
     return;
   }
   // the game: V shows the table in 3D, B drops a ball where the top view is clicked next, P plays or pauses, O steps a paused
-  // game by a frame, W opens the game's own window, Escape ends the game. While it runs every other key is the game's: its
-  // flippers, its plunger, its bumps
+  // game by a frame, W opens the game's own window, Escape ends the game; L goes from one level of the table to the next. While
+  // the game runs every other key is the game's: its flippers, its plunger, its bumps
   let taken = true;
   if (k === 'v') setView3d(!view3d());
   else if (k === 'b') { setView3d(true); setDropping(!dropping()); }
   else if (k === 'p') { setView3d(true); if (playing()) pause(); else play(); }
   else if (k === 'o' && playing() && paused()) stepFrame();
   else if (k === 'w') toggleWindow();
+  else if (k === 'l' && !(playing() && !paused())) nextLevel();
   else if (k === 'Escape' && (playing() || dropping())) { if (playing()) stop(); setDropping(false); }
   else taken = playing() && !paused();
   if (taken) { e.preventDefault(); return; }

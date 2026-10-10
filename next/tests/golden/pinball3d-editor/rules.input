@@ -1,0 +1,111 @@
+# The table editor, sounds and rules (tests/t1/pinball3d_editor.sh), window 1440x900. Things are taken by their names and paths
+# (Cmd+G), fields by their keys (Cmd+F): no line of a form is aimed at by its place.
+# A sound: "+sound" adds one (a generated tone until it names a file); its pitch is typed.
+4 key g meta
+5 text +sound
+6 key Enter
+8 key f meta
+9 text hz
+10 key Tab
+11 text 880
+12 key Enter
+# The first bumper plays it when it is hit: the event is found by its path in the form, the sound is chosen in the list of the
+# table's sounds (its second line, after "none"), and the button beside it lets it be heard.
+14 key g meta
+15 text pop1
+16 key Enter
+18 key f meta
+19 text sounds.hit
+21 move 1300 112
+22 down
+23 up
+26 move 1300 168
+27 down
+28 up
+30 move 1383 112
+31 down
+32 up
+# The music of a ball in play is the same sound.
+34 key g meta
+35 text music
+36 key Enter
+38 key f meta
+39 text play
+41 move 1300 112
+42 down
+43 up
+45 move 1300 168
+46 down
+47 up
+# A rule: "+rule" adds one to the rules and opens it; it is written as the file has it (Cmd+J), and a click beside the board
+# leaves the field. Then its action is opened by its path and its value typed in its form.
+50 key g meta
+51 text +rule
+52 key Enter
+54 key j meta
+56 key a meta
+57 text {"on":"pop1","event":"hit","do":[{"do":"score","value":250}]}
+59 move 420 500
+60 down
+61 up
+63 key g meta
+64 text rules.when[24].do[0]
+65 key Enter
+67 key f meta
+68 text value
+69 key Tab
+70 text 300
+71 key Enter
+# A mission: "+mission" adds one with a step; its name is typed; its step listens to the group of the bumpers (chosen in the
+# long list of what the table has by typing its name) being hit (the event, chosen the same way), three times.
+73 key g meta
+74 text +mission
+75 key Enter
+77 key f meta
+78 text name
+79 key Tab
+80 text Bumpers
+81 key Enter
+83 key g meta
+84 text rules.missions[6].steps[0]
+85 key Enter
+87 key f meta
+88 text on
+90 move 1300 112
+91 down
+92 up
+94 text pops
+95 key Enter
+97 key f meta
+98 text event
+100 move 1300 112
+101 down
+102 up
+104 text hit
+105 key Enter
+107 key f meta
+108 text count
+109 key Tab
+110 text 3
+111 key Enter
+# The rules of the game itself: the ball save, the warnings before a tilt, the balls of multiball.
+113 key g meta
+114 text rules
+115 key Enter
+117 key f meta
+118 text ballSave
+119 key Tab
+120 text 12
+121 key Enter
+123 key f meta
+124 text tilt.warnings
+125 key Tab
+126 text 3
+127 key Enter
+129 key f meta
+130 text multiball.balls
+131 key Tab
+132 text 2
+133 key Enter
+# Save.
+136 key s meta

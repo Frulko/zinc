@@ -7,8 +7,8 @@ import * as dialog from 'zinc:system/dialog';
 import { Schema, Kind } from '../../pinball3d/src/format/schema';
 import { TableDef, TableError, TABLE_FILE, formatSchema } from '../../pinball3d/src/format/table';
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
-import { Outline, outlines } from './shapes';
-import { Preset, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf } from './presets';
+import { Outline, outlines, levelsOf } from './shapes';
+import { Preset, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith } from './presets';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -85,10 +85,45 @@ function reselect(): void {
   if (path === '') return;
   const list = listOf(path);
   if (list === '') { if (current.get(path) === undefined) setSelected(''); return; }
-  if (selectedId !== '' && idAt(path) === selectedId) return;
+  if (idAt(path) === selectedId && current.get(path) !== undefined) return;   // the same item, or one without a name at its place
   const again = selectedId === '' ? '' : current.find(list, selectedId);
   selectedId = again === '' ? '' : selectedId;
   setSelected(again);
+}
+/** The list a new item of a kind goes to ("rule", "step", "sound": the name the format gives the items of a list, with dashes for
+ *  spaces): a list of the selection or of what the selection is in, the nearest first, else a list of the table itself. '' for none. */
+function listFor(kind: string): string {
+  const named = (sc: Schema, at: string): string => {
+    for (const fd of sc.fields) if (fd.kind === Kind.List && fd.of !== null && (fd.of as Schema).name.replaceAll(' ', '-') === kind) return at === '' ? fd.name : `${at}.${fd.name}`;
+    return '';
+  };
+  let at = selected();
+  while (at !== '') {
+    if (current.get(at) !== undefined) { const found = named(schemaAt(at), at); if (found !== '') return found; }
+    // one step up: out of the item, then out of its list
+    const cut = Math.max(at.lastIndexOf('.'), at.lastIndexOf('['));
+    at = cut < 0 ? '' : at.slice(0, cut);
+  }
+  const root = formatSchema(), top = named(root, '');
+  if (top !== '') return top;
+  // the lists of the table's own objects: a rule and a mission are in `rules`
+  for (const fd of root.fields) if (fd.kind === Kind.Obj && fd.of !== null) { const found = named(fd.of as Schema, fd.name); if (found !== '') return found; }
+  return '';
+}
+/** Adds a new item to a list whose items have no place on the table (a sound, a rule, a step of a mission) and selects it. */
+export function addTo(list: string): boolean {
+  const fd = fieldAt(list);
+  if (fd === null || fd.of === null) return false;
+  const kind = (fd.of as Schema).name;
+  let done = false;
+  batch(() => { const path = current.add(list, blankOf(kind), 'Add', alongWith(kind)); done = report(path !== ''); if (done) select(path); });
+  return done;
+}
+/** Moves the selected item one place up or down in its list. */
+export function reorderSelected(by: i32): void {
+  const path = selected();
+  if (path === '' || listOf(path) === '') return;
+  batch(() => { const now = current.reorder(path, by); if (report(now !== '')) { setSelected(now); selectedId = idAt(now); } });
 }
 /** Selects what a text names: a path as the file has it ("flippers[1]", "physics"), else the first thing of the table called so,
  *  in the order of the file. "+" and the key of an entry of the palette ("+wall", "+left-flipper") takes that entry instead: the
@@ -97,7 +132,10 @@ export function goTo(text: string): boolean {
   const want = text.trim();
   if (want === '') return false;
   if (want.startsWith('+')) {
-    for (const e of ENTRIES) if (e.key === want.slice(1)) { if (e === LANE) addLane(); else pickTool(e); return true; }
+    const key = want.slice(1);
+    for (const e of ENTRIES) if (e.key === key) { if (e === LANE) addLane(); else pickTool(e); return true; }
+    const list = listFor(key);
+    if (list !== '') return addTo(list);
     say(f(L.NOT_FOUND, want), true);
     return false;
   }
@@ -142,6 +180,21 @@ export function fit(): void {
   const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.floor(Math.min((viewW - 2 * margin) / p.width, (viewH - 2 * margin) / p.length) * 10) / 10));
   batch(() => { setZoom(z); setPanX(Math.round((viewW - p.width * z) / 2)); setPanY(Math.round((viewH - p.length * z) / 2)); });
 }
+
+// ---------------------------------------------------------------- the levels of the table
+
+/** The level being worked on: the height of an upper playfield, 0 for the playfield, -1 for all of them at once. With one level
+ *  chosen, what stands on the others is shown faintly and is not picked, a ball is dropped on that level and a new thing stands
+ *  on it: two playfields one over the other are then two plans. */
+export const [level, setLevel] = createSignal<number>(-1);
+export function levels(): number[] { return levelsOf(table()); }
+/** All the levels, then each one from the playfield up, then all again. */
+export function nextLevel(): void {
+  const all = levels(), at = all.indexOf(level());
+  setLevel(at + 1 < all.length ? all[at + 1] : -1);
+}
+/** Whether a thing of the top view is on the level being worked on (what goes from a level to another is on all of them). */
+export function onLevel(o: Outline): boolean { return level() < 0 || o.level < 0 || o.level === level(); }
 
 // ---------------------------------------------------------------- drawing: the grid, the axis, what is being placed
 
@@ -203,9 +256,11 @@ export function unplace(): void { const got = clicks(); if (got.length > 0) setC
 export function finishPlacing(): void {
   const p = tool(), got = clicks();
   if (p === null || got.length < pointsNeeded(p.list) + rowsNeeded(p.list)) return;
-  const entry: Preset = p;
+  const entry: Preset = p, item: any = itemOf(entry, got), fd = formatSchema().field(entry.list);
+  // ponytail: the field that says which level a thing stands on is known by its name, `z`; a role for it is asked of the format
+  if (level() > 0 && fd !== null && fd.of !== null && (fd.of as Schema).field('z') !== null) item['z'] = level();
   batch(() => {
-    const path = current.add(entry.list, itemOf(entry, got));
+    const path = current.add(entry.list, item);
     setTool(null); setClicks([]);
     if (report(path !== '')) select(path);
   });
@@ -310,7 +365,7 @@ function show(d: Doc, dir: string, message: string): void {
   current = d;
   shapes = null;
   watch(d);
-  batch(() => { selectedId = ''; setSelected(''); setActiveRow(''); setHovered(''); setTool(null); setClicks([]); setAxis(findAxis()); setFolder(dir); say(message); refresh(); });
+  batch(() => { selectedId = ''; setSelected(''); setActiveRow(''); setHovered(''); setTool(null); setClicks([]); setLevel(-1); setAxis(findAxis()); setFolder(dir); say(message); refresh(); });
   fit();
 }
 function nameOfFolder(dir: string): string { return dir.slice(dir.lastIndexOf('/') + 1); }

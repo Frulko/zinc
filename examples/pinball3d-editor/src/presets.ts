@@ -83,6 +83,31 @@ export function laneOf(width: number, length: number, ballRadius: number): any[]
   return [wall, gate, [Math.round((x + lane / 2) * 100) / 100, length - 7]];
 }
 
+// What a new item holds in a list whose items have no place on the table, by the name the format gives the items of the list: the
+// fields the format requires, as a start that the game accepts and that plainly asks to be changed. A list not named here starts
+// with the format's defaults (a surface, a look, a sound, a lamp need nothing more than their name).
+const BLANKS: string[] = [
+  'rule', '{ "on": "game", "event": "start", "do": [{ "do": "score", "value": 100 }] }',
+  'action', '{ "do": "score", "value": 100 }',
+  'condition', '{ "test": "mode", "target": "normal" }',
+  'mission', '{ "name": "New mission", "steps": [{ "text": "Do this", "on": "game", "event": "start" }] }',
+  'step', '{ "text": "Do this", "on": "game", "event": "start" }',
+  'high score', '{ "name": "AAA", "score": 1000 }',
+  'panel item', '{ "show": "score", "box": [0, 0, 100, 30] }',
+  'credit', '{ "author": "?", "licence": "?" }',
+];
+/** A new item for a list whose items the format calls `kind` ("rule", "sound"), as a file would hold it. */
+export function blankOf(kind: string): any {
+  for (let i = 0; i < BLANKS.length; i += 2) if (BLANKS[i] === kind) return JSON.parse(BLANKS[i + 1]);
+  const none: any = {};
+  return none;
+}
+/** What the table must have beside a new item of this kind: missions promote the player, so a table with a mission has a rank. */
+export function alongWith(kind: string): ((d: any) => void) | null {
+  if (kind !== 'mission') return null;
+  return (d: any): void => { if (d.rules.ranks.length === 0) d.rules.ranks = ['Rookie']; };
+}
+
 /** What an entry of the palette looks like: the top view's own drawing of it, around (0, 0), a few centimetres across. */
 export function miniature(p: Preset): Outline[] {
   const t: any = { format: FORMAT, version: VERSION, name: 'palette', plunger: { at: [0, 30] } };

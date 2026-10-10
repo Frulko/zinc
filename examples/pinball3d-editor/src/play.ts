@@ -12,6 +12,8 @@ import { Part } from '../../pinball3d/src/physics';
 import { TableScene } from '../../pinball3d/src/scene';
 import { TableAudio } from '../../pinball3d/src/audio';
 import { Bindings, readControls } from '../../pinball3d/src/input';
+import { tableImage } from '../../pinball3d/src/images';
+import { boardImage } from './shapes';
 import { doc, folder } from './state';
 
 /** Whether the pane beside the top view shows the table in 3D (true) or its heights (false). */
@@ -75,6 +77,12 @@ function tableNow(): Table {
   }
   return built as Table;
 }
+/** The image painted on the board, for the top view: read from the table's folder by the game's own keeper of images (which keeps
+ *  one image per file however often the scene is built again). -1 when the board has none, or the table no folder yet. */
+export function boardPainting(): i32 {
+  const t = tableNow();
+  return tableImage(t.source, boardImage(t.def));
+}
 /** The 3D scene of the table as the document has it now, in the state of the game when one is played. */
 export function sceneNow(): TableScene {
   const t = tableNow();
@@ -85,8 +93,28 @@ export function sceneNow(): TableScene {
 /** The game on the table as the document has it now; made when it is first asked for. */
 export function gameNow(): Game {
   const t = tableNow();
-  if (game === null) { game = new Game(t); audio = new TableAudio(t); logged = 0; }
+  if (game === null) { game = new Game(t); audioNow(); logged = 0; }
   return game as Game;
+}
+/** The sounds of the table as the document has it now: its files are read, its tones made, when they are first asked for. */
+function audioNow(): TableAudio {
+  const t = tableNow();
+  if (audio === null) { audio = new TableAudio(t); audio.logging = logging; }
+  return audio as TableAudio;
+}
+/** Plays one sound of the table as an event of the game would (its volume and its pitch varied as the sound says): the button
+ *  beside the name of a sound. Returns its length in seconds (0 without an audio output, or when the table has no such sound). */
+export function previewSound(name: string): number {
+  const a = audioNow();
+  a.preview(name);
+  told(a);
+  return a.seconds(name);
+}
+/** With --log: what the sounds of the table played, as the game's own --sounds prints it. */
+function told(a: TableAudio): void {
+  if (!logging) return;
+  for (const line of a.log) console.log(line);
+  a.log = [];
 }
 /** The game being played, null when none was started on this state of the table. */
 export function gameIfAny(): Game | null { doc(); return built !== null && builtFrom === doc().data ? game : null; }
@@ -107,10 +135,11 @@ export function aim(camera: Camera, l: LayoutDef, w: number, h: number): void {
 
 /** Nothing to show of a game yet. */
 function clear(): void { flashes.splice(0, flashes.length); events.splice(0, events.length); logged = 0; owed = 0; }
-/** Starts a game by putting a ball on the table at (x, y) of the top view, at rest: it rolls from there. */
-export function dropBall(x: number, y: number): void {
+/** Starts a game by putting a ball on the table at (x, y) of the top view, at rest on the level of height `on` (0: the playfield):
+ *  it rolls from there. */
+export function dropBall(x: number, y: number, on: number): void {
   const g = gameNow(), t = tableNow().def;
-  g.placeBall(x, y, t.physics.ball.radius + 0.02, 0, 0, 0);
+  g.placeBall(x, y, on + t.physics.ball.radius + 0.02, 0, 0, 0);
   clear();
   batch(() => { setPlaying(true); setPaused(false); setDropping(false); setMoved(moved() + 1); });
 }
@@ -172,7 +201,7 @@ export function advance(dt: number, vx: number, vy: number, vw: number, vh: numb
   owed = Math.min(owed + dt, 0.1);
   while (owed >= g.dt()) { stepOnce(g); owed -= g.dt(); }
   hear(g);
-  if (audio !== null) audio.update(g);
+  if (audio !== null) { audio.update(g); audio.log = []; }   // the events of the game are what --log prints of a game; its sounds are in the game's own test
   setMoved(moved() + 1);
 }
 /** Called while the game's own window is being drawn, with the box of the table in it: reads the controls held there. */
