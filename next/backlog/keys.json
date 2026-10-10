@@ -547,5 +547,9 @@
  "vita-hello": "ZN-459",
  "vita-ui": "ZN-473",
  "wasm-fonts": "ZN-673",
- "wasm-images": "ZN-672"
+ "wasm-images": "ZN-672",
+ "webenv-boot-tests": "ZN-707",
+ "webenv-complete": "ZN-705",
+ "webenv-date": "ZN-708",
+ "webenv-domparser": "ZN-706"
 }

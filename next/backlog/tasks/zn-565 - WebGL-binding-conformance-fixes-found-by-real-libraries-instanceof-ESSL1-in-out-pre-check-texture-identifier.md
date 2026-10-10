@@ -4,7 +4,8 @@ title: >-
   WebGL binding conformance fixes found by real libraries (instanceof, ESSL1
   in/out pre-check, 'texture' identifier)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games
