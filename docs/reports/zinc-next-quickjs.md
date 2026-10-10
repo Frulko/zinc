@@ -15,6 +15,11 @@ programs that do not fit the typed subset (decision of ZN-031: QuickJS is a full
 | Frame loop | `src/qjs/qjs.cpp` | poll, clock, due timers, begin, callback, promise jobs, end: what the typed engine's `__gfxLoop` does, over the same host calls; a `zinc:gfx` program draws the same pixels (`shapes.ts` is identical to its golden) |
 
 An uncaught exception prints `Uncaught ...` and the stack on stderr and ends with exit code 101, like the typed engine.
+So does a promise rejected with nobody to catch it once the jobs have drained (`Uncaught (in promise) ...`, ZN-566), and an exception after a
+top-level await. A runaway recursion is a `RangeError` the program can catch: the stack limit follows the thread's real stack, less 1 MiB for
+native code (about 6,800 JavaScript frames on the 8 MiB main thread). `onFrame` may be registered after an `await`: the frame loop starts then.
+
+A program written for a browser (a JavaScript game library) asks for the web environment: `docs/reports/zinc-next-webenv.md` (ZN-568).
 
 ## Limits
 
