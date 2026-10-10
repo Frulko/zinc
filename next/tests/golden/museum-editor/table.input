@@ -1,0 +1,109 @@
+# The table of a sequence (tests/t1/museum_editor.sh), on the project the first session saved, in a folder that holds photos/vague.jpg and
+# films/atelier.mp4. A double click on the first sequence of the storyboard opens its table.
+4 move 350 230
+5 down
+6 up
+7 down
+8 up
+# Add a file: the photograph of the folder, with its source and its licence.
+12 move 70 108
+13 down
+14 up
+18 move 700 465
+19 down
+20 up
+26 move 700 499
+27 down
+28 up
+29 text https://www.metmuseum.org/art/collection/search/45434
+31 move 700 562
+32 down
+33 up
+34 text CC0
+36 move 895 616
+37 down
+38 up
+# The medium is dragged from the library onto the table, moved, and sized by its corner.
+46 move 125 183
+47 down
+48 move 200 200
+49 move 500 300
+50 up
+54 move 500 300
+55 down
+56 move 490 295
+57 move 450 280
+58 up
+60 move 537 345
+61 down
+62 move 550 350
+63 move 560 360
+64 up
+# Its caption in English, its description in both languages.
+70 move 1323 406
+71 down
+72 up
+73 text Wave
+75 move 1115 527
+76 down
+77 up
+78 text Estampe.
+80 move 1323 527
+81 down
+82 up
+83 text Print.
+85 key Escape
+# A hotspot on it, its target chosen in the list, dragged on the photograph.
+87 move 1220 317
+88 down
+89 up
+93 move 700 557
+94 down
+95 up
+98 move 450 280
+99 down
+100 move 460 270
+101 move 480 250
+102 up
+# A button, its target pointed at on the small map; dragged to the middle of the table, it comes back within reach of an edge.
+105 move 800 200
+106 down
+107 up
+110 move 1220 504
+111 down
+112 up
+115 move 790 466
+116 down
+117 up
+120 move 516 515
+121 down
+122 move 550 450
+123 move 625 336
+124 up
+# A text written in the editor, put on the table by a double click, appearing after 4 seconds (the left end of its bar).
+127 move 182 99
+128 down
+129 up
+134 move 700 412
+135 down
+136 up
+137 text Cartel
+139 move 700 506
+140 down
+141 up
+142 text Hokusai,1831
+144 move 895 589
+145 down
+146 up
+149 move 125 230
+150 down
+151 up
+152 down
+153 up
+156 move 462 711
+157 down
+158 move 490 711
+159 move 520 711
+160 up
+# Save.
+163 key s meta

@@ -4,6 +4,7 @@ import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
 import { parseProject, serializeProject } from '../src/project';
 import { Doc, newProject, slug } from './doc';
+import { complete, f, t, setUiLang, step, P_NO_TITLE, languageName } from './strings';
 
 let failed = false;
 function check(what: string, ok: boolean): void {
@@ -15,6 +16,11 @@ function plays(text: string): boolean {
   try { return serializeProject(parseProject(text)) === text; } catch (e) { console.log(`  refused: ${e.message}`); return false; }
 }
 
+setUiLang('en');
+const english = f(P_NO_TITLE, 'Accueil', languageName('en')) + ' / ' + step('New link');
+setUiLang('fr');
+check('every text of the interface exists in English and in French', complete() && english === '"Accueil" has no title in English. / New link'
+  && f(P_NO_TITLE, 'Accueil', languageName('en')) + ' / ' + step('New link') === '« Accueil » n’a pas de titre en English. / Nouveau lien' && t(P_NO_TITLE).length > 0);
 check('titles become ids', slug('Le vase à décor') === 'le-vase-a-decor' && slug('Œuvres d’Édo !') === 'oeuvres-d-edo' && slug('  ') === '');
 
 // zinc starts a project's program in the project's directory: a relative path is taken from where the command was typed
@@ -56,13 +62,52 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
   check('one sequence and one link are shown as the file has them', d.jsonOf(a, -1).startsWith('{\n  "id": "sequence-1",\n  "title": {') && d.jsonOf(a, -1).endsWith('\n}')
     && d.jsonOf(a, 1).startsWith('{\n  "to": "sequence-3",') && d.jsonOf(a, 1).endsWith('"y": 1030\n}') && d.jsonOf(a, 2) === '' && d.jsonOf('nowhere', -1) === '');
   const lost = d.addSequence(900, 0);
-  const said = d.problems().filter(p => p.level === 'warning' && p.sequence === lost && p.message.startsWith('No link leads to')).length;
+  const said = d.problems().filter(p => p.level === 'warning' && p.sequence === lost && p.kind === 'unreachable').length;
   check('a sequence no link leads to is a warning that names it', said === 1 && d.problems().filter(p => p.level === 'error').length === 0);
   // five buttons of one sequence: five places, all within reach of an edge
   for (let k = 0; k < 4; k++) d.addLink(a, lost);
   const places = new Set<string>();
   for (const l of d.project.sequences[0].links) places.add(`${l.x},${l.y}`);
   check('the buttons of a sequence get places of their own that the player accepts', places.size === d.project.sequences[0].links.length && plays(d.text()));
+}
+
+// ---- the media library and what lies on the table of a sequence
+{
+  const d = new Doc(newProject(), '');
+  const a = d.addSequence(0, 0), b = d.addSequence(300, 0);
+  const wave = d.addMedia('photo', 'photos/great-wave.jpg', 'La Grande Vague', 'https://www.metmuseum.org/art/collection/search/45434', 'CC0 1.0');
+  const words = d.addText('Cartel', 'Hokusai, vers 1831');
+  check('a file enters the library with its title, source and licence; a text with its words', wave === 'la-grande-vague' && words === 'cartel'
+    && d.addMedia('photo', 'photos/x.jpg', 'Sans licence', 'https://example.org', '') === '' && d.addText('', 'x') === '' && d.project.media.length === 2 && plays(d.text()));
+  const at = d.addItem(a, wave, 600, 400);
+  d.addItem(a, words, 1500, 800);
+  d.moveItem(a, at, 480.4, 340.6); d.resizeItem(a, at, 520, 0); d.setItemTimes(a, 1, 2, 2.2); d.rotateItem(a, at, -4);
+  const placed = d.project.sequences[0].items;
+  check('media are placed, moved, sized and timed on the table', placed.length === 2 && placed[0].x === 480 && placed[0].y === 341 && placed[0].width === 520 && placed[0].rotation === -4
+    && placed[1].width === 420 && placed[1].at === 2 && placed[1].until === 2.5 && d.raiseItem(a, 0, 1) === 1 && placed[1].media === wave && plays(d.text()));
+  // a hotspot on the photograph, and a button dragged to the middle of the table, where no seated visitor reaches it
+  const spot = d.addHotspot(a, wave, b), button = d.addLink(a, b);
+  d.moveLink(a, spot, 1.4, 0.257); d.moveLink(a, button, 960, 545);
+  const ls = d.project.sequences[0].links;
+  check('a hotspot stays on its item, a button within reach of an edge of the table', spot === 0 && ls[0].on === wave && ls[0].x === 1 && ls[0].y === 0.26
+    && ls[1].x === 960 && ls[1].y === 560 && d.addHotspot(b, wave, a) === -1 && plays(d.text()));
+  d.setLinkTimes(a, button, 3, 0); d.setLinkTarget(a, spot, a);
+  check('a link is timed, and never leads to its own sequence', ls[1].at === 3 && ls[0].to === b && plays(d.text()));
+  // the title of the photograph typed again: its id follows, and so does everything that names it
+  const id = d.setMediaText(wave, 'title', 'fr', 'Sous la vague');
+  d.setMediaText(id, 'title', 'en', 'Under the Wave'); d.setMediaText(id, 'description', 'fr', 'Estampe.'); d.setMediaCredit(id, 'creator', 'Katsushika Hokusai');
+  d.setMediaCredit(id, 'licence', ''); d.setMediaText(id, 'title', 'fr', '');
+  const m = d.project.media[0];
+  check('the texts and the credit of a medium, in every language; what is required cannot be emptied', id === 'sous-la-vague' && placed[1].media === id && ls[0].on === id
+    && m.title.get('en') === 'Under the Wave' && m.title.get('fr') === 'Sous la vague' && m.creator === 'Katsushika Hokusai' && m.credit.licence === 'CC0 1.0' && plays(d.text()));
+  const before = d.text(), uses = d.mediaUses(id);
+  d.removeMedia(id);
+  check('removing a medium takes its item and its hotspot; undo brings them back', uses === 1 && d.project.media.length === 1 && placed.length === 2
+    && d.project.sequences[0].items.length === 1 && d.project.sequences[0].links.length === 1 && plays(d.text()) && d.undo() === 'Remove media' && d.text() === before);
+  d.removeItem(a, 1);
+  check('taking an item off the table takes the hotspots on it', d.project.sequences[0].items.length === 1 && d.project.sequences[0].links.length === 1 && plays(d.text()));
+  d.setSequenceText(a, 'fr', 'Edo, 1831.'); d.setSequenceDuration(a, 12.34);
+  check('a sequence has an introduction and a duration', d.project.sequences[0].text.get('fr') === 'Edo, 1831.' && d.project.sequences[0].duration === 12.3 && plays(d.text()));
 }
 
 // ---- 50 mixed operations from an empty project: undo and redo give back every file, byte for byte
@@ -75,7 +120,9 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     const seqs = d.project.sequences, n: i32 = seqs.length, step: i32 = texts.length;
     const any = n > 0 ? seqs[pick(n)].id : '', other = n > 0 ? seqs[pick(n)].id : '';
     const from = n > 0 ? seqs[pick(n)] : null, li: i32 = from !== null && from.links.length > 0 ? pick(from.links.length) : -1;
-    const op = n < 3 ? 0 : (tries * 5) % 12;   // every kind of operation in turn, on sequences and links picked at random
+    const media = d.project.media, mid = media.length > 0 ? media[pick(media.length)].id : '';
+    const ii: i32 = from !== null && from.items.length > 0 ? pick(from.items.length) : -1;
+    const op = n < 3 ? 0 : (tries * 7) % 24;   // every kind of operation in turn, on sequences, links, media and items picked at random
     if (op === 0) d.addSequence(pick(40) * 20, pick(20) * 20);
     else if (op === 1) d.renameSequence(any, 'fr', `Salle ${step}`);
     else if (op === 2) d.renameSequence(any, 'en', pick(4) === 0 ? '' : `Room ${step}`);
@@ -87,6 +134,17 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     else if (op === 9 && from !== null) d.setLinkOverlay(from.id, li, pick(2) === 0);
     else if (op === 10 && from !== null) d.deleteLink(from.id, li);
     else if (op === 11) { if (n > 4 && pick(2) === 0) d.deleteSequence(any, pick(2) === 0 ? other : ''); else d.setStart(any); }
+    else if (op === 12) d.addMedia(['photo', 'video', 'audio'][pick(3)], `files/m${step}.bin`, `Image ${step}`, 'https://example.org/source', 'CC0 1.0');
+    else if (op === 13) d.addText(`Texte ${step}`, `Mots ${step}`);
+    else if (op === 14 || op === 15) d.addItem(any, mid, 100 + pick(1700), 100 + pick(800));
+    else if (op === 16 && from !== null) d.moveItem(from.id, ii, pick(1920), pick(1080));
+    else if (op === 17 && from !== null) d.resizeItem(from.id, ii, 200 + pick(600), pick(2) * 300);
+    else if (op === 18 && from !== null) d.setItemTimes(from.id, ii, pick(10), pick(2) * (5 + pick(20)));
+    else if (op === 19 && from !== null && ii >= 0) d.addHotspot(from.id, from.items[ii].media, other);
+    else if (op === 20 && from !== null) d.moveLink(from.id, li, pick(1920), pick(1080));
+    else if (op === 21) d.setMediaText(mid, pick(2) === 0 ? 'title' : 'description', pick(2) === 0 ? 'fr' : 'en', `Mots ${step}`);
+    else if (op === 22 && from !== null) { if (pick(2) === 0) d.removeItem(from.id, ii); else d.raiseItem(from.id, ii, 1); }
+    else if (op === 23 && media.length > 3) d.removeMedia(mid);
     d.seal();
     if (d.text() === texts[texts.length - 1]) continue;
     texts.push(d.text());

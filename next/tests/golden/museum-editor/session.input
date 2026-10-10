@@ -53,17 +53,17 @@
 80 key Tab
 82 text Back
 84 key Escape
-86 move 1357 321
+86 move 1357 396
 87 down
 88 up
-90 move 1279 436
+90 move 1279 527
 91 down
 92 up
 # The visit starts with the second sequence.
 94 move 620 140
 95 down
 96 up
-98 move 1280 285
+98 move 1280 337
 99 down
 100 up
 # The third sequence is moved, duplicated, and the copy deleted.

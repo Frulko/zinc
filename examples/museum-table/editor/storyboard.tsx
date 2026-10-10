@@ -1,25 +1,18 @@
 // The storyboard: the map of the project. Every sequence is a node at its storyboard position (title, a miniature of what lies on the table,
-// the kinds of its media), every link an arrow with its label. Drag a node to move it, the handle under it onto another node to link them, the
-// background to pan; the wheel zooms; a double click on the background makes a sequence.
+// the kinds of its media), every link an arrow with a handle. Drag a node to move it, the handle under it onto another node to link them, the
+// background to pan; the wheel zooms; a double click on the background makes a sequence, on a node opens its table.
 // Zoom is done by laying the nodes out at the zoom (four steps), not by a transform, so that texts stay sharp at every step.
 import { createSignal, createNodeRef, createMemo, createEffect, For, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { stroke, polygon, rect } from 'zinc:gfx';
-import { Sequence, Link, Item, KINDS, unreachable } from '../src/project';
+import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
-  moveSequence, link, sourceOf, setStatus, hovered, setHovered } from './state';
-import { Ico, IcoAt, ACCENT, INK, MUTED, WARN, DARK } from './widgets';
+  moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
+import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, KIND_SHAPE, kindIndex } from './widgets';
+import * as L from './strings';
+import { t } from './strings';
 
-// ---------------------------------------------------------------- kinds of media
-
-const KIND_ICON: string[] = ['image', 'box', 'globe', 'type', 'volume-2', 'film'];
-const KIND_COLOUR: i32[] = [0x38bdf8, 0xf59e0b, 0x2dd4bf, 0xd4d4d8, 0xa78bfa, 0xfb7185];
-/** Height over width of a medium whose item does not say its height. */
-const KIND_SHAPE: number[] = [0.75, 1, 0.5, 0.6, 0.25, 0.5625];
-function kindOf(it: Item): i32 {
-  const m = project().medium(it.media);
-  return m === null ? -1 : KINDS.indexOf(m.kind);
-}
+function kindOf(it: Item): i32 { return kindIndex(project().medium(it.media)); }
 /** "0 3": the kind (an index in KINDS) and how many items of the sequence show one. */
 function kindsOf(s: Sequence): string[] {
   project();
@@ -63,20 +56,27 @@ function sequenceAt(x: number, y: number): Sequence | null {
 
 // ---------------------------------------------------------------- arrows
 
-/** The arrow of a link from `a` to `b` as points in storyboard units, from the edge of one node to the edge of the other. It bends to the
- *  right of its way, so the way back bends to the other side; a long one bends more and passes clear of a node standing between the two.
- *  `lane`: 0 for the first link between the two, 1 for the next: each bends a little more.
+/** The arrow of a link from `a` to `b` as points in storyboard units: a curve from the edge of one node to the edge of the other (the last
+ *  two points give the direction it arrives with). It bends to the right of its way, so the way back bends to the other side; a long one
+ *  bends more and passes clear of a node standing between the two. `lane`: 0 for the first link between the two, 1 for the next: each bends
+ *  a little more. Empty when the two nodes overlap.
  *  ponytail: no routing around nodes; a link across a crowded storyboard can pass under one (the author moves the nodes). */
 function route(a: Sequence, b: Sequence, lane: i32): number[] {
   const ax = cx(a), ay = cy(a), bx = cx(b), by = cy(b), dx = bx - ax, dy = by - ay, len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
   const bend = 2 * ((len < 500 ? 16 + len * 0.1 : len * 0.22) + 30 * lane), mx = (ax + bx) / 2 - dy / len * bend, my = (ay + by) / 2 + dx / len * bend;
-  const out: number[] = [];
-  for (let k = 0; k <= 48; k++) {
-    const t = k / 48, u = 1 - t, x = u * u * ax + 2 * u * t * mx + t * t * bx, y = u * u * ay + 2 * u * t * my + t * t * by;
-    if (within(x, y, a, 5) || within(x, y, b, 5)) continue;
-    out.push(x); out.push(y);
+  const px = (u: number): number => (1 - u) * (1 - u) * ax + 2 * (1 - u) * u * mx + u * u * bx;
+  const py = (u: number): number => (1 - u) * (1 - u) * ay + 2 * (1 - u) * u * my + u * u * by;
+  if (within(px(0.5), py(0.5), a, 3) || within(px(0.5), py(0.5), b, 3)) return [];
+  // where the curve leaves the first node and where it reaches the second, by halving
+  let out = 0, clear = 0.5, short = 0.5, inside = 1;
+  for (let k = 0; k < 14; k++) {
+    const u = (out + clear) / 2, v = (short + inside) / 2;
+    if (within(px(u), py(u), a, 3)) out = u; else clear = u;
+    if (within(px(v), py(v), b, 3)) inside = v; else short = v;
   }
-  return out;
+  const pts: number[] = [];
+  for (let k = 0; k <= 24; k++) { const u = clear + (short - clear) * k / 24; pts.push(px(u)); pts.push(py(u)); }
+  return pts;
 }
 /** Which of the links from its sequence to the same target this one is. */
 function laneOf(a: Sequence, l: Link): i32 {
@@ -90,8 +90,8 @@ function arrows(): Link[] {
   for (const s of p.sequences) for (const l of s.links) if (l.to !== s.id && p.sequence(l.to) !== null) out.push(l);
   return out;
 }
-/** Where the label of a link sits: the middle of its arrow, in pixels of the view. */
-function labelAt(l: Link): number[] {
+/** Where the handle of a link sits: the middle of its arrow, in pixels of the view. */
+function handleAt(l: Link): number[] {
   const a = sourceOf(l), b = project().sequence(l.to);
   if (a === null || b === null) return [0, 0];
   const pts = route(a, b, laneOf(a, l));
@@ -99,14 +99,18 @@ function labelAt(l: Link): number[] {
   const k = Math.floor(pts.length / 4) * 2;
   return [vx(pts[k]), vy(pts[k + 1])];
 }
-function arrowHead(x0: number, y0: number, x1: number, y1: number, size: number, color: i32): void {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.max(0.001, Math.sqrt(dx * dx + dy * dy)), ux = dx / len, uy = dy / len;
-  polygon([x1, y1, x1 - ux * size - uy * size * 0.55, y1 - uy * size + ux * size * 0.55, x1 - ux * size + uy * size * 0.55, y1 - uy * size - ux * size * 0.55], color, 255);
+/** An arrow in window pixels: the line stops at the base of the head, whose tip is the last point and which points along the last segment. */
+function arrow(pts: number[], width: number, head: number, color: i32, dashed: boolean): void {
+  const n = pts.length, tx = pts[n - 2], ty = pts[n - 1], dx = tx - pts[n - 4], dy = ty - pts[n - 3], len = Math.max(0.001, Math.sqrt(dx * dx + dy * dy)), ux = dx / len, uy = dy / len;
+  pts[n - 2] = tx - ux * head * 0.8; pts[n - 1] = ty - uy * head * 0.8;
+  if (dashed) { for (let k = 0; k + 3 < n; k += 4) stroke([pts[k], pts[k + 1], pts[k + 2], pts[k + 3]], width, color, 255, false); }
+  else stroke(pts, width, color, 255, false);
+  polygon([tx, ty, tx - ux * head - uy * head * 0.5, ty - uy * head + ux * head * 0.5, tx - ux * head + uy * head * 0.5, ty - uy * head - ux * head * 0.5], color, 255);
 }
 /** Draws the grid, the arrows under the nodes and the link being drawn. (x, y): the view's corner on the window. */
 function drawArrows(x: i32, y: i32, w: i32, h: i32): void {
   setViewSize(w, h);
-  const z = zoom(), ox = x + panX(), oy = y + panY(), p = project();
+  const z = zoom(), ox = x + panX(), oy = y + panY(), p = project(), thick = Math.max(0.75, z);
   // a dot every 40 units (80 when zoomed out): the storyboard reads as a surface, and panning shows
   const gap = (z < 1 ? 80 : 40) * z;
   for (let gy = oy - Math.floor((oy - y) / gap) * gap; gy < y + h; gy += gap) {
@@ -120,20 +124,12 @@ function drawArrows(x: i32, y: i32, w: i32, h: i32): void {
       const pts = route(a, b, laneOf(a, l)), n = pts.length;
       if (n < 4) continue;
       for (let k = 0; k < n; k += 2) { pts[k] = ox + pts[k] * z; pts[k + 1] = oy + pts[k + 1] * z; }
-      const color = l === chosen ? ACCENT : l === hovered() ? 0xd4d4d8 : 0x8b8b94, width = (l === chosen ? 2.5 : 1.75) * Math.max(0.75, z);
       // a link that opens its target over the sequence is dashed
-      if (l.overlay) { for (let k = 0; k + 3 < n; k += 4) stroke([pts[k], pts[k + 1], pts[k + 2], pts[k + 3]], width, color, 255, false); }
-      else stroke(pts, width, color, 255, false);
-      arrowHead(pts[n - 4], pts[n - 3], pts[n - 2], pts[n - 1], 11 * Math.max(0.75, z), color);
+      arrow(pts, (l === chosen ? 2.5 : 1.75) * thick, 11 * thick, l === chosen ? ACCENT : l === hovered() ? 0xd4d4d8 : 0x8b8b94, l.overlay);
     }
   }
   const from = linking();
-  if (from !== null) {
-    const over = target();
-    const x0 = ox + cx(from) * z, y0 = oy + (cy(from) + CARD_H / 2 + 10) * z, x1 = ox + linkX() * z, y1 = oy + linkY() * z;
-    stroke([x0, y0, x1, y1], 2.5, over !== null ? ACCENT : MUTED, 255, false);
-    arrowHead(x0, y0, x1, y1, 12, over !== null ? ACCENT : MUTED);
-  }
+  if (from !== null) arrow([ox + cx(from) * z, oy + (cy(from) + CARD_H / 2 + 10) * z, ox + linkX() * z, oy + linkY() * z], 2.5, 12, target() !== null ? ACCENT : MUTED, false);
 }
 
 // ---------------------------------------------------------------- a node
@@ -141,7 +137,7 @@ function drawArrows(x: i32, y: i32, w: i32, h: i32): void {
 // text sizes at each zoom step (ZOOMS): the title, the small print
 const TITLE: string[] = ['text-[9px]', 'text-[11px]', 'text-[14px]', 'text-[20px]'];
 const SMALL: string[] = ['text-[7px]', 'text-[9px]', 'text-[11px]', 'text-[16px]'];
-/** The miniature of the table inside a node: its size in storyboard units. */
+/** The miniature of the table inside a node: its height in storyboard units. */
 const STAGE_H = 96;
 
 // the node under the button, where it was pressed, and whether the pointer has moved far enough to be a drag
@@ -182,7 +178,7 @@ function handleUp(e: ui.PointerEvent): void {
   const from = linking(), to = target();
   batch(() => { setLinking(null); setTarget(null); });
   if (from !== null && to !== null) link(from, to);
-  else if (from !== null) setStatus('To link two sequences, drag the handle of one and drop it on the other.');
+  else if (from !== null) setStatus(t(L.HOW_TO_LINK));
 }
 
 const lost = createMemo<string[]>(() => project().sequences.length > 0 ? unreachable(project()) : [], []);
@@ -199,7 +195,7 @@ function Miniature(p: { of: Sequence }): i32 {
         bg: kind() >= 0 ? KIND_COLOUR[kind()] : 0x71717a, opacity: 0.85 }} />;
     }}</For>
     <Show when={(project(), s.items.length === 0) && zoomStep() > 0}>
-      <view class="absolute inset-0 items-center justify-center"><text class={`text-zinc-500 ${SMALL[zoomStep()]}`}>No media yet</text></view>
+      <view class="absolute inset-0 items-center justify-center"><text class={`text-zinc-500 ${SMALL[zoomStep()]}`}>{t(L.NO_MEDIA_YET)}</text></view>
     </Show>
   </view>;
 }
@@ -213,7 +209,7 @@ function Node(s: Sequence): i32 {
   return <view class="absolute" style={{ left: vx(cx(s) - CARD_W / 2), top: vy(cy(s) - CARD_H / 2), width: CARD_W * z(), height: CARD_H * z() }}>
     <view class={`absolute inset-0 flex-col rounded-lg border-2 shadow-lg overflow-hidden cursor-grab ${frame()}`}
       onPointerDown={(e: ui.PointerEvent) => nodeDown(s, e)} onPointerMove={(e: ui.PointerEvent) => nodeMove(s, e)} onPointerUp={(e: ui.PointerEvent) => nodeUp(s, e)}
-      onDoubleClick={(e: ui.PointerEvent) => select(s, null)}>
+      onDoubleClick={(e: ui.PointerEvent) => { pressed = null; openSequence(s); }}>
       <view class="flex-row items-center" style={{ height: 28 * z(), paddingLeft: 8 * z(), paddingRight: 8 * z(), gap: 5 * z() }}>
         <Show when={project().start === s.id}><IcoAt name="flag" size={() => 13 * z()} color={ACCENT} /></Show>
         <text class={`grow truncate font-bold text-zinc-100 ${TITLE[zoomStep()]}`}>{project().say(s.title, lang())}</text>
@@ -247,10 +243,10 @@ function Node(s: Sequence): i32 {
 }
 /** The handle of a link in the middle of its arrow: a click selects the link. It is a dot until the link matters (selected, under the pointer,
  *  or one of the selected sequence's), then it shows the label, so that a storyboard with many links stays readable. */
-function Label(l: Link): i32 {
+function Handle(l: Link): i32 {
   const chosen = (): boolean => selectedLink() === l;
   const open = (): boolean => chosen() || hovered() === l || (selectedLink() === null && selected() !== null && selected() === sourceOf(l));
-  return <view class="absolute items-center justify-center" style={{ left: labelAt(l)[0] - 90, top: labelAt(l)[1] - 11, width: 180, height: 22 }}>
+  return <view class="absolute items-center justify-center" style={{ left: handleAt(l)[0] - 90, top: handleAt(l)[1] - 11, width: 180, height: 22 }}>
     <button class={`flex-row items-center justify-center gap-1 rounded-full border cursor-pointer ${open() ? 'h-[22] px-2' : zoomStep() > 1 ? 'w-[14] h-[14] p-0' : 'w-[10] h-[10] p-0'} ${chosen() ? 'bg-amber-400 border-amber-300' : 'bg-zinc-800 border-zinc-500 hover:border-zinc-300'}`}
       onClick={() => { const a = sourceOf(l); if (a !== null) select(a, l); }}
       onPointerEnter={(e: ui.PointerEvent) => setHovered(l)} onPointerLeave={(e: ui.PointerEvent) => { if (hovered() === l) setHovered(null); }}>
@@ -281,12 +277,12 @@ function Empty(): i32 {
   return <view class="absolute inset-0 items-center justify-center">
     <view class="w-[420] flex-col items-center gap-3 p-8 rounded-xl bg-zinc-900 border border-zinc-800">
       <Ico name="mouse-pointer-click" size={36} color={ACCENT} />
-      <text class="text-xl font-bold text-zinc-100">Start the storyboard</text>
-      <text class="text-sm text-center text-zinc-400">A project is a set of sequences, each showing media on the table, joined by links that visitors follow.</text>
-      <text class="text-sm text-center text-zinc-400">Double-click anywhere here to create the first sequence.</text>
+      <text class="text-xl font-bold text-zinc-100">{t(L.EMPTY_TITLE)}</text>
+      <text class="text-sm text-center text-zinc-400">{t(L.EMPTY_WHAT)}</text>
+      <text class="text-sm text-center text-zinc-400">{t(L.EMPTY_HOW)}</text>
       <button class="flex-row items-center gap-2 h-9 px-4 mt-2 rounded-md cursor-pointer bg-amber-400 hover:bg-amber-300" onClick={() => addSequenceInView()}>
         <Ico name="plus" size={15} color={DARK} />
-        <text class="text-sm font-bold text-zinc-900">New sequence</text>
+        <text class="text-sm font-bold text-zinc-900">{t(L.NEW_SEQUENCE)}</text>
       </button>
     </view>
   </view>;
@@ -307,12 +303,16 @@ export function Storyboard(): i32 {
     onDoubleClick={(e: ui.PointerEvent) => { panning = false; const p = pointOf(e); addSequence(p[0], p[1]); }}>   {/* not panning: the release must not deselect the new sequence */}
     <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawArrows} />
     <For each={project().sequences}>{(s: Sequence, i: i32) => Node(s)}</For>
-    <For each={arrows()}>{(l: Link, i: i32) => Label(l)}</For>
+    <For each={arrows()}>{(l: Link, i: i32) => Handle(l)}</For>
     <Show when={project().sequences.length === 0}><Empty /></Show>
     <Show when={project().sequences.length > 0}>
-      <view class="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950">
-        <text class="text-[11px] text-zinc-500">Drag a sequence to move it, its handle to link it to another. Double-click the background for a new sequence. The wheel zooms.</text>
-      </view>
+      <view class="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><text class="text-[11px] text-zinc-500">{t(L.BOARD_HINT)}</text></view>
     </Show>
+    <view class="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
+      <Tool icon="minus" label="" look="quiet" off={() => zoomStep() === 0} onClick={() => zoomBy(-1, viewW / 2, viewH / 2)} />
+      <text class="w-[40] text-center text-xs text-zinc-300">{`${Math.round(zoom() * 100)}%`}</text>
+      <Tool icon="plus" label="" look="quiet" off={() => zoomStep() === ZOOMS.length - 1} onClick={() => zoomBy(1, viewW / 2, viewH / 2)} />
+      <Tool icon="maximize" label={t(L.FIT)} look="quiet" off={() => false} onClick={fit} />
+    </view>
   </view>;
 }

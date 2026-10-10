@@ -1,7 +1,10 @@
-// The small parts the panels of the editor share: icons, buttons, a segmented choice, a text field per language.
-import { NodeRef } from 'zinc:ui/solid';
+// The small parts the panels of the editor share: icons, buttons, a segmented choice, text fields per language, and how a medium is drawn.
+import { NodeRef, For } from 'zinc:ui/solid';
+import { rrect } from 'zinc:gfx';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
+import { Media, KINDS } from '../src/project';
+import { project } from './state';
 
 /** The colours of the editor's chrome (Tailwind's zinc greys, amber for what is selected or primary). */
 export const ACCENT: i32 = 0xfbbf24, INK: i32 = 0xf4f4f5, MUTED: i32 = 0xa1a1aa, DANGER: i32 = 0xf87171, WARN: i32 = 0xfb923c, DARK: i32 = 0x18181b;
@@ -10,6 +13,26 @@ export const ACCENT: i32 = 0xfbbf24, INK: i32 = 0xf4f4f5, MUTED: i32 = 0xa1a1aa,
 // (a title typed in a field, a project opened from a folder). Until fonts can be asked at run time (ZN-669) this constant puts Latin-1,
 // Latin Extended-A and typographic punctuation into the font; a character outside them draws as a missing glyph.
 export const DRAWN = '¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽžſ‘’‚“”„†‡•…‰′″‹›€™–—−×÷≠≤≥°';
+
+// ---------------------------------------------------------------- media
+
+/** The icon and the colour of each kind of medium (in the order of KINDS). */
+export const KIND_ICON: string[] = ['image', 'box', 'globe', 'type', 'volume-2', 'film'];
+export const KIND_COLOUR: i32[] = [0x38bdf8, 0xf59e0b, 0x2dd4bf, 0xd4d4d8, 0xa78bfa, 0xfb7185];
+/** Height over width of a medium whose item does not say its height. */
+export const KIND_SHAPE: number[] = [0.75, 1, 0.5, 0.6, 0.25, 0.5625];
+export function kindIndex(m: Media | null): i32 { return m === null ? -1 : KINDS.indexOf(m.kind); }
+/** Draws a medium in a box of the window: the one place that decides what a medium looks like in the editor.
+ *  ponytail: a tinted box with the icon of its kind. zinc:gfx cannot yet make an image of a file outside the program's own assets;
+ *  when images from bytes land (ZN-432), a photograph of the project folder is decoded and drawn here, and nothing else changes. */
+export function drawMedia(m: Media | null, x: number, y: number, w: number, h: number): void {
+  const k = kindIndex(m), colour = k >= 0 ? KIND_COLOUR[k] : 0x71717a;
+  rrect(x, y, w, h, 4, colour, 46);
+  const size = Math.max(10, Math.min(40, Math.min(w, h) * 0.4)), s = icon(k >= 0 ? KIND_ICON[k] : 'image', colour, 2);
+  if (s !== null) (s as Svg).draw(Math.round(x + (w - size) / 2), Math.round(y + (h - size) / 2), Math.round(size), Math.round(size), 255);
+}
+
+// ---------------------------------------------------------------- controls
 
 /** A Lucide icon that is drawn only when the window repaints (zinc:icons' own Icon keeps the window repainting every frame). */
 export function Ico(p: { name: string; size: number; color: i32 }): i32 {
@@ -25,7 +48,6 @@ export function IcoAt(p: { name: string; size: () => number; color: i32 }): i32 
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;
 }
-
 /** A button of the top bar: an icon and a word ('' for the icon alone). `off`: shown dimmed (nothing to undo); `look`: 'plain', 'primary' or 'quiet'. */
 export function Tool(p: { icon: string; label: string; look: string; off: () => boolean; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
@@ -34,11 +56,12 @@ export function Tool(p: { icon: string; label: string; look: string; off: () => 
     {p.label.length > 0 ? <text class={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</text> : <view />}
   </button>;
 }
-/** A button of a panel, as wide as its row. `look`: 'plain' or 'danger'. */
+/** A button of a panel, as wide as its row. `look`: 'plain', 'primary' or 'danger'. */
 export function Action(p: { icon: string; label: string; look: string; onClick: () => void }): i32 {
-  return <button class={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border bg-zinc-900 ${p.look === 'danger' ? 'border-red-900 hover:bg-red-950' : 'border-zinc-700 hover:bg-zinc-800'}`} onClick={p.onClick}>
-    <Ico name={p.icon} size={14} color={p.look === 'danger' ? DANGER : INK} />
-    <text class={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : 'text-zinc-100'}`}>{p.label}</text>
+  const fill = p.look === 'danger' ? 'bg-zinc-900 border-red-900 hover:bg-red-950' : p.look === 'primary' ? 'bg-amber-400 border-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800';
+  return <button class={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
+    <Ico name={p.icon} size={14} color={p.look === 'danger' ? DANGER : p.look === 'primary' ? DARK : INK} />
+    <text class={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</text>
   </button>;
 }
 /** One of a few choices, all visible. */
@@ -49,20 +72,39 @@ export function Segmented(p: { options: string[]; labels: string[]; value: () =>
     </button>)}
   </view>;
 }
+const FIELD = 'rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:border-amber-400';
 /** A text in one language: the language code, then the field. `onDone` runs when the field is left. */
 export function LangField(p: { language: string; value: () => string; placeholder: string; field: NodeRef; onInput: (v: string) => void; onDone: () => void }): i32 {
   return <view class="flex-row items-center gap-2">
     <view class="w-[30] h-8 items-center justify-center rounded-md bg-zinc-800"><text class="text-[11px] font-bold text-zinc-300">{p.language.toUpperCase()}</text></view>
-    <input ref={p.field} class="grow h-8 px-2 rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:border-amber-400" placeholder={p.placeholder}
-      value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
+    <input ref={p.field} class={`grow h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
   </view>;
 }
-/** An exact number (the advanced mode): taken when the field is left or Enter is pressed; what is not a number is put back. */
+/** A text in every language of the project, side by side: one column per language, so that a translation is written next to its original.
+ *  `rows` 1: a line; more: a paragraph of that height. `width`: the width of one column. */
+export function LangColumns(p: { rows: i32; width: number; value: (language: string) => string; placeholder: (first: boolean) => string; onInput: (language: string, v: string) => void; onDone: () => void }): i32 {
+  return <view class="flex-row gap-2">
+    <For each={project().languages}>{(language: string, i: i32) => <view class="flex-col gap-1" style={{ width: p.width }}>
+      <text class="text-[10px] font-bold text-zinc-500">{language.toUpperCase()}</text>
+      {p.rows === 1
+        ? <input class={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
+        : <textarea class={`w-full p-2 ${FIELD}`} rows={p.rows} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />}
+    </view>}</For>
+  </view>;
+}
+/** One line of text that is not per language (an author, a licence). */
+export function PlainField(p: { label: string; value: () => string; placeholder: string; onInput: (v: string) => void; onDone: () => void }): i32 {
+  return <view class="flex-col gap-1">
+    <text class="text-[11px] text-zinc-400">{p.label}</text>
+    <input class={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder} value={p.value()} onInput={p.onInput} onChange={(v: string) => p.onDone()} />
+  </view>;
+}
+/** An exact number: taken when the field is left or Enter is pressed; what is not a number is put back. */
 export function NumberField(p: { label: string; value: () => number; onCommit: (v: number) => void; onDone: () => void }): i32 {
-  return <view class="grow flex-row items-center gap-2">
+  return <view class="flex-row items-center gap-2">
     <text class="text-[11px] font-bold text-zinc-400">{p.label}</text>
-    <input class="grow h-8 px-2 rounded-md bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:border-amber-400" style={{ width: 60 }} value={`${p.value()}`}
-      onChange={(v: string) => { const n = parseFloat(v); if (n - n === 0) p.onCommit(n); p.onDone(); }} />
+    <input class={`h-8 px-2 ${FIELD}`} style={{ width: 76 }} value={`${p.value()}`}
+      onChange={(v: string) => { const n = parseFloat(v.replaceAll(',', '.')); if (n - n === 0) p.onCommit(n); p.onDone(); }} />
   </view>;
 }
 /** The small capital heading of a group of a panel. */

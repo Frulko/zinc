@@ -4,7 +4,7 @@
 // opened again: ids stay unique, a required text is never emptied, deleting a sequence takes the links that led to it, or leads them elsewhere,
 // in the same step.
 // The one exception is a project with no sequence at all, which is the empty state and is not saved.
-import { Project, Sequence, Link, Presentation, serializeProject, parseProject, unreachable, copyProject } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Presentation, Text, KINDS, serializeProject, parseProject, unreachable, copyProject } from '../src/project';
 
 /** What "New project" opens: French and English (the owner's languages), no sequence yet. */
 export function newProject(): Project {
@@ -46,19 +46,24 @@ function derived(id: string, base: string): boolean {
   for (let i = 0; i < n.length; i++) { const c = n.charCodeAt(i); if (c < 48 || c > 57) return false; }
   return n.length > 0;
 }
+/** The width a medium gets when it is put on the table, by kind (KINDS), in units of a table 1920 wide. */
+const WIDTHS: number[] = [480, 600, 800, 420, 320, 640];
+/** A time in seconds as the file keeps it: tenths, never negative. */
+function tenths(t: number): number { return Math.max(0, Math.round(t * 10) / 10); }
 function sequenceWord(lang: string): string { return lang === 'fr' ? 'Séquence' : 'Sequence'; }
 function copyWord(lang: string): string { return lang === 'fr' ? ' (copie)' : ' (copy)'; }
 
 // ---------------------------------------------------------------- problems
 
-/** Something the author should look at: an `error` is a project the table refuses, a `warning` plays but is probably not meant.
- *  `sequence` (an id) and `link` (an index in it, -1 for none) say where it is, so the panel can lead there. */
+/** Something the author should look at: an `error` is a project the table refuses, a `warning` plays but is probably not meant. The editor
+ *  says it in its own language from `kind`: 'refused' (detail: the loader's message, which names the field), 'unreachable' (subject: the
+ *  title of a sequence no link leads to), 'no-title' and 'no-label' (subject: the title of a sequence, detail: the language that is missing).
+ *  `sequence` (an id) and `link` (an index in it, -1 for none) say where it is, so that the panel can lead there. */
 export class Problem {
-  level = 'warning';
-  message = '';
-  sequence = '';
-  link: i32 = -1;
-  constructor(level: string, message: string, sequence: string, link: i32) { this.level = level; this.message = message; this.sequence = sequence; this.link = link; }
+  level: string; kind: string; subject: string; detail: string; sequence: string; link: i32;
+  constructor(level: string, kind: string, subject: string, detail: string, sequence: string, link: i32) {
+    this.level = level; this.kind = kind; this.subject = subject; this.detail = detail; this.sequence = sequence; this.link = link;
+  }
 }
 
 // ---------------------------------------------------------------- the document
@@ -327,6 +332,222 @@ export class Doc {
     return s !== null && index >= 0 && index < s.links.length ? s.links[index] : null;
   }
 
+  /** Sets when a link can be followed, like an item's times. */
+  setLinkTimes(from: string, index: i32, at: number, until: number): void {
+    const found = this.link(from, index);
+    if (found === null) return;
+    const l: Link = found, a = tenths(at), u = until > 0 ? Math.max(tenths(until), a + 0.5) : 0;
+    this.apply('Change link times', '', (p: Project) => { l.at = a; l.until = u; });
+  }
+  /** Leads a link to another sequence. */
+  setLinkTarget(from: string, index: i32, to: string): void {
+    const found = this.link(from, index);
+    if (found === null || to === from || this.project.sequence(to) === null) return;
+    const l: Link = found;
+    this.apply('Change link target', '', (p: Project) => { l.to = to; });
+  }
+  /** Where the button of a link is. On the table, in table units: kept on the table and within `table.reach` of an edge, which the player
+   *  requires (a seated visitor reaches it). A hotspot: fractions of its item's box, kept inside it. */
+  moveLink(from: string, index: i32, x: number, y: number): void {
+    const found = this.link(from, index);
+    if (found === null) return;
+    const l: Link = found, t = this.project.table;
+    let nx = x, ny = y;
+    if (l.on.length > 0) { nx = Math.max(0, Math.min(1, Math.round(x * 100) / 100)); ny = Math.max(0, Math.min(1, Math.round(y * 100) / 100)); }
+    else {
+      nx = Math.max(0, Math.min(t.width, Math.round(x))); ny = Math.max(0, Math.min(t.height, Math.round(y)));
+      const left = nx, right = t.width - nx, top = ny, bottom = t.height - ny, nearest = Math.min(Math.min(left, right), Math.min(top, bottom));
+      if (nearest > t.reach) {
+        // too far from every edge: it goes back toward the nearest one
+        if (nearest === bottom) ny = t.height - t.reach; else if (nearest === top) ny = t.reach; else if (nearest === left) nx = t.reach; else nx = t.width - t.reach;
+      }
+    }
+    this.apply('Move button', '', (p: Project) => { l.x = nx; l.y = ny; });
+  }
+  /** A hotspot: a link to `to` in the middle of the item of `from` that shows the medium `on`. Returns its index, -1 when not made. */
+  addHotspot(from: string, on: string, to: string): i32 {
+    const source = this.project.sequence(from), found = this.project.sequence(to);
+    if (source === null || found === null || from === to || source.items.filter((it: Item) => it.media === on).length === 0) return -1;
+    const s: Sequence = source, target: Sequence = found;
+    this.apply('New hotspot', '', (p: Project) => {
+      const l = new Link();
+      l.to = to; l.on = on; l.x = 0.5; l.y = 0.5;
+      for (const lang of p.languages) { const t = target.title.get(lang); if (t !== undefined) l.label.set(lang, t); }
+      s.links.push(l);
+    });
+    return s.links.length - 1;
+  }
+
+  // ---- media
+
+  private freeMediaId(base: string, except: string): string {
+    const b = base.length > 0 ? base : 'media';
+    for (let n = 1; ; n++) {
+      const id = n === 1 ? b : `${b}-${n}`;
+      if (id === except || this.project.medium(id) === null) return id;
+    }
+  }
+  /** Adds a file of the project folder to the library. A file shown to visitors says where it comes from and under which licence: `title`
+   *  (default language), `source` and `licence` are required. Returns the id, '' when something is missing. */
+  addMedia(kind: string, file: string, title: string, source: string, licence: string): string {
+    if (KINDS.indexOf(kind) < 0 || kind === 'text' || file.length === 0 || title.length === 0 || source.length === 0 || licence.length === 0) return '';
+    const id = this.freeMediaId(slug(title), '');
+    this.apply('Add media', '', (p: Project) => {
+      const m = new Media();
+      m.id = id; m.kind = kind; m.file = file; m.title.set(p.languages[0], title); m.credit.source = source; m.credit.licence = licence;
+      p.media.push(m);
+    });
+    return id;
+  }
+  /** Adds a text written in the editor (a label, a quotation). Returns its id, '' when the title or the text is missing. */
+  addText(title: string, body: string): string {
+    if (title.length === 0 || body.length === 0) return '';
+    const id = this.freeMediaId(slug(title), '');
+    this.apply('Add text', '', (p: Project) => {
+      const m = new Media();
+      m.id = id; m.kind = 'text'; m.title.set(p.languages[0], title); m.text.set(p.languages[0], body);
+      p.media.push(m);
+    });
+    return id;
+  }
+  /** One of the texts of a medium in one language. `field`: title, date, medium, description, audioDescription, text, transcript. The
+   *  title (and the body of a text) cannot be emptied in the default language; an id derived from the title follows it, as for sequences.
+   *  Returns the id the medium has afterwards. */
+  setMediaText(id: string, field: string, lang: string, value: string): string {
+    const found = this.project.medium(id);
+    if (found === null) return id;
+    const m: Media = found, main = lang === this.project.languages[0];
+    if (main && value.length === 0 && (field === 'title' || (field === 'text' && m.kind === 'text'))) return id;
+    let now = id;
+    if (field === 'title' && main && derived(id, slug(m.title.get(lang) ?? ''))) now = this.freeMediaId(slug(value), id);
+    this.apply('Edit media text', `media:${this.project.media.indexOf(m)}:${field}:${lang}`, (p: Project) => {
+      const t: Text = field === 'title' ? m.title : field === 'date' ? m.date : field === 'medium' ? m.medium : field === 'description' ? m.description
+        : field === 'audioDescription' ? m.audioDescription : field === 'text' ? m.text : m.transcript;
+      if (value.length > 0) t.set(lang, value); else t.delete(lang);
+      if (now === id) return;
+      m.id = now;
+      for (const s of p.sequences) {
+        for (const it of s.items) if (it.media === id) it.media = now;
+        for (const l of s.links) if (l.on === id) l.on = now;
+        if (s.narration === id) s.narration = now;
+      }
+    });
+    return now;
+  }
+  /** The author and the credit of a medium. `field`: creator, institution, accession, line, source, licence, licenceUrl. The source and the
+   *  licence of a file cannot be emptied. */
+  setMediaCredit(id: string, field: string, value: string): void {
+    const found = this.project.medium(id);
+    if (found === null || (value.length === 0 && (field === 'source' || field === 'licence'))) return;
+    const m: Media = found;
+    this.apply('Edit media credit', `credit:${this.project.media.indexOf(m)}:${field}`, (p: Project) => {
+      if (field === 'creator') m.creator = value; else if (field === 'institution') m.credit.institution = value; else if (field === 'accession') m.credit.accession = value;
+      else if (field === 'line') m.credit.line = value; else if (field === 'source') m.credit.source = value; else if (field === 'licence') m.credit.licence = value;
+      else if (field === 'licenceUrl') m.credit.licenceUrl = value;
+    });
+  }
+  /** In how many places sequences show or play the medium: what removing it from the project takes away. */
+  mediaUses(id: string): i32 {
+    let n: i32 = 0;
+    for (const s of this.project.sequences) { n += s.items.filter((it: Item) => it.media === id).length; if (s.narration === id) n++; }
+    return n;
+  }
+  /** Removes a medium from the library, and with it the items that show it and their hotspots, in one step. The file stays in the folder. */
+  removeMedia(id: string): void {
+    if (this.project.medium(id) === null) return;
+    this.apply('Remove media', '', (p: Project) => {
+      p.media = p.media.filter((m: Media) => m.id !== id);
+      for (const s of p.sequences) {
+        s.items = s.items.filter((it: Item) => it.media !== id);
+        s.links = s.links.filter((l: Link) => l.on !== id);
+        if (s.narration === id) s.narration = '';
+      }
+    });
+  }
+
+  // ---- what lies on the table of a sequence
+
+  item(sequence: string, index: i32): Item | null {
+    const s = this.project.sequence(sequence);
+    return s !== null && index >= 0 && index < s.items.length ? s.items[index] : null;
+  }
+  /** Puts a medium on the table of a sequence, centred on (x, y) in table units, on top of the others. Returns its index, -1 when not made. */
+  addItem(sequence: string, media: string, x: number, y: number): i32 {
+    const found = this.project.sequence(sequence), m = this.project.medium(media);
+    if (found === null || m === null) return -1;
+    const s: Sequence = found, width = Math.round(WIDTHS[KINDS.indexOf(m.kind)] * this.project.table.width / 1920);
+    this.apply('Place media', '', (p: Project) => {
+      const it = new Item();
+      it.media = media; it.x = Math.round(x); it.y = Math.round(y); it.width = width;
+      s.items.push(it);
+    });
+    return s.items.length - 1;
+  }
+  moveItem(sequence: string, index: i32, x: number, y: number): void {
+    const found = this.item(sequence, index);
+    if (found === null) return;
+    const it: Item = found;
+    this.apply('Move media', '', (p: Project) => { it.x = Math.round(x); it.y = Math.round(y); });
+  }
+  /** The width of an item, and its height (0: the height follows the medium). */
+  resizeItem(sequence: string, index: i32, width: number, height: number): void {
+    const found = this.item(sequence, index);
+    if (found === null) return;
+    const it: Item = found;
+    this.apply('Resize media', '', (p: Project) => { it.width = Math.max(20, Math.round(width)); it.height = Math.max(0, Math.round(height)); });
+  }
+  /** Degrees, clockwise. */
+  rotateItem(sequence: string, index: i32, rotation: number): void {
+    const found = this.item(sequence, index);
+    if (found === null) return;
+    const it: Item = found;
+    this.apply('Rotate media', '', (p: Project) => { it.rotation = Math.round(rotation * 10) / 10; });
+  }
+  /** When the item appears and when it leaves, in seconds from the start of the sequence (until 0: it stays to the end). */
+  setItemTimes(sequence: string, index: i32, at: number, until: number): void {
+    const found = this.item(sequence, index);
+    if (found === null) return;
+    const it: Item = found, a = tenths(at), u = until > 0 ? Math.max(tenths(until), a + 0.5) : 0;
+    this.apply('Change media times', '', (p: Project) => { it.at = a; it.until = u; });
+  }
+  /** Moves an item in the drawing order: `by` 1 one step toward the front, -1 toward the back. Returns its index afterwards. */
+  raiseItem(sequence: string, index: i32, by: i32): i32 {
+    const found = this.project.sequence(sequence);
+    if (found === null || index < 0 || index >= found.items.length) return index;
+    const s: Sequence = found, to: i32 = Math.max(0, Math.min(s.items.length - 1, index + by));
+    this.apply(by > 0 ? 'Bring media forward' : 'Send media backward', '', (p: Project) => {
+      const it = s.items[index];
+      s.items[index] = s.items[to];
+      s.items[to] = it;
+    });
+    return to;
+  }
+  /** Takes an item off the table; the hotspots on its medium go with it unless another item of the sequence shows the same medium. */
+  removeItem(sequence: string, index: i32): void {
+    const found = this.project.sequence(sequence);
+    if (found === null || index < 0 || index >= found.items.length) return;
+    const s: Sequence = found;
+    this.apply('Take media off the table', '', (p: Project) => {
+      const media = s.items[index].media;
+      s.items.splice(index, 1);
+      if (s.items.filter((it: Item) => it.media === media).length === 0) s.links = s.links.filter((l: Link) => l.on !== media);
+    });
+  }
+  /** The introduction shown with the title of a sequence, in one language. */
+  setSequenceText(id: string, lang: string, text: string): void {
+    const found = this.project.sequence(id);
+    if (found === null) return;
+    const s: Sequence = found;
+    this.apply('Edit sequence text', `text:${this.project.sequences.indexOf(s)}:${lang}`, (p: Project) => { if (text.length > 0) s.text.set(lang, text); else s.text.delete(lang); });
+  }
+  /** Seconds the sequence lasts in a guided presentation (0: as long as its narration, else until the visitor moves on). */
+  setSequenceDuration(id: string, seconds: number): void {
+    const found = this.project.sequence(id);
+    if (found === null) return;
+    const s: Sequence = found;
+    this.apply('Change sequence duration', '', (p: Project) => { s.duration = tenths(seconds); });
+  }
+
   // ---- the file, object by object
 
   /** A sequence (or with `link` >= 0 one of its links) as it is written in the file: the advanced view shows it, read only.
@@ -357,16 +578,16 @@ export class Doc {
         const n: i32 = parseInt(m.slice(10, m.indexOf(']')), 10);
         if (n >= 0 && n < p.sequences.length) where = p.sequences[n].id;
       }
-      out.push(new Problem('error', `The table would refuse this project: ${m}`, where, -1));
+      out.push(new Problem('error', 'refused', '', m, where, -1));
     }
     const main = p.languages[0];
-    for (const id of unreachable(p)) out.push(new Problem('warning', `No link leads to "${this.titleOf(id, main)}": visitors cannot reach it.`, id, -1));
+    for (const id of unreachable(p)) out.push(new Problem('warning', 'unreachable', this.titleOf(id, main), '', id, -1));
     for (const s of p.sequences) {
       for (const lang of p.languages) {
         if (lang === main) continue;
-        if ((s.title.get(lang) ?? '').length === 0) out.push(new Problem('warning', `"${this.titleOf(s.id, main)}" has no title in ${lang}.`, s.id, -1));
+        if ((s.title.get(lang) ?? '').length === 0) out.push(new Problem('warning', 'no-title', this.titleOf(s.id, main), lang, s.id, -1));
         for (let i = 0; i < s.links.length; i++) {
-          if ((s.links[i].label.get(lang) ?? '').length === 0) out.push(new Problem('warning', `A link of "${this.titleOf(s.id, main)}" has no label in ${lang}.`, s.id, i));
+          if ((s.links[i].label.get(lang) ?? '').length === 0) out.push(new Problem('warning', 'no-label', this.titleOf(s.id, main), lang, s.id, i));
         }
       }
     }
