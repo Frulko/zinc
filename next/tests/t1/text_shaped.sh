@@ -23,8 +23,9 @@ tools/pngdiff "$tmp/p-2.png" tests/golden/shaped/gfx.png >/dev/null 2>&1 && { ec
 if command -v c++ >/dev/null && [ -f "$(dirname "$ZINC")/libzn_text_gfx.a" ]; then
   "$ZINC" build tests/golden/shaped -o "$tmp/shaped_aot" >/dev/null 2>&1 || { echo "AOT build with text: shaped failed"; fail=1; }
   "$ZINC" build "$tmp/plain" -o "$tmp/plain_aot" >/dev/null 2>&1 || { echo "AOT build without the option failed"; fail=1; }
-  nm "$tmp/shaped_aot" 2>/dev/null | grep -q hb_shape || { echo "the shaped AOT program does not link the shaping tier"; fail=1; }
-  nm "$tmp/plain_aot" 2>/dev/null | grep -q hb_shape && { echo "an AOT program without the option links the shaping tier"; fail=1; }
+  # compiled programs export no symbol (ZN-592.06): HarfBuzz's own name among its strings tells whether the tier is linked
+  strings "$tmp/shaped_aot" 2>/dev/null | grep -q harfbuzz || { echo "the shaped AOT program does not link the shaping tier"; fail=1; }
+  strings "$tmp/plain_aot" 2>/dev/null | grep -q harfbuzz && { echo "an AOT program without the option links the shaping tier"; fail=1; }
   env $env ZINC_FRAMES=2 ZINC_SHOT="$tmp/a.png" ZINC_SHOT_FRAMES=2 "$tmp/shaped_aot" >/dev/null 2>&1
   tools/pngdiff "$tmp/a-2.png" tests/golden/shaped/gfx.png >/dev/null || { echo "the shaped AOT program draws another frame than the interpreter"; fail=1; }
   echo "sizes: shaped $(wc -c < "$tmp/shaped_aot") bytes, plain $(wc -c < "$tmp/plain_aot") bytes" >&2
