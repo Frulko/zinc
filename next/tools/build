@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build targets of this tree without overloading the machine: tools/build [target...]   (default: zinc)
-# - one job per physical core, and make starts no new job while the load average is above 1.5 times that (-l), so several
+# - one job per physical core, and make starts no new job while the load average is above that count (-l), so several
 #   trees (the loop and parallel worktrees, see AGENTS.md) can build at once and share the cores instead of piling up;
 # - a new build directory is configured with ccache when it is installed, with paths made relative to the repository,
 #   so a fresh worktree reuses the objects another tree already compiled.
@@ -8,11 +8,12 @@
 here=$(cd "$(dirname "$0")" && pwd -P)   # the real path: cmake compiles with it, and ccache only strips a base directory that matches
 next=$(dirname "$here")
 dir=${BUILD_DIR:-$next/build}
-# physical cores, not threads: on the development Mac (i7-9750H, 6 cores) the limit is heat, the CPU was seen at 55% of its
-# speed (pmset -g therm) under 12 compile jobs; the second thread of a core adds heat faster than it adds work
+# physical cores, not threads, and no new job above that load: on the development Mac (i7-9750H, 6 cores) the limit is heat.
+# Seen with pmset -g therm, fans at full: 100% of the CPU speed at a load of 6, 53 to 68% at 7 to 8, 33% at 12, so
+# more jobs than cores do less work in total, not more
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 jobs=${ZN_BUILD_JOBS:-$cores}
-load=${ZN_BUILD_LOAD:-$((cores * 3 / 2))}
+load=${ZN_BUILD_LOAD:-$cores}
 if command -v ccache >/dev/null 2>&1; then
   export CCACHE_BASEDIR="$(dirname "$next")" CCACHE_NOHASHDIR=1
   # no precompiled header with the cache: ccache cannot store a file compiled through one (SDL3's 190 files), and a hit beats a faster miss
