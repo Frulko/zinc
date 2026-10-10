@@ -13,7 +13,8 @@ for p in paths:
     q = p[5:] if p.startswith("next/") else p   # next/src/... and src/... name the same files
     hit = False
     for rule in cfg["map"]:
-        if any(q.startswith(x) or x in q for x in rule["paths"]):
+        rule_paths = [x.removeprefix("../") for x in rule["paths"]]   # "../plugins/x/" names a path outside next/, which a changed path spells without the "../"
+        if any(q.startswith(x) or x in q for x in rule_paths):
             hit = True
             for t in rule["tests"]: add(t)
             if rule.get("canary"): add("canary")
