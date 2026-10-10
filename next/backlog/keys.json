@@ -366,6 +366,7 @@
  "pb-sound": "ZN-649.03",
  "pb-table2": "ZN-649.05",
  "physics2d": "ZN-583.01",
+ "physics3d": "ZN-583.02",
  "pinball3d": "ZN-649",
  "pj-02": "ZN-485",
  "pj-05": "ZN-486",
