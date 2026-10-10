@@ -16,5 +16,8 @@ uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 std::vector<uint8_t> encodeWebp(const uint8_t* px, int w, int h, int comp, bool lossless = true, float quality = 90);   // libwebp
 // Decodes PNG, JPEG, BMP, GIF (first frame) or WebP to RGBA; false for anything else.
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba);
+// The size decodeRgba would give, read from the file's header with nothing decoded, so a caller can refuse an image before its pixels are
+// allocated (bytes from a network are not to be trusted with that); false for anything decodeRgba does not read.
+bool imageSize(const uint8_t* data, size_t size, int& w, int& h);
 
 }  // namespace zn::res

@@ -1,0 +1,23 @@
+src set: complete false, natural 0 | after the microtasks: complete false | load: complete true, natural 32x24, size 32x24 | decode() resolved
+src true true true assets/fixture.png
+fixture.png load 32x24 width 8 height 24 complete true
+fixture.jpg load 32x24 width 8 height 24 complete true
+fixture.gif load 32x24 width 8 height 24 complete true
+fixture.bmp load 32x24 width 8 height 24 complete true
+frame.webp load 400x260 width 8 height 260 complete true
+data: load 2x1 true
+blob: load 32x24
+a revoked blob: error 0 true
+a missing file: error complete true natural 0 decode() EncodingError
+not an image: error complete true natural 0 decode() EncodingError
+an empty src: error complete true natural 0 decode() EncodingError
+a data: URL with no comma: error complete true natural 0 decode() EncodingError
+a picture larger than the environment takes: error 0
+src set twice: load 2
+src removed: true 0 ""
+bitmap of a blob true 32x24 width,height
+bitmap of a rectangle of an image 16x8
+bitmap of an ImageData 3 of a bitmap 8
+closed 0 0
+not made: DOMException InvalidStateError | DOMException InvalidStateError | DOMException InvalidStateError | RangeError RangeError | DOMException NotSupportedError
+new ImageBitmap(): TypeError Illegal constructor

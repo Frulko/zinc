@@ -761,6 +761,12 @@ bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<ui
   stbi_image_free(p);
   return true;
 }
+bool imageSize(const uint8_t* data, size_t size, int& w, int& h) {
+  if (size > 0x7fffffffu) return false;   // the decoders count a file's bytes in an int
+  if (isWebp(data, size)) return WebPGetInfo(data, size, &w, &h) != 0;
+  int n = 0;
+  return stbi_info_from_memory(data, static_cast<int>(size), &w, &h, &n) != 0;
+}
 
 
 std::vector<uint8_t> encodeWebp(const uint8_t* px, int w, int h, int comp, bool lossless, float quality) {

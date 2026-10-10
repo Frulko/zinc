@@ -1,0 +1,7 @@
+phaser 3.90.0 (MIT), npm tarball phaser-3.90.0.tgz from https://registry.npmjs.org/phaser/-/phaser-3.90.0.tgz
+  sha256 c4e3a8da498ab94aa8859c7a32cb89140d94bfd95d769bee36a98cdef1bea6e6
+  equal to the registry's record of the release (dist.shasum a281b2e5e67ec3638cbf73ea3bbfe72b52c4e7de, dist.integrity
+  sha512-/cziz/5ZIn02uDkC9RzN8VF9x3Gs3XdFFf9nkiMEQT3p7hQlWuyjy4QWosU802qqno2YSLn2BfqwOKLv/sSVfQ==), checked 2026-10-11
+  phaser-3.90.0.min.js = dist/phaser.min.js (sha256 e92ddef111ba42e92d316979c732311757093688ea1810591cb7aa2858eba7a7), unmodified
+  LICENSE = LICENSE.md (sha256 080f3d5539e766bb556df5b8e86c4f5d581ece35c692b80956ca352b84d29134), unmodified
+Test data only: tests/t1/webenv_phaser.sh loads it at run time on the QuickJS engine. Nothing of it is compiled, linked or packaged into zinc.

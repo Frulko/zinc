@@ -319,12 +319,25 @@ int domPixels(JSContext* c, WebGL1& gl, JSValueConst src, std::uint32_t format, 
   const std::size_t al = static_cast<std::size_t>(gl.unpackAlignment());
   row = (row + al - 1) / al * al;
   out.assign(row * h * depth, 0);
-  const bool flip = gl.unpackFlipY(), premul = gl.unpackPremultiply();
+  // UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL, except for a source that carries its own (an ImageBitmap: WebGL ignores the two
+  // parameters for it, its orientation and premultiplication were fixed by createImageBitmap's options)
+  bool flip = gl.unpackFlipY(), premul = gl.unpackPremultiply();
+  {
+    JSValue fv = JS_GetPropertyStr(c, r, "flipY"), pv = JS_GetPropertyStr(c, r, "premultiply");
+    if (!JS_IsUndefined(fv)) flip = JS_ToBool(c, fv) != 0;
+    if (!JS_IsUndefined(pv)) premul = JS_ToBool(c, pv) != 0;
+    JS_FreeValue(c, fv); JS_FreeValue(c, pv);
+  }
   for (int z = 0; z < depth; ++z) for (int y = 0; y < h; ++y) {
     // flipY turns the whole source over first, the skips and the slice rows count in the flipped image (WebGL 2: texImage2D with a sub-rectangle)
     const int rowInFlipped = y0 + z * sliceH + y;
     const std::uint8_t* s = px + (static_cast<std::size_t>(flip ? sh - 1 - rowInFlipped : rowInFlipped) * sw + x0) * 4;
     std::uint8_t* d = out.data() + row * (static_cast<std::size_t>(z) * h + y);
+    if (format == 0x1908 && type == 0x1401) {   // RGBA bytes, what nearly every upload asks for: the row as it is, or premultiplied in integers. The same bytes as the general path below (equal for each of the 65,536 colour and alpha pairs), without its floats.
+      if (!premul) std::memcpy(d, s, static_cast<std::size_t>(w) * 4);
+      else for (int x = 0; x < w; ++x, s += 4, d += 4) { const unsigned a = s[3]; d[0] = static_cast<std::uint8_t>((s[0] * a + 127) / 255); d[1] = static_cast<std::uint8_t>((s[1] * a + 127) / 255); d[2] = static_cast<std::uint8_t>((s[2] * a + 127) / 255); d[3] = s[3]; }
+      continue;
+    }
     for (int x = 0; x < w; ++x, s += 4, d += bpp) {
       float v[4] = {s[0] / 255.f, s[1] / 255.f, s[2] / 255.f, s[3] / 255.f};
       if (premul) { v[0] *= v[3]; v[1] *= v[3]; v[2] *= v[3]; }

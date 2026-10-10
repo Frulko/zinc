@@ -11,12 +11,14 @@
 #include <fstream>
 #include <initializer_list>
 #include <sstream>
+#include <vector>
 
 extern "C" {
 #include "../../third_party/quickjs-ng/quickjs.h"
 }
 
 #include "frontend/project.h"
+#include "res/codec.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
 
@@ -108,6 +110,40 @@ JSValue js_decode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (at < 0 || n < 0 || static_cast<std::uint64_t>(at) + static_cast<std::uint64_t>(n) > size) return JS_ThrowRangeError(c, "decode: outside the buffer");
   return JS_NewStringLen(c, reinterpret_cast<const char*>(p) + at, static_cast<size_t>(n));
 }
+// An image larger than this is refused before its pixels are allocated: the file may come from a network, and its header alone can ask for
+// gigabytes. 2^26 pixels is 8192 x 8192, 256 MiB of RGBA: above any texture a game loads, below what would starve the process.
+// ponytail: one constant for every program; a zinc.json key if a program ever needs more
+constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
+// The memory of an ArrayBuffer that is a std::vector of ours (QuickJS's contract: size 0 frees it; another size resizes it and answers its
+// new address, or null with the block left as it was)
+void* pixelStore(JSRuntime*, void* opaque, void*, size_t size) {
+  auto* v = static_cast<std::vector<uint8_t>*>(opaque);
+  if (!size) { delete v; return nullptr; }
+  try { v->resize(size); } catch (...) { return nullptr; }
+  return v->data();
+}
+// decodeImage(buffer, offset, length): the pixels of an image file through the engine's codec (src/res/codec.h: PNG, JPEG, BMP, the first frame
+// of a GIF, WebP) as { data: ArrayBuffer of RGBA8 rows from the top, alpha not premultiplied, width, height }. undefined when the bytes are
+// not such an image; a RangeError when it is larger than kMaxImagePixels. The buffer is the decoder's own storage, handed over, not copied.
+JSValue js_decodeImage(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
+  size_t size = 0;
+  const uint8_t* p = argc > 0 ? JS_GetArrayBuffer(c, &size, argv[0]) : nullptr;
+  if (!p) return JS_EXCEPTION;
+  std::int64_t at = 0, n = static_cast<std::int64_t>(size);
+  if (argc > 1) JS_ToInt64(c, &at, argv[1]);
+  if (argc > 2) JS_ToInt64(c, &n, argv[2]);
+  if (at < 0 || n < 0 || static_cast<std::uint64_t>(at) + static_cast<std::uint64_t>(n) > size) return JS_ThrowRangeError(c, "decodeImage: outside the buffer");
+  int w = 0, h = 0;
+  if (!zn::res::imageSize(p + at, static_cast<size_t>(n), w, h) || w <= 0 || h <= 0) return JS_UNDEFINED;
+  if (static_cast<std::int64_t>(w) * h > kMaxImagePixels) return JS_ThrowRangeError(c, "an image of %d x %d pixels is larger than the %lld the web environment decodes", w, h, static_cast<long long>(kMaxImagePixels));
+  auto* px = new std::vector<uint8_t>();
+  if (!zn::res::decodeRgba(p + at, static_cast<size_t>(n), w, h, *px) || px->size() != static_cast<size_t>(w) * h * 4) { delete px; return JS_UNDEFINED; }
+  JSValue o = JS_NewObject(c);
+  JS_SetPropertyStr(c, o, "data", JS_NewArrayBuffer(c, px->data(), px->size(), 0, pixelStore, px, false));
+  JS_SetPropertyStr(c, o, "width", JS_NewInt32(c, w));
+  JS_SetPropertyStr(c, o, "height", JS_NewInt32(c, h));
+  return o;
+}
 // run(text, name): a classic script, run as the global code it is (its functions and vars become the window's), under its file's name in stack traces
 JSValue js_run(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (argc < 2) return JS_UNDEFINED;
@@ -163,6 +199,7 @@ bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry
   JS_SetPropertyStr(ctx, n, "httpTake", JS_NewCFunction(ctx, js_httpTake, "httpTake", 1));
   JS_SetPropertyStr(ctx, n, "module", JS_NewCFunction(ctx, js_module, "module", 1));
   JS_SetPropertyStr(ctx, n, "decode", JS_NewCFunction(ctx, js_decode, "decode", 3));
+  JS_SetPropertyStr(ctx, n, "decodeImage", JS_NewCFunction(ctx, js_decodeImage, "decodeImage", 3));
   JS_SetPropertyStr(ctx, n, "run", JS_NewCFunction(ctx, js_run, "run", 2));
   JS_SetPropertyStr(ctx, n, "base", JS_NewStringLen(ctx, base.data(), base.size()));
   JS_SetPropertyStr(ctx, n, "trace", JS_NewBool(ctx, mode == "trace"));

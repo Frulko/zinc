@@ -29,7 +29,7 @@ Three defects found by running PixiJS v8, Phaser 3 and three.js unchanged. (1) W
 - [x] #2 new THREE.WebGLRenderer({canvas, context: gl2}) succeeds
 - [x] #3 a shader with #ifdef GL_ES / #define in attribute / #define out varying compiles in WebGL 1 and 2
 - [x] #4 an ESSL 1.00 shader declaring vec4 texture; and calling texture2D compiles
-- [ ] #5 PixiJS 8.22 and Phaser 3.90 boot with no shader workaround
+- [x] #5 PixiJS 8.22 and Phaser 3.90 boot with no shader workaround
 - [ ] #6 Khronos conformance not lower than 695/787; a T0/T1 test per fix
 <!-- AC:END -->
 
@@ -72,5 +72,13 @@ Before (commit c60e9e27, load average 5.6 to 5.9): three.js r186 import 66 to 71
 After (the fixed code, twenty minutes later, load 5.1 to 5.5 over one minute and 6.6 over five, the machine having just been at 9): three.js import 66 to 73 ms, first frame 344 to 375 ms, frame 0.67 to 0.68 ms (p95 3.0); PixiJS 7 import 42 to 43 ms, first frame 268 to 273 ms, frame 0.61 to 0.70 ms (p95 3.6 to 4.2); p5.js evaluated in 138 to 150 ms, first frame 341 to 376 ms, frame 0.62 to 0.63 ms (p95 3.7 to 6.1); PixiJS 8.22.0, new: import 120 to 121 ms, first frame 351 to 361 ms, frame 0.72 ms (p95 3.3 to 4.5).
 READ WITH CARE: the second set is 4 to 9 % slower at first frame and up to twice slower at the frame median, but so is what this change cannot reach (the imports, pure JavaScript: +3 to +9 %), and the frame time of one scene on this machine has two modes, about 0.3 and about 0.7 ms, whatever the shader text. So the two sets do not tell a cost from the machine. The paired measure does: helpers against the old macros on one binary (a switch kept only for the measure), alternated in the same minutes, PixiJS 7 (its batch shader calls texture2D once per sampler), 5 pairs at load 6.2 to 6.7: frame median 0.70 ms against 0.70 ms in four pairs of five (one helper run at 0.34, one macro run at 0.73); first frame 352 to 400 ms (median 374) against 334 to 405 ms (median 376), the first run after the relink (677 ms) left out. No measurable cost of the helper functions.
 A guess that did not hold: the two std::regex matches desktopOnlyWord makes for every identifier of every shader looked like a large part of the first render. A substring test before them, measured the same paired way: PixiJS 7 first frame 344 to 389 ms (median 353) with it, 351 to 390 ms (median 361, and one run at 577) without; p5.js 478 to 561 against 478 to 568. At most 2 %, inside the noise: the test was not kept. (The switch itself showed that the path is long: with a getenv per identifier in both arms, p5.js's first frame was 478 to 561 ms, against 341 to 376 ms on the build without the switch; an unpaired comparison, but ten times the drift seen elsewhere that hour.)
-Not measured: the library numbers on the code exactly as committed (the "after" set was taken with the substring test in); Phaser (it does not reach a frame).
+Not measured when this was committed: the library numbers on the code exactly as committed (the "after" set was taken with the substring test in); Phaser (it did not reach a frame).
+
+ADDED WITH ZN-569 (2026-10-11), which corrects two lines above.
+#5 is now done: with image decoding in, Phaser 3.90.0 boots unmodified to its frames (PASS webenv_phaser: "create: renderer WebGL 1 canvas 320 240 true picture 32x24 true", "frame 2 rectangle 255,0,0,255 background 16,32,48,255 picture: its red block 220,30,30,255 ..."). #6 is still open: the whole Khronos suite was not run.
+THE MEASURE OF THIS COMMIT, done properly after it (the "Before" and "After" sets above must not be compared: the same baseline module gave three.js 331 to 351 ms at first frame at 01:00 and 413 to 451 ms at 01:22, the machine having been at a load of 13 to 16 in between). The whole diff is in libzn_webgl, so the parent commit's module was built and alternated with the committed one under one zinc binary (ZINC_WEBGL_LIB), 5 pairs a library, load 5.4 to 5.6 over one minute (7.8 to 8.0 over five):
+three.js r186: first frame 413, 425, 422, 429, 451 ms before (median 425) and 426, 422, 422, 428, 443 after (median 426); frame median 0.67 ms both.
+PixiJS 7.4.3: first frame 370, 346, 342, 351, 354 ms before (median 351) and 363, 353, 360, 359, 357 after (median 359): +7 ms, +2 %, four pairs of five in that direction; frame 0.70 ms both (and 0.34 to 0.36 ms once in each arm: the machine's two modes).
+p5.js 1.11.13: first frame median 491 ms before, 497 after; 285 and 287 ms once its own evaluation is taken off; frame 0.63 ms both.
+So: no cost at the frame, none at first frame for three.js and p5.js, about 2 % for PixiJS 7 (its shaders are GLSL ES 1.00: they now carry the helper functions, and each uniform it looks up is mapped).
 <!-- SECTION:NOTES:END -->

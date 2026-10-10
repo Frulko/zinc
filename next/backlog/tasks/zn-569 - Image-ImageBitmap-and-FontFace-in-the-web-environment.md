@@ -1,10 +1,11 @@
 ---
 id: ZN-569
 title: 'Image, ImageBitmap and FontFace in the web environment'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
+updated_date: '2026-10-11 01:45'
 labels:
   - games
   - js
@@ -28,3 +29,42 @@ Image.src (files, data/blob URLs, http through zinc:net) and createImageBitmap d
 - [ ] #3 the WebGL conformance texture pages that need images run (count reported)
 - [ ] #4 decoding a 4096x4096 PNG never blocks a frame for more than 2 ms
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-11, parallel agent (worktree), Intel Mac. In progress: this is the state after the first commit of the task.
+
+STEP 1, images and bitmaps (done, tested).
+- Decoding is the engine's codec and nothing of our own: zn::res::decodeRgba (src/res/res.cpp: stb_image for PNG, JPEG, BMP and a GIF's first frame, libwebp for WebP), reached by one native of the environment, decodeImage (src/qjs/webenv.cpp). The pixels go to JavaScript as the decoder's own buffer, handed over, not copied (an ArrayBuffer over the std::vector, with QuickJS's memory callback).
+- A bound at the door, because the bytes may come from a network: a picture of more than 2^26 pixels (8192 x 8192, 256 MiB of RGBA) is refused from its header, before a pixel is allocated, with the reason on stderr and the element's error event. For that the codec gained imageSize (src/res/codec.h: stbi_info_from_memory, WebPGetInfo). Measured: a file of 57 bytes whose header asks for 9000 x 9000 pixels is refused with "zinc: an image of 9000 x 9000 pixels is larger than the 67108864 the web environment decodes" and the whole run peaks at 14.6 MB. (What the decoder would reserve without the bound, some hundreds of MiB, is read from its code, not measured.) The decoder has a limit of its own above ours, 2^28 pixels, which answers "not an image". One constant for every program (marked in the code).
+- HTMLImageElement / Image (lib/std/webenv.js): src is loaded as fetch loads it (the project's files through the host's file row, so permissions hold; data: and blob: URLs; http through zinc:net), then decoded. In the order a browser gives: `complete` is false as soon as src is set and still false after the microtasks; then, in a task of its own, the natural size, `complete` and `load` together, or `complete` with no size and `error`. A src set again abandons the load before it (one event, for the last). decode() settles with the load (EncodingError for no picture). width and height are the attributes, else the natural size; src reads back resolved, as in a browser.
+- ImageBitmap and createImageBitmap(source[, sx, sy, sw, sh][, options]) from a Blob, an image element, an ImageData, a canvas or a bitmap. A bitmap keeps its pixels as decoded with two flags (imageOrientation 'flipY'; premultiplyAlpha 'none', else premultiplied), and the WebGL binding applies them as it uploads, in place of UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL, which WebGL ignores for a bitmap: making a bitmap costs no pass over the pixels. A rectangle that leaves the source is transparent there. NOT done: resizeWidth / resizeHeight (the promise is rejected by name, NotSupportedError, rather than answered with a bitmap of another size).
+- As a texture source (src/gl/webgl_js.cpp domPixels): an element or a bitmap is read through its _pixels(); a source may carry its own flipY and premultiply. RGBA / UNSIGNED_BYTE, what nearly every upload asks for, now copies rows, or premultiplies in integers, instead of going through floats a pixel at a time: the same bytes (checked for each of the 65,536 colour and alpha pairs against the float path, at -O0 and -O2, 0 differ).
+
+DECISION, criterion 4 is NOT met and is not attempted in this task: decoding stays on the main thread. Measured first (release build, real clock, load 2.6 to 3.3, a 4096 x 4096 PNG of 39.8 MiB with a pattern that compresses to 65 %, and the same at 1024 x 1024, 2.7 MiB):
+  reading the file through fetch: 307 ms (1024: 36 ms); decoding: 415 ms (34 ms); Image.src to load: 525 ms (50 ms); the longest time between two frames meanwhile: 525 ms (50 ms). The criterion asks for 2 ms.
+  Where the time is: the decode, and as much again before and after it. The file row alone, measured apart (await fetch(file), three times, load 3.7): 252, 211 and 187 ms for the 39.8 MiB, where one copy of the same bytes in JavaScript takes 9 ms. By its code (next/src/host/sys_host.cpp readAll and ret) it fills a vector through a byte iterator (out.assign(std::istreambuf_iterator...)), then copies it into a string and that into another, before our own copy into an ArrayBuffer; which of these is the cost was not measured line by line. (The 307 ms above is the first read of that run and includes what a first fetch pays.) And a 4096 x 4096 upload was 115 ms (see below).
+  Options scored (RULES 4: fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1):
+  (a) read and decode in the host, on libuv's loop and thread pool, permission-checked there, the result handed to QuickJS as an owned buffer: 5,5,5,4,5,4,2 = 64. It is the plan of docs/reports/games/toolchain-assets-loading.md (6.4, G09). It needs new host rows (next/include/zn/runtime.h, next/src/host), files other sessions hold tonight.
+  (c) decode on the main thread: 2,2,5,5,5,5,5 = 52.
+  (b) a worker thread of the web environment's own that decodes only: 2,3,5,3,5,4,4 = 49. Scored 58 before the measure, when it was thought to meet the criterion. It does not: the file read cannot move to a thread of ours without leaving the host's permission checks, so 110 to 307 ms stay on the main thread, and the mechanism would be a second one beside (a).
+  CHOICE: (c) now, (a) as the follow-up task below.
+
+MEASURED, the upload (texImage2D + gl.finish from an image element, median of 7 a run; the float loop against the new path, alternated on one zinc binary, load 5.5): 1024 x 1024 as decoded 14.9, 9.5, 7.5 ms before and 1.6, 1.1, 1.1 ms after; premultiplied 16.4, 8.3, 7.6 ms before and 3.6, 3.3, 3.3 ms after. 4096 x 4096 as decoded 114.9, 114.6 ms before and 26.4, 28.9 ms after; premultiplied 119.3, 117.6 ms before and 52.8, 53.7 ms after. What remains at 4096 x 4096 is a zero fill and one copy of 64 MiB before the driver's own; not removed.
+
+LIBRARY, Phaser 3.90.0: BOOTS unmodified to its frames and shows a picture from a file (PASS webenv_phaser). Its default textures decode (data: PNGs), its loader brings tests/data/images/fixture.png (XMLHttpRequest of a blob, a blob: URL, an image element), and the pixels read back after its render at frames 2 and 8 are the file's own colours (220,30,30 / 60,60,20 / 255,255,255), the rectangle's 255,0,0 and the background's 16,32,48; a scripted key reaches its keyboard (the left cursor key is up at frame 5 and down at frame 7) and a scripted button its pointer ("pointerdown 100 60"). Vendored as test data: next/third_party/phaser (MIT; phaser.min.js of the npm release, the tarball's sha1 and sha512 equal to the registry's record, sha256 in PIN). A page that reads the drawing buffer must do it in Phaser's postrender event: its context does not preserve the buffer, and a later task reads zeros, as in a browser (the first version of the page read in update() and got 0,0,0,0).
+
+TESTS: tests/t0/webenv.sh gains tests/golden/webenv/image.js (23 lines: the order of the events, each format's size, data: and blob: URLs, what is no picture, the pixel bound by its message on stderr, src set twice, createImageBitmap and its refusals) and an image over http in http.js. tests/t1/webenv_image.sh: tests/golden/webenv/image_gl.js (12 lines) with the window's frame 2 (image_gl-2.png). Its reference is the picture's definition, not a capture: tests/data/images is twelve flat colours in a known order (gen.py), so PNG, GIF and BMP are exact, the JPEG within 1, and a lossless WebP equals the PNG it was encoded from on all 104,000 pixels. Checked that it can fail: with a bitmap's own flags dropped, lines 8 and 9 come out swapped and the runner says FAIL. tests/t1/webenv_phaser.sh. tests/native/codec_test.cpp: imageSize on each fixture, on a PNG cut inside its pixel data (sized, not decoded), on text and on nothing.
+A change to another task's test, to know about: tests/golden/webenv/dom.js printed its order of events from a 1 ms timer and counted on the image's error event being a 0 ms timer set before it (the stub's). The event now comes a task after the bytes were read, as in a browser, which gives no such bound; the page prints after 20 ms. Its golden is unchanged.
+Passed on this commit: webenv, qjs, qjs_robust, codec (t0); quickjs, webp, webenv_image, webenv_phaser, webenv_pixi, webenv_three, webenv_p5, webenv_canvas, webgl_libs, webgl2_tex (t1). Khronos pages of textures and extensions (260, conformance and conformance2): 209 pass, no regression against the pass list, and the 230 of them run for ZN-565 are unchanged page by page.
+
+STATE OF THE CRITERIA after step 1: #1 not started (the truck of examples/webgl-studio). #2 half: Phaser's this.load.image is proven; PixiJS Assets.load is next. #3 not started. #4 not met, by decision, with the numbers above.
+NOT DONE YET in this task: PixiJS and three.js loading a picture (tests), FontFace and document.fonts, criteria 1 and 3.
+
+FOLLOW-UP TASKS (not created; for the coordinator to file):
+(a) "Host: asynchronous file read and image decode on libuv, for the web environment and zinc:assets" (M). An image's bytes are read and decoded off the main thread inside the host (uv_fs and the thread pool), under the same permission checks as the file row, and handed to QuickJS as an owned buffer; a deterministic run completes at a fixed frame. Criteria: Image.src of a 4096 x 4096 PNG never makes a frame longer than 2 ms more than its neighbours (today 525 ms); a 1024 x 1024 one the same (today 50 ms); permissions still refuse a path outside the grants; webenv_image and webenv_phaser unchanged.
+(b) "Host: read a file in one call" (S, next/src/host/sys_host.cpp readAll and the row's result). Criteria: reading a 40 MiB file through the file row takes under 30 ms on the development Mac (today 187 to 252 ms for 39.8 MiB, against 9 ms for one copy of those bytes); every fs test unchanged.
+(c) "WebGL binding: upload a DOM source without the intermediate copy" (S). Criteria: texImage2D of a 4096 x 4096 RGBA image as decoded under 15 ms (today 26 to 29 ms).
+(d) "Web environment: createImageBitmap resizeWidth / resizeHeight" (S), on a proven resampler to vendor (stb_image_resize2.h, public domain or MIT, from the project whose stb_image, stb_image_write and stb_truetype are in third_party/stb; it is not there today). Criteria: a bitmap of the asked size, compared with headless Chrome at SSIM 0.98.
+<!-- SECTION:NOTES:END -->

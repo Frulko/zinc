@@ -1,0 +1,9 @@
+loaded phaser-3.90.0.min.js Phaser 3.90.0
+loaded game.js Phaser 3.90.0
+create: renderer WebGL 1 canvas 320 240 true picture 32x24 true
+frame 2 rectangle 255,0,0,255 background 16,32,48,255 picture: its red block 220,30,30,255 its olive block 60,60,20,255 its white block 255,255,255,255 error 0
+frame 5 pointerdown 100 60
+frame 5 the left cursor key is down: false
+frame 6 keydown ArrowLeft 37
+frame 7 the left cursor key is down: true
+frame 8 rectangle 255,0,0,255 background 16,32,48,255 picture: its red block 220,30,30,255 its olive block 60,60,20,255 its white block 255,255,255,255 error 0

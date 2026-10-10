@@ -46,6 +46,16 @@ int main(int argc, char** argv) {
     auto jpg = encodeJpeg(rgb.data(), 32, 24, 3, 95);
     CHECK(!jpg.empty() && decodeRgba(jpg.data(), jpg.size(), w, h, px) && w == 32 && maxDiff(px, raw) <= 40, "JPEG round trip (max diff %d)", maxDiff(px, raw)); }
   CHECK(!decodeRgba(reinterpret_cast<const uint8_t*>("RIFF....WEBPVP8 "), 16, *new int, *new int, *new std::vector<uint8_t>), "WebP must not decode in the stb tier");
+  // imageSize reads the size decodeRgba would give from the header alone: every fixture, a file cut inside its pixel data, and what is no image
+  for (const char* ext : {"png", "bmp", "gif", "jpg"}) {
+    std::vector<uint8_t> f = readFile(dir + "/fixture." + ext); int w = 0, h = 0;
+    CHECK(imageSize(f.data(), f.size(), w, h) && w == 32 && h == 24, "imageSize of fixture.%s is %d x %d", ext, w, h);
+  }
+  { std::vector<uint8_t> f = readFile(dir + "/fixture.png"), px; int w = 0, h = 0;
+    CHECK(f.size() > 100 && imageSize(f.data(), 100, w, h) && w == 32 && h == 24, "imageSize of a PNG cut inside its pixel data (100 of %zu bytes) is %d x %d", f.size(), w, h);
+    CHECK(!decodeRgba(f.data(), 100, w, h, px), "a PNG cut inside its pixel data decodes");
+    CHECK(!imageSize(reinterpret_cast<const uint8_t*>("not an image at all"), 19, w, h), "imageSize takes text for an image");
+    CHECK(!imageSize(f.data(), 0, w, h), "imageSize takes no bytes for an image"); }
   if (failures) return 1;
   std::printf("all checks passed\n");
   return 0;

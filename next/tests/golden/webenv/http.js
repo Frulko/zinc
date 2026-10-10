@@ -13,3 +13,6 @@ log('xhr', x.status, x.response.byteLength, new Uint8Array(x.response)[200], x.g
 const two = await Promise.all([fetch(base + '/data.json').then(a => a.text()), fetch(base + '/classic.js').then(a => a.text())]);
 log('two at once', two[0].length, two[1].includes('classicHello'));
 try { await fetch('http://127.0.0.1:1/'); log('no error'); } catch (e) { log('refused', e.constructor.name, /^Failed to fetch/.test(e.message)); }
+// an image element over the network (ZN-569): the picture's size with `load`, a missing one is `error`
+const picture = src => new Promise(resolve => { const img = new Image(); img.onload = () => resolve('load ' + img.naturalWidth + 'x' + img.naturalHeight); img.onerror = () => resolve('error ' + img.naturalWidth); img.src = src; });
+log('image', await picture(base + '/fixture.png'), '|', await picture(base + '/none.png'));

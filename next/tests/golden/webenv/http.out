@@ -4,3 +4,4 @@ missing 404
 xhr 200 256 200 256
 two at once 60 true
 refused TypeError true
+image load 32x24 | error 0
