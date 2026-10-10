@@ -65,6 +65,26 @@ A tug crew works the docks of a mining station held in tidal lock above a gas gi
 - **Ball save** for 8 s after a launch; **extra ball** lit at the dock at ranks 3 and 6; **tilt** after two warnings: the
   flippers die and the ball's bonus is lost. The five best scores are signed and kept between runs.
 
+## Twilight Fair, a second table
+
+A funfair at dusk: ring the bell of the high striker (a kicker that throws the ball onto the bandstand, an upper
+playfield with two bells), clear the coconut shy (three drop targets), ride the carousel (the bumpers), hook the ducks;
+a string of bulbs under the arch flashes with every bumper. Warm colours, bells, ratchets and a steam organ's waltz
+where Tidal Lock is cold, synthetic and blue.
+
+![Twilight Fair](../../docs/img/pinball3d-twilight-fair.jpg)
+
+```sh
+zinc run examples/pinball3d -- --table=assets/tables/twilight-fair
+```
+
+It is the proof that a table is data: **no line of the game changed for it**. Its `table.json` was made in the table
+editor by five sessions kept in [`tools/twilight_fair/sessions`](tools/twilight_fair/sessions) (a test replays them and
+gets the file byte for byte); its 11 images and 2 models are drawn by [`tools/twilight_fair_art.py`](tools/twilight_fair_art.py)
+and its 34 sounds synthesised by [`tools/twilight_fair_sounds.py`](tools/twilight_fair_sounds.py) (715 KB in all).
+[docs/pinball-make-a-table.md](../../docs/pinball-make-a-table.md) walks through the making, and lists what the editor
+could not do. The game starts on the first table of its assets (Tidal Lock); any other is named with `--table`.
+
 ## The look
 
 Everything the eye sees is named in the table file too, and made by code: nothing is fetched or copied from a game.
@@ -146,7 +166,8 @@ zinc run examples/pinball3d/tools/probe.ts -- assets/tables/tidal-lock 36 70 1.3
 ```
 
 Tests: `next/tests/t1/pinball3d_format.sh` (the format), `pinball3d.sh` (a scripted game's event log, six pixel goldens,
-single shots), `pinball3d_sound.sh` (the scripted game's sound log, every sound decoded, a sound renamed in the file),
+single shots), `pinball3d_second_table.sh` (Twilight Fair: its sessions replayed in the editor give its file, the same
+scripted game played on it), `pinball3d_sound.sh` (the scripted game's sound log, every sound decoded, a sound renamed in the file),
 `pinball3d_aot.sh` (the compiled game prints the same logs).
 
 ## Limits

@@ -1,0 +1,211 @@
+# Twilight Fair, 5: the screen and the credits. The picture and the colours of the score panel in both layouts;
+# who made the files of the folder.
+4 key g meta
+5 text layouts.landscape.panel
+6 key Enter
+8 key f meta
+9 text color
+11 key Tab
+12 text #1c0e1c
+13 key Enter
+15 key f meta
+16 text image
+18 move 1300 112
+19 down
+20 up
+22 text art/backglass.jpg
+23 key Enter
+25 key g meta
+26 text layouts.landscape.panel.items[0]
+27 key Enter
+29 key f meta
+30 text color
+32 key Tab
+33 text #ffcf5a
+34 key Enter
+36 key g meta
+37 text layouts.landscape.panel.items[3]
+38 key Enter
+40 key f meta
+41 text color
+43 key Tab
+44 text #ff9a5a
+45 key Enter
+47 key g meta
+48 text layouts.portrait.panel
+49 key Enter
+51 key f meta
+52 text color
+54 key Tab
+55 text #1c0e1c
+56 key Enter
+58 key f meta
+59 text image
+61 move 1300 112
+62 down
+63 up
+65 text art/backglass-wide.jpg
+66 key Enter
+68 key g meta
+69 text layouts.portrait.panel.items[0]
+70 key Enter
+72 key f meta
+73 text color
+75 key Tab
+76 text #ffcf5a
+77 key Enter
+79 key g meta
+80 text layouts.portrait.panel.items[3]
+81 key Enter
+83 key f meta
+84 text color
+86 key Tab
+87 text #ff9a5a
+88 key Enter
+90 key g meta
+91 text +credit
+92 key Enter
+94 key f meta
+95 text author
+97 key Tab
+98 text "the Zinc project"
+99 key Enter
+101 key f meta
+102 text source
+104 key Tab
+105 text tools/twilight_fair_sounds.py
+106 key Enter
+108 key f meta
+109 text licence
+111 key Tab
+112 text "original work, synthesised by the script; nothing sampled"
+113 key Enter
+115 key f meta
+116 text files
+118 key Tab
+119 key a meta
+120 text sounds/ball-knock.mp3
+121 key Enter
+122 text sounds/ball-land.mp3
+123 key Enter
+124 text sounds/ball-ready.mp3
+125 key Enter
+126 text sounds/ball-roll.mp3
+127 key Enter
+128 text sounds/ball-saved.mp3
+129 key Enter
+130 text sounds/big-bell.mp3
+131 key Enter
+132 text sounds/bumper.mp3
+133 key Enter
+134 text sounds/coconut.mp3
+135 key Enter
+136 text sounds/coconut-up.mp3
+137 key Enter
+138 text sounds/drain.mp3
+139 key Enter
+140 text sounds/duck.mp3
+141 key Enter
+142 text sounds/extra-ball.mp3
+143 key Enter
+144 text sounds/flipper-down.mp3
+145 key Enter
+146 text sounds/flipper-up.mp3
+147 key Enter
+148 text sounds/game-over.mp3
+149 key Enter
+150 text sounds/gate.mp3
+151 key Enter
+152 text sounds/jackpot.mp3
+153 key Enter
+154 text sounds/lane.mp3
+155 key Enter
+156 text sounds/letter.mp3
+157 key Enter
+158 text sounds/mallet.mp3
+159 key Enter
+160 text sounds/mission.mp3
+161 key Enter
+162 text sounds/music-attract.mp3
+163 key Enter
+164 text sounds/music-over.mp3
+165 key Enter
+166 text sounds/music-play.mp3
+167 key Enter
+168 text sounds/nudge.mp3
+169 key Enter
+170 text sounds/plunger-pull.mp3
+171 key Enter
+172 text sounds/plunger-shot.mp3
+173 key Enter
+174 text sounds/rank.mp3
+175 key Enter
+176 text sounds/sling.mp3
+177 key Enter
+178 text sounds/spinner.mp3
+179 key Enter
+180 text sounds/start.mp3
+181 key Enter
+182 text sounds/striker.mp3
+183 key Enter
+184 text sounds/tilt.mp3
+185 key Enter
+186 text sounds/wall.mp3
+187 move 420 500
+188 down
+189 up
+191 key g meta
+192 text +credit
+193 key Enter
+195 key f meta
+196 text author
+198 key Tab
+199 text "the Zinc project"
+200 key Enter
+202 key f meta
+203 text source
+205 key Tab
+206 text tools/twilight_fair_art.py
+207 key Enter
+209 key f meta
+210 text licence
+212 key Tab
+213 text "original work, drawn and modelled by the script; its text is set in Inter (SIL Open Font License 1.1)"
+214 key Enter
+216 key f meta
+217 text files
+219 key Tab
+220 key a meta
+221 text art/playfield.jpg
+222 key Enter
+223 text art/ball.jpg
+224 key Enter
+225 text art/flipper.png
+226 key Enter
+227 text art/cap.png
+228 key Enter
+229 text art/deck.jpg
+230 key Enter
+231 text art/backboard.jpg
+232 key Enter
+233 text art/apron.jpg
+234 key Enter
+235 text art/palette.png
+236 key Enter
+237 text art/tent.png
+238 key Enter
+239 text art/wheel.obj
+240 key Enter
+241 text art/booth.obj
+242 key Enter
+243 text art/backglass.jpg
+244 key Enter
+245 text art/backglass-wide.jpg
+246 move 420 500
+247 down
+248 up
+250 move 420 500
+251 down
+252 up
+254 key s meta
+# frames 264

@@ -1,0 +1,1573 @@
+# Twilight Fair, 2: what it looks like and what is heard. The looks take the colours of the fair and the images of
+# the folder; every sound is a file of the folder, and every thing names the sound of each of its events.
+4 key g meta
+5 text board
+6 key Enter
+8 key f meta
+9 text color
+11 key Tab
+12 text #f0e4dc
+13 key Enter
+15 key f meta
+16 text texture
+18 move 1300 112
+19 down
+20 up
+22 text art/playfield.jpg
+23 key Enter
+25 key g meta
+26 text steel
+27 key Enter
+29 key f meta
+30 text color
+32 key Tab
+33 text #c9a24a
+34 key Enter
+36 key f meta
+37 text specular
+39 key Tab
+40 text #fff0c0
+41 key Enter
+43 key g meta
+44 text chrome
+45 key Enter
+47 key f meta
+48 text color
+50 key Tab
+51 text #ffffff
+52 key Enter
+54 key f meta
+55 text texture
+57 move 1300 112
+58 down
+59 up
+61 text art/ball.jpg
+62 key Enter
+64 key g meta
+65 text looks[3]
+66 key Enter
+68 key f meta
+69 text color
+71 key Tab
+72 text #b3261e
+73 key Enter
+75 key g meta
+76 text looks[4]
+77 key Enter
+79 key f meta
+80 text color
+82 key Tab
+83 text #ffffff
+84 key Enter
+86 key f meta
+87 text texture
+89 move 1300 112
+90 down
+91 up
+93 text art/flipper.png
+94 key Enter
+96 key g meta
+97 text bumper
+98 key Enter
+100 key f meta
+101 text color
+103 key Tab
+104 text #7a1f2c
+105 key Enter
+107 key f meta
+108 text glow
+110 key Tab
+111 text #ffcf5a
+112 key Enter
+114 key g meta
+115 text cap
+116 key Enter
+118 key f meta
+119 text color
+121 key Tab
+122 text #ffffff
+123 key Enter
+125 key f meta
+126 text texture
+128 move 1300 112
+129 down
+130 up
+132 text art/cap.png
+133 key Enter
+135 key g meta
+136 text target
+137 key Enter
+139 key f meta
+140 text color
+142 key Tab
+143 text #e8c040
+144 key Enter
+146 key f meta
+147 text glow
+149 key Tab
+150 text #fff0a0
+151 key Enter
+153 key g meta
+154 text +look
+155 key Enter
+157 key f meta
+158 text id
+160 key Tab
+161 text coconut
+162 key Enter
+164 key f meta
+165 text color
+167 key Tab
+168 text #8a5a34
+169 key Enter
+171 key f meta
+172 text glow
+174 key Tab
+175 text #ffb060
+176 key Enter
+178 key g meta
+179 text +look
+180 key Enter
+182 key f meta
+183 text id
+185 key Tab
+186 text band
+187 key Enter
+189 key f meta
+190 text color
+192 key Tab
+193 text #d8342c
+194 key Enter
+196 key f meta
+197 text glow
+199 key Tab
+200 text #ff9a5a
+201 key Enter
+203 key g meta
+204 text +look
+205 key Enter
+207 key f meta
+208 text id
+210 key Tab
+211 text deckBoard
+212 key Enter
+214 key f meta
+215 text color
+217 key Tab
+218 text #ffffff
+219 key Enter
+221 key f meta
+222 text texture
+224 move 1300 112
+225 down
+226 up
+228 text art/deck.jpg
+229 key Enter
+231 key g meta
+232 text +look
+233 key Enter
+235 key f meta
+236 text id
+238 key Tab
+239 text cabinet
+240 key Enter
+242 key f meta
+243 text color
+245 key Tab
+246 text #3a1420
+247 key Enter
+249 key f meta
+250 text shading
+252 move 1316 112
+253 down
+254 up
+256 key g meta
+257 text +look
+258 key Enter
+260 key f meta
+261 text id
+263 key Tab
+264 text backboard
+265 key Enter
+267 key f meta
+268 text color
+270 key Tab
+271 text #ffffff
+272 key Enter
+274 key f meta
+275 text shading
+277 move 1316 112
+278 down
+279 up
+281 key f meta
+282 text texture
+284 move 1300 112
+285 down
+286 up
+288 text art/backboard.jpg
+289 key Enter
+291 key g meta
+292 text +look
+293 key Enter
+295 key f meta
+296 text id
+298 key Tab
+299 text apron
+300 key Enter
+302 key f meta
+303 text color
+305 key Tab
+306 text #ffffff
+307 key Enter
+309 key f meta
+310 text shading
+312 move 1316 112
+313 down
+314 up
+316 key f meta
+317 text texture
+319 move 1300 112
+320 down
+321 up
+323 text art/apron.jpg
+324 key Enter
+326 key g meta
+327 text +look
+328 key Enter
+330 key f meta
+331 text id
+333 key Tab
+334 text parts
+335 key Enter
+337 key f meta
+338 text color
+340 key Tab
+341 text #ffffff
+342 key Enter
+344 key f meta
+345 text shading
+347 move 1316 112
+348 down
+349 up
+351 key f meta
+352 text texture
+354 move 1300 112
+355 down
+356 up
+358 text art/palette.png
+359 key Enter
+361 key g meta
+362 text +look
+363 key Enter
+365 key f meta
+366 text id
+368 key Tab
+369 text tent
+370 key Enter
+372 key f meta
+373 text color
+375 key Tab
+376 text #ffffff
+377 key Enter
+379 key f meta
+380 text texture
+382 move 1300 112
+383 down
+384 up
+386 text art/tent.png
+387 key Enter
+# Who wears what: the slingshots, the coconuts, the bandstand.
+389 key g meta
+390 text slingLeft
+391 key Enter
+393 key f meta
+394 text look
+396 move 1300 112
+397 down
+398 up
+400 text band
+401 key Enter
+403 key g meta
+404 text slingRight
+405 key Enter
+407 key f meta
+408 text look
+410 move 1300 112
+411 down
+412 up
+414 text band
+415 key Enter
+417 key g meta
+418 text coconut1
+419 key Enter
+421 key f meta
+422 text look
+424 move 1300 112
+425 down
+426 up
+428 text coconut
+429 key Enter
+431 key g meta
+432 text coconut2
+433 key Enter
+435 key f meta
+436 text look
+438 move 1300 112
+439 down
+440 up
+442 text coconut
+443 key Enter
+445 key g meta
+446 text coconut3
+447 key Enter
+449 key f meta
+450 text look
+452 move 1300 112
+453 down
+454 up
+456 text coconut
+457 key Enter
+459 key g meta
+460 text bandstand
+461 key Enter
+463 key f meta
+464 text look
+466 move 1300 112
+467 down
+468 up
+470 text deckBoard
+471 key Enter
+# The sounds. The one the starter table had becomes the bell of the bumpers.
+473 key g meta
+474 text sound1
+475 key Enter
+477 key f meta
+478 text id
+480 key Tab
+481 text bumperBell
+482 key Enter
+484 key f meta
+485 text file
+487 move 1300 112
+488 down
+489 up
+491 text sounds/bumper.mp3
+492 key Enter
+494 key f meta
+495 text volume
+497 key Tab
+498 text 0.7
+499 key Enter
+501 key f meta
+502 text pitchVariation
+504 key Tab
+505 text 0.05
+506 key Enter
+508 key g meta
+509 text +sound
+510 key Enter
+512 key f meta
+513 text id
+515 key Tab
+516 text flipUp
+517 key Enter
+519 key f meta
+520 text file
+522 move 1300 112
+523 down
+524 up
+526 text sounds/flipper-up.mp3
+527 key Enter
+529 key f meta
+530 text volume
+532 key Tab
+533 text 0.8
+534 key Enter
+536 key f meta
+537 text volumeVariation
+539 key Tab
+540 text 0.1
+541 key Enter
+543 key f meta
+544 text pitchVariation
+546 key Tab
+547 text 0.05
+548 key Enter
+550 key g meta
+551 text +sound
+552 key Enter
+554 key f meta
+555 text id
+557 key Tab
+558 text flipDown
+559 key Enter
+561 key f meta
+562 text file
+564 move 1300 112
+565 down
+566 up
+568 text sounds/flipper-down.mp3
+569 key Enter
+571 key f meta
+572 text volume
+574 key Tab
+575 text 0.6
+576 key Enter
+578 key f meta
+579 text volumeVariation
+581 key Tab
+582 text 0.1
+583 key Enter
+585 key f meta
+586 text pitchVariation
+588 key Tab
+589 text 0.05
+590 key Enter
+592 key g meta
+593 text +sound
+594 key Enter
+596 key f meta
+597 text id
+599 key Tab
+600 text slingKnock
+601 key Enter
+603 key f meta
+604 text file
+606 move 1300 112
+607 down
+608 up
+610 text sounds/sling.mp3
+611 key Enter
+613 key f meta
+614 text volume
+616 key Tab
+617 text 0.8
+618 key Enter
+620 key f meta
+621 text volumeVariation
+623 key Tab
+624 text 0.1
+625 key Enter
+627 key f meta
+628 text pitchVariation
+630 key Tab
+631 text 0.06
+632 key Enter
+634 key g meta
+635 text +sound
+636 key Enter
+638 key f meta
+639 text id
+641 key Tab
+642 text duckPlink
+643 key Enter
+645 key f meta
+646 text file
+648 move 1300 112
+649 down
+650 up
+652 text sounds/duck.mp3
+653 key Enter
+655 key f meta
+656 text volume
+658 key Tab
+659 text 0.5
+660 key Enter
+662 key f meta
+663 text volumeVariation
+665 key Tab
+666 text 0.1
+667 key Enter
+669 key f meta
+670 text pitchVariation
+672 key Tab
+673 text 0.04
+674 key Enter
+676 key g meta
+677 text +sound
+678 key Enter
+680 key f meta
+681 text id
+683 key Tab
+684 text coconutKnock
+685 key Enter
+687 key f meta
+688 text file
+690 move 1300 112
+691 down
+692 up
+694 text sounds/coconut.mp3
+695 key Enter
+697 key f meta
+698 text volume
+700 key Tab
+701 text 0.7
+702 key Enter
+704 key f meta
+705 text volumeVariation
+707 key Tab
+708 text 0.1
+709 key Enter
+711 key f meta
+712 text pitchVariation
+714 key Tab
+715 text 0.05
+716 key Enter
+718 key g meta
+719 text +sound
+720 key Enter
+722 key f meta
+723 text id
+725 key Tab
+726 text coconutUp
+727 key Enter
+729 key f meta
+730 text file
+732 move 1300 112
+733 down
+734 up
+736 text sounds/coconut-up.mp3
+737 key Enter
+739 key f meta
+740 text volume
+742 key Tab
+743 text 0.4
+744 key Enter
+746 key g meta
+747 text +sound
+748 key Enter
+750 key f meta
+751 text id
+753 key Tab
+754 text laneChime
+755 key Enter
+757 key f meta
+758 text file
+760 move 1300 112
+761 down
+762 up
+764 text sounds/lane.mp3
+765 key Enter
+767 key f meta
+768 text volume
+770 key Tab
+771 text 0.45
+772 key Enter
+774 key f meta
+775 text pitchVariation
+777 key Tab
+778 text 0.02
+779 key Enter
+781 key g meta
+782 text +sound
+783 key Enter
+785 key f meta
+786 text id
+788 key Tab
+789 text spinTick
+790 key Enter
+792 key f meta
+793 text file
+795 move 1300 112
+796 down
+797 up
+799 text sounds/spinner.mp3
+800 key Enter
+802 key f meta
+803 text volume
+805 key Tab
+806 text 0.3
+807 key Enter
+809 key f meta
+810 text volumeVariation
+812 key Tab
+813 text 0.1
+814 key Enter
+816 key f meta
+817 text pitchVariation
+819 key Tab
+820 text 0.1
+821 key Enter
+823 key g meta
+824 text +sound
+825 key Enter
+827 key f meta
+828 text id
+830 key Tab
+831 text gateTick
+832 key Enter
+834 key f meta
+835 text file
+837 move 1300 112
+838 down
+839 up
+841 text sounds/gate.mp3
+842 key Enter
+844 key f meta
+845 text volume
+847 key Tab
+848 text 0.3
+849 key Enter
+851 key f meta
+852 text volumeVariation
+854 key Tab
+855 text 0.1
+856 key Enter
+858 key f meta
+859 text pitchVariation
+861 key Tab
+862 text 0.1
+863 key Enter
+865 key g meta
+866 text +sound
+867 key Enter
+869 key f meta
+870 text id
+872 key Tab
+873 text mallet
+874 key Enter
+876 key f meta
+877 text file
+879 move 1300 112
+880 down
+881 up
+883 text sounds/mallet.mp3
+884 key Enter
+886 key f meta
+887 text volume
+889 key Tab
+890 text 0.9
+891 key Enter
+893 key g meta
+894 text +sound
+895 key Enter
+897 key f meta
+898 text id
+900 key Tab
+901 text strikerBell
+902 key Enter
+904 key f meta
+905 text file
+907 move 1300 112
+908 down
+909 up
+911 text sounds/striker.mp3
+912 key Enter
+914 key f meta
+915 text volume
+917 key Tab
+918 text 0.7
+919 key Enter
+921 key g meta
+922 text +sound
+923 key Enter
+925 key f meta
+926 text id
+928 key Tab
+929 text bigBell
+930 key Enter
+932 key f meta
+933 text file
+935 move 1300 112
+936 down
+937 up
+939 text sounds/big-bell.mp3
+940 key Enter
+942 key f meta
+943 text volume
+945 key Tab
+946 text 0.7
+947 key Enter
+949 key f meta
+950 text pitchVariation
+952 key Tab
+953 text 0.02
+954 key Enter
+956 key g meta
+957 text +sound
+958 key Enter
+960 key f meta
+961 text id
+963 key Tab
+964 text plungerPull
+965 key Enter
+967 key f meta
+968 text file
+970 move 1300 112
+971 down
+972 up
+974 text sounds/plunger-pull.mp3
+975 key Enter
+977 key f meta
+978 text volume
+980 key Tab
+981 text 0.3
+982 key Enter
+984 key g meta
+985 text +sound
+986 key Enter
+988 key f meta
+989 text id
+991 key Tab
+992 text plungerShot
+993 key Enter
+995 key f meta
+996 text file
+998 move 1300 112
+999 down
+1000 up
+1002 text sounds/plunger-shot.mp3
+1003 key Enter
+1005 key f meta
+1006 text volume
+1008 key Tab
+1009 text 0.8
+1010 key Enter
+1012 key f meta
+1013 text pitchVariation
+1015 key Tab
+1016 text 0.04
+1017 key Enter
+1019 key g meta
+1020 text +sound
+1021 key Enter
+1023 key f meta
+1024 text id
+1026 key Tab
+1027 text drainWhistle
+1028 key Enter
+1030 key f meta
+1031 text file
+1033 move 1300 112
+1034 down
+1035 up
+1037 text sounds/drain.mp3
+1038 key Enter
+1040 key f meta
+1041 text volume
+1043 key Tab
+1044 text 0.6
+1045 key Enter
+1047 key g meta
+1048 text +sound
+1049 key Enter
+1051 key f meta
+1052 text id
+1054 key Tab
+1055 text ballRoll
+1056 key Enter
+1058 key f meta
+1059 text file
+1061 move 1300 112
+1062 down
+1063 up
+1065 text sounds/ball-roll.mp3
+1066 key Enter
+1068 key f meta
+1069 text volume
+1071 key Tab
+1072 text 0.5
+1073 key Enter
+1075 key f meta
+1076 text loop
+1078 move 1252 112
+1079 down
+1080 up
+1082 key g meta
+1083 text +sound
+1084 key Enter
+1086 key f meta
+1087 text id
+1089 key Tab
+1090 text ballLand
+1091 key Enter
+1093 key f meta
+1094 text file
+1096 move 1300 112
+1097 down
+1098 up
+1100 text sounds/ball-land.mp3
+1101 key Enter
+1103 key f meta
+1104 text volume
+1106 key Tab
+1107 text 0.7
+1108 key Enter
+1110 key f meta
+1111 text volumeVariation
+1113 key Tab
+1114 text 0.1
+1115 key Enter
+1117 key f meta
+1118 text pitchVariation
+1120 key Tab
+1121 text 0.1
+1122 key Enter
+1124 key g meta
+1125 text +sound
+1126 key Enter
+1128 key f meta
+1129 text id
+1131 key Tab
+1132 text ballKnock
+1133 key Enter
+1135 key f meta
+1136 text file
+1138 move 1300 112
+1139 down
+1140 up
+1142 text sounds/ball-knock.mp3
+1143 key Enter
+1145 key f meta
+1146 text volume
+1148 key Tab
+1149 text 0.5
+1150 key Enter
+1152 key f meta
+1153 text volumeVariation
+1155 key Tab
+1156 text 0.15
+1157 key Enter
+1159 key f meta
+1160 text pitchVariation
+1162 key Tab
+1163 text 0.12
+1164 key Enter
+1166 key g meta
+1167 text +sound
+1168 key Enter
+1170 key f meta
+1171 text id
+1173 key Tab
+1174 text wallKnock
+1175 key Enter
+1177 key f meta
+1178 text file
+1180 move 1300 112
+1181 down
+1182 up
+1184 text sounds/wall.mp3
+1185 key Enter
+1187 key f meta
+1188 text volume
+1190 key Tab
+1191 text 0.4
+1192 key Enter
+1194 key f meta
+1195 text volumeVariation
+1197 key Tab
+1198 text 0.2
+1199 key Enter
+1201 key f meta
+1202 text pitchVariation
+1204 key Tab
+1205 text 0.15
+1206 key Enter
+1208 key g meta
+1209 text +sound
+1210 key Enter
+1212 key f meta
+1213 text id
+1215 key Tab
+1216 text cabinetKnock
+1217 key Enter
+1219 key f meta
+1220 text file
+1222 move 1300 112
+1223 down
+1224 up
+1226 text sounds/nudge.mp3
+1227 key Enter
+1229 key f meta
+1230 text volume
+1232 key Tab
+1233 text 0.7
+1234 key Enter
+1236 key g meta
+1237 text +sound
+1238 key Enter
+1240 key f meta
+1241 text id
+1243 key Tab
+1244 text letterKey
+1245 key Enter
+1247 key f meta
+1248 text file
+1250 move 1300 112
+1251 down
+1252 up
+1254 text sounds/letter.mp3
+1255 key Enter
+1257 key f meta
+1258 text volume
+1260 key Tab
+1261 text 0.4
+1262 key Enter
+1264 key g meta
+1265 text +sound
+1266 key Enter
+1268 key f meta
+1269 text id
+1271 key Tab
+1272 text jingleStart
+1273 key Enter
+1275 key f meta
+1276 text file
+1278 move 1300 112
+1279 down
+1280 up
+1282 text sounds/start.mp3
+1283 key Enter
+1285 key f meta
+1286 text volume
+1288 key Tab
+1289 text 0.45
+1290 key Enter
+1292 key g meta
+1293 text +sound
+1294 key Enter
+1296 key f meta
+1297 text id
+1299 key Tab
+1300 text jingleBall
+1301 key Enter
+1303 key f meta
+1304 text file
+1306 move 1300 112
+1307 down
+1308 up
+1310 text sounds/ball-ready.mp3
+1311 key Enter
+1313 key f meta
+1314 text volume
+1316 key Tab
+1317 text 0.4
+1318 key Enter
+1320 key g meta
+1321 text +sound
+1322 key Enter
+1324 key f meta
+1325 text id
+1327 key Tab
+1328 text jingleSaved
+1329 key Enter
+1331 key f meta
+1332 text file
+1334 move 1300 112
+1335 down
+1336 up
+1338 text sounds/ball-saved.mp3
+1339 key Enter
+1341 key f meta
+1342 text volume
+1344 key Tab
+1345 text 0.45
+1346 key Enter
+1348 key g meta
+1349 text +sound
+1350 key Enter
+1352 key f meta
+1353 text id
+1355 key Tab
+1356 text jingleTilt
+1357 key Enter
+1359 key f meta
+1360 text file
+1362 move 1300 112
+1363 down
+1364 up
+1366 text sounds/tilt.mp3
+1367 key Enter
+1369 key f meta
+1370 text volume
+1372 key Tab
+1373 text 0.5
+1374 key Enter
+1376 key g meta
+1377 text +sound
+1378 key Enter
+1380 key f meta
+1381 text id
+1383 key Tab
+1384 text jingleMission
+1385 key Enter
+1387 key f meta
+1388 text file
+1390 move 1300 112
+1391 down
+1392 up
+1394 text sounds/mission.mp3
+1395 key Enter
+1397 key f meta
+1398 text volume
+1400 key Tab
+1401 text 0.5
+1402 key Enter
+1404 key g meta
+1405 text +sound
+1406 key Enter
+1408 key f meta
+1409 text id
+1411 key Tab
+1412 text jingleRank
+1413 key Enter
+1415 key f meta
+1416 text file
+1418 move 1300 112
+1419 down
+1420 up
+1422 text sounds/rank.mp3
+1423 key Enter
+1425 key f meta
+1426 text volume
+1428 key Tab
+1429 text 0.4
+1430 key Enter
+1432 key g meta
+1433 text +sound
+1434 key Enter
+1436 key f meta
+1437 text id
+1439 key Tab
+1440 text jingleExtra
+1441 key Enter
+1443 key f meta
+1444 text file
+1446 move 1300 112
+1447 down
+1448 up
+1450 text sounds/extra-ball.mp3
+1451 key Enter
+1453 key f meta
+1454 text volume
+1456 key Tab
+1457 text 0.45
+1458 key Enter
+1460 key g meta
+1461 text +sound
+1462 key Enter
+1464 key f meta
+1465 text id
+1467 key Tab
+1468 text jingleJackpot
+1469 key Enter
+1471 key f meta
+1472 text file
+1474 move 1300 112
+1475 down
+1476 up
+1478 text sounds/jackpot.mp3
+1479 key Enter
+1481 key f meta
+1482 text volume
+1484 key Tab
+1485 text 0.6
+1486 key Enter
+1488 key g meta
+1489 text +sound
+1490 key Enter
+1492 key f meta
+1493 text id
+1495 key Tab
+1496 text jingleOver
+1497 key Enter
+1499 key f meta
+1500 text file
+1502 move 1300 112
+1503 down
+1504 up
+1506 text sounds/game-over.mp3
+1507 key Enter
+1509 key f meta
+1510 text volume
+1512 key Tab
+1513 text 0.45
+1514 key Enter
+1516 key g meta
+1517 text +sound
+1518 key Enter
+1520 key f meta
+1521 text id
+1523 key Tab
+1524 text musicPlay
+1525 key Enter
+1527 key f meta
+1528 text file
+1530 move 1300 112
+1531 down
+1532 up
+1534 text sounds/music-play.mp3
+1535 key Enter
+1537 key f meta
+1538 text volume
+1540 key Tab
+1541 text 0.3
+1542 key Enter
+1544 key f meta
+1545 text loop
+1547 move 1252 112
+1548 down
+1549 up
+1551 key g meta
+1552 text +sound
+1553 key Enter
+1555 key f meta
+1556 text id
+1558 key Tab
+1559 text musicAttract
+1560 key Enter
+1562 key f meta
+1563 text file
+1565 move 1300 112
+1566 down
+1567 up
+1569 text sounds/music-attract.mp3
+1570 key Enter
+1572 key f meta
+1573 text volume
+1575 key Tab
+1576 text 0.28
+1577 key Enter
+1579 key f meta
+1580 text loop
+1582 move 1252 112
+1583 down
+1584 up
+1586 key g meta
+1587 text +sound
+1588 key Enter
+1590 key f meta
+1591 text id
+1593 key Tab
+1594 text musicOver
+1595 key Enter
+1597 key f meta
+1598 text file
+1600 move 1300 112
+1601 down
+1602 up
+1604 text sounds/music-over.mp3
+1605 key Enter
+1607 key f meta
+1608 text volume
+1610 key Tab
+1611 text 0.35
+1612 key Enter
+# Each event of each thing plays its sound; the ball has its own; the music of each state of the game.
+1614 key g meta
+1615 text bumper2
+1616 key Enter
+1618 key f meta
+1619 text sounds.hit
+1621 move 1300 112
+1622 down
+1623 up
+1625 text bumperBell
+1626 key Enter
+1628 key g meta
+1629 text bumper3
+1630 key Enter
+1632 key f meta
+1633 text sounds.hit
+1635 move 1300 112
+1636 down
+1637 up
+1639 text bumperBell
+1640 key Enter
+1642 key g meta
+1643 text slingLeft
+1644 key Enter
+1646 key f meta
+1647 text sounds.hit
+1649 move 1300 112
+1650 down
+1651 up
+1653 text slingKnock
+1654 key Enter
+1656 key g meta
+1657 text slingRight
+1658 key Enter
+1660 key f meta
+1661 text sounds.hit
+1663 move 1300 112
+1664 down
+1665 up
+1667 text slingKnock
+1668 key Enter
+1670 key g meta
+1671 text duck1
+1672 key Enter
+1674 key f meta
+1675 text sounds.hit
+1677 move 1300 112
+1678 down
+1679 up
+1681 text duckPlink
+1682 key Enter
+1684 key g meta
+1685 text duck2
+1686 key Enter
+1688 key f meta
+1689 text sounds.hit
+1691 move 1300 112
+1692 down
+1693 up
+1695 text duckPlink
+1696 key Enter
+1698 key g meta
+1699 text duck3
+1700 key Enter
+1702 key f meta
+1703 text sounds.hit
+1705 move 1300 112
+1706 down
+1707 up
+1709 text duckPlink
+1710 key Enter
+1712 key g meta
+1713 text bell1
+1714 key Enter
+1716 key f meta
+1717 text sounds.hit
+1719 move 1300 112
+1720 down
+1721 up
+1723 text bigBell
+1724 key Enter
+1726 key g meta
+1727 text bell2
+1728 key Enter
+1730 key f meta
+1731 text sounds.hit
+1733 move 1300 112
+1734 down
+1735 up
+1737 text bigBell
+1738 key Enter
+1740 key g meta
+1741 text coconut1
+1742 key Enter
+1744 key f meta
+1745 text sounds.hit
+1747 move 1300 112
+1748 down
+1749 up
+1751 text coconutKnock
+1752 key Enter
+1754 key g meta
+1755 text coconut1
+1756 key Enter
+1758 key f meta
+1759 text sounds.reset
+1761 move 1300 112
+1762 down
+1763 up
+1765 text coconutUp
+1766 key Enter
+1768 key g meta
+1769 text coconut2
+1770 key Enter
+1772 key f meta
+1773 text sounds.hit
+1775 move 1300 112
+1776 down
+1777 up
+1779 text coconutKnock
+1780 key Enter
+1782 key g meta
+1783 text coconut2
+1784 key Enter
+1786 key f meta
+1787 text sounds.reset
+1789 move 1300 112
+1790 down
+1791 up
+1793 text coconutUp
+1794 key Enter
+1796 key g meta
+1797 text coconut3
+1798 key Enter
+1800 key f meta
+1801 text sounds.hit
+1803 move 1300 112
+1804 down
+1805 up
+1807 text coconutKnock
+1808 key Enter
+1810 key g meta
+1811 text coconut3
+1812 key Enter
+1814 key f meta
+1815 text sounds.reset
+1817 move 1300 112
+1818 down
+1819 up
+1821 text coconutUp
+1822 key Enter
+1824 key g meta
+1825 text lane1
+1826 key Enter
+1828 key f meta
+1829 text sounds.roll
+1831 move 1300 112
+1832 down
+1833 up
+1835 text laneChime
+1836 key Enter
+1838 key g meta
+1839 text lane2
+1840 key Enter
+1842 key f meta
+1843 text sounds.roll
+1845 move 1300 112
+1846 down
+1847 up
+1849 text laneChime
+1850 key Enter
+1852 key g meta
+1853 text lane3
+1854 key Enter
+1856 key f meta
+1857 text sounds.roll
+1859 move 1300 112
+1860 down
+1861 up
+1863 text laneChime
+1864 key Enter
+1866 key g meta
+1867 text spinner
+1868 key Enter
+1870 key f meta
+1871 text sounds.spin
+1873 move 1300 112
+1874 down
+1875 up
+1877 text spinTick
+1878 key Enter
+1880 key g meta
+1881 text striker
+1882 key Enter
+1884 key f meta
+1885 text sounds.capture
+1887 move 1300 112
+1888 down
+1889 up
+1891 text mallet
+1892 key Enter
+1894 key g meta
+1895 text striker
+1896 key Enter
+1898 key f meta
+1899 text sounds.eject
+1901 move 1300 112
+1902 down
+1903 up
+1905 text strikerBell
+1906 key Enter
+1908 key g meta
+1909 text left
+1910 key Enter
+1912 key f meta
+1913 text sounds.up
+1915 move 1300 112
+1916 down
+1917 up
+1919 text flipUp
+1920 key Enter
+1922 key g meta
+1923 text left
+1924 key Enter
+1926 key f meta
+1927 text sounds.down
+1929 move 1300 112
+1930 down
+1931 up
+1933 text flipDown
+1934 key Enter
+1936 key g meta
+1937 text right
+1938 key Enter
+1940 key f meta
+1941 text sounds.up
+1943 move 1300 112
+1944 down
+1945 up
+1947 text flipUp
+1948 key Enter
+1950 key g meta
+1951 text right
+1952 key Enter
+1954 key f meta
+1955 text sounds.down
+1957 move 1300 112
+1958 down
+1959 up
+1961 text flipDown
+1962 key Enter
+1964 key g meta
+1965 text plunger
+1966 key Enter
+1968 key f meta
+1969 text sounds.pull
+1971 move 1300 112
+1972 down
+1973 up
+1975 text plungerPull
+1976 key Enter
+1978 key g meta
+1979 text plunger
+1980 key Enter
+1982 key f meta
+1983 text sounds.release
+1985 move 1300 112
+1986 down
+1987 up
+1989 text plungerShot
+1990 key Enter
+1992 key g meta
+1993 text laneGate
+1994 key Enter
+1996 key f meta
+1997 text sounds.pass
+1999 move 1300 112
+2000 down
+2001 up
+2003 text gateTick
+2004 key Enter
+2006 key g meta
+2007 text outer
+2008 key Enter
+2010 key f meta
+2011 text sounds.hit
+2013 move 1300 112
+2014 down
+2015 up
+2017 text wallKnock
+2018 key Enter
+2020 key g meta
+2021 text shooterLane
+2022 key Enter
+2024 key f meta
+2025 text sounds.hit
+2027 move 1300 112
+2028 down
+2029 up
+2031 text wallKnock
+2032 key Enter
+2034 key g meta
+2035 text guideLeft
+2036 key Enter
+2038 key f meta
+2039 text sounds.hit
+2041 move 1300 112
+2042 down
+2043 up
+2045 text wallKnock
+2046 key Enter
+2048 key g meta
+2049 text guideRight
+2050 key Enter
+2052 key f meta
+2053 text sounds.hit
+2055 move 1300 112
+2056 down
+2057 up
+2059 text wallKnock
+2060 key Enter
+2062 key g meta
+2063 text divider1
+2064 key Enter
+2066 key f meta
+2067 text sounds.hit
+2069 move 1300 112
+2070 down
+2071 up
+2073 text wallKnock
+2074 key Enter
+2076 key g meta
+2077 text divider2
+2078 key Enter
+2080 key f meta
+2081 text sounds.hit
+2083 move 1300 112
+2084 down
+2085 up
+2087 text wallKnock
+2088 key Enter
+2090 key g meta
+2091 text rail
+2092 key Enter
+2094 key f meta
+2095 text sounds.hit
+2097 move 1300 112
+2098 down
+2099 up
+2101 text wallKnock
+2102 key Enter
+2104 key g meta
+2105 text physics
+2106 key Enter
+2108 key f meta
+2109 text ball.sounds.roll
+2111 move 1300 112
+2112 down
+2113 up
+2115 text ballRoll
+2116 key Enter
+2118 key f meta
+2119 text ball.sounds.hit
+2121 move 1300 112
+2122 down
+2123 up
+2125 text ballKnock
+2126 key Enter
+2128 key f meta
+2129 text ball.sounds.land
+2131 move 1300 112
+2132 down
+2133 up
+2135 text ballLand
+2136 key Enter
+2138 key f meta
+2139 text ball.sounds.knock
+2141 move 1300 112
+2142 down
+2143 up
+2145 text ballKnock
+2146 key Enter
+2148 key g meta
+2149 text music
+2150 key Enter
+2152 key f meta
+2153 text attract
+2155 move 1300 112
+2156 down
+2157 up
+2159 text musicAttract
+2160 key Enter
+2162 key f meta
+2163 text play
+2165 move 1300 112
+2166 down
+2167 up
+2169 text musicPlay
+2170 key Enter
+2172 key f meta
+2173 text multiball
+2175 move 1300 112
+2176 down
+2177 up
+2179 text musicPlay
+2180 key Enter
+2182 key f meta
+2183 text gameOver
+2185 move 1300 112
+2186 down
+2187 up
+2189 text musicOver
+2190 key Enter
+2192 move 420 500
+2193 down
+2194 up
+2196 key s meta
+# frames 2206

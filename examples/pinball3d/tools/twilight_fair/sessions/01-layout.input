@@ -1,0 +1,481 @@
+# Twilight Fair, 1: what the ball meets. From the starter table: its things renamed, slingshots, the top lanes,
+# the coconut shy, the spinner, the high striker and the bandstand it throws the ball onto.
+4 move 420 500
+5 down
+6 up
+8 key f meta
+9 text name
+11 key Tab
+12 text "Twilight Fair"
+13 key Enter
+15 key f meta
+16 text author
+18 key Tab
+19 text Zinc
+20 key Enter
+22 key f meta
+23 text description
+25 key Tab
+26 text "A funfair at dusk: ring the bell of the high striker, clear the coconut shy, ride the carousel."
+27 key Enter
+29 key g meta
+30 text wall1
+31 key Enter
+33 key f meta
+34 text id
+36 key Tab
+37 text outer
+38 key Enter
+40 key g meta
+41 text wall2
+42 key Enter
+44 key f meta
+45 text id
+47 key Tab
+48 text guideLeft
+49 key Enter
+51 key g meta
+52 text wall3
+53 key Enter
+55 key f meta
+56 text id
+58 key Tab
+59 text guideRight
+60 key Enter
+62 key g meta
+63 text flipper1
+64 key Enter
+66 key f meta
+67 text id
+69 key Tab
+70 text left
+71 key Enter
+73 key g meta
+74 text flipper2
+75 key Enter
+77 key f meta
+78 text id
+80 key Tab
+81 text right
+82 key Enter
+# The slingshots: the left one from its upper end to its lower one (it kicks to the left of that way), and its mirror image.
+84 key g meta
+85 text +slingshot
+86 key Enter
+88 move 564 604
+89 down
+90 up
+92 move 587 664
+93 down
+94 up
+96 key f meta
+97 text id
+99 key Tab
+100 text slingLeft
+101 key Enter
+103 key f meta
+104 text group
+106 key Tab
+107 text slings
+108 key Enter
+110 key f meta
+111 text kick
+113 key Tab
+114 text 130
+115 key Enter
+117 move 420 500
+118 down
+119 up
+121 move 576 634
+122 down
+123 up
+125 key m
+# The top lanes: two dividers, a switch across each lane.
+127 key g meta
+128 text +lane-guide
+129 key Enter
+131 move 630 215
+132 down
+133 up
+135 move 630 255
+136 down
+137 up
+139 key Enter
+141 key f meta
+142 text id
+144 key Tab
+145 text divider1
+146 key Enter
+148 key g meta
+149 text +lane-guide
+150 key Enter
+152 move 686 215
+153 down
+154 up
+156 move 686 255
+157 down
+158 up
+160 key Enter
+162 key f meta
+163 text id
+165 key Tab
+166 text divider2
+167 key Enter
+169 key g meta
+170 text +rollover
+171 key Enter
+173 move 590 235
+174 down
+175 up
+177 move 627 235
+178 down
+179 up
+181 key f meta
+182 text id
+184 key Tab
+185 text lane1
+186 key Enter
+188 key f meta
+189 text group
+191 key Tab
+192 text lanes
+193 key Enter
+195 key g meta
+196 text +rollover
+197 key Enter
+199 move 633 235
+200 down
+201 up
+203 move 683 235
+204 down
+205 up
+207 key f meta
+208 text id
+210 key Tab
+211 text lane2
+212 key Enter
+214 key f meta
+215 text group
+217 key Tab
+218 text lanes
+219 key Enter
+221 key g meta
+222 text +rollover
+223 key Enter
+225 move 690 235
+226 down
+227 up
+229 move 726 235
+230 down
+231 up
+233 key f meta
+234 text id
+236 key Tab
+237 text lane3
+238 key Enter
+240 key f meta
+241 text group
+243 key Tab
+244 text lanes
+245 key Enter
+# The coconut shy: three drop targets along the plunger lane, facing the table.
+247 key g meta
+248 text +drop-target
+249 key Enter
+251 move 802 519
+252 down
+253 up
+255 key f meta
+256 text id
+258 key Tab
+259 text coconut1
+260 key Enter
+262 key f meta
+263 text group
+265 key Tab
+266 text coconuts
+267 key Enter
+269 key f meta
+270 text at
+272 key Tab
+273 text 45.9
+274 key Tab
+275 text 60
+276 key Enter
+278 key f meta
+279 text angle
+281 key Tab
+282 text 180
+283 key Enter
+285 key g meta
+286 text +drop-target
+287 key Enter
+289 move 802 545
+290 down
+291 up
+293 key f meta
+294 text id
+296 key Tab
+297 text coconut2
+298 key Enter
+300 key f meta
+301 text group
+303 key Tab
+304 text coconuts
+305 key Enter
+307 key f meta
+308 text at
+310 key Tab
+311 text 45.9
+312 key Tab
+313 text 64
+314 key Enter
+316 key f meta
+317 text angle
+319 key Tab
+320 text 180
+321 key Enter
+323 key g meta
+324 text +drop-target
+325 key Enter
+327 move 802 571
+328 down
+329 up
+331 key f meta
+332 text id
+334 key Tab
+335 text coconut3
+336 key Enter
+338 key f meta
+339 text group
+341 key Tab
+342 text coconuts
+343 key Enter
+345 key f meta
+346 text at
+348 key Tab
+349 text 45.9
+350 key Tab
+351 text 68
+352 key Enter
+354 key f meta
+355 text angle
+357 key Tab
+358 text 180
+359 key Enter
+# The ducks: the three targets of the starter table.
+361 key g meta
+362 text target1
+363 key Enter
+365 key f meta
+366 text id
+368 key Tab
+369 text duck1
+370 key Enter
+372 key f meta
+373 text group
+375 key Tab
+376 text ducks
+377 key Enter
+379 key g meta
+380 text target2
+381 key Enter
+383 key f meta
+384 text id
+386 key Tab
+387 text duck2
+388 key Enter
+390 key f meta
+391 text group
+393 key Tab
+394 text ducks
+395 key Enter
+397 key g meta
+398 text target3
+399 key Enter
+401 key f meta
+402 text id
+404 key Tab
+405 text duck3
+406 key Enter
+408 key f meta
+409 text group
+411 key Tab
+412 text ducks
+413 key Enter
+# The spinner across the right-hand way down, and the bumpers a little stronger.
+415 key g meta
+416 text +spinner
+417 key Enter
+419 move 762 466
+420 down
+421 up
+423 move 805 466
+424 down
+425 up
+427 key f meta
+428 text id
+430 key Tab
+431 text spinner
+432 key Enter
+434 key g meta
+435 text bumper1
+436 key Enter
+438 key f meta
+439 text kick
+441 key Tab
+442 text 150
+443 key Enter
+445 key g meta
+446 text bumper2
+447 key Enter
+449 key f meta
+450 text kick
+452 key Tab
+453 text 150
+454 key Enter
+456 key g meta
+457 text bumper3
+458 key Enter
+460 key f meta
+461 text kick
+463 key Tab
+464 text 150
+465 key Enter
+# The high striker: a hole that holds the ball, then throws it up onto the bandstand, an upper playfield whose rail
+# leads the ball to a gap at its lower right corner. Two bells stand on it.
+467 key g meta
+468 text +kicker
+469 key Enter
+471 move 561 327
+472 down
+473 up
+475 key f meta
+476 text id
+478 key Tab
+479 text striker
+480 key Enter
+482 key f meta
+483 text hold
+485 key Tab
+486 text 0.8
+487 key Enter
+489 key f meta
+490 text exit
+492 key Tab
+493 text 1
+494 key Tab
+495 text -12
+496 key Tab
+497 text 5
+498 key Enter
+500 key f meta
+501 text angle
+503 key Tab
+504 text -90
+505 key Enter
+507 key f meta
+508 text speed
+510 key Tab
+511 text 150
+512 key Enter
+514 key g meta
+515 text +floor
+516 key Enter
+518 move 534 189
+519 down
+520 up
+522 move 627 189
+523 down
+524 up
+526 move 627 281
+527 down
+528 up
+530 move 534 281
+531 down
+532 up
+534 key Enter
+536 key f meta
+537 text id
+539 key Tab
+540 text bandstand
+541 key Enter
+543 key f meta
+544 text surface
+546 move 1300 112
+547 down
+548 up
+550 move 1300 168
+551 down
+552 up
+554 move 420 500
+555 down
+556 up
+# L goes to the level of the bandstand: what is placed now stands on it.
+558 key l
+559 key l
+561 key g meta
+562 text +wall
+563 key Enter
+565 move 600 274
+566 down
+567 up
+569 move 541 261
+570 down
+571 up
+573 move 541 195
+574 down
+575 up
+577 move 620 195
+578 down
+579 up
+581 move 620 255
+582 down
+583 up
+585 key Enter
+587 key f meta
+588 text id
+590 key Tab
+591 text rail
+592 key Enter
+594 key g meta
+595 text +standup-target
+596 key Enter
+598 move 567 202
+599 down
+600 up
+602 key f meta
+603 text id
+605 key Tab
+606 text bell1
+607 key Enter
+609 key f meta
+610 text group
+612 key Tab
+613 text bells
+614 key Enter
+616 key g meta
+617 text +standup-target
+618 key Enter
+620 move 597 202
+621 down
+622 up
+624 key f meta
+625 text id
+627 key Tab
+628 text bell2
+629 key Enter
+631 key f meta
+632 text group
+634 key Tab
+635 text bells
+636 key Enter
+638 move 420 500
+639 down
+640 up
+642 key l
+643 move 420 500
+644 down
+645 up
+647 key s meta
+# frames 657

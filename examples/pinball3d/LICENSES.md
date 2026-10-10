@@ -37,6 +37,15 @@ of the slingshots, the two backglass pictures, the palette, and the modelled pie
 this repository and under its terms. The legends are set in Inter (`lib/fonts`, SIL Open Font License 1.1), whose
 licence allows it in pictures without condition.
 
+## Twilight Fair
+
+The table "Twilight Fair" (`assets/tables/twilight-fair/`) is an original work too: its name, layout, rules, art and
+sounds were made for this example, and nothing comes from another pinball game. Every file of its `sounds/` is
+synthesised by `tools/twilight_fair_sounds.py` (bells, knocks, ratchets, a slide whistle and a waltz composed in the
+script: no recording, no sample), and every file of its `art/` is drawn or built by `tools/twilight_fair_art.py` (its
+text set in Inter, SIL Open Font License 1.1). Its table file was made in the table editor by the sessions of
+`tools/twilight_fair/`. They are part of this repository and under its terms; the same credits are in its `table.json`.
+
 ## Tools
 
 The files are encoded as MP3 by ffmpeg with LAME (the MP3 patents have expired); the game decodes them with miniaudio

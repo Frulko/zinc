@@ -1,0 +1,1049 @@
+# Twilight Fair, 3: the lights and the scenery. A string of bulbs under the arch, a light for each lane and each
+# shot, the lamps of the general illumination; then the cabinet, the big wheel, the big top and the ticket booth.
+4 key g meta
+5 text +round-light
+6 key Enter
+8 move 538 251
+9 down
+10 up
+12 key f meta
+13 text id
+15 key Tab
+16 text bulb1
+17 key Enter
+19 key f meta
+20 text group
+22 key Tab
+23 text bulbs
+24 key Enter
+26 key f meta
+27 text at
+29 key Tab
+30 text 5.3
+31 key Tab
+32 text 19.65
+33 key Enter
+35 key f meta
+36 text color
+38 key Tab
+39 text #ffcf5a
+40 key Enter
+42 key f meta
+43 text glow
+45 key Tab
+46 text 5
+47 key Enter
+49 key f meta
+50 text size
+52 key Tab
+53 text 0.6
+54 key Enter
+56 key g meta
+57 text +round-light
+58 key Enter
+60 move 567 202
+61 down
+62 up
+64 key f meta
+65 text id
+67 key Tab
+68 text bulb2
+69 key Enter
+71 key f meta
+72 text group
+74 key Tab
+75 text bulbs
+76 key Enter
+78 key f meta
+79 text at
+81 key Tab
+82 text 9.86
+83 key Tab
+84 text 12.25
+85 key Enter
+87 key f meta
+88 text color
+90 key Tab
+91 text #ff8a4a
+92 key Enter
+94 key f meta
+95 text glow
+97 key Tab
+98 text 5
+99 key Enter
+101 key f meta
+102 text size
+104 key Tab
+105 text 0.6
+106 key Enter
+108 key g meta
+109 text +round-light
+110 key Enter
+112 move 614 172
+113 down
+114 up
+116 key f meta
+117 text id
+119 key Tab
+120 text bulb3
+121 key Enter
+123 key f meta
+124 text group
+126 key Tab
+127 text bulbs
+128 key Enter
+130 key f meta
+131 text at
+133 key Tab
+134 text 16.98
+135 key Tab
+136 text 7.26
+137 key Enter
+139 key f meta
+140 text color
+142 key Tab
+143 text #fff0c8
+144 key Enter
+146 key f meta
+147 text glow
+149 key Tab
+150 text 5
+151 key Enter
+153 key f meta
+154 text size
+156 key Tab
+157 text 0.6
+158 key Enter
+160 key g meta
+161 text +round-light
+162 key Enter
+164 move 670 159
+165 down
+166 up
+168 key f meta
+169 text id
+171 key Tab
+172 text bulb4
+173 key Enter
+175 key f meta
+176 text group
+178 key Tab
+179 text bulbs
+180 key Enter
+182 key f meta
+183 text at
+185 key Tab
+186 text 25.5
+187 key Tab
+188 text 5.5
+189 key Enter
+191 key f meta
+192 text color
+194 key Tab
+195 text #ffcf5a
+196 key Enter
+198 key f meta
+199 text glow
+201 key Tab
+202 text 5
+203 key Enter
+205 key f meta
+206 text size
+208 key Tab
+209 text 0.6
+210 key Enter
+212 key g meta
+213 text +round-light
+214 key Enter
+216 move 726 172
+217 down
+218 up
+220 key f meta
+221 text id
+223 key Tab
+224 text bulb5
+225 key Enter
+227 key f meta
+228 text group
+230 key Tab
+231 text bulbs
+232 key Enter
+234 key f meta
+235 text at
+237 key Tab
+238 text 34.02
+239 key Tab
+240 text 7.26
+241 key Enter
+243 key f meta
+244 text color
+246 key Tab
+247 text #ff8a4a
+248 key Enter
+250 key f meta
+251 text glow
+253 key Tab
+254 text 5
+255 key Enter
+257 key f meta
+258 text size
+260 key Tab
+261 text 0.6
+262 key Enter
+264 key g meta
+265 text +round-light
+266 key Enter
+268 move 772 202
+269 down
+270 up
+272 key f meta
+273 text id
+275 key Tab
+276 text bulb6
+277 key Enter
+279 key f meta
+280 text group
+282 key Tab
+283 text bulbs
+284 key Enter
+286 key f meta
+287 text at
+289 key Tab
+290 text 41.14
+291 key Tab
+292 text 12.25
+293 key Enter
+295 key f meta
+296 text color
+298 key Tab
+299 text #fff0c8
+300 key Enter
+302 key f meta
+303 text glow
+305 key Tab
+306 text 5
+307 key Enter
+309 key f meta
+310 text size
+312 key Tab
+313 text 0.6
+314 key Enter
+316 key g meta
+317 text +round-light
+318 key Enter
+320 move 802 251
+321 down
+322 up
+324 key f meta
+325 text id
+327 key Tab
+328 text bulb7
+329 key Enter
+331 key f meta
+332 text group
+334 key Tab
+335 text bulbs
+336 key Enter
+338 key f meta
+339 text at
+341 key Tab
+342 text 45.7
+343 key Tab
+344 text 19.65
+345 key Enter
+347 key f meta
+348 text color
+350 key Tab
+351 text #ffcf5a
+352 key Enter
+354 key f meta
+355 text glow
+357 key Tab
+358 text 5
+359 key Enter
+361 key f meta
+362 text size
+364 key Tab
+365 text 0.6
+366 key Enter
+368 key g meta
+369 text +round-light
+370 key Enter
+372 move 607 271
+373 down
+374 up
+376 key f meta
+377 text id
+379 key Tab
+380 text laneLight1
+381 key Enter
+383 key f meta
+384 text group
+386 key Tab
+387 text lanes
+388 key Enter
+390 key f meta
+391 text at
+393 key Tab
+394 text 16.25
+395 key Tab
+396 text 22.5
+397 key Enter
+399 key f meta
+400 text color
+402 key Tab
+403 text #ffcf5a
+404 key Enter
+406 key f meta
+407 text glow
+409 key Tab
+410 text 3
+411 key Enter
+413 key g meta
+414 text +round-light
+415 key Enter
+417 move 660 271
+418 down
+419 up
+421 key f meta
+422 text id
+424 key Tab
+425 text laneLight2
+426 key Enter
+428 key f meta
+429 text group
+431 key Tab
+432 text lanes
+433 key Enter
+435 key f meta
+436 text at
+438 key Tab
+439 text 23.75
+440 key Tab
+441 text 22.5
+442 key Enter
+444 key f meta
+445 text color
+447 key Tab
+448 text #ffcf5a
+449 key Enter
+451 key f meta
+452 text glow
+454 key Tab
+455 text 3
+456 key Enter
+458 key g meta
+459 text +round-light
+460 key Enter
+462 move 706 271
+463 down
+464 up
+466 key f meta
+467 text id
+469 key Tab
+470 text laneLight3
+471 key Enter
+473 key f meta
+474 text group
+476 key Tab
+477 text lanes
+478 key Enter
+480 key f meta
+481 text at
+483 key Tab
+484 text 31.25
+485 key Tab
+486 text 22.5
+487 key Enter
+489 key f meta
+490 text color
+492 key Tab
+493 text #ffcf5a
+494 key Enter
+496 key f meta
+497 text glow
+499 key Tab
+500 text 3
+501 key Enter
+503 key g meta
+504 text +round-light
+505 key Enter
+507 move 574 641
+508 down
+509 up
+511 key f meta
+512 text id
+514 key Tab
+515 text gi1
+516 key Enter
+518 key f meta
+519 text group
+521 key Tab
+522 text general
+523 key Enter
+525 key f meta
+526 text at
+528 key Tab
+529 text 11.2
+530 key Tab
+531 text 78.5
+532 key Enter
+534 key f meta
+535 text color
+537 key Tab
+538 text #fff0c8
+539 key Enter
+541 key f meta
+542 text glow
+544 key Tab
+545 text 8
+546 key Enter
+548 key f meta
+549 text size
+551 key Tab
+552 text 0.5
+553 key Enter
+555 key g meta
+556 text +round-light
+557 key Enter
+559 move 742 641
+560 down
+561 up
+563 key f meta
+564 text id
+566 key Tab
+567 text gi2
+568 key Enter
+570 key f meta
+571 text group
+573 key Tab
+574 text general
+575 key Enter
+577 key f meta
+578 text at
+580 key Tab
+581 text 36.5
+582 key Tab
+583 text 78.5
+584 key Enter
+586 key f meta
+587 text color
+589 key Tab
+590 text #fff0c8
+591 key Enter
+593 key f meta
+594 text glow
+596 key Tab
+597 text 8
+598 key Enter
+600 key f meta
+601 text size
+603 key Tab
+604 text 0.5
+605 key Enter
+607 key g meta
+608 text +round-light
+609 key Enter
+611 move 660 410
+612 down
+613 up
+615 key f meta
+616 text id
+618 key Tab
+619 text carouselLight
+620 key Enter
+622 key f meta
+623 text group
+625 key Tab
+626 text shots
+627 key Enter
+629 key f meta
+630 text at
+632 key Tab
+633 text 23.85
+634 key Tab
+635 text 43.5
+636 key Enter
+638 key f meta
+639 text color
+641 key Tab
+642 text #ffcf5a
+643 key Enter
+645 key f meta
+646 text glow
+648 key Tab
+649 text 6
+650 key Enter
+652 key f meta
+653 text size
+655 key Tab
+656 text 1.4
+657 key Enter
+659 key g meta
+660 text +arrow-light
+661 key Enter
+663 move 587 354
+664 down
+665 up
+667 key f meta
+668 text id
+670 key Tab
+671 text strikerLight
+672 key Enter
+674 key f meta
+675 text group
+677 key Tab
+678 text shots
+679 key Enter
+681 key f meta
+682 text at
+684 key Tab
+685 text 13
+686 key Tab
+687 text 35
+688 key Enter
+690 key f meta
+691 text color
+693 key Tab
+694 text #ff8a4a
+695 key Enter
+697 key f meta
+698 text glow
+700 key Tab
+701 text 4
+702 key Enter
+704 key f meta
+705 text angle
+707 key Tab
+708 text -135
+709 key Enter
+711 key g meta
+712 text +arrow-light
+713 key Enter
+715 move 775 545
+716 down
+717 up
+719 key f meta
+720 text id
+722 key Tab
+723 text coconutLight
+724 key Enter
+726 key f meta
+727 text group
+729 key Tab
+730 text shots
+731 key Enter
+733 key f meta
+734 text at
+736 key Tab
+737 text 41.5
+738 key Tab
+739 text 64
+740 key Enter
+742 key f meta
+743 text color
+745 key Tab
+746 text #ffb060
+747 key Enter
+749 key f meta
+750 text glow
+752 key Tab
+753 text 4
+754 key Enter
+756 key f meta
+757 text angle
+759 key Tab
+760 text 0
+761 key Enter
+763 key g meta
+764 text +arrow-light
+765 key Enter
+767 move 544 512
+768 down
+769 up
+771 key f meta
+772 text id
+774 key Tab
+775 text duckLight
+776 key Enter
+778 key f meta
+779 text group
+781 key Tab
+782 text shots
+783 key Enter
+785 key f meta
+786 text at
+788 key Tab
+789 text 6.5
+790 key Tab
+791 text 59
+792 key Enter
+794 key f meta
+795 text color
+797 key Tab
+798 text #7fd8ff
+799 key Enter
+801 key f meta
+802 text glow
+804 key Tab
+805 text 4
+806 key Enter
+808 key f meta
+809 text angle
+811 key Tab
+812 text 180
+813 key Enter
+815 key g meta
+816 text +round-light
+817 key Enter
+819 move 660 783
+820 down
+821 up
+823 key f meta
+824 text id
+826 key Tab
+827 text shootAgain
+828 key Enter
+830 key f meta
+831 text at
+833 key Tab
+834 text 23.85
+835 key Tab
+836 text 100
+837 key Enter
+839 key f meta
+840 text color
+842 key Tab
+843 text #ff5a4a
+844 key Enter
+846 key f meta
+847 text glow
+849 key Tab
+850 text 4
+851 key Enter
+853 key f meta
+854 text size
+856 key Tab
+857 text 1.3
+858 key Enter
+# The lights that go with things: each lane switch lights its own, the striker its arrow.
+860 key g meta
+861 text lane1
+862 key Enter
+864 key f meta
+865 text light
+867 move 1300 112
+868 down
+869 up
+871 text laneLight1
+872 key Enter
+874 key g meta
+875 text lane2
+876 key Enter
+878 key f meta
+879 text light
+881 move 1300 112
+882 down
+883 up
+885 text laneLight2
+886 key Enter
+888 key g meta
+889 text lane3
+890 key Enter
+892 key f meta
+893 text light
+895 move 1300 112
+896 down
+897 up
+899 text laneLight3
+900 key Enter
+902 key g meta
+903 text striker
+904 key Enter
+906 key f meta
+907 text light
+909 move 1300 112
+910 down
+911 up
+913 text strikerLight
+914 key Enter
+916 key g meta
+917 text lighting
+918 key Enter
+920 key f meta
+921 text general
+923 move 1300 112
+924 down
+925 up
+927 text general
+928 key Enter
+930 key f meta
+931 text background
+933 key Tab
+934 text #0b0612
+935 key Enter
+937 key f meta
+938 text ambient
+940 key Tab
+941 text #6a5c60
+942 key Enter
+944 key g meta
+945 text lighting.lamps[0]
+946 key Enter
+948 key f meta
+949 text color
+951 key Tab
+952 text #ffe8d0
+953 key Enter
+955 key g meta
+956 text lighting.lamps[1]
+957 key Enter
+959 key f meta
+960 text color
+962 key Tab
+963 text #6a3a5a
+964 key Enter
+# The scenery: boxes for the cabinet, mesh files of the folder for the wheel and the booth, a cone for the big top.
+966 key g meta
+967 text +box
+968 key Enter
+970 move 633 453
+971 down
+972 up
+974 key f meta
+975 text id
+977 key Tab
+978 text railLeft
+979 key Enter
+981 key f meta
+982 text group
+984 key Tab
+985 text cabinet
+986 key Enter
+988 key f meta
+989 text at
+991 key Tab
+992 text -1.1
+993 key Tab
+994 text 53.5
+995 key Tab
+996 text 1.5
+997 key Enter
+999 key f meta
+1000 text scale
+1002 key Tab
+1003 text 2.2
+1004 key Tab
+1005 text 112.4
+1006 key Tab
+1007 text 9
+1008 key Enter
+1010 key f meta
+1011 text look
+1013 move 1300 112
+1014 down
+1015 up
+1017 text cabinet
+1018 key Enter
+1020 key g meta
+1021 text +box
+1022 key Enter
+1024 move 633 453
+1025 down
+1026 up
+1028 key f meta
+1029 text id
+1031 key Tab
+1032 text railRight
+1033 key Enter
+1035 key f meta
+1036 text group
+1038 key Tab
+1039 text cabinet
+1040 key Enter
+1042 key f meta
+1043 text at
+1045 key Tab
+1046 text 52.1
+1047 key Tab
+1048 text 53.5
+1049 key Tab
+1050 text 1.5
+1051 key Enter
+1053 key f meta
+1054 text scale
+1056 key Tab
+1057 text 2.2
+1058 key Tab
+1059 text 112.4
+1060 key Tab
+1061 text 9
+1062 key Enter
+1064 key f meta
+1065 text look
+1067 move 1300 112
+1068 down
+1069 up
+1071 text cabinet
+1072 key Enter
+1074 key g meta
+1075 text +box
+1076 key Enter
+1078 move 633 453
+1079 down
+1080 up
+1082 key f meta
+1083 text id
+1085 key Tab
+1086 text backboard
+1087 key Enter
+1089 key f meta
+1090 text group
+1092 key Tab
+1093 text cabinet
+1094 key Enter
+1096 key f meta
+1097 text at
+1099 key Tab
+1100 text 25.5
+1101 key Tab
+1102 text -1.1
+1103 key Tab
+1104 text 4
+1105 key Enter
+1107 key f meta
+1108 text scale
+1110 key Tab
+1111 text 55.4
+1112 key Tab
+1113 text 2.2
+1114 key Tab
+1115 text 14
+1116 key Enter
+1118 key f meta
+1119 text look
+1121 move 1300 112
+1122 down
+1123 up
+1125 text backboard
+1126 key Enter
+1128 key g meta
+1129 text +box
+1130 key Enter
+1132 move 633 453
+1133 down
+1134 up
+1136 key f meta
+1137 text id
+1139 key Tab
+1140 text lockBar
+1141 key Enter
+1143 key f meta
+1144 text group
+1146 key Tab
+1147 text cabinet
+1148 key Enter
+1150 key f meta
+1151 text at
+1153 key Tab
+1154 text 25.5
+1155 key Tab
+1156 text 108.6
+1157 key Tab
+1158 text 0.5
+1159 key Enter
+1161 key f meta
+1162 text scale
+1164 key Tab
+1165 text 55.4
+1166 key Tab
+1167 text 3.2
+1168 key Tab
+1169 text 7
+1170 key Enter
+1172 key f meta
+1173 text look
+1175 move 1300 112
+1176 down
+1177 up
+1179 text cabinet
+1180 key Enter
+1182 key g meta
+1183 text +box
+1184 key Enter
+1186 move 633 453
+1187 down
+1188 up
+1190 key f meta
+1191 text id
+1193 key Tab
+1194 text apron
+1195 key Enter
+1197 key f meta
+1198 text group
+1200 key Tab
+1201 text cabinet
+1202 key Enter
+1204 key f meta
+1205 text at
+1207 key Tab
+1208 text 23.3
+1209 key Tab
+1210 text 105.6
+1211 key Tab
+1212 text 3.1
+1213 key Enter
+1215 key f meta
+1216 text scale
+1218 key Tab
+1219 text 46.6
+1220 key Tab
+1221 text 4
+1222 key Tab
+1223 text 0.3
+1224 key Enter
+1226 key f meta
+1227 text look
+1229 move 1300 112
+1230 down
+1231 up
+1233 text apron
+1234 key Enter
+1236 key g meta
+1237 text +box
+1238 key Enter
+1240 move 633 453
+1241 down
+1242 up
+1244 key f meta
+1245 text id
+1247 key Tab
+1248 text wheel
+1249 key Enter
+1251 key f meta
+1252 text at
+1254 key Tab
+1255 text 44.5
+1256 key Tab
+1257 text 5.5
+1258 key Tab
+1259 text 0
+1260 key Enter
+1262 key f meta
+1263 text scale
+1265 key Tab
+1266 text 0.8
+1267 key Tab
+1268 text 0.8
+1269 key Tab
+1270 text 0.9
+1271 key Enter
+1273 key f meta
+1274 text look
+1276 move 1300 112
+1277 down
+1278 up
+1280 text parts
+1281 key Enter
+1283 key f meta
+1284 text mesh
+1286 move 1300 112
+1287 down
+1288 up
+1290 text art/wheel.obj
+1291 key Enter
+1293 key g meta
+1294 text +box
+1295 key Enter
+1297 move 633 453
+1298 down
+1299 up
+1301 key f meta
+1302 text id
+1304 key Tab
+1305 text booth
+1306 key Enter
+1308 key f meta
+1309 text at
+1311 key Tab
+1312 text 5.5
+1313 key Tab
+1314 text 104.6
+1315 key Tab
+1316 text 3.25
+1317 key Enter
+1319 key f meta
+1320 text scale
+1322 key Tab
+1323 text 1
+1324 key Tab
+1325 text 1
+1326 key Tab
+1327 text 1
+1328 key Enter
+1330 key f meta
+1331 text look
+1333 move 1300 112
+1334 down
+1335 up
+1337 text parts
+1338 key Enter
+1340 key f meta
+1341 text mesh
+1343 move 1300 112
+1344 down
+1345 up
+1347 text art/booth.obj
+1348 key Enter
+1350 key g meta
+1351 text +cylinder
+1352 key Enter
+1354 move 633 453
+1355 down
+1356 up
+1358 key f meta
+1359 text id
+1361 key Tab
+1362 text bigTop
+1363 key Enter
+1365 key f meta
+1366 text at
+1368 key Tab
+1369 text 6
+1370 key Tab
+1371 text 5.5
+1372 key Tab
+1373 text 0
+1374 key Enter
+1376 key f meta
+1377 text scale
+1379 key Tab
+1380 text 8
+1381 key Tab
+1382 text 8
+1383 key Tab
+1384 text 7
+1385 key Enter
+1387 key f meta
+1388 text look
+1390 move 1300 112
+1391 down
+1392 up
+1394 text tent
+1395 key Enter
+1397 key g meta
+1398 text bigTop
+1399 key Enter
+1401 key f meta
+1402 text shape
+1404 move 1300 112
+1405 down
+1406 up
+1408 move 1300 216
+1409 down
+1410 up
+1412 move 420 500
+1413 down
+1414 up
+1416 key s meta
+# frames 1426

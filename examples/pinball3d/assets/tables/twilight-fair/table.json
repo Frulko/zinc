@@ -1,0 +1,477 @@
+{
+  "format": "zinc-pinball-table",
+  "version": 1,
+  "name": "Twilight Fair",
+  "author": "Zinc",
+  "description": "A funfair at dusk: ring the bell of the high striker, clear the coconut shy, ride the carousel.",
+  "credits": [
+    {
+      "files": [
+        "sounds/ball-knock.mp3",
+        "sounds/ball-land.mp3",
+        "sounds/ball-ready.mp3",
+        "sounds/ball-roll.mp3",
+        "sounds/ball-saved.mp3",
+        "sounds/big-bell.mp3",
+        "sounds/bumper.mp3",
+        "sounds/coconut.mp3",
+        "sounds/coconut-up.mp3",
+        "sounds/drain.mp3",
+        "sounds/duck.mp3",
+        "sounds/extra-ball.mp3",
+        "sounds/flipper-down.mp3",
+        "sounds/flipper-up.mp3",
+        "sounds/game-over.mp3",
+        "sounds/gate.mp3",
+        "sounds/jackpot.mp3",
+        "sounds/lane.mp3",
+        "sounds/letter.mp3",
+        "sounds/mallet.mp3",
+        "sounds/mission.mp3",
+        "sounds/music-attract.mp3",
+        "sounds/music-over.mp3",
+        "sounds/music-play.mp3",
+        "sounds/nudge.mp3",
+        "sounds/plunger-pull.mp3",
+        "sounds/plunger-shot.mp3",
+        "sounds/rank.mp3",
+        "sounds/sling.mp3",
+        "sounds/spinner.mp3",
+        "sounds/start.mp3",
+        "sounds/striker.mp3",
+        "sounds/tilt.mp3",
+        "sounds/wall.mp3"
+      ],
+      "author": "the Zinc project",
+      "source": "tools/twilight_fair_sounds.py",
+      "licence": "original work, synthesised by the script; nothing sampled"
+    },
+    {
+      "files": [
+        "art/playfield.jpg",
+        "art/ball.jpg",
+        "art/flipper.png",
+        "art/cap.png",
+        "art/deck.jpg",
+        "art/backboard.jpg",
+        "art/apron.jpg",
+        "art/palette.png",
+        "art/tent.png",
+        "art/wheel.obj",
+        "art/booth.obj",
+        "art/backglass.jpg",
+        "art/backglass-wide.jpg"
+      ],
+      "author": "the Zinc project",
+      "source": "tools/twilight_fair_art.py",
+      "licence": "original work, drawn and modelled by the script; its text is set in Inter (SIL Open Font License 1.1)"
+    }
+  ],
+  "playfield": { "surface": "wood", "look": "board" },
+  "physics": { "ball": { "look": "chrome", "sounds": { "roll": "ballRoll", "hit": "ballKnock", "land": "ballLand", "knock": "ballKnock" } } },
+  "surfaces": [
+    { "id": "wood", "friction": 0.2, "restitution": 0.3 },
+    { "id": "metal", "friction": 0.25, "restitution": 0.45 },
+    { "id": "rubber", "friction": 0.6, "restitution": 0.75 },
+    { "id": "plastic", "restitution": 0.35 },
+    { "id": "bat", "friction": 0.7, "restitution": 0.55 }
+  ],
+  "looks": [
+    { "id": "board", "color": "#f0e4dc", "texture": "art/playfield.jpg" },
+    { "id": "steel", "color": "#c9a24a", "specular": "#fff0c0", "shininess": 60 },
+    { "id": "chrome", "color": "#ffffff", "specular": "#ffffff", "shininess": 140, "texture": "art/ball.jpg" },
+    { "id": "rubber", "color": "#b3261e", "shading": "flat" },
+    { "id": "bat", "color": "#ffffff", "specular": "#606070", "texture": "art/flipper.png" },
+    { "id": "bumper", "color": "#7a1f2c", "glow": "#ffcf5a" },
+    { "id": "cap", "color": "#ffffff", "specular": "#553a22", "shininess": 40, "texture": "art/cap.png" },
+    { "id": "target", "color": "#e8c040", "glow": "#fff0a0" },
+    { "id": "ramp", "color": "#2a62b8" },
+    { "id": "coconut", "color": "#8a5a34", "glow": "#ffb060" },
+    { "id": "band", "color": "#d8342c", "glow": "#ff9a5a" },
+    { "id": "deckBoard", "color": "#ffffff", "texture": "art/deck.jpg" },
+    { "id": "cabinet", "color": "#3a1420", "shading": "flat" },
+    { "id": "backboard", "color": "#ffffff", "shading": "flat", "texture": "art/backboard.jpg" },
+    { "id": "apron", "color": "#ffffff", "shading": "flat", "texture": "art/apron.jpg" },
+    { "id": "parts", "color": "#ffffff", "shading": "flat", "texture": "art/palette.png" },
+    { "id": "tent", "color": "#ffffff", "texture": "art/tent.png" }
+  ],
+  "sounds": [
+    { "id": "bumperBell", "file": "sounds/bumper.mp3", "volume": 0.7, "pitchVariation": 0.05 },
+    { "id": "flipUp", "file": "sounds/flipper-up.mp3", "volume": 0.8, "volumeVariation": 0.1, "pitchVariation": 0.05 },
+    { "id": "flipDown", "file": "sounds/flipper-down.mp3", "volume": 0.6, "volumeVariation": 0.1, "pitchVariation": 0.05 },
+    { "id": "slingKnock", "file": "sounds/sling.mp3", "volume": 0.8, "volumeVariation": 0.1, "pitchVariation": 0.06 },
+    { "id": "duckPlink", "file": "sounds/duck.mp3", "volume": 0.5, "volumeVariation": 0.1, "pitchVariation": 0.04 },
+    { "id": "coconutKnock", "file": "sounds/coconut.mp3", "volume": 0.7, "volumeVariation": 0.1, "pitchVariation": 0.05 },
+    { "id": "coconutUp", "file": "sounds/coconut-up.mp3", "volume": 0.4 },
+    { "id": "laneChime", "file": "sounds/lane.mp3", "volume": 0.45, "pitchVariation": 0.02 },
+    { "id": "spinTick", "file": "sounds/spinner.mp3", "volume": 0.3, "volumeVariation": 0.1, "pitchVariation": 0.1 },
+    { "id": "gateTick", "file": "sounds/gate.mp3", "volume": 0.3, "volumeVariation": 0.1, "pitchVariation": 0.1 },
+    { "id": "mallet", "file": "sounds/mallet.mp3", "volume": 0.9 },
+    { "id": "strikerBell", "file": "sounds/striker.mp3", "volume": 0.7 },
+    { "id": "bigBell", "file": "sounds/big-bell.mp3", "volume": 0.7, "pitchVariation": 0.02 },
+    { "id": "plungerPull", "file": "sounds/plunger-pull.mp3", "volume": 0.3 },
+    { "id": "plungerShot", "file": "sounds/plunger-shot.mp3", "volume": 0.8, "pitchVariation": 0.04 },
+    { "id": "drainWhistle", "file": "sounds/drain.mp3", "volume": 0.6 },
+    { "id": "ballRoll", "file": "sounds/ball-roll.mp3", "volume": 0.5, "loop": true },
+    { "id": "ballLand", "file": "sounds/ball-land.mp3", "volume": 0.7, "volumeVariation": 0.1, "pitchVariation": 0.1 },
+    { "id": "ballKnock", "file": "sounds/ball-knock.mp3", "volume": 0.5, "volumeVariation": 0.15, "pitchVariation": 0.12 },
+    { "id": "wallKnock", "file": "sounds/wall.mp3", "volume": 0.4, "volumeVariation": 0.2, "pitchVariation": 0.15 },
+    { "id": "cabinetKnock", "file": "sounds/nudge.mp3", "volume": 0.7 },
+    { "id": "letterKey", "file": "sounds/letter.mp3", "volume": 0.4 },
+    { "id": "jingleStart", "file": "sounds/start.mp3", "volume": 0.45 },
+    { "id": "jingleBall", "file": "sounds/ball-ready.mp3", "volume": 0.4 },
+    { "id": "jingleSaved", "file": "sounds/ball-saved.mp3", "volume": 0.45 },
+    { "id": "jingleTilt", "file": "sounds/tilt.mp3", "volume": 0.5 },
+    { "id": "jingleMission", "file": "sounds/mission.mp3", "volume": 0.5 },
+    { "id": "jingleRank", "file": "sounds/rank.mp3", "volume": 0.4 },
+    { "id": "jingleExtra", "file": "sounds/extra-ball.mp3", "volume": 0.45 },
+    { "id": "jingleJackpot", "file": "sounds/jackpot.mp3", "volume": 0.6 },
+    { "id": "jingleOver", "file": "sounds/game-over.mp3", "volume": 0.45 },
+    { "id": "musicPlay", "file": "sounds/music-play.mp3", "volume": 0.3, "loop": true },
+    { "id": "musicAttract", "file": "sounds/music-attract.mp3", "volume": 0.28, "loop": true },
+    { "id": "musicOver", "file": "sounds/music-over.mp3", "volume": 0.35 }
+  ],
+  "music": { "attract": "musicAttract", "play": "musicPlay", "multiball": "musicPlay", "gameOver": "musicOver" },
+  "walls": [
+    { "id": "outer", "points": [[1, 106], [1, 27, 1], [50, 27], [50, 106]], "surface": "metal", "look": "steel", "sounds": { "hit": "wallKnock" } },
+    { "id": "shooterLane", "points": [[46.7, 106], [46.7, 30]], "sounds": { "hit": "wallKnock" } },
+    { "id": "guideLeft", "points": [[1, 84], [13.5, 93]], "surface": "metal", "look": "steel", "sounds": { "hit": "wallKnock" } },
+    { "id": "guideRight", "points": [[46.6, 84], [34.1, 93]], "surface": "metal", "look": "steel", "sounds": { "hit": "wallKnock" } },
+    {
+      "id": "divider1",
+      "points": [[19.5, 14], [19.5, 20]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "rubber",
+      "sounds": { "hit": "wallKnock" }
+    },
+    {
+      "id": "divider2",
+      "points": [[28, 14], [28, 20]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "rubber",
+      "sounds": { "hit": "wallKnock" }
+    },
+    {
+      "id": "rail",
+      "points": [[15, 23], [6, 21], [6, 11], [18, 11], [18, 20]],
+      "z": 5,
+      "surface": "metal",
+      "look": "steel",
+      "sounds": { "hit": "wallKnock" }
+    }
+  ],
+  "gates": [
+    { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "sounds": { "pass": "gateTick" } }
+  ],
+  "flippers": [
+    { "id": "left", "group": "flippers", "pivot": [15, 94.5], "surface": "bat", "look": "bat", "sounds": { "up": "flipUp", "down": "flipDown" } },
+    {
+      "id": "right",
+      "group": "flippers",
+      "pivot": [32.6, 94.5],
+      "rest": 155,
+      "stroke": 50,
+      "button": "right",
+      "surface": "bat",
+      "look": "bat",
+      "sounds": { "up": "flipUp", "down": "flipDown" }
+    }
+  ],
+  "plunger": { "at": [48.35, 100], "surface": "metal", "look": "steel", "sounds": { "pull": "plungerPull", "release": "plungerShot" } },
+  "bumpers": [
+    {
+      "id": "bumper1",
+      "group": "bumpers",
+      "at": [17, 40],
+      "kick": 150,
+      "surface": "rubber",
+      "look": "bumper",
+      "cap": "cap",
+      "sounds": { "hit": "bumperBell" }
+    },
+    {
+      "id": "bumper2",
+      "group": "bumpers",
+      "at": [30.5, 40],
+      "kick": 150,
+      "surface": "rubber",
+      "look": "bumper",
+      "cap": "cap",
+      "sounds": { "hit": "bumperBell" }
+    },
+    {
+      "id": "bumper3",
+      "group": "bumpers",
+      "at": [23.8, 50],
+      "kick": 150,
+      "surface": "rubber",
+      "look": "bumper",
+      "cap": "cap",
+      "sounds": { "hit": "bumperBell" }
+    }
+  ],
+  "slingshots": [
+    {
+      "id": "slingLeft",
+      "group": "slings",
+      "a": [9.5, 73],
+      "b": [13, 82],
+      "kick": 130,
+      "surface": "rubber",
+      "look": "band",
+      "sounds": { "hit": "slingKnock" }
+    },
+    {
+      "id": "slingRight",
+      "group": "slings",
+      "a": [34.6, 82],
+      "b": [38.1, 73],
+      "kick": 130,
+      "surface": "rubber",
+      "look": "band",
+      "sounds": { "hit": "slingKnock" }
+    }
+  ],
+  "kickers": [
+    {
+      "id": "striker",
+      "at": [9, 31],
+      "hold": 0.8,
+      "exit": [1, -12, 5],
+      "speed": 150,
+      "angle": -90,
+      "light": "strikerLight",
+      "sounds": { "capture": "mallet", "eject": "strikerBell" }
+    }
+  ],
+  "targets": [
+    { "id": "duck1", "group": "ducks", "at": [2, 55], "angle": 0, "surface": "plastic", "look": "target", "sounds": { "hit": "duckPlink" } },
+    { "id": "duck2", "group": "ducks", "at": [2, 59], "angle": 0, "surface": "plastic", "look": "target", "sounds": { "hit": "duckPlink" } },
+    { "id": "duck3", "group": "ducks", "at": [2, 63], "angle": 0, "surface": "plastic", "look": "target", "sounds": { "hit": "duckPlink" } },
+    {
+      "id": "coconut1",
+      "group": "coconuts",
+      "kind": "drop",
+      "at": [45.9, 60],
+      "angle": 180,
+      "surface": "plastic",
+      "look": "coconut",
+      "sounds": { "hit": "coconutKnock", "reset": "coconutUp" }
+    },
+    {
+      "id": "coconut2",
+      "group": "coconuts",
+      "kind": "drop",
+      "at": [45.9, 64],
+      "angle": 180,
+      "surface": "plastic",
+      "look": "coconut",
+      "sounds": { "hit": "coconutKnock", "reset": "coconutUp" }
+    },
+    {
+      "id": "coconut3",
+      "group": "coconuts",
+      "kind": "drop",
+      "at": [45.9, 68],
+      "angle": 180,
+      "surface": "plastic",
+      "look": "coconut",
+      "sounds": { "hit": "coconutKnock", "reset": "coconutUp" }
+    },
+    { "id": "bell1", "group": "bells", "at": [10, 12], "z": 5, "surface": "plastic", "look": "target", "sounds": { "hit": "bigBell" } },
+    { "id": "bell2", "group": "bells", "at": [14.5, 12], "z": 5, "surface": "plastic", "look": "target", "sounds": { "hit": "bigBell" } }
+  ],
+  "rollovers": [
+    { "id": "lane1", "group": "lanes", "a": [13.5, 17], "b": [19, 17], "light": "laneLight1", "sounds": { "roll": "laneChime" } },
+    { "id": "lane2", "group": "lanes", "a": [20, 17], "b": [27.5, 17], "light": "laneLight2", "sounds": { "roll": "laneChime" } },
+    { "id": "lane3", "group": "lanes", "a": [28.5, 17], "b": [34, 17], "light": "laneLight3", "sounds": { "roll": "laneChime" } }
+  ],
+  "spinners": [
+    { "id": "spinner", "a": [39.5, 52], "b": [46, 52], "sounds": { "spin": "spinTick" } }
+  ],
+  "floors": [
+    { "id": "bandstand", "points": [[5, 10], [19, 10], [19, 24], [5, 24]], "surface": "wood", "look": "deckBoard" }
+  ],
+  "lights": [
+    { "id": "bulb1", "group": "bulbs", "at": [5.3, 19.65], "size": 0.6, "color": "#ffcf5a", "glow": 5 },
+    { "id": "bulb2", "group": "bulbs", "at": [9.86, 12.25], "size": 0.6, "color": "#ff8a4a", "glow": 5 },
+    { "id": "bulb3", "group": "bulbs", "at": [16.98, 7.26], "size": 0.6, "color": "#fff0c8", "glow": 5 },
+    { "id": "bulb4", "group": "bulbs", "at": [25.5, 5.5], "size": 0.6, "color": "#ffcf5a", "glow": 5 },
+    { "id": "bulb5", "group": "bulbs", "at": [34.02, 7.26], "size": 0.6, "color": "#ff8a4a", "glow": 5 },
+    { "id": "bulb6", "group": "bulbs", "at": [41.14, 12.25], "size": 0.6, "color": "#fff0c8", "glow": 5 },
+    { "id": "bulb7", "group": "bulbs", "at": [45.7, 19.65], "size": 0.6, "color": "#ffcf5a", "glow": 5 },
+    { "id": "laneLight1", "group": "lanes", "at": [16.25, 22.5], "color": "#ffcf5a", "glow": 3 },
+    { "id": "laneLight2", "group": "lanes", "at": [23.75, 22.5], "color": "#ffcf5a", "glow": 3 },
+    { "id": "laneLight3", "group": "lanes", "at": [31.25, 22.5], "color": "#ffcf5a", "glow": 3 },
+    { "id": "gi1", "group": "general", "at": [11.2, 78.5], "size": 0.5, "color": "#fff0c8", "glow": 8 },
+    { "id": "gi2", "group": "general", "at": [36.5, 78.5], "size": 0.5, "color": "#fff0c8", "glow": 8 },
+    { "id": "carouselLight", "group": "shots", "at": [23.85, 43.5], "size": 1.4, "color": "#ffcf5a", "glow": 6 },
+    { "id": "strikerLight", "group": "shots", "at": [13, 35], "shape": "arrow", "size": 1.5, "angle": -135, "color": "#ff8a4a", "glow": 4 },
+    { "id": "coconutLight", "group": "shots", "at": [41.5, 64], "shape": "arrow", "size": 1.5, "angle": 0, "color": "#ffb060", "glow": 4 },
+    { "id": "duckLight", "group": "shots", "at": [6.5, 59], "shape": "arrow", "size": 1.5, "angle": 180, "color": "#7fd8ff", "glow": 4 },
+    { "id": "shootAgain", "at": [23.85, 100], "size": 1.3, "color": "#ff5a4a", "glow": 4 }
+  ],
+  "models": [
+    { "id": "railLeft", "group": "cabinet", "at": [-1.1, 53.5, 1.5], "scale": [2.2, 112.4, 9], "look": "cabinet" },
+    { "id": "railRight", "group": "cabinet", "at": [52.1, 53.5, 1.5], "scale": [2.2, 112.4, 9], "look": "cabinet" },
+    { "id": "backboard", "group": "cabinet", "at": [25.5, -1.1, 4], "scale": [55.4, 2.2, 14], "look": "backboard" },
+    { "id": "lockBar", "group": "cabinet", "at": [25.5, 108.6, 0.5], "scale": [55.4, 3.2, 7], "look": "cabinet" },
+    { "id": "apron", "group": "cabinet", "at": [23.3, 105.6, 3.1], "scale": [46.6, 4, 0.3], "look": "apron" },
+    { "id": "wheel", "mesh": "art/wheel.obj", "at": [44.5, 5.5, 0], "scale": [0.8, 0.8, 0.9], "look": "parts" },
+    { "id": "booth", "mesh": "art/booth.obj", "at": [5.5, 104.6, 3.25], "look": "parts" },
+    { "id": "bigTop", "shape": "cone", "at": [6, 5.5, 0], "scale": [8, 8, 7], "look": "tent" }
+  ],
+  "rules": {
+    "ballSave": 10,
+    "ranks": ["Visitor", "Regular", "Barker", "Showman", "Ringmaster"],
+    "ballSaveLight": "shootAgain",
+    "missions": [
+      {
+        "id": "mission1",
+        "name": "Carousel Ride",
+        "award": 20000,
+        "steps": [{ "text": "Ride the carousel: hit the bumpers", "on": "bumpers", "event": "hit", "count": 10, "light": "carouselLight" }]
+      },
+      {
+        "id": "mission2",
+        "name": "Ring the Bell",
+        "award": 30000,
+        "steps": [{ "text": "Shoot the high striker", "on": "striker", "event": "capture", "count": 2, "light": "strikerLight" }]
+      },
+      {
+        "id": "mission3",
+        "name": "Coconut Shy",
+        "award": 30000,
+        "steps": [{ "text": "Knock down the coconuts", "on": "coconuts", "event": "down", "count": 3, "light": "coconutLight" }]
+      },
+      {
+        "id": "mission4",
+        "name": "Duck Pond",
+        "steps": [{ "text": "Hook the ducks", "on": "ducks", "event": "hit", "count": 4, "light": "duckLight" }]
+      }
+    ],
+    "when": [
+      { "on": "bumpers", "event": "hit", "do": [{ "do": "score", "value": 500 }] },
+      { "on": "ducks", "event": "hit", "do": [{ "do": "score", "value": 1000 }] },
+      { "on": "slings", "event": "hit", "do": [{ "do": "score", "value": 110 }] },
+      { "on": "bumpers", "event": "hit", "do": [{ "do": "light", "target": "bulbs", "mode": "flash", "seconds": 0.25 }] },
+      { "on": "lanes", "event": "roll", "do": [{ "do": "score", "value": 300 }, { "do": "light", "target": "self", "mode": "on" }] },
+      { "on": "flippers", "event": "flip", "do": [{ "do": "rotate", "target": "lanes", "value": 1 }] },
+      { "on": "coconuts", "event": "down", "do": [{ "do": "score", "value": 2000 }] },
+      {
+        "on": "striker",
+        "event": "capture",
+        "do": [
+          { "do": "score", "value": 5000 },
+          { "do": "bonus", "value": 500 },
+          { "do": "light", "target": "bulbs", "mode": "flash", "seconds": 0.8 }
+        ]
+      },
+      { "on": "bells", "event": "hit", "do": [{ "do": "score", "value": 2500 }, { "do": "say", "target": "DING!" }] },
+      { "on": "spinner", "event": "spin", "do": [{ "do": "score", "value": 100 }] },
+      {
+        "on": "game",
+        "event": "start",
+        "do": [
+          { "do": "sound", "target": "jingleStart" },
+          { "do": "light", "target": "general", "mode": "on" },
+          { "do": "say", "target": "ROLL UP, ROLL UP" }
+        ]
+      },
+      { "on": "game", "event": "ballStart", "do": [{ "do": "light", "target": "general", "mode": "on" }] },
+      { "on": "game", "event": "drain", "do": [{ "do": "sound", "target": "drainWhistle" }] },
+      { "on": "game", "event": "ballSaved", "do": [{ "do": "sound", "target": "jingleSaved" }] },
+      { "on": "game", "event": "bump", "do": [{ "do": "sound", "target": "cabinetKnock" }] },
+      {
+        "on": "game",
+        "event": "tilt",
+        "do": [{ "do": "sound", "target": "jingleTilt" }, { "do": "light", "target": "general", "mode": "off" }, { "do": "say", "target": "TILT" }]
+      },
+      {
+        "on": "game",
+        "event": "missionDone",
+        "do": [{ "do": "sound", "target": "jingleMission" }, { "do": "light", "target": "bulbs", "mode": "flash", "seconds": 1.5 }]
+      },
+      { "on": "game", "event": "rankUp", "do": [{ "do": "sound", "target": "jingleRank" }] },
+      { "on": "game", "event": "extraBall", "do": [{ "do": "sound", "target": "jingleExtra" }] },
+      { "on": "game", "event": "jackpot", "do": [{ "do": "sound", "target": "jingleJackpot" }] },
+      { "on": "game", "event": "gameOver", "do": [{ "do": "sound", "target": "jingleOver" }, { "do": "light", "target": "general", "mode": "off" }] },
+      { "on": "game", "event": "letter", "do": [{ "do": "sound", "target": "letterKey" }] },
+      {
+        "on": "lanes",
+        "event": "roll",
+        "if": [{ "test": "lights", "target": "lanes", "is": "on" }],
+        "do": [
+          { "do": "multiplier", "value": 1 },
+          { "do": "bonus", "value": 1000 },
+          { "do": "light", "target": "lanes", "mode": "off" },
+          { "do": "say", "target": "LANES LIT: BONUS X" }
+        ]
+      },
+      {
+        "on": "coconuts",
+        "event": "down",
+        "if": [{ "test": "targets", "target": "coconuts", "is": "down" }],
+        "do": [
+          { "do": "score", "value": 10000 },
+          { "do": "bonus", "value": 2000 },
+          { "do": "reset", "target": "coconuts" },
+          { "do": "say", "target": "COCONUT SHY CLEARED" }
+        ]
+      }
+    ]
+  },
+  "lighting": {
+    "background": "#0b0612",
+    "ambient": "#6a5c60",
+    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#ffe8d0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#6a3a5a" }],
+    "general": "general"
+  },
+  "layouts": {
+    "landscape": {
+      "view": [0, 0, 600, 800],
+      "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+      "panel": {
+        "box": [600, 0, 680, 800],
+        "color": "#1c0e1c",
+        "image": "art/backglass.jpg",
+        "items": [
+          { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#ffcf5a" },
+          { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
+          { "show": "ball", "box": [640, 290, 280, 50], "size": 30, "label": "BALL" },
+          { "show": "rank", "box": [940, 290, 300, 50], "size": 30, "color": "#ff9a5a", "label": "RANK" },
+          { "show": "mission", "box": [640, 400, 600, 44], "size": 30, "color": "#ffd866", "label": "MISSION" },
+          { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
+          { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
+          { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+          { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "HIGH SCORES" },
+          { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
+        ]
+      }
+    },
+    "portrait": {
+      "window": [800, 1280],
+      "view": [0, 200, 800, 1080],
+      "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
+      "panel": {
+        "box": [0, 0, 800, 200],
+        "color": "#1c0e1c",
+        "image": "art/backglass-wide.jpg",
+        "items": [
+          { "show": "title", "box": [20, 12, 380, 40], "size": 30, "color": "#ffcf5a" },
+          { "show": "score", "box": [400, 8, 380, 70], "size": 56, "align": "right" },
+          { "show": "ball", "box": [20, 70, 180, 34], "size": 22, "label": "BALL" },
+          { "show": "rank", "box": [210, 70, 190, 34], "size": 22, "color": "#ff9a5a", "label": "RANK" },
+          { "show": "message", "box": [400, 84, 380, 30], "size": 22, "color": "#ff7a33", "align": "right" },
+          { "show": "mission", "box": [20, 124, 760, 30], "size": 24, "color": "#ffd866" },
+          { "show": "step", "box": [20, 158, 760, 26] },
+          { "show": "highScores", "box": [20, 66, 380, 130], "color": "#c8d4f0" }
+        ]
+      }
+    }
+  }
+}
