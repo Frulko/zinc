@@ -36,4 +36,24 @@ for name, cmd, budget in [('zinc --version', [zinc, '--version'], launch), ('zin
 sys.exit(fail)
 PY
 [ $? -eq 0 ] || fail=1
+# a compiled console program (ZN-592.06): no window host, SDL3 or framework (it does not draw), nothing exported; 16.6 -> 7.0 ms on the Intel
+# Mac, 2.0-2.1 over the empty program (the host's row dispatch keeps ~240 libSystem imports)
+printf 'setTimeout(() => { console.log(1); }, 0);\n' > "$tmp/timer.ts"
+if "$ZINC" build "$tmp/timer.ts" -o "$tmp/timer" >"$tmp/build.log" 2>&1; then
+  libs=$(otool -L "$tmp/timer" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/libSystem\|^/usr/lib/libc++')
+  [ -z "$libs" ] || { echo "a compiled console program links more than libSystem and libc++: $libs"; fail=1; }
+  [ "$("$tmp/timer")" = 1 ] || { echo "the compiled console program does not print 1"; fail=1; }
+  python3 - "$tmp" <<'PY' || fail=1
+import subprocess, sys, time
+tmp = sys.argv[1]
+def best(cmd):
+    v = []
+    for _ in range(20):
+        t0 = time.perf_counter(); subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); v.append((time.perf_counter() - t0) * 1000)
+    return min(v)
+e, t = best([tmp + '/empty']), best([tmp + '/timer'])
+print('compiled console program: %.1f ms, empty program %.1f ms, %.1f ms more (budget 3)' % (t, e, t - e))
+sys.exit(1 if t - e > 3 else 0)
+PY
+else echo "zinc build of a console program failed: $(tail -3 "$tmp/build.log")"; fail=1; fi
 exit $fail

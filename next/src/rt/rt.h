@@ -218,7 +218,7 @@ struct Machine {
   std::vector<std::uint8_t> globalRef;  // per global: holds a reference
   Slot* stack = nullptr;
   std::size_t stackMapped = 0;   // bytes of `stack` when it came from mmap (0: calloc)
-  std::vector<Frame> frames;
+  std::unique_ptr<Frame, void (*)(void*)> frames{nullptr, free};   // calloc: its zero pages are touched as the stack grows (ZN-592.06)
   Frame* fp = nullptr;
   Frame* framesEnd = nullptr;
   // Sizes of the interpreter stacks: 0 means the default of limits.h (20 MB of register slots, 10000 frames); small devices set them before load().

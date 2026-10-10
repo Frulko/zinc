@@ -33,11 +33,12 @@
 #include "zn/hostsys.h"
 #include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
-#define HOSTLIBS + std::string(" ") + hostLibs()   // the window library the host links (@bin@: the directory of this zinc, ZN-333)
+#define HOSTLIBS + (window ? std::string(" ") + hostLibs() : std::string())   // the window library the host links (@bin@: the directory of this zinc, ZN-333)
 #else
 #define HOSTLIBS
 #endif
 #include "rt/native_lazy.h"
+static bool drawsOf(const zn::zbc::Module& zm);   // below: whether a program calls zinc:gfx
 #include "frontend/profile.h"
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
@@ -465,7 +466,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   namespace fs = std::filesystem;
   fs::path libs = fs::absolute(argv0).parent_path(), cpp = fs::path(out).string() + ".cpp";
   std::vector<std::uint8_t> blob;
-  if (zn::aot::usesHost(zm)) {
+  if (drawsOf(zm)) {   // fonts and images: a program that draws (a console program with timers or sockets carries none, ZN-592.06)
     std::string err;
     zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
     if (!bakeResources(entry, blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
@@ -532,9 +533,15 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns
   // field reloads after field stores into 16-byte loads over an 8-byte store, a store-forwarding stall: nbody 106 -> 37 ms without it (ZN-409)
   const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false";
-  const std::string deadStrip = " -Wl,-dead_strip";   // unreferenced functions of the libraries (ZN-603)
 #else
   const char* noOutline = "";
+#endif
+#ifdef __APPLE__
+  // unreferenced functions of the libraries (ZN-603); nothing exported: a program loads no plugin, and dyld then has no weak definition
+  // to coalesce at launch (ZN-592.06: a console program with a timer 2.1 -> 1.6 MB, 9.2 -> 8.1 ms). A heap budget keeps them: its global
+  // operator new (libzn_rt_new) must be exported for libc++'s own allocations to reach it.
+  const std::string deadStrip = zm.heapBytes ? " -Wl,-dead_strip" : " -Wl,-dead_strip -Wl,-no_exported_symbols";
+#else
   const std::string deadStrip;
 #endif
   // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
@@ -555,11 +562,15 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   }
   std::string inputs;   // one unit: compiled and linked by one command; several: their objects
   for (std::size_t k = 0; k < units.size(); ++k) inputs += " '" + (moreUnits.empty() ? units[k].string() : objs[k]) + "'";
+  // the window host, SDL3 and the GUI frameworks: programs that draw, use zinc:gl or call native plugins (which may call SDL3); the others
+  // start without them (ZN-592.06: a console program with a timer 14.3 -> ~5 ms). Linked whole: hal_dispatch.cpp has stand-ins otherwise.
+  const bool separateWindow = fs::exists(libs / "libzn_host_window.a");
+  const bool window = !separateWindow || drawsOf(zm) || zn::aot::usesGl(zm) || !nativeLibs.empty();
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + ldflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
-                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_host_window.a") ? " '" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
   if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
     std::string k;
     for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
@@ -1502,7 +1513,7 @@ int main(int argc, char** argv) {
       fs::path dir = fs::path(absPath).parent_path();
       for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
     }
-    if (zn::aot::usesHost(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them; a packed or cached program brings them
+    if (drawsOf(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them; a packed or cached program brings them
       std::string err;
       const std::filesystem::path baked = std::filesystem::path(absPath).parent_path() / "resources.bin";
       std::error_code rec;

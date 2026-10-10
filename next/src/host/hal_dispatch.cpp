@@ -117,8 +117,30 @@ void applyScript(HalInput* in) {
 
 #ifdef ZN_HOST_SDL
 #define PICK(live_expr, null_expr) (live ? (live_expr) : (null_expr))
-// compiled programs link the window host: nothing to load. zinc's own (src/host/window_module.cpp) loads the module libzn_window (ZN-592.01).
-__attribute__((weak)) int zn_window_load(void) { return 1; }
+#ifdef ZN_WINDOW_SEPARATE
+// The window host is its own library (ZN-592.01): compiled programs that draw link it whole (it says yes here), zinc loads it as a module
+// (src/host/window_module.cpp), and a compiled program that does not draw links none of it (ZN-592.06): these stand in, never called.
+__attribute__((weak)) int zn_window_load(void) { return 0; }
+__attribute__((weak)) void sdl_hal_init(const HalConfig*) {}
+__attribute__((weak)) void sdl_hal_shutdown(void) {}
+__attribute__((weak)) void sdl_hal_frame_begin(void) {}
+__attribute__((weak)) void sdl_hal_frame_end(void) {}
+__attribute__((weak)) void sdl_hal_poll_input(HalInput*) {}
+__attribute__((weak)) void sdl_hal_present(const HalFrame*) {}
+__attribute__((weak)) void sdl_hal_surface_size(int* w, int* h) { *w = 0; *h = 0; }
+__attribute__((weak)) double sdl_hal_fixed_dt(void) { return 0; }
+__attribute__((weak)) void sdl_hal_text_input(int32_t, float, float, float, float) {}
+__attribute__((weak)) const char* sdl_hal_clipboard_get(void) { return ""; }
+__attribute__((weak)) void sdl_hal_clipboard_set(const char*, size_t) {}
+__attribute__((weak)) void sdl_hal_set_cursor(int32_t) {}
+__attribute__((weak)) void sdl_hal_escape_by_app(int32_t) {}
+__attribute__((weak)) void sdl_hal_escape(void) {}
+__attribute__((weak)) int32_t sdl_hal_pixel_scale(void) { return 1; }
+__attribute__((weak)) void* sdl_hal_window_handle(void) { return nullptr; }
+__attribute__((weak)) void hal_set_resize(int32_t) {}
+#else
+__attribute__((weak)) int zn_window_load(void) { return 1; }   // the window host is in this library
+#endif
 void hal_init(const HalConfig* c) { live = c->gfx && !headlessRequested() && zn_window_load(); if (live) sdl_hal_init(c); else null_hal_init(c); }
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }

@@ -268,9 +268,10 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; ++immortals; strConsts.push_back(so); }
   cLimit = cStackLimit();
   std::size_t depthMax = maxDepth ? maxDepth : kMaxCallDepth;
-  frames.resize(depthMax);
-  fp = frames.data();
-  framesEnd = frames.data() + depthMax;
+  frames.reset(static_cast<Frame*>(calloc(depthMax, sizeof(Frame))));
+  if (!frames) { err = "out of memory for the call stack"; return false; }
+  fp = frames.get();
+  framesEnd = frames.get() + depthMax;
   return true;
 }
 

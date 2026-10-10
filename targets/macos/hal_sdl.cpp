@@ -257,6 +257,9 @@ static long frames_left = -1;
 static bool det = false;
 // ZN-608: the program follows the window (zinc:gfx onResize, so every zinc:ui app): fill, unless the project fixed the mode, the run is
 // deterministic or a device panel is emulated (letterbox, a fixed surface scaled, is what a program that never asks keeps)
+#ifdef ZN_WINDOW_SEPARATE
+extern "C" int zn_window_load(void) { return 1; }   // Zinc Next (src/host/hal_dispatch.cpp, ZN-592.06): a program linked with this window host has a window
+#endif
 extern "C" void hal_set_resize(int32_t on) {
   if (!gfx_on || resize_fixed || det || hal_display || fill == (on != 0)) return;
   fill = on != 0;

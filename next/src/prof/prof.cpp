@@ -34,7 +34,7 @@ void onProf(int) {
   std::uint32_t* p = &g.buf[g.used + 1];
   std::uint32_t d = 0;
   p[d++] = static_cast<std::uint32_t>(m->curFn - base);
-  for (const Frame* f = m->fp; f > m->frames.data() && d < 64;) {
+  for (const Frame* f = m->fp; f > m->frames.get() && d < 64;) {
     --f;
     if (f->fn) p[d++] = static_cast<std::uint32_t>(f->fn - base);
   }
