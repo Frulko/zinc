@@ -37,6 +37,7 @@
 #else
 #define HOSTLIBS
 #endif
+#include "rt/native_lazy.h"
 #include "frontend/profile.h"
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
 #include "tc/plugin_build.h"
@@ -119,7 +120,13 @@ static void installNativeProvider(const char* entry) {
     if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
     zn::tc::PluginLib lib;
     if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
-    if (!zn::tc::loadPlugin(lib, err)) return false;
+    std::vector<std::pair<std::string, std::string>> exports;
+    if (zn::tc::pluginExports(lib, exports)) {   // loaded before: the checker and the start see its exports, its library loads at its first call (ZN-615)
+      if (!zn::rt::registerDeferredModule(lib.module, exports, [lib](std::string& e) {
+            zn::log::write("plugin", zn::log::Info, lib.plugin + ": loaded at its first call");
+            return zn::tc::loadPlugin(lib, e);
+          }, err)) return false;
+    } else if (!zn::tc::loadPlugin(lib, err)) return false;
     gPlugins.push_back(lib);
     gPluginDirs.push_back(p->dir);
     return true;

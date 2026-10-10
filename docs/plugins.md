@@ -99,6 +99,8 @@ defines and flags as written, the ABI headers, the zig version and the target tr
 Linux machine and for a cross build from a Mac): never a path of this machine, so two machines building the same
 plugin for the same target compute the same key. `ZINC_PLUGIN_CC=system` (or `"pluginCompiler": "system"` in
 `zinc.json`) uses `$CXX` / `$CC` or the system `c++` / `cc` instead, under a key that carries its `--version` line.
+The interpreter loads a plugin's library at the first call of one of its functions, not when the program starts: a program that
+imports a plugin it does not call yet starts without it (the cache entry keeps the module's exports for the checker).
 
 ## Plugin repositories
 

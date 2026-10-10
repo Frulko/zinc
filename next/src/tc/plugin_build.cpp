@@ -451,8 +451,31 @@ bool loadPlugin(const PluginLib& lib, std::string& err) {
   auto open = reinterpret_cast<Open>(dlsym(h, ("zn_module_" + lib.module).c_str()));
   if (!open) { err = "plugin '" + lib.plugin + "' does not export zn_module_" + lib.module; return false; }
   char e[256] = "";
-  if (zn_register_module(open(), e, sizeof e) != 0) { err = "plugin '" + lib.plugin + "': " + e; return false; }
+  const ZnModule* mod = open();
+  if (zn_register_module(mod, e, sizeof e) != 0) { err = "plugin '" + lib.plugin + "': " + e; return false; }
+  std::string list = (std::filesystem::path(lib.shared).parent_path() / "exports").string();
+  if (!std::filesystem::exists(list)) {   // what pluginExports reads on the next compile or start (ZN-615); written whole, then renamed
+    std::ofstream out(list + ".tmp");
+    out << "module " << lib.module << "\n";
+    for (uint32_t i = 0; i < mod->nexports; ++i) out << mod->exports[i].name << " " << mod->exports[i].sig << "\n";
+    out.close();
+    std::error_code ec;
+    if (out) std::filesystem::rename(list + ".tmp", list, ec);
+  }
   return true;
+}
+
+bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std::string>>& out) {
+  std::ifstream in((std::filesystem::path(lib.shared).parent_path() / "exports").string());
+  std::string line;
+  if (lib.display || !std::getline(in, line) || line != "module " + lib.module) return false;
+  out.clear();
+  while (std::getline(in, line)) {
+    std::size_t sp = line.find(' ');
+    if (sp == std::string::npos) return false;
+    out.emplace_back(line.substr(0, sp), line.substr(sp + 1));
+  }
+  return !out.empty();
 }
 
 }  // namespace zn::tc

@@ -1,11 +1,13 @@
 // The registry of native modules (ZN-096): include/zn/native.h. No engine objects in here: callbacks and promises are handles the engine gave out, completions wait in a
 // queue that the engine's loop drains (zn_native_drain), resources are a generational table with the kinds' finalizers.
 #include "zn/native.h"
+#include "native_lazy.h"
 
 #include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -20,6 +22,9 @@ struct Mod {
   std::vector<ZnKind> kinds;
   std::string name;
   void* self = nullptr;
+  bool deferred = false;                     // ZN-615: exports without code until `load` registers the real module in its place
+  std::function<bool(std::string&)> load;
+  std::deque<std::string> text;              // the names and signatures of a deferred module's exports
 };
 
 struct Res { std::uint32_t kind = 0; void* ptr = nullptr; int rc = 0; std::uint32_t gen = 1; bool live = false; const ZnKind* k = nullptr; };
@@ -203,7 +208,8 @@ std::int32_t zn_register_module(const ZnModule* module, char* err, std::size_t e
   std::memcpy(&m->m, module, n);   // an older, shorter module: the newer fields stay null
   if (!module->name || !*module->name) { setError(err, errsize, "a module needs a name"); return -3; }
   m->name = module->name;
-  if (find(module->name)) { setError(err, errsize, "module '" + m->name + "' is registered twice"); return -4; }
+  Mod* old = find(module->name);
+  if (old && !old->deferred) { setError(err, errsize, "module '" + m->name + "' is registered twice"); return -4; }
   for (std::uint32_t i = 0; i < module->nkinds; ++i) {
     if (module->kinds[i].id > 9) { setError(err, errsize, "module '" + m->name + "': a resource kind is a digit 0-9"); return -5; }
     m->kinds.push_back(module->kinds[i]);
@@ -219,7 +225,8 @@ std::int32_t zn_register_module(const ZnModule* module, char* err, std::size_t e
     m->exports.push_back(e);
   }
   if (m->m.init && m->m.init(&gApi, &m->self) != 0) { setError(err, errsize, "module '" + m->name + "' refused to load (init failed)"); return -9; }
-  gMods.push_back(std::move(m));
+  if (old) { for (auto& slot : gMods) if (slot.get() == old) slot = std::move(m); }   // the deferred module it stood for
+  else gMods.push_back(std::move(m));
   return 0;
 }
 
@@ -234,6 +241,12 @@ const ZnExport* zn_native_find(const char* module, const char* name) {
 
 std::int32_t zn_native_call(const char* module, const char* name, const char* sig, const ZnVal* args, ZnVal* ret, char* err, std::size_t errsize) {
   Mod* m = find(module);
+  if (m && m->deferred) {   // the first call of a deferred module: load its library, which registers the real module in its place
+    std::function<bool(std::string&)> load = std::move(m->load);
+    m->load = nullptr;
+    std::string why = "it failed to load before";
+    if (!load || !load(why) || !(m = find(module)) || m->deferred) { setError(err, errsize, std::string("native module '") + module + "' cannot be loaded: " + why); return -1; }
+  }
   const ZnExport* e = m ? zn_native_find(module, name) : nullptr;
   if (!e) { setError(err, errsize, std::string("native module '") + module + "' has no export '" + name + "'"); return -1; }
   if (sig && std::strcmp(sig, e->sig) != 0) { setError(err, errsize, std::string("native '") + module + "." + name + "': the program expects the signature '" + sig + "', the module has '" + e->sig + "'"); return -2; }
@@ -294,3 +307,23 @@ void zn_native_shutdown(void) {
 }
 
 }  // extern "C"
+
+namespace zn::rt {
+
+bool registerDeferredModule(const std::string& name, const std::vector<std::pair<std::string, std::string>>& exports,
+                            std::function<bool(std::string& err)> load, std::string& err) {
+  if (find(name.c_str())) { err = "module '" + name + "' is registered twice"; return false; }
+  auto m = std::make_unique<Mod>();
+  m->name = name;
+  m->deferred = true;
+  m->load = std::move(load);
+  for (const auto& [n, sig] : exports) {
+    const std::string& np = m->text.emplace_back(n);
+    const std::string& sp = m->text.emplace_back(sig);
+    m->exports.push_back(ZnExport{np.c_str(), sp.c_str(), nullptr, 0});
+  }
+  gMods.push_back(std::move(m));
+  return true;
+}
+
+}  // namespace zn::rt

@@ -47,7 +47,7 @@ sources of the manifest, as `plugin.dylib|so` (for `dlopen`) and `plugin.a` (for
 `<name>-vendor-<hash>/vendor.a`, keyed by their content and the defines only, so an edit of the plugin does not rebuild them: sqlite's amalgamation takes 14 s once, an edit of
 `sqlite.host.cpp` rebuilds in 0.3 s. The hash covers the sources, the generated header and thunk, the defines (`defines` of the target, `ZP_*` options), the flags, the compiler and the ABI headers.
 System libraries come from `pkg-config` (`pkg`), `libs`, `frameworks` and `linkFlags`; a missing one stops the build with "needs the system library 'x': install the package <packages of the manifest>".
-The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdynamic`: a dlopened plugin finds zrt and the registry in it. The interpreter registers the module after `dlopen`;
+The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdynamic`: a dlopened plugin finds zrt and the registry in it. The interpreter registers the module after `dlopen`, and the first load writes its exports (names and signatures) to `exports` in the cache entry. Later compiles and starts register the module from that file without loading it, and the library loads at the first call of one of its exports, so hero, which imports zinc:video and plays nothing at first, no longer loads FFmpeg (ZN-615, 26 ms per start);
 `zinc build` links `plugin.a`, `vendor.a` and the libraries into the program, whose generated `main` registers `zn_module_<Name>` (no `dlopen`). `ZINC_NATIVE=real` prefers native code to a stand-in.
 Cross targets (`zinc build --target`) do not build plugin code yet; the cache layout already keys by target.
 

@@ -3,6 +3,7 @@
 // found there again while nothing they depend on changes. Vendored C libraries (`.c` files of the manifest) go into a separate static archive that an edit of the
 // plugin's own sources does not rebuild. The desktop interpreter dlopens the shared library; an AOT program links the static archives.
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "frontend/plugin_manifest.h"
@@ -30,8 +31,12 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
 // manifest, a compiler or a system library is missing (the message names the package to install), or the compiler fails.
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err);
 
-// dlopen the shared library and register its module in the native registry (include/zn/native.h).
+// dlopen the shared library and register its module in the native registry (include/zn/native.h). The first load writes the module's exports
+// beside the library.
 bool loadPlugin(const PluginLib& lib, std::string& err);
+
+// The exports (name, signature) an earlier loadPlugin wrote for this build of the plugin: false when it has not been loaded yet (ZN-615).
+bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std::string>>& out);
 
 // Cross builds (zinc build --target aarch64-linux): while set, buildPlugin compiles with `zig c++ -target <zigTarget>` and produces only the static archive (no shared
 // library to dlopen); the cache entry is keyed by the target. System libraries (`pkg`) are not available that way: such a plugin is refused with a message.
