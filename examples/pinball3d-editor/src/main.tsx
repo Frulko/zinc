@@ -3,6 +3,7 @@
 // exactly what the game reads: the canonical text of the format.
 //   zinc run examples/pinball3d-editor                        a new table (Save asks for its folder)
 //   zinc run examples/pinball3d-editor -- path/to/table       that table folder (or its table.json); a new table saved there when it has none
+//   --log after the folder prints every event of the game played in the editor, as the game's own --log does
 // The list at the left is outline.tsx, the top view topview.tsx, the properties form.tsx; every text of the interface is in
 // strings.ts, in English and French.
 import { render, For, Show } from 'zinc:ui/solid';
@@ -12,13 +13,15 @@ import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
-import { doc, folder, status, failed, selected, select, zoomBy, fit, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
+import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
   advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
 import { TopView } from './topview';
 import { Properties, findField, editAsFile } from './form';
+import { view3d, setView3d, playing, paused, dropping, setDropping, play, pause, stop, stepFrame, advance, setLogging } from './play';
+import { toggleWindow, boxX, boxY, boxW, boxH } from './view3d';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
 
@@ -131,6 +134,18 @@ ui.onKey((e: ui.KeyEvent) => {
     e.preventDefault();
     return;
   }
+  // the game: V shows the table in 3D, B drops a ball where the top view is clicked next, P plays or pauses, O steps a paused
+  // game by a frame, W opens the game's own window, Escape ends the game. While it runs every other key is the game's: its
+  // flippers, its plunger, its bumps
+  let taken = true;
+  if (k === 'v') setView3d(!view3d());
+  else if (k === 'b') { setView3d(true); setDropping(!dropping()); }
+  else if (k === 'p') { setView3d(true); if (playing()) pause(); else play(); }
+  else if (k === 'o' && playing() && paused()) stepFrame();
+  else if (k === 'w') toggleWindow();
+  else if (k === 'Escape' && (playing() || dropping())) { if (playing()) stop(); setDropping(false); }
+  else taken = playing() && !paused();
+  if (taken) { e.preventDefault(); return; }
   // while an entry of the palette is being placed: Enter ends its path, Backspace takes its last point back, Escape gives it up
   if (tool() !== null) {
     if (k === 'Enter') finishPlacing();
@@ -155,7 +170,9 @@ ui.onKey((e: ui.KeyEvent) => {
   e.preventDefault();
 });
 
-const a = args();
+const a = args().filter((arg: string) => !arg.startsWith('--'));
+// --log: the events of the game played in the editor are printed as the game prints its own
+setLogging(args().indexOf('--log') >= 0);
 if (a.length > 0) {
   // ponytail: `zinc run <dir>` starts the program in the project's directory; the shell's PWD still says where the command was typed,
   // so a relative path means what the user meant. A launch directory in zinc:sys (ZN-687) replaces this.
@@ -165,6 +182,5 @@ if (a.length > 0) {
 }
 // closing the window with unsaved work asks first
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
-let frames = 0;
-// the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); });
+// once a frame: the whole table when the view has just been laid out, and the game played in the editor
+render(App, 0x09090b, (dt: number) => { frameOfView(); advance(dt, boxX, boxY, boxW, boxH); });

@@ -69,6 +69,18 @@ export const PROFILE_HOW = S('The height along the path, from its start to its e
 export const START = S('start', 'début');
 export const END = S('end', 'fin');
 
+// ---- the table in 3D and the game played in it
+export const DROP = S('Drop a ball', 'Lâcher une bille');
+export const DROP_HOW = S('Click the top view where the ball is to be dropped: it rolls from there, with the table\'s physics and rules.',
+  'Cliquez la vue de dessus là où lâcher la bille : elle roule de là, avec la physique et les règles de la table.');
+export const PLAY_HOW = S('The table as the game shows it. Drop a ball on the top view, or press Play to start a game as a player does; the flippers and the plunger answer the game\'s keys.',
+  'La table telle que le jeu la montre. Lâchez une bille sur la vue de dessus, ou appuyez sur Jouer pour commencer une partie comme un joueur ; les batteurs et le lance-bille répondent aux touches du jeu.');
+export const BALL_N = S('ball {0}', 'bille {0}');
+export const KEYS_OF_GAME = S('Z and /: flippers   SPACE: plunger   X . UP: bump   ENTER: start', 'Z et / : batteurs   ESPACE : lance-bille   X . HAUT : secousse   ENTRÉE : jouer');
+export const DONE_DROPPED = S('A ball dropped at {0}, {1} cm.', 'Une bille lâchée à {0}, {1} cm.');
+export const DONE_STOPPED = S('The game is over: the table is at rest.', 'La partie est finie : la table est au repos.');
+export const NO_3D = S('The table cannot be shown in 3D: {0}', 'La table ne peut pas être montrée en 3D : {0}');
+
 // ---- the panel at the right
 export const PROPERTIES = S('Properties', 'Propriétés');
 export const NOTHING_SELECTED = S('Nothing is selected: this is the table itself. Click an element on the table, or a line of the list at the left.',

@@ -1,0 +1,16 @@
+# The table editor, the game played in it (tests/t1/pinball3d_editor.sh), window 1440x900.
+# V shows the table in 3D beside the top view, which gets narrower and shows the whole table again.
+4 key v
+# B, then a click on the top view above the first bumper (17.5, 20 cm): a ball is dropped there, and the game plays it.
+8 key b
+10 move 520 288
+11 down
+12 up
+# P pauses the game and O steps it by a frame, twice; W opens the game's own window; P lets the game go on.
+40 key p
+44 key o
+46 key o
+50 key w
+60 key p
+# Escape ends the game: the table is at rest again.
+150 key Escape

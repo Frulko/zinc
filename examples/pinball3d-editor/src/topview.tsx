@@ -9,11 +9,13 @@
 import { createSignal, createEffect, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip } from 'zinc:gfx';
-import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, viewW, viewH,
+import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, fitSoon, viewW, viewH,
   setViewSize, moveSelected, turnSelected, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
 import { centreOf, schemaAt, isPoint, isPath, isClosed } from './doc';
 import { Outline, Shape, Draw, boardColor, mix } from './shapes';
 import { pointsNeeded, rowsNeeded } from './presets';
+import { view3d, dropping, dropBall, flashes, gameIfAny, moved } from './play';
+import { Pane3D, PaneSwitch } from './view3d';
 import { Tool, Heading, ACCENT, chord } from './widgets';
 import * as L from './strings';
 import { t, f, listName, uiLang } from './strings';
@@ -156,6 +158,7 @@ function drawTop(x: i32, y: i32, w: i32, h: i32): void {
   const sel = outlineOf(chosen);
   if (sel !== null) drawHandles(sel, ox, oy, z);
   drawPlacing(ox, oy, z);
+  drawGame(ox, oy, z);
   // the rulers, in centimetres: beside the board, or along the edge of the view when the board goes past it
   const top = Math.max(oy - 19, y + 4), pinnedTop = top > oy - 19, left = Math.max(ox - 30, x + 2), pinnedLeft = left > ox - 30;
   if (pinnedTop) rect(x, y, w, 20, 0x09090b);
@@ -217,6 +220,32 @@ function drawPlacing(ox: number, oy: number, z: number): void {
   if (pts.length >= 4) stroke(pts, 2, ACCENT, 255, false);
   for (const c of got) rect(Math.round(ox + c[0] * z) - 4, Math.round(oy + c[1] * z) - 4, 8, 8, ACCENT);
   if (inside()) { rect(Math.round(nx) - 7, Math.round(ny), 15, 1, ACCENT); rect(Math.round(nx), Math.round(ny) - 7, 1, 15, ACCENT); }
+}
+const TOUCHED: i32 = 0xffffff, FIRED: i32 = 0x4ade80;
+/** The game being played, on the top view: what the balls touched lights up white for a moment, a switch or a rule that fired
+ *  lights up green with the name of its event, and each ball is where the physics has it (its shadow farther the higher it is). */
+function drawGame(ox: number, oy: number, z: number): void {
+  for (const fl of flashes) {
+    const o = outlineOf(fl.path);
+    if (o === null) continue;
+    const fired = fl.event !== '';
+    for (const s of o.shapes) if (s.alpha > 100) drawShape(s, STILL, ox, oy, z, 0, fired ? FIRED : TOUCHED, 255, fired ? 3 : 1.5);
+    for (const s of o.shapes) drawShape(s, STILL, ox, oy, z, 0, s.color, s.alpha, 0);
+    if (!fired) continue;
+    const tw = textWidth(BOLD, fl.event, 0), tx = Math.round(ox + o.x1 * z + 6), ty = Math.round(oy + o.y0 * z - 8);
+    rrect(tx - 4, ty - 2, tw + 8, 17, 4, 0x052e16, 235);
+    drawText(BOLD, tx, ty, fl.event, FIRED, 255, 0);
+  }
+  const g = gameIfAny();
+  if (g === null) return;
+  const r = Math.max(3, table().physics.ball.radius * z);
+  for (const b of g.physics.balls) {
+    if (!b.live) continue;
+    const bx = ox + b.x * z, by = oy + b.y * z, push = Math.max(0, Math.min(b.z, 14)) * 0.11 * z;
+    rrect(bx - r + push, by - r + push, r * 2, r * 2, r, 0x000000, 110);
+    rrect(bx - r, by - r, r * 2, r * 2, r, 0xe4e4e7, 255);
+    rrect(bx - r * 0.55, by - r * 0.6, r * 0.6, r * 0.6, r * 0.3, 0xffffff, 255);
+  }
 }
 function round1(v: number): string { return `${Math.round(v * 10) / 10}`; }
 function sign(v: number): string { const r = Math.round(v * 100) / 100; return r > 0 ? `+${r}` : `${r}`; }
@@ -289,6 +318,7 @@ function down(e: ui.PointerEvent): void {
   if (e.button !== 0) return;
   const z = zoom(), x = (e.x - panX()) / z, y = (e.y - panY()) / z;
   pressX = e.x; pressY = e.y;
+  if (dropping()) { dropBall(Math.round(x * 100) / 100, Math.round(y * 100) / 100); return; }
   if (tool() !== null) { const p = snapped(x, y, '', e.alt); placeAt(p[0], p[1]); return; }
   if (onAxisMarker(e.x, e.y)) { setGesture(Gesture.Axis); return; }
   const hp = handleAt();
@@ -405,27 +435,29 @@ function placingHint(): string {
 
 export function TopView(): i32 {
   // both views are drawn by hand: ask for a repaint when what they show changes
-  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); axis(); activeRow(); tool(); clicks(); if (tool() !== null) { pointX(); pointY(); } ui.repaint(); });
-  const where = (): string => inside() ? `x ${pointX().toFixed(1)}   y ${pointY().toFixed(1)} ${t(L.CM)}` : '';
+  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); axis(); activeRow(); tool(); clicks(); moved(); if (tool() !== null) { pointX(); pointY(); } ui.repaint(); });
+  // the top view is narrower beside the table in 3D: the whole table again, once the view has its new size
+  createEffect(() => { view3d(); fitSoon(); });
+  // where the pointer is on the table, and how large the table is shown
+  const where = (): string => `${inside() ? `x ${pointX().toFixed(1)}  y ${pointY().toFixed(1)} ${t(L.CM)}   ` : ''}${zoom().toFixed(1)} px/cm`;
   return <view class="grow basis-0 min-w-0 flex-row">
     <view class="grow basis-0 min-w-0 flex-col">
       <view class="flex-row items-center gap-1 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
         <Heading label={t(L.TOP_VIEW)} />
-        <text class="ml-3 font-mono text-[11px] text-zinc-500">{where()}</text>
         <view class="grow" />
         <button class="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
           <text class="text-[11px] text-zinc-500">{t(L.SNAP)}</text>
           <text class="text-xs font-bold text-zinc-200">{gridName(grid())}</text>
         </button>
         <Tool icon="minus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1 / 1.2, viewW / 2, viewH / 2)} />
-        <text class="w-[64] text-center text-xs text-zinc-300">{`${zoom().toFixed(1)} px/cm`}</text>
         <Tool icon="plus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1.2, viewW / 2, viewH / 2)} />
-        <Tool icon="maximize" label={t(L.FIT)} look="quiet" keys={() => advanced() ? chord('0') : ''} off={() => false} onClick={fit} />
+        <Tool icon="maximize" label="" look="quiet" keys={() => advanced() ? chord('0') : ''} off={() => false} onClick={fit} />
       </view>
-      <view class={`grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 ${tool() !== null ? 'cursor-crosshair' : 'cursor-default'}`}
+      <view class={`grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 ${tool() !== null || dropping() ? 'cursor-crosshair' : 'cursor-default'}`}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel} onDoubleClick={twice}
         onPointerLeave={(e: ui.PointerEvent) => { batch(() => { setInside(false); setHovered(''); }); }}>
         <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawTop} />
+        <view class="absolute left-[8] top-[8] px-2 py-1 rounded bg-zinc-900 border border-zinc-800"><text class="font-mono text-[10px] text-zinc-400">{where()}</text></view>
         <Show when={placingHint() !== ''}>
           <view class="absolute left-[12] right-[12] bottom-[12] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-amber-400">
             <text class="grow basis-0 text-xs text-amber-200">{placingHint()}</text>
@@ -433,9 +465,12 @@ export function TopView(): i32 {
         </Show>
       </view>
     </view>
-    <view class="w-[148] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800">
-      <view class="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800"><Heading label={t(L.PROFILE)} /></view>
-      <view class="grow basis-0 min-h-0 relative overflow-hidden"><canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawProfile} /></view>
-    </view>
+    <Show when={!view3d()}>
+      <view class="w-[148] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800">
+        <view class="flex-row items-center h-9 px-2 shrink-0 border-b border-zinc-800"><PaneSwitch /></view>
+        <view class="grow basis-0 min-h-0 relative overflow-hidden"><canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawProfile} /></view>
+      </view>
+    </Show>
+    <Show when={view3d()}><Pane3D /></Show>
   </view>;
 }

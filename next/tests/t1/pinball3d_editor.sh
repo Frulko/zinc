@@ -1,7 +1,7 @@
 #!/bin/sh
 # The table editor of the 3D pinball (ZN-649.04, examples/pinball3d-editor). Slice 1: a table folder opened, the top view, the
 # properties generated from the format's schema, undo and redo, save. Slice 2: drawing (paths, arcs, snapping, mirror), ramps with
-# their height profile, the palette, the plunger lane, duplicate.
+# their height profile, the palette, the plunger lane, duplicate. Slice 3: the table in 3D and the game played in the editor.
 # The format grows while the editor is written, and its forms and its list are generated from it, so nothing here depends on how many
 # fields or lists the format has:
 # - the sessions run on a table kept with the test (table.json, Tidal Lock of 2026-10-10); they reach a field by its key (Cmd+F, the
@@ -24,6 +24,12 @@
 #                    wall mirrored about the table's axis, a ramp drawn and its height profile shaped, a bumper placed and
 #                    duplicated, Save: drawn.json, five frames
 #   lane.input       on a new table: the plunger lane in one step, the axis moved, a left flipper and its mirror image: lane.json
+#   play.input       the table in 3D beside the top view, a ball dropped on the top view, pause, two steps, the game's own window,
+#                    the end of the game: the events printed with --log equal play.log and start with what the game's own probe
+#                    prints for the same drop; four frames of the top view (the ball, what it touched, the switch that fired).
+#                    The 3D view and the game's window are the game's own drawing, which changes with the game's look: they are
+#                    held to the same picture roughly (SSIM 0.5) and to showing the game (a ball in play is not the table at rest)
+#   flip.input       the game's flipper button pressed while a ball is played in the editor: the game logs the flip
 #   the form on the schema of formcheck.tsx, in English and in French (two frames); a new table is saved in the folder the system's
 #   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -113,6 +119,30 @@ edit "$tmp/lane" "$g/lane.input" 30 23,29
 same "the plunger lane on a new table" "$tmp/lane/table.json" "$g/lane.json"
 frames "the plunger lane on a new table" lane $CROP 23 29
 accepted "the plunger lane on a new table" "$tmp/lane"
+
+# the game played in the editor: its events, the top view, the 3D view and the game's own window
+fresh play
+PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/play.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=156 ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=38,48,58,154 \
+  "$ZINC" run "$ex" -- "$tmp/play" --log >"$tmp/play.log" 2>"$tmp/play.err" || { echo "the editor failed on play.input: $(head -c 300 "$tmp/play.err")"; fail=1; }
+same "the game played in the editor" "$tmp/play.log" "$g/play.log"
+"$ZINC" run "$game/tools/probe.ts" -- "$tmp/play" 17.5 20 1.37 0 0 0 1.5 2>/dev/null | grep -v '^after ' > "$tmp/probe.log"
+n=$(wc -l < "$tmp/probe.log" | tr -d ' ')
+[ "$n" -ge 4 ] && head -n "$n" "$tmp/play.log" | cmp -s - "$tmp/probe.log" || { echo "a ball dropped in the editor does not do what the game's probe says of the same drop: $(diff "$tmp/play.log" "$tmp/probe.log" | head -4 | tr '\n' ';')"; fail=1; }
+grep -q ' hit ' "$g/play.log" && grep -q ' roll ' "$g/play.log" || { echo "play.log has no bumper hit and no switch"; fail=1; }
+# the top view beside the 3D view: x, y, width, height
+frames "the game played in the editor" play 386,48,357,820 38 48 58 154
+# the 3D view (the pane at the right of the top view) and the game's window: the game's own drawing. The same bytes as the golden, or
+# else (the game's look changed) the same picture roughly
+if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/shot-58-w1.png" "$g/play-58-w1.png"; else
+  cmp -s "$tmp/shot-58.png" "$g/play-58.png" || tools/pngdiff "$tmp/shot-58.png" "$g/play-58.png" --crop 743,84,357,784 --ssim 0.5 >/dev/null || { echo "the 3D view beside the top view is another picture than $g/play-58.png"; fail=1; }
+  cmp -s "$tmp/shot-58-w1.png" "$g/play-58-w1.png" || tools/pngdiff "$tmp/shot-58-w1.png" "$g/play-58-w1.png" --ssim 0.5 >/dev/null || { echo "the game's own window is another picture than $g/play-58-w1.png"; fail=1; }
+fi
+# the window shows the game being played: its panel with a score at frame 58, the table waiting for a player once the game is ended
+tools/pngdiff "$tmp/shot-58-w1.png" "$tmp/shot-154-w1.png" >/dev/null && { echo "the game's own window does not show the game: a ball in play and the table at rest are the same picture"; fail=1; }
+
+fresh flip
+PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/flip.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=60 \
+  "$ZINC" run "$ex" -- "$tmp/flip" --log 2>/dev/null | grep -q ' left flip' || { echo "the game's flipper button does nothing while a ball is played in the editor"; fail=1; }
 
 # the generated form, on the schema the editor keeps for this: a field of every kind, with the help of the one the pointer is over;
 # then the same in French, the pointer on another line

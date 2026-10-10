@@ -1,0 +1,10 @@
+# The table editor, the game's controls while it is played in the editor (tests/t1/pinball3d_editor.sh), window 1440x900.
+# A ball dropped above the left flipper (12.5, 85 cm); the left flipper button of the game is pressed (a pad button, as in the
+# game's own scripted test) and released.
+4 key v
+8 key b
+10 move 492 652
+11 down
+12 up
+30 pad L
+36 padup L

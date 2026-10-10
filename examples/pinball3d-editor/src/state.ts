@@ -130,6 +130,12 @@ export function zoomBy(factor: number, x: number, y: number): void {
   const wx = (x - panX()) / z, wy = (y - panY()) / z;
   batch(() => { setZoom(z2); setPanX(Math.round(x - wx * z2)); setPanY(Math.round(y - wy * z2)); });
 }
+// the view knows its size once it was drawn: a fit asked for when the layout changes waits for that
+let fitIn: i32 = 2;
+/** Shows the whole table once the view has been laid out and drawn again. */
+export function fitSoon(): void { fitIn = 2; }
+/** Once a frame. */
+export function frameOfView(): void { if (fitIn > 0 && --fitIn === 0) fit(); }
 /** Shows the whole table. */
 export function fit(): void {
   const p = current.def.playfield, margin = 34;
