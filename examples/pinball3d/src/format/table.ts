@@ -12,7 +12,8 @@ export interface LookDef { id: string; color: string; shading: string; specular:
 export interface SoundDef { id: string; file: string; wave: string; hz: number; seconds: number; volume: number; volumeVariation: number; pitch: number; pitchVariation: number; loop: boolean }
 export interface MusicDef { attract: string; play: string; multiball: string; gameOver: string }
 export interface PlayfieldDef { width: number; length: number; slope: number; glass: number; surface: string; look: string }
-export interface BallDef { radius: number; mass: number; friction: number; restitution: number; drag: number; spin: number; look: string }
+export interface BallSounds { roll: string; hit: string; land: string; knock: string }
+export interface BallDef { radius: number; mass: number; friction: number; restitution: number; drag: number; spin: number; look: string; sounds: BallSounds }
 export interface PhysicsDef { rate: i32; gravity: number; maxSpeed: number; nudge: number; ball: BallDef }
 export interface HitSounds { hit: string }
 export interface WallDef { id: string; group: string; points: number[][]; closed: boolean; z: number; height: number; thickness: number; surface: string; look: string; sounds: HitSounds }
@@ -62,8 +63,9 @@ export interface LayoutDef { window: number[]; view: number[]; camera: CameraDef
 export interface LayoutsDef { landscape: LayoutDef; portrait: LayoutDef }
 export interface LampDef { direction: number[]; color: string }
 export interface LightingDef { background: string; ambient: string; lamps: LampDef[] }
+export interface CreditDef { files: string[]; author: string; source: string; licence: string }
 export interface TableDef {
-  format: string; version: i32; name: string; author: string; description: string;
+  format: string; version: i32; name: string; author: string; description: string; credits: CreditDef[];
   playfield: PlayfieldDef; physics: PhysicsDef; surfaces: SurfaceDef[]; looks: LookDef[]; sounds: SoundDef[]; music: MusicDef;
   walls: WallDef[]; gates: GateDef[]; flippers: FlipperDef[]; plunger: PlungerDef; bumpers: BumperDef[]; slingshots: SlingshotDef[];
   kickers: KickerDef[]; targets: TargetDef[]; rollovers: RolloverDef[]; spinners: SpinnerDef[]; ramps: RampDef[]; floors: FloorDef[];
@@ -133,7 +135,9 @@ export function parseTable(text: string, origin: string): any {
  *  it and saving it again gives the same bytes. */
 export function saveTable(t: Table): string { return `${write(formatSchema(), t.data, '')}\n`; }
 
-function checkTable(raw: any, origin: string): any {
+/** Checks a tree as a table file holds it (parsed JSON, or the `data` of a table that an editor changed) and returns it
+ *  with the defaults filled in. Throws TableError with every fault; `origin` names the table in the message. */
+export function checkTable(raw: any, origin: string): any {
   const errors: string[] = [];
   if (raw !== null && typeof raw === 'object' && typeof raw.version === 'number' && raw.version > VERSION) {
     throw new TableError(origin, [`version: this game reads tables up to version ${VERSION}, the file is version ${raw.version}: update the game`]);

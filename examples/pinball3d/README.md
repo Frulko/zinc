@@ -3,8 +3,8 @@
 A pinball in real 3D, in the spirit of the desktop tables of the 90s: the table upright at the left and the score panel
 at the right, or the whole table on a vertical screen. The ball is a real sphere on a tilted board (`zinc:physics3d`,
 Jolt): it climbs the ramp, rides a wire rail above the playfield, drops into a lane, and the dock throws it in the air.
-The scene is drawn by `zinc:3d` on the GPU. **Nothing about the table is in the code**: walls, lanes, flippers, bumpers,
-ramps, lights, looks, rules, missions, the camera and the panel all come from one file,
+The scene is drawn by `zinc:3d` on the GPU and heard through `zinc:audio`. **Nothing about the table is in the code**: walls,
+lanes, flippers, bumpers, ramps, lights, looks, sounds, music, rules, missions, the camera and the panel all come from one file,
 [`assets/tables/tidal-lock/table.json`](assets/tables/tidal-lock/table.json), whose format is described field by field in
 [docs/pinball-table-format.md](../../docs/pinball-table-format.md). Another table is another file.
 
@@ -21,6 +21,7 @@ zinc run examples/pinball3d                                   # 1280 x 800; a wi
 zinc run examples/pinball3d -- --layout=portrait              # force a layout (landscape, portrait)
 zinc run examples/pinball3d -- --table=my-table               # a table folder, its table.json, or a package (.zpinball)
 zinc run examples/pinball3d -- --demo --stats                 # a blind player plays; the time of the physics and of the drawing every 5 s
+zinc run examples/pinball3d -- --volume=0.3                   # the volume of everything (0: silence); --sounds prints each sound as it plays
 ```
 
 ## Controls
@@ -59,6 +60,28 @@ A tug crew works the docks of a mining station held in tidal lock above a gas gi
 - **Ball save** for 8 s after a launch; **extra ball** lit at the dock at ranks 3 and 6; **tilt** after two warnings: the
   flippers die and the ball's bonus is lost. The five best scores are kept between runs.
 
+## Sound
+
+Every event of every element plays the sound that the element names in the table file: `"sounds": { "hit": "bumper" }` on a
+bumper, `up` and `down` on a flipper, `pull` and `release` on the plunger, `capture` and `eject` on the dock, and so on for
+walls, gates, targets, rollovers, the spinner, ramps and the ball itself (`roll`, `hit`, `land`, `knock`). A rule plays one
+with `{ "do": "sound", "target": "..." }`, which is how the events of the game are heard (a new game, a drained ball, a
+mission done, a jackpot, the tilt). `music` names a piece per state: waiting, playing, multiball, game over. A sound is a
+file of the table folder or a generated tone, with its volume, its pitch, and how much both vary from one play to the next;
+a hit is louder when the ball arrives faster, it comes from the side of the table it happens on, and the rolling sound gets
+louder and higher with the speed of the ball. Change a name in the file and another sound plays: the code names none.
+
+Tidal Lock has 42 sounds in 40 MP3 files, 595 KB in all:
+
+- **recorded mechanics** under CC0 (flippers, bumpers, slingshots, plunger, drain, the ball rolling, landing and knocking), cut
+  out of recordings of a 1977 pinball machine and of a marble on a table; each source, its author and its licence are in
+  [LICENSES.md](LICENSES.md) and in the table file (`credits`);
+- **synthesised effects and music**: everything else is computed by [`tools/tidal_lock_sounds.py`](tools/tidal_lock_sounds.py),
+  which makes all the files again (`python3 tools/tidal_lock_sounds.py`; it needs ffmpeg).
+
+`tools/soundcheck.ts` plays every sound of a table on the mixer without a loudspeaker and names the ones that are missing or
+silent. A headless or deterministic run is silent.
+
 ## How it is built
 
 The game is a library that a window, a test or an editor drives; `src/main.ts` is only the window.
@@ -70,10 +93,13 @@ The game is a library that a window, a test or an editor drives; `src/main.ts` i
 | `src/scene.ts` | the table as a `zinc:3d` scene, and what the game moves or lights in it |
 | `src/physics.ts` | `TablePhysics`, what the game asks of a physics engine, and `JoltPhysics`, its answer with `zinc:physics3d` |
 | `src/rules.ts` | the rules engine: events in; score, lights, missions, ranks, locks, jackpot out. It has no rule of its own |
-| `src/game.ts` | a table played: controls in, one step of the physics, what each ball did told to the rules; `show(scene)` |
+| `src/game.ts` | a table played: controls in, one step of the physics, what each ball did told to the rules; `show(scene)`; the sounds it asks for (`cues`) |
+| `src/audio.ts` | the sounds of a table, played: what the game asked for, the rolling sound, the music of each state |
 | `src/input.ts`, `src/panel.ts`, `src/view.ts` | the table of controls; the score panel; a layout placed in a window |
 | `tools/table.ts` | `check`, `format`, `print`, `pack` a table; `doc` prints the format's reference |
-| `tools/probe.ts` | one shot without a window: put the ball somewhere with a speed, read the events and where it went |
+| `tools/probe.ts` | one shot without a window: put the ball somewhere with a speed, read the events (and the sounds) and where it went |
+| `tools/soundcheck.ts` | every sound of a table played without a loudspeaker: its length, its peak, the size of the files |
+| `tools/tidal_lock_sounds.py` | makes the sounds of Tidal Lock again: cuts the CC0 recordings, synthesises the rest |
 
 The physics runs at the table's rate (960 steps a second) whatever the frame rate, with the board flat and gravity
 leaning by the table's slope. Flippers and the plunger are kinematic bodies the game moves; the ball is swept through
@@ -86,11 +112,13 @@ zinc run examples/pinball3d/tools/probe.ts -- assets/tables/tidal-lock 36 70 1.3
 ```
 
 Tests: `next/tests/t1/pinball3d_format.sh` (the format), `pinball3d.sh` (a scripted game's event log, six pixel goldens,
-single shots), `pinball3d_aot.sh` (the compiled game prints the same log).
+single shots), `pinball3d_sound.sh` (the scripted game's sound log, every sound decoded, a sound renamed in the file),
+`pinball3d_aot.sh` (the compiled game prints the same logs).
 
 ## Limits
 
-- No sound yet: the format names a sound per event and the rules can play one; nothing plays them.
+- Sounds come from two speakers by a balance, not from a place in space; a bump of the table has no sound (the format has no
+  event for it); the music of a state starts at its beginning each time.
 - A look's `texture` is read and not drawn yet (the generated meshes have no texture coordinates).
 - A high score enters as `YOU`: there is no entry of initials.
 - Tidal Lock has no upper playfield; the format has them (`floors`, and every element's `z`).

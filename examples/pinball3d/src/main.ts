@@ -6,6 +6,8 @@
 //   --layout=landscape | portrait                    force a layout (default: by the window, portrait when it is taller than wide)
 //   --settings=<file.json>                           controls (default: settings.json beside zinc.json, when there is one)
 //   --log                                            print every event of the game as it happens (scripted runs compare it)
+//   --sounds                                         print every sound as it is played, with its volume, pitch and place, and each change of music
+//   --volume=<0 to 1>                                the volume of everything (0: silence)
 //   --stats                                          print the time of the physics and of the drawing every 5 seconds
 //   --demo                                           a player who cannot see holds the controls: start, the plunger every 5 s, the flippers in turn
 import { onFrame, width, height, rect } from 'zinc:gfx';
@@ -13,6 +15,7 @@ import { args, clock, env } from 'zinc:sys';
 import * as assets from 'zinc:assets';
 import * as fs from 'zinc:fs';
 import * as storage from 'zinc:storage';
+import { setVolume } from 'zinc:audio';
 import { Table, TableError, loadTable, TABLE_FILE } from './format/table';
 import { BuiltinSource, openTable } from './format/source';
 import { TableScene, rgb } from './scene';
@@ -20,6 +23,7 @@ import { View } from './view';
 import { Game, Controls, Phase } from './game';
 import { Bindings, readControls } from './input';
 import { drawPanel } from './panel';
+import { TableAudio } from './audio';
 
 function option(name: string): string {
   for (const a of args()) if (a.startsWith(`--${name}=`)) return a.slice(name.length + 3);
@@ -52,6 +56,10 @@ const bindings = new Bindings();
 const game = new Game(table);
 const scene = new TableScene(table);
 const controls = new Controls();
+const audio = new TableAudio(table);
+audio.logging = flag('sounds');
+if (option('volume') !== '') setVolume(parseFloat(option('volume')));
+if (audio.logging) console.log(`audio ${audio.describe()}`);
 const logging = flag('log'), stats = flag('stats'), demo = flag('demo');
 // a scripted or golden run keeps nothing between runs: its high scores are the table's
 const keeps = env('ZINC_DETERMINISTIC') === '' || env('ZINC_DETERMINISTIC') === '0';
@@ -93,7 +101,9 @@ onFrame((dt: number) => {
   const t0 = clock();
   owed = Math.min(owed + dt, 0.1);
   while (owed >= game.dt()) { game.step(controls); owed -= game.dt(); }
+  audio.update(game);
   const t1 = clock();
+  if (audio.logging) { for (const line of audio.log) console.log(line); audio.log = []; }
   if (logging) { for (; logged < game.rules.log.length; logged++) console.log(game.rules.log[logged]); if (game.rules.log.length < logged) logged = 0; }
   if (keeps && game.phase === Phase.Over && !wasOver) {
     const lines: string[] = [];

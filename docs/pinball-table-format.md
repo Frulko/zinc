@@ -32,6 +32,13 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
 - **Names.** Elements, lights, surfaces, looks, sounds and missions have an `id`; other fields refer to them by it, and the name must exist.
   A `group` is a name several elements share. `"game"` stands for the game itself in rules.
 - **Colours** are `"#rrggbb"`.
+- **Roles.** The type of some fields ends with a role in brackets: what its numbers stand for in space. An editor draws, moves and turns
+  any element by the roles of its fields, without knowing their names.
+  *point*: a place of the top view, [x, y]; with a third number, its height z above the playfield.
+  *path*: a line of the top view: rows [x, y], or [x, y, bulge] when the stretch to the next point is an arc.
+  *direction*: an angle of the top view: 0 points right, 90 down the table.
+  *profile*: a height along a path: rows [fraction of the length, height].
+  *rotation*: a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does.
 
 ## table
 
@@ -44,6 +51,7 @@ A table file.
 | `name` | text | required | The name of the table. |
 | `author` | text | `""` | Who made it. |
 | `description` | text | `""` | A line about it. |
+| `credits` | list of [credit](#credit) |  | The authors and licences of the files the table uses (sounds, images, models). |
 | `playfield` | [playfield](#playfield) |  | The board. |
 | `physics` | [physics](#physics) |  | How it plays. |
 | `surfaces` | list of [surface](#surface) |  | The surfaces elements are made of. |
@@ -70,16 +78,36 @@ A table file.
 
 A whole file: the `table.json` of "Tidal Lock", in `examples/pinball3d/assets/tables/`.
 
+## credit
+
+Who made some files of the table and under what licence. The game does not read it: it travels with the table, for whoever shares it or builds on it.
+
+| field | type | default | |
+|---|---|---|---|
+| `files` | list of texts |  | The files of the table folder it speaks of. |
+| `author` | text | required | Who made them. |
+| `source` | text | `""` | Where they come from: an address, or the script that made them. |
+| `licence` | text | required | Their licence, by its name. |
+
+```json
+{
+  "files": ["sounds/flipper-up.mp3", "sounds/flipper-down.mp3"],
+  "author": "schafferdavid (freesound.org)",
+  "source": "https://freesound.org/people/schafferdavid/sounds/450270/",
+  "licence": "CC0 1.0"
+}
+```
+
 ## playfield
 
 The board the ball rolls on: a rectangle from (0, 0) at the top left to (width, length) at the bottom right, where the drain is. A ball that passes the bottom edge is lost.
 
 | field | type | default | |
 |---|---|---|---|
-| `width` | number | `51` (20 to 200) | Left to right. |
-| `length` | number | `107` (40 to 400) | Top to bottom. |
-| `slope` | number | `6.5` (0 to 45) | The tilt of the table in degrees: how hard the ball is pulled towards the player. |
-| `glass` | number | `12` (3 to 100) | The height of the glass above the playfield: a ball that jumps cannot go higher. |
+| `width` | number, cm | `51` (20 to 200) | Left to right. |
+| `length` | number, cm | `107` (40 to 400) | Top to bottom. |
+| `slope` | number, degrees | `6.5` (0 to 45) | The tilt of the table in degrees: how hard the ball is pulled towards the player. |
+| `glass` | number, cm | `12` (3 to 100) | The height of the glass above the playfield: a ball that jumps cannot go higher. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Usually smooth wood. |
 | `look` | name of looks | none | What it looks like. The colour or the image of the board. |
 
@@ -93,14 +121,14 @@ How the table plays. The numbers are real ones at first; a table tuned for arcad
 
 | field | type | default | |
 |---|---|---|---|
-| `rate` | whole number | `960` (240 to 4000) | Steps of the simulation per second. Fast flippers and a small ball need many: under 480 a slow ball can end behind a flipper. |
-| `gravity` | number | `981` (100 to 5000) | cm/s² straight down. The slope of the playfield sends its share down the table. |
-| `maxSpeed` | number | `700` (100 to 4000) | The fastest a ball may go; kicks that would exceed it are capped. |
-| `nudge` | number | `35` (0 to 400) | The speed a bump of the table gives every ball. |
+| `rate` | whole number, steps/s | `960` (240 to 4000) | Steps of the simulation per second. Fast flippers and a small ball need many: under 480 a slow ball can end behind a flipper. |
+| `gravity` | number, cm/s2 | `981` (100 to 5000) | cm/s² straight down. The slope of the playfield sends its share down the table. |
+| `maxSpeed` | number, cm/s | `700` (100 to 4000) | The fastest a ball may go; kicks that would exceed it are capped. |
+| `nudge` | number, cm/s | `35` (0 to 400) | The speed a bump of the table gives every ball. |
 | `ball` | [ball](#ball) |  | The ball. |
 
 ```json
-"physics": { "ball": { "look": "chrome" } }
+"physics": { "ball": { "look": "chrome", "sounds": { "roll": "ballRoll", "hit": "ballClack", "land": "ballLand", "knock": "ballKnock" } } }
 ```
 
 ## ball
@@ -109,16 +137,32 @@ The ball.
 
 | field | type | default | |
 |---|---|---|---|
-| `radius` | number | `1.35` (0.5 to 5) | A real pinball is 27 mm across. |
-| `mass` | number | `80` (1 to 1000) | In grams. Only its ratio to the strength of kicks and flippers matters. |
+| `radius` | number, cm | `1.35` (0.5 to 5) | A real pinball is 27 mm across. |
+| `mass` | number, grams | `80` (1 to 1000) | In grams. Only its ratio to the strength of kicks and flippers matters. |
 | `friction` | number | `0.25` (0 to 2) | Its grip on what it touches: more grip turns sliding into spin sooner. |
 | `restitution` | number | `0.3` (0 to 1.2) | Its bounce when two balls meet. |
-| `drag` | number | `0.05` (0 to 5) | How fast it loses speed by itself, per second. |
-| `spin` | number | `0.05` (0 to 5) | How fast it loses spin by itself, per second. |
+| `drag` | number, per second | `0.05` (0 to 5) | How fast it loses speed by itself, per second. |
+| `spin` | number, per second | `0.05` (0 to 5) | How fast it loses spin by itself, per second. |
 | `look` | name of looks | none | Usually chrome. |
+| `sounds` | [ball sounds](#ball-sounds) |  | Its sounds. |
 
 ```json
-"ball": { "look": "chrome" }
+"ball": { "look": "chrome", "sounds": { "roll": "ballRoll", "hit": "ballClack", "land": "ballLand", "knock": "ballKnock" } }
+```
+
+## ball sounds
+
+The sound of each event of a ball (names of `sounds`); an event without a name is silent.
+
+| field | type | default | |
+|---|---|---|---|
+| `roll` | name of sounds | none | While it rolls: played in a loop (give it `loop`), louder and higher as the ball goes faster. |
+| `hit` | name of sounds | none | When two balls meet. |
+| `land` | name of sounds | none | When it falls on the playfield or on a floor. |
+| `knock` | name of sounds | none | When it hits something that names no sound of its own: a flipper, the side of a ramp, a model, the glass. |
+
+```json
+"sounds": { "roll": "ballRoll", "hit": "ballClack", "land": "ballLand", "knock": "ballKnock" }
 ```
 
 ## surface
@@ -162,8 +206,8 @@ A sound: a recorded file of the table folder, or a tone generated when the table
 | `id` | text | required | Its name. |
 | `file` | file | none | A WAV, FLAC, MP3 or Ogg Vorbis file of the table folder. Empty: the sound is the generated tone below. |
 | `wave` | `"sine"` `"square"` `"triangle"` `"sawtooth"` `"noise"` | `"sine"` | The shape of the generated tone. |
-| `hz` | number | `440` (20 to 20000) | The pitch of the generated tone. |
-| `seconds` | number | `0.1` (0.01 to 60) | The length of the generated tone. |
+| `hz` | number, Hz | `440` (20 to 20000) | The pitch of the generated tone. |
+| `seconds` | number, seconds | `0.1` (0.01 to 60) | The length of the generated tone. |
 | `volume` | number | `1` (0 to 4) | How loud it plays, 1 as recorded. |
 | `volumeVariation` | number | `0` (0 to 1) | Each play is louder or softer by up to this share (0.2: 80 % to 120 %), so that repeated hits do not sound stamped. |
 | `pitch` | number | `1` (0.25 to 4) | How fast it plays: 2 is an octave up. |
@@ -171,7 +215,7 @@ A sound: a recorded file of the table folder, or a tone generated when the table
 | `loop` | true / false | `false` | Played again when it ends (music, the ball rolling). |
 
 ```json
-{ "id": "clack", "file": "clack.wav", "volume": 0.8, "volumeVariation": 0.15, "pitchVariation": 0.08 }
+{ "id": "flipperUp", "file": "sounds/flipper-up.mp3", "volume": 0.9, "volumeVariation": 0.1, "pitchVariation": 0.05 }
 ```
 
 ## music
@@ -186,7 +230,7 @@ The music of each state of the game (names of `sounds`, usually with `loop`).
 | `gameOver` | name of sounds | none | After the last ball. |
 
 ```json
-"music": { "attract": "drift", "play": "shift", "multiball": "surge" }
+"music": { "attract": "musicAttract", "play": "musicPlay", "multiball": "musicMultiball", "gameOver": "musicOver" }
 ```
 
 ## wall
@@ -197,17 +241,17 @@ A wall, a guide or a lane divider: a path seen from above, raised to a height. P
 |---|---|---|---|
 | `id` | text | required | The name of the wall: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `points` | rows of 2 or 3 numbers | required | The path: [x, y] for each point, or [x, y, bulge] when the stretch to the next point is an arc (bulge = sagitta / half chord: 0.4142 is a quarter circle, 1 a half circle; positive curves to the left of the direction of travel as seen in the top view). |
+| `points` | rows of 2 or 3 numbers, cm (*path*) | required | The path: [x, y] for each point, or [x, y, bulge] when the stretch to the next point is an arc (bulge = sagitta / half chord: 0.4142 is a quarter circle, 1 a half circle; positive curves to the left of the direction of travel as seen in the top view). |
 | `closed` | true / false | `false` | The last point joins the first. |
-| `z` | number | `0` (0 to 100) | The height of its foot above the playfield (an upper level stands on its own floor). |
-| `height` | number | `2.6` (0.2 to 100) | How tall it is. A ball that jumps higher passes over. |
-| `thickness` | number | `0.3` (0.1 to 10) | How thick it is. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot above the playfield (an upper level stands on its own floor). |
+| `height` | number, cm | `2.6` (0.2 to 100) | How tall it is. A ball that jumps higher passes over. |
+| `thickness` | number, cm | `0.3` (0.1 to 10) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Metal by default. |
 | `look` | name of looks | none | What it looks like. Metal by default. |
 | `sounds` | [wall sounds](#wall-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "outer", "points": [[1, 92], [1, 27, 1], [50, 27], [50, 106]], "surface": "metal", "look": "steel" }
+{ "id": "outer", "points": [[1, 92], [1, 27, 1], [50, 27], [50, 106]], "surface": "metal", "look": "steel", "sounds": { "hit": "steel" } }
 ```
 
 ## wall sounds
@@ -219,7 +263,7 @@ The sound of each event of a wall (names of `sounds`); an event without a name i
 | `hit` | name of sounds | none | When the ball hits it. |
 
 ```json
-"sounds": { "hit": "clack" }
+"sounds": { "hit": "steel" }
 ```
 
 ## gate
@@ -230,16 +274,16 @@ A one-way gate across a lane: the ball passes when it comes from the left of the
 |---|---|---|---|
 | `id` | text | required | The name of the gate: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `a` | 2 numbers | required | One end. |
-| `b` | 2 numbers | required | The other end. |
-| `z` | number | `0` (0 to 100) | The height of its foot. |
-| `height` | number | `2.6` (0.2 to 100) | How tall it is. |
+| `a` | 2 numbers, cm (*point*) | required | One end. |
+| `b` | 2 numbers, cm (*point*) | required | The other end. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `height` | number, cm | `2.6` (0.2 to 100) | How tall it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like. A wire by default. |
 | `sounds` | [gate sounds](#gate-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "look": "wire" }
+{ "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "look": "wire", "sounds": { "pass": "gateClick" } }
 ```
 
 ## gate sounds
@@ -251,7 +295,7 @@ The sound of each event of a gate (names of `sounds`); an event without a name i
 | `pass` | name of sounds | none | When a ball goes through. |
 
 ```json
-"sounds": { "pass": "clack" }
+"sounds": { "pass": "gateClick" }
 ```
 
 ## flipper
@@ -262,23 +306,23 @@ A flipper: a tapered bat that turns around its pivot while its button is held.
 |---|---|---|---|
 | `id` | text | required | The name of the flipper: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `pivot` | 2 numbers | required | Where it turns. |
-| `z` | number | `0` (0 to 100) | The height of its foot (a flipper of an upper level stands on that level). |
-| `length` | number | `7.6` (2 to 30) | From the pivot to the tip. |
-| `baseRadius` | number | `0.9` (0.2 to 5) | Its radius at the pivot. |
-| `tipRadius` | number | `0.45` (0.1 to 5) | Its radius at the tip. |
-| `height` | number | `1.6` (0.5 to 10) | How tall it is. |
-| `rest` | number | `25` (-360 to 360) | The angle of the bat at rest: 0 points right, 90 down the table. A left flipper rests near 25, a right one near 155. |
-| `stroke` | number | `-50` (-180 to 180) | How far it swings when the button is pressed, in degrees: negative turns up for a left flipper, positive for a right one. |
-| `speed` | number | `2300` (100 to 10000) | How fast it swings, degrees per second. This is the strength of the flipper: the ball leaves with the speed of the spot that hits it. |
-| `returnSpeed` | number | `1100` (100 to 10000) | How fast it falls back when the button is released. |
+| `pivot` | 2 numbers, cm (*point*) | required | Where it turns. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot (a flipper of an upper level stands on that level). |
+| `length` | number, cm | `7.6` (2 to 30) | From the pivot to the tip. |
+| `baseRadius` | number, cm | `0.9` (0.2 to 5) | Its radius at the pivot. |
+| `tipRadius` | number, cm | `0.45` (0.1 to 5) | Its radius at the tip. |
+| `height` | number, cm | `1.6` (0.5 to 10) | How tall it is. |
+| `rest` | number, degrees (*direction*) | `25` (-360 to 360) | The angle of the bat at rest: 0 points right, 90 down the table. A left flipper rests near 25, a right one near 155. |
+| `stroke` | number, degrees | `-50` (-180 to 180) | How far it swings when the button is pressed, in degrees: negative turns up for a left flipper, positive for a right one. |
+| `speed` | number, degrees/s | `2300` (100 to 10000) | How fast it swings, degrees per second. This is the strength of the flipper: the ball leaves with the speed of the spot that hits it. |
+| `returnSpeed` | number, degrees/s | `1100` (100 to 10000) | How fast it falls back when the button is released. |
 | `button` | `"left"` `"right"` | `"left"` | The flipper button that drives it. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Rubber by default. |
 | `look` | name of looks | none | What it looks like.  |
 | `sounds` | [flipper sounds](#flipper-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "left", "group": "flippers", "pivot": [14.4, 94], "surface": "bat", "look": "bat" }
+{ "id": "left", "group": "flippers", "pivot": [14.4, 94], "surface": "bat", "look": "bat", "sounds": { "up": "flipperUp", "down": "flipperDown" } }
 ```
 
 ## flipper sounds
@@ -291,7 +335,7 @@ The sound of each event of a flipper (names of `sounds`); an event without a nam
 | `down` | name of sounds | none | When it falls back. |
 
 ```json
-"sounds": { "up": "clack" }
+"sounds": { "up": "flipperUp", "down": "flipperDown" }
 ```
 
 ## plunger
@@ -300,20 +344,20 @@ The plunger: it is pulled back while its button is held, and released it strikes
 
 | field | type | default | |
 |---|---|---|---|
-| `at` | 2 numbers | required | The centre of its tip at rest. A new ball is put just in front of it. |
-| `z` | number | `0` (0 to 100) | The height of its foot. |
-| `angle` | number | `-90` (-360 to 360) | The direction it shoots: -90 is up the table. |
-| `travel` | number | `5` (0.5 to 30) | How far it can be pulled back. |
-| `pullTime` | number | `0.9` (0.05 to 10) | Seconds to pull it all the way. |
-| `speed` | number | `450` (50 to 4000) | The speed of the tip when released from a full pull; a shorter pull gives less. |
-| `width` | number | `2.2` (0.5 to 20) | The width of its tip. |
-| `height` | number | `2.2` (0.5 to 20) | The height of its tip. |
+| `at` | 2 numbers, cm (*point*) | required | The centre of its tip at rest. A new ball is put just in front of it. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | The direction it shoots: -90 is up the table. |
+| `travel` | number, cm | `5` (0.5 to 30) | How far it can be pulled back. |
+| `pullTime` | number, seconds | `0.9` (0.05 to 10) | Seconds to pull it all the way. |
+| `speed` | number, cm/s | `450` (50 to 4000) | The speed of the tip when released from a full pull; a shorter pull gives less. |
+| `width` | number, cm | `2.2` (0.5 to 20) | The width of its tip. |
+| `height` | number, cm | `2.2` (0.5 to 20) | The height of its tip. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like.  |
 | `sounds` | [plunger sounds](#plunger-sounds) |  | Its sounds. |
 
 ```json
-"plunger": { "at": [48.35, 100], "speed": 480, "surface": "metal", "look": "steel" }
+"plunger": { "at": [48.35, 100], "speed": 480, "surface": "metal", "look": "steel", "sounds": { "pull": "plungerPull", "release": "plungerShot" } }
 ```
 
 ## plunger sounds
@@ -326,7 +370,7 @@ The sound of each event of a plunger (names of `sounds`); an event without a nam
 | `release` | name of sounds | none | When it is released. |
 
 ```json
-"sounds": { "pull": "clack" }
+"sounds": { "pull": "plungerPull", "release": "plungerShot" }
 ```
 
 ## bumper
@@ -337,19 +381,19 @@ A pop bumper: a round post that kicks the ball away when it is touched.
 |---|---|---|---|
 | `id` | text | required | The name of the bumper: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `at` | 2 numbers | required | Its centre. |
-| `z` | number | `0` (0 to 100) | The height of its foot. |
-| `radius` | number | `2.6` (0.5 to 20) | The radius of its body. |
-| `height` | number | `3.2` (0.5 to 50) | How tall it is. |
-| `kick` | number | `140` (0 to 2000) | The speed it adds to the ball, away from its centre. |
-| `threshold` | number | `15` (0 to 1000) | The ball must arrive at least this fast to set it off. |
+| `at` | 2 numbers, cm (*point*) | required | Its centre. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `radius` | number, cm | `2.6` (0.5 to 20) | The radius of its body. |
+| `height` | number, cm | `3.2` (0.5 to 50) | How tall it is. |
+| `kick` | number, cm/s | `140` (0 to 2000) | The speed it adds to the ball, away from its centre. |
+| `threshold` | number, cm/s | `15` (0 to 1000) | The ball must arrive at least this fast to set it off. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like. The body; its `glow` shows when it fires. |
 | `cap` | name of looks | none | The look of its cap. |
 | `sounds` | [bumper sounds](#bumper-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap" }
+{ "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap", "sounds": { "hit": "bumper" } }
 ```
 
 ## bumper sounds
@@ -361,7 +405,7 @@ The sound of each event of a bumper (names of `sounds`); an event without a name
 | `hit` | name of sounds | none | When it fires. |
 
 ```json
-"sounds": { "hit": "clack" }
+"sounds": { "hit": "bumper" }
 ```
 
 ## slingshot
@@ -372,19 +416,19 @@ A slingshot: a rubber band stretched from a to b that kicks the ball away, to th
 |---|---|---|---|
 | `id` | text | required | The name of the slingshot: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `a` | 2 numbers | required | One end of the band. |
-| `b` | 2 numbers | required | The other end. |
-| `z` | number | `0` (0 to 100) | The height of its foot. |
-| `height` | number | `2.2` (0.2 to 50) | How tall the band is. |
-| `thickness` | number | `0.5` (0.1 to 10) | How thick the band is. |
-| `kick` | number | `120` (0 to 2000) | The speed it adds to the ball. |
-| `threshold` | number | `25` (0 to 1000) | The ball must arrive at least this fast to set it off. |
+| `a` | 2 numbers, cm (*point*) | required | One end of the band. |
+| `b` | 2 numbers, cm (*point*) | required | The other end. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `height` | number, cm | `2.2` (0.2 to 50) | How tall the band is. |
+| `thickness` | number, cm | `0.5` (0.1 to 10) | How thick the band is. |
+| `kick` | number, cm/s | `120` (0 to 2000) | The speed it adds to the ball. |
+| `threshold` | number, cm/s | `25` (0 to 1000) | The ball must arrive at least this fast to set it off. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Rubber by default. |
 | `look` | name of looks | none | What it looks like. Its `glow` shows when it fires. |
 | `sounds` | [slingshot sounds](#slingshot-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band" }
+{ "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band", "sounds": { "hit": "slingshot" } }
 ```
 
 ## slingshot sounds
@@ -396,7 +440,7 @@ The sound of each event of a slingshot (names of `sounds`); an event without a n
 | `hit` | name of sounds | none | When it fires. |
 
 ```json
-"sounds": { "hit": "clack" }
+"sounds": { "hit": "slingshot" }
 ```
 
 ## kicker
@@ -407,15 +451,15 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
 |---|---|---|---|
 | `id` | text | required | The name of the kicker: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `at` | 2 numbers | required | Its centre. |
-| `z` | number | `0` (0 to 100) | The height of the level it is in. |
-| `radius` | number | `1.7` (0.5 to 20) | The radius of the hole. |
-| `captureSpeed` | number | `220` (10 to 4000) | A ball faster than this rolls over the hole. |
-| `hold` | number | `1.2` (0 to 60) | Seconds it keeps the ball (rules may keep it longer: a lock). |
-| `exit` | 3 numbers | `[0, 0, 0]` | Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher. |
-| `speed` | number | `180` (0 to 4000) | The speed it throws the ball at. |
-| `angle` | number | `90` (-360 to 360) | The direction it throws the ball in, in the top view. |
-| `elevation` | number | `0` (0 to 90) | How steeply upwards it throws the ball, in degrees: 0 rolls it out, 45 throws it in an arc. |
+| `at` | 2 numbers, cm (*point*) | required | Its centre. |
+| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `radius` | number, cm | `1.7` (0.5 to 20) | The radius of the hole. |
+| `captureSpeed` | number, cm/s | `220` (10 to 4000) | A ball faster than this rolls over the hole. |
+| `hold` | number, seconds | `1.2` (0 to 60) | Seconds it keeps the ball (rules may keep it longer: a lock). |
+| `exit` | 3 numbers, cm | `[0, 0, 0]` | Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher. |
+| `speed` | number, cm/s | `180` (0 to 4000) | The speed it throws the ball at. |
+| `angle` | number, degrees (*direction*) | `90` (-360 to 360) | The direction it throws the ball in, in the top view. |
+| `elevation` | number, degrees | `0` (0 to 90) | How steeply upwards it throws the ball, in degrees: 0 rolls it out, 45 throws it in an arc. |
 | `look` | name of looks | none | The look of its rim. |
 | `light` | name of lights | none | A light that the kicker turns on while it holds a ball. |
 | `sounds` | [kicker sounds](#kicker-sounds) |  | Its sounds. |
@@ -430,7 +474,8 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
   "angle": 150,
   "elevation": 32,
   "look": "dock",
-  "light": "dockLight"
+  "light": "dockLight",
+  "sounds": { "capture": "dockClamp", "eject": "dockThrow" }
 }
 ```
 
@@ -444,7 +489,7 @@ The sound of each event of a kicker (names of `sounds`); an event without a name
 | `eject` | name of sounds | none | When it throws it out. |
 
 ```json
-"sounds": { "capture": "clack" }
+"sounds": { "capture": "dockClamp", "eject": "dockThrow" }
 ```
 
 ## target
@@ -456,19 +501,29 @@ A target: a small plate the ball hits. A standup stays; a drop target goes down 
 | `id` | text | required | The name of the target: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `kind` | `"standup"` `"drop"` | `"standup"` | standup or drop. |
-| `at` | 2 numbers | required | The centre of its face. |
-| `z` | number | `0` (0 to 100) | The height of its foot. |
-| `angle` | number | `90` (-360 to 360) | The direction its face looks at: 90 faces down the table. |
-| `width` | number | `2.4` (0.5 to 20) | How wide it is. |
-| `height` | number | `2.4` (0.5 to 20) | How tall it is. |
-| `thickness` | number | `0.5` (0.1 to 5) | How thick it is. |
+| `at` | 2 numbers, cm (*point*) | required | The centre of its face. |
+| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `angle` | number, degrees (*direction*) | `90` (-360 to 360) | The direction its face looks at: 90 faces down the table. |
+| `width` | number, cm | `2.4` (0.5 to 20) | How wide it is. |
+| `height` | number, cm | `2.4` (0.5 to 20) | How tall it is. |
+| `thickness` | number, cm | `0.5` (0.1 to 5) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Plastic by default. |
 | `look` | name of looks | none | What it looks like. Its `glow` shows when it is lit. |
 | `light` | name of lights | none | A light on the playfield that goes with it (rules light it by this name or by the target's). |
 | `sounds` | [target sounds](#target-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "drop1", "group": "bank", "kind": "drop", "at": [3, 48], "angle": 0, "width": 2.8, "surface": "plastic", "look": "amber" }
+{
+  "id": "drop1",
+  "group": "bank",
+  "kind": "drop",
+  "at": [3, 48],
+  "angle": 0,
+  "width": 2.8,
+  "surface": "plastic",
+  "look": "amber",
+  "sounds": { "hit": "shieldDown", "reset": "shieldUp" }
+}
 ```
 
 ## target sounds
@@ -481,7 +536,7 @@ The sound of each event of a target (names of `sounds`); an event without a name
 | `reset` | name of sounds | none | When it is raised again. |
 
 ```json
-"sounds": { "hit": "clack" }
+"sounds": { "hit": "shieldDown", "reset": "shieldUp" }
 ```
 
 ## rollover
@@ -492,14 +547,14 @@ A switch in the playfield that a ball rolling over it closes: the line from a to
 |---|---|---|---|
 | `id` | text | required | The name of the rollover: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `a` | 2 numbers | required | One end of the line. |
-| `b` | 2 numbers | required | The other end. |
-| `z` | number | `0` (0 to 100) | The height of the level it is in. |
+| `a` | 2 numbers, cm (*point*) | required | One end of the line. |
+| `b` | 2 numbers, cm (*point*) | required | The other end. |
+| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
 | `light` | name of lights | none | A light that goes with it. |
 | `sounds` | [rollover sounds](#rollover-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "lane1", "group": "lanes", "a": [17.4, 16], "b": [21.1, 16], "light": "laneLight1" }
+{ "id": "lane1", "group": "lanes", "a": [17.4, 16], "b": [21.1, 16], "light": "laneLight1", "sounds": { "roll": "laneChime" } }
 ```
 
 ## rollover sounds
@@ -511,7 +566,7 @@ The sound of each event of a rollover (names of `sounds`); an event without a na
 | `roll` | name of sounds | none | When a ball rolls over it. |
 
 ```json
-"sounds": { "roll": "clack" }
+"sounds": { "roll": "laneChime" }
 ```
 
 ## spinner
@@ -522,17 +577,17 @@ A spinner: a plate hung across a lane that a ball passing under sets spinning; e
 |---|---|---|---|
 | `id` | text | required | The name of the spinner: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `a` | 2 numbers | required | One end of its axle. |
-| `b` | 2 numbers | required | The other end. |
-| `z` | number | `0` (0 to 100) | The height of the level it is in. |
-| `height` | number | `3` (1 to 20) | The height of the plate. |
+| `a` | 2 numbers, cm (*point*) | required | One end of its axle. |
+| `b` | 2 numbers, cm (*point*) | required | The other end. |
+| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `height` | number, cm | `3` (1 to 20) | The height of the plate. |
 | `turns` | number | `0.02` (0 to 1) | Half turns per second it gains for each cm/s of the ball that passes. |
-| `damping` | number | `1.1` (0.05 to 20) | How fast it slows, per second. |
+| `damping` | number, per second | `1.1` (0.05 to 20) | How fast it slows, per second. |
 | `look` | name of looks | none | The look of its plate. |
 | `sounds` | [spinner sounds](#spinner-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "spinner", "a": [41.3, 42], "b": [46.4, 42], "look": "steel" }
+{ "id": "spinner", "a": [41.3, 42], "b": [46.4, 42], "look": "steel", "sounds": { "spin": "spinTick" } }
 ```
 
 ## spinner sounds
@@ -544,7 +599,7 @@ The sound of each event of a spinner (names of `sounds`); an event without a nam
 | `spin` | name of sounds | none | At every half turn. |
 
 ```json
-"sounds": { "spin": "clack" }
+"sounds": { "spin": "spinTick" }
 ```
 
 ## ramp
@@ -555,11 +610,11 @@ A ramp, a rail or a habitrail: a track that follows a path seen from above while
 |---|---|---|---|
 | `id` | text | required | The name of the ramp: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `points` | rows of 2 or 3 numbers | required | The centre line seen from above, as for a wall (arcs by bulge). |
-| `profile` | rows of 2 numbers | required | The height along the path: [fraction of the length, height] from [0, ...] to [1, ...], straight between the rows. [[0, 0], [0.3, 5], [1, 5]] climbs to 5 cm over the first third, then stays level. |
-| `width` | number | `3.6` (1 to 50) | The width of the track between its side walls. |
-| `wall` | number | `1.6` (0 to 20) | The height of the side walls above the track; 0 for none (a jump ramp). |
-| `thickness` | number | `0.2` (0.05 to 5) | How thick the track is. |
+| `points` | rows of 2 or 3 numbers, cm (*path*) | required | The centre line seen from above, as for a wall (arcs by bulge). |
+| `profile` | rows of 2 numbers (*profile*) | required | The height along the path: [fraction of the length, height] from [0, ...] to [1, ...], straight between the rows. [[0, 0], [0.3, 5], [1, 5]] climbs to 5 cm over the first third, then stays level. |
+| `width` | number, cm | `3.6` (1 to 50) | The width of the track between its side walls. |
+| `wall` | number, cm | `1.6` (0 to 20) | The height of the side walls above the track; 0 for none (a jump ramp). |
+| `thickness` | number, cm | `0.2` (0.05 to 5) | How thick the track is. |
 | `style` | `"solid"` `"wire"` | `"solid"` | solid: a plastic or metal ramp; wire: a habitrail, drawn as wires. |
 | `skirt` | true / false | `true` | A solid ramp is closed underneath wherever it is too low for a ball to pass: its sides go down to the playfield and a lip closes the gap, so that no ball wedges under it. false leaves it open (a ramp that starts from an upper level). |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Plastic by default. |
@@ -573,7 +628,8 @@ A ramp, a rail or a habitrail: a track that follows a path seen from above while
   "profile": [[0, 0], [0.28, 4.3], [0.36, 5.2], [0.44, 5.5], [1, 5.5]],
   "wall": 2.6,
   "surface": "plastic",
-  "look": "ramp"
+  "look": "ramp",
+  "sounds": { "enter": "rampWhoosh", "exit": "gateClick" }
 }
 ```
 
@@ -587,7 +643,7 @@ The sound of each event of a ramp (names of `sounds`); an event without a name i
 | `exit` | name of sounds | none | When a ball leaves at its last point. |
 
 ```json
-"sounds": { "enter": "clack" }
+"sounds": { "enter": "rampWhoosh", "exit": "gateClick" }
 ```
 
 ## floor
@@ -598,9 +654,9 @@ A level above the playfield: an upper playfield or a platform, whose outline is 
 |---|---|---|---|
 | `id` | text | required | The name of the floor: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `points` | rows of 2 or 3 numbers | required | The outline seen from above (closed by itself), as for a wall. |
-| `z` | number | `5` (0.5 to 100) | The height of its top. |
-| `thickness` | number | `0.4` (0.1 to 10) | How thick it is. |
+| `points` | rows of 2 or 3 numbers, cm (*path*) | required | The outline seen from above (closed by itself), as for a wall. |
+| `z` | number, cm | `5` (0.5 to 100) | The height of its top. |
+| `thickness` | number, cm | `0.4` (0.1 to 10) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like.  |
 
@@ -616,11 +672,11 @@ A lamp under the playfield or on an element, that the rules turn on, off or blin
 |---|---|---|---|
 | `id` | text | required | Its name. |
 | `group` | text | `""` | A name shared by several lights ("lanes", "mission"). |
-| `at` | 2 numbers | required | Its centre. |
-| `z` | number | `0` (0 to 100) | The height of the level it is in. |
+| `at` | 2 numbers, cm (*point*) | required | Its centre. |
+| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
 | `shape` | `"round"` `"arrow"` `"bar"` | `"round"` | The shape of the insert. |
-| `size` | number | `1.1` (0.2 to 20) | Its radius, or half its length. |
-| `angle` | number | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |
+| `size` | number, cm | `1.1` (0.2 to 20) | Its radius, or half its length. |
+| `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |
 | `color` | colour | `"#ffcc33"` | Its colour when on; off, it shows a dark shade of it. |
 
 ```json
@@ -637,8 +693,8 @@ A modelled or decorative piece: a mesh file, or a simple solid.
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `mesh` | file | none | An OBJ file of the table folder. Empty: the solid named by `shape`. |
 | `shape` | `"box"` `"cylinder"` `"sphere"` `"cone"` | `"box"` | The solid, 1 cm in size before `scale`. |
-| `at` | 3 numbers | required | Where its origin is: [x, y, z]. |
-| `rotation` | 3 numbers | `[0, 0, 0]` | Its turn in degrees around x, y (down the table) and z (up). |
+| `at` | 3 numbers, cm (*point*) | required | Where its origin is: [x, y, z]. |
+| `rotation` | 3 numbers, degrees (*rotation*) | `[0, 0, 0]` | Its turn in degrees around x, y (down the table) and z (up). |
 | `scale` | 3 numbers | `[1, 1, 1]` | Its size along x, y and z. |
 | `collide` | `"none"` `"box"` `"hull"` | `"none"` | none: the ball goes through (decoration); box: it meets its bounding box; hull: its convex hull. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
@@ -655,7 +711,7 @@ How the table is played and scored. Everything here is data: the game has no rul
 | field | type | default | |
 |---|---|---|---|
 | `balls` | whole number | `3` (1 to 10) | Balls per game. |
-| `ballSave` | number | `8` (0 to 120) | Seconds after a launch during which a drained ball comes back. |
+| `ballSave` | number, seconds | `8` (0 to 120) | Seconds after a launch during which a drained ball comes back. |
 | `extraBalls` | whole number | `3` (0 to 10) | Extra balls one game can hold. |
 | `multiplierMax` | whole number | `5` (1 to 100) | The highest bonus multiplier. |
 | `tilt` | [tilt](#tilt) |  | Bumps and tilt. |
@@ -673,7 +729,7 @@ How the table is played and scored. Everything here is data: the game has no rul
   "ranks": ["Deckhand", "Rigger", "Tug Pilot", "Dock Master", "Station Chief", "Orbit Marshal", "Tide Warden"],
   "rankLights": "ranks",
   "ballSaveLight": "shootAgain",
-  "counters": ["laps"],
+  "counters": ["laps", "served"],
   "missions": [
     { "id": "cargo", "name": "Cargo Run", "steps": [{ "text": "Shoot the ramp", "on": "rail", "event": "exit", "count": 2, "light": "rampArrow" }] },
     {
@@ -791,7 +847,25 @@ How the table is played and scored. Everything here is data: the game has no rul
     },
     { "on": "game", "event": "multiballStart", "do": [{ "do": "say", "target": "TIDAL LOCK: MULTIBALL" }] },
     { "on": "game", "event": "jackpot", "do": [{ "do": "say", "target": "JACKPOT" }] },
-    { "on": "game", "event": "tilt", "do": [{ "do": "say", "target": "TILT" }] }
+    { "on": "game", "event": "tilt", "do": [{ "do": "say", "target": "TILT" }] },
+    { "on": "game", "event": "start", "do": [{ "do": "sound", "target": "jingleStart" }] },
+    { "on": "game", "event": "drain", "do": [{ "do": "sound", "target": "trough" }] },
+    { "on": "game", "event": "ballSaved", "do": [{ "do": "sound", "target": "jingleSaved" }] },
+    { "on": "game", "event": "tilt", "do": [{ "do": "sound", "target": "jingleTilt" }] },
+    { "on": "game", "event": "missionDone", "do": [{ "do": "sound", "target": "jingleMission" }] },
+    { "on": "game", "event": "rankUp", "do": [{ "do": "sound", "target": "jingleRank" }] },
+    { "on": "game", "event": "multiballStart", "do": [{ "do": "sound", "target": "jingleMultiball" }] },
+    { "on": "game", "event": "multiballEnd", "do": [{ "do": "sound", "target": "jingleCalm" }] },
+    { "on": "game", "event": "jackpot", "do": [{ "do": "sound", "target": "jingleJackpot" }] },
+    { "on": "game", "event": "extraBall", "do": [{ "do": "sound", "target": "jingleExtra" }] },
+    { "on": "game", "event": "gameOver", "do": [{ "do": "sound", "target": "jingleOver" }] },
+    {
+      "on": "game",
+      "event": "ballStart",
+      "if": [{ "test": "counter", "target": "served", "value": 1 }],
+      "do": [{ "do": "sound", "target": "jingleBall" }]
+    },
+    { "on": "game", "event": "ballStart", "do": [{ "do": "count", "target": "served", "value": 1 }] }
   ],
   "highScores": [
     { "name": "TID", "score": 400000 },
@@ -810,7 +884,7 @@ Bumping the table: every bump fills a meter that empties with time; too full, th
 | field | type | default | |
 |---|---|---|---|
 | `warnings` | whole number | `2` (0 to 20) | Bumps in a row that only warn; the next one tilts. |
-| `recovery` | number | `2.5` (0.1 to 60) | Seconds for one bump to be forgotten. |
+| `recovery` | number, seconds | `2.5` (0.1 to 60) | Seconds for one bump to be forgotten. |
 | `penalty` | `"bonus"` `"ball"` `"none"` | `"bonus"` | bonus: the flippers die until the ball drains and its bonus is lost; ball: the same, and no ball save; none: only a warning. |
 
 ```json
@@ -857,7 +931,7 @@ Multiball: balls locked in a kicker start it; while it lasts a shot scores the j
 | `balls` | whole number | `3` (2 to 8) | Balls in play when it starts. |
 | `locks` | whole number | `3` (0 to 20) | Locks (award "lock") needed to start it; 0: only a rule starts it. |
 | `lockLights` | name of light groups | none | A group of lights that shows the locks: one more is lit at each lock. |
-| `ballSave` | number | `12` (0 to 120) | Seconds a drained ball comes back after it starts. |
+| `ballSave` | number, seconds | `12` (0 to 120) | Seconds a drained ball comes back after it starts. |
 | `scoreMultiplier` | number | `2` (1 to 100) | Scores are multiplied by this while it lasts. |
 | `jackpotOn` | name of elements / groups / game | none | Where the jackpot shot is. |
 | `jackpotEvent` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | `"hit"` | The event of the jackpot shot. |
@@ -908,7 +982,7 @@ One thing a rule does.
 | `target` | text | `""` | What it acts on. For light, "self" is the light of the element the event came from. |
 | `value` | number | `0` | How much. |
 | `mode` | `""` `"on"` `"off"` `"blink"` `"flash"` `"toggle"` `"set"` `"extraBall"` `"ballSave"` `"lock"` `"multiball"` `"mission"` | `""` | For light: on, off, blink, flash (on for `seconds`) or toggle. For count: set. For award: extraBall, ballSave (for `seconds`), lock (keep the ball in the kicker that caught it), multiball (start it), mission (count one step of the current mission, whatever it listens to). |
-| `seconds` | number | `0` (0 to 600) | How long, for a flash or a ball save. |
+| `seconds` | number, seconds | `0` (0 to 600) | How long, for a flash or a ball save. |
 
 ```json
 { "do": "score", "value": 500 }
@@ -1015,8 +1089,8 @@ One way to put the table and the panel in a window.
 
 | field | type | default | |
 |---|---|---|---|
-| `window` | 2 numbers | `[1280, 800]` | The size the layout is drawn for; another window is letterboxed. |
-| `view` | 4 numbers | `[0, 0, 640, 800]` | Where the table is drawn: [x, y, width, height] in the window. |
+| `window` | 2 numbers, px | `[1280, 800]` | The size the layout is drawn for; another window is letterboxed. |
+| `view` | 4 numbers, px | `[0, 0, 640, 800]` | Where the table is drawn: [x, y, width, height] in the window. |
 | `camera` | [camera](#camera) |  | The eye. |
 | `panel` | [panel](#panel) |  | The panel. |
 
@@ -1048,9 +1122,9 @@ The fixed eye that looks at the table, in table coordinates.
 
 | field | type | default | |
 |---|---|---|---|
-| `position` | 3 numbers | `[25.5, 200, 150]` | Where it is: [x, y, z]. |
-| `target` | 3 numbers | `[25.5, 55, 0]` | What it looks at. |
-| `fov` | number | `28` (5 to 120) | The vertical field of view, in degrees. |
+| `position` | 3 numbers, cm | `[25.5, 200, 150]` | Where it is: [x, y, z]. |
+| `target` | 3 numbers, cm | `[25.5, 55, 0]` | What it looks at. |
+| `fov` | number, degrees | `28` (5 to 120) | The vertical field of view, in degrees. |
 
 ```json
 "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 }
@@ -1062,7 +1136,7 @@ The score panel.
 
 | field | type | default | |
 |---|---|---|---|
-| `box` | 4 numbers | `[0, 0, 0, 0]` | Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table). |
+| `box` | 4 numbers, px | `[0, 0, 0, 0]` | Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table). |
 | `color` | colour | `"#0a0e1c"` | The colour of its background. |
 | `items` | list of [panel item](#panel-item) |  | What it shows. |
 
@@ -1091,8 +1165,8 @@ One thing the panel shows, in a box of the window.
 | field | type | default | |
 |---|---|---|---|
 | `show` | `"title"` `"score"` `"ball"` `"rank"` `"mission"` `"step"` `"message"` `"bonus"` `"highScores"` `"hint"` | required | title: the name of the table; score; ball: the ball number and the extra balls; rank; mission: the name of the mission; step: what to do next; message: what the rules say; bonus: the bonus and its multiplier; highScores; hint: the keys. |
-| `box` | 4 numbers | required | Where: [x, y, width, height] in the window. |
-| `size` | number | `20` (6 to 400) | The height of the text. |
+| `box` | 4 numbers, px | required | Where: [x, y, width, height] in the window. |
+| `size` | number, px | `20` (6 to 400) | The height of the text. |
 | `color` | colour | `"#e8f0ff"` | The colour of the text. |
 | `align` | `"left"` `"center"` `"right"` | `"left"` | How the text sits in its box. |
 | `label` | text | `""` | A small caption above it. |

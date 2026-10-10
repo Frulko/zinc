@@ -1,10 +1,11 @@
 // One shot on a table, without a window: the ball is put at a place with a velocity, the game runs for some seconds
 // with no hand on the controls, and the events are printed with where the ball went. For tuning a table (does a shot
 // at this speed make the ramp?) and for the tests of the game (tests/t1/pinball3d.sh).
-//   zinc run examples/pinball3d/tools/probe.ts -- <table> <x> <y> <z> <vx> <vy> <vz> <seconds> [left@<s>] [right@<s>] [bump@<s>]
+//   zinc run examples/pinball3d/tools/probe.ts -- <table> <x> <y> <z> <vx> <vy> <vz> <seconds> [left@<s>] [right@<s>] [bump@<s>] [sounds]
 // The ball's place is its centre, in table coordinates (centimetres, y down the table, z up; cm/s). left@0.4 presses
 // the left flipper button 0.4 s after the start and holds it for 0.2 s; bump@1 bumps the table from the left at 1 s,
-// and again every 0.2 s until the end.
+// and again every 0.2 s until the end. sounds: also the sounds the game asks for ("0.412 sound pop1 hit: <name> gain 1.00"),
+// and how fast the ball that rolls goes, every half second.
 import { args, exit } from 'zinc:sys';
 import { loadTable } from '../src/format/table';
 import { openTable } from '../src/format/source';
@@ -25,6 +26,8 @@ function main(): i32 {
     else if (a[i].startsWith('right@')) rightAt = parseFloat(a[i].slice(6));
     else if (a[i].startsWith('bump@')) bumpAt = parseFloat(a[i].slice(5));
   }
+  const sounds = a.indexOf('sounds') >= 8;
+  let rollAt = 0;
   const steps: i32 = Math.round(n[6] / game.dt());
   for (let i = 0; i < steps; i++) {
     const now = i * game.dt();
@@ -36,6 +39,11 @@ function main(): i32 {
     if (ball.live && now > 0.05 && ball.speed() > fastest) fastest = ball.speed();
     // the log of the game starts again with each game: print what is new
     for (; shown < game.rules.log.length; shown++) console.log(game.rules.log[shown]);
+    if (sounds) {
+      for (const c of game.cues) console.log(`${c.at.toFixed(3)} sound ${c.from}: ${c.sound} gain ${c.gain.toFixed(2)}`);
+      if (now >= rollAt) { rollAt += 0.5; console.log(`${now.toFixed(3)} rolling ${game.rolling.toFixed(0)}`); }
+    }
+    game.cues = [];
   }
   const r = (v: number): string => v.toFixed(1);
   console.log(`after ${n[6]} s: highest ${r(top)}, fastest ${r(fastest)}, ${ball.live ? `ball at ${r(ball.x)} ${r(ball.y)} ${r(ball.z)} going ${r(ball.vx)} ${r(ball.vy)} ${r(ball.vz)}` : 'no ball on the table'}, score ${game.rules.score}`);

@@ -8,11 +8,16 @@
 import * as fs from 'zinc:fs';
 import { args, exit } from 'zinc:sys';
 import { Schema, Field, Kind, write } from '../src/format/schema';
-import { FORMAT, VERSION } from '../src/format/table-schema';
+import { FORMAT, VERSION, ROLES } from '../src/format/table-schema';
 import { Table, TableError, TABLE_FILE, loadTable, saveTable, formatSchema, filesOf } from '../src/format/table';
 import { openTable, packTable, PACKAGE_EXT } from '../src/format/source';
 
+/** The type of a field as the reference shows it, with its unit and its role. */
 function typeOf(f: Field): string {
+  const t = kindOf(f);
+  return `${t}${f.unit === '' ? '' : `, ${f.unit}`}${f.role === '' ? '' : ` (*${f.role}*)`}`;
+}
+function kindOf(f: Field): string {
   if (f.kind === Kind.Num) return 'number';
   if (f.kind === Kind.Int) return 'whole number';
   if (f.kind === Kind.Bool) return 'true / false';
@@ -108,6 +113,9 @@ function doc(t: Table): string {
   out.push('- **Names.** Elements, lights, surfaces, looks, sounds and missions have an `id`; other fields refer to them by it, and the name must exist.');
   out.push('  A `group` is a name several elements share. `"game"` stands for the game itself in rules.');
   out.push('- **Colours** are `"#rrggbb"`.');
+  out.push('- **Roles.** The type of some fields ends with a role in brackets: what its numbers stand for in space. An editor draws, moves and turns');
+  out.push('  any element by the roles of its fields, without knowing their names.');
+  for (const r of ROLES) out.push(`  *${r[0]}*: ${r[1]}.`);
   out.push('');
   for (const s of all) {
     out.push(`## ${s.name}`);

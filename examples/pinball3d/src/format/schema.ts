@@ -40,10 +40,17 @@ export class Field {
   maxCols: i32 = 0;
   minRows: i32 = 0;
   of: Schema | null = null;
+  /** What the numbers stand for in space, '' for none: an editor draws, moves and turns things by it, without knowing
+   *  the field's name. The format that uses the schema says which roles it has (table-schema.ts: ROLES). */
+  role: string = '';
+  /** What the number is counted in ('cm', 'degrees', 'seconds'...), '' for a plain number: for forms and the reference. */
+  unit: string = '';
 
   constructor(name: string, kind: Kind, doc: string) { this.name = name; this.kind = kind; this.doc = doc; }
   range(min: number, max: number): Field { this.min = min; this.max = max; return this; }
   must(): Field { this.required = true; return this; }
+  withRole(role: string): Field { this.role = role; return this; }
+  withUnit(unit: string): Field { this.unit = unit; return this; }
 }
 
 export class Schema {

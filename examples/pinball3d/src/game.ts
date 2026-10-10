@@ -20,6 +20,24 @@ export class Controls {
 }
 
 export const enum Phase { Attract, Play, Over }
+/** Seconds before the same wall, or the ball's own knock, sounds again. */
+const RATTLE = 0.12;
+
+/** A sound the game asks for: an element's event (or a rule) and the sound the table names for it. Whoever plays the
+ *  sounds (audio.ts) takes them from Game.cues; nothing here makes a noise. */
+export class Cue {
+  /** Seconds of play when it happened. */
+  at: number;
+  /** What made it: the element and its event ("pop1 hit"), or "rule" for a sound a rule asked for. */
+  from: string;
+  /** The name of the sound, one of the table's `sounds`. */
+  sound: string;
+  /** How hard, 0 to 1: a ball that brushes a wall is softer than one that slams into it. */
+  gain: number;
+  /** Where across the table, -1 at its left edge to 1 at its right. */
+  pan: number;
+  constructor(at: number, from: string, sound: string, gain: number, pan: number) { this.at = at; this.from = from; this.sound = sound; this.gain = gain; this.pan = pan; }
+}
 
 /** A line seen from above that balls cross: a rollover, a spinner, a gate, the mouth or the end of a ramp. */
 class Line {
@@ -62,8 +80,18 @@ export class Game {
   steps: i32 = 0;
   highScores: string[] = [];
   highValues: number[] = [];
+  /** The sounds asked for and not played yet, oldest first: the player of sounds empties the list (audio.ts). */
+  cues: Cue[] = [];
+  /** The speed of the fastest ball that rolls on something (cm/s), 0 when none does, and where it is across the table (-1 to 1). */
+  rolling: number = 0;
+  rollingPan: number = 0;
 
   private prev: Controls = new Controls();
+  /** Per flipper: whether it is up. */
+  private flipped: boolean[] = [];
+  /** When each wall, and anything without a sound of its own, last sounded under a ball. */
+  private wallAt: number[] = [];
+  private knockAt: number = -1;
   private px: number[] = [];
   private py: number[] = [];
   /** Per ball: how long it has not moved. */
@@ -116,8 +144,8 @@ export class Game {
     for (let i = 0; i < maxBalls; i++) { this.px.push(0); this.py.push(0); this.still.push(0); }
     const r = t.physics.ball.radius;
     const light = (id: string): i32 => id === '' ? -1 : this.rules.lightIndex(id);
-    for (const e of t.walls) { this.wallSrc.push(new Source(e.id, e.group, -1)); this.wallHeard.push(this.heard(e.id, e.group)); }
-    for (const e of t.flippers) this.flipperSrc.push(new Source(e.id, e.group, -1));
+    for (const e of t.walls) { this.wallSrc.push(new Source(e.id, e.group, -1)); this.wallHeard.push(this.heard(e.id, e.group)); this.wallAt.push(-1); }
+    for (const e of t.flippers) { this.flipperSrc.push(new Source(e.id, e.group, -1)); this.flipped.push(false); }
     for (const e of t.bumpers) { this.bumperSrc.push(new Source(e.id, e.group, -1)); this.bumperGlow.push(0); }
     for (const e of t.slingshots) { this.slingSrc.push(new Source(e.id, e.group, -1)); this.slingGlow.push(0); }
     for (const e of t.targets) { this.targetSrc.push(new Source(e.id, e.group, light(e.light))); this.targetGlow.push(0); this.raiseAt.push(-1); }
@@ -156,6 +184,34 @@ export class Game {
   /** The seconds one step lasts. */
   dt(): number { return this.physics.dt; }
 
+  // ---------------------------------------------------------------- sounds
+  /** Asks for the sound `sound` (none when the table names none), made by `from` at x across the table. */
+  private cue(from: string, sound: string, gain: number, x: number): void {
+    if (sound === '') return;
+    if (this.cues.length >= 256) this.cues = [];   // nobody plays them (a test, an editor without sound): they are not kept for ever
+    this.cues.push(new Cue(this.rules.now, from, sound, Math.max(0, Math.min(1, gain)), Math.max(-1, Math.min(1, x / this.t.playfield.width * 2 - 1))));
+  }
+  /** How hard a ball that arrives at `speed` hits something that does not move. */
+  private knock(speed: number): number { return 0.25 + 0.75 * Math.min(1, speed / (0.4 * this.t.physics.maxSpeed)); }
+  /** At the end of every step: the sounds the rules asked for, and how the balls roll. */
+  private heardStep(): void {
+    const rules = this.rules, mid = this.t.playfield.width / 2;
+    if (rules.sounds.length > 0) {
+      for (const s of rules.sounds) this.cue('rule', s, 1, mid);
+      rules.sounds = [];
+    }
+    this.rolling = 0;
+    if (this.phase !== Phase.Play) return;
+    for (const b of this.physics.balls) {
+      if (!b.live) continue;
+      // a ball that flies makes no noise: one that rolls goes up or down no faster than a ramp is steep
+      const flat = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      if (Math.abs(b.vz) > 0.3 * flat + 10 || flat <= this.rolling) continue;
+      this.rolling = flat;
+      this.rollingPan = Math.max(-1, Math.min(1, b.x / mid - 1));
+    }
+  }
+
   // ---------------------------------------------------------------- balls
   private live(): i32 { let n = 0; for (const b of this.physics.balls) if (b.live) n++; return n; }
   private holding(): i32 { let n = 0; for (const h of this.held) n += h; return n; }
@@ -182,6 +238,8 @@ export class Game {
   start(): void {
     for (let i = 0; i < this.physics.balls.length; i++) this.physics.removeBall(i);
     for (let i = 0; i < this.held.length; i++) this.held[i] = 0;
+    for (let i = 0; i < this.wallAt.length; i++) this.wallAt[i] = -1;
+    this.knockAt = -1;
     this.rules.now = 0;
     this.rules.log = [];
     this.rules.start();
@@ -251,6 +309,7 @@ export class Game {
       if (!free) continue;
       this.physics.setTarget(i, true);
       this.raiseAt[i] = -1;
+      this.cue(`${g.id} reset`, g.sounds.reset, 1, g.at[0]);
     }
     if (rules.wantMultiball) {
       rules.wantMultiball = false;
@@ -271,6 +330,7 @@ export class Game {
       if (this.phase === Phase.Over && this.clock > this.overUntil) this.phase = Phase.Attract;
       if ((c.start && !p.start) || (this.phase === Phase.Attract && c.plunger && !p.plunger)) this.start();
       this.remember(c);
+      this.heardStep();
       return;
     }
     rules.now += dt;
@@ -279,13 +339,20 @@ export class Game {
     // ---- the controls
     const dead = rules.tilted;
     for (let i = 0; i < t.flippers.length; i++) {
-      const on = !dead && (t.flippers[i].button === 'left' ? c.left : c.right), was = t.flippers[i].button === 'left' ? p.left : p.right;
+      const f = t.flippers[i], on = !dead && (f.button === 'left' ? c.left : c.right), was = f.button === 'left' ? p.left : p.right;
       ph.pressFlipper(i, on);
       if (on && !was) rules.emit(this.flipperSrc[i], 'flip');
+      if (on !== this.flipped[i]) {
+        this.flipped[i] = on;
+        this.cue(`${f.id} ${on ? 'up' : 'down'}`, on ? f.sounds.up : f.sounds.down, 1, f.pivot[0]);
+      }
     }
     if (this.autoPull > 0) this.autoPull -= dt;
     const pull = c.plunger || this.autoPull > 0, wasPull = this.pulled;
     this.pulled = pull;
+    if (pull && !wasPull) this.cue('plunger pull', t.plunger.sounds.pull, 1, t.plunger.at[0]);
+    // let go, it strikes as hard as it was pulled back
+    if (!pull && wasPull) this.cue('plunger release', t.plunger.sounds.release, 0.3 + 0.7 * ph.plungerPull / t.plunger.travel, t.plunger.at[0]);
     ph.pullPlunger(pull);
     if (!pull && wasPull && this.laneBusy()) {
       rules.emit(this.plungerSrc, 'launch');
@@ -311,6 +378,7 @@ export class Game {
         break;
       }
       rules.emit(this.kickerSrc[i], 'eject');
+      this.cue(`${k.id} eject`, k.sounds.eject, 1, k.at[0]);
     }
     for (let i = 0; i < t.gates.length; i++) {
       // open while a ball is close on the side it may come from
@@ -336,7 +404,9 @@ export class Game {
       this.spin[i] += this.spinSpeed[i] * dt;
       this.spinSpeed[i] *= Math.max(0, 1 - t.spinners[i].damping * dt);
       if (Math.abs(this.spinSpeed[i]) < 0.4) this.spinSpeed[i] = 0;
-      if (Math.floor(this.spin[i]) !== before) rules.emit(this.spinnerSrc[i], 'spin');
+      if (Math.floor(this.spin[i]) === before) continue;
+      rules.emit(this.spinnerSrc[i], 'spin');
+      this.cue(`${t.spinners[i].id} spin`, t.spinners[i].sounds.spin, 1, (t.spinners[i].a[0] + t.spinners[i].b[0]) / 2);
     }
     this.carryOut();
 
@@ -344,6 +414,7 @@ export class Game {
     const inPlay = this.live() + this.holding() + this.toServe;
     if (rules.multiball && inPlay <= 1) rules.endMultiball();
     if (inPlay === 0) this.endBall();
+    this.heardStep();
   }
 
   private remember(c: Controls): void {
@@ -376,6 +447,7 @@ export class Game {
       if (l > 0) this.physics.kickBall(b, dx / l * e.kick, dy / l * e.kick, 0);
       this.bumperGlow[i] = rules.now + 0.12;
       rules.emit(this.bumperSrc[i], 'hit');
+      this.cue(`${e.id} hit`, e.sounds.hit, 1, e.at[0]);
     } else if (part === Part.Slingshot) {
       const e = t.slingshots[i];
       if (speed < e.threshold || rules.tilted) return;
@@ -384,16 +456,31 @@ export class Game {
       this.physics.kickBall(b, dy / l * e.kick, -dx / l * e.kick, 0);
       this.slingGlow[i] = rules.now + 0.12;
       rules.emit(this.slingSrc[i], 'hit');
+      this.cue(`${e.id} hit`, e.sounds.hit, 1, (e.a[0] + e.b[0]) / 2);
     } else if (part === Part.Target) {
       if (speed < 8) return;
       this.targetGlow[i] = rules.now + 0.15;
       rules.emit(this.targetSrc[i], 'hit');
+      this.cue(`${t.targets[i].id} hit`, t.targets[i].sounds.hit, this.knock(speed), t.targets[i].at[0]);
       if (t.targets[i].kind === 'drop' && !rules.targetDown[i]) {
         rules.targetDown[i] = true;
         this.physics.setTarget(i, false);
         rules.emit(this.targetSrc[i], 'down');
       }
-    } else if (part === Part.Wall && this.wallHeard[i] && speed > 20) rules.emit(this.wallSrc[i], 'hit');
+    } else if (speed <= 20) return;   // a ball that leans on something makes no noise
+    else if (part === Part.Wall) {
+      if (this.wallHeard[i]) rules.emit(this.wallSrc[i], 'hit');
+      // a ball that rides a curved wall meets a new stretch of it every few milliseconds: one sound, not a rattle
+      if (speed <= 30 || rules.now - this.wallAt[i] < RATTLE) return;
+      this.wallAt[i] = rules.now;
+      this.cue(`${t.walls[i].id} hit`, t.walls[i].sounds.hit, this.knock(speed), ball.x);
+    } else {
+      // what names no sound of its own makes the ball's
+      const s = t.physics.ball.sounds;
+      if (part === Part.Ball) this.cue('ball hit', s.hit, this.knock(speed), ball.x);
+      else if (part === Part.Board || part === Part.Floor) { if (speed > 60) this.cue('ball land', s.land, this.knock(speed), ball.x); }   // rolling on is no landing
+      else if (speed > 30 && rules.now - this.knockAt >= RATTLE) { this.knockAt = rules.now; this.cue('ball knock', s.knock, this.knock(speed), ball.x); }
+    }
   }
 
   /** Ball `b` moved from where it was before the step: the lines it crossed, the hole it fell in, the drain. */
@@ -402,18 +489,23 @@ export class Game {
     const x0 = this.px[b], y0 = this.py[b], x1 = ball.x, y1 = ball.y, foot = ball.z - r;
     const on = (l: Line): boolean => Math.abs(foot - l.z) < l.reach;
     for (let i = 0; i < this.rolloverLine.length; i++) {
-      if (on(this.rolloverLine[i]) && this.rolloverLine[i].crossed(x0, y0, x1, y1) !== 0) rules.emit(this.rolloverSrc[i], 'roll');
+      if (!on(this.rolloverLine[i]) || this.rolloverLine[i].crossed(x0, y0, x1, y1) === 0) continue;
+      rules.emit(this.rolloverSrc[i], 'roll');
+      this.cue(`${t.rollovers[i].id} roll`, t.rollovers[i].sounds.roll, 1, x1);
     }
     for (let i = 0; i < this.spinnerLine.length; i++) {
       const way = on(this.spinnerLine[i]) ? this.spinnerLine[i].crossed(x0, y0, x1, y1) : 0;
       if (way !== 0) this.spinSpeed[i] += way * ball.speed() * t.spinners[i].turns;
     }
     for (let i = 0; i < this.gateLine.length; i++) {
-      if (on(this.gateLine[i]) && this.gateLine[i].crossed(x0, y0, x1, y1) === 1) rules.emit(this.gateSrc[i], 'pass');
+      if (!on(this.gateLine[i]) || this.gateLine[i].crossed(x0, y0, x1, y1) !== 1) continue;
+      rules.emit(this.gateSrc[i], 'pass');
+      this.cue(`${t.gates[i].id} pass`, t.gates[i].sounds.pass, 1, x1);
     }
     for (let i = 0; i < this.rampIn.length; i++) {
-      if (on(this.rampIn[i]) && this.rampIn[i].crossed(x0, y0, x1, y1) === 1) rules.emit(this.rampSrc[i], 'enter');
-      if (on(this.rampOut[i]) && this.rampOut[i].crossed(x0, y0, x1, y1) === 1) rules.emit(this.rampSrc[i], 'exit');
+      const e = t.ramps[i];
+      if (on(this.rampIn[i]) && this.rampIn[i].crossed(x0, y0, x1, y1) === 1) { rules.emit(this.rampSrc[i], 'enter'); this.cue(`${e.id} enter`, e.sounds.enter, 1, x1); }
+      if (on(this.rampOut[i]) && this.rampOut[i].crossed(x0, y0, x1, y1) === 1) { rules.emit(this.rampSrc[i], 'exit'); this.cue(`${e.id} exit`, e.sounds.exit, 1, x1); }
     }
     for (let i = 0; i < t.kickers.length; i++) {
       const k = t.kickers[i];
@@ -424,6 +516,7 @@ export class Game {
       this.held[i] = 1;
       this.ejectAt[i] = rules.now + k.hold;
       rules.emit(this.kickerSrc[i], 'capture');
+      this.cue(`${k.id} capture`, k.sounds.capture, 1, k.at[0]);
       return;
     }
     // a ball that lies still where no flipper reaches it (behind a wall after a jump, in a corner) is found and served again
