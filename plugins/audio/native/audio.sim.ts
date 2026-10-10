@@ -22,7 +22,7 @@ export default {
   error(): string { return err; },
   duration(sound: i32): f64 { return known(sound) ? lengths[sound] : 0; },
   unload(sound: i32): void { if (known(sound)) { lengths[sound] = -1; active[sound] = false; } },
-  play(sound: i32, volume: f64, loop: boolean): boolean {
+  play(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64): boolean {
     if (!known(sound)) return false;
     active[sound] = true;
     return true;
@@ -31,6 +31,8 @@ export default {
   playing(sound: i32): boolean { return known(sound) && active[sound]; },
   setVolume(sound: i32, volume: f64): void {},
   setLoop(sound: i32, on: boolean): void {},
+  setRate(sound: i32, rate: f64): void {},
+  setPan(sound: i32, pan: f64): void {},
   stopAll(): void { for (let i = 0; i < active.length; i++) active[i] = false; },
   setMasterVolume(volume: f64): void {},
   mix(frames: i32): f64[] {

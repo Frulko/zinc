@@ -17,6 +17,8 @@ square 1 kHz: 0.1 s peak 0.5 crossings 200 first 0 0 middle 0.5 0.5 playing fals
 sine 440 Hz: peak 0.5 crossings 44
 noise: peak 0.5 crossings true
 bad tones: false false false
+rate: 43 crossings at 1, 87 at 2 (2), playing true
+pan -1: left 0.5 right 0; pan 1: left 0 right 0.5; pan 0: left 0.5 right 0.5
 blip.ogg: ok true 0.1 s heard true 440 Hz true playing false
 blip.flac: ok true 0.1 s heard true 440 Hz true playing false
 blip.mp3: ok true 0.16 s heard true 440 Hz true playing false

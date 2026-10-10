@@ -19,8 +19,9 @@ export interface Spec extends NativeModule {
   /** Frees the sound and stops its voices. */
   unload(sound: i32): void;
   /** Starts a new voice from the beginning of the sound; voices already playing go on (when all 32 are busy the
-   *  oldest one is replaced). False for an unknown handle. */
-  play(sound: i32, volume: f64, loop: boolean): boolean;
+   *  oldest one is replaced). `rate`: 1 as recorded, 2 an octave up and twice as fast (a voice started at 1 stays at 1);
+   *  `pan`: -1 left, 0 centre, 1 right. False for an unknown handle. */
+  play(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64): boolean;
   /** Stops every voice of the sound. */
   stop(sound: i32): void;
   /** True while a voice of the sound plays. */
@@ -28,6 +29,10 @@ export interface Spec extends NativeModule {
   /** Volume (1 = as recorded) and looping of the voices of the sound that play now. */
   setVolume(sound: i32, volume: f64): void;
   setLoop(sound: i32, on: boolean): void;
+  /** Playback rate and stereo position of the voices of the sound that play now (the rate only for voices started at
+   *  another rate than 1). */
+  setRate(sound: i32, rate: f64): void;
+  setPan(sound: i32, pan: f64): void;
   stopAll(): void;
   /** Volume of the whole mix. */
   setMasterVolume(volume: f64): void;

@@ -13,7 +13,7 @@ namespace {
 const int MAXSOUND = 256, MAXVOICE = 32;
 const ma_uint32 RATE = 48000;
 struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; };   // float samples
-struct Voice { ma_audio_buffer_ref src; ma_sound sound; int32_t clip; uint64_t started; bool used; };
+struct Voice { ma_audio_buffer_ref src; ma_sound sound; int32_t clip; uint64_t started; bool used, pitched; };
 Clip clips[MAXSOUND];
 Voice voices[MAXVOICE];
 ma_engine eng;
@@ -38,6 +38,9 @@ void release(Voice& v) {
 }
 bool live(Voice& v) { return v.used && ma_sound_is_playing(&v.sound) && !ma_sound_at_end(&v.sound); }
 bool env_on(const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; }
+// A playback rate (pitch and speed together) between 1/64 and 64, 1 for NaN; a pan between -1 and 1, 0 for NaN.
+float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
+float pan_of(double p) { return p == p ? (float)(p < -1 ? -1 : p > 1 ? 1 : p) : 0.0f; }
 
 void pull(ma_device*, void* out, const void*, ma_uint32 frames) { ma_engine_read_pcm_frames(&eng, out, frames, nullptr); }
 // The default playback device, asked for the mixer's format (miniaudio converts when the hardware has another).
@@ -142,7 +145,7 @@ struct HostAudio : NativeAudio {
     ma_free(c->pcm, nullptr);
     *c = Clip{};
   }
-  bool play(int32_t h, double volume, bool loop) override {
+  bool play(int32_t h, double volume, bool loop, double rate, double pan) override {
     Clip* c = clip_at(h);
     ma_engine* e = engine();
     if (!c || !e) return false;
@@ -156,9 +159,15 @@ struct HostAudio : NativeAudio {
     release(*v);
     ma_audio_buffer_ref_init(ma_format_f32, c->channels, c->pcm, c->frames, &v->src);
     v->src.sampleRate = c->rate;   // miniaudio 0.11 leaves it at 0, which would play the clip at the mixer's rate
-    // a 2D mix: no 3D position and no pitch, so a clip at the mixer's rate is added sample for sample
-    if (ma_sound_init_from_data_source(e, &v->src, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &v->sound) != MA_SUCCESS) return false;
+    // a 2D mix: no 3D position, and a resampler only for a voice played at another rate (ZN-656): a clip at the mixer's
+    // rate played at 1 is added sample for sample (miniaudio's resampler runs even at a ratio of 1)
+    const float r = rate_of(rate);
+    const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (r == 1.0f ? MA_SOUND_FLAG_NO_PITCH : 0);
+    if (ma_sound_init_from_data_source(e, &v->src, flags, nullptr, &v->sound) != MA_SUCCESS) return false;
     v->used = true;
+    v->pitched = r != 1.0f;
+    if (v->pitched) ma_sound_set_pitch(&v->sound, r);
+    ma_sound_set_pan(&v->sound, pan_of(pan));   // balance: at -1 the right channel is silent, a mono clip included
     v->clip = h;
     v->started = ++plays;
     ma_sound_set_volume(&v->sound, (float)volume);
@@ -172,6 +181,8 @@ struct HostAudio : NativeAudio {
   }
   void setVolume(int32_t h, double volume) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_volume(&v.sound, (float)volume); }
   void setLoop(int32_t h, bool on) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_looping(&v.sound, on); }
+  void setRate(int32_t h, double rate) override { for (Voice& v : voices) if (v.used && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
+  void setPan(int32_t h, double pan) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
   void stopAll() override { for (Voice& v : voices) release(v); }
   void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
   zrt::Array<double> mix(int32_t frames) override {

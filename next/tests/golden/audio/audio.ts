@@ -80,6 +80,29 @@ const nm = mix(2400);
 console.log(`noise: peak ${peak(nm)} crossings ${crossings(nm) > 1000 && crossings(nm) < 1400}`);
 console.log(`bad tones: ${tone(440, 0).ok} ${tone(-1, 1).ok} ${tone(440, 61).ok}`);
 
+// rate and pan (ZN-656): an octave up crosses zero twice as often; panned to one side, the other channel is silent
+stopAll();
+const r1 = tone(440, 0.2), r2 = tone(440, 0.2);
+r1.play();
+const c1 = crossings(mix(2400));
+stopAll();
+r2.rate = 2;
+r2.play();
+const c2 = crossings(mix(2400));
+console.log(`rate: ${c1} crossings at 1, ${c2} at 2 (${r2.rate}), playing ${r2.playing}`);
+stopAll();
+const side = (pan: number): string => {
+  const t = tone(440, 0.05);
+  t.pan = pan;
+  t.play();
+  const m = mix(2400);
+  let l = 0, r = 0;
+  for (let i = 0; i < m.length; i += 2) { l = Math.max(l, Math.abs(m[i])); r = Math.max(r, Math.abs(m[i + 1])); }
+  t.unload();
+  return `left ${Math.round(l * 1000) / 1000} right ${Math.round(r * 1000) / 1000}`;
+};
+console.log(`pan -1: ${side(-1)}; pan 1: ${side(1)}; pan 0: ${side(0)}`);
+
 for (const name of ['blip.ogg', 'blip.flac', 'blip.mp3']) {
   const s: Sound = load(name);
   s.play();

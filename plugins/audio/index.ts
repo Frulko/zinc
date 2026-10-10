@@ -13,6 +13,8 @@ export class Sound {
   private h: i32;
   private vol: number = 1;
   private looping: boolean = false;
+  private rt: number = 1;
+  private pn: number = 0;
   /** Why the sound is silent ('' when it loaded). */
   readonly error: string;
   constructor(h: i32, error: string) { this.h = h; this.error = error; }
@@ -21,7 +23,7 @@ export class Sound {
   /** Length in seconds. */
   get duration(): number { return this.h < 0 ? 0 : A.duration(this.h); }
   /** Starts the sound from its beginning. A sound that is already playing goes on: the two overlap. */
-  play(): void { if (this.h >= 0) A.play(this.h, this.vol, this.looping); }
+  play(): void { if (this.h >= 0) A.play(this.h, this.vol, this.looping, this.rt, this.pn); }
   /** Stops every playing instance of the sound. */
   stop(): void { if (this.h >= 0) A.stop(this.h); }
   get playing(): boolean { return this.h >= 0 && A.playing(this.h); }
@@ -31,6 +33,13 @@ export class Sound {
   /** A looping sound starts again at its end until stop() (music, an engine noise). */
   get loop(): boolean { return this.looping; }
   set loop(on: boolean) { this.looping = on; if (this.h >= 0) A.setLoop(this.h, on); }
+  /** Playback rate: 1 as recorded, 2 an octave higher and twice as fast, 0.5 an octave lower and twice as slow (1/64 to 64).
+   *  Set it before play(): a voice started at 1 keeps 1, one started at another rate follows later changes. */
+  get rate(): number { return this.rt; }
+  set rate(r: number) { this.rt = r > 0 ? Math.min(64, Math.max(1 / 64, r)) : 1; if (this.h >= 0) A.setRate(this.h, this.rt); }
+  /** Stereo position: -1 left, 0 centre (the default), 1 right; it also moves the instances that play now. */
+  get pan(): number { return this.pn; }
+  set pan(p: number) { this.pn = p === p ? Math.min(1, Math.max(-1, p)) : 0; if (this.h >= 0) A.setPan(this.h, this.pn); }
   /** Stops the sound and frees its samples. */
   unload(): void { if (this.h >= 0) { A.unload(this.h); this.h = -1; } }
 }

@@ -28,6 +28,9 @@ music.play();
 
 coin.play();                          // over the music; a second play() overlaps the first
 tone(880, 0.1).play();                // a beep without a file: 880 Hz for 0.1 s
+const hit = load('bumper.wav');
+hit.rate = 1.2; hit.pan = -0.6;       // a little higher, on the left (a pinball bumper on the left side)
+hit.play();
 setVolume(0.8);                       // the whole mix
 ```
 
@@ -43,6 +46,8 @@ setVolume(0.8);                       // the whole mix
 | `sound.playing` | True while a voice of the sound plays. |
 | `sound.volume` | 1 is the level of the file (the default), 0 silence, above 1 amplifies. Applies to the voices that play now and to the next ones. |
 | `sound.loop` | A looping sound starts again at its end, without a gap, until `stop()`. |
+| `sound.rate` | Playback rate: 1 as recorded (the default), 2 an octave higher and twice as fast, 0.5 an octave lower and twice as slow; 1/64 to 64. Set it before `play()`: a voice started at 1 keeps 1 (it is mixed sample for sample, without a resampler), a voice started at another rate follows later changes. |
+| `sound.pan` | Stereo position: -1 left, 0 centre (the default), 1 right, as a balance (at -1 the right channel is silent, a mono sound included). Also moves the voices that play now. |
 | `sound.duration`, `sound.ok`, `sound.error` | Length in seconds; whether it loaded; why not. |
 | `sound.unload()` | Stops the sound and frees its samples. |
 | `setVolume(v)`, `volume()` | Volume of the whole mix, 1 by default. |
