@@ -303,6 +303,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: a profile from the M4 kernels, the render corpus and three demos; `-fprofile-use` for the release build; optional `zinc build --pgo` for programs.
 - **Gain**: estimated 5-15% for the interpreter and the raster. **Effort** M. **Risk** low (profile data must be versioned). **Hardware**: all.
 
+- **Result (ZN-424, 2026-10-10, D54)**: not adopted. `tools/pgo` (instrumented build, training on the M4 kernels, a hero compile and headless frames, profile-guided build): M4 interpreted about -1% overall (-6% to +7%), hero compile -2%, bouncing-ball 200k +2% on the Intel Mac with Apple clang 17. Below the 5% the task asked.
+
 ### PERF-26: render scale for pixel-art gfx programs on HiDPI windows
 
 - **Where**: `targets/macos/hal_sdl.cpp:54` (`k = zoom * density`): a 320x240 program opens at zoom 2 and renders at 1280x960 on Retina.
