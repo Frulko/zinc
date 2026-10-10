@@ -610,7 +610,7 @@ export function copyProject(p: Project): Project {
     n.text = copyText(m.text); n.texture = m.texture; n.light = m.light; n.view = copyView(m.view);
     for (const q of m.points) {
       const r = new Point();
-      r.id = q.id; r.title = copyText(q.title); r.text = copyText(q.text); r.at = q.at.slice(); r.view = copyView(q.view);
+      r.id = q.id; r.title = copyText(q.title); r.text = copyText(q.text); r.at = q.at.slice(); r.view = copyView(q.view); r.to = q.to;
       n.points.push(r);
     }
     n.transcript = copyText(m.transcript); n.subtitles = m.subtitles; n.poster = m.poster; n.loop = m.loop;

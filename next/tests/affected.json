@@ -84,6 +84,7 @@
     {"paths": ["../templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["src/host/hal_dispatch.cpp", "tests/data/input_touch/"], "tests": ["input_touch", "input", "pointer_kind"]},
-    {"paths": ["../examples/museum-table/", "tests/data/museum_format/"], "tests": ["museum_format"]}
+    {"paths": ["../examples/museum-table/", "tests/data/museum_format/"], "tests": ["museum_format", "museum_assets", "museum_panorama"]},
+    {"paths": ["../runtime/raster.cpp", "../runtime/zrt_raster.h"], "tests": ["image_reuse"]}
   ]
 }
