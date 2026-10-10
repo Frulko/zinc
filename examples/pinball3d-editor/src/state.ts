@@ -3,9 +3,11 @@
 // doc.ts. The advanced mode is a view over the same commands: nothing here knows about it.
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
+import * as assets from 'zinc:assets';
 import * as dialog from 'zinc:system/dialog';
 import { Schema, Kind } from '../../pinball3d/src/format/schema';
-import { TableDef, TableError, TABLE_FILE, formatSchema } from '../../pinball3d/src/format/table';
+import { TableDef, TableError, TABLE_FILE, formatSchema, filesOf } from '../../pinball3d/src/format/table';
+import { FolderSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format/source';
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines, levelsOf } from './shapes';
 import { Preset, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith } from './presets';
@@ -15,7 +17,11 @@ import { t, f } from './strings';
 // ---------------------------------------------------------------- the document
 
 const [rev, setRev] = createSignal<i32>(0);
-let current = new Doc(newTableText('New table'), '');
+/** What a new table starts from: the editor's own starter (assets/new-table: a board, a plunger, the usual surfaces and looks, the
+ *  light of the scene and the two screen layouts with their panel), so that a new table is at once a table the game shows whole. */
+const STARTER = 'new-table/table.json';
+function starter(): string { return assets.exists(STARTER) ? assets.readText(STARTER) : newTableText('New table'); }
+let current = new Doc(starter(), '');
 function watch(d: Doc): void { d.onChange = () => { shapes = null; setRev(rev() + 1); }; }
 watch(current);
 
@@ -30,7 +36,13 @@ export const [folder, setFolder] = createSignal<string>('');
 /** What the last command did, in the status bar; `failed`: it was refused. */
 export const [status, setStatus] = createSignal<string>('');
 export const [failed, setFailed] = createSignal<boolean>(false);
-function say(message: string, wrong: boolean = false): void { batch(() => { setStatus(message); setFailed(wrong); }); }
+/** With --log on the command line: what is refused is also printed, as the events of the game played are. */
+let echo = false;
+export function setEcho(on: boolean): void { echo = on; }
+function say(message: string, wrong: boolean = false): void {
+  if (echo && wrong) console.log(message);
+  batch(() => { setStatus(message); setFailed(wrong); });
+}
 /** The advanced mode: the keys of the file, exact numbers everywhere, the selection as the file has it. */
 export const [advanced, setAdvanced] = createSignal<boolean>(false);
 
@@ -257,8 +269,8 @@ export function finishPlacing(): void {
   const p = tool(), got = clicks();
   if (p === null || got.length < pointsNeeded(p.list) + rowsNeeded(p.list)) return;
   const entry: Preset = p, item: any = itemOf(entry, got), fd = formatSchema().field(entry.list);
-  // ponytail: the field that says which level a thing stands on is known by its name, `z`; a role for it is asked of the format
-  if (level() > 0 && fd !== null && fd.of !== null && (fd.of as Schema).field('z') !== null) item['z'] = level();
+  // a new thing stands on the level being worked on: the field of its kind that the format gives the role of a level
+  if (level() > 0 && fd !== null && fd.of !== null) for (const own of (fd.of as Schema).fields) if (own.role === 'level') item[own.name] = level();
   batch(() => {
     const path = current.add(entry.list, item);
     setTool(null); setClicks([]);
@@ -383,7 +395,7 @@ export function openFolder(path: string): boolean {
   }
 }
 /** A new table that Save will write in `dir` ('' to ask where). */
-export function newTable(dir: string): void { show(new Doc(newTableText('New table'), ''), dir, t(L.DONE_NEW)); }
+export function newTable(dir: string): void { show(new Doc(starter(), ''), dir, t(L.DONE_NEW)); }
 
 function write(dir: string): boolean {
   try {
@@ -406,6 +418,28 @@ export async function save(): Promise<boolean> {
   const dirs = await dialog.open(o);
   if (dirs === null || dirs.length === 0) { say(t(L.NOT_SAVED)); return false; }
   return write(dirs[0]);
+}
+/** The table as one file to share: its table.json and every file it names (sounds, images, models), in the game's package format.
+ *  The table is saved first (the package holds what is on disk); a file the table names and its folder lacks is said by its name. */
+export async function exportPackage(): Promise<boolean> {
+  if (!(await save())) return false;
+  const o = new dialog.SaveOptions();
+  o.title = t(L.EXPORT_TITLE);
+  o.defaultPath = `${folder()}${PACKAGE_EXT}`;
+  o.filters = [new dialog.Filter(t(L.PACKAGE_KIND), [PACKAGE_EXT.slice(1)])];
+  const picked = await dialog.save(o);
+  if (picked === null) { say(t(L.NOT_SAVED)); return false; }
+  const file = picked.endsWith(PACKAGE_EXT) ? picked : `${picked}${PACKAGE_EXT}`;
+  try {
+    const files: string[] = [TABLE_FILE];
+    for (const name of filesOf(current.def)) files.push(name);
+    fs.writeText(file, packTable(new FolderSource(folder()), files));
+  } catch (e) {
+    say(f(L.CANNOT_SAVE, nameOfFolder(file), `${(e as Error).message}`), true);
+    return false;
+  }
+  say(f(L.DONE_EXPORTED, nameOfFolder(file), `${filesOf(current.def).length}`));
+  return true;
 }
 /** Runs `then` now when nothing is unsaved; otherwise asks first (main.tsx shows the question while `waiting` is set). */
 export function guard(then: () => void): void {

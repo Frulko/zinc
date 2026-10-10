@@ -84,8 +84,8 @@
       "look": "post"
     },
     { "id": "spinnerGuide", "points": [[41, 34], [41, 50]], "height": 2.2, "surface": "metal", "look": "steel" },
-    { "id": "wall1", "points": [[10, 60, 0.4142], [15, 50], [17.5, 55]] },
-    { "id": "wall2", "points": [[37.7, 60, -0.4142], [32.7, 50], [30.2, 55]] }
+    { "id": "wall1", "points": [[10, 60, 0.4142], [15, 50], [17.5, 55]], "surface": "metal", "look": "steel" },
+    { "id": "wall2", "points": [[37.7, 60, -0.4142], [32.7, 50], [30.2, 55]], "surface": "metal", "look": "steel" }
   ],
   "gates": [
     { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "look": "wire" }
@@ -99,8 +99,8 @@
     { "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
     { "id": "pop2", "group": "pops", "at": [30.2, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
     { "id": "pop3", "group": "pops", "at": [23.85, 41], "surface": "rubber", "look": "pop", "cap": "popCap" },
-    { "id": "bumper1", "at": [18, 50] },
-    { "id": "bumper2", "at": [20, 52] }
+    { "id": "bumper1", "group": "bumpers", "at": [18, 50], "surface": "rubber" },
+    { "id": "bumper2", "group": "bumpers", "at": [20, 52], "surface": "rubber" }
   ],
   "slingshots": [
     { "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band" },
@@ -157,7 +157,13 @@
       "surface": "wire",
       "look": "wire"
     },
-    { "id": "ramp1", "points": [[25, 75], [25, 65], [30, 60]], "profile": [[0, 0], [0.5, 2.6], [0.75, 5.1], [1, 5]] }
+    {
+      "id": "ramp1",
+      "points": [[25, 75], [25, 65], [30, 60]],
+      "profile": [[0, 0], [0.5, 2.6], [0.75, 5.1], [1, 5]],
+      "surface": "plastic",
+      "look": "ramp"
+    }
   ],
   "lights": [
     { "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff" },

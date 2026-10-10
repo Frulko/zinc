@@ -37,6 +37,7 @@
 #                    frames; the game's probe on that file gives the bumper the points of the new rule
 #   levels.input     an upper playfield drawn, its level chosen, a bumper placed on it: levels.json (the bumper stands at the
 #                    level's height), one frame
+#   (a whole table made from nothing, played by the game and exported as a package: pinball3d_editor_table.sh)
 #   the form on the schema of formcheck.tsx, in English and in French (two frames); a new table is saved in the folder the system's
 #   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.

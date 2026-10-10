@@ -97,7 +97,7 @@
     { "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
     { "id": "pop2", "group": "pops", "at": [30.2, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
     { "id": "pop3", "group": "pops", "at": [23.85, 41], "surface": "rubber", "look": "pop", "cap": "popCap" },
-    { "id": "bumper1", "at": [43, 14], "z": 5 }
+    { "id": "bumper1", "group": "bumpers", "at": [43, 14], "z": 5, "surface": "rubber" }
   ],
   "slingshots": [
     { "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band" },

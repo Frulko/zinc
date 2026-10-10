@@ -3,7 +3,7 @@
 // exactly what the game reads: the canonical text of the format.
 //   zinc run examples/pinball3d-editor                        a new table (Save asks for its folder)
 //   zinc run examples/pinball3d-editor -- path/to/table       that table folder (or its table.json); a new table saved there when it has none
-//   --log after the folder prints every event of the game played in the editor, as the game's own --log does
+//   --log after the folder prints every event of the game played in the editor, as the game's own --log does, and what the editor refuses
 // The list at the left is outline.tsx, the top view topview.tsx, the properties form.tsx; every text of the interface is in
 // strings.ts, in English and French.
 import { render, For, Show } from 'zinc:ui/solid';
@@ -14,7 +14,7 @@ import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
-  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel } from './state';
+  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel, exportPackage, setEcho } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
@@ -44,6 +44,7 @@ function TopBar(): i32 {
     <Tool icon="file-plus" label={t(L.NEW)} look="quiet" keys={keys('N')} off={never} onClick={newCommand} />
     <Tool icon="folder-open" label={t(L.OPEN)} look="quiet" keys={keys('O')} off={never} onClick={openCommand} />
     <Tool icon="save" label={t(L.SAVE)} look="plain" keys={keys('S')} off={() => !doc().dirty} onClick={() => { save(); }} />
+    <Tool icon="package" label={t(L.EXPORT)} look="quiet" keys={keys('E', true)} off={never} onClick={() => { exportPackage(); }} />
     <Divider />
     <Tool icon="undo-2" label={t(L.UNDO)} look="quiet" keys={keys('Z')} off={() => !doc().canUndo} onClick={undo} />
     <Tool icon="redo-2" label={t(L.REDO)} look="quiet" keys={keys('Z', true)} off={() => !doc().canRedo} onClick={redo} />
@@ -125,7 +126,7 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === '0') fit();
     else if (k === '=') zoomBy(1.2, viewW / 2, viewH / 2);
     else if (k === '-') zoomBy(1 / 1.2, viewW / 2, viewH / 2);
-    else if (k === 'e') setAdvanced(!advanced());
+    else if (k === 'e') { if (e.shift) exportPackage(); else setAdvanced(!advanced()); }
     else if (k === 'f') findField();
     else if (k === 'g') focusGoTo();
     else if (k === 'j') editAsFile();
@@ -174,6 +175,7 @@ ui.onKey((e: ui.KeyEvent) => {
 const a = args().filter((arg: string) => !arg.startsWith('--'));
 // --log: the events of the game played in the editor are printed as the game prints its own
 setLogging(args().indexOf('--log') >= 0);
+setEcho(args().indexOf('--log') >= 0);
 if (a.length > 0) {
   // ponytail: `zinc run <dir>` starts the program in the project's directory; the shell's PWD still says where the command was typed,
   // so a relative path means what the user meant. A launch directory in zinc:sys (ZN-687) replaces this.

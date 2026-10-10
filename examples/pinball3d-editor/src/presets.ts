@@ -23,15 +23,19 @@ export class Preset {
 /** The plunger lane: the wall that makes it, the one-way gate at its top, and the plunger at its bottom (state.ts addLane). */
 export const LANE = new Preset('plunger-lane', '', 'Plunger lane', 'Couloir de lancement', '');
 
+// The surfaces, looks and groups named here are those of the editor's starter table (assets/new-table); on a table that does not
+// have them the names are dropped when the thing is added (doc.ts add), and the thing gets the game's plain defaults.
 const KNOWN: Preset[] = [
-  new Preset('wall', 'walls', 'Wall', 'Mur', '{}'),
-  new Preset('lane-guide', 'walls', 'Lane guide', 'Guide de couloir', '{ "height": 2.2, "thickness": 0.5 }'),
-  new Preset('left-flipper', 'flippers', 'Left flipper', 'Batteur gauche', '{ "rest": 25, "stroke": -50, "button": "left" }'),
-  new Preset('right-flipper', 'flippers', 'Right flipper', 'Batteur droit', '{ "rest": 155, "stroke": 50, "button": "right" }'),
-  new Preset('standup-target', 'targets', 'Standup target', 'Cible fixe', '{}'),
-  new Preset('drop-target', 'targets', 'Drop target', 'Cible tombante', '{ "kind": "drop" }'),
-  new Preset('ramp', 'ramps', 'Ramp', 'Rampe', '{ "profile": [[0, 0], [0.4, 5], [1, 5]] }'),
-  new Preset('wire-rail', 'ramps', 'Wire rail', 'Rail', '{ "profile": [[0, 5], [1, 3]], "width": 3, "style": "wire" }'),
+  new Preset('wall', 'walls', 'Wall', 'Mur', '{ "surface": "metal", "look": "steel" }'),
+  new Preset('lane-guide', 'walls', 'Lane guide', 'Guide de couloir', '{ "height": 2.2, "thickness": 0.5, "surface": "rubber", "look": "rubber" }'),
+  new Preset('left-flipper', 'flippers', 'Left flipper', 'Batteur gauche', '{ "group": "flippers", "rest": 25, "stroke": -50, "button": "left", "surface": "bat", "look": "bat" }'),
+  new Preset('right-flipper', 'flippers', 'Right flipper', 'Batteur droit', '{ "group": "flippers", "rest": 155, "stroke": 50, "button": "right", "surface": "bat", "look": "bat" }'),
+  new Preset('bumper', 'bumpers', 'Bumper', 'Bumper', '{ "group": "bumpers", "surface": "rubber", "look": "bumper", "cap": "cap" }'),
+  new Preset('slingshot', 'slingshots', 'Slingshot', 'Slingshot', '{ "group": "slingshots", "surface": "rubber", "look": "rubber" }'),
+  new Preset('standup-target', 'targets', 'Standup target', 'Cible fixe', '{ "group": "targets", "surface": "plastic", "look": "target" }'),
+  new Preset('drop-target', 'targets', 'Drop target', 'Cible tombante', '{ "group": "targets", "kind": "drop", "surface": "plastic", "look": "target" }'),
+  new Preset('ramp', 'ramps', 'Ramp', 'Rampe', '{ "profile": [[0, 0], [0.4, 5], [1, 5]], "surface": "plastic", "look": "ramp" }'),
+  new Preset('wire-rail', 'ramps', 'Wire rail', 'Rail', '{ "profile": [[0, 5], [1, 3]], "width": 3, "style": "wire", "look": "steel" }'),
   new Preset('round-light', 'lights', 'Round light', 'Lampe ronde', '{}'),
   new Preset('arrow-light', 'lights', 'Arrow light', 'Lampe flèche', '{ "shape": "arrow", "size": 1.5 }'),
   new Preset('bar-light', 'lights', 'Bar light', 'Lampe barre', '{ "shape": "bar", "size": 1.5, "angle": 0 }'),
@@ -122,8 +126,10 @@ export function miniature(p: Preset): Outline[] {
   else if (points > 1) { clicks.push([-3, 0]); clicks.push([3, 0]); }
   if (rows >= 3) { clicks.push([-4, -3]); clicks.push([4, -3]); clicks.push([4, 3]); clicks.push([-4, 3]); }
   else if (rows > 0) { clicks.push([-4, 3]); clicks.push([-1.5, -2.5]); clicks.push([4, -2.5]); }
+  // the miniature is the shape alone: the surfaces and looks an entry names are those of another table
   const item: any = itemOf(p, clicks);
   item.id = 'sample';
+  for (const name of ['surface', 'look', 'cap']) if (item[name] !== undefined) item[name] = '';
   t[p.list] = [item];
   const data: any = parseTable(JSON.stringify(t), 'the palette');
   return outlines(data as TableDef, data, formatSchema(), [p.list], []);

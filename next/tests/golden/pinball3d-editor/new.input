@@ -1,0 +1,159 @@
+# The table editor, a table made from nothing (tests/t1/pinball3d_editor.sh, criterion 1 of ZN-649.04), window 1440x900: walls, two
+# flippers, a plunger lane, three bumpers, a bank of targets, a sound and a mission, then Save and Export.
+# The table's name (nothing is selected: the form is the table's own).
+4 key f meta
+5 text name
+6 key Tab
+7 text Starter
+8 key Enter
+# The outer wall: four points round the board, Enter; then the round dot of its top stretch is dragged up until the stretch is a
+# half circle (near one, the arc is exactly one).
+10 key g meta
+11 text +wall
+12 key Enter
+14 move 508 823
+15 down
+16 up
+17 move 508 301
+18 down
+19 up
+20 move 831 301
+21 down
+22 up
+23 move 831 823
+24 down
+25 up
+26 key Enter
+28 move 669 301
+29 down
+30 move 669 250
+31 move 669 139
+32 up
+# The plunger lane, in one step: its wall, its gate, the plunger.
+34 key g meta
+35 text +plunger-lane
+36 key Enter
+# The table's axis goes to the middle of what the lane leaves of the board.
+38 move 669 118
+39 down
+40 move 663 118
+41 move 658 118
+42 up
+# The guide that feeds the left flipper, and its mirror image.
+44 key g meta
+45 text +wall
+46 key Enter
+48 move 508 677
+49 down
+50 up
+51 move 590 737
+52 down
+53 up
+54 key Enter
+56 key m
+# The left flipper, and its mirror image: the right one.
+58 key g meta
+59 text +left-flipper
+60 key Enter
+62 move 600 747
+63 down
+64 up
+66 key m
+# Three bumpers; the third snaps to the axis.
+68 key g meta
+69 text +bumper
+70 key Enter
+72 move 613 387
+73 down
+74 up
+76 key g meta
+77 text +bumper
+78 key Enter
+80 move 702 387
+81 down
+82 up
+84 key g meta
+85 text +bumper
+86 key Enter
+88 move 656 453
+89 down
+90 up
+# A bank of three targets on the left wall: one is placed and made to face the table, then copied twice and each copy moved with
+# the arrows (a centimetre a press with Shift).
+92 key g meta
+93 text +standup-target
+94 key Enter
+96 move 514 486
+97 down
+98 up
+100 key f meta
+101 text angle
+102 key Tab
+103 text 0
+104 key Enter
+106 key Escape
+108 key d meta
+109 key ArrowLeft shift
+110 key ArrowLeft shift
+111 key ArrowDown shift
+112 key ArrowDown shift
+114 key d meta
+115 key ArrowLeft shift
+116 key ArrowLeft shift
+117 key ArrowDown shift
+118 key ArrowDown shift
+# A sound, played by the first bumper when it is hit.
+120 key g meta
+121 text +sound
+122 key Enter
+124 key g meta
+125 text bumper1
+126 key Enter
+128 key f meta
+129 text sounds.hit
+131 move 1300 112
+132 down
+133 up
+135 move 1300 168
+136 down
+137 up
+# Two rules, written as the file has them: the bumpers and the targets score.
+139 key g meta
+140 text +rule
+141 key Enter
+143 key j meta
+145 key a meta
+146 text {"on":"bumpers","event":"hit","do":[{"do":"score","value":500}]}
+148 move 420 500
+149 down
+150 up
+152 key g meta
+153 text +rule
+154 key Enter
+156 key j meta
+158 key a meta
+159 text {"on":"targets","event":"hit","do":[{"do":"score","value":1000}]}
+161 move 420 500
+162 down
+163 up
+# A mission: its name, and its step (three hits of the bumpers).
+165 key g meta
+166 text +mission
+167 key Enter
+169 key f meta
+170 text name
+171 key Tab
+172 text Warmup
+173 key Enter
+175 key g meta
+176 text rules.missions[0].steps[0]
+177 key Enter
+179 key j meta
+181 key a meta
+182 text {"text":"Bumpers","on":"bumpers","event":"hit","count":3}
+184 move 420 500
+185 down
+186 up
+# Save, then Export: the table as one file.
+188 key s meta
+192 key e meta+shift

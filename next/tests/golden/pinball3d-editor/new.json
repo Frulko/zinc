@@ -1,0 +1,106 @@
+{
+  "format": "zinc-pinball-table",
+  "version": 1,
+  "name": "Starter",
+  "playfield": { "surface": "wood", "look": "board" },
+  "physics": { "ball": { "look": "chrome" } },
+  "surfaces": [
+    { "id": "wood", "friction": 0.2, "restitution": 0.3 },
+    { "id": "metal", "friction": 0.25, "restitution": 0.45 },
+    { "id": "rubber", "friction": 0.6, "restitution": 0.75 },
+    { "id": "plastic", "restitution": 0.35 },
+    { "id": "bat", "friction": 0.7, "restitution": 0.55 }
+  ],
+  "looks": [
+    { "id": "board", "color": "#1b2a4a" },
+    { "id": "steel", "color": "#9aa4b4", "specular": "#8090a8", "shininess": 60 },
+    { "id": "chrome", "color": "#d8dce4", "specular": "#ffffff", "shininess": 140 },
+    { "id": "rubber", "color": "#c8283c", "shading": "flat" },
+    { "id": "bat", "color": "#f0f0f6", "specular": "#606070" },
+    { "id": "bumper", "color": "#20386e", "glow": "#7fd8ff" },
+    { "id": "cap", "color": "#ff7a33", "specular": "#553a22", "shininess": 40 },
+    { "id": "target", "color": "#b37a14", "glow": "#ffd866" },
+    { "id": "ramp", "color": "#2a62b8" }
+  ],
+  "sounds": [
+    { "id": "sound1" }
+  ],
+  "walls": [
+    { "id": "wall1", "points": [[1, 106], [1, 27, 1], [50, 27], [50, 106]], "surface": "metal", "look": "steel" },
+    { "id": "shooterLane", "points": [[46.7, 106], [46.7, 30]] },
+    { "id": "wall2", "points": [[1, 84], [13.5, 93]], "surface": "metal", "look": "steel" },
+    { "id": "wall3", "points": [[46.6, 84], [34.1, 93]], "surface": "metal", "look": "steel" }
+  ],
+  "gates": [
+    { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5] }
+  ],
+  "flippers": [
+    { "id": "flipper1", "group": "flippers", "pivot": [15, 94.5], "surface": "bat", "look": "bat" },
+    { "id": "flipper2", "group": "flippers", "pivot": [32.6, 94.5], "rest": 155, "stroke": 50, "button": "right", "surface": "bat", "look": "bat" }
+  ],
+  "plunger": { "at": [48.35, 100], "surface": "metal", "look": "steel" },
+  "bumpers": [
+    { "id": "bumper1", "group": "bumpers", "at": [17, 40], "surface": "rubber", "look": "bumper", "cap": "cap", "sounds": { "hit": "sound1" } },
+    { "id": "bumper2", "group": "bumpers", "at": [30.5, 40], "surface": "rubber", "look": "bumper", "cap": "cap" },
+    { "id": "bumper3", "group": "bumpers", "at": [23.8, 50], "surface": "rubber", "look": "bumper", "cap": "cap" }
+  ],
+  "targets": [
+    { "id": "target1", "group": "targets", "at": [2, 55], "angle": 0, "surface": "plastic", "look": "target" },
+    { "id": "target2", "group": "targets", "at": [2, 59], "angle": 0, "surface": "plastic", "look": "target" },
+    { "id": "target3", "group": "targets", "at": [2, 63], "angle": 0, "surface": "plastic", "look": "target" }
+  ],
+  "rules": {
+    "ranks": ["Rookie", "Regular", "Wizard"],
+    "missions": [
+      { "id": "mission1", "name": "Warmup", "steps": [{ "text": "Bumpers", "on": "bumpers", "event": "hit", "count": 3 }] }
+    ],
+    "when": [
+      { "on": "bumpers", "event": "hit", "do": [{ "do": "score", "value": 500 }] },
+      { "on": "targets", "event": "hit", "do": [{ "do": "score", "value": 1000 }] }
+    ]
+  },
+  "lighting": {
+    "background": "#04050b",
+    "ambient": "#565c72",
+    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
+  },
+  "layouts": {
+    "landscape": {
+      "view": [0, 0, 600, 800],
+      "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+      "panel": {
+        "box": [600, 0, 680, 800],
+        "items": [
+          { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
+          { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
+          { "show": "ball", "box": [640, 290, 280, 50], "size": 30, "label": "BALL" },
+          { "show": "rank", "box": [940, 290, 300, 50], "size": 30, "color": "#9f8cff", "label": "RANK" },
+          { "show": "mission", "box": [640, 400, 600, 44], "size": 30, "color": "#ffd866", "label": "MISSION" },
+          { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
+          { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
+          { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+          { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "HIGH SCORES" },
+          { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
+        ]
+      }
+    },
+    "portrait": {
+      "window": [800, 1280],
+      "view": [0, 200, 800, 1080],
+      "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
+      "panel": {
+        "box": [0, 0, 800, 200],
+        "items": [
+          { "show": "title", "box": [20, 12, 380, 40], "size": 30, "color": "#7fd8ff" },
+          { "show": "score", "box": [400, 8, 380, 70], "size": 56, "align": "right" },
+          { "show": "ball", "box": [20, 70, 180, 34], "size": 22, "label": "BALL" },
+          { "show": "rank", "box": [210, 70, 190, 34], "size": 22, "color": "#9f8cff", "label": "RANK" },
+          { "show": "message", "box": [400, 84, 380, 30], "size": 22, "color": "#ff7a33", "align": "right" },
+          { "show": "mission", "box": [20, 124, 760, 30], "size": 24, "color": "#ffd866" },
+          { "show": "step", "box": [20, 158, 760, 26] },
+          { "show": "highScores", "box": [20, 66, 380, 130], "color": "#c8d4f0" }
+        ]
+      }
+    }
+  }
+}
