@@ -225,6 +225,28 @@ static void mul(float* o, const float* a, const float* b) {  // column-major o =
       o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
 }
 
+/** vp = projection x view, column-major. */
+static void viewProjection(float* vp, float asp, Array<N> view, N proj, N nearN, N farN, bool ortho) {
+  float n = F(nearN), f = F(farN), P[16] = {0}, Vw[16];
+  if (ortho) {
+    float hh = F(proj);
+    P[0] = 2 / (hh * asp); P[5] = 2 / hh; P[10] = -2 / (f - n); P[14] = -(f + n) / (f - n); P[15] = 1;
+  } else {
+    float k = 1 / tanf(F(proj) * 0.5f);
+    P[0] = k / asp; P[5] = k; P[10] = (f + n) / (n - f); P[11] = -1; P[14] = 2 * f * n / (n - f);
+  }
+  for (int i = 0; i < 16; i++) Vw[i] = i < view.length() ? F(view.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
+  mul(vp, P, Vw);
+}
+
+/** The colour buffer, drawn in the box as an IMAGE command. */
+static void presentImage(int32_t img, N x, N y, N w, N h) {
+  if (raster::Cmd* c = gfx::emit(raster::IMAGE, nullptr, 0)) {  // grad 1: nearest filter (cheap, keeps the dither)
+    c->x = F(x); c->y = F(y); c->w = F(w); c->h = F(h);
+    c->res = img; c->grad = 1; c->c2 = raster::image_version(img);
+  }
+}
+
 static uint32_t** baked;  // 0x00RRGGBB copies of baked images used as textures (made on first use)
 static bool texture(int32_t id, Tex& t) {
   if (id >= 0 && id < raster::image_count) {
@@ -320,16 +342,7 @@ struct Engine : NativeRender3D {
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     for (int32_t i = 0, n = cur->w * cur->h; i < n; i++) px[i] = clear & 0xFFFFFF;
     memset(cur->z, 0xFF, sizeof(ZT) * (size_t)cur->w * cur->h);
-    float asp = (float)cur->w / cur->h, n = F(nearN), f = F(farN), P[16] = {0}, Vw[16];
-    if (ortho) {
-      float hh = F(proj);
-      P[0] = 2 / (hh * asp); P[5] = 2 / hh; P[10] = -2 / (f - n); P[14] = -(f + n) / (f - n); P[15] = 1;
-    } else {
-      float k = 1 / tanf(F(proj) * 0.5f);
-      P[0] = k / asp; P[5] = k; P[10] = (f + n) / (n - f); P[11] = -1; P[14] = 2 * f * n / (n - f);
-    }
-    for (int i = 0; i < 16; i++) Vw[i] = i < view.length() ? F(view.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
-    mul(vp, P, Vw);
+    viewProjection(vp, (float)cur->w / cur->h, view, proj, nearN, farN, ortho);
   }
   void ambient(uint32_t c) override { amb[0] = (c >> 16 & 255) / 255.0f; amb[1] = (c >> 8 & 255) / 255.0f; amb[2] = (c & 255) / 255.0f; }
   void light(N dx, N dy, N dz, uint32_t c) override {
@@ -425,17 +438,20 @@ struct Engine : NativeRender3D {
   }
   void present(int32_t id, N x, N y, N w, N h) override {
     Target* t = targets.at(id);
-    if (!t || t->img < 0) return;
-    if (raster::Cmd* c = gfx::emit(raster::IMAGE, nullptr, 0)) {  // grad 1: nearest filter (cheap, keeps the dither)
-      c->x = F(x); c->y = F(y); c->w = F(w); c->h = F(h);
-      c->res = t->img; c->grad = 1; c->c2 = raster::image_version(t->img);
-    }
+    if (t && t->img >= 0) presentImage(t->img, x, y, w, h);
   }
 };
 
 }  // namespace
 
+#ifdef ZP_3D_GPU
+NativeRender3D* gpuRenderer();  // render3d.gl.cpp, which includes this file: null when the software renderer is wanted or no GPU context opens
+#endif
+
 NativeRender3D* zinc_create_Render3D() {
+#ifdef ZP_3D_GPU
+  if (NativeRender3D* g = gpuRenderer()) return g;
+#endif
   static Engine e;
   e.rc = zrt::IMMORTAL;
   return &e;

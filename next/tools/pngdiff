@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""pngdiff A.png B.png [--tol N] [--report diff.png] [--max-diff K] [--bbox]
+"""pngdiff A.png B.png [--tol N] [--report diff.png] [--max-diff K] [--bbox] [--ssim MIN]
 
 Compares two 8-bit RGB/RGBA PNGs (any filter). Prints the number of pixels whose largest per-channel difference exceeds N (default 0 = exact), the largest
 difference, the mean absolute error and the PSNR. --report writes a diff image (differing pixels red over a dimmed copy of A). Exit 1 when more than K pixels
 (default 0) exceed the tolerance or the sizes differ. --bbox also prints the box of the differing pixels: `bbox x0 y0 x1 y1` (x1, y1 exclusive).
+--ssim also prints the structural similarity of the lumas (8 x 8 windows every 4 pixels) and exits 1 below MIN instead of on the pixel count.
 Standard library only.
 """
 import sys, zlib, struct, math
@@ -34,6 +35,17 @@ def write_rgb(p, w, h, rgb):
     raw = b''.join(b'\0' + rgb[y*w*3:(y+1)*w*3] for y in range(h))
     open(p, 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 6)) + chunk(b'IEND', b''))
 
+def luma(rgb, bpp=3): return [0.299 * rgb[i] + 0.587 * rgb[i + 1] + 0.114 * rgb[i + 2] for i in range(0, len(rgb), bpp)]
+def ssim(a, b, w, h, win=8):
+    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2; total = n = 0
+    for y in range(0, h - win + 1, 4):
+        for x in range(0, w - win + 1, 4):
+            pa = [a[(y + j) * w + x + i] for j in range(win) for i in range(win)]; pb = [b[(y + j) * w + x + i] for j in range(win) for i in range(win)]
+            ma, mb = sum(pa) / len(pa), sum(pb) / len(pb)
+            va = sum((v - ma) ** 2 for v in pa) / len(pa); vb = sum((v - mb) ** 2 for v in pb) / len(pb); cov = sum((p - ma) * (q - mb) for p, q in zip(pa, pb)) / len(pa)
+            total += ((2 * ma * mb + c1) * (2 * cov + c2)) / ((ma ** 2 + mb ** 2 + c1) * (va + vb + c2)); n += 1
+    return total / n
+
 def compare(a, b, tol=0):
     """-> (pixels above tol, max diff, mean abs error, psnr, mask of differing pixels)"""
     w, h, ba, da = a; bb, db = b[2], b[3]
@@ -51,12 +63,13 @@ def compare(a, b, tol=0):
     return over, mx, mae, psnr, mask
 
 def main(argv):
-    pos = []; tol = 0; report = None; maxdiff = 0; bbox = False; i = 0
+    pos = []; tol = 0; report = None; maxdiff = 0; bbox = False; minssim = None; i = 0
     while i < len(argv):
         if argv[i] == '--tol': tol = int(argv[i+1]); i += 2
         elif argv[i] == '--report': report = argv[i+1]; i += 2
         elif argv[i] == '--max-diff': maxdiff = int(argv[i+1]); i += 2
         elif argv[i] == '--bbox': bbox = True; i += 1
+        elif argv[i] == '--ssim': minssim = float(argv[i+1]); i += 2
         else: pos.append(argv[i]); i += 1
     if len(pos) != 2: print(__doc__); return 2
     a = dec(pos[0]); b = dec(pos[1])
@@ -73,6 +86,10 @@ def main(argv):
             else: out[k*3:k*3+3] = bytes(c // 3 + 80 for c in da[k*ba:k*ba+3])
         write_rgb(report, w, h, bytes(out))
         print('diff image:', report)
+    if minssim is not None:
+        q = ssim(luma(a[3], a[2]), luma(b[3], b[2]), a[0], a[1])
+        print('ssim %.4f (minimum %.2f)' % (q, minssim))
+        return 1 if q < minssim else 0
     return 1 if over > maxdiff else 0
 
 if __name__ == "__main__": sys.exit(main(sys.argv[1:]))
