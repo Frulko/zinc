@@ -349,6 +349,26 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Result (ZN-602, 2026-10-10)**: mapset (tests/bench/kernels), Intel Mac, AOT against the prototype's native release build on the same machine: 2.00x -> 1.15x in CPU cycles (alternated, 41 runs each: native 79.1 M, AOT 91.7 M; wall 40.0 vs 45.3 ms, 1.13x). Integer-keyed Table::find inline in rt.h (key compared before the dead flag, the dead flags not read while nothing was erased), Map.set / Set.add insert an absent key without a second search (putNew), compiled code calls Map.get/has/set and Set.add/has directly (op::mapGet...: no rtCall dispatch, no frame window), plain stores for number globals. Interpreter mapset 567.0 -> 535-539 M instructions. Tried and dropped: buckets holding the key or hash beside the entry (16-byte buckets, 2-3 MB index: 52 ms vs 42), a one-entry cache of the last key found (+5% cycles: the repeated probes were already in L1).
 - **Result (ZN-617, 2026-10-10)**: a start takes a plugin's stamp (the last build's results, valid while its input files and libraries keep their stat) instead of pkg-config, the thunk generation and the hashing: hero's interpreted start (cached bytecode, headless, one frame, 10 starts, Intel Mac at load 8-10) 214-226 -> 173-201 ms median; per plugin video 41-106 ms -> 0.28 ms, lottie 10-27 -> 0.3 ms (pkg-config alone 80+ ms under load).
 
+### ZN-638: console output written at each event-loop turn
+
+Not a speed-up: a correctness change with a measured cost. `console.log` of the interpreter and of AOT programs stayed in `Machine::out` until exit (QuickJS went through stdio, block buffered into a file or a pipe), so `zinc run app > log &` showed nothing while the app ran. The output is now written at each turn of the event loop (`host.evReady`, and before `host.loopWait` sleeps; `fflush` at each turn of the QuickJS loops), not per line: a loop that never yields still writes once.
+
+Before -> after, output to a file, alternating runs, median of 11 (21 for the first two rows), Intel Mac, load average 4.4 to 7.1 (other builds running: read the ratios, not the absolute values):
+
+| Case | Before | After | Ratio |
+|---|---|---|---|
+| 1,000,000-line loop, interpreter | 98.1 ms | 100.0 ms | 1.02 |
+| 1,000,000-line loop, AOT | 62.4 ms | 62.2 ms | 1.00 |
+| 1,000,000-line loop, QuickJS | 2084.7 ms | 2068.7 ms | 0.99 |
+| jsonout kernel, interpreter (compile included) | 26.3 ms | 26.1 ms | 0.99 |
+| 100,000 timer turns, one line each, interpreter | 1781.4 ms | 2506.8 ms | 1.41 |
+| 100,000 timer turns, one line each, AOT | 1650.4 ms | 2359.8 ms | 1.43 |
+| 20,000 headless frames, one line each, interpreter | 422.0 ms | 572.0 ms | 1.36 |
+| 20,000 headless frames, one line each, AOT | 338.6 ms | 444.7 ms | 1.31 |
+| 20,000 headless frames, one line each, QuickJS | 103.2 ms | 204.7 ms | 1.98 |
+
+The cost is one `write` per turn that printed: 5 to 8 us, about 0.05% of a 16.6 ms frame; a turn that prints nothing pays a test. Side effects: a long-running program no longer keeps all it printed in memory until exit, and `zinc run app | head -1` ends at its next turn (SIGPIPE) instead of running to the end. Not re-measured after the rebase, nor on an idle machine.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:
