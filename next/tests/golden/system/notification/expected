@@ -6,17 +6,17 @@
 [system] notification.delivered {}
 [system] notification.cancel {"id":"other"}
 [system] notification.delivered {}
-[system] event {"type":"notification-click","args":["build-42"]}
-[system] event {"type":"notification-action","args":["build-42","open"]}
-[system] event {"type":"notification-reply","args":["build-42","looks good"]}
-[system] event {"type":"notification-close","args":["build-42","user"]}
-[system] event {"type":"shortcut","args":["CmdOrCtrl+Q"]}
 permission granted backend sim
 delivered true ""
 delivered list ["build-42|Build finished again|replaces the first","other|Other|"]
 after cancel ["build-42|Build finished again|replaces the first"]
+[system] event {"type":"notification-click","args":["build-42"]}
 clicked
+[system] event {"type":"notification-action","args":["build-42","open"]}
 action open
+[system] event {"type":"notification-reply","args":["build-42","looks good"]}
 reply looks good
+[system] event {"type":"notification-close","args":["build-42","user"]}
 closed user
+[system] event {"type":"shortcut","args":["CmdOrCtrl+Q"]}
 done CmdOrCtrl+Q

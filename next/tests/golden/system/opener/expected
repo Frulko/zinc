@@ -7,11 +7,11 @@
 [system] opener.reveal {"path":"/tmp"}
 [system] opener.last {}
 [system] deep-link.getCurrent {}
-[system] event {"type":"open-url","args":["notes://doc/1"]}
-[system] event {"type":"open-file","args":["/tmp/a.md"]}
 file url: file:///etc/passwd is outside scopes.opener.allow
 http url: http://example.com is outside scopes.opener.allow
 last {"text":"reveal /tmp"}
 current []
+[system] event {"type":"open-url","args":["notes://doc/1"]}
 open-url notes://doc/1
+[system] event {"type":"open-file","args":["/tmp/a.md"]}
 open-file /tmp/a.md
