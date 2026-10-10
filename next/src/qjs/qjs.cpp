@@ -3,10 +3,12 @@
 #include "qjs/qjs.h"
 #include "zn/js_ext.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <pthread.h>
 #include <sstream>
 #include <unistd.h>
 #include <vector>
@@ -37,6 +39,9 @@ struct Engine {
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
   std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
   bool pluginsFound = false;
+  struct Rejection { JSValue promise, reason; };
+  std::vector<Rejection> rejected;   // promises rejected with no handler yet: reported once the jobs have drained, when nobody caught them (ZN-566)
+  void* entryPromise = nullptr;      // the entry module's own promise: its rejection is the program's uncaught exception
 };
 
 bool readFile(const std::string& path, std::string& out) {
@@ -248,24 +253,72 @@ JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
 }
 
 // ---- running
-void report(JSContext* ctx, JSValue ex) {
+// The stack JavaScript may use on this thread: what is left of it below here, less 1 MiB for the native code a script calls at its deepest (a shader
+// compile, text shaping), 8 MiB at most; 0 when the system does not say (QuickJS keeps its own 1 MiB). A limit as large as the thread's stack (8 MiB
+// on the macOS main thread) lets a deep recursion leave the stack before QuickJS looks: SIGSEGV where JavaScript expects a RangeError (ZN-566).
+// The typed engine's twin is cStackLimit in src/rt/machine.cpp.
+std::size_t stackBudget() {
+  char* low = nullptr;
+#if defined(__APPLE__)
+  low = static_cast<char*>(pthread_get_stackaddr_np(pthread_self())) - pthread_get_stacksize_np(pthread_self());
+#elif defined(__linux__)
+  pthread_attr_t a;
+  void* addr = nullptr; size_t sz = 0;
+  if (pthread_getattr_np(pthread_self(), &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); low = static_cast<char*>(addr); }
+#endif
+  char* here = static_cast<char*>(__builtin_frame_address(0));   // not a local's address: a sanitizer may keep locals off the stack
+  if (!low || here <= low) return 0;
+  const std::size_t left = static_cast<std::size_t>(here - low), margin = 1u << 20;
+  return left > 2 * margin ? std::min<std::size_t>(left - margin, 8u << 20) : left / 2;
+}
+
+void report(JSContext* ctx, JSValue ex, const char* what = "Uncaught") {
   const char* s = JS_ToCString(ctx, ex);
   JSValue st = JS_GetPropertyStr(ctx, ex, "stack");
   const char* stack = JS_IsUndefined(st) ? nullptr : JS_ToCString(ctx, st);
   std::fflush(stdout);
-  std::fprintf(stderr, "Uncaught %s\n%s", s ? s : "exception", stack ? stack : "");
+  std::fprintf(stderr, "%s %s\n%s", what, s ? s : "exception", stack ? stack : "");
   if (stack) JS_FreeCString(ctx, stack);
   JS_FreeValue(ctx, st);
   if (s) JS_FreeCString(ctx, s);
 }
 
-// Runs the pending promise jobs; false (the error printed) if one throws.
+JSValue global(Engine& e, const char* name) { JSValue g = JS_GetGlobalObject(e.ctx); JSValue v = JS_GetPropertyStr(e.ctx, g, name); JS_FreeValue(e.ctx, g); return v; }
+
+// QuickJS tells of each promise rejected with no handler, and again when one is attached later: what is still here when the jobs have drained was caught by nobody.
+void trackRejection(JSContext* ctx, JSValueConst promise, JSValueConst reason, bool handled, void* opaque) {
+  auto& v = static_cast<Engine*>(opaque)->rejected;
+  if (!handled) { v.push_back({JS_DupValue(ctx, promise), JS_DupValue(ctx, reason)}); return; }
+  for (std::size_t i = 0; i < v.size(); ++i)
+    if (JS_VALUE_GET_PTR(v[i].promise) == JS_VALUE_GET_PTR(promise)) { JS_FreeValue(ctx, v[i].promise); JS_FreeValue(ctx, v[i].reason); v.erase(v.begin() + static_cast<long>(i)); break; }
+}
+
+// Runs the pending promise jobs, then reports the rejections nobody handled (ZN-566); false (the error printed) when the program must stop: a job threw,
+// the entry module rejected, or a promise did with no web environment to hear it (the typed engine and Node end the program there; a browser prints and
+// goes on). The web environment's __zincUnhandledRejection dispatches `unhandledrejection` and answers true when a listener prevented the message.
 bool drain(Engine& e) {
   for (;;) {
     JSContext* c = nullptr;
     int r = JS_ExecutePendingJob(e.rt, &c);
-    if (r == 0) return true;
     if (r < 0) { JSValue ex = JS_GetException(c); report(c, ex); JS_FreeValue(c, ex); return false; }
+    if (r > 0) continue;
+    if (e.rejected.empty()) return true;
+    const Engine::Rejection x = e.rejected.front();
+    e.rejected.erase(e.rejected.begin());
+    const bool entry = JS_VALUE_GET_PTR(x.promise) == e.entryPromise;
+    JSValue hook = entry ? JS_UNDEFINED : global(e, "__zincUnhandledRejection");
+    const bool web = JS_IsFunction(e.ctx, hook);
+    bool quiet = false;
+    if (web) {
+      JSValueConst args[2] = {x.promise, x.reason};
+      JSValue q = JS_Call(e.ctx, hook, JS_UNDEFINED, 2, args);
+      if (JS_IsException(q)) JS_FreeValue(e.ctx, JS_GetException(e.ctx));
+      else quiet = JS_ToBool(e.ctx, q) > 0;
+      JS_FreeValue(e.ctx, q);
+    }
+    if (!quiet) report(e.ctx, x.reason, entry ? "Uncaught" : "Uncaught (in promise)");
+    JS_FreeValue(e.ctx, hook); JS_FreeValue(e.ctx, x.promise); JS_FreeValue(e.ctx, x.reason);
+    if (!web) return false;
   }
 }
 
@@ -276,7 +329,7 @@ bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
   return drain(e);
 }
 
-JSValue global(Engine& e, const char* name) { JSValue g = JS_GetGlobalObject(e.ctx); JSValue v = JS_GetPropertyStr(e.ctx, g, name); JS_FreeValue(e.ctx, g); return v; }
+bool wantsFrames(Engine& e) { JSValue cb = global(e, "__zincFrameCb"); const bool yes = JS_IsFunction(e.ctx, cb); JS_FreeValue(e.ctx, cb); return yes; }
 
 void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
 
@@ -286,7 +339,8 @@ bool frameLoop(Engine& e) {
   hostCall(zn::Rt::HostGfxFrames, &r);
   const long frames = static_cast<long>(r.i);
   JSValue setClock = global(e, "__setClock"), due = global(e, "__dueTimer"), cb = global(e, "__zincFrameCb"), clockFn = global(e, "__clock");
-  double clock = 0;
+  double clock = 0;   // goes on from where the timers before the first frame left the virtual clock (onFrame after an awaited timer, ZN-566)
+  { JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &clock, c); JS_FreeValue(e.ctx, c); }
   bool ok = true;
   for (long f = 0; f < frames && ok; ++f) {
     std::fflush(stdout);   // what the program printed reaches a file or a pipe at each turn, as on the typed engine (ZN-638)
@@ -320,11 +374,11 @@ bool frameLoop(Engine& e) {
   return ok;
 }
 
-// no frame loop: timers in order, the clock jumping to each
+// no frame loop yet: timers in order, the clock jumping to each, until none is left or the program asks for frames (onFrame after an await, ZN-566)
 bool timerLoop(Engine& e) {
   JSValue next = global(e, "__nextTimer");
   bool ok = true;
-  while (ok) {
+  while (ok && !wantsFrames(e)) {
     std::fflush(stdout);   // as in the frame loop
     JSValue fn = JS_Call(e.ctx, next, JS_UNDEFINED, 0, nullptr);
     if (JS_IsNull(fn) || JS_IsException(fn)) { JS_FreeValue(e.ctx, fn); break; }
@@ -347,7 +401,8 @@ int run(const Options& o) {
 #endif
   e.ctx = JS_NewContext(e.rt);
   JS_SetMemoryLimit(e.rt, 0);
-  JS_SetMaxStackSize(e.rt, 8u << 20);
+  if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
+  JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
   installHost(e.ctx);
   installNative(e.ctx);
@@ -380,16 +435,9 @@ int run(const Options& o) {
   JSValue res = JS_EvalFunction(e.ctx, mod);  // links the imports through the loader, then runs; a promise (top-level await)
   if (JS_IsException(res)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); rc = 101; }
   else {
-    bool ok = drain(e);
-    if (ok && JS_PromiseState(e.ctx, res) == JS_PROMISE_REJECTED) { JSValue ex = JS_PromiseResult(e.ctx, res); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); ok = false; }
+    e.entryPromise = JS_VALUE_GET_PTR(res);   // kept to the end, so no other promise takes its address: drain reports its rejection, now or after a top-level await
+    if (!(drain(e) && timerLoop(e) && (!wantsFrames(e) || frameLoop(e)))) rc = 101;
     JS_FreeValue(e.ctx, res);
-    if (ok) {
-      JSValue cb = global(e, "__zincFrameCb");
-      bool gfx = JS_IsFunction(e.ctx, cb);
-      JS_FreeValue(e.ctx, cb);
-      ok = gfx ? frameLoop(e) : timerLoop(e);
-    }
-    if (!ok) rc = 101;
   }
   std::fflush(stdout);
   return rc;
