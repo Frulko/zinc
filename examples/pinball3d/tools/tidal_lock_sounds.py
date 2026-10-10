@@ -518,6 +518,21 @@ def effects(cache):
     def over():   # the game is over: four notes down
         return seq(r, [(74, 2), (72, 2), (70, 2), (69, 5)], shape='tri', step=0.12, hold=0.95, tail=0.3).s
 
+    def nudge():   # the table is bumped: the cabinet takes the shove (a low knock on wood), and what is loose in it rattles
+        tr = Track(0.32, r)
+        tr.add(0, env(osc(r, 0.2, 92, 'sine', f1=48, curve=1.6), r, 0.002, 0.0, 0.0, 0.03, power=1.6), 1.0)
+        tr.add(0, env(lowpass(noise(r, 0.07, 7), r, 700, 180), r, 0.001, 0.0, 0.0, 0.01, power=3.0), 0.5)
+        for at, seed in ((0.05, 8), (0.085, 9), (0.13, 10)):
+            tr.add(at, decay(bandpass(noise(r, 0.05, seed), r, 2600, 3400, 6), r, 0.008), 0.16)
+        return tr.s
+
+    def letter():   # a letter of the initials is taken: a key of the station's console, and its short answer
+        tr = Track(0.16, r)
+        tr.add(0, decay(highpass(noise(r, 0.02, 11), r, 2500), r, 0.003), 0.5)
+        tr.add(0.005, env(osc(r, 0.11, midi(86), 'pulse', duty=0.25), r, 0.002, 0.0, 0.5, 0.05), 0.5)
+        tr.add(0.005, bell(r, 98, 0.14, half=0.03, index=1.0, ratio=2.0), 0.35)
+        return tr.s
+
     def roll():   # the ball rolling on the board: a steady stretch of the marble, made to go round
         return looped(recording('marble', cache)[int(12.1 * FX):int(14.45 * FX)], FX, 0.25)
 
@@ -539,7 +554,7 @@ def effects(cache):
         'rubber': thud, 'target': target, 'shield-down': shield, 'shield-up': raise_, 'lane': lane, 'inlane': inlane, 'outlane': outlane,
         'gate': gate, 'spinner': spin, 'ramp': whoosh, 'rail-on': wire, 'rail': zap, 'dock-eject': eject, 'start': start, 'ball-ready': ready,
         'ball-saved': saved, 'tilt': tilt, 'mission': mission, 'rank': rank, 'multiball': siren, 'multiball-end': calm,
-        'jackpot': jackpot, 'extra-ball': extra, 'game-over': over,
+        'jackpot': jackpot, 'extra-ball': extra, 'game-over': over, 'nudge': nudge, 'letter': letter,
     }
 
 

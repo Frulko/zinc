@@ -316,13 +316,14 @@ export class Game {
     this.highScores[this.entering] = name;
     this.rules.message = `YOUR INITIALS: ${name}`;
   }
-  /** Signing a high score: the flippers go down and up the alphabet, the plunger or start takes the letter; after
-   *  the third, or when the time is up (the letter in hand then fills what is left), the name is in the table. */
+  /** Signing a high score: the flippers go down and up the alphabet, the plunger or start takes the letter (the rules
+   *  hear each one: the game's event "letter"); after the third, or when the time is up (the letter in hand then fills
+   *  what is left), the name is in the table. */
   private sign(c: Controls): void {
     const p = this.prev;
     if (c.left && !p.left) this.letter = (this.letter + 25) % 26;
     if (c.right && !p.right) this.letter = (this.letter + 1) % 26;
-    if ((c.plunger && !p.plunger) || (c.start && !p.start)) { this.initials += String.fromCharCode(65 + this.letter); this.letter = 0; }
+    if ((c.plunger && !p.plunger) || (c.start && !p.start)) { this.initials += String.fromCharCode(65 + this.letter); this.letter = 0; this.rules.emit(GAME, 'letter'); }
     const late = this.clock > this.overUntil;
     while (late && this.initials.length < 3) this.initials += String.fromCharCode(65 + this.letter);
     if (this.initials.length < 3) { this.showInitials(); return; }
@@ -471,12 +472,13 @@ export class Game {
     p.left = c.left; p.right = c.right; p.plunger = c.plunger; p.nudgeLeft = c.nudgeLeft; p.nudgeRight = c.nudgeRight; p.nudgeUp = c.nudgeUp; p.start = c.start;
   }
 
-  /** A bump of the table: every ball gets a push, and the tilt meter fills. */
+  /** A bump of the table: every ball gets a push, the rules hear it (the game's event "bump"), and the tilt meter fills. */
   private bump(vx: number, vy: number): void {
     const rules = this.rules, tilt = this.t.rules.tilt;
     if (rules.tilted) return;
     for (let i = 0; i < this.physics.balls.length; i++) this.physics.kickBall(i, vx, vy, 0);
     this.tilt += 1;
+    rules.emit(GAME, 'bump');
     if (this.tilt > tilt.warnings + 0.5) {
       if (tilt.penalty === 'none') { rules.say('DANGER'); return; }
       rules.tilted = true;

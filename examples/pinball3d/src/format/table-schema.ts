@@ -13,7 +13,7 @@ export const VERSION = 1;
 
 /** What a rule can listen to: element events, then the game's own (from "game"). */
 export const EVENTS = ['hit', 'down', 'roll', 'spin', 'capture', 'eject', 'enter', 'exit', 'pass', 'flip', 'launch',
-  'start', 'ballStart', 'drain', 'ballSaved', 'tilt', 'missionDone', 'rankUp', 'multiballStart', 'multiballEnd', 'jackpot', 'extraBall', 'gameOver'];
+  'start', 'ballStart', 'drain', 'ballSaved', 'bump', 'tilt', 'missionDone', 'rankUp', 'multiballStart', 'multiballEnd', 'jackpot', 'extraBall', 'gameOver', 'letter'];
 
 /** The roles a field of the format can have (Field.role), each with what it means: an editor draws, moves and turns
  *  any element by the roles of its fields, without knowing a field's name. A field without a role is a plain value. */
@@ -62,7 +62,7 @@ export function tableSchema(): Schema {
   look.num('shininess', 30, 'How tight the highlights are: 5 is satin, 200 is chrome.').range(1, 1000);
   look.color('glow', '#000000', 'The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light.');
   look.asset('texture', 'An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper\'s cap). A model keeps the mapping of its mesh.');
-  look.asset('textureLit', 'The same image with the lights of the table lit: it shows in the pool of light around each light that is on (a light\'s `glow`). For the look of the playfield.');
+  look.asset('textureLit', 'The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light\'s `glow`) then shows this image instead of adding the light\'s colour, and two such pools should not overlap. Usually left out.');
 
   const sound = new Schema('sound', 'A sound: a recorded file of the table folder, or a tone generated when the table loads. Elements name one per event in their `sounds`.');
   sound.id('sounds', 'Its name.');
@@ -274,7 +274,7 @@ export function tableSchema(): Schema {
   light.num('size', 1.1, 'Its radius, or half its length.').range(0.2, 20).withUnit('cm');
   light.num('angle', -90, 'Where an arrow points, or how a bar lies.').range(-360, 360).withRole('direction').withUnit('degrees');
   light.color('color', '#ffcc33', 'Its colour when on; off, it shows a dark shade of it.');
-  light.num('glow', 0, 'How far around it its light falls on the playfield when it is on: the radius of its pool of light, which shows the playfield\'s `textureLit`. 0: only the insert lights up. Two pools should not overlap.').range(0, 30).withUnit('cm');
+  light.num('glow', 0, 'How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up.').range(0, 30).withUnit('cm');
 
   const model = new Schema('model', 'A modelled or decorative piece: a mesh file, or a simple solid.');
   element(model, 'model');
@@ -305,7 +305,7 @@ export function tableSchema(): Schema {
 
   const rule = new Schema('rule', 'When something happens, and some things hold, do some things. Rules are read in order; all that match act.');
   rule.ref('on', ANY, 'The element, or the group of elements, that the event comes from; "game" for the events of the game itself.').must();
-  rule.choice('event', EVENTS, 'hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver.').must();
+  rule.choice('event', EVENTS, 'hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, bump (the player bumps the table), tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver, letter (the player takes a letter of the initials that sign a high score).').must();
   rule.list('if', condition, 'Every one must hold.');
   rule.list('do', action, 'What happens.');
 

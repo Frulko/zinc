@@ -352,30 +352,6 @@ def playfield(t):
     return c.im.resize((int(W * PX), int(H * PX)), Image.LANCZOS)
 
 
-def lit_playfield(base, t):
-    """The playfield with every light on: around each light, out to its `glow`, the light's colour is added and the
-    painting brightens. At that distance nothing is left of either, so a pool of light joins the unlit board without an edge."""
-    glow = Image.new('RGB', base.size, (0, 0, 0))
-    lift = Image.new('L', base.size, 0)
-    lights = [l for l in t['lights'] if l.get('glow', 0) > 0 and l.get('z', 0) == 0]
-    for i, l in enumerate(lights):
-        for m in lights[i + 1:]:
-            if math.hypot(l['at'][0] - m['at'][0], l['at'][1] - m['at'][1]) < l['glow'] + m['glow'] - 0.01:
-                print(f"  the pools of {l['id']} and {m['id']} overlap: each will show the other lit")
-        n = int(l['glow'] * PX) * 2
-        fall = Image.radial_gradient('L').resize((n, n), Image.BILINEAR).point(lambda v: int(255 * (1 - v / 255) ** 1.7))
-        at = (int(l['at'][0] * PX) - n // 2, int(l['at'][1] * PX) - n // 2)
-        color = rgb(l.get('color', '#ffcc33'))
-        halo = Image.new('RGB', base.size, (0, 0, 0))
-        halo.paste(Image.merge('RGB', [fall.point(lambda v, c=ch: int(v * c / 255 * 0.8)) for ch in color]), at)
-        glow = ImageChops.add(glow, halo)
-        one = Image.new('L', base.size, 0)
-        one.paste(fall, at)
-        lift = ImageChops.lighter(lift, one)
-    brighter = ImageChops.multiply(base, Image.merge('RGB', (lift, lift, lift)))
-    return ImageChops.add(ImageChops.add(base, brighter), glow)
-
-
 def tessellate(points):
     """A path of the table as straight stretches: [x, y] rows, [x, y, bulge] when the stretch to the next point is an arc
     (the same rule as the game's geometry.ts)."""
@@ -745,13 +721,8 @@ def main():
         sys.exit(__doc__)
     t = json.load(open(os.path.join(TABLE, 'table.json')))
     os.makedirs(OUT, exist_ok=True)
-    base = [None]
-
-    def board():
-        base[0] = playfield(t)
-        return base[0]
     images = {
-        'playfield.jpg': board, 'playfield-lit.jpg': lambda: lit_playfield(base[0] or board(), t), 'ramp.jpg': lambda: ramp(t), 'cap.png': cap,
+        'playfield.jpg': lambda: playfield(t), 'ramp.jpg': lambda: ramp(t), 'cap.png': cap,
         'flipper.png': flipper, 'ball.jpg': ball, 'giant.jpg': giant, 'backglass.jpg': lambda: backglass(680, 800, False),
         'backglass-wide.jpg': lambda: backglass(800, 200, True), 'deck.jpg': lambda: deck(t), 'apron.jpg': apron, 'backboard.jpg': backboard, 'plastic.png': plastic, 'palette.png': palette,
     }

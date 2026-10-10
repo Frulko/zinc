@@ -361,6 +361,56 @@ export function inside(line: Polyline, x: number, y: number): boolean {
   return odd;
 }
 
+/** The part of a convex polygon (x, y pairs) on the inner side of the line a to b: the side where the cross product is not negative. */
+function keep(p: number[], ax: number, ay: number, bx: number, by: number): number[] {
+  const out: number[] = [], n = p.length / 2;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, x0 = p[i * 2], y0 = p[i * 2 + 1], x1 = p[j * 2], y1 = p[j * 2 + 1];
+    const s0 = (bx - ax) * (y0 - ay) - (by - ay) * (x0 - ax), s1 = (bx - ax) * (y1 - ay) - (by - ay) * (x1 - ax);
+    if (s0 >= 0) { out.push(x0); out.push(y0); }
+    if ((s0 >= 0) !== (s1 >= 0)) { const k = s0 / (s0 - s1); out.push(x0 + (x1 - x0) * k); out.push(y0 + (y1 - y0) * k); }
+  }
+  return out;
+}
+
+/** A disc around (cx, cy) as far as a closed outline goes: its triangles, x, y of three corners each. The disc is made of
+ *  `rings` rings of `segments` pieces, so that what is drawn on it can fade from the centre to the rim; a disc that passes the
+ *  outline is cut there, whatever the outline's shape (each of its triangles against each triangle of the outline). */
+export function discWithin(line: Polyline, cx: number, cy: number, radius: number, rings: i32, segments: i32): number[] {
+  const disc: number[] = [];
+  for (let s = 0; s < segments; s++) {
+    const a = 2 * Math.PI * s / segments, b = 2 * Math.PI * (s + 1) / segments, ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+    for (let k = 0; k < rings; k++) {
+      const r0 = radius * k / rings, r1 = radius * (k + 1) / rings;
+      if (k > 0) for (const v of [cx + ca * r0, cy + sa * r0, cx + ca * r1, cy + sa * r1, cx + cb * r0, cy + sb * r0]) disc.push(v);
+      for (const v of [cx + ca * r1, cy + sa * r1, cx + cb * r1, cy + sb * r1, cx + cb * r0, cy + sb * r0]) disc.push(v);
+    }
+  }
+  // wholly inside: its centre is, and no edge of the outline comes nearer than its rim
+  const n = line.count();
+  let whole = inside(line, cx, cy);
+  for (let i = 0; whole && i < n; i++) {
+    const j = (i + 1) % n, dx = line.xs[j] - line.xs[i], dy = line.ys[j] - line.ys[i], l2 = dx * dx + dy * dy;
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((cx - line.xs[i]) * dx + (cy - line.ys[i]) * dy) / l2));
+    const px = line.xs[i] + dx * t - cx, py = line.ys[i] + dy * t - cy;
+    if (px * px + py * py < radius * radius) whole = false;
+  }
+  if (whole) return disc;
+  const out: number[] = [], tris = triangulate(line.xs, line.ys);
+  for (let t = 0; t + 2 < tris.length; t += 3) {
+    const ax = line.xs[tris[t]], ay = line.ys[tris[t]];
+    let bx = line.xs[tris[t + 1]], by = line.ys[tris[t + 1]], ex = line.xs[tris[t + 2]], ey = line.ys[tris[t + 2]];
+    // the inner side of each edge is the side of the third corner
+    if ((bx - ax) * (ey - ay) - (by - ay) * (ex - ax) < 0) { const sx = bx, sy = by; bx = ex; by = ey; ex = sx; ey = sy; }
+    if (Math.max(ax, Math.max(bx, ex)) < cx - radius || Math.min(ax, Math.min(bx, ex)) > cx + radius || Math.max(ay, Math.max(by, ey)) < cy - radius || Math.min(ay, Math.min(by, ey)) > cy + radius) continue;
+    for (let d = 0; d + 5 < disc.length; d += 6) {
+      const p = keep(keep(keep(disc.slice(d, d + 6), ax, ay, bx, by), bx, by, ex, ey), ex, ey, ax, ay);
+      for (let i = 2; i + 3 < p.length; i += 2) for (const v of [p[0], p[1], p[i], p[i + 1], p[i + 2], p[i + 3]]) out.push(v);
+    }
+  }
+  return out;
+}
+
 /** The outline of a flipper seen from above, its pivot at (0, 0) and its tip along +x: the base circle, the tip
  *  circle and the two lines that touch both. x, y pairs. */
 export function flipperOutline(length: number, baseRadius: number, tipRadius: number): number[] {

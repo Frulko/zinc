@@ -73,8 +73,10 @@ Everything the eye sees is named in the table file too, and made by code: nothin
   shows it: the playfield's painting (space, the gas giant, the hull of the station, the lanes and their legends), the
   upper playfield's, the ramp's chevrons, the bumper caps, the flippers, the ball.
 - **Lights that light.** A light of the table is an insert that the rules turn on, and with a `glow` it throws a pool of
-  light on the board around it: there the playfield shows its `textureLit`, the same painting with every light lit, which
-  fades to the plain one at the rim of the pool. `lighting.general` names the lights that are the general illumination:
+  light around it, on the playfield or on the upper playfield it is in: its colour is added to what is under it (real
+  additive blending), strongest at the light and gone at the rim, cut where its level ends, and two pools that meet add
+  up. `lighting.general` names the lights that are the general illumination (on Tidal Lock, lamps under the plates of the
+  slingshots whose light spills around them):
   while they are off (a tilt, a game that is over) the lamps of the scene fall to `dimmed`. A bumper, a slingshot or a
   target shows its look's glow when it is hit, and while the light the table gives it is lit.
 - **Modelled pieces.** A `model` is a mesh file (OBJ) or a simple solid, decorative or with a collision box or hull: the
@@ -85,8 +87,8 @@ Everything the eye sees is named in the table file too, and made by code: nothin
   with the software renderer, whose frames are the goldens of the tests. They are the same picture (0.06 % of the pixels
   apart with multisampling and filtering off, structural similarity 0.96 as a window shows it).
 
-[`tools/tidal_lock_art.py`](tools/tidal_lock_art.py) draws the 14 images and builds the 4 models of Tidal Lock (700 KB) from
-the table file itself: the pads under the lights, the rings of the bumpers, the docking ring and the pools of light are
+[`tools/tidal_lock_art.py`](tools/tidal_lock_art.py) draws the 13 images and builds the 4 models of Tidal Lock (470 KB) from
+the table file itself: the pads under the lights, the rings of the bumpers and the docking ring are
 painted where table.json puts those elements (`python3 tools/tidal_lock_art.py`; it needs Pillow).
 
 ## Sound
@@ -95,12 +97,12 @@ Every event of every element plays the sound that the element names in the table
 bumper, `up` and `down` on a flipper, `pull` and `release` on the plunger, `capture` and `eject` on the dock, and so on for
 walls, gates, targets, rollovers, the spinner, ramps and the ball itself (`roll`, `hit`, `land`, `knock`). A rule plays one
 with `{ "do": "sound", "target": "..." }`, which is how the events of the game are heard (a new game, a drained ball, a
-mission done, a jackpot, the tilt). `music` names a piece per state: waiting, playing, multiball, game over. A sound is a
+mission done, a jackpot, a bump of the table, the tilt, each letter of the initials that sign a high score). `music` names a piece per state: waiting, playing, multiball, game over. A sound is a
 file of the table folder or a generated tone, with its volume, its pitch, and how much both vary from one play to the next;
 a hit is louder when the ball arrives faster, it comes from the side of the table it happens on, and the rolling sound gets
 louder and higher with the speed of the ball. Change a name in the file and another sound plays: the code names none.
 
-Tidal Lock has 42 sounds in 40 MP3 files, 595 KB in all:
+Tidal Lock has 44 sounds in 42 MP3 files, 600 KB in all:
 
 - **recorded mechanics** under CC0 (flippers, bumpers, slingshots, plunger, drain, the ball rolling, landing and knocking), cut
   out of recordings of a 1977 pinball machine and of a marble on a table; each source, its author and its licence are in
@@ -149,9 +151,8 @@ single shots), `pinball3d_sound.sh` (the scripted game's sound log, every sound 
 
 ## Limits
 
-- Sounds come from two speakers by a balance, not from a place in space; a bump of the table has no sound (the format has no
-  event for it); the music of a state starts at its beginning each time.
-- The renderer has no transparency and no light of its own on a piece: a pool of light is a patch of the lit painting,
-  on the playfield only (a light on an upper floor lights its insert alone), and two pools must not overlap.
+- Sounds come from two speakers by a balance, not from a place in space; the music of a state starts at its beginning each time.
+- A pool of light lights the floor it lies on, not the pieces that stand in it: the renderer has no light of its own on a piece
+  (a bumper or a target shows its look's `glow` instead).
 - An image is laid flat, as the top view shows the element: a wall or the face of a target cannot carry one.
 - Text of a table is drawn with the characters and sizes baked into the program: ASCII, 18 sizes from 10 to 96.

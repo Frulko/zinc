@@ -3,7 +3,8 @@
 # - The scripted game of tests/t1/pinball3d.sh, run with --sounds, prints the sound log of tests/data/pinball3d/sounds.log: each sound with what made
 #   it, its volume and pitch (varied from one play to the next by a generator that repeats), its place between the speakers, the rolling sound
 #   every half second and each change of music (tests/t1/pinball3d_aot.sh holds the compiled program to the same log).
-# - The table is complete: every element names a sound for each of its events, every event of the game has a rule that plays one, every state
+# - The table is complete: every element names a sound for each of its events, every event of the game has a rule that plays one (a bump
+#   of the table and a letter of the initials signed too, ZN-649.10: both are in the scripted game's log), every state
 #   has its music, every file is there, and the audio is under 1 MB.
 # - Every sound decodes and gives samples on the mixer that has no output (tools/soundcheck.ts, the plugin's native code).
 # - The rolling sound follows the ball: louder means higher.
@@ -47,7 +48,7 @@ for ev in ('pull', 'release'):
     if t['plunger'].get('sounds', {}).get(ev, '') not in names: bad.append(f'the plunger has no sound for {ev}')
 for ev in ('roll', 'hit', 'land', 'knock'):
     if t['physics']['ball'].get('sounds', {}).get(ev, '') not in names: bad.append(f'the ball has no sound for {ev}')
-for ev in ('start', 'ballStart', 'drain', 'ballSaved', 'tilt', 'missionDone', 'rankUp', 'multiballStart', 'multiballEnd', 'jackpot', 'extraBall', 'gameOver'):
+for ev in ('start', 'ballStart', 'drain', 'ballSaved', 'bump', 'tilt', 'missionDone', 'rankUp', 'multiballStart', 'multiballEnd', 'jackpot', 'extraBall', 'gameOver', 'letter'):
     if not any(w['on'] == 'game' and w['event'] == ev and any(a['do'] == 'sound' for a in w['do']) for w in t['rules']['when']): bad.append(f'no rule plays a sound when the game says {ev}')
 for state in ('attract', 'play', 'multiball', 'gameOver'):
     if t.get('music', {}).get(state, '') not in names: bad.append(f'no music for {state}')

@@ -53,6 +53,7 @@
 10.183 right flip
 10.800 left flip
 10.800 deckFlipper flip
+11.333 game bump
 11.417 right flip
 12.033 left flip
 12.033 deckFlipper flip
@@ -137,6 +138,7 @@
 28.683 right flip
 29.300 left flip
 29.300 deckFlipper flip
+29.667 game bump
 29.917 right flip
 30.533 left flip
 30.533 deckFlipper flip
@@ -201,4 +203,7 @@
 42.657 end of ball 3: bonus 5000, score 79360
 42.657 game gameOver
 42.657 game over: score 79360
+42.657 game letter
+42.657 game letter
+42.657 game letter
 42.657 high score: ZAA 79360

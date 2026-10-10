@@ -5,7 +5,8 @@
 #   portrait one (the game does not depend on the window).
 # - Three moments of it in each layout equal their pixel goldens on the software renderer (tests/golden/pinball3d): the table waiting for a
 #   player (frame 12), a ball in play (320), the mission's light lit while a bumper fires (460). They show the look of the table (ZN-649.08):
-#   the painted playfield, the pools of light of the lit inserts, the modelled pieces, the cabinet, the upper playfield, the backglass. The
+#   the painted playfield, the pools of light of the lit inserts (ZN-649.10: the light's colour added to the board, on the playfield and on
+#   the upper playfield, where the lit beacon light of frame 12 has its own), the modelled pieces, the cabinet, the backglass. The
 #   GPU renderer, which a window uses with 4 samples a pixel and mipmaps, draws the ball-in-play frame as the same picture as the software
 #   one: close to it pixel by pixel with multisampling and filtering off, and by structural similarity as a window shows it.
 # - Single shots (tools/probe.ts) prove what the third dimension is for: a shot up the ramp climbs it, rides the wire rail above the playfield
@@ -14,6 +15,8 @@
 #   mesh file with a convex hull); a flip sends the ball away at arcade speed; with the locks it needs, multiball serves and shoots two more balls.
 # - A high score is signed (ZN-649.09): the scripted game's score enters the table, its hands choose three letters with the flippers and the
 #   plunger, and the name is kept in the file --scores names; a second run reads it back.
+# - A pool of light is cut where its level ends, whatever the level's shape (tests/data/pinball3d/pool.ts); a playfield that names a painting
+#   of its own for what is lit (`textureLit`) shows it in its pools instead.
 # - Nothing of the table is in the code: no name, text, file or coordinate of table.json appears in the sources, and every file it names is there.
 # To make the goldens again after an intended change: tests/t1/pinball3d.sh --update (with ZINC set).
 cd "$(dirname "$0")/../.." || exit 2
@@ -57,6 +60,22 @@ gpu gpu ZINC_3D_MSAA=0 ZINC_3D_FILTER=nearest
 tools/pngdiff "$tmp/gpu-320.png" "$gold/landscape-320.png" --tol 24 --max-diff 2560 >"$tmp/gpu.txt" 2>&1 || { echo "pinball3d: the GPU frame is not within tolerance of the software one: $(head -1 "$tmp/gpu.txt")"; fail=1; }
 gpu smooth
 tools/pngdiff "$tmp/smooth-320.png" "$gold/landscape-320.png" --ssim 0.95 >"$tmp/smooth.txt" 2>&1 || { echo "pinball3d: the multisampled GPU frame is another picture: $(tail -1 "$tmp/smooth.txt")"; fail=1; }
+
+# the pools of light: the disc of one, cut to an L-shaped level, keeps the share of it that lies on the level
+out=$("$ZINC" run "$data/pool.ts" 2>&1)
+[ "$out" = "inside 1.00 edge 0.50 corner 0.25 inner corner 0.75 outside 0.00" ] || { echo "pinball3d: a pool of light is not cut to its level: $out"; fail=1; }
+# a playfield whose look names an image for what is lit shows that image in its pools: another picture than the light added to the board
+cp -R "$ex/assets/tables/$(cd $ex/assets/tables && ls | head -1)" "$tmp/lit"
+python3 - "$tmp/lit/table.json" <<'PY'
+import json, sys
+t = json.load(open(sys.argv[1]))
+board = next(l for l in t['looks'] if l['id'] == t['playfield']['look'])
+board['textureLit'] = next(l['texture'] for l in t['looks'] if l.get('texture') and l is not board)
+json.dump(t, open(sys.argv[1], 'w'))
+PY
+ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=14 ZINC_SHOT="$tmp/lit.png" ZINC_SHOT_FRAMES=12 "$ZINC" run $ex -- "--table=$tmp/lit" >/dev/null 2>"$tmp/lit.err" \
+  || { echo "pinball3d: a table with a textureLit failed: $(head -c 300 "$tmp/lit.err")"; fail=1; }
+tools/pngdiff "$tmp/lit-12.png" "$gold/landscape-12.png" >/dev/null 2>&1 && { echo "pinball3d: a playfield's textureLit does not show in its pools of light"; fail=1; }
 
 # single shots: place and velocity of the ball (centimetres, cm/s), seconds
 probe() { "$ZINC" run $ex/tools/probe.ts -- "$@" 2>&1; }

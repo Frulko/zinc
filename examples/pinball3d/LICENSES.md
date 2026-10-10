@@ -24,13 +24,13 @@ writes the MP3 files.
 ## Synthesised sounds and music
 
 Every other file of `sounds/` (the effects of the targets, lanes, ramp, rail, gate, spinner and dock, the jingles of the
-rules, and the four pieces of music) is computed sample by sample by `tools/tidal_lock_sounds.py`: oscillators, noise,
+rules, the knock of a bumped cabinet, the key of a letter signed, and the four pieces of music) is computed sample by sample by `tools/tidal_lock_sounds.py`: oscillators, noise,
 filters and envelopes written in the script, and music composed in it. No sample and no melody is taken from anywhere.
 They are part of this repository and under its terms.
 
 ## Images and models
 
-Every file of `art/` is drawn or built by `tools/tidal_lock_art.py`: the painting of the playfield and its lit twin, the
+Every file of `art/` is drawn or built by `tools/tidal_lock_art.py`: the painting of the playfield, the
 upper playfield, the ramp, the bumper caps, the flippers, the ball, the gas giant, the apron, the backboard, the plates
 of the slingshots, the two backglass pictures, the palette, and the modelled pieces (`station.obj`, `tug.obj`, the two
 `plastic-*.obj`). Nothing is fetched, traced or copied: shapes, colours and legends are in the script. They are part of

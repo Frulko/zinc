@@ -1,4 +1,4 @@
-audio null: 42 sounds
+audio null: 44 sounds
 0.000 music attract: musicAttract
 0.000 rule: jingleStart vol 0.40 rate 1.00 pan 0.00
 0.016 music play: musicPlay
@@ -104,6 +104,7 @@ audio null: 42 sounds
 10.950 left down: flipperDown vol 0.60 rate 1.03 pan -0.26
 11.208 slingBodyLeft hit: rubber vol 0.14 rate 1.04 pan -0.43
 11.228 guideLeft hit: steel vol 0.25 rate 1.15 pan -0.46
+11.333 rule: cabinetKnock vol 0.70 rate 1.00 pan 0.00
 11.399 ball roll: ballRoll vol 0.04 rate 0.74 pan -0.42
 11.417 right up: flipperUp vol 0.91 rate 0.96 pan 0.18
 11.532 ball roll: ballRoll stops
@@ -255,6 +256,7 @@ audio null: 42 sounds
 28.833 right down: flipperDown vol 0.59 rate 1.01 pan 0.18
 29.300 left up: flipperUp vol 0.84 rate 0.99 pan -0.26
 29.450 left down: flipperDown vol 0.62 rate 1.05 pan -0.26
+29.667 rule: cabinetKnock vol 0.70 rate 1.00 pan 0.00
 29.671 outer hit: steel vol 0.14 rate 1.08 pan 0.54
 29.917 right up: flipperUp vol 0.96 rate 1.03 pan 0.18
 30.067 right down: flipperDown vol 0.55 rate 1.02 pan 0.18
@@ -378,4 +380,7 @@ audio null: 42 sounds
 42.657 rule: jingleOver vol 0.40 rate 1.00 pan 0.00
 42.657 music gameOver: musicOver
 42.657 ball roll: ballRoll stops
+42.657 rule: letterKey vol 0.40 rate 1.00 pan 0.00
+42.657 rule: letterKey vol 0.40 rate 1.00 pan 0.00
+42.657 rule: letterKey vol 0.40 rate 1.00 pan 0.00
 42.657 music attract: musicAttract

@@ -1,11 +1,11 @@
 // The table as a 3D scene (zinc:3d), built from the table data alone: every mesh is generated from a path, an outline
 // or a few numbers of the file (geometry.ts), or loaded from a model file the table names. The game then moves what
 // moves: balls, flippers, the plunger, targets, spinners, and what lights up. Nothing here knows a rule or a score.
-import { Scene, Camera, Node, Mesh, Material, Light, Shading, cube, sphere, parseObj, quatFromAxisAngle, quatMultiply } from 'zinc:3d';
-import { Table, TableDef, LookDef, LayoutDef } from './format/table';
+import { Scene, Camera, Node, Mesh, Material, Light, Shading, Blend, cube, sphere, parseObj, quatFromAxisAngle, quatMultiply } from 'zinc:3d';
+import { Table, TableDef, LookDef, LayoutDef, LightDef } from './format/table';
 import { TableSource } from './format/source';
 import { tableImage } from './images';
-import { Solid, Polyline, tessellate, wall, track, wire, slab, lathe, plate, floor, prism, flipperOutline, rad } from './geometry';
+import { Solid, Polyline, tessellate, wall, track, wire, slab, lathe, plate, floor, prism, flipperOutline, discWithin, inside, rad } from './geometry';
 
 export function rgb(hex: string): u32 { return parseInt(hex.slice(1), 16); }
 /** A dark shade of a colour: a light that is off. */
@@ -18,6 +18,8 @@ function scaled(c: u32, k: number): u32 {
   return (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
 }
 function meshOf(s: Solid): Mesh { return new Mesh(s.pos, s.idx, s.nrm, s.uv, []); }
+/** How much of a light's colour its pool of light adds right at the light. */
+const POOL = 0.8;
 
 /** Something that can show its look's `glow`. */
 class Glowing {
@@ -50,8 +52,10 @@ export class TableScene {
   private lights: Material[] = [];
   private lightOn: u32[] = [];
   private lightOff: u32[] = [];
-  /** Per light: the pool of light it throws on the playfield while it is on; null for none. */
+  /** Per light: the pool of light it throws on its level while it is on; null for none. */
   private pools: (Node | null)[] = [];
+  /** What every pool of light is drawn with: the colours of its corners, added to what is under it. */
+  private glowing: Material = new Material(0xffffff);
   private litBoard: Material | null = null;
   private general: number = -1;
 
@@ -63,7 +67,7 @@ export class TableScene {
     for (const l of t.looks) {
       this.looks.set(l.id, this.materialOf(l));
       if (l.glow !== '#000000') { const g = new Material(rgb(l.glow)); g.shading = Shading.Unlit; this.glows.set(l.id, g); }
-      // the playfield under a light that is on: the same look with the image of the lit table
+      // a playfield with a painting of its own for what is lit: its pools show that image instead of adding light
       if (l.id === t.playfield.look && l.textureLit !== '') {
         const lit = this.materialOf(l);
         lit.texture = this.image(l.textureLit);
@@ -73,6 +77,7 @@ export class TableScene {
     this.scene.background = rgb(t.lighting.background);
     for (const lamp of t.lighting.lamps) this.scene.lights.push(new Light(lamp.direction[0], lamp.direction[2], lamp.direction[1], rgb(lamp.color)));
     this.setGeneral(1);
+    this.glowing.shading = Shading.Unlit; this.glowing.vertexColors = true; this.glowing.blend = Blend.Add; this.glowing.doubleSided = true;
     this.ballMesh = sphere(t.physics.ball.radius, 20, 12);
     this.ballLook = this.look(t.physics.ball.look);
     this.board(t);
@@ -278,27 +283,54 @@ export class TableScene {
       this.lights.push(m);
       this.lightOn.push(rgb(l.color));
       this.lightOff.push(dim(l.color));
-      this.pools.push(this.pool(t, l.at[0], l.at[1], l.z, l.glow));
+      this.pools.push(this.pool(t, l));
     }
   }
-  /** The pool of light of a light: a disc of the playfield, just above it, that shows the playfield's lit image in
-   *  place of the plain one; its image fades to the plain one at the rim, so no edge shows. Hidden until the light is on.
-   *  ponytail: on the playfield only; a light on an upper floor lights its insert alone (the floor's look would need
-   *  its own lit image and the floor's box). */
-  private pool(t: TableDef, x: number, y: number, z: number, radius: number): Node | null {
-    const lit = this.litBoard;
-    if (lit === null || radius <= 0 || z !== 0) return null;
-    const s = new Solid(), ring: number[] = [], w = t.playfield.width, l = t.playfield.length;
-    for (let i = 0; i < 24; i++) {
-      // cut at the edges of the board
-      ring.push(Math.max(0, Math.min(w, x + Math.cos(i * Math.PI / 12) * radius)));
-      ring.push(Math.max(0, Math.min(l, y + Math.sin(i * Math.PI / 12) * radius)));
+  /** The pool of light of a light: its colour added to what lies under it on its level, strongest at the light and nothing
+   *  at its `glow` from it (real additive blending: where two pools overlap they add up), cut where the level ends so that a
+   *  light near the edge of an upper playfield does not light the air beside it. Hidden until the light is on.
+   *  A playfield whose look names a `textureLit` keeps the older way: there the pool is a disc of that image, which hides
+   *  the plain one (its painter fades it to the plain one at the rim). */
+  private pool(t: TableDef, l: LightDef): Node | null {
+    const level = l.glow > 0 ? this.levelAt(t, l.at[0], l.at[1], l.z) : null;
+    if (level === null) return null;
+    const xy = discWithin(level, l.at[0], l.at[1], l.glow, 4, 20), z = l.z + 0.015;
+    if (xy.length === 0) return null;
+    const lit = l.z === 0 ? this.litBoard : null;
+    let n: Node;
+    if (lit !== null) {
+      const s = new Solid();
+      for (let i = 0; i + 5 < xy.length; i += 6) s.triangle(s.vertex(xy[i], xy[i + 1], z, 0, 0, 1), s.vertex(xy[i + 2], xy[i + 3], z, 0, 0, 1), s.vertex(xy[i + 4], xy[i + 5], z, 0, 0, 1));
+      s.drapeBox(0, 0, 0, t.playfield.width, t.playfield.length);
+      n = this.add(s, lit);
+    } else {
+      const pos: number[] = [], idx: i32[] = [], colors: u32[] = [], c = rgb(l.color);
+      for (let i = 0, v: i32 = 0; i + 1 < xy.length; i += 2, v++) {
+        const dx = xy[i] - l.at[0], dy = xy[i + 1] - l.at[1], k = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / l.glow);
+        pos.push(xy[i]); pos.push(z); pos.push(xy[i + 1]);
+        idx.push(v);
+        colors.push(scaled(c, POOL * k * Math.sqrt(k)));
+      }
+      n = this.scene.add(new Node(new Mesh(pos, idx, [], [], colors), this.glowing));
     }
-    plate(s, ring, 0.015);
-    s.drapeBox(0, 0, 0, w, l);
-    const n = this.add(s, lit);
     n.visible = false;
     return n;
+  }
+  /** The outline of the level a light is in: the board, or the upper playfield at its height that it lies on; null when it
+   *  lies on none (a light in the air lights its insert alone). */
+  private levelAt(t: TableDef, x: number, y: number, z: number): Polyline | null {
+    if (z === 0) {
+      const board = new Polyline(), w = t.playfield.width, l = t.playfield.length;
+      board.closed = true;
+      board.add(0, 0); board.add(w, 0); board.add(w, l); board.add(0, l);
+      return board;
+    }
+    for (const f of t.floors) {
+      if (Math.abs(f.z - z) > 0.01) continue;
+      const line = tessellate(f.points, true);
+      if (inside(line, x, y)) return line;
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------- what the game sets

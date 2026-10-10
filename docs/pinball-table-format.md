@@ -199,10 +199,10 @@ A material as the eye sees it. Elements name one in their `look`.
 | `shininess` | number | `30` (1 to 1000) | How tight the highlights are: 5 is satin, 200 is chrome. |
 | `glow` | colour | `"#000000"` | The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light. |
 | `texture` | file | none | An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper's cap). A model keeps the mapping of its mesh. |
-| `textureLit` | file | none | The same image with the lights of the table lit: it shows in the pool of light around each light that is on (a light's `glow`). For the look of the playfield. |
+| `textureLit` | file | none | The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light's `glow`) then shows this image instead of adding the light's colour, and two such pools should not overlap. Usually left out. |
 
 ```json
-{ "id": "board", "color": "#c4c8d6", "texture": "art/playfield.jpg", "textureLit": "art/playfield-lit.jpg" }
+{ "id": "board", "color": "#c4c8d6", "texture": "art/playfield.jpg" }
 ```
 
 ## sound
@@ -696,10 +696,10 @@ A lamp under the playfield or on an element, that the rules turn on, off or blin
 | `size` | number, cm | `1.1` (0.2 to 20) | Its radius, or half its length. |
 | `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |
 | `color` | colour | `"#ffcc33"` | Its colour when on; off, it shows a dark shade of it. |
-| `glow` | number, cm | `0` (0 to 30) | How far around it its light falls on the playfield when it is on: the radius of its pool of light, which shows the playfield's `textureLit`. 0: only the insert lights up. Two pools should not overlap. |
+| `glow` | number, cm | `0` (0 to 30) | How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up. |
 
 ```json
-{ "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff", "glow": 2.2 }
+{ "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff", "glow": 3 }
 ```
 
 ## model
@@ -891,6 +891,8 @@ How the table is played and scored. Everything here is data: the game has no rul
     { "on": "game", "event": "jackpot", "do": [{ "do": "sound", "target": "jingleJackpot" }] },
     { "on": "game", "event": "extraBall", "do": [{ "do": "sound", "target": "jingleExtra" }] },
     { "on": "game", "event": "gameOver", "do": [{ "do": "sound", "target": "jingleOver" }] },
+    { "on": "game", "event": "bump", "do": [{ "do": "sound", "target": "cabinetKnock" }] },
+    { "on": "game", "event": "letter", "do": [{ "do": "sound", "target": "letterKey" }] },
     {
       "on": "game",
       "event": "ballStart",
@@ -969,7 +971,7 @@ One step of a mission: an event to get a number of times.
 |---|---|---|---|
 | `text` | text | required | What the panel asks for ("Light the three lanes"). |
 | `on` | name of elements / groups / game | required | Where the event comes from. |
-| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | required | The event. |
+| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"bump"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` `"letter"` | required | The event. |
 | `count` | whole number | `1` (1 to 1000) | How many times. |
 | `light` | name of lights / light groups | none | A light, or a group, that blinks while this step is the one to do. |
 
@@ -989,7 +991,7 @@ Multiball: balls locked in a kicker start it; while it lasts a shot scores the j
 | `ballSave` | number, seconds | `12` (0 to 120) | Seconds a drained ball comes back after it starts. |
 | `scoreMultiplier` | number | `2` (1 to 100) | Scores are multiplied by this while it lasts. |
 | `jackpotOn` | name of elements / groups / game | none | Where the jackpot shot is. |
-| `jackpotEvent` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | `"hit"` | The event of the jackpot shot. |
+| `jackpotEvent` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"bump"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` `"letter"` | `"hit"` | The event of the jackpot shot. |
 | `jackpot` | number | `20000` (0 to 1000000000) | The first jackpot. |
 | `jackpotStep` | number | `5000` (0 to 1000000000) | What each jackpot adds to the next. |
 
@@ -1004,7 +1006,7 @@ When something happens, and some things hold, do some things. Rules are read in 
 | field | type | default | |
 |---|---|---|---|
 | `on` | name of elements / groups / game | required | The element, or the group of elements, that the event comes from; "game" for the events of the game itself. |
-| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | required | hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver. |
+| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"bump"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` `"letter"` | required | hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, bump (the player bumps the table), tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver, letter (the player takes a letter of the initials that sign a high score). |
 | `if` | list of [condition](#condition) |  | Every one must hold. |
 | `do` | list of [action](#action) |  | What happens. |
 
