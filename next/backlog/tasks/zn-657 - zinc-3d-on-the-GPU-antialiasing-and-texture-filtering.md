@@ -17,6 +17,8 @@ ordinal: 410410
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 (Owner's answers, 2026-10-10, for the showcase demos of M27.) Found by the backlog review: the GPU renderer of zinc:3d (ZN-563, D58) samples textures at the nearest texel and has no multisampling, which shows on the edges of a pinball table and on the textured models of museum objects. Multisampled rendering where the context offers it, mipmaps and linear or trilinear filtering per material, with the software renderer unchanged as the reference.
+
+Also found by the museum table (ZN-650.03): zinc:3d renders in logical pixels, so a scene is at half density in a Retina window; render at the window's pixel scale (or a pixel ratio on the Camera) as part of this task.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
