@@ -1,5 +1,6 @@
 // The event loop of the host on libuv (ZN-082), see include/zn/loop.h.
 #include "zn/loop.h"
+#include "netlog.h"
 #include "osc.h"
 
 #include <uv.h>
@@ -63,10 +64,12 @@ void pump() {
   uv_timer_start(t, onTimer, 0, 0);
   uv_run(loop(), UV_RUN_NOWAIT);
   uv_timer_stop(t);
+  netlog::tick();   // the HAR file of `zinc run --har` follows the log while the program runs (ZN-636); a flag test otherwise
 }
 
 void wait(double ms) {
   if (ms <= 0) { pump(); return; }
+  netlog::tick(ms);   // nothing looks at the log while the process sleeps
   uv_timer_t t;
   uv_timer_init(loop(), &t);
   uv_timer_start(&t, onTimer, static_cast<uint64_t>(ms + 0.999), 0);  // rounds up: never wakes before the time asked

@@ -1,7 +1,8 @@
 #pragma once
 // The network log of the host (ZN-370): every request the program starts through zinc:net (fetch), zinc:mqtt and zinc:socket (outgoing TCP, and the
 // WebSockets spoken on it) with its headers, bodies, frames and timings. Two readers: the inspector (zinc:devtools) takes the entries as events of the
-// DevTools protocol's Network domain, and `zinc run --har file` (ZINC_HAR) writes them as a HAR 1.2 file when the program ends.
+// DevTools protocol's Network domain, and `zinc run --har file` (ZINC_HAR) writes them as a HAR 1.2 file: when the program ends, and while it runs (tick), so a
+// program that is killed leaves the file too.
 // Off unless one of the two asked: every call below is then a no-op and open() returns 0. Headers that carry credentials are masked when they are recorded
 // (Authorization, Cookie, Set-Cookie, any name with token, secret, password, api-key or session; more names in ZINC_NET_SENSITIVE=a,b), so neither reader sees them.
 // The names of ZINC_NET_SENSITIVE (and only those) are masked as query parameters, urlencoded form fields and JSON fields too: URLs, Location, the bodies of
@@ -11,6 +12,9 @@
 namespace zn::netlog {
 
 bool on();
+// Called by the event loop on every turn, and with the time it is about to sleep (ZN-636). With ZINC_HAR the file is rewritten when the log changed: at most
+// once a second (less often when the log is large), and before a sleep that would outlast that second. A killed or crashed program leaves a valid HAR.
+void tick(double sleepMs = 0);
 // The inspector listens on `port`: recording starts, events are queued for drain(), and connections to that local port are not recorded (its own clients).
 void start(int port);
 

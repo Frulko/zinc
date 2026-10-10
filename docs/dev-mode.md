@@ -142,10 +142,13 @@ On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, 
 ### HAR export
 
 `zinc run --har out.har <entry>` (or `ZINC_HAR=out.har`, which compiled and exported programs read too) records the
-same log without the inspector and writes it as a HAR 1.2 file when the program ends: one entry per request with
+same log without the inspector and writes it as a HAR 1.2 file: one entry per request with
 headers, URLs and bodies (masked as above; `encoding: base64` when a body is not text), `timings` (`dns`, `connect`, `ssl`,
 `send`, `wait`, `receive`) and, for WebSockets and MQTT clients, Chrome's `_webSocketMessages`. Open it with *Import HAR
-file* in the Network panel of Chrome DevTools. A program that is killed writes no file.
+file* in the Network panel of Chrome DevTools. The file is written when the program ends and, while it runs, each time
+the log changed: at most once a second (less often when the log is large, so writing stays under 5% of the time), whole
+and renamed over the previous one (`out.har.tmp`). A program that is killed (SIGTERM, SIGKILL) or crashes therefore
+leaves a valid HAR, at most about a second behind; it has no signal handler for this.
 
 ## Profiling
 

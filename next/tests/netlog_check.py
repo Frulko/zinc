@@ -84,7 +84,14 @@ print("AC1 ok: %d requests in the Network domain (fetch with bodies, redirect, f
 if tls: print("AC3 ok: TLS timing dns %.1f connect %.1f ssl %.1f..%.1f first byte %.1f ms; Authorization, Cookie, Set-Cookie masked" % (st["dnsEnd"], st["sslStart"], st["sslStart"], st["sslEnd"], st["receiveHeadersEnd"]))
 else: print("AC3 partly: masking checked, TLS not run (no openssl 3.4+)")
 
-# ---- 2. the HAR file, written when the program ends
+# ---- 2. the HAR file: on disk while the program runs (ZN-636), then written again when it ends
+def on_disk():
+    try: return sorted(e["request"]["url"] for e in json.load(open(har_path))["log"]["entries"])
+    except OSError: return None
+for _ in range(60):
+    if on_disk() == cdp_urls: break
+    time.sleep(0.05)
+need(on_disk() == cdp_urls, "the HAR on disk does not follow the running program: %s" % on_disk())
 urllib.request.urlopen("http://127.0.0.1:%d/quit" % quit_port, timeout=5).read()
 for _ in range(100):
     if os.path.exists(har_path) and os.path.getsize(har_path) > 0: break

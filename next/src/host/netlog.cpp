@@ -39,6 +39,8 @@ struct Entry {
 };
 struct State {
   bool har = false, inspect = false;
+  bool dirty = false;                          // the log changed since the HAR file was written
+  double harNext = 0;                          // no rewrite of the HAR file before this time (nowS)
   int ignorePort = 0, next = 1;
   std::string harPath, queue;
   std::map<int, Entry> entries;
@@ -59,7 +61,13 @@ State& st() { static State s; return s; }
 
 double nowS() { return std::chrono::duration<double>(std::chrono::steady_clock::now() - st().start).count(); }
 double wallS() { return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count(); }
-Entry* find(int id) { auto it = id > 0 ? st().entries.find(id) : st().entries.end(); return it == st().entries.end() || it->second.done ? nullptr : &it->second; }
+// The entry a call changes (open() makes them): the HAR file is behind from here on.
+Entry* find(int id) {
+  auto it = id > 0 ? st().entries.find(id) : st().entries.end();
+  if (it == st().entries.end() || it->second.done) return nullptr;
+  st().dirty = true;
+  return &it->second;
+}
 
 // ---------------------------------------------------------------- text
 // Length of the UTF-8 sequence at s[i], 0 when the bytes there are not one.
@@ -341,18 +349,35 @@ std::string harEntry(const Entry& e) {
   return r + "}";
 }
 
+// The HAR file, whole, then renamed over the target: what is on disk is a valid HAR at every moment, also when the process is killed during a write.
+bool writeHar() {
+  const std::string tmp = st().harPath + ".tmp";
+  { std::ofstream f(tmp, std::ios::binary); f << har() << "\n"; if (!f.flush()) return false; }
+  return std::rename(tmp.c_str(), st().harPath.c_str()) == 0;
+}
+
 }  // namespace
 
 // ZINC_HAR (`zinc run --har file`) is looked up until it is there: the CLI sets it after the host is installed. The file is written when the process ends
-// normally (the end of the program, quit(), sys.exit).
+// normally (the end of the program, quit(), sys.exit) and, by tick(), while it runs.
 bool on() {
   State& s = st();
   if (const char* p = s.har ? nullptr : std::getenv("ZINC_HAR"); p && *p) {
     s.har = true;
     s.harPath = p;
-    std::atexit([] { std::ofstream(st().harPath, std::ios::binary) << har() << "\n"; });
+    s.dirty = true;   // the first tick writes an empty log: a program killed before its first request leaves a file too
+    std::atexit([] { if (!writeHar()) std::ofstream(st().harPath, std::ios::binary) << har() << "\n"; });   // in place when nothing can be renamed over the path (/dev/stdout)
   }
   return s.har || s.inspect;
+}
+void tick(double sleepMs) {
+  State& s = st();
+  if (!s.har || !s.dirty) return;
+  const double now = nowS();
+  if (now < s.harNext && sleepMs / 1000 <= s.harNext - now) return;   // written less than a second ago, and the loop is back before that second ends
+  s.dirty = false;
+  writeHar();
+  s.harNext = nowS() + std::max(1.0, 20 * (nowS() - now));   // a large log is rewritten less often: writing takes at most 5% of the time
 }
 void start(int port) { st().inspect = true; st().ignorePort = port; }
 
@@ -363,6 +388,7 @@ int open(const std::string& scheme, const std::string& url, const std::string& m
     for (const char* host : {"127.0.0.1", "localhost", "[::1]"}) if (url == "tcp://" + std::string(host) + ":" + std::to_string(s.ignorePort)) return 0;
   if (s.entries.size() >= kMaxEntries)
     for (auto it = s.entries.begin(); it != s.entries.end(); ++it) if (it->second.done) { s.entries.erase(it); break; }
+  s.dirty = true;
   Entry& e = s.entries[s.next];
   e.id = s.next++;
   e.kind = scheme == "tcp" ? Kind::Tcp : scheme.compare(0, 4, "mqtt") == 0 ? Kind::Mqtt : Kind::Http;
