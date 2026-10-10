@@ -2,8 +2,10 @@
 id: ZN-314
 title: 'AOT binary does not find the assets of its project (hero: ENOENT city.bin)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 13:56'
+updated_date: '2026-10-10 17:02'
 labels:
   - aot
   - bug
