@@ -120,7 +120,8 @@ if args and args[0] in ("--claim", "--release"):
         print("%s %s" % ("claimed" if args[0] == "--claim" else "released", i))
     sys.exit(0)
 
-working = sorted([t for t in tasks.values() if status(t) == "In Progress"], key=ordinal)
+# a task In Progress with an assignee is worked by a parallel agent in its worktree, not by the loop
+working = sorted([t for t in tasks.values() if status(t) == "In Progress" and not t.get("assignee")], key=ordinal)
 if "--list" in args:
     n = int(args[args.index("--list") + 1]) if len(args) > args.index("--list") + 1 else 10
     for t in (working + startable())[:n]:
