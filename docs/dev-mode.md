@@ -124,8 +124,12 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   the bytes it received. Requests made before DevTools attached are listed too. Headers that carry credentials are
   masked as `***` when they are recorded (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, any name
   containing token, secret, password, api-key, session or credential, and the names in `ZINC_NET_SENSITIVE=a,b`), and
-  `user:password@` in a URL becomes `***@`; bodies and query strings are shown as they are. Bounds: the last 1000
-  requests, 4 MiB per body;
+  `user:password@` in a URL becomes `***@`. Bodies and query strings are shown as they are unless you name what to
+  hide: the names in `ZINC_NET_SENSITIVE` (those only, whatever their case) are also masked as query parameters (in
+  URLs and in `Location`), as fields of a urlencoded form and as JSON fields at any depth, in request and response
+  bodies and in WebSocket and MQTT text (`"pin":"***"`, the rest of the body is kept byte for byte). Not masked:
+  free text, multipart forms, the bytes of a plain TCP socket, names written percent-encoded or with JSON escapes.
+  Bounds: the last 1000 requests, 4 MiB per body;
 - every other method gets an empty result so the frontend never waits.
 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
@@ -139,7 +143,7 @@ On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, 
 
 `zinc run --har out.har <entry>` (or `ZINC_HAR=out.har`, which compiled and exported programs read too) records the
 same log without the inspector and writes it as a HAR 1.2 file when the program ends: one entry per request with
-headers (masked as above), bodies (`encoding: base64` when they are not text), `timings` (`dns`, `connect`, `ssl`,
+headers, URLs and bodies (masked as above; `encoding: base64` when a body is not text), `timings` (`dns`, `connect`, `ssl`,
 `send`, `wait`, `receive`) and, for WebSockets and MQTT clients, Chrome's `_webSocketMessages`. Open it with *Import HAR
 file* in the Network panel of Chrome DevTools. A program that is killed writes no file.
 

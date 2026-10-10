@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The HTTP and HTTPS servers of tests/t0/netlog.sh (ZN-370): usage netlog_servers.py port [tlsport cert.pem key.pem].
-POST /echo answers the body back as JSON with a Set-Cookie, GET /old redirects to /new, anything else answers its path."""
+A POST answers the body back with a Set-Cookie (a urlencoded form as it is, anything else inside a JSON object), GET /old redirects to /new with a query
+parameter, anything else answers its path."""
 import http.server, ssl, sys, threading
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -14,11 +15,12 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
     def do_GET(self):
-        if self.path == "/old": self.answer(302, b"", [("Location", "/new")])
-        else: self.answer(200, ("here " + self.path).encode(), [("Content-Type", "text/plain")])
+        if self.path == "/old": self.answer(302, b"", [("Location", "/new?api_key=redirect-secret")])
+        else: self.answer(200, ("here " + self.path.split("?")[0]).encode(), [("Content-Type", "text/plain")])   # no query: free text in a body is not masked
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        self.answer(200, b'{"echo":' + body + b'}', [("Content-Type", "application/json"), ("Set-Cookie", "sid=server-secret; HttpOnly")])
+        form = "urlencoded" in self.headers.get("Content-Type", "")
+        self.answer(200, body if form else b'{"echo":' + body + b'}', [("Content-Type", self.headers["Content-Type"] if form else "application/json"), ("Set-Cookie", "sid=server-secret; HttpOnly")])
 
 def serve(port, cert=None, key=None):
     s = http.server.ThreadingHTTPServer(("127.0.0.1", port), H)

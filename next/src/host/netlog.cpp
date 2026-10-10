@@ -102,14 +102,82 @@ std::string num(double v) { char b[40]; std::snprintf(b, sizeof b, "%.6f", v); r
 std::string ms(double seconds) { char b[40]; std::snprintf(b, sizeof b, "%.3f", seconds * 1000); return b; }
 std::string lower(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
 
+// ---------------------------------------------------------------- the names of ZINC_NET_SENSITIVE in query strings and bodies (ZN-635)
+// Opt-in, unlike the headers below: a field called token or session is often the data being debugged, so only the names the developer listed are masked.
+bool listed(const std::string& name) { return std::find(st().sensitive.begin(), st().sensitive.end(), lower(name)) != st().sensitive.end(); }
+// name=value pairs separated by & (a query string, a urlencoded form): the value of a listed name becomes ***.
+// ponytail: names are compared as written, not percent-decoded (pass%77ord is not password); decode them if a real program sends such names.
+std::string maskPairs(const std::string& s) {
+  std::string out;
+  for (size_t i = 0; i <= s.size();) {
+    const size_t end = std::min(s.find('&', i), s.size()), eq = s.find('=', i);
+    if (eq < end && listed(s.substr(i, eq - i))) out += s.substr(i, eq - i + 1) + "***"; else out.append(s, i, end - i);
+    if (end < s.size()) out += '&';
+    i = end + 1;
+  }
+  return out;
+}
+// The query of a URL or of a request target (between ? and #).
+std::string maskQuery(const std::string& url) {
+  const size_t q = url.find('?');
+  if (q == std::string::npos || st().sensitive.empty()) return url;
+  const size_t h = std::min(url.find('#', q), url.size());
+  return url.substr(0, q + 1) + maskPairs(url.substr(q + 1, h - q - 1)) + url.substr(h);
+}
+// Index after the closing quote of the JSON string that starts at s[i] (the end of the text when it is cut).
+size_t stringEnd(const std::string& s, size_t i) {
+  for (++i; i < s.size(); ++i) { if (s[i] == '\\') ++i; else if (s[i] == '"') return i + 1; }
+  return s.size();
+}
+// Index after the JSON value that starts at s[i]: a string, a balanced object or array, else a scalar.
+size_t valueEnd(const std::string& s, size_t i) {
+  if (i < s.size() && s[i] == '"') return stringEnd(s, i);
+  for (int depth = 0; i < s.size(); ++i) {
+    const char c = s[i];
+    if (c == '"') i = stringEnd(s, i) - 1;
+    else if (c == '{' || c == '[') ++depth;
+    else if (c == '}' || c == ']') { if (depth == 0) return i; if (--depth == 0) return i + 1; }
+    else if (depth == 0 && (c == ',' || std::isspace(static_cast<unsigned char>(c)))) return i;
+  }
+  return s.size();
+}
+// Text that holds JSON (a body, a WebSocket or MQTT message, an event stream): the value after "name": becomes "***" for each listed name, at any depth, and
+// every other byte is kept. Not a JSON parser (the host links none): it follows strings and brackets only, so a body cut short or a stream of JSON lines is
+// masked too. ponytail: a key written with escapes ("pin") and JSON inside a JSON string are not recognised.
+std::string maskJson(const std::string& s) {
+  if (st().sensitive.empty()) return s;
+  std::string out;
+  for (size_t i = 0; i < s.size();) {
+    const size_t quote = std::min(s.find('"', i), s.size());
+    out.append(s, i, quote - i);
+    if (quote == s.size()) break;
+    const size_t end = stringEnd(s, quote);
+    size_t v = end;
+    while (v < s.size() && std::isspace(static_cast<unsigned char>(s[v]))) ++v;
+    const bool key = v < s.size() && s[v] == ':' && end - quote >= 2 && listed(s.substr(quote + 1, end - quote - 2));
+    if (!key) { out.append(s, quote, end - quote); i = end; continue; }
+    for (++v; v < s.size() && std::isspace(static_cast<unsigned char>(s[v])); ++v) {}
+    out.append(s, quote, v - quote);
+    out += "\"***\"";
+    i = valueEnd(s, v);
+  }
+  return out;
+}
+// A request or response body as it is recorded: a urlencoded form by its fields, any other text as JSON; bytes that are not text are left alone.
+std::string maskBody(const std::string& body, const std::string& contentType) {
+  if (st().sensitive.empty() || !isText(body)) return body;
+  return lower(contentType).find("x-www-form-urlencoded") != std::string::npos ? maskPairs(body) : maskJson(body);
+}
+
 // ---------------------------------------------------------------- headers
 bool sensitive(const std::string& name) {
   const std::string n = lower(name);
   for (const char* exact : {"authorization", "proxy-authorization", "cookie", "set-cookie"}) if (n == exact) return true;
   for (const char* part : {"token", "secret", "password", "passwd", "api-key", "apikey", "session", "credential"}) if (n.find(part) != std::string::npos) return true;
-  return std::find(st().sensitive.begin(), st().sensitive.end(), n) != st().sensitive.end();
+  return listed(n);
 }
-// "Name: value" lines (\n or \r\n) into pairs; the values of sensitive headers are masked here, so nothing downstream holds them.
+// "Name: value" lines (\n or \r\n) into pairs; the values of sensitive headers are masked here, so nothing downstream holds them (a Location keeps its URL,
+// less the listed query parameters).
 Head parseHead(const std::string& lines) {
   Head h;
   for (size_t i = 0; i < lines.size();) {
@@ -123,7 +191,7 @@ Head parseHead(const std::string& lines) {
     size_t v = c + 1;
     while (v < line.size() && line[v] == ' ') ++v;
     std::string name = line.substr(0, c);
-    h.emplace_back(name, sensitive(name) ? "***" : line.substr(v));
+    h.emplace_back(name, sensitive(name) ? "***" : lower(name) == "location" ? maskQuery(line.substr(v)) : line.substr(v));
   }
   return h;
 }
@@ -143,8 +211,9 @@ std::string headArray(const Head& h) {    // HAR
   for (const auto& p : h) r += std::string(r.size() > 1 ? "," : "") + "{\"name\":" + q(p.first) + ",\"value\":" + q(p.second) + "}";
   return r + "]";
 }
-// user:password@ of a URL is a credential too.
-std::string cleanUrl(const std::string& url) {
+// user:password@ of a URL is a credential too; so are the query parameters the developer listed.
+std::string cleanUrl(const std::string& raw) {
+  const std::string url = maskQuery(raw);
   size_t a = url.find("://");
   if (a == std::string::npos) return url;
   size_t end = url.find_first_of("/?#", a + 3), at = url.find('@', a + 3);
@@ -208,7 +277,8 @@ void finish(Entry& e, const std::string& error) {
   if (e.kind == Kind::Http) emit("dataReceived", e, ts + ",\"dataLength\":" + std::to_string(e.recvBytes) + ",\"encodedDataLength\":" + std::to_string(e.recvBytes));
   emit("loadingFinished", e, ts + ",\"encodedDataLength\":" + std::to_string(e.recvBytes));
 }
-void addFrame(Entry& e, bool sent, int op, const std::string& data) {
+void addFrame(Entry& e, bool sent, int op, const std::string& raw) {
+  const std::string data = op == 1 ? maskJson(raw) : raw;
   const std::string text = op == 1 ? q(data) : "\"" + base64(data) + "\"";   // the protocol: text for text frames, base64 for every other opcode
   emit(sent ? "webSocketFrameSent" : "webSocketFrameReceived", e, "\"timestamp\":" + num(nowS()) + ",\"response\":{\"opcode\":" + std::to_string(op) + ",\"mask\":" + (sent ? "true" : "false") + ",\"payloadData\":" + text + "}");
   if (e.frames.size() < kMaxFrames) e.frames.push_back(Frame{sent, op, wallS(), data.substr(0, kBodyCap)});
@@ -300,7 +370,7 @@ int open(const std::string& scheme, const std::string& url, const std::string& m
   e.url = cleanUrl(url);
   e.method = method;
   e.reqHead = parseHead(headers);
-  e.reqBody = body.substr(0, kBodyCap);
+  e.reqBody = maskBody(body, headerOf(e.reqHead, "content-type")).substr(0, kBodyCap);
   e.sentBytes = body.size();
   e.t0 = nowS();
   e.wall = wallS();
@@ -317,7 +387,7 @@ void response(int id, int status, const std::string& reason, const std::string& 
   e->status = status;
   e->reason = reason;
   e->resHead = parseHead(headers);
-  e->resBody = body.substr(0, kBodyCap);
+  e->resBody = maskBody(body, headerOf(e->resHead, "content-type")).substr(0, kBodyCap);
   e->recvBytes = body.size();
   finish(*e, "");
 }
@@ -344,7 +414,7 @@ void bytes(int id, bool sent, const std::string& data) {
     size_t end = data.find("\r\n\r\n"), line = data.find("\r\n"), sp = data.find(' ', 4);
     if (sent && data.compare(0, 4, "GET ") == 0 && end != std::string::npos && sp < line && lower(data.substr(0, end)).find("upgrade: websocket") != std::string::npos) {
       e->kind = Kind::Ws;
-      e->url = "ws" + e->url.substr(3) + data.substr(4, sp - 4);   // tcp://host:port + the request target
+      e->url = "ws" + e->url.substr(3) + maskQuery(data.substr(4, sp - 4));   // tcp://host:port + the request target
       e->method = "GET";
       e->reqHead = parseHead(data.substr(line + 2, end - line - 2));
       announce(*e);

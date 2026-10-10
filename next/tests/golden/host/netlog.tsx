@@ -25,6 +25,11 @@ async function main(): Promise<void> {
   console.log('echo', echo.status, await echo.text());
   const moved = await fetch(`http://127.0.0.1:${http}/old`);
   console.log('moved', moved.status, await moved.text());
+  // ZN-635: the names of ZINC_NET_SENSITIVE (pin and api_key in the test) as a query parameter, JSON fields and a form field; `token` is not listed and stays
+  const login = await fetch(`http://127.0.0.1:${http}/login?api_key=query-secret&plain=1`, { method: 'POST', body: '{"user":"z\\"inc","pin":"json-secret","deep":[{"PIN":1234567,"keep":true}],"api_key":{"id":"json-secret"},"token":"shown"}', contentType: 'application/json' });
+  console.log('login', login.status, await login.text());
+  const form = await fetch(`http://127.0.0.1:${http}/form`, { method: 'POST', body: 'user=zinc&pin=form-secret&keep=1', contentType: 'application/x-www-form-urlencoded' });
+  console.log('form', form.status, await form.text());
   if (https > 0) {
     const c = new Headers();
     c.set('Cookie', 'sid=cookie-secret');
@@ -34,8 +39,8 @@ async function main(): Promise<void> {
   try { await fetch('http://127.0.0.1:1/refused'); } catch (e) { console.log('refused', (e as Error).message); }
 
   const wss = await serveWebSocket(0, (peer: WebSocket, req) => { peer.onmessage = (e: MessageEvent) => { peer.send('echo ' + e.data); }; }, '127.0.0.1');
-  const ws = new WebSocket(`ws://127.0.0.1:${wss.port}/chat?room=1`);
-  ws.onopen = () => { ws.send('hello ws'); };
+  const ws = new WebSocket(`ws://127.0.0.1:${wss.port}/chat?api_key=ws-query-secret&room=1`);
+  ws.onopen = () => { ws.send('{"say":"hello ws","pin":"ws-secret"}'); };
   await new Promise<void>((resolve) => { ws.onmessage = (e: MessageEvent) => { console.log('ws', e.data); ws.close(); resolve(); }; });
 
   const m = new MqttClient('127.0.0.1', mqtt, 'netlog');

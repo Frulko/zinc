@@ -4,6 +4,8 @@
 // DevTools protocol's Network domain, and `zinc run --har file` (ZINC_HAR) writes them as a HAR 1.2 file when the program ends.
 // Off unless one of the two asked: every call below is then a no-op and open() returns 0. Headers that carry credentials are masked when they are recorded
 // (Authorization, Cookie, Set-Cookie, any name with token, secret, password, api-key or session; more names in ZINC_NET_SENSITIVE=a,b), so neither reader sees them.
+// The names of ZINC_NET_SENSITIVE (and only those) are masked as query parameters, urlencoded form fields and JSON fields too: URLs, Location, the bodies of
+// requests and responses, WebSocket and MQTT text (ZN-635). The bytes of a plain TCP stream are recorded as they are.
 #include <string>
 
 namespace zn::netlog {

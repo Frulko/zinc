@@ -1,7 +1,7 @@
 #!/bin/sh
 # The network log (ZN-370): a program doing fetch (plain, redirected, refused, over TLS), a WebSocket and an MQTT publish shows them in the inspector's Network
 # domain with bodies, frames and timings (scripted DevTools client: tests/netlog_check.py), `zinc run --har` writes the same requests as a HAR 1.2 file, and
-# headers that carry credentials are masked in both. Every port is a free one (the inspector's through ZINC_DEVTOOLS_PORT, ZN-633), so the test runs beside
+# headers that carry credentials are masked in both, and so are the query parameters, JSON fields and form fields named in ZINC_NET_SENSITIVE (ZN-635). Every port is a free one (the inspector's through ZINC_DEVTOOLS_PORT, ZN-633), so the test runs beside
 # any other. Skips (77) without python3; TLS needs openssl 3.4+ as tests/t0/tls.sh.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || exit 77
@@ -16,7 +16,7 @@ fi
 if [ $tls = 1 ]; then python3 tests/netlog_servers.py $http $https "$tmp/good.pem" "$tmp/good.key" & servers=$!; else https=0; python3 tests/netlog_servers.py $http & servers=$!; fi
 python3 tests/mqtt_broker.py $mqtt >/dev/null 2>&1 & broker=$!
 sleep 1
-ZINC_DEVTOOLS_PORT=$inspector ZINC_CA_FILE="$tmp/ca.pem" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --har "$tmp/out.har" tests/golden/host/netlog.tsx -- $http $https $mqtt $quit > "$tmp/app.log" 2>&1 &
+ZINC_NET_SENSITIVE=pin,API_KEY ZINC_DEVTOOLS_PORT=$inspector ZINC_CA_FILE="$tmp/ca.pem" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --har "$tmp/out.har" tests/golden/host/netlog.tsx -- $http $https $mqtt $quit > "$tmp/app.log" 2>&1 &
 app=$!
 n=0; while [ $n -lt 200 ] && ! grep -q "zinc devtools:" "$tmp/app.log"; do sleep 0.05; n=$((n+1)); done   # the inspector listens (stderr, not buffered)
 python3 tests/netlog_check.py $quit "$tmp/out.har" $tls $inspector > "$tmp/check.log" 2>&1 || { cat "$tmp/check.log"; echo "the program:"; cat "$tmp/app.log"; exit 1; }
