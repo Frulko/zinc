@@ -24,6 +24,7 @@ printf 'function f(n: i32): i32 { return f(n + 1) + 1; }\nconsole.log("start");\
 for k in exceptions library; do
   ZN_AOT_PART_BYTES=3000 ZN_AOT_UNIT_FNS=4 ZN_KEEP_CPP=1 "$ZINC" build tests/golden/run/$k.ts -o "$tmp/u$k" 2>"$tmp/err" || { echo "split aot build failed: $k: $(head -c 200 "$tmp/err")"; fail=1; continue; }
   [ -f "$tmp/u$k.part2.cpp" ] || { echo "$k was not split into units"; fail=1; }
+  grep -q "error" "$tmp/err" && { echo "split aot build of $k printed an error (the precompiled header: no linker flag in the compile flags): $(head -c 200 "$tmp/err")"; fail=1; }
   "$tmp/u$k" 2>&1 | diff -q - "tests/golden/run/$k.out" >/dev/null || { echo "split aot output differs: $k"; fail=1; }
 done
 # ZN-146: a compiled program does not replace the global operator new (dyld would bind it across libc++ at every launch: 3 ms and 8 MB for a program that prints one line); the heap budget of a profile needs it

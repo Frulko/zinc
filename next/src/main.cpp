@@ -527,13 +527,16 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
 #if defined(__APPLE__) && defined(__aarch64__)
   // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns
   // field reloads after field stores into 16-byte loads over an 8-byte store, a store-forwarding stall: nbody 106 -> 37 ms without it (ZN-409)
-  const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false -Wl,-dead_strip";   // dead_strip: unreferenced functions of the libraries (ZN-603)
+  const char* noOutline = " -mno-outline -mllvm -aarch64-enable-ldst-opt=false";
+  const std::string deadStrip = " -Wl,-dead_strip";   // unreferenced functions of the libraries (ZN-603)
 #else
   const char* noOutline = "";
+  const std::string deadStrip;
 #endif
   // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
-  const std::string lean = std::string(" -fno-stack-protector") + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
-  const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + lean + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
+  // linker flags stay out of cflags: with one, clang refuses to write the precompiled header ("cannot specify -o when generating multiple output files")
+  const std::string ldflags = deadStrip + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
+  const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + " -fno-stack-protector -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
   std::vector<fs::path> units{cpp};
   units.insert(units.end(), moreUnits.begin(), moreUnits.end());
   std::vector<std::string> objs;   // several units: their cached objects (aotcache), compiled below when missing
@@ -548,7 +551,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   }
   std::string inputs;   // one unit: compiled and linked by one command; several: their objects
   for (std::size_t k = 0; k < units.size(); ++k) inputs += " '" + (moreUnits.empty() ? units[k].string() : objs[k]) + "'";
-  std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
+  std::string cmd = std::string(cxx ? cxx : "c++") + cflags + ldflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
