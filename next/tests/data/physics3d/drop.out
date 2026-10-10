@@ -1,0 +1,37 @@
+jolt 5.6.0
+after 120 steps
+sphere 0 12222 0 | 0 0 0 10000 | 0 42862 0
+box 15000 3421 2000 | 0 0 0 10000 | -16 27392 3
+capsule -15000 11369 -3000 | 0 0 0 10000 | 0 -95667 0
+cylinder 2000 21369 15000 | 0 0 0 10000 | 0 -95667 0
+hull -4000 31369 -14000 | 0 0 0 10000 | 0 -95667 0
+onramp -60000 12229 -2538 | -8893 0 0 4573 | 0 -12520 -28795
+onfield 68365 10282 7296 | 1260 0 5479 8270 | -18646 8 4288
+left -21702 4463 60000 | 0 0 9218 -3877 | -36672 -27775 0
+right 21702 4463 60000 | 0 0 -9218 -3877 | 36672 -27775 0
+flap -4598 28416 -80000 | 0 0 4795 8776 | 0 0 0
+piston 55000 20000 -80000 | 0 0 0 10000 | 0 0 0
+hinge at 10001 slider at 15000
+contacts added 10 removed 7 sensed 1 hardest 7335 awake 11
+after 600 steps
+sphere 0 5000 0 | 0 0 0 10000 | 0 0 0
+box 14990 3000 2002 | 0 0 0 10000 | 0 0 0
+capsule -15000 6500 -3000 | 0 0 0 10000 | 0 0 0
+cylinder 1985 3000 14996 | 0 0 0 10000 | 0 0 0
+hull -3998 3000 -14009 | 0 0 0 10000 | 0 0 0
+onramp -60000 3000 -155906 | -9756 0 0 -2195 | 0 0 -35619
+onfield 20278 3000 34828 | 457 -4409 -1452 -8846 | -8789 0 6447
+left -75287 3418 59999 | 0 0 -5681 -8230 | -11813 -4749 0
+right 75286 3418 60000 | 0 0 5680 -8230 | 11813 -4749 0
+flap -4597 28415 -80000 | 0 0 4794 8776 | 0 0 0
+piston 55000 20000 -80000 | 0 0 0 10000 | 0 0 0
+hinge at 10000 slider at 15000
+contacts added 64 removed 62 sensed 4 hardest 7335 awake 6
+ray 4700 at 6000 normal 10000; sweep 987 at -78266 normal -9932
+replay from the start: identical
+state of more than 1000 bytes; sphere 0 12295 0 | 0 0 0 10000 | 0 -8800 0
+replay from the saved state: identical
+out of the world 5000; through the floor yes; lifted 11000 with its load
+back in, pushed up at 50000
+after half a second above the floor
+refused: a box needs half extents above 0

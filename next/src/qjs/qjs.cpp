@@ -20,6 +20,8 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 }
 
 #include "frontend/modules.h"
+#include "frontend/plugin_manifest.h"
+#include "frontend/project.h"
 #include "qjs/strip.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
@@ -33,6 +35,8 @@ struct Engine {
   std::string stdRoot;
   std::string entry;   // the program's entry file (zinc:icons/lucide reads its project)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
+  std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
+  bool pluginsFound = false;
 };
 
 bool readFile(const std::string& path, std::string& out) {
@@ -164,6 +168,7 @@ std::string gfxSource() {
 
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
   std::string src, path = name;
+  if (name == "zinc:native") { js = kNativeModule; return true; }   // plain JavaScript: nothing to strip
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
@@ -182,10 +187,25 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   return true;
 }
 
+// The entry file of the plugin that provides a module ('zinc:physics3d' -> plugins/physics3d/index.ts), "" when none does: the engine's plugins,
+// the project's, then its pluginDirs, as for the typed engines. A plugin's files are then ordinary modules; its native code comes through zinc:native.
+std::string pluginEntry(Engine& e, const std::string& name) {
+  if (e.stdRoot.empty() || name == "zinc:native" || zn::frontend::builtinModuleSource(name) || !zn::frontend::stdModuleFile(name).empty()) return "";
+  if (!e.pluginsFound) {
+    e.pluginsFound = true;
+    std::vector<std::string> problems;
+    const std::string pf = zn::frontend::findProjectFile(e.entry);
+    e.plugins = zn::frontend::discoverPlugins(e.stdRoot + "/../..", pf.empty() ? dirOf(e.entry) : dirOf(pf), problems);
+  }
+  for (const zn::frontend::FoundPlugin& p : e.plugins) if (p.manifest.module == name) return normalize(p.dir + "/" + p.manifest.entry);
+  return "";
+}
+
 char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
   std::string n = name;
   std::string r = n;
   if (auto* e = static_cast<Engine*>(opaque)) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
+  if (auto* e = static_cast<Engine*>(opaque); e && r == n && n.rfind("zinc:", 0) == 0) { const std::string entry = pluginEntry(*e, n); if (!entry.empty()) r = entry; }
   if (r == n && n.rfind("zinc:", 0) != 0 && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
     std::string dir = dirOf(base);
     if (auto* e = static_cast<Engine*>(opaque); e && std::string_view(base).rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
@@ -318,6 +338,7 @@ int run(const Options& o) {
   JS_SetMaxStackSize(e.rt, 8u << 20);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
   installHost(e.ctx);
+  installNative(e.ctx);
   zn::qjs::runContextHooks(e.ctx);   // native classes of other modules (WebGL), ZN-203.03
   JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
   if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }

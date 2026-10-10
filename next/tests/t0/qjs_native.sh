@@ -1,0 +1,21 @@
+#!/bin/sh
+# Native modules on the QuickJS engine (ZN-583.02, src/qjs/native_js.cpp): requireNative of 'zinc:native' calls the exports of a registered
+# module with the arguments and the result converted by their signature letters (scalars, a string, byte arrays in and out), so the program
+# of tests/t0/native_call.sh prints the same frozen output; an export with a callback is refused by name, a missing module names itself.
+cd "$(dirname "$0")/../.." || exit 2
+fail=0
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+"$ZINC" run tests/golden/run/native_call.ts --engine quickjs 2>&1 | diff -q - tests/golden/run/native_call.out >/dev/null || { echo "qjs_native: native_call.ts differs on QuickJS"; fail=1; }
+"$ZINC" run tests/golden/run/native_callbacks.ts --engine quickjs 2>&1 | grep -q "TypeError: native Fixture.setCallback (c(is>n)>n): callbacks and promises of native modules are not available on the QuickJS engine" \
+  || { echo "qjs_native: an export with a callback is not refused by name"; fail=1; }
+cat > "$tmp/typed.ts" <<'TS'
+import { NativeModule, requireNative } from 'zinc:native';
+interface Spec extends NativeModule { sum(b: u8[]): i32; reverse(b: u8[]): u8[]; nope(): void }
+const n = requireNative<Spec>('Fixture');
+const r = n.reverse(new Uint8Array([9, 8, 7]));   // a typed array of the element type goes in as it is; an array result is one
+console.log(n.sum(new Uint8Array([1, 2, 3])), r instanceof Uint8Array, r[0], r[2], typeof n.nope);
+TS
+[ "$("$ZINC" run "$tmp/typed.ts" --engine quickjs 2>&1)" = "6 true 7 9 undefined" ] || { echo "qjs_native: typed arrays do not cross as bytes, or a missing export is not undefined"; fail=1; }
+printf "import { requireNative } from 'zinc:native';\nrequireNative('NoSuchModule').f();\n" > "$tmp/none.js"
+"$ZINC" run "$tmp/none.js" --engine quickjs 2>&1 | grep -q "ReferenceError: native module 'NoSuchModule'" || { echo "qjs_native: a module nobody provides is not named"; fail=1; }
+exit $fail

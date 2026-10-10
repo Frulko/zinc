@@ -1,0 +1,13 @@
+{
+  "name": "physics3d",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:physics3d",
+  "entry": "index.ts",
+  "description": "3D rigid bodies on Jolt Physics 5.6.0 (MIT): worlds stepped at a fixed rate, shapes, continuous collision, hinge and slider constraints, contact events, ray and shape casts",
+  "license": "MIT",
+  "targets": {
+    "macos": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"] },
+    "linux": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"], "linkFlags": ["-pthread"] }
+  }
+}

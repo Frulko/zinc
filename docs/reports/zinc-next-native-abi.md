@@ -50,6 +50,18 @@ System libraries come from `pkg-config` (`pkg`), `libs`, `frameworks` and `linkF
 The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdynamic`: a dlopened plugin finds zrt and the registry in it. The interpreter registers the module after `dlopen`, and the first load writes its exports (names and signatures) to `exports` in the cache entry. Later compiles and starts register the module from that file without loading it, and the library loads at the first call of one of its exports, so hero, which imports zinc:video and plays nothing at first, no longer loads FFmpeg (ZN-615, 26 ms per start);
 `zinc build` links `plugin.a`, `vendor.a` and the libraries into the program, whose generated `main` registers `zn_module_<Name>` (no `dlopen`). `ZINC_NATIVE=real` prefers native code to a stand-in.
 Cross targets (`zinc build --target`) do not build plugin code yet; the cache layout already keys by target.
+A vendored C++ library (ZN-583.02, Jolt in `plugins/physics3d`) goes to `vendor.a` as the `.c` files do: the manifest's sources under `vendor/` that are not C are compiled with the plugin's C++ flags
+(its `-I` among them) and its defines, without the engine's include paths. Jolt is four unity files, 48 s once with the pinned zig; an edit of `physics3d.host.cpp` then rebuilds in 7 s.
+
+## Native modules on the QuickJS engine (ZN-583.02)
+
+`zinc run --engine quickjs` runs a plugin's `index.ts` on the same native code as the typed engines. A `zinc:` specifier that is no standard module resolves to the entry of the plugin that provides it
+(the engine's plugins, the project's, its `pluginDirs`); the plugin's files are then ordinary modules, type-stripped. `zinc:native` is a JavaScript module there (`src/qjs/native_js.cpp`): `requireNative(name)`
+returns a proxy whose properties are functions bound to the module's exports (`__nativeFn(module, export)`, made at the first use of each name; a name the module does not export is `undefined`). A call converts its
+arguments by the export's signature letters, as `src/rt/rtcalls.cpp` does (`i u b d s`, the arrays `B I U D S`), calls `zn_native_call`, and converts the result; an array result is a typed array of its element type
+(`Float64Array`, `Int32Array`, `Uint8Array`: one copy), a typed array of the right type goes in without conversion, and an array the module changed is written back. A module that is not registered is built and
+loaded by the provider the CLI installed, as for a typed program. Not carried: callbacks and promise results (a `TypeError` names the export), and stand-ins (`x.next.ts`, `x.sim.ts`: the native code always runs).
+Tests: `tests/t0/qjs_native.sh` (the C test module), `tests/t1/physics3d.sh` (Jolt: the same positions on the three engines).
 
 ## Callbacks and promises (ZN-167)
 

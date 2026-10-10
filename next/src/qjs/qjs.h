@@ -5,6 +5,7 @@
 #include <vector>
 
 struct JSRuntime;
+struct JSContext;
 
 namespace zn::qjs {
 
@@ -17,6 +18,10 @@ struct Options {
 
 // Runs the program to its end (its modules, the promise jobs, the timers, or the frame loop of a zinc:gfx program); the process exit code.
 int run(const Options& o);
+
+// src/qjs/native_js.cpp: the native modules of plugins (zinc:native for this engine, and the global function its requireNative calls).
+void installNative(JSContext* ctx);
+extern const char* kNativeModule;
 
 extern const char* kPrelude;
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)

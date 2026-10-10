@@ -315,10 +315,10 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   for (const std::string& d : defines) defs += " -D" + q(d);
   std::string root = fs::path(engineRoot).string();
   std::string runtime = root + "/../runtime";
-  // sources of the manifest: .c files are vendored libraries, the rest are compiled with the plugin
+  // sources of the manifest: .c files, and C++ files under vendor/ (ZN-583.02: Jolt), are vendored libraries; the rest are compiled with the plugin
   std::vector<std::string> own, vendored;
   if (!display) own.push_back(impl);
-  for (const std::string& s : ts.sources) (endsWith(s, ".c") ? vendored : own).push_back((fs::path(p.dir) / s).string());
+  for (const std::string& s : ts.sources) (endsWith(s, ".c") || s.rfind("vendor/", 0) == 0 ? vendored : own).push_back((fs::path(p.dir) / s).string());
   // prebuilt libraries shipped with the plugin (ZN-328.03): prebuilt/<target>/ holds plugin.dylib or .so, plugin.a, vendor.a when it has vendored C, and `key`: the
   // digest of the ABI headers and the defines they were built with (zinc plugin-build --prebuild writes them). A matching key uses them, no compiler needed; otherwise
   // (other options in zinc.json, another engine) the plugin is built locally as before.
@@ -394,9 +394,10 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     int k = 0;
     for (const std::string& s : vendored) {
       std::string o = vdir + "/v" + std::to_string(k++) + ".o";
-      std::string cflagsC = "-O2 -fPIC -w";
+      const bool isC = endsWith(s, ".c");   // a vendored C++ library takes the plugin's C++ flags (its -I among them), not the engine's include paths
+      std::string cflagsC = isC ? cc + " -O2 -fPIC -w" : cxx + " " + flags;
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);
-      if (!run(cc + " " + cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, "the C compiler on " + s)) return false;
+      if (!run(cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, std::string(isC ? "the C compiler on " : "the C++ compiler on ") + s)) return false;
       objs += " " + q(o);
     }
     if (!run(arTool() + " rcs " + q(out.vendor) + objs, err, "ar")) return false;
