@@ -163,7 +163,11 @@ std::string gfxSource() {
          "export function onResize(cb) {\n"
          "  if (__resizeFns.length === 0) { __host_gfxSetResize(1); __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); }\n"
          "  __resizeFns.push(cb); }\n"
-         "export function frame() { return globalThis.__zincFrameNo | 0; }\n" + api;
+         "export function frame() { return globalThis.__zincFrameNo | 0; }\n"
+         // more windows (ZN-663): this engine's frame loop draws the main window only until ZN-685, so no other window opens
+         "export function openWindow(title, w, h, cb) { return -1; }\n"
+         "export function closeWindow(id) { __host_gfxCloseWindow(id); }\n"
+         "export function windowOpen(id) { return __host_gfxWindowOpen(id) !== 0; }\n" + api;
 }
 
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
