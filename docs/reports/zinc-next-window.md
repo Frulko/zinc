@@ -19,11 +19,15 @@ Headless runs can be scripted with `ZINC_INPUT=file`, one event per line, `<fram
 5 move 57 201        # pointer to (57, 201)
 8 down               # press the left button (also: up, right-down, right-up)
 10 key Backspace     # a key (names as in KeyboardEvent.key; modifiers after: shift ctrl alt meta)
-12 text zinc         # typed text
+12 text zinc         # typed text: one word
+13 text "two words"  # or a whole string in quotes, spaces included (\" and \\ for a quote and a backslash, ZN-688)
 15 wheel 0 -3        # scroll steps (x, y)
 20 touch 7 300 200   # finger 7 lands at (300, 200), or moves there; up to 10 fingers at once, each held until its touchup
 24 touchup 7         # finger 7 lifts
 ```
+
+With windows beside the main one (ZN-663), `window N` sends the events after it in the same frame to window N, and `close` closes the window the
+events go to, as its close button would.
 
 Touch points reach `touchCount`, `touchId`, `touchX` and `touchY` in landing order, and the first finger is also the pointer, as on a touch
 screen (`tests/t1/input_touch.sh`): a multi-touch session (two hands, pinch, rotate) is a file of such lines.

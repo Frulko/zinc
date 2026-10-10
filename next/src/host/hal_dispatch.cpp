@@ -34,7 +34,7 @@ static bool headlessRequested() {
 int zn_hal_is_live(void) { return live ? 1 : 0; }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text STRING | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
+//   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
 //   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
@@ -54,14 +54,24 @@ void readScript() {
   if (!path || !*path) return;
   FILE* f = fopen(path, "r");
   if (!f) return;
-  char line[256];
+  char line[1024];
   while (fgets(line, sizeof line, f)) {
     int frame = 0, used = 0;
     char kind[32] = {0};
     if (sscanf(line, "%d %31s%n", &frame, kind, &used) < 2) continue;
     Event e{frame, kind, "", "", ""};
+    const char* rest = line + used;
+    while (*rest == ' ' || *rest == '\t') rest++;
+    if (e.kind == "text" && *rest == '"') {   // text "two words": the whole string, with \" and \\ (ZN-688)
+      for (const char* q = rest + 1; *q && *q != '"' && *q != '\n'; q++) {
+        if (*q == '\\' && (q[1] == '"' || q[1] == '\\')) q++;
+        e.a += *q;
+      }
+      script.push_back(e);
+      continue;
+    }
     char a[128] = {0}, b[128] = {0}, c[128] = {0};
-    sscanf(line + used, " %127s %127s %127s", a, b, c);
+    sscanf(rest, "%127s %127s %127s", a, b, c);
     e.a = a; e.b = b; e.c = c;
     script.push_back(e);
   }

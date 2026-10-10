@@ -13,6 +13,11 @@ shot() {  # name, frames, input file
 shot click 2 click; shot click 20 click; shot type 20 type
 printf "import { onFrame, setClipboardText, clipboardText } from 'zinc:gfx';\nonFrame((dt: number) => { setClipboardText('h\\\\u00e9llo'); console.log(clipboardText()); });\n" > "$tmp/clip.ts"
 [ "$(ZINC_DETERMINISTIC=1 ZINC_FRAMES=1 "$ZINC" run "$tmp/clip.ts" 2>&1)" = "$(printf 'h\303\251llo')" ] || { echo "the clipboard does not round-trip"; fail=1; }
+# text commands (ZN-688): one word, or a quoted string with its spaces, \" and \\\\
+printf "import { onFrame, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';\nonFrame((dt: number) => { for (let i: i32 = 0; i < keyCount(); i++) if (keyKind(i) === KeyKind.Text) console.log('[' + keyName(i) + ']'); });\n" > "$tmp/text.ts"
+printf '1 text "two words"\n2 text one\n3 text "say \\"hi\\" \\\\ ok"\n' > "$tmp/text.input"
+got=$(ZINC_INPUT="$tmp/text.input" ZINC_DETERMINISTIC=1 ZINC_FRAMES=5 "$ZINC" run "$tmp/text.ts" 2>&1)
+[ "$got" = "$(printf '[two words]\n[one]\n[say "hi" \\ ok]')" ] || { echo "text commands: $got"; fail=1; }
 # fonts and images baked by the engine from the program (any text size, non-ASCII characters, an SVG of the assets directory)
 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=2 ZINC_SHOT="$tmp/res.png" ZINC_SHOT_FRAMES=2 "$ZINC" run tests/golden/res/main.ts >/dev/null 2>"$tmp/err" || { echo "res/main.ts failed: $(head -c 200 "$tmp/err")"; fail=1; }
 tools/pngdiff "$tmp/res-2.png" tests/golden/res/frame-2.png >/dev/null || { echo "the baked-resources frame differs from its golden"; fail=1; }
