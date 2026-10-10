@@ -272,7 +272,8 @@ PCSX-Redux with OpenBIOS (no Sony BIOS needed); see [docs/targets/playstation.md
 
 `zinc export --target wasm` writes a static site: `index.html` (title = your app name, favicon = `app.icon`, the canvas
 size from `targets.wasm` `width` / `height` in `zinc.json`, 480 x 320 otherwise), `app.js` with its worker and WASI shim,
-`app.wasm` (the interpreter, built by `tools/build-wasm` with the pinned zig), `app.zbc` (your program) and `serve.py`.
+`app.wasm` (the interpreter, built by `tools/build-wasm` with the pinned zig), `app.zbc` (your program), `app.res` (the baked
+images of a project with an `assets` directory, drawn by `drawImage` and `drawImageRect`) and `serve.py`.
 The program runs in a worker that draws on an `OffscreenCanvas`; its output goes to the page under the canvas. The frame
 loop waits on a `SharedArrayBuffer`, so the server must send `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp` (a plain `python3 -m http.server` does not):

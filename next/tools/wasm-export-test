@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""A site of `zinc export --target wasm` in headless Chrome (ZN-326.01, tests/t1/export_wasm.sh): wasm-export-test <chrome> <site dir> <frames> <text> [frame.png].
-Serves the site with its own serve.py, loads index.html for <frames> ticks, and checks that the program exited 0, printed <text> and (frames > 0) drew a frame."""
+"""A site of `zinc export --target wasm` in headless Chrome (ZN-326.01, tests/t1/export_wasm.sh): wasm-export-test <chrome> <site dir> <frames> <text> [frame.png] [key].
+Serves the site with its own serve.py, loads index.html for <frames> ticks, and checks that the program exited 0, printed <text> and (frames > 0) drew a frame.
+key: a key pressed and held once the program runs (the page's KEYS: 'Enter' is Btn.Start), for a program that waits for one."""
 import base64, importlib.machinery, importlib.util, os, socket, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 chrome, site, frames, text = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+key = sys.argv[6] if len(sys.argv) > 6 else None
 s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
 srv = subprocess.Popen([sys.executable, os.path.join(site, "serve.py"), str(port)], stderr=subprocess.DEVNULL)
 sys.path.insert(0, HERE)
@@ -16,6 +18,7 @@ try:
         deadline, png = time.time() + 60, None
         while time.time() < deadline:
             time.sleep(0.5)
+            if key and c.eval("document.title") == "running": c.eval("dispatchEvent(new KeyboardEvent('keydown', {key: %r}))" % key); key = None
             v = c.eval("document.title + '|' + (document.getElementById('png') ? document.getElementById('png').textContent : '')") or ""
             if v.startswith("done|") and len(v) > 10: png = v[5:]; break
         log = c.eval("document.getElementById('log').textContent") or ""

@@ -6,9 +6,31 @@ import { wasiImports } from './wasi.mjs';
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 
+// The baked images of the program (ZN-432): app.res is the blob of `zinc bake` (ZRS1: the fonts, then the images as RGBA; src/host/resources.cpp reads the same
+// layout). Each image gets a canvas of its own, which drawImage reads; w and h are what imageWidth and imageHeight report (k texels a pixel).
+function bakedImages(buf) {
+  const out = [];
+  if (!buf || buf.byteLength < 8 || new TextDecoder().decode(new Uint8Array(buf, 0, 4)) !== 'ZRS1') return out;
+  const v = new DataView(buf);
+  let p = 4;
+  const u32 = () => { const x = v.getUint32(p, true); p += 4; return x; };
+  const str = () => { const n = u32(); const s = new TextDecoder().decode(new Uint8Array(buf, p, n)); p += n; return s; };
+  const skip = (n) => { p += n; };   // (p += u32() would add to the p read before the call)
+  for (let n = u32(); n > 0; n--) { str(); skip(16); skip(u32() * 28); skip(u32()); }   // a font: name, four metrics, the glyph records, the bitmap
+  for (let n = u32(); n > 0; n--) {
+    const name = str(), w = u32(), h = u32(), k = Math.max(1, u32());
+    const c = new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
+    if (w && h) c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(buf.slice(p, p + w * h * 4)), w, h), 0, 0);
+    p += w * h * 4;
+    out.push({ name, canvas: c, k, w: Math.trunc((w + (k >> 1)) / k), h: Math.trunc((h + (k >> 1)) / k) });
+  }
+  return out;
+}
+
 self.onmessage = async (e) => { try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); } };
 async function start(e) {
-  const { wasm, zbc, canvas, sab } = e.data;
+  const { wasm, zbc, res, canvas, sab } = e.data;
+  const images = bakedImages(res);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const shared = new Int32Array(sab);
@@ -47,6 +69,25 @@ async function start(e) {
       case 'host.gfxLineHeight': out = Math.round(fonts[a[0]].px * 1.21); break;
       case 'host.gfxTextWidth': { const f = fonts[a[0]]; ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; out = ctx.measureText(a[1]).width + a[2] * a[1].length; break; }
       case 'host.gfxDrawText': { const f = fonts[a[0]]; ctx.globalAlpha = a[5] / 255; ctx.fillStyle = hex(a[4]); ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; ctx.textBaseline = 'top'; ctx.fillText(a[3], a[1], a[2]); ctx.globalAlpha = 1; break; }
+      case 'host.gfxImage': out = images.findIndex((i) => i.name === a[0]); break;
+      case 'host.gfxImageWidth': out = images[a[0]] ? images[a[0]].w : 0; break;
+      case 'host.gfxImageHeight': out = images[a[0]] ? images[a[0]].h : 0; break;
+      case 'host.gfxDrawImage': {   // image, x, y, w, h, alpha, radius
+        const im = images[a[0]];
+        if (!im || !(a[3] > 0 && a[4] > 0)) break;
+        ctx.save(); ctx.globalAlpha = Math.min(255, Math.max(0, a[5])) / 255; ctx.imageSmoothingEnabled = true;
+        if (a[6] > 0) { ctx.beginPath(); ctx.roundRect(a[1], a[2], a[3], a[4], a[6]); ctx.clip(); }
+        ctx.drawImage(im.canvas, a[1], a[2], a[3], a[4]);
+        ctx.restore(); break;
+      }
+      case 'host.gfxDrawImageRect': {   // image, the source rectangle (x, y, w, h in the pixels of imageWidth), the destination one, alpha, flags: 1 mirror x, 2 mirror y, 4 nearest
+        const im = images[a[0]], f = a[10];
+        if (!im || !(a[3] > 0 && a[4] > 0 && a[7] > 0 && a[8] > 0)) break;
+        ctx.save(); ctx.globalAlpha = Math.min(255, Math.max(0, a[9])) / 255; ctx.imageSmoothingEnabled = !(f & 4);
+        ctx.translate(a[5] + (f & 1 ? a[7] : 0), a[6] + (f & 2 ? a[8] : 0)); ctx.scale(f & 1 ? -1 : 1, f & 2 ? -1 : 1);
+        ctx.drawImage(im.canvas, a[1] * im.k, a[2] * im.k, a[3] * im.k, a[4] * im.k, 0, 0, a[7], a[8]);   // the canvas cuts a source rectangle at the image's edges, as the raster does
+        ctx.restore(); break;
+      }
       case 'host.gfxWidth': out = W; break;
       case 'host.gfxHeight': out = H; break;
       case 'host.gfxPixelScale': out = 1; break;
@@ -66,7 +107,7 @@ async function start(e) {
       case 'host.gfxPointerDown': out = Atomics.load(shared, 3); break;
       default:
         if (!warned.has(name)) { warned.add(name); console.warn('zinc wasm: ' + name + ' is not available in the browser'); }
-        out = 0;
+        out = name === 'host.gfxImageFromBytes' ? -1 : 0;   // no decoder here yet: not an image, rather than image 0
     }
     const rv = dv();
     if (ret === 'd') rv.setFloat64(resPtr, out, true);

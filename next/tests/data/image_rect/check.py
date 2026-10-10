@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""check.py <frame.png|frame.bmp> <sheet.png> [slack]: the sprites main.ts draws with row(), against the sheet (ZN-432).
+"""check.py <frame.png|frame.bmp> <sheet.png> [slack] [nearest]: the sprites main.ts draws with row(), against the sheet (ZN-432).
 The nearest sprites are computed here from the sheet's texels: the texel under each pixel centre, mirrored by the flags, nothing outside
 the image, blended like the raster ((c * a + d * (255 - a)) >> 8). The row of the baked image and the row of the decoded one are the same pixels.
 A frame larger than 400x180 by a whole factor (the GL window at the screen's density) is averaged down first; slack is what a channel may
-be off by (0 for the software raster, whose translucent texels alone get 2: its alpha is a float product cut to an integer)."""
+be off by (0 for the software raster, whose translucent texels alone get 2: its alpha is a float product cut to an integer).
+nearest: the frame is web.ts's, on a canvas of any size: the nearest sprites and the copy, twice, without the linear sprites."""
 import importlib.machinery, importlib.util, os, struct, sys
 
 tools = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools")
@@ -23,9 +24,10 @@ def load(p):   # width, height, RGB bytes
 
 fw, fh, fd = load(sys.argv[1]); sw, sh, sb, sd = pd.dec(sys.argv[2])
 slack = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+web = len(sys.argv) > 4 and sys.argv[4] == "nearest"
 assert (sw, sh, sb) == (32, 16, 4), (sw, sh, sb)
-if fw % W or fh % H or fw // W != fh // H: sys.exit("the frame is %dx%d, not a multiple of %dx%d" % (fw, fh, W, H))
-K = fw // W
+if not web and (fw % W or fh % H or fw // W != fh // H): sys.exit("the frame is %dx%d, not a multiple of %dx%d" % (fw, fh, W, H))
+K = 1 if web else fw // W
 def frame(x, y):
     acc = [0, 0, 0]
     for j in range(K):
@@ -59,7 +61,7 @@ for y in range(8, 40):   # baked and decoded: the same pixels, linear sprites in
     for x in range(W):
         if not near(frame(x, y), frame(x, y + 40), slack): bad.append("baked %s and decoded %s differ at %d,%d" % (frame(x, y), frame(x, y + 40), x, y)); break
 drawn = sum(1 for y in range(8, 40) for x in range(304, 376) if frame(x, y) != BG)
-if drawn < 1500: bad.append("the linear sprites drew %d pixels" % drawn)
+if drawn < 1500 and not web: bad.append("the linear sprites drew %d pixels" % drawn)
 if any(frame(x, y) != BG for y in range(120, 180) for x in range(236, 400)): bad.append("an empty rectangle or a missing image drew something")
 for b in bad[:8]: print(b)
 sys.exit(1 if bad else 0)

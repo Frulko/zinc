@@ -688,6 +688,8 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   std::error_code ec;
   if (!fs::exists(wasm, ec)) { std::fprintf(stderr, "zinc export: %s is missing\n", wasm.string().c_str()); return 1; }
   if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  // the baked images of a program with assets (the blob of zinc bake): the worker draws zinc:gfx images from it (ZN-432)
+  if (fs::exists(fs::path(p.dir) / "assets", ec) && status(std::system((q(self()) + " bake " + q(p.entry) + " -o " + q((out / "app.res").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the resources could not be baked\n"); return 1; }
   fs::copy_file(wasm, out / "app.wasm", fs::copy_options::overwrite_existing, ec);
   for (const char* f : {"app.js", "worker.mjs", "wasi.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
   if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }

@@ -6,7 +6,9 @@ const log = document.getElementById('log');
 const canvas = document.getElementById('c');
 window.addEventListener("error", (e) => { log.textContent += "error: " + e.message + "\n"; });
 if (!crossOriginIsolated) { log.textContent = 'This page needs cross-origin isolation (COOP/COEP headers) for SharedArrayBuffer.'; throw new Error('not isolated'); }
-const [wasm, zbc] = await Promise.all([fetch(wasmUrl).then((r) => r.arrayBuffer()), fetch(zbcUrl).then((r) => r.arrayBuffer())]);
+// app.res: the baked images of the program (zinc export writes it for a project with assets); none is fine
+const [wasm, zbc, res] = await Promise.all([fetch(wasmUrl).then((r) => r.arrayBuffer()), fetch(zbcUrl).then((r) => r.arrayBuffer()),
+  fetch(q.get('res') || 'app.res').then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)]);
 const sab = new SharedArrayBuffer(64), shared = new Int32Array(sab);
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
 const off = canvas.transferControlToOffscreen();
@@ -29,7 +31,7 @@ worker.onmessage = (e) => {
   if (m.png) { document.title = 'done'; const b64 = btoa(String.fromCharCode(...new Uint8Array(m.png))); const pre = document.createElement('pre'); pre.id = 'png'; pre.textContent = b64; document.body.appendChild(pre); }
   if (m.done) { done = true; log.textContent += 'exit ' + m.rc + ', ' + m.frames + ' frames'; }
 };
-worker.postMessage({ wasm, zbc, canvas: off, sab }, [off]);
+worker.postMessage({ wasm, zbc, res, canvas: off, sab }, [off]);
 function tick() {
   if (done) return;
   ticks++; Atomics.add(shared, 0, 1); Atomics.notify(shared, 0);
