@@ -31,6 +31,7 @@ export default {
   light(): void {},
   specular(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
+  gpu(): boolean { return false; },
   end(): number { return tris; },
   present(): void {},
 };

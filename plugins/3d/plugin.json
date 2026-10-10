@@ -5,7 +5,7 @@
   "module": "zinc:3d",
   "entry": "index.ts",
   "description": "3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it",
-  "options": { "zbits": 0, "scale": 1, "dither": false, "subdiv": 16, "renderer": "auto" },
+  "options": { "zbits": 0, "scale": 1, "dither": false, "subdiv": 16, "renderer": "auto", "msaa": 4, "filter": "mipmap" },
   "native": { "impl": { "macos": "native/render3d.gl.cpp" } },
   "targets": { "macos": { "frameworks": ["OpenGL"], "defines": ["GL_SILENCE_DEPRECATION"] }, "linux": {}, "rpi1": {}, "esp32": {}, "wasm": {} }
 }

@@ -25,7 +25,11 @@ export const PCFSoftShadowMap: i32 = 2;
 export const RepeatWrapping: i32 = 1000;
 export const ClampToEdgeWrapping: i32 = 1001;
 export const NearestFilter: i32 = 1003;
+export const NearestMipmapNearestFilter: i32 = 1004;
+export const NearestMipmapLinearFilter: i32 = 1005;
 export const LinearFilter: i32 = 1006;
+export const LinearMipmapNearestFilter: i32 = 1007;
+export const LinearMipmapLinearFilter: i32 = 1008;
 
 function clamp(v: number, lo: number, hi: number): number { return v < lo ? lo : v > hi ? hi : v; }
 function asin(x: number): number { const c = clamp(x, -1, 1); return Math.atan2(c, Math.sqrt(1 - c * c)); }
@@ -1169,13 +1173,14 @@ export class Texture {
   readonly id: i32;
   image: i32;
   name = '';
-  /** Accepted for compatibility: textures repeat and are sampled nearest by zinc:3d, uv orientation follows the geometry. */
+  /** Accepted for compatibility: textures repeat, uv orientation follows the geometry. The GPU renderer samples with minFilter and
+   *  magFilter (mipmaps when minFilter names them); the software renderer takes the nearest texel. */
   flipY = true;
   colorSpace = '';
   wrapS: i32 = RepeatWrapping;
   wrapT: i32 = RepeatWrapping;
   magFilter: i32 = LinearFilter;
-  minFilter: i32 = LinearFilter;
+  minFilter: i32 = LinearMipmapLinearFilter;
   readonly repeat = new Vector2(1, 1);
   readonly offset = new Vector2(0, 0);
   needsUpdate = false;
@@ -1461,6 +1466,8 @@ export class WebGLRenderer {
       const vc = m.vertexColors && o.geometry.attributes.color.count > 0;
       const flags: i32 = (vc ? 1 : 0) | (m.flatShading ? 2 : 0) | (m.unlit ? 4 : 0) | (m.side !== FrontSide ? 8 : 0);
       const tex = m.map;
+      // zinc:3d's filter flag (ZN-657): 1 nearest, 2 linear, 3 mipmaps
+      const filter: i32 = tex === null ? 0 : tex.minFilter === NearestFilter && tex.magFilter === NearestFilter ? 1 : tex.minFilter === LinearFilter || tex.minFilter === NearestFilter ? 2 : 3;
       let base = m.color.getHex(), spec = 0, shin = 30;
       if (!m.unlit && m.type === 'MeshPhongMaterial') { spec = m.specular.getHex(); shin = m.shininess; }
       else if (!m.unlit && (m.type === 'MeshStandardMaterial' || m.type === 'MeshPhysicalMaterial')) {
@@ -1473,7 +1480,7 @@ export class WebGLRenderer {
         if (mt > 0) base = scratchColor.setRGB(c.r * (1 - mt), c.g * (1 - mt), c.b * (1 - mt)).getHex();
       }
       if (spec !== specHex || (spec !== 0 && shin !== specShin)) { specHex = spec; specShin = shin; R.specular(spec, shin); }
-      R.draw(g.handle, o.matrixWorld.elements, base, tex !== null ? tex.image : -1, flags);
+      R.draw(g.handle, o.matrixWorld.elements, base, tex !== null ? tex.image : -1, flags | (filter << 4));
       calls++;
     });
     this.info.render.triangles = R.end();

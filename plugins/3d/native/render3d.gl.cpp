@@ -19,6 +19,12 @@
 #ifndef ZP_3D_RENDERER
 #define ZP_3D_RENDERER "auto"
 #endif
+#ifndef ZP_3D_MSAA
+#define ZP_3D_MSAA 4
+#endif
+#ifndef ZP_3D_FILTER
+#define ZP_3D_FILTER "mipmap"
+#endif
 
 namespace {
 
@@ -107,8 +113,9 @@ void main() {
 enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16 };
 struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1; uint32_t frame = 0; bool failed = false; };
 struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; };
-struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2]; int k; bool pending[2]; };
-struct GTex { GLuint id = 0; uint32_t version = 0; };
+// msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
+struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
+struct GTex { GLuint id = 0; uint32_t version = 0; int filter = 0; bool mips = false; };   // filter: the one set on the texture (1 nearest, 2 linear, 3 mipmaps)
 
 GLuint shader(GLenum kind, const char* pre, const char* defs, const char* body) {
   GLuint s = glCreateShader(kind);
@@ -134,6 +141,8 @@ struct Gpu : Engine {
   GLuint used = 0;
   int cull = -1;
   bool async = true;
+  int samples = 0;       // multisampling of the targets (the `msaa` option or ZINC_3D_MSAA, at most GL_MAX_SAMPLES; 0 or 1 off)
+  int filter = 3;        // the texture filter of a material that asks for none (the `filter` option or ZINC_3D_FILTER)
 
   bool open() {
     if (!SDL_WasInit(SDL_INIT_VIDEO) && !SDL_InitSubSystem(SDL_INIT_VIDEO)) return false;
@@ -158,6 +167,15 @@ struct Gpu : Engine {
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     const char* e = getenv("ZINC_GL_PRESENT");
     async = e && *e ? !strcmp(e, "async") : !getenv("ZINC_DETERMINISTIC");
+    const char* ms = getenv("ZINC_3D_MSAA");
+    GLint most = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &most);
+    samples = ms && *ms ? atoi(ms) : ZP_3D_MSAA;
+    if (samples > most) samples = most;
+    if (samples < 2) samples = 0;
+    const char* fl = getenv("ZINC_3D_FILTER");
+    const char* f = fl && *fl ? fl : ZP_3D_FILTER;
+    filter = !strcmp(f, "nearest") ? 1 : !strcmp(f, "linear") ? 2 : 3;
     return true;
   }
   void current() { if (SDL_GL_GetCurrentContext() != ctx) SDL_GL_MakeCurrent(win, ctx); }  // zinc:gl's contexts live beside this one
@@ -244,6 +262,19 @@ struct Gpu : Engine {
     glGenFramebuffers(1, &t->fbo); glBindFramebuffer(GL_FRAMEBUFFER, t->fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, t->color, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, t->depth);
+    t->samples = samples;
+    t->msfbo = t->mscolor = t->msdepth = 0;
+    if (t->samples) {   // drawn here, resolved into the texture above
+      glGenRenderbuffers(1, &t->mscolor); glBindRenderbuffer(GL_RENDERBUFFER, t->mscolor); glRenderbufferStorageMultisample(GL_RENDERBUFFER, t->samples, GL_RGBA8, w, h);
+      glGenRenderbuffers(1, &t->msdepth); glBindRenderbuffer(GL_RENDERBUFFER, t->msdepth); glRenderbufferStorageMultisample(GL_RENDERBUFFER, t->samples, GL_DEPTH_COMPONENT24, w, h);
+      glGenFramebuffers(1, &t->msfbo); glBindFramebuffer(GL_FRAMEBUFFER, t->msfbo);
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, t->mscolor);
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, t->msdepth);
+      if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {   // no multisampling for this size or format: the plain framebuffer
+        glDeleteFramebuffers(1, &t->msfbo); glDeleteRenderbuffers(1, &t->mscolor); glDeleteRenderbuffers(1, &t->msdepth);
+        t->msfbo = t->mscolor = t->msdepth = 0; t->samples = 0;
+      }
+    }
     glGenBuffers(2, t->pbo);
     for (GLuint b : t->pbo) { glBindBuffer(GL_PIXEL_PACK_BUFFER, b); glBufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)w * h * 4, nullptr, GL_STREAM_READ); }
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
@@ -254,6 +285,7 @@ struct Gpu : Engine {
     if (gcur == t) gcur = nullptr;
     raster::dyn_destroy(t->img); mfree(t->px);
     glDeleteFramebuffers(1, &t->fbo); glDeleteTextures(1, &t->color); glDeleteRenderbuffers(1, &t->depth); glDeleteBuffers(2, t->pbo);
+    if (t->msfbo) { glDeleteFramebuffers(1, &t->msfbo); glDeleteRenderbuffers(1, &t->mscolor); glDeleteRenderbuffers(1, &t->msdepth); }
   }
   void targetDestroy(int32_t id) override {
     GTarget* t = gtargets.at(id);
@@ -269,7 +301,7 @@ struct Gpu : Engine {
     current();
     tris = 0; nl = 0; amb[0] = amb[1] = amb[2] = 0;
     frame++;
-    glBindFramebuffer(GL_FRAMEBUFFER, gcur->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, gcur->samples ? gcur->msfbo : gcur->fbo);
     glViewport(0, 0, gcur->w, gcur->h);
     glClearColor((clear & 255) / 255.0f, (clear >> 8 & 255) / 255.0f, (clear >> 16 & 255) / 255.0f, 0);  // blue first, as the shaders write
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -279,8 +311,9 @@ struct Gpu : Engine {
     for (int c = 0; c < 4; c++) vp[c * 4 + 1] = -vp[c * 4 + 1];  // y down: row 0 of the framebuffer is the top of the image
   }
 
-  /** Binds image `id` (a baked image or a runtime one, re-uploaded when its version moves) to unit 0; false when there is no such image. */
-  bool texture(int32_t id) {
+  /** Binds image `id` (a baked image or a runtime one, re-uploaded when its version moves) to unit 0 with filter `f` (1 nearest, 2 linear,
+   *  3 mipmaps, built when first needed after an upload); false when there is no such image. */
+  bool texture(int32_t id, int f) {
     const bool baked = id < raster::image_count;
     const int32_t i = baked ? id : id - raster::DYN_BASE + raster::image_count;
     if (id < 0 || (!baked && id < raster::DYN_BASE)) return false;
@@ -292,7 +325,7 @@ struct Gpu : Engine {
     }
     GTex& t = texs[i];
     const uint32_t version = baked ? 1 : raster::image_version(id) + 1;
-    if (t.id && t.version == version) { glBindTexture(GL_TEXTURE_2D, t.id); return true; }
+    if (t.id && t.version == version) { glBindTexture(GL_TEXTURE_2D, t.id); filterOf(t, f); return true; }
     const uint32_t* px = nullptr;
     int32_t w = 0, h = 0, stride = 0;
     if (!baked && !(raster::dyn_view(id, &px, &w, &h, &stride) && w > 0 && h > 0)) { if (t.id) glDeleteTextures(1, &t.id); t = GTex{}; return false; }
@@ -321,7 +354,18 @@ struct Gpu : Engine {
 #endif
     }
     t.version = version;
+    t.mips = false;
+    t.filter = 0;
+    filterOf(t, f);
     return true;
+  }
+  /** The bound texture `t` sampled with filter `f` (ZN-657). */
+  static void filterOf(GTex& t, int f) {
+    if (f == 3 && !t.mips) { glGenerateMipmap(GL_TEXTURE_2D); t.mips = true; }
+    if (t.filter == f) return;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f == 1 ? GL_NEAREST : f == 2 ? GL_LINEAR : GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f == 1 ? GL_NEAREST : GL_LINEAR);
+    t.filter = f;
   }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
@@ -330,7 +374,8 @@ struct Gpu : Engine {
     float M[16], MVP[16];
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     mul(MVP, vp, M);
-    const bool textured = tex >= 0 && g->uv && texture(tex);
+    const int f = (flags >> 4) & 3;
+    const bool textured = tex >= 0 && g->uv && texture(tex, f ? f : filter);
     const int k = (flags & UNLIT ? 0 : P_LIT | (specOn() ? P_SPEC : 0)) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0);
     Prog& p = program(k);
     if (!p.id) return;
@@ -356,10 +401,17 @@ struct Gpu : Engine {
   /** The framebuffer into `dst` (a pixel buffer offset when one is bound): 0x00RRGGBB words, the shaders write blue first and alpha 0. RGBA bytes
    *  are the format every driver reads without converting: GL_BGRA made the Intel Mac's read synchronous (2.5 ms instead of 0.07 at 800 x 500). */
   static void read(GTarget* t, void* dst) { glReadPixels(0, 0, t->w, t->h, GL_RGBA, GL_UNSIGNED_BYTE, dst); }
+  bool gpu() override { return true; }
   int32_t end() override {
     GTarget* t = gcur;
     if (!t) return 0;
     gcur = nullptr;
+    if (t->samples) {   // the multisampled frame resolved into the texture that is read back
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, t->msfbo);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, t->fbo);
+      glBlitFramebuffer(0, 0, t->w, t->h, 0, 0, t->w, t->h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+      glBindFramebuffer(GL_FRAMEBUFFER, t->fbo);
+    }
     if (!async) {
       read(t, t->px);
       raster::dyn_update(t->img, nullptr, 0);

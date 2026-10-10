@@ -22,7 +22,7 @@ printf "import { drawText } from 'zinc:pixelfont';\nconsole.log(typeof drawText)
 # options (ZN-100): plugin.json defaults, zinc.json `plugins.<name>`, then `targets.<t>.plugins.<name>`, as ZP_<PLUGIN>_<KEY> for the native code
 mkdir -p "$tmp/o"
 echo '{"name":"x","plugins":{"3d":{"scale":2,"dither":true}},"targets":{"linux":{"plugins":{"3d":{"subdiv":8}}}}}' > "$tmp/o/zinc.json"
-[ "$("$ZINC" plugins "$tmp/o" --defines 3d | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=2 ZP_3D_DITHER=1 ZP_3D_SUBDIV=16 ZP_3D_RENDERER=\"auto\" ZP_3D=1 " ] || { echo "zinc.json options do not reach the 3d plugin (scale 2, dither on)"; fail=1; }
-[ "$("$ZINC" plugins "$tmp/o" --defines 3d linux | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=2 ZP_3D_DITHER=1 ZP_3D_SUBDIV=8 ZP_3D_RENDERER=\"auto\" ZP_3D=1 " ] || { echo "a target's plugin options do not override the project's"; fail=1; }
-[ "$("$ZINC" plugins . --defines 3d | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=1 ZP_3D_DITHER=0 ZP_3D_SUBDIV=16 ZP_3D_RENDERER=\"auto\" ZP_3D=1 " ] || { echo "the 3d defaults of plugin.json are wrong"; fail=1; }
+[ "$("$ZINC" plugins "$tmp/o" --defines 3d | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=2 ZP_3D_DITHER=1 ZP_3D_SUBDIV=16 ZP_3D_RENDERER=\"auto\" ZP_3D_MSAA=4 ZP_3D_FILTER=\"mipmap\" ZP_3D=1 " ] || { echo "zinc.json options do not reach the 3d plugin (scale 2, dither on)"; fail=1; }
+[ "$("$ZINC" plugins "$tmp/o" --defines 3d linux | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=2 ZP_3D_DITHER=1 ZP_3D_SUBDIV=8 ZP_3D_RENDERER=\"auto\" ZP_3D_MSAA=4 ZP_3D_FILTER=\"mipmap\" ZP_3D=1 " ] || { echo "a target's plugin options do not override the project's"; fail=1; }
+[ "$("$ZINC" plugins . --defines 3d | tr '\n' ' ')" = "ZP_3D_ZBITS=0 ZP_3D_SCALE=1 ZP_3D_DITHER=0 ZP_3D_SUBDIV=16 ZP_3D_RENDERER=\"auto\" ZP_3D_MSAA=4 ZP_3D_FILTER=\"mipmap\" ZP_3D=1 " ] || { echo "the 3d defaults of plugin.json are wrong"; fail=1; }
 exit $fail

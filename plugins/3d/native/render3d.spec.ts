@@ -21,8 +21,11 @@ export interface Spec extends NativeModule {
    *  (begin resets it); `shininess` is the exponent. Lit draws only; per vertex in the software renderer, per pixel on the GPU. */
   specular(color: u32, shininess: number): void;
   /** Draws a mesh with a column-major model matrix. texture: image id or -1. flags: 1 vertex colours, 2 flat
-   *  shading, 4 unlit, 8 double sided. */
+   *  shading, 4 unlit, 8 double sided; bits 4-5 the texture filter (ZN-657): 0 the renderer's (the `filter` option), 1 nearest,
+   *  2 linear, 3 mipmaps (trilinear). The software renderer always takes the nearest texel. */
   draw(mesh: i32, model: number[], color: u32, texture: i32, flags: i32): void;
+  /** Whether the GPU draws (ZN-657): a camera renders at the window's pixel scale there, at 1 in software. */
+  gpu(): boolean;
   /** Ends the frame (the image shows the new pixels); returns the number of triangles rasterized. */
   end(): i32;
   /** Draws the target's image in the screen box (nearest-neighbour scaling; composes with zinc:gfx commands). */

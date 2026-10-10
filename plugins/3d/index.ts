@@ -4,6 +4,7 @@
 // Guide: docs/plugins/3d.md.
 import R from './native/render3d.spec';
 import { readText } from 'zinc:assets';
+import { pixelScale } from 'zinc:gfx';
 
 // ---------------------------------------------------------------- math (flat arrays)
 export function mat4(): number[] { return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
@@ -220,12 +221,16 @@ export function rgb(r: number, g: number, b: number): u32 {
 
 // ---------------------------------------------------------------- materials, lights, nodes
 export const enum Shading { Smooth = 0, Flat = 1, Unlit = 2 }
+export const enum Filter { Default = 0, Nearest = 1, Linear = 2, Mipmap = 3 }
 
 export class Material {
   /** Base colour; multiplies the texture and the vertex colours' lighting. */
   color: u32 = 0xffffff;
   /** Image from gfx.image (baked asset) or gfx.createImage (runtime), -1 = none. Repeats outside 0..1. */
   texture: i32 = -1;
+  /** How the GPU samples the texture (ZN-657): Filter.Default follows the renderer's `filter` option (mipmaps unless zinc.json says
+   *  otherwise). The software renderer always takes the nearest texel. */
+  filter: Filter = Filter.Default;
   vertexColors = false;
   shading: Shading = Shading.Smooth;
   doubleSided = false;
@@ -272,7 +277,7 @@ export class Node {
     mat4Multiply(this.world, parent, this.local);
     const m = this.mesh, mat = this.material;
     if (m !== null && mat !== null) {
-      const flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0);
+      const flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0) | ((mat.filter as i32) << 4);
       if (mat.specular !== specColor || (specColor !== 0 && mat.shininess !== specShin)) {
         specColor = mat.specular; specShin = mat.shininess;
         R.specular(specColor, specShin);
@@ -301,6 +306,9 @@ export class Camera {
   /** Orthographic projection showing `height` world units vertically. */
   ortho = false;
   height = 10;
+  /** Pixels rendered per logical pixel (ZN-657): 0 (the default) is the window's pixel scale on the GPU (sharp on a Retina screen) and 1
+   *  in software, which would pay four times the pixels. */
+  pixelRatio = 0;
   readonly view: number[] = mat4();
   private rt: i32 = -1;
 
@@ -311,7 +319,8 @@ export class Camera {
 
   /** Renders `scene` seen by this camera into the screen box (x, y, w, h); returns the triangles rasterized. */
   render(scene: Scene, x: number, y: number, w: number, h: number): i32 {
-    this.rt = R.target(this.rt, Math.round(w), Math.round(h));
+    const k = this.pixelRatio > 0 ? this.pixelRatio : R.gpu() ? pixelScale() : 1;
+    this.rt = R.target(this.rt, Math.round(w * k), Math.round(h * k));
     if (this.rt < 0) return 0;
     mat4LookAt(this.view, this.position, this.target, this.up);
     R.begin(this.rt, scene.background, this.view, this.ortho ? this.height : this.fov * Math.PI / 180, this.near, this.far, this.ortho);

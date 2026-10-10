@@ -399,6 +399,7 @@ struct Engine : NativeRender3D {
     for (int c = 0; c < 3; c++) if (o[c] > 255) o[c] = 255;
   }
   bool specOn() const { return spec[0] > 0 || spec[1] > 0 || spec[2] > 0; }
+  bool gpu() override { return false; }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
     Mesh* m = meshes.at(id);
