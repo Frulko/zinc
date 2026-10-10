@@ -83,6 +83,8 @@
     {"paths": ["../plugins/audio/", "tests/golden/audio/"], "tests": ["audio"]},
     {"paths": ["../templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
+    {"paths": ["../plugins/physics3d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics3d/"], "tests": ["physics3d", "qjs_native", "pinball3d"]},
+    {"paths": ["../examples/pinball3d/", "../docs/pinball-table-format.md", "tests/data/pinball3d/", "tests/golden/pinball3d/", "../plugins/3d/"], "tests": ["pinball3d_format", "pinball3d", "pinball3d_aot"]},
     {"paths": ["src/host/hal_dispatch.cpp", "tests/data/input_touch/"], "tests": ["input_touch", "input", "pointer_kind"]},
     {"paths": ["../examples/museum-table/", "tests/data/museum_format/", "tests/golden/museum-table/", "tests/golden/museum-viewer/", "tests/golden/museum-editor/"], "tests": ["museum_format", "museum_assets", "museum_table", "museum_viewer", "museum_panorama", "museum_editor"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/zrt_raster.h"], "tests": ["image_reuse"]},

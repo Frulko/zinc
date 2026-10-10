@@ -387,6 +387,24 @@ A feature, measured so that the plain `drawImage` path is not slower. Baseline: 
 
 Pixel hashes identical before and after. Keeping the boxed draw out of `draw_image` (a function of its own) matters: inlined, the ratios were 1.018 and 1.032. Size: `codec.cpp.o` text 36.5 -> 87.2 KB (+50.7 KB in a built program that draws: the second static stb_image for PNG and JPEG at run time). GL replay of the test frame: 28 quads in 10 draw calls (a filter change flushes the batch). To remeasure alone on an idle machine.
 
+### ZN-583.02 and ZN-649.02: zinc:physics3d (Jolt) and the 3D pinball
+
+Measured on the Intel Mac with other trees building (load average 5.1 to 6.3, CPU held back by heat): indicative, to remeasure alone.
+
+| Measure | Result | Target |
+|---|---|---|
+| 1,000 awake piled bodies, 60 Hz, one step, compiled (AOT) | 4.13 and 4.45 ms | 3 ms (ZN-583), not met |
+| same, interpreter | 4.5 to 4.6 ms | |
+| same, QuickJS through the native bridge | 5.16 ms | |
+| of which Jolt's own step, one thread | 4.3 ms | |
+| pinball3d in a window, 1280x800, compiled, GPU: physics and rules per frame (16 steps of 960 Hz) | 0.29 to 0.36 ms | |
+| same: scene and score panel per frame | 0.56 to 0.77 ms | |
+| same: frames per second | 59 to 60 (60 Hz display) | 120 fps not shown |
+| size of a program importing zinc:physics3d | +1.92 MB (2,143,904 against 227,152 bytes) | |
+| cold build of the plugin (pinned zig) / after a wrapper edit / cache hit | 48.2 s / 6.7 s / 0.03 s | |
+
+The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 within noise; QuickJS +0.9 ms for 1,000 bodies read in bulk). Reaching 3 ms needs Jolt's job system on several threads (ZN-690). Reproduce: `cd next && build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile`; `ZINC_FRAMES=900 build/zinc run ../examples/pinball3d -- --stats --demo`.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:
