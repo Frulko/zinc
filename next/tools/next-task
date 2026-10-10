@@ -4,7 +4,7 @@
 Order: the task In Progress, else the lowest-ordinal Ready or Backlog task that is not parked and whose dependencies are all Done or Review.
 (Review counts: its follow-up tasks hold what is left.) Labels: `parked` (needs a board, Windows or the owner; see RULES.md) is skipped.
 A task with an assignee is skipped too: the coordinator of parallel agents claims a task that way before an agent works it in a worktree.
-`next-task --list [N]` prints the next N startable tasks; `--why` explains what is skipped and why. Used by /zn-start, /zn-end and tools/status.
+`next-task --list [N]` prints the next N startable tasks; `--why` explains what is skipped and why. `--claim ZN-a ZN-b` reserves tasks for parallel agents (refused when one is already worked, claimed, parked or waiting); `--release` gives them back. Used by /zn-start, /zn-end and tools/status.
 """
 import glob, os, re, sys
 
@@ -88,6 +88,36 @@ def startable():
     return sorted(cands, key=lambda t: (group_of(t), ordinal(t)))
 
 args = sys.argv[1:]
+
+def set_assignee(t, who):
+    """Rewrite the assignee of a task file in place ('' releases it); the front matter is edited as text so nothing else moves."""
+    text = open(t["path"], encoding="utf-8").read()
+    new = "assignee:\n  - '%s'\n" % who if who else "assignee: []\n"
+    out, n = re.subn(r"^assignee:(?: \[\]\n|\n(?:  - .*\n)+)", new, text, count=1, flags=re.M)
+    if n != 1:
+        sys.exit("%s: no assignee field in %s" % (t["id"], os.path.basename(t["path"])))
+    open(t["path"], "w", encoding="utf-8").write(out)
+
+if args and args[0] in ("--claim", "--release"):
+    # The coordinator of parallel agents reserves tasks here, in the tree the loop reads: a task is claimed only while nobody works it,
+    # checked and written in one step, so the loop and an agent never hold the same task. Commit the task files afterwards.
+    who = "@parallel"
+    ids = [a.upper() for a in args[1:]]
+    bad = [i for i in ids if i not in tasks]
+    if bad or not ids:
+        sys.exit("usage: next-task --claim|--release ZN-xxx...   (unknown: %s)" % " ".join(bad))
+    if args[0] == "--claim":
+        for i in ids:
+            t = tasks[i]
+            why = None if status(t) in ("Ready", "Backlog") else "is " + status(t)
+            why = why or skipped(t)
+            if why:
+                sys.exit("%s not claimed: %s (nothing was changed)" % (i, why))
+    for i in ids:
+        set_assignee(tasks[i], who if args[0] == "--claim" else "")
+        print("%s %s" % ("claimed" if args[0] == "--claim" else "released", i))
+    sys.exit(0)
+
 working = sorted([t for t in tasks.values() if status(t) == "In Progress"], key=ordinal)
 if "--list" in args:
     n = int(args[args.index("--list") + 1]) if len(args) > args.index("--list") + 1 else 10
