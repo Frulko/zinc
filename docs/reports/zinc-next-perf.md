@@ -278,6 +278,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: `SetFieldS` / `SetFieldR` opcodes chosen by the compiler from the field type (no run-time `fieldRef`); the globals' data pointer in a local of the loop; the hostFast entry tested before `rtCall` in `L_Rt`.
 - **Gain**: ~25% on object-heavy scripts (estimate). **Effort** M. **Risk** low (ZBC opcode table change: the device core of an older release needs the version check). **Hardware**: the ESP32 bytecode core, device-sim, `zinc run`.
 
+- **Result (ZN-421, 2026-10-10, D53)**: not done. Measured on the idle Intel Mac (200k balls interpreted 19.0 ms, AOT 8.2 ms): hostFast in `L_Rt` 0%, a SetField without the kind look-up at best -9%, and the safe version (verifier-marked stores rewritten into an internal opcode) slower, because a new handler changes the code of the whole dispatch loop. The gain is in fewer instructions per ball, not cheaper ones.
+
 ### PERF-23: allocation registry
 
 - **Where**: `next/src/rt/rt.h:207` (`track`: `allocated.push_back`), `src/rt/machine.cpp:161-163` (swap-remove on free, writing into the header of the object moved).
