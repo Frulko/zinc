@@ -73,6 +73,8 @@ static int cur = 0;
 static bool first = true;
 static const Buf* shown = nullptr;
 static float tx = 0, ty = 0;  // translation applied to every command (UI transforms)
+static bool xf_on;              // gfx.setTransform (ZN-263.01): a matrix after the translation, in logical pixels
+static double xf_m[6];
 static int32_t target_img = -1;  // beginImage: the commands draw into this image, in its (logical) pixels
 bool gpu_strokes = false;
 static bool kept = false;     // keep(): nothing changed, show the previous frame again
@@ -1031,7 +1033,7 @@ static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
@@ -1128,24 +1130,62 @@ static void box(Cmd* c, double x, double y, double w, double h) {
   const float k = rec_k();
   c->x = (float)(x + tx) * k; c->y = (float)(y + ty) * k; c->w = (float)w * k; c->h = (float)h * k;
 }
+// Under gfx.setTransform (ZN-263.01) a box command becomes an XFORM: the command as recorded (its own coordinates, physical pixels) and the
+// matrix go to the point pool, its box becomes its screen bounding box (tiles, damage and culling see a box like any other). The matrix acts
+// in logical pixels: on physical ones its linear part is the same and its translation is scaled.
+static void xform(Cmd* c) {
+  if (!xf_on || !c) return;
+  Buf& b = bufs[cur];
+  if (b.npts + raster::kXformLen > ZRT_POINT_POOL) { pool_full(2); b.ncmd--; return; }
+  const float k = rec_k(), m[6] = {(float)xf_m[0], (float)xf_m[1], (float)xf_m[2], (float)xf_m[3], (float)xf_m[4] * k, (float)xf_m[5] * k};
+  float* p = b.pts + b.npts;
+  p[0] = (float)c->kind;
+  for (int i = 0; i < 6; i++) p[1 + i] = m[i];
+  p[7] = c->x; p[8] = c->y; p[9] = c->w; p[10] = c->h; p[11] = c->r; p[12] = c->s;
+  __builtin_memcpy(p + 13, &c->off, 4); __builtin_memcpy(p + 14, &c->n, 4);
+  // what the command may paint around its box: a shadow's blur, a text line's overhang (raster.cpp cmd_bounds)
+  const float e = c->kind == raster::SHADOW ? c->s + 1 : c->kind == raster::TEXT ? c->h * 0.5f + 1 : 1;
+  const float xs[2] = {c->x - e, c->x + c->w + e}, ys[2] = {c->y - e, c->y + c->h + e};
+  float minx = 1e30f, miny = 1e30f, maxx = -1e30f, maxy = -1e30f;
+  for (float x : xs) for (float y : ys) {
+    const float X = m[0] * x + m[2] * y + m[4], Y = m[1] * x + m[3] * y + m[5];
+    minx = X < minx ? X : minx; maxx = X > maxx ? X : maxx; miny = Y < miny ? Y : miny; maxy = Y > maxy ? Y : maxy;
+  }
+  c->kind = raster::XFORM; c->off = b.npts; c->n = raster::kXformLen; c->r = 0; c->s = 0;
+  c->x = minx; c->y = miny; c->w = maxx - minx; c->h = maxy - miny;
+  b.npts += raster::kXformLen;
+}
+/** (x, y) through the current matrix, in place (logical pixels). */
+static void xf_point(double& x, double& y) {
+  if (!xf_on) return;
+  const double X = xf_m[0] * x + xf_m[2] * y + xf_m[4], Y = xf_m[1] * x + xf_m[3] * y + xf_m[5];
+  x = X; y = Y;
+}
+/** The matrix's mean scale (stroke widths under a transform). */
+static double xf_scale() { return xf_on ? math::sqrt(xf_m[0] * xf_m[3] - xf_m[1] * xf_m[2] < 0 ? xf_m[1] * xf_m[2] - xf_m[0] * xf_m[3] : xf_m[0] * xf_m[3] - xf_m[1] * xf_m[2]) : 1; }
+void setTransform(double a, double b, double c, double d, double e, double f) {
+  xf_on = !(a == 1 && b == 0 && c == 0 && d == 1 && e == 0 && f == 0);
+  xf_m[0] = a; xf_m[1] = b; xf_m[2] = c; xf_m[3] = d; xf_m[4] = e; xf_m[5] = f;
+}
+void resetTransform() { xf_on = false; }
 
 void onFrame(Fn<void(double)> cb) { frame_cb = cb; }
 void onResize(Fn<void(int32_t, int32_t)>) {}
 int32_t width() { return surf_w; }
 int32_t height() { return surf_h; }
 void clear(uint32_t color) { push(raster::CLEAR, color, 255); }
-void rect(double x, double y, double w, double h, uint32_t color) { if (Cmd* c = push(raster::RECT, color, 255)) box(c, x, y, w, h); }
+void rect(double x, double y, double w, double h, uint32_t color) { if (Cmd* c = push(raster::RECT, color, 255)) { box(c, x, y, w, h); xform(c); } }
 void rrect(double x, double y, double w, double h, double r, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::RECT, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); }
+  if (Cmd* c = push(raster::RECT, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); xform(c); }
 }
 void gradient(double x, double y, double w, double h, double r, uint32_t c1, uint32_t c2, bool vertical, int32_t alpha) {
-  if (Cmd* c = push(raster::RECT, c1, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->c2 = c2 & 0xFFFFFF; c->grad = vertical ? 1 : 2; }
+  if (Cmd* c = push(raster::RECT, c1, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->c2 = c2 & 0xFFFFFF; c->grad = vertical ? 1 : 2; xform(c); }
 }
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::BORDER, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)width * rec_k(); }
+  if (Cmd* c = push(raster::BORDER, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)width * rec_k(); xform(c); }
 }
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)blur * rec_k(); }
+  if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)blur * rec_k(); xform(c); }
 }
 // The point rows read the program's f64 storage in place (ZN-405): no array is built per call.
 static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) {
@@ -1162,7 +1202,9 @@ static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) 
     uint32_t cnt = want >= 1 ? (want < (double)avail ? (uint32_t)want : avail) : 0;
     b.pts[b.npts++] = (float)cnt;
     for (uint32_t k = 0; k < cnt; k++) {
-      float x = (float)(pts[start + k * 2] + tx), y = (float)(pts[start + k * 2 + 1] + ty);
+      double dx = pts[start + k * 2] + tx, dy = pts[start + k * 2 + 1] + ty;
+      xf_point(dx, dy);
+      const float x = (float)dx, y = (float)dy;
       b.pts[b.npts++] = x * ks; b.pts[b.npts++] = y * ks;
       minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
     }
@@ -1238,6 +1280,7 @@ void drawText(int32_t f, double x, double y, const String& s, uint32_t color, in
     c->res = phys_font(f);
     raster::text_advance(c->res, b.text + c->off, n, 0);   // rasterize missing runtime glyphs now, on this thread: bands are rendered in parallel (hal_sdl.cpp)
   }
+  xform(c);
 }
 /** Legacy API: crisp 8px monospace grid scaled by `scale`. */
 void text(double x, double y, const String& s, uint32_t color, int32_t scale) {
@@ -1248,7 +1291,7 @@ int32_t image(const String& name) { return raster::find_image(name.ptr(), name.b
 int32_t imageWidth(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return w; }
 int32_t imageHeight(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return h; }
 void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha, double radius) {
-  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius * rec_k(); c->c2 = raster::image_version(i); }
+  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius * rec_k(); c->c2 = raster::image_version(i); xform(c); }
 }
 /** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
 void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32_t alpha, bool closed) {
@@ -1260,7 +1303,8 @@ void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32
 #endif
   static float tmp[ZRT_STROKE_POINTS * 2];
   if (n > ZRT_STROKE_POINTS) n = ZRT_STROKE_POINTS;  // ponytail: long lines are split by the caller (map tiles already are)
-  for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts[i * 2] + tx); tmp[i * 2 + 1] = (float)(pts[i * 2 + 1] + ty); }
+  for (uint32_t i = 0; i < n; i++) { double x = pts[i * 2] + tx, y = pts[i * 2 + 1] + ty; xf_point(x, y); tmp[i * 2] = (float)x; tmp[i * 2 + 1] = (float)y; }
+  width *= xf_scale();   // ponytail: a transformed stroke keeps a round pen of the matrix's mean scale
   static const char* force = hal_env("ZINC_GPU_STROKES");   // 1 / 0: STROKE commands or outlines whatever the display (tests, measures)
   if ((force ? *force == '1' : gpu_strokes) && target_img < 0) {   // the display draws the polyline on the GPU (ZN-590.01): no outline here
     if (b.npts + n * 2 > ZRT_POINT_POOL) { pool_full(2); return; }
@@ -1307,7 +1351,14 @@ void endImage() {
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
 }
-void clip(double x, double y, double w, double h, double r) { if (Cmd* c = push(raster::CLIP, 0, 255)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); } }
+void clip(double x, double y, double w, double h, double r) {
+  if (xf_on) {   // ponytail: under a matrix the clip is the bounding box of the transformed rectangle, square
+    double xs[4] = {x, x + w, x + w, x}, ys[4] = {y, y, y + h, y + h}, x0 = 1e300, y0 = 1e300, x1 = -1e300, y1 = -1e300;
+    for (int i = 0; i < 4; i++) { xf_point(xs[i], ys[i]); x0 = xs[i] < x0 ? xs[i] : x0; x1 = xs[i] > x1 ? xs[i] : x1; y0 = ys[i] < y0 ? ys[i] : y0; y1 = ys[i] > y1 ? ys[i] : y1; }
+    x = x0 - tx; y = y0 - ty; w = x1 - x0; h = y1 - y0; r = 0;
+  }
+  if (Cmd* c = push(raster::CLIP, 0, 255)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); }
+}
 void unclip() { push(raster::UNCLIP, 0, 255); }
 void translate(double x, double y) { tx = (float)x; ty = (float)y; }
 

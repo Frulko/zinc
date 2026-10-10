@@ -786,6 +786,9 @@ void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha,
 void clip(double x, double y, double w, double h, double r = 0);
 void unclip();
 void translate(double x, double y);
+/** 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (ZN-263.01). */
+void setTransform(double a, double b, double c, double d, double e, double f);
+void resetTransform();
 void keep();
 void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed);
 void stroke(const double* pts, uint32_t n, double width, uint32_t color, int32_t alpha, bool closed);

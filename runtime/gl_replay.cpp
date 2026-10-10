@@ -43,6 +43,7 @@ static const char* FS =
   "void main() {\n"
   "  vec2 p = v_pos.xy, c = v_box.xy, h = v_box.zw;\n"
   "  float r = v_par.x, mode = v_par.z, grad = v_par.w;\n"
+  "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n"
   "  if (mode < 0.5) {\n"                                                        // FILL: rounded box, gradients
   "    cov = cover(p, c, h, r);\n"
@@ -318,14 +319,31 @@ static void set_filter(Tex2& t, bool nearest) {
 }
 static void setc(uint8_t* o, uint32_t c, uint32_t a) { o[0] = (uint8_t)(c >> 16); o[1] = (uint8_t)(c >> 8); o[2] = (uint8_t)c; o[3] = (uint8_t)a; }
 struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; };
+// XFORM (ZN-263.01): while it is on, quads are given in a box's own coordinates and their corners go through this matrix; the boxes'
+// distance functions get their own coordinates in (u, v), with 16 added to the mode, and images and glyphs keep their texture coordinates.
+static bool xf_on;
+static float xf_m[6];
 static void quad(const Q& q) {
-  if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || q.x1 <= (float)clip.x0 || q.x0 >= (float)clip.x1 || q.y1 <= (float)clip.y0 || q.y0 >= (float)clip.y1) return;   // outside the clip: nothing to draw (and no empty scissor for the GPU)
+  float xs[4] = {q.x0, q.x1, q.x1, q.x0}, ys[4] = {q.y0, q.y0, q.y1, q.y1}, us[4] = {q.u0, q.u1, q.u1, q.u0}, vs[4] = {q.v0, q.v0, q.v1, q.v1};
+  float x0 = q.x0, y0 = q.y0, x1 = q.x1, y1 = q.y1;
+  int mode = q.mode;
+  if (xf_on) {
+    const bool local = mode == FILL || mode == BORDER_M || mode == SHADOW_M || mode == SOLID;
+    x0 = y0 = 1e30f; x1 = y1 = -1e30f;
+    for (int i = 0; i < 4; i++) {
+      const float lx = xs[i], ly = ys[i];
+      xs[i] = xf_m[0] * lx + xf_m[2] * ly + xf_m[4]; ys[i] = xf_m[1] * lx + xf_m[3] * ly + xf_m[5];
+      if (local) { us[i] = lx; vs[i] = ly; }
+      x0 = xs[i] < x0 ? xs[i] : x0; x1 = xs[i] > x1 ? xs[i] : x1; y0 = ys[i] < y0 ? ys[i] : y0; y1 = ys[i] > y1 ? ys[i] : y1;
+    }
+    if (local) mode += 16;
+  }
+  if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) return;   // outside the clip: nothing to draw (and no empty scissor for the GPU)
   if (nq == MAXQ) flush();
   V* v = &verts[nq * 4];
   nq++;
-  const float xs[4] = {q.x0, q.x1, q.x1, q.x0}, ys[4] = {q.y0, q.y0, q.y1, q.y1}, us[4] = {q.u0, q.u1, q.u1, q.u0}, vs[4] = {q.v0, q.v0, q.v1, q.v1};
   for (int i = 0; i < 4; i++) {
-    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)q.mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
     setc(v[i].c1, q.c1, q.alpha); setc(v[i].c2, q.c2, 255);
   }
 }
@@ -759,6 +777,41 @@ static void draw_poly(const Cmd& c, const float* pts) {
   quad(q);
 }
 
+// XFORM (ZN-263.01): the command in its own coordinates (raster.cpp draw_xform has the payload), drawn by the paths of the untransformed
+// commands with quad() taking the corners through the matrix. Boxes take one more pixel around them for their edges; FILL instead of SOLID
+// for a plain rectangle, whose edges are no longer on pixel boundaries; glyphs are sampled linearly while turned.
+static void draw_xform(const Cmd& c, const float* p, const char* text) {
+  Cmd in = c;
+  in.kind = (uint8_t)p[0]; in.x = p[7]; in.y = p[8]; in.w = p[9]; in.h = p[10]; in.r = p[11]; in.s = p[12];
+  memcpy(&in.off, p + 13, 4); memcpy(&in.n, p + 14, 4);
+  if (!(fabsf(p[1] * p[4] - p[2] * p[3]) > 1e-9f) || !(in.w >= 0 && in.h >= 0 && in.w < 1e7f && in.h < 1e7f)) return;
+  for (int i = 0; i < 6; i++) xf_m[i] = p[1 + i];
+  xf_on = true;
+  switch (in.kind) {
+    case RECT: { Q q = box_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R), FILL); q.grad = in.grad; quad(q); break; }
+    case BORDER: { Q q = box_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R), BORDER_M); q.p1 = in.s; quad(q); break; }
+    case SHADOW: {
+      const float blur = in.s > 0.5f ? in.s : 0.5f;
+      Q q = box_q(in, bounds(in.x - blur - 1, in.y - blur - 1, in.w + 2 * blur + 2, in.h + 2 * blur + 2, HUGE_R), SHADOW_M);
+      q.p1 = blur; quad(q); break;
+    }
+    case IMAGE: in.r = 0; draw_image(in); break;   // ponytail: no rounded corners on a turned image
+    case TEXT:
+      flush();
+      glBindTexture(GL_TEXTURE_2D, atlas);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glBindTexture(GL_TEXTURE_2D, cur_tex);
+      draw_text(in, text + in.off);
+      flush();
+      glBindTexture(GL_TEXTURE_2D, atlas);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glBindTexture(GL_TEXTURE_2D, cur_tex);
+      break;
+    default: break;
+  }
+  xf_on = false;
+}
+
 // b minus in as four non-overlapping quads (top, bottom, left, right), drawn with `mode` and the box of c
 static void bands(const Cmd& c, const Rect& b, const Rect& in, int mode, float p1) {
   const Rect r[4] = {{b.x0, b.y0, b.x1, in.y0}, {b.x0, in.y1, b.x1, b.y1}, {b.x0, in.y0, in.x0, in.y1}, {in.x1, in.y0, b.x1, in.y1}};
@@ -951,6 +1004,7 @@ static void run(const Frame& f, bool first) {
         break;
       }
       case STROKE: draw_stroke(c, f.pts + c.off); break;
+      case XFORM: draw_xform(c, f.pts + c.off, f.text); break;
       case CLIP: {
         if (sp >= 16) break;
         flush();

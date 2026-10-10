@@ -40,6 +40,11 @@ declare module 'zinc:gfx' {
   export function unclip(): void;
   /** Offset added to the coordinates of the following commands (reset every frame). */
   export function translate(x: number, y: number): void;
+  /** A 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (the canvas
+   *  setTransform order). Boxes, text and images are drawn through it; polygons, paths and strokes are transformed point by point; a clip
+   *  under a matrix is the bounding box of the transformed rectangle. Reset at each frame. */
+  export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  export function resetTransform(): void;
   /** Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps. */
   export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void;
   /** Runtime image (black) usable with drawImage, and as a render target. Video/camera plugins create their own. */

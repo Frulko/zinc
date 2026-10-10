@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-07 12:57'
+updated_date: '2026-10-10 18:20'
 labels:
   - ui
   - style
@@ -29,3 +30,9 @@ From docs/reports/ui-style-system.md (section 6, ST-14). The audit and the desig
 - [ ] #2 Pointer hit at the corner of a rotated node and a scaled-then-rotated child.
 - [ ] #3 Today's `scale` frames (proto) identical; esp32 and ps1 honour 0/90/180/270 only, others ignored with one log line.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-10: split into ZN-263.01 (the gfx matrix: software raster and GL replay), ZN-263.02 (zinc:ui paints through it; supersedes ZN-361.01), ZN-263.03 (esp32/ps1 quarter turns, deferred).
+<!-- SECTION:NOTES:END -->

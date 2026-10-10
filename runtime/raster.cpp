@@ -638,6 +638,146 @@ static void draw_image(const Target& t, const Cmd& c) {
   }
 }
 
+// ---------------------------------------------------------------- transformed boxes (ZN-263.01)
+// XFORM: a box command drawn through a 2D matrix (gfx.setTransform). Each pixel of its screen bounding box is taken back through the inverse
+// matrix into the command's own coordinates and shaded with the distance functions of the untransformed commands; distances are scaled by
+// the matrix's mean scale so that edges stay one pixel wide. Images and glyphs are sampled bilinearly there.
+struct Xf { float a, b, c, d, e, f, ia, ib, ic, id, sc; };
+static inline void xf_back(const Xf& m, float px, float py, float& lx, float& ly) {
+  const float X = px - m.e, Y = py - m.f;
+  lx = m.ia * X + m.ic * Y; ly = m.ib * X + m.id * Y;
+}
+/** The screen pixels of the local rectangle (x0, y0) - (x1, y1) through m, within `lim`. */
+static Rect xf_box(const Xf& m, float x0, float y0, float x1, float y1, Rect lim) {
+  const float xs[2] = {x0, x1}, ys[2] = {y0, y1};
+  float minx = 1e30f, miny = 1e30f, maxx = -1e30f, maxy = -1e30f;
+  for (float x : xs) for (float y : ys) {
+    const float X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f;
+    minx = X < minx ? X : minx; maxx = X > maxx ? X : maxx; miny = Y < miny ? Y : miny; maxy = Y > maxy ? Y : maxy;
+  }
+  return intersect(Rect{ifloor(minx), ifloor(miny), iceil(maxx), iceil(maxy)}, lim);
+}
+/** A w x h coverage bitmap (or straight-alpha 0xAABBGGRR colours) whose top-left corner is at (gx, gy) in local pixels, through m. */
+static void xf_glyph(const Target& t, const Xf& m, float gx, float gy, int32_t w, int32_t h, const uint8_t* cov, const uint32_t* rgba, uint32_t col, uint32_t alpha) {
+  if (w <= 0 || h <= 0) return;
+  const Rect b = xf_box(m, gx - 1, gy - 1, gx + w + 1, gy + h + 1, t.clip);
+  for (int32_t y = b.y0; y < b.y1; y++)
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      float lx, ly;
+      xf_back(m, x + 0.5f, y + 0.5f, lx, ly);
+      const float fx = lx - gx - 0.5f, fy = ly - gy - 0.5f;
+      const int32_t x0 = ifloor_fast(fx), y0 = ifloor_fast(fy);
+      if (x0 < -1 || y0 < -1 || x0 >= w || y0 >= h) continue;
+      const float tx = fx - x0, ty = fy - y0;
+      float acc[4] = {0, 0, 0, 0};
+      for (int k = 0; k < 4; k++) {
+        const int32_t sx = x0 + (k & 1), sy = y0 + (k >> 1);
+        const float wgt = ((k & 1) ? tx : 1 - tx) * ((k >> 1) ? ty : 1 - ty);
+        if (sx < 0 || sy < 0 || sx >= w || sy >= h || wgt <= 0) continue;
+        if (rgba) { const uint32_t p = rgba[sy * w + sx], a = p >> 24; acc[0] += (p & 0xFF) * a * wgt; acc[1] += ((p >> 8) & 0xFF) * a * wgt; acc[2] += ((p >> 16) & 0xFF) * a * wgt; acc[3] += a * wgt; }
+        else acc[3] += cov[sy * w + sx] * wgt;
+      }
+      if (acc[3] < 0.5f) continue;
+      uint32_t c = col;
+      if (rgba) c = ((uint32_t)(acc[0] / acc[3]) << 16) | ((uint32_t)(acc[1] / acc[3]) << 8) | (uint32_t)(acc[2] / acc[3]);
+      blend(at(t, x, y), c, (uint32_t)(acc[3] * alpha / 255));
+    }
+}
+static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
+  const Font* fp = font_at(c.res);
+  if (!fp) return;
+  const Font& f = *fp;
+  const float base = c.y + f.ascent;
+  if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {
+    struct Ctx { const Target* t; const Xf* m; const Cmd* c; float x, y; } cx = {&t, &m, &c, c.x, base};
+    if (shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
+          Ctx& k = *static_cast<Ctx*>(u);
+          xf_glyph(*k.t, *k.m, k.x + g.x, k.y + g.y, g.w, g.h, g.a, g.rgba, k.c->c1, k.c->alpha);
+        }, &cx) >= 0) return;
+  }
+  float pen = c.x;
+  for (uint32_t i = 0; i < c.n;) {
+    const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
+    if (!g) g = glyph_of(c.res, f, '?');
+    if (!g) continue;
+    xf_glyph(t, m, pen + g->x0, base + g->y0, g->w, g->h, f.bitmap + g->off, nullptr, c.c1, c.alpha);
+    pen += (g->adv + f2i(c.s * 64)) / 64.0f;
+  }
+}
+/** The colour and alpha (0..1) of image `res` at (u, v) in [0, 1]: bilinear, or nearest when asked; dyn images are opaque. */
+static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a) {
+  const Dyn* d = dyn_at(res);
+  int32_t w, h;
+  if (d) { if (!d->px) return false; w = d->w; h = d->h; }
+  else if (res >= 0 && res < image_count) { w = images[res].w; h = images[res].h; }
+  else return false;
+  const float fx = u * w - 0.5f, fy = v * h - 0.5f;
+  int32_t x0 = ifloor_fast(fx), y0 = ifloor_fast(fy);
+  float tx = fx - x0, ty = fy - y0;
+  if (nearest) { x0 = ifloor_fast(u * w); y0 = ifloor_fast(v * h); tx = ty = 0; }
+  float ch[4] = {0, 0, 0, 0};
+  for (int k = 0; k < 4; k++) {
+    int32_t sx = x0 + (k & 1), sy = y0 + (k >> 1);
+    sx = sx < 0 ? 0 : sx >= w ? w - 1 : sx; sy = sy < 0 ? 0 : sy >= h ? h - 1 : sy;
+    const float wgt = ((k & 1) ? tx : 1 - tx) * ((k >> 1) ? ty : 1 - ty);
+    if (wgt <= 0) continue;
+    if (d) { const uint32_t p = d->px[(size_t)sy * d->stride + sx]; ch[0] += ((p >> 16) & 255) * wgt; ch[1] += ((p >> 8) & 255) * wgt; ch[2] += (p & 255) * wgt; ch[3] += 255 * wgt; }
+    else { const uint8_t* p = images[res].rgba + ((size_t)sy * w + sx) * 4; for (int q = 0; q < 4; q++) ch[q] += p[q] * wgt; }
+  }
+  rgb = ((uint32_t)ch[0] << 16) | ((uint32_t)ch[1] << 8) | (uint32_t)ch[2];
+  a = ch[3] / 255;
+  return true;
+}
+static void draw_xform(const Target& t, const Cmd& c, const float* p, const char* text) {
+  Cmd in = c;
+  in.kind = (uint8_t)p[0]; in.x = p[7]; in.y = p[8]; in.w = p[9]; in.h = p[10]; in.r = p[11]; in.s = p[12];
+  __builtin_memcpy(&in.off, p + 13, 4); __builtin_memcpy(&in.n, p + 14, 4);
+  const float det = p[1] * p[4] - p[2] * p[3];
+  if (!(fabsf_(det) > 1e-9f) || !(in.w >= 0 && in.h >= 0 && in.w < 1e7f && in.h < 1e7f)) return;
+  const Xf m = {p[1], p[2], p[3], p[4], p[5], p[6], p[4] / det, -p[2] / det, -p[3] / det, p[1] / det, __builtin_sqrtf(fabsf_(det))};
+  if (in.kind == TEXT) { xf_text(t, in, text + in.off, m); return; }
+  const Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
+  const float hw = in.w * 0.5f, hh = in.h * 0.5f, cx = in.x + hw, cy = in.y + hh;
+  const float r = clampf(in.r, 0, hw < hh ? hw : hh), bw = in.s, ri = r - bw > 0 ? r - bw : 0, blur = in.s > 0.5f ? in.s : 0.5f;
+  for (int32_t y = b.y0; y < b.y1; y++)
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      float lx, ly;
+      xf_back(m, x + 0.5f, y + 0.5f, lx, ly);
+      const float d = rr_sdf(lx, ly, cx, cy, hw, hh, r);
+      switch (in.kind) {
+        case RECT: {
+          const float cov = clampf(0.5f - d * m.sc, 0, 1);
+          if (cov > 0) blend(at(t, x, y), color_at(in, lx, ly), (uint32_t)(cov * in.alpha));
+          break;
+        }
+        case BORDER: {
+          const float outer = clampf(0.5f - d * m.sc, 0, 1);
+          if (outer <= 0) break;
+          const float inner = hw - bw > 0 && hh - bw > 0 ? clampf(0.5f - rr_sdf(lx, ly, cx, cy, hw - bw, hh - bw, ri) * m.sc, 0, 1) : 0;
+          if (outer > inner) blend(at(t, x, y), in.c1, (uint32_t)((outer - inner) * in.alpha));
+          break;
+        }
+        case SHADOW: {   // shadow_rrect's falloff, in the shadow's own units
+          float k = clampf(1.0f - (d + blur * 0.5f) / (blur * 1.5f), 0, 1);
+          k = k * k * (3 - 2 * k);
+          if (k > 0) blend(at(t, x, y), in.c1, (uint32_t)(k * in.alpha));
+          break;
+        }
+        case IMAGE: {
+          const float cov = clampf(0.5f - d * m.sc, 0, 1);   // the image's edge (and radius), smooth at any angle
+          if (cov <= 0) break;
+          uint32_t rgb; float a;
+          if (xf_sample(in.res, (lx - in.x) / (in.w > 0 ? in.w : 1), (ly - in.y) / (in.h > 0 ? in.h : 1), in.grad == 1, rgb, a)) {
+            const float al = a * cov * in.alpha;
+            if (al >= 1) blend(at(t, x, y), rgb, (uint32_t)al);
+          }
+          break;
+        }
+        default: break;
+      }
+    }
+}
+
 // ---------------------------------------------------------------- frame rendering and damage
 // Rounded clips (CLIP with r > 0): children are clipped to the box, then the four corner squares are blended back
 // toward the pixels saved when the clip began, by the rounded-rect coverage, so content never shows outside the
@@ -688,6 +828,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
       case IMAGE: draw_image(t, c); break;
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
       case STROKE: stroke_poly(t, c, f.pts + c.off); break;
+      case XFORM: draw_xform(t, c, f.pts + c.off, f.text); break;
       case CLIP: {
         if (sp >= 16) break;
         RoundClip k = {c.x, c.y, c.w, c.h, c.r, 0, pool, false};
@@ -752,6 +893,13 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     return !__builtin_memcmp(p, q, len * sizeof(float));
   }
   if (x.kind == STROKE) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * 2 * sizeof(float));
+  if (x.kind == XFORM) {   // the command and matrix (not the text offset), then the text of a TEXT
+    const float *p = a.pts + x.off, *q = b.pts + y.off;
+    if (__builtin_memcmp(p, q, 13 * sizeof(float))) return false;
+    uint32_t ao, an, bo, bn;
+    __builtin_memcpy(&ao, p + 13, 4); __builtin_memcpy(&an, p + 14, 4); __builtin_memcpy(&bo, q + 13, 4); __builtin_memcpy(&bn, q + 14, 4);
+    return p[0] != (float)TEXT || (an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an));
+  }
   return true;
 }
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
@@ -1101,6 +1249,13 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     if (c.grad == 4) len += 8 + 3 * (uint32_t)p[len + 7];
     h = fnv(h, p, len * (uint32_t)sizeof(float));
   } else if (c.kind == STROKE) h = fnv(h, f.pts + c.off, c.n * 2 * (uint32_t)sizeof(float));
+  else if (c.kind == XFORM) {
+    const float* p = f.pts + c.off;
+    h = fnv(h, p, 13 * (uint32_t)sizeof(float));
+    uint32_t o, n;
+    __builtin_memcpy(&o, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
+    if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n);
+  }
   return h;
 }
 static int16_t i16(int32_t v) { return v < -32768 ? (int16_t)-32768 : v > 32767 ? (int16_t)32767 : (int16_t)v; }

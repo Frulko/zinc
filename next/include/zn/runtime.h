@@ -307,7 +307,9 @@
   X(HostGlParamObjectKind, "host.glParamObjectKind", "i>i", 2) X(HostGlActiveInfo, "host.glActiveInfo", "i>s", 2) \
   /* end of the zinc:gl rows */ \
   /* the network log (ZN-370, src/host/netlog.h) for zinc:devtools: op 0 start (arg = the inspector's port), 1 the queued Network events, 2 a response body, 3 a request body (arg = the id); appended */ \
-  X(HostNetLog, "host.netLog", "is>s", 2)
+  X(HostNetLog, "host.netLog", "is>s", 2) \
+  /* zinc:gfx setTransform / resetTransform (ZN-263.01): a 2D matrix for the commands that follow; graphics rows, appended */ \
+  X(HostGfxSetTransform, "host.gfxSetTransform", "dddddd>n", 2) X(HostGfxResetTransform, "host.gfxResetTransform", ">n", 2)
 
 namespace zn {
 
@@ -334,7 +336,7 @@ inline constexpr RtInfo kRtInfo[] = {
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
 inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= Rt::HostLayoutCounter; }
 inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::HostGlActiveInfo; }   // zinc:gl (ZN-562): served by `hostGl`
-inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && r != Rt::HostGfxSetResize && !isLayoutRow(r) && !isGlRow(r)); }
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && r != Rt::HostGfxSetResize && r != Rt::HostGfxSetTransform && r != Rt::HostGfxResetTransform && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }

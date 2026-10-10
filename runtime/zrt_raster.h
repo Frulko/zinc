@@ -50,7 +50,11 @@ uint32_t image_version(int32_t id);
 bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride);
 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
-  STROKE };   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
+  STROKE,   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
+  XFORM };  // XFORM (ZN-263.01): a RECT, BORDER, SHADOW, IMAGE or TEXT drawn through a 2D matrix (gfx.setTransform). x, y, w, h: its screen bounding
+            // box; the n = kXformLen floats at off: [kind, a, b, c, d, e, f, x, y, w, h, r, s, text offset, text length (bits)], the command in its
+            // own coordinates and the matrix to the screen (x' = a x + c y + e, y' = b x + d y + f); colours, alpha, grad and res stay in the Cmd.
+constexpr uint32_t kXformLen = 15;
 
 struct Cmd {
   uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours (raster.cpp paint_at); IMAGE: 1 = nearest filter

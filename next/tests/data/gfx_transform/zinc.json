@@ -1,0 +1,1 @@
+{ "name": "gfx_transform", "entry": "main.ts", "targets": { "macos": { "width": 800, "height": 700 } } }

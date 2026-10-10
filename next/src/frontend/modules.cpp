@@ -117,6 +117,8 @@ export function drawImage(img: i32, x: number, y: number, w: number, h: number, 
 export function clip(x: number, y: number, w: number, h: number, radius: number = 0): void { __host_gfxClip(x, y, w, h, radius); }
 export function unclip(): void { __host_gfxUnclip(); }
 export function translate(x: number, y: number): void { __host_gfxTranslate(x, y); }
+export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void { __host_gfxSetTransform(a, b, c, d, e, f); }
+export function resetTransform(): void { __host_gfxResetTransform(); }
 export function keep(): void { __host_gfxKeep(); }
 export function createImage(w: i32, h: i32): i32 { return __host_gfxCreateImage(w, h); }
 export function destroyImage(image: i32): void { __host_gfxDestroyImage(image); }
