@@ -25,3 +25,4 @@ __ZN2OT*
 __ZNK2OT*
 __ZN*hb_*
 __ZNK*hb_*
+_hal_heap_region_more

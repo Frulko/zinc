@@ -10,6 +10,9 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 fw=$(otool -L "$ZINC" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/libSystem\|^/usr/lib/libc++')
 [ -z "$fw" ] || { echo "zinc links more than libSystem and libc++: $fw"; fail=1; }
+# an exported weak definition makes dyld coalesce it and check zinc's exports against the shared cache at every launch (ZN-592.03: 0.5 ms)
+weak=$(dyld_info -exports "$ZINC" 2>/dev/null | grep -c "weak-def")
+[ "$weak" = 0 ] || { echo "zinc exports $weak weak definitions (hide them in tools/zinc-unexported.txt): $(dyld_info -exports "$ZINC" | grep weak-def | head -3)"; fail=1; }
 printf 'int main(void) { return 0; }\n' > "$tmp/e.c"
 cc "$tmp/e.c" -o "$tmp/empty" -lc++ 2>/dev/null || { echo "skipped: cannot link the empty program"; exit 77; }
 echo 'console.log(1);' > "$tmp/one.ts"
