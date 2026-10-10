@@ -573,6 +573,73 @@ export function assetFiles(p: Project): string[] {
   return out;
 }
 
+// ---------------------------------------------------------------- copying
+
+function copyText(t: Text): Text {
+  const c = noText();
+  for (const lang of t.keys()) c.set(lang, t.get(lang) ?? '');
+  return c;
+}
+function copyView(v: View): View {
+  const c = new View();
+  c.yaw = v.yaw; c.pitch = v.pitch; c.distance = v.distance; c.fov = v.fov;
+  return c;
+}
+function copyColours(into: Colours, c: Colours): void {
+  into.background = c.background; into.paper = c.paper; into.ink = c.ink; into.text = c.text; into.muted = c.muted; into.accent = c.accent;
+}
+
+/** A copy of the project that shares nothing with it (an editor keeps one per undo step). Unlike serialize + parse it also copies a
+ *  project that would not load yet: no sequence, a link to nowhere. */
+export function copyProject(p: Project): Project {
+  const c = new Project();
+  c.version = p.version; c.id = p.id; c.title = copyText(p.title); c.languages = p.languages.slice(); c.start = p.start;
+  copyColours(c.theme, p.theme);
+  c.theme.font = p.theme.font; c.theme.titleFont = p.theme.titleFont; c.theme.logo = p.theme.logo;
+  c.accessibility.textSizes = p.accessibility.textSizes.slice();
+  copyColours(c.accessibility.highContrast, p.accessibility.highContrast);
+  c.table.width = p.table.width; c.table.height = p.table.height; c.table.visitors = p.table.visitors; c.table.reach = p.table.reach;
+  c.kiosk.fullscreen = p.kiosk.fullscreen; c.kiosk.attractAfter = p.kiosk.attractAfter; c.kiosk.resetAfter = p.kiosk.resetAfter;
+  c.kiosk.attract = p.kiosk.attract; c.kiosk.statistics = p.kiosk.statistics; c.kiosk.updateUrl = p.kiosk.updateUrl;
+  for (const m of p.media) {
+    const n = new Media();
+    n.id = m.id; n.kind = m.kind; n.file = m.file; n.title = copyText(m.title); n.creator = m.creator; n.date = copyText(m.date);
+    n.medium = copyText(m.medium); n.description = copyText(m.description); n.audioDescription = copyText(m.audioDescription);
+    n.credit.institution = m.credit.institution; n.credit.accession = m.credit.accession; n.credit.line = m.credit.line;
+    n.credit.source = m.credit.source; n.credit.licence = m.credit.licence; n.credit.licenceUrl = m.credit.licenceUrl;
+    n.text = copyText(m.text); n.texture = m.texture; n.light = m.light; n.view = copyView(m.view);
+    for (const q of m.points) {
+      const r = new Point();
+      r.id = q.id; r.title = copyText(q.title); r.text = copyText(q.text); r.at = q.at.slice(); r.view = copyView(q.view);
+      n.points.push(r);
+    }
+    n.transcript = copyText(m.transcript); n.subtitles = m.subtitles; n.poster = m.poster; n.loop = m.loop;
+    c.media.push(n);
+  }
+  for (const s of p.sequences) {
+    const n = new Sequence();
+    n.id = s.id; n.title = copyText(s.title); n.text = copyText(s.text); n.storyX = s.storyX; n.storyY = s.storyY;
+    for (const it of s.items) {
+      const r = new Item();
+      r.media = it.media; r.x = it.x; r.y = it.y; r.width = it.width; r.height = it.height; r.rotation = it.rotation; r.at = it.at; r.until = it.until;
+      n.items.push(r);
+    }
+    for (const l of s.links) {
+      const r = new Link();
+      r.to = l.to; r.label = copyText(l.label); r.x = l.x; r.y = l.y; r.at = l.at; r.until = l.until; r.on = l.on; r.transition = l.transition; r.overlay = l.overlay;
+      n.links.push(r);
+    }
+    n.narration = s.narration; n.duration = s.duration; n.next = s.next;
+    c.sequences.push(n);
+  }
+  for (const r of p.presentations) {
+    const n = new Presentation();
+    n.id = r.id; n.title = copyText(r.title); n.path = r.path.slice();
+    c.presentations.push(n);
+  }
+  return c;
+}
+
 // ---------------------------------------------------------------- writing (the canonical form)
 
 function quote(s: string): string { return JSON.stringify(s); }

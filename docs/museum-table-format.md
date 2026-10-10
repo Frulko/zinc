@@ -26,6 +26,7 @@ the file system.
 | --- | --- |
 | `parseProject(json): Project` | Reads and validates. Throws a `ProjectError` whose message names the field: `media[3].credit.licence: missing` |
 | `serializeProject(project): string` | The canonical text (below): what Save writes |
+| `copyProject(project): Project` | A copy that shares nothing with its source, also of a project that would not load yet (an editor's undo steps) |
 | `unreachable(project): string[]` | The sequences no link, no `next` and no presentation leads to from `start` |
 | `assetFiles(project): string[]` | Every file the project names, `{lang}` replaced by each language |
 | `project.medium(id)`, `project.sequence(id)`, `project.say(text, lang)` | Lookups; `say` falls back on the default language |
