@@ -166,7 +166,7 @@ Then `.vscode/launch.json`:
 }
 ```
 
-F5 starts it: breakpoints in `.ts` files stop the program (`.tsx` lines come with ZN-371.03), the Variables view shows the locals of each
+F5 starts it: breakpoints in `.ts` and `.tsx` files (inside JSX elements too) stop the program, the Variables view shows the locals of each
 frame of the Call Stack with objects and arrays to unfold, the debug toolbar continues, steps and pauses a running program, and a watch or a
 hover on a local's name shows its value. The program's output goes to the Debug Console. The adapter uses the `zinc` of this repository when
 the extension is linked from it, else `$ZINC`, else the `zinc` on the `PATH`.

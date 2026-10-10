@@ -247,8 +247,12 @@ the stack.
 
 A debug build keeps every call a frame of its own (no inlining), marks each statement with a `Line` instruction and keeps each local in a
 register of its own; it runs 1.4 to 2.1 times slower than a normal build (nbody, fib), stopped or not. Normal builds are unchanged byte for
-byte, and the interpreter runs them in a copy of its loop that never looks at the debugger. `.tsx` lines, Chrome DevTools'
-Sources panel, conditional breakpoints and watches, and AOT programs in lldb are ZN-371.03 to .06.
+byte, and the interpreter runs them in a copy of its loop that never looks at the debugger. Chrome DevTools' Sources panel, conditional
+breakpoints and watches, and AOT programs in lldb are ZN-371.04 to .06.
+
+In a `.tsx` file the lines are the file's own, inside JSX elements as well (ZN-371.03): the JSX lowering starts each copied expression and
+each element's code on its source line and keeps where every piece of the lowered text comes from, which compile errors use for their
+line and column too. Arrow functions show as `<anonymous>` in the stack (an element's generated code among them).
 
 `zinc debug --dap` speaks the Debug Adapter Protocol on standard input and output (ZN-371.02): VS Code's Zinc Debug extension
 (`lib/editor/vscode-zinc-debug`, set up in [the guide](guide/01-getting-started.md#debugging)) starts it, sends `launch` with the program,

@@ -17,7 +17,7 @@ export function App(): i32 {
 }
 TSX
 out=$(ZN_DUMP_JSX=s.tsx "$ZINC" check --check "$tmp/s.tsx" 2>&1)
-want() { echo "$out" | grep -qF -- "$1" || { echo "missing in the lowered text: $1"; fail=1; }; }
+want() { echo "$out" | tr -d '\n' | grep -qF -- "$1" || { echo "missing in the lowered text: $1"; fail=1; }; }   # line breaks: the lowering keeps each piece on its source line (ZN-371.03)
 want '"widthPercent", "height"'
 want '"@backgroundColor:ff0000", "backgroundAlpha"'
 want '"paddingTop", "paddingRight", "paddingBottom", "paddingLeft"'

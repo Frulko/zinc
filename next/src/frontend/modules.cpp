@@ -1601,6 +1601,9 @@ struct Loader {
   }
   std::uint32_t loadFile(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
+    const std::size_t diagsAtStart = prog.diags.size();
+    std::string original;
+    std::vector<SrcPiece> map;
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
     if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
     if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
@@ -1608,15 +1611,18 @@ struct Loader {
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
       const std::set<std::string> classTags = classTagsOf(path, text);
-      text = lowerJsx(text, prog.diags, fi, &classTags);
+      original = text;
+      text = lowerJsx(text, prog.diags, fi, &classTags, &map);
+      if (map.empty()) original.clear();
+      else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
       if (prog.diags.size() > before) {  // the JSX did not lower: no point parsing it as it is
-        prog.files.push_back({path, std::move(text)});
+        prog.files.push_back({path, std::move(text), {}, {}});
         done[path] = kNone;
         return kNone;
       }
     }
-    prog.files.push_back({path, std::move(text)});
+    prog.files.push_back({path, std::move(text), std::move(original), std::move(map)});
     visiting[path] = true;
     ParseResult pr = parse(prog.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path)) {
@@ -3013,7 +3019,7 @@ bool needsTdz(const Ast& A) {
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot) {
   Program p;
   std::string text;
-  if (!read(entry, text)) { p.files.push_back({entry, ""}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
+  if (!read(entry, text)) { p.files.push_back({entry, "", {}, {}}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
   {   // `// zinc-profile: ps1` in the first lines: the target profile of this program (the `number` it means), as `--profile` does
     std::size_t at = text.substr(0, 400).find("zinc-profile: ");
@@ -3074,7 +3080,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     auto fi = static_cast<std::uint32_t>(p.files.size());
     std::string preludeText = std::string(kErrorPrelude) + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
     if (const char* dump = std::getenv("ZN_DUMP_PRELUDE")) { if (FILE* df = std::fopen(dump, "w")) { std::fputs(preludeText.c_str(), df); std::fclose(df); } }   // the text that diagnostics of <prelude> point into
-    p.files.push_back({"<prelude>", preludeText});
+    p.files.push_back({"<prelude>", preludeText, {}, {}});
     ParseResult pr = parse(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());
@@ -3113,7 +3119,10 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
 
 std::string formatDiag(const Program& p, const Diag& d) {
   const SourceFile& f = p.files[d.file < p.files.size() ? d.file : 0];
-  return format(d, f.text, f.path);
+  if (f.map.empty()) return format(d, f.text, f.path);
+  Diag o = d;   // a .tsx file: the line and column of the source the user wrote (ZN-371.03)
+  o.pos = std::min<std::uint32_t>(sourceOffset(f.map, d.pos), static_cast<std::uint32_t>(f.original.size()));
+  return format(o, f.original, f.path);
 }
 
 

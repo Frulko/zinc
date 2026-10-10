@@ -338,9 +338,15 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
         for (const auto& f : prog.files) {   // absolute paths: a front end names a file by its full path (DAP)
           const bool real = !f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0;
           out.files.push_back(real ? std::filesystem::absolute(f.path).lexically_normal().string() : f.path);
-          gDebugSources.push_back(f.text);
+          gDebugSources.push_back(f.map.empty() ? f.text : f.original);   // a .tsx file: what the user wrote
         }
-        for (zn::zbc::LineInfo& li : out.lines) if (li.file < prog.files.size()) { auto lc = zn::frontend::lineCol(prog.files[li.file].text, li.offset); li.line = lc.line; li.col = lc.col; }
+        for (zn::zbc::LineInfo& li : out.lines) {
+          if (li.file >= prog.files.size()) continue;
+          const auto& f = prog.files[li.file];
+          if (!f.map.empty()) li.offset = std::min<std::uint32_t>(zn::frontend::sourceOffset(f.map, li.offset), static_cast<std::uint32_t>(f.original.size()));   // ZN-371.03
+          auto lc = zn::frontend::lineCol(f.map.empty() ? f.text : f.original, li.offset);
+          li.line = lc.line; li.col = lc.col;
+        }
       }
       if (gProfile) { out.profile = gProfile->name; out.heapBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(gProfile->heapBytes, 0xFFFFFFFFu)); }
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));

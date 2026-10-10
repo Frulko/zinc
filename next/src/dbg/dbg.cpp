@@ -128,7 +128,14 @@ std::vector<StackFrame> Debugger::stack() const {
   return s;
 }
 
-std::string Debugger::fnName(std::uint32_t fn) const { return fn == 0 ? "<top level>" : fn < mod_.functions.size() ? mod_.functions[fn].name : "?"; }
+std::string Debugger::fnName(std::uint32_t fn) const {
+  if (fn == 0) return "<top level>";
+  if (fn >= mod_.functions.size()) return "?";
+  const std::string& n = mod_.functions[fn].name;   // lambdaN: an arrow function, lambdaN:name one stored in `name`
+  if (n.rfind("lambda", 0) != 0 || n.size() == 6 || !std::isdigit(static_cast<unsigned char>(n[6]))) return n;
+  const std::size_t colon = n.find(':');
+  return colon == std::string::npos ? "<anonymous>" : n.substr(colon + 1);
+}
 
 std::string Debugger::where(std::uint32_t line) const {
   if (line >= mod_.lines.size()) return "?";

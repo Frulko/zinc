@@ -152,6 +152,12 @@ struct Ast {
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> tparams, targs;
 };
 
+// Where a byte of a lowered .tsx text comes from (ZN-371.03): from `out` on, a copy of the source from `src` (byte for byte), or code generated
+// for the source at `src` (a JSX element), until the next piece.
+struct SrcPiece { std::uint32_t out, src; bool copy; };
+std::uint32_t sourceOffset(const std::vector<SrcPiece>& map, std::uint32_t out);   // the source offset of a byte of the lowered text
+std::uint32_t loweredOffset(const std::vector<SrcPiece>& map, std::uint32_t src);  // the lowered offset of a byte of the source, the nearest copy when none holds it
+
 struct Diag {
   const char* code;     // registry code (zn/diagnostics.h)
   std::uint32_t pos;    // byte offset in `file`

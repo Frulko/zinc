@@ -1,0 +1,31 @@
+paused at app.tsx:20 in <top level>
+render(App, 0xffffff, (dt: number) => {});
+(zdb) b app.tsx:14
+breakpoint 1 at app.tsx:14
+(zdb) b app.tsx:21
+breakpoint 2 at app.tsx:21
+(zdb) c
+paused at app.tsx:14 in <anonymous> (breakpoint 1)
+      const k = n * 2;
+(zdb) bt
+#0 <anonymous> at app.tsx:14
+#1 <anonymous> at app.tsx:12
+#2 <anonymous> at app.tsx:12
+#3 App at app.tsx:11
+#4 <top level> at app.tsx:20
+(zdb) locals
+k: number = 0
+(zdb) n
+paused at app.tsx:15 in <anonymous>
+      return label(k);
+(zdb) locals
+k: number = 6
+(zdb) c
+paused at app.tsx:21 in <top level> (breakpoint 2)
+const after = 1;
+(zdb) locals
+after: number = 0
+(zdb) b app.tsx:5
+breakpoint 3 at app.tsx:5
+(zdb) c
+after 1

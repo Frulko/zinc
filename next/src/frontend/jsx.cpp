@@ -341,10 +341,23 @@ std::string jsxText(const std::string& t) {
   return out;
 }
 
+// Lowered text without the markers of Lowering::mark, for the tests made on it (a literal, a percent template).
+static std::string bare(const std::string& t) {
+  if (t.find('\x01') == std::string::npos) return t;
+  std::string o;
+  for (std::size_t i = 0; i < t.size(); ++i) {
+    if (t[i] == '\x01' && i + 1 < t.size() && t[i + 1] == 'Z') { i += 2; while (i < t.size() && std::isdigit(static_cast<unsigned char>(t[i]))) ++i; continue; }   // the kind letter is skipped by the loop
+    o += t[i];
+  }
+  return o;
+}
+
 struct Lowering {
   std::string_view s;
   std::vector<Token> t;
   bool react = false;
+  bool marks = false;   // lowerJsx: where copies and element code begin, for unmark() (a style sheet's lowering has none)
+  std::string mark(std::size_t pos, char kind) const { return marks ? "\x01Z" + std::to_string(pos) + kind : std::string(); }   // kind C: a copy from pos, G: code for pos
   std::set<std::string> classTags;   // names that are class components (ZN-163)
   int counter = 0;
   std::map<std::string, std::string> imported;
@@ -435,12 +448,12 @@ struct Lowering {
     for (std::size_t i = a; i < b; ++i) {
       if (jsxStart(i)) {
         auto e = parseElem(i);
-        out += std::string(s.substr(pos, t[i].start - pos)) + lower(*e);
+        out += mark(pos, 'C') + std::string(s.substr(pos, t[i].start - pos)) + lower(*e);
         pos = t[e->end - 1].end;
         i = e->end - 1;
       }
     }
-    return out + std::string(s.substr(pos, t[b - 1].end - pos));
+    return out + mark(pos, 'C') + std::string(s.substr(pos, t[b - 1].end - pos)) + mark(t[b - 1].end, 'G');
   }
 
   std::string lower(const Elem& e) {
@@ -448,11 +461,7 @@ struct Lowering {
     std::string v = element(e, lines);
     std::string body;
     for (auto& l : lines) body += l + " ";
-    std::string code = "((): i32 => { " + body + "return " + v + "; })()";
-    int want = 0, have = 0;
-    for (std::size_t k = t[e.begin].start; k < t[e.end - 1].end; ++k) want += s[k] == '\n';
-    for (char c : code) have += c == '\n';
-    return code + std::string(want > have ? want - have : 0, '\n');
+    return mark(t[e.begin].start, 'G') + "((): i32 => { " + body + "return " + v + "; })()";   // its lines: unmark() at the next copy
   }
 
   std::string valueOf(const Attr& a) { return a.kind == 1 ? quote(a.lit) : a.kind == 2 ? rw(a.eb, a.ee) : "true"; }
@@ -775,7 +784,8 @@ struct Lowering {
           }
           static const std::regex percentTemplate(R"(^`\$\{([^`]*)\}%`$)");   // React Native's width: `${p}%` (ZN-290)
           std::smatch pm;
-          if ((styleName(key) == "width" || styleName(key) == "height") && std::regex_match(raw, pm, percentTemplate)) {
+          const std::string rawText = bare(raw);
+          if ((styleName(key) == "width" || styleName(key) == "height") && std::regex_match(rawText, pm, percentTemplate)) {
             dk = styleName(key) + "Percent";
             raw = "(" + pm[1].str() + ") / 100";
           }
@@ -815,6 +825,7 @@ struct Lowering {
     for (const Attr& a : e.attrs) {
       std::string name = a.name == "className" ? "class" : a.name;
       std::string expr = a.kind == 2 ? valueOf(a) : "true";
+      const std::string plainExpr = bare(expr);   // what the tests below read: the text the user wrote
       bool lit = a.kind == 1;
       auto push = [&](const std::string& l) { out.push_back(l); };
       if (name == "class") {
@@ -845,7 +856,7 @@ struct Lowering {
       else if (name == "debugName") {}
       else if (name == "role") push("_str(" + v + ", 'role', " + (lit ? quote(a.lit) : expr) + ");");
       else if (name == "aria-label") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
-      else if (name == "aria-hidden") push("_num(" + v + ", 'ariaHidden', " + (lit || a.kind == 0 || expr == "true" ? "1" : "0") + ");");
+      else if (name == "aria-hidden") push("_num(" + v + ", 'ariaHidden', " + (lit || a.kind == 0 || plainExpr == "true" ? "1" : "0") + ");");
       else if (name.rfind("aria-", 0) == 0 || name.rfind("data-", 0) == 0) {   // aria-checked={on}, data-state="open": read by the aria-*: and data-[k=v]: variants
         const std::string key = quote("attr:" + name);
         if (lit) push("_str(" + v + ", " + key + ", " + quote(a.lit) + ");");
@@ -866,10 +877,10 @@ struct Lowering {
       else if (name == "type" && lit && a.lit == "text") {}
       else if (name == "inputMode" && lit && kInputModes.count(a.lit)) push("_num(" + v + ", 'inputMode', " + num(kInputModes.at(a.lit)) + ");");
       else if (kFlagAttrs.count(name)) {
-        if (lit || a.kind == 0 || expr == "true" || expr == "false") push("_num(" + v + ", '" + name + "', " + (lit || expr == "true" || a.kind == 0 ? "1" : "0") + ");");
+        if (lit || a.kind == 0 || plainExpr == "true" || plainExpr == "false") push("_num(" + v + ", '" + name + "', " + (lit || plainExpr == "true" || a.kind == 0 ? "1" : "0") + ");");
         else push(react ? "_num(" + v + ", '" + name + "', (" + expr + ") ? 1 : 0);" : "_dynNum(" + v + ", '" + name + "', () => ((" + expr + ") ? 1 : 0));");
       } else if (kNumAttrs.count(name)) {
-        bool plain = !expr.empty() && expr.find_first_not_of("-0123456789.") == std::string::npos;
+        bool plain = !plainExpr.empty() && plainExpr.find_first_not_of("-0123456789.") == std::string::npos;
         if (lit) push("_num(" + v + ", '" + name + "', " + a.lit + ");");
         else if (react || plain) push("_num(" + v + ", '" + name + "', " + expr + ");");
         else push("_dynNum(" + v + ", '" + name + "', () => (" + expr + "));");
@@ -1165,7 +1176,51 @@ std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std
   }
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags) {
+// The markers out of lowered text: each copy and each element's code starts on the line of the source it comes from (line breaks are added
+// where the text is behind: generated code has none of its own), and `map` gets the pieces.
+static std::string unmark(const std::string& in, std::string_view src, std::vector<SrcPiece>* map) {
+  std::vector<std::size_t> starts{0};
+  for (std::size_t i = 0; i < src.size(); ++i) if (src[i] == '\n') starts.push_back(i + 1);
+  std::string out;
+  out.reserve(in.size() + 64);
+  std::size_t line = 0;
+  if (map) map->push_back({0, 0, false});   // the helpers' import at the top
+  for (std::size_t i = 0; i < in.size(); ++i) {
+    if (in[i] == '\x01' && i + 1 < in.size() && in[i + 1] == 'Z') {
+      std::size_t j = i + 2, p = 0;
+      while (j < in.size() && std::isdigit(static_cast<unsigned char>(in[j]))) p = p * 10 + static_cast<std::size_t>(in[j++] - '0');
+      const std::size_t want = static_cast<std::size_t>(std::upper_bound(starts.begin(), starts.end(), p) - starts.begin()) - 1;
+      for (; line < want; ++line) out += '\n';
+      if (map) map->push_back({static_cast<std::uint32_t>(out.size()), static_cast<std::uint32_t>(p), j < in.size() && in[j] == 'C'});
+      i = j;
+      continue;
+    }
+    if (in[i] == '\n') ++line;
+    out += in[i];
+  }
+  return out;
+}
+
+std::uint32_t sourceOffset(const std::vector<SrcPiece>& map, std::uint32_t out) {
+  auto it = std::upper_bound(map.begin(), map.end(), out, [](std::uint32_t o, const SrcPiece& p) { return o < p.out; });
+  if (it == map.begin()) return out;
+  --it;
+  return it->copy ? it->src + (out - it->out) : it->src;
+}
+
+std::uint32_t loweredOffset(const std::vector<SrcPiece>& map, std::uint32_t src) {
+  std::uint32_t best = 0, bestGap = ~0u;
+  for (std::size_t k = 0; k < map.size(); ++k) {
+    if (!map[k].copy) continue;
+    const std::uint32_t len = k + 1 < map.size() ? map[k + 1].out - map[k].out : ~0u - map[k].out;
+    if (src >= map[k].src && src - map[k].src < len) return map[k].out + (src - map[k].src);
+    const std::uint32_t gap = src < map[k].src ? map[k].src - src : src - map[k].src;
+    if (gap < bestGap) { bestGap = gap; best = map[k].out; }
+  }
+  return best;
+}
+
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -1174,6 +1229,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   Lowering L;
   L.s = src;
   L.t = lex(src, true);
+  L.marks = true;
   if (classTags) L.classTags = *classTags;
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
@@ -1208,12 +1264,12 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     for (std::size_t i = 0; i < L.t.size(); ++i) {
       if (!L.jsxStart(i)) continue;
       auto e = L.parseElem(i);
-      out += std::string(src.substr(pos, L.t[i].start - pos)) + L.lower(*e);
+      out += L.mark(pos, 'C') + std::string(src.substr(pos, L.t[i].start - pos)) + L.lower(*e);
       pos = L.t[e->end - 1].end;
       i = e->end - 1;
     }
-    out += std::string(src.substr(pos));
-    { std::string hoisted; for (const std::string& st : L.staticStyles) hoisted += st + " "; out = hoisted + out; }
+    out += L.mark(pos, 'C') + std::string(src.substr(pos));
+    { std::string hoisted; for (const std::string& st : L.staticStyles) hoisted += unmark(st, std::string_view(), nullptr) + " "; out = hoisted + out; }   // constants on the first line: markers out, no line break
     const char* input = "_styles, _ptr, _key, _onText, _str, _hl, _ctx";
     std::string helpers = L.react ? std::string("_el, _text, _textOf, _append, _class, _on, _draw, _num, _img, _ref, _focusable, _rc, _cc, _virtual, ") + input
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
@@ -1221,7 +1277,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
-    return styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out;
+    return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {
     diags.push_back({"Z0005", f.pos, "JSX: " + f.msg, file});
     return std::string(src);
