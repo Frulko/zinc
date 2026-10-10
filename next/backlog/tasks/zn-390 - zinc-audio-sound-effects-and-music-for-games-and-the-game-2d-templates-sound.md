@@ -4,8 +4,10 @@ title: >-
   zinc:audio: sound effects and music for games (and the game-2d template's
   sound)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 23:22'
+updated_date: '2026-10-10 17:10'
 labels:
   - audio
   - size-M
