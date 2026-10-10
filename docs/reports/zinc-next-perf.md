@@ -336,6 +336,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Spike (ZN-599, 2026-10-10)**: QuickJS bytecode to C by copying the interpreter's opcode bodies (`tools/qjs2c`): three.js 7.31 -> 5.71 ms/frame (1.28x), sprite 10.19 -> 7.28 (1.40x), objects 1.22 -> 1.13 (1.08x), matter-js 9.42 -> 7.32 ms/step (1.29x); code 53-61x the bytecode. Below the gate (2x, 15x): no-go, D55, `zinc-next-qjs2c.md`.
 - **Measured, not adopted (ZN-600, 2026-10-10)**: inline caches in the QuickJS interpreter, 89-99.9% hits: three.js 0.98-1.00x, sprite 0.97-0.98x, objects 1.01-1.06x, matter-js 0.98-1.02x (gate 15%). D56, `zinc-next-qjs-ic.md`; arm64 remeasure ZN-600.01.
 - **Result (ZN-615, 2026-10-10)**: a native plugin's library loads at its first call (exports cached beside the build): hero's cached interpreted start 326 -> 300 ms (10 starts x 3, FFmpeg no longer loaded); the cache check left (zinc:video 34 ms) is ZN-617.
+- **Tool (ZN-375, 2026-10-10)**: ZINC_PERF_HUD, a live performance panel (FPS, work p50/p99, phases, 120-frame graph) over any program; its own cost 0.14-0.19 ms per frame on the CPU renderer at Retina density, 0.01 ms on the GPU renderer (`docs/dev-mode.md`).
 
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
