@@ -59,11 +59,12 @@ deleted breakpoint 1
 paused at main.ts:21 in run
   console.log(name, total, p.x);
 (zdb) p total
-total = 6
+total: number = 6
 (zdb) p nothing
-no local nothing
+error Z0101: Cannot find name: 'nothing'
 (zdb) help
-b [file:]line  break | d n  delete | c  continue | n  next | s  step into | o  step out | bt  stack | locals [frame] | p name | q  quit
+b [file:]line [if cond]  break | log [file:]line msg {expr} | d n  delete | catch [uncaught|all|none] | c  continue | n  next | s  step into | o  step out
+bt  stack | locals [frame] | closure [frame] | globals | p expr | watch expr | q  quit
 (zdb) c
 zinc 6 1
 done

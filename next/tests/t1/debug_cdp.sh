@@ -4,4 +4,4 @@
 # step into, over and out, resume to the end; Debugger.pause stops a running loop. Skips (77) without node.
 cd "$(dirname "$0")/../.." || exit 2
 command -v node >/dev/null 2>&1 || exit 77
-out=$(timeout 90 node tests/cdp_debug_check.mjs "$ZINC" tests/data/debug_cli/main.ts --pause tests/data/debug_cli/loop.ts 2>&1) || { echo "$out" | grep -v "^ok"; exit 1; }
+out=$(timeout 90 node tests/cdp_debug_check.mjs "$ZINC" tests/data/debug_cli/main.ts --pause tests/data/debug_cli/loop.ts --exprs tests/data/debug_cli/exprs.ts 2>&1) || { echo "$out" | grep -v "^ok"; exit 1; }

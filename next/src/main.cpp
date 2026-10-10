@@ -1587,6 +1587,7 @@ int main(int argc, char** argv) {
       if (!gDebug) return zn::vm::run(zm, out, trace);
       zn::dbg::Debugger d(zm, gDebugSources);
       d.paused = gDap ? zn::dbg::dapPaused : gCdp ? zn::dbg::cdpPaused : zn::dbg::commandLine;
+      d.logged = gDap ? zn::dbg::dapLog : gCdp ? zn::dbg::cdpLog : zn::dbg::commandLineLog;
       return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) {
         auto* dd = static_cast<zn::dbg::Debugger*>(const_cast<void*>(p));
         dd->attach(m);

@@ -238,7 +238,7 @@ p: Point = Point { x: 1, y: 2 }
 list: number[] = [1, 2, 3]
 ```
 
-Commands: `b [file:]line` (a breakpoint on the first line with code at or after it; the file is matched by its trailing path, the current one
+Commands (the expressions ones are below): `b [file:]line` (a breakpoint on the first line with code at or after it; the file is matched by its trailing path, the current one
 when omitted), `d n`, `c`, `n` (next statement, over calls), `s` (into calls), `o` (out of the function), `bt` (the stack with lines), `locals
 [frame]` (numbers, booleans, strings, arrays, objects one level deep, `this`; a captured variable shows its value), `p name`, `q` (ends the
 program, exit 0). Without a terminal the commands are echoed: `zinc debug app.ts < commands.txt` gives a transcript (`next/tests/t1/debug_cli.sh`).
@@ -248,7 +248,14 @@ the stack.
 A debug build keeps every call a frame of its own (no inlining), marks each statement with a `Line` instruction and keeps each local in a
 register of its own; it runs 1.4 to 2.1 times slower than a normal build (nbody, fib), stopped or not. Normal builds are unchanged byte for
 byte, and the interpreter runs them in a copy of its loop that never looks at the debugger. Chrome DevTools' Sources panel, conditional
-breakpoints and watches, and AOT programs in lldb are ZN-371.05 and .06.
+breakpoints and watches (ZN-371.05, below), and AOT programs in lldb (ZN-371.06).
+
+Expressions (ZN-371.05, D87): `p <expression>`, `watch <expression>` (printed at every stop), `b <line> if <condition>`, `log <line> <message
+with {expressions}>` (printed, no stop), `catch uncaught|all|none` (pause on exceptions), `closure [frame]` (an arrow function's captures) and
+`globals`. An expression reads the frame's locals, captures and the program's globals, members, indexing, `.length`, operators and `?:`; it
+is typed by the declarations, so `name * 2` is `Z0107` and `p.z` `Z0106` as in the checker, and it never runs a call or an assignment. VS Code
+(conditions, logpoints, the exception filters, watches, the Closure and Globals scopes) and Chrome DevTools (conditions,
+`setPauseOnExceptions`, the console and watches on a paused frame, the closure and global scopes) get the same.
 
 `zinc debug --cdp app.ts` (ZN-371.04) opens the debugger to Chrome DevTools: a target of the engine's own on `127.0.0.1:9222` (`--cdp=port`
 for another; 9222 is in `chrome://inspect`'s default list, the inspector of `zinc:devtools` keeps 9229). *inspect* under Remote Target opens

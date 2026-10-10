@@ -746,6 +746,7 @@ struct Lowering {
       if (!global[s]) continue;
       m.globals.push_back({std::string(c.syms[s].name), irType(c.syms[s].type)});
       globalIndex[s] = static_cast<std::uint32_t>(m.globals.size() - 1);
+      if (m.debug && c.syms[s].decl != kNil) m.globals.back().own = !notProgram(a.nodes[c.syms[s].decl].file);
     }
   }
 

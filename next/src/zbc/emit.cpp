@@ -906,7 +906,10 @@ EmitResult emit(const ir::Module& m) {
     info.name = c.name;
     r.module.classes.push_back(std::move(info));
   }
-  for (const ir::Global& g : m.globals) r.module.globals.push_back(tt.vt(g.type));
+  for (const ir::Global& g : m.globals) {
+    r.module.globals.push_back(tt.vt(g.type));
+    if (m.debug) { r.module.globalNames.push_back(g.own ? g.name : ""); r.module.globalTypes.push_back(g.own ? ir::typeName(m, g.type) : ""); }
+  }
   for (const ir::Selector& sel : m.selectors) {
     SelInfo si;
     si.name = sel.name;
@@ -918,7 +921,10 @@ EmitResult emit(const ir::Module& m) {
     const ir::Class& c = m.classes[ci];
     ClassInfo info;
     info.name = c.name; info.parent = c.parent; info.isInterface = c.isInterface; info.isAbstract = c.isAbstract;
-    for (const ir::Field& fl : c.fields) { info.fields.push_back(tt.vt(fl.type)); if (m.debug) info.fieldNames.push_back(fl.name); }
+    for (const ir::Field& fl : c.fields) {
+      info.fields.push_back(tt.vt(fl.type));
+      if (m.debug) { info.fieldNames.push_back(fl.name); info.fieldTypes.push_back(ir::typeName(m, fl.type)); }
+    }
     // supertypes: every ancestor and every interface satisfied by the class or an ancestor
     for (std::uint32_t o = c.parent, k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k) info.supers.push_back(o);
     for (std::uint32_t o = static_cast<std::uint32_t>(ci), k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k)

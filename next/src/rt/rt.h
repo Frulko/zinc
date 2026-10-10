@@ -229,6 +229,7 @@ struct Machine {
   // byte is set (a breakpoint, stepping, a pause request), with the frame it runs (the callers are in frames up to fp). False stops the program.
   std::vector<std::uint8_t> lineHot;
   bool (*debugHook)(Machine& m, const Func* fn, const std::uint32_t* pc, Slot* base, std::uint32_t line) = nullptr;
+  bool (*throwHook)(Machine& m, const Func* fn, const std::uint32_t* pc, Slot* base, Slot exc) = nullptr;   // the debugger's loop: before a Throw unwinds
   void* debugCtx = nullptr;
 
   ~Machine();

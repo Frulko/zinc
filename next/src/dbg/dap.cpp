@@ -3,6 +3,7 @@
 // disconnect); the others wait for the main thread, which runs the program and, while it is paused, answers stackTrace, scopes, variables and
 // evaluate and takes continue, next, stepIn and stepOut. Standard output carries the protocol, so the program's own standard output and error
 // go through pipes into output events.
+#include <algorithm>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
@@ -26,6 +27,7 @@ std::condition_variable gQc;
 std::deque<std::string> gQueue;   // requests for the main thread
 Debugger* gDbg = nullptr;         // set by dapReady; guarded by gQm
 bool gConfigured = false, gStopOnEntry = false;
+int gExcMode = 0;                 // setExceptionBreakpoints before the program was loaded
 long long gLaunchSeq = -1;        // the launch request, answered by dapReady (or at exit when the program did not compile)
 std::thread gPumps[2];
 std::map<std::string, std::vector<int>> gBps;   // per source path: the breakpoints the client set there
@@ -112,8 +114,11 @@ void setBreakpoints(const Req& r) {
   yyjson_val* bp;
   yyjson_arr_foreach(list, i, n, bp) {
     const long long line = yyjson_get_sint(yyjson_obj_get(bp, "line"));
+    yyjson_val* cv = yyjson_obj_get(bp, "condition");
+    yyjson_val* lv = yyjson_obj_get(bp, "logMessage");
+    const std::string cond = cv && yyjson_is_str(cv) ? yyjson_get_str(cv) : "", log = lv && yyjson_is_str(lv) ? yyjson_get_str(lv) : "";
     std::string where;
-    const int id = d && line > 0 ? d->addBreakpoint(path, static_cast<std::uint32_t>(line), where) : 0;
+    const int id = d && line > 0 ? d->addBreakpoint(path, static_cast<std::uint32_t>(line), where, cond, log) : 0;
     if (!out.empty()) out += ",";
     if (id) {
       gBps[path].push_back(id);
@@ -128,9 +133,20 @@ void reader() {
   for (std::string body; readMessage(body);) {
     Req r(body);
     if (r.command == "initialize") {
-      respond(r.seq, r.command, "{\"supportsConfigurationDoneRequest\":true,\"supportsEvaluateForHovers\":true,\"supportsTerminateRequest\":true}");
+      respond(r.seq, r.command, "{\"supportsConfigurationDoneRequest\":true,\"supportsEvaluateForHovers\":true,\"supportsTerminateRequest\":true,\"supportsConditionalBreakpoints\":true,\"supportsLogPoints\":true,"
+                                "\"exceptionBreakpointFilters\":[{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\",\"default\":false},{\"filter\":\"all\",\"label\":\"All Exceptions\",\"default\":false}]}");
     } else if (r.command == "setBreakpoints") setBreakpoints(r);
-    else if (r.command == "setExceptionBreakpoints") respond(r.seq, r.command, "{\"breakpoints\":[]}");
+    else if (r.command == "setExceptionBreakpoints") {
+      int mode = 0;
+      yyjson_val* fs = r.args ? yyjson_obj_get(r.args, "filters") : nullptr;
+      std::size_t i, n;
+      yyjson_val* f;
+      yyjson_arr_foreach(fs, i, n, f) if (yyjson_is_str(f)) mode = std::max(mode, std::string(yyjson_get_str(f)) == "all" ? 2 : 1);
+      std::unique_lock<std::mutex> lock(gQm);
+      if (gDbg) gDbg->setExceptionPause(mode); else gExcMode = mode;
+      lock.unlock();
+      respond(r.seq, r.command, "{\"breakpoints\":[]}");
+    }
     else if (r.command == "configurationDone") {
       respond(r.seq, r.command);
       std::lock_guard<std::mutex> lock(gQm);
@@ -230,6 +246,7 @@ void dapReady(Debugger& d) {
   {
     std::lock_guard<std::mutex> lock(gQm);
     gDbg = &d;
+    if (gExcMode) d.setExceptionPause(gExcMode);
   }
   respond(gLaunchSeq, "launch");
   gLaunchSeq = -1;
@@ -238,18 +255,21 @@ void dapReady(Debugger& d) {
   gQc.wait(lock, [] { return gConfigured; });
 }
 
+void dapLog(const std::string& message) { event("output", "{\"category\":\"console\",\"output\":" + q(message + "\n") + "}"); }
+
 Resume dapPaused(Debugger& d) {
   std::fflush(stdout);
+  const std::string text = std::string(d.reason()) == "exception" ? d.exception() : d.conditionError();
   event("stopped", std::string("{\"reason\":\"") + d.reason() + "\",\"threadId\":1,\"allThreadsStopped\":true" +
-                       (d.hitBreakpoint() ? ",\"hitBreakpointIds\":[" + std::to_string(d.hitBreakpoint()) + "]" : "") + "}");
-  struct Ref { int frame = -1; Local value; };
+                       (d.hitBreakpoint() ? ",\"hitBreakpointIds\":[" + std::to_string(d.hitBreakpoint()) + "]" : "") + (text.empty() ? "" : ",\"text\":" + q(text) + ",\"description\":" + q(text)) + "}");
+  struct Ref { int frame = -1, kind = 0; Local value; };   // kind 0 locals, 1 closure, 2 globals (of `frame`), else the children of `value`
   std::vector<Ref> refs;   // variablesReference k is refs[k - 1], while the program stays paused
   const std::vector<StackFrame> st = d.stack();
   auto vars = [&](const std::vector<Local>& ls) {
     std::string o;
     for (const Local& l : ls) {
       int ref = 0;
-      if (l.expandable()) { refs.push_back({-1, l}); ref = static_cast<int>(refs.size()); }
+      if (l.expandable()) { refs.push_back({-1, 0, l}); ref = static_cast<int>(refs.size()); }
       o += std::string(o.empty() ? "" : ",") + "{\"name\":" + q(l.name) + ",\"value\":" + q(l.value) + ",\"type\":" + q(l.type) + ",\"variablesReference\":" + std::to_string(ref) + "}";
     }
     return o;
@@ -270,25 +290,28 @@ Resume dapPaused(Debugger& d) {
       }
       respond(r.seq, r.command, "{\"stackFrames\":[" + o + "],\"totalFrames\":" + std::to_string(st.size()) + "}");
     } else if (r.command == "scopes") {
-      refs.push_back({static_cast<int>(r.num("frameId")), {}});
-      respond(r.seq, r.command, "{\"scopes\":[{\"name\":\"Locals\",\"presentationHint\":\"locals\",\"variablesReference\":" + std::to_string(refs.size()) + ",\"expensive\":false}]}");
+      const int fr = static_cast<int>(r.num("frameId"));
+      std::string o;
+      const char* names[] = {"Locals", "Closure", "Globals"};
+      for (int kind = 0; kind < 3; ++kind) {
+        if ((kind == 1 && d.closure(static_cast<std::size_t>(fr)).empty()) || (kind == 2 && d.globals().empty())) continue;
+        refs.push_back({fr, kind, {}});
+        o += std::string(o.empty() ? "" : ",") + "{\"name\":\"" + names[kind] + "\"," + (kind == 0 ? "\"presentationHint\":\"locals\"," : "") + "\"variablesReference\":" + std::to_string(refs.size()) + ",\"expensive\":false}";
+      }
+      respond(r.seq, r.command, "{\"scopes\":[" + o + "]}");
     } else if (r.command == "variables") {
       const long long k = r.num("variablesReference");
       if (k < 1 || k > static_cast<long long>(refs.size())) { respond(r.seq, r.command, "{\"variables\":[]}"); continue; }
       const Ref ref = refs[static_cast<std::size_t>(k - 1)];
-      respond(r.seq, r.command, "{\"variables\":[" + vars(ref.frame >= 0 ? d.locals(static_cast<std::size_t>(ref.frame)) : d.children(ref.value)) + "]}");
-    } else if (r.command == "evaluate") {   // a local of the frame, by name (watches and hovers); expressions are ZN-371.05
-      const std::string e = r.str("expression");
-      bool found = false;
-      for (const Local& l : d.locals(static_cast<std::size_t>(r.num("frameId")))) {
-        if (l.name != e) continue;
-        int ref = 0;
-        if (l.expandable()) { refs.push_back({-1, l}); ref = static_cast<int>(refs.size()); }
-        respond(r.seq, r.command, "{\"result\":" + q(l.value) + ",\"type\":" + q(l.type) + ",\"variablesReference\":" + std::to_string(ref) + "}");
-        found = true;
-        break;
-      }
-      if (!found) respond(r.seq, r.command, "{}", false, "not a local of this frame: " + e);
+      const std::size_t fr = static_cast<std::size_t>(ref.frame < 0 ? 0 : ref.frame);
+      respond(r.seq, r.command, "{\"variables\":[" + vars(ref.frame < 0 ? d.children(ref.value) : ref.kind == 0 ? d.locals(fr) : ref.kind == 1 ? d.closure(fr) : d.globals()) + "]}");
+    } else if (r.command == "evaluate") {   // watches, hovers and the debug console: an expression in the frame
+      Local l;
+      std::string err;
+      if (!d.evaluate(r.str("expression"), static_cast<std::size_t>(r.num("frameId")), l, err)) { respond(r.seq, r.command, "{}", false, err); continue; }
+      int ref = 0;
+      if (l.expandable()) { refs.push_back({-1, 0, l}); ref = static_cast<int>(refs.size()); }
+      respond(r.seq, r.command, "{\"result\":" + q(l.value) + ",\"type\":" + q(l.type) + ",\"variablesReference\":" + std::to_string(ref) + "}");
     } else respond(r.seq, r.command, "{}", false, "not supported: " + r.command);
   }
 }

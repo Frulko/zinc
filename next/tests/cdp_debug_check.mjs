@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 const [zinc, file] = process.argv.slice(2);
 const pauseFile = process.argv.includes('--pause') ? process.argv[process.argv.indexOf('--pause') + 1] : null;
+const exprsFile = process.argv.includes('--exprs') ? process.argv[process.argv.indexOf('--exprs') + 1] : null;   // ZN-371.05
 let failed = false;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failed = true; };
 
@@ -90,5 +91,29 @@ if (pauseFile) await session(resolve(pauseFile), async ({ call, wait }) => {
   const paused = await wait('Debugger.paused');
   const line = paused.callFrames[0].location.lineNumber + 1;
   check(line === 3 || line === 4, `Debugger.pause stops the running loop (line ${line})`);
+});
+if (exprsFile) await session(resolve(exprsFile), async ({ call, wait }) => {
+  const url = 'file://' + resolve(exprsFile);
+  await call('Runtime.enable');
+  await call('Debugger.enable');
+  await call('Debugger.setPauseOnExceptions', { state: 'uncaught' });
+  await call('Debugger.setBreakpointByUrl', { url, lineNumber: 9, condition: 'i == 2' });
+  await call('Runtime.runIfWaitingForDebugger');
+  await wait('Debugger.paused');
+  await call('Debugger.resume');
+  let paused = await wait('Debugger.paused');
+  const frame = paused.callFrames[0];
+  const ev = async e => (await call('Debugger.evaluateOnCallFrame', { callFrameId: frame.callFrameId, expression: e })).result;
+  check((await ev('i')).result.value === 2, 'the condition i == 2: stopped when it holds');
+  const t = await ev('b.label + "!"');
+  check(t.result.type === 'string' && t.result.value === 'c!', `evaluateOnCallFrame b.label + "!": ${JSON.stringify(t.result)}`);
+  const bad = await ev('b.missing');
+  check(bad.exceptionDetails && bad.exceptionDetails.text.includes('Z0106'), `a type error is reported: ${bad.exceptionDetails?.text}`);
+  const global = frame.scopeChain.find(s => s.type === 'global');
+  const g = global ? Object.fromEntries((await call('Runtime.getProperties', { objectId: global.object.objectId })).result.result.map(p => [p.name, p.value.value])) : {};
+  check(g.calls === 0, `the Global scope: ${JSON.stringify(g)}`);
+  await call('Debugger.resume');
+  paused = await wait('Debugger.paused');
+  check(paused.reason === 'exception' && paused.data.description.includes('done with 1 call') && paused.callFrames[0].location.lineNumber === 29, `paused on the uncaught exception: ${paused.data?.description}`);
 });
 process.exit(failed ? 1 : 0);

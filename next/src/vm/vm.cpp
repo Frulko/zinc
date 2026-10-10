@@ -141,6 +141,7 @@ L_RetV: {
 L_Throw: {  // unwind to the nearest handler that takes the object, through the callers if need be
   Slot exc = r[A];
   if (!exc) TRAP("null reference");
+  if constexpr (kDebug) { if (throwHook && !throwHook(*this, fn, pc - 1, r, exc)) TRAP("stopped by the debugger"); }   // pause on exceptions
   const std::uint32_t* at = pc - 1;  // the throwing instruction
   for (;;) {
     auto idx = static_cast<std::uint32_t>(at - code);

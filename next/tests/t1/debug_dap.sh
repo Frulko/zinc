@@ -10,4 +10,5 @@ python3 tests/dap_check.py "$ZINC" tests/data/debug_cli/main.ts > "$tmp/main.log
 printf 'let x: number = "a";\nconsole.log(x);\n' > "$tmp/bad.ts"
 python3 tests/dap_check.py "$ZINC" "$tmp/bad.ts" --bad > "$tmp/bad.log" 2>&1 || { grep -v "^ok" "$tmp/bad.log"; fail=1; }
 python3 tests/dap_check.py "$ZINC" tests/data/debug_cli/loop.ts --pause > "$tmp/pause.log" 2>&1 || { grep -v "^ok" "$tmp/pause.log"; fail=1; }
+python3 tests/dap_check.py "$ZINC" tests/data/debug_cli/exprs.ts --exprs > "$tmp/exprs.log" 2>&1 || { grep -v "^ok" "$tmp/exprs.log"; fail=1; }   # ZN-371.05
 exit $fail

@@ -35,6 +35,7 @@ int gClient = -1;                 // the WebSocket client (one at a time)
 int gPort = 0;
 bool gStarted = false;            // Runtime.runIfWaitingForDebugger came
 bool gEnabled = false;            // Debugger.enable came (its scripts are sent once the program is compiled)
+int gExcMode = 0;                 // Debugger.setPauseOnExceptions, kept for the debugger made later
 Debugger* gDbg = nullptr;
 const zbc::Module* gMod = nullptr;
 const std::vector<std::string>* gSourcesP = nullptr;
@@ -125,7 +126,7 @@ void setBreakpointByUrl(const Msg& m) {
   const long long line = m.num("lineNumber") + 1;   // CDP lines start at 0
   if (url.rfind("file://", 0) == 0) url = url.substr(7);
   std::string where;
-  const int id = gDbg && !url.empty() ? gDbg->addBreakpoint(url, static_cast<std::uint32_t>(line), where) : 0;
+  const int id = gDbg && !url.empty() ? gDbg->addBreakpoint(url, static_cast<std::uint32_t>(line), where, m.str("condition")) : 0;   // a condition: ZN-371.05
   if (!id) { fail(m.id, "no code at " + url + ":" + std::to_string(line)); return; }
   const std::string bid = "zinc:" + std::to_string(id);
   gBpIds[bid] = id;
@@ -155,6 +156,12 @@ void handle(const std::string& body) {
   else if (m.method == "Debugger.removeBreakpoint") {
     auto it = gBpIds.find(m.str("breakpointId"));
     if (it != gBpIds.end() && gDbg) { gDbg->removeBreakpoint(it->second); gBpIds.erase(it); }
+    reply(m.id);
+  } else if (m.method == "Debugger.setPauseOnExceptions") {   // none, caught, uncaught, all
+    const std::string st = m.str("state");
+    std::lock_guard<std::mutex> lock(gQm);
+    gExcMode = st == "all" || st == "caught" ? 2 : st == "uncaught" ? 1 : 0;
+    if (gDbg) gDbg->setExceptionPause(gExcMode);
     reply(m.id);
   } else if (m.method == "Debugger.pause") {
     if (gDbg) gDbg->requestPause();
@@ -285,6 +292,17 @@ std::string remote(const Local& l, std::vector<Local>& refs) {
   return finite ? "{\"type\":\"number\",\"value\":" + v + ",\"description\":" + q(v) + "}" : "{\"type\":\"number\",\"unserializableValue\":" + q(v) + ",\"description\":" + q(v) + "}";
 }
 
+// A frame's scope chain: its locals, what its arrow function captured, the program's globals.
+std::string scopes(const Debugger& d, std::size_t frame) {
+  auto scope = [](const char* type, const char* name, const std::string& id) {
+    return std::string("{\"type\":\"") + type + "\",\"name\":\"" + name + "\",\"object\":{\"type\":\"object\",\"className\":\"Object\",\"description\":\"" + name + "\",\"objectId\":\"" + id + "\"}}";
+  };
+  std::string o = scope("local", "Local", "scope:" + std::to_string(frame));
+  if (!d.closure(frame).empty()) o += "," + scope("closure", "Closure", "closure:" + std::to_string(frame));
+  if (!d.globals().empty()) o += "," + scope("global", "Global", "globals");
+  return o;
+}
+
 std::string pop() {
   std::unique_lock<std::mutex> lock(gQm);
   gQc.wait(lock, [] { return !gQueue.empty(); });
@@ -328,11 +346,16 @@ void cdpReady(Debugger& d) {
     gMod = &d.module();
     gSourcesP = &d.sources();
     gDbg = &d;
+    d.setExceptionPause(gExcMode);
     if (gEnabled) scriptsParsed();
   }
   std::fprintf(stderr, "zinc debug: chrome://inspect (Discover network targets: localhost:%d) or devtools://devtools/bundled/js_app.html?ws=127.0.0.1:%d/zinc-debug; waiting for the debugger\n", gPort, gPort);   // once compiled: the scripts are there
   std::unique_lock<std::mutex> lock(gQm);
   gQc.wait(lock, [] { return gStarted; });   // the client sets its breakpoints first, then Runtime.runIfWaitingForDebugger
+}
+
+void cdpLog(const std::string& message) {
+  event("Runtime.consoleAPICalled", "{\"type\":\"log\",\"args\":[{\"type\":\"string\",\"value\":" + q(message) + "}],\"executionContextId\":1,\"timestamp\":0}");
 }
 
 Resume cdpPaused(Debugger& d) {
@@ -344,10 +367,12 @@ Resume cdpPaused(Debugger& d) {
     const std::uint32_t file = li ? li->file : 0;
     frames += std::string(i ? "," : "") + "{\"callFrameId\":\"" + std::to_string(i) + "\",\"functionName\":" + q(d.fnName(st[i].fn)) + ",\"location\":{\"scriptId\":\"" + std::to_string(file) +
               "\",\"lineNumber\":" + std::to_string(li ? li->line - 1 : 0) + ",\"columnNumber\":" + std::to_string(li && li->col ? li->col - 1 : 0) + "},\"url\":" + q(urlOf(file)) +
-              ",\"scopeChain\":[{\"type\":\"local\",\"object\":{\"type\":\"object\",\"className\":\"Object\",\"description\":\"Local\",\"objectId\":\"scope:" + std::to_string(i) +
-              "\"}}],\"this\":{\"type\":\"undefined\"}}";
+              ",\"scopeChain\":[" + scopes(d, i) + "],\"this\":{\"type\":\"undefined\"}}";
   }
-  event("Debugger.paused", "{\"callFrames\":[" + frames + "],\"reason\":\"other\"" + (d.hitBreakpoint() ? ",\"hitBreakpoints\":[\"zinc:" + std::to_string(d.hitBreakpoint()) + "\"]" : std::string()) + "}");
+  const bool exc = std::string(d.reason()) == "exception";
+  event("Debugger.paused", "{\"callFrames\":[" + frames + "],\"reason\":\"" + (exc ? "exception" : "other") + "\"" +
+                               (exc ? ",\"data\":{\"type\":\"object\",\"className\":\"Error\",\"description\":" + q(d.exception()) + "}" : std::string()) +
+                               (d.hitBreakpoint() ? ",\"hitBreakpoints\":[\"zinc:" + std::to_string(d.hitBreakpoint()) + "\"]" : std::string()) + "}");
   auto props = [&](const std::vector<Local>& ls) {
     std::string o;
     for (const Local& l : ls) o += std::string(o.empty() ? "" : ",") + "{\"name\":" + q(l.name) + ",\"value\":" + remote(l, refs) + ",\"configurable\":true,\"enumerable\":true,\"writable\":true,\"isOwn\":true}";
@@ -368,18 +393,15 @@ Resume cdpPaused(Debugger& d) {
     if (m.method == "Runtime.getProperties") {
       const std::string id = m.str("objectId");
       if (id.rfind("scope:", 0) == 0) reply(m.id, props(d.locals(static_cast<std::size_t>(std::atoll(id.c_str() + 6)))));
+      else if (id.rfind("closure:", 0) == 0) reply(m.id, props(d.closure(static_cast<std::size_t>(std::atoll(id.c_str() + 8)))));
+      else if (id == "globals") reply(m.id, props(d.globals()));
       else if (id.rfind("obj:", 0) == 0 && static_cast<std::size_t>(std::atoll(id.c_str() + 4)) < refs.size()) reply(m.id, props(d.children(refs[static_cast<std::size_t>(std::atoll(id.c_str() + 4))])));
       else reply(m.id, "{\"result\":[]}");
-    } else if (m.method == "Debugger.evaluateOnCallFrame") {   // a local of the frame, by name (watches, hovers); expressions are ZN-371.05
-      const std::string e = m.str("expression");
-      bool found = false;
-      for (const Local& l : d.locals(static_cast<std::size_t>(std::atoll(m.str("callFrameId").c_str())))) {
-        if (l.name != e) continue;
-        reply(m.id, "{\"result\":" + remote(l, refs) + "}");
-        found = true;
-        break;
-      }
-      if (!found) reply(m.id, "{\"result\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"ReferenceError\",\"description\":" + q("not a local of this frame: " + e) + "},\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"Uncaught\",\"lineNumber\":0,\"columnNumber\":0}}");
+    } else if (m.method == "Debugger.evaluateOnCallFrame") {   // watches, hovers and the console: an expression in the frame
+      Local l;
+      std::string err;
+      if (d.evaluate(m.str("expression"), static_cast<std::size_t>(std::atoll(m.str("callFrameId").c_str())), l, err)) reply(m.id, "{\"result\":" + remote(l, refs) + "}");
+      else reply(m.id, "{\"result\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":" + q(err) + "},\"exceptionDetails\":{\"exceptionId\":1,\"text\":" + q(err) + ",\"lineNumber\":0,\"columnNumber\":0}}");
     } else reply(m.id);
   }
 }

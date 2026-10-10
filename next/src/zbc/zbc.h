@@ -47,6 +47,7 @@ struct ClassInfo {
   std::vector<std::uint32_t> selectors;
   std::vector<std::uint32_t> vtable;
   std::vector<std::string> fieldNames;  // debug builds: the name of each field of `fields`
+  std::vector<std::string> fieldTypes;  // debug builds: the IR type name of each field (bool, i32, f64, str, ref Point...)
 };
 
 // A virtual method signature without the receiver.
@@ -94,6 +95,7 @@ struct Module {
   std::uint32_t heapBytes = 0;
   std::vector<std::string> files;   // debug builds: the source files, then the operands of Line
   std::vector<LineInfo> lines;
+  std::vector<std::string> globalNames, globalTypes;   // debug builds: the program's own globals by name and IR type ("" for the engine's)
 };
 
 // Emits ZBC. Constructs without bytecode yet (exceptions, fixed-point numbers) are

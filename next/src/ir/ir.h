@@ -120,7 +120,7 @@ struct Class {
   std::vector<std::uint32_t> selectors;
   std::vector<std::uint32_t> vtable;
 };
-struct Global { std::string name; TypeId type; };
+struct Global { std::string name; TypeId type; bool own = false; };   // own: a top-level variable of the program's code (a debug build shows it)
 
 struct Native { std::string module, name, sig; };  // an export of a native module the program calls (include/zn/native_sig.h)
 

@@ -1,0 +1,73 @@
+paused at exprs.ts:4 in <top level>
+let calls = 0;
+(zdb) b exprs.ts:10 if i == 2
+breakpoint 1 at exprs.ts:10 if i == 2
+(zdb) log exprs.ts:11 box {b.label} is {b.size}
+logpoint 2 at exprs.ts:11
+(zdb) b 20
+breakpoint 3 at exprs.ts:20
+(zdb) catch uncaught
+pause on uncaught exceptions
+(zdb) watch total + by
+watch 1: total + by
+(zdb) watch b.missing
+watch 1: total + by
+watch 2: b.missing
+(zdb) c
+box a is 11
+box b is 12
+paused at exprs.ts:10 in grow (breakpoint 1)
+    b.size += by;
+watch 1: total + by: number = 33
+watch 2: b.missing: error Z0106: Property does not exist: 'missing' on type 'Box'
+(zdb) locals
+boxes: Box[] = [Box { label: "a", size: 11, open: false }, Box { label: "b", size: 12, open: false }, Box { label: "c", size: 3, open: false }]
+by: number = 10
+total: number = 23
+i: number = 2
+b: Box = Box { label: "c", size: 3, open: false }
+(zdb) p b.label + "!"
+b.label + "!": string = "c!"
+(zdb) p b.size * 2 > 20
+b.size * 2 > 20: boolean = false
+(zdb) p 5 / 2
+5 / 2: number = 2.5
+(zdb) p boxes.length
+boxes.length: i32 = 3
+(zdb) p boxes[1].label
+boxes[1].label: string = "b"
+(zdb) p b.label * 2
+error Z0107: Operator cannot be applied to these types: '*' on 'string' and 'number'
+(zdb) p nosuch
+error Z0101: Cannot find name: 'nosuch'
+(zdb) p grow(boxes, 1)
+error the debugger does not run calls or assignments: a watch never changes the program
+(zdb) p b.open || calls
+b.open || calls: number = 0
+(zdb) p b.size > 2 ? "big" : "small"
+b.size > 2 ? "big" : "small": string = "big"
+(zdb) globals
+calls: number = 0
+(zdb) c
+box c is 13
+36
+paused at exprs.ts:20 in <anonymous> (breakpoint 3)
+    n += 1;
+watch 1: total + by: error Z0101: Cannot find name: 'total'
+watch 2: b.missing: error Z0101: Cannot find name: 'b'
+(zdb) closure
+n: number = 5
+(zdb) p n + 1
+n + 1: number = 6
+(zdb) d 3
+deleted breakpoint 3
+(zdb) c
+7
+paused at exprs.ts:30 in <top level> (exception: Error: done with 1 call)
+if (calls > 0) throw new Error('done with ' + calls + ' call');
+watch 1: total + by: error Z0101: Cannot find name: 'total'
+watch 2: b.missing: error Z0101: Cannot find name: 'b'
+(zdb) bt
+#0 <top level> at exprs.ts:30
+(zdb) c
+panic: Uncaught Error: done with 1 call

@@ -1,0 +1,26 @@
+b exprs.ts:10 if i == 2
+log exprs.ts:11 box {b.label} is {b.size}
+b 20
+catch uncaught
+watch total + by
+watch b.missing
+c
+locals
+p b.label + "!"
+p b.size * 2 > 20
+p 5 / 2
+p boxes.length
+p boxes[1].label
+p b.label * 2
+p nosuch
+p grow(boxes, 1)
+p b.open || calls
+p b.size > 2 ? "big" : "small"
+globals
+c
+closure
+p n + 1
+d 3
+c
+bt
+c

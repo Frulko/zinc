@@ -65,6 +65,34 @@ if "--bad" in sys.argv:
     check(not r["success"] and "Z" in err, "launch fails, the diagnostic in an output event: %r" % err[:120])
     p.wait(timeout=10)
     sys.exit(1 if failed else 0)
+if "--exprs" in sys.argv:   # exprs.ts (ZN-371.05): a condition, a logpoint, evaluate, a closure's scope, the pause on an uncaught exception
+    request("launch", program=program)
+    wait_event("initialized")
+    request("setExceptionBreakpoints", filters=["uncaught"])
+    bps = request("setBreakpoints", source={"path": program}, breakpoints=[{"line": 10, "condition": "i == 2"}, {"line": 11, "logMessage": "box {b.label} is {b.size}"}, {"line": 20}])["body"]["breakpoints"]
+    check(all(b["verified"] for b in bps), "a conditional breakpoint, a logpoint and a plain one")
+    request("configurationDone")
+    e = wait_event("stopped")
+    check(e["body"]["reason"] == "breakpoint" and local_vars()["i"]["value"] == "2", "the condition i == 2: stopped when it holds")
+    logs = [x["body"]["output"] for x in events if x["event"] == "output" and x["body"]["category"] == "console"]
+    check(logs == ["box a is 11\n", "box b is 12\n"], "the logpoint printed without stopping: %r" % logs)
+    ev = request("evaluate", expression="b.size * 2 > 20", frameId=0, context="watch")
+    check(ev["success"] and ev["body"]["result"] == "false" and ev["body"]["type"] == "boolean", "evaluate b.size * 2 > 20: boolean false")
+    ev = request("evaluate", expression="b.label * 2", frameId=0, context="watch")
+    check(not ev["success"] and "Z0107" in ev.get("message", ""), "a type error is reported: %s" % ev.get("message"))
+    request("continue", threadId=1)
+    wait_event("stopped")
+    scopes = request("scopes", frameId=0)["body"]["scopes"]
+    clos = [s for s in scopes if s["name"] == "Closure"]
+    cv = {v["name"]: v["value"] for v in request("variables", variablesReference=clos[0]["variablesReference"])["body"]["variables"]} if clos else {}
+    check(cv.get("n") == "5", "the arrow function's Closure scope: %s" % cv)
+    request("setBreakpoints", source={"path": program}, breakpoints=[])
+    request("continue", threadId=1)
+    e = wait_event("stopped")
+    check(e["body"]["reason"] == "exception" and "done with 1 call" in e["body"].get("text", "") and frames()[0]["line"] == 30, "stopped on the uncaught exception at its throw: %s" % e["body"].get("text"))
+    request("disconnect")
+    p.wait(timeout=10)
+    sys.exit(1 if failed else 0)
 if "--pause" in sys.argv:
     request("launch", program=program)
     wait_event("initialized")

@@ -52,8 +52,9 @@ const Command kCommands[] = {
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap", "run a program under the debugger",
    "Compiles a debug build (every call keeps its frame, each statement and each local is known) and runs it in the interpreter, paused at its first statement.\n"
-   "Commands on standard input: b [file:]line (break at the first line with code there), d n (delete), c (continue), n (next: over calls), s (step into),\n"
-   "o (step out), bt (the stack with lines), locals [frame], p name, q (quit). The standard library and the plugins run without stops. Without a terminal\n"
+   "Commands on standard input: b [file:]line [if cond] (break at the first line with code there), log [file:]line message {expr}, d n (delete), c (continue),\n"
+   "n (next: over calls), s (step into), o (step out), bt (the stack with lines), locals [frame], closure [frame], globals, p expr, watch expr,\n"
+   "catch [uncaught|all|none], q (quit). The standard library and the plugins run without stops. Without a terminal\n"
    "the commands are echoed, so a session can be scripted: zinc debug app.ts < commands.txt.\n"
    "--dap: the Debug Adapter Protocol on standard input and output, the program named by the launch request (VS Code: lib/editor/vscode-zinc-debug)."},
   {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle]", "compile to a native program",
