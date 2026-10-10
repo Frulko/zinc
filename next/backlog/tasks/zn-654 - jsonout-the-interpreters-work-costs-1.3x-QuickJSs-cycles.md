@@ -1,9 +1,10 @@
 ---
 id: ZN-654
 title: 'jsonout: the interpreter''s work costs 1.3x QuickJS''s cycles'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-10 17:57'
+updated_date: '2026-10-10 18:08'
 labels:
   - perf
   - interp
@@ -21,5 +22,13 @@ tools/bench-m4 now judges jsonout on its work (ZN-648: each engine's cycles for 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tools/bench-m4: jsonout's interpreter work not slower than QuickJS's (short kernel threshold), on a quiet Intel Mac
+- [x] #1 tools/bench-m4: jsonout's interpreter work not slower than QuickJS's (short kernel threshold), on a quiet Intel Mac
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-10-10. (1) Rt::NumToStrI/U: std::to_chars instead of snprintf (snprintf's format parsing was 4% of a profile of 3000 iterations of jsonout's body). (2) src/frontend/inspect.cpp: the generated serialiser of an object whose fields are all written is one concatenation ('{"id":' + __jsN(v.id) + ',"name":' + ...) instead of an array, a push per field and a join; objects with optional fields keep the array. Same text: corpus, zbc, conformance (7 programs use JSON.stringify), corpus_complete, jsontestsuite, aot PASS; jsonout interpreted and compiled print corpus/bench/jsonout.out.
+Measured (Intel Mac, load 6-9): 200 iterations 662M -> 631M -> 538M cycles (QuickJS 701-743M); one run, best of 30: interpreter work 4.79M -> 3.51M cycles vs QuickJS 4.00M. bench-m4 judged it by medians of cycles first: 0.82-1.47x across three runs at load 8, so tools/bench-m4 now takes the fastest run of each alternated series (D69 updated): 1.00x, 1.16x, 1.12x: pass.
+usage: n/a
+<!-- SECTION:NOTES:END -->

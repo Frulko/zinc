@@ -171,6 +171,19 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         }
         if (oi.isInterface || oi.isAbstract) { body += "  return '{}';\n"; break; }
       }
+      bool anyOmit = false;
+      for (const Member* m : fs) anyOmit = anyOmit || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
+      if (!anyOmit) {   // every field is written: one concatenation, no array and join per object (ZN-654: jsonout's work -14%)
+        std::string e, lit = "{";
+        for (const Member* m : fs) {
+          if (c.types[m->type].k == TK::Func) continue;
+          lit += (lit == "{" ? "" : ",") + std::string("\"") + m->name + "\":";
+          e += "'" + lit + "' + " + call(m->type, "v." + m->name) + " + ";
+          lit.clear();
+        }
+        body += "  return " + e + "'" + (lit.empty() ? "}" : "{}") + "';\n";
+        break;
+      }
       body += "  const out: string[] = [];\n";
       for (const Member* m : fs) {
         if (c.types[m->type].k == TK::Func) continue;

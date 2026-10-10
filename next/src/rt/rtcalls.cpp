@@ -1,6 +1,7 @@
 // Runtime calls of the VM (zn/runtime.h): strings, arrays, Map and Set. Strings are immutable UTF-8 objects with a
 // JavaScript (UTF-16) view for lengths and indices; an ASCII string is indexed by byte.
 #ifndef __wasi__
+#include <charconv>
 #include <thread>
 #endif
 #include <chrono>
@@ -980,9 +981,9 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::NumToStrI: case Rt::NumToStrU: {
-      char buf[24];
-      int n = id == Rt::NumToStrI ? std::snprintf(buf, sizeof buf, "%lld", static_cast<long long>(I(a[0]))) : std::snprintf(buf, sizeof buf, "%llu", static_cast<unsigned long long>(a[0]));
-      a[0] = P(m.newStr(buf, static_cast<std::size_t>(n)));
+      char buf[24];   // to_chars: snprintf's format parsing was 4% of building and stringifying small objects (ZN-654)
+      const std::to_chars_result t = id == Rt::NumToStrI ? std::to_chars(buf, buf + sizeof buf, static_cast<long long>(I(a[0]))) : std::to_chars(buf, buf + sizeof buf, static_cast<unsigned long long>(a[0]));
+      a[0] = P(m.newStr(buf, static_cast<std::size_t>(t.ptr - buf)));
       return nullptr;
     }
     case Rt::NumToStrD: { std::string s = numberToString(std::bit_cast<double>(a[0])); a[0] = P(m.newStr(s.data(), s.size())); return nullptr; }

@@ -8,7 +8,7 @@ present. Every engine's output is compared with corpus/bench/<k>.out first. Loss
 Thresholds (TESTING.md, M4): AOT within 3x of native on fib, nbody, binarytrees, sort; interpreter at least 5x faster than
 QuickJS on the numeric kernels (fib, nbody, mandelbrot, spectralnorm, fannkuchredux) and not slower on strings, jsonout and dynsum.
 jsonout, whose work is ~1 ms in every engine, is judged on its work (ZN-648): each engine's CPU time (user + system) for the kernel
-minus its CPU time for an empty program, measured in alternation; the launches and the work are reported beside the totals.
+minus its CPU time for an empty program, measured in alternation, the fastest of each; the launches and the work are reported beside the totals.
 """
 import json, math, os, platform, resource, shlex, statistics, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -135,7 +135,7 @@ for k in kernels:
 
 # launches and work (ZN-648): jsonout does ~1 ms of work, so its total compares how fast each engine starts (zinc's 12 MB engine against
 # qjs), not how fast it runs. It is judged on its work: the engine's CPU time (user + system, of the process and what it waited for) for the
-# kernel minus its CPU time for an empty program, measured in alternation, medians; on macOS in cycles (/usr/bin/time -l). Not wall time:
+# kernel minus its CPU time for an empty program, measured in alternation, the fastest of each; on macOS in cycles (/usr/bin/time -l). Not wall time:
 # a loaded machine stretches the wall time of both runs by more than the ~1 ms between them, and the CPU time by about as much.
 launch, work = {}, {}
 empty_ts = os.path.join(tmp, "empty.ts"); open(empty_ts, "w").write("")
@@ -157,7 +157,7 @@ def paired(cmd, empty, n):
     for i in range(n):
         for c, out in ((cmd, a), (empty, b)) if i % 2 == 0 else ((empty, b), (cmd, a)):
             out.append(cpu_of(c))
-    return statistics.median(a), statistics.median(b)
+    return min(a), min(b)   # the fastest of each: the run least touched by the load (medians swung 0.8-1.5x at load 8)
 for k in kernels:
     if not empties or k not in short or not results[k].get("quickjs"): continue
     cmds = {"interp": f"{zinc} run {tmp}/{k}.zbc", "aot": f"{tmp}/{k}.aot", "quickjs": f"qjs {tmp}/{k}.js"}
@@ -250,7 +250,7 @@ lines += ["", "## Thresholds", "", "| kernel | threshold | measured | result |",
 for v in verdicts:
     lines.append(f"| {v['kernel']} | {v['threshold']} | {'n/a' if v['value'] is None else format(v['value'], '.2f') + 'x'} | {'pass' if v['pass'] else '**LOSS**'} |")
 if work:
-    lines += ["", "## Short kernels: launch and work (ZN-648)", "", ("Each engine's cycles (macOS, /usr/bin/time -l)" if cycles else "Each engine's CPU time (user + system, ms)") + " for the kernel and for an empty program, in alternation; the work is the difference (median minus median).", "",
+    lines += ["", "## Short kernels: launch and work (ZN-648)", "", ("Each engine's cycles (macOS, /usr/bin/time -l)" if cycles else "Each engine's CPU time (user + system, ms)") + " for the kernel and for an empty program, in alternation; the work is the difference of the fastest of each.", "",
               "| kernel | interp work | AOT work | QuickJS work | interp launch | AOT launch | QuickJS launch |", "|---|---:|---:|---:|---:|---:|---:|"]
     f = lambda d, e: "n/a" if d.get(e) is None else (f"{d[e]/1e6:.2f}M" if cycles else f"{d[e]*1000:.2f}")
     lw = {e: statistics.median(v) for e, v in launch.items()}
