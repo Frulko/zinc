@@ -759,6 +759,7 @@ void loc_throw();                     // remembers the stack of a `throw` for th
 // ---------- zinc:gfx (UI-12) ----------
 namespace gfx {
 void onFrame(Fn<void(double)> cb);
+void onResize(Fn<void(int32_t, int32_t)> cb);   // ponytail: accepted, never called (this runtime keeps the surface zinc.json chose); a port of ZN-608 would call it from sync_surface
 int32_t width();
 int32_t height();
 void clear(uint32_t color);

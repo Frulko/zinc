@@ -91,6 +91,9 @@ export function platformModule(target: string, profile: string, caps: Caps): str
     `export const NUMBERS: string = ${JSON.stringify(String(caps.numbers))};`,
     `export const SCREEN_W: i32 = ${Number(caps.width) || 0};`,
     `export const SCREEN_H: i32 = ${Number(caps.height) || 0};`,
+    // lib/std/ui.ts reads these: the prototype has one layout engine (classic) and no style preset
+    `export const UI_LAYOUT: string = 'classic';`,
+    `export const UI_PRESET: string = '';`,
   ];
   for (const [k, v] of Object.entries(caps)) {
     if (['heap', 'numbers', 'width', 'height'].includes(k)) continue;

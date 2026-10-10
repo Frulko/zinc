@@ -41,6 +41,9 @@ check(after.includes('bg-rose-600'), 'DOM.setAttributeValue class -> tree shows 
 const bg = (await call('CSS.getComputedStyleForNode', { nodeId: target.nodeId })).computedStyle.find(p => p.name === 'background-color');
 check(bg?.value === '#e11d48', `restyled background-color ${bg?.value}`);
 check(Object.keys(await call('Some.unknownMethod')).length === 0, 'unknown method -> empty result');
+await call('Network.enable');
+const body = await call('Network.getResponseBody', { requestId: '1' });   // the Spec member `net`: {} where the host has no network log (the prototype)
+check(typeof body === 'object', `Network.getResponseBody: ${JSON.stringify(body)}`);
 const png = Buffer.from((await call('Page.captureScreenshot', { format: 'png' })).data ?? '', 'base64');
 check(png.subarray(1, 4).toString() === 'PNG', `Page.captureScreenshot: ${png.length} bytes${png.length > 24 ? ` (${png.readUInt32BE(16)}x${png.readUInt32BE(20)})` : ""}`);
 if (process.env.SHOT_WAIT) await new Promise(r => setTimeout(r, Number(process.env.SHOT_WAIT)));

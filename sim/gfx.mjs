@@ -2,6 +2,7 @@
 import { $z } from './zinc.mjs';
 
 export const onFrame = cb => { $z.state.frameCb = cb; };
+export const onResize = () => {};   // the sim's surface never changes size
 export const width = () => globalThis.$zScreen?.[0] ?? 320;
 export const height = () => globalThis.$zScreen?.[1] ?? 240;
 export const clear = () => {};
@@ -12,6 +13,7 @@ export const text = () => {};
 const R = () => globalThis.$zRes ?? { fonts: [], images: [] };
 export const rrect = () => {}, gradient = () => {}, border = () => {}, shadow = () => {}, polygon = () => {}, path = () => {};
 export const drawText = () => {}, drawImage = () => {}, clip = () => {}, unclip = () => {}, translate = () => {}, keep = () => {};
+export const commandCount = () => 0, commandsFree = () => 1 << 30;   // nothing is recorded, so a frame never runs out of commands
 export function font(name, px) {
   let best = -1, bd = 1 << 30;
   R().fonts.forEach((f, i) => { if (f.name === name && Math.abs(f.px - px) < bd) { bd = Math.abs(f.px - px); best = i; } });

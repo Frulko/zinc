@@ -911,8 +911,7 @@ function propInit(): void {
 export function propId(key: string): i32 {
   if (PROP.size === 0) propInit();
   if (key.startsWith('@')) return -1;
-  const id = PROP.get(key);
-  return id === undefined ? 0 : id;
+  return PROP.get(key) ?? 0;
 }
 function applyNumber(n: UiNode, key: string, v: number): void { applyProp(n, propId(key), key, v); }
 function applyProp(n: UiNode, id: i32, key: string, v: number): void {
@@ -1181,20 +1180,17 @@ export function setLabel(h: i32, label: string): void { node(h).label = label; }
 export function setAriaHidden(h: i32, on: boolean): void { node(h).ariaHidden = on; }
 const ROLE_OF_TAG: string[] = ['', 'text', 'button', 'img', 'scrollarea', '', '', 'textbox', 'textbox'];
 /** The accessibility tree as text, one node per line indented by depth: `role "label" (hidden) (disabled)`. Plain boxes without role or label do not show; aria-hidden subtrees are listed once and skipped. */
-export function inspect(): string {
-  let out = '';
-  const walk = (h: i32, depth: i32): void => {
-    const n = nodes[h];
-    if (!n.alive) return;
-    const role = n.role !== '' ? n.role : ROLE_OF_TAG[n.tag];
-    const label = n.label !== '' ? n.label : n.tag === TEXT ? n.text : n.ed !== null ? (n.ed as Edit).value : '';
-    const hidden = n.ariaHidden || n.hidden;
-    const shown = role !== '' || n.label !== '' || n.ariaHidden;
-    if (shown) out += '  '.repeat(depth) + (role === '' ? 'node' : role) + (label !== '' ? ' "' + label + '"' : '') + (hidden ? ' (hidden)' : '') + (n.hs !== null && (n.hs as Handlers).disabled ? ' (disabled)' : '') + '\n';
-    if (hidden) return;
-    for (const c of n.children) walk(c, shown ? depth + 1 : depth);
-  };
-  if (root >= 0) walk(root, 0);
+export function inspect(): string { return root >= 0 ? inspectFrom(root, 0) : ''; }
+function inspectFrom(h: i32, depth: i32): string {   // a function of the module: the prototype's C++ backend has no closure that calls itself
+  const n = nodes[h];
+  if (!n.alive) return '';
+  const role = n.role !== '' ? n.role : ROLE_OF_TAG[n.tag];
+  const label = n.label !== '' ? n.label : n.tag === TEXT ? n.text : n.ed !== null ? (n.ed as Edit).value : '';
+  const hidden = n.ariaHidden || n.hidden;
+  const shown = role !== '' || n.label !== '' || n.ariaHidden;
+  let out = shown ? '  '.repeat(depth) + (role === '' ? 'node' : role) + (label !== '' ? ' "' + label + '"' : '') + (hidden ? ' (hidden)' : '') + (n.hs !== null && (n.hs as Handlers).disabled ? ' (disabled)' : '') + '\n' : '';
+  if (hidden) return out;
+  for (const c of n.children) out += inspectFrom(c, shown ? depth + 1 : depth);
   return out;
 }
 // ---- media and container queries, env() lengths (ZN-272)

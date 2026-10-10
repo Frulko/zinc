@@ -37,6 +37,8 @@ export const STD_MODULES: Record<string, string> = {
   'zinc:path': path.join(ZINC_ROOT, 'lib/std/path.ts'),
   'zinc:assert': path.join(ZINC_ROOT, 'lib/std/assert.ts'),
   'zinc:signals': path.join(ZINC_ROOT, 'lib/std/signals.ts'),
+  // the host layout engine of Zinc Next; here a module of empty functions, so that lib/std/ui.ts compiles (it never calls them in the classic layout)
+  'zinc:__layout': path.join(ZINC_ROOT, 'lib/compat/proto-layout.ts'),
   // PocketJS apps compile unchanged against these (lib/compat/pocketjs)
   'solid-js': path.join(ZINC_ROOT, 'lib/std/solid.ts'),
   '@pocketjs/framework/solid/components': path.join(ZINC_ROOT, 'lib/compat/pocketjs/components.ts'),

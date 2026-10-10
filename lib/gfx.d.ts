@@ -45,6 +45,9 @@ declare module 'zinc:gfx' {
   /** Runtime image (black) usable with drawImage, and as a render target. Video/camera plugins create their own. */
   export function createImage(w: i32, h: i32): i32;
   export function destroyImage(image: i32): void;
+  /** Draw commands recorded so far in this frame, and how many more the frame still takes. */
+  export function commandCount(): i32;
+  export function commandsFree(): i32;
   /** Draw commands until endImage() are rasterized into `image` instead of the screen (tile caches, static layers). */
   export function beginImage(image: i32): void;
   export function endImage(): void;

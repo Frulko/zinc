@@ -1130,6 +1130,7 @@ static void box(Cmd* c, double x, double y, double w, double h) {
 }
 
 void onFrame(Fn<void(double)> cb) { frame_cb = cb; }
+void onResize(Fn<void(int32_t, int32_t)>) {}
 int32_t width() { return surf_w; }
 int32_t height() { return surf_h; }
 void clear(uint32_t color) { push(raster::CLEAR, color, 255); }
