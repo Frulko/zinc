@@ -68,8 +68,8 @@ function layOut(): void {
   viewer = null;
   for (const item of sequence.items) {
     const m = project.medium(item.media);
-    // ponytail: OBJ models only, and one per sequence; a .glb or .gltf waits for zinc:3d to load it (ZN-658)
-    if (m === null || m.kind !== 'model' || !m.file.toLowerCase().endsWith('.obj') || viewer !== null) continue;
+    // ponytail: one model per sequence (the first)
+    if (m === null || m.kind !== 'model' || viewer !== null) continue;
     const v = new ObjectView(project, m, colours, lang, pins);
     v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width;
     viewer = v;

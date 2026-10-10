@@ -4,9 +4,10 @@
 // The object turns, the camera and the lights stay: a view's yaw and pitch are where the camera would be around the object (yaw 0 in
 // front of +z, 90 on the +x side), its distance is in radii of the object.
 import { image, rrect, border, drawText, textWidth } from 'zinc:gfx';
-import { readText } from 'zinc:assets';
-import { clock } from 'zinc:sys';
+import { readText, readBytes } from 'zinc:assets';
+import { clock, utf8Decode } from 'zinc:sys';
 import { Scene, Camera, Node, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
+import { loadGltf } from 'zinc:3d/gltf';
 import { Project, Media, Point, Colours, LIGHTS } from './project';
 import { Fingers, Finger } from './touch';
 import { Orbit } from './orbit';
@@ -32,6 +33,24 @@ function bounds(obj: string): number[] {
       seen = true;
     } else if (seen && obj.charCodeAt(at) === 118) break;   // the vertices come first: the rest is not read twice
     at = end + 1;
+  }
+  return b;
+}
+
+/** The same box for a glTF model, from the bounds its POSITION accessors must declare. `file` is a .glb or a .gltf of the assets.
+ *  ponytail: the transforms of the nodes are not applied, which is right for a scan (one mesh at the origin); a model made of placed
+ *  parts needs zinc:3d to give the bounds of the node loadGltf returns. */
+function gltfBounds(file: string): number[] {
+  let json = '';
+  if (file.toLowerCase().endsWith('.glb')) {
+    const d = readBytes(file), n = d[12] | (d[13] << 8) | (d[14] << 16) | (d[15] << 24);   // header 12 bytes, then the JSON chunk: length, type, text
+    json = utf8Decode(d.slice(20, 20 + n));
+  } else json = readText(file);
+  const b: number[] = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30];
+  const doc = JSON.parse(json);
+  for (const mesh of doc.meshes) for (const prim of mesh.primitives) {
+    const a = doc.accessors[prim.attributes.POSITION];
+    for (let i = 0; i < 3; i++) { const lo: number = a.min[i], hi: number = a.max[i]; b[i] = Math.min(b[i], lo); b[i + 3] = Math.max(b[i + 3], hi); }
   }
   return b;
 }
@@ -78,14 +97,23 @@ export class ObjectView extends Orbit {
     super();
     this.project = project; this.media = media; this.colours = colours; this.lang = lang;
     this.nearest = 1.3; this.farthest = 6; this.steepest = 80;
-    const obj = readText(media.file), b = bounds(obj);
+    // an OBJ with the texture the project names, or a glTF / GLB with its own materials
+    let body: Node;
+    let b: number[];
+    if (media.file.toLowerCase().endsWith('.obj')) {
+      const obj = readText(media.file), skin = new Material(0xffffff);
+      b = bounds(obj);
+      if (media.texture.length > 0) skin.texture = image(media.texture);
+      skin.specular = 0x262626;   // a glaze: a discreet highlight
+      skin.shininess = 48;
+      body = new Node(parseObj(obj), skin);
+    } else {
+      b = gltfBounds(media.file);
+      body = loadGltf(media.file);
+    }
     this.centre = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2];
     this.radius = Math.sqrt((b[3] - b[0]) * (b[3] - b[0]) + (b[4] - b[1]) * (b[4] - b[1]) + (b[5] - b[2]) * (b[5] - b[2])) / 2;
-    const skin = new Material(0xffffff);
-    if (media.texture.length > 0) skin.texture = image(media.texture);
-    skin.specular = 0x262626;   // a glaze: a discreet highlight
-    skin.shininess = 48;
-    const body = this.pivot.add(new Node(parseObj(obj), skin));
+    this.pivot.add(body);
     body.setPosition(-this.centre[0], -this.centre[1], -this.centre[2]);   // the object turns about its centre
     this.pinned = pins;
     if (pins) {
