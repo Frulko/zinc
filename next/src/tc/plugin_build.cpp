@@ -84,7 +84,7 @@ bool haveCommand(const std::string& c) { std::string o; return capture("command 
 bool endsWith(const std::string& s, const char* e) { std::size_t n = std::strlen(e); return s.size() >= n && s.compare(s.size() - n, n, e) == 0; }
 
 struct Cross { std::string name, zigTarget, zig; bool on = false; } gCross;
-std::string crossArch() { return gCross.name == "armhf-linux" ? " -mcpu=arm1176jzf_s" : ""; }
+std::string crossArch() { const Target* t = findTarget(gCross.name); return t ? t->cpuFlags : ""; }
 
 // The compilers: $CXX / $CC, else c++ / cc, else the pinned zig (downloaded on first use).
 // The compilers of a plugin (ZN-332): the pinned zig by default, so the cache key names the compiler by its version, not by where it is, and two machines building the same

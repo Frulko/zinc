@@ -4,6 +4,7 @@ title: chip and pocketchip profiles and capabilities
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:40'
+updated_date: '2026-10-10 07:37'
 labels:
   - chip
 milestone: m-24
@@ -26,3 +27,9 @@ Profile rows in next/src/frontend/profile.cpp and compiler/src/cli.ts (chip: f64
 - [ ] #4 T0 test of the profile table and the capabilities rows
 - [ ] #5 docs/targets/chip.md exists and links this report
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-10 (ZN-414): profile rows chip and pocketchip exist in next/src/frontend/profile.cpp, and export/deploy map chip/pocketchip to the new armv7-linux target (-mcpu=cortex_a8) in cli_core.cpp zigTargetFor; capabilities rows, zinc:platform, docs and the builds remain.
+<!-- SECTION:NOTES:END -->

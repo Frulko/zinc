@@ -5,9 +5,12 @@ cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # the conformance programs of the profile that run on the host alone (the others need the network, plugins or the old simulator's file-system messages)
-for n in tour clock array_search async string_number_edges conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals clock_frames hardening canvas2d scene3d ink lottie fetch_web three; do
-  [ -f ../tests/conformance/$n.f32.out ] || continue
-  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile esp32 ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile esp32 does not print $n.f32.out"; fail=1; }
+# psp (ZN-414): the Allegrex FPU is single precision, so its numbers are f32 too and print the same goldens
+for prof in esp32 psp; do
+  for n in tour clock array_search async string_number_edges conversions literal_member_arrays features generic_static regressions regressions2 dyn dyn_literals clock_frames hardening canvas2d scene3d ink lottie fetch_web three; do
+    [ -f ../tests/conformance/$n.f32.out ] || continue
+    ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run --profile $prof ../tests/conformance/$n.ts 2>&1 | diff -q - ../tests/conformance/$n.f32.out >/dev/null || { echo "$n: --profile $prof does not print $n.f32.out"; fail=1; }
+  done
 done
 # fixed point (ZN-121): the fx12 corpus type-checks under --profile ps1 and prints the .fx12.out goldens (the programs that need the network, a plugin or the old simulator's wording excepted)
 for f in ../tests/conformance/*.fx12.out; do

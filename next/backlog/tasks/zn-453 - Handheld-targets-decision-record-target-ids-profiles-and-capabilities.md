@@ -4,6 +4,7 @@ title: 'Handheld targets: decision record, target ids, profiles and capabilities
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:37'
+updated_date: '2026-10-10 07:37'
 labels:
   - handheld
   - handhelds
@@ -27,3 +28,9 @@ Record a decision in docs/reports/zinc-next-decisions.md: targets psp, vita, n3d
 - [ ] #3 zinc run --profile psp examples/bouncing-ball runs in the host window with f32 numbers
 - [ ] #4 capabilities.json rows validate against requires in the existing tests
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-10 (ZN-414): the profile rows psp, vita, n3ds exist now in next/src/frontend/profile.cpp with the values of AC#2; the T0 lookup test, capabilities.json rows and the rest are still to do.
+<!-- SECTION:NOTES:END -->

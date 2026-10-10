@@ -1523,7 +1523,7 @@ int main(int argc, char** argv) {
     if (draws) {
       const zn::tc::Target* tg = zn::tc::findTarget(argv[3]);
       std::string L = libsDir + "/", q = "'";
-      std::string cmd = q + zig + "' c++ -std=c++20 -target " + tg->zigTarget + (std::string(tg->name) == "armhf-linux" ? " -mcpu=arm1176jzf_s" : "") + " -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "'";
+      std::string cmd = q + zig + "' c++ -std=c++20 -target " + tg->zigTarget + tg->cpuFlags + " -O2 -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include' '" + cpp.string() + "'";
       for (const zn::tc::PluginLib& pl : crossPlugins) {
         cmd += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";   // the module registers from a static constructor
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";

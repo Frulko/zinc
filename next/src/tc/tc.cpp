@@ -66,11 +66,15 @@ bool run(const std::string& cmd, std::string& err, const char* what) {
 
 const std::vector<Target>& targets() {
   static const std::vector<Target> t = {
-      {"aarch64-linux", "aarch64-linux-gnu", "Raspberry Pi 3 and 4 (64-bit), reMarkable Paper Pro, servers"},
-      {"armhf-linux", "arm-linux-gnueabihf", "32-bit Raspberry Pi OS"},
-      {"x86_64-linux", "x86_64-linux-gnu", "PC and server Linux"},
-      {"aarch64-macos", "aarch64-macos", "Apple Silicon"},
-      {"x86_64-macos", "x86_64-macos", "Intel Mac"},
+      // ARMv8.0 tuned for the Pi 3's Cortex-A53, which the A55 (reMarkable Paper Pro), A72 (Pi 4) and A76 (Pi 5) also run
+      {"aarch64-linux", "aarch64-linux-gnu", " -mcpu=cortex_a53", "Raspberry Pi 3, 4 and 5 (64-bit), reMarkable Paper Pro, servers"},
+      // ARMv6 with VFPv2, no NEON: the first Pi and the Pi Zero, and every later Pi on a 32-bit OS (slower there: armv7-linux)
+      {"armhf-linux", "arm-linux-gnueabihf", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6)"},
+      // ARMv7-A with NEON and VFPv3: the Cortex-A8 of the NTC CHIP is the oldest core, so no VFPv4 instruction reaches it; the Pi 2 (A7) and Pi 3 (A53) run it
+      {"armv7-linux", "arm-linux-gnueabihf", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON)"},
+      {"x86_64-linux", "x86_64-linux-gnu", "", "PC and server Linux"},
+      {"aarch64-macos", "aarch64-macos", "", "Apple Silicon"},
+      {"x86_64-macos", "x86_64-macos", "", "Intel Mac"},
   };
   return t;
 }
@@ -316,9 +320,8 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   fs::path cache = fs::path(home()) / "cache" / t->name;
   std::error_code ec;
   fs::create_directories(cache, ec);
-  std::string flags = std::string("-target ") + t->zigTarget + " -O2 -w -ffp-contract=off -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include") + " -I " + quote(root + "/third_party/quickjs-ng");
+  std::string flags = std::string("-target ") + t->zigTarget + t->cpuFlags + " -O2 -w -ffp-contract=off -I " + quote(root + "/include") + " -I " + quote(root + "/src") + " -I " + quote(root + "/third_party/mimalloc/include") + " -I " + quote(root + "/third_party/quickjs-ng");
   if (std::string(t->name).size() > 6 && std::string(t->name).substr(std::string(t->name).size() - 6) == "-macos") flags += " -I " + quote(root + "/third_party/macos-shim");  // CommonCrypto for mimalloc
-  if (std::string(t->name) == "armhf-linux") flags += " -mcpu=arm1176jzf_s";  // runs on every 32-bit Pi, the first one included
   struct Src { std::string path; bool c; };
   std::vector<Src> srcs = {{"src/rt/machine.cpp", false}, {"src/rt/rtcalls.cpp", false}, {"src/rt/program.cpp", false}, {"src/rt/native.cpp", false}, {"src/rt/alloc.cpp", false}, {"src/rt/alloc_new.cpp", false}, {"src/rt/unicode.cpp", false}, {"third_party/quickjs-ng/libunicode.c", true}, {"src/zbc/zbc.cpp", false}, {"third_party/mimalloc/src/static.c", true}};
   std::string objs;
@@ -359,11 +362,11 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   for (const char* tool : {"cc", "c++", "ar", "ranlib"}) {   // CMake takes one program per compiler: wrappers that say which zig command and target
     bool compiler = std::string(tool) == "cc" || std::string(tool) == "c++";
     std::ofstream w(dir + "/wrap/" + tool);
-    w << "#!/bin/sh\nexec '" << zig << "' " << tool << (compiler ? std::string(" -target ") + t->zigTarget + (name == "armhf-linux" ? " -mcpu=arm1176jzf_s" : "") : std::string()) << " \"$@\"\n";
+    w << "#!/bin/sh\nexec '" << zig << "' " << tool << (compiler ? std::string(" -target ") + t->zigTarget + t->cpuFlags : std::string()) << " \"$@\"\n";
     w.close();
     fs::permissions(dir + "/wrap/" + tool, fs::perms::owner_all, ec);
   }
-  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : name.rfind("armhf", 0) == 0 ? "arm" : "x86_64";
+  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : std::string(t->zigTarget).rfind("arm-", 0) == 0 ? "arm" : "x86_64";
   std::fprintf(stderr, "zinc: building the graphics host for %s (first time only)\n", name.c_str());
   std::string cfg = "cmake -S " + quote(root) + " -B " + quote(dir) + " -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=" + arch + " -DCMAKE_C_COMPILER=" + quote(dir + "/wrap/cc") + " -DCMAKE_CXX_COMPILER=" + quote(dir + "/wrap/c++") +
                     " -DCMAKE_AR=" + quote(dir + "/wrap/ar") + " -DCMAKE_RANLIB=" + quote(dir + "/wrap/ranlib") + " -DCMAKE_BUILD_TYPE=Release -DZN_SDL_VENDORED=OFF >" + quote(dir + "/configure.log") + " 2>&1";

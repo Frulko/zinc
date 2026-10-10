@@ -13,6 +13,12 @@ constexpr Profile kProfiles[] = {
     {"ps2", Num::f32, 640, 448, false, 16ull << 20, false},
     {"ps1", Num::fx12, 320, 240, true, 256ull << 10, true},
     {"rmpp", Num::f64, 1620, 2160, false, 256ull << 20, false},
+    // Zinc Next only (ZN-414, the rows of ZN-453 and ZN-513): the PSP's Allegrex FPU is single precision, so its numbers are f32
+    {"psp", Num::f32, 480, 272, false, 16ull << 20, false},
+    {"vita", Num::f64, 960, 544, false, 192ull << 20, false},
+    {"n3ds", Num::f64, 400, 240, false, 16ull << 20, false},
+    {"chip", Num::f64, 720, 576, false, 128ull << 20, false},
+    {"pocketchip", Num::f64, 480, 272, false, 128ull << 20, false},
 };
 }  // namespace
 

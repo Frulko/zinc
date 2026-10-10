@@ -13,6 +13,7 @@ namespace zn::tc {
 struct Target {
   const char* name;      // what the user writes: aarch64-linux
   const char* zigTarget; // what zig is given: aarch64-linux-gnu
+  const char* cpuFlags;  // the CPU every compile for this target uses ("" for zig's default): the oldest core of the boards it runs on
   const char* note;
 };
 const std::vector<Target>& targets();
