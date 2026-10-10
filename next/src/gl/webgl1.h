@@ -10,6 +10,7 @@
 
 #include "gl/offscreen.h"
 #include "gl/webgl_ext.h"
+#include "zn/webgl_limits.h"
 
 namespace zn::gl {
 /** Every sampler type of GLSL ES 3.00 (WebGL 2 adds 3D, array, shadow and integer samplers): such a uniform takes a texture unit through uniform1i / uniform1iv. */
@@ -26,7 +27,6 @@ GlFmt glFormat(std::uint32_t format, std::uint32_t type, bool es);
 bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
 /** WebGL 2 sized or legacy unsized texture format: its component count and class ('f' fixed / float, 'i' signed integer, 'u' unsigned integer); false for depth / stencil and for anything that is not a format. */
 bool texFormatInfo(std::uint32_t internal, int& comps, char& cls);
-constexpr int kMaxVertexAttribs = 16;
 struct UniformLoc { Id program = 0; std::uint32_t gen = 0; int location = -1; std::uint32_t type = 0; int size = 0; bool valid() const { return program && location >= 0; } };
 
 class WebGL1 {
@@ -63,7 +63,7 @@ class WebGL1 {
   void uniformMatrixRC(const UniformLoc& l, int cols, int rows, bool transpose, const float* v, std::size_t count);
   void vertexAttribINi(std::uint32_t index, const int* v);
   void vertexAttribINui(std::uint32_t index, const std::uint32_t* v);
-  std::int64_t attribOffset(std::uint32_t index) const { return index < 16 ? attribs_[index].offset : 0; }
+  std::int64_t attribOffset(std::uint32_t index) const { return index < kMaxVertexAttribs ? attribs_[index].offset : 0; }
   bool shaderQueryOk(Id s, std::uint32_t pname);   // getShaderParameter's pname check (INVALID_ENUM)
   // state
   void enable(std::uint32_t cap);
@@ -295,7 +295,7 @@ class WebGL1 {
   struct Fbo { std::uint32_t name = 0; Id color = 0, colorRb = 0, rb[6] = {}, tx[6] = {};   /* rb: renderbuffers by attachment: colour 0-3, depth, stencil */  int colorLevel = 0; std::uint32_t colorFace = 0; bool bound = false; std::uint32_t readBuffer = 0x8CE0, draw[4] = {0x8CE0, 0, 0, 0}; std::uint64_t okGen = 0; };   // okGen: the fbGen_ at which it was last found complete   // 0x8CE0: COLOR_ATTACHMENT0
   struct Rbo { std::uint32_t name = 0; int w = 0, h = 0, samples = 0; std::uint32_t format = 0; bool bound = false, deleted = false; };   // deleted: still attached somewhere, so the name stays known
   struct Attrib { bool enabled = false; Id buffer = 0; int size = 4, stride = 0; std::uint32_t type = 0x1406; bool normalized = false, integer = false; std::int64_t offset = 0; std::uint32_t divisor = 0; };
-  struct Vao { std::uint32_t name = 0; Attrib attribs[16]; Id element = 0; bool bound = false; };
+  struct Vao { std::uint32_t name = 0; Attrib attribs[kMaxVertexAttribs]; Id element = 0; bool bound = false; };
 
   void attachRb(Id fbo, std::uint32_t attachment, Id rb, std::uint32_t tex = 0);   // records a renderbuffer (0: none) or a texture's GL name on an attachment point and frees deleted ones nobody holds
   std::map<std::uint32_t, Id> zombieTex_;   // GL name to the id the page knew;   // deleted textures a framebuffer other than the bound one still holds
@@ -356,9 +356,9 @@ class WebGL1 {
   bool depthAttr_ = true, stencilAttr_ = false, alphaAttr_ = true;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report
   std::uint32_t defaultRead_ = 0x0405, defaultDraw_[4] = {0x0405, 0, 0, 0};   // BACK; NONE for the others
   int uniformAlignment_ = 256;
-  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[32] = {}, texCube_[32] = {}, tex3d_[32] = {}, texArr_[32] = {}, samplerUnit_[32] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
+  Id nextId_ = 1, arrayBuffer_ = 0, elementBuffer_ = 0, program_ = 0, tex2d_[kMaxTextureUnits] = {}, texCube_[kMaxTextureUnits] = {}, tex3d_[kMaxTextureUnits] = {}, texArr_[kMaxTextureUnits] = {}, samplerUnit_[kMaxTextureUnits] = {}, fbo_ = 0, fboRead_ = 0, rbo_ = 0, tf_ = 0, tfUnbound_ = 0;
   std::uint32_t activeUnit_ = 0;
-  Attrib attribs_[16];
+  Attrib attribs_[kMaxVertexAttribs];
   std::uint32_t genericType_[16] = {0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406, 0x1406};   // FLOAT, INT or UNSIGNED_INT: what vertexAttrib* last set as the constant value
   char attachmentKind(int i);   // component class of draw buffer i of the draw framebuffer: 'f', 'i', 'u', 0 for nothing there
   bool drawBufferOn(int i) const { return (fbo_ ? fbos_.at(fbo_).draw[i] : defaultDraw_[i]) != 0; }

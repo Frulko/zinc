@@ -605,7 +605,7 @@ M(getAttachedShaders) {
   for (Id sid : gl.attachedShaders(p.id)) JS_SetPropertyUint32(c, arr, i++, wrapOnce(c, g, 2, sid));
   return arr;
 }
-M(getVertexAttribOffset) { SELF NEED(2); if (U(1) != 0x8645) { gl.raise(0x0500); return JS_NULL; } if (U(0) >= 16) { gl.raise(0x0501); return JS_NULL; } return JS_NewInt64(c, gl.attribOffset(U(0))); }
+M(getVertexAttribOffset) { SELF NEED(2); if (U(1) != 0x8645) { gl.raise(0x0500); return JS_NULL; } if (U(0) >= kMaxVertexAttribs) { gl.raise(0x0501); return JS_NULL; } return JS_NewInt64(c, gl.attribOffset(U(0))); }
 
 M(uniform3f) { SELF NEED(4); LOC gl.uniform3f(l, F(1), F(2), F(3)); return JS_UNDEFINED; }
 M(uniform2i) { SELF NEED(3); LOC gl.uniform2i(l, I(1), I(2)); return JS_UNDEFINED; }

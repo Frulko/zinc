@@ -17,9 +17,9 @@
 namespace zn::netlog {
 namespace {
 
-// ponytail: fixed bounds instead of a budget in bytes: the oldest finished entry goes when there are kMaxEntries, a body keeps its first kBodyCap bytes, an
-// entry its first kMaxFrames frames, and events nobody drains are dropped from the front. Make them options when a real program hits one.
-constexpr size_t kMaxEntries = 1000, kBodyCap = 4u << 20, kMaxFrames = 10000, kQueueCap = 8u << 20, kFrameCap = 64u << 20;
+// ponytail: fixed bounds instead of a budget in bytes: the oldest finished entry goes when there are kEntryCap, a body keeps its first kBodyCap bytes, an
+// entry its first kFrameCountCap frames, and events nobody drains are dropped from the front. Make them options when a real program hits one.
+constexpr size_t kEntryCap = 1000, kBodyCap = 4u << 20, kFrameCountCap = 10000, kQueueCap = 8u << 20, kFrameCap = 64u << 20;
 
 using Head = std::vector<std::pair<std::string, std::string>>;
 enum class Kind { Http, Ws, Mqtt, Tcp };
@@ -289,7 +289,7 @@ void addFrame(Entry& e, bool sent, int op, const std::string& raw) {
   const std::string data = op == 1 ? maskJson(raw) : raw;
   const std::string text = op == 1 ? q(data) : "\"" + base64(data) + "\"";   // the protocol: text for text frames, base64 for every other opcode
   emit(sent ? "webSocketFrameSent" : "webSocketFrameReceived", e, "\"timestamp\":" + num(nowS()) + ",\"response\":{\"opcode\":" + std::to_string(op) + ",\"mask\":" + (sent ? "true" : "false") + ",\"payloadData\":" + text + "}");
-  if (e.frames.size() < kMaxFrames) e.frames.push_back(Frame{sent, op, wallS(), data.substr(0, kBodyCap)});
+  if (e.frames.size() < kFrameCountCap) e.frames.push_back(Frame{sent, op, wallS(), data.substr(0, kBodyCap)});
 }
 // RFC 6455 frames out of `buf` (what one side wrote so far), whole frames only.
 void parseFrames(Entry& e, std::string& buf, bool sent) {
@@ -386,7 +386,7 @@ int open(const std::string& scheme, const std::string& url, const std::string& m
   if (!on()) return 0;
   if (scheme == "tcp" && s.ignorePort > 0)
     for (const char* host : {"127.0.0.1", "localhost", "[::1]"}) if (url == "tcp://" + std::string(host) + ":" + std::to_string(s.ignorePort)) return 0;
-  if (s.entries.size() >= kMaxEntries)
+  if (s.entries.size() >= kEntryCap)
     for (auto it = s.entries.begin(); it != s.entries.end(); ++it) if (it->second.done) { s.entries.erase(it); break; }
   s.dirty = true;
   Entry& e = s.entries[s.next];

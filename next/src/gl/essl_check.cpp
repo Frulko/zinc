@@ -11,6 +11,7 @@
 #include "glslang/Public/ResourceLimits.h"
 #include "glslang/Public/ShaderLang.h"
 #include "glslang/MachineIndependent/localintermediate.h"
+#include "zn/webgl_limits.h"
 
 namespace zn::gl {
 namespace {
@@ -81,8 +82,7 @@ void parseOne(Parsed& p, bool fragment) {
   if (p.log.empty()) p.log = "ERROR: 0:1: '' : the shader is not valid GLSL ES";
 }
 
-// The deepest chain of user function calls from main, counted up to kMaxCallDepth + 1
-constexpr int kMaxCallDepth = 256;   // ANGLE's limit: deeper shaders are refused when compiled (the desktop drivers take gigabytes to link 10000 nested calls)
+// The deepest chain of user function calls from main, counted up to kMaxShaderCallDepth + 1
 int callDepth(glslang::TIntermediate* in) {
   struct Calls : glslang::TIntermTraverser {
     std::map<std::string, std::vector<std::string>> of;
@@ -97,13 +97,13 @@ int callDepth(glslang::TIntermediate* in) {
   in->getTreeRoot()->traverse(&calls);
   std::map<std::string, int> height;   // (a height cut at the limit is wrong, but then the shader is refused anyway)
   std::function<int(const std::string&, int)> walk = [&](const std::string& f, int level) -> int {
-    if (level > kMaxCallDepth) return kMaxCallDepth + 1;
+    if (level > kMaxShaderCallDepth) return kMaxShaderCallDepth + 1;
     if (auto h = height.find(f); h != height.end()) return h->second;
     height[f] = 0;   // (recursion: glslang refuses it at link)
     int h = 0;
     if (auto c = calls.of.find(f); c != calls.of.end())
       for (const std::string& callee : c->second) h = std::max(h, walk(callee, level + 1));
-    return height[f] = std::min(h + 1, kMaxCallDepth + 1);
+    return height[f] = std::min(h + 1, kMaxShaderCallDepth + 1);
   };
   return walk("main(", 1);
 }
@@ -120,7 +120,7 @@ std::string esslValidate(const std::string& source, std::string& preamble, bool 
     p.preamble = preamble;
     parseOne(p, fragment);
     if (p.log.empty()) {
-      if (callDepth(p.shader->getIntermediate()) > kMaxCallDepth) return "ERROR: 0:1: 'main' : call stack too deep (more than 256 nested calls)";
+      if (callDepth(p.shader->getIntermediate()) > kMaxShaderCallDepth) return "ERROR: 0:1: 'main' : call stack too deep (more than " + std::to_string(kMaxShaderCallDepth) + " nested calls)";
       if (p.deepMacros) {   // a desktop preprocessor loops on such macros too (Apple's overflows its stack): the driver gets the source glslang expanded
         Parsed e;
         e.source = source;

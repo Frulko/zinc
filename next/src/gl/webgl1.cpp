@@ -14,9 +14,6 @@
 namespace zn::gl {
 namespace {
 
-constexpr int kMaxAttribs = 16;
-constexpr int kMaxUnits = 32;   // the units reported by MAX_COMBINED_TEXTURE_IMAGE_UNITS (three.js binds TEXTURE0 + that - 1)
-
 int typeSize(std::uint32_t t) {
   switch (t) {
     case GL_BYTE: case GL_UNSIGNED_BYTE: return 1;
@@ -719,7 +716,7 @@ static bool validName(const std::string& n) {
 void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& name) {
   auto p = programs_.find(pid);
   if (p == programs_.end()) return error(GL_INVALID_OPERATION);
-  if (index >= kMaxAttribs || !validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) return error(GL_INVALID_VALUE);
+  if (index >= kMaxVertexAttribs || !validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) return error(GL_INVALID_VALUE);
   if (name.compare(0, 3, "gl_") == 0) return error(GL_INVALID_OPERATION);
   if (name.compare(0, 6, "webgl_") == 0 || name.compare(0, 6, "_webgl") == 0) return error(GL_INVALID_OPERATION);
   p->second.attribBindings[name] = static_cast<int>(index);
@@ -814,31 +811,31 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
 }
 
 // A uniform call: null location is ignored, the location must belong to the program in use, and the call must match the uniform's type.
-#define ZN_UNIFORM_CHECK(l, ...) \
+#define UNIFORM_CHECK(l, ...) \
   if (!(l).valid()) return; \
   if (!program_ || (l).program != program_ || stale(l)) return error(GL_INVALID_OPERATION); \
   { const std::uint32_t ok_[] = {__VA_ARGS__}; bool match_ = false; for (std::uint32_t t_ : ok_) match_ = match_ || t_ == (l).type; if (!match_) return error(GL_INVALID_OPERATION); }
-void WebGL1::uniform1f(const UniformLoc& l, float x) { ZN_UNIFORM_CHECK(l, GL_FLOAT, GL_BOOL) glUniform1f(l.location, x); }
-void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) glUniform2f(l.location, x, y); }
-void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { ZN_UNIFORM_CHECK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) glUniform4f(l.location, x, y, z, w); }
+void WebGL1::uniform1f(const UniformLoc& l, float x) { UNIFORM_CHECK(l, GL_FLOAT, GL_BOOL) glUniform1f(l.location, x); }
+void WebGL1::uniform2f(const UniformLoc& l, float x, float y) { UNIFORM_CHECK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) glUniform2f(l.location, x, y); }
+void WebGL1::uniform4f(const UniformLoc& l, float x, float y, float z, float w) { UNIFORM_CHECK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) glUniform4f(l.location, x, y, z, w); }
 void WebGL1::uniform1i(const UniformLoc& l, int x) {
   if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION); }
-  else { ZN_UNIFORM_CHECK(l, GL_INT, GL_BOOL) }
-  if (isSamplerType(l.type) && (x < 0 || x >= 32)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist (MAX_COMBINED_TEXTURE_IMAGE_UNITS is reported as 32)
+  else { UNIFORM_CHECK(l, GL_INT, GL_BOOL) }
+  if (isSamplerType(l.type) && (x < 0 || x >= kMaxTextureUnits)) return error(GL_INVALID_VALUE);   // a texture unit that does not exist
   glUniform1i(l.location, x);
 }
 void WebGL1::uniformMatrix4fv(const UniformLoc& l, bool transpose, const float* v, std::size_t n) {
-  ZN_UNIFORM_CHECK(l, GL_FLOAT_MAT4)
+  UNIFORM_CHECK(l, GL_FLOAT_MAT4)
   if (transpose) return error(GL_INVALID_VALUE);   // WebGL1 forbids it
   if (n == 0 || n % 16 != 0) return error(GL_INVALID_VALUE);
   glUniformMatrix4fv(l.location, static_cast<GLsizei>(n / 16), GL_FALSE, v);
 }
 
 // ---- vertex arrays and draws
-void WebGL1::enableVertexAttribArray(std::uint32_t i) { if (i >= kMaxAttribs) return error(GL_INVALID_VALUE); attribs_[i].enabled = true; glEnableVertexAttribArray(i); }
-void WebGL1::disableVertexAttribArray(std::uint32_t i) { if (i >= kMaxAttribs) return error(GL_INVALID_VALUE); attribs_[i].enabled = false; glDisableVertexAttribArray(i); }
+void WebGL1::enableVertexAttribArray(std::uint32_t i) { if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); attribs_[i].enabled = true; glEnableVertexAttribArray(i); }
+void WebGL1::disableVertexAttribArray(std::uint32_t i) { if (i >= kMaxVertexAttribs) return error(GL_INVALID_VALUE); attribs_[i].enabled = false; glDisableVertexAttribArray(i); }
 void WebGL1::vertexAttribPointer(std::uint32_t i, int size, std::uint32_t type, bool normalized, int stride, std::int64_t offset) {
-  if (i >= kMaxAttribs || size < 1 || size > 4 || stride < 0 || stride > 255 || offset < 0) return error(size < 1 || size > 4 || i >= kMaxAttribs || stride < 0 || stride > 255 || offset < 0 ? GL_INVALID_VALUE : GL_INVALID_ENUM);
+  if (i >= kMaxVertexAttribs || size < 1 || size > 4 || stride < 0 || stride > 255 || offset < 0) return error(size < 1 || size > 4 || i >= kMaxVertexAttribs || stride < 0 || stride > 255 || offset < 0 ? GL_INVALID_VALUE : GL_INVALID_ENUM);
   int ts = typeSize(type);
   if (!ts) return error(GL_INVALID_ENUM);
   if (offset % ts || stride % ts) return error(GL_INVALID_OPERATION);
@@ -879,7 +876,7 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     GLsizei len = 0; GLint size = 0; GLenum type = 0;
     glGetActiveAttrib(pr.name, static_cast<GLuint>(k), sizeof buf, &len, &size, &type, buf);
     int loc = glGetAttribLocation(pr.name, buf);
-    if (loc < 0 || loc >= kMaxAttribs || std::strncmp(buf, "gl_", 3) == 0) continue;   // gl_InstanceID and friends are built-ins, whatever location a driver gives them
+    if (loc < 0 || loc >= kMaxVertexAttribs || std::strncmp(buf, "gl_", 3) == 0) continue;   // gl_InstanceID and friends are built-ins, whatever location a driver gives them
     if (version_ == 2) {   // the class of the data (array or constant) must be the class the shader declares
       const char want = type == GL_INT || (type >= GL_INT_VEC2 && type <= GL_INT_VEC4) ? 'i' : type == GL_UNSIGNED_INT || (type >= GL_UNSIGNED_INT_VEC2 && type <= GL_UNSIGNED_INT_VEC4) ? 'u' : 'f';
       const Attrib& d = attribs_[loc];
@@ -991,7 +988,7 @@ void WebGL1::deleteTexture(Id id) { ++fbGen_;
   textures_.erase(it);
 }
 void WebGL1::activeTexture(std::uint32_t unit) {
-  if (unit < GL_TEXTURE0 || unit >= GL_TEXTURE0 + kMaxUnits) return error(GL_INVALID_ENUM);
+  if (unit < GL_TEXTURE0 || unit >= GL_TEXTURE0 + kMaxTextureUnits) return error(GL_INVALID_ENUM);
   activeUnit_ = unit - GL_TEXTURE0;
   glActiveTexture(unit);
 }

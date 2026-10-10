@@ -350,7 +350,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
     case GL_MAX_VERTEX_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
     case GL_MAX_FRAGMENT_UNIFORM_VECTORS: { GLint v = 0; glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &v); fixed(v / 4); break; }
     case GL_MAX_VARYING_VECTORS: fixed(15); break;
-    case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS: case GL_MAX_TEXTURE_IMAGE_UNITS: { GLint v = 0; glGetIntegerv(pname, &v); fixed(std::min<GLint>(v, 32)); break; }
+    case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS: case GL_MAX_TEXTURE_IMAGE_UNITS: { GLint v = 0; glGetIntegerv(pname, &v); fixed(std::min<GLint>(v, kMaxTextureUnits)); break; }
     case GL_MAX_VIEWPORT_DIMS: ints(2); break;
     case GL_COMPRESSED_TEXTURE_FORMATS: r.kind = 'a'; for (std::uint32_t f : compressedFormats()) r.v.push_back(f); break;
     case GL_VERSION: r.kind = 's'; r.s = version_ == 2 ? "WebGL 2.0 (Zinc)" : "WebGL 1.0 (Zinc)"; break;
@@ -532,30 +532,30 @@ void WebGL1::getShaderPrecisionFormat(std::uint32_t shadertype, std::uint32_t pr
 }
 
 // ---- uniforms and attributes
-#define ZN_UNIFORM_OK(l, ...) \
+#define UNIFORM_OK(l, ...) \
   if (!(l).valid()) return; \
   if (!program_ || (l).program != program_ || stale(l)) return error(GL_INVALID_OPERATION); \
   { const std::uint32_t ok_[] = {__VA_ARGS__}; bool match_ = false; for (std::uint32_t t_ : ok_) match_ = match_ || t_ == (l).type; if (!match_) return error(GL_INVALID_OPERATION); }
-void WebGL1::uniform3f(const UniformLoc& l, float x, float y, float z) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC3) glUniform3f(l.location, x, y, z); }
-void WebGL1::uniform2i(const UniformLoc& l, int x, int y) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) glUniform2i(l.location, x, y); }
-void WebGL1::uniform3i(const UniformLoc& l, int x, int y, int z) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) glUniform3i(l.location, x, y, z); }
-void WebGL1::uniform4i(const UniformLoc& l, int x, int y, int z, int w) { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) glUniform4i(l.location, x, y, z, w); }
+void WebGL1::uniform3f(const UniformLoc& l, float x, float y, float z) { UNIFORM_OK(l, GL_FLOAT_VEC3) glUniform3f(l.location, x, y, z); }
+void WebGL1::uniform2i(const UniformLoc& l, int x, int y) { UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) glUniform2i(l.location, x, y); }
+void WebGL1::uniform3i(const UniformLoc& l, int x, int y, int z) { UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) glUniform3i(l.location, x, y, z); }
+void WebGL1::uniform4i(const UniformLoc& l, int x, int y, int z, int w) { UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) glUniform4i(l.location, x, y, z, w); }
 void WebGL1::uniformNfv(const UniformLoc& l, int n, const float* v, std::size_t count) {
-  if (n == 1) { ZN_UNIFORM_OK(l, GL_FLOAT, GL_BOOL) } else if (n == 2) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_FLOAT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) }
+  if (n == 1) { UNIFORM_OK(l, GL_FLOAT, GL_BOOL) } else if (n == 2) { UNIFORM_OK(l, GL_FLOAT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { UNIFORM_OK(l, GL_FLOAT_VEC3, GL_BOOL_VEC3) } else { UNIFORM_OK(l, GL_FLOAT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
   const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / n, static_cast<std::size_t>(l.size)));   // more values than the array holds: the excess is ignored
   if (n == 1) glUniform1fv(l.location, k, v); else if (n == 2) glUniform2fv(l.location, k, v); else if (n == 3) glUniform3fv(l.location, k, v); else glUniform4fv(l.location, k, v);
 }
 void WebGL1::uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count) {
-  if (n == 1) { if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION); } else { ZN_UNIFORM_OK(l, GL_INT, GL_BOOL) } }
-  else if (n == 2) { ZN_UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) } else { ZN_UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) }
+  if (n == 1) { if (isSamplerType(l.type)) { if (!l.valid()) return; if (!program_ || l.program != program_ || stale(l)) return error(GL_INVALID_OPERATION); } else { UNIFORM_OK(l, GL_INT, GL_BOOL) } }
+  else if (n == 2) { UNIFORM_OK(l, GL_INT_VEC2, GL_BOOL_VEC2) } else if (n == 3) { UNIFORM_OK(l, GL_INT_VEC3, GL_BOOL_VEC3) } else { UNIFORM_OK(l, GL_INT_VEC4, GL_BOOL_VEC4) }
   if (count == 0 || count % n) return error(GL_INVALID_VALUE);
-  if (isSamplerType(l.type)) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= 32) return error(GL_INVALID_VALUE);
+  if (isSamplerType(l.type)) for (std::size_t i = 0; i < count; ++i) if (v[i] < 0 || v[i] >= kMaxTextureUnits) return error(GL_INVALID_VALUE);
   const GLsizei k = static_cast<GLsizei>(std::min<std::size_t>(count / n, static_cast<std::size_t>(l.size)));
   if (n == 1) glUniform1iv(l.location, k, v); else if (n == 2) glUniform2iv(l.location, k, v); else if (n == 3) glUniform3iv(l.location, k, v); else glUniform4iv(l.location, k, v);
 }
 void WebGL1::uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const float* v, std::size_t count) {
-  if (n == 2) { ZN_UNIFORM_OK(l, GL_FLOAT_MAT2) } else if (n == 3) { ZN_UNIFORM_OK(l, GL_FLOAT_MAT3) } else { ZN_UNIFORM_OK(l, GL_FLOAT_MAT4) }
+  if (n == 2) { UNIFORM_OK(l, GL_FLOAT_MAT2) } else if (n == 3) { UNIFORM_OK(l, GL_FLOAT_MAT3) } else { UNIFORM_OK(l, GL_FLOAT_MAT4) }
   if (transpose) return error(GL_INVALID_VALUE);
   const std::size_t per = static_cast<std::size_t>(n) * n;
   if (count == 0 || count % per) return error(GL_INVALID_VALUE);
