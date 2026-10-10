@@ -262,6 +262,11 @@ target_compile_definitions(zn_quickjs PRIVATE QUICKJS_NG_BUILD lre_check_stack_o
 set_target_properties(zn_quickjs PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_quickjs PRIVATE -w -O2)
 target_link_libraries(zn_quickjs PUBLIC zn_regexp)
+option(ZN_QJS_PROFILE "the QuickJS profiler of zinc profile --engine quickjs: opcode counts in the interpreter loop, so a separate build directory (ZN-598)" OFF)
+if(ZN_QJS_PROFILE)
+  target_sources(zn_quickjs PRIVATE src/qjs/qjs_prof.cpp)
+  target_compile_definitions(zn_quickjs PUBLIC ZN_QJS_PROFILE)
+endif()
 # zinc:script (ZN-103): the native module "QuickJS" over the vendored QuickJS-ng; zinc registers it, an AOT program that uses it links this library
 add_library(zn_yaml STATIC third_party/libyaml/api.c third_party/libyaml/loader.c third_party/libyaml/parser.c third_party/libyaml/reader.c third_party/libyaml/scanner.c)   # libyaml 0.2.5 (read side only): scenario files (ZN-295)
 target_include_directories(zn_yaml PUBLIC third_party/libyaml)

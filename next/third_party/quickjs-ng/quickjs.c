@@ -45,6 +45,23 @@
 #include "cutils.h"
 #include "list.h"
 #include "quickjs.h"
+
+/* zinc patch 0001: profile hooks, compiled only with ZN_QJS_PROFILE (zinc profile --engine quickjs) */
+#ifdef ZN_QJS_PROFILE
+extern uint64_t zn_qjs_prof_ops[256];   /* src/qjs/qjs_prof.cpp */
+void zn_qjs_prof_call(JSRuntime *rt, const void *b, const void *fobj);
+void zn_qjs_prof_loop(const void *b);
+void zn_qjs_prof_free(const void *b);
+#define ZN_PROF_OP(op) (zn_qjs_prof_ops[(op)]++)
+#define ZN_PROF_CALL(rt, b, p) zn_qjs_prof_call((rt), (b), (p))
+#define ZN_PROF_FREE(b) zn_qjs_prof_free(b)
+#define ZN_PROF_JUMP(off) do { if ((off) < 0) zn_qjs_prof_loop(b); } while (0)
+#else
+#define ZN_PROF_OP(op) ((void)0)
+#define ZN_PROF_CALL(rt, b, p) ((void)0)
+#define ZN_PROF_FREE(b) ((void)0)
+#define ZN_PROF_JUMP(off) ((void)0)
+#endif
 #include "libregexp.h"
 #include "dtoa.h"
 
@@ -18059,7 +18076,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
 #endif
 
 #if !DIRECT_DISPATCH
+#ifdef ZN_QJS_PROFILE
+#define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) switch (opcode = *pc++, ZN_PROF_OP(opcode), opcode)
+#else
 #define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) switch (opcode = *pc++)
+#endif
 #define CASE(op)        case op
 #define DEFAULT         default
 #define BREAK           break
@@ -18070,7 +18091,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
 #include "quickjs-opcode.h"
         [ OP_COUNT ... 255 ] = &&case_default
     };
+#ifdef ZN_QJS_PROFILE
+#define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) __extension__ ({ opcode = *pc++; ZN_PROF_OP(opcode); goto *dispatch_table[opcode]; });
+#else
 #define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) __extension__ ({ goto *dispatch_table[opcode = *pc++]; });
+#endif
 #define CASE(op)        case_ ## op
 #define DEFAULT         case_default
 #define BREAK           SWITCH(pc)
@@ -18167,6 +18192,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     sf->prev_frame = rt->current_stack_frame;
     rt->current_stack_frame = sf;
     ctx = b->realm; /* set the current realm */
+    ZN_PROF_CALL(rt, b, p);
 
 #ifdef ENABLE_DUMPS // JS_DUMP_BYTECODE_STEP
     if (check_dump_flag(ctx->rt, JS_DUMP_BYTECODE_STEP))
@@ -19154,16 +19180,19 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_goto):
+            ZN_PROF_JUMP((int32_t)get_u32(pc));
             pc += (int32_t)get_u32(pc);
             if (unlikely(js_poll_interrupts(ctx)))
                 goto exception;
             BREAK;
         CASE(OP_goto16):
+            ZN_PROF_JUMP((int16_t)get_u16(pc));
             pc += (int16_t)get_u16(pc);
             if (unlikely(js_poll_interrupts(ctx)))
                 goto exception;
             BREAK;
         CASE(OP_goto8):
+            ZN_PROF_JUMP((int8_t)pc[0]);
             pc += (int8_t)pc[0];
             if (unlikely(js_poll_interrupts(ctx)))
                 goto exception;
@@ -37173,6 +37202,8 @@ static JSValue js_create_function(JSContext *ctx, JSFunctionDef *fd)
 static void free_function_bytecode(JSRuntime *rt, JSFunctionBytecode *b)
 {
     int i;
+
+    ZN_PROF_FREE(b);
 
     if (b->byte_code_buf)
         free_bytecode_atoms(rt, b->byte_code_buf, b->byte_code_len, true);
@@ -64937,6 +64968,47 @@ uintptr_t js_std_cmd(int cmd, ...) {
 
     return rv;
 }
+
+#ifdef ZN_QJS_PROFILE
+/* zinc patch 0001: the bytecode function of the innermost bytecode frame (time in a native function counts for its JS caller), for a
+   sampling profiler: no allocation, callable from a signal handler */
+const void *JS_ZnProfCurrent(JSRuntime *rt)
+{
+    JSStackFrame *sf;
+    for (sf = rt->current_stack_frame; sf; sf = sf->prev_frame) {
+        if (JS_VALUE_GET_TAG(sf->cur_func) != JS_TAG_OBJECT)
+            continue;
+        JSObject *p = JS_VALUE_GET_OBJ(sf->cur_func);
+        if (js_class_has_bytecode(p->class_id))
+            return p->u.func.function_bytecode;
+    }
+    return NULL;
+}
+
+/* zinc patch 0001: the name, file, line and column of a bytecode function. A method or an arrow has no name in its bytecode: with the
+   function object `fobj` (not from a signal handler: it may allocate), its own "name" data property; else "" */
+void JS_ZnProfDescribe(JSRuntime *rt, const void *bv, const void *fobj, char *name, int name_size, char *file, int file_size, int *line, int *col)
+{
+    const JSFunctionBytecode *b = bv;
+    JSProperty *pr;
+    JSShapeProperty *prs;
+    name[0] = '\0';
+    if (b->func_name != JS_ATOM_NULL) {
+        JS_AtomGetStrRT(rt, name, name_size, b->func_name);
+    } else if (fobj && (prs = find_own_property(&pr, (JSObject *)fobj, JS_ATOM_name)) &&
+               (prs->flags & JS_PROP_TMASK) == JS_PROP_NORMAL && JS_VALUE_GET_TAG(pr->u.value) == JS_TAG_STRING) {
+        size_t len;
+        const char *s = JS_ToCStringLen(b->realm, &len, pr->u.value);
+        if (s) {
+            snprintf(name, name_size, "%s", s);
+            JS_FreeCString(b->realm, s);
+        }
+    }
+    JS_AtomGetStrRT(rt, file, file_size, b->filename);
+    *line = b->line_num;
+    *col = b->col_num;
+}
+#endif
 
 #undef malloc
 #undef free

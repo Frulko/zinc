@@ -1,6 +1,6 @@
 # QuickJS-ng patch queue
 
-`third_party/quickjs-ng` is the release named in `../PRISTINE` (its files and their SHA-256) with the patches of this directory applied, in the order of their numbers. The queue is empty today: the vendored files are the v0.17.0 release unchanged (ZN-595).
+`third_party/quickjs-ng` is the release named in `../PRISTINE` (its files and their SHA-256) with the patches of this directory applied, in the order of their numbers. Today: 0001-profile-hooks (the QuickJS profiler of ZN-598, compiled only with ZN_QJS_PROFILE).
 
 `tools/quickjs-patches check` proves it offline (`tests/t0/quickjs_patches.sh`): every patch must reverse, last to first, onto a copy of the tree, and each file must then have the release's hash. A change made in the tree without a patch fails the check.
 

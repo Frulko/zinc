@@ -308,6 +308,9 @@ int run(const Options& o) {
   e.stdRoot = o.stdRoot;
   zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
   e.rt = JS_NewRuntime();
+#ifdef ZN_QJS_PROFILE
+  if (o.profileHz) profileStart(e.rt, o.profileHz);
+#endif
   e.ctx = JS_NewContext(e.rt);
   JS_SetMemoryLimit(e.rt, 0);
   JS_SetMaxStackSize(e.rt, 8u << 20);

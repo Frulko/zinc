@@ -1098,6 +1098,17 @@ int main(int argc, char** argv) {
     std::printf("zinc-next %s\n", kVersionText);
     return 0;
   }
+  int qjsProfileHz = 0;
+  if (argc >= 5 && !std::strcmp(argv[1], "profile") && !std::strcmp(argv[3], "--engine")) {   // zinc profile <file> --engine quickjs [--hz N]: the QuickJS run below under its profiler (ZN-598)
+#ifdef ZN_QJS_PROFILE
+    qjsProfileHz = argc >= 7 && !std::strcmp(argv[5], "--hz") ? std::atoi(argv[6]) : 1000;
+    argv[1] = const_cast<char*>("run");
+    argc = 5;
+#else
+    std::fprintf(stderr, "zinc: this zinc has no QuickJS profiler: build one apart, cmake -B build-prof -DZN_QJS_PROFILE=ON && cmake --build build-prof (docs/reports/zinc-next-profiling.md)\n");
+    return 2;
+#endif
+  }
   if (argc >= 3 && (!std::strcmp(argv[1], "profile") || !std::strcmp(argv[1], "mem"))) {  // zinc profile|mem <file.ts|file.zbc> [options]: the interpreter under a profiler
     bool isMem = !std::strcmp(argv[1], "mem"), json = false, checkLeaks = false;
     zn::prof::ProfileOptions po;
@@ -1150,6 +1161,7 @@ int main(int argc, char** argv) {
     }
     qo.entry = argv[2];
     qo.stdRoot = gRoot + "/../lib/std";
+    qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
 #ifdef ZN_HOST_GFX
     {
