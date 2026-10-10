@@ -127,8 +127,8 @@ drawText(title, 20, 20, card.title, 0x111827, 255, 0);
 - **Cost.** The first draw of a new size rasterizes its glyphs: about 0.6 ms for 37 glyphs at 24 px and 3 ms at 96 px on the
   development Mac; later draws take a few microseconds. A program that never calls `loadFont` and has no text field bakes exactly
   what it baked before, and its frames take the same time.
-Images: `<image src="logo.png" />` reads from the embedded `assets/` directory; `zinc:assets` reads asset bytes at
-runtime; `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
+Images: `<image src="logo.png" />` draws an image of the `assets/` directory, baked into the executable at build time; `zinc:assets`
+reads the directory's files at run time (where a built program finds it: [distribution](07-distribution.md#assets-of-a-built-program)); `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
 
 Sprites: `drawImage(image, x, y, w, h, alpha, radius)` draws a whole image, `drawImageRect` a rectangle of it (a frame of a

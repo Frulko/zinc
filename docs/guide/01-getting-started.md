@@ -41,7 +41,7 @@ Templates give you a working starting point:
 myapp/
   zinc.json          project manifest (see below)
   src/main.ts        entry (or main.tsx for JSX)
-  assets/            files embedded in the executable at build time (zinc:assets)
+  assets/            images and fonts baked in at build time; the other files read at run time (zinc:assets)
   .gitignore         build/ dist/
   README.md
 ```
@@ -75,7 +75,7 @@ its `zinc.json` / `main.ts`, so `zinc run examples/breakout` works.
 | --- | --- |
 | `name` | app name; the executable and `dist/<name>-<target>` are named after it |
 | `entry` | source entry (`.ts` / `.tsx` / `.js`) |
-| `assets` | directory embedded in the binary (default `assets`); read with `zinc:assets` |
+| `assets` | the assets directory (default `assets`): its images and fonts are baked into the executable, its files are read at run time with `zinc:assets` (see [distribution](07-distribution.md#assets-of-a-built-program)) |
 | `version` | semantic version; goes into the macOS `Info.plist`, the Linux `.desktop`, and `README.txt` on export |
 | `id` | bundle/app id (macOS `CFBundleIdentifier`); defaults to `dev.zinc.<name>` |
 | `icon` | PNG used to build the macOS `.icns`, the Linux icon, the rmpp AppLoad icon and the wasm favicon (see [distribution](07-distribution.md)) |

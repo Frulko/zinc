@@ -1,7 +1,7 @@
 # 7. Distribution
 
-`zinc export --target <id>` produces `dist/<name>-<target>/`: a self-contained build with assets embedded in the
-executable, launch/deploy scripts, and the platform's native packaging. `zinc deploy` additionally copies it to a
+`zinc export --target <id>` produces `dist/<name>-<target>/`: the executable (its images and fonts baked in), the `assets/`
+directory it reads at run time, launch/deploy scripts, and the platform's native packaging. `zinc deploy` additionally copies it to a
 device and starts it. Export builds are release builds, hardened by default (symbols stripped, hidden visibility).
 
 ```sh
@@ -14,11 +14,22 @@ zinc export --target wasm             # static site (index.html, app.js, app.was
 zinc export --target ps1              # PS-EXE + bootable CD image
 ```
 
-## Single executable with embedded assets
+## Assets of a built program
 
-The `assets/` directory is compiled into the binary as constant data (deterministic, sorted), so a hosted executable
-is one file — copy it anywhere and run. In development, `ZINC_ASSETS=<dir>` reads assets from disk instead (hot
-reload). `zinc:assets` reads them at runtime; `<image src="…">` and baked fonts use them at build time.
+The images and fonts a program draws (`<image src="…">`, `gfx.image`, the font sizes it uses) are baked into the executable at
+build time. The other files of `assets/` (JSON, text, sounds, models, photographs read with `imageFromBytes`) stay files, which
+`zinc:assets` (`readText`, `readBytes`, `exists`) and `zinc://` pages of a webview read at run time from the first of:
+
+1. `ZINC_ASSETS`, when set (`zinc run` sets it to the project's `assets/`; set it yourself to try other files without a rebuild);
+2. `assets/` beside the executable (what `zinc export` writes in `dist/<name>-<target>/`);
+3. `Contents/Resources/assets` of the macOS `.app` the executable is in (what `zinc export --target macos` puts in the bundle,
+   sealed by its signature, so the app can be moved anywhere);
+4. `assets/` one level above the executable (`zinc build` writes `<project>/build/<name>`, beside the project's `assets/`);
+5. `assets/` of the directory the program was started in, except for a program that enforces its permissions (that
+   directory is the user's, not the app's).
+
+Copy the executable together with its `assets/` (or move the whole `.app`). A program whose assets are only images and fonts
+needs no directory at all. Reading an asset needs no permission; writing in the assets directory needs `fs:write` (decision D66).
 
 ## App icons and metadata
 
