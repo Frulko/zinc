@@ -46,6 +46,8 @@ export class Point {
   at: number[] = [0, 0, 0];
   /** Where the camera goes when the point opens. */
   view: View = new View();
+  /** A sequence the point leads to ('' for none): its card offers a button to it. */
+  to = '';
 }
 
 export class Media {
@@ -376,6 +378,7 @@ function readMedia(o: any, path: string, languages: string[]): Media {
       if (count(q.at, `${at}.at`) !== 3) throw bad(`${at}.at`, 'must be [x, y, z]');
       p.at = [num(q.at[0], `${at}.at[0]`), num(q.at[1], `${at}.at[1]`), num(q.at[2], `${at}.at[2]`)];
       p.view = view(q.view, `${at}.view`, m.view);
+      if (given(q.to)) p.to = word(q.to, `${at}.to`);
       m.points.push(p);
     }
   }
@@ -506,6 +509,11 @@ export function parseProject(json: string): Project {
   }
 
   // references: nothing may point at something that is not in the file
+  for (let i = 0; i < p.media.length; i++)
+    for (let k = 0; k < p.media[i].points.length; k++) {
+      const to = p.media[i].points[k].to;
+      if (to.length > 0 && !sequenceIds.has(to)) throw bad(`media[${i}].points[${k}].to`, `unknown sequence "${to}"`);
+    }
   p.start = word(o.start, 'start');
   if (!sequenceIds.has(p.start)) throw bad('start', `unknown sequence "${p.start}"`);
   if (p.kiosk.attract.length > 0 && !presentationIds.has(p.kiosk.attract)) throw bad('kiosk.attract', `unknown presentation "${p.kiosk.attract}"`);
@@ -629,6 +637,7 @@ function mediaJson(m: Media, languages: string[], indent: string): string {
         optText(pf, 'text', p.text, languages, deeper);
         pf.push(field('at', `[${p.at[0]}, ${p.at[1]}, ${p.at[2]}]`));
         if (viewJson(p.view, pano) !== viewJson(m.view, pano)) pf.push(field('view', viewJson(p.view, pano)));
+        if (p.to.length > 0) pf.push(field('to', quote(p.to)));
         return block('{', '}', pf, deep);
       }), inner)));
     }

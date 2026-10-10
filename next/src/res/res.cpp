@@ -582,6 +582,13 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
     }
     literalChars(text, chars);
   }
+  if (!opt.assetsDir.empty() && fs::exists(opt.assetsDir))   // the texts a program reads from its assets at run time (a museum's descriptions in French, ZN-650.09)
+    for (auto& e : fs::recursive_directory_iterator(opt.assetsDir)) {
+      const std::string ext = e.path().extension().string();
+      if (!e.is_regular_file() || (ext != ".json" && ext != ".txt" && ext != ".md" && ext != ".vtt" && ext != ".csv")) continue;
+      std::vector<std::uint8_t> b;
+      if (readFile(e.path().string(), b)) for (std::uint32_t cp : utf8Chars(std::string(b.begin(), b.end()))) if (cp >= 128) chars.insert(cp);
+    }
   if (ellipsisUsed) chars.insert(0x2026);   // truncate, text-ellipsis, line-clamp (ZN-269)
   if (caseUsed)   // uppercase / lowercase / capitalize (ZN-268): the other case of every non-ASCII letter is baked with it
     for (std::uint32_t cp : std::vector<std::uint32_t>(chars.begin(), chars.end()))

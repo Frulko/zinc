@@ -1,0 +1,5 @@
+look: yaw 110.8, pitch 0, fov 75
+zoom: yaw 110.8, pitch 0, fov 62
+open: steps
+look: yaw 117, pitch 4, fov 55
+link: steps -> japonisme

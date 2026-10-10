@@ -558,7 +558,49 @@
         "source": "https://polyhaven.com/a/ninomaru_teien",
         "licence": "CC0 1.0",
         "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
-      }
+      },
+      "points": [
+        {
+          "id": "rocks",
+          "title": {
+            "fr": "Le jardin de pierres",
+            "en": "The rock garden"
+          },
+          "text": {
+            "fr": "Des blocs dressés et couchés évoquent un paysage de montagnes et de torrents à l’échelle d’un jardin.",
+            "en": "Standing and lying stones evoke a landscape of mountains and streams at the scale of a garden."
+          },
+          "at": [0.864, -0.208, -0.459],
+          "view": { "yaw": 62, "pitch": -12, "fov": 55 }
+        },
+        {
+          "id": "steps",
+          "title": {
+            "fr": "L’allée qui monte",
+            "en": "The path up the hill"
+          },
+          "text": {
+            "fr": "Un jardin japonais se découvre en marchant : chaque tournant ouvre une nouvelle vue. L’Europe s’en inspire à la fin du XIXe siècle.",
+            "en": "A Japanese garden unfolds as you walk: every turn opens a new view. Europe took inspiration from it at the end of the nineteenth century."
+          },
+          "at": [0.889, 0.07, 0.453],
+          "view": { "yaw": 117, "pitch": 4, "fov": 55 },
+          "to": "japonisme"
+        },
+        {
+          "id": "tree",
+          "title": {
+            "fr": "Le grand arbre",
+            "en": "The great tree"
+          },
+          "text": {
+            "fr": "Les branches basses sont guidées pendant des décennies pour couvrir l’allée de leur ombre.",
+            "en": "The low branches are trained for decades to shade the path."
+          },
+          "at": [-0.82, 0.454, 0.348],
+          "view": { "yaw": -113, "pitch": 27, "fov": 55 }
+        }
+      ]
     },
     {
       "id": "wave-film",

@@ -209,7 +209,7 @@ Fields by kind:
 | | `points` | none | Points of interest, below |
 | `panorama` | `file` | | A 360-degree image in equirectangular projection (twice as wide as high) |
 | | `view` | `{ "yaw": 0, "pitch": 0, "fov": 75 }` | The direction looked at first and the field of view, in degrees |
-| | `points` | none | Points of interest; `at` is the direction from the centre |
+| | `points` | none | Points of interest; `at` is the direction from the centre: y up, −z the middle of the image, +x a quarter turn to the right (yaw 90) |
 | `text` | `text` | required text | The body of a text panel |
 | `audio` | `file` | | A narration or a sound; `{lang}` for one file per language |
 | | `transcript` | optional text | What is said: the synthesised narration is generated from it, and it is shown when there are no timed subtitles |
@@ -234,8 +234,9 @@ A point of interest:
 | --- | --- | --- |
 | `id`, `title` | required | |
 | `text` | optional text | The description that opens |
-| `at` | required | `[x, y, z]` in the coordinates of the model file (y up); the point stays on that place of the object at every angle |
+| `at` | required | `[x, y, z]` in the coordinates of the model file (y up); the point stays on that place of the object at every angle. In a panorama, the direction it is seen in from the centre (any length): the point stays on that direction at every view |
 | `view` | the medium's view | Where the camera goes when the point opens |
+| `to` | none | A sequence the point leads to: its card offers a button to it |
 
 ## Sequences
 
