@@ -433,7 +433,10 @@ static std::string pch(const std::string& cxx, const std::string& cflags) {
   for (const char* d : {"/include/zn", "/src/rt", "/src/zbc", "/third_party/mimalloc/include"}) {
     std::error_code ec;
     for (auto it = fs::recursive_directory_iterator(gRoot + d, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
-      if (it->is_regular_file(ec)) { std::ifstream in(it->path(), std::ios::binary); std::stringstream ss; ss << in.rdbuf(); key += it->path().string() + "\n" + ss.str(); }
+      if (it->is_regular_file(ec)) {   // the content, and the mtime clang checks the header against (an edit undone keeps the content, not the mtime)
+        std::ifstream in(it->path(), std::ios::binary); std::stringstream ss; ss << in.rdbuf();
+        key += it->path().string() + "\n" + std::to_string(static_cast<long long>(fs::last_write_time(it->path(), ec).time_since_epoch().count())) + "\n" + ss.str();
+      }
   }
   const fs::path file = dir() / ("prelude-" + zn::tc::sha256Hex(key).substr(0, 16) + ".pch");
   std::error_code ec;
