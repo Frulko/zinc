@@ -74,6 +74,7 @@ static bool first = true;
 static const Buf* shown = nullptr;
 static float tx = 0, ty = 0;  // translation applied to every command (UI transforms)
 static int32_t target_img = -1;  // beginImage: the commands draw into this image, in its (logical) pixels
+bool gpu_strokes = false;
 static bool kept = false;     // keep(): nothing changed, show the previous frame again
 #ifndef ZRT_PEN_SAMPLES
 #define ZRT_PEN_SAMPLES 256
@@ -1010,6 +1011,7 @@ static void to_physical(Buf& b) {
         // rasterize missing runtime glyphs now, on this thread: bands are rendered in parallel (hal_sdl.cpp)
         raster::text_advance(c.res, b.text + c.off, c.n, 0);
         break;
+      case raster::STROKE: { c.s *= k; float* p = b.pts + c.off; for (uint32_t j = 0; j < c.n * 2; j++) p[j] *= k; break; }
       case raster::POLY: case raster::LINE: {
         float* p = b.pts + c.off;
         scale_contours(p, c.n, k);
@@ -1258,6 +1260,22 @@ void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32
   static float tmp[ZRT_STROKE_POINTS * 2];
   if (n > ZRT_STROKE_POINTS) n = ZRT_STROKE_POINTS;  // ponytail: long lines are split by the caller (map tiles already are)
   for (uint32_t i = 0; i < n; i++) { tmp[i * 2] = (float)(pts[i * 2] + tx); tmp[i * 2 + 1] = (float)(pts[i * 2 + 1] + ty); }
+  static const char* force = hal_env("ZINC_GPU_STROKES");   // 1 / 0: STROKE commands or outlines whatever the display (tests, measures)
+  if ((force ? *force == '1' : gpu_strokes) && target_img < 0) {   // the display draws the polyline on the GPU (ZN-590.01): no outline here
+    if (b.npts + n * 2 > ZRT_POINT_POOL) { pool_full(2); return; }
+    Cmd* c = push(raster::STROKE, color, alpha);
+    if (!c) return;
+    const float k = rec_k(), hw = (float)width * 0.5f + 1;
+    float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
+    c->off = b.npts; c->n = n; c->s = (float)width * k; c->pad = closed ? 2 : 0;
+    for (uint32_t i = 0; i < n; i++) {
+      const float x = tmp[i * 2], y = tmp[i * 2 + 1];
+      b.pts[b.npts++] = x * k; b.pts[b.npts++] = y * k;
+      minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
+    }
+    c->x = (minx - hw) * k; c->y = (miny - hw) * k; c->w = (maxx - minx + 2 * hw) * k; c->h = (maxy - miny + 2 * hw) * k;
+    return;
+  }
   Cmd* c = push(raster::POLY, color, alpha);
   if (!c) return;
   uint32_t r = raster::stroke_contours(tmp, n, (float)width, closed, b.pts + b.npts, ZRT_POINT_POOL - b.npts);

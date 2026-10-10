@@ -49,7 +49,8 @@ uint32_t image_version(int32_t id);
 /** Current pixels of a runtime image (GPU compositors upload them when the version changes). */
 bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride);
 
-enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP };
+enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
+  STROKE };   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
 
 struct Cmd {
   uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours (raster.cpp paint_at); IMAGE: 1 = nearest filter
@@ -71,6 +72,7 @@ int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking);
 
 /** Stroke outline as nonzero contours into `out` ([count, x, y, ...]*). Returns contours | (floats used << 16). */
 uint32_t stroke_contours(const float* pts, uint32_t n, float width, bool closed, float* out, uint32_t cap);
+extern uint32_t strokes_built;   // stroke_contours calls since the start (ZINC_GL_STATS: strokes tessellated on the CPU per frame)
 
 struct Frame {
   const Cmd* cmds; uint32_t count;
@@ -130,5 +132,8 @@ namespace gfx {
 /** For C++ plugins: appends a raw command to the current frame, copying `len` floats of payload into the point pool
  *  (POLY: [count, x, y, ...]*, contour count is filled in). The caller sets the box, colors and flags. Null when full. */
 raster::Cmd* emit(uint8_t kind, const float* pts, uint32_t len);
+/** Set by a display that replays the command lists on the GPU and draws STROKE itself (the GL window, display-gl): stroke() then records
+ *  the polyline instead of tessellating it. The software raster draws a STROKE too (it tessellates it), so a fallback stays correct. */
+extern bool gpu_strokes;
 }
 }  // namespace zrt

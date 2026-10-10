@@ -315,6 +315,24 @@ static ZRT_TLS int32_t* heads; static ZRT_TLS uint32_t head_cap;
 static ZRT_TLS uint16_t* accs; static ZRT_TLS uint32_t acc_cap;
 static ZRT_TLS int32_t* actives; static ZRT_TLS uint32_t active_cap;
 static ZRT_TLS int16_t* wds; static ZRT_TLS uint32_t wd_cap;  // all zero between uses
+static void fill_poly(const Target& t, const Cmd& c, const float* pts);
+// A STROKE reaches the software raster only when a GPU display fell back to pixels: its outline is tessellated here, per band
+// (the same contours stroke() records for the software path).
+static ZRT_TLS float* stroke_buf; static ZRT_TLS uint32_t stroke_cap;
+static void stroke_poly(const Target& t, const Cmd& c, const float* pts) {
+  if (c.n < 2) return;
+  const uint32_t need = c.n * 50 + 64;   // per point at most a quad (9 floats) and a disc of 16 points (33)
+  if (need > stroke_cap) {
+    if (stroke_buf) hal_free(stroke_buf);
+    stroke_buf = (float*)hal_alloc((size_t)need * sizeof(float));
+    stroke_cap = stroke_buf ? need : 0;
+    if (!stroke_buf) return;
+  }
+  const uint32_t r = stroke_contours(pts, c.n, c.s, (c.pad & 2) != 0, stroke_buf, stroke_cap);
+  Cmd pc = c;
+  pc.kind = POLY; pc.n = r & 0xFFFF; pc.pad = 0; pc.grad = 0; pc.off = 0;
+  fill_poly(t, pc, stroke_buf);
+}
 static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
@@ -669,6 +687,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
       case TEXT: draw_text(t, c, f.text + c.off); break;
       case IMAGE: draw_image(t, c); break;
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
+      case STROKE: stroke_poly(t, c, f.pts + c.off); break;
       case CLIP: {
         if (sp >= 16) break;
         RoundClip k = {c.x, c.y, c.w, c.h, c.r, 0, pool, false};
@@ -732,6 +751,7 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     if (x.grad == 4) len += 8 + 3 * (uint32_t)p[len + 7];  // gradient paint
     return !__builtin_memcmp(p, q, len * sizeof(float));
   }
+  if (x.kind == STROKE) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * 2 * sizeof(float));
   return true;
 }
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
@@ -1080,7 +1100,7 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     for (uint32_t k = 0; k < c.n; k++) len += 1 + (uint32_t)p[len] * 2;
     if (c.grad == 4) len += 8 + 3 * (uint32_t)p[len + 7];
     h = fnv(h, p, len * (uint32_t)sizeof(float));
-  }
+  } else if (c.kind == STROKE) h = fnv(h, f.pts + c.off, c.n * 2 * (uint32_t)sizeof(float));
   return h;
 }
 static int16_t i16(int32_t v) { return v < -32768 ? (int16_t)-32768 : v > 32767 ? (int16_t)32767 : (int16_t)v; }
@@ -1131,7 +1151,9 @@ static const float* circle(int seg, const float** sin_out) {
   *sin_out = circle_s[t];
   return circle_c[t];
 }
+uint32_t strokes_built = 0;
 uint32_t stroke_contours(const float* p, uint32_t n, float width, bool closed, float* out, uint32_t cap) {
+  strokes_built++;
   uint32_t used = 0, contours = 0;
   float r = width * 0.5f;
   auto emit = [&](const float* q, uint32_t cnt) {

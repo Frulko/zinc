@@ -1,9 +1,10 @@
 ---
 id: ZN-590
 title: GPU-native strokes and fills in display-gl (no CPU tessellation)
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-09 09:14'
+updated_date: '2026-10-10 14:45'
 labels:
   - perf
   - gpu

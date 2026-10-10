@@ -89,6 +89,7 @@ static void choose_renderer(const HalFrame* f) {
   if (!glr::init(f->w, f->h)) { fprintf(stderr, "display-gl: renderer %s: GL setup failed, using cpu\n", r); return; }
   glr_tex = glr::texture();
   glr_state = 1;
+  zrt::gfx::gpu_strokes = true;   // strokes are recorded as polylines from the next frame on, drawn by the replay (ZN-590.01)
 }
 
 static int init(const HalConfig* cfg) {

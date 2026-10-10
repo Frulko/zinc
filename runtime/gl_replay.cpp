@@ -22,7 +22,7 @@ using namespace zrt::raster;
 
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
 struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
-enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M };
+enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16, TEXS = 256;
 
 static const char* VS =
@@ -38,6 +38,7 @@ static const char* FS =
   "  vec2 q = abs(p - c) - (h - r);\n"
   "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
   "float cover(vec2 p, vec2 c, vec2 h, float r) { return clamp(0.5 - sdf(p, c, h, r), 0.0, 1.0); }\n"
+  "float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0)); }\n"
   "void main() {\n"
   "  vec2 p = v_pos.xy, c = v_box.xy, h = v_box.zw;\n"
   "  float r = v_par.x, mode = v_par.z, grad = v_par.w;\n"
@@ -64,9 +65,13 @@ static const char* FS =
   "    cov = 1.0;\n"
   "  } else if (mode < 6.5) {\n"                                                 // RESTORE: rounded clip corners
   "    col = texture2D(u_tex, v_pos.zw).rgb; a = 1.0 - cover(p, c, h, r); cov = 1.0;\n"
-  "  } else {\n"                                                                 // SHADOW: blurred rounded box
+  "  } else if (mode < 7.5) {\n"                                                 // SHADOW: blurred rounded box
   "    float blur = v_par.y, k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0);\n"
   "    cov = k * k * (3.0 - 2.0 * k);\n"
+  "  } else {\n"                                                                 // STROKE: the capsule of segment A-B (round joins and caps); the
+  "    float d = seg(p, v_pos.zw, c);\n"                                         // pixel is this segment's when no neighbour is nearer (ties to the
+  "    if ((v_c2.x > 0.5 && seg(p, v_box.zw, v_pos.zw) <= d) || (v_c2.y > 0.5 && seg(p, c, v_par.yw) < d)) discard;\n"   // previous one): blended once
+  "    cov = clamp(0.5 - (d - r), 0.0, 1.0);\n"
   "  }\n"
   // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
   // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
@@ -127,7 +132,7 @@ struct RC { float x, y, w, h, r; int R; bool on; };
 static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs; double us, cull_us; uint64_t hidden; } st;
+static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles; double us, cull_us; uint64_t hidden; } st;
 static double now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec / 1e3; }
 
 // ---- helpers shared in spirit with runtime/raster.cpp (kept identical: the pixels must agree)
@@ -395,6 +400,33 @@ static void draw_image(const Cmd& c) {
 }
 
 
+// ---- STROKE (ZN-590.01): one box per segment, around its capsule. A vertex carries the segment (A in u, v; B in bx, by), its neighbours' far
+// points (previous P in bw, bh; next N in p1, grad), the radius and, in c2, whether there is a previous and a next segment.
+static void draw_stroke(const Cmd& c, const float* p) {
+  const uint32_t n = c.n;
+  if (n < 2 || !(c.s == c.s) || !c.alpha) return;
+  const bool closed = (c.pad & 2) != 0;
+  const float r = c.s * 0.5f, e = r + 1.0f;
+  const uint32_t segs = closed ? n : n - 1;
+  for (uint32_t i = 0; i < segs; i++) {
+    const uint32_t ib = (i + 1) % n, ip = (i + n - 1) % n, in = (i + 2) % n;
+    const bool hp = closed || i > 0, hn = closed || i + 1 < segs;
+    const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
+    const float x0 = (ax < bx ? ax : bx) - e, y0 = (ay < by ? ay : by) - e, x1 = (ax > bx ? ax : bx) + e, y1 = (ay > by ? ay : by) + e;
+    if (!(x0 == x0 && y0 == y0 && x1 == x1 && y1 == y1)) continue;
+    if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
+    if (nq == MAXQ) flush();
+    V* v = &verts[nq * 4];
+    nq++;
+    const float xs[4] = {x0, x1, x1, x0}, ys[4] = {y0, y0, y1, y1};
+    for (int k = 0; k < 4; k++) {
+      v[k] = V{xs[k], ys[k], ax, ay, bx, by, hp ? p[ip * 2] : ax, hp ? p[ip * 2 + 1] : ay, r, hn ? p[in * 2] : bx, (float)STROKE_M, hn ? p[in * 2 + 1] : by, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+      setc(v[k].c1, c.c1, c.alpha);
+      v[k].c2[0] = hp ? 255 : 0; v[k].c2[1] = hn ? 255 : 0;
+    }
+  }
+}
+
 // ---- LINE / POLY: the software rasterizer draws the shape (white on black, its own 4x4 supersampling and fill rules) into a tile that holds the coverage, and the tile is drawn like a glyph:
 // a quad with the colour of the command. Tiles are cached by the content of the command, so a shape that does not change costs one upload and moves for free.
 struct PolyTile { uint64_t key; GLuint id; uint32_t used; bool rgba; };
@@ -460,6 +492,7 @@ static void draw_poly(const Cmd& c, const float* pts) {
       }
     }
     flush();
+    st.ptiles++;
     if (oldest->id) glDeleteTextures(1, &oldest->id);
     oldest->id = paint ? make_tex(bw, bh, GL_RGBA, GL_RGBA, pcol, true) : make_tex(bw, bh, A_IFMT, A_FMT, pcov, true);
     oldest->key = key; oldest->rgba = paint; t = oldest;
@@ -652,6 +685,7 @@ static void run(const Frame& f, bool first) {
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
       case LINE: case POLY: draw_poly(c, f.pts + c.off); break;
+      case STROKE: draw_stroke(c, f.pts + c.off); break;
       case CLIP: {
         if (sp >= 16) break;
         flush();
@@ -784,7 +818,7 @@ static void idle() { st.idle++; }
 static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;
-  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands\n",
-          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n);
+  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated\n",
+          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n);
 }
 }  // namespace glr

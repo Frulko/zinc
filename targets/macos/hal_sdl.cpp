@@ -318,6 +318,7 @@ void hal_init(const HalConfig* cfg) {
   {   // ZINC_RENDERER=cpu|gl|auto (default auto): GL when a hardware context comes up; transparent windows and display plugins stay on SDL_Renderer
     const char* rr = getenv("ZINC_RENDERER");
     if (!(rr && !strcmp(rr, "cpu")) && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
+    zrt::gfx::gpu_strokes = gl_on;   // the replay draws strokes on the GPU (ZN-590.01)
   }
   if (!gl_on) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
