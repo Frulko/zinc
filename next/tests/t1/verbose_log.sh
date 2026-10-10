@@ -17,7 +17,8 @@ for phase in "read and parse" "check" "lower to IR" "optimise" "reference counti
 done
 echo "$out" | grep -q "^zinc\[build\] [0-9]* files; target .*, profile .*, layout " || { echo "verbose_log: no target, profile and layout line"; fail=1; }
 echo "$out" | grep -q "^zinc\[plugin\] device: built (" || { echo "verbose_log: the first build does not say the plugin was built: $out"; fail=1; }
-"$Z" build -v "$tmp/p/main.ts" -o "$tmp/p/app" 2>&1 >/dev/null | grep -q "^zinc\[plugin\] device: cache hit (" || { echo "verbose_log: the second build does not say cache hit"; fail=1; }
+# the second build: the plugin's stamp says nothing changed (ZN-617), or its cache entry is hit
+"$Z" build -v "$tmp/p/main.ts" -o "$tmp/p/app" 2>&1 >/dev/null | grep -Eq "^zinc\[plugin\] device: (cache hit|unchanged since its last build) \(" || { echo "verbose_log: the second build does not say the plugin came from the cache"; fail=1; }
 [ -z "$("$Z" build "$tmp/p/main.ts" -o "$tmp/p/app" 2>&1)" ] || { echo "verbose_log: zinc build without -v says something"; fail=1; }
 quiet=$(ZINC_HEADLESS=1 ZINC_FRAMES=3 "$Z" run ../examples/ui/forms 2>&1)
 [ -z "$(echo "$quiet" | grep 'zinc\[')" ] || { echo "verbose_log: a run without ZINC_LOG logs"; fail=1; }
