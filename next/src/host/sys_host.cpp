@@ -54,6 +54,7 @@
 
 extern char** environ;
 
+namespace zrt::raster { int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len); }   // runtime/ttf.cpp
 namespace zn::host {
 namespace {
 
@@ -589,6 +590,15 @@ void installSys() { hostSys = call; }
 
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
 extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
+// zinc:gfx loadFont (ZN-669): a font file of the assets that the program names at run time, read whole and added to the rasterizer's files
+// (the baker embeds only the files it saw); -1: not in the assets, or not a TrueType file
+extern "C" int zn_asset_font(const char* name, uint32_t n) {
+  const std::string d = assetsDir(), rel(name, n);
+  if (d.empty() || rel.empty() || rel.find("..") != std::string::npos) return -1;
+  std::vector<unsigned char> b;
+  if (!readAll(d + "/" + rel, b, "open")) return -1;
+  return zrt::raster::add_font_file(name, n, b.data(), static_cast<uint32_t>(b.size()));
+}
 extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(path)); }
 // App updates (ZN-324.03) are the engine's (src/main.cpp defines the real one, which wins); a compiled program has none: the system plugin says "unsupported".
 extern "C" __attribute__((weak)) int zn_host_update(const char*, const char*, char*, int) { return 0; }

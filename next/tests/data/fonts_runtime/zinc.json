@@ -1,0 +1,1 @@
+{ "name": "fonts_runtime", "entry": "main.ts", "targets": { "macos": { "width": 420, "height": 120 } } }

@@ -33,6 +33,13 @@ bool runtime_font(int32_t id);
 const Glyph* runtime_glyph(int32_t id, uint32_t cp);
 /** Font `name` at exactly `px` for drawing (runtime rasterization when not baked). */
 int32_t render_font(const char* name, uint32_t name_len, int32_t px);
+/** A TrueType file read at run time (a font file of the assets the program names, ZN-669), under `name`: its index, -1 when it is not one. */
+int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len);
+/** Font `name` at exactly `px`: baked, else rasterized from its TrueType file; -1 when it has no file and no baked font of that size. */
+int32_t exact_font(const char* name, uint32_t name_len, int32_t px);
+/** `font`, or its twin rasterized from the TrueType file when it is baked and lacks a character of `s` (same pixels for the others). */
+int32_t text_font(int32_t font, const char* s, uint32_t n);
+bool has_glyph(int32_t font, uint32_t cp);
 
 // Runtime images (video frames, camera preview, cached map tiles, render-to-image): opaque 0x00RRGGBB pixels, or
 // 0xAARRGGBB with straight alpha once dyn_set_alpha says so (decoded sprites; a render target is opaque again).

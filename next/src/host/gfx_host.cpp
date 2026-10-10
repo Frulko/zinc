@@ -81,6 +81,13 @@ void installFast() {
   at(Rt::HostGfxPointerDown) = [](uint64_t* a) { a[0] = g::pointerDown() ? 1 : 0; };
 }
 
+extern "C" int zn_asset_font(const char* name, uint32_t n);   // src/host/sys_host.cpp
+// zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
+int32_t loadFont(const zrt::String& name, double px) {
+  const int32_t f = zrt::gfx::loadFont(name, px);
+  if (f >= 0 || zn_asset_font(name.ptr(), name.bytes()) < 0) return f;
+  return zrt::gfx::loadFont(name, px);
+}
 // zinc:gfx imageFromBytes (ZN-432): the bytes of an image file (one slot per byte) become a runtime image, with alpha when a pixel is not opaque; -1: not an image, or no room
 int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
   uint8_t* file = static_cast<uint8_t*>(malloc(n ? n : 1));
@@ -241,7 +248,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxCloseWindow: g::closeWindow(n(0)); break;
     case Rt::HostGfxWindowOpen: r->i = g::windowOpen(n(0)) ? 1 : 0; break;
     case Rt::HostGfxBeginWindow: g::beginWindow(n(0)); break;
-    case Rt::HostGfxEndWindow: g::endWindow(); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
+    case Rt::HostGfxEndWindow: g::endWindow(); break;
+    case Rt::HostGfxLoadFont: r->i = loadFont(str(a[0]), a[1].d); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:

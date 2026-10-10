@@ -1278,10 +1278,26 @@ void line(double x1, double y1, double x2, double y2, uint32_t color) {
   polygon(q, 8, color, 255);
 }
 int32_t font(const String& name, int32_t px) { return raster::find_font(name.ptr(), name.bytes(), px); }
-int32_t fontAscent(int32_t f) { return f >= 0 && f < raster::font_count ? raster::fonts[f].ascent : 0; }
-int32_t lineHeight(int32_t f) { return f >= 0 && f < raster::font_count ? raster::fonts[f].ascent + raster::fonts[f].descent + raster::fonts[f].lineGap : 0; }
-double textWidth(int32_t f, const String& s, double tracking) { return raster::text_advance(f, s.ptr(), s.bytes(), (float)tracking) / 64.0; }
+/** A font at exactly `px` pixels from a TrueType file chosen at run time (ZN-669): a family the program bakes or embeds ("sans", "sans-bold", "mono",
+ *  the stem of a .ttf of its assets), the path of a file of its assets (its stem when that file is embedded), or a file the host added
+ *  (raster::add_font_file). Its glyphs are the baker's at that size. Without TrueType files (small targets), the closest baked size; -1: none. */
+int32_t loadFont(const String& name, double px) {
+  const int32_t k = !(px >= 1) ? 1 : px > 512 ? 512 : (int32_t)(px + 0.5);
+  const char* s = name.ptr();
+  uint32_t n = name.bytes();
+  int32_t f = raster::exact_font(s, n, k);
+  if (f >= 0) return f;
+  uint32_t from = 0, to = n;   // fonts/Lora-Regular.ttf -> Lora-Regular
+  for (uint32_t i = 0; i < n; i++) if (s[i] == '/') from = i + 1;
+  for (uint32_t i = n; i > from; i--) if (s[i - 1] == '.') { to = i - 1; break; }
+  if (from > 0 || to < n) { f = raster::exact_font(s + from, to - from, k); if (f >= 0) return f; }
+  return raster::find_font(s + from, to - from, k);
+}
+int32_t fontAscent(int32_t f) { const raster::Font* fo = raster::font_at(f); return fo ? fo->ascent : 0; }
+int32_t lineHeight(int32_t f) { const raster::Font* fo = raster::font_at(f); return fo ? fo->ascent + fo->descent + fo->lineGap : 0; }
+double textWidth(int32_t f, const String& s, double tracking) { return raster::text_advance(raster::text_font(f, s.ptr(), s.bytes()), s.ptr(), s.bytes(), (float)tracking) / 64.0; }
 void drawText(int32_t f, double x, double y, const String& s, uint32_t color, int32_t alpha, double tracking) {
+  f = raster::text_font(f, s.ptr(), s.bytes());   // a character the baked font lacks: its twin from the TrueType file
   Buf& b = bufs[cur];
   uint32_t n = s.bytes();
   if (b.ntext + n > ZRT_TEXT_POOL) { pool_full(1); return; }

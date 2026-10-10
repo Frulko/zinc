@@ -17,7 +17,8 @@ std::unique_ptr<Layout> engine;
 std::string lineOut;   // the string a call returns lives here until the next call
 
 double fontWidth(void*, std::int32_t font, std::string_view s, double tracking) {
-  return zrt::raster::text_advance(font, s.data(), static_cast<std::uint32_t>(s.size()), static_cast<float>(tracking)) / 64.0;
+  const std::uint32_t n = static_cast<std::uint32_t>(s.size());
+  return zrt::raster::text_advance(zrt::raster::text_font(font, s.data(), n), s.data(), n, static_cast<float>(tracking)) / 64.0;   // as gfx draws it (ZN-669)
 }
 
 void call(int id, const HostArg* a, HostArg* r) {

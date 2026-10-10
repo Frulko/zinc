@@ -775,6 +775,7 @@ void path(const Array<double>& contours, uint32_t color, int32_t alpha);
 void path(const double* contours, uint32_t n, uint32_t color, int32_t alpha);
 void line(double x1, double y1, double x2, double y2, uint32_t color);
 int32_t font(const String& name, int32_t px);
+int32_t loadFont(const String& name, double px);   // a TrueType file chosen at run time, at exactly px (ZN-669; the prototype has the embedded files only)
 int32_t fontAscent(int32_t f);
 int32_t lineHeight(int32_t f);
 double textWidth(int32_t f, const String& s, double tracking);

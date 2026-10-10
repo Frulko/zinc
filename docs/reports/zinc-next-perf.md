@@ -405,6 +405,17 @@ Measured on the Intel Mac with other trees building (load average 5.1 to 6.3, CP
 
 The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 within noise; QuickJS +0.9 ms for 1,000 bodies read in bulk). Reaching 3 ms needs Jolt's job system on several threads (ZN-690). Reproduce: `cd next && build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile`; `ZINC_FRAMES=900 build/zinc run ../examples/pinball3d -- --stats --demo`.
 
+### ZN-669: fonts at run time (2026-10-10, Intel Mac, load 4 to 8 from other trees)
+
+- **First use of a size** (`tests/data/fonts_runtime/cost.ts`, sans, 54 characters, 37 distinct glyphs): `loadFont` 1 us (53 to 64 us
+  for the first, which parses the file), first `textWidth` (rasterizes the glyphs) 450 to 500 us at 14 px, 610 to 740 us at 24 px,
+  1.15 to 1.41 ms at 48 px, 3.06 to 3.15 ms at 96 px; the second 1 to 2 us. Interpreted and compiled within noise.
+- **A program that does not ask** (baseline: a build of c5b2a283): resources of bouncing-ball, breakout, nuxt-ui, museum-table,
+  text and zinc3d_aa byte-identical; bouncing-ball AOT 3,344,728 -> 3,344,752 bytes, b3-text AOT 3,024,896 -> 3,029,016 (the
+  new rasterizer); b3-text (250 drawText per frame) work p50 0.11 ms before and 0.11 to 0.12 ms after, over 5 alternated runs.
+- **Programs with a text field** keep every character of their fonts: examples/ui/forms resources 256,099 -> 643,323 bytes,
+  hero 1,467,402 -> 1,833,702.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:

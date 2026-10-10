@@ -554,12 +554,21 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       reCanvas("['\"`](?:(?:bold|normal|italic|[1-9]00)\\s+)*(\\d+)px\\s+[\\w\\s,\"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)"), reMono("\\bfont-mono\\b");
   bool gridUsed = !embedTtf;   // the legacy gfx.text: every grid size when a program calls it (or when no TrueType file backs the overlays)
   static const std::regex reGfxText("\\btext\\s*\\(");
+  // a text field in the program's own files: what the user types is not in the sources, so the embedded files keep every character they have
+  // and a glyph the baked sizes lack is rasterized from them (ZN-669)
+  bool typing = false;   // ponytail: substrings, no word boundary (<InputGroup counts too)
+  auto types = [](const std::string& t) {
+    // the JSX is lowered before the scan: <input> is _el(7), <textarea> _el(8), an onInput handler _onText(, a component <TextInput .../> TextInput(
+    for (const char* k : {"_el(7)", "_el(8)", "_onText(", "TextInput(", "<input", "<textarea", "startTextInput(", "ui.INPUT", "ui.TEXTAREA"}) if (t.find(k) != std::string::npos) return true;
+    return false;
+  };
   for (std::size_t si = 0; si < sources.size(); ++si) {
     const std::string& text = sources[si];
     // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
     // say "text (": those faces and the grid come from the program's own files (ZN-428)
     const bool lib = embedTtf && si < opt.library.size() && opt.library[si];
     if (!lib && !gridUsed && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText)) gridUsed = true;
+    if (!lib && !typing && embedTtf && types(text)) typing = true;
     // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
     std::size_t at = 0;
     while (at < text.size()) {
@@ -721,8 +730,15 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   for (std::uint32_t c : {0x2010u, 0x2011u, 0x2012u, 0x2013u, 0x2014u, 0x2018u, 0x2019u, 0x201Au, 0x201Cu, 0x201Du, 0x201Eu, 0x2020u, 0x2021u, 0x2022u, 0x2026u, 0x2030u, 0x2039u, 0x203Au, 0x20ACu, 0x2122u, 0xFFFDu}) keep.insert(c);
   for (const Family& f : ttfs) {
     if (!fontBytes.count(f.file) && !readFile(f.file, fontBytes[f.file])) { err = "cannot read the font " + f.file; return false; }
+    std::set<std::uint32_t> all;
+    if (typing) {   // every character of the file (hb-subset still drops the hinting and layout tables the rasterizer does not read)
+      Ttf t;
+      std::string e;
+      if (t.parse(fontBytes[f.file].data(), fontBytes[f.file].size(), e)) for (const auto& [cp, g] : t.cmap) all.insert(cp);
+      all.insert(keep.begin(), keep.end());
+    }
     std::vector<std::uint8_t> sub;
-    const std::vector<std::uint8_t>& bytes = !opt.wholeFonts && subsetTtf(fontBytes[f.file], keep, sub) ? sub : fontBytes[f.file];
+    const std::vector<std::uint8_t>& bytes = !opt.wholeFonts && subsetTtf(fontBytes[f.file], typing ? all : keep, sub) ? sub : fontBytes[f.file];
     writeStr(blob, f.name);
     writeU32(blob, static_cast<std::uint32_t>(bytes.size()));
     blob.insert(blob.end(), bytes.begin(), bytes.end());

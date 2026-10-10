@@ -128,6 +128,7 @@ export function polygon(points: number[], color: u32, alpha: i32): void { __host
 export function path(contours: number[], color: u32, alpha: i32): void { __host_gfxPath(contours, color, alpha); }
 export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void { __host_gfxStroke(points, width, color, alpha, closed); }
 export function font(family: string, px: i32): i32 { return __host_gfxFont(family, px); }
+export function loadFont(file: string, px: number): i32 { return __host_gfxLoadFont(file, px); }
 export function fontAscent(f: i32): i32 { return __host_gfxFontAscent(f); }
 export function lineHeight(f: i32): i32 { return __host_gfxLineHeight(f); }
 export function textWidth(f: i32, s: string, tracking: number): number { return __host_gfxTextWidth(f, s, tracking); }

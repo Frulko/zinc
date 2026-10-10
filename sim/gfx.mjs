@@ -21,6 +21,7 @@ export function font(name, px) {
   R().fonts.forEach((f, i) => { if (f.name === name && Math.abs(f.px - px) < bd) { bd = Math.abs(f.px - px); best = i; } });
   return best;
 }
+export const loadFont = (file, px) => font(file.replace(/^.*\//, '').replace(/\.[^.]*$/, ''), Math.round(px));   // the sim has the baked sizes only
 export const fontAscent = f => R().fonts[f]?.ascent ?? 0;
 export const lineHeight = f => { const x = R().fonts[f]; return x ? x.ascent + x.descent + x.lineGap : 0; };
 export function textWidth(f, s, tracking) {

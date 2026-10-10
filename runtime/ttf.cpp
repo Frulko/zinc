@@ -90,61 +90,46 @@ static uint32_t glyph_index(const Ttf& t, uint32_t cp) {
 }
 static uint32_t loc(const Ttf& t, uint32_t g) { Rd r = t.rd(); return t.longLoca ? r.u32(t.loca + g * 4) : r.u16(t.loca + g * 2) * 2u; }
 
-// ---- outline -> coverage (signed-area accumulation, as in font-rs)
-struct Raster { float* a; int32_t w, h; };
-static void line(Raster& r, float x0, float y0, float x1, float y1) {
-  if (y0 == y1) return;
-  float dir = 1;
-  if (y0 > y1) { float tx = x0, ty = y0; x0 = x1; y0 = y1; x1 = tx; y1 = ty; dir = -1; }
-  float dxdy = (x1 - x0) / (y1 - y0), x = x0;
-  int32_t ys = y0 < 0 ? 0 : (int32_t)y0;
-  if (y0 < 0) x -= y0 * dxdy;
-  int32_t ye = (int32_t)__builtin_ceilf(y1); if (ye > r.h) ye = r.h;
-  for (int32_t y = ys; y < ye; y++) {
-    int32_t ls = y * r.w;
-    float dy = ((float)(y + 1) < y1 ? (float)(y + 1) : y1) - ((float)y > y0 ? (float)y : y0);
-    float xn = x + dxdy * dy, d = dy * dir;
-    float xa = x < xn ? x : xn, xb = x < xn ? xn : x;
-    float fa = __builtin_floorf(xa), cb = __builtin_ceilf(xb);
-    int32_t ia = (int32_t)fa, ib = (int32_t)cb;
-    if (ia < 0 || ib + 1 >= r.w) { x = xn; continue; }  // outside the padded box (should not happen)
-    if (ib <= ia + 1) {
-      float xm = 0.5f * (x + xn) - fa;
-      r.a[ls + ia] += d - d * xm;
-      r.a[ls + ia + 1] += d * xm;
-    } else {
-      float s = 1.0f / (xb - xa), xaf = xa - fa, a0 = 0.5f * s * (1 - xaf) * (1 - xaf), xbf = xb - cb + 1, am = 0.5f * s * xbf * xbf;
-      r.a[ls + ia] += d * a0;
-      if (ib == ia + 2) r.a[ls + ia + 1] += d * (1 - a0 - am);
-      else {
-        float a1 = s * (1.5f - xaf);
-        r.a[ls + ia + 1] += d * (a1 - a0);
-        for (int32_t xi = ia + 2; xi < ib - 1; xi++) r.a[ls + xi] += d * s;
-        float a2 = a1 + (float)(ib - ia - 3) * s;
-        r.a[ls + ib - 1] += d * (1 - a2 - am);
-      }
-      r.a[ls + ib] += d * am;
-    }
-    x = xn;
+// ---- outline -> coverage, the way the baker does it (next/src/res/res.cpp, a port of the prototype's resources.ts): contours in font units,
+// quadratics flattened into 8 segments, composites placed by their offset and x/y scale, then nonzero winding sampled 4 x 4 per pixel, in
+// doubles and without fused multiply-adds, so a glyph rasterized here has the pixels a baked glyph of the same size has (ZN-669): a size or a
+// file chosen at run time draws like one written in the program.
+#if defined(__clang__)
+#pragma clang fp contract(off)
+#elif defined(__GNUC__)
+#pragma GCC optimize("fp-contract=off")
+#endif
+struct Outline { double* xy; uint32_t n, cap; uint32_t* ends; uint32_t nc, capc; };   // points, and the end (exclusive) of each contour
+static bool out_point(Outline& o, double x, double y) {
+  if (o.n == o.cap) {
+    uint32_t c = o.cap ? o.cap * 2 : 1024;
+    double* p = (double*)hal_alloc(sizeof(double) * 2 * c);
+    if (!p) return false;
+    if (o.xy) { __builtin_memcpy(p, o.xy, sizeof(double) * 2 * o.n); hal_free(o.xy); }
+    o.xy = p; o.cap = c;
+  }
+  o.xy[o.n * 2] = x; o.xy[o.n * 2 + 1] = y; o.n++;
+  return true;
+}
+static void out_close(Outline& o) {
+  if (o.nc == o.capc) {
+    uint32_t c = o.capc ? o.capc * 2 : 64;
+    uint32_t* p = (uint32_t*)hal_alloc(sizeof(uint32_t) * c);
+    if (!p) return;
+    if (o.ends) { __builtin_memcpy(p, o.ends, sizeof(uint32_t) * o.nc); hal_free(o.ends); }
+    o.ends = p; o.capc = c;
+  }
+  o.ends[o.nc++] = o.n;
+}
+static void quad8(Outline& o, double ax, double ay, double cx, double cy, double bx, double by) {
+  for (int i = 1; i <= 8; i++) {
+    double t = (double)i / 8, u = 1 - t;
+    out_point(o, u * u * ax + 2 * u * t * cx + t * t * bx, u * u * ay + 2 * u * t * cy + t * t * by);
   }
 }
-static void quad(Raster& r, float x0, float y0, float cx, float cy, float x1, float y1) {
-  float dd = __builtin_fabsf(x0 - 2 * cx + x1) + __builtin_fabsf(y0 - 2 * cy + y1);
-  int32_t n = 1 + (int32_t)__builtin_sqrtf(__builtin_sqrtf(dd * dd) * 2.0f);
-  if (n > 32) n = 32;
-  float px = x0, py = y0;
-  for (int32_t i = 1; i <= n; i++) {
-    float t = (float)i / n, u = 1 - t;
-    float qx = u * u * x0 + 2 * u * t * cx + t * t * x1, qy = u * u * y0 + 2 * u * t * cy + t * t * y1;
-    line(r, px, py, qx, qy);
-    px = qx; py = qy;
-  }
-}
-// transform applied to glyph points: x * sx + dx, y * sy + dy (composites nest affine offsets/scales)
-struct Xf { float a, b, c, d, e, f; };  // x' = a x + c y + e ; y' = b x + d y + f
 // composites nest at most 4 deep and expand at most this many components per glyph (a font could fan out 64K^4)
 static int32_t outline_budget = 0;
-static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth, bool bounds_only, float* bb) {
+static void outline(const Ttf& t, uint32_t g, Outline& out, int depth) {
   if (depth == 0) outline_budget = 4096;
   if (g >= (uint32_t)t.numGlyphs || depth > 4 || --outline_budget < 0) return;
   uint32_t o = loc(t, g), o2 = loc(t, g + 1);
@@ -152,20 +137,21 @@ static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth,
   if (o >= o2 || t.glyf + o < t.glyf || t.glyf + o2 < t.glyf + o || t.glyf + o2 > t.len) return;
   Rd p{t.d + t.glyf + o, o2 - o};
   int16_t nc = p.s16(0);
-  if (nc < 0) {
+  if (nc < 0) {   // a composite: each component at its offset with an x and a y scale (like the baker, the 2 x 2 matrix keeps only its diagonal)
     uint32_t q = 10;
     uint16_t flags;
     do {
       if (q + 4 > p.len) return;
       flags = p.u16(q); uint16_t gi = p.u16(q + 2); q += 4;
-      float dx, dy;
+      double dx, dy;
       if (flags & 1) { dx = p.s16(q); dy = p.s16(q + 2); q += 4; } else { dx = (int8_t)p.u8(q); dy = (int8_t)p.u8(q + 1); q += 2; }
-      float a = 1, b = 0, c = 0, d = 1;
-      if (flags & 8) { a = d = p.s16(q) / 16384.0f; q += 2; }
-      else if (flags & 0x40) { a = p.s16(q) / 16384.0f; d = p.s16(q + 2) / 16384.0f; q += 4; }
-      else if (flags & 0x80) { a = p.s16(q) / 16384.0f; b = p.s16(q + 2) / 16384.0f; c = p.s16(q + 4) / 16384.0f; d = p.s16(q + 6) / 16384.0f; q += 8; }
-      Xf k{m.a * a + m.c * b, m.b * a + m.d * b, m.a * c + m.c * d, m.b * c + m.d * d, m.a * dx + m.c * dy + m.e, m.b * dx + m.d * dy + m.f};
-      outline(t, gi, k, r, depth + 1, bounds_only, bb);
+      double sx = 1, sy = 1;
+      if (flags & 8) { sx = sy = p.s16(q) / 16384.0; q += 2; }
+      else if (flags & 0x40) { sx = p.s16(q) / 16384.0; sy = p.s16(q + 2) / 16384.0; q += 4; }
+      else if (flags & 0x80) { sx = p.s16(q) / 16384.0; sy = p.s16(q + 6) / 16384.0; q += 8; }
+      const uint32_t from = out.n;
+      outline(t, gi, out, depth + 1);
+      for (uint32_t i = from; i < out.n; i++) { out.xy[i * 2] = out.xy[i * 2] * sx + dx; out.xy[i * 2 + 1] = out.xy[i * 2 + 1] * sy + dy; }
     } while (flags & 0x20);
     return;
   }
@@ -173,44 +159,89 @@ static void outline(const Ttf& t, uint32_t g, const Xf& m, Raster& r, int depth,
   uint32_t npts = nc ? p.u16(ep + (uint32_t)(nc - 1) * 2) + 1u : 0;
   uint32_t q = ep + (uint32_t)nc * 2;
   q += 2 + p.u16(q);
-  // scratch allocated on first use: targets that never rasterize a TTF (esp32, ps1/ps2) keep these 36 KiB of RAM
-  static uint8_t* fl = nullptr; static float *xs = nullptr, *ys = nullptr;
-  if (!fl) { fl = (uint8_t*)hal_alloc(4096); xs = (float*)hal_alloc(4096 * sizeof(float)); ys = (float*)hal_alloc(4096 * sizeof(float)); }
+  // scratch allocated on first use: targets that never rasterize a TTF (esp32, ps1/ps2) keep this RAM
+  static uint8_t* fl = nullptr; static double *xs = nullptr, *ys = nullptr;
+  if (!fl) { fl = (uint8_t*)hal_alloc(4096); xs = (double*)hal_alloc(4096 * sizeof(double)); ys = (double*)hal_alloc(4096 * sizeof(double)); }
   if (npts > 4096 || !fl || !xs || !ys) return;
   for (uint32_t i = 0; i < npts;) { uint8_t f = (uint8_t)p.u8(q++); fl[i++] = f; if (f & 8) { uint8_t rep = (uint8_t)p.u8(q++); while (rep-- && i < npts) fl[i++] = f; } }
   int32_t v = 0;
-  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 2) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 16 ? dd : -dd; } else if (!(f & 16)) { v += p.s16(q); q += 2; } xs[i] = (float)v; }
+  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 2) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 16 ? dd : -dd; } else if (!(f & 16)) { v += p.s16(q); q += 2; } xs[i] = v; }
   v = 0;
-  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 4) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 32 ? dd : -dd; } else if (!(f & 32)) { v += p.s16(q); q += 2; } ys[i] = (float)v; }
-  for (uint32_t i = 0; i < npts; i++) { float x = xs[i], y = ys[i]; xs[i] = m.a * x + m.c * y + m.e; ys[i] = m.b * x + m.d * y + m.f; }
-  if (bounds_only) {
-    for (uint32_t i = 0; i < npts; i++) { bb[0] = xs[i] < bb[0] ? xs[i] : bb[0]; bb[1] = ys[i] < bb[1] ? ys[i] : bb[1]; bb[2] = xs[i] > bb[2] ? xs[i] : bb[2]; bb[3] = ys[i] > bb[3] ? ys[i] : bb[3]; }
-    return;
-  }
+  for (uint32_t i = 0; i < npts; i++) { uint8_t f = fl[i]; if (f & 4) { uint8_t dd = (uint8_t)p.u8(q++); v += f & 32 ? dd : -dd; } else if (!(f & 32)) { v += p.s16(q); q += 2; } ys[i] = v; }
   uint32_t s = 0;
   for (int16_t c = 0; c < nc; c++) {
-    uint32_t e = p.u16(ep + (uint32_t)c * 2), cnt = e - s + 1;
+    uint32_t e = p.u16(ep + (uint32_t)c * 2);
     if (e < s || e >= npts) break;
+    const uint32_t cnt = e - s + 1;
     // start on an on-curve point, or the midpoint of the first two off-curve points
     int32_t k = -1;
     for (uint32_t i = 0; i < cnt; i++) if (fl[s + i] & 1) { k = (int32_t)i; break; }
-    float sx, sy;
+    double sx, sy;
     if (k < 0) { sx = (xs[s] + xs[s + (1 % cnt)]) / 2; sy = (ys[s] + ys[s + (1 % cnt)]) / 2; k = 0; }
     else { sx = xs[s + k]; sy = ys[s + k]; k++; }
-    float px = sx, py = sy, cx = 0, cy = 0;
+    out_point(out, sx, sy);
+    double px = sx, py = sy, cx = 0, cy = 0;
     bool ctrl = false;
     for (uint32_t i = 0; i < cnt; i++) {
       uint32_t j = s + ((uint32_t)k + i) % cnt;
-      float x = xs[j], y = ys[j];
-      if (fl[j] & 1) { if (ctrl) quad(r, px, py, cx, cy, x, y); else line(r, px, py, x, y); px = x; py = y; ctrl = false; }
+      double x = xs[j], y = ys[j];
+      if (fl[j] & 1) { if (ctrl) quad8(out, px, py, cx, cy, x, y); else out_point(out, x, y); px = x; py = y; ctrl = false; }
       else {
-        if (ctrl) { float mx = (cx + x) / 2, my = (cy + y) / 2; quad(r, px, py, cx, cy, mx, my); px = mx; py = my; }
+        if (ctrl) { double mx = (cx + x) / 2, my = (cy + y) / 2; quad8(out, px, py, cx, cy, mx, my); px = mx; py = my; }
         cx = x; cy = y; ctrl = true;
       }
     }
-    if (ctrl) quad(r, px, py, cx, cy, sx, sy); else line(r, px, py, sx, sy);
+    if (ctrl) quad8(out, px, py, cx, cy, sx, sy);
+    out_close(out);
     s = e + 1;
   }
+}
+/** Nonzero coverage of the contours (already in pixels, the box at the origin) into `bits`, w x h, 4 x 4 samples per pixel. */
+static void cover(const Outline& o, int32_t w, int32_t h, uint8_t* bits) {
+  struct Edge { double x0, y0, x1, y1; int32_t dir; };
+  struct X { double x; int32_t d; };
+  Edge* edges = (Edge*)hal_alloc(sizeof(Edge) * (o.n + 1));
+  X* xs = (X*)hal_alloc(sizeof(X) * (o.n + 1));
+  uint16_t* acc = (uint16_t*)hal_alloc(sizeof(uint16_t) * (size_t)w * h + 2);
+  if (!edges || !xs || !acc) { if (edges) hal_free(edges); if (xs) hal_free(xs); if (acc) hal_free(acc); return; }
+  __builtin_memset(acc, 0, sizeof(uint16_t) * (size_t)w * h);
+  uint32_t ne = 0, start = 0;
+  for (uint32_t c = 0; c < o.nc; c++) {
+    const uint32_t end = o.ends[c], cnt = end - start;
+    for (uint32_t i = 0; i < cnt; i++) {
+      const double* a = o.xy + (start + i) * 2;
+      const double* b = o.xy + (start + (i + 1) % cnt) * 2;
+      if (a[1] == b[1]) continue;
+      edges[ne++] = a[1] < b[1] ? Edge{a[0], a[1], b[0], b[1], 1} : Edge{b[0], b[1], a[0], a[1], -1};
+    }
+    start = end;
+  }
+  const int32_t S = 4;
+  for (int32_t sy = 0; sy < h * S; sy++) {
+    const double y = (sy + 0.5) / S;
+    uint32_t nx = 0;
+    for (uint32_t i = 0; i < ne; i++) {
+      const Edge& e = edges[i];
+      if (y >= e.y0 && y < e.y1) {   // in edge order, then a stable insertion by x (as the baker's stable_sort)
+        X v{e.x0 + (y - e.y0) * (e.x1 - e.x0) / (e.y1 - e.y0), e.dir};
+        uint32_t k = nx++;
+        while (k > 0 && v.x < xs[k - 1].x) { xs[k] = xs[k - 1]; k--; }
+        xs[k] = v;
+      }
+    }
+    if (!nx) continue;
+    int32_t wind = 0;
+    const size_t row = (size_t)(sy / S) * w;
+    for (uint32_t k = 0; k + 1 < nx; k++) {
+      wind += xs[k].d;
+      if (wind == 0) continue;
+      double fa = __builtin_ceil(xs[k].x * S - 0.5), fb = __builtin_floor(xs[k + 1].x * S - 0.5);
+      int32_t from = fa < 0 ? 0 : (int32_t)fa, to = fb > w * S - 1 ? w * S - 1 : (int32_t)fb;
+      for (int32_t sx = from; sx <= to; sx++) acc[row + (sx >> 2)]++;
+    }
+  }
+  for (size_t i = 0; i < (size_t)w * h; i++) { double c = __builtin_floor(acc[i] * 255.0 / (S * S) + 0.5); bits[i] = (uint8_t)(c > 255 ? 255 : c); }
+  hal_free(edges); hal_free(xs); hal_free(acc);
 }
 
 // ---- runtime fonts: one per (file, px), glyphs rasterized on first use
@@ -250,39 +281,32 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
   const Ttf& t = ttfs[r.file];
   uint32_t gi = glyph_index(t, cp);
   if (!gi && cp != 0) return nullptr;
-  float scale = (float)r.f.px / t.upem;
-  const float slant = r.italic ? 0.2126f * scale : 0;   // x grows with the height above the baseline
-  Xf m{scale, 0, slant, -scale, 0, 0};  // font units (y up) -> pixels (y down)
-  float bb[4] = {1e9f, 1e9f, -1e9f, -1e9f};
-  Raster none{nullptr, 0, 0};
-  outline(t, gi, m, none, 0, true, bb);
-  Glyph g{cp, 0, 0, 0, 0, (int32_t)__builtin_roundf(t.rd().u16(t.hmtx + 4 * (gi < (uint32_t)t.numH ? gi : (uint32_t)t.numH - 1)) * scale * 64), r.nbits};
-  if (bb[0] <= bb[2]) {
-    int32_t x0 = (int32_t)__builtin_floorf(bb[0]), y0 = (int32_t)__builtin_floorf(bb[1]);
-    int32_t w = (int32_t)__builtin_ceilf(bb[2]) - x0 + 1, h = (int32_t)__builtin_ceilf(bb[3]) - y0 + 1;
-    if (w > 0 && h > 0 && w < 1024 && h < 1024) {
-      int32_t aw = w + 3;
-      float* acc = (float*)hal_alloc(sizeof(float) * (size_t)aw * h + 16);
-      if (!acc) return nullptr;
-      __builtin_memset(acc, 0, sizeof(float) * (size_t)aw * h + 16);
-      Raster ras{acc, aw, h};
-      Xf mm{scale, 0, slant, -scale, (float)-x0 + 1, (float)-y0};
-      outline(t, gi, mm, ras, 0, false, nullptr);
+  const double scale = (double)r.f.px / t.upem;
+  const uint32_t hi = gi < (uint32_t)t.numH ? gi : (uint32_t)t.numH - 1;
+  Glyph g{cp, 0, 0, 0, 0, (int32_t)__builtin_floor(t.rd().u16(t.hmtx + 4 * hi) * scale * 64 + 0.5), r.nbits};
+  static Outline o = {};   // scratch kept between glyphs
+  o.n = 0; o.nc = 0;
+  outline(t, gi, o, 0);
+  if (o.n) {   // font units (y up) -> pixels (y down); the synthetic italic slants x by the height above the baseline
+    double x0 = 1e300, y0 = 1e300, x1 = -1e300, y1 = -1e300;
+    for (uint32_t i = 0; i < o.n; i++) {
+      double* q = o.xy + i * 2;
+      const double x = (q[0] + (r.italic ? 0.2126 * q[1] : 0)) * scale, y = -q[1] * scale;
+      q[0] = x; q[1] = y;
+      x0 = x < x0 ? x : x0; y0 = y < y0 ? y : y0; x1 = x > x1 ? x : x1; y1 = y > y1 ? y : y1;
+    }
+    const int32_t gx = (int32_t)__builtin_floor(x0), gy = (int32_t)__builtin_floor(y0);
+    const int32_t w = (int32_t)__builtin_ceil(x1) - gx, h = (int32_t)__builtin_ceil(y1) - gy;
+    if (w >= 0 && h >= 0 && w < 1024 && h < 1024) {
+      for (uint32_t i = 0; i < o.n; i++) { o.xy[i * 2] -= gx; o.xy[i * 2 + 1] -= gy; }
       if (r.nbits + (uint32_t)(w * h) > r.capbits) {
         uint32_t nc = r.capbits ? r.capbits * 2 : 16384;
         while (nc < r.nbits + (uint32_t)(w * h)) nc *= 2;
         r.bitmap = (uint8_t*)grow(r.bitmap, r.nbits, nc); r.capbits = nc;
         r.f.bitmap = r.bitmap;
       }
-      for (int32_t y = 0; y < h; y++) {
-        float s = 0;
-        for (int32_t x = 0; x < aw; x++) {
-          s += acc[y * aw + x];
-          if (x >= 1 && x <= w) { float c = __builtin_fabsf(s); r.bitmap[r.nbits + y * w + x - 1] = (uint8_t)(c >= 1 ? 255 : c * 255 + 0.5f); }
-        }
-      }
-      hal_free(acc);
-      g.x0 = (int16_t)x0; g.y0 = (int16_t)y0; g.w = (uint16_t)w; g.h = (uint16_t)h; g.off = r.nbits;
+      if (w > 0 && h > 0) cover(o, w, h, r.bitmap + r.nbits);
+      g.x0 = (int16_t)gx; g.y0 = (int16_t)gy; g.w = (uint16_t)w; g.h = (uint16_t)h; g.off = r.nbits;
       r.nbits += (uint32_t)(w * h);
     }
   }
@@ -298,39 +322,85 @@ const Font* font_at(int32_t id) {
   if (runtime_font(id)) return &rfonts[id - RUNTIME_FONT_BASE].f;
   return nullptr;
 }
-int32_t font_file(int32_t id) { return runtime_font(id) ? rfonts[id - RUNTIME_FONT_BASE].file : -1; }
+// TrueType files added at run time (ZN-669): a font file of the assets that the program names while it runs, read by the host. Their indices
+// follow the embedded files'.
+static TtfFile extra[8];
+static int32_t nextra = 0;
+static const TtfFile* file_at(int32_t i) { return i < ttf_count ? &ttf_files[i] : i - ttf_count < nextra ? &extra[i - ttf_count] : nullptr; }
+int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len) {
+  if (nextra == 8 || ttf_count + nextra >= MAX_TTF) return -1;
+  const Ttf t = parse(data, len);
+  if (!t.ok) return -1;   // not a TrueType file with glyf outlines (a CFF OpenType file has none for this rasterizer)
+  char* n = (char*)hal_alloc(name_len + 1);
+  uint8_t* d = (uint8_t*)hal_alloc(len ? len : 1);
+  if (!n || !d) { if (n) hal_free(n); if (d) hal_free(d); return -1; }
+  __builtin_memcpy(n, name, name_len); n[name_len] = 0;
+  __builtin_memcpy(d, data, len);
+  extra[nextra] = TtfFile{n, d, len};
+  return ttf_count + nextra++;
+}
+int32_t font_file(int32_t id) { return runtime_font(id) && rfonts[id - RUNTIME_FONT_BASE].file < ttf_count ? rfonts[id - RUNTIME_FONT_BASE].file : -1; }   // the shaper's faces are the embedded files
 const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
   RFont& r = rfonts[id - RUNTIME_FONT_BASE];
   if (r.capglyph) { Glyph* s = slot(r, cp); if (s->cp == cp) return s; }
   return rasterize(r, cp);
 }
-/** Font `name` at exactly `px` pixels: a baked one if it exists, else rasterized from the embedded TTF, else the
- *  closest baked size. `name` "sans"/"sans-bold"/"mono" or the file name of a TTF in the assets. */
-int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
+/** Font `name` at exactly `px` pixels, rasterized from its TrueType file (embedded, or added at run time); `baked`: a baked font of that size
+ *  first. -1 when no file has that name. */
+static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool baked_first) {
   bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
   if (italic) name_len -= 2;
-  int32_t baked = find_font(name, name_len, px);
-  if (baked >= 0 && fonts[baked].px == px && !italic) return baked;
+  if (baked_first) { int32_t b = find_font(name, name_len, px); if (b >= 0 && fonts[b].px == px && !italic) return b; }
   for (int32_t i = 0; i < nrfonts; i++) {
     const Font& f = rfonts[i].f;
     uint32_t k = 0; while (f.name[k]) k++;
     if (f.px == px && rfonts[i].italic == italic && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
   }
-  for (int32_t i = 0; i < ttf_count && i < MAX_TTF && nrfonts < ZRT_RUNTIME_FONTS; i++) {
-    const char* n = ttf_files[i].name;
-    uint32_t k = 0; while (n[k]) k++;
-    if (k != name_len || __builtin_memcmp(n, name, k)) continue;
-    if (!ttfs[i].ok) ttfs[i] = parse(ttf_files[i].data, ttf_files[i].len);
+  for (int32_t i = 0; i < ttf_count + nextra && i < MAX_TTF && nrfonts < ZRT_RUNTIME_FONTS; i++) {
+    const TtfFile& file = *file_at(i);
+    uint32_t k = 0; while (file.name[k]) k++;
+    if (k != name_len || __builtin_memcmp(file.name, name, k)) continue;
+    if (!ttfs[i].ok) ttfs[i] = parse(file.data, file.len);
     const Ttf& t = ttfs[i];
-    if (!t.ok) return baked;
+    if (!t.ok) return -1;
     RFont& r = rfonts[nrfonts];
     r = RFont{};
-    float s = (float)px / t.upem;
-    r.f = Font{ttf_files[i].name, px, (int32_t)__builtin_roundf(t.ascent * s), (int32_t)__builtin_roundf(-t.descent * s), (int32_t)__builtin_roundf(t.lineGap * s), 0, nullptr, nullptr};
+    const double s = (double)px / t.upem;   // the baker's metrics: Math.round of the scaled values
+    r.f = Font{file.name, px, (int32_t)__builtin_floor(t.ascent * s + 0.5), (int32_t)__builtin_floor(-t.descent * s + 0.5), (int32_t)__builtin_floor(t.lineGap * s + 0.5), 0, nullptr, nullptr};
     r.file = i; r.italic = italic;
     return RUNTIME_FONT_BASE + nrfonts++;
   }
-  return baked;
+  return -1;
+}
+int32_t exact_font(const char* name, uint32_t name_len, int32_t px) { return from_file(name, name_len, px, true); }
+/** Font `name` at exactly `px` pixels: a baked one if it exists, else rasterized from its TTF, else the closest baked size. `name` "sans"/"sans-bold"/
+ *  "mono", the file name of a TTF in the assets, or a file added at run time. */
+int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
+  const int32_t f = from_file(name, name_len, px, true);
+  if (f >= 0) return f;
+  bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
+  return find_font(name, italic ? name_len - 2 : name_len, px);
+}
+/** The font text `s` should be drawn in: `font`, or when it is a baked font that lacks one of the characters (typed at run time, read from a
+ *  file the baker did not see) the same family and size rasterized from its TrueType file, which has the same pixels for the characters both
+ *  have (ZN-669). ASCII is always baked. */
+int32_t text_font(int32_t font, const char* s, uint32_t n) {
+  if (font < 0 || font >= font_count) return font;
+  uint32_t i = 0;
+  while (i < n && (uint8_t)s[i] < 0x80) i++;
+  if (i == n) return font;
+  const Font& f = fonts[font];
+  for (i = 0; i < n;) {
+    uint8_t c = (uint8_t)s[i];
+    uint32_t w = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4, cp = c < 0x80 ? c : c < 0xE0 ? c & 0x1F : c < 0xF0 ? c & 0x0F : c & 0x07;
+    for (uint32_t k = 1; k < w && i + k < n; k++) cp = (cp << 6) | ((uint8_t)s[i + k] & 0x3F);
+    i += w;
+    if (cp < 0x80 || has_glyph(font, cp)) continue;
+    uint32_t len = 0; while (f.name[len]) len++;
+    const int32_t t = from_file(f.name, len, f.px, false);
+    return t >= 0 ? t : font;
+  }
+  return font;
 }
 
 }}  // namespace zrt::raster

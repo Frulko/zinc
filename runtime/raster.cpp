@@ -441,6 +441,7 @@ static const Glyph* glyph_of(int32_t font, const Font& f, uint32_t cp) {
   while (lo <= hi) { int32_t m = (lo + hi) >> 1; if (f.glyphs[m].cp == cp) return &f.glyphs[m]; if (f.glyphs[m].cp < cp) lo = m + 1; else hi = m - 1; }
   return nullptr;
 }
+bool has_glyph(int32_t font, uint32_t cp) { const Font* f = font_at(font); return f && glyph_of(font, *f, cp); }
 static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   uint8_t c = (uint8_t)s[i];
   uint32_t w = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4, cp = c < 0x80 ? c : c < 0xE0 ? c & 0x1F : c < 0xF0 ? c & 0x0F : c & 0x07;

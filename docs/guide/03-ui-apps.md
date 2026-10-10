@@ -106,6 +106,27 @@ Engine-driven, off the reactive path. Solid: `animate(ref, prop, to, { dur, easi
 ## Fonts, assets and images
 
 TTF glyphs are baked at build time for the sizes your program uses (Inter and JetBrains Mono ship in `lib/fonts`).
+
+A font chosen while the program runs (a theme read from a project file, a size computed from the screen) comes from `loadFont`:
+
+```ts
+import { loadFont, drawText } from 'zinc:gfx';
+
+const title = loadFont(theme.font, 18 * zoom);   // "fonts/Lora-Regular.ttf" from the assets, or a family: "sans", "sans-bold", "mono"
+drawText(title, 20, 20, card.title, 0x111827, 255, 0);
+```
+
+- **Same pixels.** The glyphs are rasterized on first use with the baker's algorithm, so text at a size chosen at run time looks
+  exactly like text at a size written in the program. A file of the assets that the program names only at run time is read from
+  the assets then. `loadFont` returns -1 when there is no such file. On small targets that embed no font files, it returns the
+  nearest baked size.
+- **Characters.** A character that the sources and the text assets never contain (typed by the user, read from the network) is
+  drawn from the font's TrueType file at the same size. A program with a text field (`<input>`, `<textarea>`, `TextInput`) keeps
+  every character of its fonts for that. This costs about 370 KB more in the build (examples/ui/forms: 256 to 643 KB of
+  resources): the files are no longer reduced to the characters the program shows.
+- **Cost.** The first draw of a new size rasterizes its glyphs: about 0.6 ms for 37 glyphs at 24 px and 3 ms at 96 px on the
+  development Mac; later draws take a few microseconds. A program that never calls `loadFont` and has no text field bakes exactly
+  what it baked before, and its frames take the same time.
 Images: `<image src="logo.png" />` reads from the embedded `assets/` directory; `zinc:assets` reads asset bytes at
 runtime; `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
