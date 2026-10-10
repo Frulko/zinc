@@ -15,5 +15,4 @@ zinc build    # a native executable in build/
 | `src/world.ts` | the rules without drawing: movement, coins, score, time (what the tests check) |
 | `src/save.ts` | the best score, kept with `zinc:storage` |
 | `assets/*.svg` | the sprites (any PNG or SVG in `assets/` is baked: `image('name.svg')`) |
-
-Sound is not part of the template yet: `zinc:audio` is planned.
+| `assets/coin.wav` | the sound of a collected coin, played with `zinc:audio`: `load('coin.wav').play()` (WAV, FLAC, MP3 or OGG; `loop` and `volume` for music) |

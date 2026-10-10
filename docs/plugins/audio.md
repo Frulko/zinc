@@ -4,7 +4,7 @@ This plugin plays sound effects and music: a game rings a coin over its music, a
 
 - **Native.** [miniaudio](https://miniaud.io) 0.11.25 (public domain or MIT-0) is compiled into the program:
   `plugins/audio/vendor/`. It opens the default output, mixes up to 32 sounds at once and decodes WAV, FLAC, MP3 and
-  Ogg Vorbis (the last through stb_vorbis 1.22). It adds about 0.8 MiB to a program that draws (818 KiB on the
+  Ogg Vorbis (the last through stb_vorbis 1.22). It adds about 0.55 MiB to a program that draws (550 KiB on the
   `game-2d` template, x86_64 macOS).
 - **No output.** A headless or deterministic run (`ZINC_HEADLESS`, `ZINC_DETERMINISTIC`), `ZINC_AUDIO=null`, or a
   machine without a playback device gets the `null` backend: every call works and nothing is heard. Sound never stops a

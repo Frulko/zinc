@@ -1,5 +1,6 @@
 // The scenes: each draws itself and reads the input for one frame, and names the scene to go to next ('' to stay).
 import { clear, rrect, gradient, width, height, isDown, wasPressed, pointerDown, pointerX, pointerY, Btn, font, drawText, textWidth, image, drawImage } from 'zinc:gfx';
+import { load } from 'zinc:audio';
 import { World, PLAYER, COIN } from './world';
 import { best, record } from './save';
 
@@ -8,6 +9,7 @@ export interface Scene { update(dt: number): string; }
 const BG = 0x14213d, INK = 0xffffff, MUTED = 0x9fb3c8, GOLD = 0xf9c74f;
 const title = font('sans-bold', 40), body = font('sans', 18), hud = font('sans-bold', 18);
 const player = image('player.svg'), coin = image('coin.svg');
+const ding = load('coin.wav');   // a sound of assets/ (WAV, FLAC, MP3 or OGG); a run without audio output plays nothing
 
 function centered(f: i32, y: number, s: string, color: u32): void { drawText(f, (width() - textWidth(f, s, 0)) / 2, y, s, color, 255, 0); }
 function started(): boolean { return wasPressed(Btn.Start) || wasPressed(Btn.A) || pointerDown(); }
@@ -34,7 +36,9 @@ export class PlayScene implements Scene {
       const px = pointerX() - (w.x + PLAYER / 2), py = pointerY() - (w.y + PLAYER / 2), d = Math.sqrt(px * px + py * py);
       if (d > 4) { dx = px / d; dy = py / d; }
     }
+    const had = w.score;
     const going = w.step(dx, dy, dt);
+    if (w.score > had) ding.play();   // every coin rings, over the one before
     clear(BG);
     rrect(0, 0, width(), 40, 0, 0x0b132b, 255);
     drawText(hud, 16, 10, `Score ${w.score}`, INK, 255, 0);

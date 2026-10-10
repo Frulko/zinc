@@ -9,7 +9,7 @@ fail=0
 "$Z" new game-2d "$tmp/game" >/dev/null && "$Z" new cli "$tmp/cli" >/dev/null || exit 2
 "$Z" pack "$tmp/game" -o "$tmp/a.zapp" >/dev/null && "$Z" pack "$tmp/game" -o "$tmp/b.zapp" >/dev/null || { echo "zinc pack failed"; exit 1; }
 cmp -s "$tmp/a.zapp" "$tmp/b.zapp" || { echo "two packs of the same project differ"; fail=1; }
-[ "$(tar tf "$tmp/a.zapp" | tr '\n' ' ')" = "manifest.json assets/coin.svg assets/player.svg program.zbc resources.bin zinc.json " ] || { echo "unexpected content: $(tar tf "$tmp/a.zapp" | tr '\n' ' ')"; fail=1; }
+[ "$(tar tf "$tmp/a.zapp" | tr '\n' ' ')" = "manifest.json assets/coin.svg assets/coin.wav assets/player.svg program.zbc resources.bin zinc.json " ] || { echo "unexpected content: $(tar tf "$tmp/a.zapp" | tr '\n' ' ')"; fail=1; }
 frame() { ZINC_SIZE=640x400 ZINC_FRAMES=8 ZINC_FRAMEHASH=last "$Z" run "$1" 2>&1 | grep framehash; }
 [ "$(cd "$tmp/game" && frame .)" = "$(frame "$tmp/a.zapp")" ] || { echo "the packed game draws another frame: $(frame "$tmp/a.zapp")"; fail=1; }
 "$Z" pack "$tmp/cli" -o "$tmp/cli.zapp" >/dev/null || { echo "zinc pack cli failed"; fail=1; }

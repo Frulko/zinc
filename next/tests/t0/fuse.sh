@@ -13,7 +13,9 @@ clean() { (cd "$tmp/elsewhere" && env -i HOME="$tmp/home" PATH=/usr/bin:/bin "$@
 want=$(cd "$tmp/hello" && "$Z" run . -- one two 2>&1)
 got=$(clean "$tmp/hello-app" one two 2>&1)
 [ "$got" = "$want" ] || { echo "the fused hello prints '$got', zinc run prints '$want'"; fail=1; }
-"$Z" pack "$tmp/game" -o "$tmp/game.zapp" >/dev/null && "$Z" fuse "$tmp/game.zapp" -o "$tmp/game-app" >/dev/null || { echo "fuse game failed"; fail=1; }
+# the game plays a sound (zinc:audio): packed as a deterministic run it binds the plugin's silent stand-in, not its native code, which a fused app does not
+# carry and would have to build where it starts (a toolchain download in this empty HOME)
+ZINC_DETERMINISTIC=1 "$Z" pack "$tmp/game" -o "$tmp/game.zapp" >/dev/null && "$Z" fuse "$tmp/game.zapp" -o "$tmp/game-app" >/dev/null || { echo "fuse game failed"; fail=1; }
 frame='ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=8 ZINC_FRAMEHASH=last'
 want=$(cd "$tmp/game" && env $frame ZINC_STORAGE="$tmp/s1" "$Z" run . 2>&1 | grep framehash)
 got=$(clean env $frame ZINC_STORAGE="$tmp/s2" "$tmp/game-app" 2>&1 | grep framehash)
