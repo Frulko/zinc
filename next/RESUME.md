@@ -15,6 +15,7 @@ Read the root `AGENTS.md` first (project guide and the owner's working rules). `
 
 ## Watch out
 
+- Parallel agents (2026-10-10, AGENTS.md "Several tasks at once"): a second session coordinates agents in worktrees beside this loop. A task it hands out has the assignee `@parallel` and `tools/next-task` skips it; never work such a task here. Its commits land on main between the loop's (explicit paths, the loop's uncommitted files untouched). Done that way so far: ZN-370, ZN-372 (D59, M26 mobile tasks ZN-618..632), ZN-613, ZN-633, ZN-635, ZN-636 (D63), ZN-637 (D64: `lib/std/ui.ts` must keep compiling with the prototype, test `proto_devtools`); in progress there: ZN-638, ZN-384, ZN-314, ZN-609. Builds go through `tools/build` (6 jobs, no new job above a load of 6, ccache: a fresh worktree builds zinc in about 130 s). `tests/run --changed` now selects the mapped tests for plugin paths (fc823f38).
 - The working tree may hold uncommitted changes of others (lib/std, docs): never `git add .`, commit with explicit paths.
 - Tasks are created in bulk with `tools/tasks-import file.json` (keys in `backlog/keys.json`).
 - `ZN_TRAP_TRACE=1` names the function of a trap; `ZN_DUMP_JSX=<name>` prints lowered JSX; `tools/oracle --available` says whether Node's tsc can run.
