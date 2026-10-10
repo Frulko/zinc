@@ -338,6 +338,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Result (ZN-615, 2026-10-10)**: a native plugin's library loads at its first call (exports cached beside the build): hero's cached interpreted start 326 -> 300 ms (10 starts x 3, FFmpeg no longer loaded); the cache check left (zinc:video 34 ms) is ZN-617.
 - **Tool (ZN-375, 2026-10-10)**: ZINC_PERF_HUD, a live performance panel (FPS, work p50/p99, phases, 120-frame graph) over any program; its own cost 0.14-0.19 ms per frame on the CPU renderer at Retina density, 0.01 ms on the GPU renderer (`docs/dev-mode.md`).
 - **Result (ZN-399, 2026-10-10)**: AOT code reads width() / height() inline (no host call): bouncing-ball 200k update loop 2.50-2.71 -> 1.33-1.41 ms per frame on the Intel Mac, prototype native 2.21-2.30 ms; draw loop at parity (3.0 vs 2.9 ms).
+- **Measured (ZN-562.03, 2026-10-10)**: WebGL per call, `bench/gl_calls.ts` / `.js` (Intel Mac, 200k calls, 3 runs, ns): zinc:gl AOT getError 17, uniform4f 63-66, uniformMatrix4fv 94-104, drawElements 330; zinc:gl interpreted 26-29, 73-86, 112-124, 300-360; QuickJS binding 73-79, 135-167, 1805-1923 (the typed-array exception path, ZN-567), 376-468. Direct entries (zn_webgl_fast, like zinc:gfx's) for the scalar rows took AOT getError from 40 to 17 ns and uniform4f from 93 to 65; uniformMatrix4fv keeps the decoded path (its array is engine-internal).
 
 ## 4. Correction of ZN-042's diagnosis (nbody)
 

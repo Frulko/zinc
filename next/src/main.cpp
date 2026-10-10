@@ -958,6 +958,8 @@ static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
     void* h = webglLib(false);
     if (!h) return nullptr;
     if (auto hooks = reinterpret_cast<void (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_host_hooks"))) hooks(glHooks());
+    if (auto fast = reinterpret_cast<zn::host::HostFast (*)(int)>(dlsym(h, "zn_webgl_fast")))   // the direct entries of the hot scalar rows (ZN-562.03)
+      for (int r = static_cast<int>(zn::Rt::HostGlCreate); r <= static_cast<int>(zn::Rt::HostGlPresent); ++r) zn::host::hostFast[r] = fast(r);
     return reinterpret_cast<zn::host::HostCall>(dlsym(h, "zn_webgl_host"));
   }();
   if (call) call(id, a, r);

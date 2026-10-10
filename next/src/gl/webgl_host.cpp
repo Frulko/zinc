@@ -65,9 +65,35 @@ void present(Ctx& c, int image) {
   gHooks->done(image);
 }
 
+// Direct entries (zn::host::HostFast, ZN-562.03) for the scalar rows a frame calls most: the raw slots of the arguments (f64 bits, sign-extended
+// integers), the result in a[0], without the letter decoding of the HostCall path. Rows with strings or arrays keep that path.
+double D(std::uint64_t s) { double d; std::memcpy(&d, &s, 8); return d; }
+float FD(std::uint64_t s) { return static_cast<float>(D(s)); }
+Ctx* fastCtx(std::uint64_t s) { return ctxOf(static_cast<std::int64_t>(s)); }
+void fGetError(std::uint64_t* a) { Ctx* c = fastCtx(a[0]); a[0] = c ? c->gl.getError() : 0; }
+void fUniform1i(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.uniform1i(loc(*c, static_cast<std::int64_t>(a[1])), static_cast<int>(a[2])); }
+void fUniform1f(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.uniform1f(loc(*c, static_cast<std::int64_t>(a[1])), FD(a[2])); }
+void fUniform3f(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.uniform3f(loc(*c, static_cast<std::int64_t>(a[1])), FD(a[2]), FD(a[3]), FD(a[4])); }
+void fUniform4f(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.uniform4f(loc(*c, static_cast<std::int64_t>(a[1])), FD(a[2]), FD(a[3]), FD(a[4]), FD(a[5])); }
+void fDrawArrays(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.drawArrays(static_cast<std::uint32_t>(a[1]), static_cast<int>(a[2]), static_cast<int>(a[3])); }
+void fDrawElements(std::uint64_t* a) { if (Ctx* c = fastCtx(a[0])) c->gl.drawElements(static_cast<std::uint32_t>(a[1]), static_cast<int>(a[2]), static_cast<std::uint32_t>(a[3]), static_cast<std::int64_t>(a[4])); }
+
 }  // namespace
 
 extern "C" __attribute__((visibility("default"))) void zn_webgl_host_hooks(const PresentHooks* hooks) { gHooks = hooks; }
+
+extern "C" __attribute__((visibility("default"))) zn::host::HostFast zn_webgl_fast(int row) {
+  switch (static_cast<Rt>(row)) {
+    case Rt::HostGlGetError: return fGetError;
+    case Rt::HostGlUniform1i: return fUniform1i;
+    case Rt::HostGlUniform1f: return fUniform1f;
+    case Rt::HostGlUniform3f: return fUniform3f;
+    case Rt::HostGlUniform4f: return fUniform4f;
+    case Rt::HostGlDrawArrays: return fDrawArrays;
+    case Rt::HostGlDrawElements: return fDrawElements;
+    default: return nullptr;
+  }
+}
 
 extern "C" __attribute__((visibility("default"))) void zn_webgl_host(int row, const HostArg* a, HostArg* r) {
   const Rt id = static_cast<Rt>(row);
