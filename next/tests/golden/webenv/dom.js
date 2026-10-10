@@ -84,6 +84,11 @@ new ResizeObserver(entries => order.push('resize ' + entries[0].contentRect.widt
 window.addEventListener('unhandledrejection', e => { order.push('unhandledrejection ' + e.reason.message + ' ' + (e.promise instanceof Promise)); if (e.reason.message === 'quiet') e.preventDefault(); });
 Promise.reject(new Error('quiet'));
 Promise.reject(new Error('loud'));
+// an image element exists and says it cannot load until ZN-569: its error event, not a wait for ever
+const img = new Image(4, 3);
+img.onerror = () => order.push('image error ' + img.complete + ' ' + img.naturalWidth);
+img.src = 'data:image/png;base64,AAAA';
+log('image', img instanceof HTMLImageElement, img.tagName, img.width, img.height, img.src.length, img.complete, document.createElement('img') instanceof Image);
 document.addEventListener('DOMContentLoaded', () => order.push('DOMContentLoaded ' + document.readyState));
 window.onload = () => order.push('load ' + document.readyState);
 setTimeout(() => { for (const line of order) log(line); }, 1);

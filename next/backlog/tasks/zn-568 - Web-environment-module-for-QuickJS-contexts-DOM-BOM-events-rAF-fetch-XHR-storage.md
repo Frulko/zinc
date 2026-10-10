@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 22:37'
+updated_date: '2026-10-10 22:39'
 labels:
   - games
   - js
@@ -75,4 +75,12 @@ PixiJS 8.22.0: DOES NOT BOOT, and the cause is not in the environment: 'Uncaught
 Measured (Intel Mac, release build, headless, 320x240): PixiJS 7.4.3 (455 KB minified, load average 5.5): import 60 to 81 ms, first frame 379 to 419 ms after the context was made, update + render + gl.finish of the sprite 0.78 ms median, p95 1.8 to 2.4 ms. PixiJS 8.22.0 (841 KB minified, scratch workarounds, load 6.1): import 186 to 190 ms, first frame 498 to 528 ms, render 0.73 to 0.79 ms median, p95 1.9 to 2.1 ms (300 frames, 3 runs each).
 Vendored for the test: next/third_party/pixi (both minified modules, LICENSE, PIN; MIT).
 Test: tests/t1/webenv_pixi.sh.
+
+LIBRARY 4, Phaser 3.90.0 (2026-10-11): DOES NOT BOOT YET, for two causes outside this task, and one gap of the environment that it found and that is closed.
+(a) Closed here: phaser.js threw at load, 'ReferenceError: Image is not defined' (its canvas feature test makes an Image at once). The environment now has the Image constructor and an img element with src, width, height, naturalWidth, complete and decode(); since nothing decodes yet, a src that is set gets the element's error event (a loader goes on instead of waiting for ever) and the first one says so once on stderr ('images are not decoded yet (ZN-569)').
+(b) ZN-565, defect 3: Phaser's WebGLRenderer then stops at its multi-texture batch shader, 'Fragment Shader failed: ERROR: 0:28: Invalid call of texture (not a function or subroutine uniform)' sixteen times: the desktop translation of ESSL 1.00 maps texture2D to texture, which the shader's own variable named texture shadows.
+(c) ZN-569: Phaser waits for its three default textures, data: PNGs set as Image.src, before the first scene starts.
+With (b) and (c) stood in for in scratch files outside the repository (the variable renamed in shaderSource; an image that 'loads' white pixels of the size its PNG header says), Phaser 3.90 runs on the environment as it is, as two script elements (phaser.js, then a game of one scene: this.add.rectangle(160, 120, 80, 80, 0xff0000) turning, cursor keys, pointerdown): 'create: renderer WebGLRenderer canvas 320 240 true', the rectangle read back 255,0,0 at frames 2 and 8 over 16,32,48, 'keydown ArrowLeft 37' and left.isDown from the scripted key (its listener is on the window), 'pointerdown 100 60' from the scripted button (its listeners are on the canvas). Members Phaser reads and does not find, none fatal: window.cordova, ejecta, FileReader, Worker, Audio, AudioContext (audio: {noAudio: true} in the page), CanvasRenderingContext2D, navigator.vibrate, getUserMedia, standalone. So the test of Phaser is to write when ZN-565 and ZN-569 are in: the environment asks nothing more.
+Measured with those stand-ins (Intel Mac, release build, headless, 320x240, load average 4.7): phaser.min.js (1.2 MB) evaluated in 369 to 385 ms; first frame 592 to 621 ms after the context was made; step + render + gl.finish of the rectangle 0.35 ms median, p95 0.5 to 0.8 ms (300 frames, 3 runs).
+No test of Phaser itself and no vendored copy yet (it cannot run unmodified); tests/t0/webenv.sh checks the image element (an error event, complete, no natural size).
 <!-- SECTION:NOTES:END -->

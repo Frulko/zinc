@@ -26,6 +26,7 @@ clone true true 2 5 1.5 true
 clone of a function TypeError
 media false function true true
 classes function function function function function function function function
+image true IMG 4 3 26 false true
 unhandledrejection quiet true
 unhandledrejection loud true
 DOMContentLoaded interactive
@@ -33,3 +34,4 @@ load complete
 port ping
 message hello true
 resize 400x300 true
+image error true 0
