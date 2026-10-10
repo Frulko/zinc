@@ -1,0 +1,7 @@
+miniaudio 0.11.25 (tag 0.11.25 of mackron/miniaudio, released 2026-03-03), https://github.com/mackron/miniaudio/archive/refs/tags/0.11.25.tar.gz
+archive sha256 b900edcffe979816e2560a0580b9b1216d674b4f17fbadeca8f777a7f8ab0274
+kept, unmodified:
+  miniaudio.h   sha256 ac7af4de748b7e26b777f37e01cee313a308a7296a3eb080e2906b320cc55c89
+  stb_vorbis.c  sha256 4c7cb2ff1f7011e9d67950446b7eb9ca044f2e464d76bfbb0b84dd2e23e65636  (extras/stb_vorbis.c of the archive: stb_vorbis 1.22, public domain or MIT, its licence at the end of the file)
+  LICENSE       sha256 457f1b500e0adf6bc059edddfa78a2f62012e7c3bb43476c20e0bd23b25ba0eb  (public domain, Unlicense, or MIT No Attribution)
+ours: miniaudio_impl.c, the one translation unit that compiles both (plugin.json builds it with MA_NO_ENCODING and MA_NO_RESOURCE_MANAGER)

@@ -19,6 +19,8 @@
     { "id": "stb-truetype", "name": "stb_truetype", "version": "1.26", "license": "MIT OR Unlicense", "scope": "shaped", "url": "https://github.com/nothings/stb", "licenseExcerpt": { "file": "next/third_party/stb/stb_truetype.h", "from": "This software is available under 2 licenses", "to": "*/" } },
     { "id": "lucide", "name": "Lucide icons", "version": "1.47.0", "license": "ISC", "scope": "icons", "url": "https://lucide.dev", "sha256": "b47744c9f7b385c25fb27d212cf9830947030a57a635f8b11a5473a72ec57cfd", "licenseFile": "next/third_party/lucide/LICENSE" },
     { "id": "sqlite", "name": "SQLite", "version": "3.53.4", "license": "blessing", "scope": "plugin:sqlite", "url": "https://sqlite.org", "licenseExcerpt": { "file": "plugins/sqlite/vendor/sqlite3.h", "from": "The author disclaims copyright", "to": "*****" } },
+    { "id": "miniaudio", "name": "miniaudio", "version": "0.11.25", "license": "Unlicense OR MIT-0", "scope": "plugin:audio", "url": "https://miniaud.io", "sha256": "b900edcffe979816e2560a0580b9b1216d674b4f17fbadeca8f777a7f8ab0274", "licenseFile": "plugins/audio/vendor/LICENSE" },
+    { "id": "stb-vorbis", "name": "stb_vorbis", "version": "1.22", "license": "MIT OR Unlicense", "scope": "plugin:audio", "url": "https://github.com/nothings/stb", "licenseExcerpt": { "file": "plugins/audio/vendor/stb_vorbis.c", "from": "This software is available under 2 licenses", "to": "*/" } },
     { "id": "three", "name": "three.js", "version": "0.186.1", "license": "MIT", "scope": "plugin:three", "url": "https://threejs.org", "sha256": "8cd068708ea44f2c73c944b1cead2ba2f0d5c15c8fc194e5700f4e4f4a033fe7", "licenseFile": "next/third_party/three/LICENSE" }
   ]
 }
