@@ -54,6 +54,8 @@ def status(t):
 def skipped(t):
     if "parked" in t.get("labels", []):
         return "parked"
+    if any(c.get("parent_task_id") == t["id"] and status(c) != "Done" for c in tasks.values()):
+        return "has open subtasks"   # an epic is closed by its last subtask, never handed out as work
     if t.get("assignee"):   # handed to a parallel agent in its own worktree (AGENTS.md, "Several tasks at once"): the loop on main leaves it
         return "claimed by " + ", ".join(t["assignee"])
     for d in t.get("dependencies", []):
